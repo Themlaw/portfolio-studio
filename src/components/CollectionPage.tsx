@@ -39,7 +39,7 @@ export default async function CollectionPage({
           <p className="mt-6 text-base leading-relaxed text-ink-soft">
             {tc(`${collection}.intro`)}
           </p>
-          <p className="eyebrow mt-6 text-tertiary">
+          <p className="eyebrow mt-6">
             {tg("count", { count: countCollection(collection) })} ·{" "}
             {tp("count", { count: projects.length })}
           </p>

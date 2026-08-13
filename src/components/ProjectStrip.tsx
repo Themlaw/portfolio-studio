@@ -112,7 +112,7 @@ export default function ProjectStrip({
         </div>
 
         <div className="flex items-center gap-4">
-          <span className="eyebrow text-tertiary">
+          <span className="eyebrow">
             {tg("count", { count: project.artworks.length })}
           </span>
           {overflows && (
@@ -164,13 +164,13 @@ export default function ProjectStrip({
               width={artwork.width}
               height={artwork.height}
               sizes="(min-width: 1024px) 640px, 60vw"
-              className="h-[var(--strip-h)] w-auto max-w-none rounded-sm"
+              className="h-[var(--strip-h)] w-auto max-w-none rounded-strip"
             />
             <span className="mt-3 flex items-baseline justify-between gap-4">
               <span className="strip-caption transition-colors group-hover:text-ink">
                 {artwork.title}
               </span>
-              <span className="strip-caption shrink-0 text-tertiary">
+              <span className="strip-caption shrink-0">
                 {artwork.year}
               </span>
             </span>

@@ -60,7 +60,7 @@ export default function CollectionTiles({
             <p className="mt-4 text-sm leading-relaxed text-ink-soft">
               {tile.intro}
             </p>
-            <p className="eyebrow mt-6 flex items-center gap-2 text-primary">
+            <p className="eyebrow mt-6 flex items-center gap-2">
               {cta}
               <span
                 aria-hidden="true"
@@ -69,7 +69,7 @@ export default function CollectionTiles({
                 →
               </span>
             </p>
-            <p className="eyebrow mt-2 text-tertiary">{tile.count}</p>
+            <p className="eyebrow mt-2">{tile.count}</p>
           </div>
         </Link>
       ))}

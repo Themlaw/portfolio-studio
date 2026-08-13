@@ -69,7 +69,7 @@ export default function Hero() {
   return (
     <section
       ref={sectionRef}
-      className="relative isolate flex min-h-[100svh] flex-col justify-end overflow-hidden"
+      className="relative isolate flex min-h-[calc(100svh-var(--header-h))] flex-col justify-end overflow-hidden"
       aria-label={tSite("name")}
     >
       {/* Décor illustré en couches */}
@@ -92,10 +92,11 @@ export default function Hero() {
             />
           </div>
         ))}
-        {/* Voile papier : relie le décor au fond du site */}
+        {/* Voile papier : raccorde le décor au fond du site. Court et discret,
+            sinon il delave les couches froides et efface les sapins. */}
         <div
           aria-hidden="true"
-          className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-b from-transparent to-bg"
+          className="absolute inset-x-0 bottom-0 h-[16%] bg-gradient-to-b from-transparent via-bg/25 to-bg/85"
         />
       </div>
 

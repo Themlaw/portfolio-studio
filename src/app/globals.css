@@ -24,11 +24,20 @@
                                    d'affilée sans bordure ni carte */
   --color-surface: #ffffff;
   --color-ink: #232629;         /* texte principal */
-  --color-ink-soft: #6b7076;    /* texte secondaire */
+  --color-ink-soft: #686d73;    /* texte secondaire — assombri juste ce
+                                   qu'il faut pour tenir AA (4,5:1) a 11px
+                                   sur papier ET sur papier profond.
+                                   Mesure : 4,96:1 sur #faf9f6, 4,58:1 sur #f2f0ea */
   --color-line: #e5e2db;        /* séparateurs, bordures */
   --color-primary: #2e4e9e;     /* outremer — boutons, liens */
   --color-primary-hover: #24408a;
-  --color-secondary: #c96f4a;   /* sanguine — accents */
+  --color-secondary: #a85231;   /* sanguine profonde — accents, eyebrows.
+                                   Assombrie depuis #c96f4a (3,41:1) : les
+                                   eyebrows sont en 11px, il leur faut AA
+                                   4,5:1 sur papier ET sur papier profond.
+                                   Mesure : 5,09:1 sur #faf9f6, 4,71:1 sur
+                                   #f2f0ea. (#b25c38 ne passait pas : 4,11:1
+                                   sur papier profond.) */
   --color-tertiary: #7e8f77;    /* sauge — tags, détails */
 
   /* --- Typographie ----------------------------------------------------
@@ -43,6 +52,9 @@
   --radius-md: 12px;
   --radius-lg: 20px;
   --radius-btn: 999px;
+  /* Les images des bandes sont posées presque à vif : un rayon plus court
+     que --radius-sm, juste de quoi casser l'angle. */
+  --radius-strip: 4px;
 
   /* --- Ombres ---------------------------------------------------------- */
   --shadow-card: 0 2px 12px rgba(35, 38, 41, 0.08);
@@ -60,6 +72,11 @@
   --btn-fg: #ffffff;
   --btn-bg-hover: var(--color-primary-hover);
   --btn-radius: var(--radius-btn);
+
+  /* Hauteur du header sticky. Le hero la retranche de 100svh pour que
+     son contenu (jusqu'a l'indice de defilement) tienne dans le
+     viewport reel : le header est dans le flux, il pousse le hero. */
+  --header-h: 3.75rem;
 
   /* Passe-partout (encadrement des tirages) */
   --mat-bg: var(--color-surface);
@@ -155,13 +172,15 @@
     padding-inline: clamp(1.25rem, 5vw, 3.5rem);
   }
 
-  /* Eyebrow : mono, petites capitales espacées */
+  /* Eyebrow : mono, petites capitales espacées.
+     La sanguine est la seule couleur d'accent du site : elle signale
+     systématiquement « ceci est une étiquette », jamais un contenu. */
   .eyebrow {
     font-family: var(--font-caption);
     font-size: 0.6875rem;
     letter-spacing: 0.22em;
     text-transform: uppercase;
-    color: var(--color-ink-soft);
+    color: var(--color-secondary);
   }
 
   .btn {
@@ -287,7 +306,7 @@
     position: absolute;
     top: 50%;
     height: var(--rail-bar-thumb);
-    background: var(--color-ink-soft);
+    background: var(--color-primary);
     border-radius: var(--radius-sm);
     transform: translateY(-50%);
     transition: background var(--dur-fast) var(--ease-soft);
@@ -296,7 +315,7 @@
   .rail-bar:hover .rail-bar-thumb,
   .rail-bar[data-dragging="true"] .rail-bar-thumb,
   .rail-bar:focus-visible .rail-bar-thumb {
-    background: var(--color-primary);
+    background: var(--color-primary-hover);
   }
 
   /* ---- Vignettes de la lightbox ---------------------------------------- */
