@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" role="img">
+  <defs>
+    <linearGradient id="sky-gardienfougeressvg" x1="0" y1="0" x2="0.24" y2="1">
+      <stop offset="0%" stop-color="#DFE9E0"/>
+      <stop offset="52%" stop-color="#A9C6B4"/>
+      <stop offset="100%" stop-color="#6E9A85"/>
+    </linearGradient>
+    <linearGradient id="mid-gardienfougeressvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3E6B5A"/>
+      <stop offset="100%" stop-color="#26463C"/>
+    </linearGradient>
+    <radialGradient id="glow-gardienfougeressvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#EEF6F0" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#EEF6F0" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-gardienfougeressvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="31.5"/>
+    </filter>
+    <filter id="grain-gardienfougeressvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="900" height="1200" fill="#DFE9E0"/><rect width="900" height="1200" fill="url(#sky-gardienfougeressvg)" opacity="0.9"/><ellipse cx="795" cy="389" rx="164" ry="223" fill="#3E6B5A" opacity="0.08" filter="url(#soft-gardienfougeressvg)"/><ellipse cx="667" cy="178" rx="134" ry="138" fill="#EFC15E" opacity="0.11" filter="url(#soft-gardienfougeressvg)"/><ellipse cx="469" cy="444" rx="136" ry="209" fill="#3E6B5A" opacity="0.16" filter="url(#soft-gardienfougeressvg)"/><ellipse cx="708" cy="714" rx="280" ry="255" fill="#EFC15E" opacity="0.14" filter="url(#soft-gardienfougeressvg)"/><ellipse cx="553" cy="516" rx="157" ry="146" fill="#3E6B5A" opacity="0.19" filter="url(#soft-gardienfougeressvg)"/><circle cx="419" cy="442" r="355" fill="#EEF6F0" opacity="0.35"/><circle cx="419" cy="442" r="262" fill="none" stroke="#EFC15E" stroke-width="8.5" opacity="0.55"/><path d="M 60 1224 C 60 771 259 737 335 678 L 504 678 C 580 737 778 771 778 1224 Z" fill="#26463C"/><path d="M 326 687 L 419 847 L 512 687 Z" fill="#EFC15E" opacity="0.85"/><rect x="369" y="526" width="101" height="186" fill="#84a695"/><ellipse cx="419" cy="442" rx="139" ry="169" fill="#b2c6ba"/><path d="M 259 501 C 208 247 631 230 585 526 C 571 382 385 416 259 501 Z" fill="#12241E"/><path d="M 563 399 q 127 186 25 355 q -85 -169 -59 -313 Z" fill="#12241E" opacity="0.9"/><path d="M 348 455 q 30 -27 57 0" stroke="#12241E" stroke-width="11.8" fill="none" stroke-linecap="round"/><path d="M 433 455 q 30 -27 57 0" stroke="#12241E" stroke-width="11.8" fill="none" stroke-linecap="round"/><ellipse cx="335" cy="502" rx="22" ry="14" fill="#EFC15E" opacity="0.4"/><ellipse cx="504" cy="502" rx="22" ry="14" fill="#EFC15E" opacity="0.4"/><path d="M 392 531 q 27 24 54 0" stroke="#12241E" stroke-width="10.1" fill="none" stroke-linecap="round" opacity="0.8"/></g><rect width="900" height="1200" filter="url(#grain-gardienfougeressvg)" fill="transparent" opacity="0.5"/></svg>

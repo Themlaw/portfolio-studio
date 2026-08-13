@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000" role="img">
+  <defs>
+    <linearGradient id="sky-portaumatinsvg" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0%" stop-color="#E6F2F4"/>
+      <stop offset="52%" stop-color="#BEDDE3"/>
+      <stop offset="100%" stop-color="#8FC2CE"/>
+    </linearGradient>
+    <linearGradient id="mid-portaumatinsvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5D93A3"/>
+      <stop offset="100%" stop-color="#3B6675"/>
+    </linearGradient>
+    <radialGradient id="glow-portaumatinsvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#F2FAFB" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#F2FAFB" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-portaumatinsvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="35.0"/>
+    </filter>
+    <filter id="grain-portaumatinsvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="1600" height="1000" fill="url(#sky-portaumatinsvg)"/><circle cx="530" cy="296" r="469" fill="url(#glow-portaumatinsvg)" opacity="0.75"/><circle cx="530" cy="296" r="138" fill="#E4744A" opacity="0.85"/><ellipse cx="578" cy="273" rx="430" ry="24" fill="#F2FAFB" opacity="0.26"/><ellipse cx="988" cy="176" rx="384" ry="29" fill="#F2FAFB" opacity="0.39"/><ellipse cx="1508" cy="237" rx="530" ry="15" fill="#F2FAFB" opacity="0.28"/><ellipse cx="765" cy="207" rx="658" ry="14" fill="#F2FAFB" opacity="0.32"/><rect x="0" y="541" width="1600" height="459" fill="#79adbb"/><ellipse cx="530" cy="655" rx="152" ry="60" fill="#E4744A" opacity="0.25" filter="url(#soft-portaumatinsvg)"/><path d="M -10 1010 L -10 440.6 C 160.0 440.6 160.0 500.2 320.0 500.2 C 480.0 500.2 480.0 468.4 640.0 468.4 C 800.0 468.4 800.0 396.1 960.0 396.1 C 1120.0 396.1 1120.0 412.2 1280.0 412.2 C 1440.0 412.2 1440.0 451.4 1600.0 451.4 L 1610 1010 Z" fill="#538594" opacity="0.82"/><path d="M -10 1010 L -10 606.9 C 160.0 606.9 160.0 548.8 320.0 548.8 C 480.0 548.8 480.0 521.9 640.0 521.9 C 800.0 521.9 800.0 545.4 960.0 545.4 C 1120.0 545.4 1120.0 605.6 1280.0 605.6 C 1440.0 605.6 1440.0 594.5 1600.0 594.5 L 1610 1010 Z" fill="#426c7a" opacity="0.88"/><path d="M -10 1010 L -10 631.6 C 133.3 631.6 133.3 645.7 266.7 645.7 C 400.0 645.7 400.0 683.3 533.3 683.3 C 666.7 683.3 666.7 690.2 800.0 690.2 C 933.3 690.2 933.3 671.3 1066.7 671.3 C 1200.0 671.3 1200.0 635.6 1333.3 635.6 C 1466.7 635.6 1466.7 643.8 1600.0 643.8 L 1610 1010 Z" fill="#31535f" opacity="0.94"/><path d="M -10 1010 L -10 785.5 C 114.3 785.5 114.3 821.3 228.6 821.3 C 342.9 821.3 342.9 793.2 457.1 793.2 C 571.4 793.2 571.4 756.8 685.7 756.8 C 800.0 756.8 800.0 757.9 914.3 757.9 C 1028.6 757.9 1028.6 791.0 1142.9 791.0 C 1257.1 791.0 1257.1 815.3 1371.4 815.3 C 1485.7 815.3 1485.7 797.2 1600.0 797.2 L 1610 1010 Z" fill="#203a45" opacity="1.00"/><path d="M 1207 976 L 1149 976 Q 1207 838 1207 726 Q 1207 838 1264 976 Z" fill="#1D3540" opacity="0.92"/><path d="M 1259 977 L 1190 977 Q 1259 857 1259 760 Q 1259 857 1328 977 Z" fill="#1D3540" opacity="0.92"/><path d="M 1354 991 L 1275 991 Q 1354 849 1354 733 Q 1354 849 1434 991 Z" fill="#1D3540" opacity="0.92"/><path d="M 1047 987 L 954 987 Q 1047 815 1047 675 Q 1047 815 1140 987 Z" fill="#1D3540" opacity="0.92"/><path d="M 213 996 L 149 996 Q 213 869 213 765 Q 213 869 277 996 Z" fill="#1D3540" opacity="0.92"/><path d="M 769 989 L 692 989 Q 769 803 769 650 Q 769 803 845 989 Z" fill="#1D3540" opacity="0.92"/><path d="M 1320 312 q 18.0 -12.6 36.0 0 M 1356 312 q 18.0 -12.6 36.0 0" fill="none" stroke="#1D3540" stroke-width="5.04" opacity="0.5" stroke-linecap="round"/><path d="M 537 298 q 18.0 -12.6 36.0 0 M 573 298 q 18.0 -12.6 36.0 0" fill="none" stroke="#1D3540" stroke-width="5.04" opacity="0.5" stroke-linecap="round"/><path d="M 292 171 q 18.0 -12.6 36.0 0 M 328 171 q 18.0 -12.6 36.0 0" fill="none" stroke="#1D3540" stroke-width="5.04" opacity="0.5" stroke-linecap="round"/></g><rect width="1600" height="1000" filter="url(#grain-portaumatinsvg)" fill="transparent" opacity="0.5"/></svg>

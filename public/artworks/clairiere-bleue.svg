@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 1000" width="1400" height="1000" role="img">
+  <defs>
+    <linearGradient id="sky-clairierebleuesvg" x1="0" y1="0" x2="0.20" y2="1">
+      <stop offset="0%" stop-color="#2B2438"/>
+      <stop offset="52%" stop-color="#453760"/>
+      <stop offset="100%" stop-color="#6E5A8E"/>
+    </linearGradient>
+    <linearGradient id="mid-clairierebleuesvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1C1728"/>
+      <stop offset="100%" stop-color="#100D1A"/>
+    </linearGradient>
+    <radialGradient id="glow-clairierebleuesvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#CDBBE4" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#CDBBE4" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-clairierebleuesvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="35.0"/>
+    </filter>
+    <filter id="grain-clairierebleuesvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="1400" height="1000" fill="url(#sky-clairierebleuesvg)"/><circle cx="839" cy="384" r="423" fill="url(#glow-clairierebleuesvg)" opacity="0.75"/><circle cx="839" cy="384" r="124" fill="#F0A44A" opacity="0.85"/><ellipse cx="457" cy="534" rx="307" ry="29" fill="#CDBBE4" opacity="0.23"/><ellipse cx="544" cy="434" rx="574" ry="21" fill="#CDBBE4" opacity="0.30"/><ellipse cx="153" cy="382" rx="402" ry="12" fill="#CDBBE4" opacity="0.42"/><ellipse cx="747" cy="516" rx="639" ry="16" fill="#CDBBE4" opacity="0.39"/><rect x="0" y="566" width="1400" height="434" fill="#493c60"/><ellipse cx="839" cy="674" rx="137" ry="60" fill="#F0A44A" opacity="0.25" filter="url(#soft-clairierebleuesvg)"/><path d="M -10 1010 L -10 465.6 C 100.0 465.6 100.0 513.2 200.0 513.2 C 300.0 513.2 300.0 485.0 400.0 485.0 C 500.0 485.0 500.0 419.1 600.0 419.1 C 700.0 419.1 700.0 420.9 800.0 420.9 C 900.0 420.9 900.0 475.8 1000.0 475.8 C 1100.0 475.8 1100.0 532.1 1200.0 532.1 C 1300.0 532.1 1300.0 477.7 1400.0 477.7 L 1410 1010 Z" fill="#191424" opacity="0.82"/><path d="M -10 1010 L -10 614.5 C 140.0 614.5 140.0 562.9 280.0 562.9 C 420.0 562.9 420.0 514.6 560.0 514.6 C 700.0 514.6 700.0 558.3 840.0 558.3 C 980.0 558.3 980.0 605.8 1120.0 605.8 C 1260.0 605.8 1260.0 612.0 1400.0 612.0 L 1410 1010 Z" fill="#14101e" opacity="0.88"/><path d="M -10 1010 L -10 640.4 C 100.0 640.4 100.0 648.1 200.0 648.1 C 300.0 648.1 300.0 706.6 400.0 706.6 C 500.0 706.6 500.0 701.3 600.0 701.3 C 700.0 701.3 700.0 683.5 800.0 683.5 C 900.0 683.5 900.0 647.4 1000.0 647.4 C 1100.0 647.4 1100.0 662.2 1200.0 662.2 C 1300.0 662.2 1300.0 711.7 1400.0 711.7 L 1410 1010 Z" fill="#0e0b18" opacity="0.94"/><path d="M -10 1010 L -10 791.9 C 116.7 791.9 116.7 812.4 233.3 812.4 C 350.0 812.4 350.0 805.7 466.7 805.7 C 583.3 805.7 583.3 775.9 700.0 775.9 C 816.7 775.9 816.7 772.2 933.3 772.2 C 1050.0 772.2 1050.0 797.5 1166.7 797.5 C 1283.3 797.5 1283.3 832.5 1400.0 832.5 L 1410 1010 Z" fill="#090711" opacity="1.00"/><path d="M 1034 978 L 985 978 Q 1034 893 1034 822 Q 1034 893 1083 978 Z" fill="#080610" opacity="0.92"/><path d="M 1083 969 L 1001 969 Q 1083 811 1083 681 Q 1083 811 1164 969 Z" fill="#080610" opacity="0.92"/><path d="M 256 974 L 192 974 Q 256 854 256 756 Q 256 854 320 974 Z" fill="#080610" opacity="0.92"/><path d="M 279 986 L 224 986 Q 279 879 279 792 Q 279 879 334 986 Z" fill="#080610" opacity="0.92"/><path d="M 533 980 L 491 980 Q 533 895 533 826 Q 533 895 575 980 Z" fill="#080610" opacity="0.92"/><path d="M 414 973 L 341 973 Q 414 816 414 688 Q 414 816 488 973 Z" fill="#080610" opacity="0.92"/><path d="M 634 199 q 18.0 -12.6 36.0 0 M 670 199 q 18.0 -12.6 36.0 0" fill="none" stroke="#080610" stroke-width="5.04" opacity="0.5" stroke-linecap="round"/><path d="M 333 213 q 18.0 -12.6 36.0 0 M 369 213 q 18.0 -12.6 36.0 0" fill="none" stroke="#080610" stroke-width="5.04" opacity="0.5" stroke-linecap="round"/><path d="M 724 306 q 18.0 -12.6 36.0 0 M 760 306 q 18.0 -12.6 36.0 0" fill="none" stroke="#080610" stroke-width="5.04" opacity="0.5" stroke-linecap="round"/></g><rect width="1400" height="1000" filter="url(#grain-clairierebleuesvg)" fill="transparent" opacity="0.5"/></svg>

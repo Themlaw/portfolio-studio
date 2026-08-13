@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img">
+  <defs>
+    <linearGradient id="sky-cyclemarchesvg" x1="0" y1="0" x2="0.39" y2="1">
+      <stop offset="0%" stop-color="#F8ECEB"/>
+      <stop offset="52%" stop-color="#E7C9C6"/>
+      <stop offset="100%" stop-color="#CFA0A0"/>
+    </linearGradient>
+    <linearGradient id="mid-cyclemarchesvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#9E7176"/>
+      <stop offset="100%" stop-color="#6E4A52"/>
+    </linearGradient>
+    <radialGradient id="glow-cyclemarchesvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FCF5F4" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#FCF5F4" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-cyclemarchesvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="31.5"/>
+    </filter>
+    <filter id="grain-cyclemarchesvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="1600" height="900" fill="url(#sky-cyclemarchesvg)"/><path d="M -10 135 C 480 54 1120 216 1610 117 L 1610 910 L -10 910 Z" fill="#9e7176" opacity="0.50"/><path d="M -10 304 C 480 223 1120 385 1610 286 L 1610 910 L -10 910 Z" fill="#825d62" opacity="0.62"/><path d="M -10 473 C 480 392 1120 554 1610 455 L 1610 910 L -10 910 Z" fill="#67484e" opacity="0.74"/><path d="M -10 641 C 480 560 1120 722 1610 623 L 1610 910 L -10 910 Z" fill="#4b343a" opacity="0.86"/><ellipse cx="427" cy="714" rx="352" ry="123" fill="#7E8F77" opacity="0.30" filter="url(#soft-cyclemarchesvg)"/><ellipse cx="28" cy="793" rx="167" ry="63" fill="#FCF5F4" opacity="0.20" filter="url(#soft-cyclemarchesvg)"/><ellipse cx="1064" cy="101" rx="97" ry="55" fill="#9E7176" opacity="0.26" filter="url(#soft-cyclemarchesvg)"/><ellipse cx="688" cy="716" rx="137" ry="59" fill="#7E8F77" opacity="0.18" filter="url(#soft-cyclemarchesvg)"/><ellipse cx="1297" cy="188" rx="277" ry="160" fill="#FCF5F4" opacity="0.22" filter="url(#soft-cyclemarchesvg)"/><ellipse cx="1228" cy="363" rx="115" ry="74" fill="#9E7176" opacity="0.29" filter="url(#soft-cyclemarchesvg)"/><ellipse cx="843" cy="619" rx="266" ry="104" fill="#7E8F77" opacity="0.19" filter="url(#soft-cyclemarchesvg)"/><path d="M 655 819 q 320 69 473 -17" stroke="#FCF5F4" stroke-width="12.4" fill="none" opacity="0.31" stroke-linecap="round"/><path d="M 1098 323 q 320 -106 508 21" stroke="#7E8F77" stroke-width="10.1" fill="none" opacity="0.35" stroke-linecap="round"/><path d="M 874 381 q 320 22 841 -26" stroke="#FCF5F4" stroke-width="7.3" fill="none" opacity="0.34" stroke-linecap="round"/><path d="M 370 728 q 320 -93 629 40" stroke="#7E8F77" stroke-width="11.0" fill="none" opacity="0.49" stroke-linecap="round"/><path d="M 938 868 q 320 -113 576 -26" stroke="#FCF5F4" stroke-width="7.2" fill="none" opacity="0.55" stroke-linecap="round"/><circle cx="515" cy="457" r="96" fill="none" stroke="#7E8F77" stroke-width="7.2" opacity="0.6"/></g><rect width="1600" height="900" filter="url(#grain-cyclemarchesvg)" fill="transparent" opacity="0.5"/></svg>

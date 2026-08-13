@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img">
+  <defs>
+    <linearGradient id="sky-ventetudesvg" x1="0" y1="0" x2="0.30" y2="1">
+      <stop offset="0%" stop-color="#FAF6EF"/>
+      <stop offset="52%" stop-color="#E9DFCD"/>
+      <stop offset="100%" stop-color="#D0C0A4"/>
+    </linearGradient>
+    <linearGradient id="mid-ventetudesvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#A08D6E"/>
+      <stop offset="100%" stop-color="#6F5F47"/>
+    </linearGradient>
+    <radialGradient id="glow-ventetudesvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FDFBF6" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#FDFBF6" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-ventetudesvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="31.5"/>
+    </filter>
+    <filter id="grain-ventetudesvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="1600" height="900" fill="url(#sky-ventetudesvg)"/><path d="M -10 135 C 480 54 1120 216 1610 117 L 1610 910 L -10 910 Z" fill="#a08d6e" opacity="0.50"/><path d="M -10 270 C 480 189 1120 351 1610 252 L 1610 910 L -10 910 Z" fill="#8a795e" opacity="0.62"/><path d="M -10 405 C 480 324 1120 486 1610 387 L 1610 910 L -10 910 Z" fill="#74664e" opacity="0.74"/><path d="M -10 540 C 480 459 1120 621 1610 522 L 1610 910 L -10 910 Z" fill="#5f523f" opacity="0.86"/><path d="M -10 675 C 480 594 1120 756 1610 657 L 1610 910 L -10 910 Z" fill="#493f2f" opacity="0.98"/><ellipse cx="1574" cy="180" rx="135" ry="45" fill="#2E4E9E" opacity="0.27" filter="url(#soft-ventetudesvg)"/><ellipse cx="711" cy="822" rx="331" ry="144" fill="#FDFBF6" opacity="0.23" filter="url(#soft-ventetudesvg)"/><ellipse cx="854" cy="825" rx="117" ry="136" fill="#A08D6E" opacity="0.28" filter="url(#soft-ventetudesvg)"/><ellipse cx="915" cy="791" rx="191" ry="72" fill="#2E4E9E" opacity="0.20" filter="url(#soft-ventetudesvg)"/><ellipse cx="1233" cy="97" rx="164" ry="165" fill="#FDFBF6" opacity="0.16" filter="url(#soft-ventetudesvg)"/><ellipse cx="118" cy="828" rx="206" ry="68" fill="#A08D6E" opacity="0.20" filter="url(#soft-ventetudesvg)"/><ellipse cx="965" cy="490" rx="230" ry="135" fill="#2E4E9E" opacity="0.26" filter="url(#soft-ventetudesvg)"/><path d="M 1463 325 q 320 133 708 43" stroke="#FDFBF6" stroke-width="10.9" fill="none" opacity="0.63" stroke-linecap="round"/><path d="M 1195 218 q 320 16 710 48" stroke="#2E4E9E" stroke-width="20.5" fill="none" opacity="0.60" stroke-linecap="round"/><path d="M 709 348 q 320 65 783 -60" stroke="#FDFBF6" stroke-width="11.1" fill="none" opacity="0.61" stroke-linecap="round"/><path d="M 849 297 q 320 129 674 34" stroke="#2E4E9E" stroke-width="19.5" fill="none" opacity="0.45" stroke-linecap="round"/><path d="M 1161 694 q 320 0 686 -45" stroke="#FDFBF6" stroke-width="10.8" fill="none" opacity="0.32" stroke-linecap="round"/><circle cx="720" cy="193" r="87" fill="none" stroke="#2E4E9E" stroke-width="7.2" opacity="0.6"/></g><rect width="1600" height="900" filter="url(#grain-ventetudesvg)" fill="transparent" opacity="0.5"/></svg>

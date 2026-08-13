@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1250" width="900" height="1250" role="img">
+  <defs>
+    <linearGradient id="sky-herboristesvg" x1="0" y1="0" x2="0.38" y2="1">
+      <stop offset="0%" stop-color="#F0E3EA"/>
+      <stop offset="52%" stop-color="#D2AFC2"/>
+      <stop offset="100%" stop-color="#A87B96"/>
+    </linearGradient>
+    <linearGradient id="mid-herboristesvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#71486A"/>
+      <stop offset="100%" stop-color="#472C48"/>
+    </linearGradient>
+    <radialGradient id="glow-herboristesvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#F8EFF3" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#F8EFF3" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-herboristesvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="31.5"/>
+    </filter>
+    <filter id="grain-herboristesvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="900" height="1250" fill="#F0E3EA"/><rect width="900" height="1250" fill="url(#sky-herboristesvg)" opacity="0.9"/><ellipse cx="680" cy="769" rx="182" ry="315" fill="#71486A" opacity="0.19" filter="url(#soft-herboristesvg)"/><ellipse cx="526" cy="339" rx="287" ry="228" fill="#E8C07A" opacity="0.14" filter="url(#soft-herboristesvg)"/><ellipse cx="289" cy="1108" rx="296" ry="328" fill="#71486A" opacity="0.20" filter="url(#soft-herboristesvg)"/><ellipse cx="827" cy="1220" rx="206" ry="292" fill="#E8C07A" opacity="0.08" filter="url(#soft-herboristesvg)"/><ellipse cx="537" cy="117" rx="265" ry="173" fill="#71486A" opacity="0.15" filter="url(#soft-herboristesvg)"/><circle cx="397" cy="521" r="307" fill="#F8EFF3" opacity="0.35"/><circle cx="397" cy="521" r="227" fill="none" stroke="#E8C07A" stroke-width="7.3" opacity="0.55"/><path d="M 28 1275 C 28 806 258 776 324 725 L 470 725 C 536 776 766 806 766 1275 Z" fill="#472C48"/><path d="M 316 733 L 397 871 L 477 733 Z" fill="#E8C07A" opacity="0.85"/><rect x="353" y="594" width="88" height="161" fill="#b08ba3"/><ellipse cx="397" cy="521" rx="120" ry="146" fill="#ccb8c6"/><path d="M 258 572 C 214 353 580 338 540 594 C 528 469 368 499 258 572 Z" fill="#211427"/><path d="M 521 484 q 110 161 22 307 q -73 -146 -51 -270 Z" fill="#211427" opacity="0.9"/><path d="M 335 532 q 26 -23 50 0" stroke="#211427" stroke-width="10.2" fill="none" stroke-linecap="round"/><path d="M 409 532 q 26 -23 50 0" stroke="#211427" stroke-width="10.2" fill="none" stroke-linecap="round"/><ellipse cx="324" cy="573" rx="19" ry="12" fill="#E8C07A" opacity="0.4"/><ellipse cx="470" cy="573" rx="19" ry="12" fill="#E8C07A" opacity="0.4"/><path d="M 373 598 q 23 20 47 0" stroke="#211427" stroke-width="8.8" fill="none" stroke-linecap="round" opacity="0.8"/></g><rect width="900" height="1250" filter="url(#grain-herboristesvg)" fill="transparent" opacity="0.5"/></svg>

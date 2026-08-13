@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200" width="1200" height="1200" role="img">
+  <defs>
+    <linearGradient id="sky-serreabandonneesvg" x1="0" y1="0" x2="0.39" y2="1">
+      <stop offset="0%" stop-color="#FDF3D8"/>
+      <stop offset="52%" stop-color="#F4DA9C"/>
+      <stop offset="100%" stop-color="#E2B45F"/>
+    </linearGradient>
+    <linearGradient id="mid-serreabandonneesvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#C08A3E"/>
+      <stop offset="100%" stop-color="#8E5F2A"/>
+    </linearGradient>
+    <radialGradient id="glow-serreabandonneesvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFAEB" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#FFFAEB" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-serreabandonneesvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="42.0"/>
+    </filter>
+    <filter id="grain-serreabandonneesvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="1200" height="1200" fill="url(#sky-serreabandonneesvg)"/><circle cx="889" cy="343" r="549" fill="url(#glow-serreabandonneesvg)" opacity="0.75"/><circle cx="889" cy="343" r="161" fill="#2E4E9E" opacity="0.85"/><ellipse cx="1152" cy="505" rx="562" ry="26" fill="#FFFAEB" opacity="0.32"/><ellipse cx="900" cy="685" rx="352" ry="20" fill="#FFFAEB" opacity="0.43"/><ellipse cx="50" cy="427" rx="229" ry="32" fill="#FFFAEB" opacity="0.34"/><ellipse cx="625" cy="323" rx="481" ry="15" fill="#FFFAEB" opacity="0.37"/><rect x="0" y="752" width="1200" height="448" fill="#d3a150"/><ellipse cx="889" cy="864" rx="178" ry="72" fill="#2E4E9E" opacity="0.25" filter="url(#soft-serreabandonneesvg)"/><path d="M -10 1210 L -10 631.7 C 85.7 631.7 85.7 673.8 171.4 673.8 C 257.1 673.8 257.1 659.5 342.9 659.5 C 428.6 659.5 428.6 575.2 514.3 575.2 C 600.0 575.2 600.0 557.5 685.7 557.5 C 771.4 557.5 771.4 644.8 857.1 644.8 C 942.9 644.8 942.9 694.4 1028.6 694.4 C 1114.3 694.4 1114.3 652.5 1200.0 652.5 L 1210 1210 Z" fill="#ac7c38" opacity="0.82"/><path d="M -10 1210 L -10 825.9 C 120.0 825.9 120.0 784.8 240.0 784.8 C 360.0 784.8 360.0 743.6 480.0 743.6 C 600.0 743.6 600.0 788.8 720.0 788.8 C 840.0 788.8 840.0 837.9 960.0 837.9 C 1080.0 837.9 1080.0 827.7 1200.0 827.7 L 1210 1210 Z" fill="#785527" opacity="0.91"/><path d="M -10 1210 L -10 931.6 C 85.7 931.6 85.7 945.9 171.4 945.9 C 257.1 945.9 257.1 990.3 342.9 990.3 C 428.6 990.3 428.6 1013.4 514.3 1013.4 C 600.0 1013.4 600.0 969.1 685.7 969.1 C 771.4 969.1 771.4 943.4 857.1 943.4 C 942.9 943.4 942.9 953.6 1028.6 953.6 C 1114.3 953.6 1114.3 995.2 1200.0 995.2 L 1210 1210 Z" fill="#442f16" opacity="1.00"/><path d="M 671 1170 L 620 1170 Q 671 1083 671 1011 Q 671 1083 722 1170 Z" fill="#3D2A14" opacity="0.92"/><path d="M 293 1178 L 226 1178 Q 293 983 293 823 Q 293 983 359 1178 Z" fill="#3D2A14" opacity="0.92"/><path d="M 158 1195 L 120 1195 Q 158 1104 158 1030 Q 158 1104 196 1195 Z" fill="#3D2A14" opacity="0.92"/><path d="M 109 1189 L 16 1189 Q 109 1025 109 890 Q 109 1025 202 1189 Z" fill="#3D2A14" opacity="0.92"/><path d="M 648 1154 L 581 1154 Q 648 1020 648 910 Q 648 1020 715 1154 Z" fill="#3D2A14" opacity="0.92"/><path d="M 633 314 q 21.6 -15.1 43.2 0 M 676 314 q 21.6 -15.1 43.2 0" fill="none" stroke="#3D2A14" stroke-width="6.05" opacity="0.5" stroke-linecap="round"/><path d="M 823 472 q 21.6 -15.1 43.2 0 M 866 472 q 21.6 -15.1 43.2 0" fill="none" stroke="#3D2A14" stroke-width="6.05" opacity="0.5" stroke-linecap="round"/><path d="M 805 316 q 21.6 -15.1 43.2 0 M 848 316 q 21.6 -15.1 43.2 0" fill="none" stroke="#3D2A14" stroke-width="6.05" opacity="0.5" stroke-linecap="round"/></g><rect width="1200" height="1200" filter="url(#grain-serreabandonneesvg)" fill="transparent" opacity="0.5"/></svg>

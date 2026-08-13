@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" role="img">
+  <defs>
+    <linearGradient id="sky-lacdeselsvg" x1="0" y1="0" x2="0.32" y2="1">
+      <stop offset="0%" stop-color="#F4C9A1"/>
+      <stop offset="52%" stop-color="#D98C7E"/>
+      <stop offset="100%" stop-color="#8E5F84"/>
+    </linearGradient>
+    <linearGradient id="mid-lacdeselsvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#54406E"/>
+      <stop offset="100%" stop-color="#33284C"/>
+    </linearGradient>
+    <radialGradient id="glow-lacdeselsvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FBE7D2" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#FBE7D2" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-lacdeselsvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="31.5"/>
+    </filter>
+    <filter id="grain-lacdeselsvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="1600" height="900" fill="url(#sky-lacdeselsvg)"/><circle cx="801" cy="285" r="413" fill="url(#glow-lacdeselsvg)" opacity="0.75"/><circle cx="801" cy="285" r="121" fill="#FFD9A0" opacity="0.85"/><ellipse cx="1341" cy="274" rx="518" ry="26" fill="#FBE7D2" opacity="0.29"/><ellipse cx="361" cy="266" rx="755" ry="22" fill="#FBE7D2" opacity="0.32"/><ellipse cx="1360" cy="328" rx="633" ry="27" fill="#FBE7D2" opacity="0.39"/><ellipse cx="470" cy="370" rx="408" ry="29" fill="#FBE7D2" opacity="0.18"/><rect x="0" y="508" width="1600" height="392" fill="#74517a"/><ellipse cx="801" cy="606" rx="134" ry="54" fill="#FFD9A0" opacity="0.25" filter="url(#soft-lacdeselsvg)"/><path d="M -10 910 L -10 418.0 C 160.0 418.0 160.0 445.2 320.0 445.2 C 480.0 445.2 480.0 432.5 640.0 432.5 C 800.0 432.5 800.0 389.6 960.0 389.6 C 1120.0 389.6 1120.0 368.1 1280.0 368.1 C 1440.0 368.1 1440.0 431.0 1600.0 431.0 L 1610 910 Z" fill="#4b3965" opacity="0.82"/><path d="M -10 910 L -10 539.2 C 160.0 539.2 160.0 505.8 320.0 505.8 C 480.0 505.8 480.0 476.4 640.0 476.4 C 800.0 476.4 800.0 503.3 960.0 503.3 C 1120.0 503.3 1120.0 557.3 1280.0 557.3 C 1440.0 557.3 1440.0 535.3 1600.0 535.3 L 1610 910 Z" fill="#3c2e54" opacity="0.88"/><path d="M -10 910 L -10 581.6 C 114.3 581.6 114.3 583.1 228.6 583.1 C 342.9 583.1 342.9 636.7 457.1 636.7 C 571.4 636.7 571.4 654.8 685.7 654.8 C 800.0 654.8 800.0 615.0 914.3 615.0 C 1028.6 615.0 1028.6 585.5 1142.9 585.5 C 1257.1 585.5 1257.1 594.2 1371.4 594.2 C 1485.7 594.2 1485.7 629.7 1600.0 629.7 L 1610 910 Z" fill="#2c2244" opacity="0.94"/><path d="M -10 910 L -10 712.4 C 114.3 712.4 114.3 728.1 228.6 728.1 C 342.9 728.1 342.9 721.1 457.1 721.1 C 571.4 721.1 571.4 690.5 685.7 690.5 C 800.0 690.5 800.0 691.5 914.3 691.5 C 1028.6 691.5 1028.6 715.8 1142.9 715.8 C 1257.1 715.8 1257.1 732.2 1371.4 732.2 C 1485.7 732.2 1485.7 721.4 1600.0 721.4 L 1610 910 Z" fill="#1d1633" opacity="1.00"/><path d="M 1352 867 L 1285 867 Q 1352 701 1352 566 Q 1352 701 1419 867 Z" fill="#1A1430" opacity="0.92"/><path d="M 991 873 L 961 873 Q 991 806 991 751 Q 991 806 1021 873 Z" fill="#1A1430" opacity="0.92"/><path d="M 137 866 L 103 866 Q 137 775 137 700 Q 137 775 172 866 Z" fill="#1A1430" opacity="0.92"/><path d="M 655 864 L 600 864 Q 655 761 655 677 Q 655 761 711 864 Z" fill="#1A1430" opacity="0.92"/><path d="M 1240 234 q 16.2 -11.3 32.4 0 M 1272 234 q 16.2 -11.3 32.4 0" fill="none" stroke="#1A1430" stroke-width="4.54" opacity="0.5" stroke-linecap="round"/><path d="M 1127 258 q 16.2 -11.3 32.4 0 M 1159 258 q 16.2 -11.3 32.4 0" fill="none" stroke="#1A1430" stroke-width="4.54" opacity="0.5" stroke-linecap="round"/><path d="M 385 345 q 16.2 -11.3 32.4 0 M 418 345 q 16.2 -11.3 32.4 0" fill="none" stroke="#1A1430" stroke-width="4.54" opacity="0.5" stroke-linecap="round"/></g><rect width="1600" height="900" filter="url(#grain-lacdeselsvg)" fill="transparent" opacity="0.5"/></svg>

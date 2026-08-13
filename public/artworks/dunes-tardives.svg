@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 950" width="1600" height="950" role="img">
+  <defs>
+    <linearGradient id="sky-dunestardivessvg" x1="0" y1="0" x2="0.38" y2="1">
+      <stop offset="0%" stop-color="#FDF6E9"/>
+      <stop offset="52%" stop-color="#F0DEBD"/>
+      <stop offset="100%" stop-color="#DCBE8D"/>
+    </linearGradient>
+    <linearGradient id="mid-dunestardivessvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#B4915F"/>
+      <stop offset="100%" stop-color="#7E6238"/>
+    </linearGradient>
+    <radialGradient id="glow-dunestardivessvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFCF4" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#FFFCF4" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-dunestardivessvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="33.3"/>
+    </filter>
+    <filter id="grain-dunestardivessvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="1600" height="950" fill="url(#sky-dunestardivessvg)"/><circle cx="1120" cy="333" r="433" fill="url(#glow-dunestardivessvg)" opacity="0.75"/><circle cx="1120" cy="333" r="127" fill="#5E8C7A" opacity="0.85"/><ellipse cx="429" cy="177" rx="731" ry="23" fill="#FFFCF4" opacity="0.32"/><ellipse cx="1584" cy="463" rx="397" ry="28" fill="#FFFCF4" opacity="0.27"/><ellipse cx="754" cy="174" rx="510" ry="15" fill="#FFFCF4" opacity="0.37"/><ellipse cx="1347" cy="131" rx="319" ry="24" fill="#FFFCF4" opacity="0.21"/><rect x="0" y="512" width="1600" height="438" fill="#caaa78"/><ellipse cx="1120" cy="621" rx="140" ry="57" fill="#5E8C7A" opacity="0.25" filter="url(#soft-dunestardivessvg)"/><path d="M -10 960 L -10 416.8 C 114.3 416.8 114.3 447.0 228.6 447.0 C 342.9 447.0 342.9 436.5 457.1 436.5 C 571.4 436.5 571.4 392.6 685.7 392.6 C 800.0 392.6 800.0 393.1 914.3 393.1 C 1028.6 393.1 1028.6 427.5 1142.9 427.5 C 1257.1 427.5 1257.1 467.6 1371.4 467.6 C 1485.7 467.6 1485.7 428.6 1600.0 428.6 L 1610 960 Z" fill="#a28255" opacity="0.82"/><path d="M -10 960 L -10 574.5 C 114.3 574.5 114.3 520.8 228.6 520.8 C 342.9 520.8 342.9 478.2 457.1 478.2 C 571.4 478.2 571.4 512.3 685.7 512.3 C 800.0 512.3 800.0 563.4 914.3 563.4 C 1028.6 563.4 1028.6 561.2 1142.9 561.2 C 1257.1 561.2 1257.1 514.4 1371.4 514.4 C 1485.7 514.4 1485.7 474.8 1600.0 474.8 L 1610 960 Z" fill="#816743" opacity="0.88"/><path d="M -10 960 L -10 603.8 C 133.3 603.8 133.3 603.1 266.7 603.1 C 400.0 603.1 400.0 645.6 533.3 645.6 C 666.7 645.6 666.7 658.2 800.0 658.2 C 933.3 658.2 933.3 636.3 1066.7 636.3 C 1200.0 636.3 1200.0 613.4 1333.3 613.4 C 1466.7 613.4 1466.7 617.8 1600.0 617.8 L 1610 960 Z" fill="#614d31" opacity="0.94"/><path d="M -10 960 L -10 746.1 C 133.3 746.1 133.3 772.3 266.7 772.3 C 400.0 772.3 400.0 756.2 533.3 756.2 C 666.7 756.2 666.7 728.8 800.0 728.8 C 933.3 728.8 933.3 718.4 1066.7 718.4 C 1200.0 718.4 1200.0 752.0 1333.3 752.0 C 1466.7 752.0 1466.7 769.5 1600.0 769.5 L 1610 960 Z" fill="#40321e" opacity="1.00"/><path d="M 913 936 L 828 936 Q 913 777 913 647 Q 913 777 998 936 Z" fill="#3A2D1B" opacity="0.92"/><path d="M 1370 924 L 1309 924 Q 1370 758 1370 621 Q 1370 758 1431 924 Z" fill="#3A2D1B" opacity="0.92"/><path d="M 981 922 L 949 922 Q 981 825 981 746 Q 981 825 1013 922 Z" fill="#3A2D1B" opacity="0.92"/><path d="M 759 941 L 688 941 Q 759 785 759 656 Q 759 785 831 941 Z" fill="#3A2D1B" opacity="0.92"/><path d="M 869 261 q 17.1 -12.0 34.2 0 M 903 261 q 17.1 -12.0 34.2 0" fill="none" stroke="#3A2D1B" stroke-width="4.79" opacity="0.5" stroke-linecap="round"/><path d="M 632 262 q 17.1 -12.0 34.2 0 M 666 262 q 17.1 -12.0 34.2 0" fill="none" stroke="#3A2D1B" stroke-width="4.79" opacity="0.5" stroke-linecap="round"/><path d="M 678 248 q 17.1 -12.0 34.2 0 M 713 248 q 17.1 -12.0 34.2 0" fill="none" stroke="#3A2D1B" stroke-width="4.79" opacity="0.5" stroke-linecap="round"/></g><rect width="1600" height="950" filter="url(#grain-dunestardivessvg)" fill="transparent" opacity="0.5"/></svg>

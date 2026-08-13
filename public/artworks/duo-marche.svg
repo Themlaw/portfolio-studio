@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900" role="img">
+  <defs>
+    <linearGradient id="sky-duomarchesvg" x1="0" y1="0" x2="0.43" y2="1">
+      <stop offset="0%" stop-color="#F7E3D2"/>
+      <stop offset="52%" stop-color="#EFC0A0"/>
+      <stop offset="100%" stop-color="#D98E6B"/>
+    </linearGradient>
+    <linearGradient id="mid-duomarchesvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#B0623F"/>
+      <stop offset="100%" stop-color="#7E4029"/>
+    </linearGradient>
+    <radialGradient id="glow-duomarchesvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FCF1E7" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#FCF1E7" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-duomarchesvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="31.5"/>
+    </filter>
+    <filter id="grain-duomarchesvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="1200" height="900" fill="#F7E3D2"/><rect width="1200" height="900" fill="url(#sky-duomarchesvg)" opacity="0.9"/><ellipse cx="275" cy="393" rx="178" ry="229" fill="#B0623F" opacity="0.14" filter="url(#soft-duomarchesvg)"/><ellipse cx="232" cy="49" rx="399" ry="192" fill="#3F5E8C" opacity="0.17" filter="url(#soft-duomarchesvg)"/><ellipse cx="625" cy="497" rx="389" ry="157" fill="#B0623F" opacity="0.19" filter="url(#soft-duomarchesvg)"/><ellipse cx="453" cy="524" rx="329" ry="91" fill="#3F5E8C" opacity="0.16" filter="url(#soft-duomarchesvg)"/><ellipse cx="227" cy="554" rx="343" ry="252" fill="#B0623F" opacity="0.10" filter="url(#soft-duomarchesvg)"/><circle cx="695" cy="364" r="356" fill="#FCF1E7" opacity="0.35"/><circle cx="695" cy="364" r="263" fill="none" stroke="#3F5E8C" stroke-width="8.5" opacity="0.55"/><path d="M 285 918 C 285 694 534 660 610 601 L 780 601 C 856 660 1105 694 1105 918 Z" fill="#7E4029"/><path d="M 601 609 L 695 770 L 788 609 Z" fill="#3F5E8C" opacity="0.85"/><rect x="644" y="448" width="102" height="187" fill="#d99f7e"/><ellipse cx="695" cy="364" rx="139" ry="170" fill="#e3bfa9"/><path d="M 534 423 C 483 169 907 152 861 448 C 847 304 661 338 534 423 Z" fill="#3A2018"/><path d="M 839 321 q 127 187 25 356 q -85 -170 -59 -314 Z" fill="#3A2018" opacity="0.9"/><path d="M 623 377 q 31 -27 58 0" stroke="#3A2018" stroke-width="11.9" fill="none" stroke-linecap="round"/><path d="M 708 377 q 31 -27 58 0" stroke="#3A2018" stroke-width="11.9" fill="none" stroke-linecap="round"/><ellipse cx="610" cy="425" rx="22" ry="14" fill="#3F5E8C" opacity="0.4"/><ellipse cx="780" cy="425" rx="22" ry="14" fill="#3F5E8C" opacity="0.4"/><path d="M 668 453 q 27 24 54 0" stroke="#3A2018" stroke-width="10.2" fill="none" stroke-linecap="round" opacity="0.8"/></g><rect width="1200" height="900" filter="url(#grain-duomarchesvg)" fill="transparent" opacity="0.5"/></svg>

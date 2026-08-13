@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900" width="1400" height="900" role="img">
+  <defs>
+    <linearGradient id="sky-routedescretessvg" x1="0" y1="0" x2="0.45" y2="1">
+      <stop offset="0%" stop-color="#F1F0E4"/>
+      <stop offset="52%" stop-color="#D8DCC3"/>
+      <stop offset="100%" stop-color="#B4C0A1"/>
+    </linearGradient>
+    <linearGradient id="mid-routedescretessvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#84957A"/>
+      <stop offset="100%" stop-color="#5B6D55"/>
+    </linearGradient>
+    <radialGradient id="glow-routedescretessvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#F8F8EE" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#F8F8EE" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-routedescretessvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="31.5"/>
+    </filter>
+    <filter id="grain-routedescretessvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="1400" height="900" fill="url(#sky-routedescretessvg)"/><circle cx="578" cy="216" r="293" fill="url(#glow-routedescretessvg)" opacity="0.75"/><circle cx="578" cy="216" r="86" fill="#C96F4A" opacity="0.85"/><ellipse cx="1264" cy="418" rx="655" ry="28" fill="#F8F8EE" opacity="0.48"/><ellipse cx="407" cy="447" rx="659" ry="30" fill="#F8F8EE" opacity="0.25"/><ellipse cx="402" cy="487" rx="591" ry="30" fill="#F8F8EE" opacity="0.25"/><ellipse cx="215" cy="147" rx="641" ry="29" fill="#F8F8EE" opacity="0.23"/><rect x="0" y="579" width="1400" height="321" fill="#9ead8f"/><ellipse cx="578" cy="660" rx="95" ry="54" fill="#C96F4A" opacity="0.25" filter="url(#soft-routedescretessvg)"/><path d="M -10 910 L -10 489.5 C 140.0 489.5 140.0 525.7 280.0 525.7 C 420.0 525.7 420.0 512.3 560.0 512.3 C 700.0 512.3 700.0 468.9 840.0 468.9 C 980.0 468.9 980.0 442.0 1120.0 442.0 C 1260.0 442.0 1260.0 498.5 1400.0 498.5 L 1410 910 Z" fill="#78886f" opacity="0.82"/><path d="M -10 910 L -10 616.0 C 100.0 616.0 100.0 556.0 200.0 556.0 C 300.0 556.0 300.0 544.5 400.0 544.5 C 500.0 544.5 500.0 555.8 600.0 555.8 C 700.0 555.8 700.0 611.8 800.0 611.8 C 900.0 611.8 900.0 605.6 1000.0 605.6 C 1100.0 605.6 1100.0 546.0 1200.0 546.0 C 1300.0 546.0 1300.0 516.6 1400.0 516.6 L 1410 910 Z" fill="#62725b" opacity="0.88"/><path d="M -10 910 L -10 614.6 C 116.7 614.6 116.7 627.5 233.3 627.5 C 350.0 627.5 350.0 658.2 466.7 658.2 C 583.3 658.2 583.3 671.3 700.0 671.3 C 816.7 671.3 816.7 650.6 933.3 650.6 C 1050.0 650.6 1050.0 606.1 1166.7 606.1 C 1283.3 606.1 1283.3 636.9 1400.0 636.9 L 1410 910 Z" fill="#4d5b47" opacity="0.94"/><path d="M -10 910 L -10 730.5 C 100.0 730.5 100.0 763.1 200.0 763.1 C 300.0 763.1 300.0 747.9 400.0 747.9 C 500.0 747.9 500.0 707.9 600.0 707.9 C 700.0 707.9 700.0 700.3 800.0 700.3 C 900.0 700.3 900.0 736.4 1000.0 736.4 C 1100.0 736.4 1100.0 751.3 1200.0 751.3 C 1300.0 751.3 1300.0 741.2 1400.0 741.2 L 1410 910 Z" fill="#374433" opacity="1.00"/><path d="M 426 868 L 373 868 Q 426 773 426 695 Q 426 773 480 868 Z" fill="#33402F" opacity="0.92"/><path d="M 168 878 L 119 878 Q 168 736 168 621 Q 168 736 217 878 Z" fill="#33402F" opacity="0.92"/><path d="M 938 864 L 871 864 Q 938 734 938 628 Q 938 734 1005 864 Z" fill="#33402F" opacity="0.92"/><path d="M 1102 869 L 1061 869 Q 1102 761 1102 672 Q 1102 761 1143 869 Z" fill="#33402F" opacity="0.92"/><path d="M 458 889 L 418 889 Q 458 821 458 765 Q 458 821 499 889 Z" fill="#33402F" opacity="0.92"/><path d="M 291 880 L 256 880 Q 291 819 291 769 Q 291 819 326 880 Z" fill="#33402F" opacity="0.92"/><path d="M 875 156 q 16.2 -11.3 32.4 0 M 908 156 q 16.2 -11.3 32.4 0" fill="none" stroke="#33402F" stroke-width="4.54" opacity="0.5" stroke-linecap="round"/><path d="M 756 348 q 16.2 -11.3 32.4 0 M 788 348 q 16.2 -11.3 32.4 0" fill="none" stroke="#33402F" stroke-width="4.54" opacity="0.5" stroke-linecap="round"/><path d="M 1092 158 q 16.2 -11.3 32.4 0 M 1124 158 q 16.2 -11.3 32.4 0" fill="none" stroke="#33402F" stroke-width="4.54" opacity="0.5" stroke-linecap="round"/></g><rect width="1400" height="900" filter="url(#grain-routedescretessvg)" fill="transparent" opacity="0.5"/></svg>

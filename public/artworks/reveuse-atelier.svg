@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000" role="img">
+  <defs>
+    <linearGradient id="sky-reveuseateliersvg" x1="0" y1="0" x2="0.33" y2="1">
+      <stop offset="0%" stop-color="#EDE7F3"/>
+      <stop offset="52%" stop-color="#CFC4E2"/>
+      <stop offset="100%" stop-color="#A99BC8"/>
+    </linearGradient>
+    <linearGradient id="mid-reveuseateliersvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7B6C9C"/>
+      <stop offset="100%" stop-color="#544772"/>
+    </linearGradient>
+    <radialGradient id="glow-reveuseateliersvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#F6F2FA" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#F6F2FA" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-reveuseateliersvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="35.0"/>
+    </filter>
+    <filter id="grain-reveuseateliersvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="1000" height="1000" fill="#EDE7F3"/><rect width="1000" height="1000" fill="url(#sky-reveuseateliersvg)" opacity="0.9"/><ellipse cx="987" cy="925" rx="282" ry="223" fill="#7B6C9C" opacity="0.18" filter="url(#soft-reveuseateliersvg)"/><ellipse cx="491" cy="159" rx="244" ry="266" fill="#7FB3A2" opacity="0.18" filter="url(#soft-reveuseateliersvg)"/><ellipse cx="811" cy="709" rx="302" ry="158" fill="#7B6C9C" opacity="0.15" filter="url(#soft-reveuseateliersvg)"/><ellipse cx="106" cy="457" rx="273" ry="258" fill="#7FB3A2" opacity="0.13" filter="url(#soft-reveuseateliersvg)"/><ellipse cx="484" cy="919" rx="292" ry="149" fill="#7B6C9C" opacity="0.18" filter="url(#soft-reveuseateliersvg)"/><circle cx="530" cy="405" r="361" fill="#F6F2FA" opacity="0.35"/><circle cx="530" cy="405" r="266" fill="none" stroke="#7FB3A2" stroke-width="8.6" opacity="0.55"/><path d="M 145 1020 C 145 740 367 706 444 646 L 616 646 C 693 706 915 740 915 1020 Z" fill="#544772"/><path d="M 436 654 L 530 818 L 625 654 Z" fill="#7FB3A2" opacity="0.85"/><rect x="479" y="491" width="103" height="189" fill="#b2a5ca"/><ellipse cx="530" cy="405" rx="141" ry="172" fill="#cdc5db"/><path d="M 367 465 C 315 208 745 191 698 491 C 685 345 496 380 367 465 Z" fill="#2C2440"/><path d="M 676 362 q 129 189 26 361 q -86 -172 -60 -318 Z" fill="#2C2440" opacity="0.9"/><path d="M 458 419 q 31 -27 58 0" stroke="#2C2440" stroke-width="12.0" fill="none" stroke-linecap="round"/><path d="M 544 419 q 31 -27 58 0" stroke="#2C2440" stroke-width="12.0" fill="none" stroke-linecap="round"/><ellipse cx="444" cy="467" rx="22" ry="14" fill="#7FB3A2" opacity="0.4"/><ellipse cx="616" cy="467" rx="22" ry="14" fill="#7FB3A2" opacity="0.4"/><path d="M 503 496 q 27 24 55 0" stroke="#2C2440" stroke-width="10.3" fill="none" stroke-linecap="round" opacity="0.8"/></g><rect width="1000" height="1000" filter="url(#grain-reveuseateliersvg)" fill="transparent" opacity="0.5"/></svg>

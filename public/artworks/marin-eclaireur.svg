@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" role="img">
+  <defs>
+    <linearGradient id="sky-marineclaireursvg" x1="0" y1="0" x2="0.29" y2="1">
+      <stop offset="0%" stop-color="#F6E7D8"/>
+      <stop offset="52%" stop-color="#E9C7B4"/>
+      <stop offset="100%" stop-color="#C99C93"/>
+    </linearGradient>
+    <linearGradient id="mid-marineclaireursvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8E7A8E"/>
+      <stop offset="100%" stop-color="#6B5D77"/>
+    </linearGradient>
+    <radialGradient id="glow-marineclaireursvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FBEFE2" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#FBEFE2" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-marineclaireursvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="31.5"/>
+    </filter>
+    <filter id="grain-marineclaireursvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="900" height="1200" fill="#F6E7D8"/><rect width="900" height="1200" fill="url(#sky-marineclaireursvg)" opacity="0.9"/><ellipse cx="579" cy="461" rx="251" ry="247" fill="#8E7A8E" opacity="0.20" filter="url(#soft-marineclaireursvg)"/><ellipse cx="206" cy="93" rx="195" ry="292" fill="#E4744A" opacity="0.13" filter="url(#soft-marineclaireursvg)"/><ellipse cx="788" cy="571" rx="146" ry="133" fill="#8E7A8E" opacity="0.13" filter="url(#soft-marineclaireursvg)"/><ellipse cx="26" cy="235" rx="263" ry="179" fill="#E4744A" opacity="0.09" filter="url(#soft-marineclaireursvg)"/><ellipse cx="582" cy="51" rx="232" ry="131" fill="#8E7A8E" opacity="0.13" filter="url(#soft-marineclaireursvg)"/><circle cx="398" cy="471" r="341" fill="#FBEFE2" opacity="0.35"/><circle cx="398" cy="471" r="252" fill="none" stroke="#E4744A" stroke-width="8.1" opacity="0.55"/><path d="M -14 1224 C -14 788 243 755 316 698 L 479 698 C 552 755 809 788 809 1224 Z" fill="#6B5D77"/><path d="M 308 707 L 398 861 L 487 707 Z" fill="#E4744A" opacity="0.85"/><rect x="349" y="552" width="98" height="179" fill="#c9aca7"/><ellipse cx="398" cy="471" rx="133" ry="163" fill="#d9c8c3"/><path d="M 243 528 C 194 284 601 268 557 552 C 544 414 365 447 243 528 Z" fill="#2E2A3A"/><path d="M 259 430 q -122 179 -24 341 q 81 -163 57 -301 Z" fill="#2E2A3A" opacity="0.9"/><path d="M 329 484 q 29 -26 55 0" stroke="#2E2A3A" stroke-width="11.4" fill="none" stroke-linecap="round"/><path d="M 411 484 q 29 -26 55 0" stroke="#2E2A3A" stroke-width="11.4" fill="none" stroke-linecap="round"/><ellipse cx="316" cy="529" rx="21" ry="13" fill="#E4744A" opacity="0.4"/><ellipse cx="479" cy="529" rx="21" ry="13" fill="#E4744A" opacity="0.4"/><path d="M 372 557 q 26 23 52 0" stroke="#2E2A3A" stroke-width="9.8" fill="none" stroke-linecap="round" opacity="0.8"/></g><rect width="900" height="1200" filter="url(#grain-marineclaireursvg)" fill="transparent" opacity="0.5"/></svg>

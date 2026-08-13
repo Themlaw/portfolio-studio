@@ -1,0 +1,77 @@
+[
+  {
+    "slug": "les-hauts-chemins",
+    "year": "2023–2024",
+    "featured": true,
+    "title": { "fr": "Les hauts chemins", "en": "The High Paths" },
+    "context": {
+      "fr": "Court métrage · Décors & couleur",
+      "en": "Short film · Backgrounds & colour"
+    },
+    "description": {
+      "fr": "Une traversée de montagne en dix plans : peu de décor, beaucoup de ciel, et la couleur qui porte tout le récit.",
+      "en": "A mountain crossing in ten shots: little scenery, a lot of sky, and colour carrying the whole story."
+    },
+    "artworkIds": ["aw-01", "aw-08", "aw-10", "aw-17"]
+  },
+  {
+    "slug": "la-petite-fabrique",
+    "year": "2024–2025",
+    "featured": true,
+    "title": { "fr": "La petite fabrique", "en": "The Little Workshop" },
+    "context": {
+      "fr": "Série TV jeunesse · Character design",
+      "en": "Children's TV series · Character design"
+    },
+    "description": {
+      "fr": "Vingt-six épisodes de six minutes : une bande de personnages à tenir lisibles au plan large et faciles à animer.",
+      "en": "Twenty-six six-minute episodes: a cast that stays readable in wide shots and easy to animate."
+    },
+    "artworkIds": ["aw-02", "aw-04", "aw-06", "aw-13", "aw-19"]
+  },
+  {
+    "slug": "herbier-des-nuits",
+    "year": "2023–2025",
+    "featured": false,
+    "title": { "fr": "L'herbier des nuits", "en": "The Night Herbarium" },
+    "context": {
+      "fr": "Livre illustré · Personnages & décors",
+      "en": "Illustrated book · Characters & backgrounds"
+    },
+    "description": {
+      "fr": "Un album jeunesse sur les plantes qui ne poussent qu'après le coucher du soleil.",
+      "en": "A children's book about the plants that only grow after sundown."
+    },
+    "artworkIds": ["aw-03", "aw-05", "aw-15", "aw-18"]
+  },
+  {
+    "slug": "sel-et-silence",
+    "year": "2025",
+    "featured": false,
+    "title": { "fr": "Sel & silence", "en": "Salt & Silence" },
+    "context": {
+      "fr": "Jeu narratif · Décors & ambiances",
+      "en": "Narrative game · Backgrounds & mood"
+    },
+    "description": {
+      "fr": "Direction artistique d'un jeu d'exploration : un lac asséché, une ville basse, et personne pour l'expliquer.",
+      "en": "Art direction for an exploration game: a dried-up lake, a low town, and no one there to explain it."
+    },
+    "artworkIds": ["aw-07", "aw-11", "aw-12", "aw-16"]
+  },
+  {
+    "slug": "carnets-personnels",
+    "year": "2023–2025",
+    "featured": false,
+    "title": { "fr": "Carnets personnels", "en": "Personal Notebooks" },
+    "context": {
+      "fr": "Recherches personnelles · En continu",
+      "en": "Personal work · Ongoing"
+    },
+    "description": {
+      "fr": "Ce que je peins quand personne n'attend d'image : des lieux vus une fois, repeints de mémoire.",
+      "en": "What I paint when no one is waiting for an image: places seen once, repainted from memory."
+    },
+    "artworkIds": ["aw-09", "aw-14"]
+  }
+]

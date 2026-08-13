@@ -1,0 +1,293 @@
+[
+  {
+    "id": "aw-01",
+    "slug": "marin-eclaireur",
+    "collection": "characters",
+    "title": { "fr": "Le marin éclaireur", "en": "The Scout Sailor" },
+    "description": {
+      "fr": "Recherche de silhouette pour un long métrage d'aventure. Le costume est construit en trois masses simples pour rester lisible au plan large.",
+      "en": "Silhouette study for an adventure feature. The costume is built from three simple masses so it stays readable in wide shots."
+    },
+    "image": "/artworks/marin-eclaireur.svg",
+    "width": 900,
+    "height": 1200,
+    "year": 2024,
+    "featured": true
+  },
+  {
+    "id": "aw-02",
+    "slug": "reveuse-atelier",
+    "collection": "characters",
+    "title": { "fr": "Rêveuse d'atelier", "en": "Studio Daydreamer" },
+    "description": {
+      "fr": "Étude de couleur pour un personnage secondaire. Palette lilas cassée par une seule note chaude au col.",
+      "en": "Colour study for a supporting character. A muted lilac palette broken by a single warm note at the collar."
+    },
+    "image": "/artworks/reveuse-atelier.svg",
+    "width": 1000,
+    "height": 1000,
+    "year": 2024,
+    "featured": false
+  },
+  {
+    "id": "aw-03",
+    "slug": "gardien-fougeres",
+    "collection": "characters",
+    "title": { "fr": "Gardien des fougères", "en": "Keeper of the Ferns" },
+    "description": {
+      "fr": "Personnage de conte forestier. Les volumes du visage restent très synthétiques pour tenir l'animation image par image.",
+      "en": "A character from a forest tale. Facial volumes stay highly synthetic so they hold up in frame-by-frame animation."
+    },
+    "image": "/artworks/gardien-fougeres.svg",
+    "width": 900,
+    "height": 1200,
+    "year": 2023,
+    "featured": true
+  },
+  {
+    "id": "aw-04",
+    "slug": "duo-marche",
+    "collection": "characters",
+    "title": { "fr": "Duo en marche", "en": "Two on the Road" },
+    "description": {
+      "fr": "Recherche de rapport d'échelle entre deux protagonistes, pensée pour un format paysage.",
+      "en": "Scale-relationship study between two leads, composed for a landscape format."
+    },
+    "image": "/artworks/duo-marche.svg",
+    "width": 1200,
+    "height": 900,
+    "year": 2023,
+    "featured": false
+  },
+  {
+    "id": "aw-05",
+    "slug": "herboriste",
+    "collection": "characters",
+    "title": { "fr": "L'herboriste", "en": "The Herbalist" },
+    "description": {
+      "fr": "Character design pour une série jeunesse. Le motif du col sert de repère de couleur dans tout l'épisode.",
+      "en": "Character design for a children's series. The collar pattern acts as a colour landmark throughout the episode."
+    },
+    "image": "/artworks/herboriste.svg",
+    "width": 900,
+    "height": 1250,
+    "year": 2025,
+    "featured": true
+  },
+  {
+    "id": "aw-06",
+    "slug": "mecanicienne",
+    "collection": "characters",
+    "title": { "fr": "La mécanicienne", "en": "The Machinist" },
+    "description": {
+      "fr": "Étude de posture et d'accessoires. Le bleu d'atelier tient lieu de valeur sombre pour dégager le visage.",
+      "en": "Pose and props study. The workshop blue provides the dark value that lets the face come forward."
+    },
+    "image": "/artworks/mecanicienne.svg",
+    "width": 1000,
+    "height": 1000,
+    "year": 2025,
+    "featured": false
+  },
+  {
+    "id": "aw-07",
+    "slug": "chasseur-brume",
+    "collection": "characters",
+    "title": { "fr": "Chasseur de brume", "en": "Mist Hunter" },
+    "description": {
+      "fr": "Design nocturne : contraste réduit, l'accent safran est la seule source de lumière du plan.",
+      "en": "A nocturnal design: reduced contrast, with the saffron accent as the shot's only light source."
+    },
+    "image": "/artworks/chasseur-brume.svg",
+    "width": 900,
+    "height": 1200,
+    "year": 2025,
+    "featured": true
+  },
+  {
+    "id": "aw-08",
+    "slug": "vallee-suspendue",
+    "collection": "backgrounds",
+    "title": { "fr": "Vallée suspendue", "en": "Hanging Valley" },
+    "description": {
+      "fr": "Décor d'ouverture. Quatre plans de profondeur seulement, pour garder un ciel très respirant.",
+      "en": "Opening background. Only four depth planes, to keep the sky wide open."
+    },
+    "image": "/artworks/vallee-suspendue.svg",
+    "width": 1600,
+    "height": 900,
+    "year": 2024,
+    "featured": true
+  },
+  {
+    "id": "aw-09",
+    "slug": "port-au-matin",
+    "collection": "backgrounds",
+    "title": { "fr": "Port au matin", "en": "Harbour at Dawn" },
+    "description": {
+      "fr": "Layout de séquence : la ligne d'horizon basse laisse la place au trajet du personnage.",
+      "en": "Sequence layout: the low horizon leaves room for the character's path."
+    },
+    "image": "/artworks/port-au-matin.svg",
+    "width": 1600,
+    "height": 1000,
+    "year": 2024,
+    "featured": false
+  },
+  {
+    "id": "aw-10",
+    "slug": "route-des-cretes",
+    "collection": "backgrounds",
+    "title": { "fr": "La route des crêtes", "en": "The Ridge Road" },
+    "description": {
+      "fr": "Décor de transition peint en valeurs sourdes, prévu pour un panoramique lent vers la droite.",
+      "en": "Transition background painted in muted values, built for a slow rightward pan."
+    },
+    "image": "/artworks/route-des-cretes.svg",
+    "width": 1400,
+    "height": 900,
+    "year": 2023,
+    "featured": true
+  },
+  {
+    "id": "aw-11",
+    "slug": "ville-basse",
+    "collection": "backgrounds",
+    "title": { "fr": "La ville basse", "en": "Lower Town" },
+    "description": {
+      "fr": "Format vertical pour un plan en plongée. Les couches froides s'éclaircissent vers le fond.",
+      "en": "Vertical format for a high-angle shot. The cool layers lighten towards the back."
+    },
+    "image": "/artworks/ville-basse.svg",
+    "width": 1200,
+    "height": 1500,
+    "year": 2025,
+    "featured": false
+  },
+  {
+    "id": "aw-12",
+    "slug": "lac-de-sel",
+    "collection": "backgrounds",
+    "title": { "fr": "Lac de sel", "en": "Salt Lake" },
+    "description": {
+      "fr": "Étude d'ambiance : le reflet reprend l'accent chaud du soleil, adouci au pinceau large.",
+      "en": "Mood study: the reflection echoes the warm sun accent, softened with a broad brush."
+    },
+    "image": "/artworks/lac-de-sel.svg",
+    "width": 1600,
+    "height": 900,
+    "year": 2025,
+    "featured": true
+  },
+  {
+    "id": "aw-13",
+    "slug": "serre-abandonnee",
+    "collection": "backgrounds",
+    "title": { "fr": "La serre abandonnée", "en": "The Abandoned Greenhouse" },
+    "description": {
+      "fr": "Décor carré pensé pour un plan fixe long. La végétation d'avant-plan cadre l'action.",
+      "en": "Square background designed for a long static shot. The foreground foliage frames the action."
+    },
+    "image": "/artworks/serre-abandonnee.svg",
+    "width": 1200,
+    "height": 1200,
+    "year": 2024,
+    "featured": false
+  },
+  {
+    "id": "aw-14",
+    "slug": "dunes-tardives",
+    "collection": "backgrounds",
+    "title": { "fr": "Dunes tardives", "en": "Late Dunes" },
+    "description": {
+      "fr": "Recherche de lumière rasante, sur une gamme de sables très restreinte.",
+      "en": "Raking-light study over a deliberately narrow range of sand tones."
+    },
+    "image": "/artworks/dunes-tardives.svg",
+    "width": 1600,
+    "height": 950,
+    "year": 2023,
+    "featured": false
+  },
+  {
+    "id": "aw-15",
+    "slug": "clairiere-bleue",
+    "collection": "backgrounds",
+    "title": { "fr": "Clairière bleue", "en": "Blue Clearing" },
+    "description": {
+      "fr": "Nocturne peint en aplats : la lune sert de point de fuite lumineux.",
+      "en": "A flat-painted nocturne: the moon acts as a luminous vanishing point."
+    },
+    "image": "/artworks/clairiere-bleue.svg",
+    "width": 1400,
+    "height": 1000,
+    "year": 2025,
+    "featured": true
+  },
+  {
+    "id": "aw-16",
+    "slug": "traversee-plan-large",
+    "collection": "animation",
+    "title": { "fr": "Traversée — plan large", "en": "Crossing — Wide Shot" },
+    "description": {
+      "fr": "Démo. Montage de plans animés récents : marches, tenues d'accessoires et effets de vent.",
+      "en": "Demoreel. A cut of recent animated shots: walks, prop handling and wind effects."
+    },
+    "image": "/artworks/traversee-plan-large.svg",
+    "width": 1600,
+    "height": 900,
+    "year": 2025,
+    "featured": false,
+    "duration": "1:48",
+    "reel": true
+  },
+  {
+    "id": "aw-17",
+    "slug": "cycle-marche",
+    "collection": "animation",
+    "title": { "fr": "Cycle de marche", "en": "Walk Cycle" },
+    "description": {
+      "fr": "Douze images par seconde, animation traditionnelle. Recherche de poids sur les appuis.",
+      "en": "Twelve frames per second, traditional animation. A study of weight on each footfall."
+    },
+    "image": "/artworks/cycle-marche.svg",
+    "width": 1600,
+    "height": 900,
+    "year": 2024,
+    "featured": false,
+    "duration": "0:06"
+  },
+  {
+    "id": "aw-18",
+    "slug": "vent-etude",
+    "collection": "animation",
+    "title": { "fr": "Étude de vent", "en": "Wind Study" },
+    "description": {
+      "fr": "Boucle d'effets : tissus et herbes hautes, animés en trois épaisseurs de trait.",
+      "en": "Effects loop: fabric and tall grass, animated across three line weights."
+    },
+    "image": "/artworks/vent-etude.svg",
+    "width": 1600,
+    "height": 900,
+    "year": 2025,
+    "featured": true,
+    "duration": "0:12",
+    "videoId": "aqz-KE-bpKQ"
+  },
+  {
+    "id": "aw-19",
+    "slug": "lumiere-boucle",
+    "collection": "animation",
+    "title": { "fr": "Lumière, en boucle", "en": "Light, Looping" },
+    "description": {
+      "fr": "Exercice d'ambiance animée : une seule couche de lumière traverse le décor en huit secondes.",
+      "en": "Animated mood exercise: a single light pass crosses the set in eight seconds."
+    },
+    "image": "/artworks/lumiere-boucle.svg",
+    "width": 1600,
+    "height": 900,
+    "year": 2024,
+    "featured": false,
+    "duration": "0:08"
+  }
+]

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" role="img">
+  <defs>
+    <linearGradient id="sky-chasseurbrumesvg" x1="0" y1="0" x2="0.40" y2="1">
+      <stop offset="0%" stop-color="#E7E9EC"/>
+      <stop offset="52%" stop-color="#C3C8D0"/>
+      <stop offset="100%" stop-color="#9AA2AE"/>
+    </linearGradient>
+    <linearGradient id="mid-chasseurbrumesvg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#67707E"/>
+      <stop offset="100%" stop-color="#434B58"/>
+    </linearGradient>
+    <radialGradient id="glow-chasseurbrumesvg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#F3F4F6" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#F3F4F6" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-chasseurbrumesvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="31.5"/>
+    </filter>
+    <filter id="grain-chasseurbrumesvg" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" result="n"/>
+      <feColorMatrix type="saturate" values="0" in="n" result="ng"/>
+      <feComponentTransfer in="ng" result="nt"><feFuncA type="linear" slope="0.16"/></feComponentTransfer>
+      <feBlend in="SourceGraphic" in2="nt" mode="multiply"/>
+    </filter>
+  </defs><g><rect width="900" height="1200" fill="#E7E9EC"/><rect width="900" height="1200" fill="url(#sky-chasseurbrumesvg)" opacity="0.9"/><ellipse cx="454" cy="1169" rx="186" ry="155" fill="#67707E" opacity="0.19" filter="url(#soft-chasseurbrumesvg)"/><ellipse cx="132" cy="403" rx="134" ry="242" fill="#E0A356" opacity="0.19" filter="url(#soft-chasseurbrumesvg)"/><ellipse cx="454" cy="66" rx="179" ry="123" fill="#67707E" opacity="0.17" filter="url(#soft-chasseurbrumesvg)"/><ellipse cx="170" cy="390" rx="189" ry="299" fill="#E0A356" opacity="0.10" filter="url(#soft-chasseurbrumesvg)"/><ellipse cx="535" cy="654" rx="141" ry="168" fill="#67707E" opacity="0.12" filter="url(#soft-chasseurbrumesvg)"/><circle cx="515" cy="482" r="311" fill="#F3F4F6" opacity="0.35"/><circle cx="515" cy="482" r="229" fill="none" stroke="#E0A356" stroke-width="7.4" opacity="0.55"/><path d="M 136 1224 C 136 771 374 741 441 689 L 589 689 C 655 741 894 771 894 1224 Z" fill="#434B58"/><path d="M 434 697 L 515 837 L 596 697 Z" fill="#E0A356" opacity="0.85"/><rect x="471" y="556" width="89" height="163" fill="#a3a9b3"/><ellipse cx="515" cy="482" rx="121" ry="148" fill="#c3c7cd"/><path d="M 374 534 C 330 312 700 297 660 556 C 648 430 485 460 374 534 Z" fill="#1F242C"/><path d="M 641 445 q 111 163 22 311 q -74 -148 -52 -274 Z" fill="#1F242C" opacity="0.9"/><path d="M 453 494 q 27 -24 50 0" stroke="#1F242C" stroke-width="10.4" fill="none" stroke-linecap="round"/><path d="M 527 494 q 27 -24 50 0" stroke="#1F242C" stroke-width="10.4" fill="none" stroke-linecap="round"/><ellipse cx="441" cy="535" rx="19" ry="12" fill="#E0A356" opacity="0.4"/><ellipse cx="589" cy="535" rx="19" ry="12" fill="#E0A356" opacity="0.4"/><path d="M 491 561 q 24 21 47 0" stroke="#1F242C" stroke-width="8.9" fill="none" stroke-linecap="round" opacity="0.8"/></g><rect width="900" height="1200" filter="url(#grain-chasseurbrumesvg)" fill="transparent" opacity="0.5"/></svg>
