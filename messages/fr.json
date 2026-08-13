@@ -82,12 +82,14 @@
     "previous": "Œuvre précédente",
     "next": "Œuvre suivante",
     "position": "{index} / {total}",
-    "hint": "Naviguez avec ← et →, Échap pour fermer"
+    "hint": "Naviguez avec ← et →, Échap pour fermer",
+    "thumbs": "Vignettes du projet"
   },
   "projects": {
     "count": "{count, plural, =0 {aucun projet} =1 {# projet} other {# projets}}",
     "scrollPrev": "Images précédentes — {project}",
-    "scrollNext": "Images suivantes — {project}"
+    "scrollNext": "Images suivantes — {project}",
+    "scrollbar": "Barre de défilement — {project}"
   },
   "animation": {
     "reelEyebrow": "Demoreel — 2025",

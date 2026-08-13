@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import Lightbox from "@/components/Lightbox";
+import RailScrollbar from "@/components/RailScrollbar";
 import type { LocalizedProject } from "@/lib/gallery";
 
 /**
@@ -32,6 +33,7 @@ export default function ProjectStrip({
   const tg = useTranslations("gallery");
   const Heading = headingLevel;
 
+  const railId = `rail-${project.slug}`;
   const railRef = useRef<HTMLDivElement | null>(null);
   const triggerRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const lastFocused = useRef<number | null>(null);
@@ -140,6 +142,7 @@ export default function ProjectStrip({
 
       <div
         ref={railRef}
+        id={railId}
         className="strip-rail mt-[clamp(1.75rem,3.5vw,2.75rem)]"
         role="group"
         aria-label={project.title}
@@ -174,6 +177,16 @@ export default function ProjectStrip({
           </button>
         ))}
       </div>
+
+      {overflows && (
+        <div className="shell mt-[clamp(0.75rem,1.5vw,1.25rem)]">
+          <RailScrollbar
+            railRef={railRef}
+            railId={railId}
+            label={t("scrollbar", { project: project.title })}
+          />
+        </div>
+      )}
 
       <Lightbox
         items={project.artworks}

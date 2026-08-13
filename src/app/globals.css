@@ -69,6 +69,17 @@
   --section-gap: clamp(4.5rem, 10vw, 9rem);
   --page-max: 1240px;
 
+  /* Barre de glissement des planches de projet.
+     Volontairement minuscule : elle indique la position, elle ne décore pas.
+     Le curseur est plus épais que la piste et déborde donc d'1px de chaque
+     côté — c'est ce léger relief qui le rend saisissable à l'œil. */
+  --rail-bar-track: 2px;
+  --rail-bar-thumb: 4px;
+  --rail-bar-box: 8px; /* hauteur totale réservée, zone de clic comprise */
+
+  /* Vignettes de la lightbox : 56px en grand écran, 44px sur mobile. */
+  --lb-thumb-h: clamp(44px, 5vw, 56px);
+
   /* Durées */
   --dur-fast: 180ms;
   --dur-slow: 520ms;
@@ -250,6 +261,90 @@
     font-size: 0.6875rem;
     letter-spacing: 0.08em;
     color: var(--color-ink-soft);
+  }
+
+  /* Barre de glissement : rattrape le scroll quand on rate les flèches.
+     La piste est calée sur la grille de page, pas sur le débord du rail :
+     elle mesure la page, pas le contenu qui s'en échappe. */
+  .rail-bar {
+    display: flex;
+    align-items: center;
+    height: var(--rail-bar-box);
+    width: 100%;
+    touch-action: none;
+    cursor: pointer;
+  }
+
+  .rail-bar-track {
+    position: relative;
+    width: 100%;
+    height: var(--rail-bar-track);
+    background: var(--color-line);
+    border-radius: var(--radius-sm);
+  }
+
+  .rail-bar-thumb {
+    position: absolute;
+    top: 50%;
+    height: var(--rail-bar-thumb);
+    background: var(--color-ink-soft);
+    border-radius: var(--radius-sm);
+    transform: translateY(-50%);
+    transition: background var(--dur-fast) var(--ease-soft);
+  }
+
+  .rail-bar:hover .rail-bar-thumb,
+  .rail-bar[data-dragging="true"] .rail-bar-thumb,
+  .rail-bar:focus-visible .rail-bar-thumb {
+    background: var(--color-primary);
+  }
+
+  /* ---- Vignettes de la lightbox ---------------------------------------- */
+  .lb-thumbs {
+    display: flex;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+
+  .lb-thumbs::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* En portrait, la rangée ne vole pas la place de l'image. */
+  @media (orientation: portrait) {
+    .lb-thumbs {
+      max-height: 15vh;
+    }
+  }
+
+  .lb-thumb {
+    flex: 0 0 auto;
+    border-radius: var(--radius-sm);
+    opacity: 0.55;
+    outline: 2px solid transparent;
+    outline-offset: 0;
+    transition: opacity var(--dur-fast) var(--ease-soft),
+      outline-color var(--dur-fast) var(--ease-soft);
+  }
+
+  .lb-thumb:hover {
+    opacity: 1;
+  }
+
+  .lb-thumb[aria-current="true"] {
+    opacity: 1;
+    outline-color: var(--color-primary);
+  }
+
+  .lb-thumb img {
+    height: var(--lb-thumb-h);
+    max-height: 100%;
+    width: auto;
+    max-width: none;
+    border-radius: var(--radius-sm);
   }
 
   .rail-arrow {
