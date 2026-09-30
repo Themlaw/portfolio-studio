@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useTranslations } from "next-intl";
 
 import Eyebrow from "@/components/Eyebrow";
 import ScrollHint from "@/components/hero/ScrollHint";
+import type { HeroContent } from "@/components/hero/types";
 
 /** Amplitude de la parallaxe par rang de calque, de l'arrière vers l'avant :
  *  `depth` en px pour le curseur, `scroll` en ratio du défilement.
@@ -22,9 +22,7 @@ function motionFor(index: number) {
 }
 
 /** Hero « parallax-layers » : décor illustré en calques (assets.heroLayers). */
-export default function HeroParallax({ layers }: { layers: string[] }) {
-  const t = useTranslations("home.hero");
-  const tSite = useTranslations("site");
+export default function HeroParallax({ layers, content }: { layers: string[]; content: HeroContent }) {
   const layerRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
@@ -75,7 +73,7 @@ export default function HeroParallax({ layers }: { layers: string[] }) {
   return (
     <section
       className="hero hero-parallax relative isolate flex min-h-[calc(100svh-var(--header-h))] flex-col justify-end overflow-hidden"
-      aria-label={tSite("name")}
+      aria-label={content.name}
     >
       {/* Décor illustré en couches */}
       <div className="absolute inset-0 -z-10">
@@ -108,12 +106,12 @@ export default function HeroParallax({ layers }: { layers: string[] }) {
       {/* hero-halo : halo typographique serré (token heroHalo) sur les petits
           textes qui traversent le décor. Le titre, en très grand corps, tient seul. */}
       <div className="shell relative pb-20 pt-40 md:pb-28">
-        <Eyebrow className="text-ink">{t("eyebrow")}</Eyebrow>
+        <Eyebrow className="text-ink">{content.eyebrow}</Eyebrow>
         <h1 className="mt-5 font-display text-[clamp(3rem,11vw,9rem)] leading-[0.92] text-ink">
-          {tSite("name")}
+          {content.name}
         </h1>
         <p className="hero-halo caption-text mt-6 max-w-xl font-caption text-[0.78rem] tracking-[0.2em] uppercase text-ink">
-          {tSite("role")}
+          {content.role}
         </p>
       </div>
 

@@ -13,7 +13,14 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 # RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
 #     && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
+# --ignore-scripts : aucune dépendance n'a besoin de script d'installation
+# (better-sqlite3 13 embarque ses binaires N-API précompilés dans prebuilds/,
+# sharp passe par des paquets optionnels). Sans ce drapeau, npm tente
+# `node-gyp rebuild` sur better-sqlite3, impossible sans Python dans l'image.
+# ATTENTION : un futur paquet qui a besoin de son postinstall (ex. ffmpeg-static,
+# qui télécharge son binaire) casserait EN SILENCE. L'ajouter explicitement :
+#   RUN npm rebuild <paquet>
+RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund --ignore-scripts
 
 # ---- builder : next build ----------------------------------------------------
 FROM node:${NODE_VERSION}-slim AS builder
@@ -25,7 +32,9 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_OPTIONS=--max-old-space-size=${NODE_MAX_OLD_SPACE}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+# Garde-fou : ni base ni médias de dev dans le standalone (./data est exclu du
+# contexte par .dockerignore ; ce test échoue si ça change un jour).
+RUN npm run build && test ! -e .next/standalone/data
 
 # ---- runner : serveur standalone minimal -------------------------------------
 FROM node:${NODE_VERSION}-slim AS runner
@@ -38,7 +47,8 @@ LABEL org.opencontainers.image.source="https://github.com/Themlaw/portfolio" \
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
-    HOSTNAME=0.0.0.0
+    HOSTNAME=0.0.0.0 \
+    DATA_DIR=/data
 
 # Futur : RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
 #     && rm -rf /var/lib/apt/lists/*
@@ -47,9 +57,13 @@ ENV NODE_ENV=production \
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+# Migrations (appliquées au démarrage) et sources du seed initial.
+COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/seed ./seed
 
-# /data : seul emplacement inscriptible (SQLite, médias uploadés).
-# .next/cache : cache ISR/fetch de Next ; en --read-only, y monter un tmpfs.
+# /data : seul emplacement inscriptible (portfolio.db, media/).
+# .next/cache : inutilisé (ISR en mémoire, isrFlushToDisk: false) ; tmpfs
+# conservé en --read-only par précaution.
 RUN mkdir -p /data /app/.next/cache \
     && chown node:node /data /app/.next/cache
 VOLUME /data

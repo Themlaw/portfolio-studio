@@ -2,7 +2,7 @@
 /**
  * Garde-fou : aucune couleur en dur hors de src/themes/.
  *
- * Parcourt src/components et src/app (sauf globals.css, qui ne fait que
+ * Parcourt src/components, src/app et src/blocks (sauf globals.css, qui ne fait que
  * relayer les variables du thème) et échoue sur :
  *   - un hexadécimal de couleur (#abc, #aabbcc, #aabbccdd) ;
  *   - rgb( / rgba( / hsl( / hsla( / oklch( … ;
@@ -13,7 +13,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const ROOT = new URL("..", import.meta.url).pathname;
-const DIRS = ["src/components", "src/app"];
+const DIRS = ["src/components", "src/app", "src/blocks"];
 const EXCLUDE = new Set(["src/app/globals.css"]);
 const EXT = /\.(tsx?|jsx?|mjs|css)$/;
 

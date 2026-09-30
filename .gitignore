@@ -40,6 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Base SQLite et médias de développement (DATA_DIR=./data)
+/data
+
 # Artefacts locaux (captures, logs, sorties nohup)
 /screenshots
 *.log

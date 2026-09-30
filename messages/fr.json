@@ -1,16 +1,6 @@
 {
-  "site": {
-    "name": "Camille Roussel",
-    "role": "Chara design · Décors · Animation",
-    "email": "bonjour@example.org"
-  },
   "nav": {
     "label": "Navigation principale",
-    "home": "Accueil",
-    "characters": "Personnages",
-    "backgrounds": "Décors",
-    "animation": "Animation",
-    "about": "À propos",
     "menu": "Menu",
     "close": "Fermer le menu"
   },
@@ -20,61 +10,12 @@
     "en": "EN"
   },
   "home": {
-    "meta": {
-      "title": "Camille Roussel — Chara design, décors et animation",
-      "description": "Portfolio de Camille Roussel, artiste 2D : character design, décors peints et animation traditionnelle."
-    },
     "hero": {
-      "eyebrow": "Portfolio — 2D",
       "scroll": "Faire défiler",
-      "reel": "Demoreel",
-      "statement": "Je dessine des <mark>personnages</mark> et les mondes qui les portent."
+      "reel": "Demoreel"
     },
     "collections": {
-      "eyebrow": "Collections — 01",
-      "title": "Trois manières de raconter",
       "view": "Voir la collection"
-    },
-    "projects": {
-      "eyebrow": "Projets — 02",
-      "title": "Deux projets récents",
-      "intro": "Le travail se lit par projet : ce qu'on m'a demandé, sur quelle période, et ce que ça a produit comme images.",
-      "more": "Voir tous les projets par métier"
-    },
-    "contact": {
-      "eyebrow": "Contact — 03",
-      "title": "Parlons d'un projet",
-      "intro": "Disponible pour des missions de character design, de décors et d'animation, en studio ou à distance.",
-      "cta": "Écrire un message"
-    }
-  },
-  "collections": {
-    "characters": {
-      "eyebrow": "Personnages — 01",
-      "title": "Personnages",
-      "meta": {
-        "title": "Personnages — Camille Roussel",
-        "description": "Recherches de character design : silhouettes, couleurs et feuilles de modèle."
-      },
-      "intro": "Silhouettes, gammes de couleurs et feuilles de modèle. Chaque personnage est cherché pour rester lisible en plan large avant d'être détaillé."
-    },
-    "backgrounds": {
-      "eyebrow": "Décors — 02",
-      "title": "Décors",
-      "meta": {
-        "title": "Décors — Camille Roussel",
-        "description": "Décors peints et layouts : profondeur, lumière et composition pour l'animation."
-      },
-      "intro": "Décors peints et layouts. Les plans de profondeur sont peu nombreux et franchement séparés, pour laisser respirer l'animation."
-    },
-    "animation": {
-      "eyebrow": "Animation — 03",
-      "title": "Animation",
-      "meta": {
-        "title": "Animation — Camille Roussel",
-        "description": "Demoreel et plans animés : cycles de marche, effets et études d'ambiance."
-      },
-      "intro": "Cycles, effets et études d'ambiance, animés à la main sur douze images par seconde."
     }
   },
   "gallery": {
@@ -94,34 +35,20 @@
     "scrollbar": "Barre de défilement — {project}"
   },
   "animation": {
-    "reelEyebrow": "Demoreel — 2025",
-    "cardsEyebrow": "Plans — 04",
-    "cardsTitle": "Extraits",
     "play": "Lire",
     "playAria": "Lire {title}",
     "loading": "Chargement de la vidéo",
     "placeholder": "Aperçu animé"
   },
-  "about": {
-    "eyebrow": "À propos — 05",
-    "title": "À propos",
-    "meta": {
-      "title": "À propos — Camille Roussel",
-      "description": "Artiste 2D installée à Angoulême : character design, décors et animation traditionnelle."
-    },
-    "portraitAlt": "Portrait illustré de Camille Roussel",
-    "bio1": "Je suis Camille Roussel, artiste 2D installée à Angoulême. Je travaille le character design, le décor et l'animation traditionnelle pour la série, le court métrage et l'édition jeunesse.",
-    "bio2": "Mon travail part presque toujours de la lumière : je cherche d'abord la valeur et l'ambiance d'un plan, la couleur vient après, et le trait en dernier. J'aime les gammes restreintes, les silhouettes nettes et les décors où il reste de la place pour que le personnage bouge.",
-    "bio3": "Formée à l'ÉMCA, je collabore depuis 2019 avec des studios français et européens, en équipe ou en autonomie. Je réponds volontiers aux propositions de collaboration, de conférence ou d'atelier.",
-    "contactEyebrow": "Contact",
-    "contactLabel": "Écrivez-moi",
-    "socialEyebrow": "Ailleurs",
-    "basedIn": "Angoulême, France"
-  },
   "footer": {
     "eyebrow": "Contact",
     "rights": "Tous droits réservés.",
-    "credit": "Illustrations et site conçus à Angoulême.",
     "backToTop": "Haut de page"
+  },
+  "notFound": {
+    "eyebrow": "Erreur 404",
+    "title": "Page introuvable",
+    "body": "Cette adresse ne mène à aucune page. Elle a peut-être changé, ou n'a jamais existé.",
+    "back": "Retour à l'accueil"
   }
 }

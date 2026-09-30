@@ -1,7 +1,7 @@
+import { draftMode } from "next/headers";
 import type { NextRequest } from "next/server";
 
-import { getTheme, isThemePreviewEnabled, PREVIEW_COOKIE } from "@/lib/theme";
-import { PRESET_IDS } from "@/themes/presets";
+import { getTheme, isThemePreviewEnabled, listThemes, PREVIEW_COOKIE } from "@/lib/theme";
 
 export const dynamic = "force-dynamic";
 
@@ -29,29 +29,37 @@ function backPath(request: NextRequest): string {
 }
 
 /**
- * GET /api/theme-preview?id=<preset>[&redirect=/fr/…]
- * Pose le cookie d'aperçu puis revient à la page d'origine. `?id=` vide l'efface.
+ * GET /api/theme-preview?id=<thème>[&redirect=/fr/…]
+ * Active le draft mode (contournement du cache ISR) et mémorise le thème à
+ * prévisualiser, puis revient à la page d'origine. `?id=` vide désactive
+ * l'aperçu. Développement uniquement tant que l'auth n'existe pas.
  */
-export function GET(request: NextRequest) {
+export async function GET(request: NextRequest) {
   if (!isThemePreviewEnabled()) {
     return new Response("Not found", { status: 404, headers: BASE_HEADERS });
   }
 
   const id = request.nextUrl.searchParams.get("id") ?? "";
-  if (id && !getTheme(id)) {
+  if (id && !(await getTheme(id))) {
     // L'identifiant reçu n'est jamais renvoyé dans la réponse.
-    return new Response(`Thème inconnu. Disponibles : ${PRESET_IDS.join(", ")}`, {
+    const available = Object.keys(await listThemes()).join(", ");
+    return new Response(`Thème inconnu. Disponibles : ${available}`, {
       status: 400,
       headers: { ...BASE_HEADERS, "Content-Type": "text/plain; charset=utf-8" },
     });
   }
 
-  const cookie = id
-    ? `${PREVIEW_COOKIE}=${id}; Path=/; SameSite=Lax; Max-Age=2592000`
-    : `${PREVIEW_COOKIE}=; Path=/; SameSite=Lax; Max-Age=0`;
+  const draft = await draftMode();
+  if (id) draft.enable();
+  else draft.disable();
 
-  return new Response(null, {
-    status: 303,
-    headers: { ...BASE_HEADERS, Location: backPath(request), "Set-Cookie": cookie },
-  });
+  // draftMode() pose/efface son propre cookie ; on y ajoute l'id du thème.
+  const headers = new Headers({ ...BASE_HEADERS, Location: backPath(request) });
+  headers.append(
+    "Set-Cookie",
+    id
+      ? `${PREVIEW_COOKIE}=${id}; Path=/; SameSite=Lax; HttpOnly; Max-Age=2592000`
+      : `${PREVIEW_COOKIE}=; Path=/; SameSite=Lax; HttpOnly; Max-Age=0`,
+  );
+  return new Response(null, { status: 303, headers });
 }

@@ -9,7 +9,8 @@ const THEME = process.env.THEME;
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 if (THEME) {
-  await context.addCookies([{ name: "theme-preview", value: THEME, url: BASE }]);
+  // Aperçu = draft mode + cookie d'id, posés par la route (dev uniquement).
+  await (await context.newPage()).goto(`${BASE}/api/theme-preview?id=${THEME}&redirect=/fr`);
   console.log(`Thème : ${THEME}`);
 }
 const page = await context.newPage();
@@ -144,6 +145,20 @@ ok(
   firstCurrent === "true" && nowCurrent === "true" && oldCurrent === "false",
   `${thumbCount} vignettes`,
 );
+
+/* ---- (e) selecteur de langue : slug localise de la meme page ----------- */
+await page.keyboard.press("Escape");
+await page.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });
+await page.locator("header a[hreflang='en']").first().click();
+await page.waitForURL("**/en/characters", { timeout: 10000 }).catch(() => {});
+ok("(e1) FR → EN : /fr/personnages mene a /en/characters", page.url().endsWith("/en/characters"), page.url());
+await page.locator("header a[hreflang='fr']").first().click();
+await page.waitForURL("**/fr/personnages", { timeout: 10000 }).catch(() => {});
+ok("(e2) EN → FR : retour sur /fr/personnages", page.url().endsWith("/fr/personnages"), page.url());
+
+/* ---- (f) slug inconnu : 404 --------------------------------------------- */
+const missing = await page.goto(`${BASE}/fr/cette-page-n-existe-pas`);
+ok("(f) slug inconnu → 404", missing?.status() === 404, String(missing?.status()));
 
 console.log(fail.length === 0 ? "\nTOUT PASSE" : `\nECHECS: ${fail.join(", ")}`);
 await browser.close();

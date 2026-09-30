@@ -2,16 +2,18 @@ import { useTranslations } from "next-intl";
 
 import Eyebrow from "@/components/Eyebrow";
 import { Link } from "@/i18n/navigation";
+import type { SiteIdentity, Social } from "@/lib/settings";
 
-export const SOCIALS = [
-  { label: "Instagram", href: "#" },
-  { label: "Tumblr", href: "#" },
-  { label: "LinkedIn", href: "#" },
-];
-
-export default function SiteFooter() {
+export default function SiteFooter({
+  site,
+  nav,
+  socials,
+}: {
+  site: SiteIdentity;
+  nav: { href: string; label: string }[];
+  socials: Social[];
+}) {
   const t = useTranslations("footer");
-  const tSite = useTranslations("site");
   const tNav = useTranslations("nav");
   const year = 2025;
 
@@ -22,46 +24,31 @@ export default function SiteFooter() {
           <div>
             <Eyebrow>{t("eyebrow")}</Eyebrow>
             <a
-              href={`mailto:${tSite("email")}`}
+              href={`mailto:${site.email}`}
               className="mt-3 block font-display text-2xl sm:text-3xl md:text-4xl text-ink hover:text-primary transition-colors break-words"
             >
-              {tSite("email")}
+              {site.email}
             </a>
-            <p className="mt-4 max-w-sm text-sm text-ink-soft">
-              {tSite("role")}
-            </p>
+            <p className="mt-4 max-w-sm text-sm text-ink-soft">{site.role}</p>
           </div>
 
           <div>
             <Eyebrow>{tNav("label")}</Eyebrow>
             <ul className="mt-4 space-y-2 text-sm">
-              <li>
-                <Link href="/characters" className="text-ink-soft hover:text-primary transition-colors">
-                  {tNav("characters")}
-                </Link>
-              </li>
-              <li>
-                <Link href="/backgrounds" className="text-ink-soft hover:text-primary transition-colors">
-                  {tNav("backgrounds")}
-                </Link>
-              </li>
-              <li>
-                <Link href="/animation" className="text-ink-soft hover:text-primary transition-colors">
-                  {tNav("animation")}
-                </Link>
-              </li>
-              <li>
-                <Link href="/about" className="text-ink-soft hover:text-primary transition-colors">
-                  {tNav("about")}
-                </Link>
-              </li>
+              {nav.map((item) => (
+                <li key={item.href}>
+                  <Link href={item.href} className="text-ink-soft hover:text-primary transition-colors">
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
           <div>
-            <Eyebrow>{tSite("name")}</Eyebrow>
+            <Eyebrow>{site.name}</Eyebrow>
             <ul className="mt-4 space-y-2 text-sm">
-              {SOCIALS.map((s) => (
+              {socials.map((s) => (
                 <li key={s.label}>
                   <a
                     href={s.href}
@@ -79,9 +66,9 @@ export default function SiteFooter() {
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="eyebrow">
-            © {year} {tSite("name")} — {t("rights")}
+            © {year} {site.name} — {t("rights")}
           </p>
-          <p className="text-xs text-ink-soft">{t("credit")}</p>
+          <p className="text-xs text-ink-soft">{site.credit}</p>
         </div>
       </div>
     </footer>

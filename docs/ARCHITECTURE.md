@@ -116,6 +116,37 @@ jobs (file de traitement : transcodage vidéo, variantes d'image)
 Tous les accès passent par `src/lib/` (déjà le cas avec `gallery.ts`) : les composants ne
 parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`artworks.json`.
 
+### Écarts retenus en phase 2 (implémentation)
+
+- **slots portent l'œuvre** : en plus de `project_id`, `position`, `media_id`, un slot a
+  `slug`, `collection`, `title` et `description` localisés, `year`, `featured`,
+  `duration`, `video_id`, `reel`. Une œuvre n'appartient qu'à un projet ; ses champs
+  n'ont pas leur place dans `media` (un média peut changer, l'œuvre reste). L'ordre
+  global des œuvres (collections, couverture, demoreel) est l'ordre des slots (`id`).
+- **projects sans `collection`** : un projet mêle plusieurs métiers ; la collection est
+  portée par chaque slot.
+- **pages.meta** `{title, description}` localisés pour `<title>`/description ; `title`
+  reste le libellé court (menu).
+- **Blocs livrés** : `hero`, `collection-tiles`, `featured-projects`, `collection-intro`,
+  `collection-projects`, `video`, `rich-text`, `contact`, et **`profile`** (page À propos :
+  portrait, présentation, contact et réseaux en une grille, indécoupable sans changer
+  le rendu). Les tuiles de collection portent leurs propres textes (dupliqués depuis
+  l'intro de la collection) et référencent la page cible par id.
+- **Références sans FK** : les ids portés par les props des blocs (`portraitMediaId`,
+  `pageId`…) sont déclarés par type dans `src/blocks/refs.ts` ;
+  `findMediaUsages(mediaId)` et `findPageReferences(pageId)` (`src/lib/references.ts`)
+  inspectent slots ET blocs. L'admin s'en sert pour afficher « utilisé dans… » et
+  refuser une suppression qui casserait une page.
+- **Médias** : CSP `default-src 'none'; style-src 'unsafe-inline'; sandbox` sur toutes
+  les réponses `/media`. En phase 4, l'upload aura une **liste blanche de types MIME**
+  (vérifiés sur le contenu, pas sur l'extension) : aucun HTML ni script accepté.
+- **404** : servie par `src/proxy.ts` (page réservée rendue normalement, statut 404,
+  `no-store`), `notFound()` produisant ici une coquille d'erreur rendue côté client.
+- **Cache** : modèle « unstable_cache + étiquettes » plutôt que `use cache` : ce dernier
+  exige `cacheComponents`, qui change tout le modèle de rendu (Suspense obligatoire
+  autour des accès dynamiques comme le cookie d'aperçu, prérendu au build qui toucherait
+  la base). ISR en mémoire (`isrFlushToDisk: false`) : le conteneur est en lecture seule.
+
 ## Médias
 
 - **Upload** : route handler en streaming vers le disque (jamais tout en mémoire : la VM

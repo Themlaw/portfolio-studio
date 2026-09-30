@@ -178,8 +178,9 @@ let failures = 0;
 
 for (const preset of presets) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  await context.addCookies([{ name: "theme-preview", value: preset.id, url: BASE }]);
   const page = await context.newPage();
+  // Aperçu = draft mode + cookie d'id, posés par la route (dev uniquement).
+  await page.goto(`${BASE}/api/theme-preview?id=${preset.id}&redirect=/fr`);
   const rows = [];
 
   for (const [pageLabel, path] of [["accueil", "/fr"], ["personnages", "/fr/personnages"]]) {

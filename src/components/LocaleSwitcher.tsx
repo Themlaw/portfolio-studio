@@ -3,12 +3,16 @@
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 
-import { usePathname, Link } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { routing, type AppLocale } from "@/i18n/routing";
 
-export default function LocaleSwitcher() {
+/**
+ * Sélecteur de langue. Les slugs étant localisés en base, la page courante
+ * fournit son chemin dans chaque langue (`alternates`) : /fr/personnages ↔
+ * /en/characters.
+ */
+export default function LocaleSwitcher({ alternates }: { alternates: Record<AppLocale, string> }) {
   const t = useTranslations("locale");
-  const pathname = usePathname();
   const params = useParams();
   const current = (params?.locale as AppLocale) ?? routing.defaultLocale;
 
@@ -27,8 +31,7 @@ export default function LocaleSwitcher() {
               </span>
             )}
             <Link
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              href={pathname as any}
+              href={alternates[locale] ?? "/"}
               locale={locale}
               hrefLang={locale}
               aria-current={active ? "true" : undefined}

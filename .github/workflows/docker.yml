@@ -31,13 +31,15 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci --no-audit --no-fund
+      # --ignore-scripts : comme dans le Dockerfile (better-sqlite3 précompilé).
+      - run: npm ci --no-audit --no-fund --ignore-scripts
       - run: npx tsc --noEmit
       - run: npm run lint
       # Garde-fous du moteur de thèmes : aucune couleur en dur hors
       # src/themes/, et contraste AA de chaque preset.
       - run: npm run check:tokens
       - run: npm run check:contrast
+      - run: npm test
 
   image:
     needs: check

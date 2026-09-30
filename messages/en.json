@@ -1,16 +1,6 @@
 {
-  "site": {
-    "name": "Camille Roussel",
-    "role": "Character design · Backgrounds · Animation",
-    "email": "bonjour@example.org"
-  },
   "nav": {
     "label": "Main navigation",
-    "home": "Home",
-    "characters": "Characters",
-    "backgrounds": "Backgrounds",
-    "animation": "Animation",
-    "about": "About",
     "menu": "Menu",
     "close": "Close menu"
   },
@@ -20,61 +10,12 @@
     "en": "EN"
   },
   "home": {
-    "meta": {
-      "title": "Camille Roussel — Character design, backgrounds and animation",
-      "description": "Portfolio of Camille Roussel, 2D artist: character design, painted backgrounds and traditional animation."
-    },
     "hero": {
-      "eyebrow": "Portfolio — 2D",
       "scroll": "Scroll",
-      "reel": "Demo reel",
-      "statement": "I draw <mark>characters</mark> and the worlds that carry them."
+      "reel": "Demo reel"
     },
     "collections": {
-      "eyebrow": "Collections — 01",
-      "title": "Three ways of telling a story",
       "view": "View collection"
-    },
-    "projects": {
-      "eyebrow": "Projects — 02",
-      "title": "Two recent projects",
-      "intro": "The work reads project by project: what was asked for, over what period, and the images it produced.",
-      "more": "Browse every project by craft"
-    },
-    "contact": {
-      "eyebrow": "Contact — 03",
-      "title": "Let's talk about a project",
-      "intro": "Available for character design, background and animation work, in studio or remotely.",
-      "cta": "Send a message"
-    }
-  },
-  "collections": {
-    "characters": {
-      "eyebrow": "Characters — 01",
-      "title": "Characters",
-      "meta": {
-        "title": "Characters — Camille Roussel",
-        "description": "Character design studies: silhouettes, colour keys and model sheets."
-      },
-      "intro": "Silhouettes, colour ranges and model sheets. Every character is designed to read in a wide shot before any detail is added."
-    },
-    "backgrounds": {
-      "eyebrow": "Backgrounds — 02",
-      "title": "Backgrounds",
-      "meta": {
-        "title": "Backgrounds — Camille Roussel",
-        "description": "Painted backgrounds and layouts: depth, light and composition for animation."
-      },
-      "intro": "Painted backgrounds and layouts. Depth planes are few and clearly separated, so the animation has room to breathe."
-    },
-    "animation": {
-      "eyebrow": "Animation — 03",
-      "title": "Animation",
-      "meta": {
-        "title": "Animation — Camille Roussel",
-        "description": "Demoreel and animated shots: walk cycles, effects and mood studies."
-      },
-      "intro": "Cycles, effects and mood studies, animated by hand on twelves."
     }
   },
   "gallery": {
@@ -94,34 +35,20 @@
     "scrollbar": "Scroll bar — {project}"
   },
   "animation": {
-    "reelEyebrow": "Demoreel — 2025",
-    "cardsEyebrow": "Shots — 04",
-    "cardsTitle": "Excerpts",
     "play": "Play",
     "playAria": "Play {title}",
     "loading": "Loading video",
     "placeholder": "Animated preview"
   },
-  "about": {
-    "eyebrow": "About — 05",
-    "title": "About",
-    "meta": {
-      "title": "About — Camille Roussel",
-      "description": "2D artist based in Angoulême: character design, backgrounds and traditional animation."
-    },
-    "portraitAlt": "Illustrated portrait of Camille Roussel",
-    "bio1": "I'm Camille Roussel, a 2D artist based in Angoulême, France. I work on character design, backgrounds and traditional animation for series, short films and children's publishing.",
-    "bio2": "My work almost always starts with light: I look for the value and the mood of a shot first, colour comes next, and line last. I like narrow palettes, clean silhouettes and backgrounds that leave room for a character to move.",
-    "bio3": "Trained at ÉMCA, I have been working with French and European studios since 2019, in a team or on my own. I'm always glad to hear about collaborations, talks or workshops.",
-    "contactEyebrow": "Contact",
-    "contactLabel": "Write to me",
-    "socialEyebrow": "Elsewhere",
-    "basedIn": "Angoulême, France"
-  },
   "footer": {
     "eyebrow": "Contact",
     "rights": "All rights reserved.",
-    "credit": "Illustrations and site made in Angoulême.",
     "backToTop": "Back to top"
+  },
+  "notFound": {
+    "eyebrow": "Error 404",
+    "title": "Page not found",
+    "body": "This address doesn't lead to any page. It may have moved, or never existed.",
+    "back": "Back to the home page"
   }
 }

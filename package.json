@@ -10,9 +10,12 @@
     "check:tokens": "node scripts/check-tokens.mjs",
     "check:contrast": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-contrast.mjs",
     "check:contrast:render": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-contrast-render.mjs",
-    "shots:themes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/theme-shots.mjs"
+    "shots:themes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/theme-shots.mjs",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-references.mjs"
   },
   "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "drizzle-orm": "^0.45.3",
     "next": "16.3.0",
     "next-intl": "^4.13.6",
     "react": "19.2.8",
@@ -21,9 +24,11 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "playwright": "^1.62.1",

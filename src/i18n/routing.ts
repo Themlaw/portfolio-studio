@@ -7,13 +7,10 @@ export const routing = defineRouting({
   locales,
   defaultLocale: "fr",
   localePrefix: "always",
-  pathnames: {
-    "/": "/",
-    "/characters": { fr: "/personnages", en: "/characters" },
-    "/backgrounds": { fr: "/decors", en: "/backgrounds" },
-    "/animation": { fr: "/animation", en: "/animation" },
-    "/about": { fr: "/a-propos", en: "/about" },
-  },
+  // L'en-tête HTTP `Link` de next-intl déduirait des hreflang faux (il ignore
+  // les slugs localisés en base). Source unique : les <link rel="alternate">
+  // émis par generateMetadata.
+  alternateLinks: false,
+  // Pas de `pathnames` : les slugs localisés viennent de la base (table
+  // pages) et sont résolus par la route src/app/[locale]/[[...slug]].
 });
-
-export type AppPathname = keyof typeof routing.pathnames;

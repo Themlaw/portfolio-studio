@@ -84,8 +84,9 @@ for (const preset of presets) {
   console.log(`\n== ${preset.id}`);
 
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  await context.addCookies([{ name: "theme-preview", value: preset.id, url: BASE }]);
   const page = await context.newPage();
+  // Aperçu = draft mode + cookie d'id, posés par la route (dev uniquement).
+  await page.goto(`${BASE}/api/theme-preview?id=${preset.id}&redirect=/fr`);
 
   await page.goto(`${BASE}/fr`);
   await settle(page);

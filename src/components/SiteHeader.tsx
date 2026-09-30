@@ -5,18 +5,22 @@ import { useTranslations } from "next-intl";
 
 import LocaleSwitcher from "@/components/LocaleSwitcher";
 import { Link, usePathname } from "@/i18n/navigation";
-import type { AppPathname } from "@/i18n/routing";
+import type { AppLocale } from "@/i18n/routing";
 
-const NAV: { href: AppPathname; key: "characters" | "backgrounds" | "animation" | "about" }[] = [
-  { href: "/characters", key: "characters" },
-  { href: "/backgrounds", key: "backgrounds" },
-  { href: "/animation", key: "animation" },
-  { href: "/about", key: "about" },
-];
+/** Entrée de menu : chemin sans langue et libellé, construits depuis la base. */
+export type HeaderNavItem = { href: string; label: string };
 
-export default function SiteHeader() {
+export default function SiteHeader({
+  siteName,
+  nav,
+  alternates,
+}: {
+  siteName: string;
+  nav: HeaderNavItem[];
+  /** Chemin de la page courante dans chaque langue (sélecteur de langue). */
+  alternates: Record<AppLocale, string>;
+}) {
   const t = useTranslations("nav");
-  const tSite = useTranslations("site");
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   // Le menu mobile est « ouvert pour une page donnée » : naviguer le referme
@@ -44,14 +48,14 @@ export default function SiteHeader() {
           href="/"
           className="site-brand font-display text-lg md:text-xl leading-none text-ink hover:text-primary transition-colors"
         >
-          {tSite("name")}
+          {siteName}
         </Link>
 
         <nav
           aria-label={t("label")}
           className="hidden md:flex items-center gap-7"
         >
-          {NAV.map(({ href, key }) => {
+          {nav.map(({ href, label }) => {
             const active = pathname === href;
             return (
               <Link
@@ -62,7 +66,7 @@ export default function SiteHeader() {
                   active ? "text-ink" : "text-ink-soft hover:text-primary"
                 }`}
               >
-                {t(key)}
+                {label}
                 <span
                   aria-hidden="true"
                   className={`absolute -bottom-2 left-0 h-px bg-secondary transition-all duration-500 ease-soft ${
@@ -73,11 +77,11 @@ export default function SiteHeader() {
             );
           })}
           <span aria-hidden="true" className="h-4 w-px bg-line" />
-          <LocaleSwitcher />
+          <LocaleSwitcher alternates={alternates} />
         </nav>
 
         <div className="flex items-center gap-4 md:hidden">
-          <LocaleSwitcher />
+          <LocaleSwitcher alternates={alternates} />
           <button
             type="button"
             onClick={() => setOpenOn(open ? null : pathname)}
@@ -97,13 +101,13 @@ export default function SiteHeader() {
         className="md:hidden bg-bg/95 backdrop-blur-xl border-t border-line"
       >
         <ul className="shell flex flex-col py-3">
-          {NAV.map(({ href, key }) => (
+          {nav.map(({ href, label }) => (
             <li key={href} className="border-b border-line last:border-0">
               <Link
                 href={href}
                 className="block py-3 font-display text-2xl text-ink hover:text-primary transition-colors"
               >
-                {t(key)}
+                {label}
               </Link>
             </li>
           ))}

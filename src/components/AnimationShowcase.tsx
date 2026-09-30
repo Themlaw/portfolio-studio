@@ -94,18 +94,20 @@ function Frame({
 export default function AnimationShowcase({
   reel,
   items,
+  texts,
 }: {
   reel?: LocalizedArtwork;
   items: LocalizedArtwork[];
+  /** Textes éditoriaux du bloc « video ». */
+  texts: { reelEyebrow: string; cardsEyebrow: string; cardsTitle: string };
 }) {
-  const t = useTranslations("animation");
   const [playing, setPlaying] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col gap-[var(--section-gap)]">
       {reel && (
         <section aria-labelledby="reel-title">
-          <Eyebrow>{t("reelEyebrow")}</Eyebrow>
+          <Eyebrow>{texts.reelEyebrow}</Eyebrow>
           <h2
             id="reel-title"
             className="mt-3 mb-8 font-display text-[clamp(2rem,5vw,3.5rem)] text-ink"
@@ -130,12 +132,12 @@ export default function AnimationShowcase({
       )}
 
       <section aria-labelledby="shots-title">
-        <Eyebrow>{t("cardsEyebrow")}</Eyebrow>
+        <Eyebrow>{texts.cardsEyebrow}</Eyebrow>
         <h2
           id="shots-title"
           className="mt-3 mb-8 font-display text-[clamp(1.75rem,4vw,2.75rem)] text-ink"
         >
-          {t("cardsTitle")}
+          {texts.cardsTitle}
         </h2>
 
         <ul className="grid gap-[clamp(1.5rem,3vw,2.5rem)] md:grid-cols-2">

@@ -2,10 +2,10 @@ import Image from "next/image";
 
 import Eyebrow from "@/components/Eyebrow";
 import { Link } from "@/i18n/navigation";
-import type { AppPathname } from "@/i18n/routing";
 
 export type Tile = {
-  href: AppPathname;
+  /** Chemin sans langue, résolu depuis la page cible en base. */
+  href: string;
   eyebrow: string;
   title: string;
   intro: string;

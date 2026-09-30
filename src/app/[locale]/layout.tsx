@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { setRequestLocale } from "next-intl/server";
 
-import SiteHeader from "@/components/SiteHeader";
-import SiteFooter from "@/components/SiteFooter";
 import { routing, type AppLocale } from "@/i18n/routing";
 import { getActiveTheme } from "@/lib/theme";
 import { themeAttributes, themeToCss } from "@/themes/css";
@@ -15,18 +13,17 @@ export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}): Promise<Metadata> {
-  const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: "home.meta" });
+const DEFAULT_BASE_URL = "https://portfolio.example.org";
 
-  return {
-    title: { default: t("title"), template: "%s" },
-    description: t("description"),
-  };
+/** URL publique (PUBLIC_BASE_URL) : canonical et hreflang deviennent absolus. */
+export function generateMetadata(): Metadata {
+  let base: URL;
+  try {
+    base = new URL(process.env.PUBLIC_BASE_URL || DEFAULT_BASE_URL);
+  } catch {
+    base = new URL(DEFAULT_BASE_URL);
+  }
+  return { metadataBase: base };
 }
 
 export default async function LocaleLayout({
@@ -58,9 +55,9 @@ export default async function LocaleLayout({
           >
             {locale === "fr" ? "Aller au contenu" : "Skip to content"}
           </a>
-          <SiteHeader />
-          <main id="contenu">{children}</main>
-          <SiteFooter />
+          {/* En-tête, <main> et pied : src/app/[locale]/[[...slug]]/layout.tsx
+              (ils dépendent de la page courante, lue en base). */}
+          {children}
         </NextIntlClientProvider>
       </body>
     </html>
