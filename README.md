@@ -76,6 +76,89 @@ généré au build, qui se fait donc sans base). Invalidation :
 `src/lib/revalidate.ts`. Cache ISR en mémoire (`isrFlushToDisk: false`,
 conteneur en lecture seule) : il repart à vide à chaque redémarrage.
 
+## Administration et authentification
+
+`/admin` (en français, hors i18n, interface indépendante du thème public) :
+tableau de bord, Thèmes, Pages, Projets, Médiathèque, Réglages (avec un
+**Diagnostic** réseau). Connexion sur `/admin/connexion`. Pages toujours dynamiques,
+`noindex`, interdites dans `robots.txt`.
+
+Authentification : [Better Auth](https://www.better-auth.com) 1.7 (adaptateur
+Drizzle, tables `user`, `session`, `account`, `verification`, `rate_limit`,
+`oidc_identity`, `auth_throttle` dans la même base SQLite). Pas d'inscription
+publique : tout utilisateur est administrateur.
+
+| Variable | Rôle |
+|---|---|
+| `BETTER_AUTH_SECRET` | **Obligatoire en production**, ≥ 32 caractères (`openssl rand -base64 48`). Sans lui, le serveur refuse de démarrer. |
+| `PUBLIC_BASE_URL` | URL publique exacte (`https://…`, sans `/` final). Sert d'origine de confiance : si elle diffère de l'origine réelle du navigateur, **toutes les connexions renvoient 403**. En http en production, avertissement au démarrage (cookies `Secure` non renvoyés). |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Premier administrateur, créé au démarrage **si aucun utilisateur n'existe** (le mot de passe n'est jamais journalisé). Ensuite, `ADMIN_PASSWORD` est ignoré (avertissement) : le retirer. |
+| `AUTH_OIDC_ISSUER`, `AUTH_OIDC_CLIENT_ID`, `AUTH_OIDC_CLIENT_SECRET` | Connexion Authentik (les trois, sinon désactivée avec avertissement). |
+| `AUTH_ADMIN_GROUP` | **Recommandé** : groupe Authentik autorisé (claim `groups`). L'appartenance se gère dans Authentik. |
+| `AUTH_ADMIN_SUBS` | Identifiants Authentik (`sub`) autorisés, séparés par des virgules. Le plus strict. |
+| `ADMIN_EMAILS` | E-mails autorisés, **seulement si Authentik les déclare vérifiés** (`email_verified: true`). **Mode le plus faible** : il suppose une instance Authentik sans auto-inscription et où un utilisateur ne peut pas changer librement son e-mail. Préférer le groupe ou les `sub`. |
+| `AUTH_PASSWORD_DISABLED` | `true` coupe le mot de passe (et `/change-password`, `/set-password`…) **seulement si** l'OIDC est complet ; sinon ignoré (avertissement) pour ne jamais s'enfermer dehors. |
+| `AUTH_TRUSTED_PROXY_HOPS` | Nombre de proxys de confiance devant le site (défaut `1`). L'IP client est l'entrée n°N de `X-Forwarded-For` en partant de la droite. À régler avec Réglages → Diagnostic après déploiement. |
+
+### Authentik (réglages exacts)
+
+1. *Applications → Providers → Create* : **OAuth2/OpenID Provider**.
+   - *Client type* : **Confidential** ; noter le *Client ID* et le *Client Secret*.
+   - *Redirect URIs/Origins* (mode *strict*) :
+     `https://portfolio.example.org/api/auth/callback/authentik`
+     (= `${PUBLIC_BASE_URL}/api/auth/callback/authentik`). Better Auth 1.7 utilise le
+     callback standard `/callback/<id>`, **pas** `/oauth2/callback/<id>` (vérifié de
+     bout en bout par `npm run test:auth`).
+   - *Signing Key* : une clé RS256 (celle d'Authentik par défaut convient).
+   - *Scopes* : `openid`, `email`, `profile` (mappings par défaut
+     `authentik default OAuth Mapping: OpenID 'openid' / 'email' / 'profile'`) ; le
+     claim **`groups`** est fourni par le mapping `profile` par défaut.
+   - *Subject mode* : **Based on the User's hashed ID** (défaut) : c'est la valeur
+     `sub` à mettre dans `AUTH_ADMIN_SUBS` (une connexion refusée l'écrit dans les
+     journaux du serveur : « connexion Authentik refusée (sub « … ») »).
+2. *Applications → Create* : lier le provider ; slug par ex. `portfolio`.
+   `AUTH_OIDC_ISSUER` = `https://auth.example.org/application/o/portfolio`
+   (découverte `/.well-known/openid-configuration`, PKCE S256, nonce).
+3. Créer le groupe (ex. `admins-portfolio`), y mettre l'artiste, et fixer
+   `AUTH_ADMIN_GROUP=admins-portfolio`. Optionnel : lier l'application à ce groupe
+   (*Policy / Group / User Bindings*) pour qu'Authentik refuse aussi en amont.
+4. Pas d'auto-inscription sur ce flux ; si `ADMIN_EMAILS` est utilisé, laisser la
+   vérification d'e-mail active et interdire le changement d'e-mail libre.
+
+Comportement : un compte non autorisé est refusé sans rien créer ; une identité
+Authentik qui porte l'e-mail d'un compte existant n'est **jamais liée** à lui (même
+message que tout autre refus : l'existence du compte n'est pas révélée) ;
+l'autorisation est **revérifiée à chaque requête** contre la configuration courante,
+et une identité refusée à la reconnexion (ex. retirée du groupe dans Authentik) perd
+aussi ses sessions en cours.
+
+### Sécurité
+
+- Cookies `Secure`/`HttpOnly`/`SameSite=Lax` en production ; garde en profondeur
+  (proxy → layout de l'admin → `assertAdmin()` dans chaque server action, 403 sinon).
+- Limitation, appliquée avant Better Auth : **5 tentatives par minute et par IP**
+  (IP calculée avec `AUTH_TRUSTED_PROXY_HOPS`), toutes comptées, refus compris ;
+  puis un **délai progressif par couple (e-mail, IP)** (à partir de 5 échecs en
+  15 min : 2, 4, 8… s, plafond 60 s). Un attaquant ne ralentit que ses propres
+  tentatives : l'administrateur, depuis une autre IP, n'est jamais bloqué. Alerte
+  dans les journaux au-delà de 20 échecs par heure sur un même compte.
+- En-têtes : `X-Frame-Options: DENY`, `frame-ancestors 'none'`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, `nosniff`, `Permissions-Policy`,
+  pas de `X-Powered-By`. L'admin a une CSP complète à nonce (`script-src 'nonce-…'
+  'strict-dynamic'`, sans `unsafe-eval` en production). Le site public garde une CSP
+  minimale (`frame-ancestors`) : ses pages sont en cache ISR, un nonce par requête y
+  est impossible, et l'embed YouTube du bloc vidéo reste permis.
+- Aperçu de thème : Admin → Thèmes → « Prévisualiser sur le site » ouvre le site
+  dans un **nouvel onglet** (formulaire natif vers `POST /admin/apercu` : session
+  admin + même origine). Un bandeau « Aperçu : <thème> · Quitter l'aperçu » (UI de
+  l'admin) reste fixé en bas du site tant que l'aperçu dure ; il n'existe que dans
+  les requêtes en draft mode, jamais dans le HTML en cache public. Fin de l'aperçu
+  à la déconnexion. `/api/theme-preview` n'existe qu'en développement.
+
+Tests : `npm test` (statique, inclut la garde des server actions) ;
+`npm run build && npm run test:auth` (intégration sur le build standalone, faux
+fournisseur OIDC local, serveur dev arrêté).
+
 ## Déploiement
 
 Flux : **push GitHub → GitHub Actions → GHCR (privé) → Komodo sur hote-prod**.

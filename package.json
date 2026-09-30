@@ -11,12 +11,15 @@
     "check:contrast": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-contrast.mjs",
     "check:contrast:render": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-contrast-render.mjs",
     "shots:themes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/theme-shots.mjs",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-references.mjs"
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-references.mjs && node scripts/test-admin-guard.mjs",
+    "test:auth": "node scripts/test-auth.mjs",
+    "shots:admin": "node scripts/admin-shots.mjs"
   },
   "dependencies": {
+    "better-auth": "^1.7.7",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.3",
-    "next": "16.3.0",
+    "next": "^16.3.8",
     "next-intl": "^4.13.6",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -30,7 +33,8 @@
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
-    "eslint-config-next": "16.3.0",
+    "eslint-config-next": "^16.3.8",
+    "oauth2-mock-server": "^9.2.0",
     "playwright": "^1.62.1",
     "tailwindcss": "^4",
     "typescript": "^5"

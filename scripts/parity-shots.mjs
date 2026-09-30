@@ -58,7 +58,7 @@ for (const preset of presets) {
     const context = await browser.newContext({ viewport });
     const page = await context.newPage();
     // Aperçu = draft mode + cookie d'id, posés par la route (dev uniquement).
-    await page.goto(`${BASE}/api/theme-preview?id=${preset}&redirect=/fr`);
+    await page.goto(`${BASE}/api/theme-preview?id=${preset}&redirect=/fr&banner=0`);
     for (const [name, path] of pages) {
       await shoot(page, `${BASE}${path}`, `${dir}${name}.png`);
       process.stdout.write(".");

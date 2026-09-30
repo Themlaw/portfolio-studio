@@ -13,6 +13,18 @@ function isBusy(error: unknown): boolean {
 }
 
 export async function start(): Promise<void> {
+  // Configuration de l'authentification : avertissements, puis refus net de
+  // démarrer en production sans secret valable.
+  const { readAuthConfig } = await import("../auth/config");
+  const authConfig = readAuthConfig();
+  for (const warning of authConfig.warnings) console.warn(`[auth] ${warning}`);
+  if (authConfig.secretError) {
+    console.error(
+      `[auth] ÉCHEC du démarrage : ${authConfig.secretError}. Génère-le avec « openssl rand -base64 48 » et passe-le en variable d'environnement.`,
+    );
+    process.exit(1);
+  }
+
   try {
     const { bootstrap } = await import("./bootstrap");
     // Plusieurs processus sur une base neuve : le passage en WAL ou le
@@ -28,8 +40,10 @@ export async function start(): Promise<void> {
         await new Promise((r) => setTimeout(r, 150 * attempt + Math.random() * 100));
       }
     }
+    const { ensureFirstAdmin } = await import("../auth/seed-admin");
+    await ensureFirstAdmin();
   } catch (error) {
-    console.error("[db] ÉCHEC du démarrage (migrations/seed) : arrêt du serveur.", error);
+    console.error("[db] ÉCHEC du démarrage (migrations/seed/admin) : arrêt du serveur.", error);
     process.exit(1);
   }
 }

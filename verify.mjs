@@ -10,7 +10,7 @@ const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 if (THEME) {
   // Aperçu = draft mode + cookie d'id, posés par la route (dev uniquement).
-  await (await context.newPage()).goto(`${BASE}/api/theme-preview?id=${THEME}&redirect=/fr`);
+  await (await context.newPage()).goto(`${BASE}/api/theme-preview?id=${THEME}&redirect=/fr&banner=0`);
   console.log(`Thème : ${THEME}`);
 }
 const page = await context.newPage();

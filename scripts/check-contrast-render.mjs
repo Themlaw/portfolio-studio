@@ -51,10 +51,27 @@ const LIGHTBOX_GROUPS = [
 
 const MASK_CSS = `.__cr-mask, .__cr-mask * {
   color: transparent !important; -webkit-text-fill-color: transparent !important;
-  text-decoration-color: transparent !important; transition: none !important; }`;
+  text-decoration-color: transparent !important; transition: none !important; }
+/* Indicateur du serveur de dev (badge « N ») : absent en production. */
+nextjs-portal { display: none !important; }`;
+
+/** Mode --admin : interface d'administration (tokens --admin-*), sans thème. */
+const ADMIN_MODE = process.argv.includes("--admin");
+const ADMIN_GROUPS = [
+  ["marque", ".a-brand", 4.5, "scroll"],
+  ["navigation", ".a-nav a", 4.5, "scroll"],
+  ["titres", ".a-page-header h1, .a-card h2, .a-empty h2, .a-login-card h1", 4.5, "scroll"],
+  ["texte-second", ".a-page-header p, .a-card-label, .a-empty p, .muted:not(.mono)", 4.5, "scroll"],
+  ["mono", ".mono", 4.5, "scroll"],
+  ["liens", ".a-main a:not(.a-btn), .a-login-foot a", 4.5, "scroll"],
+  ["boutons", ".a-btn", 4.5, "scroll"],
+  ["badge", ".a-badge", 4.5, "scroll"],
+  ["tableaux", ".a-table th, .a-table td, .a-dl dt, .a-dl dd", 4.5, "scroll"],
+  ["formulaire", ".a-field label, .a-alert", 4.5, "scroll"],
+];
 
 const all = readdirSync(presetDir).filter((f) => f.endsWith(".ts") && f !== "index.ts");
-const wanted = process.argv.slice(2);
+const wanted = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const presets = [];
 for (const f of all.sort()) {
   const p = (await import(new URL(f, presetDir))).default;
@@ -176,11 +193,51 @@ const browser = await chromium.launch();
 const report = [];
 let failures = 0;
 
+function printRows(title, rows) {
+  console.log(`\n== ${title}`);
+  console.log("   page         groupe        n  pire médiane             pire p5                  min");
+  for (const r of rows) {
+    if (!r.pass) failures++;
+    const m = `${r.worstMedian.median.toFixed(2)} « ${r.worstMedian.text.slice(0, 14)} »`;
+    const p = `${r.worstP5.p5.toFixed(2)} « ${r.worstP5.text.slice(0, 14)} »`;
+    console.log(
+      `${r.pass ? " ✓" : " ✗"} ${r.page.padEnd(12)} ${r.label.padEnd(13)} ${String(r.count).padStart(2)}  ${m.padEnd(24)} ${p.padEnd(24)} ${r.worstMin.toFixed(2)}${r.pass ? "" : `  (< ${r.threshold})`}`,
+    );
+  }
+}
+
+if (ADMIN_MODE) {
+  const email = process.env.ADMIN_EMAIL;
+  const password = process.env.ADMIN_PASSWORD;
+  if (!email || !password) throw new Error("--admin : définir ADMIN_EMAIL et ADMIN_PASSWORD");
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  const rows = [];
+  await prepare(page, `${BASE}/admin/connexion`);
+  for (const g of ADMIN_GROUPS) {
+    const r = await measureGroup(page, g);
+    if (r) rows.push({ page: "connexion", ...r });
+  }
+  const login = await page.request.post(`${BASE}/api/auth/sign-in/email`, { data: { email, password }, headers: { origin: BASE } });
+  if (!login.ok()) throw new Error(`connexion admin refusée (${login.status()})`);
+  for (const [label, path] of [["tableau", "/admin"], ["themes", "/admin/themes"], ["pages", "/admin/pages"], ["medias", "/admin/mediatheque"]]) {
+    await prepare(page, `${BASE}${path}`);
+    for (const g of ADMIN_GROUPS) {
+      const r = await measureGroup(page, g);
+      if (r) rows.push({ page: label, ...r });
+    }
+  }
+  await context.close();
+  printRows("admin", rows);
+  report.push({ preset: "admin", rows });
+  presets.length = 0; // pas de thèmes publics en mode admin
+}
+
 for (const preset of presets) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   // Aperçu = draft mode + cookie d'id, posés par la route (dev uniquement).
-  await page.goto(`${BASE}/api/theme-preview?id=${preset.id}&redirect=/fr`);
+  await page.goto(`${BASE}/api/theme-preview?id=${preset.id}&redirect=/fr&banner=0`);
   const rows = [];
 
   for (const [pageLabel, path] of [["accueil", "/fr"], ["personnages", "/fr/personnages"]]) {

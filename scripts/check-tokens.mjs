@@ -14,7 +14,9 @@ import { join, relative } from "node:path";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const DIRS = ["src/components", "src/app", "src/blocks"];
-const EXCLUDE = new Set(["src/app/globals.css"]);
+// globals.css relaie les variables du thème ; admin.css définit le jeu de
+// tokens fixe de l'admin (indépendant du thème public).
+const EXCLUDE = new Set(["src/app/globals.css", "src/app/admin/admin.css", "src/app/admin/preview-banner.css"]);
 const EXT = /\.(tsx?|jsx?|mjs|css)$/;
 
 const PALETTE =

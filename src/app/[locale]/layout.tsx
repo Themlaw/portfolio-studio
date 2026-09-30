@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { setRequestLocale } from "next-intl/server";
 
+import PreviewBanner from "@/components/PreviewBanner";
 import { routing, type AppLocale } from "@/i18n/routing";
 import { getActiveTheme } from "@/lib/theme";
 import { themeAttributes, themeToCss } from "@/themes/css";
@@ -58,6 +59,7 @@ export default async function LocaleLayout({
           {/* En-tête, <main> et pied : src/app/[locale]/[[...slug]]/layout.tsx
               (ils dépendent de la page courante, lue en base). */}
           {children}
+          <PreviewBanner />
         </NextIntlClientProvider>
       </body>
     </html>

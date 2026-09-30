@@ -12,7 +12,7 @@ chaque phase s'y réfère. Toute déviation se discute et met ce fichier à jour
 | Dev | vm-dev, `npm run dev -- -p 3001` ; hôte Proxmox en surallocation RAM → une charge lourde à la fois, pas de build d'image en local |
 | Contenu | SQLite (better-sqlite3 + Drizzle ORM, WAL), fichier `/data/portfolio.db` |
 | Médias | Volume local `/data/media`, derrière une interface `MediaStorage` (bascule Garage/S3 possible sans toucher aux composants) |
-| Auth admin | Better Auth : OAuth Authentik (generic OAuth/OIDC) + email/mot de passe en secours. `AUTH_PASSWORD_DISABLED=true` coupe le mot de passe **seulement si** l'OIDC est configuré (sinon ignoré + avertissement au démarrage : on ne s'enferme jamais dehors). Inscription publique désactivée. |
+| Auth admin | Better Auth : OAuth Authentik (generic OAuth/OIDC) + email/mot de passe en secours. `AUTH_PASSWORD_DISABLED=true` coupe le mot de passe **seulement si** l'OIDC est configuré (sinon ignoré + avertissement au démarrage : on ne s'enferme jamais dehors). Inscription publique désactivée. Détails : section « Authentification (phase 3) ». |
 | Vidéo | Transcodage ffmpeg à l'upload → MP4 H.264 « faststart » 1080p + 720p + vignette, servis en HTTP Range |
 
 ## Principe directeur : un thème = tokens + variantes + assets
@@ -176,6 +176,42 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
 - **Médiathèque** : tous les médias, statut de traitement, alt fr/en, où chaque média est utilisé.
 - Rendu public : pages statiques régénérées à la demande (`revalidateTag` à chaque
   enregistrement) : le site public reste aussi rapide qu'aujourd'hui.
+
+## Authentification (phase 3)
+
+- **Better Auth 1.7**, adaptateur Drizzle, tables `user`, `session`, `account`,
+  `verification`, `rate_limit` (migration `0001_auth`). Tout utilisateur est
+  administrateur : il n'y a ni inscription publique ni rôles.
+- **Authentik** par le plugin generic OAuth (découverte, PKCE S256, nonce). Callback :
+  `${PUBLIC_BASE_URL}/api/auth/callback/authentik` (callback standard de Better Auth 1.7).
+- **Liste blanche** dans `user.validateUserInfo` : appelé à la création, à la liaison
+  ET à chaque connexion OAuth, avec le profil brut. Ordre de solidité : `sub` explicite
+  (`AUTH_ADMIN_SUBS`), groupe (`AUTH_ADMIN_GROUP`), e-mail (`ADMIN_EMAILS`) seulement si
+  `email_verified === true`. Refus → `?error=admin_not_allowed`, rien de créé.
+- **Aucune liaison implicite** (`accountLinking.disableImplicitLinking`) : une identité
+  Authentik qui porte l'e-mail d'un compte existant est refusée (`account_not_linked`).
+- **Revérification à chaque requête** : les claims autorisés sont mémorisés
+  (`oidc_identity`) ; `getAdminSession()` revérifie l'accès contre la configuration
+  courante et révoque la session si l'accès a été retiré.
+- **Premier admin** : `ADMIN_EMAIL` + `ADMIN_PASSWORD` si la table `user` est vide
+  (insertion directe, mot de passe haché par Better Auth).
+- **Démarrage** : `BETTER_AUTH_SECRET` absent ou < 32 caractères en production → arrêt.
+- **Garde en profondeur** : `src/proxy.ts` (cookie de session présent, sinon
+  redirection), layout de l'espace admin (`requireAdmin()`, session vérifiée en base),
+  `assertAdmin()` en tête de chaque server action (→ `forbidden()`, 403 ; convention
+  vérifiée par `scripts/test-admin-guard.mjs`).
+- **Limitation de débit** (avant Better Auth) : 5 tentatives par minute et par IP,
+  toutes comptées (IP calculée par `AUTH_TRUSTED_PROXY_HOPS` depuis la droite de
+  `X-Forwarded-For`), puis délai progressif par couple (e-mail, IP) (`auth_throttle`) :
+  un attaquant ne peut ralentir que ses propres tentatives.
+- **En-têtes** : `next.config.ts` (XFO, Referrer, nosniff, Permissions,
+  `frame-ancestors`) ; CSP complète à nonce sur `/admin` posée par le proxy. Pas de
+  CSP à nonce sur le public : incompatible avec le cache ISR (même HTML pour tous).
+- **Aperçu de thème** : routes POST `/admin/apercu` (formulaire natif, nouvel onglet,
+  session + même origine), cookie appliqué seulement avec une session admin valide,
+  bandeau d'aperçu rendu uniquement en draft mode ; GET réservé au développement.
+- **Admin** : UI propre (`src/app/admin/admin.css`, tokens `--admin-*`, jamais les
+  `--t-*` du thème public), racine HTML séparée, toujours dynamique, `noindex`.
 
 ## Phases
 

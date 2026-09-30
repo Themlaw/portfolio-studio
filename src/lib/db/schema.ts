@@ -123,3 +123,105 @@ export const slots = sqliteTable(
     uniqueIndex("slots_slug_idx").on(t.slug),
   ],
 );
+
+/* ------------------------------------------------------------------------
+ * Authentification (Better Auth, adaptateur Drizzle). Noms de propriétés =
+ * champs attendus par Better Auth ; colonnes SQL en snake_case.
+ * --------------------------------------------------------------------- */
+
+export const user = sqliteTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
+  image: text("image"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+export const session = sqliteTable(
+  "session",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (t) => [index("session_user_idx").on(t.userId)],
+);
+
+export const account = sqliteTable(
+  "account",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: integer("access_token_expires_at", { mode: "timestamp_ms" }),
+    refreshTokenExpiresAt: integer("refresh_token_expires_at", { mode: "timestamp_ms" }),
+    scope: text("scope"),
+    /** Haché (scrypt) pour le fournisseur « credential ». */
+    password: text("password"),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("account_user_idx").on(t.userId)],
+);
+
+export const verification = sqliteTable(
+  "verification",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("verification_identifier_idx").on(t.identifier)],
+);
+
+/** Compteurs de limitation de débit (connexion), persistés entre redémarrages. */
+export const rateLimit = sqliteTable("rate_limit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: integer("last_request").notNull(),
+});
+
+/**
+ * Dernière identité Authentik AUTORISÉE, par `sub` : claims retenus à la
+ * connexion (e-mail vérifié ou non, groupes). Relue à CHAQUE requête de
+ * l'admin pour revérifier l'accès contre la configuration courante.
+ */
+export const oidcIdentity = sqliteTable("oidc_identity", {
+  sub: text("sub").primaryKey(),
+  providerId: text("provider_id").notNull(),
+  email: text("email"),
+  emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
+  /** JSON (texte) : tableau des groupes. */
+  groups: text("groups").notNull().default("[]"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+/**
+ * Échecs de connexion par couple (e-mail, IP) : délai progressif, jamais de
+ * blocage dur. La colonne `email` porte la clé « e-mail|IP ».
+ */
+export const authThrottle = sqliteTable("auth_throttle", {
+  email: text("email").primaryKey(),
+  failures: integer("failures").notNull(),
+  firstAt: integer("first_at").notNull(),
+  lastAt: integer("last_at").notNull(),
+});
