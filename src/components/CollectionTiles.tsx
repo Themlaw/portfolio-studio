@@ -29,14 +29,14 @@ export default function CollectionTiles({
         <Link
           key={tile.href}
           href={tile.href}
-          className="mat-hover group grid items-center gap-8 md:grid-cols-12"
+          className="tile mat-hover group grid items-center gap-8 md:grid-cols-12"
         >
           <div
             className={`md:col-span-8 ${
               index % 2 === 1 ? "md:order-2 md:col-start-5" : ""
             }`}
           >
-            <div className="mat">
+            <div className="tile-media mat">
               <Image
                 src={tile.image}
                 alt={tile.imageAlt}

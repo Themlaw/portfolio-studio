@@ -1,0 +1,269 @@
+/* ==========================================================================
+   VARIANTES DE FORME
+   Chaque variante réagit à un attribut `data-*` posé sur <html> par le
+   layout (src/themes/css.ts → themeAttributes). Les composants ne posent
+   que des classes sémantiques stables (.site-header, .strip-frame,
+   .strip-media, .strip-caption, .lightbox, .lightbox-frame, .btn,
+   .caption-text, .hero-*) et ne lisent jamais le thème pour leur style.
+
+   Règles volontairement hors @layer : une variante l'emporte sur les
+   utilitaires Tailwind posés dans les composants.
+
+   Valeurs : uniquement des tokens (var(--color-*), var(--radius-*)…),
+   sauf le noir de la lightbox plein cadre, qui est un noir de salle.
+   ========================================================================== */
+
+/* ---- Texture de fond ---------------------------------------------------- */
+[data-texture="paper-dots"] body,
+[data-texture="paper-dots"] .strip-deep {
+  background-image: radial-gradient(
+    /* 3,5 % : sous 5 %, les points ne font plus descendre le contraste
+       des petits textes sous 4,5:1 (mesuré au pixel). */
+    color-mix(in srgb, var(--color-ink) 3.5%, transparent) 1px,
+    transparent 1.4px
+  );
+  background-size: 22px 22px;
+}
+
+/* ---- En-tête ------------------------------------------------------------ */
+/* centered : nom au-dessus, navigation centrée dessous (à partir de md). */
+@media (min-width: 48rem) {
+  [data-header="centered"] .site-header-bar {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.35rem;
+    padding-block: 0.9rem 0.7rem;
+  }
+
+  [data-header="centered"] .site-brand {
+    font-size: 1.6rem;
+  }
+
+  :root[data-header="centered"] {
+    --header-h: 6.25rem;
+  }
+}
+
+/* ---- Boutons ------------------------------------------------------------ */
+:root[data-button="square"] {
+  --btn-radius: var(--radius-sm);
+}
+
+/* ---- Hero : parallax-layers -------------------------------------------- */
+/* Halo typographique : plusieurs ombres de texte serrées, couleur du fond
+   (token heroHalo), qui épousent les lettres. Aucun fond, aucune forme :
+   le décor reste intact entre les caractères et autour du bloc.
+   heroHalo absent = transparent = aucun effet. */
+.hero-halo {
+  --halo: var(--color-hero-halo);
+  /* Couches empilées : les petites dessinent le contour, les moyennes
+     (répétées pour gagner en opacité) comblent l'interlettrage large, la
+     dernière fond le tout dans le décor. */
+  text-shadow:
+    0 0 1px var(--halo),
+    0 0 2px var(--halo),
+    0 0 3px var(--halo),
+    0 0 4px var(--halo),
+    0 0 6px var(--halo),
+    0 0 6px var(--halo),
+    0 0 8px var(--halo),
+    0 0 8px var(--halo),
+    0 0 10px var(--halo),
+    0 0 10px var(--halo),
+    0 0 10px var(--halo),
+    0 0 12px var(--halo),
+    0 0 12px var(--halo),
+    0 0 12px var(--halo),
+    0 0 14px var(--halo),
+    0 0 14px var(--halo),
+    0 0 20px color-mix(in srgb, var(--halo) 60%, transparent);
+}
+
+/* Pictogrammes SVG (flèche de l'indice) : même halo en drop-shadow. */
+.hero-halo svg {
+  filter: drop-shadow(0 0 1px var(--halo)) drop-shadow(0 0 2px var(--halo))
+    drop-shadow(0 0 5px color-mix(in srgb, var(--halo) 70%, transparent));
+}
+
+/* ---- Hero : spotlight --------------------------------------------------- */
+.hero-spotlight {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/* Faisceau de projecteur venu d'au-dessus de l'écran. */
+.hero-spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(
+    90% 130% at 50% -34%,
+    color-mix(in srgb, var(--color-accent-glow) 34%, transparent),
+    color-mix(in srgb, var(--color-accent-glow) 7%, transparent) 48%,
+    transparent 72%
+  );
+  pointer-events: none;
+}
+
+.hero-kicker {
+  color: var(--color-primary);
+}
+
+/* ---- Hero : type-only --------------------------------------------------- */
+.hero-mark {
+  text-decoration-line: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--color-primary);
+  text-decoration-thickness: 0.055em;
+  text-underline-offset: 0.16em;
+  text-decoration-skip-ink: none;
+}
+
+.hero-note {
+  position: absolute;
+  top: clamp(1.5rem, 7vh, 4.5rem);
+  right: var(--gutter);
+  font-family: var(--font-caption);
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  line-height: 1;
+  color: var(--color-primary);
+  transform: rotate(4deg);
+  transform-origin: right center;
+}
+
+/* ---- Planches : scotchées ----------------------------------------------- */
+/* :root[…] : doit l'emporter sur la déclaration :root de globals.css. */
+:root[data-strip="taped"] {
+  --strip-pad: 1.5rem;
+}
+
+[data-strip="taped"] .strip-media {
+  position: relative;
+  transform: rotate(var(--tilt, 0deg));
+  transition: transform var(--dur-slow) var(--ease-soft);
+}
+
+/* Cycle d'inclinaisons : jamais deux planches parallèles d'affilée. */
+[data-strip="taped"] .strip-frame:nth-child(3n + 1) {
+  --tilt: -2.4deg;
+}
+[data-strip="taped"] .strip-frame:nth-child(3n + 2) {
+  --tilt: 1.6deg;
+}
+[data-strip="taped"] .strip-frame:nth-child(3n) {
+  --tilt: -1.2deg;
+}
+
+/* Redressée au survol / au focus (la transition saute si reduced-motion). */
+[data-strip="taped"] .strip-frame:hover,
+[data-strip="taped"] .strip-frame:focus-visible {
+  --tilt: 0deg;
+}
+
+/* Ombre courte et légère : le coin d'une planche inclinée descend de
+   quelques pixels, son ombre ne doit pas mordre la légende. */
+[data-strip="taped"] .strip-media img {
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--color-shadow) 10%, transparent),
+    0 3px 8px color-mix(in srgb, var(--color-shadow) 9%, transparent);
+}
+
+/* La légende s'écarte de la planche inclinée. */
+[data-strip="taped"] .strip-caption-row {
+  margin-top: 1.4rem;
+}
+
+/* Tuiles de collection : même langage que les planches (pas de
+   passe-partout, légère inclinaison, scotch, ombre douce). Inclinaisons plus
+   faibles : les tuiles sont bien plus larges. */
+[data-strip="taped"] .tile-media {
+  position: relative;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  transform: rotate(var(--tilt, 0deg));
+  transition: transform var(--dur-slow) var(--ease-soft);
+}
+
+[data-strip="taped"] .tile:nth-child(3n + 1) {
+  --tilt: -1.4deg;
+}
+[data-strip="taped"] .tile:nth-child(3n + 2) {
+  --tilt: 1deg;
+}
+[data-strip="taped"] .tile:nth-child(3n) {
+  --tilt: -0.8deg;
+}
+
+[data-strip="taped"] .tile:hover,
+[data-strip="taped"] .tile:focus-visible {
+  --tilt: 0deg;
+}
+
+[data-strip="taped"] .tile-media img {
+  border-radius: var(--radius-strip);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--color-shadow) 10%, transparent),
+    0 6px 16px color-mix(in srgb, var(--color-shadow) 11%, transparent);
+}
+
+/* Bout de scotch translucide, légèrement de travers. */
+[data-strip="taped"] :is(.strip-media, .tile-media)::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: -0.7rem;
+  left: 50%;
+  width: clamp(3.5rem, 22%, 5.5rem);
+  height: 1.4rem;
+  transform: translateX(-50%) rotate(-3deg);
+  background: color-mix(in srgb, var(--color-surface) 58%, transparent);
+  border-inline: 1px dashed color-mix(in srgb, var(--color-ink) 10%, transparent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--color-shadow) 10%, transparent);
+  pointer-events: none;
+}
+
+/* ---- Légendes : manuscrites --------------------------------------------- */
+/* Une écriture cursive ne supporte ni petites capitales ni interlettrage :
+   on la grossit et on la laisse respirer. Concerne toutes les petites
+   étiquettes posées en police de légende. */
+[data-caption="handwritten"] .strip-caption {
+  font-size: 1rem;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+[data-caption="handwritten"] .eyebrow,
+[data-caption="handwritten"] .caption-text {
+  font-size: 1.1rem;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  line-height: 1.2;
+}
+
+/* ---- Lightbox : plein cadre --------------------------------------------- */
+[data-lightbox="full-bleed"] .lightbox {
+  background: color-mix(in srgb, var(--color-scrim) 30%, #000000);
+  backdrop-filter: none;
+}
+
+[data-lightbox="full-bleed"] .lightbox-frame {
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+  border-radius: 0;
+  max-height: none;
+}
+
+[data-lightbox="full-bleed"] .lightbox-image {
+  max-height: 54vh;
+}
+
+@media (min-width: 48rem) {
+  [data-lightbox="full-bleed"] .lightbox-image {
+    max-height: 66vh;
+  }
+}

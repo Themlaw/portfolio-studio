@@ -50,7 +50,7 @@ export default async function Page({
           <h1 className="mt-4 font-display text-[clamp(2.75rem,7vw,5rem)] text-ink">
             {tSite("name")}
           </h1>
-          <p className="mt-4 font-caption text-[0.72rem] tracking-[0.2em] uppercase text-secondary">
+          <p className="caption-text mt-4 font-caption text-[0.72rem] tracking-[0.2em] uppercase text-secondary">
             {tSite("role")}
           </p>
 

@@ -1,32 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Figtree, Spline_Sans_Mono, Young_Serif } from "next/font/google";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
 import SiteHeader from "@/components/SiteHeader";
 import SiteFooter from "@/components/SiteFooter";
 import { routing, type AppLocale } from "@/i18n/routing";
+import { getActiveTheme } from "@/lib/theme";
+import { themeAttributes, themeToCss } from "@/themes/css";
+import { FONT_VARIABLE_CLASSES } from "@/themes/fonts";
 import "../globals.css";
-
-const display = Young_Serif({
-  subsets: ["latin"],
-  weight: "400",
-  display: "swap",
-  variable: "--font-young-serif",
-});
-
-const body = Figtree({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-figtree",
-});
-
-const caption = Spline_Sans_Mono({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-spline-mono",
-});
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -56,15 +39,17 @@ export default async function LocaleLayout({
   const { locale } = await params;
   if (!hasLocale(routing.locales, locale)) notFound();
   setRequestLocale(locale as AppLocale);
+  const theme = await getActiveTheme();
 
   return (
     // Les variables de next/font sont posees sur <html> : les tokens
-    // --font-display / --font-body / --font-caption sont declares sur :root
-    // et doivent pouvoir resoudre var(--font-young-serif) au meme niveau.
-    <html
-      lang={locale}
-      className={`${display.variable} ${body.variable} ${caption.variable}`}
-    >
+    // --t-font-* sont declares sur :root et doivent pouvoir resoudre
+    // var(--font-young-serif) au meme niveau. Les data-* portent les
+    // variantes de forme du theme (src/themes/variants.css).
+    <html lang={locale} className={FONT_VARIABLE_CLASSES} {...themeAttributes(theme)}>
+      <head>
+        <style id="theme" dangerouslySetInnerHTML={{ __html: themeToCss(theme) }} />
+      </head>
       <body className="bg-bg text-ink antialiased">
         <NextIntlClientProvider>
           <a

@@ -92,7 +92,7 @@ export default function ProjectStrip({
 
   return (
     <section
-      className={`py-[clamp(3rem,7vw,5.5rem)] ${deep ? "bg-bg-deep" : "bg-bg"}`}
+      className={`strip py-[clamp(3rem,7vw,5.5rem)] ${deep ? "strip-deep bg-bg-deep" : ""}`}
       aria-labelledby={`project-${project.slug}`}
     >
       <header className="shell flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
@@ -143,7 +143,7 @@ export default function ProjectStrip({
       <div
         ref={railRef}
         id={railId}
-        className="strip-rail mt-[clamp(1.75rem,3.5vw,2.75rem)]"
+        className="strip-rail"
         role="group"
         aria-label={project.title}
       >
@@ -158,15 +158,17 @@ export default function ProjectStrip({
             aria-label={`${artwork.title} — ${tg("open")}`}
             className="strip-frame group text-left"
           >
-            <Image
-              src={artwork.image}
-              alt={artwork.title}
-              width={artwork.width}
-              height={artwork.height}
-              sizes="(min-width: 1024px) 640px, 60vw"
-              className="h-[var(--strip-h)] w-auto max-w-none rounded-strip"
-            />
-            <span className="mt-3 flex items-baseline justify-between gap-4">
+            <span className="strip-media">
+              <Image
+                src={artwork.image}
+                alt={artwork.title}
+                width={artwork.width}
+                height={artwork.height}
+                sizes="(min-width: 1024px) 640px, 60vw"
+                className="h-[var(--strip-h)] w-auto max-w-none rounded-strip"
+              />
+            </span>
+            <span className="strip-caption-row flex items-baseline justify-between gap-4">
               <span className="strip-caption transition-colors group-hover:text-ink">
                 {artwork.title}
               </span>

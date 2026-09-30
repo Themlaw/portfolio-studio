@@ -32,7 +32,7 @@ export default function LocaleSwitcher() {
               locale={locale}
               hrefLang={locale}
               aria-current={active ? "true" : undefined}
-              className={`font-caption tracking-[0.18em] uppercase transition-colors ${
+              className={`caption-text font-caption tracking-[0.18em] uppercase transition-colors ${
                 active
                   ? "text-ink"
                   : "text-ink-soft hover:text-primary"

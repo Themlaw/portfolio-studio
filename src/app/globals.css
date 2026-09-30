@@ -1,75 +1,74 @@
 @import "tailwindcss";
+/* Variantes de forme (data-* sur <html>). Règles hors @layer : elles
+   priment sur les utilitaires, c'est voulu (une variante re-dessine). */
+@import "../themes/variants.css";
 
 /* ==========================================================================
-   TOKENS DE THÈME — SOURCE UNIQUE DE VÉRITÉ
-   Toute la direction artistique se règle ICI, et nulle part ailleurs.
-   Aucun composant ne doit contenir de couleur, de typo, de rayon ni
-   d'ombre en dur.
+   TOKENS DE THÈME — BRANCHEMENT SUR LE THÈME ACTIF
+   Les valeurs ne vivent plus ici : elles viennent du thème actif
+   (src/themes/presets/*), émis par le layout dans <style id="theme"> sous
+   forme de variables `--t-*` sur :root. Ce fichier ne fait que les relayer.
 
-   Le bloc `@theme` fait les deux choses à la fois :
-     1. il déclare les variables sur :root — donc `var(--color-primary)`
-        reste utilisable partout dans ce fichier et dans les composants ;
-     2. il génère les utilitaires Tailwind correspondants
-        (bg-bg, text-ink, font-display, rounded-md, shadow-card, ease-soft…).
+   Le bloc `@theme` garde les mêmes noms qu'avant, donc les mêmes
+   utilitaires Tailwind (bg-bg, text-ink, font-display, rounded-strip,
+   shadow-card, ease-soft…).
 
-   Important : on n'écrit PAS `@theme inline` avec des variables qui se
-   référencent elles-mêmes (`--font-display: var(--font-display)`) — ça crée
-   un cycle CSS, la déclaration devient invalide, et les webfonts ne
-   s'appliquent plus. Ici, valeurs littérales uniquement.
+   Piège évité : jamais `--color-bg: var(--color-bg)` (auto-référence =
+   cycle CSS, déclaration invalide). Le préfixe runtime `--t-` est distinct.
+
+   `--color-*: initial` retire la palette Tailwind par défaut : `bg-white`,
+   `text-slate-500`… ne génèrent plus rien. Seules les couleurs du thème
+   existent (garde-fou complété par scripts/check-tokens.mjs).
    ========================================================================== */
 @theme {
-  /* --- Couleurs ------------------------------------------------------- */
-  --color-bg: #faf9f6;          /* papier */
-  --color-bg-deep: #f2f0ea;     /* papier profond — sépare deux projets
-                                   d'affilée sans bordure ni carte */
-  --color-surface: #ffffff;
-  --color-ink: #232629;         /* texte principal */
-  --color-ink-soft: #686d73;    /* texte secondaire — assombri juste ce
-                                   qu'il faut pour tenir AA (4,5:1) a 11px
-                                   sur papier ET sur papier profond.
-                                   Mesure : 4,96:1 sur #faf9f6, 4,58:1 sur #f2f0ea */
-  --color-line: #e5e2db;        /* séparateurs, bordures */
-  --color-primary: #2e4e9e;     /* outremer — boutons, liens */
-  --color-primary-hover: #24408a;
-  --color-secondary: #a85231;   /* sanguine profonde — accents, eyebrows.
-                                   Assombrie depuis #c96f4a (3,41:1) : les
-                                   eyebrows sont en 11px, il leur faut AA
-                                   4,5:1 sur papier ET sur papier profond.
-                                   Mesure : 5,09:1 sur #faf9f6, 4,71:1 sur
-                                   #f2f0ea. (#b25c38 ne passait pas : 4,11:1
-                                   sur papier profond.) */
-  --color-tertiary: #7e8f77;    /* sauge — tags, détails */
+  --color-*: initial;
 
-  /* --- Typographie ----------------------------------------------------
-     --font-young-serif / --font-figtree / --font-spline-mono sont fournies
-     par next/font (voir src/app/[locale]/layout.tsx) : pas de cycle. */
-  --font-display: var(--font-young-serif), Georgia, "Times New Roman", serif;
-  --font-body: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
-  --font-caption: var(--font-spline-mono), ui-monospace, SFMono-Regular, monospace;
+  /* --- Couleurs ------------------------------------------------------- */
+  --color-bg: var(--t-color-bg);
+  --color-bg-deep: var(--t-color-bg-deep);
+  --color-surface: var(--t-color-surface);
+  --color-ink: var(--t-color-ink);
+  --color-ink-soft: var(--t-color-ink-soft);
+  --color-line: var(--t-color-line);
+  --color-primary: var(--t-color-primary);
+  --color-primary-hover: var(--t-color-primary-hover);
+  --color-on-primary: var(--t-color-on-primary);
+  --color-secondary: var(--t-color-secondary);
+  --color-tertiary: var(--t-color-tertiary);
+  --color-eyebrow: var(--t-color-eyebrow);
+  --color-accent-glow: var(--t-color-accent-glow);
+  --color-hero-halo: var(--t-hero-halo);
+  /* Voile sombre (lightbox, vidéo) et texte posé dessus */
+  --color-scrim: var(--t-color-scrim);
+  --color-on-scrim: var(--t-color-on-scrim);
+  --color-shadow: var(--t-color-shadow);
+
+  /* --- Typographie : piles issues du catalogue (src/themes/fonts.ts) -- */
+  --font-display: var(--t-font-display);
+  --font-body: var(--t-font-body);
+  --font-caption: var(--t-font-caption);
 
   /* --- Rayons ---------------------------------------------------------- */
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
-  --radius-btn: 999px;
-  /* Les images des bandes sont posées presque à vif : un rayon plus court
-     que --radius-sm, juste de quoi casser l'angle. */
-  --radius-strip: 4px;
+  --radius-sm: var(--t-radius-sm);
+  --radius-md: var(--t-radius-md);
+  --radius-lg: var(--t-radius-lg);
+  --radius-btn: var(--t-radius-btn);
+  --radius-strip: var(--t-radius-strip);
 
-  /* --- Ombres ---------------------------------------------------------- */
-  --shadow-card: 0 2px 12px rgba(35, 38, 41, 0.08);
-  --shadow-card-hover: 0 8px 28px rgba(35, 38, 41, 0.14);
+  /* --- Ombres (teinte fournie par le thème) ---------------------------- */
+  --shadow-card: 0 2px 12px color-mix(in srgb, var(--color-shadow) 8%, transparent);
+  --shadow-card-hover: 0 8px 28px color-mix(in srgb, var(--color-shadow) 14%, transparent);
 
   /* --- Mouvement ------------------------------------------------------- */
-  --ease-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-soft: var(--t-motion-easing);
 }
 
 /* Tokens hors namespace Tailwind (pas d'utilitaire à générer pour eux).
    Ils dérivent des tokens ci-dessus : régler la DA reste un geste unique. */
 :root {
-  /* Boutons */
+  /* Boutons (la variante data-button peut changer le rayon) */
   --btn-bg: var(--color-primary);
-  --btn-fg: #ffffff;
+  --btn-fg: var(--color-on-primary);
   --btn-bg-hover: var(--color-primary-hover);
   --btn-radius: var(--radius-btn);
 
@@ -83,8 +82,21 @@
   --mat-padding: clamp(10px, 2.2vw, 22px);
 
   /* Rythme */
-  --section-gap: clamp(4.5rem, 10vw, 9rem);
-  --page-max: 1240px;
+  --section-gap: var(--t-space-section-gap);
+  --page-max: var(--t-space-page-max);
+  --gutter: var(--t-space-gutter);
+
+  /* Titres */
+  --display-weight: var(--t-font-display-weight);
+
+  /* Planches : marge verticale intérieure du rail (halo, inclinaisons).
+     0 par défaut : la bande est posée à vif. */
+  --strip-pad: var(--t-strip-pad);
+  /* Place minimale pour l'anneau de focus (2px + décalage 3px) : le rail
+     défile en x, donc rogne aussi en y. */
+  --strip-ring: 6px;
+  /* Halo des images de planche (none si le thème n'en a pas). */
+  --strip-halo: var(--t-strip-halo);
 
   /* Barre de glissement des planches de projet.
      Volontairement minuscule : elle indique la position, elle ne décore pas.
@@ -98,8 +110,8 @@
   --lb-thumb-h: clamp(44px, 5vw, 56px);
 
   /* Durées */
-  --dur-fast: 180ms;
-  --dur-slow: 520ms;
+  --dur-fast: var(--t-motion-dur-fast);
+  --dur-slow: var(--t-motion-dur-base);
 }
 
 /* ==========================================================================
@@ -124,9 +136,15 @@
   h2,
   h3 {
     font-family: var(--font-display);
-    font-weight: 400;
+    font-weight: var(--display-weight);
     line-height: 1.04;
     letter-spacing: -0.01em;
+  }
+
+  /* Tout texte en police de titre prend la graisse de titre du thème
+     (nom du site, e-mail du pied de page…), pas seulement h1-h3. */
+  .font-display {
+    font-weight: var(--display-weight);
   }
 
   ::selection {
@@ -169,7 +187,7 @@
     width: 100%;
     max-width: var(--page-max);
     margin-inline: auto;
-    padding-inline: clamp(1.25rem, 5vw, 3.5rem);
+    padding-inline: var(--gutter);
   }
 
   /* Eyebrow : mono, petites capitales espacées.
@@ -180,7 +198,7 @@
     font-size: 0.6875rem;
     letter-spacing: 0.22em;
     text-transform: uppercase;
-    color: var(--color-secondary);
+    color: var(--color-eyebrow);
   }
 
   .btn {
@@ -237,7 +255,7 @@
      recalculée en CSS pur, donc elle reste calée sur la grille à toute
      largeur, y compris au-delà de --page-max. */
   .strip-rail {
-    --rail-gutter: clamp(1.25rem, 5vw, 3.5rem);
+    --rail-gutter: var(--gutter);
     --rail-inset: max(
       var(--rail-gutter),
       calc((100% - var(--page-max)) / 2 + var(--rail-gutter))
@@ -254,6 +272,15 @@
     overscroll-behavior-x: contain;
     scrollbar-width: none;
     -ms-overflow-style: none;
+    /* Rembourrage vertical : au moins la place de l'anneau de focus, plus
+       si le thème l'exige (halo, inclinaisons). Les marges l'absorbent :
+       en haut entièrement (jamais négatif, le pad ne dépasse pas le minimum
+       du clamp), en bas à hauteur de l'anneau — une bande posée à vif ne
+       bouge donc pas d'un pixel. */
+    --rail-room: max(var(--strip-pad), var(--strip-ring));
+    margin-top: calc(clamp(1.75rem, 3.5vw, 2.75rem) - var(--rail-room));
+    margin-bottom: calc(-1 * var(--strip-ring));
+    padding-block: var(--rail-room);
   }
 
   .strip-rail::-webkit-scrollbar {
@@ -266,12 +293,22 @@
     scroll-snap-align: start;
   }
 
+  .strip-media {
+    display: block;
+  }
+
+  /* Halo lumineux du thème, seulement s'il en a un. */
   .strip-frame img {
+    box-shadow: var(--strip-halo);
     transition: opacity var(--dur-fast) var(--ease-soft);
   }
 
   .strip-frame:hover img {
     opacity: 0.88;
+  }
+
+  .strip-caption-row {
+    margin-top: 0.75rem;
   }
 
   /* Légende toujours lisible : elle n'est pas une récompense au survol. */
@@ -316,6 +353,12 @@
   .rail-bar[data-dragging="true"] .rail-bar-thumb,
   .rail-bar:focus-visible .rail-bar-thumb {
     background: var(--color-primary-hover);
+  }
+
+  /* ---- Lightbox --------------------------------------------------------- */
+  .lightbox {
+    background: color-mix(in srgb, var(--color-scrim) 92%, transparent);
+    color: var(--color-on-scrim);
   }
 
   /* ---- Vignettes de la lightbox ---------------------------------------- */

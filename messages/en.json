@@ -26,7 +26,9 @@
     },
     "hero": {
       "eyebrow": "Portfolio — 2D",
-      "scroll": "Scroll"
+      "scroll": "Scroll",
+      "reel": "Demo reel",
+      "statement": "I draw <mark>characters</mark> and the worlds that carry them."
     },
     "collections": {
       "eyebrow": "Collections — 01",

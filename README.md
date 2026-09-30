@@ -17,13 +17,35 @@ PORT=3001 node verify.mjs   # harnais de régression Playwright (serveur dev lan
 
 Les scripts Playwright ponctuels (captures, contrôles) sont dans `scripts/`.
 
+## Thèmes
+
+Le rendu est piloté par un thème (tokens + variantes + assets), voir
+`docs/ARCHITECTURE.md` et `src/themes/`. Presets livrés :
+
+| id | Direction |
+|---|---|
+| `galerie-lumineuse` (défaut) | papier clair, hero parallaxe, planches à vif |
+| `pro` | état du tag `da/pro` : étiquettes grises, calques du hero plus neutres |
+| `salle-de-projection` | sombre, hero « spotlight » ambre, lightbox plein cadre |
+| `carnet-d-atelier` | papier pointillé, hero typographique, planches scotchées, légendes manuscrites |
+
+- Choix : `PORTFOLIO_THEME=<id>`. En production les pages sont prérendues :
+  la variable est lue **au moment du build** (phase 2 : thème en base).
+- Aperçu (dev, ou `THEME_PREVIEW=1` au build) : ouvrir
+  `/api/theme-preview?id=<id>` ; `?id=` rétablit le thème configuré.
+- Contrôles : `npm run check:tokens` (aucune couleur en dur hors `src/themes/`),
+  `npm run check:contrast` (AA ≥ 4,5:1 des tokens pour chaque preset), bloquants
+  en CI ; `PORT=3001 npm run check:contrast:render` (contraste mesuré au pixel sur
+  le rendu, serveur dev requis), obligatoire en local avant de valider un thème.
+
 ## Déploiement
 
 Flux : **push GitHub → GitHub Actions → GHCR (privé) → Komodo sur hote-prod**.
 
 1. `.github/workflows/docker.yml` se déclenche sur push `main`, sur les tags
    `v*` / `da/*` et à la main (`workflow_dispatch`) :
-   - job `check` : `npm ci`, `tsc --noEmit`, `npm run lint` (non bloquant) ;
+   - job `check` : `npm ci`, `tsc --noEmit`, `npm run lint`, `check:tokens`,
+     `check:contrast` ;
    - job `image` : build buildx `linux/amd64` (cache `gha`), push sur
      `ghcr.io/themlaw/portfolio` avec les tags `latest` (main),
      `sha-<court>` et le nom du tag git nettoyé (`da/pro` → `da-pro`).

@@ -22,27 +22,39 @@ ce qui les distingue, ce sont les assets du hero et des choix de forme. Un thèm
 donc un document JSON en trois parties, validé par un schéma zod :
 
 ```ts
+// Source de vérité : src/themes/schema.ts (mis à jour en phase 1).
 type Theme = {
   id: string; name: string; preset: boolean;       // preset = non supprimable, dupliquable
   tokens: {
     color: { bg, bgDeep, surface, ink, inkSoft, line,
-             primary, primaryHover, secondary, tertiary, onPrimary };
-    font:  { display, body, caption };             // ids du catalogue de polices
+             primary, primaryHover, onPrimary, secondary, tertiary,
+             eyebrow?,                             // étiquettes ; défaut : secondary
+             accentGlow?,                          // halo (hero spotlight, images) ; absent = aucun
+             heroHalo? };                          // halo typographique des petits textes sur les calques du hero
+    font:  { display, body, caption };             // ids du catalogue (src/themes/fonts.ts)
     radius:{ sm, md, lg, btn, strip };
     space: { sectionGap, pageMax, gutter };
     motion:{ durFast, durBase, easing };
   };
   variants: {                                      // choix de FORME, jamais de fond
-    header: "inline" | "centered";
-    hero: "parallax-layers" | "still-image" | "type-only";
-    strip: "edge" | "framed";
-    caption: "mono-split" | "serif-below";
-    button: "pill" | "square" | "underline";
+    header:   "inline" | "centered";
+    hero:     "parallax-layers" | "spotlight" | "type-only";
+    strip:    "edge" | "taped";                   // taped s'applique aussi aux tuiles de collection
+    caption:  "mono-split" | "handwritten";
     lightbox: "passe-partout" | "full-bleed";
+    button:   "pill" | "square";
+    texture:  "none" | "paper-dots";
   };
-  assets: { heroLayers?: MediaRef[]; grain?: boolean };
+  assets: { heroLayers?: string[]; heroNote?: { fr, en } };  // chemins publics (MediaRef en phase 2)
 };
 ```
+
+Écarts phase 1 par rapport au premier cadrage : variantes alignées sur les quatre
+presets livrés (`spotlight`, `taped`, `handwritten`, `texture` ; `still-image`,
+`framed`, `serif-below`, `underline` et `grain` abandonnés faute d'usage) ; tokens
+optionnels `eyebrow` (Pro garde des étiquettes grises), `accentGlow` et `heroHalo`
+(halo typographique serré, ajouté après la mesure du contraste au pixel). Le schéma
+refuse toute valeur contenant `;{}<>` (la feuille est injectée telle quelle).
 
 Règles non négociables pour les composants :
 1. **Aucune valeur visuelle en dur.** Couleurs, polices, rayons, espacements, durées
@@ -55,8 +67,8 @@ Règles non négociables pour les composants :
    lightbox, i18n, accessibilité). Un thème change l'apparence, jamais le comportement.
 
 Application à l'exécution : le layout racine lit le thème actif (cache mémoire invalidé
-à l'enregistrement) et émet `<style id="theme">:root{--color-bg:…}</style>` + les
-`data-*`. Tailwind v4 garde un `@theme` dont les valeurs pointent vers ces variables,
+à l'enregistrement) et émet `<style id="theme">:root{--t-color-bg:…}</style>` + les
+`data-*` (préfixe `--t-` distinct pour éviter toute auto-référence côté Tailwind). Tailwind v4 garde un `@theme` dont les valeurs pointent vers ces variables,
 de sorte que les utilitaires (`bg-bg`, `text-ink`…) restent utilisables.
 
 Polices : catalogue fini déclaré avec `next/font` (auto-hébergé, sans CLS). Un thème

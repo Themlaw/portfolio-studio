@@ -3,8 +3,16 @@ import { chromium } from "playwright";
 const PORT = process.env.PORT ?? "3001";
 const BASE = `http://localhost:${PORT}`;
 
+// THEME=<preset> : rejoue la régression sous ce thème (cookie d'aperçu, dev uniquement).
+const THEME = process.env.THEME;
+
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+if (THEME) {
+  await context.addCookies([{ name: "theme-preview", value: THEME, url: BASE }]);
+  console.log(`Thème : ${THEME}`);
+}
+const page = await context.newPage();
 const fail = [];
 const ok = (label, pass, detail = "") => {
   console.log(`${pass ? "PASS" : "FAIL"}  ${label}${detail ? " — " + detail : ""}`);
@@ -49,6 +57,22 @@ ok(
   "(a3) aria-controls pointe le rail",
   withOverflow.every((s) => s.controls && s.controls === s.railId),
 );
+
+/* ---- (d) l'anneau de focus des oeuvres tient dans le rail -------------- */
+// Le rail defile en x, donc rogne aussi en y : il faut >= 5px (outline 2px +
+// offset 3px) entre chaque oeuvre et les bords haut/bas du rail.
+const ringRoom = await page.evaluate(() => {
+  let worst = Infinity;
+  for (const rail of document.querySelectorAll(".strip-rail")) {
+    const r = rail.getBoundingClientRect();
+    for (const f of rail.querySelectorAll(".strip-frame")) {
+      const b = f.getBoundingClientRect();
+      worst = Math.min(worst, b.top - r.top, r.bottom - b.bottom);
+    }
+  }
+  return Math.round(worst * 10) / 10;
+});
+ok("(d) anneau de focus non rogne (>= 5px)", ringRoom >= 5, `marge mini ${ringRoom}px`);
 
 /* ---- (b) le drag de la barre decale le rail ---------------------------- */
 const target = await page.evaluate(() => {

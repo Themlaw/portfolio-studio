@@ -19,7 +19,10 @@ export default function SiteHeader() {
   const tSite = useTranslations("site");
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
-  const [open, setOpen] = useState(false);
+  // Le menu mobile est « ouvert pour une page donnée » : naviguer le referme
+  // sans effet (setState dans un effect = rendus en cascade).
+  const [openOn, setOpenOn] = useState<string | null>(null);
+  const open = openOn === pathname;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -28,22 +31,18 @@ export default function SiteHeader() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
-
   return (
     <header
-      className={`sticky top-0 z-50 transition-[background-color,box-shadow,backdrop-filter] duration-500 ease-soft ${
+      className={`site-header sticky top-0 z-50 transition-[background-color,box-shadow,backdrop-filter] duration-500 ease-soft ${
         scrolled
           ? "bg-bg/75 backdrop-blur-xl shadow-[0_1px_0_0_var(--color-line)]"
           : "bg-transparent"
       }`}
     >
-      <div className="shell flex items-center justify-between gap-6 py-4 md:py-5">
+      <div className="site-header-bar shell flex items-center justify-between gap-6 py-4 md:py-5">
         <Link
           href="/"
-          className="font-display text-lg md:text-xl leading-none text-ink hover:text-primary transition-colors"
+          className="site-brand font-display text-lg md:text-xl leading-none text-ink hover:text-primary transition-colors"
         >
           {tSite("name")}
         </Link>
@@ -59,7 +58,7 @@ export default function SiteHeader() {
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`relative font-caption text-[0.7rem] tracking-[0.18em] uppercase transition-colors ${
+                className={`caption-text relative font-caption text-[0.7rem] tracking-[0.18em] uppercase transition-colors ${
                   active ? "text-ink" : "text-ink-soft hover:text-primary"
                 }`}
               >
@@ -81,10 +80,10 @@ export default function SiteHeader() {
           <LocaleSwitcher />
           <button
             type="button"
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => setOpenOn(open ? null : pathname)}
             aria-expanded={open}
             aria-controls="nav-mobile"
-            className="font-caption text-[0.7rem] tracking-[0.18em] uppercase text-ink-soft hover:text-primary transition-colors"
+            className="caption-text font-caption text-[0.7rem] tracking-[0.18em] uppercase text-ink-soft hover:text-primary transition-colors"
           >
             {open ? t("close") : t("menu")}
           </button>

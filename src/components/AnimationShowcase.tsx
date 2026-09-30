@@ -15,7 +15,7 @@ function PlayBadge({ label }: { label: string }) {
           <path d="M2 1.5 14.5 9 2 16.5Z" fill="var(--color-primary)" />
         </svg>
       </span>
-      <span className="eyebrow text-surface">{label}</span>
+      <span className="eyebrow text-on-scrim">{label}</span>
     </span>
   );
 }
@@ -35,7 +35,7 @@ function Frame({
 
   return (
     <div className="mat">
-      <div className="relative aspect-video w-full overflow-hidden rounded-[2px] bg-ink">
+      <div className="relative aspect-video w-full overflow-hidden rounded-[2px] bg-scrim">
         {playing && item.videoId ? (
           <iframe
             className="absolute inset-0 h-full w-full"
@@ -63,7 +63,7 @@ function Frame({
                   aria-hidden="true"
                   className="sweep-play absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-surface/45 to-transparent"
                 />
-                <span className="absolute bottom-3 left-3 eyebrow rounded-sm bg-ink/60 px-2 py-1 text-surface">
+                <span className="absolute bottom-3 left-3 eyebrow rounded-sm bg-scrim/60 px-2 py-1 text-on-scrim">
                   {t("placeholder")}
                 </span>
               </>
@@ -71,7 +71,7 @@ function Frame({
             {!playing && (
               <span
                 aria-hidden="true"
-                className="absolute inset-0 bg-gradient-to-t from-ink/55 via-transparent to-transparent"
+                className="absolute inset-0 bg-gradient-to-t from-scrim/55 via-transparent to-transparent"
               />
             )}
             {!playing && (

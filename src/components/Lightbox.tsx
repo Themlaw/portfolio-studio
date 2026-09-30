@@ -12,8 +12,8 @@ import type { LocalizedArtwork } from "@/lib/gallery";
  * qu'on lui passe (les œuvres d'un projet), donc ← et → ne sortent jamais
  * du projet ouvert.
  *
- * C'est le seul endroit du site où survit le passe-partout (`.mat`) : ailleurs
- * les images sont montrées bord à bord.
+ * Habillage selon la variante data-lightbox : passe-partout (`.mat`, par
+ * défaut) ou plein cadre (voir src/themes/variants.css).
  */
 export default function Lightbox({
   items,
@@ -89,20 +89,20 @@ export default function Lightbox({
       role="dialog"
       aria-modal="true"
       aria-label={active.title}
-      className="fixed inset-0 z-[80] flex flex-col bg-ink/92 backdrop-blur-sm"
+      className="lightbox fixed inset-0 z-[80] flex flex-col backdrop-blur-sm"
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <div className="flex items-center justify-between gap-4 px-5 py-4 md:px-8">
-        <span className="eyebrow text-bg">
+        <span className="eyebrow text-on-scrim">
           {t("position", { index: index + 1, total: items.length })}
         </span>
         <button
           ref={closeRef}
           type="button"
           onClick={onClose}
-          className="btn btn-ghost border-line/30 text-bg hover:bg-bg/10 hover:text-bg"
+          className="btn btn-ghost border-line/30 text-on-scrim hover:bg-on-scrim/10 hover:text-on-scrim"
         >
           {t("close")}
           <span aria-hidden="true">✕</span>
@@ -117,20 +117,20 @@ export default function Lightbox({
             type="button"
             onClick={() => go(-1)}
             aria-label={t("previous")}
-            className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-btn px-3 py-6 text-2xl text-bg/70 transition-colors hover:text-bg"
+            className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-btn px-3 py-6 text-2xl text-on-scrim/70 transition-colors hover:text-on-scrim"
           >
             ←
           </button>
         )}
 
         <figure className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-4">
-          <div className="mat max-h-[62vh] max-w-full overflow-hidden">
+          <div className="mat lightbox-frame max-h-[62vh] max-w-full overflow-hidden">
             <Image
               src={active.image}
               alt={active.title}
               width={active.width}
               height={active.height}
-              className="max-h-[44vh] w-auto max-w-full object-contain md:max-h-[56vh]"
+              className="lightbox-image max-h-[44vh] w-auto max-w-full object-contain md:max-h-[56vh]"
               priority
             />
           </div>
@@ -141,7 +141,7 @@ export default function Lightbox({
             type="button"
             onClick={() => go(1)}
             aria-label={t("next")}
-            className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-btn px-3 py-6 text-2xl text-bg/70 transition-colors hover:text-bg"
+            className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-btn px-3 py-6 text-2xl text-on-scrim/70 transition-colors hover:text-on-scrim"
           >
             →
           </button>
@@ -151,14 +151,14 @@ export default function Lightbox({
       {/* Sur petit écran le texte cède la place à l'image : description
           écourtée et rappel clavier masqué (il n'y a pas de clavier). */}
       <div className="mx-auto w-full max-w-2xl px-6 pt-4 text-center md:pt-6">
-        <h2 className="font-display text-xl text-bg md:text-3xl">
+        <h2 className="font-display text-xl text-on-scrim md:text-3xl">
           {active.title}
         </h2>
-        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-bg/70 md:mt-3 md:line-clamp-none">
+        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-on-scrim/70 md:mt-3 md:line-clamp-none">
           {active.description}
         </p>
         {!solo && (
-          <p className="eyebrow mt-4 hidden text-bg/45 md:block">{t("hint")}</p>
+          <p className="eyebrow mt-4 hidden text-on-scrim/70 md:block">{t("hint")}</p>
         )}
       </div>
 
