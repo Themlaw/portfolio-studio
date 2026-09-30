@@ -1,0 +1,41 @@
+# Dépendances et builds locaux (reconstruits dans l'image)
+node_modules
+.next
+out
+build
+coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# VCS, CI, éditeurs
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+
+# Secrets / env locaux
+.env*
+*.pem
+
+# Artefacts locaux (captures, logs, nohup)
+screenshots
+*.log
+nohup.out
+
+# Outillage de test Playwright (hors runtime)
+/*.mjs
+!/eslint.config.mjs
+!/postcss.config.mjs
+scripts
+test-results
+playwright-report
+
+# Docker / docs
+Dockerfile
+.dockerignore
+compose*.y*ml
+docker-compose*.y*ml
+README.md
+docs/ARCHITECTURE.md
