@@ -48,7 +48,7 @@ export function valuesAt(value: unknown, path: string): unknown[] {
 
 /** Identifiants (entiers) référencés par un bloc, par genre. */
 export function extractRefs(type: string, props: unknown): { media: number[]; pages: number[] } {
-  const refs = BLOCK_REFS[type] ?? {};
+  const refs = (Object.hasOwn(BLOCK_REFS, type) ? BLOCK_REFS[type] : undefined) ?? {};
   const ids = (paths: string[] = []) =>
     paths.flatMap((p) => valuesAt(props, p)).filter((v): v is number => Number.isInteger(v));
   return { media: ids(refs.media), pages: ids(refs.pages) };

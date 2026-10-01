@@ -18,6 +18,7 @@ import {
   Young_Serif,
 } from "next/font/google";
 
+import { FONT_STACKS, type FontStack } from "./font-stacks";
 import type { FontId } from "./schema";
 
 const youngSerif = Young_Serif({
@@ -62,49 +63,23 @@ const caveat = Caveat({
   variable: "--font-caveat",
 });
 
-type FontEntry = {
+type FontEntry = FontStack & {
   /** Classe next/font qui déclare la variable CSS. */
   className: string;
-  /** Pile complète : police auto-hébergée + repli système. */
-  stack: string;
-  /** Graisse des titres quand la police sert de display. */
-  headingWeight: number;
 };
 
-export const FONT_CATALOG: Record<FontId, FontEntry> = {
-  "young-serif": {
-    className: youngSerif.variable,
-    stack: 'var(--font-young-serif), Georgia, "Times New Roman", serif',
-    headingWeight: 400,
-  },
-  figtree: {
-    className: figtree.variable,
-    stack: "var(--font-figtree), ui-sans-serif, system-ui, sans-serif",
-    headingWeight: 600,
-  },
-  "spline-sans-mono": {
-    className: splineSansMono.variable,
-    stack: "var(--font-spline-mono), ui-monospace, SFMono-Regular, monospace",
-    headingWeight: 400,
-  },
-  "bricolage-grotesque": {
-    className: bricolage.variable,
-    stack: "var(--font-bricolage), ui-sans-serif, system-ui, sans-serif",
-    headingWeight: 700,
-  },
-  "chelsea-market": {
-    className: chelseaMarket.variable,
-    stack: 'var(--font-chelsea-market), "Comic Sans MS", cursive',
-    headingWeight: 400,
-  },
-  caveat: {
-    className: caveat.variable,
-    stack: 'var(--font-caveat), "Segoe Print", "Bradley Hand", cursive',
-    headingWeight: 600,
-  },
+const CLASSES: Record<FontId, string> = {
+  "young-serif": youngSerif.variable,
+  figtree: figtree.variable,
+  "spline-sans-mono": splineSansMono.variable,
+  "bricolage-grotesque": bricolage.variable,
+  "chelsea-market": chelseaMarket.variable,
+  caveat: caveat.variable,
 };
+
+export const FONT_CATALOG = Object.fromEntries(
+  (Object.keys(FONT_STACKS) as FontId[]).map((id) => [id, { ...FONT_STACKS[id], className: CLASSES[id] }]),
+) as Record<FontId, FontEntry>;
 
 /** Toutes les classes de variables, à poser sur <html>. */
-export const FONT_VARIABLE_CLASSES = Object.values(FONT_CATALOG)
-  .map((f) => f.className)
-  .join(" ");
+export const FONT_VARIABLE_CLASSES = Object.values(CLASSES).join(" ");

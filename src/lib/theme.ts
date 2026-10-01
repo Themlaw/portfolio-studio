@@ -13,6 +13,7 @@
  * session). Ces requêtes contournent le cache ISR ; un visiteur anonyme reçoit
  * toujours la page en cache, jamais un aperçu.
  */
+import { own } from "./own";
 import { eq } from "drizzle-orm";
 import { cookies, draftMode } from "next/headers";
 import { cache } from "react";
@@ -94,7 +95,7 @@ export const getActiveTheme = cache(async (): Promise<Theme> => {
   // session ne sont lus que dans une requête en draft mode, déjà hors cache ISR.
   const previewId = await previewThemeId();
   if (previewId && Object.hasOwn(state.themes, previewId)) return state.themes[previewId];
-  const active = state.themes[state.activeId];
+  const active = own(state.themes, state.activeId);
   if (!active) {
     console.error(`[theme] thème actif « ${state.activeId} » introuvable, repli sur ${DEFAULT_THEME_ID}`);
     return state.themes[DEFAULT_THEME_ID] ?? PRESETS[DEFAULT_THEME_ID];

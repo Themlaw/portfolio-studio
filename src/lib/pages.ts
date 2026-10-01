@@ -19,6 +19,8 @@ export type PageSummary = {
   title: L;
   meta: { title: L; description: L } | null;
   navOrder: number | null;
+  /** Surcharges de tokens de la page (accent : { primary }). */
+  themeOverrides?: unknown;
 };
 
 /** Bloc lu en base. `props` vaut undefined si le JSON stocké est corrompu. */
@@ -36,6 +38,7 @@ export async function getPageIndex(): Promise<PageSummary[]> {
         title: schema.pages.title,
         meta: schema.pages.meta,
         navOrder: schema.pages.navOrder,
+        themeOverrides: schema.pages.themeOverrides,
       })
       .from(schema.pages)
       .where(eq(schema.pages.published, true))
@@ -102,4 +105,10 @@ export function alternatesFor(page: PageSummary | null): Record<AppLocale, strin
   return Object.fromEntries(
     routing.locales.map((l) => [l, page ? pagePath(page, l) : "/"]),
   ) as Record<AppLocale, string>;
+}
+
+/** Accent d'une page (couleur #rrggbb validée à l'enregistrement), ou null. */
+export function pageAccent(page: PageSummary): string | null {
+  const o = page.themeOverrides as { primary?: unknown } | null | undefined;
+  return typeof o?.primary === "string" && /^#[0-9a-fA-F]{6}$/.test(o.primary) ? o.primary : null;
 }

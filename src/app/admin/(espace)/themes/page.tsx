@@ -1,11 +1,15 @@
 import PageHeader from "@/components/admin/PageHeader";
-import ThemeSwatches from "@/components/admin/ThemeSwatches";
-import { getThemeOverview } from "@/lib/admin";
+import ThemeList from "@/components/admin/ThemeList";
+import { getThemeOverview, listPageAccents } from "@/lib/admin";
 
 export const metadata = { title: "Thèmes" };
 
 export default function ThemesPage() {
   const { activeId, themes } = getThemeOverview();
+  // Le thème en ligne d'abord, puis les tiens, puis les thèmes livrés.
+  const sorted = [...themes].sort(
+    (a, b) => Number(b.id === activeId) - Number(a.id === activeId) || Number(a.preset) - Number(b.preset) || a.name.localeCompare(b.name, "fr"),
+  );
   return (
     <>
       <PageHeader
@@ -30,35 +34,12 @@ export default function ThemesPage() {
           </p>
         </div>
       ) : (
-        <div className="a-grid">
-          {themes.map((theme) => (
-            <section key={theme.id} className="a-card" aria-labelledby={`theme-${theme.id}`}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                <h2 id={`theme-${theme.id}`}>{theme.name}</h2>
-                {theme.id === activeId && <span className="a-badge">En ligne</span>}
-              </div>
-              <p className="mono muted" style={{ marginTop: 4 }}>
-                {theme.id}
-              </p>
-              <ThemeSwatches theme={theme} />
-              {/* Formulaire natif : l'aperçu s'ouvre dans un nouvel onglet. */}
-              <form method="post" action="/admin/apercu" target="_blank">
-                <input type="hidden" name="id" value={theme.id} />
-                <button type="submit" className="a-btn">
-                  Prévisualiser sur le site <span aria-hidden="true">↗</span>
-                </button>
-              </form>
-            </section>
-          ))}
-        </div>
+        <ThemeList themes={sorted} activeId={activeId} accents={listPageAccents()} />
       )}
-      <div className="a-empty a-section">
-        <h2>Mettre un thème en ligne</h2>
-        <p>
-          L&apos;aperçu n&apos;est visible que par toi, et seulement tant que tu es connecté : tes visiteurs continuent de
-          voir le thème en ligne. C&apos;est ici que tu choisiras le thème actif et que tu retoucheras ses couleurs.
-        </p>
-      </div>
+      <p className="a-help a-section">
+        L&apos;aperçu n&apos;est visible que par toi, tant que tu es connecté : tes visiteurs voient le thème en ligne. Pour
+        créer ton propre thème, duplique un thème livré puis modifie la copie.
+      </p>
     </>
   );
 }

@@ -7,7 +7,7 @@ export default async function AdminSpaceLayout({ children }: { children: React.R
   const session = await requireAdmin();
   const settings = getSettingsForAdmin();
   return (
-    <AdminShell siteName={settings.name || "Portfolio"} userEmail={session.user.email}>
+    <AdminShell siteName={settings.site.name || "Portfolio"} userEmail={session.user.email}>
       {children}
     </AdminShell>
   );

@@ -3,7 +3,8 @@ import { setRequestLocale } from "next-intl/server";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import type { AppLocale } from "@/i18n/routing";
-import { alternatesFor, findPage, getNav } from "@/lib/pages";
+import { resolvePage } from "@/lib/page-preview";
+import { alternatesFor, getNav } from "@/lib/pages";
 import { getSite, getSocials } from "@/lib/settings";
 
 /**
@@ -23,7 +24,7 @@ export default async function SiteLayout({
   setRequestLocale(locale);
 
   const [page, nav, site, socials] = await Promise.all([
-    findPage(locale, slug),
+    resolvePage(locale, slug),
     getNav(locale),
     getSite(locale),
     getSocials(),

@@ -2,13 +2,13 @@ import { z } from "zod";
 
 import Eyebrow from "@/components/Eyebrow";
 
-import { localized, tr, type BlockContext } from "./types";
+import { localized, tr, type BlockContext, localizedText } from "./types";
 
 export const richTextSchema = z.object({
   eyebrow: localized.optional(),
   title: localized.optional(),
   /** Paragraphes de texte brut (aucun HTML interprété). */
-  paragraphs: z.array(localized).min(1),
+  paragraphs: z.array(localizedText).min(1).max(30),
 });
 
 export default function RichTextBlock({ props, ctx }: { props: z.infer<typeof richTextSchema>; ctx: BlockContext }) {

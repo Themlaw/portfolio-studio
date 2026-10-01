@@ -40,7 +40,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main className="a-login">
       <div className="a-login-card">
         <span className="a-brand">
-          {site.name || "Portfolio"}
+          {site.site.name || "Portfolio"}
           <small>administration</small>
         </span>
         <h1>Connexion</h1>

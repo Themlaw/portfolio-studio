@@ -6,14 +6,14 @@ import Eyebrow from "@/components/Eyebrow";
 import { countCollection, getCollectionCover } from "@/lib/gallery";
 import { hrefForPage } from "@/lib/pages";
 
-import { collection, localized, pageRef, tr, type BlockContext } from "./types";
+import { collection, localized, pageRef, tr, type BlockContext, localizedText } from "./types";
 
 export const collectionTilesSchema = z.object({
   eyebrow: localized,
   title: localized,
   items: z.array(
-    z.object({ collection, pageId: pageRef, eyebrow: localized, title: localized, intro: localized }),
-  ),
+    z.object({ collection, pageId: pageRef, eyebrow: localized, title: localized, intro: localizedText }),
+  ).max(12),
 });
 
 export default async function CollectionTilesBlock({

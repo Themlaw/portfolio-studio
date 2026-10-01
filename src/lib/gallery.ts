@@ -232,9 +232,15 @@ export async function getProjectsForCollection(
     .filter((p) => p.artworks.length > 0);
 }
 
-/** Les projets mis en avant sur l'accueil. */
-export async function getFeaturedProjects(locale: AppLocale, limit = 2): Promise<LocalizedProject[]> {
+/** Les projets mis en avant sur l'accueil, ou ceux choisis (slugs, dans l'ordre). */
+export async function getFeaturedProjects(locale: AppLocale, limit = 2, chosen?: string[]): Promise<LocalizedProject[]> {
   const { projects, artworks } = await snapshot();
+  if (chosen?.length) {
+    return chosen
+      .map((slug) => projects.find((p) => p.slug === slug))
+      .filter((p): p is (typeof projects)[number] => Boolean(p))
+      .map((p) => localizeProject(p, artworks, locale));
+  }
   const pool = projects.filter((p) => p.featured);
   return (pool.length > 0 ? pool : projects).slice(0, limit).map((p) => localizeProject(p, artworks, locale));
 }

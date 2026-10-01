@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Tests d'intégration de l'authentification, sur le build standalone en
- * production (après `npm run build`, serveur dev ARRÊTÉ : RAM).
+ * production (après `npm run build:local`, serveur dev ARRÊTÉ : RAM).
  *
  * Lance le serveur avec différents environnements et un faux fournisseur OIDC
  * local (oauth2-mock-server) :
@@ -45,7 +45,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /* ---------------------------------------------------------------- outils -- */
 
 function prepareStandalone() {
-  if (!existsSync(path.join(SA, "server.js"))) throw new Error("Build absent : lancer `npm run build` d'abord.");
+  if (!existsSync(path.join(SA, "server.js"))) throw new Error("Build absent : lancer `npm run build:local` d'abord.");
   for (const dir of ["drizzle", "seed", "public"]) cpSync(path.join(ROOT, dir), path.join(SA, dir), { recursive: true });
   cpSync(path.join(ROOT, ".next/static"), path.join(SA, ".next/static"), { recursive: true });
 }
@@ -140,13 +140,29 @@ function query(dataDir, sql, ...params) {
 }
 const userCount = (dataDir) => query(dataDir, "select count(*) n from user").n;
 
+/** Server actions de l'admin (même liste que scripts/test-admin-guard.mjs). */
+const ADMIN_ACTIONS = [
+  "signOutAction",
+  "duplicateThemeAction",
+  "saveThemeAction",
+  "activateThemeAction",
+  "deleteThemeAction",
+  "saveSettingsAction",
+  "createPageAction",
+  "savePageAction",
+  "setPublishedAction",
+  "setInMenuAction",
+  "reorderMenuAction",
+  "deletePageAction",
+];
+
 /** Identifiants des server actions, lus dans le manifeste du build. */
 function actionIds() {
   const manifest = JSON.parse(readFileSync(path.join(ROOT, ".next/server/server-reference-manifest.json"), "utf8"));
   const ids = {};
   for (const [id, entry] of Object.entries(manifest.node ?? {})) {
     const text = JSON.stringify(entry);
-    for (const name of ["signOutAction"]) {
+    for (const name of ADMIN_ACTIONS) {
       if (entry.exportedName === name || text.includes(`"${name}"`)) ids[name] ??= id;
     }
   }
@@ -173,6 +189,17 @@ function callAction(jar, id, fields = {}, origin = BASE, page = "/admin/themes")
   form.append(`$ACTION_ID_${id}`, "");
   for (const [k, v] of Object.entries(fields)) form.append(k, v);
   return http(page, { jar, method: "POST", form, headers: { origin } });
+}
+
+/** Appel direct d'une server action (arguments JSON), comme le ferait un client forgé. */
+async function callActionJson(jar, id, args, page = "/admin") {
+  const r = await http(page, {
+    jar,
+    method: "POST",
+    raw: JSON.stringify(args),
+    headers: { "next-action": id, "content-type": "text/plain;charset=UTF-8", origin: BASE },
+  });
+  return { status: r.status, text: await r.text() };
 }
 
 /* ----------------------------------------------------------------- tests -- */
@@ -283,6 +310,147 @@ ok(
   r.status === 303 && r.headers.get("location") === "/fr/personnages" && !jar.cookies.has("__prerender_bypass") && !jar.cookies.has("theme-preview"),
   `${r.status} ${r.headers.get("location")}`,
 );
+// Server actions des éditeurs (phase 4a) : refus sans session, puis
+// validation serveur des charges invalides (client contourné).
+for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
+  ok(`A10 ${name} : identifiant trouvé`, Boolean(ids[name]));
+  if (!ids[name]) continue;
+  // Une action se résout depuis une page qui l'importe : on vise son écran.
+  const screen =
+    name === "saveThemeAction" ? "/admin/themes/galerie-lumineuse"
+    : name === "savePageAction" ? "/admin/pages/1"
+    : /Theme/.test(name) ? "/admin/themes"
+    : /Settings/.test(name) ? "/admin/reglages"
+    : "/admin/pages";
+  const res = await callActionJson(forged, ids[name], ["x", {}], screen);
+  ok(`A10 ${name} avec un cookie forgé → 403`, res.status === 403, `${res.status} ${res.text.slice(0, 120)}`);
+}
+{
+  let res = await callActionJson(jar, ids.duplicateThemeAction, ["galerie-lumineuse"], "/admin/themes");
+  const copyId = /"id":"(galerie-lumineuse-copie[a-z0-9-]*)"/.exec(res.text)?.[1];
+  ok("A11 dupliquer un preset (session admin)", res.status === 200 && Boolean(copyId), res.text.slice(0, 200));
+  // Thème complet tiré de la base de test, avec une couleur de texte illisible.
+  const theme = JSON.parse(query(dirA, "select data from themes where id = ?", copyId).data);
+  theme.tokens.color.inkSoft = "#d0d0d0";
+  res = await callActionJson(jar, ids.saveThemeAction, [copyId, theme], `/admin/themes/${copyId}`);
+  ok("A12 contraste insuffisant forcé côté client → refusé par le serveur", res.status === 200 && res.text.includes("Contraste insuffisant") && res.text.includes('"ok":false'), res.text.slice(0, 300));
+  const stored = JSON.parse(query(dirA, "select data from themes where id = ?", copyId).data);
+  ok("A12b rien n'est enregistré", stored.tokens.color.inkSoft !== "#d0d0d0");
+  res = await callActionJson(jar, ids.saveThemeAction, ["galerie-lumineuse", theme], "/admin/themes");
+  ok("A12c un preset ne se modifie pas", res.text.includes("duplique-le"), res.text.slice(0, 200));
+  theme.tokens.color.inkSoft = "#5f636a";
+  theme.tokens.color.bg = "#fff;}body{display:none";
+  res = await callActionJson(jar, ids.saveThemeAction, [copyId, theme], `/admin/themes/${copyId}`);
+  ok("A12d valeur CSS injectée → refusée par le schéma", res.text.includes('"ok":false'), res.text.slice(0, 200));
+  res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "Admin", en: "Admin" }, slug: { fr: "admin", en: "admin-en" } }], "/admin/pages");
+  ok("A13 slug réservé → refusé", res.text.includes("réservé") && res.text.includes('"ok":false'), res.text.slice(0, 300));
+  res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "X", en: "X" }, slug: { fr: "_cache", en: "Majuscules" } }], "/admin/pages");
+  ok("A13b « _ » en tête et majuscules → refusés", res.text.includes("commencer par « _ »") || res.text.includes('"ok":false'), res.text.slice(0, 300));
+  res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "Doublon", en: "Duplicate" }, slug: { fr: "personnages", en: "duplicate" } }], "/admin/pages");
+  ok("A13c slug déjà pris dans la langue → refusé", res.text.includes("déjà prise"), res.text.slice(0, 300));
+  const site = { name: "Test", role: { fr: "", en: "" }, email: "test@example.test", credit: { fr: "", en: "" } };
+  res = await callActionJson(jar, ids.saveSettingsAction, [{ site, socials: [{ label: "X", href: "javascript:alert(1)" }] }], "/admin/reglages");
+  ok("A14 URL javascript: dans les réseaux → refusée", res.text.includes("https://") && res.text.includes('"ok":false'), res.text.slice(0, 300));
+  res = await callActionJson(jar, ids.saveSettingsAction, [{ site, socials: [{ label: "X", href: "http://exemple.fr" }] }], "/admin/reglages");
+  ok("A14b URL http (non https) → refusée", res.text.includes('"ok":false'));
+  const persoId = query(dirA, `select id from pages where json_extract(slug,'$.fr')='personnages'`).id;
+  res = await callActionJson(jar, ids.deletePageAction, [persoId], "/admin/pages");
+  ok("A15 supprimer une page référencée → bloqué avec la liste", res.text.includes("references") && res.text.includes("Tuiles de collections"), res.text.slice(0, 300));
+  const homeId = query(dirA, `select id from pages where json_extract(slug,'$.fr')=''`).id;
+  res = await callActionJson(jar, ids.deletePageAction, [homeId], "/admin/pages");
+  ok("A15b l'accueil ne se supprime pas", res.text.includes("accueil ne se supprime pas"));
+  res = await callActionJson(jar, ids.savePageAction, [homeId, { title: { fr: "A", en: "A" }, slug: { fr: "", en: "" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: null, blocks: [{ type: "hero", props: { eyebrow: { fr: "", en: "" }, statement: { fr: "", en: "" }, reelPageId: 99999 } }] }], `/admin/pages/${homeId}`);
+  ok("A16 bloc pointant vers une page inexistante → refusé", res.text.includes("page qui n") && res.text.includes('"ok":false'), res.text.slice(0, 300));
+  res = await callActionJson(jar, ids.savePageAction, [homeId, { title: { fr: "A", en: "A" }, slug: { fr: "", en: "" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: "#fafafa", blocks: [] }], `/admin/pages/${homeId}`);
+  ok("A16b accent de page sous AA → refusé", res.text.includes("Contraste insuffisant") && res.text.includes('"ok":false'), res.text.slice(0, 300));
+  res = await callActionJson(jar, ids.deleteThemeAction, ["galerie-lumineuse"], "/admin/themes");
+  ok("A17 thème en ligne ou livré : suppression refusée", res.text.includes('"ok":false'));
+  res = await callActionJson(jar, ids.deleteThemeAction, [copyId], "/admin/themes");
+  ok("A17b thème personnel hors ligne : supprimé", res.text.includes('"ok":true'));
+
+  // m1 : clés héritées d'Object.prototype comme type de bloc ou id de thème.
+  for (const type of ["constructor", "__proto__", "hasOwnProperty"]) {
+    res = await callActionJson(jar, ids.savePageAction, [homeId, { title: { fr: "A", en: "A" }, slug: { fr: "", en: "" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: null, blocks: [{ type, props: {} }] }], `/admin/pages/${homeId}`);
+    ok(`A18 type de bloc « ${type} » → refusé proprement (pas de 500)`, res.status === 200 && res.text.includes('"ok":false'), `${res.status} ${res.text.slice(0, 160)}`);
+  }
+  for (const id of ["constructor", "__proto__"]) {
+    const r2 = await postForm(jar, "/admin/apercu", { id });
+    ok(`A18b aperçu du thème « ${id} » → 400`, r2.status === 400, String(r2.status));
+  }
+  // m2 : l'ordre du menu doit être une permutation exacte.
+  const menuIds = JSON.parse(query(dirA, "select json_group_array(id) ids from (select id from pages where nav_order is not null order by nav_order)").ids);
+  res = await callActionJson(jar, ids.reorderMenuAction, [menuIds.map(() => menuIds[0])], "/admin/pages");
+  ok("A19 ordre du menu avec doublons → refusé", res.text.includes('"ok":false'), res.text.slice(0, 160));
+  res = await callActionJson(jar, ids.reorderMenuAction, [[...menuIds].reverse()], "/admin/pages");
+  ok("A19b permutation exacte → acceptée", res.text.includes('"ok":true'));
+  await callActionJson(jar, ids.reorderMenuAction, [menuIds], "/admin/pages");
+  // m3, m4 : valeurs CSS, chemins d'assets, longueurs.
+  res = await callActionJson(jar, ids.duplicateThemeAction, ["galerie-lumineuse"], "/admin/themes");
+  const copy2 = /"id":"(galerie-lumineuse-copie[a-z0-9-]*)"/.exec(res.text)?.[1];
+  const base = JSON.parse(query(dirA, "select data from themes where id = ?", copy2).data);
+  const variants = [
+    ["A20 cssValue avec url(", (t) => (t.tokens.radius.md = "url(https://evil.example/x)")],
+    ["A20b cssValue avec commentaire", (t) => (t.tokens.space.gutter = "1rem /* x */")],
+    ["A20c heroLayers hors /themes/", (t) => (t.assets.heroLayers = ["/media/x.svg"])],
+    ["A20d heroLayers avec ..", (t) => (t.assets.heroLayers = ["/themes/a/../../etc.svg"])],
+    ["A20e heroLayers avec //", (t) => (t.assets.heroLayers = ["/themes/a//b.svg"])],
+    ["A21 nom de thème de 81 caractères", (t) => (t.name = "x".repeat(81))],
+  ];
+  for (const [label, mutate] of variants) {
+    const t = structuredClone(base);
+    mutate(t);
+    res = await callActionJson(jar, ids.saveThemeAction, [copy2, t], `/admin/themes/${copy2}`);
+    ok(`${label} → refusé`, res.text.includes('"ok":false'), res.text.slice(0, 160));
+  }
+  await callActionJson(jar, ids.deleteThemeAction, [copy2], "/admin/themes");
+  res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "x".repeat(81), en: "x" }, slug: { fr: "long", en: "long" } }], "/admin/pages");
+  ok("A21b titre de page de 81 caractères → refusé", res.text.includes('"ok":false'));
+  res = await callActionJson(jar, ids.saveSettingsAction, [{ site: { name: "Test", role: { fr: "x".repeat(161), en: "" }, email: "a@b.fr", credit: { fr: "", en: "" } }, socials: [] }], "/admin/reglages");
+  ok("A21c réglage de 161 caractères → refusé", res.text.includes('"ok":false'));
+
+  // m5 : une page non publiée n'existe que pour un aperçu admin vérifié.
+  res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "Brouillon secret", en: "Secret draft" }, slug: { fr: "brouillon-secret", en: "secret-draft" } }], "/admin/pages");
+  const draftId = Number(/"data":\{"id":(\d+)\}/.exec(res.text)?.[1]);
+  ok("A22 page non publiée créée", draftId > 0, res.text.slice(0, 120));
+  let r3 = await http("/fr/brouillon-secret");
+  ok("A22a visiteur → vrai 404", r3.status === 404, String(r3.status));
+  const fake = new Jar();
+  fake.cookies.set("__Secure-better-auth.session_token", "jeton-forge.signature");
+  fake.cookies.set("__prerender_bypass", "0123456789abcdef0123456789abcdef");
+  r3 = await http("/fr/brouillon-secret", { jar: fake });
+  ok("A22b cookies factices (session + draft) → 404", r3.status === 404, String(r3.status));
+  const noDraft = jar.copy((k) => k !== "__prerender_bypass" && k !== "theme-preview");
+  r3 = await http("/fr/brouillon-secret", { jar: noDraft });
+  ok("A22c session admin sans draft mode → 404", r3.status === 404, String(r3.status));
+  const fakeDraft = noDraft.copy();
+  fakeDraft.cookies.set("__prerender_bypass", "0123456789abcdef0123456789abcdef");
+  r3 = await http("/fr/brouillon-secret", { jar: fakeDraft });
+  ok("A22d session admin + cookie de draft forgé → 404", r3.status === 404, String(r3.status));
+  const previewJar = noDraft.copy();
+  r3 = await postForm(previewJar, "/admin/apercu", { page: String(draftId) });
+  ok("A22e aperçu de la page (POST) → 303 vers son adresse", r3.status === 303 && r3.headers.get("location") === "/fr/brouillon-secret", `${r3.status} ${r3.headers.get("location")}`);
+  r3 = await http("/fr/brouillon-secret", { jar: previewJar });
+  const draftHtml = await r3.text();
+  ok("A22f admin en aperçu → 200, page rendue, bandeau d'aperçu", r3.status === 200 && draftHtml.includes("Brouillon secret") && draftHtml.includes("pages non publiées visibles"), String(r3.status));
+  r3 = await http("/fr/nexiste-pas", { jar: previewJar });
+  ok("A22g admin en aperçu, adresse inconnue → 404", r3.status === 404, String(r3.status));
+  await callActionJson(jar, ids.deletePageAction, [draftId], "/admin/pages");
+
+  // m6 : accent contrôlé contre le thème en ligne, ignoré au rendu s'il ne passe plus.
+  res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "Accent", en: "Accent" }, slug: { fr: "accent-test", en: "accent-test" } }], "/admin/pages");
+  const accentId = Number(/"data":\{"id":(\d+)\}/.exec(res.text)?.[1]);
+  const pagePayload = { title: { fr: "Accent", en: "Accent" }, slug: { fr: "accent-test", en: "accent-test" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: "#2e4e9e", blocks: [{ type: "contact", props: { eyebrow: { fr: "E", en: "E" }, title: { fr: "T", en: "T" }, intro: { fr: "I", en: "I" }, cta: { fr: "C", en: "C" } } }] };
+  res = await callActionJson(jar, ids.savePageAction, [accentId, pagePayload], `/admin/pages/${accentId}`);
+  ok("A23 accent lisible avec le thème en ligne → enregistré", res.text.includes('"ok":true'), res.text.slice(0, 200));
+  r3 = await http("/fr/accent-test");
+  ok("A23a accent appliqué au rendu", (await r3.text()).includes("--color-primary:#2e4e9e"));
+  await callActionJson(jar, ids.activateThemeAction, ["salle-de-projection"], "/admin/themes");
+  r3 = await http("/fr/accent-test");
+  ok("A23b thème sombre en ligne : accent illisible ignoré au rendu", !(await r3.text()).includes("--color-primary:#2e4e9e"));
+  ok("A23c le serveur le signale dans ses journaux", s.text().includes("accent #2e4e9e de la page"));
+  await callActionJson(jar, ids.activateThemeAction, ["galerie-lumineuse"], "/admin/themes");
+  await callActionJson(jar, ids.deletePageAction, [accentId], "/admin/pages");
+}
 await postForm(jar, "/admin/apercu", { id: "pro" }); // pour vérifier la fin d'aperçu à la déconnexion
 
 // Déconnexion par la server action : fin de session ET d'aperçu

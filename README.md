@@ -12,6 +12,7 @@ npm ci
 npm run dev -- -p 3001      # http://192.0.2.10:3001 (ou portfolio.example.org)
 npx tsc --noEmit            # typecheck
 npm run lint
+npm run build:local        # build à mémoire réduite (VM de dev) ; la CI utilise npm run build
 PORT=3001 node verify.mjs   # harnais de régression Playwright (serveur dev lancé)
 ```
 
@@ -100,6 +101,36 @@ publique : tout utilisateur est administrateur.
 | `AUTH_PASSWORD_DISABLED` | `true` coupe le mot de passe (et `/change-password`, `/set-password`…) **seulement si** l'OIDC est complet ; sinon ignoré (avertissement) pour ne jamais s'enfermer dehors. |
 | `AUTH_TRUSTED_PROXY_HOPS` | Nombre de proxys de confiance devant le site (défaut `1`). L'IP client est l'entrée n°N de `X-Forwarded-For` en partant de la droite. À régler avec Réglages → Diagnostic après déploiement. |
 
+### Éditeurs (phase 4a)
+
+- **Thèmes** : mettre en ligne (confirmation « actuel → nouveau », avec
+  « Prévisualiser d'abord ↗ »), prévisualiser, dupliquer, modifier (thèmes
+  personnels seulement : un thème livré se duplique d'abord), supprimer (thème
+  personnel hors ligne). Éditeur `/admin/themes/<id>` : couleurs avec contraste
+  en direct (moins de 4,5:1 → enregistrement refusé, bouton « Ajuster à la teinte
+  la plus proche qui passe »), typographies, formes (vignettes), arrondis et
+  espacements ; aperçu en direct de l'accueil dans un cadre (onglet sous 1100px).
+- **Pages** : liste (adresses fr/en, publiée, menu), ordre du menu par
+  glisser-déposer (clavier : Espace, flèches, Espace), création (adresses
+  proposées depuis les titres), publier/dépublier, suppression bloquée si des
+  blocs pointent vers la page. Éditeur `/admin/pages/<id>` : titre, adresses,
+  référencement, accent de page (contrôlé AA contre le thème en ligne), blocs.
+  **Enregistrer publie aussitôt** une page publiée : il n'y a pas de brouillon
+  séparé ; « Prévisualiser la page ↗ » montre la version enregistrée (pages non
+  publiées comprises, pour l'admin connecté seulement).
+- **Réglages** : nom, métier, e-mail, mention de pied (fr/en), réseaux (https
+  uniquement).
+
+Rien n'est enregistré sans le bouton « Enregistrer » ; quitter un écran modifié
+demande confirmation. Toutes les écritures passent par des server actions
+(`assertAdmin()` + validation zod côté serveur, contraste compris) puis
+invalident les étiquettes de cache concernées : un visiteur voit le changement
+à la requête suivante, sans redémarrage.
+
+Tests : `npm run test:e2e` (parcours complet des éditeurs, Playwright, serveur
+dev **redémarré puis pré-chauffé**, une connexion) et `npm run shots:editors`
+(captures → `screenshots/phase4a/`). Ils restaurent l'état initial.
+
 ### Authentik (réglages exacts)
 
 1. *Applications → Providers → Create* : **OAuth2/OpenID Provider**.
@@ -156,7 +187,7 @@ aussi ses sessions en cours.
   à la déconnexion. `/api/theme-preview` n'existe qu'en développement.
 
 Tests : `npm test` (statique, inclut la garde des server actions) ;
-`npm run build && npm run test:auth` (intégration sur le build standalone, faux
+`npm run build:local && npm run test:auth` (intégration sur le build standalone, faux
 fournisseur OIDC local, serveur dev arrêté).
 
 ## Déploiement

@@ -70,3 +70,9 @@
 .preview-banner-spacer {
   height: 64px;
 }
+
+/* Dans le cadre d'aperçu de l'éditeur de thème : ni bandeau ni réserve. */
+[data-preview-framed] .preview-banner,
+[data-preview-framed] .preview-banner-spacer {
+  display: none;
+}

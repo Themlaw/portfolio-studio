@@ -11,6 +11,7 @@
  * Sources : seed/artworks.json, seed/projects.json, seed/site.ts, seed/media/*,
  * presets de thèmes.
  */
+import { own } from "../own";
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -143,7 +144,7 @@ export function seedRows(db: Db, files: SeedFiles): void {
   }
 
   const activeThemeId =
-    process.env.PORTFOLIO_THEME && PRESETS[process.env.PORTFOLIO_THEME] ? process.env.PORTFOLIO_THEME : DEFAULT_THEME_ID;
+    own(PRESETS, process.env.PORTFOLIO_THEME) ? (process.env.PORTFOLIO_THEME as string) : DEFAULT_THEME_ID;
   for (const [key, value] of [
     ["activeThemeId", activeThemeId],
     ["site", SITE_SETTINGS.site],

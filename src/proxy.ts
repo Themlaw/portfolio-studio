@@ -18,7 +18,11 @@ import { getSessionCookie } from "better-auth/cookies";
 import createMiddleware from "next-intl/middleware";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
 import { routing } from "./i18n/routing";
+import { isAdminRequest } from "./lib/auth/guard";
 import { NOT_FOUND_SLUG, publishedSlugExists } from "./lib/pages-index";
 
 const intl = createMiddleware(routing);
@@ -47,6 +51,43 @@ async function notFoundResponse(request: NextRequest, locale: string): Promise<R
 }
 
 const ADMIN_LOGIN = "/admin/connexion";
+/** Cookie du draft mode de Next. */
+const DRAFT_COOKIE = "__prerender_bypass";
+
+/**
+ * Identifiant du draft mode du build (valeur attendue du cookie). Lu dans
+ * .next/prerender-manifest.json en production ; absent en développement
+ * (généré en mémoire) : la session admin, vérifiée en base, suffit alors.
+ */
+let previewModeId: string | null | undefined;
+function expectedDraftCookie(): string | null {
+  if (previewModeId === undefined) {
+    // En dev, .next/prerender-manifest.json peut venir d'un ancien build :
+    // l'identifiant du serveur dev est ailleurs (en mémoire).
+    if (process.env.NODE_ENV !== "production") return (previewModeId = null);
+    try {
+      const manifest = JSON.parse(readFileSync(path.join(process.cwd(), ".next/prerender-manifest.json"), "utf8"));
+      previewModeId = typeof manifest?.preview?.previewModeId === "string" ? manifest.preview.previewModeId : null;
+    } catch {
+      previewModeId = null;
+    }
+  }
+  return previewModeId ?? null;
+}
+
+/**
+ * Aperçu des pages non publiées : cookie de draft mode valide ET session admin
+ * vérifiée en base (des cookies factices ne suffisent pas). Appelé seulement
+ * pour un slug non publié qui existe : le trafic public n'interroge jamais la
+ * session.
+ */
+async function canPreviewDrafts(request: NextRequest): Promise<boolean> {
+  const draft = request.cookies.get(DRAFT_COOKIE)?.value;
+  if (!draft || !getSessionCookie(request)) return false;
+  const expected = expectedDraftCookie();
+  if (expected && draft !== expected) return false;
+  return isAdminRequest(request.headers);
+}
 
 /**
  * CSP complète de l'admin, avec nonce par requête : Next l'applique à ses
@@ -100,8 +141,12 @@ export default async function proxy(request: NextRequest) {
   } catch {
     slug = null; // encodage invalide (/fr/%E0…)
   }
-  if (slug === null || slug === NOT_FOUND_SLUG || !publishedSlugExists(locale, slug)) {
-    return notFoundResponse(request, locale);
+  if (slug === null || slug === NOT_FOUND_SLUG) return notFoundResponse(request, locale);
+  if (!publishedSlugExists(locale, slug)) {
+    // Page non publiée : seulement pour un aperçu admin vérifié ; sinon un vrai
+    // 404, identique à celui d'une adresse qui n'existe pas.
+    const draftExists = publishedSlugExists(locale, slug, { includeDrafts: true });
+    if (!draftExists || !(await canPreviewDrafts(request))) return notFoundResponse(request, locale);
   }
   return intl(request);
 }

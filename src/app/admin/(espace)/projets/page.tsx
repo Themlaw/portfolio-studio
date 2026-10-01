@@ -1,4 +1,5 @@
 import PageHeader from "@/components/admin/PageHeader";
+import { own } from "@/lib/own";
 import { listProjectsForAdmin } from "@/lib/admin";
 
 export const metadata = { title: "Projets" };
@@ -45,7 +46,7 @@ export default function ProjectsPage() {
                     {p.slots - p.empty}
                     {p.empty > 0 && <span className="muted"> + {p.empty} à compléter</span>}
                   </td>
-                  <td>{p.collections.map((c) => COLLECTIONS[c] ?? c).join(", ")}</td>
+                  <td>{p.collections.map((c) => own(COLLECTIONS, c) ?? c).join(", ")}</td>
                 </tr>
               ))}
             </tbody>

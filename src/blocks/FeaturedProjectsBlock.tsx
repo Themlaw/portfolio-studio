@@ -6,13 +6,15 @@ import { Link } from "@/i18n/navigation";
 import { getFeaturedProjects } from "@/lib/gallery";
 import { hrefForPage } from "@/lib/pages";
 
-import { localized, pageRef, tr, type BlockContext } from "./types";
+import { localized, pageRef, tr, type BlockContext, localizedText } from "./types";
 
 export const featuredProjectsSchema = z.object({
   eyebrow: localized,
   title: localized,
-  intro: localized,
+  intro: localizedText,
   limit: z.number().int().min(1).max(12).default(2),
+  /** Projets choisis (slugs, dans l'ordre). Absent : les projets « mis en avant ». */
+  projects: z.array(z.string().regex(/^[a-z0-9-]+$/)).min(1).max(12).optional(),
   more: z.object({ label: localized, pageId: pageRef }).optional(),
 });
 
@@ -23,7 +25,7 @@ export default async function FeaturedProjectsBlock({
   props: z.infer<typeof featuredProjectsSchema>;
   ctx: BlockContext;
 }) {
-  const projects = await getFeaturedProjects(ctx.locale, props.limit);
+  const projects = await getFeaturedProjects(ctx.locale, props.limit, props.projects);
   const moreHref = props.more ? await hrefForPage(props.more.pageId, ctx.locale) : null;
 
   return (

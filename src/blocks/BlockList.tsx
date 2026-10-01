@@ -1,5 +1,6 @@
 import type { RawBlock } from "@/lib/pages";
 
+import { own } from "@/lib/own";
 import { BLOCKS } from "./registry";
 import type { BlockContext } from "./types";
 
@@ -16,7 +17,7 @@ export default function BlockList({ blocks, ctx }: { blocks: RawBlock[]; ctx: Bl
           console.error(`[blocks] page ${ctx.pageId}, bloc ${block.id} (${block.type}) : props JSON illisibles, ignoré`);
           return null;
         }
-        const def = BLOCKS[block.type];
+        const def = own(BLOCKS, block.type);
         if (!def) {
           console.error(`[blocks] page ${ctx.pageId}, bloc ${block.id} : type inconnu « ${block.type} », ignoré`);
           return null;

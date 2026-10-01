@@ -3,12 +3,12 @@ import { z } from "zod";
 import Eyebrow from "@/components/Eyebrow";
 import { getSite } from "@/lib/settings";
 
-import { localized, tr, type BlockContext } from "./types";
+import { localized, tr, type BlockContext, localizedText } from "./types";
 
 export const contactSchema = z.object({
   eyebrow: localized,
   title: localized,
-  intro: localized,
+  intro: localizedText,
   cta: localized,
 });
 

@@ -4,12 +4,12 @@ import Hero from "@/components/Hero";
 import { hrefForPage } from "@/lib/pages";
 import { getSite } from "@/lib/settings";
 
-import { localized, pageRef, tr, type BlockContext } from "./types";
+import { localized, pageRef, tr, type BlockContext, localizedText } from "./types";
 
 export const heroSchema = z.object({
   eyebrow: localized,
   /** <mark>…</mark> signale le mot mis en valeur (hero type-only). */
-  statement: localized,
+  statement: localizedText,
   /** Page vers laquelle mène le bouton demoreel (hero spotlight). */
   reelPageId: pageRef.optional(),
 });

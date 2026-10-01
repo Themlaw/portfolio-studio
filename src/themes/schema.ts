@@ -29,7 +29,9 @@ const cssValue = z
   .string()
   .min(1)
   .max(120)
-  .regex(/^[a-zA-Z0-9\s.,%()+\-*/#]+$/, "valeur CSS invalide");
+  .regex(/^[a-zA-Z0-9\s.,%()+\-*/#]+$/, "valeur CSS invalide")
+  // Pas de chargement externe ni de commentaire qui masquerait une suite.
+  .refine((v) => !/url\(|expression\(|\/\*|\*\/|\\|@/i.test(v), "valeur CSS invalide");
 
 export const FONT_IDS = [
   "young-serif",
@@ -46,8 +48,8 @@ const localized = z.object({ fr: z.string().min(1).max(160), en: z.string().min(
 
 export const ThemeSchema = z
   .object({
-    id: z.string().regex(/^[a-z0-9-]+$/),
-    name: z.string().min(1),
+    id: z.string().regex(/^[a-z0-9-]+$/).max(80),
+    name: z.string().trim().min(1, "Donne un nom au thème.").max(80, "80 caractères au plus."),
     /** Preset livré : non supprimable, dupliquable. */
     preset: z.boolean(),
     tokens: z.object({
@@ -94,7 +96,16 @@ export const ThemeSchema = z
     }),
     assets: z.object({
       /** Calques du hero parallaxe, de l'arrière-plan vers l'avant (chemins publics). */
-      heroLayers: z.array(z.string().regex(/^\/[\w\-./]+$/)).optional(),
+      heroLayers: z
+        .array(
+          z
+            .string()
+            .max(200)
+            .regex(/^\/themes\/[\w-]+\/[\w./-]+$/)
+            .refine((v) => !v.includes("..") && !v.includes("//"), "chemin invalide"),
+        )
+        .max(8)
+        .optional(),
       /** Note manuscrite du hero type-only. */
       heroNote: localized.optional(),
     }),

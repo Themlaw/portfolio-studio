@@ -177,6 +177,38 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
 - Rendu public : pages statiques régénérées à la demande (`revalidateTag` à chaque
   enregistrement) : le site public reste aussi rapide qu'aujourd'hui.
 
+### Éditeurs livrés en phase 4a
+
+- **Écritures** : `src/lib/edit/{themes,pages,settings}.ts` (validation et
+  écriture, sans dépendance à Next) appelées par les server actions
+  `src/app/admin/(espace)/{themes,pages,reglages}/actions.ts` :
+  `assertAdmin()` → zod → écriture → `revalidate*`. Résultat sérialisable
+  `{ ok, data } | { ok: false, message, fieldErrors }` (erreurs par chemin de champ).
+- **Contraste** : `src/themes/contrast.ts`, logique unique partagée par la CI
+  (`check-contrast`), l'éditeur (indicateurs, « Ajuster » = même teinte,
+  luminosité corrigée au minimum) et le serveur (jamais de confiance au client).
+- **Aperçu en direct** : le cadre charge l'accueil en draft mode (POST
+  `/admin/apercu`, cible = le cadre). L'éditeur envoie par `postMessage` (même
+  origine) la feuille `themeToCss()` et les attributs de variantes, appliqués par
+  `PreviewBridge` (rendu seulement en aperçu admin) ; le cadre est rechargé après
+  enregistrement. Le site public n'est encadrable (`frame-ancestors 'self'`) qu'avec
+  le cookie de draft mode ; les visiteurs gardent `DENY`. `src/themes/css.ts` et
+  `font-stacks.ts` sont purs (importables côté client).
+- **Blocs** : chaque entrée du registre déclare `{ type, schema, Component, Editor,
+  label, description, defaults, summary }` (+ `refs` dans `refs.ts`). L'éditeur de
+  page reçoit `<Editor />` sans props (élément sérialisable) et lui fournit le bloc
+  par contexte (`useBlockEditor()`). Kit de champs : `src/app/admin/_fields`.
+- **Pages non publiées** : rendues seulement en draft mode avec session admin
+  (`resolvePage`) ; le proxy ne les laisse passer qu'avec un cookie de draft
+  valide (identifiant du build en production) ET une session admin vérifiée en
+  base ; sinon vrai 404, identique à une adresse inconnue.
+- **Accent de page** : `pages.theme_overrides = { primary }`, appliqué par un
+  conteneur `display: contents` qui surcharge `--color-primary` (aucune boîte
+  ajoutée) ; refusé sous AA contre le thème en ligne à l'enregistrement, et
+  ignoré au rendu (log serveur) s'il ne passe plus avec le thème actif.
+- **Glisser-déposer** : dnd-kit (`src/components/admin/Sortable.tsx`), poignée,
+  clavier, annonces en français ; l'ordre du menu s'enregistre avec un bouton.
+
 ## Authentification (phase 3)
 
 - **Better Auth 1.7**, adaptateur Drizzle, tables `user`, `session`, `account`,
@@ -228,7 +260,7 @@ indépendante (GO / NO-GO mesuré) → validation visuelle → commit squashé s
    Le site public doit être visuellement identique à avant (captures de comparaison).
 3. **Auth + coquille admin** : Better Auth (Authentik + secours mot de passe), protection
    de `/admin` et des server actions, amorçage du premier admin par variables d'env.
-4. **Éditeurs** : thèmes, pages/blocs, projets/slots avec upload d'images, médiathèque.
+4. **Éditeurs** : 4a thèmes, réglages, pages/blocs ; 4b projets/slots avec upload d'images, médiathèque.
 5. **Vidéo** : upload, file de jobs ffmpeg, lecteur, bloc `video`.
 6. **Création de thèmes** (plus tard) : éditeur complet, import de polices, assets de hero.
 

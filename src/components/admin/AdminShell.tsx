@@ -6,6 +6,8 @@ import { useState } from "react";
 
 import { signOutAction } from "@/app/admin/actions";
 
+import { Toaster } from "./editing";
+
 const NAV = [
   { href: "/admin", label: "Tableau de bord" },
   { href: "/admin/themes", label: "Thèmes" },
@@ -92,6 +94,7 @@ export default function AdminShell({
       <main className="a-main" id="contenu">
         {children}
       </main>
+      <Toaster />
     </div>
   );
 }

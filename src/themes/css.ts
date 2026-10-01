@@ -4,8 +4,10 @@
  * Les variables émises portent le préfixe `--t-` : `globals.css` les relaie
  * vers les noms Tailwind (`--color-bg: var(--t-color-bg)`), sans jamais
  * d'auto-référence (`--color-bg: var(--color-bg)` serait un cycle CSS).
+ * Module pur (sans next/font) : l'éditeur de thème l'utilise côté client pour
+ * l'aperçu en direct.
  */
-import { FONT_CATALOG } from "./fonts";
+import { FONT_STACKS as FONT_CATALOG } from "./font-stacks";
 import type { Theme } from "./schema";
 
 /** Luminance relative WCAG d'une couleur #rgb / #rrggbb. */

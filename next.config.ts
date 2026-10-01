@@ -14,8 +14,18 @@ const SECURITY_HEADERS = [
   },
 ];
 
+/**
+ * Build à mémoire réduite (VM de dev, 3,8 Go) : `npm run build:local` pose
+ * LOW_MEM_BUILD=1. Un seul worker de génération, sans threads. La CI garde le
+ * réglage par défaut (plus rapide).
+ */
+const LOW_MEM = process.env.LOW_MEM_BUILD === "1";
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // En LOW_MEM, le typecheck tourne AVANT le build (`tsc --noEmit` dans
+  // build:local), pas en parallèle du serveur de build : même garantie, pic réduit.
+  ...(LOW_MEM ? { typescript: { ignoreBuildErrors: true } } : {}),
   async headers() {
     return [
       { source: "/:path*", headers: SECURITY_HEADERS },
@@ -24,6 +34,19 @@ const nextConfig: NextConfig = {
       {
         source: "/:path((?!admin(?:/|$)|media/).*)",
         headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'none'" }],
+      },
+      // Aperçu en direct de l'éditeur de thème : en draft mode seulement (cookie
+      // posé par /admin/apercu pour un admin connecté), le site public peut
+      // s'afficher dans un cadre DE LA MÊME ORIGINE. Les visiteurs (sans ce
+      // cookie) gardent DENY / frame-ancestors 'none'. Règle déclarée en
+      // dernier : elle remplace les deux en-têtes ci-dessus.
+      {
+        source: "/:path((?!admin(?:/|$)|media/|api/).*)",
+        has: [{ type: "cookie", key: "__prerender_bypass" }],
+        headers: [
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+        ],
       },
     ];
   },
@@ -45,6 +68,7 @@ const nextConfig: NextConfig = {
     isrFlushToDisk: false,
     // forbidden() (403) pour les server actions et routes de l'admin sans session.
     authInterrupts: true,
+    ...(LOW_MEM ? { cpus: 1, workerThreads: false } : {}),
   },
   images: {
     // Le contenu est composé de SVG : l'optimiseur n'a rien à y gagner.

@@ -5,14 +5,14 @@ import Eyebrow from "@/components/Eyebrow";
 import { getMedia } from "@/lib/media";
 import { getSite, getSocials } from "@/lib/settings";
 
-import { localized, tr, type BlockContext } from "./types";
+import { localized, tr, type BlockContext, localizedText } from "./types";
 
 export const profileSchema = z.object({
   portraitMediaId: z.number().int().positive().optional(),
   portraitCaption: localized,
   eyebrow: localized,
   /** Le premier paragraphe est l'accroche (encre pleine). */
-  paragraphs: z.array(localized).min(1),
+  paragraphs: z.array(localizedText).min(1).max(30),
   contactEyebrow: localized,
   contactLabel: localized,
   socialEyebrow: localized,

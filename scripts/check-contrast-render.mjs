@@ -67,7 +67,10 @@ const ADMIN_GROUPS = [
   ["boutons", ".a-btn", 4.5, "scroll"],
   ["badge", ".a-badge", 4.5, "scroll"],
   ["tableaux", ".a-table th, .a-table td, .a-dl dt, .a-dl dd", 4.5, "scroll"],
-  ["formulaire", ".a-field label, .a-alert", 4.5, "scroll"],
+  // Libellés (l'interrupteur est mesuré sur son texte : sa piste colorée
+  // n'est pas un fond de texte), aides, erreurs, étiquettes d'état.
+  ["formulaire", ".a-field label:not(.a-toggle), .a-toggle > span:last-child, .a-alert", 4.5, "scroll"],
+  ["aides", ".a-help, .a-field-error, .a-save-state, .a-tag, .a-block-summary, .a-notice, .a-readonly", 4.5, "scroll"],
 ];
 
 const all = readdirSync(presetDir).filter((f) => f.endsWith(".ts") && f !== "index.ts");
@@ -220,7 +223,7 @@ if (ADMIN_MODE) {
   }
   const login = await page.request.post(`${BASE}/api/auth/sign-in/email`, { data: { email, password }, headers: { origin: BASE } });
   if (!login.ok()) throw new Error(`connexion admin refusée (${login.status()})`);
-  for (const [label, path] of [["tableau", "/admin"], ["themes", "/admin/themes"], ["pages", "/admin/pages"], ["medias", "/admin/mediatheque"]]) {
+  for (const [label, path] of [["tableau", "/admin"], ["themes", "/admin/themes"], ["pages", "/admin/pages"], ["page-edit", "/admin/pages/1"], ["reglages", "/admin/reglages"], ["medias", "/admin/mediatheque"]]) {
     await prepare(page, `${BASE}${path}`);
     for (const g of ADMIN_GROUPS) {
       const r = await measureGroup(page, g);

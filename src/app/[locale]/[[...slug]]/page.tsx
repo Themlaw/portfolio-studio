@@ -6,7 +6,10 @@ import { getTranslations } from "next-intl/server";
 import BlockList from "@/blocks/BlockList";
 import NotFoundView from "@/components/NotFoundView";
 import { routing, type AppLocale } from "@/i18n/routing";
-import { findPage, getPageBlocks, localizedPath } from "@/lib/pages";
+import { resolvePage } from "@/lib/page-preview";
+import { getPageBlocks, localizedPath, pageAccent } from "@/lib/pages";
+import { getActiveTheme } from "@/lib/theme";
+import { accentProblem, hoverShade } from "@/themes/contrast";
 import { getSite } from "@/lib/settings";
 
 /**
@@ -30,15 +33,15 @@ type Params = Promise<{ locale: string; slug?: string[] }>;
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { locale: raw, slug } = await params;
   const locale = raw as AppLocale;
-  const page = await findPage(locale, slug);
+  const page = await resolvePage(locale, slug);
   if (!page) {
     // Page 404 (servie par le proxy avec le statut 404).
     const [t, site] = await Promise.all([getTranslations({ locale, namespace: "notFound" }), getSite(locale)]);
     return { title: `${t("title")} — ${site.name}`, robots: { index: false, follow: true } };
   }
   return {
-    title: page.meta?.title[locale] ?? page.title[locale],
-    description: page.meta?.description[locale],
+    title: page.meta?.title[locale] || page.title[locale],
+    description: page.meta?.description[locale] || undefined,
     alternates: {
       canonical: localizedPath(page, locale),
       languages: Object.fromEntries(routing.locales.map((l) => [l, localizedPath(page, l)])),
@@ -51,12 +54,31 @@ export default async function Page({ params }: { params: Params }) {
   const locale = raw as AppLocale;
   setRequestLocale(locale);
 
-  const page = await findPage(locale, slug);
+  const page = await resolvePage(locale, slug);
   // Slug inconnu : le proxy l'a déjà aiguillé vers la page 404 réservée
   // (statut 404). Rendue ici comme une page normale, elle profite du layout
   // (thème, en-tête, pied) et du cache ISR.
   if (!page) return <NotFoundView />;
 
   const blocks = await getPageBlocks(page.id);
-  return <BlockList blocks={blocks} ctx={{ locale, pageId: page.id }} />;
+  const list = <BlockList blocks={blocks} ctx={{ locale, pageId: page.id }} />;
+  const accent = pageAccent(page);
+  if (!accent) return list;
+  // L'accent a été contrôlé contre le thème en ligne à l'enregistrement ; si le
+  // thème a changé depuis et qu'il n'est plus lisible, il est ignoré.
+  const problem = accentProblem(accent, (await getActiveTheme()).tokens.color);
+  if (problem) {
+    console.warn(`[page] accent ${accent} de la page ${page.id} ignoré : ${problem}`);
+    return list;
+  }
+  // Accent de page : surcharge des tokens primaires pour le contenu de la page
+  // (display: contents → aucune boîte ajoutée, mise en page inchangée).
+  const style = {
+    "--t-color-primary": accent,
+    "--color-primary": accent,
+    "--t-color-primary-hover": hoverShade(accent),
+    "--color-primary-hover": hoverShade(accent),
+    display: "contents",
+  } as React.CSSProperties;
+  return <div style={style}>{list}</div>;
 }

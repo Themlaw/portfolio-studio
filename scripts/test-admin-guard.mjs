@@ -33,6 +33,63 @@ function bodyAfter(source, openIndex) {
   return "";
 }
 
+/**
+ * Index de l'accolade ouvrante du CORPS d'une fonction, à partir de la
+ * parenthèse ouvrante de ses paramètres : saute les paramètres puis un
+ * éventuel type de retour (qui peut contenir des accolades :
+ * Promise<Result<{ id: number }>>). En cas de doute, renvoie une accolade
+ * trop tôt : le test échoue (jamais de faux succès).
+ */
+function bodyOpen(source, parenIndex) {
+  let depth = 0;
+  let i = parenIndex;
+  for (; i < source.length; i++) {
+    if (source[i] === "(") depth++;
+    else if (source[i] === ")" && --depth === 0) break;
+  }
+  depth = 0;
+  for (i++; i < source.length; i++) {
+    const c = source[i];
+    if (c === "=" && source[i + 1] === ">") {
+      if (depth === 0) {
+        // Fonction fléchée : le corps suit.
+        const j = source.indexOf("{", i);
+        return j;
+      }
+      i++;
+      continue;
+    }
+    if (c === "<" || c === "(" || c === "[") depth++;
+    else if (c === ">" || c === ")" || c === "]") depth--;
+    else if (c === "{") {
+      if (depth === 0) return i;
+      depth++;
+    } else if (c === "}") depth--;
+  }
+  return -1;
+}
+
+/**
+ * Actions connues : chacune doit être trouvée ET gardée. Une action ajoutée
+ * est vérifiée automatiquement ; cette liste détecte en plus une action
+ * que l'analyse ne verrait plus (régression du test lui-même).
+ */
+const EXPECTED = [
+  "signOutAction",
+  "duplicateThemeAction",
+  "saveThemeAction",
+  "activateThemeAction",
+  "deleteThemeAction",
+  "saveSettingsAction",
+  "createPageAction",
+  "savePageAction",
+  "setPublishedAction",
+  "setInMenuAction",
+  "reorderMenuAction",
+  "deletePageAction",
+];
+const found = new Set();
+
 const failures = [];
 let checked = 0;
 
@@ -44,25 +101,28 @@ for (const dir of DIRS) {
 
     if (fileLevel) {
       // Toute fonction exportée d'un fichier "use server" est une server action.
-      const exportFn = /export\s+(?:default\s+)?async\s+function\s+(\w+)\s*\([^)]*\)[^{]*\{/g;
-      const exportArrow = /export\s+const\s+(\w+)\s*=\s*async\s*\([^)]*\)[^=]*=>\s*\{/g;
+      const exportFn = /export\s+(?:default\s+)?async\s+function\s+(\w+)\s*\(/g;
+      const exportArrow = /export\s+const\s+(\w+)\s*=\s*async\s*\(/g;
       for (const re of [exportFn, exportArrow]) {
         for (const m of src.matchAll(re)) {
           checked++;
-          const body = bodyAfter(src, m.index + m[0].length - 1);
+          found.add(m[1]);
+          const open = bodyOpen(src, m.index + m[0].length - 1);
+          const body = open < 0 ? "" : bodyAfter(src, open);
           if (!GUARD.test(body)) failures.push(`${rel} : action « ${m[1]} » sans \`await assertAdmin()\` en première instruction`);
         }
       }
-      if (/export\s+(?:const|let)\s+\w+\s*=\s*(?!async)/.test(src)) {
+      if (/export\s+(?:const|let)\s+\w+\s*=(?!\s*async\b)/.test(src)) {
         failures.push(`${rel} : un fichier "use server" ne doit exporter que des fonctions async gardées`);
       }
     }
 
     // Routes mutantes de l'admin.
     if (/\/route\.tsx?$/.test(rel)) {
-      for (const m of src.matchAll(/export\s+async\s+function\s+(POST|PUT|PATCH|DELETE)\s*\([^)]*\)[^{]*\{/g)) {
+      for (const m of src.matchAll(/export\s+async\s+function\s+(POST|PUT|PATCH|DELETE)\s*\(/g)) {
         checked++;
-        const body = bodyAfter(src, m.index + m[0].length - 1);
+        const open = bodyOpen(src, m.index + m[0].length - 1);
+        const body = open < 0 ? "" : bodyAfter(src, open);
         if (!GUARD.test(body)) failures.push(`${rel} : route ${m[1]} sans \`await assertAdmin()\` en première instruction`);
       }
       if (/export\s+(?:const|function)\s+(POST|PUT|PATCH|DELETE)\b(?![\s\S]*?async)/.test(src)) {
@@ -79,6 +139,9 @@ for (const dir of DIRS) {
   }
 }
 
+for (const name of EXPECTED) {
+  if (!found.has(name)) failures.push(`action attendue « ${name} » introuvable (supprimée ? renommée ? mettre à jour EXPECTED)`);
+}
 if (checked === 0) failures.push("aucune server action trouvée : le test ne vérifie rien (chemins à revoir ?)");
 
 if (failures.length) {

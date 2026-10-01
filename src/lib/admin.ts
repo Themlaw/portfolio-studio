@@ -104,12 +104,115 @@ export function listMediaForAdmin(): AdminMediaRow[] {
     }));
 }
 
-export type AdminSettings = { name: string; role: string; email: string; socials: { label: string; href: string }[] };
+export type AdminSettings = {
+  site: { name: string; role: L; email: string; credit: L };
+  socials: { label: string; href: string }[];
+};
+
+const EMPTY: L = { fr: "", en: "" };
+const asL = (v: unknown): L => {
+  const o = v as Partial<L> | undefined;
+  return { fr: typeof o?.fr === "string" ? o.fr : "", en: typeof o?.en === "string" ? o.en : "" };
+};
 
 export function getSettingsForAdmin(): AdminSettings {
   const rows = getDb().select().from(schema.settings).all();
   const values = Object.fromEntries(rows.map((r) => [r.key, parseJson(r.value)]));
-  const site = (values.site ?? {}) as { name?: string; role?: L; email?: string };
-  const socials = Array.isArray(values.socials) ? (values.socials as { label: string; href: string }[]) : [];
-  return { name: site.name ?? "", role: site.role?.fr ?? "", email: site.email ?? "", socials };
+  const site = (values.site ?? {}) as Record<string, unknown>;
+  const socials = Array.isArray(values.socials)
+    ? (values.socials as { label?: unknown; href?: unknown }[]).map((x) => ({ label: String(x.label ?? ""), href: String(x.href ?? "") }))
+    : [];
+  return {
+    site: {
+      name: typeof site.name === "string" ? site.name : "",
+      role: site.role ? asL(site.role) : EMPTY,
+      email: typeof site.email === "string" ? site.email : "",
+      credit: site.credit ? asL(site.credit) : EMPTY,
+    },
+    socials,
+  };
+}
+
+/* ---- Éditeur de page ---------------------------------------------------- */
+
+export type AdminPageEdit = {
+  id: number;
+  isHome: boolean;
+  title: L;
+  slug: L;
+  meta: { title: L; description: L };
+  published: boolean;
+  inMenu: boolean;
+  accent: string | null;
+  blocks: { type: string; props: Record<string, unknown> }[];
+};
+
+export function getPageForEdit(id: number): AdminPageEdit | null {
+  const db = getDb();
+  const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
+  if (!page) return null;
+  const blocks = db
+    .select()
+    .from(schema.blocks)
+    .where(eq(schema.blocks.pageId, id))
+    .orderBy(asc(schema.blocks.position))
+    .all()
+    .map((b) => ({ type: b.type, props: (parseJson(b.props) as Record<string, unknown>) ?? {} }));
+  const overrides = page.themeOverrides as { primary?: unknown } | null;
+  return {
+    id: page.id,
+    isHome: page.slug.fr === "" && page.slug.en === "",
+    title: page.title,
+    slug: page.slug,
+    meta: { title: asL(page.meta?.title), description: asL(page.meta?.description) },
+    published: page.published,
+    inMenu: page.navOrder !== null,
+    accent: typeof overrides?.primary === "string" ? overrides.primary : null,
+    blocks,
+  };
+}
+
+/** Choix proposés par les sélecteurs des éditeurs de blocs. */
+export function getEditorContext() {
+  const db = getDb();
+  return {
+    pages: db
+      .select()
+      .from(schema.pages)
+      .orderBy(asc(schema.pages.id))
+      .all()
+      .filter((p) => !p.slug.fr.startsWith("_"))
+      .map((p) => ({ id: p.id, title: p.title.fr, slug: p.slug.fr })),
+    projects: db
+      .select({ slug: schema.projects.slug, title: schema.projects.title })
+      .from(schema.projects)
+      .orderBy(asc(schema.projects.position))
+      .all()
+      .map((p) => ({ slug: p.slug, title: p.title.fr })),
+    media: db
+      .select()
+      .from(schema.media)
+      .orderBy(asc(schema.media.id))
+      .all()
+      .filter((m) => m.mime.startsWith("image/"))
+      .map((m) => ({ id: m.id, url: mediaUrl(m.key), name: m.originalName ?? m.key })),
+  };
+}
+
+/** Pages qui ont un accent propre (contrôle avant de mettre un thème en ligne). */
+export function listPageAccents(): { id: number; title: string; accent: string }[] {
+  return getDb()
+    .select({ id: schema.pages.id, title: schema.pages.title, overrides: schema.pages.themeOverrides })
+    .from(schema.pages)
+    .all()
+    .flatMap((p) => {
+      const accent = (p.overrides as { primary?: unknown } | null)?.primary;
+      return typeof accent === "string" ? [{ id: p.id, title: p.title.fr, accent }] : [];
+    });
+}
+
+/** Couleurs du thème en ligne (contrôle de l'accent d'une page). */
+export function getActiveThemeColors(): Theme["tokens"]["color"] | null {
+  const { activeId, themes } = getThemeOverview();
+  return themes.find((t) => t.id === activeId)?.tokens.color ?? null;
 }

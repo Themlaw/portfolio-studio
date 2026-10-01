@@ -4,13 +4,13 @@ import { z } from "zod";
 import Eyebrow from "@/components/Eyebrow";
 import { countCollection, getProjectsForCollection } from "@/lib/gallery";
 
-import { collection, localized, tr, type BlockContext } from "./types";
+import { collection, localized, tr, type BlockContext, localizedText } from "./types";
 
 export const collectionIntroSchema = z.object({
   collection,
   eyebrow: localized,
   title: localized,
-  intro: localized,
+  intro: localizedText,
   /** Compteurs « N œuvres · M projets » sous l'intro. */
   showCounts: z.boolean().default(true),
 });

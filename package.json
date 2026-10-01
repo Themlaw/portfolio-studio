@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:local": "tsc --noEmit && LOW_MEM_BUILD=1 MIMALLOC_PURGE_DELAY=0 MIMALLOC_ARENA_EAGER_COMMIT=0 MIMALLOC_ALLOW_LARGE_OS_PAGES=0 next build",
     "start": "next start",
     "lint": "eslint",
     "check:tokens": "node scripts/check-tokens.mjs",
@@ -13,9 +14,15 @@
     "shots:themes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/theme-shots.mjs",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-references.mjs && node scripts/test-admin-guard.mjs",
     "test:auth": "node scripts/test-auth.mjs",
-    "shots:admin": "node scripts/admin-shots.mjs"
+    "shots:admin": "node scripts/admin-shots.mjs",
+    "test:e2e": "node scripts/e2e-admin.mjs",
+    "shots:editors": "node scripts/editor-shots.mjs"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/modifiers": "^9.0.0",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "better-auth": "^1.7.7",
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.3",

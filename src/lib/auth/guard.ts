@@ -35,6 +35,16 @@ export const getAdminSession = cache(async () => {
 
 export type AdminSession = NonNullable<Awaited<ReturnType<typeof getAdminSession>>>;
 
+/**
+ * Session admin valide pour des en-têtes donnés (proxy : hors du contexte de
+ * rendu, sans next/headers). Vérifiée en base, accès revérifié ; sans effet de
+ * bord (la révocation reste dans getAdminSession).
+ */
+export async function isAdminRequest(requestHeaders: Headers): Promise<boolean> {
+  const session = await getAuth().api.getSession({ headers: requestHeaders });
+  return Boolean(session && checkUserAccess(session.user.id).allowed);
+}
+
 /** Pages de l'admin : redirige vers la connexion sans session valide. */
 export async function requireAdmin(): Promise<AdminSession> {
   const session = await getAdminSession();
