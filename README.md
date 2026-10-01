@@ -261,44 +261,130 @@ Flux : **push GitHub → GitHub Actions → GHCR (privé) → Komodo sur hote-pr
 1. `.github/workflows/docker.yml` se déclenche sur push `main`, sur les tags
    `v*` / `da/*` et à la main (`workflow_dispatch`) :
    - job `check` : `npm ci`, `tsc --noEmit`, `npm run lint`, `check:tokens`,
-     `check:contrast` ;
-   - job `image` : build buildx `linux/amd64` (cache `gha`), push sur
-     `ghcr.io/themlaw/portfolio` avec les tags `latest` (main),
-     `sha-<court>` et le nom du tag git nettoyé (`da/pro` → `da-pro`).
-2. Sur hote-prod, la stack Komodo (`compose.yaml`, service `portfolio`,
-   `pull_policy: always`) tire l'image ; un redeploy prend la dernière `latest`.
-   Pour épingler une version : `PORTFOLIO_IMAGE=ghcr.io/themlaw/portfolio:da-pro`.
-3. Newt (Pangolin) joint le conteneur sur le réseau `traefik` : `http://portfolio:3000`.
-   Aucun port publié.
+     `check:contrast`, `npm test` ;
+   - job `image` : build buildx `linux/amd64` (cache `gha`), couches
+     reproductibles (`SOURCE_DATE_EPOCH=0`, `rewrite-timestamp=true`), push sur
+     `ghcr.io/themlaw/portfolio` avec les tags `latest` (main), `sha-<court>` et
+     le nom du tag git nettoyé (`da/pro` → `da-pro`).
+2. Sur hote-prod, Komodo déploie `docker-compose.yml` (service `portfolio`,
+   `pull_policy: always`) ; Newt (Pangolin) joint le conteneur sur le réseau
+   externe `traefik` : `http://portfolio:3000`. Aucun port publié.
+
+### Stack Komodo
+
+Deux façons, même fichier (`docker-compose.yml` du dépôt ≡
+`/home/user/docker/Portfolio/compose.yaml`) :
+
+- **depuis le dépôt git** : Stack → *Git Repo* = ce dépôt, branche `main`,
+  *File Paths* = `docker-compose.yml` ; un redeploy relit le fichier à jour ;
+- **depuis le fichier** : Stack → *UI Defined* (ou dossier sur l'hôte) avec le
+  contenu de `docker-compose.yml`.
+
+Variables : onglet *Environment* de la stack (Komodo l'écrit en `.env` à côté du
+compose), modèle commenté : `.env.example`. Seul `BETTER_AUTH_SECRET` est
+obligatoire (`openssl rand -base64 48`) ; `PORTFOLIO_TAG` épingle une version
+(`sha-1a2b3c4`, `v0.8.0`, `da-pro`… ; défaut `latest`).
+
+### Premier démarrage
+
+Le volume nommé `portfolio-data` (nom réel `<projet>_portfolio-data`, voir
+`docker volume ls`) est vide : Docker l'initialise avec le `/data` de l'image,
+déjà possédé par 1000:1000 (`media/`, `tmp/`). Au démarrage : migrations, seed
+(thème `PORTFOLIO_THEME`), premier administrateur si `ADMIN_EMAIL` /
+`ADMIN_PASSWORD` sont définis. Le conteneur passe `healthy` en quelques secondes.
+
+### Si /data n'est pas inscriptible
+
+Un volume déjà rempli par root, ou un dossier monté (bind) créé par root, bloque
+l'utilisateur 1000:1000. Le conteneur s'arrête alors (et redémarre en boucle)
+avec un message qui donne la commande exacte, nom du volume compris :
+
+```
+[data] ÉCHEC du démarrage : /data n'est pas inscriptible par l'utilisateur 1000:1000 (EACCES).
+[data]   volume nommé : docker run --rm -v portfolio_portfolio-data:/data alpine chown -R 1000:1000 /data
+[data]   avec le docker-compose.yml du dépôt : docker compose --profile setup run --rm fix-permissions
+```
+
+Le service `fix-permissions` (profil `setup`, jamais lancé par défaut) fait ce
+`chown -R 1000:1000 /data` en root avec la seule capacité `CHOWN`, sans réseau.
+Sur l'hôte, dans le dossier de la stack : `docker compose --profile setup run
+--rm fix-permissions`, puis redéployer. Pour un bind mount :
+`sudo chown -R 1000:1000 <dossier>`.
+
+### Mise à jour
+
+Redeploy de la stack (ou webhook Komodo) : `pull_policy: always` tire l'image,
+et **seules les couches modifiées sont téléchargées**. Un changement de code ne
+change que `.next/static` et le code serveur (~4 Mo sur ~170 Mo compressés) ; un
+changement de dépendances change aussi la couche `node_modules` (~16 Mo) ; la
+base et ffmpeg ne changent qu'avec une mise à jour de sécurité de Debian ou de
+l'image distroless (reconstruction de l'image).
 
 ### Image
 
-`Dockerfile` multi-stage (`node:24-slim`, glibc) : `deps` (npm ci) → `builder`
-(`next build`, sortie `standalone`) → `runner` (standalone + `.next/static` + `public`).
+`Dockerfile` multi-stage : `deps` (npm ci) → `builder` (`next build`, sortie
+`standalone` séparée en dépendances / code) → `ffmpeg` (Debian 13 : ffmpeg,
+ffprobe, `nice` et leurs bibliothèques, collectées par `ldd`) → `runner` sur
+**`gcr.io/distroless/nodejs24-debian13`**.
 
-- utilisateur `node` (uid 1000), code possédé par root, compatible `read_only` ;
-- `/data` : volume inscriptible (`portfolio.db`, `media/`), possédé par uid 1000 ;
-  migrations et seed au premier démarrage ;
-- `.next/cache` : inutilisé (ISR en mémoire) ; tmpfs de 16 Mo par précaution ;
+| Couche (de la plus stable à la plus volatile) | Compressé |
+|---|---|
+| base distroless (glibc, OpenSSL, node 24) | 55 Mo |
+| ffmpeg / ffprobe / nice + 200 bibliothèques (186 paquets Debian) | 93 Mo |
+| comptes (`app` 1000:1000) et `/data` | < 0,1 Mo |
+| `node_modules` tracées du standalone | 16 Mo |
+| migrations, seed, `public/` | < 0,1 Mo |
+| `.next/static` | 0,9 Mo |
+| `server.js` + `.next/server` | 3,3 Mo |
+
+610 Mo décompressés, 169 Mo compressés (avant : `node:24-slim` + ffmpeg Debian,
+1,06 Go / 275 Mo).
+
+Surface d'attaque :
+
+- **ni shell** (`sh`, `bash`, `dash`, `busybox`), **ni `apt` / `dpkg`**, ni
+  perl / python, **aucun binaire setuid/setgid** ; seuls exécutables : `node`,
+  `ffmpeg`, `ffprobe`, `nice`. `docker run --entrypoint sh` échoue ;
+- utilisateur **1000:1000** ; code possédé par root, droits `u=rwX,go=rX`, en
+  lecture seule ; seuls `/data` et les tmpfs sont inscriptibles ;
+- `nice` est fourni (coreutils) : `os.setPriority` après coup ne toucherait que
+  le fil principal de ffmpeg, pas ceux déjà créés (la priorité est par fil sous
+  Linux) ; lancé par `nice -n 10`, tous les fils en héritent ;
+- versions Debian conservées : un enregistrement dpkg par paquet copié dans
+  `/var/lib/dpkg/status.d/` (convention distroless) : Trivy / Grype voient les
+  versions réelles et leurs CVE ;
+- `HEALTHCHECK` en exec : `/nodejs/bin/node -e "fetch('…/fr')"`, sans shell.
+
+Couches reproductibles : `COPY --link` avec propriétaire explicite, droits
+normalisés, dates ramenées à `SOURCE_DATE_EPOCH` à l'export
+(`rewrite-timestamp=true`). La constante `0` (et non la date du commit) garde
+les couches stables d'un commit à l'autre. Conséquence : les fichiers de
+`public/` ont tous la même date ; leur ETag ne dépend plus que de leur taille.
+Changer un fichier de `public/` sans changer sa taille : le renommer.
+
 - `npm ci --ignore-scripts` : better-sqlite3 13 embarque ses binaires N-API
-  (`prebuilds/`), aucun script d'installation n'est nécessaire (sans Python
-  dans l'image, `node-gyp` échouerait) ;
-- `HEALTHCHECK` : `GET /fr` ;
+  (`prebuilds/`), aucun script d'installation n'est nécessaire ;
 - build-arg `NODE_MAX_OLD_SPACE` (défaut 1024 Mo, 4096 en CI) : plafond du tas
   pendant `next build`.
 
 ### Build local (test ponctuel uniquement)
 
 Les images se construisent sur GitHub Actions. **Ne pas builder l'image sur la
-VM de dev sauf test ponctuel** (l'hôte Proxmox est en surallocation de RAM) :
+VM de dev sauf test ponctuel** (l'hôte Proxmox est en surallocation de RAM ;
+pic mesuré ≈ 2,7 Go, serveur dev arrêté) :
 
 ```bash
-# VM de dev : réglages de npm run build:local dans l'image (la CI ne passe pas l'argument)
-docker build --build-arg LOW_MEM_BUILD=1 -t portfolio:test .
-docker run -d --name portfolio-test -p 3002:3000 --memory 512m \
+# Même export que la CI (dates réécrites), puis chargement dans Docker.
+SOURCE_DATE_EPOCH=0 docker buildx build --build-arg LOW_MEM_BUILD=1 \
+  --output type=docker,name=portfolio:test,dest=/tmp/portfolio.tar,rewrite-timestamp=true .
+docker load -i /tmp/portfolio.tar && rm /tmp/portfolio.tar
+docker run -d --name portfolio-test -p 3002:3000 --memory 1g --init \
   --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+  -e BETTER_AUTH_SECRET="$(openssl rand -base64 48)" \
   -v portfolio-test-data:/data portfolio:test
 docker inspect -f '{{.State.Health.Status}}' portfolio-test
 docker rm -f portfolio-test && docker volume rm portfolio-test-data
 sync; echo 3 > /proc/sys/vm/drop_caches
 ```
+
+Couches d'une image : `docker image inspect -f '{{json .RootFS.Layers}}' portfolio:test`.

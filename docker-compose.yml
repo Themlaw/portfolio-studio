@@ -1,0 +1,58 @@
+# Portfolio d'artiste (Next.js standalone, image distroless) — stack Komodo sur hote-prod.
+# Même fichier : docker-compose.yml du dépôt et /home/user/docker/Portfolio/compose.yaml.
+# Image construite par GitHub Actions et poussée sur GHCR (privé) : pas de build ici.
+# Newt (Pangolin) joint le service sur http://portfolio:3000 par le réseau « traefik ».
+# Variables : .env à côté de ce fichier (modèle commenté : .env.example).
+services:
+  portfolio:
+    image: ghcr.io/themlaw/portfolio:${PORTFOLIO_TAG:-latest}
+    pull_policy: always              # chaque redeploy tire l'image ; seules les couches modifiées sont téléchargées
+    container_name: portfolio
+    user: "1000:1000"                # jamais root ; l'image n'a ni shell, ni apt/dpkg, ni binaire setuid
+    read_only: true                  # seuls /data et les tmpfs ci-dessous sont inscriptibles
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:size=256m,uid=1000,gid=1000,mode=1777
+      # Cache Next : l'ISR est en mémoire (isrFlushToDisk: false), rien n'est écrit ici
+      # (mesuré : 0 o après 4 thèmes × 10 pages). Garde-fou.
+      - /app/.next/cache:size=16m,uid=1000,gid=1000,mode=0700
+    mem_limit: 1g                    # marge pour ffmpeg (4K : pic 413 Mo) ; conteneur mesuré à 790 Mo au plus
+    pids_limit: 512
+    init: true
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Défaut si .env ne la définit pas : canonical, hreflang, origine de confiance, retour OIDC.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://portfolio.example.org}
+      # Obligatoire : sans lui (ou < 32 caractères) le conteneur refuse de démarrer.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?définir BETTER_AUTH_SECRET dans .env (openssl rand -base64 48)}
+    # Volume NOMMÉ : vide, Docker l'initialise avec /data de l'image (1000:1000).
+    # Si /data n'est pas inscriptible (volume ou dossier créé par root), le
+    # conteneur s'arrête en donnant la commande de réparation (voir fix-permissions).
+    volumes: [portfolio-data:/data]
+    networks: [traefik]              # aucun port publié
+    # Healthcheck défini dans l'image (node, GET /fr), sans shell.
+
+  # Réparation ponctuelle des propriétaires de /data, désactivée par défaut :
+  #   docker compose --profile setup run --rm fix-permissions
+  # (Komodo : lancer cette commande sur l'hôte, dans le dossier de la stack.)
+  # Root avec la seule capacité CHOWN, sans réseau ni écriture hors du volume.
+  fix-permissions:
+    image: alpine:3
+    profiles: [setup]
+    user: "0:0"
+    command: ["chown", "-R", "1000:1000", "/data"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    network_mode: none
+    restart: "no"
+    volumes: [portfolio-data:/data]
+
+networks:
+  traefik: {external: true}          # réseau partagé avec l'agent Newt (Pangolin)
+
+volumes:
+  portfolio-data: {}                 # nom réel : <projet>_portfolio-data (docker volume ls)

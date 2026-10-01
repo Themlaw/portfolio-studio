@@ -270,6 +270,31 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   boucle ouverte dans la visionneuse ne démarre pas seule en « réduire les animations ».
   La route `/media` sert les MP4 avec Range (206).
 
+### Image durcie (phase 6)
+
+- **Base distroless** `gcr.io/distroless/nodejs24-debian13` : ni shell, ni apt/dpkg,
+  ni setuid. ffmpeg 7.1, ffprobe et `nice` viennent de Debian 13 (même glibc que la
+  base) avec leur fermeture `ldd` (200 bibliothèques, 186 paquets, 206 Mo), copiée
+  déréférencée ; enregistrements dpkg dans `status.d/` pour les scanners. Écartés :
+  `debian:trixie-slim` « nettoyé » (supprimer sh/dpkg après coup laisse des
+  binaires et des chemins que rien ne garantit), et `os.setPriority` à la place de
+  `nice` (la priorité est par fil : les fils déjà créés par ffmpeg y échappent).
+- **Couches** stables → volatiles, toutes en `COPY --link` avec propriétaire
+  explicite, dates réécrites à `SOURCE_DATE_EPOCH=0` : base 55 Mo, ffmpeg 93 Mo,
+  comptes + `/data`, `node_modules` 16 Mo, migrations/seed/public, `.next/static`
+  0,9 Mo, code serveur 3,3 Mo (compressés). Mesuré : après une ligne changée dans
+  un composant, seules les deux dernières couches changent (4,2 Mo à tirer sur
+  169 Mo) ; ffmpeg reconstruit sans cache donne le même digest.
+- **Image** : 610 Mo (169 Mo compressés), contre 1,06 Go (275 Mo).
+- **/data** existe dans l'image en 1000:1000 (`media/`, `tmp/`) : un volume nommé
+  neuf en hérite. Sinon, `src/lib/db/writable.ts` arrête le démarrage avec la
+  commande de réparation (nom du volume ou chemin du bind lus dans
+  `/proc/self/mountinfo`) ; service compose `fix-permissions` (profil `setup`,
+  CAP_CHOWN seule).
+- Conteneur `--read-only --cap-drop ALL --no-new-privileges --memory 1g` : vidéo
+  1080p 20 s convertie (ffmpeg 1000:1000, 11 fils à nice 10, pic 311 Mo, cgroup
+  788 Mo, aucun OOM), image traitée, écriture hors `/data` → EROFS.
+
 ## Admin (`/admin`, hors i18n, en français)
 
 - **Thèmes** : liste des thèmes avec aperçu, « Activer », « Dupliquer », édition des tokens

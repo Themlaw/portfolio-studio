@@ -62,11 +62,24 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
             type=ref,event=tag
+      # Couches reproductibles : à contenu égal, même digest d'un build à
+      # l'autre (COPY --link + dates ramenées à SOURCE_DATE_EPOCH). Un
+      # changement de code ne fait re-tirer que .next/static et le code
+      # serveur (~4 Mo sur ~170 Mo), même après une perte du cache gha.
+      # SOURCE_DATE_EPOCH est une constante, pas la date du commit : sinon les
+      # fichiers créés au build (dossiers, enregistrements dpkg) changeraient
+      # de date, donc de digest, à chaque commit.
       - uses: docker/build-push-action@v6
+        env:
+          SOURCE_DATE_EPOCH: "0"
         with:
           context: .
           platforms: linux/amd64
-          push: true
+          # Pousse (push=true) avec réécriture des dates dans les couches ; les
+          # noms viennent de « tags ». Remplace « push: true ».
+          outputs: type=image,push=true,rewrite-timestamp=true
+          # Attestation de provenance minimale (n'entre pas dans les couches).
+          provenance: mode=min
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Le runner GitHub a 16 Go : plafond du tas plus large qu'en local.

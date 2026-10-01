@@ -25,6 +25,15 @@ export async function start(): Promise<void> {
     process.exit(1);
   }
 
+  // Volume inscriptible ? Sinon, arrêt avec la commande de réparation.
+  const { dataDir } = await import("./index");
+  const { dataWriteMessage, dataWriteProblem } = await import("./writable");
+  const problem = dataWriteProblem(dataDir());
+  if (problem) {
+    console.error(dataWriteMessage(dataDir(), problem));
+    process.exit(1);
+  }
+
   try {
     const { bootstrap } = await import("./bootstrap");
     // Plusieurs processus sur une base neuve : le passage en WAL ou le
