@@ -18,6 +18,7 @@ import { FONT_STACKS } from "@/themes/font-stacks";
 import { FONT_IDS, type FontId, type Theme } from "@/themes/schema";
 
 import { clone, SaveBar, same, toast, useUnsavedGuard } from "./editing";
+import KitDownloadButton from "./KitDownloadButton";
 import { VARIANT_LABELS, VARIANT_THUMBS } from "./VariantThumb";
 
 type Colors = Theme["tokens"]["color"];
@@ -468,6 +469,16 @@ export default function ThemeEditor({ initial, isActive }: { initial: Theme; isA
             error={error}
             note={isActive ? "Ce thème est en ligne : l'enregistrer le publie aussitôt." : undefined}
           />
+          <div className="a-kit-export">
+            <KitDownloadButton themeId={initial.id} />
+            <Link className="a-btn a-btn-quiet" href={`/admin/themes/${encodeURIComponent(initial.id)}/kit`}>
+              Renvoyer le kit rempli…
+            </Link>
+            <p className="a-help">
+              Un fichier Photoshop pré-rempli avec ce thème (état enregistré{dirty ? " : enregistre d'abord tes changements" : ""}) : peins les
+              calques qui t&apos;intéressent, laisse les autres en aplat.
+            </p>
+          </div>
           <p className="a-help">
             <Link href="/admin/themes">← Tous les thèmes</Link>
           </p>

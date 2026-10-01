@@ -24,7 +24,7 @@ if (!existsSync(ROOT)) {
 }
 
 /** Entrées autorisées à la racine du standalone. */
-const ALLOWED_TOP = new Set([".next", "node_modules", "server.js", "package.json", "drizzle", "seed", "public"]);
+const ALLOWED_TOP = new Set([".next", "node_modules", "server.js", "package.json", "drizzle", "seed", "public", "kit-child.cjs"]);
 const FORBIDDEN_FILE = [
   /\.db(-wal|-shm)?$/,
   /^\.env/,

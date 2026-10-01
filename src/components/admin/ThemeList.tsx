@@ -12,6 +12,7 @@ import {
 import { accentProblem } from "@/themes/contrast";
 import type { Theme } from "@/themes/schema";
 
+import KitDownloadButton from "./KitDownloadButton";
 import { ConfirmDialog, toast } from "./editing";
 import ThemeSwatches from "./ThemeSwatches";
 
@@ -93,6 +94,10 @@ export default function ThemeList({
                 <button type="button" className="a-btn a-btn-small" onClick={() => duplicate(theme)} disabled={busy}>
                   Dupliquer
                 </button>
+                <KitDownloadButton themeId={theme.id} small />
+                <Link className="a-btn a-btn-small a-btn-quiet" href={`/admin/themes/${encodeURIComponent(theme.id)}/kit`}>
+                  Kit rempli…
+                </Link>
                 {!theme.preset && !isActive && (
                   <button type="button" className="a-btn a-btn-small a-btn-quiet a-danger-text" onClick={() => setPending({ kind: "delete", theme })}>
                     Supprimer

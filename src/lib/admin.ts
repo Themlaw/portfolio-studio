@@ -180,8 +180,8 @@ function jobProgress(): Map<number, number> {
       .select({ mediaId: schema.jobs.mediaId, progress: schema.jobs.progress, status: schema.jobs.status })
       .from(schema.jobs)
       .all()
-      .filter((j) => j.status === "queued" || j.status === "running")
-      .map((j) => [j.mediaId, j.progress]),
+      .filter((j) => j.mediaId !== null && (j.status === "queued" || j.status === "running"))
+      .map((j) => [j.mediaId as number, j.progress]),
   );
 }
 

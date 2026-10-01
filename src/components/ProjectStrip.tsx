@@ -143,7 +143,7 @@ export default function ProjectStrip({
                 disabled={atStart}
                 className="rail-arrow"
               >
-                <span aria-hidden="true">←</span>
+                <span aria-hidden="true" data-icon="arrow-left">←</span>
               </button>
               <button
                 type="button"
@@ -152,7 +152,7 @@ export default function ProjectStrip({
                 disabled={atEnd}
                 className="rail-arrow"
               >
-                <span aria-hidden="true">→</span>
+                <span aria-hidden="true" data-icon="arrow-right">→</span>
               </button>
             </div>
           )}

@@ -29,6 +29,7 @@ import { createDeflate } from "node:zlib";
 import { request as httpRequest } from "node:http";
 import { utimesSync, writeFileSync } from "node:fs";
 import { OAuth2Server } from "oauth2-mock-server";
+import { initializeCanvas, readPsd, writePsdBuffer } from "ag-psd";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const SA = path.join(ROOT, ".next/standalone");
@@ -155,6 +156,7 @@ const userCount = (dataDir) => query(dataDir, "select count(*) n from user").n;
 /** Server actions de l'admin (même liste que scripts/test-admin-guard.mjs). */
 const ADMIN_ACTIONS = [
   "signOutAction",
+  "applyKitImportAction",
   "duplicateThemeAction",
   "saveThemeAction",
   "activateThemeAction",
@@ -476,7 +478,8 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   if (!ids[name]) continue;
   // Une action se résout depuis une page qui l'importe : on vise son écran.
   const screen =
-    name === "saveThemeAction" ? "/admin/themes/galerie-lumineuse"
+    name === "applyKitImportAction" ? "/admin/themes/galerie-lumineuse/kit"
+    : name === "saveThemeAction" ? "/admin/themes/galerie-lumineuse"
     : name === "savePageAction" ? "/admin/pages/1"
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings/.test(name) ? "/admin/reglages"
@@ -1765,6 +1768,362 @@ await stop(tv.server);
   writeFileSync(path.join(fake, "next.config.ts"), "");
   const polluted = spawnSync(process.execPath, ["scripts/check-standalone.mjs", "--require"], { encoding: "utf8", env: { ...process.env, STANDALONE_DIR: fake } });
   ok("TAG27 check-standalone : le build réel passe, un standalone avec src/, data/*.db et next.config échoue", real.status === 0 && polluted.status === 1 && /src\//.test(polluted.stderr) && /portfolio\.db/.test(polluted.stderr) && /next\.config/.test(polluted.stderr), `${real.stdout}${real.stderr} | ${polluted.stderr.slice(0, 200)}`);
+}
+
+// ---- Phase 6c : kit Photoshop d'un thème (route gardée, cache, file lourde exclusive) ------
+{
+console.log("\n== TK. kit Photoshop (export)");
+const dirK = `${TMP}/vkit`;
+const kv = await freshAdmin(dirK);
+const HK = { cookie: kv.jar.header(), origin: BASE };
+const kitUrl = (id) => `${BASE}/admin/api/theme-kit/${id}`;
+const post = (id, headers = HK) => fetch(kitUrl(id), { method: "POST", headers });
+const waitReady = async (id, ms = 90000) => {
+  const end = Date.now() + ms;
+  for (;;) {
+    const b = await (await post(id)).json().catch(() => ({}));
+    if (b.ready || Date.now() > end) return b;
+    await sleep(500);
+  }
+};
+const kitJobs = () => new Database(path.join(dirK, "portfolio.db"), { readonly: true }).prepare("select id, status, payload, error from jobs where kind = 'kit' order by id").all();
+
+// Garde.
+const anon = await fetch(kitUrl("galerie-lumineuse"), { method: "POST", redirect: "manual" });
+const anonGet = await fetch(kitUrl("galerie-lumineuse"), { redirect: "manual" });
+const foreign = await post("galerie-lumineuse", { cookie: kv.jar.header(), origin: "https://evil.example" });
+ok("TK1 sans session : export et téléchargement refusés ; autre origine : 403", anon.status >= 300 && anon.status !== 200 && anonGet.status >= 300 && anonGet.status !== 200 && foreign.status === 403, `${anon.status} ${anonGet.status} ${foreign.status}`);
+const bad = await Promise.all(["inconnu", "..%2F..%2Fetc", "A_MAJ"].map(async (id) => (await post(id)).status));
+ok("TK2 identifiant inconnu ou invalide → 404", bad.every((s) => s === 404), bad.join(","));
+
+// Export, téléchargement, cache.
+const t0 = Date.now();
+const first = await waitReady("galerie-lumineuse");
+const firstMs = Date.now() - t0;
+const dl = await fetch(kitUrl("galerie-lumineuse"), { headers: { cookie: kv.jar.header() } });
+const psd = Buffer.from(await dl.arrayBuffer());
+ok(
+  `TK3 export de galerie-lumineuse prêt en ${firstMs} ms, téléchargé (PSD ${Math.round(psd.length / 1024)} Ko, pièce jointe)`,
+  first.ready && dl.status === 200 && psd.subarray(0, 4).toString("latin1") === "8BPS" && /attachment; filename="kit-galerie-lumineuse\.psd"/.test(dl.headers.get("content-disposition") ?? ""),
+  JSON.stringify(first),
+);
+const line = serverLog(kv.server, /\[kit\] thème galerie-lumineuse : kit [^\n]+/g).pop() ?? "";
+console.log(`      processus enfant (bundle kit-child.cjs) : ${line}`);
+ok("TK3b processus enfant (kit v2 4000 × 4000) : pic mémoire sous 400 Mo, priorité OOM maximale (1000)", Number(/pic (\d+) Mo/.exec(line)?.[1] ?? 9999) < 400 && /oom 1000/.test(line), line);
+const jobsBefore = kitJobs().length;
+const again = await (await post("galerie-lumineuse")).json();
+ok("TK4 second export : servi depuis le cache, aucun nouveau job", again.ready && kitJobs().length === jobsBefore, `${JSON.stringify(again)} ${kitJobs().length}/${jobsBefore}`);
+
+// Thème modifié : nouvelle version, ancien kit purgé.
+const dup = await callActionJson(kv.jar, ids.duplicateThemeAction, ["galerie-lumineuse"], "/admin/themes");
+const copyId = /"id":"(galerie-lumineuse-copie[a-z0-9-]*)"/.exec(dup.text)?.[1];
+const v1 = (await waitReady(copyId)).version;
+const files1 = readdirSync(path.join(dirK, "cache", "kits"));
+const themeRow = JSON.parse(query(dirK, "select data from themes where id = ?", copyId).data);
+const saved = await callActionJson(kv.jar, ids.saveThemeAction, [copyId, { ...themeRow, name: "Copie renommée" }], `/admin/themes/${copyId}`);
+const files2 = readdirSync(path.join(dirK, "cache", "kits"));
+const v2 = (await waitReady(copyId)).version;
+ok(
+  "TK5 thème enregistré : kit en cache purgé, nouvelle version générée",
+  saved.text.includes('"ok":true') && files1.some((f) => f.startsWith(`${copyId}-${v1}`)) && !files2.some((f) => f.startsWith(`${copyId}-`)) && v2 && v2 !== v1,
+  `${v1} → ${v2} ; ${files2.join(",")}`,
+);
+// Chemin de kit forgé dans un thème : refusé par le schéma.
+const forged = await callActionJson(kv.jar, ids.saveThemeAction, [copyId, { ...themeRow, assets: { ...themeRow.assets, kit: { signature: { svg: '/media/kit/0123456789abcdef.svg");background:url("//evil', w: 10, h: 10 } } } }], `/admin/themes/${copyId}`);
+ok("TK6 chemin de kit forgé (injection CSS) refusé à l'enregistrement", !forged.text.includes('"ok":true'), forged.text.slice(0, 120));
+
+// ---- Phase 6d : import du kit rempli (envoi PSD, revue, copie brouillon) -------------------
+console.log("\n== TI. kit Photoshop (import)");
+const kitInit = (body, headers = HK) => fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify(body) });
+/** Envoi par morceaux d'un PSD de kit (purpose kit) : init → morceaux → complete. */
+async function kitUpload(data, name = "kit.psd", themeId = "galerie-lumineuse", jarH = HK) {
+  const init = await kitInit({ name, size: data.length, type: "image/vnd.adobe.photoshop", purpose: { kind: "kit", themeId } }, jarH);
+  const ib = await init.json().catch(() => ({}));
+  if (init.status !== 200) return { stage: "init", status: init.status, body: ib };
+  const id = ib.upload.id;
+  for (let offset = 0; offset < data.length; ) {
+    const part = data.subarray(offset, offset + 8 * 1024 * 1024);
+    const r = await fetch(`${BASE}/admin/api/upload/${id}/chunk?offset=${offset}`, { method: "PUT", headers: { ...jarH, "content-length": String(part.length) }, body: part });
+    const b = await r.json().catch(() => ({}));
+    if (r.status !== 200) return { stage: "chunk", status: r.status, body: b };
+    offset = b.upload.offset;
+  }
+  const done = await fetch(`${BASE}/admin/api/upload/${id}/complete`, { method: "POST", headers: jarH });
+  return { stage: "complete", status: done.status, body: await done.json().catch(() => ({})) };
+}
+const importJobs = (dir = dirK) => new Database(path.join(dir, "portfolio.db"), { readonly: true }).prepare("select id, status, error, payload from jobs where kind = 'kit-import' order by id").all();
+const statusUrl = (themeId, id) => `${BASE}/admin/api/theme-kit/${themeId}/import/${id}`;
+async function waitImport(themeId, id, jarH = HK, ms = 180000) {
+  const end = Date.now() + ms;
+  let st = {};
+  while (Date.now() < end && id) {
+    st = await (await fetch(statusUrl(themeId, id), { headers: { cookie: jarH.cookie } })).json().catch(() => ({}));
+    if (st.status === "done" || st.status === "failed") break;
+    await sleep(500);
+  }
+  return st;
+}
+const rapportOf = (dir, id) => JSON.parse(readFileSync(path.join(dir, "kit-imports", id, "out", "rapport.json"), "utf8"));
+const fixturePsd = readFileSync(path.join(ROOT, "tests/fixtures/kit-synthetique.psd"));
+const themeData = (id) => query(dirK, "select data from themes where id = ?", id)?.data ?? null;
+
+// Refus AVANT l'envoi : extension, taille annoncée, thème inconnu ; autre origine.
+const badExt = await kitInit({ name: "kit.png", size: 1000, type: "image/png", purpose: { kind: "kit", themeId: "galerie-lumineuse" } });
+const tooBig = await kitInit({ name: "kit.psd", size: 400 * 1024 * 1024, type: "image/vnd.adobe.photoshop", purpose: { kind: "kit", themeId: "galerie-lumineuse" } });
+const noTheme = await kitInit({ name: "kit.psd", size: 1000, type: "image/vnd.adobe.photoshop", purpose: { kind: "kit", themeId: "inconnu" } });
+const anonInit = await kitInit({ name: "kit.psd", size: 100, type: "x", purpose: { kind: "kit", themeId: "galerie-lumineuse" } }, { origin: BASE });
+const crossInit = await kitInit({ name: "kit.psd", size: 100, type: "x", purpose: { kind: "kit", themeId: "galerie-lumineuse" } }, { cookie: kv.jar.header(), origin: "https://evil.example" });
+ok(
+  "TI2 refus avant tout octet : pas un .psd (415), 400 Mo (413), thème inconnu (404) ; sans session refusé, autre origine 403",
+  badExt.status === 415 && tooBig.status === 413 && noTheme.status === 404 && anonInit.status !== 200 && crossInit.status === 403,
+  `${badExt.status} ${tooBig.status} ${noTheme.status} ${anonInit.status} ${crossInit.status}`,
+);
+
+// Signature invalide : un PNG légitime (ffmpeg) nommé .psd → refusé à la fin, sans job.
+ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=1", "-frames:v", "1", "-f", "image2", "-c:v", "png", src("pas-un-kit.png")]);
+const jobs0 = importJobs().length;
+const notPsd = await kitUpload(readFileSync(src("pas-un-kit.png")), "pas-un-kit.psd");
+ok("TI3 signature invalide (PNG nommé .psd) : 415, message clair, aucun job", notPsd.status === 415 && /pas un fichier Photoshop/.test(notPsd.body.message ?? "") && importJobs().length === jobs0, `${notPsd.status} ${notPsd.body.message}`);
+
+// PSD légitime mais trop grand (ag-psd, 6000 × 6000) : refusé sur l'en-tête, avant décodage.
+const bigPsd = Buffer.from(writePsdBuffer({ width: 6000, height: 6000, children: [{ name: "calque", left: 0, top: 0, right: 2, bottom: 2, imageData: { width: 2, height: 2, data: new Uint8ClampedArray(16).fill(255) } }] }, { noBackground: true }));
+const big = await kitUpload(bigPsd, "trop-grand.psd");
+ok("TI4 PSD de 6000 × 6000 : refusé avant décodage (422, dimensions), aucun job", big.status === 422 && /6000 × 6000/.test(big.body.message ?? "") && importJobs().length === jobs0, `${big.status} ${big.body.message}`);
+
+// Fichier réel de l'artiste : import dans le processus enfant (bundle), manifeste du kit v1 d'origine.
+mkdirSync(path.join(dirK, "cache", "kits", "manifests"), { recursive: true });
+cpSync(path.join(ROOT, "tests/fixtures/kit-galerie-lumineuse-v1.manifest.json"), path.join(dirK, "cache", "kits", "manifests", "legacy-galerie-lumineuse-v1.json"));
+const real = await kitUpload(fixturePsd, "kit-synthetique.psd");
+const importId = real.body.kitImport?.id;
+const st = await waitImport("galerie-lumineuse", importId);
+const rapport = st.status === "done" ? rapportOf(dirK, importId) : null;
+const redrawn = rapport?.slots.filter((x) => x.change === "redrawn").map((x) => x.id) ?? [];
+const importLine = serverLog(kv.server, /\[kit\] import [^\n]+/g).pop() ?? "";
+console.log(`      processus enfant (bundle kit-child.cjs) : ${importLine}`);
+ok(
+  "TI5 fichier réel de l'artiste : importé (file lourde, enfant), seule la flèche droite redessinée, PSD supprimé",
+  real.status === 200 && st.status === "done" && redrawn.length === 1 && redrawn[0] === "icones/fleche-droite" && !existsSync(path.join(dirK, "kit-imports", importId, "source.psd")),
+  `${real.status} ${JSON.stringify(st)} ${redrawn.join(",")}`,
+);
+ok("TI5b processus enfant de l'import : pic mémoire sous 400 Mo, priorité OOM maximale (1000)", Number(/pic (\d+) Mo/.exec(importLine)?.[1] ?? 9999) < 400 && /oom 1000/.test(importLine), importLine);
+
+// Gardes sur un import RÉEL : la ressource existe (200 avec session), refusée sans session.
+const guarded = [`/admin/themes/galerie-lumineuse/kit?import=${importId}`, `/admin/api/theme-kit/galerie-lumineuse/import/${importId}`, `/admin/api/theme-kit/galerie-lumineuse/import/${importId}/preview/icones--fleche-droite/apres`];
+const withSession = await Promise.all(guarded.map(async (u) => (await fetch(`${BASE}${u}`, { headers: { cookie: kv.jar.header() } })).status));
+const anonymous = await Promise.all(guarded.map(async (u) => (await fetch(`${BASE}${u}`, { redirect: "manual" })).status));
+// Cookie de session INVALIDE : franchit le proxy (cookie présent) ; seule la garde des routes refuse.
+const badSession = new Jar();
+badSession.cookies.set("__Secure-better-auth.session_token", "jeton-forge.signature");
+badSession.cookies.set("better-auth.session_token", "jeton-forge.signature");
+const withBadCookie = await Promise.all(guarded.map(async (u) => (await fetch(`${BASE}${u}`, { headers: { cookie: badSession.header() }, redirect: "manual" })).status));
+ok("TI1b cookie de session invalide (proxy franchi) : écran, état et aperçu refusés par la garde des routes", withBadCookie.every((x) => x !== 200 && x < 500), withBadCookie.join(","));
+const themesBefore = query(dirK, "select count(*) n from themes").n;
+const forgedApply = await callActionJson(new Jar(), ids.applyKitImportAction, ["galerie-lumineuse", importId, { mirror: true }], "/admin/themes/galerie-lumineuse/kit");
+ok(
+  "TI1 import réel : écran, état et aperçu servis avec session, refusés sans ; application sans session refusée, aucun thème créé",
+  withSession.every((x) => x === 200) && anonymous.every((x) => x === 307 || x === 403) && !forgedApply.text.includes('"ok":true') && query(dirK, "select count(*) n from themes").n === themesBefore,
+  `${withSession.join(",")} / ${anonymous.join(",")} / ${forgedApply.status}`,
+);
+
+// Revue et aperçus (chemins calculés côté serveur).
+const reviewHtml = await (await fetch(`${BASE}${guarded[0]}`, { headers: { cookie: kv.jar.header() } })).text();
+const traversal = await Promise.all(
+  [
+    `/admin/api/theme-kit/galerie-lumineuse/import/${importId}/preview/..%2F..%2Fportfolio.db/apres`,
+    `/admin/api/theme-kit/galerie-lumineuse/import/${importId}/preview/signature/..%2Fmeta`,
+    `/admin/api/theme-kit/galerie-lumineuse/import/..%2F..%2Fetc/preview/signature/apres`,
+  ].map(async (u) => (await fetch(`${BASE}${u}`, { headers: { cookie: kv.jar.header() } })).status),
+);
+ok(
+  "TI6 revue : « Flèche droite : redessinée », « Plan 3 : inchangé », miroir proposé ; chemins forgés → 404",
+  reviewHtml.includes("Flèche droite : redessinée") && reviewHtml.includes("Plan 3 : inchangé") && /Utiliser le miroir de ta (<!-- -->)?flèche droite/.test(reviewHtml) && traversal.every((x) => x === 404),
+  traversal.join(","),
+);
+
+// IDOR entre thèmes : l'import de galerie-lumineuse n'existe pas pour « pro ».
+const cross = await Promise.all(
+  [`/admin/themes/pro/kit?import=${importId}`, `/admin/api/theme-kit/pro/import/${importId}`, `/admin/api/theme-kit/pro/import/${importId}/preview/icones--fleche-droite/apres`].map(
+    async (u) => (await fetch(`${BASE}${u}`, { headers: { cookie: kv.jar.header() } })).status,
+  ),
+);
+const crossApply = await callActionJson(kv.jar, ids.applyKitImportAction, ["pro", importId, { mirror: true }], "/admin/themes/pro/kit");
+ok("TI8 import d'un autre thème : écran, état, aperçu 404 ; application refusée, aucun thème créé", cross.every((x) => x === 404) && !crossApply.text.includes('"ok":true') && query(dirK, "select count(*) n from themes").n === themesBefore, `${cross.join(",")} ${crossApply.text.slice(0, 80)}`);
+
+// « Appliquer » : copie brouillon ; thème source et thème en ligne inchangés ; miroir.
+const activeBefore = query(dirK, "select value from settings where key = 'activeThemeId'")?.value;
+const sourceBefore = themeData("galerie-lumineuse");
+const applied = await callActionJson(kv.jar, ids.applyKitImportAction, ["galerie-lumineuse", importId, { palette: false, mirror: true }], `/admin/themes/galerie-lumineuse/kit`);
+const draftId = /"id":"(galerie-lumineuse-kit[a-z0-9-]*)"/.exec(applied.text)?.[1];
+const draft = draftId ? JSON.parse(themeData(draftId)) : null;
+const arrowUrl = draft?.assets?.kit?.icons?.arrowRight?.svg;
+const served = arrowUrl ? await fetch(`${BASE}${arrowUrl}`) : null;
+const leftUrl = draft?.assets?.kit?.icons?.arrowLeft?.svg;
+const leftSvg = leftUrl ? await (await fetch(`${BASE}${leftUrl}`)).text() : "";
+ok(
+  "TI7 application : copie brouillon (non active) avec la flèche de l'artiste et son miroir ; données du thème source et thème en ligne inchangés",
+  Boolean(draftId) && draft.preset === false && served?.status === 200 && /svg/.test(served.headers.get("content-type") ?? "") && leftUrl !== arrowUrl && /matrix\(-1 0 0 1 128 0\)/.test(leftSvg) && themeData("galerie-lumineuse") === sourceBefore && query(dirK, "select value from settings where key = 'activeThemeId'")?.value === activeBefore,
+  `${applied.text.slice(0, 120)} ${arrowUrl}`,
+);
+
+// Aller-retour sans fin : le kit de la copie contient la flèche de l'artiste ; réimporté tel quel → tout inchangé.
+initializeCanvas(() => { throw new Error("canvas"); }, (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }));
+const caseMask = (psdBuf, name, box) => {
+  const doc = readPsd(psdBuf, { useImageData: true, skipCompositeImageData: true, skipThumbnail: true });
+  const find = (list) => { for (const l of list ?? []) { if (l.name === name) return l; const f = find(l.children); if (f) return f; } return null; };
+  const l = find(doc.children);
+  const m = new Uint8Array(128 * 128);
+  const d = l?.imageData;
+  if (!d) return m;
+  for (let y = 0; y < d.height; y++) for (let x = 0; x < d.width; x++) {
+    const cx = l.left + x - box.x;
+    const cy = l.top + y - box.y;
+    if (cx >= 0 && cy >= 0 && cx < 128 && cy < 128 && d.data[(y * d.width + x) * 4 + 3] > 127) m[cy * 128 + cx] = 1;
+  }
+  return m;
+};
+let draftReady = {};
+for (let i = 0; i < 180 && !draftReady.ready; i++) {
+  draftReady = await (await post(draftId)).json().catch(() => ({}));
+  if (!draftReady.ready) await sleep(500);
+}
+const draftPsd = Buffer.from(await (await fetch(kitUrl(draftId), { headers: { cookie: kv.jar.header() } })).arrayBuffer());
+const theirs = caseMask(fixturePsd, "fleche-droite", { x: 2560, y: 1720 });
+const ours = caseMask(draftPsd, "Flèche droite", { x: 310, y: 3442 });
+let inter = 0;
+let union = 0;
+for (let i = 0; i < theirs.length; i++) {
+  inter += theirs[i] & ours[i];
+  union += theirs[i] | ours[i];
+}
+const iou = union ? inter / union : 0;
+const again2 = await kitUpload(draftPsd, `kit-${draftId}.psd`, draftId);
+const st2 = await waitImport(draftId, again2.body.kitImport?.id);
+const rap2 = st2.status === "done" ? rapportOf(dirK, again2.body.kitImport.id) : null;
+ok(
+  `TI9 kit de la copie : case « Flèche droite » = flèche de l'artiste (IoU ${iou.toFixed(3)}) ; réimporté tel quel → 14 inchangés`,
+  draftReady.ready && iou > 0.9 && rap2?.reference?.how === "identifiant" && rap2.slots.every((x) => x.change === "unchanged"),
+  `${JSON.stringify(draftReady)} ${rap2 && rap2.slots.filter((x) => x.change !== "unchanged").map((x) => x.id)}`,
+);
+
+// Kit d'un autre thème : le fichier de galerie-lumineuse envoyé pour « pro ».
+const foreignUp = await kitUpload(fixturePsd, "kit-synthetique.psd", "pro");
+const st3 = await waitImport("pro", foreignUp.body.kitImport?.id);
+const rap3 = st3.status === "done" ? rapportOf(dirK, foreignUp.body.kitImport.id) : null;
+const foreignHtml = rap3 ? await (await fetch(`${BASE}/admin/themes/pro/kit?import=${foreignUp.body.kitImport.id}`, { headers: { cookie: kv.jar.header() } })).text() : "";
+ok(
+  "TI10 kit d'un autre thème : signalé (« Ce kit vient du thème … »), rien marqué inchangé",
+  rap3?.reference === null && rap3?.foreign?.themeId === "galerie-lumineuse" && rap3.slots.every((x) => x.change !== "unchanged") && /Ce kit vient du thème/.test(foreignHtml),
+  JSON.stringify({ st3, ref: rap3?.reference, foreign: rap3?.foreign }),
+);
+
+// File lourde exclusive : un import demandé pendant une conversion vidéo attend sa fin.
+// Vidéo distincte (contenu différent) : celle de TK7 ne doit pas être reconnue comme déjà convertie.
+ff(["-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30", "-f", "lavfi", "-i", "sine=frequency=330", "-t", "20", "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-x264-params", "rc-lookahead=10:sync-lookahead=0", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", src("hd-20s-import.mp4")]);
+const hdI = await chunked(kv.jar, src("hd-20s-import.mp4"), "exclusive-import.mp4", "video/mp4", { chunk: 8 * 1024 * 1024 });
+const videoJobI = () => query(dirK, "select status from jobs where kind = 'video' and media_id = ?", hdI.body.media?.id)?.status;
+for (let i = 0; i < 100 && videoJobI() !== "running"; i++) await sleep(100);
+const exclUp = await kitUpload(fixturePsd, "kit-pendant-video.psd");
+const exclId = exclUp.body.kitImport?.id;
+const seenI = [];
+for (let i = 0; i < 600; i++) {
+  const j = importJobs().find((x) => x.payload?.includes(exclId ?? "§"));
+  seenI.push(`${videoJobI()}/${j?.status}`);
+  if (j?.status === "done" || j?.status === "failed") break;
+  await sleep(250);
+}
+ok(
+  "TI11 file lourde : l'import demandé pendant une conversion vidéo attend sa fin (jamais les deux à la fois)",
+  exclUp.status === 200 && seenI.some((x) => x === "running/queued") && !seenI.some((x) => x === "running/running") && seenI.at(-1)?.endsWith("/done"),
+  `${seenI[0]} … ${seenI.at(-1)} (${seenI.length})`,
+);
+
+// File lourde exclusive : un export demandé pendant une conversion vidéo attend sa fin.
+const hdK = await chunked(kv.jar, src("hd-20s.mp4"), "exclusive.mp4", "video/mp4", { chunk: 8 * 1024 * 1024 });
+const videoJob = () => query(dirK, "select status from jobs where kind = 'video' and media_id = ?", hdK.body.media?.id)?.status;
+for (let i = 0; i < 100 && videoJob() !== "running"; i++) await sleep(100);
+const asked = await (await post("pro")).json();
+const seen = [];
+for (let i = 0; i < 400; i++) {
+  const kitStatus = kitJobs().filter((j) => j.payload?.includes('"pro"')).pop()?.status;
+  seen.push(`${videoJob()}/${kitStatus}`);
+  if (kitStatus === "done") break;
+  await sleep(250);
+}
+const overlap = seen.some((s) => s === "running/running");
+const waited = seen.some((s) => s === "running/queued");
+// Le kit démarre (ou finit, entre deux relevés) après la fin de la vidéo.
+const videoDone = seen.findIndex((s) => !s.startsWith("running/"));
+const kitStarted = seen.findIndex((s) => /\/(running|done)$/.test(s));
+const order = videoDone >= 0 && kitStarted >= videoDone;
+ok(
+  "TK7 file lourde : l'export demandé pendant une conversion vidéo attend sa fin (jamais les deux à la fois)",
+  asked.ok && !asked.ready && hdK.status === 200 && waited && !overlap && order && seen.at(-1)?.endsWith("/done"),
+  `${seen[0]} … ${seen.at(-1)} (${seen.length} relevés)`,
+);
+
+// Purge : motif exact (thèmes au préfixe commun), manifestes et aperçus du thème supprimé.
+const cacheDir = path.join(dirK, "cache", "kits");
+const mine = `${copyId}-aaaaaaaaaaaa-v2.psd`;
+const neighbour = `${copyId}-2-bbbbbbbbbbbb-v2.psd`;
+writeFileSync(path.join(cacheDir, mine), "x");
+writeFileSync(path.join(cacheDir, neighbour), "x");
+writeFileSync(path.join(cacheDir, "manifests", "k2-0123456789ab.json"), JSON.stringify({ exportId: "k2-0123456789ab", themeId: copyId, themeVersion: "x", kitVersion: 2, slots: {} }));
+writeFileSync(path.join(cacheDir, "manifests", "k2-0123456789ab--signature.png"), "x");
+const del = await callActionJson(kv.jar, ids.deleteThemeAction, [copyId], "/admin/themes");
+ok(
+  "TK8 suppression d'un thème : ses kits, manifestes et aperçus purgés ; un thème au préfixe commun intact",
+  del.text.includes('"ok":true') && !existsSync(path.join(cacheDir, mine)) && existsSync(path.join(cacheDir, neighbour)) && !existsSync(path.join(cacheDir, "manifests", "k2-0123456789ab.json")) && !existsSync(path.join(cacheDir, "manifests", "k2-0123456789ab--signature.png")),
+  del.text.slice(0, 100),
+);
+
+await stop(kv.server);
+}
+
+// ---- Phase 6d : plafond mémoire de l'enfant, reprise au redémarrage ---------------------
+{
+console.log("\n== TM. kit : plafond mémoire, redémarrage");
+const dirM = `${TMP}/vkitmem`;
+// Plafond abaissé à 60 Mo : l'import du fichier réel (≈ 150 Mo) le dépasse.
+const km = await freshAdmin(dirM, { KIT_CHILD_MAX_RSS_MB: "60" });
+const HM = { cookie: km.jar.header(), origin: BASE };
+const data = readFileSync(path.join(ROOT, "tests/fixtures/kit-synthetique.psd"));
+const init = await (await fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { ...HM, "content-type": "application/json" }, body: JSON.stringify({ name: "kit.psd", size: data.length, type: "x", purpose: { kind: "kit", themeId: "galerie-lumineuse" } }) })).json();
+for (let offset = 0; offset < data.length; ) {
+  const part = data.subarray(offset, offset + 8 * 1024 * 1024);
+  offset = (await (await fetch(`${BASE}/admin/api/upload/${init.upload.id}/chunk?offset=${offset}`, { method: "PUT", headers: { ...HM, "content-length": String(part.length) }, body: part })).json()).upload.offset;
+}
+const comp = await (await fetch(`${BASE}/admin/api/upload/${init.upload.id}/complete`, { method: "POST", headers: HM })).json();
+const mid = comp.kitImport?.id;
+let job = null;
+for (let i = 0; i < 240; i++) {
+  job = new Database(path.join(dirM, "portfolio.db"), { readonly: true }).prepare("select status, error, attempts from jobs where kind = 'kit-import'").get();
+  if (job?.status === "failed" || job?.status === "done") break;
+  await sleep(250);
+}
+await sleep(500);
+const children = spawnSync("pgrep", ["-f", "kit-child.cjs"], { encoding: "utf8" }).stdout.trim();
+ok(
+  "TM1 plafond mémoire de l'enfant dépassé : job en échec, message lisible, plus aucun processus, PSD supprimé",
+  job?.status === "failed" && /trop de mémoire/.test(job.error ?? "") && children === "" && !existsSync(path.join(dirM, "kit-imports", mid, "source.psd")),
+  `${JSON.stringify(job)} pids=[${children}] ${serverLog(km.server, /\[kit\] import [^\n]+/g).pop() ?? ""}`,
+);
+// Reprise : un import et un export restés « running » (serveur tombé) → en échec, sans nouvel essai, PSD supprimé.
+await stop(km.server);
+const rid = "11111111-2222-4333-8444-555555555555";
+mkdirSync(path.join(dirM, "kit-imports", rid), { recursive: true });
+writeFileSync(path.join(dirM, "kit-imports", rid, "meta.json"), JSON.stringify({ id: rid, themeId: "galerie-lumineuse", userId: "x", fileName: "kit.psd", size: data.length, createdAt: new Date().toISOString() }));
+cpSync(path.join(ROOT, "tests/fixtures/kit-synthetique.psd"), path.join(dirM, "kit-imports", rid, "source.psd"));
+writeDb(dirM, "insert into jobs (kind, payload, status, attempts) values ('kit-import', ?, 'running', 1)", JSON.stringify({ importId: rid, themeId: "galerie-lumineuse" }));
+writeDb(dirM, "insert into jobs (kind, payload, status, attempts) values ('kit', ?, 'running', 1)", JSON.stringify({ themeId: "pro", version: "000000000000" }));
+const km2 = await freshAdmin(dirM, {});
+await sleep(3000);
+const after = new Database(path.join(dirM, "portfolio.db"), { readonly: true }).prepare("select kind, status, error from jobs where status in ('running','queued','failed') and kind in ('kit','kit-import') order by id desc limit 2").all();
+ok(
+  "TM2 redémarrage : import et export de kit restés « running » → en échec lisible, sans nouvel essai, PSD supprimé",
+  after.length === 2 && after.every((j) => j.status === "failed" && /interrompu/.test(j.error ?? "")) && !existsSync(path.join(dirM, "kit-imports", rid, "source.psd")),
+  JSON.stringify(after),
+);
+await stop(km2.server);
 }
 
 // ---- Mesures : durée de conversion, VmHWM du serveur, pic et CPU de ffmpeg ---------------

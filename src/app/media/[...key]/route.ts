@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ key: string[] }> };
 
 const MEDIA_CSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
+const KIT_MIME: Record<string, string> = { svg: "image/svg+xml", avif: "image/avif", webp: "image/webp" };
 
 /** Comparaison faible des ETag (RFC 9110 §8.8.3.2) : on ignore le préfixe W/. */
 function weakMatch(header: string, etag: string): boolean {
@@ -59,8 +60,12 @@ async function serve(request: Request, { params }: Params, head: boolean) {
   const key = (await params).key.join("/");
   if (!isValidKey(key)) return notFound();
 
-  const row = findMediaByKey(key);
-  if (!row || row.status !== "ready") return notFound();
+  // Éléments du kit de thème : contenu adressé (kit/<hash>.<ext>), produit par le
+  // pipeline du kit ; type d'après l'extension, mêmes en-têtes que les médias.
+  const kit = /^kit\/[0-9a-f]{16}\.(svg|avif|webp)$/.exec(key);
+  const row = kit ? null : findMediaByKey(key);
+  if (!kit && (!row || row.status !== "ready")) return notFound();
+  const mime = kit ? KIT_MIME[kit[1]] : row!.mime;
 
   const storage = getStorage();
   const stat = await storage.stat(key);
@@ -68,7 +73,7 @@ async function serve(request: Request, { params }: Params, head: boolean) {
 
   const etag = `"${key}"`;
   const headers = new Headers({
-    "Content-Type": row.mime,
+    "Content-Type": mime,
     "Accept-Ranges": "bytes",
     ETag: etag,
     "Cache-Control": "public, max-age=31536000, immutable",

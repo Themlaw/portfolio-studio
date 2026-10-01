@@ -1,7 +1,10 @@
 /**
- * Worker de traitements : dans le processus du serveur, deux files séparées
- * (images, vidéos), UN job à la fois dans chacune : une conversion vidéo
- * longue ne bloque pas les images. Démarré par src/lib/db/start.ts ; les jobs
+ * Worker de traitements : dans le processus du serveur, deux files séparées,
+ * UN job à la fois dans chacune :
+ *  - légère : images ;
+ *  - lourde : conversions vidéo (ffmpeg), exports et imports de kit PSD
+ *    (processus enfant) : jamais deux à la fois, la mémoire du conteneur ne tiendrait pas
+ *    (docs/THEME-KIT.md). Une conversion longue ne bloque pas les images. Démarré par src/lib/db/start.ts ; les jobs
  * `running` laissés par un arrêt brutal sont remis en file au démarrage.
  *
  * Next charge parfois ce module plusieurs fois (instrumentation, routes) :
@@ -19,6 +22,8 @@ import { getStorage } from "@/lib/storage";
 import { videoLimits } from "@/lib/video/limits";
 import { transcodeVideo } from "@/lib/video/transcode";
 import { notifyMediaChanged } from "@/lib/jobs/notify";
+import { runKitJob } from "@/lib/kit/export-job";
+import { importDir, isImportId, purgeKitImports, runKitImportJob } from "@/lib/kit/import-job";
 
 const MAX_ATTEMPTS = 3;
 /** Délai avant l'essai suivant (après le 1er, le 2e… échec). */
@@ -26,15 +31,19 @@ const BACKOFF_MS = [10_000, 60_000, 300_000];
 /** Durée maximale d'un traitement d'image ; au-delà, échec définitif. */
 const MAX_JOB_MS = Number(process.env.JOB_MAX_DURATION_S || 120) * 1000;
 const later = (attempts: number) => new Date(Date.now() + BACKOFF_MS[Math.min(Math.max(attempts, 1), BACKOFF_MS.length) - 1]);
+const KIT_INTERRUPTED = "Traitement du kit interrompu (serveur redémarré) : renvoie le fichier ou relance le téléchargement.";
 const GAVE_UP = "Le traitement a échoué plusieurs fois. Supprime le fichier et renvoie-le, ou essaie un autre format.";
 /** Purge des envois abandonnés : au démarrage puis toutes les 15 minutes. */
 const PURGE_EVERY_MS = 15 * 60_000;
-type Kind = "image" | "video";
-type State = { busy: Record<Kind, boolean>; started: boolean; timer?: NodeJS.Timeout };
+type Lane = "light" | "heavy";
+const LANES: Record<Lane, ("image" | "video" | "kit" | "kit-import")[]> = { light: ["image"], heavy: ["video", "kit", "kit-import"] };
+type State = { busy: Record<Lane, boolean>; started: boolean; timer?: NodeJS.Timeout };
 const G = globalThis as typeof globalThis & { __portfolioJobs2?: State };
 
 function state(): State {
-  G.__portfolioJobs2 ??= { busy: { image: false, video: false }, started: false };
+  G.__portfolioJobs2 ??= { busy: { light: false, heavy: false }, started: false };
+  // État d'une version précédente du module (files image / vidéo) : remis à neuf.
+  if (!("light" in G.__portfolioJobs2.busy)) G.__portfolioJobs2.busy = { light: false, heavy: false };
   return G.__portfolioJobs2;
 }
 
@@ -42,14 +51,14 @@ export function uploadTmpDir(): string {
   return path.join(/* turbopackIgnore: true */ dataDir(), "tmp");
 }
 
-/** Prend le plus ancien job en file de ce type (atomique) ou null. */
-function claim(kind: Kind) {
+/** Prend le plus ancien job en file de cette file (atomique) ou null. */
+function claim(lane: Lane) {
   const db = getDb();
   return db.transaction((tx) => {
     const job = tx
       .select()
       .from(schema.jobs)
-      .where(and(eq(schema.jobs.kind, kind), eq(schema.jobs.status, "queued"), or(isNull(schema.jobs.runAfter), lte(schema.jobs.runAfter, new Date()))))
+      .where(and(inArray(schema.jobs.kind, LANES[lane]), eq(schema.jobs.status, "queued"), or(isNull(schema.jobs.runAfter), lte(schema.jobs.runAfter, new Date()))))
       .orderBy(asc(schema.jobs.id))
       .get();
     if (!job) return null;
@@ -168,19 +177,21 @@ async function runVideoJob(job: { id: number; mediaId: number; attempts: number 
   await notifyMediaChanged(media.id);
 }
 
-async function tick(kind: Kind) {
+async function tick(lane: Lane) {
   const s = state();
-  if (s.busy[kind]) return;
-  s.busy[kind] = true;
+  if (s.busy[lane]) return;
+  s.busy[lane] = true;
   try {
-    for (let job = claim(kind); job; job = claim(kind)) {
+    for (let job = claim(lane); job; job = claim(lane)) {
       if (job.attempts > MAX_ATTEMPTS) {
         getDb().transaction((tx) => {
           tx.update(schema.jobs).set({ status: "failed", error: GAVE_UP, updatedAt: new Date() }).where(eq(schema.jobs.id, job.id)).run();
-          tx.update(schema.media).set({ status: "failed", error: GAVE_UP }).where(eq(schema.media.id, job.mediaId)).run();
+          if (job.mediaId) tx.update(schema.media).set({ status: "failed", error: GAVE_UP }).where(eq(schema.media.id, job.mediaId)).run();
         });
-      } else if (job.kind === "image") await runImageJob(job);
-      else if (job.kind === "video") await runVideoJob(job);
+      } else if (job.kind === "image" && job.mediaId) await runImageJob({ ...job, mediaId: job.mediaId });
+      else if (job.kind === "video" && job.mediaId) await runVideoJob({ ...job, mediaId: job.mediaId });
+      else if (job.kind === "kit") await runKitJob(job);
+      else if (job.kind === "kit-import") await runKitImportJob(job);
       else {
         getDb()
           .update(schema.jobs)
@@ -192,14 +203,14 @@ async function tick(kind: Kind) {
   } catch (error) {
     console.error("[jobs] erreur du worker", error);
   } finally {
-    s.busy[kind] = false;
+    s.busy[lane] = false;
   }
 }
 
 /** Réveille les deux files (après l'ajout d'un job). */
 export function wakeWorker() {
-  void tick("image");
-  void tick("video");
+  void tick("light");
+  void tick("heavy");
 }
 
 const PURGE_AGE_MS = 3600_000;
@@ -252,6 +263,8 @@ export async function purgeTmp(): Promise<number> {
     const info = await stat(path.join(/* turbopackIgnore: true */ partsDir, name)).catch(() => null);
     if (info && Date.now() - info.mtimeMs > UPLOAD_TTL_MS) await rm(path.join(/* turbopackIgnore: true */ partsDir, name), { force: true });
   }
+  const kits = await purgeKitImports();
+  if (kits) console.log(`[jobs] ${kits} import(s) de kit de plus de 7 jours purgé(s)`);
   const a = await purgeOld(uploadTmpDir(), () => true, false);
   const b = await purgeOld(path.join(/* turbopackIgnore: true */ dataDir(), "media"), (n) => n.endsWith(".tmp"), true);
   if (a + b) console.log(`[jobs] ${a + b} fichier(s) temporaire(s) abandonné(s) supprimé(s)`);
@@ -263,6 +276,19 @@ export async function startWorker() {
   if (s.started) return;
   s.started = true;
   const db = getDb();
+  // Export ou import de kit interrompu (le serveur a pu tomber À CAUSE de ce
+  // fichier) : pas de nouvel essai automatique, échec lisible, PSD supprimé.
+  const kitDead = db
+    .update(schema.jobs)
+    .set({ status: "failed", error: KIT_INTERRUPTED, updatedAt: new Date() })
+    .where(and(eq(schema.jobs.status, "running"), inArray(schema.jobs.kind, ["kit", "kit-import"])))
+    .returning({ kind: schema.jobs.kind, payload: schema.jobs.payload })
+    .all();
+  for (const j of kitDead) {
+    const importId = j.kind === "kit-import" ? j.payload?.importId : null;
+    if (isImportId(importId)) await rm(path.join(/* turbopackIgnore: true */ importDir(importId), "source.psd"), { force: true });
+  }
+  if (kitDead.length) console.warn(`[jobs] ${kitDead.length} job(s) de kit interrompu(s) : en échec, sans nouvel essai`);
   // Jobs interrompus (processus arrêté pendant un traitement) : remis en file
   // tant qu'il reste des essais ; sinon échec définitif, média compris (il
   // reste supprimable).
@@ -274,7 +300,7 @@ export async function startWorker() {
       .returning({ mediaId: schema.jobs.mediaId })
       .all();
     for (const j of dead) {
-      tx.update(schema.media).set({ status: "failed", error: GAVE_UP }).where(eq(schema.media.id, j.mediaId)).run();
+      if (j.mediaId) tx.update(schema.media).set({ status: "failed", error: GAVE_UP }).where(eq(schema.media.id, j.mediaId)).run();
     }
     return dead.length;
   });

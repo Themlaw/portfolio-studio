@@ -8,7 +8,68 @@
  * l'aperçu en direct.
  */
 import { FONT_STACKS as FONT_CATALOG } from "./font-stacks";
-import type { Theme } from "./schema";
+import type { KitAssets, KitImage, Theme } from "./schema";
+
+/** Image d'un asset du kit : SVG, ou AVIF + WebP (image-set). Chemins validés par le schéma. */
+function kitImage(k: KitImage): string {
+  return k.svg ? `url("${k.svg}")` : `image-set(url("${k.avif}") type("image/avif"), url("${k.webp}") type("image/webp"))`;
+}
+/** Masque (mask-image) : SVG, sinon le WebP (alpha) — image-set n'est pas sûr dans mask-image. */
+function kitMask(k: KitImage): string {
+  return `url("${k.svg ?? k.webp}")`;
+}
+const ICONS = [
+  ["arrowLeft", "arrow-left"],
+  ["arrowRight", "arrow-right"],
+  ["close", "close"],
+  ["play", "play"],
+] as const;
+
+/** Variables des éléments dessinés (aucune si le thème n'en a pas : rendu inchangé). */
+export function kitVariables(kit: KitAssets | undefined): Record<string, string> {
+  const v: Record<string, string> = {};
+  if (!kit) return v;
+  if (kit.signature) {
+    v["--t-kit-signature"] = kitMask(kit.signature);
+    v["--t-kit-signature-ratio"] = `${kit.signature.w} / ${kit.signature.h}`;
+  }
+  if (kit.paper) {
+    v["--t-kit-paper"] = kitImage(kit.paper.image);
+    // Tuile dessinée en 2× : affichée à la moitié de sa taille.
+    v["--t-kit-paper-size"] = `${Math.round(kit.paper.image.w / 2)}px ${Math.round(kit.paper.image.h / 2)}px`;
+    if (kit.paper.overHero !== undefined) v["--t-kit-paper-hero"] = String(kit.paper.overHero);
+  }
+  if (kit.frame) {
+    const [t, r, b, l] = kit.frame.slice;
+    v["--t-kit-frame"] = kitImage(kit.frame.image);
+    v["--t-kit-frame-slice"] = `${t} ${r} ${b} ${l}`;
+    v["--t-kit-frame-width"] = `${Math.round(t / 2)}px ${Math.round(r / 2)}px ${Math.round(b / 2)}px ${Math.round(l / 2)}px`;
+  }
+  if (kit.stroke) v["--t-kit-stroke"] = kitMask(kit.stroke);
+  for (const [key, name] of ICONS) {
+    const icon = kit.icons?.[key];
+    if (icon) v[`--t-kit-icon-${name}`] = kitMask(icon);
+  }
+  if (kit.tape) {
+    v["--t-kit-tape"] = kitImage(kit.tape);
+    v["--t-kit-tape-ratio"] = `${kit.tape.w} / ${kit.tape.h}`;
+  }
+  return v;
+}
+
+/** Attributs des éléments dessinés présents (les règles CSS du kit s'y accrochent). */
+export function kitAttributes(kit: KitAssets | undefined): Record<`data-${string}`, string> {
+  const a: Record<`data-${string}`, string> = {};
+  if (!kit) return a;
+  if (kit.signature) a["data-kit-signature"] = "";
+  if (kit.paper) a["data-kit-paper"] = "";
+  if (kit.paper?.overHero !== undefined) a["data-kit-paper-hero"] = "";
+  if (kit.frame) a["data-kit-frame"] = "";
+  if (kit.stroke) a["data-kit-stroke"] = "";
+  for (const [key, name] of ICONS) if (kit.icons?.[key]) a[`data-kit-icon-${name}`] = "";
+  if (kit.tape) a["data-kit-tape"] = "";
+  return a;
+}
 
 /** Luminance relative WCAG d'une couleur #rgb / #rrggbb. */
 export function relativeLuminance(hex: string): number {
@@ -77,6 +138,7 @@ export function themeVariables(theme: Theme): Record<string, string> {
     "--t-motion-dur-fast": motion.durFast,
     "--t-motion-dur-base": motion.durBase,
     "--t-motion-easing": motion.easing,
+    ...kitVariables(theme.assets.kit),
   };
 }
 
@@ -101,5 +163,6 @@ export function themeAttributes(theme: Theme): Record<`data-${string}`, string> 
     "data-lightbox": v.lightbox,
     "data-button": v.button,
     "data-texture": v.texture,
+    ...kitAttributes(theme.assets.kit),
   };
 }

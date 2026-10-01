@@ -131,6 +131,48 @@ export async function uploadChunked(file: File, onProgress: (sent: number, total
   return { ok: true, media: done.data.media };
 }
 
+/**
+ * Envoi du kit Photoshop rempli d'un thème : même envoi par morceaux (reprise
+ * après coupure), refus avant l'envoi (taille, extension), contrôle de
+ * l'en-tête à la fin, puis import en file. Renvoie l'identifiant de l'import.
+ */
+export async function uploadKitPsd(file: File, themeId: string, onProgress: (sent: number, total: number) => void): Promise<{ ok: true; importId: string } | { ok: false; message: string }> {
+  const init = await api<{ upload: { id: string; chunkSize: number } }>("/admin/api/upload/init", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: file.name, size: file.size, type: file.type || "image/vnd.adobe.photoshop", purpose: { kind: "kit", themeId } }),
+  });
+  if (!init.ok) return { ok: false, message: init.message };
+  const id = init.data.upload.id;
+  const chunkSize = init.data.upload.chunkSize;
+  let offset = 0;
+  onProgress(0, file.size);
+  while (offset < file.size) {
+    const blob = file.slice(offset, Math.min(file.size, offset + chunkSize));
+    let attempt = 0;
+    for (;;) {
+      const res = await putChunk(id, offset, blob, (n) => onProgress(offset + n, file.size));
+      if (res.ok) {
+        offset = res.offset;
+        break;
+      }
+      const retryable = res.status === 0 || res.status === 409 || (res.status >= 500 && res.status !== 507);
+      if (!retryable || attempt >= RETRY_DELAYS.length) {
+        await api(`/admin/api/upload/${id}`, { method: "DELETE" });
+        return { ok: false, message: res.message };
+      }
+      await sleep(RETRY_DELAYS[attempt++]);
+      const st = await api<{ upload: { offset: number } }>(`/admin/api/upload/${id}/status`, { method: "GET" });
+      if (st.ok) offset = st.data.upload.offset;
+      if (offset >= file.size) break;
+    }
+    onProgress(offset, file.size);
+  }
+  const done = await api<{ kitImport: { id: string } }>(`/admin/api/upload/${id}/complete`, { method: "POST" });
+  if (!done.ok) return { ok: false, message: done.message };
+  return { ok: true, importId: done.data.kitImport.id };
+}
+
 /** Envoi d'un fichier : direct (petite image) ou par morceaux (vidéo, grande image). */
 export function sendFile(file: File, onProgress: (sent: number, total: number) => void, resumeId?: string, tags: string[] = []): Promise<UploadResult> {
   if (resumeId || isVideo(file) || file.size > CHUNKED_ABOVE) return uploadChunked(file, onProgress, resumeId, tags);

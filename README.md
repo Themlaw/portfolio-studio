@@ -220,6 +220,13 @@ Tests : `node scripts/e2e-video.mjs` (inclus dans `npm run test:e2e`) ; captures
   emplacements ou sur un emplacement vide, ou s'ajoute à la fin avec « + ». Un
   média en conversion se place (l'emplacement montre son état) ; un média en échec,
   non. Déposer des fichiers sur la bande ou sur un emplacement vide reste possible.
+- **Kit Photoshop** (thèmes) : « Télécharger le kit Photoshop » (éditeur et liste
+  des thèmes) génère un PSD pré-rempli avec l'état enregistré du thème (quelques
+  secondes ; il attend la fin d'une conversion vidéo en cours). « Kit rempli… »
+  (/admin/themes/<id>/kit) : renvoyer le PSD peint, relire chaque élément
+  (redessiné, inchangé, à corriger), puis « Appliquer au thème » : une copie
+  brouillon à prévisualiser, le thème en ligne ne change pas. Voir
+  `docs/THEME-KIT.md`.
 - **Médiathèque** : filtre par tags (tous les tags choisis), tags dans le détail,
   sélection multiple (« Ajouter des tags » / « Retirer des tags »), onglet « Tags »
   (renommer, fusionner, supprimer avec le nombre de médias concernés).

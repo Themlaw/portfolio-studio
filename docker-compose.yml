@@ -17,7 +17,12 @@ services:
       # Cache Next : l'ISR est en mémoire (isrFlushToDisk: false), rien n'est écrit ici
       # (mesuré : 0 o après 4 thèmes × 10 pages). Garde-fou.
       - /app/.next/cache:size=16m,uid=1000,gid=1000,mode=0700
-    mem_limit: 1g                    # marge pour ffmpeg (4K : pic 413 Mo) ; conteneur mesuré à 790 Mo au plus
+    # Mémoire du conteneur : serveur + UN traitement lourd à la fois (file
+    # lourde exclusive) : ffmpeg (4K : pic 413 Mo) OU processus enfant du kit
+    # PSD (export 346 Mo, import du fichier réel 153 Mo), lui-même tué au-delà
+    # de KIT_CHILD_MAX_RSS_MB (650 Mo par défaut ; tas JS borné à 256 Mo).
+    # Conteneur mesuré à 790 Mo au plus.
+    mem_limit: 1g
     pids_limit: 512
     init: true
     restart: unless-stopped

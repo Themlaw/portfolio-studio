@@ -64,6 +64,20 @@
       "when": 1790841262830,
       "tag": "0008_tags",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1790851935834,
+      "tag": "0009_heavy_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1790856654767,
+      "tag": "0010_kit_uploads",
+      "breakpoints": true
     }
   ]
 }

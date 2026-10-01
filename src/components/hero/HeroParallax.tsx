@@ -1,10 +1,65 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- calques déjà optimisés (SVG, AVIF/WebP du kit, placeholder ThumbHash) : next/image n'apporte rien ici. */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import Eyebrow from "@/components/Eyebrow";
 import ScrollHint from "@/components/hero/ScrollHint";
 import type { HeroContent } from "@/components/hero/types";
+import type { KitPlan } from "@/themes/schema";
+
+/** Toile du hero du kit (docs/THEME-KIT.md). */
+const CANVAS = { w: 2880, h: 1600 };
+export type HeroPlan = KitPlan & { placeholder?: string };
+
+const pct = (v: number, of: number) => `${((v / of) * 100).toFixed(4)}%`;
+
+/**
+ * Plan dessiné : rogné à sa boîte, replacé dans la toile 2880 × 1600 tenue en
+ * « cover » (comme les calques SVG), aperçu ThumbHash (plans opaques) jusqu'au chargement.
+ * Le plan du fond est l'élément LCP : priorité haute ; les autres, basse.
+ */
+function KitPlanImage({ plan, index }: { plan: HeroPlan; index: number }) {
+  const [loaded, setLoaded] = useState(false);
+  const img = useRef<HTMLImageElement>(null);
+  // Image servie par le SSR et chargée avant l'hydratation : React ne voit
+  // jamais son `load`, l'aperçu resterait sous le plan. On lit `complete`.
+  useEffect(() => {
+    const el = img.current;
+    if (el?.complete && el.naturalWidth > 0) setLoaded(true);
+  }, []);
+  const lcp = index === 0;
+  const box = {
+    left: pct(plan.x, CANVAS.w),
+    top: pct(plan.y, CANVAS.h),
+    width: pct(plan.w, CANVAS.w),
+    height: pct(plan.h, CANVAS.h),
+    backgroundImage: !loaded && plan.placeholder ? `url("${plan.placeholder}")` : undefined,
+  };
+  const common = {
+    "aria-hidden": true,
+    draggable: false,
+    width: plan.w,
+    height: plan.h,
+    decoding: "async" as const,
+    fetchPriority: lcp ? ("high" as const) : ("low" as const),
+    className: "hero-plan-img",
+    ref: img,
+    onLoad: () => setLoaded(true),
+  };
+  return (
+    <div className="hero-plan" style={box}>
+      {plan.svg ? (
+        <img src={plan.svg} alt="" {...common} />
+      ) : (
+        <picture>
+          <source srcSet={plan.avif} type="image/avif" />
+          <img src={plan.webp} alt="" {...common} />
+        </picture>
+      )}
+    </div>
+  );
+}
 
 /** Amplitude de la parallaxe par rang de calque, de l'arrière vers l'avant :
  *  `depth` en px pour le curseur, `scroll` en ratio du défilement.
@@ -22,7 +77,10 @@ function motionFor(index: number) {
 }
 
 /** Hero « parallax-layers » : décor illustré en calques (assets.heroLayers). */
-export default function HeroParallax({ layers, content }: { layers: string[]; content: HeroContent }) {
+export default function HeroParallax({ layers, plans = [], content }: { layers: string[]; plans?: (HeroPlan | null)[]; content: HeroContent }) {
+  // Repli plan par plan : un plan dessiné remplace le calque SVG de même rang.
+  const count = Math.max(layers.length, plans.length);
+  const stack = Array.from({ length: count }, (_, i) => ({ plan: plans[i] ?? null, src: layers[i] }));
   const layerRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
@@ -77,24 +135,37 @@ export default function HeroParallax({ layers, content }: { layers: string[]; co
     >
       {/* Décor illustré en couches */}
       <div className="absolute inset-0 -z-10">
-        {layers.map((src, i) => (
-          <div
-            key={src}
-            ref={(node) => {
-              layerRefs.current[i] = node;
-            }}
-            className="absolute inset-[-8%] will-change-transform"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={src}
-              alt=""
-              aria-hidden="true"
-              className="h-full w-full object-cover"
-              draggable={false}
-            />
-          </div>
-        ))}
+        {stack.map(({ plan, src }, i) =>
+          plan ? (
+            <div
+              key={plan.svg ?? plan.avif}
+              ref={(node) => {
+                layerRefs.current[i] = node;
+              }}
+              className="hero-layer-kit absolute inset-[-8%] will-change-transform"
+            >
+              <div className="hero-canvas">
+                <KitPlanImage plan={plan} index={i} />
+              </div>
+            </div>
+          ) : src ? (
+            <div
+              key={src}
+              ref={(node) => {
+                layerRefs.current[i] = node;
+              }}
+              className="absolute inset-[-8%] will-change-transform"
+            >
+              <img
+                src={src}
+                alt=""
+                aria-hidden="true"
+                className="h-full w-full object-cover"
+                draggable={false}
+              />
+            </div>
+          ) : null,
+        )}
         {/* Voile papier : raccorde le décor au fond du site. Court et discret,
             sinon il delave les couches froides et efface les sapins. */}
         <div

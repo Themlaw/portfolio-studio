@@ -333,6 +333,19 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   `docs/`, bases, `.env*` et fichiers de configuration.
 - **Mesures** : e2e-tags 19/19, pic VM 2,4 Go (dev + chromium).
 
+### Kit de thème PSD (phases 6b–6d)
+
+Spécification, mesures et décisions : `docs/THEME-KIT.md`. En bref : module
+`src/lib/kit/` (export v2, import, formats, fidélité du contour) ;
+`Theme.assets.kit` rendu par variables `--t-kit-*` / attributs `data-kit-*`
+(rien sans asset : parité) ; export à la demande dans un processus enfant
+(`kit-child.cjs`), mis en cache, sur la file lourde partagée avec la vidéo
+(migration 0009). Import (phase 6d) : envoi par morceaux (`purpose: kit`,
+migration 0010), en-tête contrôlé sans décodage, job « kit-import » de la même
+file lourde dans l'enfant, manifeste d'export pour reconnaître les éléments
+inchangés, écran de revue `/admin/themes/<id>/kit`, application en copie
+brouillon (`apply.ts`). Jeu de test réel : `tests/fixtures/kit-synthetique.psd`.
+
 ## Admin (`/admin`, hors i18n, en français)
 
 - **Thèmes** : liste des thèmes avec aperçu, « Activer », « Dupliquer », édition des tokens

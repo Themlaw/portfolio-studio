@@ -1,0 +1,199 @@
+/**
+ * Kit Photoshop d'un thème : envoi du PSD rempli, puis revue de l'import —
+ * une carte par emplacement (✓ / ⚠ / ✗ et la raison en clair, avant / après,
+ * format retenu et poids), palette suggérée, total au premier affichage,
+ * « Appliquer au thème » (copie brouillon). Thèmes livrés compris.
+ */
+/* eslint-disable @next/next/no-img-element -- aperçus PNG de l'import, servis par une route admin : next/image n'apporte rien. */
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
+import KitDownloadButton from "@/components/admin/KitDownloadButton";
+import { KitApplyPanel, KitImportUpload, KitImportWatch } from "@/components/admin/KitImport";
+import PageHeader from "@/components/admin/PageHeader";
+import { assertAdmin } from "@/lib/auth/guard";
+import { arrowMirror, firstViewTotal, isApplicable, paletteFailures } from "@/lib/kit/apply";
+import { loadSavedTheme } from "@/lib/kit/export-job";
+import type { SlotReport } from "@/lib/kit/import";
+import { beforePreviews, getKitImport, isImportId, listKitImports } from "@/lib/kit/import-job";
+import { SLOTS } from "@/lib/kit/spec";
+
+export const metadata = { title: "Kit Photoshop" };
+export const dynamic = "force-dynamic";
+
+const FORMAT: Record<string, string> = { svg: "SVG", "svg-mask": "SVG (forme teintée par le thème)", avif: "AVIF + WebP", "avif-mask": "AVIF (forme teintée par le thème)" };
+const ROLE: Record<string, string> = { bg: "Fond", bgDeep: "Fond profond", ink: "Texte", inkSoft: "Texte doux", primary: "Accent", secondary: "Secondaire", tertiary: "Tertiaire" };
+
+/** Phrase de la carte : « Flèche droite : redessinée », « Plan 3 : inchangé »… */
+function headline(s: SlotReport): string {
+  if (s.status === "error") return `${s.label} : à corriger`;
+  switch (s.change) {
+    case "unchanged":
+      return `${s.label} : inchangé`;
+    case "redrawn":
+      return `${s.label} : redessiné${/^(Signature|Flèche|Lecture)/.test(s.label) ? "e" : ""}`;
+    case "missing":
+      return `${s.label} : calque introuvable`;
+    default:
+      return `${s.label} : importé${/^(Signature|Flèche|Lecture)/.test(s.label) ? "e" : ""}`;
+  }
+}
+const formatBytes = (n: number) => (n < 1024 ? `${n} o` : n < 1024 * 1024 ? `${Math.round(n / 1024)} Ko` : `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`);
+const icon = (s: SlotReport) => (s.status === "error" ? "✗" : s.status === "warn" ? "⚠" : "✓");
+
+export default async function ThemeKitPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ import?: string }> }) {
+  await assertAdmin();
+  const { id } = await params;
+  const theme = /^[a-z0-9-]{1,80}$/.test(id) ? loadSavedTheme(id) : null;
+  if (!theme) notFound();
+  const imports = await listKitImports(theme.id);
+  const wanted = (await searchParams).import;
+  const currentId = isImportId(wanted) ? wanted : imports[0]?.id;
+  // Import d'un autre thème : introuvable ici (pas de revue croisée).
+  const state = currentId ? await getKitImport(currentId, theme.id) : null;
+  if (wanted && !state) notFound();
+  const report = state?.report ?? null;
+  const preview = (s: SlotReport, which: "avant" | "apres") => `/admin/api/theme-kit/${encodeURIComponent(theme.id)}/import/${state!.meta.id}/preview/${s.id.replace(/\//g, "--")}/${which}`;
+  const totals = report ? await firstViewTotal(theme, report) : null;
+  const befores = await beforePreviews(report?.reference?.exportId);
+  const changed = report ? report.slots.filter(isApplicable).length : 0;
+  const counts = report ? { unchanged: report.slots.filter((s) => s.change === "unchanged").length, changed, warn: report.slots.filter((s) => s.status === "warn").length, error: report.slots.filter((s) => s.status === "error").length } : null;
+  const palette = report?.palette ? Object.entries(report.palette.roles).map(([role, hex]) => ({ role, label: ROLE[role] ?? role, hex: hex! })) : null;
+  const paletteProblem = report && palette ? paletteFailures(theme, report) : [];
+  const pair = report ? arrowMirror(report) : null;
+  const mirror = pair && pair.from.preview ? { from: pair.from.label, to: SLOTS.find((x) => x.id === pair.to)!.label, preview: preview(pair.from, "apres") } : null;
+
+  return (
+    <>
+      <PageHeader
+        title={`Kit Photoshop · ${theme.name}`}
+        intro="Télécharge le kit, peins dans Photoshop ce que tu veux changer, puis renvoie le fichier : chaque élément est vérifié et tu choisis quoi appliquer."
+      />
+      <div className="a-section a-kit-export" style={{ borderTop: 0, marginTop: 0, paddingTop: 0 }}>
+        <KitDownloadButton themeId={theme.id} />
+        <p className="a-help">Le kit reprend l&apos;état enregistré de ce thème : un groupe par élément, avec où il apparaît sur le site et les consignes.</p>
+      </div>
+
+      <section className="a-section" aria-labelledby="kit-send">
+        <h2 id="kit-send">Renvoyer le kit rempli</h2>
+        <KitImportUpload themeId={theme.id} />
+      </section>
+
+      {state && (
+        <section className="a-section" aria-labelledby="kit-review">
+          <h2 id="kit-review">
+            Revue de « {state.meta.fileName} »
+          </h2>
+          {(state.status === "queued" || state.status === "running") && !report && <KitImportWatch themeId={theme.id} importId={state.meta.id} />}
+          {state.status === "failed" && !report && (
+            <p className="a-field-error" role="alert">
+              {state.error}
+            </p>
+          )}
+          {report && !report.ok && report.problem && (
+            <p className="a-field-error" role="alert">
+              {report.problem}
+            </p>
+          )}
+          {report && report.slots.length > 0 && counts && totals && (
+            <>
+              <div className="a-kit-summary">
+                {report.foreign && (
+                  <strong role="alert">
+                    Ce kit vient du thème « {loadSavedTheme(report.foreign.themeId)?.name ?? report.foreign.themeId} », pas de « {theme.name} » : rien n&apos;est marqué inchangé, chaque élément est importé. Vérifie que c&apos;est le bon fichier.
+                  </strong>
+                )}
+                <span>
+                  {report.reference
+                    ? `Kit d'origine reconnu (${report.reference.how === "identifiant" ? "identifiant du fichier" : "contenu des calques"}) : ce qui n'a pas bougé est gardé tel quel.`
+                    : "Kit d'origine non reconnu : chaque élément est importé."}
+                </span>
+                <span>
+                  <strong>{counts.changed}</strong> à appliquer · <strong>{counts.unchanged}</strong> inchangé{counts.unchanged > 1 ? "s" : ""}
+                  {counts.warn ? ` · ${counts.warn} avertissement${counts.warn > 1 ? "s" : ""}` : ""}
+                  {counts.error ? ` · ${counts.error} à corriger` : ""}
+                </span>
+                <span>
+                  Premier affichage : <strong>{formatBytes(totals.after)}</strong> (aujourd&apos;hui {formatBytes(totals.before)})
+                </span>
+              </div>
+              {report.ignoredLayers.length > 0 && <p className="a-help">Calques ignorés : {report.ignoredLayers.join(" ; ")}.</p>}
+              <div className="a-kit-cards">
+                {report.slots.map((s) => {
+                  const spec = SLOTS.find((x) => x.id === s.id);
+                  return (
+                    <article key={s.id} className="a-kit-card" data-status={s.status} data-change={s.change} data-slot={s.id}>
+                      <h3>
+                        <span aria-hidden>{icon(s)}</span>
+                        <span>{headline(s)}</span>
+                      </h3>
+                      {s.change !== "missing" && s.status !== "error" && (
+                        <div className="a-kit-pair">
+                          {befores.has(s.id.replace(/\//g, "--")) && (
+                            <figure>
+                              <img src={preview(s, "avant")} alt={`${s.label}, avant`} />
+                              <figcaption>Avant</figcaption>
+                            </figure>
+                          )}
+                          {s.preview && (
+                            <figure>
+                              <img src={preview(s, "apres")} alt={`${s.label}, après`} />
+                              <figcaption>Après</figcaption>
+                            </figure>
+                          )}
+                        </div>
+                      )}
+                      {s.messages.length > 0 && (
+                        <ul>
+                          {s.messages.map((m) => (
+                            <li key={m}>{m}</li>
+                          ))}
+                        </ul>
+                      )}
+                      <p className="a-kit-meta">
+                        {s.change === "unchanged"
+                          ? "Gardé tel quel (pas reconverti)."
+                          : s.chosen
+                            ? `${FORMAT[s.chosen]} · ${formatBytes(s.bytes ?? 0)}${s.fidelity ? ` · contour à ${s.fidelity.deviation.toFixed(2)} px` : ""}`
+                            : s.change === "missing"
+                              ? `L'élément actuel du thème est gardé.${spec ? ` Calque attendu : « ${spec.layer} ».` : ""}`
+                              : ""}
+                      </p>
+                    </article>
+                  );
+                })}
+              </div>
+              <KitApplyPanel
+                themeId={theme.id}
+                importId={state.meta.id}
+                themeName={theme.name}
+                changed={changed}
+                palette={palette}
+                paletteProblem={paletteProblem.length ? `Cette palette ne passe pas le contraste (${paletteProblem[0]}) : ignore-la, ou ajuste les couleurs dans l'éditeur.` : null}
+                applied={state.meta.appliedThemeId ?? null}
+                mirror={mirror}
+              />
+            </>
+          )}
+        </section>
+      )}
+
+      {imports.length > 1 && (
+        <section className="a-section" aria-labelledby="kit-history">
+          <h2 id="kit-history">Envois précédents</h2>
+          <ul className="a-help">
+            {imports.map((m) => (
+              <li key={m.id}>
+                <Link href={`/admin/themes/${encodeURIComponent(theme.id)}/kit?import=${m.id}`}>{m.fileName}</Link> — {new Date(m.createdAt).toLocaleString("fr-FR")}
+                {m.appliedThemeId ? " (appliqué)" : ""}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <p className="a-help" style={{ marginTop: 24 }}>
+        <Link href="/admin/themes">← Tous les thèmes</Link>
+      </p>
+    </>
+  );
+}

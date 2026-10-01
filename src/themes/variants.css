@@ -267,3 +267,177 @@
     max-height: 66vh;
   }
 }
+
+/* ==========================================================================
+   Éléments dessinés du kit PSD (assets.kit, docs/THEME-KIT.md).
+   Actifs seulement quand <html> porte data-kit-* (asset présent) : sans
+   asset, rien ne change. Images et marges arrivent par --t-kit-* (css.ts).
+   ========================================================================== */
+
+/* ---- Signature : remplace le nom, teintée d'encre --------------------------- */
+[data-kit-signature] .site-signature {
+  display: block;
+  height: 2.25rem;
+  max-width: min(60vw, 18rem);
+  aspect-ratio: var(--t-kit-signature-ratio);
+  background-color: var(--color-ink);
+  -webkit-mask: var(--t-kit-signature) left center / contain no-repeat;
+  mask: var(--t-kit-signature) left center / contain no-repeat;
+  transition: background-color var(--dur-fast) var(--ease-soft);
+}
+
+[data-kit-signature] .site-brand:hover .site-signature {
+  background-color: var(--color-primary);
+}
+
+/* Le nom reste lu par les lecteurs d'écran (masqué visuellement). */
+[data-kit-signature] .site-brand-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (min-width: 48rem) {
+  [data-kit-signature] .site-signature {
+    height: 2.6rem;
+  }
+}
+
+/* ---- Papier : tuile répétée en fond (et, en option, sur le hero) ---------- */
+[data-kit-paper] body,
+[data-kit-paper] .strip-deep {
+  background-image: var(--t-kit-paper);
+  background-size: var(--t-kit-paper-size);
+  background-repeat: repeat;
+}
+
+[data-kit-paper-hero] .hero-parallax::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--t-kit-paper);
+  background-size: var(--t-kit-paper-size);
+  /* Défaut = PAPER_OVER_HERO_DEFAULT (schema.ts) : discret. */
+  opacity: var(--t-kit-paper-hero, 0.35);
+  mix-blend-mode: multiply;
+}
+
+/* ---- Cadre : passe-partout de la visionneuse en 9-slice ------------------- */
+[data-kit-frame] .lightbox-frame {
+  border-style: solid;
+  border-color: transparent;
+  border-width: var(--t-kit-frame-width);
+  border-image-source: var(--t-kit-frame);
+  border-image-slice: var(--t-kit-frame-slice);
+  border-image-repeat: stretch;
+  box-shadow: none;
+}
+
+/* ---- Trait : soulignement actif, barre de défilement --------------------- */
+[data-kit-stroke] .nav-underline {
+  height: 6px;
+  bottom: -0.65rem;
+  background-color: var(--color-primary);
+  -webkit-mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
+  mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
+}
+
+/* Filets (hr.rule) : le trait dessiné, teinte des filets. */
+[data-kit-stroke] hr.rule {
+  height: 6px;
+  border: 0;
+  background: var(--color-line);
+  -webkit-mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
+  mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
+}
+
+/* Barre du rail : poignée de longueur proportionnelle (largeur posée par le
+   composant, masque étiré : le SVG du trait est en preserveAspectRatio none),
+   trait lisible (≥ 3 px d'encre au plus mince : le trait du kit A va de 9 à
+   27 px sur 42, d'où 16 px de haut), piste perceptible (≥ 1.5:1).
+   La piste dessinée est un ::before : un masque sur la piste elle-même
+   rognerait aussi la poignée (son enfant) à l'intersection des deux traits. */
+[data-kit-stroke] .rail-bar {
+  --rail-bar-box: 16px;
+}
+
+[data-kit-stroke] .rail-bar-track {
+  height: 10px;
+  background: none;
+}
+
+[data-kit-stroke] .rail-bar-track::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--color-ink) 28%, var(--color-line));
+  -webkit-mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
+  mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
+}
+
+/* Teinte : celle de la base (primaire, survol compris). */
+[data-kit-stroke] .rail-bar-thumb {
+  height: 16px;
+  -webkit-mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
+  mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
+}
+
+/* ---- Icônes : la forme dessinée, teinte du texte (currentColor) ---------- */
+[data-kit-icon-arrow-left] [data-icon="arrow-left"],
+[data-kit-icon-arrow-right] [data-icon="arrow-right"],
+[data-kit-icon-close] [data-icon="close"],
+[data-kit-icon-play] [data-icon="play"] {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+  background-color: currentColor;
+  -webkit-text-fill-color: transparent;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+[data-kit-icon-arrow-left] [data-icon="arrow-left"] {
+  -webkit-mask-image: var(--t-kit-icon-arrow-left);
+  mask-image: var(--t-kit-icon-arrow-left);
+}
+
+[data-kit-icon-arrow-right] [data-icon="arrow-right"] {
+  -webkit-mask-image: var(--t-kit-icon-arrow-right);
+  mask-image: var(--t-kit-icon-arrow-right);
+}
+
+[data-kit-icon-close] [data-icon="close"] {
+  -webkit-mask-image: var(--t-kit-icon-close);
+  mask-image: var(--t-kit-icon-close);
+}
+
+/* Icône SVG en ligne (lecture) : la boîte reste, le dessin d'origine s'efface. */
+[data-kit-icon-play] svg[data-icon="play"] {
+  -webkit-mask-image: var(--t-kit-icon-play);
+  mask-image: var(--t-kit-icon-play);
+  width: auto;
+  aspect-ratio: 1;
+}
+
+[data-kit-icon-play] svg[data-icon="play"] > * {
+  display: none;
+}
+
+/* ---- Scotch : l'image dessinée remplace le scotch CSS (variante taped) ----- */
+[data-kit-tape][data-strip="taped"] :is(.strip-media, .tile-media)::before {
+  height: auto;
+  aspect-ratio: var(--t-kit-tape-ratio);
+  background: var(--t-kit-tape) center / contain no-repeat;
+  border-inline: 0;
+  box-shadow: none;
+}

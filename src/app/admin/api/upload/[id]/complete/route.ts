@@ -1,4 +1,4 @@
-/** POST /admin/api/upload/<id>/complete — envoi terminé : détection du type et traitement. */
+/** POST /admin/api/upload/<id>/complete — envoi terminé : détection du type et traitement (média, ou import d'un kit PSD). */
 import { assertAdmin } from "@/lib/auth/guard";
 import { completeUpload } from "@/lib/upload/chunks";
 import { uploadStep } from "@/lib/upload/http";
@@ -23,5 +23,6 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { user } = await assertAdmin();
   const { id } = await params;
-  return uploadStep(request, async () => ({ media: await completeUpload(id, user.id, await readTags(request)) }), { revalidate: true });
+  // Média : { media } ; kit de thème : { kitImport } (import mis en file).
+  return uploadStep(request, async () => completeUpload(id, user.id, await readTags(request)), { revalidate: true });
 }

@@ -140,10 +140,12 @@ export const jobs = sqliteTable(
   "jobs",
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
-    kind: text("kind", { enum: ["image", "video"] }).notNull(),
-    mediaId: integer("media_id")
-      .notNull()
-      .references(() => media.id, { onDelete: "cascade" }),
+    /** image : file légère ; video, kit (export), kit-import : file lourde (un seul à la fois). */
+    kind: text("kind", { enum: ["image", "video", "kit", "kit-import"] }).notNull(),
+    /** Média traité (image, vidéo) ; null pour un export de kit. */
+    mediaId: integer("media_id").references(() => media.id, { onDelete: "cascade" }),
+    /** Paramètres d'un job sans média (kit : { themeId, version } ; kit-import : { importId, themeId }), JSON. */
+    payload: text("payload", { mode: "json" }).$type<Record<string, unknown>>(),
     status: text("status", { enum: ["queued", "running", "done", "failed"] }).notNull().default("queued"),
     attempts: integer("attempts").notNull().default(0),
     error: text("error"),
@@ -195,8 +197,11 @@ export const uploads = sqliteTable("uploads", {
   size: integer("size").notNull(),
   /** Type annoncé par le navigateur (indicatif : le contenu fait foi). */
   declaredType: text("declared_type").notNull(),
-  kind: text("kind", { enum: ["image", "video"] }).notNull(),
+  /** kit : PSD d'un kit de thème (jamais un média). */
+  kind: text("kind", { enum: ["image", "video", "kit"] }).notNull(),
   offset: integer("offset").notNull().default(0),
+  /** Cible de l'envoi (kit : identifiant du thème). */
+  target: text("target"),
   /** Administrateur qui a ouvert l'envoi (seul à pouvoir le poursuivre). */
   userId: text("user_id").notNull().default(""),
   /** Tags demandés à l'envoi (libellés, JSON), attachés au média à sa création. */

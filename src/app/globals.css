@@ -234,6 +234,39 @@
   }
 
   /* Passe-partout : le tirage encadré de blanc, ombre douce */
+  /* ---- Éléments dessinés du kit (variants.css les active) -----------------
+     Par défaut invisibles : sans asset, le rendu reste celui du thème. */
+  .site-signature {
+    display: none;
+  }
+
+  /* Plans du hero dessinés : la toile 2880 × 1600 tenue en « cover » dans le
+     calque (comme un SVG preserveAspectRatio slice), chaque plan replacé dans
+     sa boîte d'origine. */
+  .hero-layer-kit {
+    container-type: size;
+  }
+
+  .hero-canvas {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100cqw, calc(100cqh * 1.8));
+    aspect-ratio: 2880 / 1600;
+    transform: translate(-50%, -50%);
+  }
+
+  .hero-plan {
+    position: absolute;
+    background-size: 100% 100%;
+  }
+
+  .hero-plan-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
   .mat {
     background: var(--mat-bg);
     padding: var(--mat-padding);

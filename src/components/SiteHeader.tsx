@@ -48,7 +48,10 @@ export default function SiteHeader({
           href="/"
           className="site-brand font-display text-lg md:text-xl leading-none text-ink hover:text-primary transition-colors"
         >
-          {siteName}
+          {/* Signature dessinée (kit) : affichée par variants.css quand le thème
+              en a une ; le nom reste alors lisible des lecteurs d'écran. */}
+          <span className="site-brand-text">{siteName}</span>
+          <span className="site-signature" aria-hidden="true" />
         </Link>
 
         <nav
@@ -69,7 +72,7 @@ export default function SiteHeader({
                 {label}
                 <span
                   aria-hidden="true"
-                  className={`absolute -bottom-2 left-0 h-px bg-secondary transition-all duration-500 ease-soft ${
+                  className={`nav-underline absolute -bottom-2 left-0 h-px bg-secondary transition-all duration-500 ease-soft ${
                     active ? "w-full" : "w-0"
                   }`}
                 />

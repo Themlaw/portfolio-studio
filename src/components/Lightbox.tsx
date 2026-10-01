@@ -108,7 +108,7 @@ export default function Lightbox({
           className="btn btn-ghost border-line/30 text-on-scrim hover:bg-on-scrim/10 hover:text-on-scrim"
         >
           {t("close")}
-          <span aria-hidden="true">✕</span>
+          <span aria-hidden="true" data-icon="close">✕</span>
         </button>
       </div>
 
@@ -122,7 +122,7 @@ export default function Lightbox({
             aria-label={t("previous")}
             className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-btn px-3 py-6 text-2xl text-on-scrim/70 transition-colors hover:text-on-scrim"
           >
-            ←
+            <span data-icon="arrow-left">←</span>
           </button>
         )}
 
@@ -162,7 +162,7 @@ export default function Lightbox({
             aria-label={t("next")}
             className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-btn px-3 py-6 text-2xl text-on-scrim/70 transition-colors hover:text-on-scrim"
           >
-            →
+            <span data-icon="arrow-right">→</span>
           </button>
         )}
       </div>

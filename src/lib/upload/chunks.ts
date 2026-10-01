@@ -22,6 +22,12 @@ import { ingestVideo } from "@/lib/video/ingest";
 
 import { attachUploadTags, parseTagLabels, tagCapacityProblem } from "@/lib/tags";
 
+import { wakeWorker } from "@/lib/jobs/worker";
+import { loadSavedTheme } from "@/lib/kit/export-job";
+import { DEFAULT_LIMITS } from "@/lib/kit/limits";
+import { createKitImport } from "@/lib/kit/import-job";
+import { preflightProblem, preflightPsd, PsdPreflightError } from "@/lib/kit/psd-header";
+
 import { ingestImage, type IngestedMedia } from "./ingest";
 import { quotaProblem } from "./quota";
 import { cleanFilename, sniffImage, sniffVideo, SNIFF_BYTES, VIDEO_REJECTED_MESSAGE } from "./sniff";
@@ -36,6 +42,8 @@ const InitSchema = z.strictObject({
   type: z.string().max(100),
   /** Tags du fichier : gardés sur l'envoi, attachés au média à sa création. */
   tags: z.unknown().optional(),
+  /** Kit de thème (PSD) : jamais un média, rangé pour l'import du thème visé. */
+  purpose: z.strictObject({ kind: z.literal("kit"), themeId: z.string().regex(/^[a-z0-9-]{1,80}$/) }).optional(),
 });
 
 const Id = z.string().uuid();
@@ -53,13 +61,32 @@ function row(id: unknown, userId: string) {
   return r;
 }
 
-export type UploadStatus = { id: string; name: string; size: number; offset: number; kind: "image" | "video"; chunkSize: number };
+export type UploadStatus = { id: string; name: string; size: number; offset: number; kind: "image" | "video" | "kit"; chunkSize: number };
+
+/** Kit PSD : extension .psd, taille du kit au plus (refus AVANT l'envoi), thème existant. */
+function kitProblem(name: string, size: number, themeId: string): UploadError | null {
+  if (!/\.psd$/i.test(name)) return new UploadError(415, "Choisis le fichier Photoshop du kit (.psd).");
+  if (size > DEFAULT_LIMITS.maxFileBytes) return new UploadError(413, `Ce fichier fait ${Math.round(size / 1024 / 1024)} Mo : ${Math.round(DEFAULT_LIMITS.maxFileBytes / 1024 / 1024)} Mo au plus. Supprime les calques inutiles (ou fusionne-les), puis réenregistre.`);
+  if (!loadSavedTheme(themeId)) return new UploadError(404, "Ce thème n'existe plus.");
+  return null;
+}
 
 export async function initUpload(input: unknown, userId: string): Promise<UploadStatus> {
   const parsed = InitSchema.safeParse(input);
   if (!parsed.success) throw new UploadError(400, "Requête invalide.");
-  const { size, type } = parsed.data;
+  const { size, type, purpose } = parsed.data;
   const name = cleanFilename(parsed.data.name);
+  if (purpose) {
+    const problem = kitProblem(name, size, purpose.themeId);
+    if (problem) throw problem;
+    const full = quotaProblem(size);
+    if (full) throw new UploadError(507, full);
+    const id = randomUUID();
+    await mkdir(partDir(), { recursive: true });
+    await (await open(partPath(id), "wx")).close();
+    getDb().insert(schema.uploads).values({ id, name, size, declaredType: type.slice(0, 100), kind: "kit", target: purpose.themeId, offset: 0, userId, tags: [] }).run();
+    return { id, name, size, offset: 0, kind: "kit", chunkSize: CHUNK_BYTES };
+  }
   const tags = parseTagLabels(parsed.data.tags ?? []);
   if (!tags.ok) throw new UploadError(400, tags.message);
   const tagsFull = tagCapacityProblem(tags.labels);
@@ -149,8 +176,11 @@ export async function writeChunk(id: unknown, offsetParam: string | null, reques
  * Fin d'envoi. `tagsInput` : tags courants du client (une reprise a pu les
  * changer depuis init), validés comme à init ; absents : ceux d'init.
  */
-export async function completeUpload(id: unknown, userId: string, tagsInput?: unknown): Promise<IngestedMedia & { kind: "image" | "video"; tagWarning?: string }> {
+export type CompletedUpload = { media: IngestedMedia & { kind: "image" | "video"; tagWarning?: string } } | { kitImport: { id: string; themeId: string } };
+
+export async function completeUpload(id: unknown, userId: string, tagsInput?: unknown): Promise<CompletedUpload> {
   const r = row(id, userId);
+  if (r.kind === "kit") return { kitImport: await completeKit(r, userId) };
   let tags = r.tags ?? [];
   if (tagsInput !== undefined) {
     const parsed = parseTagLabels(tagsInput);
@@ -159,7 +189,33 @@ export async function completeUpload(id: unknown, userId: string, tagsInput?: un
   }
   const media = await ingestCompleted(r);
   const tagWarning = attachUploadTags(media.id, tags);
-  return tagWarning ? { ...media, tagWarning } : media;
+  return { media: tagWarning ? { ...media, tagWarning } : media };
+}
+
+/**
+ * Fin d'un envoi de kit : signature et en-tête contrôlés SANS décodage
+ * (psd-header.ts : PSB, RVB, 8 bits, dimensions, calques), puis import en file.
+ */
+async function completeKit(r: typeof schema.uploads.$inferSelect, userId: string): Promise<{ id: string; themeId: string }> {
+  if (r.offset !== r.size) throw new UploadError(409, `Envoi incomplet : ${r.offset} octets reçus sur ${r.size}.`);
+  const file = partPath(r.id);
+  getDb().delete(schema.uploads).where(eq(schema.uploads.id, r.id)).run();
+  const reject = async (status: number, message: string): Promise<never> => {
+    await rm(file, { force: true });
+    throw new UploadError(status, message);
+  };
+  const themeId = r.target ?? "";
+  if (!loadSavedTheme(themeId)) return reject(404, "Ce thème n'existe plus.");
+  let pre: Awaited<ReturnType<typeof preflightPsd>>;
+  try {
+    pre = await preflightPsd(file, DEFAULT_LIMITS.maxLayers * 4);
+  } catch (error) {
+    return reject(415, error instanceof PsdPreflightError ? `${error.message} Enregistre le kit depuis Photoshop au format PSD.` : "Fichier illisible : enregistre le kit depuis Photoshop au format PSD.");
+  }
+  const problem = preflightProblem(pre, DEFAULT_LIMITS);
+  if (problem) return reject(422, problem);
+  const meta = await createKitImport({ file, themeId, userId, fileName: r.name, size: r.size }, wakeWorker);
+  return { id: meta.id, themeId };
 }
 
 async function ingestCompleted(r: typeof schema.uploads.$inferSelect): Promise<IngestedMedia & { kind: "image" | "video" }> {
@@ -203,5 +259,6 @@ export function listPendingUploads(userId: string): UploadStatus[] {
     .from(schema.uploads)
     .where(eq(schema.uploads.userId, userId))
     .all()
+    .filter((r) => r.kind !== "kit")
     .map((r) => ({ id: r.id, name: r.name, size: r.size, offset: r.offset, kind: r.kind, chunkSize: CHUNK_BYTES }));
 }

@@ -109,7 +109,7 @@ export default function LoopFrame({
             <rect x="7.5" y="1" width="3.5" height="12" fill="currentColor" />
           </svg>
         ) : (
-          <svg width="14" height="16" viewBox="0 0 16 18" aria-hidden="true">
+          <svg width="14" height="16" viewBox="0 0 16 18" aria-hidden="true" data-icon="play">
             <path d="M2 1.5 14.5 9 2 16.5Z" fill="currentColor" />
           </svg>
         )}

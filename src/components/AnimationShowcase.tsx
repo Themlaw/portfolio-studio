@@ -12,7 +12,7 @@ function PlayBadge({ label }: { label: string }) {
   return (
     <span className="pointer-events-none flex items-center gap-3">
       <span className="flex h-14 w-14 items-center justify-center rounded-btn bg-surface/90 shadow-card transition-transform duration-500 ease-soft group-hover:scale-110">
-        <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true">
+        <svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true" data-icon="play" className="text-primary">
           <path d="M2 1.5 14.5 9 2 16.5Z" fill="var(--color-primary)" />
         </svg>
       </span>
