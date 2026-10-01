@@ -1,3 +1,4 @@
+import KitTutorial from "@/components/admin/KitTutorial";
 import PageHeader from "@/components/admin/PageHeader";
 import ThemeList from "@/components/admin/ThemeList";
 import { getThemeOverview, listPageAccents } from "@/lib/admin";
@@ -16,13 +17,17 @@ export default function ThemesPage() {
         title="Thèmes"
         intro="Choisis l'apparence de ton site : couleurs, typographies et mise en page. Prévisualise un thème sur tes vraies pages avant de le mettre en ligne."
         action={
-          // Formulaire natif (pas de server action) : l'admin reste sur cet écran.
-          <form method="post" action="/admin/apercu/quitter">
-            <input type="hidden" name="retour" value="/admin/themes" />
-            <button type="submit" className="a-btn">
-              Quitter l&apos;aperçu
-            </button>
-          </form>
+          <div className="a-header-actions">
+            {/* Tuto du kit : le bouton « Télécharger le kit » de la slide 2 vise le thème en ligne. */}
+            <KitTutorial themeId={activeId || sorted[0]?.id || "galerie-lumineuse"} />
+            {/* Formulaire natif (pas de server action) : l'admin reste sur cet écran. */}
+            <form method="post" action="/admin/apercu/quitter">
+              <input type="hidden" name="retour" value="/admin/themes" />
+              <button type="submit" className="a-btn">
+                Quitter l&apos;aperçu
+              </button>
+            </form>
+          </div>
         }
       />
       {themes.length === 0 ? (

@@ -295,7 +295,7 @@ fournisseur OIDC local, serveur dev arrêté).
 
 ## Déploiement
 
-Flux : **push GitHub → GitHub Actions → GHCR (privé) → Komodo sur hote-prod**.
+Flux : **push GitHub → GitHub Actions → GHCR (privé) → Komodo sur hote-de-prod**.
 
 1. `.github/workflows/docker.yml` se déclenche sur push `main`, sur les tags
    `v*` / `da/*` et à la main (`workflow_dispatch`) :
@@ -305,14 +305,14 @@ Flux : **push GitHub → GitHub Actions → GHCR (privé) → Komodo sur hote-pr
      reproductibles (`SOURCE_DATE_EPOCH=0`, `rewrite-timestamp=true`), push sur
      `ghcr.io/themlaw/portfolio` avec les tags `latest` (main), `sha-<court>` et
      le nom du tag git nettoyé (`da/pro` → `da-pro`).
-2. Sur hote-prod, Komodo déploie `docker-compose.yml` (service `portfolio`,
+2. Sur hote-de-prod, Komodo déploie `docker-compose.yml` (service `portfolio`,
    `pull_policy: always`) ; Newt (Pangolin) joint le conteneur sur le réseau
    externe `traefik` : `http://portfolio:3000`. Aucun port publié.
 
 ### Stack Komodo
 
 Deux façons, même fichier (`docker-compose.yml` du dépôt ≡
-`/home/user/docker/Portfolio/compose.yaml`) :
+`/home/user/docker/portfolio/compose.yaml`, octet pour octet) :
 
 - **depuis le dépôt git** : Stack → *Git Repo* = ce dépôt, branche `main`,
   *File Paths* = `docker-compose.yml` ; un redeploy relit le fichier à jour ;

@@ -173,7 +173,7 @@ export function KitApplyPanel({
       )}
       {mirror && (
         <div className="a-kit-mirror">
-          <label className="a-check">
+          <label className="a-kit-mirror-check">
             <input type="checkbox" checked={useMirror} onChange={(e) => setUseMirror(e.target.checked)} data-testid="kit-mirror" />
             Utiliser le miroir de ta {mirror.from.toLowerCase()} pour la {mirror.to.toLowerCase()}
           </label>

@@ -9,6 +9,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import KitDownloadButton from "@/components/admin/KitDownloadButton";
+import KitTutorial from "@/components/admin/KitTutorial";
 import { KitApplyPanel, KitImportUpload, KitImportWatch } from "@/components/admin/KitImport";
 import PageHeader from "@/components/admin/PageHeader";
 import { assertAdmin } from "@/lib/auth/guard";
@@ -72,6 +73,7 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
       <div className="a-section a-kit-export" style={{ borderTop: 0, marginTop: 0, paddingTop: 0 }}>
         <KitDownloadButton themeId={theme.id} />
         <p className="a-help">Le kit reprend l&apos;état enregistré de ce thème : un groupe par élément, avec où il apparaît sur le site et les consignes.</p>
+        <KitTutorial themeId={theme.id} fromTheme quiet label="Tuto du kit : comment ça marche" />
       </div>
 
       <section className="a-section" aria-labelledby="kit-send">

@@ -1,5 +1,5 @@
-# Portfolio d'artiste (Next.js standalone, image distroless) — stack Komodo sur hote-prod.
-# Même fichier : docker-compose.yml du dépôt et /home/user/docker/Portfolio/compose.yaml.
+# Portfolio d'artiste (Next.js standalone, image distroless) — stack Komodo sur hote-de-prod.
+# Même fichier : docker-compose.yml du dépôt et /home/user/docker/portfolio/compose.yaml.
 # Image construite par GitHub Actions et poussée sur GHCR (privé) : pas de build ici.
 # Newt (Pangolin) joint le service sur http://portfolio:3000 par le réseau « traefik ».
 # Variables : .env à côté de ce fichier (modèle commenté : .env.example).

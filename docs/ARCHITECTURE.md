@@ -8,7 +8,7 @@ chaque phase s'y réfère. Toute déviation se discute et met ce fichier à jour
 | Sujet | Décision |
 |---|---|
 | Build & distribution | GitHub (repo privé `Themlaw/portfolio`) → Actions → `ghcr.io/themlaw/portfolio` (privé) |
-| Prod | hote-prod, stack Komodo, `pull_policy: always`, réseau `traefik` partagé avec Newt, aucun port publié |
+| Prod | hote-de-prod, stack Komodo (`/home/user/docker/portfolio/compose.yaml`, image `latest`), `pull_policy: always`, réseau `traefik` partagé avec Newt, aucun port publié |
 | Dev | vm-dev, `npm run dev -- -p 3001` ; hôte Proxmox en surallocation RAM → une charge lourde à la fois, pas de build d'image en local |
 | Contenu | SQLite (better-sqlite3 + Drizzle ORM, WAL), fichier `/data/portfolio.db` |
 | Médias | Volume local `/data/media`, derrière une interface `MediaStorage` (bascule Garage/S3 possible sans toucher aux composants) |

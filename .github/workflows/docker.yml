@@ -1,5 +1,5 @@
 # Construit l'image de prod et la pousse sur GHCR (privé).
-# Komodo (hote-prod) la tire ensuite : ghcr.io/themlaw/portfolio.
+# Komodo (hote-de-prod) la tire ensuite : ghcr.io/themlaw/portfolio.
 name: docker
 
 on:

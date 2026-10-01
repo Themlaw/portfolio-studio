@@ -35,7 +35,7 @@ async function anon(path) {
   return { status: r.status, html: await r.text() };
 }
 
-// Chromium sobre (VM de dev à 3,8 Go) : pas de GPU, peu de processus de rendu.
+// Chromium sobre (VM de dev à 2 Go + swap) : pas de GPU, peu de processus de rendu.
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await ctx.newPage();

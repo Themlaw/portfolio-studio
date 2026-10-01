@@ -3501,3 +3501,409 @@ label.a-file-btn:focus-within {
   border-radius: 4px;
   background: repeating-conic-gradient(#e6e7ea 0 25%, #fff 0 50%) 0 0 / 16px 16px;
 }
+
+/* ---- Tuto du kit Photoshop : diaporama plein écran ---------------------- */
+.a-tuto {
+  /* Rose des repères du kit (cadres d'annotation ; étiquettes : texte blanc à 5,9:1). */
+  --admin-mark: #c2185b;
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--admin-bg);
+  color: var(--admin-ink);
+}
+
+.a-tuto-head,
+.a-tuto-foot {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 24px;
+  background: var(--admin-surface);
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.a-tuto-foot {
+  justify-content: space-between;
+  border-top: 1px solid var(--admin-line);
+  border-bottom: 0;
+}
+
+.a-tuto-kicker {
+  flex: 1;
+  margin: 0;
+  color: var(--admin-ink-soft);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.a-tuto-count {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Grand écran : l'image sur ~62 % de la largeur et toute la hauteur, le texte à droite. */
+.a-tuto-slide {
+  display: grid;
+  grid-template-columns: 62% minmax(0, 1fr);
+  gap: 40px;
+  min-height: 0;
+  padding: 20px 40px;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.a-tuto-media {
+  /* Conteneur de taille : l'image s'y inscrit (contain) avec ses annotations. */
+  container-type: size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.a-tuto-figure {
+  position: relative;
+  flex: none;
+  /* Inscrite dans la zone (marges hautes et basses pour les étiquettes hors cadre). */
+  width: min(100cqw, calc((100cqh - 64px) * var(--ratio)));
+  margin: 32px 0;
+}
+
+.a-tuto-zoomable {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  box-shadow: 0 2px 10px rgba(31, 34, 38, 0.06);
+  cursor: default;
+}
+
+.a-tuto-zoomable img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--admin-radius);
+}
+
+.a-tuto-notes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.a-tuto-box {
+  fill: none;
+  stroke: var(--admin-mark);
+  stroke-width: 3;
+}
+
+.a-tuto-arrow,
+.a-tuto-leader {
+  stroke: var(--admin-mark);
+  stroke-width: 3;
+}
+
+.a-tuto-arrow {
+  stroke-width: 4;
+}
+
+.a-tuto-tip {
+  fill: var(--admin-mark);
+}
+
+/* Étiquettes : toujours HORS du cadre qu'elles désignent. */
+.a-tuto-tag {
+  position: absolute;
+  z-index: 1;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--admin-mark);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(calc(-100% - 5px));
+}
+
+.a-tuto-tag[data-place="bottom"] {
+  transform: translateY(5px);
+}
+
+.a-tuto-tag[data-place="right"] {
+  transform: translate(8px, -50%);
+}
+
+.a-tuto-tag[data-place="left"] {
+  transform: translate(calc(-100% - 8px), -50%);
+}
+
+.a-tuto-tag[data-place="at"] {
+  transform: translate(-50%, -50%);
+}
+
+.a-tuto-badge,
+.a-tuto-legend,
+.a-tuto-hint,
+.a-tuto-progress {
+  display: none;
+}
+
+.a-tuto-text {
+  align-self: center;
+  min-width: 0;
+  overflow: auto;
+  max-height: 100%;
+}
+
+.a-tuto-text h2 {
+  margin: 0 0 16px;
+  font-family: var(--admin-font-brand);
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.a-tuto-text h2:focus {
+  outline: none;
+}
+
+.a-tuto-text h2:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 4px;
+}
+
+.a-tuto-text ul {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding-left: 20px;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.a-tuto-action {
+  margin-top: 22px;
+}
+
+.a-tuto-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.a-tuto-dot {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 1px solid var(--admin-ink-soft);
+  border-radius: 50%;
+  background: var(--admin-surface);
+  cursor: pointer;
+}
+
+.a-tuto-dot[aria-current="step"] {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent);
+}
+
+.a-tuto-dot:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 2px;
+}
+
+/* Image agrandie (petit écran) : zoom par pincement natif, fermeture au toucher ou Échap. */
+.a-tuto-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  justify-items: center;
+  padding: 12px;
+  background: rgba(20, 22, 26, 0.94);
+  overflow: auto;
+  touch-action: pinch-zoom pan-x pan-y;
+}
+
+.a-tuto-zoom img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* Fondu discret entre deux slides ; aucun mouvement si l'utilisateur le refuse. */
+@media (prefers-reduced-motion: no-preference) {
+  .a-tuto-slide {
+    animation: a-tuto-in 180ms ease-out;
+  }
+
+  @keyframes a-tuto-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+/* Petit écran : l'image au-dessus (touchable, agrandie), le texte dessous ;
+   numéros hors des cadres et légende sous l'image ; barre de progression. */
+@media (max-width: 900px) {
+  .a-tuto-head,
+  .a-tuto-foot {
+    padding: 10px 16px;
+    gap: 10px;
+  }
+
+  .a-tuto-kicker {
+    display: none;
+  }
+
+  .a-tuto-slide {
+    grid-template-columns: 1fr;
+    align-content: start;
+    gap: 14px;
+    padding: 16px;
+    overflow: auto;
+  }
+
+  .a-tuto-media {
+    container-type: normal;
+  }
+
+  .a-tuto-figure {
+    width: 100%;
+    margin: 12px 0 0;
+  }
+
+  .a-tuto-zoomable {
+    cursor: zoom-in;
+  }
+
+  .a-tuto-tag {
+    display: none;
+  }
+
+  .a-tuto-badge {
+    position: absolute;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--admin-mark);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    pointer-events: none;
+    /* Hors du cadre : au-dessus et à gauche de son coin. */
+    transform: translate(-70%, -70%);
+  }
+
+  .a-tuto-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: tuto-note;
+    font-size: 13px;
+  }
+
+  .a-tuto-legend li {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    counter-increment: tuto-note;
+  }
+
+  /* Même pastille numérotée que sur l'image. */
+  .a-tuto-legend li::before {
+    content: counter(tuto-note);
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--admin-mark);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .a-tuto-count {
+    flex: 1;
+  }
+
+  .a-tuto-hint {
+    display: block;
+    margin: 6px 0 0;
+    color: var(--admin-ink-soft);
+    font-size: 13px;
+  }
+
+  .a-tuto-text {
+    overflow: visible;
+    max-height: none;
+  }
+
+  .a-tuto-text h2 {
+    font-size: 24px;
+  }
+
+  .a-tuto-text ul {
+    font-size: 16px;
+  }
+
+  .a-tuto-dots {
+    display: none;
+  }
+
+  .a-tuto-progress {
+    display: block;
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--admin-line);
+    overflow: hidden;
+  }
+
+  .a-tuto-progress span {
+    display: block;
+    height: 100%;
+    background: var(--admin-accent);
+  }
+
+  .a-tuto-foot .a-btn {
+    padding-inline: 10px;
+  }
+}
+
+/* Case « miroir » de la revue (classe propre : .a-check sert aussi à la case
+   de sélection de la médiathèque, positionnée en absolu). */
+.a-kit-mirror-check {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 600;
+  cursor: pointer;
+}
