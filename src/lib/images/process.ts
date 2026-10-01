@@ -70,7 +70,7 @@ function orient(img: ReturnType<typeof sharp>, orientation: number | undefined):
 }
 
 /** Chemin lisible de l'original : celui du stockage local, sinon une copie temporaire. */
-async function originalFile(key: string): Promise<{ file: string; cleanup: () => Promise<void> }> {
+export async function originalFile(key: string): Promise<{ file: string; cleanup: () => Promise<void> }> {
   const storage = getStorage();
   const local = await storage.localPath(key);
   if (local) return { file: local, cleanup: async () => {} };

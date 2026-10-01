@@ -163,10 +163,19 @@ export function CollectionProjectsEditor() {
 }
 
 export function VideoEditor() {
-  const { value, onChange, errors } = useBlockEditor();
+  const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
     <>
+      <MediaPicker
+        label="Demoreel hébergée (facultatif)"
+        help="Une vidéo de ta médiathèque ; sans elle, la demoreel YouTube de la collection Animation s'affiche. Le titre affiché est son texte alternatif."
+        value={value.reelMediaId as number | undefined}
+        onChange={(v) => set("reelMediaId", v)}
+        error={errorAt(errors, "reelMediaId")}
+        context={context}
+        kind="video"
+      />
       <TextI18n label="Étiquette de la demoreel" value={l(value.reelEyebrow)} onChange={(v) => set("reelEyebrow", v)} error={errorAt(errors, "reelEyebrow")} />
       <TextI18n label="Étiquette des extraits" value={l(value.cardsEyebrow)} onChange={(v) => set("cardsEyebrow", v)} error={errorAt(errors, "cardsEyebrow")} />
       <TextI18n label="Titre des extraits" value={l(value.cardsTitle)} onChange={(v) => set("cardsTitle", v)} error={errorAt(errors, "cardsTitle")} />

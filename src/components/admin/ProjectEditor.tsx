@@ -27,7 +27,8 @@ import type { AdminMediaRow, AdminProjectEdit, AdminSlot } from "@/lib/admin";
 import { clone, ConfirmDialog, SaveBar, same, toast, useUnsavedGuard } from "./editing";
 import { MediaPickerDialog, UploadList } from "./MediaLibrary";
 import { DragHandle, SortableList } from "./Sortable";
-import { ACCEPT, hasFiles, useMediaWatch, useUploadQueue, type UploadItem } from "./uploads";
+import { ACCEPT, formatSent, hasFiles, useMediaWatch, useUploadQueue, type UploadItem } from "./uploads";
+import { formatDuration, isLoop } from "@/lib/video/limits";
 
 const STRIP_H = 180;
 const COLLECTIONS = [
@@ -159,11 +160,18 @@ function SlotTile({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={src} alt="" />
         )}
+        {media.kind === "video" && media.status === "ready" && (
+          <span className="a-duration-badge">
+            <span aria-hidden="true">▶ </span>
+            {formatDuration(media.duration)}
+            {isLoop(media) && " · boucle"}
+          </span>
+        )}
         {media.status !== "ready" && (
           <span className="a-slot-overlay">
             {media.status === "processing" ? (
               <>
-                <span>Traitement…</span>
+                <span>{media.kind === "video" ? (media.progress ? `Conversion… ${media.progress} %` : "Conversion en attente…") : "Traitement…"}</span>
                 <span className="a-progress" aria-hidden="true">
                   <span data-indeterminate style={{ width: "100%" }} />
                 </span>
@@ -201,7 +209,17 @@ function PendingTile({ item }: { item: UploadItem }) {
               <span>{item.message}</span>
             ) : (
               <>
-                <span>{item.phase === "waiting" ? "En attente" : item.phase === "uploading" ? `Envoi ${Math.round(item.progress * 100)} %` : "Traitement…"}</span>
+                <span>
+                  {item.phase === "waiting"
+                    ? "En attente"
+                    : item.phase === "uploading"
+                      ? item.total && item.total > 8 * 1024 * 1024
+                        ? `Envoi ${formatSent(item.sent, item.total)}`
+                        : `Envoi ${Math.round(item.progress * 100)} %`
+                      : item.video
+                        ? "Conversion…"
+                        : "Traitement…"}
+                </span>
                 <span className="a-progress" aria-hidden="true">
                   <span style={{ width: item.phase === "uploading" ? `${Math.round(item.progress * 100)}%` : "100%" }} data-indeterminate={item.phase !== "uploading" || undefined} />
                 </span>
@@ -488,7 +506,7 @@ export default function ProjectEditor({ project, library }: { project: AdminProj
           </span>
         </div>
         <p className="a-help a-panel-intro">
-          Dépose des images sur la bande pour les ajouter à la fin, ou sur un emplacement vide pour le remplir. Fais glisser par la poignée
+          Dépose des images ou des vidéos sur la bande pour les ajouter à la fin, ou sur un emplacement vide pour le remplir. Fais glisser par la poignée
           pour réordonner (clavier : Espace, flèches gauche et droite, Espace). Clique sur une image pour la modifier.
         </p>
         <div
@@ -537,7 +555,7 @@ export default function ProjectEditor({ project, library }: { project: AdminProj
                 <li className="a-strip-end">
                   <label htmlFor={fileId} className="a-strip-add">
                     <span aria-hidden="true">+</span>
-                    Ajouter des images
+                    Ajouter des images ou vidéos
                   </label>
                   <input
                     id={fileId}

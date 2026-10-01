@@ -39,7 +39,7 @@ export default function SiteHeader({
     <header
       className={`site-header sticky top-0 z-50 transition-[background-color,box-shadow,backdrop-filter] duration-500 ease-soft ${
         scrolled
-          ? "bg-bg/75 backdrop-blur-xl shadow-[0_1px_0_0_var(--color-line)]"
+          ? "bg-bg/92 backdrop-blur-xl shadow-[0_1px_0_0_var(--color-line)]"
           : "bg-transparent"
       }`}
     >

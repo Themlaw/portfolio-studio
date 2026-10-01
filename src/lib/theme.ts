@@ -31,6 +31,11 @@ export const PREVIEW_COOKIE = "theme-preview";
 /** Développement : les scripts de capture masquent le bandeau d'aperçu. */
 export const PREVIEW_BANNER_COOKIE = "theme-preview-banner";
 
+/** Développement : bandeau d'aperçu masqué pour les captures (banner=0). */
+export async function isPreviewBannerHidden(): Promise<boolean> {
+  return isThemePreviewOpen() && (await cookies()).get(PREVIEW_BANNER_COOKIE)?.value === "off";
+}
+
 /** Aperçu ouvert sans session ? (développement uniquement : scripts de test) */
 export function isThemePreviewOpen(): boolean {
   return process.env.NODE_ENV !== "production";

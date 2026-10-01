@@ -36,7 +36,7 @@ export default function Picture({
   return (
     // display: contents → l'<img> garde la mise en page et les classes prévues.
     <picture style={{ display: "contents" }}>
-      <source type="image/avif" srcSet={largest ? sources.largest.avif : sources.avif} sizes={largest ? undefined : sizes} />
+      {sources.avif && <source type="image/avif" srcSet={largest ? sources.largest.avif : sources.avif} sizes={largest ? undefined : sizes} />}
       <source type="image/webp" srcSet={largest ? sources.largest.webp : sources.webp} sizes={largest ? undefined : sizes} />
       <img
         src={sources.largest.webp}

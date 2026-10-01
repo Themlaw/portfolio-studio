@@ -34,6 +34,35 @@ export function sniffImage(head: Uint8Array): ImageType | null {
   return null;
 }
 
+export type VideoType = { container: "mov" | "matroska"; mime: string; ext: string; label: string };
+
+export const VIDEO_ACCEPTED_LABEL = "MP4, MOV, WebM";
+export const VIDEO_REJECTED_MESSAGE = `Ce type de fichier n'est pas accepté. Formats vidéo possibles : ${VIDEO_ACCEPTED_LABEL}. Images : ${ACCEPTED_LABEL}.`;
+
+/**
+ * Conteneur vidéo d'après la signature : famille ISO-BMFF (MP4, MOV : boîte
+ * ftyp, hors marques d'image AVIF/HEIF) ou EBML (WebM, Matroska). À confirmer
+ * par ffprobe (piste vidéo réelle).
+ */
+export function sniffVideo(head: Uint8Array): VideoType | null {
+  const b = head;
+  if (b.length >= 4 && b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) {
+    return { container: "matroska", mime: "video/webm", ext: "webm", label: "WebM" };
+  }
+  if (b.length >= 12 && ascii(b, 4, 8) === "ftyp") {
+    const size = (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
+    const end = Math.min(b.length, size > 0 ? size : b.length);
+    const brands: string[] = [ascii(b, 8, 12)];
+    for (let i = 16; i + 4 <= end; i += 4) brands.push(ascii(b, i, i + 4));
+    const image = ["avif", "avis", "heic", "heix", "mif1", "msf1"];
+    if (brands.every((x) => image.includes(x))) return null;
+    if (image.includes(brands[0])) return null;
+    const qt = brands[0] === "qt  ";
+    return { container: "mov", mime: qt ? "video/quicktime" : "video/mp4", ext: qt ? "mov" : "mp4", label: qt ? "MOV" : "MP4" };
+  }
+  return null;
+}
+
 /**
  * Nom d'origine affichable : sans chemin (« ../ », « C:\ »), sans caractère de
  * contrôle ni de mise en forme bidirectionnelle, 120 caractères au plus.

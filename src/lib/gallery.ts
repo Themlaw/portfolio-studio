@@ -15,7 +15,7 @@ import type { AppLocale } from "@/i18n/routing";
 import { cached, TAGS } from "./cache";
 import { getDb, schema } from "./db";
 import type { PictureSources } from "./images/variants";
-import { mediaSources, mediaUrl } from "./media";
+import { mediaSources, mediaUrl, videoView, type VideoView } from "./media";
 
 export type Collection = "characters" | "backgrounds" | "animation";
 
@@ -33,6 +33,8 @@ export type LocalizedArtwork = {
   alt: string;
   /** Variantes AVIF/WebP d'une image téléversée (absent : SVG du seed). */
   sources?: PictureSources;
+  /** Vidéo hébergée (MP4 convertis, poster, durée ; boucle si muette et courte). */
+  video?: VideoView;
   width: number;
   height: number;
   year: number;
@@ -78,6 +80,7 @@ type RawArtwork = {
   reel: boolean;
   key: string;
   sources: PictureSources | null;
+  video: VideoView | null;
   alt: L | null;
   width: number;
   height: number;
@@ -143,6 +146,7 @@ async function snapshot(): Promise<Snapshot> {
           reel: slot.reel,
           key: media!.key,
           sources: mediaSources(media!),
+          video: videoView(media!),
           alt: media!.alt ?? null,
           width: media!.width ?? 1,
           height: media!.height ?? 1,
@@ -168,6 +172,7 @@ function localize(a: RawArtwork, locale: AppLocale): LocalizedArtwork {
     featured: a.featured,
   };
   if (a.sources) out.sources = a.sources;
+  if (a.video) out.video = a.video;
   if (a.duration) out.duration = a.duration;
   if (a.videoId) out.videoId = a.videoId;
   if (a.reel) out.reel = true;

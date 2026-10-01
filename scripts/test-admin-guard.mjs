@@ -14,7 +14,7 @@ import { join, relative } from "node:path";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const DIRS = ["src/app/admin", "src/components/admin"];
-const GUARD = /^\s*(?:const\s+\w+\s*=\s*)?await\s+assertAdmin\(\)\s*;/;
+const GUARD = /^\s*(?:const\s+(?:\w+|\{[^}]*\})\s*=\s*)?await\s+assertAdmin\(\)\s*;/;
 
 function walk(dir) {
   return readdirSync(dir).flatMap((name) => {
@@ -100,6 +100,8 @@ const EXPECTED = [
   "deleteMediaAction",
   "mediaStatusAction",
   "mediaUsesAction",
+  "retryMediaAction",
+  "pendingUploadsAction",
 ];
 const found = new Set();
 

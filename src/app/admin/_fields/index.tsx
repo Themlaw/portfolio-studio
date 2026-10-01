@@ -336,6 +336,7 @@ export function MediaPicker({
   onChange,
   error,
   context,
+  kind = "image",
 }: {
   label: string;
   help?: string;
@@ -343,11 +344,13 @@ export function MediaPicker({
   onChange: (v: number | undefined) => void;
   error?: string;
   context: EditorContext;
+  /** Type de média proposé. */
+  kind?: "image" | "video";
 }) {
   const [open, setOpen] = useState(false);
   const current = context.media.find((m) => m.id === value);
   return (
-    <Field label={label} help={help ?? "Choisis une image de la médiathèque, ou envoies-en une nouvelle."} error={error}>
+    <Field label={label} help={help ?? (kind === "video" ? "Choisis une vidéo de la médiathèque, ou envoies-en une nouvelle." : "Choisis une image de la médiathèque, ou envoies-en une nouvelle.")} error={error}>
       <div className="a-media-field">
         <span className="a-media-field-thumb">
           {current?.thumb ? (
@@ -359,7 +362,7 @@ export function MediaPicker({
         </span>
         <span className="a-media-field-name">{current?.name ?? (value ? `Image n° ${value}` : "")}</span>
         <button type="button" className="a-btn a-btn-small" onClick={() => setOpen(true)}>
-          {value ? "Changer d'image" : "Choisir une image"}
+          {kind === "video" ? (value ? "Changer de vidéo" : "Choisir une vidéo") : value ? "Changer d'image" : "Choisir une image"}
         </button>
         {value !== undefined && (
           <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => onChange(undefined)}>
@@ -369,8 +372,9 @@ export function MediaPicker({
       </div>
       <MediaPickerDialog
         open={open}
-        media={context.media}
+        media={context.media.filter((m) => m.kind === kind)}
         title={label}
+        confirmLabel={kind === "video" ? "Utiliser cette vidéo" : "Utiliser cette image"}
         onClose={() => setOpen(false)}
         onPick={(m) => {
           onChange(m.id);

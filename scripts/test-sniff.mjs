@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Détection de type par signature et nettoyage des noms (src/lib/upload/sniff.ts). */
-const { sniffImage, cleanFilename } = await import(new URL("../src/lib/upload/sniff.ts", import.meta.url));
+const { sniffImage, sniffVideo, cleanFilename } = await import(new URL("../src/lib/upload/sniff.ts", import.meta.url));
 
 let failures = 0;
 const ok = (label, cond, detail = "") => {
@@ -21,6 +21,12 @@ ok("SVG avec BOM/espaces refusé", sniffImage(bytes([0xef, 0xbb, 0xbf], '  <?xml
 ok("HTML refusé", sniffImage(bytes("<!doctype html><script>alert(1)</script>")) === null);
 ok("RIFF non WebP (WAV) refusé", sniffImage(bytes("RIFF", [0, 0, 0, 0], "WAVEfmt ")) === null);
 ok("vide refusé", sniffImage(new Uint8Array()) === null);
+ok("vidéo MP4 (isom)", sniffVideo(bytes([0, 0, 0, 0x20], "ftypisom", [0, 0, 2, 0], "isomiso2avc1mp41"))?.container === "mov");
+ok("vidéo MOV (qt)", sniffVideo(bytes([0, 0, 0, 0x14], "ftypqt  ", [0, 0, 0, 0], "qt  "))?.ext === "mov");
+ok("vidéo WebM (EBML)", sniffVideo(bytes([0x1a, 0x45, 0xdf, 0xa3, 0x9f, 0x42, 0x86, 0x81]))?.container === "matroska");
+ok("AVIF n'est pas une vidéo", sniffVideo(bytes([0, 0, 0, 0x1c], "ftypavif", [0, 0, 0, 0], "avifmif1miaf")) === null);
+ok("WAV n'est pas une vidéo", sniffVideo(bytes("RIFF", [0, 0, 0, 0], "WAVEfmt ")) === null);
+ok("JPEG n'est pas une vidéo", sniffVideo(bytes([0xff, 0xd8, 0xff, 0xe0])) === null);
 ok("nom : chemin retiré", cleanFilename("../../etc/passwd") === "passwd");
 ok("nom : chemin Windows retiré", cleanFilename("C:\\Users\\x\\photo.jpg") === "photo.jpg");
 ok("nom : caractères de contrôle retirés", cleanFilename("pho\u0000to\n\u202e.jpg") === "photo.jpg");

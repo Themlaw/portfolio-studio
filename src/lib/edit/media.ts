@@ -27,6 +27,21 @@ export function saveMediaAlt(id: number, input: unknown): ActionResult<null> {
   return done(null);
 }
 
+/** Relance le traitement d'un média en échec (l'original doit être encore là). */
+export async function retryMedia(id: number): Promise<ActionResult<null>> {
+  const db = getDb();
+  const media = db.select().from(schema.media).where(eq(schema.media.id, id)).get();
+  if (!media) return fail("Ce média n'existe plus.");
+  if (media.status !== "failed") return fail("Ce média n'est pas en échec.");
+  if (!(await getStorage().stat(media.key))) return fail("Le fichier d'origine n'est plus disponible : supprime ce média et renvoie le fichier.");
+  db.transaction((tx) => {
+    tx.update(schema.media).set({ status: "processing", error: null }).where(eq(schema.media.id, id)).run();
+    tx.delete(schema.jobs).where(eq(schema.jobs.mediaId, id)).run();
+    tx.insert(schema.jobs).values({ kind: media.kind, mediaId: id }).run();
+  });
+  return done(null);
+}
+
 export type MediaBlockUse = { pageId: number; pageTitle: string; blockType: string };
 
 export async function deleteMedia(

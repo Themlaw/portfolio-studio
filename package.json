@@ -12,12 +12,13 @@
     "check:contrast": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-contrast.mjs",
     "check:contrast:render": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-contrast-render.mjs",
     "shots:themes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/theme-shots.mjs",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-references.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-sniff.mjs && node scripts/test-admin-guard.mjs",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-references.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-sniff.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-ffmpeg-args.mjs && node scripts/test-admin-guard.mjs",
     "test:auth": "node scripts/test-auth.mjs",
     "shots:admin": "node scripts/admin-shots.mjs",
-    "test:e2e": "node scripts/e2e-admin.mjs && node scripts/e2e-planche.mjs",
+    "test:e2e": "node scripts/e2e-admin.mjs && node scripts/e2e-planche.mjs && node scripts/e2e-video.mjs",
     "shots:editors": "node scripts/editor-shots.mjs",
-    "shots:planche": "node scripts/planche-shots.mjs"
+    "shots:planche": "node scripts/planche-shots.mjs",
+    "shots:video": "node scripts/video-shots.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

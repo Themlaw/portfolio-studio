@@ -125,6 +125,12 @@ export type AdminMediaRow = {
   preview: string | null;
   color: string | null;
   uses: number;
+  kind: "image" | "video";
+  /** Vidéo : durée (s), son, avancement de la conversion (0–100), fichier lisible. */
+  duration: number | null;
+  hasAudio: boolean | null;
+  progress: number | null;
+  videoSrc: string | null;
 };
 
 /** Vignette d'un média : plus petite variante WebP, sinon le fichier lui-même (seed). */
@@ -136,8 +142,9 @@ function thumbUrl(m: { key: string; status: string; variants: unknown }): string
   return mediaUrl(webp[0].key);
 }
 
-function toRow(m: typeof schema.media.$inferSelect, uses: number): AdminMediaRow {
+function toRow(m: typeof schema.media.$inferSelect, uses: number, progress: number | null = null): AdminMediaRow {
   const variants = parseVariants(m.variants);
+  const mp4 = variants?.files.filter((f) => f.format === "mp4").sort((a, b) => a.h - b.h)[0];
   const largest = variants?.files.filter((f) => f.format === "webp").sort((a, b) => b.w - a.w)[0];
   return {
     id: m.id,
@@ -154,7 +161,24 @@ function toRow(m: typeof schema.media.$inferSelect, uses: number): AdminMediaRow
     preview: largest ? mediaUrl(largest.key) : thumbUrl(m),
     color: m.dominantColor,
     uses,
+    kind: m.kind,
+    duration: m.duration,
+    hasAudio: m.hasAudio,
+    progress: m.status === "processing" ? progress : null,
+    videoSrc: mp4 ? mediaUrl(mp4.key) : null,
   };
+}
+
+/** Avancement des jobs en cours, par média. */
+function jobProgress(): Map<number, number> {
+  return new Map(
+    getDb()
+      .select({ mediaId: schema.jobs.mediaId, progress: schema.jobs.progress, status: schema.jobs.status })
+      .from(schema.jobs)
+      .all()
+      .filter((j) => j.status === "queued" || j.status === "running")
+      .map((j) => [j.mediaId, j.progress]),
+  );
 }
 
 export function listMediaForAdmin(): AdminMediaRow[] {
@@ -163,6 +187,7 @@ export function listMediaForAdmin(): AdminMediaRow[] {
   for (const s of db.select({ mediaId: schema.slots.mediaId }).from(schema.slots).all()) {
     if (s.mediaId) slotUses.set(s.mediaId, (slotUses.get(s.mediaId) ?? 0) + 1);
   }
+  const progress = jobProgress();
   const blockUses = new Map<number, number>();
   for (const b of db.select().from(schema.blocks).all()) {
     for (const id of extractRefs(b.type, parseJson(b.props)).media) blockUses.set(id, (blockUses.get(id) ?? 0) + 1);
@@ -172,7 +197,7 @@ export function listMediaForAdmin(): AdminMediaRow[] {
     .from(schema.media)
     .orderBy(desc(schema.media.id))
     .all()
-    .map((m) => toRow(m, (slotUses.get(m.id) ?? 0) + (blockUses.get(m.id) ?? 0)));
+    .map((m) => toRow(m, (slotUses.get(m.id) ?? 0) + (blockUses.get(m.id) ?? 0), progress.get(m.id) ?? null));
 }
 
 export type MediaUseRow =
@@ -222,6 +247,7 @@ export function getProjectForEdit(id: number): AdminProjectEdit | null {
   if (!p) return null;
   const media = new Map(db.select().from(schema.media).all().map((m) => [m.id, m]));
   const slots = db.select().from(schema.slots).where(eq(schema.slots.projectId, id)).orderBy(asc(schema.slots.position)).all();
+  const progressMap = jobProgress();
   return {
     id: p.id,
     slug: p.slug,
@@ -241,7 +267,7 @@ export function getProjectForEdit(id: number): AdminProjectEdit | null {
         year: s.year,
         featured: s.featured,
         aspect: s.aspect,
-        media: m ? toRow(m, 0) : null,
+        media: m ? toRow(m, 0, progressMap.get(m.id) ?? null) : null,
       };
     }),
   };
@@ -332,7 +358,7 @@ export function getEditorContext() {
       .orderBy(asc(schema.projects.position))
       .all()
       .map((p) => ({ slug: p.slug, title: p.title.fr })),
-    media: listMediaForAdmin().filter((m) => m.mime.startsWith("image/") && m.status !== "failed"),
+    media: listMediaForAdmin().filter((m) => m.status !== "failed"),
   };
 }
 

@@ -1,6 +1,8 @@
 "use client";
 
 import Picture from "./Picture";
+import { useReducedMotion } from "./LoopVideo";
+import Video from "./Video";
 import { useCallback, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
@@ -27,6 +29,7 @@ export default function Lightbox({
   onIndexChange: (index: number) => void;
   onClose: () => void;
 }) {
+  const reduced = useReducedMotion();
   const t = useTranslations("gallery");
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const thumbRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -125,16 +128,30 @@ export default function Lightbox({
 
         <figure className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-4">
           <div className="mat lightbox-frame max-h-[62vh] max-w-full overflow-hidden">
-            <Picture
-              src={active.image}
-              sources={active.sources}
-              alt={active.alt}
-              width={active.width}
-              height={active.height}
-              className="lightbox-image max-h-[44vh] w-auto max-w-full object-contain md:max-h-[56vh]"
-              priority
-              largest
-            />
+            {active.video ? (
+              <Video
+                key={active.id}
+                video={active.video}
+                width={active.width}
+                height={active.height}
+                className="lightbox-image max-h-[44vh] w-auto max-w-full object-contain md:max-h-[56vh]"
+                autoPlay={active.video.loop && !reduced}
+                muted={active.video.loop}
+                loop={active.video.loop}
+                label={active.title || active.alt}
+              />
+            ) : (
+              <Picture
+                src={active.image}
+                sources={active.sources}
+                alt={active.alt}
+                width={active.width}
+                height={active.height}
+                className="lightbox-image max-h-[44vh] w-auto max-w-full object-contain md:max-h-[56vh]"
+                priority
+                largest
+              />
+            )}
           </div>
         </figure>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Picture from "./Picture";
+import Video from "./Video";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -36,7 +37,16 @@ function Frame({
   return (
     <div className="mat">
       <div className="relative aspect-video w-full overflow-hidden rounded-[2px] bg-scrim">
-        {playing && item.videoId ? (
+        {playing && item.video ? (
+          <Video
+            video={item.video}
+            width={item.width}
+            height={item.height}
+            className="absolute inset-0 h-full w-full bg-scrim object-contain"
+            autoPlay
+            label={item.title}
+          />
+        ) : playing && item.videoId ? (
           <iframe
             className="absolute inset-0 h-full w-full"
             src={`https://www.youtube-nocookie.com/embed/${item.videoId}?autoplay=1&rel=0`}

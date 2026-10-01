@@ -19,8 +19,8 @@
  *  E. secret absent / trop court en production → arrêt explicite.
  * Usage : npm run test:auth   (exit 1 si un test échoue)
  */
-import { spawn } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
 
 import Database from "better-sqlite3";
@@ -55,6 +55,13 @@ function prepareStandalone() {
 }
 
 /** Démarre le serveur ; `ready` résout quand /fr répond, ou quand le processus sort. */
+/* Serveurs lancés : arrêtés à la sortie, même sur une exception (port libre au run suivant). */
+const servers = new Set();
+process.on("exit", () => {
+  for (const c of servers) if (c.exitCode === null) c.kill("SIGKILL");
+  spawnSync("pkill", ["-KILL", "-x", "ffmpeg"]);
+});
+
 function startServer(dataDir, env) {
   mkdirSync(dataDir, { recursive: true });
   const logs = [];
@@ -71,6 +78,7 @@ function startServer(dataDir, env) {
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
+  servers.add(child);
   child.stdout.on("data", (d) => logs.push(String(d)));
   child.stderr.on("data", (d) => logs.push(String(d)));
   const exited = new Promise((resolve) => child.on("exit", (code) => resolve(code)));
@@ -171,6 +179,8 @@ const ADMIN_ACTIONS = [
   "deleteMediaAction",
   "mediaStatusAction",
   "mediaUsesAction",
+  "retryMediaAction",
+  "pendingUploadsAction",
 ];
 
 /** Identifiants des server actions, lus dans le manifeste du build. */
@@ -464,7 +474,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /Settings/.test(name) ? "/admin/reglages"
     : /^(create|delete|reorder)Projects?Action$/.test(name) ? "/admin/projets"
     : /Project|Slot/.test(name) ? "/admin/projets/1"
-    : /^media|Media/.test(name) ? "/admin/medias"
+    : /^media|Media|Uploads/.test(name) ? "/admin/medias"
     : "/admin/pages";
   const res = await callActionJson(forged, ids[name], ["x", {}], screen);
   ok(`A10 ${name} avec un cookie forgé → 403`, res.status === 403, `${res.status} ${res.text.slice(0, 120)}`);
@@ -1187,6 +1197,387 @@ ok(
 h.server = h2.server;
 ok("H2 occupation affichée dans la médiathèque", /Espace utilisé/.test(lib) && /sur/.test(lib));
 await stop(h.server);
+
+
+console.log("\n== V. vidéo : envoi par morceaux, conversion, limites");
+/* Sources légitimes générées par ffmpeg (testsrc2, sine) : aucun fichier piégé. */
+const VID = `${TMP}/sources`;
+mkdirSync(VID, { recursive: true });
+function ff(args) {
+  const r = spawnSync("ffmpeg", ["-nostdin", "-loglevel", "error", "-y", ...args], { encoding: "utf8" });
+  if (r.status !== 0) throw new Error(`ffmpeg : ${r.stderr}`);
+}
+function probe(file) {
+  const r = spawnSync("ffprobe", ["-v", "error", "-show_format", "-show_streams", "-of", "json", file], { encoding: "utf8" });
+  return JSON.parse(r.stdout);
+}
+const src = (n) => path.join(VID, n);
+ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=25", "-f", "lavfi", "-i", "sine=frequency=440", "-t", "6", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", "-metadata", "title=Titre privé", "-metadata", "location=+48.8566+002.3522/", "-metadata", "creation_time=2024-01-01T00:00:00Z", src("base.mp4")]);
+ff(["-display_rotation", "90", "-i", src("base.mp4"), "-c", "copy", src("tourne.mp4")]);
+ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=25", "-t", "6", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "45", "-pix_fmt", "yuv420p", src("petite.mp4")]);
+ff(["-f", "lavfi", "-i", "sine=frequency=440", "-t", "3", src("son.wav")]);
+ff(["-f", "lavfi", "-i", "sine=frequency=440", "-t", "3", "-c:a", "aac", "-f", "mp4", src("son-seul.mp4")]);
+ff(["-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30", "-t", "4", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", src("boucle-720.mp4")]);
+ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=25", "-t", "4", "-c:v", "libvpx-vp9", "-deadline", "realtime", "-cpu-used", "8", "-b:v", "300k", src("clip.webm")]);
+
+/** Envoi par morceaux complet (init → morceaux → complete). */
+async function chunked(j, file, name, type = "video/mp4", { chunk = 1024 * 1024, origin = BASE } = {}) {
+  const data = readFileSync(file);
+  const head = { cookie: j.header(), origin };
+  const init = await fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { ...head, "content-type": "application/json" }, body: JSON.stringify({ name, size: data.length, type }) });
+  const ib = await init.json().catch(() => ({}));
+  if (init.status !== 200) return { stage: "init", status: init.status, body: ib };
+  const id = ib.upload.id;
+  for (let offset = 0; offset < data.length; ) {
+    const part = data.subarray(offset, offset + chunk);
+    const r = await fetch(`${BASE}/admin/api/upload/${id}/chunk?offset=${offset}`, { method: "PUT", headers: { ...head, "content-length": String(part.length) }, body: part });
+    const b = await r.json().catch(() => ({}));
+    if (r.status !== 200) return { stage: "chunk", status: r.status, body: b, id };
+    offset = b.upload.offset;
+  }
+  const done = await fetch(`${BASE}/admin/api/upload/${id}/complete`, { method: "POST", headers: head });
+  return { stage: "complete", status: done.status, body: await done.json().catch(() => ({})), id };
+}
+const statSize = (f) => statSync(f).size;
+const initP2 = (j, size) =>
+  fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { cookie: j.header(), origin: BASE, "content-type": "application/json" }, body: JSON.stringify({ name: "r.mp4", size, type: "video/mp4" }) });
+const serverLog = (srv, re) => [...srv.text().matchAll(re)].map((m) => m[0]);
+
+// ---- V1 : serveur par défaut --------------------------------------------------------
+const dirV = `${TMP}/v1`;
+let v = await freshAdmin(dirV);
+const jarV = v.jar;
+const sample = readFileSync(src("base.mp4"));
+// Garde des 5 routes : sans session et depuis une autre origine.
+const okInit = await fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { cookie: jarV.header(), origin: BASE, "content-type": "application/json" }, body: JSON.stringify({ name: "garde.mp4", size: sample.length, type: "video/mp4" }) });
+const gid = (await okInit.json()).upload?.id;
+const routes = [
+  ["POST", "/admin/api/upload/init", JSON.stringify({ name: "x.mp4", size: 10, type: "video/mp4" })],
+  ["PUT", `/admin/api/upload/${gid}/chunk?offset=0`, "x"],
+  ["GET", `/admin/api/upload/${gid}/status`, undefined],
+  ["POST", `/admin/api/upload/${gid}/complete`, undefined],
+  ["DELETE", `/admin/api/upload/${gid}`, undefined],
+];
+const guardRes = [];
+for (const [method, url, body] of routes) {
+  const anon = await fetch(`${BASE}${url}`, { method, headers: { origin: BASE }, body });
+  const cross = await fetch(`${BASE}${url}`, { method, headers: { cookie: jarV.header(), origin: "https://site-malveillant.example" }, body });
+  guardRes.push(`${method} ${url.split("/").slice(4).join("/") || "init"} : ${anon.status}/${cross.status}`);
+  ok(`V1 ${method} ${url.replace(gid, "<id>")} : sans session → 403, autre origine → 403`, anon.status === 403 && cross.status === 403, `${anon.status}/${cross.status}`);
+}
+// Offset décalé, coupure, reprise.
+const H = { cookie: jarV.header(), origin: BASE };
+const half = Math.floor(sample.length / 2);
+let rv = await fetch(`${BASE}/admin/api/upload/${gid}/chunk?offset=1000`, { method: "PUT", headers: { ...H, "content-length": "10" }, body: Buffer.alloc(10) });
+ok("V2 morceau à un offset décalé → 409 (offset attendu dans le message)", rv.status === 409 && /octet 0/.test((await rv.json()).message ?? ""));
+rv = await fetch(`${BASE}/admin/api/upload/${gid}/chunk?offset=0`, { method: "PUT", headers: { ...H, "content-length": String(half) }, body: sample.subarray(0, half) });
+// Coupure réseau en plein morceau : la moitié du second morceau, puis la connexion tombe.
+await new Promise((resolve) => {
+  const req = httpRequest({ host: "127.0.0.1", port: PORT, path: `/admin/api/upload/${gid}/chunk?offset=${half}`, method: "PUT", headers: { ...H, "content-length": String(sample.length - half) } }, () => resolve());
+  req.on("error", () => resolve());
+  req.write(sample.subarray(half, half + 100_000));
+  setTimeout(() => {
+    req.destroy();
+    resolve();
+  }, 500);
+});
+await sleep(800);
+let st = await (await fetch(`${BASE}/admin/api/upload/${gid}/status`, { headers: H })).json();
+ok(`V3 coupure en plein morceau : le serveur reste à l'offset confirmé (${st.upload?.offset})`, st.upload?.offset === half, JSON.stringify(st).slice(0, 120));
+rv = await fetch(`${BASE}/admin/api/upload/${gid}/chunk?offset=${half}`, { method: "PUT", headers: { ...H, "content-length": String(sample.length - half) }, body: sample.subarray(half) });
+const resumed = await fetch(`${BASE}/admin/api/upload/${gid}/complete`, { method: "POST", headers: H });
+const rb = await resumed.json();
+const baseRow = rb.media?.id ? await waitMedia(dirV, rb.media.id, 120000) : null;
+ok("V4 reprise après coupure : envoi terminé, vidéo convertie", rv.status === 200 && resumed.status === 200 && baseRow?.status === "ready", `${rv.status} ${resumed.status} ${baseRow?.status} ${baseRow?.error ?? ""}`);
+// Aucune métadonnée, original supprimé (KEEP_VIDEO_ORIGINALS=false par défaut).
+const baseFiles = baseRow?.variants ? JSON.parse(baseRow.variants).files : [];
+const mp4s = baseFiles.filter((f) => f.format === "mp4");
+let clean = mp4s.length > 0;
+for (const f of mp4s) {
+  const out = path.join(dirV, "media", f.key);
+  const p = probe(out);
+  const ftags = Object.keys(p.format.tags ?? {});
+  const all = [p.format.tags ?? {}, ...p.streams.map((x) => x.tags ?? {})].flatMap((t) => Object.entries(t));
+  const leaks = all.filter(([k, val]) => /title|location|creation_time|comment|artist|com\.apple/i.test(k) || /Titre privé|48\.85/.test(String(val)));
+  if (leaks.length || ftags.some((k) => !["major_brand", "minor_version", "compatible_brands"].includes(k))) clean = false;
+}
+ok("V5 sorties sans métadonnées (titre, lieu, date retirés ; balises de format limitées à la structure MP4)", clean, JSON.stringify(mp4s.map((f) => f.key)));
+const origKey = query(dirV, "select key from media where id = ?", rb.media?.id)?.key;
+ok("V6 original supprimé après conversion (KEEP_VIDEO_ORIGINALS=false)", origKey && !existsSync(path.join(dirV, "media", origKey)) && serverLog(v.server, /original supprimé/g).length > 0);
+// Rotation appliquée.
+const rot = await chunked(jarV, src("tourne.mp4"), "tourne.mp4");
+const rotRow = rot.body.media?.id ? await waitMedia(dirV, rot.body.media.id, 120000) : null;
+const rotOut = rotRow?.variants ? JSON.parse(rotRow.variants).files.find((f) => f.format === "mp4") : null;
+const rotProbe = rotOut ? probe(path.join(dirV, "media", rotOut.key)) : null;
+const rotStream = rotProbe?.streams.find((x) => x.codec_type === "video");
+ok(
+  "V7 rotation appliquée : 640 × 360 tourné d'un quart → sortie 360 × 640, sans matrice d'affichage",
+  rotStream?.width === 360 && rotStream?.height === 640 && !(rotStream?.side_data_list ?? []).some((d) => d.side_data_type === "Display Matrix"),
+  JSON.stringify({ w: rotStream?.width, h: rotStream?.height, sd: rotStream?.side_data_list }),
+);
+// WebM accepté, faux types refusés.
+const webm = await chunked(jarV, src("clip.webm"), "clip.webm", "video/webm");
+const webmRow = webm.body.media?.id ? await waitMedia(dirV, webm.body.media.id, 120000) : null;
+ok("V8 WebM (VP9) accepté et converti en MP4", webmRow?.status === "ready", `${webm.status} ${webmRow?.status}`);
+const wav = await chunked(jarV, src("son.wav"), "musique.mp4");
+ok("V9 fichier audio WAV nommé .mp4 → refusé par la signature (415)", wav.stage === "complete" && wav.status === 415 && /pas accepté/.test(wav.body.message ?? ""), `${wav.stage} ${wav.status}`);
+const audioOnly = await chunked(jarV, src("son-seul.mp4"), "clip.mp4");
+ok("V10 MP4 sans piste vidéo (son seul) → refusé par ffprobe (422)", audioOnly.status === 422 && /piste vidéo/.test(audioOnly.body.message ?? ""), `${audioOnly.status} ${audioOnly.body.message}`);
+// Envoi abandonné purgé (24 h).
+const stale = await fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { ...H, "content-type": "application/json" }, body: JSON.stringify({ name: "oubli.mp4", size: 5000, type: "video/mp4" }) });
+const staleId = (await stale.json()).upload.id;
+await stop(v.server);
+{
+  const db = new Database(path.join(dirV, "portfolio.db"));
+  db.prepare("update uploads set updated_at = ? where id = ?").run(Math.floor(Date.now() / 1000) - 25 * 3600, staleId);
+  db.close();
+}
+v = { server: startServer(dirV, baseEnvF) };
+await v.server.ready;
+await sleep(800);
+ok("V11 envoi abandonné depuis plus de 24 h : purgé au démarrage (ligne et fichier partiel)", !query(dirV, "select id from uploads where id = ?", staleId) && !existsSync(path.join(dirV, "tmp", "uploads", `${staleId}.part`)));
+await stop(v.server);
+
+// ---- Limites : durée, dimensions, poids ----------------------------------------------
+for (const [label, env, file, expect] of [
+  ["V12 vidéo trop longue (6 s pour MAX_VIDEO_DURATION_S=3)", { MAX_VIDEO_DURATION_S: "3" }, "petite.mp4", { status: 422, re: /dure .* au plus/ }],
+  ["V13 vidéo trop grande (640 px pour MAX_VIDEO_DIMENSION=320)", { MAX_VIDEO_DIMENSION: "320" }, "petite.mp4", { status: 422, re: /trop grande .* 320 px/ }],
+  ["V14 vidéo trop lourde (1,4 Mo pour MAX_VIDEO_MB=1) : refus dès l'annonce", { MAX_VIDEO_MB: "1" }, "base.mp4", { status: 413, re: /dépasse 1 Mo/, stage: "init" }],
+]) {
+  const dir = `${TMP}/vl-${file}-${Object.keys(env)[0]}`;
+  const l = await freshAdmin(dir, env);
+  const res = await chunked(l.jar, src(file), file);
+  ok(`${label} → ${expect.status}, message clair`, res.status === expect.status && expect.re.test(res.body.message ?? "") && (!expect.stage || res.stage === expect.stage) && query(dir, "select count(*) n from media where kind = 'video'").n === 0, `${res.stage} ${res.status} ${res.body.message}`);
+  await stop(l.server);
+}
+
+// ---- Quota dépassé en cours d'envoi ---------------------------------------------------
+const dirQ = `${TMP}/vq`;
+let q = await freshAdmin(dirQ);
+const usedQ = query(dirQ, "select sum(size) n from media").n;
+await stop(q.server);
+q = await freshAdmin(dirQ, { MEDIA_MAX_TOTAL_GB: String((usedQ + 3 * 1024 * 1024) / 1024 ** 3) });
+const big = readFileSync(src("base.mp4"));
+const qi = await fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { cookie: q.jar.header(), origin: BASE, "content-type": "application/json" }, body: JSON.stringify({ name: "q.mp4", size: big.length, type: "video/mp4" }) });
+const qid = (await qi.json()).upload?.id;
+await stop(q.server);
+// L'espace se réduit pendant l'envoi (quota abaissé, ou autre contenu ajouté).
+q = { server: startServer(dirQ, { ...baseEnvF, MEDIA_MAX_TOTAL_GB: String((usedQ + 512 * 1024) / 1024 ** 3) }), jar: q.jar };
+await q.server.ready;
+const qc = await fetch(`${BASE}/admin/api/upload/${qid}/chunk?offset=0`, { method: "PUT", headers: { cookie: q.jar.header(), origin: BASE, "content-length": String(1024 * 1024) }, body: big.subarray(0, 1024 * 1024) });
+const qcb = await qc.json();
+ok("V15 quota dépassé en cours d'envoi → morceau refusé (507), rien d'écrit", qi.status === 200 && qc.status === 507 && /espace de stockage est plein/.test(qcb.message ?? "") && query(dirQ, "select offset from uploads where id = ?", qid)?.offset === 0, `${qi.status} ${qc.status}`);
+await stop(q.server);
+
+// ---- Passe 5b : protocole d'envoi, propriété, codecs, conversion -------------------------
+ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=25", "-t", "3", "-c:v", "mjpeg", "-f", "mov", src("mjpeg.mov")]);
+ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=25", "-t", "3", "-c:v", "ffv1", src("ffv1.mkv")]);
+ff(["-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30", "-f", "lavfi", "-i", "sine=frequency=220", "-t", "20", "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-x264-params", "rc-lookahead=10:sync-lookahead=0", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", src("hd-20s.mp4")]);
+const dirP = `${TMP}/vp`;
+let pv = await freshAdmin(dirP);
+const HP = { cookie: pv.jar.header(), origin: BASE };
+const initP = async (size, name = "p.mp4", j = pv.jar) =>
+  fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { cookie: j.header(), origin: BASE, "content-type": "application/json" }, body: JSON.stringify({ name, size, type: "video/mp4" }) });
+const putP = (id, offset, body, headers = {}) => fetch(`${BASE}/admin/api/upload/${id}/chunk${offset === undefined ? "" : `?offset=${offset}`}`, { method: "PUT", headers: { ...HP, ...headers }, body });
+const two = readFileSync(src("base.mp4"));
+let pid1 = (await (await initP(two.length)).json()).upload.id;
+// Deux PUT simultanés au même offset : un seul passe.
+const [pa, pb] = await Promise.all([putP(pid1, 0, two.subarray(0, 600_000), { "content-length": "600000" }), putP(pid1, 0, two.subarray(0, 600_000), { "content-length": "600000" })]);
+const partSize = statSize(path.join(dirP, "tmp", "uploads", `${pid1}.part`));
+ok("P1 deux PUT simultanés : 200 + 409, fichier partiel de la bonne taille", [pa.status, pb.status].sort().join(",") === "200,409" && partSize === 600_000, `${pa.status},${pb.status} ${partSize}`);
+let r5 = await fetch(`${BASE}/admin/api/upload/${pid1}/complete`, { method: "POST", headers: HP });
+ok("P2 complete avant la fin de l'envoi → 409", r5.status === 409, String(r5.status));
+const noLen = await new Promise((resolve) => {
+  const req = httpRequest({ host: "127.0.0.1", port: PORT, path: `/admin/api/upload/${pid1}/chunk?offset=600000`, method: "PUT", headers: { ...HP, "transfer-encoding": "chunked" } }, (res) => resolve(res.statusCode));
+  req.on("error", () => resolve(-1));
+  req.end(Buffer.alloc(10));
+});
+// Longueur annoncée ≠ corps envoyé : requête brute (fetch refuse de l'émettre). Le serveur répond sans attendre le corps.
+const rawPut = (pathname, length) =>
+  new Promise((resolve) => {
+    const req = httpRequest({ host: "127.0.0.1", port: PORT, path: pathname, method: "PUT", headers: { ...HP, "content-length": String(length) } }, (res) => {
+      res.resume();
+      resolve({ status: res.statusCode });
+      req.destroy();
+    });
+    req.on("error", () => resolve({ status: -1 }));
+    req.write(Buffer.alloc(10));
+  });
+const tooLong = await rawPut(`/admin/api/upload/${pid1}/chunk?offset=600000`, 9 * 1024 * 1024);
+const beyond = await rawPut(`/admin/api/upload/${pid1}/chunk?offset=600000`, two.length);
+ok("P3 Content-Length absent, > 8 Mo ou au-delà de la taille annoncée → 400", noLen === 400 && tooLong.status === 400 && beyond.status === 400, `${noLen} ${tooLong.status} ${beyond.status}`);
+const noOff = await putP(pid1, undefined, Buffer.alloc(10), { "content-length": "10" });
+const badOff = await fetch(`${BASE}/admin/api/upload/${pid1}/chunk?offset=abc`, { method: "PUT", headers: { ...HP, "content-length": "10" }, body: Buffer.alloc(10) });
+const emptyOff = await fetch(`${BASE}/admin/api/upload/${pid1}/chunk?offset=`, { method: "PUT", headers: { ...HP, "content-length": "10" }, body: Buffer.alloc(10) });
+ok("P4 offset absent, vide ou non numérique → 400", noOff.status === 400 && badOff.status === 400 && emptyOff.status === 400, `${noOff.status} ${badOff.status} ${emptyOff.status}`);
+await putP(pid1, 600000, two.subarray(600000), { "content-length": String(two.length - 600000) });
+r5 = await fetch(`${BASE}/admin/api/upload/${pid1}/complete`, { method: "POST", headers: HP });
+const firstId = (await r5.json()).media?.id;
+const r6 = await fetch(`${BASE}/admin/api/upload/${pid1}/complete`, { method: "POST", headers: HP });
+ok("P5 complete appelé deux fois : 404 la seconde fois, aucun doublon", r5.status === 200 && r6.status === 404 && query(dirP, "select count(*) n from media where kind = 'video'").n === 1, `${r5.status} ${r6.status}`);
+const dup = await chunked(pv.jar, src("base.mp4"), "copie.mp4");
+ok("P6 même vidéo renvoyée sous un autre nom → même média", dup.status === 200 && dup.body.media?.id === firstId && query(dirP, "select count(*) n from media where kind = 'video'").n === 1, `${dup.status} ${dup.body.media?.id}/${firstId}`);
+for (const [label, id] of [["non UUID", "pas-un-uuid"], ["inconnu", "00000000-0000-4000-8000-000000000000"]]) {
+  const st5 = await fetch(`${BASE}/admin/api/upload/${id}/status`, { headers: HP });
+  ok(`P7 identifiant ${label} → 404`, st5.status === 404, String(st5.status));
+}
+// Un autre administrateur ne voit pas l'envoi.
+{
+  const { hashPassword } = await import("better-auth/crypto");
+  const db = new Database(path.join(dirP, "portfolio.db"));
+  const uid = "second-admin";
+  const now = Date.now();
+  db.prepare("insert into user (id, name, email, email_verified, created_at, updated_at) values (?, ?, ?, 1, ?, ?)").run(uid, "second", "second@example.test", now, now);
+  db.prepare("insert into account (id, account_id, provider_id, user_id, password, created_at, updated_at) values (?, ?, 'credential', ?, ?, ?, ?)").run("acc-second", uid, uid, await hashPassword("second-mot-de-passe-42"), now, now);
+  db.close();
+}
+const other = new Jar();
+await signIn(other, "second@example.test", "second-mot-de-passe-42", "198.51.100.200");
+const mine = (await (await initP(1000)).json()).upload.id;
+const theirs = [
+  await fetch(`${BASE}/admin/api/upload/${mine}/status`, { headers: { cookie: other.header(), origin: BASE } }),
+  await fetch(`${BASE}/admin/api/upload/${mine}/chunk?offset=0`, { method: "PUT", headers: { cookie: other.header(), origin: BASE, "content-length": "10" }, body: Buffer.alloc(10) }),
+  await fetch(`${BASE}/admin/api/upload/${mine}/complete`, { method: "POST", headers: { cookie: other.header(), origin: BASE } }),
+  await fetch(`${BASE}/admin/api/upload/${mine}`, { method: "DELETE", headers: { cookie: other.header(), origin: BASE } }),
+];
+ok("P8 envoi d'un autre administrateur : statut, morceau, fin et annulation refusés (404)", theirs.every((x) => x.status === 404) && Boolean(query(dirP, "select id from uploads where id = ?", mine)), theirs.map((x) => x.status).join(","));
+await fetch(`${BASE}/admin/api/upload/${mine}`, { method: "DELETE", headers: HP });
+// Codecs hors liste blanche.
+const mj = await chunked(pv.jar, src("mjpeg.mov"), "mjpeg.mov", "video/quicktime");
+const fv = await chunked(pv.jar, src("ffv1.mkv"), "ffv1.mkv", "video/x-matroska");
+ok("P9 codec vidéo hors liste blanche (MJPEG, FFV1) → 422 « Exporte en H.264 ou ProRes »", mj.status === 422 && /codec vidéo .*\(mjpeg\).*H\.264 ou ProRes/.test(mj.body.message ?? "") && fv.status === 422 && /\(ffv1\)/.test(fv.body.message ?? ""), `${mj.status} ${mj.body.message} | ${fv.status} ${fv.body.message}`);
+// Range sur la sortie 720 et sur le poster.
+await waitMedia(dirP, firstId, 120000);
+const outs = JSON.parse(query(dirP, "select variants from media where id = ?", firstId).variants).files;
+for (const f of [outs.find((x) => x.key.endsWith("/720.mp4")), outs.find((x) => x.format === "webp")]) {
+  const rr = await fetch(`${BASE}/media/${f.key}`, { headers: { range: "bytes=100-1099" } });
+  const len = (await rr.arrayBuffer()).byteLength;
+  ok(`P10 Range sur ${f.key.split("/").pop()} → 206, Content-Range et Accept-Ranges`, rr.status === 206 && rr.headers.get("content-range") === `bytes 100-1099/${f.size}` && rr.headers.get("accept-ranges") === "bytes" && len === 1000, `${rr.status} ${rr.headers.get("content-range")}`);
+}
+// Classement en boucle.
+const loopUp = await chunked(pv.jar, src("boucle-720.mp4"), "boucle.mp4");
+await waitMedia(dirP, loopUp.body.media?.id, 120000);
+const loopRow = query(dirP, "select has_audio a, duration d from media where id = ?", loopUp.body.media?.id);
+const longRow = query(dirP, "select has_audio a, duration d from media where id = ?", firstId);
+ok("P11 classement : muette et < 20 s = boucle ; avec son = vidéo", loopRow.a === 0 && loopRow.d < 20 && longRow.a === 1, JSON.stringify({ loopRow, longRow }));
+// Une image envoyée pendant une longue conversion est prête avant elle ; nice 10 sur tous les fils.
+const hd = await chunked(pv.jar, src("hd-20s.mp4"), "hd.mp4", "video/mp4", { chunk: 8 * 1024 * 1024 });
+// Échantillonne jusqu'à voir l'encodeur avec ses fils (décodage -threads 1, encodage -threads 2).
+let nices = [];
+for (let i = 0; i < 150 && nices.length < 3; i++) {
+  const seen = [];
+  const ps = spawnSync("pgrep", ["-x", "ffmpeg"], { encoding: "utf8" }).stdout.trim().split("\n").filter(Boolean);
+  for (const pid of ps) {
+    try {
+      for (const t of readdirSync(`/proc/${pid}/task`)) seen.push(Number(readFileSync(`/proc/${pid}/task/${t}/stat`, "utf8").split(") ")[1].split(" ")[16]));
+    } catch {
+      // processus terminé entre-temps
+    }
+  }
+  if (seen.length > nices.length) nices = seen;
+  if (nices.length < 3) await sleep(100);
+}
+ok(`P12 ffmpeg lancé sous nice 10 : ${nices.length} fils, tous à 10`, nices.length >= 3 && nices.every((n) => n === 10), nices.join(","));
+const img = await upload(pv.jar, "pendant.png", "image/png", await sharp({ create: { width: 300, height: 200, channels: 3, background: "#a03c78" } }).png().toBuffer());
+const imgRow = await waitMedia(dirP, img.json?.media?.id, 60000);
+const hdState = query(dirP, "select status from media where id = ?", hd.body.media?.id)?.status;
+ok("P13 image envoyée pendant une longue conversion : prête avant la vidéo (files séparées)", imgRow?.status === "ready" && hdState === "processing", `${imgRow?.status} / vidéo ${hdState}`);
+const hdOut = query(dirP, "select variants from media where id = ?", hd.body.media?.id);
+const hdVid = await fetch(`${BASE}/media/vid/${(query(dirP, "select sha256 from media where id = ?", hd.body.media?.id)?.sha256 ?? "").slice(0, 16)}/720.mp4`);
+ok("P14 vid/ d'un média en traitement → 404", !hdOut.variants && hdVid.status === 404, String(hdVid.status));
+// Redémarrage brutal pendant la conversion : reprise, aucun dossier de travail laissé.
+// kill -9 du serveur ; dans le conteneur, ses enfants (ffmpeg) partent avec lui.
+pv.server.child.kill("SIGKILL");
+await pv.server.exited;
+spawnSync("pkill", ["-KILL", "-x", "ffmpeg"]);
+const leftovers = existsSync(path.join(dirP, "tmp")) ? readdirSync(path.join(dirP, "tmp")).filter((n) => n.startsWith("video-")) : [];
+pv = { server: startServer(dirP, baseEnvF), jar: pv.jar };
+await pv.server.ready;
+await sleep(800);
+// La reprise crée son propre dossier : seuls les anciens doivent avoir disparu.
+const cleaned = leftovers.filter((n) => existsSync(path.join(dirP, "tmp", n)));
+const hdAfter = await waitMedia(dirP, hd.body.media?.id, 300000);
+ok(`P15 redémarrage pendant une conversion : dossiers de travail laissés supprimés (${leftovers.length} → ${cleaned.length}), conversion reprise et terminée`, leftovers.length > 0 && cleaned.length === 0 && hdAfter?.status === "ready", `${hdAfter?.status} ${hdAfter?.error ?? ""}`);
+await stop(pv.server);
+
+// Délai dur : VIDEO_JOB_MAX_DURATION_S=1.
+const dirT = `${TMP}/vt`;
+const tv = await freshAdmin(dirT, { VIDEO_JOB_MAX_DURATION_S: "1" });
+const slow = await chunked(tv.jar, src("hd-20s.mp4"), "lente.mp4", "video/mp4", { chunk: 8 * 1024 * 1024 });
+const slowRow = await waitMedia(dirT, slow.body.media?.id, 60000);
+await sleep(500);
+const ffLeft = spawnSync("pgrep", ["-x", "ffmpeg"], { encoding: "utf8" }).stdout.trim();
+const tmpT = readdirSync(path.join(dirT, "tmp")).filter((n) => n !== "uploads");
+ok("P16 VIDEO_JOB_MAX_DURATION_S=1 : échec « trop de temps », plus aucun ffmpeg, tmp/ vide", slowRow?.status === "failed" && /trop de temps/.test(slowRow?.error ?? "") && !ffLeft && tmpT.length === 0, `${slowRow?.status} ${slowRow?.error} ffmpeg=${ffLeft} tmp=${tmpT.join(",")}`);
+const failedVid = await fetch(`${BASE}/media/vid/${(query(dirT, "select sha256 from media where id = ?", slow.body.media?.id)?.sha256 ?? "").slice(0, 16)}/720.mp4`);
+ok("P17 vid/ d'un média en échec → 404", failedVid.status === 404);
+const retry = await callActionJson(tv.jar, ids.retryMediaAction, [slow.body.media?.id], "/admin/medias");
+const retried = query(dirT, "select status from media where id = ?", slow.body.media?.id)?.status;
+await waitMedia(dirT, slow.body.media?.id, 60000);
+const delFailed = await callActionJson(tv.jar, ids.deleteMediaAction, [slow.body.media?.id], "/admin/medias");
+ok("P18 vidéo en échec : « Réessayer » relance la conversion, puis suppression possible", retry.text.includes('"ok":true') && retried === "processing" && delFailed.text.includes('"ok":true') && !query(dirT, "select id from media where id = ?", slow.body.media?.id), `${retry.text.slice(0, 80)} ${retried} ${delFailed.text.slice(0, 80)}`);
+await stop(tv.server);
+
+// KEEP_VIDEO_ORIGINALS=true : l'original reste sur disque, jamais servi.
+const dirK = `${TMP}/vk`;
+const kv = await freshAdmin(dirK, { KEEP_VIDEO_ORIGINALS: "true" });
+const kept = await chunked(kv.jar, src("base.mp4"), "garde.mp4");
+await waitMedia(dirK, kept.body.media?.id, 120000);
+const keptKey = query(dirK, "select key from media where id = ?", kept.body.media?.id).key;
+const keptGet = await fetch(`${BASE}/media/${keptKey}`);
+ok("P19 KEEP_VIDEO_ORIGINALS=true : original conservé sur disque, /media/originals/… → 404", existsSync(path.join(dirK, "media", keptKey)) && keptGet.status === 404, String(keptGet.status));
+await stop(kv.server);
+
+// Quota : deux annonces dont la somme dépasse ; DELETE rend la réservation.
+const dirR = `${TMP}/vr`;
+let rv2 = await freshAdmin(dirR);
+// Espace compté par le serveur : originaux + sorties de tous les médias.
+const usedR = (() => {
+  const db = new Database(path.join(dirR, "portfolio.db"), { readonly: true });
+  let n = 0;
+  for (const m of db.prepare("select size, variants from media").all()) {
+    const v = m.variants ? JSON.parse(m.variants) : null;
+    if (!v?.originalRemoved) n += m.size;
+    for (const f of v?.files ?? []) n += f.size;
+  }
+  db.close();
+  return n;
+})();
+await stop(rv2.server);
+rv2 = await freshAdmin(dirR, { MEDIA_MAX_TOTAL_GB: String((usedR + 3 * 1024 * 1024) / 1024 ** 3) });
+const a1 = await (await initP2(rv2.jar, 2 * 1024 * 1024)).json();
+const a2r = await initP2(rv2.jar, 2 * 1024 * 1024);
+ok("P20 deux annonces dont la somme dépasse le quota : la seconde est refusée (507)", a1.ok && a2r.status === 507, String(a2r.status));
+await fetch(`${BASE}/admin/api/upload/${a1.upload.id}`, { method: "DELETE", headers: { cookie: rv2.jar.header(), origin: BASE } });
+const a3r = await initP2(rv2.jar, 2 * 1024 * 1024);
+ok("P21 DELETE rend la réservation : une nouvelle annonce passe", a3r.status === 200, String(a3r.status));
+await stop(rv2.server);
+
+// ---- Mesures : durée de conversion, VmHWM du serveur, pic et CPU de ffmpeg ---------------
+console.log("      (génération des sources de mesure : 1080p 60 s avec son, 4K 20 s, boucle 720p 4 s)");
+ff(["-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30", "-f", "lavfi", "-i", "sine=frequency=330", "-t", "60", "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-x264-params", "rc-lookahead=10:sync-lookahead=0", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", src("m-1080p-60s.mp4")]);
+ff(["-f", "lavfi", "-i", "testsrc2=size=3840x2160:rate=30", "-t", "20", "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-x264-params", "rc-lookahead=10:sync-lookahead=0", "-crf", "22", "-pix_fmt", "yuv420p", src("m-4k-20s.mp4")]);
+for (const [label, file] of [
+  ["1080p, 60 s, avec son", "m-1080p-60s.mp4"],
+  ["4K, 20 s", "m-4k-20s.mp4"],
+  ["boucle 720p, 4 s, sans son", "boucle-720.mp4"],
+]) {
+  const dir = `${TMP}/vm-${file}`;
+  const m = await freshAdmin(dir);
+  await http("/fr");
+  const before = procMem(m.server.child.pid);
+  const t0 = Date.now();
+  const res = await chunked(m.jar, src(file), file, "video/mp4", { chunk: 8 * 1024 * 1024 });
+  const row = res.body.media?.id ? await waitMedia(dir, res.body.media.id, 900000) : null;
+  const after = procMem(m.server.child.pid);
+  const line = serverLog(m.server, /vidéo \d+ convertie en [^\n]+/g).pop() ?? "";
+  const loopFlag = row && query(dir, "select has_audio a, duration d from media where id = ?", res.body.media.id);
+  console.log(`      ${label} (${(statSize(src(file)) / 1024 / 1024).toFixed(1)} Mo, envoi + conversion ${((Date.now() - t0) / 1000).toFixed(0)} s) : ${line}`);
+  console.log(`        VmHWM du serveur ${before.hwm} → ${after.hwm} Mo (+${after.hwm - before.hwm}) ; son : ${loopFlag?.a ? "oui" : "non"}, durée ${loopFlag?.d?.toFixed(1)} s`);
+  const ffPeak = Number(/ffmpeg pic (\d+) Mo/.exec(line)?.[1] ?? 9999);
+  ok(`VM ${label} : convertie, pic du serveur ${after.hwm} Mo et de ffmpeg ${ffPeak} Mo, tous deux sous 600 Mo`, row?.status === "ready" && after.hwm < 600 && ffPeak < 600, `${res.status} ${row?.status} ${row?.error ?? ""}`);
+  await stop(m.server);
+}
 
 rmSync(TMP, { recursive: true, force: true });
 console.log(failures ? `\nECHECS : ${failures}` : "\nTOUT PASSE");

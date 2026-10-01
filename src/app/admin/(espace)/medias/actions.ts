@@ -5,7 +5,9 @@ import { z } from "zod";
 
 import { getMediaUses, listMediaForAdmin, type AdminMediaRow, type MediaUseRow } from "@/lib/admin";
 import { assertAdmin } from "@/lib/auth/guard";
-import { deleteMedia, saveMediaAlt, type MediaBlockUse } from "@/lib/edit/media";
+import { deleteMedia, retryMedia, saveMediaAlt, type MediaBlockUse } from "@/lib/edit/media";
+import { wakeWorker } from "@/lib/jobs/worker";
+import { listPendingUploads, type UploadStatus } from "@/lib/upload/chunks";
 import { fail, type ActionResult } from "@/lib/edit/result";
 import { revalidateMedia, revalidateProjects } from "@/lib/revalidate";
 
@@ -49,4 +51,23 @@ export async function mediaUsesAction(mediaId: unknown): Promise<ActionResult<Me
   const parsed = Id.safeParse(mediaId);
   if (!parsed.success) return fail("Image inconnue.");
   return { ok: true, data: getMediaUses(parsed.data) };
+}
+
+/** Relance la conversion ou le traitement d'un média en échec. */
+export async function retryMediaAction(mediaId: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const parsed = Id.safeParse(mediaId);
+  if (!parsed.success) return fail("Média inconnu.");
+  const result = await retryMedia(parsed.data);
+  if (result.ok) {
+    wakeWorker();
+    revalidateMedia();
+  }
+  return result;
+}
+
+/** Envois par morceaux interrompus (à reprendre ou annuler). */
+export async function pendingUploadsAction(): Promise<ActionResult<UploadStatus[]>> {
+  const { user } = await assertAdmin();
+  return { ok: true, data: listPendingUploads(user.id) };
 }

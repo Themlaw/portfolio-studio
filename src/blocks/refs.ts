@@ -20,7 +20,7 @@ export const BLOCK_REFS: Record<string, BlockRefs> = {
   "featured-projects": { pages: ["more.pageId"], projects: ["projects[]"] },
   "collection-intro": {},
   "collection-projects": {},
-  video: {},
+  video: { media: ["reelMediaId"] },
   "rich-text": {},
   contact: {},
   profile: { media: ["portraitMediaId"] },

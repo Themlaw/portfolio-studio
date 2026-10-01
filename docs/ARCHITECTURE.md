@@ -220,6 +220,56 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   `projects[]`) ; média bloqué s'il est cité par un bloc, sinon ses emplacements sont vidés
   et l'original et les variantes sont effacés du stockage.
 
+### Livré en phase 5 (vidéo)
+
+- **Envoi par morceaux** (`src/lib/upload/chunks.ts`, table `uploads`, migration 0006) :
+  `POST /admin/api/upload/init` → identifiant ; `PUT /admin/api/upload/<id>/chunk?offset=N`
+  écrit exactement à l'offset attendu (409 sinon ; un morceau interrompu est tronqué à
+  l'offset confirmé ; un seul morceau à la fois par envoi) ; `GET …/status` ;
+  `POST …/complete` ; `DELETE …`. Hors proxy, `assertAdmin` + même origine ; un envoi
+  appartient à l'administrateur qui l'a ouvert (`uploads.user_id`, migration 0007 : un
+  autre reçoit 404). `offset` strictement numérique. Quota vérifié à l'annonce (taille
+  réservée) et à chaque morceau ; un refus de quota (507) est définitif : le client annule
+  l'envoi, ce qui rend la réservation. Purge après 24 h sans nouvelle, y compris des
+  fichiers `.part` sans ligne.
+- **Validation** : signature (ISO-BMFF hors marques d'image, ou EBML) puis ffprobe forcé
+  sur le format de la liste blanche (`-f mov` / `-f matroska`, `-protocol_whitelist file`) :
+  piste vidéo réelle, durée et plus grand côté (rotation appliquée) bornés ; sortie de
+  ffprobe plafonnée à 1 Mo. **Liste blanche de codecs** : vidéo {h264, hevc, vp8, vp9,
+  av1, prores, mpeg4}, audio {aac, mp3, opus, vorbis, flac, alac, pcm_*} ; tout autre
+  codec est refusé à l'envoi (422), et la conversion force le décodeur (`-c:v`/`-c:a`
+  avant `-i`, AV1 par `libdav1d`) : aucun autre décodeur de ffmpeg n'est atteignable.
+- **Conversion** (`src/lib/video/transcode.ts`, worker : file vidéo séparée, concurrence 1) :
+  arguments en tableau, `-nostdin`, protocole `file` seul, format d'entrée forcé, une sortie
+  par processus (décodage sur un fil, `-threads 2`, `rc-lookahead=10`), priorité basse
+  (`nice -n 10` au lancement : tous les fils en héritent ; idem ffprobe), `-max_alloc`
+  256 Mo, délai dur `VIDEO_JOB_MAX_DURATION_S` (SIGKILL, « trop de temps » ; un SIGKILL
+  venu d'ailleurs = OOM, « mémoire insuffisante »), progression `-progress pipe:1` →
+  `jobs.progress`. Sorties validées par ffprobe avant enregistrement ; un échec après
+  écriture supprime les clés déjà écrites ; les dossiers `tmp/video-*` d'un arrêt brutal
+  sont supprimés au démarrage. Pendant la conversion, le quota réserve une estimation des
+  sorties (8 Mbit/s si 1080p, 2,5 Mbit/s sinon). Clés `vid/<hash16>/{1080,720}.mp4` et
+  `poster-{960,1600,full}.webp`.
+- **Mesures** (VM de dev, ffmpeg 7.1, `test:auth` section V) : 1080p 60 s avec son → 81 s,
+  ffmpeg 309 Mo / 159 s CPU, serveur +53 Mo, sorties 46,7 + 13,7 Mo ; 4K 20 s → 23 s,
+  ffmpeg 413 Mo / 63 s CPU, serveur +63 Mo ; boucle 720p 4 s → 2 s, ffmpeg 175 Mo.
+  Avec `-max_alloc` et `nice` (passe 5b) : 4K 20 s → 22,6 s, ffmpeg 413 Mo ; 1080p 60 s
+  → 80,9 s, ffmpeg 312 Mo ; boucle 720p → 1,9 s, ffmpeg 175 Mo (inchangés).
+  Deux sorties dans un même processus montaient à 1 Go pour la 4K : écarté (limite du
+  conteneur). Conteneur (ffmpeg 5.1, `--read-only --memory 1g`) : 4K 20 s convertie,
+  pic du cgroup 689 Mo, aucun OOM.
+- **Image** : ffmpeg du paquet Debian (`--no-install-recommends`) : +472 Mo non
+  compressés (image 1,06 Go, 275 Mo compressés contre 99 Mo avant). Choisi pour les
+  correctifs de sécurité de Debian (ffmpeg analyse des fichiers envoyés) plutôt qu'un
+  binaire statique épinglé (~150 Mo, mais figé et sans suivi).
+- **Lecture** : `Video` (`<video>` poster, `preload=metadata`, `playsinline`, contrôles,
+  `<source media="(min-width: 1280px)">` 1080 puis 720 en repli) ; `LoopVideo`
+  (IntersectionObserver, `prefers-reduced-motion` → poster fixe et ▶ ; bouton pause /
+  lecture au clavier, visible au survol et au focus, toujours dans l'arbre
+  d'accessibilité — WCAG 2.2.2 ; la vidéo porte le texte alternatif de l'œuvre). Une
+  boucle ouverte dans la visionneuse ne démarre pas seule en « réduire les animations ».
+  La route `/media` sert les MP4 avec Range (206).
+
 ## Admin (`/admin`, hors i18n, en français)
 
 - **Thèmes** : liste des thèmes avec aperçu, « Activer », « Dupliquer », édition des tokens

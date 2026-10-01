@@ -11,19 +11,27 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
 
 import { TextI18n } from "@/app/admin/_fields";
-import { deleteMediaAction, mediaUsesAction, saveMediaAltAction } from "@/app/admin/(espace)/medias/actions";
+import { deleteMediaAction, mediaUsesAction, pendingUploadsAction, retryMediaAction, saveMediaAltAction } from "@/app/admin/(espace)/medias/actions";
+import { formatDuration, isLoop } from "@/lib/video/limits";
 import type { AdminMediaRow, MediaUseRow } from "@/lib/admin";
 
 import { ConfirmDialog, same, toast, useUnsavedGuard } from "./editing";
-import { ACCEPT, formatBytes, hasFiles, useMediaWatch, useUploadQueue, type UploadItem } from "./uploads";
+import { ACCEPT, formatBytes, formatSent, hasFiles, useMediaWatch, useUploadQueue, type UploadItem } from "./uploads";
 
 type Filter = "all" | "unused" | "noalt";
+type KindFilter = "any" | "image" | "video";
 
 export const STATUS_LABEL: Record<AdminMediaRow["status"], string> = {
   processing: "En traitement",
   ready: "Prête",
   failed: "Échec",
 };
+
+/** État lisible ; une vidéo en conversion affiche son avancement. */
+export function stateLabel(m: AdminMediaRow): string {
+  if (m.status === "processing" && m.kind === "video") return m.progress ? `Conversion… ${m.progress} %` : "Conversion en attente…";
+  return STATUS_LABEL[m.status];
+}
 
 /* ---- Zone d'envoi -------------------------------------------------------- */
 
@@ -49,12 +57,17 @@ export function UploadZone({ onFiles, compact = false }: { onFiles: (files: File
       }}
     >
       <p>
-        <strong>Dépose tes images ici</strong> <span className="muted">ou</span>{" "}
+        <strong>Dépose tes images ou vidéos ici</strong> <span className="muted">ou</span>{" "}
         <label htmlFor={id} className="a-btn a-btn-small a-file-btn">
           Choisir des fichiers
         </label>
       </p>
-      {!compact && <p className="a-help">JPEG, PNG, WebP, AVIF ou GIF, 40 Mo au plus par image. Les métadonnées (lieu, appareil) sont retirées.</p>}
+      {!compact && (
+        <p className="a-help">
+          Images JPEG, PNG, WebP, AVIF ou GIF (40 Mo au plus) ; vidéos MP4, MOV ou WebM (2 Go et 30 min au plus), converties pour le web. Les
+          métadonnées (lieu, appareil) sont retirées. Un envoi interrompu se reprend ici.
+        </p>
+      )}
       <input
         id={id}
         type="file"
@@ -81,8 +94,8 @@ export function UploadList({ items, onDismiss }: { items: UploadItem[]; onDismis
           <span className="a-upload-name">{i.name}</span>
           <span className="a-upload-state">
             {i.phase === "waiting" && "En attente"}
-            {i.phase === "uploading" && `Envoi ${Math.round(i.progress * 100)} %`}
-            {i.phase === "processing" && "Traitement…"}
+            {i.phase === "uploading" && (i.total && i.total > 8 * 1024 * 1024 ? `Envoi ${formatSent(i.sent, i.total)}` : `Envoi ${Math.round(i.progress * 100)} %`)}
+            {i.phase === "processing" && (i.video ? "Conversion…" : "Traitement…")}
             {i.phase === "ready" && "✓ Prête"}
             {i.phase === "failed" && <span className="a-danger-text">{i.message}</span>}
           </span>
@@ -131,7 +144,19 @@ export function MediaGrid({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={m.thumb} alt="" loading="lazy" />
               ) : (
-                <span className="a-media-state">{STATUS_LABEL[m.status]}</span>
+                <span className="a-media-state">{stateLabel(m)}</span>
+              )}
+              {m.kind === "video" && m.status === "ready" && (
+                <span className="a-duration-badge">
+                  <span aria-hidden="true">▶ </span>
+                  {formatDuration(m.duration)}
+                  {isLoop(m) && <span> · boucle</span>}
+                </span>
+              )}
+              {m.status === "processing" && m.progress !== null && m.kind === "video" && (
+                <span className="a-progress a-thumb-progress" aria-hidden="true">
+                  <span style={{ width: `${m.progress}%` }} />
+                </span>
               )}
               {m.status === "ready" && !m.alt.fr.trim() && (
                 <span className="a-alt-badge" title="Texte alternatif manquant">
@@ -142,7 +167,7 @@ export function MediaGrid({
             <span className="a-media-name">{m.name}</span>
             <span className="a-media-meta">
               {m.status !== "ready" ? (
-                <span className={m.status === "failed" ? "a-danger-text" : ""}>{STATUS_LABEL[m.status]}</span>
+                <span className={m.status === "failed" ? "a-danger-text" : ""}>{stateLabel(m)}</span>
               ) : (
                 <span>{m.uses === 0 ? "Non utilisée" : `Utilisée ${m.uses} fois`}</span>
               )}
@@ -156,21 +181,36 @@ export function MediaGrid({
 
 function useFiltered(media: AdminMediaRow[]) {
   const [filter, setFilter] = useState<Filter>("all");
+  const [kind, setKind] = useState<KindFilter>("any");
   const [query, setQuery] = useState("");
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
     return media.filter(
       (m) =>
+        (kind === "any" || m.kind === kind) &&
         (filter === "all" || (filter === "unused" && m.uses === 0) || (filter === "noalt" && !m.alt.fr.trim())) &&
         (!q || m.name.toLowerCase().includes(q)),
     );
-  }, [media, filter, query]);
+  }, [media, filter, kind, query]);
   const controls = (
     <div className="a-media-tools">
+      <div className="a-seg" role="group" aria-label="Type de média">
+        {(
+          [
+            ["any", "Tout"],
+            ["image", "Images"],
+            ["video", "Vidéos"],
+          ] as const
+        ).map(([k, l]) => (
+          <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}>
+            {l}
+          </button>
+        ))}
+      </div>
       <div className="a-seg" role="group" aria-label="Filtrer">
         {(
           [
-            ["all", "Toutes les images"],
+            ["all", "Tous"],
             ["unused", "Non utilisées"],
             ["noalt", "Sans texte alternatif"],
           ] as const
@@ -240,14 +280,35 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
         </button>
       </div>
       <div className="a-media-preview" style={media.color ? { backgroundColor: media.color } : undefined}>
-        {media.preview ? (
+        {media.kind === "video" && media.videoSrc ? (
+          <video src={media.videoSrc} poster={media.preview ?? undefined} controls preload="metadata" playsInline aria-label={`Lecture de ${media.name}`} />
+        ) : media.preview ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={media.preview} alt="" />
         ) : (
           <span className="a-media-state">{STATUS_LABEL[media.status]}</span>
         )}
       </div>
-      {media.status === "failed" && <p className="a-alert">{media.error}</p>}
+      {media.status === "failed" && (
+        <div className="a-alert">
+          <p>{media.error}</p>
+          <button
+            type="button"
+            className="a-btn a-btn-small a-section-tight"
+            disabled={busy}
+            onClick={() =>
+              start(async () => {
+                const r = await retryMediaAction(media.id);
+                if (!r.ok) return toast(r.message, "error");
+                toast("Traitement relancé");
+                setTimeout(() => router.refresh(), 0);
+              })
+            }
+          >
+            Réessayer
+          </button>
+        </div>
+      )}
       <dl className="a-facts">
         <dt>Dimensions</dt>
         <dd>{media.width && media.height ? `${media.width} × ${media.height} px` : "—"}</dd>
@@ -255,8 +316,18 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
         <dd>{formatBytes(media.size)}</dd>
         <dt>Ajoutée le</dt>
         <dd>{new Date(media.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}</dd>
+        {media.kind === "video" && (
+          <>
+            <dt>Durée</dt>
+            <dd>
+              {formatDuration(media.duration) || "—"}
+              {media.hasAudio === false && " · sans son"}
+              {isLoop(media) && " · jouée en boucle dans les planches"}
+            </dd>
+          </>
+        )}
         <dt>État</dt>
-        <dd>{STATUS_LABEL[media.status]}</dd>
+        <dd>{stateLabel(media)}</dd>
       </dl>
 
       <TextI18n
@@ -319,13 +390,13 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
 
       <div className="a-panel-danger">
         <button type="button" className="a-btn a-btn-quiet a-danger-text" disabled={media.status === "processing"} onClick={() => setConfirm(true)}>
-          Supprimer l&apos;image
+          {media.kind === "video" ? "Supprimer la vidéo" : "Supprimer l'image"}
         </button>
       </div>
 
       <ConfirmDialog
         open={confirm}
-        title={`Supprimer l'image « ${media.name} » ?`}
+        title={media.kind === "video" ? `Supprimer la vidéo « ${media.name} » ?` : `Supprimer l'image « ${media.name} » ?`}
         confirmLabel="Supprimer"
         danger
         busy={busy}
@@ -342,7 +413,8 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
               return;
             }
             setConfirm(false);
-            toast(r.data.emptiedSlots ? `Image supprimée · ${r.data.emptiedSlots} emplacement${r.data.emptiedSlots > 1 ? "s" : ""} vidé${r.data.emptiedSlots > 1 ? "s" : ""}` : "Image supprimée");
+            const what = media.kind === "video" ? "Vidéo supprimée" : "Image supprimée";
+            toast(r.data.emptiedSlots ? `${what} · ${r.data.emptiedSlots} emplacement${r.data.emptiedSlots > 1 ? "s" : ""} vidé${r.data.emptiedSlots > 1 ? "s" : ""}` : what);
             onDeleted();
             setTimeout(() => router.refresh(), 0);
           })
@@ -373,6 +445,67 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
         )}
       </ConfirmDialog>
     </aside>
+  );
+}
+
+/* ---- Envois interrompus -------------------------------------------------- */
+
+function PendingUploads({ onResume }: { onResume: (file: File, id: string) => void }) {
+  const [list, setList] = useState<{ id: string; name: string; size: number; offset: number }[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void pendingUploadsAction().then((r) => live && r.ok && setList(r.data));
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!list.length) return null;
+  return (
+    <section className="a-pending" aria-labelledby="pending-title">
+      <h2 id="pending-title" className="a-subhead">
+        Envois interrompus
+      </h2>
+      {error && <p className="a-field-error">{error}</p>}
+      <ul className="a-uploads">
+        {list.map((u) => (
+          <li key={u.id}>
+            <span className="a-upload-name">{u.name}</span>
+            <span className="a-upload-state">{formatSent(u.offset, u.size)} reçus</span>
+            <label className="a-btn a-btn-small a-file-btn">
+              Reprendre
+              <input
+                type="file"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  if (file.name !== u.name || file.size !== u.size) {
+                    setError(`Choisis le fichier d'origine « ${u.name} » (${formatBytes(u.size)}).`);
+                    return;
+                  }
+                  setError(null);
+                  setList((l) => l.filter((x) => x.id !== u.id));
+                  onResume(file, u.id);
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              className="a-btn a-btn-small a-btn-quiet a-danger-text"
+              onClick={async () => {
+                await fetch(`/admin/api/upload/${u.id}`, { method: "DELETE" });
+                setList((l) => l.filter((x) => x.id !== u.id));
+                toast("Envoi annulé");
+              }}
+            >
+              Annuler
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -414,6 +547,7 @@ export default function MediaLibrary({ initial, usage }: { initial: AdminMediaRo
         </div>
         <UploadZone onFiles={(files) => void uploads.add(files)} />
         <UploadList items={uploads.items} onDismiss={uploads.remove} />
+        <PendingUploads onResume={(file, id) => void uploads.add([file], "end", id)} />
         {controls}
         {list.length === 0 ? (
           <p className="muted a-section-tight">Aucune image ne correspond.</p>
@@ -432,12 +566,14 @@ export function MediaPickerDialog({
   open,
   media: initial,
   title = "Choisir une image",
+  confirmLabel = "Utiliser cette image",
   onPick,
   onClose,
 }: {
   open: boolean;
   media: AdminMediaRow[];
   title?: string;
+  confirmLabel?: string;
   onPick: (m: AdminMediaRow) => void;
   onClose: () => void;
 }) {
@@ -455,7 +591,7 @@ export function MediaPickerDialog({
     <ConfirmDialog
       open={open}
       title={title}
-      confirmLabel="Utiliser cette image"
+      confirmLabel={confirmLabel}
       onClose={onClose}
       onConfirm={() => picked && onPick(picked)}
       confirmDisabled={!picked}

@@ -10,7 +10,7 @@ export default function MediaPage() {
     <>
       <PageHeader
         title="Médiathèque"
-        intro="Toutes tes images. Envoie-en de nouvelles, complète leur texte alternatif et vois où chacune est utilisée."
+        intro="Toutes tes images et vidéos. Envoie-en de nouvelles, complète leur texte alternatif et vois où chacune est utilisée."
       />
       <MediaLibrary
         initial={listMediaForAdmin()}

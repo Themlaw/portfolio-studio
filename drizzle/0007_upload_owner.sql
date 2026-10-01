@@ -1,0 +1,1 @@
+ALTER TABLE `uploads` ADD `user_id` text DEFAULT '' NOT NULL;

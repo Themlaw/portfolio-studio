@@ -26,7 +26,10 @@
     "next": "Œuvre suivante",
     "position": "{index} / {total}",
     "hint": "Naviguez avec ← et →, Échap pour fermer",
-    "thumbs": "Vignettes du projet"
+    "thumbs": "Vignettes du projet",
+    "playVideo": "Lire la vidéo",
+    "pauseLoop": "Mettre l'animation en pause",
+    "playLoop": "Lire l'animation"
   },
   "projects": {
     "count": "{count, plural, =0 {aucun projet} =1 {# projet} other {# projets}}",

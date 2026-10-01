@@ -44,6 +44,8 @@ export const media = sqliteTable("media", {
   width: integer("width"),
   height: integer("height"),
   duration: real("duration"),
+  /** Vidéo : présence d'une piste audio (une boucle est muette et courte). */
+  hasAudio: integer("has_audio", { mode: "boolean" }),
   variants: text("variants", { mode: "json" }),
   dominantColor: text("dominant_color"),
   alt: text("alt", { mode: "json" }).$type<Localized>(),
@@ -147,11 +149,31 @@ export const jobs = sqliteTable(
     error: text("error"),
     /** Pas avant (délai croissant entre deux essais) ; null = tout de suite. */
     runAfter: integer("run_after", { mode: "timestamp" }),
+    /** Avancement 0–100 (conversion vidéo). */
+    progress: integer("progress").notNull().default(0),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   },
   (t) => [index("jobs_status_idx").on(t.status, t.id)],
 );
+
+/**
+ * Envois par morceaux en cours (vidéos, grandes images) : reprenables tant
+ * qu'ils ne sont pas terminés ; purgés après 24 h sans nouvelle.
+ */
+export const uploads = sqliteTable("uploads", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  size: integer("size").notNull(),
+  /** Type annoncé par le navigateur (indicatif : le contenu fait foi). */
+  declaredType: text("declared_type").notNull(),
+  kind: text("kind", { enum: ["image", "video"] }).notNull(),
+  offset: integer("offset").notNull().default(0),
+  /** Administrateur qui a ouvert l'envoi (seul à pouvoir le poursuivre). */
+  userId: text("user_id").notNull().default(""),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+});
 
 /* ------------------------------------------------------------------------
  * Authentification (Better Auth, adaptateur Drizzle). Noms de propriétés =

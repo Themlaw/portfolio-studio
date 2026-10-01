@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Portfolio — image de production (Next.js standalone).
 # Base glibc (node:24-slim) et non alpine : better-sqlite3, sharp et ffmpeg
-# (phases suivantes) y trouvent des binaires précompilés / paquets Debian.
+# y trouvent des binaires précompilés / paquets Debian.
 
 ARG NODE_VERSION=24
 
@@ -32,9 +32,15 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     NODE_OPTIONS=--max-old-space-size=${NODE_MAX_OLD_SPACE}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Build à mémoire réduite pour un `docker build` local sur la VM de dev :
+# --build-arg LOW_MEM_BUILD=1 applique les réglages de `npm run build:local`
+# (typecheck avant le build, un worker sans threads, allocateur de Turbopack
+# en restitution immédiate). La CI ne passe pas l'argument (build normal).
+ARG LOW_MEM_BUILD=0
 # Garde-fou : ni base ni médias de dev dans le standalone (./data est exclu du
 # contexte par .dockerignore ; ce test échoue si ça change un jour).
-RUN npm run build && test ! -e .next/standalone/data
+RUN if [ "$LOW_MEM_BUILD" = "1" ]; then npm run build:local; else npm run build; fi \
+    && test ! -e .next/standalone/data
 
 # ---- runner : serveur standalone minimal -------------------------------------
 FROM node:${NODE_VERSION}-slim AS runner
@@ -50,8 +56,15 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     DATA_DIR=/data
 
-# Futur : RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
-#     && rm -rf /var/lib/apt/lists/*
+# ffmpeg / ffprobe (conversion des vidéos) : paquet Debian plutôt qu'un
+# binaire statique. Le paquet suit les correctifs de sécurité de Debian (une
+# reconstruction de l'image les embarque, sans somme de contrôle à tenir à
+# jour) ; le binaire statique serait plus léger mais figé. Sans les paquets
+# recommandés : pas de serveur X ni d'outils superflus.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && ffmpeg -hide_banner -version | head -1
 
 # Code applicatif possédé par root (lecture seule pour l'utilisateur node).
 COPY --from=builder /app/public ./public

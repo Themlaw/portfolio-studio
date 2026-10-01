@@ -43,6 +43,20 @@
       "when": 1790825196620,
       "tag": "0005_media_sha256",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790826686184,
+      "tag": "0006_video",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1790830509197,
+      "tag": "0007_upload_owner",
+      "breakpoints": true
     }
   ]
 }

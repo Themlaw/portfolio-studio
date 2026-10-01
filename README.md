@@ -164,6 +164,37 @@ dev **redémarré puis pré-chauffé**, une connexion) et `npm run shots:editors
 Tests : `npm run test:e2e` lance aussi `scripts/e2e-planche.mjs` ; captures :
 `npm run shots:planche` (→ `screenshots/phase4b/`).
 
+### Vidéos (phase 5)
+
+- **Envoi par morceaux** (vidéos, et images de plus de 8 Mo) : morceaux de 8 Mo,
+  reprise automatique après une coupure (3 essais, délai croissant), progression réelle.
+  Un envoi interrompu se reprend depuis la médiathèque (« Envois interrompus » : choisir
+  de nouveau le même fichier) ; il est purgé après 24 h sans nouvelle.
+- **Formats** : MP4/MOV et WebM/Matroska, reconnus par leur contenu puis confirmés par
+  ffprobe (piste vidéo réelle). Codecs acceptés : vidéo H.264, HEVC, VP8, VP9, AV1,
+  ProRes, MPEG-4 ; son AAC, MP3, Opus, Vorbis, FLAC, ALAC, PCM. Durée, dimensions et poids
+  limités (voir ci-dessous).
+- **Conversion** (ffmpeg, une à la fois, file séparée des images) : `1080.mp4` (si la
+  source atteint 1080p) et `720.mp4` en H.264 High, CRF 22, AAC 128k (ou sans son),
+  rotation appliquée, sans métadonnées ; poster WebP vers 10 % de la durée. La
+  médiathèque et la planche affichent « Conversion… 42 % » ; « Réessayer » relance un échec.
+- **Site** : une vidéo muette de moins de 20 s est une **boucle** (muette, en boucle,
+  jouée seulement quand elle est visible, fixe avec ▶ si « réduire les animations ») ; les
+  autres montrent leur poster et leur durée dans la planche et se lisent dans la
+  visionneuse. Le bloc vidéo (page Animation) accepte une demoreel de la médiathèque
+  (titre = texte alternatif, durée du média) en plus du lien YouTube existant.
+
+| Variable | Rôle |
+|---|---|
+| `MAX_VIDEO_MB` | Poids maximal d'une vidéo (défaut 2048), vérifié dès l'annonce de l'envoi. |
+| `MAX_VIDEO_DURATION_S` | Durée maximale (défaut 1800), lue par ffprobe avant la conversion. |
+| `MAX_VIDEO_DIMENSION` | Plus grand côté (défaut 3840), lu par ffprobe. |
+| `VIDEO_JOB_MAX_DURATION_S` | Durée maximale d'une conversion (défaut 3600) ; au-delà, ffmpeg est arrêté et la vidéo passe en échec. |
+| `KEEP_VIDEO_ORIGINALS` | `true` garde le fichier envoyé après conversion (régénération future possible). Défaut `false` : l'original est supprimé une fois les sorties validées, pour économiser le disque ; « Réessayer » reste possible tant que la conversion n'a pas réussi. |
+
+Tests : `node scripts/e2e-video.mjs` (inclus dans `npm run test:e2e`) ; captures :
+`npm run shots:video` (→ `screenshots/phase5/`).
+
 ### Authentik (réglages exacts)
 
 1. *Applications → Providers → Create* : **OAuth2/OpenID Provider**.
@@ -262,7 +293,8 @@ Les images se construisent sur GitHub Actions. **Ne pas builder l'image sur la
 VM de dev sauf test ponctuel** (l'hôte Proxmox est en surallocation de RAM) :
 
 ```bash
-docker build -t portfolio:test .
+# VM de dev : réglages de npm run build:local dans l'image (la CI ne passe pas l'argument)
+docker build --build-arg LOW_MEM_BUILD=1 -t portfolio:test .
 docker run -d --name portfolio-test -p 3002:3000 --memory 512m \
   --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
   -v portfolio-test-data:/data portfolio:test

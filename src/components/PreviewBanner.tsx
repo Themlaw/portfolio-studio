@@ -1,5 +1,5 @@
 import { isAdminPreview } from "@/lib/page-preview";
-import { getPreviewTheme } from "@/lib/theme";
+import { getPreviewTheme, isPreviewBannerHidden } from "@/lib/theme";
 
 import PreviewBridge from "./PreviewBridge";
 
@@ -17,6 +17,7 @@ export default async function PreviewBanner() {
   const theme = await getPreviewTheme();
   const admin = await isAdminPreview();
   if (!theme && !admin) return null;
+  if (await isPreviewBannerHidden()) return admin ? <PreviewBridge /> : null;
   return (
     <>
       {admin && <PreviewBridge />}

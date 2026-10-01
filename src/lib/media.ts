@@ -1,6 +1,7 @@
 import { and, eq, like } from "drizzle-orm";
 
-import { hashOfVariantKey, ORIGINALS_PREFIX, parseVariants, pictureSources, VARIANTS_PREFIX, type PictureSources } from "./images/variants";
+import { hashOfVariantKey, ORIGINALS_PREFIX, parseVariants, pictureSources, variantMime, VARIANTS_PREFIX, VIDEO_PREFIX, videoSources, type PictureSources, type VideoSources } from "./images/variants";
+import { formatDuration, isLoop } from "./video/limits";
 
 import { cached, TAGS } from "./cache";
 import { getDb, schema } from "./db";
@@ -14,6 +15,8 @@ export type MediaInfo = {
   url: string;
   /** Sources <picture> d'une image téléversée (null : média du seed, servi tel quel). */
   sources: PictureSources | null;
+  /** Vidéo hébergée convertie, sinon null. */
+  video: VideoView | null;
   mime: string;
   width: number | null;
   height: number | null;
@@ -25,10 +28,23 @@ export function mediaUrl(key: string): string {
   return `/media/${key}`;
 }
 
-/** Sources <picture> d'une ligne média (variantes), ou null. */
-export function mediaSources(row: { variants: unknown; dominantColor: string | null }): PictureSources | null {
+/** Sources <picture> d'une ligne média (variantes), ou null. Vidéo : son poster. */
+export function mediaSources(row: { variants: unknown; dominantColor: string | null; kind?: string }): PictureSources | null {
   const variants = parseVariants(row.variants);
-  return variants ? pictureSources(variants, mediaUrl, row.dominantColor) : null;
+  if (!variants) return null;
+  if (row.kind === "video") return videoSources(variants, mediaUrl, row.dominantColor)?.poster ?? null;
+  return pictureSources(variants, mediaUrl, row.dominantColor);
+}
+
+export type VideoView = { sources: VideoSources; duration: number; durationLabel: string; loop: boolean };
+
+/** Lecture d'une vidéo convertie (sources MP4, poster, durée, boucle ?), ou null. */
+export function videoView(row: { kind: string; variants: unknown; dominantColor: string | null; duration: number | null; hasAudio: boolean | null }): VideoView | null {
+  if (row.kind !== "video") return null;
+  const variants = parseVariants(row.variants);
+  const sources = variants ? videoSources(variants, mediaUrl, row.dominantColor) : null;
+  if (!sources) return null;
+  return { sources, duration: row.duration ?? 0, durationLabel: formatDuration(row.duration), loop: isLoop(row) };
 }
 
 /** URL affichable d'un média (variante WebP la plus large, sinon la clé). */
@@ -47,6 +63,7 @@ export async function getMedia(id: number | undefined | null): Promise<MediaInfo
       key: row.key,
       url: sources ? sources.largest.webp : mediaUrl(row.key),
       sources,
+      video: videoView(row),
       mime: row.mime,
       width: row.width,
       height: row.height,
@@ -74,9 +91,9 @@ export function findMediaByKey(key: string): { mime: string; status: string } | 
       .get();
     const file = row ? parseVariants(row.variants)?.files.find((f) => f.key === key) : undefined;
     if (!row || !file) return null;
-    return { mime: file.format === "avif" ? "image/avif" : "image/webp", status: row.status };
+    return { mime: variantMime(key), status: row.status };
   }
-  if (key.startsWith(VARIANTS_PREFIX)) return null;
+  if (key.startsWith(VARIANTS_PREFIX) || key.startsWith(VIDEO_PREFIX)) return null;
   const row = db
     .select({ mime: schema.media.mime, status: schema.media.status })
     .from(schema.media)

@@ -1,5 +1,6 @@
 "use client";
 
+import LoopFrame from "./LoopVideo";
 import Picture from "./Picture";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -108,7 +109,15 @@ export default function ProjectStrip({
       <header className="shell flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
         <div className="max-w-2xl">
           <p className="eyebrow">
-            {project.context} · {project.year}
+            {/* Séparateur seulement entre deux parties non vides ; mêmes nœuds de texte
+                qu'avant quand les deux existent (parité au pixel). */}
+            {project.context && project.year ? (
+              <>
+                {project.context} · {project.year}
+              </>
+            ) : (
+              project.context || project.year
+            )}
           </p>
           <Heading
             id={`project-${project.slug}`}
@@ -157,28 +166,8 @@ export default function ProjectStrip({
         role="group"
         aria-label={project.title}
       >
-        {project.artworks.map((artwork, index) => (
-          <button
-            key={artwork.id}
-            type="button"
-            ref={(node) => {
-              triggerRefs.current[index] = node;
-            }}
-            onClick={() => setOpenIndex(index)}
-            aria-label={`${artwork.title || artwork.alt || artwork.year} — ${tg("open")}`}
-            className="strip-frame group text-left"
-          >
-            <span className="strip-media">
-              <Picture
-                src={artwork.image}
-                sources={artwork.sources}
-                alt={artwork.alt}
-                width={artwork.width}
-                height={artwork.height}
-                sizes={artwork.sources ? stripSizes(artwork.width, artwork.height) : "(min-width: 1024px) 640px, 60vw"}
-                className="h-[var(--strip-h)] w-auto max-w-none rounded-strip"
-              />
-            </span>
+        {project.artworks.map((artwork, index) => {
+          const caption = (
             <span className="strip-caption-row flex items-baseline justify-between gap-4">
               <span className="strip-caption transition-colors group-hover:text-ink">
                 {artwork.title}
@@ -187,8 +176,73 @@ export default function ProjectStrip({
                 {artwork.year}
               </span>
             </span>
+          );
+          const openLabel = `${artwork.title || artwork.alt || artwork.year} — ${tg("open")}`;
+          if (artwork.video?.loop) {
+            return (
+              <LoopFrame
+                key={artwork.id}
+                video={artwork.video}
+                width={artwork.width}
+                height={artwork.height}
+                mediaClassName="h-[var(--strip-h)] w-auto max-w-none rounded-strip"
+                label={artwork.alt || artwork.title}
+                openLabel={openLabel}
+                onOpen={() => setOpenIndex(index)}
+                openRef={(node) => {
+                  triggerRefs.current[index] = node;
+                }}
+                caption={caption}
+                texts={{ pause: tg("pauseLoop"), play: tg("playLoop") }}
+              />
+            );
+          }
+          return (
+          <button
+            key={artwork.id}
+            type="button"
+            ref={(node) => {
+              triggerRefs.current[index] = node;
+            }}
+            onClick={() => setOpenIndex(index)}
+            aria-label={openLabel}
+            className="strip-frame group text-left"
+          >
+            <span className="strip-media">
+              {artwork.video ? (
+                <span className="relative block">
+                  <Picture
+                    src={artwork.image}
+                    sources={artwork.sources}
+                    alt={artwork.alt}
+                    width={artwork.width}
+                    height={artwork.height}
+                    sizes={stripSizes(artwork.width, artwork.height)}
+                    className="h-[var(--strip-h)] w-auto max-w-none rounded-strip"
+                  />
+                  <span className="strip-duration absolute bottom-2 right-2 rounded-sm bg-scrim/75 px-2 py-0.5 text-xs text-on-scrim">
+                    <span aria-hidden="true">▶ </span>
+                    {artwork.video.durationLabel}
+                    <span className="sr-only"> — {tg("playVideo")}</span>
+                  </span>
+                </span>
+              ) : (
+                // Image : la même balise qu'avant (parité visuelle).
+                <Picture
+                  src={artwork.image}
+                  sources={artwork.sources}
+                  alt={artwork.alt}
+                  width={artwork.width}
+                  height={artwork.height}
+                  sizes={artwork.sources ? stripSizes(artwork.width, artwork.height) : "(min-width: 1024px) 640px, 60vw"}
+                  className="h-[var(--strip-h)] w-auto max-w-none rounded-strip"
+                />
+              )}
+            </span>
+            {caption}
           </button>
-        ))}
+          );
+        })}
       </div>
 
       {overflows && (
