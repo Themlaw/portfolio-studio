@@ -41,6 +41,11 @@ export default function ProjectStrip({
   headingLevel?: "h2" | "h3";
 }) {
   const t = useTranslations("projects");
+  // Vue brouillon de l'éditeur : repères de la planche (jamais dans le HTML public).
+  const edit = project.edit;
+  const draftProject = Boolean(edit?.draft);
+  // Les places vides n'existent que sur la toile : ni compteur, ni visionneuse.
+  const shownArtworks = edit ? project.artworks.filter((a) => !a.edit?.empty) : project.artworks;
   const tg = useTranslations("gallery");
   const Heading = headingLevel;
 
@@ -105,13 +110,25 @@ export default function ProjectStrip({
     <section
       className={`strip py-[clamp(3rem,7vw,5.5rem)] ${deep ? "strip-deep bg-bg-deep" : ""}`}
       aria-labelledby={`project-${project.slug}`}
+      {...(edit ? { "data-edit-board": String(edit.id), "data-edit-board-label": project.title } : {})}
     >
       <header className="shell flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
         <div className="max-w-2xl">
           <p className="eyebrow">
             {/* Séparateur seulement entre deux parties non vides ; mêmes nœuds de texte
-                qu'avant quand les deux existent (parité au pixel). */}
-            {project.context && project.year ? (
+                qu'avant quand les deux existent (parité au pixel). Projet créé
+                dans le brouillon : contexte et année se modifient en place. */}
+            {draftProject ? (
+              <>
+                <span data-project-inline="context" data-placeholder="Contexte">
+                  {project.context}
+                </span>
+                {" · "}
+                <span data-project-inline="year" data-placeholder="Année">
+                  {project.year}
+                </span>
+              </>
+            ) : project.context && project.year ? (
               <>
                 {project.context} · {project.year}
               </>
@@ -122,6 +139,7 @@ export default function ProjectStrip({
           <Heading
             id={`project-${project.slug}`}
             className="mt-3 font-display text-[clamp(2.2rem,5.5vw,3.5rem)] text-ink"
+            {...(draftProject ? { "data-project-inline": "title", "data-placeholder": "Nom du projet" } : {})}
           >
             {project.title}
           </Heading>
@@ -132,7 +150,7 @@ export default function ProjectStrip({
 
         <div className="flex items-center gap-4">
           <span className="eyebrow">
-            {tg("count", { count: project.artworks.length })}
+            {tg("count", { count: shownArtworks.length })}
           </span>
           {overflows && (
             <div className="flex items-center gap-2">
@@ -165,11 +183,17 @@ export default function ProjectStrip({
         className="strip-rail"
         role="group"
         aria-label={project.title}
+        {...(edit ? { "data-edit-rail": "" } : {})}
       >
-        {project.artworks.map((artwork, index) => {
+        {project.artworks.map((artwork) => {
+          const index = shownArtworks.indexOf(artwork);
+          const slot = artwork.edit;
           const caption = (
             <span className="strip-caption-row flex items-baseline justify-between gap-4">
-              <span className="strip-caption transition-colors group-hover:text-ink">
+              <span
+                className="strip-caption transition-colors group-hover:text-ink"
+                {...(slot ? { "data-slot-inline": "title", "data-placeholder": "Titre" } : {})}
+              >
                 {artwork.title}
               </span>
               <span className="strip-caption shrink-0">
@@ -177,9 +201,36 @@ export default function ProjectStrip({
               </span>
             </span>
           );
+          // Légende : visible sur la toile seulement (la visionneuse l'affiche en ligne).
+          const legend = slot ? (
+            <span className="pe-slot-legend strip-caption" data-slot-inline="description" data-placeholder="Légende">
+              {artwork.description}
+            </span>
+          ) : null;
+          if (slot?.empty) {
+            return (
+              <div
+                key={artwork.id}
+                className="strip-frame pe-empty-slot"
+                data-edit-slot={slot.key}
+                data-empty=""
+                tabIndex={0}
+                role="group"
+                aria-label={slot.pending ? "Image en cours de conversion" : "Place gardée, sans image"}
+              >
+                <span className="strip-media">
+                  <span className="pe-empty-box rounded-strip" style={{ width: `calc(var(--strip-h) * ${slot.aspect.toFixed(4)})` }}>
+                    {slot.pending ? "Conversion…" : "Dépose une image ici"}
+                  </span>
+                </span>
+                {caption}
+                {legend}
+              </div>
+            );
+          }
           const openLabel = `${artwork.title || artwork.alt || artwork.year} — ${tg("open")}`;
           if (artwork.video?.loop) {
-            return (
+            const loop = (
               <LoopFrame
                 key={artwork.id}
                 video={artwork.video}
@@ -196,6 +247,14 @@ export default function ProjectStrip({
                 texts={{ pause: tg("pauseLoop"), play: tg("playLoop") }}
               />
             );
+            return slot ? (
+              <div key={artwork.id} style={{ display: "contents" }} data-edit-slot={slot.key}>
+                {loop}
+                {legend}
+              </div>
+            ) : (
+              loop
+            );
           }
           return (
           <button
@@ -207,6 +266,7 @@ export default function ProjectStrip({
             onClick={() => setOpenIndex(index)}
             aria-label={openLabel}
             className="strip-frame group text-left"
+            {...(slot ? { "data-edit-slot": slot.key } : {})}
           >
             <span className="strip-media">
               {artwork.video ? (
@@ -240,6 +300,7 @@ export default function ProjectStrip({
               )}
             </span>
             {caption}
+            {legend}
           </button>
           );
         })}
@@ -256,7 +317,7 @@ export default function ProjectStrip({
       )}
 
       <Lightbox
-        items={project.artworks}
+        items={shownArtworks}
         index={openIndex}
         onIndexChange={setOpenIndex}
         onClose={() => setOpenIndex(null)}

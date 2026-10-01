@@ -4,7 +4,7 @@
  * les laisse vides (ils gardent leur place). Original et variantes sont
  * supprimés du stockage.
  */
-import { and, eq, isNull, like } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, like, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { BLOCKS } from "@/blocks/registry";
@@ -56,7 +56,15 @@ export async function deleteMedia(
     if (media.status === "processing") return { kind: "processing" as const };
     const usages = findMediaUsages(id);
     const blocks = usages.flatMap((u) => (u.kind === "block" ? [u] : []));
-    if (blocks.length) return { kind: "blocked" as const, blocks };
+    // Planches en brouillon (éditeur visuel) : image de remplacement, ou
+    // emplacement ajouté. Supprimer casserait la publication : bloqué.
+    const drafts = tx
+      .select({ id: schema.slots.id, pageId: schema.slots.draftPageId })
+      .from(schema.slots)
+      .where(and(isNotNull(schema.slots.draftPageId), or(eq(schema.slots.draftMediaId, id), and(eq(schema.slots.draftState, "added"), eq(schema.slots.mediaId, id)))))
+      .all()
+      .map((s) => ({ kind: "block" as const, blockId: -s.id, pageId: s.pageId as number, type: "project-board", path: "media" as const }));
+    if (blocks.length || drafts.length) return { kind: "blocked" as const, blocks: [...blocks, ...drafts] };
     const slots = usages.flatMap((u) => (u.kind === "slot" ? [u] : []));
     // Les emplacements vidés gardent la largeur de l'image.
     if (media.width && media.height) {

@@ -9,7 +9,8 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 /* ---- Toasts ------------------------------------------------------------- */
 
-type Toast = { id: number; message: string; tone: "success" | "error"; count: number };
+type ToastAction = { label: string; run: () => void };
+type Toast = { id: number; message: string; tone: "success" | "error"; count: number; action?: ToastAction };
 let toasts: Toast[] = [];
 let nextId = 1;
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
@@ -21,25 +22,29 @@ const MAX_TOASTS = 3;
 
 function schedule(id: number) {
   clearTimeout(timers.get(id));
+  const withAction = toasts.find((t) => t.id === id)?.action;
   timers.set(
     id,
     setTimeout(() => {
       timers.delete(id);
       toasts = toasts.filter((t) => t.id !== id);
       emit();
-    }, TOAST_MS),
+    }, withAction ? TOAST_MS * 2 : TOAST_MS),
   );
 }
 
-/** Un message identique déjà affiché est fusionné (compteur ×N) et prolongé. */
-export function toast(message: string, tone: Toast["tone"] = "success") {
-  const same = toasts.find((t) => t.message === message && t.tone === tone);
+/**
+ * Un message identique déjà affiché est fusionné (compteur ×N) et prolongé.
+ * `action` : un bouton (ex. « Annuler ») ; le toast reste alors plus longtemps.
+ */
+export function toast(message: string, tone: Toast["tone"] = "success", action?: ToastAction) {
+  const same = action ? undefined : toasts.find((t) => t.message === message && t.tone === tone && !t.action);
   if (same) {
     toasts = toasts.map((t) => (t === same ? { ...t, count: t.count + 1 } : t));
     schedule(same.id);
   } else {
     const id = nextId++;
-    toasts = [...toasts, { id, message, tone, count: 1 }];
+    toasts = [...toasts, { id, message, tone, count: 1, action }];
     while (toasts.length > MAX_TOASTS) {
       clearTimeout(timers.get(toasts[0].id));
       toasts = toasts.slice(1);
@@ -67,6 +72,19 @@ export function Toaster() {
           {t.tone === "success" && <span aria-hidden="true">✓ </span>}
           {t.message}
           {t.count > 1 && <span className="a-toast-count"> ×{t.count}</span>}
+          {t.action && (
+            <button
+              type="button"
+              className="a-toast-action"
+              onClick={() => {
+                t.action?.run();
+                toasts = toasts.filter((x) => x.id !== t.id);
+                emit();
+              }}
+            >
+              {t.action.label}
+            </button>
+          )}
         </div>
       ))}
     </div>

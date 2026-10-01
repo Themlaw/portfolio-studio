@@ -244,3 +244,325 @@
   color: #5c3c0c;
   font: 500 14px/1.4 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
 }
+
+/* ==========================================================================
+   Planches sur la toile (BoardLayer, phase 7b)
+   ========================================================================== */
+.pe-board-layer {
+  z-index: 2;
+}
+
+/* Place gardée : pointillés au ratio de la dernière image. */
+.pe-empty-slot {
+  outline: none;
+}
+
+.pe-empty-box {
+  display: grid;
+  place-items: center;
+  height: var(--strip-h);
+  padding: 12px;
+  border: 2px dashed rgba(46, 78, 158, 0.55);
+  background: rgba(232, 237, 248, 0.6);
+  color: #2e4e9e;
+  font: 500 13px/1.3 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-align: center;
+  text-transform: none;
+}
+
+.pe-empty-slot:focus-visible .pe-empty-box,
+[data-edit-slot]:focus-visible .strip-media {
+  outline: 3px solid #2e4e9e;
+  outline-offset: 3px;
+}
+
+/* Légende : sur la toile seulement. */
+.pe-slot-legend {
+  display: block;
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
+/* Hors du mode édition (aperçu) : ni places vides, ni légendes, ni fantômes. */
+html:not([data-edit-mode]) .pe-empty-slot,
+html:not([data-edit-mode]) .pe-slot-legend,
+html:not([data-edit-mode]) [data-ghost] {
+  display: none !important;
+}
+
+[data-edit-mode] [data-slot-inline],
+[data-edit-mode] [data-project-inline] {
+  cursor: text;
+}
+
+[data-edit-mode] [data-slot-inline][data-placeholder]:empty::before,
+[data-edit-mode] [data-project-inline][data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  opacity: 0.4;
+}
+
+[data-slot-dragging] {
+  opacity: 0.35;
+}
+
+/* Barre au survol / au focus d'une image. */
+.pe-slot-tools {
+  position: absolute;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 6px;
+  background: #1f2226;
+  box-shadow: 0 6px 18px rgba(31, 34, 38, 0.25);
+  flex-wrap: wrap;
+  pointer-events: auto;
+}
+
+.pe-slot-tools button {
+  min-height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #ffffff;
+  font: 600 12px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pe-slot-tools button:hover,
+.pe-slot-tools button:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+  outline: none;
+}
+
+.pe-slot-tools .pe-danger:hover {
+  background: #a33a2c;
+}
+
+@media (pointer: coarse) {
+  .pe-slot-tools button {
+    min-height: 38px;
+  }
+}
+
+/* Repères de dépôt : curseur vertical, place vide visée, planche neuve. */
+.pe-drop {
+  position: absolute;
+  pointer-events: none;
+}
+
+.pe-drop-cursor {
+  border-radius: 2px;
+  background: #2e4e9e;
+  box-shadow: 0 0 0 3px rgba(46, 78, 158, 0.22);
+}
+
+.pe-drop-cursor::before,
+.pe-drop-cursor::after {
+  position: absolute;
+  left: -5px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #2e4e9e;
+  content: "";
+}
+
+.pe-drop-cursor::before {
+  top: -7px;
+}
+
+.pe-drop-cursor::after {
+  bottom: -7px;
+}
+
+.pe-drop-slot,
+.pe-drop-new {
+  border: 3px solid #2e4e9e;
+  border-radius: 6px;
+  background: rgba(46, 78, 158, 0.12);
+}
+
+/* Fantômes : envoi, conversion, échec, à la position même. */
+.pe-ghost-slot {
+  flex: none;
+}
+
+.pe-ghost-box {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  height: var(--strip-h);
+  background: #e8edf8;
+}
+
+.pe-ghost-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pe-ghost-veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(31, 34, 38, 0.45);
+}
+
+.pe-ghost-slot[data-phase="failed"] .pe-ghost-veil {
+  background: rgba(163, 58, 44, 0.55);
+}
+
+.pe-ghost-state {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 30px;
+  color: #ffffff;
+  font: 600 13px/1.3 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.pe-ghost-bar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 16px;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.pe-ghost-bar span {
+  display: block;
+  height: 100%;
+  background: #ffffff;
+  transition: width 0.2s;
+}
+
+.pe-ghost-actions {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 6px;
+}
+
+.pe-ghost-actions button,
+.pe-fill-ghost button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1f2226;
+  font: 600 12px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.pe-fill-ghost {
+  position: absolute;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  border-radius: 4px;
+  background: rgba(31, 34, 38, 0.55);
+  color: #ffffff;
+  font: 600 13px/1.3 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  text-align: center;
+  pointer-events: auto;
+}
+
+.pe-fill-ghost .pe-ghost-actions {
+  position: static;
+  justify-content: center;
+}
+
+.pe-fill-ghost[data-phase="failed"] {
+  background: rgba(163, 58, 44, 0.75);
+}
+
+/* Planche neuve. */
+.pe-board-new {
+  position: absolute;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 22px;
+  border: 2px dashed rgba(46, 78, 158, 0.55);
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1f2226;
+  font: 500 14px/1.4 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 10px 30px rgba(31, 34, 38, 0.08);
+  pointer-events: auto;
+}
+
+.pe-board-new[data-over] {
+  border-style: solid;
+  background: #e8edf8;
+}
+
+.pe-board-new-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.pe-board-field {
+  display: grid;
+  gap: 6px;
+}
+
+.pe-board-field span {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.pe-board-field small {
+  color: #62666c;
+  font-size: 12px;
+}
+
+.pe-board-field input,
+.pe-board-field select {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid #cfccc5;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f2226;
+  font: 15px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+}
+
+.pe-board-field input:focus-visible,
+.pe-board-field select:focus-visible {
+  border-color: #2e4e9e;
+  outline: 2px solid #2e4e9e;
+  outline-offset: 0;
+}
+
+.pe-board-drop {
+  display: grid;
+  place-items: center;
+  min-height: 90px;
+  border: 2px dashed #cfccc5;
+  border-radius: 8px;
+  color: #62666c;
+  font-weight: 600;
+}
+
+/* Texte posé par-dessus (titres, légendes, projet). */
+.pe-text-editor {
+  position: absolute;
+  padding: 4px 6px;
+  border-radius: 4px;
+  outline: 2px solid #2e4e9e;
+  background: #ffffff;
+  white-space: pre-wrap;
+  pointer-events: auto;
+}

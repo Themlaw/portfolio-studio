@@ -168,6 +168,9 @@ const ADMIN_ACTIONS = [
   "saveDraftAction",
   "publishDraftAction",
   "discardDraftAction",
+  "boardAction",
+  "restoreBoardAction",
+  "createDraftProjectAction",
   "setPublishedAction",
   "setInMenuAction",
   "reorderMenuAction",
@@ -490,7 +493,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     name === "applyKitImportAction" ? "/admin/themes/galerie-lumineuse/kit"
     : name === "saveThemeAction" ? "/admin/themes/galerie-lumineuse"
     : name === "savePageAction" ? "/admin/pages/1"
-    : /Draft/.test(name) ? "/admin/pages/1/editer"
+    : /Draft|[bB]oard/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings/.test(name) ? "/admin/reglages"
     : /^(create|delete|reorder)Projects?Action$/.test(name) ? "/admin/projets"
@@ -787,6 +790,244 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   r = await http("/fr");
   html = await r.text();
   ok("ED21c visiteur : accueil d'origine", !html.includes(SECRET_TITLE) && html.includes(slot.key));
+}
+// Planches sur la toile (phase 7b) — série BD : surcouche par page, projet
+// créé en brouillon (invisible partout avant publication), gardes et IDOR,
+// bornes, version, médias, cache froid (serveur redémarré).
+{
+  const pageRev = (id) => query(dirA, "select draft_rev r from pages where id = ?", id)?.r;
+  const isOk = (res) => res.text.includes('"ok":true');
+  const line = (res) => res.text.split("\n").filter((l) => l.includes('"ok":')).join(" ").slice(0, 300) || res.text.slice(0, 200);
+  const code = (res) => /"code":"(\w+)"/.exec(res.text)?.[1];
+  const dataOf = (res) => JSON.parse(/"ok":true,"data":(\{[^}]*\})/.exec(res.text)?.[1] ?? "{}");
+  const homeId = query(dirA, `select id from pages where json_extract(slug,'$.fr')=''`).id;
+  const aboutId = query(dirA, `select id from pages where json_extract(slug,'$.fr')='a-propos'`).id;
+  const editor = `/admin/pages/${homeId}/editer`;
+  const board = (page, project, op, rev = pageRev(page)) => callActionJson(jar, ids.boardAction, [page, project, op, rev], editor);
+  const restore = (page, snap) => callActionJson(jar, ids.restoreBoardAction, [page, snap, pageRev(page)], editor);
+  const blocksOf = (id) => JSON.parse(query(dirA, "select json_group_array(json_object('type', type, 'props', json(props))) b from (select * from blocks where page_id = ? order by position)", id).b);
+  const draftFrom = (id, extra = []) => {
+    const row = query(dirA, "select title, slug, meta, published, nav_order from pages where id = ?", id);
+    return {
+      title: JSON.parse(row.title),
+      slug: JSON.parse(row.slug),
+      meta: row.meta ? JSON.parse(row.meta) : { title: { fr: "", en: "" }, description: { fr: "", en: "" } },
+      published: Boolean(row.published),
+      inMenu: row.nav_order !== null,
+      accent: null,
+      blocks: [...blocksOf(id).map((b, i) => ({ uid: `b${i}`, ...b })), ...extra],
+    };
+  };
+  const saveDraftOf = (id, d) => callActionJson(jar, ids.saveDraftAction, [id, d, pageRev(id)], `/admin/pages/${id}/editer`);
+  const cold = async (label) => {
+    await stop(s);
+    s = startServer(dirA, baseEnv, "/robots.txt");
+    ok(`${label} : serveur redémarré (cache ISR vide)`, await s.ready);
+  };
+  const png = async (name, hex) => {
+    const up = await upload(jar, name, "image/png", await sharp({ create: { width: 64 + name.length, height: 48, channels: 3, background: hex } }).png().toBuffer());
+    const id = up.json?.media?.id;
+    if (id) await waitMedia(dirA, id);
+    return id;
+  };
+  const variant = (mediaId) => `img/${query(dirA, "select sha256 from media where id = ?", mediaId).sha256.slice(0, 16)}`;
+  const countOf = (html) => /(\d+)\s*(?:œuvres|œuvre)/.exec(html)?.[1];
+  const keyOfSlot = (id) => `s${id}`;
+  const TITLE = "Projet de planche BD";
+  const RENAMED = "Titre de brouillon BD";
+  const homeBlocks = blocksOf(homeId);
+  const countBefore = countOf(await (await http("/fr/personnages")).text());
+
+  // Projets : P (mis en avant, affiché par l'accueil), Q (cité par une planche), Z (non cité).
+  const P = query(dirA, "select id, slug from projects where slug = 'les-hauts-chemins'");
+  const Q = query(dirA, "select id, slug from projects where slug = 'herbier-des-nuits'");
+  const Z = query(dirA, "select id, slug from projects where slug = 'sel-et-silence'");
+  const slotsOf = (pid) => query(dirA, "select json_group_array(json_object('id', s.id, 'key', m.key)) j from (select s.id, s.media_id from slots s where s.project_id = ? order by s.position) s left join media m on m.id = s.media_id", pid);
+  const pSlots = JSON.parse(slotsOf(P.id).j);
+
+  let res = await callActionJson(jar, ids.createDraftProjectAction, [homeId, TITLE], editor);
+  const created = dataOf(res);
+  ok("BD1 projet créé depuis la toile : en brouillon de la page", isOk(res) && query(dirA, "select draft_page_id p from projects where id = ?", created.id)?.p === homeId, line(res));
+  const [mB, mC, mX, mD] = [await png("bd-b.png", "#123456"), await png("bd-c.png", "#654321"), await png("bd-x.png", "#a0a0a0"), await png("bd-d.png", "#0a0a0a")];
+  res = await board(homeId, created.id, { op: "add", mediaId: mX, index: 0 });
+  ok("BD1b planche que la page n'affiche pas → refusée (I1)", res.text.includes('"ok":false') && res.text.includes("n'affiche pas"), line(res));
+  const board1 = { uid: "pb1", type: "project-board", props: { project: created.slug } };
+  const boardQ = { uid: "pq", type: "project-board", props: { project: Q.slug } };
+  res = await saveDraftOf(homeId, draftFrom(homeId, [board1, boardQ]));
+  ok("BD2 brouillon de l'accueil : planches du projet neuf et de Q", isOk(res), line(res));
+  res = await board(homeId, created.id, { op: "add", mediaId: mX, index: 0 });
+  ok("BD2b image ajoutée à la planche citée : emplacement « added »", isOk(res) && query(dirA, "select count(*) n from slots where project_id = ? and draft_state = 'added' and draft_page_id = ?", created.id, homeId).n === 1, line(res));
+
+  // Surcouche d'un projet PUBLIÉ (P) : renommage, place retirée, ajout.
+  res = await board(homeId, P.id, { op: "text", key: keyOfSlot(pSlots[0].id), field: "title", locale: "fr", value: RENAMED });
+  const pBefore = JSON.parse(/"before":(\{.*?\}),"after"/.exec(res.text)?.[1] ?? "null");
+  await board(homeId, P.id, { op: "retire", key: keyOfSlot(pSlots[1].id) });
+  res = await board(homeId, P.id, { op: "add", mediaId: mC, index: 0 });
+  ok("BD2c surcouche de P : renommage, place retirée, ajout", isOk(res) && query(dirA, "select draft_state s from slots where id = ?", pSlots[1].id).s === "retired", line(res));
+
+  // Trois protections, chacune seule en cause : A = projet en brouillon mis
+  // en avant (projectIds) ; B = emplacement NON « added » d'un projet en
+  // brouillon (published.has) ; C = emplacement « added » d'un projet publié (filtre added).
+  res = await callActionJson(jar, ids.createDraftProjectAction, [homeId, "Projet A BD"], editor);
+  const projA = dataOf(res);
+  writeDb(dirA, "update projects set featured = 1, position = -1 where id = ?", projA.id);
+  {
+    const db = new Database(path.join(dirA, "portfolio.db"));
+    const row = db.prepare("select * from slots where project_id = ? order by position limit 1").get(P.id);
+    delete row.id;
+    Object.assign(row, { project_id: projA.id, slug: "bd-b-slot", media_id: mB, collection: "characters", draft_state: null, draft_page_id: null, draft_position: null, draft_media_id: null, draft_key: null, draft_title: null, draft_description: null });
+    const cols = Object.keys(row);
+    db.prepare(`insert into slots (${cols.join(",")}) values (${cols.map(() => "?").join(",")})`).run(...cols.map((c) => row[c]));
+    db.close();
+  }
+
+  await cold("BD3");
+  const urls = ["/fr", "/fr/personnages", "/fr/decors", "/fr/animation", "/en"];
+  r = await http("/fr");
+  const first = r.headers.get("x-nextjs-cache");
+  const texts = [await r.text(), ...(await Promise.all(urls.slice(1).map(async (u) => (await http(u)).text())))];
+  ok("BD3a anonyme, cache froid : MISS", first === "MISS", first ?? "");
+  ok("BD3b anonyme, cache froid : ni projet en brouillon (A), ni son emplacement (B), ni ajout sur un projet publié (C)", texts.every((t) => !t.includes(TITLE) && !t.includes("Projet A BD") && !t.includes(variant(mB)) && !t.includes(variant(mC)) && !t.includes(variant(mX))));
+  ok("BD3c compteur de la collection inchangé (B et C ne comptent pas)", countOf(texts[1]) === countBefore, `${countOf(texts[1])} / ${countBefore}`);
+  ok("BD3d surcouche de P invisible : titre d'origine, place retirée encore là", texts.every((t) => !t.includes(RENAMED)) && texts[0].includes(pSlots[1].key));
+  ok("BD3e HTML public sans repères d'édition (Titre / Légende, emplacements)", texts.every((t) => !/data-placeholder|pe-slot-legend|data-slot-inline|data-edit-/.test(t)));
+  // Arbre de routeur minimal que Next accepte (un arbre mal formé donne une 500 en draft mode, sans fuite).
+  const tree = encodeURIComponent(JSON.stringify(["", {}]));
+  const rscHeaders = { RSC: "1", "Next-Router-State-Tree": tree, "Next-Url": "/fr", "Next-Router-Prefetch": "1" };
+  // Next exige le paramètre _rsc (empreinte des en-têtes) : on suit sa redirection.
+  const rscGet = async (jarOpt) => {
+    let res2 = await http("/fr", { jar: jarOpt, headers: rscHeaders });
+    const loc = res2.headers.get("location");
+    if (res2.status === 307 && loc?.includes("_rsc=")) res2 = await http(loc, { jar: jarOpt, headers: rscHeaders });
+    return res2;
+  };
+  r = await rscGet();
+  const rsc = await r.text();
+  ok("BD3f charge RSC anonyme (en-têtes de routeur complets, _rsc suivi) : rien du brouillon", r.status === 200 && (r.headers.get("content-type") ?? "").includes("text/x-component") && !rsc.includes(TITLE) && !rsc.includes(RENAMED) && !rsc.includes(variant(mC)), `${r.status} ${r.headers.get("content-type")}`);
+  r = await http("/admin/projets", { jar });
+  ok("BD3g écran Projets : projets en brouillon absents", !/Projet de planche BD|Projet A BD/.test(await r.text()));
+
+  await cold("BD4");
+  const drafty = jar.copy();
+  await http(`/admin/api/editeur/toile?page=${homeId}&langue=fr`, { jar: drafty, headers: { "sec-fetch-site": "same-origin" } });
+  r = await http("/fr", { jar: drafty });
+  let html = await r.text();
+  ok("BD4a vue brouillon d'abord : planche neuve, renommage, ajout, repères", html.includes(TITLE) && html.includes(RENAMED) && html.includes(variant(mC)) && html.includes(`data-edit-board="${created.id}"`) && /data-edit-slot="k[0-9a-f]+"/.test(html));
+  r = await http("/fr");
+  html = await r.text();
+  ok("BD4b … puis l'anonyme : MISS propre", r.headers.get("x-nextjs-cache") === "MISS" && !html.includes(TITLE) && !html.includes(RENAMED) && !html.includes(variant(mC)), r.headers.get("x-nextjs-cache") ?? "");
+  r = await rscGet(drafty.copy((k) => !k.includes("session_token")));
+  ok("BD4c charge RSC avec cookies de vue brouillon volés : rien", r.status === 200 && !(await r.text()).includes(TITLE), String(r.status));
+
+  // IDOR, gardes, page nommée.
+  const qSlots = JSON.parse(slotsOf(Q.id).j);
+  res = await board(homeId, created.id, { op: "remove", key: keyOfSlot(qSlots[0].id) });
+  ok("BD5 emplacement d'un autre projet → refusé", res.text.includes('"ok":false') && !query(dirA, "select draft_state s from slots where id = ?", qSlots[0].id).s, line(res));
+  res = await restore(homeId, { projectId: created.id, project: null, slots: [{ key: keyOfSlot(qSlots[0].id), mediaId: null, title: { fr: "", en: "" }, description: { fr: "", en: "" } }] });
+  ok("BD5b instantané citant l'emplacement d'un autre projet → refusé", res.text.includes('"ok":false') && query(dirA, "select project_id p from slots where id = ?", qSlots[0].id).p === Q.id, line(res));
+  res = await callActionJson(jar, ids.createDraftProjectAction, [aboutId, "Projet d'une autre page"], editor);
+  const otherDraft = dataOf(res);
+  res = await board(homeId, otherDraft.id, { op: "add", mediaId: mX, index: 0 });
+  ok("BD5c projet en brouillon d'une autre page → refusé, la page est nommée", res.text.includes('"ok":false') && res.text.includes("sur la page À propos"), line(res));
+  res = await saveDraftOf(aboutId, draftFrom(aboutId, [boardQ]));
+  res = await board(aboutId, Q.id, { op: "add", mediaId: mX, index: 0 });
+  ok("BD5d « À propos » modifie Q (qu'elle affiche)", isOk(res), line(res));
+  res = await board(homeId, Q.id, { op: "remove", key: keyOfSlot(qSlots[0].id) });
+  ok("BD5e même projet depuis l'accueil → refusé : « en cours de modification sur la page À propos »", res.text.includes('"ok":false') && res.text.includes("en cours de modification sur la page À propos"), line(res));
+  const aboutKey = query(dirA, "select draft_key k from slots where draft_page_id = ? and draft_state = 'added'", aboutId).k;
+  res = await restore(homeId, { projectId: Q.id, project: null, slots: [{ key: aboutKey, mediaId: null, title: { fr: "", en: "" }, description: { fr: "", en: "" } }] });
+  const aboutRow = query(dirA, "select project_id p, draft_page_id g, media_id m from slots where draft_key = ?", aboutKey);
+  ok("BD5f clé k… forgée visant l'emplacement ajouté d'une autre page → refusé, intact", res.text.includes('"ok":false') && aboutRow.p === Q.id && aboutRow.g === aboutId && aboutRow.m === mX, line(res));
+  res = await callActionJson(jar, ids.saveProjectAction, [created.id, { title: { fr: "X", en: "" }, context: { fr: "", en: "" }, description: { fr: "", en: "" }, year: "2026", featured: true }], `/admin/projets/${Q.id}`);
+  ok("BD5g écran Projets : modifier un projet en brouillon → refusé", res.text.includes('"ok":false') && query(dirA, "select featured f from projects where id = ?", created.id).f === 0, line(res));
+  res = await callActionJson(jar, ids.addSlotsAction, [created.id, [mX]], `/admin/projets/${Q.id}`);
+  ok("BD5h écran Projets : ajouter à un projet en brouillon → refusé", res.text.includes('"ok":false'), line(res));
+  res = await callActionJson(jar, ids.deleteProjectAction, [created.id], "/admin/projets");
+  ok("BD5i écran Projets : supprimer un projet en brouillon → refusé", res.text.includes('"ok":false') && Boolean(query(dirA, "select id from projects where id = ?", created.id)), line(res));
+
+  // Bornes, formes, médias pas prêts, version.
+  const bad = [
+    ["position au-delà de la planche", { op: "add", mediaId: mX, index: 50 }],
+    ["média inexistant", { op: "add", mediaId: 999999, index: 0 }],
+    ["opération inconnue", { op: "drop", key: "s1" }],
+    ["clé mal formée", { op: "remove", key: "../1" }],
+    ["texte trop long", { op: "text", key: "s1", field: "title", locale: "fr", value: "x".repeat(2001) }],
+    ["champ inconnu", { op: "project", field: "featured", locale: "fr", value: "1" }],
+  ];
+  for (const [label, op] of bad) {
+    const before = pageRev(homeId);
+    res = await board(homeId, created.id, op);
+    ok(`BD6 ${label} → refusé, rien d'écrit`, res.status === 200 && res.text.includes('"ok":false') && pageRev(homeId) === before, `${res.status} ${line(res)}`);
+  }
+  for (const [status, label] of [["processing", "en conversion"], ["failed", "en échec"]]) {
+    writeDb(dirA, "update media set status = ? where id = ?", status, mB);
+    res = await board(homeId, created.id, { op: "add", mediaId: mB, index: 0 });
+    ok(`BD6b média ${label} → refusé`, res.text.includes('"ok":false') && /conversion|échec/.test(res.text), line(res));
+  }
+  writeDb(dirA, "update media set status = 'ready' where id = ?", mB);
+  const snapX = { projectId: created.id, project: null, slots: [{ key: "s999999", mediaId: null, title: { fr: "", en: "" }, description: { fr: "", en: "" } }] };
+  res = await restore(homeId, snapX);
+  ok("BD6c instantané : emplacement s<id> qui n'existe plus → refusé", res.text.includes('"ok":false'), line(res));
+  res = await restore(homeId, { projectId: created.id, project: null, slots: Array.from({ length: 201 }, (_, i) => ({ key: `k${String(i).padStart(10, "0")}`, mediaId: null, title: { fr: "", en: "" }, description: { fr: "", en: "" } })) });
+  ok("BD6d instantané de plus de 200 emplacements → refusé", res.text.includes('"ok":false') && query(dirA, "select count(*) n from slots where project_id = ?", created.id).n === 1, line(res));
+  res = await restore(homeId, { ...pBefore, project: { title: { fr: "Piratage", en: "" }, context: { fr: "", en: "" }, year: "1" } });
+  ok("BD6e instantané qui renomme un projet publié → refusé", res.text.includes('"ok":false') && !JSON.stringify(query(dirA, "select title from projects where id = ?", P.id)).includes("Piratage"), line(res));
+  res = await board(homeId, created.id, { op: "add", mediaId: mX, index: 0 }, pageRev(homeId) - 1);
+  ok("BD6f version périmée → refusé (conflit)", code(res) === "conflict", line(res));
+  res = await callActionJson(jar, ids.boardAction, [homeId, created.id, { op: "add", mediaId: mX, index: 0 }], editor);
+  ok("BD6g sans version → refusé", res.text.includes('"ok":false'), line(res));
+
+  // Médias : remplacement en brouillon protégé ; supprimé quand même → Annuler refusé, publication saine.
+  res = await board(homeId, created.id, { op: "add", mediaId: mD, index: 1 });
+  const withD = JSON.parse(/"after":(\{.*\}),"rev"/.exec(res.text)?.[1] ?? "null");
+  const delD = await callActionJson(jar, ids.deleteMediaAction, [mD], "/admin/medias");
+  ok("BD7 supprimer un média utilisé par une planche en brouillon → bloqué, la page citée", delD.text.includes('"ok":false') && delD.text.includes("references") && delD.text.includes("Accueil"), line(delD));
+  const dKey = withD.slots[1].key;
+  await board(homeId, created.id, { op: "remove", key: dKey });
+  writeDb(dirA, "delete from media where id = ?", mD);
+  res = await restore(homeId, withD);
+  ok("BD7b Annuler qui rétablirait l'image supprimée → refusé", res.text.includes('"ok":false') && res.text.includes("n'existe plus"), line(res));
+
+  // Planche d'un projet en brouillon sans image : publication refusée.
+  res = await callActionJson(jar, ids.createDraftProjectAction, [homeId, "Planche vide BD"], editor);
+  const emptyP = dataOf(res);
+  const withEmpty = draftFrom(homeId, [board1, boardQ, { uid: "pe", type: "project-board", props: { project: emptyP.slug } }]);
+  await saveDraftOf(homeId, withEmpty);
+  res = await callActionJson(jar, ids.publishDraftAction, [homeId, pageRev(homeId)], editor);
+  ok("BD8 planche sans image : publication refusée, message clair", res.text.includes('"ok":false') && res.text.includes("Planche vide BD") && res.text.includes("aucune image"), line(res));
+  // Projet en brouillon d'une autre page cité : savePage refuse.
+  await saveDraftOf(homeId, draftFrom(homeId, [board1, boardQ, { uid: "po", type: "project-board", props: { project: otherDraft.slug } }]));
+  res = await callActionJson(jar, ids.publishDraftAction, [homeId, pageRev(homeId)], editor);
+  ok("BD8b bloc citant le projet en brouillon d'une autre page → publication refusée", res.text.includes('"ok":false') && res.text.includes("autre page"), line(res));
+
+  // Surcouche de P remise à l'identique (instantané d'avant) ; surcouche sur Z, que la page n'affiche pas.
+  await saveDraftOf(homeId, draftFrom(homeId, [board1, boardQ]));
+  res = await restore(homeId, pBefore);
+  ok("BD9 instantané d'avant de P rétabli (place, titre, ajout)", isOk(res) && query(dirA, "select draft_state s from slots where id = ?", pSlots[1].id).s === null, line(res));
+  const zSlot = JSON.parse(slotsOf(Z.id).j)[0];
+  writeDb(dirA, "update slots set draft_state = 'retired', draft_page_id = ? where id = ?", homeId, zSlot.id);
+
+  // Publier l'accueil.
+  res = await callActionJson(jar, ids.publishDraftAction, [homeId, pageRev(homeId)], editor);
+  ok("BD10 publier → projet neuf public", isOk(res) && query(dirA, "select draft_page_id p from projects where id = ?", created.id).p === null, line(res));
+  ok("BD10b surcouche d'un projet non affiché (Z) : rien d'appliqué, effacée", Boolean(query(dirA, "select id from slots where id = ?", zSlot.id)) && query(dirA, "select draft_state s, draft_page_id p from slots where id = ?", zSlot.id).p === null);
+  ok("BD10c projets en brouillon non cités (A, planche vide) supprimés", !query(dirA, "select id from projects where id = ?", projA.id) && !query(dirA, "select id from projects where id = ?", emptyP.id));
+  ok("BD10d surcouche de Q (tenue par « À propos ») intacte", query(dirA, "select draft_page_id g from slots where draft_key = ?", aboutKey)?.g === aboutId);
+  r = await http("/fr");
+  html = await r.text();
+  ok("BD10e anonyme : la planche neuve (cache revalidé), sans repère d'édition", html.includes(TITLE) && html.includes(variant(mX)) && !/data-edit-|data-placeholder|pe-slot-legend/.test(html));
+  r = await http("/fr/personnages");
+  ok("BD10f le projet rejoint sa collection publique", (await r.text()).includes(TITLE));
+
+  // Abandonner (« À propos ») : surcouche et projet créé effacés.
+  res = await callActionJson(jar, ids.discardDraftAction, [aboutId, pageRev(aboutId)], `/admin/pages/${aboutId}/editer`);
+  ok("BD11 abandonner → projet créé en brouillon supprimé, emplacement ajouté supprimé", isOk(res) && !query(dirA, "select id from projects where id = ?", otherDraft.id) && !query(dirA, "select id from slots where draft_key = ?", aboutKey), line(res));
+
+  // Remise en état : planches retirées de l'accueil, projet supprimé.
+  const homeRow = query(dirA, "select title, slug, meta, published, nav_order from pages where id = ?", homeId);
+  res = await callActionJson(jar, ids.savePageAction, [homeId, { title: JSON.parse(homeRow.title), slug: JSON.parse(homeRow.slug), meta: homeRow.meta ? JSON.parse(homeRow.meta) : { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: homeRow.nav_order !== null, accent: null, blocks: homeBlocks }, pageRev(homeId)], `/admin/pages/${homeId}`);
+  const del = await callActionJson(jar, ids.deleteProjectAction, [created.id], "/admin/projets");
+  ok("BD12 remise en état (planches retirées, projet supprimé)", isOk(res) && isOk(del) && !query(dirA, "select id from projects where id = ?", created.id), `${line(res)} ${line(del)}`);
 }
 {
   let res = await callActionJson(jar, ids.duplicateThemeAction, ["galerie-lumineuse"], "/admin/themes");

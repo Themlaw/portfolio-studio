@@ -49,6 +49,10 @@ export async function start(): Promise<void> {
         await new Promise((r) => setTimeout(r, 150 * attempt + Math.random() * 100));
       }
     }
+    // Projets créés dans un brouillon puis oubliés (plus cités, plus de 24 h).
+    const { cleanupDraftProjects } = await import("../edit/draft-cleanup");
+    const cleaned = cleanupDraftProjects();
+    if (cleaned) console.log(`[db] ${cleaned} projet(s) en brouillon oublié(s) supprimé(s)`);
     const { ensureFirstAdmin } = await import("../auth/seed-admin");
     await ensureFirstAdmin();
     // Worker des traitements (images) : un job à la fois, reprise des orphelins.

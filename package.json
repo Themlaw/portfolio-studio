@@ -19,6 +19,7 @@
     "test:e2e-rail": "node scripts/e2e-rail.mjs",
     "test:e2e-tuto": "node scripts/e2e-tuto.mjs",
     "test:e2e-editor": "node scripts/e2e-editor.mjs",
+    "test:e2e-boards": "node scripts/e2e-boards.mjs",
     "shots:admin": "node scripts/admin-shots.mjs",
     "test:e2e": "node scripts/e2e-admin.mjs && node scripts/e2e-planche.mjs && node scripts/e2e-video.mjs && node scripts/e2e-tags.mjs",
     "shots:editors": "node scripts/editor-shots.mjs",

@@ -103,6 +103,8 @@ export function listProjectsForAdmin(): AdminProjectRow[] {
     .from(schema.projects)
     .orderBy(asc(schema.projects.position))
     .all()
+    // Projet créé dans un brouillon de page : pas encore un projet du site.
+    .filter((p) => p.draftPageId === null)
     .map((p) => {
       const mine = slots.filter((s) => s.projectId === p.id);
       const first = mine.map((s) => (s.mediaId ? media.get(s.mediaId) : undefined)).find((m) => m && m.status === "ready");
@@ -263,7 +265,7 @@ export type AdminProjectEdit = {
 export function getProjectForEdit(id: number): AdminProjectEdit | null {
   const db = getDb();
   const p = db.select().from(schema.projects).where(eq(schema.projects.id, id)).get();
-  if (!p) return null;
+  if (!p || p.draftPageId !== null) return null;
   const media = new Map(db.select().from(schema.media).all().map((m) => [m.id, m]));
   const all = db.select().from(schema.slots).where(eq(schema.slots.projectId, id)).orderBy(asc(schema.slots.position)).all();
   // Version publiée de la planche ; les modifications en brouillon d'une page
@@ -366,7 +368,8 @@ export function getPageForEdit(id: number): AdminPageEdit | null {
 }
 
 /** Choix proposés par les sélecteurs des éditeurs de blocs. */
-export function getEditorContext() {
+/** `draftPageId` : page éditée (ses projets en brouillon sont proposés). */
+export function getEditorContext(draftPageId?: number) {
   const db = getDb();
   return {
     pages: db
@@ -376,12 +379,14 @@ export function getEditorContext() {
       .all()
       .filter((p) => !p.slug.fr.startsWith("_"))
       .map((p) => ({ id: p.id, title: p.title.fr, slug: p.slug.fr })),
+    // Projets publiés, plus ceux créés dans le brouillon de la page éditée.
     projects: db
-      .select({ slug: schema.projects.slug, title: schema.projects.title })
+      .select({ slug: schema.projects.slug, title: schema.projects.title, page: schema.projects.draftPageId })
       .from(schema.projects)
       .orderBy(asc(schema.projects.position))
       .all()
-      .map((p) => ({ slug: p.slug, title: p.title.fr })),
+      .filter((p) => p.page === null || (draftPageId !== undefined && p.page === draftPageId))
+      .map((p) => ({ slug: p.slug, title: p.title.fr, ...(p.page !== null ? { draft: true } : {}) })),
     media: listMediaForAdmin().filter((m) => m.status !== "failed"),
   };
 }
@@ -407,4 +412,11 @@ export function getActiveThemeColors(): Theme["tokens"]["color"] | null {
 /** Identifiant de la page d'accueil (adresses vides), ou null. */
 export function getHomePageId(): number | null {
   return getDb().select({ id: schema.pages.id, slug: schema.pages.slug }).from(schema.pages).all().find((p) => p.slug.fr === "" && p.slug.en === "")?.id ?? null;
+}
+
+/** Projets dont le brouillon de la page a modifié les images (surcouche en attente), par slug. */
+export function overlayProjectSlugs(pageId: number): string[] {
+  const db = getDb();
+  const ids = new Set(db.select({ p: schema.slots.projectId }).from(schema.slots).where(eq(schema.slots.draftPageId, pageId)).all().map((r) => r.p));
+  return db.select({ id: schema.projects.id, slug: schema.projects.slug }).from(schema.projects).all().filter((p) => ids.has(p.id)).map((p) => p.slug);
 }

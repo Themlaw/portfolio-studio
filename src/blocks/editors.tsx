@@ -10,6 +10,7 @@
 import {
   CollectionPicker,
   errorAt,
+  Field,
   ListField,
   MediaPicker,
   PagePicker,
@@ -243,5 +244,34 @@ export function ProfileEditor() {
       <TextI18n label="Texte du bouton de contact" value={l(value.contactLabel)} onChange={(v) => set("contactLabel", v)} error={errorAt(errors, "contactLabel")} />
       <TextI18n label="Étiquette des réseaux" value={l(value.socialEyebrow)} onChange={(v) => set("socialEyebrow", v)} error={errorAt(errors, "socialEyebrow")} />
     </>
+  );
+}
+
+export function ProjectBoardEditor() {
+  const { value, onChange, errors, context, idPrefix } = useBlockEditor();
+  const set = useSet(value, onChange);
+  const current = context.projects.find((p) => p.slug === value.project);
+  const id = `${idPrefix}-projet`;
+  return (
+    <Field
+      label="Projet"
+      htmlFor={id}
+      error={errorAt(errors, "project")}
+      help={
+        current?.draft
+          ? "Projet créé sur cette page : son nom, son contexte et son année se modifient directement sur la planche (double-clic). Il devient public avec la page."
+          : "Les images se placent, se déplacent et se retirent directement sur la planche. Le nom et les textes du projet se modifient dans l'écran Projets."
+      }
+    >
+      <select id={id} className="a-input" value={(value.project as string | undefined) ?? ""} onChange={(e) => set("project", e.target.value || undefined)}>
+        <option value="">— Choisir un projet —</option>
+        {context.projects.map((p) => (
+          <option key={p.slug} value={p.slug}>
+            {p.title}
+            {p.draft ? " (créé sur cette page)" : ""}
+          </option>
+        ))}
+      </select>
+    </Field>
   );
 }

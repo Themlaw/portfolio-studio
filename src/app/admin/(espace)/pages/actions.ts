@@ -16,6 +16,7 @@ import {
   type PageReference,
 } from "@/lib/edit/pages";
 import { discardDraft, publishDraft, saveDraft, savePageFromForm, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
+import { boardOp, createDraftProject, restoreBoard, type BoardResult } from "@/lib/edit/boards";
 import { fail, type ActionResult } from "@/lib/edit/result";
 import { revalidateNav, revalidatePage, revalidateProject } from "@/lib/revalidate";
 
@@ -44,7 +45,7 @@ export async function savePageAction(id: unknown, input: unknown, rev: unknown):
   const result = savePageFromForm(pid, input, rev);
   if (!result.ok) return result;
   revalidatePage(pid, { structure: true });
-  for (const project of result.data.projects) revalidateProject(project);
+  for (const project of result.data.projects) revalidateProject(project, { structure: true });
   return { ok: true, data: { rev: result.data.rev } };
 }
 
@@ -68,7 +69,7 @@ export async function publishDraftAction(id: unknown, rev: unknown): Promise<Dra
   const result = publishDraft(pid, rev);
   if (!result.ok) return result;
   revalidatePage(pid, { structure: true });
-  for (const project of result.data.projects) revalidateProject(project);
+  for (const project of result.data.projects) revalidateProject(project, { structure: true });
   return result;
 }
 
@@ -81,8 +82,36 @@ export async function discardDraftAction(id: unknown, rev: unknown): Promise<Dra
   if (!result.ok) return result;
   // Les emplacements « added » supprimés n'étaient pas publics : revalidation
   // par prudence du cache des projets touchés.
-  for (const project of result.data.projects) revalidateProject(project);
+  for (const project of result.data.projects) revalidateProject(project, { structure: true });
   return result;
+}
+
+/**
+ * Planche sur la toile (ajouter à une position, déplacer, retirer l'image ou
+ * la place, remplacer, textes) : surcouche d'emplacements de CETTE page,
+ * jamais publique avant « Publier ». Rien n'est revalidé.
+ */
+export async function boardAction(id: unknown, projectId: unknown, op: unknown, rev: unknown): Promise<DraftResult<BoardResult>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Page inconnue.");
+  return boardOp(pid, projectId, op, rev);
+}
+
+/** Annuler / Rétablir sur une planche : réécrit l'instantané d'avant ou d'après. */
+export async function restoreBoardAction(id: unknown, snap: unknown, rev: unknown): Promise<DraftResult<BoardResult>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Page inconnue.");
+  return restoreBoard(pid, snap, rev);
+}
+
+/** Planche neuve : projet créé dans le brouillon de la page (invisible ailleurs). */
+export async function createDraftProjectAction(id: unknown, title: unknown): Promise<ActionResult<{ id: number; slug: string; title: string }>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Page inconnue.");
+  return createDraftProject(pid, title);
 }
 
 export async function setPublishedAction(id: unknown, published: unknown): Promise<ActionResult<null>> {

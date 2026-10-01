@@ -21,12 +21,14 @@ import {
   FeaturedProjectsEditor,
   HeroEditor,
   ProfileEditor,
+  ProjectBoardEditor,
   RichTextEditor,
   VideoEditor,
 } from "./editors";
 import FeaturedProjectsBlock, { featuredProjectsSchema } from "./FeaturedProjectsBlock";
 import HeroBlock, { heroSchema } from "./HeroBlock";
 import ProfileBlock, { profileSchema } from "./ProfileBlock";
+import ProjectBoardBlock, { projectBoardSchema } from "./ProjectBoardBlock";
 import type { BlockCatalogEntry } from "./editor-types";
 import { BLOCK_REFS, type BlockRefs } from "./refs";
 import RichTextBlock, { richTextSchema } from "./RichTextBlock";
@@ -60,6 +62,11 @@ export type BlockDefinition<S extends z.ZodType = z.ZodType> = {
    * réglages passent par l'Editor.
    */
   inline: string[];
+  /**
+   * Condition de publication en plus du schéma (un brouillon peut rester
+   * incomplet, la page publiée non) : message d'erreur, ou null.
+   */
+  publishCheck?: (props: Record<string, unknown>) => string | null;
 };
 
 function define<S extends z.ZodType>(def: Omit<BlockDefinition<S>, "refs">): BlockDefinition {
@@ -72,6 +79,19 @@ const L = { fr: "", en: "" };
 
 export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
   [
+    // Geste principal de l'éditeur visuel : en tête de la palette.
+    define({
+      type: "project-board",
+      schema: projectBoardSchema,
+      Component: ProjectBoardBlock,
+      Editor: ProjectBoardEditor,
+      label: "Planche d'un projet",
+      description: "Un projet et ses images en bande : crée-le sur la page, ou reprends un projet existant.",
+      defaults: {},
+      summary: "Projet · {project}",
+      inline: [],
+      publishCheck: (props) => (props.project ? null : "Nomme le projet de cette planche, ou choisis-en un existant."),
+    }),
     define({
       type: "hero",
       schema: heroSchema,
@@ -122,8 +142,8 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: collectionProjectsSchema,
       Component: CollectionProjectsBlock,
       Editor: CollectionProjectsEditor,
-      label: "Planches",
-      description: "Les planches de tous les projets d'une collection, en bandes défilantes.",
+      label: "Planches d'une collection",
+      description: "Toutes les planches d'une collection, l'une sous l'autre.",
       defaults: { collection: "characters" },
       summary: "Planches · {collection}",
       inline: [],
@@ -173,6 +193,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       summary: "{eyebrow} · {paragraphs} paragraphes",
       inline: [],
     }),
+
   ].map((d) => [d.type, d]),
 );
 

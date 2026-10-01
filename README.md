@@ -251,7 +251,13 @@ docs/ARCHITECTURE.md, « Éditeur visuel : brouillon et publication ».
 - Deux onglets, ou l'éditeur et le formulaire, ne s'écrasent jamais :
   chaque écriture porte la version lue ; si la page a changé ailleurs,
   l'écriture est refusée et l'éditeur propose de recharger.
-- Tests : `npm run test:e2e-editor` (serveur dev redémarré, un chromium).
+- Planches : le bloc « Planche d'un projet » se crée sur la page (nom du projet,
+  ou projet existant) ; images glissées depuis l'onglet Médias ou depuis
+  l'ordinateur, à la position voulue ; barre au survol d'une image (Remplacer,
+  Supprimer, Retirer la place). Un projet créé ainsi reste invisible partout
+  jusqu'à la publication de la page.
+- Tests : `npm run test:e2e-editor` et `npm run test:e2e-boards` (serveur dev
+  redémarré, un chromium).
 
 ### Authentik (réglages exacts)
 

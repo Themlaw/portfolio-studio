@@ -10,7 +10,7 @@
  * ignorée avec un log, elle ne fait jamais tomber une page.
  */
 import { sql } from "drizzle-orm";
-import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
 export type Localized = { fr: string; en: string };
 
@@ -110,6 +110,12 @@ export const projects = sqliteTable("projects", {
   featured: integer("featured", { mode: "boolean" }).notNull().default(false),
   position: integer("position").notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  /**
+   * Projet créé dans le brouillon d'une page (éditeur visuel, planche neuve) :
+   * invisible du site public et de l'écran Projets tant que cette page n'est
+   * pas publiée ; supprimé si elle est abandonnée (ou supprimée).
+   */
+  draftPageId: integer("draft_page_id").references((): AnySQLiteColumn => pages.id, { onDelete: "cascade" }),
 });
 
 /**
@@ -142,16 +148,23 @@ export const slots = sqliteTable(
      * Surcouche de brouillon (éditeur visuel, docs/ARCHITECTURE.md) : jamais
      * lue par le site public. « added » : emplacement créé dans un brouillon,
      * invisible tant qu'il n'est pas publié ; « removed » : média retiré (la
-     * place est gardée à la publication). `draft_position` / `draft_media_id` :
-     * ordre et média du brouillon. Appliquée à la publication de la page qui
-     * l'a créée (`draft_page_id`), effacée par son « Abandonner ».
+     * place est gardée à la publication) ; « retired » : place retirée
+     * (l'emplacement est supprimé à la publication). `draft_position` /
+     * `draft_media_id` / `draft_title` / `draft_description` : ordre, média et
+     * textes du brouillon. `draft_key` : identifiant stable d'un emplacement
+     * « added » (recréé à l'identique par Annuler/Rétablir). Appliquée à la
+     * publication de la page qui l'a créée (`draft_page_id`), effacée par son
+     * « Abandonner ».
      */
-    draftState: text("draft_state", { enum: ["added", "removed"] }),
+    draftState: text("draft_state", { enum: ["added", "removed", "retired"] }),
     draftPosition: integer("draft_position"),
     draftMediaId: integer("draft_media_id").references(() => media.id, { onDelete: "set null" }),
     /** Page dont le brouillon porte cette surcouche : seule sa publication
      *  ou son abandon l'applique ou l'efface. */
     draftPageId: integer("draft_page_id").references(() => pages.id, { onDelete: "set null" }),
+    draftTitle: text("draft_title", { mode: "json" }).$type<Localized>(),
+    draftDescription: text("draft_description", { mode: "json" }).$type<Localized>(),
+    draftKey: text("draft_key"),
   },
   (t) => [
     index("slots_project_idx").on(t.projectId, t.position),

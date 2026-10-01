@@ -8,7 +8,7 @@ import { and, asc, eq, inArray, isNotNull, max } from "drizzle-orm";
 import { z } from "zod";
 
 import { BLOCKS } from "@/blocks/registry";
-import { extractRefs } from "@/blocks/refs";
+import { extractProjectRefs, extractRefs } from "@/blocks/refs";
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 import { findPageReferences } from "@/lib/references";
@@ -126,6 +126,7 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
   // Blocs : type connu, props valides, références existantes.
   const pageIds = new Set(db.select({ id: schema.pages.id }).from(schema.pages).all().map((p) => p.id));
   const mediaIds = new Set(db.select({ id: schema.media.id }).from(schema.media).all().map((m) => m.id));
+  const projectPages = new Map(db.select({ slug: schema.projects.slug, page: schema.projects.draftPageId }).from(schema.projects).all().map((p) => [p.slug, p.page]));
   const blocks: { type: string; props: unknown }[] = [];
   data.blocks.forEach((block, i) => {
     const def = own(BLOCKS, block.type);
@@ -140,6 +141,13 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
     }
     const refs = extractRefs(block.type, result.data);
     if (refs.pages.some((p) => !pageIds.has(p))) errors[`blocks.${i}`] = "Ce bloc pointe vers une page qui n'existe plus : choisis-en une autre.";
+    // Projets cités : existants, publiés ou créés dans le brouillon de CETTE page.
+    for (const slug of extractProjectRefs(block.type, result.data)) {
+      if (!projectPages.has(slug)) errors[`blocks.${i}`] = "Ce bloc cite un projet qui n'existe plus : choisis-en un autre.";
+      else if (![null, id].includes(projectPages.get(slug) ?? null)) errors[`blocks.${i}`] = "Ce bloc cite un projet en cours de création dans une autre page.";
+    }
+    const required = def.publishCheck?.(result.data as Record<string, unknown>);
+    if (required) errors[`blocks.${i}`] = required;
     if (refs.media.some((m) => !mediaIds.has(m))) errors[`blocks.${i}`] = "Ce bloc utilise un média qui n'existe plus : choisis-en un autre.";
     blocks.push({ type: block.type, props: result.data });
   });
@@ -248,7 +256,7 @@ export function deletePage(id: number): ActionResult<null> | { ok: false; messag
     // Surcouche d'emplacements portée par le brouillon de la page : abandonnée avec elle.
     tx.delete(schema.slots).where(and(eq(schema.slots.draftPageId, id), eq(schema.slots.draftState, "added"))).run();
     tx.update(schema.slots)
-      .set({ draftState: null, draftPosition: null, draftMediaId: null, draftPageId: null })
+      .set({ draftState: null, draftPosition: null, draftMediaId: null, draftPageId: null, draftTitle: null, draftDescription: null, draftKey: null })
       .where(eq(schema.slots.draftPageId, id))
       .run();
     tx.delete(schema.pages).where(eq(schema.pages.id, id)).run();

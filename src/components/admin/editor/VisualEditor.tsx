@@ -16,24 +16,55 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { discardDraftAction, publishDraftAction, saveDraftAction } from "@/app/admin/(espace)/pages/actions";
+import {
+  boardAction,
+  createDraftProjectAction,
+  discardDraftAction,
+  publishDraftAction,
+  restoreBoardAction,
+  saveDraftAction,
+} from "@/app/admin/(espace)/pages/actions";
 import { BlockEditorContext } from "@/blocks/editor-context";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
 import { renderSummary } from "@/blocks/summary";
+import type { BoardOp, BoardResult, BoardSnap } from "@/lib/edit/boards";
 import type { DraftBlock, PageDraft } from "@/lib/edit/drafts";
-import { acceptFromCanvas, EDIT_MSG, inlineAllowed, moveTo, setLocalizedAt, type BlockInfo, type ToCanvas } from "@/lib/edit/protocol";
+import { mediaStatusAction } from "@/app/admin/(espace)/medias/actions";
+import type { AdminMediaRow } from "@/lib/admin";
+import { acceptFromCanvas, EDIT_MSG, inlineAllowed, moveTo, setLocalizedAt, type BlockInfo, type DropTargetInfo, type Ghost, type ToCanvas } from "@/lib/edit/protocol";
 import { own } from "@/lib/own";
 
 import { clone, ConfirmDialog, toast, useUnsavedGuard } from "../editing";
 import { filterMedia } from "../LibraryStrip";
 import { DragHandle, SortableList } from "../Sortable";
 import Uploader from "../Uploader";
+import { isUploaded, useUploadQueue } from "../UploadQueue";
+import { readRatio, sendFile } from "../uploads";
+import MediaPickerDialog from "./MediaPickerDialog";
 import BlockThumb from "./thumbs";
 
 type Locale = "fr" | "en";
 type Device = "desktop" | "tablet" | "phone";
 type Tab = "ajouter" | "medias" | "structure" | "reglages";
 type SaveState = "idle" | "pending" | "saving" | "error";
+/** Un pas d'historique : le brouillon, et l'instantané d'une planche s'il a changé. */
+type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: BoardSnap } };
+/** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
+type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number };
+/** Ce qui part vers la toile (ni fichier, ni identifiants internes). */
+const toWire = (g: GhostItem): Ghost => ({
+  id: g.id,
+  board: g.board,
+  ...(g.index !== undefined ? { index: g.index } : {}),
+  ...(g.slot ? { slot: g.slot } : {}),
+  label: g.label,
+  ...(g.preview ? { preview: g.preview } : {}),
+  aspect: g.aspect,
+  progress: g.progress,
+  phase: g.phase,
+  ...(g.message ? { message: g.message.slice(0, 300) } : {}),
+  ...(g.key ? { key: g.key } : {}),
+});
 
 const DEVICES: { id: Device; label: string; width: number | null }[] = [
   { id: "desktop", label: "Ordinateur", width: 1180 },
@@ -50,6 +81,9 @@ const DEBOUNCE_MS = 800;
 const HISTORY_MAX = 100;
 const MOBILE = "(max-width: 819px)";
 
+/** Texte tel que l'artiste le lit : le mot mis en valeur (<mark>) entre « ». */
+const readable = (text: string) => text.replace(/<mark>([\s\S]*?)<\/mark>/g, "« $1 »").replace(/<\/?mark>/g, "");
+
 /** Les textes du brouillon (FR / EN), bloc par bloc : à copier avant de recharger. */
 function draftTexts(draft: PageDraft, byType: Record<string, BlockCatalogEntry>): string {
   const out: string[] = [];
@@ -57,8 +91,8 @@ function draftTexts(draft: PageDraft, byType: Record<string, BlockCatalogEntry>)
     if (!v || typeof v !== "object") return;
     const l = v as { fr?: unknown; en?: unknown };
     if (typeof l.fr === "string" && typeof l.en === "string") {
-      if (l.fr) lines.push(`FR : ${l.fr}`);
-      if (l.en) lines.push(`EN : ${l.en}`);
+      if (l.fr) lines.push(`FR : ${readable(l.fr)}`);
+      if (l.en) lines.push(`EN : ${readable(l.en)}`);
       return;
     }
     for (const x of Array.isArray(v) ? v : Object.values(v)) walk(x, lines);
@@ -102,6 +136,7 @@ export default function VisualEditor({
   hasDraft: initialHasDraft,
   rev: initialRev,
   corrupt: initialCorrupt,
+  overlaySlugs: initialOverlaySlugs,
   paths,
   pages,
   catalog,
@@ -125,6 +160,8 @@ export default function VisualEditor({
   rev: number;
   /** Brouillon enregistré mais illisible : rien n'est écrit avant un choix explicite. */
   corrupt: boolean;
+  /** Projets dont la page a déjà modifié les images (surcouche en attente). */
+  overlaySlugs: string[];
 }) {
   const router = useRouter();
   const mobile = useMedia(MOBILE);
@@ -135,7 +172,7 @@ export default function VisualEditor({
   const [draft, setDraftState] = useState<PageDraft>(() => clone(initial));
   const draftRef = useRef(draft);
   // Historique hors état React (pas d'effets dans un updater) ; `historyRev` redessine.
-  const history = useRef<{ past: PageDraft[]; future: PageDraft[] }>({ past: [], future: [] });
+  const history = useRef<{ past: HistoryEntry[]; future: HistoryEntry[] }>({ past: [], future: [] });
   const [historyLen, setHistoryLen] = useState({ past: 0, future: 0 });
   const bumpHistory = () => setHistoryLen({ past: history.current.past.length, future: history.current.future.length });
   const coalesce = useRef<{ key: string; at: number } | null>(null);
@@ -177,8 +214,23 @@ export default function VisualEditor({
 
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const dirty = useRef(false);
-  const inflight = useRef<Promise<boolean> | null>(null);
+  // Toutes les écritures (brouillon, planches, publication, abandon) passent
+  // l'une après l'autre : chacune porte la version laissée par la précédente.
+  const lock = useRef<Promise<unknown>>(Promise.resolve());
+  const withLock = useCallback(<T,>(fn: () => Promise<T>): Promise<T> => {
+    const run = lock.current.then(fn, fn);
+    lock.current = run.catch(() => undefined);
+    return run;
+  }, []);
 
+  /** Refus « modifié ailleurs » ou « brouillon illisible » : l'éditeur s'arrête. */
+  const stop = useCallback((code: "conflict" | "corrupt") => {
+    blockedRef.current = code;
+    setBlocked(code);
+    setSaveState("idle");
+  }, []);
+
+  /** Enregistre le brouillon (dans le verrou). */
   const runSave = useCallback(async (): Promise<boolean> => {
     let ok = true;
     while (dirty.current) {
@@ -198,12 +250,8 @@ export default function VisualEditor({
       if (!result.ok) {
         ok = false;
         dirty.current = true;
-        if ("code" in result) {
-          // Rien n'a été écrasé : l'éditeur s'arrête et propose de recharger.
-          blockedRef.current = result.code;
-          setBlocked(result.code);
-          setSaveState("idle");
-        } else {
+        if ("code" in result) stop(result.code);
+        else {
           setSaveState("error");
           setSaveError(result.message);
         }
@@ -218,20 +266,12 @@ export default function VisualEditor({
       send({ kind: "refresh" });
     }
     return ok;
-  }, [pageId, send]);
+  }, [pageId, send, stop]);
 
-  const flush = useCallback(async (): Promise<boolean> => {
+  const flush = useCallback((): Promise<boolean> => {
     clearTimeout(timer.current);
-    while (inflight.current) await inflight.current;
-    if (!dirty.current) return true;
-    const run = runSave();
-    inflight.current = run;
-    try {
-      return await run;
-    } finally {
-      inflight.current = null;
-    }
-  }, [runSave]);
+    return withLock(async () => (dirty.current ? runSave() : true));
+  }, [runSave, withLock]);
 
   const schedule = useCallback(
     (delay: number) => {
@@ -244,8 +284,58 @@ export default function VisualEditor({
   );
 
   useEffect(() => () => clearTimeout(timer.current), []);
+
+  /* ---- Planches : surcouche d'emplacements de la page (phase 7b) ---------- */
+
+  // Dernier instantané connu de chaque planche touchée (pour Annuler/Rétablir).
+  const boards = useRef(new Map<number, BoardSnap>());
+  // Planches dont cette page a modifié les images (surcouche non vide).
+  const overlaySlugs = useRef(new Set(initialOverlaySlugs));
+  const [boardBusy, setBoardBusy] = useState(0);
+
+  /**
+   * Écrit sur une planche (opération ou instantané), après le brouillon en
+   * attente. Renvoie le résultat, ou null si refusé (message affiché).
+   */
+  const writeBoard = useCallback(
+    (call: (rev: number) => ReturnType<typeof boardAction>): Promise<BoardResult | null> =>
+      withLock(async () => {
+        if (blockedRef.current) return null;
+        if (dirty.current && !(await runSave())) return null;
+        setBoardBusy((n) => n + 1);
+        setSaveState("saving");
+        try {
+          let result: Awaited<ReturnType<typeof boardAction>>;
+          try {
+            result = await call(revRef.current);
+          } catch {
+            result = { ok: false, message: "connexion perdue" };
+          }
+          if (!result.ok) {
+            if ("code" in result) stop(result.code);
+            else {
+              setSaveState("idle");
+              toast(result.message, "error");
+            }
+            return null;
+          }
+          revRef.current = result.data.rev;
+          boards.current.set(result.data.after.projectId, result.data.after);
+          if (result.data.slug) overlaySlugs.current.add(result.data.slug);
+          setHasDraft(true);
+          setSaveState("idle");
+          setSaveError(null);
+          send({ kind: "refresh" });
+          return result.data;
+        } finally {
+          setBoardBusy((n) => n - 1);
+        }
+      }),
+    [runSave, send, stop, withLock],
+  );
+
   // Bloqué (modifié ailleurs) : « Recharger » est un choix explicite, pas de garde.
-  useUnsavedGuard(!blocked && (saveState === "pending" || saveState === "saving" || saveState === "error"));
+  useUnsavedGuard(!blocked && (saveState === "pending" || saveState === "saving" || saveState === "error" || boardBusy > 0));
 
   /** Applique une modification : historique, état, enregistrement. */
   const apply = useCallback(
@@ -257,7 +347,7 @@ export default function VisualEditor({
       const now = Date.now();
       const merge = opts.key && coalesce.current?.key === opts.key && now - coalesce.current.at < 1200;
       const prev = draftRef.current;
-      history.current = { past: merge ? history.current.past : [...history.current.past, prev].slice(-HISTORY_MAX), future: [] };
+      history.current = { past: merge ? history.current.past : [...history.current.past, { draft: prev }].slice(-HISTORY_MAX), future: [] };
       bumpHistory();
       coalesce.current = opts.key ? { key: opts.key, at: now } : null;
       draftRef.current = next;
@@ -267,33 +357,92 @@ export default function VisualEditor({
     [schedule],
   );
 
-  const undo = useCallback(() => {
-    if (blockedRef.current) return;
-    const h = history.current;
-    if (!h.past.length) return;
-    const prev = h.past[h.past.length - 1];
-    history.current = { past: h.past.slice(0, -1), future: [draftRef.current, ...h.future] };
-    bumpHistory();
-    draftRef.current = prev;
-    setDraftState(prev);
-    coalesce.current = null;
-    schedule(0);
-    toast("Annulé");
-  }, [schedule]);
+  /** Opération sur une planche, inscrite dans l'historique. */
+  const boardDo = useCallback(
+    async (projectId: number, op: BoardOp): Promise<BoardResult | null> => {
+      if (blockedRef.current) return null;
+      const result = await writeBoard((rev) => boardAction(pageId, projectId, op, rev));
+      if (!result) return null;
+      history.current = { past: [...history.current.past, { draft: draftRef.current, board: { projectId, snap: result.before } }].slice(-HISTORY_MAX), future: [] };
+      coalesce.current = null;
+      bumpHistory();
+      return result;
+    },
+    [pageId, writeBoard],
+  );
 
-  const redo = useCallback(() => {
-    if (blockedRef.current) return;
-    const h = history.current;
-    if (!h.future.length) return;
-    const [next, ...rest] = h.future;
-    history.current = { past: [...h.past, draftRef.current], future: rest };
-    bumpHistory();
-    draftRef.current = next;
-    setDraftState(next);
-    coalesce.current = null;
-    schedule(0);
-    toast("Rétabli");
-  }, [schedule]);
+  /** Revient à une entrée de l'historique ; renvoie l'entrée qui la remplace (sens inverse). */
+  /**
+   * Revient à une entrée de l'historique ; renvoie l'entrée qui la remplace
+   * (sens inverse), ou null si le serveur refuse de rétablir la planche
+   * (ex. image supprimée entre-temps) : l'historique ne bouge pas.
+   */
+  const travel = useCallback(
+    async (entry: HistoryEntry): Promise<HistoryEntry | null> => {
+      const back: HistoryEntry = { draft: draftRef.current };
+      if (entry.board) {
+        const current = boards.current.get(entry.board.projectId);
+        if (current) back.board = { projectId: entry.board.projectId, snap: current };
+        const target = entry.board.snap;
+        const restored = await writeBoard((rev) => restoreBoardAction(pageId, target, rev));
+        if (!restored) return null;
+      }
+      if (entry.draft !== draftRef.current) {
+        draftRef.current = entry.draft;
+        setDraftState(entry.draft);
+        coalesce.current = null;
+        schedule(0);
+      }
+      return back;
+    },
+    [pageId, schedule, writeBoard],
+  );
+
+  const traveling = useRef(false);
+  const undo = useCallback(async () => {
+    if (blockedRef.current || traveling.current) return;
+    const entry = history.current.past.at(-1);
+    if (!entry) return;
+    traveling.current = true;
+    try {
+      const back = await travel(entry);
+      if (!back) {
+        toast("Annulation impossible pour ce pas : la planche a changé (image supprimée ?).", "error");
+        return;
+      }
+      const h = history.current;
+      history.current = { past: h.past.filter((e) => e !== entry), future: [back, ...h.future] };
+      bumpHistory();
+      toast("Annulé");
+    } finally {
+      traveling.current = false;
+    }
+  }, [travel]);
+
+  const redo = useCallback(async () => {
+    if (blockedRef.current || traveling.current) return;
+    const entry = history.current.future[0];
+    if (!entry) return;
+    traveling.current = true;
+    try {
+      const back = await travel(entry);
+      if (!back) {
+        toast("Rétablissement impossible pour ce pas : la planche a changé (image supprimée ?).", "error");
+        return;
+      }
+      const h = history.current;
+      history.current = { past: [...h.past, back], future: h.future.filter((e) => e !== entry) };
+      bumpHistory();
+      toast("Rétabli");
+    } finally {
+      traveling.current = false;
+    }
+  }, [travel]);
+
+  const undoRef = useRef(undo);
+  useEffect(() => {
+    undoRef.current = undo;
+  }, [undo]);
 
   /* ---- Opérations sur les blocs ------------------------------------------ */
 
@@ -354,7 +503,11 @@ export default function VisualEditor({
     if (!block) return;
     setBlocks(list.filter((b) => b.uid !== uid));
     if (selected === uid) selectBlock(null);
-    toast("Bloc supprimé · Annuler (Ctrl+Z) pour le récupérer");
+    const slug = block.type === "project-board" ? (block.props as { project?: string }).project : undefined;
+    if (slug && overlaySlugs.current.has(slug)) {
+      // La surcouche de cette planche n'est appliquée que si la page l'affiche.
+      toast("Bloc supprimé · Les changements d'images de cette planche ne seront pas publiés", "success", { label: "Annuler", run: () => void undoRef.current() });
+    } else toast("Bloc supprimé · Annuler (Ctrl+Z) pour le récupérer");
   };
 
   const editText = (uid: string, path: string, textLocale: string, value: string) => {
@@ -371,9 +524,235 @@ export default function VisualEditor({
 
   /* ---- Messages de la toile ---------------------------------------------- */
 
-  const handlers = useRef({ op, editText, insert, undo, redo, selectBlock });
+  /* ---- Planches sur la toile : projets, dépôts, fantômes ----------------- */
+
+  const [extraProjects, setExtraProjects] = useState<{ slug: string; title: string; draft: true }[]>([]);
+  const projectsList = useMemo(() => {
+    const seen = new Set(context.projects.map((p) => p.slug));
+    return [...context.projects, ...extraProjects.filter((p) => !seen.has(p.slug))];
+  }, [context.projects, extraProjects]);
+  const editorContext = useMemo(() => ({ ...context, projects: projectsList }), [context, projectsList]);
+
+  const ghostsRef = useRef<GhostItem[]>([]);
+  const [ghosts, setGhosts] = useState<GhostItem[]>([]);
+  const setGhostList = useCallback((fn: (list: GhostItem[]) => GhostItem[]) => {
+    const before = ghostsRef.current;
+    ghostsRef.current = fn(before);
+    // Aperçus des fantômes retirés : URL blob: libérées.
+    for (const g of before) if (g.preview && !ghostsRef.current.some((x) => x.preview === g.preview)) URL.revokeObjectURL(g.preview);
+    setGhosts(ghostsRef.current);
+  }, []);
+  const patchGhost = useCallback((id: string, patch: Partial<GhostItem>) => setGhostList((list) => list.map((g) => (g.id === id ? { ...g, ...patch } : g))), [setGhostList]);
   useEffect(() => {
-    handlers.current = { op, editText, insert, undo, redo, selectBlock };
+    send({ kind: "ghosts", items: ghosts.map(toWire) });
+  }, [ghosts, send]);
+  const [picker, setPicker] = useState<{ board: number; key: string } | null>(null);
+  const dropTargetRef = useRef<DropTargetInfo | null>(null);
+
+  /** Bloc « Planche d'un projet » : projet choisi ou créé. */
+  const setBoardProject = useCallback(
+    (uid: string, slug: string) => {
+      const list = draftRef.current.blocks;
+      if (!list.some((b) => b.uid === uid)) return;
+      apply({ ...draftRef.current, blocks: list.map((b) => (b.uid === uid ? { ...b, props: { ...b.props, project: slug } } : b)) }, { structural: true });
+    },
+    [apply],
+  );
+
+  const createProject = useCallback(
+    async (uid: string, name: string): Promise<number | null> => {
+      if (blockedRef.current) return null;
+      const result = await createDraftProjectAction(pageId, name);
+      if (!result.ok) {
+        toast(result.message, "error");
+        return null;
+      }
+      setExtraProjects((list) => [...list, { slug: result.data.slug, title: result.data.title, draft: true }]);
+      setBoardProject(uid, result.data.slug);
+      toast(`Projet « ${result.data.title} » créé : il devient public avec la page`);
+      return result.data.id;
+    },
+    [pageId, setBoardProject],
+  );
+
+  /** Envoie un fichier fantôme, attend sa conversion, puis crée l'emplacement à sa position. */
+  const processGhost = useCallback(
+    async (id: string): Promise<boolean> => {
+      let g = ghostsRef.current.find((x) => x.id === id);
+      if (!g) return false;
+      let mediaId = g.mediaId;
+      if (mediaId === undefined) {
+        if (!g.file) return false;
+        patchGhost(id, { phase: "upload", progress: 0, message: undefined });
+        const up = await sendFile(g.file, (sent, total) => patchGhost(id, { progress: total ? sent / total : 0 }));
+        if (!up.ok) {
+          patchGhost(id, { phase: "failed", progress: null, message: up.message });
+          return false;
+        }
+        mediaId = up.media.id;
+        patchGhost(id, { mediaId, phase: "convert", progress: null });
+        // Médiathèque du panneau à jour sans rechargement.
+        router.refresh();
+      }
+      // Conversion : l'emplacement n'est créé qu'avec un média prêt (15 min au plus).
+      let ready = false;
+      for (let i = 0; i < 1300; i++) {
+        const st = await mediaStatusAction([mediaId]);
+        const row = st.ok ? st.data[0] : undefined;
+        if (row?.status === "ready") {
+          ready = true;
+          break;
+        }
+        if (!row || row.status === "failed") {
+          patchGhost(id, { phase: "failed", progress: null, message: row?.error ?? "conversion impossible" });
+          return false;
+        }
+        if (row.progress !== null) patchGhost(id, { progress: row.progress / 100 });
+        await new Promise((r) => setTimeout(r, 700));
+      }
+      if (!ready) {
+        patchGhost(id, { phase: "failed", progress: null, message: "conversion trop longue" });
+        return false;
+      }
+      g = ghostsRef.current.find((x) => x.id === id);
+      if (!g) return false;
+      const op: BoardOp = g.slot ? { op: "fill", key: g.slot, mediaId } : { op: "add", mediaId, index: g.index ?? 0 };
+      const result = await boardDo(g.board, op);
+      if (!result) {
+        patchGhost(id, { phase: "failed", progress: null, message: "placement refusé" });
+        return false;
+      }
+      const placed = g.slot ?? result.after.slots[g.index ?? 0]?.key;
+      patchGhost(id, { phase: "done", progress: 1, key: placed });
+      // Les fantômes suivants du même dépôt se placent juste après.
+      if (!g.slot) setGhostList((list) => list.map((x) => (x.batch === g!.batch && x.id !== id && x.phase !== "done" && x.index !== undefined ? { ...x, index: x.index + 1 } : x)));
+      setTimeout(() => setGhostList((list) => list.filter((x) => x.id !== id)), 8000);
+      return true;
+    },
+    [boardDo, patchGhost, router, setGhostList],
+  );
+
+  /** Fichiers déposés sur la toile : fantômes à la position même, envoyés dans l'ordre. */
+  const uploadFiles = useCallback(
+    async (target: DropTargetInfo, files: File[]) => {
+      if (blockedRef.current) return;
+      let board: number;
+      let index = 0;
+      let slot: string | undefined;
+      if (target.kind === "new") {
+        const id = await createProject(target.uid, "Projet sans titre");
+        if (!id) return;
+        board = id;
+      } else if (target.kind === "slot") {
+        board = target.board;
+        slot = target.key;
+        files = files.slice(0, 1);
+      } else {
+        board = target.board;
+        index = target.index;
+      }
+      const batch = `b${Date.now().toString(36)}`;
+      const created: GhostItem[] = [];
+      for (const [i, file] of files.entries()) {
+        const info = file.type.startsWith("image/") ? await readRatio(file) : null;
+        created.push({
+          id: `${batch}-${i}`,
+          batch,
+          board,
+          ...(slot ? { slot } : { index }),
+          label: file.name.slice(0, 200),
+          preview: info?.preview,
+          aspect: Math.min(10, Math.max(0.1, info?.ratio ?? 4 / 3)),
+          progress: 0,
+          phase: "upload",
+          file,
+        });
+      }
+      setGhostList((list) => [...list, ...created]);
+      for (const g of created) await processGhost(g.id);
+    },
+    [createProject, processGhost, setGhostList],
+  );
+
+  /** Un média de la bibliothèque déposé sur la toile. */
+  const dropMedia = useCallback(
+    async (mediaId: number, target: DropTargetInfo | null) => {
+      if (!target) {
+        toast("Dépose l'image sur une planche : entre deux images, ou sur une place vide.", "error");
+        return;
+      }
+      if (target.kind === "new") {
+        const id = await createProject(target.uid, "Projet sans titre");
+        if (id) await boardDo(id, { op: "add", mediaId, index: 0 });
+      } else if (target.kind === "slot") await boardDo(target.board, { op: "fill", key: target.key, mediaId });
+      else await boardDo(target.board, { op: "add", mediaId, index: target.index });
+    },
+    [boardDo, createProject],
+  );
+
+  const slotOp = async (board: number, key: string, op: "remove" | "retire" | "replace") => {
+      if (op === "replace") {
+        setPicker({ board, key });
+        return;
+      }
+      const result = await boardDo(board, { op, key });
+      if (result) toast(op === "remove" ? "Image retirée · la place reste" : "Place retirée", "success", { label: "Annuler", run: () => undoRef.current() });
+  };
+
+  /** Glisser un média de l'onglet Médias sur la toile. */
+  const [mediaDrag, setMediaDrag] = useState<{ label: string; thumb: string | null; x: number; y: number; over: boolean } | null>(null);
+  const onMediaDown = (e: React.PointerEvent<HTMLElement>, m: AdminMediaRow) => {
+    if (e.button !== 0 || e.pointerType === "touch" || m.status === "failed") return;
+    const el = e.currentTarget;
+    const sx = e.clientX;
+    const sy = e.clientY;
+    let dragging = false;
+    dropTargetRef.current = null;
+    const move = (ev: PointerEvent) => {
+      if (!dragging) {
+        if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 5) return;
+        dragging = true;
+        el.setPointerCapture(ev.pointerId);
+      }
+      const r = frameRef.current?.getBoundingClientRect();
+      const over = Boolean(r && ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom);
+      setMediaDrag({ label: m.name, thumb: m.thumb, x: ev.clientX, y: ev.clientY, over });
+      if (over && r) send({ kind: "drag", x: ev.clientX - r.left, y: ev.clientY - r.top, label: m.name.slice(0, 120), payload: "media" });
+      else if (dropTargetRef.current) {
+        dropTargetRef.current = null;
+        send({ kind: "drag-end" });
+      }
+    };
+    const end = (commit: boolean) => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", cancel);
+      if (!dragging) return;
+      const target = dropTargetRef.current;
+      dropTargetRef.current = null;
+      setMediaDrag(null);
+      send({ kind: "drag-end" });
+      if (commit) void dropMedia(m.id, target);
+    };
+    const up = () => end(true);
+    const cancel = () => end(false);
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", cancel);
+  };
+
+  // Envois de l'onglet Médias (Uploader) : la grille se met à jour sans rechargement.
+  const queue = useUploadQueue();
+  const uploadedCount = queue.items.filter(isUploaded).length;
+  const lastUploaded = useRef(uploadedCount);
+  useEffect(() => {
+    if (uploadedCount > lastUploaded.current) router.refresh();
+    lastUploaded.current = uploadedCount;
+  }, [uploadedCount, router]);
+
+  const handlers = useRef({ op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList });
+  useEffect(() => {
+    handlers.current = { op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList };
   });
 
   useEffect(() => {
@@ -395,15 +774,45 @@ export default function VisualEditor({
           // Une autre page (lien suivi en aperçu) : jamais éditable ici.
           send({ kind: "mode", mode: own ? mode : "preview" });
           if (own && selected) send({ kind: "select", uid: selected });
+          send({ kind: "projects", list: projectsList.filter((p) => !p.draft).map(({ slug, title }) => ({ slug, title: title.slice(0, 200) })) });
+          send({ kind: "ghosts", items: ghostsRef.current.map(toWire) });
           break;
         }
         case "blocks":
           setCanvasBlocks(msg.blocks);
           break;
+        case "board-create":
+          void h.createProject(msg.uid, msg.name);
+          break;
+        case "board-pick":
+          h.setBoardProject(msg.uid, msg.slug);
+          break;
+        case "slot-op":
+          void h.slotOp(msg.board, msg.key, msg.op);
+          break;
+        case "slot-move":
+          void h.boardDo(msg.board, { op: "move", key: msg.key, index: msg.index });
+          break;
+        case "slot-text":
+          void h.boardDo(msg.board, { op: "text", key: msg.key, field: msg.field, locale: msg.locale, value: msg.value });
+          break;
+        case "project-text":
+          void h.boardDo(msg.board, { op: "project", field: msg.field, locale: msg.locale, value: msg.value });
+          break;
+        case "drop-target":
+          dropTargetRef.current = msg.target;
+          break;
+        case "files":
+          void h.uploadFiles(msg.target, msg.files);
+          break;
+        case "ghost-op":
+          if (msg.op === "retry") void h.processGhost(msg.id);
+          else h.setGhostList((list) => list.filter((g) => g.id !== msg.id));
+          break;
         case "select":
           h.selectBlock(msg.uid, { notify: false });
-          // Depuis la palette, un clic choisit l'endroit d'insertion : l'onglet reste.
-          if (msg.uid && !mobile) setTab((t) => (t === "ajouter" ? t : "reglages"));
+          // Depuis Ajouter ou Médias, un clic choisit l'endroit visé : l'onglet reste.
+          if (msg.uid && !mobile) setTab((t) => (t === "structure" ? "reglages" : t));
           break;
         case "op":
           h.op(msg.op, msg.uid);
@@ -431,7 +840,7 @@ export default function VisualEditor({
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [send, mode, locale, paths, selected, mobile]);
+  }, [send, mode, locale, paths, selected, mobile, projectsList]);
 
   useEffect(() => {
     if (frameReady && !foreign) send({ kind: "mode", mode });
@@ -527,11 +936,15 @@ export default function VisualEditor({
   const publish = async () => {
     setPublishing(true);
     try {
-      if (!(await flush())) {
+      clearTimeout(timer.current);
+      const result = await withLock(async () => {
+        if (dirty.current && !(await runSave())) return null;
+        return publishDraftAction(pageId, revRef.current);
+      });
+      if (!result) {
         toast("Le brouillon n'est pas enregistré : réessaie.", "error");
         return;
       }
-      const result = await publishDraftAction(pageId, revRef.current);
       if (!result.ok && "code" in result) {
         blockedRef.current = result.code;
         setBlocked(result.code);
@@ -554,6 +967,10 @@ export default function VisualEditor({
         return;
       }
       revRef.current = result.data.rev;
+      // Publié : les instantanés de planche d'avant ne sont plus des brouillons.
+      history.current = { past: [], future: [] };
+      boards.current.clear();
+      bumpHistory();
       setPublishErrors({});
       setPublishMessage(null);
       setHasDraft(false);
@@ -569,8 +986,7 @@ export default function VisualEditor({
     setDiscardBusy(true);
     clearTimeout(timer.current);
     dirty.current = false;
-    while (inflight.current) await inflight.current;
-    const result = await discardDraftAction(pageId, revRef.current);
+    const result = await withLock(() => discardDraftAction(pageId, revRef.current));
     if (!result.ok) {
       setDiscardBusy(false);
       setDiscarding(false);
@@ -731,17 +1147,28 @@ export default function VisualEditor({
             ) : (
               <ul className="ve-media" aria-label="Médias">
                 {shownMedia.slice(0, 120).map((m) => (
-                  <li key={m.id} title={m.name} style={{ backgroundColor: m.color ?? undefined }}>
+                  <li
+                    key={m.id}
+                    title={`${m.name} : glisse sur une planche`}
+                    style={{ backgroundColor: m.color ?? undefined }}
+                    data-media={m.id}
+                    data-status={m.status}
+                    onPointerDown={(e) => onMediaDown(e, m)}
+                  >
                     {m.thumb && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={m.thumb} alt={m.alt.fr || m.name} loading="lazy" draggable={false} />
                     )}
                     {m.kind === "video" && <span className="ve-media-kind" aria-hidden="true">▶</span>}
+                    {m.status === "processing" && <span className="ve-media-state">Conversion…</span>}
                   </li>
                 ))}
               </ul>
             )}
-            <p className="ve-hint">Pour placer une image, choisis le bloc qui l&apos;affiche puis règle-le dans « Réglages ».</p>
+            <p className="ve-hint">
+              Glisse une image sur une planche de la page : entre deux images, ou sur une place vide. Tu peux aussi déposer des fichiers de ton
+              ordinateur directement sur la planche.
+            </p>
           </>
         )}
 
@@ -810,7 +1237,7 @@ export default function VisualEditor({
                       );
                     },
                     errors: blockErrors(publishErrors, selIndex),
-                    context,
+                    context: editorContext,
                     idPrefix: `ve-${selBlock.uid}`,
                   }}
                 >
@@ -999,6 +1426,32 @@ export default function VisualEditor({
           {paletteDrag.over && dropIndex !== null && <small>Position {dropIndex + 1}</small>}
         </div>
       )}
+
+      {mediaDrag && (
+        <div className="ve-ghost" data-over={mediaDrag.over || undefined} style={{ transform: `translate(${mediaDrag.x + 12}px, ${mediaDrag.y + 12}px)` }} aria-hidden="true">
+          {mediaDrag.thumb && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={mediaDrag.thumb} alt="" className="ve-ghost-thumb" />
+          )}
+          {mediaDrag.label}
+        </div>
+      )}
+
+      <MediaPickerDialog
+        open={picker !== null}
+        media={context.media}
+        onClose={() => setPicker(null)}
+        onPick={(mediaId) => {
+          const p = picker;
+          setPicker(null);
+          if (p) void boardDo(p.board, { op: "fill", key: p.key, mediaId });
+        }}
+        onFile={(file) => {
+          const p = picker;
+          setPicker(null);
+          if (p) void uploadFiles({ kind: "slot", board: p.board, key: p.key }, [file]);
+        }}
+      />
 
       {mode === "preview" && (
         <button type="button" className="ve-exit-preview" onClick={() => setMode("edit")}>

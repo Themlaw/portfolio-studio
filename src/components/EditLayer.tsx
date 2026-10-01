@@ -21,6 +21,8 @@ import { createPortal } from "react-dom";
 
 import { acceptToCanvas, EDIT_MSG, insertionIndex, type BlockInfo, type FromCanvas } from "@/lib/edit/protocol";
 
+import BoardLayer from "./BoardLayer";
+
 import "@/app/admin/edit-layer.css";
 
 type Box = BlockInfo & { top: number; left: number; width: number; height: number };
@@ -93,6 +95,7 @@ export default function EditLayer() {
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [viewTop, setViewTop] = useState(0);
   const [host, setHost] = useState<HTMLElement | null>(null);
+  const [announcement, setAnnouncement] = useState("");
   const editing = useRef<{ el: HTMLElement; uid: string; original: string } | null>(null);
   const boxesRef = useRef<Box[]>([]);
   const selectedRef = useRef<string | null>(null);
@@ -202,6 +205,8 @@ export default function EditLayer() {
           router.refresh();
           break;
         case "drag": {
+          // Média glissé : cible d'une planche (BoardLayer), pas d'un bloc.
+          if (msg.payload === "media") break;
           const y = msg.y + window.scrollY;
           const index = insertionIndex(
             boxesRef.current.map((b) => b.top + b.height / 2),
@@ -303,6 +308,8 @@ export default function EditLayer() {
     const onSubmit = (e: Event) => e.preventDefault();
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey;
+      // Saisie dans un champ de la couche (planche neuve, texte posé par-dessus) : rien ici.
+      if (!editing.current && e.target instanceof HTMLElement && (e.target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName))) return;
       if (editing.current) {
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
@@ -411,14 +418,15 @@ export default function EditLayer() {
     document.addEventListener("keydown", esc, true);
   };
 
-  if (mode !== "edit" || !host) return null;
+  const boards = <BoardLayer mode={mode} host={host} announce={setAnnouncement} />;
+  if (mode !== "edit" || !host) return boards;
 
   const sel = boxes.find((b) => b.uid === selected);
   const hov = hover && hover !== selected ? boxes.find((b) => b.uid === hover) : undefined;
   const index = (uid: string) => boxes.findIndex((b) => b.uid === uid);
   const draggingUid = drag?.source === "canvas" ? drag.uid : null;
 
-  return createPortal(
+  const blocksLayer = createPortal(
     <div className="pe-layer" lang="fr">
       {/* Cibles clavier : Tab parcourt les blocs, Entrée en choisit un. */}
       {boxes.map((b, i) => (
@@ -502,9 +510,15 @@ export default function EditLayer() {
       )}
 
       <p className="pe-live" role="status" aria-live="polite">
-        {drag && dropIndex !== null ? `Position ${dropIndex + 1} sur ${boxes.length + (drag.source === "palette" ? 1 : 0)}` : ""}
+        {drag && dropIndex !== null ? `Position ${dropIndex + 1} sur ${boxes.length + (drag.source === "palette" ? 1 : 0)}` : announcement}
       </p>
     </div>,
     host,
+  );
+  return (
+    <>
+      {boards}
+      {blocksLayer}
+    </>
   );
 }

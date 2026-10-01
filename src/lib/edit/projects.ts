@@ -55,6 +55,15 @@ function uniqueSlotSlug(projectSlug: string): string {
   }
 }
 
+/**
+ * Projet créé dans le brouillon d'une page (éditeur visuel) : il ne se
+ * modifie pas depuis l'écran Projets tant que la page n'est pas publiée.
+ */
+const DRAFT_PROJECT = "Ce projet est en cours de création dans l'éditeur d'une page : publie la page d'abord.";
+function isDraftProject(projectId: number): boolean {
+  return getDb().select({ page: schema.projects.draftPageId }).from(schema.projects).where(eq(schema.projects.id, projectId)).get()?.page != null;
+}
+
 /** Ordre exact : mêmes identifiants que l'existant, sans doublon. */
 function isPermutation(ids: number[], existing: number[]): boolean {
   return ids.length === existing.length && new Set(ids).size === ids.length && ids.every((id) => existing.includes(id));
@@ -89,6 +98,7 @@ export function saveProject(id: number, input: unknown): ActionResult<null> {
   if (!db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.id, id)).get()) {
     return fail("Ce projet n'existe plus. Recharge la liste des projets.");
   }
+  if (isDraftProject(id)) return fail(DRAFT_PROJECT);
   db.update(schema.projects).set({ ...parsed.data, updatedAt: new Date() }).where(eq(schema.projects.id, id)).run();
   return done(null);
 }
@@ -96,7 +106,12 @@ export function saveProject(id: number, input: unknown): ActionResult<null> {
 export function reorderProjects(input: unknown): ActionResult<null> {
   const parsed = Ids.safeParse(input);
   const db = getDb();
-  const existing = db.select({ id: schema.projects.id }).from(schema.projects).all().map((p) => p.id);
+  const existing = db
+    .select({ id: schema.projects.id, page: schema.projects.draftPageId })
+    .from(schema.projects)
+    .all()
+    .filter((p) => p.page === null)
+    .map((p) => p.id);
   if (!parsed.success || !isPermutation(parsed.data, existing)) return fail("La liste a changé entre-temps. Recharge la page et recommence.");
   db.transaction((tx) => parsed.data.forEach((id, i) => tx.update(schema.projects).set({ position: i }).where(eq(schema.projects.id, id)).run()));
   return done(null);
@@ -108,6 +123,7 @@ export function deleteProject(id: number): ActionResult<null> | { ok: false; mes
   const db = getDb();
   const project = db.select().from(schema.projects).where(eq(schema.projects.id, id)).get();
   if (!project) return fail("Ce projet n'existe plus.");
+  if (project.draftPageId !== null) return fail(DRAFT_PROJECT);
   const refs = findProjectReferences(project.slug).flatMap((u) => (u.kind === "block" ? [u] : []));
   if (refs.length) {
     const titles = new Map(db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).all().map((p) => [p.id, p.title.fr]));
@@ -150,6 +166,7 @@ export function addSlots(projectId: number, input: unknown, atInput?: unknown): 
   const db = getDb();
   const project = db.select().from(schema.projects).where(eq(schema.projects.id, projectId)).get();
   if (!project) return fail("Ce projet n'existe plus. Recharge la page.");
+  if (project.draftPageId !== null) return fail(DRAFT_PROJECT);
   const existing = db.select().from(schema.slots).where(eq(schema.slots.projectId, projectId)).orderBy(asc(schema.slots.position)).all();
   const counts = new Map<string, number>();
   for (const s of existing) counts.set(s.collection, (counts.get(s.collection) ?? 0) + 1);
@@ -191,6 +208,7 @@ export function addSlots(projectId: number, input: unknown, atInput?: unknown): 
 export function saveSlot(slotId: number, input: unknown): ActionResult<{ projectId: number }> {
   const slot = slotRow(slotId);
   if (!slot) return fail("Cet emplacement n'existe plus. Recharge la page.");
+  if (slot.draftState === "added" || isDraftProject(slot.projectId)) return fail(DRAFT_PROJECT);
   const parsed = SlotSchema.safeParse(input);
   if (!parsed.success) return fail("L'emplacement n'a pas été enregistré : corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
   getDb().update(schema.slots).set(parsed.data).where(eq(schema.slots.id, slotId)).run();
@@ -200,6 +218,7 @@ export function saveSlot(slotId: number, input: unknown): ActionResult<{ project
 export function setSlotMedia(slotId: number, mediaId: unknown): ActionResult<{ projectId: number }> {
   const slot = slotRow(slotId);
   if (!slot) return fail("Cet emplacement n'existe plus. Recharge la page.");
+  if (slot.draftState === "added" || isDraftProject(slot.projectId)) return fail(DRAFT_PROJECT);
   const parsed = z.number().int().positive().nullable().safeParse(mediaId);
   if (!parsed.success) return fail("Requête invalide.");
   const db = getDb();
@@ -225,6 +244,7 @@ export function setSlotMedia(slotId: number, mediaId: unknown): ActionResult<{ p
 export function deleteSlot(slotId: number): ActionResult<{ projectId: number }> {
   const slot = slotRow(slotId);
   if (!slot) return fail("Cet emplacement n'existe plus.");
+  if (slot.draftState === "added" || isDraftProject(slot.projectId)) return fail(DRAFT_PROJECT);
   const db = getDb();
   db.transaction((tx) => {
     tx.delete(schema.slots).where(eq(schema.slots.id, slotId)).run();
@@ -237,6 +257,7 @@ export function deleteSlot(slotId: number): ActionResult<{ projectId: number }> 
 export function reorderSlots(projectId: number, input: unknown): ActionResult<null> {
   const parsed = Ids.safeParse(input);
   const db = getDb();
+  if (isDraftProject(projectId)) return fail(DRAFT_PROJECT);
   // Emplacements publiés (ceux d'un brouillon de page ne sont pas dans cet écran).
   const existing = db
     .select({ id: schema.slots.id, state: schema.slots.draftState })

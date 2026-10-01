@@ -51,6 +51,17 @@ ok("éditeur → toile : mode valide accepté", acceptToCanvas(msg({ kind: "mode
 ok("éditeur → toile : mode inconnu ignoré", acceptToCanvas(msg({ kind: "mode", mode: "admin" }), ORIGIN, frame) === null);
 ok("éditeur → toile : coordonnées non numériques ignorées", acceptToCanvas(msg({ kind: "drag", x: "1", y: 2, label: "x" }), ORIGIN, frame) === null);
 
+// Planches (phase 7b).
+ok("planches : déplacement d'image valide accepté", acceptFromCanvas(msg({ kind: "slot-move", board: 3, key: "s12", index: 2 }), ORIGIN, frame)?.key === "s12");
+ok("planches : clé d'emplacement mal formée ignorée", acceptFromCanvas(msg({ kind: "slot-op", board: 3, key: "../12", op: "remove" }), ORIGIN, frame) === null);
+ok("planches : opération inconnue ignorée", acceptFromCanvas(msg({ kind: "slot-op", board: 3, key: "s12", op: "detruire" }), ORIGIN, frame) === null);
+ok("planches : fichiers qui n'en sont pas → ignoré", acceptFromCanvas(msg({ kind: "files", target: { kind: "board", board: 3, index: 0 }, files: ["/etc/passwd"] }), ORIGIN, frame) === null);
+ok("planches : vrais fichiers acceptés", acceptFromCanvas(msg({ kind: "files", target: { kind: "board", board: 3, index: 0 }, files: [new File(["x"], "a.png", { type: "image/png" })] }), ORIGIN, frame)?.files.length === 1);
+ok("planches : cible de dépôt inconnue ignorée", acceptFromCanvas(msg({ kind: "drop-target", target: { kind: "ailleurs" } }), ORIGIN, frame) === null);
+const ghost = { id: "g1", board: 3, index: 0, label: "x", aspect: 1, progress: 0.5, phase: "upload" };
+ok("fantôme : aperçu blob: accepté", acceptToCanvas(msg({ kind: "ghosts", items: [{ ...ghost, preview: "blob:https://portfolio.example/abc" }] }), ORIGIN, frame)?.items.length === 1);
+ok("fantôme : aperçu javascript: ignoré", acceptToCanvas(msg({ kind: "ghosts", items: [{ ...ghost, preview: "javascript:alert(1)" }] }), ORIGIN, frame) === null);
+
 ok("inline : chemin déclaré accepté", inlineAllowed(["eyebrow", "title", "paragraphs.*"], "paragraphs.3"));
 ok("inline : chemin non déclaré refusé", !inlineAllowed(["eyebrow", "title"], "intro"));
 ok("inline : indice sur un champ non listé refusé", !inlineAllowed(["title"], "title.0"));

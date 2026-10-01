@@ -92,6 +92,13 @@
       "when": 1790886606594,
       "tag": "0012_editor_drafts_rev",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1790889785158,
+      "tag": "0013_editor_boards",
+      "breakpoints": true
     }
   ]
 }

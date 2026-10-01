@@ -24,6 +24,7 @@ export const BLOCK_REFS: Record<string, BlockRefs> = {
   "rich-text": {},
   contact: {},
   profile: { media: ["portraitMediaId"] },
+  "project-board": { projects: ["project"] },
 };
 
 /** Valeurs trouvées à un chemin ("a.b", "items[].pageId"…). */

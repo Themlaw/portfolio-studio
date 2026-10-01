@@ -328,7 +328,10 @@ ok("onglet en retard : bandeau « Cette page a été modifiée ailleurs »", awa
 ok("état « Modifié ailleurs » (rouge)", /Modifié ailleurs/.test(await status()) && (await page.locator(".ve-status").getAttribute("data-tone")) === "error", await status());
 await bar("modifie-ailleurs");
 await conflictBanner.locator("summary").click();
-ok("les textes en cours restent consultables (à copier)", (await conflictBanner.locator("textarea").inputValue()).includes("FR : "));
+{
+  const texts = await conflictBanner.locator("textarea").inputValue();
+  ok("les textes en cours restent consultables (à copier), sans balise interne", texts.includes("FR : ") && !texts.includes("<mark>") && /« [^»]+ »/.test(texts), texts.slice(0, 160));
+}
 await sleep(300);
 await page.screenshot({ path: `${SHOTS2}/modifie-ailleurs.png` });
 await other.close();

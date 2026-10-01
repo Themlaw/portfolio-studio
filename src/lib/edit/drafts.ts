@@ -24,7 +24,7 @@
  * surcouche ; « Abandonner » l'efface (ses emplacements « added » sont
  * supprimés). Une autre page qui partage le projet n'y touche jamais.
  */
-import { and, eq, inArray, isNotNull, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { BLOCKS } from "@/blocks/registry";
@@ -195,8 +195,8 @@ export function referencedProjects(blocks: { type: string; props: unknown }[]): 
   return [...ids].sort((a, b) => a - b);
 }
 
-const hasSlotDraft = or(isNotNull(schema.slots.draftState), isNotNull(schema.slots.draftPosition), isNotNull(schema.slots.draftMediaId));
-const CLEAR = { draftState: null, draftPosition: null, draftMediaId: null, draftPageId: null } as const;
+const hasSlotDraft = or(isNotNull(schema.slots.draftState), isNotNull(schema.slots.draftPosition), isNotNull(schema.slots.draftMediaId), isNotNull(schema.slots.draftPageId));
+const CLEAR = { draftState: null, draftPosition: null, draftMediaId: null, draftPageId: null, draftTitle: null, draftDescription: null, draftKey: null } as const;
 /*
  * Une seule connexion SQLite (better-sqlite3, synchrone) : appelées dans une
  * transaction, ces fonctions en font partie, getDb() compris.
@@ -216,22 +216,66 @@ export function setSlotDraft(pageId: number, slotId: number, patch: { state?: "a
   getDb().update(schema.slots).set(set).where(eq(schema.slots.id, slotId)).run();
 }
 
-/** Applique la surcouche portée par le brouillon d'une page (publication). Renvoie les projets touchés. */
-export function applySlotDrafts(pageId: number): number[] {
-  const db = getDb();
-  const rows = db.select().from(schema.slots).where(eq(schema.slots.draftPageId, pageId)).all();
-  for (const s of rows) {
-    const patch: Partial<typeof schema.slots.$inferInsert> = { ...CLEAR };
-    if (s.draftPosition !== null) patch.position = s.draftPosition;
-    if (s.draftMediaId !== null) patch.mediaId = s.draftMediaId;
-    // Média retiré : la place est gardée (comme dans l'écran Projets).
-    if (s.draftState === "removed") patch.mediaId = null;
-    db.update(schema.slots).set(patch).where(eq(schema.slots.id, s.id)).run();
-  }
-  return [...new Set(rows.map((s) => s.projectId))];
+/** Ratio largeur/hauteur d'un média, ou null. */
+function mediaAspect(mediaId: number | null): number | null {
+  if (mediaId === null) return null;
+  const m = getDb().select({ width: schema.media.width, height: schema.media.height }).from(schema.media).where(eq(schema.media.id, mediaId)).get();
+  return m?.width && m.height ? m.width / m.height : null;
 }
 
-/** Efface la surcouche portée par le brouillon d'une page (abandon) : ses emplacements « added » disparaissent. */
+/**
+ * Applique la surcouche portée par le brouillon d'une page (publication) :
+ * ordre, média (une nouvelle image impose son ratio, une place vidée garde le
+ * sien), textes, emplacements ajoutés rendus publics, places retirées
+ * supprimées ; positions renumérotées 0…n-1. Renvoie les projets touchés.
+ */
+export function applySlotDrafts(pageId: number, cited?: Set<number>): number[] {
+  const db = getDb();
+  const all = db.select().from(schema.slots).where(eq(schema.slots.draftPageId, pageId)).all();
+  // Surcouche d'un projet que la page publiée n'affiche plus : effacée, jamais appliquée.
+  const rows = cited ? all.filter((s) => cited.has(s.projectId)) : all;
+  for (const s of all) {
+    if (rows.includes(s)) continue;
+    if (s.draftState === "added") db.delete(schema.slots).where(eq(schema.slots.id, s.id)).run();
+    else db.update(schema.slots).set(CLEAR).where(eq(schema.slots.id, s.id)).run();
+  }
+  for (const s of rows) {
+    if (s.draftState === "retired") {
+      db.delete(schema.slots).where(eq(schema.slots.id, s.id)).run();
+      continue;
+    }
+    const patch: Partial<typeof schema.slots.$inferInsert> = { ...CLEAR };
+    if (s.draftPosition !== null) patch.position = s.draftPosition;
+    if (s.draftMediaId !== null && s.draftMediaId !== s.mediaId) {
+      patch.mediaId = s.draftMediaId;
+      patch.aspect = mediaAspect(s.draftMediaId) ?? s.aspect;
+    }
+    if (s.draftTitle) patch.title = s.draftTitle;
+    if (s.draftDescription) patch.description = s.draftDescription;
+    // Média retiré : la place est gardée (comme dans l'écran Projets), à son ratio.
+    if (s.draftState === "removed") {
+      patch.mediaId = null;
+      if (s.aspect === null) patch.aspect = mediaAspect(s.mediaId);
+    }
+    db.update(schema.slots).set(patch).where(eq(schema.slots.id, s.id)).run();
+  }
+  const projects = [...new Set(rows.map((s) => s.projectId))];
+  const dropped = [...new Set(all.filter((s) => !rows.includes(s)).map((s) => s.projectId))];
+  for (const projectId of projects) {
+    db.select({ id: schema.slots.id })
+      .from(schema.slots)
+      .where(eq(schema.slots.projectId, projectId))
+      .orderBy(asc(schema.slots.position), asc(schema.slots.id))
+      .all()
+      .forEach((x, position) => db.update(schema.slots).set({ position }).where(eq(schema.slots.id, x.id)).run());
+  }
+  return [...new Set([...projects, ...dropped])];
+}
+
+/**
+ * Efface la surcouche portée par le brouillon d'une page (abandon) : ses
+ * emplacements « added » et les projets créés dans ce brouillon disparaissent.
+ */
 export function discardSlotDrafts(pageId: number): number[] {
   const db = getDb();
   const rows = db.select({ id: schema.slots.id, state: schema.slots.draftState, projectId: schema.slots.projectId }).from(schema.slots).where(eq(schema.slots.draftPageId, pageId)).all();
@@ -239,7 +283,46 @@ export function discardSlotDrafts(pageId: number): number[] {
     if (s.state === "added") db.delete(schema.slots).where(eq(schema.slots.id, s.id)).run();
     else db.update(schema.slots).set(CLEAR).where(eq(schema.slots.id, s.id)).run();
   }
+  // Projets créés dans ce brouillon (emplacements en cascade).
+  db.delete(schema.projects).where(eq(schema.projects.draftPageId, pageId)).run();
   return [...new Set(rows.map((s) => s.projectId))];
+}
+
+/**
+ * Planche d'un projet créé dans ce brouillon et encore sans image : on ne
+ * publie pas un projet vide. Erreurs par bloc, ou null.
+ */
+function emptyDraftBoards(pageId: number, blocks: { type: string; props: unknown }[]): Record<string, string> | null {
+  const db = getDb();
+  const errors: Record<string, string> = {};
+  blocks.forEach((b, i) => {
+    if (b.type !== "project-board") return;
+    const slug = (b.props as { project?: unknown })?.project;
+    if (typeof slug !== "string") return;
+    const project = db.select().from(schema.projects).where(eq(schema.projects.slug, slug)).get();
+    if (!project || project.draftPageId !== pageId) return;
+    const withImage = db
+      .select({ id: schema.slots.id })
+      .from(schema.slots)
+      .where(and(eq(schema.slots.projectId, project.id), isNotNull(schema.slots.mediaId)))
+      .all().length;
+    if (!withImage) errors[`blocks.${i}`] = `La planche « ${project.title.fr} » n'a encore aucune image : ajoute-en une, ou retire ce bloc.`;
+  });
+  return Object.keys(errors).length ? errors : null;
+}
+
+/**
+ * Publication : les projets créés dans ce brouillon et cités par la page
+ * publiée deviennent publics ; les autres (créés puis abandonnés en route)
+ * sont supprimés.
+ */
+function settleDraftProjects(pageId: number, blocks: { type: string; props: unknown }[]): void {
+  const db = getDb();
+  const cited = new Set(blocks.flatMap((b) => extractProjectRefs(b.type, b.props)));
+  for (const p of db.select({ id: schema.projects.id, slug: schema.projects.slug }).from(schema.projects).where(eq(schema.projects.draftPageId, pageId)).all()) {
+    if (cited.has(p.slug)) db.update(schema.projects).set({ draftPageId: null, updatedAt: new Date() }).where(eq(schema.projects.id, p.id)).run();
+    else db.delete(schema.projects).where(eq(schema.projects.id, p.id)).run();
+  }
 }
 
 /* ---- Publier, abandonner -------------------------------------------------- */
@@ -260,6 +343,8 @@ export function publishDraft(pageId: number, rev: unknown): DraftResult<PublishR
   if (state.rev !== rev) return conflict(state.rev);
   if (state.corrupt) return corruptRefusal(state.rev);
   if (!state.hasDraft) return fail("Aucune modification à publier.");
+  const empty = emptyDraftBoards(pageId, state.draft.blocks);
+  if (empty) return fail("Publication impossible : corrige ce qui est signalé.", empty);
   // Version publiée lue AVANT l'écriture : les projets retirés du brouillon
   // sont revalidés eux aussi.
   const before = getPageForEdit(pageId);
@@ -273,7 +358,8 @@ export function publishDraft(pageId: number, rev: unknown): DraftResult<PublishR
         outcome = result;
         return;
       }
-      const touched = applySlotDrafts(pageId);
+      const touched = applySlotDrafts(pageId, new Set(referencedProjects(draft.blocks)));
+      settleDraftProjects(pageId, draft.blocks);
       const cleared = tx
         .update(schema.pages)
         .set({ draft: null, draftUpdatedAt: null, draftRev: rev + 1 })
@@ -347,7 +433,9 @@ export function savePageFromForm(pageId: number, input: unknown, rev: unknown): 
         outcome = result;
         return;
       }
-      const touched = applySlotDrafts(pageId);
+      const formBlocks = (input as { blocks?: { type: string; props: unknown }[] })?.blocks ?? [];
+      const touched = applySlotDrafts(pageId, new Set(referencedProjects(formBlocks)));
+      settleDraftProjects(pageId, formBlocks);
       const cleared = tx
         .update(schema.pages)
         .set({ draft: null, draftUpdatedAt: null, draftRev: rev + 1 })

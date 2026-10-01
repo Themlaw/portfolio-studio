@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { blockCatalog, blockEditors } from "@/blocks/registry";
 import VisualEditor from "@/components/admin/editor/VisualEditor";
-import { getEditorContext, getSettingsForAdmin, listPagesForAdmin } from "@/lib/admin";
+import { getEditorContext, getSettingsForAdmin, listPagesForAdmin, overlayProjectSlugs } from "@/lib/admin";
 import { readDraft } from "@/lib/edit/drafts";
 
 export const metadata = { title: "Éditeur de page" };
@@ -29,11 +29,12 @@ export default async function VisualEditorPage({ params, searchParams }: { param
       hasDraft={state.hasDraft}
       rev={state.rev}
       corrupt={state.corrupt}
+      overlaySlugs={overlayProjectSlugs(Number(id))}
       paths={{ fr: self ? pathOf("fr", self.slug.fr) : "/fr", en: self ? pathOf("en", self.slug.en) : "/en" }}
       pages={pages.map(({ id, title }) => ({ id, title }))}
       catalog={blockCatalog()}
       editors={blockEditors()}
-      context={getEditorContext()}
+      context={getEditorContext(Number(id))}
       siteName={getSettingsForAdmin().site.name || "Portfolio"}
       initialLocale={langue === "en" ? "en" : "fr"}
     />

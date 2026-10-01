@@ -500,6 +500,62 @@ indicateur `portfolio-admin` existe — posé par le proxy sur les requêtes adm
 portant une session, ce n'est pas une preuve — ; affiché seulement si la
 session est admin, jamais dans un cadre.
 
+### Planches sur la toile (phase 7b)
+
+Les images des projets se placent, se déplacent et se retirent directement sur
+la toile, toujours dans la surcouche d'emplacements DE LA PAGE éditée
+(migration `0013_editor_boards`) : rien n'est public avant « Publier »,
+« Abandonner » efface tout.
+
+- **Modèle.** `slots.draft_state` gagne `retired` (place retirée, supprimée à
+  la publication) ; `draft_title` / `draft_description` (textes du brouillon) ;
+  `draft_key` (clé stable d'un emplacement ajouté, pour Annuler/Rétablir).
+  `projects.draft_page_id` : projet créé depuis la toile (planche neuve),
+  invisible du site, de l'écran Projets et des sélecteurs des autres pages
+  jusqu'à la publication de SA page ; publié s'il est cité par la page
+  publiée, supprimé sinon (ou à l'abandon, ou avec la page). Les actions de
+  l'écran Projets refusent un projet en brouillon.
+- **Écritures** (`src/lib/edit/boards.ts`). L'état de brouillon d'une planche
+  se lit en un instantané (emplacements visibles dans l'ordre, média, textes ;
+  + nom, contexte, année d'un projet créé ici). Chaque opération (`add` à une
+  position, `move`, `remove` = la place reste, `retire`, `fill`, `text`,
+  `project`) transforme l'instantané puis le réécrit en surcouche ; Annuler /
+  Rétablir réécrit l'instantané d'avant ou d'après (`restoreBoardAction`), donc
+  l'historique de l'éditeur couvre aussi les planches. Gardes : projet publié
+  ou créé dans CE brouillon, aucun emplacement du projet sous la surcouche
+  d'une autre page (la page qui le tient est nommée dans le refus), projet
+  AFFICHÉ par la page (bloc qui le cite, collection ou mis en avant), clés et
+  médias contrôlés (un emplacement d'un autre projet est refusé ; un média
+  doit être prêt, sauf pour rétablir par Annuler), bornes, version optimiste
+  de la page (une écriture de planche crée le brouillon de la page s'il
+  n'existe pas). Au plus 10 projets créés par brouillon ; au démarrage, les
+  projets en brouillon oubliés (plus cités, plus de 24 h) sont supprimés.
+- **Publication.** Seule la surcouche des projets que la page PUBLIÉE affiche
+  est appliquée ; celle d'un projet qu'elle n'affiche plus (bloc supprimé)
+  est effacée, jamais appliquée — l'éditeur le dit au moment de supprimer le
+  bloc (« Les changements d'images de cette planche ne seront pas publiés »,
+  Annuler les retrouve). Une planche d'un projet créé ici et encore sans image
+  bloque la publication. Un média utilisé par une planche en brouillon
+  (remplacement ou ajout) ne se supprime pas. `applySlotDrafts` : ordre, média (ratio de la nouvelle
+  image ; une place vidée garde le sien), textes, ajoutés rendus publics,
+  places retirées supprimées, positions renumérotées ; projets créés ici réglés.
+  Revalidation de `projects` (liste) en plus des projets touchés.
+- **Rendu.** Bloc « Planche d'un projet » (`project-board`, un projet = une
+  planche ; publication refusée sans projet). En vue brouillon, `ProjectStrip`
+  porte les repères (`data-edit-board`, `data-edit-rail`, `data-edit-slot`,
+  `data-empty`, `data-slot-inline`, `data-project-inline`) et montre les places
+  vides (pointillés au ratio gardé) et les légendes ; rien de tout cela hors
+  vue brouillon (parité au pixel).
+- **Toile** (`src/components/BoardLayer.tsx`, dans la couche d'édition) :
+  barre au survol ou au focus d'une image (Remplacer, Supprimer, Retirer la
+  place ; au toucher, un premier toucher la montre) ; glisser une image sur sa
+  bande ; clavier ← → / Maj+← → / Suppr / Maj+Suppr / Entrée avec annonces
+  aria-live ; curseur d'insertion vertical pour un média glissé depuis
+  l'onglet Médias ou des fichiers de l'ordinateur ; fantômes d'envoi insérés à
+  la position même (envoi, conversion, « Échec · Réessayer / Retirer »),
+  l'emplacement réel n'étant créé qu'avec un média prêt, dans l'ordre du dépôt ;
+  textes posés par-dessus (le DOM du site n'est jamais modifié).
+
 ## Authentification (phase 3)
 
 - **Better Auth 1.7**, adaptateur Drizzle, tables `user`, `session`, `account`,

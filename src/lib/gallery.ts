@@ -8,7 +8,7 @@
  * des œuvres (collections, couverture, demoreel) est l'ordre des slots (id).
  * Un slot sans média (image retirée) est masqué côté public.
  * ----------------------------------------------------------------------- */
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, eq, inArray, isNull } from "drizzle-orm";
 
 import type { AppLocale } from "@/i18n/routing";
 
@@ -43,7 +43,15 @@ export type LocalizedArtwork = {
   duration?: string;
   videoId?: string;
   reel?: boolean;
+  /** Vue brouillon de l'éditeur seulement : repères de l'emplacement. */
+  edit?: ArtworkEdit;
 };
+
+/**
+ * Repères d'édition d'un emplacement (vue brouillon) : clé stable, place
+ * vide (pointillés au ratio gardé), média en cours de traitement.
+ */
+export type ArtworkEdit = { key: string; empty: boolean; pending: boolean; aspect: number };
 
 /** Projet prêt à l'affichage, ses œuvres déjà résolues et localisées. */
 export type LocalizedProject = {
@@ -54,10 +62,13 @@ export type LocalizedProject = {
   context: string;
   description: string;
   artworks: LocalizedArtwork[];
+  /** Vue brouillon seulement : identifiant, et projet créé dans ce brouillon. */
+  edit?: { id: number; draft: boolean };
 };
 
 type RawProject = {
   id: number;
+  draftPageId: number | null;
   slug: string;
   year: string;
   featured: boolean;
@@ -85,15 +96,18 @@ type RawArtwork = {
   alt: L | null;
   width: number;
   height: number;
+  edit?: ArtworkEdit;
 };
 
 type Snapshot = { projects: RawProject[]; artworks: RawArtwork[] };
 
 async function projectIds(): Promise<number[]> {
+  // Projets publiés seulement : un projet créé dans un brouillon de page n'existe pas encore.
   return cached(["project-ids"], [TAGS.projects], () =>
     getDb()
       .select({ id: schema.projects.id })
       .from(schema.projects)
+      .where(isNull(schema.projects.draftPageId))
       .orderBy(asc(schema.projects.position))
       .all()
       .map((r) => r.id),
@@ -108,6 +122,7 @@ function readProjects(ids: number[]): RawProject[] {
   return getDb()
     .select({
       id: schema.projects.id,
+      draftPageId: schema.projects.draftPageId,
       slug: schema.projects.slug,
       year: schema.projects.year,
       featured: schema.projects.featured,
@@ -156,6 +171,7 @@ function toArtworks(rows: { slot: SlotRow; media: MediaRow | null }[]): RawArtwo
 async function snapshot(): Promise<Snapshot> {
   if (await isDraftView()) return draftSnapshot();
   const ids = await projectIds();
+  const published = new Set(ids);
   return cached(
     ["gallery", ids.join(",")],
     [TAGS.projects, TAGS.media, ...ids.map(TAGS.project)],
@@ -166,7 +182,7 @@ async function snapshot(): Promise<Snapshot> {
         .leftJoin(schema.media, eq(schema.slots.mediaId, schema.media.id))
         .orderBy(asc(schema.slots.id))
         .all()
-        .filter((r) => r.slot.draftState !== "added");
+        .filter((r) => r.slot.draftState !== "added" && published.has(r.slot.projectId));
       return { projects: readProjects(ids), artworks: toArtworks(rows) };
     },
   );
@@ -174,26 +190,67 @@ async function snapshot(): Promise<Snapshot> {
 
 /**
  * Vue brouillon : la surcouche portée par le brouillon de la page rendue
- * (ordre, média, état) ; celle d'une autre page est ignorée (version publiée).
+ * (ordre, média, textes, places vides ou retirées, emplacements ajoutés) et
+ * les projets créés dans ce brouillon ; ce qui appartient au brouillon d'une
+ * autre page est ignoré (version publiée). Les places vides et les médias en
+ * traitement restent présents, marqués pour la toile.
  */
 function draftSnapshot(): Snapshot {
   const pageId = draftViewPage();
   const db = getDb();
-  const ids = db.select({ id: schema.projects.id }).from(schema.projects).orderBy(asc(schema.projects.position)).all().map((r) => r.id);
-  const media = new Map(db.select().from(schema.media).all().map((m) => [m.id, m]));
-  const rows = db
-    .select()
-    .from(schema.slots)
-    .orderBy(asc(schema.slots.id))
+  const projects = db
+    .select({ id: schema.projects.id, page: schema.projects.draftPageId })
+    .from(schema.projects)
+    .orderBy(asc(schema.projects.position))
     .all()
-    .filter((slot) => slot.draftState !== "added" || slot.draftPageId === pageId)
-    .map((slot) => {
-      if (slot.draftPageId !== pageId) return { slot, media: slot.mediaId ? (media.get(slot.mediaId) ?? null) : null };
-      const mediaId = slot.draftState === "removed" ? null : (slot.draftMediaId ?? slot.mediaId);
-      return { slot: { ...slot, position: slot.draftPosition ?? slot.position }, media: mediaId ? (media.get(mediaId) ?? null) : null };
-    });
-  return { projects: readProjects(ids), artworks: toArtworks(rows) };
+    .filter((p) => p.page === null || p.page === pageId);
+  const visible = new Set(projects.map((p) => p.id));
+  const media = new Map(db.select().from(schema.media).all().map((m) => [m.id, m]));
+  const artworks: RawArtwork[] = [];
+  for (const slot of db.select().from(schema.slots).orderBy(asc(schema.slots.id)).all()) {
+    if (!visible.has(slot.projectId)) continue;
+    const mine = slot.draftPageId === pageId && pageId !== null;
+    if (mine ? slot.draftState === "retired" : slot.draftState === "added") continue;
+    const mediaId = mine ? (slot.draftState === "removed" ? null : (slot.draftMediaId ?? slot.mediaId)) : slot.mediaId;
+    const m = mediaId ? media.get(mediaId) : undefined;
+    const ready = m?.status === "ready";
+    const aspect = m?.width && m.height ? m.width / m.height : (slot.aspect ?? 4 / 3);
+    const merged = {
+      ...slot,
+      position: mine && slot.draftPosition !== null ? slot.draftPosition : slot.position,
+      title: (mine ? slot.draftTitle : null) ?? slot.title,
+      description: (mine ? slot.draftDescription : null) ?? slot.description,
+    };
+    const edit: ArtworkEdit = { key: slot.draftKey ?? `s${slot.id}`, empty: !ready, pending: Boolean(m) && !ready && m?.status === "processing", aspect };
+    if (ready) artworks.push({ ...toArtworks([{ slot: merged, media: m! }])[0], edit });
+    else
+      artworks.push({
+        id: slot.id,
+        projectId: slot.projectId,
+        position: merged.position,
+        slug: slot.slug,
+        collection: slot.collection,
+        title: merged.title,
+        description: merged.description,
+        year: slot.year,
+        featured: slot.featured,
+        duration: null,
+        videoId: null,
+        reel: false,
+        key: "",
+        sources: null,
+        video: null,
+        alt: null,
+        width: Math.round(aspect * 1000),
+        height: 1000,
+        edit,
+      });
+  }
+  return { projects: readProjects(projects.map((p) => p.id)), artworks };
 }
+
+/** Œuvres affichables hors des planches (collections, couvertures, compteurs) : jamais une place vide. */
+const shown = (a: RawArtwork) => !a.edit?.empty;
 
 function localize(a: RawArtwork, locale: AppLocale): LocalizedArtwork {
   const out: LocalizedArtwork = {
@@ -214,6 +271,7 @@ function localize(a: RawArtwork, locale: AppLocale): LocalizedArtwork {
   if (a.duration) out.duration = a.duration;
   if (a.videoId) out.videoId = a.videoId;
   if (a.reel) out.reel = true;
+  if (a.edit) out.edit = a.edit;
   return out;
 }
 
@@ -228,6 +286,7 @@ function localizeProject(
     .filter((a) => (filter ? filter(a) : true))
     .sort((x, y) => x.position - y.position);
   return {
+    ...(project.draftPageId !== undefined && artworks.some((a) => a.edit) ? { edit: { id: project.id, draft: project.draftPageId !== null } } : {}),
     slug: project.slug,
     year: project.year,
     featured: project.featured,
@@ -243,13 +302,13 @@ function localizeProject(
 /** Les œuvres d'une collection donnée, dans l'ordre global. */
 export async function getCollection(collection: Collection, locale: AppLocale): Promise<LocalizedArtwork[]> {
   const { artworks } = await snapshot();
-  return artworks.filter((a) => a.collection === collection).map((a) => localize(a, locale));
+  return artworks.filter((a) => shown(a) && a.collection === collection).map((a) => localize(a, locale));
 }
 
 /** La demoreel : première œuvre marquée `reel` de la collection animation. */
 export async function getReel(locale: AppLocale): Promise<LocalizedArtwork | undefined> {
   const { artworks } = await snapshot();
-  const found = artworks.find((a) => a.collection === "animation" && a.reel);
+  const found = artworks.find((a) => shown(a) && a.collection === "animation" && a.reel);
   return found ? localize(found, locale) : undefined;
 }
 
@@ -259,7 +318,7 @@ export async function getCollectionCover(
   locale: AppLocale,
 ): Promise<LocalizedArtwork | undefined> {
   const { artworks } = await snapshot();
-  const items = artworks.filter((a) => a.collection === collection);
+  const items = artworks.filter((a) => shown(a) && a.collection === collection);
   const cover = items.find((a) => a.featured) ?? items[0];
   return cover ? localize(cover, locale) : undefined;
 }
@@ -267,7 +326,7 @@ export async function getCollectionCover(
 /** Nombre d'œuvres visibles par collection. */
 export async function countCollection(collection: Collection): Promise<number> {
   const { artworks } = await snapshot();
-  return artworks.filter((a) => a.collection === collection).length;
+  return artworks.filter((a) => shown(a) && a.collection === collection).length;
 }
 
 /* ------------------------------------------------------------- Projets -- */
@@ -283,7 +342,7 @@ export async function getProjectsForCollection(
   const { projects, artworks } = await snapshot();
   return projects
     .map((p) => localizeProject(p, artworks, locale, (a) => a.collection === collection))
-    .filter((p) => p.artworks.length > 0);
+    .filter((p) => p.artworks.some((a) => !a.edit?.empty));
 }
 
 /** Les projets mis en avant sur l'accueil, ou ceux choisis (slugs, dans l'ordre). */
@@ -297,4 +356,18 @@ export async function getFeaturedProjects(locale: AppLocale, limit = 2, chosen?:
   }
   const pool = projects.filter((p) => p.featured);
   return (pool.length > 0 ? pool : projects).slice(0, limit).map((p) => localizeProject(p, artworks, locale));
+}
+
+/**
+ * Un projet et sa planche (bloc « Planche d'un projet »). En vue brouillon :
+ * projet créé dans ce brouillon compris, places vides comprises (toile).
+ * Planche vide en vue brouillon : projet sans emplacement, repéré quand même.
+ */
+export async function getProjectBoard(slug: string, locale: AppLocale): Promise<LocalizedProject | null> {
+  const { projects, artworks } = await snapshot();
+  const project = projects.find((p) => p.slug === slug);
+  if (!project) return null;
+  const out = localizeProject(project, artworks, locale);
+  if (!out.edit && (await isDraftView())) out.edit = { id: project.id, draft: project.draftPageId !== null };
+  return out;
 }
