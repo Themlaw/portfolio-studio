@@ -10,7 +10,7 @@
  * ignorée avec un log, elle ne fait jamais tomber une page.
  */
 import { sql } from "drizzle-orm";
-import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export type Localized = { fr: string; en: string };
 
@@ -161,6 +161,34 @@ export const jobs = sqliteTable(
  * Envois par morceaux en cours (vidéos, grandes images) : reprenables tant
  * qu'ils ne sont pas terminés ; purgés après 24 h sans nouvelle.
  */
+/**
+ * Tags de la bibliothèque : libellé tel que saisi la première fois, clé
+ * normalisée (minuscules, sans accents, espaces réduits) unique.
+ */
+export const tags = sqliteTable(
+  "tags",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    label: text("label").notNull(),
+    key: text("key").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [uniqueIndex("tags_key_idx").on(t.key)],
+);
+
+export const mediaTags = sqliteTable(
+  "media_tags",
+  {
+    mediaId: integer("media_id")
+      .notNull()
+      .references(() => media.id, { onDelete: "cascade" }),
+    tagId: integer("tag_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.mediaId, t.tagId] }), index("media_tags_tag_idx").on(t.tagId)],
+);
+
 export const uploads = sqliteTable("uploads", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -171,6 +199,8 @@ export const uploads = sqliteTable("uploads", {
   offset: integer("offset").notNull().default(0),
   /** Administrateur qui a ouvert l'envoi (seul à pouvoir le poursuivre). */
   userId: text("user_id").notNull().default(""),
+  /** Tags demandés à l'envoi (libellés, JSON), attachés au média à sa création. */
+  tags: text("tags", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
 });

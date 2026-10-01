@@ -57,6 +57,13 @@
       "when": 1790830509197,
       "tag": "0007_upload_owner",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1790841262830,
+      "tag": "0008_tags",
+      "breakpoints": true
     }
   ]
 }

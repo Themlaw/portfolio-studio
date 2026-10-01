@@ -63,7 +63,14 @@ const nextConfig: NextConfig = {
   // l'instrumentation (Turbopack) ne l'honore pas : la vraie garantie est
   // .dockerignore (./data absent du contexte de build) + le garde-fou du
   // Dockerfile qui échoue si un data/ apparaît dans le standalone.
-  outputFileTracingExcludes: { "*": ["./data/**"] },
+  // Données locales (base, médias de dev) et sources : jamais dans le standalone,
+  // y compris pour le proxy et l'instrumentation (le motif « * » ne les couvre pas).
+  outputFileTracingExcludes: {
+    "*": ["./data/**", "./src/**", "./docs/**"],
+    middleware: ["./data/**", "./src/**", "./docs/**"],
+    proxy: ["./data/**", "./src/**", "./docs/**"],
+    instrumentation: ["./data/**", "./src/**", "./docs/**"],
+  },
   experimental: {
     // Cache ISR en mémoire seulement : sur disque, Next écrirait les pages
     // dans .next/server/app, en lecture seule dans le conteneur (--read-only).

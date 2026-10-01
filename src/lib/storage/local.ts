@@ -29,8 +29,8 @@ export class LocalStorage implements MediaStorage {
   /** Chemin absolu d'une clé, garanti lexicalement sous la racine. */
   private resolve(key: string): string {
     if (!isValidKey(key)) throw new Error(`Clé de média invalide : ${JSON.stringify(key)}`);
-    const root = path.resolve(this.root);
-    const full = path.resolve(root, key);
+    const root = path.resolve(/* turbopackIgnore: true */ this.root);
+    const full = path.resolve(/* turbopackIgnore: true */ root, key);
     if (!full.startsWith(root + path.sep)) throw new Error("Clé hors du stockage");
     return full;
   }
@@ -46,7 +46,7 @@ export class LocalStorage implements MediaStorage {
     try {
       const info = await lstat(file);
       if (!info.isFile()) return null; // lien symbolique, dossier, périphérique…
-      this.realRoot ??= await realpath(path.resolve(this.root));
+      this.realRoot ??= await realpath(path.resolve(/* turbopackIgnore: true */ this.root));
       const real = await realpath(file);
       if (!real.startsWith(this.realRoot + path.sep)) return null;
       return { file: real, size: info.size, mtimeMs: info.mtimeMs };
@@ -57,7 +57,7 @@ export class LocalStorage implements MediaStorage {
 
   async put(key: string, stream: Readable | NodeJS.ReadableStream): Promise<StoredObject> {
     const target = this.resolve(key);
-    await mkdir(path.dirname(target), { recursive: true });
+    await mkdir(path.dirname(/* turbopackIgnore: true */ target), { recursive: true });
     // Écriture atomique : fichier temporaire (création exclusive) puis renommage.
     // Nom unique : deux écritures simultanées de la même clé ne se télescopent pas.
     const tmp = `${target}.${process.pid}.${Date.now()}.${randomBytes(6).toString("hex")}.tmp`;
@@ -92,8 +92,8 @@ export class LocalStorage implements MediaStorage {
     const file = this.resolve(key);
     await rm(file, { force: true });
     // Dossier de variantes devenu vide (img/<hash>/) : retiré aussi.
-    const dir = path.dirname(file);
-    if (dir !== path.resolve(this.root) && path.dirname(dir) !== path.dirname(path.resolve(this.root))) {
+    const dir = path.dirname(/* turbopackIgnore: true */ file);
+    if (dir !== path.resolve(/* turbopackIgnore: true */ this.root) && path.dirname(/* turbopackIgnore: true */ dir) !== path.dirname(/* turbopackIgnore: true */ path.resolve(/* turbopackIgnore: true */ this.root))) {
       await rmdir(dir).catch(() => {});
     }
   }

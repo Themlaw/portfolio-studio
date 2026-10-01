@@ -14,10 +14,10 @@ export type Db = BetterSQLite3Database<typeof schema>;
 
 export function dataDir(): string {
   const configured = process.env.DATA_DIR;
-  if (configured) return path.resolve(configured);
+  if (configured) return path.resolve(/* turbopackIgnore: true */ configured);
   // En dev, ./data : exclu du contexte Docker (.dockerignore), donc jamais
   // tracé dans l'image (garde-fou dans le Dockerfile).
-  return process.env.NODE_ENV === "production" ? "/data" : path.resolve(process.cwd(), "data");
+  return process.env.NODE_ENV === "production" ? "/data" : path.resolve(/* turbopackIgnore: true */ process.cwd(), "data");
 }
 
 const globalForDb = globalThis as unknown as { __portfolioDb?: Db; __portfolioSqlite?: Database.Database };
@@ -34,7 +34,7 @@ export function getDb(): Db {
   mkdirSync(dir, { recursive: true });
   // busy_timeout d'abord : le passage en WAL demande un verrou, qu'un autre
   // processus peut tenir au même instant (démarrages concurrents).
-  const sqlite = new Database(path.join(dir, "portfolio.db"), { timeout: 5000 });
+  const sqlite = new Database(path.join(/* turbopackIgnore: true */ dir, "portfolio.db"), { timeout: 5000 });
   sqlite.pragma("busy_timeout = 5000");
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");

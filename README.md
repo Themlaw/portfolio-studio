@@ -195,6 +195,38 @@ Tests : `npm run test:e2e` lance aussi `scripts/e2e-planche.mjs` ; captures :
 Tests : `node scripts/e2e-video.mjs` (inclus dans `npm run test:e2e`) ; captures :
 `npm run shots:video` (→ `screenshots/phase5/`).
 
+### Envoi unifié et tags (phase 6a)
+
+- **Un seul composant d'envoi** (planche, au-dessus de la bande ; sélecteur de média
+  des blocs ; médiathèque) : une ligne quand il est vide, un panneau d'aperçus dès
+  qu'il reçoit des fichiers (aperçu local immédiat, première image d'une vidéo ou
+  icône si le navigateur ne la décode pas), une barre de progression par fichier,
+  puis un bilan (« 4 fichiers ajoutés à ta bibliothèque »). L'envoi part aussitôt.
+- **Tags** : un champ pour le lot, et en option par fichier (« Tags de ce
+  fichier »). Ils partent avec le fichier (le serveur les attache au média créé ;
+  un fichier déjà connu reçoit les nouveaux tags) ; ceux ajoutés pendant ou après
+  l'envoi sont synchronisés dès que le média existe.
+- **Champ de tags** : recherche et création dans le même champ ; « Créer « mot » »
+  en premier, sauf si un tag identique (sans accents ni casse) existe ; Entrée
+  valide, Retour arrière sur le champ vide sélectionne puis retire la dernière
+  pastille, Échap ferme. 40 caractères par tag, 20 tags par fichier, 500 tags
+  utilisés en tout (un tag posé sur aucun média ne compte pas ; l'onglet Tags
+  propose « Supprimer les tags inutilisés »).
+- **File d'envoi globale** : elle continue quand tu changes d'écran ; « 2 envois en
+  cours » dans la barre latérale l'ouvre. Échec : « Réessayer » (reprise là où
+  l'envoi s'est arrêté) ; quota plein : refus définitif.
+- **Planche** : sous l'envoi, le bandeau « Bibliothèque » (plus récents d'abord,
+  filtre par tags, recherche) ; une vignette se glisse dans la bande, entre deux
+  emplacements ou sur un emplacement vide, ou s'ajoute à la fin avec « + ». Un
+  média en conversion se place (l'emplacement montre son état) ; un média en échec,
+  non. Déposer des fichiers sur la bande ou sur un emplacement vide reste possible.
+- **Médiathèque** : filtre par tags (tous les tags choisis), tags dans le détail,
+  sélection multiple (« Ajouter des tags » / « Retirer des tags »), onglet « Tags »
+  (renommer, fusionner, supprimer avec le nombre de médias concernés).
+
+Tests : `node scripts/e2e-tags.mjs` (inclus dans `npm run test:e2e`, captures
+`screenshots/phase6a/`) ; `scripts/test-tags.mjs` (règles pures, dans `npm test`).
+
 ### Authentik (réglages exacts)
 
 1. *Applications → Providers → Create* : **OAuth2/OpenID Provider**.

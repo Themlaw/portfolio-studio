@@ -154,7 +154,7 @@ try {
 
   await page.locator(".a-strip .a-slot-empty").getByRole("button", { name: "Choisir dans la médiathèque" }).click();
   const picker = page.locator("dialog[open]");
-  await picker.getByPlaceholder("Rechercher par nom…").fill("e2e-grand");
+  await picker.getByPlaceholder("Rechercher par nom ou tag…").fill("e2e-grand");
   await picker.locator(".a-media-tile", { hasText: "e2e-grand.jpg" }).first().click();
   await picker.getByRole("button", { name: "Utiliser cette image" }).click();
   await toast("Image placée");
@@ -211,7 +211,7 @@ try {
 
   // ---- Médiathèque --------------------------------------------------------------
   await page.goto(`${BASE}/admin/medias`, { waitUntil: "networkidle" });
-  await page.getByPlaceholder("Rechercher par nom…").fill("portrait");
+  await page.getByPlaceholder("Rechercher par nom ou tag…").fill("portrait");
   await page.locator(".a-media-tile", { hasText: "portrait.svg" }).click();
   await page.locator(".a-sidepanel").getByRole("button", { name: "Supprimer l'image" }).click();
   await page.locator("dialog[open]").getByRole("button", { name: "Supprimer" }).click();
@@ -219,7 +219,7 @@ try {
   ok("P17 suppression bloquée par un bloc, liste affichée", /Profil/.test(await page.locator("dialog[open] .a-refs").innerText()));
   await page.locator("dialog[open]").getByRole("button", { name: "Annuler" }).click();
 
-  await page.getByPlaceholder("Rechercher par nom…").fill("e2e-grand");
+  await page.getByPlaceholder("Rechercher par nom ou tag…").fill("e2e-grand");
   await page.locator(".a-media-tile", { hasText: "e2e-grand.jpg" }).click();
   await page.locator(".a-sidepanel .a-refs li").first().waitFor();
   await page.locator(".a-sidepanel").getByRole("button", { name: "Supprimer l'image" }).click();
@@ -244,7 +244,7 @@ try {
     await page.reload({ waitUntil: "networkidle" });
   }
   await page.goto(`${BASE}/admin/medias`, { waitUntil: "networkidle" });
-  await page.getByPlaceholder("Rechercher par nom…").fill("e2e-");
+  await page.getByPlaceholder("Rechercher par nom ou tag…").fill("e2e-");
   while (await page.locator(".a-media-tile").count()) {
     await page.locator(".a-media-tile").first().click();
     await page.locator(".a-sidepanel").getByRole("button", { name: "Supprimer l'image" }).click();

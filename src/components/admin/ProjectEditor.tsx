@@ -10,6 +10,24 @@
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  closestCenter,
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  pointerWithin,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type Announcements,
+  type CollisionDetection,
+  type DragEndEvent,
+  type DragMoveEvent,
+  type Modifier,
+} from "@dnd-kit/core";
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
+import { arrayMove, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { errorAt, Field, Select, TextareaI18n, TextField, TextI18n, Toggle } from "@/app/admin/_fields";
@@ -25,9 +43,12 @@ import {
 import type { AdminMediaRow, AdminProjectEdit, AdminSlot } from "@/lib/admin";
 
 import { clone, ConfirmDialog, SaveBar, same, toast, useUnsavedGuard } from "./editing";
-import { MediaPickerDialog, UploadList } from "./MediaLibrary";
-import { DragHandle, SortableList } from "./Sortable";
-import { ACCEPT, formatSent, hasFiles, useMediaWatch, useUploadQueue, type UploadItem } from "./uploads";
+import LibraryStrip, { LIB_PREFIX } from "./LibraryStrip";
+import { MediaPickerDialog } from "./MediaLibrary";
+import { DragHandle, SortableItems } from "./Sortable";
+import Uploader from "./Uploader";
+import { isUploaded, useUploadQueue, type QueueItem } from "./UploadQueue";
+import { ACCEPT, formatSent, hasFiles, useMediaWatch } from "./uploads";
 import { formatDuration, isLoop } from "@/lib/video/limits";
 
 const STRIP_H = 180;
@@ -100,11 +121,14 @@ function ProjectMeta({ project }: { project: AdminProjectEdit }) {
 
 /* ---- Emplacement ------------------------------------------------------------- */
 
+type DropHint = { index: number } | { fill: number } | null;
+
 function SlotTile({
   slot,
   index,
   selected,
   preview,
+  hint,
   onOpen,
   onFiles,
   onLibrary,
@@ -113,6 +137,8 @@ function SlotTile({
   index: number;
   selected: boolean;
   preview?: string;
+  /** Glisser depuis la Bibliothèque : marque d'insertion avant / après, ou remplissage. */
+  hint?: "before" | "after" | "fill";
   onOpen: () => void;
   onFiles: (files: File[]) => void;
   onLibrary: () => void;
@@ -138,14 +164,14 @@ function SlotTile({
   };
   if (!media) {
     return (
-      <div className="a-slot a-slot-empty" data-slot={slot.id} data-over={over || undefined} data-selected={selected || undefined} {...dropProps}>
+      <div className="a-slot a-slot-empty" data-slot={slot.id} data-over={over || hint === "fill" || undefined} data-drop={hint} data-selected={selected || undefined} {...dropProps}>
         <div className="a-slot-bar">
           <DragHandle />
           <button type="button" className="a-slot-open" onClick={onOpen} aria-label={`Modifier ${label} (vide)`}>
             {label}
           </button>
         </div>
-        <p>Dépose une image ici</p>
+        <p>Dépose une image ici, ou glisses-en une de la Bibliothèque</p>
         <button type="button" className="a-btn a-btn-small" onClick={onLibrary}>
           Choisir dans la médiathèque
         </button>
@@ -154,7 +180,7 @@ function SlotTile({
   }
   const src = media.thumb ?? preview;
   return (
-    <div className="a-slot" data-slot={slot.id} data-status={media.status} data-over={over || undefined} data-selected={selected || undefined} {...dropProps}>
+    <div className="a-slot" data-slot={slot.id} data-status={media.status} data-over={over || undefined} data-drop={hint} data-selected={selected || undefined} {...dropProps}>
       <button type="button" className="a-slot-image" onClick={onOpen} aria-label={`Modifier ${label}`} style={media.color ? { backgroundColor: media.color } : undefined}>
         {src && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -195,7 +221,7 @@ function SlotTile({
   );
 }
 
-function PendingTile({ item }: { item: UploadItem }) {
+function PendingTile({ item }: { item: QueueItem }) {
   return (
     <li className="a-sortable-item" style={{ width: Math.round(STRIP_H * item.ratio) }}>
       <div className="a-slot" data-status={item.phase === "failed" ? "failed" : "processing"}>
@@ -213,8 +239,8 @@ function PendingTile({ item }: { item: UploadItem }) {
                   {item.phase === "waiting"
                     ? "En attente"
                     : item.phase === "uploading"
-                      ? item.total && item.total > 8 * 1024 * 1024
-                        ? `Envoi ${formatSent(item.sent, item.total)}`
+                      ? item.size > 8 * 1024 * 1024
+                        ? `Envoi ${formatSent(item.sent, item.size)}`
                         : `Envoi ${Math.round(item.progress * 100)} %`
                       : item.video
                         ? "Conversion…"
@@ -426,8 +452,44 @@ function SlotPanel({
 
 /* ---- Planche ----------------------------------------------------------------- */
 
+/** Fin de la bande : cible de dépôt (Bibliothèque) et ajout de fichiers. */
+function StripEnd({ fileId, onFiles, onPicker, active }: { fileId: string; onFiles: (files: File[]) => void; onPicker: () => void; active: boolean }) {
+  const { setNodeRef } = useDroppable({ id: "strip-end" });
+  return (
+    <li ref={setNodeRef} className="a-strip-end" data-drop={active ? "before" : undefined}>
+      <label htmlFor={fileId} className="a-strip-add">
+        <span aria-hidden="true">+</span>
+        Ajouter des images ou vidéos
+      </label>
+      <input
+        id={fileId}
+        type="file"
+        accept={ACCEPT}
+        multiple
+        className="sr-only"
+        onChange={(e) => {
+          const files = [...(e.target.files ?? [])];
+          e.target.value = "";
+          if (files.length) onFiles(files);
+        }}
+      />
+      <button type="button" className="a-btn a-btn-small" onClick={onPicker}>
+        Depuis la médiathèque
+      </button>
+    </li>
+  );
+}
+
+const isLib = (id: string | number | undefined) => String(id ?? "").startsWith(LIB_PREFIX);
+
+/** Glisser depuis la Bibliothèque : seulement sous le pointeur ; réordonner : le plus proche. */
+const collision: CollisionDetection = (args) => (isLib(args.active.id) ? pointerWithin(args) : closestCenter(args));
+/** Les emplacements ne bougent qu'à l'horizontale ; une vignette de la Bibliothèque, librement. */
+const axis: Modifier = (args) => (args.active && isLib(args.active.id) ? args.transform : restrictToHorizontalAxis(args));
+
 export default function ProjectEditor({ project, library }: { project: AdminProjectEdit; library: AdminMediaRow[] }) {
   const router = useRouter();
+  const queue = useUploadQueue();
   const [slots, setSlots] = useState(project.slots);
   const [source, setSource] = useState(project.slots);
   if (project.slots !== source) {
@@ -437,19 +499,17 @@ export default function ProjectEditor({ project, library }: { project: AdminProj
   const [selected, setSelected] = useState<number | null>(null);
   const [picker, setPicker] = useState<{ slotId: number | "end" } | null>(null);
   const [over, setOver] = useState(false);
-  const [previews, setPreviews] = useState<Record<number, string>>({});
+  const [hint, setHint] = useState<DropHint>(null);
+  const [dragging, setDragging] = useState<AdminMediaRow | null>(null);
   const refresh = useCallback(() => setTimeout(() => router.refresh(), 0), [router]);
+  const origin = `planche-${project.id}`;
+  const libraryRef = useRef<HTMLElement>(null);
 
-  const uploads = useUploadQueue(async (item, mediaId, api) => {
-    if (item.preview) setPreviews((p) => ({ ...p, [mediaId]: item.preview! }));
-    const r = item.target === "end" || item.target === undefined ? await addSlotsAction(project.id, [mediaId]) : await setSlotMediaAction(item.target, mediaId);
-    if (!r.ok) {
-      api.patch(item.key, { phase: "failed", message: r.message });
-      return;
-    }
-    api.remove(item.key);
-    refresh();
-  });
+  // Un média créé (où que l'on soit allé entre-temps) : planche et bandeau à jour.
+  useEffect(() => queue.onMediaCreated(() => refresh()), [queue, refresh]);
+  // Aperçus locaux des fichiers déposés sur la bande, tant que la vignette serveur n'existe pas.
+  const previews: Record<number, string> = {};
+  for (const i of queue.items) if (i.mediaId && i.preview) previews[i.mediaId] = i.preview;
 
   // Traitements en cours : la planche se met à jour dès qu'une image est prête.
   const processing = slots.filter((s) => s.media?.status === "processing").map((s) => s.media!.id);
@@ -470,7 +530,18 @@ export default function ProjectEditor({ project, library }: { project: AdminProj
     });
   };
 
-  const pending = uploads.items.filter((i) => i.target === "end" && i.phase !== "ready");
+  const addFiles = (files: File[], slotId?: number) =>
+    queue.addFiles(files, { origin, target: slotId ? { kind: "slot", projectId: project.id, slotId } : { kind: "end", projectId: project.id } });
+
+  const place = async (media: AdminMediaRow, target: { index: number } | { fill: number }) => {
+    const r = "fill" in target ? await setSlotMediaAction(target.fill, media.id) : await addSlotsAction(project.id, [media.id], target.index);
+    if (!r.ok) return toast(r.message, "error");
+    toast("fill" in target ? "Média placé dans l'emplacement" : `Média placé en position ${target.index + 1}`);
+    refresh();
+  };
+
+  // Fichiers déposés sur la bande : en attente à la fin, jusqu'à la création du média.
+  const pending = queue.items.filter((i) => i.target.kind === "end" && i.target.projectId === project.id && !isUploaded(i) && i.phase !== "failed");
   // Des images arrivent en fin de planche : la bande défile pour les montrer.
   const plancheRef = useRef<HTMLDivElement>(null);
   const arriving = pending.length;
@@ -492,6 +563,44 @@ export default function ProjectEditor({ project, library }: { project: AdminProj
   }, [selected]);
   const current = selectedIndex >= 0 ? slots[selectedIndex] : null;
   const fileId = useId();
+  const dndId = useId();
+
+  /* ---- Glisser-déposer : réordonner la bande, ou placer depuis la Bibliothèque ---- */
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const labelOf = (id: string | number) => {
+    if (isLib(id)) return `« ${library.find((m) => `${LIB_PREFIX}${m.id}` === String(id))?.name ?? "média"} »`;
+    const i = slots.findIndex((s) => String(s.id) === String(id));
+    return i >= 0 ? `« ${slotLabel(slots[i], i)} »` : "l'élément";
+  };
+  const pos = (id: string | number | undefined) => (id === undefined ? 0 : slots.findIndex((s) => String(s.id) === String(id)) + 1);
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => (isLib(active.id) ? `${labelOf(active.id)} saisi depuis la Bibliothèque.` : `${labelOf(active.id)} saisi, position ${pos(active.id)} sur ${slots.length}.`),
+    onDragOver: ({ active, over: o }) => (o ? `${labelOf(active.id)} au-dessus de la position ${o.id === "strip-end" ? slots.length + 1 : pos(o.id)}.` : `${labelOf(active.id)} hors de la bande.`),
+    onDragEnd: ({ active, over: o }) => (o ? `${labelOf(active.id)} posé.` : `${labelOf(active.id)} reposé.`),
+    onDragCancel: ({ active }) => `Déplacement annulé : ${labelOf(active.id)}.`,
+  };
+  /** Position visée par une vignette de la Bibliothèque. */
+  const hintFor = (e: DragMoveEvent | DragEndEvent): DropHint => {
+    const { active, over: o } = e;
+    if (!o || !isLib(active.id)) return null;
+    if (o.id === "strip-end") return { index: slots.length };
+    const i = slots.findIndex((s) => String(s.id) === String(o.id));
+    if (i < 0) return null;
+    if (!slots[i].media) return { fill: slots[i].id };
+    const r = active.rect.current.translated;
+    const center = r ? r.left + r.width / 2 : 0;
+    return { index: center < o.rect.left + o.rect.width / 2 ? i : i + 1 };
+  };
+  const hintOf = (s: AdminSlot, i: number): "before" | "after" | "fill" | undefined => {
+    if (!hint) return undefined;
+    if ("fill" in hint) return hint.fill === s.id ? "fill" : undefined;
+    if (hint.index === i) return "before";
+    if (hint.index === i + 1 && i === slots.length - 1) return "after";
+    return undefined;
+  };
 
   return (
     <div className="a-project-editor" data-panel={current ? "open" : undefined}>
@@ -505,79 +614,108 @@ export default function ProjectEditor({ project, library }: { project: AdminProj
             {slots.some((s) => !s.media) && ` · ${slots.filter((s) => !s.media).length} vide${slots.filter((s) => !s.media).length > 1 ? "s" : ""} (masqué${slots.filter((s) => !s.media).length > 1 ? "s" : ""} sur le site)`}
           </span>
         </div>
-        <p className="a-help a-panel-intro">
-          Dépose des images ou des vidéos sur la bande pour les ajouter à la fin, ou sur un emplacement vide pour le remplir. Fais glisser par la poignée
-          pour réordonner (clavier : Espace, flèches gauche et droite, Espace). Clique sur une image pour la modifier.
-        </p>
-        <div
-          ref={plancheRef}
-          className="a-planche"
-          data-over={over || undefined}
-          onDragOver={(e) => {
-            if (!hasFiles(e.dataTransfer)) return;
-            e.preventDefault();
-            setOver(true);
+        <Uploader origin={origin} libraryLabel="Voir dans la Bibliothèque" onSeeLibrary={() => libraryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })} />
+        <DndContext
+          id={dndId}
+          sensors={sensors}
+          collisionDetection={collision}
+          modifiers={[axis]}
+          onDragStart={({ active }) => setDragging(isLib(active.id) ? ((active.data.current?.media as AdminMediaRow) ?? null) : null)}
+          onDragMove={(e) => setHint(hintFor(e))}
+          onDragCancel={() => {
+            setHint(null);
+            setDragging(null);
           }}
-          onDragLeave={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
+          onDragEnd={(e) => {
+            const target = hintFor(e);
+            setHint(null);
+            setDragging(null);
+            const { active, over: o } = e;
+            if (isLib(active.id)) {
+              const media = active.data.current?.media as AdminMediaRow | undefined;
+              if (media && target) void place(media, target);
+              return;
+            }
+            if (!o || active.id === o.id || o.id === "strip-end") return;
+            const ids = slots.map((s) => String(s.id));
+            reorder(arrayMove(slots, ids.indexOf(String(active.id)), ids.indexOf(String(o.id))));
           }}
-          onDrop={(e) => {
-            if (!hasFiles(e.dataTransfer)) return;
-            e.preventDefault();
-            setOver(false);
-            void uploads.add([...e.dataTransfer.files], "end");
+          accessibility={{
+            announcements,
+            screenReaderInstructions: {
+              draggable: "Pour déplacer un emplacement : Espace pour saisir, flèches gauche et droite pour choisir la place, Espace pour poser, Échap pour annuler.",
+            },
           }}
         >
-          <SortableList
-            items={slots}
-            getId={(s) => String(s.id)}
-            getLabel={(s) => slotLabel(s, slots.indexOf(s))}
-            onReorder={reorder}
-            layout="horizontal"
-            className="a-strip"
-            itemStyle={(s) => ({ width: Math.round(STRIP_H * ratioOf(s)) })}
-            render={(s, i) => (
-              <SlotTile
-                slot={s}
-                index={i}
-                selected={selected === s.id}
-                preview={s.media ? previews[s.media.id] : undefined}
-                onOpen={() => setSelected(s.id)}
-                onFiles={(files) => void uploads.add(files, s.id)}
-                onLibrary={() => setPicker({ slotId: s.id })}
-              />
-            )}
-            after={
-              <>
-                {pending.map((item) => (
-                  <PendingTile key={item.key} item={item} />
-                ))}
-                <li className="a-strip-end">
-                  <label htmlFor={fileId} className="a-strip-add">
-                    <span aria-hidden="true">+</span>
-                    Ajouter des images ou vidéos
-                  </label>
-                  <input
-                    id={fileId}
-                    type="file"
-                    accept={ACCEPT}
-                    multiple
-                    className="sr-only"
-                    onChange={(e) => {
-                      const files = [...(e.target.files ?? [])];
-                      e.target.value = "";
-                      if (files.length) void uploads.add(files, "end");
-                    }}
+          <p className="a-help a-panel-intro">
+            Dépose des images ou des vidéos sur la bande pour les ajouter à la fin, ou sur un emplacement vide pour le remplir. Fais glisser par la poignée
+            pour réordonner (clavier : Espace, flèches gauche et droite, Espace). Clique sur une image pour la modifier.
+          </p>
+          <div
+            ref={plancheRef}
+            className="a-planche"
+            data-over={over || undefined}
+            onDragOver={(e) => {
+              if (!hasFiles(e.dataTransfer)) return;
+              e.preventDefault();
+              setOver(true);
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
+            }}
+            onDrop={(e) => {
+              if (!hasFiles(e.dataTransfer)) return;
+              e.preventDefault();
+              setOver(false);
+              addFiles([...e.dataTransfer.files]);
+            }}
+          >
+            <SortableItems
+              items={slots}
+              getId={(s) => String(s.id)}
+              getLabel={(s) => slotLabel(s, slots.indexOf(s))}
+              layout="horizontal"
+              className="a-strip"
+              itemStyle={(s) => ({ width: Math.round(STRIP_H * ratioOf(s)) })}
+              render={(s, i) => (
+                <SlotTile
+                  slot={s}
+                  index={i}
+                  selected={selected === s.id}
+                  preview={s.media ? previews[s.media.id] : undefined}
+                  hint={hintOf(s, i)}
+                  onOpen={() => setSelected(s.id)}
+                  onFiles={(files) => void addFiles(files, s.id)}
+                  onLibrary={() => setPicker({ slotId: s.id })}
+                />
+              )}
+              after={
+                <>
+                  {pending.map((item) => (
+                    <PendingTile key={item.key} item={item} />
+                  ))}
+                  <StripEnd
+                    fileId={fileId}
+                    onFiles={(files) => addFiles(files)}
+                    onPicker={() => setPicker({ slotId: "end" })}
+                    active={Boolean(hint && "index" in hint && hint.index === slots.length && slots.length === 0)}
                   />
-                  <button type="button" className="a-btn a-btn-small" onClick={() => setPicker({ slotId: "end" })}>
-                    Depuis la médiathèque
-                  </button>
-                </li>
-              </>
-            }
-          />
-        </div>
-        <UploadList items={uploads.items.filter((i) => i.phase === "failed")} onDismiss={uploads.remove} />
+                </>
+              }
+            />
+          </div>
+          <LibraryStrip regionRef={libraryRef} media={library} onAddEnd={(m) => void place(m, { index: slots.length })} />
+          <DragOverlay dropAnimation={null}>
+            {dragging && (
+              <div className="a-libthumb-overlay" style={dragging.color ? { backgroundColor: dragging.color } : undefined}>
+                {dragging.thumb && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={dragging.thumb} alt="" />
+                )}
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
         <p className="a-help">
           <Link href={`/fr`} target="_blank" rel="noopener">
             Voir le site ↗
@@ -592,7 +730,7 @@ export default function ProjectEditor({ project, library }: { project: AdminProj
           slot={current}
           index={selectedIndex}
           onClose={() => setSelected(null)}
-          onReplaceFile={(files) => void uploads.add(files, current.id)}
+          onReplaceFile={(files) => void addFiles(files, current.id)}
           onLibrary={() => setPicker({ slotId: current.id })}
         />
       )}

@@ -12,7 +12,7 @@ let instance: MediaStorage | null = null;
 
 /** Stockage actif (local sur ${DATA_DIR}/media ; S3 plus tard). */
 export function getStorage(): MediaStorage {
-  instance ??= new LocalStorage(path.join(dataDir(), "media"));
+  instance ??= new LocalStorage(path.join(/* turbopackIgnore: true */ dataDir(), "media"));
   return instance;
 }
 

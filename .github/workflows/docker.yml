@@ -40,6 +40,10 @@ jobs:
       - run: npm run check:tokens
       - run: npm run check:contrast
       - run: npm test
+      # Le standalone (ce qui part dans l'image) ne doit contenir ni sources, ni
+      # données, ni configuration : build puis contrôle.
+      - run: npm run build
+      - run: node scripts/check-standalone.mjs --require
 
   image:
     needs: check

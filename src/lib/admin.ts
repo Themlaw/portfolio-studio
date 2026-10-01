@@ -15,6 +15,7 @@ import { ORIGINALS_PREFIX, parseVariants } from "./images/variants";
 import { mediaUrl } from "./media";
 import { own } from "./own";
 import { findMediaUsages } from "./references";
+import { tagsByMedia, type MediaTag } from "./tags";
 
 type L = { fr: string; en: string };
 
@@ -131,6 +132,8 @@ export type AdminMediaRow = {
   hasAudio: boolean | null;
   progress: number | null;
   videoSrc: string | null;
+  /** Tags de la bibliothèque. */
+  tags: MediaTag[];
 };
 
 /** Vignette d'un média : plus petite variante WebP, sinon le fichier lui-même (seed). */
@@ -142,7 +145,7 @@ function thumbUrl(m: { key: string; status: string; variants: unknown }): string
   return mediaUrl(webp[0].key);
 }
 
-function toRow(m: typeof schema.media.$inferSelect, uses: number, progress: number | null = null): AdminMediaRow {
+function toRow(m: typeof schema.media.$inferSelect, uses: number, progress: number | null = null, tags: MediaTag[] = []): AdminMediaRow {
   const variants = parseVariants(m.variants);
   const mp4 = variants?.files.filter((f) => f.format === "mp4").sort((a, b) => a.h - b.h)[0];
   const largest = variants?.files.filter((f) => f.format === "webp").sort((a, b) => b.w - a.w)[0];
@@ -166,6 +169,7 @@ function toRow(m: typeof schema.media.$inferSelect, uses: number, progress: numb
     hasAudio: m.hasAudio,
     progress: m.status === "processing" ? progress : null,
     videoSrc: mp4 ? mediaUrl(mp4.key) : null,
+    tags,
   };
 }
 
@@ -188,6 +192,7 @@ export function listMediaForAdmin(): AdminMediaRow[] {
     if (s.mediaId) slotUses.set(s.mediaId, (slotUses.get(s.mediaId) ?? 0) + 1);
   }
   const progress = jobProgress();
+  const tags = tagsByMedia();
   const blockUses = new Map<number, number>();
   for (const b of db.select().from(schema.blocks).all()) {
     for (const id of extractRefs(b.type, parseJson(b.props)).media) blockUses.set(id, (blockUses.get(id) ?? 0) + 1);
@@ -197,7 +202,7 @@ export function listMediaForAdmin(): AdminMediaRow[] {
     .from(schema.media)
     .orderBy(desc(schema.media.id))
     .all()
-    .map((m) => toRow(m, (slotUses.get(m.id) ?? 0) + (blockUses.get(m.id) ?? 0), progress.get(m.id) ?? null));
+    .map((m) => toRow(m, (slotUses.get(m.id) ?? 0) + (blockUses.get(m.id) ?? 0), progress.get(m.id) ?? null, tags.get(m.id) ?? []));
 }
 
 export type MediaUseRow =

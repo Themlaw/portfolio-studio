@@ -181,6 +181,14 @@ const ADMIN_ACTIONS = [
   "mediaUsesAction",
   "retryMediaAction",
   "pendingUploadsAction",
+  "listTagsAction",
+  "setMediaTagsAction",
+  "addMediaTagsAction",
+  "removeMediaTagsAction",
+  "renameTagAction",
+  "mergeTagsAction",
+  "deleteTagAction",
+  "deleteUnusedTagsAction",
 ];
 
 /** Identifiants des server actions, lus dans le manifeste du build. */
@@ -474,7 +482,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /Settings/.test(name) ? "/admin/reglages"
     : /^(create|delete|reorder)Projects?Action$/.test(name) ? "/admin/projets"
     : /Project|Slot/.test(name) ? "/admin/projets/1"
-    : /^media|Media|Uploads/.test(name) ? "/admin/medias"
+    : /^media|Media|Uploads|Tag/.test(name) ? "/admin/medias"
     : "/admin/pages";
   const res = await callActionJson(forged, ids[name], ["x", {}], screen);
   ok(`A10 ${name} avec un cookie forgé → 403`, res.status === 403, `${res.status} ${res.text.slice(0, 120)}`);
@@ -1553,6 +1561,212 @@ const a3r = await initP2(rv2.jar, 2 * 1024 * 1024);
 ok("P21 DELETE rend la réservation : une nouvelle annonce passe", a3r.status === 200, String(a3r.status));
 await stop(rv2.server);
 
+// ---- Phase 6a : tags (bornes, Unicode, envoi, dédoublonnage, fusion, suppression, XSS) -----
+{
+console.log("\n== TAG. tags de la bibliothèque");
+const dirT = `${TMP}/vt6`;
+const tv = await freshAdmin(dirT);
+const HT = { cookie: tv.jar.header(), origin: BASE };
+const dbT = (fn) => {
+  const db = new Database(path.join(dirT, "portfolio.db"));
+  db.pragma("foreign_keys = ON");
+  try {
+    return fn(db);
+  } finally {
+    db.close();
+  }
+};
+const tagsOf = (id) => dbT((db) => db.prepare("select t.label from media_tags mt join tags t on t.id = mt.tag_id where mt.media_id = ? order by t.key").all(id).map((r) => r.label));
+const tagCount = () => query(dirT, "select count(*) n from tags").n;
+const act = (name, args, page = "/admin/medias") => callActionJson(tv.jar, ids[name], args, page);
+const good = (r) => r.text.includes('"ok":true');
+const mediaIds = dbT((db) => db.prepare("select id from media where kind = 'image' order by id").all().map((r) => r.id));
+const [mA, mB, mC] = mediaIds;
+const ch = (...codes) => String.fromCodePoint(...codes);
+let r;
+
+// Bornes.
+r = await act("setMediaTagsAction", [mA, ["x".repeat(41)]]);
+ok("TAG1 libellé de 41 caractères refusé (40 au plus)", !good(r) && /40 caractères/.test(r.text), r.text.slice(0, 160));
+r = await act("setMediaTagsAction", [mA, Array.from({ length: 21 }, (_, i) => `tag ${i}`)]);
+ok("TAG2 21 tags sur un média refusés (20 au plus)", !good(r) && /20 tags au plus/.test(r.text), r.text.slice(0, 160));
+r = await act("setMediaTagsAction", [mA, Array.from({ length: 20 }, (_, i) => `tag ${i}`)]);
+ok("TAG2b 20 tags acceptés", good(r) && tagsOf(mA).length === 20);
+// Équivalences Unicode : un seul tag ; clé vide refusée.
+r = await act("setMediaTagsAction", [mB, ["  Décor   Nuit ", "décor nuit", `${ch(0xff24)}É${ch(0xff23, 0xff2f, 0xff32)} NUIT`, `De${ch(0x200b)}cor nuit`]]);
+ok("TAG3 équivalences (espaces, accents, casse, pleine chasse, zéro-largeur) : un seul tag", good(r) && JSON.stringify(tagsOf(mB)) === JSON.stringify(["Décor Nuit"]), JSON.stringify(tagsOf(mB)));
+r = await act("setMediaTagsAction", [mB, ["Straße", "STRASSE", `${ch(0xfb01)}lm`, "FILM"]]);
+ok("TAG3b ß = ss, ligature ﬁ = fi", good(r) && tagsOf(mB).length === 2, JSON.stringify(tagsOf(mB)));
+const before3c = tagCount();
+const empties = [];
+for (const label of [ch(0x3164, 0x3164), ch(0x2800), ch(0x200b, 0x200d, 0xfeff), ch(0x301, 0x308), ch(0x115f, 0x1160)]) {
+  const x = await act("addMediaTagsAction", [[mB], [label]]);
+  empties.push(good(x));
+}
+ok("TAG3c clé vide refusée (remplissages hangul, blanc braille, invisibles, signes combinants seuls)", empties.every((e) => !e) && tagCount() === before3c, JSON.stringify(empties));
+
+// Plafond de 500 : seuls les tags utilisés comptent.
+dbT((db) => {
+  const ins = db.prepare("insert into tags (label, key) values (?, ?)");
+  db.transaction(() => {
+    for (let i = 0; i < 600; i++) ins.run(`vide ${i}`, `vide ${i}`);
+  })();
+});
+r = await act("addMediaTagsAction", [[mC], ["malgré 600 vides"]]);
+ok("TAG4 600 tags inutilisés ne bloquent pas la création (plafond = tags utilisés)", good(r), r.text.slice(0, 120));
+dbT((db) => {
+  const used = db.prepare("select count(distinct tag_id) n from media_tags").get().n;
+  const ins = db.prepare("insert into tags (label, key) values (?, ?)");
+  const link = db.prepare("insert into media_tags (media_id, tag_id) values (?, ?)");
+  db.transaction(() => {
+    for (let i = used; i < 499; i++) link.run(mediaIds[3 + (i % 10)], ins.run(`rempli ${i}`, `rempli ${i}`).lastInsertRowid);
+  })();
+});
+const fresh = mediaIds[15];
+r = await act("addMediaTagsAction", [[fresh], ["le cinq centième"]]);
+const r501 = await act("addMediaTagsAction", [[fresh], ["un de trop"]]);
+const reuse = await act("addMediaTagsAction", [[fresh], ["REMPLI 100"]]);
+ok("TAG5 500e tag utilisé accepté, 501e refusé ; un tag existant (même clé) reste utilisable", good(r) && !good(r501) && /500 au plus/.test(r501.text) && good(reuse), `${r.text.slice(0, 60)} | ${r501.text.slice(0, 100)}`);
+// Envoi simple au plafond : 422 ; champ tags invalide : 400 ; rien de créé.
+const pngT = (color) => sharp({ create: { width: 40, height: 30, channels: 3, background: color } }).png().toBuffer();
+const simple = async (tagsField, data, name = "t.png") => {
+  const { body, type } = multipartParts([
+    ...(tagsField === undefined ? [] : [{ name: "tags", data: Buffer.from(tagsField) }]),
+    { name: "file", filename: name, type: "image/png", data },
+  ]);
+  const res = await http("/admin/api/upload", { jar: tv.jar, method: "POST", raw: body, headers: { "content-type": type, origin: BASE } });
+  return { status: res.status, body: await res.json().catch(() => ({})) };
+};
+const mediaBefore = query(dirT, "select count(*) n from media").n;
+const s422 = await simple(JSON.stringify(["tout nouveau"]), await pngT("#123456"));
+const s400 = await simple("pas du json", await pngT("#123457"));
+const s400b = await simple(JSON.stringify(["y".repeat(41)]), await pngT("#123458"));
+ok("TAG6 envoi simple : 501e tag → 422, champ « tags » invalide → 400, aucun média ni tag créé", s422.status === 422 && s400.status === 400 && s400b.status === 400 && query(dirT, "select count(*) n from media").n === mediaBefore && !query(dirT, "select id from tags where key = 'tout nouveau'"), `${s422.status} ${s400.status} ${s400b.status}`);
+dbT((db) => db.prepare("delete from tags where key like 'rempli %' or key like 'vide %'").run());
+
+// Tags transmis avec init ; dédoublonnage = union ; refus = rien de créé.
+const initTagged = async (file, name, tags, completeTags) => {
+  const data = readFileSync(file);
+  const init = await fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { ...HT, "content-type": "application/json" }, body: JSON.stringify({ name, size: data.length, type: "video/mp4", tags }) });
+  const ib = await init.json();
+  if (init.status !== 200) return { status: init.status, body: ib };
+  const id = ib.upload.id;
+  const put = await fetch(`${BASE}/admin/api/upload/${id}/chunk?offset=0`, { method: "PUT", headers: { ...HT, "content-length": String(data.length) }, body: data });
+  if (put.status !== 200) return { status: put.status };
+  const done = await fetch(`${BASE}/admin/api/upload/${id}/complete`, {
+    method: "POST",
+    headers: completeTags ? { ...HT, "content-type": "application/json" } : HT,
+    body: completeTags ? JSON.stringify({ tags: completeTags }) : undefined,
+  });
+  return { status: done.status, body: await done.json() };
+};
+const v1 = await initTagged(src("petite.mp4"), "decor.mp4", ["Décor", "nuit"]);
+ok("TAG7 tags envoyés à init : attachés au média créé", v1.status === 200 && JSON.stringify(tagsOf(v1.body.media.id)) === JSON.stringify(["Décor", "nuit"]), JSON.stringify(v1.body).slice(0, 160));
+const v2 = await initTagged(src("petite.mp4"), "copie.mp4", ["NUIT", "Lune"]);
+ok("TAG8 même contenu renvoyé avec d'autres tags : même média, tags fusionnés", v2.status === 200 && v2.body.media.id === v1.body.media.id && JSON.stringify(tagsOf(v1.body.media.id)) === JSON.stringify(["Décor", "Lune", "nuit"]), JSON.stringify(tagsOf(v1.body.media.id)));
+const tagsBefore = tagCount();
+const uploadsBefore = query(dirT, "select count(*) n from uploads").n;
+const bad = await initTagged(src("petite.mp4"), "x.mp4", ["y".repeat(41)]);
+ok("TAG9 init refusé (tag invalide) → 400 : aucun tag ni envoi créé", bad.status === 400 && /40 caractères/.test(bad.body.message ?? "") && tagCount() === tagsBefore && query(dirT, "select count(*) n from uploads").n === uploadsBefore, JSON.stringify(bad).slice(0, 140));
+// Reprise : les tags courants envoyés à complete l'emportent sur ceux d'init.
+const v3 = await initTagged(src("boucle-720.mp4"), "reprise.mp4", ["ancien"], ["courant", "Lune"]);
+ok("TAG10 complete avec les tags courants : ceux-ci sont attachés (pas ceux d'init)", v3.status === 200 && JSON.stringify(tagsOf(v3.body.media.id)) === JSON.stringify(["courant", "Lune"]) && !query(dirT, "select id from tags where key = 'ancien'"), JSON.stringify(tagsOf(v3.body.media?.id)));
+// Ingestion refusée (son seul nommé .mp4) : aucun tag créé.
+const wavT = await initTagged(src("son.wav"), "musique.mp4", ["e2e-jamais-cree"]);
+ok("TAG11 ingestion refusée (415) : le tag demandé n'est pas créé", wavT.status === 415 && !query(dirT, "select id from tags where key = 'e2e-jamais-cree'"), String(wavT.status));
+// tagWarning au dédoublonnage : média déjà à 20 tags.
+{
+  const img = await pngT("#a0a0a0");
+  const first = await simple(JSON.stringify(Array.from({ length: 20 }, (_, i) => `plein ${i}`)), img, "plein.png");
+  const again = await simple(JSON.stringify(["vingt et unième"]), img, "plein-bis.png");
+  ok("TAG12 dédoublonnage vers un média à 20 tags : envoi accepté, tagWarning, tags inchangés", first.status === 200 && again.status === 200 && again.body.media.id === first.body.media.id && /20 tags au plus/.test(again.body.media.tagWarning ?? "") && tagsOf(first.body.media.id).length === 20, JSON.stringify(again.body).slice(0, 160));
+}
+// Ajout / retrait : ids inexistants, mélangés, au-delà de 1000 ; lot sur plusieurs médias.
+{
+  const unknown = await act("addMediaTagsAction", [[999999], ["x"]]);
+  const mixed = await act("addMediaTagsAction", [[mC, 999999], ["mélange"]]);
+  const mixedRemove = await act("removeMediaTagsAction", [[mC, 999999], ["Lune"]]);
+  const tooMany = await act("addMediaTagsAction", [Array.from({ length: 1001 }, (_, i) => i + 1), ["x"]]);
+  ok("TAG13 ajout / retrait : id inexistant, ids mélangés, plus de 1000 ids → refusés, rien d'écrit", [unknown, mixed, mixedRemove, tooMany].every((x) => !good(x)) && !query(dirT, "select id from tags where key = 'melange'"), [unknown, mixed, mixedRemove, tooMany].map((x) => x.text.slice(0, 40)).join(" | "));
+  // Lot : A a 20 tags, C en a peu → refus global (rollback), C intact.
+  const cBefore = tagsOf(mC);
+  const batch = await act("addMediaTagsAction", [[mC, mA], ["lot 1", "lot 2"]]);
+  ok("TAG14 ajout par lot dépassant 20 sur un média : refus global, aucun média modifié", !good(batch) && /20 tags au plus/.test(batch.text) && JSON.stringify(tagsOf(mC)) === JSON.stringify(cBefore) && !query(dirT, "select id from tags where key = 'lot 1'"), batch.text.slice(0, 120));
+}
+// Fusion, suppression, renommage : intégrité.
+{
+  const idOf = (key) => query(dirT, "select id from tags where key = ?", key)?.id;
+  const decor = idOf("decor");
+  const nuit = idOf("nuit");
+  const before = query(dirT, "select count(*) n from media_tags where tag_id = ?", nuit).n;
+  r = await act("mergeTagsAction", [decor, nuit]);
+  const fk = dbT((db) => db.prepare("pragma foreign_key_check").all());
+  ok("TAG15 fusion « Décor » → « nuit » : pas de doublon, « Décor » disparu, clés étrangères intactes", good(r) && query(dirT, "select count(*) n from media_tags where tag_id = ?", nuit).n === before && !idOf("decor") && fk.length === 0, r.text.slice(0, 100));
+  r = await act("mergeTagsAction", [nuit, decor]);
+  ok("TAG16 fusion vers un tag supprimé : refusée", !good(r) && /n'existe plus/.test(r.text), r.text.slice(0, 120));
+  r = await act("renameTagAction", [999999, "fantôme"]);
+  const self = await act("mergeTagsAction", [nuit, nuit]);
+  ok("TAG17 renommer un id inexistant, fusionner un tag dans lui-même : refusés", !good(r) && !good(self), r.text.slice(0, 100));
+  const lune = idOf("lune");
+  r = await act("deleteTagAction", [lune]);
+  ok("TAG18 suppression d'un tag : retiré des médias, médias intacts", good(r) && query(dirT, "select count(*) n from media_tags where tag_id = ?", lune).n === 0 && Boolean(query(dirT, "select id from media where id = ?", v1.body.media.id)), r.text.slice(0, 120));
+  r = await act("renameTagAction", [nuit, "COURANT"]);
+  ok("TAG19 renommer vers un tag existant (même clé) : refusé, fusion proposée", !good(r) && /existe déjà/.test(r.text), r.text.slice(0, 140));
+  dbT((db) => db.prepare("insert into tags (label, key) values ('orphelin a', 'orphelin a'), ('orphelin b', 'orphelin b')").run());
+  const usedBefore = query(dirT, "select count(distinct tag_id) n from media_tags").n;
+  r = await act("deleteUnusedTagsAction", []);
+  ok("TAG20 « Supprimer les tags inutilisés » : les orphelins seulement", good(r) && !idOf("orphelin a") && query(dirT, "select count(*) n from tags").n === usedBefore, r.text.slice(0, 100));
+}
+// Planche : position d'insertion bornée, contiguë ; média en échec non placé.
+{
+  const pid = query(dirT, "select id from projects order by id limit 1").id;
+  const positions = () => dbT((db) => db.prepare("select position from slots where project_id = ? order by position").all(pid).map((x) => x.position));
+  dbT((db) => db.prepare("update slots set position = position + 5 where project_id = ?").run(pid)); // trou en tête
+  const n0 = positions().length;
+  const m1 = await act("addSlotsAction", [pid, [mC], -1], `/admin/projets/${pid}`);
+  const m2 = await act("addSlotsAction", [pid, [mC], 10001], `/admin/projets/${pid}`);
+  const m3 = await act("addSlotsAction", [pid, [mC], 1], `/admin/projets/${pid}`);
+  const afterInsert = positions();
+  const m4 = await act("addSlotsAction", [pid, [mB], 500], `/admin/projets/${pid}`);
+  const last = dbT((db) => db.prepare("select media_id from slots where project_id = ? order by position desc limit 1").get(pid).media_id);
+  ok("TAG21 at = −1 ou 10 001 refusé ; at = 1 : positions contiguës 0…n (trou en tête résorbé)", !good(m1) && !good(m2) && good(m3) && JSON.stringify(afterInsert) === JSON.stringify([...Array(n0 + 1).keys()]), `${afterInsert.join(",")}`);
+  ok("TAG22 at au-delà de la longueur : ajouté à la fin", good(m4) && last === mB && JSON.stringify(positions()) === JSON.stringify([...Array(n0 + 2).keys()]));
+  writeDb(dirT, "update media set status = 'failed', error = 'test' where id = ?", mC);
+  const m5 = await act("addSlotsAction", [pid, [mC]], `/admin/projets/${pid}`);
+  const slotId = query(dirT, "select id from slots where project_id = ? order by position limit 1", pid).id;
+  const m6 = await act("setSlotMediaAction", [slotId, mC], `/admin/projets/${pid}`);
+  ok("TAG23 média en échec : ni ajouté (addSlots) ni placé (setSlotMedia)", !good(m5) && !good(m6) && /en échec/.test(m5.text + m6.text), `${m5.text.slice(0, 60)} | ${m6.text.slice(0, 60)}`);
+  writeDb(dirT, "update media set status = 'ready', error = null where id = ?", mC);
+}
+// XSS : libellés balisés, guillemets et bidi ; jamais dans le public.
+{
+  const evil = [`<img src=x onerror=alert(1)>`, `"><svg onload=alert(2)>`, `a${ch(0x202e)}gpj.exe`];
+  r = await act("setMediaTagsAction", [mA, evil]);
+  const pages = await Promise.all(["/admin/medias", "/admin/projets/1"].map(async (u) => (await http(u, { jar: tv.jar })).text()));
+  const raw = pages.some((h) => h.includes("<img src=x onerror") || h.includes("<svg onload"));
+  ok("TAG24 XSS dans un libellé : enregistré, jamais interprété côté admin (HTML et payload)", good(r) && !raw && pages[0].includes("&lt;img src=x onerror=alert(1)&gt;"), raw ? "balise brute" : "");
+  ok("TAG25 bidi U+202E retiré du libellé enregistré", tagsOf(mA).includes("agpj.exe"), JSON.stringify(tagsOf(mA)));
+  r = await act("setMediaTagsAction", [mediaIds[1], ["tag-prive-xq7"]]);
+  const publicHtml = (await Promise.all(["/fr", "/fr/personnages", "/fr/decors", "/en/characters"].map(async (u) => (await fetch(`${BASE}${u}`)).text()))).join("");
+  const rsc = await (await fetch(`${BASE}/fr/personnages`, { headers: { RSC: "1" } })).text();
+  ok("TAG26 tags absents des pages publiques et du payload RSC public", good(r) && !publicHtml.includes("tag-prive-xq7") && !rsc.includes("tag-prive-xq7") && !publicHtml.includes("onerror=alert"), "");
+}
+await stop(tv.server);
+}
+
+// ---- check-standalone : le build réel passe ; un standalone pollué échoue -----------------
+{
+  const real = spawnSync(process.execPath, ["scripts/check-standalone.mjs", "--require"], { encoding: "utf8" });
+  const fake = `${TMP}/fake-standalone`;
+  mkdirSync(path.join(fake, "src", "lib"), { recursive: true });
+  mkdirSync(path.join(fake, "data"), { recursive: true });
+  writeFileSync(path.join(fake, "server.js"), "");
+  writeFileSync(path.join(fake, "data", "portfolio.db"), "");
+  writeFileSync(path.join(fake, "next.config.ts"), "");
+  const polluted = spawnSync(process.execPath, ["scripts/check-standalone.mjs", "--require"], { encoding: "utf8", env: { ...process.env, STANDALONE_DIR: fake } });
+  ok("TAG27 check-standalone : le build réel passe, un standalone avec src/, data/*.db et next.config échoue", real.status === 0 && polluted.status === 1 && /src\//.test(polluted.stderr) && /portfolio\.db/.test(polluted.stderr) && /next\.config/.test(polluted.stderr), `${real.stdout}${real.stderr} | ${polluted.stderr.slice(0, 200)}`);
+}
+
 // ---- Mesures : durée de conversion, VmHWM du serveur, pic et CPU de ffmpeg ---------------
 console.log("      (génération des sources de mesure : 1080p 60 s avec son, 4K 20 s, boucle 720p 4 s)");
 ff(["-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30", "-f", "lavfi", "-i", "sine=frequency=330", "-t", "60", "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2", "-x264-params", "rc-lookahead=10:sync-lookahead=0", "-crf", "20", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", src("m-1080p-60s.mp4")]);
@@ -1570,7 +1784,12 @@ for (const [label, file] of [
   const res = await chunked(m.jar, src(file), file, "video/mp4", { chunk: 8 * 1024 * 1024 });
   const row = res.body.media?.id ? await waitMedia(dir, res.body.media.id, 900000) : null;
   const after = procMem(m.server.child.pid);
-  const line = serverLog(m.server, /vidéo \d+ convertie en [^\n]+/g).pop() ?? "";
+  // Le statut « ready » est écrit avant la ligne de journal : on l'attend (3 s au plus).
+  let line = "";
+  for (let i = 0; i < 30 && !/ffmpeg pic/.test(line); i++) {
+    line = serverLog(m.server, /vidéo \d+ convertie en [^\n]+/g).pop() ?? "";
+    if (!/ffmpeg pic/.test(line)) await sleep(100);
+  }
   const loopFlag = row && query(dir, "select has_audio a, duration d from media where id = ?", res.body.media.id);
   console.log(`      ${label} (${(statSize(src(file)) / 1024 / 1024).toFixed(1)} Mo, envoi + conversion ${((Date.now() - t0) / 1000).toFixed(0)} s) : ${line}`);
   console.log(`        VmHWM du serveur ${before.hwm} → ${after.hwm} Mo (+${after.hwm - before.hwm}) ; son : ${loopFlag?.a ? "oui" : "non"}, durée ${loopFlag?.d?.toFixed(1)} s`);

@@ -23,7 +23,7 @@ export class UploadError extends Error {
   }
 }
 
-export type Received = { tmpPath: string; size: number; sha256: string; head: Uint8Array; filename: string };
+export type Received = { tmpPath: string; size: number; sha256: string; head: Uint8Array; filename: string; fields?: Record<string, string> };
 
 /** Abandon d'un envoi qui ne reçoit plus rien (secondes, 30 par défaut). */
 function idleTimeoutMs(): number {
@@ -51,7 +51,7 @@ export async function receiveOneFile(request: Request, tmpDir: string): Promise<
     throw new UploadError(400, "Requête invalide : envoie le fichier par le formulaire d'envoi.");
   }
   await mkdir(tmpDir, { recursive: true });
-  const tmpPath = path.join(tmpDir, `upload-${Date.now()}-${randomBytes(8).toString("hex")}`);
+  const tmpPath = path.join(/* turbopackIgnore: true */ tmpDir, `upload-${Date.now()}-${randomBytes(8).toString("hex")}`);
   const source = Readable.fromWeb(request.body as import("node:stream/web").ReadableStream);
 
   // Flux d'écriture : on attend sa fermeture avant de supprimer le fichier
@@ -98,8 +98,14 @@ export async function receiveOneFile(request: Request, tmpDir: string): Promise<
         headers: { "content-type": contentType },
         // Les navigateurs envoient le nom de fichier en UTF-8.
         defParamCharset: "utf8",
-        limits: { files: 1, fileSize: max, fields: 4, fieldSize: 256, parts: 5, headerPairs: 50 },
+        limits: { files: 1, fileSize: max, fields: 4, fieldSize: 4096, parts: 5, headerPairs: 50 },
       });
+      // Champs texte (tags) : à placer AVANT le fichier dans le formulaire.
+      const fields: Record<string, string> = {};
+      bb.on("field", (name, value) => {
+        if (name === "tags") fields[name] = value;
+      });
+      bb.on("fieldsLimit", () => fail(new UploadError(400, "Requête invalide.")));
       bb.on("file", (_name, file, info) => {
         if (gotFile) {
           file.resume();
@@ -127,7 +133,7 @@ export async function receiveOneFile(request: Request, tmpDir: string): Promise<
         sink.on("finish", () => {
           if (settled) return;
           if (size === 0) return fail(new UploadError(400, "Le fichier est vide."));
-          written = { tmpPath, size, sha256: hash.digest("hex"), head: new Uint8Array(Buffer.concat(headChunks)), filename: cleanFilename(info.filename) };
+          written = { tmpPath, size, sha256: hash.digest("hex"), head: new Uint8Array(Buffer.concat(headChunks)), filename: cleanFilename(info.filename), fields };
           finishIfComplete();
         });
       });

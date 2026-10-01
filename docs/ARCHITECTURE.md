@@ -295,6 +295,44 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   1080p 20 s convertie (ffmpeg 1000:1000, 11 fils à nice 10, pic 311 Mo, cgroup
   788 Mo, aucun OOM), image traitée, écriture hors `/data` → EROFS.
 
+### Envoi unifié et tags (phase 6a)
+
+- **Données** (migration 0008) : `tags` (`label` tel que saisi la première fois,
+  `key` normalisée unique : minuscules, sans accents, espaces réduits, caractères
+  invisibles retirés), `media_tags` (clé composite, FK en cascade des deux côtés),
+  `uploads.tags` (JSON). Règles pures dans `src/lib/tag-key.ts` (client et serveur :
+  clé, bornes, classement match-sorter) ; écritures dans `src/lib/tags.ts`. Bornes :
+  1–40 caractères, 20 tags par média, 500 tags en tout.
+- **Envoi** : `init` et l'envoi simple (champ `tags`, avant le fichier) acceptent
+  des tags, validés avant tout enregistrement, attachés au média à sa création (ou
+  ajoutés au média existant si le contenu est déjà connu). Un dépassement au moment
+  d'attacher ne fait pas échouer l'envoi : `tagWarning` revient avec le média.
+- **Actions** (`assertAdmin` + zod + bornes, dans la garde) : `listTagsAction`,
+  `setMediaTagsAction`, `addMediaTagsAction`, `removeMediaTagsAction`,
+  `renameTagAction` (refus si la clé existe : fusionner), `mergeTagsAction`,
+  `deleteTagAction`. `addSlotsAction(projectId, ids, at?)` insère à une position ;
+  un média en échec ne se place pas (`addSlots`, `setSlotMedia`).
+- **Client** : `UploadQueueProvider` (AdminShell) : file globale (un envoi à la
+  fois, lots, tags du lot et par fichier, synchronisation des tags après coup,
+  placement sur la planche APRÈS création du média, Réessayer : reprise par
+  morceaux, nouvel envoi simple ou relance du traitement). `Uploader`, `TagInput`
+  (React Aria `ComboBox` multiple + `TagGroup` hors du ComboBox : une collection
+  imbriquée dans la sienne boucle à l'infini), `LibraryStrip` (dnd-kit : la bande
+  et le bandeau partagent un `DndContext` ; collision « sous le pointeur » pour une
+  vignette, « le plus proche » pour réordonner ; marque d'insertion).
+- **Clé** : NFKC (pleine chasse, ligatures), formats (Cf), contrôles (Cc),
+  remplissages hangul et blanc braille retirés, `ß` → `ss` ; une clé vide est
+  refusée. Plafond de 500 : seuls les tags posés sur un média comptent ;
+  « Supprimer les tags inutilisés » (onglet Tags) les retire à la demande.
+- **Synchronisation** : un refus (plafonds, réseau) est mémorisé pour la demande
+  en cours (`tagRefused`) : un seul appel, un seul message, nouvel essai quand
+  les tags changent. `complete` reçoit les tags courants (reprise d'un envoi).
+- **Standalone** : chemins de données marqués `turbopackIgnore`, exclusions
+  explicites pour le proxy et l'instrumentation ; `scripts/check-standalone.mjs`
+  (dans `npm test`, et en CI après `next build`) refuse `src/`, `data/`,
+  `docs/`, bases, `.env*` et fichiers de configuration.
+- **Mesures** : e2e-tags 19/19, pic VM 2,4 Go (dev + chromium).
+
 ## Admin (`/admin`, hors i18n, en français)
 
 - **Thèmes** : liste des thèmes avec aperçu, « Activer », « Dupliquer », édition des tokens

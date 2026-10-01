@@ -123,19 +123,47 @@ export function SortableList<T>({
         },
       }}
     >
-      <SortableContext
-        items={ids}
-        strategy={layout === "vertical" ? verticalListSortingStrategy : layout === "horizontal" ? horizontalListSortingStrategy : rectSortingStrategy}
-      >
-        <ol className={className}>
-          {items.map((item, i) => (
-            <Item key={getId(item)} id={getId(item)} label={getLabel(item)} style={itemStyle?.(item)}>
-              {render(item, i)}
-            </Item>
-          ))}
-          {after}
-        </ol>
-      </SortableContext>
+      <SortableItems items={items} getId={getId} getLabel={getLabel} render={render} className={className} layout={layout} itemStyle={itemStyle} after={after} />
     </DndContext>
+  );
+}
+
+/**
+ * Éléments réordonnables seuls, dans un DndContext fourni par l'appelant
+ * (planche : la bande et le bandeau Bibliothèque partagent le même contexte).
+ */
+export function SortableItems<T>({
+  items,
+  getId,
+  getLabel,
+  render,
+  className = "a-sortable",
+  layout = "vertical",
+  itemStyle,
+  after,
+}: {
+  items: T[];
+  getId: (item: T) => string;
+  getLabel: (item: T) => string;
+  render: (item: T, index: number) => React.ReactNode;
+  className?: string;
+  layout?: "vertical" | "horizontal" | "grid";
+  itemStyle?: (item: T) => React.CSSProperties | undefined;
+  after?: React.ReactNode;
+}) {
+  return (
+    <SortableContext
+      items={items.map(getId)}
+      strategy={layout === "vertical" ? verticalListSortingStrategy : layout === "horizontal" ? horizontalListSortingStrategy : rectSortingStrategy}
+    >
+      <ol className={className}>
+        {items.map((item, i) => (
+          <Item key={getId(item)} id={getId(item)} label={getLabel(item)} style={itemStyle?.(item)}>
+            {render(item, i)}
+          </Item>
+        ))}
+        {after}
+      </ol>
+    </SortableContext>
   );
 }

@@ -120,7 +120,7 @@ export async function transcodeVideo(
   if (!isAllowedVideo(probe.videoCodec) || (probe.audioCodec && !isAllowedAudio(probe.audioCodec))) {
     throw new Error(`codec non pris en charge (${probe.videoCodec}/${probe.audioCodec})`);
   }
-  const work = path.join(dataDir(), "tmp", `video-${input.jobId}-${Date.now()}`);
+  const work = path.join(/* turbopackIgnore: true */ dataDir(), "tmp", `video-${input.jobId}-${Date.now()}`);
   await mkdir(work, { recursive: true });
   const deadline = Date.now() + limits.jobMaxMs;
   const left = () => Math.max(1000, deadline - Date.now());
@@ -129,7 +129,7 @@ export async function transcodeVideo(
     const landscape = probe.width >= probe.height;
     // Hauteurs cibles (petit côté), jamais au-delà de la source.
     const targets = [...new Set([short >= 1080 ? 1080 : null, Math.min(720, short)].filter((v): v is number => v !== null))].map(even);
-    const outputs = targets.map((t) => ({ t, file: path.join(work, `${t === 1080 ? 1080 : 720}.mp4`) }));
+    const outputs = targets.map((t) => ({ t, file: path.join(/* turbopackIgnore: true */ work, `${t === 1080 ? 1080 : 720}.mp4`) }));
     // Une sortie par processus, l'une après l'autre : le pic mémoire est celui
     // d'un seul encodeur (mesuré : 4K → 1080p ≈ 420 Mo, contre 1 Go pour deux
     // sorties dans le même processus). La progression est pondérée par pixels.
@@ -177,7 +177,7 @@ export async function transcodeVideo(
     void dims;
 
     // Poster : une image vers 10 % de la durée, prise sur la plus grande sortie.
-    const posterPng = path.join(work, "poster.png");
+    const posterPng = path.join(/* turbopackIgnore: true */ work, "poster.png");
     const at = Math.max(0, Math.min(probe.duration * 0.1, probe.duration - 0.1));
     await runFfmpeg(
       ["-threads", "1", "-c:v", "h264", "-protocol_whitelist", "file", "-ss", at.toFixed(2), "-f", "mov", "-i", "file:" + outputs[0].file, "-frames:v", "1", "-map_metadata", "-1", "-f", "image2", "-c:v", "png", "file:" + posterPng],

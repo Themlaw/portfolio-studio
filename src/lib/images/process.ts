@@ -74,9 +74,9 @@ export async function originalFile(key: string): Promise<{ file: string; cleanup
   const storage = getStorage();
   const local = await storage.localPath(key);
   if (local) return { file: local, cleanup: async () => {} };
-  const dir = path.join(dataDir(), "tmp");
+  const dir = path.join(/* turbopackIgnore: true */ dataDir(), "tmp");
   await mkdir(dir, { recursive: true });
-  const file = path.join(dir, `job-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  const file = path.join(/* turbopackIgnore: true */ dir, `job-${Date.now()}-${Math.random().toString(16).slice(2)}`);
   await pipeline(await storage.getStream(key), createWriteStream(file, { flags: "wx" }));
   return { file, cleanup: () => rm(file, { force: true }) };
 }

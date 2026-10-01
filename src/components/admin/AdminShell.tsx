@@ -7,6 +7,7 @@ import { useState } from "react";
 import { signOutAction } from "@/app/admin/actions";
 
 import { Toaster } from "./editing";
+import { QueueIndicator, UploadQueueProvider } from "./UploadQueue";
 
 const NAV = [
   { href: "/admin", label: "Tableau de bord" },
@@ -47,9 +48,11 @@ export default function AdminShell({
   );
 
   return (
+    <UploadQueueProvider>
     <div className="a-app">
       <div className="a-topbar">
         {brand}
+        <QueueIndicator />
         <button
           type="button"
           className="a-btn"
@@ -74,6 +77,8 @@ export default function AdminShell({
             ))}
           </ul>
         </nav>
+        {/* File d'envoi globale : visible seulement s'il y a des envois. */}
+        <QueueIndicator />
         <div className="a-user">
           <span className="a-user-email mono" title={userEmail}>
             {userEmail}
@@ -96,5 +101,6 @@ export default function AdminShell({
       </main>
       <Toaster />
     </div>
+    </UploadQueueProvider>
   );
 }

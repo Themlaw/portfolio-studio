@@ -137,9 +137,16 @@ function aspectOf(m: { width: number | null; height: number | null } | undefined
  * Sans titre : le nom du fichier n'est jamais publié (le panneau le propose
  * comme suggestion). Collection : la plus fréquente du projet.
  */
-export function addSlots(projectId: number, input: unknown): ActionResult<{ ids: number[] }> {
+/**
+ * Ajoute des emplacements (un par média) en fin de planche, ou à la position
+ * `at` (0 = avant le premier) : les suivants sont décalés. Un média en échec
+ * ne se place pas ; un média en traitement, si (il apparaît une fois prêt).
+ */
+export function addSlots(projectId: number, input: unknown, atInput?: unknown): ActionResult<{ ids: number[] }> {
   const parsed = z.array(z.number().int().positive().nullable()).min(1).max(50).safeParse(input);
   if (!parsed.success) return fail("Requête invalide.");
+  const at = z.number().int().min(0).max(10_000).optional().safeParse(atInput ?? undefined);
+  if (!at.success) return fail("Position invalide.");
   const db = getDb();
   const project = db.select().from(schema.projects).where(eq(schema.projects.id, projectId)).get();
   if (!project) return fail("Ce projet n'existe plus. Recharge la page.");
@@ -149,14 +156,18 @@ export function addSlots(projectId: number, input: unknown): ActionResult<{ ids:
   const collection = ([...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "characters") as "characters";
   const mediaRows = new Map(db.select().from(schema.media).all().map((m) => [m.id, m]));
   for (const mid of parsed.data) if (mid !== null && !mediaRows.has(mid)) return fail("Une image n'existe plus : recharge la page.");
+  if (parsed.data.some((mid) => mid !== null && mediaRows.get(mid)?.status === "failed")) {
+    return fail("Ce média est en échec : relance-le depuis la médiathèque avant de le placer.");
+  }
+  const insertAt = Math.min(at.data ?? existing.length, existing.length);
   const year = new Date().getFullYear();
-  const ids = db.transaction((tx) =>
-    parsed.data.map((mid, i) => {
-      return tx
+  const ids = db.transaction((tx) => {
+    const created = parsed.data.map((mid) =>
+      tx
         .insert(schema.slots)
         .values({
           projectId,
-          position: existing.length + i,
+          position: 0,
           mediaId: mid,
           aspect: mid !== null ? aspectOf(mediaRows.get(mid)) : null,
           slug: uniqueSlotSlug(project.slug),
@@ -167,9 +178,13 @@ export function addSlots(projectId: number, input: unknown): ActionResult<{ ids:
           featured: false,
         })
         .returning({ id: schema.slots.id })
-        .get().id;
-    }),
-  );
+        .get().id,
+    );
+    // Toute la planche renumérotée 0…n-1 (un trou ou un doublon antérieur disparaît).
+    const order = [...existing.slice(0, insertAt).map((s) => s.id), ...created, ...existing.slice(insertAt).map((s) => s.id)];
+    order.forEach((id, position) => tx.update(schema.slots).set({ position }).where(eq(schema.slots.id, id)).run());
+    return created;
+  });
   return done({ ids });
 }
 
@@ -188,8 +203,10 @@ export function setSlotMedia(slotId: number, mediaId: unknown): ActionResult<{ p
   const parsed = z.number().int().positive().nullable().safeParse(mediaId);
   if (!parsed.success) return fail("Requête invalide.");
   const db = getDb();
-  if (parsed.data !== null && !db.select({ id: schema.media.id }).from(schema.media).where(eq(schema.media.id, parsed.data)).get()) {
-    return fail("Cette image n'existe plus : recharge la médiathèque.");
+  if (parsed.data !== null) {
+    const target = db.select({ status: schema.media.status }).from(schema.media).where(eq(schema.media.id, parsed.data)).get();
+    if (!target) return fail("Cette image n'existe plus : recharge la médiathèque.");
+    if (target.status === "failed") return fail("Ce média est en échec : relance-le depuis la médiathèque avant de le placer.");
   }
   // Retirer l'image garde le ratio de la place (aspect inchangé) ; une
   // nouvelle image impose le sien.

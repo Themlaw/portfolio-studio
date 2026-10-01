@@ -1,22 +1,44 @@
 "use client";
 
 /**
- * Médiathèque : grille de vignettes, filtres, recherche, zone d'envoi, et
- * panneau de détail (aperçu, informations, texte alternatif, « Utilisé
- * dans… », suppression). MediaPickerDialog en reprend la grille pour choisir
- * une image (planche, champs de blocs).
+ * Médiathèque : envoi (Uploader), grille de vignettes, filtres (type, usage,
+ * tags combinés en ET, recherche), sélection multiple (ajouter / retirer des
+ * tags), panneau de détail (aperçu, informations, tags, texte alternatif,
+ * « Utilisé dans… », suppression) et gestion des tags (renommer, fusionner,
+ * supprimer). MediaPickerDialog en reprend la grille pour choisir un média
+ * (planche, champs de blocs).
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 
 import { TextI18n } from "@/app/admin/_fields";
-import { deleteMediaAction, mediaUsesAction, pendingUploadsAction, retryMediaAction, saveMediaAltAction } from "@/app/admin/(espace)/medias/actions";
+import TagInput from "@/app/admin/_fields/TagInput";
+import {
+  addMediaTagsAction,
+  deleteMediaAction,
+  deleteTagAction,
+  deleteUnusedTagsAction,
+  mediaStatusAction,
+  mediaUsesAction,
+  mergeTagsAction,
+  pendingUploadsAction,
+  removeMediaTagsAction,
+  renameTagAction,
+  retryMediaAction,
+  saveMediaAltAction,
+  setMediaTagsAction,
+} from "@/app/admin/(espace)/medias/actions";
 import { formatDuration, isLoop } from "@/lib/video/limits";
 import type { AdminMediaRow, MediaUseRow } from "@/lib/admin";
+import { tagKey } from "@/lib/tag-key";
+import type { TagRow } from "@/lib/tags";
 
 import { ConfirmDialog, same, toast, useUnsavedGuard } from "./editing";
-import { ACCEPT, formatBytes, formatSent, hasFiles, useMediaWatch, useUploadQueue, type UploadItem } from "./uploads";
+import { filterMedia } from "./LibraryStrip";
+import Uploader from "./Uploader";
+import { useUploadQueue } from "./UploadQueue";
+import { formatBytes, formatSent, useMediaWatch } from "./uploads";
 
 type Filter = "all" | "unused" | "noalt";
 type KindFilter = "any" | "image" | "video";
@@ -33,88 +55,6 @@ export function stateLabel(m: AdminMediaRow): string {
   return STATUS_LABEL[m.status];
 }
 
-/* ---- Zone d'envoi -------------------------------------------------------- */
-
-export function UploadZone({ onFiles, compact = false }: { onFiles: (files: File[]) => void; compact?: boolean }) {
-  const [over, setOver] = useState(false);
-  const id = useId();
-  return (
-    <div
-      className="a-dropzone"
-      data-over={over || undefined}
-      data-compact={compact || undefined}
-      onDragOver={(e) => {
-        if (!hasFiles(e.dataTransfer)) return;
-        e.preventDefault();
-        setOver(true);
-      }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => {
-        if (!hasFiles(e.dataTransfer)) return;
-        e.preventDefault();
-        setOver(false);
-        onFiles([...e.dataTransfer.files]);
-      }}
-    >
-      <p>
-        <strong>Dépose tes images ou vidéos ici</strong> <span className="muted">ou</span>{" "}
-        <label htmlFor={id} className="a-btn a-btn-small a-file-btn">
-          Choisir des fichiers
-        </label>
-      </p>
-      {!compact && (
-        <p className="a-help">
-          Images JPEG, PNG, WebP, AVIF ou GIF (40 Mo au plus) ; vidéos MP4, MOV ou WebM (2 Go et 30 min au plus), converties pour le web. Les
-          métadonnées (lieu, appareil) sont retirées. Un envoi interrompu se reprend ici.
-        </p>
-      )}
-      <input
-        id={id}
-        type="file"
-        accept={ACCEPT}
-        multiple
-        className="sr-only"
-        onChange={(e) => {
-          const files = [...(e.target.files ?? [])];
-          e.target.value = "";
-          if (files.length) onFiles(files);
-        }}
-      />
-    </div>
-  );
-}
-
-/** Progression des envois (liste discrète). */
-export function UploadList({ items, onDismiss }: { items: UploadItem[]; onDismiss: (key: string) => void }) {
-  if (!items.length) return null;
-  return (
-    <ul className="a-uploads" aria-live="polite">
-      {items.map((i) => (
-        <li key={i.key} data-phase={i.phase}>
-          <span className="a-upload-name">{i.name}</span>
-          <span className="a-upload-state">
-            {i.phase === "waiting" && "En attente"}
-            {i.phase === "uploading" && (i.total && i.total > 8 * 1024 * 1024 ? `Envoi ${formatSent(i.sent, i.total)}` : `Envoi ${Math.round(i.progress * 100)} %`)}
-            {i.phase === "processing" && (i.video ? "Conversion…" : "Traitement…")}
-            {i.phase === "ready" && "✓ Prête"}
-            {i.phase === "failed" && <span className="a-danger-text">{i.message}</span>}
-          </span>
-          {(i.phase === "ready" || i.phase === "failed") && (
-            <button type="button" className="a-icon-btn" aria-label={`Retirer ${i.name} de la liste`} onClick={() => onDismiss(i.key)}>
-              ✕
-            </button>
-          )}
-          {(i.phase === "uploading" || i.phase === "processing") && (
-            <span className="a-progress" aria-hidden="true">
-              <span style={{ width: i.phase === "processing" ? "100%" : `${Math.round(i.progress * 100)}%` }} data-indeterminate={i.phase === "processing" || undefined} />
-            </span>
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 /* ---- Grille ---------------------------------------------------------------- */
 
 export function MediaGrid({
@@ -122,23 +62,31 @@ export function MediaGrid({
   selectedId,
   onSelect,
   label,
+  checked,
 }: {
   items: AdminMediaRow[];
   selectedId: number | null;
   onSelect: (m: AdminMediaRow) => void;
   label: string;
+  /** Sélection multiple : médias cochés (la vignette coche / décoche). */
+  checked?: Set<number>;
 }) {
   return (
-    <ul className="a-media-grid2" aria-label={label}>
+    <ul className="a-media-grid2" aria-label={label} data-selecting={checked ? true : undefined}>
       {items.map((m) => (
         <li key={m.id}>
           <button
             type="button"
             className="a-media-tile"
-            aria-pressed={selectedId === m.id}
+            aria-pressed={checked ? checked.has(m.id) : selectedId === m.id}
             onClick={() => onSelect(m)}
             title={m.name}
           >
+            {checked && (
+              <span className="a-check" aria-hidden="true" data-on={checked.has(m.id) || undefined}>
+                {checked.has(m.id) ? "✓" : ""}
+              </span>
+            )}
             <span className="a-media-thumb" style={m.color ? { backgroundColor: m.color } : undefined}>
               {m.thumb ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -172,6 +120,16 @@ export function MediaGrid({
                 <span>{m.uses === 0 ? "Non utilisée" : `Utilisée ${m.uses} fois`}</span>
               )}
             </span>
+            {m.tags.length > 0 && (
+              <span className="a-media-tags">
+                {m.tags.slice(0, 3).map((t) => (
+                  <span key={t.id} className="a-tagpill a-tagpill-static">
+                    {t.label}
+                  </span>
+                ))}
+                {m.tags.length > 3 && <span className="muted">+{m.tags.length - 3}</span>}
+              </span>
+            )}
           </button>
         </li>
       ))}
@@ -179,19 +137,18 @@ export function MediaGrid({
   );
 }
 
-function useFiltered(media: AdminMediaRow[]) {
+function useFiltered(media: AdminMediaRow[], tagOptions: TagRow[]) {
   const [filter, setFilter] = useState<Filter>("all");
   const [kind, setKind] = useState<KindFilter>("any");
   const [query, setQuery] = useState("");
-  const list = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return media.filter(
-      (m) =>
-        (kind === "any" || m.kind === kind) &&
-        (filter === "all" || (filter === "unused" && m.uses === 0) || (filter === "noalt" && !m.alt.fr.trim())) &&
-        (!q || m.name.toLowerCase().includes(q)),
-    );
-  }, [media, filter, kind, query]);
+  const [tags, setTags] = useState<string[]>([]);
+  const list = useMemo(
+    () =>
+      filterMedia(media, tags, query).filter(
+        (m) => (kind === "any" || m.kind === kind) && (filter === "all" || (filter === "unused" && m.uses === 0) || (filter === "noalt" && !m.alt.fr.trim())),
+      ),
+    [media, filter, kind, query, tags],
+  );
   const controls = (
     <div className="a-media-tools">
       <div className="a-seg" role="group" aria-label="Type de média">
@@ -221,12 +178,15 @@ function useFiltered(media: AdminMediaRow[]) {
         ))}
       </div>
       <label className="a-search">
-        <span className="sr-only">Rechercher par nom</span>
-        <input className="a-input" type="search" placeholder="Rechercher par nom…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <span className="sr-only">Rechercher par nom ou tag</span>
+        <input className="a-input" type="search" placeholder="Rechercher par nom ou tag…" value={query} onChange={(e) => setQuery(e.target.value)} />
       </label>
+      <div className="a-media-tagfilter">
+        <TagInput label="Filtrer par tags (tous)" hideLabel mode="filter" value={tags} onChange={setTags} options={tagOptions.filter((t) => t.count > 0)} />
+      </div>
     </div>
   );
-  return { list, controls };
+  return { list, controls, filtered: Boolean(tags.length || query.trim() || kind !== "any" || filter !== "all") };
 }
 
 /** Liste locale synchronisée avec la liste serveur, plus les mises à jour du suivi. */
@@ -259,6 +219,20 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
   const [busy, start] = useTransition();
   const dirty = !same(alt, savedAlt);
   useUnsavedGuard(dirty);
+  const { tags: tagOptions, refreshTags } = useUploadQueue();
+  const [tags, setTags] = useState(media.tags.map((t) => t.label));
+  const saveTags = (next: string[]) => {
+    const before = tags;
+    setTags(next);
+    void setMediaTagsAction(media.id, next).then((r) => {
+      if (!r.ok) {
+        setTags(before);
+        return toast(r.message, "error");
+      }
+      refreshTags();
+      setTimeout(() => router.refresh(), 0);
+    });
+  };
 
   useEffect(() => {
     let live = true;
@@ -329,6 +303,8 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
         <dt>État</dt>
         <dd>{stateLabel(media)}</dd>
       </dl>
+
+      <TagInput label="Tags" value={tags} onChange={saveTags} options={tagOptions} help="Enregistrés aussitôt. Entrée pour valider un tag." />
 
       <TextI18n
         label="Texte alternatif"
@@ -509,30 +485,250 @@ function PendingUploads({ onResume }: { onResume: (file: File, id: string) => vo
   );
 }
 
+/* ---- Sélection multiple : tags ------------------------------------------ */
+
+function BulkBar({ selected, media, onClear, onDone }: { selected: Set<number>; media: AdminMediaRow[]; onClear: () => void; onDone: () => void }) {
+  const { tags: options, refreshTags } = useUploadQueue();
+  const [mode, setMode] = useState<"add" | "remove" | null>(null);
+  const [labels, setLabels] = useState<string[]>([]);
+  const [busy, start] = useTransition();
+  const ids = [...selected];
+  // Tags présents sur au moins un média sélectionné (ce qu'on peut retirer).
+  const present = useMemo(() => {
+    const map = new Map<string, { label: string; count: number }>();
+    for (const m of media) if (selected.has(m.id)) for (const t of m.tags) map.set(tagKey(t.label), { label: t.label, count: (map.get(tagKey(t.label))?.count ?? 0) + 1 });
+    return [...map.values()];
+  }, [media, selected]);
+  const apply = () =>
+    start(async () => {
+      const r = mode === "add" ? await addMediaTagsAction(ids, labels) : await removeMediaTagsAction(ids, labels);
+      if (!r.ok) return toast(r.message, "error");
+      toast(`${labels.length} tag${labels.length > 1 ? "s" : ""} ${mode === "add" ? "ajouté" : "retiré"}${labels.length > 1 ? "s" : ""} · ${ids.length} média${ids.length > 1 ? "s" : ""}`);
+      setLabels([]);
+      setMode(null);
+      refreshTags();
+      onDone();
+    });
+  return (
+    <div className="a-bulkbar" role="region" aria-label="Sélection">
+      <span className="a-bulkbar-count" aria-live="polite">
+        {ids.length} sélectionné{ids.length > 1 ? "s" : ""}
+      </span>
+      <button type="button" className="a-btn a-btn-small" aria-pressed={mode === "add"} disabled={!ids.length} onClick={() => (setMode(mode === "add" ? null : "add"), setLabels([]))}>
+        Ajouter des tags
+      </button>
+      <button type="button" className="a-btn a-btn-small" aria-pressed={mode === "remove"} disabled={!present.length} onClick={() => (setMode(mode === "remove" ? null : "remove"), setLabels([]))}>
+        Retirer des tags
+      </button>
+      <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={onClear}>
+        Terminer la sélection
+      </button>
+      {mode && (
+        <div className="a-bulkbar-form">
+          <TagInput
+            label={mode === "add" ? "Tags à ajouter" : "Tags à retirer"}
+            mode={mode === "add" ? "edit" : "filter"}
+            value={labels}
+            onChange={setLabels}
+            options={mode === "add" ? options : present}
+          />
+          <button type="button" className="a-btn a-btn-primary" disabled={!labels.length || busy} onClick={apply}>
+            {mode === "add" ? `Ajouter à ${ids.length} média${ids.length > 1 ? "s" : ""}` : `Retirer de ${ids.length} média${ids.length > 1 ? "s" : ""}`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---- Gestion des tags ------------------------------------------------------ */
+
+function TagManager({ onChanged }: { onChanged: () => void }) {
+  const { tags, refreshTags } = useUploadQueue();
+  const [editing, setEditing] = useState<{ id: number; label: string } | null>(null);
+  const [merging, setMerging] = useState<{ id: number; into: number | null } | null>(null);
+  const [deleting, setDeleting] = useState<TagRow | null>(null);
+  const [purging, setPurging] = useState(false);
+  const [busy, start] = useTransition();
+  const unused = tags.filter((t) => t.count === 0).length;
+  const after = (message: string) => {
+    toast(message);
+    refreshTags();
+    onChanged();
+  };
+  if (!tags.length) return <p className="muted a-section-tight">Aucun tag pour l&apos;instant : ajoute-en à l&apos;envoi ou dans le détail d&apos;un média.</p>;
+  return (
+    <>
+      {unused > 0 && (
+        <p className="a-tags-purge">
+          <button type="button" className="a-btn a-btn-small" onClick={() => setPurging(true)}>
+            Supprimer les tags inutilisés ({unused})
+          </button>
+          <span className="a-help">Ils ne sont posés sur aucun média et ne comptent pas dans la limite de 500.</span>
+        </p>
+      )}
+      <table className="a-table a-tags-table">
+        <caption className="sr-only">Tags de la bibliothèque</caption>
+        <thead>
+          <tr>
+            <th scope="col">Tag</th>
+            <th scope="col">Médias</th>
+            <th scope="col">
+              <span className="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...tags].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "fr")).map((t) => (
+            <tr key={t.id}>
+              <th scope="row">
+                {editing?.id === t.id ? (
+                  <form
+                    className="a-inline-form"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      start(async () => {
+                        const r = await renameTagAction(t.id, editing.label);
+                        if (!r.ok) return toast(r.message, "error");
+                        setEditing(null);
+                        after(`Tag renommé en « ${editing.label.trim()} »`);
+                      });
+                    }}
+                  >
+                    <label className="sr-only" htmlFor={`rename-${t.id}`}>
+                      Nouveau nom de « {t.label} »
+                    </label>
+                    <input id={`rename-${t.id}`} className="a-input" value={editing.label} maxLength={40} autoFocus onChange={(e) => setEditing({ id: t.id, label: e.target.value })} />
+                    <button type="submit" className="a-btn a-btn-small a-btn-primary" disabled={busy}>
+                      Enregistrer
+                    </button>
+                    <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => setEditing(null)}>
+                      Annuler
+                    </button>
+                  </form>
+                ) : (
+                  <span className="a-tagpill a-tagpill-static">{t.label}</span>
+                )}
+              </th>
+              <td>{t.count}</td>
+              <td className="a-tags-actions">
+                {merging?.id === t.id ? (
+                  <span className="a-inline-form">
+                    <label className="sr-only" htmlFor={`merge-${t.id}`}>
+                      Fusionner « {t.label} » dans
+                    </label>
+                    <select id={`merge-${t.id}`} className="a-input" value={merging.into ?? ""} onChange={(e) => setMerging({ id: t.id, into: Number(e.target.value) || null })}>
+                      <option value="">Fusionner dans…</option>
+                      {tags
+                        .filter((o) => o.id !== t.id)
+                        .map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {o.label}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="a-btn a-btn-small a-btn-primary"
+                      disabled={!merging.into || busy}
+                      onClick={() =>
+                        start(async () => {
+                          const into = tags.find((o) => o.id === merging.into);
+                          const r = await mergeTagsAction(t.id, merging.into);
+                          if (!r.ok) return toast(r.message, "error");
+                          setMerging(null);
+                          after(`« ${t.label} » fusionné dans « ${into?.label} »`);
+                        })
+                      }
+                    >
+                      Fusionner
+                    </button>
+                    <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => setMerging(null)}>
+                      Annuler
+                    </button>
+                  </span>
+                ) : (
+                  <>
+                    <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => setEditing({ id: t.id, label: t.label })} aria-label={`Renommer ${t.label}`}>
+                      Renommer
+                    </button>
+                    <button type="button" className="a-btn a-btn-small a-btn-quiet" disabled={tags.length < 2} onClick={() => setMerging({ id: t.id, into: null })} aria-label={`Fusionner ${t.label}`}>
+                      Fusionner
+                    </button>
+                    <button type="button" className="a-btn a-btn-small a-btn-quiet a-danger-text" onClick={() => setDeleting(t)} aria-label={`Supprimer ${t.label}`}>
+                      Supprimer
+                    </button>
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <ConfirmDialog
+        open={purging}
+        title={`Supprimer ${unused} tag${unused > 1 ? "s" : ""} inutilisé${unused > 1 ? "s" : ""} ?`}
+        confirmLabel="Supprimer"
+        danger
+        busy={busy}
+        onClose={() => setPurging(false)}
+        onConfirm={() =>
+          start(async () => {
+            const r = await deleteUnusedTagsAction();
+            if (!r.ok) return toast(r.message, "error");
+            setPurging(false);
+            after(`${r.data.deleted} tag${r.data.deleted > 1 ? "s" : ""} inutilisé${r.data.deleted > 1 ? "s" : ""} supprimé${r.data.deleted > 1 ? "s" : ""}`);
+          })
+        }
+      >
+        <p className="muted">Aucun média n&apos;est touché.</p>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={deleting !== null}
+        title={`Supprimer le tag « ${deleting?.label ?? ""} » ?`}
+        confirmLabel="Supprimer le tag"
+        danger
+        busy={busy}
+        onClose={() => setDeleting(null)}
+        onConfirm={() =>
+          start(async () => {
+            if (!deleting) return;
+            const r = await deleteTagAction(deleting.id);
+            if (!r.ok) return toast(r.message, "error");
+            const label = deleting.label;
+            setDeleting(null);
+            after(`Tag « ${label} » supprimé`);
+          })
+        }
+      >
+        <p>
+          {deleting?.count
+            ? `Il sera retiré de ${deleting.count} média${deleting.count > 1 ? "s" : ""}. Les médias eux-mêmes ne sont pas touchés.`
+            : "Il n'est posé sur aucun média."}
+        </p>
+      </ConfirmDialog>
+    </>
+  );
+}
+
 /* ---- Écran ------------------------------------------------------------------- */
 
 export default function MediaLibrary({ initial, usage }: { initial: AdminMediaRow[]; usage: { used: string; quota: string | null; ratio: number | null } }) {
   const router = useRouter();
+  const queue = useUploadQueue();
   const { media, merge } = useMediaState(initial);
   const [selected, setSelected] = useState<number | null>(null);
-  const { list, controls } = useFiltered(media);
-  const uploads = useUploadQueue(async () => {
-    setTimeout(() => router.refresh(), 0);
-  });
+  const [tab, setTab] = useState<"media" | "tags">("media");
+  const [checked, setChecked] = useState<Set<number> | null>(null);
+  const { list, controls } = useFiltered(media, queue.tags);
+  const refresh = useCallback(() => setTimeout(() => router.refresh(), 0), [router]);
+  useEffect(() => queue.onMediaCreated(() => refresh()), [queue, refresh]);
   const processing = media.filter((m) => m.status === "processing").map((m) => m.id);
-  const watched = [...processing, ...uploads.items.filter((i) => i.phase === "processing" && i.mediaId).map((i) => i.mediaId!)];
-  useMediaWatch(watched, (rows) => {
-    merge(rows);
-    for (const row of rows) {
-      for (const item of uploads.items.filter((i) => i.mediaId === row.id && i.phase === "processing")) {
-        if (row.status !== "processing") uploads.patch(item.key, { phase: row.status === "ready" ? "ready" : "failed", message: row.error ?? undefined });
-      }
-    }
-  });
+  useMediaWatch(processing, merge);
   const current = media.find((m) => m.id === selected) ?? null;
 
   return (
-    <div className="a-library" data-detail={current ? "open" : undefined}>
+    <div className="a-library" data-detail={current && tab === "media" ? "open" : undefined}>
       <div className="a-library-main">
         <div className="a-usage">
           <span>
@@ -545,17 +741,58 @@ export default function MediaLibrary({ initial, usage }: { initial: AdminMediaRo
             </span>
           )}
         </div>
-        <UploadZone onFiles={(files) => void uploads.add(files)} />
-        <UploadList items={uploads.items} onDismiss={uploads.remove} />
-        <PendingUploads onResume={(file, id) => void uploads.add([file], "end", id)} />
-        {controls}
-        {list.length === 0 ? (
-          <p className="muted a-section-tight">Aucune image ne correspond.</p>
+        <Uploader origin="medias" libraryLabel="Voir" onSeeLibrary={() => setTab("media")} />
+        <PendingUploads onResume={(file, id) => queue.addFiles([file], { origin: "medias", resumeId: id })} />
+        <div className="a-tabs" role="tablist" aria-label="Médiathèque">
+          <button type="button" role="tab" id="tab-media" aria-selected={tab === "media"} aria-controls="panel-media" onClick={() => setTab("media")}>
+            Médias <span className="muted">{media.length}</span>
+          </button>
+          <button type="button" role="tab" id="tab-tags" aria-selected={tab === "tags"} aria-controls="panel-tags" onClick={() => setTab("tags")}>
+            Tags <span className="muted">{queue.tags.length}</span>
+          </button>
+        </div>
+        {tab === "media" ? (
+          <div role="tabpanel" id="panel-media" aria-labelledby="tab-media">
+            {controls}
+            <div className="a-select-row">
+              {checked ? (
+                <BulkBar selected={checked} media={media} onClear={() => setChecked(null)} onDone={refresh} />
+              ) : (
+                <button type="button" className="a-btn a-btn-small" onClick={() => setChecked(new Set())} disabled={!list.length}>
+                  Sélectionner
+                </button>
+              )}
+              {checked && list.length > 0 && (
+                <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => setChecked(new Set(list.map((m) => m.id)))}>
+                  Tout sélectionner ({list.length})
+                </button>
+              )}
+            </div>
+            {list.length === 0 ? (
+              <p className="muted a-section-tight">Aucun média ne correspond.</p>
+            ) : (
+              <MediaGrid
+                items={list}
+                selectedId={selected}
+                checked={checked ?? undefined}
+                onSelect={(m) => {
+                  if (!checked) return setSelected(m.id);
+                  const next = new Set(checked);
+                  if (next.has(m.id)) next.delete(m.id);
+                  else next.add(m.id);
+                  setChecked(next);
+                }}
+                label="Médias de la médiathèque"
+              />
+            )}
+          </div>
         ) : (
-          <MediaGrid items={list} selectedId={selected} onSelect={(m) => setSelected(m.id)} label="Images de la médiathèque" />
+          <div role="tabpanel" id="panel-tags" aria-labelledby="tab-tags">
+            <TagManager onChanged={refresh} />
+          </div>
         )}
       </div>
-      {current && <MediaDetail key={current.id} media={current} onClose={() => setSelected(null)} onDeleted={() => setSelected(null)} />}
+      {current && tab === "media" && <MediaDetail key={current.id} media={current} onClose={() => setSelected(null)} onDeleted={() => setSelected(null)} />}
     </div>
   );
 }
@@ -579,12 +816,21 @@ export function MediaPickerDialog({
 }) {
   const { media, merge } = useMediaState(initial);
   const [choice, setChoice] = useState<number | null>(null);
-  const { list, controls } = useFiltered(media.filter((m) => m.status !== "failed"));
-  const uploads = useUploadQueue(async (_item, mediaId) => {
-    const r = await (await import("@/app/admin/(espace)/medias/actions")).mediaStatusAction([mediaId]);
-    if (r.ok) merge(r.data);
-    setChoice(mediaId);
-  });
+  const queue = useUploadQueue();
+  const { list, controls } = useFiltered(
+    media.filter((m) => m.status !== "failed"),
+    queue.tags,
+  );
+  // Un fichier envoyé depuis ce sélecteur : ajouté à la grille et choisi.
+  useEffect(
+    () =>
+      queue.onMediaCreated((item, created) => {
+        if (item.batchId && queue.batches.find((b) => b.id === item.batchId)?.origin !== "picker") return;
+        void mediaStatusAction([created.id]).then((r) => r.ok && merge(r.data));
+        setChoice(created.id);
+      }),
+    [queue, merge],
+  );
   useMediaWatch(media.filter((m) => m.status === "processing").map((m) => m.id), merge);
   const picked = media.find((m) => m.id === choice);
   return (
@@ -596,8 +842,7 @@ export function MediaPickerDialog({
       onConfirm={() => picked && onPick(picked)}
       confirmDisabled={!picked}
     >
-      <UploadZone compact onFiles={(files) => void uploads.add(files.slice(0, 1))} />
-      <UploadList items={uploads.items} onDismiss={uploads.remove} />
+      <Uploader origin="picker" multiple={false} label="Dépose un fichier, ou choisis-le" libraryLabel="Le choisir" onSeeLibrary={() => undefined} />
       {controls}
       <div className="a-picker-scroll">
         <MediaGrid items={list} selectedId={choice} onSelect={(m) => setChoice(m.id)} label="Images" />

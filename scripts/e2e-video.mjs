@@ -198,7 +198,7 @@ try {
     await page.reload({ waitUntil: "networkidle" });
   }
   await page.goto(`${BASE}/admin/medias`, { waitUntil: "networkidle" });
-  await page.getByPlaceholder("Rechercher par nom…").fill("e2e-");
+  await page.getByPlaceholder("Rechercher par nom ou tag…").fill("e2e-");
   while (await page.locator(".a-media-tile").count()) {
     await page.locator(".a-media-tile").first().click();
     await page.locator(".a-sidepanel .a-refs, .a-sidepanel p.muted:text('Nulle part pour l\\'instant.')").first().waitFor();

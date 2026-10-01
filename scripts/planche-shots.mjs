@@ -135,7 +135,7 @@ await p.locator(".a-project-card", { hasText: "Carnet de lumière" }).getByRole(
 await p.locator("dialog[open]").getByRole("button", { name: "Supprimer le projet" }).click();
 await toast("supprimé");
 await p.goto(`${BASE}/admin/medias`, { waitUntil: "networkidle" });
-await p.getByPlaceholder("Rechercher par nom…").fill("demo-");
+await p.getByPlaceholder("Rechercher par nom ou tag…").fill("demo-");
 while (await p.locator(".a-media-tile").count()) {
   await p.locator(".a-media-tile").first().click();
   await p.locator(".a-sidepanel .a-refs, .a-sidepanel p.muted:text('Nulle part pour l\\'instant.')").first().waitFor();

@@ -4,6 +4,8 @@
  * (MAX_IMAGE_MB, 40 par défaut) ; type vérifié par signature ; traitement
  * asynchrone (job). Réponse JSON : { ok, media } ou { ok: false, message }.
  */
+import { rm } from "node:fs/promises";
+
 import { assertAdmin } from "@/lib/auth/guard";
 import { rememberPort } from "@/lib/jobs/notify";
 import { uploadTmpDir } from "@/lib/jobs/worker";
@@ -12,6 +14,7 @@ import { revalidateMedia } from "@/lib/revalidate";
 import { ingestImage } from "@/lib/upload/ingest";
 import { quotaProblem } from "@/lib/upload/quota";
 import { receiveOneFile, UploadError } from "@/lib/upload/receive";
+import { attachUploadTags, parseTagLabels, tagCapacityProblem } from "@/lib/tags";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,9 +31,23 @@ export async function POST(request: Request) {
   if (full) return json(507, { ok: false, message: full });
   try {
     const file = await receiveOneFile(request, uploadTmpDir());
+    // Tags du fichier (champ « tags », JSON) : vérifiés avant tout enregistrement.
+    let raw: unknown = [];
+    try {
+      raw = file.fields?.tags ? JSON.parse(file.fields.tags) : [];
+    } catch {
+      raw = null;
+    }
+    const tags = parseTagLabels(raw);
+    const tagsFull = tags.ok ? tagCapacityProblem(tags.labels) : null;
+    if (!tags.ok || tagsFull) {
+      await rm(file.tmpPath, { force: true });
+      return json(tags.ok ? 422 : 400, { ok: false, message: tags.ok ? tagsFull : tags.message });
+    }
     const media = await ingestImage(file);
+    const tagWarning = attachUploadTags(media.id, tags.labels);
     revalidateMedia();
-    return json(200, { ok: true, media });
+    return json(200, { ok: true, media: tagWarning ? { ...media, tagWarning } : media });
   } catch (error) {
     if (error instanceof UploadError) return json(error.status, { ok: false, message: error.message });
     console.error("[upload] échec", error);

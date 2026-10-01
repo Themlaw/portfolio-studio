@@ -5,10 +5,12 @@
  * individuelle), un envoi à la fois ; puis suivi du traitement (le média
  * passe de « processing » à « ready » ou « failed »).
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import { mediaStatusAction } from "@/app/admin/(espace)/medias/actions";
 import type { AdminMediaRow } from "@/lib/admin";
+
+export const isVideoFile = (file: File) => file.type.startsWith("video/") || /\.(mp4|mov|m4v|webm|mkv)$/i.test(file.name);
 
 export const ACCEPT = "image/jpeg,image/png,image/webp,image/avif,image/gif,video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,.mkv";
 
@@ -34,7 +36,7 @@ function writePending(list: Pending[]) {
   }
 }
 
-const isVideo = (file: File) => file.type.startsWith("video/") || /\.(mp4|mov|m4v|webm|mkv)$/i.test(file.name);
+const isVideo = isVideoFile;
 
 async function api<T>(url: string, init: RequestInit): Promise<{ ok: true; data: T } | { ok: false; status: number; message: string }> {
   try {
@@ -69,23 +71,23 @@ function putChunk(id: string, offset: number, blob: Blob, onBytes: (n: number) =
  * délai croissant, l'offset est relu sur le serveur), progression réelle.
  * `resumeId` : reprendre un envoi interrompu (même fichier).
  */
-export async function uploadChunked(file: File, onProgress: (sent: number, total: number) => void, resumeId?: string): Promise<UploadResult> {
+export async function uploadChunked(file: File, onProgress: (sent: number, total: number) => void, resumeId?: string, tags: string[] = []): Promise<UploadResult> {
   let id = resumeId;
   let offset = 0;
   let chunkSize = 8 * 1024 * 1024;
   if (id) {
     const st = await api<{ upload: { offset: number; size: number; chunkSize: number } }>(`/admin/api/upload/${id}/status`, { method: "GET" });
-    if (!st.ok) return { ok: false, message: st.message };
-    if (st.data.upload.size !== file.size) return { ok: false, message: "Ce n'est pas le même fichier (taille différente) : choisis le fichier d'origine." };
+    if (!st.ok) return { ok: false, message: st.message, status: st.status };
+    if (st.data.upload.size !== file.size) return { ok: false, message: "Ce n'est pas le même fichier (taille différente) : choisis le fichier d'origine.", definitive: true };
     offset = st.data.upload.offset;
     chunkSize = st.data.upload.chunkSize;
   } else {
     const init = await api<{ upload: { id: string; chunkSize: number } }>("/admin/api/upload/init", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: file.name, size: file.size, type: file.type || "application/octet-stream" }),
+      body: JSON.stringify({ name: file.name, size: file.size, type: file.type || "application/octet-stream", tags }),
     });
-    if (!init.ok) return { ok: false, message: init.message };
+    if (!init.ok) return { ok: false, message: init.message, status: init.status, definitive: init.status !== 0 && init.status < 500 && init.status !== 409 };
     id = init.data.upload.id;
     chunkSize = init.data.upload.chunkSize;
     writePending([...readPending().filter((p) => p.id !== id), { id, name: file.name, size: file.size, lastModified: file.lastModified }]);
@@ -106,9 +108,9 @@ export async function uploadChunked(file: File, onProgress: (sent: number, total
       if (!retryable) {
         await api(`/admin/api/upload/${id}`, { method: "DELETE" });
         writePending(readPending().filter((p) => p.id !== id));
-        return { ok: false, message: res.message };
+        return { ok: false, message: res.message, status: res.status, definitive: true };
       }
-      if (attempt >= RETRY_DELAYS.length) return { ok: false, message: `${res.message} L'envoi est mis de côté : reprends-le depuis la médiathèque.` };
+      if (attempt >= RETRY_DELAYS.length) return { ok: false, message: `${res.message} L'envoi est mis de côté : « Réessayer » le reprend où il s'est arrêté.`, status: res.status, uploadId: id };
       await sleep(RETRY_DELAYS[attempt++]);
       const st = await api<{ upload: { offset: number } }>(`/admin/api/upload/${id}/status`, { method: "GET" });
       if (st.ok) offset = st.data.upload.offset;
@@ -117,21 +119,33 @@ export async function uploadChunked(file: File, onProgress: (sent: number, total
     }
     onProgress(offset, file.size);
   }
-  const done = await api<{ media: { id: number; status: string; width: number | null; height: number | null; name: string; reused: boolean } }>(`/admin/api/upload/${id}/complete`, { method: "POST" });
+  // Tags COURANTS (une reprise a pu les changer depuis init) : ce sont eux qui sont attachés.
+  const done = await api<{ media: UploadedMedia }>(`/admin/api/upload/${id}/complete`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ tags }),
+  });
+  if (!done.ok && (done.status === 0 || done.status >= 500)) return { ok: false, message: done.message, status: done.status, uploadId: id };
   writePending(readPending().filter((p) => p.id !== id));
-  if (!done.ok) return { ok: false, message: done.message };
+  if (!done.ok) return { ok: false, message: done.message, status: done.status, definitive: true };
   return { ok: true, media: done.data.media };
 }
 
 /** Envoi d'un fichier : direct (petite image) ou par morceaux (vidéo, grande image). */
-export function sendFile(file: File, onProgress: (sent: number, total: number) => void, resumeId?: string): Promise<UploadResult> {
-  if (resumeId || isVideo(file) || file.size > CHUNKED_ABOVE) return uploadChunked(file, onProgress, resumeId);
-  return uploadFile(file, (ratio) => onProgress(Math.round(ratio * file.size), file.size));
+export function sendFile(file: File, onProgress: (sent: number, total: number) => void, resumeId?: string, tags: string[] = []): Promise<UploadResult> {
+  if (resumeId || isVideo(file) || file.size > CHUNKED_ABOVE) return uploadChunked(file, onProgress, resumeId, tags);
+  return uploadFile(file, (ratio) => onProgress(Math.round(ratio * file.size), file.size), tags);
 }
 
-export type UploadResult = { ok: true; media: { id: number; status: string; width: number | null; height: number | null; name: string; reused: boolean } } | { ok: false; message: string };
+export type UploadedMedia = { id: number; status: string; width: number | null; height: number | null; name: string; reused: boolean; tagWarning?: string };
+/**
+ * Échec : `definitive` = refus du serveur (quota plein, taille, type, droits)
+ * qu'un nouvel essai ne changerait pas ; `uploadId` = envoi par morceaux à
+ * reprendre là où il s'est arrêté.
+ */
+export type UploadResult = { ok: true; media: UploadedMedia } | { ok: false; message: string; status?: number; definitive?: boolean; uploadId?: string };
 
-export function uploadFile(file: File, onProgress: (ratio: number) => void): Promise<UploadResult> {
+export function uploadFile(file: File, onProgress: (ratio: number) => void, tags: string[] = []): Promise<UploadResult> {
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/admin/api/upload");
@@ -139,12 +153,15 @@ export function uploadFile(file: File, onProgress: (ratio: number) => void): Pro
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
     xhr.onload = () => {
       const body = xhr.response as UploadResult | null;
-      if (body && typeof body === "object" && "ok" in body) resolve(body);
-      else if (xhr.status === 401 || xhr.status === 403 || xhr.responseURL.includes("/admin/connexion")) resolve({ ok: false, message: "Ta session a expiré : reconnecte-toi." });
-      else resolve({ ok: false, message: `L'envoi a échoué (erreur ${xhr.status}). Réessaie.` });
+      if (body && typeof body === "object" && "ok" in body) {
+        resolve(body.ok ? body : { ...body, status: xhr.status, definitive: xhr.status < 500 && xhr.status !== 408 });
+      } else if (xhr.status === 401 || xhr.status === 403 || xhr.responseURL.includes("/admin/connexion")) resolve({ ok: false, message: "Ta session a expiré : reconnecte-toi.", status: xhr.status });
+      else resolve({ ok: false, message: `L'envoi a échoué (erreur ${xhr.status}). Réessaie.`, status: xhr.status });
     };
-    xhr.onerror = () => resolve({ ok: false, message: "Connexion interrompue pendant l'envoi. Réessaie." });
+    xhr.onerror = () => resolve({ ok: false, message: "Connexion interrompue pendant l'envoi. Réessaie.", status: 0 });
     const form = new FormData();
+    // Tags d'abord : le serveur les lit avant le fichier.
+    if (tags.length) form.append("tags", JSON.stringify(tags));
     form.append("file", file, file.name);
     xhr.send(form);
   });
@@ -168,6 +185,51 @@ export function readVideoRatio(file: File): Promise<{ ratio: number; preview?: s
   });
 }
 
+/**
+ * Première image d'une vidéo (aperçu local) : <video> + canvas. null si le
+ * navigateur ne décode pas le format (MKV, ProRes…) : l'interface montre une icône.
+ */
+export function readVideoFrame(file: File): Promise<{ ratio: number; preview: string } | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement("video");
+    v.preload = "auto";
+    v.muted = true;
+    v.playsInline = true;
+    let settled = false;
+    const done = (value: { ratio: number; preview: string } | null) => {
+      if (settled) return;
+      settled = true;
+      v.removeAttribute("src");
+      v.load();
+      URL.revokeObjectURL(url);
+      resolve(value);
+    };
+    v.onloadeddata = () => {
+      // Un peu après le début : la toute première image est souvent noire.
+      v.currentTime = Math.min(0.5, (v.duration || 1) / 10);
+    };
+    v.onseeked = () => {
+      try {
+        const w = v.videoWidth;
+        const h = v.videoHeight;
+        if (!w || !h) return done(null);
+        const scale = Math.min(1, 480 / Math.max(w, h));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(w * scale);
+        canvas.height = Math.round(h * scale);
+        canvas.getContext("2d")?.drawImage(v, 0, 0, canvas.width, canvas.height);
+        done({ ratio: w / h, preview: canvas.toDataURL("image/jpeg", 0.75) });
+      } catch {
+        done(null);
+      }
+    };
+    v.onerror = () => done(null);
+    setTimeout(() => done(null), 6000);
+    v.src = url;
+  });
+}
+
 /** « 120 / 512 Mo » */
 export function formatSent(sent = 0, total = 0): string {
   const mb = (n: number) => (n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0).replace(".", ",");
@@ -186,85 +248,6 @@ export function readRatio(file: File): Promise<{ ratio: number; preview: string 
     };
     img.src = url;
   });
-}
-
-export type UploadItem = {
-  key: string;
-  name: string;
-  /** Octets envoyés / total (affichage « 120 / 512 Mo »). */
-  sent?: number;
-  total?: number;
-  video?: boolean;
-  phase: "waiting" | "uploading" | "processing" | "ready" | "failed";
-  progress: number;
-  message?: string;
-  ratio: number;
-  preview?: string;
-  mediaId?: number;
-  /** Cible : fin de planche, ou un emplacement vide. */
-  target?: number | "end";
-  /** Reprise d'un envoi interrompu (identifiant serveur). */
-  resumeId?: string;
-};
-
-let seq = 0;
-
-/**
- * File d'envoi : les fichiers partent l'un après l'autre. `onUploaded` est
- * appelé dès qu'un média existe (pour créer ou remplir un emplacement).
- */
-type QueueApi = { patch: (key: string, p: Partial<UploadItem>) => void; remove: (key: string) => void };
-
-export function useUploadQueue(onUploaded: (item: UploadItem, mediaId: number, api: QueueApi) => Promise<void> | void) {
-  const [items, setItems] = useState<UploadItem[]>([]);
-  const queue = useRef<{ item: UploadItem; file: File }[]>([]);
-  const running = useRef(false);
-  const callback = useRef(onUploaded);
-  useEffect(() => {
-    callback.current = onUploaded;
-  }, [onUploaded]);
-
-  const patch = useCallback((key: string, p: Partial<UploadItem>) => setItems((list) => list.map((i) => (i.key === key ? { ...i, ...p } : i))), []);
-  const remove = useCallback((key: string) => setItems((list) => list.filter((i) => i.key !== key)), []);
-
-  const pump = useCallback(async () => {
-    if (running.current) return;
-    running.current = true;
-    while (queue.current.length) {
-      const { item, file } = queue.current.shift()!;
-      patch(item.key, { phase: "uploading" });
-      const result = await sendFile(file, (sent, total) => patch(item.key, { progress: total ? sent / total : 0, sent, total }), item.resumeId);
-      if (!result.ok) {
-        patch(item.key, { phase: "failed", message: result.message });
-        continue;
-      }
-      const phase = result.media.status === "ready" ? "ready" : result.media.status === "failed" ? "failed" : "processing";
-      const ratio = result.media.width && result.media.height ? result.media.width / result.media.height : item.ratio;
-      patch(item.key, { phase, progress: 1, mediaId: result.media.id, ratio });
-      await callback.current({ ...item, mediaId: result.media.id, ratio }, result.media.id, { patch, remove });
-    }
-    running.current = false;
-  }, [patch, remove]);
-
-  const add = useCallback(
-    async (files: File[], target: number | "end" = "end", resumeId?: string) => {
-      const fresh: { item: UploadItem; file: File }[] = [];
-      for (const file of files) {
-        const video = isVideo(file);
-        const info = video ? await readVideoRatio(file) : await readRatio(file);
-        fresh.push({
-          file,
-          item: { key: `u${++seq}`, name: file.name, phase: "waiting", progress: 0, ratio: info?.ratio ?? (video ? 16 / 9 : 4 / 3), preview: info?.preview, target, video, resumeId, total: file.size, sent: 0 },
-        });
-      }
-      setItems((list) => [...list, ...fresh.map((f) => f.item)]);
-      queue.current.push(...fresh);
-      void pump();
-    },
-    [pump],
-  );
-
-  return { items, add, remove, patch };
 }
 
 /**

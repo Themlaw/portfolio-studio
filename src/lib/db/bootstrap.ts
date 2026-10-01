@@ -60,7 +60,7 @@ export async function bootstrap(): Promise<void> {
     .immediate();
 
   console.log(
-    `[db] ${path.join(dataDir(), "portfolio.db")} : ${outcome.applied} migration(s) appliquée(s), ` +
+    `[db] ${path.join(/* turbopackIgnore: true */ dataDir(), "portfolio.db")} : ${outcome.applied} migration(s) appliquée(s), ` +
       (outcome.seeded ? `seed initial effectué` : "déjà seedée : seed ignoré") +
       ` (${Date.now() - started} ms)`,
   );

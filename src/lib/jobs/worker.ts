@@ -39,7 +39,7 @@ function state(): State {
 }
 
 export function uploadTmpDir(): string {
-  return path.join(dataDir(), "tmp");
+  return path.join(/* turbopackIgnore: true */ dataDir(), "tmp");
 }
 
 /** Prend le plus ancien job en file de ce type (atomique) ou null. */
@@ -215,7 +215,7 @@ async function purgeOld(dir: string, match: (name: string) => boolean, recursive
     return 0; // dossier absent : rien à purger
   }
   for (const entry of entries) {
-    const file = path.join(dir, entry.name);
+    const file = path.join(/* turbopackIgnore: true */ dir, entry.name);
     if (entry.isDirectory()) {
       if (recursive) removed += await purgeOld(file, match, true);
       continue;
@@ -241,19 +241,19 @@ export async function purgeTmp(): Promise<number> {
     .where(lt(schema.uploads.updatedAt, new Date(Date.now() - UPLOAD_TTL_MS)))
     .returning({ id: schema.uploads.id })
     .all();
-  for (const u of stale) await rm(path.join(uploadTmpDir(), "uploads", `${u.id}.part`), { force: true });
+  for (const u of stale) await rm(path.join(/* turbopackIgnore: true */ uploadTmpDir(), "uploads", `${u.id}.part`), { force: true });
   if (stale.length) console.log(`[jobs] ${stale.length} envoi(s) abandonné(s) purgé(s)`);
   // Fichiers partiels sans ligne (ligne supprimée, base restaurée…) : même délai.
   const known = new Set(getDb().select({ id: schema.uploads.id }).from(schema.uploads).all().map((u) => u.id));
-  const partsDir = path.join(uploadTmpDir(), "uploads");
+  const partsDir = path.join(/* turbopackIgnore: true */ uploadTmpDir(), "uploads");
   for (const name of await readdir(partsDir).catch(() => [] as string[])) {
     const id = name.replace(/\.part$/, "");
     if (known.has(id)) continue;
-    const info = await stat(path.join(partsDir, name)).catch(() => null);
-    if (info && Date.now() - info.mtimeMs > UPLOAD_TTL_MS) await rm(path.join(partsDir, name), { force: true });
+    const info = await stat(path.join(/* turbopackIgnore: true */ partsDir, name)).catch(() => null);
+    if (info && Date.now() - info.mtimeMs > UPLOAD_TTL_MS) await rm(path.join(/* turbopackIgnore: true */ partsDir, name), { force: true });
   }
   const a = await purgeOld(uploadTmpDir(), () => true, false);
-  const b = await purgeOld(path.join(dataDir(), "media"), (n) => n.endsWith(".tmp"), true);
+  const b = await purgeOld(path.join(/* turbopackIgnore: true */ dataDir(), "media"), (n) => n.endsWith(".tmp"), true);
   if (a + b) console.log(`[jobs] ${a + b} fichier(s) temporaire(s) abandonné(s) supprimé(s)`);
   return a + b;
 }
@@ -302,7 +302,7 @@ export async function startWorker() {
   }
   // Dossiers de conversion laissés par un arrêt brutal : plus aucun job ne tourne.
   for (const name of await readdir(uploadTmpDir()).catch(() => [] as string[])) {
-    if (/^video-\d+-\d+$/.test(name)) await rm(path.join(uploadTmpDir(), name), { recursive: true, force: true });
+    if (/^video-\d+-\d+$/.test(name)) await rm(path.join(/* turbopackIgnore: true */ uploadTmpDir(), name), { recursive: true, force: true });
   }
   await purgeTmp();
   s.timer = setInterval(() => wakeWorker(), 2000);

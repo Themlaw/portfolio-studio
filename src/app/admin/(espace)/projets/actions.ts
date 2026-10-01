@@ -63,11 +63,11 @@ export async function deleteProjectAction(
   return result;
 }
 
-export async function addSlotsAction(projectId: unknown, mediaIds: unknown): Promise<ActionResult<{ ids: number[] }>> {
+export async function addSlotsAction(projectId: unknown, mediaIds: unknown, at?: unknown): Promise<ActionResult<{ ids: number[] }>> {
   await assertAdmin();
   const pid = id(projectId);
   if (!pid) return fail("Projet inconnu.");
-  const result = addSlots(pid, mediaIds);
+  const result = addSlots(pid, mediaIds, at);
   if (result.ok) revalidateProject(pid);
   return result;
 }

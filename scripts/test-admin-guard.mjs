@@ -102,6 +102,14 @@ const EXPECTED = [
   "mediaUsesAction",
   "retryMediaAction",
   "pendingUploadsAction",
+  "listTagsAction",
+  "setMediaTagsAction",
+  "addMediaTagsAction",
+  "removeMediaTagsAction",
+  "renameTagAction",
+  "mergeTagsAction",
+  "deleteTagAction",
+  "deleteUnusedTagsAction",
 ];
 const found = new Set();
 

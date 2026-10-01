@@ -10,6 +10,7 @@ import { wakeWorker } from "@/lib/jobs/worker";
 import { listPendingUploads, type UploadStatus } from "@/lib/upload/chunks";
 import { fail, type ActionResult } from "@/lib/edit/result";
 import { revalidateMedia, revalidateProjects } from "@/lib/revalidate";
+import { addTagsToMedia, deleteTag, deleteUnusedTags, listTags, mergeTags, removeTagsFromMedia, renameTag, setMediaTags, type TagRow } from "@/lib/tags";
 
 const Id = z.number().int().positive();
 
@@ -70,4 +71,80 @@ export async function retryMediaAction(mediaId: unknown): Promise<ActionResult<n
 export async function pendingUploadsAction(): Promise<ActionResult<UploadStatus[]>> {
   const { user } = await assertAdmin();
   return { ok: true, data: listPendingUploads(user.id) };
+}
+
+/* ---- Tags ------------------------------------------------------------------ */
+
+const Ids = z.array(Id).min(1).max(1000);
+
+/** Tags de la bibliothèque, avec leur nombre d'usages. */
+export async function listTagsAction(): Promise<ActionResult<TagRow[]>> {
+  await assertAdmin();
+  return { ok: true, data: listTags() };
+}
+
+/** Remplace les tags d'un média (panneau de détail). */
+export async function setMediaTagsAction(mediaId: unknown, labels: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const parsed = Id.safeParse(mediaId);
+  if (!parsed.success) return fail("Média inconnu.");
+  const result = setMediaTags(parsed.data, labels);
+  if (result.ok) revalidateMedia();
+  return result;
+}
+
+/** Ajoute des tags à un ou plusieurs médias (envoi, sélection multiple). */
+export async function addMediaTagsAction(mediaIds: unknown, labels: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const parsed = Ids.safeParse(mediaIds);
+  if (!parsed.success) return fail("Requête invalide.");
+  const result = addTagsToMedia(parsed.data, labels);
+  if (result.ok) revalidateMedia();
+  return result;
+}
+
+/** Retire des tags (par libellé) d'un ou plusieurs médias. */
+export async function removeMediaTagsAction(mediaIds: unknown, labels: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const parsed = Ids.safeParse(mediaIds);
+  if (!parsed.success) return fail("Requête invalide.");
+  const result = removeTagsFromMedia(parsed.data, labels);
+  if (result.ok) revalidateMedia();
+  return result;
+}
+
+export async function renameTagAction(tagId: unknown, label: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const parsed = Id.safeParse(tagId);
+  if (!parsed.success) return fail("Tag inconnu.");
+  const result = renameTag(parsed.data, label);
+  if (result.ok) revalidateMedia();
+  return result;
+}
+
+/** Fusionne le tag `fromId` dans `intoId`. */
+export async function mergeTagsAction(fromId: unknown, intoId: unknown): Promise<ActionResult<{ moved: number }>> {
+  await assertAdmin();
+  const parsed = z.tuple([Id, Id]).safeParse([fromId, intoId]);
+  if (!parsed.success) return fail("Tag inconnu.");
+  const result = mergeTags(parsed.data[0], parsed.data[1]);
+  if (result.ok) revalidateMedia();
+  return result;
+}
+
+/** Supprime les tags posés sur aucun média (bouton de l'onglet Tags). */
+export async function deleteUnusedTagsAction(): Promise<ActionResult<{ deleted: number }>> {
+  await assertAdmin();
+  const result = deleteUnusedTags();
+  if (result.ok) revalidateMedia();
+  return result;
+}
+
+export async function deleteTagAction(tagId: unknown): Promise<ActionResult<{ media: number }>> {
+  await assertAdmin();
+  const parsed = Id.safeParse(tagId);
+  if (!parsed.success) return fail("Tag inconnu.");
+  const result = deleteTag(parsed.data);
+  if (result.ok) revalidateMedia();
+  return result;
 }

@@ -12,10 +12,12 @@ import path from "node:path";
 
 /** Premier chemin non inscriptible (et son code d'erreur), ou null. */
 export function dataWriteProblem(dir: string): { path: string; code: string } | null {
-  for (const d of [dir, path.join(dir, "media"), path.join(dir, "tmp")]) {
+  // turbopackIgnore : chemins de données à l'exécution, pas des fichiers du
+  // projet (sans cette marque, Next trace tout le projet dans le standalone).
+  for (const d of [dir, path.join(/* turbopackIgnore: true */ dir, "media"), path.join(/* turbopackIgnore: true */ dir, "tmp")]) {
     try {
       mkdirSync(d, { recursive: true });
-      const probe = path.join(d, `.ecriture-${process.pid}`);
+      const probe = path.join(/* turbopackIgnore: true */ d, `.ecriture-${process.pid}`);
       writeFileSync(probe, "");
       rmSync(probe);
     } catch (error) {
@@ -25,7 +27,7 @@ export function dataWriteProblem(dir: string): { path: string; code: string } | 
   // Base existante créée par un autre utilisateur : ouverte en lecture seule
   // par SQLite, elle échouerait à la première écriture.
   for (const f of ["portfolio.db", "portfolio.db-wal", "portfolio.db-shm"]) {
-    const file = path.join(dir, f);
+    const file = path.join(/* turbopackIgnore: true */ dir, f);
     if (!existsSync(file)) continue;
     try {
       accessSync(file, constants.R_OK | constants.W_OK);

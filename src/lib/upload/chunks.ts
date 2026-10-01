@@ -20,18 +20,22 @@ import { dataDir, getDb, schema } from "@/lib/db";
 import { CHUNK_BYTES, videoLimits } from "@/lib/video/limits";
 import { ingestVideo } from "@/lib/video/ingest";
 
+import { attachUploadTags, parseTagLabels, tagCapacityProblem } from "@/lib/tags";
+
 import { ingestImage, type IngestedMedia } from "./ingest";
 import { quotaProblem } from "./quota";
 import { cleanFilename, sniffImage, sniffVideo, SNIFF_BYTES, VIDEO_REJECTED_MESSAGE } from "./sniff";
 import { maxImageBytes, UploadError } from "./receive";
 
-const partDir = () => path.join(dataDir(), "tmp", "uploads");
-const partPath = (id: string) => path.join(partDir(), `${id}.part`);
+const partDir = () => path.join(/* turbopackIgnore: true */ dataDir(), "tmp", "uploads");
+const partPath = (id: string) => path.join(/* turbopackIgnore: true */ partDir(), `${id}.part`);
 
 const InitSchema = z.strictObject({
   name: z.string().max(300),
   size: z.number().int().positive(),
   type: z.string().max(100),
+  /** Tags du fichier : gardés sur l'envoi, attachés au média à sa création. */
+  tags: z.unknown().optional(),
 });
 
 const Id = z.string().uuid();
@@ -56,6 +60,10 @@ export async function initUpload(input: unknown, userId: string): Promise<Upload
   if (!parsed.success) throw new UploadError(400, "Requête invalide.");
   const { size, type } = parsed.data;
   const name = cleanFilename(parsed.data.name);
+  const tags = parseTagLabels(parsed.data.tags ?? []);
+  if (!tags.ok) throw new UploadError(400, tags.message);
+  const tagsFull = tagCapacityProblem(tags.labels);
+  if (tagsFull) throw new UploadError(422, tagsFull);
   const kind: "image" | "video" = type.startsWith("video/") || /\.(mp4|mov|m4v|webm|mkv)$/i.test(name) ? "video" : "image";
   const max = kind === "video" ? videoLimits().maxBytes : maxImageBytes();
   if (size > max) {
@@ -71,7 +79,7 @@ export async function initUpload(input: unknown, userId: string): Promise<Upload
   const id = randomUUID();
   await mkdir(partDir(), { recursive: true });
   await (await open(partPath(id), "wx")).close();
-  getDb().insert(schema.uploads).values({ id, name, size, declaredType: type.slice(0, 100), kind, offset: 0, userId }).run();
+  getDb().insert(schema.uploads).values({ id, name, size, declaredType: type.slice(0, 100), kind, offset: 0, userId, tags: tags.labels }).run();
   return { id, name, size, offset: 0, kind, chunkSize: CHUNK_BYTES };
 }
 
@@ -137,8 +145,24 @@ export async function writeChunk(id: unknown, offsetParam: string | null, reques
   }
 }
 
-export async function completeUpload(id: unknown, userId: string): Promise<IngestedMedia & { kind: "image" | "video" }> {
+/**
+ * Fin d'envoi. `tagsInput` : tags courants du client (une reprise a pu les
+ * changer depuis init), validés comme à init ; absents : ceux d'init.
+ */
+export async function completeUpload(id: unknown, userId: string, tagsInput?: unknown): Promise<IngestedMedia & { kind: "image" | "video"; tagWarning?: string }> {
   const r = row(id, userId);
+  let tags = r.tags ?? [];
+  if (tagsInput !== undefined) {
+    const parsed = parseTagLabels(tagsInput);
+    if (!parsed.ok) throw new UploadError(400, parsed.message);
+    tags = parsed.labels;
+  }
+  const media = await ingestCompleted(r);
+  const tagWarning = attachUploadTags(media.id, tags);
+  return tagWarning ? { ...media, tagWarning } : media;
+}
+
+async function ingestCompleted(r: typeof schema.uploads.$inferSelect): Promise<IngestedMedia & { kind: "image" | "video" }> {
   if (r.offset !== r.size) throw new UploadError(409, `Envoi incomplet : ${r.offset} octets reçus sur ${r.size}.`);
   const file = partPath(r.id);
   // L'envoi est clos : sa réservation disparaît, le contenu fait foi.
