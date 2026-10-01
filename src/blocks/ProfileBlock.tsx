@@ -1,4 +1,4 @@
-import Image from "next/image";
+import Picture from "@/components/Picture";
 import { z } from "zod";
 
 import Eyebrow from "@/components/Eyebrow";
@@ -33,8 +33,9 @@ export default async function ProfileBlock({ props, ctx }: { props: z.infer<type
         <div className="md:col-span-5 lg:col-span-4">
           <div className="mat md:sticky md:top-28">
             {portrait && (
-              <Image
+              <Picture
                 src={portrait.url}
+                sources={portrait.sources}
                 alt={portrait.alt ? tr(portrait.alt, ctx.locale) : ""}
                 width={portrait.width ?? 900}
                 height={portrait.height ?? 1100}

@@ -15,5 +15,10 @@ export interface MediaStorage {
   getStream(key: string, range?: ByteRange): Promise<Readable>;
   /** Métadonnées, ou null si la clé n'existe pas. */
   stat(key: string): Promise<StoredObject | null>;
+  /**
+   * Chemin local d'un objet existant (lecture par fichier : sharp ne garde
+   * alors pas tout le contenu en mémoire), ou null si le stockage est distant.
+   */
+  localPath(key: string): Promise<string | null>;
   delete(key: string): Promise<void>;
 }

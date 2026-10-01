@@ -50,6 +50,10 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // La médiathèque a changé d'adresse (phase 4b).
+  async redirects() {
+    return [{ source: "/admin/mediatheque", destination: "/admin/medias", permanent: true }];
+  },
   // Serveur autonome minimal (.next/standalone) pour l'image Docker.
   output: "standalone",
   // Accès au serveur de dev à travers le reverse proxy.

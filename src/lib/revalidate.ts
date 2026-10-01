@@ -28,5 +28,7 @@ export const revalidatePage = (id: number, o?: Options & { structure?: boolean }
 /** Un projet et ses slots. `structure` : ajout, suppression ou ordre des projets. */
 export const revalidateProject = (id: number, o?: Options & { structure?: boolean }) =>
   expire(o?.structure ? [TAGS.project(id), TAGS.projects] : [TAGS.project(id)], o);
+/** Liste des projets (création, ordre, suppression) et tout ce qui la lit. */
+export const revalidateProjects = (o?: Options) => expire([TAGS.projects], o);
 /** Médias (alt, remplacement, suppression). */
 export const revalidateMedia = (o?: Options) => expire([TAGS.media], o);

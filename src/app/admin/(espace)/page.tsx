@@ -14,7 +14,7 @@ export default function Dashboard() {
   const stats = [
     { label: "Pages", value: counts.pages, href: "/admin/pages", link: "Organiser les pages" },
     { label: "Projets", value: counts.projects, href: "/admin/projets", link: "Voir les projets" },
-    { label: "Médias", value: counts.media, href: "/admin/mediatheque", link: "Ouvrir la médiathèque" },
+    { label: "Médias", value: counts.media, href: "/admin/medias", link: "Ouvrir la médiathèque" },
   ];
 
   return (

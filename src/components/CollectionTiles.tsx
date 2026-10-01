@@ -1,4 +1,6 @@
-import Image from "next/image";
+import type { PictureSources } from "@/lib/images/variants";
+
+import Picture from "./Picture";
 
 import Eyebrow from "@/components/Eyebrow";
 import { Link } from "@/i18n/navigation";
@@ -11,6 +13,7 @@ export type Tile = {
   intro: string;
   count: string;
   image: string;
+  sources?: PictureSources;
   imageAlt: string;
   width: number;
   height: number;
@@ -37,8 +40,9 @@ export default function CollectionTiles({
             }`}
           >
             <div className="tile-media mat">
-              <Image
+              <Picture
                 src={tile.image}
+                sources={tile.sources}
                 alt={tile.imageAlt}
                 width={tile.width}
                 height={tile.height}

@@ -1,5 +1,6 @@
+import { randomBytes } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import { lstat, mkdir, realpath, rename, rm } from "node:fs/promises";
+import { lstat, mkdir, realpath, rename, rm, rmdir } from "node:fs/promises";
 import path from "node:path";
 import type { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -58,7 +59,8 @@ export class LocalStorage implements MediaStorage {
     const target = this.resolve(key);
     await mkdir(path.dirname(target), { recursive: true });
     // Écriture atomique : fichier temporaire (création exclusive) puis renommage.
-    const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
+    // Nom unique : deux écritures simultanées de la même clé ne se télescopent pas.
+    const tmp = `${target}.${process.pid}.${Date.now()}.${randomBytes(6).toString("hex")}.tmp`;
     try {
       await pipeline(stream as Readable, createWriteStream(tmp, { flags: "wx" }));
       await rename(tmp, target);
@@ -82,7 +84,17 @@ export class LocalStorage implements MediaStorage {
     return safe ? { size: safe.size, mtimeMs: safe.mtimeMs } : null;
   }
 
+  async localPath(key: string): Promise<string | null> {
+    return (await this.safeExisting(key))?.file ?? null;
+  }
+
   async delete(key: string): Promise<void> {
-    await rm(this.resolve(key), { force: true });
+    const file = this.resolve(key);
+    await rm(file, { force: true });
+    // Dossier de variantes devenu vide (img/<hash>/) : retiré aussi.
+    const dir = path.dirname(file);
+    if (dir !== path.resolve(this.root) && path.dirname(dir) !== path.dirname(path.resolve(this.root))) {
+      await rmdir(dir).catch(() => {});
+    }
   }
 }

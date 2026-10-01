@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Picture from "./Picture";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -19,6 +19,16 @@ import type { LocalizedProject } from "@/lib/gallery";
  * bord à bord comme des photogrammes sur une table lumineuse. La légende
  * reste visible en permanence, elle n'est pas une récompense au survol.
  */
+/**
+ * Largeur affichée d'une image de bande : hauteur du rail
+ * (--strip-h = clamp(260px, 34vw, 420px)) × ratio de l'image.
+ */
+function stripSizes(width: number, height: number): string {
+  const ratio = width / Math.max(1, height);
+  const px = (h: number) => `${Math.ceil(h * ratio)}px`;
+  return `(min-width: 1236px) ${px(420)}, (min-width: 765px) calc(34vw * ${ratio.toFixed(3)}), ${px(260)}`;
+}
+
 export default function ProjectStrip({
   project,
   deep = false,
@@ -155,16 +165,17 @@ export default function ProjectStrip({
               triggerRefs.current[index] = node;
             }}
             onClick={() => setOpenIndex(index)}
-            aria-label={`${artwork.title} — ${tg("open")}`}
+            aria-label={`${artwork.title || artwork.alt || artwork.year} — ${tg("open")}`}
             className="strip-frame group text-left"
           >
             <span className="strip-media">
-              <Image
+              <Picture
                 src={artwork.image}
-                alt={artwork.title}
+                sources={artwork.sources}
+                alt={artwork.alt}
                 width={artwork.width}
                 height={artwork.height}
-                sizes="(min-width: 1024px) 640px, 60vw"
+                sizes={artwork.sources ? stripSizes(artwork.width, artwork.height) : "(min-width: 1024px) 640px, 60vw"}
                 className="h-[var(--strip-h)] w-auto max-w-none rounded-strip"
               />
             </span>

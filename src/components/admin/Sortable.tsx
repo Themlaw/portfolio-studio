@@ -16,10 +16,12 @@ import {
   type Announcements,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
+import { restrictToHorizontalAxis, restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import {
   arrayMove,
   SortableContext,
+  horizontalListSortingStrategy,
+  rectSortingStrategy,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
@@ -41,14 +43,14 @@ export function DragHandle() {
   );
 }
 
-function Item({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+function Item({ id, label, children, style: extra }: { id: string; label: string; children: React.ReactNode; style?: React.CSSProperties }) {
   const { setNodeRef, transform, transition, isDragging, listeners, attributes } = useSortable({ id });
   return (
     <li
       ref={setNodeRef}
       className="a-sortable-item"
       data-dragging={isDragging || undefined}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
+      style={{ ...extra, transform: CSS.Translate.toString(transform), transition }}
     >
       <HandleContext.Provider value={{ props: { ...attributes, ...listeners } as HandleProps, label }}>{children}</HandleContext.Provider>
     </li>
@@ -62,6 +64,9 @@ export function SortableList<T>({
   onReorder,
   render,
   className = "a-sortable",
+  layout = "vertical",
+  itemStyle,
+  after,
 }: {
   items: T[];
   getId: (item: T) => string;
@@ -69,6 +74,11 @@ export function SortableList<T>({
   onReorder: (next: T[]) => void;
   render: (item: T, index: number) => React.ReactNode;
   className?: string;
+  /** vertical (liste), horizontal (bande), grid (cartes). */
+  layout?: "vertical" | "horizontal" | "grid";
+  itemStyle?: (item: T) => React.CSSProperties | undefined;
+  /** Éléments non déplaçables affichés après la liste (envois en cours…). */
+  after?: React.ReactNode;
 }) {
   // Identifiant stable : sans lui, dnd-kit génère des id d'accessibilité
   // différents au rendu serveur et au client (écart d'hydratation).
@@ -98,7 +108,13 @@ export function SortableList<T>({
       id={dndId}
       sensors={sensors}
       collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+      modifiers={
+        layout === "vertical"
+          ? [restrictToVerticalAxis, restrictToParentElement]
+          : layout === "horizontal"
+            ? [restrictToHorizontalAxis]
+            : [restrictToParentElement]
+      }
       onDragEnd={onDragEnd}
       accessibility={{
         announcements,
@@ -107,13 +123,17 @@ export function SortableList<T>({
         },
       }}
     >
-      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+      <SortableContext
+        items={ids}
+        strategy={layout === "vertical" ? verticalListSortingStrategy : layout === "horizontal" ? horizontalListSortingStrategy : rectSortingStrategy}
+      >
         <ol className={className}>
           {items.map((item, i) => (
-            <Item key={getId(item)} id={getId(item)} label={getLabel(item)}>
+            <Item key={getId(item)} id={getId(item)} label={getLabel(item)} style={itemStyle?.(item)}>
               {render(item, i)}
             </Item>
           ))}
+          {after}
         </ol>
       </SortableContext>
     </DndContext>

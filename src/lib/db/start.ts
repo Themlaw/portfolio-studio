@@ -42,6 +42,9 @@ export async function start(): Promise<void> {
     }
     const { ensureFirstAdmin } = await import("../auth/seed-admin");
     await ensureFirstAdmin();
+    // Worker des traitements (images) : un job à la fois, reprise des orphelins.
+    const { startWorker } = await import("../jobs/worker");
+    await startWorker();
   } catch (error) {
     console.error("[db] ÉCHEC du démarrage (migrations/seed/admin) : arrêt du serveur.", error);
     process.exit(1);

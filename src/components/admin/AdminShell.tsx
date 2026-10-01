@@ -13,7 +13,7 @@ const NAV = [
   { href: "/admin/themes", label: "Thèmes" },
   { href: "/admin/pages", label: "Pages" },
   { href: "/admin/projets", label: "Projets" },
-  { href: "/admin/mediatheque", label: "Médiathèque" },
+  { href: "/admin/medias", label: "Médiathèque" },
   { href: "/admin/reglages", label: "Réglages" },
 ];
 

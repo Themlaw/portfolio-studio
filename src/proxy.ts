@@ -154,5 +154,8 @@ export default async function proxy(request: NextRequest) {
 export const config = {
   // Toutes les routes sauf l'API, les médias, les fichiers statiques Next
   // et les assets.
-  matcher: ["/((?!api|media|_next|_vercel|.*\\..*).*)"],
+  // /admin/api (envoi de fichiers) est exclu : le proxy met le corps de la
+  // requête en mémoire et le tronque à 10 Mo ; la route se garde elle-même
+  // (assertAdmin + même origine) et lit le corps en flux.
+  matcher: ["/((?!api|admin/api|media|_next|_vercel|.*\\..*).*)"],
 };

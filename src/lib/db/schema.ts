@@ -1,6 +1,6 @@
 /**
  * Schéma SQLite (Drizzle) — phase 2 : contenu, thèmes, réglages, médias.
- * Les tables Better Auth et `jobs` viendront avec les phases 3 et 5.
+ * Tables Better Auth (phase 3) et `jobs` (phase 4b) plus bas.
  *
  * Conventions : textes localisés en JSON `{ fr, en }` ; booléens en entier
  * (mode boolean) ; ordre explicite par colonne `position`.
@@ -35,6 +35,8 @@ export const media = sqliteTable("media", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   /** Clé de stockage, versionnée par le hash du contenu. */
   key: text("key").notNull().unique(),
+  /** SHA-256 du contenu envoyé (null : média du seed). Un contenu = une ligne. */
+  sha256: text("sha256").unique(),
   kind: text("kind", { enum: ["image", "video"] }).notNull(),
   mime: text("mime").notNull(),
   originalName: text("original_name"),
@@ -108,6 +110,9 @@ export const slots = sqliteTable(
       .references(() => projects.id, { onDelete: "cascade" }),
     position: integer("position").notNull(),
     mediaId: integer("media_id").references(() => media.id, { onDelete: "set null" }),
+    /** Ratio largeur/hauteur de la dernière image de l'emplacement : un
+     *  emplacement vidé garde sa largeur. null = créé vide (4:3). */
+    aspect: real("aspect"),
     slug: text("slug").notNull(),
     collection: text("collection", { enum: ["characters", "backgrounds", "animation"] }).notNull(),
     title: text("title", { mode: "json" }).notNull().$type<Localized>(),
@@ -122,6 +127,30 @@ export const slots = sqliteTable(
     index("slots_project_idx").on(t.projectId, t.position),
     uniqueIndex("slots_slug_idx").on(t.slug),
   ],
+);
+
+/**
+ * File de traitements (images ; vidéo en phase 5). Un worker en processus,
+ * concurrence 1, les exécute dans l'ordre (src/lib/jobs). Un job `running`
+ * orphelin (processus arrêté) est remis en file au démarrage.
+ */
+export const jobs = sqliteTable(
+  "jobs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    kind: text("kind", { enum: ["image", "video"] }).notNull(),
+    mediaId: integer("media_id")
+      .notNull()
+      .references(() => media.id, { onDelete: "cascade" }),
+    status: text("status", { enum: ["queued", "running", "done", "failed"] }).notNull().default("queued"),
+    attempts: integer("attempts").notNull().default(0),
+    error: text("error"),
+    /** Pas avant (délai croissant entre deux essais) ; null = tout de suite. */
+    runAfter: integer("run_after", { mode: "timestamp" }),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [index("jobs_status_idx").on(t.status, t.id)],
 );
 
 /* ------------------------------------------------------------------------

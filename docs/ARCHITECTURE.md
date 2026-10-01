@@ -162,6 +162,64 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
 - **Stockage** : interface `MediaStorage { put, get(range), delete, url }`, implémentation
   `LocalStorage` sur `/data/media`. `S3Storage` (Garage) plus tard, même contrat.
 
+### Livré en phase 4b (images)
+
+- **Envoi** : `POST /admin/api/upload` (une image par requête : progression par fichier),
+  `assertAdmin()` + même origine. Hors du `matcher` du proxy : un proxy Next met le corps en
+  mémoire et le tronque à 10 Mo. busboy écrit en flux dans `${DATA_DIR}/tmp` (jamais `/tmp`,
+  tmpfs), SHA-256 au fil de l'eau, plafond `MAX_IMAGE_MB` (40) appliqué pendant le flux.
+- **Type** par signature (`src/lib/upload/sniff.ts`) : JPEG, PNG, WebP, AVIF, GIF ; tout le
+  reste refusé (415). Dimensions lues dans l'en-tête : plus de 100 mégapixels → refus (422)
+  sans décodage. Même contenu envoyé deux fois → même média.
+- **Clés** : original `originals/<sha256>.<ext>` (sans le nom du fichier, qui reste en
+  métadonnée admin `original_name`), jamais servi ; variantes `img/<hash16>/<boîte>.<avif|webp>`,
+  servies seulement pour un média `ready` qui les liste. `media.sha256` est unique
+  (migration 0005) : un contenu = une ligne ; un contenu renvoyé alors qu'il est en échec
+  relance le traitement de cette ligne ; une suppression n'efface que les fichiers qu'aucune
+  autre ligne ne référence, et vérifie les usages dans la même transaction.
+- **Worker** (`src/lib/jobs/worker.ts`) : table `jobs` (migration `0003_jobs`), concurrence 1,
+  démarré par l'instrumentation, jobs `running` orphelins remis en file au démarrage, médias
+  `processing` sans job passés en échec. sharp : `concurrency(1)`, `cache(false)`,
+  `limitInputPixels` 100 MP, `.rotate()` puis aucune métadonnée en sortie ; l'original est
+  décodé une fois (≤ 2400 px), chaque variante en découle. Fin de traitement → invalidation
+  des étiquettes `media` et `projects` (requête interne à jeton si hors requête).
+- **Rendu** : `src/components/Picture.tsx` (`<picture>` AVIF puis WebP, `sizes`, dimensions,
+  fond = couleur dominante d'une image opaque, `loading="lazy"` sauf `priority`). La
+  visionneuse ne propose que la plus grande variante. Les SVG du seed gardent `next/image`.
+- **Admin** : `/admin/projets` (cartes réordonnables), `/admin/projets/<id>` (informations +
+  planche : bande de 180 px de haut, emplacements au ratio de l'image, dépôt de fichiers en
+  fin de bande ou sur un emplacement vide, panneau latéral / feuille du bas), `/admin/medias`
+  (grille, filtres, recherche, détail, « Utilisée dans… »). Les gestes de la planche
+  (déposer, réordonner, retirer, supprimer) sont des actions immédiates et annoncées ; les
+  textes s'enregistrent avec un bouton. Un emplacement vidé garde sa place (ratio 4:3).
+- **Robustesse (passe 4b2)** :
+  - côté de plus de 16 384 px refusé dès l'en-tête ; décodage borné à une boîte de
+    2400 × 2400 (`fit: inside`, réduction au décodage JPEG/WebP), sortie 8 bits sRGB ;
+    variantes en boîtes carrées (`img/<hash>/<boîte>.<format>`). Pics mesurés (VmHWM du
+    serveur, `test:auth` section F) : JPEG 6000×4000 +146 Mo, PNG 2400×16000 +15 Mo,
+    PNG 16 bits 8000×8000 +237 Mo, 16384×16384 refusé (> 100 MP) sans décodage ;
+  - job interrompu `MAX_ATTEMPTS` (3) fois : au démarrage, job et média passent en échec
+    (message lisible), le média reste supprimable ; délai croissant entre essais
+    (`jobs.run_after` : 10 s, 60 s, 5 min) ; 2 min au plus par traitement
+    (`JOB_MAX_DURATION_S`) ; une image illisible échoue au premier essai ;
+  - sharp lit l'original par CHEMIN (un flux serait gardé en mémoire) ; orientation EXIF
+    appliquée après réduction. Pics mesurés (section F) : PNG 16 bits 99 Mpx +250 Mo
+    (448 Mo au total), sous le seuil de 500 Mo : pas de plafond 16 bits par défaut
+    (`MAX_MEGAPIXELS_16BIT` pour en fixer un) ; PNG 9000×6000 orienté 6 : +133 Mo ;
+  - deux envois simultanés du même contenu : l'erreur d'unicité renvoie le média existant ;
+    noms de fichiers temporaires uniques dans le stockage ; un original écrit dont la
+    transaction échoue est supprimé ;
+  - envoi muet 30 s (`UPLOAD_IDLE_TIMEOUT_S`) ou de plus de 10 min
+    (`UPLOAD_MAX_DURATION_S`) → 408 ; fichiers temporaires (envois et `*.tmp` du stockage)
+    purgés au démarrage puis toutes les 15 min ; quota `MEDIA_MAX_TOTAL_GB` (507, avant et
+    après la lecture) ; entrées des server actions en `z.strictObject`.
+- **Emplacements** : `slots.aspect` (migration 0004) garde le ratio de la dernière image ;
+  4:3 seulement pour un emplacement créé vide. Pas de titre par défaut (suggestion dans le
+  panneau) : aucun nom de fichier côté public.
+- **Suppressions** : projet bloqué s'il est cité par « Projets mis en avant » (refs
+  `projects[]`) ; média bloqué s'il est cité par un bloc, sinon ses emplacements sont vidés
+  et l'original et les variantes sont effacés du stockage.
+
 ## Admin (`/admin`, hors i18n, en français)
 
 - **Thèmes** : liste des thèmes avec aperçu, « Activer », « Dupliquer », édition des tokens

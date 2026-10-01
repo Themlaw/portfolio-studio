@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Picture from "./Picture";
 import { useCallback, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
@@ -88,7 +88,7 @@ export default function Lightbox({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={active.title}
+      aria-label={active.title || active.alt}
       className="lightbox fixed inset-0 z-[80] flex flex-col backdrop-blur-sm"
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -125,13 +125,15 @@ export default function Lightbox({
 
         <figure className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-4">
           <div className="mat lightbox-frame max-h-[62vh] max-w-full overflow-hidden">
-            <Image
+            <Picture
               src={active.image}
-              alt={active.title}
+              sources={active.sources}
+              alt={active.alt}
               width={active.width}
               height={active.height}
               className="lightbox-image max-h-[44vh] w-auto max-w-full object-contain md:max-h-[56vh]"
               priority
+              largest
             />
           </div>
         </figure>
@@ -152,7 +154,7 @@ export default function Lightbox({
           écourtée et rappel clavier masqué (il n'y a pas de clavier). */}
       <div className="mx-auto w-full max-w-2xl px-6 pt-4 text-center md:pt-6">
         <h2 className="font-display text-xl text-on-scrim md:text-3xl">
-          {active.title}
+          {active.title || active.alt}
         </h2>
         <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-on-scrim/70 md:mt-3 md:line-clamp-none">
           {active.description}
@@ -179,12 +181,13 @@ export default function Lightbox({
                   thumbRefs.current[i] = node;
                 }}
                 onClick={() => onIndexChange(i)}
-                aria-label={item.title}
+                aria-label={item.title || item.alt || String(i + 1)}
                 aria-current={i === index}
                 className="lb-thumb"
               >
-                <Image
+                <Picture
                   src={item.image}
+                  sources={item.sources}
                   alt=""
                   width={item.width}
                   height={item.height}

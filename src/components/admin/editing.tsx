@@ -9,20 +9,44 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 /* ---- Toasts ------------------------------------------------------------- */
 
-type Toast = { id: number; message: string; tone: "success" | "error" };
+type Toast = { id: number; message: string; tone: "success" | "error"; count: number };
 let toasts: Toast[] = [];
 let nextId = 1;
+const timers = new Map<number, ReturnType<typeof setTimeout>>();
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
+/** Durée d'affichage ; au plus trois toasts à la fois. */
+const TOAST_MS = 3000;
+const MAX_TOASTS = 3;
 
+function schedule(id: number) {
+  clearTimeout(timers.get(id));
+  timers.set(
+    id,
+    setTimeout(() => {
+      timers.delete(id);
+      toasts = toasts.filter((t) => t.id !== id);
+      emit();
+    }, TOAST_MS),
+  );
+}
+
+/** Un message identique déjà affiché est fusionné (compteur ×N) et prolongé. */
 export function toast(message: string, tone: Toast["tone"] = "success") {
-  const id = nextId++;
-  toasts = [...toasts, { id, message, tone }];
+  const same = toasts.find((t) => t.message === message && t.tone === tone);
+  if (same) {
+    toasts = toasts.map((t) => (t === same ? { ...t, count: t.count + 1 } : t));
+    schedule(same.id);
+  } else {
+    const id = nextId++;
+    toasts = [...toasts, { id, message, tone, count: 1 }];
+    while (toasts.length > MAX_TOASTS) {
+      clearTimeout(timers.get(toasts[0].id));
+      toasts = toasts.slice(1);
+    }
+    schedule(id);
+  }
   emit();
-  setTimeout(() => {
-    toasts = toasts.filter((t) => t.id !== id);
-    emit();
-  }, 4000);
 }
 
 const EMPTY: Toast[] = [];
@@ -42,6 +66,7 @@ export function Toaster() {
         <div key={t.id} className={`a-toast a-toast-${t.tone}`}>
           {t.tone === "success" && <span aria-hidden="true">✓ </span>}
           {t.message}
+          {t.count > 1 && <span className="a-toast-count"> ×{t.count}</span>}
         </div>
       ))}
     </div>
@@ -135,6 +160,7 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
   extra,
+  confirmDisabled = false,
 }: {
   open: boolean;
   title: string;
@@ -145,6 +171,7 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onClose: () => void;
   extra?: React.ReactNode;
+  confirmDisabled?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -179,7 +206,7 @@ export function ConfirmDialog({
               type="button"
               className={`a-btn ${danger ? "a-btn-danger" : "a-btn-primary"}`}
               onClick={onConfirm}
-              disabled={busy}
+              disabled={busy || confirmDisabled}
             >
               {busy ? "Un instant…" : confirmLabel}
             </button>

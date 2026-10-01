@@ -11,12 +11,13 @@
  * (scripts/test-references.mjs).
  */
 
-export type BlockRefs = { media?: string[]; pages?: string[] };
+/** `projects` : chemins vers des slugs de projet (chaînes). */
+export type BlockRefs = { media?: string[]; pages?: string[]; projects?: string[] };
 
 export const BLOCK_REFS: Record<string, BlockRefs> = {
   hero: { pages: ["reelPageId"] },
   "collection-tiles": { pages: ["items[].pageId"] },
-  "featured-projects": { pages: ["more.pageId"] },
+  "featured-projects": { pages: ["more.pageId"], projects: ["projects[]"] },
   "collection-intro": {},
   "collection-projects": {},
   video: {},
@@ -59,7 +60,7 @@ export type SlotRow = { id: number; projectId: number; slug: string; mediaId: nu
 
 export type Usage =
   | { kind: "slot"; slotId: number; projectId: number; slug: string }
-  | { kind: "block"; blockId: number; pageId: number; type: string; path: "media" | "pages" };
+  | { kind: "block"; blockId: number; pageId: number; type: string; path: "media" | "pages" | "projects" };
 
 /** Où un média est utilisé : slots de planche et props de blocs. */
 export function mediaUsages(mediaId: number, rows: { slots: SlotRow[]; blocks: BlockRow[] }): Usage[] {
@@ -73,6 +74,19 @@ export function mediaUsages(mediaId: number, rows: { slots: SlotRow[]; blocks: B
     }
   }
   return out;
+}
+
+/** Slugs de projet référencés par un bloc. */
+export function extractProjectRefs(type: string, props: unknown): string[] {
+  const refs = (Object.hasOwn(BLOCK_REFS, type) ? BLOCK_REFS[type] : undefined) ?? {};
+  return (refs.projects ?? []).flatMap((p) => valuesAt(props, p)).filter((v): v is string => typeof v === "string");
+}
+
+/** Blocs qui citent un projet (par son slug). */
+export function projectReferences(slug: string, blocks: BlockRow[]): Usage[] {
+  return blocks
+    .filter((b) => extractProjectRefs(b.type, b.props).includes(slug))
+    .map((b) => ({ kind: "block" as const, blockId: b.id, pageId: b.pageId, type: b.type, path: "projects" as const }));
 }
 
 /** Blocs (d'autres pages ou de la même) qui pointent vers une page. */

@@ -207,6 +207,7 @@ export function seedRows(db: Db, files: SeedFiles): void {
         projectId: projectIds.get(o.project)!,
         position: o.position,
         mediaId: mediaIds.get(a.id)!,
+        aspect: a.width > 0 && a.height > 0 ? a.width / a.height : null,
         slug: a.slug,
         collection: a.collection,
         title: a.title,

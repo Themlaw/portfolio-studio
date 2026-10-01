@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Picture from "./Picture";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -46,9 +46,10 @@ function Frame({
           />
         ) : (
           <>
-            <Image
+            <Picture
               src={item.image}
-              alt={item.title}
+              sources={item.sources}
+              alt={item.alt}
               width={item.width}
               height={item.height}
               sizes={large ? "100vw" : "(min-width: 768px) 50vw, 100vw"}

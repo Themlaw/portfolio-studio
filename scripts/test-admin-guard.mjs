@@ -87,6 +87,19 @@ const EXPECTED = [
   "setInMenuAction",
   "reorderMenuAction",
   "deletePageAction",
+  "createProjectAction",
+  "saveProjectAction",
+  "reorderProjectsAction",
+  "deleteProjectAction",
+  "addSlotsAction",
+  "saveSlotAction",
+  "setSlotMediaAction",
+  "deleteSlotAction",
+  "reorderSlotsAction",
+  "saveMediaAltAction",
+  "deleteMediaAction",
+  "mediaStatusAction",
+  "mediaUsesAction",
 ];
 const found = new Set();
 

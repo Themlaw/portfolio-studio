@@ -1,12 +1,15 @@
 /** Contrat commun des éditeurs de blocs (admin). Module pur, sérialisable. */
 
+import type { AdminMediaRow } from "@/lib/admin";
+
 export type L = { fr: string; en: string };
 
 /** Données de choix fournies par le serveur aux éditeurs (pickers). */
 export type EditorContext = {
   pages: { id: number; title: string; slug: string }[];
   projects: { slug: string; title: string }[];
-  media: { id: number; url: string; name: string }[];
+  /** Médiathèque (sans les échecs de traitement). */
+  media: AdminMediaRow[];
 };
 
 export type BlockEditorProps = {

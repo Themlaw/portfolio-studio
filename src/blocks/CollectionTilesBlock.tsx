@@ -37,7 +37,8 @@ export default async function CollectionTilesBlock({
       intro: tr(item.intro, ctx.locale),
       count: tg("count", { count: await countCollection(item.collection) }),
       image: cover.image,
-      imageAlt: cover.title,
+      sources: cover.sources,
+      imageAlt: cover.alt,
       width: cover.width,
       height: cover.height,
     });

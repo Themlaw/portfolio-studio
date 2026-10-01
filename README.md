@@ -131,6 +131,39 @@ Tests : `npm run test:e2e` (parcours complet des éditeurs, Playwright, serveur
 dev **redémarré puis pré-chauffé**, une connexion) et `npm run shots:editors`
 (captures → `screenshots/phase4a/`). Ils restaurent l'état initial.
 
+### Projets, planches et médiathèque (phase 4b)
+
+- **Projets** (`/admin/projets`) : cartes réordonnables, « Nouveau projet », suppression
+  (bloquée si un bloc « Projets mis en avant » le cite ; les images restent dans la
+  médiathèque).
+- **Planche** (`/admin/projets/<id>`) : dépose des images sur la bande (en fin) ou sur un
+  emplacement vide ; réordonne par la poignée (clavier : Espace, flèches, Espace) ; clique
+  sur une image pour son panneau (titre, description, collection, année, mis en avant, texte
+  alternatif ; remplacer, retirer en gardant la place, supprimer l'emplacement). Les
+  emplacements vides sont masqués sur le site.
+- **Médiathèque** (`/admin/medias`, ancienne adresse `/admin/mediatheque` redirigée) :
+  filtres, recherche, envoi, détail avec « Utilisée dans… », suppression.
+- **Formats acceptés** : JPEG, PNG, WebP, AVIF, GIF (première image), reconnus par leur
+  contenu ; 40 Mo, 100 mégapixels et 16 384 px de côté au plus. Les métadonnées (EXIF,
+  GPS) sont retirées, et seul le site sert les variantes AVIF/WebP : l'original est
+  conservé, jamais servi.
+- **Titres** : une image envoyée n'a pas de titre ; le panneau propose un « Titre
+  suggéré » tiré du nom du fichier, appliqué d'un clic. Le nom du fichier n'est jamais
+  publié. Sans titre, la planche publique n'affiche que l'année.
+- Un emplacement vidé garde la largeur de l'image retirée.
+
+| Variable | Rôle |
+|---|---|
+| `MAX_IMAGE_MB` | Taille maximale d'une image envoyée (défaut 40). La lecture s'arrête dès le dépassement. |
+| `MEDIA_MAX_TOTAL_GB` | Quota facultatif de stockage des médias (originaux + variantes). Au-delà, envoi refusé (« Ton espace de stockage est plein… ») ; l'occupation s'affiche dans la médiathèque. |
+| `UPLOAD_IDLE_TIMEOUT_S` | Abandon d'un envoi qui ne reçoit plus rien (défaut 30 s), fichier temporaire supprimé. |
+| `UPLOAD_MAX_DURATION_S` | Durée totale maximale d'un envoi (défaut 600 s). |
+| `JOB_MAX_DURATION_S` | Durée maximale d'un traitement d'image (défaut 120 s) ; au-delà, l'image passe en échec. |
+| `MAX_MEGAPIXELS_16BIT` | Plafond facultatif pour les PNG 16 bits (défaut : 100, comme les autres). |
+
+Tests : `npm run test:e2e` lance aussi `scripts/e2e-planche.mjs` ; captures :
+`npm run shots:planche` (→ `screenshots/phase4b/`).
+
 ### Authentik (réglages exacts)
 
 1. *Applications → Providers → Create* : **OAuth2/OpenID Provider**.

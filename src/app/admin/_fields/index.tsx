@@ -8,6 +8,7 @@
 import { useId, useState } from "react";
 
 import type { EditorContext, L } from "@/blocks/editor-types";
+import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
 
 const LANGS: { key: keyof L; label: string }[] = [
   { key: "fr", label: "FR" },
@@ -343,19 +344,39 @@ export function MediaPicker({
   error?: string;
   context: EditorContext;
 }) {
-  const name = useId();
+  const [open, setOpen] = useState(false);
+  const current = context.media.find((m) => m.id === value);
   return (
-    <Field label={label} help={help ?? "L'envoi de nouveaux fichiers arrive avec la médiathèque."} error={error}>
-      <div className="a-media-pick" role="radiogroup" aria-label={label}>
-        {context.media.map((m) => (
-          <label key={m.id} className="a-media-choice" title={m.name}>
-            <input type="radio" name={name} checked={value === m.id} onChange={() => onChange(m.id)} />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={m.url} alt="" loading="lazy" />
-            <span className="sr-only">{m.name}</span>
-          </label>
-        ))}
+    <Field label={label} help={help ?? "Choisis une image de la médiathèque, ou envoies-en une nouvelle."} error={error}>
+      <div className="a-media-field">
+        <span className="a-media-field-thumb">
+          {current?.thumb ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={current.thumb} alt="" />
+          ) : (
+            <span className="muted">{value ? "En traitement" : "Aucune image"}</span>
+          )}
+        </span>
+        <span className="a-media-field-name">{current?.name ?? (value ? `Image n° ${value}` : "")}</span>
+        <button type="button" className="a-btn a-btn-small" onClick={() => setOpen(true)}>
+          {value ? "Changer d'image" : "Choisir une image"}
+        </button>
+        {value !== undefined && (
+          <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => onChange(undefined)}>
+            Retirer
+          </button>
+        )}
       </div>
+      <MediaPickerDialog
+        open={open}
+        media={context.media}
+        title={label}
+        onClose={() => setOpen(false)}
+        onPick={(m) => {
+          onChange(m.id);
+          setOpen(false);
+        }}
+      />
     </Field>
   );
 }

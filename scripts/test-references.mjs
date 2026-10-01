@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import assert from "node:assert/strict";
 
 const refs = await import(new URL("../src/blocks/refs.ts", import.meta.url));
-const { BLOCK_REFS, valuesAt, extractRefs, mediaUsages, pageReferences } = refs;
+const { BLOCK_REFS, valuesAt, extractRefs, mediaUsages, pageReferences, projectReferences } = refs;
 
 let passed = 0;
 const test = (name, fn) => {
@@ -19,6 +19,17 @@ const test = (name, fn) => {
   passed++;
   console.log(`PASS  ${name}`);
 };
+
+test("projets cités par « Projets mis en avant »", () => {
+  const blocks = [
+    { id: 1, pageId: 1, type: "featured-projects", props: { projects: ["a", "b"] } },
+    { id: 2, pageId: 2, type: "featured-projects", props: {} },
+    { id: 3, pageId: 2, type: "rich-text", props: { projects: ["a"] } },
+  ];
+  assert.deepEqual(projectReferences("a", blocks).map((u) => u.blockId), [1]);
+  assert.deepEqual(projectReferences("c", blocks), []);
+  assert.deepEqual(projectReferences("constructor", [{ id: 4, pageId: 1, type: "constructor", props: {} }]), []);
+});
 
 test("valuesAt : chemins simples, imbriqués et tableaux", () => {
   const props = { a: 1, more: { pageId: 7 }, items: [{ pageId: 2 }, { pageId: 3 }, {}] };

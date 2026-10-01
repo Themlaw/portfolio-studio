@@ -14,7 +14,8 @@ import type { AppLocale } from "@/i18n/routing";
 
 import { cached, TAGS } from "./cache";
 import { getDb, schema } from "./db";
-import { mediaUrl } from "./media";
+import type { PictureSources } from "./images/variants";
+import { mediaSources, mediaUrl } from "./media";
 
 export type Collection = "characters" | "backgrounds" | "animation";
 
@@ -28,6 +29,10 @@ export type LocalizedArtwork = {
   title: string;
   description: string;
   image: string;
+  /** Texte alternatif de l'image (à défaut, le titre de l'œuvre). */
+  alt: string;
+  /** Variantes AVIF/WebP d'une image téléversée (absent : SVG du seed). */
+  sources?: PictureSources;
   width: number;
   height: number;
   year: number;
@@ -72,6 +77,8 @@ type RawArtwork = {
   videoId: string | null;
   reel: boolean;
   key: string;
+  sources: PictureSources | null;
+  alt: L | null;
   width: number;
   height: number;
 };
@@ -135,6 +142,8 @@ async function snapshot(): Promise<Snapshot> {
           videoId: slot.videoId,
           reel: slot.reel,
           key: media!.key,
+          sources: mediaSources(media!),
+          alt: media!.alt ?? null,
           width: media!.width ?? 1,
           height: media!.height ?? 1,
         }));
@@ -151,12 +160,14 @@ function localize(a: RawArtwork, locale: AppLocale): LocalizedArtwork {
     collection: a.collection,
     title: a.title[locale] ?? a.title.fr,
     description: a.description[locale] ?? a.description.fr,
-    image: mediaUrl(a.key),
+    alt: a.alt?.[locale] || a.title[locale] || a.title.fr,
+    image: a.sources ? a.sources.largest.webp : mediaUrl(a.key),
     width: a.width,
     height: a.height,
     year: a.year,
     featured: a.featured,
   };
+  if (a.sources) out.sources = a.sources;
   if (a.duration) out.duration = a.duration;
   if (a.videoId) out.videoId = a.videoId;
   if (a.reel) out.reel = true;

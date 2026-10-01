@@ -133,6 +133,8 @@ async function measureGroup(page, [label, selector, threshold, scope]) {
   for (let i = 0; i < count; i++) {
     const el = page.locator(selector).nth(i);
     if (!(await el.isVisible())) continue;
+    // Lien-image sans texte (vignette) : rien à lire, pas de contraste de texte.
+    if (!(await el.evaluate((e) => (e.textContent ?? "").trim().length > 0))) continue;
 
     if (scope === "top") {
       await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
@@ -223,7 +225,7 @@ if (ADMIN_MODE) {
   }
   const login = await page.request.post(`${BASE}/api/auth/sign-in/email`, { data: { email, password }, headers: { origin: BASE } });
   if (!login.ok()) throw new Error(`connexion admin refusée (${login.status()})`);
-  for (const [label, path] of [["tableau", "/admin"], ["themes", "/admin/themes"], ["pages", "/admin/pages"], ["page-edit", "/admin/pages/1"], ["reglages", "/admin/reglages"], ["medias", "/admin/mediatheque"]]) {
+  for (const [label, path] of [["tableau", "/admin"], ["themes", "/admin/themes"], ["pages", "/admin/pages"], ["page-edit", "/admin/pages/1"], ["reglages", "/admin/reglages"], ["projets", "/admin/projets"], ["projet", "/admin/projets/1"], ["medias", "/admin/medias"]]) {
     await prepare(page, `${BASE}${path}`);
     for (const g of ADMIN_GROUPS) {
       const r = await measureGroup(page, g);

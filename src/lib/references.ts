@@ -5,7 +5,7 @@
  * pour afficher les usages et bloquer une suppression qui casserait le site.
  * Lecture directe, sans cache : appelée au moment d'une action d'admin.
  */
-import { mediaUsages, pageReferences, type BlockRow, type Usage } from "@/blocks/refs";
+import { mediaUsages, pageReferences, projectReferences, type BlockRow, type Usage } from "@/blocks/refs";
 
 import { getDb, schema } from "./db";
 import { parseJson } from "./json";
@@ -30,4 +30,8 @@ export function findMediaUsages(mediaId: number): Usage[] {
 
 export function findPageReferences(pageId: number): Usage[] {
   return pageReferences(pageId, allBlocks());
+}
+
+export function findProjectReferences(slug: string): Usage[] {
+  return projectReferences(slug, allBlocks());
 }
