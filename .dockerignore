@@ -32,6 +32,10 @@ nohup.out
 !/eslint.config.mjs
 !/postcss.config.mjs
 scripts
+# Scripts appelés par `npm run build` (vérifié par scripts/check-docker-context.mjs).
+!scripts/copy-kit-native.mjs
+# Jeux de test (PSD de l'artiste…) : jamais utiles au build.
+tests
 test-results
 playwright-report
 

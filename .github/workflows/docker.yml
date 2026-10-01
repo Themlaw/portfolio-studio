@@ -40,6 +40,10 @@ jobs:
       - run: npm run check:tokens
       - run: npm run check:contrast
       - run: npm test
+      # Contexte Docker : chaque fichier dont `npm run build` a besoin n'est
+      # pas exclu par .dockerignore (v0.9.0 : build de l'image cassé alors
+      # que le build hors Docker passait).
+      - run: node scripts/check-docker-context.mjs
       # Le standalone (ce qui part dans l'image) ne doit contenir ni sources, ni
       # données, ni configuration : build puis contrôle.
       - run: npm run build
