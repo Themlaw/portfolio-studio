@@ -387,6 +387,20 @@
   mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
 }
 
+/* Survol et focus : la piste et le trait-curseur s'épaississent ensemble (le
+   curseur déborde de la boîte, sans décaler la mise en page). */
+[data-kit-stroke] .rail-bar:hover .rail-bar-track,
+[data-kit-stroke] .rail-bar[data-dragging="true"] .rail-bar-track,
+[data-kit-stroke] .rail-bar:focus-visible .rail-bar-track {
+  height: 12px;
+}
+
+[data-kit-stroke] .rail-bar:hover .rail-bar-thumb,
+[data-kit-stroke] .rail-bar[data-dragging="true"] .rail-bar-thumb,
+[data-kit-stroke] .rail-bar:focus-visible .rail-bar-thumb {
+  height: 18px;
+}
+
 /* ---- Icônes : la forme dessinée, teinte du texte (currentColor) ---------- */
 [data-kit-icon-arrow-left] [data-icon="arrow-left"],
 [data-kit-icon-arrow-right] [data-icon="arrow-right"],

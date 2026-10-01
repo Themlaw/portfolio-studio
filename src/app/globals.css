@@ -101,7 +101,8 @@
   /* Barre de glissement des planches de projet.
      Volontairement minuscule : elle indique la position, elle ne décore pas.
      Le curseur est plus épais que la piste et déborde donc d'1px de chaque
-     côté — c'est ce léger relief qui le rend saisissable à l'œil. */
+     côté — c'est ce léger relief qui le rend saisissable à l'œil. Au survol
+     et au focus, piste et curseur s'épaississent ensemble (×2 et +2px). */
   --rail-bar-track: 2px;
   --rail-bar-thumb: 4px;
   --rail-bar-box: 8px; /* hauteur totale réservée, zone de clic comprise */
@@ -364,12 +365,16 @@
     cursor: pointer;
   }
 
+  /* Piste : une ligne fine mais lisible (≥ 1,5:1 sur le fond, dans chaque
+     thème) — on comprend que le curseur se déplace dessus ; elle ne change
+     jamais de couleur seule. */
   .rail-bar-track {
     position: relative;
     width: 100%;
     height: var(--rail-bar-track);
-    background: var(--color-line);
+    background: color-mix(in srgb, var(--color-ink) 30%, var(--color-bg));
     border-radius: var(--radius-sm);
+    transition: height var(--dur-fast) var(--ease-soft);
   }
 
   .rail-bar-thumb {
@@ -379,12 +384,21 @@
     background: var(--color-primary);
     border-radius: var(--radius-sm);
     transform: translateY(-50%);
-    transition: background var(--dur-fast) var(--ease-soft);
+    transition:
+      background var(--dur-fast) var(--ease-soft),
+      height var(--dur-fast) var(--ease-soft);
+  }
+
+  .rail-bar:hover .rail-bar-track,
+  .rail-bar[data-dragging="true"] .rail-bar-track,
+  .rail-bar:focus-visible .rail-bar-track {
+    height: calc(var(--rail-bar-track) * 2);
   }
 
   .rail-bar:hover .rail-bar-thumb,
   .rail-bar[data-dragging="true"] .rail-bar-thumb,
   .rail-bar:focus-visible .rail-bar-thumb {
+    height: calc(var(--rail-bar-thumb) + 2px);
     background: var(--color-primary-hover);
   }
 

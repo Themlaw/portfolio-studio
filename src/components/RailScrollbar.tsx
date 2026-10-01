@@ -19,6 +19,15 @@ function clamp(value: number, min: number, max: number) {
 }
 
 /**
+ * Largeur du curseur, en part de la piste : plafonnée (12–34 %) pour que son
+ * déplacement se voie quelle que soit la longueur de la planche. Avec le
+ * ratio brut, une planche qui déborde de peu donnait un curseur de 83 % qui
+ * ne bougeait que de 17 % : l'œil voyait surtout la piste grise découverte
+ * (retour de l'artiste sur Décors, v0.10.1).
+ */
+const thumbShare = (ratio: number) => clamp(ratio, 0.12, 0.34);
+
+/**
  * Barre de glissement d'une planche de projet.
  *
  * Elle sert de rattrapage : on voit d'un coup d'œil où on en est dans le
@@ -73,7 +82,7 @@ export default function RailScrollbar({
       if (!track || !rail) return;
 
       const rect = track.getBoundingClientRect();
-      const thumbWidth = rect.width * metrics.ratio;
+      const thumbWidth = rect.width * thumbShare(metrics.ratio);
       const travel = rect.width - thumbWidth;
       if (travel <= 0) return;
 
@@ -88,7 +97,7 @@ export default function RailScrollbar({
     if (!track || metrics.slack === 0) return;
 
     const rect = track.getBoundingClientRect();
-    const thumbWidth = rect.width * metrics.ratio;
+    const thumbWidth = rect.width * thumbShare(metrics.ratio);
     const thumbLeft = rect.left + metrics.progress * (rect.width - thumbWidth);
     const onThumb =
       event.clientX >= thumbLeft && event.clientX <= thumbLeft + thumbWidth;
@@ -141,7 +150,7 @@ export default function RailScrollbar({
   // Rien à piloter : la bande tient dans le cadre.
   if (metrics.slack === 0) return null;
 
-  const widthPct = clamp(metrics.ratio, 0.08, 1) * 100;
+  const widthPct = thumbShare(metrics.ratio) * 100;
   const leftPct = metrics.progress * (100 - widthPct);
 
   return (
