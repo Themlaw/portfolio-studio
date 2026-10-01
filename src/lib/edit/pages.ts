@@ -4,7 +4,7 @@
  * références existantes), accent de page (contraste AA contre le thème actif).
  */
 import { own } from "@/lib/own";
-import { asc, eq, inArray, isNotNull, max } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, max } from "drizzle-orm";
 import { z } from "zod";
 
 import { BLOCKS } from "@/blocks/registry";
@@ -244,6 +244,14 @@ export function deletePage(id: number): ActionResult<null> | { ok: false; messag
       })),
     };
   }
-  db.delete(schema.pages).where(eq(schema.pages.id, id)).run();
+  db.transaction((tx) => {
+    // Surcouche d'emplacements portée par le brouillon de la page : abandonnée avec elle.
+    tx.delete(schema.slots).where(and(eq(schema.slots.draftPageId, id), eq(schema.slots.draftState, "added"))).run();
+    tx.update(schema.slots)
+      .set({ draftState: null, draftPosition: null, draftMediaId: null, draftPageId: null })
+      .where(eq(schema.slots.draftPageId, id))
+      .run();
+    tx.delete(schema.pages).where(eq(schema.pages.id, id)).run();
+  });
   return done(null);
 }

@@ -78,6 +78,20 @@
       "when": 1790856654767,
       "tag": "0010_kit_uploads",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1790880239087,
+      "tag": "0011_editor_drafts",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790886606594,
+      "tag": "0012_editor_drafts_rev",
+      "breakpoints": true
     }
   ]
 }

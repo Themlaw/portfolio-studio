@@ -220,10 +220,19 @@ export default function PagesManager({ pages }: { pages: AdminPageRow[] }) {
               {pages.map((p) => (
                 <tr key={p.id}>
                   <td data-label="Page">
-                    <Link href={`/admin/pages/${p.id}`} className="a-strong-link">
+                    {/* Entrée principale : l'éditeur visuel. */}
+                    <Link href={`/admin/pages/${p.id}/editer`} className="a-strong-link">
                       {p.title}
                     </Link>
                     <span className="muted"> · {p.blocks} bloc{p.blocks > 1 ? "s" : ""}</span>
+                    {p.hasDraft && (
+                      <>
+                        {" "}
+                        <span className="a-tag a-tag-draft" title="Des modifications de l'éditeur ne sont pas encore publiées.">
+                          Brouillon non publié
+                        </span>
+                      </>
+                    )}
                   </td>
                   <td data-label="Adresses" className="mono">
                     {path("fr", p.slug.fr)}
@@ -261,8 +270,11 @@ export default function PagesManager({ pages }: { pages: AdminPageRow[] }) {
                     </button>
                   </td>
                   <td className="a-row-actions">
-                    <Link className="a-btn a-btn-small" href={`/admin/pages/${p.id}`}>
+                    <Link className="a-btn a-btn-small" href={`/admin/pages/${p.id}/editer`}>
                       Modifier
+                    </Link>
+                    <Link className="a-btn a-btn-small a-btn-quiet" href={`/admin/pages/${p.id}`}>
+                      Formulaire
                     </Link>
                     <PreviewPage id={p.id} small />
                     {!isHome(p) && (

@@ -67,6 +67,20 @@ export const pages = sqliteTable("pages", {
   published: integer("published", { mode: "boolean" }).notNull().default(true),
   themeOverrides: text("theme_overrides", { mode: "json" }),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  /**
+   * Brouillon de l'éditeur visuel (JSON : titre, adresses, méta, accent,
+   * blocs) ; null = pas de brouillon, la page publiée fait foi. Lu seulement
+   * par l'admin (éditeur, aperçu en draft mode) ; « Publier » le valide comme
+   * un enregistrement, l'applique aux colonnes et aux blocs, puis le vide.
+   */
+  draft: text("draft", { mode: "json" }),
+  draftUpdatedAt: integer("draft_updated_at", { mode: "timestamp" }),
+  /**
+   * Version du contenu éditable (contrôle optimiste) : augmente à chaque
+   * écriture du brouillon, publication, abandon ou enregistrement du
+   * formulaire. Chaque écriture envoie la version lue ; refusée si elle a changé.
+   */
+  draftRev: integer("draft_rev").notNull().default(0),
 });
 
 export const blocks = sqliteTable(
@@ -124,6 +138,20 @@ export const slots = sqliteTable(
     duration: text("duration"),
     videoId: text("video_id"),
     reel: integer("reel", { mode: "boolean" }).notNull().default(false),
+    /**
+     * Surcouche de brouillon (éditeur visuel, docs/ARCHITECTURE.md) : jamais
+     * lue par le site public. « added » : emplacement créé dans un brouillon,
+     * invisible tant qu'il n'est pas publié ; « removed » : média retiré (la
+     * place est gardée à la publication). `draft_position` / `draft_media_id` :
+     * ordre et média du brouillon. Appliquée à la publication de la page qui
+     * l'a créée (`draft_page_id`), effacée par son « Abandonner ».
+     */
+    draftState: text("draft_state", { enum: ["added", "removed"] }),
+    draftPosition: integer("draft_position"),
+    draftMediaId: integer("draft_media_id").references(() => media.id, { onDelete: "set null" }),
+    /** Page dont le brouillon porte cette surcouche : seule sa publication
+     *  ou son abandon l'applique ou l'efface. */
+    draftPageId: integer("draft_page_id").references(() => pages.id, { onDelete: "set null" }),
   },
   (t) => [
     index("slots_project_idx").on(t.projectId, t.position),

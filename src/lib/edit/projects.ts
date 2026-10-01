@@ -237,7 +237,14 @@ export function deleteSlot(slotId: number): ActionResult<{ projectId: number }> 
 export function reorderSlots(projectId: number, input: unknown): ActionResult<null> {
   const parsed = Ids.safeParse(input);
   const db = getDb();
-  const existing = db.select({ id: schema.slots.id }).from(schema.slots).where(eq(schema.slots.projectId, projectId)).all().map((s) => s.id);
+  // Emplacements publiés (ceux d'un brouillon de page ne sont pas dans cet écran).
+  const existing = db
+    .select({ id: schema.slots.id, state: schema.slots.draftState })
+    .from(schema.slots)
+    .where(eq(schema.slots.projectId, projectId))
+    .all()
+    .filter((s) => s.state !== "added")
+    .map((s) => s.id);
   if (!parsed.success || !isPermutation(parsed.data, existing)) return fail("La planche a changé entre-temps. Recharge la page et recommence.");
   db.transaction((tx) =>
     parsed.data.forEach((id, i) =>

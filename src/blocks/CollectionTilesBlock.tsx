@@ -6,7 +6,7 @@ import Eyebrow from "@/components/Eyebrow";
 import { countCollection, getCollectionCover } from "@/lib/gallery";
 import { hrefForPage } from "@/lib/pages";
 
-import { collection, localized, pageRef, tr, type BlockContext, localizedText } from "./types";
+import { collection, inline, localized, pageRef, tr, type BlockContext, localizedText } from "./types";
 
 export const collectionTilesSchema = z.object({
   eyebrow: localized,
@@ -47,8 +47,8 @@ export default async function CollectionTilesBlock({
   return (
     <section className="shell pt-[var(--section-gap)]">
       <header className="mb-[clamp(2.5rem,5vw,4rem)] max-w-2xl">
-        <Eyebrow>{tr(props.eyebrow, ctx.locale)}</Eyebrow>
-        <h2 className="mt-4 font-display text-[clamp(2.25rem,6vw,4.5rem)] text-ink">
+        <Eyebrow {...inline(ctx, "eyebrow")}>{tr(props.eyebrow, ctx.locale)}</Eyebrow>
+        <h2 className="mt-4 font-display text-[clamp(2.25rem,6vw,4.5rem)] text-ink" {...inline(ctx, "title")}>
           {tr(props.title, ctx.locale)}
         </h2>
       </header>

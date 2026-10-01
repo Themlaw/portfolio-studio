@@ -234,6 +234,25 @@ Tests : `node scripts/e2e-video.mjs` (inclus dans `npm run test:e2e`) ; captures
 Tests : `node scripts/e2e-tags.mjs` (inclus dans `npm run test:e2e`, captures
 `screenshots/phase6a/`) ; `scripts/test-tags.mjs` (règles pures, dans `npm test`).
 
+### Éditeur visuel (phase 7a)
+
+`/admin/pages/<id>/editer` : la page s'édite sur le site lui-même (toile en
+iframe, vue brouillon), avec enregistrement automatique du brouillon et
+« Publier ». Ouverture depuis la liste des Pages, le Tableau de bord, ou le
+bouton « Modifier cette page » du site (admin connectée seulement). Détails :
+docs/ARCHITECTURE.md, « Éditeur visuel : brouillon et publication ».
+
+- **HTTPS (ou localhost) requis pour la toile.** La route de la toile
+  (`/admin/api/editeur/toile`) n'accepte qu'une requête de la même origine,
+  reconnue par l'en-tête `Sec-Fetch-Site` ; les navigateurs ne l'envoient
+  qu'en contexte sécurisé. En HTTP sur une autre adresse (ex.
+  `http://192.0.2.10:3001`), la toile répond **403** : passer par l'URL
+  HTTPS (proxy) ou `http://localhost:3001` (tunnel SSH).
+- Deux onglets, ou l'éditeur et le formulaire, ne s'écrasent jamais :
+  chaque écriture porte la version lue ; si la page a changé ailleurs,
+  l'écriture est refusée et l'éditeur propose de recharger.
+- Tests : `npm run test:e2e-editor` (serveur dev redémarré, un chromium).
+
 ### Authentik (réglages exacts)
 
 1. *Applications → Providers → Create* : **OAuth2/OpenID Provider**.

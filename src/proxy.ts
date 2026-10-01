@@ -51,6 +51,8 @@ async function notFoundResponse(request: NextRequest, locale: string): Promise<R
 }
 
 const ADMIN_LOGIN = "/admin/connexion";
+/** Cookie indicateur du bouton « Modifier cette page » (src/components/EditThisPage.tsx). */
+const ADMIN_HINT_COOKIE = "portfolio-admin";
 /** Cookie du draft mode de Next. */
 const DRAFT_COOKIE = "__prerender_bypass";
 
@@ -123,6 +125,11 @@ function adminGate(request: NextRequest): NextResponse {
   requestHeaders.set("Content-Security-Policy", csp);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
+  // Indicateur (pas une preuve) pour le bouton « Modifier cette page » du site :
+  // seuls les navigateurs qui l'ont vérifient leur session (route dédiée).
+  if (pathname !== ADMIN_LOGIN && !request.cookies.has(ADMIN_HINT_COOKIE)) {
+    response.cookies.set(ADMIN_HINT_COOKIE, "1", { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 30, secure: process.env.NODE_ENV === "production" });
+  }
   return response;
 }
 

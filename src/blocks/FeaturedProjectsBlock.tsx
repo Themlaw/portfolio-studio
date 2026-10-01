@@ -6,7 +6,7 @@ import { Link } from "@/i18n/navigation";
 import { getFeaturedProjects } from "@/lib/gallery";
 import { hrefForPage } from "@/lib/pages";
 
-import { localized, pageRef, tr, type BlockContext, localizedText } from "./types";
+import { inline, localized, pageRef, tr, type BlockContext, localizedText } from "./types";
 
 export const featuredProjectsSchema = z.object({
   eyebrow: localized,
@@ -32,11 +32,13 @@ export default async function FeaturedProjectsBlock({
     <>
       <section className="shell pt-[var(--section-gap)]">
         <header className="max-w-2xl">
-          <Eyebrow>{tr(props.eyebrow, ctx.locale)}</Eyebrow>
-          <h2 className="mt-4 font-display text-[clamp(2rem,5vw,3.75rem)] text-ink">
+          <Eyebrow {...inline(ctx, "eyebrow")}>{tr(props.eyebrow, ctx.locale)}</Eyebrow>
+          <h2 className="mt-4 font-display text-[clamp(2rem,5vw,3.75rem)] text-ink" {...inline(ctx, "title")}>
             {tr(props.title, ctx.locale)}
           </h2>
-          <p className="mt-5 text-base leading-relaxed text-ink-soft">{tr(props.intro, ctx.locale)}</p>
+          <p className="mt-5 text-base leading-relaxed text-ink-soft" {...inline(ctx, "intro")}>
+            {tr(props.intro, ctx.locale)}
+          </p>
         </header>
       </section>
 

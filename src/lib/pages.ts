@@ -23,8 +23,12 @@ export type PageSummary = {
   themeOverrides?: unknown;
 };
 
-/** Bloc lu en base. `props` vaut undefined si le JSON stocké est corrompu. */
-export type RawBlock = { id: number; type: string; props: unknown; corrupt: boolean };
+/**
+ * Bloc lu en base. `props` vaut undefined si le JSON stocké est corrompu.
+ * `uid` : identifiant stable du bloc dans un brouillon (vue brouillon de
+ * l'éditeur visuel).
+ */
+export type RawBlock = { id: number; type: string; props: unknown; corrupt: boolean; uid?: string };
 
 export type NavItem = { id: number; href: string; label: string };
 

@@ -7,6 +7,7 @@ import { cookies, draftMode } from "next/headers";
 
 import { assertAdmin } from "@/lib/auth/guard";
 import { isSameOrigin, localPath } from "@/lib/preview";
+import { DRAFT_VIEW_COOKIE } from "@/lib/draft-view";
 import { PREVIEW_COOKIE } from "@/lib/theme";
 
 export const dynamic = "force-dynamic";
@@ -20,5 +21,7 @@ export async function POST(request: Request) {
 
   (await draftMode()).disable();
   (await cookies()).delete(PREVIEW_COOKIE);
+  // Vue brouillon de l'éditeur visuel coupée aussi.
+  (await cookies()).delete(DRAFT_VIEW_COOKIE);
   return new Response(null, { status: 303, headers: { Location: back, "Cache-Control": "no-store" } });
 }

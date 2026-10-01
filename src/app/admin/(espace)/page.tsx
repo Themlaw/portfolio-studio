@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import PageHeader from "@/components/admin/PageHeader";
 import ThemeSwatches from "@/components/admin/ThemeSwatches";
-import { getAdminCounts, getThemeOverview } from "@/lib/admin";
+import { getAdminCounts, getHomePageId, getThemeOverview } from "@/lib/admin";
 
 export const metadata = { title: "Tableau de bord" };
 
@@ -10,6 +10,7 @@ export default function Dashboard() {
   const counts = getAdminCounts();
   const { activeId, themes } = getThemeOverview();
   const active = themes.find((t) => t.id === activeId);
+  const home = getHomePageId();
 
   const stats = [
     { label: "Pages", value: counts.pages, href: "/admin/pages", link: "Organiser les pages" },
@@ -23,9 +24,16 @@ export default function Dashboard() {
         title="Tableau de bord"
         intro="Ton site en un coup d'œil : l'apparence en ligne et ce qu'il contient."
         action={
-          <a className="a-btn a-btn-primary" href="/" target="_blank" rel="noopener">
-            Voir le site <span aria-hidden="true">↗</span>
-          </a>
+          <div className="a-header-actions">
+            {home !== null && (
+              <Link className="a-btn a-btn-primary" href={`/admin/pages/${home}/editer`}>
+                Modifier la page d&apos;accueil
+              </Link>
+            )}
+            <a className="a-btn" href="/" target="_blank" rel="noopener">
+              Voir le site <span aria-hidden="true">↗</span>
+            </a>
+          </div>
         }
       />
 

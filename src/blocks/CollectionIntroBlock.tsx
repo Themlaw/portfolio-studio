@@ -4,7 +4,7 @@ import { z } from "zod";
 import Eyebrow from "@/components/Eyebrow";
 import { countCollection, getProjectsForCollection } from "@/lib/gallery";
 
-import { collection, localized, tr, type BlockContext, localizedText } from "./types";
+import { collection, inline, localized, tr, type BlockContext, localizedText } from "./types";
 
 export const collectionIntroSchema = z.object({
   collection,
@@ -28,9 +28,13 @@ export default async function CollectionIntroBlock({
 }) {
   const heading = (
     <>
-      <Eyebrow>{tr(props.eyebrow, ctx.locale)}</Eyebrow>
-      <h1 className="mt-4 font-display text-[clamp(2.75rem,8vw,6rem)] text-ink">{tr(props.title, ctx.locale)}</h1>
-      <p className="mt-6 text-base leading-relaxed text-ink-soft">{tr(props.intro, ctx.locale)}</p>
+      <Eyebrow {...inline(ctx, "eyebrow")}>{tr(props.eyebrow, ctx.locale)}</Eyebrow>
+      <h1 className="mt-4 font-display text-[clamp(2.75rem,8vw,6rem)] text-ink" {...inline(ctx, "title")}>
+        {tr(props.title, ctx.locale)}
+      </h1>
+      <p className="mt-6 text-base leading-relaxed text-ink-soft" {...inline(ctx, "intro")}>
+        {tr(props.intro, ctx.locale)}
+      </p>
     </>
   );
 

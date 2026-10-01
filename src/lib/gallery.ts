@@ -13,6 +13,7 @@ import { asc, eq, inArray } from "drizzle-orm";
 import type { AppLocale } from "@/i18n/routing";
 
 import { cached, TAGS } from "./cache";
+import { draftViewPage, isDraftView } from "./draft-view";
 import { getDb, schema } from "./db";
 import type { PictureSources } from "./images/variants";
 import { mediaSources, mediaUrl, videoView, type VideoView } from "./media";
@@ -99,63 +100,100 @@ async function projectIds(): Promise<number[]> {
   );
 }
 
-/** Tout le contenu galerie en une lecture (petit volume), étiqueté par projet. */
+type SlotRow = typeof schema.slots.$inferSelect;
+type MediaRow = typeof schema.media.$inferSelect;
+
+function readProjects(ids: number[]): RawProject[] {
+  if (!ids.length) return [];
+  return getDb()
+    .select({
+      id: schema.projects.id,
+      slug: schema.projects.slug,
+      year: schema.projects.year,
+      featured: schema.projects.featured,
+      title: schema.projects.title,
+      context: schema.projects.context,
+      description: schema.projects.description,
+    })
+    .from(schema.projects)
+    .where(inArray(schema.projects.id, ids))
+    .orderBy(asc(schema.projects.position))
+    .all();
+}
+
+function toArtworks(rows: { slot: SlotRow; media: MediaRow | null }[]): RawArtwork[] {
+  return rows
+    .filter((r) => r.media && r.media.status === "ready")
+    .map(({ slot, media }) => ({
+      id: slot.id,
+      projectId: slot.projectId,
+      position: slot.position,
+      slug: slot.slug,
+      collection: slot.collection,
+      title: slot.title,
+      description: slot.description,
+      year: slot.year,
+      featured: slot.featured,
+      duration: slot.duration,
+      videoId: slot.videoId,
+      reel: slot.reel,
+      key: media!.key,
+      sources: mediaSources(media!),
+      video: videoView(media!),
+      alt: media!.alt ?? null,
+      width: media!.width ?? 1,
+      height: media!.height ?? 1,
+    }));
+}
+
+/**
+ * Tout le contenu galerie en une lecture (petit volume), étiqueté par projet.
+ * Version PUBLIÉE : les colonnes de brouillon des emplacements ne sont jamais
+ * lues, un emplacement créé dans un brouillon (« added ») n'existe pas.
+ * En vue brouillon de l'admin (src/lib/draft-view.ts) : surcouche appliquée,
+ * lecture directe sans cache.
+ */
 async function snapshot(): Promise<Snapshot> {
+  if (await isDraftView()) return draftSnapshot();
   const ids = await projectIds();
   return cached(
     ["gallery", ids.join(",")],
     [TAGS.projects, TAGS.media, ...ids.map(TAGS.project)],
     () => {
-      const db = getDb();
-      const projects = ids.length
-        ? db
-            .select({
-              id: schema.projects.id,
-              slug: schema.projects.slug,
-              year: schema.projects.year,
-              featured: schema.projects.featured,
-              title: schema.projects.title,
-              context: schema.projects.context,
-              description: schema.projects.description,
-            })
-            .from(schema.projects)
-            .where(inArray(schema.projects.id, ids))
-            .orderBy(asc(schema.projects.position))
-            .all()
-        : [];
-      const rows = db
+      const rows = getDb()
         .select({ slot: schema.slots, media: schema.media })
         .from(schema.slots)
         .leftJoin(schema.media, eq(schema.slots.mediaId, schema.media.id))
         .orderBy(asc(schema.slots.id))
-        .all();
-      const artworks: RawArtwork[] = rows
-        .filter((r) => r.media && r.media.status === "ready")
-        .map(({ slot, media }) => ({
-          id: slot.id,
-          projectId: slot.projectId,
-          position: slot.position,
-          slug: slot.slug,
-          collection: slot.collection,
-          title: slot.title,
-          description: slot.description,
-          year: slot.year,
-          featured: slot.featured,
-          duration: slot.duration,
-          videoId: slot.videoId,
-          reel: slot.reel,
-          key: media!.key,
-          sources: mediaSources(media!),
-          video: videoView(media!),
-          alt: media!.alt ?? null,
-          width: media!.width ?? 1,
-          height: media!.height ?? 1,
-        }));
-      return { projects, artworks };
+        .all()
+        .filter((r) => r.slot.draftState !== "added");
+      return { projects: readProjects(ids), artworks: toArtworks(rows) };
     },
   );
 }
 
+/**
+ * Vue brouillon : la surcouche portée par le brouillon de la page rendue
+ * (ordre, média, état) ; celle d'une autre page est ignorée (version publiée).
+ */
+function draftSnapshot(): Snapshot {
+  const pageId = draftViewPage();
+  const db = getDb();
+  const ids = db.select({ id: schema.projects.id }).from(schema.projects).orderBy(asc(schema.projects.position)).all().map((r) => r.id);
+  const media = new Map(db.select().from(schema.media).all().map((m) => [m.id, m]));
+  const rows = db
+    .select()
+    .from(schema.slots)
+    .orderBy(asc(schema.slots.id))
+    .all()
+    .filter((slot) => slot.draftState !== "added" || slot.draftPageId === pageId)
+    .map((slot) => {
+      if (slot.draftPageId !== pageId) return { slot, media: slot.mediaId ? (media.get(slot.mediaId) ?? null) : null };
+      const mediaId = slot.draftState === "removed" ? null : (slot.draftMediaId ?? slot.mediaId);
+      return { slot: { ...slot, position: slot.draftPosition ?? slot.position }, media: mediaId ? (media.get(mediaId) ?? null) : null };
+    });
+  return { projects: readProjects(ids), artworks: toArtworks(rows) };
+}
 
 function localize(a: RawArtwork, locale: AppLocale): LocalizedArtwork {
   const out: LocalizedArtwork = {

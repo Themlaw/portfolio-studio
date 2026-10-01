@@ -393,6 +393,113 @@ brouillon (`apply.ts`). Jeu de test réel : `tests/fixtures/kit-synthetique.psd`
 - **Glisser-déposer** : dnd-kit (`src/components/admin/Sortable.tsx`), poignée,
   clavier, annonces en français ; l'ordre du menu s'enregistre avec un bouton.
 
+### Éditeur visuel : brouillon et publication (phase 7a)
+
+Entrée principale de l'édition : `/admin/pages/<id>/editer` (groupe de routes
+`(editeur)`, plein écran, `requireAdmin`). Accès depuis la liste des Pages (clic
+sur la page), le Tableau de bord (« Modifier la page d'accueil ») et le site
+public (bouton « Modifier cette page »). Le formulaire `/admin/pages/<id>` reste
+disponible (lien « Formulaire »).
+
+**Modèle (migrations `0011_editor_drafts`, `0012_editor_drafts_rev`).**
+
+- `pages.draft` (JSON) + `pages.draft_updated_at` : TOUT l'état éditable de la
+  page (titre, adresses, méta, publication, menu, accent, blocs), chaque bloc
+  avec un identifiant stable `uid`. `null` = pas de brouillon, la version
+  publiée fait foi. Pourquoi un JSON plutôt qu'une table `draft_blocks` : le
+  brouillon est un état de travail d'une seule personne, lu et écrit d'un bloc ;
+  il doit pouvoir être incomplet (un bloc ajouté n'a pas encore ses textes) ; la
+  publication repasse de toute façon par la validation complète.
+- Emplacements de planche (`slots`, données de projet partagées entre pages) :
+  surcouche `draft_state` (`added` : créé dans un brouillon, inexistant pour le
+  public et pour l'écran Projets ; `removed` : média retiré, place gardée),
+  `draft_position`, `draft_media_id` (FK `media`, `ON DELETE SET NULL`), et
+  `draft_page_id` : la page dont le brouillon porte la surcouche. Pas de copie
+  des slots : publier CETTE page applique sa surcouche, « Abandonner » l'efface
+  (ses `added` sont supprimés) ; une autre page qui partage le projet n'y touche
+  jamais, et sa vue brouillon ne la montre pas. Supprimer la page abandonne sa
+  surcouche. Les colonnes sont prêtes en 7a ; leur écriture depuis la toile
+  arrive en 7b.
+- `pages.draft_rev` : contrôle de version optimiste. Augmente à chaque écriture
+  du contenu éditable (brouillon, publication, abandon, formulaire, publication
+  ou menu changés depuis la liste quand un brouillon existe). Chaque écriture
+  envoie la version lue ; si elle a changé, refus `code: "conflict"` sans rien
+  écrire : deux onglets, ou l'éditeur et le formulaire, ne s'écrasent jamais,
+  et un onglet en retard ne recrée pas un brouillon après une publication.
+  L'éditeur s'arrête (« Modifié ailleurs ») et propose « Recharger », avec ses
+  textes en cours à copier ; le formulaire affiche le même refus.
+- Brouillon illisible (un type de bloc a disparu…) : `readDraft` le signale
+  (`corrupt`) au lieu de le perdre ; enregistrement, publication et formulaire
+  refusent de l'écraser (`code: "corrupt"`) tant que l'artiste n'a pas choisi
+  « Repartir de la version publiée » (abandon explicite, confirmé).
+
+**Écritures** (`src/lib/edit/drafts.ts`, actions de `pages/actions.ts`, toutes
+gardées par `assertAdmin()`).
+
+- `saveDraftAction(id, brouillon, version)` : enregistrement automatique
+  (~800 ms après la dernière modification, aussitôt pour un changement de
+  structure). Contrôle de forme seulement (types connus, 40 blocs, uid uniques,
+  256 Ko, 16 niveaux d'imbrication ; toute erreur → refus, jamais un 500) ;
+  écriture conditionnelle sur la version ; rien n'est revalidé (un brouillon
+  n'est jamais en cache).
+- `publishDraftAction(id, version)` : refus immédiat sans brouillon ; en UNE
+  transaction, `savePage()` sur le brouillon — exactement la
+  validation d'un enregistrement (schémas des blocs, références, adresses,
+  contraste de l'accent), erreurs par champ `blocks.<i>.props.…` rattachées au
+  bloc —, surcouche de la page appliquée, brouillon vidé et version incrémentée ;
+  puis `revalidatePage({ structure })` et `revalidateProject` des projets cités
+  avant ET après (version publiée lue avant l'écriture) et de ceux de la surcouche.
+- `discardDraftAction` : brouillon et surcouche effacés (confirmation dans l'UI).
+- Cohérence des autres écrans : le formulaire de page reprend le brouillon
+  (bandeau) et son « Enregistrer » le publie (un seul état, jamais deux) ;
+  Publier/Dépublier et le menu depuis la liste mettent à jour le brouillon ;
+  la liste des Pages marque « Brouillon non publié » ; l'écran Projets montre la
+  planche publiée et signale les emplacements en brouillon ; « Utilisé dans… »
+  compte les brouillons (on ne supprime pas ce qu'un brouillon utilise).
+
+**Vue brouillon** (`src/lib/draft-view.ts`) = draft mode de Next + cookie
+`page-draft=1` + session admin vérifiée en base. Le cookie est posé par
+`GET /admin/api/editeur/toile?page=&langue=` (`assertAdmin`, même origine via
+`Sec-Fetch-Site`), qui redirige vers la page. Dans cette vue seulement : blocs
+du brouillon lus sans cache, galerie avec la surcouche appliquée, chaque bloc
+enveloppé d'un repère `display: contents` (`data-edit-block`, type, libellé ;
+clé React = uid + empreinte des props, pour remonter à neuf un bloc modifié en
+place), champs `inline` marqués `data-inline`, bloc incomplet signalé au lieu
+d'être masqué. Hors draft mode, aucun cookie n'est lu : les pages restent
+statiques et le HTML public ne contient jamais de brouillon ni de repère.
+`frame-ancestors 'self'` reste limité aux requêtes portant le cookie de draft
+mode. `page-draft` est un cookie de session ; « Quitter l'aperçu » le retire.
+La toile exige `Sec-Fetch-Site: same-origin`, envoyé seulement en contexte
+sécurisé : en HTTP hors localhost, elle répond 403 (README).
+
+**Toile et couche d'édition.** La toile est le site dans une iframe de la même
+origine. En vue brouillon, la page prend aussi le méta-titre et l'accent du
+brouillon. `EditLayer` (rendu par `PreviewBanner` en vue brouillon seulement,
+chargé à part avec `next/dynamic` : ni son JS ni `edit-layer.css` dans le
+bundle public)
+reste inerte tant que l'éditeur parent ne l'a pas allumée ; messages
+`postMessage` validés par un schéma zod discriminé par `kind`
+(`src/lib/edit/protocol.ts`, testé par `scripts/test-protocol.mjs`), origine ET
+source vérifiées des deux côtés ; un message invalide est ignoré. La couche dessine dans un calque à part (contour au survol,
+étiquette, barre ↑ ↓ ⧉ ✕, poignée, repère « Déposer ici ») et envoie les
+intentions ; l'éditeur tient le brouillon et l'historique (Annuler/Rétablir,
+100 pas), enregistre, puis demande `router.refresh()` à la toile. Textes en
+place : métadonnée `inline` du registre (chemins de props localisées, `*` pour
+un indice), double-clic ou Entrée, langue de la toile ; l'éditeur refuse un
+chemin non déclaré. Glisser depuis la palette : l'éditeur capture le pointeur et
+transmet les coordonnées, la couche répond l'index d'insertion. Clavier : Tab
+parcourt les blocs (calque en tête du document), Entrée choisit, Suppr demande
+confirmation, Échap désélectionne ; Ctrl+Z / Ctrl+Maj+Z depuis la toile aussi.
+Aperçu : la couche ne dessine plus rien, l'éditeur masque barre et panneau.
+
+**« Modifier cette page »** (`EditThisPage`, client seulement : rien au rendu
+serveur, donc rien dans le HTML en cache ; styles en ligne, aucune feuille de
+l'admin dans le CSS public). Il n'interroge
+`/admin/api/editeur/session` (lecture seule, `no-store`) que si le cookie
+indicateur `portfolio-admin` existe — posé par le proxy sur les requêtes admin
+portant une session, ce n'est pas une preuve — ; affiché seulement si la
+session est admin, jamais dans un cadre.
+
 ## Authentification (phase 3)
 
 - **Better Auth 1.7**, adaptateur Drizzle, tables `user`, `session`, `account`,
@@ -450,5 +557,5 @@ indépendante (GO / NO-GO mesuré) → validation visuelle → commit squashé s
 
 ## Hors périmètre pour l'instant
 
-Multi-utilisateurs avec rôles, historique des versions de contenu, brouillons par page,
-HLS adaptatif, CDN.
+Multi-utilisateurs avec rôles, historique des versions de contenu (au-delà du
+brouillon unique par page de la phase 7a), HLS adaptatif, CDN.

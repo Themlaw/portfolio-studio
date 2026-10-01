@@ -11,7 +11,16 @@ export type Localized = z.infer<typeof localized>;
 export const pageRef = z.number().int().positive();
 export const collection = z.enum(["characters", "backgrounds", "animation"]);
 
-export type BlockContext = { locale: AppLocale; pageId: number };
+/** `edit` : vue brouillon de l'éditeur visuel (marqueurs d'édition en place). */
+export type BlockContext = { locale: AppLocale; pageId: number; edit?: boolean };
+
+/**
+ * Marqueur d'un champ éditable en place (déclaré dans `inline` au registre) :
+ * seulement en vue brouillon, jamais dans le HTML public.
+ */
+export function inline(ctx: BlockContext, path: string): { "data-inline"?: string } {
+  return ctx.edit ? { "data-inline": path } : {};
+}
 
 export function tr(value: Localized, locale: AppLocale): string {
   return value[locale] ?? value.fr;

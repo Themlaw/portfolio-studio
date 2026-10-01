@@ -11,13 +11,13 @@ import {
   createPage,
   deletePage,
   reorderMenu,
-  savePage,
   setInMenu,
   setPublished,
   type PageReference,
 } from "@/lib/edit/pages";
+import { discardDraft, publishDraft, saveDraft, savePageFromForm, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
 import { fail, type ActionResult } from "@/lib/edit/result";
-import { revalidateNav, revalidatePage } from "@/lib/revalidate";
+import { revalidateNav, revalidatePage, revalidateProject } from "@/lib/revalidate";
 
 const Id = z.number().int().positive();
 
@@ -33,12 +33,55 @@ export async function createPageAction(input: unknown): Promise<ActionResult<{ i
   return result;
 }
 
-export async function savePageAction(id: unknown, input: unknown): Promise<ActionResult<null>> {
+/**
+ * Formulaire de page : publie ce qu'il montre (brouillon compris) et vide le
+ * brouillon. `rev` : version lue au chargement (contrôle optimiste).
+ */
+export async function savePageAction(id: unknown, input: unknown, rev: unknown): Promise<DraftResult<{ rev: number }>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
-  const result = savePage(pid, input);
-  if (result.ok) revalidatePage(pid, { structure: true });
+  const result = savePageFromForm(pid, input, rev);
+  if (!result.ok) return result;
+  revalidatePage(pid, { structure: true });
+  for (const project of result.data.projects) revalidateProject(project);
+  return { ok: true, data: { rev: result.data.rev } };
+}
+
+/**
+ * Éditeur visuel : enregistrement automatique du brouillon. Rien n'est
+ * revalidé : un brouillon n'est jamais dans le cache public, la vue brouillon
+ * de l'admin le relit sans cache.
+ */
+export async function saveDraftAction(id: unknown, draft: unknown, rev: unknown): Promise<DraftResult<{ savedAt: number; rev: number }>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Page inconnue.");
+  return saveDraft(pid, draft, rev);
+}
+
+/** Publier : validation complète (comme un enregistrement), page et projets touchés revalidés. */
+export async function publishDraftAction(id: unknown, rev: unknown): Promise<DraftResult<PublishResult>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Page inconnue.");
+  const result = publishDraft(pid, rev);
+  if (!result.ok) return result;
+  revalidatePage(pid, { structure: true });
+  for (const project of result.data.projects) revalidateProject(project);
+  return result;
+}
+
+/** Abandonner les modifications : brouillon et surcouche de la page effacés. */
+export async function discardDraftAction(id: unknown, rev: unknown): Promise<DraftResult<{ projects: number[]; rev: number }>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Page inconnue.");
+  const result = discardDraft(pid, rev);
+  if (!result.ok) return result;
+  // Les emplacements « added » supprimés n'étaient pas publics : revalidation
+  // par prudence du cache des projets touchés.
+  for (const project of result.data.projects) revalidateProject(project);
   return result;
 }
 
@@ -47,7 +90,10 @@ export async function setPublishedAction(id: unknown, published: unknown): Promi
   const pid = pageId(id);
   if (!pid || typeof published !== "boolean") return fail("Requête invalide.");
   const result = setPublished(pid, published);
-  if (result.ok) revalidatePage(pid, { structure: true });
+  if (result.ok) {
+    syncDraftFlags(pid, { published });
+    revalidatePage(pid, { structure: true });
+  }
   return result;
 }
 
@@ -56,7 +102,10 @@ export async function setInMenuAction(id: unknown, inMenu: unknown): Promise<Act
   const pid = pageId(id);
   if (!pid || typeof inMenu !== "boolean") return fail("Requête invalide.");
   const result = setInMenu(pid, inMenu);
-  if (result.ok) revalidateNav();
+  if (result.ok) {
+    syncDraftFlags(pid, { inMenu });
+    revalidateNav();
+  }
   return result;
 }
 

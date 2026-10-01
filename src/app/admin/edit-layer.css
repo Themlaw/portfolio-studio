@@ -1,0 +1,246 @@
+/* ==========================================================================
+   Couche d'édition de la toile (éditeur visuel), dessinée SUR LE SITE PUBLIC
+   en vue brouillon seulement (src/components/EditLayer.tsx). Elle appartient
+   à l'admin : couleurs de l'admin, jamais celles du thème. Couleurs
+   littérales autorisées dans ce fichier (scripts/check-tokens.mjs).
+   ========================================================================== */
+.pe-host {
+  --pe-accent: #2e4e9e;
+  --pe-accent-soft: #e8edf8;
+  --pe-ink: #1f2226;
+  --pe-surface: #ffffff;
+  --pe-danger: #a33a2c;
+
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  z-index: 2147483000;
+}
+
+.pe-layer {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  font: 500 12px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--pe-ink);
+}
+
+.pe-box,
+.pe-focus {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.pe-focus {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  opacity: 0;
+}
+
+.pe-focus:focus-visible {
+  opacity: 1;
+  outline: 2px dashed var(--pe-accent);
+  outline-offset: -2px;
+}
+
+.pe-hover {
+  outline: 1px solid rgba(46, 78, 158, 0.55);
+  outline-offset: -1px;
+}
+
+.pe-selected {
+  outline: 2px solid var(--pe-accent);
+  outline-offset: -2px;
+}
+
+.pe-selected[data-dragging] {
+  background: rgba(232, 237, 248, 0.45);
+}
+
+.pe-tag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 4px 8px 5px;
+  border-radius: 0 0 6px 0;
+  background: var(--pe-accent);
+  color: var(--pe-surface);
+  white-space: nowrap;
+}
+
+.pe-tag-soft {
+  background: rgba(46, 78, 158, 0.85);
+}
+
+.pe-tools {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  gap: 2px;
+  margin-top: 6px;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--pe-ink);
+  box-shadow: 0 6px 18px rgba(31, 34, 38, 0.22);
+  pointer-events: auto;
+}
+
+.pe-tools button {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--pe-surface);
+  font: 600 14px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.pe-tools button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.pe-tools button:focus-visible {
+  outline: 2px solid var(--pe-surface);
+  outline-offset: -2px;
+}
+
+.pe-tools button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pe-tools .pe-grip {
+  cursor: grab;
+  touch-action: none;
+}
+
+.pe-tools .pe-danger:hover {
+  background: var(--pe-danger);
+}
+
+@media (pointer: coarse) {
+  .pe-tools button {
+    width: 38px;
+    height: 36px;
+  }
+}
+
+.pe-marker {
+  position: absolute;
+  left: 12px;
+  width: calc(100vw - 24px);
+  height: 0;
+  border-top: 3px solid var(--pe-accent);
+  transform: translateY(-1.5px);
+}
+
+.pe-marker span {
+  position: absolute;
+  top: -13px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--pe-accent);
+  color: var(--pe-surface);
+  white-space: nowrap;
+}
+
+.pe-empty {
+  position: absolute;
+  left: 24px;
+  width: calc(100vw - 48px);
+  padding: 40px 16px;
+  border: 2px dashed rgba(46, 78, 158, 0.55);
+  border-radius: 8px;
+  background: var(--pe-accent-soft);
+  color: var(--pe-accent);
+  font-size: 14px;
+  text-align: center;
+}
+
+.pe-empty[data-over] {
+  border-style: solid;
+}
+
+.pe-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--pe-ink);
+  color: var(--pe-surface);
+  box-shadow: 0 8px 22px rgba(31, 34, 38, 0.28);
+  white-space: nowrap;
+}
+
+.pe-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* ---- Sur la page elle-même, en mode édition seulement -------------------- */
+[data-edit-block] {
+  display: contents;
+}
+
+[data-edit-mode] [data-inline] {
+  cursor: text;
+}
+
+[data-edit-mode] [data-inline]:hover {
+  box-shadow: inset 0 -2px 0 rgba(46, 78, 158, 0.45);
+}
+
+[data-edit-mode] [data-inline][data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  opacity: 0.4;
+}
+
+[data-edit-mode] [data-editing] {
+  outline: 2px solid #2e4e9e;
+  outline-offset: 4px;
+  border-radius: 2px;
+  box-shadow: none;
+  cursor: text;
+}
+
+[data-edit-mode] a,
+[data-edit-mode] button:not(.pe-layer button) {
+  cursor: default;
+}
+
+[data-edit-dragging],
+[data-edit-dragging] * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+/* Bloc invalide ou incomplet (vue brouillon) : signalé, jamais caché. */
+[data-edit-invalid] {
+  margin: 24px;
+  padding: 18px 20px;
+  border: 1px dashed #8a5a12;
+  border-radius: 6px;
+  background: #fbf3e6;
+  color: #5c3c0c;
+  font: 500 14px/1.4 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+}

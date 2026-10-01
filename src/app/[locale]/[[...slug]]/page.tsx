@@ -6,6 +6,7 @@ import { getTranslations } from "next-intl/server";
 import BlockList from "@/blocks/BlockList";
 import NotFoundView from "@/components/NotFoundView";
 import { routing, type AppLocale } from "@/i18n/routing";
+import { getDraftBlocks, getDraftPageInfo, isDraftView, setDraftViewPage } from "@/lib/draft-view";
 import { resolvePage } from "@/lib/page-preview";
 import { getPageBlocks, localizedPath, pageAccent } from "@/lib/pages";
 import { getActiveTheme } from "@/lib/theme";
@@ -39,9 +40,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
     const [t, site] = await Promise.all([getTranslations({ locale, namespace: "notFound" }), getSite(locale)]);
     return { title: `${t("title")} — ${site.name}`, robots: { index: false, follow: true } };
   }
+  // Vue brouillon : titre et méta du brouillon (jamais hors draft mode).
+  const draft = (await isDraftView()) ? getDraftPageInfo(page.id) : null;
+  const meta = draft ? draft.meta : page.meta;
+  const title = draft ? draft.title : page.title;
   return {
-    title: page.meta?.title[locale] || page.title[locale],
-    description: page.meta?.description[locale] || undefined,
+    title: meta?.title[locale] || title[locale],
+    description: meta?.description[locale] || undefined,
     alternates: {
       canonical: localizedPath(page, locale),
       languages: Object.fromEntries(routing.locales.map((l) => [l, localizedPath(page, l)])),
@@ -60,9 +65,17 @@ export default async function Page({ params }: { params: Params }) {
   // (thème, en-tête, pied) et du cache ISR.
   if (!page) return <NotFoundView />;
 
-  const blocks = await getPageBlocks(page.id);
-  const list = <BlockList blocks={blocks} ctx={{ locale, pageId: page.id }} />;
-  const accent = pageAccent(page);
+  // Vue brouillon de l'éditeur visuel (admin, draft mode, cookie dédié) : le
+  // brouillon s'il existe, sinon la version publiée, blocs repérés par un uid
+  // stable (b0, b1… comme l'éditeur les reprend). Jamais en cache public.
+  const draftView = await isDraftView();
+  if (draftView) setDraftViewPage(page.id);
+  const blocks = draftView
+    ? ((await getDraftBlocks(page.id)) ?? (await getPageBlocks(page.id)).map((b, i) => ({ ...b, uid: `b${i}` })))
+    : await getPageBlocks(page.id);
+  const list = <BlockList blocks={blocks} ctx={{ locale, pageId: page.id, edit: draftView }} />;
+  const draftInfo = draftView ? getDraftPageInfo(page.id) : null;
+  const accent = draftInfo ? draftInfo.accent : pageAccent(page);
   if (!accent) return list;
   // L'accent a été contrôlé contre le thème en ligne à l'enregistrement ; si le
   // thème a changé depuis et qu'il n'est plus lisible, il est ignoré.

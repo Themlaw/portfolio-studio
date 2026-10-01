@@ -29,4 +29,6 @@ export type BlockCatalogEntry = {
   description: string;
   defaults: Record<string, unknown>;
   summary: string;
+  /** Textes modifiables en place sur la toile (registre, `inline`). */
+  inline: string[];
 };

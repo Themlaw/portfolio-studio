@@ -44,7 +44,16 @@ export function getThemeOverview(): ThemeOverview {
   return { activeId: typeof active === "string" ? active : "", themes };
 }
 
-export type AdminPageRow = { id: number; title: string; slug: L; navOrder: number | null; published: boolean; blocks: number };
+export type AdminPageRow = {
+  id: number;
+  title: string;
+  slug: L;
+  navOrder: number | null;
+  published: boolean;
+  blocks: number;
+  /** Brouillon de l'éditeur visuel en attente de publication. */
+  hasDraft: boolean;
+};
 
 export function listPagesForAdmin(): AdminPageRow[] {
   const db = getDb();
@@ -66,6 +75,7 @@ export function listPagesForAdmin(): AdminPageRow[] {
       navOrder: p.navOrder,
       published: p.published,
       blocks: byPage.get(p.id) ?? 0,
+      hasDraft: p.draft !== null,
     }));
 }
 
@@ -84,7 +94,9 @@ export type AdminProjectRow = {
 
 export function listProjectsForAdmin(): AdminProjectRow[] {
   const db = getDb();
-  const slots = db.select().from(schema.slots).orderBy(asc(schema.slots.position)).all();
+  // Emplacements publiés seulement : un emplacement créé dans un brouillon de
+  // page (draft_state « added ») n'existe pas encore pour cet écran.
+  const slots = db.select().from(schema.slots).orderBy(asc(schema.slots.position)).all().filter((s) => s.draftState !== "added");
   const media = new Map(db.select().from(schema.media).all().map((m) => [m.id, m]));
   return db
     .select()
@@ -244,6 +256,8 @@ export type AdminProjectEdit = {
   year: string;
   featured: boolean;
   slots: AdminSlot[];
+  /** Emplacements avec une modification en brouillon (éditeur visuel), pas encore publiée. */
+  pendingDrafts: number;
 };
 
 export function getProjectForEdit(id: number): AdminProjectEdit | null {
@@ -251,7 +265,11 @@ export function getProjectForEdit(id: number): AdminProjectEdit | null {
   const p = db.select().from(schema.projects).where(eq(schema.projects.id, id)).get();
   if (!p) return null;
   const media = new Map(db.select().from(schema.media).all().map((m) => [m.id, m]));
-  const slots = db.select().from(schema.slots).where(eq(schema.slots.projectId, id)).orderBy(asc(schema.slots.position)).all();
+  const all = db.select().from(schema.slots).where(eq(schema.slots.projectId, id)).orderBy(asc(schema.slots.position)).all();
+  // Version publiée de la planche ; les modifications en brouillon d'une page
+  // (éditeur visuel) sont comptées pour être signalées.
+  const slots = all.filter((s) => s.draftState !== "added");
+  const pendingDrafts = all.filter((s) => s.draftState !== null || s.draftPosition !== null || s.draftMediaId !== null).length;
   const progressMap = jobProgress();
   return {
     id: p.id,
@@ -261,6 +279,7 @@ export function getProjectForEdit(id: number): AdminProjectEdit | null {
     description: asL(p.description),
     year: p.year,
     featured: p.featured,
+    pendingDrafts,
     slots: slots.map((s) => {
       const m = s.mediaId ? media.get(s.mediaId) : undefined;
       return {
@@ -383,4 +402,9 @@ export function listPageAccents(): { id: number; title: string; accent: string }
 export function getActiveThemeColors(): Theme["tokens"]["color"] | null {
   const { activeId, themes } = getThemeOverview();
   return themes.find((t) => t.id === activeId)?.tokens.color ?? null;
+}
+
+/** Identifiant de la page d'accueil (adresses vides), ou null. */
+export function getHomePageId(): number | null {
+  return getDb().select({ id: schema.pages.id, slug: schema.pages.slug }).from(schema.pages).all().find((p) => p.slug.fr === "" && p.slug.en === "")?.id ?? null;
 }

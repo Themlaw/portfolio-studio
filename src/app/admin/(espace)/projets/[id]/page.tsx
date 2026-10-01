@@ -22,6 +22,14 @@ export default async function ProjectEditPage({ params }: { params: Promise<{ id
           </Link>
         }
       />
+      {project.pendingDrafts > 0 && (
+        // Cet écran montre (et modifie) la planche publiée ; l'éditeur visuel
+        // garde ses changements en brouillon jusqu'à « Publier ».
+        <p className="a-notice" role="status">
+          {project.pendingDrafts > 1 ? `${project.pendingDrafts} emplacements ont` : "Un emplacement a"} des modifications en brouillon dans
+          l&apos;éditeur visuel d&apos;une page : elles n&apos;apparaissent ici qu&apos;après « Publier » sur cette page.
+        </p>
+      )}
       <ProjectEditor project={project} library={listMediaForAdmin()} />
     </>
   );

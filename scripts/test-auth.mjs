@@ -63,7 +63,8 @@ process.on("exit", () => {
   spawnSync("pkill", ["-KILL", "-x", "ffmpeg"]);
 });
 
-function startServer(dataDir, env) {
+/** `probe` : chemin interrogé pour savoir le serveur prêt (« /fr » le met en cache). */
+function startServer(dataDir, env, probe = "/fr") {
   mkdirSync(dataDir, { recursive: true });
   const logs = [];
   const child = spawn(process.execPath, ["server.js"], {
@@ -87,7 +88,7 @@ function startServer(dataDir, env) {
     for (let i = 0; i < 60; i++) {
       if (child.exitCode !== null) return false;
       try {
-        if ((await fetch(`${BASE}/fr`)).status === 200) return true;
+        if ((await fetch(`${BASE}${probe}`)).status === 200) return true;
       } catch {}
       await sleep(250);
     }
@@ -164,6 +165,9 @@ const ADMIN_ACTIONS = [
   "saveSettingsAction",
   "createPageAction",
   "savePageAction",
+  "saveDraftAction",
+  "publishDraftAction",
+  "discardDraftAction",
   "setPublishedAction",
   "setInMenuAction",
   "reorderMenuAction",
@@ -226,6 +230,11 @@ function callAction(jar, id, fields = {}, origin = BASE, page = "/admin/themes")
   form.append(`$ACTION_ID_${id}`, "");
   for (const [k, v] of Object.entries(fields)) form.append(k, v);
   return http(page, { jar, method: "POST", form, headers: { origin } });
+}
+
+/** savePageAction avec la version courante de la page (contrôle optimiste). */
+function callSavePage(jar, [id, payload], page) {
+  return callActionJson(jar, ids.savePageAction, [id, payload, query(dirA, "select draft_rev r from pages where id = ?", id)?.r], page);
 }
 
 /** Appel direct d'une server action (arguments JSON), comme le ferait un client forgé. */
@@ -481,6 +490,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     name === "applyKitImportAction" ? "/admin/themes/galerie-lumineuse/kit"
     : name === "saveThemeAction" ? "/admin/themes/galerie-lumineuse"
     : name === "savePageAction" ? "/admin/pages/1"
+    : /Draft/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings/.test(name) ? "/admin/reglages"
     : /^(create|delete|reorder)Projects?Action$/.test(name) ? "/admin/projets"
@@ -489,6 +499,294 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : "/admin/pages";
   const res = await callActionJson(forged, ids[name], ["x", {}], screen);
   ok(`A10 ${name} avec un cookie forgé → 403`, res.status === 403, `${res.status} ${res.text.slice(0, 120)}`);
+}
+// Brouillons de l'éditeur visuel (phase 7a) — série ED : jamais publics ni en
+// cache (vérifié sur cache FROID : serveur redémarré, le cache ISR est en
+// mémoire), vue brouillon réservée à l'admin, contrôle de version, brouillon
+// illisible, surcouche des emplacements portée par la page.
+{
+  const pageRev = (id) => query(dirA, "select draft_rev r from pages where id = ?", id)?.r;
+  const draftOf = (id) => query(dirA, "select draft from pages where id = ?", id)?.draft;
+  const restartA = async (label) => {
+    await stop(s);
+    // Sonde hors des pages : le cache ISR reste vraiment froid.
+    s = startServer(dirA, baseEnv, "/robots.txt");
+    ok(`${label} : serveur redémarré (cache ISR vide)`, await s.ready);
+  };
+  const homeId = query(dirA, `select id from pages where json_extract(slug,'$.fr')=''`).id;
+  const row = query(dirA, "select title, slug, meta, published, nav_order from pages where id = ?", homeId);
+  const published = JSON.parse(query(dirA, "select json_group_array(json_object('type', type, 'props', json(props))) b from (select * from blocks where page_id = ? order by position)", homeId).b);
+  const SECRET_TITLE = "Titre de brouillon 7a, jamais public";
+  const SECRET_META = "Méta de brouillon ED";
+  const ADDED_TITLE = "Emplacement de brouillon ED";
+  const meta = row.meta ? JSON.parse(row.meta) : { title: { fr: "", en: "" }, description: { fr: "", en: "" } };
+  const base = { title: JSON.parse(row.title), slug: JSON.parse(row.slug), meta, published: Boolean(row.published), inMenu: row.nav_order !== null, accent: null };
+  const withBlocks = (extra, over = {}) => ({ ...base, ...over, blocks: [...published.map((b, i) => ({ uid: `b${i}`, ...b })), ...extra] });
+  const secretBlock = { uid: "n1", type: "rich-text", props: { title: { fr: SECRET_TITLE, en: "Draft title" }, paragraphs: [{ fr: "Paragraphe", en: "Paragraph" }] } };
+  const draft = withBlocks([secretBlock], { meta: { ...meta, title: { fr: SECRET_META, en: SECRET_META } } });
+  const editor = `/admin/pages/${homeId}/editer`;
+  const save = (d, rev, id = homeId) => callActionJson(jar, ids.saveDraftAction, [id, d, rev], editor);
+  const publish = (rev, id = homeId) => callActionJson(jar, ids.publishDraftAction, [id, rev], editor);
+  const discard = (rev, id = homeId) => callActionJson(jar, ids.discardDraftAction, [id, rev], editor);
+  const isOk = (res) => res.text.includes('"ok":true');
+  // Ligne de résultat de l'action (le reste de la réponse est l'arbre RSC rendu).
+  const line = (res) => res.text.split("\n").filter((l) => l.includes('"ok":')).join(" ").slice(0, 300) || line(res);
+  const code = (res) => /"code":"(\w+)"/.exec(res.text)?.[1];
+
+  let res = await save(draft, pageRev(homeId));
+  ok("ED1 brouillon enregistré (session admin)", isOk(res), line(res));
+  ok("ED1b brouillon en base, page publiée inchangée, version incrémentée", Boolean(draftOf(homeId)) && pageRev(homeId) === 1 && query(dirA, "select count(*) n from blocks where page_id = ?", homeId).n === published.length);
+
+  // Surcouche des emplacements de la page d'accueil : média retiré, emplacement ajouté.
+  const slot = query(dirA, "select s.id, s.media_id mediaId, s.project_id projectId, m.key from slots s join media m on m.id = s.media_id join projects p on p.id = s.project_id where p.featured = 1 and m.status = 'ready' order by p.position, s.position limit 1");
+  writeDb(dirA, "update slots set draft_state = 'removed', draft_page_id = ? where id = ?", homeId, slot.id);
+  const added = (() => {
+    const db = new Database(path.join(dirA, "portfolio.db"));
+    db.pragma("busy_timeout = 5000");
+    const other = db.prepare("select * from slots where project_id = ? and id != ? and media_id is not null order by position limit 1").get(slot.projectId, slot.id);
+    delete other.id;
+    Object.assign(other, { slug: `${other.slug}-ed`, title: JSON.stringify({ fr: ADDED_TITLE, en: ADDED_TITLE }), position: 999, draft_state: "added", draft_page_id: homeId, draft_position: null, draft_media_id: null });
+    const cols = Object.keys(other);
+    const id = Number(db.prepare(`insert into slots (${cols.join(",")}) values (${cols.map(() => "?").join(",")})`).run(...cols.map((c) => other[c])).lastInsertRowid);
+    db.close();
+    return id;
+  })();
+
+  // Cache FROID : un brouillon et une surcouche existent, aucun rendu en cache.
+  await restartA("ED2");
+  r = await http("/fr");
+  let html = await r.text();
+  ok("ED2 visiteur anonyme, cache froid : MISS propre (ni brouillon ni surcouche)", r.headers.get("x-nextjs-cache") === "MISS" && !html.includes(SECRET_TITLE) && !html.includes(SECRET_META) && html.includes(slot.key) && !html.includes(ADDED_TITLE), r.headers.get("x-nextjs-cache") ?? "");
+  r = await http("/fr");
+  html = await r.text();
+  ok("ED2b … puis HIT, toujours propre", r.headers.get("x-nextjs-cache") === "HIT" && !html.includes(SECRET_TITLE) && html.includes(slot.key));
+  ok("ED2c HTML public sans couche d'édition ni bouton « Modifier cette page »", !/data-edit-block|pe-layer|Modifier cette page|data-inline/.test(html));
+  const cssHrefs = [...html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="([^"]+)"/g)].map((m) => m[1]);
+  const css = (await Promise.all(cssHrefs.map(async (h) => (await http(h)).text()))).join("\n");
+  ok("ED2d CSS public sans styles de l'éditeur (edit-layer.css chargé à part)", cssHrefs.length > 0 && !/\.pe-layer|\.pe-host|\.ve-/.test(css), `${cssHrefs.length} feuille(s)`);
+  r = await http("/fr", { headers: { RSC: "1" } });
+  ok("ED2e charge RSC anonyme : jamais le brouillon", !(await r.text()).includes(SECRET_TITLE));
+
+  await restartA("ED3");
+  r = await http("/fr", { jar });
+  html = await r.text();
+  ok("ED3 admin connecté hors vue brouillon, cache froid : version publiée", !html.includes(SECRET_TITLE) && !html.includes("data-edit-block") && html.includes(slot.key));
+  r = await http("/fr");
+  html = await r.text();
+  ok("ED3b … puis le visiteur : propre", !html.includes(SECRET_TITLE) && html.includes(slot.key));
+
+  // Route de la toile : admin, même origine.
+  const toile = `/admin/api/editeur/toile?page=${homeId}&langue=fr`;
+  r = await http(toile, { headers: { "sec-fetch-site": "same-origin" } });
+  ok("ED4 toile sans session → 403", r.status === 403, String(r.status));
+  const cross = jar.copy();
+  r = await http(toile, { jar: cross, headers: { "sec-fetch-site": "cross-site" } });
+  ok("ED4b toile depuis un autre site → 403, aucune vue brouillon", r.status === 403 && !cross.cookies.has("page-draft"), String(r.status));
+  const bare = jar.copy();
+  r = await http(toile, { jar: bare });
+  ok("ED4c toile sans Sec-Fetch-Site ni Origin → 403", r.status === 403 && !bare.cookies.has("page-draft"), String(r.status));
+
+  await restartA("ED5");
+  const drafty = jar.copy();
+  r = await http(toile, { jar: drafty, headers: { "sec-fetch-site": "same-origin" } });
+  const draftCookie = r.headers.getSetCookie().find((c) => c.startsWith("page-draft=")) ?? "";
+  ok("ED4d toile (admin, même origine) → 303 /fr + draft mode + vue brouillon", r.status === 303 && r.headers.get("location") === "/fr" && drafty.cookies.has("__prerender_bypass") && drafty.cookies.get("page-draft") === "1", `${r.status} ${r.headers.get("location")}`);
+  ok("ED4e cookie page-draft de session (sans durée), HttpOnly", Boolean(draftCookie) && !/max-age|expires/i.test(draftCookie) && /httponly/i.test(draftCookie), draftCookie);
+  r = await http("/fr", { jar: drafty });
+  html = await r.text();
+  ok("ED5 vue brouillon d'abord, cache froid : le brouillon et ses repères d'édition", html.includes(SECRET_TITLE) && html.includes('data-edit-block="n1"') && html.includes('data-inline="title"'));
+  ok("ED5a vue brouillon : méta-titre du brouillon, surcouche appliquée", html.includes(`<title>${SECRET_META}`) && !html.includes(slot.key) && html.includes(ADDED_TITLE), (/<title>[^<]*/.exec(html) ?? [""])[0]);
+  ok("ED5b vue brouillon : frame-ancestors 'self', jamais mise en cache (no-store)", (r.headers.get("content-security-policy") ?? "").includes("frame-ancestors 'self'") && /(^|[ ,])no-store([ ,]|$)/.test(r.headers.get("cache-control") ?? ""), `${r.headers.get("content-security-policy")} · ${r.headers.get("cache-control")}`);
+  r = await http("/fr");
+  html = await r.text();
+  ok("ED5c … puis le visiteur : MISS propre (la vue brouillon n'a rien mis en cache)", r.headers.get("x-nextjs-cache") === "MISS" && !html.includes(SECRET_TITLE) && !html.includes(ADDED_TITLE) && html.includes(slot.key), r.headers.get("x-nextjs-cache") ?? "");
+  const stolen = drafty.copy((k) => !k.includes("session_token"));
+  r = await http("/fr", { jar: stolen });
+  html = await r.text();
+  ok("ED6 cookies de vue brouillon sans session → version publiée", !html.includes(SECRET_TITLE) && !html.includes("data-edit-block"));
+  r = await http("/fr", { jar: stolen, headers: { RSC: "1" } });
+  ok("ED6b charge RSC avec cookies volés : jamais le brouillon", !(await r.text()).includes(SECRET_TITLE));
+  r = await http("/fr");
+  html = await r.text();
+  ok("ED7 après la vue brouillon, le cache public reste propre (HIT)", r.headers.get("x-nextjs-cache") === "HIT" && !html.includes(SECRET_TITLE));
+
+  // Écrans de l'admin : les emplacements « added » n'existent pas encore.
+  r = await http(`/admin/projets/${slot.projectId}`, { jar });
+  html = await r.text();
+  ok("ED8 écran Projets : emplacement ajouté en brouillon absent, écart signalé", !html.includes(ADDED_TITLE) && html.includes("en brouillon"));
+  const publishedSlots = (() => {
+    const db = new Database(path.join(dirA, "portfolio.db"), { readonly: true });
+    const rows = db.prepare("select id from slots where project_id = ? and draft_state is not 'added' order by position").all(slot.projectId).map((x) => x.id);
+    db.close();
+    return rows;
+  })();
+  res = await callActionJson(jar, ids.reorderSlotsAction, [slot.projectId, [...publishedSlots, added]], `/admin/projets/${slot.projectId}`);
+  ok("ED8b reorderSlots avec l'emplacement « added » → refusé", res.text.includes('"ok":false'), line(res));
+  res = await callActionJson(jar, ids.reorderSlotsAction, [slot.projectId, publishedSlots], `/admin/projets/${slot.projectId}`);
+  ok("ED8c reorderSlots des seuls emplacements publiés → accepté", isOk(res), line(res));
+
+  // Suppressions refusées : un brouillon utilise la page, le projet, le média.
+  res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "Cible ED", en: "Target ED" }, slug: { fr: "cible-ed", en: "target-ed" } }], "/admin/pages");
+  const targetPage = Number(/"ok":true,"data":\{"id":(\d+)\}/.exec(res.text)?.[1]);
+  res = await callActionJson(jar, ids.createProjectAction, [{ title: { fr: "Projet ED", en: "" } }], "/admin/projets");
+  const targetProject = Number(/"ok":true,"data":\{"id":(\d+)\}/.exec(res.text)?.[1]);
+  const projectSlug = query(dirA, "select slug from projects where id = ?", targetProject).slug;
+  const png = await sharp({ create: { width: 32, height: 24, channels: 3, background: "#2e4e9e" } }).png().toBuffer();
+  const up = await upload(jar, "brouillon-ed.png", "image/png", png);
+  const targetMedia = up.json?.media?.id;
+  if (targetMedia) await waitMedia(dirA, targetMedia);
+  res = await save(
+    withBlocks([
+      secretBlock,
+      { uid: "n2", type: "hero", props: { eyebrow: { fr: "", en: "" }, statement: { fr: "", en: "" }, reelPageId: targetPage } },
+      { uid: "n3", type: "featured-projects", props: { eyebrow: { fr: "", en: "" }, title: { fr: "", en: "" }, intro: { fr: "", en: "" }, limit: 1, projects: [projectSlug] } },
+      { uid: "n4", type: "profile", props: { portraitMediaId: targetMedia } },
+    ]),
+    pageRev(homeId),
+  );
+  ok("ED9 brouillon qui cite une page, un projet et un média neufs", isOk(res) && Boolean(targetPage && targetProject && targetMedia), line(res));
+  res = await callActionJson(jar, ids.deletePageAction, [targetPage], "/admin/pages");
+  ok("ED9b supprimer une page utilisée seulement par un brouillon → refusé", res.text.includes("references") && res.text.includes('"ok":false'), line(res));
+  res = await callActionJson(jar, ids.deleteProjectAction, [targetProject], "/admin/projets");
+  ok("ED9c supprimer un projet utilisé seulement par un brouillon → refusé", res.text.includes("references") && res.text.includes('"ok":false'), line(res));
+  res = await callActionJson(jar, ids.deleteMediaAction, [targetMedia], "/admin/medias");
+  ok("ED9d supprimer un média utilisé seulement par un brouillon → refusé", res.text.includes("references") && res.text.includes('"ok":false'), line(res));
+
+  // Enregistrement automatique : contrôle de forme.
+  let rev = pageRev(homeId);
+  const many = withBlocks(Array.from({ length: 41 - published.length }, (_, i) => ({ uid: `m${i}`, type: "rich-text", props: { paragraphs: [{ fr: "", en: "" }] } })));
+  const deep = withBlocks([{ uid: "n9", type: "rich-text", props: JSON.parse("{".repeat(1) + '"a":' + '{"a":'.repeat(40) + "1" + "}".repeat(41)) }]);
+  const shapes = [
+    ["plus de 40 blocs", many],
+    ["type inconnu", withBlocks([{ uid: "n9", type: "inconnu", props: {} }])],
+    ["uid en double", withBlocks([secretBlock, { ...secretBlock }])],
+    ["plus de 256 Ko", withBlocks([{ uid: "n9", type: "rich-text", props: { pad: "x".repeat(300 * 1024) } }])],
+    ["imbrication profonde", deep],
+  ];
+  for (const [label, payload] of shapes) {
+    res = await save(payload, rev);
+    ok(`ED10 saveDraftAction : ${label} → refusé sans erreur 500, rien d'écrit`, res.status === 200 && res.text.includes('"ok":false') && pageRev(homeId) === rev, `${res.status} ${line(res)}`);
+  }
+  res = await callActionJson(jar, ids.saveDraftAction, [homeId, draft], editor);
+  ok("ED10b saveDraftAction sans version → refusé", res.text.includes('"ok":false') && pageRev(homeId) === rev);
+
+  // Contrôle de version (deux onglets, formulaire, publication).
+  res = await save(draft, rev);
+  ok("ED11 onglet A enregistre (version lue) → accepté", isOk(res) && pageRev(homeId) === rev + 1);
+  const stale = rev;
+  rev = pageRev(homeId);
+  res = await save(withBlocks([]), stale);
+  ok("ED11b onglet B en retard → refusé (conflit), brouillon intact", code(res) === "conflict" && JSON.stringify(draftOf(homeId)).includes(SECRET_TITLE), line(res));
+  res = await publish(stale);
+  ok("ED11c publier avec une version périmée → refusé (conflit)", code(res) === "conflict" && Boolean(draftOf(homeId)));
+  res = await callActionJson(jar, ids.savePageAction, [homeId, { ...base, blocks: published }, stale], `/admin/pages/${homeId}`);
+  ok("ED11d formulaire avec une version périmée → refusé (conflit), rien d'écrasé", code(res) === "conflict" && Boolean(draftOf(homeId)));
+  res = await discard(stale);
+  ok("ED11e abandonner avec une version périmée → refusé", code(res) === "conflict" && Boolean(draftOf(homeId)));
+
+  // Publication refusée : validation complète de savePage.
+  res = await save(withBlocks([{ uid: "n2", type: "hero", props: { eyebrow: { fr: "", en: "" }, statement: { fr: "", en: "" }, reelPageId: 99999 } }]), rev);
+  ok("ED12 brouillon incomplet accepté (c'est un brouillon)", isOk(res), line(res));
+  rev = pageRev(homeId);
+  res = await publish(rev);
+  ok("ED12b publication refusée, erreur rattachée au bloc", res.text.includes('"ok":false') && res.text.includes(`blocks.${published.length}`), line(res));
+  ok("ED12c rien n'est publié, brouillon, version et surcouche gardés", query(dirA, "select count(*) n from blocks where page_id = ?", homeId).n === published.length && Boolean(draftOf(homeId)) && pageRev(homeId) === rev && query(dirA, "select draft_state s from slots where id = ?", slot.id).s === "removed");
+
+  // Abandonner : brouillon et surcouche de la page effacés, « added » supprimé.
+  res = await discard(rev);
+  ok("ED13 abandonner → brouillon et surcouche effacés", isOk(res) && !draftOf(homeId) && query(dirA, "select draft_state s, draft_page_id p from slots where id = ?", slot.id).s === null, line(res));
+  ok("ED13b abandonner supprime l'emplacement « added »", !query(dirA, "select id from slots where id = ?", added));
+  res = await publish(pageRev(homeId));
+  ok("ED13c publier sans brouillon → refus immédiat", res.text.includes('"ok":false') && res.text.includes("Aucune modification"), line(res));
+
+  // Surcouche portée par la page : publier B n'applique pas celle de A.
+  const aboutId = query(dirA, `select id from pages where json_extract(slug,'$.fr')='a-propos'`).id;
+  writeDb(dirA, "update slots set draft_state = 'removed', draft_page_id = ? where id = ?", homeId, slot.id);
+  const aboutRow = query(dirA, "select title, slug, meta, published, nav_order from pages where id = ?", aboutId);
+  const aboutBlocks = JSON.parse(query(dirA, "select json_group_array(json_object('type', type, 'props', json(props))) b from (select * from blocks where page_id = ? order by position)", aboutId).b);
+  const aboutDraft = {
+    title: JSON.parse(aboutRow.title), slug: JSON.parse(aboutRow.slug), meta: aboutRow.meta ? JSON.parse(aboutRow.meta) : meta, published: Boolean(aboutRow.published), inMenu: aboutRow.nav_order !== null, accent: null,
+    blocks: [...aboutBlocks.map((b, i) => ({ uid: `b${i}`, ...b })), { uid: "n1", type: "featured-projects", props: { eyebrow: { fr: "", en: "" }, title: { fr: "", en: "" }, intro: { fr: "", en: "" }, limit: 2 } }],
+  };
+  res = await save(aboutDraft, pageRev(aboutId), aboutId);
+  res = await publish(pageRev(aboutId), aboutId);
+  ok("ED14 publier une autre page qui partage le projet → surcouche de l'accueil intacte", isOk(res) && query(dirA, "select media_id m, draft_state s from slots where id = ?", slot.id).m === slot.mediaId && query(dirA, "select draft_state s from slots where id = ?", slot.id).s === "removed", line(res));
+  // Remise en état de « À propos ».
+  await callActionJson(jar, ids.savePageAction, [aboutId, { ...aboutDraft, blocks: aboutBlocks }, pageRev(aboutId)], `/admin/pages/${aboutId}`);
+
+  // Publier : appliqué, revalidé.
+  res = await save(draft, pageRev(homeId));
+  rev = pageRev(homeId);
+  res = await publish(rev);
+  ok("ED15 publier → appliqué en une fois, brouillon vidé, version incrémentée", isOk(res) && !draftOf(homeId) && pageRev(homeId) === rev + 1 && query(dirA, "select count(*) n from blocks where page_id = ?", homeId).n === published.length + 1, line(res));
+  ok("ED15b surcouche de la page appliquée (média retiré, place gardée)", query(dirA, "select media_id m, draft_page_id p from slots where id = ?", slot.id).m === null);
+  r = await http("/fr");
+  html = await r.text();
+  ok("ED15c visiteur anonyme : la nouvelle version (cache revalidé)", html.includes(SECRET_TITLE) && !html.includes(slot.key) && !html.includes("data-edit-block"));
+  res = await save(withBlocks([]), rev);
+  ok("ED15d onglet en retard après la publication → refusé, aucun brouillon recréé", code(res) === "conflict" && !draftOf(homeId));
+
+  // Liste des pages : publication et menu reportés dans le brouillon.
+  res = await save({ ...base, slug: { fr: "cible-ed", en: "target-ed" }, title: { fr: "Cible ED", en: "Target ED" }, published: true, inMenu: false, blocks: [] }, pageRev(targetPage), targetPage);
+  const targetRev = pageRev(targetPage);
+  await callActionJson(jar, ids.setPublishedAction, [targetPage, false], "/admin/pages");
+  await callActionJson(jar, ids.setInMenuAction, [targetPage, true], "/admin/pages");
+  const synced = draftOf(targetPage) ? JSON.parse(draftOf(targetPage)) : {};
+  ok("ED16 Publier/Dépublier et menu depuis la liste → reportés dans le brouillon (version augmentée)", isOk(res) && synced.published === false && synced.inMenu === true && pageRev(targetPage) === targetRev + 2, JSON.stringify({ p: synced.published, m: synced.inMenu, rev: pageRev(targetPage) }));
+
+  // Brouillon illisible : rien n'est écrasé sans choix explicite.
+  writeDb(dirA, "update pages set draft = ? where id = ?", JSON.stringify({ ...draft, blocks: [{ uid: "b0", type: "type-disparu", props: {} }] }), homeId);
+  rev = pageRev(homeId);
+  res = await save(draft, rev);
+  ok("ED17 brouillon illisible : l'enregistrement automatique refuse de l'écraser", code(res) === "corrupt" && JSON.stringify(draftOf(homeId)).includes("type-disparu"), line(res));
+  res = await publish(rev);
+  ok("ED17b … la publication aussi", code(res) === "corrupt");
+  res = await callActionJson(jar, ids.savePageAction, [homeId, { ...base, blocks: published }, rev], `/admin/pages/${homeId}`);
+  ok("ED17c … et le formulaire", code(res) === "corrupt" && JSON.stringify(draftOf(homeId)).includes("type-disparu"));
+  r = await http(editor, { jar });
+  ok("ED17d l'éditeur le signale avec « Repartir de la version publiée »", (await r.text()).includes("Repartir de la version publiée"));
+  res = await discard(rev);
+  ok("ED17e « Repartir de la version publiée » (abandon explicite) → effacé", isOk(res) && !draftOf(homeId));
+
+  // Page supprimée pendant qu'un brouillon existait.
+  const goneRev = pageRev(targetPage);
+  // Le brouillon de l'accueil ne cite plus la page : sa suppression est permise.
+  res = await callActionJson(jar, ids.deletePageAction, [targetPage], "/admin/pages");
+  ok("ED18 page supprimée (son brouillon part avec elle)", isOk(res), line(res));
+  res = await publish(goneRev, targetPage);
+  ok("ED18b publier le brouillon d'une page supprimée → refus propre", res.status === 200 && res.text.includes('"ok":false') && res.text.includes("n'existe plus"), `${res.status} ${line(res)}`);
+  await callActionJson(jar, ids.deleteProjectAction, [targetProject], "/admin/projets");
+
+  // Quitter l'aperçu arrête la vue brouillon.
+  await save(draft, pageRev(homeId));
+  r = await http(toile, { jar: drafty, headers: { "sec-fetch-site": "same-origin" } });
+  r = await http("/fr", { jar: drafty });
+  ok("ED19 vue brouillon active", (await r.text()).includes(SECRET_TITLE));
+  r = await postForm(drafty, "/admin/apercu/quitter", {}, { referer: `${BASE}/fr` });
+  ok("ED19b quitter l'aperçu efface la vue brouillon", !drafty.cookies.has("page-draft") && !drafty.cookies.has("__prerender_bypass"));
+  r = await http("/fr", { jar: drafty });
+  html = await r.text();
+  ok("ED19c … et la page redevient la version publiée", !html.includes("data-edit-block") && !html.includes('data-edit-block="n1"'));
+  await discard(pageRev(homeId));
+
+  // Bouton « Modifier cette page » : indicateur posé par l'admin, session vérifiée.
+  const fresh = jar.copy((k) => k !== "portfolio-admin");
+  r = await http("/admin", { jar: fresh });
+  ok("ED20 l'admin pose le cookie indicateur portfolio-admin", fresh.cookies.get("portfolio-admin") === "1");
+  r = await http("/admin/api/editeur/session?chemin=/fr");
+  ok("ED20b session (anonyme) → admin:false", (await r.json()).admin === false);
+  r = await http("/admin/api/editeur/session?chemin=/fr", { jar });
+  const who = await r.json();
+  ok("ED20c session (admin) → lien vers l'éditeur de la page", who.admin === true && who.editUrl === `/admin/pages/${homeId}/editer?langue=fr` && (r.headers.get("cache-control") ?? "").includes("no-store"), JSON.stringify(who));
+
+  // Remise en état : accueil d'origine, média remis, projet ED supprimé.
+  res = await callActionJson(jar, ids.savePageAction, [homeId, { ...base, blocks: published }, pageRev(homeId)], `/admin/pages/${homeId}`);
+  ok("ED21 formulaire : accueil d'origine republié", isOk(res) && !draftOf(homeId), line(res));
+  res = await callActionJson(jar, ids.setSlotMediaAction, [slot.id, slot.mediaId], `/admin/projets/${slot.projectId}`);
+  ok("ED21b média remis en place", isOk(res) && query(dirA, "select media_id m from slots where id = ?", slot.id).m === slot.mediaId, line(res));
+  r = await http("/fr");
+  html = await r.text();
+  ok("ED21c visiteur : accueil d'origine", !html.includes(SECRET_TITLE) && html.includes(slot.key));
 }
 {
   let res = await callActionJson(jar, ids.duplicateThemeAction, ["galerie-lumineuse"], "/admin/themes");
@@ -524,9 +822,9 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   const homeId = query(dirA, `select id from pages where json_extract(slug,'$.fr')=''`).id;
   res = await callActionJson(jar, ids.deletePageAction, [homeId], "/admin/pages");
   ok("A15b l'accueil ne se supprime pas", res.text.includes("accueil ne se supprime pas"));
-  res = await callActionJson(jar, ids.savePageAction, [homeId, { title: { fr: "A", en: "A" }, slug: { fr: "", en: "" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: null, blocks: [{ type: "hero", props: { eyebrow: { fr: "", en: "" }, statement: { fr: "", en: "" }, reelPageId: 99999 } }] }], `/admin/pages/${homeId}`);
+  res = await callSavePage(jar, [homeId, { title: { fr: "A", en: "A" }, slug: { fr: "", en: "" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: null, blocks: [{ type: "hero", props: { eyebrow: { fr: "", en: "" }, statement: { fr: "", en: "" }, reelPageId: 99999 } }] }], `/admin/pages/${homeId}`);
   ok("A16 bloc pointant vers une page inexistante → refusé", res.text.includes("page qui n") && res.text.includes('"ok":false'), res.text.slice(0, 300));
-  res = await callActionJson(jar, ids.savePageAction, [homeId, { title: { fr: "A", en: "A" }, slug: { fr: "", en: "" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: "#fafafa", blocks: [] }], `/admin/pages/${homeId}`);
+  res = await callSavePage(jar, [homeId, { title: { fr: "A", en: "A" }, slug: { fr: "", en: "" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: "#fafafa", blocks: [] }], `/admin/pages/${homeId}`);
   ok("A16b accent de page sous AA → refusé", res.text.includes("Contraste insuffisant") && res.text.includes('"ok":false'), res.text.slice(0, 300));
   res = await callActionJson(jar, ids.deleteThemeAction, ["galerie-lumineuse"], "/admin/themes");
   ok("A17 thème en ligne ou livré : suppression refusée", res.text.includes('"ok":false'));
@@ -535,7 +833,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
 
   // m1 : clés héritées d'Object.prototype comme type de bloc ou id de thème.
   for (const type of ["constructor", "__proto__", "hasOwnProperty"]) {
-    res = await callActionJson(jar, ids.savePageAction, [homeId, { title: { fr: "A", en: "A" }, slug: { fr: "", en: "" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: null, blocks: [{ type, props: {} }] }], `/admin/pages/${homeId}`);
+    res = await callSavePage(jar, [homeId, { title: { fr: "A", en: "A" }, slug: { fr: "", en: "" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: null, blocks: [{ type, props: {} }] }], `/admin/pages/${homeId}`);
     ok(`A18 type de bloc « ${type} » → refusé proprement (pas de 500)`, res.status === 200 && res.text.includes('"ok":false'), `${res.status} ${res.text.slice(0, 160)}`);
   }
   for (const id of ["constructor", "__proto__"]) {
@@ -605,7 +903,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "Accent", en: "Accent" }, slug: { fr: "accent-test", en: "accent-test" } }], "/admin/pages");
   const accentId = Number(/"data":\{"id":(\d+)\}/.exec(res.text)?.[1]);
   const pagePayload = { title: { fr: "Accent", en: "Accent" }, slug: { fr: "accent-test", en: "accent-test" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: "#2e4e9e", blocks: [{ type: "contact", props: { eyebrow: { fr: "E", en: "E" }, title: { fr: "T", en: "T" }, intro: { fr: "I", en: "I" }, cta: { fr: "C", en: "C" } } }] };
-  res = await callActionJson(jar, ids.savePageAction, [accentId, pagePayload], `/admin/pages/${accentId}`);
+  res = await callSavePage(jar, [accentId, pagePayload], `/admin/pages/${accentId}`);
   ok("A23 accent lisible avec le thème en ligne → enregistré", res.text.includes('"ok":true'), res.text.slice(0, 200));
   r3 = await http("/fr/accent-test");
   ok("A23a accent appliqué au rendu", (await r3.text()).includes("--color-primary:#2e4e9e"));

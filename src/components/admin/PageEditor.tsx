@@ -5,7 +5,8 @@
  * puis la liste des blocs (cartes repliables, réordonnables, ajout par
  * sélecteur décrivant chaque type). Chaque bloc s'édite avec le formulaire
  * déclaré par son type dans le registre. Enregistrer publie aussitôt si la
- * page est publiée : il n'y a pas de brouillon séparé.
+ * page est publiée ; s'il existe un brouillon de l'éditeur visuel, le
+ * formulaire l'affiche et l'enregistrement le publie (un seul état).
  */
 import { own } from "@/lib/own";
 import { useRouter } from "next/navigation";
@@ -90,8 +91,11 @@ export default function PageEditor({
   editors,
   context,
   colors,
+  rev: initialRev,
 }: {
   page: AdminPageEdit;
+  /** Version du contenu lue au chargement (contrôle optimiste, src/lib/edit/drafts.ts). */
+  rev: number;
   catalog: BlockCatalogEntry[];
   /** Élément de l'éditeur de chaque type (composant client déclaré au registre). */
   editors: Record<string, React.ReactNode>;
@@ -106,6 +110,8 @@ export default function PageEditor({
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<EditBlock | null>(null);
   const [saving, start] = useTransition();
+  const [rev, setRev] = useState(initialRev);
+  const [conflict, setConflict] = useState<string | null>(null);
   const dirty = !same(payload(state), payload(saved));
   useUnsavedGuard(dirty);
 
@@ -130,8 +136,14 @@ export default function PageEditor({
       return;
     }
     start(async () => {
-      const result = await savePageAction(page.id, payload(state));
+      const result = await savePageAction(page.id, payload(state), rev);
       if (!result.ok) {
+        if ("code" in result) {
+          // Modifiée ailleurs (ou brouillon illisible) : rien n'est écrasé.
+          setConflict(result.message);
+          setError(result.message);
+          return;
+        }
         setError(result.message);
         const fe = result.fieldErrors ?? {};
         setErrors(fe);
@@ -145,6 +157,7 @@ export default function PageEditor({
       }
       setError(null);
       setErrors({});
+      setRev(result.data.rev);
       setSaved(clone(state));
       toast(state.published ? "Enregistré · en ligne" : "Enregistré");
       // Hors de la transition : l'état « Enregistré » s'affiche sans attendre le rafraîchissement.
@@ -154,6 +167,14 @@ export default function PageEditor({
 
   return (
     <div className="a-page-editor">
+      {conflict && (
+        <div className="a-notice a-notice-danger" role="alert">
+          <p>{conflict} Tes champs restent affichés ici : copie ce que tu veux garder avant de recharger.</p>
+          <button type="button" className="a-btn a-btn-small" onClick={() => window.location.reload()}>
+            Recharger
+          </button>
+        </div>
+      )}
       <section className="a-panel" aria-labelledby="pe-infos">
         <h2 id="pe-infos">Informations</h2>
         <div className="a-form-grid">
@@ -326,7 +347,7 @@ export default function PageEditor({
           dirty
             ? "L'aperçu montre la version enregistrée : enregistre d'abord."
             : saved.published
-              ? "Page publiée : enregistrer la met à jour aussitôt sur le site (pas de brouillon séparé)."
+              ? "Page publiée : enregistrer la met à jour aussitôt sur le site (brouillon de l'éditeur visuel compris)."
               : "Page non publiée : visible seulement en aperçu."
         }
       />
