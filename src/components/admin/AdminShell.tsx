@@ -15,6 +15,7 @@ const NAV = [
   { href: "/admin/pages", label: "Pages" },
   { href: "/admin/projets", label: "Projets" },
   { href: "/admin/medias", label: "Médiathèque" },
+  { href: "/admin/messages", label: "Messages" },
   { href: "/admin/reglages", label: "Réglages" },
 ];
 

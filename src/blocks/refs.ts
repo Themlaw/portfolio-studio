@@ -15,9 +15,10 @@
 export type BlockRefs = { media?: string[]; pages?: string[]; projects?: string[] };
 
 export const BLOCK_REFS: Record<string, BlockRefs> = {
-  hero: { pages: ["reelPageId"] },
+  hero: { pages: ["reelPageId"], media: ["backgroundMediaId"] },
   "collection-tiles": { pages: ["items[].pageId"] },
-  "featured-projects": { pages: ["more.pageId"], projects: ["projects[]"] },
+  // Conteneur (v0.13) : ses composants (props.children) sont parcourus aussi.
+  "featured-project": { pages: ["more.pageId"], projects: ["project"] },
   "collection-intro": {},
   "collection-projects": {},
   video: { media: ["reelMediaId"] },
@@ -25,7 +26,27 @@ export const BLOCK_REFS: Record<string, BlockRefs> = {
   contact: {},
   profile: { media: ["portraitMediaId"] },
   "project-board": { projects: ["project"] },
+  "section-title": {},
+  image: { media: ["mediaId"] },
+  "video-single": { media: ["mediaId", "posterMediaId"] },
+  grid: {},
+  "contact-form": {},
+  // Ancien bloc (avant v0.13), encore lu.
+  "featured-projects": { pages: ["more.pageId"], projects: ["projects[]"] },
 };
+
+/**
+ * Composants d'un conteneur ({ type, props }[] dans props.children) : leurs
+ * références comptent comme celles du bloc. Deux niveaux de conteneurs au
+ * plus (src/blocks/tree.ts) ; au-delà, rien n'est lu. `depth` ≥ 2 : seules
+ * les références du bloc lui-même.
+ */
+function nested(props: unknown, depth: number): { type: string; props: unknown }[] {
+  if (depth >= 2 || !props || typeof props !== "object") return [];
+  const children = (props as { children?: unknown }).children;
+  if (!Array.isArray(children)) return [];
+  return children.filter((c): c is { type: string; props: unknown } => Boolean(c) && typeof c === "object" && typeof (c as { type?: unknown }).type === "string");
+}
 
 /** Valeurs trouvées à un chemin ("a.b", "items[].pageId"…). */
 export function valuesAt(value: unknown, path: string): unknown[] {
@@ -49,11 +70,17 @@ export function valuesAt(value: unknown, path: string): unknown[] {
 }
 
 /** Identifiants (entiers) référencés par un bloc, par genre. */
-export function extractRefs(type: string, props: unknown): { media: number[]; pages: number[] } {
+export function extractRefs(type: string, props: unknown, depth = 0): { media: number[]; pages: number[] } {
   const refs = (Object.hasOwn(BLOCK_REFS, type) ? BLOCK_REFS[type] : undefined) ?? {};
   const ids = (paths: string[] = []) =>
     paths.flatMap((p) => valuesAt(props, p)).filter((v): v is number => Number.isInteger(v));
-  return { media: ids(refs.media), pages: ids(refs.pages) };
+  const out = { media: ids(refs.media), pages: ids(refs.pages) };
+  for (const child of nested(props, depth)) {
+    const r = extractRefs(child.type, child.props, depth + 1);
+    out.media.push(...r.media);
+    out.pages.push(...r.pages);
+  }
+  return out;
 }
 
 export type BlockRow = { id: number; pageId: number; type: string; props: unknown };
@@ -78,9 +105,10 @@ export function mediaUsages(mediaId: number, rows: { slots: SlotRow[]; blocks: B
 }
 
 /** Slugs de projet référencés par un bloc. */
-export function extractProjectRefs(type: string, props: unknown): string[] {
+export function extractProjectRefs(type: string, props: unknown, depth = 0): string[] {
   const refs = (Object.hasOwn(BLOCK_REFS, type) ? BLOCK_REFS[type] : undefined) ?? {};
-  return (refs.projects ?? []).flatMap((p) => valuesAt(props, p)).filter((v): v is string => typeof v === "string");
+  const own = (refs.projects ?? []).flatMap((p) => valuesAt(props, p)).filter((v): v is string => typeof v === "string");
+  return [...own, ...nested(props, depth).flatMap((c) => extractProjectRefs(c.type, c.props, depth + 1))];
 }
 
 /** Blocs qui citent un projet (par son slug). */

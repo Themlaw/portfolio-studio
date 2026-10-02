@@ -4,7 +4,9 @@ import type { AppLocale } from "@/i18n/routing";
 
 import { cached, TAGS } from "./cache";
 import { getDb, schema } from "./db";
+import { getDraftSite } from "./draft-view";
 import { parseJson } from "./json";
+import { NavSchema, NETWORKS, safeSocialHref, type NavItem } from "./site-schema";
 
 const localized = z.object({ fr: z.string(), en: z.string() });
 
@@ -15,7 +17,7 @@ const siteSchema = z.object({
   email: z.string(),
   credit: localized,
 });
-const socialsSchema = z.array(z.object({ label: z.string().min(1), href: z.string() }));
+const socialsSchema = z.array(z.object({ label: z.string().min(1), href: z.string(), kind: z.enum(NETWORKS).optional() }));
 
 const DEFAULT_SITE: z.infer<typeof siteSchema> = {
   name: "Portfolio",
@@ -46,6 +48,41 @@ export async function getSite(locale: AppLocale): Promise<SiteIdentity> {
   return { name: raw.name, email: raw.email, role: raw.role[locale] ?? raw.role.fr, credit: raw.credit[locale] ?? raw.credit.fr };
 }
 
+/**
+ * Réseaux publiés : chaque lien est revalidé à la lecture (une donnée ancienne
+ * ou un lien « à compléter » n'est jamais rendu).
+ */
 export async function getSocials(): Promise<Social[]> {
-  return validated("socials", (await getRawSettings()).socials, socialsSchema, []);
+  return validated("socials", (await getRawSettings()).socials, socialsSchema, []).filter((s) => safeSocialHref(s.href));
+}
+
+/** Menu publié (réglage `nav`, v0.13), ou null avant la migration. */
+export async function getNavSetting(): Promise<NavItem[] | null> {
+  const raw = (await getRawSettings()).nav;
+  if (raw === undefined) return null;
+  const parsed = NavSchema.safeParse(raw);
+  if (!parsed.success) console.error("[settings] « nav » invalide, menu des pages utilisé");
+  return parsed.success ? parsed.data : null;
+}
+
+export type SiteView = { site: SiteIdentity; socials: Social[]; nav: NavItem[] | null; draft: boolean };
+
+/**
+ * Identité, réseaux et menu tels que la page `pageId` les montre : la version
+ * publiée, ou — vue brouillon de l'éditeur, page qui tient le brouillon de
+ * l'en-tête — ce brouillon (src/lib/edit/site.ts).
+ */
+export async function getSiteView(locale: AppLocale, pageId: number | null | undefined): Promise<SiteView> {
+  const draft = pageId ? await getDraftSite(pageId) : null;
+  if (draft) {
+    const i = draft.identity;
+    return {
+      site: { name: i.name, email: i.email, role: i.role[locale] || i.role.fr, credit: i.credit[locale] || i.credit.fr },
+      socials: draft.socials.filter((s) => safeSocialHref(s.href)),
+      nav: draft.nav,
+      draft: true,
+    };
+  }
+  const [site, socials, nav] = await Promise.all([getSite(locale), getSocials(), getNavSetting()]);
+  return { site, socials, nav, draft: false };
 }

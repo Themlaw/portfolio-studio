@@ -17,6 +17,51 @@ function Lines({ x, y, w, n, gap = 6 }: { x: number; y: number; w: number; n: nu
 }
 
 const THUMBS: Record<string, React.ReactNode> = {
+  "featured-project": (
+    <>
+      <rect x="6" y="5" width="84" height="50" rx="3" fill="none" stroke={ACCENT} strokeWidth="1.5" strokeDasharray="3 2" />
+      <rect x="12" y="11" width="34" height="5" rx="2" fill={INK} />
+      {[12, 32, 52, 72].map((x) => (
+        <rect key={x} x={x} y="22" width="17" height="26" rx="1.5" fill={SOFT} />
+      ))}
+    </>
+  ),
+  grid: (
+    <>
+      <rect x="10" y="8" width="76" height="22" rx="2" fill={SOFT} />
+      <rect x="10" y="34" width="36" height="18" rx="2" fill={SOFT} />
+      <rect x="50" y="34" width="36" height="18" rx="2" fill={SOFT} />
+    </>
+  ),
+  "video-single": (
+    <>
+      <rect x="14" y="8" width="68" height="40" rx="2" fill={INK} />
+      <path d="M44 20 56 28 44 36Z" fill="var(--admin-bg)" />
+    </>
+  ),
+  image: (
+    <>
+      <rect x="14" y="8" width="68" height="40" rx="2" fill={SOFT} />
+      <path d="M20 44 38 26 50 38 58 31 76 44Z" fill={INK} />
+    </>
+  ),
+  "contact-form": (
+    <>
+      <rect x="12" y="8" width="40" height="5" rx="2" fill={INK} />
+      {[18, 28].map((y) => (
+        <rect key={y} x="12" y={y} width="56" height="7" rx="1.5" fill="none" stroke={SOFT} strokeWidth="1.5" />
+      ))}
+      <rect x="12" y="38" width="56" height="10" rx="1.5" fill="none" stroke={SOFT} strokeWidth="1.5" />
+      <rect x="12" y="51" width="22" height="5" rx="2" fill={ACCENT} />
+    </>
+  ),
+  "section-title": (
+    <>
+      <rect x="10" y="14" width="24" height="3" rx="1.5" fill={ACCENT} />
+      <rect x="10" y="22" width="60" height="8" rx="2" fill={INK} />
+      <Lines x={10} y={38} w={56} n={2} />
+    </>
+  ),
   hero: (
     <>
       <rect x="10" y="12" width="30" height="3" rx="1.5" fill={ACCENT} />
@@ -96,7 +141,16 @@ const THUMBS: Record<string, React.ReactNode> = {
   ),
 };
 
-export default function BlockThumb({ type }: { type: string }) {
+export default function BlockThumb({ type, preset }: { type: string; preset?: string }) {
+  if (preset === "grid-videos")
+    return (
+      <svg className="ve-thumb" viewBox="0 0 96 60" width="96" height="60" aria-hidden="true">
+        <rect width="96" height="60" rx="4" fill="var(--admin-bg)" />
+        <rect x="10" y="6" width="76" height="24" rx="2" fill={INK} />
+        <rect x="10" y="34" width="36" height="20" rx="2" fill={INK} />
+        <rect x="50" y="34" width="36" height="20" rx="2" fill={INK} />
+      </svg>
+    );
   return (
     <svg className="ve-thumb" viewBox="0 0 96 60" width="96" height="60" aria-hidden="true">
       <rect width="96" height="60" rx="4" fill="var(--admin-bg)" />

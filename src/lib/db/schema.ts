@@ -352,3 +352,24 @@ export const authThrottle = sqliteTable("auth_throttle", {
   firstAt: integer("first_at").notNull(),
   lastAt: integer("last_at").notNull(),
 });
+
+/**
+ * Messages reçus par le formulaire de contact (v0.13, bloc « contact-form »).
+ * Aucun serveur d'envoi d'e-mail : ils se lisent dans Admin → Messages.
+ * `fields` : JSON [{ label, value }] ; `ip_hash` : empreinte de l'IP (limite
+ * d'envois), jamais l'IP elle-même.
+ */
+export const messages = sqliteTable(
+  "messages",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    pageId: integer("page_id").references(() => pages.id, { onDelete: "set null" }),
+    blockId: integer("block_id"),
+    subject: text("subject").notNull(),
+    fields: text("fields").notNull(),
+    replyTo: text("reply_to"),
+    ipHash: text("ip_hash").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  },
+  (t) => [index("messages_created_idx").on(t.createdAt), index("messages_ip_idx").on(t.ipHash, t.createdAt)],
+);

@@ -10,10 +10,16 @@ import { z } from "zod";
 export const EDIT_MSG = "portfolio:edit";
 
 const Uid = z.string().regex(/^[a-z0-9-]{1,32}$/);
-const Block = z.object({ uid: Uid, type: z.string().max(60), label: z.string().max(120) });
-const Blocks = z.array(Block).max(60);
+/** `parent` : conteneur du bloc (v0.13) ; absent = bloc de la page. */
+const Block = z.object({ uid: Uid, type: z.string().max(60), label: z.string().max(120), parent: Uid.optional() });
+const Blocks = z.array(Block).max(400);
+/** Liste visée par un dépôt ou un déplacement : la page (null), ou un conteneur. */
+const Parent = Uid.nullable();
+const MediaField = z.enum(["mediaId", "backgroundMediaId", "portraitMediaId"]);
+const NavIndex = z.number().int().min(0).max(20);
 const Coord = z.number().finite().min(-100000).max(100000);
 const Index = z.number().int().min(0).max(60);
+const Href = z.string().trim().min(1).max(300);
 const SlotIndex = z.number().int().min(0).max(200);
 const Board = z.number().int().positive();
 const SlotKey = z.string().regex(/^(s\d{1,9}|k[a-z0-9]{8,24})$/);
@@ -21,21 +27,24 @@ const Slug = z.string().regex(/^[a-z0-9-]{1,80}$/);
 const Locale = z.enum(["fr", "en"]);
 /** Où déposer un média ou des fichiers : dans une bande (position), sur une place vide, sur une planche neuve. */
 const DropTarget = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("board"), board: Board, index: SlotIndex }),
+  z.object({ kind: z.literal("board"), board: Board, index: SlotIndex, collection: z.enum(["characters", "backgrounds", "animation"]).optional() }),
   z.object({ kind: z.literal("slot"), board: Board, key: SlotKey }),
   z.object({ kind: z.literal("new"), uid: Uid }),
+  // v0.13 : image ou vidéo d'un bloc (image, vidéo, fond de l'ouverture, portrait), place libre d'une grille.
+  z.object({ kind: z.literal("media"), uid: Uid, field: MediaField }),
+  z.object({ kind: z.literal("cell"), uid: Uid }),
 ]);
 const FileValue = z.custom<File>((v) => typeof File !== "undefined" && v instanceof File, "Fichier attendu");
 
 /** Toile → éditeur. */
-export const FromCanvasSchema = z.discriminatedUnion("kind", [
+export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("ready"), path: z.string().max(400), locale: z.string().max(5), blocks: Blocks }),
   z.object({ kind: z.literal("blocks"), blocks: Blocks }),
   z.object({ kind: z.literal("select"), uid: Uid.nullable() }),
-  z.object({ kind: z.literal("op"), op: z.enum(["up", "down", "duplicate", "delete"]), uid: Uid }),
-  z.object({ kind: z.literal("move"), uid: Uid, index: Index }),
+  z.object({ kind: z.literal("op"), op: z.enum(["up", "down", "duplicate", "delete", "out", "in"]), uid: Uid }),
+  z.object({ kind: z.literal("move"), uid: Uid, index: Index, parent: Parent.optional() }),
   z.object({ kind: z.literal("text"), uid: Uid, path: z.string().regex(/^[a-zA-Z]+(\.(\d{1,2}|[a-zA-Z]+))*$/).max(80), locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
-  z.object({ kind: z.literal("drag-index"), index: Index }),
+  z.object({ kind: z.literal("drag-index"), index: Index, parent: Parent.optional(), refused: z.boolean().optional() }),
   z.object({ kind: z.literal("key"), key: z.enum(["undo", "redo", "escape"]) }),
   // Planches (phase 7b).
   z.object({ kind: z.literal("board-create"), uid: Uid, name: z.string().trim().min(1).max(120) }),
@@ -47,6 +56,33 @@ export const FromCanvasSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("drop-target"), target: DropTarget.nullable() }),
   z.object({ kind: z.literal("files"), target: DropTarget, files: z.array(FileValue).min(1).max(30) }),
   z.object({ kind: z.literal("ghost-op"), id: z.string().max(40), op: z.enum(["retry", "remove"]) }),
+  // v0.13 : médias des blocs, grilles, en-tête / pied / réseaux (communs au site).
+  z.object({ kind: z.literal("media-op"), uid: Uid, field: MediaField, op: z.enum(["replace", "clear"]) }),
+  z.object({ kind: z.literal("layout"), uid: Uid, layout: z.enum(["1", "1+2", "2", "3", "2x2", "4", "2+1"]) }),
+  // Formulaire de contact : champs retirés, déplacés, ajoutés sur la toile.
+  z.object({
+    kind: z.literal("form-field"),
+    uid: Uid,
+    op: z.enum(["remove", "move", "add"]),
+    index: z.number().int().min(0).max(11).optional(),
+    to: z.number().int().min(0).max(11).optional(),
+    fieldType: z.enum(["text", "email", "textarea", "select"]).optional(),
+  }),
+  z.object({
+    kind: z.literal("site-text"),
+    field: z.enum(["name", "role", "email", "credit", "nav"]),
+    index: NavIndex.optional(),
+    locale: Locale,
+    value: z.string().max(200),
+  }),
+  z.object({ kind: z.literal("site-op"), op: z.literal("nav-remove"), index: NavIndex }),
+  z.object({ kind: z.literal("site-op"), op: z.literal("nav-move"), index: NavIndex, to: NavIndex }),
+  z.object({ kind: z.literal("site-op"), op: z.literal("nav-add-page"), pageId: z.number().int().positive() }),
+  z.object({ kind: z.literal("site-op"), op: z.literal("nav-add-link"), href: Href, label: z.string().trim().min(1).max(60) }),
+  z.object({ kind: z.literal("site-op"), op: z.literal("social-remove"), index: NavIndex }),
+  z.object({ kind: z.literal("site-op"), op: z.literal("social-move"), index: NavIndex, to: NavIndex }),
+  z.object({ kind: z.literal("site-op"), op: z.literal("social-edit"), index: NavIndex, href: Href }),
+  z.object({ kind: z.literal("site-op"), op: z.literal("social-add"), href: Href, label: z.string().trim().min(1).max(40), network: z.string().max(20) }),
 ]);
 
 /** Éditeur → toile. */
@@ -54,9 +90,29 @@ export const ToCanvasSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("mode"), mode: z.enum(["edit", "preview"]) }),
   z.object({ kind: z.literal("select"), uid: Uid.nullable(), scroll: z.boolean().optional() }),
   z.object({ kind: z.literal("refresh") }),
-  z.object({ kind: z.literal("drag"), x: Coord, y: Coord, label: z.string().max(120), payload: z.enum(["block", "media"]).optional() }),
+  z.object({
+    kind: z.literal("drag"),
+    x: Coord,
+    y: Coord,
+    label: z.string().max(120),
+    payload: z.enum(["block", "media"]).optional(),
+    /**
+     * Bloc glissé (palette) : type et conteneurs qu'il apporte, pour savoir où
+     * il peut aller. (`blockType`, pas `type` : `type` est l'enveloppe du message.)
+     */
+    blockType: z.string().max(60).optional(),
+    nesting: z.number().int().min(0).max(2).optional(),
+  }),
   z.object({ kind: z.literal("drag-end") }),
-  z.object({ kind: z.literal("projects"), list: z.array(z.object({ slug: Slug, title: z.string().max(200) })).max(500) }),
+  z.object({
+    kind: z.literal("projects"),
+    list: z.array(z.object({ slug: Slug, title: z.string().max(200), onPage: z.boolean().optional(), draft: z.boolean().optional() })).max(500),
+  }),
+  z.object({ kind: z.literal("pages"), list: z.array(z.object({ id: z.number().int().positive(), title: z.string().max(200) })).max(200) }),
+  /** Formulaire de contact : montrer le formulaire, ou son message de confirmation / d'erreur. */
+  z.object({ kind: z.literal("form-preview"), uid: Uid, pane: z.enum(["form", "success", "error"]) }),
+  /** En-tête du site tenu par une autre page (son nom), ou null. */
+  z.object({ kind: z.literal("site-lock"), page: z.string().max(200).nullable() }),
   z.object({
     kind: z.literal("ghosts"),
     items: z

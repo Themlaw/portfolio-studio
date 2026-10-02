@@ -575,3 +575,95 @@
 @utility drift-slow {
   animation: drift 18s var(--ease-soft) infinite alternate;
 }
+
+/* --------------------------------------------------------------------------
+   Grille (bloc « grid », v0.13) : motif de cellules répété, tokens d'espacement
+   du thème. « normal » = l'écart de l'ancienne vitrine vidéo (parité).
+   Mobile : une colonne (deux pour les petits formats 2×2 et 4 en ligne).
+   ----------------------------------------------------------------------- */
+.block-grid {
+  --grid-gap: clamp(1.5rem, 3vw, 2.5rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--grid-gap);
+  align-items: stretch;
+}
+.block-grid[data-gap="tight"] {
+  --grid-gap: calc(var(--gutter) / 2);
+}
+.block-grid[data-gap="wide"] {
+  --grid-gap: var(--section-gap);
+}
+.block-grid[data-align="start"] {
+  align-items: start;
+}
+.block-grid[data-align="center"] {
+  align-items: center;
+}
+.block-grid[data-align="end"] {
+  align-items: end;
+}
+.block-grid-cell {
+  min-width: 0;
+}
+.block-grid[data-layout="2x2"],
+.block-grid[data-layout="4"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 48rem) {
+  .block-grid[data-layout="2"],
+  .block-grid[data-layout="2x2"],
+  .block-grid[data-layout="1+2"],
+  .block-grid[data-layout="2+1"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .block-grid[data-layout="3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .block-grid[data-layout="4"] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .block-grid[data-layout="1+2"] > .block-grid-cell:nth-child(3n + 1),
+  .block-grid[data-layout="2+1"] > .block-grid-cell:nth-child(3n) {
+    grid-column: 1 / -1;
+  }
+}
+/* Ratio imposé aux images des cellules (les vidéos gardent leur cadre). */
+.block-grid[data-ratio="16:9"] .block-image-media {
+  aspect-ratio: 16 / 9;
+}
+.block-grid[data-ratio="1:1"] .block-image-media {
+  aspect-ratio: 1;
+}
+.block-grid[data-ratio="4:5"] .block-image-media {
+  aspect-ratio: 4 / 5;
+}
+.block-grid:not([data-ratio="auto"]) .block-image-media {
+  height: auto;
+  object-fit: cover;
+}
+.block-image[data-width="text"] {
+  max-width: 42rem;
+}
+.social-icon {
+  flex: none;
+  width: 1em;
+  height: 1em;
+}
+/* Lien de réseau avec icône : même hauteur de ligne qu'un lien texte (pas d'écart de ligne de base). */
+.social-link {
+  vertical-align: top;
+}
+
+/* Formulaire de contact : piège à robots hors de l'écran (jamais display:none). */
+.contact-trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.contact-form .contact-input:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}

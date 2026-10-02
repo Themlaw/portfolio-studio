@@ -55,7 +55,8 @@ async function canvas(p = page) {
   await f.waitForSelector("html[data-edit-mode]", { timeout: 90000 });
   return f;
 }
-const blocksOf = (f) => f.$$eval("[data-edit-block]", (els) => els.map((e) => ({ uid: e.dataset.editBlock, type: e.dataset.editType, text: e.textContent ?? "" })));
+// Blocs de la page (les composants des conteneurs, v0.13, ne comptent pas ici).
+const blocksOf = (f) => f.$$eval("[data-edit-block]:not([data-edit-parent])", (els) => els.map((e) => ({ uid: e.dataset.editBlock, type: e.dataset.editType, text: e.textContent ?? "" })));
 const status = (p = page) => p.locator(".ve-status").innerText();
 /** Enregistrement terminé (plus de « Enregistrement… »). */
 async function settled(p = page) {
@@ -68,14 +69,14 @@ async function until(f, fn, arg, timeout = 60000) {
     () => false,
   );
 }
-const countIs = (f, n) => until(f, (n) => document.querySelectorAll("[data-edit-block]").length === n, n);
+const countIs = (f, n) => until(f, (n) => document.querySelectorAll("[data-edit-block]:not([data-edit-parent])").length === n, n);
 /** Rectangle d'un bloc (réunion de ses enfants), coordonnées de la fenêtre de la toile. */
 const blockRect = (f, i) =>
   f.evaluate((i) => {
-    const el = document.querySelectorAll("[data-edit-block]")[i];
+    const el = document.querySelectorAll("[data-edit-block]:not([data-edit-parent])")[i];
     let top = Infinity;
     let bottom = -Infinity;
-    for (const c of el.children) {
+    for (const c of el.querySelectorAll("*")) {
       const r = c.getBoundingClientRect();
       if (!r.height) continue;
       top = Math.min(top, r.top);
@@ -140,8 +141,8 @@ ok("Échap désélectionne", await until(f, () => !document.querySelector(".pe-s
 
 // Repère entre les blocs 2 et 3 (index 1 et 2), amené au milieu de la toile.
 await f.evaluate(() => {
-  const el = document.querySelectorAll("[data-edit-block]")[2];
-  const c = [...el.children].find((x) => x.getBoundingClientRect().height);
+  const el = document.querySelectorAll("[data-edit-block]:not([data-edit-parent])")[2];
+  const c = [...el.querySelectorAll("*")].find((x) => x.getBoundingClientRect().height);
   // Défilement immédiat (le site peut demander un défilement doux).
   window.scrollTo({ top: window.scrollY + c.getBoundingClientRect().top - window.innerHeight / 2, behavior: "instant" });
 });
@@ -152,6 +153,8 @@ const frameBox = await page.locator("iframe.ve-frame").boundingBox();
 const targetY = frameBox.y + (a.bottom + b.top) / 2;
 const targetX = frameBox.x + frameBox.width / 2;
 const card = page.locator('.ve-card[data-type="rich-text"]');
+// Palette plus longue en v0.13 : la carte est amenée à l'écran.
+await card.scrollIntoViewIfNeeded();
 const cb = await card.boundingBox();
 await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2);
 await page.mouse.down();
@@ -162,14 +165,14 @@ ok("repère d'insertion « Déposer ici » pendant le glisser", (await f.locator
 await page.screenshot({ path: `${SHOTS}/1440-glisser.png` });
 await page.mouse.up();
 ok("Texte inséré entre les blocs 2 et 3", await until(f, (n) => {
-  const els = document.querySelectorAll("[data-edit-block]");
+  const els = document.querySelectorAll("[data-edit-block]:not([data-edit-parent])");
   return els.length === n && els[2]?.dataset.editType === "rich-text";
 }, published.length + 1), JSON.stringify((await blocksOf(f)).map((x) => x.type)));
 await settled();
 ok("état « Brouillon enregistré »", /Brouillon enregistré/.test(await status()), await status());
 let blocks = await blocksOf(f);
 const textUid = blocks[2].uid;
-ok("le nouveau bloc est sélectionné", await until(f, (uid) => Boolean(document.querySelector(".pe-selected")) && document.querySelectorAll("[data-edit-block]")[2]?.dataset.editBlock === uid, textUid));
+ok("le nouveau bloc est sélectionné", await until(f, (uid) => Boolean(document.querySelector(".pe-selected")) && document.querySelectorAll("[data-edit-block]:not([data-edit-parent])")[2]?.dataset.editBlock === uid, textUid));
 
 /* ---- Titre modifié en place, FR puis EN ------------------------------------ */
 
@@ -204,11 +207,11 @@ ok("retour en FR : titre FR intact", await until(f, ([uid, t]) => document.query
 await f.locator(titleSel(textUid)).click();
 await until(f, () => Boolean(document.querySelector(".pe-tools")));
 await f.locator(".pe-tools").getByRole("button", { name: "Monter" }).click();
-ok("monter : le Texte passe en 2ᵉ position", await until(f, (uid) => document.querySelectorAll("[data-edit-block]")[1]?.dataset.editBlock === uid, textUid));
+ok("monter : le Texte passe en 2ᵉ position", await until(f, (uid) => document.querySelectorAll("[data-edit-block]:not([data-edit-parent])")[1]?.dataset.editBlock === uid, textUid));
 await settled();
 await f.locator(".pe-tools").getByRole("button", { name: "Dupliquer" }).click();
 ok("dupliquer : un bloc de plus, copie juste après", await until(f, (n) => {
-  const els = document.querySelectorAll("[data-edit-block]");
+  const els = document.querySelectorAll("[data-edit-block]:not([data-edit-parent])");
   return els.length === n && els[2]?.dataset.editType === "rich-text" && els[2].textContent.includes("Carnet");
 }, published.length + 2));
 await settled();

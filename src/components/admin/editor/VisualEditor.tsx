@@ -23,34 +23,41 @@ import {
   publishDraftAction,
   restoreBoardAction,
   saveDraftAction,
+  siteDraftAction,
 } from "@/app/admin/(espace)/pages/actions";
 import { BlockEditorContext } from "@/blocks/editor-context";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
-import { renderSummary } from "@/blocks/summary";
+import { blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
+import { makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
+import type { SiteSnap } from "@/lib/site-schema";
 import type { BoardOp, BoardResult, BoardSnap } from "@/lib/edit/boards";
 import type { DraftBlock, PageDraft } from "@/lib/edit/drafts";
 import { mediaStatusAction } from "@/app/admin/(espace)/medias/actions";
 import type { AdminMediaRow } from "@/lib/admin";
-import { acceptFromCanvas, EDIT_MSG, inlineAllowed, moveTo, setLocalizedAt, type BlockInfo, type DropTargetInfo, type Ghost, type ToCanvas } from "@/lib/edit/protocol";
+import { acceptFromCanvas, EDIT_MSG, inlineAllowed, setLocalizedAt, type BlockInfo, type DropTargetInfo, type FromCanvas, type Ghost, type ToCanvas } from "@/lib/edit/protocol";
 import { own } from "@/lib/own";
 
 import { clone, ConfirmDialog, toast, useUnsavedGuard } from "../editing";
 import { filterMedia } from "../LibraryStrip";
-import { DragHandle, SortableList } from "../Sortable";
 import Uploader from "../Uploader";
 import { isUploaded, useUploadQueue } from "../UploadQueue";
 import { readRatio, sendFile } from "../uploads";
 import MediaPickerDialog from "./MediaPickerDialog";
+import SiteEditor, { applySiteOp, siteText } from "./SiteEditor";
+import StructureTree from "./StructureTree";
 import BlockThumb from "./thumbs";
 
 type Locale = "fr" | "en";
 type Device = "desktop" | "tablet" | "phone";
 type Tab = "ajouter" | "medias" | "structure" | "reglages";
 type SaveState = "idle" | "pending" | "saving" | "error";
-/** Un pas d'historique : le brouillon, et l'instantané d'une planche s'il a changé. */
-type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: BoardSnap } };
+/** Un pas d'historique : le brouillon, et l'instantané d'une planche ou du site (en-tête…) s'il a changé. */
+type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: BoardSnap }; site?: SiteSnap };
+/** Où insérer : la page (parent null) ou un conteneur. */
+type Place = { parent: string | null; index: number };
+type FromCanvasMsg = FromCanvas;
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
-type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number };
+type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /** Ce qui part vers la toile (ni fichier, ni identifiants internes). */
 const toWire = (g: GhostItem): Ghost => ({
   id: g.id,
@@ -87,6 +94,7 @@ const readable = (text: string) => text.replace(/<mark>([\s\S]*?)<\/mark>/g, "«
 /** Les textes du brouillon (FR / EN), bloc par bloc : à copier avant de recharger. */
 function draftTexts(draft: PageDraft, byType: Record<string, BlockCatalogEntry>): string {
   const out: string[] = [];
+  // Parcourt aussi les composants des conteneurs (props.children).
   const walk = (v: unknown, lines: string[]) => {
     if (!v || typeof v !== "object") return;
     const l = v as { fr?: unknown; en?: unknown };
@@ -106,6 +114,8 @@ function draftTexts(draft: PageDraft, byType: Record<string, BlockCatalogEntry>)
 }
 
 let seq = 0;
+/** Identifiant d'un lot de fichiers déposés ensemble. */
+const batchId = () => `b${Date.now().toString(36)}${(++seq).toString(36)}`;
 /** Identifiant de bloc neuf, unique (format accepté par le brouillon). */
 const newUid = () => `n${Date.now().toString(36)}${(++seq).toString(36)}`;
 
@@ -121,10 +131,15 @@ function useMedia(query: string): boolean {
   return match;
 }
 
-/** Erreurs d'un bloc (publication refusée), relatives à ses props. */
-function blockErrors(errors: Record<string, string>, index: number): Record<string, string> {
-  const prefix = `blocks.${index}.props.`;
-  return Object.fromEntries(Object.entries(errors).filter(([k]) => k.startsWith(prefix)).map(([k, v]) => [k.slice(prefix.length), v]));
+/** Erreurs d'un bloc (publication refusée), relatives à ses props (`at` : « blocks.2.props.children.0 »). */
+function blockErrors(errors: Record<string, string>, at: string | null): Record<string, string> {
+  if (!at) return {};
+  const prefix = `${at}.props.`;
+  return Object.fromEntries(
+    Object.entries(errors)
+      .filter(([k]) => k.startsWith(prefix) && !k.slice(prefix.length).startsWith("children."))
+      .map(([k, v]) => [k.slice(prefix.length), v]),
+  );
 }
 
 const isTyping = (t: EventTarget | null) =>
@@ -144,6 +159,7 @@ export default function VisualEditor({
   context,
   siteName,
   initialLocale,
+  site: initialSite,
 }: {
   pageId: number;
   initial: PageDraft;
@@ -162,10 +178,13 @@ export default function VisualEditor({
   corrupt: boolean;
   /** Projets dont la page a déjà modifié les images (surcouche en attente). */
   overlaySlugs: string[];
+  /** En-tête, pied et réseaux (communs au site) : état vu depuis cette page. */
+  site: { snap: SiteSnap; pending: boolean; lockedBy: string | null };
 }) {
   const router = useRouter();
   const mobile = useMedia(MOBILE);
-  const byType = useMemo(() => Object.fromEntries(catalog.map((c) => [c.type, c])), [catalog]);
+  // Par type : l'entrée du type lui-même (pas un raccourci de la palette).
+  const byType = useMemo(() => Object.fromEntries(catalog.filter((c) => !c.preset).map((c) => [c.type, c])), [catalog]);
 
   /* ---- Brouillon et historique ------------------------------------------- */
 
@@ -196,6 +215,8 @@ export default function VisualEditor({
   const [mode, setMode] = useState<"edit" | "preview">("edit");
   const [sheet, setSheet] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  /** Planches (avec images modifiées) que la suppression demandée retirerait. */
+  const [deletingLost, setDeletingLost] = useState<string[]>([]);
   const [discarding, setDiscarding] = useState(false);
   const [discardBusy, setDiscardBusy] = useState(false);
 
@@ -204,7 +225,9 @@ export default function VisualEditor({
   const [foreign, setForeign] = useState(false);
   const [canvasBlocks, setCanvasBlocks] = useState<BlockInfo[]>([]);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
-  const dropIndexRef = useRef<number | null>(null);
+  const [dropRefused, setDropRefused] = useState(false);
+  /** Endroit visé par un composant glissé de la palette : la page ou un conteneur. */
+  const dropIndexRef = useRef<Place | null>(null);
 
   const send = useCallback((msg: ToCanvas) => {
     frameRef.current?.contentWindow?.postMessage({ type: EDIT_MSG, ...msg }, window.location.origin);
@@ -293,6 +316,15 @@ export default function VisualEditor({
   const overlaySlugs = useRef(new Set(initialOverlaySlugs));
   const [boardBusy, setBoardBusy] = useState(0);
 
+  /* ---- En-tête, pied, réseaux : brouillon du site (v0.13) ------------------ */
+
+  const siteRef = useRef<SiteSnap>(initialSite.snap);
+  const [siteSnap, setSiteSnap] = useState<SiteSnap>(initialSite.snap);
+  const [sitePending, setSitePending] = useState(initialSite.pending);
+  const siteLocked = initialSite.lockedBy;
+  // Défini plus bas (après runSave) ; appelé par l'historique.
+  const writeSiteRef = useRef<(next: SiteSnap, record?: boolean) => Promise<boolean>>(async () => false);
+
   /**
    * Écrit sur une planche (opération ou instantané), après le brouillon en
    * attente. Renvoie le résultat, ou null si refusé (message affiché).
@@ -333,6 +365,55 @@ export default function VisualEditor({
       }),
     [runSave, send, stop, withLock],
   );
+
+  /**
+   * Écrit le brouillon du site (en-tête, pied, réseaux) après le brouillon en
+   * attente, avec la version de la page. `record` : inscrit dans l'historique.
+   */
+  const writeSite = useCallback(
+    (next: SiteSnap, record = true): Promise<boolean> =>
+      withLock(async () => {
+        if (blockedRef.current) return false;
+        if (siteLocked) {
+          toast(`L'en-tête est en cours de modification sur la page « ${siteLocked} » : publie-la ou abandonne-la d'abord.`, "error");
+          return false;
+        }
+        if (dirty.current && !(await runSave())) return false;
+        setSaveState("saving");
+        let result: Awaited<ReturnType<typeof siteDraftAction>>;
+        try {
+          result = await siteDraftAction(pageId, next, revRef.current);
+        } catch {
+          result = { ok: false, message: "connexion perdue" };
+        }
+        if (!result.ok) {
+          if ("code" in result) stop(result.code);
+          else {
+            setSaveState("idle");
+            toast(result.message, "error");
+          }
+          return false;
+        }
+        revRef.current = result.data.rev;
+        if (record) {
+          history.current = { past: [...history.current.past, { draft: draftRef.current, site: result.data.before }].slice(-HISTORY_MAX), future: [] };
+          coalesce.current = null;
+          bumpHistory();
+        }
+        siteRef.current = next;
+        setSiteSnap(next);
+        setSitePending(result.data.pending);
+        setHasDraft(true);
+        setSaveState("idle");
+        setSaveError(null);
+        send({ kind: "refresh" });
+        return true;
+      }),
+    [pageId, runSave, send, siteLocked, stop, withLock],
+  );
+  useEffect(() => {
+    writeSiteRef.current = writeSite;
+  }, [writeSite]);
 
   // Bloqué (modifié ailleurs) : « Recharger » est un choix explicite, pas de garde.
   useUnsavedGuard(!blocked && (saveState === "pending" || saveState === "saving" || saveState === "error" || boardBusy > 0));
@@ -380,6 +461,10 @@ export default function VisualEditor({
   const travel = useCallback(
     async (entry: HistoryEntry): Promise<HistoryEntry | null> => {
       const back: HistoryEntry = { draft: draftRef.current };
+      if (entry.site) {
+        back.site = siteRef.current;
+        if (!(await writeSiteRef.current(entry.site, false))) return null;
+      }
       if (entry.board) {
         const current = boards.current.get(entry.board.projectId);
         if (current) back.board = { projectId: entry.board.projectId, snap: current };
@@ -458,68 +543,177 @@ export default function VisualEditor({
     [send],
   );
 
-  const insert = (type: string, at?: number) => {
-    const def = own(byType, type);
+  /** Le bloc choisi est-il un conteneur qui accepte ce type ? Sinon sa liste. */
+  const defaultPlace = (type: string): Place => {
+    const list = draftRef.current.blocks;
+    if (selected && !selected.startsWith("site-")) {
+      const block = findBlock(list, selected);
+      if (block && isContainer(block.type) && canPlace(list, { type, props: {} }, selected)) return { parent: selected, index: listOf(list, selected)?.length ?? 0 };
+      const at = locate(list, selected);
+      if (at && canPlace(list, { type, props: {} }, at.parent)) return { parent: at.parent, index: at.index + 1 };
+    }
+    return { parent: null, index: list.length };
+  };
+
+  /** Ajoute un composant de la palette (clé : type ou raccourci) à un endroit, ou après le bloc choisi. */
+  const insert = (key: string, at?: Place) => {
+    const def = catalog.find((c) => c.key === key && !c.hidden);
     if (!def) return;
-    if (draftRef.current.blocks.length >= 40) {
+    const list = draftRef.current.blocks;
+    const place = at ?? defaultPlace(def.type);
+    if (place.parent === null && list.length >= 40) {
       toast("40 blocs au plus par page.", "error");
       return;
     }
-    const list = draftRef.current.blocks;
-    const sel = selected ? list.findIndex((b) => b.uid === selected) : -1;
-    const index = at ?? (sel >= 0 ? sel + 1 : list.length);
-    const block: DraftBlock = { uid: newUid(), type, props: clone(def.defaults) };
-    setBlocks([...list.slice(0, index), block, ...list.slice(index)]);
+    const block = withFreshUids({ uid: "", type: def.type, props: clone(def.defaults) } as DraftBlock, newUid);
+    const next = insertBlock(list, block, place.parent, place.index);
+    if (!next) {
+      const parent = place.parent ? findBlock(list, place.parent) : null;
+      toast(parent ? `« ${own(byType, parent.type)?.label ?? "Ce conteneur"} » n'accepte pas « ${def.label} » (ou il est plein).` : "Impossible d'ajouter ce composant ici.", "error");
+      return;
+    }
+    setBlocks(next);
     selectBlock(block.uid, { scroll: true });
-    toast(`« ${def.label} » ajouté`);
+    toast(`« ${def.label} » ajouté${place.parent ? ` dans « ${own(byType, findBlock(list, place.parent)?.type ?? "")?.label ?? "le conteneur"} »` : ""}`);
     if (mobile) setSheet(false);
   };
 
-  const op = (kind: "up" | "down" | "duplicate" | "delete", uid: string) => {
+  const op = (kind: "up" | "down" | "duplicate" | "delete" | "out" | "in", uid: string) => {
     const list = draftRef.current.blocks;
-    const i = list.findIndex((b) => b.uid === uid);
-    if (i < 0) return;
+    const at = locate(list, uid);
+    if (!at) return;
+    const siblings = listOf(list, at.parent) ?? [];
+    const i = at.index;
+    const move = (parent: string | null, index: number, done?: string) => {
+      const next = moveBlock(list, uid, parent, index);
+      if (!next) {
+        toast("Ce composant ne peut pas aller là.", "error");
+        return;
+      }
+      setBlocks(next);
+      if (done) toast(done);
+    };
     if (kind === "delete") {
+      setDeletingLost(overlayLost(uid));
       setDeleting(uid);
       return;
     }
-    if (kind === "up" && i > 0) setBlocks(moveTo(list, i, i - 1));
-    if (kind === "down" && i < list.length - 1) setBlocks(moveTo(list, i, i + 2));
+    if (kind === "up" && i > 0) move(at.parent, i - 1);
+    if (kind === "down" && i < siblings.length - 1) move(at.parent, i + 2);
+    if (kind === "out" && at.parent) {
+      // Sortir : juste après son conteneur, dans la liste du conteneur.
+      const outer = locate(list, at.parent)!;
+      move(outer.parent, outer.index + 1, "Sorti du conteneur");
+    }
+    if (kind === "in") {
+      // Entrer dans le conteneur voisin (après, sinon avant) qui l'accepte.
+      const block = siblings[i];
+      const next = siblings[i + 1];
+      const prev = siblings[i - 1];
+      const target = [next, prev].find((c) => c && isContainer(c.type) && canPlace(removeBlock(list, uid), block, c.uid));
+      if (!target) {
+        toast("Aucun conteneur voisin n'accepte ce composant.", "error");
+        return;
+      }
+      const index = target === next ? 0 : (listOf(list, target.uid)?.length ?? 0);
+      move(target.uid, index, `Placé dans « ${own(byType, target.type)?.label ?? "le conteneur"} »`);
+    }
     if (kind === "duplicate") {
-      if (list.length >= 40) {
+      if (at.parent === null && list.length >= 40) {
         toast("40 blocs au plus par page.", "error");
         return;
       }
-      const copy = { ...clone(list[i]), uid: newUid() };
-      setBlocks([...list.slice(0, i + 1), copy, ...list.slice(i + 1)]);
+      const copy = withFreshUids(clone(siblings[i]), newUid);
+      const next = insertBlock(list, copy, at.parent, i + 1);
+      if (!next) {
+        toast("Ce conteneur est plein.", "error");
+        return;
+      }
+      setBlocks(next);
       selectBlock(copy.uid);
     }
   };
 
+  /** Planches (avec surcouche d'images) que la suppression d'un bloc retirerait de la page. */
+  const overlayLost = (uid: string): string[] => {
+    const list = draftRef.current.blocks;
+    const after = new Set(boardRefs(removeBlock(list, uid)).map((b) => b.slug));
+    return [...new Set(boardRefs(list).map((b) => b.slug))].filter((s) => !after.has(s) && overlaySlugs.current.has(s));
+  };
+
   const remove = (uid: string) => {
     const list = draftRef.current.blocks;
-    const block = list.find((b) => b.uid === uid);
+    const block = findBlock(list, uid);
     setDeleting(null);
     if (!block) return;
-    setBlocks(list.filter((b) => b.uid !== uid));
-    if (selected === uid) selectBlock(null);
-    const slug = block.type === "project-board" ? (block.props as { project?: string }).project : undefined;
-    if (slug && overlaySlugs.current.has(slug)) {
-      // La surcouche de cette planche n'est appliquée que si la page l'affiche.
-      toast("Bloc supprimé · Les changements d'images de cette planche ne seront pas publiés", "success", { label: "Annuler", run: () => void undoRef.current() });
-    } else toast("Bloc supprimé · Annuler (Ctrl+Z) pour le récupérer");
+    const lost = overlayLost(uid);
+    const at = locate(list, uid);
+    setBlocks(removeBlock(list, uid));
+    if (selected === uid) selectBlock(at?.parent ?? null);
+    if (lost.length) {
+      // La surcouche d'une planche n'est appliquée que si la page l'affiche.
+      toast(`Bloc supprimé · Les changements d'images de ${lost.length > 1 ? "ces planches" : "cette planche"} ne seront pas publiés`, "success", { label: "Annuler", run: () => void undoRef.current() });
+    } else toast("Bloc supprimé · Annuler (Ctrl+Z) pour le récupérer", "success", { label: "Annuler", run: () => void undoRef.current() });
   };
 
   const editText = (uid: string, path: string, textLocale: string, value: string) => {
     const list = draftRef.current.blocks;
-    const block = list.find((b) => b.uid === uid);
+    const block = findBlock(list, uid);
     const def = block && own(byType, block.type);
     if (!block || !def || !inlineAllowed(def.inline, path) || (textLocale !== "fr" && textLocale !== "en")) return;
     const props = setLocalizedAt(block.props, path, textLocale, value.slice(0, 2000));
     setBlocks(
-      list.map((b) => (b.uid === uid ? { ...b, props } : b)),
+      updateBlock(list, uid, (b) => ({ ...b, props })),
       { structural: true },
     );
+  };
+
+  /** Déplacement depuis la toile ou la structure : dans la page, dans un conteneur, entre les deux. */
+  const moveTree = (uid: string, parent: string | null, index: number) => {
+    const list = draftRef.current.blocks;
+    if (parent === null && locate(list, uid)?.parent !== null && list.length >= 40) return toast("40 blocs au plus par page.", "error");
+    const next = moveBlock(list, uid, parent, index);
+    if (!next) return toast(parent ? "Ce conteneur n'accepte pas ce composant (ou il est plein)." : "Déplacement impossible.", "error");
+    if (next !== list) setBlocks(next);
+  };
+
+  /** Champs d'un formulaire de contact retirés, déplacés ou ajoutés depuis la toile. */
+  const formField = (msg: Extract<FromCanvasMsg, { kind: "form-field" }>) => {
+    const block = findBlock(draftRef.current.blocks, msg.uid);
+    if (!block || block.type !== "contact-form") return;
+    const fields = ((block.props.fields as FormField[] | undefined) ?? []).slice();
+    if (msg.op === "add") {
+      if (fields.length >= MAX_FIELDS) return toast(`${MAX_FIELDS} champs au plus.`, "error");
+      const field = makeField(msg.fieldType ?? "text");
+      if (field.type === "email" && !fields.some((f) => f.reply)) field.reply = true;
+      setProp(msg.uid, "fields", [...fields, field]);
+      return toast("Champ ajouté · double-clic sur son libellé pour le renommer");
+    }
+    const i = msg.index ?? -1;
+    if (!fields[i]) return;
+    if (msg.op === "remove") {
+      if (fields.length <= 1) return toast("Un formulaire garde au moins un champ.", "error");
+      if (fields[i].reply) return toast("Ce champ e-mail sert à te répondre : dans le panneau, désactive « Sert à te répondre » (ou choisis un autre champ) avant de le retirer.", "error");
+      setProp(msg.uid, "fields", fields.filter((_, j) => j !== i));
+      return toast("Champ retiré", "success", { label: "Annuler", run: () => void undoRef.current() });
+    }
+    const to = msg.to ?? i;
+    if (to < 0 || to >= fields.length || to === i) return;
+    const [x] = fields.splice(i, 1);
+    fields.splice(to, 0, x);
+    setProp(msg.uid, "fields", fields);
+  };
+
+  /** Réglage d'un bloc (où qu'il soit) : agencement d'une grille, média… */
+  const setProp = (uid: string, key: string, value: unknown) => {
+    const list = draftRef.current.blocks;
+    if (!findBlock(list, uid)) return;
+    setBlocks(updateBlock(list, uid, (b) => {
+      const props = { ...b.props };
+      if (value === undefined) delete props[key];
+      else props[key] = value;
+      return { ...b, props };
+    }));
   };
 
   /* ---- Messages de la toile ---------------------------------------------- */
@@ -531,7 +725,19 @@ export default function VisualEditor({
     const seen = new Set(context.projects.map((p) => p.slug));
     return [...context.projects, ...extraProjects.filter((p) => !seen.has(p.slug))];
   }, [context.projects, extraProjects]);
-  const editorContext = useMemo(() => ({ ...context, projects: projectsList }), [context, projectsList]);
+  // `createProject` du panneau : branché plus bas (createProjectForPanel), une fois défini.
+  const panelCreate = useRef<(name: string) => Promise<string | null>>(async () => null);
+  const editorContext = useMemo(
+    () => ({
+      ...context,
+      projects: projectsList,
+      createProject: (name: string) => panelCreate.current(name),
+      previewForm: (pane: "form" | "success" | "error") => {
+        if (selected) send({ kind: "form-preview", uid: selected, pane });
+      },
+    }),
+    [context, projectsList, selected, send],
+  );
 
   const ghostsRef = useRef<GhostItem[]>([]);
   const [ghosts, setGhosts] = useState<GhostItem[]>([]);
@@ -549,18 +755,19 @@ export default function VisualEditor({
   const [picker, setPicker] = useState<{ board: number; key: string } | null>(null);
   const dropTargetRef = useRef<DropTargetInfo | null>(null);
 
-  /** Bloc « Planche d'un projet » : projet choisi ou créé. */
+  /** Bloc « Planche d'un projet » ou conteneur « Projet mis en avant » : projet choisi ou créé. */
   const setBoardProject = useCallback(
     (uid: string, slug: string) => {
       const list = draftRef.current.blocks;
-      if (!list.some((b) => b.uid === uid)) return;
-      apply({ ...draftRef.current, blocks: list.map((b) => (b.uid === uid ? { ...b, props: { ...b.props, project: slug } } : b)) }, { structural: true });
+      const block = findBlock(list, uid);
+      if (!block || (block.type !== "project-board" && block.type !== "featured-project")) return;
+      apply({ ...draftRef.current, blocks: updateBlock(list, uid, (b) => ({ ...b, props: { ...b.props, project: slug } })) }, { structural: true });
     },
     [apply],
   );
 
   const createProject = useCallback(
-    async (uid: string, name: string): Promise<number | null> => {
+    async (uid: string, name: string): Promise<{ id: number; slug: string } | null> => {
       if (blockedRef.current) return null;
       const result = await createDraftProjectAction(pageId, name);
       if (!result.ok) {
@@ -568,12 +775,85 @@ export default function VisualEditor({
         return null;
       }
       setExtraProjects((list) => [...list, { slug: result.data.slug, title: result.data.title, draft: true }]);
-      setBoardProject(uid, result.data.slug);
+      if (uid) setBoardProject(uid, result.data.slug);
       toast(`Projet « ${result.data.title} » créé : il devient public avec la page`);
-      return result.data.id;
+      return { id: result.data.id, slug: result.data.slug };
     },
     [pageId, setBoardProject],
   );
+  useEffect(() => {
+    panelCreate.current = async (name) => (await createProject("", name))?.slug ?? null;
+  }, [createProject]);
+
+  /* ---- Médias des blocs (image, vidéo, fond de l'ouverture, portrait) ---- */
+
+  const mediaKindOf = (mediaId: number, fallback?: string): string | undefined => context.media.find((m) => m.id === mediaId)?.kind ?? fallback;
+
+  /**
+   * Un média posé sur un bloc (champ déclaré `mediaFields` au registre, type
+   * de média contrôlé), ou dans la place libre d'une grille (un composant
+   * Vidéo ou Image y est créé).
+   */
+  const placeMedia = (target: Extract<DropTargetInfo, { kind: "media" | "cell" }>, mediaId: number, kindHint?: string) => {
+    const list = draftRef.current.blocks;
+    const kind = mediaKindOf(mediaId, kindHint);
+    const block = findBlock(list, target.uid);
+    if (!block) return;
+    if (target.kind === "cell") {
+      const type = kind === "video" ? "video-single" : "image";
+      const child = { uid: newUid(), type, props: type === "video-single" ? { look: "card", mode: "player", mediaId } : { width: "wide", mediaId } } as DraftBlock;
+      const next = insertBlock(list, child, target.uid, listOf(list, target.uid)?.length ?? 0);
+      if (!next) return toast("Cette grille n'accepte plus de composant.", "error");
+      setBlocks(next);
+      selectBlock(child.uid);
+      return;
+    }
+    const field = own(byType, block.type)?.mediaFields?.find((f) => f.field === target.field);
+    if (!field) return;
+    if (field.kind !== "any" && kind && kind !== field.kind) return toast(field.kind === "video" ? "Ce bloc attend une vidéo." : "Ce bloc attend une image.", "error");
+    setProp(target.uid, target.field, mediaId);
+    toast(field.kind === "video" ? "Vidéo placée" : "Image placée", "success", { label: "Annuler", run: () => void undoRef.current() });
+  };
+
+  /** Fichiers déposés sur un bloc média ou une place libre : envoyés, convertis, puis posés. */
+  const uploadToBlock = async (target: Extract<DropTargetInfo, { kind: "media" | "cell" }>, files: File[]) => {
+    for (const file of target.kind === "media" ? files.slice(0, 1) : files) {
+      toast(`Envoi de « ${file.name.slice(0, 60)} »…`);
+      const up = await sendFile(file, () => undefined);
+      if (!up.ok) {
+        toast(up.message, "error");
+        continue;
+      }
+      router.refresh();
+      let ready = false;
+      for (let i = 0; i < 1300; i++) {
+        const st = await mediaStatusAction([up.media.id]);
+        const row = st.ok ? st.data[0] : undefined;
+        if (row?.status === "ready") {
+          ready = true;
+          break;
+        }
+        if (!row || row.status === "failed") break;
+        await new Promise((r) => setTimeout(r, 700));
+      }
+      if (!ready) {
+        toast(`« ${file.name.slice(0, 60)} » : conversion impossible.`, "error");
+        continue;
+      }
+      placeMedia(target, up.media.id, file.type.startsWith("video/") ? "video" : "image");
+    }
+  };
+
+  const [mediaPick, setMediaPick] = useState<{ uid: string; field: "mediaId" | "backgroundMediaId" | "portraitMediaId"; kind: "image" | "video" | "any" } | null>(null);
+  const mediaOp = (uid: string, field: "mediaId" | "backgroundMediaId" | "portraitMediaId", what: "replace" | "clear") => {
+    const block = findBlock(draftRef.current.blocks, uid);
+    const decl = block && own(byType, block.type)?.mediaFields?.find((f) => f.field === field);
+    if (!decl) return;
+    if (what === "clear") {
+      setProp(uid, field, undefined);
+      toast(field === "backgroundMediaId" ? "Fond du thème rétabli" : "Média retiré", "success", { label: "Annuler", run: () => void undoRef.current() });
+    } else setMediaPick({ uid, field, kind: decl.kind });
+  };
 
   /** Envoie un fichier fantôme, attend sa conversion, puis crée l'emplacement à sa position. */
   const processGhost = useCallback(
@@ -616,7 +896,7 @@ export default function VisualEditor({
       }
       g = ghostsRef.current.find((x) => x.id === id);
       if (!g) return false;
-      const op: BoardOp = g.slot ? { op: "fill", key: g.slot, mediaId } : { op: "add", mediaId, index: g.index ?? 0 };
+      const op: BoardOp = g.slot ? { op: "fill", key: g.slot, mediaId } : { op: "add", mediaId, index: g.index ?? 0, ...(g.collection ? { collection: g.collection } : {}) };
       const result = await boardDo(g.board, op);
       if (!result) {
         patchGhost(id, { phase: "failed", progress: null, message: "placement refusé" });
@@ -639,10 +919,15 @@ export default function VisualEditor({
       let board: number;
       let index = 0;
       let slot: string | undefined;
+      let collection: "characters" | "backgrounds" | "animation" | undefined;
+      if (target.kind === "media" || target.kind === "cell") {
+        await uploadToBlock(target, files);
+        return;
+      }
       if (target.kind === "new") {
-        const id = await createProject(target.uid, "Projet sans titre");
-        if (!id) return;
-        board = id;
+        const created = await createProject(target.uid, "Projet sans titre");
+        if (!created) return;
+        board = created.id;
       } else if (target.kind === "slot") {
         board = target.board;
         slot = target.key;
@@ -650,8 +935,9 @@ export default function VisualEditor({
       } else {
         board = target.board;
         index = target.index;
+        collection = target.collection;
       }
-      const batch = `b${Date.now().toString(36)}`;
+      const batch = batchId();
       const created: GhostItem[] = [];
       for (const [i, file] of files.entries()) {
         const info = file.type.startsWith("image/") ? await readRatio(file) : null;
@@ -666,27 +952,31 @@ export default function VisualEditor({
           progress: 0,
           phase: "upload",
           file,
+          ...(collection ? { collection } : {}),
         });
       }
       setGhostList((list) => [...list, ...created]);
       for (const g of created) await processGhost(g.id);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [createProject, processGhost, setGhostList],
   );
 
   /** Un média de la bibliothèque déposé sur la toile. */
   const dropMedia = useCallback(
-    async (mediaId: number, target: DropTargetInfo | null) => {
+    async (mediaId: number, target: DropTargetInfo | null, kind?: string) => {
       if (!target) {
         toast("Dépose l'image sur une planche : entre deux images, ou sur une place vide.", "error");
         return;
       }
-      if (target.kind === "new") {
-        const id = await createProject(target.uid, "Projet sans titre");
-        if (id) await boardDo(id, { op: "add", mediaId, index: 0 });
+      if (target.kind === "media" || target.kind === "cell") placeMedia(target, mediaId, kind);
+      else if (target.kind === "new") {
+        const created = await createProject(target.uid, "Projet sans titre");
+        if (created) await boardDo(created.id, { op: "add", mediaId, index: 0 });
       } else if (target.kind === "slot") await boardDo(target.board, { op: "fill", key: target.key, mediaId });
-      else await boardDo(target.board, { op: "add", mediaId, index: target.index });
+      else await boardDo(target.board, { op: "add", mediaId, index: target.index, ...(target.collection ? { collection: target.collection } : {}) });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [boardDo, createProject],
   );
 
@@ -699,10 +989,20 @@ export default function VisualEditor({
       if (result) toast(op === "remove" ? "Image retirée · la place reste" : "Place retirée", "success", { label: "Annuler", run: () => undoRef.current() });
   };
 
+  /** Pendant un glisser : aucune sélection de texte native (éditeur), sélection en cours effacée. */
+  const noSelection = (on: boolean) => {
+    document.documentElement.toggleAttribute("data-ve-dragging", on);
+    try {
+      window.getSelection()?.removeAllRanges();
+    } catch {}
+  };
+
   /** Glisser un média de l'onglet Médias sur la toile. */
   const [mediaDrag, setMediaDrag] = useState<{ label: string; thumb: string | null; x: number; y: number; over: boolean } | null>(null);
   const onMediaDown = (e: React.PointerEvent<HTMLElement>, m: AdminMediaRow) => {
     if (e.button !== 0 || e.pointerType === "touch" || m.status === "failed") return;
+    // Pas de sélection de texte ni de glisser natif dès l'appui.
+    e.preventDefault();
     const el = e.currentTarget;
     const sx = e.clientX;
     const sy = e.clientY;
@@ -713,6 +1013,7 @@ export default function VisualEditor({
         if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 5) return;
         dragging = true;
         el.setPointerCapture(ev.pointerId);
+        noSelection(true);
       }
       const r = frameRef.current?.getBoundingClientRect();
       const over = Boolean(r && ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom);
@@ -728,11 +1029,12 @@ export default function VisualEditor({
       el.removeEventListener("pointerup", up);
       el.removeEventListener("pointercancel", cancel);
       if (!dragging) return;
+      noSelection(false);
       const target = dropTargetRef.current;
       dropTargetRef.current = null;
       setMediaDrag(null);
       send({ kind: "drag-end" });
-      if (commit) void dropMedia(m.id, target);
+      if (commit) void dropMedia(m.id, target, m.kind);
     };
     const up = () => end(true);
     const cancel = () => end(false);
@@ -750,10 +1052,28 @@ export default function VisualEditor({
     lastUploaded.current = uploadedCount;
   }, [uploadedCount, router]);
 
-  const handlers = useRef({ op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList });
+  /** Texte ou opération sur l'en-tête / le pied / les réseaux venus de la toile. */
+  const siteChange = (msg: Extract<FromCanvasMsg, { kind: "site-text" | "site-op" }>) => {
+    const result = msg.kind === "site-text" ? siteText(siteRef.current, msg) : applySiteOp(siteRef.current, msg, pages);
+    if ("error" in result) return toast(result.error, "error");
+    void writeSite(result.snap).then((ok) => ok && result.done && toast(result.done, "success", { label: "Annuler", run: () => void undoRef.current() }));
+  };
+
+  const handlers = useRef({ op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField });
   useEffect(() => {
-    handlers.current = { op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList };
+    handlers.current = { op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField };
   });
+
+  // Toile : pages proposables pour le menu, et verrou de l'en-tête.
+  const navPagesRef = useRef<{ id: number; title: string }[]>([]);
+  const navPages = useMemo(() => {
+    const inNav = new Set(siteSnap.nav.flatMap((i) => (i.kind === "page" ? [i.pageId] : [])));
+    return pages.filter((p) => !inNav.has(p.id)).map((p) => ({ id: p.id, title: p.title.slice(0, 200) }));
+  }, [pages, siteSnap]);
+  useEffect(() => {
+    navPagesRef.current = navPages;
+    if (frameReady) send({ kind: "pages", list: navPages });
+  }, [frameReady, navPages, send]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
@@ -774,8 +1094,13 @@ export default function VisualEditor({
           // Une autre page (lien suivi en aperçu) : jamais éditable ici.
           send({ kind: "mode", mode: own ? mode : "preview" });
           if (own && selected) send({ kind: "select", uid: selected });
-          send({ kind: "projects", list: projectsList.filter((p) => !p.draft).map(({ slug, title }) => ({ slug, title: title.slice(0, 200) })) });
+          send({
+            kind: "projects",
+            list: projectsList.map(({ slug, title, draft, ...rest }) => ({ slug, title: title.slice(0, 200), ...(draft ? { draft: true } : {}), ...("onPage" in rest ? { onPage: Boolean(rest.onPage) } : {}) })),
+          });
           send({ kind: "ghosts", items: ghostsRef.current.map(toWire) });
+          send({ kind: "site-lock", page: siteLocked });
+          send({ kind: "pages", list: navPagesRef.current });
           break;
         }
         case "blocks":
@@ -817,18 +1142,29 @@ export default function VisualEditor({
         case "op":
           h.op(msg.op, msg.uid);
           break;
-        case "move": {
-          const list = draftRef.current.blocks;
-          const from = list.findIndex((b) => b.uid === msg.uid);
-          if (from >= 0) setBlocks(moveTo(list, from, msg.index));
+        case "move":
+          h.moveTree(msg.uid, msg.parent ?? null, msg.index);
           break;
-        }
+        case "media-op":
+          h.mediaOp(msg.uid, msg.field, msg.op);
+          break;
+        case "layout":
+          h.setProp(msg.uid, "layout", msg.layout);
+          break;
+        case "form-field":
+          h.formField(msg);
+          break;
+        case "site-text":
+        case "site-op":
+          h.siteChange(msg);
+          break;
         case "text":
           h.editText(msg.uid, msg.path, msg.locale, msg.value);
           break;
         case "drag-index":
-          dropIndexRef.current = msg.index;
-          setDropIndex(msg.index);
+          dropIndexRef.current = msg.refused ? null : { parent: msg.parent ?? null, index: msg.index };
+          setDropIndex(msg.refused ? null : msg.index);
+          setDropRefused(Boolean(msg.refused));
           break;
         case "key":
           if (msg.key === "undo") h.undo();
@@ -877,6 +1213,9 @@ export default function VisualEditor({
 
   const [paletteDrag, setPaletteDrag] = useState<{ type: string; label: string; x: number; y: number; over: boolean } | null>(null);
 
+  /** Conteneurs qu'apporte un composant de la palette (une grille : 1). */
+  const nestingOfEntry = (entry: BlockCatalogEntry) => (entry.container ? 1 : 0);
+
   const onPaletteDown = (e: React.PointerEvent<HTMLButtonElement>, entry: BlockCatalogEntry) => {
     if (e.button !== 0 || e.pointerType === "touch") return;
     const card = e.currentTarget;
@@ -890,14 +1229,17 @@ export default function VisualEditor({
         dragging = true;
         card.setPointerCapture(ev.pointerId);
         dropIndexRef.current = null;
+        // Pas de sélection de texte du navigateur pendant le glisser.
+        noSelection(true);
       }
       const r = frameRect();
       const over = Boolean(r && ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom);
       setPaletteDrag({ type: entry.type, label: entry.label, x: ev.clientX, y: ev.clientY, over });
-      if (over && r) send({ kind: "drag", x: ev.clientX - r.left, y: ev.clientY - r.top, label: entry.label });
-      else if (dropIndexRef.current !== null) {
+      if (over && r) send({ kind: "drag", x: ev.clientX - r.left, y: ev.clientY - r.top, label: entry.label, blockType: entry.type, nesting: nestingOfEntry(entry) });
+      else if (dropIndexRef.current !== null || dropRefused) {
         dropIndexRef.current = null;
         setDropIndex(null);
+        setDropRefused(false);
         send({ kind: "drag-end" });
       }
     };
@@ -910,12 +1252,14 @@ export default function VisualEditor({
       // Le clic qui suit un glisser ne doit pas insérer une seconde fois.
       card.dataset.dragged = "1";
       setTimeout(() => delete card.dataset.dragged, 0);
-      const index = dropIndexRef.current;
+      const place = dropIndexRef.current;
       setPaletteDrag(null);
       setDropIndex(null);
+      setDropRefused(false);
       dropIndexRef.current = null;
+      noSelection(false);
       send({ kind: "drag-end" });
-      if (commit && index !== null) insert(entry.type, index);
+      if (commit && place !== null) insert(entry.key, place);
     };
     const up = () => end(true);
     const cancel = () => end(false);
@@ -954,10 +1298,10 @@ export default function VisualEditor({
         const fe = result.fieldErrors ?? {};
         setPublishErrors(fe);
         setPublishMessage(result.message);
-        const first = Object.keys(fe)
-          .map((k) => /^blocks\.(\d+)/.exec(k)?.[1])
+        // Premier bloc ou composant signalé (chemin « blocks.2.props.children.0… »).
+        const uid = Object.keys(fe)
+          .map((k) => blockAtPath(draftRef.current.blocks, k)?.uid)
           .find((v) => v !== undefined);
-        const uid = first !== undefined ? draftRef.current.blocks[Number(first)]?.uid : undefined;
         if (uid) {
           selectBlock(uid, { scroll: true });
           setTab("reglages");
@@ -974,7 +1318,8 @@ export default function VisualEditor({
       setPublishErrors({});
       setPublishMessage(null);
       setHasDraft(false);
-      toast("Publié : la page est en ligne");
+      toast(result.data.site ? "Publié : la page est en ligne, l'en-tête et le pied de page sont à jour sur toutes les pages" : "Publié : la page est en ligne");
+      setSitePending(false);
       send({ kind: "refresh" });
       router.refresh();
     } finally {
@@ -1017,16 +1362,22 @@ export default function VisualEditor({
 
   /* ---- Rendu -------------------------------------------------------------- */
 
-  const selIndex = selected ? blocks.findIndex((b) => b.uid === selected) : -1;
-  const selBlock = selIndex >= 0 ? blocks[selIndex] : null;
+  const selBlock = selected && !selected.startsWith("site-") ? findBlock(blocks, selected) : null;
+  const selAt = selBlock ? locate(blocks, selBlock.uid) : null;
+  const selSiblings = selAt ? (listOf(blocks, selAt.parent) ?? []) : [];
+  const selPath = selBlock ? errorPath(blocks, selBlock) : null;
   const selDef = selBlock ? own(byType, selBlock.type) : undefined;
   const editor = selBlock ? own(editors, selBlock.type) : undefined;
+  // Fil d'Ariane du bloc choisi (conteneurs qui l'englobent).
+  const selChain = selBlock ? walkTree(blocks).find((v) => v.block.uid === selBlock.uid)?.ancestors ?? [] : [];
   const pageErrors = Object.entries(publishErrors).filter(([k]) => !k.startsWith("blocks."));
-  const errorBlocks = new Set(
+  const deletingBlock = deleting ? findBlock(blocks, deleting) : null;
+  const deletingCount = descendantCount(deletingBlock);
+  /** Blocs et composants signalés par la publication (uid). */
+  const errorUids = new Set(
     Object.keys(publishErrors)
-      .map((k) => /^blocks\.(\d+)/.exec(k)?.[1])
-      .filter((v): v is string => v !== undefined)
-      .map(Number),
+      .map((k) => blockAtPath(blocks, k)?.uid)
+      .filter((v): v is string => v !== undefined),
   );
 
   // États explicites : la couleur du point dit si le site est à jour.
@@ -1102,20 +1453,21 @@ export default function VisualEditor({
           <>
             <p className="ve-hint">{mobile ? "Touche un composant pour l'ajouter sous le bloc choisi." : "Glisse-le sur la page, à l'endroit voulu. Ou clique pour l'ajouter sous le bloc sélectionné."}</p>
             <ul className="ve-palette">
-              {catalog.map((c) => (
-                <li key={c.type}>
+              {catalog.filter((c) => !c.hidden).map((c) => (
+                <li key={c.key}>
                   <button
                     type="button"
                     className="ve-card"
                     data-type={c.type}
+                    data-key={c.key}
                     data-dragging={paletteDrag?.type === c.type || undefined}
                     onPointerDown={(e) => onPaletteDown(e, c)}
                     onClick={(e) => {
                       if (e.currentTarget.dataset.dragged) return;
-                      insert(c.type);
+                      insert(c.key);
                     }}
                   >
-                    <BlockThumb type={c.type} />
+                    <BlockThumb type={c.type} preset={c.key} />
                     <span>
                       <strong>{c.label}</strong>
                       <span className="ve-card-desc">{c.description}</span>
@@ -1176,44 +1528,55 @@ export default function VisualEditor({
           (blocks.length === 0 ? (
             <p className="ve-empty">La page est vide. Ajoute un premier composant depuis « Ajouter ».</p>
           ) : (
-            <SortableList
-              items={blocks}
-              getId={(b) => b.uid}
-              getLabel={(b) => own(byType, b.type)?.label ?? b.type}
-              onReorder={(next) => setBlocks(next)}
-              className="a-sortable ve-structure"
-              render={(b, i) => {
-                const meta = own(byType, b.type);
-                const summary = meta ? renderSummary(meta.summary, b.props) : "";
-                return (
-                  <div className="ve-row" aria-current={b.uid === selected || undefined} data-invalid={errorBlocks.has(i) || undefined}>
-                    <DragHandle />
-                    <button type="button" className="ve-row-main" onClick={() => selectBlock(b.uid, { scroll: true })}>
-                      <span className="ve-row-n">{i + 1}</span>
-                      <span className="ve-row-text">
-                        <strong>{meta?.label ?? b.type}</strong>
-                        {summary && <span className="ve-row-sum">{summary}</span>}
-                      </span>
-                      {errorBlocks.has(i) && <span className="a-tag a-tag-danger">À corriger</span>}
-                    </button>
-                  </div>
-                );
-              }}
+            <StructureTree
+              blocks={blocks}
+              byType={byType}
+              selected={selected}
+              invalid={errorUids}
+              onSelect={(uid) => selectBlock(uid, { scroll: true })}
+              onMove={moveTree}
+              onOp={op}
             />
           ))}
 
         {tab === "reglages" &&
-          (selBlock && selDef ? (
+          (selected === "site-header" || selected === "site-footer" ? (
+            <SiteEditor
+              which={selected === "site-header" ? "header" : "footer"}
+              snap={siteSnap}
+              pages={pages}
+              locked={siteLocked}
+              onChange={(next) => void writeSite(next)}
+            />
+          ) : selBlock && selDef ? (
             <div className="ve-settings">
+              {selChain.length > 0 && (
+                <nav className="ve-crumbs" aria-label="Emplacement du bloc">
+                  {selChain.map((c) => (
+                    <span key={c.uid}>
+                      <button type="button" className="ve-crumb" onClick={() => selectBlock(c.uid, { scroll: true })}>
+                        {own(byType, c.type)?.label ?? c.type}
+                      </button>
+                      <span aria-hidden="true"> › </span>
+                    </span>
+                  ))}
+                  <span aria-current="true">{selDef.label}</span>
+                </nav>
+              )}
               <header className="ve-settings-head">
                 <h2>{selDef.label}</h2>
                 <div className="ve-settings-tools" role="group" aria-label="Bloc sélectionné">
-                  <button type="button" className="a-icon-btn" aria-label="Monter" disabled={selIndex === 0} onClick={() => op("up", selBlock.uid)}>
+                  <button type="button" className="a-icon-btn" aria-label="Monter" disabled={selAt?.index === 0} onClick={() => op("up", selBlock.uid)}>
                     ↑
                   </button>
-                  <button type="button" className="a-icon-btn" aria-label="Descendre" disabled={selIndex === blocks.length - 1} onClick={() => op("down", selBlock.uid)}>
+                  <button type="button" className="a-icon-btn" aria-label="Descendre" disabled={selAt?.index === selSiblings.length - 1} onClick={() => op("down", selBlock.uid)}>
                     ↓
                   </button>
+                  {selAt?.parent && (
+                    <button type="button" className="a-icon-btn" aria-label="Sortir du conteneur" title="Sortir du conteneur" onClick={() => op("out", selBlock.uid)}>
+                      ⇱
+                    </button>
+                  )}
                   <button type="button" className="a-icon-btn" aria-label="Dupliquer" onClick={() => op("duplicate", selBlock.uid)}>
                     ⧉
                   </button>
@@ -1224,7 +1587,7 @@ export default function VisualEditor({
               </header>
               <p className="ve-hint">{selDef.description}</p>
               {selDef.inline.length > 0 && <p className="ve-hint">Les textes se modifient aussi directement sur la page : double-clic dessus.</p>}
-              {publishErrors[`blocks.${selIndex}`] && <p className="a-field-error">{publishErrors[`blocks.${selIndex}`]}</p>}
+              {selPath && publishErrors[selPath] && <p className="a-field-error">{publishErrors[selPath]}</p>}
               {editor ? (
                 <BlockEditorContext.Provider
                   value={{
@@ -1232,11 +1595,11 @@ export default function VisualEditor({
                     onChange: (props) => {
                       const uid = selBlock.uid;
                       setBlocks(
-                        draftRef.current.blocks.map((x) => (x.uid === uid ? { ...x, props } : x)),
+                        updateBlock(draftRef.current.blocks, uid, (x) => ({ ...x, props })),
                         { key: `props:${uid}` },
                       );
                     },
-                    errors: blockErrors(publishErrors, selIndex),
+                    errors: blockErrors(publishErrors, selPath),
                     context: editorContext,
                     idPrefix: `ve-${selBlock.uid}`,
                   }}
@@ -1343,7 +1706,7 @@ export default function VisualEditor({
             type="button"
             className="a-btn a-btn-primary"
             onClick={() => void publish()}
-            disabled={publishing || Boolean(blocked) || (!hasDraft && saveState === "idle")}
+            disabled={publishing || Boolean(blocked) || (!hasDraft && !sitePending && saveState === "idle")}
             title={!hasDraft && saveState === "idle" ? "Aucune modification à publier" : undefined}
           >
             {publishing ? "Publication…" : "Publier"}
@@ -1395,6 +1758,11 @@ export default function VisualEditor({
                   Repartir de la version publiée
                 </button>
               </div>
+            </div>
+          )}
+          {sitePending && mode === "edit" && (
+            <div className="ve-site-chip" role="note">
+              <strong>En-tête modifié</strong> (nom, menu, pied de page ou réseaux) : à la publication de cette page, il change sur <strong>toutes les pages</strong>.
             </div>
           )}
           {foreign && mode === "edit" && (
@@ -1468,14 +1836,38 @@ export default function VisualEditor({
 
       <ConfirmDialog
         open={deleting !== null}
-        title={`Supprimer le bloc « ${deleting ? (own(byType, blocks.find((b) => b.uid === deleting)?.type ?? "")?.label ?? "") : ""} » ?`}
-        confirmLabel="Supprimer le bloc"
+        title={`Supprimer ${deletingBlock && isContainer(deletingBlock.type) ? "le conteneur" : "le bloc"} « ${deletingBlock ? (own(byType, deletingBlock.type)?.label ?? "") : ""} » ?`}
+        confirmLabel={deletingCount ? `Supprimer avec ses ${deletingCount} composant${deletingCount > 1 ? "s" : ""}` : "Supprimer le bloc"}
         danger
         onClose={() => setDeleting(null)}
         onConfirm={() => deleting && remove(deleting)}
       >
+        {deletingCount > 0 && (
+          <p data-testid="delete-count">
+            <strong>
+              {deletingCount} composant{deletingCount > 1 ? "s" : ""} {deletingCount > 1 ? "seront retirés" : "sera retiré"} avec lui.
+            </strong>
+          </p>
+        )}
+        {deletingLost.length > 0 && <p>Les changements d&apos;images {deletingLost.length > 1 ? "de ses planches" : "de sa planche"} ne seront pas publiés (les images en ligne ne bougent pas).</p>}
         <p className="muted">Il disparaît du brouillon ; « Annuler » (Ctrl+Z) le récupère. Le site ne change qu&apos;à la publication.</p>
       </ConfirmDialog>
+
+      <MediaPickerDialog
+        open={mediaPick !== null}
+        media={mediaPick && mediaPick.kind !== "any" ? context.media.filter((m) => m.kind === mediaPick.kind) : context.media}
+        onClose={() => setMediaPick(null)}
+        onPick={(mediaId) => {
+          const p = mediaPick;
+          setMediaPick(null);
+          if (p) placeMedia({ kind: "media", uid: p.uid, field: p.field }, mediaId);
+        }}
+        onFile={(file) => {
+          const p = mediaPick;
+          setMediaPick(null);
+          if (p) void uploadToBlock({ kind: "media", uid: p.uid, field: p.field }, [file]);
+        }}
+      />
 
       <ConfirmDialog
         open={resetting}

@@ -22,6 +22,8 @@ import path from "node:path";
 
 import { chromium } from "playwright";
 
+import { pageIdOf, placeBoard, projectSlugOf, removeBoard } from "./lib/page-board.mjs";
+
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
 const PASSWORD = process.env.ADMIN_PASSWORD;
@@ -49,6 +51,7 @@ page.on("pageerror", (e) => errors.push(e.message));
 page.on("dialog", (d) => d.accept());
 const toast = (text) => page.locator(".a-toast", { hasText: text }).first().waitFor({ timeout: 30000 });
 
+let videoProjectId = null;
 let animationPageId = null;
 
 try {
@@ -65,6 +68,13 @@ try {
   await page.locator("dialog[open]").getByRole("button", { name: "Créer le projet" }).click();
   await page.waitForURL(/\/admin\/projets\/\d+$/);
   ok("E0 projet créé", /\/admin\/projets\/\d+$/.test(page.url()));
+  videoProjectId = Number(page.url().split("/").pop());
+  // v0.13 : la planche se pose sur la page Personnages (plus d'apparition automatique).
+  {
+    const editorUrl = page.url();
+    ok("E0b planche du projet posée sur la page Personnages", await placeBoard(page, BASE, pageIdOf("personnages"), projectSlugOf(videoProjectId)));
+    await page.goto(editorUrl, { waitUntil: "networkidle" });
+  }
   await page.locator(".a-strip-end input[type=file]").setInputFiles([LOOP, LONG]);
   const sawConversion = await page
     .locator(".a-strip", { hasText: /Conversion/ })
@@ -141,13 +151,19 @@ try {
   ok("E8 détail : lecteur vidéo dans le panneau", await page.locator(".a-sidepanel video[controls]").isVisible());
 
   await page.goto(`${BASE}/admin/pages`, { waitUntil: "networkidle" });
-  await page.locator("tr", { hasText: "Animation" }).getByRole("link", { name: "Modifier" }).click();
+  // « Modifier » ouvre l'éditeur visuel (v0.12) : le formulaire de la page est « Formulaire ».
+  await page.locator("tr", { hasText: "Animation" }).getByRole("link", { name: "Formulaire" }).click();
   await page.waitForURL(/\/admin\/pages\/\d+$/);
   animationPageId = Number(page.url().split("/").pop());
-  await page.locator(".a-block-toggle", { hasText: "Vidéos" }).click();
-  await page.getByRole("button", { name: "Choisir une vidéo" }).click();
+  // v0.13 : une « Vidéo » (présentation « Grande ») ajoutée à la page, avec la vidéo hébergée.
+  await page.getByRole("button", { name: "+ Ajouter un bloc" }).click();
+  await page.locator("dialog[open] label.a-block-type", { hasText: /^Vidéo/ }).first().click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Ajouter ce bloc" }).click();
+  const videoBlock = page.locator("article.a-block").last();
+  await videoBlock.getByRole("button", { name: "Choisir une vidéo" }).click();
   await page.locator("dialog[open] .a-media-tile", { hasText: "e2e-longue.mp4" }).click();
   await page.locator("dialog[open]").getByRole("button", { name: "Utiliser cette vidéo" }).click();
+  await videoBlock.locator("select").filter({ has: page.locator('option[value="feature"]') }).selectOption("feature");
   await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
   await toast("Enregistré");
 
@@ -156,19 +172,20 @@ try {
     if (/\/media\/vid\/.*\.mp4$/.test(r.url())) ranges.push(r.status());
   });
   await page.goto(`${BASE}/fr/animation`, { waitUntil: "networkidle" });
-  ok("E9 demoreel : titre et durée viennent du média", (await page.locator("#reel-title").innerText()) === "Demoreel e2e" && (await page.getByText("0:30").count()) > 0);
+  const reelSection = page.locator('section[aria-labelledby^="video-"]', { hasText: "Demoreel e2e" });
+  ok("E9 demoreel : titre et durée viennent du média", (await reelSection.locator("h2").innerText()) === "Demoreel e2e" && (await page.getByText("0:30").count()) > 0);
   await page.getByRole("button", { name: /Lire Demoreel e2e/ }).click();
-  const reel = page.locator("section[aria-labelledby=reel-title] video");
+  const reel = reelSection.locator("video");
   await reel.waitFor();
   await page.waitForFunction(() => {
-    const v = document.querySelector("section[aria-labelledby=reel-title] video");
+    const v = [...document.querySelectorAll('section[aria-labelledby^="video-"]')].find((x) => x.textContent.includes("Demoreel e2e"))?.querySelector("video");
     return v && v.readyState >= 2 && !v.paused;
   }, null, { timeout: 20000 });
   await reel.evaluate((v) => {
     v.currentTime = 25;
   });
   await page.waitForFunction(() => {
-    const v = document.querySelector("section[aria-labelledby=reel-title] video");
+    const v = [...document.querySelectorAll('section[aria-labelledby^="video-"]')].find((x) => x.textContent.includes("Demoreel e2e"))?.querySelector("video");
     return v && v.currentTime >= 25 && v.readyState >= 2;
   }, null, { timeout: 20000 });
   ok(`E10 lecture et avance rapide : réponses partielles 206 (${ranges.join(",")})`, ranges.includes(206), ranges.join(","));
@@ -182,14 +199,16 @@ try {
 try {
   if (animationPageId) {
     await page.goto(`${BASE}/admin/pages/${animationPageId}`, { waitUntil: "networkidle" });
-    await page.locator(".a-block-toggle", { hasText: "Vidéos" }).click();
-    const remove = page.locator(".a-block-body").getByRole("button", { name: "Retirer", exact: true });
-    if (await remove.count()) {
-      await remove.click();
+    // La « Vidéo » ajoutée (dernier bloc) est retirée.
+    const last = page.locator("article.a-block").last();
+    if (/Vidéo/.test(await last.getAttribute("aria-label")) && !/Grille/.test(await last.getAttribute("aria-label"))) {
+      await last.getByRole("button", { name: /Supprimer le bloc/ }).click();
+      await page.locator("dialog[open]").getByRole("button", { name: /Supprimer/ }).click();
       await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
       await toast("Enregistré");
     }
   }
+  if (videoProjectId) await removeBoard(page, BASE, pageIdOf("personnages"), projectSlugOf(videoProjectId));
   await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
   while (await page.locator(".a-project-card", { hasText: "Vidéos e2e" }).count()) {
     await page.locator(".a-project-card", { hasText: "Vidéos e2e" }).first().getByRole("button", { name: "Supprimer" }).click();

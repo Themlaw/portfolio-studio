@@ -62,6 +62,42 @@ const ghost = { id: "g1", board: 3, index: 0, label: "x", aspect: 1, progress: 0
 ok("fantôme : aperçu blob: accepté", acceptToCanvas(msg({ kind: "ghosts", items: [{ ...ghost, preview: "blob:https://portfolio.example/abc" }] }), ORIGIN, frame)?.items.length === 1);
 ok("fantôme : aperçu javascript: ignoré", acceptToCanvas(msg({ kind: "ghosts", items: [{ ...ghost, preview: "javascript:alert(1)" }] }), ORIGIN, frame) === null);
 
+// Conteneurs, médias de blocs, en-tête commun (v0.13).
+ok("v0.13 : déplacement dans un conteneur accepté", acceptFromCanvas(msg({ kind: "move", uid: "b3", index: 1, parent: "n1abc" }), ORIGIN, frame)?.parent === "n1abc");
+ok("v0.13 : déplacement vers la page (parent null) accepté", acceptFromCanvas(msg({ kind: "move", uid: "b3", index: 0, parent: null }), ORIGIN, frame)?.parent === null);
+const badV13 = [
+  { kind: "move", uid: "b3", index: 1, parent: "../x" },
+  { kind: "move", uid: "b3", index: 1, parent: "<b>" },
+  { kind: "move", uid: "b3", index: 999, parent: "c1" },
+  { kind: "drag-index", index: -1, parent: null },
+  { kind: "op", op: "explode", uid: "b3" },
+  { kind: "media-op", uid: "b3", field: "props", op: "replace" },
+  { kind: "media-op", uid: "b3", field: "mediaId", op: "delete-all" },
+  { kind: "layout", uid: "g1", layout: "9" },
+  { kind: "site-text", field: "password", locale: "fr", value: "x" },
+  { kind: "site-text", field: "nav", index: 99, locale: "fr", value: "x" },
+  { kind: "site-text", field: "name", locale: "fr", value: "x".repeat(201) },
+  { kind: "site-op", op: "nav-add-page", pageId: -1 },
+  { kind: "site-op", op: "nav-add-link", href: "", label: "x" },
+  { kind: "site-op", op: "drop-table", index: 0 },
+  { kind: "drop-target", target: { kind: "media", uid: "b3", field: "__proto__" } },
+  { kind: "drop-target", target: { kind: "cell", uid: "../g" } },
+];
+let v13Accepted = 0;
+let v13Threw = false;
+for (const data of badV13) {
+  try {
+    if (acceptFromCanvas(msg(data), ORIGIN, frame) !== null) v13Accepted++;
+  } catch {
+    v13Threw = true;
+  }
+}
+ok("v0.13 : messages malformés (chemins d'enfant, champs, opérations) ignorés", !v13Threw && v13Accepted === 0, `${v13Accepted} acceptés`);
+ok("v0.13 : opération de réseau valide acceptée", acceptFromCanvas(msg({ kind: "site-op", op: "social-add", href: "https://www.behance.net/x", label: "Behance", network: "behance" }), ORIGIN, frame)?.op === "social-add");
+ok("v0.13 : cible « média d'un bloc » acceptée", acceptFromCanvas(msg({ kind: "drop-target", target: { kind: "media", uid: "b3", field: "backgroundMediaId" } }), ORIGIN, frame)?.target.field === "backgroundMediaId");
+ok("v0.13 : glisser de la palette — le type du bloc ne remplace pas l'enveloppe", acceptToCanvas(msg({ kind: "drag", x: 1, y: 2, label: "x", blockType: "grid", nesting: 1 }), ORIGIN, frame)?.blockType === "grid");
+ok("v0.13 : liste de projets (« pas encore sur une page »)", acceptToCanvas(msg({ kind: "projects", list: [{ slug: "a", title: "A", onPage: false }] }), ORIGIN, frame)?.list[0].onPage === false);
+
 ok("inline : chemin déclaré accepté", inlineAllowed(["eyebrow", "title", "paragraphs.*"], "paragraphs.3"));
 ok("inline : chemin non déclaré refusé", !inlineAllowed(["eyebrow", "title"], "intro"));
 ok("inline : indice sur un champ non listé refusé", !inlineAllowed(["title"], "title.0"));

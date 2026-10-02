@@ -4,18 +4,70 @@
  * références existantes), accent de page (contraste AA contre le thème actif).
  */
 import { own } from "@/lib/own";
-import { and, asc, eq, inArray, isNotNull, max } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { BLOCKS } from "@/blocks/registry";
 import { extractProjectRefs, extractRefs } from "@/blocks/refs";
+import { containerAccepts, errorPath, flatBlocks, treeProblem } from "@/blocks/tree";
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 import { findPageReferences } from "@/lib/references";
 import { accentProblem } from "@/themes/contrast";
 import { ThemeSchema } from "@/themes/schema";
 
+import { isPageInNav, readNav, reorderNavPages, setPageInNav } from "./nav";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
+import { discardSiteDraft } from "./site";
+
+/**
+ * Identifiant public d'un formulaire de contact (`formId`) en double : sur la
+ * page même, ou déjà porté par un formulaire d'une AUTRE page publiée.
+ * Chemin d'erreur et message, ou null. Appelée au brouillon et dans la
+ * transaction de publication (savePage).
+ */
+export function formIdProblem(pageId: number, blocks: { type: string; props?: unknown }[]): { path: string; message: string } | null {
+  const forms = flatBlocks(blocks).filter((b) => b.type === "contact-form");
+  if (!forms.length) return null;
+  const elsewhere = new Set<string>();
+  const rows = getDb()
+    .select({ props: schema.blocks.props, pageId: schema.blocks.pageId })
+    .from(schema.blocks)
+    .innerJoin(schema.pages, eq(schema.blocks.pageId, schema.pages.id))
+    .where(and(eq(schema.blocks.type, "contact-form"), eq(schema.pages.published, true)))
+    .all();
+  for (const r of rows) {
+    if (r.pageId === pageId) continue;
+    const id = (parseJson(r.props) as { formId?: unknown } | undefined)?.formId;
+    if (typeof id === "string") elsewhere.add(id);
+  }
+  const seen = new Set<string>();
+  for (const f of forms) {
+    const id = (f.props as { formId?: unknown } | undefined)?.formId;
+    if (typeof id !== "string") continue;
+    const path = errorPath(blocks, f) ?? "blocks";
+    if (seen.has(id)) return { path, message: "Deux formulaires de cette page portent le même identifiant : supprime la copie et ajoute un nouveau formulaire." };
+    if (elsewhere.has(id)) return { path, message: "Ce formulaire porte l'identifiant d'un formulaire d'une autre page : supprime-le et ajoute un nouveau formulaire." };
+    seen.add(id);
+  }
+  return null;
+}
+
+/**
+ * Types retirés de la palette (v0.13 : anciennes planches d'une collection,
+ * anciens projets mis en avant, ancienne vitrine vidéo) : encore rendus s'ils
+ * traînent sur une page, mais on n'en ajoute plus. Message si `blocks` en
+ * contient un que la version publiée de la page n'a pas déjà.
+ */
+export function deprecatedProblem(pageId: number, blocks: { type: string }[]): string | null {
+  const old = blocks.filter((b) => own(BLOCKS, b.type)?.deprecated);
+  if (!old.length) return null;
+  const existing = new Set(
+    getDb().select({ type: schema.blocks.type }).from(schema.blocks).where(eq(schema.blocks.pageId, pageId)).all().map((b) => b.type),
+  );
+  const added = old.find((b) => !existing.has(b.type));
+  return added ? `« ${own(BLOCKS, added.type)?.label ?? added.type} » n'existe plus : compose avec des planches de projet, une grille ou une vidéo.` : null;
+}
 
 type L = { fr: string; en: string };
 const LOCALES = ["fr", "en"] as const;
@@ -123,43 +175,60 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
     if (problem) errors.accent = `${problem} Choisis une teinte plus contrastée ou retire l'accent.`;
   }
 
-  // Blocs : type connu, props valides, références existantes.
+  // Blocs : forme de l'arbre (conteneurs), type connu, props valides, références existantes.
   const pageIds = new Set(db.select({ id: schema.pages.id }).from(schema.pages).all().map((p) => p.id));
   const mediaIds = new Set(db.select({ id: schema.media.id }).from(schema.media).all().map((m) => m.id));
   const projectPages = new Map(db.select({ slug: schema.projects.slug, page: schema.projects.draftPageId }).from(schema.projects).all().map((p) => [p.slug, p.page]));
-  const blocks: { type: string; props: unknown }[] = [];
-  data.blocks.forEach((block, i) => {
-    const def = own(BLOCKS, block.type);
-    if (!def) {
-      errors[`blocks.${i}`] = `Type de bloc inconnu « ${block.type} ».`;
-      return;
-    }
-    const result = def.schema.safeParse(block.props);
-    if (!result.success) {
-      Object.assign(errors, zodFieldErrors(result.error.issues, `blocks.${i}.props`));
-      return;
-    }
-    const refs = extractRefs(block.type, result.data);
-    if (refs.pages.some((p) => !pageIds.has(p))) errors[`blocks.${i}`] = "Ce bloc pointe vers une page qui n'existe plus : choisis-en une autre.";
-    // Projets cités : existants, publiés ou créés dans le brouillon de CETTE page.
-    for (const slug of extractProjectRefs(block.type, result.data)) {
-      if (!projectPages.has(slug)) errors[`blocks.${i}`] = "Ce bloc cite un projet qui n'existe plus : choisis-en un autre.";
-      else if (![null, id].includes(projectPages.get(slug) ?? null)) errors[`blocks.${i}`] = "Ce bloc cite un projet en cours de création dans une autre page.";
-    }
-    const required = def.publishCheck?.(result.data as Record<string, unknown>);
-    if (required) errors[`blocks.${i}`] = required;
-    if (refs.media.some((m) => !mediaIds.has(m))) errors[`blocks.${i}`] = "Ce bloc utilise un média qui n'existe plus : choisis-en un autre.";
-    blocks.push({ type: block.type, props: result.data });
-  });
+  const shape = treeProblem(data.blocks as { type: string; props?: unknown }[], (t) => Boolean(own(BLOCKS, t)));
+  if (shape) errors.blocks = shape;
+  const old = deprecatedProblem(id, data.blocks);
+  if (old) errors.blocks = old;
+  type Out = { uid?: string; type: string; props: Record<string, unknown> };
+  /** Valide une liste (la page, ou les composants d'un conteneur), récursivement. */
+  const validate = (list: { uid?: unknown; type: string; props: unknown }[], prefix: string, parent: string | null, inherited: string | undefined): Out[] => {
+    const out: Out[] = [];
+    list.forEach((block, i) => {
+      const key = `${prefix}.${i}`;
+      const def = own(BLOCKS, block.type);
+      if (!def) {
+        errors[key] = `Type de bloc inconnu « ${block.type} ».`;
+        return;
+      }
+      if (parent && !containerAccepts(parent, block.type)) {
+        errors[key] = "Ce conteneur n'accepte pas ce composant.";
+        return;
+      }
+      const result = def.schema.safeParse(block.props);
+      if (!result.success) {
+        Object.assign(errors, zodFieldErrors(result.error.issues, `${key}.props`));
+        return;
+      }
+      const props = { ...(result.data as Record<string, unknown>) };
+      // Références du bloc lui-même (ses composants sont contrôlés un par un).
+      const refs = extractRefs(block.type, props, 2);
+      if (refs.pages.some((p) => !pageIds.has(p))) errors[key] = "Ce bloc pointe vers une page qui n'existe plus : choisis-en une autre.";
+      // Projets cités : existants, publiés ou créés dans le brouillon de CETTE page.
+      for (const slug of extractProjectRefs(block.type, props, 2)) {
+        if (!projectPages.has(slug)) errors[key] = "Ce bloc cite un projet qui n'existe plus : choisis-en un autre.";
+        else if (![null, id].includes(projectPages.get(slug) ?? null)) errors[key] = "Ce bloc cite un projet en cours de création dans une autre page.";
+      }
+      const required = def.publishCheck?.(props, { project: inherited });
+      if (required) errors[key] = required;
+      if (refs.media.some((m) => !mediaIds.has(m))) errors[key] = "Ce bloc utilise un média qui n'existe plus : choisis-en un autre.";
+      if (def.container) {
+        const project = typeof props.project === "string" ? props.project : inherited;
+        props.children = validate((props.children as Out[]) ?? [], `${key}.props.children`, block.type, project);
+      }
+      out.push({ ...(typeof block.uid === "string" ? { uid: block.uid } : {}), type: block.type, props });
+    });
+    return out;
+  };
+  const blocks = shape ? [] : validate(data.blocks, "blocks", null, undefined).map(({ type, props }) => ({ type, props }));
+  // Formulaires : identifiant public unique (page et pages publiées), vérifié dans la transaction de publication.
+  const dupForm = shape ? null : formIdProblem(id, data.blocks as { type: string; props?: unknown }[]);
+  if (dupForm) errors[dupForm.path] = dupForm.message;
 
   if (Object.keys(errors).length) return fail("La page n'a pas été enregistrée : corrige les champs signalés.", errors);
-
-  let navOrder = page.navOrder;
-  if (data.inMenu && navOrder === null) {
-    const [{ m }] = db.select({ m: max(schema.pages.navOrder) }).from(schema.pages).all();
-    navOrder = (m ?? 0) + 1;
-  }
-  if (!data.inMenu) navOrder = null;
 
   db.transaction((tx) => {
     tx.update(schema.pages)
@@ -168,7 +237,6 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
         title: data.title,
         meta: data.meta,
         published: home ? true : data.published,
-        navOrder,
         themeOverrides: data.accent ? { primary: data.accent } : null,
         updatedAt: new Date(),
       })
@@ -178,6 +246,10 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
     blocks.forEach((b, position) =>
       tx.insert(schema.blocks).values({ pageId: id, position, type: b.type, props: JSON.stringify(b.props) }).run(),
     );
+    // Menu (réglage `nav`, v0.13) : seulement si la case a CHANGÉ (sinon un
+    // menu modifié ailleurs — en-tête, liste des pages — serait défait).
+    // (Version de CETTE page gérée par l'appelant : publication, formulaire.)
+    if (isPageInNav(id) !== data.inMenu) setPageInNav(id, data.inMenu, { skipRevOf: id });
   });
   return done(null);
 }
@@ -194,12 +266,7 @@ export function setInMenu(id: number, inMenu: boolean): ActionResult<null> {
   const db = getDb();
   const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
   if (!page) return fail("Cette page n'existe plus.");
-  let navOrder: number | null = null;
-  if (inMenu) {
-    const [{ m }] = db.select({ m: max(schema.pages.navOrder) }).from(schema.pages).all();
-    navOrder = page.navOrder ?? (m ?? 0) + 1;
-  }
-  db.update(schema.pages).set({ navOrder }).where(eq(schema.pages.id, id)).run();
+  db.transaction(() => setPageInNav(id, inMenu));
   return done(null);
 }
 
@@ -210,18 +277,10 @@ export function reorderMenu(input: unknown): ActionResult<null> {
     return fail("Ordre du menu invalide. Recharge la page.");
   }
   const db = getDb();
-  const inMenu = db
-    .select({ id: schema.pages.id })
-    .from(schema.pages)
-    .where(isNotNull(schema.pages.navOrder))
-    .orderBy(asc(schema.pages.navOrder))
-    .all()
-    .map((p) => p.id);
+  const inMenu = readNav().flatMap((i) => (i.kind === "page" ? [i.pageId] : []));
   const same = parsed.data.length === inMenu.length && parsed.data.every((id) => inMenu.includes(id));
   if (!same) return fail("Le menu a changé entre-temps. Recharge la page et recommence.");
-  db.transaction((tx) => {
-    parsed.data.forEach((id, i) => tx.update(schema.pages).set({ navOrder: i + 1 }).where(eq(schema.pages.id, id)).run());
-  });
+  db.transaction(() => reorderNavPages(parsed.data));
   return done(null);
 }
 
@@ -259,6 +318,9 @@ export function deletePage(id: number): ActionResult<null> | { ok: false; messag
       .set({ draftState: null, draftPosition: null, draftMediaId: null, draftPageId: null, draftTitle: null, draftDescription: null, draftKey: null })
       .where(eq(schema.slots.draftPageId, id))
       .run();
+    // Menu et brouillon de l'en-tête portés par cette page.
+    setPageInNav(id, false);
+    discardSiteDraft(id);
     tx.delete(schema.pages).where(eq(schema.pages.id, id)).run();
   });
   return done(null);

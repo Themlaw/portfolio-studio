@@ -75,8 +75,43 @@ test("pageReferences : tuiles, lien « voir plus », bouton demoreel", () => {
   assert.equal(pageReferences(9, blocks).length, 0);
 });
 
+test("conteneurs (v0.13) : les références des composants comptent, sur deux niveaux, pas au-delà", () => {
+  const container = {
+    id: 7,
+    pageId: 1,
+    type: "featured-project",
+    props: {
+      project: "atelier",
+      more: { pageId: 3 },
+      children: [
+        { uid: "a", type: "image", props: { mediaId: 11 } },
+        { uid: "b", type: "project-board", props: { project: "autre" } },
+        {
+          uid: "c",
+          type: "grid",
+          props: {
+            children: [
+              { uid: "d", type: "video-single", props: { mediaId: 12, posterMediaId: 13 } },
+              // Au-delà de deux niveaux de conteneurs : jamais lu.
+              { uid: "e", type: "grid", props: { children: [{ uid: "f", type: "image", props: { mediaId: 99 } }] } },
+            ],
+          },
+        },
+      ],
+    },
+  };
+  const rows = { slots: [], blocks: [container] };
+  for (const m of [11, 12, 13]) assert.deepEqual(mediaUsages(m, rows).map((u) => u.blockId), [7], `média ${m}`);
+  assert.equal(mediaUsages(99, rows).length, 0);
+  assert.deepEqual(projectReferences("atelier", [container]).map((u) => u.blockId), [7]);
+  assert.deepEqual(projectReferences("autre", [container]).map((u) => u.blockId), [7]);
+  assert.deepEqual(pageReferences(3, [container]).map((u) => u.blockId), [7]);
+  // Profondeur « références propres seulement » (validation composant par composant).
+  assert.deepEqual(extractRefs("featured-project", container.props, 2), { media: [], pages: [3] });
+});
+
 test("chaque type de bloc déclare ses références", () => {
-  for (const type of ["hero", "collection-tiles", "featured-projects", "collection-intro", "collection-projects", "video", "rich-text", "contact", "profile"]) {
+  for (const type of ["hero", "collection-tiles", "featured-projects", "featured-project", "grid", "video-single", "image", "section-title", "project-board", "collection-intro", "collection-projects", "video", "rich-text", "contact", "profile"]) {
     assert.ok(BLOCK_REFS[type], type);
   }
 });
@@ -101,7 +136,9 @@ if (existsSync(dbFile)) {
     for (const s of slots) assert.equal(mediaUsages(s.mediaId, { slots, blocks }).length, 1, s.slug);
   });
   test("seed réel : Personnages référencée par les tuiles et « voir tous les projets »", () => {
-    assert.deepEqual(pageReferences(characters.id, blocks).map((u) => u.type).sort(), ["collection-tiles", "featured-projects"]);
+    // Avant ou après la migration 0014 (« featured-projects » → conteneur « featured-project »).
+    const types = pageReferences(characters.id, blocks).map((u) => u.type.replace("featured-projects", "featured-project")).sort();
+    assert.deepEqual(types, ["collection-tiles", "featured-project"]);
   });
   db.close();
 } else {

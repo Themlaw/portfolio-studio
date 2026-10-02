@@ -8,6 +8,7 @@
  * page est publiée ; s'il existe un brouillon de l'éditeur visuel, le
  * formulaire l'affiche et l'enregistrement le publie (un seul état).
  */
+import { withFreshUids } from "@/blocks/tree";
 import { own } from "@/lib/own";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
@@ -116,7 +117,8 @@ export default function PageEditor({
   useUnsavedGuard(dirty);
 
   const set = <K extends keyof State>(k: K, v: State[K]) => setState((s) => ({ ...s, [k]: v }));
-  const byType = Object.fromEntries(catalog.map((c) => [c.type, c]));
+  // Types seulement (ni raccourcis de la palette, ni types anciens).
+  const byType = Object.fromEntries(catalog.filter((c) => !c.preset).map((c) => [c.type, c]));
   const accentIssue = state.accent && colors ? accentProblem(state.accent, colors) : null;
   const accentFix = state.accent && colors && accentIssue ? nearestAccent(state.accent, colors) : null;
   // Accent enregistré devenu illisible après un changement de thème : ignoré au rendu.
@@ -327,11 +329,12 @@ export default function PageEditor({
           }}
         />
         <AddBlock
-          catalog={catalog}
+          catalog={catalog.filter((c) => !c.preset && !c.hidden)}
           onAdd={(type) => {
             const def = own(byType, type);
             if (!def) return;
-            const block = { uid: newUid(), type, props: clone(def.defaults) };
+            // Conteneur : ses composants de départ reçoivent leurs uid.
+            const block = withFreshUids({ uid: "", type, props: clone(def.defaults) }, newUid);
             setState((s) => ({ ...s, blocks: [...s.blocks, block] }));
             setOpenBlocks((s) => new Set(s).add(block.uid));
           }}

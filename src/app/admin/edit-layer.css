@@ -566,3 +566,634 @@ html:not([data-edit-mode]) [data-ghost] {
   white-space: pre-wrap;
   pointer-events: auto;
 }
+
+/* ==========================================================================
+   v0.13 : toile sans éléments collants, conteneurs, médias, en-tête commun
+   ========================================================================== */
+
+/* Toile en mode édition (pas l'« Aperçu exact », pas le site public) :
+   l'en-tête et tout élément collant ou fixé du thème reviennent dans le
+   flux ; ils ne recouvrent plus le contenu qu'on édite. */
+html[data-edit-canvas] .site-header,
+html[data-edit-canvas] #contenu .sticky,
+html[data-edit-canvas] #contenu .md\:sticky,
+html[data-edit-canvas] #contenu .lg\:sticky {
+  position: static !important;
+  top: auto !important;
+}
+
+html[data-edit-canvas] .site-header {
+  backdrop-filter: none !important;
+}
+
+html[data-edit-canvas] #contenu .fixed {
+  position: absolute !important;
+}
+
+/* Pas de sélection de texte native en glissant (images, vignettes, blocs). */
+[data-edit-mode] [data-edit-slot],
+[data-edit-mode] [data-edit-slot] *,
+[data-edit-mode] [data-edit-media] img,
+[data-edit-mode] [data-nav-item],
+[data-edit-mode] .pe-layer button {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+
+[data-edit-mode] [data-editing],
+[data-edit-mode] [data-editing] * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+[data-edit-dragging] ::selection {
+  background: transparent;
+}
+
+/* Textes du site (communs à toutes les pages). */
+[data-edit-mode] [data-site-inline] {
+  cursor: text;
+}
+
+[data-edit-mode] [data-site-inline]:hover {
+  box-shadow: inset 0 -2px 0 rgba(163, 98, 0, 0.6);
+}
+
+[data-edit-mode] [data-site-inline][data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  opacity: 0.4;
+}
+
+/* Fil d'Ariane et barre d'un conteneur. */
+.pe-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  pointer-events: auto;
+}
+
+.pe-crumb {
+  margin: 0;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.pe-crumb:hover,
+.pe-crumb:focus-visible {
+  background: rgba(255, 255, 255, 0.2);
+  outline: none;
+}
+
+.pe-selected[data-container] {
+  outline-style: solid;
+  box-shadow: inset 0 0 0 4px rgba(46, 78, 158, 0.08);
+}
+
+.pe-hover[data-child] {
+  outline-style: dashed;
+}
+
+.pe-tools .pe-tool-text {
+  width: auto;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.pe-layouts {
+  position: absolute;
+  right: 6px;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 8px;
+  background: #1f2226;
+  box-shadow: 0 6px 18px rgba(31, 34, 38, 0.25);
+  pointer-events: auto;
+}
+
+.pe-layouts button {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #c9ccd1;
+  cursor: pointer;
+}
+
+.pe-layouts button:hover,
+.pe-layouts button:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+
+.pe-layouts button[aria-checked="true"] {
+  border-color: #ffffff;
+  color: #ffffff;
+}
+
+/* En-tête / pied : commun à toutes les pages (couleur distincte). */
+.pe-global.pe-hover {
+  outline-color: rgba(163, 98, 0, 0.7);
+}
+
+.pe-global.pe-selected {
+  outline-color: #a36200;
+}
+
+.pe-tag-global {
+  background: #a36200;
+}
+
+/* Conteneur visé par un glisser : cadre mis en évidence, ligne à l'intérieur. */
+.pe-drop-container {
+  position: absolute;
+  border: 3px solid #2e4e9e;
+  border-radius: 6px;
+  background: rgba(46, 78, 158, 0.06);
+  pointer-events: none;
+}
+
+.pe-drop-container span {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  padding: 4px 9px;
+  border-radius: 6px 0 4px 0;
+  background: #2e4e9e;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.pe-drop-container[data-refused] {
+  border-style: dashed;
+  border-color: #a33a2c;
+  background: rgba(163, 58, 44, 0.08);
+}
+
+.pe-drop-container[data-refused] span {
+  background: #a33a2c;
+}
+
+.pe-marker-inner {
+  position: absolute;
+  height: 0;
+  border-top: 3px dashed #2e4e9e;
+  transform: translateY(-1.5px);
+}
+
+.pe-marker-inner::before,
+.pe-marker-inner::after {
+  position: absolute;
+  top: -7px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #2e4e9e;
+  content: "";
+}
+
+.pe-marker-inner::before {
+  left: -6px;
+}
+
+.pe-marker-inner::after {
+  right: -6px;
+}
+
+.pe-marker-inner-v {
+  position: absolute;
+  width: 4px;
+  border-radius: 2px;
+  background: #2e4e9e;
+  box-shadow: 0 0 0 3px rgba(46, 78, 158, 0.22);
+}
+
+/* Places réservées dans le site (toile seulement). */
+.pe-container-pick {
+  min-height: 210px;
+}
+
+.pe-container-empty {
+  min-height: 150px;
+}
+
+.pe-container-dropzone {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border: 2px dashed rgba(46, 78, 158, 0.55);
+  border-radius: 10px;
+  background: #f3f5fb;
+  color: #2e4e9e;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pe-container-dropzone[data-over] {
+  border-style: solid;
+  background: #e8edf8;
+}
+
+.pe-wait,
+.pe-media-empty,
+.pe-cell-free {
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 16px;
+  border: 2px dashed rgba(46, 78, 158, 0.5);
+  border-radius: 8px;
+  background: rgba(232, 237, 248, 0.6);
+  color: #2e4e9e;
+  font: 600 14px/1.3 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-align: center;
+  text-transform: none;
+}
+
+.pe-media-empty {
+  min-height: 220px;
+}
+
+.pe-media-video {
+  aspect-ratio: 16 / 9;
+  min-height: 0;
+}
+
+.pe-media-portrait {
+  aspect-ratio: 4 / 5;
+}
+
+.pe-cell-free {
+  height: 100%;
+  min-height: 160px;
+  font-size: 28px;
+  font-weight: 400;
+}
+
+html:not([data-edit-mode]) .pe-container-pick,
+html:not([data-edit-mode]) .pe-container-empty,
+html:not([data-edit-mode]) [data-edit-cell-free],
+html:not([data-edit-mode]) .pe-wait,
+html:not([data-edit-mode]) .pe-media-empty {
+  display: none !important;
+}
+
+/* Planche vide (projet créé ici, encore sans image) : zone de dépôt visible. */
+[data-edit-mode] [data-edit-rail]:not(:has([data-edit-slot], [data-ghost]))::before {
+  display: grid;
+  flex: 1 0 auto;
+  place-items: center;
+  min-width: min(560px, 80vw);
+  height: var(--strip-h);
+  border: 2px dashed rgba(46, 78, 158, 0.55);
+  border-radius: 8px;
+  background: rgba(232, 237, 248, 0.6);
+  color: #2e4e9e;
+  font: 600 14px/1.3 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  content: "Dépose tes images ici (fichiers ou vignettes de la médiathèque)";
+}
+
+/* Choix de projet sur la toile (combobox). */
+.pe-combo {
+  position: relative;
+  display: grid;
+  gap: 6px;
+}
+
+.pe-combo-label {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.pe-combo-current {
+  color: #62666c;
+  font-weight: 400;
+}
+
+.pe-combo-input {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid #cfccc5;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f2226;
+  font: 15px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+}
+
+.pe-combo-input:focus-visible {
+  border-color: #2e4e9e;
+  outline: 2px solid #2e4e9e;
+  outline-offset: 0;
+}
+
+.pe-combo-list {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  z-index: 5;
+  max-height: 260px;
+  margin: 4px 0 0;
+  padding: 4px;
+  overflow: auto;
+  border: 1px solid #cfccc5;
+  border-radius: 6px;
+  background: #ffffff;
+  list-style: none;
+  box-shadow: 0 10px 30px rgba(31, 34, 38, 0.16);
+}
+
+.pe-combo-opt {
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pe-combo-opt[aria-selected="true"] {
+  background: #e8edf8;
+}
+
+.pe-combo-opt[data-kind="create"] {
+  border-top: 1px solid #e3e1dc;
+  color: #2e4e9e;
+}
+
+.pe-combo-opt[data-fresh] {
+  font-weight: 600;
+}
+
+.pe-combo-group {
+  display: block;
+  margin: 2px 0 4px;
+  color: #62666c;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pe-board-help {
+  color: #62666c;
+  font-size: 12px;
+}
+
+.pe-link-btn {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #2e4e9e;
+  font: 600 13px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.pe-container-picker {
+  z-index: 3;
+  min-height: 0;
+  border-style: solid;
+}
+
+/* Menu, réseaux : outils au survol, « + Ajouter », fenêtres. */
+.pe-item-tools {
+  position: absolute;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: #1f2226;
+  box-shadow: 0 6px 18px rgba(31, 34, 38, 0.25);
+  pointer-events: auto;
+}
+
+.pe-item-tools button {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #ffffff;
+  font: 600 13px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.pe-item-tools button:hover,
+.pe-item-tools button:focus-visible {
+  background: rgba(255, 255, 255, 0.18);
+  outline: none;
+}
+
+.pe-item-tools .pe-danger:hover {
+  background: #a33a2c;
+}
+
+.pe-grip-sm {
+  cursor: grab !important;
+  touch-action: none;
+}
+
+.pe-add-chip {
+  position: absolute;
+  padding: 4px 10px;
+  border: 1px dashed #a36200;
+  border-radius: 999px;
+  background: #fff7ea;
+  color: #7a4900;
+  font: 600 12px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.pe-add-chip:hover,
+.pe-add-chip:focus-visible {
+  border-style: solid;
+  outline: none;
+}
+
+.pe-popover {
+  position: absolute;
+  z-index: 10;
+  display: grid;
+  gap: 10px;
+  width: 320px;
+  padding: 16px;
+  border: 1px solid #cfccc5;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #1f2226;
+  font: 500 14px/1.4 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 14px 40px rgba(31, 34, 38, 0.2);
+  pointer-events: auto;
+}
+
+.pe-popover-title {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  font-weight: 700;
+}
+
+.pe-popover-list {
+  display: grid;
+  gap: 2px;
+  max-height: 180px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.pe-popover-list button,
+.pe-network-grid button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #1f2226;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pe-popover-list button:hover,
+.pe-popover-list button:focus-visible,
+.pe-network-grid button:hover,
+.pe-network-grid button:focus-visible {
+  background: #e8edf8;
+  outline: none;
+}
+
+.pe-popover-empty {
+  padding: 6px 8px;
+  color: #62666c;
+  font-size: 13px;
+}
+
+.pe-popover-form {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e3e1dc;
+}
+
+.pe-popover-sub {
+  color: #62666c;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pe-popover-error {
+  color: #a33a2c;
+}
+
+.pe-popover-hint {
+  color: #2f6b46;
+}
+
+.pe-network-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  max-height: 360px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.pe-btn {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: #2e4e9e;
+  color: #ffffff;
+  font: 600 14px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.pe-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pe-site-locked {
+  position: absolute;
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #fbf3e2;
+  color: #8a5a00;
+  font-size: 13px;
+}
+
+.pe-popover .social-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Un petit texte chevauché par un grand titre (ouverture : le nom géant
+   recouvre l'étiquette) reste atteignable au double-clic sur la toile. */
+[data-edit-mode] [data-inline] {
+  position: relative;
+  z-index: 1;
+}
+
+[data-edit-mode] p[data-inline],
+[data-edit-mode] .eyebrow[data-inline] {
+  z-index: 2;
+}
+
+/* Formulaire de contact sur la toile : messages montrés à la demande. */
+[data-form-pane] {
+  display: none;
+}
+
+[data-form-preview="success"] [data-form-pane="success"],
+[data-form-preview="error"] [data-form-pane="error"] {
+  display: block;
+  padding: 12px 14px;
+  outline: 2px dashed rgba(46, 78, 158, 0.55);
+  outline-offset: 4px;
+}
+
+[data-edit-mode] form[data-form-edit] input,
+[data-edit-mode] form[data-form-edit] textarea,
+[data-edit-mode] form[data-form-edit] select {
+  pointer-events: none;
+}
+
+/* Étiquettes de bloc hors de la boîte (v0.13) : jamais sur un texte du site. */
+.pe-box[data-tag="above"] > .pe-tag {
+  top: auto;
+  bottom: 100%;
+  border-radius: 6px 6px 0 0;
+}
+
+.pe-box[data-tag="below"] > .pe-tag {
+  top: 100%;
+  border-radius: 0 0 6px 6px;
+}

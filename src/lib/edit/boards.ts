@@ -28,7 +28,7 @@ import { getPageForEdit } from "@/lib/admin";
 import { getDb, schema } from "@/lib/db";
 import { slugify } from "@/lib/slug";
 
-import { referencedProjects, type DraftRefusal } from "./drafts";
+import { displayedProjects, type DraftRefusal } from "./drafts";
 import { done, fail, type ActionResult } from "./result";
 
 type L = { fr: string; en: string };
@@ -41,11 +41,14 @@ export const MAX_DRAFT_PROJECTS = 10;
 const Loc = (max: number) => z.strictObject({ fr: z.string().max(max), en: z.string().max(max) });
 const Key = z.string().regex(/^(s\d{1,9}|k[a-z0-9]{8,24})$/);
 
+const Collection = z.enum(["characters", "backgrounds", "animation"]);
 const SnapSlot = z.strictObject({
   key: Key,
   mediaId: z.number().int().positive().nullable(),
   title: Loc(120),
   description: Loc(2000),
+  /** Métier d'un emplacement ajouté depuis une planche filtrée (planche d'une collection migrée). */
+  collection: Collection.optional(),
 });
 export const BoardSnapSchema = z.strictObject({
   projectId: z.number().int().positive(),
@@ -55,7 +58,7 @@ export const BoardSnapSchema = z.strictObject({
 export type BoardSnap = z.infer<typeof BoardSnapSchema>;
 
 export const BoardOpSchema = z.discriminatedUnion("op", [
-  z.strictObject({ op: z.literal("add"), mediaId: z.number().int().positive(), index: z.number().int().min(0).max(MAX_BOARD_SLOTS) }),
+  z.strictObject({ op: z.literal("add"), mediaId: z.number().int().positive(), index: z.number().int().min(0).max(MAX_BOARD_SLOTS), collection: Collection.optional() }),
   z.strictObject({ op: z.literal("move"), key: Key, index: z.number().int().min(0).max(MAX_BOARD_SLOTS) }),
   z.strictObject({ op: z.literal("remove"), key: Key }),
   z.strictObject({ op: z.literal("retire"), key: Key }),
@@ -96,7 +99,7 @@ function access(pageId: number, projectId: number): string | null {
   if (other?.page) return `Ce projet est en cours de modification sur la page ${pageName(other.page)} : publie-la ou abandonne-la d'abord.`;
   // La page doit afficher ce projet (bloc qui le cite, projets d'une
   // collection ou mis en avant) : une surcouche hors de la page ne se publierait pas.
-  if (!referencedProjects(draftBlocks(pageId)).includes(projectId)) return "Cette page n'affiche pas ce projet : ajoute d'abord sa planche à la page.";
+  if (!displayedProjects(draftBlocks(pageId)).includes(projectId)) return "Cette page n'affiche pas ce projet : ajoute d'abord sa planche à la page.";
   return null;
 }
 
@@ -217,7 +220,7 @@ function writeBoard(pageId: number, snap: BoardSnap): void {
           mediaId: s.mediaId,
           aspect: aspectOf(s.mediaId),
           slug: uniqueSlotSlug(project.slug),
-          collection,
+          collection: s.collection ?? collection,
           title: s.title,
           description: s.description,
           year: new Date().getFullYear(),
@@ -254,7 +257,7 @@ function writeBoard(pageId: number, snap: BoardSnap): void {
 }
 
 /** Brouillon de la page garanti (copie de la version publiée) et version incrémentée. */
-function touchPage(pageId: number, rev: number): boolean {
+export function touchPage(pageId: number, rev: number): boolean {
   const db = getDb();
   const page = db.select({ draft: schema.pages.draft }).from(schema.pages).where(eq(schema.pages.id, pageId)).get();
   let draft = page?.draft ?? null;
@@ -320,7 +323,7 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
     switch (op.op) {
       case "add":
         if (op.index > snap.slots.length) return "Position invalide.";
-        snap.slots.splice(op.index, 0, { key: newKey(), mediaId: op.mediaId, title: EMPTY, description: EMPTY });
+        snap.slots.splice(op.index, 0, { key: newKey(), mediaId: op.mediaId, title: EMPTY, description: EMPTY, ...(op.collection ? { collection: op.collection } : {}) });
         return snap;
       case "move": {
         const from = at(op.key);

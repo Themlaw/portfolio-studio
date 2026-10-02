@@ -12,6 +12,8 @@ import { cache } from "react";
 
 import { isBuildPhase } from "./cache";
 import { getDb, schema } from "./db";
+import { parseJson } from "./json";
+import { SiteSnapSchema, type SiteSnap } from "./site-schema";
 import { isAdminPreview } from "./page-preview";
 import type { RawBlock } from "./pages";
 
@@ -72,4 +74,17 @@ export function getDraftPageInfo(pageId: number): { title: L; meta: { title: L; 
   const meta = draft.meta && isL(draft.meta.title) && isL(draft.meta.description) ? { title: draft.meta.title, description: draft.meta.description } : { title: { fr: "", en: "" }, description: { fr: "", en: "" } };
   const accent = typeof draft.accent === "string" && /^#[0-9a-fA-F]{6}$/.test(draft.accent) ? draft.accent : null;
   return { title: draft.title, meta, accent };
+}
+
+/**
+ * Brouillon de l'en-tête, du pied et des réseaux (communs au site) porté par
+ * CETTE page, en vue brouillon seulement (src/lib/edit/site.ts) ; sinon null.
+ */
+export async function getDraftSite(pageId: number): Promise<SiteSnap | null> {
+  if (!(await isDraftView())) return null;
+  const row = getDb().select().from(schema.settings).where(eq(schema.settings.key, "siteDraft")).get();
+  const raw = parseJson(row?.value) as { pageId?: unknown; snap?: unknown } | undefined;
+  if (!raw || raw.pageId !== pageId) return null;
+  const snap = SiteSnapSchema.safeParse(raw.snap);
+  return snap.success ? snap.data : null;
 }

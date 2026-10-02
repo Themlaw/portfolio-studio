@@ -34,11 +34,17 @@ export default function ProjectStrip({
   project,
   deep = false,
   headingLevel = "h2",
+  showHeader = true,
+  collection,
 }: {
   project: LocalizedProject;
   /** Fond papier profond, pour séparer deux projets sans boîte ni bordure. */
   deep?: boolean;
   headingLevel?: "h2" | "h3";
+  /** Nom, contexte et présentation du projet (masqués sous un titre lié au projet). */
+  showHeader?: boolean;
+  /** Planche filtrée par métier (toile : les images ajoutées en prennent le métier). */
+  collection?: string;
 }) {
   const t = useTranslations("projects");
   // Vue brouillon de l'éditeur : repères de la planche (jamais dans le HTML public).
@@ -110,9 +116,10 @@ export default function ProjectStrip({
     <section
       className={`strip py-[clamp(3rem,7vw,5.5rem)] ${deep ? "strip-deep bg-bg-deep" : ""}`}
       aria-labelledby={`project-${project.slug}`}
-      {...(edit ? { "data-edit-board": String(edit.id), "data-edit-board-label": project.title } : {})}
+      {...(edit ? { "data-edit-board": String(edit.id), "data-edit-board-label": project.title, ...(collection ? { "data-edit-board-collection": collection } : {}) } : {})}
     >
       <header className="shell flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
+        {showHeader && (
         <div className="max-w-2xl">
           <p className="eyebrow">
             {/* Séparateur seulement entre deux parties non vides ; mêmes nœuds de texte
@@ -147,6 +154,7 @@ export default function ProjectStrip({
             {project.description}
           </p>
         </div>
+        )}
 
         <div className="flex items-center gap-4">
           <span className="eyebrow">
@@ -213,6 +221,7 @@ export default function ProjectStrip({
                 key={artwork.id}
                 className="strip-frame pe-empty-slot"
                 data-edit-slot={slot.key}
+                data-slot-pos={slot.pos}
                 data-empty=""
                 tabIndex={0}
                 role="group"
@@ -248,7 +257,7 @@ export default function ProjectStrip({
               />
             );
             return slot ? (
-              <div key={artwork.id} style={{ display: "contents" }} data-edit-slot={slot.key}>
+              <div key={artwork.id} style={{ display: "contents" }} data-edit-slot={slot.key} data-slot-pos={slot.pos}>
                 {loop}
                 {legend}
               </div>
@@ -266,7 +275,7 @@ export default function ProjectStrip({
             onClick={() => setOpenIndex(index)}
             aria-label={openLabel}
             className="strip-frame group text-left"
-            {...(slot ? { "data-edit-slot": slot.key } : {})}
+            {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos } : {})}
           >
             <span className="strip-media">
               {artwork.video ? (

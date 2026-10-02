@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import Eyebrow from "@/components/Eyebrow";
 import type { LocalizedArtwork } from "@/lib/gallery";
 
-function PlayBadge({ label }: { label: string }) {
+export function PlayBadge({ label }: { label: string }) {
   return (
     <span className="pointer-events-none flex items-center gap-3">
       <span className="flex h-14 w-14 items-center justify-center rounded-btn bg-surface/90 shadow-card transition-transform duration-500 ease-soft group-hover:scale-110">
@@ -21,7 +21,7 @@ function PlayBadge({ label }: { label: string }) {
   );
 }
 
-function Frame({
+export function Frame({
   item,
   playing,
   onPlay,

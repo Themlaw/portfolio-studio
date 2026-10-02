@@ -556,6 +556,143 @@ la toile, toujours dans la surcouche d'emplacements DE LA PAGE éditée
   l'emplacement réel n'étant créé qu'avec un média prêt, dans l'ordre du dépôt ;
   textes posés par-dessus (le DOM du site n'est jamais modifié).
 
+### Conteneurs, en-tête commun, formulaire (v0.13)
+
+**Conteneurs de blocs** (`src/blocks/tree.ts`, module pur). Un bloc conteneur
+déclare au registre `container: { accepts }` (table `CONTAINERS` de
+`tree.ts`, reprise par `define()`) et porte ses composants dans
+`props.children` = `{ uid, type, props }[]`. Deux niveaux de conteneurs au
+plus (Projet mis en avant › Grille › Vidéo), 24 composants par conteneur,
+uid obligatoires et uniques dans toute la page. Conteneurs livrés :
+« Projet mis en avant » (`featured-project` : projet transmis aux
+composants, lien « voir plus ») et « Grille » (`grid` : agencement par
+motif répété `1`, `1+2`, `2`, `3`, `2x2`, `4`, `2+1` ; espacement, alignement,
+ratio des images ; classes `.block-grid` de `globals.css`, tokens du thème).
+Composants simples : Titre (`section-title`, peut reprendre le nom et la
+présentation du projet du conteneur), Planche d'un projet, Image, Texte,
+Vidéo (`video-single`, UNE vidéo : médiathèque, ou plan YouTube migré).
+
+- **Validation** : forme de l'arbre (`treeProblem`) au brouillon
+  (`DraftSchema.superRefine`) ET à la publication (`savePage` : chaque
+  composant validé par le schéma de SON type, erreurs par chemin
+  `blocks.2.props.children.0.props.…`, `publishCheck(props, { project })`
+  reçoit le projet hérité). Un bloc simple ne porte jamais `children`.
+- **Parcours** : tout ce qui lit les blocs d'une page descend dans les
+  composants — `walk` / `flatBlocks` / `boardRefs` (planches, projet hérité),
+  `refs.ts` (`extractRefs` / `extractProjectRefs` récursifs, profondeur 2 ;
+  `depth = 2` = références propres du bloc seulement), `references.ts`,
+  `draft-cleanup.ts`, `settleDraftProjects`.
+- **Correction I1 étendue** : `displayedProjects(blocks)` (`drafts.ts`) = les
+  projets dont une PLANCHE est sur la page (composants compris, projet hérité
+  du conteneur) ; seule leur surcouche est appliquée à la publication, et
+  c'est la condition des écritures de planche (`boards.ts`). Un conteneur qui
+  cite un projet sans montrer sa planche n'en fait pas partie ; supprimer un
+  conteneur (ou sa planche) laisse les images en ligne intactes, l'éditeur le
+  dit dans la confirmation (nombre de composants retirés).
+- **Rendu** : `BlockList` rend les composants récursivement (`ctx.project`,
+  `ctx.parent`, `ctx.cell` dans une grille) et les passe au conteneur en
+  `children` ; le Projet mis en avant n'ajoute aucune boîte (parité au pixel
+  des blocs migrés), vide il ne rend rien. Vue brouillon : enveloppes
+  `data-edit-parent`, `data-edit-container`, places `data-edit-container-pick`,
+  `data-edit-container-empty`, `data-edit-cell-free` (jamais en public).
+- **Toile** (`EditLayer`) : cible de dépôt = conteneur le plus profond sous le
+  pointeur qui accepte le composant (bande de 14 px en haut et en bas : entre
+  deux blocs de la page), ligne intérieure (barre verticale dans une grille)
+  et cadre du conteneur, cadre rouge « n'accepte pas » sinon ; la poignée
+  déplace dans / hors d'un conteneur ; barre ⇱ (sortir) / ⇲ (entrer dans le
+  conteneur voisin) au clavier ; fil d'Ariane « Projet mis en avant › Titre »
+  (Échap remonte au parent). Panneau : arbre (`StructureTree`, dépliable,
+  glisser avant / après / au milieu d'un conteneur), fil d'Ariane, réglages
+  du composant choisi. Messages `move { parent }`, `drag-index { parent,
+  refused }`, `op out|in`, `layout`, `media-op`, `drop-target media|cell`,
+  tous validés par `protocol.ts` (uid au format, champs média en liste
+  blanche) ; l'éditeur refuse tout uid absent de l'arbre.
+- **Médias des blocs** : `mediaFields` au registre (image, vidéo, fond de
+  l'ouverture `backgroundMediaId`, portrait du profil) ; barre Remplacer /
+  Retirer au survol, dépôt de vignettes ou de fichiers ; type de média
+  contrôlé (une Vidéo n'accepte qu'une vidéo).
+- **Palette** : `blockCatalog()` publie aussi des raccourcis (`presets` :
+  « Grille de vidéos », « Grille d'images ») et masque les types anciens
+  (`deprecated`).
+
+**Migration de contenu 0014** (`src/lib/db/upgrade.ts`, jouée par le
+migrateur après `0014_containers.sql` — `DATA_MIGRATIONS` de
+`bootstrap.ts`, par étiquette du journal — et par le seed, écrit dans
+l'ancien format puis converti), idempotente, publié ET brouillons :
+« Projets mis en avant » → conteneur (Titre aux mêmes textes, une planche
+par projet, alternance de fond gardée) ; « Planches d'une collection » → une
+« Planche d'un projet » par projet (filtrée par métier si le projet en mêle
+plusieurs : `collection`, positions `data-slot-pos` pour déposer au bon
+rang) ; ancienne vitrine « Vidéos » → Grille 1 grand (demoreel) + Grille 2
+(plans). Les listes dynamiques sont figées dans l'état du moment : rendu
+public identique au pixel (diff `scripts/parity-diff.mjs` : seules les
+icônes de réseaux, nouvelles, diffèrent). Conséquence voulue : un projet
+créé dans l'écran Projets n'apparaît plus tout seul sur une page (la
+palette signale les projets « pas encore sur une page ») ; le drapeau
+« mis en avant » d'un projet ne pilote plus l'accueil. Les anciens types
+restent lisibles (rendus) mais ne se créent plus (`deprecatedProblem`).
+
+**Compteurs « N œuvres · M projets »** de l'en-tête de collection :
+calculés depuis la page (`pageCounts` + `boardWorkCount`), brouillon sur la
+toile, version publiée en ligne ; info-bulle sur la toile, masquables.
+
+**En-tête, pied de page, réseaux : brouillon du site**
+(`src/lib/edit/site.ts`, `src/lib/site-schema.ts`). Données COMMUNES à
+toutes les pages : identité (nom, métier, e-mail, mention), menu (réglage
+`nav` : pages du site ou liens libres, source unique ; `pages.nav_order` tenu
+en phase par `writeNav`), réseaux (`socials`, réseau reconnu d'après
+l'adresse, icônes simple-icons CC0 embarquées : `social-icons.ts`).
+Modifiés sur la toile (nom, liens et mention en double-clic, ×, glisser,
+« + Ajouter un lien », « + Réseau ») ou dans le panneau : réglage
+`siteDraft = { pageId, snap }` porté par le brouillon d'UNE page (version
+`draft_rev` contrôlée et incrémentée, comme les planches) ; une autre page
+ne peut pas y toucher (la page qui le tient est nommée), l'écran Réglages
+refuse d'enregistrer pendant ce temps. Publier la page l'applique dans la
+même transaction (`applySiteDraft`) et revalide les réglages ; Abandonner ou
+supprimer la page l'efface. Bandeau dans l'éditeur : « s'appliquera à toutes
+les pages ». Les gestes faits AILLEURS sur le menu pendant ce temps (page
+mise au menu ou retirée depuis la liste, ordre, page supprimée, case « dans
+le menu » d'une page — appliquée seulement si elle a changé) sont reportés
+dans le brouillon (`nav.ts`) : la publication ne les défait pas ; une page
+disparue est retirée du menu en silence (jamais d'éditeur bloqué) ; le
+brouillon d'une page dont l'appartenance au menu change suit. Liens : http(s) ou chemin du site (jamais `/admin`, `/api`, `/media`) pour
+le menu, http(s) ou `mailto:adresse` SANS paramètre pour les réseaux ; ni
+`javascript:`/`data:`, ni espace ou caractère de contrôle (même encodé) ;
+12 au plus, champs stricts ; revalidés à la lecture (`getSocials`). Lien
+« à compléter » (`#`, vide : données d'avant) gardé, signalé dans le
+panneau, jamais publié ; en public `target=_blank rel="noopener noreferrer me"`.
+L'ouverture et le profil montrent le nom et le métier du site (même
+brouillon) ; l'ouverture a son étiquette en place et un fond remplaçable.
+
+**Toile sans éléments collants** : `html[data-edit-canvas]` (mode édition
+seulement) remet l'en-tête et tout `sticky`/`fixed` du contenu dans le flux
+(`edit-layer.css`) ; l'« Aperçu exact » et le site public gardent le thème.
+Glisser : aucune sélection de texte native (`data-edit-dragging`,
+`data-ve-dragging`, `user-select`, sélection effacée au départ), sauf dans un
+champ en cours d'édition (vérifié dans Chromium ET Firefox).
+
+**Formulaire de contact** (bloc `contact-form`, `src/lib/contact-form.ts`,
+`POST /api/contact`, table `messages` — migration 0015). Champs définis dans
+le bloc (texte court, e-mail, texte long, choix ; 12 au plus ; un champ
+e-mail « sert à répondre », protégé), textes en place sur la toile, champs
+ajoutés / retirés / déplacés au survol, messages de confirmation et d'erreur
+montrés depuis le panneau. Aucun serveur d'envoi d'e-mail : les messages
+arrivent dans Admin → Messages (l'éditeur l'affiche ; aucune adresse dans
+la page ni dans les données du client). Le formulaire est
+désigné par un identifiant STABLE (`formId`, donné à la création ou à la
+copie du bloc) : un onglet ouvert reste valable après une republication.
+L'envoi est validé contre la définition PUBLIÉE du bloc (aucun champ inconnu,
+types, longueurs, choix stricts) ; corps refusé sur Content-Length > 32 Ko
+puis lu en flux et coupé au dépassement ; champ piège ; 5 envois / 10 min par
+client — IP calculée comme l'auth (`clientIpFromForwarded`,
+AUTH_TRUSTED_PROXY_HOPS : la partie gauche de X-Forwarded-For est ignorée,
+empreinte seulement) —, 60 / heure tous clients confondus, 2 000 messages
+gardés au plus (au-delà 503 et avertissement dans l'admin), purge des messages
+de plus d'un an, « Supprimer » / « Tout supprimer » dans Admin → Messages.
+Le contrôle d'origine (Sec-Fetch-Site / Origin) n'arrête qu'un formulaire
+d'un autre site, pas un script qui forge ses en-têtes : la protection, ce
+sont ces limites.
+
 ## Authentification (phase 3)
 
 - **Better Auth 1.7**, adaptateur Drizzle, tables `user`, `session`, `account`,

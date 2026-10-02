@@ -20,11 +20,14 @@ function expire(tags: string[], { background = false }: Options = {}) {
 export const revalidateTheme = (o?: Options) => expire([TAGS.theme], o);
 /** Identité du site, liens, réseaux. */
 export const revalidateSettings = (o?: Options) => expire([TAGS.settings], o);
-/** Menu / liste des pages (création, slug, ordre, publication). */
-export const revalidateNav = (o?: Options) => expire([TAGS.nav], o);
-/** Une page et ses blocs. `structure` : slug, titre, ordre ou publication changés. */
+/**
+ * Menu / liste des pages (création, slug, ordre, publication). Le menu est un
+ * réglage (`nav`, v0.13) : l'étiquette des réglages part avec.
+ */
+export const revalidateNav = (o?: Options) => expire([TAGS.nav, TAGS.settings], o);
+/** Une page et ses blocs. `structure` : slug, titre, ordre, publication ou menu changés. */
 export const revalidatePage = (id: number, o?: Options & { structure?: boolean }) =>
-  expire(o?.structure ? [TAGS.page(id), TAGS.nav] : [TAGS.page(id)], o);
+  expire(o?.structure ? [TAGS.page(id), TAGS.nav, TAGS.settings] : [TAGS.page(id)], o);
 /** Un projet et ses slots. `structure` : ajout, suppression ou ordre des projets. */
 export const revalidateProject = (id: number, o?: Options & { structure?: boolean }) =>
   expire(o?.structure ? [TAGS.project(id), TAGS.projects] : [TAGS.project(id)], o);

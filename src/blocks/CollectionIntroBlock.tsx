@@ -2,8 +2,9 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 
 import Eyebrow from "@/components/Eyebrow";
-import { countCollection, getProjectsForCollection } from "@/lib/gallery";
+import { boardWorkCount } from "@/lib/gallery";
 
+import { boardRefs, pageCounts } from "./tree";
 import { collection, inline, localized, tr, type BlockContext, localizedText } from "./types";
 
 export const collectionIntroSchema = z.object({
@@ -11,7 +12,11 @@ export const collectionIntroSchema = z.object({
   eyebrow: localized,
   title: localized,
   intro: localizedText,
-  /** Compteurs « N œuvres · M projets » sous l'intro. */
+  /**
+   * Compteurs « N œuvres · M projets » sous l'intro, calculés depuis la page :
+   * M = planches de projet présentes (conteneurs compris), N = images et
+   * vidéos qu'elles affichent (places vides exclues).
+   */
   showCounts: z.boolean().default(true),
 });
 
@@ -48,17 +53,24 @@ export default async function CollectionIntroBlock({
 
   const tg = await getTranslations("gallery");
   const tp = await getTranslations("projects");
-  const [works, projects] = await Promise.all([
-    countCollection(props.collection),
-    getProjectsForCollection(props.collection, ctx.locale),
-  ]);
+  // Compté depuis le contenu de la page (brouillon sur la toile, version publiée en ligne).
+  const blocks = ctx.pageBlocks ?? [];
+  const known = new Map<string, number | null>();
+  await Promise.all(
+    boardRefs(blocks).map(async (b) => {
+      const key = `${b.slug}|${b.collection ?? ""}`;
+      if (!known.has(key)) known.set(key, null);
+      known.set(key, await boardWorkCount(b.slug, b.collection));
+    }),
+  );
+  const counts = pageCounts(blocks, (slug, c) => known.get(`${slug}|${c ?? ""}`) ?? null);
 
   return (
     <section className="shell pb-[clamp(1rem,3vw,2rem)] pt-[clamp(6rem,14vh,10rem)]">
       <header className="max-w-2xl">
         {heading}
-        <p className="eyebrow mt-6">
-          {tg("count", { count: works })} · {tp("count", { count: projects.length })}
+        <p className="eyebrow mt-6" {...(ctx.edit ? { title: "Compté automatiquement depuis les planches de cette page", "data-edit-counter": "" } : {})}>
+          {tg("count", { count: counts.works })} · {tp("count", { count: counts.projects })}
         </p>
       </header>
     </section>

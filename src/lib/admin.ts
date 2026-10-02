@@ -10,6 +10,7 @@ import { BLOCKS } from "@/blocks/registry";
 import { ThemeSchema, type Theme } from "@/themes/schema";
 
 import { getDb, schema } from "./db";
+import { boardRefs } from "@/blocks/tree";
 import { parseJson } from "./json";
 import { ORIGINALS_PREFIX, parseVariants } from "./images/variants";
 import { mediaUrl } from "./media";
@@ -371,6 +372,16 @@ export function getPageForEdit(id: number): AdminPageEdit | null {
 /** `draftPageId` : page éditée (ses projets en brouillon sont proposés). */
 export function getEditorContext(draftPageId?: number) {
   const db = getDb();
+  // Projets déjà montrés par une planche d'une page (publiée ou brouillon) :
+  // les autres sont mis en évidence dans les sélecteurs (« pas encore sur une page »).
+  const onPage = new Set<string>();
+  const pageRows = db.select({ id: schema.pages.id, draft: schema.pages.draft }).from(schema.pages).all();
+  const published = db.select({ pageId: schema.blocks.pageId, type: schema.blocks.type, props: schema.blocks.props }).from(schema.blocks).all();
+  for (const b of boardRefs(published.map((r) => ({ type: r.type, props: parseJson(r.props) })))) onPage.add(b.slug);
+  for (const p of pageRows) {
+    const blocks = (p.draft as { blocks?: unknown } | null)?.blocks;
+    if (Array.isArray(blocks)) for (const b of boardRefs(blocks.filter((x) => x && typeof x.type === "string"))) onPage.add(b.slug);
+  }
   return {
     pages: db
       .select()
@@ -386,7 +397,7 @@ export function getEditorContext(draftPageId?: number) {
       .orderBy(asc(schema.projects.position))
       .all()
       .filter((p) => p.page === null || (draftPageId !== undefined && p.page === draftPageId))
-      .map((p) => ({ slug: p.slug, title: p.title.fr, ...(p.page !== null ? { draft: true } : {}) })),
+      .map((p) => ({ slug: p.slug, title: p.title.fr, ...(p.page !== null ? { draft: true } : {}), onPage: onPage.has(p.slug) })),
     media: listMediaForAdmin().filter((m) => m.status !== "failed"),
   };
 }
@@ -419,4 +430,30 @@ export function overlayProjectSlugs(pageId: number): string[] {
   const db = getDb();
   const ids = new Set(db.select({ p: schema.slots.projectId }).from(schema.slots).where(eq(schema.slots.draftPageId, pageId)).all().map((r) => r.p));
   return db.select({ id: schema.projects.id, slug: schema.projects.slug }).from(schema.projects).all().filter((p) => ids.has(p.id)).map((p) => p.slug);
+}
+
+/* ---- Messages du formulaire de contact (v0.13) --------------------------- */
+
+export type AdminMessage = { id: number; subject: string; replyTo: string | null; fields: { label: string; value: string }[]; createdAt: Date; page: string | null };
+
+/** Derniers messages reçus (lecture directe). */
+export function listMessages(limit = 200): AdminMessage[] {
+  const db = getDb();
+  const titles = new Map(db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).all().map((p) => [p.id, p.title.fr]));
+  return db
+    .select()
+    .from(schema.messages)
+    .orderBy(desc(schema.messages.createdAt), desc(schema.messages.id))
+    .limit(limit)
+    .all()
+    .map((m) => {
+      const parsed = parseJson(m.fields);
+      const fields = Array.isArray(parsed) ? parsed.filter((f) => f && typeof f.label === "string" && typeof f.value === "string") : [];
+      return { id: m.id, subject: m.subject, replyTo: m.replyTo, fields, createdAt: m.createdAt, page: m.pageId ? (titles.get(m.pageId) ?? null) : null };
+    });
+}
+
+export { MESSAGES_CAP } from "./contact-form";
+export function countMessages(): number {
+  return getDb().select({ n: count() }).from(schema.messages).get()?.n ?? 0;
 }

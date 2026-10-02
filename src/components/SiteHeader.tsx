@@ -7,18 +7,21 @@ import LocaleSwitcher from "@/components/LocaleSwitcher";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { AppLocale } from "@/i18n/routing";
 
-/** Entrée de menu : chemin sans langue et libellé, construits depuis la base. */
-export type HeaderNavItem = { href: string; label: string };
+/** Entrée de menu : chemin sans langue (ou adresse externe) et libellé, construits depuis la base. */
+export type HeaderNavItem = { id?: string; href: string; label: string; external?: boolean };
 
 export default function SiteHeader({
   siteName,
   nav,
   alternates,
+  edit = false,
 }: {
   siteName: string;
   nav: HeaderNavItem[];
   /** Chemin de la page courante dans chaque langue (sélecteur de langue). */
   alternates: Record<AppLocale, string>;
+  /** Vue brouillon de l'éditeur : repères de l'en-tête (commun à toutes les pages). Jamais en public. */
+  edit?: boolean;
 }) {
   const t = useTranslations("nav");
   const pathname = usePathname();
@@ -37,6 +40,7 @@ export default function SiteHeader({
 
   return (
     <header
+      {...(edit ? { "data-edit-global": "header", "data-edit-label": "En-tête · commun à toutes les pages" } : {})}
       className={`site-header sticky top-0 z-50 transition-[background-color,box-shadow,backdrop-filter] duration-500 ease-soft ${
         scrolled
           ? "bg-bg/92 backdrop-blur-xl shadow-[0_1px_0_0_var(--color-line)]"
@@ -50,7 +54,9 @@ export default function SiteHeader({
         >
           {/* Signature dessinée (kit) : affichée par variants.css quand le thème
               en a une ; le nom reste alors lisible des lecteurs d'écran. */}
-          <span className="site-brand-text">{siteName}</span>
+          <span className="site-brand-text" {...(edit ? { "data-site-inline": "name", "data-placeholder": "Nom du site" } : {})}>
+            {siteName}
+          </span>
           <span className="site-signature" aria-hidden="true" />
         </Link>
 
@@ -58,18 +64,35 @@ export default function SiteHeader({
           aria-label={t("label")}
           className="hidden md:flex items-center gap-7"
         >
-          {nav.map(({ href, label }) => {
+          {nav.map(({ id, href, label, external }, i) => {
             const active = pathname === href;
+            const className = `caption-text relative font-caption text-[0.7rem] tracking-[0.18em] uppercase transition-colors ${
+              active ? "text-ink" : "text-ink-soft hover:text-primary"
+            }`;
+            // Édition : libellé repéré (double-clic), lien repéré (glisser, retirer).
+            const text = edit ? (
+              <span data-site-inline="nav" data-nav-index={i} data-placeholder="Lien">
+                {label}
+              </span>
+            ) : (
+              label
+            );
+            if (external) {
+              return (
+                <a key={id ?? href} href={href} target="_blank" rel="noopener noreferrer" className={className} {...(edit ? { "data-nav-item": i } : {})}>
+                  {text}
+                </a>
+              );
+            }
             return (
               <Link
-                key={href}
+                key={id ?? href}
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`caption-text relative font-caption text-[0.7rem] tracking-[0.18em] uppercase transition-colors ${
-                  active ? "text-ink" : "text-ink-soft hover:text-primary"
-                }`}
+                className={className}
+                {...(edit ? { "data-nav-item": i } : {})}
               >
-                {label}
+                {text}
                 <span
                   aria-hidden="true"
                   className={`nav-underline absolute -bottom-2 left-0 h-px bg-secondary transition-all duration-500 ease-soft ${
@@ -104,14 +127,17 @@ export default function SiteHeader({
         className="md:hidden bg-bg/95 backdrop-blur-xl border-t border-line"
       >
         <ul className="shell flex flex-col py-3">
-          {nav.map(({ href, label }) => (
-            <li key={href} className="border-b border-line last:border-0">
-              <Link
-                href={href}
-                className="block py-3 font-display text-2xl text-ink hover:text-primary transition-colors"
-              >
-                {label}
-              </Link>
+          {nav.map(({ id, href, label, external }) => (
+            <li key={id ?? href} className="border-b border-line last:border-0">
+              {external ? (
+                <a href={href} target="_blank" rel="noopener noreferrer" className="block py-3 font-display text-2xl text-ink hover:text-primary transition-colors">
+                  {label}
+                </a>
+              ) : (
+                <Link href={href} className="block py-3 font-display text-2xl text-ink hover:text-primary transition-colors">
+                  {label}
+                </Link>
+              )}
             </li>
           ))}
         </ul>

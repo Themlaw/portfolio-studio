@@ -4,8 +4,10 @@
 import { useEffect, useRef, useState } from "react";
 
 import Eyebrow from "@/components/Eyebrow";
+import Picture from "@/components/Picture";
+import Video from "@/components/Video";
 import ScrollHint from "@/components/hero/ScrollHint";
-import type { HeroContent } from "@/components/hero/types";
+import { heroMarks, type HeroContent } from "@/components/hero/types";
 import type { KitPlan } from "@/themes/schema";
 
 /** Toile du hero du kit (docs/THEME-KIT.md). */
@@ -81,6 +83,8 @@ export default function HeroParallax({ layers, plans = [], content }: { layers: 
   // Repli plan par plan : un plan dessiné remplace le calque SVG de même rang.
   const count = Math.max(layers.length, plans.length);
   const stack = Array.from({ length: count }, (_, i) => ({ plan: plans[i] ?? null, src: layers[i] }));
+  const bg = content.background;
+  const marks = heroMarks(content);
   const layerRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
@@ -132,10 +136,25 @@ export default function HeroParallax({ layers, plans = [], content }: { layers: 
     <section
       className="hero hero-parallax relative isolate flex min-h-[calc(100svh-var(--header-h))] flex-col justify-end overflow-hidden"
       aria-label={content.name}
+      {...(content.edit ? { "data-edit-media": "backgroundMediaId", "data-edit-media-kind": "background" } : {})}
     >
-      {/* Décor illustré en couches */}
+      {/* Décor illustré en couches (ou image / vidéo de fond choisie dans l'éditeur). */}
       <div className="absolute inset-0 -z-10">
-        {stack.map(({ plan, src }, i) =>
+        {bg ? (
+          <div
+            ref={(node) => {
+              layerRefs.current[0] = node;
+            }}
+            className="hero-backdrop absolute inset-[-8%] will-change-transform"
+          >
+            {bg.video ? (
+              <Video video={bg.video} width={bg.width} height={bg.height} className="h-full w-full object-cover" autoPlay muted loop controls={false} />
+            ) : (
+              <Picture src={bg.src} sources={bg.sources} alt="" width={bg.width} height={bg.height} sizes="100vw" className="h-full w-full object-cover" priority />
+            )}
+          </div>
+        ) : null}
+        {!bg && stack.map(({ plan, src }, i) =>
           plan ? (
             <div
               key={plan.svg ?? plan.avif}
@@ -177,11 +196,13 @@ export default function HeroParallax({ layers, plans = [], content }: { layers: 
       {/* hero-halo : halo typographique serré (token heroHalo) sur les petits
           textes qui traversent le décor. Le titre, en très grand corps, tient seul. */}
       <div className="shell relative pb-20 pt-40 md:pb-28">
-        <Eyebrow className="text-ink">{content.eyebrow}</Eyebrow>
-        <h1 className="mt-5 font-display text-[clamp(3rem,11vw,9rem)] leading-[0.92] text-ink">
+        <Eyebrow className="text-ink" {...marks.eyebrow}>
+          {content.eyebrow}
+        </Eyebrow>
+        <h1 className="mt-5 font-display text-[clamp(3rem,11vw,9rem)] leading-[0.92] text-ink" {...marks.name}>
           {content.name}
         </h1>
-        <p className="hero-halo caption-text mt-6 max-w-xl font-caption text-[0.78rem] tracking-[0.2em] uppercase text-ink">
+        <p className="hero-halo caption-text mt-6 max-w-xl font-caption text-[0.78rem] tracking-[0.2em] uppercase text-ink" {...marks.role}>
           {content.role}
         </p>
       </div>

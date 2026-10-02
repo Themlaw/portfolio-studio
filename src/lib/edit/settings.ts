@@ -2,8 +2,10 @@
 import { z } from "zod";
 
 import { getDb, schema } from "@/lib/db";
+import { SocialsSchema } from "@/lib/site-schema";
 
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
+import { readSiteDraft } from "./site";
 
 const localized = z.object({ fr: z.string().trim().max(160), en: z.string().trim().max(160) });
 
@@ -28,9 +30,8 @@ export const SettingsSchema = z.object({
     email: z.email("Adresse e-mail invalide (ex. nom@domaine.fr).").max(254),
     credit: localized,
   }),
-  socials: z
-    .array(z.object({ label: z.string().trim().min(1, "Donne un nom à ce réseau (ex. Instagram).").max(40), href: httpsUrl }))
-    .max(12, "12 réseaux au plus."),
+  // Réseaux : mêmes règles que sur la toile (http(s) ou mailto:, réseau reconnu).
+  socials: SocialsSchema,
 });
 
 export type SettingsInput = z.infer<typeof SettingsSchema>;
@@ -39,6 +40,12 @@ export function saveSettings(input: unknown): ActionResult<null> {
   const parsed = SettingsSchema.safeParse(input);
   if (!parsed.success) {
     return fail("Certains champs sont invalides : corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
+  }
+  // En-tête / réseaux en cours de modification sur une page : un seul état à la fois.
+  const pending = readSiteDraft();
+  if (pending) {
+    const title = pageName(pending.pageId);
+    return fail(`L'en-tête et les réseaux sont en cours de modification sur la page ${title} : publie-la ou abandonne ses modifications d'abord.`);
   }
   const db = getDb();
   db.transaction((tx) => {
@@ -53,4 +60,9 @@ export function saveSettings(input: unknown): ActionResult<null> {
     }
   });
   return done(null);
+}
+
+function pageName(id: number): string {
+  const rows = getDb().select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).all();
+  return rows.find((r) => r.id === id)?.title.fr || `n° ${id}`;
 }

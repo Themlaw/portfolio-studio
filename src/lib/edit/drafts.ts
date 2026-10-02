@@ -29,12 +29,14 @@ import { z } from "zod";
 
 import { BLOCKS } from "@/blocks/registry";
 import { extractProjectRefs } from "@/blocks/refs";
+import { boardRefs, errorPath, flatBlocks, treeProblem } from "@/blocks/tree";
 import { getPageForEdit } from "@/lib/admin";
 import { getDb, schema } from "@/lib/db";
 import { own } from "@/lib/own";
 
-import { savePage } from "./pages";
+import { deprecatedProblem, formIdProblem, savePage } from "./pages";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
+import { applySiteDraft, discardSiteDraft } from "./site";
 
 type L = { fr: string; en: string };
 
@@ -77,7 +79,12 @@ const DraftSchema = z.object({
         props: z.record(z.string(), z.unknown()),
       }),
     )
-    .max(40, "40 blocs au plus par page."),
+    .max(40, "40 blocs au plus par page.")
+    // Conteneurs (v0.13) : composants acceptés, deux niveaux au plus, uid uniques.
+    .superRefine((blocks, ctx) => {
+      const problem = treeProblem(blocks, (t) => Boolean(own(BLOCKS, t)));
+      if (problem) ctx.addIssue({ code: "custom", message: problem });
+    }),
 });
 
 /** Profondeur d'imbrication d'une valeur JSON (s'arrête dès que `limit` est dépassé). */
@@ -145,8 +152,13 @@ export function saveDraft(pageId: number, input: unknown, rev: unknown): DraftRe
     if (json === undefined || Buffer.byteLength(json) > MAX_DRAFT_BYTES) return fail("Ce brouillon est trop lourd : retire des blocs ou raccourcis les textes.");
     const parsed = DraftSchema.safeParse(input);
     if (!parsed.success) return fail("Brouillon invalide : recharge l'éditeur.", zodFieldErrors(parsed.error.issues));
-    const uids = parsed.data.blocks.map((b) => b.uid);
+    const uids = flatBlocks(parsed.data.blocks).map((b) => b.uid);
     if (new Set(uids).size !== uids.length) return fail("Brouillon invalide (blocs en double) : recharge l'éditeur.");
+    // Types retirés de la palette : on n'en crée plus (ceux déjà sur la page restent lisibles).
+    const old = deprecatedProblem(pageId, parsed.data.blocks);
+    if (old) return fail(old);
+    const dupForm = formIdProblem(pageId, parsed.data.blocks);
+    if (dupForm) return fail(dupForm.message, { [dupForm.path]: dupForm.message });
     const now = new Date();
     // Écriture conditionnelle : la version n'a pas bougé depuis la lecture.
     const result = getDb()
@@ -165,22 +177,31 @@ export function saveDraft(pageId: number, input: unknown, rev: unknown): DraftRe
 /* ---- Emplacements : surcouche de brouillon -------------------------------- */
 
 /**
- * Projets dont les planches apparaissent dans ces blocs : projets choisis
- * (`projects` déclarés dans refs.ts), projets d'une collection (planches de
- * collection), projets mis en avant (projets mis en avant sans choix).
- * Sert à revalider le cache des projets touchés par une publication.
+ * Projets dont les PLANCHES (images) apparaissent dans ces blocs : blocs
+ * « Planche d'un projet », y compris dans un conteneur (où une planche sans
+ * projet prend celui du conteneur), et types anciens encore lisibles
+ * (planches d'une collection, projets mis en avant). Seule la surcouche de
+ * ces projets est appliquée à la publication (correction I1) ; c'est aussi
+ * la condition pour modifier une planche depuis la toile. Un conteneur qui
+ * cite un projet sans montrer sa planche n'en fait pas partie.
  */
-export function referencedProjects(blocks: { type: string; props: unknown }[]): number[] {
+export function displayedProjects(input: { type: string; props: unknown }[]): number[] {
   const db = getDb();
+  // Sur l'arbre tel que la publication le garde (clés inconnues retirées, blocs invalides écartés).
+  const blocks = parsedTree(input);
   const ids = new Set<number>();
   const slugs = new Set<string>();
   const collections = new Set<string>();
   let featured = false;
-  for (const b of blocks) {
-    for (const s of extractProjectRefs(b.type, b.props)) slugs.add(s);
+  for (const s of boardRefs(blocks)) slugs.add(s.slug);
+  for (const b of flatBlocks(blocks)) {
     const p = (b.props ?? {}) as Record<string, unknown>;
     if (b.type === "collection-projects" && typeof p.collection === "string") collections.add(p.collection);
-    if (b.type === "featured-projects" && !(Array.isArray(p.projects) && p.projects.length)) featured = true;
+    if (b.type === "featured-projects") {
+      if (Array.isArray(p.projects) && p.projects.length) {
+        for (const x of p.projects) if (typeof x === "string") slugs.add(x);
+      } else featured = true;
+    }
   }
   if (slugs.size) for (const r of db.select({ id: schema.projects.id }).from(schema.projects).where(inArray(schema.projects.slug, [...slugs])).all()) ids.add(r.id);
   if (featured) for (const r of db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.featured, true)).all()) ids.add(r.id);
@@ -192,6 +213,36 @@ export function referencedProjects(blocks: { type: string; props: unknown }[]): 
       .all())
       ids.add(r.id);
   }
+  return [...ids].sort((a, b) => a - b);
+}
+
+/**
+ * L'arbre passé par les schémas du registre, comme savePage le garde : clés
+ * inconnues retirées, bloc (ou composant) invalide écarté, composants des
+ * conteneurs parsés eux aussi. Sert à décider ce qui est réellement affiché.
+ */
+export function parsedTree(blocks: { uid?: unknown; type: string; props: unknown }[], depth = 0): { uid?: string; type: string; props: Record<string, unknown> }[] {
+  const out: { uid?: string; type: string; props: Record<string, unknown> }[] = [];
+  for (const b of blocks) {
+    const def = b && typeof b.type === "string" ? own(BLOCKS, b.type) : undefined;
+    const parsed = def?.schema.safeParse(b.props);
+    if (!def || !parsed?.success) continue;
+    const props = { ...(parsed.data as Record<string, unknown>) };
+    if (def.container) props.children = depth < 2 && Array.isArray(props.children) ? parsedTree(props.children as { type: string; props: unknown }[], depth + 1) : [];
+    out.push({ ...(typeof b.uid === "string" ? { uid: b.uid } : {}), type: b.type, props });
+  }
+  return out;
+}
+
+/**
+ * Projets cités par ces blocs, à quelque titre que ce soit (planches, projet
+ * d'un conteneur, titre lié) : revalidation du cache après une publication.
+ */
+export function referencedProjects(input: { type: string; props: unknown }[]): number[] {
+  const blocks = parsedTree(input);
+  const slugs = new Set(flatBlocks(blocks).flatMap((b) => extractProjectRefs(b.type, b.props, 2)));
+  const ids = new Set(displayedProjects(blocks));
+  if (slugs.size) for (const r of getDb().select({ id: schema.projects.id }).from(schema.projects).where(inArray(schema.projects.slug, [...slugs])).all()) ids.add(r.id);
   return [...ids].sort((a, b) => a - b);
 }
 
@@ -295,10 +346,10 @@ export function discardSlotDrafts(pageId: number): number[] {
 function emptyDraftBoards(pageId: number, blocks: { type: string; props: unknown }[]): Record<string, string> | null {
   const db = getDb();
   const errors: Record<string, string> = {};
-  blocks.forEach((b, i) => {
-    if (b.type !== "project-board") return;
-    const slug = (b.props as { project?: unknown })?.project;
-    if (typeof slug !== "string") return;
+  // Planches de la page, composants des conteneurs compris (projet hérité du conteneur).
+  boardRefs(blocks).forEach(({ slug, block }) => {
+    const at = errorPath(blocks, block);
+    if (!at) return;
     const project = db.select().from(schema.projects).where(eq(schema.projects.slug, slug)).get();
     if (!project || project.draftPageId !== pageId) return;
     const withImage = db
@@ -306,7 +357,7 @@ function emptyDraftBoards(pageId: number, blocks: { type: string; props: unknown
       .from(schema.slots)
       .where(and(eq(schema.slots.projectId, project.id), isNotNull(schema.slots.mediaId)))
       .all().length;
-    if (!withImage) errors[`blocks.${i}`] = `La planche « ${project.title.fr} » n'a encore aucune image : ajoute-en une, ou retire ce bloc.`;
+    if (!withImage) errors[at] = `La planche « ${project.title.fr} » n'a encore aucune image : ajoute-en une, ou retire ce bloc.`;
   });
   return Object.keys(errors).length ? errors : null;
 }
@@ -327,7 +378,8 @@ function settleDraftProjects(pageId: number, blocks: { type: string; props: unkn
 
 /* ---- Publier, abandonner -------------------------------------------------- */
 
-export type PublishResult = { projects: number[]; blocks: number; rev: number };
+/** `site` : l'en-tête, le pied ou les réseaux (communs à toutes les pages) ont changé. */
+export type PublishResult = { projects: number[]; blocks: number; rev: number; site: boolean };
 
 /**
  * Publie le brouillon, en une transaction : validation et écriture de
@@ -358,8 +410,9 @@ export function publishDraft(pageId: number, rev: unknown): DraftResult<PublishR
         outcome = result;
         return;
       }
-      const touched = applySlotDrafts(pageId, new Set(referencedProjects(draft.blocks)));
+      const touched = applySlotDrafts(pageId, new Set(displayedProjects(draft.blocks)));
       settleDraftProjects(pageId, draft.blocks);
+      const site = applySiteDraft(pageId);
       const cleared = tx
         .update(schema.pages)
         .set({ draft: null, draftUpdatedAt: null, draftRev: rev + 1 })
@@ -368,7 +421,7 @@ export function publishDraft(pageId: number, rev: unknown): DraftResult<PublishR
       // Écrit entre la lecture et la transaction : tout est annulé.
       if (cleared.changes !== 1) throw new ConflictError();
       const projects = [...new Set([...referencedProjects([...draft.blocks, ...(before?.blocks ?? [])]), ...touched])].sort((a, b) => a - b);
-      outcome = done({ projects, blocks: draft.blocks.length, rev: rev + 1 });
+      outcome = done({ projects, blocks: draft.blocks.length, rev: rev + 1, site });
     });
   } catch (error) {
     if (error instanceof ConflictError) return conflict(pageRow(pageId)?.rev ?? rev);
@@ -390,6 +443,7 @@ export function discardDraft(pageId: number, rev: unknown): DraftResult<{ projec
   try {
     db.transaction((tx) => {
       projects = discardSlotDrafts(pageId);
+      discardSiteDraft(pageId);
       const cleared = tx
         .update(schema.pages)
         .set({ draft: null, draftUpdatedAt: null, draftRev: rev + 1 })
@@ -416,7 +470,7 @@ export function hasPageDraft(pageId: number): boolean {
  * contrôle de version que l'éditeur ; un brouillon illisible se tranche
  * d'abord dans l'éditeur.
  */
-export function savePageFromForm(pageId: number, input: unknown, rev: unknown): DraftResult<{ projects: number[]; rev: number }> {
+export function savePageFromForm(pageId: number, input: unknown, rev: unknown): DraftResult<{ projects: number[]; rev: number; site: boolean }> {
   if (!validRev(rev)) return fail("Requête invalide (version manquante) : recharge la page.");
   const row = pageRow(pageId);
   if (!row) return fail("Cette page n'existe plus. Recharge la liste des pages.");
@@ -425,7 +479,7 @@ export function savePageFromForm(pageId: number, input: unknown, rev: unknown): 
   const before = getPageForEdit(pageId);
   const draftBlocks = (DraftSchema.safeParse(row.draft).data?.blocks ?? []) as DraftBlock[];
   const db = getDb();
-  let outcome: DraftResult<{ projects: number[]; rev: number }> = fail("Enregistrement impossible.");
+  let outcome: DraftResult<{ projects: number[]; rev: number; site: boolean }> = fail("Enregistrement impossible.");
   try {
     db.transaction((tx) => {
       const result = savePage(pageId, input);
@@ -434,8 +488,9 @@ export function savePageFromForm(pageId: number, input: unknown, rev: unknown): 
         return;
       }
       const formBlocks = (input as { blocks?: { type: string; props: unknown }[] })?.blocks ?? [];
-      const touched = applySlotDrafts(pageId, new Set(referencedProjects(formBlocks)));
+      const touched = applySlotDrafts(pageId, new Set(displayedProjects(formBlocks)));
       settleDraftProjects(pageId, formBlocks);
+      const site = applySiteDraft(pageId);
       const cleared = tx
         .update(schema.pages)
         .set({ draft: null, draftUpdatedAt: null, draftRev: rev + 1 })
@@ -444,7 +499,7 @@ export function savePageFromForm(pageId: number, input: unknown, rev: unknown): 
       if (cleared.changes !== 1) throw new ConflictError();
       const after = (input as { blocks?: { type: string; props: unknown }[] })?.blocks ?? [];
       const projects = [...new Set([...referencedProjects([...draftBlocks, ...(before?.blocks ?? []), ...after]), ...touched])];
-      outcome = done({ projects, rev: rev + 1 });
+      outcome = done({ projects, rev: rev + 1, site });
     });
   } catch (error) {
     if (error instanceof ConflictError) return conflict(pageRow(pageId)?.rev ?? rev);

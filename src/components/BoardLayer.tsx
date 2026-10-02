@@ -26,9 +26,14 @@ import { createPortal } from "react-dom";
 
 import { acceptToCanvas, EDIT_MSG, type DropTargetInfo, type FromCanvas, type Ghost } from "@/lib/edit/protocol";
 
+import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
+
 type Rect = { top: number; left: number; width: number; height: number };
 type SlotRef = { board: number; key: string; empty: boolean };
-type Marker = { kind: "cursor"; rect: Rect } | { kind: "slot"; rect: Rect } | { kind: "new"; rect: Rect };
+type Marker = { kind: "cursor"; rect: Rect } | { kind: "slot"; rect: Rect } | { kind: "new"; rect: Rect } | { kind: "media"; rect: Rect };
+type MediaRef = { uid: string; field: "mediaId" | "backgroundMediaId" | "portraitMediaId"; kind: string; empty: boolean };
+const MEDIA_FIELDS = ["mediaId", "backgroundMediaId", "portraitMediaId"] as const;
+const COLLECTIONS = ["characters", "backgrounds", "animation"] as const;
 
 const EDGE = 64;
 
@@ -68,14 +73,26 @@ const slotRefOf = (el: HTMLElement): SlotRef | null => {
 const findSlot = (ref: { board: number; key: string }) =>
   document.querySelector<HTMLElement>(`[data-edit-board="${ref.board}"] [data-edit-slot="${CSS.escape(ref.key)}"]`);
 
+/**
+ * Rang dans la planche ENTIÈRE de l'emplacement visible n° `i` de la bande
+ * (une planche filtrée par métier n'en montre qu'une partie : `data-slot-pos`).
+ */
+export function fullIndex(els: HTMLElement[], i: number): number {
+  const pos = (el: HTMLElement | undefined) => (el?.dataset.slotPos !== undefined && el.dataset.slotPos !== "" ? Number(el.dataset.slotPos) : null);
+  if (i < els.length) return pos(els[i]) ?? i;
+  const last = pos(els[els.length - 1]);
+  return last !== null ? last + 1 : els.length;
+}
+
 /** Position d'insertion dans une bande selon x (fenêtre) : nombre d'images dont le milieu est à gauche. */
-function railIndex(rail: Element, x: number): { index: number; rect: Rect } {
+function railIndex(rail: Element, x: number): { index: number; visible: number; rect: Rect } {
   const els = slotEls(rail);
   let index = 0;
   for (const el of els) {
     const b = el.getBoundingClientRect().width ? el.getBoundingClientRect() : (el.firstElementChild?.getBoundingClientRect() ?? el.getBoundingClientRect());
     if (b.left + b.width / 2 < x) index++;
   }
+  const visible = index;
   const railBox = rail.getBoundingClientRect();
   let cx: number;
   if (!els.length) cx = railBox.left + 24;
@@ -89,7 +106,17 @@ function railIndex(rail: Element, x: number): { index: number; rect: Rect } {
   const media = first?.getBoundingClientRect();
   const top = media?.height ? media.top : railBox.top;
   const height = media?.height ? media.height : Math.max(120, railBox.height);
-  return { index, rect: { top: top + window.scrollY, left: cx + window.scrollX - 2, width: 4, height } };
+  return { index: fullIndex(els, visible), visible, rect: { top: top + window.scrollY, left: cx + window.scrollX - 2, width: 4, height } };
+}
+
+/** Bloc média sous un élément (image, vidéo, fond de l'ouverture, portrait). */
+function mediaRefOf(el: Element | null): { ref: MediaRef; el: HTMLElement } | null {
+  const host = el?.closest<HTMLElement>("[data-edit-media]");
+  const field = host?.dataset.editMedia as MediaRef["field"] | undefined;
+  const uid = host?.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
+  if (!host || !uid || !field || !MEDIA_FIELDS.includes(field)) return null;
+  // L'ouverture : seulement quand on vise son décor, pas un texte ou un bouton posé dessus.
+  return { ref: { uid, field, kind: host.dataset.editMediaKind ?? "image", empty: host.classList.contains("pe-media-empty") || Boolean(host.querySelector(".pe-media-empty")) }, el: host };
 }
 
 /** Cible de dépôt sous le point (fenêtre). */
@@ -102,6 +129,18 @@ function dropTargetAt(x: number, y: number): { target: DropTargetInfo; marker: M
     const box = boxOf(newPanel);
     return box ? { target: { kind: "new", uid: newPanel.dataset.newBoardUid }, marker: { kind: "new", rect: box } } : null;
   }
+  // Place libre d'une grille : un composant y est créé avec le média.
+  const cell = el.closest<HTMLElement>("[data-edit-cell-free]");
+  const gridUid = cell?.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
+  if (cell && gridUid) {
+    const box = boxOf(cell);
+    return box ? { target: { kind: "cell", uid: gridUid }, marker: { kind: "media", rect: box } } : null;
+  }
+  const media = mediaRefOf(el);
+  if (media && !el.closest("[data-edit-board]")) {
+    const box = boxOf(media.el);
+    return box ? { target: { kind: "media", uid: media.ref.uid, field: media.ref.field }, marker: { kind: "media", rect: box } } : null;
+  }
   const empty = el.closest<HTMLElement>("[data-edit-slot][data-empty]");
   if (empty) {
     const ref = slotRefOf(empty);
@@ -112,7 +151,8 @@ function dropTargetAt(x: number, y: number): { target: DropTargetInfo; marker: M
   const rail = board?.querySelector("[data-edit-rail]");
   if (board && rail) {
     const { index, rect } = railIndex(rail, x);
-    return { target: { kind: "board", board: Number(board.dataset.editBoard), index }, marker: { kind: "cursor", rect } };
+    const c = board.dataset.editBoardCollection as (typeof COLLECTIONS)[number] | undefined;
+    return { target: { kind: "board", board: Number(board.dataset.editBoard), index, ...(c && COLLECTIONS.includes(c) ? { collection: c } : {}) }, marker: { kind: "cursor", rect } };
   }
   return null;
 }
@@ -140,7 +180,20 @@ const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && (t.isCon
 
 type TextEdit = { el: HTMLElement; kind: "slot" | "project"; board: number; key?: string; field: string; original: string; value: string; rect: Rect; style: React.CSSProperties; committed: boolean; at: number };
 
-export default function BoardLayer({ mode, host, announce }: { mode: "off" | "edit" | "preview"; host: HTMLElement | null; announce: (text: string) => void }) {
+export default function BoardLayer({
+  mode,
+  host,
+  announce,
+  pickerFor,
+  onPickerClose,
+}: {
+  mode: "off" | "edit" | "preview";
+  host: HTMLElement | null;
+  announce: (text: string) => void;
+  /** Conteneur dont on change le projet (barre de la toile), ou null. */
+  pickerFor: string | null;
+  onPickerClose: () => void;
+}) {
   const [tick, setTick] = useState(0);
   const [hover, setHover] = useState<SlotRef | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<SlotRef | null>(null);
@@ -149,9 +202,9 @@ export default function BoardLayer({ mode, host, announce }: { mode: "off" | "ed
   // Un glisser est en cours (média, fichiers, image) : pas de barre d'image.
   const [dragActive, setDragActive] = useState(false);
   const [ghosts, setGhosts] = useState<Ghost[]>([]);
-  const [projects, setProjects] = useState<{ slug: string; title: string }[]>([]);
+  const [projects, setProjects] = useState<ComboProject[]>([]);
   const [text, setText] = useState<TextEdit | null>(null);
-  const [names, setNames] = useState<Record<string, string>>({});
+  const [hoverMedia, setHoverMedia] = useState<MediaRef | null>(null);
   const ghostsRef = useRef<Ghost[]>([]);
   const pendingFocus = useRef<string | null>(null);
   const textRef = useRef<TextEdit | null>(null);
@@ -173,12 +226,19 @@ export default function BoardLayer({ mode, host, announce }: { mode: "off" | "ed
       } else if (msg.kind === "projects") setProjects(msg.list);
       else if (msg.kind === "focus-slot") pendingFocus.current = msg.key;
       else if (msg.kind === "drag" && msg.payload === "media") {
+        if (!document.documentElement.hasAttribute("data-edit-dragging")) {
+          document.documentElement.setAttribute("data-edit-dragging", "");
+          try {
+            window.getSelection()?.removeAllRanges();
+          } catch {}
+        }
         setDragActive(true);
         const hit = dropTargetAt(msg.x, msg.y);
         setMarker(hit?.marker ?? null);
         post({ kind: "drop-target", target: hit?.target ?? null });
         autoScroll(msg.x, msg.y);
       } else if (msg.kind === "drag-end") {
+        document.documentElement.removeAttribute("data-edit-dragging");
         setMarker(null);
         setDragActive(false);
       }
@@ -209,7 +269,8 @@ export default function BoardLayer({ mode, host, announce }: { mode: "off" | "ed
         fresh = true;
       }
       // Avant le n-ième emplacement réel (les fantômes d'un même dépôt se suivent).
-      const before = slotEls(rail)[g.index] ?? null;
+      const els = slotEls(rail);
+      const before = els.find((el, i) => fullIndex(els, i) >= g.index!) ?? null;
       const siblings = items.filter((x) => x.board === g.board && x.index === g.index && !x.slot && x.phase !== "done");
       const after = siblings.slice(siblings.indexOf(g) + 1).map((x) => rail.querySelector(`:scope > [data-ghost="${CSS.escape(x.id)}"]`)).find(Boolean) ?? null;
       const anchor = (after as Element | null) ?? before;
@@ -327,6 +388,9 @@ export default function BoardLayer({ mode, host, announce }: { mode: "off" | "ed
         const rail = pressed.el.closest("[data-edit-rail]");
         if (rail) {
           dragging = { ref: pressed.ref, rail, index: 0 };
+          try {
+            window.getSelection()?.removeAllRanges();
+          } catch {}
           document.documentElement.setAttribute("data-edit-dragging", "");
           pressed.el.setAttribute("data-slot-dragging", "");
         }
@@ -341,6 +405,8 @@ export default function BoardLayer({ mode, host, announce }: { mode: "off" | "ed
       if (e.pointerType === "touch") return;
       const slot = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-edit-slot]") : null;
       setHover(slot ? slotRefOf(slot) : null);
+      const media = e.target instanceof Element && !slot ? mediaRefOf(e.target) : null;
+      setHoverMedia((h) => (media ? (h && h.uid === media.ref.uid && h.field === media.ref.field && h.empty === media.ref.empty ? h : media.ref) : null));
     };
     const onDown = (e: PointerEvent) => {
       if (e.button !== 0 || inLayer(e.target) || isTyping(e.target)) return;
@@ -352,7 +418,9 @@ export default function BoardLayer({ mode, host, announce }: { mode: "off" | "ed
     const onUp = () => {
       if (dragging) {
         const { ref, index } = dragging;
-        const from = slotEls(dragging.rail).findIndex((el) => el.dataset.editSlot === ref.key);
+        const els = slotEls(dragging.rail);
+        const vis = els.findIndex((el) => el.dataset.editSlot === ref.key);
+        const from = vis >= 0 ? fullIndex(els, vis) : -1;
         if (from >= 0 && index !== from && index !== from + 1) post({ kind: "slot-move", board: ref.board, key: ref.key, index });
         pressed?.el.removeAttribute("data-slot-dragging");
         document.documentElement.removeAttribute("data-edit-dragging");
@@ -410,7 +478,7 @@ export default function BoardLayer({ mode, host, announce }: { mode: "off" | "ed
           const to = i + dir;
           if (to < 0 || to >= els.length) return announce(dir < 0 ? "Déjà en première position." : "Déjà en dernière position.");
           pendingFocus.current = ref.key;
-          post({ kind: "slot-move", board: ref.board, key: ref.key, index: dir < 0 ? to : to + 1 });
+          post({ kind: "slot-move", board: ref.board, key: ref.key, index: fullIndex(els, dir < 0 ? to : to + 1) });
           announce(`Image déplacée en position ${to + 1} sur ${els.length}.`);
         } else {
           const next = els[i + dir];
@@ -508,6 +576,16 @@ export default function BoardLayer({ mode, host, announce }: { mode: "off" | "ed
   const newBoards = [...document.querySelectorAll<HTMLElement>("[data-edit-board-new]")]
     .map((el) => ({ uid: el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "", box: boxOf(el) }))
     .filter((b): b is { uid: string; box: Rect } => Boolean(b.uid && b.box));
+  // Projet d'un conteneur : place réservée tant qu'il n'en a pas, ou « Changer de projet ».
+  const pickers = [
+    ...[...document.querySelectorAll<HTMLElement>("[data-edit-container-pick]")].map((el) => ({ uid: el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "", box: boxOf(el), change: false })),
+    ...(pickerFor
+      ? [{ uid: pickerFor, box: boxOf(document.querySelector(`[data-edit-block="${CSS.escape(pickerFor)}"]`) ?? document.body), change: true }]
+      : []),
+  ].filter((b): b is { uid: string; box: Rect; change: boolean } => Boolean(b.uid && b.box));
+  const mediaEl = hoverMedia ? document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(hoverMedia.uid)}"] [data-edit-media="${hoverMedia.field}"], [data-edit-block="${CSS.escape(hoverMedia.uid)}"][data-edit-media="${hoverMedia.field}"]`) : null;
+  const mediaBox = mediaEl ? boxOf(mediaEl) : null;
+  const mediaWord = hoverMedia?.kind === "video" ? "la vidéo" : hoverMedia?.kind === "background" ? "le fond" : "l'image";
 
   return createPortal(
     <div className="pe-layer pe-board-layer" lang="fr">
@@ -520,41 +598,69 @@ export default function BoardLayer({ mode, host, announce }: { mode: "off" | "ed
           style={{ top: box.top + 24, left: Math.max(16, box.left + 16), width: Math.min(560, box.width - 32), minHeight: box.height - 48 }}
         >
           <p className="pe-board-new-title">Nouvelle planche</p>
-          <label className="pe-board-field">
-            <span>Nom du projet</span>
-            <input
-              type="text"
-              maxLength={120}
-              placeholder="Ex. Les hauts chemins"
-              value={names[uid] ?? ""}
-              onChange={(e) => setNames((n) => ({ ...n, [uid]: e.target.value }))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && (names[uid] ?? "").trim()) {
-                  e.preventDefault();
-                  post({ kind: "board-create", uid, name: (names[uid] ?? "").trim() });
-                }
-              }}
-            />
-            <small>Entrée crée le projet. Contexte et année se règlent ensuite sur la planche.</small>
-          </label>
-          {projects.length > 0 && (
-            <label className="pe-board-field">
-              <span>ou reprends un projet existant</span>
-              <select defaultValue="" onChange={(e) => e.target.value && post({ kind: "board-pick", uid, slug: e.target.value })}>
-                <option value="">Choisir un projet…</option>
-                {projects.map((p) => (
-                  <option key={p.slug} value={p.slug}>
-                    {p.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
+          <ProjectCombobox
+            prefix="pe"
+            label="Projet de la planche"
+            projects={projects}
+            onPick={(slug) => post({ kind: "board-pick", uid, slug })}
+            onCreate={(name) => post({ kind: "board-create", uid, name })}
+          />
+          <small className="pe-board-help">Tape un nom : choisis un projet existant, ou « Créer » le nouveau. Contexte et année se règlent ensuite sur la planche.</small>
           <div className="pe-board-drop" aria-hidden="true">
             Dépose tes images ici
           </div>
         </div>
       ))}
+
+      {pickers.map(({ uid, box, change }) => (
+        <div
+          key={`pick-${uid}`}
+          className="pe-board-new pe-container-picker"
+          style={{ top: box.top + (change ? 40 : 12), left: Math.max(16, box.left + 16), width: Math.min(560, box.width - 32) }}
+        >
+          <p className="pe-board-new-title">{change ? "Changer de projet" : "Projet mis en avant"}</p>
+          <ProjectCombobox
+            prefix="pe"
+            label="Projet"
+            autoFocus={change}
+            projects={projects}
+            onPick={(slug) => {
+              post({ kind: "board-pick", uid, slug });
+              onPickerClose();
+            }}
+            onCreate={(name) => {
+              post({ kind: "board-create", uid, name });
+              onPickerClose();
+            }}
+          />
+          <small className="pe-board-help">Le titre et la planche du conteneur suivent ce projet. Un projet créé ici devient public avec la page.</small>
+          {change && (
+            <button type="button" className="pe-link-btn" onClick={onPickerClose}>
+              Annuler
+            </button>
+          )}
+        </div>
+      ))}
+
+      {mediaBox && hoverMedia && !marker && !dragActive && (
+        <div
+          className="pe-slot-tools pe-media-tools"
+          role="toolbar"
+          aria-label={hoverMedia.kind === "background" ? "Fond de l'ouverture" : hoverMedia.kind === "video" ? "Vidéo" : "Image"}
+          // En bas à gauche du média : jamais sur l'étiquette ni le fil d'Ariane du bloc choisi (en haut).
+          style={{ top: mediaBox.top + Math.max(8, mediaBox.height - 46), left: Math.max(window.scrollX + 4, mediaBox.left + 8) }}
+          onPointerEnter={() => setHoverMedia(hoverMedia)}
+        >
+          <button type="button" onClick={() => post({ kind: "media-op", uid: hoverMedia.uid, field: hoverMedia.field, op: "replace" })}>
+            {hoverMedia.empty ? (hoverMedia.kind === "video" ? "Choisir une vidéo" : "Choisir une image") : hoverMedia.kind === "background" ? "Changer le fond" : "Remplacer"}
+          </button>
+          {!hoverMedia.empty && (
+            <button type="button" className="pe-danger" onClick={() => post({ kind: "media-op", uid: hoverMedia.uid, field: hoverMedia.field, op: "clear" })}>
+              {hoverMedia.kind === "background" ? "Fond du thème" : `Retirer ${mediaWord}`}
+            </button>
+          )}
+        </div>
+      )}
 
       {activeBox && active && !marker && !dragActive && (
         <div

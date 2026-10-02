@@ -1,6 +1,6 @@
 {
   "name": "portfolio",
-  "version": "0.1.0",
+  "version": "0.13.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,7 +12,7 @@
     "check:contrast": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-contrast.mjs",
     "check:contrast:render": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-contrast-render.mjs",
     "shots:themes": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/theme-shots.mjs",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-references.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-sniff.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-ffmpeg-args.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-tags.mjs && node --import tsx scripts/test-theme-kit.mjs && node --import tsx scripts/test-kit-import.mjs && node --import tsx scripts/test-protocol.mjs && node scripts/test-admin-guard.mjs && node scripts/check-standalone.mjs && node scripts/check-docker-context.mjs",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-references.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-sniff.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-ffmpeg-args.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/test-tags.mjs && node --import tsx scripts/test-theme-kit.mjs && node --import tsx scripts/test-kit-import.mjs && node --import tsx scripts/test-protocol.mjs && node --import tsx scripts/test-containers.mjs && node --import tsx scripts/test-publish.mjs && node scripts/test-admin-guard.mjs && node scripts/check-standalone.mjs && node scripts/check-docker-context.mjs",
     "test:auth": "node scripts/test-auth.mjs",
     "test:kit-hero": "node scripts/kit-poc/hero-seams.mjs",
     "test:e2e-kit": "node scripts/e2e-kit.mjs",
@@ -20,6 +20,7 @@
     "test:e2e-tuto": "node scripts/e2e-tuto.mjs",
     "test:e2e-editor": "node scripts/e2e-editor.mjs",
     "test:e2e-boards": "node scripts/e2e-boards.mjs",
+    "test:e2e-v013": "node scripts/e2e-v013.mjs",
     "shots:admin": "node scripts/admin-shots.mjs",
     "test:e2e": "node scripts/e2e-admin.mjs && node scripts/e2e-planche.mjs && node scripts/e2e-video.mjs && node scripts/e2e-tags.mjs",
     "shots:editors": "node scripts/editor-shots.mjs",

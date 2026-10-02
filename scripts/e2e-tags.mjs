@@ -21,6 +21,8 @@ import path from "node:path";
 
 import { chromium } from "playwright";
 
+import { pageIdOf, placeBoard, projectSlugOf, removeBoard } from "./lib/page-board.mjs";
+
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
 const PASSWORD = process.env.ADMIN_PASSWORD;
@@ -72,6 +74,9 @@ let projectId = null;
 async function restore() {
   await page.unroute(/\/admin\/api\/upload/).catch(() => {});
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
+  // v0.13 : un projet cité par une page ne se supprime pas ; sa planche part d'abord.
+  for (const slug of [projectId && projectSlugOf(projectId)].filter(Boolean)) await removeBoard(page, BASE, pageIdOf("personnages"), slug);
   await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
   while (await page.locator(".a-project-card", { hasText: "Tags e2e" }).count()) {
     await page.locator(".a-project-card", { hasText: "Tags e2e" }).first().getByRole("button", { name: "Supprimer" }).click();
@@ -174,6 +179,12 @@ try {
   await page.locator("dialog[open]").getByRole("button", { name: "Créer le projet" }).click();
   await page.waitForURL(/\/admin\/projets\/\d+$/);
   projectId = Number(page.url().split("/").pop());
+  // v0.13 : la planche se pose sur la page Personnages (plus d'apparition automatique).
+  {
+    const editorUrl = page.url();
+    ok("T0 planche du projet posée sur la page Personnages", await placeBoard(page, BASE, pageIdOf("personnages"), projectSlugOf(projectId)));
+    await page.goto(editorUrl, { waitUntil: "networkidle" });
+  }
   // Deux emplacements de départ, placés depuis le bandeau (« + »).
   const libSearch = page.locator(".a-libstrip").getByPlaceholder("Rechercher…");
   for (const name of ["portrait", "vallee-suspendue"]) {

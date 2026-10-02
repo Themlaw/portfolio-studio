@@ -1,0 +1,565 @@
+"use client";
+
+/**
+ * En-tête, pied de page et réseaux sur la toile (v0.13) — partie de la couche
+ * d'édition. Ce sont des données COMMUNES à toutes les pages (brouillon du
+ * site, publié avec la page : src/lib/edit/site.ts).
+ *
+ * - Liens du menu (`data-nav-item`) : au survol, × pour retirer et poignée
+ *   pour réordonner (glisser) ; « + Ajouter un lien » en bout de menu : une
+ *   page du site (recherche) ou un lien libre. Renommer : double-clic
+ *   (EditLayer, `data-site-inline="nav"`).
+ * - Réseaux (`data-edit-socials` / `data-social-index`) : au survol, modifier
+ *   le lien, × retirer, poignée ; « + Réseau » : réseaux classiques, ou
+ *   « Autre lien ». Le réseau est reconnu d'après l'adresse collée.
+ * Toute modification part vers l'éditeur (`site-op`), qui valide et enregistre.
+ */
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+
+import { acceptToCanvas, EDIT_MSG, type FromCanvas } from "@/lib/edit/protocol";
+import { detectNetwork, NETWORK_LABELS, NETWORKS, safeNavHref, safeSocialHref, type Network } from "@/lib/site-schema";
+
+import SocialIcon from "./SocialIcon";
+
+type Rect = { top: number; left: number; width: number; height: number };
+
+function post(msg: FromCanvas) {
+  window.parent.postMessage({ type: EDIT_MSG, ...msg }, window.location.origin);
+}
+function rectOf(el: Element): Rect {
+  const r = el.getBoundingClientRect();
+  return { top: r.top + window.scrollY, left: r.left + window.scrollX, width: r.width, height: r.height };
+}
+const fold = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+
+type Hover = { kind: "nav" | "social"; index: number; list: Element } | null;
+type Popover = { kind: "nav-add"; anchor: Rect } | { kind: "social-add"; anchor: Rect } | { kind: "social-edit"; index: number; anchor: Rect; href: string } | null;
+
+const CLASSIC = NETWORKS.filter((n) => n !== "other");
+
+export default function SiteLayer({ mode, host, selected, announce }: { mode: "off" | "edit" | "preview"; host: HTMLElement | null; selected: string | null; announce: (t: string) => void }) {
+  const [, setTick] = useState(0);
+  const [hover, setHover] = useState<Hover>(null);
+  const [pages, setPages] = useState<{ id: number; title: string }[]>([]);
+  const [locked, setLocked] = useState<string | null>(null);
+  const [pop, setPop] = useState<Popover>(null);
+  const [drag, setDrag] = useState<{ kind: "nav" | "social"; from: number; to: number; marker: Rect } | null>(null);
+  const edit = mode === "edit";
+
+  useEffect(() => {
+    if (window.parent === window) return;
+    const onMessage = (event: MessageEvent) => {
+      const msg = acceptToCanvas(event, window.location.origin, window.parent);
+      if (msg?.kind === "pages") setPages(msg.list);
+      else if (msg?.kind === "site-lock") setLocked(msg.page);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  useEffect(() => {
+    if (!edit) return;
+    let frame = 0;
+    const redraw = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setTick((n) => n + 1));
+    };
+    const onMove = (e: PointerEvent) => {
+      if (e.target instanceof Element && e.target.closest(".pe-layer")) return;
+      const t = e.target instanceof Element ? e.target : null;
+      const nav = t?.closest<HTMLElement>("[data-edit-global='header'] [data-nav-item]");
+      const social = t?.closest<HTMLElement>("[data-social-index]");
+      if (nav) setHover({ kind: "nav", index: Number(nav.dataset.navItem), list: nav.parentElement! });
+      else if (social) setHover({ kind: "social", index: Number(social.dataset.socialIndex), list: social.parentElement! });
+      else setHover(null);
+    };
+    document.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("scroll", redraw, { passive: true });
+    window.addEventListener("resize", redraw);
+    const mo = new MutationObserver(redraw);
+    mo.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("pointermove", onMove);
+      window.removeEventListener("scroll", redraw);
+      window.removeEventListener("resize", redraw);
+      mo.disconnect();
+    };
+  }, [edit]);
+
+  const header = typeof document !== "undefined" ? document.querySelector("[data-edit-global='header']") : null;
+  const navItems = header ? [...header.querySelectorAll<HTMLElement>("nav [data-nav-item]")] : [];
+  const navBox = header?.querySelector("nav") ?? null;
+  const socialLists = typeof document !== "undefined" ? [...document.querySelectorAll<HTMLElement>("[data-edit-socials]")] : [];
+
+  /** Glisser un lien du menu ou un réseau pour le réordonner. */
+  const startDrag = (e: React.PointerEvent, kind: "nav" | "social", from: number, list: Element) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    try {
+      window.getSelection()?.removeAllRanges();
+    } catch {}
+    const handle = e.currentTarget as HTMLElement;
+    handle.setPointerCapture(e.pointerId);
+    document.documentElement.setAttribute("data-edit-dragging", "");
+    const items = () => [...list.querySelectorAll<HTMLElement>(kind === "nav" ? "[data-nav-item]" : "[data-social-index]")];
+    let to = from;
+    const update = (x: number, y: number) => {
+      const els = items();
+      // Menu : horizontal ; réseaux : vertical.
+      to = els.filter((el) => {
+        const r = el.getBoundingClientRect();
+        return kind === "nav" ? r.left + r.width / 2 < x : r.top + r.height / 2 < y;
+      }).length;
+      const ref = els[Math.min(to, els.length - 1)];
+      if (!ref) return;
+      const r = rectOf(ref);
+      const after = to >= els.length;
+      setDrag({
+        kind,
+        from,
+        to,
+        marker: kind === "nav" ? { top: r.top - 4, left: after ? r.left + r.width + 8 : r.left - 10, width: 3, height: r.height + 8 } : { top: after ? r.top + r.height + 2 : r.top - 3, left: r.left, width: Math.max(120, r.width), height: 3 },
+      });
+    };
+    update(e.clientX, e.clientY);
+    const move = (ev: PointerEvent) => update(ev.clientX, ev.clientY);
+    const up = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      document.documentElement.removeAttribute("data-edit-dragging");
+      setDrag(null);
+      if (to !== from && to !== from + 1) {
+        const target = to > from ? to - 1 : to;
+        post({ kind: "site-op", op: kind === "nav" ? "nav-move" : "social-move", index: from, to: target });
+        announce(`${kind === "nav" ? "Lien" : "Réseau"} déplacé en position ${target + 1}.`);
+      }
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+  };
+
+  if (!edit || !host) return null;
+
+  const hovEl = hover ? hover.list.querySelectorAll<HTMLElement>(hover.kind === "nav" ? "[data-nav-item]" : "[data-social-index]")[hover.index] : null;
+  const hovBox = hovEl ? rectOf(hovEl) : null;
+  const addNavBox = navItems.length ? rectOf(navItems[navItems.length - 1]) : navBox ? rectOf(navBox) : null;
+  const headerSelected = selected === "site-header";
+
+  return createPortal(
+    <div className="pe-layer pe-site-layer" lang="fr">
+      {locked && (headerSelected || selected === "site-footer") && (
+        <p className="pe-site-locked" style={{ top: (header ? rectOf(header).top : 0) + 4, left: 16 }}>
+          En-tête en cours de modification sur la page « {locked} » : publie-la ou abandonne-la d&apos;abord.
+        </p>
+      )}
+
+      {hover && hovBox && !drag && !locked && (
+        <div
+          className="pe-item-tools"
+          data-kind={hover.kind}
+          style={hover.kind === "nav" ? { top: hovBox.top - 26, left: hovBox.left + hovBox.width / 2 - 34 } : { top: hovBox.top, left: hovBox.left + hovBox.width + 6 }}
+          onPointerEnter={() => setHover(hover)}
+          role="toolbar"
+          aria-label={hover.kind === "nav" ? "Lien du menu" : "Réseau"}
+        >
+          <button type="button" className="pe-grip-sm" aria-label="Glisser pour déplacer" title="Glisser pour déplacer" onPointerDown={(e) => startDrag(e, hover.kind, hover.index, hover.list)}>
+            ⠿
+          </button>
+          {hover.kind === "social" && (
+            <button
+              type="button"
+              aria-label="Modifier le lien"
+              title="Modifier le lien"
+              onClick={() => setPop({ kind: "social-edit", index: hover.index, anchor: hovBox, href: hovEl?.querySelector("a")?.getAttribute("href") ?? "" })}
+            >
+              ✎
+            </button>
+          )}
+          <button
+            type="button"
+            className="pe-danger"
+            aria-label={hover.kind === "nav" ? "Retirer ce lien du menu" : "Retirer ce réseau"}
+            title="Retirer"
+            onClick={() => {
+              post({ kind: "site-op", op: hover.kind === "nav" ? "nav-remove" : "social-remove", index: hover.index });
+              setHover(null);
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {drag && <div className="pe-drop pe-drop-cursor" style={drag.marker} aria-hidden="true" />}
+
+      {addNavBox && !locked && (
+        <button
+          type="button"
+          className="pe-add-chip"
+          data-testid="nav-add"
+          // Sous le dernier lien du menu : ne recouvre ni le menu ni le choix de langue.
+          style={{
+            top: addNavBox.top + addNavBox.height + 10,
+            left: Math.min(Math.max(window.scrollX + 8, addNavBox.left + addNavBox.width - 130), window.scrollX + document.documentElement.clientWidth - 150),
+          }}
+          onClick={() => setPop({ kind: "nav-add", anchor: addNavBox })}
+        >
+          + Ajouter un lien
+        </button>
+      )}
+
+      {!locked &&
+        socialLists.map((list, i) => {
+          const r = rectOf(list);
+          return (
+            <button key={i} type="button" className="pe-add-chip" data-testid="social-add" style={{ top: r.top + r.height + 6, left: r.left }} onClick={() => setPop({ kind: "social-add", anchor: { ...r, top: r.top + r.height } })}>
+              + Réseau
+            </button>
+          );
+        })}
+
+      {pop?.kind === "nav-add" && <NavAddPopover anchor={pop.anchor} pages={pages} onClose={() => setPop(null)} />}
+      {pop?.kind === "social-add" && <SocialPopover anchor={pop.anchor} onClose={() => setPop(null)} />}
+      {pop?.kind === "social-edit" && <SocialPopover anchor={pop.anchor} editIndex={pop.index} initialHref={pop.href} onClose={() => setPop(null)} />}
+    </div>,
+    host,
+  );
+}
+
+function Panel({ anchor, children, label, onClose }: { anchor: Rect; children: React.ReactNode; label: string; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      if (ref.current && e.target instanceof Node && !ref.current.contains(e.target)) onClose();
+    };
+    const t = setTimeout(() => document.addEventListener("pointerdown", onDown, true), 0);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("pointerdown", onDown, true);
+    };
+  }, [onClose]);
+  const left = Math.max(window.scrollX + 8, Math.min(anchor.left, window.scrollX + document.documentElement.clientWidth - 340));
+  return (
+    <div
+      ref={ref}
+      className="pe-popover"
+      role="dialog"
+      aria-label={label}
+      style={{ top: anchor.top + anchor.height + 10, left }}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Escape") onClose();
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** « + Ajouter un lien » : une page du site (recherche), ou un lien libre. */
+function NavAddPopover({ anchor, pages, onClose }: { anchor: Rect; pages: { id: number; title: string }[]; onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const [href, setHref] = useState("");
+  const [label, setLabel] = useState("");
+  const shown = useMemo(() => pages.filter((p) => !q || fold(p.title).includes(fold(q))).slice(0, 20), [pages, q]);
+  const hrefOk = safeNavHref(href.trim());
+  return (
+    <Panel anchor={anchor} label="Ajouter un lien au menu" onClose={onClose}>
+      <p className="pe-popover-title">Ajouter un lien au menu</p>
+      <label className="pe-board-field">
+        <span>Une page du site</span>
+        <input type="search" autoFocus placeholder="Chercher une page…" value={q} onChange={(e) => setQ(e.target.value)} />
+      </label>
+      <ul className="pe-popover-list" role="listbox" aria-label="Pages du site">
+        {shown.length === 0 && <li className="pe-popover-empty">{pages.length ? "Aucune page ne correspond." : "Toutes les pages sont déjà dans le menu."}</li>}
+        {shown.map((p) => (
+          <li key={p.id} role="option" aria-selected={false}>
+            <button
+              type="button"
+              onClick={() => {
+                post({ kind: "site-op", op: "nav-add-page", pageId: p.id });
+                onClose();
+              }}
+            >
+              {p.title}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <form
+        className="pe-popover-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!hrefOk || !label.trim()) return;
+          post({ kind: "site-op", op: "nav-add-link", href: href.trim(), label: label.trim().slice(0, 60) });
+          onClose();
+        }}
+      >
+        <span className="pe-popover-sub">ou un lien libre</span>
+        <label className="pe-board-field">
+          <span>Texte du lien</span>
+          <input type="text" maxLength={60} value={label} onChange={(e) => setLabel(e.target.value)} />
+        </label>
+        <label className="pe-board-field">
+          <span>Adresse</span>
+          <input type="text" maxLength={300} placeholder="https://… ou /une-page" value={href} onChange={(e) => setHref(e.target.value)} aria-invalid={href.trim() !== "" && !hrefOk} />
+        </label>
+        {href.trim() && !hrefOk && <small className="pe-popover-error">Une adresse https://… ou un chemin du site (/…).</small>}
+        <button type="submit" className="pe-btn" disabled={!hrefOk || !label.trim()}>
+          Ajouter ce lien
+        </button>
+      </form>
+    </Panel>
+  );
+}
+
+/** « + Réseau » (ou modifier un lien) : réseaux classiques, « Autre lien », reconnaissance de l'adresse. */
+function SocialPopover({ anchor, editIndex, initialHref = "", onClose }: { anchor: Rect; editIndex?: number; initialHref?: string; onClose: () => void }) {
+  const [network, setNetwork] = useState<Network | null>(editIndex !== undefined ? (detectNetwork(initialHref) ?? "other") : null);
+  const [href, setHref] = useState(initialHref);
+  const [label, setLabel] = useState("");
+  const detected = href.trim() ? detectNetwork(href.trim()) : null;
+  // Adresse collée : le réseau est reconnu (l'adresse saisie n'est pas réécrite).
+  const effective: Network | null = network === "other" || network === null ? (detected && detected !== "website" ? detected : network) : network;
+  const asEmail = effective === "email" && href.trim() && !href.trim().startsWith("mailto:") && href.includes("@") ? `mailto:${href.trim()}` : href.trim();
+  const ok = safeSocialHref(asEmail);
+  const name = label.trim() || (effective && effective !== "other" ? NETWORK_LABELS[effective] : "");
+  if (editIndex === undefined && !network) {
+    return (
+      <Panel anchor={anchor} label="Ajouter un réseau" onClose={onClose}>
+        <p className="pe-popover-title">Ajouter un réseau</p>
+        <ul className="pe-network-grid" role="menu" aria-label="Réseaux">
+          {CLASSIC.map((n) => (
+            <li key={n} role="none">
+              <button type="button" role="menuitem" onClick={() => setNetwork(n)}>
+                <SocialIcon kind={n} /> {NETWORK_LABELS[n]}
+              </button>
+            </li>
+          ))}
+          <li role="none">
+            <button type="button" role="menuitem" onClick={() => setNetwork("other")}>
+              <SocialIcon kind="other" /> Autre lien
+            </button>
+          </li>
+        </ul>
+      </Panel>
+    );
+  }
+  return (
+    <Panel anchor={anchor} label={editIndex !== undefined ? "Modifier le lien du réseau" : "Ajouter un réseau"} onClose={onClose}>
+      <form
+        className="pe-popover-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!ok) return;
+          if (editIndex !== undefined) post({ kind: "site-op", op: "social-edit", index: editIndex, href: asEmail });
+          else if (name) post({ kind: "site-op", op: "social-add", href: asEmail, label: name.slice(0, 40), network: effective ?? "other" });
+          onClose();
+        }}
+      >
+        <p className="pe-popover-title">
+          {effective && <SocialIcon kind={effective} />} {editIndex !== undefined ? "Modifier le lien" : effective && effective !== "other" ? NETWORK_LABELS[effective] : "Autre lien"}
+        </p>
+        <label className="pe-board-field">
+          <span>{effective === "email" ? "Adresse e-mail" : "Adresse du profil"}</span>
+          <input
+            type="text"
+            autoFocus
+            maxLength={300}
+            placeholder={effective === "email" ? "nom@domaine.fr" : "https://…"}
+            value={href}
+            onChange={(e) => setHref(e.target.value)}
+            aria-invalid={href.trim() !== "" && !ok}
+          />
+        </label>
+        {detected && detected !== "website" && network === "other" && <small className="pe-popover-hint">Reconnu : {NETWORK_LABELS[detected]}</small>}
+        {editIndex === undefined && (
+          <label className="pe-board-field">
+            <span>Nom affiché{effective && effective !== "other" ? " (facultatif)" : ""}</span>
+            <input type="text" maxLength={40} placeholder={effective && effective !== "other" ? NETWORK_LABELS[effective] : "Ex. Mon blog"} value={label} onChange={(e) => setLabel(e.target.value)} />
+          </label>
+        )}
+        {href.trim() && !ok && <small className="pe-popover-error">Adresse invalide : https://… seulement (ou une adresse e-mail).</small>}
+        <button type="submit" className="pe-btn" disabled={!ok || (editIndex === undefined && !name)}>
+          {editIndex !== undefined ? "Enregistrer le lien" : "Ajouter"}
+        </button>
+      </form>
+    </Panel>
+  );
+}
+
+/**
+ * Formulaire de contact sur la toile (v0.13) : au survol d'un champ, poignée
+ * (réordonner) et × (retirer ; le champ e-mail qui sert à répondre est
+ * protégé par l'éditeur) ; « + Ajouter un champ » sous le formulaire (texte
+ * court, e-mail, texte long, choix dans une liste). Message de confirmation
+ * ou d'erreur montré à la demande du panneau (`form-preview`).
+ */
+export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; host: HTMLElement | null }) {
+  const [, setTick] = useState(0);
+  const [hover, setHover] = useState<{ uid: string; index: number } | null>(null);
+  const [menu, setMenu] = useState<{ uid: string; anchor: Rect } | null>(null);
+  const [drag, setDrag] = useState<Rect | null>(null);
+  const edit = mode === "edit";
+
+  useEffect(() => {
+    if (window.parent === window) return;
+    const onMessage = (event: MessageEvent) => {
+      const msg = acceptToCanvas(event, window.location.origin, window.parent);
+      if (msg?.kind !== "form-preview") return;
+      const block = document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(msg.uid)}"]`);
+      if (block) {
+        block.setAttribute("data-form-preview", msg.pane);
+        block.querySelector(msg.pane === "form" ? "form" : `[data-form-pane="${msg.pane}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  useEffect(() => {
+    if (!edit) return;
+    const onMove = (e: PointerEvent) => {
+      if (e.target instanceof Element && e.target.closest(".pe-layer")) return;
+      const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-form-field]") : null;
+      const uid = field?.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
+      setHover(field && uid ? { uid, index: Number(field.dataset.formField) } : null);
+    };
+    const redraw = () => setTick((n) => n + 1);
+    document.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("scroll", redraw, { passive: true });
+    const mo = new MutationObserver(redraw);
+    mo.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      document.removeEventListener("pointermove", onMove);
+      window.removeEventListener("scroll", redraw);
+      mo.disconnect();
+    };
+  }, [edit]);
+
+  if (!edit || !host) return null;
+  const forms = [...document.querySelectorAll<HTMLElement>("form[data-form-edit]")]
+    .map((form) => ({ form, uid: form.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "" }))
+    .filter((x) => x.uid);
+  const fieldEl = (uid: string, i: number) => document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"] [data-form-field="${i}"]`);
+  const hovEl = hover ? fieldEl(hover.uid, hover.index) : null;
+  const hovBox = hovEl ? rectOf(hovEl) : null;
+
+  const startDrag = (e: React.PointerEvent, uid: string, from: number) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    try {
+      window.getSelection()?.removeAllRanges();
+    } catch {}
+    const handle = e.currentTarget as HTMLElement;
+    handle.setPointerCapture(e.pointerId);
+    document.documentElement.setAttribute("data-edit-dragging", "");
+    const els = () => [...document.querySelectorAll<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"] [data-form-field]`)];
+    let to = from;
+    const move = (ev: PointerEvent) => {
+      const list = els();
+      to = list.filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.top + r.height / 2 < ev.clientY;
+      }).length;
+      const ref = list[Math.min(to, list.length - 1)];
+      if (ref) {
+        const r = rectOf(ref);
+        setDrag({ top: to >= list.length ? r.top + r.height + 4 : r.top - 6, left: r.left, width: r.width, height: 3 });
+      }
+    };
+    const up = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      document.documentElement.removeAttribute("data-edit-dragging");
+      setDrag(null);
+      if (to !== from && to !== from + 1) post({ kind: "form-field", uid, op: "move", index: from, to: to > from ? to - 1 : to });
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+  };
+
+  return createPortal(
+    <div className="pe-layer pe-form-layer" lang="fr">
+      {hover && hovBox && !drag && (
+        <div className="pe-item-tools" data-kind="field" style={{ top: hovBox.top, left: hovBox.left + hovBox.width + 8 }} onPointerEnter={() => setHover(hover)} role="toolbar" aria-label="Champ du formulaire">
+          <button type="button" className="pe-grip-sm" aria-label="Glisser pour déplacer ce champ" title="Glisser pour déplacer" onPointerDown={(e) => startDrag(e, hover.uid, hover.index)}>
+            ⠿
+          </button>
+          <button
+            type="button"
+            className="pe-danger"
+            aria-label="Retirer ce champ"
+            title={hovEl?.hasAttribute("data-form-reply") ? "Ce champ sert à te répondre" : "Retirer"}
+            onClick={() => {
+              post({ kind: "form-field", uid: hover.uid, op: "remove", index: hover.index });
+              setHover(null);
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+      {drag && <div className="pe-drop pe-drop-cursor" style={drag} aria-hidden="true" />}
+      {forms.map(({ form, uid }) => {
+        const fields = form.querySelectorAll("[data-form-field]");
+        const last = fields[fields.length - 1];
+        if (!last || fields.length >= 12) return null;
+        const r = rectOf(last);
+        return (
+          <button
+            key={uid}
+            type="button"
+            className="pe-add-chip"
+            data-testid="field-add"
+            style={{ top: r.top + r.height + 6, left: r.left + r.width - 140 }}
+            onClick={() => setMenu({ uid, anchor: { ...r, top: r.top + r.height } })}
+          >
+            + Ajouter un champ
+          </button>
+        );
+      })}
+      {menu && (
+        <Panel anchor={menu.anchor} label="Ajouter un champ" onClose={() => setMenu(null)}>
+          <p className="pe-popover-title">Ajouter un champ</p>
+          <ul className="pe-popover-list" role="menu" aria-label="Types de champ">
+            {(
+              [
+                ["text", "Texte court"],
+                ["email", "E-mail"],
+                ["textarea", "Texte long"],
+                ["select", "Choix dans une liste"],
+              ] as const
+            ).map(([type, label]) => (
+              <li key={type} role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    post({ kind: "form-field", uid: menu.uid, op: "add", fieldType: type });
+                    setMenu(null);
+                  }}
+                >
+                  {label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+    </div>,
+    host,
+  );
+}

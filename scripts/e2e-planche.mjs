@@ -21,6 +21,8 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 
 import { chromium } from "playwright";
+
+import { pageIdOf, placeBoard, projectSlugOf, removeBoard } from "./lib/page-board.mjs";
 import sharp from "sharp";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
@@ -111,6 +113,12 @@ try {
   await page.waitForURL(/\/admin\/projets\/\d+$/);
   projectId = Number(page.url().split("/").pop());
   ok("P1 projet créé → éditeur de planche", projectId > 0);
+  // v0.13 : la planche se pose sur la page Personnages (plus d'apparition automatique).
+  {
+    const editorUrl = page.url();
+    ok("P1b planche du projet posée sur la page Personnages", await placeBoard(page, BASE, pageIdOf("personnages"), projectSlugOf(projectId)));
+    await page.goto(editorUrl, { waitUntil: "networkidle" });
+  }
 
   await page.locator(".a-strip-end input[type=file]").setInputFiles([FILES.grand, FILES.transparent, FILES.paysage]);
   await page.waitForFunction(
@@ -236,6 +244,9 @@ try {
 
 // ---- Restauration : projet et images de test supprimés ------------------------------
 try {
+  await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
+  // v0.13 : un projet cité par une page ne se supprime pas ; sa planche part d'abord.
+  for (const slug of [projectId && projectSlugOf(projectId)].filter(Boolean)) await removeBoard(page, BASE, pageIdOf("personnages"), slug);
   await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
   while (await page.locator(".a-project-card", { hasText: "Planche e2e" }).count()) {
     await page.locator(".a-project-card", { hasText: "Planche e2e" }).first().getByRole("button", { name: "Supprimer" }).click();

@@ -51,7 +51,7 @@ export type LocalizedArtwork = {
  * Repères d'édition d'un emplacement (vue brouillon) : clé stable, place
  * vide (pointillés au ratio gardé), média en cours de traitement.
  */
-export type ArtworkEdit = { key: string; empty: boolean; pending: boolean; aspect: number };
+export type ArtworkEdit = { key: string; empty: boolean; pending: boolean; aspect: number; pos?: number };
 
 /** Projet prêt à l'affichage, ses œuvres déjà résolues et localisées. */
 export type LocalizedProject = {
@@ -358,16 +358,40 @@ export async function getFeaturedProjects(locale: AppLocale, limit = 2, chosen?:
   return (pool.length > 0 ? pool : projects).slice(0, limit).map((p) => localizeProject(p, artworks, locale));
 }
 
+/** Une œuvre (plan de planche) par son slug, si elle est affichable. */
+export async function getArtwork(slug: string, locale: AppLocale): Promise<LocalizedArtwork | null> {
+  const { artworks } = await snapshot();
+  const found = artworks.find((a) => a.slug === slug && shown(a));
+  return found ? localize(found, locale) : null;
+}
+
+/**
+ * Nombre d'œuvres qu'affiche la planche d'un projet (filtrée par métier
+ * s'il y a lieu), places vides exclues ; null si le projet n'existe pas
+ * (compteurs « N œuvres · M projets » calculés depuis la page).
+ */
+export async function boardWorkCount(slug: string, collection?: string): Promise<number | null> {
+  const { projects, artworks } = await snapshot();
+  const project = projects.find((p) => p.slug === slug);
+  if (!project) return null;
+  return artworks.filter((a) => a.projectId === project.id && shown(a) && (!collection || a.collection === collection)).length;
+}
+
 /**
  * Un projet et sa planche (bloc « Planche d'un projet »). En vue brouillon :
  * projet créé dans ce brouillon compris, places vides comprises (toile).
  * Planche vide en vue brouillon : projet sans emplacement, repéré quand même.
  */
-export async function getProjectBoard(slug: string, locale: AppLocale): Promise<LocalizedProject | null> {
+export async function getProjectBoard(slug: string, locale: AppLocale, collection?: Collection): Promise<LocalizedProject | null> {
   const { projects, artworks } = await snapshot();
   const project = projects.find((p) => p.slug === slug);
   if (!project) return null;
-  const out = localizeProject(project, artworks, locale);
+  // Position de chaque emplacement dans la planche ENTIÈRE (toile) : une planche
+  // filtrée par métier dépose ses images au bon rang.
+  const order = artworks.filter((a) => a.projectId === project.id).sort((x, y) => x.position - y.position);
+  const pos = new Map(order.map((a, i) => [a.id, i]));
+  const placed = artworks.map((a) => (a.edit && pos.has(a.id) ? { ...a, edit: { ...a.edit, pos: pos.get(a.id)! } } : a));
+  const out = localizeProject(project, placed, locale, collection ? (a) => a.collection === collection : undefined);
   if (!out.edit && (await isDraftView())) out.edit = { id: project.id, draft: project.draftPageId !== null };
   return out;
 }

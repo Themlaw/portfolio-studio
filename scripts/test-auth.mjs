@@ -170,6 +170,9 @@ const ADMIN_ACTIONS = [
   "discardDraftAction",
   "boardAction",
   "restoreBoardAction",
+  "siteDraftAction",
+  "deleteMessageAction",
+  "deleteAllMessagesAction",
   "createDraftProjectAction",
   "setPublishedAction",
   "setInMenuAction",
@@ -496,6 +499,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /Draft|[bB]oard/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings/.test(name) ? "/admin/reglages"
+    : /Message/.test(name) ? "/admin/messages"
     : /^(create|delete|reorder)Projects?Action$/.test(name) ? "/admin/projets"
     : /Project|Slot/.test(name) ? "/admin/projets/1"
     : /^media|Media|Uploads|Tag/.test(name) ? "/admin/medias"
@@ -642,7 +646,8 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     withBlocks([
       secretBlock,
       { uid: "n2", type: "hero", props: { eyebrow: { fr: "", en: "" }, statement: { fr: "", en: "" }, reelPageId: targetPage } },
-      { uid: "n3", type: "featured-projects", props: { eyebrow: { fr: "", en: "" }, title: { fr: "", en: "" }, intro: { fr: "", en: "" }, limit: 1, projects: [projectSlug] } },
+      // v0.13 : conteneur « Projet mis en avant » (l'ancien bloc n'est plus créable).
+      { uid: "n3", type: "featured-project", props: { project: projectSlug, children: [] } },
       { uid: "n4", type: "profile", props: { portraitMediaId: targetMedia } },
     ]),
     pageRev(homeId),
@@ -709,7 +714,11 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   const aboutBlocks = JSON.parse(query(dirA, "select json_group_array(json_object('type', type, 'props', json(props))) b from (select * from blocks where page_id = ? order by position)", aboutId).b);
   const aboutDraft = {
     title: JSON.parse(aboutRow.title), slug: JSON.parse(aboutRow.slug), meta: aboutRow.meta ? JSON.parse(aboutRow.meta) : meta, published: Boolean(aboutRow.published), inMenu: aboutRow.nav_order !== null, accent: null,
-    blocks: [...aboutBlocks.map((b, i) => ({ uid: `b${i}`, ...b })), { uid: "n1", type: "featured-projects", props: { eyebrow: { fr: "", en: "" }, title: { fr: "", en: "" }, intro: { fr: "", en: "" }, limit: 2 } }],
+    // v0.13 : la planche du projet partagé posée sur « À propos » (l'ancien bloc n'est plus créable).
+    blocks: [
+      ...aboutBlocks.map((b, i) => ({ uid: `b${i}`, ...b })),
+      { uid: "n1", type: "project-board", props: { project: query(dirA, "select p.slug s from projects p join slots s on s.project_id = p.id where s.id = ?", slot.id).s } },
+    ],
   };
   res = await save(aboutDraft, pageRev(aboutId), aboutId);
   res = await publish(pageRev(aboutId), aboutId);
@@ -977,6 +986,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   res = await callActionJson(jar, ids.boardAction, [homeId, created.id, { op: "add", mediaId: mX, index: 0 }], editor);
   ok("BD6g sans version → refusé", res.text.includes('"ok":false'), line(res));
 
+
   // Médias : remplacement en brouillon protégé ; supprimé quand même → Annuler refusé, publication saine.
   res = await board(homeId, created.id, { op: "add", mediaId: mD, index: 1 });
   const withD = JSON.parse(/"after":(\{.*\}),"rev"/.exec(res.text)?.[1] ?? "null");
@@ -1017,11 +1027,49 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   html = await r.text();
   ok("BD10e anonyme : la planche neuve (cache revalidé), sans repère d'édition", html.includes(TITLE) && html.includes(variant(mX)) && !/data-edit-|data-placeholder|pe-slot-legend/.test(html));
   r = await http("/fr/personnages");
-  ok("BD10f le projet rejoint sa collection publique", (await r.text()).includes(TITLE));
+  // v0.13 : les planches se posent une à une ; un projet n'apparaît plus tout seul sur une page de collection.
+  ok("BD10f le projet n'apparaît pas tout seul sur la page Personnages (planches posées une à une)", !(await r.text()).includes(TITLE));
 
   // Abandonner (« À propos ») : surcouche et projet créé effacés.
   res = await callActionJson(jar, ids.discardDraftAction, [aboutId, pageRev(aboutId)], `/admin/pages/${aboutId}/editer`);
   ok("BD11 abandonner → projet créé en brouillon supprimé, emplacement ajouté supprimé", isOk(res) && !query(dirA, "select id from projects where id = ?", otherDraft.id) && !query(dirA, "select id from slots where draft_key = ?", aboutKey), line(res));
+
+  // En-tête, pied, réseaux (v0.13) : brouillon du site porté par UNE page, versionné, validé.
+  {
+    const siteRow = () => query(dirA, "select value from settings where key = 'siteDraft'")?.value ?? null;
+    const publishedSite = query(dirA, "select value from settings where key = 'site'").value;
+    const snap = (over = {}) => ({
+      identity: { name: "Nom de brouillon SD", role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } },
+      nav: [],
+      socials: [],
+      ...over,
+    });
+    const siteDraft = (page, value, rev = pageRev(page)) => callActionJson(jar, ids.siteDraftAction, [page, value, rev], editor);
+    res = await siteDraft(aboutId, snap({ socials: [{ label: "X", href: "javascript:alert(1)" }] }));
+    ok("SD1 réseau javascript: → refusé, rien d'écrit", res.text.includes('"ok":false') && siteRow() === null, line(res));
+    res = await siteDraft(aboutId, snap({ nav: [{ kind: "link", href: "//evil.example", label: { fr: "x", en: "x" } }] }));
+    ok("SD1b lien de menu « //hôte » → refusé", res.text.includes('"ok":false') && siteRow() === null, line(res));
+    res = await siteDraft(aboutId, { ...snap(), admin: true });
+    ok("SD1c champ arbitraire → refusé", res.text.includes('"ok":false') && siteRow() === null, line(res));
+    res = await siteDraft(aboutId, snap(), pageRev(aboutId) - 1);
+    ok("SD2 version périmée → conflit", code(res) === "conflict" && siteRow() === null, line(res));
+    res = await callActionJson(jar, ids.siteDraftAction, [aboutId, snap()], editor);
+    ok("SD3 sans version → refusé", res.text.includes('"ok":false') && siteRow() === null, line(res));
+    const revBefore = pageRev(aboutId);
+    res = await siteDraft(aboutId, snap({ socials: [{ label: "Behance", href: "https://www.behance.net/x", kind: "behance" }] }));
+    ok("SD4 instantané valide → brouillon du site porté par la page, version incrémentée", res.text.includes('"ok":true') && JSON.parse(siteRow()).pageId === aboutId && pageRev(aboutId) === revBefore + 1, line(res));
+    ok("SD4b rien de public : réglages publiés inchangés", query(dirA, "select value from settings where key = 'site'").value === publishedSite);
+    res = await siteDraft(homeId, snap());
+    ok("SD5 une autre page ne peut pas le modifier (la page qui le tient est nommée)", res.text.includes('"ok":false') && res.text.includes("en cours de modification"), line(res));
+    res = await callActionJson(jar, ids.saveSettingsAction, [{ site: { name: "X", role: { fr: "", en: "" }, email: "x@example.test", credit: { fr: "", en: "" } }, socials: [] }], "/admin/reglages");
+    ok("SD6 écran Réglages refusé pendant ce temps", res.text.includes('"ok":false') && res.text.includes("en cours de modification"), line(res));
+    res = await callActionJson(jar, ids.discardDraftAction, [aboutId, pageRev(aboutId)], editor);
+    ok("SD7 abandonner la page efface le brouillon du site", res.text.includes('"ok":true') && siteRow() === null, line(res));
+    // Audit I-3 : une page disparue dans le menu est retirée en silence (jamais un éditeur bloqué).
+    res = await siteDraft(aboutId, snap({ nav: [{ kind: "page", pageId: 99999 }] }));
+    ok("SD8 page inexistante dans le menu → retirée (autonettoyage), enregistré", res.text.includes('"ok":true') && !siteRow()?.includes("99999"), line(res));
+    await callActionJson(jar, ids.discardDraftAction, [aboutId, pageRev(aboutId)], editor);
+  }
 
   // Remise en état : planches retirées de l'accueil, projet supprimé.
   const homeRow = query(dirA, "select title, slug, meta, published, nav_order from pages where id = ?", homeId);
@@ -1055,8 +1103,8 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   const site = { name: "Test", role: { fr: "", en: "" }, email: "test@example.test", credit: { fr: "", en: "" } };
   res = await callActionJson(jar, ids.saveSettingsAction, [{ site, socials: [{ label: "X", href: "javascript:alert(1)" }] }], "/admin/reglages");
   ok("A14 URL javascript: dans les réseaux → refusée", res.text.includes("https://") && res.text.includes('"ok":false'), res.text.slice(0, 300));
-  res = await callActionJson(jar, ids.saveSettingsAction, [{ site, socials: [{ label: "X", href: "http://exemple.fr" }] }], "/admin/reglages");
-  ok("A14b URL http (non https) → refusée", res.text.includes('"ok":false'));
+  res = await callActionJson(jar, ids.saveSettingsAction, [{ site, socials: [{ label: "X", href: "data:text/html,<script>alert(1)</script>" }] }], "/admin/reglages");
+  ok("A14b URL data: → refusée (v0.13 : http(s) et mailto: seulement)", res.text.includes('"ok":false'));
   const persoId = query(dirA, `select id from pages where json_extract(slug,'$.fr')='personnages'`).id;
   res = await callActionJson(jar, ids.deletePageAction, [persoId], "/admin/pages");
   ok("A15 supprimer une page référencée → bloqué avec la liste", res.text.includes("references") && res.text.includes("Tuiles de collections"), res.text.slice(0, 300));
@@ -1405,6 +1453,34 @@ r = await signIn(new Jar(), "autre@example.test", "faux", "10.9.9.9, 198.51.100.
 ok("A10b seau non partagé : un autre client n'est pas bloqué", r.status === 401, String(r.status));
 r = await signIn(new Jar(), ADMIN.email, ADMIN.password, "198.51.100.9");
 ok("A10c l'admin légitime (autre IP) se connecte pendant l'attaque", r.status === 200, String(r.status));
+
+// Formulaire de contact (v0.13) : route publique POST /api/contact. Même calcul
+// d'IP que l'auth (N proxys de confiance) : faire tourner la partie gauche de
+// X-Forwarded-For ne contourne pas la limite. Formulaire posé en base sur l'accueil.
+{
+  const L = (s) => ({ fr: s, en: s });
+  const field = (id, type, required) => ({ id, type, label: L(id), required });
+  const form = { formId: "ftestauth01", title: L("T"), fields: [field("fname", "text", false), field("femail", "email", true), field("fmessage", "textarea", true)], submit: L("Envoyer"), success: L("Merci"), error: L("Erreur"), subject: L("Sujet") };
+  const home = query(dirA, `select id from pages where json_extract(slug,'$.fr')=''`).id;
+  writeDb(dirA, "insert into blocks (page_id, position, type, props) values (?, 99, 'contact-form', ?)", home, JSON.stringify(form));
+  const values = { femail: "a@b.fr", fmessage: "bonjour" };
+  const post = (body, xff, headers = {}) => http("/api/contact", { method: "POST", body, headers: { "sec-fetch-site": "same-origin", "x-forwarded-for": xff, ...headers } });
+  const codesC = [];
+  for (let i = 0; i < 7; i++) codesC.push((await post({ form: "ftestauth01", locale: "fr", values }, `10.8.${i}.1, 198.51.100.40`)).status);
+  ok("C1 contact : partie gauche de XFF tournée, même client réel → 429 au 6e", codesC.slice(0, 5).every((c) => c === 200) && codesC[5] === 429, codesC.join(","));
+  r = await post({ form: "ftestauth01", locale: "fr", values }, "10.8.9.9, 198.51.100.41");
+  ok("C1b un autre client n'est pas bloqué", r.status === 200, String(r.status));
+  r = await post({ form: "ftestauth01", locale: "fr", values: { ...values, admin: "1" } }, "198.51.100.42");
+  ok("C2 champ inconnu → 400", r.status === 400, String(r.status));
+  r = await post({ form: "ftestauth01", locale: "fr", values }, "198.51.100.43", { "sec-fetch-site": "cross-site" });
+  ok("C3 envoi depuis un autre site → 403", r.status === 403, String(r.status));
+  r = await http("/api/contact", { method: "POST", raw: "x".repeat(40 * 1024), headers: { "content-type": "application/json", "sec-fetch-site": "same-origin", "x-forwarded-for": "198.51.100.44" } });
+  ok("C4 corps > 32 Ko → 413", r.status === 413, String(r.status));
+  r = await http("/admin/messages");
+  ok("C5 /admin/messages sans session → /admin/connexion", r.status === 307 && r.headers.get("location")?.endsWith("/admin/connexion"), `${r.status} ${r.headers.get("location")}`);
+  writeDb(dirA, "delete from blocks where page_id = ? and type = 'contact-form'", home);
+  writeDb(dirA, "delete from messages");
+}
 
 // Délai progressif par couple (e-mail, IP) : 5 échecs mémorisés pour
 // (admin, 198.51.100.30) — posés en base, la limite par IP (5/min) empêchant

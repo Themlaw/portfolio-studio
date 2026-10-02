@@ -10,6 +10,8 @@ import { routing, type AppLocale } from "@/i18n/routing";
 import { cached, TAGS } from "./cache";
 import { getDb, schema } from "./db";
 import { parseJson } from "./json";
+import { getNavSetting } from "./settings";
+import type { NavItem as SiteNavItem } from "./site-schema";
 
 type L = { fr: string; en: string };
 
@@ -30,7 +32,8 @@ export type PageSummary = {
  */
 export type RawBlock = { id: number; type: string; props: unknown; corrupt: boolean; uid?: string };
 
-export type NavItem = { id: number; href: string; label: string };
+/** Lien du menu : `id` (clé stable), `pageId` pour une page du site, `external` pour une adresse hors site. */
+export type NavItem = { id: string; href: string; label: string; pageId?: number; external?: boolean };
 
 /** Pages publiées (sans leurs blocs). */
 export async function getPageIndex(): Promise<PageSummary[]> {
@@ -97,11 +100,31 @@ export async function getPageBlocks(id: number): Promise<RawBlock[]> {
   );
 }
 
-export async function getNav(locale: AppLocale): Promise<NavItem[]> {
-  return (await getPageIndex())
-    .filter((p) => p.navOrder !== null)
-    .sort((a, b) => (a.navOrder ?? 0) - (b.navOrder ?? 0))
-    .map((p) => ({ id: p.id, href: pagePath(p, locale), label: p.title[locale] ?? p.title.fr }));
+/**
+ * Menu : le réglage `nav` (liens ordonnés, v0.13) s'il existe — sinon les
+ * pages du menu (nav_order). `items` : un menu de brouillon (vue brouillon).
+ * Une page non publiée ou disparue n'y figure jamais.
+ */
+export async function getNav(locale: AppLocale, items?: SiteNavItem[] | null): Promise<NavItem[]> {
+  const index = await getPageIndex();
+  const list = items !== undefined ? items : await getNavSetting();
+  if (!list) {
+    return index
+      .filter((p) => p.navOrder !== null)
+      .sort((a, b) => (a.navOrder ?? 0) - (b.navOrder ?? 0))
+      .map((p) => ({ id: `p${p.id}`, pageId: p.id, href: pagePath(p, locale), label: p.title[locale] ?? p.title.fr }));
+  }
+  const out: NavItem[] = [];
+  list.forEach((item, i) => {
+    if (item.kind === "page") {
+      const p = index.find((x) => x.id === item.pageId);
+      if (!p) return;
+      out.push({ id: `p${p.id}`, pageId: p.id, href: pagePath(p, locale), label: item.label?.[locale] || item.label?.fr || p.title[locale] || p.title.fr });
+    } else {
+      out.push({ id: `l${i}`, href: item.href, label: item.label[locale] || item.label.fr, external: !item.href.startsWith("/") });
+    }
+  });
+  return out;
 }
 
 /** Chemins de la même page dans chaque langue (sélecteur de langue, hreflang). */

@@ -129,22 +129,23 @@ let f = await openFresh();
 // Palette : la planche d'un projet en tête, l'autre nommée sans ambiguïté.
 await page.getByRole("tab", { name: "Ajouter" }).click();
 ok("palette : « Planche d'un projet » en premier", (await page.locator(".ve-card").first().getAttribute("data-type")) === "project-board");
-ok("palette : « Planches d'une collection » (et plus « Planches »)", (await page.locator('.ve-card[data-type="collection-projects"] strong').textContent()) === "Planches d'une collection");
+// v0.13 : les planches se posent une à une ; l'ancien bloc automatique n'est plus proposé.
+ok("palette : plus de « Planches d'une collection »", (await page.locator('.ve-card[data-type="collection-projects"]').count()) === 0);
 await page.locator(".ve-pane").evaluate((el) => el.scrollTo(0, 0));
 await sleep(300);
 await page.screenshot({ path: `${SHOTS2}/1440-palette.png` });
 const publishedProjects = q("select count(*) n from projects where draft_page_id is null")[0].n;
 // Composant glissé entre les blocs 2 et 3.
 await f.evaluate(() => {
-  const el = document.querySelectorAll("[data-edit-block]")[2];
-  const c = [...el.children].find((x) => x.getBoundingClientRect().height);
+  const el = document.querySelectorAll("[data-edit-block]:not([data-edit-parent])")[2];
+  const c = [...el.querySelectorAll("*")].find((x) => x.getBoundingClientRect().height);
   window.scrollTo({ top: window.scrollY + c.getBoundingClientRect().top - window.innerHeight / 2, behavior: "instant" });
 });
 await sleep(300);
 const between = await f.evaluate(() => {
-  const els = document.querySelectorAll("[data-edit-block]");
+  const els = document.querySelectorAll("[data-edit-block]:not([data-edit-parent])");
   const box = (el) => {
-    const r = [...el.children].map((c) => c.getBoundingClientRect()).filter((r) => r.height);
+    const r = [...el.querySelectorAll("*")].map((c) => c.getBoundingClientRect()).filter((r) => r.height);
     return { top: Math.min(...r.map((x) => x.top)), bottom: Math.max(...r.map((x) => x.bottom)) };
   };
   return (box(els[1]).bottom + box(els[2]).top) / 2;
@@ -154,7 +155,7 @@ const card = page.locator('.ve-card[data-type="project-board"]');
 await card.scrollIntoViewIfNeeded();
 const cb = await card.boundingBox();
 await dragTo(page, { x: cb.x + cb.width / 2, y: cb.y + cb.height / 2 }, { x: frameBox.x + frameBox.width / 2, y: frameBox.y + between });
-ok("planche neuve déposée sur la toile : nom, projet existant, zone de dépôt", await until(f, () => Boolean(document.querySelector(".pe-board-new input")) && Boolean(document.querySelector(".pe-board-new select")) && /Dépose tes images ici/.test(document.querySelector(".pe-board-new")?.textContent ?? "")));
+ok("planche neuve déposée sur la toile : nom, projet existant, zone de dépôt", await until(f, () => Boolean(document.querySelector(".pe-board-new input[role=combobox]")) && /Dépose tes images ici/.test(document.querySelector(".pe-board-new")?.textContent ?? "")));
 await settled();
 await f.locator(".pe-board-new").scrollIntoViewIfNeeded();
 await sleep(500);

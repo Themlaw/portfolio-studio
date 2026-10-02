@@ -4776,3 +4776,347 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   height: 100%;
   object-fit: cover;
 }
+
+/* ==========================================================================
+   Éditeur visuel v0.13 : arbre de structure, fil d'Ariane, agencements,
+   choix de projet, en-tête commun, pas de sélection de texte en glissant.
+   ========================================================================== */
+[data-ve-dragging],
+[data-ve-dragging] * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  cursor: grabbing !important;
+}
+
+.ve-card,
+.ve-media li,
+.ve-media img {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+
+.ve-tree,
+.ve-tree-group {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ve-tree .ve-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px;
+  border: 1px solid transparent;
+  border-radius: var(--admin-radius);
+}
+
+.ve-tree .ve-row:hover {
+  background: var(--admin-bg);
+}
+
+.ve-tree .ve-row[aria-current] {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+}
+
+.ve-tree .ve-row[data-invalid] {
+  border-color: var(--admin-danger);
+}
+
+.ve-tree .ve-row[data-dragging] {
+  opacity: 0.45;
+}
+
+.ve-tree .ve-row[data-drop="before"] {
+  box-shadow: inset 0 3px 0 var(--admin-accent);
+}
+
+.ve-tree .ve-row[data-drop="after"] {
+  box-shadow: inset 0 -3px 0 var(--admin-accent);
+}
+
+.ve-tree .ve-row[data-drop="inside"] {
+  border: 2px solid var(--admin-accent);
+  background: var(--admin-accent-soft);
+}
+
+.ve-tree .ve-row[data-drop="refused"] {
+  border: 2px dashed var(--admin-danger);
+  background: var(--admin-danger-soft);
+}
+
+.ve-tree-grip,
+.ve-tree-toggle {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--admin-ink-soft);
+  font: inherit;
+}
+
+.ve-tree-grip {
+  cursor: grab;
+  touch-action: none;
+}
+
+.ve-tree-grip:hover,
+.ve-tree-toggle:hover {
+  background: var(--admin-line);
+}
+
+.ve-tree-tools {
+  display: none;
+  flex: none;
+  gap: 2px;
+}
+
+.ve-tree .ve-row:hover .ve-tree-tools,
+.ve-tree .ve-row:focus-within .ve-tree-tools,
+.ve-tree .ve-row[aria-current] .ve-tree-tools {
+  display: flex;
+}
+
+.ve-tree .ve-row-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.ve-tree-empty {
+  padding: 6px 4px;
+  color: var(--admin-ink-soft);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.ve-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 8px;
+  color: var(--admin-ink-soft);
+  font-size: 12px;
+}
+
+.ve-crumb {
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ve-crumb:hover {
+  background: var(--admin-accent);
+  color: var(--admin-on-accent);
+}
+
+.ve-layouts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ve-layout {
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  color: var(--admin-ink-soft);
+  cursor: pointer;
+}
+
+.ve-layout[aria-checked="true"] {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+}
+
+.ve-combo {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.ve-combo-label {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.ve-combo-current {
+  color: var(--admin-ink-soft);
+  font-weight: 400;
+}
+
+.ve-combo-input {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  color: var(--admin-ink);
+  font: 14px/1.2 var(--admin-font-ui);
+}
+
+.ve-combo-input:focus-visible {
+  border-color: var(--admin-accent);
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 0;
+}
+
+.ve-combo-list {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  z-index: 30;
+  max-height: 280px;
+  margin: 4px 0 0;
+  padding: 4px;
+  overflow: auto;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  list-style: none;
+  box-shadow: var(--admin-shadow-menu);
+}
+
+.ve-combo-opt {
+  padding: 7px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ve-combo-opt[aria-selected="true"] {
+  background: var(--admin-accent-soft);
+}
+
+.ve-combo-opt[data-kind="create"] {
+  border-top: 1px solid var(--admin-line);
+  color: var(--admin-accent);
+}
+
+.ve-combo-group {
+  display: block;
+  margin: 2px 0 4px;
+  color: var(--admin-ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ve-combo-opt[data-fresh] {
+  font-weight: 600;
+}
+
+.ve-site-chip {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--admin-warning);
+  border-radius: var(--admin-radius);
+  background: var(--admin-warning-soft);
+  color: var(--admin-warning);
+  font-size: 13px;
+}
+
+.ve-site-note {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--admin-radius);
+  background: var(--admin-warning-soft);
+  color: var(--admin-warning);
+  font-size: 13px;
+}
+
+.ve-site-fields {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ve-sub {
+  margin: 18px 0 8px;
+  font-size: 14px;
+}
+
+.ve-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.ve-list-row {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  padding: 8px;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+}
+
+.ve-list-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.ve-list-tools {
+  display: flex;
+  gap: 2px;
+}
+
+/* Messages du formulaire de contact. */
+.a-messages {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.a-message {
+  display: grid;
+  gap: 10px;
+}
+
+.a-message-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+
+.a-message-fields {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.a-message-fields dt {
+  color: var(--admin-ink-soft);
+  font-size: 12px;
+}
+
+.a-message-fields dd {
+  margin: 0;
+  white-space: pre-wrap;
+}

@@ -17,8 +17,9 @@ import {
 } from "@/lib/edit/pages";
 import { discardDraft, publishDraft, saveDraft, savePageFromForm, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
 import { boardOp, createDraftProject, restoreBoard, type BoardResult } from "@/lib/edit/boards";
+import { saveSiteDraft, type SiteResult } from "@/lib/edit/site";
 import { fail, type ActionResult } from "@/lib/edit/result";
-import { revalidateNav, revalidatePage, revalidateProject } from "@/lib/revalidate";
+import { revalidateNav, revalidatePage, revalidateProject, revalidateSettings } from "@/lib/revalidate";
 
 const Id = z.number().int().positive();
 
@@ -45,6 +46,7 @@ export async function savePageAction(id: unknown, input: unknown, rev: unknown):
   const result = savePageFromForm(pid, input, rev);
   if (!result.ok) return result;
   revalidatePage(pid, { structure: true });
+  if (result.data.site) revalidateSettings();
   for (const project of result.data.projects) revalidateProject(project, { structure: true });
   return { ok: true, data: { rev: result.data.rev } };
 }
@@ -69,6 +71,8 @@ export async function publishDraftAction(id: unknown, rev: unknown): Promise<Dra
   const result = publishDraft(pid, rev);
   if (!result.ok) return result;
   revalidatePage(pid, { structure: true });
+  // En-tête, pied ou réseaux publiés avec la page : toutes les pages changent.
+  if (result.data.site) revalidateSettings();
   for (const project of result.data.projects) revalidateProject(project, { structure: true });
   return result;
 }
@@ -104,6 +108,18 @@ export async function restoreBoardAction(id: unknown, snap: unknown, rev: unknow
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   return restoreBoard(pid, snap, rev);
+}
+
+/**
+ * En-tête, pied de page et réseaux (communs au site) modifiés sur la toile :
+ * brouillon du site porté par CETTE page (version de la page contrôlée et
+ * incrémentée), jamais public avant « Publier ». Rien n'est revalidé.
+ */
+export async function siteDraftAction(id: unknown, snap: unknown, rev: unknown): Promise<DraftResult<SiteResult>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Page inconnue.");
+  return saveSiteDraft(pid, snap, rev);
 }
 
 /** Planche neuve : projet créé dans le brouillon de la page (invisible ailleurs). */
