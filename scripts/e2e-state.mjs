@@ -12,6 +12,10 @@
  *     (vers le contenu = réduire, vers l'extérieur = agrandir).
  *  C. Menus flottants : un clic à l'extérieur (ou Échap) les ferme, la
  *     modification faite est conservée (toile ET panneau).
+ *  D. Aperçu optimiste REFUSÉ ou perdu (v0.15) : refus du serveur (textes tenus par
+ *     une autre page depuis le chargement de la toile), échec réseau, Annuler juste
+ *     après une saisie : la toile retrouve la bonne valeur, sans rechargement.
+ *     Planche tenue au chargement : la légende d'une place ne s'ouvre pas.
  *
  * Usage : DATA_DIR=… ADMIN_EMAIL=… ADMIN_PASSWORD=… BASE=http://localhost:3101 \
  *         SHOTS=/root/shots-lot6 [ONLY=A,B,C] node scripts/e2e-state.mjs
@@ -63,6 +67,8 @@ page.on("pageerror", (e) => errors.push(e.message));
 // Le serveur répond tout de suite ; c'est la RÉPONSE qui arrive en retard (l'état qu'elle
 // porte est celui du moment de la requête : une modification faite entre-temps lui manque).
 let slow = false;
+// Échec réseau simulé : les server actions échouent (requête interrompue).
+let failActions = false;
 const refreshes = [];
 // Réponse retenue : la première réponse de rafraîchissement armée est gardée jusqu'à `release()`,
 // donc rendue avant les modifications suivantes (l'ordre des événements ne dépend plus du hasard).
@@ -78,6 +84,7 @@ const arm = () => {
 await ctx.route("**/*", async (route) => {
   const req = route.request();
   const h = req.headers();
+  if (failActions && req.method() === "POST" && h["next-action"]) return route.abort().catch(() => {});
   const save = slow && req.method() === "POST" && h["next-action"];
   const refresh = slow && req.method() === "GET" && h["rsc"] === "1" && !h["next-router-prefetch"];
   if (!save && !refresh) return route.continue().catch(() => {});
@@ -826,6 +833,94 @@ if (run("C")) {
     ok("C11 barre du fond sur une seule ligne", bar.h < 52, JSON.stringify(bar));
     await page.screenshot({ path: `${SHOTS}/C11-barre-fond.png` });
   } else ok("C11 barre du fond affichée au survol de l'ouverture", false);
+}
+
+/* ---- D. Aperçu optimiste refusé ou perdu ------------------------------------------------------ */
+
+if (run("D")) {
+  const homeId = q("select page_id id from blocks where type = 'hero' limit 1")[0].id;
+  const otherId = q("select id from pages where id != ? order by id limit 1", homeId)[0].id;
+  const board = q("select id from projects where slug = 'les-hauts-chemins'")[0].id;
+  const PTITLE = `[data-edit-board="${board}"][data-edit-board-label] header [data-project-inline="title"]`;
+  const titleNow = () => f.locator(PTITLE).first().textContent().then((t) => t?.trim());
+  const write = (sql, ...args) => {
+    const db = new Database(DB);
+    db.prepare(sql).run(...args);
+    db.close();
+  };
+  const releaseText = () => write("update projects set draft_text = null, draft_text_page_id = null where id = ?", board);
+  const edit = async (sel, text) => {
+    await f.locator(sel).first().scrollIntoViewIfNeeded();
+    await f.locator(sel).first().dblclick({ position: { x: 8, y: 6 } });
+    await sleep(300);
+    await page.keyboard.press("Control+a");
+    await page.keyboard.type(text);
+    await page.keyboard.press("Enter");
+  };
+  const bodyHas = (re) => waitFor(async () => re.test((await page.locator("body").textContent()) ?? ""), 15000);
+  releaseText();
+  f = await openEditor(homeId);
+  await sleep(1500);
+  slow = false;
+  const original = await titleNow();
+
+  /* D1. Refus du serveur : une autre page tient les textes depuis le chargement de la toile
+     (la toile ne le sait pas). Le texte posé doit disparaître au refus, sans rechargement. */
+  const row = q("select title, context, description, year from projects where id = ?", board)[0];
+  const foreign = JSON.stringify({ title: JSON.parse(row.title), context: JSON.parse(row.context), description: JSON.parse(row.description), year: row.year });
+  write("update projects set draft_text = ?, draft_text_page_id = ? where id = ?", foreign, otherId, board);
+  await edit(PTITLE, "Texte refusé");
+  ok("D1 refus : message du serveur affiché", await bodyHas(/en cours de modification sur la page/));
+  ok("D1 refus : le texte d'origine revient sur la toile (sans rechargement)", await until(f, ([sel, t]) => document.querySelector(sel)?.textContent?.trim() === t, [PTITLE, original], 8000), `affiché : ${await titleNow()}`);
+  ok("D1 refus : rien n'a été écrit", q("select draft_text_page_id p from projects where id = ?", board)[0].p === otherId);
+  releaseText();
+  // Un nouvel essai, texte accepté cette fois, n'est pas gêné par l'ancien aperçu.
+  await edit(PTITLE, "Texte accepté");
+  await settled();
+  ok("D1 reprise : le texte accepté s'affiche", (await titleNow()) === "Texte accepté", await titleNow());
+  ok("D1 reprise : surcouche écrite", (q("select draft_text d from projects where id = ?", board)[0].d ?? "").includes("Texte accepté"));
+  releaseText();
+
+  /* D2. Échec réseau : « connexion perdue », le texte d'origine revient. */
+  f = await openEditor(homeId);
+  await sleep(1500);
+  failActions = true;
+  await edit(PTITLE, "Texte perdu");
+  ok("D2 réseau : message « connexion perdue »", await bodyHas(/connexion perdue/i));
+  ok("D2 réseau : le texte d'origine revient (sans rechargement)", await until(f, ([sel, t]) => document.querySelector(sel)?.textContent?.trim() === t, [PTITLE, original], 8000), `affiché : ${await titleNow()}`);
+  failActions = false;
+
+  /* D3. Annuler juste après une saisie (réponses lentes) : la toile affiche l'ancienne valeur. */
+  f = await openEditor(homeId);
+  await sleep(1500);
+  slow = true;
+  await edit(PTITLE, "Vite annulé");
+  await page.keyboard.press("Control+z");
+  ok("D3 annuler aussitôt : la toile revient à l'original", await until(f, ([sel, t]) => document.querySelector(sel)?.textContent?.trim() === t, [PTITLE, original], 30000), `affiché : ${await titleNow()}`);
+  await sleep(2500);
+  ok("D3 annuler aussitôt : toujours l'original après les réponses lentes", (await titleNow()) === original, await titleNow());
+  ok("D3 annuler aussitôt : plus de surcouche", q("select draft_text_page_id p from projects where id = ?", board)[0].p === null);
+  slow = false;
+  await edit(PTITLE, "Annulé au bouton");
+  await settled();
+  await page.locator('button[aria-label="Annuler"]').click();
+  ok("D3 bouton Annuler : la toile revient à l'original", await until(f, ([sel, t]) => document.querySelector(sel)?.textContent?.trim() === t, [PTITLE, original], 30000), `affiché : ${await titleNow()}`);
+
+  /* D4. Planche dont les images sont tenues par une autre page (au chargement) : la légende ne s'ouvre pas. */
+  const slotId = q("select id from slots where project_id = ? order by position limit 1", board)[0].id;
+  write("update slots set draft_page_id = ? where id = ?", otherId, slotId);
+  f = await openEditor(homeId);
+  await sleep(1500);
+  ok("D4 planche tenue : repère data-edit-board-held posé", (await f.locator(`[data-edit-board="${board}"][data-edit-board-held]`).count()) > 0);
+  const caption = f.locator(`[data-edit-board="${board}"] [data-slot-inline]`).first();
+  if (await caption.count()) {
+    await caption.scrollIntoViewIfNeeded();
+    await caption.dblclick({ force: true }).catch(() => {});
+    await sleep(500);
+    ok("D4 planche tenue : la légende d'une place ne s'ouvre pas en édition", (await f.locator(".pe-text-editor").count()) === 0);
+  } else ok("D4 planche tenue : aucune légende à tester dans ce jeu de données (ignoré)", true);
+  write("update slots set draft_page_id = null where id = ?", slotId);
+  await page.screenshot({ path: `${SHOTS}/D-planche-tenue.png` });
 }
 
 console.log(errors.length ? `Erreurs de page : ${errors.slice(0, 5).join(" | ")}` : "Aucune erreur de page");

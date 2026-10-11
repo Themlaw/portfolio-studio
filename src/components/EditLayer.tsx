@@ -20,7 +20,7 @@
  * modification part vers l'éditeur, qui tient le brouillon, l'enregistre
  * puis demande un rafraîchissement.
  */
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -30,7 +30,7 @@ import { acceptToCanvas, insertionIndex, moveTo, type BlockInfo, type FromCanvas
 import BoardLayer from "./BoardLayer";
 import LookLayer from "./edit/LookLayer";
 import GridLayoutIcon, { LAYOUT_LABELS } from "./edit/GridLayoutIcon";
-import { noteSettle, observeOverlays, pendingOrder, postIntent, previewLayout, previewOrder, previewText, siblingWrappers } from "./edit/optimistic";
+import { noteSettle, observeOverlays, pendingOrder, postIntent, previewLayout, previewOrder, previewText, resetOverlays, revertOverlay, siblingWrappers } from "./edit/optimistic";
 import { useDismiss } from "./edit/useDismiss";
 import SiteLayer, { FormLayer } from "./SiteLayer";
 
@@ -179,6 +179,14 @@ type Editing = { el: HTMLElement; original: string; target: { kind: "block"; uid
 
 export default function EditLayer() {
   const router = useRouter();
+  const pathname = usePathname();
+  // Navigation interne de la toile : les aperçus de la page quittée (uid `b0…` réutilisés) ne s'appliquent pas à la suivante.
+  const lastPath = useRef(pathname);
+  useEffect(() => {
+    if (lastPath.current === pathname) return;
+    lastPath.current = pathname;
+    resetOverlays();
+  }, [pathname]);
   const [mode, setMode] = useState<Mode>("off");
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [globals, setGlobals] = useState<(Rect & { uid: string; label: string })[]>([]);
@@ -375,6 +383,9 @@ export default function EditLayer() {
           break;
         case "settle":
           noteSettle(msg.rev, msg.upTo);
+          break;
+        case "revert":
+          revertOverlay(msg.seq);
           break;
         case "drag": {
           // Média glissé : cible d'une planche ou d'un bloc média (BoardLayer).

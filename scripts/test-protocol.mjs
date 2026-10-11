@@ -65,6 +65,9 @@ ok("éditeur → toile : refresh avec révision et acquittement", (() => {
 ok("éditeur → toile : refresh sans paramètres accepté", acceptToCanvas(msg({ kind: "refresh" }), ORIGIN, frame)?.kind === "refresh");
 ok("éditeur → toile : settle valide accepté", acceptToCanvas(msg({ kind: "settle", rev: 3, upTo: -1 }), ORIGIN, frame)?.kind === "settle");
 ok("éditeur → toile : settle sans révision ignoré", acceptToCanvas(msg({ kind: "settle", upTo: 2 }), ORIGIN, frame) === null);
+ok("éditeur → toile : revert valide accepté", acceptToCanvas(msg({ kind: "revert", seq: 7 }), ORIGIN, frame)?.kind === "revert");
+ok("éditeur → toile : revert sans numéro, nul, négatif ou énorme ignoré", [{}, { seq: 0 }, { seq: -1 }, { seq: 1.5 }, { seq: 2e9 }, { seq: "7" }].every((x) => acceptToCanvas(msg({ kind: "revert", ...x }), ORIGIN, frame) === null));
+ok("éditeur → toile : revert d'une autre origine ignoré", acceptToCanvas({ ...msg({ kind: "revert", seq: 7 }), origin: "https://evil.example" }, ORIGIN, frame) === null);
 ok("éditeur → toile : révision négative ou décimale ignorée", acceptToCanvas(msg({ kind: "refresh", rev: -1 }), ORIGIN, frame) === null && acceptToCanvas(msg({ kind: "refresh", rev: 1.5 }), ORIGIN, frame) === null);
 
 // Planches (phase 7b).

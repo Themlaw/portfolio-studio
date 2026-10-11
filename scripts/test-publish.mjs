@@ -154,8 +154,8 @@ await test("T3 : écran Projets refusé tant qu'une page tient les textes ; page
   assert.equal(conflict.code, "conflict");
   const meta = text(P.id);
   const admin = saveProject(P.id, { title: meta.title, context: meta.context, description: meta.description, year: meta.year, featured: meta.featured });
-  assert.equal(admin.ok, false);
-  assert.match(admin.message, /en cours de modification sur la page « t-txt3 »/);
+  assert.equal(admin.ok, true, "seuls les champs non textuels sont enregistrés (T9)");
+  assert.match(admin.data.textsHeld, /en cours de modification sur la page « t-txt3 »/);
   assert.equal(discardDraft(page, rev(page)).ok, true);
   assert.equal(saveProject(P.id, { title: meta.title, context: meta.context, description: meta.description, year: meta.year, featured: meta.featured }).ok, true);
 });
@@ -181,6 +181,110 @@ await test("T5 : la page publiée ne cite plus le projet → surcouche effacée,
   assert.equal(publishDraft(page, rev(page)).ok, true);
   assert.equal(text(P.id).title.fr, published);
   assert.equal(text(P.id).draftTextPageId, null);
+});
+
+await test("T6 : titre et année jamais vides, espaces retirés (écriture) ; en anglais vide accepté ; texte d'origine intact après refus", () => {
+  const page = newPage("t-txt6");
+  saveDraft(page, { ...base(page), blocks: featuredTitle(P.slug) }, rev(page));
+  const published = text(P.id);
+  for (const [field, value, re] of [["title", "", /titre/], ["title", "   ", /titre/], ["year", "   ", /année/], ["year", "", /année/]]) {
+    const r = projectOp(page, P.id, field, value);
+    assert.equal(r.ok, false, `${field} « ${value} » refusé`);
+    assert.match(r.message, re);
+  }
+  assert.equal(text(P.id).draftTextPageId, null, "rien écrit");
+  assert.equal(readBoard(page, P.id).project.title.fr, published.title.fr);
+  assert.equal(projectOp(page, P.id, "title", "  Titre propre \n").ok, true);
+  assert.equal(readBoard(page, P.id).project.title.fr, "Titre propre", "espaces retirés");
+  assert.equal(projectOp(page, P.id, "title", "", "en").ok, true, "titre anglais vide : accepté comme dans l'écran Projets");
+  // Annuler / Rétablir : un instantané vidé n'est pas écrit non plus.
+  const snap = readBoard(page, P.id);
+  const emptied = restoreBoard(page, { ...snap, project: { ...snap.project, title: { fr: "  ", en: "x" } } }, rev(page));
+  assert.equal(emptied.ok, false);
+  const noYear = restoreBoard(page, { ...snap, project: { ...snap.project, year: " " } }, rev(page));
+  assert.equal(noYear.ok, false);
+  assert.equal(discardDraft(page, rev(page)).ok, true);
+});
+await test("T7 : garde-fou de publication — un texte vide déjà en base (écrit hors des contrôles) n'est jamais publié", () => {
+  const page = newPage("t-txt7");
+  saveDraft(page, { ...base(page), blocks: featuredTitle(P.slug) }, rev(page));
+  const published = text(P.id);
+  const forged = { title: { fr: "   ", en: "x" }, context: published.context, description: published.description, year: published.year };
+  db.update(schema.projects).set({ draftText: forged, draftTextPageId: page }).where(eq(schema.projects.id, P.id)).run();
+  const refused = publishDraft(page, rev(page));
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /titre/);
+  assert.equal(text(P.id).title.fr, published.title.fr, "ligne publiée intacte");
+  // Dernier recours : même sans le contrôle amont, l'application ne publie pas un texte invalide.
+  db.update(schema.projects).set({ draftText: { ...forged, title: published.title, year: "" } }).where(eq(schema.projects.id, P.id)).run();
+  assert.equal(publishDraft(page, rev(page)).ok, false);
+  assert.equal(discardDraft(page, rev(page)).ok, true);
+  assert.equal(text(P.id).year, published.year);
+});
+await test("T8 : opération de texte sans changement → aucune garde d'accès ni écriture (Titre lié compris) ; la citation par Titre lié suffit aux textes", () => {
+  const page = newPage("t-txt8");
+  saveDraft(page, { ...base(page), blocks: featuredTitle(P.slug) }, rev(page));
+  const r0 = rev(page);
+  const same = projectOp(page, P.id, "title", text(P.id).title.fr);
+  assert.equal(same.ok, true, JSON.stringify(same));
+  assert.equal(rev(page), r0, "version inchangée : rien écrit");
+  assert.equal(text(P.id).draftTextPageId, null);
+  // Page qui cite le projet par un Titre lié seulement : les textes passent, les images non.
+  assert.equal(projectOp(page, P.id, "context", "Via titre lié").ok, true);
+  const slotRefused = boardOp(page, P.id, { op: "retire", key: `s${db.select().from(schema.slots).where(eq(schema.slots.projectId, P.id)).get().id}` }, rev(page));
+  assert.equal(slotRefused.ok, false);
+  assert.match(slotRefused.message, /n'affiche pas ce projet/);
+  assert.equal(discardDraft(page, rev(page)).ok, true);
+});
+await test("T9 : écran Projets — page qui tient les textes : « Mis en avant » enregistré, textes laissés de côté (avec explication)", () => {
+  const page = newPage("t-txt9");
+  saveDraft(page, { ...base(page), blocks: featuredTitle(P.slug) }, rev(page));
+  assert.equal(projectOp(page, P.id, "context", "Tenu").ok, true);
+  const meta = text(P.id);
+  const res = saveProject(P.id, { title: { fr: "Écrasé ?", en: "" }, context: meta.context, description: meta.description, year: "1980", featured: !meta.featured });
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.match(res.data.textsHeld, /en cours de modification sur la page « t-txt9 »/);
+  const after = text(P.id);
+  assert.equal(after.featured, !meta.featured);
+  assert.equal(after.title.fr, meta.title.fr, "titre du formulaire non écrit");
+  assert.equal(after.year, meta.year);
+  assert.equal(saveProject(P.id, { title: meta.title, context: meta.context, description: meta.description, year: meta.year, featured: meta.featured }).data.textsHeld !== null, true);
+  assert.equal(discardDraft(page, rev(page)).ok, true);
+  const free = saveProject(P.id, { title: meta.title, context: meta.context, description: meta.description, year: meta.year, featured: meta.featured });
+  assert.equal(free.ok, true);
+  assert.equal(free.data.textsHeld, null);
+});
+await test("T10 : Rétablir avec la planche connue de l'éditeur → seuls les champs du pas sont réécrits (modif de l'écran Projets entre-temps conservée)", () => {
+  const page = newPage("t-txt10");
+  saveDraft(page, { ...base(page), blocks: featuredTitle(P.slug) }, rev(page));
+  const r = projectOp(page, P.id, "title", "Titre du pas");
+  assert.equal(r.ok, true);
+  assert.equal(restoreBoard(page, r.data.before, rev(page), r.data.after).ok, true, "Annuler");
+  assert.equal(text(P.id).draftTextPageId, null, "plus de surcouche : l'écran Projets est libre");
+  const meta = text(P.id);
+  assert.equal(saveProject(P.id, { title: meta.title, context: { fr: "Contexte changé ailleurs", en: meta.context.en }, description: meta.description, year: meta.year, featured: meta.featured }).ok, true);
+  const redone = restoreBoard(page, r.data.after, rev(page), r.data.before);
+  assert.equal(redone.ok, true, JSON.stringify(redone));
+  const now = readBoard(page, P.id).project;
+  assert.equal(now.title.fr, "Titre du pas", "le champ du pas est rétabli");
+  assert.equal(now.context.fr, "Contexte changé ailleurs", "la modification faite entre-temps est conservée");
+  // Sans la planche connue : ancien comportement (tout l'instantané).
+  assert.equal(restoreBoard(page, r.data.after, rev(page)).data.after.project.context.fr, r.data.after.project.context.fr);
+  assert.equal(discardDraft(page, rev(page)).ok, true);
+  saveProject(P.id, { title: meta.title, context: meta.context, description: meta.description, year: meta.year, featured: meta.featured });
+});
+await test("T11 : supprimer la page efface la surcouche de textes qu'elle portait", () => {
+  const page = newPage("t-txt11");
+  saveDraft(page, { ...base(page), blocks: featuredTitle(P.slug) }, rev(page));
+  assert.equal(projectOp(page, P.id, "title", "Disparaîtra avec la page").ok, true);
+  assert.equal(text(P.id).draftTextPageId, page);
+  // Une page citée par un autre bloc est protégée ; celle-ci ne l'est pas.
+  const res = deletePage(page);
+  assert.equal(res.ok, true, JSON.stringify(res));
+  const row = text(P.id);
+  assert.equal(row.draftTextPageId, null);
+  assert.equal(row.draftText, null);
+  assert.notEqual(row.title.fr, "Disparaîtra avec la page");
 });
 
 /* ---- 2. Menu et brouillon de l'en-tête (scénarios D4–D12, E1–E2 de l'audit) ---- */

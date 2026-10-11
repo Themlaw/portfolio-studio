@@ -109,8 +109,15 @@ function ProjectMeta({ project }: { project: AdminProjectEdit }) {
             }
             setError(null);
             setErrors({});
-            setSaved(clone(meta));
-            toast("Projet enregistré");
+            if (r.data.textsHeld) {
+              // Seul « Mis en avant » est enregistré : les textes restent à enregistrer (modifs conservées dans le formulaire).
+              setSaved((s) => ({ ...s, featured: meta.featured }));
+              setError(`Seul « Mis en avant » a été enregistré. ${r.data.textsHeld}`);
+              toast("Mis en avant enregistré · textes non enregistrés", "error");
+            } else {
+              setSaved(clone(meta));
+              toast("Projet enregistré");
+            }
             setTimeout(() => router.refresh(), 0);
           })
         }

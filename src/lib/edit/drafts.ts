@@ -330,6 +330,23 @@ export function applySlotDrafts(pageId: number, cited?: Set<number>): number[] {
 
 const CLEAR_TEXT = { draftText: null, draftTextPageId: null } as const;
 
+/** Mêmes exigences que l'écran Projets (`ProjectMetaSchema`) : titre français et année jamais vides. */
+export function projectTextProblem(t: { title: { fr: string }; year: string }): string | null {
+  if (!t.title.fr.trim()) return "Le titre du projet ne peut pas être vide (en français).";
+  if (!t.year.trim()) return "L'année du projet ne peut pas être vide.";
+  return null;
+}
+
+/** Garde-fou de publication : textes de projet en brouillon vides (écrits hors des contrôles) → message, sinon null. */
+function invalidProjectTexts(pageId: number, cited: Set<number>): string | null {
+  const rows = getDb().select().from(schema.projects).where(eq(schema.projects.draftTextPageId, pageId)).all();
+  for (const p of rows) {
+    const problem = p.draftText && cited.has(p.id) ? projectTextProblem(p.draftText) : null;
+    if (problem) return `Publication impossible : ${problem.charAt(0).toLowerCase()}${problem.slice(1).replace(/\.$/, "")} (projet « ${p.title.fr || p.slug} »). Corrige-le sur la toile ou abandonne les modifications.`;
+  }
+  return null;
+}
+
 /**
  * Applique les textes de projet portés par le brouillon d'une page
  * (publication). `cited` : projets que la page publiée cite encore ; la
@@ -341,7 +358,8 @@ export function applyProjectTextDrafts(pageId: number, cited: Set<number>): numb
   const rows = db.select().from(schema.projects).where(eq(schema.projects.draftTextPageId, pageId)).all();
   const touched: number[] = [];
   for (const p of rows) {
-    if (p.draftText && cited.has(p.id)) {
+    // Dernier garde-fou : un texte invalide (titre ou année vide) n'est jamais publié, la ligne publiée reste.
+    if (p.draftText && cited.has(p.id) && !projectTextProblem(p.draftText)) {
       db.update(schema.projects)
         .set({ title: p.draftText.title, context: p.draftText.context, description: p.draftText.description, year: p.draftText.year, updatedAt: new Date(), ...CLEAR_TEXT })
         .where(eq(schema.projects.id, p.id))
@@ -436,6 +454,8 @@ export function publishDraft(pageId: number, rev: unknown): DraftResult<PublishR
   if (!state.hasDraft) return fail("Aucune modification à publier.");
   const empty = emptyDraftBoards(pageId, state.draft.blocks);
   if (empty) return fail("Publication impossible : corrige ce qui est signalé.", empty);
+  const invalidText = invalidProjectTexts(pageId, new Set(referencedProjects(state.draft.blocks)));
+  if (invalidText) return fail(invalidText);
   // Version publiée lue AVANT l'écriture : les projets retirés du brouillon
   // sont revalidés eux aussi.
   const before = getPageForEdit(pageId);
@@ -518,6 +538,8 @@ export function savePageFromForm(pageId: number, input: unknown, rev: unknown): 
   if (!row) return fail("Cette page n'existe plus. Recharge la liste des pages.");
   if (row.rev !== rev) return conflict(row.rev);
   if (isCorrupt(row.draft)) return corruptRefusal(row.rev);
+  const invalidText = invalidProjectTexts(pageId, new Set(referencedProjects((input as { blocks?: { type: string; props: unknown }[] })?.blocks ?? [])));
+  if (invalidText) return fail(invalidText);
   const before = getPageForEdit(pageId);
   const draftBlocks = (DraftSchema.safeParse(row.draft).data?.blocks ?? []) as DraftBlock[];
   const db = getDb();

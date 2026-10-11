@@ -36,7 +36,7 @@ export async function createProjectAction(input: unknown): Promise<ActionResult<
   return result;
 }
 
-export async function saveProjectAction(projectId: unknown, input: unknown): Promise<ActionResult<null>> {
+export async function saveProjectAction(projectId: unknown, input: unknown): Promise<ActionResult<{ textsHeld: string | null }>> {
   await assertAdmin();
   const pid = id(projectId);
   if (!pid) return fail("Projet inconnu.");

@@ -33,7 +33,7 @@ export default async function ProjectEditPage({ params }: { params: Promise<{ id
       {project.textHeldBy && (
         <p className="a-notice" role="status">
           Les textes de ce projet (nom, contexte, présentation, année) sont en cours de modification dans l&apos;éditeur de la page «&nbsp;{project.textHeldBy}&nbsp;» :
-          publie cette page ou abandonne ses modifications avant de les changer ici.
+          publie cette page ou abandonne ses modifications avant de les changer ici (« Mis en avant » reste enregistrable).
         </p>
       )}
       {/* Un PDF (bloc CV) ne se place pas dans une planche. */}

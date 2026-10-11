@@ -105,6 +105,8 @@ export const ToCanvasSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("refresh"), rev: Rev.optional(), upTo: UpTo.optional() }),
   /** Rien à rafraîchir, mais tout jusqu'à `upTo` est acquitté à la révision `rev`. */
   z.object({ kind: z.literal("settle"), rev: Rev, upTo: UpTo }),
+  /** L'écriture de l'intention `seq` a été refusée ou a échoué : retirer son aperçu et rétablir la valeur d'origine. */
+  z.object({ kind: z.literal("revert"), seq: z.number().int().min(1).max(999_999_999) }),
   z.object({
     kind: z.literal("drag"),
     x: Coord,

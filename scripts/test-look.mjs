@@ -68,6 +68,7 @@ for (const [label, bad] of [
   ["couleur libre en majuscules (format non normalisé)", { color: "#FF0000" }],
   ["couleur libre abrégée", { color: "#f00" }],
   ["couleur libre avec injection", { color: "#ff0000;}body{x:y" }],
+  ["couleur libre : bonne longueur (9) mais suffixe parasite (ancre $)", { color: "#ff0000;}" }],
   ["couleur libre rgb()", { color: "rgb(1,2,3)" }],
   ["couleur libre trop longue", { color: "#ff000000ff" }],
   ["clé inconnue", { fontFamily: "Arial" }],

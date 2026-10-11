@@ -100,18 +100,28 @@ export function createProject(input: unknown): ActionResult<{ id: number }> {
   return done({ id: row.id });
 }
 
-export function saveProject(id: number, input: unknown): ActionResult<null> {
-  const parsed = ProjectMetaSchema.safeParse(input);
-  if (!parsed.success) return fail("Le projet n'a pas été enregistré : corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
+/**
+ * `textsHeld` : message qui nomme la page quand ses textes sont tenus par une
+ * autre page (éditeur visuel) ; seuls les champs non textuels (« Mis en avant »)
+ * sont alors enregistrés, les textes du formulaire sont laissés de côté.
+ */
+export function saveProject(id: number, input: unknown): ActionResult<{ textsHeld: string | null }> {
   const db = getDb();
   if (!db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.id, id)).get()) {
     return fail("Ce projet n'existe plus. Recharge la liste des projets.");
   }
   if (isDraftProject(id)) return fail(DRAFT_PROJECT);
   const held = textHeldMessage(id);
-  if (held) return fail(held);
+  if (held) {
+    const parsed = ProjectMetaSchema.pick({ featured: true }).safeParse({ featured: (input as { featured?: unknown } | null)?.featured });
+    if (!parsed.success) return fail("Le projet n'a pas été enregistré : corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
+    db.update(schema.projects).set({ featured: parsed.data.featured, updatedAt: new Date() }).where(eq(schema.projects.id, id)).run();
+    return done({ textsHeld: held });
+  }
+  const parsed = ProjectMetaSchema.safeParse(input);
+  if (!parsed.success) return fail("Le projet n'a pas été enregistré : corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
   db.update(schema.projects).set({ ...parsed.data, updatedAt: new Date() }).where(eq(schema.projects.id, id)).run();
-  return done(null);
+  return done({ textsHeld: null });
 }
 
 export function reorderProjects(input: unknown): ActionResult<null> {

@@ -494,6 +494,8 @@ export default function VisualEditor({
       if (blockedRef.current) return null;
       const result = await writeBoard((rev) => boardAction(pageId, projectId, op, rev));
       if (!result) return null;
+      // Rien n'a changé (texte identique) : pas de pas d'historique.
+      if (JSON.stringify(result.before) === JSON.stringify(result.after)) return result;
       history.current = { past: [...history.current.past, { draft: draftRef.current, board: { projectId, snap: result.before } }].slice(-HISTORY_MAX), future: [] };
       coalesce.current = null;
       bumpHistory();
@@ -519,7 +521,7 @@ export default function VisualEditor({
         const current = boards.current.get(entry.board.projectId);
         if (current) back.board = { projectId: entry.board.projectId, snap: current };
         const target = entry.board.snap;
-        const restored = await writeBoard((rev) => restoreBoardAction(pageId, target, rev));
+        const restored = await writeBoard((rev) => restoreBoardAction(pageId, target, rev, current));
         if (!restored) return null;
       }
       if (entry.draft !== draftRef.current) {
@@ -536,10 +538,12 @@ export default function VisualEditor({
   const traveling = useRef(false);
   const undo = useCallback(async () => {
     if (blockedRef.current || traveling.current) return;
-    const entry = history.current.past.at(-1);
-    if (!entry) return;
     traveling.current = true;
     try {
+      // Les écritures en cours finissent d'abord : leur pas d'historique existe avant qu'on revienne en arrière.
+      await lock.current;
+      const entry = history.current.past.at(-1);
+      if (!entry) return;
       const back = await travel(entry);
       if (!back) {
         toast("Annulation impossible pour ce pas : la planche a changé (image supprimée ?).", "error");
@@ -556,10 +560,11 @@ export default function VisualEditor({
 
   const redo = useCallback(async () => {
     if (blockedRef.current || traveling.current) return;
-    const entry = history.current.future[0];
-    if (!entry) return;
     traveling.current = true;
     try {
+      await lock.current;
+      const entry = history.current.future[0];
+      if (!entry) return;
       const back = await travel(entry);
       if (!back) {
         toast("Rétablissement impossible pour ce pas : la planche a changé (image supprimée ?).", "error");
@@ -1269,11 +1274,18 @@ export default function VisualEditor({
           void h.boardDo(msg.board, { op: "move", key: msg.key, index: msg.index });
           break;
         case "slot-text":
-          void h.boardDo(msg.board, { op: "text", key: msg.key, field: msg.field, locale: msg.locale, value: msg.value });
+        case "project-text": {
+          const op: BoardOp =
+            msg.kind === "slot-text"
+              ? { op: "text", key: msg.key, field: msg.field, locale: msg.locale, value: msg.value }
+              : { op: "project", field: msg.field, locale: msg.locale, value: msg.value };
+          const seq = msg.seq;
+          // Refusé (planche tenue ailleurs, titre vide…) ou échec : la toile retire l'aperçu et rétablit le texte.
+          void h.boardDo(msg.board, op).then((r) => {
+            if (!r && seq) send({ kind: "revert", seq });
+          });
           break;
-        case "project-text":
-          void h.boardDo(msg.board, { op: "project", field: msg.field, locale: msg.locale, value: msg.value });
-          break;
+        }
         case "drop-target":
           dropTargetRef.current = msg.target;
           break;

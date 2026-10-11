@@ -210,7 +210,7 @@ export default function BoardLayer({
   const [projects, setProjects] = useState<ComboProject[]>([]);
   const [text, setText] = useState<TextEdit | null>(null);
   // Texte (ou image) d'un projet survolé : indicateur « modifié aussi sur sa planche et sa page ».
-  const [projectHint, setProjectHint] = useState<{ el: HTMLElement; board: number; label: string; draft: boolean; textHeld: string | null } | null>(null);
+  const [projectHint, setProjectHint] = useState<{ el: HTMLElement; board: number; label: string; draft: boolean; textHeld: string | null; slotHeld?: boolean } | null>(null);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [hoverMedia, setHoverMedia] = useState<MediaRef | null>(null);
   const ghostsRef = useRef<Ghost[]>([]);
@@ -348,6 +348,12 @@ export default function BoardLayer({
       announce(`Les textes de ce projet sont en cours de modification sur la page « ${heldBy} » : publie-la ou abandonne-la d'abord.`);
       return;
     }
+    // Légendes d'une planche dont les images sont tenues par une autre page : l'écriture serait refusée.
+    const imagesHeldBy = el.dataset.slotInline ? boardOf(el)?.dataset.editBoardHeld : undefined;
+    if (imagesHeldBy) {
+      announce(`Cette planche est en cours de modification sur la page « ${imagesHeldBy} » : publie-la ou abandonne-la d'abord.`);
+      return;
+    }
     const slotEl = el.closest<HTMLElement>("[data-edit-slot]");
     const kind = el.dataset.slotInline ? "slot" : "project";
     const field = (el.dataset.slotInline ?? el.dataset.projectInline) as string;
@@ -406,7 +412,10 @@ export default function BoardLayer({
         if (e.target instanceof Element && e.target.closest(".pe-project-hint")) clearTimeout(hintTimer.current);
         return;
       }
-      const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-project-inline]") : null;
+      let field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-project-inline]") : null;
+      // Légende d'une planche tenue par une autre page : indication « lecture seule » (sinon aucune).
+      const slotField = !field && e.target instanceof Element ? e.target.closest<HTMLElement>("[data-slot-inline]") : null;
+      if (slotField && boardOf(slotField)?.dataset.editBoardHeld) field = slotField;
       const owner = field ? boardOf(field) : null;
       clearTimeout(hintTimer.current);
       if (field && owner) {
@@ -418,7 +427,8 @@ export default function BoardLayer({
                 board: Number(owner.dataset.editBoard),
                 label: owner.dataset.editBoardLabel ?? "",
                 draft: owner.hasAttribute("data-edit-board-draft"),
-                textHeld: owner.dataset.editBoardTextHeld ?? null,
+                textHeld: field.dataset.slotInline ? (owner.dataset.editBoardHeld ?? null) : (owner.dataset.editBoardTextHeld ?? null),
+                ...(field.dataset.slotInline ? { slotHeld: true } : {}),
               },
         );
       } else {
@@ -779,7 +789,7 @@ export default function BoardLayer({
           <div className="pe-project-hint" role="status" style={{ top: box.top + box.height + 6, left: Math.max(window.scrollX + 8, box.left) }}>
             {projectHint.textHeld ? (
               <span>
-                Textes du projet {name} en cours de modification sur la page « {projectHint.textHeld} » : lecture seule ici.
+                {projectHint.slotHeld ? "Planche" : "Textes du projet"} {name} en cours de modification sur la page « {projectHint.textHeld} » : lecture seule ici.
               </span>
             ) : projectHint.draft ? (
               <span>Texte du projet {name}, créé sur cette page : visible sur sa planche et partout où il apparaît.</span>

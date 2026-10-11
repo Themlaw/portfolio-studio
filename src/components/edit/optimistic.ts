@@ -18,6 +18,18 @@
  *   (`[data-edit-rev]`) : quand elle atteint `rev`, le DOM est celui du
  *   serveur et les aperçus de numéro ≤ `upTo` sont retirés. Les plus récents
  *   restent appliqués par-dessus la page, même si elle est en retard.
+ * - Refus ou échec d'une écriture (planche tenue ailleurs, titre vide, connexion
+ *   perdue) : l'éditeur envoie `revert` avec le numéro de l'intention ; son aperçu
+ *   est retiré ET la valeur d'origine rétablie (`revertOverlay`).
+ * - Une navigation interne de la toile vide tout (`resetOverlays`) : les uid de
+ *   blocs (`b0…`) sont réutilisés d'une page à l'autre.
+ *
+ * Textes : un aperçu écrit dans le nœud texte que React gère, SANS rien changer
+ * à ce que React croit y avoir mis. Si le serveur rend la même valeur qu'avant
+ * (refus, Annuler), React ne réécrit rien et l'aperçu resterait à l'écran. Un
+ * marqueur (nœud commentaire) accompagne donc l'aperçu : React, quand il réécrit
+ * le texte (`textContent`), l'efface. Marqueur encore là au retrait = React n'a
+ * rien réécrit, la valeur affichée est celle de l'aperçu : on rétablit l'origine.
  */
 import { EDIT_MSG, type FromCanvas } from "@/lib/edit/protocol";
 
@@ -84,7 +96,14 @@ export function noteSettle(rev: number | undefined, upTo: number | undefined) {
   checkSettle();
 }
 
-/** Abandon explicite (annuler, rétablir, recharger) : plus aucun aperçu. */
+/** Refus ou échec de l'intention `seq` : son aperçu est retiré et la valeur d'origine rétablie. */
+export function revertOverlay(seq: number) {
+  const gone = [...entries].filter(([, e]) => e.seq === seq);
+  for (const [k] of gone) entries.delete(k);
+  for (const [, e] of gone) e.clear?.();
+}
+
+/** Abandon explicite (navigation interne de la toile) : plus aucun aperçu, valeurs d'origine rétablies. */
 export function resetOverlays() {
   const all = [...entries.values()];
   entries.clear();
@@ -106,11 +125,40 @@ export function observeOverlays(): () => void {
 
 /* ---- Textes en place ------------------------------------------------------------ */
 
-/** Écrit un texte en gardant le nœud texte de React quand il n'y en a qu'un. */
+/** Aperçu de texte posé sur un élément : valeur d'origine et marqueur que React effacerait en réécrivant. */
+const shown = new WeakMap<Element, { original: string; marker: Comment }>();
+
+/** Écrit un aperçu de texte dans l'élément, en gardant le nœud texte de React quand il n'y en a qu'un. */
 function writeText(el: Element, value: string) {
   if (el.textContent === value) return;
-  if (el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE) el.firstChild.nodeValue = value;
-  else el.textContent = value;
+  const mark = shown.get(el);
+  if (mark && mark.marker.parentNode === el) {
+    // Aperçu déjà posé et React n'a rien réécrit depuis : on ne change que la valeur affichée.
+    const node = [...el.childNodes].find((n) => n.nodeType === Node.TEXT_NODE);
+    if (node) node.nodeValue = value;
+    else el.insertBefore(document.createTextNode(value), mark.marker);
+    return;
+  }
+  shown.delete(el);
+  const single = el.childNodes.length === 0 || (el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE);
+  if (!single) {
+    el.textContent = value;
+    return;
+  }
+  const original = el.textContent ?? "";
+  if (el.firstChild) el.firstChild.nodeValue = value;
+  else el.appendChild(document.createTextNode(value));
+  const marker = document.createComment("pv");
+  el.appendChild(marker);
+  shown.set(el, { original, marker });
+}
+
+/** Retire l'aperçu d'un élément : si React n'a rien réécrit, la valeur d'origine revient. */
+function restoreText(el: Element) {
+  const mark = shown.get(el);
+  if (!mark) return;
+  shown.delete(el);
+  if (mark.marker.parentNode === el && !el.hasAttribute("data-editing")) el.textContent = mark.original;
 }
 
 /** Textes d'un bloc (`data-inline`) ou du site (`data-site-inline`) visés par un aperçu. */
@@ -131,6 +179,9 @@ export function previewText(target: { uid: string; path: string } | { field: str
     apply: () => {
       for (const el of textElements(target)) if (!el.hasAttribute("data-editing")) writeText(el, value);
     },
+    clear: () => {
+      for (const el of textElements(target)) restoreText(el);
+    },
   });
 }
 
@@ -144,6 +195,9 @@ export function previewBoardText(target: { board: number; field: string; key?: s
   setOverlay(`board-text:${target.board}:${target.key ?? ""}:${target.field}`, seq, {
     apply: () => {
       for (const el of document.querySelectorAll<HTMLElement>(sel)) if (!el.hasAttribute("data-editing")) writeText(el, value);
+    },
+    clear: () => {
+      for (const el of document.querySelectorAll<HTMLElement>(sel)) restoreText(el);
     },
   });
 }

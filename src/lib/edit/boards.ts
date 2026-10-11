@@ -36,7 +36,7 @@ import { getPageForEdit } from "@/lib/admin";
 import { getDb, schema } from "@/lib/db";
 import { slugify } from "@/lib/slug";
 
-import { displayedProjects, referencedProjects, type DraftRefusal } from "./drafts";
+import { displayedProjects, projectTextProblem, referencedProjects, type DraftRefusal } from "./drafts";
 import { done, fail, type ActionResult } from "./result";
 
 type L = { fr: string; en: string };
@@ -51,6 +51,8 @@ export const MAX_BOARD_SLOTS = 200;
 export const MAX_DRAFT_PROJECTS = 10;
 
 const Loc = (max: number) => z.strictObject({ fr: z.string().max(max), en: z.string().max(max) });
+/** Textes du projet : mêmes règles d'espaces que l'écran Projets (`ProjectMetaSchema`) ; le « non vide » se contrôle à l'écriture (`projectTextProblem`). */
+const TrimLoc = (max: number) => z.strictObject({ fr: z.string().trim().max(max), en: z.string().trim().max(max) });
 const Key = z.string().regex(/^(s\d{1,9}|k[a-z0-9]{8,24})$/);
 
 const Collection = z.enum(["characters", "backgrounds", "animation"]);
@@ -64,7 +66,7 @@ const SnapSlot = z.strictObject({
 });
 export const BoardSnapSchema = z.strictObject({
   projectId: z.number().int().positive(),
-  project: z.strictObject({ title: Loc(120), context: Loc(200), description: Loc(2000), year: z.string().max(20) }).nullable(),
+  project: z.strictObject({ title: TrimLoc(120), context: TrimLoc(200), description: TrimLoc(2000), year: z.string().trim().max(20) }).nullable(),
   slots: z.array(SnapSlot).max(MAX_BOARD_SLOTS),
 });
 export type BoardSnap = z.infer<typeof BoardSnapSchema>;
@@ -337,7 +339,7 @@ function pageRev(pageId: number): number | null {
 }
 
 /** Applique une transformation de l'instantané, gardée et versionnée. */
-function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (snap: BoardSnap) => BoardSnap | string, restoring = false): ActionResult<BoardResult> | DraftRefusal {
+function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (snap: BoardSnap) => BoardSnap | string, restoring = false, textOp = false): ActionResult<BoardResult> | DraftRefusal {
   if (!validRev(rev)) return fail("Requête invalide (version manquante) : recharge l'éditeur.");
   const projectId = z.number().int().positive().safeParse(projectIdInput);
   if (!projectId.success) return fail("Projet inconnu.");
@@ -351,6 +353,8 @@ function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (
   // deux écritures, deux gardes. Un texte seul ne touche pas aux emplacements.
   const slotsChanged = JSON.stringify(before.slots) !== JSON.stringify(next.slots);
   const textChanged = JSON.stringify(before.project) !== JSON.stringify(next.project);
+  // Un texte « modifié » à l'identique : rien à écrire, rien à garder (pas de faux refus d'accès à la planche).
+  if (textOp && !textChanged) return done({ before, after: before, rev: current, slug: slugOf(projectId.data) });
   if (slotsChanged || !textChanged) {
     const denied = access(pageId, projectId.data);
     if (denied) return fail(denied);
@@ -358,6 +362,9 @@ function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (
   if (textChanged) {
     const denied = textAccess(pageId, projectId.data);
     if (denied) return fail(denied);
+    // Même exigence que l'écran Projets : un titre (fr) et une année jamais vides.
+    const problem = next.project && projectTextProblem(next.project);
+    if (problem) return fail(problem);
   }
   if (next.slots.length > MAX_BOARD_SLOTS) return fail(`${MAX_BOARD_SLOTS} emplacements au plus par planche.`);
   const problem = checkSnap(pageId, next, restoring);
@@ -371,9 +378,10 @@ function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (
     if (error instanceof ConflictError) return conflict(pageRev(pageId) ?? rev);
     throw error;
   }
-  const slug = getDb().select({ slug: schema.projects.slug }).from(schema.projects).where(eq(schema.projects.id, projectId.data)).get()?.slug ?? "";
-  return done({ before, after: readBoard(pageId, projectId.data), rev: rev + 1, slug });
+  return done({ before, after: readBoard(pageId, projectId.data), rev: rev + 1, slug: slugOf(projectId.data) });
 }
+
+const slugOf = (projectId: number) => getDb().select({ slug: schema.projects.slug }).from(schema.projects).where(eq(schema.projects.id, projectId)).get()?.slug ?? "";
 
 const newKey = () => `k${randomBytes(8).toString("hex")}`;
 const EMPTY: L = { fr: "", en: "" };
@@ -420,28 +428,50 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       }
       case "project": {
         if (!snap.project) return "Ce projet n'existe plus : recharge l'éditeur.";
-        if (op.field === "year") snap.project.year = op.value.slice(0, 20);
-        else if (op.field === "title") snap.project.title = { ...snap.project.title, [op.locale]: op.value.slice(0, 120) };
-        else if (op.field === "context") snap.project.context = { ...snap.project.context, [op.locale]: op.value.slice(0, 200) };
-        else snap.project.description = { ...snap.project.description, [op.locale]: op.value.slice(0, 2000) };
+        // Espaces retirés avant la coupe, comme l'écran Projets (`trim` puis `max`).
+        const value = op.value.trim();
+        if (op.field === "year") snap.project.year = value.slice(0, 20);
+        else if (op.field === "title") snap.project.title = { ...snap.project.title, [op.locale]: value.slice(0, 120) };
+        else if (op.field === "context") snap.project.context = { ...snap.project.context, [op.locale]: value.slice(0, 200) };
+        else snap.project.description = { ...snap.project.description, [op.locale]: value.slice(0, 2000) };
         return snap;
       }
     }
-  });
+  }, false, op.op === "project");
 }
 
 /** Annuler / Rétablir : réécrit un instantané (contrôlé). */
-export function restoreBoard(pageId: number, snapInput: unknown, rev: unknown): ActionResult<BoardResult> | DraftRefusal {
+export function restoreBoard(pageId: number, snapInput: unknown, rev: unknown, fromInput?: unknown): ActionResult<BoardResult> | DraftRefusal {
   const parsed = BoardSnapSchema.safeParse(snapInput);
   if (!parsed.success) return fail("Planche invalide : recharge l'éditeur.");
   const snap = parsed.data;
+  // `from` : la planche telle que l'éditeur la croit (celle que ce pas d'historique quitte).
+  const from = fromInput === undefined || fromInput === null ? null : BoardSnapSchema.safeParse(fromInput);
+  if (from && !from.success) return fail("Planche invalide : recharge l'éditeur.");
+  const known = from?.data.projectId === snap.projectId ? from.data.project : null;
   return mutate(
     pageId,
     snap.projectId,
     rev,
     (current) => {
-      // Textes du projet : ceux de l'instantané, sinon ceux d'aujourd'hui.
-      return { ...snap, project: current.project ? (snap.project ?? current.project) : null };
+      // Textes du projet : seuls les champs que ce pas change vraiment (instantané ≠ `from`) sont
+      // réécrits ; les autres gardent la valeur d'aujourd'hui (modifiée entre-temps dans l'écran
+      // Projets, par exemple). Sans `from`, ceux de l'instantané ; sans instantané, ceux d'aujourd'hui.
+      if (!current.project) return { ...snap, project: null };
+      if (!snap.project) return { ...snap, project: current.project };
+      if (!known) return snap;
+      const pick = <T,>(wanted: T, was: T, now: T) => (JSON.stringify(wanted) === JSON.stringify(was) ? now : wanted);
+      const loc = (a: L, b: L, c: L): L => ({ fr: pick(a.fr, b.fr, c.fr), en: pick(a.en, b.en, c.en) });
+      const p = snap.project;
+      return {
+        ...snap,
+        project: {
+          title: loc(p.title, known.title, current.project.title),
+          context: loc(p.context, known.context, current.project.context),
+          description: loc(p.description, known.description, current.project.description),
+          year: pick(p.year, known.year, current.project.year),
+        },
+      };
     },
     true,
   );

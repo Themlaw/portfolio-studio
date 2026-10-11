@@ -894,6 +894,19 @@ libres ni de valeur arbitraire) : `src/lib/look.ts` (module pur, testé par
     (cellules d'une grille), rien n'est déplacé à la main : React ne doit
     jamais retrouver un nœud sous un autre parent ; le changement s'affiche
     alors à l'acquittement, sans jamais montrer d'ancien état.
+  - **Refus et échec** (planche tenue par une autre page, titre vide, connexion
+    perdue) : l'éditeur envoie à la toile `revert` (`seq` de l'intention,
+    validé par le protocole) ; l'aperçu de ce numéro est retiré ET le texte
+    d'origine rétabli. Un aperçu de texte s'écrit dans le nœud que React gère
+    sans que React le sache : si le serveur rend la même valeur qu'avant (refus,
+    Annuler), React ne réécrit rien et l'aperçu resterait affiché. Un nœud
+    commentaire accompagne donc l'aperçu ; React, en réécrivant le texte
+    (`textContent`), l'efface. Marqueur encore présent au retrait = rien n'a été
+    réécrit : la valeur d'origine revient (`optimistic.ts`, `writeText`).
+  - `resetOverlays()` vide tout lors d'une navigation interne de la toile
+    (`EditLayer`, changement de chemin) : les uid de blocs (`b0…`) sont réutilisés
+    d'une page à l'autre. Annuler / Rétablir passent, eux, par l'acquittement
+    habituel (`settle`) après la fin des écritures en cours.
 - **Poignées d'espacement** : la poignée se tient sur le bord de la zone qui suit
   le curseur. Haut : le bord côté contenu (tirer vers le bas agrandit). Bas :
   le bord extérieur (tirer vers le bas agrandit, vers le contenu réduit), mêmes
@@ -991,12 +1004,40 @@ blocs.
   + « Voir le projet » (écran du projet) ; « lecture seule » si une autre page tient
   les textes (`data-edit-board-text-held`). Il remplace l'ancien bandeau « Images en
   cours de modification… » (désormais `data-edit-board-held` + même indicateur).
+- **Règles d'écriture des textes** : mêmes que l'écran Projets (`ProjectMetaSchema`) :
+  espaces retirés, titre français et année jamais vides. Contrôlées à chaque
+  écriture (`op: "project"` et Annuler / Rétablir) ET à la publication
+  (`invalidProjectTexts` refuse, `applyProjectTextDrafts` n'applique jamais un
+  texte invalide). Sur la toile, un titre vidé est refusé (message) et le texte
+  d'origine revient. Une opération qui ne change rien ne passe par aucune garde.
+  Annuler / Rétablir ne réécrit que les champs que le pas change vraiment (l'éditeur
+  envoie la planche qu'il croit courante) : une modification faite entre-temps dans
+  l'écran Projets n'est pas écrasée. Quand une page tient les textes, l'écran Projets
+  n'enregistre que « Mis en avant » et l'explique.
 - **Ouverture** : l'indicateur de défilement (`scroll`, `showScroll`) et le bouton
   demoreel (`reel`) sont des textes éditoriaux du bloc (`inline`, fr/en, style local
   `look.text.scroll|reel`). Absent ou vide pour la langue = message d'interface
   (`home.hero.scroll|reel`) : aucune migration, rendu identique pour l'existant. La
   phrase d'accroche (balisage `<mark>`) reste modifiable dans le panneau seulement ;
   la note en marge du hero « type-only » est un décor du thème (`assets.heroNote`).
+
+## Notes de version v0.15 : changements de rendu pour les données déjà stylées
+
+Des réglages de texte enregistrés avant la v0.15 ne s'affichent plus tout à fait
+pareil (aucune migration, la donnée n'a pas changé) :
+
+- **Crans 2xl à 5xl** : l'échelle de tailles est désormais absolue, à 11 crans
+  strictement croissants (6xl et 7xl ajoutés). Les valeurs de 2xl, 3xl, 4xl et 5xl
+  ont changé (ex. 5xl : `clamp(3rem, 10vw, 7.5rem)` devient `clamp(3.75rem, 11vw, 7rem)`) ;
+  un texte déjà réglé sur l'un d'eux change légèrement de taille.
+- **`scale` sans `size`** : l'ajustement fin ne s'applique que sur un cran. Un style
+  qui n'avait que `scale` n'a plus d'effet (avant, `1em` visait la taille du
+  parent et pouvait écraser celle du thème).
+- **Rôles réglés** (styles du site) : leurs règles gagnent maintenant sur les
+  variantes du thème (préfixe de spécificité) ; un rôle réglé qui était masqué par
+  une variante du thème devient visible.
+- **Couleur** : `color` accepte aussi une couleur libre `#rrggbb[aa]` (sans effet sur
+  l'existant).
 
 ## Phases
 

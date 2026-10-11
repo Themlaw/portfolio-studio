@@ -106,12 +106,16 @@ export async function boardAction(id: unknown, projectId: unknown, op: unknown, 
   return boardOp(pid, projectId, op, rev);
 }
 
-/** Annuler / Rétablir sur une planche : réécrit l'instantané d'avant ou d'après. */
-export async function restoreBoardAction(id: unknown, snap: unknown, rev: unknown): Promise<DraftResult<BoardResult>> {
+/**
+ * Annuler / Rétablir sur une planche : réécrit l'instantané d'avant ou d'après.
+ * `from` : la planche telle que l'éditeur la croit ; les textes du projet qui n'en
+ * diffèrent pas dans l'instantané gardent leur valeur d'aujourd'hui.
+ */
+export async function restoreBoardAction(id: unknown, snap: unknown, rev: unknown, from?: unknown): Promise<DraftResult<BoardResult>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
-  return restoreBoard(pid, snap, rev);
+  return restoreBoard(pid, snap, rev, from);
 }
 
 /**
