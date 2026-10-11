@@ -7,7 +7,7 @@ name: tests
 
 on:
   push:
-    branches: [iterate, "lot/**", "ci/**"]
+    branches: [iterate, "lot/**", "ci/**", "integ/**"]
   pull_request:
     branches: [main, iterate]
   workflow_dispatch:
