@@ -10,6 +10,9 @@
  *     par /fonts/, appliquée ; AUCUNE requête du navigateur vers Google.
  *  D. Cadrage du portrait (format imposé) : zone déplacée et zoomée au clavier.
  *  E. Ouverture : fond du métier (bandeau) depuis la barre du texte.
+ *  H. Tailles (échelle croissante, réellement appliquée, gagne sur les variantes du
+ *     thème), couleur libre (sélecteur : HEX, clavier, Échap, clic extérieur,
+ *     écran étroit), menu de graisse maison.
  *  F. Publication : rendu public (espaces, styles, police servie localement,
  *     cadrage), aucun repère d'édition.
  *
@@ -176,10 +179,11 @@ if (run("B")) {
   await f.locator(".lk-aa").click();
   ok("B2 barre typographique ouverte", await until(f, () => Boolean(document.querySelector(".lk-bar"))));
   await page.screenshot({ path: `${SHOTS}/B-barre-typo.png` });
-  await f.locator(".lk-bar select").first().selectOption("4xl");
+  await f.locator('.lk-bar .ms-button[aria-label^="Taille"]').click();
+  await f.locator('.ms-option[data-value="4xl"]').click();
   await settled();
   ok("B3 taille de CE texte enregistrée (look.text.title)", await waitFor(() => blockOf(2, "collection-intro")?.props.look?.text?.title?.size === "4xl"), JSON.stringify(blockOf(2, "collection-intro")?.props.look));
-  ok("B4 rendu : taille en ligne sur le titre", await until(f, (s) => (document.querySelector(s)?.getAttribute("style") ?? "").includes("clamp(2.5rem"), h1));
+  ok("B4 rendu : taille en ligne sur le titre", await until(f, (s) => (document.querySelector(s)?.getAttribute("style") ?? "").includes("clamp(3rem"), h1));
   // Tous les « Titre 1 » : style du site.
   if (!(await f.locator(".lk-bar").count())) {
     await f.locator(h1).hover();
@@ -255,7 +259,7 @@ if (run("F")) {
     document.body.appendChild(p);
     return parseFloat(getComputedStyle(p).paddingTop);
   });
-  ok(`F3 public : titre en « ${FONT} » (servie par le site), italique, taille réglée`, r.family.replace(/"/g, "").startsWith(`${FONT},`) && r.loaded && r.italic === "italic" && r.size.includes("clamp(2.5rem"), JSON.stringify(r));
+  ok(`F3 public : titre en « ${FONT} » (servie par le site), italique, taille réglée`, r.family.replace(/"/g, "").startsWith(`${FONT},`) && r.loaded && r.italic === "italic" && r.size.includes("clamp(3rem"), JSON.stringify(r));
   ok("F4 public : espace haut = cran S", Math.abs(r.pad - s) < 0.5, `${r.pad} / ${s}`);
   ok("F5 public : la police vient de /fonts/ (requête vers le site)", fontRequests.length > 0, String(fontRequests.length));
   await pp.screenshot({ path: `${SHOTS}/F-public-personnages.png` });
@@ -339,6 +343,174 @@ if (run("E")) {
   await page.screenshot({ path: `${SHOTS}/E-ouverture-bandeau.png` });
   // Retour au thème (aucun fond), brouillon abandonné.
   await openEditor(1);
+}
+
+
+/* ---- H. Tailles, couleur libre, menu de graisse (lot 7) -------------------------------------- */
+
+if (run("H")) {
+  // Échelle attendue (src/lib/look.ts SIZE_VALUES) : valeur CSS de chaque cran.
+  const SIZE_CSS = { xs: "0.75rem", s: "0.875rem", m: "1rem", l: "1.25rem", xl: "1.5rem", "2xl": "clamp(1.75rem, 3vw, 2.25rem)", "3xl": "clamp(2.25rem, 5vw, 3.25rem)", "4xl": "clamp(3rem, 8vw, 5rem)", "5xl": "clamp(3.75rem, 11vw, 7rem)", "6xl": "clamp(4.5rem, 14vw, 10rem)", "7xl": "clamp(5.5rem, 18vw, 13rem)" };
+  const fontPx = (sel) => f.evaluate((s) => parseFloat(getComputedStyle(document.querySelector(s)).fontSize), sel);
+  const probePx = (css) =>
+    f.evaluate((v) => {
+      const p = document.createElement("div");
+      p.style.fontSize = v;
+      document.body.appendChild(p);
+      const n = parseFloat(getComputedStyle(p).fontSize);
+      p.remove();
+      return n;
+    }, css);
+  const openBar = async (sel) => {
+    await f.locator(sel).first().scrollIntoViewIfNeeded();
+    await f.locator(sel).first().hover();
+    if (!(await until(f, () => Boolean(document.querySelector(".lk-aa")), null, 8000))) {
+      await page.screenshot({ path: `${SHOTS}/H-debug-sans-aa.png` });
+      console.log(`  (pas de « Aa » sur ${sel} : ${await f.locator(sel).count()} élément(s), texte « ${(await f.locator(sel).first().textContent())?.slice(0, 40)} »)`);
+      return false;
+    }
+    await f.locator(".lk-aa").click();
+    return until(f, () => Boolean(document.querySelector(".lk-bar")));
+  };
+  const pickSize = async (key) => {
+    await f.locator('.lk-bar .ms-button[aria-label^="Taille"]').click();
+    await f.locator(`.ms-option[data-value="${key}"]`).click();
+    await sleep(150);
+  };
+
+  f = await openEditor(2);
+  await sleep(1200);
+
+  // Les sections précédentes ont laissé des réglages LOCAUX sur le titre (ils passent devant le style
+  // du site) : retour au style global pour mesurer le rôle.
+  if (await openBar(h1)) {
+    await f.locator(".lk-bar [role=radio]", { hasText: "Ce texte" }).click();
+    const reset = f.locator(".lk-bar .tc-reset");
+    if (await reset.isEnabled()) await reset.click();
+    await sleep(300);
+    await f.locator(".lk-bar .lk-close").click();
+    await sleep(300);
+  }
+
+  // H1-H3. Toutes les tailles, sur plusieurs rôles : strictement croissantes, valeur exacte.
+  const eyebrow = '[data-edit-type="collection-intro"] [data-inline="eyebrow"]';
+  const intro = '[data-edit-type="collection-intro"] [data-inline="intro"]';
+  // Variantes du thème qui visent .eyebrow / .site-brand à spécificité plus haute : le réglage doit gagner.
+  await f.evaluate(() => {
+    document.documentElement.dataset.caption = "handwritten";
+    document.documentElement.dataset.header = "centered";
+  });
+  for (const [label, sel, role] of [["Titre 1", h1, "Titre 1"], ["Étiquette", eyebrow, "Étiquette"], ["Texte", intro, "Texte"]]) {
+    if (!(await openBar(sel))) {
+      ok(`H0 barre ouverte sur ${label}`, false);
+      continue;
+    }
+    await f.locator(".lk-bar [role=radio]", { hasText: new RegExp(`Tous les « ${role} »|Tous les « ${role.toLowerCase()} »`, "i") }).first().click();
+    const seen = [];
+    for (const [key, css] of Object.entries(SIZE_CSS)) {
+      await pickSize(key);
+      const want = await probePx(css);
+      // Le titre anime sa taille (transition du thème) : attendre qu'elle se pose.
+      await until(f, (a) => Math.abs(parseFloat(getComputedStyle(document.querySelector(a.s)).fontSize) - a.want) <= 0.6, { s: sel, want }, 4000);
+      const got = await fontPx(sel);
+      seen.push(got);
+      if (Math.abs(got - want) > 0.6) ok(`H1 ${label} : cran ${key} appliqué (${want} px attendus)`, false, `${got} px`);
+    }
+    ok(`H1 ${label} : 11 crans, valeur calculée exacte pour chacun (dont avec variantes handwritten / centered)`, seen.length === 11 && seen.every((v, i) => !i || v > seen[i - 1] + 1), seen.join(" "));
+    // Retour au thème pour ce rôle.
+    await f.locator('.lk-bar .tc-reset').click();
+    await sleep(200);
+    await f.locator(".lk-bar .lk-close").click();
+    await sleep(300);
+  }
+  await f.evaluate(() => {
+    delete document.documentElement.dataset.caption;
+    delete document.documentElement.dataset.header;
+  });
+
+  // H2. Libellés de la liste : le cran et sa valeur.
+  if (await openBar(h1)) {
+    await f.locator('.lk-bar .ms-button[aria-label^="Taille"]').click();
+    const labels = await f.locator(".ms-option").allTextContents();
+    ok("H2 liste des tailles : libellés avec valeur en px", labels.length === 12 && labels.slice(1).every((t) => /\d+(–\d+)? px/.test(t)), labels.join(" | "));
+    await page.screenshot({ path: `${SHOTS}/H-liste-tailles.png` });
+    await page.keyboard.press("Escape");
+
+    // H3. Menu de graisse maison : options dans leur graisse réelle.
+    await f.locator(".lk-bar [role=radio]", { hasText: "Ce texte" }).click();
+    await f.locator('.lk-bar .ms-button[aria-label^="Graisse"]').click();
+    const weights = await f.evaluate(() => [...document.querySelectorAll(".ms-option[data-value]:not([data-value=''])")].map((o) => [o.getAttribute("data-value"), getComputedStyle(o).fontWeight, o.getAttribute("aria-disabled")]));
+    ok("H3 menu de graisse : 9 graisses, chacune affichée dans sa graisse", weights.length === 9 && weights.every(([v, w]) => v === w), JSON.stringify(weights));
+    ok("H3b menu de graisse : plus de <select> natif dans la barre", (await f.locator(".lk-bar select").count()) === 0);
+    await page.screenshot({ path: `${SHOTS}/H-menu-graisse.png` });
+    await f.locator('.ms-option[data-value="700"]').click();
+    ok("H3c graisse 700 enregistrée pour CE texte", await waitFor(() => blockOf(2, "collection-intro")?.props.look?.text?.title?.weight === 700));
+    await page.keyboard.press("Escape");
+  }
+
+  // H4-H12. Couleur libre.
+  if (!(await f.locator(".lk-bar").count())) await openBar(h1);
+  await f.locator(".lk-bar [role=radio]", { hasText: "Ce texte" }).click();
+  const wheel = f.locator(".lk-bar .tc-wheel");
+  ok("H4 dernière pastille : roue des couleurs (dégradé conique)", (await wheel.count()) === 1 && /conic-gradient/.test((await wheel.getAttribute("style")) ?? "") && (await f.locator(".lk-bar .tc-swatches > :last-child.tc-wheel").count()) === 1);
+  await wheel.click();
+  ok("H5 sélecteur ouvert dans la toile", await until(f, () => Boolean(document.querySelector(".cp .cp-area"))));
+  ok("H5b sélecteur : zone, 3 curseurs, HEX / RGB / HSL, aperçu, couleurs du thème", (await f.locator(".cp input[type=range]").count()) === 3 && (await f.locator(".cp input:not([type=range])").count()) === 7 && (await f.locator(".cp-preview").count()) === 1 && (await f.locator('.cp [aria-label="Couleurs du thème"] .cp-chip').count()) === 8);
+  ok("H5c sélecteur entièrement visible (la toile défile au besoin)", await until(f, () => { const r = document.querySelector(".cp").getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight + 1; }, null, 5000));
+  await page.screenshot({ path: `${SHOTS}/H-selecteur-couleur.png` });
+  const hex = f.locator(".cp .cp-hex");
+  await hex.fill("javascript");
+  await hex.press("Enter");
+  await sleep(500);
+  ok("H6 saisie invalide : rien n'est enregistré", blockOf(2, "collection-intro")?.props.look?.text?.title?.color === undefined);
+  await hex.fill("#336699");
+  await hex.press("Enter");
+  ok("H7 HEX saisi : couleur normalisée enregistrée (zod)", await waitFor(() => blockOf(2, "collection-intro")?.props.look?.text?.title?.color === "#336699"), JSON.stringify(blockOf(2, "collection-intro")?.props.look?.text?.title));
+  ok("H8 rendu : le titre prend la couleur (rgb(51, 102, 153))", await until(f, (s) => getComputedStyle(document.querySelector(s)).color === "rgb(51, 102, 153)", h1));
+  ok("H8b la valeur est en ligne sur le titre, sans autre propriété injectée", await until(f, (s) => /color:\s*(#336699|rgb\(51, 102, 153\))/.test(document.querySelector(s).getAttribute("style") ?? ""), h1));
+  const rgbFields = await f.locator(".cp .cp-triple").first().locator("input").evaluateAll((els) => els.map((e) => e.value));
+  ok("H9 champs RGB synchronisés avec le HEX", rgbFields.join(",") === "51,102,153", rgbFields.join(","));
+  const status = (await f.locator(".cp-contrast").textContent()) ?? "";
+  ok("H10 avertissement de contraste présent (valeur mesurée)", /Contraste avec le fond du thème : \d+,\d:1/.test(status), status);
+  // Clavier : la zone se règle aux flèches.
+  await f.locator(".cp-area").focus();
+  const before = await hex.inputValue();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await sleep(400);
+  ok("H11 clavier : flèches sur la zone modifient la couleur", (await hex.inputValue()) !== before, `${before} → ${await hex.inputValue()}`);
+  // Opacité : couleur translucide #rrggbbaa.
+  await f.locator(".cp-slider input").nth(2).fill("50");
+  await sleep(500);
+  ok("H12 opacité : format #rrggbbaa enregistré", await waitFor(() => /^#[0-9a-f]{6}80$/.test(blockOf(2, "collection-intro")?.props.look?.text?.title?.color ?? "")), blockOf(2, "collection-intro")?.props.look?.text?.title?.color);
+  // Échap ferme le sélecteur seulement (la barre reste), le focus revient sur la pastille.
+  await page.keyboard.press("Escape");
+  ok("H13 Échap : sélecteur fermé, barre toujours ouverte", (await until(f, () => !document.querySelector(".cp"))) && (await f.locator(".lk-bar").count()) === 1);
+  ok("H13b focus rendu à la pastille", await until(f, () => document.activeElement?.classList.contains("tc-wheel")));
+  // Clic extérieur.
+  await wheel.click();
+  await until(f, () => Boolean(document.querySelector(".cp")));
+  ok("H14 couleurs récentes rappelées", (await f.locator('.cp [aria-label="Couleurs récentes"] .cp-chip').count()) >= 1);
+  await f.locator(".lk-bar-head").click({ position: { x: 4, y: 4 } });
+  ok("H15 clic extérieur : sélecteur fermé", await until(f, () => !document.querySelector(".cp")));
+  // Écran étroit : le sélecteur reste entièrement dans la fenêtre de la toile.
+  await page.setViewportSize({ width: 420, height: 900 });
+  await sleep(1200);
+  f = await canvas();
+  if (!(await f.locator(".lk-bar .tc-wheel").count())) await openBar(h1);
+  await f.locator(".lk-bar .tc-wheel").click();
+  await until(f, () => Boolean(document.querySelector(".cp .cp-area")));
+  await sleep(300);
+  const box = await f.evaluate(() => {
+    const r = document.querySelector(".cp").getBoundingClientRect();
+    return { left: r.left, right: r.right, vw: document.documentElement.clientWidth };
+  });
+  ok("H16 écran étroit : sélecteur dans la fenêtre", box.left >= 0 && box.right <= box.vw + 1, JSON.stringify(box));
+  await page.screenshot({ path: `${SHOTS}/H-selecteur-etroit.png` });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await sleep(800);
+  // Brouillon abandonné.
+  await openEditor(2);
 }
 
 ok("G1 aucune requête du navigateur vers Google (éditeur, toile, pages publiques)", googleRequests.length === 0, googleRequests.slice(0, 3).join(" "));

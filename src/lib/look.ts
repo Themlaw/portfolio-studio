@@ -17,6 +17,8 @@
  */
 import { z } from "zod";
 
+import { CUSTOM_COLOR_RE } from "./color";
+
 import { RADIUS_VALUES } from "../themes/css";
 import { FONT_STACKS } from "../themes/font-stacks";
 import { CATEGORY_FALLBACK, googleFamily, isGoogleFamily } from "../themes/google-fonts";
@@ -40,25 +42,51 @@ export const RADII = ["none", "soft", "medium", "strong"] as const;
 export type Radius = (typeof RADII)[number];
 export const RADIUS_LABELS: Record<Radius, string> = { none: "Aucun", soft: "Léger", medium: "Moyen", strong: "Fort" };
 
-export const SIZES = ["xs", "s", "m", "l", "xl", "2xl", "3xl", "4xl", "5xl"] as const;
+export const SIZES = ["xs", "s", "m", "l", "xl", "2xl", "3xl", "4xl", "5xl", "6xl", "7xl"] as const;
 export type Size = (typeof SIZES)[number];
-/** Échelle typographique (corps fluides pour les grands titres). */
+/**
+ * Échelle typographique ABSOLUE (indépendante du thème) : chaque cran est
+ * nettement plus grand que le précédent, à toute largeur d'écran (vérifié par
+ * scripts/test-look.mjs de 320 à 2560 px). Corps fluides au-delà de XL ; les
+ * plus grands crans dépassent le titre d'accueil des thèmes (144 px à 1440).
+ */
 export const SIZE_VALUES: Record<Size, string> = {
   xs: "0.75rem",
   s: "0.875rem",
   m: "1rem",
   l: "1.25rem",
   xl: "1.5rem",
-  "2xl": "clamp(1.6rem, 3vw, 2.1rem)",
-  "3xl": "clamp(2rem, 4.5vw, 3rem)",
-  "4xl": "clamp(2.5rem, 7vw, 4.5rem)",
-  "5xl": "clamp(3rem, 10vw, 7.5rem)",
+  "2xl": "clamp(1.75rem, 3vw, 2.25rem)",
+  "3xl": "clamp(2.25rem, 5vw, 3.25rem)",
+  "4xl": "clamp(3rem, 8vw, 5rem)",
+  "5xl": "clamp(3.75rem, 11vw, 7rem)",
+  "6xl": "clamp(4.5rem, 14vw, 10rem)",
+  "7xl": "clamp(5.5rem, 18vw, 13rem)",
 };
-export const SIZE_LABELS: Record<Size, string> = { xs: "XS", s: "S", m: "M", l: "L", xl: "XL", "2xl": "2XL", "3xl": "3XL", "4xl": "4XL", "5xl": "5XL" };
+/** Libellés de la liste : le cran et sa valeur (plage en px pour les corps fluides). */
+export const SIZE_LABELS: Record<Size, string> = {
+  xs: "XS · 12 px",
+  s: "S · 14 px",
+  m: "M · 16 px",
+  l: "L · 20 px",
+  xl: "XL · 24 px",
+  "2xl": "2XL · 28–36 px",
+  "3xl": "3XL · 36–52 px",
+  "4xl": "4XL · 48–80 px",
+  "5xl": "5XL · 60–112 px",
+  "6xl": "6XL · 72–160 px",
+  "7xl": "7XL · 88–208 px",
+};
 
 export const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
 export const PALETTE = ["ink", "ink-soft", "primary", "secondary", "tertiary", "eyebrow", "bg", "surface"] as const;
 export type PaletteColor = (typeof PALETTE)[number];
+/**
+ * Couleur libre d'un texte (sélecteur de l'éditeur) : `#rrggbb` ou `#rrggbbaa`,
+ * minuscules. Format unique et borné : la valeur est écrite telle quelle dans
+ * `color:`, rien d'autre ne peut y entrer.
+ */
+export const CustomColorSchema = z.string().max(9).regex(CUSTOM_COLOR_RE, "Couleur invalide (#rrggbb).");
 export const PALETTE_LABELS: Record<PaletteColor, string> = {
   ink: "Encre",
   "ink-soft": "Encre douce",
@@ -149,7 +177,7 @@ export function fontLabel(ref: string): string {
 export const TextStyleSchema = z.strictObject({
   font: FontRefSchema.optional(),
   size: z.enum(SIZES).optional(),
-  /** Ajustement fin de la taille (×0,5 à ×2). */
+  /** Ajustement fin de la taille (×0,5 à ×2) ; sans effet sans `size` (aucune base à ajuster). */
   scale: z.number().min(0.5).max(2).optional(),
   weight: z
     .number()
@@ -161,7 +189,8 @@ export const TextStyleSchema = z.strictObject({
   case: z.enum(["normal", "upper"]).optional(),
   /** Interlettrage, en em. */
   tracking: z.number().min(-0.05).max(0.4).optional(),
-  color: z.enum(PALETTE).optional(),
+  /** Teinte de la palette du thème, ou couleur libre (#rrggbb[aa]). */
+  color: z.union([z.enum(PALETTE), CustomColorSchema]).optional(),
   align: z.enum(["left", "center", "right"]).optional(),
 });
 export type TextStyle = z.infer<typeof TextStyleSchema>;
@@ -183,15 +212,14 @@ export function textStyleDecls(style: TextStyle | undefined): [string, string][]
   const out: [string, string][] = [];
   const stack = s.font ? fontStack(s.font) : null;
   if (stack) out.push(["font-family", stack]);
-  if (s.size || s.scale) {
-    const base = s.size ? SIZE_VALUES[s.size] : "1em";
-    out.push(["font-size", s.scale && s.scale !== 1 ? `calc(${base} * ${round(s.scale)})` : base]);
-  }
+  // L'ajustement se compte sur un cran : sans cran, « 1em » serait la taille du
+  // PARENT (pas celle du thème pour ce rôle) et le texte s'effondrerait.
+  if (s.size) out.push(["font-size", s.scale && s.scale !== 1 ? `calc(${SIZE_VALUES[s.size]} * ${round(s.scale)})` : SIZE_VALUES[s.size]]);
   if (s.weight) out.push(["font-weight", String(s.weight)]);
   if (s.italic !== undefined) out.push(["font-style", s.italic ? "italic" : "normal"]);
   if (s.case) out.push(["text-transform", s.case === "upper" ? "uppercase" : "none"]);
   if (s.tracking !== undefined) out.push(["letter-spacing", `${round(s.tracking)}em`]);
-  if (s.color) out.push(["color", `var(--t-color-${s.color})`]);
+  if (s.color) out.push(["color", (PALETTE as readonly string[]).includes(s.color) ? `var(--t-color-${s.color})` : s.color]);
   if (s.align) out.push(["text-align", s.align]);
   return out;
 }
@@ -334,6 +362,14 @@ export type SiteStyles = z.infer<typeof SiteStylesSchema>;
 
 export const radiusValue = (r: Radius) => RADIUS_VALUES[r];
 
+/**
+ * Préfixe de spécificité des styles du site : un réglage de l'utilisateur doit
+ * toujours gagner sur les variantes du thème (`[data-caption] .eyebrow`,
+ * `[data-header] .site-brand`…, spécificité 0,2,0) et sur les classes des blocs.
+ * Sans lui, la taille choisie était ignorée sur ces rôles (lot 7).
+ */
+const WIN = ":root:root:root";
+
 /** Feuille des styles globaux (règles générées depuis des crans validés). */
 export function siteStylesCss(styles: SiteStyles | undefined): string {
   const parsed = SiteStylesSchema.safeParse(styles ?? {});
@@ -344,7 +380,7 @@ export function siteStylesCss(styles: SiteStyles | undefined): string {
   // Ordre : légendes avant menu et nom du site (à spécificité égale, le dernier gagne).
   for (const role of ["body", "caption", "eyebrow", "h2", "h1", "menu", "brand"] as Role[]) {
     const decls = textStyleDecls(s.roles?.[role]);
-    if (decls.length) rules.push(`${ROLE_SELECTORS[role]}{${decls.map(([k, v]) => `${k}:${v}`).join(";")}}`);
+    if (decls.length) rules.push(`${WIN} ${ROLE_SELECTORS[role]}{${decls.map(([k, v]) => `${k}:${v}`).join(";")}}`);
   }
   // Rien d'injectable n'arrive ici (crans et catalogue), ceinture quand même.
   return rules.join("\n").replace(/</g, "\\3c ");

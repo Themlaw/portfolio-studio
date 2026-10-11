@@ -10,10 +10,12 @@
  */
 import { useState } from "react";
 
-import { fontLabel, googleOf, PALETTE, PALETTE_LABELS, SIZE_LABELS, SIZES, WEIGHTS, type PaletteColor, type TextStyle } from "@/lib/look";
+import { fontLabel, fontStack, googleOf, PALETTE, PALETTE_LABELS, SIZE_LABELS, SIZES, WEIGHTS, type PaletteColor, type TextStyle } from "@/lib/look";
 import { googleFamily } from "@/themes/google-fonts";
 
+import ColorPicker from "./ColorPicker";
 import FontMenu from "./FontMenu";
+import MenuSelect from "./MenuSelect";
 
 import "@/app/admin/typo-controls.css";
 
@@ -42,7 +44,7 @@ export default function TypoControls({ value, onChange, installed, swatch, theme
   };
   const g = googleOf(value.font);
   const family = g ? googleFamily(g) : undefined;
-  const weights = family ? (value.italic && family.italics.length ? family.italics : family.weights) : [...WEIGHTS];
+  const weights: readonly number[] = family ? (value.italic && family.italics.length ? family.italics : family.weights) : WEIGHTS;
   const scale = value.scale ?? 1;
   const tracking = value.tracking ?? 0;
 
@@ -53,37 +55,36 @@ export default function TypoControls({ value, onChange, installed, swatch, theme
           <span className="tc-font-name">{value.font ? fontLabel(value.font) : "Police du style"}</span>
           <span aria-hidden="true">▾</span>
         </button>
-        <label className="tc-field">
-          <span className="tc-sr">Taille</span>
-          <select value={value.size ?? ""} onChange={(e) => set({ size: (e.target.value || undefined) as TextStyle["size"] })} title="Taille (échelle du thème)">
-            <option value="">Taille</option>
-            {SIZES.map((s) => (
-              <option key={s} value={s}>
-                {SIZE_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </label>
+        <MenuSelect
+          label="Taille"
+          placeholder="Taille"
+          title="Taille du texte"
+          emptyLabel="Taille du thème"
+          value={value.size ?? ""}
+          options={SIZES.map((s) => ({ value: s, label: SIZE_LABELS[s] }))}
+          onChange={(v) => set({ size: (v || undefined) as TextStyle["size"], ...(v ? {} : { scale: undefined }) })}
+        />
         <span className="tc-step" role="group" aria-label="Ajuster la taille">
-          <button type="button" aria-label="Plus petit" title="Plus petit (−5 %)" disabled={scale <= 0.5} onClick={() => set({ scale: round(Math.max(0.5, scale - 0.05), 2) === 1 ? undefined : round(Math.max(0.5, scale - 0.05), 2) })}>
+          <button type="button" aria-label="Plus petit" title={value.size ? "Plus petit (−5 %)" : "Choisis d'abord une taille"} disabled={!value.size || scale <= 0.5} onClick={() => set({ scale: round(Math.max(0.5, scale - 0.05), 2) === 1 ? undefined : round(Math.max(0.5, scale - 0.05), 2) })}>
             −
           </button>
           <output className="tc-num" aria-live="polite">{Math.round(scale * 100)} %</output>
-          <button type="button" aria-label="Plus grand" title="Plus grand (+5 %)" disabled={scale >= 2} onClick={() => set({ scale: round(Math.min(2, scale + 0.05), 2) === 1 ? undefined : round(Math.min(2, scale + 0.05), 2) })}>
+          <button type="button" aria-label="Plus grand" title={value.size ? "Plus grand (+5 %)" : "Choisis d'abord une taille"} disabled={!value.size || scale >= 2} onClick={() => set({ scale: round(Math.min(2, scale + 0.05), 2) === 1 ? undefined : round(Math.min(2, scale + 0.05), 2) })}>
             +
           </button>
         </span>
-        <label className="tc-field">
-          <span className="tc-sr">Graisse</span>
-          <select value={value.weight ?? ""} onChange={(e) => set({ weight: e.target.value ? Number(e.target.value) : undefined })} title="Graisse">
-            <option value="">Graisse</option>
-            {weights.map((w) => (
-              <option key={w} value={w}>
-                {w} · {WEIGHT_LABELS[w]}
-              </option>
-            ))}
-          </select>
-        </label>
+        <MenuSelect
+          label="Graisse"
+          placeholder="Graisse"
+          title="Graisse"
+          emptyLabel="Graisse du thème"
+          value={value.weight ? String(value.weight) : ""}
+          options={WEIGHTS.map((w) => {
+            const missing = !weights.includes(w);
+            return { value: String(w), label: `${w} · ${WEIGHT_LABELS[w]}`, disabled: missing, hint: missing ? "absente" : undefined, style: { fontWeight: w, fontFamily: (value.font && fontStack(value.font)) || undefined } };
+          })}
+          onChange={(v) => set({ weight: v ? Number(v) : undefined })}
+        />
         <button type="button" className="tc-toggle tc-italic" aria-pressed={value.italic === true} title="Italique" onClick={() => set({ italic: value.italic ? undefined : true })}>
           I
         </button>
@@ -115,6 +116,7 @@ export default function TypoControls({ value, onChange, installed, swatch, theme
               onClick={() => set({ color: value.color === c ? undefined : c })}
             />
           ))}
+          <ColorPicker value={value.color} onChange={(color) => set({ color })} swatch={swatch} />
         </span>
         <span className="tc-seg" role="radiogroup" aria-label="Alignement">
           {(["left", "center", "right"] as const).map((a) => (

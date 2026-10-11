@@ -25,6 +25,8 @@ import {
   TextStyleSchema,
   themeTypeCss,
 } from "../src/lib/look.ts";
+import { hslToRgb, normalizeCustomColor, parseColor, rgbaToHex, rgbToHsv, hsvToRgb, wheelGradient } from "../src/lib/color.ts";
+import { SIZE_LABELS, SIZE_VALUES, SIZES } from "../src/lib/look.ts";
 import { ThemeSchema } from "../src/themes/schema.ts";
 import { fontFaceCss, googleCssUrl, parseGoogleCss, readLibrary } from "../src/lib/fonts/faces.ts";
 import { FromCanvasSchema } from "../src/lib/edit/protocol.ts";
@@ -62,7 +64,12 @@ for (const [label, bad] of [
   ["taille hors échelle", { size: "12px" }],
   ["ajustement > ×2", { scale: 3 }],
   ["interlettrage > 0,4 em", { tracking: 1 }],
-  ["couleur hors palette", { color: "#ff0000" }],
+  ["couleur nommée hors palette", { color: "red" }],
+  ["couleur libre en majuscules (format non normalisé)", { color: "#FF0000" }],
+  ["couleur libre abrégée", { color: "#f00" }],
+  ["couleur libre avec injection", { color: "#ff0000;}body{x:y" }],
+  ["couleur libre rgb()", { color: "rgb(1,2,3)" }],
+  ["couleur libre trop longue", { color: "#ff000000ff" }],
   ["clé inconnue", { fontFamily: "Arial" }],
   ["police hors catalogue", { font: "g:Comic Sans MS" }],
 ]) ok(`style refusé : ${label}`, !TextStyleSchema.safeParse(bad).success);
@@ -79,6 +86,46 @@ ok("déclarations : casse, italique, interlettrage, alignement", decls["text-tra
 ok("déclarations : style invalide → rien", textStyleDecls({ color: "red;}body{x" }).length === 0);
 ok("style React : camelCase", textStyleObject({ weight: 700, case: "upper" })?.textTransform === "uppercase");
 ok("style React : vide → undefined", textStyleObject({}) === undefined);
+
+/* ---- Échelle des tailles (lot 7) ------------------------------------------------------- */
+// Valeur calculée d'un cran à une largeur d'écran (rem = 16 px, vw = 1 % de la largeur).
+const px = (value, width) => {
+  const one = (t) => (t.endsWith("rem") ? parseFloat(t) * 16 : t.endsWith("vw") ? (parseFloat(t) * width) / 100 : NaN);
+  const m = /^clamp\((.+), (.+), (.+)\)$/.exec(value);
+  return m ? Math.min(one(m[3]), Math.max(one(m[1]), one(m[2]))) : one(value);
+};
+for (const width of [320, 390, 768, 1024, 1280, 1440, 1920, 2560]) {
+  const sizes = SIZES.map((sz) => px(SIZE_VALUES[sz], width));
+  ok(`échelle des tailles strictement croissante à ${width} px`, sizes.every((v, i) => Number.isFinite(v) && (i === 0 || v > sizes[i - 1] + 1)), sizes.join(" "));
+}
+ok("échelle : chaque cran a un libellé avec sa valeur", SIZES.every((sz) => /\d+ px|\d+–\d+ px/.test(SIZE_LABELS[sz])));
+ok("échelle : le plus grand cran dépasse le titre d'accueil (144 px à 1440)", px(SIZE_VALUES["7xl"], 1440) > 144 + 20);
+ok("taille : « 1em » jamais émis (parent ≠ thème)", !textStyleDecls({ scale: 1.5 }).some(([k]) => k === "font-size"));
+ok("taille : ajustement sans cran ignoré", textStyleDecls({ scale: 1.5 }).length === 0);
+ok("feuille du site : surcharge les variantes du thème (spécificité)", siteStylesCss({ roles: { h1: { size: "xl" } } }).startsWith(":root:root:root #contenu h1{font-size:1.5rem}"));
+
+/* ---- Couleur libre (lot 7) -------------------------------------------------------------- */
+ok("couleur libre valide : #rrggbb", TextStyleSchema.safeParse({ color: "#a1b2c3" }).success);
+ok("couleur libre valide : #rrggbbaa (translucide)", TextStyleSchema.safeParse({ color: "#a1b2c380" }).success);
+ok("couleur libre : écrite telle quelle dans color:", Object.fromEntries(textStyleDecls({ color: "#a1b2c3" })).color === "#a1b2c3");
+ok("couleur de palette inchangée", Object.fromEntries(textStyleDecls({ color: "primary" })).color === "var(--t-color-primary)");
+ok("couleur libre : style React", textStyleObject({ color: "#a1b2c380" })?.color === "#a1b2c380");
+ok("couleur libre dans le message de la toile (site-style)", FromCanvasSchema.safeParse({ kind: "site-style", role: "h1", style: { color: "#a1b2c3" } }).success);
+ok("couleur libre injectée refusée dans le message de la toile", !FromCanvasSchema.safeParse({ kind: "site-style", role: "h1", style: { color: "#a1b2c3;}</style>" } }).success);
+ok("feuille du site : couleur libre", siteStylesCss({ roles: { body: { color: "#102030" } } }).includes("{color:#102030}"));
+ok("feuille du site : couleur libre injectée → vide", siteStylesCss({ roles: { body: { color: "#102030;}x{" } } }) === "");
+const norm = (v) => normalizeCustomColor(v);
+ok("normalisation : #ABC → #aabbcc", norm("#ABC") === "#aabbcc");
+ok("normalisation : sans # et majuscules", norm("A1B2C3") === "#a1b2c3");
+ok("normalisation : rgb(255, 0, 0)", norm("rgb(255, 0, 0)") === "#ff0000");
+ok("normalisation : rgba avec opacité", norm("rgba(0, 0, 0, 0.5)") === "#00000080");
+ok("normalisation : hsl(120, 100%, 25%)", norm("hsl(120, 100%, 25%)") === "#008000", norm("hsl(120, 100%, 25%)"));
+ok("normalisation : opaque sans suffixe alpha", norm("#112233ff") === "#112233");
+for (const bad of ["", "rouge", "#12", "#12345", "rgb(1,2)", "rgb(a,b,c)", "#ff0000;}", "url(x)", "x".repeat(200)]) ok(`normalisation : refus de « ${bad.slice(0, 20)} »`, norm(bad) === null);
+const hsvTrip = rgbToHsv(parseColor("#3366cc"));
+ok("aller-retour RGB ↔ HSV", rgbaToHex(hsvToRgb(hsvTrip)) === "#3366cc");
+ok("HSL → RGB (gris, bleu pur)", rgbaToHex(hslToRgb({ h: 0, s: 0, l: 0.5, a: 1 })) === "#808080" && rgbaToHex(hslToRgb({ h: 240, s: 1, l: 0.5, a: 1 })) === "#0000ff");
+ok("dégradé de la roue : calculé, valide", /^conic-gradient\((#[0-9a-f]{6} \d+%(, )?){13}\)$/.test(wheelGradient()));
 
 /* ---- Réglages d'un bloc ------------------------------------------------------------- */
 const look = { spaceTop: "s", spaceBottom: "none", radius: "none", titleH: "center", titleV: "middle", text: { title: { size: "3xl" }, "paragraphs.0": { italic: true }, "site.role": { color: "primary" } }, crop: { mediaId: { x: 30, y: 70, zoom: 1.5 } }, roleBackdrop: "shadow" };
