@@ -31,7 +31,7 @@ export default function HeroTypeOnly({ note, content }: { note?: string; content
       </div>
 
       <div className="shell pb-10">
-        <ScrollHint />
+        {content.showScroll && <ScrollHint label={content.scroll} mark={marks.scroll} />}
       </div>
     </section>
   );

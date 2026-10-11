@@ -240,7 +240,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       defaults: { eyebrow: L, statement: L },
       summary: "{eyebrow}",
       // Nom et métier : identité du site (communs aux pages), modifiables en place aussi.
-      inline: ["eyebrow"],
+      inline: ["eyebrow", "scroll", "reel"],
       mediaFields: [{ field: "backgroundMediaId", kind: "any" }],
     }),
     define({

@@ -263,6 +263,8 @@ export type AdminProjectEdit = {
   slots: AdminSlot[];
   /** Emplacements avec une modification en brouillon (éditeur visuel), pas encore publiée. */
   pendingDrafts: number;
+  /** Titre de la page dont le brouillon modifie les TEXTES du projet (v0.15), ou null. */
+  textHeldBy: string | null;
 };
 
 export function getProjectForEdit(id: number): AdminProjectEdit | null {
@@ -285,6 +287,7 @@ export function getProjectForEdit(id: number): AdminProjectEdit | null {
     year: p.year,
     featured: p.featured,
     pendingDrafts,
+    textHeldBy: p.draftTextPageId === null ? null : (db.select({ title: schema.pages.title }).from(schema.pages).where(eq(schema.pages.id, p.draftTextPageId)).get()?.title.fr || `n° ${p.draftTextPageId}`),
     slots: slots.map((s) => {
       const m = s.mediaId ? media.get(s.mediaId) : undefined;
       return {

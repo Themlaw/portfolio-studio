@@ -30,6 +30,12 @@ export default async function ProjectEditPage({ params }: { params: Promise<{ id
           l&apos;éditeur visuel d&apos;une page : elles n&apos;apparaissent ici qu&apos;après « Publier » sur cette page.
         </p>
       )}
+      {project.textHeldBy && (
+        <p className="a-notice" role="status">
+          Les textes de ce projet (nom, contexte, présentation, année) sont en cours de modification dans l&apos;éditeur de la page «&nbsp;{project.textHeldBy}&nbsp;» :
+          publie cette page ou abandonne ses modifications avant de les changer ici.
+        </p>
+      )}
       {/* Un PDF (bloc CV) ne se place pas dans une planche. */}
       <ProjectEditor project={project} library={listMediaForAdmin().filter((m) => m.kind !== "pdf")} />
     </>

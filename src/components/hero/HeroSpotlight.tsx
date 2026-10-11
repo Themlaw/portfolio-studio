@@ -1,5 +1,3 @@
-import { useTranslations } from "next-intl";
-
 import Eyebrow from "@/components/Eyebrow";
 import ScrollHint from "@/components/hero/ScrollHint";
 import { heroMarks, type HeroContent } from "@/components/hero/types";
@@ -11,7 +9,6 @@ import { Link } from "@/i18n/navigation";
  * à la demoreel.
  */
 export default function HeroSpotlight({ content }: { content: HeroContent }) {
-  const t = useTranslations("home.hero");
   const marks = heroMarks(content);
 
   return (
@@ -29,12 +26,12 @@ export default function HeroSpotlight({ content }: { content: HeroContent }) {
         </p>
         <Link href={content.reelHref} className="btn mt-10">
           <span aria-hidden="true">▶</span>
-          {t("reel")}
+          <span {...marks.reel}>{content.reel}</span>
         </Link>
       </div>
 
       <div className="shell flex justify-center pb-10">
-        <ScrollHint />
+        {content.showScroll && <ScrollHint label={content.scroll} mark={marks.scroll} />}
       </div>
     </section>
   );

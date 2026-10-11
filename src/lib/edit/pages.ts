@@ -318,6 +318,7 @@ export function deletePage(id: number): ActionResult<null> | { ok: false; messag
       .set({ draftState: null, draftPosition: null, draftMediaId: null, draftPageId: null, draftTitle: null, draftDescription: null, draftKey: null })
       .where(eq(schema.slots.draftPageId, id))
       .run();
+    tx.update(schema.projects).set({ draftText: null, draftTextPageId: null }).where(eq(schema.projects.draftTextPageId, id)).run();
     // Menu et brouillon de l'en-tête portés par cette page.
     setPageInNav(id, false);
     discardSiteDraft(id);

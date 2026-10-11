@@ -207,6 +207,9 @@ export default function BoardLayer({
   const [ghosts, setGhosts] = useState<Ghost[]>([]);
   const [projects, setProjects] = useState<ComboProject[]>([]);
   const [text, setText] = useState<TextEdit | null>(null);
+  // Texte (ou image) d'un projet survolé : indicateur « modifié aussi sur sa planche et sa page ».
+  const [projectHint, setProjectHint] = useState<{ el: HTMLElement; board: number; label: string; draft: boolean; textHeld: string | null } | null>(null);
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [hoverMedia, setHoverMedia] = useState<MediaRef | null>(null);
   const ghostsRef = useRef<Ghost[]>([]);
   const pendingFocus = useRef<string | null>(null);
@@ -343,6 +346,12 @@ export default function BoardLayer({
   const startText = useCallback((el: HTMLElement) => {
     const board = Number(boardOf(el)?.dataset.editBoard);
     if (!board) return;
+    // Textes du projet en cours de modification sur une autre page : un seul brouillon à la fois.
+    const heldBy = el.dataset.projectInline ? boardOf(el)?.dataset.editBoardTextHeld : undefined;
+    if (heldBy) {
+      announce(`Les textes de ce projet sont en cours de modification sur la page « ${heldBy} » : publie-la ou abandonne-la d'abord.`);
+      return;
+    }
     const slotEl = el.closest<HTMLElement>("[data-edit-slot]");
     const kind = el.dataset.slotInline ? "slot" : "project";
     const field = (el.dataset.slotInline ?? el.dataset.projectInline) as string;
@@ -360,7 +369,7 @@ export default function BoardLayer({
     el.style.visibility = "hidden";
     const original = el.textContent ?? "";
     setText({ el, kind, board, key: slotEl?.dataset.editSlot, field, original, value: original, rect: { ...rect, width: Math.max(rect.width, 160) }, style, committed: false, at: 0 });
-  }, []);
+  }, [announce]);
 
   const finishText = useCallback((commit: boolean, value?: string) => {
     const t = textRef.current;
@@ -373,7 +382,7 @@ export default function BoardLayer({
     }
     const locale = document.documentElement.lang === "en" ? "en" : "fr";
     if (t.kind === "slot" && t.key) post({ kind: "slot-text", board: t.board, key: t.key, field: t.field as "title" | "description", locale, value: next.slice(0, 2000) });
-    else post({ kind: "project-text", board: t.board, field: t.field as "title" | "context" | "year", locale, value: next.slice(0, 200) });
+    else post({ kind: "project-text", board: t.board, field: t.field as "title" | "context" | "description" | "year", locale, value: next.slice(0, t.field === "description" ? 2000 : 200) });
     setText({ ...t, value: next, committed: true, at: Date.now() });
   }, []);
 
@@ -386,7 +395,29 @@ export default function BoardLayer({
     let dragging: { ref: SlotRef; rail: Element; index: number } | null = null;
 
     const onMove = (e: PointerEvent) => {
-      if (inLayer(e.target)) return;
+      if (inLayer(e.target)) {
+        // Sur l'indicateur lui-même : il reste (le lien « Voir le projet » est cliquable).
+        if (e.target instanceof Element && e.target.closest(".pe-project-hint")) clearTimeout(hintTimer.current);
+        return;
+      }
+      const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-project-inline]") : null;
+      const owner = field ? boardOf(field) : null;
+      clearTimeout(hintTimer.current);
+      if (field && owner) {
+        setProjectHint((h) =>
+          h?.el === field
+            ? h
+            : {
+                el: field,
+                board: Number(owner.dataset.editBoard),
+                label: owner.dataset.editBoardLabel ?? "",
+                draft: owner.hasAttribute("data-edit-board-draft"),
+                textHeld: owner.dataset.editBoardTextHeld ?? null,
+              },
+        );
+      } else {
+        hintTimer.current = setTimeout(() => setProjectHint(null), 700);
+      }
       if (pressed && !dragging && Math.hypot(e.clientX - pressed.x, e.clientY - pressed.y) > 6) {
         const rail = pressed.el.closest("[data-edit-rail]");
         if (rail) {
@@ -636,7 +667,9 @@ export default function BoardLayer({
               onPickerClose();
             }}
           />
-          <small className="pe-board-help">Le titre et la planche du conteneur suivent ce projet. Un projet créé ici devient public avec la page.</small>
+          <small className="pe-board-help">
+            Choisis le projet de ce bloc : son titre, sa présentation et ses images viennent de lui (textes et images se modifient ensuite sur la page). Un projet créé ici devient public avec la page.
+          </small>
           {change && (
             <button type="button" className="pe-link-btn" onClick={onPickerClose}>
               Annuler
@@ -651,7 +684,12 @@ export default function BoardLayer({
           role="toolbar"
           aria-label={hoverMedia.kind === "background" ? "Fond de l'ouverture" : hoverMedia.kind === "video" ? "Vidéo" : hoverMedia.kind === "pdf" ? "CV (PDF)" : "Image"}
           // En bas à gauche du média : jamais sur l'étiquette ni le fil d'Ariane du bloc choisi (en haut).
-          style={{ top: mediaBox.top + Math.max(8, mediaBox.height - 46), left: Math.max(window.scrollX + 4, mediaBox.left + 8) }}
+          // Fond de l'ouverture : en bas à DROITE — le texte de défilement (modifiable) occupe le bas à gauche.
+          style={
+            hoverMedia.kind === "background"
+              ? { top: mediaBox.top + Math.max(8, mediaBox.height - 46), left: mediaBox.left + mediaBox.width - 8, transform: "translateX(-100%)" }
+              : { top: mediaBox.top + Math.max(8, mediaBox.height - 46), left: Math.max(window.scrollX + 4, mediaBox.left + 8) }
+          }
           onPointerEnter={() => setHoverMedia(hoverMedia)}
         >
           <button type="button" onClick={() => post({ kind: "media-op", uid: hoverMedia.uid, field: hoverMedia.field, op: "replace" })}>
@@ -718,6 +756,30 @@ export default function BoardLayer({
           style={{ top: marker.rect.top, left: marker.rect.left, width: marker.rect.width, height: marker.rect.height }}
         />
       )}
+
+      {projectHint && !text && projectHint.el.isConnected && (() => {
+        const box = boxOf(projectHint.el);
+        if (!box) return null;
+        const name = projectHint.label ? `« ${projectHint.label} »` : "";
+        return (
+          <div className="pe-project-hint" role="status" style={{ top: box.top + box.height + 6, left: Math.max(window.scrollX + 8, box.left) }}>
+            {projectHint.textHeld ? (
+              <span>
+                Textes du projet {name} en cours de modification sur la page « {projectHint.textHeld} » : lecture seule ici.
+              </span>
+            ) : projectHint.draft ? (
+              <span>Texte du projet {name}, créé sur cette page : visible sur sa planche et partout où il apparaît.</span>
+            ) : (
+              <>
+                <span>Texte du projet {name} — modifié aussi sur sa planche et sa page.</span>
+                <a href={`/admin/projets/${projectHint.board}`} target="_blank" rel="noreferrer">
+                  Voir le projet
+                </a>
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       {text && (
         <div

@@ -21,11 +21,16 @@ export type HeroContent = {
   statement: string;
   /** Chemin (sans langue) de la page animation, pour le bouton demoreel. */
   reelHref: string;
+  /** Libellé de l'indicateur de défilement (défaut : message de l'interface) et son affichage. */
+  scroll: string;
+  showScroll: boolean;
+  /** Libellé du bouton demoreel (hero projecteur). */
+  reel: string;
   background?: HeroBackground | null;
   /** Vue brouillon de l'éditeur : repères des textes et du fond (jamais en public). */
   edit?: boolean;
   /** Styles locaux des textes (barre typographique de l'éditeur, lot 2). */
-  styles?: { eyebrow?: CSSProperties; name?: CSSProperties; role?: CSSProperties };
+  styles?: { eyebrow?: CSSProperties; name?: CSSProperties; role?: CSSProperties; scroll?: CSSProperties; reel?: CSSProperties };
 };
 
 /** Repères d'édition : texte du bloc (data-inline) ou texte commun au site (data-site-inline). */
@@ -35,6 +40,8 @@ export function heroMarks(content: HeroContent) {
   return {
     eyebrow: { ...(e ? { "data-inline": "eyebrow", "data-placeholder": "Étiquette" } : {}), ...st(content.styles?.eyebrow) },
     name: { ...(e ? { "data-site-inline": "name", "data-placeholder": "Ton nom", "data-site-hint": "commun à toutes les pages" } : {}), ...st(content.styles?.name) },
+    scroll: { ...(e ? { "data-inline": "scroll", "data-placeholder": "Faire défiler" } : {}), ...st(content.styles?.scroll) },
+    reel: { ...(e ? { "data-inline": "reel", "data-placeholder": "Demoreel" } : {}), ...st(content.styles?.reel) },
     // `data-hero-text` (public aussi) : le fond du métier se règle (src/app/look.css).
     role: { "data-hero-text": "role", ...(e ? { "data-site-inline": "role", "data-placeholder": "Ton métier", "data-site-hint": "commun à toutes les pages" } : {}), ...st(content.styles?.role) },
   };

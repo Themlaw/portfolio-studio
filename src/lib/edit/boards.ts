@@ -18,6 +18,14 @@
  * CE brouillon ; aucun emplacement du projet ne porte la surcouche d'une
  * autre page ; les emplacements et médias cités appartiennent bien au projet
  * ou existent ; version optimiste de la page (`draft_rev`) comme le brouillon.
+ *
+ * Textes du projet (nom, contexte, présentation, année ; v0.15) : même
+ * instantané (`BoardSnap.project`), même historique, mais une surcouche à part
+ * (`projects.draft_text` + `draft_text_page_id`) — une seule source de vérité :
+ * le projet. Modifiés depuis n'importe quel bloc qui le montre (planche, titre
+ * lié d'un « Projet mis en avant »), ils ne sont publics qu'à la publication
+ * de la page ; un projet créé dans CE brouillon porte ses textes sur sa ligne.
+ * Une seule page à la fois tient la surcouche de textes d'un projet.
  */
 import { randomBytes } from "node:crypto";
 
@@ -28,10 +36,11 @@ import { getPageForEdit } from "@/lib/admin";
 import { getDb, schema } from "@/lib/db";
 import { slugify } from "@/lib/slug";
 
-import { displayedProjects, type DraftRefusal } from "./drafts";
+import { displayedProjects, referencedProjects, type DraftRefusal } from "./drafts";
 import { done, fail, type ActionResult } from "./result";
 
 type L = { fr: string; en: string };
+const sameL = (a: L | null | undefined, b: L | null | undefined) => (a?.fr ?? "") === (b?.fr ?? "") && (a?.en ?? "") === (b?.en ?? "");
 type SlotRow = typeof schema.slots.$inferSelect;
 
 /** Un PDF (bloc CV) ne se pose pas dans une planche. */
@@ -55,7 +64,7 @@ const SnapSlot = z.strictObject({
 });
 export const BoardSnapSchema = z.strictObject({
   projectId: z.number().int().positive(),
-  project: z.strictObject({ title: Loc(120), context: Loc(200), year: z.string().max(20) }).nullable(),
+  project: z.strictObject({ title: Loc(120), context: Loc(200), description: Loc(2000), year: z.string().max(20) }).nullable(),
   slots: z.array(SnapSlot).max(MAX_BOARD_SLOTS),
 });
 export type BoardSnap = z.infer<typeof BoardSnapSchema>;
@@ -67,7 +76,7 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("retire"), key: Key }),
   z.strictObject({ op: z.literal("fill"), key: Key, mediaId: z.number().int().positive() }),
   z.strictObject({ op: z.literal("text"), key: Key, field: z.enum(["title", "description"]), locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
-  z.strictObject({ op: z.literal("project"), field: z.enum(["title", "context", "year"]), locale: z.enum(["fr", "en"]), value: z.string().max(200) }),
+  z.strictObject({ op: z.literal("project"), field: z.enum(["title", "context", "description", "year"]), locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
 ]);
 export type BoardOp = z.infer<typeof BoardOpSchema>;
 
@@ -106,6 +115,30 @@ function access(pageId: number, projectId: number): string | null {
   return null;
 }
 
+/**
+ * Les textes du projet sont-ils modifiables depuis le brouillon de cette page ?
+ * Il suffit qu'elle le cite (planche, projet d'un conteneur, titre lié) ; la
+ * surcouche ne peut être tenue que par une page à la fois.
+ */
+function textAccess(pageId: number, projectId: number): string | null {
+  const db = getDb();
+  const project = db
+    .select({ draftPageId: schema.projects.draftPageId, textPage: schema.projects.draftTextPageId })
+    .from(schema.projects)
+    .where(eq(schema.projects.id, projectId))
+    .get();
+  if (!project) return "Ce projet n'existe plus : recharge l'éditeur.";
+  const pageName = (id: number) => db.select({ title: schema.pages.title }).from(schema.pages).where(eq(schema.pages.id, id)).get()?.title.fr || `n° ${id}`;
+  if (project.draftPageId !== null && project.draftPageId !== pageId) {
+    return `Ce projet est en cours de création sur la page ${pageName(project.draftPageId)} : publie-la ou abandonne-la d'abord.`;
+  }
+  if (project.textPage !== null && project.textPage !== pageId) {
+    return `Les textes de ce projet sont en cours de modification sur la page ${pageName(project.textPage)} : publie-la ou abandonne-la d'abord.`;
+  }
+  if (!referencedProjects(draftBlocks(pageId)).includes(projectId)) return "Cette page n'affiche pas ce projet : ajoute-le d'abord à la page.";
+  return null;
+}
+
 /** Blocs du brouillon de la page (sinon de la version publiée). */
 function draftBlocks(pageId: number): { type: string; props: unknown }[] {
   const draft = getDb().select({ draft: schema.pages.draft }).from(schema.pages).where(eq(schema.pages.id, pageId)).get()?.draft as { blocks?: unknown } | null | undefined;
@@ -115,6 +148,15 @@ function draftBlocks(pageId: number): { type: string; props: unknown }[] {
 
 function rowsOf(projectId: number): SlotRow[] {
   return getDb().select().from(schema.slots).where(eq(schema.slots.projectId, projectId)).orderBy(asc(schema.slots.position), asc(schema.slots.id)).all();
+}
+
+type ProjectRow = typeof schema.projects.$inferSelect;
+type ProjectText = NonNullable<BoardSnap["project"]>;
+
+/** Textes du projet tels que le brouillon de la page les montre : sa surcouche, sinon ceux de la ligne. */
+function projectText(row: ProjectRow, pageId: number): ProjectText {
+  if (row.draftTextPageId === pageId && row.draftText) return row.draftText;
+  return { title: row.title, context: row.context, description: row.description, year: row.year };
 }
 
 /** Instantané de la planche telle que le brouillon de la page la montre. */
@@ -130,7 +172,7 @@ export function readBoard(pageId: number, projectId: number): BoardSnap {
     .sort((a, b) => a.order - b.order || a.row.id - b.row.id);
   return {
     projectId,
-    project: project && project.draftPageId === pageId ? { title: project.title, context: project.context, year: project.year } : null,
+    project: project ? projectText(project, pageId) : null,
     slots: rows.map(({ row, mine }) => ({
       key: keyOf(row),
       mediaId: mine ? (row.draftState === "removed" ? null : (row.draftMediaId ?? row.mediaId)) : row.mediaId,
@@ -154,7 +196,6 @@ function uniqueSlotSlug(projectSlug: string): string {
   }
 }
 
-const sameL = (a: L | null | undefined, b: L | null | undefined) => (a?.fr ?? "") === (b?.fr ?? "") && (a?.en ?? "") === (b?.en ?? "");
 
 /**
  * Contrôle d'un instantané reçu (Annuler / Rétablir) : chaque clé désigne un
@@ -181,19 +222,29 @@ function checkSnap(pageId: number, snap: BoardSnap, allowPending = false): strin
       if (m.status !== "ready" && !(allowPending && m.status === "processing")) return "Ce média est encore en conversion : attends qu'il soit prêt pour le placer.";
     }
   }
-  const project = db.select({ draftPageId: schema.projects.draftPageId }).from(schema.projects).where(eq(schema.projects.id, snap.projectId)).get();
-  if (snap.project && project?.draftPageId !== pageId) return "Seul un projet créé dans ce brouillon se modifie ici ; les autres, dans l'écran Projets.";
   return null;
 }
 
 /** Écrit l'instantané comme surcouche de la page (dans une transaction de l'appelant). */
-function writeBoard(pageId: number, snap: BoardSnap): void {
+function writeBoard(pageId: number, snap: BoardSnap, only: { slots: boolean; text: boolean }): void {
   const db = getDb();
   const project = db.select().from(schema.projects).where(eq(schema.projects.id, snap.projectId)).get();
   if (!project) throw new Error("projet disparu");
-  if (snap.project && project.draftPageId === pageId) {
-    db.update(schema.projects).set({ title: snap.project.title, context: snap.project.context, year: snap.project.year }).where(eq(schema.projects.id, project.id)).run();
+  if (only.text && snap.project) {
+    const t = snap.project;
+    if (project.draftPageId === pageId) {
+      // Projet créé dans ce brouillon : ses textes sont sur sa ligne (invisible ailleurs).
+      db.update(schema.projects).set({ title: t.title, context: t.context, description: t.description, year: t.year }).where(eq(schema.projects.id, project.id)).run();
+    } else {
+      // Projet publié : surcouche de la page ; revenir aux textes publiés l'efface.
+      const same = sameL(t.title, project.title) && sameL(t.context, project.context) && sameL(t.description, project.description) && t.year === project.year;
+      db.update(schema.projects)
+        .set(same ? { draftText: null, draftTextPageId: null } : { draftText: t, draftTextPageId: pageId })
+        .where(eq(schema.projects.id, project.id))
+        .run();
+    }
   }
+  if (!only.slots) return;
   const rows = rowsOf(snap.projectId);
   const byKey = new Map(rows.map((r) => [keyOf(r), r]));
   const wanted = new Set(snap.slots.map((s) => s.key));
@@ -293,18 +344,28 @@ function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (
   const current = pageRev(pageId);
   if (current === null) return fail("Cette page n'existe plus.");
   if (current !== rev) return conflict(current);
-  const denied = access(pageId, projectId.data);
-  if (denied) return fail(denied);
   const before = readBoard(pageId, projectId.data);
   const next = change(structuredClone(before));
   if (typeof next === "string") return fail(next);
+  // Images (surcouche d'emplacements) et textes du projet (surcouche de textes) :
+  // deux écritures, deux gardes. Un texte seul ne touche pas aux emplacements.
+  const slotsChanged = JSON.stringify(before.slots) !== JSON.stringify(next.slots);
+  const textChanged = JSON.stringify(before.project) !== JSON.stringify(next.project);
+  if (slotsChanged || !textChanged) {
+    const denied = access(pageId, projectId.data);
+    if (denied) return fail(denied);
+  }
+  if (textChanged) {
+    const denied = textAccess(pageId, projectId.data);
+    if (denied) return fail(denied);
+  }
   if (next.slots.length > MAX_BOARD_SLOTS) return fail(`${MAX_BOARD_SLOTS} emplacements au plus par planche.`);
   const problem = checkSnap(pageId, next, restoring);
   if (problem) return fail(problem);
   try {
     getDb().transaction(() => {
       if (!touchPage(pageId, rev)) throw new ConflictError();
-      writeBoard(pageId, next);
+      writeBoard(pageId, next, { slots: slotsChanged || !textChanged, text: textChanged });
     });
   } catch (error) {
     if (error instanceof ConflictError) return conflict(pageRev(pageId) ?? rev);
@@ -358,10 +419,11 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         return snap;
       }
       case "project": {
-        if (!snap.project) return "Seul un projet créé dans ce brouillon se modifie ici ; les autres, dans l'écran Projets.";
+        if (!snap.project) return "Ce projet n'existe plus : recharge l'éditeur.";
         if (op.field === "year") snap.project.year = op.value.slice(0, 20);
         else if (op.field === "title") snap.project.title = { ...snap.project.title, [op.locale]: op.value.slice(0, 120) };
-        else snap.project.context = { ...snap.project.context, [op.locale]: op.value.slice(0, 200) };
+        else if (op.field === "context") snap.project.context = { ...snap.project.context, [op.locale]: op.value.slice(0, 200) };
+        else snap.project.description = { ...snap.project.description, [op.locale]: op.value.slice(0, 2000) };
         return snap;
       }
     }
@@ -378,8 +440,7 @@ export function restoreBoard(pageId: number, snapInput: unknown, rev: unknown): 
     snap.projectId,
     rev,
     (current) => {
-      // Nom, contexte, année : seulement pour un projet créé dans ce brouillon.
-      if (snap.project && !current.project) return "Seul un projet créé dans ce brouillon se modifie ici ; les autres, dans l'écran Projets.";
+      // Textes du projet : ceux de l'instantané, sinon ceux d'aujourd'hui.
       return { ...snap, project: current.project ? (snap.project ?? current.project) : null };
     },
     true,
