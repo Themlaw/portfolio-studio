@@ -4,11 +4,13 @@
  * Liste déroulante maison (lot 7) des réglages typographiques : remplace les
  * `<select>` natifs (leur ligne choisie sortait dans la couleur du système).
  * Bouton + liste (role="listbox") : flèches, Début / Fin, Entrée, Échap, saisie
- * de la première lettre ; fermeture au clic extérieur. Chaque option peut
+ * de la première lettre ; fermeture par `useDismiss`. Chaque option peut
  * porter son propre style (ex. sa graisse réelle) et être grisée. Habillage :
  * classes `ms-*` de src/app/admin/typo-controls.css.
  */
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+
+import { useDismiss } from "./useDismiss";
 
 export type MenuOption = {
   value: string;
@@ -58,17 +60,8 @@ export default function MenuSelect({
     if (refocus) button.current?.focus();
   };
 
-  // Clic (ou toucher) hors du menu : fermeture. Écouteur natif sur le document
-  // de la toile : les barres de la toile arrêtent la propagation de React.
-  useEffect(() => {
-    if (!open) return;
-    const doc = root.current?.ownerDocument ?? document;
-    const onDown = (e: Event) => {
-      if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
-    };
-    doc.addEventListener("pointerdown", onDown, true);
-    return () => doc.removeEventListener("pointerdown", onDown, true);
-  }, [open]);
+  // Clic extérieur, focus dans l'autre cadre : le hook commun (Échap reste géré par la liste).
+  useDismiss(root, () => setOpen(false), { enabled: open, escape: false });
 
   // À l'ouverture : la liste prend le focus (la ligne active est posée par `show`).
   useEffect(() => {

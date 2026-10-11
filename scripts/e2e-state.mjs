@@ -193,6 +193,43 @@ async function stopSampler(f) {
     return window.__log;
   });
 }
+/** Échantillonneur générique : { nom: [sélecteur, propriété] } (propriété : « text » ou une propriété CSS calculée). */
+async function startProbe(f, probes) {
+  await f.evaluate((spec) => {
+    const log = [];
+    window.__plog = log;
+    window.__probing = true;
+    const read = () =>
+      Object.fromEntries(
+        Object.entries(spec).map(([name, [sel, prop]]) => {
+          const el = document.querySelector(sel);
+          return [name, !el ? null : prop === "text" ? el.textContent : getComputedStyle(el)[prop]];
+        }),
+      );
+    let last = "";
+    const push = () => {
+      const v = read();
+      const j = JSON.stringify(v);
+      if (j !== last) {
+        last = j;
+        log.push(v);
+      }
+    };
+    new MutationObserver(push).observe(document, { subtree: true, childList: true, characterData: true, attributes: true });
+    const loop = () => {
+      push();
+      if (window.__probing) requestAnimationFrame(loop);
+    };
+    loop();
+  }, probes);
+}
+async function stopProbe(f) {
+  return f.evaluate(() => {
+    window.__probing = false;
+    return window.__plog;
+  });
+}
+
 /** Valeurs successives d'un champ (doublons consécutifs retirés). */
 const series = (log, key) => log.map((e) => e[key]).filter((v, i, a) => i === 0 || v !== a[i - 1]);
 /** Une valeur déjà quittée qui revient = retour en arrière visible. */
@@ -230,13 +267,19 @@ async function closeBar() {
   if (await f.locator(".lk-close").count()) await f.locator(".lk-close").click();
 }
 
-/** Ouvre la barre de style du titre (« Aa » au survol) ; recommence si la page se re-rend sous la souris. */
-async function openTextBar() {
+/** Taille choisie dans le menu maison de la barre typographique (lot 7). */
+async function pickSize(key) {
+  await f.locator('.lk-bar .ms-button[aria-label^="Taille"]').click();
+  await f.locator(`.ms-option[data-value="${key}"]`).click();
+}
+
+/** Ouvre la barre de style d'un texte (« Aa » au survol) ; recommence si la page se re-rend sous la souris. */
+async function openTextBar(sel = H1) {
   for (let attempt = 0; attempt < 4; attempt++) {
-    await f.locator(H1).scrollIntoViewIfNeeded();
+    await f.locator(sel).first().scrollIntoViewIfNeeded();
     await page.mouse.move(5, 5);
     await sleep(150);
-    await f.locator(H1).hover();
+    await f.locator(sel).first().hover();
     if (!(await until(f, () => Boolean(document.querySelector(".lk-aa")), null, 15000))) continue;
     if (await f.locator(".lk-aa").click({ timeout: 4000 }).then(() => true, () => false)) return until(f, () => Boolean(document.querySelector(".lk-bar")), null, 15000);
   }
@@ -302,9 +345,9 @@ if (run("A")) {
   ok("A3 « Aa » au survol du titre, barre de style ouverte", await openTextBar());
   await startSampler(f);
   arm();
-  await f.locator(".lk-bar select").first().selectOption("4xl");
+  await pickSize("4xl");
   ok("A3 typographie : un rafraîchissement lent est en vol", await refreshHeld());
-  await f.locator(".lk-bar select").first().selectOption("2xl");
+  await pickSize("2xl");
   await releaseStale();
   await settled();
   await sleep(2500);
@@ -353,6 +396,88 @@ if (run("A")) {
   noRollback("A5 nom du site (en-tête, deux modifications)", log, "brand", "Nom Deux", [brandBefore, "Nom Un", "Nom Deux"]);
   ok("A5 brouillon du site : « Nom Deux »", JSON.stringify(setting("siteDraft")?.snap ?? {}).includes("Nom Deux"));
 
+  /* A7-A9. Nouvelles éditions (lots 7 et 8) sur l'accueil : mêmes garanties que le texte du titre. */
+  {
+    const homeId = q("select page_id id from blocks where type = 'hero' limit 1")[0].id;
+    const board = q("select id from projects where slug = 'les-hauts-chemins'")[0].id;
+    f = await openEditor(homeId);
+    await sleep(1500);
+    const SCROLL = '[data-edit-type="hero"] [data-inline="scroll"]';
+    const PTITLE = `[data-edit-board="${board}"][data-edit-board-label] header [data-project-inline="title"]`;
+    const heroProps = () => draftOf(homeId)?.blocks?.find((b) => b.type === "hero")?.props;
+    const edit = async (sel, text) => {
+      await f.locator(sel).first().scrollIntoViewIfNeeded();
+      await f.locator(sel).first().dblclick({ position: { x: 8, y: 6 } });
+      await sleep(300);
+      await page.keyboard.press("Control+a");
+      await page.keyboard.type(text);
+      await page.keyboard.press("Enter");
+    };
+    const closeAnyBar = async () => {
+      if (await f.locator(".lk-close").count()) await f.locator(".lk-close").click();
+      await sleep(300);
+    };
+
+    /* A7. Libellé de défilement du hero : deux modifications rapprochées. */
+    const scrollBefore = (await f.locator(SCROLL).first().textContent())?.trim();
+    await startProbe(f, { scroll: [SCROLL, "text"] });
+    arm();
+    await edit(SCROLL, "Premier");
+    ok("A7 défilement : un rafraîchissement lent est en vol", await refreshHeld());
+    await closeAnyBar();
+    await edit(SCROLL, "Second");
+    await releaseStale();
+    await settled();
+    await sleep(2500);
+    log = await stopProbe(f);
+    noRollback("A7 libellé de défilement (deux modifications rapprochées)", log, "scroll", "Second", [scrollBefore, "Premier", "Second"]);
+    ok("A7 brouillon : « Second »", heroProps()?.scroll?.fr === "Second", JSON.stringify(heroProps()?.scroll));
+    await closeAnyBar();
+
+    /* A8. Texte de projet depuis le bloc qui le montre : deux modifications rapprochées. */
+    const titleBefore = (await f.locator(PTITLE).first().textContent())?.trim();
+    await startProbe(f, { title: [PTITLE, "text"] });
+    arm();
+    await edit(PTITLE, "Projet Un");
+    // Le texte posé est dans le DOM de la toile tout de suite (avant tout rendu du serveur, ici retardé de près d'une seconde).
+    ok("A8 texte de projet : affiché aussitôt, sans attendre le serveur", await until(f, ([sel, t]) => document.querySelector(sel)?.textContent === t, [PTITLE, "Projet Un"], 450));
+    ok("A8 texte de projet : un rafraîchissement lent est en vol", await refreshHeld());
+    await edit(PTITLE, "Projet Deux");
+    await releaseStale();
+    await settled();
+    await sleep(2500);
+    log = await stopProbe(f);
+    noRollback("A8 texte de projet (deux modifications rapprochées)", log, "title", "Projet Deux", [titleBefore, "Projet Un", "Projet Deux"]);
+    const overlay = q("select draft_text from projects where id = ?", board)[0]?.draft_text ?? "";
+    ok("A8 surcouche du projet : « Projet Deux »", overlay.includes("Projet Deux"), overlay);
+
+    /* A9. Couleur personnalisée du libellé de défilement : deux choix de suite. */
+    ok("A9 « Aa » au survol du libellé, barre ouverte", await openTextBar(SCROLL));
+    await f.locator(".lk-bar .tc-wheel").click();
+    ok("A9 sélecteur de couleur ouvert", await until(f, () => Boolean(document.querySelector(".cp .cp-area")), null, 15000));
+    const hex = f.locator(".cp .cp-hex");
+    await startProbe(f, { color: [SCROLL, "color"], title: [SCROLL, "text"] });
+    arm();
+    await hex.fill("#336699");
+    await hex.press("Enter");
+    ok("A9 couleur : un rafraîchissement lent est en vol", await refreshHeld());
+    await hex.fill("#993366");
+    await hex.press("Enter");
+    await releaseStale();
+    await settled();
+    await sleep(2500);
+    log = await stopProbe(f);
+    noRollback("A9 couleur personnalisée (deux choix rapprochés)", log, "color", "rgb(153, 51, 102)", ["rgb(51, 102, 153)", "rgb(153, 51, 102)"]);
+    ok("A9 brouillon : look.text.scroll.color", heroProps()?.look?.text?.scroll?.color === "#993366", JSON.stringify(heroProps()?.look));
+    // Un clic dans l'autre cadre (le panneau) ferme le sélecteur ET la barre (useDismiss).
+    await page.locator(".ve-status").click({ force: true }).catch(() => {});
+    ok("A9 clic dans le panneau : sélecteur fermé", await until(f, () => !document.querySelector(".cp"), null, 10000));
+
+    f = await openEditor(2);
+    await sleep(1500);
+    slow = true;
+  }
+
   /* A6. Conflit de version : la modification locale reste affichée. */
   q("select 1");
   {
@@ -395,6 +520,20 @@ if (run("B")) {
   const g0 = await geom();
   ok("B1 haut : la poignée suit le bord de la zone côté contenu", Math.abs(g0.ht.cy - g0.zt.bottom) <= 6, JSON.stringify(g0));
   ok("B2 bas : la poignée est sur le bord extérieur (bas) de la zone hachurée", Math.abs(g0.hb.cy - g0.zb.bottom) <= 6, JSON.stringify(g0));
+  // L'étiquette de valeur (« Auto · 48 px ») ne passe jamais sous la poignée : lisible, en haut comme en bas.
+  const labelsClear = () =>
+    f.evaluate(() =>
+      ["top", "bottom"].map((s) => {
+        const l = document.querySelector(`.lk-space-zone[data-side="${s}"] .lk-space-value`);
+        const h = document.querySelector(`.lk-space-handle[data-side="${s}"]`);
+        if (!l || !h) return null;
+        const a = l.getBoundingClientRect();
+        const b = h.getBoundingClientRect();
+        return !(a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top);
+      }),
+    );
+  const clear0 = await labelsClear();
+  ok("B2b repos : étiquettes affichées et libres de la poignée (haut et bas)", clear0.some((v) => v !== null) && clear0.every((v) => v !== false), JSON.stringify(clear0));
   await page.screenshot({ path: `${SHOTS}/B-bas-repos.png` });
   const padBottom = () => f.evaluate((sel) => Math.round(parseFloat(getComputedStyle(document.querySelector(sel)).paddingBottom)), SECTION);
   const p0 = await padBottom();
@@ -408,6 +547,8 @@ if (run("B")) {
   await sleep(300);
   const gDown = await geom();
   const label = await f.locator('.lk-space-zone[data-side="bottom"] .lk-space-value').textContent().catch(() => "");
+  const clearDrag = await labelsClear();
+  ok("B3b glissement : l'étiquette reste libre de la poignée", clearDrag[1] === true, JSON.stringify(clearDrag));
   await page.screenshot({ path: `${SHOTS}/B-bas-tire-vers-le-bas.png` });
   ok("B3 tirer vers l'extérieur (bas) : l'espace grandit et la poignée suit vers le bas", (await padBottom()) > p0 && gDown.hb.cy > g0.hb.cy + 5, `${p0} → ${await padBottom()}, poignée ${Math.round(g0.hb.cy)} → ${Math.round(gDown.hb.cy)} (${label})`);
   await page.mouse.move(cx, cy - 400, { steps: 14 });
@@ -460,7 +601,7 @@ if (run("C")) {
 
   /* C1. Barre de style du texte : clic ailleurs = fermée, réglage conservé. */
   ok("C1 barre de style ouverte", await openBar());
-  await f.locator(".lk-bar select").first().selectOption("3xl");
+  await pickSize("3xl");
   await clickElsewhere();
   ok("C1 clic ailleurs dans la toile : la barre se ferme", await gone(".lk-bar"));
   await settled();
@@ -503,6 +644,41 @@ if (run("C")) {
   await page.keyboard.press("Escape");
   await clickElsewhere();
   await gone(".lk-bar");
+
+  /* C4b. Menus du lot 7 (liste de taille, sélecteur de couleur) : même mécanisme de fermeture (useDismiss). */
+  ok("C4b barre rouverte", await openBar());
+  await f.locator('.lk-bar .ms-button[aria-label^="Taille"]').click();
+  ok("C4b liste des tailles ouverte", await shown(".ms-list"));
+  await f.locator(".lk-bar-head").click({ position: { x: 4, y: 4 }, force: true });
+  ok("C4b clic dans la barre, hors de la liste : la liste se ferme, la barre reste", (await gone(".ms-list")) && (await exists(".lk-bar")));
+  await f.locator('.lk-bar .ms-button[aria-label^="Taille"]').click();
+  await shown(".ms-list");
+  await page.getByRole("tab", { name: "Ajouter" }).click();
+  ok("C4b clic dans le panneau : liste ET barre fermées", (await gone(".ms-list")) && (await gone(".lk-bar")));
+  ok("C4b barre rouverte (sélecteur)", await openBar());
+  await f.locator(".lk-bar .tc-wheel").click();
+  ok("C4b sélecteur de couleur ouvert", await shown(".cp .cp-area"));
+  // Un curseur glissé jusqu'hors de la fenêtre de la toile ne ferme rien (capture du pointeur).
+  const slider = await f.locator(".cp-slider input").first().boundingBox();
+  const frameBox = await (await page.waitForSelector("iframe.ve-frame")).boundingBox();
+  // boundingBox d'un élément du cadre : déjà en coordonnées de la fenêtre principale.
+  const sx = slider.x + slider.width / 2;
+  const sy = slider.y + slider.height / 2;
+  await page.mouse.move(sx, sy);
+  await page.mouse.down();
+  await page.mouse.move(sx + 40, sy, { steps: 4 });
+  await page.mouse.move(frameBox.x + frameBox.width + 120, frameBox.y - 80, { steps: 8 });
+  await page.mouse.up();
+  await sleep(500);
+  ok("C4b curseur relâché hors de la toile : le sélecteur reste ouvert", await exists(".cp"));
+  await f.locator(".cp-area").focus();
+  await page.keyboard.press("Escape");
+  ok("C4b Échap : sélecteur fermé, barre ouverte", (await gone(".cp")) && (await exists(".lk-bar")));
+  await f.locator(".lk-bar .tc-wheel").click();
+  await shown(".cp .cp-area");
+  await page.getByRole("tab", { name: "Ajouter" }).click();
+  ok("C4b clic dans le panneau : sélecteur ET barre fermés", (await gone(".cp")) && (await gone(".lk-bar")));
+  await settled();
 
   /* C5. En-tête : « + Ajouter un lien » (page du site / lien libre), fermé de partout. */
   await f.locator('[data-edit-global="header"]').first().scrollIntoViewIfNeeded();
@@ -599,7 +775,8 @@ if (run("C")) {
   if (await role.count()) {
     await role.scrollIntoViewIfNeeded();
     await role.click();
-    await page.locator(".lp-role-body select").first().selectOption("2xl");
+    await page.locator('.lp-role-body .ms-button[aria-label^="Taille"]').first().click();
+    await page.locator('.ms-option[data-value="2xl"]').click();
     await page.locator(".lp-role-body .tc-font").click();
     ok("C9 panneau : menu des polices ouvert", await page.locator(".fm").count().then((n) => n === 1));
     await page.locator("h2, h3").first().click({ force: true });
@@ -621,6 +798,25 @@ if (run("C")) {
   await mobile.locator("#contenu").click({ position: { x: 10, y: 400 }, force: true });
   ok("C10 clic à l'extérieur : le menu mobile se ferme", await waitFor(async () => (await mobile.locator("#a-sidebar").getAttribute("data-open")) === "false", 5000));
   await mobile.close();
+
+  /* C11. Barre « Changer le fond » de l'ouverture (en bas à droite) : entière dans la toile, sur une ligne. */
+  f = await openEditor(1);
+  await sleep(1500);
+  await f.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  const fb = await (await page.waitForSelector("iframe.ve-frame")).boundingBox();
+  await page.mouse.move(5, 5);
+  await page.mouse.move(fb.x + fb.width / 3, fb.y + 260, { steps: 6 });
+  const heroBar = '[role=toolbar][aria-label="Fond de l\'ouverture"]';
+  if (await shown(heroBar)) {
+    await sleep(400);
+    const bar = await f.evaluate((sel) => {
+      const r = document.querySelector(sel).getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, h: r.height, vw: document.documentElement.clientWidth, vh: window.innerHeight };
+    }, heroBar);
+    ok("C11 barre du fond entière dans la toile (ni par le bas ni par la droite)", bar.left >= 0 && bar.right <= bar.vw && bar.top >= 0 && bar.bottom <= bar.vh, JSON.stringify(bar));
+    ok("C11 barre du fond sur une seule ligne", bar.h < 52, JSON.stringify(bar));
+    await page.screenshot({ path: `${SHOTS}/C11-barre-fond.png` });
+  } else ok("C11 barre du fond affichée au survol de l'ouverture", false);
 }
 
 console.log(errors.length ? `Erreurs de page : ${errors.slice(0, 5).join(" | ")}` : "Aucune erreur de page");

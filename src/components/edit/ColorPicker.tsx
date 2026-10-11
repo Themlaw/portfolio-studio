@@ -10,7 +10,7 @@
  * Écrit à la main (module pur src/lib/color.ts) : aucune dépendance de plus,
  * et pas de feuille injectée à l'exécution (la toile est une iframe sous CSP).
  * Clavier : flèches sur la zone (Maj = pas de 10), curseurs natifs, champs.
- * Fermeture : Échap et clic extérieur (implémentation locale).
+ * Fermeture : `useDismiss` (clic extérieur, Échap, focus dans l'autre cadre).
  *
  * La valeur émise est `#rrggbb[aa]` (format canonique de src/lib/color.ts) ou
  * une clé de la palette du thème ; la validation reste celle du schéma zod.
@@ -21,6 +21,8 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { hslToHsv, hsvToHsl, hsvToRgb, isCustomColor, over, parseColor, rgbaToHex, rgbToHsv, wheelGradient, type Hsva } from "@/lib/color";
 import { PALETTE, PALETTE_LABELS, type PaletteColor } from "@/lib/look";
 import { AA, ratio } from "@/themes/contrast";
+
+import { useDismiss } from "./useDismiss";
 
 const RECENT_KEY = "pf.recentColors";
 const RECENT_MAX = 8;
@@ -75,16 +77,9 @@ export default function ColorPicker({ value, onChange, swatch }: ColorPickerProp
   const pop = useRef<HTMLDivElement>(null);
   const id = useId();
 
-  useEffect(() => {
-    if (!open) return;
-    const doc = trigger.current?.ownerDocument ?? document;
-    const onDown = (e: Event) => {
-      const t = e.target as Node;
-      if (!pop.current?.contains(t) && !trigger.current?.contains(t)) setOpen(false);
-    };
-    doc.addEventListener("pointerdown", onDown, true);
-    return () => doc.removeEventListener("pointerdown", onDown, true);
-  }, [open]);
+  // Clic extérieur, Échap, focus dans l'autre cadre : le hook commun. Le bouton (aria-expanded) bascule lui-même ;
+  // un curseur glissé hors de la fenêtre garde sa capture de pointeur : aucun pointerdown extérieur.
+  useDismiss(pop, () => setOpen(false), { enabled: open });
 
   return (
     <>

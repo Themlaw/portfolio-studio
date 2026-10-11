@@ -134,6 +134,20 @@ export function previewText(target: { uid: string; path: string } | { field: str
   });
 }
 
+/**
+ * Texte d'un projet (titre, contexte, présentation, année) ou d'une place de planche, posé depuis la toile :
+ * montré partout où le projet apparaît (planche, titre lié d'un autre bloc) jusqu'au rendu du serveur.
+ */
+export function previewBoardText(target: { board: number; field: string; key?: string }, value: string, seq: number) {
+  const base = `[data-edit-board="${target.board}"]`;
+  const sel = target.key !== undefined ? `${base} [data-edit-slot="${CSS.escape(target.key)}"] [data-slot-inline="${CSS.escape(target.field)}"]` : `${base} [data-project-inline="${CSS.escape(target.field)}"]`;
+  setOverlay(`board-text:${target.board}:${target.key ?? ""}:${target.field}`, seq, {
+    apply: () => {
+      for (const el of document.querySelectorAll<HTMLElement>(sel)) if (!el.hasAttribute("data-editing")) writeText(el, value);
+    },
+  });
+}
+
 /* ---- Ordre des blocs ---------------------------------------------------------------- */
 
 /** Enveloppes d'édition des enfants d'un même parent (`null` : la page), en ordre du DOM. */

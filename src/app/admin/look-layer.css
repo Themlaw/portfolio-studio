@@ -27,8 +27,9 @@
 .lk-space-value {
   position: absolute;
   top: 50%;
-  left: 50%;
-  translate: -50% -50%;
+  /* À gauche de la zone : la poignée occupe le milieu du bord (jamais sous elle). */
+  left: 14px;
+  translate: 0 -50%;
   padding: 2px 7px;
   border-radius: 999px;
   background: var(--pe-accent);

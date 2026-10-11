@@ -25,6 +25,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { acceptToCanvas, EDIT_MSG, type DropTargetInfo, type FromCanvas, type Ghost } from "@/lib/edit/protocol";
+import { postIntent, previewBoardText } from "./edit/optimistic";
 
 import { RADII, RADIUS_LABELS, type Radius } from "@/lib/look";
 
@@ -182,7 +183,7 @@ function autoScroll(x: number, y: number) {
 
 const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
 
-type TextEdit = { el: HTMLElement; kind: "slot" | "project"; board: number; key?: string; field: string; original: string; value: string; rect: Rect; style: React.CSSProperties; committed: boolean; at: number };
+type TextEdit = { el: HTMLElement; kind: "slot" | "project"; board: number; key?: string; field: string; original: string; value: string; rect: Rect; style: React.CSSProperties };
 
 export default function BoardLayer({
   mode,
@@ -316,12 +317,6 @@ export default function BoardLayer({
             el.focus({ preventScroll: false });
           }
         }
-        // Texte validé : l'éditeur posé par-dessus s'efface quand la page montre la nouvelle valeur.
-        const t = textRef.current;
-        if (t?.committed && (!t.el.isConnected || t.el.textContent === t.value || Date.now() - t.at > 6000)) {
-          t.el.style.visibility = "";
-          setText(null);
-        }
         setTick((n) => n + 1);
       });
     };
@@ -369,12 +364,12 @@ export default function BoardLayer({
     };
     el.style.visibility = "hidden";
     const original = el.textContent ?? "";
-    setText({ el, kind, board, key: slotEl?.dataset.editSlot, field, original, value: original, rect: { ...rect, width: Math.max(rect.width, 160) }, style, committed: false, at: 0 });
+    setText({ el, kind, board, key: slotEl?.dataset.editSlot, field, original, value: original, rect: { ...rect, width: Math.max(rect.width, 160) }, style });
   }, [announce]);
 
   const finishText = useCallback((commit: boolean, value?: string) => {
     const t = textRef.current;
-    if (!t || t.committed) return;
+    if (!t) return;
     const next = (value ?? t.value).replace(/\s*\n\s*/g, " ");
     if (!commit || next === t.original) {
       t.el.style.visibility = "";
@@ -382,9 +377,19 @@ export default function BoardLayer({
       return;
     }
     const locale = document.documentElement.lang === "en" ? "en" : "fr";
-    if (t.kind === "slot" && t.key) post({ kind: "slot-text", board: t.board, key: t.key, field: t.field as "title" | "description", locale, value: next.slice(0, 2000) });
-    else post({ kind: "project-text", board: t.board, field: t.field as "title" | "context" | "description" | "year", locale, value: next.slice(0, t.field === "description" ? 2000 : 200) });
-    setText({ ...t, value: next, committed: true, at: Date.now() });
+    // Le texte posé reste affiché (edit/optimistic.ts) jusqu'à ce que le serveur le rende :
+    // aucun retour à l'ancienne valeur, y compris dans les autres blocs qui citent ce projet.
+    if (t.kind === "slot" && t.key) {
+      const value = next.slice(0, 2000);
+      const seq = postIntent({ kind: "slot-text", board: t.board, key: t.key, field: t.field as "title" | "description", locale, value });
+      previewBoardText({ board: t.board, field: t.field, key: t.key }, value, seq);
+    } else {
+      const value = next.slice(0, t.field === "description" ? 2000 : 200);
+      const seq = postIntent({ kind: "project-text", board: t.board, field: t.field as "title" | "context" | "description" | "year", locale, value });
+      previewBoardText({ board: t.board, field: t.field }, value, seq);
+    }
+    t.el.style.visibility = "";
+    setText(null);
   }, []);
 
   /* ---- Pointeur, clavier, fichiers --------------------------------------- */
@@ -689,7 +694,14 @@ export default function BoardLayer({
           // Fond de l'ouverture : en bas à DROITE — le texte de défilement (modifiable) occupe le bas à gauche.
           style={
             hoverMedia.kind === "background"
-              ? { top: mediaBox.top + Math.max(8, mediaBox.height - 46), left: mediaBox.left + mediaBox.width - 8, transform: "translateX(-100%)" }
+              ? (() => {
+                  // Le fond déborde souvent de la fenêtre (parallaxe, hero plus haut que la toile) :
+                  // la barre reste dans la partie visible, sans sortir de la toile ni par le bas ni par la droite.
+                  const view = document.documentElement;
+                  const bottom = Math.min(mediaBox.top + mediaBox.height - 46, window.scrollY + window.innerHeight - 54);
+                  const right = Math.min(mediaBox.left + mediaBox.width - 8, window.scrollX + view.clientWidth - 8);
+                  return { top: Math.max(mediaBox.top + 8, bottom), left: right, width: "max-content", transform: "translateX(-100%)" };
+                })()
               : { top: mediaBox.top + Math.max(8, mediaBox.height - 46), left: Math.max(window.scrollX + 4, mediaBox.left + 8) }
           }
           onPointerEnter={() => setHoverMedia(hoverMedia)}
@@ -786,7 +798,7 @@ export default function BoardLayer({
       {text && (
         <div
           className="pe-text-editor"
-          contentEditable={!text.committed}
+          contentEditable
           suppressContentEditableWarning
           role="textbox"
           aria-label="Modifier le texte"
