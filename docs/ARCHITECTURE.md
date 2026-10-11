@@ -793,6 +793,12 @@ libres ni de valeur arbitraire) : `src/lib/look.ts` (module pur, testé par
   styles de texte par chemin (`text["title"]`, `text["paragraphs.0"]`,
   `text["site.role"]`…), cadrage par champ média (`crop.mediaId` = point focal
   + zoom), fond du métier de l'ouverture (`roleBackdrop`).
+- **Typographie d'un texte** (lot 7) : tailles en échelle absolue de 11 crans
+  (`xs` 12 px … `7xl` jusqu'à 208 px, libellés avec leur valeur), gagnantes sur
+  les variantes du thème (préfixe de spécificité des règles de rôle) ; couleur
+  = clé de la palette ou couleur libre normalisée `#rrggbb[aa]` (sélecteur
+  `ColorPicker`, avertissement de contraste non bloquant via `ratio`) ; listes
+  maison `MenuSelect` (taille, graisse : graisses absentes grisées).
 - **Rendu** : `BlockList` enveloppe un bloc RÉGLÉ d'un `.blk`
   (`display: contents`, attributs `data-pt/pb/radius/th/tv/crop/role-bd`,
   variables `--crop-pos/--crop-zoom`) ; `src/app/look.css` (hors `@layer`)
