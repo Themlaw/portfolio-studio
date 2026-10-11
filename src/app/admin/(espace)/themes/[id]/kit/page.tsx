@@ -13,16 +13,18 @@ import KitTutorial from "@/components/admin/KitTutorial";
 import { KitApplyPanel, KitImportUpload, KitImportWatch } from "@/components/admin/KitImport";
 import PageHeader from "@/components/admin/PageHeader";
 import { assertAdmin } from "@/lib/auth/guard";
-import { arrowMirror, firstViewTotal, isApplicable, paletteFailures } from "@/lib/kit/apply";
+import { arrowMirror, firstViewTotal, isApplicable, kitColorFailures, paletteFailures, withKitColors } from "@/lib/kit/apply";
 import { loadSavedTheme } from "@/lib/kit/export-job";
 import type { SlotReport } from "@/lib/kit/import";
 import { beforePreviews, getKitImport, isImportId, listKitImports } from "@/lib/kit/import-job";
-import { SLOTS } from "@/lib/kit/spec";
+import { ALL_SLOTS } from "@/lib/kit/spec";
+import { contrastReport } from "@/themes/contrast";
+import { contrastRatio, isAuto, isNuance, resolvePalette, type NuanceKey } from "@/themes/palette";
 
 export const metadata = { title: "Kit Photoshop" };
 export const dynamic = "force-dynamic";
 
-const FORMAT: Record<string, string> = { svg: "SVG", "svg-mask": "SVG (forme teintée par le thème)", avif: "AVIF + WebP", "avif-mask": "AVIF (forme teintée par le thème)" };
+const FORMAT: Record<string, string> = { svg: "SVG", "svg-mask": "SVG (forme teintée par le thème)", avif: "AVIF + WebP", "avif-mask": "AVIF (forme teintée par le thème)", png: "PNG 32 et 64 px (écrans HiDPI)" };
 const ROLE: Record<string, string> = { bg: "Fond", bgDeep: "Fond profond", ink: "Texte", inkSoft: "Texte doux", primary: "Accent", secondary: "Secondaire", tertiary: "Tertiaire" };
 
 /** Phrase de la carte : « Flèche droite : redessinée », « Plan 3 : inchangé »… */
@@ -61,8 +63,14 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
   const counts = report ? { unchanged: report.slots.filter((s) => s.change === "unchanged").length, changed, warn: report.slots.filter((s) => s.status === "warn").length, error: report.slots.filter((s) => s.status === "error").length } : null;
   const palette = report?.palette ? Object.entries(report.palette.roles).map(([role, hex]) => ({ role, label: ROLE[role] ?? role, hex: hex! })) : null;
   const paletteProblem = report && palette ? paletteFailures(theme, report) : [];
+  // Couleurs repeintes (« 8 · Palette ») : avant / après, contraste du thème une fois appliquées.
+  const colorChanges = report?.colors?.filter((c) => c.change === "changed") ?? [];
+  const colorProblems = report && colorChanges.length ? kitColorFailures(theme, report) : [];
+  const after = report && colorChanges.length ? withKitColors(theme.tokens, report) : null;
+  const afterPairs = after ? contrastReport(after.color) : [];
+  const afterResolved = after ? resolvePalette(after.color, after.palette) : null;
   const pair = report ? arrowMirror(report) : null;
-  const mirror = pair && pair.from.preview ? { from: pair.from.label, to: SLOTS.find((x) => x.id === pair.to)!.label, preview: preview(pair.from, "apres") } : null;
+  const mirror = pair && pair.from.preview ? { from: pair.from.label, to: ALL_SLOTS.find((x) => x.id === pair.to)!.label, preview: preview(pair.from, "apres") } : null;
 
   return (
     <>
@@ -122,7 +130,7 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
               {report.ignoredLayers.length > 0 && <p className="a-help">Calques ignorés : {report.ignoredLayers.join(" ; ")}.</p>}
               <div className="a-kit-cards">
                 {report.slots.map((s) => {
-                  const spec = SLOTS.find((x) => x.id === s.id);
+                  const spec = ALL_SLOTS.find((x) => x.id === s.id);
                   return (
                     <article key={s.id} className="a-kit-card" data-status={s.status} data-change={s.change} data-slot={s.id}>
                       <h3>
@@ -156,7 +164,7 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                         {s.change === "unchanged"
                           ? "Gardé tel quel (pas reconverti)."
                           : s.chosen
-                            ? `${FORMAT[s.chosen]} · ${formatBytes(s.bytes ?? 0)}${s.fidelity ? ` · contour à ${s.fidelity.deviation.toFixed(2)} px` : ""}`
+                            ? `${FORMAT[s.chosen]} · ${formatBytes(s.bytes ?? 0)}${s.fidelity ? ` · contour à ${s.fidelity.deviation.toFixed(2)} px` : ""}${s.hotspot ? ` · point chaud ${s.hotspot.x}, ${s.hotspot.y} px` : ""}`
                             : s.change === "missing"
                               ? `L'élément actuel du thème est gardé.${spec ? ` Calque attendu : « ${spec.layer} ».` : ""}`
                               : ""}
@@ -165,7 +173,61 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                   );
                 })}
               </div>
+              {report.colors && (
+                <section className="a-kit-colors" aria-labelledby="kit-colors-title" data-testid="kit-colors-review">
+                  <h3 id="kit-colors-title">Couleurs de la palette</h3>
+                  {colorChanges.length === 0 ? (
+                    <p className="a-help">Aucune pastille repeinte : les couleurs du thème restent telles quelles (les nuances « auto » suivent leur base).</p>
+                  ) : (
+                    <>
+                      <p className="a-help">
+                        {colorChanges.length} couleur{colorChanges.length > 1 ? "s repeintes" : " repeinte"} ; {report.colors.filter((c) => c.change === "unchanged").length} inchangée
+                        {report.colors.filter((c) => c.change === "unchanged").length > 1 ? "s" : ""} (une nuance « auto » suit sa base).
+                      </p>
+                      <ul className="a-kit-color-list">
+                        {colorChanges.map((c) => {
+                          const wasAuto = isNuance(c.key) && isAuto(theme.tokens.color, theme.tokens.palette, c.key as NuanceKey);
+                          const pairs = afterPairs.filter((p) => p.fg === c.key || p.bg === c.key || (c.key === "secondary" && p.fg === "eyebrow"));
+                          const scrim = afterResolved && (c.key === "scrim" || c.key === "onScrim") ? contrastRatio(afterResolved.onScrim, afterResolved.scrim) : null;
+                          const worst = Math.min(...pairs.map((p) => p.ratio), scrim ?? Infinity);
+                          return (
+                            <li key={c.key} data-color={c.key}>
+                              <strong>{c.label}</strong>
+                              <span className="a-kit-color-pair">
+                                <span className="a-chip" style={{ background: c.before }} aria-hidden="true" />
+                                <code>{c.before}</code>
+                                <span aria-hidden="true">→</span>
+                                <span className="a-chip" style={{ background: c.after }} aria-hidden="true" />
+                                <code>{c.after}</code>
+                              </span>
+                              {Number.isFinite(worst) && (
+                                <span className={`a-ratio ${worst < 4.5 ? "a-ratio-bad" : "a-ratio-ok"}`} title={pairs.map((p) => `${p.label} : ${p.ratio.toFixed(2)}:1`).join("\n")}>
+                                  {worst < 4.5 ? "✗" : "✓"} {worst.toFixed(1)}:1
+                                </span>
+                              )}
+                              {wasAuto && <span className="a-help">était « auto » : devient choisie</span>}
+                              {c.messages.map((m) => (
+                                <span key={m} className="a-help">
+                                  ⚠ {m}
+                                </span>
+                              ))}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </>
+                  )}
+                  {report.colors
+                    .filter((c) => c.change === "missing")
+                    .map((c) => (
+                      <p key={c.key} className="a-help">
+                        ⚠ {c.label} : {c.messages[0] ?? "pastille introuvable"} (couleur actuelle gardée).
+                      </p>
+                    ))}
+                </section>
+              )}
               <KitApplyPanel
+                colors={colorChanges.length ? { count: colorChanges.length, problem: colorProblems.length ? `Contraste insuffisant une fois appliquées (${colorProblems[0]}) : corrige ces couleurs dans Photoshop, ou applique sans elles.` : null } : null}
                 themeId={theme.id}
                 importId={state.meta.id}
                 themeName={theme.name}

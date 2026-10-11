@@ -14,7 +14,8 @@ import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
-import { SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
+import { cleanSiteStyles, SiteStylesSchema } from "@/lib/look";
+import { canonicalSnap, SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
 
 import { touchPage } from "./boards";
 import type { DraftRefusal } from "./drafts";
@@ -48,10 +49,19 @@ export function readPublishedSite(): SiteSnap {
           return { label: String(x.label ?? ""), href: String(x.href ?? ""), ...(typeof x.kind === "string" ? { kind: x.kind } : {}) };
         })
     : [];
+  // Styles du site (lot 2) : un réglage illisible est ignoré, jamais bloquant.
+  const styles = SiteStylesSchema.safeParse(setting("styles")).data;
   const snap = {
-    identity: { name: typeof site.name === "string" ? site.name : "", role: site.role ? asL(site.role) : L0, email: typeof site.email === "string" ? site.email : "", credit: site.credit ? asL(site.credit) : L0 },
+    identity: {
+      name: typeof site.name === "string" ? site.name : "",
+      role: site.role ? asL(site.role) : L0,
+      email: typeof site.email === "string" ? site.email : "",
+      credit: site.credit ? asL(site.credit) : L0,
+      ...(site.headerSocials === true ? { headerSocials: true } : {}),
+    },
     nav: readNav(),
     socials,
+    ...(styles && Object.keys(styles).length ? { styles } : {}),
   };
   // Une donnée ancienne invalide n'empêche pas l'édition : on garde ce qui passe.
   const parsed = SiteSnapSchema.safeParse(snap);
@@ -61,6 +71,7 @@ export function readPublishedSite(): SiteSnap {
     nav: SiteSnapSchema.shape.nav.safeParse(snap.nav).data ?? [],
     // Un lien invalide ancien devient « à compléter » (gardé, non publié) plutôt que de disparaître.
     socials: socials.map((s) => (SiteSnapSchema.shape.socials.element.safeParse(s).success ? s : { label: s.label.slice(0, 40) || "Réseau", href: "#" })) as SiteSnap["socials"],
+    ...(snap.styles ? { styles: snap.styles } : {}),
   };
 }
 
@@ -111,10 +122,13 @@ export function saveSiteDraft(pageId: number, input: unknown, rev: unknown): Act
   const locked = siteLockedBy(pageId);
   if (locked) return fail(`L'en-tête est en cours de modification sur la page ${locked} : publie-la ou abandonne-la d'abord.`);
   // Autonettoyage : pages disparues (ou réservées) et doublons retirés, jamais de refus bloquant.
-  const snap = { ...parsed.data, nav: cleanNav(parsed.data.nav) };
+  const styles = cleanSiteStyles(parsed.data.styles);
+  const { styles: _drop, ...rest } = parsed.data;
+  void _drop;
+  const snap: SiteSnap = canonicalSnap({ ...rest, nav: cleanNav(parsed.data.nav), ...(styles ? { styles } : {}) });
   const db = getDb();
   const before = readSiteDraft()?.snap ?? readPublishedSite();
-  const same = JSON.stringify(snap) === JSON.stringify(readPublishedSite());
+  const same = JSON.stringify(snap) === JSON.stringify(canonicalSnap(readPublishedSite()));
   try {
     db.transaction(() => {
       if (!touchPage(pageId, rev as number)) throw new ConflictError();
@@ -138,6 +152,9 @@ export function applySiteDraft(pageId: number): boolean {
   const site = (setting("site") ?? {}) as Record<string, unknown>;
   writeSetting("site", { ...site, ...draft.snap.identity });
   writeSetting("socials", draft.snap.socials);
+  // Styles du site (lot 2) : absents = ceux du thème.
+  if (draft.snap.styles && Object.keys(draft.snap.styles).length) writeSetting("styles", draft.snap.styles);
+  else getDb().delete(schema.settings).where(eq(schema.settings.key, "styles")).run();
   // Le brouillon a suivi les changements faits ailleurs (nav.ts) ; les pages
   // dont l'appartenance au menu change ont leur brouillon mis à jour (case
   // « dans le menu »), sauf la page publiée (son brouillon est vidé).

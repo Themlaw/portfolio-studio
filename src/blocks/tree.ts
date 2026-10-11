@@ -19,7 +19,7 @@ export const MAX_CHILDREN = 24;
 /** Niveaux de conteneurs au plus (page > conteneur > conteneur > bloc simple). */
 export const MAX_NESTING = 2;
 
-const SIMPLE = ["section-title", "project-board", "image", "rich-text", "video-single"];
+const SIMPLE = ["section-title", "project-board", "image", "rich-text", "video-single", "cv"];
 
 /**
  * Conteneurs connus et types acceptés. Le registre (registry.ts) reprend

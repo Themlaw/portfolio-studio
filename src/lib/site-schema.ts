@@ -6,6 +6,8 @@
  */
 import { z } from "zod";
 
+import { SiteStylesSchema } from "./look";
+
 const Loc = (max: number) => z.strictObject({ fr: z.string().trim().max(max), en: z.string().trim().max(max) });
 
 /** Espaces, caractères de contrôle, bruts ou encodés (%00–%20, %7F) : jamais dans un lien. */
@@ -100,11 +102,28 @@ export const IdentitySchema = z.strictObject({
   role: Loc(160),
   email: z.union([z.literal(""), z.string().trim().max(254).regex(EMAIL, "Adresse e-mail invalide (ex. nom@domaine.fr).")]),
   credit: Loc(160),
+  /** Icônes des réseaux dans l'en-tête, avant FR/EN (v0.13.1) ; absent = non. */
+  headerSocials: z.boolean().optional(),
 });
 
-/** Instantané de tout ce qui est commun aux pages (en-tête, pied, réseaux). */
-export const SiteSnapSchema = z.strictObject({ identity: IdentitySchema, nav: NavSchema, socials: SocialsSchema });
+/**
+ * Instantané de tout ce qui est commun aux pages (en-tête, pied, réseaux ;
+ * lot 2 : styles du site — textes par rôle, arrondi des images).
+ */
+export const SiteSnapSchema = z.strictObject({ identity: IdentitySchema, nav: NavSchema, socials: SocialsSchema, styles: SiteStylesSchema.optional() });
 export type SiteSnap = z.infer<typeof SiteSnapSchema>;
+
+/**
+ * Forme canonique d'un instantané du site : `headerSocials: false` ≡ absent
+ * (sinon cocher puis décocher laisserait un brouillon « différent » du
+ * publié, et un bouton Publier pour rien).
+ */
+export function canonicalSnap<T extends { identity: { headerSocials?: boolean } }>(snap: T): T {
+  if (snap.identity.headerSocials === true) return snap;
+  const { headerSocials: _drop, ...identity } = snap.identity;
+  void _drop;
+  return { ...snap, identity };
+}
 
 /** Réseau reconnu d'après l'adresse (sans la réécrire). */
 const HOSTS: [RegExp, Network][] = [
@@ -161,3 +180,14 @@ export const NETWORK_LABELS: Record<Network, string> = {
   website: "Site web",
   other: "Autre lien",
 };
+
+/** Réseau retenu pour un lien ajouté : celui choisi, sinon reconnu d'après l'adresse. */
+export function socialKind(network: Network, href: string): Network {
+  return network === "other" ? (detectNetwork(href) ?? "other") : network;
+}
+
+/** Réseau après modification de l'adresse : reconnu si l'ancien était générique. */
+export function editedKind(previous: Network | undefined, href: string): Network | undefined {
+  const found = detectNetwork(href);
+  return found && (!previous || previous === "website" || previous === "other") ? found : previous;
+}

@@ -5,7 +5,7 @@
  */
 import { assertAdmin } from "@/lib/auth/guard";
 import { isImportId, readPreview } from "@/lib/kit/import-job";
-import { SLOTS } from "@/lib/kit/spec";
+import { ALL_SLOTS } from "@/lib/kit/spec";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   await assertAdmin();
   const { id, importId, slot, which } = await params;
   if (!/^[a-z0-9-]{1,80}$/.test(id) || !isImportId(importId) || (which !== "avant" && which !== "apres")) return notFound();
-  const spec = SLOTS.find((s) => s.id.replace(/\//g, "--") === slot);
+  const spec = ALL_SLOTS.find((s) => s.id.replace(/\//g, "--") === slot);
   if (!spec) return notFound();
   const data = await readPreview(importId, id, spec.id, which);
   if (!data) return notFound();

@@ -207,9 +207,9 @@ Aucune logique de thème dans les composants : `css.ts` émet des variables
 | Plans du hero | `<img>` SVG ou `<picture>` AVIF/WebP, rognés et replacés dans la toile tenue en « cover » (unités `cq*`), ThumbHash en fond jusqu'au chargement, plans opaques seulement (sur un plan détouré, l'alpha flouté déborde et dessine la boîte : bande claire, phase 6c) ; `complete` lu au montage (image chargée avant l'hydratation) ; test `npm run test:kit-hero` ; plan 1 `fetchpriority="high"`, les autres `low` ; parallaxe et `prefers-reduced-motion` inchangés | plan par plan : le calque SVG du thème |
 | Signature | `mask-image` teinté `--color-ink` (`--color-primary` au survol), ratio de l'asset ; le nom reste lu (texte masqué visuellement) | le nom en texte |
 | Papier | tuile `image-set()` AVIF/WebP en fond (affichée à 50 % : tuile 2×) ; superposée au hero (`mix-blend-mode: multiply`, opacité `overHero`, jeton `--t-kit-paper-hero`, défaut discret 0,35, plafond 0,6) | `texture` du thème |
-| Cadre | `border-image` (9-slice, marges du kit) sur le passe-partout de la visionneuse | passe-partout actuel |
+| Cadre | `border-image` (9-slice, marges du kit) sur les entrées de collection (`.tile-media`, tuiles de l'accueil) ; plus sur la visionneuse depuis le lot médias (image agrandie posée à nu, fond gris neutre) | passe-partout actuel |
 | Trait | `mask-image` étiré (SVG du trait en `preserveAspectRatio="none"` à l'import : sinon il garde ses proportions au centre de la boîte) : soulignement actif de la nav (`--color-primary`), filets `hr.rule` (`--color-line`), barre du rail : poignée 16 px de longueur proportionnelle (≥ 3 px d'encre au plus mince, mesuré par `kit-contrast.mjs`), piste dessinée en `::before` (un masque sur la piste rognerait la poignée) teinte encre 28 % sur filet | traits CSS |
-| Icônes | `mask-image` + `currentColor` sur les `[data-icon]` (flèches du rail et de la visionneuse, fermer, lecture) | glyphes et SVG actuels |
+| Icônes | `mask-image` + `currentColor` sur les `[data-icon]` (flèches sur les bords des planches (lot médias) et de la visionneuse, fermer, lecture) | glyphes et SVG actuels |
 | Scotch | image à la place du scotch CSS de la variante `taped` | scotch CSS |
 
 ### Fidélité du contour
@@ -304,7 +304,7 @@ titre, marges du cadre, identifiant du kit), puis :
 | 1 · Paysage d'accueil | Plan 1 — le plus lointain (ciel), Plan 2 … Plan 5 — premier plan | 30, 440 | 2880 × 1600 |
 | 2 · Signature | Signature | 30, 2170 | 1200 × 300 |
 | 3 · Papier | Papier (tuile) | 2390, 2170 | 512 × 512 |
-| 4 · Cadre des images agrandies | Cadre | 30, 2812 | 300 × 300 |
+| 4 · Cadre des entrées de collection | Cadre | 30, 2812 | 300 × 300 |
 | 5 · Trait | Trait | 1490, 2812 | 1200 × 80 |
 | 6 · Icônes | Flèche gauche, Flèche droite, Fermer, Lecture | 30 + n × 280, 3442 | 128 × 128 |
 | 7 · Scotch | Scotch | 2158, 3442 | 400 × 160 |
@@ -324,7 +324,7 @@ Le scotch est un emplacement comme les autres (« 7 · Scotch ») : le mot
 « accessoires » disparaît, il n'y a jamais eu qu'un accessoire. Chaque groupe
 contient tout en bas un calque verrouillé **« Aperçu — ne pas modifier »** : la
 carte blanche (percée à l'endroit des cases), le titre au-dessus, la phrase « où
-ça apparaît » (« Ce que tu dessines ici devient les flèches au-dessus des
+ça apparaît » (« Ce que tu dessines ici devient les flèches sur les bords des
 planches, la croix de l'image agrandie et le bouton lecture. »), une **vignette
 schématique du site** aux couleurs du thème avec la zone surlignée en rose (une
 capture réelle demanderait un navigateur à l'export, absent de l'image
@@ -447,3 +447,162 @@ redessinée, masque SVG 128 × 128, écart 0,49 px —, noms, sous-groupes, fusi
 préalable), `test:auth` TI1–TI7 (gardes, refus avant décodage, import et
 application en production), `test:e2e-kit` (aller-retour et fichier réel, un
 chromium).
+
+## 8. Palette du thème et curseurs (kit v3, lot 4)
+
+Retours de l'artiste (Photoshop, Windows) : « pouvoir choisir la couleur “plus
+foncée” dans le kit Photoshop, globalement un choix plus poussé de la palette » ;
+« dans le kit, pouvoir changer la souris (normal et clic) ».
+
+### Modèle de palette (`src/themes/palette.ts`)
+
+Six **couleurs de base**, toujours choisies, et leurs **nuances**, chacune
+**auto** (dérivée de sa base en OKLCH : elle suit la base quand celle-ci change)
+ou **choisie** (forcée). Groupes, dans l'ordre de l'éditeur et du kit :
+
+| Groupe (base) | Nuance | Jeton | Règle « auto » |
+|---|---|---|---|
+| Fond (`bg`) | profond | `bgDeep` | luminosité OKLCH −0,025 (+0,025 sur un thème sombre), chroma × 1,5 |
+| | filets | `line` | 12 % du texte mélangé au fond (OKLab) ; transparence acceptée si choisie |
+| Surface (`surface`) | — | | |
+| Texte (`ink`) | secondaire | `inkSoft` | texte éclairci vers le fond (35 % en OKLab), réduit jusqu'à l'AA sur `bg`, `bgDeep`, `surface` |
+| | ombres | `shadow` | le texte (#000000 sur un thème sombre) — règle d'avant |
+| Action (`primary`) | survol | `primaryHover` | luminosité OKLCH −0,06 (+0,06 sur un thème sombre) |
+| | texte dessus | `onPrimary` | blanc, ou la couleur la plus sombre du thème si elle se lit mieux |
+| Accent secondaire (`secondary`) | étiquettes | `eyebrow` | l'accent secondaire — règle d'avant |
+| Détails (`tertiary`) | — | | |
+| Visionneuse (sans base) | voile | `scrim` | le texte (le fond sur un thème sombre) — règle d'avant |
+| | texte | `onScrim` | le fond (le texte sur un thème sombre) — règle d'avant |
+
+Clair / sombre : luminance relative du fond < 0,2 (même seuil que `css.ts`).
+Réglages : `DERIVE` dans `palette.ts`.
+
+**Stockage** (schéma : blocs délimités « Palette (lot 4) » dans `schema.ts`) :
+
+- nuances **enregistrées** (`bgDeep`, `line`, `inkSoft`, `primaryHover`,
+  `onPrimary`) : toujours présentes dans `tokens.color` avec leur valeur
+  effective (tout le code qui les lit est inchangé) ; « auto » = listées dans
+  `tokens.palette.auto`, recalculées à chaque changement d'une base
+  (`normalizePalette`, aussi côté serveur à l'enregistrement : jamais la valeur
+  du client) et au rendu (`resolvePalette`) ;
+- nuances **facultatives** (`eyebrow`, `shadow`, `scrim`, `onScrim`) : absentes
+  = auto, présentes = choisies.
+
+API : `resolvePalette(color, palette)` (toutes les couleurs, pour le rendu,
+l'aperçu, le kit), `isAuto`, `setNuance(color, palette, clé, valeur | null)`
+(`null` = revenir à auto), `setBase` (les nuances auto suivent),
+`PALETTE_GROUPS` (libellés, règles en clair), `paletteLabel` (« Action ·
+survol »). Contraste : toujours `contrast.ts` ; en plus, le texte sur le voile
+(`onScrim` / `scrim`) doit tenir 4,5:1 (éditeur, serveur, application du kit).
+
+**Migration : aucune.** Un thème d'avant n'a pas de `tokens.palette` : ses
+nuances enregistrées sont « choisies » à leur valeur actuelle, ses nuances
+facultatives absentes sont dérivées par la règle d'avant. Rendu identique,
+vérifié variable par variable sur chaque preset (`scripts/test-palette.mjs`).
+« Revenir à auto » dans l'éditeur fait passer une nuance à la dérivation OKLCH
+(la valeur proposée est affichée sur le bouton).
+
+**Pour un nouveau thème (lot 5)** : donner les 6 bases ; pour chaque nuance
+enregistrée, soit une valeur, soit l'inscrire dans `palette.auto` (la valeur
+écrite est alors recalculée : mettre la valeur de `resolvePalette` pour que le
+fichier dise vrai) ; omettre les facultatives pour la règle par défaut.
+`npm run check:contrast` et `node --import tsx scripts/test-palette.mjs`.
+
+### Éditeur (Admin → Thèmes → un thème, panneau « Palette »)
+
+Un cadre par groupe : la base, puis ses nuances avec leur état (« auto » /
+« choisie »), la règle auto en clair, « Revenir à auto » (avec la valeur
+proposée), contraste en direct et « Ajuster » comme avant. Au-dessus, un
+**échantillon de composants** (étiquette, titre, texte secondaire, lien, bouton
+et son survol, filet, carte et son ombre, fond profond, voile avec sa légende)
+aux couleurs de la palette éditée, en plus de l'aperçu du site. Le panneau
+« Styles du site » de l'éditeur visuel n'existe pas en v0.13.0 : pas d'accès
+depuis la toile (à brancher s'il apparaît).
+
+### Curseurs
+
+- `Theme.assets.kit.cursors` : `default` et `pointer` (PNG 32 × 32 et 64 × 64
+  sous `/media/kit/<hash16>.png`, point chaud `x`, `y` en px CSS 0–31), `off`
+  (désactivés depuis l'éditeur de thème : curseurs du système, dessins gardés).
+- `css.ts` émet, seulement si un curseur est présent et non désactivé,
+  `--t-cursor-default` (`url(png) x y, auto`), `--t-cursor-pointer`
+  (`url(png) x y, pointer`), leurs versions `-hd` (`image-set(… 1x, … 2x) x y,
+  repli`) et `data-kit-cursor` / `data-kit-cursor-pointer` sur `<html>`.
+- `variants.css` : `body` prend le curseur normal ; liens, boutons,
+  `[role=button]`, `summary`, `label[for]`, `select`, cases à cocher, barre du
+  rail prennent le « clic » ; HiDPI sous `@supports (cursor: image-set(…))` (une
+  déclaration avec une variable invalide au calcul ne retomberait pas sur la
+  précédente) ; désactivés : curseur normal ; **champs de texte : `cursor:
+  text`** (le curseur est hérité, sans cette règle ils perdraient la barre de
+  saisie). Site public seulement : l'admin a sa propre feuille ; la toile de
+  l'éditeur visuel et l'aperçu du thème montrent le site, donc les curseurs.
+  Une image cliquable peut poser `cursor: var(--t-cursor-pointer, pointer)`.
+- Rendu ≤ 32 px CSS par construction (PNG 1x de 32 px, 2x déclaré `2x`).
+- Visibilité (`src/themes/cursor.ts`) : part des pixels opaques à ≥ 3:1 contre
+  `bg`, `bgDeep`, `surface` ; sous 15 % : « presque invisible » (revue de
+  l'import et éditeur de thème). La flèche du système (noire au contour blanc)
+  passe sur fond clair comme sombre.
+
+### Kit v3 : groupes « 8 · Palette » et « 9 · Curseur »
+
+Document **4000 × 4880** (une rangée de plus sous « 6 · Icônes » / « 7 ·
+Scotch » ; les cases 1 à 7 ne bougent pas). Les kits v2 (4000 × 4000) et v1
+restent importés ; sans ces groupes, ni palette ni curseur ne sont rapportés.
+
+| Groupe | Calques | Case(s) | Taille |
+|---|---|---|---|
+| 8 · Palette | une pastille par couleur et par nuance, nommée « Fond », « Fond · profond », « Action · survol », « Visionneuse · voile »… (15) | colonne par groupe, à 0 + 30 + n × 250, 4042 + 30 + rang × 250 | 150 × 150 |
+| 9 · Curseur | groupes « Normal » et « Clic » : calque « Dessin » + repère « point chaud » | 2770 et 3000, 4092 | 64 × 64 (= 32 px CSS) |
+
+- **Pastilles** : aplats aux coins arrondis écrits pixel par pixel (couleur
+  exacte, transparence des filets comprise), pré-remplis avec la valeur
+  actuelle ; sous chaque pastille, son nom et « (auto) » si la nuance suit sa
+  base. Consigne de la carte : « Repeins une pastille pour changer cette
+  couleur ; laisse-la telle quelle pour la garder (une nuance « auto » suit
+  alors sa couleur de base) », Alt+Maj+Retour arrière pour remplir.
+- **Lecture** : couleur de remplissage si Photoshop en a fait un calque de
+  forme (`vectorFill`), sinon la couleur la plus présente des pixels visibles
+  (avertissement sous 50 %) ; opacité ignorée sauf filets et détails. Comparée
+  à la couleur exportée (manifeste : `colors`) — empreinte identique ou même
+  couleur : **inchangée** (une nuance auto reste auto) ; sinon **changée**
+  (forcée à l'application). Sans kit d'origine reconnu : comparée à la palette
+  actuelle du thème (passée à l'enfant par `import-job`).
+- **Curseurs** : pré-remplis avec une flèche et une main noires au contour
+  blanc (représentation des curseurs du système) ou les curseurs déjà
+  dessinés ; repère « point chaud » = anneau rose de 11 px centré sur le point
+  (pointe de la flèche : 4, 4 ; bout de l'index : 26, 4). À l'import : le repère
+  est retiré de l'aplatissement, son centre donne le point chaud (absent :
+  défaut et message ; hors case : ramené au bord) ; empreinte du dessin ET point
+  chaud comparés au manifeste (`hotspots`) ; changé → PNG 64 × 64 et 32 × 32
+  (lanczos), palette ≤ 256 couleurs si plus léger ; case vide ou inchangée :
+  curseur actuel gardé (le système si aucun).
+- **Revue** : section « Couleurs de la palette » (avant → après, contraste
+  après application, « était auto : devient choisie ») ; les curseurs ont leur
+  carte comme les autres éléments (avant / après, poids, point chaud). Case
+  « Appliquer les couleurs repeintes » (cochée sauf contraste en échec, refusé
+  aussi côté serveur) ; « Appliquer au thème » : bases d'abord (les nuances auto
+  suivent), puis nuances forcées ; de nouveaux curseurs réactivent les curseurs
+  sur la copie.
+
+### Mesures (VM, 2026-10-02)
+
+Export v3 de galerie-lumineuse (`scripts/kit-poc/export-kit.mts`, en
+processus, `MALLOC_ARENA_MAX=2`, deux essais) : **PSD 11,7 Mo, 53 calques,
+3,6–3,8 s, pic 363–378 Mo** (v2 mesuré de la même façon : 9,6 Mo, 30
+calques, 340–362 Mo). `KIT_MEM_DEBUG=1` donne le pic par étape : le paysage
+reste le gros morceau (+150 Mo), palette et curseurs ≈ +40 Mo de rasters.
+Deux économies compensent le document plus haut :
+- écriture ag-psd d'un document déclaré « 1 × 1 » (en-tête réécrit ensuite) :
+  ag-psd allouait sinon un tampon de 8 × l × h et un composite vide (≈ 230 Mo
+  pour 4000 × 4880), jetés aussitôt ;
+- composite écrit au format natif de libvips (`.v`, non compressé) et relu
+  ligne à ligne sur le disque pour le RLE, au lieu d'un PNG décodé en flux
+  (+120 Mo mesurés à cette étape avec le PNG). Composite relu identique.
+  Ce fichier (~75 Mo) va dans `${DATA_DIR}/cache/kits/`, **jamais dans `/tmp`**
+  (un tmpfs le compterait en mémoire du conteneur) ; supprimé en fin d'export,
+  et les restes d'un export tué (plafond mémoire, durée) au suivant.
+
+Tests : `scripts/test-palette.mjs` (migration, auto / forcé, OKLCH, schéma,
+CSS des curseurs, visibilité) et la section « Kit v3 » de
+`scripts/test-kit-import.mjs` (aller-retour réel : export, pastilles et
+curseur modifiés avec ag-psd, import, application).

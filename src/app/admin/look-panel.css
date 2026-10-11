@@ -1,0 +1,95 @@
+/* ==========================================================================
+   Panneau « Mise en page » et « Styles du site » de l'éditeur visuel (lot 2)
+   — src/components/admin/editor/LookPanel.tsx. Jeu de tokens de l'admin.
+   ========================================================================== */
+.ve {
+  --lk-ink: var(--admin-ink);
+  --lk-ink-soft: var(--admin-ink-soft);
+  --lk-surface: var(--admin-surface);
+  --lk-line: var(--admin-line-strong);
+  --lk-accent: var(--admin-accent);
+  --lk-accent-soft: var(--admin-accent-soft);
+  --lk-font: var(--admin-font-ui);
+}
+.lp {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--admin-line);
+}
+.lp-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.lp-help {
+  margin: 0;
+  color: var(--admin-ink-soft);
+  font-size: 12px;
+}
+.lp-field {
+  display: grid;
+  gap: 5px;
+}
+.lp-label {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.lp-seg {
+  flex-wrap: wrap;
+  width: fit-content;
+}
+.lp-seg button[aria-pressed="true"] {
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+  font-weight: 600;
+}
+.lp-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+}
+.lp-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.lp-roles {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lp-roles li {
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+}
+.lp-roles li[data-open] {
+  border-color: var(--admin-line-strong);
+}
+.lp-role {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--admin-ink);
+  font: 600 13px/1 var(--admin-font-ui);
+  cursor: pointer;
+}
+.lp-role small {
+  color: var(--admin-ink-soft);
+  font-weight: 500;
+}
+.lp-role-body {
+  padding: 4px 8px 10px;
+}

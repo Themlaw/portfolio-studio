@@ -30,12 +30,28 @@ export const projectBoardSchema = z.object({
 export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer<typeof projectBoardSchema>; ctx: BlockContext }) {
   const slug = props.project ?? ctx.project;
   const project = slug ? await getProjectBoard(slug, ctx.locale, props.collection) : null;
-  if (project) return <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} />;
+  if (project) {
+    const strip = <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} />;
+    // Toile : les images de ce projet sont en cours de modification sur une autre page
+    // (son brouillon est montré ici) : on le dit, plutôt qu'un refus muet au premier geste.
+    if (!ctx.edit || !project.edit?.heldBy) return strip;
+    return (
+      <>
+        <div className="shell" data-edit-board-held={project.edit.heldBy} lang="fr">
+          <p className="pe-board-held">
+            Images en cours de modification sur la page « {project.edit.heldBy} » : ordre et images de ce brouillon montrés ici. Modifie-les sur
+            cette page, ou publie-la d&apos;abord.
+          </p>
+        </div>
+        {strip}
+      </>
+    );
+  }
   if (!ctx.edit) return null;
   // Dans un conteneur encore sans projet : la planche attend le choix du conteneur.
   if (ctx.parent && !props.project) {
     return (
-      <section className="shell py-[clamp(2rem,5vw,3.5rem)]" lang="fr">
+      <section className="shell py-[var(--t-board-pad)]" lang="fr">
         <p className="pe-wait" data-edit-board-wait="">
           Planche du projet : choisis d&apos;abord le projet du conteneur.
         </p>
@@ -43,7 +59,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     );
   }
   return (
-    <section className="shell py-[clamp(3rem,7vw,5.5rem)]" data-edit-board-new="" lang="fr">
+    <section className="shell py-[var(--t-board-pad)]" data-edit-board-new="" lang="fr">
       <div className="pe-board-new-space" style={{ minHeight: 320 }} />
     </section>
   );

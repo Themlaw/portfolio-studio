@@ -17,6 +17,7 @@ import {
   ProjectPicker,
   Select,
   TextareaI18n,
+  TextField,
   TextI18n,
   Toggle,
 } from "@/app/admin/_fields";
@@ -84,13 +85,13 @@ export function CollectionTilesEditor() {
       <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
       <TextI18n label="Titre de la section" value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
       <ListField<Item>
-        label="Tuiles"
-        help="Chaque tuile montre une image de la collection et mène à sa page."
+        label="Entrées"
+        help="Chaque entrée montre une grande image de la collection et mène à sa page."
         items={items}
         onChange={(next) => set("items", next)}
         make={() => ({ collection: "characters", eyebrow: EMPTY, title: EMPTY, intro: EMPTY })}
-        addLabel="Ajouter une tuile"
-        itemLabel={(i) => `Tuile ${i + 1}`}
+        addLabel="Ajouter une entrée"
+        itemLabel={(i) => `Entrée ${i + 1}`}
         error={errorAt(errors, "items")}
         render={(item, update, i) => (
           <>
@@ -248,6 +249,18 @@ export function ProfileEditor() {
   return (
     <>
       <MediaPicker label="Portrait" value={value.portraitMediaId as number | undefined} onChange={(v) => set("portraitMediaId", v)} error={errorAt(errors, "portraitMediaId")} context={context} />
+      <Select
+        label="Format du portrait"
+        help="Imposé : le portrait est cadré (sur la page, « Cadrer »)."
+        value={(value.portraitRatio as string) ?? "auto"}
+        options={[
+          { value: "auto", label: "Celui de l'image" },
+          { value: "4:5", label: "Portrait 4:5" },
+          { value: "3:4", label: "Portrait 3:4" },
+          { value: "1:1", label: "Carré" },
+        ]}
+        onChange={(v) => set("portraitRatio", v === "auto" ? undefined : v)}
+      />
       <TextI18n label="Légende du portrait" value={l(value.portraitCaption)} onChange={(v) => set("portraitCaption", v)} error={errorAt(errors, "portraitCaption")} />
       <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
       <Paragraphs
@@ -420,6 +433,52 @@ export function ImageEditor() {
         ]}
         onChange={(v) => set("width", v ?? "wide")}
       />
+      <Select
+        label="Format"
+        help="Imposé : l'image est cadrée (sur la page, survole-la puis « Cadrer » pour choisir la zone gardée)."
+        value={(value.ratio as string) ?? "auto"}
+        options={[
+          { value: "auto", label: "Celui de l'image" },
+          { value: "16:9", label: "Paysage 16:9" },
+          { value: "4:3", label: "Paysage 4:3" },
+          { value: "1:1", label: "Carré" },
+          { value: "4:5", label: "Portrait 4:5" },
+          { value: "3:4", label: "Portrait 3:4" },
+        ]}
+        onChange={(v) => set("ratio", v === "auto" ? undefined : v)}
+      />
+    </>
+  );
+}
+
+export function CvEditor() {
+  const { value, onChange, errors, context } = useBlockEditor();
+  const set = useSet(value, onChange);
+  return (
+    <>
+      <MediaPicker
+        label="CV (PDF)"
+        kind="pdf"
+        help="Un PDF de 10 pages au plus (15 Mo) : ses pages s'affichent en images, et le bouton télécharge le PDF d'origine."
+        value={value.mediaId as number | undefined}
+        onChange={(v) => set("mediaId", v)}
+        error={errorAt(errors, "mediaId")}
+        context={context}
+      />
+      <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label="Titre" value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
+      <TextareaI18n label="Présentation (facultative)" value={l(value.intro)} onChange={(v) => set("intro", v.fr || v.en ? v : undefined)} error={errorAt(errors, "intro")} />
+      <TextI18n label="Texte du bouton" help="Vide : « Télécharger mon CV »." value={l(value.button)} onChange={(v) => set("button", v.fr || v.en ? v : undefined)} error={errorAt(errors, "button")} />
+      <TextField
+        label="Nom du fichier téléchargé"
+        help="Sans extension : lettres minuscules, chiffres et tirets (ex. cv-camille-martin)."
+        value={(value.fileName as string) ?? ""}
+        onChange={(v) => {
+          const clean = v.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9-]+/g, "-").slice(0, 60);
+          set("fileName", clean || undefined);
+        }}
+        error={errorAt(errors, "fileName")}
+      />
     </>
   );
 }
@@ -467,13 +526,13 @@ export function VideoSingleEditor() {
       />
       <Select
         label="Présentation"
-        value={(value.look as string) ?? "card"}
+        value={(value.variant as string) ?? "card"}
         options={[
           { value: "card", label: "Carte : vidéo, titre et légende dessous" },
           { value: "feature", label: "Grande : étiquette et titre au-dessus" },
           { value: "plain", label: "Vidéo seule (légende facultative)" },
         ]}
-        onChange={(v) => set("look", v ?? "card")}
+        onChange={(v) => set("variant", v ?? "card")}
       />
       <MediaPicker
         label="Image d'attente (facultative)"

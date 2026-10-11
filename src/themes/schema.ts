@@ -40,8 +40,20 @@ export const FONT_IDS = [
   "bricolage-grotesque",
   "chelsea-market",
   "caveat",
+  // Thèmes livrés v0.14 (docs/THEMES.md) : toutes OFL, via next/font (auto-hébergées).
+  "kalam",
+  "courier-prime",
+  "big-shoulders",
+  "ibm-plex-sans",
+  "ibm-plex-mono",
+  "inter-tight",
+  "bowlby-one",
+  "space-grotesk",
 ] as const;
 export const fontId = z.enum(FONT_IDS);
+
+/** Rôles typographiques (styles du site du lot 2, typographie du thème). */
+export const TEXT_ROLES = ["h1", "h2", "eyebrow", "body", "caption", "menu", "brand"] as const;
 export type FontId = z.infer<typeof fontId>;
 
 const localized = z.object({ fr: z.string().min(1).max(160), en: z.string().min(1).max(160) });
@@ -86,6 +98,16 @@ const kitPlan = z
 export const PAPER_OVER_HERO_DEFAULT = 0.35;
 export const PAPER_OVER_HERO_MAX = 0.6;
 
+/* ---- Curseurs (lot 4) ----
+ * PNG 32 × 32 (1x) et 64 × 64 (2x, écrans HiDPI), dessinés dans le kit (case
+ * 64 × 64 = 32 px CSS) ; point chaud en px CSS (0–31). Rendu : css.ts
+ * (`--t-cursor-*`), variants.css. */
+const kitCursor = z
+  .object({ png: kitPath("png"), png2x: kitPath("png"), x: z.number().int().min(0).max(31), y: z.number().int().min(0).max(31) })
+  .strict();
+export type KitCursor = z.infer<typeof kitCursor>;
+/* ---- fin Curseurs (lot 4) ---- */
+
 export const KitAssetsSchema = z
   .object({
     /** Plans du hero 1 (ciel) à 5 ; null : le calque SVG actuel du thème. */
@@ -113,6 +135,16 @@ export const KitAssetsSchema = z
       .strict()
       .optional(),
     tape: kitImage.optional(),
+    /* ---- Curseurs (lot 4) : normal et « clic » (survol de ce qui se clique) ---- */
+    cursors: z
+      .object({
+        default: kitCursor.optional(),
+        pointer: kitCursor.optional(),
+        /** Désactivés depuis Admin → Thèmes : curseurs du système (les dessins restent gardés). */
+        off: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type KitAssets = z.infer<typeof KitAssetsSchema>;
@@ -146,7 +178,27 @@ export const ThemeSchema = z
         /** Halo typographique des petits textes posés sur les calques du hero
          *  parallaxe (en général la couleur du fond). Absent = aucun halo. */
         heroHalo: opaqueColor.optional(),
+        /* ---- Palette (lot 4) : nuances facultatives — absentes = auto ----
+         * Dérivées par src/themes/palette.ts (règle d'avant ce modèle : rendu
+         * identique) ; présentes = forcées. */
+        /** Teinte des ombres. Auto : ink (clair), #000000 (sombre). */
+        shadow: opaqueColor.optional(),
+        /** Voile de la visionneuse et de la vidéo. Auto : ink (clair), bg (sombre). */
+        scrim: opaqueColor.optional(),
+        /** Texte posé sur le voile. Auto : bg (clair), ink (sombre). */
+        onScrim: opaqueColor.optional(),
+        /* ---- fin Palette (lot 4) ---- */
       }),
+      /* ---- Palette (lot 4) : nuances enregistrées en « auto » ----
+       * bgDeep, line, inkSoft, primaryHover, onPrimary restent toujours dans
+       * `color` (valeur effective) ; listées ici, elles sont recalculées depuis
+       * leur base à chaque changement (normalizePalette). Absent : toutes
+       * forcées (thèmes d'avant ce modèle). */
+      palette: z
+        .object({ auto: z.array(z.enum(["bgDeep", "line", "inkSoft", "primaryHover", "onPrimary"])).max(5).optional() })
+        .strict()
+        .optional(),
+      /* ---- fin Palette (lot 4) ---- */
       font: z.object({ display: fontId, body: fontId, caption: fontId }),
       radius: z.object({
         sm: cssValue,
@@ -157,6 +209,50 @@ export const ThemeSchema = z
       }),
       space: z.object({ sectionGap: cssValue, pageMax: cssValue, gutter: cssValue }),
       motion: z.object({ durFast: cssValue, durBase: cssValue, easing: cssValue }),
+      // ── Mise en page (lot 2) : espacements, arrondis, ouverture ────────────
+      // Facultatif : un thème sans ce bloc garde son rendu d'avant
+      // (DEFAULT_LAYOUT dans src/themes/css.ts).
+      layout: z
+        .object({
+          /** Crans « S · M · L · XL » des réglages d'espace haut / bas des blocs. */
+          spaceS: cssValue,
+          spaceM: cssValue,
+          spaceL: cssValue,
+          spaceXL: cssValue,
+          /** Espace au-dessus du titre d'une page (en-tête de collection, profil). */
+          pageTop: cssValue,
+          /** Espace haut et bas d'une planche (bande d'images). */
+          stripPad: cssValue,
+          /** Arrondi des images et des cartes (surchargeable par emplacement). */
+          mediaRadius: z.enum(["none", "soft", "medium", "strong"]),
+          /** Fond derrière le métier dans l'ouverture (« Chara design · … »). */
+          heroRoleBackdrop: z.enum(["none", "shadow", "band", "highlight"]),
+        })
+        .partial()
+        .strict()
+        .optional(),
+      // ── fin mise en page ───────────────────────────────────────────────────
+      // ── Typographie du thème (intégration lots 2 + 5) ───────────────────────
+      // Styles par rôle (mêmes rôles et sélecteurs que les styles du site du
+      // lot 2, src/lib/look.ts) ; ordre : thème < site < texte. Restreint aux
+      // polices du thème (pas de police téléchargée : un thème exporté reste
+      // autonome) et à des crans bornés. Facultatif : absent = rendu d'avant.
+      type: z
+        .partialRecord(
+          z.enum(TEXT_ROLES),
+          z
+            .object({
+              font: z.enum(["display", "body", "caption"]).optional(),
+              weight: z.number().int().min(100).max(900).multipleOf(100).optional(),
+              italic: z.boolean().optional(),
+              case: z.enum(["normal", "upper"]).optional(),
+              /** Interlettrage, en em. */
+              tracking: z.number().min(-0.05).max(0.4).optional(),
+            })
+            .strict(),
+        )
+        .optional(),
+      // ── fin typographie du thème ────────────────────────────────────────────
     }),
     variants: z.object({
       header: z.enum(["inline", "centered"]),

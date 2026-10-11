@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type CSSProperties } from "react";
 
 import Eyebrow from "@/components/Eyebrow";
 import type { LocalizedArtwork } from "@/lib/gallery";
@@ -23,16 +23,19 @@ export default function VideoCard({
   loop,
   texts,
   edit = false,
+  styles,
 }: {
   item: LocalizedArtwork;
   look: "feature" | "card" | "plain";
   loop: boolean;
   texts: { eyebrow: string; title: string; description: string };
   edit?: boolean;
+  /** Style local de la légende (barre typographique, lot 2) ; les autres textes suivent le style du site. */
+  styles?: { description?: CSSProperties };
 }) {
   const [playing, setPlaying] = useState(false);
   const id = useId();
-  const mark = (path: string, placeholder: string) => (edit ? { "data-inline": path, "data-placeholder": placeholder } : {});
+  const mark = (path: string, placeholder: string) => ({ ...(edit ? { "data-inline": path, "data-placeholder": placeholder } : {}), ...(path === "description" && styles?.description ? { style: styles.description } : {}) });
   const shown = { ...item, title: texts.title, alt: item.alt || texts.title };
   const frame =
     loop && item.video ? (

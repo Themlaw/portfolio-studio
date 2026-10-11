@@ -2,11 +2,12 @@ import Picture from "@/components/Picture";
 import { z } from "zod";
 
 import Eyebrow from "@/components/Eyebrow";
+import EmailText from "@/components/EmailText";
 import SocialIcon from "@/components/SocialIcon";
 import { getMedia } from "@/lib/media";
 import { getSiteView } from "@/lib/settings";
 
-import { inline, localized, tr, type BlockContext, localizedText } from "./types";
+import { inline, localized, textStyle, tr, type BlockContext, localizedText } from "./types";
 
 export const profileSchema = z.object({
   portraitMediaId: z.number().int().positive().optional(),
@@ -17,6 +18,8 @@ export const profileSchema = z.object({
   contactEyebrow: localized,
   contactLabel: localized,
   socialEyebrow: localized,
+  /** Format imposé au portrait (cadré : « Cadrer » sur la toile). Auto : son format. */
+  portraitRatio: z.enum(["auto", "4:5", "3:4", "1:1"]).optional(),
 });
 
 /**
@@ -28,30 +31,40 @@ export default async function ProfileBlock({ props, ctx }: { props: z.infer<type
   const [{ site, socials }, portrait] = await Promise.all([getSiteView(ctx.locale, ctx.pageId), getMedia(props.portraitMediaId)]);
   const [lead, ...rest] = props.paragraphs;
   const ph = (text: string) => (ctx.edit ? { "data-placeholder": text } : {});
-  const siteMark = (field: string, text: string) => (ctx.edit ? { "data-site-inline": field, "data-placeholder": text, "data-site-hint": "commun au site" } : {});
+  const siteMark = (field: string, text: string) => ({
+    ...(ctx.edit ? { "data-site-inline": field, "data-placeholder": text, "data-site-hint": "commun au site" } : {}),
+    ...textStyle(ctx, `site.${field}`),
+  });
 
   return (
-    <section className="shell pt-[clamp(6rem,14vh,10rem)]">
+    <section className="page-top shell">
       <div className="grid gap-[clamp(2.5rem,6vw,5rem)] md:grid-cols-12">
         <div className="md:col-span-5 lg:col-span-4">
-          <div className="mat md:sticky md:top-28" {...(ctx.edit ? { "data-edit-media": "portraitMediaId", "data-edit-media-kind": "image" } : {})}>
+          <div
+            className="profile-portrait mat md:sticky md:top-28"
+            {...(props.portraitRatio && props.portraitRatio !== "auto" ? { "data-ratio": props.portraitRatio } : {})}
+            {...(ctx.edit ? { "data-edit-media": "portraitMediaId", "data-edit-media-kind": "image" } : {})}>
             {!portrait && ctx.edit && (
               <span className="pe-media-empty pe-media-portrait" lang="fr">
                 Dépose ton portrait ici
               </span>
             )}
-            {portrait && (
-              <Picture
-                src={portrait.url}
-                sources={portrait.sources}
-                alt={portrait.alt ? tr(portrait.alt, ctx.locale) : ""}
-                width={portrait.width ?? 900}
-                height={portrait.height ?? 1100}
-                sizes="(min-width: 768px) 33vw, 100vw"
-                className="h-auto w-full rounded-[2px]"
-                priority
-              />
-            )}
+            {portrait && (() => {
+              const picture = (
+                <Picture
+                  src={portrait.url}
+                  sources={portrait.sources}
+                  alt={portrait.alt ? tr(portrait.alt, ctx.locale) : ""}
+                  width={portrait.width ?? 900}
+                  height={portrait.height ?? 1100}
+                  sizes="(min-width: 768px) 33vw, 100vw"
+                  className="h-auto w-full rounded-[2px]"
+                  priority
+                />
+              );
+              // Cadré avec zoom : le cadre rogne l'image agrandie.
+              return ctx.look?.crop?.portraitMediaId ? <span className="profile-portrait-frame">{picture}</span> : picture;
+            })()}
             <p className="eyebrow pt-3" {...inline(ctx, "portraitCaption")} {...ph("Légende du portrait")}>
               {tr(props.portraitCaption, ctx.locale)}
             </p>
@@ -87,11 +100,8 @@ export default async function ProfileBlock({ props, ctx }: { props: z.infer<type
               <Eyebrow {...inline(ctx, "contactEyebrow")} {...ph("Étiquette")}>
                 {tr(props.contactEyebrow, ctx.locale)}
               </Eyebrow>
-              <a
-                href={`mailto:${site.email}`}
-                className="link-underline mt-3 block font-display text-xl break-words lg:text-2xl"
-              >
-                {ctx.edit ? <span {...siteMark("email", "ton@adresse.fr")}>{site.email}</span> : site.email}
+              <a href={`mailto:${site.email}`} className="email-link link-underline mt-3">
+                <EmailText email={site.email} editable={ctx.edit ? siteMark("email", "ton@adresse.fr") : undefined} style={textStyle(ctx, "site.email").style} />
               </a>
               <a className="btn mt-6" href={`mailto:${site.email}`}>
                 {ctx.edit ? <span {...inline(ctx, "contactLabel")}>{tr(props.contactLabel, ctx.locale)}</span> : tr(props.contactLabel, ctx.locale)}

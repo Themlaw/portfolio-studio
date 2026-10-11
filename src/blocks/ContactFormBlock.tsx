@@ -2,7 +2,7 @@ import ContactForm from "@/components/ContactForm";
 import Eyebrow from "@/components/Eyebrow";
 import { ContactFormSchema } from "@/lib/contact-form";
 
-import { inline, tr, type BlockContext } from "./types";
+import { inline, textStyle, tr, type BlockContext } from "./types";
 
 export const contactFormSchema = ContactFormSchema;
 
@@ -48,6 +48,13 @@ export default function ContactFormBlock({ props, ctx }: { props: ReturnType<typ
             options: (f.options ?? []).map((o) => ({ value: o.fr, label: L(o) })),
           }))}
           texts={{ submit: L(props.submit), success: L(props.success), error: L(props.error) }}
+          // Barre typographique (lot 2) : styles locaux des libellés et du bouton, rendus par le composant client.
+          styles={Object.fromEntries(
+            [...props.fields.map((_, i) => `fields.${i}.label`), "submit", "success", "error"].flatMap((p) => {
+              const st = textStyle(ctx, p).style;
+              return st ? [[p, st]] : [];
+            }),
+          )}
         />
       </div>
     </section>

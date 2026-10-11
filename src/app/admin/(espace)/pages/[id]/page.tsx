@@ -38,6 +38,7 @@ export default async function PageEditPage({ params }: { params: Promise<{ id: s
             {/* Formulaire natif : l'aperçu (version enregistrée) s'ouvre dans un nouvel onglet. */}
             <form method="post" action="/admin/apercu" target="_blank">
               <input type="hidden" name="page" value={page.id} />
+              <input type="hidden" name="retour" value={`/admin/pages/${page.id}`} />
               <button type="submit" className="a-btn">
                 Prévisualiser la page <span aria-hidden="true">↗</span>
               </button>

@@ -12,7 +12,9 @@ import type { AdminMediaRow } from "@/lib/admin";
 
 export const isVideoFile = (file: File) => file.type.startsWith("video/") || /\.(mp4|mov|m4v|webm|mkv)$/i.test(file.name);
 
-export const ACCEPT = "image/jpeg,image/png,image/webp,image/avif,image/gif,video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,.mkv";
+export const ACCEPT = "image/jpeg,image/png,image/webp,image/avif,image/gif,video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,.mkv,application/pdf,.pdf";
+/** PDF (bloc CV) : type déclaré ou extension ; le serveur vérifie la signature. */
+export const isPdfFile = (file: File) => file.type === "application/pdf" || /\.pdf$/i.test(file.name);
 
 /** Au-delà, envoi par morceaux reprenable (et toujours pour une vidéo). */
 const CHUNKED_ABOVE = 8 * 1024 * 1024;

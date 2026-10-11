@@ -5,7 +5,7 @@ import { getMedia } from "@/lib/media";
 import { hrefForPage } from "@/lib/pages";
 import { getSiteView } from "@/lib/settings";
 
-import { localized, localizedText, mediaRef, pageRef, tr, type BlockContext } from "./types";
+import { localized, localizedText, mediaRef, pageRef, textStyle, tr, type BlockContext } from "./types";
 
 export const heroSchema = z.object({
   eyebrow: localized,
@@ -37,6 +37,7 @@ export default async function HeroBlock({ props, ctx }: { props: z.infer<typeof 
         reelHref: await hrefForPage(props.reelPageId, ctx.locale),
         background: bg ? { src: bg.url, sources: bg.sources, video: bg.video, width: bg.width ?? 1920, height: bg.height ?? 1080 } : null,
         edit: ctx.edit,
+        styles: { eyebrow: textStyle(ctx, "eyebrow").style, name: textStyle(ctx, "site.name").style, role: textStyle(ctx, "site.role").style },
       }}
     />
   );

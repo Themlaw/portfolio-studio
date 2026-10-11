@@ -18,7 +18,7 @@
 import { getLayerImageData, type Layer } from "ag-psd";
 
 import type { Rgba } from "./formats";
-import { ELEMENTS, EXPORT_ID_RE, frameOf, isIgnoredName, looseName, SLOTS, type ElementSpec, type Frame, type Layout, type SlotSpec } from "./spec";
+import { ALL_SLOTS, ELEMENTS, EXPORT_ID_RE, frameOf, HOTSPOT_LAYER, isIgnoredName, looseName, type ElementSpec, type Frame, type Layout, type SlotSpec } from "./spec";
 
 export type SlotSource = {
   slot: SlotSpec;
@@ -28,7 +28,29 @@ export type SlotSource = {
   boardOrigin?: { x: number; y: number };
   /** Chemin lisible (« 6 · Icônes / Flèche droite »). */
   path: string;
+  /** Curseur : rectangle du calque repère « point chaud » (coordonnées du document), retiré de l'aplatissement. */
+  hotspot?: { left: number; top: number; right: number; bottom: number };
 };
+
+const HOTSPOT = looseName(HOTSPOT_LAYER);
+/**
+ * Curseur : sort le calque « point chaud » des calques à aplatir (n'importe
+ * où sous l'emplacement) et rend son rectangle. Le premier trouvé compte.
+ */
+function takeHotspot(nodes: Layer[]): { nodes: Layer[]; hotspot?: SlotSource["hotspot"] } {
+  let hotspot: SlotSource["hotspot"];
+  const strip = (list: Layer[]): Layer[] =>
+    list.flatMap((l) => {
+      if (!l.children && looseName(l.name ?? "") === HOTSPOT) {
+        if (!hotspot && (l.right ?? 0) > (l.left ?? 0)) hotspot = { left: l.left ?? 0, top: l.top ?? 0, right: l.right ?? 0, bottom: l.bottom ?? 0 };
+        l.rawData = undefined;
+        return [];
+      }
+      return l.children ? [{ ...l, children: strip(l.children) }] : [l];
+    });
+  const out = strip(nodes);
+  return { nodes: out, hotspot };
+}
 
 export type Resolution = {
   sources: Map<string, SlotSource>;
@@ -39,7 +61,7 @@ export type Resolution = {
 };
 
 const elementByAlias = (n: string) => ELEMENTS.find((e) => e.aliases.includes(n));
-const slotByAlias = (n: string, within?: ElementSpec) => SLOTS.find((s) => s.aliases.includes(n) && (!within || s.element === within.id));
+const slotByAlias = (n: string, within?: ElementSpec) => ALL_SLOTS.find((s) => s.aliases.includes(n) && (!within || s.element === within.id));
 
 /** Plan de travail : son rectangle fait la carte (même origine). */
 function boardOf(l: Layer, layout: Layout): { x: number; y: number } | undefined {
@@ -55,6 +77,11 @@ export function resolveSlots(children: Layer[] | undefined, layout: Layout): Res
   const take = (slot: SlotSpec, nodes: Layer[], path: string, boardOrigin?: { x: number; y: number }) => {
     if (sources.has(slot.id)) {
       ignored.push(`${path} (doublon de « ${sources.get(slot.id)!.path} »)`);
+      return;
+    }
+    if (slot.kind === "cursor") {
+      const { nodes: drawn, hotspot } = takeHotspot(nodes);
+      sources.set(slot.id, { slot, nodes: drawn, path, boardOrigin, hotspot });
       return;
     }
     sources.set(slot.id, { slot, nodes, path, boardOrigin });
@@ -77,7 +104,7 @@ export function resolveSlots(children: Layer[] | undefined, layout: Layout): Res
         const el = !within ? elementByAlias(n) : undefined;
         if (el) {
           const origin = boardOf(l, layout) ?? boardOrigin;
-          const slots = SLOTS.filter((s) => s.element === el.id);
+          const slots = ALL_SLOTS.filter((s) => s.element === el.id);
           if (slots.length === 1) {
             take(slots[0], l.children.filter((c) => !isIgnoredName(c.name ?? "")), path, origin);
           } else {
@@ -102,7 +129,8 @@ export function resolveSlots(children: Layer[] | undefined, layout: Layout): Res
 /** Disposition d'après la taille du document. */
 export function layoutOf(width: number, height: number): Layout | null {
   if (width === 2880 && height === 2560) return "v1";
-  if (width === 4000 && height === 4000) return "v2";
+  // v2 : 4000 × 4000 (avant la palette et les curseurs) ou 4000 × 4880 (kit v3, mêmes cases).
+  if (width === 4000 && (height === 4000 || height === 4880)) return "v2";
   return null;
 }
 

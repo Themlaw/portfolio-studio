@@ -1,7 +1,7 @@
 "use client";
 
 import Picture from "./Picture";
-import Video from "./Video";
+import VideoPlayer from "./VideoPlayer";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -38,11 +38,12 @@ export function Frame({
     <div className="mat">
       <div className="relative aspect-video w-full overflow-hidden rounded-[2px] bg-scrim">
         {playing && item.video ? (
-          <Video
+          <VideoPlayer
             video={item.video}
             width={item.width}
             height={item.height}
-            className="absolute inset-0 h-full w-full bg-scrim object-contain"
+            className="absolute inset-0"
+            videoClassName="h-full w-full bg-scrim object-contain"
             autoPlay
             label={item.title}
           />
@@ -90,7 +91,7 @@ export function Frame({
                 type="button"
                 onClick={onPlay}
                 aria-label={t("playAria", { title: item.title })}
-                className="group absolute inset-0 flex items-end p-5 md:p-7"
+                className="video-play group absolute inset-0 flex items-end p-5 md:p-7"
               >
                 <PlayBadge label={t("play")} />
               </button>

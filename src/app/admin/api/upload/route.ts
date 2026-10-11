@@ -1,5 +1,5 @@
 /**
- * POST /admin/api/upload — envoi d'UNE image (multipart, champ « file »).
+ * POST /admin/api/upload — envoi d'UNE image ou d'UN PDF (multipart, champ « file »).
  * Admin connecté et même origine ; réception en flux plafonnée
  * (MAX_IMAGE_MB, 40 par défaut) ; type vérifié par signature ; traitement
  * asynchrone (job). Réponse JSON : { ok, media } ou { ok: false, message }.
@@ -12,6 +12,8 @@ import { uploadTmpDir } from "@/lib/jobs/worker";
 import { isSameOrigin } from "@/lib/preview";
 import { revalidateMedia } from "@/lib/revalidate";
 import { ingestImage } from "@/lib/upload/ingest";
+import { ingestPdf } from "@/lib/pdf/ingest";
+import { sniffPdf } from "@/lib/upload/sniff";
 import { quotaProblem } from "@/lib/upload/quota";
 import { receiveOneFile, UploadError } from "@/lib/upload/receive";
 import { attachUploadTags, parseTagLabels, tagCapacityProblem } from "@/lib/tags";
@@ -44,7 +46,8 @@ export async function POST(request: Request) {
       await rm(file.tmpPath, { force: true });
       return json(tags.ok ? 422 : 400, { ok: false, message: tags.ok ? tagsFull : tags.message });
     }
-    const media = await ingestImage(file);
+    // PDF (bloc CV) d'après la signature ; sinon une image (refusée si ce n'en est pas une).
+    const media = sniffPdf(file.head) ? { ...(await ingestPdf(file)), kind: "pdf" as const } : await ingestImage(file);
     const tagWarning = attachUploadTags(media.id, tags.labels);
     revalidateMedia();
     return json(200, { ok: true, media: tagWarning ? { ...media, tagWarning } : media });

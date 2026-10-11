@@ -8,7 +8,8 @@
  * l'aperçu en direct.
  */
 import { FONT_STACKS as FONT_CATALOG } from "./font-stacks";
-import type { KitAssets, KitImage, Theme } from "./schema";
+import { resolvePalette } from "./palette";
+import type { KitAssets, KitCursor, KitImage, Theme } from "./schema";
 
 /** Image d'un asset du kit : SVG, ou AVIF + WebP (image-set). Chemins validés par le schéma. */
 function kitImage(k: KitImage): string {
@@ -24,6 +25,19 @@ const ICONS = [
   ["close", "close"],
   ["play", "play"],
 ] as const;
+
+/* ---- Curseurs (lot 4) ---- */
+/** `cursor` sûr partout : PNG 32 × 32, point chaud, repli obligatoire. */
+const cursorValue = (c: KitCursor, fallback: "auto" | "pointer") => `url("${c.png}") ${c.x} ${c.y}, ${fallback}`;
+/** HiDPI : image-set 1x / 2x (utilisé sous @supports dans variants.css). */
+const cursorValueHd = (c: KitCursor, fallback: "auto" | "pointer") => `image-set(url("${c.png}") 1x, url("${c.png2x}") 2x) ${c.x} ${c.y}, ${fallback}`;
+/** Curseurs dessinés actifs (présents et non désactivés). */
+export function activeCursors(kit: KitAssets | undefined): { default?: KitCursor; pointer?: KitCursor } {
+  const c = kit?.cursors;
+  if (!c || c.off) return {};
+  return { ...(c.default ? { default: c.default } : {}), ...(c.pointer ? { pointer: c.pointer } : {}) };
+}
+/* ---- fin Curseurs (lot 4) ---- */
 
 /** Variables des éléments dessinés (aucune si le thème n'en a pas : rendu inchangé). */
 export function kitVariables(kit: KitAssets | undefined): Record<string, string> {
@@ -54,6 +68,15 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
     v["--t-kit-tape"] = kitImage(kit.tape);
     v["--t-kit-tape-ratio"] = `${kit.tape.w} / ${kit.tape.h}`;
   }
+  const cursors = activeCursors(kit);
+  if (cursors.default) {
+    v["--t-cursor-default"] = cursorValue(cursors.default, "auto");
+    v["--t-cursor-default-hd"] = cursorValueHd(cursors.default, "auto");
+  }
+  if (cursors.pointer) {
+    v["--t-cursor-pointer"] = cursorValue(cursors.pointer, "pointer");
+    v["--t-cursor-pointer-hd"] = cursorValueHd(cursors.pointer, "pointer");
+  }
   return v;
 }
 
@@ -68,6 +91,9 @@ export function kitAttributes(kit: KitAssets | undefined): Record<`data-${string
   if (kit.stroke) a["data-kit-stroke"] = "";
   for (const [key, name] of ICONS) if (kit.icons?.[key]) a[`data-kit-icon-${name}`] = "";
   if (kit.tape) a["data-kit-tape"] = "";
+  const cursors = activeCursors(kit);
+  if (cursors.default) a["data-kit-cursor"] = "";
+  if (cursors.pointer) a["data-kit-cursor-pointer"] = "";
   return a;
 }
 
@@ -80,38 +106,100 @@ export function relativeLuminance(hex: string): number {
   return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
 }
 
+/** Canaux 0–255 d'une couleur du schéma (#rgb, #rrggbb, #rrggbbaa, rgb(a)) ; null sinon. */
+function rgbOf(color: string): [number, number, number] | null {
+  const fn = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/.exec(color);
+  if (fn) return [Number(fn[1]), Number(fn[2]), Number(fn[3])];
+  let h = color.replace("#", "");
+  if (!/^[0-9a-fA-F]+$/.test(h)) return null;
+  if (h.length === 3 || h.length === 4) h = [...h.slice(0, 3)].map((c) => c + c).join("");
+  if (h.length !== 6 && h.length !== 8) return null;
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+}
+
+/**
+ * Gris neutre (R = G = B) de même luminance relative que `color` : le fond de
+ * la visionneuse garde la profondeur du voile du thème sans sa teinte (une
+ * œuvre se juge sur un gris, pas sur un brun ou un bleu).
+ */
+export function neutralGray(color: string): string {
+  const rgb = rgbOf(color) ?? [0, 0, 0];
+  const lin = (c: number) => {
+    const v = c / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const y = 0.2126 * lin(rgb[0]) + 0.7152 * lin(rgb[1]) + 0.0722 * lin(rgb[2]);
+  const srgb = y <= 0.0031308 ? 12.92 * y : 1.055 * y ** (1 / 2.4) - 0.055;
+  const g = Math.round(Math.min(1, Math.max(0, srgb)) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `#${g}${g}${g}`;
+}
+
 /** Clair ou sombre, d'après la luminance du fond. */
 export function themeScheme(theme: Theme): "light" | "dark" {
   return relativeLuminance(theme.tokens.color.bg) < 0.2 ? "dark" : "light";
 }
 
+// ── Mise en page (lot 2) ────────────────────────────────────────────────────
+/** Valeurs d'un thème sans bloc `layout` : son rendu d'avant (espaces fixes). */
+export const DEFAULT_LAYOUT = {
+  spaceS: "0.75rem",
+  spaceM: "clamp(1.5rem, 3vw, 2.25rem)",
+  spaceL: "clamp(2.5rem, 5vw, 4rem)",
+  spaceXL: "clamp(4rem, 8vw, 6.5rem)",
+  pageTop: "clamp(6rem, 14vh, 10rem)",
+  stripPad: "clamp(3rem, 7vw, 5.5rem)",
+} as const;
+/** Rayon CSS d'un cran d'arrondi des images et cartes. */
+export const RADIUS_VALUES = { none: "0px", soft: "4px", medium: "10px", strong: "20px" } as const;
+
+/** Variables de mise en page ; `--t-media-radius` seulement si le thème le fixe. */
+export function layoutVariables(theme: Theme): Record<string, string> {
+  const l = { ...DEFAULT_LAYOUT, ...theme.tokens.layout };
+  return {
+    "--t-space-s": l.spaceS,
+    "--t-space-m": l.spaceM,
+    "--t-space-l": l.spaceL,
+    "--t-space-xl": l.spaceXL,
+    "--t-page-top": l.pageTop,
+    "--t-board-pad": l.stripPad,
+    ...(theme.tokens.layout?.mediaRadius ? { "--t-media-radius": RADIUS_VALUES[theme.tokens.layout.mediaRadius] } : {}),
+  };
+}
+// ── fin mise en page ────────────────────────────────────────────────────────
+
 /** Variables runtime du thème (préfixe --t-). */
 export function themeVariables(theme: Theme): Record<string, string> {
   const { color, font, radius, space, motion } = theme.tokens;
-  const scheme = themeScheme(theme);
-  const light = scheme === "light";
+  // Palette résolue : nuances « auto » dérivées (src/themes/palette.ts).
+  const p = resolvePalette(color, theme.tokens.palette);
   const display = FONT_CATALOG[font.display];
 
   return {
-    "--t-color-bg": color.bg,
-    "--t-color-bg-deep": color.bgDeep,
-    "--t-color-surface": color.surface,
-    "--t-color-ink": color.ink,
-    "--t-color-ink-soft": color.inkSoft,
-    "--t-color-line": color.line,
-    "--t-color-primary": color.primary,
-    "--t-color-primary-hover": color.primaryHover,
-    "--t-color-on-primary": color.onPrimary,
-    "--t-color-secondary": color.secondary,
-    "--t-color-tertiary": color.tertiary,
-    "--t-color-eyebrow": color.eyebrow ?? color.secondary,
+    "--t-color-bg": p.bg,
+    "--t-color-bg-deep": p.bgDeep,
+    "--t-color-surface": p.surface,
+    "--t-color-ink": p.ink,
+    "--t-color-ink-soft": p.inkSoft,
+    "--t-color-line": p.line,
+    "--t-color-primary": p.primary,
+    "--t-color-primary-hover": p.primaryHover,
+    "--t-color-on-primary": p.onPrimary,
+    "--t-color-secondary": p.secondary,
+    "--t-color-tertiary": p.tertiary,
+    // Auto : secondary.
+    "--t-color-eyebrow": p.eyebrow,
     "--t-color-accent-glow": color.accentGlow ?? "transparent",
-    // Voile (lightbox, vidéo) : la teinte la plus sombre du thème, et son
-    // texte. En clair : l'encre ; en sombre : le fond.
-    "--t-color-scrim": light ? color.ink : color.bg,
-    "--t-color-on-scrim": light ? color.bg : color.ink,
-    // Ombres : teintées d'encre en clair, noires en sombre.
-    "--t-color-shadow": light ? color.ink : "#000000",
+    // Voile (lightbox, vidéo) et son texte. Auto : en clair l'encre et le
+    // fond, en sombre le fond et l'encre.
+    "--t-color-scrim": p.scrim,
+    "--t-color-on-scrim": p.onScrim,
+    // Fond de la visionneuse (lot 3) : le voile (palette, lot 4), désaturé
+    // (gris neutre, même luminance).
+    "--t-color-viewer": neutralGray(p.scrim),
+    // Ombres. Auto : teintées d'encre en clair, noires en sombre.
+    "--t-color-shadow": p.shadow,
     "--t-hero-halo": color.heroHalo ?? "transparent",
     // Halo des images de planche : émis seulement si le thème en a un.
     "--t-strip-halo": color.accentGlow
@@ -138,6 +226,7 @@ export function themeVariables(theme: Theme): Record<string, string> {
     "--t-motion-dur-fast": motion.durFast,
     "--t-motion-dur-base": motion.durBase,
     "--t-motion-easing": motion.easing,
+    ...layoutVariables(theme),
     ...kitVariables(theme.assets.kit),
   };
 }
@@ -163,6 +252,7 @@ export function themeAttributes(theme: Theme): Record<`data-${string}`, string> 
     "data-lightbox": v.lightbox,
     "data-button": v.button,
     "data-texture": v.texture,
+    ...(theme.tokens.layout?.heroRoleBackdrop ? { "data-hero-role": theme.tokens.layout.heroRoleBackdrop } : {}),
     ...kitAttributes(theme.assets.kit),
   };
 }

@@ -1,0 +1,137 @@
+/* ==========================================================================
+   MISE EN PAGE RÉGLÉE SUR LA TOILE (lot 2) — src/lib/look.ts
+   Règles hors @layer : elles passent devant les utilitaires des blocs.
+   Un bloc réglé est enveloppé d'un `.blk` (display: contents) qui porte ses
+   réglages en attributs ; sans réglage, aucune enveloppe : rendu du thème.
+   Valeurs : uniquement des tokens (--t-space-*, --t-page-top, --t-board-pad,
+   --media-radius, palette du thème). Aucune couleur littérale.
+   ========================================================================== */
+
+/* ---- Espaces du thème (resserrés en lot 2) ------------------------------ */
+.strip {
+  padding-block: var(--t-board-pad);
+}
+.page-top {
+  padding-top: var(--t-page-top);
+}
+
+/* ---- Espace haut / bas d'un bloc (crans du thème) ----------------------- */
+.blk[data-pt="none"] > :first-child { padding-top: 0; }
+.blk[data-pt="s"] > :first-child { padding-top: var(--t-space-s); }
+.blk[data-pt="m"] > :first-child { padding-top: var(--t-space-m); }
+.blk[data-pt="l"] > :first-child { padding-top: var(--t-space-l); }
+.blk[data-pt="xl"] > :first-child { padding-top: var(--t-space-xl); }
+.blk[data-pb="none"] > :last-child { padding-bottom: 0; }
+.blk[data-pb="s"] > :last-child { padding-bottom: var(--t-space-s); }
+.blk[data-pb="m"] > :last-child { padding-bottom: var(--t-space-m); }
+.blk[data-pb="l"] > :last-child { padding-bottom: var(--t-space-l); }
+.blk[data-pb="xl"] > :last-child { padding-bottom: var(--t-space-xl); }
+/* Marges internes du bloc remplacées par l'espace choisi. */
+.blk[data-pb] > :last-child > .page-head { margin-bottom: 0; }
+
+/* ---- Arrondi des images et cartes ---------------------------------------
+   --media-radius : thème (--t-media-radius), styles du site, puis l'emplacement
+   (hérité par les composants d'un conteneur). Absent : rayon d'avant. */
+:root { --media-radius: var(--t-media-radius); }
+.blk[data-radius="none"] { --media-radius: 0px; }
+.blk[data-radius="soft"] { --media-radius: 4px; }
+.blk[data-radius="medium"] { --media-radius: 10px; }
+.blk[data-radius="strong"] { --media-radius: 20px; }
+.rounded-strip { border-radius: var(--media-radius, var(--radius-strip)); }
+.rounded-\[2px\] { border-radius: var(--media-radius, 2px); }
+.mat { border-radius: var(--media-radius, var(--radius-sm)); }
+[data-strip="taped"] .tile-media img { border-radius: var(--media-radius, var(--radius-strip)); }
+
+/* ---- Position du titre ---------------------------------------------------- */
+.blk[data-th="center"] :is(.page-head, .strip > header > div, .title-head) { margin-inline: auto; text-align: center; }
+.blk[data-th="right"] :is(.page-head, .strip > header > div, .title-head) { margin-left: auto; text-align: right; }
+.blk[data-th="center"] .strip > header { justify-content: center; }
+.blk[data-th="center"] .hero > .shell:first-of-type { text-align: center; }
+.blk[data-th="center"] .hero > .shell:first-of-type > * { margin-inline: auto; }
+.blk[data-th="right"] .hero > .shell:first-of-type { text-align: right; }
+.blk[data-th="right"] .hero > .shell:first-of-type > * { margin-left: auto; }
+.blk[data-tv="top"] .hero { justify-content: flex-start; }
+.blk[data-tv="middle"] .hero { justify-content: center; }
+.blk[data-tv="bottom"] .hero { justify-content: flex-end; }
+/* Dans une cellule de grille : le titre se place dans la hauteur de la rangée. */
+.block-grid-cell:has(.blk[data-tv]) { display: flex; flex-direction: column; }
+.blk[data-tv="middle"] > :first-child { margin-block: auto; }
+.blk[data-tv="bottom"] > :first-child { margin-top: auto; }
+
+/* ---- Cadrage (point focal + zoom) ---------------------------------------- */
+.block-image[data-ratio="16:9"] .block-image-media { aspect-ratio: 16 / 9; }
+.block-image[data-ratio="4:3"] .block-image-media { aspect-ratio: 4 / 3; }
+.block-image[data-ratio="1:1"] .block-image-media { aspect-ratio: 1; }
+.block-image[data-ratio="4:5"] .block-image-media { aspect-ratio: 4 / 5; }
+.block-image[data-ratio="3:4"] .block-image-media { aspect-ratio: 3 / 4; }
+.block-image[data-ratio]:not([data-ratio="auto"]) .block-image-media { height: auto; object-fit: cover; }
+.profile-portrait[data-ratio="4:5"] img { aspect-ratio: 4 / 5; }
+.profile-portrait[data-ratio="3:4"] img { aspect-ratio: 3 / 4; }
+.profile-portrait[data-ratio="1:1"] img { aspect-ratio: 1; }
+.profile-portrait[data-ratio]:not([data-ratio="auto"]) img { height: auto; object-fit: cover; }
+.block-image-frame,
+.profile-portrait-frame {
+  display: block;
+  overflow: hidden;
+  border-radius: var(--media-radius, var(--radius-strip));
+}
+.blk[data-crop] :is(.block-image-media, .hero-backdrop img, .hero-backdrop video, .profile-portrait img) {
+  object-fit: cover;
+  object-position: var(--crop-pos, 50% 50%);
+  transform: scale(var(--crop-zoom, 1));
+  transform-origin: var(--crop-pos, 50% 50%);
+}
+
+/* ---- Métier de l'ouverture : fond au choix (thème, puis bloc) ------------
+   « Ombre douce » : l'ombre couleur du fond (même empilement que le halo
+   typographique du thème) : sur le décor de galerie-lumineuse, c'est la seule
+   qui tient AA (contraste mesuré au pixel, check:contrast:render : sans fond,
+   p5 1,47:1 ; ombres plus légères essayées de 2,6 à 4,3:1, refusées). */
+:root {
+  --role-shadow: 0 0 1px var(--color-bg), 0 0 2px var(--color-bg), 0 0 3px var(--color-bg), 0 0 4px var(--color-bg), 0 0 6px var(--color-bg), 0 0 6px var(--color-bg), 0 0 8px var(--color-bg), 0 0 8px var(--color-bg), 0 0 10px var(--color-bg), 0 0 10px var(--color-bg), 0 0 10px var(--color-bg), 0 0 12px var(--color-bg), 0 0 12px var(--color-bg), 0 0 12px var(--color-bg), 0 0 14px var(--color-bg), 0 0 14px var(--color-bg), 0 0 20px color-mix(in srgb, var(--color-bg) 60%, transparent);
+}
+/* Le métier passe devant la boîte de ligne du nom : les polices de titre à
+   grand œil (Kalam, Bowlby One : planche-de-story, fanzine-riso) débordent de
+   leur interligne serré et captaient le survol (« Aa » du nom au lieu du
+   métier, sur la toile comme pour la sélection de texte). */
+[data-hero-text="role"] { position: relative; }
+:root[data-hero-role] [data-hero-text="role"] { text-shadow: none; }
+:root[data-hero-role="shadow"] [data-hero-text="role"] {
+  text-shadow: var(--role-shadow);
+}
+:root[data-hero-role="band"] [data-hero-text="role"] {
+  display: inline-block;
+  padding: 0.45em 0.8em;
+  background: color-mix(in srgb, var(--color-bg) 86%, transparent);
+}
+:root[data-hero-role="highlight"] [data-hero-text="role"] {
+  display: inline;
+  padding: 0.2em 0.45em;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.blk[data-role-bd] [data-hero-text="role"] {
+  display: revert-layer;
+  padding: 0;
+  background: none;
+  color: revert-layer;
+  text-shadow: none;
+}
+.blk[data-role-bd="shadow"] [data-hero-text="role"] {
+  text-shadow: var(--role-shadow);
+}
+.blk[data-role-bd="band"] [data-hero-text="role"] {
+  display: inline-block;
+  padding: 0.45em 0.8em;
+  background: color-mix(in srgb, var(--color-bg) 86%, transparent);
+}
+.blk[data-role-bd="highlight"] [data-hero-text="role"] {
+  display: inline;
+  padding: 0.2em 0.45em;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}

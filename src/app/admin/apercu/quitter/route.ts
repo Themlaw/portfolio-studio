@@ -1,12 +1,14 @@
 /**
- * POST /admin/apercu/quitter : fin de l'aperçu (draft mode coupé, cookie
- * effacé), puis retour à la page d'où vient le formulaire (bandeau d'aperçu
- * sur le site, ou écran Thèmes). Admin connecté et même origine obligatoires.
+ * POST /admin/apercu/quitter : fin de l'aperçu (draft mode coupé, cookies
+ * effacés), puis retour à l'écran de l'admin d'où l'aperçu a été ouvert
+ * (Thèmes, Pages…), sinon Admin → Thèmes (v0.13.1 : plus l'accueil du site).
+ * Un champ `retour` explicite (écran Thèmes) l'emporte. Admin connecté et
+ * même origine obligatoires.
  */
 import { cookies, draftMode } from "next/headers";
 
 import { assertAdmin } from "@/lib/auth/guard";
-import { isSameOrigin, localPath } from "@/lib/preview";
+import { adminScreen, isSameOrigin, PREVIEW_FALLBACK, PREVIEW_FROM_COOKIE } from "@/lib/preview";
 import { DRAFT_VIEW_COOKIE } from "@/lib/draft-view";
 import { PREVIEW_COOKIE } from "@/lib/theme";
 
@@ -17,11 +19,13 @@ export async function POST(request: Request) {
   if (!isSameOrigin(request)) return new Response("Origine refusée", { status: 403 });
 
   const form = await request.formData().catch(() => null);
-  const back = localPath(String(form?.get("retour") ?? "") || request.headers.get("referer"), "/fr");
+  const jar = await cookies();
+  const back = adminScreen(String(form?.get("retour") ?? "")) ?? adminScreen(jar.get(PREVIEW_FROM_COOKIE)?.value) ?? PREVIEW_FALLBACK;
 
   (await draftMode()).disable();
-  (await cookies()).delete(PREVIEW_COOKIE);
+  jar.delete(PREVIEW_COOKIE);
+  jar.delete(PREVIEW_FROM_COOKIE);
   // Vue brouillon de l'éditeur visuel coupée aussi.
-  (await cookies()).delete(DRAFT_VIEW_COOKIE);
+  jar.delete(DRAFT_VIEW_COOKIE);
   return new Response(null, { status: 303, headers: { Location: back, "Cache-Control": "no-store" } });
 }

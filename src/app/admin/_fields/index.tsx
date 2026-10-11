@@ -345,24 +345,29 @@ export function MediaPicker({
   error?: string;
   context: EditorContext;
   /** Type de média proposé. */
-  kind?: "image" | "video";
+  kind?: "image" | "video" | "pdf";
 }) {
   const [open, setOpen] = useState(false);
   const current = context.media.find((m) => m.id === value);
+  const words = {
+    image: { help: "Choisis une image de la médiathèque, ou envoies-en une nouvelle.", none: "Aucune image", nth: "Image", change: "Changer d'image", choose: "Choisir une image", use: "Utiliser cette image" },
+    video: { help: "Choisis une vidéo de la médiathèque, ou envoies-en une nouvelle.", none: "Aucune vidéo", nth: "Vidéo", change: "Changer de vidéo", choose: "Choisir une vidéo", use: "Utiliser cette vidéo" },
+    pdf: { help: "Choisis un PDF de la médiathèque, ou envoies-en un nouveau.", none: "Aucun PDF", nth: "PDF", change: "Changer de PDF", choose: "Choisir un PDF", use: "Utiliser ce PDF" },
+  }[kind];
   return (
-    <Field label={label} help={help ?? (kind === "video" ? "Choisis une vidéo de la médiathèque, ou envoies-en une nouvelle." : "Choisis une image de la médiathèque, ou envoies-en une nouvelle.")} error={error}>
+    <Field label={label} help={help ?? words.help} error={error}>
       <div className="a-media-field">
         <span className="a-media-field-thumb">
           {current?.thumb ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={current.thumb} alt="" />
           ) : (
-            <span className="muted">{value ? "En traitement" : "Aucune image"}</span>
+            <span className="muted">{value ? "En traitement" : words.none}</span>
           )}
         </span>
-        <span className="a-media-field-name">{current?.name ?? (value ? `Image n° ${value}` : "")}</span>
+        <span className="a-media-field-name">{current?.name ?? (value ? `${words.nth} n° ${value}` : "")}</span>
         <button type="button" className="a-btn a-btn-small" onClick={() => setOpen(true)}>
-          {kind === "video" ? (value ? "Changer de vidéo" : "Choisir une vidéo") : value ? "Changer d'image" : "Choisir une image"}
+          {value ? words.change : words.choose}
         </button>
         {value !== undefined && (
           <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => onChange(undefined)}>
@@ -374,7 +379,7 @@ export function MediaPicker({
         open={open}
         media={context.media.filter((m) => m.kind === kind)}
         title={label}
-        confirmLabel={kind === "video" ? "Utiliser cette vidéo" : "Utiliser cette image"}
+        confirmLabel={words.use}
         onClose={() => setOpen(false)}
         onPick={(m) => {
           onChange(m.id);

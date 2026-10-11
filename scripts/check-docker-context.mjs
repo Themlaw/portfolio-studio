@@ -10,14 +10,14 @@
  * (v0.9.0 : scripts/copy-kit-native.mjs exclu, `npm run build` en échec).
  * Usage : node scripts/check-docker-context.mjs   (npm test, CI job check)
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 const root = path.resolve(new URL("..", import.meta.url).pathname);
 const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 
 /** Fichiers lus à l'exécution, hors traçage de Next (kit-child.cjs, visuels statiques du tuto). */
-const RUNTIME = ["public/kit/fonts.conf", "public/kit/Figtree.ttf", "public/kit/fonts", "public/admin/tuto", "drizzle", "seed", "src/lib/kit/child.ts"];
+const RUNTIME = ["public/kit/fonts.conf", "public/kit/pdf-fonts.conf", "public/kit/Figtree.ttf", "public/kit/fonts", "public/admin/tuto", "drizzle", "seed", "src/lib/kit/child.ts"];
 
 const referenced = new Set(RUNTIME);
 for (const name of ["build", "build:local"]) {
@@ -68,8 +68,25 @@ for (const file of [...referenced].sort()) {
   const by = excluded(file);
   if (by) problems.push(`${file} : exclu du contexte Docker par « ${by} » (ajoute « !${file} » à .dockerignore)`);
 }
+// Commandes externes lancées par l'application (spawn, nice -n 10 <outil>,
+// runPoppler) : chacune doit être copiée dans l'image (stage « ffmpeg » du
+// Dockerfile, binaire + fermeture ldd) — l'image distroless n'a rien d'autre.
+const dockerfile = readFileSync(path.join(root, "Dockerfile"), "utf8");
+const walk = (dir) =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(dir, e.name)) : /\.tsx?$/.test(e.name) ? [path.join(dir, e.name)] : []));
+const commands = new Set();
+for (const file of walk(path.join(root, "src"))) {
+  const src = readFileSync(file, "utf8");
+  for (const re of [/spawn\("([\w-]+)"/g, /\["-n", "10", "([\w-]+)"/g, /runPoppler\("([\w-]+)"/g]) for (const m of src.matchAll(re)) commands.add(m[1]);
+}
+for (const cmd of [...commands].sort()) {
+  if (!new RegExp(`cp -a [^\\n]*/usr/bin/${cmd}\\b`).test(dockerfile) || !new RegExp(`ldd [^\\n]*/usr/bin/${cmd}\\b`).test(dockerfile)) {
+    problems.push(`commande « ${cmd} » lancée par l'application mais absente de l'image (Dockerfile : cp -a /usr/bin/${cmd} et fermeture ldd)`);
+  }
+}
+
 if (problems.length) {
   console.error(`check-docker-context : ÉCHEC (${problems.length})\n  ${problems.join("\n  ")}`);
   process.exit(1);
 }
-console.log(`check-docker-context : OK (${referenced.size} chemins requis par le build présents dans le contexte)`);
+console.log(`check-docker-context : OK (${referenced.size} chemins requis par le build présents dans le contexte ; commandes externes dans l'image : ${[...commands].sort().join(", ")})`);

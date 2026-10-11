@@ -24,7 +24,7 @@ import { tagKey } from "@/lib/tag-key";
 import type { TagRow } from "@/lib/tags";
 
 import { toast } from "./editing";
-import { isVideoFile, readRatio, readVideoFrame, sendFile, useMediaWatch, type UploadedMedia } from "./uploads";
+import { isPdfFile, isVideoFile, readRatio, readVideoFrame, sendFile, useMediaWatch, type UploadedMedia } from "./uploads";
 
 export type Target = { kind: "library" } | { kind: "end"; projectId: number; at?: number } | { kind: "slot"; projectId: number; slotId: number };
 
@@ -193,6 +193,7 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
       }
       const fresh: QueueItem[] = list.map((file) => {
         const video = isVideoFile(file);
+        const pdf = isPdfFile(file);
         const key = nextKey("u");
         files.current.set(key, file);
         return {
@@ -201,9 +202,9 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
           name: file.name,
           size: file.size,
           video,
-          // Image : aperçu immédiat (objet URL) ; vidéo : première image ci-dessous.
-          preview: video ? undefined : URL.createObjectURL(file),
-          ratio: video ? 16 / 9 : 4 / 3,
+          // Image : aperçu immédiat (objet URL) ; vidéo : première image ci-dessous ; PDF : aucun (rendu serveur).
+          preview: video || pdf ? undefined : URL.createObjectURL(file),
+          ratio: video ? 16 / 9 : pdf ? 210 / 297 : 4 / 3,
           phase: "waiting",
           progress: 0,
           sent: 0,
@@ -220,6 +221,7 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
       // Ratios et premières images, sans retarder l'envoi.
       for (const item of fresh) {
         const file = files.current.get(item.key)!;
+        if (isPdfFile(file)) continue;
         void (item.video ? readVideoFrame(file) : readRatio(file)).then((info) => {
           if (info) patch(item.key, { ratio: info.ratio, ...(item.video ? { preview: info.preview } : {}) });
           else if (item.video) patch(item.key, { previewFailed: true });

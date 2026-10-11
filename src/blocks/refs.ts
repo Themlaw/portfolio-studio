@@ -29,6 +29,7 @@ export const BLOCK_REFS: Record<string, BlockRefs> = {
   "section-title": {},
   image: { media: ["mediaId"] },
   "video-single": { media: ["mediaId", "posterMediaId"] },
+  cv: { media: ["mediaId"] },
   grid: {},
   "contact-form": {},
   // Ancien bloc (avant v0.13), encore lu.

@@ -6,6 +6,8 @@ import { cached, TAGS } from "./cache";
 import { getDb, schema } from "./db";
 import { getDraftSite } from "./draft-view";
 import { parseJson } from "./json";
+import { fontFaceCss, readLibrary } from "./fonts/faces";
+import { SiteStylesSchema, type SiteStyles } from "./look";
 import { NavSchema, NETWORKS, safeSocialHref, type NavItem } from "./site-schema";
 
 const localized = z.object({ fr: z.string(), en: z.string() });
@@ -16,6 +18,7 @@ const siteSchema = z.object({
   role: localized,
   email: z.string(),
   credit: localized,
+  headerSocials: z.boolean().optional(),
 });
 const socialsSchema = z.array(z.object({ label: z.string().min(1), href: z.string(), kind: z.enum(NETWORKS).optional() }));
 
@@ -27,7 +30,7 @@ const DEFAULT_SITE: z.infer<typeof siteSchema> = {
 };
 
 export type Social = z.infer<typeof socialsSchema>[number];
-export type SiteIdentity = { name: string; role: string; email: string; credit: string };
+export type SiteIdentity = { name: string; role: string; email: string; credit: string; headerSocials: boolean };
 
 async function getRawSettings(): Promise<Record<string, unknown>> {
   return cached(["settings"], [TAGS.settings], () => {
@@ -45,7 +48,7 @@ function validated<T>(key: string, value: unknown, schema: z.ZodType<T>, fallbac
 
 export async function getSite(locale: AppLocale): Promise<SiteIdentity> {
   const raw = validated("site", (await getRawSettings()).site, siteSchema, DEFAULT_SITE);
-  return { name: raw.name, email: raw.email, role: raw.role[locale] ?? raw.role.fr, credit: raw.credit[locale] ?? raw.credit.fr };
+  return { name: raw.name, email: raw.email, role: raw.role[locale] ?? raw.role.fr, credit: raw.credit[locale] ?? raw.credit.fr, headerSocials: raw.headerSocials === true };
 }
 
 /**
@@ -65,7 +68,21 @@ export async function getNavSetting(): Promise<NavItem[] | null> {
   return parsed.success ? parsed.data : null;
 }
 
-export type SiteView = { site: SiteIdentity; socials: Social[]; nav: NavItem[] | null; draft: boolean };
+/** Styles du site publiés (lot 2) : rôles de texte, arrondi ; absents = thème seul. */
+export async function getSiteStyles(): Promise<SiteStyles | undefined> {
+  const raw = (await getRawSettings()).styles;
+  if (raw === undefined) return undefined;
+  const parsed = SiteStylesSchema.safeParse(raw);
+  if (!parsed.success) console.error("[settings] « styles » invalide, styles du thème utilisés");
+  return parsed.data;
+}
+
+/** Feuille @font-face des polices Google téléchargées par le serveur (lot 2). */
+export async function getFontFacesCss(): Promise<string> {
+  return fontFaceCss(readLibrary((await getRawSettings()).fontLibrary));
+}
+
+export type SiteView = { site: SiteIdentity; socials: Social[]; nav: NavItem[] | null; draft: boolean; styles?: SiteStyles };
 
 /**
  * Identité, réseaux et menu tels que la page `pageId` les montre : la version
@@ -77,12 +94,13 @@ export async function getSiteView(locale: AppLocale, pageId: number | null | und
   if (draft) {
     const i = draft.identity;
     return {
-      site: { name: i.name, email: i.email, role: i.role[locale] || i.role.fr, credit: i.credit[locale] || i.credit.fr },
+      site: { name: i.name, email: i.email, role: i.role[locale] || i.role.fr, credit: i.credit[locale] || i.credit.fr, headerSocials: i.headerSocials === true },
       socials: draft.socials.filter((s) => safeSocialHref(s.href)),
       nav: draft.nav,
       draft: true,
+      styles: draft.styles,
     };
   }
-  const [site, socials, nav] = await Promise.all([getSite(locale), getSocials(), getNavSetting()]);
-  return { site, socials, nav, draft: false };
+  const [site, socials, nav, styles] = await Promise.all([getSite(locale), getSocials(), getNavSetting(), getSiteStyles()]);
+  return { site, socials, nav, draft: false, styles };
 }

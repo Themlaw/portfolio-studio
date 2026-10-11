@@ -28,6 +28,7 @@ import { MAX_NESTING } from "@/blocks/tree";
 import { acceptToCanvas, EDIT_MSG, insertionIndex, type BlockInfo, type FromCanvas } from "@/lib/edit/protocol";
 
 import BoardLayer from "./BoardLayer";
+import LookLayer from "./edit/LookLayer";
 import GridLayoutIcon, { LAYOUT_LABELS } from "./edit/GridLayoutIcon";
 import SiteLayer, { FormLayer } from "./SiteLayer";
 
@@ -816,6 +817,13 @@ export default function EditLayer() {
           {drag.label}
         </div>
       )}
+
+      {/* Mise en page (lot 2) : espaces, textes, position du titre, cadrage. */}
+      <LookLayer
+        selected={sel ? { uid: sel.uid, type: sel.type, ...(sel.parent ? { parent: sel.parent, parentType: boxes.find((b) => b.uid === sel.parent)?.type } : {}) } : null}
+        dragging={Boolean(drag)}
+        announce={setAnnouncement}
+      />
 
       <p className="pe-live" role="status" aria-live="polite">
         {drag && drop

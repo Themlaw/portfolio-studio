@@ -6,7 +6,8 @@ import type { AppLocale } from "@/i18n/routing";
 import { isDraftView } from "@/lib/draft-view";
 import { resolvePage } from "@/lib/page-preview";
 import { alternatesFor, getNav } from "@/lib/pages";
-import { getSiteView } from "@/lib/settings";
+import { siteStylesCss } from "@/lib/look";
+import { getFontFacesCss, getSiteView } from "@/lib/settings";
 
 /**
  * Cadre du site (en-tête, contenu, pied), construit depuis la base : menu
@@ -28,13 +29,19 @@ export default async function SiteLayout({
 
   const [page, edit] = await Promise.all([resolvePage(locale, slug), isDraftView()]);
   const view = await getSiteView(locale, page?.id);
-  const nav = await getNav(locale, view.draft ? view.nav : undefined);
+  const [nav, fontFaces] = await Promise.all([getNav(locale, view.draft ? view.nav : undefined), getFontFacesCss()]);
+  // Styles du site (lot 2) : polices téléchargées (servies par /fonts) et
+  // styles des textes par rôle ; vue brouillon : ceux du brouillon du site.
+  const siteCss = [fontFaces, siteStylesCss(view.styles)].filter(Boolean).join("\n");
 
   return (
-    <>
-      <SiteHeader siteName={view.site.name} nav={nav} alternates={alternatesFor(page)} edit={edit} />
+    // Cadre pleine hauteur (v0.13.1) : le contenu s'étire, le pied reste en bas
+    // de l'écran même sur une page courte (`.site-frame`, globals.css).
+    <div className="site-frame">
+      {(siteCss || edit) && <style id="site-styles" dangerouslySetInnerHTML={{ __html: siteCss }} {...(edit ? { "data-edit-styles": JSON.stringify(view.styles ?? {}) } : {})} />}
+      <SiteHeader siteName={view.site.name} nav={nav} alternates={alternatesFor(page)} socials={view.site.headerSocials ? view.socials : []} edit={edit} />
       <main id="contenu">{children}</main>
       <SiteFooter site={view.site} nav={nav} socials={view.socials} edit={edit} />
-    </>
+    </div>
   );
 }

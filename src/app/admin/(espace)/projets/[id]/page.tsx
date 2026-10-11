@@ -30,7 +30,8 @@ export default async function ProjectEditPage({ params }: { params: Promise<{ id
           l&apos;éditeur visuel d&apos;une page : elles n&apos;apparaissent ici qu&apos;après « Publier » sur cette page.
         </p>
       )}
-      <ProjectEditor project={project} library={listMediaForAdmin()} />
+      {/* Un PDF (bloc CV) ne se place pas dans une planche. */}
+      <ProjectEditor project={project} library={listMediaForAdmin().filter((m) => m.kind !== "pdf")} />
     </>
   );
 }

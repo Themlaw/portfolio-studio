@@ -17,7 +17,9 @@ import { desc, eq } from "drizzle-orm";
 
 import { dataDir, getDb, schema } from "@/lib/db";
 
-import { manifestDir, runKitChild } from "./export-job";
+import { resolvePalette } from "@/themes/palette";
+
+import { loadSavedTheme, manifestDir, runKitChild } from "./export-job";
 import type { KitReport } from "./import";
 
 /** Durée maximale d'un import (au-delà : processus tué, job en échec). */
@@ -133,7 +135,10 @@ export async function runKitImportJob(job: { id: number; payload: Record<string,
   const source = path.join(/* turbopackIgnore: true */ importDir(id), "source.psd");
   if (!(await stat(source).catch(() => null))) return void finish("failed", "Le fichier reçu a disparu : renvoie le kit.");
   await mkdir(manifestDir(), { recursive: true });
-  const result = await runKitChild({ mode: "import", psd: source, outDir: importOutDir(id), manifestDir: manifestDir(), themeId: meta.themeId }, IMPORT_TIMEOUT_MS);
+  // Palette actuelle du thème : référence des pastilles si le kit d'origine n'est pas reconnu, fonds des curseurs.
+  const theme = loadSavedTheme(meta.themeId);
+  const palette = theme ? resolvePalette(theme.tokens.color, theme.tokens.palette) : undefined;
+  const result = await runKitChild({ mode: "import", psd: source, outDir: importOutDir(id), manifestDir: manifestDir(), themeId: meta.themeId, palette }, IMPORT_TIMEOUT_MS);
   await rm(source, { force: true });
   if (!result.ok) {
     console.error(`[kit] import ${id} : échec`, result.error);

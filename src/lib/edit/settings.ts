@@ -29,6 +29,8 @@ export const SettingsSchema = z.object({
     role: localized,
     email: z.email("Adresse e-mail invalide (ex. nom@domaine.fr).").max(254),
     credit: localized,
+    /** Icônes des réseaux dans l'en-tête (v0.13.1). */
+    headerSocials: z.boolean().optional(),
   }),
   // Réseaux : mêmes règles que sur la toile (http(s) ou mailto:, réseau reconnu).
   socials: SocialsSchema,

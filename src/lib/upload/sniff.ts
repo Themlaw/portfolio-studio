@@ -1,7 +1,8 @@
 /**
  * Type d'un fichier image d'après sa SIGNATURE (premiers octets), jamais
  * d'après son extension ni le Content-Type envoyé. Liste blanche : JPEG, PNG,
- * WebP, AVIF, GIF. Tout le reste (SVG, HTML, PDF…) est refusé.
+ * WebP, AVIF, GIF ; vidéos (plus bas) ; PDF (bloc CV : `%PDF-` au tout début,
+ * sniffPdf). Tout le reste (SVG, HTML…) est refusé.
  * Module pur (sans import) : testé directement par Node (scripts/test-sniff.mjs).
  */
 
@@ -37,7 +38,17 @@ export function sniffImage(head: Uint8Array): ImageType | null {
 export type VideoType = { container: "mov" | "matroska"; mime: string; ext: string; label: string };
 
 export const VIDEO_ACCEPTED_LABEL = "MP4, MOV, WebM";
-export const VIDEO_REJECTED_MESSAGE = `Ce type de fichier n'est pas accepté. Formats vidéo possibles : ${VIDEO_ACCEPTED_LABEL}. Images : ${ACCEPTED_LABEL}.`;
+export const VIDEO_REJECTED_MESSAGE = `Ce type de fichier n'est pas accepté. Formats vidéo possibles : ${VIDEO_ACCEPTED_LABEL}. Images : ${ACCEPTED_LABEL}. Documents : PDF.`;
+
+/**
+ * PDF : « %PDF-1.x » ou « %PDF-2.x » dès le PREMIER octet (la norme tolère
+ * des octets devant l'en-tête ; nous non : un polyglotte HTML/PDF ou ZIP/PDF
+ * est refusé). La structure est vérifiée ensuite par pdfinfo.
+ */
+export function sniffPdf(head: Uint8Array): boolean {
+  if (head.length < 8) return false;
+  return /^%PDF-[12]\.\d/.test(ascii(head, 0, 8));
+}
 
 /**
  * Conteneur vidéo d'après la signature : famille ISO-BMFF (MP4, MOV : boîte

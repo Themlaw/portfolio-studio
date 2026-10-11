@@ -74,13 +74,13 @@ export const TUTO_SLIDES: TutoSlide[] = [
     bullets: [
       "Tout en haut, le LISEZ-MOI : les règles en cinq lignes.",
       "Le groupe _guides est verrouillé : les cases, les repères et l'identifiant du kit. N'y touche pas.",
-      "Les 7 groupes numérotés : un par élément du site, chacun sur sa carte.",
+      "Les 9 groupes numérotés : un par élément du site, chacun sur sa carte (couleurs et souris compris).",
     ],
     notes: [
       { box: "lisezmoi", label: "LISEZ-MOI", place: "top" },
       { box: "arbreLisez", label: "En haut", place: "right" },
       { box: "arbreGuides", label: "Verrouillé", place: "right" },
-      { box: "arbreGroupes", label: "Les 7 éléments", place: "bottom" },
+      { box: "arbreGroupes", label: "Les 9 éléments", place: "bottom" },
     ],
   },
   {
@@ -154,11 +154,11 @@ export const TUTO_SLIDES: TutoSlide[] = [
   },
   {
     id: "cadre",
-    title: "4 · Cadre des images agrandies",
+    title: "4 · Cadre des entrées de collection",
     image: "el-cadre",
-    alt: "La carte du cadre avec ses lignes vertes, puis une image agrandie avec le passe-partout actuel et avec un cadre dessiné.",
+    alt: "La carte du cadre avec ses lignes vertes, puis les entrées des collections de l'accueil avec le passe-partout actuel et avec un cadre dessiné.",
     bullets: [
-      "Il entoure une image quand on clique dessus pour l'agrandir.",
+      "Il entoure la grande image de chaque collection (Personnages, Décors…) sur l'accueil.",
       "Les coins restent tels quels ; les bords entre les lignes vertes s'étirent.",
       "Laisse le centre transparent : l'image s'y affiche.",
       KEEP,
@@ -190,9 +190,9 @@ export const TUTO_SLIDES: TutoSlide[] = [
     id: "icones",
     title: "6 · Icônes",
     image: "el-icones",
-    alt: "La carte des icônes, puis les flèches des planches du site : avant, et après avec la flèche dessinée par l'artiste et son miroir.",
+    alt: "La carte des icônes, puis la flèche « suivante » d'une planche du site (au survol) : avant, et après avec la flèche dessinée par l'artiste.",
     bullets: [
-      "Les flèches des planches, la croix de l'image agrandie, le bouton lecture.",
+      "Les flèches sur les bords des planches, la croix de l'image agrandie, le bouton lecture.",
       "Une seule couleur chacune, fond transparent : le site les teinte.",
       "Tu ne redessines qu'une flèche ? On te propose son miroir pour l'autre.",
       KEEP,
@@ -213,6 +213,40 @@ export const TUTO_SLIDES: TutoSlide[] = [
       "Fond transparent ; la transparence partielle (scotch translucide) est gardée.",
       "Redessiné, il active la variante « scotch » des planches dans ta copie.",
       KEEP,
+    ],
+    notes: [
+      { box: "carte", label: "Dans le kit", place: "top" },
+      { box: "avant", label: "Avant", place: "top" },
+      { box: "apres", label: "Après", place: "top" },
+    ],
+  },
+  {
+    id: "palette",
+    title: "8 · Palette",
+    image: "el-palette",
+    alt: "La carte de la palette dans le kit, une pastille par couleur ; dessous, un bouton du site avant et après avoir repeint l'action et son survol.",
+    bullets: [
+      "Une colonne par couleur du site, avec ses nuances dessous : survol, texte secondaire, fond profond…",
+      "Repeins une pastille pour changer cette couleur : choisis ta couleur, puis Alt+Maj+Retour arrière.",
+      "Laisse-la telle quelle pour la garder ; une nuance « (auto) » suit alors sa couleur de base.",
+      "Au retour, tu vois chaque couleur avant / après, et le contraste des textes est vérifié.",
+    ],
+    notes: [
+      { box: "carte", label: "Dans le kit", place: "top" },
+      { box: "avant", label: "Avant", place: "top" },
+      { box: "apres", label: "Après", place: "top" },
+    ],
+  },
+  {
+    id: "curseur",
+    title: "9 · Curseur",
+    image: "el-curseur",
+    alt: "La carte des curseurs dans le kit, cases « Normal » et « Clic » ; dessous, la souris sur un lien du site, flèche du système puis curseur dessiné.",
+    bullets: [
+      "Deux cases de 64 × 64 px : « Normal » partout, « Clic » sur ce qui se clique.",
+      "Le rond rose « point chaud » marque le point qui clique : déplace-le avec ton dessin.",
+      "Un contour clair et un foncé : ta souris reste visible sur tous les fonds.",
+      "Tu peux revenir à la souris du système dans l'éditeur du thème, sans perdre tes dessins.",
     ],
     notes: [
       { box: "carte", label: "Dans le kit", place: "top" },
@@ -255,7 +289,7 @@ export const TUTO_SLIDES: TutoSlide[] = [
       "✓ inchangé : ce que tu n'as pas touché est gardé tel quel.",
       "✓ redessiné : avant / après, le format choisi et son poids.",
       "⚠ ou ✗ : un problème, avec la raison et comment le corriger dans Photoshop.",
-      "Si tu as repeint le paysage, une palette de couleurs t'est proposée.",
+      "Tes couleurs repeintes : avant / après et contraste ; si tu as repeint le paysage, une palette t'est aussi proposée.",
     ],
     notes: [
       { box: "resume", label: "Résumé", place: "right" },

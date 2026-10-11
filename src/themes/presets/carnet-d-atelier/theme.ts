@@ -1,4 +1,4 @@
-import type { ThemeInput } from "../schema";
+import type { ThemeInput } from "../../schema";
 
 /**
  * Carnet d'atelier — papier crème pointillé, planches scotchées, légendes

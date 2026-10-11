@@ -1295,6 +1295,87 @@ body:has(.a-sidepanel) .a-toasts {
   margin: 0;
 }
 
+/* Vignette : capture du thème livré, ou maquette dessinée avec ses tokens.
+   La maquette porte les couleurs du thème (styles en ligne) : seuls cadre et
+   gabarit viennent de l'admin. */
+.a-theme-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 8 / 5;
+  height: auto;
+  margin-top: 10px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 6px;
+  object-fit: cover;
+  object-position: top center;
+  overflow: hidden;
+}
+
+.a-theme-mini {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.a-theme-mini-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid;
+  font-size: 12px;
+}
+
+.a-theme-mini-bar span + span {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.a-theme-mini-hero {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 12px;
+}
+
+.a-theme-mini-hero[style*="center"] {
+  align-items: center;
+}
+
+.a-theme-mini-eyebrow {
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.a-theme-mini-title {
+  font-size: 21px;
+  line-height: 1;
+}
+
+.a-theme-mini-btn {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 3px 10px;
+  font-size: 9px;
+}
+
+.a-theme-mini-hero[style*="center"] .a-theme-mini-btn {
+  align-self: center;
+}
+
+.a-theme-mini-strip {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr;
+  gap: 8px;
+  height: 34%;
+  padding: 10px 12px;
+}
+
 .a-theme-card > .a-help {
   margin-top: 10px;
 }
@@ -5119,4 +5200,427 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
 .a-message-fields dd {
   margin: 0;
   white-space: pre-wrap;
+}
+
+/* ---- Réseaux (Réglages, panneau En-tête / Pied) : SocialsEditor + SocialPicker (v0.13.1) ---- */
+.a-socials-list {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.a-socials-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+  background: var(--admin-bg);
+}
+
+.a-socials-icon {
+  display: inline-grid;
+  place-items: center;
+  color: var(--admin-ink-soft);
+}
+
+.a-socials-icon .social-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.a-socials-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.a-socials-href {
+  overflow: hidden;
+  color: var(--admin-ink-soft);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.a-sp-panel {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  grid-column: 1 / -1;
+  max-width: 460px;
+  margin: 4px 0 10px;
+  padding: 14px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  box-shadow: var(--admin-shadow-menu);
+}
+
+.a-sp-panel > * {
+  width: 100%;
+}
+
+.a-sp-panel > .a-link-btn {
+  width: auto;
+}
+
+.a-sp-title {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+  font-weight: 700;
+}
+
+.a-sp-title .social-icon,
+.a-sp-grid .social-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.a-sp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 2px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.a-sp-grid button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--admin-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.a-sp-grid button:hover,
+.a-sp-grid button:focus-visible {
+  background: var(--admin-accent-soft);
+}
+
+.a-sp-form {
+  display: grid;
+  gap: 10px;
+}
+
+.a-sp-field {
+  display: grid;
+  gap: 6px;
+}
+
+.a-sp-field span {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.a-sp-field input {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  color: var(--admin-ink);
+  font: 15px/1.2 var(--admin-font-ui);
+}
+
+.a-sp-field input:focus-visible {
+  border-color: var(--admin-accent);
+  outline-offset: 0;
+}
+
+.a-sp-hint {
+  color: var(--admin-success);
+  font-size: 13px;
+}
+
+.a-sp-back {
+  margin-right: 12px;
+}
+
+/* ==========================================================================
+   Palette du thème et curseurs dessinés (lot 4)
+   Échantillon : couleurs de la palette éditée, passées en --pv-* (style en
+   ligne), jamais les --t-* du site.
+   ========================================================================== */
+.a-pal-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.a-pal-group {
+  padding: 10px 12px 0;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+}
+
+.a-pal-group > legend {
+  padding: 0 4px;
+  font-weight: 700;
+}
+
+.a-color-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.a-pal-mode {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+  font: 600 11px/1.5 var(--admin-font-mono);
+  vertical-align: 1px;
+}
+
+.a-pal-mode-forced {
+  background: var(--admin-warning-soft);
+  color: var(--admin-warning);
+}
+
+.a-pal-reset {
+  justify-self: start;
+  gap: 6px;
+}
+
+.a-pal-sample {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  grid-template-rows: auto auto;
+  margin: 0 0 14px;
+  overflow: hidden;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: var(--admin-radius);
+  font-size: 13px;
+}
+
+.a-pal-s-page {
+  display: grid;
+  grid-row: 1 / 3;
+  align-content: start;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--pv-bg);
+  color: var(--pv-ink);
+}
+
+.a-pal-s-eyebrow {
+  color: var(--pv-eyebrow);
+  font: 600 11px/1.2 var(--admin-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.a-pal-s-title {
+  font: 400 18px/1.2 var(--admin-font-brand);
+}
+
+.a-pal-s-soft {
+  color: var(--pv-ink-soft);
+}
+
+.a-pal-s-link {
+  justify-self: start;
+  color: var(--pv-primary);
+  text-decoration: underline;
+}
+
+.a-pal-s-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.a-pal-s-btn {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--pv-primary);
+  color: var(--pv-on-primary);
+  font-weight: 600;
+}
+
+.a-pal-s-btn-hover {
+  background: var(--pv-primary-hover);
+}
+
+.a-pal-s-line {
+  width: 100%;
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--pv-line);
+}
+
+.a-pal-s-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--pv-surface);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--pv-shadow) 14%, transparent);
+}
+
+.a-pal-s-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--pv-tertiary);
+}
+
+.a-pal-s-deep {
+  display: grid;
+  place-items: center;
+  padding: 10px;
+  background: var(--pv-bg-deep);
+  color: var(--pv-ink-soft);
+  font-size: 12px;
+  text-align: center;
+}
+
+.a-pal-s-scrim {
+  display: grid;
+  place-items: center;
+  gap: 6px;
+  padding: 10px;
+  background: var(--pv-scrim);
+  color: var(--pv-on-scrim);
+  font-size: 12px;
+  text-align: center;
+}
+
+.a-pal-s-frame {
+  width: 54px;
+  height: 36px;
+  border: 3px solid var(--pv-surface);
+  background: var(--pv-tertiary);
+}
+
+.a-cursor-row {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+}
+
+.a-cursor-grounds {
+  display: flex;
+  gap: 8px;
+}
+
+.a-cursor-ground {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: var(--admin-radius);
+}
+
+.a-cursor-ground img {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 32px;
+  height: 32px;
+}
+
+.a-cursor-hotspot {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  margin: -1px 0 0 -1px;
+  border-radius: 50%;
+  background: var(--admin-danger);
+  box-shadow: 0 0 0 1px var(--admin-surface);
+}
+
+@media (max-width: 520px) {
+  .a-pal-sample {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .a-pal-s-page {
+    grid-row: auto;
+  }
+}
+
+.a-kit-colors {
+  margin: 18px 0;
+}
+
+.a-kit-color-list {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.a-kit-color-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+}
+
+.a-kit-color-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---- Réglages → Polices téléchargées (intégration) ---- */
+.a-fonts {
+  margin-top: 24px;
+}
+
+.a-fonts-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.a-fonts-list li {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto 2fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+}
+
+.a-fonts-name {
+  font-weight: 600;
+}
+
+.a-fonts-meta,
+.a-fonts-uses {
+  color: var(--admin-ink-soft);
+  font-size: 0.875rem;
+}
+
+@media (max-width: 720px) {
+  .a-fonts-list li {
+    grid-template-columns: 1fr auto;
+  }
 }

@@ -4,6 +4,7 @@ import { getPreviewTheme, isPreviewBannerHidden } from "@/lib/theme";
 
 import EditLayerLoader from "./EditLayerLoader";
 import PreviewBridge from "./PreviewBridge";
+import PreviewExit from "./PreviewExit";
 
 import "@/app/admin/preview-banner.css";
 
@@ -46,9 +47,7 @@ export default async function PreviewBanner() {
             </>
           )}
         </span>
-        <form method="post" action="/admin/apercu/quitter">
-          <button type="submit">Quitter l&apos;aperçu</button>
-        </form>
+        <PreviewExit />
       </div>
     </>
   );

@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 
+import EmailText from "@/components/EmailText";
 import Eyebrow from "@/components/Eyebrow";
 import SocialIcon from "@/components/SocialIcon";
 import { Link } from "@/i18n/navigation";
@@ -35,9 +36,9 @@ export default function SiteFooter({
             <Eyebrow>{t("eyebrow")}</Eyebrow>
             <a
               href={`mailto:${site.email}`}
-              className="mt-3 block font-display text-2xl sm:text-3xl md:text-4xl text-ink hover:text-primary transition-colors break-words"
+              className="email-link email-link-footer mt-3 text-ink hover:text-primary transition-colors"
             >
-              {edit ? <span {...site$(edit, "email", "ton@adresse.fr")}>{site.email}</span> : site.email}
+              <EmailText email={site.email} editable={edit ? site$(edit, "email", "ton@adresse.fr") : undefined} />
             </a>
             <p className="mt-4 max-w-sm text-sm text-ink-soft" {...site$(edit, "role", "Ton métier")}>
               {site.role}

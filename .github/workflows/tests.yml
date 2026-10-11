@@ -1,0 +1,298 @@
+# Batterie de tests lourds (e2e Playwright, test:auth, build) sur GitHub
+# Actions, en parallèle : une machine par suite. La VM de dev (2 Go) ne lance
+# plus que des tests ciblés. Voir docs/ARCHITECTURE.md, « Tests lourds sur GitHub Actions ».
+#
+# Lancement manuel : gh workflow run tests.yml --ref <branche> [-f suites=v013,auth]
+name: tests
+
+on:
+  push:
+    branches: [iterate, "lot/**", "ci/**"]
+  pull_request:
+    branches: [main, iterate]
+  workflow_dispatch:
+    inputs:
+      suites:
+        description: "Suites à lancer, séparées par des virgules (vide = toutes) : checks, auth, pdf, v013, lot1, palette, look, themes, kit, editor, boards, admin, medias, medias-firefox"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+  NODE_VERSION: "24"
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      e2e: ${{ steps.plan.outputs.e2e }}
+      any_e2e: ${{ steps.plan.outputs.any_e2e }}
+      checks: ${{ steps.plan.outputs.checks }}
+      auth: ${{ steps.plan.outputs.auth }}
+      pdf: ${{ steps.plan.outputs.pdf }}
+    steps:
+      - id: plan
+        env:
+          SUITES: ${{ github.event.inputs.suites }}
+        run: |
+          node - <<'EOF' >> "$GITHUB_OUTPUT"
+          // Une entrée par suite e2e : id, commande, navigateur Playwright.
+          const e2e = [
+            { id: "v013", cmd: "node scripts/e2e-v013.mjs", browser: "chromium" },
+            { id: "lot1", cmd: "node scripts/e2e-lot1.mjs", browser: "chromium" },
+            { id: "palette", cmd: "node scripts/e2e-palette.mjs", browser: "chromium" },
+            { id: "look", cmd: "node scripts/e2e-look.mjs", browser: "chromium" },
+            { id: "themes", cmd: "node scripts/e2e-themes.mjs", browser: "chromium" },
+            { id: "kit", cmd: "node scripts/e2e-kit.mjs", browser: "chromium" },
+            { id: "editor", cmd: "node scripts/e2e-editor.mjs", browser: "chromium" },
+            { id: "boards", cmd: "node scripts/e2e-boards.mjs", browser: "chromium" },
+            { id: "admin", cmd: "node scripts/e2e-admin.mjs", browser: "chromium" },
+            { id: "medias", cmd: "node scripts/e2e-medias.mjs", browser: "chromium" },
+            { id: "medias-firefox", cmd: "node scripts/e2e-medias.mjs", browser: "firefox", only: "AB" },
+          ];
+          const want = (process.env.SUITES ?? "").split(/[\s,]+/).filter(Boolean);
+          const on = (id) => !want.length || want.includes(id);
+          const sel = e2e.filter((s) => on(s.id));
+          console.log(`e2e=${JSON.stringify({ include: sel })}`);
+          console.log(`any_e2e=${sel.length > 0}`);
+          for (const id of ["checks", "auth", "pdf"]) console.log(`${id}=${on(id)}`);
+          EOF
+          cat "$GITHUB_OUTPUT"
+
+  # Contrôles légers (sans navigateur ni serveur).
+  checks:
+    needs: plan
+    if: needs.plan.outputs.checks == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: tsc
+        run: npx tsc --noEmit
+      - name: lint
+        if: ${{ !cancelled() }}
+        run: npm run lint
+      - name: check:tokens
+        if: ${{ !cancelled() }}
+        run: npm run check:tokens
+      - name: check:contrast
+        if: ${{ !cancelled() }}
+        run: npm run check:contrast
+      - name: theme:check
+        if: ${{ !cancelled() }}
+        run: npm run theme:check
+      - name: npm test
+        if: ${{ !cancelled() }}
+        run: npm test
+
+  # Build de production (standalone) : consommé par test:auth.
+  build:
+    needs: plan
+    if: needs.plan.outputs.auth == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      - uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-build-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: next-build-${{ hashFiles('package-lock.json') }}-
+      - run: npm run build
+      - run: node scripts/check-standalone.mjs --require
+      - name: Archive du build
+        run: tar -cf "$RUNNER_TEMP/next-build.tar" --exclude=.next/cache --exclude=.next/dev .next
+      - uses: actions/upload-artifact@v4
+        with:
+          name: next-build
+          path: ${{ runner.temp }}/next-build.tar
+          retention-days: 1
+          compression-level: 1
+
+  # Intégration de l'authentification sur le standalone (faux OIDC, ffmpeg, poppler).
+  auth:
+    needs: [plan, build]
+    if: needs.plan.outputs.auth == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Paquets système (ffmpeg, poppler)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg poppler-utils
+      - uses: actions/download-artifact@v4
+        with:
+          name: next-build
+          path: ${{ runner.temp }}
+      - run: tar -xf "$RUNNER_TEMP/next-build.tar"
+      - name: test:auth
+        id: run
+        env:
+          TEST_AUTH_TMP: ${{ runner.temp }}/test-auth
+        run: |
+          mkdir -p "$RUNNER_TEMP/logs"
+          set -o pipefail
+          npm run test:auth 2>&1 | tee "$RUNNER_TEMP/logs/auth.log"
+      - name: Résumé
+        if: always()
+        run: bash .github/scripts/report.sh auth "${{ steps.run.outcome }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-auth
+          path: ${{ runner.temp }}/logs
+          retention-days: 7
+          overwrite: true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: result-auth
+          path: ${{ runner.temp }}/result
+          retention-days: 7
+          overwrite: true
+
+  # Rendu PDF réel (poppler) et confinement (strace).
+  pdf:
+    needs: plan
+    if: needs.plan.outputs.pdf == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Paquets système (poppler, strace)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends poppler-utils strace file
+      - name: test-pdf
+        id: run
+        run: |
+          mkdir -p "$RUNNER_TEMP/logs"
+          set -o pipefail
+          node --import tsx scripts/test-pdf.mjs 2>&1 | tee "$RUNNER_TEMP/logs/pdf.log"
+      - name: Résumé
+        if: always()
+        run: bash .github/scripts/report.sh pdf "${{ steps.run.outcome }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: result-pdf
+          path: ${{ runner.temp }}/result
+          retention-days: 7
+          overwrite: true
+
+  # Une machine par suite e2e : serveur dev neuf, base neuve, un navigateur.
+  e2e:
+    needs: plan
+    if: needs.plan.outputs.any_e2e == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.e2e) }}
+    name: e2e (${{ matrix.id }})
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Paquets système (ffmpeg, poppler)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg poppler-utils
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
+      - name: Navigateur Playwright (${{ matrix.browser }})
+        run: |
+          if [ "${{ matrix.browser }}" = chromium ]; then
+            npx playwright install --with-deps --only-shell chromium
+          else
+            npx playwright install --with-deps ${{ matrix.browser }}
+          fi
+      - name: ${{ matrix.id }}
+        id: run
+        env:
+          BROWSER: ${{ matrix.browser }}
+          ONLY: ${{ matrix.only }}
+        run: bash .github/scripts/e2e.sh "${{ matrix.id }}" ${{ matrix.cmd }}
+      - name: Résumé
+        if: always()
+        run: bash .github/scripts/report.sh "${{ matrix.id }}" "${{ steps.run.outcome }}"
+      - name: Captures du dépôt
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/shots/${{ matrix.id }}"
+          [ -d screenshots ] && cp -r screenshots "$RUNNER_TEMP/shots/${{ matrix.id }}/depot" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-${{ matrix.id }}
+          path: |
+            ${{ runner.temp }}/logs
+            ${{ runner.temp }}/shots
+          retention-days: 7
+          overwrite: true
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: result-${{ matrix.id }}
+          path: ${{ runner.temp }}/result
+          retention-days: 7
+          overwrite: true
+
+  summary:
+    needs: [plan, checks, build, auth, pdf, e2e]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: result-*
+          merge-multiple: true
+          path: result
+      - name: Tableau
+        env:
+          CHECKS: ${{ needs.checks.result }}
+          BUILD: ${{ needs.build.result }}
+        run: |
+          {
+            echo "## Tests lourds"
+            echo
+            echo "| Suite | Résultat | PASS | FAIL |"
+            echo "|---|---|---:|---:|"
+            echo "| checks | $CHECKS | | |"
+            echo "| build | $BUILD | | |"
+            cat result/*.tsv 2>/dev/null | sort | while IFS=$'\t' read -r id v p f; do
+              echo "| $id | $v | $p | $f |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+          ! grep -q $'\tFAIL\t' result/*.tsv 2>/dev/null

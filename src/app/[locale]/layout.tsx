@@ -6,10 +6,12 @@ import { setRequestLocale } from "next-intl/server";
 import EditThisPage from "@/components/EditThisPage";
 import PreviewBanner from "@/components/PreviewBanner";
 import { routing, type AppLocale } from "@/i18n/routing";
+import { themeTypeCss } from "@/lib/look";
 import { getActiveTheme } from "@/lib/theme";
 import { themeAttributes, themeToCss } from "@/themes/css";
 import { FONT_VARIABLE_CLASSES } from "@/themes/fonts";
 import "../globals.css";
+import "../look.css";
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -47,7 +49,7 @@ export default async function LocaleLayout({
     // variantes de forme du theme (src/themes/variants.css).
     <html lang={locale} className={FONT_VARIABLE_CLASSES} {...themeAttributes(theme)}>
       <head>
-        <style id="theme" dangerouslySetInnerHTML={{ __html: themeToCss(theme) }} />
+        <style id="theme" dangerouslySetInnerHTML={{ __html: [themeToCss(theme), themeTypeCss(theme)].filter(Boolean).join("\n") }} />
       </head>
       <body className="bg-bg text-ink antialiased">
         <NextIntlClientProvider>

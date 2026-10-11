@@ -37,7 +37,7 @@ export const media = sqliteTable("media", {
   key: text("key").notNull().unique(),
   /** SHA-256 du contenu envoyé (null : média du seed). Un contenu = une ligne. */
   sha256: text("sha256").unique(),
-  kind: text("kind", { enum: ["image", "video"] }).notNull(),
+  kind: text("kind", { enum: ["image", "video", "pdf"] }).notNull(),
   mime: text("mime").notNull(),
   originalName: text("original_name"),
   size: integer("size").notNull(),
@@ -182,7 +182,7 @@ export const jobs = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     /** image : file légère ; video, kit (export), kit-import : file lourde (un seul à la fois). */
-    kind: text("kind", { enum: ["image", "video", "kit", "kit-import"] }).notNull(),
+    kind: text("kind", { enum: ["image", "video", "kit", "kit-import", "pdf"] }).notNull(),
     /** Média traité (image, vidéo) ; null pour un export de kit. */
     mediaId: integer("media_id").references(() => media.id, { onDelete: "cascade" }),
     /** Paramètres d'un job sans média (kit : { themeId, version } ; kit-import : { importId, themeId }), JSON. */

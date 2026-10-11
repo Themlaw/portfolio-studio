@@ -1,4 +1,4 @@
-import type { ThemeInput } from "../schema";
+import type { ThemeInput } from "../../schema";
 
 /**
  * Galerie lumineuse — DA de référence (tag da/galerie-lumineuse).
@@ -29,11 +29,26 @@ const theme = {
     font: { display: "young-serif", body: "figtree", caption: "spline-sans-mono" },
     radius: { sm: "6px", md: "12px", lg: "20px", btn: "999px", strip: "4px" },
     space: {
-      sectionGap: "clamp(4.5rem, 10vw, 9rem)",
+      // Resserré (lot 2) : beaucoup d'espace perdu entre les sections avant.
+      sectionGap: "clamp(2.5rem, 5.5vw, 4.5rem)",
       pageMax: "1240px",
       gutter: "clamp(1.25rem, 5vw, 3.5rem)",
     },
     motion: { durFast: "180ms", durBase: "520ms", easing: "cubic-bezier(0.22, 0.61, 0.36, 1)" },
+    // Mise en page (lot 2) : pages de collection et planches plus compactes,
+    // images sans arrondi (demande de l'artiste). Métier de l'ouverture : sans
+    // fond, le contraste mesuré au pixel ne tient pas sur le décor (p5 1,47:1) :
+    // ombre douce (et non plus le halo épais).
+    layout: {
+      spaceS: "0.5rem",
+      spaceM: "clamp(1rem, 2vw, 1.5rem)",
+      spaceL: "clamp(2rem, 4vw, 3rem)",
+      spaceXL: "clamp(3rem, 7vw, 5rem)",
+      pageTop: "clamp(2.5rem, 6vh, 4rem)",
+      stripPad: "clamp(1.25rem, 3vw, 2.25rem)",
+      mediaRadius: "none",
+      heroRoleBackdrop: "shadow",
+    },
   },
   variants: {
     header: "inline",

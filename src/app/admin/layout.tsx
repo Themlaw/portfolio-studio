@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { FONT_CATALOG } from "@/themes/fonts";
+import { FONT_VARIABLE_CLASSES } from "@/themes/fonts";
 
 import "./admin.css";
 
@@ -16,9 +16,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const FONTS = [FONT_CATALOG.figtree, FONT_CATALOG["spline-sans-mono"], FONT_CATALOG["young-serif"]]
-  .map((f) => f.className)
-  .join(" ");
+// Variables de TOUTES les polices du catalogue : l'admin emploie les siennes
+// (Figtree, Spline Sans Mono, Young Serif) ; les autres ne servent qu'aux
+// échantillons et vignettes des thèmes et ne se téléchargent que là.
+const FONTS = FONT_VARIABLE_CLASSES;
 
 export default function AdminRootLayout({ children }: { children: React.ReactNode }) {
   return (

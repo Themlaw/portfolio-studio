@@ -34,6 +34,9 @@ import { done, fail, type ActionResult } from "./result";
 type L = { fr: string; en: string };
 type SlotRow = typeof schema.slots.$inferSelect;
 
+/** Un PDF (bloc CV) ne se pose pas dans une planche. */
+const PDF_NOT_IN_BOARD = "Un PDF ne se place pas dans une planche : utilise le bloc « CV ».";
+
 export const MAX_BOARD_SLOTS = 200;
 /** Projets créés au plus dans le brouillon d'une page. */
 export const MAX_DRAFT_PROJECTS = 10;
@@ -170,8 +173,9 @@ function checkSnap(pageId: number, snap: BoardSnap, allowPending = false): strin
     if (s.key.startsWith("s") && !row) return "Un emplacement n'existe plus ou appartient à un autre projet : recharge l'éditeur.";
     if (row && row.draftState === "added" && row.draftPageId !== pageId) return "Emplacement d'une autre page.";
     if (s.mediaId !== null) {
-      const m = db.select({ status: schema.media.status }).from(schema.media).where(eq(schema.media.id, s.mediaId)).get();
+      const m = db.select({ status: schema.media.status, kind: schema.media.kind }).from(schema.media).where(eq(schema.media.id, s.mediaId)).get();
       if (!m) return "Une image n'existe plus : recharge l'éditeur.";
+      if (m.kind === "pdf") return PDF_NOT_IN_BOARD;
       if (m.status === "failed") return "Ce média est en échec : relance-le depuis la médiathèque avant de le placer.";
       // Un média se place une fois prêt (Annuler/Rétablir peut rétablir un média encore en conversion).
       if (m.status !== "ready" && !(allowPending && m.status === "processing")) return "Ce média est encore en conversion : attends qu'il soit prêt pour le placer.";

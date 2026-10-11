@@ -2,14 +2,15 @@
 # Portfolio — image de production (Next.js standalone), durcie et découpée.
 #
 # Exécution : distroless (gcr.io/distroless/nodejs24-debian13) : ni shell, ni
-# apt/dpkg, ni binaire setuid. ffmpeg, ffprobe et nice viennent du paquet Debian
-# (même version de Debian que la base : glibc identique) avec leurs seules
-# bibliothèques, collectées par ldd.
+# apt/dpkg, ni binaire setuid. ffmpeg, ffprobe, nice, pdfinfo et pdftoppm
+# viennent des paquets Debian (même version de Debian que la base : glibc
+# identique) avec leurs seules bibliothèques, collectées par ldd.
 #
 # Couches, de la plus stable à la plus volatile (une modification de code ne
 # change que les deux dernières) :
 #   1. base distroless (node 24)                 mise à jour de sécurité
-#   2. ffmpeg + bibliothèques + nice             mise à jour de sécurité
+#   2. ffmpeg, poppler (pdfinfo, pdftoppm),
+#      nice + bibliothèques                      mise à jour de sécurité
 #   3. comptes et /data (1000:1000)              jamais
 #   4. node_modules tracées du standalone        changement de dépendances
 #   5. migrations et seed                        nouvelle migration
@@ -70,14 +71,17 @@ RUN if [ "$LOW_MEM_BUILD" = "1" ]; then npm run build:local; else npm run build;
     && chmod -R u=rwX,go=rX /out .next/static public drizzle seed
 
 # ---- ffmpeg : binaires Debian et leur fermeture de bibliothèques -------------
+# (nom de stage historique : il porte aussi pdfinfo / pdftoppm de poppler-utils,
+# pour l'aperçu des PDF du bloc CV — pas de moteur JavaScript, pas de réseau).
 FROM debian:${DEBIAN_RELEASE}-slim AS ffmpeg
 # Paquets déjà présents dans la base distroless : leurs bibliothèques ne sont
 # PAS copiées (on garde celles de la base, cohérentes avec son glibc).
 ARG BASE_PACKAGES="base-files ca-certificates gcc-14-base libc6 libgcc-s1 libgomp1 libssl3t64 libstdc++6 libzstd1 media-types netbase tzdata tzdata-legacy zlib1g"
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && apt-get install -y --no-install-recommends ffmpeg poppler-utils \
     && rm -rf /var/lib/apt/lists/*
-# Fermeture ldd de ffmpeg, ffprobe et nice (coreutils), copiée DÉRÉFÉRENCÉE au
+# Fermeture ldd de ffmpeg, ffprobe, nice (coreutils), pdfinfo et pdftoppm
+# (poppler-utils), copiée DÉRÉFÉRENCÉE au
 # chemin du soname (pas de lien vers /etc/alternatives, absent de l'image : cas
 # de libblas.so.3 / liblapack.so.3). Pour chaque paquet
 # Debian concerné, son enregistrement dpkg va dans /var/lib/dpkg/status.d/
@@ -86,9 +90,9 @@ RUN apt-get update \
 RUN set -eu; \
     out=/out; lib=/usr/lib/x86_64-linux-gnu; \
     mkdir -p "$out/usr/bin" "$out$lib" "$out/var/lib/dpkg/status.d"; \
-    cp -a /usr/bin/ffmpeg /usr/bin/ffprobe /usr/bin/nice "$out/usr/bin/"; \
-    pkgs="ffmpeg coreutils"; \
-    for so in $(ldd /usr/bin/ffmpeg /usr/bin/ffprobe /usr/bin/nice | awk '$2 == "=>" && $3 ~ /^\// {print $3}' | sort -u); do \
+    cp -a /usr/bin/ffmpeg /usr/bin/ffprobe /usr/bin/nice /usr/bin/pdfinfo /usr/bin/pdftoppm "$out/usr/bin/"; \
+    pkgs="ffmpeg coreutils poppler-utils"; \
+    for so in $(ldd /usr/bin/ffmpeg /usr/bin/ffprobe /usr/bin/nice /usr/bin/pdfinfo /usr/bin/pdftoppm | awk '$2 == "=>" && $3 ~ /^\// {print $3}' | sort -u); do \
       case "$so" in /lib/*|/lib64/*) so="/usr$so" ;; esac; \
       real=$(readlink -f "$so"); \
       pkg=$(dpkg -S "$so" 2>/dev/null | head -1 | cut -d: -f1 || true); \
@@ -103,7 +107,7 @@ RUN set -eu; \
         [ -f "$m" ] && cp "$m" "$out/var/lib/dpkg/status.d/$p.md5sums" || true; \
       done; \
     done; \
-    echo "ffmpeg : $(find "$out/usr/lib" -type f | wc -l) bibliothèques, $(echo $pkgs | tr ' ' '\n' | sort -u | wc -l) paquets, $(du -sh "$out" | cut -f1)"
+    echo "ffmpeg + poppler : $(find "$out/usr/lib" -type f | wc -l) bibliothèques, $(echo $pkgs | tr ' ' '\n' | sort -u | wc -l) paquets, $(du -sh "$out" | cut -f1)"
 
 # ---- fs : comptes et squelette de /data --------------------------------------
 FROM ${DISTROLESS} AS distroless
@@ -132,8 +136,8 @@ ENV NODE_ENV=production \
     DATA_DIR=/data
 WORKDIR /app
 
-# 2. ffmpeg / ffprobe / nice (paquets Debian : correctifs de sécurité suivis à
-#    chaque reconstruction, sans somme de contrôle à tenir à jour).
+# 2. ffmpeg / ffprobe / nice / pdfinfo / pdftoppm (paquets Debian : correctifs
+#    de sécurité suivis à chaque reconstruction, sans somme de contrôle à tenir à jour).
 COPY --link --from=ffmpeg /out/ /
 # 3. Comptes et /data (seul emplacement inscriptible, avec les tmpfs).
 COPY --link --from=fs /out/etc/ /etc/

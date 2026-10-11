@@ -264,7 +264,7 @@ try {
   await d.getByRole("button", { name: "Supprimer" }).click();
   await d.locator(".a-refs li").first().waitFor();
   const refs = await d.locator(".a-refs").innerText();
-  ok("B12 suppression bloquée, blocs référents listés", /Tuiles de collections/.test(refs) && /Accueil/.test(refs), refs);
+  ok("B12 suppression bloquée, blocs référents listés", /Entrées des collections/.test(refs) && /Accueil/.test(refs), refs);
   await d.getByRole("button", { name: "Annuler" }).click();
   r = await anon("/fr/personnages");
   ok("B12b la page référencée existe toujours", r.status === 200);
@@ -297,14 +297,15 @@ try {
   const credit = page.locator(".a-field", { hasText: "Mention en pied de page" });
   const originalCredit = await credit.locator("input").inputValue();
   await credit.locator("input").fill("Mention modifiée par le test");
-  const firstSocial = page.locator(".a-list-item").first();
-  await firstSocial.getByLabel("Adresse").fill("javascript:alert(1)");
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
-  await firstSocial.locator(".a-field-error", { hasText: "https://" }).waitFor();
-  ok("C1 URL javascript: refusée, erreur sous le champ", true);
-  const items = page.locator(".a-list-item");
-  for (let i = 0; i < (await items.count()); i++) {
-    await items.nth(i).getByLabel("Adresse").fill(`https://example.com/reseau-${i + 1}`);
+  // Réseaux (v0.13.1) : même choix de réseau que la toile (SocialPicker), adresse contrôlée à la saisie.
+  const rows = page.locator(".a-socials-row");
+  await rows.first().getByRole("button", { name: /^Modifier/ }).click();
+  await page.getByLabel("Adresse du profil").fill("javascript:alert(1)");
+  ok("C1 URL javascript: refusée à la saisie (message, bouton désactivé)", (await page.getByText(/Adresse invalide/).isVisible()) && (await page.getByRole("button", { name: "Enregistrer le lien" }).isDisabled()));
+  for (let i = 0; i < (await rows.count()); i++) {
+    if (i > 0) await rows.nth(i).getByRole("button", { name: /^Modifier/ }).click();
+    await page.getByLabel("Adresse du profil").fill(`https://example.com/reseau-${i + 1}`);
+    await page.getByRole("button", { name: "Enregistrer le lien" }).click();
   }
   await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
   await toast("Enregistré");

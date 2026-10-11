@@ -1,7 +1,9 @@
 import KitTutorial from "@/components/admin/KitTutorial";
 import PageHeader from "@/components/admin/PageHeader";
+import ThemeImportButton from "@/components/admin/ThemeImportButton";
 import ThemeList from "@/components/admin/ThemeList";
 import { getThemeOverview, listPageAccents } from "@/lib/admin";
+import { presetThumb } from "@/themes/presets";
 
 export const metadata = { title: "Thèmes" };
 
@@ -19,6 +21,7 @@ export default function ThemesPage() {
         action={
           <div className="a-header-actions">
             {/* Tuto du kit : le bouton « Télécharger le kit » de la slide 2 vise le thème en ligne. */}
+            <ThemeImportButton />
             <KitTutorial themeId={activeId || sorted[0]?.id || "galerie-lumineuse"} />
             {/* Formulaire natif (pas de server action) : l'admin reste sur cet écran. */}
             <form method="post" action="/admin/apercu/quitter">
@@ -39,11 +42,17 @@ export default function ThemesPage() {
           </p>
         </div>
       ) : (
-        <ThemeList themes={sorted} activeId={activeId} accents={listPageAccents()} />
+        <ThemeList
+          themes={sorted}
+          activeId={activeId}
+          accents={listPageAccents()}
+          thumbs={Object.fromEntries(sorted.map((t) => [t.id, presetThumb(t.id)]))}
+        />
       )}
       <p className="a-help a-section">
         L&apos;aperçu n&apos;est visible que par toi, tant que tu es connecté : tes visiteurs voient le thème en ligne. Pour
-        créer ton propre thème, duplique un thème livré puis modifie la copie.
+        créer ton propre thème, duplique un thème livré puis modifie la copie. « Exporter » enregistre un thème dans
+        une archive .zip ; « Importer un thème… » l&apos;ajoute ici (sur ce site ou un autre), sans le mettre en ligne.
       </p>
     </>
   );

@@ -7,10 +7,15 @@
  * - nosniff et CSP `default-src 'none'; style-src 'unsafe-inline'; sandbox`
  *   sur TOUS les médias : un fichier ouvert directement ne peut ni exécuter de
  *   script ni charger quoi que ce soit (SVG piégé, HTML déguisé…).
+ * - PDF (bloc CV, doc/<hash>/document.pdf) : TOUJOURS en pièce jointe
+ *   (Content-Disposition: attachment), jamais affiché dans le navigateur sur
+ *   l'origine du site ; nom de fichier propre tiré de `?name=` réduit à
+ *   [a-z0-9-] (« cv » sinon), jamais le nom du fichier envoyé.
  */
 import { Readable } from "node:stream";
 
 import { findMediaByKey } from "@/lib/media";
+import { attachmentHeader } from "@/lib/pdf/limits";
 import { getStorage, isValidKey, type ByteRange } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -19,7 +24,7 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ key: string[] }> };
 
 const MEDIA_CSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
-const KIT_MIME: Record<string, string> = { svg: "image/svg+xml", avif: "image/avif", webp: "image/webp" };
+const KIT_MIME: Record<string, string> = { svg: "image/svg+xml", avif: "image/avif", webp: "image/webp", png: "image/png" };
 
 /** Comparaison faible des ETag (RFC 9110 §8.8.3.2) : on ignore le préfixe W/. */
 function weakMatch(header: string, etag: string): boolean {
@@ -62,7 +67,7 @@ async function serve(request: Request, { params }: Params, head: boolean) {
 
   // Éléments du kit de thème : contenu adressé (kit/<hash>.<ext>), produit par le
   // pipeline du kit ; type d'après l'extension, mêmes en-têtes que les médias.
-  const kit = /^kit\/[0-9a-f]{16}\.(svg|avif|webp)$/.exec(key);
+  const kit = /^kit\/[0-9a-f]{16}\.(svg|avif|webp|png)$/.exec(key);
   const row = kit ? null : findMediaByKey(key);
   if (!kit && (!row || row.status !== "ready")) return notFound();
   const mime = kit ? KIT_MIME[kit[1]] : row!.mime;
@@ -80,6 +85,13 @@ async function serve(request: Request, { params }: Params, head: boolean) {
     "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": MEDIA_CSP,
   });
+
+  if (mime === "application/pdf") {
+    headers.set("Content-Disposition", attachmentHeader(new URL(request.url).searchParams.get("name") ?? ""));
+    // Jamais rendu par le visualiseur intégré du navigateur, même ouvert dans un cadre.
+    headers.set("X-Frame-Options", "DENY");
+    headers.set("Cross-Origin-Resource-Policy", "same-origin");
+  }
 
   const inm = request.headers.get("if-none-match");
   if (inm && weakMatch(inm, etag)) {

@@ -18,13 +18,14 @@ import { done, fail, type ActionResult } from "@/lib/edit/result";
 import { slugify } from "@/lib/slug";
 import { getStorage } from "@/lib/storage";
 import { AA, contrastReport } from "@/themes/contrast";
+import { contrastRatio, isNuance, normalizePalette, resolvePalette, setBase, setNuance, type BaseKey, type NuanceKey } from "@/themes/palette";
 import { PAPER_OVER_HERO_DEFAULT, ThemeSchema, type KitAssets, type KitImage, type KitPlan, type Theme } from "@/themes/schema";
 
 import { loadSavedTheme } from "./export-job";
 import type { KitReport, SlotReport } from "./import";
 import { getKitImport, importOutDir, writeImportMeta } from "./import-job";
 import { arrowMirror, isApplicable, mirrorBitmap, mirrorSvg } from "./mirror";
-import { SLOTS } from "./spec";
+import { ALL_SLOTS } from "./spec";
 
 const FIRST_VIEW = ["hero/plan-1", "hero/plan-2", "hero/plan-3", "hero/plan-4", "hero/plan-5", "signature", "papier"];
 
@@ -44,6 +45,40 @@ export function paletteFailures(theme: Theme, report: KitReport): string[] {
   return contrastReport(withPalette(theme.tokens.color, report))
     .filter((p) => !p.ok)
     .map((p) => `${p.label} : ${p.ratio.toFixed(2)}:1 (il faut ${AA}:1)`);
+}
+
+/* ---- Couleurs repeintes (« 8 · Palette ») -------------------------------- */
+
+/** Couleurs du kit appliquées : base → les nuances auto suivent ; nuance → choisie (forcée). */
+export function withKitColors(tokens: Theme["tokens"], report: KitReport): Theme["tokens"] {
+  let color = tokens.color;
+  let palette = tokens.palette;
+  const changed = (report.colors ?? []).filter((c) => c.change === "changed" && c.after);
+  // Bases d'abord (les nuances auto se recalculent), puis les nuances choisies.
+  for (const c of changed) if (!isNuance(c.key)) color = setBase(color, palette, c.key as BaseKey, c.after!);
+  for (const c of changed) {
+    if (!isNuance(c.key)) continue;
+    const next = setNuance(color, palette, c.key as NuanceKey, c.after!);
+    color = next.color;
+    palette = next.palette;
+  }
+  const out: Theme["tokens"] = { ...tokens, color: normalizePalette(color, palette) };
+  if (palette) out.palette = palette;
+  else delete out.palette;
+  return out;
+}
+
+/** Les couleurs repeintes passent-elles le contraste AA ? (couples en échec) */
+export function kitColorFailures(theme: Theme, report: KitReport): string[] {
+  if (!report.colors?.some((c) => c.change === "changed")) return [];
+  const tokens = withKitColors(theme.tokens, report);
+  const out = contrastReport(tokens.color)
+    .filter((p) => !p.ok)
+    .map((p) => `${p.label} : ${p.ratio.toFixed(2)}:1 (il faut ${AA}:1)`);
+  const p = resolvePalette(tokens.color, tokens.palette);
+  const r = contrastRatio(p.onScrim, p.scrim);
+  if (r < AA) out.push(`Texte sur le voile : ${r.toFixed(2)}:1 (il faut ${AA}:1)`);
+  return out;
 }
 
 /* ---- Poids au premier affichage ----------------------------------------- */
@@ -85,7 +120,7 @@ export async function firstViewTotal(theme: Theme, report: KitReport): Promise<{
 
 /* ---- Application ---------------------------------------------------------- */
 
-export type ApplyOptions = { palette: boolean; mirror: boolean };
+export type ApplyOptions = { palette: boolean; mirror: boolean; colors?: boolean };
 
 export async function applyKitImport(themeId: string, importId: string, opts: ApplyOptions): Promise<ActionResult<{ id: string }>> {
   // L'import doit appartenir au thème de l'écran (sinon : inconnu).
@@ -96,8 +131,14 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
   const source = loadSavedTheme(meta.themeId);
   if (!source) return fail("Le thème d'origine n'existe plus.");
   const changed = report.slots.filter(isApplicable);
-  if (changed.length === 0 && !(opts.palette && report.palette)) return fail("Rien à appliquer : aucun élément n'a été redessiné.");
+  const colorsChanged = Boolean(opts.colors && report.colors?.some((c) => c.change === "changed"));
+  if (changed.length === 0 && !(opts.palette && report.palette) && !colorsChanged) return fail("Rien à appliquer : aucun élément n'a été redessiné.");
   if (opts.palette && paletteFailures(source, report).length) return fail("La palette suggérée ne passe pas le contraste : applique sans la palette, puis ajuste les couleurs dans l'éditeur.");
+  if (colorsChanged) {
+    const base = opts.palette && report.palette ? { ...source, tokens: { ...source.tokens, color: withPalette(source.tokens.color, report) } } : source;
+    const failures = kitColorFailures(base, report);
+    if (failures.length) return fail(`Les couleurs repeintes ne passent pas le contraste (${failures[0]}) : décoche-les, ou corrige-les dans Photoshop.`);
+  }
 
   const storage = getStorage();
   const outDir = importOutDir(importId);
@@ -110,7 +151,7 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
     return `/media/${key}`;
   };
   const image = async (s: SlotReport): Promise<KitImage> => {
-    const spec = SLOTS.find((x) => x.id === s.id)!;
+    const spec = ALL_SLOTS.find((x) => x.id === s.id)!;
     const w = spec.crop ? s.box!.w : spec.size.w;
     const h = spec.crop ? s.box!.h : spec.size.h;
     const out: KitImage = { w, h, ...(s.thumbhash ? { thumbhash: s.thumbhash } : {}) };
@@ -170,6 +211,20 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
   if (Object.keys(icons).length) kit.icons = icons;
   const tape = get("accessoires/scotch");
   if (tape) kit.tape = await image(tape);
+  // Curseurs redessinés : PNG 1x et 2x, point chaud ; de nouveaux dessins réactivent les curseurs.
+  const cursors = { ...(prev.cursors ?? {}) };
+  let newCursor = false;
+  for (const [id, key] of [
+    ["curseur/normal", "default"],
+    ["curseur/clic", "pointer"],
+  ] as const) {
+    const s = get(id);
+    if (!s?.hotspot) continue;
+    cursors[key] = { png: await put(s.files!.find((f) => !f.endsWith(".2x.png"))!), png2x: await put(s.files!.find((f) => f.endsWith(".2x.png"))!), x: s.hotspot.x, y: s.hotspot.y };
+    newCursor = true;
+  }
+  if (newCursor) delete cursors.off;
+  if (cursors.default || cursors.pointer) kit.cursors = cursors;
 
   // Copie brouillon : nouvel identifiant, jamais active.
   const db = getDb();
@@ -184,7 +239,10 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
     id,
     name,
     preset: false,
-    tokens: opts.palette && report.palette ? { ...source.tokens, color: withPalette(source.tokens.color, report) } : source.tokens,
+    tokens: (() => {
+      const tokens = opts.palette && report.palette ? { ...source.tokens, color: withPalette(source.tokens.color, report) } : source.tokens;
+      return colorsChanged ? withKitColors(tokens, report) : tokens;
+    })(),
     // Scotch redessiné : visible avec la variante « scotch » des planches.
     variants: tape ? { ...source.variants, strip: "taped" } : source.variants,
     assets: { ...source.assets, kit },

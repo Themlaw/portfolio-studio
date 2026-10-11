@@ -10,6 +10,8 @@ export const imageSchema = z.object({
   caption: localized.optional(),
   /** Largeur : colonne de texte, large (cadre du site), pleine largeur. */
   width: z.enum(["text", "wide", "full"]).default("wide"),
+  /** Format imposé (l'image est alors cadrée : « Cadrer » sur la toile). Auto : son format. */
+  ratio: z.enum(["auto", "16:9", "4:3", "1:1", "4:5", "3:4"]).optional(),
 });
 
 /**
@@ -20,13 +22,13 @@ export const imageSchema = z.object({
  */
 export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof imageSchema>; ctx: BlockContext }) {
   const media = await getMedia(props.mediaId);
-  const image = media && !media.video ? media : null;
+  const image = media && !media.video && !media.pdf ? media : null;
   if (!image && !ctx.edit) return null;
   const caption = props.caption ? tr(props.caption, ctx.locale) : "";
   const body = (
-    <figure className={`block-image ${ctx.cell ? "" : props.width === "text" ? "max-w-2xl" : ""}`} data-width={props.width}>
+    <figure className={`block-image ${ctx.cell ? "" : props.width === "text" ? "max-w-2xl" : ""}`} data-width={props.width} {...(props.ratio && props.ratio !== "auto" ? { "data-ratio": props.ratio } : {})}>
       {image ? (
-        <span className="block" data-edit-media={ctx.edit ? "mediaId" : undefined} data-edit-media-kind={ctx.edit ? "image" : undefined}>
+        <span className={ctx.look?.crop?.mediaId ? "block-image-frame" : "block"} data-edit-media={ctx.edit ? "mediaId" : undefined} data-edit-media-kind={ctx.edit ? "image" : undefined}>
           <Picture
             src={image.url}
             sources={image.sources}

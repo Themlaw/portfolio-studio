@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 
 /**
  * Formulaire de contact public (bloc « contact-form »). Envoi en JSON vers
@@ -27,6 +27,7 @@ export default function ContactForm({
   fields,
   texts,
   edit,
+  styles,
 }: {
   /** Identifiant stable du formulaire publié (null sur la toile). */
   formId: string | null;
@@ -34,9 +35,11 @@ export default function ContactForm({
   fields: Field[];
   texts: { submit: string; success: string; error: string };
   edit: boolean;
+  /** Styles locaux des textes (barre typographique, lot 2), par chemin : `fields.0.label`, `submit`… */
+  styles?: Record<string, CSSProperties>;
 }) {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
-  const mark = (path: string, placeholder: string) => (edit ? { "data-inline": path, "data-placeholder": placeholder } : {});
+  const mark = (path: string, placeholder: string) => ({ ...(edit ? { "data-inline": path, "data-placeholder": placeholder } : {}), ...(styles && Object.hasOwn(styles, path) ? { style: styles[path] } : {}) });
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

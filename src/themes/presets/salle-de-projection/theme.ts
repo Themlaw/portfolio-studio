@@ -1,4 +1,4 @@
-import type { ThemeInput } from "../schema";
+import type { ThemeInput } from "../../schema";
 
 /**
  * Salle de projection — direction sombre, test d'acceptation du moteur.

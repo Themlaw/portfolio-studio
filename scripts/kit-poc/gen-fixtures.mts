@@ -157,6 +157,9 @@ async function slotRaster(slot: SlotSpec): Promise<Raster> {
       for (let y = h - 44; y >= 44; y -= 8) pts.push([24 + (rand() - 0.5) * 10, y]);
       return svgRaster(`${open}<path d="${wobbly(pts, 1)} Z" fill="#d9c27a" fill-opacity="0.6" transform="rotate(-4 ${w / 2} ${h / 2})"/></svg>`, w, h);
     }
+    default:
+      // Pastilles et curseurs (kit v3) : pas dans les jeux de test v1.
+      return svgRaster(`${open}</svg>`, w, h);
   }
 }
 

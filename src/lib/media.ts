@@ -1,6 +1,6 @@
 import { and, eq, like } from "drizzle-orm";
 
-import { hashOfVariantKey, ORIGINALS_PREFIX, parseVariants, pictureSources, variantMime, VARIANTS_PREFIX, VIDEO_PREFIX, videoSources, type PictureSources, type VideoSources } from "./images/variants";
+import { DOC_PREFIX, hashOfVariantKey, ORIGINALS_PREFIX, parseVariants, pdfView, pictureSources, variantMime, VARIANTS_PREFIX, VIDEO_PREFIX, videoSources, type PdfView, type PictureSources, type VideoSources } from "./images/variants";
 import { formatDuration, isLoop } from "./video/limits";
 
 import { cached, TAGS } from "./cache";
@@ -17,6 +17,8 @@ export type MediaInfo = {
   sources: PictureSources | null;
   /** Vidéo hébergée convertie, sinon null. */
   video: VideoView | null;
+  /** PDF (bloc CV) : pages en images et fichier téléchargeable, sinon null. */
+  pdf: PdfView | null;
   mime: string;
   width: number | null;
   height: number | null;
@@ -33,6 +35,7 @@ export function mediaSources(row: { variants: unknown; dominantColor: string | n
   const variants = parseVariants(row.variants);
   if (!variants) return null;
   if (row.kind === "video") return videoSources(variants, mediaUrl, row.dominantColor)?.poster ?? null;
+  if (row.kind === "pdf") return pdfView(variants, mediaUrl)?.pages[0]?.sources ?? null;
   return pictureSources(variants, mediaUrl, row.dominantColor);
 }
 
@@ -45,6 +48,13 @@ export function videoView(row: { kind: string; variants: unknown; dominantColor:
   const sources = variants ? videoSources(variants, mediaUrl, row.dominantColor) : null;
   if (!sources) return null;
   return { sources, duration: row.duration ?? 0, durationLabel: formatDuration(row.duration), loop: isLoop(row) };
+}
+
+/** Aperçu d'un PDF traité (pages, fichier), ou null. */
+export function pdfViewOf(row: { kind: string; variants: unknown }): PdfView | null {
+  if (row.kind !== "pdf") return null;
+  const variants = parseVariants(row.variants);
+  return variants ? pdfView(variants, mediaUrl) : null;
 }
 
 /** URL affichable d'un média (variante WebP la plus large, sinon la clé). */
@@ -64,6 +74,7 @@ export async function getMedia(id: number | undefined | null): Promise<MediaInfo
       url: sources ? sources.largest.webp : mediaUrl(row.key),
       sources,
       video: videoView(row),
+      pdf: row.kind === "pdf" ? pdfViewOf(row) : null,
       mime: row.mime,
       width: row.width,
       height: row.height,
@@ -75,8 +86,9 @@ export async function getMedia(id: number | undefined | null): Promise<MediaInfo
 /**
  * Lecture directe (route /media) : type et statut d'une clé publique.
  * - originals/… : jamais servi (original conservé pour régénérer) ;
- * - img/<hash>/<largeur>.<format> : variante d'un média prêt, listée dans
- *   ses variantes ;
+ * - img/<hash>/<largeur>.<format> (et vid/…, doc/…) : variante d'un média
+ *   prêt, listée dans ses variantes (doc/…/document.pdf : servi en pièce
+ *   jointe seulement, voir la route /media) ;
  * - autre clé : média du seed servi tel quel (SVG, par sa clé exacte).
  */
 export function findMediaByKey(key: string): { mime: string; status: string } | null {
@@ -93,7 +105,7 @@ export function findMediaByKey(key: string): { mime: string; status: string } | 
     if (!row || !file) return null;
     return { mime: variantMime(key), status: row.status };
   }
-  if (key.startsWith(VARIANTS_PREFIX) || key.startsWith(VIDEO_PREFIX)) return null;
+  if (key.startsWith(VARIANTS_PREFIX) || key.startsWith(VIDEO_PREFIX) || key.startsWith(DOC_PREFIX)) return null;
   const row = db
     .select({ mime: schema.media.mime, status: schema.media.status })
     .from(schema.media)

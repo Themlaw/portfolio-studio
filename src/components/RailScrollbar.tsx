@@ -1,18 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 
-type Metrics = {
-  /** Part visible du rail, 0 → 1. Donne la largeur du curseur. */
-  ratio: number;
-  /** Position de lecture, 0 → 1. */
-  progress: number;
-  /** Nombre de pixels scrollables. 0 = tout tient. */
-  slack: number;
-};
-
-const EMPTY: Metrics = { ratio: 1, progress: 0, slack: 0 };
+import { clearRailTarget, scrollRailTo, stepRail } from "./rail-step";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -27,6 +18,12 @@ function clamp(value: number, min: number, max: number) {
  */
 const thumbShare = (ratio: number) => clamp(ratio, 0.12, 0.34);
 
+/** Planificateur de rendu du curseur, par rail (le glisser le réveille). */
+const schedulers = new WeakMap<HTMLElement, () => void>();
+
+/** Pixels par cran de molette en mode « lignes » (Firefox). */
+const LINE_PX = 40;
+
 /**
  * Barre de glissement d'une planche de projet.
  *
@@ -34,6 +31,14 @@ const thumbShare = (ratio: number) => clamp(ratio, 0.12, 0.34);
  * projet et on peut y aller directement, sans dépendre des flèches.
  * Elle disparaît dès que la bande tient entièrement dans le cadre — une
  * barre qui ne peut pas bouger n'a rien à dire.
+ *
+ * Fluidité (lot médias) : aucun état React pendant le défilement. Le curseur
+ * est déplacé par `transform` (composité, sans mise en page) dans un
+ * requestAnimationFrame, une fois par image au plus ; le glisser et la
+ * molette sont regroupés par image eux aussi. Pendant un glisser ou une
+ * molette, l'accrochage de la bande est suspendu (`data-dragging` sur le
+ * rail) : sinon le navigateur ré-accroche après chaque `scrollLeft` posé et
+ * la bande recule par à-coups.
  */
 export default function RailScrollbar({
   railRef,
@@ -45,81 +50,125 @@ export default function RailScrollbar({
   railId: string;
   label: string;
 }) {
+  const barRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
-  const grabOffset = useRef(0);
-  const [dragging, setDragging] = useState(false);
-  const [metrics, setMetrics] = useState<Metrics>(EMPTY);
+  const thumbRef = useRef<HTMLDivElement | null>(null);
+  /** Mesures courantes (jamais dans l'état React : elles changent à chaque image). */
+  const m = useRef({ slack: 0, trackW: 0, thumbW: 0 });
+  const frame = useRef(0);
+  const drag = useRef<{ grab: number; x: number | null } | null>(null);
+  const wheelEnd = useRef<number | undefined>(undefined);
+  const [active, setActive] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const rail = railRef.current;
     if (!rail) return;
 
+    const paint = () => {
+      frame.current = 0;
+      const bar = barRef.current;
+      const thumb = thumbRef.current;
+      const { slack, trackW, thumbW } = m.current;
+      // Glisser en cours : on applique la dernière position du pointeur (une fois par image).
+      const d = drag.current;
+      if (d && d.x !== null && trackRef.current && slack > 0) {
+        const rect = trackRef.current.getBoundingClientRect();
+        const travel = rect.width - thumbW;
+        if (travel > 0) rail.scrollLeft = (clamp(d.x - rect.left - d.grab, 0, travel) / travel) * slack;
+        d.x = null;
+      }
+      if (!bar || !thumb) return;
+      const progress = slack > 0 ? clamp(rail.scrollLeft / slack, 0, 1) : 0;
+      thumb.style.transform = `translate3d(${(progress * (trackW - thumbW)).toFixed(2)}px, -50%, 0)`;
+      const now = String(Math.round(progress * 100));
+      if (bar.getAttribute("aria-valuenow") !== now) bar.setAttribute("aria-valuenow", now);
+    };
+    const schedule = () => {
+      if (!frame.current) frame.current = requestAnimationFrame(paint);
+    };
+
     const measure = () => {
       const slack = rail.scrollWidth - rail.clientWidth;
-      setMetrics({
-        ratio: rail.scrollWidth > 0 ? rail.clientWidth / rail.scrollWidth : 1,
-        progress: slack > 0 ? clamp(rail.scrollLeft / slack, 0, 1) : 0,
-        slack: slack > 8 ? slack : 0,
-      });
+      const ratio = rail.scrollWidth > 0 ? rail.clientWidth / rail.scrollWidth : 1;
+      const trackW = trackRef.current?.clientWidth ?? 0;
+      const thumbW = trackW * thumbShare(ratio);
+      m.current = { slack: slack > 8 ? slack : 0, trackW, thumbW };
+      if (thumbRef.current) thumbRef.current.style.width = `${thumbW.toFixed(2)}px`;
+      setActive(slack > 8);
+      schedule();
     };
 
     measure();
-    rail.addEventListener("scroll", measure, { passive: true });
+    rail.addEventListener("scroll", schedule, { passive: true });
     const observer = new ResizeObserver(measure);
     observer.observe(rail);
+    if (trackRef.current) observer.observe(trackRef.current);
+    // Le contenu du rail change de largeur (images chargées) sans que le rail change de taille.
+    for (const child of rail.children) observer.observe(child);
+    schedulers.set(rail, schedule);
 
     return () => {
-      rail.removeEventListener("scroll", measure);
+      rail.removeEventListener("scroll", schedule);
       observer.disconnect();
+      cancelAnimationFrame(frame.current);
+      frame.current = 0;
+      schedulers.delete(rail);
     };
-  }, [railRef]);
+  }, [railRef, active]);
 
-  /** Place le rail d'après la position du pointeur sur la piste. */
-  const scrollFromPointer = useCallback(
-    (clientX: number) => {
-      const track = trackRef.current;
-      const rail = railRef.current;
-      if (!track || !rail) return;
-
-      const rect = track.getBoundingClientRect();
-      const thumbWidth = rect.width * thumbShare(metrics.ratio);
-      const travel = rect.width - thumbWidth;
-      if (travel <= 0) return;
-
-      const x = clamp(clientX - rect.left - grabOffset.current, 0, travel);
-      rail.scrollLeft = (x / travel) * metrics.slack;
-    },
-    [metrics.ratio, metrics.slack, railRef],
-  );
+  /** Molette au-dessus de la barre : défilement horizontal (écouteur non passif, pour retenir la page). */
+  useEffect(() => {
+    const bar = barRef.current;
+    const rail = railRef.current;
+    if (!bar || !rail) return;
+    const onWheel = (event: WheelEvent) => {
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (!delta || m.current.slack === 0) return;
+      event.preventDefault();
+      clearRailTarget(rail);
+      rail.setAttribute("data-dragging", "");
+      rail.scrollLeft += event.deltaMode === 1 ? delta * LINE_PX : event.deltaMode === 2 ? delta * rail.clientWidth : delta;
+      window.clearTimeout(wheelEnd.current);
+      wheelEnd.current = window.setTimeout(() => rail.removeAttribute("data-dragging"), 160);
+    };
+    bar.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      bar.removeEventListener("wheel", onWheel);
+      window.clearTimeout(wheelEnd.current);
+    };
+  }, [railRef, active]);
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     const track = trackRef.current;
-    if (!track || metrics.slack === 0) return;
+    const rail = railRef.current;
+    const { slack, thumbW } = m.current;
+    if (!track || !rail || slack === 0 || event.button !== 0) return;
 
     const rect = track.getBoundingClientRect();
-    const thumbWidth = rect.width * thumbShare(metrics.ratio);
-    const thumbLeft = rect.left + metrics.progress * (rect.width - thumbWidth);
-    const onThumb =
-      event.clientX >= thumbLeft && event.clientX <= thumbLeft + thumbWidth;
+    const thumbLeft = rect.left + clamp(rail.scrollLeft / slack, 0, 1) * (rect.width - thumbW);
+    const onThumb = event.clientX >= thumbLeft && event.clientX <= thumbLeft + thumbW;
 
     // Sur le curseur on garde le point de saisie ; sur la piste on centre.
-    grabOffset.current = onThumb
-      ? event.clientX - thumbLeft
-      : thumbWidth / 2;
-
+    drag.current = { grab: onThumb ? event.clientX - thumbLeft : thumbW / 2, x: event.clientX };
     event.currentTarget.setPointerCapture(event.pointerId);
-    setDragging(true);
-    scrollFromPointer(event.clientX);
+    event.currentTarget.setAttribute("data-dragging", "true");
+    clearRailTarget(rail);
+    rail.setAttribute("data-dragging", "");
+    schedulers.get(rail)?.();
   };
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragging) return;
-    scrollFromPointer(event.clientX);
+    const rail = railRef.current;
+    if (!drag.current || !rail) return;
+    drag.current.x = event.clientX;
+    schedulers.get(rail)?.();
   };
 
   const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!dragging) return;
-    setDragging(false);
+    if (!drag.current) return;
+    drag.current = null;
+    event.currentTarget.setAttribute("data-dragging", "false");
+    railRef.current?.removeAttribute("data-dragging");
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -127,56 +176,46 @@ export default function RailScrollbar({
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const rail = railRef.current;
-    if (!rail || metrics.slack === 0) return;
-
-    const step = Math.round(rail.clientWidth * 0.25);
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)")
-      .matches;
-    const behavior: ScrollBehavior = reduced ? "auto" : "smooth";
-
+    if (!rail || m.current.slack === 0) return;
     const moves: Record<string, () => void> = {
-      ArrowLeft: () => rail.scrollBy({ left: -step, behavior }),
-      ArrowRight: () => rail.scrollBy({ left: step, behavior }),
-      Home: () => rail.scrollTo({ left: 0, behavior }),
-      End: () => rail.scrollTo({ left: metrics.slack, behavior }),
+      ArrowLeft: () => stepRail(rail, -1),
+      ArrowRight: () => stepRail(rail, 1),
+      PageUp: () => scrollRailTo(rail, Math.max(0, rail.scrollLeft - rail.clientWidth * 0.8)),
+      PageDown: () => scrollRailTo(rail, Math.min(m.current.slack, rail.scrollLeft + rail.clientWidth * 0.8)),
+      Home: () => scrollRailTo(rail, 0),
+      End: () => scrollRailTo(rail, m.current.slack),
     };
-
     const move = moves[event.key];
     if (!move) return;
     event.preventDefault();
     move();
   };
 
-  // Rien à piloter : la bande tient dans le cadre.
-  if (metrics.slack === 0) return null;
-
-  const widthPct = thumbShare(metrics.ratio) * 100;
-  const leftPct = metrics.progress * (100 - widthPct);
-
   return (
     <div
+      ref={barRef}
       className="rail-bar"
-      data-dragging={dragging}
+      data-dragging="false"
       role="scrollbar"
       aria-label={label}
       aria-controls={railId}
       aria-orientation="horizontal"
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-valuenow={Math.round(metrics.progress * 100)}
-      tabIndex={0}
+      aria-valuenow={0}
+      tabIndex={active ? 0 : -1}
+      hidden={!active}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onLostPointerCapture={endDrag}
       onKeyDown={onKeyDown}
     >
       <div ref={trackRef} className="rail-bar-track">
-        <div
-          className="rail-bar-thumb"
-          style={{ width: `${widthPct}%`, left: `${leftPct}%` }}
-        />
+        <div ref={thumbRef} className="rail-bar-thumb" />
       </div>
     </div>
   );
 }
+

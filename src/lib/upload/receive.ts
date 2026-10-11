@@ -42,8 +42,9 @@ export function maxImageBytes(): number {
   return Math.max(1, Number.isFinite(mb) ? mb : 40) * 1024 * 1024;
 }
 
-export async function receiveOneFile(request: Request, tmpDir: string): Promise<Received> {
-  const max = maxImageBytes();
+/** `maxBytes` : plafond propre à l'envoi (défaut : MAX_IMAGE_MB). */
+export async function receiveOneFile(request: Request, tmpDir: string, options: { maxBytes?: number } = {}): Promise<Received> {
+  const max = options.maxBytes ?? maxImageBytes();
   const declared = Number(request.headers.get("content-length") || 0);
   if (declared > max + 64 * 1024) throw new UploadError(413, tooBig(max));
   const contentType = request.headers.get("content-type") || "";

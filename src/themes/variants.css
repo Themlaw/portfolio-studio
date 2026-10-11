@@ -245,8 +245,9 @@
 }
 
 /* ---- Lightbox : plein cadre --------------------------------------------- */
+/* Noir de salle, toujours neutre : le gris de la visionneuse assombri. */
 [data-lightbox="full-bleed"] .lightbox {
-  background: color-mix(in srgb, var(--color-scrim) 30%, #000000);
+  background: color-mix(in srgb, var(--color-viewer) 30%, #000000);
   backdrop-filter: none;
 }
 
@@ -327,8 +328,10 @@
   mix-blend-mode: multiply;
 }
 
-/* ---- Cadre : passe-partout de la visionneuse en 9-slice ------------------- */
-[data-kit-frame] .lightbox-frame {
+/* ---- Cadre : passe-partout dessiné en 9-slice, HORS visionneuse ------------
+   Lot médias : l'image agrandie est posée à nu (globals.css, .lightbox-frame) ;
+   le cadre de l'artiste habille les entrées de collection (tuiles de l'accueil). */
+[data-kit-frame] .tile-media {
   border-style: solid;
   border-color: transparent;
   border-width: var(--t-kit-frame-width);
@@ -455,3 +458,41 @@
   border-inline: 0;
   box-shadow: none;
 }
+
+/* ---- Curseurs dessinés (lot 4) ----------------------------------------------
+   Émis seulement si le thème a des curseurs du kit, non désactivés
+   (css.ts : data-kit-cursor, data-kit-cursor-pointer). Site public seulement :
+   l'admin a sa propre feuille, la toile de l'éditeur montre le site.
+   `--t-cursor-*` : PNG 32 × 32 + point chaud + repli (auto / pointer) ;
+   `--t-cursor-*-hd` : image-set 1x / 2x, seulement là où `cursor` l'accepte
+   (sinon la déclaration entière serait invalide au calcul). Rendu ≤ 32 px CSS.
+   Les champs de texte gardent la barre de saisie. */
+[data-kit-cursor] body {
+  cursor: var(--t-cursor-default);
+}
+
+[data-kit-cursor-pointer] :is(a[href], button, [role="button"], summary, label[for], select, .rail-bar, input:is([type="checkbox"], [type="radio"], [type="submit"], [type="button"], [type="range"])) {
+  cursor: var(--t-cursor-pointer);
+}
+
+@supports (cursor: image-set(url("data:,") 1x) 0 0, auto) {
+  [data-kit-cursor] body {
+    cursor: var(--t-cursor-default-hd);
+  }
+
+  [data-kit-cursor-pointer] :is(a[href], button, [role="button"], summary, label[for], select, .rail-bar, input:is([type="checkbox"], [type="radio"], [type="submit"], [type="button"], [type="range"])) {
+    cursor: var(--t-cursor-pointer-hd);
+  }
+}
+
+/* Inactif : le curseur normal (dessiné, ou celui du système). */
+[data-kit-cursor-pointer] :is(button, input, select):disabled,
+[data-kit-cursor-pointer] [aria-disabled="true"] {
+  cursor: var(--t-cursor-default, default);
+}
+
+[data-kit-cursor] :is(input:not([type="checkbox"], [type="radio"], [type="submit"], [type="button"], [type="range"], [type="color"], [type="file"], [type="reset"], [type="image"]), textarea, [contenteditable]:not([contenteditable="false"])),
+[data-kit-cursor-pointer] :is(input:not([type="checkbox"], [type="radio"], [type="submit"], [type="button"], [type="range"], [type="color"], [type="file"], [type="reset"], [type="image"]), textarea, [contenteditable]:not([contenteditable="false"])) {
+  cursor: text;
+}
+/* ---- fin Curseurs (lot 4) ---- */

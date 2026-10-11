@@ -45,8 +45,8 @@ export default async function CollectionIntroBlock({
 
   if (!props.showCounts) {
     return (
-      <section className="shell pt-[clamp(6rem,14vh,10rem)]">
-        <header className="mb-[clamp(2.5rem,5vw,4rem)] max-w-2xl">{heading}</header>
+      <section className="page-top shell">
+        <header className="page-head mb-[var(--t-space-l)] max-w-2xl">{heading}</header>
       </section>
     );
   }
@@ -66,8 +66,8 @@ export default async function CollectionIntroBlock({
   const counts = pageCounts(blocks, (slug, c) => known.get(`${slug}|${c ?? ""}`) ?? null);
 
   return (
-    <section className="shell pb-[clamp(1rem,3vw,2rem)] pt-[clamp(6rem,14vh,10rem)]">
-      <header className="max-w-2xl">
+    <section className="page-top shell pb-[clamp(1rem,3vw,2rem)]">
+      <header className="page-head max-w-2xl">
         {heading}
         <p className="eyebrow mt-6" {...(ctx.edit ? { title: "Compté automatiquement depuis les planches de cette page", "data-edit-counter": "" } : {})}>
           {tg("count", { count: counts.works })} · {tp("count", { count: counts.projects })}

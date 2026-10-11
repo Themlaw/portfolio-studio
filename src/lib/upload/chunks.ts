@@ -30,7 +30,9 @@ import { preflightProblem, preflightPsd, PsdPreflightError } from "@/lib/kit/psd
 
 import { ingestImage, type IngestedMedia } from "./ingest";
 import { quotaProblem } from "./quota";
-import { cleanFilename, sniffImage, sniffVideo, SNIFF_BYTES, VIDEO_REJECTED_MESSAGE } from "./sniff";
+import { cleanFilename, sniffImage, sniffPdf, sniffVideo, SNIFF_BYTES, VIDEO_REJECTED_MESSAGE } from "./sniff";
+import { ingestPdf } from "@/lib/pdf/ingest";
+import { pdfLimits } from "@/lib/pdf/limits";
 import { maxImageBytes, UploadError } from "./receive";
 
 const partDir = () => path.join(/* turbopackIgnore: true */ dataDir(), "tmp", "uploads");
@@ -92,13 +94,17 @@ export async function initUpload(input: unknown, userId: string): Promise<Upload
   const tagsFull = tagCapacityProblem(tags.labels);
   if (tagsFull) throw new UploadError(422, tagsFull);
   const kind: "image" | "video" = type.startsWith("video/") || /\.(mp4|mov|m4v|webm|mkv)$/i.test(name) ? "video" : "image";
-  const max = kind === "video" ? videoLimits().maxBytes : maxImageBytes();
+  // PDF annoncé (type ou extension) : sa propre limite, vérifiée avant l'envoi (le contenu fait foi à la fin).
+  const pdf = kind === "image" && (type === "application/pdf" || /\.pdf$/i.test(name));
+  const max = kind === "video" ? videoLimits().maxBytes : pdf ? pdfLimits().maxBytes : maxImageBytes();
   if (size > max) {
     throw new UploadError(
       413,
       kind === "video"
         ? `Cette vidéo dépasse ${Math.round(max / 1024 / 1024)} Mo : réduis-la avant de l'envoyer.`
-        : `Ce fichier dépasse ${Math.round(max / 1024 / 1024)} Mo : réduis-le avant de l'envoyer.`,
+        : pdf
+          ? `Ce PDF dépasse ${Math.round(max / 1024 / 1024)} Mo : exporte-le plus léger (images compressées) avant de l'envoyer.`
+          : `Ce fichier dépasse ${Math.round(max / 1024 / 1024)} Mo : réduis-le avant de l'envoyer.`,
     );
   }
   const full = quotaProblem(size);
@@ -176,7 +182,7 @@ export async function writeChunk(id: unknown, offsetParam: string | null, reques
  * Fin d'envoi. `tagsInput` : tags courants du client (une reprise a pu les
  * changer depuis init), validés comme à init ; absents : ceux d'init.
  */
-export type CompletedUpload = { media: IngestedMedia & { kind: "image" | "video"; tagWarning?: string } } | { kitImport: { id: string; themeId: string } };
+export type CompletedUpload = { media: IngestedMedia & { kind: "image" | "video" | "pdf"; tagWarning?: string } } | { kitImport: { id: string; themeId: string } };
 
 export async function completeUpload(id: unknown, userId: string, tagsInput?: unknown): Promise<CompletedUpload> {
   const r = row(id, userId);
@@ -218,7 +224,7 @@ async function completeKit(r: typeof schema.uploads.$inferSelect, userId: string
   return { id: meta.id, themeId };
 }
 
-async function ingestCompleted(r: typeof schema.uploads.$inferSelect): Promise<IngestedMedia & { kind: "image" | "video" }> {
+async function ingestCompleted(r: typeof schema.uploads.$inferSelect): Promise<IngestedMedia & { kind: "image" | "video" | "pdf" }> {
   if (r.offset !== r.size) throw new UploadError(409, `Envoi incomplet : ${r.offset} octets reçus sur ${r.size}.`);
   const file = partPath(r.id);
   // L'envoi est clos : sa réservation disparaît, le contenu fait foi.
@@ -235,6 +241,8 @@ async function ingestCompleted(r: typeof schema.uploads.$inferSelect): Promise<I
   }
   const received = { tmpPath: file, size: r.size, sha256: hash.digest("hex"), head: new Uint8Array(Buffer.concat(head)), filename: r.name };
   if (sniffVideo(received.head)) return { ...(await ingestVideo(received)), kind: "video" };
+  // PDF (bloc CV) : taille, pages et structure contrôlées par ingestPdf.
+  if (sniffPdf(received.head)) return { ...(await ingestPdf(received)), kind: "pdf" };
   if (sniffImage(received.head)) {
     if (r.size > maxImageBytes()) {
       await rm(file, { force: true });

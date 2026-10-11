@@ -33,6 +33,17 @@ const THUMBS: Record<string, React.ReactNode> = {
       <rect x="50" y="34" width="36" height="18" rx="2" fill={SOFT} />
     </>
   ),
+  cv: (
+    <>
+      <rect x="10" y="9" width="22" height="4" rx="2" fill={INK} />
+      <Lines x={10} y={17} w={22} n={2} />
+      <rect x="10" y="38" width="24" height="8" rx="2" fill={ACCENT} />
+      <rect x="44" y="6" width="20" height="28" rx="1.5" fill="none" stroke={SOFT} strokeWidth="1.5" />
+      <Lines x={47} y={11} w={14} n={3} gap={5} />
+      <rect x="68" y="6" width="20" height="28" rx="1.5" fill="none" stroke={SOFT} strokeWidth="1.5" />
+      <Lines x={71} y={11} w={14} n={3} gap={5} />
+    </>
+  ),
   "video-single": (
     <>
       <rect x="14" y="8" width="68" height="40" rx="2" fill={INK} />

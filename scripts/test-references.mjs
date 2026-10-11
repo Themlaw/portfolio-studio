@@ -111,7 +111,7 @@ test("conteneurs (v0.13) : les références des composants comptent, sur deux ni
 });
 
 test("chaque type de bloc déclare ses références", () => {
-  for (const type of ["hero", "collection-tiles", "featured-projects", "featured-project", "grid", "video-single", "image", "section-title", "project-board", "collection-intro", "collection-projects", "video", "rich-text", "contact", "profile"]) {
+  for (const type of ["hero", "collection-tiles", "featured-projects", "featured-project", "grid", "video-single", "image", "cv", "section-title", "project-board", "collection-intro", "collection-projects", "video", "rich-text", "contact", "profile"]) {
     assert.ok(BLOCK_REFS[type], type);
   }
 });

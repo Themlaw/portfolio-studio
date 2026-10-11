@@ -1,6 +1,9 @@
 import { z } from "zod";
 
+import type { CSSProperties } from "react";
+
 import type { AppLocale } from "@/i18n/routing";
+import { textStyleObject, type Look } from "@/lib/look";
 
 /** Texte court localisé (étiquette, titre, bouton). */
 export const localized = z.object({ fr: z.string().max(200), en: z.string().max(200) });
@@ -41,14 +44,26 @@ export type BlockContext = {
   cell?: boolean;
   /** Identifiant en base du bloc rendu (version publiée ; négatif en vue brouillon). */
   blockId?: number;
+  /** Réglages de mise en page du bloc (props.look, lot 2) : styles de ses textes. */
+  look?: Look;
 };
 
 /**
  * Marqueur d'un champ éditable en place (déclaré dans `inline` au registre) :
  * seulement en vue brouillon, jamais dans le HTML public.
  */
-export function inline(ctx: BlockContext, path: string): { "data-inline"?: string } {
-  return ctx.edit ? { "data-inline": path } : {};
+export function inline(ctx: BlockContext, path: string): { "data-inline"?: string; style?: CSSProperties } {
+  return { ...(ctx.edit ? { "data-inline": path } : {}), ...textStyle(ctx, path) };
+}
+
+/**
+ * Style local d'un texte du bloc (barre typographique de la toile, lot 2) :
+ * en ligne, il passe devant le style global du rôle et les classes du bloc.
+ */
+export function textStyle(ctx: BlockContext, path: string): { style?: CSSProperties } {
+  const own = ctx.look?.text && Object.hasOwn(ctx.look.text, path) ? ctx.look.text[path] : undefined;
+  const style = textStyleObject(own);
+  return style ? { style: style as CSSProperties } : {};
 }
 
 export function tr(value: Localized, locale: AppLocale): string {

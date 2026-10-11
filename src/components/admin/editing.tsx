@@ -97,16 +97,24 @@ export function Toaster() {
  * Avertit avant de quitter la page (fermeture, rechargement, lien interne de
  * l'admin) tant que `dirty` est vrai.
  */
-export function useUnsavedGuard(dirty: boolean) {
+export function useUnsavedGuard(dirty: boolean, stillUnsaved?: () => boolean) {
+  // Relu au moment de quitter : l'indicateur peut être en retard d'un rendu
+  // (enregistrement déjà fait) ; seul l'état réel décide.
+  const still = useRef(stillUnsaved);
+  useEffect(() => {
+    still.current = stillUnsaved;
+  });
   useEffect(() => {
     if (!dirty) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (still.current && !still.current()) return;
       e.preventDefault();
       e.returnValue = "";
     };
     const onClick = (e: MouseEvent) => {
       const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
       if (!a || a.target === "_blank" || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey) return;
+      if (still.current && !still.current()) return;
       if (!window.confirm("Tu as des modifications non enregistrées. Quitter cette page sans les enregistrer ?")) {
         e.preventDefault();
         e.stopImmediatePropagation();

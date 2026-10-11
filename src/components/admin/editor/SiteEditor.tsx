@@ -12,8 +12,11 @@
  */
 import { useId } from "react";
 
+import { Toggle } from "@/app/admin/_fields";
+import SocialsEditor from "@/components/admin/SocialsEditor";
+
 import type { FromCanvas } from "@/lib/edit/protocol";
-import { detectNetwork, isPlaceholderHref, NETWORK_LABELS, NETWORKS, SiteSnapSchema, type Network, type SiteSnap } from "@/lib/site-schema";
+import { editedKind, NETWORKS, SiteSnapSchema, socialKind, type Network, type SiteSnap } from "@/lib/site-schema";
 
 type Result = { snap: SiteSnap; done?: string } | { error: string };
 type Page = { id: number; title: string };
@@ -102,13 +105,13 @@ export function applySiteOp(snap: SiteSnap, msg: Extract<FromCanvas, { kind: "si
       const s = next.socials[msg.index];
       if (!s) return { error: "Ce réseau n'existe plus." };
       s.href = msg.href;
-      const found = detectNetwork(msg.href);
-      if (found && (!s.kind || s.kind === "website" || s.kind === "other")) s.kind = found;
+      const kind = editedKind(s.kind, msg.href);
+      if (kind) s.kind = kind;
       return checked(next, "Lien du réseau modifié");
     }
     case "social-add": {
       const network = (NETWORKS as readonly string[]).includes(msg.network) ? (msg.network as Network) : "other";
-      next.socials.push({ label: msg.label, href: msg.href, kind: network === "other" ? (detectNetwork(msg.href) ?? "other") : network });
+      next.socials.push({ label: msg.label, href: msg.href, kind: socialKind(network, msg.href) });
       return checked(next, "Réseau ajouté");
     }
   }
@@ -228,32 +231,21 @@ export default function SiteEditor({
         )}
 
         <h3 className="ve-sub">Réseaux</h3>
-        <ol className="ve-list">
-          {snap.socials.map((so, i) => (
-            <li key={`${so.href}-${i}`} className="ve-list-row">
-              <span className="ve-list-main">
-                <Text label={`${NETWORK_LABELS[so.kind ?? "other"]} : nom affiché`} value={so.label} onCommit={(v) => v.trim() && set((s) => void (s.socials[i].label = v.trim()))} />
-                <Text label="Adresse" value={isPlaceholderHref(so.href) ? "" : so.href} placeholder="https://…" onCommit={(v) => set((s) => void (s.socials[i].href = v.trim() || "#"))} />
-                {isPlaceholderHref(so.href) && (
-                  <p className="a-field-error" data-testid="social-placeholder">
-                    Lien à compléter : ce réseau n&apos;apparaît pas sur le site tant que son adresse est vide.
-                  </p>
-                )}
-              </span>
-              <span className="ve-list-tools">
-                <button type="button" className="a-icon-btn" aria-label="Monter" disabled={i === 0} onClick={() => set((s) => void (s.socials = moved(s.socials, i, i - 1) ?? s.socials))}>
-                  ↑
-                </button>
-                <button type="button" className="a-icon-btn" aria-label="Descendre" disabled={i === snap.socials.length - 1} onClick={() => set((s) => void (s.socials = moved(s.socials, i, i + 1) ?? s.socials))}>
-                  ↓
-                </button>
-                <button type="button" className="a-icon-btn a-danger-text" aria-label="Retirer ce réseau" onClick={() => set((s) => void s.socials.splice(i, 1))}>
-                  ✕
-                </button>
-              </span>
-            </li>
-          ))}
-        </ol>
+        {which === "header" && (
+          <Toggle
+            label="Icônes des réseaux dans l'en-tête"
+            help="Avant FR / EN, icônes seules ; dans le menu sur téléphone."
+            checked={snap.identity.headerSocials === true}
+            onChange={(on) =>
+              set((s) => {
+                // Décoché ≡ absent (forme canonique, src/lib/site-schema.ts) : pas de brouillon fantôme.
+                if (on) s.identity.headerSocials = true;
+                else delete s.identity.headerSocials;
+              })
+            }
+          />
+        )}
+        <SocialsEditor items={snap.socials} onChange={(socials) => set((s) => void (s.socials = socials))} disabled={Boolean(locked)} />
         <p className="ve-hint">Sur la page : survole un lien ou un réseau pour le retirer ou le déplacer, « + Ajouter un lien » et « + Réseau » pour en ajouter.</p>
       </fieldset>
     </div>

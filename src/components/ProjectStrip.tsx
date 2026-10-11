@@ -2,12 +2,14 @@
 
 import LoopFrame from "./LoopVideo";
 import Picture from "./Picture";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 
 import Lightbox from "@/components/Lightbox";
 import RailScrollbar from "@/components/RailScrollbar";
+import { stepRail } from "@/components/rail-step";
 import type { LocalizedProject } from "@/lib/gallery";
+import { RADIUS_VALUES } from "@/themes/css";
 
 /**
  * La planche de projet : l'unité de lecture du site.
@@ -36,6 +38,7 @@ export default function ProjectStrip({
   headingLevel = "h2",
   showHeader = true,
   collection,
+  slotRadius,
 }: {
   project: LocalizedProject;
   /** Fond papier profond, pour séparer deux projets sans boîte ni bordure. */
@@ -45,8 +48,15 @@ export default function ProjectStrip({
   showHeader?: boolean;
   /** Planche filtrée par métier (toile : les images ajoutées en prennent le métier). */
   collection?: string;
+  /** Arrondi par image (réglage `look.slotRadius` du bloc, par slug d'emplacement). */
+  slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
 }) {
   const t = useTranslations("projects");
+  /** Variable d'arrondi d'une image réglée seule (sinon celle du bloc / du thème). */
+  const radiusOf = (slug: string): CSSProperties | undefined => {
+    const r = slotRadius && Object.hasOwn(slotRadius, slug) ? slotRadius[slug] : undefined;
+    return r && Object.hasOwn(RADIUS_VALUES, r) ? ({ "--media-radius": RADIUS_VALUES[r] } as CSSProperties) : undefined;
+  };
   // Vue brouillon de l'éditeur : repères de la planche (jamais dans le HTML public).
   const edit = project.edit;
   const draftProject = Boolean(edit?.draft);
@@ -62,42 +72,66 @@ export default function ProjectStrip({
 
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [overflows, setOverflows] = useState(false);
-  const [atStart, setAtStart] = useState(true);
-  const [atEnd, setAtEnd] = useState(false);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const prevRef = useRef<HTMLButtonElement | null>(null);
+  const nextRef = useRef<HTMLButtonElement | null>(null);
 
-  // Les flèches n'apparaissent que si la bande dépasse réellement du cadre.
+  // Butées (début, fin) : écrites directement sur le DOM, une fois par image
+  // au plus (requestAnimationFrame) — aucun rendu React pendant le défilement.
+  // Elles pilotent le fondu des bords et l'état des flèches.
   useEffect(() => {
     const rail = railRef.current;
-    if (!rail) return;
+    const viewport = viewportRef.current;
+    if (!rail || !viewport) return;
 
-    const measure = () => {
+    let frame = 0;
+    const paint = () => {
+      frame = 0;
       const slack = rail.scrollWidth - rail.clientWidth;
-      setOverflows(slack > 8);
-      setAtStart(rail.scrollLeft <= 8);
-      setAtEnd(rail.scrollLeft >= slack - 8);
+      const over = slack > 8;
+      const atStart = rail.scrollLeft <= 8;
+      const atEnd = rail.scrollLeft >= slack - 8;
+      // Écrire seulement ce qui change : un attribut réécrit à l'identique
+      // invalide quand même le style (et le masque du fondu) à chaque image.
+      const set = (key: "overflows" | "atStart" | "atEnd", value: boolean) => {
+        if (viewport.dataset[key] !== String(value)) viewport.dataset[key] = String(value);
+      };
+      set("overflows", over);
+      set("atStart", atStart);
+      set("atEnd", atEnd);
+      setOverflows(over);
+      const prev = prevRef.current;
+      const next = nextRef.current;
+      // Flèche en butée : désactivée ; si elle avait le focus, il passe à l'autre.
+      if (prev && prev.disabled !== atStart) {
+        if (atStart && document.activeElement === prev) next?.focus();
+        prev.disabled = atStart;
+      }
+      if (next && next.disabled !== atEnd) {
+        if (atEnd && document.activeElement === next) prev?.focus();
+        next.disabled = atEnd;
+      }
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(paint);
     };
 
-    measure();
-    rail.addEventListener("scroll", measure, { passive: true });
-    const observer = new ResizeObserver(measure);
+    paint();
+    rail.addEventListener("scroll", schedule, { passive: true });
+    const observer = new ResizeObserver(schedule);
     observer.observe(rail);
+    for (const child of rail.children) observer.observe(child);
 
     return () => {
-      rail.removeEventListener("scroll", measure);
+      rail.removeEventListener("scroll", schedule);
       observer.disconnect();
+      cancelAnimationFrame(frame);
     };
-  }, [project.artworks.length]);
+  }, [project.artworks.length, overflows]);
 
-  const scrollBy = useCallback((direction: 1 | -1) => {
+  const step = useCallback((direction: 1 | -1) => {
     const rail = railRef.current;
-    if (!rail) return;
-    const reduced = window.matchMedia(
-      "(prefers-reduced-motion: reduce)",
-    ).matches;
-    rail.scrollBy({
-      left: direction * Math.round(rail.clientWidth * 0.8),
-      behavior: reduced ? "auto" : "smooth",
-    });
+    if (rail) stepRail(rail, direction);
   }, []);
 
   // Rendre le focus à la vignette d'origine à la fermeture de la lightbox.
@@ -156,35 +190,12 @@ export default function ProjectStrip({
         </div>
         )}
 
-        <div className="flex items-center gap-4">
-          <span className="eyebrow">
-            {tg("count", { count: shownArtworks.length })}
-          </span>
-          {overflows && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => scrollBy(-1)}
-                aria-label={t("scrollPrev", { project: project.title })}
-                disabled={atStart}
-                className="rail-arrow"
-              >
-                <span aria-hidden="true" data-icon="arrow-left">←</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollBy(1)}
-                aria-label={t("scrollNext", { project: project.title })}
-                disabled={atEnd}
-                className="rail-arrow"
-              >
-                <span aria-hidden="true" data-icon="arrow-right">→</span>
-              </button>
-            </div>
-          )}
-        </div>
+        <span className="eyebrow strip-count">
+          {tg("count", { count: shownArtworks.length })}
+        </span>
       </header>
 
+      <div ref={viewportRef} className="strip-viewport" data-overflows="false" data-at-start="true" data-at-end="false">
       <div
         ref={railRef}
         id={railId}
@@ -220,7 +231,9 @@ export default function ProjectStrip({
               <div
                 key={artwork.id}
                 className="strip-frame pe-empty-slot"
+                style={radiusOf(artwork.slug)}
                 data-edit-slot={slot.key}
+                data-slot-slug={artwork.slug}
                 data-slot-pos={slot.pos}
                 data-empty=""
                 tabIndex={0}
@@ -256,8 +269,12 @@ export default function ProjectStrip({
                 texts={{ pause: tg("pauseLoop"), play: tg("playLoop") }}
               />
             );
-            return slot ? (
-              <div key={artwork.id} style={{ display: "contents" }} data-edit-slot={slot.key} data-slot-pos={slot.pos}>
+            return slot || radiusOf(artwork.slug) ? (
+              <div
+                key={artwork.id}
+                style={{ display: "contents", ...radiusOf(artwork.slug) }}
+                {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos, "data-slot-slug": artwork.slug } : {})}
+              >
                 {loop}
                 {legend}
               </div>
@@ -275,7 +292,8 @@ export default function ProjectStrip({
             onClick={() => setOpenIndex(index)}
             aria-label={openLabel}
             className="strip-frame group text-left"
-            {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos } : {})}
+            style={radiusOf(artwork.slug)}
+            {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos, "data-slot-slug": artwork.slug } : {})}
           >
             <span className="strip-media">
               {artwork.video ? (
@@ -313,6 +331,36 @@ export default function ProjectStrip({
           </button>
           );
         })}
+      </div>
+
+      {/* Flèches posées sur les bords de la bande, centrées sur les images :
+          discrètes (survol de la bande, focus clavier), masquées sur écran
+          tactile (le doigt fait défiler), désactivées en butée. */}
+      {overflows && (
+        <>
+          <button
+            ref={prevRef}
+            type="button"
+            onClick={() => step(-1)}
+            aria-label={t("scrollPrev", { project: project.title })}
+            aria-controls={railId}
+            className="strip-nav strip-nav-prev"
+            disabled
+          >
+            <span aria-hidden="true" data-icon="arrow-left">←</span>
+          </button>
+          <button
+            ref={nextRef}
+            type="button"
+            onClick={() => step(1)}
+            aria-label={t("scrollNext", { project: project.title })}
+            aria-controls={railId}
+            className="strip-nav strip-nav-next"
+          >
+            <span aria-hidden="true" data-icon="arrow-right">→</span>
+          </button>
+        </>
+      )}
       </div>
 
       {overflows && (

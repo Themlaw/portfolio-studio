@@ -8,12 +8,21 @@ export const VARIANT_WIDTHS = [480, 960, 1600, 2400] as const;
 export const VARIANT_FORMATS = ["avif", "webp"] as const;
 export type VariantFormat = (typeof VARIANT_FORMATS)[number];
 
-export type VariantFile = { key: string; w: number; h: number; format: VariantFormat | "mp4"; size: number };
-export type ImageVariants = { v: 1; files: VariantFile[]; /** Vidéo : original supprimé après conversion. */ originalRemoved?: boolean };
+export type VariantFile = { key: string; w: number; h: number; format: VariantFormat | "mp4" | "pdf"; size: number; /** PDF : numéro de la page (images d'aperçu). */ page?: number };
+export type ImageVariants = {
+  v: 1;
+  files: VariantFile[];
+  /** Vidéo : original supprimé après conversion. */
+  originalRemoved?: boolean;
+  /** PDF : nombre de pages. */
+  pages?: number;
+};
 
 export const ORIGINALS_PREFIX = "originals/";
 export const VARIANTS_PREFIX = "img/";
 export const VIDEO_PREFIX = "vid/";
+/** PDF (bloc CV) : images des pages et copie téléchargeable (src/lib/pdf/limits.ts). */
+export const DOC_PREFIX = "doc/";
 
 /**
  * Tailles à produire : chaque variante tient dans une boîte carrée de cette
@@ -32,12 +41,16 @@ export function variantKey(hash16: string, width: number, format: VariantFormat)
 
 /** Préfixe de hash d'une clé de variante (img/<hash16>/… ou vid/<hash16>/…), ou null. */
 export function hashOfVariantKey(key: string): string | null {
-  const m = /^img\/([0-9a-f]{16})\/\d{1,5}\.(avif|webp)$/.exec(key) ?? /^vid\/([0-9a-f]{16})\/(?:\d{3,4}\.mp4|poster-(?:\d{3,4}|full)\.webp)$/.exec(key);
+  const m =
+    /^img\/([0-9a-f]{16})\/\d{1,5}\.(avif|webp)$/.exec(key) ??
+    /^vid\/([0-9a-f]{16})\/(?:\d{3,4}\.mp4|poster-(?:\d{3,4}|full)\.webp)$/.exec(key) ??
+    /^doc\/([0-9a-f]{16})\/(?:document\.pdf|p\d{1,2}-\d{3,4}\.(?:avif|webp))$/.exec(key);
   return m ? m[1] : null;
 }
 
 /** Type MIME d'une variante d'après son extension. */
 export function variantMime(key: string): string {
+  if (key.endsWith(".pdf")) return "application/pdf";
   return key.endsWith(".mp4") ? "video/mp4" : key.endsWith(".avif") ? "image/avif" : "image/webp";
 }
 
@@ -85,4 +98,26 @@ export function pictureSources(variants: ImageVariants, urlOf: (key: string) => 
     largest: { avif: urlOf(top("avif").key), webp: urlOf(top("webp").key), w: top("webp").w, h: top("webp").h },
     color,
   };
+}
+
+/** Aperçu d'un PDF : sources <picture> de chaque page, et le fichier téléchargeable. */
+export type PdfView = {
+  pages: { sources: PictureSources; w: number; h: number }[];
+  /** URL du PDF (servi en pièce jointe, jamais affiché sur le site). */
+  href: string;
+  size: number;
+};
+
+export function pdfView(variants: ImageVariants, urlOf: (key: string) => string): PdfView | null {
+  const doc = variants.files.find((f) => f.format === "pdf");
+  const count = variants.pages ?? 0;
+  if (!doc || count < 1) return null;
+  const pages: PdfView["pages"] = [];
+  for (let page = 1; page <= count; page++) {
+    const files = variants.files.filter((f) => f.page === page && (f.format === "avif" || f.format === "webp"));
+    if (!files.some((f) => f.format === "webp")) return null;
+    const sources = pictureSources({ v: 1, files }, urlOf, null);
+    pages.push({ sources, w: sources.largest.w, h: sources.largest.h });
+  }
+  return { pages, href: urlOf(doc.key), size: doc.size };
 }

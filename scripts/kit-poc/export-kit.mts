@@ -17,7 +17,7 @@ import { ensureAgPsd } from "@/lib/kit/ag-psd-node";
 import { buildKit } from "@/lib/kit/build";
 import { exportIdOf } from "@/lib/kit/manifest";
 import { layoutOf, resolveSlots } from "@/lib/kit/resolve";
-import { DOC, KIT_VERSION, SLOTS } from "@/lib/kit/spec";
+import { ALL_SLOTS as SLOTS, DOC, KIT_VERSION } from "@/lib/kit/spec";
 import { themeVersion } from "@/lib/kit/version";
 import { PRESETS } from "@/themes/presets";
 

@@ -113,7 +113,10 @@ export function KitApplyPanel({
   paletteProblem,
   applied,
   mirror,
+  colors = null,
 }: {
+  /** Couleurs repeintes dans « 8 · Palette » : nombre, et problème de contraste éventuel. */
+  colors?: { count: number; problem: string | null } | null;
   themeId: string;
   importId: string;
   /** Une seule flèche redessinée : proposer son miroir pour l'autre. */
@@ -127,13 +130,14 @@ export function KitApplyPanel({
   const router = useRouter();
   const [usePalette, setUsePalette] = useState(false);
   const [useMirror, setUseMirror] = useState(true);
+  const [useColors, setUseColors] = useState(Boolean(colors?.count && !colors.problem));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const apply = async () => {
     setBusy(true);
     setError("");
-    const res = await applyKitImportAction(themeId, importId, { palette: usePalette, mirror: Boolean(mirror) && useMirror });
+    const res = await applyKitImportAction(themeId, importId, { palette: usePalette, mirror: Boolean(mirror) && useMirror, colors: Boolean(colors?.count) && useColors });
     setBusy(false);
     if (!res.ok) {
       setError(res.message);
@@ -186,17 +190,27 @@ export function KitApplyPanel({
           )}
         </div>
       )}
+      {colors && colors.count > 0 && (
+        <div className="a-kit-mirror">
+          <label className="a-kit-mirror-check">
+            <input type="checkbox" checked={useColors} disabled={Boolean(colors.problem)} onChange={(e) => setUseColors(e.target.checked)} data-testid="kit-colors" />
+            Appliquer {colors.count > 1 ? `les ${colors.count} couleurs repeintes` : "la couleur repeinte"}
+          </label>
+          {colors.problem && <p className="a-help">⚠ {colors.problem}</p>}
+        </div>
+      )}
       <h2 id="kit-apply-title">Appliquer au thème</h2>
       <p className="a-help">
-        Crée une copie brouillon de « {themeName} » avec {changed > 1 ? `les ${changed} éléments redessinés` : changed === 1 ? "l'élément redessiné" : "la palette"}
-        {usePalette && changed > 0 ? " et la palette" : ""}, puis ouvre son aperçu en direct. Le thème en ligne ne change pas tant que tu n&apos;actives pas la copie.
+        Crée une copie brouillon de « {themeName} » avec {changed > 1 ? `les ${changed} éléments redessinés` : changed === 1 ? "l'élément redessiné" : useColors && colors?.count ? "tes couleurs" : "la palette"}
+        {usePalette && changed > 0 ? " et la palette" : ""}
+        {useColors && colors?.count && changed > 0 ? " et tes couleurs" : ""}, puis ouvre son aperçu en direct. Le thème en ligne ne change pas tant que tu n&apos;actives pas la copie.
       </p>
       {applied && (
         <p className="a-help">
           Déjà appliqué : <a href={`/admin/themes/${encodeURIComponent(applied)}`}>ouvrir la copie</a>.
         </p>
       )}
-      <button type="button" className="a-btn a-btn-primary" onClick={apply} disabled={busy || (changed === 0 && !usePalette)} aria-busy={busy}>
+      <button type="button" className="a-btn a-btn-primary" onClick={apply} disabled={busy || (changed === 0 && !usePalette && !(useColors && colors?.count))} aria-busy={busy}>
         {busy ? "Création de la copie…" : "Appliquer au thème"}
       </button>
       {error && (

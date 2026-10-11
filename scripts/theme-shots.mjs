@@ -9,33 +9,20 @@
  * et la graisse de titre du thème.
  * Usage : PORT=3001 [SHOTS_DIR=phase1b] node scripts/theme-shots.mjs [preset…]
  */
-import { mkdirSync, readdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { chromium } from "playwright";
+
+import { loadPresets } from "./lib/presets.mjs";
 
 const PORT = process.env.PORT ?? "3001";
 const BASE = `http://localhost:${PORT}`;
 const OUT = new URL(`../screenshots/${process.env.SHOTS_DIR ?? "phase1"}/`, import.meta.url).pathname;
 
-/** Graisse de titre attendue par police (miroir de src/themes/fonts.ts). */
-const HEADING_WEIGHT = {
-  "young-serif": "400",
-  figtree: "600",
-  "spline-sans-mono": "400",
-  "bricolage-grotesque": "700",
-  "chelsea-market": "400",
-  caveat: "600",
-};
-const presetDir = new URL("../src/themes/presets/", import.meta.url);
-
-/** Nom de famille CSS des polices du catalogue (next/font garde le nom Google). */
-const FAMILY = {
-  "young-serif": "Young Serif",
-  figtree: "Figtree",
-  "spline-sans-mono": "Spline Sans Mono",
-  "bricolage-grotesque": "Bricolage Grotesque",
-  "chelsea-market": "Chelsea Market",
-  caveat: "Caveat",
-};
+/** Graisse de titre et nom de famille CSS attendus (catalogue src/themes/font-stacks.ts ;
+ *  next/font garde le nom Google, qui est le libellé du catalogue). */
+const { FONT_STACKS } = await import(new URL("../src/themes/font-stacks.ts", import.meta.url));
+const HEADING_WEIGHT = Object.fromEntries(Object.entries(FONT_STACKS).map(([id, f]) => [id, String(f.headingWeight)]));
+const FAMILY = Object.fromEntries(Object.entries(FONT_STACKS).map(([id, f]) => [id, f.label]));
 
 const hexToRgb = (hex) => {
   const h = hex.replace("#", "");
@@ -43,13 +30,9 @@ const hexToRgb = (hex) => {
   return `rgb(${r}, ${g}, ${b})`;
 };
 
-const all = readdirSync(presetDir).filter((f) => f.endsWith(".ts") && f !== "index.ts");
 const wanted = process.argv.slice(2);
 const presets = [];
-for (const f of all) {
-  const p = (await import(new URL(f, presetDir))).default;
-  if (!wanted.length || wanted.includes(p.id)) presets.push(p);
-}
+presets.push(...(await loadPresets(wanted)));
 
 const fail = [];
 const ok = (label, pass, detail = "") => {

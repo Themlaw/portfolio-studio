@@ -15,12 +15,15 @@ import type { Theme } from "@/themes/schema";
 import KitDownloadButton from "./KitDownloadButton";
 import { ConfirmDialog, toast } from "./editing";
 import ThemeSwatches from "./ThemeSwatches";
+import ThemeThumb from "./ThemeThumb";
 
 /** Formulaire natif : l'aperçu s'ouvre dans un nouvel onglet (l'admin reste ici). */
 function PreviewButton({ id, label = "Prévisualiser", small }: { id: string; label?: string; small?: boolean }) {
   return (
     <form method="post" action="/admin/apercu" target="_blank">
       <input type="hidden" name="id" value={id} />
+      {/* « Quitter l'aperçu » (bandeau, Échap) ramène à cet écran. */}
+      <input type="hidden" name="retour" value="/admin/themes" />
       <button type="submit" className={`a-btn${small ? " a-btn-small" : ""}`}>
         {label} <span aria-hidden="true">↗</span>
       </button>
@@ -34,9 +37,12 @@ export default function ThemeList({
   themes,
   activeId,
   accents,
+  thumbs = {},
 }: {
   themes: Theme[];
   activeId: string;
+  /** Vignettes générées des thèmes livrés (id → chemin public). */
+  thumbs?: Record<string, string | null>;
   accents: { id: number; title: string; accent: string }[];
 }) {
   const router = useRouter();
@@ -78,6 +84,7 @@ export default function ThemeList({
                 <h2 id={`theme-${theme.id}`}>{theme.name}</h2>
                 {isActive ? <span className="a-badge">En ligne</span> : theme.preset && <span className="a-tag">Livré</span>}
               </div>
+              <ThemeThumb theme={theme} src={theme.preset ? thumbs[theme.id] : null} />
               <ThemeSwatches theme={theme} />
               <div className="a-card-actions">
                 {!isActive && (
@@ -94,6 +101,9 @@ export default function ThemeList({
                 <button type="button" className="a-btn a-btn-small" onClick={() => duplicate(theme)} disabled={busy}>
                   Dupliquer
                 </button>
+                <a className="a-btn a-btn-small a-btn-quiet" href={`/admin/api/themes/${encodeURIComponent(theme.id)}/export`} download={`theme-${theme.id}.zip`}>
+                  Exporter
+                </a>
                 <KitDownloadButton themeId={theme.id} small />
                 <Link className="a-btn a-btn-small a-btn-quiet" href={`/admin/themes/${encodeURIComponent(theme.id)}/kit`}>
                   Kit rempli…

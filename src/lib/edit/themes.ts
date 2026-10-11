@@ -8,6 +8,7 @@ import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 import { slugify } from "@/lib/slug";
 import { AA, contrastReport } from "@/themes/contrast";
+import { contrastRatio, normalizePalette, resolvePalette } from "@/themes/palette";
 import { ThemeSchema, type Theme } from "@/themes/schema";
 
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
@@ -53,11 +54,18 @@ export function saveTheme(id: string, input: unknown): ActionResult<null> {
   if (!parsed.success) {
     return fail("Certains réglages sont invalides : corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
   }
-  const failing = contrastReport(parsed.data.tokens.color).filter((p) => !p.ok);
+  // Nuances « auto » recalculées depuis leurs bases (jamais la valeur du client).
+  const data: Theme = { ...parsed.data, tokens: { ...parsed.data.tokens, color: normalizePalette(parsed.data.tokens.color, parsed.data.tokens.palette) } };
+  const resolved = resolvePalette(data.tokens.color, data.tokens.palette);
+  const scrimRatio = contrastRatio(resolved.onScrim, resolved.scrim);
+  if (scrimRatio < AA) {
+    return fail(`Contraste insuffisant sur le voile de la visionneuse (${scrimRatio.toFixed(2)}:1, il faut ${AA}:1).`, { "tokens.color.onScrim": `Texte sur le voile : ${scrimRatio.toFixed(2)}:1, il faut au moins ${AA}:1.` });
+  }
+  const failing = contrastReport(data.tokens.color).filter((p) => !p.ok);
   if (failing.length > 0) {
     const errors: Record<string, string> = {};
     for (const p of failing) {
-      const key = `tokens.color.${p.fg === "eyebrow" && !parsed.data.tokens.color.eyebrow ? "secondary" : p.fg}`;
+      const key = `tokens.color.${p.fg === "eyebrow" && !data.tokens.color.eyebrow ? "secondary" : p.fg}`;
       errors[key] ??= `${p.label} : ${p.ratio.toFixed(2)}:1, il faut au moins ${AA}:1.`;
     }
     return fail(
@@ -67,7 +75,7 @@ export function saveTheme(id: string, input: unknown): ActionResult<null> {
   }
   getDb()
     .update(schema.themes)
-    .set({ name: parsed.data.name, data: JSON.stringify(parsed.data), updatedAt: new Date() })
+    .set({ name: data.name, data: JSON.stringify(data), updatedAt: new Date() })
     .where(eq(schema.themes.id, id))
     .run();
   return done(null);

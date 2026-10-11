@@ -44,7 +44,7 @@ export type BlockCatalogEntry = {
   /** Conteneur : types acceptés. */
   container?: { accepts: string[] };
   /** Champs média remplaçables sur la toile. */
-  mediaFields?: { field: string; kind: "image" | "video" | "any" }[];
+  mediaFields?: { field: string; kind: "image" | "video" | "pdf" | "any" }[];
   /** Type ancien : jamais proposé. */
   hidden?: boolean;
   /** Raccourci d'un type (palette). */

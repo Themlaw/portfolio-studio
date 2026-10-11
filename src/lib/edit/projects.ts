@@ -173,6 +173,7 @@ export function addSlots(projectId: number, input: unknown, atInput?: unknown): 
   const collection = ([...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "characters") as "characters";
   const mediaRows = new Map(db.select().from(schema.media).all().map((m) => [m.id, m]));
   for (const mid of parsed.data) if (mid !== null && !mediaRows.has(mid)) return fail("Une image n'existe plus : recharge la page.");
+  if (parsed.data.some((mid) => mid !== null && mediaRows.get(mid)?.kind === "pdf")) return fail("Un PDF ne se place pas dans une planche : utilise le bloc « CV ».");
   if (parsed.data.some((mid) => mid !== null && mediaRows.get(mid)?.status === "failed")) {
     return fail("Ce média est en échec : relance-le depuis la médiathèque avant de le placer.");
   }
@@ -223,8 +224,9 @@ export function setSlotMedia(slotId: number, mediaId: unknown): ActionResult<{ p
   if (!parsed.success) return fail("Requête invalide.");
   const db = getDb();
   if (parsed.data !== null) {
-    const target = db.select({ status: schema.media.status }).from(schema.media).where(eq(schema.media.id, parsed.data)).get();
+    const target = db.select({ status: schema.media.status, kind: schema.media.kind }).from(schema.media).where(eq(schema.media.id, parsed.data)).get();
     if (!target) return fail("Cette image n'existe plus : recharge la médiathèque.");
+    if (target.kind === "pdf") return fail("Un PDF ne se place pas dans une planche : utilise le bloc « CV ».");
     if (target.status === "failed") return fail("Ce média est en échec : relance-le depuis la médiathèque avant de le placer.");
   }
   // Retirer l'image garde le ratio de la place (aspect inchangé) ; une

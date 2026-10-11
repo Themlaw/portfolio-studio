@@ -27,7 +27,7 @@ export default function CollectionTiles({
   cta: string;
 }) {
   return (
-    <div className="flex flex-col gap-[clamp(2.5rem,6vw,5rem)]">
+    <div className="flex flex-col gap-[var(--t-space-l)]">
       {tiles.map((tile, index) => (
         <Link
           key={tile.href}

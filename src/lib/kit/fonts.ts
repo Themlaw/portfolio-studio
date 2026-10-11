@@ -15,4 +15,12 @@ export const KIT_FONTS: Record<FontId, { file: string; pango: string }> = {
   "bricolage-grotesque": { file: "BricolageGrotesque-Bold.ttf", pango: "Bricolage Grotesque Bold" },
   "chelsea-market": { file: "ChelseaMarket.ttf", pango: "Chelsea Market" },
   caveat: { file: "Caveat-SemiBold.ttf", pango: "Caveat SemiBold" },
+  kalam: { file: "Kalam-Bold.ttf", pango: "Kalam Bold" },
+  "courier-prime": { file: "CourierPrime-Bold.ttf", pango: "Courier Prime Bold" },
+  "big-shoulders": { file: "BigShoulders-ExtraBold.ttf", pango: "Big Shoulders ExtraBold" },
+  "ibm-plex-sans": { file: "IBMPlexSans-SemiBold.ttf", pango: "IBM Plex Sans SemiBold" },
+  "ibm-plex-mono": { file: "IBMPlexMono-Medium.ttf", pango: "IBM Plex Mono Medium" },
+  "inter-tight": { file: "InterTight-SemiBold.ttf", pango: "Inter Tight SemiBold" },
+  "bowlby-one": { file: "BowlbyOne.ttf", pango: "Bowlby One" },
+  "space-grotesk": { file: "SpaceGrotesk-SemiBold.ttf", pango: "Space Grotesk SemiBold" },
 };

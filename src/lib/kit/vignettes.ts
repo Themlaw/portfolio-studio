@@ -44,15 +44,11 @@ function landscape(c: Colors, w: number, top: number, bottom: number): string {
   return out;
 }
 
-/** Planche : titre, trois images en rangée, flèches à droite, barre du rail. */
+/** Planche : titre, trois images en rangée, flèches sur les bords (lot médias), barre du rail. */
 function strip(c: Colors, w: number, top: number, opts: { tape?: boolean; arrowsHl?: boolean; railHl?: boolean; playHl?: boolean; frames?: boolean } = {}): string {
   const fw = w * 0.27;
   const fh = fw * 0.75;
   let out = `<rect x="${w * 0.06}" y="${top}" width="${w * 0.34}" height="${w * 0.03}" rx="3" fill="${c.ink}"/>`;
-  const ay = top + w * 0.005;
-  const arrows = `<path d="M${w * 0.86} ${ay} l ${-w * 0.015} ${w * 0.013} l ${w * 0.015} ${w * 0.013} M${w * 0.92} ${ay} l ${w * 0.015} ${w * 0.013} l ${-w * 0.015} ${w * 0.013}" fill="none" stroke="${c.ink}" stroke-width="${w * 0.006}" stroke-linecap="round" stroke-linejoin="round"/>`;
-  out += arrows;
-  if (opts.arrowsHl) out += hl(`<rect x="${w * 0.825}" y="${ay - w * 0.012}" width="${w * 0.13}" height="${w * 0.05}" rx="6"/>`);
   const fy = top + w * 0.07;
   for (let i = 0; i < 3; i++) {
     const x = w * 0.06 + i * (fw + w * 0.04);
@@ -68,6 +64,13 @@ function strip(c: Colors, w: number, top: number, opts: { tape?: boolean; arrows
       out += `<circle cx="${px}" cy="${py}" r="${r}" fill="${c.bg}"/><path d="M${px - r * 0.35} ${py - r * 0.5} L ${px + r * 0.55} ${py} L ${px - r * 0.35} ${py + r * 0.5} Z" fill="${c.ink}"/>`;
       if (opts.playHl) out += hl(`<circle cx="${px}" cy="${py}" r="${r * 1.4}"/>`);
     }
+  }
+  // Flèches sur les bords de la bande, à mi-hauteur des images (pastilles).
+  const ay = fy + fh / 2;
+  const r = w * 0.028;
+  for (const [cx, dir] of [[w * 0.035, -1], [w * 0.965, 1]] as const) {
+    out += `<circle cx="${cx}" cy="${ay}" r="${r}" fill="${c.surface}" stroke="${c.line}" stroke-width="2"/><path d="M${cx - dir * r * 0.3} ${ay - r * 0.45} L ${cx + dir * r * 0.3} ${ay} L ${cx - dir * r * 0.3} ${ay + r * 0.45}" fill="none" stroke="${c.ink}" stroke-width="${w * 0.006}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    if (opts.arrowsHl) out += hl(`<circle cx="${cx}" cy="${ay}" r="${r * 1.35}"/>`);
   }
   const ry = fy + fh + w * 0.04;
   out += `<rect x="${w * 0.06}" y="${ry}" width="${w * 0.88}" height="${Math.max(2, w * 0.004)}" fill="${c.line}"/><rect x="${w * 0.06}" y="${ry - w * 0.002}" width="${w * 0.5}" height="${Math.max(3, w * 0.008)}" fill="${c.primary}"/>`;
@@ -90,6 +93,24 @@ function lightbox(c: Colors, w: number, h: number, frameHl: boolean, closeHl: bo
   const s = w * 0.022;
   out += `<path d="M${cx - s} ${cy - s} L ${cx + s} ${cy + s} M ${cx + s} ${cy - s} L ${cx - s} ${cy + s}" stroke="#f5f5f5" stroke-width="${w * 0.006}" stroke-linecap="round"/>`;
   if (closeHl) out += hl(`<circle cx="${cx}" cy="${cy}" r="${s * 2.2}"/>`);
+  return out;
+}
+
+/** Entrées des collections : trois grandes images légendées ; cadre de la première surligné. */
+function collectionEntries(c: Colors, w: number, top: number, h: number): string {
+  const gap = w * 0.04;
+  const tw = (w * 0.88 - 2 * gap) / 3;
+  const th = tw * 1.15;
+  const y = top + (h - top - th - w * 0.07) / 2;
+  const b = w * 0.018;
+  let out = `<rect x="0" y="${top}" width="${w}" height="${h - top}" fill="${c.bg}"/>`;
+  for (let i = 0; i < 3; i++) {
+    const x = w * 0.06 + i * (tw + gap);
+    out += `<rect x="${x}" y="${y}" width="${tw}" height="${th}" fill="${c.surface}"/><rect x="${x + b}" y="${y + b}" width="${tw - 2 * b}" height="${th - 2 * b}" fill="${[c.tertiary, c.inkSoft, c.line][i]}"/>`;
+    out += `<rect x="${x}" y="${y + th + w * 0.025}" width="${tw * 0.45}" height="${Math.max(3, w * 0.012)}" rx="2" fill="${c.ink}"/>`;
+  }
+  const x0 = w * 0.06;
+  out += hl(`<path fill-rule="evenodd" d="M${x0 - b * 0.6} ${y - b * 0.6} h ${tw + b * 1.2} v ${th + b * 1.2} h ${-(tw + b * 1.2)} Z M${x0 + b} ${y + b} v ${th - 2 * b} h ${tw - 2 * b} v ${-(th - 2 * b)} Z"/>`);
   return out;
 }
 
@@ -116,7 +137,7 @@ export function vignetteSvg(el: ElementId, c: Colors, w: number, h: number): str
       body = paperBackground(c, w, hh, h) + hlArea(4, hh + 4, w - 8, h - hh - 8) + strip(c, w, hh + h * 0.1) + header(c, w, h, 0);
       break;
     case "cadre":
-      body = lightbox(c, w, h, true, false);
+      body = collectionEntries(c, w, hh, h) + header(c, w, h, -1);
       break;
     case "trait": {
       const ry = hh + h * 0.08;

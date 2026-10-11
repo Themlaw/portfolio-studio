@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import type { RawBlock } from "@/lib/pages";
 
+import { cropStyle, lookAttributes, readLook, type Look } from "@/lib/look";
 import { own } from "@/lib/own";
 import { BLOCKS } from "./registry";
 import { MAX_NESTING } from "./tree";
@@ -35,11 +36,37 @@ function contentHash(props: unknown): string {
 
 type AnyBlock = Pick<RawBlock, "id" | "type" | "props" | "corrupt" | "uid">;
 
-function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?: { uid: string }): ReactNode {
+/**
+ * Conteneurs sans boîte (le Projet mis en avant ne rend que ses composants) :
+ * leurs espaces haut / bas passent à leur premier / dernier composant.
+ */
+const BOXLESS = new Set(["featured-project"]);
+
+/**
+ * Enveloppe de mise en page (lot 2) : `display: contents`, posée seulement si
+ * le bloc a des réglages — src/app/look.css règle espaces, arrondi, position
+ * du titre et cadrage d'après ses attributs. Sans réglage : DOM inchangé.
+ */
+function withLook(node: ReactNode, look: Look | undefined, key: string): ReactNode {
+  const attrs = lookAttributes(look);
+  if (!attrs) return node;
+  return (
+    <div key={key} className="blk" style={{ display: "contents", ...cropStyle(look) }} {...attrs}>
+      {node}
+    </div>
+  );
+}
+
+function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?: { uid: string }, inherited?: Look): ReactNode {
   // En édition, la clé suit le contenu : un bloc modifié (texte saisi en
   // place dans le DOM) est remonté à neuf au rafraîchissement.
   const key = ctx.edit ? `${block.uid ?? block.id}:${contentHash(block.props)}` : (block.uid ?? block.id);
   const def = own(BLOCKS, block.type);
+  // Réglages propres du bloc (lus avant le schéma : la toile les montre même
+  // pour un bloc incomplet), complétés par ceux de son conteneur sans boîte.
+  const ownLook = readLook((block.props as { look?: unknown } | null)?.look);
+  const look = inherited ? { ...inherited, ...ownLook } : ownLook;
+  const editLook = ctx.edit && ownLook ? JSON.stringify(ownLook) : null;
   const wrap = (node: ReactNode) =>
     ctx.edit ? (
       <div
@@ -50,6 +77,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
         data-edit-label={def?.label ?? block.type}
         {...(parent ? { "data-edit-parent": parent.uid } : {})}
         {...(def?.container ? { "data-edit-container": def.container.accepts.join(" ") } : {})}
+        {...(editLook ? { "data-edit-look": editLook } : {})}
       >
         {node}
       </div>
@@ -81,14 +109,25 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
       project: data.project ?? ctx.project,
       cell: block.type === "grid",
     };
-    children = (data.children ?? [])
-      .filter((c) => own(BLOCKS, c.type) && def.container!.accepts.includes(c.type))
-      .map((c, i) => renderBlock({ id: -(i + 1), uid: c.uid, type: c.type, props: c.props, corrupt: false }, childCtx, depth + 1, { uid }));
+    const kids = (data.children ?? []).filter((c) => own(BLOCKS, c.type) && def.container!.accepts.includes(c.type));
+    const boxless = BOXLESS.has(block.type);
+    children = kids.map((c, i) => {
+      const pass: Look = {};
+      if (boxless && i === 0 && look?.spaceTop) pass.spaceTop = look.spaceTop;
+      if (boxless && i === kids.length - 1 && look?.spaceBottom) pass.spaceBottom = look.spaceBottom;
+      return renderBlock({ id: -(i + 1), uid: c.uid, type: c.type, props: c.props, corrupt: false }, childCtx, depth + 1, { uid }, Object.keys(pass).length ? pass : undefined);
+    });
   }
+  // Conteneur sans boîte : ses espaces sont passés à ses composants.
+  const shown = BOXLESS.has(block.type) && look ? { ...look, spaceTop: undefined, spaceBottom: undefined } : look;
   return wrap(
-    <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id }}>
-      {children}
-    </Component>,
+    withLook(
+      <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id, look }}>
+        {children}
+      </Component>,
+      shown,
+      `look-${key}`,
+    ),
   );
 }
 

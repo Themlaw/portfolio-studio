@@ -30,9 +30,9 @@ import {
   treeProblem,
   withFreshUids,
 } from "../src/blocks/tree.ts";
-import { upgradeContent } from "../src/lib/db/upgrade.ts";
+import { renameVideoLook, upgradeContent } from "../src/lib/db/upgrade.ts";
 import { defaultContactForm, makeField, validateSubmission, ContactFormSchema } from "../src/lib/contact-form.ts";
-import { detectNetwork, NavItemSchema, safeNavHref, safeSocialHref, SiteSnapSchema, SocialSchema } from "../src/lib/site-schema.ts";
+import { canonicalSnap, detectNetwork, NavItemSchema, safeNavHref, safeSocialHref, SiteSnapSchema, SocialSchema } from "../src/lib/site-schema.ts";
 
 let passed = 0;
 const test = (name, fn) => {
@@ -40,7 +40,7 @@ const test = (name, fn) => {
   passed++;
   console.log(`PASS  ${name}`);
 };
-const KNOWN = new Set(["featured-project", "grid", "section-title", "project-board", "image", "rich-text", "video-single", "hero", "contact", "collection-intro"]);
+const KNOWN = new Set(["featured-project", "grid", "section-title", "project-board", "image", "rich-text", "video-single", "cv", "hero", "contact", "collection-intro"]);
 const known = (t) => KNOWN.has(t);
 const kid = (uid, type, props = {}) => ({ uid, type, props });
 
@@ -59,6 +59,10 @@ test("forme : grille dans un projet mis en avant OK ; conteneur dans une grille 
   assert.equal(treeProblem(ok, known), null);
   assert.match(treeProblem([{ uid: "g", type: "grid", props: { children: [kid("f", "featured-project")] } }], known), /n'accepte pas/);
   assert.match(treeProblem([{ uid: "g", type: "grid", props: { children: [kid("g2", "grid")] } }], known), /n'accepte pas/);
+});
+test("forme : bloc CV (lot 3) accepté dans une grille et dans un projet mis en avant", () => {
+  assert.equal(treeProblem([{ uid: "g", type: "grid", props: { children: [kid("cv", "cv")] } }], known), null);
+  assert.equal(treeProblem([{ uid: "c", type: "featured-project", props: { children: [kid("cv", "cv"), kid("g", "grid", { children: [kid("cv2", "cv")] })] } }], known), null);
 });
 test("forme : composants bornés, uid obligatoires, uniques, bien formés", () => {
   const many = Array.from({ length: MAX_CHILDREN + 1 }, (_, i) => kid(`k${i}`, "image"));
@@ -199,7 +203,7 @@ test("migration : ancienne vitrine vidéo → grille 1 grand (demoreel) + grille
   const [reel, cards] = blocksOf(db, 3);
   assert.equal(reel.props.layout, "1");
   assert.equal(reel.props.top, "none");
-  assert.deepEqual({ ...reel.props.children[0].props }, { look: "feature", mode: "player", eyebrow: { fr: "Reel", en: "Reel" }, slot: "g1" });
+  assert.deepEqual({ ...reel.props.children[0].props }, { variant: "feature", mode: "player", eyebrow: { fr: "Reel", en: "Reel" }, slot: "g1" });
   assert.equal(cards.props.layout, "2");
   assert.equal(cards.props.top, "gap");
   assert.deepEqual(cards.props.title, { fr: "Extraits", en: "Excerpts" });
@@ -256,7 +260,30 @@ test("migration : base neuve (avant le seed) → pas de menu vide figé", () => 
   assert.equal(db.prepare("select value from settings where key = 'nav'").get(), undefined);
 });
 
+test("0016 : présentation du bloc Vidéo look → variant (publié, composants, brouillon), réglages du lot 2 gardés, idempotente", () => {
+  const db = new Database(":memory:");
+  db.exec("create table blocks (id integer primary key, page_id integer, position integer, type text, props text); create table pages (id integer primary key, draft text)");
+  db.prepare("insert into blocks (page_id, position, type, props) values (1, 0, 'video-single', ?)").run(JSON.stringify({ look: "feature", mode: "player" }));
+  db.prepare("insert into blocks (page_id, position, type, props) values (1, 1, 'grid', ?)").run(JSON.stringify({ children: [kid("v", "video-single", { look: "plain" }), kid("i", "image", { look: { spaceTop: "m" } })] }));
+  db.prepare("insert into blocks (page_id, position, type, props) values (1, 2, 'video-single', ?)").run(JSON.stringify({ variant: "card", look: { spaceTop: "s" } }));
+  db.prepare("insert into pages (id, draft) values (1, ?)").run(JSON.stringify({ blocks: [{ uid: "a", type: "video-single", props: { look: "card" } }] }));
+  assert.equal(renameVideoLook(db), 3);
+  const rows = db.prepare("select props from blocks order by position").all().map((r) => JSON.parse(r.props));
+  assert.deepEqual(rows[0], { mode: "player", variant: "feature" });
+  assert.deepEqual(rows[1].children[0].props, { variant: "plain" });
+  assert.deepEqual(rows[1].children[1].props, { look: { spaceTop: "m" } });
+  assert.deepEqual(rows[2], { variant: "card", look: { spaceTop: "s" } });
+  assert.deepEqual(JSON.parse(db.prepare("select draft from pages").get().draft).blocks[0].props, { variant: "card" });
+  assert.equal(renameVideoLook(db), 0);
+});
+
 /* ---- 3. Données du site ----------------------------------------------------- */
+test("site : headerSocials false ≡ absent (forme canonique, aucun brouillon fantôme)", () => {
+  const id = { name: "A", role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } };
+  const snap = (identity) => ({ identity, nav: [], socials: [] });
+  assert.equal(JSON.stringify(canonicalSnap(snap({ ...id, headerSocials: false }))), JSON.stringify(canonicalSnap(snap(id))));
+  assert.notEqual(JSON.stringify(canonicalSnap(snap({ ...id, headerSocials: true }))), JSON.stringify(canonicalSnap(snap(id))));
+});
 
 test("liens de réseau : https/http et mailto seulement", () => {
   for (const ok of ["https://www.instagram.com/x", "http://exemple.fr/a", "mailto:moi@exemple.fr"]) assert.ok(safeSocialHref(ok), ok);

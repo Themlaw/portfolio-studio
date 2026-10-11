@@ -26,3 +26,18 @@ export function localPath(candidate: string | null | undefined, fallback: string
     return fallback;
   }
 }
+
+/**
+ * Écran de l'admin d'où l'aperçu a été ouvert (cookie posé par POST
+ * /admin/apercu) : « Quitter l'aperçu » y ramène (v0.13.1), sinon Thèmes.
+ */
+export const PREVIEW_FROM_COOKIE = "preview-from";
+export const PREVIEW_FALLBACK = "/admin/themes";
+
+/** Chemin d'un écran de l'admin (jamais la page de connexion ni une route d'API), ou null. */
+export function adminScreen(candidate: string | null | undefined): string | null {
+  const path = localPath(candidate, "");
+  if (!/^\/admin(\/|$|\?)/.test(path)) return null;
+  if (/^\/admin\/(connexion|api|apercu)(\/|$|\?)/.test(path)) return null;
+  return path.slice(0, 300);
+}

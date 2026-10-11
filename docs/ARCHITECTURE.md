@@ -130,7 +130,9 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
 - **Blocs livrés** : `hero`, `collection-tiles`, `featured-projects`, `collection-intro`,
   `collection-projects`, `video`, `rich-text`, `contact`, et **`profile`** (page À propos :
   portrait, présentation, contact et réseaux en une grille, indécoupable sans changer
-  le rendu). Les tuiles de collection portent leurs propres textes (dupliqués depuis
+  le rendu). Les entrées des collections (`collection-tiles`, libellé « Entrées des
+  collections » depuis la v0.13.1 : une grande image par collection, qui mène à sa
+  page ; type inchangé en base) portent leurs propres textes (dupliqués depuis
   l'intro de la collection) et référencent la page cible par id.
 - **Références sans FK** : les ids portés par les props des blocs (`portraitMediaId`,
   `pageId`…) sont déclarés par type dans `src/blocks/refs.ts` ;
@@ -333,6 +335,55 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   `docs/`, bases, `.env*` et fichiers de configuration.
 - **Mesures** : e2e-tags 19/19, pic VM 2,4 Go (dev + chromium).
 
+### Lot médias (bande, visionneuse, lecteur, CV)
+
+- **Bande d'une planche** (`ProjectStrip`) : « N œuvres » seul dans l'en-tête ;
+  flèches `.strip-nav` posées sur les bords de la bande (`.strip-viewport`, qui
+  porte la géométrie `--strip-h`, `--rail-inset`, `--rail-room`), centrées sur
+  les images, visibles au survol et au focus, masquées sur écran tactile
+  (`hover: none` : le doigt et l'accrochage suffisent), désactivées en butée (le
+  focus passe à l'autre flèche). Une image à la fois (`rail-step.ts` : arrêts =
+  bords des `.strip-frame`, cible cumulée pour les appuis rapprochés). Fondu
+  des bords : `mask-image` dégradé sur le rail (l'image se dissout dans ce qui
+  est derrière : fond, texture, papier), bords pilotés par `--strip-fade-l/-r`
+  (`@property`, sans animation : animer le masque coûtait 5–6 images longues
+  par glisser) selon `data-at-start` / `data-at-end` / `data-overflows`
+  écrits sur le DOM dans un rAF, sans rendu React. Jetons `--strip-nav-*`.
+- **Barre de défilement** (`RailScrollbar`) : aucun état React pendant le
+  défilement ; curseur en `transform` dans un rAF ; glisser et molette regroupés
+  par image ; accrochage suspendu pendant le geste (`.strip-rail[data-dragging]`) ;
+  molette au-dessus de la barre = défilement horizontal ; ← / → image par image.
+  Mesure : `node scripts/rail-perf.mjs` (Chromium ×4 ralenti, et Firefox).
+- **Visionneuse** : image posée à nu (`.lightbox-frame` sans passe-partout ni cadre
+  du kit), fond `--color-viewer` = gris neutre de même luminance que le voile
+  (`neutralGray`, `src/themes/css.ts`), opaque ; variante plein cadre = ce gris
+  assombri. Flèches, ← / →, Échap, balayage (pointeurs « touch »). Le cadre
+  dessiné du kit habille désormais les tuiles de collection.
+- **Curseur** : main (`var(--t-cursor-pointer, pointer)`) sur toute image qui
+  ouvre la visionneuse ou un lien (`src/app/medias.css`).
+- **Lecteur** (`VideoPlayer`, bloc Vidéo « lecteur » et visionneuse) : commandes
+  maison sur `<video>` (mêmes sources, Range/206 inchangé) : lecture / pause,
+  barre cliquable et glissable (slider accessible), temps, « Revoir », muet,
+  plein écran (API, iPhone : `webkitEnterFullscreen`), clavier (Espace/K, ← / →
+  ± 5 s, F, M), commandes masquées après 2,5 s de lecture sans geste. Boucles
+  décoratives : inchangées, sans commandes.
+- **CV** (bloc `cv`, médias `kind: "pdf"`) : envoi simple ou par morceaux, type
+  par signature `%PDF-` au premier octet (`sniffPdf`), 15 Mo et 10 pages au plus
+  (`MAX_PDF_MB`, `MAX_PDF_PAGES`), mot de passe refusé ; `pdfinfo` à l'envoi,
+  rendu par `pdftoppm` (poppler-utils, Debian) dans un job « pdf » de la file
+  LOURDE : processus à part sous `nice`, environnement minimal, police non
+  embarquée remplacée par celles du dépôt (`public/kit/pdf-fonts.conf`), délai
+  dur et plafond RSS (`PDF_MAX_RSS_MB`, 400 pour le rendu ; `PDF_INFO_MAX_RSS_MB`,
+  64 pour pdfinfo ; lu dans /proc toutes les 100 ms),
+  OOM d'abord ; poppler n'a pas de moteur JavaScript et ne lit que le fichier.
+  Pages : `doc/<hash16>/p<n>-<800|1600>.<avif|webp>` via sharp ; PDF servi
+  seulement sous `doc/<hash16>/document.pdf`, TOUJOURS en pièce jointe
+  (`Content-Disposition: attachment`, nom `?name=` réduit à [a-z0-9-], nosniff,
+  CSP sandbox, `X-Frame-Options: DENY`) ; `originals/` jamais servi. Un PDF ne se
+  place pas dans une planche. Tests : `npm test` (test-pdf : règles, lancement,
+  rendu réel de PDF hostiles si poppler est installé), `test:auth` section PDF,
+  `test:e2e-medias`.
+
 ### Kit de thème PSD (phases 6b–6d)
 
 Spécification, mesures et décisions : `docs/THEME-KIT.md`. En bref : module
@@ -417,7 +468,11 @@ disponible (lien « Formulaire »).
   `draft_page_id` : la page dont le brouillon porte la surcouche. Pas de copie
   des slots : publier CETTE page applique sa surcouche, « Abandonner » l'efface
   (ses `added` sont supprimés) ; une autre page qui partage le projet n'y touche
-  jamais, et sa vue brouillon ne la montre pas. Supprimer la page abandonne sa
+  jamais. Depuis la v0.13.1, sa vue brouillon la MONTRE (l'ordre d'une planche
+  est celui du projet : une planche reposée ailleurs affiche le brouillon courant,
+  sinon l'ordre publié), avec un bandeau « Images en cours de modification sur
+  la page … » (`edit.heldBy`, `data-edit-board-held`) ; seule la page qui la
+  porte la modifie et la publie. Supprimer la page abandonne sa
   surcouche. Les colonnes sont prêtes en 7a ; leur écriture depuis la toile
   arrive en 7b.
 - `pages.draft_rev` : contrôle de version optimiste. Augmente à chaque écriture
@@ -692,6 +747,115 @@ de plus d'un an, « Supprimer » / « Tout supprimer » dans Admin → Messages.
 Le contrôle d'origine (Sec-Fetch-Site / Origin) n'arrête qu'un formulaire
 d'un autre site, pas un script qui forge ses en-têtes : la protection, ce
 sont ces limites.
+
+### Corrections v0.13.1
+
+- **Menus de la toile** (`Panel` de `SiteLayer`) : ancrés sur le bouton qui les
+  ouvre, ouverts au-dessus s'ils ne tiennent pas dessous, amenés dans la vue,
+  focus dedans. « + Ajouter un champ » s'ouvrait sous le DERNIER champ, décalé
+  de sa hauteur : hors de la fenêtre avec un texte long, le menu semblait ne
+  pas s'ouvrir (le clic e2e de Playwright, qui fait défiler, le masquait).
+- **Quitter l'aperçu** (bouton du bandeau, Échap hors saisie et hors
+  dialogue) : retour à l'écran de l'admin d'où l'aperçu a été ouvert (champ
+  `retour` des formulaires, sinon Referer, retenu dans le cookie `preview-from`,
+  chemins `/admin/…` seulement), sinon Admin → Thèmes ; plus jamais l'accueil.
+- **Cadre pleine hauteur** : `.site-frame` (flex colonne, `min-height: 100dvh`,
+  `main` étiré) dans `[[...slug]]/layout.tsx` : le pied reste en bas d'une
+  page courte ; en-tête collant inchangé.
+- **Grille** : `padding-bottom` de son propre pas sous la grille
+  (`.block-grid-section`), le bloc suivant ne colle plus.
+- **E-mail** (`EmailText`) : « nom@ » et « domaine » insécables séparés par
+  `<wbr>` (coupure seulement après l'@), taille fluide en `cqi` de la colonne
+  (`.email-link`, `container-type`), police du texte du thème.
+- **Réseaux** : un seul composant de choix (`SocialPicker` : classiques +
+  « Autre lien », adresse reconnue, `mailto:`) pour la toile ET l'admin
+  (`SocialsEditor` : Réglages, panneau En-tête / Pied). Les Réglages gardent
+  désormais le `kind` des réseaux (il était perdu à l'enregistrement).
+- **Icônes des réseaux dans l'en-tête** : `site.headerSocials` (réglage et
+  brouillon du site, case dans Réglages et dans le panneau En-tête) ; icônes
+  seules (`aria-label`) avant FR/EN, dans le menu sur téléphone.
+- **« Entrées des collections »** : nouveau libellé du bloc `collection-tiles`
+  (type inchangé en base).
+- Tests : `scripts/e2e-lot1.mjs` (sections A–I, clics réels), captures
+  `scripts/shots-lot1.mjs`.
+
+### Mise en page sur la toile (lot 2)
+
+Réglages faits directement sur la page, tous en **crans bornés** (jamais de px
+libres ni de valeur arbitraire) : `src/lib/look.ts` (module pur, testé par
+`scripts/test-look.mjs`).
+
+- **Réglages d'un bloc** : `props.look` de tout bloc ou composant de conteneur
+  (le registre étend chaque schéma : `look` illisible = ignoré, jamais le bloc
+  masqué). Espace haut / bas (`none · s · m · l · xl`, tokens `--t-space-*` ;
+  absent = « Auto », la valeur du bloc dans le thème), arrondi des images
+  (`none · soft · medium · strong`), position du titre (`titleH`, `titleV`),
+  styles de texte par chemin (`text["title"]`, `text["paragraphs.0"]`,
+  `text["site.role"]`…), cadrage par champ média (`crop.mediaId` = point focal
+  + zoom), fond du métier de l'ouverture (`roleBackdrop`).
+- **Rendu** : `BlockList` enveloppe un bloc RÉGLÉ d'un `.blk`
+  (`display: contents`, attributs `data-pt/pb/radius/th/tv/crop/role-bd`,
+  variables `--crop-pos/--crop-zoom`) ; `src/app/look.css` (hors `@layer`)
+  s'y accroche. Sans réglage : aucune enveloppe, DOM inchangé. Un conteneur
+  sans boîte (Projet mis en avant) passe ses espaces à son premier / dernier
+  composant. Styles de texte locaux : `inline(ctx, chemin)` pose le style en
+  ligne (il passe devant le global) ; textes du site posés dans un bloc :
+  `textStyle(ctx, "site.name")`.
+- **Styles du site** (globaux) : `styles` du brouillon du site (`SiteSnap`,
+  publié avec la page comme l'en-tête ; réglage `styles`) : un style par rôle
+  (Titre 1, Titre 2, Étiquette, Texte, Légende, Menu, Nom du site, sélecteurs
+  `ROLE_SELECTORS`) + arrondi du site. Feuille générée (`siteStylesCss`) dans
+  `<style id="site-styles">` du cadre des pages. Ordre : thème < site < texte.
+- **Thème** : bloc facultatif `tokens.layout` (délimité dans `schema.ts`) :
+  crans S–XL, haut de page (`pageTop`), espace des planches (`stripPad`),
+  arrondi des images (`mediaRadius`), fond du métier (`heroRoleBackdrop`).
+  Sans ce bloc : rendu d'avant (`DEFAULT_LAYOUT`). Galerie lumineuse :
+  resserrée, images sans arrondi, métier en « ombre douce » (sans fond, le
+  contraste mesuré au pixel ne tient pas sur le décor). Les presets en base
+  suivent le code au démarrage (`syncPresets` de `src/lib/db/seed.ts`, lot 5 :
+  ils ne se modifient pas dans l'admin ; les copies et thèmes personnels ne
+  sont jamais touchés).
+- **Polices Google** : catalogue STATIQUE embarqué (`google-fonts.json`,
+  ~1200 familles latines, `scripts/gen-google-fonts.mjs`). Quand l'artiste en
+  choisit une, l'éditeur demande au SERVEUR (`installFontAction`) le style
+  utilisé (graisse × italique) ; `src/lib/fonts/library.ts` télécharge la
+  feuille css2 (hôte fixe), puis les woff2 latin + latin-ext de
+  fonts.gstatic.com (hôte contrôlé, redirections refusées, signature `wOF2`,
+  tailles bornées : 12 familles, 8 styles, 600 Ko / fichier, 24 Mo en tout),
+  les range dans `<DATA_DIR>/fonts/<empreinte>.woff2` (réglage `fontLibrary`)
+  et les sert par `GET /fonts/<empreinte>.woff2` (cache immuable). Le
+  `@font-face` est émis par le site : aucune requête vers Google depuis le
+  navigateur (visiteurs comme admin : les aperçus du menu passent par
+  `/admin/api/fonts/preview`, sous-ensemble minuscule téléchargé par le
+  serveur). Échec réseau : message clair, le style n'est pas appliqué.
+- **Toile** (`src/components/edit/LookLayer.tsx`, dans le calque d'EditLayer) :
+  poignées d'espacement du bloc choisi (glisser aimanté aux crans, flèches),
+  « Aa » au survol de tout texte éditable → barre typographique (ce texte /
+  tous les textes de son rôle), pictogrammes de position du titre, « Cadrer »
+  sur une image affichée hors de son format (vue zone claire / reste grisé,
+  souris, molette, clavier). Messages `look` et `site-style` (protocole) ;
+  l'éditeur valide, télécharge les polices manquantes, enregistre.
+- **Intégration lots 2 + 3** : arrondi d'UNE image d'une planche (barre de
+  l'image sur la toile, à côté de Remplacer / Supprimer) : `look.slotRadius`
+  du bloc planche, par slug d'emplacement (`--media-radius` posé sur le cadre
+  de l'image par `ProjectStrip`) ; « Auto » = arrondi du bloc, du site, du
+  thème. Barre typographique sur le formulaire de contact (titre, libellés,
+  bouton, messages : `ContactForm` reçoit `styles`) et sur la légende du
+  lecteur vidéo (`VideoCard`, `LOCAL_ONLY` de `LookLayer`). Bloc CV : accepté
+  dans les Grilles et Projet mis en avant (`SIMPLE` de `tree.ts`), pages
+  arrondies selon `--media-radius`. Fond de la visionneuse (`--t-color-viewer`)
+  dérivé du voile de la palette (lot 4). Kit : la carte 4 devient « Cadre des
+  entrées de collection » (ancien nom reconnu à l'import).
+- **Migration 0016** (contenu seul, `renameVideoLook` dans `upgrade.ts`) : la
+  présentation du bloc Vidéo (`feature · card · plain`) s'appelait `look`,
+  nom que le lot 2 donne aux réglages de mise en page de TOUS les blocs
+  (registre) : écrasée, elle retombait à rien (carte du lecteur absente). Elle
+  devient `variant` (publié, composants des conteneurs, brouillons ; rappelée
+  par le seed). Un champ de bloc ne s'appelle jamais `look`.
+- **Cadrage** : uniquement `object-position` + `transform: scale` (aucun
+  recalcul d'image). Emplacements : image seule à format imposé (`ratio`),
+  image d'une cellule de grille à ratio, fond de l'ouverture, portrait du
+  profil (`portraitRatio`).
 
 ## Authentification (phase 3)
 

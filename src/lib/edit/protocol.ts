@@ -7,6 +7,8 @@
  */
 import { z } from "zod";
 
+import { LookSchema, ROLES, TextStyleSchema } from "../look";
+
 export const EDIT_MSG = "portfolio:edit";
 
 const Uid = z.string().regex(/^[a-z0-9-]{1,32}$/);
@@ -83,6 +85,10 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("site-op"), op: z.literal("social-move"), index: NavIndex, to: NavIndex }),
   z.object({ kind: z.literal("site-op"), op: z.literal("social-edit"), index: NavIndex, href: Href }),
   z.object({ kind: z.literal("site-op"), op: z.literal("social-add"), href: Href, label: z.string().trim().min(1).max(40), network: z.string().max(20) }),
+  // Mise en page (lot 2) : réglages d'un bloc (null = tout revient au thème),
+  // style global d'un rôle de texte (null = réinitialiser).
+  z.object({ kind: z.literal("look"), uid: Uid, look: LookSchema.nullable() }),
+  z.object({ kind: z.literal("site-style"), role: z.enum(ROLES), style: TextStyleSchema.nullable() }),
 ]);
 
 /** Éditeur → toile. */
@@ -136,6 +142,8 @@ export const ToCanvasSchema = z.discriminatedUnion("kind", [
       .max(60),
   }),
   z.object({ kind: z.literal("focus-slot"), key: SlotKey }),
+  /** Polices Google déjà téléchargées par le serveur (menu des polices, lot 2). */
+  z.object({ kind: z.literal("fonts"), installed: z.array(z.string().max(60)).max(20), busy: z.string().max(60).nullable().optional() }),
 ]);
 
 export type BlockInfo = z.infer<typeof Block>;

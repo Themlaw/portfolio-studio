@@ -63,7 +63,12 @@ export type LocalizedProject = {
   description: string;
   artworks: LocalizedArtwork[];
   /** Vue brouillon seulement : identifiant, et projet créé dans ce brouillon. */
-  edit?: { id: number; draft: boolean };
+  /**
+   * Vue brouillon seulement. `heldBy` : titre de la page dont le brouillon
+   * porte les changements d'images de ce projet (une AUTRE page) ; la planche
+   * les montre, mais ne se modifie que sur cette page.
+   */
+  edit?: { id: number; draft: boolean; heldBy?: string };
 };
 
 type RawProject = {
@@ -99,7 +104,7 @@ type RawArtwork = {
   edit?: ArtworkEdit;
 };
 
-type Snapshot = { projects: RawProject[]; artworks: RawArtwork[] };
+type Snapshot = { projects: RawProject[]; artworks: RawArtwork[]; held?: Map<number, string> };
 
 async function projectIds(): Promise<number[]> {
   // Projets publiés seulement : un projet créé dans un brouillon de page n'existe pas encore.
@@ -189,11 +194,14 @@ async function snapshot(): Promise<Snapshot> {
 }
 
 /**
- * Vue brouillon : la surcouche portée par le brouillon de la page rendue
- * (ordre, média, textes, places vides ou retirées, emplacements ajoutés) et
- * les projets créés dans ce brouillon ; ce qui appartient au brouillon d'une
- * autre page est ignoré (version publiée). Les places vides et les médias en
- * traitement restent présents, marqués pour la toile.
+ * Vue brouillon : la surcouche des emplacements (ordre, média, textes, places
+ * vides ou retirées, emplacements ajoutés) et les projets créés dans ce
+ * brouillon. L'ordre d'une planche est celui du PROJET : la surcouche portée
+ * par le brouillon d'une AUTRE page est montrée aussi (v0.13.1 — sinon une
+ * planche reposée ailleurs montrait l'ordre publié, « mêmes images, autre
+ * ordre ») ; elle ne se modifie et ne se publie que depuis sa page (`held`,
+ * signalé sur la toile). Les places vides et les médias en traitement restent
+ * présents, marqués pour la toile.
  */
 function draftSnapshot(): Snapshot {
   const pageId = draftViewPage();
@@ -207,9 +215,16 @@ function draftSnapshot(): Snapshot {
   const visible = new Set(projects.map((p) => p.id));
   const media = new Map(db.select().from(schema.media).all().map((m) => [m.id, m]));
   const artworks: RawArtwork[] = [];
+  const held = new Map<number, string>();
+  let titles: Map<number, string> | null = null;
   for (const slot of db.select().from(schema.slots).orderBy(asc(schema.slots.id)).all()) {
     if (!visible.has(slot.projectId)) continue;
-    const mine = slot.draftPageId === pageId && pageId !== null;
+    // Surcouche de n'importe quelle page : le brouillon courant du projet.
+    const mine = slot.draftPageId !== null;
+    if (mine && slot.draftPageId !== pageId && !held.has(slot.projectId)) {
+      titles ??= new Map(db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).all().map((p) => [p.id, p.title.fr || `n° ${p.id}`]));
+      held.set(slot.projectId, titles.get(slot.draftPageId!) ?? `n° ${slot.draftPageId}`);
+    }
     if (mine ? slot.draftState === "retired" : slot.draftState === "added") continue;
     const mediaId = mine ? (slot.draftState === "removed" ? null : (slot.draftMediaId ?? slot.mediaId)) : slot.mediaId;
     const m = mediaId ? media.get(mediaId) : undefined;
@@ -246,7 +261,7 @@ function draftSnapshot(): Snapshot {
         edit,
       });
   }
-  return { projects: readProjects(projects.map((p) => p.id)), artworks };
+  return { projects: readProjects(projects.map((p) => p.id)), artworks, held };
 }
 
 /** Œuvres affichables hors des planches (collections, couvertures, compteurs) : jamais une place vide. */
@@ -383,7 +398,7 @@ export async function boardWorkCount(slug: string, collection?: string): Promise
  * Planche vide en vue brouillon : projet sans emplacement, repéré quand même.
  */
 export async function getProjectBoard(slug: string, locale: AppLocale, collection?: Collection): Promise<LocalizedProject | null> {
-  const { projects, artworks } = await snapshot();
+  const { projects, artworks, held } = await snapshot();
   const project = projects.find((p) => p.slug === slug);
   if (!project) return null;
   // Position de chaque emplacement dans la planche ENTIÈRE (toile) : une planche
@@ -393,5 +408,7 @@ export async function getProjectBoard(slug: string, locale: AppLocale, collectio
   const placed = artworks.map((a) => (a.edit && pos.has(a.id) ? { ...a, edit: { ...a.edit, pos: pos.get(a.id)! } } : a));
   const out = localizeProject(project, placed, locale, collection ? (a) => a.collection === collection : undefined);
   if (!out.edit && (await isDraftView())) out.edit = { id: project.id, draft: project.draftPageId !== null };
+  const heldBy = held?.get(project.id);
+  if (out.edit && heldBy) out.edit = { ...out.edit, heldBy };
   return out;
 }

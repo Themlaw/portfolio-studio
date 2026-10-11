@@ -341,6 +341,25 @@ html:not([data-edit-mode]) [data-ghost] {
   background: #a33a2c;
 }
 
+/* Arrondi de cette image (réglage par emplacement). */
+.pe-slot-radius {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 0 9px;
+  color: #ffffff;
+  font: 600 12px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+}
+
+.pe-slot-radius select {
+  min-height: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  background: #2c3036;
+  color: #ffffff;
+  font: inherit;
+}
+
 @media (pointer: coarse) {
   .pe-slot-tools button {
     min-height: 38px;
@@ -836,6 +855,13 @@ html[data-edit-canvas] #contenu .fixed {
   aspect-ratio: 4 / 5;
 }
 
+/* Bloc CV sans PDF : une feuille A4 en pointillés. */
+.pe-media-pdf {
+  aspect-ratio: 210 / 297;
+  width: min(100%, 22rem);
+  min-height: 0;
+}
+
 .pe-cell-free {
   height: 100%;
   min-height: 160px;
@@ -1196,4 +1222,18 @@ html:not([data-edit-mode]) .pe-media-empty {
 .pe-box[data-tag="below"] > .pe-tag {
   top: 100%;
   border-radius: 0 0 6px 6px;
+}
+
+/* Planche dont les images sont en brouillon sur une autre page (v0.13.1). */
+.pe-board-held {
+  display: block;
+  margin-top: 16px;
+  margin-bottom: -8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #fbf3e2;
+  color: #8a5a00;
+  font: 500 13px/1.4 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
 }

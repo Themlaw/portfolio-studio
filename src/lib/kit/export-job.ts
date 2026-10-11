@@ -264,6 +264,15 @@ export async function kitAssetFiles(theme: Theme): Promise<Record<string, KitAss
   await add("icones/fermer", kit.icons?.close);
   await add("icones/lecture", kit.icons?.play);
   await add("accessoires/scotch", kit.tape);
+  // Curseurs : le PNG 2x (64 × 64, la case du kit) ; x, y = point chaud (px CSS).
+  for (const [slotId, c] of [
+    ["curseur/normal", kit.cursors?.default],
+    ["curseur/clic", kit.cursors?.pointer],
+  ] as const) {
+    if (!c) continue;
+    const file = await storage.localPath(c.png2x.slice("/media/".length));
+    if (file) out[slotId] = { file, w: 64, h: 64, x: c.x, y: c.y };
+  }
   return out;
 }
 

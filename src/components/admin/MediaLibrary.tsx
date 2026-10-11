@@ -41,7 +41,7 @@ import { useUploadQueue } from "./UploadQueue";
 import { formatBytes, formatSent, useMediaWatch } from "./uploads";
 
 type Filter = "all" | "unused" | "noalt";
-type KindFilter = "any" | "image" | "video";
+type KindFilter = "any" | "image" | "video" | "pdf";
 
 export const STATUS_LABEL: Record<AdminMediaRow["status"], string> = {
   processing: "En traitement",
@@ -52,6 +52,7 @@ export const STATUS_LABEL: Record<AdminMediaRow["status"], string> = {
 /** État lisible ; une vidéo en conversion affiche son avancement. */
 export function stateLabel(m: AdminMediaRow): string {
   if (m.status === "processing" && m.kind === "video") return m.progress ? `Conversion… ${m.progress} %` : "Conversion en attente…";
+  if (m.status === "processing" && m.kind === "pdf") return "Aperçu des pages…";
   return STATUS_LABEL[m.status];
 }
 
@@ -157,6 +158,7 @@ function useFiltered(media: AdminMediaRow[], tagOptions: TagRow[]) {
             ["any", "Tout"],
             ["image", "Images"],
             ["video", "Vidéos"],
+            ["pdf", "PDF"],
           ] as const
         ).map(([k, l]) => (
           <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)}>
@@ -366,13 +368,13 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
 
       <div className="a-panel-danger">
         <button type="button" className="a-btn a-btn-quiet a-danger-text" disabled={media.status === "processing"} onClick={() => setConfirm(true)}>
-          {media.kind === "video" ? "Supprimer la vidéo" : "Supprimer l'image"}
+          {media.kind === "video" ? "Supprimer la vidéo" : media.kind === "pdf" ? "Supprimer le PDF" : "Supprimer l'image"}
         </button>
       </div>
 
       <ConfirmDialog
         open={confirm}
-        title={media.kind === "video" ? `Supprimer la vidéo « ${media.name} » ?` : `Supprimer l'image « ${media.name} » ?`}
+        title={media.kind === "video" ? `Supprimer la vidéo « ${media.name} » ?` : media.kind === "pdf" ? `Supprimer le PDF « ${media.name} » ?` : `Supprimer l'image « ${media.name} » ?`}
         confirmLabel="Supprimer"
         danger
         busy={busy}
@@ -389,7 +391,7 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
               return;
             }
             setConfirm(false);
-            const what = media.kind === "video" ? "Vidéo supprimée" : "Image supprimée";
+            const what = media.kind === "video" ? "Vidéo supprimée" : media.kind === "pdf" ? "PDF supprimé" : "Image supprimée";
             toast(r.data.emptiedSlots ? `${what} · ${r.data.emptiedSlots} emplacement${r.data.emptiedSlots > 1 ? "s" : ""} vidé${r.data.emptiedSlots > 1 ? "s" : ""}` : what);
             onDeleted();
             setTimeout(() => router.refresh(), 0);

@@ -10,12 +10,14 @@
 import { mkdirSync } from "node:fs";
 import { chromium } from "playwright";
 
+import { presetSlugs } from "./lib/presets.mjs";
+
 const PORT = process.env.PORT ?? "3001";
 const BASE = `http://localhost:${PORT}`;
 const LABEL = process.env.PARITY_LABEL ?? "courant";
 const OUT = new URL(`../screenshots/parity/${LABEL}/`, import.meta.url).pathname;
 
-const PRESETS = ["galerie-lumineuse", "pro", "salle-de-projection", "carnet-d-atelier"];
+const PRESETS = presetSlugs();
 const PAGES = [
   ["accueil", "/fr"],
   ["personnages", "/fr/personnages"],

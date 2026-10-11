@@ -70,14 +70,15 @@ export async function deleteThemeAction(id: unknown): Promise<ActionResult<null>
 /**
  * Import de kit relu : crée une COPIE BROUILLON du thème avec les nouveaux
  * assets (jamais le thème en ligne remplacé). Options : `palette` (appliquer la
- * palette suggérée), `mirror` (une seule flèche redessinée : son miroir pour l'autre).
+ * palette suggérée), `mirror` (une seule flèche redessinée : son miroir pour l'autre),
+ * `colors` (couleurs repeintes dans « 8 · Palette »).
  */
 export async function applyKitImportAction(themeIdInput: unknown, importId: unknown, options: unknown): Promise<ActionResult<{ id: string }>> {
   await assertAdmin();
   const tid = themeId(themeIdInput);
   if (!tid || !isImportId(importId)) return fail("Import inconnu.");
-  const o = (options && typeof options === "object" ? options : {}) as { palette?: unknown; mirror?: unknown };
-  const result = await applyKitImport(tid, importId, { palette: o.palette === true, mirror: o.mirror === true });
+  const o = (options && typeof options === "object" ? options : {}) as { palette?: unknown; mirror?: unknown; colors?: unknown };
+  const result = await applyKitImport(tid, importId, { palette: o.palette === true, mirror: o.mirror === true, colors: o.colors === true });
   if (result.ok) revalidateTheme();
   return result;
 }

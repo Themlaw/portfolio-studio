@@ -26,6 +26,9 @@ import { createPortal } from "react-dom";
 
 import { acceptToCanvas, EDIT_MSG, type DropTargetInfo, type FromCanvas, type Ghost } from "@/lib/edit/protocol";
 
+import { RADII, RADIUS_LABELS, type Radius } from "@/lib/look";
+
+import { lookOf, sendLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
 
 type Rect = { top: number; left: number; width: number; height: number };
@@ -585,7 +588,7 @@ export default function BoardLayer({
   ].filter((b): b is { uid: string; box: Rect; change: boolean } => Boolean(b.uid && b.box));
   const mediaEl = hoverMedia ? document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(hoverMedia.uid)}"] [data-edit-media="${hoverMedia.field}"], [data-edit-block="${CSS.escape(hoverMedia.uid)}"][data-edit-media="${hoverMedia.field}"]`) : null;
   const mediaBox = mediaEl ? boxOf(mediaEl) : null;
-  const mediaWord = hoverMedia?.kind === "video" ? "la vidéo" : hoverMedia?.kind === "background" ? "le fond" : "l'image";
+  const mediaWord = hoverMedia?.kind === "video" ? "la vidéo" : hoverMedia?.kind === "background" ? "le fond" : hoverMedia?.kind === "pdf" ? "le PDF" : "l'image";
 
   return createPortal(
     <div className="pe-layer pe-board-layer" lang="fr">
@@ -646,13 +649,13 @@ export default function BoardLayer({
         <div
           className="pe-slot-tools pe-media-tools"
           role="toolbar"
-          aria-label={hoverMedia.kind === "background" ? "Fond de l'ouverture" : hoverMedia.kind === "video" ? "Vidéo" : "Image"}
+          aria-label={hoverMedia.kind === "background" ? "Fond de l'ouverture" : hoverMedia.kind === "video" ? "Vidéo" : hoverMedia.kind === "pdf" ? "CV (PDF)" : "Image"}
           // En bas à gauche du média : jamais sur l'étiquette ni le fil d'Ariane du bloc choisi (en haut).
           style={{ top: mediaBox.top + Math.max(8, mediaBox.height - 46), left: Math.max(window.scrollX + 4, mediaBox.left + 8) }}
           onPointerEnter={() => setHoverMedia(hoverMedia)}
         >
           <button type="button" onClick={() => post({ kind: "media-op", uid: hoverMedia.uid, field: hoverMedia.field, op: "replace" })}>
-            {hoverMedia.empty ? (hoverMedia.kind === "video" ? "Choisir une vidéo" : "Choisir une image") : hoverMedia.kind === "background" ? "Changer le fond" : "Remplacer"}
+            {hoverMedia.empty ? (hoverMedia.kind === "video" ? "Choisir une vidéo" : hoverMedia.kind === "pdf" ? "Choisir un PDF" : "Choisir une image") : hoverMedia.kind === "background" ? "Changer le fond" : hoverMedia.kind === "pdf" ? "Remplacer le PDF" : "Remplacer"}
           </button>
           {!hoverMedia.empty && (
             <button type="button" className="pe-danger" onClick={() => post({ kind: "media-op", uid: hoverMedia.uid, field: hoverMedia.field, op: "clear" })}>
@@ -682,6 +685,7 @@ export default function BoardLayer({
           <button type="button" className="pe-danger" onClick={() => post({ kind: "slot-op", board: active.board, key: active.key, op: "retire" })}>
             Retirer la place
           </button>
+          {!active.empty && <SlotRadius el={activeEl} />}
         </div>
       )}
 
@@ -794,4 +798,36 @@ function ghostContent(g: Ghost, state: string, pct: number | null): DocumentFrag
   }
   frag.append(box, el("span", "strip-caption pe-ghost-name", g.label));
   return frag;
+}
+
+/**
+ * Arrondi de CETTE image de la planche (intégration lots 2 + 3) : réglage
+ * `look.slotRadius` du bloc planche, par slug d'emplacement ; « Auto » =
+ * l'arrondi du bloc, du site ou du thème.
+ */
+function SlotRadius({ el }: { el: Element | null }) {
+  const slug = el?.getAttribute("data-slot-slug") ?? "";
+  const uid = el?.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
+  if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
+  const look = lookOf(uid);
+  const current = look.slotRadius && Object.hasOwn(look.slotRadius, slug) ? look.slotRadius[slug] : undefined;
+  const change = (v: string) => {
+    const next = { ...(look.slotRadius ?? {}) };
+    if (v === "auto") delete next[slug];
+    else next[slug] = v as Radius;
+    sendLook(uid, { ...look, slotRadius: next });
+  };
+  return (
+    <label className="pe-slot-radius" title="Arrondi de cette image">
+      <span>Arrondi</span>
+      <select aria-label="Arrondi de cette image" value={current ?? "auto"} onChange={(e) => change(e.target.value)} data-testid="slot-radius">
+        <option value="auto">Auto</option>
+        {RADII.map((r) => (
+          <option key={r} value={r}>
+            {RADIUS_LABELS[r]}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }

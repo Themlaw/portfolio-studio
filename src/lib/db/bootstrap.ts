@@ -16,8 +16,8 @@ import path from "node:path";
 import { readMigrationFiles, type MigrationMeta } from "drizzle-orm/migrator";
 
 import { dataDir, getDb, getSqlite } from "./index";
-import { isSeeded, prepareSeedFiles, seedRows, type SeedFiles } from "./seed";
-import { upgradeContent } from "./upgrade";
+import { isSeeded, prepareSeedFiles, seedRows, syncPresets, type SeedFiles } from "./seed";
+import { renameVideoLook, upgradeContent } from "./upgrade";
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 
@@ -30,6 +30,10 @@ const DATA_MIGRATIONS: Record<string, () => void> = {
   "0014_containers": () => {
     const pages = upgradeContent(getSqlite());
     console.log(`[db] 0014 : conteneurs, grilles et menu — ${pages} page(s) convertie(s)`);
+  },
+  "0016_video_variant": () => {
+    const rows = renameVideoLook(getSqlite());
+    console.log(`[db] 0016 : présentation du bloc Vidéo (look → variant) — ${rows} ligne(s) réécrite(s)`);
   },
 };
 
@@ -80,16 +84,22 @@ export async function bootstrap(): Promise<void> {
   const outcome = sqlite
     .transaction(() => {
       const applied = applyMigrations(migrations, tags);
-      if (isSeeded(db)) return { applied, seeded: false };
+      // Base déjà seedée : les thèmes livrés suivent le code (syncPresets, seed.ts ;
+      // un thème personnel au même identifiant n'est jamais écrasé).
+      if (isSeeded(db)) {
+        const [added, updated] = syncPresets(db);
+        return { applied, seeded: false, presetsAdded: added, presetsUpdated: updated };
+      }
       if (!files) throw new Error("seed requis mais fichiers non préparés");
       seedRows(db, files);
-      return { applied, seeded: true };
+      return { applied, seeded: true, presetsAdded: 0, presetsUpdated: 0 };
     })
     .immediate();
 
   console.log(
     `[db] ${path.join(/* turbopackIgnore: true */ dataDir(), "portfolio.db")} : ${outcome.applied} migration(s) appliquée(s), ` +
       (outcome.seeded ? `seed initial effectué` : "déjà seedée : seed ignoré") +
+      (outcome.presetsAdded || outcome.presetsUpdated ? `, thèmes livrés : ${outcome.presetsAdded} ajouté(s), ${outcome.presetsUpdated} mis à jour` : "") +
       ` (${Date.now() - started} ms)`,
   );
 }

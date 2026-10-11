@@ -24,6 +24,16 @@ const waitFor = async (fn, timeout = 30000) => {
   return false;
 };
 
+/**
+ * Fin de l'enregistrement (réponse de l'action et rafraîchissement du routeur) avant
+ * toute navigation : sur une machine rapide, la base est écrite avant, et Firefox
+ * abandonne alors le `goto` suivant (NS_BINDING_ABORTED).
+ */
+async function settled(page) {
+  await page.locator('.a-savebar[data-dirty="false"]').first().waitFor({ timeout: 30000 }).catch(() => {});
+  await page.waitForLoadState("networkidle");
+}
+
 export const pageIdOf = (slugFr) => q1("select id from pages where json_extract(slug, '$.fr') = ?", slugFr)?.id;
 export const projectSlugOf = (projectId) => q1("select slug from projects where id = ?", projectId)?.slug;
 
@@ -36,7 +46,9 @@ export async function placeBoard(page, base, pageId, slug) {
   await dialog.getByRole("button", { name: "Ajouter ce bloc" }).click();
   await page.locator('select[id$="-projet"]').last().selectOption(slug);
   await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
-  return waitFor(() => boardCount(pageId, slug) === 1);
+  const done = await waitFor(() => boardCount(pageId, slug) === 1);
+  await settled(page);
+  return done;
 }
 
 /** Retire la planche du projet de la page (remise en état). */
@@ -47,5 +59,7 @@ export async function removeBoard(page, base, pageId, slug) {
   await card.getByRole("button", { name: /Supprimer le bloc/ }).click();
   await page.locator("dialog[open]").getByRole("button", { name: /Supprimer/ }).click();
   await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
-  return waitFor(() => boardCount(pageId, slug) === 0);
+  const done = await waitFor(() => boardCount(pageId, slug) === 0);
+  await settled(page);
+  return done;
 }

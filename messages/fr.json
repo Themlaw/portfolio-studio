@@ -33,8 +33,8 @@
   },
   "projects": {
     "count": "{count, plural, =0 {aucun projet} =1 {# projet} other {# projets}}",
-    "scrollPrev": "Images précédentes — {project}",
-    "scrollNext": "Images suivantes — {project}",
+    "scrollPrev": "Image précédente — {project}",
+    "scrollNext": "Image suivante — {project}",
     "scrollbar": "Barre de défilement — {project}"
   },
   "animation": {
@@ -42,6 +42,27 @@
     "playAria": "Lire {title}",
     "loading": "Chargement de la vidéo",
     "placeholder": "Aperçu animé"
+  },
+  "player": {
+    "label": "Lecteur vidéo — {title}",
+    "labelNoTitle": "Lecteur vidéo",
+    "controls": "Commandes de la vidéo",
+    "play": "Lire",
+    "pause": "Pause",
+    "replay": "Revoir",
+    "mute": "Couper le son",
+    "unmute": "Remettre le son",
+    "fullscreen": "Plein écran",
+    "exitFullscreen": "Quitter le plein écran",
+    "seek": "Position dans la vidéo",
+    "time": "{current} sur {total}"
+  },
+  "cv": {
+    "download": "Télécharger mon CV",
+    "pdf": "PDF, {size}",
+    "page": "Page {index} sur {total}",
+    "open": "Agrandir la page {index}",
+    "pages": "Pages du CV"
   },
   "footer": {
     "eyebrow": "Contact",

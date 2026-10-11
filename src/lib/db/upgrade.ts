@@ -107,7 +107,7 @@ export function upgradeBlock(block: Raw, ctx: Ctx, uid: (i: number) => string): 
       top("grid", {
         layout: "1",
         top: "none",
-        children: [kid("video-single", { look: "feature", mode: "player", eyebrow: loc(p.reelEyebrow), ...(hosted ? { mediaId: hostedId } : { slot: reelSlot!.slug }) })],
+        children: [kid("video-single", { variant: "feature", mode: "player", eyebrow: loc(p.reelEyebrow), ...(hosted ? { mediaId: hostedId } : { slot: reelSlot!.slug }) })],
       }),
     );
   }
@@ -119,7 +119,7 @@ export function upgradeBlock(block: Raw, ctx: Ctx, uid: (i: number) => string): 
         layout: "2",
         top: out.length ? (i === 0 ? "gap" : "none") : "none",
         ...(i === 0 ? { eyebrow: loc(p.cardsEyebrow), title: loc(p.cardsTitle) } : {}),
-        children: cards.slice(i, i + 24).map((a) => kid("video-single", { look: "card", mode: "player", slot: a.slug })),
+        children: cards.slice(i, i + 24).map((a) => kid("video-single", { variant: "card", mode: "player", slot: a.slug })),
       }),
     );
   }
@@ -258,4 +258,61 @@ export function upgradeContent(db: Database.Database): number {
     db.prepare("insert into settings (key, value) values ('nav', ?)").run(JSON.stringify(items));
   }
   return pages;
+}
+
+/* ---- 0016 : présentation du bloc Vidéo (`look` → `variant`) ------------------ */
+
+const VIDEO_VARIANTS = new Set(["feature", "card", "plain"]);
+
+/** Bloc Vidéo à l'ancien format : `look` est une chaîne (présentation), jamais les réglages du lot 2. */
+function renameInTree(node: unknown): boolean {
+  if (Array.isArray(node)) return node.map(renameInTree).some(Boolean);
+  if (!node || typeof node !== "object") return false;
+  const b = node as { type?: unknown; props?: Record<string, unknown> };
+  let changed = false;
+  if (b.type === "video-single" && b.props && typeof b.props.look === "string") {
+    const look = b.props.look;
+    delete b.props.look;
+    if (VIDEO_VARIANTS.has(look) && b.props.variant === undefined) b.props.variant = look;
+    changed = true;
+  }
+  if (b.props && Array.isArray(b.props.children)) changed = renameInTree(b.props.children) || changed;
+  if (Array.isArray((node as { blocks?: unknown }).blocks)) changed = renameInTree((node as { blocks: unknown[] }).blocks) || changed;
+  return changed;
+}
+
+/**
+ * Migration 0016 (intégration lots 2 + v0.13) : la présentation du bloc Vidéo
+ * s'appelait `look`, nom repris par les réglages de mise en page de TOUS les
+ * blocs (lot 2, registre) : elle devient `variant`. Versions publiées (blocs
+ * et leurs composants) et brouillons des pages. Idempotente ; renvoie le
+ * nombre de lignes réécrites.
+ */
+export function renameVideoLook(db: Database.Database): number {
+  let n = 0;
+  for (const r of db.prepare("select id, type, props from blocks where type = 'video-single' or props like '%video-single%'").all() as { id: number; type: string; props: string }[]) {
+    let props: unknown;
+    try {
+      props = JSON.parse(r.props);
+    } catch {
+      continue;
+    }
+    if (renameInTree({ type: r.type, props })) {
+      db.prepare("update blocks set props = ? where id = ?").run(JSON.stringify(props), r.id);
+      n++;
+    }
+  }
+  for (const p of db.prepare("select id, draft from pages where draft like '%video-single%'").all() as { id: number; draft: string }[]) {
+    let draft: unknown;
+    try {
+      draft = JSON.parse(p.draft);
+    } catch {
+      continue;
+    }
+    if (renameInTree(draft)) {
+      db.prepare("update pages set draft = ? where id = ?").run(JSON.stringify(draft), p.id);
+      n++;
+    }
+  }
+  return n;
 }

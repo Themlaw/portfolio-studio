@@ -4,6 +4,7 @@ import { blockCatalog, blockEditors } from "@/blocks/registry";
 import VisualEditor from "@/components/admin/editor/VisualEditor";
 import { getEditorContext, getSettingsForAdmin, listPagesForAdmin, overlayProjectSlugs } from "@/lib/admin";
 import { readDraft } from "@/lib/edit/drafts";
+import { lookContextForEditor } from "@/lib/edit/look-context";
 import { siteForEditor } from "@/lib/edit/site";
 
 export const metadata = { title: "Éditeur de page" };
@@ -39,6 +40,7 @@ export default async function VisualEditorPage({ params, searchParams }: { param
       siteName={getSettingsForAdmin().site.name || "Portfolio"}
       initialLocale={langue === "en" ? "en" : "fr"}
       site={siteForEditor(Number(id))}
+      look={lookContextForEditor()}
     />
   );
 }

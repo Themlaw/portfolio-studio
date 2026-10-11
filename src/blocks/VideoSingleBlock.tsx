@@ -4,7 +4,7 @@ import VideoCard from "@/components/VideoCard";
 import { getArtwork, type LocalizedArtwork } from "@/lib/gallery";
 import { getMedia } from "@/lib/media";
 
-import { localized, localizedText, mediaRef, tr, type BlockContext } from "./types";
+import { localized, localizedText, mediaRef, textStyle, tr, type BlockContext } from "./types";
 
 /** Identifiant YouTube (11 caractères) : il finit dans l'URL d'une iframe. */
 const youtubeId = /^[\w-]{11}$/;
@@ -16,7 +16,8 @@ export const videoSingleSchema = z.object({
   slot: z.string().regex(/^[a-z0-9-]+$/).max(80).optional(),
   /** Image d'attente (sinon celle de la vidéo). */
   posterMediaId: mediaRef.optional(),
-  look: z.enum(["feature", "card", "plain"]).default("card"),
+  /** Présentation (ancien nom `look`, repris par la mise en page du lot 2 : migration 0016). */
+  variant: z.enum(["feature", "card", "plain"]).default("card"),
   /** Lecteur avec contrôles, ou boucle muette (vidéo de la médiathèque). */
   mode: z.enum(["player", "loop"]).default("player"),
   eyebrow: localized.optional(),
@@ -61,7 +62,7 @@ export default async function VideoSingleBlock({ props, ctx }: { props: z.infer<
     description: (props.description && tr(props.description, ctx.locale)) || item?.description || "",
   };
   const body = item ? (
-    <VideoCard item={item} look={props.look} loop={props.mode === "loop"} texts={texts} edit={ctx.edit} />
+    <VideoCard item={item} look={props.variant} loop={props.mode === "loop"} texts={texts} edit={ctx.edit} styles={{ description: textStyle(ctx, "description").style }} />
   ) : ctx.edit ? (
     <div className="pe-media-empty pe-media-video" data-edit-media="mediaId" data-edit-media-kind="video" lang="fr">
       Choisir une vidéo

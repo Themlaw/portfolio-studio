@@ -3,7 +3,7 @@
  * UN job à la fois dans chacune :
  *  - légère : images ;
  *  - lourde : conversions vidéo (ffmpeg), exports et imports de kit PSD
- *    (processus enfant) : jamais deux à la fois, la mémoire du conteneur ne tiendrait pas
+ *    (processus enfant), aperçus de PDF (pdftoppm) : jamais deux à la fois, la mémoire du conteneur ne tiendrait pas
  *    (docs/THEME-KIT.md). Une conversion longue ne bloque pas les images. Démarré par src/lib/db/start.ts ; les jobs
  * `running` laissés par un arrêt brutal sont remis en file au démarrage.
  *
@@ -24,6 +24,7 @@ import { transcodeVideo } from "@/lib/video/transcode";
 import { notifyMediaChanged } from "@/lib/jobs/notify";
 import { runKitJob } from "@/lib/kit/export-job";
 import { importDir, isImportId, purgeKitImports, runKitImportJob } from "@/lib/kit/import-job";
+import { isPdfTmpName, processPdf } from "@/lib/pdf/render";
 
 const MAX_ATTEMPTS = 3;
 /** Délai avant l'essai suivant (après le 1er, le 2e… échec). */
@@ -36,7 +37,7 @@ const GAVE_UP = "Le traitement a échoué plusieurs fois. Supprime le fichier et
 /** Purge des envois abandonnés : au démarrage puis toutes les 15 minutes. */
 const PURGE_EVERY_MS = 15 * 60_000;
 type Lane = "light" | "heavy";
-const LANES: Record<Lane, ("image" | "video" | "kit" | "kit-import")[]> = { light: ["image"], heavy: ["video", "kit", "kit-import"] };
+const LANES: Record<Lane, ("image" | "video" | "kit" | "kit-import" | "pdf")[]> = { light: ["image"], heavy: ["video", "kit", "kit-import", "pdf"] };
 type State = { busy: Record<Lane, boolean>; started: boolean; timer?: NodeJS.Timeout };
 const G = globalThis as typeof globalThis & { __portfolioJobs2?: State };
 
@@ -177,6 +178,48 @@ async function runVideoJob(job: { id: number; mediaId: number; attempts: number 
   await notifyMediaChanged(media.id);
 }
 
+const PDF_FAILED = "L'aperçu de ce PDF n'a pas pu être préparé (fichier abîmé ou trop complexe). Exporte-le de nouveau en PDF standard, puis renvoie-le.";
+const PDF_HEAVY = "Ce PDF est trop lourd à afficher (pages trop complexes ou trop longues à rendre). Exporte-le avec des images compressées, puis renvoie-le.";
+
+/**
+ * Job « pdf » (file lourde) : pages rendues par pdftoppm dans un processus à
+ * part (délai et mémoire bornés), puis variantes d'images (src/lib/pdf/render.ts).
+ */
+async function runPdfJob(job: { id: number; mediaId: number; attempts: number }) {
+  const db = getDb();
+  const media = db.select().from(schema.media).where(eq(schema.media.id, job.mediaId)).get();
+  if (!media) {
+    db.update(schema.jobs).set({ status: "done", updatedAt: new Date() }).where(eq(schema.jobs.id, job.id)).run();
+    return;
+  }
+  const hash16 = media.sha256?.slice(0, 16);
+  try {
+    if (!hash16) throw new Error(`média sans empreinte : ${media.id}`);
+    const out = await processPdf(media.id, media.key, hash16);
+    db.transaction((tx) => {
+      tx.update(schema.media)
+        .set({ status: "ready", error: null, variants: out.variants, width: out.width, height: out.height, dominantColor: null })
+        .where(eq(schema.media.id, media.id))
+        .run();
+      tx.update(schema.jobs).set({ status: "done", error: null, progress: 100, updatedAt: new Date() }).where(eq(schema.jobs.id, job.id)).run();
+    });
+    console.log(`[jobs] PDF ${media.id} : ${out.pages} page(s) rendue(s) en ${out.stats.renderMs} ms, pdftoppm pic ${out.stats.renderPeakMb} Mo`);
+  } catch (error) {
+    const raw = error instanceof Error ? error.message : String(error);
+    const message = /trop de temps|mémoire|arrêté/.test(raw) ? PDF_HEAVY : PDF_FAILED;
+    console.error(`[jobs] PDF ${media.id} : échec (essai ${job.attempts})`, raw);
+    const retry = job.attempts < MAX_ATTEMPTS && /ENOSPC|EIO|EMFILE|EBUSY/.test(raw);
+    db.transaction((tx) => {
+      tx.update(schema.jobs)
+        .set({ status: retry ? "queued" : "failed", error: message, runAfter: retry ? later(job.attempts) : null, updatedAt: new Date() })
+        .where(eq(schema.jobs.id, job.id))
+        .run();
+      if (!retry) tx.update(schema.media).set({ status: "failed", error: message }).where(eq(schema.media.id, media.id)).run();
+    });
+  }
+  await notifyMediaChanged(media.id);
+}
+
 async function tick(lane: Lane) {
   const s = state();
   if (s.busy[lane]) return;
@@ -190,6 +233,7 @@ async function tick(lane: Lane) {
         });
       } else if (job.kind === "image" && job.mediaId) await runImageJob({ ...job, mediaId: job.mediaId });
       else if (job.kind === "video" && job.mediaId) await runVideoJob({ ...job, mediaId: job.mediaId });
+      else if (job.kind === "pdf" && job.mediaId) await runPdfJob({ ...job, mediaId: job.mediaId });
       else if (job.kind === "kit") await runKitJob(job);
       else if (job.kind === "kit-import") await runKitImportJob(job);
       else {
@@ -328,7 +372,7 @@ export async function startWorker() {
   }
   // Dossiers de conversion laissés par un arrêt brutal : plus aucun job ne tourne.
   for (const name of await readdir(uploadTmpDir()).catch(() => [] as string[])) {
-    if (/^video-\d+-\d+$/.test(name)) await rm(path.join(/* turbopackIgnore: true */ uploadTmpDir(), name), { recursive: true, force: true });
+    if (/^video-\d+-\d+$/.test(name) || isPdfTmpName(name)) await rm(path.join(/* turbopackIgnore: true */ uploadTmpDir(), name), { recursive: true, force: true });
   }
   await purgeTmp();
   s.timer = setInterval(() => wakeWorker(), 2000);

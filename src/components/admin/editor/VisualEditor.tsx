@@ -20,6 +20,7 @@ import {
   boardAction,
   createDraftProjectAction,
   discardDraftAction,
+  installFontAction,
   publishDraftAction,
   restoreBoardAction,
   saveDraftAction,
@@ -36,12 +37,17 @@ import { mediaStatusAction } from "@/app/admin/(espace)/medias/actions";
 import type { AdminMediaRow } from "@/lib/admin";
 import { acceptFromCanvas, EDIT_MSG, inlineAllowed, setLocalizedAt, type BlockInfo, type DropTargetInfo, type FromCanvas, type Ghost, type ToCanvas } from "@/lib/edit/protocol";
 import { own } from "@/lib/own";
+import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
+import type { LookContext } from "@/lib/edit/look-context";
+import { cleanLook, cleanSiteStyles, googleOf, readLook, type Look, type Role, type SiteStyles, type TextStyle } from "@/lib/look";
+import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 
 import { clone, ConfirmDialog, toast, useUnsavedGuard } from "../editing";
 import { filterMedia } from "../LibraryStrip";
 import Uploader from "../Uploader";
 import { isUploaded, useUploadQueue } from "../UploadQueue";
-import { readRatio, sendFile } from "../uploads";
+import { isPdfFile, readRatio, sendFile } from "../uploads";
+import { BlockLookPanel, SiteStylesPanel } from "./LookPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
 import SiteEditor, { applySiteOp, siteText } from "./SiteEditor";
 import StructureTree from "./StructureTree";
@@ -160,6 +166,7 @@ export default function VisualEditor({
   siteName,
   initialLocale,
   site: initialSite,
+  look: lookContext,
 }: {
   pageId: number;
   initial: PageDraft;
@@ -180,6 +187,8 @@ export default function VisualEditor({
   overlaySlugs: string[];
   /** En-tête, pied et réseaux (communs au site) : état vu depuis cette page. */
   site: { snap: SiteSnap; pending: boolean; lockedBy: string | null };
+  /** Mise en page (lot 2) : palette du thème, polices déjà téléchargées. */
+  look: LookContext;
 }) {
   const router = useRouter();
   const mobile = useMedia(MOBILE);
@@ -237,6 +246,11 @@ export default function VisualEditor({
 
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const dirty = useRef(false);
+  // État RÉEL pour le garde de sortie : dernier brouillon accepté par le
+  // serveur, envoi en cours, départ volontaire (abandon → rechargement).
+  const savedJson = useRef(JSON.stringify(draft));
+  const inFlight = useRef(false);
+  const leaving = useRef(false);
   // Toutes les écritures (brouillon, planches, publication, abandon) passent
   // l'une après l'autre : chacune porte la version laissée par la précédente.
   const lock = useRef<Promise<unknown>>(Promise.resolve());
@@ -265,10 +279,13 @@ export default function VisualEditor({
       }
       const snapshot = draftRef.current;
       let result: Awaited<ReturnType<typeof saveDraftAction>>;
+      inFlight.current = true;
       try {
         result = await saveDraftAction(pageId, snapshot, revRef.current);
       } catch {
         result = { ok: false, message: "connexion perdue" };
+      } finally {
+        inFlight.current = false;
       }
       if (!result.ok) {
         ok = false;
@@ -281,6 +298,7 @@ export default function VisualEditor({
         break;
       }
       revRef.current = result.data.rev;
+      savedJson.current = JSON.stringify(snapshot);
       setHasDraft(true);
     }
     if (ok) {
@@ -416,7 +434,12 @@ export default function VisualEditor({
   }, [writeSite]);
 
   // Bloqué (modifié ailleurs) : « Recharger » est un choix explicite, pas de garde.
-  useUnsavedGuard(!blocked && (saveState === "pending" || saveState === "saving" || saveState === "error" || boardBusy > 0));
+  // Le garde ne retient que ce qui n'est vraiment pas enregistré : brouillon
+  // différent du dernier accepté, envoi en cours, erreur, planche en cours.
+  useUnsavedGuard(
+    !blocked && (saveState === "pending" || saveState === "saving" || saveState === "error" || boardBusy > 0),
+    () => !leaving.current && (inFlight.current || boardBusy > 0 || saveState === "error" || JSON.stringify(draftRef.current) !== savedJson.current),
+  );
 
   /** Applique une modification : historique, état, enregistrement. */
   const apply = useCallback(
@@ -428,6 +451,8 @@ export default function VisualEditor({
       const now = Date.now();
       const merge = opts.key && coalesce.current?.key === opts.key && now - coalesce.current.at < 1200;
       const prev = draftRef.current;
+      // Rien de changé (la toile renvoie un état identique) : ni historique ni enregistrement.
+      if (next === prev || JSON.stringify(next) === JSON.stringify(prev)) return;
       history.current = { past: merge ? history.current.past : [...history.current.past, { draft: prev }].slice(-HISTORY_MAX), future: [] };
       bumpHistory();
       coalesce.current = opts.key ? { key: opts.key, at: now } : null;
@@ -716,6 +741,85 @@ export default function VisualEditor({
     }));
   };
 
+  /* ---- Mise en page (lot 2) : réglages des blocs, styles du site, polices --- */
+
+  const fontLib = useRef<FontLibrary>(lookContext.fonts);
+  const [fontFamilies, setFontFamilies] = useState<string[]>(() => Object.keys(lookContext.fonts));
+  const [fontBusy, setFontBusy] = useState<string | null>(null);
+
+  /**
+   * Polices Google citées par des styles : le serveur télécharge chaque style
+   * (graisse × italique) qui manque. Un échec : message, rien n'est appliqué.
+   */
+  const ensureFonts = useCallback(async (styles: (TextStyle | undefined)[]): Promise<boolean> => {
+    for (const s of styles) {
+      const family = googleOf(s?.font);
+      const g = family ? googleFamily(family) : undefined;
+      if (!g) continue;
+      const italic = Boolean(s?.italic) && g.italics.length > 0;
+      const weight = nearestWeight(g, s?.weight ?? 400, italic);
+      if (hasFace(fontLib.current, g.family, weight, italic)) continue;
+      setFontBusy(g.family);
+      toast(`Téléchargement de « ${g.family} » par le site…`);
+      let result: Awaited<ReturnType<typeof installFontAction>>;
+      try {
+        result = await installFontAction(g.family, weight, italic);
+      } catch {
+        result = { ok: false, message: `Impossible de télécharger « ${g.family} » (connexion perdue). La police n'est pas appliquée.` };
+      } finally {
+        setFontBusy(null);
+      }
+      if (!result.ok) {
+        toast(result.message, "error");
+        return false;
+      }
+      fontLib.current = result.data.library;
+      setFontFamilies(Object.keys(result.data.library));
+    }
+    return true;
+  }, []);
+
+  /** Réglages d'un bloc venus de la toile ou du panneau (null : tout revient au thème). */
+  const applyLook = async (uid: string, next: Look | null) => {
+    const clean = next ? cleanLook(next) : undefined;
+    if (!(await ensureFonts(Object.values(clean?.text ?? {})))) {
+      send({ kind: "refresh" });
+      return;
+    }
+    const list = draftRef.current.blocks;
+    const block = findBlock(list, uid);
+    if (!block) return;
+    if (JSON.stringify(readLook(block.props.look) ?? null) === JSON.stringify(clean ?? null)) return;
+    setBlocks(
+      updateBlock(list, uid, (b) => {
+        const props = { ...b.props };
+        if (clean) props.look = clean;
+        else delete props.look;
+        return { ...b, props };
+      }),
+      { key: `look:${uid}` },
+    );
+  };
+
+  /** Styles du site (brouillon du site : toutes les pages à la publication). */
+  const applySiteStyles = async (styles: SiteStyles | undefined) => {
+    const clean = cleanSiteStyles(styles);
+    if (!(await ensureFonts(Object.values(clean?.roles ?? {})))) {
+      send({ kind: "refresh" });
+      return;
+    }
+    const { styles: _old, ...rest } = siteRef.current;
+    void _old;
+    await writeSite({ ...rest, ...(clean ? { styles: clean } : {}) });
+  };
+  const applySiteStyle = (role: Role, style: TextStyle | null) => {
+    const current = siteRef.current.styles ?? {};
+    const roles = { ...(current.roles ?? {}) };
+    if (style) roles[role] = style;
+    else delete roles[role];
+    void applySiteStyles({ ...current, roles });
+  };
+
   /* ---- Messages de la toile ---------------------------------------------- */
 
   /* ---- Planches sur la toile : projets, dépôts, fantômes ----------------- */
@@ -800,8 +904,9 @@ export default function VisualEditor({
     const block = findBlock(list, target.uid);
     if (!block) return;
     if (target.kind === "cell") {
+      if (kind === "pdf") return toast("Un PDF se pose dans un bloc « CV ».", "error");
       const type = kind === "video" ? "video-single" : "image";
-      const child = { uid: newUid(), type, props: type === "video-single" ? { look: "card", mode: "player", mediaId } : { width: "wide", mediaId } } as DraftBlock;
+      const child = { uid: newUid(), type, props: type === "video-single" ? { variant: "card", mode: "player", mediaId } : { width: "wide", mediaId } } as DraftBlock;
       const next = insertBlock(list, child, target.uid, listOf(list, target.uid)?.length ?? 0);
       if (!next) return toast("Cette grille n'accepte plus de composant.", "error");
       setBlocks(next);
@@ -810,9 +915,10 @@ export default function VisualEditor({
     }
     const field = own(byType, block.type)?.mediaFields?.find((f) => f.field === target.field);
     if (!field) return;
-    if (field.kind !== "any" && kind && kind !== field.kind) return toast(field.kind === "video" ? "Ce bloc attend une vidéo." : "Ce bloc attend une image.", "error");
+    const expected = { video: "Ce bloc attend une vidéo.", pdf: "Ce bloc attend un PDF.", image: "Ce bloc attend une image.", any: "Ce bloc attend une image ou une vidéo." }[field.kind];
+    if (kind && (field.kind === "any" ? kind === "pdf" : kind !== field.kind)) return toast(expected, "error");
     setProp(target.uid, target.field, mediaId);
-    toast(field.kind === "video" ? "Vidéo placée" : "Image placée", "success", { label: "Annuler", run: () => void undoRef.current() });
+    toast(field.kind === "video" ? "Vidéo placée" : field.kind === "pdf" ? "PDF placé" : "Image placée", "success", { label: "Annuler", run: () => void undoRef.current() });
   };
 
   /** Fichiers déposés sur un bloc média ou une place libre : envoyés, convertis, puis posés. */
@@ -840,11 +946,11 @@ export default function VisualEditor({
         toast(`« ${file.name.slice(0, 60)} » : conversion impossible.`, "error");
         continue;
       }
-      placeMedia(target, up.media.id, file.type.startsWith("video/") ? "video" : "image");
+      placeMedia(target, up.media.id, file.type.startsWith("video/") ? "video" : isPdfFile(file) ? "pdf" : "image");
     }
   };
 
-  const [mediaPick, setMediaPick] = useState<{ uid: string; field: "mediaId" | "backgroundMediaId" | "portraitMediaId"; kind: "image" | "video" | "any" } | null>(null);
+  const [mediaPick, setMediaPick] = useState<{ uid: string; field: "mediaId" | "backgroundMediaId" | "portraitMediaId"; kind: "image" | "video" | "pdf" | "any" } | null>(null);
   const mediaOp = (uid: string, field: "mediaId" | "backgroundMediaId" | "portraitMediaId", what: "replace" | "clear") => {
     const block = findBlock(draftRef.current.blocks, uid);
     const decl = block && own(byType, block.type)?.mediaFields?.find((f) => f.field === field);
@@ -1059,10 +1165,14 @@ export default function VisualEditor({
     void writeSite(result.snap).then((ok) => ok && result.done && toast(result.done, "success", { label: "Annuler", run: () => void undoRef.current() }));
   };
 
-  const handlers = useRef({ op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField });
+  const handlers = useRef({ op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle });
   useEffect(() => {
-    handlers.current = { op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField };
+    handlers.current = { op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle };
   });
+  // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
+  useEffect(() => {
+    if (frameReady) send({ kind: "fonts", installed: fontFamilies.slice(0, 20), busy: fontBusy });
+  }, [frameReady, fontFamilies, fontBusy, send]);
 
   // Toile : pages proposables pour le menu, et verrou de l'en-tête.
   const navPagesRef = useRef<{ id: number; title: string }[]>([]);
@@ -1160,6 +1270,12 @@ export default function VisualEditor({
           break;
         case "text":
           h.editText(msg.uid, msg.path, msg.locale, msg.value);
+          break;
+        case "look":
+          void h.applyLook(msg.uid, msg.look);
+          break;
+        case "site-style":
+          h.applySiteStyle(msg.role, msg.style);
           break;
         case "drag-index":
           dropIndexRef.current = msg.refused ? null : { parent: msg.parent ?? null, index: msg.index };
@@ -1343,6 +1459,7 @@ export default function VisualEditor({
       return;
     }
     // Repart de la version publiée (état, historique, toile).
+    leaving.current = true;
     window.location.reload();
   };
 
@@ -1609,6 +1726,13 @@ export default function VisualEditor({
               ) : (
                 <p className="ve-empty">Ce type de bloc n&apos;a pas de réglages.</p>
               )}
+              <BlockLookPanel
+                key={selBlock.uid}
+                type={selBlock.type}
+                look={readLook(selBlock.props.look) ?? {}}
+                inCell={Boolean(selAt?.parent && findBlock(blocks, selAt.parent)?.type === "grid")}
+                onChange={(next) => void applyLook(selBlock.uid, next)}
+              />
             </div>
           ) : (
             <div className="ve-settings-empty">
@@ -1616,6 +1740,7 @@ export default function VisualEditor({
               <p className="ve-hint">
                 Titre, adresses et référencement de la page : <Link href={`/admin/pages/${pageId}`}>formulaire de la page</Link>.
               </p>
+              <SiteStylesPanel styles={siteSnap.styles} onChange={(s) => void applySiteStyles(s)} palette={lookContext.palette} installed={fontFamilies} locked={siteLocked} />
             </div>
           ))}
       </div>
@@ -1807,7 +1932,7 @@ export default function VisualEditor({
 
       <MediaPickerDialog
         open={picker !== null}
-        media={context.media}
+        media={context.media.filter((m) => m.kind !== "pdf")}
         onClose={() => setPicker(null)}
         onPick={(mediaId) => {
           const p = picker;
@@ -1855,7 +1980,7 @@ export default function VisualEditor({
 
       <MediaPickerDialog
         open={mediaPick !== null}
-        media={mediaPick && mediaPick.kind !== "any" ? context.media.filter((m) => m.kind === mediaPick.kind) : context.media}
+        media={mediaPick && mediaPick.kind !== "any" ? context.media.filter((m) => m.kind === mediaPick.kind) : context.media.filter((m) => m.kind !== "pdf")}
         onClose={() => setMediaPick(null)}
         onPick={(mediaId) => {
           const p = mediaPick;

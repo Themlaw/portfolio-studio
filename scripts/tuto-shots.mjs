@@ -16,6 +16,10 @@
  * (scripts/kit-poc/apply-kit.mts), un compte admin.
  * Usage : DATA_DIR=./data ADMIN_EMAIL=… ADMIN_PASSWORD=… node --import tsx scripts/tuto-shots.mjs
  * À relancer quand le kit, l'admin ou l'écran de revue évoluent.
+ * ONLY=kit : seulement les visuels tirés du kit et du site, sans l'admin ni le
+ * thème kit-a (vue d'ensemble, LISEZ-MOI, « 8 · Palette », « 9 · Curseur ») ;
+ * les autres entrées de shots.json sont gardées. Thème de démonstration
+ * temporaire (action repeinte, curseurs dessinés), supprimé à la fin.
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -28,14 +32,15 @@ import sharp from "sharp";
 const root = path.resolve(new URL("..", import.meta.url).pathname);
 const { buildKit } = await import(new URL("../src/lib/kit/build.ts", import.meta.url));
 const { ensureAgPsd } = await import(new URL("../src/lib/kit/ag-psd-node.ts", import.meta.url));
-const { BOARD, element, frameOf, README_FRAME, SLOTS, zonesWidth } = await import(new URL("../src/lib/kit/spec.ts", import.meta.url));
+const { BOARD, DOC, element, frameOf, README_FRAME, SLOTS, zonesWidth } = await import(new URL("../src/lib/kit/spec.ts", import.meta.url));
 const { kitSiteName } = await import(new URL("../src/lib/kit/export-job.ts", import.meta.url));
 const { PRESETS } = await import(new URL("../src/themes/presets/index.ts", import.meta.url));
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
 const PASSWORD = process.env.ADMIN_PASSWORD;
-if (!EMAIL || !PASSWORD) throw new Error("Définir ADMIN_EMAIL et ADMIN_PASSWORD");
+const ONLY_KIT = process.env.ONLY === "kit";
+if (!ONLY_KIT && (!EMAIL || !PASSWORD)) throw new Error("Définir ADMIN_EMAIL et ADMIN_PASSWORD");
 const OUT = path.join(root, "public/admin/tuto");
 const MANIFEST = path.join(root, "src/app/admin/(espace)/themes/tuto/shots.json");
 const TMP = path.join(tmpdir(), "tuto-shots");
@@ -116,7 +121,7 @@ const lineBox = (pred) => {
 {
   const ov = await fit(composite, 1000, 1000);
   const tr = await fit(tree, 600, 1000);
-  const s = ov.w / 4000;
+  const s = ov.w / DOC.width;
   const gap = 40;
   const ty = Math.round((ov.h - tr.h) / 2);
   const ts = tr.h / treeH;
@@ -162,6 +167,8 @@ async function cardOf(id) {
 }
 
 /* ==== 2. Le site : avant (galerie-lumineuse) et après (kit-a) ============ */
+// Mode ONLY=kit : le LISEZ-MOI et les slides « 8 · Palette » / « 9 · Curseur » (voir plus bas).
+if (ONLY_KIT) await save("lisezmoi", await sharp(composite).extract({ left: README_FRAME.x - 10, top: README_FRAME.y - 6, width: README_FRAME.w + 20, height: README_FRAME.h + 12 }).png().toBuffer());
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
 const page = await ctx.newPage();
@@ -217,6 +224,92 @@ const themesShot = async () => {
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
   await sleep(500);
 };
+
+/* ==== Lot 4 : « 8 · Palette » et « 9 · Curseur » ========================= */
+/**
+ * Thème de démonstration (copie de galerie-lumineuse) : action repeinte (son
+ * survol, auto, suit), curseurs dessinés (crayon, main ronde : ceux de
+ * scripts/kit-poc/simulate-v3-edit.mts) rangés comme par l'import. Le site
+ * « avant » est galerie-lumineuse. Playwright ne capture pas la souris : le
+ * curseur (PNG servi, ou la flèche du système) est incrusté à la position de
+ * la souris, point chaud compris.
+ */
+async function lot4Slides() {
+  const { getDb, schema } = await import(new URL("../src/lib/db/index.ts", import.meta.url));
+  const { getStorage } = await import(new URL("../src/lib/storage/index.ts", import.meta.url));
+  const P = await import(new URL("../src/themes/palette.ts", import.meta.url));
+  const { eq } = await import("drizzle-orm");
+  const { createHash } = await import("node:crypto");
+  const { Readable } = await import("node:stream");
+  const DEMO = "tuto-lot4-demo";
+  const svg64 = (inner) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">${inner}</svg>`);
+  const PENCIL = `<path d="M6 6 L20 44 L28 36 L52 60 L60 52 L36 28 L44 20 Z" fill="#2b1d3a" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke"/>`;
+  const HAND = `<circle cx="32" cy="34" r="20" fill="#2b1d3a" stroke="#ffffff" stroke-width="3"/><path d="M28 4 L36 4 L36 30 L28 30 Z" fill="#2b1d3a" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke"/>`;
+  // Représentation du curseur du système (comme pré-rempli dans le kit).
+  const ARROW = `<path d="M4 4 L4 50 L15 39 L22 55 L29 52 L22 36 L37 36 Z" fill="#000000" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke"/>`;
+  const SYS_HAND = `<path d="M22 8 Q22 3 26.5 3 Q31 3 31 8 L31 26 Q31 22 35.5 22 Q40 22 40 26.5 L40 28 Q40 24 44.5 24 Q49 24 49 28.5 L49 31 Q49 27 52.5 27 Q56 27 56 31 L56 46 Q56 60 42 60 L30 60 Q22 60 17 52 L9 40 Q7 36 10.5 34.5 Q14 33 17 37 L22 43 Z" fill="#000000" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke"/>`;
+  const storage = getStorage();
+  const store = async (buf) => {
+    const key = `kit/${createHash("sha256").update(buf).digest("hex").slice(0, 16)}.png`;
+    if (!(await storage.stat(key))) await storage.put(key, Readable.from(buf));
+    return `/media/${key}`;
+  };
+  const cursor = async (inner, x, y) => {
+    const png2x = await sharp(svg64(inner)).png().toBuffer();
+    return { png: await store(await sharp(png2x).resize(32, 32, { kernel: "lanczos3" }).png().toBuffer()), png2x: await store(png2x), x, y };
+  };
+  const g = PRESETS["galerie-lumineuse"];
+  const auto = P.setNuance(g.tokens.color, undefined, "primaryHover", null);
+  const color = P.setBase(auto.color, auto.palette, "primary", "#6b2d5c");
+  const demo = { ...g, id: DEMO, name: "Démo palette (tuto)", preset: false, tokens: { ...g.tokens, color, palette: auto.palette }, assets: { ...g.assets, kit: { cursors: { default: await cursor(PENCIL, 3, 3), pointer: await cursor(HAND, 16, 3) } } } };
+  const db = getDb();
+  db.delete(schema.themes).where(eq(schema.themes.id, DEMO)).run();
+  db.insert(schema.themes).values({ id: DEMO, name: demo.name, preset: false, data: JSON.stringify(demo) }).run();
+  try {
+    // 8 · Palette : le bouton du contact et son survol, avant / après.
+    const contact = async () => {
+      const btn = page.locator("a.btn").last();
+      await btn.scrollIntoViewIfNeeded();
+      await btn.hover();
+      await sleep(400);
+      const b = await btn.boundingBox();
+      return { x: Math.max(0, b.x - 260), y: Math.max(0, b.y - 230), width: b.width + 520, height: b.height + 290 };
+    };
+    await elementSlide("el-palette", "palette", await beforeAfter("/fr", contact, 1, undefined, ["galerie-lumineuse", DEMO]));
+    // 9 · Curseur : la souris sur une image cliquable d'une planche (« clic ») et sur le fond (normal).
+    const overlay = async (png, inner, hx, hy, x, y) => sharp(png).composite([{ input: await sharp(svg64(inner)).resize(32, 32).png().toBuffer(), left: Math.round(x - hx), top: Math.round(y - hy) }]).png().toBuffer();
+    const pair = [];
+    for (const [theme, normal, click] of [
+      ["galerie-lumineuse", [ARROW, 2, 2], [SYS_HAND, 13, 2]],
+      [DEMO, [PENCIL, 3, 3], [HAND, 16, 3]],
+    ]) {
+      await site(theme, "/fr/personnages");
+      const frame = page.locator(".strip-frame").first();
+      await frame.scrollIntoViewIfNeeded();
+      await sleep(300);
+      const f = await frame.boundingBox();
+      const clip = { x: Math.max(0, f.x - 40), y: Math.max(0, f.y - 60), width: Math.min(f.width + 200, 640), height: Math.min(f.height + 120, 420) };
+      const at = { x: f.x + Math.min(f.width, 200) / 2 - clip.x, y: f.y + Math.min(f.height, 200) / 2 - clip.y };
+      let png = await page.screenshot({ clip });
+      png = await overlay(png, click[0], click[1], click[2], at.x, at.y);
+      png = await overlay(png, normal[0], normal[1], normal[2], clip.width - 60, 30);
+      pair.push(await sharp(png).resize({ width: clip.width * 2, kernel: "nearest" }).png().toBuffer());
+    }
+    await elementSlide("el-curseur", "curseur", pair);
+  } finally {
+    db.delete(schema.themes).where(eq(schema.themes.id, DEMO)).run();
+  }
+}
+
+if (ONLY_KIT) {
+  await lot4Slides();
+  await browser.close();
+  const previous = existsSync(MANIFEST) ? JSON.parse(readFileSync(MANIFEST, "utf8")) : {};
+  writeFileSync(MANIFEST, `${JSON.stringify({ ...previous, ...shots }, null, 1)}\n`);
+  console.log(`tuto-shots (ONLY=kit) : ${Object.keys(shots).join(", ")}`);
+  rmSync(TMP, { recursive: true, force: true });
+  process.exit(0);
+}
 
 /* ==== 3. L'admin ========================================================= */
 await page.goto(`${BASE}/admin/connexion`, { waitUntil: "networkidle" });
@@ -311,16 +404,12 @@ let draftId = "";
 }
 
 /* ==== 4. Le site, éléments par éléments : avant / après ================== */
-const openLightbox = async () => {
-  await page.locator(".strip").filter({ has: page.locator(".strip-frame:nth-child(2)") }).first().locator(".strip-frame").first().click();
-  await page.locator(".lightbox-frame").waitFor();
-  await sleep(600);
-};
 
 await elementSlide("el-paysage", "paysage", await beforeAfter("/fr", { x: 0, y: 0, width: 1440, height: 900 }));
 await elementSlide("el-signature", "signature", await beforeAfter("/fr/personnages", () => clipOf(".site-brand", 28), 2));
 await elementSlide("el-papier", "papier", await beforeAfter("/fr/personnages", { x: 0, y: 70, width: 1440, height: 520 }));
-await elementSlide("el-cadre", "cadre", await beforeAfter("/fr/personnages", () => clipOf(".lightbox-frame", 40), 1, openLightbox));
+// Cadre : entrées des collections de l'accueil (lot médias : plus sur la visionneuse).
+await elementSlide("el-cadre", "cadre", await beforeAfter("/fr", () => clipOf(".tile-media", 40)));
 await elementSlide(
   "el-trait",
   "trait",
@@ -341,11 +430,14 @@ await elementSlide(
   await beforeAfter(
     "/fr/personnages",
     async () => {
-      await page.locator(".rail-arrow").first().scrollIntoViewIfNeeded();
-      await sleep(300);
-      const a = await page.locator(".rail-arrow").first().boundingBox();
-      const b = await page.locator(".rail-arrow").last().boundingBox();
-      return { x: a.x - 30, y: a.y - 24, width: b.x + b.width - a.x + 60, height: a.height + 48 };
+      // Lot médias : flèches sur les bords de la bande (.strip-nav), montrées au
+      // survol ; la flèche « suivante » d'une bande qui déborde.
+      const vp = page.locator(".strip-viewport[data-overflows='true']").first();
+      await vp.scrollIntoViewIfNeeded();
+      await vp.hover();
+      await sleep(700);
+      const b = await vp.locator(".strip-nav-next").boundingBox();
+      return { x: b.x - 30, y: b.y - 24, width: b.width + 60, height: b.height + 48 };
     },
     4,
     undefined,
@@ -353,6 +445,7 @@ await elementSlide(
   ),
 );
 await elementSlide("el-scotch", "scotch", await beforeAfter("/fr/personnages", () => clipOf(".strip-frame", 30, {}), 1));
+await lot4Slides();
 
 
 

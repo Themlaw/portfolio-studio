@@ -17,6 +17,7 @@
  *     e-mail de l'admin sur un autre sub (aucune liaison), endpoints mot de
  *     passe fermés, sessions révoquées quand l'accès est retiré ;
  *  E. secret absent / trop court en production → arrêt explicite.
+ *  TH. thèmes : export / import d'archive (garde, origine, archives piégées, tailles).
  * Usage : npm run test:auth   (exit 1 si un test échoue)
  */
 import { spawn, spawnSync } from "node:child_process";
@@ -33,7 +34,9 @@ import { initializeCanvas, readPsd, writePsdBuffer } from "ag-psd";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const SA = path.join(ROOT, ".next/standalone");
-const TMP = "/tmp/portfolio-test-auth";
+// Données de test : sur disque si TEST_AUTH_TMP le dit (le /tmp de la VM est un tmpfs : les
+// mesures vidéo y manquent de place, ENOSPC → 500 sur la 4K).
+const TMP = process.env.TEST_AUTH_TMP ?? "/tmp/portfolio-test-auth";
 const PORT = 3200;
 const MOCK_PORT = 3290;
 const BASE = `http://127.0.0.1:${PORT}`;
@@ -171,6 +174,8 @@ const ADMIN_ACTIONS = [
   "boardAction",
   "restoreBoardAction",
   "siteDraftAction",
+  "installFontAction",
+  "deleteFontAction",
   "deleteMessageAction",
   "deleteAllMessagesAction",
   "createDraftProjectAction",
@@ -464,7 +469,7 @@ r = await postForm(evil, "/admin/apercu", { id: "pro" }, { origin: "https://site
 ok("A7a aperçu depuis une autre origine (CSRF) → 403, aucun draft mode", r.status === 403 && !evil.cookies.has("__prerender_bypass"), String(r.status));
 r = await postForm(new Jar(), "/admin/apercu", { id: "pro" });
 ok("A7a2 aperçu sans session → redirigé par le proxy", r.status === 307, String(r.status));
-r = await postForm(jar, "/admin/apercu", { id: "pro" });
+r = await postForm(jar, "/admin/apercu", { id: "pro" }, { referer: `${BASE}/admin/themes` });
 ok("A7b aperçu (formulaire natif) → 303 /fr + draft mode", r.status === 303 && r.headers.get("location") === "/fr" && jar.cookies.has("__prerender_bypass") && jar.cookies.get("theme-preview") === "pro", `${r.status} ${r.headers.get("location")}`);
 r = await http("/fr", { jar });
 const previewHtml = await r.text();
@@ -482,10 +487,20 @@ ok(
 );
 r = await postForm(jar, "/admin/apercu/quitter", {}, { referer: `${BASE}/fr/personnages` });
 ok(
-  "A8b quitter l'aperçu depuis le bandeau → retour sur la page, draft mode coupé",
-  r.status === 303 && r.headers.get("location") === "/fr/personnages" && !jar.cookies.has("__prerender_bypass") && !jar.cookies.has("theme-preview"),
+  "A8b quitter l'aperçu depuis le bandeau → retour à l'écran d'origine (Thèmes), draft mode coupé",
+  r.status === 303 && r.headers.get("location") === "/admin/themes" && !jar.cookies.has("__prerender_bypass") && !jar.cookies.has("theme-preview") && !jar.cookies.has("preview-from"),
   `${r.status} ${r.headers.get("location")}`,
 );
+// Origine retenue à l'ouverture (champ `retour`), jamais hors de l'admin ni vers un autre site.
+await postForm(jar, "/admin/apercu", { page: "1", retour: "/admin/pages" });
+r = await postForm(jar, "/admin/apercu/quitter", {}, { referer: `${BASE}/fr` });
+ok("A8c aperçu ouvert depuis Pages → retour à Pages", r.status === 303 && r.headers.get("location") === "/admin/pages", `${r.status} ${r.headers.get("location")}`);
+await postForm(jar, "/admin/apercu", { id: "pro", retour: "https://site-malveillant.example/admin/x" }, { referer: "https://site-malveillant.example/admin/y" });
+r = await postForm(jar, "/admin/apercu/quitter", {}, { referer: `${BASE}/fr` });
+ok("A8d origine d'un autre site ignorée → Admin → Thèmes", r.status === 303 && r.headers.get("location") === "/admin/themes", `${r.status} ${r.headers.get("location")}`);
+await postForm(jar, "/admin/apercu", { id: "pro", retour: "/fr/personnages" });
+r = await postForm(jar, "/admin/apercu/quitter", { retour: "//site-malveillant.example/admin" });
+ok("A8e retour hors de l'admin (site public, //autre-site) → Admin → Thèmes", r.status === 303 && r.headers.get("location") === "/admin/themes", `${r.status} ${r.headers.get("location")}`);
 // Server actions des éditeurs (phase 4a) : refus sans session, puis
 // validation serveur des charges invalides (client contourné).
 for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
@@ -496,7 +511,8 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     name === "applyKitImportAction" ? "/admin/themes/galerie-lumineuse/kit"
     : name === "saveThemeAction" ? "/admin/themes/galerie-lumineuse"
     : name === "savePageAction" ? "/admin/pages/1"
-    : /Draft|[bB]oard/.test(name) ? "/admin/pages/1/editer"
+    : name === "deleteFontAction" ? "/admin/reglages"
+    : /Draft|[bB]oard|Font/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings/.test(name) ? "/admin/reglages"
     : /Message/.test(name) ? "/admin/messages"
@@ -592,6 +608,19 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   const bare = jar.copy();
   r = await http(toile, { jar: bare });
   ok("ED4c toile sans Sec-Fetch-Site ni Origin → 403", r.status === 403 && !bare.cookies.has("page-draft"), String(r.status));
+
+  // Polices (lot 2) : aperçu du menu réservé à l'admin ; /fonts/ ne sert qu'un nom d'empreinte.
+  r = await http("/admin/api/fonts/preview?famille=Inter");
+  ok("FT1 aperçu de police sans session → 403", r.status === 403, String(r.status));
+  r = await http("/fonts/..%2Fportfolio.db");
+  ok("FT2 /fonts/<hors empreinte> → 404", r.status === 404, String(r.status));
+  r = await http("/fonts/0123456789abcdef.woff2");
+  ok("FT2b /fonts/<empreinte inconnue> → 404", r.status === 404, String(r.status));
+  // Suppression d'une police (Réglages) : famille absente ou charge invalide → refus propre, rien d'écrit.
+  for (const arg of ["Inexistante", { constructor: 1 }, "x".repeat(500)]) {
+    const del = await callActionJson(jar, ids.deleteFontAction, [arg], "/admin/reglages");
+    ok(`FT3 deleteFontAction(${JSON.stringify(arg).slice(0, 20)}) → refus, pas d'erreur 500`, del.status === 200 && del.text.includes('"ok":false'), `${del.status} ${del.text.slice(0, 120)}`);
+  }
 
   await restartA("ED5");
   const drafty = jar.copy();
@@ -1107,7 +1136,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("A14b URL data: → refusée (v0.13 : http(s) et mailto: seulement)", res.text.includes('"ok":false'));
   const persoId = query(dirA, `select id from pages where json_extract(slug,'$.fr')='personnages'`).id;
   res = await callActionJson(jar, ids.deletePageAction, [persoId], "/admin/pages");
-  ok("A15 supprimer une page référencée → bloqué avec la liste", res.text.includes("references") && res.text.includes("Tuiles de collections"), res.text.slice(0, 300));
+  ok("A15 supprimer une page référencée → bloqué avec la liste", res.text.includes("references") && res.text.includes("Entrées des collections"), res.text.slice(0, 300));
   const homeId = query(dirA, `select id from pages where json_extract(slug,'$.fr')=''`).id;
   res = await callActionJson(jar, ids.deletePageAction, [homeId], "/admin/pages");
   ok("A15b l'accueil ne se supprime pas", res.text.includes("accueil ne se supprime pas"));
@@ -2424,7 +2453,7 @@ ok(
 );
 const line = serverLog(kv.server, /\[kit\] thème galerie-lumineuse : kit [^\n]+/g).pop() ?? "";
 console.log(`      processus enfant (bundle kit-child.cjs) : ${line}`);
-ok("TK3b processus enfant (kit v2 4000 × 4000) : pic mémoire sous 400 Mo, priorité OOM maximale (1000)", Number(/pic (\d+) Mo/.exec(line)?.[1] ?? 9999) < 400 && /oom 1000/.test(line), line);
+ok("TK3b processus enfant (kit v3 4000 × 4880) : pic mémoire sous 400 Mo, priorité OOM maximale (1000)", Number(/pic (\d+) Mo/.exec(line)?.[1] ?? 9999) < 400 && /oom 1000/.test(line), line);
 const jobsBefore = kitJobs().length;
 const again = await (await post("galerie-lumineuse")).json();
 ok("TK4 second export : servi depuis le cache, aucun nouveau job", again.ready && kitJobs().length === jobsBefore, `${JSON.stringify(again)} ${kitJobs().length}/${jobsBefore}`);
@@ -2615,9 +2644,9 @@ const again2 = await kitUpload(draftPsd, `kit-${draftId}.psd`, draftId);
 const st2 = await waitImport(draftId, again2.body.kitImport?.id);
 const rap2 = st2.status === "done" ? rapportOf(dirK, again2.body.kitImport.id) : null;
 ok(
-  `TI9 kit de la copie : case « Flèche droite » = flèche de l'artiste (IoU ${iou.toFixed(3)}) ; réimporté tel quel → 14 inchangés`,
-  draftReady.ready && iou > 0.9 && rap2?.reference?.how === "identifiant" && rap2.slots.every((x) => x.change === "unchanged"),
-  `${JSON.stringify(draftReady)} ${rap2 && rap2.slots.filter((x) => x.change !== "unchanged").map((x) => x.id)}`,
+  `TI9 kit (v3) de la copie : case « Flèche droite » = flèche de l'artiste (IoU ${iou.toFixed(3)}) ; réimporté tel quel → ${rap2?.slots.length} éléments (curseurs compris) et ${rap2?.colors?.length} couleurs inchangés`,
+  draftReady.ready && iou > 0.9 && rap2?.reference?.how === "identifiant" && rap2.slots.length === 16 && rap2.slots.every((x) => x.change === "unchanged") && rap2.colors?.length === 15 && rap2.colors.every((c) => c.change === "unchanged"),
+  `${JSON.stringify(draftReady)} ${rap2 && rap2.slots.filter((x) => x.change !== "unchanged").map((x) => x.id)} ${rap2 && (rap2.colors ?? []).filter((c) => c.change !== "unchanged").map((c) => c.key)}`,
 );
 
 // Kit d'un autre thème : le fichier de galerie-lumineuse envoyé pour « pro ».
@@ -2739,6 +2768,166 @@ ok(
   JSON.stringify(after),
 );
 await stop(km2.server);
+}
+
+// ---- v0.14 : export / import de thème (route mutante gardée, archive bornée) ---------------
+{
+console.log("\n== TH. thèmes : export et import d'archive");
+const { maliciousPackages, maliciousRichPackages, richPackage, validPackage } = await import("./lib/theme-packages.mjs");
+const { loadPreset, presetSlugs } = await import("./lib/presets.mjs");
+const dirT = `${TMP}/vtheme`;
+const tv = await freshAdmin(dirT);
+const HT = { cookie: tv.jar.header(), origin: BASE };
+const importZip = (zip, headers = HT) => {
+  const form = new FormData();
+  form.append("file", new Blob([zip], { type: "application/zip" }), "theme.zip");
+  return fetch(`${BASE}/admin/api/themes/import`, { method: "POST", body: form, headers, redirect: "manual" });
+};
+const themeCount = () => query(dirT, "select count(*) n from themes").n;
+const base = await loadPreset("galerie-lumineuse");
+const valid = validPackage(base, "Thème importé (test-auth)");
+
+// Garde : sans session, autre origine, export sans session.
+const anonImport = await importZip(valid.zip, {});
+const foreignImport = await importZip(valid.zip, { cookie: tv.jar.header(), origin: "https://evil.example" });
+const anonExport = await fetch(`${BASE}/admin/api/themes/galerie-lumineuse/export`, { redirect: "manual" });
+ok(
+  "TH1 sans session : import et export refusés ; autre origine : 403 ; aucun thème créé",
+  anonImport.status >= 300 && anonImport.status !== 200 && foreignImport.status === 403 && anonExport.status >= 300 && anonExport.status !== 200 && themeCount() === presetSlugs().length,
+  `${anonImport.status} ${foreignImport.status} ${anonExport.status} (${themeCount()} thèmes)`,
+);
+const before = themeCount();
+
+// Export : ZIP en pièce jointe, identifiant invalide → 404.
+const exp = await fetch(`${BASE}/admin/api/themes/galerie-lumineuse/export`, { headers: { cookie: tv.jar.header() } });
+const expBody = Buffer.from(await exp.arrayBuffer());
+const badIds = await Promise.all(["inconnu", "..%2F..%2Fetc", "A_MAJ"].map(async (id) => (await fetch(`${BASE}/admin/api/themes/${id}/export`, { headers: { cookie: tv.jar.header() } })).status));
+ok("TH2 export : ZIP (theme.json) en pièce jointe ; identifiant inconnu ou invalide → 404", exp.status === 200 && expBody.subarray(0, 4).toString("hex") === "504b0304" && expBody.includes("theme.json") && /attachment; filename="theme-galerie-lumineuse\.zip"/.test(exp.headers.get("content-disposition") ?? "") && badIds.every((s) => s === 404), `${exp.status} ${badIds}`);
+
+// Ré-import de l'export brut : copie « (importé) », non livrée, non active.
+const reimport = await importZip(expBody);
+const reBody = await reimport.json().catch(() => ({}));
+const reRow = reBody.theme && query(dirT, "select preset, name from themes where id = ?", reBody.theme.id);
+const active = JSON.parse(query(dirT, "select value from settings where key = 'activeThemeId'").value);
+ok("TH3 ré-import d'un export : nouveau thème non livré, renommé, jamais mis en ligne", reimport.status === 200 && reRow?.preset === 0 && /\(importé\)/.test(reRow?.name ?? "") && active !== reBody.theme?.id, JSON.stringify(reBody));
+
+// Import avec élément dessiné : rangé sous /media/kit, servi avec la CSP sandbox.
+const imp = await importZip(valid.zip);
+const kit = await fetch(BASE + valid.kitPath);
+ok("TH4 import avec élément dessiné (SVG) : thème créé, asset servi (image/svg+xml, CSP sandbox)", imp.status === 200 && kit.status === 200 && kit.headers.get("content-type") === "image/svg+xml" && /sandbox/.test(kit.headers.get("content-security-policy") ?? ""), `${imp.status} ${kit.status}`);
+
+// Lots 2 et 4 transportés : curseurs PNG, palette (auto recalculée), mise en page, typographie.
+const rich = await richPackage(base, "Thème riche (test-auth)");
+const richImp = await importZip(rich.zip);
+const richBody = await richImp.json().catch(() => ({}));
+const richRow = richBody.theme && JSON.parse(query(dirT, "select data from themes where id = ?", richBody.theme.id).data);
+const cur = await fetch(BASE + rich.cursorPath);
+ok(
+  "TH4b import : curseurs PNG rangés et servis (image/png), nuance auto recalculée (jamais la valeur de l'archive), layout et typographie gardés",
+  richImp.status === 200 && cur.status === 200 && cur.headers.get("content-type") === "image/png" && richRow?.tokens.color.primaryHover !== "#00ff00" && richRow?.tokens.palette?.auto?.[0] === "primaryHover" && richRow?.tokens.layout?.heroRoleBackdrop === "band" && richRow?.tokens.type?.caption?.case === "upper" && richRow?.assets.kit?.cursors?.default?.x === 2,
+  `${richImp.status} ${cur.status} ${richRow?.tokens.color.primaryHover}`,
+);
+const richExp = richBody.theme && (await fetch(`${BASE}/admin/api/themes/${richBody.theme.id}/export`, { headers: { cookie: tv.jar.header() } }));
+const richZip = richExp ? Buffer.from(await richExp.arrayBuffer()) : Buffer.alloc(0);
+ok("TH4c export d'un thème à curseurs : les deux PNG sont dans l'archive", richExp?.status === 200 && richZip.includes(`assets/${path.basename(rich.cursorPath)}`) && (richZip.toString("latin1").match(/assets\/[0-9a-f]{16}\.png/g) ?? []).length >= 2, `${richExp?.status}`);
+
+// Archives malveillantes : toutes refusées, avec le bon message, sans rien créer ni écrire.
+const mid = themeCount();
+const kitDirBefore = existsSync(path.join(dirT, "media", "kit")) ? readdirSync(path.join(dirT, "media", "kit")).length : 0;
+for (const [label, zip, pattern] of [...maliciousPackages(base), ...(await maliciousRichPackages(base))]) {
+  const r = await importZip(zip);
+  const b = await r.json().catch(() => ({}));
+  ok(`TH5 refusé : ${label}`, r.status >= 400 && r.status < 500 && b.ok === false && pattern.test(b.message ?? ""), `${r.status} ${b.message}`);
+}
+const kitDirAfter = existsSync(path.join(dirT, "media", "kit")) ? readdirSync(path.join(dirT, "media", "kit")).length : 0;
+ok("TH6 aucune archive malveillante n'a créé de thème ni écrit d'asset ; aucun fichier hors du dossier de données", themeCount() === mid && kitDirAfter === kitDirBefore && !existsSync("/tmp/pwn.txt"), `${themeCount()}/${mid} ${kitDirAfter}/${kitDirBefore}`);
+
+// Taille : refus avant lecture (Content-Length) et pendant le flux.
+const huge = await rawPost("/admin/api/themes/import", { cookie: tv.jar.header(), origin: BASE, "content-type": "multipart/form-data; boundary=x", "content-length": String(200 * 1024 * 1024) }, Buffer.from("--x\r\n"));
+const big = Buffer.alloc(13 * 1024 * 1024, 1);
+const streamed = await importZip(big);
+const tmpLeft = existsSync(path.join(dirT, "tmp")) ? readdirSync(path.join(dirT, "tmp")).filter((f) => f.startsWith("upload-")).length : 0;
+ok("TH7 archive de plus de 12 Mo refusée (413), annoncée ou en flux ; fichier temporaire supprimé", huge.status === 413 && streamed.status === 413 && tmpLeft === 0, `${huge.status} ${streamed.status} tmp=${tmpLeft}`);
+ok("TH8 thèmes créés : exactement les trois imports valides", themeCount() === before + 3, `${themeCount()} vs ${before + 3}`);
+await stop(tv.server);
+}
+
+// ---- Lot médias : PDF du bloc CV (envoi, aperçu, téléchargement en pièce jointe) ----------
+{
+console.log("\n== PDF. CV : envoi gardé, signature, pages, aperçu isolé, téléchargement");
+const { textPdf, scriptedPdf, imageBombPdf } = await import("./lib/pdf-fixtures.mjs");
+const dirP = `${TMP}/pdf`;
+const p = await freshAdmin(dirP);
+const jp = p.jar;
+const tmpCount = () => (existsSync(path.join(dirP, "tmp")) ? readdirSync(path.join(dirP, "tmp")).filter((n) => !n.startsWith("uploads")).length : 0);
+const cv = textPdf(2);
+let r = await upload(new Jar(), "cv.pdf", "application/pdf", cv);
+ok("PDF1 envoi d'un PDF sans session → 403, aucune ligne", r.status === 403 && query(dirP, "select count(*) n from media where kind = 'pdf'").n === 0, String(r.status));
+r = await upload(jp, "cv.pdf", "application/pdf", cv, { origin: "https://site-malveillant.example" });
+ok("PDF2 envoi depuis une autre origine → 403", r.status === 403, String(r.status));
+r = await upload(jp, "Mon CV privé.pdf", "application/pdf", cv);
+const pdfId = r.json?.media?.id;
+const row = pdfId ? await waitMedia(dirP, pdfId, 120000) : null;
+const files = row?.variants ? JSON.parse(row.variants).files : [];
+const docKey = files.find((f) => f.format === "pdf")?.key;
+const pages = [...new Set(files.filter((f) => f.page).map((f) => f.page))];
+ok("PDF3 PDF de 2 pages : accepté (type lu dans le fichier), traité, 2 pages en AVIF + WebP, copie téléchargeable", r.status === 200 && r.json.media.kind === "pdf" && row?.status === "ready" && pages.length === 2 && files.filter((f) => f.format === "avif").length === 4 && Boolean(docKey), `${r.status} ${row?.status} ${row?.error ?? ""} ${files.length}`);
+const orig = query(dirP, "select key from media where id = ?", pdfId)?.key;
+ok("PDF4 original (originals/…pdf) jamais servi", orig?.startsWith("originals/") && (await http(`/media/${orig}`)).status === 404, orig);
+const dl = await http(`/media/${docKey}?name=cv-camille`);
+const dlBytes = Buffer.from(await dl.arrayBuffer());
+const h = (n) => dl.headers.get(n) ?? "";
+ok(
+  "PDF5 téléchargement : 200, application/pdf, Content-Disposition attachment (nom propre), nosniff, CSP sandbox, X-Frame-Options DENY, octets d'origine",
+  dl.status === 200 && h("content-type") === "application/pdf" && h("content-disposition") === 'attachment; filename="cv-camille.pdf"' && h("x-content-type-options") === "nosniff" && /sandbox/.test(h("content-security-policy")) && h("x-frame-options") === "DENY" && dlBytes.equals(cv),
+  `${dl.status} ${h("content-type")} | ${h("content-disposition")} | ${h("x-frame-options")}`,
+);
+const evil = await http(`/media/${docKey}?name=${encodeURIComponent('../../x"\r\nSet-Cookie: a=1')}`);
+ok("PDF6 nom piégé (chemin, guillemet, CRLF) → réduit à [a-z0-9-], pas d'en-tête injecté", evil.status === 200 && evil.headers.get("content-disposition") === 'attachment; filename="x-set-cookie-a-1.pdf"' && !evil.headers.get("set-cookie"), evil.headers.get("content-disposition") ?? "");
+const plain = await http(`/media/${docKey}`);
+ok("PDF7 sans nom → « cv.pdf », toujours en pièce jointe (jamais affiché sur l'origine du site)", plain.headers.get("content-disposition") === 'attachment; filename="cv.pdf"');
+const pageKey = files.find((f) => f.page === 2 && f.format === "webp")?.key;
+const pg = await http(`/media/${pageKey}`);
+ok("PDF8 image de page : servie en image/webp, sans pièce jointe", pg.status === 200 && pg.headers.get("content-type") === "image/webp" && !pg.headers.get("content-disposition"), `${pg.status} ${pg.headers.get("content-type")}`);
+ok("PDF9 clés voisines inventées → 404", (await http(`/media/${docKey.replace("document.pdf", "autre.pdf")}`)).status === 404 && (await http(`/media/${docKey.replace("document.pdf", "p3-1600.webp")}`)).status === 404);
+const html = await (await http("/fr")).text();
+ok("PDF10 le nom du fichier envoyé n'atteint pas le site", !html.includes("Mon CV privé"));
+
+const before = query(dirP, "select count(*) n from media").n;
+r = await upload(jp, "long.pdf", "application/pdf", textPdf(11));
+ok("PDF11 11 pages → refusé (422, nombre de pages), aucune ligne, aucun fichier temporaire", r.status === 422 && /11 pages/.test(r.json?.message ?? "") && query(dirP, "select count(*) n from media").n === before && tmpCount() === 0, `${r.status} ${r.json?.message ?? ""} tmp=${tmpCount()}`);
+r = await upload(jp, "poly.pdf", "application/pdf", Buffer.concat([Buffer.from("<html><script>alert(1)</script>\n"), cv]));
+ok("PDF12 en-tête %PDF- précédé d'octets (polyglotte HTML/PDF) → refusé (415)", r.status === 415, `${r.status} ${r.json?.message ?? ""}`);
+r = await upload(jp, "faux.pdf", "application/pdf", Buffer.from("%PDF-1.7\nceci n'est pas un pdf\n"));
+ok("PDF13 PDF illisible → refusé à l'envoi (422, message clair)", r.status === 422 && /pas pu être lu/.test(r.json?.message ?? ""), `${r.status} ${r.json?.message ?? ""}`);
+const big = Buffer.concat([cv, Buffer.from(`%${"x".repeat(1024 * 1024 - 2)}\n`.repeat(16))]);
+r = await upload(jp, "lourd.pdf", "application/pdf", big);
+ok("PDF14 PDF de 17 Mo (envoi simple) → 413 (15 Mo au plus)", r.status === 413 && /15 Mo/.test(r.json?.message ?? ""), `${r.status} ${r.json?.message ?? ""}`);
+const init = await fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { cookie: jp.header(), origin: BASE, "content-type": "application/json" }, body: JSON.stringify({ name: "lourd.pdf", size: big.length, type: "application/pdf" }) });
+ok("PDF15 PDF de 17 Mo annoncé (envoi par morceaux) → 413 dès l'annonce", init.status === 413, String(init.status));
+const midPdf = Buffer.concat([textPdf(1), Buffer.from(`%${"y".repeat(1024 * 1024 - 2)}\n`.repeat(9))]);
+writeFileSync(`${TMP}/morceaux.pdf`, midPdf);
+const ch = await chunked(jp, `${TMP}/morceaux.pdf`, "morceaux.pdf", "application/pdf", { chunk: 8 * 1024 * 1024 });
+const chRow = ch.body.media?.id ? await waitMedia(dirP, ch.body.media.id, 120000) : null;
+ok("PDF16 PDF de 9 Mo par morceaux → reconnu à la fin (signature), traité", ch.status === 200 && ch.body.media?.kind === "pdf" && chRow?.status === "ready", `${ch.stage} ${ch.status} ${chRow?.status} ${chRow?.error ?? ""}`);
+r = await upload(jp, "script.pdf", "application/pdf", scriptedPdf());
+const jsRow = r.json?.media?.id ? await waitMedia(dirP, r.json.media.id, 120000) : null;
+ok("PDF17 PDF avec JavaScript (OpenAction) → accepté et rendu en images, rien d'exécuté (poppler n'a pas de moteur JS)", r.status === 200 && jsRow?.status === "ready", `${r.status} ${jsRow?.status} ${jsRow?.error ?? ""}`);
+const bombBuf = await imageBombPdf(30000);
+const memBefore = procMem(p.server.child.pid);
+const t0 = Date.now();
+r = await upload(jp, "bombe.pdf", "application/pdf", bombBuf);
+const bombRow = r.json?.media?.id ? await waitMedia(dirP, r.json.media.id, 180000) : null;
+const memAfter = procMem(p.server.child.pid);
+const left = spawnSync("pgrep", ["-x", "pdftoppm"], { encoding: "utf8" }).stdout.trim();
+const bombLog = serverLog(p.server, /\[jobs\] PDF \d+[^\n]+/g).pop() ?? "";
+ok(
+  `PDF18 bombe de décompression (${(bombBuf.length / 1024 / 1024).toFixed(1)} Mo → 900 Mo décodés) : rendu borné (prêt sous le plafond, ou échec lisible), serveur VmHWM ${memBefore.hwm} → ${memAfter.hwm} Mo, plus aucun pdftoppm`,
+  r.status === 200 && (bombRow?.status === "ready" || /trop lourd|n'a pas pu/.test(bombRow?.error ?? "")) && memAfter.hwm - memBefore.hwm < 150 && left === "" && Date.now() - t0 < 150000,
+  `${r.status} ${bombRow?.status} ${bombRow?.error ?? ""} | ${bombLog} | ${Math.round((Date.now() - t0) / 1000)} s`,
+);
+console.log(`      bombe : ${bombRow?.status} en ${Math.round((Date.now() - t0) / 1000)} s — ${bombLog || bombRow?.error}`);
+await stop(p.server);
 }
 
 // ---- Mesures : durée de conversion, VmHWM du serveur, pic et CPU de ffmpeg ---------------

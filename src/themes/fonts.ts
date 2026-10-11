@@ -10,10 +10,18 @@
  * autres se téléchargent à la demande quand un thème les utilise.
  */
 import {
+  Big_Shoulders,
+  Bowlby_One,
   Bricolage_Grotesque,
   Caveat,
   Chelsea_Market,
+  Courier_Prime,
   Figtree,
+  IBM_Plex_Mono,
+  IBM_Plex_Sans,
+  Inter_Tight,
+  Kalam,
+  Space_Grotesk,
   Spline_Sans_Mono,
   Young_Serif,
 } from "next/font/google";
@@ -63,6 +71,17 @@ const caveat = Caveat({
   variable: "--font-caveat",
 });
 
+// Polices des thèmes livrés v0.14 : jamais préchargées (téléchargées seulement
+// quand le thème affiché les utilise).
+const kalam = Kalam({ subsets: ["latin"], weight: ["400", "700"], display: "swap", preload: false, variable: "--font-kalam" });
+const courierPrime = Courier_Prime({ subsets: ["latin"], weight: ["400", "700"], display: "swap", preload: false, variable: "--font-courier-prime" });
+const bigShoulders = Big_Shoulders({ subsets: ["latin"], weight: ["600", "800"], display: "swap", preload: false, variable: "--font-big-shoulders" });
+const ibmPlexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "600"], display: "swap", preload: false, variable: "--font-ibm-plex-sans" });
+const ibmPlexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], display: "swap", preload: false, variable: "--font-ibm-plex-mono" });
+const interTight = Inter_Tight({ subsets: ["latin"], weight: ["400", "600"], display: "swap", preload: false, variable: "--font-inter-tight" });
+const bowlbyOne = Bowlby_One({ subsets: ["latin"], weight: "400", display: "swap", preload: false, variable: "--font-bowlby-one" });
+const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "600"], display: "swap", preload: false, variable: "--font-space-grotesk" });
+
 type FontEntry = FontStack & {
   /** Classe next/font qui déclare la variable CSS. */
   className: string;
@@ -75,6 +94,14 @@ const CLASSES: Record<FontId, string> = {
   "bricolage-grotesque": bricolage.variable,
   "chelsea-market": chelseaMarket.variable,
   caveat: caveat.variable,
+  kalam: kalam.variable,
+  "courier-prime": courierPrime.variable,
+  "big-shoulders": bigShoulders.variable,
+  "ibm-plex-sans": ibmPlexSans.variable,
+  "ibm-plex-mono": ibmPlexMono.variable,
+  "inter-tight": interTight.variable,
+  "bowlby-one": bowlbyOne.variable,
+  "space-grotesk": spaceGrotesk.variable,
 };
 
 export const FONT_CATALOG = Object.fromEntries(

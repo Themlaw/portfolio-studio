@@ -47,6 +47,7 @@ const names = [
   ["6 · Icônes", "icones"],
   ["Papier (tuile)", "papier"],
   ["4 · Cadre des images agrandies", "cadre-des-images-agrandies"],
+  ["4 · Cadre des entrées de collection", "cadre-des-entrees-de-collection"],
 ];
 ok("noms réduits (casse, accents, espaces, tirets, numérotation, précisions)", names.every(([n, want]) => looseName(n) === want), JSON.stringify(names.map(([n]) => looseName(n))));
 
@@ -61,6 +62,12 @@ const tree = [
   { name: "6 · ICONES", children: [L("Flèche gauche"), L("fleche-droite"), L("Fermer"), L("lecture"), L("doodle")] },
   { name: "accessoires", children: [L("scotch")] },
 ];
+// Cadre (lot médias) : la carte a changé de nom ; un kit v2/v3 déjà exporté
+// (ancien nom) comme un kit neuf donnent le même emplacement.
+for (const group of ["4 · Cadre des images agrandies", "4 · Cadre des entrées de collection"]) {
+  const r = resolveSlots([{ name: group, children: [L("Aperçu — ne pas modifier"), L("Cadre")] }], "v2");
+  ok(`cadre : groupe « ${group} » → emplacement cadre`, r.sources.has("cadre"), [...r.sources.keys()].join(","));
+}
 const res = resolveSlots(tree, "v2");
 ok("identifiant d'export lu dans un nom de calque de _guides", res.exportId === "k2-0123456789ab", String(res.exportId));
 const found = new Set(res.sources.keys());
@@ -249,6 +256,89 @@ try {
 }
 ok("canal compressé en ZIP : détecté et refusé avant décodage (« Compression ZIP non prise en charge »)", zipSeen && zipErr instanceof SlotRefusal && /Compression ZIP non prise en charge/.test(zipErr.message), String(zipErr));
 ok("fichier réel de l'artiste : aucun canal ZIP (RLE Photoshop)", !readPsd(readFileSync(fixture), { ...PSD_READ_OPTIONS }).children.some(function z(l) { return hasZipChannels(l) || (l.children ?? []).some(z); }));
+
+/* ---- Kit v3 : palette et curseurs, aller-retour réel (export → modif ag-psd → import) ---- */
+{
+  const { buildKit } = await kit("build.ts");
+  const { readHotspot, dominantColor, shapeFill, sameColor } = await kit("extras.ts");
+  const { withKitColors, kitColorFailures } = await kit("apply.ts");
+  const { CURSOR_SLOTS, SWATCH_SLOTS, frameOf: frameOfV, CURSOR_DEFAULT_HOTSPOT } = await kit("spec.ts");
+  const { PRESETS } = await import(new URL("../src/themes/presets/index.ts", import.meta.url));
+  const P = await import(new URL("../src/themes/palette.ts", import.meta.url));
+  // Thème de test : survol de l'action en « auto », le reste comme le preset.
+  const base = PRESETS["galerie-lumineuse"];
+  const auto = P.setNuance(base.tokens.color, undefined, "primaryHover", null);
+  const theme = { ...base, id: "test-v3", preset: false, tokens: { ...base.tokens, color: auto.color, palette: auto.palette } };
+  const mdir = path.join(tmp, "manifests-v3");
+  const { psd, manifest: m3 } = await buildKit(theme, path.join(root, "public"), { exportId: "k2-00000000beef", themeVersion: "t", siteName: "Camille Roussel", manifestDir: mdir });
+  const back = readPsd(psd, { useImageData: true, skipCompositeImageData: true, skipThumbnail: true });
+  ok("kit v3 : 4000 × 4880, groupes « 8 · Palette » et « 9 · Curseur »", back.width === 4000 && back.height === 4880 && ["8 · Palette", "9 · Curseur"].every((n) => back.children.some((l) => l.name === n)), `${back.width} × ${back.height}`);
+  const group = (n) => back.children.find((l) => l.name === n);
+  const swatchNames = group("8 · Palette").children.filter((l) => !/^Aperçu/.test(l.name)).map((l) => l.name);
+  ok(`une pastille nommée par couleur et par nuance (${swatchNames.length})`, swatchNames.length === SWATCH_SLOTS.length && swatchNames.includes("Action · survol") && swatchNames.includes("Fond · profond") && swatchNames.includes("Visionneuse · voile"), swatchNames.join(", "));
+  ok("pastilles pré-remplies avec les couleurs actuelles (manifeste)", m3.colors.primary === "#2e4e9e" && m3.colors.primaryHover === auto.color.primaryHover && m3.colors.line === "#e5e2db");
+  const normal = group("9 · Curseur").children.find((l) => l.name === "Normal");
+  ok("curseur : groupe « Normal » = dessin + repère « point chaud »", normal?.children?.map((l) => l.name).join("|") === "Dessin|point chaud");
+
+  // Modifications « dans Photoshop » : survol repeint, accent (base) repeint, curseur normal redessiné et point chaud déplacé.
+  const paint = (layer, [r, g, b]) => {
+    const d = layer.imageData.data;
+    for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 0) d.set([r, g, b, 255], i);
+  };
+  const pal = group("8 · Palette").children;
+  paint(pal.find((l) => l.name === "Action · survol"), [0x8b, 0x1e, 0x3f]);
+  paint(pal.find((l) => l.name === "Accent secondaire"), [0x8a, 0x4a, 0x20]);
+  const drawing = normal.children.find((l) => l.name === "Dessin");
+  const zone = frameOfV(CURSOR_SLOTS[0], "v2");
+  const cw = 64;
+  const cur = new Uint8ClampedArray(cw * cw * 4);
+  for (let y = 6; y < 40; y++) for (let x = 6; x < 30; x++) cur.set(x < 9 || y < 9 || x > 26 || y > 36 ? [255, 255, 255, 255] : [200, 30, 60, 255], (y * cw + x) * 4);
+  Object.assign(drawing, { left: zone.x, top: zone.y, right: zone.x + cw, bottom: zone.y + cw, imageData: { width: cw, height: cw, data: cur } });
+  const marker = normal.children.find((l) => l.name === "point chaud");
+  for (const k of ["left", "right"]) marker[k] += 6;
+  for (const k of ["top", "bottom"]) marker[k] += 8;
+  const edited = path.join(tmp, "kit-v3-modifie.psd");
+  writeFileSync(edited, writePsdBuffer({ width: back.width, height: back.height, children: back.children }, { noBackground: true }));
+
+  const current = P.resolvePalette(theme.tokens.color, theme.tokens.palette);
+  const r3 = await importKit(edited, path.join(tmp, "out-v3"), { manifests: [m3], themeId: "test-v3", palette: current });
+  const col = (k) => r3.colors?.find((c) => c.key === k);
+  ok(`import : kit d'origine reconnu (${r3.reference?.how})`, r3.reference?.exportId === "k2-00000000beef", JSON.stringify(r3.reference));
+  ok("import : survol repeint → changé, lu #8b1e3f", col("primaryHover")?.change === "changed" && col("primaryHover")?.after === "#8b1e3f" && col("primaryHover")?.before === current.primaryHover, JSON.stringify(col("primaryHover")));
+  ok("import : base « Accent secondaire » repeinte → changée", col("secondary")?.change === "changed" && col("secondary")?.after === "#8a4a20");
+  const unchanged = r3.colors.filter((c) => c.change === "unchanged").length;
+  ok(`import : les ${SWATCH_SLOTS.length - 2} autres pastilles inchangées`, unchanged === SWATCH_SLOTS.length - 2, r3.colors.filter((c) => c.change !== "unchanged").map((c) => c.key).join(","));
+  const cn = r3.slots.find((x) => x.id === "curseur/normal");
+  const cc = r3.slots.find((x) => x.id === "curseur/clic");
+  ok("import : curseur normal redessiné, point chaud déplacé (4,4)+(6,8) px de la case → (5, 6) px CSS", cn?.change === "redrawn" && cn.hotspot?.x === 5 && cn.hotspot?.y === 6, JSON.stringify({ change: cn?.change, hotspot: cn?.hotspot, msg: cn?.messages }));
+  ok("import : curseur « clic » laissé tel quel → inchangé (curseur du système gardé)", cc?.change === "unchanged", cc?.change);
+  const png = cn?.files?.find((f) => !f.endsWith(".2x.png"));
+  const png2 = cn?.files?.find((f) => f.endsWith(".2x.png"));
+  const m1 = png ? await sharp(path.join(tmp, "out-v3", png)).metadata() : {};
+  const m2 = png2 ? await sharp(path.join(tmp, "out-v3", png2)).metadata() : {};
+  ok(`import : PNG 32 × 32 (${readFileSync(path.join(tmp, "out-v3", png)).length} o) et 64 × 64 (${readFileSync(path.join(tmp, "out-v3", png2)).length} o)`, m1.width === 32 && m1.height === 32 && m2.width === 64 && m2.height === 64 && m1.format === "png");
+  ok("import : curseur au contour blanc visible sur les fonds (pas d'avertissement)", !cn.messages.some((x) => /invisible/.test(x)), cn.messages.join(" | "));
+
+  // Application : survol forcé, accent secondaire changé ; étiquettes (auto) suivent ; contraste vérifié.
+  const tokens = withKitColors(theme.tokens, r3);
+  ok("application : survol devient « choisi » (#8b1e3f), sorti de palette.auto", tokens.color.primaryHover === "#8b1e3f" && !tokens.palette?.auto?.includes("primaryHover"), JSON.stringify(tokens.palette));
+  ok("application : étiquettes (auto) suivent le nouvel accent secondaire", P.resolvePalette(tokens.color, tokens.palette).eyebrow === "#8a4a20");
+  ok("application : contraste AA tenu", kitColorFailures(theme, r3).length === 0, kitColorFailures(theme, r3).join(" ; "));
+  // Base changée, nuance auto inchangée : elle reste auto et suit la base.
+  const r3b = { ...r3, colors: [{ key: "primary", label: "Action", change: "changed", before: "#2e4e9e", after: "#1d3b80", messages: [] }] };
+  const t2 = withKitColors(theme.tokens, r3b);
+  ok("pastille inchangée d'une nuance auto : reste auto, suit sa base repeinte", t2.palette?.auto?.includes("primaryHover") && t2.color.primaryHover === P.deriveNuance("primaryHover", P.resolvePalette(t2.color, t2.palette)) && t2.color.primaryHover !== auto.color.primaryHover);
+  const bad = { ...r3, colors: [{ key: "inkSoft", label: "Texte · secondaire", change: "changed", before: "#686d73", after: "#dddddd", messages: [] }] };
+  ok("application : couleur repeinte illisible → refus motivé", kitColorFailures(theme, bad).some((x) => /Texte secondaire/.test(x)));
+
+  // Lecture des pastilles : pixel dominant, calque de forme Photoshop, comparaison.
+  const half = { width: 4, height: 1, data: Buffer.from([10, 20, 30, 255, 10, 20, 30, 255, 10, 20, 30, 255, 200, 0, 0, 255]) };
+  ok("pastille : couleur la plus présente (75 %)", (() => { const d = dominantColor(half); return d.r === 10 && d.g === 20 && d.b === 30 && d.share === 0.75; })());
+  ok("pastille : calque de forme → couleur de remplissage (RVB et FRGB)", shapeFill([{ name: "x", vectorFill: { type: "color", color: { r: 12, g: 34, b: 56 } } }])?.g === 34 && shapeFill([{ name: "x", vectorFill: { type: "color", color: { fr: 1, fg: 0, fb: 0.5 } } }])?.b === 128);
+  ok("comparaison de couleurs : hex et rgba", sameColor("#E5E2DB", "#e5e2db") && sameColor("rgba(237, 232, 220, 0.14)", "rgba(237,232,220,0.14)") && !sameColor("#000000", "#000001"));
+  ok("point chaud : repère supprimé → défaut + message", readHotspot(undefined, zone, CURSOR_DEFAULT_HOTSPOT.default).message?.includes("introuvable"));
+  ok("ancien kit (v1, fichier réel) : ni palette ni curseurs rapportés", !report.colors && report.extras?.palette === false && !report.slots.some((x) => x.id.startsWith("curseur/")), JSON.stringify(report.extras));
+}
 
 rmSync(tmp, { recursive: true, force: true });
 if (failures) {

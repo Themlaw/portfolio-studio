@@ -28,6 +28,10 @@ export type KitManifest = {
   slots: Record<string, { hash: string }>;
   /** Aperçus « avant » (fichiers PNG à côté du manifeste), par emplacement. */
   previews?: Record<string, string>;
+  /** Kit v3 : couleur exportée de chaque pastille (clé de palette → valeur effective). */
+  colors?: Record<string, string>;
+  /** Kit v3 : point chaud exporté de chaque curseur (px de la case 64 × 64). */
+  hotspots?: Record<string, { x: number; y: number }>;
 };
 
 /** Empreinte des pixels d'un emplacement (RVBA dans sa boîte). */

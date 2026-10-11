@@ -34,7 +34,9 @@ export default function GridBlock({ props, ctx, children }: { props: z.infer<typ
   const hasHeading = Boolean(props.eyebrow || props.title || ctx.edit);
   if (!cells.length && !ctx.edit && !props.title && !props.eyebrow) return null;
   return (
-    <section className={`shell ${props.top === "gap" ? "pt-[var(--section-gap)]" : ""}`}>
+    // Espace en bas (v0.13.1) : la grille se referme sur son propre pas (l'écart entre
+    // cellules), comme une planche sur sa marge ; le bloc suivant ne colle plus.
+    <section className={`block-grid-section shell ${props.top === "gap" ? "pt-[var(--section-gap)]" : ""}`}>
       {hasHeading && (props.eyebrow || props.title || ctx.edit) && (
         <>
           {(props.eyebrow || ctx.edit) && (

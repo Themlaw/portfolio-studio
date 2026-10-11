@@ -45,4 +45,44 @@ export const FONT_STACKS: Record<FontId, FontStack> = {
     stack: 'var(--font-caveat), "Segoe Print", "Bradley Hand", cursive',
     headingWeight: 600,
   },
+  kalam: {
+    label: "Kalam",
+    stack: 'var(--font-kalam), "Segoe Print", "Bradley Hand", cursive',
+    headingWeight: 700,
+  },
+  "courier-prime": {
+    label: "Courier Prime",
+    stack: 'var(--font-courier-prime), "Courier New", ui-monospace, monospace',
+    headingWeight: 700,
+  },
+  "big-shoulders": {
+    label: "Big Shoulders",
+    stack: 'var(--font-big-shoulders), "Arial Narrow", ui-sans-serif, sans-serif',
+    headingWeight: 800,
+  },
+  "ibm-plex-sans": {
+    label: "IBM Plex Sans",
+    stack: "var(--font-ibm-plex-sans), ui-sans-serif, system-ui, sans-serif",
+    headingWeight: 600,
+  },
+  "ibm-plex-mono": {
+    label: "IBM Plex Mono",
+    stack: "var(--font-ibm-plex-mono), ui-monospace, SFMono-Regular, monospace",
+    headingWeight: 500,
+  },
+  "inter-tight": {
+    label: "Inter Tight",
+    stack: "var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif",
+    headingWeight: 600,
+  },
+  "bowlby-one": {
+    label: "Bowlby One",
+    stack: 'var(--font-bowlby-one), Impact, "Arial Black", sans-serif',
+    headingWeight: 400,
+  },
+  "space-grotesk": {
+    label: "Space Grotesk",
+    stack: "var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif",
+    headingWeight: 600,
+  },
 };

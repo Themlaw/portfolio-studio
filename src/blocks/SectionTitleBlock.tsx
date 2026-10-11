@@ -31,7 +31,7 @@ export default async function SectionTitleBlock({ props, ctx }: { props: z.infer
   const title = props.linked ? (project?.title ?? "") : props.title ? tr(props.title, ctx.locale) : "";
   const intro = props.linked ? (project?.description ?? "") : props.intro ? tr(props.intro, ctx.locale) : null;
   const header = (
-    <header className="max-w-2xl" {...(draftProject ? { "data-edit-board": String(draftProject.id), "data-edit-board-label": project?.title } : {})}>
+    <header className="title-head max-w-2xl" {...(draftProject ? { "data-edit-board": String(draftProject.id), "data-edit-board-label": project?.title } : {})}>
       {(props.eyebrow || ctx.edit) && (
         <Eyebrow {...inline(ctx, "eyebrow")} {...ph("Étiquette")}>
           {props.eyebrow ? tr(props.eyebrow, ctx.locale) : ""}

@@ -3,13 +3,15 @@
  * active l'aperçu — draft mode, plus le cookie d'id si un thème est donné —
  * puis ouvre le site. `page=<id>` : ouvre cette page (pages non publiées
  * comprises) avec le thème en ligne. Admin connecté et même origine obligatoires.
+ * L'écran d'origine (champ `retour`, sinon Referer, s'il est dans l'admin) est
+ * retenu : « Quitter l'aperçu » y ramène.
  */
 import { eq } from "drizzle-orm";
 import { cookies, draftMode } from "next/headers";
 
 import { assertAdmin } from "@/lib/auth/guard";
 import { getDb, schema } from "@/lib/db";
-import { isSameOrigin } from "@/lib/preview";
+import { adminScreen, isSameOrigin, PREVIEW_FROM_COOKIE } from "@/lib/preview";
 import { getTheme, PREVIEW_COOKIE } from "@/lib/theme";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +36,9 @@ export async function POST(request: Request) {
 
   (await draftMode()).enable();
   const jar = await cookies();
+  const from = adminScreen(String(form?.get("retour") ?? "") || request.headers.get("referer"));
+  if (from) jar.set(PREVIEW_FROM_COOKIE, from, { path: "/", httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 60 * 60 * 24 });
+  else jar.delete(PREVIEW_FROM_COOKIE);
   if (pageId) {
     // Aperçu d'une page : avec le thème en ligne, pas un thème en essai.
     jar.delete(PREVIEW_COOKIE);

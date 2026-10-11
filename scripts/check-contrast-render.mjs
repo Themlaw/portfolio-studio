@@ -22,12 +22,13 @@
  * Usage : PORT=3001 npm run check:contrast:render [preset…]
  * Sortie : tableau + screenshots/contrast-render.json ; exit 1 si échec.
  */
-import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { chromium } from "playwright";
+
+import { loadPresets } from "./lib/presets.mjs";
 
 const PORT = process.env.PORT ?? "3001";
 const BASE = `http://localhost:${PORT}`;
-const presetDir = new URL("../src/themes/presets/", import.meta.url);
 const OUT = new URL("../screenshots/", import.meta.url).pathname;
 
 /** Groupes mesurés : [libellé, sélecteur, seuil, portée]. portée "top" = mesuré
@@ -73,13 +74,9 @@ const ADMIN_GROUPS = [
   ["aides", ".a-help, .a-field-error, .a-save-state, .a-tag, .a-block-summary, .a-notice, .a-readonly", 4.5, "scroll"],
 ];
 
-const all = readdirSync(presetDir).filter((f) => f.endsWith(".ts") && f !== "index.ts");
 const wanted = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 const presets = [];
-for (const f of all.sort()) {
-  const p = (await import(new URL(f, presetDir))).default;
-  if (!wanted.length || wanted.includes(p.id)) presets.push(p);
-}
+presets.push(...(await loadPresets(wanted)));
 
 /** Calcul dans la page (canvas) : médiane / p5 des ratios pixel par pixel. */
 async function ratios(page, b64, color) {

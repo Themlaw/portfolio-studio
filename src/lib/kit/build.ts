@@ -8,7 +8,7 @@
  * Le manifeste (empreinte de chaque emplacement, aperçus « avant ») permet à
  * l'import de reconnaître ce qui n'a pas été redessiné.
  */
-import { readFile, rm } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -17,9 +17,10 @@ import sharp, { type OutputInfo, type OverlayOptions } from "sharp";
 
 import { ensureAgPsd } from "./ag-psd-node";
 import { asImported, frameHash, saveManifest, writePreview, type KitManifest } from "./manifest";
-import { BOARD, DOC, element, ELEMENTS, EXPORT_ID_PREFIX, frameOf, GUIDES_GROUP, HERO, ICON_STEP, KIT_VERSION, PREVIEW_LAYER, README_FRAME, README_LAYER, README_LINES, SLOTS, TITLE_ZONE, zonesWidth, type ElementSpec, type SlotSpec } from "./spec";
+import { ALL_SLOTS, BOARD, CURSOR, CURSOR_DEFAULT_HOTSPOT, CURSOR_DRAWING_LAYER, DOC, element, ELEMENTS, EXPORT_ID_PREFIX, frameOf, GUIDES_GROUP, HERO, HOTSPOT_LAYER, ICON_STEP, KIT_VERSION, PREVIEW_LAYER, README_FRAME, README_LAYER, README_LINES, SWATCH, TITLE_ZONE, zonesWidth, type ElementSpec, type SlotSpec } from "./spec";
 import { KIT_FONTS } from "./fonts";
 import { closeVignetteSvg, HIGHLIGHT, vignetteSvg } from "./vignettes";
+import { isAuto, isNuance, NUANCE_KEYS, parseColor, resolvePalette } from "@/themes/palette";
 import type { Theme } from "@/themes/schema";
 
 type Raster = { width: number; height: number; data: Uint8ClampedArray };
@@ -108,10 +109,54 @@ function currentLookSvg(slot: SlotSpec, theme: Theme): string {
       // Triangle de lecture du site (viewBox 16 × 18), agrandi et centré.
       return `${open}<path d="M2 1.5 14.5 9 2 16.5Z" transform="translate(20 16) scale(5.333)" fill="${c.ink}"/></svg>`;
     }
+    case "swatch":
+      // Pastilles : swatchRaster (pixels exacts).
+      return `${open}</svg>`;
+    case "cursor":
+      // Représentation des curseurs du système (flèche, main), noir au contour blanc, en 2x.
+      return slot.cursor === "pointer"
+        ? `${open}<path d="${HAND_PATH}" fill="#000000" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke"/></svg>`
+        : `${open}<path d="${ARROW_PATH}" fill="#000000" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke"/></svg>`;
     case "tape":
       // Scotch CSS : surface à 58 %, bords en pointillés (encre 10 %), de travers (-3°).
       return `${open}<g transform="rotate(-3 ${w / 2} ${h / 2})"><rect x="44" y="47" width="312" height="72" fill="${c.ink}" fill-opacity="0.06"/><rect x="44" y="44" width="312" height="72" fill="${c.surface}" fill-opacity="0.58"/><path d="M44 44 V116 M356 44 V116" stroke="${c.ink}" stroke-opacity="0.1" stroke-width="3" stroke-dasharray="7 5"/></g></svg>`;
   }
+}
+
+/* ---- Curseurs (lot 4) ---- */
+/** Flèche du système (case 64 × 64, 2x) : pointe en (4, 4). */
+const ARROW_PATH = "M4 4 L4 50 L15 39 L22 55 L29 52 L22 36 L37 36 Z";
+/** Main du système : bout de l'index en (26, 4). */
+const HAND_PATH =
+  "M22 8 Q22 3 26.5 3 Q31 3 31 8 L31 26 Q31 22 35.5 22 Q40 22 40 26.5 L40 28 Q40 24 44.5 24 Q49 24 49 28.5 L49 31 Q49 27 52.5 27 Q56 27 56 31 L56 46 Q56 60 42 60 L30 60 Q22 60 17 52 L9 40 Q7 36 10.5 34.5 Q14 33 17 37 L22 43 Z";
+/** Repère du point chaud : anneau rose de 11 × 11 px centré sur le point (son centre fait foi à l'import). */
+const HOTSPOT_R = 5;
+async function hotspotRaster(): Promise<Raster> {
+  const d = 2 * HOTSPOT_R + 1;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}"><circle cx="${d / 2}" cy="${d / 2}" r="${HOTSPOT_R - 1}" fill="none" stroke="${HIGHLIGHT}" stroke-width="2"/></svg>`;
+  return toRaster(await sharp(Buffer.from(svg)).ensureAlpha().raw().toBuffer({ resolveWithObject: true }));
+}
+/* ---- fin Curseurs (lot 4) ---- */
+
+/**
+ * Pastille de la palette, pixels écrits directement (pas de rendu SVG : la
+ * couleur exacte, transparence comprise, sans arrondi de rééchantillonnage) :
+ * carré aux coins arrondis, bords nets.
+ */
+export function swatchRaster(color: string, size: number): Raster {
+  const p = parseColor(color) ?? { rgb: [0, 0, 0] as [number, number, number], alpha: 1 };
+  const a = Math.round(p.alpha * 255);
+  const data = new Uint8ClampedArray(size * size * 4);
+  const r = 22;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = Math.max(r - x - 0.5, x + 0.5 - (size - r), 0);
+      const dy = Math.max(r - y - 0.5, y + 0.5 - (size - r), 0);
+      if (dx * dx + dy * dy > r * r) continue;
+      data.set([p.rgb[0], p.rgb[1], p.rgb[2], a], (y * size + x) * 4);
+    }
+  }
+  return { width: size, height: size, data };
 }
 
 /** Nom du site dans la police de titre du thème, à sa graisse, encre sur transparent, centré dans la case. */
@@ -142,10 +187,10 @@ const TITLE_H = 62;
  * emplacements) : fond blanc percé à l'endroit des cases, titre au-dessus,
  * phrase « où », vignette, consignes, libellés des icônes.
  */
-async function cardRaster(el: ElementSpec, colors: Theme["tokens"]["color"], fontFile: string): Promise<{ raster: Raster; x: number; y: number }> {
+async function cardRaster(el: ElementSpec, colors: Theme["tokens"]["color"], fontFile: string, autoKeys: Set<string> = new Set()): Promise<{ raster: Raster; x: number; y: number }> {
   const b = el.board;
   const H = b.h + TITLE_H;
-  const slots = SLOTS.filter((s) => s.element === el.id);
+  const slots = ALL_SLOTS.filter((s) => s.element === el.id);
   // Cases percées (la transparence du calque reste visible dans Photoshop).
   const holes = slots.map((s) => {
     const f = frameOf(s, "v2");
@@ -157,8 +202,10 @@ async function cardRaster(el: ElementSpec, colors: Theme["tokens"]["color"], fon
   parts.push({ ...rawInput(title), left: 4, top: Math.max(0, TITLE_H - title.height - 6) });
 
   // Panneau à droite des cases.
-  const px = BOARD.pad + zonesWidth(el) + BOARD.gap;
-  const pw = el.id === "paysage" ? BOARD.heroPanel : BOARD.panel;
+  const compact = el.id === "palette" || el.id === "curseur";
+  // Palette, curseurs : les libellés sous les cases sont plus larges que les cases.
+  const px = BOARD.pad + zonesWidth(el) + (el.id === "palette" ? SWATCH.col - SWATCH.size : el.id === "curseur" ? CURSOR.step - CURSOR.size : 0) + BOARD.gap;
+  const pw = el.id === "paysage" ? BOARD.heroPanel : compact ? b.w - px - BOARD.pad : BOARD.panel;
   let py = TITLE_H + BOARD.pad;
   const where = await textRaster(`<span foreground="#1f2226">${esc(el.where)}</span>`, fontFile, TEXT.body, pw);
   parts.push({ ...rawInput(where), left: px, top: py });
@@ -169,6 +216,11 @@ async function cardRaster(el: ElementSpec, colors: Theme["tokens"]["color"], fon
     const vh = Math.round(vw * 0.62);
     parts.push({ input: Buffer.from(vignetteSvg(el.id, colors, vw, vh)), left: px, top: py });
     py += vh + 26;
+    const text = await textRaster(`<span foreground="#1f2226">${rules}</span>`, fontFile, TEXT.body, pw);
+    parts.push({ ...rawInput(text), left: px, top: py });
+    py += text.height;
+  } else if (compact) {
+    // Palette, curseurs : pas de vignette (les pastilles et les cases parlent d'elles-mêmes).
     const text = await textRaster(`<span foreground="#1f2226">${rules}</span>`, fontFile, TEXT.body, pw);
     parts.push({ ...rawInput(text), left: px, top: py });
     py += text.height;
@@ -183,13 +235,19 @@ async function cardRaster(el: ElementSpec, colors: Theme["tokens"]["color"], fon
   }
   if (py > H - 12) throw new Error(`carte « ${el.group} » : le panneau déborde (${py} > ${H - 12} px)`);
 
-  // Libellés sous les icônes.
-  if (el.id === "icones") {
+  // Libellés sous les icônes, les pastilles et les curseurs.
+  if (el.id === "icones" || compact) {
+    const step = el.id === "icones" ? ICON_STEP : el.id === "palette" ? SWATCH.col : CURSOR.step;
     for (const s of slots) {
       const f = frameOf(s, "v2");
-      const label = await textRaster(`<span foreground="#1f2226">${esc(s.label)}</span>`, fontFile, TEXT.label);
-      if (label.width > ICON_STEP - 16) throw new Error(`libellé trop large : ${s.label}`);
-      parts.push({ ...rawInput(label), left: f.x - b.x, top: f.y - b.y + TITLE_H + f.h + 14 });
+      // Pastille : la base en gras, la nuance dessous ; « auto » si elle suit sa base.
+      const name = s.kind === "cursor" ? s.layer : s.label;
+      const text = s.kind === "swatch" && s.paletteKey && !isNuance(s.paletteKey) ? `<b>${esc(name)}</b>` : esc(name) + (s.paletteKey && autoKeys.has(s.paletteKey) ? " (auto)" : "");
+      const label = await textRaster(`<span foreground="#1f2226">${text}</span>`, fontFile, TEXT.label, step - 16);
+      if (label.width > step - 16) throw new Error(`libellé trop large : ${s.label}`);
+      const top = f.y - b.y + TITLE_H + f.h + 14;
+      if (top + label.height > H - 6) throw new Error(`libellé hors de la carte : ${s.label}`);
+      parts.push({ ...rawInput(label), left: f.x - b.x, top });
     }
   }
   const { data, info } = await sharp(Buffer.from(card)).ensureAlpha().composite(parts).raw().toBuffer({ resolveWithObject: true });
@@ -203,7 +261,7 @@ async function guidesRaster(el: ElementSpec, fontFile: string): Promise<{ raster
   const labels: { x: number; y: number; text: string; color: string }[] = [];
   const rect = (x: number, y: number, w: number, h: number, color: string, dash = "") =>
     parts.push(`<rect x="${x - 2}" y="${y - 2}" width="${w + 4}" height="${h + 4}" fill="none" stroke="${color}" stroke-width="3" ${dash ? `stroke-dasharray="${dash}"` : ""}/>`);
-  const slots = SLOTS.filter((s) => s.element === el.id);
+  const slots = ALL_SLOTS.filter((s) => s.element === el.id);
   for (const s of slots) {
     const f = frameOf(s, "v2");
     const x = f.x - b.x;
@@ -222,7 +280,7 @@ async function guidesRaster(el: ElementSpec, fontFile: string): Promise<{ raster
     }
   }
   if (el.id === "paysage") {
-    const f = frameOf(SLOTS[0], "v2");
+    const f = frameOf(ALL_SLOTS[0], "v2");
     const ox = f.x - b.x;
     const oy = f.y - b.y;
     rect(ox + TITLE_ZONE.x, oy + TITLE_ZONE.y, TITLE_ZONE.w, TITLE_ZONE.h, HIGHLIGHT, "18 10");
@@ -292,6 +350,10 @@ function layerAt(name: string, x: number, y: number, r: Raster, extra: Partial<L
   }
   return { name, left: x + left, top: y + top, right: x + left + img.width, bottom: y + top + img.height, imageData: img, ...extra };
 }
+/** Mesure de l'export par étape (KIT_MEM_DEBUG=1 : pic et RSS courant sur stderr). */
+const memStep = (step: string) => {
+  if (process.env.KIT_MEM_DEBUG) console.error(`[kit-mem] ${step} : pic ${Math.round(process.resourceUsage().maxRSS / 1024)} Mo, rss ${Math.round(process.memoryUsage().rss / 1048576)} Mo`);
+};
 /** Ramasse-miettes explicite (processus enfant lancé avec --expose-gc). */
 const gc = () => (globalThis as { gc?: () => void }).gc?.();
 const LOCKED = { protected: { transparency: true, composite: true, position: true } };
@@ -365,30 +427,33 @@ function packBits(row: Uint8Array, out: Buffer): Buffer {
 }
 
 /**
- * Section « image composite » d'un PSD RVB 8 bits sans alpha, depuis un PNG
- * lu en flux : compression RLE, comptes d'octets de toutes les lignes de
- * toutes les couches, puis les lignes couche par couche.
+ * Section « image composite » d'un PSD RVB 8 bits sans alpha, depuis un
+ * fichier au format natif de libvips (`.v` : en-tête de 64 octets puis les
+ * pixels RVB(A) entrelacés, non compressés ; l'alpha éventuel est ignoré) lu ligne à ligne sur le disque :
+ * aucun décodage (un PNG relu en flux coûtait ~120 Mo de plus au pic).
+ * Compression RLE, comptes d'octets de toutes les lignes de toutes les
+ * couches, puis les lignes couche par couche.
  */
-async function compositeRle(file: string): Promise<Buffer> {
+async function compositeRle(file: string, channels: number): Promise<Buffer> {
   const { width, height } = DOC;
   const rows: Buffer[][] = [[], [], []];
-  const stream = sharp(file).removeAlpha().raw();
-  let pending = Buffer.alloc(0);
+  const stride = width * channels;
+  const line = Buffer.alloc(stride);
   const plane = new Uint8Array(width);
   const scratch = Buffer.alloc(width + Math.ceil(width / 128) + 8);
-  for await (const chunk of stream) {
-    pending = pending.length ? Buffer.concat([pending, chunk as Buffer]) : Buffer.from(chunk as Buffer);
-    const stride = width * 3;
-    let off = 0;
-    for (; off + stride <= pending.length; off += stride) {
+  const fh = await open(file, "r");
+  try {
+    for (let y = 0; y < height; y++) {
+      const { bytesRead } = await fh.read(line, 0, stride, VIPS_HEADER + y * stride);
+      if (bytesRead !== stride) throw new Error(`composite : ligne ${y} incomplète`);
       for (let c = 0; c < 3; c++) {
-        for (let x = 0; x < width; x++) plane[x] = pending[off + x * 3 + c];
+        for (let x = 0; x < width; x++) plane[x] = line[x * channels + c];
         rows[c].push(packBits(plane, scratch));
       }
     }
-    pending = pending.subarray(off);
+  } finally {
+    await fh.close();
   }
-  if (rows[0].length !== height) throw new Error(`composite : ${rows[0].length} lignes lues sur ${height}`);
   const counts = Buffer.alloc(3 * height * 2);
   let i = 0;
   for (const channel of rows) for (const r of channel) counts.writeUInt16BE(r.length, 2 * i++);
@@ -396,6 +461,8 @@ async function compositeRle(file: string): Promise<Buffer> {
   head.writeUInt16BE(1, 0);
   return Buffer.concat([head, counts, ...rows[0], ...rows[1], ...rows[2]]);
 }
+/** En-tête du format natif de libvips (.v). */
+const VIPS_HEADER = 64;
 
 /** PSD du kit pour un thème. `publicDir` : dossier public/ (assets actuels du thème). */
 export async function buildKit(theme: Theme, publicDir: string, opts: BuildOptions): Promise<{ psd: Buffer; stats: KitBuildStats; manifest: KitManifest }> {
@@ -408,7 +475,10 @@ export async function buildKit(theme: Theme, publicDir: string, opts: BuildOptio
   const prefilled: string[] = [];
   const placeholders: string[] = [];
   const heroAssets = theme.assets.heroLayers ?? [];
-  const manifest: KitManifest = { exportId: opts.exportId, themeId: theme.id, themeVersion: opts.themeVersion, kitVersion: KIT_VERSION, slots: {}, previews: {} };
+  const manifest: KitManifest = { exportId: opts.exportId, themeId: theme.id, themeVersion: opts.themeVersion, kitVersion: KIT_VERSION, slots: {}, previews: {}, colors: {}, hotspots: {} };
+  // Palette : valeurs effectives exportées (comparées à l'import) et nuances « auto ».
+  const resolved = resolvePalette(colors, theme.tokens.palette);
+  const autoKeys = new Set<string>(NUANCE_KEYS.filter((k) => isAuto(colors, theme.tokens.palette, k)));
 
   const slotLayer = async (slot: SlotSpec): Promise<Layer> => {
     let raster: Raster | null = null;
@@ -425,6 +495,11 @@ export async function buildKit(theme: Theme, publicDir: string, opts: BuildOptio
         prefilled.push(slot.id);
       }
     }
+    if (!raster && slot.kind === "swatch") {
+      const value = resolved[slot.paletteKey!];
+      manifest.colors![slot.paletteKey!] = value;
+      raster = swatchRaster(value, slot.size.w);
+    }
     if (!raster && slot.kind === "signature") {
       raster = await signatureRaster(theme, opts.siteName, publicDir, slot);
       placeholders.push(slot.id);
@@ -436,7 +511,7 @@ export async function buildKit(theme: Theme, publicDir: string, opts: BuildOptio
     // Empreinte telle que l'import la recalculera ; aperçu « avant ».
     const imported = asImported({ width: raster.width, height: raster.height, data: Buffer.from(raster.data.buffer, raster.data.byteOffset, raster.data.length) });
     manifest.slots[slot.id] = { hash: frameHash(imported) };
-    if (opts.manifestDir) {
+    if (opts.manifestDir && slot.kind !== "swatch") {
       const file = `${opts.exportId}--${slot.id.replace(/\//g, "--")}.png`;
       await writePreview(imported, path.join(opts.manifestDir, file), slot.kind === "plan");
       manifest.previews![slot.id] = file;
@@ -450,19 +525,36 @@ export async function buildKit(theme: Theme, publicDir: string, opts: BuildOptio
   const ordered = [...ELEMENTS].sort((a, b) => b.group.localeCompare(a.group, "fr", { numeric: true }));
   const children: Layer[] = [];
   const guides: Layer[] = [];
+  const hotspotImg = await hotspotRaster();
   for (const el of ordered) {
-    const card = await cardRaster(el, colors, fontFile);
+    const card = await cardRaster(el, colors, fontFile, autoKeys);
     const inner: Layer[] = [layerAt(PREVIEW_LAYER, card.x, card.y, card.raster, LOCKED)];
     // Emplacements : plan 1 au fond (le dernier de la liste est au-dessus).
-    const slots = SLOTS.filter((s) => s.element === el.id);
-    const stack = el.id === "icones" ? [...slots].reverse() : slots;
-    for (const s of stack) inner.push(await slotLayer(s));
-    children.push({ name: el.group, opened: el.id === "paysage", children: inner });
+    const slots = ALL_SLOTS.filter((s) => s.element === el.id);
+    const stack = el.id === "icones" || el.id === "palette" || el.id === "curseur" ? [...slots].reverse() : slots;
+    for (const s of stack) {
+      if (s.kind !== "cursor") {
+        inner.push(await slotLayer(s));
+        continue;
+      }
+      // Curseur : un groupe « Normal » / « Clic » = le dessin et le repère du point chaud (au-dessus).
+      const drawing = await slotLayer(s);
+      drawing.name = CURSOR_DRAWING_LAYER;
+      const asset = opts.assets?.[s.id];
+      const hs = asset?.x !== undefined && asset.y !== undefined ? { x: asset.x * 2, y: asset.y * 2 } : CURSOR_DEFAULT_HOTSPOT[s.cursor!];
+      manifest.hotspots![s.id] = hs;
+      const f = frameOf(s, "v2");
+      const marker = layerAt(HOTSPOT_LAYER, f.x + hs.x - HOTSPOT_R, f.y + hs.y - HOTSPOT_R, hotspotImg);
+      inner.push({ name: s.layer, opened: true, children: [drawing, marker] });
+    }
+    children.push({ name: el.group, opened: el.id === "paysage" || el.id === "palette", children: inner });
     const g = await guidesRaster(el, fontFile);
     guides.unshift(layerAt(`repères · ${el.group}`, g.x, g.y, g.raster, LOCKED));
     // Rasters pleine case (avant rognage, copies d'empreinte) : rendus tout de suite.
     gc();
+    memStep(el.group);
   }
+  memStep("éléments rendus");
   // Identifiant d'export : dans un nom de calque (Photoshop garde les noms), à droite de la dernière rangée.
   const idText = await textRaster(`<span foreground="#6b7078">identifiant du kit :\n${opts.exportId}\n(ne pas supprimer)</span>`, fontFile, 22);
   const last = element("scotch").board;
@@ -484,22 +576,60 @@ export async function buildKit(theme: Theme, publicDir: string, opts: BuildOptio
   };
   collect(children);
   const layerCount = flat.length;
-  const compositeFile = opts.compositeFile ?? path.join(os.tmpdir(), `kit-composite-${process.pid}.png`);
-  await sharp({ create: { width: DOC.width, height: DOC.height, channels: 3, background: { r: 214, g: 216, b: 221 } } })
-    .composite(flat.map(({ r, x, y }) => ({ ...rawInput(r), left: x, top: y })))
-    .png({ compressionLevel: 1 })
-    .toFile(compositeFile);
-  flat.length = 0;
+  // Format natif de libvips (.v, non compressé, ~75 Mo) : relu ligne à ligne sans
+  // décodage. Sur le disque des données (à côté des manifestes), jamais dans /tmp :
+  // un tmpfs le compterait dans la mémoire (du conteneur). Restes d'un export tué
+  // (plafond mémoire, durée) : supprimés avant.
+  const workDir = opts.manifestDir ? path.dirname(opts.manifestDir) : os.tmpdir();
+  await mkdir(workDir, { recursive: true });
+  await purgeStaleComposites(workDir);
+  const compositeFile = path.join(workDir, `kit-composite-${process.pid}-${Date.now()}.v`);
+  try {
+    await sharp({ create: { width: DOC.width, height: DOC.height, channels: 3, background: { r: 214, g: 216, b: 221 } } })
+      .composite(flat.map(({ r, x, y }) => ({ ...rawInput(r), left: x, top: y })))
+      .toFile(compositeFile);
+    const vh = await sharp(compositeFile).metadata();
+    if (vh.width !== DOC.width || vh.height !== DOC.height || !vh.channels || vh.channels < 3 || vh.depth !== "uchar") throw new Error(`composite : format inattendu (${vh.width} × ${vh.height}, ${vh.channels} canaux, ${vh.depth})`);
+    flat.length = 0;
+    memStep("composite");
 
-  gc();
-  const psd: Psd = { width: DOC.width, height: DOC.height, children };
-  const blank = writePsdBuffer(psd, { noBackground: true });
-  // Calques rendus avant le réencodage du composite (pic de l'export).
-  children.length = 0;
-  guides.length = 0;
-  gc();
-  const buffer = Buffer.concat([psdWithoutComposite(blank), await compositeRle(compositeFile)]);
-  if (!opts.compositeFile) await rm(compositeFile, { force: true });
-  if (opts.manifestDir) await saveManifest(opts.manifestDir, manifest);
-  return { psd: buffer, stats: { layers: layerCount, prefilled, placeholders, exportId: opts.exportId }, manifest };
+    gc();
+    // Document déclaré en 1 × 1 à l'écriture : ag-psd alloue sinon un tampon de
+    // travail de 8 × largeur × hauteur et un composite vide de 4 × l × h (≈ 230 Mo
+    // pour 4000 × 4880) qu'on jette aussitôt. Les calques gardent leurs
+    // coordonnées absolues ; la vraie taille est réécrite dans l'en-tête (octets
+    // 14 et 18) et le vrai composite ajouté ensuite (export-kit.mts relit le tout).
+    const psd: Psd = { width: 1, height: 1, children };
+    const blank = writePsdBuffer(psd, { noBackground: true });
+    // Calques rendus avant le réencodage du composite (pic de l'export).
+    children.length = 0;
+    guides.length = 0;
+    gc();
+    memStep("PSD écrit");
+    const head = Buffer.from(psdWithoutComposite(blank));
+    head.writeUInt32BE(DOC.height, 14);
+    head.writeUInt32BE(DOC.width, 18);
+    const buffer = Buffer.concat([head, await compositeRle(compositeFile, vh.channels)]);
+    memStep("composite RLE");
+    if (opts.compositeFile) await sharp(compositeFile).png({ compressionLevel: 1 }).toFile(opts.compositeFile);
+    if (opts.manifestDir) await saveManifest(opts.manifestDir, manifest);
+    return { psd: buffer, stats: { layers: layerCount, prefilled, placeholders, exportId: opts.exportId }, manifest };
+  } finally {
+    await rm(compositeFile, { force: true });
+  }
+}
+
+/** Composites `.v` laissés par un export tué (processus disparu). */
+async function purgeStaleComposites(dir: string): Promise<void> {
+  for (const name of await readdir(dir).catch(() => [] as string[])) {
+    const m = /^kit-composite-(\d+)-\d+\.v$/.exec(name);
+    if (!m || Number(m[1]) === process.pid) continue;
+    let alive = true;
+    try {
+      process.kill(Number(m[1]), 0);
+    } catch {
+      alive = false;
+    }
+    if (!alive) await rm(path.join(/* turbopackIgnore: true */ dir, name), { force: true });
+  }
 }

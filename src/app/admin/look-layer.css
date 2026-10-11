@@ -1,0 +1,282 @@
+/* ==========================================================================
+   Mise en page sur la toile (lot 2) — src/components/edit/LookLayer.tsx.
+   Couleurs de l'admin (--pe-* du calque), jamais celles du thème ; aucune
+   couleur littérale (dérivées par color-mix).
+   ========================================================================== */
+.pe-host {
+  --lk-ink: var(--pe-ink);
+  --lk-ink-soft: color-mix(in srgb, var(--pe-ink) 62%, var(--pe-surface));
+  --lk-surface: var(--pe-surface);
+  --lk-line: color-mix(in srgb, var(--pe-ink) 18%, var(--pe-surface));
+  --lk-accent: var(--pe-accent);
+  --lk-accent-soft: var(--pe-accent-soft);
+  --lk-font: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  --lk-shadow: 0 8px 24px color-mix(in srgb, var(--pe-ink) 24%, transparent);
+}
+
+/* ---- Poignées d'espacement ------------------------------------------------ */
+.lk-space-zone {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--pe-accent) 16%, transparent) 0 6px, color-mix(in srgb, var(--pe-accent) 6%, transparent) 6px 12px);
+}
+.lk-space-zone[data-active] {
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--pe-accent) 30%, transparent) 0 6px, color-mix(in srgb, var(--pe-accent) 12%, transparent) 6px 12px);
+}
+.lk-space-value {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--pe-accent);
+  color: var(--pe-surface);
+  font: 600 11px/1.3 var(--lk-font);
+  white-space: nowrap;
+}
+.lk-space-handle {
+  position: absolute;
+  width: 44px;
+  height: 10px;
+  margin: 0;
+  padding: 0;
+  border: 2px solid var(--pe-surface);
+  border-radius: 999px;
+  background: var(--pe-accent);
+  box-shadow: var(--lk-shadow);
+  cursor: ns-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+.lk-space-handle:hover,
+.lk-space-handle:focus-visible {
+  outline: 2px solid var(--pe-accent);
+  outline-offset: 2px;
+}
+
+/* ---- « Aa » et barre typographique ---------------------------------------- */
+.lk-aa {
+  position: absolute;
+  min-width: 28px;
+  height: 22px;
+  margin: 0;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--pe-ink);
+  color: var(--pe-surface);
+  font: 700 12px/22px Georgia, serif;
+  box-shadow: var(--lk-shadow);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.lk-aa:hover,
+.lk-aa:focus-visible {
+  background: var(--pe-accent);
+  outline: none;
+}
+.lk-bar {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  gap: 6px;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 16px));
+  padding: 8px;
+  border: 1px solid var(--lk-line);
+  border-radius: 8px;
+  background: var(--pe-surface);
+  box-shadow: var(--lk-shadow);
+  pointer-events: auto;
+  translate: 0 -100%;
+}
+.lk-bar[data-below] {
+  translate: 0 0;
+}
+.lk-bar-head,
+.lk-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.lk-row-label {
+  color: var(--lk-ink-soft);
+  font-size: 11.5px;
+}
+.lk-seg {
+  display: inline-flex;
+  gap: 2px;
+}
+.lk-bar-head button,
+.lk-row button {
+  min-height: 26px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--lk-line);
+  border-radius: 5px;
+  background: var(--pe-surface);
+  color: var(--pe-ink);
+  font: 600 11.5px/1 var(--lk-font);
+  cursor: pointer;
+}
+.lk-bar-head [aria-checked="true"],
+.lk-row [aria-checked="true"] {
+  border-color: var(--pe-accent);
+  background: var(--pe-accent-soft);
+  color: var(--pe-accent);
+}
+.lk-close {
+  margin-left: auto !important;
+}
+
+/* ---- Position du titre ----------------------------------------------------- */
+.lk-pos {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--pe-ink);
+  box-shadow: var(--lk-shadow);
+  pointer-events: auto;
+}
+.lk-pos button {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--pe-surface);
+  cursor: pointer;
+}
+.lk-pos button:hover {
+  background: color-mix(in srgb, var(--pe-surface) 16%, transparent);
+}
+.lk-pos button[aria-pressed="true"] {
+  background: var(--pe-accent);
+}
+.lk-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 3px;
+  background: color-mix(in srgb, var(--pe-surface) 30%, transparent);
+}
+
+/* ---- Cadrage --------------------------------------------------------------- */
+.lk-crop-btn {
+  position: absolute;
+  min-height: 30px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--pe-ink);
+  color: var(--pe-surface);
+  font: 600 12px/1 var(--lk-font);
+  box-shadow: var(--lk-shadow);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.lk-crop-btn:hover,
+.lk-crop-btn:focus-visible {
+  background: var(--pe-accent);
+  outline: none;
+}
+.lk-crop-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--pe-ink) 55%, transparent);
+  pointer-events: auto;
+}
+.lk-crop {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  max-width: 92vw;
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--pe-surface);
+  box-shadow: var(--lk-shadow);
+  font: 500 13px/1.35 var(--lk-font);
+  outline: none;
+}
+.lk-crop-title {
+  margin: 0;
+  justify-self: start;
+  font-weight: 700;
+  font-size: 15px;
+}
+.lk-crop-help {
+  margin: 0;
+  justify-self: start;
+  color: var(--lk-ink-soft);
+  font-size: 12.5px;
+}
+.lk-crop-stage {
+  position: relative;
+  overflow: hidden;
+  background-size: 100% 100%;
+  touch-action: none;
+}
+/* Zone gardée claire ; le reste grisé (ombre portée immense, rognée par la scène). */
+.lk-crop-window {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid var(--pe-surface);
+  box-shadow: 0 0 0 9999px color-mix(in srgb, var(--pe-ink) 62%, transparent);
+  cursor: move;
+}
+.lk-crop-window::before,
+.lk-crop-window::after {
+  content: "";
+  position: absolute;
+  inset: 33.33% 0;
+  border-block: 1px solid color-mix(in srgb, var(--pe-surface) 45%, transparent);
+  pointer-events: none;
+}
+.lk-crop-window::after {
+  inset: 0 33.33%;
+  border-block: 0;
+  border-inline: 1px solid color-mix(in srgb, var(--pe-surface) 45%, transparent);
+}
+.lk-crop-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.lk-crop-actions button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--lk-line);
+  border-radius: 6px;
+  background: var(--pe-surface);
+  color: var(--pe-ink);
+  font: 600 12.5px/1 var(--lk-font);
+  cursor: pointer;
+}
+.lk-crop-actions .lk-primary {
+  border-color: var(--pe-accent);
+  background: var(--pe-accent);
+  color: var(--pe-surface);
+}
+.lk-crop-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.lk-spacer {
+  flex: 1;
+}

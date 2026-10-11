@@ -6,7 +6,8 @@
  * site, publié avec la page : src/lib/edit/site.ts).
  *
  * - Liens du menu (`data-nav-item`) : au survol, × pour retirer et poignée
- *   pour réordonner (glisser) ; « + Ajouter un lien » en bout de menu : une
+ *   pour réordonner (glisser) ; « + Ajouter un lien » sous le menu (au survol de
+ *   l'en-tête ou en-tête choisi) : une
  *   page du site (recherche) ou un lien libre. Renommer : double-clic
  *   (EditLayer, `data-site-inline="nav"`).
  * - Réseaux (`data-edit-socials` / `data-social-index`) : au survol, modifier
@@ -14,13 +15,13 @@
  *   « Autre lien ». Le réseau est reconnu d'après l'adresse collée.
  * Toute modification part vers l'éditeur (`site-op`), qui valide et enregistre.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { acceptToCanvas, EDIT_MSG, type FromCanvas } from "@/lib/edit/protocol";
-import { detectNetwork, NETWORK_LABELS, NETWORKS, safeNavHref, safeSocialHref, type Network } from "@/lib/site-schema";
+import { safeNavHref } from "@/lib/site-schema";
 
-import SocialIcon from "./SocialIcon";
+import SocialPicker from "./SocialPicker";
 
 type Rect = { top: number; left: number; width: number; height: number };
 
@@ -40,11 +41,10 @@ const fold = (s: string) =>
 type Hover = { kind: "nav" | "social"; index: number; list: Element } | null;
 type Popover = { kind: "nav-add"; anchor: Rect } | { kind: "social-add"; anchor: Rect } | { kind: "social-edit"; index: number; anchor: Rect; href: string } | null;
 
-const CLASSIC = NETWORKS.filter((n) => n !== "other");
-
 export default function SiteLayer({ mode, host, selected, announce }: { mode: "off" | "edit" | "preview"; host: HTMLElement | null; selected: string | null; announce: (t: string) => void }) {
   const [, setTick] = useState(0);
   const [hover, setHover] = useState<Hover>(null);
+  const [headerNear, setHeaderNear] = useState(false);
   const [pages, setPages] = useState<{ id: number; title: string }[]>([]);
   const [locked, setLocked] = useState<string | null>(null);
   const [pop, setPop] = useState<Popover>(null);
@@ -74,6 +74,10 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
       const t = e.target instanceof Element ? e.target : null;
       const nav = t?.closest<HTMLElement>("[data-edit-global='header'] [data-nav-item]");
       const social = t?.closest<HTMLElement>("[data-social-index]");
+      // « + Ajouter un lien » : seulement au survol de l'en-tête (ou sous lui, jusqu'à
+      // la pastille) ou en-tête choisi ; sinon il chevauchait le bloc suivant.
+      const head = document.querySelector("[data-edit-global='header']")?.getBoundingClientRect();
+      setHeaderNear(Boolean(head && e.clientY >= head.top && e.clientY <= head.bottom + 48 && e.clientX >= head.left && e.clientX <= head.right));
       if (nav) setHover({ kind: "nav", index: Number(nav.dataset.navItem), list: nav.parentElement! });
       else if (social) setHover({ kind: "social", index: Number(social.dataset.socialIndex), list: social.parentElement! });
       else setHover(null);
@@ -200,7 +204,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
 
       {drag && <div className="pe-drop pe-drop-cursor" style={drag.marker} aria-hidden="true" />}
 
-      {addNavBox && !locked && (
+      {addNavBox && !locked && (headerSelected || headerNear || pop?.kind === "nav-add") && (
         <button
           type="button"
           className="pe-add-chip"
@@ -210,7 +214,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
             top: addNavBox.top + addNavBox.height + 10,
             left: Math.min(Math.max(window.scrollX + 8, addNavBox.left + addNavBox.width - 130), window.scrollX + document.documentElement.clientWidth - 150),
           }}
-          onClick={() => setPop({ kind: "nav-add", anchor: addNavBox })}
+          onClick={(e) => setPop({ kind: "nav-add", anchor: rectOf(e.currentTarget) })}
         >
           + Ajouter un lien
         </button>
@@ -220,7 +224,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
         socialLists.map((list, i) => {
           const r = rectOf(list);
           return (
-            <button key={i} type="button" className="pe-add-chip" data-testid="social-add" style={{ top: r.top + r.height + 6, left: r.left }} onClick={() => setPop({ kind: "social-add", anchor: { ...r, top: r.top + r.height } })}>
+            <button key={i} type="button" className="pe-add-chip" data-testid="social-add" style={{ top: r.top + r.height + 6, left: r.left }} onClick={(e) => setPop({ kind: "social-add", anchor: rectOf(e.currentTarget) })}>
               + Réseau
             </button>
           );
@@ -234,18 +238,48 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
   );
 }
 
+/**
+ * Panneau ancré sous le bouton qui l'ouvre (coordonnées de la page). S'il ne
+ * tient pas sous lui dans la fenêtre, il s'ouvre au-dessus ; sinon il est
+ * amené dans la vue. Le focus y entre (premier champ ou premier choix).
+ */
 function Panel({ anchor, children, label, onClose }: { anchor: Rect; children: React.ReactNode; label: string; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const below = anchor.top + anchor.height + 8;
+  const close = useRef(onClose);
+  useEffect(() => {
+    close.current = onClose;
+  });
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
-      if (ref.current && e.target instanceof Node && !ref.current.contains(e.target)) onClose();
+      if (ref.current && e.target instanceof Node && !ref.current.contains(e.target)) close.current();
     };
     const t = setTimeout(() => document.addEventListener("pointerdown", onDown, true), 0);
     return () => {
       clearTimeout(t);
       document.removeEventListener("pointerdown", onDown, true);
     };
-  }, [onClose]);
+  }, []);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const place = () => {
+      const h = el.offsetHeight;
+      const viewTop = window.scrollY + 8;
+      const viewBottom = window.scrollY + window.innerHeight - 8;
+      const next = below + h > viewBottom && anchor.top - 8 - h >= viewTop ? anchor.top - 8 - h : below;
+      // Directement sur l'élément : React ne réécrit `top` que si l'ancre change.
+      el.style.top = `${next}px`;
+      // Ni dessous ni dessus dans la fenêtre : la toile défile jusqu'au panneau.
+      if (next + h > viewBottom || next < viewTop) window.scrollTo({ top: Math.max(0, next - Math.max(8, (window.innerHeight - h) / 2)), behavior: "instant" });
+      if (!el.contains(document.activeElement)) el.querySelector<HTMLElement>("input, button, select, textarea")?.focus({ preventScroll: true });
+    };
+    place();
+    // Contenu qui change de taille (2e étape d'un choix) : replacé.
+    const ro = new ResizeObserver(place);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [anchor.top, anchor.height, below]);
   const left = Math.max(window.scrollX + 8, Math.min(anchor.left, window.scrollX + document.documentElement.clientWidth - 340));
   return (
     <div
@@ -253,7 +287,7 @@ function Panel({ anchor, children, label, onClose }: { anchor: Rect; children: R
       className="pe-popover"
       role="dialog"
       aria-label={label}
-      style={{ top: anchor.top + anchor.height + 10, left }}
+      style={{ top: below, left }}
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === "Escape") onClose();
@@ -322,78 +356,31 @@ function NavAddPopover({ anchor, pages, onClose }: { anchor: Rect; pages: { id: 
   );
 }
 
-/** « + Réseau » (ou modifier un lien) : réseaux classiques, « Autre lien », reconnaissance de l'adresse. */
+const PICKER_CLASSES = {
+  title: "pe-popover-title",
+  grid: "pe-network-grid",
+  form: "pe-popover-form",
+  field: "pe-board-field",
+  hint: "pe-popover-hint",
+  error: "pe-popover-error",
+  button: "pe-btn",
+  back: "pe-link-btn",
+};
+
+/** « + Réseau » (ou modifier un lien) : le choix de réseau partagé avec l'écran Réglages (SocialPicker). */
 function SocialPopover({ anchor, editIndex, initialHref = "", onClose }: { anchor: Rect; editIndex?: number; initialHref?: string; onClose: () => void }) {
-  const [network, setNetwork] = useState<Network | null>(editIndex !== undefined ? (detectNetwork(initialHref) ?? "other") : null);
-  const [href, setHref] = useState(initialHref);
-  const [label, setLabel] = useState("");
-  const detected = href.trim() ? detectNetwork(href.trim()) : null;
-  // Adresse collée : le réseau est reconnu (l'adresse saisie n'est pas réécrite).
-  const effective: Network | null = network === "other" || network === null ? (detected && detected !== "website" ? detected : network) : network;
-  const asEmail = effective === "email" && href.trim() && !href.trim().startsWith("mailto:") && href.includes("@") ? `mailto:${href.trim()}` : href.trim();
-  const ok = safeSocialHref(asEmail);
-  const name = label.trim() || (effective && effective !== "other" ? NETWORK_LABELS[effective] : "");
-  if (editIndex === undefined && !network) {
-    return (
-      <Panel anchor={anchor} label="Ajouter un réseau" onClose={onClose}>
-        <p className="pe-popover-title">Ajouter un réseau</p>
-        <ul className="pe-network-grid" role="menu" aria-label="Réseaux">
-          {CLASSIC.map((n) => (
-            <li key={n} role="none">
-              <button type="button" role="menuitem" onClick={() => setNetwork(n)}>
-                <SocialIcon kind={n} /> {NETWORK_LABELS[n]}
-              </button>
-            </li>
-          ))}
-          <li role="none">
-            <button type="button" role="menuitem" onClick={() => setNetwork("other")}>
-              <SocialIcon kind="other" /> Autre lien
-            </button>
-          </li>
-        </ul>
-      </Panel>
-    );
-  }
   return (
     <Panel anchor={anchor} label={editIndex !== undefined ? "Modifier le lien du réseau" : "Ajouter un réseau"} onClose={onClose}>
-      <form
-        className="pe-popover-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          if (!ok) return;
-          if (editIndex !== undefined) post({ kind: "site-op", op: "social-edit", index: editIndex, href: asEmail });
-          else if (name) post({ kind: "site-op", op: "social-add", href: asEmail, label: name.slice(0, 40), network: effective ?? "other" });
+      <SocialPicker
+        mode={editIndex !== undefined ? "edit" : "add"}
+        initialHref={initialHref}
+        classes={PICKER_CLASSES}
+        onDone={({ href, label, network }) => {
+          if (editIndex !== undefined) post({ kind: "site-op", op: "social-edit", index: editIndex, href });
+          else post({ kind: "site-op", op: "social-add", href, label, network });
           onClose();
         }}
-      >
-        <p className="pe-popover-title">
-          {effective && <SocialIcon kind={effective} />} {editIndex !== undefined ? "Modifier le lien" : effective && effective !== "other" ? NETWORK_LABELS[effective] : "Autre lien"}
-        </p>
-        <label className="pe-board-field">
-          <span>{effective === "email" ? "Adresse e-mail" : "Adresse du profil"}</span>
-          <input
-            type="text"
-            autoFocus
-            maxLength={300}
-            placeholder={effective === "email" ? "nom@domaine.fr" : "https://…"}
-            value={href}
-            onChange={(e) => setHref(e.target.value)}
-            aria-invalid={href.trim() !== "" && !ok}
-          />
-        </label>
-        {detected && detected !== "website" && network === "other" && <small className="pe-popover-hint">Reconnu : {NETWORK_LABELS[detected]}</small>}
-        {editIndex === undefined && (
-          <label className="pe-board-field">
-            <span>Nom affiché{effective && effective !== "other" ? " (facultatif)" : ""}</span>
-            <input type="text" maxLength={40} placeholder={effective && effective !== "other" ? NETWORK_LABELS[effective] : "Ex. Mon blog"} value={label} onChange={(e) => setLabel(e.target.value)} />
-          </label>
-        )}
-        {href.trim() && !ok && <small className="pe-popover-error">Adresse invalide : https://… seulement (ou une adresse e-mail).</small>}
-        <button type="submit" className="pe-btn" disabled={!ok || (editIndex === undefined && !name)}>
-          {editIndex !== undefined ? "Enregistrer le lien" : "Ajouter"}
-        </button>
-      </form>
+      />
     </Panel>
   );
 }
@@ -525,7 +512,11 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
             className="pe-add-chip"
             data-testid="field-add"
             style={{ top: r.top + r.height + 6, left: r.left + r.width - 140 }}
-            onClick={() => setMenu({ uid, anchor: { ...r, top: r.top + r.height } })}
+            // Ancré sur la puce elle-même (et non sous le dernier champ : un texte long
+            // l'envoyait hors de la fenêtre, le menu semblait ne pas s'ouvrir).
+            aria-haspopup="menu"
+            aria-expanded={menu?.uid === uid}
+            onClick={(e) => setMenu({ uid, anchor: rectOf(e.currentTarget) })}
           >
             + Ajouter un champ
           </button>

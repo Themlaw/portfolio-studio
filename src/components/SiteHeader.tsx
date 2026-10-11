@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import LocaleSwitcher from "@/components/LocaleSwitcher";
+import SocialIcon from "@/components/SocialIcon";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { AppLocale } from "@/i18n/routing";
+import type { Social } from "@/lib/settings";
 
 /** Entrée de menu : chemin sans langue (ou adresse externe) et libellé, construits depuis la base. */
 export type HeaderNavItem = { id?: string; href: string; label: string; external?: boolean };
@@ -14,12 +16,15 @@ export default function SiteHeader({
   siteName,
   nav,
   alternates,
+  socials = [],
   edit = false,
 }: {
   siteName: string;
   nav: HeaderNavItem[];
   /** Chemin de la page courante dans chaque langue (sélecteur de langue). */
   alternates: Record<AppLocale, string>;
+  /** Réseaux montrés dans l'en-tête (option « icônes dans l'en-tête » des réglages), sinon vide. */
+  socials?: Social[];
   /** Vue brouillon de l'éditeur : repères de l'en-tête (commun à toutes les pages). Jamais en public. */
   edit?: boolean;
 }) {
@@ -103,6 +108,7 @@ export default function SiteHeader({
             );
           })}
           <span aria-hidden="true" className="h-4 w-px bg-line" />
+          {socials.length > 0 && <HeaderSocials socials={socials} />}
           <LocaleSwitcher alternates={alternates} />
         </nav>
 
@@ -140,8 +146,35 @@ export default function SiteHeader({
               )}
             </li>
           ))}
+          {socials.length > 0 && (
+            <li className="pt-4 pb-2">
+              <HeaderSocials socials={socials} large />
+            </li>
+          )}
         </ul>
       </nav>
     </header>
+  );
+}
+
+/** Icônes seules (nom du réseau en aria-label), mêmes données que le profil et le pied de page. */
+function HeaderSocials({ socials, large = false }: { socials: Social[]; large?: boolean }) {
+  return (
+    <ul className={`site-header-socials flex items-center ${large ? "gap-5 text-xl" : "gap-3 text-[0.95rem]"}`}>
+      {socials.map((s, i) => (
+        <li key={`${s.label}-${i}`}>
+          <a
+            href={s.href}
+            target="_blank"
+            rel="noopener noreferrer me"
+            aria-label={s.label}
+            title={s.label}
+            className="social-link inline-flex items-center justify-center p-1 text-ink-soft transition-colors hover:text-primary"
+          >
+            <SocialIcon kind={s.kind} label={s.label} href={s.href} />
+          </a>
+        </li>
+      ))}
+    </ul>
   );
 }

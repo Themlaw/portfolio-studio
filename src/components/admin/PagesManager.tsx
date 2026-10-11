@@ -26,6 +26,8 @@ function PreviewPage({ id, small }: { id: number; small?: boolean }) {
   return (
     <form method="post" action="/admin/apercu" target="_blank">
       <input type="hidden" name="page" value={id} />
+      {/* « Quitter l'aperçu » ramène ici. */}
+      <input type="hidden" name="retour" value="/admin/pages" />
       <button type="submit" className={`a-btn${small ? " a-btn-small" : ""}`}>
         Prévisualiser <span aria-hidden="true">↗</span>
       </button>

@@ -3,11 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { errorAt, ListField, TextField, TextI18n, UrlField } from "@/app/admin/_fields";
+import { errorAt, TextField, TextI18n, Toggle } from "@/app/admin/_fields";
 import { saveSettingsAction } from "@/app/admin/(espace)/reglages/actions";
 import type { AdminSettings } from "@/lib/admin";
 
 import { clone, SaveBar, same, toast, useUnsavedGuard } from "./editing";
+import SocialsEditor from "./SocialsEditor";
 
 export default function SettingsForm({ initial }: { initial: AdminSettings }) {
   const router = useRouter();
@@ -65,21 +66,18 @@ export default function SettingsForm({ initial }: { initial: AdminSettings }) {
 
       <section className="a-panel" aria-labelledby="s-reseaux">
         <h2 id="s-reseaux">Réseaux</h2>
-        <ListField
-          label="Liens vers tes réseaux"
-          help="Affichés en pied de page et sur la page À propos, dans cet ordre."
+        <p className="a-help">Affichés en pied de page et sur la page À propos, dans cet ordre.</p>
+        <SocialsEditor
           items={value.socials}
           onChange={(socials) => setValue((v) => ({ ...v, socials }))}
-          make={() => ({ label: "", href: "https://" })}
-          addLabel="Ajouter un réseau"
-          itemLabel={(i) => value.socials[i]?.label || `Réseau ${i + 1}`}
+          errors={Object.fromEntries(Object.entries(errors).filter(([k]) => k.startsWith("socials.")).map(([k, m]) => [k.slice("socials.".length), m]))}
           error={errors.socials}
-          render={(item, update, i) => (
-            <div className="a-form-grid">
-              <TextField label="Nom" value={item.label} onChange={(label) => update({ ...item, label })} error={errorAt(errors, `socials.${i}.label`)} placeholder="Instagram" />
-              <UrlField label="Adresse" value={item.href} onChange={(href) => update({ ...item, href })} error={errorAt(errors, `socials.${i}.href`)} />
-            </div>
-          )}
+        />
+        <Toggle
+          label="Icônes des réseaux dans l'en-tête"
+          help="Juste avant le choix de langue (FR / EN), icônes seules ; sur téléphone, dans le menu."
+          checked={Boolean(site.headerSocials)}
+          onChange={(headerSocials) => setSite({ headerSocials })}
         />
       </section>
 

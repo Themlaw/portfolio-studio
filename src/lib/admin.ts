@@ -12,6 +12,7 @@ import { ThemeSchema, type Theme } from "@/themes/schema";
 import { getDb, schema } from "./db";
 import { boardRefs } from "@/blocks/tree";
 import { parseJson } from "./json";
+import { NETWORKS, type Network } from "./site-schema";
 import { ORIGINALS_PREFIX, parseVariants } from "./images/variants";
 import { mediaUrl } from "./media";
 import { own } from "./own";
@@ -141,7 +142,7 @@ export type AdminMediaRow = {
   preview: string | null;
   color: string | null;
   uses: number;
-  kind: "image" | "video";
+  kind: "image" | "video" | "pdf";
   /** Vidéo : durée (s), son, avancement de la conversion (0–100), fichier lisible. */
   duration: number | null;
   hasAudio: boolean | null;
@@ -156,14 +157,15 @@ function thumbUrl(m: { key: string; status: string; variants: unknown }): string
   if (m.status !== "ready") return null;
   const variants = parseVariants(m.variants);
   if (!variants) return m.key.startsWith(ORIGINALS_PREFIX) ? null : mediaUrl(m.key);
-  const webp = variants.files.filter((f) => f.format === "webp").sort((a, b) => a.w - b.w);
-  return mediaUrl(webp[0].key);
+  // PDF : la première page seulement.
+  const webp = variants.files.filter((f) => f.format === "webp" && (f.page ?? 1) === 1).sort((a, b) => a.w - b.w);
+  return webp[0] ? mediaUrl(webp[0].key) : null;
 }
 
 function toRow(m: typeof schema.media.$inferSelect, uses: number, progress: number | null = null, tags: MediaTag[] = []): AdminMediaRow {
   const variants = parseVariants(m.variants);
   const mp4 = variants?.files.filter((f) => f.format === "mp4").sort((a, b) => a.h - b.h)[0];
-  const largest = variants?.files.filter((f) => f.format === "webp").sort((a, b) => b.w - a.w)[0];
+  const largest = variants?.files.filter((f) => f.format === "webp" && (f.page ?? 1) === 1).sort((a, b) => b.w - a.w)[0];
   return {
     id: m.id,
     name: m.originalName ?? m.key,
@@ -301,8 +303,8 @@ export function getProjectForEdit(id: number): AdminProjectEdit | null {
 }
 
 export type AdminSettings = {
-  site: { name: string; role: L; email: string; credit: L };
-  socials: { label: string; href: string }[];
+  site: { name: string; role: L; email: string; credit: L; headerSocials?: boolean };
+  socials: { label: string; href: string; kind?: Network }[];
 };
 
 const EMPTY: L = { fr: "", en: "" };
@@ -316,7 +318,12 @@ export function getSettingsForAdmin(): AdminSettings {
   const values = Object.fromEntries(rows.map((r) => [r.key, parseJson(r.value)]));
   const site = (values.site ?? {}) as Record<string, unknown>;
   const socials = Array.isArray(values.socials)
-    ? (values.socials as { label?: unknown; href?: unknown }[]).map((x) => ({ label: String(x.label ?? ""), href: String(x.href ?? "") }))
+    ? (values.socials as { label?: unknown; href?: unknown; kind?: unknown }[]).map((x) => ({
+        label: String(x.label ?? ""),
+        href: String(x.href ?? ""),
+        // Le réseau reconnu est gardé : enregistrer les réglages ne le perd plus.
+        ...((NETWORKS as readonly unknown[]).includes(x.kind) ? { kind: x.kind as Network } : {}),
+      }))
     : [];
   return {
     site: {
@@ -324,6 +331,7 @@ export function getSettingsForAdmin(): AdminSettings {
       role: site.role ? asL(site.role) : EMPTY,
       email: typeof site.email === "string" ? site.email : "",
       credit: site.credit ? asL(site.credit) : EMPTY,
+      headerSocials: site.headerSocials === true,
     },
     socials,
   };

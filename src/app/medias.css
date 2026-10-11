@@ -1,0 +1,304 @@
+/* ==========================================================================
+   LOT MÉDIAS — bande (fondu), curseur des images cliquables, lecteur vidéo,
+   bloc CV. Uniquement des jetons du thème (var(--color-*), --radius-*…) ;
+   les variantes (src/themes/variants.css, hors @layer) peuvent tout
+   redéfinir. Importé par globals.css.
+   ========================================================================== */
+
+/* Bords du fondu de la bande (globals.css, .strip-rail) : propriétés
+   enregistrées (valeur initiale 0px, type longueur). Volontairement NON
+   animées : voir la mesure dans globals.css. */
+@property --strip-fade-l {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --strip-fade-r {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@layer components {
+  /* ---- Curseur des images cliquables ----------------------------------------
+     Main (pointer) sur toute image qui ouvre la visionneuse ou un lien.
+     --t-cursor-pointer : curseur dessiné du thème (lot 4), repli « pointer ». */
+  .strip-frame,
+  .strip-frame :is(img, video),
+  .lb-thumb,
+  .tile,
+  .tile img,
+  .cv-page,
+  .cv-page img,
+  .vp-big,
+  .video-play,
+  :is(a, button) :is(img, picture, video) {
+    /* Sans :has() : un sélecteur de parent réévalué à chaque image du
+       défilement coûtait cher (mesuré, scripts/rail-perf.mjs). */
+    cursor: var(--t-cursor-pointer, pointer);
+  }
+
+  /* ---- Lecteur vidéo (VideoPlayer) ----------------------------------------- */
+  .vp {
+    --vp-fg: var(--color-on-scrim);
+    --vp-accent: var(--color-primary);
+    --vp-track: color-mix(in srgb, var(--color-on-scrim) 28%, transparent);
+    --vp-buffer: color-mix(in srgb, var(--color-on-scrim) 45%, transparent);
+    --vp-bar-bg: linear-gradient(to top, color-mix(in srgb, var(--color-scrim) 78%, transparent), transparent);
+    --vp-big-bg: color-mix(in srgb, var(--color-surface) 92%, transparent);
+    --vp-big-fg: var(--color-primary);
+    position: relative;
+    display: block;
+    overflow: hidden;
+    outline-offset: 3px;
+    color: var(--vp-fg);
+    background: var(--color-scrim);
+  }
+
+  .vp-video {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .vp[data-fullscreen] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  .vp[data-fullscreen] .vp-video {
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  /* Pendant la lecture, sans geste : commandes et pointeur s'effacent. */
+  .vp[data-idle] {
+    cursor: none;
+  }
+
+  .vp-bar {
+    position: absolute;
+    inset: auto 0 0 0;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 1.6rem 0.6rem 0.45rem;
+    background: var(--vp-bar-bg);
+    transition: opacity var(--dur-fast) var(--ease-soft), transform var(--dur-fast) var(--ease-soft);
+  }
+
+  .vp[data-idle] .vp-bar {
+    opacity: 0;
+    transform: translateY(0.5rem);
+    pointer-events: none;
+  }
+
+  .vp-btn {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--btn-radius);
+    color: var(--vp-fg);
+    cursor: var(--t-cursor-pointer, pointer);
+    transition: background var(--dur-fast) var(--ease-soft), color var(--dur-fast) var(--ease-soft);
+  }
+
+  .vp-btn:hover {
+    color: var(--vp-accent);
+    background: color-mix(in srgb, var(--color-on-scrim) 12%, transparent);
+  }
+
+  .vp-btn:focus-visible,
+  .vp-seek:focus-visible,
+  .vp-big:focus-visible {
+    outline: 2px solid var(--vp-accent);
+    outline-offset: 2px;
+  }
+
+  .vp-time {
+    flex: 0 0 auto;
+    min-width: 6.5rem;
+    padding-inline: 0.25rem;
+    font-family: var(--font-caption);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .vp-time-sep {
+    opacity: 0.6;
+  }
+
+  /* Barre de progression : zone de saisie haute (doigt), trait fin. */
+  .vp-seek {
+    --vp-p: 0;
+    position: relative;
+    flex: 1 1 auto;
+    height: 1.75rem;
+    margin-inline: 0.4rem;
+    touch-action: none;
+    cursor: var(--t-cursor-pointer, pointer);
+  }
+
+  .vp-seek-track {
+    position: absolute;
+    inset: 50% 0 auto;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--vp-track);
+    transform: translateY(-50%);
+    overflow: hidden;
+    transition: height var(--dur-fast) var(--ease-soft);
+  }
+
+  .vp-seek-buffer,
+  .vp-seek-fill {
+    position: absolute;
+    inset: 0;
+    transform: scaleX(0);
+    transform-origin: left center;
+  }
+
+  .vp-seek-buffer {
+    background: var(--vp-buffer);
+  }
+
+  .vp-seek-fill {
+    background: var(--vp-accent);
+  }
+
+  .vp-seek-thumb {
+    position: absolute;
+    top: 50%;
+    left: calc(var(--vp-p) * 100%);
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 999px;
+    background: var(--vp-accent);
+    transform: translate(-50%, -50%) scale(0.6);
+    opacity: 0;
+    transition: transform var(--dur-fast) var(--ease-soft), opacity var(--dur-fast) var(--ease-soft);
+  }
+
+  .vp-seek:hover .vp-seek-track,
+  .vp-seek:focus-visible .vp-seek-track,
+  .vp[data-scrubbing] .vp-seek-track {
+    height: 5px;
+  }
+
+  .vp-seek:hover .vp-seek-thumb,
+  .vp-seek:focus-visible .vp-seek-thumb,
+  .vp[data-scrubbing] .vp-seek-thumb {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  /* Grand bouton central : lecture, ou « Revoir » à la fin. */
+  .vp-big {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 3.5rem;
+    height: 3.5rem;
+    padding-inline: 1.15rem;
+    justify-content: center;
+    border-radius: var(--btn-radius);
+    background: var(--vp-big-bg);
+    color: var(--vp-big-fg);
+    box-shadow: var(--shadow-card);
+    transform: translate(-50%, -50%);
+    transition: transform var(--dur-fast) var(--ease-soft);
+  }
+
+  .vp-big:hover {
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+
+  .vp-big-text {
+    font-family: var(--font-caption);
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 30rem) {
+    .vp-time {
+      min-width: 0;
+    }
+  }
+
+  /* ---- Bloc CV ---------------------------------------------------------------
+     Pages du PDF en images (feuilles posées sur le fond, ombre courte), un
+     bouton bien visible pour télécharger le PDF d'origine. */
+  .cv-pages {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+    gap: clamp(1rem, 2.5vw, 2rem);
+    align-items: start;
+  }
+
+  .cv-pages[data-count="1"] {
+    grid-template-columns: minmax(0, 40rem);
+    justify-content: center;
+  }
+
+  .cv-page {
+    position: relative;
+    display: block;
+    width: 100%;
+    background: var(--color-surface);
+    /* Arrondi des images : thème, site, puis bloc (lot 2, look.css). */
+    border-radius: var(--media-radius, var(--radius-sm));
+    box-shadow: var(--shadow-card);
+    transition: box-shadow var(--dur-slow) var(--ease-soft), transform var(--dur-slow) var(--ease-soft);
+  }
+
+  .cv-page:hover,
+  .cv-page:focus-visible {
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-3px);
+  }
+
+  .cv-page img {
+    width: 100%;
+    height: auto;
+    border-radius: var(--media-radius, var(--radius-sm));
+  }
+
+  .cv-page-num {
+    position: absolute;
+    right: 0.6rem;
+    bottom: 0.6rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--color-scrim) 72%, transparent);
+    color: var(--color-on-scrim);
+    font-family: var(--font-caption);
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+  }
+
+  .cv-download {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .cv-download-meta {
+    font-family: var(--font-caption);
+    font-size: 0.75rem;
+    letter-spacing: 0.06em;
+    color: var(--color-ink-soft);
+  }
+}

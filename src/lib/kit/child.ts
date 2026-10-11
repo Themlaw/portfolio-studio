@@ -2,7 +2,7 @@
  * Processus enfant du kit PSD (jobs « kit » et « kit-import » de la file
  * lourde). Entrée : JSON sur stdin ; sortie : une ligne JSON.
  *  - export : { mode: "export", theme, publicDir, out, exportId, themeVersion, siteName, manifestDir }
- *  - import : { mode: "import", psd, outDir, manifestDir, themeId }
+ *  - import : { mode: "import", psd, outDir, manifestDir, themeId, palette }
  * Lancé avec MALLOC_ARENA_MAX=2 et MALLOC_MMAP_THRESHOLD_ (mémoire rendue au
  * système), FONTCONFIG_FILE (aucune police système), sous nice. En production,
  * bundle esbuild `kit-child.cjs` à la racine du standalone ; en dev, via tsx.
@@ -18,7 +18,7 @@ import { loadManifests } from "./manifest";
 
 type Input =
   | { mode?: "export"; theme: unknown; publicDir: string; out: string; exportId: string; themeVersion: string; siteName: string; manifestDir: string; assets?: BuildOptions["assets"] }
-  | { mode: "import"; psd: string; outDir: string; manifestDir: string; themeId?: string };
+  | { mode: "import"; psd: string; outDir: string; manifestDir: string; themeId?: string; palette?: Record<string, string> };
 
 const peakMb = () => Math.round(process.resourceUsage().maxRSS / 1024);
 
@@ -47,7 +47,7 @@ async function main() {
   const input = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Input;
   const t0 = Date.now();
   if (input.mode === "import") {
-    const report = await importKit(input.psd, input.outDir, { manifests: await loadManifests(input.manifestDir), themeId: input.themeId });
+    const report = await importKit(input.psd, input.outDir, { manifests: await loadManifests(input.manifestDir), themeId: input.themeId, palette: input.palette });
     process.stdout.write(`${JSON.stringify({ ok: true, reportOk: report.ok, problem: report.problem ?? null, ms: Date.now() - t0, peakMb: peakMb(), oom })}\n`);
     return;
   }

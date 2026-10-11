@@ -33,8 +33,8 @@
   },
   "projects": {
     "count": "{count, plural, =0 {no projects} =1 {# project} other {# projects}}",
-    "scrollPrev": "Previous images — {project}",
-    "scrollNext": "Next images — {project}",
+    "scrollPrev": "Previous image — {project}",
+    "scrollNext": "Next image — {project}",
     "scrollbar": "Scroll bar — {project}"
   },
   "animation": {
@@ -42,6 +42,27 @@
     "playAria": "Play {title}",
     "loading": "Loading video",
     "placeholder": "Animated preview"
+  },
+  "player": {
+    "label": "Video player — {title}",
+    "labelNoTitle": "Video player",
+    "controls": "Video controls",
+    "play": "Play",
+    "pause": "Pause",
+    "replay": "Replay",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "fullscreen": "Full screen",
+    "exitFullscreen": "Exit full screen",
+    "seek": "Video position",
+    "time": "{current} of {total}"
+  },
+  "cv": {
+    "download": "Download my résumé",
+    "pdf": "PDF, {size}",
+    "page": "Page {index} of {total}",
+    "open": "Enlarge page {index}",
+    "pages": "Résumé pages"
   },
   "footer": {
     "eyebrow": "Contact",

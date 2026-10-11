@@ -2,7 +2,7 @@
 
 import Picture from "./Picture";
 import { useReducedMotion } from "./LoopVideo";
-import Video from "./Video";
+import VideoPlayer from "./VideoPlayer";
 import { useCallback, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
@@ -14,8 +14,10 @@ import type { LocalizedArtwork } from "@/lib/gallery";
  * qu'on lui passe (les œuvres d'un projet), donc ← et → ne sortent jamais
  * du projet ouvert.
  *
- * Habillage selon la variante data-lightbox : passe-partout (`.mat`, par
- * défaut) ou plein cadre (voir src/themes/variants.css).
+ * L'image agrandie est posée à nu (ni passe-partout ni cadre du kit) sur un
+ * fond gris neutre (`--color-viewer`) ; la variante data-lightbox règle la
+ * taille (plein cadre : src/themes/variants.css). Navigation : flèches,
+ * ← / → et Échap au clavier, balayage horizontal au doigt.
  */
 export default function Lightbox({
   items,
@@ -33,6 +35,8 @@ export default function Lightbox({
   const t = useTranslations("gallery");
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const thumbRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  /** Début d'un balayage au doigt (ou au stylet) sur la scène. */
+  const swipe = useRef<{ id: number; x: number; y: number; t: number } | null>(null);
 
   const go = useCallback(
     (delta: number) => {
@@ -92,7 +96,7 @@ export default function Lightbox({
       role="dialog"
       aria-modal="true"
       aria-label={active.title || active.alt}
-      className="lightbox fixed inset-0 z-[80] flex flex-col backdrop-blur-sm"
+      className="lightbox fixed inset-0 z-[80] flex flex-col"
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -114,7 +118,25 @@ export default function Lightbox({
 
       {/* Les flèches sont en superposition, pas dans le flux : sur un écran
           étroit elles prenaient 80px de large et écrasaient l'image. */}
-      <div className="relative flex min-h-0 flex-1 items-center px-2 md:px-6">
+      <div
+        className="lightbox-stage relative flex min-h-0 flex-1 touch-pan-y items-center px-2 md:px-6"
+        onPointerDown={(event) => {
+          if (event.pointerType === "mouse" || solo) return;
+          swipe.current = { id: event.pointerId, x: event.clientX, y: event.clientY, t: event.timeStamp };
+        }}
+        onPointerUp={(event) => {
+          const s = swipe.current;
+          swipe.current = null;
+          if (!s || s.id !== event.pointerId) return;
+          const dx = event.clientX - s.x;
+          const dy = event.clientY - s.y;
+          // Geste franc et surtout horizontal (un balayage, pas un défilement ni un appui).
+          if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5 && event.timeStamp - s.t < 800) go(dx < 0 ? 1 : -1);
+        }}
+        onPointerCancel={() => {
+          swipe.current = null;
+        }}
+      >
         {!solo && (
           <button
             type="button"
@@ -127,14 +149,14 @@ export default function Lightbox({
         )}
 
         <figure className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-4">
-          <div className="mat lightbox-frame max-h-[62vh] max-w-full overflow-hidden">
+          <div className="lightbox-frame max-h-[62vh] max-w-full overflow-hidden">
             {active.video ? (
-              <Video
+              <VideoPlayer
                 key={active.id}
                 video={active.video}
                 width={active.width}
                 height={active.height}
-                className="lightbox-image max-h-[44vh] w-auto max-w-full object-contain md:max-h-[56vh]"
+                videoClassName="lightbox-image max-h-[44vh] w-auto max-w-full object-contain md:max-h-[56vh]"
                 autoPlay={active.video.loop && !reduced}
                 muted={active.video.loop}
                 loop={active.video.loop}

@@ -116,7 +116,13 @@ async function frameBox() {
 }
 /** Point d'un élément de la toile, en coordonnées de la page. */
 async function framePoint(f, selector, where = "center") {
-  const box = await f.locator(selector).first().boundingBox();
+  // La toile se rafraîchit après un enregistrement : l'élément peut être
+  // momentanément absent ou sans boîte (rendu en cours) ; on l'attend.
+  let box = null;
+  for (let i = 0; i < 60 && !box; i++) {
+    box = await f.locator(selector).first().boundingBox({ timeout: 2000 }).catch(() => null);
+    if (!box) await sleep(500);
+  }
   if (!box) throw new Error(`introuvable : ${selector}`);
   const x = where === "left" ? box.x + 6 : where === "right" ? box.x + box.width - 6 : box.x + box.width / 2;
   const y = where === "top" ? box.y + 20 : where === "bottom" ? box.y + box.height - 20 : box.y + Math.min(box.height / 2, 140);

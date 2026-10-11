@@ -26,7 +26,7 @@ import { contentKey, getStorage } from "@/lib/storage";
 import { DEFAULT_THEME_ID, PRESETS } from "@/themes/presets";
 
 import { getSqlite, type Db } from "./index";
-import { upgradeContent } from "./upgrade";
+import { renameVideoLook, upgradeContent } from "./upgrade";
 import { blocks, media, pages, projects, settings, slots, themes, type Localized } from "./schema";
 
 export const SEEDED_AT_KEY = "seededAt";
@@ -125,6 +125,33 @@ function mediaId(db: Db, file: StoredFile, values: Omit<typeof media.$inferInser
     .onConflictDoNothing()
     .run();
   return db.select({ id: media.id }).from(media).where(eq(media.key, file.key)).get()!.id;
+}
+
+/**
+ * Thèmes livrés ↔ base, à chaque démarrage (base déjà seedée) : un thème livré
+ * ajouté au code (dossier src/themes/presets/<slug>/) apparaît dans Admin →
+ * Thèmes sans base neuve ; un thème livré modifié dans le code y est mis à jour
+ * (il n'est pas modifiable depuis l'admin, le code fait foi). Un thème de
+ * l'utilisatrice qui porterait déjà cet identifiant n'est jamais touché.
+ * Synchrone, dans la transaction du démarrage. Renvoie [ajoutés, mis à jour].
+ */
+export function syncPresets(db: Db): [number, number] {
+  let added = 0;
+  let updated = 0;
+  for (const theme of Object.values(PRESETS)) {
+    const data = JSON.stringify(theme);
+    const row = db.select().from(themes).where(eq(themes.id, theme.id)).get();
+    if (!row) {
+      db.insert(themes).values({ id: theme.id, name: theme.name, preset: true, data }).run();
+      added++;
+    } else if (!row.preset) {
+      console.warn(`[db] thème livré « ${theme.id} » ignoré : un thème personnel porte déjà cet identifiant`);
+    } else if (row.data !== data || row.name !== theme.name) {
+      db.update(themes).set({ name: theme.name, data, updatedAt: new Date() }).where(eq(themes.id, theme.id)).run();
+      updated++;
+    }
+  }
+  return [added, updated];
 }
 
 /**
@@ -252,6 +279,7 @@ export function seedRows(db: Db, files: SeedFiles): void {
   // Contenu de départ écrit dans l'ancien format, puis converti comme une base
   // existante (migration 0014 : conteneurs, grilles, menu) : un seul chemin.
   upgradeContent(getSqlite());
+  renameVideoLook(getSqlite());
 
   db.insert(settings)
     .values({ key: SEEDED_AT_KEY, value: JSON.stringify(new Date().toISOString()) })

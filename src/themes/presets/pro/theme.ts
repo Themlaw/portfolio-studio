@@ -1,4 +1,4 @@
-import type { ThemeInput } from "../schema";
+import type { ThemeInput } from "../../schema";
 
 /**
  * Pro — état du tag da/pro : même papier, étiquettes grises, calques du hero

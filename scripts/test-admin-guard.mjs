@@ -90,6 +90,8 @@ const EXPECTED = [
   "deleteMessageAction",
   "deleteAllMessagesAction",
   "siteDraftAction",
+  "installFontAction",
+  "deleteFontAction",
   "createProjectAction",
   "saveProjectAction",
   "reorderProjectsAction",
@@ -163,6 +165,26 @@ for (const dir of DIRS) {
       if (!GUARD.test(after)) failures.push(`${rel} : action en ligne sans \`await assertAdmin()\` juste après "use server"`);
     }
   }
+}
+
+// Routes GET de l'admin qui lisent des données privées : gardées elles aussi.
+const GUARDED_GET = ["src/app/admin/api/themes/[id]/export/route.ts", "src/app/admin/api/fonts/preview/route.ts"];
+for (const rel of GUARDED_GET) {
+  let src = "";
+  try {
+    src = readFileSync(join(ROOT, rel), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  } catch {
+    failures.push(`${rel} : route GET attendue introuvable (mettre à jour GUARDED_GET)`);
+    continue;
+  }
+  const m = /export\s+async\s+function\s+GET\s*\(/.exec(src);
+  if (!m) {
+    failures.push(`${rel} : pas de GET async`);
+    continue;
+  }
+  checked++;
+  const open = bodyOpen(src, m.index + m[0].length - 1);
+  if (!GUARD.test(open < 0 ? "" : bodyAfter(src, open))) failures.push(`${rel} : route GET sans \`await assertAdmin()\` en première instruction`);
 }
 
 for (const name of EXPECTED) {

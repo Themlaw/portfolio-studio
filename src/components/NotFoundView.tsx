@@ -7,7 +7,7 @@ import { Link } from "@/i18n/navigation";
 export default function NotFoundView() {
   const t = useTranslations("notFound");
   return (
-    <section className="shell pt-[clamp(6rem,14vh,10rem)]">
+    <section className="page-top shell">
       <div className="max-w-2xl">
         <Eyebrow>{t("eyebrow")}</Eyebrow>
         <h1 className="mt-4 font-display text-[clamp(2.75rem,8vw,6rem)] text-ink">{t("title")}</h1>

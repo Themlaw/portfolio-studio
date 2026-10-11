@@ -18,6 +18,7 @@ import {
 import { discardDraft, publishDraft, saveDraft, savePageFromForm, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
 import { boardOp, createDraftProject, restoreBoard, type BoardResult } from "@/lib/edit/boards";
 import { saveSiteDraft, type SiteResult } from "@/lib/edit/site";
+import { collectFonts, installGoogleFont, type InstallResult } from "@/lib/fonts/library";
 import { fail, type ActionResult } from "@/lib/edit/result";
 import { revalidateNav, revalidatePage, revalidateProject, revalidateSettings } from "@/lib/revalidate";
 
@@ -74,6 +75,9 @@ export async function publishDraftAction(id: unknown, rev: unknown): Promise<Dra
   // En-tête, pied ou réseaux publiés avec la page : toutes les pages changent.
   if (result.data.site) revalidateSettings();
   for (const project of result.data.projects) revalidateProject(project, { structure: true });
+  // Polices téléchargées qu'aucun style n'utilise plus (publié ni brouillon) : retirées.
+  const fonts = await collectFonts().catch(() => null);
+  if (fonts?.removed.length) revalidateSettings();
   return result;
 }
 
@@ -169,5 +173,18 @@ export async function deletePageAction(
   if (!pid) return fail("Page inconnue.");
   const result = deletePage(pid);
   if (result.ok) revalidatePage(pid, { structure: true });
+  return result;
+}
+
+/**
+ * Police Google choisie dans l'éditeur (lot 2) : le serveur télécharge le
+ * style demandé (s'il manque) puis le sert lui-même. En cas d'échec, message
+ * clair et rien n'est appliqué (l'éditeur n'enregistre le style qu'après).
+ */
+export async function installFontAction(family: unknown, weight: unknown, italic: unknown): Promise<ActionResult<InstallResult>> {
+  await assertAdmin();
+  const result = await installGoogleFont(family, weight, italic);
+  // Nouvelle face : la feuille @font-face (réglages) change sur toutes les pages.
+  if (result.ok && result.data.installed) revalidateSettings();
   return result;
 }

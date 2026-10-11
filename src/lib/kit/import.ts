@@ -27,7 +27,8 @@ import { preflightProblem, preflightPsd, type PreflightLimits, type PsdPreflight
 import { findReference, frameHash, writePreview, type KitManifest } from "./manifest";
 import { flattenSlot, freeRaw, layoutOf, resolveSlots, SlotRefusal, treeProblem, treeStats, type TreeStats } from "./resolve";
 import { DEFAULT_LIMITS } from "./limits";
-import { HERO, SLOTS, type Layout, type SlotSpec } from "./spec";
+import { compareSwatches, cursorWarning, encodeCursor, hotspotCss, readHotspot, readSwatch, type ColorReport, type SwatchRead } from "./extras";
+import { ALL_SLOTS, CURSOR_DEFAULT_HOTSPOT, CURSOR_SLOTS, frameOf, HERO, SLOTS, SWATCH_SLOTS, type Layout, type SlotSpec } from "./spec";
 
 /**
  * Fidélité exigée d'un tracé (mesurée sur kit-A, phase 6c) : écart moyen du
@@ -71,7 +72,9 @@ export type SlotReport = {
   /** Répétition de la tuile : autocorrélation à une fraction de la période, contraste du motif (niveaux). */
   repeat?: { rho: number; contrast: number };
   candidates?: { svg?: number; svgPaths?: number; avif?: number; webp?: number };
-  chosen?: "svg" | "svg-mask" | "avif" | "avif-mask";
+  chosen?: "svg" | "svg-mask" | "avif" | "avif-mask" | "png";
+  /** Curseur : point chaud (px CSS, image affichée à 32 × 32). */
+  hotspot?: { x: number; y: number };
   /** Fidélité du contour du SVG candidat (IoU, écart moyen du bord en px). */
   fidelity?: { iou: number; deviation: number };
   /** Poids servi (format retenu ; AVIF : sans le repli WebP). */
@@ -104,6 +107,10 @@ export type KitReport = {
   ignoredLayers: string[];
   palette?: PaletteSuggestion | null;
   totals?: { firstView: number; all: number };
+  /** Kit v3 : couleurs des pastilles de « 8 · Palette » (absent : pas de groupe Palette dans ce kit). */
+  colors?: ColorReport[];
+  /** Kit v3 : groupes présents dans le fichier (un ancien kit n'a ni palette ni curseurs). */
+  extras?: { palette: boolean; cursors: boolean };
 };
 
 export const FIRST_VIEW = new Set(["hero/plan-1", "hero/plan-2", "hero/plan-3", "hero/plan-4", "hero/plan-5", "signature", "papier"]);
@@ -160,7 +167,15 @@ export const PSD_READ_OPTIONS = {
  * `simulatedTree` : TESTS seulement — remplace l'arbre lu par ag-psd, pour
  * prouver que le contrôle de l'arbre est bien appelé (test-kit-import).
  */
-export type ImportOptions = { limits?: PreflightLimits; keepCrops?: boolean; manifests?: KitManifest[]; themeId?: string; simulatedTree?: Layer[] };
+export type ImportOptions = {
+  limits?: PreflightLimits;
+  keepCrops?: boolean;
+  manifests?: KitManifest[];
+  themeId?: string;
+  simulatedTree?: Layer[];
+  /** Palette résolue du thème visé (src/themes/palette.ts) : référence des pastilles sans kit reconnu, fonds des curseurs. */
+  palette?: Record<string, string>;
+};
 
 export async function importKit(psdPath: string, outDir: string, opts: ImportOptions = {}): Promise<KitReport> {
   const limits = opts.limits ?? DEFAULT_LIMITS;
@@ -238,6 +253,55 @@ export async function importKit(psdPath: string, outDir: string, opts: ImportOpt
     await writeFile(path.join(work, `${base}.rgba`), flat.img.data);
     pending.push({ slot, report, base, ms: performance.now() - start });
   }
+
+  // Palette et curseurs (kit v3) : lus seulement si leur groupe est là.
+  const swatchReads: SwatchRead[] = [];
+  for (const slot of SWATCH_SLOTS) {
+    const source = sources.get(slot.id);
+    if (!source) continue;
+    const messages: string[] = [];
+    try {
+      const flat = flattenSlot(source, layout, (m) => messages.push(m));
+      const read = readSwatch(slot, source, flat?.img ?? null, flat ? frameHash(flat.img) : undefined);
+      swatchReads.push({ ...read, messages: [...messages, ...read.messages] });
+    } catch (error) {
+      if (!(error instanceof SlotRefusal)) throw error;
+      swatchReads.push({ slot, messages: [error.message] });
+    }
+  }
+  type CursorPending = Pending & { hotspot: { x: number; y: number } };
+  const cursorPending: CursorPending[] = [];
+  for (const slot of CURSOR_SLOTS) {
+    const source = sources.get(slot.id);
+    if (!source) continue;
+    const start = performance.now();
+    const report: SlotReport = { id: slot.id, label: slot.label, status: "ok", change: "new", messages: [], ms: 0, source: source.path };
+    const warn = (m: string) => {
+      if (!report.messages.includes(m)) report.messages.push(m);
+      if (report.status === "ok") report.status = "warn";
+    };
+    layerWarnings(source.nodes, warn, slot.label);
+    let flat: ReturnType<typeof flattenSlot> = null;
+    try {
+      flat = flattenSlot(source, layout, warn);
+    } catch (error) {
+      if (!(error instanceof SlotRefusal)) throw error;
+      report.status = "error";
+      report.messages.push(error.message);
+      report.ms = Math.round(performance.now() - start);
+      slots.push(report);
+      continue;
+    }
+    const img = flat?.img ?? { width: slot.size.w, height: slot.size.h, data: Buffer.alloc(slot.size.w * slot.size.h * 4) };
+    if (flat?.overflow) warn("Des pixels débordent de la case du curseur : ils sont coupés.");
+    const hs = readHotspot(source, frameOf(slot, layout, source.boardOrigin), CURSOR_DEFAULT_HOTSPOT[slot.cursor!]);
+    if (hs.message) warn(hs.message);
+    const base = slotFileBase(slot.id);
+    report.hash = frameHash(img);
+    await writeFile(path.join(work, `${base}.rgba`), img.data);
+    cursorPending.push({ slot, report, base, ms: performance.now() - start, hotspot: { x: hs.x, y: hs.y } });
+  }
+  const extras = { palette: swatchReads.length > 0, cursors: cursorPending.length > 0 || slots.some((s) => s.id.startsWith("curseur/")) };
 
   // PSD libéré avant les encodages lourds (AVIF d'un plan pleine largeur).
   // Toute référence aux données brutes disparaît : une variable de boucle encore
@@ -370,6 +434,51 @@ export async function importKit(psdPath: string, outDir: string, opts: ImportOpt
     done();
   }
 
+  // Couleurs des pastilles : changées → forcées à l'application.
+  const colors = extras.palette ? compareSwatches(swatchReads, ref?.manifest ?? null, opts.palette) : undefined;
+  // Curseurs : fonds sur lesquels ils doivent se voir (couleurs repeintes comprises).
+  const ground = (k: string) => colors?.find((c) => c.key === k && c.change === "changed")?.after ?? opts.palette?.[k];
+  const grounds: { hex: string; label: string }[] = [];
+  for (const [k, label] of [
+    ["bg", "le fond"],
+    ["bgDeep", "le fond profond"],
+    ["surface", "la surface"],
+  ]) {
+    const hex = ground(k);
+    if (hex && /^#[0-9a-f]{6}$/i.test(hex)) grounds.push({ hex, label });
+  }
+  for (const { slot, report, base, ms, hotspot } of cursorPending) {
+    const start = performance.now() - ms;
+    const warn = (m: string) => {
+      report.messages.push(m);
+      if (report.status === "ok") report.status = "warn";
+    };
+    const framed: Rgba = { width: slot.size.w, height: slot.size.h, data: await readFile(path.join(work, `${base}.rgba`)) };
+    const before = ref?.manifest.hotspots?.[slot.id];
+    if (ref) report.change = ref.manifest.slots[slot.id]?.hash === report.hash && before?.x === hotspot.x && before?.y === hotspot.y ? "unchanged" : "redrawn";
+    if (report.change !== "unchanged") {
+      if (!alphaBox(framed)) {
+        report.change = "missing";
+        warn("Case vide : le curseur actuel est gardé.");
+      } else {
+        await writePreview(framed, path.join(outDir, `${base}.apres.png`), false);
+        report.preview = `${base}.apres.png`;
+        const { png, png2x } = await encodeCursor(framed);
+        await writeFile(path.join(outDir, `${base}.png`), png);
+        await writeFile(path.join(outDir, `${base}.2x.png`), png2x);
+        report.files = [`${base}.png`, `${base}.2x.png`];
+        report.chosen = "png";
+        report.bytes = png2x.length;
+        report.hotspot = hotspotCss(hotspot);
+        const problem = cursorWarning(framed, grounds);
+        if (problem) warn(problem);
+      }
+    }
+    report.ms = Math.round(performance.now() - start);
+    report.peakMb = Math.round(process.resourceUsage().maxRSS / 1024);
+    slots.push(report);
+  }
+
   // Palette : seulement si le paysage a changé (sinon, c'est celle du thème) ;
   // plans relus du disque à ce moment-là seulement.
   let palette: PaletteSuggestion | null = null;
@@ -380,7 +489,7 @@ export async function importKit(psdPath: string, outDir: string, opts: ImportOpt
   }
   await rm(work, { recursive: true, force: true });
   // Ordre de la spec (les emplacements absents ou en erreur sont arrivés en phase 1).
-  slots.sort((x, y) => SLOTS.findIndex((s) => s.id === x.id) - SLOTS.findIndex((s) => s.id === y.id));
+  slots.sort((x, y) => ALL_SLOTS.findIndex((s) => s.id === x.id) - ALL_SLOTS.findIndex((s) => s.id === y.id));
   const totals = {
     firstView: slots.filter((s) => FIRST_VIEW.has(s.id)).reduce((a, s) => a + (s.bytes ?? 0), 0),
     all: slots.reduce((a, s) => a + (s.bytes ?? 0), 0),
@@ -401,6 +510,8 @@ export async function importKit(psdPath: string, outDir: string, opts: ImportOpt
     ignoredLayers,
     palette,
     totals,
+    ...(colors ? { colors } : {}),
+    extras,
   };
   await writeFile(path.join(outDir, "rapport.json"), JSON.stringify(report, null, 2));
   return report;
@@ -418,7 +529,7 @@ export async function manifestFromPsd(psdPath: string, meta: { exportId: string;
   if (!layout) throw new Error(`taille de document inconnue : ${pre.width} × ${pre.height}`);
   const psd = readPsd(await readFile(psdPath), { ...PSD_READ_OPTIONS });
   const { sources } = resolveSlots(psd.children, layout);
-  const manifest: KitManifest = { ...meta, kitVersion: layout === "v1" ? 1 : 2, slots: {}, previews: {} };
+  const manifest: KitManifest = { ...meta, kitVersion: layout === "v1" ? 1 : pre.height === 4000 ? 2 : 3, slots: {}, previews: {} };
   if (previewDir) await mkdir(previewDir, { recursive: true });
   for (const slot of SLOTS) {
     const source = sources.get(slot.id);

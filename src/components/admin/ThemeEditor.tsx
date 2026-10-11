@@ -11,134 +11,19 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 
 import { saveThemeAction } from "@/app/admin/(espace)/themes/actions";
-import { FREE_FORMAT_HINT, OPAQUE_HEX, PICKER_FALLBACK, THEME_COLOR } from "@/themes/color-format";
-import { adjustToken, AA, pairsForToken } from "@/themes/contrast";
+import { contrastReport } from "@/themes/contrast";
 import { themeAttributes, themeToCss } from "@/themes/css";
 import { FONT_STACKS } from "@/themes/font-stacks";
+import { contrastRatio, normalizePalette, resolvePalette } from "@/themes/palette";
 import { FONT_IDS, type FontId, type Theme } from "@/themes/schema";
 
 import { clone, SaveBar, same, toast, useUnsavedGuard } from "./editing";
+import CursorSettings from "./CursorSettings";
 import KitDownloadButton from "./KitDownloadButton";
+import PaletteEditor from "./PaletteEditor";
 import { VARIANT_LABELS, VARIANT_THUMBS } from "./VariantThumb";
 
-type Colors = Theme["tokens"]["color"];
-type ColorKey = keyof Colors;
-
-const COLOR_FIELDS: { key: ColorKey; label: string; help: string; contrast: boolean; free?: boolean }[] = [
-  { key: "bg", label: "Fond", help: "Le fond des pages.", contrast: true },
-  { key: "bgDeep", label: "Fond profond", help: "Sépare deux sections sans filet.", contrast: true },
-  { key: "surface", label: "Surface", help: "Cartes, champs, visionneuse.", contrast: true },
-  { key: "ink", label: "Texte", help: "Titres et paragraphes.", contrast: true },
-  { key: "inkSoft", label: "Texte secondaire", help: "Présentations et légendes.", contrast: true },
-  { key: "primary", label: "Action", help: "Liens et fond des boutons.", contrast: true },
-  { key: "primaryHover", label: "Action au survol", help: "Boutons et liens sous la souris.", contrast: false },
-  { key: "onPrimary", label: "Texte des boutons", help: "Posé sur la couleur d'action.", contrast: true },
-  { key: "secondary", label: "Accent secondaire", help: "Détails mis en valeur.", contrast: true },
-  { key: "line", label: "Filets", help: "Traits de séparation ; transparence acceptée.", contrast: false, free: true },
-  { key: "tertiary", label: "Détails", help: "Ornements discrets ; transparence acceptée.", contrast: false, free: true },
-];
-
-const HEX = OPAQUE_HEX;
-const FREE = THEME_COLOR;
-
-function expand(hex: string): string {
-  return hex.length === 4 ? `#${[...hex.slice(1)].map((c) => c + c).join("")}` : hex;
-}
-
-/* ---- Couleur ------------------------------------------------------------ */
-
-function ColorField({
-  field,
-  colors,
-  onChange,
-  serverError,
-  lastEdited,
-}: {
-  field: (typeof COLOR_FIELDS)[number];
-  colors: Colors;
-  onChange: (value: string) => void;
-  serverError?: string;
-  /** Dernière couleur modifiée : un fond n'affiche le détail que s'il vient d'être changé. */
-  lastEdited: ColorKey | null;
-}) {
-  const id = useId();
-  const value = (colors[field.key] as string | undefined) ?? "";
-  const [draft, setDraft] = useState<string | null>(null);
-  const text = draft ?? value;
-  const valid = field.free ? FREE.test(text) : HEX.test(text);
-  const pairs = field.contrast && HEX.test(value) ? pairsForToken(colors as never, field.key as never) : [];
-  const failing = pairs.filter((p) => !p.ok);
-  // Détail et « Ajuster » : sur le texte fautif, ou sur le fond qu'on vient de changer.
-  // Ailleurs, le badge rouge suffit (sinon une seule erreur s'afficherait sur 4 champs).
-  const blamed = failing.length > 0 && (failing.some((p) => p.fg === field.key || (field.key === "secondary" && p.fg === "eyebrow")) || lastEdited === field.key);
-  const worst = pairs.reduce((m, p) => Math.min(m, p.ratio), Infinity);
-  const fixed = blamed ? adjustToken(colors as never, field.key as never) : null;
-
-  return (
-    <div className={`a-color${failing.length || serverError ? " a-field-invalid" : ""}`} data-token={field.key}>
-      <label htmlFor={`${id}-hex`} className="a-color-label">
-        {field.label}
-      </label>
-      <div className="a-color-row">
-        <input
-          type="color"
-          aria-label={`${field.label} : sélecteur`}
-          value={HEX.test(value) ? expand(value) : PICKER_FALLBACK}
-          onChange={(e) => {
-            setDraft(null);
-            onChange(e.target.value);
-          }}
-        />
-        <input
-          id={`${id}-hex`}
-          className="a-input mono a-color-hex"
-          value={text}
-          spellCheck={false}
-          aria-invalid={!valid}
-          aria-describedby={`${id}-help`}
-          onChange={(e) => {
-            const v = e.target.value.trim();
-            setDraft(v);
-            if (field.free ? FREE.test(v) : HEX.test(v)) {
-              onChange(v);
-              setDraft(null);
-            }
-          }}
-          onBlur={() => setDraft(null)}
-        />
-        {pairs.length > 0 && (
-          <span className={`a-ratio ${failing.length ? "a-ratio-bad" : "a-ratio-ok"}`} title={pairs.map((p) => `${p.label} : ${p.ratio.toFixed(2)}:1`).join("\n")}>
-            {failing.length ? "✗" : "✓"} {worst.toFixed(1)}:1
-          </span>
-        )}
-      </div>
-      <p id={`${id}-help`} className="a-help">
-        {field.help}
-      </p>
-      {!valid && <p className="a-field-error">Couleur attendue au format {field.free ? FREE_FORMAT_HINT : "#rrggbb"}.</p>}
-      {blamed && (
-        <div className="a-field-error" role="alert">
-          <p>
-            Contraste insuffisant (minimum {AA}:1) :{" "}
-            {failing.map((p) => `${p.label.toLowerCase()} ${p.ratio.toFixed(2)}:1`).join(", ")}.
-          </p>
-          {fixed ? (
-            <button type="button" className="a-btn a-btn-small a-fix" onClick={() => onChange(fixed)}>
-              Ajuster à la teinte la plus proche qui passe
-              <span className="a-chip" style={{ background: fixed }} aria-hidden="true" />
-              <span className="mono">{fixed}</span>
-            </button>
-          ) : (
-            <p>Aucune teinte proche ne passe : change aussi la couleur de fond concernée.</p>
-          )}
-        </div>
-      )}
-      {serverError && !failing.length && <p className="a-field-error">{serverError}</p>}
-    </div>
-  );
-}
-
-/* ---- Curseurs ----------------------------------------------------------- */
+/* ---- Réglettes ----------------------------------------------------------- */
 
 function Slider({
   label,
@@ -242,6 +127,7 @@ function Preview({ theme, themeId, reloadKey }: { theme: Theme; themeId: string;
       </div>
       <form ref={form} method="post" action="/admin/apercu" target={frameName} hidden>
         <input type="hidden" name="id" value={themeId} />
+        <input type="hidden" name="retour" value="/admin/themes" />
       </form>
       <div ref={box} className="a-preview-box">
         <iframe
@@ -267,23 +153,26 @@ export default function ThemeEditor({ initial, isActive }: { initial: Theme; isA
   const [saving, startSaving] = useTransition();
   const [tab, setTab] = useState<"reglages" | "apercu">("reglages");
   const [reloadKey, setReloadKey] = useState(0);
-  const [lastEdited, setLastEdited] = useState<ColorKey | null>(null);
   const dirty = !same(theme, saved);
   useUnsavedGuard(dirty);
 
   const colors = theme.tokens.color;
-  const setColor = (key: ColorKey, value: string | undefined) => {
-    setLastEdited(key);
-    setTheme((t) => ({ ...t, tokens: { ...t.tokens, color: { ...t.tokens.color, [key]: value } } }));
-  };
+  const setPalette = (color: Theme["tokens"]["color"], palette: Theme["tokens"]["palette"]) =>
+    setTheme((t) => {
+      const tokens = { ...t.tokens, color };
+      if (palette) tokens.palette = palette;
+      else delete tokens.palette;
+      return { ...t, tokens };
+    });
   const setTokens = <K extends keyof Theme["tokens"]>(k: K, v: Partial<Theme["tokens"][K]>) =>
     setTheme((t) => ({ ...t, tokens: { ...t.tokens, [k]: { ...t.tokens[k], ...v } } }));
 
-  const contrastFailures = useMemo(
-    () => COLOR_FIELDS.filter((f) => f.contrast).some((f) => pairsForToken(colors as never, f.key as never).some((p) => !p.ok)) ||
-      (colors.eyebrow ? pairsForToken(colors as never, "eyebrow" as never).some((p) => !p.ok) : false),
-    [colors],
-  );
+  // Même contrôle que le serveur (nuances auto recalculées), plus le texte posé sur le voile.
+  const contrastFailures = useMemo(() => {
+    const normalized = normalizePalette(colors, theme.tokens.palette);
+    const p = resolvePalette(colors, theme.tokens.palette);
+    return contrastReport(normalized).some((x) => !x.ok) || contrastRatio(p.onScrim, p.scrim) < 4.5;
+  }, [colors, theme.tokens.palette]);
 
   const save = () => {
     if (contrastFailures) {
@@ -333,36 +222,8 @@ export default function ThemeEditor({ initial, isActive }: { initial: Theme; isA
           </section>
 
           <section className="a-panel" aria-labelledby="t-couleurs">
-            <h2 id="t-couleurs">Couleurs</h2>
-            <p className="a-help a-panel-intro">
-              Chaque texte doit rester lisible sur chaque fond : au moins {AA}:1 (norme WCAG AA). Un indicateur rouge bloque
-              l&apos;enregistrement.
-            </p>
-            <div className="a-colors">
-              {COLOR_FIELDS.map((f) => (
-                <ColorField key={f.key} field={f} colors={colors} onChange={(v) => setColor(f.key, v)} serverError={errors[`tokens.color.${f.key}`]} lastEdited={lastEdited} />
-              ))}
-              <div className="a-color a-color-optional">
-                <label className="a-check">
-                  <input
-                    type="checkbox"
-                    checked={colors.eyebrow !== undefined}
-                    onChange={(e) => setColor("eyebrow", e.target.checked ? colors.secondary : undefined)}
-                  />
-                  Couleur propre pour les étiquettes
-                </label>
-                <p className="a-help">Sinon, les étiquettes prennent l&apos;accent secondaire.</p>
-              </div>
-              {colors.eyebrow !== undefined && (
-                <ColorField
-                  field={{ key: "eyebrow", label: "Étiquettes", help: "Petits textes au-dessus des titres.", contrast: true }}
-                  colors={colors}
-                  onChange={(v) => setColor("eyebrow", v)}
-                  serverError={errors["tokens.color.eyebrow"]}
-                  lastEdited={lastEdited}
-                />
-              )}
-            </div>
+            <h2 id="t-couleurs">Palette</h2>
+            <PaletteEditor colors={colors} palette={theme.tokens.palette} onChange={setPalette} errors={errors} />
           </section>
 
           <section className="a-panel" aria-labelledby="t-typo">
@@ -461,6 +322,8 @@ export default function ThemeEditor({ initial, isActive }: { initial: Theme; isA
               onChange={(v) => setTokens("space", { pageMax: `${v}px` })}
             />
           </section>
+
+          <CursorSettings theme={theme} onChange={(kit) => setTheme((t) => ({ ...t, assets: { ...t.assets, kit } }))} />
 
           <SaveBar
             dirty={dirty}

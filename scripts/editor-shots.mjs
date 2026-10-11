@@ -68,7 +68,7 @@ for (const w of [1440, 390]) {
   await go("/admin/pages");
   await shot(`pages-${w}`);
   await go("/admin/pages/1");
-  await p.locator(".a-block-toggle", { hasText: "Tuiles de collections" }).click();
+  await p.locator(".a-block-toggle", { hasText: "Entrées des collections" }).click();
   await p.waitForTimeout(300);
   await shot(`page-editeur-bloc-ouvert-${w}`);
   // Haut de page (en-tête et ses actions) et bas de page : la barre

@@ -2,6 +2,8 @@
 /* Variantes de forme (data-* sur <html>). Règles hors @layer : elles
    priment sur les utilitaires, c'est voulu (une variante re-dessine). */
 @import "../themes/variants.css";
+/* Lot médias : lecteur vidéo, bloc CV, curseur des images cliquables. */
+@import "./medias.css";
 
 /* ==========================================================================
    TOKENS DE THÈME — BRANCHEMENT SUR LE THÈME ACTIF
@@ -41,6 +43,8 @@
   /* Voile sombre (lightbox, vidéo) et texte posé dessus */
   --color-scrim: var(--t-color-scrim);
   --color-on-scrim: var(--t-color-on-scrim);
+  /* Fond de la visionneuse : gris neutre dérivé du voile (src/themes/css.ts). */
+  --color-viewer: var(--t-color-viewer);
   --color-shadow: var(--t-color-shadow);
 
   /* --- Typographie : piles issues du catalogue (src/themes/fonts.ts) -- */
@@ -106,6 +110,13 @@
   --rail-bar-track: 2px;
   --rail-bar-thumb: 4px;
   --rail-bar-box: 8px; /* hauteur totale réservée, zone de clic comprise */
+
+  /* Flèches de la bande (dérivées du thème ; une variante peut les redéfinir). */
+  --strip-nav-size: 2.75rem;
+  --strip-nav-bg: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  --strip-nav-fg: var(--color-ink);
+  --strip-nav-line: var(--color-line);
+  --strip-nav-radius: var(--btn-radius);
 
   /* Vignettes de la lightbox : 56px en grand écran, 44px sur mobile. */
   --lb-thumb-h: clamp(44px, 5vw, 56px);
@@ -288,14 +299,34 @@
      n'a pas de bord droit : elle fuit hors du cadre. L'encoche de gauche est
      recalculée en CSS pur, donc elle reste calée sur la grille à toute
      largeur, y compris au-delà de --page-max. */
-  .strip-rail {
+  /* Cadre de la bande : porte la géométrie (marge de page, hauteur des
+     images, rembourrage) pour que les flèches posées sur ses bords se
+     calent sur les images, et l'état de défilement (data-at-start,
+     data-at-end, data-overflows, écrits par ProjectStrip sans rendu React)
+     qui pilote le fondu des bords et les flèches. */
+  .strip-viewport {
     --rail-gutter: var(--gutter);
     --rail-inset: max(
       var(--rail-gutter),
       calc((100% - var(--page-max)) / 2 + var(--rail-gutter))
     );
     --strip-h: clamp(260px, 34vw, 420px);
+    /* Rembourrage vertical : au moins la place de l'anneau de focus, plus
+       si le thème l'exige (halo, inclinaisons). Les marges l'absorbent :
+       en haut entièrement (jamais négatif, le pad ne dépasse pas le minimum
+       du clamp), en bas à hauteur de l'anneau — une bande posée à vif ne
+       bouge donc pas d'un pixel. */
+    --rail-room: max(var(--strip-pad), var(--strip-ring));
+    /* Fondu des bords : largeur de la zone où l'image coupée « passe
+       derrière le fond » (au moins la marge de page). */
+    --strip-fade: max(var(--rail-inset), clamp(2.5rem, 9vw, 7.5rem));
+    position: relative;
+    margin-top: calc(clamp(1.75rem, 3.5vw, 2.75rem) - var(--rail-room));
+    margin-bottom: calc(-1 * var(--strip-ring));
+  }
 
+  .strip-rail {
+    position: relative;
     display: flex;
     align-items: flex-start;
     gap: clamp(0.75rem, 1.8vw, 1.75rem);
@@ -303,18 +334,56 @@
     padding-inline: var(--rail-inset);
     scroll-snap-type: x proximity;
     scroll-padding-inline-start: var(--rail-inset);
+    scroll-behavior: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    /* Rembourrage vertical : au moins la place de l'anneau de focus, plus
-       si le thème l'exige (halo, inclinaisons). Les marges l'absorbent :
-       en haut entièrement (jamais négatif, le pad ne dépasse pas le minimum
-       du clamp), en bas à hauteur de l'anneau — une bande posée à vif ne
-       bouge donc pas d'un pixel. */
-    --rail-room: max(var(--strip-pad), var(--strip-ring));
-    margin-top: calc(clamp(1.75rem, 3.5vw, 2.75rem) - var(--rail-room));
-    margin-bottom: calc(-1 * var(--strip-ring));
     padding-block: var(--rail-room);
+    /* Fondu : masque dégradé (alpha seul) — l'image se dissout dans ce qui
+       est derrière la bande (fond, texture, papier du kit), sans coupe nette.
+       Bords pilotés par deux propriétés (@property, medias.css) : le fondu
+       gauche n'apparaît qu'une fois la bande défilée, le droit disparaît en
+       butée. Sans transition : animer le masque le recalcule à chaque image
+       (mesuré : 5–6 images longues sur un glisser, ×4 plus lent ; aucune
+       sans animation, scripts/rail-perf.mjs). */
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 var(--strip-fade-l),
+      #000 calc(100% - var(--strip-fade-r)),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 var(--strip-fade-l),
+      #000 calc(100% - var(--strip-fade-r)),
+      transparent 100%
+    );
+  }
+
+  .strip-viewport[data-overflows="true"]:not([data-at-end="true"]) .strip-rail {
+    --strip-fade-r: var(--strip-fade);
+  }
+
+  .strip-viewport[data-overflows="true"]:not([data-at-start="true"]) .strip-rail {
+    --strip-fade-l: var(--strip-fade);
+  }
+
+  /* Accrochage : seulement pour le doigt (écran tactile). À la souris, les
+     flèches calent déjà une image à la fois ; la barre, la molette et le
+     pavé tactile défilent librement, sans ressaut à la fin du geste. */
+  @media not all and (pointer: coarse) {
+    .strip-rail {
+      scroll-snap-type: none;
+    }
+  }
+
+  /* Glisser la barre ou molette au-dessus (écran hybride) : l'accrochage
+     attend la fin du geste (sinon il ré-accroche après chaque position
+     posée : à-coups). */
+  .strip-rail[data-dragging] {
+    scroll-snap-type: none;
   }
 
   .strip-rail::-webkit-scrollbar {
@@ -377,9 +446,13 @@
     transition: height var(--dur-fast) var(--ease-soft);
   }
 
+  /* Position posée par RailScrollbar en transform (composité, sans mise en
+     page) : left reste à 0. */
   .rail-bar-thumb {
     position: absolute;
     top: 50%;
+    left: 0;
+    will-change: transform;
     height: var(--rail-bar-thumb);
     background: var(--color-primary);
     border-radius: var(--radius-sm);
@@ -403,9 +476,20 @@
   }
 
   /* ---- Lightbox --------------------------------------------------------- */
+  /* Fond de la visionneuse : gris NEUTRE et opaque (--color-viewer, même
+     luminance que le voile du thème mais sans sa teinte), pour juger les
+     couleurs d'une œuvre sans dominante ; rien de la page ne transparaît. */
   .lightbox {
-    background: color-mix(in srgb, var(--color-scrim) 92%, transparent);
+    background: var(--color-viewer);
     color: var(--color-on-scrim);
+  }
+
+  /* L'image agrandie est posée à nu : ni passe-partout, ni cadre du kit. */
+  .lightbox-frame {
+    background: transparent;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
   }
 
   /* ---- Vignettes de la lightbox ---------------------------------------- */
@@ -456,28 +540,73 @@
     border-radius: var(--radius-sm);
   }
 
-  .rail-arrow {
+  /* ---- Flèches de la bande ----------------------------------------------
+     Posées sur les bords de la bande, centrées sur la hauteur des images.
+     Discrètes : visibles au survol de la bande et au focus clavier ;
+     masquées sur écran tactile (le doigt fait défiler, l'accrochage cale
+     l'image) ; en butée, désactivées et effacées. Thémables par les jetons
+     --strip-nav-* (taille, fond, encre, bordure, rayon). */
+  .strip-nav {
+    position: absolute;
+    z-index: 2;
+    top: calc(var(--rail-room) + var(--strip-h) / 2);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    border: 1px solid var(--color-line);
-    border-radius: var(--btn-radius);
-    color: var(--color-ink-soft);
+    width: var(--strip-nav-size);
+    height: var(--strip-nav-size);
+    border: 1px solid var(--strip-nav-line);
+    border-radius: var(--strip-nav-radius);
+    background: var(--strip-nav-bg);
+    color: var(--strip-nav-fg);
+    font-size: 1.15rem;
     line-height: 1;
-    transition: color var(--dur-fast) var(--ease-soft),
-      border-color var(--dur-fast) var(--ease-soft);
+    box-shadow: var(--shadow-card);
+    cursor: var(--t-cursor-pointer, pointer);
+    /* Effacée mais toujours focalisable (le clavier la fait apparaître) ;
+       seule une flèche en butée (désactivée) quitte l'arbre visible. */
+    opacity: 0;
+    transform: translateY(-50%);
+    transition:
+      opacity var(--dur-fast) var(--ease-soft),
+      color var(--dur-fast) var(--ease-soft),
+      border-color var(--dur-fast) var(--ease-soft),
+      visibility 0s linear var(--dur-fast);
   }
 
-  .rail-arrow:hover:not(:disabled) {
+  .strip-nav:disabled {
+    visibility: hidden;
+  }
+
+  /* Dans la marge de page quand elle est assez large, sinon sur l'image. */
+  .strip-nav-prev {
+    left: max(0.5rem, calc(var(--rail-inset) / 2 - var(--strip-nav-size) / 2));
+  }
+
+  .strip-nav-next {
+    right: max(0.5rem, calc(var(--rail-inset) / 2 - var(--strip-nav-size) / 2));
+  }
+
+  .strip-viewport:hover .strip-nav:not(:disabled),
+  .strip-viewport:focus-within .strip-nav:not(:disabled) {
+    opacity: 1;
+    transition-delay: 0s;
+  }
+
+  .strip-nav:hover:not(:disabled) {
     color: var(--color-primary);
     border-color: var(--color-primary);
   }
 
-  .rail-arrow:disabled {
-    opacity: 0.35;
-    cursor: default;
+  .strip-nav:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 3px;
+  }
+
+  @media (hover: none) {
+    .strip-nav {
+      display: none;
+    }
   }
 
   .link-underline {
@@ -606,6 +735,11 @@
 .block-grid-cell {
   min-width: 0;
 }
+/* Espace sous la grille : son propre pas (celui de « normal »), pour que le
+   bloc suivant ne colle jamais — une bande de planche à fond profond compris. */
+.block-grid-section {
+  padding-bottom: clamp(1.5rem, 3vw, 2.5rem);
+}
 .block-grid[data-layout="2x2"],
 .block-grid[data-layout="4"] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -666,4 +800,47 @@
 .contact-form .contact-input:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 1px;
+}
+
+/* Adresse e-mail (profil, pied de page) : EmailText. Jamais coupée au milieu
+   (morceaux insécables, coupure permise seulement après l'@), taille fluide
+   relative à la colonne (unités cqi du lien, `container-type`) pour tenir sur
+   une ligne, police du texte du thème. */
+.email-link {
+  display: block;
+  max-width: 100%;
+  container-type: inline-size;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.email-text {
+  /* En ligne : le soulignement du lien (link-underline) s'y propage. */
+  display: inline;
+  font-family: var(--font-body);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  line-height: 1.25;
+  overflow-wrap: normal;
+  word-break: normal;
+  font-size: clamp(var(--email-min, 1rem), var(--email-fluid, 6cqi), var(--email-max, 1.5rem));
+}
+.email-part {
+  white-space: nowrap;
+}
+.email-link-footer {
+  --email-min: 1.05rem;
+  --email-max: 2rem;
+}
+
+/* Cadre du site (src/app/[locale]/[[...slug]]/layout.tsx) : au moins la hauteur
+   de l'écran, contenu étiré, pied de page en bas même sur une page courte.
+   En-tête collant inchangé (il colle au viewport, le cadre fait toute la page). */
+.site-frame {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.site-frame > main {
+  flex: 1 0 auto;
 }

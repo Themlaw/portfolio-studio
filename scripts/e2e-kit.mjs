@@ -3,7 +3,7 @@
  * Parcours d'import d'un kit Photoshop (phase 6d), UN chromium, UN onglet.
  * Serveur dev requis (redémarré puis pré-chauffé), une connexion.
  *
- * A. Aller-retour : export v2 de galerie-lumineuse (file lourde) → modification
+ * A. Aller-retour : export v3 de galerie-lumineuse (file lourde) → modification
  *    simulée (flèche droite redessinée, recadrée comme par Photoshop) → refus
  *    d'un fichier qui n'est pas un PSD (PNG légitime généré par ffmpeg) →
  *    envoi → revue (flèche « redessinée », le reste « inchangé », avant /
@@ -61,7 +61,7 @@ await page.fill("#email", EMAIL);
 await page.fill("#password", PASSWORD);
 await Promise.all([page.waitForURL((u) => !u.pathname.startsWith("/admin/connexion"), { timeout: 60000 }), page.click("button[type=submit]")]);
 
-/** Envoi d'un PSD sur l'écran du kit, puis revue complète (14 cartes). */
+/** Envoi d'un PSD sur l'écran du kit, puis revue complète (14 cartes, 16 avec les curseurs d'un kit v3). */
 async function sendAndReview(file) {
   await page.goto(`${BASE}/admin/themes/galerie-lumineuse/kit`, { waitUntil: "networkidle" });
   await page.setInputFiles('[data-testid="kit-file"]', file);
@@ -83,7 +83,7 @@ async function apply() {
   return id;
 }
 
-/* ---- A. Aller-retour v2 ------------------------------------------------- */
+/* ---- A. Aller-retour v3 ------------------------------------------------- */
 const kitUrl = `${BASE}/admin/api/theme-kit/galerie-lumineuse`;
 let ready = false;
 for (let i = 0; i < 90 && !ready; i++) {
@@ -91,12 +91,12 @@ for (let i = 0; i < 90 && !ready; i++) {
   ready = (await res.json()).ready === true;
   if (!ready) await sleep(2000);
 }
-ok("export du kit v2 (file lourde) prêt", ready);
-const kitFile = path.join(DIR, "kit-v2.psd");
+ok("export du kit v3 (file lourde) prêt", ready);
+const kitFile = path.join(DIR, "kit-v3.psd");
 const dl = await page.request.get(kitUrl);
 writeFileSync(kitFile, await dl.body());
-ok("kit v2 téléchargé (PSD)", dl.ok() && (await dl.body()).subarray(0, 4).toString("latin1") === "8BPS");
-const edited = path.join(DIR, "kit-v2-modifie.psd");
+ok("kit v3 téléchargé (PSD)", dl.ok() && (await dl.body()).subarray(0, 4).toString("latin1") === "8BPS");
+const edited = path.join(DIR, "kit-v3-modifie.psd");
 execFileSync(process.execPath, ["--import", "tsx", "scripts/kit-poc/simulate-edit.mts", kitFile, edited], { stdio: "ignore" });
 
 await page.goto(`${BASE}/admin/themes/galerie-lumineuse/kit`, { waitUntil: "networkidle" });
@@ -107,7 +107,7 @@ ok("fichier qui n'est pas un PSD : refusé, message clair", /pas un fichier Phot
 const a = await sendAndReview(edited);
 const changedA = a.cards.filter((c) => c.change !== "unchanged");
 ok("aller-retour : seule « Flèche droite » redessinée", changedA.length === 1 && changedA[0].slot === "icones/fleche-droite" && /Flèche droite : redessinée/.test(changedA[0].title), JSON.stringify(changedA));
-ok("aller-retour : 13 inchangés (reconnus par l'identifiant d'export)", a.cards.filter((c) => c.change === "unchanged").length === 13 && /identifiant du fichier/.test(await page.locator(".a-kit-summary").textContent()));
+ok(`aller-retour : ${a.cards.length - 1} inchangés sur ${a.cards.length} (reconnus par l'identifiant d'export ; kit v3 : curseurs compris)`, a.cards.length === 16 && a.cards.filter((c) => c.change === "unchanged").length === a.cards.length - 1 && /identifiant du fichier/.test(await page.locator(".a-kit-summary").textContent()));
 ok("avant / après affichés pour la flèche", a.imgs.length === 2 && a.imgs.every((i) => i.w > 0), JSON.stringify(a.imgs));
 await page.screenshot({ path: `${SHOTS}/revue-aller-retour-1440.png`, fullPage: true });
 const draftA = await apply();
@@ -141,18 +141,23 @@ await page.waitForURL(/\/fr$/, { timeout: 60000 });
 await page.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });
 const kitAttr = await page.evaluate(() => document.documentElement.hasAttribute("data-kit-icon-arrow-right"));
 ok("brouillon en aperçu : flèche droite du kit active", kitAttr);
-const rail = page.locator(".rail-arrow").last();
+// Flèches de la bande (lot médias) : posées sur ses bords, visibles au survol.
+const stripVp = page.locator(".strip-viewport:has(.strip-nav)").last();
+const rail = stripVp.locator(".strip-nav-next");
 await rail.scrollIntoViewIfNeeded();
+await stripVp.hover();
+await sleep(400);
 const rb = await rail.boundingBox();
-const prev = await page.locator(".rail-arrow").first().boundingBox();
-const railClip = { x: prev.x - 40, y: rb.y - 30, width: rb.x + rb.width - prev.x + 80, height: rb.height + 60 };
+const prev = await stripVp.locator(".strip-nav-prev").boundingBox();
+const clipX = Math.max(0, prev.x - 40);
+const railClip = { x: clipX, y: rb.y - 30, width: Math.min(page.viewportSize().width - clipX, rb.x + rb.width - clipX + 40), height: rb.height + 60 };
 await page.screenshot({ path: `${SHOTS}/fleche-artiste-rail-1440.png`, clip: railClip });
 // Agrandi × 4 (gauche : flèche du thème ; droite : celle de l'artiste).
 await sharp(await page.screenshot({ clip: railClip })).resize({ width: Math.round(railClip.width * 4), kernel: "lanczos3" }).toFile(`${SHOTS}/fleche-artiste-rail-zoom.png`);
-const maskOk = await page.$eval('.rail-arrow [data-icon="arrow-right"]', (e) => getComputedStyle(e).maskImage.includes("/media/kit/"));
+const maskOk = await page.$eval('.strip-nav [data-icon="arrow-right"]', (e) => getComputedStyle(e).maskImage.includes("/media/kit/"));
 ok("rail : la flèche droite est le dessin de l'artiste (masque /media/kit)", maskOk);
-const leftMask = await page.$eval('.rail-arrow [data-icon="arrow-left"]', (e) => getComputedStyle(e).maskImage);
-ok("rail : la flèche gauche est son miroir (paire cohérente, case cochée par défaut)", leftMask.includes("/media/kit/") && !leftMask.includes(await page.$eval('.rail-arrow [data-icon="arrow-right"]', (e) => getComputedStyle(e).maskImage)));
+const leftMask = await page.$eval('.strip-nav [data-icon="arrow-left"]', (e) => getComputedStyle(e).maskImage);
+ok("rail : la flèche gauche est son miroir (paire cohérente, case cochée par défaut)", leftMask.includes("/media/kit/") && !leftMask.includes(await page.$eval('.strip-nav [data-icon="arrow-right"]', (e) => getComputedStyle(e).maskImage)));
 // Une planche d'au moins deux images : la visionneuse montre alors ses flèches.
 await page.locator(".strip").filter({ has: page.locator(".strip-frame:nth-child(2)") }).first().locator(".strip-frame").first().click();
 await page.locator(".lightbox-frame").waitFor({ timeout: 15000 });

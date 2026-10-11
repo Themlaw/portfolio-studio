@@ -7,13 +7,16 @@
  * tout depuis ce registre.
  */
 import { createElement, type ComponentType, type ReactNode } from "react";
-import type { z } from "zod";
+import { z } from "zod";
+
+import { LookSchema } from "@/lib/look";
 
 import CollectionIntroBlock, { collectionIntroSchema } from "./CollectionIntroBlock";
 import CollectionProjectsBlock, { collectionProjectsSchema } from "./CollectionProjectsBlock";
 import CollectionTilesBlock, { collectionTilesSchema } from "./CollectionTilesBlock";
 import ContactBlock, { contactSchema } from "./ContactBlock";
 import ContactFormBlock, { contactFormSchema } from "./ContactFormBlock";
+import CvBlock, { cvSchema } from "./CvBlock";
 import { defaultContactForm } from "@/lib/contact-form";
 import {
   CollectionIntroEditor,
@@ -21,6 +24,7 @@ import {
   CollectionTilesEditor,
   ContactEditor,
   ContactFormEditor,
+  CvEditor,
   FeaturedProjectEditor,
   FeaturedProjectsEditor,
   GridEditor,
@@ -89,7 +93,7 @@ export type BlockDefinition<S extends z.ZodType = z.ZodType> = {
    */
   container?: { accepts: string[] };
   /** Champs média remplaçables sur la toile (survol : Remplacer / Retirer, dépôt). */
-  mediaFields?: { field: string; kind: "image" | "video" | "any" }[];
+  mediaFields?: { field: string; kind: "image" | "video" | "pdf" | "any" }[];
   /** Retiré de la palette : encore rendu s'il traîne, plus créable. */
   deprecated?: boolean;
   /** Raccourcis de la palette (même type, réglages de départ différents). */
@@ -100,12 +104,15 @@ function define<S extends z.ZodType>(def: Omit<BlockDefinition<S>, "refs" | "con
   const refs = BLOCK_REFS[def.type];
   if (!refs) throw new Error(`Bloc « ${def.type} » : références non déclarées dans src/blocks/refs.ts`);
   const container = Object.hasOwn(CONTAINERS, def.type) ? CONTAINERS[def.type] : undefined;
-  return { ...def, refs, ...(container ? { container } : {}) } as unknown as BlockDefinition;
+  // Mise en page (lot 2) : tout bloc porte ses réglages `look` (src/lib/look.ts) ;
+  // un réglage illisible est ignoré, il ne masque jamais le bloc.
+  const schema = def.schema instanceof z.ZodObject ? def.schema.safeExtend({ look: LookSchema.optional().catch(undefined) }) : def.schema;
+  return { ...def, schema, refs, ...(container ? { container } : {}) } as unknown as BlockDefinition;
 }
 
 /** Composants de départ d'un modèle (uid attribués à l'insertion par l'éditeur). */
 const child = (type: string, props: Record<string, unknown> = {}) => ({ type, props });
-const videos = (n: number) => Array.from({ length: n }, () => child("video-single", { look: "card", mode: "player" }));
+const videos = (n: number) => Array.from({ length: n }, () => child("video-single", { variant: "card", mode: "player" }));
 const images = (n: number) => Array.from({ length: n }, () => child("image", { width: "wide" }));
 
 const L = { fr: "", en: "" };
@@ -155,7 +162,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Editor: VideoSingleEditor,
       label: "Vidéo",
       description: "Une vidéo de ta médiathèque : lecteur, ou boucle muette.",
-      defaults: { look: "card", mode: "player" },
+      defaults: { variant: "card", mode: "player" },
       summary: "Vidéo · {title}",
       inline: ["eyebrow", "title", "description"],
       mediaFields: [{ field: "mediaId", kind: "video" }],
@@ -200,6 +207,19 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       publishCheck: (props) => (props.mediaId ? null : "Choisis une image (dépose-la, ou prends-la dans la médiathèque)."),
     }),
     define({
+      type: "cv",
+      schema: cvSchema,
+      Component: CvBlock,
+      Editor: CvEditor,
+      label: "CV",
+      description: "Ton CV : ses pages en images, lisibles et agrandissables, et un bouton pour télécharger le PDF.",
+      defaults: { eyebrow: { fr: "Parcours", en: "Background" }, title: { fr: "Curriculum vitae", en: "Résumé" }, fileName: "cv" },
+      summary: "CV · {title}",
+      inline: ["eyebrow", "title", "intro", "button"],
+      mediaFields: [{ field: "mediaId", kind: "pdf" }],
+      publishCheck: (props) => (props.mediaId ? null : "Choisis le PDF de ton CV (dépose-le sur le bloc, ou prends-le dans la médiathèque)."),
+    }),
+    define({
       type: "section-title",
       schema: sectionTitleSchema,
       Component: SectionTitleBlock,
@@ -228,10 +248,10 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: collectionTilesSchema,
       Component: CollectionTilesBlock,
       Editor: CollectionTilesEditor,
-      label: "Tuiles de collections",
-      description: "Une tuile illustrée par collection (Personnages, Décors…), chacune menant à sa page.",
+      label: "Entrées des collections",
+      description: "Une grande image par collection (Personnages, Décors…), qui mène à sa page.",
       defaults: { eyebrow: L, title: L, items: [] },
-      summary: "{title} · {items} tuiles",
+      summary: "{title} · {items} entrées",
       inline: ["eyebrow", "title"],
     }),
     define({
