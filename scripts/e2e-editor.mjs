@@ -268,7 +268,8 @@ ok("visiteur : la nouvelle version après Publier", (await visitor.locator("body
 const site = await ctx.newPage();
 await site.goto(`${BASE}/fr`, { waitUntil: "networkidle" });
 const editThis = site.getByRole("link", { name: "Modifier cette page" });
-ok("admin : bouton « Modifier cette page » sur le site", await editThis.isVisible({ timeout: 15000 }).catch(() => false));
+// `isVisible` n'attend pas : le bouton apparaît après la lecture de la session (client), parfois > 1 s en CI.
+ok("admin : bouton « Modifier cette page » sur le site", await editThis.waitFor({ state: "visible", timeout: 15000 }).then(() => true, () => false));
 await editThis.click();
 await site.waitForURL(/\/admin\/pages\/1\/editer\?langue=fr/, { timeout: 60000 });
 ok("le bouton ouvre l'éditeur de la page, dans sa langue", site.url().includes("/admin/pages/1/editer?langue=fr"));
