@@ -104,11 +104,15 @@ try {
   // ---- A. Thème ------------------------------------------------------------
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
   const source = page.locator(".a-theme-card:has(#theme-galerie-lumineuse)");
+  // Le toast est affiché dès le clic et s'efface en quelques secondes : on l'attend en même temps que la navigation
+  // (sur une machine lente, l'éditeur de la copie arrive après sa disparition).
+  const duplicated = toast("dupliqué");
+  duplicated.catch(() => {}); // rejet traité au await plus bas (pas de rejet non géré entre-temps)
   await source.getByRole("button", { name: "Dupliquer" }).click();
   await page.waitForURL(/\/admin\/themes\/[a-z0-9-]+$/);
   const themeId = page.url().split("/").pop();
   ok("A1 preset dupliqué → éditeur de la copie", /copie/.test(themeId), themeId);
-  await toast("dupliqué");
+  await duplicated;
 
   const frame = page.frameLocator("iframe.a-preview-frame");
   await frame.locator("html[data-theme]").waitFor({ timeout: 30000 });
