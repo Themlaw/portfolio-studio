@@ -337,6 +337,8 @@ if (run("E")) {
   ok("E1 grille de vidéos : 3 vidéos à choisir, agencement 1 grand + 2", grid?.props.layout === "1+2" && grid.props.children.length === 3 && grid.props.children.every((c) => c.type === "video-single"), JSON.stringify(grid?.props));
   const gridSel = `[data-edit-block="${grid.uid}"]`;
   await center(f, gridSel);
+  // Les repères « Choisir une vidéo » se posent après le rendu de la grille : on attend (course constatée en CI).
+  await until(f, (s) => document.querySelectorAll(s).length === 3, `${gridSel} .pe-media-video`, 15000);
   ok("E2 « Choisir une vidéo » sur la toile", (await f.locator(`${gridSel} .pe-media-video`).count()) === 3);
   await page.screenshot({ path: `${SHOTS}/E-video-a-choisir.png` });
   await f.locator(`${gridSel} .pe-media-video`).first().click();
