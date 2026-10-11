@@ -24,6 +24,7 @@
     "test:e2e-editor": "node scripts/e2e-editor.mjs",
     "test:e2e-boards": "node scripts/e2e-boards.mjs",
     "test:e2e-v013": "node scripts/e2e-v013.mjs",
+    "test:e2e-lot8": "node scripts/e2e-lot8.mjs",
     "test:e2e-look": "node scripts/e2e-look.mjs",
     "test:e2e-state": "node scripts/e2e-state.mjs",
     "test:e2e-medias": "node scripts/e2e-medias.mjs",

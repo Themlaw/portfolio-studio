@@ -116,6 +116,14 @@ export const projects = sqliteTable("projects", {
    * pas publiée ; supprimé si elle est abandonnée (ou supprimée).
    */
   draftPageId: integer("draft_page_id").references((): AnySQLiteColumn => pages.id, { onDelete: "cascade" }),
+  /**
+   * Surcouche des TEXTES du projet (nom, contexte, présentation, année) portée
+   * par le brouillon d'une page (v0.15), comme la surcouche des emplacements :
+   * null = pas de surcouche. Le site public ne la lit
+   * jamais ; publier la page l'applique, « Abandonner » l'efface.
+   */
+  draftText: text("draft_text", { mode: "json" }).$type<{ title: Localized; context: Localized; description: Localized; year: string }>(),
+  draftTextPageId: integer("draft_text_page_id").references((): AnySQLiteColumn => pages.id, { onDelete: "set null" }),
 });
 
 /**

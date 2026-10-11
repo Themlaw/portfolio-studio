@@ -470,8 +470,8 @@ disponible (lien « Formulaire »).
   (ses `added` sont supprimés) ; une autre page qui partage le projet n'y touche
   jamais. Depuis la v0.13.1, sa vue brouillon la MONTRE (l'ordre d'une planche
   est celui du projet : une planche reposée ailleurs affiche le brouillon courant,
-  sinon l'ordre publié), avec un bandeau « Images en cours de modification sur
-  la page … » (`edit.heldBy`, `data-edit-board-held`) ; seule la page qui la
+  sinon l'ordre publié), signalé au survol (`edit.heldBy`,
+  `data-edit-board-held`) ; seule la page qui la
   porte la modifie et la publie. Supprimer la page abandonne sa
   surcouche. Les colonnes sont prêtes en 7a ; leur écriture depuis la toile
   arrive en 7b.
@@ -949,6 +949,54 @@ libres ni de valeur arbitraire) : `src/lib/look.ts` (module pur, testé par
   bandeau d'aperçu rendu uniquement en draft mode ; GET réservé au développement.
 - **Admin** : UI propre (`src/app/admin/admin.css`, tokens `--admin-*`, jamais les
   `--t-*` du thème public), racine HTML séparée, toujours dynamique, `noindex`.
+
+## Textes d'un projet depuis un bloc (v0.15)
+
+Un projet a UNE source de vérité pour ses textes : la ligne `projects` (nom,
+contexte, présentation, année). Planche, titre lié d'un « Projet mis en avant »,
+écran Projets et page projet lisent la même ligne. Depuis la v0.15 on les modifie
+EN PLACE sur la toile depuis tout bloc qui les montre (en-tête de la planche,
+titre lié, présentation), et depuis l'écran Projets, sans copie du texte dans les
+blocs.
+
+- **Stockage = le motif des emplacements** : surcouche par page sur `projects`
+  (`draft_text` JSON `{ title, context, description, year }` + `draft_text_page_id`,
+  migration 0017, `ON DELETE SET NULL`). Le site public ne lit jamais ces colonnes ;
+  la vue brouillon de CETTE page les applique (`readProjects(ids, pageId)` dans
+  `gallery.ts`). Choix écarté : mettre les textes dans `pages.draft` (une copie par
+  page, deux pages divergent, la dernière publication écrase en silence) ; ou écrire
+  la ligne en direct (ne respecte pas « rien n'est public avant Publier »).
+- **Écriture** (`boards.ts`) : même instantané que la planche (`BoardSnap.project`,
+  maintenant renseigné pour tout projet, `description` comprise), mêmes opérations
+  (`op: "project"`), même historique Annuler / Rétablir, même version optimiste
+  `pages.draft_rev` (deux onglets : « modifié ailleurs », rien d'écrasé). Une
+  modification de texte seule ne touche pas aux emplacements (pas de
+  `draft_page_id` posé) ; revenir aux textes publiés efface la surcouche. Garde
+  `textAccess` : la page doit CITER le projet (planche, projet d'un conteneur, titre
+  lié : `referencedProjects`, pas seulement `displayedProjects`) et aucune AUTRE page
+  ne tient déjà ses textes (refus qui la nomme). Un projet créé dans ce brouillon
+  garde ses textes sur sa ligne (invisible ailleurs) comme avant.
+- **Publication / abandon** (`drafts.ts`) : `applyProjectTextDrafts` à côté de
+  `applySlotDrafts` (publication de la page et ancien formulaire), seulement pour les
+  projets que la page publiée cite encore (sinon surcouche effacée, jamais appliquée) ;
+  les projets touchés sont revalidés. `discardProjectTextDrafts` à l'abandon et à la
+  suppression de la page. L'écran Projets refuse d'enregistrer les textes d'un projet
+  tenu par une page (message qui la nomme, avis en tête de l'écran).
+- **Sur la toile** : `data-project-inline` (`title`, `context`, `year`, `description`) ;
+  même projet montré deux fois (titre lié + planche) : le rafraîchissement suivant
+  l'écriture met à jour toutes les occurrences. Le CONTENU est au projet, la MISE EN
+  FORME reste au bloc : `data-look-key` → `look.text.title|intro` du Titre lié
+  (barre « Aa »). Indicateur discret au survol (`.pe-project-hint`, couche
+  `BoardLayer`) : « Texte du projet « X » — modifié aussi sur sa planche et sa page »
+  + « Voir le projet » (écran du projet) ; « lecture seule » si une autre page tient
+  les textes (`data-edit-board-text-held`). Il remplace l'ancien bandeau « Images en
+  cours de modification… » (désormais `data-edit-board-held` + même indicateur).
+- **Ouverture** : l'indicateur de défilement (`scroll`, `showScroll`) et le bouton
+  demoreel (`reel`) sont des textes éditoriaux du bloc (`inline`, fr/en, style local
+  `look.text.scroll|reel`). Absent ou vide pour la langue = message d'interface
+  (`home.hero.scroll|reel`) : aucune migration, rendu identique pour l'existant. La
+  phrase d'accroche (balisage `<mark>`) reste modifiable dans le panneau seulement ;
+  la note en marge du hero « type-only » est un décor du thème (`assets.heroNote`).
 
 ## Phases
 

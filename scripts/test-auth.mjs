@@ -1008,8 +1008,11 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("BD6c instantané : emplacement s<id> qui n'existe plus → refusé", res.text.includes('"ok":false'), line(res));
   res = await restore(homeId, { projectId: created.id, project: null, slots: Array.from({ length: 201 }, (_, i) => ({ key: `k${String(i).padStart(10, "0")}`, mediaId: null, title: { fr: "", en: "" }, description: { fr: "", en: "" } })) });
   ok("BD6d instantané de plus de 200 emplacements → refusé", res.text.includes('"ok":false') && query(dirA, "select count(*) n from slots where project_id = ?", created.id).n === 1, line(res));
-  res = await restore(homeId, { ...pBefore, project: { title: { fr: "Piratage", en: "" }, context: { fr: "", en: "" }, year: "1" } });
-  ok("BD6e instantané qui renomme un projet publié → refusé", res.text.includes('"ok":false') && !JSON.stringify(query(dirA, "select title from projects where id = ?", P.id)).includes("Piratage"), line(res));
+  // v0.15 : le titre d'un projet publié se change depuis une page qui l'affiche, mais EN SURCOUCHE de cette page ; jamais en ligne.
+  res = await board(homeId, P.id, { op: "project", field: "title", locale: "fr", value: "Piratage" });
+  const overlay = query(dirA, "select draft_text_page_id g from projects where id = ?", P.id);
+  ok("BD6e renommer un projet publié depuis la toile → le titre publié ne bouge pas (surcouche de la page seulement)", !JSON.stringify(query(dirA, "select title from projects where id = ?", P.id)).includes("Piratage") && (overlay.g === null || overlay.g === homeId), line(res));
+  writeDb(dirA, "update projects set draft_text = null, draft_text_page_id = null where id = ?", P.id);
   res = await board(homeId, created.id, { op: "add", mediaId: mX, index: 0 }, pageRev(homeId) - 1);
   ok("BD6f version périmée → refusé (conflit)", code(res) === "conflict", line(res));
   res = await callActionJson(jar, ids.boardAction, [homeId, created.id, { op: "add", mediaId: mX, index: 0 }], editor);

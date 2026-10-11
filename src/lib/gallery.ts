@@ -66,9 +66,11 @@ export type LocalizedProject = {
   /**
    * Vue brouillon seulement. `heldBy` : titre de la page dont le brouillon
    * porte les changements d'images de ce projet (une AUTRE page) ; la planche
-   * les montre, mais ne se modifie que sur cette page.
+   * les montre, mais ne se modifie que sur cette page. `textHeldBy` : idem pour
+   * les TEXTES du projet (nom, contexte, présentation, année) ; `textDraft` :
+   * cette page porte une modification de ces textes (v0.15).
    */
-  edit?: { id: number; draft: boolean; heldBy?: string };
+  edit?: { id: number; draft: boolean; heldBy?: string; textHeldBy?: string; textDraft?: boolean };
 };
 
 type RawProject = {
@@ -80,6 +82,9 @@ type RawProject = {
   title: L;
   context: L;
   description: L;
+  /** Vue brouillon : page qui tient les textes du projet (autre que la vue), ou surcouche de la vue. */
+  textHeldBy?: string;
+  textDraft?: boolean;
 };
 
 type RawArtwork = {
@@ -122,9 +127,15 @@ async function projectIds(): Promise<number[]> {
 type SlotRow = typeof schema.slots.$inferSelect;
 type MediaRow = typeof schema.media.$inferSelect;
 
-function readProjects(ids: number[]): RawProject[] {
+/**
+ * `overlayPage` : vue brouillon de cette page — la surcouche de textes qu'elle
+ * porte (`projects.draft_text`) remplace les textes publiés ; celle d'une
+ * autre page n'est pas montrée (signalée par `textHeldBy`).
+ */
+function readProjects(ids: number[], overlayPage?: number | null): RawProject[] {
   if (!ids.length) return [];
-  return getDb()
+  const db = getDb();
+  const rows = db
     .select({
       id: schema.projects.id,
       draftPageId: schema.projects.draftPageId,
@@ -134,11 +145,21 @@ function readProjects(ids: number[]): RawProject[] {
       title: schema.projects.title,
       context: schema.projects.context,
       description: schema.projects.description,
+      draftText: schema.projects.draftText,
+      draftTextPageId: schema.projects.draftTextPageId,
     })
     .from(schema.projects)
     .where(inArray(schema.projects.id, ids))
     .orderBy(asc(schema.projects.position))
     .all();
+  let titles: Map<number, string> | null = null;
+  return rows.map(({ draftText, draftTextPageId, ...p }) => {
+    if (overlayPage === undefined || draftTextPageId === null) return p;
+    if (draftTextPageId === overlayPage && draftText) return { ...p, ...draftText, textDraft: true };
+    if (draftTextPageId === overlayPage) return p;
+    titles ??= new Map(db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).all().map((x) => [x.id, x.title.fr || `n° ${x.id}`]));
+    return { ...p, textHeldBy: titles.get(draftTextPageId) ?? `n° ${draftTextPageId}` };
+  });
 }
 
 function toArtworks(rows: { slot: SlotRow; media: MediaRow | null }[]): RawArtwork[] {
@@ -261,7 +282,7 @@ function draftSnapshot(): Snapshot {
         edit,
       });
   }
-  return { projects: readProjects(projects.map((p) => p.id)), artworks, held };
+  return { projects: readProjects(projects.map((p) => p.id), pageId), artworks, held };
 }
 
 /** Œuvres affichables hors des planches (collections, couvertures, compteurs) : jamais une place vide. */
@@ -290,6 +311,13 @@ function localize(a: RawArtwork, locale: AppLocale): LocalizedArtwork {
   return out;
 }
 
+const projectEdit = (p: RawProject) => ({
+  id: p.id,
+  draft: p.draftPageId !== null,
+  ...(p.textHeldBy ? { textHeldBy: p.textHeldBy } : {}),
+  ...(p.textDraft ? { textDraft: true } : {}),
+});
+
 function localizeProject(
   project: RawProject,
   artworks: RawArtwork[],
@@ -301,7 +329,7 @@ function localizeProject(
     .filter((a) => (filter ? filter(a) : true))
     .sort((x, y) => x.position - y.position);
   return {
-    ...(project.draftPageId !== undefined && artworks.some((a) => a.edit) ? { edit: { id: project.id, draft: project.draftPageId !== null } } : {}),
+    ...(project.draftPageId !== undefined && artworks.some((a) => a.edit) ? { edit: projectEdit(project) } : {}),
     slug: project.slug,
     year: project.year,
     featured: project.featured,
@@ -407,7 +435,7 @@ export async function getProjectBoard(slug: string, locale: AppLocale, collectio
   const pos = new Map(order.map((a, i) => [a.id, i]));
   const placed = artworks.map((a) => (a.edit && pos.has(a.id) ? { ...a, edit: { ...a.edit, pos: pos.get(a.id)! } } : a));
   const out = localizeProject(project, placed, locale, collection ? (a) => a.collection === collection : undefined);
-  if (!out.edit && (await isDraftView())) out.edit = { id: project.id, draft: project.draftPageId !== null };
+  if (!out.edit && (await isDraftView())) out.edit = projectEdit(project);
   const heldBy = held?.get(project.id);
   if (out.edit && heldBy) out.edit = { ...out.edit, heldBy };
   return out;

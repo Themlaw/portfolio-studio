@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import Lightbox from "@/components/Lightbox";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
+import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedProject } from "@/lib/gallery";
 import { RADIUS_VALUES } from "@/themes/css";
 
@@ -59,7 +60,8 @@ export default function ProjectStrip({
   };
   // Vue brouillon de l'éditeur : repères de la planche (jamais dans le HTML public).
   const edit = project.edit;
-  const draftProject = Boolean(edit?.draft);
+  // Textes du projet modifiables en place pour tout projet (surcouche de la page, ou ligne du projet créé ici).
+  const editable = Boolean(edit);
   // Les places vides n'existent que sur la toile : ni compteur, ni visionneuse.
   const shownArtworks = edit ? project.artworks.filter((a) => !a.edit?.empty) : project.artworks;
   const tg = useTranslations("gallery");
@@ -150,16 +152,16 @@ export default function ProjectStrip({
     <section
       className={`strip py-[clamp(3rem,7vw,5.5rem)] ${deep ? "strip-deep bg-bg-deep" : ""}`}
       aria-labelledby={`project-${project.slug}`}
-      {...(edit ? { "data-edit-board": String(edit.id), "data-edit-board-label": project.title, ...(collection ? { "data-edit-board-collection": collection } : {}) } : {})}
+      {...(edit ? { ...boardMarks(edit), "data-edit-board-label": project.title, ...(collection ? { "data-edit-board-collection": collection } : {}) } : {})}
     >
       <header className="shell flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
         {showHeader && (
         <div className="max-w-2xl">
           <p className="eyebrow">
             {/* Séparateur seulement entre deux parties non vides ; mêmes nœuds de texte
-                qu'avant quand les deux existent (parité au pixel). Projet créé
-                dans le brouillon : contexte et année se modifient en place. */}
-            {draftProject ? (
+                qu'avant quand les deux existent (parité au pixel). Vue brouillon :
+                contexte et année se modifient en place. */}
+            {editable ? (
               <>
                 <span data-project-inline="context" data-placeholder="Contexte">
                   {project.context}
@@ -180,11 +182,14 @@ export default function ProjectStrip({
           <Heading
             id={`project-${project.slug}`}
             className="mt-3 font-display text-[clamp(2.2rem,5.5vw,3.5rem)] text-ink"
-            {...(draftProject ? { "data-project-inline": "title", "data-placeholder": "Nom du projet" } : {})}
+            {...(editable ? { "data-project-inline": "title", "data-placeholder": "Nom du projet" } : {})}
           >
             {project.title}
           </Heading>
-          <p className="mt-4 text-base leading-relaxed text-ink-soft">
+          <p
+            className="mt-4 text-base leading-relaxed text-ink-soft"
+            {...(editable ? { "data-project-inline": "description", "data-placeholder": "Présentation du projet" } : {})}
+          >
             {project.description}
           </p>
         </div>

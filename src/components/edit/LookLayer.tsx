@@ -283,7 +283,8 @@ const LOCAL_ONLY: Record<string, Set<string>> = { "video-single": new Set(["desc
 function targetOf(el: HTMLElement): TextTarget {
   const found = el.closest<HTMLElement>("[data-edit-block]");
   const only = found && Object.hasOwn(LOCAL_ONLY, found.dataset.editType ?? "") ? LOCAL_ONLY[found.dataset.editType!] : null;
-  const inline = el.dataset.inline;
+  // `data-look-key` : texte du PROJET (contenu partagé) mis en forme localement par le bloc qui l'affiche.
+  const inline = el.dataset.inline ?? el.dataset.lookKey;
   const block = found && (!only || (inline !== undefined && only.has(inline))) ? found : null;
   const site = el.dataset.siteInline;
   let local: TextTarget["local"] = null;

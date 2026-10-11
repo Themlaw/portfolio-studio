@@ -1237,3 +1237,32 @@ html:not([data-edit-mode]) .pe-media-empty {
   letter-spacing: 0;
   text-transform: none;
 }
+
+/* Texte d'un projet survolé sur la toile : à qui appartient ce texte (v0.15). */
+.pe-project-hint {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  width: max-content;
+  max-width: min(520px, calc(100vw - 24px));
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #1f2226;
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(31, 34, 38, 0.25);
+  font: 500 12px/1.35 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  pointer-events: auto;
+}
+
+.pe-project-hint a {
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}

@@ -60,6 +60,15 @@ function uniqueSlotSlug(projectSlug: string): string {
  * modifie pas depuis l'écran Projets tant que la page n'est pas publiée.
  */
 const DRAFT_PROJECT = "Ce projet est en cours de création dans l'éditeur d'une page : publie la page d'abord.";
+/** Textes du projet en cours de modification sur la toile d'une page : refus qui la nomme, ou null. */
+function textHeldMessage(projectId: number): string | null {
+  const db = getDb();
+  const page = db.select({ page: schema.projects.draftTextPageId }).from(schema.projects).where(eq(schema.projects.id, projectId)).get()?.page;
+  if (page == null) return null;
+  const title = db.select({ title: schema.pages.title }).from(schema.pages).where(eq(schema.pages.id, page)).get()?.title.fr || `n° ${page}`;
+  return `Les textes de ce projet sont en cours de modification sur la page « ${title} » : publie-la ou abandonne ses modifications d'abord.`;
+}
+
 function isDraftProject(projectId: number): boolean {
   return getDb().select({ page: schema.projects.draftPageId }).from(schema.projects).where(eq(schema.projects.id, projectId)).get()?.page != null;
 }
@@ -99,6 +108,8 @@ export function saveProject(id: number, input: unknown): ActionResult<null> {
     return fail("Ce projet n'existe plus. Recharge la liste des projets.");
   }
   if (isDraftProject(id)) return fail(DRAFT_PROJECT);
+  const held = textHeldMessage(id);
+  if (held) return fail(held);
   db.update(schema.projects).set({ ...parsed.data, updatedAt: new Date() }).where(eq(schema.projects.id, id)).run();
   return done(null);
 }

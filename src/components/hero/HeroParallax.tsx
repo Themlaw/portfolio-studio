@@ -208,9 +208,11 @@ export default function HeroParallax({ layers, plans = [], content }: { layers: 
       </div>
 
       <div className="shell relative pb-10">
-        <div className="hero-halo">
-          <ScrollHint ink />
-        </div>
+        {content.showScroll && (
+          <div className="hero-halo">
+            <ScrollHint ink label={content.scroll} mark={marks.scroll} />
+          </div>
+        )}
       </div>
     </section>
   );

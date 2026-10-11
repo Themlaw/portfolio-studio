@@ -18,6 +18,9 @@ const frame = { name: "toile" };
 const other = { name: "autre" };
 const msg = (data, origin = ORIGIN, source = frame) => ({ origin, source, data: { type: EDIT_MSG, ...data } });
 
+// v0.15 : textes d'un projet depuis la toile (présentation comprise, bornée).
+ok("project-text : présentation acceptée (2000 car.)", acceptFromCanvas(msg({ kind: "project-text", board: 3, field: "description", locale: "fr", value: "x".repeat(2000) }), ORIGIN, frame)?.field === "description");
+ok("project-text : présentation trop longue / champ inconnu refusés", acceptFromCanvas(msg({ kind: "project-text", board: 3, field: "description", locale: "fr", value: "x".repeat(2001) }), ORIGIN, frame) === null && acceptFromCanvas(msg({ kind: "project-text", board: 3, field: "featured", locale: "fr", value: "1" }), ORIGIN, frame) === null);
 ok("message valide accepté", acceptFromCanvas(msg({ kind: "select", uid: "b1" }), ORIGIN, frame)?.uid === "b1");
 ok("autre origine ignorée", acceptFromCanvas(msg({ kind: "select", uid: "b1" }, "https://evil.example"), ORIGIN, frame) === null);
 ok("autre fenêtre (source) ignorée", acceptFromCanvas(msg({ kind: "select", uid: "b1" }, ORIGIN, other), ORIGIN, frame) === null);

@@ -62,6 +62,21 @@ export function HeroEditor() {
         onChange={(v) => set("statement", v)}
         error={errorAt(errors, "statement")}
       />
+      <TextI18n
+        label="Indicateur de défilement"
+        help="Texte sous le titre. Vide : le texte par défaut du site (« Faire défiler »). Modifiable aussi sur la page, avec sa typographie."
+        value={l(value.scroll)}
+        onChange={(v) => set("scroll", v)}
+        error={errorAt(errors, "scroll")}
+      />
+      <Toggle label="Afficher l'indicateur de défilement" checked={value.showScroll !== false} onChange={(v) => set("showScroll", v)} />
+      <TextI18n
+        label="Bouton demoreel"
+        help="Libellé du bouton (thèmes à hero projecteur). Vide : « Demoreel »."
+        value={l(value.reel)}
+        onChange={(v) => set("reel", v)}
+        error={errorAt(errors, "reel")}
+      />
       <PagePicker
         label="Page de la demoreel"
         help="Où mène le bouton « Demoreel » (thèmes à hero projecteur)."
@@ -321,7 +336,7 @@ export function FeaturedProjectEditor() {
     <>
       <ProjectCombobox
         prefix="ve"
-        label="Projet mis en avant"
+        label="Projet affiché dans ce bloc"
         projects={context.projects}
         value={value.project as string | undefined}
         onPick={(slug) => set("project", slug)}
@@ -336,8 +351,9 @@ export function FeaturedProjectEditor() {
       />
       {errorAt(errors, "project") && <p className="a-field-error">{errorAt(errors, "project")}</p>}
       <p className="a-help">
-        {count} composant{count > 1 ? "s" : ""} dedans. Glisse un composant de « Ajouter » DANS le cadre sur la page ; une planche ou un titre sans projet
-        propre prend celui-ci.
+        Le titre, la présentation et les images viennent du projet : les modifier ici (sur la page) les change aussi sur sa planche et ailleurs, après
+        publication. {count} composant{count > 1 ? "s" : ""} dedans : glisse-en un de « Ajouter » DANS le cadre ; une planche ou un titre sans projet propre
+        prend celui-ci.
       </p>
       <Toggle label="Lien « voir plus » sous le projet" checked={Boolean(more)} onChange={(on) => set("more", on ? { label: EMPTY } : undefined)} />
       {more && (
@@ -491,7 +507,7 @@ export function SectionTitleEditor() {
     <>
       <Toggle
         label="Reprendre le nom et la présentation du projet"
-        help="Dans un « Projet mis en avant » : le titre suit le projet choisi."
+        help="Dans un « Projet mis en avant » : le titre et la présentation sont ceux du projet. Tu les modifies sur la page ; ils changent aussi sur sa planche et sa page, après publication."
         checked={linked}
         onChange={(on) => set("linked", on || undefined)}
       />

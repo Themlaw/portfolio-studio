@@ -56,7 +56,7 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("slot-op"), board: Board, key: SlotKey, op: z.enum(["remove", "retire", "replace"]) }),
   z.object({ kind: z.literal("slot-move"), board: Board, key: SlotKey, index: SlotIndex }),
   z.object({ kind: z.literal("slot-text"), board: Board, key: SlotKey, field: z.enum(["title", "description"]), locale: Locale, value: z.string().max(2000) }),
-  z.object({ kind: z.literal("project-text"), board: Board, field: z.enum(["title", "context", "year"]), locale: Locale, value: z.string().max(200) }),
+  z.object({ kind: z.literal("project-text"), board: Board, field: z.enum(["title", "context", "description", "year"]), locale: Locale, value: z.string().max(2000) }),
   z.object({ kind: z.literal("drop-target"), target: DropTarget.nullable() }),
   z.object({ kind: z.literal("files"), target: DropTarget, files: z.array(FileValue).min(1).max(30) }),
   z.object({ kind: z.literal("ghost-op"), id: z.string().max(40), op: z.enum(["retry", "remove"]) }),

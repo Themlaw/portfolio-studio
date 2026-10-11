@@ -23,6 +23,11 @@
  * la vue brouillon de CETTE page les applique. Publier la page applique sa
  * surcouche ; « Abandonner » l'efface (ses emplacements « added » sont
  * supprimés). Une autre page qui partage le projet n'y touche jamais.
+ *
+ * Textes d'un projet (v0.15) : surcouche du même genre sur la table `projects`
+ * (`draft_text`, `draft_text_page_id`) — le projet reste la source unique de
+ * ses textes, modifiables depuis tout bloc qui le montre ; publier la page qui
+ * cite le projet les applique, « Abandonner » les efface.
  */
 import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { z } from "zod";
@@ -323,6 +328,40 @@ export function applySlotDrafts(pageId: number, cited?: Set<number>): number[] {
   return [...new Set([...projects, ...dropped])];
 }
 
+const CLEAR_TEXT = { draftText: null, draftTextPageId: null } as const;
+
+/**
+ * Applique les textes de projet portés par le brouillon d'une page
+ * (publication). `cited` : projets que la page publiée cite encore ; la
+ * surcouche d'un autre projet est effacée sans être appliquée. Renvoie les
+ * projets touchés (revalidation).
+ */
+export function applyProjectTextDrafts(pageId: number, cited: Set<number>): number[] {
+  const db = getDb();
+  const rows = db.select().from(schema.projects).where(eq(schema.projects.draftTextPageId, pageId)).all();
+  const touched: number[] = [];
+  for (const p of rows) {
+    if (p.draftText && cited.has(p.id)) {
+      db.update(schema.projects)
+        .set({ title: p.draftText.title, context: p.draftText.context, description: p.draftText.description, year: p.draftText.year, updatedAt: new Date(), ...CLEAR_TEXT })
+        .where(eq(schema.projects.id, p.id))
+        .run();
+    } else {
+      db.update(schema.projects).set(CLEAR_TEXT).where(eq(schema.projects.id, p.id)).run();
+    }
+    touched.push(p.id);
+  }
+  return touched;
+}
+
+/** Efface les textes de projet portés par le brouillon d'une page (abandon, suppression). */
+export function discardProjectTextDrafts(pageId: number): number[] {
+  const db = getDb();
+  const ids = db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.draftTextPageId, pageId)).all().map((r) => r.id);
+  if (ids.length) db.update(schema.projects).set(CLEAR_TEXT).where(eq(schema.projects.draftTextPageId, pageId)).run();
+  return ids;
+}
+
 /**
  * Efface la surcouche portée par le brouillon d'une page (abandon) : ses
  * emplacements « added » et les projets créés dans ce brouillon disparaissent.
@@ -336,7 +375,7 @@ export function discardSlotDrafts(pageId: number): number[] {
   }
   // Projets créés dans ce brouillon (emplacements en cascade).
   db.delete(schema.projects).where(eq(schema.projects.draftPageId, pageId)).run();
-  return [...new Set(rows.map((s) => s.projectId))];
+  return [...new Set([...rows.map((s) => s.projectId), ...discardProjectTextDrafts(pageId)])];
 }
 
 /**
@@ -410,7 +449,10 @@ export function publishDraft(pageId: number, rev: unknown): DraftResult<PublishR
         outcome = result;
         return;
       }
-      const touched = applySlotDrafts(pageId, new Set(displayedProjects(draft.blocks)));
+      const touched = [
+        ...applySlotDrafts(pageId, new Set(displayedProjects(draft.blocks))),
+        ...applyProjectTextDrafts(pageId, new Set(referencedProjects(draft.blocks))),
+      ];
       settleDraftProjects(pageId, draft.blocks);
       const site = applySiteDraft(pageId);
       const cleared = tx
@@ -488,7 +530,10 @@ export function savePageFromForm(pageId: number, input: unknown, rev: unknown): 
         return;
       }
       const formBlocks = (input as { blocks?: { type: string; props: unknown }[] })?.blocks ?? [];
-      const touched = applySlotDrafts(pageId, new Set(displayedProjects(formBlocks)));
+      const touched = [
+        ...applySlotDrafts(pageId, new Set(displayedProjects(formBlocks))),
+        ...applyProjectTextDrafts(pageId, new Set(referencedProjects(formBlocks))),
+      ];
       settleDraftProjects(pageId, formBlocks);
       const site = applySiteDraft(pageId);
       const cleared = tx

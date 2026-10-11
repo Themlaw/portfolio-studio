@@ -32,7 +32,8 @@ const { eq } = await import("drizzle-orm");
 const { readDraft, saveDraft, publishDraft, discardDraft } = await import("../src/lib/edit/drafts.ts");
 const { createPage, deletePage, setInMenu, reorderMenu } = await import("../src/lib/edit/pages.ts");
 const { saveSiteDraft, readPublishedSite, readSiteDraft, siteForEditor } = await import("../src/lib/edit/site.ts");
-const { boardOp } = await import("../src/lib/edit/boards.ts");
+const { boardOp, restoreBoard, readBoard } = await import("../src/lib/edit/boards.ts");
+const { saveProject } = await import("../src/lib/edit/projects.ts");
 const { POST } = await import("../src/app/api/contact/route.ts");
 const { withFreshUids } = await import("../src/blocks/tree.ts");
 const { defaultContactForm } = await import("../src/lib/contact-form.ts");
@@ -97,6 +98,89 @@ await test("I1 : clé inconnue dans les props (non publiée) n'ouvre pas l'appli
   saveDraft(page, { ...base(page), blocks: [k("t", "section-title", { project: Q.slug })] }, rev(page));
   assert.equal(publishDraft(page, rev(page)).ok, true);
   assert.equal(JSON.stringify(slotsOf(Q.id)), before);
+});
+
+/* ---- 1b. Textes d'un projet depuis un bloc qui le montre (v0.15) ------------------ */
+
+const text = (id) => db.select().from(schema.projects).where(eq(schema.projects.id, id)).get();
+const projectOp = (page, id, field, value, locale = "fr") => boardOp(page, id, { op: "project", field, locale, value }, rev(page));
+const featuredTitle = (project) => [k("c", "featured-project", { project, children: [k("t", "section-title", { linked: true })] })];
+
+await test("T1 : titre modifié depuis un Titre lié (sans planche) → surcouche ; public inchangé jusqu'à la publication", () => {
+  const page = newPage("t-txt1");
+  const published = text(P.id).title.fr;
+  saveDraft(page, { ...base(page), blocks: featuredTitle(P.slug) }, rev(page));
+  const r = projectOp(page, P.id, "title", "Titre depuis l'accueil");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(text(P.id).title.fr, published, "la ligne publiée n'a pas bougé");
+  assert.equal(text(P.id).draftTextPageId, page);
+  assert.equal(readBoard(page, P.id).project.title.fr, "Titre depuis l'accueil", "la vue de la page montre sa surcouche");
+  assert.equal(slotsOf(P.id).length > 0 && db.select().from(schema.slots).where(eq(schema.slots.draftPageId, page)).all().length, 0, "un texte seul ne prend pas les emplacements");
+  const description = projectOp(page, P.id, "description", "Présentation éditée");
+  assert.equal(description.ok, true);
+  assert.equal(publishDraft(page, rev(page)).ok, true);
+  const after = text(P.id);
+  assert.equal(after.title.fr, "Titre depuis l'accueil");
+  assert.equal(after.description.fr, "Présentation éditée");
+  assert.equal(after.title.en, text(P.id).title.en);
+  assert.equal(after.draftText, null);
+  assert.equal(after.draftTextPageId, null);
+});
+await test("T2 : une autre page ne peut pas modifier les textes tenus ailleurs (la page est nommée) ; libre après abandon", () => {
+  const a = newPage("t-txt2a");
+  const b = newPage("t-txt2b");
+  saveDraft(a, { ...base(a), blocks: featuredTitle(P.slug) }, rev(a));
+  saveDraft(b, { ...base(b), blocks: featuredTitle(P.slug) }, rev(b));
+  assert.equal(projectOp(a, P.id, "year", "1999").ok, true);
+  const refused = projectOp(b, P.id, "year", "2001");
+  assert.equal(refused.ok, false);
+  assert.match(refused.message, /en cours de modification sur la page t-txt2a/);
+  assert.equal(readBoard(b, P.id).project.year, text(P.id).year, "la page B voit les textes publiés");
+  assert.equal(discardDraft(a, rev(a)).ok, true);
+  assert.equal(text(P.id).draftTextPageId, null);
+  assert.equal(projectOp(b, P.id, "year", "2001").ok, true);
+  assert.equal(discardDraft(b, rev(b)).ok, true);
+  assert.notEqual(text(P.id).year, "2001");
+});
+await test("T3 : écran Projets refusé tant qu'une page tient les textes ; page non citée refusée ; version périmée = conflit", () => {
+  const page = newPage("t-txt3");
+  const other = newPage("t-txt3b");
+  saveDraft(page, { ...base(page), blocks: featuredTitle(P.slug) }, rev(page));
+  assert.equal(projectOp(other, P.id, "title", "x").ok, false, "page qui ne cite pas le projet");
+  const stale = rev(page);
+  assert.equal(projectOp(page, P.id, "context", "Contexte").ok, true);
+  const conflict = boardOp(page, P.id, { op: "project", field: "context", locale: "fr", value: "Autre" }, stale);
+  assert.equal(conflict.ok, false);
+  assert.equal(conflict.code, "conflict");
+  const meta = text(P.id);
+  const admin = saveProject(P.id, { title: meta.title, context: meta.context, description: meta.description, year: meta.year, featured: meta.featured });
+  assert.equal(admin.ok, false);
+  assert.match(admin.message, /en cours de modification sur la page « t-txt3 »/);
+  assert.equal(discardDraft(page, rev(page)).ok, true);
+  assert.equal(saveProject(P.id, { title: meta.title, context: meta.context, description: meta.description, year: meta.year, featured: meta.featured }).ok, true);
+});
+await test("T4 : Annuler (restoreBoard) revient aux textes publiés et efface la surcouche ; Rétablir la remet", () => {
+  const page = newPage("t-txt4");
+  saveDraft(page, { ...base(page), blocks: featuredTitle(P.slug) }, rev(page));
+  const r = projectOp(page, P.id, "title", "Éphémère");
+  assert.equal(r.ok, true);
+  const undone = restoreBoard(page, r.data.before, rev(page));
+  assert.equal(undone.ok, true, JSON.stringify(undone));
+  assert.equal(text(P.id).draftTextPageId, null, "revenu aux textes publiés : plus de surcouche");
+  const redone = restoreBoard(page, r.data.after, rev(page));
+  assert.equal(redone.ok, true);
+  assert.equal(text(P.id).draftText.title.fr, "Éphémère");
+  assert.equal(discardDraft(page, rev(page)).ok, true);
+});
+await test("T5 : la page publiée ne cite plus le projet → surcouche effacée, jamais appliquée", () => {
+  const page = newPage("t-txt5");
+  const published = text(P.id).title.fr;
+  saveDraft(page, { ...base(page), blocks: featuredTitle(P.slug) }, rev(page));
+  assert.equal(projectOp(page, P.id, "title", "Ne doit pas partir").ok, true);
+  saveDraft(page, { ...base(page), blocks: [] }, rev(page));
+  assert.equal(publishDraft(page, rev(page)).ok, true);
+  assert.equal(text(P.id).title.fr, published);
+  assert.equal(text(P.id).draftTextPageId, null);
 });
 
 /* ---- 2. Menu et brouillon de l'en-tête (scénarios D4–D12, E1–E2 de l'audit) ---- */
