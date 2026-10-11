@@ -85,10 +85,14 @@ que des milliers de points : 1 à 9 Ko par calque).
 
 Le catalogue est partagé par tous les thèmes. Une police = **4 endroits** (next/font
 exige des appels littéraux) : `FONT_IDS` (`schema.ts`), `font-stacks.ts`
-(pile, graisse de titre), `fonts.ts` (appel next/font, `preload: false`) et
-`src/lib/kit/fonts.ts` + le TTF statique OFL et sa licence dans
-`public/kit/fonts/` (signature du kit Photoshop ; `npm test` le vérifie).
-Polices OFL uniquement.
+(pile, graisse de titre), `fonts.ts` (appel `next/font/local`, `preload:
+false`) avec ses fichiers woff2 dans `src/themes/fonts/` (une entrée dans
+`scripts/build-theme-fonts.py`, puis `uv run --with fonttools --with brotli
+python scripts/build-theme-fonts.py` : sous-ensemble latin + latin-ext,
+graisses utilisées) et `src/lib/kit/fonts.ts` + le TTF statique OFL et sa
+licence dans `public/kit/fonts/` (signature du kit Photoshop ; `npm test` le
+vérifie). Polices OFL uniquement. Jamais `next/font/google` : le build ne
+doit dépendre d'aucun réseau (Google change les adresses de ses fichiers).
 
 ### Tokens des lots 2 et 4 (facultatifs)
 

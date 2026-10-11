@@ -71,7 +71,7 @@ Application à l'exécution : le layout racine lit le thème actif (cache mémoi
 `data-*` (préfixe `--t-` distinct pour éviter toute auto-référence côté Tailwind). Tailwind v4 garde un `@theme` dont les valeurs pointent vers ces variables,
 de sorte que les utilitaires (`bg-bg`, `text-ink`…) restent utilisables.
 
-Polices : catalogue fini déclaré avec `next/font` (auto-hébergé, sans CLS). Un thème
+Polices : catalogue fini déclaré avec `next/font/local` (fichiers woff2 du dépôt, `src/themes/fonts/`, aucun réseau au build ; sans CLS). Un thème
 choisit dans le catalogue. Ajouter une police = ajouter une entrée au catalogue (plus tard :
 upload de police depuis l'admin).
 

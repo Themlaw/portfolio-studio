@@ -1,86 +1,66 @@
 /**
- * Catalogue de polices (next/font/google, auto-hébergées, sans CLS).
+ * Catalogue de polices (next/font/local, fichiers du dépôt, sans CLS).
  *
  * Un thème choisit ses polices par id dans ce catalogue. Toutes les variables
  * `--font-xxx` sont posées sur <html> (pas sur <body> : les tokens
  * `--t-font-*` sont déclarés sur :root et doivent les résoudre au même niveau).
  *
+ * Fichiers : src/themes/fonts/*.woff2 (OFL, sous-ensemble latin + latin-ext,
+ * graisses utilisées ; polices variables réduites à l'axe wght), produits par
+ * scripts/build-theme-fonts.py. AUCUN accès réseau au build : next/font/google
+ * cassait le build quand Google change les adresses de ses fichiers
+ * (« Module not found … font/google/inter_tight_… »).
+ *
  * next/font exige des appels littéraux au niveau module : `preload` est donc
  * fixé ici. Seules les polices du thème par défaut sont préchargées ; les
  * autres se téléchargent à la demande quand un thème les utilise.
  */
-import {
-  Big_Shoulders,
-  Bowlby_One,
-  Bricolage_Grotesque,
-  Caveat,
-  Chelsea_Market,
-  Courier_Prime,
-  Figtree,
-  IBM_Plex_Mono,
-  IBM_Plex_Sans,
-  Inter_Tight,
-  Kalam,
-  Space_Grotesk,
-  Spline_Sans_Mono,
-  Young_Serif,
-} from "next/font/google";
+import localFont from "next/font/local";
 
 import { FONT_STACKS, type FontStack } from "./font-stacks";
 import type { FontId } from "./schema";
 
-const youngSerif = Young_Serif({
-  subsets: ["latin"],
-  weight: "400",
-  display: "swap",
-  variable: "--font-young-serif",
-});
-
-const figtree = Figtree({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-figtree",
-});
-
-const splineSansMono = Spline_Sans_Mono({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-spline-mono",
-});
-
-const bricolage = Bricolage_Grotesque({
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  display: "swap",
-  preload: false,
-  variable: "--font-bricolage",
-});
-
-const chelseaMarket = Chelsea_Market({
-  subsets: ["latin"],
-  weight: "400",
-  display: "swap",
-  preload: false,
-  variable: "--font-chelsea-market",
-});
-
-const caveat = Caveat({
-  subsets: ["latin"],
-  display: "swap",
-  preload: false,
-  variable: "--font-caveat",
-});
+const youngSerif = localFont({ src: [{ path: "./fonts/young-serif-400.woff2", weight: "400", style: "normal" }], display: "swap", variable: "--font-young-serif" });
+const figtree = localFont({ src: [{ path: "./fonts/figtree-var.woff2", weight: "300 900", style: "normal" }], display: "swap", variable: "--font-figtree" });
+const splineSansMono = localFont({ src: [{ path: "./fonts/spline-sans-mono-var.woff2", weight: "300 700", style: "normal" }], display: "swap", variable: "--font-spline-mono" });
+const bricolage = localFont({ src: [{ path: "./fonts/bricolage-grotesque-var.woff2", weight: "400 700", style: "normal" }], display: "swap", preload: false, variable: "--font-bricolage" });
+const chelseaMarket = localFont({ src: [{ path: "./fonts/chelsea-market-400.woff2", weight: "400", style: "normal" }], display: "swap", preload: false, variable: "--font-chelsea-market" });
+const caveat = localFont({ src: [{ path: "./fonts/caveat-var.woff2", weight: "400 700", style: "normal" }], display: "swap", preload: false, variable: "--font-caveat" });
 
 // Polices des thèmes livrés v0.14 : jamais préchargées (téléchargées seulement
 // quand le thème affiché les utilise).
-const kalam = Kalam({ subsets: ["latin"], weight: ["400", "700"], display: "swap", preload: false, variable: "--font-kalam" });
-const courierPrime = Courier_Prime({ subsets: ["latin"], weight: ["400", "700"], display: "swap", preload: false, variable: "--font-courier-prime" });
-const bigShoulders = Big_Shoulders({ subsets: ["latin"], weight: ["600", "800"], display: "swap", preload: false, variable: "--font-big-shoulders" });
-const ibmPlexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["400", "600"], display: "swap", preload: false, variable: "--font-ibm-plex-sans" });
-const ibmPlexMono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500"], display: "swap", preload: false, variable: "--font-ibm-plex-mono" });
-const interTight = Inter_Tight({ subsets: ["latin"], weight: ["400", "600"], display: "swap", preload: false, variable: "--font-inter-tight" });
-const bowlbyOne = Bowlby_One({ subsets: ["latin"], weight: "400", display: "swap", preload: false, variable: "--font-bowlby-one" });
-const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["400", "600"], display: "swap", preload: false, variable: "--font-space-grotesk" });
+const kalam = localFont({
+  src: [
+    { path: "./fonts/kalam-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/kalam-700.woff2", weight: "700", style: "normal" },
+  ],
+  display: "swap",
+  preload: false,
+  variable: "--font-kalam",
+});
+const courierPrime = localFont({
+  src: [
+    { path: "./fonts/courier-prime-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/courier-prime-700.woff2", weight: "700", style: "normal" },
+  ],
+  display: "swap",
+  preload: false,
+  variable: "--font-courier-prime",
+});
+const bigShoulders = localFont({ src: [{ path: "./fonts/big-shoulders-var.woff2", weight: "600 800", style: "normal" }], display: "swap", preload: false, variable: "--font-big-shoulders" });
+const ibmPlexSans = localFont({ src: [{ path: "./fonts/ibm-plex-sans-var.woff2", weight: "400 600", style: "normal" }], display: "swap", preload: false, variable: "--font-ibm-plex-sans" });
+const ibmPlexMono = localFont({
+  src: [
+    { path: "./fonts/ibm-plex-mono-400.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/ibm-plex-mono-500.woff2", weight: "500", style: "normal" },
+  ],
+  display: "swap",
+  preload: false,
+  variable: "--font-ibm-plex-mono",
+});
+const interTight = localFont({ src: [{ path: "./fonts/inter-tight-var.woff2", weight: "400 600", style: "normal" }], display: "swap", preload: false, variable: "--font-inter-tight" });
+const bowlbyOne = localFont({ src: [{ path: "./fonts/bowlby-one-400.woff2", weight: "400", style: "normal" }], display: "swap", preload: false, variable: "--font-bowlby-one" });
+const spaceGrotesk = localFont({ src: [{ path: "./fonts/space-grotesk-var.woff2", weight: "400 600", style: "normal" }], display: "swap", preload: false, variable: "--font-space-grotesk" });
 
 type FontEntry = FontStack & {
   /** Classe next/font qui déclare la variable CSS. */
