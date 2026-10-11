@@ -259,7 +259,7 @@ if (run("F")) {
     document.body.appendChild(p);
     return parseFloat(getComputedStyle(p).paddingTop);
   });
-  ok(`F3 public : titre en « ${FONT} » (servie par le site), italique, taille réglée`, r.family.replace(/"/g, "").startsWith(`${FONT},`) && r.loaded && r.italic === "italic" && r.size.includes("clamp(2.5rem"), JSON.stringify(r));
+  ok(`F3 public : titre en « ${FONT} » (servie par le site), italique, taille réglée`, r.family.replace(/"/g, "").startsWith(`${FONT},`) && r.loaded && r.italic === "italic" && r.size.includes("clamp(3rem"), JSON.stringify(r));
   ok("F4 public : espace haut = cran S", Math.abs(r.pad - s) < 0.5, `${r.pad} / ${s}`);
   ok("F5 public : la police vient de /fonts/ (requête vers le site)", fontRequests.length > 0, String(fontRequests.length));
   await pp.screenshot({ path: `${SHOTS}/F-public-personnages.png` });
@@ -380,6 +380,17 @@ if (run("H")) {
 
   f = await openEditor(2);
   await sleep(1200);
+
+  // Les sections précédentes ont laissé des réglages LOCAUX sur le titre (ils passent devant le style
+  // du site) : retour au style global pour mesurer le rôle.
+  if (await openBar(h1)) {
+    await f.locator(".lk-bar [role=radio]", { hasText: "Ce texte" }).click();
+    const reset = f.locator(".lk-bar .tc-reset");
+    if (await reset.isEnabled()) await reset.click();
+    await sleep(300);
+    await f.locator(".lk-bar .lk-close").click();
+    await sleep(300);
+  }
 
   // H1-H3. Toutes les tailles, sur plusieurs rôles : strictement croissantes, valeur exacte.
   const eyebrow = '[data-edit-type="collection-intro"] [data-inline="eyebrow"]';
