@@ -7,7 +7,9 @@
  * encore sur une page » viennent en premier, signalés. Sans feuille de style
  * propre : classes préfixées (`ve-` dans l'admin, `pe-` sur la toile).
  */
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
+
+import { useDismiss } from "./useDismiss";
 
 export type ComboProject = { slug: string; title: string; draft?: boolean; onPage?: boolean };
 
@@ -40,6 +42,9 @@ export default function ProjectCombobox({
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
+  const root = useRef<HTMLDivElement>(null);
+  // Clic ailleurs (même dans l'autre cadre) : la liste se referme.
+  useDismiss(root, () => setOpen(false), { enabled: open });
   const current = projects.find((p) => p.slug === value);
   const q = fold(query.trim());
   const options = useMemo(() => {
@@ -69,7 +74,7 @@ export default function ProjectCombobox({
   const firstRest = options.findIndex((o) => o.kind === "project" && !o.fresh);
 
   return (
-    <div className={`${prefix}-combo`}>
+    <div ref={root} className={`${prefix}-combo`}>
       <label htmlFor={`${id}-input`} className={`${prefix}-combo-label`}>
         {label}
         {current && <span className={`${prefix}-combo-current`}> · actuel : {current.title}</span>}

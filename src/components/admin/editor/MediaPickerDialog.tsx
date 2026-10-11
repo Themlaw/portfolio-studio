@@ -49,6 +49,11 @@ export default function MediaPickerDialog({
         e.preventDefault();
         onClose();
       }}
+      // Clic sur le fond (hors de la boîte) : fermé comme les autres menus flottants.
+      onClick={(e) => {
+        const r = e.currentTarget.getBoundingClientRect();
+        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) onClose();
+      }}
     >
       {open && (
         <>

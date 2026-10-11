@@ -62,6 +62,8 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 /** Où insérer : la page (parent null) ou un conteneur. */
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
+/** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "look", "site-style", "op", "move", "layout"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /** Ce qui part vers la toile (ni fichier, ni identifiants internes). */
@@ -254,11 +256,33 @@ export default function VisualEditor({
   // Toutes les écritures (brouillon, planches, publication, abandon) passent
   // l'une après l'autre : chacune porte la version laissée par la précédente.
   const lock = useRef<Promise<unknown>>(Promise.resolve());
+  // Écritures en cours ou en file (dont celle qui s'exécute) : le serveur n'a pas tout acquitté.
+  const lockDepth = useRef(0);
   const withLock = useCallback(<T,>(fn: () => Promise<T>): Promise<T> => {
+    lockDepth.current++;
     const run = lock.current.then(fn, fn);
+    const done = () => {
+      lockDepth.current--;
+    };
+    run.then(done, done);
     lock.current = run.catch(() => undefined);
     return run;
   }, []);
+
+  /* État local de la toile (edit/optimistic.ts) : la toile garde ses aperçus tant que le
+     serveur n'a pas acquitté une révision au moins aussi récente. */
+  // Dernier numéro d'intention reçu de la toile.
+  const seenSeq = useRef(0);
+  // Intentions en préparation (téléchargement d'une police avant de modifier le brouillon…).
+  const working = useRef(0);
+  /** Rien n'est en attente d'enregistrement, ni en vol, ni en préparation. `inLock` : l'appelant tient le verrou. */
+  const quiet = useCallback((inLock: boolean) => !dirty.current && lockDepth.current <= (inLock ? 1 : 0) && working.current === 0, []);
+  /** Message de rafraîchissement : révision écrite et, si tout est acquitté, jusqu'où la toile peut lâcher ses aperçus. */
+  const refreshMsg = useCallback((inLock: boolean): ToCanvas => ({ kind: "refresh", rev: revRef.current, upTo: quiet(inLock) ? seenSeq.current : -1 }), [quiet]);
+  /** Une intention n'a rien changé ou vient d'aboutir sans écriture : la toile peut lâcher ses aperçus. */
+  const settleIfQuiet = useCallback(() => {
+    if (quiet(false)) send({ kind: "settle", rev: revRef.current, upTo: seenSeq.current });
+  }, [quiet, send]);
 
   /** Refus « modifié ailleurs » ou « brouillon illisible » : l'éditeur s'arrête. */
   const stop = useCallback((code: "conflict" | "corrupt") => {
@@ -268,7 +292,7 @@ export default function VisualEditor({
   }, []);
 
   /** Enregistre le brouillon (dans le verrou). */
-  const runSave = useCallback(async (): Promise<boolean> => {
+  const runSave = useCallback(async (final = false): Promise<boolean> => {
     let ok = true;
     while (dirty.current) {
       dirty.current = false;
@@ -304,14 +328,15 @@ export default function VisualEditor({
     if (ok) {
       setSaveState("idle");
       setSaveError(null);
-      send({ kind: "refresh" });
+      // `final` : cet enregistrement est tout ce que le verrou fait ; sinon une autre écriture suit.
+      send(final ? refreshMsg(true) : { kind: "refresh", rev: revRef.current, upTo: -1 });
     }
     return ok;
-  }, [pageId, send, stop]);
+  }, [pageId, refreshMsg, send, stop]);
 
   const flush = useCallback((): Promise<boolean> => {
     clearTimeout(timer.current);
-    return withLock(async () => (dirty.current ? runSave() : true));
+    return withLock(async () => (dirty.current ? runSave(true) : true));
   }, [runSave, withLock]);
 
   const schedule = useCallback(
@@ -375,13 +400,13 @@ export default function VisualEditor({
           setHasDraft(true);
           setSaveState("idle");
           setSaveError(null);
-          send({ kind: "refresh" });
+          send(refreshMsg(true));
           return result.data;
         } finally {
           setBoardBusy((n) => n - 1);
         }
       }),
-    [runSave, send, stop, withLock],
+    [refreshMsg, runSave, send, stop, withLock],
   );
 
   /**
@@ -424,10 +449,10 @@ export default function VisualEditor({
         setHasDraft(true);
         setSaveState("idle");
         setSaveError(null);
-        send({ kind: "refresh" });
+        send(refreshMsg(true));
         return true;
       }),
-    [pageId, runSave, send, siteLocked, stop, withLock],
+    [pageId, refreshMsg, runSave, send, siteLocked, stop, withLock],
   );
   useEffect(() => {
     writeSiteRef.current = writeSite;
@@ -782,35 +807,47 @@ export default function VisualEditor({
   /** Réglages d'un bloc venus de la toile ou du panneau (null : tout revient au thème). */
   const applyLook = async (uid: string, next: Look | null) => {
     const clean = next ? cleanLook(next) : undefined;
-    if (!(await ensureFonts(Object.values(clean?.text ?? {})))) {
-      send({ kind: "refresh" });
-      return;
+    working.current++;
+    try {
+      if (!(await ensureFonts(Object.values(clean?.text ?? {})))) {
+        send({ kind: "refresh", rev: revRef.current, upTo: -1 });
+        return;
+      }
+      const list = draftRef.current.blocks;
+      const block = findBlock(list, uid);
+      if (!block) return;
+      if (JSON.stringify(readLook(block.props.look) ?? null) === JSON.stringify(clean ?? null)) return;
+      setBlocks(
+        updateBlock(list, uid, (b) => {
+          const props = { ...b.props };
+          if (clean) props.look = clean;
+          else delete props.look;
+          return { ...b, props };
+        }),
+        { key: `look:${uid}` },
+      );
+    } finally {
+      working.current--;
+      settleIfQuiet();
     }
-    const list = draftRef.current.blocks;
-    const block = findBlock(list, uid);
-    if (!block) return;
-    if (JSON.stringify(readLook(block.props.look) ?? null) === JSON.stringify(clean ?? null)) return;
-    setBlocks(
-      updateBlock(list, uid, (b) => {
-        const props = { ...b.props };
-        if (clean) props.look = clean;
-        else delete props.look;
-        return { ...b, props };
-      }),
-      { key: `look:${uid}` },
-    );
   };
 
   /** Styles du site (brouillon du site : toutes les pages à la publication). */
   const applySiteStyles = async (styles: SiteStyles | undefined) => {
     const clean = cleanSiteStyles(styles);
-    if (!(await ensureFonts(Object.values(clean?.roles ?? {})))) {
-      send({ kind: "refresh" });
-      return;
+    working.current++;
+    try {
+      if (!(await ensureFonts(Object.values(clean?.roles ?? {})))) {
+        send({ kind: "refresh", rev: revRef.current, upTo: -1 });
+        return;
+      }
+      const { styles: _old, ...rest } = siteRef.current;
+      void _old;
+      await writeSite({ ...rest, ...(clean ? { styles: clean } : {}) });
+    } finally {
+      working.current--;
+      settleIfQuiet();
     }
-    const { styles: _old, ...rest } = siteRef.current;
-    void _old;
-    await writeSite({ ...rest, ...(clean ? { styles: clean } : {}) });
   };
   const applySiteStyle = (role: Role, style: TextStyle | null) => {
     const current = siteRef.current.styles ?? {};
@@ -1191,6 +1228,9 @@ export default function VisualEditor({
       const msg = acceptFromCanvas(event, window.location.origin, frameRef.current?.contentWindow);
       if (!msg) return;
       const h = handlers.current;
+      // Une toile (re)chargée recompte depuis 1 ; sinon, le plus grand numéro reçu.
+      if (msg.kind === "ready") seenSeq.current = msg.seq ?? 0;
+      else if (msg.seq) seenSeq.current = Math.max(seenSeq.current, msg.seq);
       switch (msg.kind) {
         case "ready": {
           let path = msg.path;
@@ -1288,6 +1328,8 @@ export default function VisualEditor({
           else if (msg.key === "escape" && mode === "preview") setMode("edit");
           break;
       }
+      // Intention numérotée sans écriture à la clé (refusée, inchangée) : la toile peut lâcher son aperçu.
+      if (msg.seq && CANVAS_INTENTS.has(msg.kind)) queueMicrotask(settleIfQuiet);
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
@@ -1436,7 +1478,7 @@ export default function VisualEditor({
       setHasDraft(false);
       toast(result.data.site ? "Publié : la page est en ligne, l'en-tête et le pied de page sont à jour sur toutes les pages" : "Publié : la page est en ligne");
       setSitePending(false);
-      send({ kind: "refresh" });
+      send(refreshMsg(false));
       router.refresh();
     } finally {
       setPublishing(false);

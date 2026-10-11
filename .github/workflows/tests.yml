@@ -51,6 +51,7 @@ jobs:
             { id: "lot1", cmd: "node scripts/e2e-lot1.mjs", browser: "chromium" },
             { id: "palette", cmd: "node scripts/e2e-palette.mjs", browser: "chromium" },
             { id: "look", cmd: "node scripts/e2e-look.mjs", browser: "chromium" },
+            { id: "state", cmd: "node scripts/e2e-state.mjs", browser: "chromium" },
             { id: "themes", cmd: "node scripts/e2e-themes.mjs", browser: "chromium" },
             { id: "kit", cmd: "node scripts/e2e-kit.mjs", browser: "chromium" },
             { id: "editor", cmd: "node scripts/e2e-editor.mjs", browser: "chromium" },

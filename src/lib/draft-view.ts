@@ -61,6 +61,15 @@ export function draftViewPage(): number | null {
   return draftPageSlot().id;
 }
 
+/**
+ * Révision du brouillon (`pages.draft_rev`) au moment du rendu : la toile la
+ * lit dans la page pour savoir si la réponse du serveur est au moins aussi
+ * récente que ce que l'éditeur a écrit (src/components/edit/optimistic.ts).
+ */
+export function getDraftRev(pageId: number): number | null {
+  return getDb().select({ rev: schema.pages.draftRev }).from(schema.pages).where(eq(schema.pages.id, pageId)).get()?.rev ?? null;
+}
+
 type L = { fr: string; en: string };
 const isL = (v: unknown): v is L => Boolean(v) && typeof (v as L).fr === "string" && typeof (v as L).en === "string";
 

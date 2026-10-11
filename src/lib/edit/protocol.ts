@@ -27,6 +27,8 @@ const Board = z.number().int().positive();
 const SlotKey = z.string().regex(/^(s\d{1,9}|k[a-z0-9]{8,24})$/);
 const Slug = z.string().regex(/^[a-z0-9-]{1,80}$/);
 const Locale = z.enum(["fr", "en"]);
+const Rev = z.number().int().min(0).max(1_000_000_000);
+const UpTo = z.number().int().min(-1).max(1_000_000_000);
 /** Où déposer un média ou des fichiers : dans une bande (position), sur une place vide, sur une planche neuve. */
 const DropTarget = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("board"), board: Board, index: SlotIndex, collection: z.enum(["characters", "backgrounds", "animation"]).optional() }),
@@ -95,7 +97,14 @@ export const FromCanvasSchema = z.union([
 export const ToCanvasSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("mode"), mode: z.enum(["edit", "preview"]) }),
   z.object({ kind: z.literal("select"), uid: Uid.nullable(), scroll: z.boolean().optional() }),
-  z.object({ kind: z.literal("refresh") }),
+  /**
+   * Rafraîchir la toile. `rev` : révision du brouillon écrite par l'éditeur ;
+   * `upTo` : dernier numéro d'intention (`seq`) dont rien n'est plus attendu
+   * (tout enregistré, aucune écriture en vol), -1 sinon. Voir optimistic.ts.
+   */
+  z.object({ kind: z.literal("refresh"), rev: Rev.optional(), upTo: UpTo.optional() }),
+  /** Rien à rafraîchir, mais tout jusqu'à `upTo` est acquitté à la révision `rev`. */
+  z.object({ kind: z.literal("settle"), rev: Rev, upTo: UpTo }),
   z.object({
     kind: z.literal("drag"),
     x: Coord,
@@ -166,7 +175,16 @@ function accept<S extends z.ZodType>(schema: S, event: MessageLike, origin: stri
   return parsed.success ? parsed.data : null;
 }
 
-export const acceptFromCanvas = (event: MessageLike, origin: string, frame: unknown) => accept(FromCanvasSchema, event, origin, frame);
+/**
+ * Message de la toile validé, avec son numéro d'intention (`seq`, hors schéma :
+ * il ne fait que dater le message pour l'état optimiste, voir optimistic.ts).
+ */
+export function acceptFromCanvas(event: MessageLike, origin: string, frame: unknown): (FromCanvas & { seq?: number }) | null {
+  const msg = accept(FromCanvasSchema, event, origin, frame);
+  if (!msg) return null;
+  const seq = (event.data as { seq?: unknown }).seq;
+  return typeof seq === "number" && Number.isInteger(seq) && seq > 0 && seq < 1_000_000_000 ? { ...msg, seq } : msg;
+}
 export const acceptToCanvas = (event: MessageLike, origin: string, parent: unknown) => accept(ToCanvasSchema, event, origin, parent);
 
 /** Index d'insertion : nombre de blocs dont le milieu est au-dessus de y. */

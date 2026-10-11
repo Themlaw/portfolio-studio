@@ -15,11 +15,13 @@
  *
  * La couche n'écrit rien : elle envoie l'intention (`look`, `site-style`) à
  * l'éditeur, qui valide, enregistre le brouillon et rafraîchit la toile. Un
- * aperçu immédiat est posé sur le DOM en attendant.
+ * aperçu immédiat est posé sur le DOM en attendant, et y reste (optimistic.ts)
+ * jusqu'à ce que le serveur ait rendu une révision au moins aussi récente :
+ * jamais d'affichage intermédiaire de l'ancienne valeur.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { acceptToCanvas, EDIT_MSG, type FromCanvas } from "@/lib/edit/protocol";
+import { acceptToCanvas } from "@/lib/edit/protocol";
 import {
   BACKDROP_LABELS,
   BACKDROPS,
@@ -45,16 +47,15 @@ import {
 
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 
+import { overlayData, overlayList, postIntent, setOverlay } from "./optimistic";
 import TypoControls from "./TypoControls";
+import { useDismiss } from "./useDismiss";
 
 import "@/app/admin/look-layer.css";
 
 type Rect = { top: number; left: number; width: number; height: number };
 export type LookTarget = { uid: string; type: string; parent?: string; parentType?: string } | null;
 
-function post(msg: FromCanvas) {
-  window.parent.postMessage({ type: EDIT_MSG, ...msg }, window.location.origin);
-}
 const docRect = (el: Element): Rect => {
   const r = el.getBoundingClientRect();
   return { top: r.top + window.scrollY, left: r.left + window.scrollX, width: r.width, height: r.height };
@@ -63,18 +64,16 @@ const swatch = (c: PaletteColor) => `var(--t-color-${c})`;
 
 /** Enveloppe d'édition d'un bloc. */
 const wrapperOf = (uid: string) => document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"]`);
-/**
- * Réglages envoyés mais pas encore revenus du serveur (la toile n'est pas
- * encore rafraîchie) : deux gestes rapprochés partent de la bonne base.
- */
-const pendingLooks = new Map<string, { look: Look; wrapper: Element | null }>();
-let pendingStyles: { styles: SiteStyles; sheet: Element | null } | null = null;
 
-/** Réglages actuels d'un bloc (posés par BlockList en vue brouillon). */
+/**
+ * Réglages actuels d'un bloc : ceux envoyés mais pas encore acquittés par le
+ * serveur (état local, optimistic.ts) font foi — deux gestes rapprochés
+ * partent de la bonne base même si la page rendue est en retard —, sinon
+ * ceux posés par BlockList en vue brouillon.
+ */
 export function lookOf(uid: string): Look {
-  const pending = pendingLooks.get(uid);
-  if (pending && pending.wrapper === wrapperOf(uid)) return pending.look;
-  pendingLooks.delete(uid);
+  const pending = overlayData<Look>(`look:${uid}`);
+  if (pending) return pending;
   try {
     return readLook(JSON.parse(wrapperOf(uid)?.dataset.editLook ?? "null")) ?? {};
   } catch {
@@ -88,10 +87,12 @@ function rootOf(uid: string): HTMLElement | null {
   if (!el || el.hasAttribute("data-edit-block")) return null;
   return el;
 }
-export function sendLook(uid: string, look: Look) {
+/** Envoie les réglages d'un bloc ; renvoie le numéro de l'intention (pour les aperçus). */
+export function sendLook(uid: string, look: Look): number {
   const clean = cleanLook(look);
-  pendingLooks.set(uid, { look: clean ?? {}, wrapper: wrapperOf(uid) });
-  post({ kind: "look", uid, look: clean ?? null });
+  const seq = postIntent({ kind: "look", uid, look: clean ?? null });
+  setOverlay(`look:${uid}`, seq, { data: clean ?? {} });
+  return seq;
 }
 
 /* ---- Espaces ---------------------------------------------------------------- */
@@ -133,6 +134,25 @@ function setPad(el: HTMLElement, prop: "paddingTop" | "paddingBottom", value: st
   el.style[prop] = value;
 }
 
+/**
+ * Espace validé : posé sur l'élément du bloc et gardé (même si la page est
+ * re-rendue par une réponse en retard) jusqu'à ce que le serveur le rende.
+ */
+function keepPad(uid: string, prop: "paddingTop" | "paddingBottom", px: number, seq: number) {
+  const value = `${px}px`;
+  setOverlay(`pad:${uid}:${prop}`, seq, {
+    data: value,
+    apply: () => {
+      const el = rootOf(uid);
+      if (el && el.style[prop] !== value) setPad(el, prop, value);
+    },
+    clear: () => {
+      const el = rootOf(uid);
+      if (el) setPad(el, prop, "");
+    },
+  });
+}
+
 function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top" | "bottom"; look: Look; announce: (s: string) => void }) {
   const [drag, setDrag] = useState<{ px: number; cran: Cran } | null>(null);
   const root = rootOf(uid);
@@ -143,9 +163,13 @@ function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top"
   const current: Space | "auto" = (side === "top" ? look.spaceTop : look.spaceBottom) ?? "auto";
   const prop = side === "top" ? "paddingTop" : "paddingBottom";
   const commit = (c: Cran) => {
-    setPad(root, prop, "");
-    if (c.key === current) return;
-    sendLook(uid, { ...look, [side === "top" ? "spaceTop" : "spaceBottom"]: c.key === "auto" ? undefined : c.key });
+    if (c.key === current) {
+      // Inchangé : l'aperçu du glisser est retiré (au profit d'un espace validé et pas encore rendu, s'il y en a un).
+      setPad(root, prop, overlayData<string>(`pad:${uid}:${prop}`) ?? "");
+      return;
+    }
+    const seq = sendLook(uid, { ...look, [side === "top" ? "spaceTop" : "spaceBottom"]: c.key === "auto" ? undefined : c.key });
+    keepPad(uid, prop, c.px, seq);
     announce(`Espace ${side === "top" ? "haut" : "bas"} : ${cranLabel(c)}`);
   };
   const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -175,8 +199,9 @@ function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top"
       handle.removeEventListener("pointermove", move);
       handle.removeEventListener("pointerup", up);
       handle.removeEventListener("pointercancel", cancel);
-      setPad(root, prop, "");
       setDrag(null);
+      // Retour à l'espace d'avant le geste : validé et en attente, sinon celui du serveur.
+      setPad(root, prop, overlayData<string>(`pad:${uid}:${prop}`) ?? "");
     };
     handle.addEventListener("pointermove", move);
     handle.addEventListener("pointerup", up);
@@ -201,7 +226,9 @@ function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top"
         type="button"
         className="lk-space-handle"
         data-side={side}
-        style={{ top: side === "top" ? r.top + shown - 5 : r.top + r.height - shown - 5, left: r.left + r.width / 2 - 22 }}
+        // Sur le bord de la zone qui suit le curseur : en haut, le bord côté contenu ;
+        // en bas, le bord extérieur (le bloc grandit vers le bas, son contenu ne bouge pas).
+        style={{ top: side === "top" ? r.top + shown - 5 : r.top + r.height - 5, left: r.left + r.width / 2 - 22 }}
         aria-label={`Espace ${side === "top" ? "haut" : "bas"} : ${current === "auto" ? "Auto" : SPACE_LABELS[current]}. Glisser, ou flèches haut et bas.`}
         title={`Espace ${side === "top" ? "haut" : "bas"} (glisser : crans du thème)`}
         onPointerDown={onDown}
@@ -265,10 +292,8 @@ function targetOf(el: HTMLElement): TextTarget {
   return { path: pathOf(el), role: roleOf(el), local, isRole: el.dataset.heroText === "role" };
 }
 
-function siteStyles(): SiteStyles {
-  const sheet = document.getElementById("site-styles");
-  if (pendingStyles && pendingStyles.sheet === sheet) return pendingStyles.styles;
-  pendingStyles = null;
+/** Styles du site tels que le serveur les a rendus (feuille `#site-styles`). */
+function serverStyles(): SiteStyles {
   try {
     return SiteStylesSchema.safeParse(JSON.parse(document.getElementById("site-styles")?.dataset.editStyles ?? "{}")).data ?? {};
   } catch {
@@ -276,20 +301,56 @@ function siteStyles(): SiteStyles {
   }
 }
 
-/** Aperçu immédiat d'un style global (retiré dès que la feuille du serveur change). */
-function previewRole(role: Role, style: TextStyle | undefined) {
-  const styles = siteStyles();
-  const roles = { ...(styles.roles ?? {}) };
-  if (style) roles[role] = style;
-  else delete roles[role];
-  pendingStyles = { styles: { ...styles, roles }, sheet: document.getElementById("site-styles") };
+/** Styles du site : ceux du serveur, et par-dessus les styles de rôle posés dont il n'a pas encore acquitté l'enregistrement. */
+function siteStyles(): SiteStyles {
+  const base = serverStyles();
+  const pending = overlayList<{ role: Role; style: TextStyle | undefined }>("role:");
+  if (!pending.length) return base;
+  const roles = { ...(base.roles ?? {}) };
+  for (const p of pending) {
+    if (p.style) roles[p.role] = p.style;
+    else delete roles[p.role];
+  }
+  return { ...base, roles };
+}
+
+/** Feuille d'aperçu des styles de rôle en attente (retirée quand il n'y en a plus). */
+function renderRolePreview() {
   let el = document.getElementById("pe-style-preview");
+  if (!overlayList("role:").length) {
+    el?.remove();
+    return;
+  }
   if (!el) {
     el = document.createElement("style");
     el.id = "pe-style-preview";
     document.body.appendChild(el);
   }
-  el.textContent = siteStylesCss({ ...styles, roles });
+  const css = siteStylesCss(siteStyles());
+  if (el.textContent !== css) el.textContent = css;
+}
+
+/** Aperçu immédiat d'un style global, gardé jusqu'à ce que la feuille du serveur le porte. */
+function previewRole(role: Role, style: TextStyle | undefined, seq: number) {
+  setOverlay(`role:${role}`, seq, { data: { role, style }, apply: renderRolePreview, clear: renderRolePreview });
+}
+
+/** Éléments d'un texte de bloc visé par un style local (`look.text`). */
+function localTexts(local: { uid: string; key: string }): HTMLElement[] {
+  const block = wrapperOf(local.uid);
+  if (!block) return [];
+  const sel = local.key.startsWith("site.") ? `[data-site-inline="${CSS.escape(local.key.slice(5))}"]` : `[data-inline="${CSS.escape(local.key)}"]`;
+  return [...block.querySelectorAll<HTMLElement>(sel)].filter((e) => e.closest("[data-edit-block]") === block);
+}
+
+/** Aperçu immédiat du style de CE texte, gardé jusqu'à ce que le serveur le rende. */
+function previewTextStyle(local: { uid: string; key: string }, style: TextStyle | undefined, seq: number) {
+  const css = textStyleDecls(style).map(([k, v]) => `${k}:${v}`).join(";");
+  setOverlay(`tstyle:${local.uid}:${local.key}`, seq, {
+    apply: () => {
+      for (const el of localTexts(local)) if (el.getAttribute("style") !== css) el.setAttribute("style", css);
+    },
+  });
 }
 
 function TextBar({
@@ -306,7 +367,11 @@ function TextBar({
   tick: number;
 }) {
   const [scope, setScope] = useState<"local" | "role">(target.local ? "local" : "role");
+  const barRef = useRef<HTMLDivElement>(null);
   const el = document.querySelector<HTMLElement>(target.path);
+  // Clic ailleurs : la barre se ferme (les réglages sont déjà appliqués). Le texte visé
+  // reste cliquable (déplacer le curseur pendant la saisie) sans la fermer.
+  useDismiss(barRef, onClose, { ignore: (t) => Boolean(document.querySelector(target.path)?.contains(t)) });
   void tick;
   if (!el) return null;
   const r = docRect(el);
@@ -324,17 +389,18 @@ function TextBar({
       const text = { ...(look.text ?? {}) };
       if (next) text[target.local.key] = next;
       else delete text[target.local.key];
+      const seq = sendLook(target.local.uid, { ...look, text });
       // Aperçu immédiat sur ce texte.
-      el.setAttribute("style", textStyleDecls(next).map(([k, v]) => `${k}:${v}`).join(";"));
-      sendLook(target.local.uid, { ...look, text });
+      previewTextStyle(target.local, next, seq);
     } else {
-      previewRole(target.role, next);
-      post({ kind: "site-style", role: target.role, style: next ?? null });
+      const seq = postIntent({ kind: "site-style", role: target.role, style: next ?? null });
+      previewRole(target.role, next, seq);
     }
   };
   const below = r.top - window.scrollY < 150;
   return (
     <div
+      ref={barRef}
       className="lk-bar"
       role="toolbar"
       aria-label="Style du texte"
@@ -624,11 +690,7 @@ export default function LookLayer({
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(bump);
     };
-    const mo = new MutationObserver((records) => {
-      // La feuille du serveur a changé : l'aperçu local n'a plus lieu d'être.
-      if (records.some((r) => (r.target as Element).id === "site-styles" || [...r.addedNodes].some((n) => (n as Element).id === "site-styles"))) document.getElementById("pe-style-preview")?.remove();
-      schedule();
-    });
+    const mo = new MutationObserver(schedule);
     mo.observe(document.body, { childList: true, subtree: true, characterData: true });
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);

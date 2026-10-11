@@ -51,6 +51,19 @@ ok("éditeur → toile : mode valide accepté", acceptToCanvas(msg({ kind: "mode
 ok("éditeur → toile : mode inconnu ignoré", acceptToCanvas(msg({ kind: "mode", mode: "admin" }), ORIGIN, frame) === null);
 ok("éditeur → toile : coordonnées non numériques ignorées", acceptToCanvas(msg({ kind: "drag", x: "1", y: 2, label: "x" }), ORIGIN, frame) === null);
 
+// État optimiste (lot 6) : numéro d'intention de la toile, acquittement de l'éditeur.
+ok("intention numérotée : seq conservé", acceptFromCanvas(msg({ kind: "text", uid: "b1", path: "title", locale: "fr", value: "x", seq: 7 }), ORIGIN, frame)?.seq === 7);
+ok("intention sans numéro : acceptée, sans seq", acceptFromCanvas(msg({ kind: "select", uid: "b1" }), ORIGIN, frame)?.seq === undefined);
+ok("numéro invalide (négatif, décimal, texte) : message accepté mais seq retiré", [-3, 1.5, "7", 0, 4e9].every((seq) => acceptFromCanvas(msg({ kind: "select", uid: "b1", seq }), ORIGIN, frame)?.seq === undefined));
+ok("éditeur → toile : refresh avec révision et acquittement", (() => {
+  const m = acceptToCanvas(msg({ kind: "refresh", rev: 12, upTo: 5 }), ORIGIN, frame);
+  return m?.kind === "refresh" && m.rev === 12 && m.upTo === 5;
+})());
+ok("éditeur → toile : refresh sans paramètres accepté", acceptToCanvas(msg({ kind: "refresh" }), ORIGIN, frame)?.kind === "refresh");
+ok("éditeur → toile : settle valide accepté", acceptToCanvas(msg({ kind: "settle", rev: 3, upTo: -1 }), ORIGIN, frame)?.kind === "settle");
+ok("éditeur → toile : settle sans révision ignoré", acceptToCanvas(msg({ kind: "settle", upTo: 2 }), ORIGIN, frame) === null);
+ok("éditeur → toile : révision négative ou décimale ignorée", acceptToCanvas(msg({ kind: "refresh", rev: -1 }), ORIGIN, frame) === null && acceptToCanvas(msg({ kind: "refresh", rev: 1.5 }), ORIGIN, frame) === null);
+
 // Planches (phase 7b).
 ok("planches : déplacement d'image valide accepté", acceptFromCanvas(msg({ kind: "slot-move", board: 3, key: "s12", index: 2 }), ORIGIN, frame)?.key === "s12");
 ok("planches : clé d'emplacement mal formée ignorée", acceptFromCanvas(msg({ kind: "slot-op", board: 3, key: "../12", op: "remove" }), ORIGIN, frame) === null);

@@ -25,11 +25,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { MAX_NESTING } from "@/blocks/tree";
-import { acceptToCanvas, EDIT_MSG, insertionIndex, type BlockInfo, type FromCanvas } from "@/lib/edit/protocol";
+import { acceptToCanvas, insertionIndex, moveTo, type BlockInfo, type FromCanvas } from "@/lib/edit/protocol";
 
 import BoardLayer from "./BoardLayer";
 import LookLayer from "./edit/LookLayer";
 import GridLayoutIcon, { LAYOUT_LABELS } from "./edit/GridLayoutIcon";
+import { noteSettle, observeOverlays, pendingOrder, postIntent, previewLayout, previewOrder, previewText, siblingWrappers } from "./edit/optimistic";
+import { useDismiss } from "./edit/useDismiss";
 import SiteLayer, { FormLayer } from "./SiteLayer";
 
 import "@/app/admin/edit-layer.css";
@@ -45,8 +47,51 @@ const EDGE = 64;
 const GLOBAL_UIDS: Record<string, string> = { header: "site-header", footer: "site-footer" };
 const LAYOUTS = ["1", "1+2", "2", "3", "2x2", "4", "2+1"] as const;
 
-function post(msg: FromCanvas) {
-  window.parent.postMessage({ type: EDIT_MSG, ...msg }, window.location.origin);
+/** Envoie une intention (numérotée : voir edit/optimistic.ts) ; renvoie son numéro. */
+function post(msg: FromCanvas): number {
+  return postIntent(msg);
+}
+
+const orderOf = (parent: string | null) => pendingOrder(parent) ?? siblingWrappers(parent).map((e) => e.dataset.editBlock ?? "");
+
+/**
+ * Ordre des enfants d'un parent après avoir déplacé `uid` à `to` (index compté
+ * avant le retrait, comme l'éditeur), en partant de l'ordre voulu en attente
+ * s'il y en a un, sinon de celui de la page. Aperçu immédiat, gardé jusqu'à
+ * l'acquittement du serveur. Sans effet entre deux parents différents (le DOM
+ * de React ne se déplace pas d'un parent à l'autre).
+ */
+function previewMove(seq: number, uid: string, parent: string | null, to: number) {
+  const base = orderOf(parent);
+  const from = base.indexOf(uid);
+  if (from < 0) return;
+  previewOrder(parent, moveTo(base, from, to), seq);
+}
+
+/** Choix d'agencement d'une grille : se ferme d'un clic ailleurs. */
+function LayoutPicker({ top, uid, onClose }: { top: number; uid: string; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, onClose);
+  return (
+    <div ref={ref} className="pe-layouts" role="radiogroup" aria-label="Agencement de la grille" style={{ top }}>
+      {LAYOUTS.map((l) => (
+        <button
+          key={l}
+          type="button"
+          role="radio"
+          aria-checked={document.querySelector(`[data-edit-block="${CSS.escape(uid)}"] .block-grid`)?.getAttribute("data-layout") === l}
+          aria-label={LAYOUT_LABELS[l]}
+          title={LAYOUT_LABELS[l]}
+          onClick={() => {
+            const seq = post({ kind: "layout", uid, layout: l });
+            previewLayout(uid, l, seq);
+          }}
+        >
+          <GridLayoutIcon layout={l} />
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /** Boîte d'un élément en coordonnées du document (enveloppes display: contents : réunion des enfants, récursivement). */
@@ -246,8 +291,15 @@ export default function EditLayer() {
     }
     const locale = document.documentElement.lang === "en" ? "en" : "fr";
     if (value === original) return;
-    if (target.kind === "block") post({ kind: "text", uid: target.uid, path: el.dataset.inline ?? "", locale, value: value.slice(0, 2000) });
-    else post({ kind: "site-text", field: target.field as "name", ...(target.index !== undefined ? { index: target.index } : {}), locale, value: value.slice(0, 200) });
+    // Le texte posé reste affiché (edit/optimistic.ts) jusqu'à ce que le serveur le rende.
+    if (target.kind === "block") {
+      const path = el.dataset.inline ?? "";
+      const seq = post({ kind: "text", uid: target.uid, path, locale, value: value.slice(0, 2000) });
+      previewText({ uid: target.uid, path }, value.slice(0, 2000), seq);
+    } else {
+      const seq = post({ kind: "site-text", field: target.field as "name", ...(target.index !== undefined ? { index: target.index } : {}), locale, value: value.slice(0, 200) });
+      previewText({ field: target.field, ...(target.index !== undefined ? { index: target.index } : {}) }, value.slice(0, 200), seq);
+    }
   }, []);
 
   const startEdit = useCallback(
@@ -318,7 +370,11 @@ export default function EditLayer() {
           break;
         }
         case "refresh":
+          noteSettle(msg.rev, msg.upTo);
           router.refresh();
+          break;
+        case "settle":
+          noteSettle(msg.rev, msg.upTo);
           break;
         case "drag": {
           // Média glissé : cible d'une planche ou d'un bloc média (BoardLayer).
@@ -340,11 +396,14 @@ export default function EditLayer() {
       }
     };
     window.addEventListener("message", onMessage);
+    // Aperçus locaux réappliqués après chaque rendu de la page (edit/optimistic.ts).
+    const stopOverlays = observeOverlays();
     const blocks = measure().map(({ uid, type, label, parent }) => ({ uid, type, label, ...(parent ? { parent } : {}) }));
     lastOrder.current = blocks.map((b) => `${b.parent ?? ""}/${b.uid}`).join(",");
     post({ kind: "ready", path: window.location.pathname, locale: document.documentElement.lang, blocks });
     return () => {
       window.removeEventListener("message", onMessage);
+      stopOverlays();
       hostEl?.remove();
     };
   }, [router, finishEdit, dropAt]);
@@ -547,7 +606,8 @@ export default function EditLayer() {
       const siblings = boxesRef.current.filter((b) => (b.parent ?? null) === t.parent);
       const from = siblings.findIndex((b) => b.uid === box.uid);
       if (from >= 0 && (t.index === from || t.index === from + 1)) return;
-      post({ kind: "move", uid: box.uid, index: t.index, parent: t.parent });
+      const seq = post({ kind: "move", uid: box.uid, index: t.index, parent: t.parent });
+      if ((box.parent ?? null) === t.parent) previewMove(seq, box.uid, t.parent, t.index);
     };
     const up = () => end(true);
     const cancel = () => end(false);
@@ -593,6 +653,16 @@ export default function EditLayer() {
   const hovGlobal = hover && hover !== selected ? globals.find((g) => g.uid === hover) : undefined;
   const draggingUid = drag?.source === "canvas" ? drag.uid : null;
   const siblingsOf = (b: Box) => boxes.filter((x) => (x.parent ?? null) === (b.parent ?? null));
+  /** Monter / descendre d'un rang : envoyé à l'éditeur, montré tout de suite. */
+  const orderOp = (kind: "up" | "down", b: Box) => {
+    const seq = post({ kind: "op", op: kind, uid: b.uid });
+    const parent = b.parent ?? null;
+    const base = orderOf(parent);
+    const i = base.indexOf(b.uid);
+    if (i < 0) return;
+    if (kind === "up" && i > 0) previewMove(seq, b.uid, parent, i - 1);
+    if (kind === "down" && i < base.length - 1) previewMove(seq, b.uid, parent, i + 2);
+  };
   const chain = (b: Box): Box[] => {
     const out: Box[] = [];
     let cur: Box | undefined = b;
@@ -731,7 +801,7 @@ export default function EditLayer() {
               </svg>
             </button>
             {sel.type === "featured-project" && (
-              <button type="button" className="pe-tool-text" onClick={() => setProjectPicker(sel.uid)}>
+              <button type="button" className="pe-tool-text" aria-expanded={projectPicker === sel.uid} onClick={() => setProjectPicker(sel.uid)}>
                 Changer de projet
               </button>
             )}
@@ -740,10 +810,10 @@ export default function EditLayer() {
                 Agencement
               </button>
             )}
-            <button type="button" aria-label="Monter" title="Monter" disabled={siblingsOf(sel)[0]?.uid === sel.uid} onClick={() => post({ kind: "op", op: "up", uid: sel.uid })}>
+            <button type="button" aria-label="Monter" title="Monter" disabled={siblingsOf(sel)[0]?.uid === sel.uid} onClick={() => orderOp("up", sel)}>
               ↑
             </button>
-            <button type="button" aria-label="Descendre" title="Descendre" disabled={siblingsOf(sel).at(-1)?.uid === sel.uid} onClick={() => post({ kind: "op", op: "down", uid: sel.uid })}>
+            <button type="button" aria-label="Descendre" title="Descendre" disabled={siblingsOf(sel).at(-1)?.uid === sel.uid} onClick={() => orderOp("down", sel)}>
               ↓
             </button>
             {sel.parent && (
@@ -769,21 +839,7 @@ export default function EditLayer() {
             </button>
           </div>
           {sel.type === "grid" && layoutFor === sel.uid && (
-            <div className="pe-layouts" role="radiogroup" aria-label="Agencement de la grille" style={{ top: Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40 }}>
-              {LAYOUTS.map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  role="radio"
-                  aria-checked={document.querySelector(`[data-edit-block="${CSS.escape(sel.uid)}"] .block-grid`)?.getAttribute("data-layout") === l}
-                  aria-label={LAYOUT_LABELS[l]}
-                  title={LAYOUT_LABELS[l]}
-                  onClick={() => post({ kind: "layout", uid: sel.uid, layout: l })}
-                >
-                  <GridLayoutIcon layout={l} />
-                </button>
-              ))}
-            </div>
+            <LayoutPicker uid={sel.uid} top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40} onClose={() => setLayoutFor(null)} />
           )}
         </div>
       )}

@@ -23,6 +23,7 @@ import type { AdminMediaRow } from "@/lib/admin";
 import { tagKey } from "@/lib/tag-key";
 import type { TagRow } from "@/lib/tags";
 
+import { useDismiss } from "../edit/useDismiss";
 import { toast } from "./editing";
 import { isPdfFile, isVideoFile, readRatio, readVideoFrame, sendFile, useMediaWatch, type UploadedMedia } from "./uploads";
 
@@ -361,6 +362,8 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
 export function QueueIndicator() {
   const { items, retry, dismiss } = useUploadQueue();
   const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  useDismiss(root, () => setOpen(false), { enabled: open });
   const active = items.filter(isActive).length;
   const failed = items.filter((i) => i.phase === "failed").length;
   const converting = items.filter((i) => i.phase === "processing").length;
@@ -371,7 +374,7 @@ export function QueueIndicator() {
       ? `${failed} envoi${failed > 1 ? "s" : ""} en échec`
       : `${converting} traitement${converting > 1 ? "s" : ""} en cours`;
   return (
-    <div className="a-queue">
+    <div ref={root} className="a-queue">
       <button type="button" className="a-queue-toggle" aria-expanded={open} aria-controls="a-queue-panel" onClick={() => setOpen(!open)} data-failed={failed > 0 || undefined}>
         <span className="a-queue-dot" aria-hidden="true" data-active={active > 0 || undefined} />
         {label}

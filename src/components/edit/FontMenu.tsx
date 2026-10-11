@@ -14,6 +14,8 @@ import { fontLabel, fontStack, THEME_FONTS } from "@/lib/look";
 import { CATEGORY_LABELS, GOOGLE_FONTS, type GoogleCategory } from "@/themes/google-fonts";
 import { FONT_IDS } from "@/themes/schema";
 
+import { useDismiss } from "./useDismiss";
+
 const PAGE = 60;
 const loaded = new Map<string, Promise<boolean>>();
 
@@ -85,7 +87,10 @@ export default function FontMenu({
   const [cat, setCat] = useState<GoogleCategory | "all">("all");
   const [shown, setShown] = useState(PAGE);
   const input = useRef<HTMLInputElement>(null);
+  const root = useRef<HTMLDivElement>(null);
   useEffect(() => input.current?.focus(), []);
+  // Clic ailleurs : le menu se ferme (la police déjà choisie reste appliquée).
+  useDismiss(root, onClose);
   const q = query.trim().toLowerCase();
   const google = useMemo(
     () => GOOGLE_FONTS.filter((f) => (cat === "all" || f.category === cat) && (!q || f.family.toLowerCase().includes(q))),
@@ -99,6 +104,7 @@ export default function FontMenu({
 
   return (
     <div
+      ref={root}
       className="fm"
       role="dialog"
       aria-label="Choisir une police"

@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { signOutAction } from "@/app/admin/actions";
 
+import { useDismiss } from "../edit/useDismiss";
 import { Toaster } from "./editing";
 import { QueueIndicator, UploadQueueProvider } from "./UploadQueue";
 
@@ -40,6 +41,9 @@ export default function AdminShell({
   // Le menu mobile est ouvert « pour une page donnée » : naviguer le referme.
   const [openOn, setOpenOn] = useState<string | null>(null);
   const open = openOn === pathname;
+  // Menu mobile : un clic en dehors le referme (comme tous les menus flottants).
+  const sidebar = useRef<HTMLElement>(null);
+  useDismiss(sidebar, () => setOpenOn(null), { enabled: open });
 
   const brand = (
     <Link href="/admin" className="a-brand">
@@ -65,7 +69,7 @@ export default function AdminShell({
         </button>
       </div>
 
-      <aside id="a-sidebar" className="a-sidebar" data-open={open}>
+      <aside ref={sidebar} id="a-sidebar" className="a-sidebar" data-open={open}>
         {brand}
         <nav className="a-nav" aria-label="Administration">
           <ul>

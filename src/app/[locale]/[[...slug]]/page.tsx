@@ -6,7 +6,7 @@ import { getTranslations } from "next-intl/server";
 import BlockList from "@/blocks/BlockList";
 import NotFoundView from "@/components/NotFoundView";
 import { routing, type AppLocale } from "@/i18n/routing";
-import { getDraftBlocks, getDraftPageInfo, isDraftView, setDraftViewPage } from "@/lib/draft-view";
+import { getDraftBlocks, getDraftPageInfo, getDraftRev, isDraftView, setDraftViewPage } from "@/lib/draft-view";
 import { resolvePage } from "@/lib/page-preview";
 import { getPageBlocks, localizedPath, pageAccent } from "@/lib/pages";
 import { getActiveTheme } from "@/lib/theme";
@@ -73,7 +73,14 @@ export default async function Page({ params }: { params: Params }) {
   const blocks = draftView
     ? ((await getDraftBlocks(page.id)) ?? (await getPageBlocks(page.id)).map((b, i) => ({ ...b, uid: `b${i}` })))
     : await getPageBlocks(page.id);
-  const list = <BlockList blocks={blocks} ctx={{ locale, pageId: page.id, edit: draftView }} />;
+  // Vue brouillon : repère de la révision rendue (invisible), lu par la couche d'édition de la toile.
+  const rev = draftView ? getDraftRev(page.id) : null;
+  const list = (
+    <>
+      <BlockList blocks={blocks} ctx={{ locale, pageId: page.id, edit: draftView }} />
+      {rev !== null && <span hidden data-edit-rev={rev} />}
+    </>
+  );
   const draftInfo = draftView ? getDraftPageInfo(page.id) : null;
   const accent = draftInfo ? draftInfo.accent : pageAccent(page);
   if (!accent) return list;

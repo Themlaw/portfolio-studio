@@ -857,6 +857,57 @@ libres ni de valeur arbitraire) : `src/lib/look.ts` (module pur, testé par
   image d'une cellule de grille à ratio, fond de l'ouverture, portrait du
   profil (`portraitRatio`).
 
+### État local de la toile et menus flottants (lot 6)
+
+- **L'état local fait foi jusqu'à l'acquittement du serveur** (`src/components/edit/optimistic.ts`).
+  Cause du « mini retour en arrière » : le texte en place, l'espacement validé
+  (le style en ligne du glisser était retiré dès le relâchement), le style d'un
+  texte et la base de `lookOf` n'étaient posés que sur le DOM ; une réponse du
+  serveur rendue AVANT la modification suivante (ou avant l'enregistrement de
+  celle-ci) remontait le bloc (clé = empreinte des props) et remettait
+  l'ancienne valeur, jusqu'au rafraîchissement suivant. Désormais :
+  - chaque message d'intention de la toile porte un numéro croissant (`seq`,
+    hors schéma zod, extrait par `acceptFromCanvas`) ;
+  - chaque aperçu est inscrit sous une clé (`pad:`, `tstyle:`, `role:`, `text:`,
+    `site-text:`, `order:`, `layout:`, `look:` pour la base des gestes suivants)
+    avec le numéro de son message, et RÉAPPLIQUÉ par un MutationObserver après
+    chaque rendu de la page (donc avant l'affichage : aucune image
+    intermédiaire) ;
+  - la page rendue en vue brouillon porte `<span hidden data-edit-rev>` (révision
+    `pages.draft_rev` lue au rendu) ; l'éditeur annonce `refresh` / `settle`
+    avec `rev` (révision écrite) et `upTo` (dernier numéro dont plus rien n'est
+    attendu : rien à enregistrer, aucune écriture en vol ni en préparation —
+    `quiet()` de `VisualEditor`, `-1` sinon). Quand la page atteint `rev`, les
+    aperçus de numéro ≤ `upTo` sont retirés ; les plus récents restent par-dessus
+    une page en retard. Un enregistrement refusé ou en échec ne lâche rien
+    (l'état local reste affiché ; conflit `draft_rev` : l'éditeur s'arrête et
+    la toile garde ce qu'on a tapé).
+  - Réordonnancement : `op` monter / descendre et `move` dans le MÊME parent
+    réordonnent les enveloppes existantes (déplacements minimaux). Entre deux
+    parents, ou quand les enveloppes ne partagent pas le même nœud parent
+    (cellules d'une grille), rien n'est déplacé à la main : React ne doit
+    jamais retrouver un nœud sous un autre parent ; le changement s'affiche
+    alors à l'acquittement, sans jamais montrer d'ancien état.
+- **Poignées d'espacement** : la poignée se tient sur le bord de la zone qui suit
+  le curseur. Haut : le bord côté contenu (tirer vers le bas agrandit). Bas :
+  le bord extérieur (tirer vers le bas agrandit, vers le contenu réduit), mêmes
+  crans et mêmes bornes (Aucun … XL) des deux côtés.
+- **Fermeture des menus flottants** : un seul mécanisme, `useDismiss`
+  (`src/components/edit/useDismiss.ts`), pour la toile ET le panneau : clic à
+  l'extérieur (pointerdown en capture), Échap (le plus récent seulement),
+  passage du focus à l'autre cadre. Il ignore les clics dans le menu et dans
+  les menus ouverts plus tard (sous-menus), sur le bouton qui l'a ouvert
+  (`aria-expanded="true"` : c'est lui qui bascule), les barres de défilement
+  et ce qui n'est pas un clic (défilement, `<select>` natifs). Fermer ne perd
+  rien : chaque réglage est appliqué au moment du choix ; la croix reste.
+  Branché sur : barre de style du texte (✕ conservée), menu des polices,
+  fenêtres de la couche site (ajout de lien, réseaux, champs de formulaire),
+  choix de projet d'un conteneur et sa liste, agencement d'une grille, liste
+  de projets du panneau, file d'envoi, menu mobile de l'admin, fond de la
+  fenêtre de choix d'image. Tout nouveau menu flottant l'utilise
+  (`useDismiss(ref, onClose)`) ; un clic « sur le texte visé » se déclare par
+  `ignore`.
+
 ## Authentification (phase 3)
 
 - **Better Auth 1.7**, adaptateur Drizzle, tables `user`, `session`, `account`,

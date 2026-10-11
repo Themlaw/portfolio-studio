@@ -21,6 +21,7 @@ import { createPortal } from "react-dom";
 import { acceptToCanvas, EDIT_MSG, type FromCanvas } from "@/lib/edit/protocol";
 import { safeNavHref } from "@/lib/site-schema";
 
+import { useDismiss } from "./edit/useDismiss";
 import SocialPicker from "./SocialPicker";
 
 type Rect = { top: number; left: number; width: number; height: number };
@@ -209,6 +210,8 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
           type="button"
           className="pe-add-chip"
           data-testid="nav-add"
+          aria-haspopup="dialog"
+          aria-expanded={pop?.kind === "nav-add"}
           // Sous le dernier lien du menu : ne recouvre ni le menu ni le choix de langue.
           style={{
             top: addNavBox.top + addNavBox.height + 10,
@@ -224,7 +227,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
         socialLists.map((list, i) => {
           const r = rectOf(list);
           return (
-            <button key={i} type="button" className="pe-add-chip" data-testid="social-add" style={{ top: r.top + r.height + 6, left: r.left }} onClick={(e) => setPop({ kind: "social-add", anchor: rectOf(e.currentTarget) })}>
+            <button key={i} type="button" className="pe-add-chip" data-testid="social-add" aria-haspopup="menu" aria-expanded={pop?.kind === "social-add"} style={{ top: r.top + r.height + 6, left: r.left }} onClick={(e) => setPop({ kind: "social-add", anchor: rectOf(e.currentTarget) })}>
               + Réseau
             </button>
           );
@@ -246,20 +249,8 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
 function Panel({ anchor, children, label, onClose }: { anchor: Rect; children: React.ReactNode; label: string; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const below = anchor.top + anchor.height + 8;
-  const close = useRef(onClose);
-  useEffect(() => {
-    close.current = onClose;
-  });
-  useEffect(() => {
-    const onDown = (e: PointerEvent) => {
-      if (ref.current && e.target instanceof Node && !ref.current.contains(e.target)) close.current();
-    };
-    const t = setTimeout(() => document.addEventListener("pointerdown", onDown, true), 0);
-    return () => {
-      clearTimeout(t);
-      document.removeEventListener("pointerdown", onDown, true);
-    };
-  }, []);
+  // Clic ailleurs (toile ou panneau), Échap : fermé comme tous les menus flottants.
+  useDismiss(ref, onClose);
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;

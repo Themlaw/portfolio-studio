@@ -30,6 +30,7 @@ import { RADII, RADIUS_LABELS, type Radius } from "@/lib/look";
 
 import { lookOf, sendLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
+import { useDismiss } from "./edit/useDismiss";
 
 type Rect = { top: number; left: number; width: number; height: number };
 type SlotRef = { board: number; key: string; empty: boolean };
@@ -616,9 +617,10 @@ export default function BoardLayer({
       ))}
 
       {pickers.map(({ uid, box, change }) => (
-        <div
+        <PickerCard
           key={`pick-${uid}`}
-          className="pe-board-new pe-container-picker"
+          change={change}
+          onClose={onPickerClose}
           style={{ top: box.top + (change ? 40 : 12), left: Math.max(16, box.left + 16), width: Math.min(560, box.width - 32) }}
         >
           <p className="pe-board-new-title">{change ? "Changer de projet" : "Projet mis en avant"}</p>
@@ -642,7 +644,7 @@ export default function BoardLayer({
               Annuler
             </button>
           )}
-        </div>
+        </PickerCard>
       ))}
 
       {mediaBox && hoverMedia && !marker && !dragActive && (
@@ -754,6 +756,21 @@ export default function BoardLayer({
       )}
     </div>,
     host,
+  );
+}
+
+/**
+ * Carte du choix de projet d'un conteneur. « Changer de projet » (ouvert à la
+ * demande) se ferme d'un clic ailleurs ; la place « Projet mis en avant » d'un
+ * conteneur sans projet est permanente.
+ */
+function PickerCard({ change, onClose, style, children }: { change: boolean; onClose: () => void; style: React.CSSProperties; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, onClose, { enabled: change });
+  return (
+    <div ref={ref} className="pe-board-new pe-container-picker" style={style}>
+      {children}
+    </div>
   );
 }
 
