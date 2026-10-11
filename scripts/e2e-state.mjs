@@ -793,8 +793,17 @@ if (run("C")) {
   const mobile = await ctx.newPage();
   await mobile.setViewportSize({ width: 390, height: 800 });
   await mobile.goto(`${BASE}/admin`, { waitUntil: "domcontentloaded" });
-  await mobile.getByRole("button", { name: "Menu" }).click();
-  ok("C10 menu mobile ouvert", (await mobile.locator("#a-sidebar").getAttribute("data-open")) === "true");
+  // Un clic avant l'hydratation est perdu : on recommence tant que le menu n'est pas ouvert.
+  const sidebarOpen = async () => (await mobile.locator("#a-sidebar").getAttribute("data-open")) === "true";
+  ok(
+    "C10 menu mobile ouvert",
+    await waitFor(async () => {
+      if (await sidebarOpen()) return true;
+      await mobile.getByRole("button", { name: "Menu" }).click();
+      await sleep(500);
+      return sidebarOpen();
+    }, 20000),
+  );
   await mobile.locator("#contenu").click({ position: { x: 10, y: 400 }, force: true });
   ok("C10 clic à l'extérieur : le menu mobile se ferme", await waitFor(async () => (await mobile.locator("#a-sidebar").getAttribute("data-open")) === "false", 5000));
   await mobile.close();

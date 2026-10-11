@@ -126,6 +126,9 @@ async function typeInPlace(p, f, selector, text, position = { x: 12, y: 6 }) {
   await p.keyboard.press("ControlOrMeta+a");
   await p.keyboard.type(text);
   await p.keyboard.press("Enter");
+  // Le message de la toile et le passage de l'état à « Enregistrement… » ne sont pas instantanés :
+  // sans ce délai, `settled` peut lire l'état d'avant et rendre la main avant toute écriture.
+  await sleep(600);
   await settled(p);
 }
 /** Survol « frais » : la souris quitte l'endroit où elle était (sinon aucun mouvement n'est émis). */
@@ -153,8 +156,8 @@ if (run("A")) {
   const sel = '[data-edit-type="hero"] [data-inline="scroll"]';
   ok("A2 toile : le libellé de défilement est un texte éditable (comme l'étiquette)", (await f.locator(sel).count()) === 1 && (await f.locator(sel).textContent()).trim() === "Faire défiler");
   await typeInPlace(page, f, sel, "Descends");
-  const hero = () => draftOf(homeId).blocks.find((b) => b.type === "hero").props;
-  ok("A3 modifié en place : fr enregistré au brouillon, en laissé vide", hero().scroll?.fr === "Descends" && hero().scroll?.en === "", JSON.stringify(hero().scroll));
+  const hero = () => draftOf(homeId)?.blocks?.find((b) => b.type === "hero")?.props ?? {};
+  ok("A3 modifié en place : fr enregistré au brouillon, en laissé vide", await eventually(() => hero().scroll?.fr === "Descends" && hero().scroll?.en === ""), JSON.stringify(hero().scroll));
   // « Aa » : style local au bloc.
   // La saisie ouvre d'elle-même la barre typographique ; on la ferme pour essayer le bouton « Aa » du survol.
   if (await f.locator(".lk-close").count()) await f.locator(".lk-close").click();
@@ -180,7 +183,7 @@ if (run("A")) {
   });
   await page.locator("label.a-toggle", { hasText: "Afficher l'indicateur de défilement" }).click();
   await settled(page);
-  ok("A8 case décochée : showScroll false au brouillon", hero().showScroll === false);
+  ok("A8 case décochée : showScroll false au brouillon", await eventually(() => hero().showScroll === false));
   ok("A8b toile : l'indicateur disparaît", await until(f, () => !document.querySelector(".hero .scroll-hint")));
   ok("A9 publication", await publish());
   ok("A10 public : plus d'indicateur", !/class="scroll-hint/.test(await get("/fr")));
@@ -217,13 +220,15 @@ if (run("B")) {
   await page.screenshot({ path: `${SHOTS}/B-indicateur-projet.png` });
   // Édition.
   await typeInPlace(page, f, linkedSel, NEW_TITLE);
-  const after = project(HAUTS);
-  ok("B3 surcouche enregistrée, ligne du projet (donc le site) inchangée", parse(after.draft_text)?.title?.fr === NEW_TITLE && after.draft_text_page_id === homeId && parse(after.title).fr === "Les hauts chemins");
+  ok("B3 surcouche enregistrée, ligne du projet (donc le site) inchangée", await eventually(() => {
+    const after = project(HAUTS);
+    return parse(after.draft_text)?.title?.fr === NEW_TITLE && after.draft_text_page_id === homeId && parse(after.title).fr === "Les hauts chemins";
+  }));
   ok("B3b les deux occurrences (titre lié + planche) montrent le nouveau titre", await until(f, (t) => [...document.querySelectorAll('[data-project-inline="title"]')].filter((e) => e.textContent === t).length >= 2, NEW_TITLE));
   ok("B3c le brouillon de la page n'a pas copié le texte (une seule source)", !JSON.stringify(draftOf(homeId)).includes(NEW_TITLE));
   // Présentation depuis la planche.
   await typeInPlace(page, f, `[data-edit-board="${before.id}"][data-edit-board-label] header [data-project-inline="description"]`, NEW_DESC);
-  ok("B4 présentation modifiée en place (planche) : surcouche", parse(project(HAUTS).draft_text)?.description?.fr === NEW_DESC);
+  ok("B4 présentation modifiée en place (planche) : surcouche", await eventually(() => parse(project(HAUTS).draft_text)?.description?.fr === NEW_DESC));
   // Mise en forme locale du bloc.
   await hover(f.locator(linkedSel), { x: 20, y: 10 });
   await f.locator(".lk-aa").click();
