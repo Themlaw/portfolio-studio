@@ -46,14 +46,16 @@ export function HeroEditor() {
   return (
     <>
       <p className="a-help">Ton nom et ton métier sont communs à tout le site (en-tête, profil…) : double-clic dessus sur la page pour les modifier.</p>
-      <MediaPicker
-        label="Image de fond (facultative)"
-        help="Remplace le décor du thème dans l'ouverture « paysage ». Sur la page : survole l'ouverture, « Changer le fond »."
-        value={value.backgroundMediaId as number | undefined}
-        onChange={(v) => set("backgroundMediaId", v)}
-        error={errorAt(errors, "backgroundMediaId")}
-        context={context}
-      />
+      {context.heroBackdrop !== false && (
+        <MediaPicker
+          label="Image de fond (facultative)"
+          help="Remplace le décor du thème (ouvertures « calques » et « projecteur »). Sur la page : survole l'ouverture, « Changer le fond » ; « Cadrer » choisit la zone gardée. Vide : le fond du thème."
+          value={value.backgroundMediaId as number | undefined}
+          onChange={(v) => set("backgroundMediaId", v)}
+          error={errorAt(errors, "backgroundMediaId")}
+          context={context}
+        />
+      )}
       <TextI18n label="Étiquette" help="Petit texte au-dessus de ton nom." value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
       <TextareaI18n
         label="Phrase d'accroche"
@@ -99,6 +101,20 @@ export function CollectionTilesEditor() {
     <>
       <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
       <TextI18n label="Titre de la section" value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
+      <Select
+        label="Format des images"
+        help="Imposé : les images sont cadrées (sur la page, survole une image puis « Cadrer » pour choisir la zone gardée)."
+        value={(value.ratio as string) ?? "auto"}
+        options={[
+          { value: "auto", label: "Celui de l'image" },
+          { value: "16:9", label: "Paysage 16:9" },
+          { value: "3:2", label: "Paysage 3:2" },
+          { value: "4:3", label: "Paysage 4:3" },
+          { value: "1:1", label: "Carré" },
+          { value: "4:5", label: "Portrait 4:5" },
+        ]}
+        onChange={(v) => set("ratio", v === "auto" ? undefined : v)}
+      />
       <ListField<Item>
         label="Entrées"
         help="Chaque entrée montre une grande image de la collection et mène à sa page."

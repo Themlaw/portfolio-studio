@@ -6,6 +6,10 @@ import Eyebrow from "@/components/Eyebrow";
 import { Link } from "@/i18n/navigation";
 
 export type Tile = {
+  /** Collection montrée (clé du cadrage de la tuile, `look.tileCrop`). */
+  key: string;
+  /** Variables de cadrage (`--crop-pos`, `--crop-zoom`) : point focal et zoom choisis sur la toile. */
+  cropStyle?: Record<string, string>;
   /** Chemin sans langue, résolu depuis la page cible en base. */
   href: string;
   eyebrow: string;
@@ -22,12 +26,19 @@ export type Tile = {
 export default function CollectionTiles({
   tiles,
   cta,
+  ratio,
+  edit,
 }: {
   tiles: Tile[];
   cta: string;
+  /** Format imposé des images (sinon celui de chaque image). */
+  ratio?: string;
+  /** Vue brouillon de l'éditeur : repère du cadrage des images. */
+  edit?: boolean;
 }) {
+  const fixed = ratio && ratio !== "auto" ? ratio : undefined;
   return (
-    <div className="flex flex-col gap-[var(--t-space-l)]">
+    <div className="tiles flex flex-col gap-[var(--t-space-l)]" {...(fixed ? { "data-ratio": fixed } : {})}>
       {tiles.map((tile, index) => (
         <Link
           key={tile.href}
@@ -40,15 +51,22 @@ export default function CollectionTiles({
             }`}
           >
             <div className="tile-media mat">
-              <Picture
-                src={tile.image}
-                sources={tile.sources}
-                alt={tile.imageAlt}
-                width={tile.width}
-                height={tile.height}
-                sizes="(min-width: 768px) 66vw, 100vw"
-                className="h-auto w-full rounded-[2px]"
-              />
+              <span
+                className="tile-frame"
+                style={tile.cropStyle}
+                {...(tile.cropStyle ? { "data-crop": "" } : {})}
+                {...(edit && fixed ? { "data-edit-tile": tile.key } : {})}
+              >
+                <Picture
+                  src={tile.image}
+                  sources={tile.sources}
+                  alt={tile.imageAlt}
+                  width={tile.width}
+                  height={tile.height}
+                  sizes="(min-width: 768px) 66vw, 100vw"
+                  className="h-auto w-full rounded-[2px]"
+                />
+              </span>
             </div>
           </div>
 

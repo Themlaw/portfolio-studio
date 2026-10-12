@@ -4,8 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import Eyebrow from "@/components/Eyebrow";
-import Picture from "@/components/Picture";
-import Video from "@/components/Video";
+import HeroBackdropMedia from "@/components/hero/HeroBackdrop";
 import ScrollHint from "@/components/hero/ScrollHint";
 import { heroMarks, type HeroContent } from "@/components/hero/types";
 import type { KitPlan } from "@/themes/schema";
@@ -147,11 +146,7 @@ export default function HeroParallax({ layers, plans = [], content }: { layers: 
             }}
             className="hero-backdrop absolute inset-[-8%] will-change-transform"
           >
-            {bg.video ? (
-              <Video video={bg.video} width={bg.width} height={bg.height} className="h-full w-full object-cover" autoPlay muted loop controls={false} />
-            ) : (
-              <Picture src={bg.src} sources={bg.sources} alt="" width={bg.width} height={bg.height} sizes="100vw" className="h-full w-full object-cover" priority />
-            )}
+            <HeroBackdropMedia bg={bg} />
           </div>
         ) : null}
         {!bg && stack.map(({ plan, src }, i) =>
@@ -196,7 +191,7 @@ export default function HeroParallax({ layers, plans = [], content }: { layers: 
       {/* hero-halo : halo typographique serré (token heroHalo) sur les petits
           textes qui traversent le décor. Le titre, en très grand corps, tient seul. */}
       <div className="shell relative pb-20 pt-40 md:pb-28">
-        <Eyebrow className="text-ink" {...marks.eyebrow}>
+        <Eyebrow className={`text-ink${bg ? " hero-halo" : ""}`} {...marks.eyebrow}>
           {content.eyebrow}
         </Eyebrow>
         <h1 className="mt-5 font-display text-[clamp(3rem,11vw,9rem)] leading-[0.92] text-ink" {...marks.name}>

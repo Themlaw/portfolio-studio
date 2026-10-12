@@ -82,6 +82,26 @@
   transform-origin: var(--crop-pos, 50% 50%);
 }
 
+/* Tuiles de collection : format imposé, puis cadrage de chaque image (variables
+   posées sur la tuile elle-même, une par collection). */
+.tile-frame {
+  display: block;
+  overflow: hidden;
+  border-radius: var(--media-radius, 2px);
+}
+.tiles[data-ratio] .tile-frame img { height: auto; object-fit: cover; }
+.tiles[data-ratio="16:9"] .tile-frame img { aspect-ratio: 16 / 9; }
+.tiles[data-ratio="3:2"] .tile-frame img { aspect-ratio: 3 / 2; }
+.tiles[data-ratio="4:3"] .tile-frame img { aspect-ratio: 4 / 3; }
+.tiles[data-ratio="1:1"] .tile-frame img { aspect-ratio: 1; }
+.tiles[data-ratio="4:5"] .tile-frame img { aspect-ratio: 4 / 5; }
+.tile-frame[data-crop] img {
+  object-fit: cover;
+  object-position: var(--crop-pos, 50% 50%);
+  transform: scale(var(--crop-zoom, 1));
+  transform-origin: var(--crop-pos, 50% 50%);
+}
+
 /* ---- Métier de l'ouverture : fond au choix (thème, puis bloc) ------------
    « Ombre douce » : l'ombre couleur du fond (même empilement que le halo
    typographique du thème) : sur le décor de galerie-lumineuse, c'est la seule

@@ -4,6 +4,7 @@ import { z } from "zod";
 import CollectionTiles, { type Tile } from "@/components/CollectionTiles";
 import Eyebrow from "@/components/Eyebrow";
 import { countCollection, getCollectionCover } from "@/lib/gallery";
+import { cropVars } from "@/lib/look";
 import { hrefForPage } from "@/lib/pages";
 
 import { collection, inline, localized, pageRef, tr, type BlockContext, localizedText } from "./types";
@@ -11,6 +12,8 @@ import { collection, inline, localized, pageRef, tr, type BlockContext, localize
 export const collectionTilesSchema = z.object({
   eyebrow: localized,
   title: localized,
+  /** Format imposé des images (elles sont alors cadrées : « Cadrer » sur la toile). Auto : leur format. */
+  ratio: z.enum(["auto", "16:9", "3:2", "4:3", "1:1", "4:5"]).optional(),
   items: z.array(
     z.object({ collection, pageId: pageRef, eyebrow: localized, title: localized, intro: localizedText }),
   ).max(12),
@@ -30,7 +33,10 @@ export default async function CollectionTilesBlock({
   for (const item of props.items) {
     const cover = await getCollectionCover(item.collection, ctx.locale);
     if (!cover) continue;
+    const crop = ctx.look?.tileCrop?.[item.collection];
     tiles.push({
+      key: item.collection,
+      ...(crop ? { cropStyle: cropVars(crop) } : {}),
       href: await hrefForPage(item.pageId, ctx.locale),
       eyebrow: tr(item.eyebrow, ctx.locale),
       title: tr(item.title, ctx.locale),
@@ -52,7 +58,7 @@ export default async function CollectionTilesBlock({
           {tr(props.title, ctx.locale)}
         </h2>
       </header>
-      <CollectionTiles tiles={tiles} cta={t("view")} />
+      <CollectionTiles tiles={tiles} cta={t("view")} ratio={props.ratio} edit={ctx.edit} />
     </section>
   );
 }

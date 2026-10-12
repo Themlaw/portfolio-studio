@@ -7,7 +7,7 @@
 #
 # Usage (depuis le dépôt) :
 #   scripts/test-all-local.sh [suite…]      # vide = toutes
-#   ids : checks build auth pdf v013 lot1 lot8 state palette look themes kit editor boards admin medias medias-firefox
+#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit editor boards admin medias medias-firefox
 # En fond détaché :
 #   ssh -f vm-dev 'cd ~/wt/lot1 && setsid nohup scripts/test-all-local.sh >/root/battery.out 2>&1 </dev/null'
 # Variables : PORT (3121), LOCK (/root/heavy.lock), LOCK_WAIT (secondes, 3600), BATTERY_DIR.
@@ -31,6 +31,7 @@ E2E=(
   "v013|node scripts/e2e-v013.mjs|chromium|"
   "lot1|node scripts/e2e-lot1.mjs|chromium|"
   "lot8|node scripts/e2e-lot8.mjs|chromium|"
+  "lot11|node scripts/e2e-lot11.mjs|chromium|"
   "state|node scripts/e2e-state.mjs|chromium|"
   "palette|node scripts/e2e-palette.mjs|chromium|"
   "look|node scripts/e2e-look.mjs|chromium|"

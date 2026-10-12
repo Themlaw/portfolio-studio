@@ -21,6 +21,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import HeroContrast from "@/components/edit/HeroContrast";
 import { acceptToCanvas } from "@/lib/edit/protocol";
 import {
   BACKDROP_LABELS,
@@ -43,6 +44,8 @@ import {
   type SiteStyles,
   type Space,
   type TextStyle,
+  type TileKey,
+  TILE_KEYS,
 } from "@/lib/look";
 
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
@@ -502,7 +505,7 @@ function TitlePosition({ uid, type, inCell, rect }: { uid: string; type: string;
 
 /* ---- Cadrage ------------------------------------------------------------------------ */
 
-type CropTarget = { uid: string; field: "mediaId" | "backgroundMediaId" | "portraitMediaId"; media: HTMLImageElement | HTMLVideoElement };
+type CropTarget = { uid: string; field: "mediaId" | "backgroundMediaId" | "portraitMediaId"; media: HTMLImageElement | HTMLVideoElement; /** Tuile de collection : son cadrage vit dans `look.tileCrop[tile]`. */ tile?: TileKey };
 const CROPPABLE: Record<string, CropTarget["field"]> = { image: "mediaId", hero: "backgroundMediaId", profile: "portraitMediaId" };
 
 function mediaRatio(m: HTMLImageElement | HTMLVideoElement): number {
@@ -514,6 +517,20 @@ function mediaRatio(m: HTMLImageElement | HTMLVideoElement): number {
 /** Image d'un emplacement qui n'a pas son format (affichée en « cover »). */
 function cropTargetAt(t: EventTarget | null): CropTarget | null {
   if (!(t instanceof Element)) return null;
+  // Tuile de collection (accueil) : une image par collection, format imposé par le bloc.
+  const tileHost = t.closest<HTMLElement>("[data-edit-tile]");
+  if (tileHost) {
+    const tileBlock = tileHost.closest<HTMLElement>("[data-edit-block]");
+    const tile = tileHost.dataset.editTile as TileKey | undefined;
+    const img = tileHost.querySelector<HTMLImageElement>("img");
+    if (!tileBlock?.dataset.editBlock || !tile || !(TILE_KEYS as readonly string[]).includes(tile) || !img) return null;
+    const ir = mediaRatio(img);
+    const box = img.getBoundingClientRect();
+    // Le zoom agrandit l'image dans son cadre : le cadre (parent) donne le format.
+    const frame = tileHost.getBoundingClientRect();
+    if (!ir || !frame.height || !box.height || !needsCrop(ir, frame.width / frame.height)) return null;
+    return { uid: tileBlock.dataset.editBlock, field: "mediaId", media: img, tile };
+  }
   const host = t.closest<HTMLElement>("[data-edit-media]");
   const block = host?.closest<HTMLElement>("[data-edit-block]");
   const field = block ? CROPPABLE[block.dataset.editType ?? ""] : undefined;
@@ -529,10 +546,11 @@ function cropTargetAt(t: EventTarget | null): CropTarget | null {
 
 function CropDialog({ target, onClose }: { target: CropTarget; onClose: () => void }) {
   const look = lookOf(target.uid);
-  const box = target.media.getBoundingClientRect();
+  // Une tuile : le cadre est le parent de l'image (l'image zoomée déborde de sa boîte).
+  const box = (target.tile ? target.media.closest("[data-edit-tile]") ?? target.media : target.media).getBoundingClientRect();
   const boxRatio = box.width / box.height;
   const ir = mediaRatio(target.media);
-  const [crop, setCrop] = useState<Crop>(look.crop?.[target.field] ?? { x: 50, y: 50, zoom: 1 });
+  const [crop, setCrop] = useState<Crop>((target.tile ? look.tileCrop?.[target.tile] : look.crop?.[target.field]) ?? { x: 50, y: 50, zoom: 1 });
   const stage = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   useEffect(() => dialog.current?.focus(), []);
@@ -578,6 +596,14 @@ function CropDialog({ target, onClose }: { target: CropTarget; onClose: () => vo
   };
   const save = () => {
     const centered = crop.zoom === 1 && Math.abs(crop.x - 50) < 0.01 && Math.abs(crop.y - 50) < 0.01;
+    if (target.tile) {
+      const tiles = { ...(look.tileCrop ?? {}) };
+      if (centered) delete tiles[target.tile];
+      else tiles[target.tile] = crop;
+      sendLook(target.uid, { ...look, tileCrop: tiles });
+      onClose();
+      return;
+    }
     const next = { ...(look.crop ?? {}) };
     if (centered) delete next[target.field];
     else next[target.field] = crop;
@@ -716,7 +742,7 @@ export default function LookLayer({
       if (t) setHoverText((h) => (h?.el === t ? h : { el: t, rect: docRect(t) }));
       else hideTimer.current = setTimeout(() => setHoverText(null), 500);
       const c = cropTargetAt(e.target);
-      setCropHover((prev) => (c ? (prev?.media === c.media ? prev : c) : prev && (e.target as Element)?.closest?.("[data-edit-media]") ? prev : null));
+      setCropHover((prev) => (c ? (prev?.media === c.media ? prev : c) : prev && (e.target as Element)?.closest?.("[data-edit-media], [data-edit-tile]") ? prev : null));
     };
     // Saisie d'un texte : sa barre s'ouvre d'elle-même.
     const onFocus = (e: FocusEvent) => {
@@ -765,21 +791,29 @@ export default function LookLayer({
       {bar && <TextBar key={bar.path} target={bar} installed={installed} themeNames={themeNames} onClose={() => setBar(null)} tick={tick} />}
 
       {cropValid && !cropOpen && (() => {
-        const r = docRect(cropValid.media.closest("[data-edit-media]") ?? cropValid.media);
+        const r = docRect(cropValid.media.closest("[data-edit-media], [data-edit-tile]") ?? cropValid.media);
         const look = lookOf(cropValid.uid);
+        // Fond de l'ouverture : la barre « Changer le fond » occupe déjà le coin bas droit
+        // de la partie visible ; « Cadrer » se pose juste à sa gauche, sur la même ligne.
+        const bar = !cropValid.tile && cropValid.field === "backgroundMediaId" ? document.querySelector<HTMLElement>('[role="toolbar"][aria-label="Fond de l\'ouverture"]') : null;
+        const barBox = bar ? docRect(bar) : null;
+        const pos = barBox
+          ? { top: barBox.top, left: Math.max(r.left + 8, barBox.left - 112) }
+          : { top: r.top + Math.max(8, r.height - 46), left: r.left + Math.max(8, r.width - 120) };
         return (
           <button
             type="button"
             className="lk-crop-btn"
-            style={{ top: r.top + Math.max(8, r.height - 46), left: r.left + Math.max(8, r.width - 120) }}
+            style={pos}
             onClick={() => setCropOpen(cropValid)}
             title="Choisir la zone gardée de l'image"
           >
-            {look.crop?.[cropValid.field] ? "Recadrer" : "Cadrer"}
+            {(cropValid.tile ? look.tileCrop?.[cropValid.tile] : look.crop?.[cropValid.field]) ? "Recadrer" : "Cadrer"}
           </button>
         );
       })()}
       {cropOpen && <CropDialog target={cropOpen} onClose={() => setCropOpen(null)} />}
+      <HeroContrast />
     </div>
   );
 }
