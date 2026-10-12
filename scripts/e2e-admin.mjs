@@ -12,10 +12,16 @@
  *     supprimer une page référencée → bloqué avec la liste ; ordre du menu.
  *  C. Réglages : URL javascript: refusée, mention de pied modifiée → le pied
  *     de page public change.
+ *  D. Polices téléchargées (Réglages) : bibliothèque semée en base + fichiers
+ *     factices (aucun accès à Google) ; liste, styles, quota, police utilisée
+ *     sans bouton « Supprimer », suppression d'une police inutilisée.
  * L'état initial est restauré à la fin (thème en ligne, page supprimée,
  * mention et ordre du menu d'origine).
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… node scripts/e2e-admin.mjs
  */
+import Database from "better-sqlite3";
+import { mkdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import path from "node:path";
 import { chromium } from "playwright";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
@@ -320,6 +326,49 @@ try {
   await toast("Enregistré");
   r = await anon("/fr/decors");
   ok("C3 mention d'origine restaurée", r.html.includes(originalCredit));
+
+  // ---- D. Polices téléchargées ---------------------------------------------
+  // Pas de téléchargement réel : la bibliothèque (réglage fontLibrary) et ses fichiers sont semés dans le volume.
+  const DATA = process.env.DATA_DIR ?? "data";
+  const fontDir = path.join(DATA, "fonts");
+  const faceOf = (file, weight, subset) => ({ weight, italic: false, subset, file, range: "U+0000-00FF", bytes: 1200 });
+  const lib = {
+    Lora: [faceOf("aaaaaaaaaaaaaaa1.woff2", 400, "latin"), faceOf("aaaaaaaaaaaaaaa2.woff2", 400, "latin-ext"), faceOf("aaaaaaaaaaaaaaa3.woff2", 700, "latin")],
+    Merriweather: [faceOf("bbbbbbbbbbbbbbb1.woff2", 400, "latin")],
+  };
+  const sdb = new Database(path.join(DATA, "portfolio.db"));
+  const getSet = (k) => sdb.prepare("select value from settings where key = ?").get(k)?.value ?? null;
+  const putSet = (k, v) => (v === null ? sdb.prepare("delete from settings where key = ?").run(k) : sdb.prepare("insert into settings (key, value) values (?, ?) on conflict(key) do update set value = excluded.value").run(k, v));
+  const saved = { fontLibrary: getSet("fontLibrary"), styles: getSet("styles"), fontLeases: getSet("fontLeases") };
+  mkdirSync(fontDir, { recursive: true });
+  for (const f of Object.values(lib).flat()) writeFileSync(path.join(fontDir, f.file), Buffer.concat([Buffer.from("wOF2"), Buffer.alloc(60)]));
+  putSet("fontLibrary", JSON.stringify(lib));
+  putSet("fontLeases", null);
+  putSet("styles", JSON.stringify({ roles: { h1: { font: "g:Lora" } } }));
+  try {
+    await page.goto(`${BASE}/admin/reglages`, { waitUntil: "networkidle" });
+    const panel = page.getByTestId("font-library");
+    const lora = panel.locator('li[data-font="Lora"]');
+    const merri = panel.locator('li[data-font="Merriweather"]');
+    ok("D1 liste : les deux polices semées", (await lora.count()) === 1 && (await merri.count()) === 1);
+    ok("D2 poids : Lora 2 styles (400 et 700), Merriweather 1 style", /2 styles/.test(await lora.innerText()) && /1 style(?!s)/.test(await merri.innerText()));
+    ok("D3 quota affiché (2 / 12 polices)", /2 \/ 12 polices/.test(await panel.locator(".a-help").first().innerText()));
+    ok("D4 police utilisée : usage affiché, aucun bouton Supprimer", /Utilisée : styles du site/.test(await lora.innerText()) && (await lora.getByRole("button", { name: "Supprimer" }).count()) === 0);
+    ok("D5 police inutilisée : « Inutilisée » et bouton Supprimer", /Inutilisée/.test(await merri.innerText()) && (await merri.getByRole("button", { name: "Supprimer" }).count()) === 1);
+    await merri.getByRole("button", { name: "Supprimer" }).click();
+    await page.locator("dialog[open]").getByRole("button", { name: "Supprimer" }).click();
+    await toast("supprimée");
+    await panel.locator('li[data-font="Merriweather"]').waitFor({ state: "detached", timeout: 15000 });
+    ok("D6 suppression : ligne retirée, fichier effacé du volume, bibliothèque à jour", !existsSync(path.join(fontDir, "bbbbbbbbbbbbbbb1.woff2")) && existsSync(path.join(fontDir, "aaaaaaaaaaaaaaa1.woff2")) && Object.keys(JSON.parse(getSet("fontLibrary"))).join() === "Lora");
+    ok("D7 quota mis à jour (1 / 12 polices)", /1 \/ 12 polices/.test(await panel.locator(".a-help").first().innerText()));
+    // Côté serveur, la police utilisée est aussi protégée (action appelée sans passer par l'interface : voir test-integ-units).
+  } finally {
+    putSet("fontLibrary", saved.fontLibrary);
+    putSet("styles", saved.styles);
+    putSet("fontLeases", saved.fontLeases);
+    sdb.close();
+    for (const f of Object.values(lib).flat()) rmSync(path.join(fontDir, f.file), { force: true });
+  }
 } catch (e) {
   failures++;
   console.log("FAIL exception :", e.message.split("\n")[0]);
