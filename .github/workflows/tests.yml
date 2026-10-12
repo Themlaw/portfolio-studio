@@ -1,6 +1,6 @@
-# Batterie de tests lourds (e2e Playwright, test:auth, build) sur GitHub
-# Actions, en parallèle : une machine par suite. La VM de dev (2 Go) ne lance
-# plus que des tests ciblés. Voir docs/ARCHITECTURE.md, « Tests lourds sur GitHub Actions ».
+# Batterie de tests lourds (e2e Playwright, test:auth, build). RÉFÉRENCE : depuis
+# la v0.15 la batterie tourne en local (scripts/test-all-local.sh, voir docs/ARCHITECTURE.md,
+# « Tests lourds : batterie complète en local »), GitHub Actions n’est plus utilisé.
 #
 # Lancement manuel : gh workflow run tests.yml --ref <branche> [-f suites=v013,auth]
 name: tests
