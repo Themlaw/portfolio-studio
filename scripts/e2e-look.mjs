@@ -370,7 +370,18 @@ if (run("H")) {
       console.log(`  (pas de « Aa » sur ${sel} : ${await f.locator(sel).count()} élément(s), texte « ${(await f.locator(sel).first().textContent())?.slice(0, 40)} »)`);
       return false;
     }
-    await f.locator(".lk-aa").click();
+    // Le « Aa » suit le survol (il disparaît 500 ms après la sortie du texte) : s'il est retiré
+    // pendant le clic (bouton détaché), on re-survole le texte et on réessaie.
+    for (let essai = 0; essai < 4; essai++) {
+      try {
+        await f.locator(".lk-aa").click({ timeout: 4000 });
+        break;
+      } catch (e) {
+        if (essai === 3) throw e;
+        await f.locator(sel).first().hover();
+        await until(f, () => Boolean(document.querySelector(".lk-aa")), null, 3000);
+      }
+    }
     return until(f, () => Boolean(document.querySelector(".lk-bar")));
   };
   const pickSize = async (key) => {
