@@ -2,20 +2,25 @@
 
 /**
  * Sélecteur de couleur libre d'un texte (lot 7) : dernière pastille des couleurs
- * du texte (dégradé conique), qui ouvre une fenêtre avec zone saturation /
- * luminosité à glisser, curseurs de teinte, de luminosité et d'opacité, saisie
- * HEX / RGB / HSL, aperçu sur le fond du thème avec avertissement de contraste
- * (jamais bloquant), couleurs du thème et couleurs récentes.
+ * du texte (dégradé conique), qui ouvre une fenêtre avec une roue chromatique
+ * (teinte = angle, saturation = rayon), un curseur de luminosité, un curseur
+ * d'opacité, saisie HEX / RGB / HSL, aperçu sur le fond du thème avec
+ * avertissement de contraste (jamais bloquant), couleurs du thème et récentes.
  *
- * Écrit à la main (module pur src/lib/color.ts) : aucune dépendance de plus,
- * et pas de feuille injectée à l'exécution (la toile est une iframe sous CSP).
- * Clavier : flèches sur la zone (Maj = pas de 10), curseurs natifs, champs.
+ * Roue, luminosité et opacité : @uiw/react-color-wheel / -shade-slider / -alpha
+ * (styles en ligne uniquement : aucune feuille injectée, la toile reste sous CSP ;
+ * les couleurs qu'ils dessinent sont des données). Conversions : src/lib/color.ts.
+ * Clavier : flèches sur la roue (gauche / droite = teinte, haut / bas = saturation,
+ * Maj = pas de 10), flèches sur les curseurs (natif @uiw), champs.
  * Fermeture : `useDismiss` (clic extérieur, Échap, focus dans l'autre cadre).
  *
  * La valeur émise est `#rrggbb[aa]` (format canonique de src/lib/color.ts) ou
  * une clé de la palette du thème ; la validation reste celle du schéma zod.
  * Les couleurs affichées ici sont des données calculées (jamais écrites en dur).
  */
+import Alpha from "@uiw/react-color-alpha";
+import ShadeSlider from "@uiw/react-color-shade-slider";
+import Wheel from "@uiw/react-color-wheel";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { hslToHsv, hsvToHsl, hsvToRgb, isCustomColor, over, parseColor, rgbaToHex, rgbToHsv, wheelGradient, type Hsva } from "@/lib/color";
@@ -29,7 +34,6 @@ const RECENT_MAX = 8;
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const hexOf = (h: Hsva) => rgbaToHex(hsvToRgb(h));
-const solid = (h: number, s: number, v: number, a = 1) => rgbaToHex(hsvToRgb({ h, s, v, a }));
 
 function readRecent(): string[] {
   try {
@@ -60,7 +64,9 @@ function resolveCss(css: string, doc: Document) {
 }
 
 const isPalette = (v: string | undefined): v is PaletteColor => (PALETTE as readonly string[]).includes(v ?? "");
-const checker = "repeating-conic-gradient(var(--lk-line) 0 25%, transparent 0 50%) 0 0 / 10px 10px";
+const WHEEL = 168; // px : la bibliothèque calcule la position du doigt dans une roue de cette largeur
+/** Variables du curseur d'opacité de @uiw : fond du damier et pastille sur les tokens de l'interface. */
+const alphaVars = { "--alpha-background-color": "var(--lk-surface)", "--alpha-pointer-background-color": "var(--lk-surface)", "--alpha-pointer-box-shadow": "0 0 0 1.5px var(--lk-ink)", borderRadius: 7, border: "1px solid var(--lk-line)" } as React.CSSProperties;
 
 export type ColorPickerProps = {
   /** Couleur du style : clé de palette, couleur libre, ou rien. */
@@ -174,7 +180,6 @@ function Popover({
   onClose,
 }: ColorPickerProps & { id: string; ref: React.Ref<HTMLDivElement>; onClose: () => void }) {
   const box = useRef<HTMLDivElement | null>(null);
-  const area = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<{ hsva: Hsva; bg: string | null; theme: string[]; recent: string[] } | null>(null);
   const [edit, setEdit] = useState<{ k: string; v: string } | null>(null);
 
@@ -210,11 +215,21 @@ function Popover({
     el.scrollIntoView({ block: "nearest", behavior: "instant" });
   }, [ready]);
 
-  useEffect(() => {
-    if (ready) area.current?.focus({ preventScroll: true });
-  }, [ready]);
-
   const { schedule, flush, cancel } = useEmitter(onChange, (recent) => setState((s) => (s ? { ...s, recent } : s)));
+
+  // Relâchement d'un glisser (la bibliothèque n'a pas de rappel de fin) : émission immédiate + récentes.
+  useEffect(() => {
+    const doc = box.current?.ownerDocument;
+    if (!ready || !doc) return;
+    const end = () => flush(true);
+    doc.addEventListener("pointerup", end);
+    return () => doc.removeEventListener("pointerup", end);
+  }, [ready, flush]);
+
+  // Focus sur la roue à l'ouverture.
+  useEffect(() => {
+    if (ready) box.current?.querySelector<HTMLElement>(".cp-wheel")?.focus({ preventScroll: true });
+  }, [ready]);
 
   if (!state) return <div className="cp" ref={(el) => void (box.current = el)} />;
   const { hsva, bg } = state;
@@ -226,11 +241,6 @@ function Popover({
   const apply = (next: Hsva, now = false) => {
     setState((s) => (s ? { ...s, hsva: next } : s));
     schedule(hexOf(next), now);
-  };
-
-  const fromArea = (clientX: number, clientY: number, now: boolean) => {
-    const r = area.current!.getBoundingClientRect();
-    apply({ ...hsva, s: clamp((clientX - r.left) / r.width, 0, 1), v: 1 - clamp((clientY - r.top) / r.height, 0, 1) }, now);
   };
 
   const field = (k: string, derived: string) => (edit?.k === k ? edit.v : derived);
@@ -300,67 +310,48 @@ function Popover({
         }
       }}
     >
-      <div
-        ref={area}
-        className="cp-area"
-        role="slider"
-        tabIndex={0}
-        aria-label="Saturation et luminosité : flèches gauche et droite pour la saturation, haut et bas pour la luminosité"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(hsva.s * 100)}
-        aria-valuetext={`Saturation ${pct(hsva.s)} %, valeur ${pct(hsva.v)} %`}
-        style={{ backgroundImage: `linear-gradient(to top, ${solid(0, 0, 0)}, ${solid(0, 0, 0, 0)}), linear-gradient(to right, ${solid(0, 0, 1)}, ${solid(hsva.h, 1, 1)})` }}
-        onPointerDown={(e) => {
-          e.currentTarget.setPointerCapture(e.pointerId);
-          fromArea(e.clientX, e.clientY, false);
-        }}
-        onPointerMove={(e) => e.buttons && e.currentTarget.hasPointerCapture(e.pointerId) && fromArea(e.clientX, e.clientY, false)}
-        onPointerUp={(e) => fromArea(e.clientX, e.clientY, true)}
-        onKeyDown={(e) => {
-          const step = e.shiftKey ? 0.1 : 0.01;
-          const d: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
-          if (!d[e.key]) return;
-          e.preventDefault();
-          apply({ ...hsva, s: clamp(hsva.s + d[e.key][0], 0, 1), v: clamp(hsva.v + d[e.key][1], 0, 1) });
-        }}
-      >
-        <span className="cp-knob" style={{ left: `${hsva.s * 100}%`, top: `${(1 - hsva.v) * 100}%`, background: hex }} />
+      <div className="cp-wheelbox">
+        <Wheel
+          className="cp-wheel"
+          width={WHEEL}
+          height={WHEEL}
+          color={{ h: hsva.h, s: hsva.s * 100, v: hsva.v * 100, a: hsva.a }}
+          onChange={(c) => apply({ ...hsva, h: c.hsva.h, s: c.hsva.s / 100 })}
+          role="slider"
+          aria-label="Roue des couleurs : flèches gauche et droite pour la teinte, haut et bas pour la saturation"
+          aria-valuemin={0}
+          aria-valuemax={360}
+          aria-valuenow={Math.round(hsva.h)}
+          aria-valuetext={`Teinte ${Math.round(hsva.h)} degrés, saturation ${pct(hsva.s)} %`}
+          onKeyDown={(e: React.KeyboardEvent) => {
+            const step = e.shiftKey ? 10 : 1;
+            const d: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step / 100], ArrowDown: [0, -step / 100] };
+            if (!d[e.key]) return;
+            e.preventDefault();
+            apply({ ...hsva, h: (hsva.h + d[e.key][0] + 360) % 360, s: clamp(hsva.s + d[e.key][1], 0, 1) });
+          }}
+        />
       </div>
-
-      <label className="cp-slider">
-        <span>Teinte</span>
-        <input
-          type="range"
-          min={0}
-          max={360}
-          value={Math.round(hsva.h)}
-          style={{ backgroundImage: `linear-gradient(to right, ${Array.from({ length: 7 }, (_, i) => solid(i * 60, 1, 1)).join(", ")})` }}
-          onChange={(e) => apply({ ...hsva, h: Number(e.target.value) })}
-        />
-      </label>
-      <label className="cp-slider">
+      <div className="cp-slider">
         <span>Luminosité</span>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={Math.round(hsl.l * 100)}
-          style={{ backgroundImage: `linear-gradient(to right, ${[0, 0.5, 1].map((l) => rgbaToHex(hsvToRgb(hslToHsv({ ...hsl, l, a: 1 })))).join(", ")})` }}
-          onChange={(e) => apply(hslToHsv({ ...hsl, l: Number(e.target.value) / 100 }))}
+        <ShadeSlider
+          hsva={{ h: hsva.h, s: hsva.s * 100, v: hsva.v * 100, a: hsva.a }}
+          style={alphaVars}
+          radius={7}
+          onChange={(c) => apply({ ...hsva, v: clamp(c.v / 100, 0, 1) })}
+          innerProps={{ role: "slider", "aria-label": "Luminosité : flèches gauche et droite", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(hsva.v * 100) }}
         />
-      </label>
-      <label className="cp-slider">
+      </div>
+      <div className="cp-slider">
         <span>Opacité</span>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={Math.round(hsva.a * 100)}
-          style={{ backgroundImage: `linear-gradient(to right, ${solid(hsva.h, hsva.s, hsva.v, 0)}, ${solid(hsva.h, hsva.s, hsva.v)}), ${checker}` }}
-          onChange={(e) => apply({ ...hsva, a: Number(e.target.value) / 100 })}
+        <Alpha
+          hsva={{ h: hsva.h, s: hsva.s * 100, v: hsva.v * 100, a: hsva.a }}
+          style={alphaVars}
+          radius={7}
+          onChange={(c) => apply({ ...hsva, a: clamp(c.a, 0, 1) })}
+          innerProps={{ role: "slider", "aria-label": "Opacité : flèches gauche et droite", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(hsva.a * 100) }}
         />
-      </label>
+      </div>
 
       <div className="cp-fields">
         <span className="cp-flabel">HEX</span>

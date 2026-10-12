@@ -68,6 +68,7 @@ ctx.on("request", (r) => {
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
+page.on("console", (m) => /Content Security Policy|Refused to/.test(m.text()) && errors.push("CSP : " + m.text().slice(0, 200)));
 
 await page.goto(`${BASE}/admin/connexion`, { waitUntil: "networkidle" });
 await page.fill("#email", EMAIL);
@@ -454,8 +455,8 @@ if (run("H")) {
   const wheel = f.locator(".lk-bar .tc-wheel");
   ok("H4 dernière pastille : roue des couleurs (dégradé conique)", (await wheel.count()) === 1 && /conic-gradient/.test((await wheel.getAttribute("style")) ?? "") && (await f.locator(".lk-bar .tc-swatches > :last-child.tc-wheel").count()) === 1);
   await wheel.click();
-  ok("H5 sélecteur ouvert dans la toile", await until(f, () => Boolean(document.querySelector(".cp .cp-area"))));
-  ok("H5b sélecteur : zone, 3 curseurs, HEX / RGB / HSL, aperçu, couleurs du thème", (await f.locator(".cp input[type=range]").count()) === 3 && (await f.locator(".cp input:not([type=range])").count()) === 7 && (await f.locator(".cp-preview").count()) === 1 && (await f.locator('.cp [aria-label="Couleurs du thème"] .cp-chip').count()) === 8);
+  ok("H5 sélecteur ouvert dans la toile", await until(f, () => Boolean(document.querySelector(".cp .cp-wheel"))));
+  ok("H5b sélecteur : roue, curseurs de luminosité et d'opacité, HEX / RGB / HSL, aperçu, couleurs du thème", (await f.locator(".cp .cp-wheel").count()) === 1 && (await f.locator('.cp [role=slider]:not(.cp-wheel)').count()) === 2 && (await f.locator(".cp input").count()) === 7 && (await f.locator(".cp-preview").count()) === 1 && (await f.locator('.cp [aria-label="Couleurs du thème"] .cp-chip').count()) === 8);
   ok("H5c sélecteur entièrement visible (la toile défile au besoin)", await until(f, () => { const r = document.querySelector(".cp").getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight + 1; }, null, 5000));
   await page.screenshot({ path: `${SHOTS}/H-selecteur-couleur.png` });
   const hex = f.locator(".cp .cp-hex");
@@ -472,17 +473,56 @@ if (run("H")) {
   ok("H9 champs RGB synchronisés avec le HEX", rgbFields.join(",") === "51,102,153", rgbFields.join(","));
   const status = (await f.locator(".cp-contrast").textContent()) ?? "";
   ok("H10 avertissement de contraste présent (valeur mesurée)", /Contraste avec le fond du thème : \d+,\d:1/.test(status), status);
-  // Clavier : la zone se règle aux flèches.
-  await f.locator(".cp-area").focus();
-  const before = await hex.inputValue();
-  await page.keyboard.press("ArrowRight");
-  await page.keyboard.press("ArrowRight");
-  await sleep(400);
-  ok("H11 clavier : flèches sur la zone modifient la couleur", (await hex.inputValue()) !== before, `${before} → ${await hex.inputValue()}`);
-  // Opacité : couleur translucide #rrggbbaa.
-  await f.locator(".cp-slider input").nth(2).fill("50");
+  // Roue : sélection par glisser (teinte = angle, saturation = rayon).
+  const wb = await f.locator(".cp .cp-wheel").boundingBox();
+  const cx = wb.x + wb.width / 2, cy = wb.y + wb.height / 2, rad = wb.width / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + rad * 0.5, cy, { steps: 6 });
+  await page.mouse.move(cx + rad * 0.5, cy + rad * 0.3, { steps: 6 });
+  await page.mouse.up();
   await sleep(500);
-  ok("H12 opacité : format #rrggbbaa enregistré", await waitFor(() => /^#[0-9a-f]{6}80$/.test(blockOf(2, "collection-intro")?.props.look?.text?.title?.color ?? "")), blockOf(2, "collection-intro")?.props.look?.text?.title?.color);
+  const wheelHex = await hex.inputValue();
+  ok("H11 roue : le glisser change la couleur (valeur HEX obtenue)", /^#[0-9a-f]{6}$/i.test(wheelHex) && wheelHex.toLowerCase() !== "#336699", wheelHex);
+  const hslNow = await f.locator(".cp .cp-triple").nth(1).locator("input").evaluateAll((els) => els.map((e) => Number(e.value)));
+  ok("H11b roue : saturation ~ rayon (50 % à droite du centre, ~58 % de rayon), teinte cohérente", hslNow[0] >= 0 && hslNow[0] <= 360 && hslNow[1] > 0, hslNow.join(","));
+  const rgbNow = await f.locator(".cp .cp-triple").first().locator("input").evaluateAll((els) => els.map((e) => Number(e.value)));
+  ok("H11c roue : champs RGB synchronisés avec le HEX", `#${rgbNow.map((n) => n.toString(16).padStart(2, "0")).join("")}` === wheelHex.toLowerCase(), `${rgbNow} / ${wheelHex}`);
+  ok("H11d roue : enregistrée dans le style", await waitFor(() => blockOf(2, "collection-intro")?.props.look?.text?.title?.color === wheelHex.toLowerCase()), blockOf(2, "collection-intro")?.props.look?.text?.title?.color);
+  // Hors de la roue (bord extérieur) : saturation plafonnée à 100 %, la fenêtre ne se ferme pas.
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx - rad * 3, cy, { steps: 6 });
+  await page.mouse.up();
+  await sleep(500);
+  const hslEdge = await f.locator(".cp .cp-triple").nth(1).locator("input").evaluateAll((els) => els.map((e) => Number(e.value)));
+  ok("H11e glisser hors de la roue : sélecteur encore ouvert, saturation maximale", (await f.locator(".cp").count()) === 1 && hslEdge[1] >= 95, hslEdge.join(","));
+  // Luminosité : curseur ShadeSlider, clic au quart gauche = clair, au quart droit = sombre.
+  const hexBeforeV = await hex.inputValue();
+  const sb = await f.locator(".cp .cp-slider").nth(0).locator('[role=slider]').boundingBox();
+  await page.mouse.click(sb.x + sb.width * 0.85, sb.y + sb.height / 2);
+  await sleep(500);
+  const hexDark = await hex.inputValue();
+  const lum = (h) => parseInt(h.slice(1, 3), 16) + parseInt(h.slice(3, 5), 16) + parseInt(h.slice(5, 7), 16);
+  ok("H11f luminosité : curseur à droite assombrit", lum(hexDark) < lum(hexBeforeV), `${hexBeforeV} → ${hexDark}`);
+  // Clavier : la roue se règle aux flèches ; le curseur d'opacité aussi.
+  await f.locator(".cp .cp-wheel").focus();
+  const before = await hex.inputValue();
+  await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("ArrowUp");
+  await sleep(400);
+  ok("H11g clavier : flèches sur la roue modifient la couleur", (await hex.inputValue()) !== before, `${before} → ${await hex.inputValue()}`);
+  const hexBeforeK = await hex.inputValue();
+  await f.locator('.cp [role=slider][aria-label^="Luminosité"]').focus();
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await sleep(400);
+  ok("H11h clavier : flèches sur le curseur de luminosité", (await hex.inputValue()) !== hexBeforeK, `${hexBeforeK} → ${await hex.inputValue()}`);
+  // Opacité : couleur translucide #rrggbbaa (clic au milieu du curseur).
+  const ab = await f.locator('.cp [role=slider][aria-label^="Opacité"]').boundingBox();
+  await page.mouse.click(ab.x + ab.width * 0.5, ab.y + ab.height / 2);
+  await sleep(500);
+  ok("H12 opacité : format #rrggbbaa enregistré (~50 %)", await waitFor(() => /^#[0-9a-f]{6}(7[89a-f]|8[0-7])$/.test(blockOf(2, "collection-intro")?.props.look?.text?.title?.color ?? "")), blockOf(2, "collection-intro")?.props.look?.text?.title?.color);
   // Échap ferme le sélecteur seulement (la barre reste), le focus revient sur la pastille.
   await page.keyboard.press("Escape");
   ok("H13 Échap : sélecteur fermé, barre toujours ouverte", (await until(f, () => !document.querySelector(".cp"))) && (await f.locator(".lk-bar").count()) === 1);
@@ -499,7 +539,7 @@ if (run("H")) {
   f = await canvas();
   if (!(await f.locator(".lk-bar .tc-wheel").count())) await openBar(h1);
   await f.locator(".lk-bar .tc-wheel").click();
-  await until(f, () => Boolean(document.querySelector(".cp .cp-area")));
+  await until(f, () => Boolean(document.querySelector(".cp .cp-wheel")));
   await sleep(300);
   const box = await f.evaluate(() => {
     const r = document.querySelector(".cp").getBoundingClientRect();

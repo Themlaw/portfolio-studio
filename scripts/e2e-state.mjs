@@ -461,7 +461,7 @@ if (run("A")) {
     /* A9. Couleur personnalisée du libellé de défilement : deux choix de suite. */
     ok("A9 « Aa » au survol du libellé, barre ouverte", await openTextBar(SCROLL));
     await f.locator(".lk-bar .tc-wheel").click();
-    ok("A9 sélecteur de couleur ouvert", await until(f, () => Boolean(document.querySelector(".cp .cp-area")), null, 15000));
+    ok("A9 sélecteur de couleur ouvert", await until(f, () => Boolean(document.querySelector(".cp .cp-wheel")), null, 15000));
     const hex = f.locator(".cp .cp-hex");
     await startProbe(f, { color: [SCROLL, "color"], title: [SCROLL, "text"] });
     arm();
@@ -664,9 +664,9 @@ if (run("C")) {
   ok("C4b clic dans le panneau : liste ET barre fermées", (await gone(".ms-list")) && (await gone(".lk-bar")));
   ok("C4b barre rouverte (sélecteur)", await openBar());
   await f.locator(".lk-bar .tc-wheel").click();
-  ok("C4b sélecteur de couleur ouvert", await shown(".cp .cp-area"));
+  ok("C4b sélecteur de couleur ouvert", await shown(".cp .cp-wheel"));
   // Un curseur glissé jusqu'hors de la fenêtre de la toile ne ferme rien (capture du pointeur).
-  const slider = await f.locator(".cp-slider input").first().boundingBox();
+  const slider = await f.locator(".cp-slider [role=slider]").first().boundingBox();
   const frameBox = await (await page.waitForSelector("iframe.ve-frame")).boundingBox();
   // boundingBox d'un élément du cadre : déjà en coordonnées de la fenêtre principale.
   const sx = slider.x + slider.width / 2;
@@ -678,11 +678,11 @@ if (run("C")) {
   await page.mouse.up();
   await sleep(500);
   ok("C4b curseur relâché hors de la toile : le sélecteur reste ouvert", await exists(".cp"));
-  await f.locator(".cp-area").focus();
+  await f.locator(".cp-wheel").focus();
   await page.keyboard.press("Escape");
   ok("C4b Échap : sélecteur fermé, barre ouverte", (await gone(".cp")) && (await exists(".lk-bar")));
   await f.locator(".lk-bar .tc-wheel").click();
-  await shown(".cp .cp-area");
+  await shown(".cp .cp-wheel");
   await page.getByRole("tab", { name: "Ajouter" }).click();
   ok("C4b clic dans le panneau : sélecteur ET barre fermés", (await gone(".cp")) && (await gone(".lk-bar")));
   await settled();
