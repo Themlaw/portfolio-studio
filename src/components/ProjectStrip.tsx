@@ -77,6 +77,18 @@ export default function ProjectStrip({
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const prevRef = useRef<HTMLButtonElement | null>(null);
   const nextRef = useRef<HTMLButtonElement | null>(null);
+  // `disabled` des flèches n'est JAMAIS une prop JSX : React lit la prop (pas le DOM)
+  // pour ignorer les clics d'un bouton désactivé, donc un `disabled` figé dans le JSX
+  // rendait la flèche gauche morte même une fois réactivée par `paint`. L'état de
+  // butée vit dans le DOM seul ; à l'insertion, on l'initialise depuis `data-at-*`.
+  const prevNode = useCallback((node: HTMLButtonElement | null) => {
+    prevRef.current = node;
+    if (node) node.disabled = viewportRef.current?.dataset.atStart !== "false";
+  }, []);
+  const nextNode = useCallback((node: HTMLButtonElement | null) => {
+    nextRef.current = node;
+    if (node) node.disabled = viewportRef.current?.dataset.atEnd === "true";
+  }, []);
 
   // Butées (début, fin) : écrites directement sur le DOM, une fois par image
   // au plus (requestAnimationFrame) — aucun rendu React pendant le défilement.
@@ -344,18 +356,17 @@ export default function ProjectStrip({
       {overflows && (
         <>
           <button
-            ref={prevRef}
+            ref={prevNode}
             type="button"
             onClick={() => step(-1)}
             aria-label={t("scrollPrev", { project: project.title })}
             aria-controls={railId}
             className="strip-nav strip-nav-prev"
-            disabled
           >
             <span aria-hidden="true" data-icon="arrow-left">←</span>
           </button>
           <button
-            ref={nextRef}
+            ref={nextNode}
             type="button"
             onClick={() => step(1)}
             aria-label={t("scrollNext", { project: project.title })}

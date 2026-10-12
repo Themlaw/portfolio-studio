@@ -158,6 +158,26 @@ if (run("A")) {
   const end = await rail.evaluate((r) => ({ left: r.scrollLeft, slack: r.scrollWidth - r.clientWidth, r: getComputedStyle(r).getPropertyValue("--strip-fade-r") }));
   const focused = await page.evaluate(() => document.activeElement?.className ?? "");
   ok("A12 butée droite : « suivante » désactivée, focus passé à « précédente », fondu droit retiré", (await next.isDisabled()) && /strip-nav-prev/.test(focused) && Math.abs(end.left - end.slack) <= 2 && end.r.trim() === "0px", `${JSON.stringify(end)} focus=${focused}`);
+  // « Précédente » : recule d'UNE image à chaque clic, jusqu'à la butée gauche (régression :
+  // `disabled` figé dans le JSX, React ignorait tout clic sur la flèche gauche).
+  const clamped = stops.map((x) => Math.min(end.slack, Math.max(0, x)));
+  const behind = [...new Set([0, ...clamped])].filter((x) => x < end.left - 4).pop();
+  await prev.click();
+  await sleep(1200);
+  const back1 = await rail.evaluate((r) => r.scrollLeft);
+  ok("A12b « précédente » : un clic recule d'UNE image (la flèche gauche répond)", behind !== undefined && Math.abs(back1 - behind) <= 2, `${back1} / ${behind} (butée ${end.left})`);
+  await prev.click();
+  await prev.click();
+  await sleep(1400);
+  const back3 = await rail.evaluate((r) => r.scrollLeft);
+  ok("A12c « précédente » : deux clics rapprochés reculent de deux images (cible cumulée)", back3 < back1 - 100, `${back1} → ${back3}`);
+  for (let i = 0; i < 10 && !(await prev.isDisabled()); i++) {
+    await prev.click();
+    await sleep(900);
+  }
+  ok("A12d « précédente » mène à la butée gauche (désactivée, début atteint)", (await prev.isDisabled()) && (await rail.evaluate((r) => r.scrollLeft)) <= 2);
+  await rail.evaluate((r) => r.scrollTo({ left: r.scrollWidth, behavior: "auto" }));
+  await sleep(500);
   // Barre : glisser jusqu'au début sans à-coup (accrochage suspendu pendant le glisser).
   const bar = strip.locator(".rail-bar");
   const bb = await bar.boundingBox();
