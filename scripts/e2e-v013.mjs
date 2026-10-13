@@ -83,13 +83,12 @@ await page.addInitScript(() => {
     if (e.data?.type === "portfolio:edit" && e.data.kind === "refresh") window.__refreshes++;
   });
 });
-if (process.env.RSC_DELAY) {
-  // Diagnostic : réponses RSC (rafraîchissement de la toile) retardées.
-  await ctx.route(/[?&]_rsc=/, async (route) => {
-    await sleep(Number(process.env.RSC_DELAY));
-    await route.continue().catch(() => {});
-  });
-}
+// Réponses RSC (rafraîchissement de la toile) retardées : RSC_DELAY en diagnostic, `rscDelay` dans la section R.
+let rscDelay = Number(process.env.RSC_DELAY ?? 0);
+await ctx.route(/[?&]_rsc=/, async (route) => {
+  if (rscDelay > 0) await sleep(rscDelay);
+  await route.continue().catch(() => {});
+});
 if (process.env.TRACE) {
   // Diagnostic : messages éditeur→toile, retraits de nœuds (barre de surlignage, champ), rechargements de la toile.
   await page.addInitScript(() => {
@@ -102,7 +101,7 @@ if (process.env.TRACE) {
         for (const n of r.removedNodes) {
           if (n.nodeType !== 1) continue;
           if (n.matches?.(".pe-markbar") || n.querySelector?.(".pe-markbar")) log("removed markbar");
-          if (n.matches?.("[data-marked-edit]") || n.querySelector?.("[data-marked-edit]")) log("removed marked-edit");
+          if (n.matches?.("[data-marked-edit]") || n.querySelector?.("[data-marked-edit]")) log("removed marked-edit via", n.tagName, n.className, n.getAttribute("data-edit-type") ?? "", n.getAttribute("data-edit-block") ?? "", n.children.length);
           if (n.matches?.("[data-marked-body]") || n.querySelector?.("[data-marked-body]")) log("removed marked-body");
         }
     });
@@ -126,25 +125,31 @@ async function canvas(p = page) {
   return f;
 }
 /**
- * Éditeur au repos : plus d'enregistrement en cours ET la toile a rendu la révision écrite (`[data-edit-rev]`
- * >= `draft_rev` du brouillon). Sans le second point, le rendu du serveur arrive après coup (parfois des
- * secondes sur la VM) et remplace le DOM sous le test : mesure d'une poignée périmée, champ rouvert pendant
- * le remplacement de l'enveloppe.
+ * Éditeur au repos : pas d'enregistrement en cours, la toile a rendu la révision écrite (`[data-edit-rev]` >=
+ * `draft_rev`), et plus rien n'est écrit depuis 900 ms (brouillon de la page et du site inchangés). Le rendu du
+ * serveur arrive parfois des secondes après l'écriture (VM de 2 Go) et remplace le DOM sous le test ; et une
+ * action de la toile (déplacer, sortir un bloc) met un temps à atteindre l'éditeur puis le serveur sans que le
+ * statut ne passe par « Enregistrement… » : seul un silence durable de la base dit que c'est fini.
  */
 async function settled(p = page) {
-  await p.waitForFunction(() => !/Enregistrement/.test(document.querySelector(".ve-status")?.textContent ?? ""), null, { timeout: 90000 });
   const pageId = Number(/\/admin\/pages\/(\d+)\/editer/.exec(p.url())?.[1]);
-  const rev = Number.isFinite(pageId) ? q("select draft_rev as r from pages where id = ?", pageId)[0]?.r : undefined;
-  const frame = p.frames().find((fr) => fr !== p.mainFrame());
-  if (frame && rev) {
-    await frame
-      .waitForFunction((r) => {
-        const el = document.querySelector("[data-edit-rev]");
-        return !el || Number(el.getAttribute("data-edit-rev")) >= r;
-      }, rev, { timeout: 30000, polling: 100 })
-      .catch(() => {});
+  const written = () => `${Number.isFinite(pageId) ? q("select draft_rev as r from pages where id = ?", pageId)[0]?.r : ""}|${q("select value from settings where key = 'siteDraft'")[0]?.value ?? ""}`;
+  const t0 = Date.now();
+  let last = written();
+  let since = Date.now();
+  while (Date.now() - since < 900) {
+    if (Date.now() - t0 > 90000) break;
+    await sleep(100);
+    const now = written();
+    const busy = await p.evaluate(() => /Enregistrement/.test(document.querySelector(".ve-status")?.textContent ?? ""));
+    const rev = Number.isFinite(pageId) ? q("select draft_rev as r from pages where id = ?", pageId)[0]?.r : undefined;
+    const frame = p.frames().find((fr) => fr !== p.mainFrame());
+    const canvasRev = frame && rev ? await frame.evaluate(() => Number(document.querySelector("[data-edit-rev]")?.getAttribute("data-edit-rev") ?? Infinity)).catch(() => Infinity) : Infinity;
+    if (busy || now !== last || canvasRev < rev) {
+      last = now;
+      since = Date.now();
+    }
   }
-  await sleep(400);
 }
 const until = (f, fn, arg, timeout = 60000) =>
   f.waitForFunction(fn, arg, { timeout, polling: 200 }).then(
@@ -458,7 +463,10 @@ if (run("G")) {
     await f.locator(".site-header .site-header-bar").click({ position: { x: 600, y: 20 } });
     g1 = await until(f, () => /commun à toutes les pages/.test(document.querySelector(".pe-selected.pe-global .pe-tag")?.textContent ?? ""), undefined, 10000);
   }
-  const siteEditors = await page.locator('[data-testid="site-editor"]').count();
+  const siteEditors = await page
+    .locator('[data-testid="site-editor"]')
+    .waitFor({ timeout: 10000 })
+    .then(() => 1, () => 0);
   ok("G1 en-tête sélectionné : « commun à toutes les pages », réglages dans le panneau", g1 && siteEditors === 1, `étiquette=${g1} panneaux=${siteEditors}`);
   await page.screenshot({ path: `${SHOTS}/G-entete-selectionne.png` });
   await f.locator('[data-testid="nav-add"]').click();
@@ -933,6 +941,103 @@ if (run("Q")) {
 }
 
 /* ---- J. Sélection (seul, pour Firefox) -------------------------------------------- */
+
+/* ---- R. Rendu tardif du serveur pendant une édition en place ------------------------- */
+
+// Le rendu d'une modification arrive 1,5 s puis 3 s après son enregistrement, pendant qu'on retape dans le champ :
+// texte intact (écran et base), aucune frappe perdue, curseur en fin de texte, barre « Surligner » utilisable.
+if (run("R")) {
+  await page.goto(`${BASE}/api/theme-preview?id=carnet-d-atelier&redirect=/admin`, { waitUntil: "domcontentloaded" });
+  f = await openEditor(1);
+  await sleep(1000);
+  const H = '[data-edit-type="hero"] h1[data-inline="statement"]';
+  const BRAND = '[data-edit-global="header"] [data-site-inline="name"]';
+  const statement = () => draftOf().blocks.find((b) => b.type === "hero")?.props.statement?.fr;
+  const siteName = () => JSON.parse(q("select value from settings where key = 'siteDraft'")[0]?.value ?? "null")?.snap.identity.name?.fr;
+  const rev = () => f.evaluate(() => Number(document.querySelector("[data-edit-rev]")?.getAttribute("data-edit-rev") ?? -1));
+  // Tape touche par touche (80 ms) jusqu'à ce que le rendu du serveur soit arrivé, puis encore 10 touches.
+  const typeSlowly = async (first, alphabet) => {
+    const rev0 = await rev();
+    let typed = first;
+    await page.keyboard.type(first, { delay: 80 });
+    let after = 0;
+    for (let k = 0; k < 160 && after < 10; k++) {
+      const c = alphabet[k % alphabet.length];
+      await page.keyboard.type(c, { delay: 80 });
+      typed += c;
+      if ((await rev()) > rev0) after++;
+    }
+    return { typed, landed: (await rev()) > rev0, rev0, rev1: await rev() };
+  };
+  for (const [i, delay] of [1500, 3000].entries()) {
+    const tag = `R${i + 1}`;
+    rscDelay = delay;
+    // 1. Une modification : enregistrée, rendue par le serveur dans `delay` ms.
+    await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
+    await page.keyboard.press("ControlOrMeta+End");
+    await page.keyboard.type(` m${i}`);
+    await page.keyboard.press("Enter");
+    // 2. Tout de suite, retour dans le champ et frappe lente pendant que le rendu arrive.
+    await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
+    await page.keyboard.press("ControlOrMeta+End");
+    const r = await typeSlowly(" ", "ABCDEFGHIJKLMNOPQRSTUVWXYZ".slice(i * 3) + "ABCDEFGHIJKLMNOPQRSTUVWXYZ".slice(0, i * 3));
+    const typed = r.typed;
+    ok(`${tag}0 (${delay} ms) le rendu du serveur est arrivé PENDANT la frappe`, r.landed, `révision ${r.rev0} → ${r.rev1}`);
+    const shown = await f.locator("[data-marked-edit]").textContent().catch(() => null);
+    const caretAtEnd = await f.evaluate(() => {
+      const ed = document.querySelector("[data-marked-edit]");
+      const sel = getSelection();
+      if (!ed || !sel?.rangeCount) return false;
+      const r = document.createRange();
+      r.selectNodeContents(ed);
+      r.setEnd(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
+      return sel.isCollapsed && r.toString().length === (ed.textContent ?? "").length;
+    });
+    ok(`${tag}a champ resté ouvert, texte tapé intact à l'écran, aucune frappe perdue`, (await f.locator("[data-marked-edit]").count()) === 1 && Boolean(shown?.endsWith(` m${i}${typed}`)), JSON.stringify(shown));
+    ok(`${tag}b curseur en fin de texte, sans sélection`, caretAtEnd);
+    // 3. La barre reste utilisable : les 3 dernières lettres sont surlignées.
+    for (let k = 0; k < 3; k++) await page.keyboard.press("Shift+ArrowLeft");
+    const last3 = typed.slice(-3);
+    ok(`${tag}c barre « Surligner » active sur la sélection`, await until(f, () => {
+      const b = document.querySelector(".pe-markbar button");
+      return Boolean(b) && !b.disabled && b.getAttribute("aria-pressed") === "false";
+    }));
+    await f.locator(".pe-markbar button").click();
+    ok(`${tag}d surlignage posé dans le champ`, await until(f, (t) => [...document.querySelectorAll("[data-marked-edit] .hero-mark")].at(-1)?.textContent === t, last3));
+    await page.keyboard.press("Enter");
+    await settled();
+    const want = (s) => s.endsWith(`m${i}${typed.slice(0, -3)}<mark>${last3}</mark>`);
+    for (const end = Date.now() + 20000; Date.now() < end && !want(statement() ?? ""); ) await sleep(200);
+    ok(`${tag}e brouillon : texte tapé et surlignage intacts`, want(statement() ?? ""), statement());
+    ok(`${tag}f écran après rendu : même texte`, await until(f, (a) => document.querySelector(a.sel + " [data-marked-body]")?.textContent.endsWith(a.t), { sel: H, t: `m${i}${typed}` }, 20000));
+    // Nom du site (texte commun, brouillon du site).
+    const base = `Nom ${i}`;
+    await f.locator(BRAND).dblclick();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.type(base);
+    await page.keyboard.press("Enter");
+    await f.locator(BRAND).dblclick();
+    await page.keyboard.press("ControlOrMeta+End");
+    const rn = await typeSlowly("-", "abcdefghijklmnopqrstuvwxyz".slice(i * 4) + "abcdefghijklmnopqrstuvwxyz".slice(0, i * 4));
+    const typedName = rn.typed;
+    ok(`${tag}g (${delay} ms) nom du site : le rendu est arrivé PENDANT la frappe`, rn.landed, `révision ${rn.rev0} → ${rn.rev1}`);
+    const shownName = (await f.locator(BRAND).textContent())?.trim();
+    ok(`${tag}h nom du site : texte tapé intact à l'écran`, shownName === base + typedName, JSON.stringify(shownName));
+    await page.keyboard.press("Enter");
+    await settled();
+    for (const end = Date.now() + 20000; Date.now() < end && siteName() !== base + typedName; ) await sleep(200);
+    ok(`${tag}i nom du site : texte tapé intact en base`, siteName() === base + typedName, JSON.stringify(siteName()));
+    ok(`${tag}j nom du site après rendu : même texte`, await until(f, (a) => document.querySelector(a.sel)?.textContent.trim() === a.t, { sel: BRAND, t: base + typedName }, 20000));
+    // Remise à plat de l'accroche (un texte tapé à la suite d'un passage surligné y reste), sans délai.
+    rscDelay = 0;
+    await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.type(`Accroche R${i}`);
+    await page.keyboard.press("Enter");
+    await settled();
+  }
+  rscDelay = Number(process.env.RSC_DELAY ?? 0);
+}
 
 if (ONLY === "J") {
   const engine = process.env.BROWSER ?? "chromium";

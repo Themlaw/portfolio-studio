@@ -31,7 +31,8 @@ import BoardLayer from "./BoardLayer";
 import LookLayer from "./edit/LookLayer";
 import GridLayoutIcon, { LAYOUT_LABELS } from "./edit/GridLayoutIcon";
 import { listKeys, noteSettle, observeOverlays, pendingOrder, postIntent, previewLayout, previewMarked, previewOrder, previewText, resetOverlays, revertOverlay, siblingWrappers } from "./edit/optimistic";
-import { closeMarkedEditor, markState, markupOf, openMarkedEditor, toggleMark, type MarkedEditor } from "./edit/marked-edit";
+import { parseMarked } from "@/lib/marked";
+import { closeMarkedEditor, markedNodes, markState, markupOf, openMarkedEditor, selectionRange, selectRange, toggleMark, type MarkedEditor } from "./edit/marked-edit";
 import { useDismiss } from "./edit/useDismiss";
 import SiteLayer, { FormLayer } from "./SiteLayer";
 
@@ -177,11 +178,19 @@ function clearSelection() {
 }
 
 type Editing = {
+  /** Numéro de la saisie : un `blur` tardif d'une saisie précédente (même élément) ne doit pas fermer la suivante. */
+  id: number;
   el: HTMLElement;
   original: string;
   target: { kind: "block"; uid: string } | { kind: "site"; field: string; index?: number };
   /** Texte à passage surligné (accroche) : champ à part, voir edit/marked-edit.ts. */
   marked?: MarkedEditor;
+  /** Dernière sélection connue dans le champ (positions du texte brut) : elle ne survit pas au remontage du bloc. */
+  sel?: [number, number] | null;
+  /** Texte brut (champ sans passage surligné) tel que l'utilisateur l'a laissé : rétabli si un rendu le réécrit. */
+  text?: string;
+  /** Une saisie de l'utilisateur est en cours de traitement (entre `beforeinput` et `input`) : pas une réécriture du serveur. */
+  typing?: boolean;
 };
 /** Barre « Surligner » de l'accroche : position (coordonnées du document) et état du bouton. */
 type MarkBar = { top: number; left: number; below: boolean; state: boolean | null };
@@ -347,6 +356,56 @@ export default function EditLayer() {
     }
   }, []);
 
+  const resumeRef = useRef<(cur: Editing) => void>(() => {});
+  const editSeq = useRef(0);
+  /** Perte du focus : fin de la saisie, sauf si l'élément a seulement été remplacé par un rendu du serveur. */
+  const onEditBlur = useCallback((id: number) => {
+    const cur = editing.current;
+    if (!cur || cur.id !== id) return;
+    queueMicrotask(() => {
+      if (editing.current !== cur) return;
+      if (cur.el.isConnected) finishEdit(true);
+      else resumeRef.current(cur);
+    });
+  }, [finishEdit]);
+  const bindMarked = useCallback(
+    (marked: MarkedEditor, id: number) => {
+      marked.editor.addEventListener("blur", () => onEditBlur(id), { once: true });
+      marked.editor.addEventListener("input", () => {
+        // Sélection relevée à chaque frappe (l'événement `selectionchange` arrive après coup).
+        if (editing.current?.marked?.editor === marked.editor) editing.current.sel = selectionRange(marked.editor);
+        refreshMarkBar();
+      });
+      // Ctrl/Cmd + Maj + H : surligner au clavier.
+      marked.editor.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "h") {
+          e.preventDefault();
+          toggleMark(marked.editor);
+          refreshMarkBar();
+        }
+      });
+    },
+    [onEditBlur, refreshMarkBar],
+  );
+
+  const bindPlain = useCallback(
+    (el: HTMLElement, id: number) => {
+      el.addEventListener("blur", () => onEditBlur(id), { once: true });
+      el.addEventListener("beforeinput", () => {
+        if (editing.current?.el !== el) return;
+        editing.current.typing = true;
+        setTimeout(() => editing.current?.el === el && (editing.current.typing = false));
+      });
+      el.addEventListener("input", () => {
+        if (editing.current?.el !== el) return;
+        editing.current.text = el.textContent ?? "";
+        editing.current.sel = selectionRange(el);
+        editing.current.typing = false;
+      });
+    },
+    [onEditBlur],
+  );
+
   const startEdit = useCallback(
     (el: HTMLElement) => {
       let target: Editing["target"];
@@ -370,24 +429,17 @@ export default function EditLayer() {
       if (el.hasAttribute("data-marked")) {
         const marked = openMarkedEditor(el);
         if (!marked) return;
-        editing.current = { el, original: marked.before, target, marked };
+        const id = ++editSeq.current;
+        editing.current = { id, el, original: marked.before, target, marked };
         el.setAttribute("data-editing", "");
         marked.editor.focus();
         placeCaretAtEnd(marked.editor);
-        marked.editor.addEventListener("blur", () => finishEdit(true), { once: true });
-        marked.editor.addEventListener("input", refreshMarkBar);
-        // Ctrl/Cmd + Maj + H : surligner au clavier.
-        marked.editor.addEventListener("keydown", (e) => {
-          if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "h") {
-            e.preventDefault();
-            toggleMark(marked.editor);
-            refreshMarkBar();
-          }
-        });
+        bindMarked(marked, id);
         refreshMarkBar();
         return;
       }
-      editing.current = { el, original: el.textContent ?? "", target };
+      const id = ++editSeq.current;
+      editing.current = { id, el, original: el.textContent ?? "", target, text: el.textContent ?? "" };
       try {
         el.contentEditable = "plaintext-only";
       } catch {
@@ -396,10 +448,82 @@ export default function EditLayer() {
       el.setAttribute("data-editing", "");
       el.focus();
       placeCaretAtEnd(el);
-      el.addEventListener("blur", () => finishEdit(true), { once: true });
+      bindPlain(el, id);
     },
-    [finishEdit, select, refreshMarkBar],
+    [finishEdit, select, refreshMarkBar, bindMarked, bindPlain],
   );
+
+  /**
+   * Un rendu tardif du serveur (clé d'un bloc = son contenu) remonte le bloc sous le champ en cours : l'élément
+   * édité quitte le document, le focus et la sélection avec lui. Ce n'est pas la fin de la saisie : on rouvre le
+   * champ sur le nouvel élément, avec le texte déjà tapé et la même sélection.
+   */
+  const resumeEdit = useCallback(
+    (cur: Editing) => {
+      if (editing.current !== cur || cur.el.isConnected) return;
+      const same = (n: HTMLElement) => {
+        if (cur.target.kind === "block") {
+          return n.closest("[data-edit-block]")?.getAttribute("data-edit-block") === cur.target.uid;
+        }
+        const group = (n: HTMLElement) => n.closest("[data-edit-global]")?.getAttribute("data-edit-global") ?? null;
+        const navKey = (n: HTMLElement) => n.closest("[data-nav-key]")?.getAttribute("data-nav-key") ?? null;
+        return group(n) === group(cur.el) && navKey(n) === navKey(cur.el);
+      };
+      const t = cur.target;
+      const query = t.kind === "block" ? `[data-inline="${cur.marked ? "statement" : cur.el.dataset.inline ?? ""}"]` : `[data-site-inline="${t.field}"]`;
+      const candidates = [...document.querySelectorAll<HTMLElement>(query)].filter(same);
+      const next = candidates.find((n) => n.dataset.navIndex === cur.el.dataset.navIndex) ?? candidates[0];
+      if (!next) return finishEdit(true);
+      const sel = cur.sel ?? null;
+      if (cur.marked) {
+        const typed = markupOf(cur.marked.editor);
+        const reopened = openMarkedEditor(next);
+        if (!reopened) return finishEdit(true);
+        reopened.before = cur.marked.before;
+        reopened.editor.replaceChildren(...markedNodes(parseMarked(typed)));
+        editing.current = { ...cur, el: next, marked: reopened };
+        next.setAttribute("data-editing", "");
+        reopened.editor.focus();
+        if (sel) selectRange(reopened.editor, sel[0], sel[1]);
+        else placeCaretAtEnd(reopened.editor);
+        bindMarked(reopened, cur.id);
+        refreshMarkBar();
+        return;
+      }
+      const typed = cur.el.textContent ?? "";
+      editing.current = { ...cur, el: next, text: typed };
+      if (next.textContent !== typed) next.textContent = typed;
+      try {
+        next.contentEditable = "plaintext-only";
+      } catch {
+        next.contentEditable = "true";
+      }
+      next.setAttribute("data-editing", "");
+      next.focus();
+      if (sel) selectRange(next, sel[0], sel[1]);
+      else placeCaretAtEnd(next);
+      bindPlain(next, cur.id);
+    },
+    [finishEdit, refreshMarkBar, bindMarked, bindPlain],
+  );
+  resumeRef.current = resumeEdit;
+
+  useEffect(() => {
+    const mo = new MutationObserver(() => {
+      const cur = editing.current;
+      if (!cur) return;
+      if (!cur.el.isConnected) return resumeRef.current(cur);
+      // Rendu tardif qui réécrit le texte de l'élément en cours de saisie (sans le remonter) : le texte tapé fait foi.
+      if (!cur.marked && !cur.typing && cur.text !== undefined && cur.el.textContent !== cur.text) {
+        cur.el.textContent = cur.text;
+        if (document.activeElement !== cur.el) cur.el.focus();
+        if (cur.sel) selectRange(cur.el, cur.sel[0], cur.sel[1]);
+        else placeCaretAtEnd(cur.el);
+      }
+    });
+    mo.observe(document.body, { childList: true, subtree: true, characterData: true });
+    return () => mo.disconnect();
+  }, []);
 
   /* ---- Messages de l'éditeur --------------------------------------------- */
 
@@ -634,7 +758,13 @@ export default function EditLayer() {
     document.addEventListener("submit", onSubmit, true);
     document.addEventListener("keydown", onKey);
     // Sélection modifiée dans l'accroche : l'état du bouton « Surligner » suit.
-    const onSelection = () => editing.current?.marked && refreshMarkBar();
+    const onSelection = () => {
+      const cur = editing.current;
+      if (!cur) return;
+      const root = cur.marked ? cur.marked.editor : cur.el;
+      if (root.isConnected && (cur.marked || cur.text === undefined || root.textContent === cur.text)) cur.sel = selectionRange(root) ?? cur.sel ?? null;
+      if (cur.marked) refreshMarkBar();
+    };
     document.addEventListener("selectionchange", onSelection);
     return () => {
       document.removeEventListener("selectionchange", onSelection);
