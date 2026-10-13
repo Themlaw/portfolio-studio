@@ -119,13 +119,20 @@ export default function ProjectStrip({
       let cutL = 0;
       let cutR = 0;
       const view = rail.clientWidth;
-      for (const child of rail.children) {
-        const el = child as HTMLElement;
-        if (!el.offsetWidth) continue; // enveloppe « display: contents » : ses enfants comptent seuls
-        const x = el.offsetLeft - rail.scrollLeft;
-        if (x < -1 && x + el.offsetWidth > 1) cutL = Math.max(cutL, Math.round(x + el.offsetWidth));
-        if (x < view - 1 && x + el.offsetWidth > view + 1) cutR = Math.max(cutR, Math.round(view - x));
-      }
+      const visit = (parent: Element) => {
+        for (const child of parent.children) {
+          const el = child as HTMLElement;
+          if (!el.offsetWidth) {
+            visit(el); // enveloppe « display: contents » (vidéo en boucle, toile) : ses enfants comptent
+            continue;
+          }
+          const x = el.offsetLeft - rail.scrollLeft;
+          // Offsets arrondis à l'entier : le demi-pixel de marge évite de manquer une coupe d'un pixel.
+          if (x < -0.5 && x + el.offsetWidth > 0.5) cutL = Math.max(cutL, Math.round(x + el.offsetWidth));
+          if (x < view - 0.5 && x + el.offsetWidth > view + 0.5) cutR = Math.max(cutR, Math.round(view - x));
+        }
+      };
+      visit(rail);
       // Largeur du fondu = partie visible de l'image coupée, plafonnée à --strip-fade ; « 0px » sans coupe.
       const fade = (name: string, px: number) => {
         const value = px > 0 ? `min(var(--strip-fade), ${px}px)` : "0px";
