@@ -5,8 +5,10 @@ import type { RawBlock } from "@/lib/pages";
 import { cropStyle, lookAttributes, readLook, type Look } from "@/lib/look";
 import { own } from "@/lib/own";
 import { cellShare, type GridLayout } from "./grid-layouts";
+import { getSiteView } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
-import { resolvePalette } from "@/themes/palette";
+import { resolvePalette, type PaletteColors } from "@/themes/palette";
+import { effectiveSitePalette, sitePaletteProblem } from "@/themes/site-palette";
 import { cardStyle, cardVars, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
 import { BLOCKS } from "./registry";
 import { MAX_NESTING } from "./tree";
@@ -187,8 +189,13 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
   // Le thème n'est lu que pour une carte (ou en édition, qui peut en créer une) : les pages sans carte restent comme avant.
   let card: CardEnv | null = null;
   if (ctx.edit || blocks.some((b) => !b.corrupt && readSurface((b.props as { surface?: unknown } | null)?.surface))) {
-    const theme = await getActiveTheme();
-    card = { palette: resolvePalette(theme.tokens.color, theme.tokens.palette), defaults: resolveSurface(theme.tokens.layout?.card ?? {}) };
+    const [theme, view] = await Promise.all([getActiveTheme(), getSiteView(ctx.locale, ctx.pageId)]);
+    // Palette du site (lot 17f) : quand elle surcharge des couleurs du thème, la carte se calcule sur la palette EFFECTIVE
+    // (mêmes règles que le layout : en public, une palette devenue illisible est ignorée).
+    const color = theme.tokens.color as PaletteColors;
+    const overrides = view.styles?.palette;
+    const usable = overrides && (ctx.edit || !sitePaletteProblem(color, theme.tokens.palette, overrides));
+    card = { palette: usable ? effectiveSitePalette(color, theme.tokens.palette, overrides) : resolvePalette(theme.tokens.color, theme.tokens.palette), defaults: resolveSurface(theme.tokens.layout?.card ?? {}) };
   }
   return (
     <>

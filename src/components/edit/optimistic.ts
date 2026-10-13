@@ -505,6 +505,22 @@ export function canvasPalette(): CardPalette {
   return out as CardPalette;
 }
 
+/**
+ * Palette du site en aperçu (lot 17f) : les variables `--card-*` d'une carte sont des valeurs calculées, pas des
+ * références ; elles sont recalculées sur la palette qu'affiche la toile. Une carte dont l'aperçu attend encore
+ * l'acquittement (previewSurface) garde le sien.
+ */
+export function refreshCards() {
+  const palette = canvasPalette();
+  for (const el of document.querySelectorAll<HTMLElement>('.surface-card[data-surface="on"][data-edit-surface]')) {
+    if (surfaceOriginal.has(el)) continue;
+    const surface = readSurface(parseData<unknown>(el.dataset.editSurface));
+    if (!surface) continue;
+    const resolved = resolveSurface(surface, parseData<ResolvedSurface>(el.dataset.cardDefault) ?? undefined);
+    for (const [k, v] of Object.entries(cardVars(cardStyle(resolved.color, palette)))) el.style.setProperty(k, v);
+  }
+}
+
 /** Enveloppe de la carte d'un bloc de premier niveau (toujours présente en vue brouillon). */
 function surfaceWrapper(uid: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"] > .surface-card`);

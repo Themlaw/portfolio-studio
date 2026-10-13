@@ -1011,6 +1011,10 @@ Clé absente = pas de carte, DOM public inchangé (8 presets au pixel : `parity-
 `{}` = carte avec les réglages du thème (`tokens.layout.card`, éditeur de thème), sinon `FALLBACK_CARD`
 (surface, en retrait, arrondie). Rayon : `max(--t-radius-lg, 12px)`, gouttière : `--gutter` du thème.
 
+**Palette du site.** Les jetons et le texte d'une carte se calculent sur la palette EFFECTIVE (thème + surcharges
+`styles.palette` du site, lot 17f) : `BlockList` (serveur, `effectiveSitePalette`, palette illisible ignorée en public
+comme dans le layout) et `canvasPalette` / `refreshCards` (toile, pendant l'aperçu de la palette). Test : `e2e-integ17.mjs`.
+
 **Lisibilité.** `cardStyle` (src/themes/surface.ts, module pur) choisit le texte du thème s'il passe AA sur la carte,
 sinon le texte inverse (fond du thème, texte des boutons), sinon le meilleur ; texte secondaire, liens, étiquettes,
 accent et boutons suivent (ils gardent la teinte du thème tant qu'elle se lit). Le résultat est posé en `--card-*` sur

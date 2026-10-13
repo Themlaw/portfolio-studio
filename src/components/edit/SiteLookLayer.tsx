@@ -31,7 +31,7 @@ import {
 import { sitePaletteCss, type ThemeColor } from "@/themes/css";
 import type { BaseKey } from "@/themes/palette";
 
-import { overlayData, postIntent, setOverlay } from "./optimistic";
+import { overlayData, postIntent, refreshCards, setOverlay } from "./optimistic";
 
 type SiteLook = { palette: SitePalette; logo: Logo };
 type Box = { top: number; left: number; width: number; height: number };
@@ -77,6 +77,7 @@ function applyPreview(look: SiteLook) {
   else if (!anchor && !el.isConnected) document.body.appendChild(el);
   const css = [base ? sitePaletteCss(base, look.palette, true) : "", logoCss(look.logo)].filter(Boolean).join("\n");
   if (el.textContent !== css) el.textContent = css;
+  refreshCards();
   for (const id of SERVER_SHEETS) {
     const sheet = document.getElementById(id);
     if (sheet && sheet.getAttribute("media") !== "not all") sheet.setAttribute("media", "not all");
@@ -86,6 +87,7 @@ function applyPreview(look: SiteLook) {
 function clearPreview() {
   document.getElementById("pe-sitelook-preview")?.remove();
   for (const id of SERVER_SHEETS) document.getElementById(id)?.removeAttribute("media");
+  refreshCards();
 }
 
 /** Montre `next` tout de suite et l'envoie à l'éditeur ; renvoie le numéro de l'intention. */
