@@ -1146,11 +1146,12 @@ if (run("E")) {
   ok("E6 Annuler : indicateur lisible", await until(f, () => /Annulation en cours/.test(document.querySelector(".pe-pending")?.textContent ?? ""), null, 3000));
   await page.screenshot({ path: `${SHOTS}/E6-annulation-en-cours.png` });
   ok("E6 Annuler : état levé à l'acquittement", await until(f, () => !document.documentElement.hasAttribute("data-edit-pending"), null, 30000));
-  slow = false;
   await settled();
+  // Réponses encore retardées : sur un serveur de production rapide, l'état « en cours » serait sinon trop bref pour être vu.
   await page.locator('button[aria-label="Rétablir"]').click();
   ok("E6 Rétablir : état « en cours » aussi", await until(f, () => document.documentElement.hasAttribute("data-edit-pending"), null, 3000));
   ok("E6 Rétablir : levé à l'acquittement, texte rétabli", (await until(f, () => !document.documentElement.hasAttribute("data-edit-pending"), null, 30000)) && (await until(f, (sel) => document.querySelector(sel)?.textContent === "Pour annuler", H1, 20000)));
+  slow = false;
 
   /* E7. Formulaire de contact : champs retirés / ajoutés / déplacés sur la toile. */
   if (formPage) {
