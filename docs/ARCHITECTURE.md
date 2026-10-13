@@ -185,6 +185,13 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   `limitInputPixels` 100 MP, `.rotate()` puis aucune métadonnée en sortie ; l'original est
   décodé une fois (≤ 2400 px), chaque variante en découle. Fin de traitement → invalidation
   des étiquettes `media` et `projects` (requête interne à jeton si hors requête).
+- **Mémoire du conteneur (1 Gio)** : un import ou un export de kit (processus enfant plafonné à 650 Mo) et le
+  traitement d'une image lourde (plus de `IMAGE_HEAVY_MPX` = 16 Mpx, ou décodage d'un bloc de plus de 100 Mo) ne
+  tournent JAMAIS ensemble : `src/lib/jobs/memory-gate.ts` (exclusion mutuelle, ordre d'arrivée, libération sur
+  erreur) ; le worker ne démarre pas une image lourde pendant un kit (ni un kit pendant une image lourde, ni une
+  image lourde quand un kit est prêt : pas de famine) et laisse passer les images légères. Mesuré avant
+  correction : 556 Mo (image seule) + 579 Mo (import seul) = 891 Mo sans le serveur, OOM avec. Test :
+  `test-memory-gate.mjs`.
 - **Rendu** : `src/components/Picture.tsx` (`<picture>` AVIF puis WebP, `sizes`, dimensions,
   fond = couleur dominante d'une image opaque, `loading="lazy"` sauf `priority`). La
   visionneuse ne propose que la plus grande variante. Les SVG du seed gardent `next/image`.
@@ -427,15 +434,35 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   largeur et média (image raster prête avec original) sont vérifiés AVANT tout accès au disque ou à sharp.
   Changer le secret invalide les signatures des pages en cache (pages à régénérer).
 - **Génération** (`src/lib/images/crop-cache.ts`) : `extract` puis réduction depuis l'original lu par chemin
-  (orientation EXIF appliquée avant l'extraction, budget de décodage de `budget.ts` vérifié), concurrence 1,
-  file bornée (`MAX_WAITING` = 24, au-delà 503 + `Retry-After`), deux demandes de la même variante n'en font
-  qu'une. Cache disque `${DATA_DIR}/cache/crops/<média>/<rect>/<largeur>.<format>`, au plus `MAX_RECTS` (32)
+  (lecture séquentielle dans tous les cas : le rectangle de l'image VUE est reporté dans le repère du fichier
+  selon l'orientation EXIF 1 à 8 (`fileRect`), extrait et réduit là, puis seulement orienté ; un JPEG de 100 Mpx
+  en orientation 6 coûte comme en orientation 1, ~135 Mo, au lieu de ~410 Mo quand l'image entière était tournée ;
+  budget de décodage de `budget.ts` vérifié), concurrence 1, file bornée (`MAX_WAITING` = 24, modifiable par
+  `CROP_MAX_WAITING` ; au-delà 503 + `Retry-After`), deux demandes de la même variante n'en font qu'une. Une demande
+  refusée (503) est gardée (256 au plus) et préparée en fond dès que la file se libère : la nouvelle tentative la trouve. Cache disque `${DATA_DIR}/cache/crops/<média>/<rect>/<largeur>.<format>`, au plus `MAX_RECTS` (32)
   rectangles par média (le plus ancien est effacé, il se régénère si on le redemande). Le dossier d'un média
   est purgé à sa suppression (`deleteMedia`). La file n'est pas partagée avec le worker des jobs : une
   extraction peut tourner pendant un job d'image (sharp reste à un thread).
+- **Préchauffage** (`src/lib/jobs/crop-warm.ts`, job `crop-warm` de la file image, servi APRÈS les images et cédant
+  la place dès qu'une image attend) : le job demande la page PUBLIQUE à ce serveur (`127.0.0.1:$PORT`,
+  `CROP_WARM_ORIGIN` pour changer) et lit les URLs `/media/crop/…` du HTML rendu : mêmes règles de cadrage que les
+  visiteurs (cases de grille, tuiles, anciens cadrages convertis) sans les recopier ; une variante à la fois, largeurs
+  courantes d'abord. Mis en file à la publication d'une page (`publishDraftAction`, `savePageAction`, mise en ligne)
+  et au démarrage pour chaque page publiée (le brouillon n'est pas préchauffé : la route génère à la demande).
+  `CROP_WARM=0` le désactive. Test : `test-crop-warm.mjs`.
+- **Repli côté client** (`CroppedPicture.tsx`, composant client monté seulement pour une variante recadrée) : si la
+  variante échoue (503, hors ligne), pas d'image cassée : l'image entière (variante standard) prend sa place, cadrée
+  en CSS comme avant la v0.17 (rectangle libre : image agrandie et décalée dans un cadre au rapport de la zone ;
+  ancien cadrage : `object-position` et zoom du bloc, inchangés), puis une sonde invisible redemande la variante
+  recadrée après 4, 10, 30, 60, 120 s (± 40 %, pour ne pas redemander toutes ensemble) et la remplace dès qu'elle
+  arrive. Un échec survenu AVANT l'hydratation laisse l'icône d'image cassée jusqu'à la prise en charge par React
+  (quelques centaines de ms en production), puis est repéré au montage. Test e2e : suite `crop17g` (40 recadrages à
+  froid, file de 3 : aucune image cassée, bon personnage, variantes revenues).
 - **Image seule** : plafond de hauteur `width: min(100%, 85svh × --ir)` (`data-solo`, `--ir` = rapport affiché) :
   une image plus haute est réduite et centrée, jamais rognée (hors cases de grille : la grille fixe sa géométrie). Option du bloc `fit` : « Image entière »
-  (`contain`) ou « Remplir le cadre » (`cover`) ; sans choix, entière pour un bloc pleine largeur, remplie sinon.
+  (`contain`) ou « Remplir le cadre » (`cover`) ; sans choix, entière pour un bloc NEUF pleine largeur, remplie sinon. La
+  migration **0019** (`pinImageFit`) écrit `fit: "cover"` sur les blocs Image pleine largeur à format imposé déjà présents
+  (publiés, dans un conteneur, brouillons) : une page publiée avant la v0.17 garde son aspect.
 - **Modale « Cadrer l'image »** : `FreeCropDialog.tsx` (mode Libre par défaut : huit poignées, glisser, formats
   rapides Original / 1:1 / 4:5 / 3:2 / 16:9 qui verrouillent le rapport aux coins) et, quand le bloc impose un
   format, l'onglet « Dans le cadre du bloc » (ancien point focal + zoom). La modale montre toujours l'image
@@ -1195,6 +1222,25 @@ blocs.
 - **Sélecteur de couleur** : la pastille des curseurs (18 px, centrée sur la valeur) dépassait
   de 9 px de sa piste à 100 % ; la fenêtre défilait en largeur. La piste a une marge de 9 px et la
   fenêtre `overflow-x: hidden`.
+
+## Notes de version v0.17 : retour à la v0.16
+
+Aucune colonne n'est ajoutée par la v0.17 (la migration **0019** est une migration de contenu : `fit: "cover"` sur
+les images pleine largeur à format imposé) : la v0.16 démarre sur une base de v0.17 sans erreur, mais **ne connaît
+pas** ce que la v0.17 a écrit et le perd ou l'ignore :
+
+- **Palette et logo du site** (`styles.palette`, `styles.logo`) : ignorés ; **toute modification faite en v0.16 (une
+  simple publication) efface la palette et le logo** du réglage `site` et du brouillon du site.
+- **Cartes de rubrique** (`props.surface`) : ignorées (les rubriques s'affichent sans carte) ; effacées si la page est
+  réenregistrée.
+- **Recadrages libres** (`look.crop.*.rect`, `look.tileCrop.*.rect`) : ignorés (point focal et zoom seulement) ;
+  effacés si la page est réenregistrée.
+- **Thèmes à `plansOnly`** et kits multi-PSD : la v0.16 rejette ou ignore ces thèmes.
+- Jobs `crop-warm` en file : marqués « type de job non pris en charge » (sans conséquence).
+
+**Ne pas éditer après un retour arrière** (ni publier, ni enregistrer un thème, ni toucher aux réglages) tant que
+la v0.17 peut revenir : **sauvegarder `/data`** (base SQLite, `media/`, `fonts/`) AVANT la mise en ligne de la
+v0.17 et restaurer cette sauvegarde (pas seulement l'image Docker) pour revenir à la v0.16 sans perte.
 
 ## Notes de version v0.16 : retour à la v0.15 destructif pour le nom du site
 

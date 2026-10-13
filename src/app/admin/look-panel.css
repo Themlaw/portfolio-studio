@@ -185,7 +185,8 @@
   gap: 8px;
   padding: 0 10px 10px;
 }
-.lc-alert p {
+.lc-alert p,
+.lc-ignored p {
   margin: 0 0 6px;
 }
 .lc-nuances summary {

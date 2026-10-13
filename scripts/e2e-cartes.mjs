@@ -402,6 +402,10 @@ if (run("B") || run("C"))
   ok("B8 Rétablir (1er pas) : la couleur revient, pas la largeur", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s1)), JSON.stringify(surfaceNow()));
   await redo.click();
   ok("B8 Rétablir (2e pas) : la largeur revient", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s2)), JSON.stringify(surfaceNow()));
+  // Retour à l'état d'avant le test pour la suite (deux pas, un par réglage).
+  await undo.click();
+  await undo.click();
+  ok("B8 retour à l'état d'avant (deux Annuler)", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s0)), JSON.stringify(surfaceNow()));
   await settled();
 
   // Deuxième rubrique : carte sombre (jeton « Texte »), pleine largeur, coins droits.

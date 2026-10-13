@@ -243,6 +243,7 @@ if (run("P")) {
   await pickColor("Texte", BAD_INK);
   ok("P4a avertissement clair + proposition", await waitFor(async () => /Contraste insuffisant/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")) && (await page.getByTestId("contrast-fix").isVisible()));
   ok("P4b le rôle est signalé en erreur", (await role("Texte").getAttribute("data-invalid")) !== null);
+  ok("P4b' avertissement en tête du panneau : palette non appliquée sur le site en ligne, thème nommé", await waitFor(async () => /ne sont pas appliquées sur le site en ligne/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "") && /thème actif/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "")));
   await settled();
   ok("P4c la saisie n'est pas bloquée : palette.ink enregistrée au brouillon", await waitFor(() => nearHex(siteDraftStyles()?.palette?.ink, BAD_INK)), JSON.stringify(siteDraftStyles()));
   await page.screenshot({ path: `${SHOTS}/P-contraste-alerte-1440.png` });
@@ -251,6 +252,7 @@ if (run("P")) {
   ok("P4e rien n'est publié", setting("styles") === null);
   await page.getByTestId("contrast-fix").click();
   ok("P4f « Ajuster automatiquement » : contraste suffisant", await waitFor(async () => /Contraste suffisant/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")));
+  ok("P4f' l'avertissement « non appliquée » disparaît une fois corrigé", await waitFor(async () => (await page.getByTestId("palette-ignored").count()) === 0));
   await settled();
   const inkNow = parseRgb(await themeVar(f, "--t-color-ink"));
   const bgNow = parseRgb(await bodyBg(f));

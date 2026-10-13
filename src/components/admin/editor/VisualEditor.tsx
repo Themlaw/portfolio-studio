@@ -686,7 +686,7 @@ export default function VisualEditor({
   };
 
   /** Fond d'une rubrique de premier niveau, depuis la toile (lot 17c) ; false = refusé ou sans effet. */
-  const applySurface = (uid: string, next: Surface | null): boolean => {
+  const applySurface = (uid: string, next: Surface | null, continuous = false): boolean => {
     const list = draftRef.current.blocks;
     const at = locate(list, uid);
     const block = findBlock(list, uid);
@@ -700,7 +700,8 @@ export default function VisualEditor({
         else delete props.surface;
         return { ...b, props };
       }),
-      { key: `surface:${uid}` },
+      // Un clic = un pas d'historique ; seuls les glissements continus (roue, curseur) se fusionnent.
+      continuous ? { key: `surface:${uid}` } : {},
     );
     return true;
   };
@@ -1511,7 +1512,7 @@ export default function VisualEditor({
           break;
         case "surface":
           // Refusé (composant d'un conteneur) ou sans effet : la toile retire son aperçu.
-          if (!h.applySurface(msg.uid, msg.surface) && msg.seq) send({ kind: "revert", seq: msg.seq });
+          if (!h.applySurface(msg.uid, msg.surface, msg.continuous) && msg.seq) send({ kind: "revert", seq: msg.seq });
           break;
         case "insert":
           h.requestInsert(msg.parent, msg.index, msg.what);

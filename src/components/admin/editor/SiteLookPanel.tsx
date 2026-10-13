@@ -60,6 +60,10 @@ export function ColorsPanel({
   const base = effectiveSitePalette(theme.color, palette, undefined);
   const eff = effectiveSitePalette(theme.color, palette, value);
   const modifiedCount = Object.keys(value).length;
+  // Palette du site qui rendrait du texte illisible avec le thème actif : le rendu public l'ignore (layout), la publication est refusée.
+  const issues = sitePaletteIssues(theme.color, palette, value);
+  const ignored = modifiedCount > 0 && issues.length > 0;
+  const worstIssue = issues.reduce((a, b) => (b.ratio < a.ratio ? b : a), issues[0]);
   // Pastilles du sélecteur : valeurs effectives (le panneau ne charge pas la feuille du thème).
   const swatch = (c: PaletteColor): string =>
     ({ ink: eff.ink, "ink-soft": eff.inkSoft, primary: eff.primary, secondary: eff.secondary, tertiary: eff.tertiary, eyebrow: eff.eyebrow, bg: eff.bg, surface: eff.surface })[c];
@@ -82,6 +86,15 @@ export function ColorsPanel({
         Survole une couleur pour voir où elle sert sur la page, clique pour la changer. Pour tout le site, publié avec cette page ; le thème « {theme.name} » n&apos;est pas modifié.
       </p>
       {locked && <p className="a-field-error">Les couleurs du site sont en cours de modification sur la page « {locked} ».</p>}
+      {ignored && (
+        <div className="a-field-error lc-ignored" role="alert" data-testid="palette-ignored">
+          <p>
+            <strong>Ces couleurs ne sont pas appliquées sur le site en ligne.</strong> Avec le thème actif « {theme.name} » (changé depuis qu&apos;elles ont été choisies, ou modifié), elles rendent du texte illisible
+            ({worstIssue.label.toLowerCase()} : {ratioText(worstIssue.ratio)}:1, il faut au moins {ratioText(AA)}:1) : le site montre alors les couleurs du thème. La mise en ligne est refusée tant que ce n&apos;est pas corrigé.
+          </p>
+          <p>Ajuste les couleurs signalées ci-dessous, ou reviens aux couleurs du thème.</p>
+        </div>
+      )}
       <ul className="lc-roles">
         {SITE_ROLES.map((role) => {
           const modified = typeof value[role.key] === "string";
@@ -203,11 +216,6 @@ export function ColorsPanel({
           ))}
         </ul>
       </details>
-      {sitePaletteIssues(theme.color, palette, value).length > 0 && modifiedCount > 0 && (
-        <p className="a-field-error" role="alert">
-          Certaines couleurs rendent du texte illisible : la mise en ligne sera refusée tant que ce n&apos;est pas corrigé.
-        </p>
-      )}
     </section>
   );
 }

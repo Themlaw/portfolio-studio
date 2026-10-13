@@ -82,24 +82,25 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
   const defaults = initial.defaults;
   useDismiss(ref, onClose);
 
-  const change = (next: Surface | null) => {
+  // `continuous` : roue ou curseur du sélecteur de couleur (fusionnés dans l'historique) ; un clic (pastille, largeur, coins, interrupteur) est un pas à lui seul.
+  const change = (next: Surface | null, continuous = false) => {
     setCur(next);
-    const seq = postIntent({ kind: "surface", uid, surface: next });
+    const seq = postIntent({ kind: "surface", uid, surface: next, ...(continuous ? { continuous: true } : {}) });
     previewSurface(uid, next, seq);
     onChanged();
   };
-  const patch = (p: Partial<Surface>) => change(cleanSurface({ ...(cur ?? {}), ...p }));
+  const patch = (p: Partial<Surface>, continuous = false) => change(cleanSurface({ ...(cur ?? {}), ...p }), continuous);
 
   const s = summary(cur, defaults);
   const customColor = cur?.color && !isSurfaceToken(cur.color) ? cur.color : undefined;
 
   /** Couleur choisie dans la roue : une teinte de la palette devient un jeton si la carte en connaît un, sinon sa valeur. */
   const fromPicker = (c: string | undefined) => {
-    if (c === undefined || !(PALETTE as readonly string[]).includes(c)) return patch({ color: c });
-    if (isSurfaceToken(c)) return patch({ color: c });
+    if (c === undefined || !(PALETTE as readonly string[]).includes(c)) return patch({ color: c }, true);
+    if (isSurfaceToken(c)) return patch({ color: c }, true);
     const raw = getComputedStyle(document.documentElement).getPropertyValue(`--t-color-${c}`);
     const rgba = parseColor(raw);
-    patch({ color: rgba ? rgbaToHex({ ...rgba, a: 1 }) : undefined });
+    patch({ color: rgba ? rgbaToHex({ ...rgba, a: 1 }) : undefined }, true);
   };
 
   return (

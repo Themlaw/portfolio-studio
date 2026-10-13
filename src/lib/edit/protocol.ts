@@ -100,7 +100,8 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("look"), uid: Uid, look: LookSchema.nullable() }),
   z.object({ kind: z.literal("site-style"), role: z.enum(ROLES), style: TextStyleSchema.nullable() }),
   // Carte de rubrique (lot 17c) : fond d'un bloc de premier niveau (null = pas de carte).
-  z.object({ kind: z.literal("surface"), uid: Uid, surface: SurfaceSchema.nullable() }),
+  // `continuous` : glissement de la roue ou d'un curseur (fusionné dans l'historique pendant 1,2 s) ; un clic est un pas à lui seul.
+  z.object({ kind: z.literal("surface"), uid: Uid, surface: SurfaceSchema.nullable(), continuous: z.boolean().optional() }),
   // Ajout d'une rubrique depuis la toile (lot 17c) : `choose` ouvre le choix illustré de l'éditeur, les
   // autres ajoutent aussitôt un texte (bloc `rich-text` avec son texte d'aide) à cet endroit.
   z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title-text"]) }),
