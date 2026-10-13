@@ -199,9 +199,11 @@ try {
   ok("B2 slug réservé refusé, erreur sous le champ", true);
   await d.getByLabel("Adresse en français").fill("carnets");
   await d.getByRole("button", { name: "Créer la page" }).click();
-  await page.waitForURL(/\/admin\/pages\/\d+$/);
-  const pageId = Number(page.url().split("/").pop());
+  // Le toast ne vit que 3 s et part avant la navigation : on le guette d autant plus tôt que
+  // la compilation de l éditeur (serveur de dev) peut dépasser ce délai.
   await toast("Page créée");
+  await page.waitForURL(/\/admin\/pages\/\d+$/, { timeout: 60000 });
+  const pageId = Number(page.url().split("/").pop());
   ok("B3 page créée → éditeur", pageId > 0);
 
   const addBlock = async (label) => {
