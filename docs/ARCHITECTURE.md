@@ -834,6 +834,12 @@ libres ni de valeur arbitraire) : `src/lib/look.ts` (module pur, testé par
   navigateur (visiteurs comme admin : les aperçus du menu passent par
   `/admin/api/fonts/preview`, sous-ensemble minuscule téléchargé par le
   serveur). Échec réseau : message clair, le style n'est pas appliqué.
+  Ramasse-miettes : seules les polices utilisées comptent ; une police tout
+  juste installée ou re-choisie est « louée » 30 min (réglage `fontLeases`,
+  `FONT_GRACE_MS`) car aucun brouillon ne la cite avant l'autosave ; passé le
+  délai, une police inutilisée redevient récupérable. Écran Réglages →
+  Polices téléchargées couvert par `e2e-admin` (D), course au GC par
+  `test-integ-units`.
 - **Toile** (`src/components/edit/LookLayer.tsx`, dans le calque d'EditLayer) :
   poignées d'espacement du bloc choisi (glisser aimanté aux crans, flèches),
   « Aa » au survol de tout texte éditable → barre typographique (ce texte /

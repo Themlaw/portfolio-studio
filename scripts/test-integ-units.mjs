@@ -92,6 +92,11 @@ try {
       const body = Buffer.concat([Buffer.from("wOF2"), Buffer.from(u.padEnd(80, "#"))]);
       return new Response(body, { status: 200 });
     };
+    // Horloge décalable : le délai de grâce des polices tout juste choisies se franchit sans attendre.
+    let skew = 0;
+    const realNow = Date.now.bind(Date);
+    Date.now = () => realNow() + skew;
+    const pastGrace = () => (skew += lib.FONT_GRACE_MS + 1000);
     const fontFiles = () => (existsSync(path.join(DIR, "fonts")) ? readdirSync(path.join(DIR, "fonts")).filter((f) => f.endsWith(".woff2")) : []);
     const markUsed = (list) => {
       const styles = { roles: Object.fromEntries(list.map((f, i) => [["h1", "h2", "eyebrow", "body", "caption", "menu", "brand"][i % 7] + i, { font: `g:${f}` }])) };
@@ -104,8 +109,21 @@ try {
     // 12 familles installées, aucune utilisée : la 13e passe (les inutilisées sont retirées).
     for (const f of families.slice(1, 12)) await lib.installGoogleFont(f, 400, false);
     ok("polices : 12 familles installées", Object.keys(lib.readFontLibrary()).length === 12);
+    // Impasse évitée : tant que les baux courent, les 12 sont retenues (refus clair) ; passé le délai, la 13e passe.
+    r = await lib.installGoogleFont(families[12], 400, false);
+    ok("polices : 12 inutilisées mais choisies à l'instant (bail en cours) → refus, rien n'est retiré", !r.ok && Object.keys(lib.readFontLibrary()).length === 12 && fontFiles().length === 24, r.ok ? "accepté" : r.message);
+    pastGrace();
     r = await lib.installGoogleFont(families[12], 400, false);
     ok("polices : quota plein de polices INUTILISÉES → ramasse-miettes, la nouvelle passe, fichiers orphelins effacés", r.ok && Object.keys(lib.readFontLibrary()).length === 1 && fontFiles().length === 2, `${r.ok ? "" : r.message} ${Object.keys(lib.readFontLibrary()).length} ${fontFiles().length}`);
+    // Course au ramasse-miettes : police installée mais pas encore enregistrée par l'autosave (citée par aucun brouillon).
+    let gc = await lib.collectFonts();
+    ok("polices : GC entre l'installation et l'enregistrement → la police fraîchement choisie survit (bail)", Object.keys(lib.readFontLibrary()).join() === families[12] && gc.removed.length === 0 && fontFiles().length === 2, JSON.stringify(gc.removed));
+    pastGrace();
+    gc = await lib.collectFonts();
+    ok("polices : bail échu et toujours inutilisée → retirée par le GC, fichiers effacés", gc.removed.join() === families[12] && fontFiles().length === 0, JSON.stringify(gc.removed));
+    ok("polices : baux échus oubliés", !JSON.parse(getSqlite().prepare("select value from settings where key = 'fontLeases'").get().value)[families[12]]);
+    await lib.installGoogleFont(families[12], 400, false);
+    pastGrace();
     // Toutes utilisées : refus clair, rien d'écrit.
     markUsed(families.slice(0, 12));
     for (const f of families.slice(0, 12)) await lib.installGoogleFont(f, 400, false);

@@ -11,6 +11,11 @@
  * - Bornes : FONT_LIMITS (familles, styles, taille d'un fichier et du total).
  * - Fichiers dans le volume de données (<DATA_DIR>/fonts), nommés par leur
  *   empreinte ; liste dans le réglage `fontLibrary`.
+ * - Délai de grâce : une police choisie dans l'éditeur n'est citée par aucun
+ *   brouillon avant la prochaine sauvegarde automatique ; chaque installation
+ *   (ou re-choix) la « loue » FONT_GRACE_MS (réglage `fontLeases`) et le
+ *   ramasse-miettes ne la retire pas pendant ce délai. Passé le délai, une
+ *   police toujours inutilisée redevient récupérable : pas d'impasse de quota.
  * Toute erreur réseau donne un message clair et rien n'est enregistré.
  */
 import { createHash } from "node:crypto";
@@ -30,6 +35,8 @@ import { fontUsage } from "./usage";
 /** Navigateur récent : Google ne sert le woff2 qu'à un agent qui le comprend. */
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
 const TIMEOUT_MS = 12_000;
+/** Délai pendant lequel une police tout juste choisie échappe au ramasse-miettes. */
+export const FONT_GRACE_MS = 30 * 60_000;
 
 export function fontsDir(): string {
   return path.join(dataDir(), "fonts");
@@ -42,6 +49,35 @@ export function readFontLibrary(): FontLibrary {
 function writeLibrary(lib: FontLibrary): void {
   const v = JSON.stringify(lib);
   getDb().insert(schema.settings).values({ key: "fontLibrary", value: v }).onConflictDoUpdate({ target: schema.settings.key, set: { value: v } }).run();
+}
+
+type Leases = Record<string, number>;
+
+/** Baux : famille → date (ms) de la dernière installation ou du dernier choix dans l'éditeur. */
+function readLeases(): Leases {
+  const raw = parseJson(getDb().select().from(schema.settings).where(eq(schema.settings.key, "fontLeases")).get()?.value);
+  const out: Leases = {};
+  if (raw && typeof raw === "object") for (const [k, v] of Object.entries(raw)) if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+  return out;
+}
+
+function writeLeases(leases: Leases): void {
+  const v = JSON.stringify(leases);
+  getDb().insert(schema.settings).values({ key: "fontLeases", value: v }).onConflictDoUpdate({ target: schema.settings.key, set: { value: v } }).run();
+}
+
+/** Familles dont le bail court encore. */
+function leasedFamilies(leases: Leases): string[] {
+  const now = Date.now();
+  return Object.keys(leases).filter((f) => now - leases[f] < FONT_GRACE_MS);
+}
+
+/** À appeler dans une transaction : (re)loue une famille et oublie les baux échus. */
+function lease(family: string): void {
+  const leases = readLeases();
+  const live = Object.fromEntries(leasedFamilies(leases).map((f) => [f, leases[f]]));
+  live[family] = Date.now();
+  writeLeases(live);
 }
 
 /** Lit au plus `max` octets d'une réponse (coupée au-delà : erreur). */
@@ -128,9 +164,14 @@ async function collectUnlocked(keep: string[] = []): Promise<{ removed: string[]
   const { removed, library } = sqlite
     .transaction(() => {
       const lib = readFontLibrary();
-      const gone = unusedFamilies(lib, used, keep);
+      const leases = readLeases();
+      const held = leasedFamilies(leases);
+      const gone = unusedFamilies(lib, used, [...keep, ...held]);
       for (const f of gone) delete lib[f];
       if (gone.length) writeLibrary(lib);
+      // Baux échus ou sans police : oubliés.
+      const live = Object.fromEntries(held.filter((f) => f in lib).map((f) => [f, leases[f]]));
+      if (Object.keys(live).length !== Object.keys(leases).length) writeLeases(live);
       return { removed: gone, library: lib };
     })
     .immediate();
@@ -176,6 +217,12 @@ export function deleteFont(familyIn: unknown): Promise<ActionResult<{ library: F
       })
       .immediate();
     if (!library) return fail("Cette police n'est plus dans la bibliothèque.");
+    sqlite
+      .transaction(() => {
+        const { [family]: _gone, ...rest } = readLeases();
+        writeLeases(rest);
+      })
+      .immediate();
     await removeOrphanFiles(library);
     return done({ library });
   });
@@ -188,7 +235,7 @@ function fullMessage(what: string): string {
     .map((f) => `${f} (${(usage.get(f) ?? []).slice(0, 2).join(", ")})`)
     .slice(0, 6)
     .join(" ; ");
-  return `${what}, et toutes servent encore : ${list}. Remplace une de ces polices dans tes styles (ou dans les brouillons), puis réessaie ; Réglages → Polices téléchargées montre où chacune est utilisée.`;
+  return `${what}, et toutes servent encore (ou viennent d'être choisies) : ${list}. Remplace une de ces polices dans tes styles (ou dans les brouillons), puis réessaie ; Réglages → Polices téléchargées montre où chacune est utilisée.`;
 }
 
 export type InstallResult = { family: string; weight: number; italic: boolean; library: FontLibrary; installed: boolean };
@@ -207,7 +254,11 @@ async function installUnlocked(familyIn: unknown, weightIn: unknown, italicIn: u
   const italic = italicIn === true && g.italics.length > 0;
   const weight = nearestWeight(g, typeof weightIn === "number" && Number.isFinite(weightIn) ? weightIn : 400, italic);
   let lib = readFontLibrary();
-  if (hasFace(lib, g.family, weight, italic)) return done({ family: g.family, weight, italic, library: lib, installed: false });
+  if (hasFace(lib, g.family, weight, italic)) {
+    // Re-choix d'une police déjà là : le bail repart (elle n'est pas encore dans un brouillon).
+    getSqlite().transaction(() => lease(g.family)).immediate();
+    return done({ family: g.family, weight, italic, library: lib, installed: false });
+  }
   // Quota : seules les polices utilisées comptent ; les autres sont retirées d'abord.
   if (!lib[g.family] && Object.keys(lib).length >= FONT_LIMITS.families) {
     lib = (await collectUnlocked([g.family])).library;
@@ -245,11 +296,15 @@ async function installUnlocked(familyIn: unknown, weightIn: unknown, italicIn: u
   const outcome = sqlite
     .transaction((): { library: FontLibrary } | { refused: string } => {
       const current = readFontLibrary();
-      if (hasFace(current, g.family, weight, italic)) return { library: current };
+      if (hasFace(current, g.family, weight, italic)) {
+        lease(g.family);
+        return { library: current };
+      }
       if (!current[g.family] && Object.keys(current).length >= FONT_LIMITS.families) return { refused: "families" };
       if (size(current) + added > FONT_LIMITS.totalBytes) return { refused: "bytes" };
       current[g.family] = [...(current[g.family] ?? []), ...faces];
       writeLibrary(current);
+      lease(g.family);
       return { library: current };
     })
     .immediate();
