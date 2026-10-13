@@ -51,6 +51,17 @@ for (const [label, bad] of [
 }
 ok("refus : asset sans SVG ni paire AVIF + WebP", !ThemeSchema.safeParse(withKit({ stroke: { avif: "/media/kit/0123456789abcdef.avif", w: 10, h: 10 } })).success);
 ok("décor libre (kit v4) : jusqu'à 8 plans, plansOnly accepté", ThemeSchema.safeParse(withKit({ plans: Array(8).fill(null), plansOnly: true })).success);
+{
+  const { heroStack } = await import(new URL("../src/themes/hero-plans.ts", import.meta.url));
+  const layers = ["/a.svg", "/b.svg", "/c.svg", "/d.svg", "/e.svg"];
+  const plan = { svg: "/media/kit/0123456789abcdef.svg", w: 2880, h: 1600, x: 0, y: 0 };
+  const two = { ...base.assets, heroLayers: layers, kit: { plans: [plan, null] } };
+  ok("hero : plan par plan, un plan dessiné remplace le calque SVG de même rang (les 5 calques restent)", heroStack(two).count === 5 && heroStack(two).layers.length === 5);
+  const free = { ...base.assets, heroLayers: layers, kit: { plans: [plan, plan, plan, plan], plansOnly: true } };
+  ok("hero : décor libre (plansOnly) = les 4 plans seulement, aucun calque SVG du thème en plus", heroStack(free).count === 4 && heroStack(free).layers.length === 0);
+  ok("hero : décor libre de 8 plans, au-delà des 5 calques du thème", heroStack({ ...free, kit: { plans: Array(8).fill(plan), plansOnly: true } }).count === 8);
+  ok("hero : sans kit, les calques du thème tels quels (parité)", heroStack({ ...base.assets, kit: undefined }).layers.length === (base.assets.heroLayers ?? []).length);
+}
 ok("refus : plus de 8 plans", !ThemeSchema.safeParse(withKit({ plans: Array(9).fill(null) })).success);
 ok("refus : clé inconnue (strict)", !ThemeSchema.safeParse(withKit({ logo: img("a") })).success);
 ok("refus : ThumbHash non base64", !ThemeSchema.safeParse(withKit({ signature: { ...img("a"), thumbhash: "<script>" } })).success);

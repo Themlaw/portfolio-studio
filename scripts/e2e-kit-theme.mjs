@@ -164,6 +164,8 @@ if (await toggle.count()) {
     f.submit();
   }, draftId);
   await page.waitForURL(/\/fr$/, { timeout: 60000 });
+  await page.waitForLoadState("networkidle");
+  await sleep(1500);
   await page.mouse.wheel(0, 700);
   await sleep(900);
   const hdr2 = await header();

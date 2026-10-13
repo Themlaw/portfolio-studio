@@ -96,6 +96,8 @@ export type PreflightLimits = {
   sizes: { width: number; height: number }[];
   /** Surface cumulée admise pour un document de cette taille (kit v4 : le décor accepte jusqu'à 8 plans pleine toile) ; sinon `maxLayerArea`. */
   areaFor?: (width: number, height: number) => number;
+  /** Poids de fichier admis pour un document de cette taille (kit v4 : le décor grand format, plus gourmand à l'import) ; sinon `maxFileBytes`. */
+  bytesFor?: (width: number, height: number) => number;
 };
 /** Surface cumulée de calques admise pour un document. */
 export const layerAreaLimit = (limits: Pick<PreflightLimits, "maxLayerArea" | "areaFor">, width: number, height: number) => limits.areaFor?.(width, height) ?? limits.maxLayerArea;
@@ -103,7 +105,8 @@ export const layerAreaLimit = (limits: Pick<PreflightLimits, "maxLayerArea" | "a
 /** Refus clair, avant tout décodage. */
 export function preflightProblem(p: PsdPreflight, limits: PreflightLimits): string | null {
   const mb = (n: number) => `${Math.round(n / 1024 / 1024)} Mo`;
-  if (p.fileBytes > limits.maxFileBytes) return `Le fichier fait ${mb(p.fileBytes)} : ${mb(limits.maxFileBytes)} au plus. Supprime les calques inutiles (ou fusionne-les), puis réenregistre.`;
+  const maxBytes = limits.bytesFor?.(p.width, p.height) ?? limits.maxFileBytes;
+  if (p.fileBytes > Math.min(limits.maxFileBytes, maxBytes)) return `Le fichier fait ${mb(p.fileBytes)} : ${mb(Math.min(limits.maxFileBytes, maxBytes))} au plus. Supprime les calques inutiles (ou fusionne-les), puis réenregistre.`;
   if (p.version === 2) return "Format PSB (grand document) non pris en charge : enregistre en PSD.";
   if (p.colorMode !== 3) return `Le document est en mode ${COLOR_MODES[p.colorMode] ?? p.colorMode} : passe-le en RVB (Image > Mode > Couleurs RVB).`;
   if (p.depth !== 8) return `Le document est en ${p.depth} bits par couche : passe-le en 8 bits (Image > Mode > 8 bits/couche).`;

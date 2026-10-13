@@ -159,9 +159,9 @@ ${sheet(1, c.tertiary, `<path d="M0 300 V190 C120 120 230 230 360 170 S560 150 6
 ${sheet(2, c.ink, `<path d="M70 300 L110 150 L150 300Z M150 300 L200 110 L250 300Z M300 300 L335 170 L370 300Z" fill="${c.ink}"/>`)}
 </svg>`;
   const labels = [
-    { text: "Plan 3 · devant : sapins", x: 760, y: 260 },
-    { text: "Plan 2 : collines", x: 760, y: 190 },
-    { text: "Plan 1 · le plus loin : ciel", x: 760, y: 120 },
+    { text: "Plan 3 · devant : sapins", x: 960, y: 270 },
+    { text: "Plan 2 : collines", x: 960, y: 200 },
+    { text: "Plan 1 · le plus loin : ciel", x: 960, y: 130 },
   ];
   const parts: OverlayOptions[] = await Promise.all(labels.map(async (l) => ({ ...rawInput(await textRaster(`<span foreground="${GREY}">${esc(l.text)}</span>`, fontFile, TEXT.label)), left: l.x, top: l.y })));
   const cap = await textRaster(`<span foreground="${GREY}"><b>Exemple : 3 calques = 3 plans</b></span>`, fontFile, TEXT.body);
@@ -230,7 +230,7 @@ async function headerRaster(role: KitRole, theme: Theme, siteName: string, fontF
 
 /* ---- Cartes (aperçu verrouillé sous les cases) ------------------------------- */
 
-const slotName = (s: SlotSpec) => (s.kind === "cursor" ? s.layer : s.label);
+const slotName = (s: SlotSpec) => (s.kind === "cursor" ? s.layer : s.kind === "signature" ? "Logo" : s.label);
 const finalSize = (s: SlotSpec) => `${s.size.w} × ${s.size.h}`;
 
 /**

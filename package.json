@@ -19,6 +19,7 @@
     "test:auth": "node scripts/test-auth.mjs",
     "test:kit-hero": "node scripts/kit-poc/hero-seams.mjs",
     "test:e2e-kit": "node scripts/e2e-kit.mjs",
+    "test:e2e-kit-http": "node scripts/e2e-kit-http.mjs",
     "test:e2e-rail": "node scripts/e2e-rail.mjs",
     "test:e2e-tuto": "node scripts/e2e-tuto.mjs",
     "test:e2e-editor": "node scripts/e2e-editor.mjs",

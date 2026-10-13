@@ -3,11 +3,13 @@
  * Parcours d'import d'un kit Photoshop (phase 6d), UN chromium, UN onglet.
  * Serveur dev requis (redémarré puis pré-chauffé), une connexion.
  *
- * A. Aller-retour : export v3 de galerie-lumineuse (file lourde) → modification
- *    simulée (flèche droite redessinée, recadrée comme par Photoshop) → refus
- *    d'un fichier qui n'est pas un PSD (PNG légitime généré par ffmpeg) →
- *    envoi → revue (flèche « redessinée », le reste « inchangé », avant /
- *    après) → « Appliquer au thème » : copie brouillon, éditeur et aperçu.
+ * A. Aller-retour du kit v4 (lot 17e) : export de galerie-lumineuse (file lourde,
+ *    archive .zip de trois PSD) → retouches simulées (flèche droite redessinée en
+ *    grand, décor à calques libres) → refus d'un fichier qui n'est pas un PSD
+ *    (PNG légitime généré par ffmpeg) → envoi de l'archive entière, d'un seul PSD
+ *    (les autres fichiers « pas envoyé : inchangé »), puis de deux PSD choisis
+ *    ensemble → revue groupée par fichier → « Appliquer au thème » : copie
+ *    brouillon (décor libre de 4 plans), éditeur et aperçu.
  * B. Fichier réel de l'artiste (tests/fixtures/kit-synthetique.psd, kit
  *    v1) : revue, application, puis la flèche de l'artiste rendue dans le
  *    rail des planches et dans la visionneuse (aperçu du brouillon).
@@ -27,7 +29,7 @@ const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
 const PASSWORD = process.env.ADMIN_PASSWORD;
 if (!EMAIL || !PASSWORD) throw new Error("Définir ADMIN_EMAIL et ADMIN_PASSWORD");
-const SHOTS = "screenshots/phase6d";
+const SHOTS = process.env.SHOTS ?? "screenshots/phase6d";
 mkdirSync(SHOTS, { recursive: true });
 const DIR = path.join(tmpdir(), "e2e-kit");
 mkdirSync(DIR, { recursive: true });
@@ -44,9 +46,9 @@ const manifests = path.join(DATA, "cache/kits/manifests");
 mkdirSync(manifests, { recursive: true });
 if (!existsSync(path.join(manifests, "legacy-galerie-lumineuse-v1.json"))) copyFileSync("tests/fixtures/kit-galerie-lumineuse-v1.manifest.json", path.join(manifests, "legacy-galerie-lumineuse-v1.json"));
 
-// Refus : un fichier légitime qui n'est pas un PSD (PNG ffmpeg) nommé .psd.
+// Refus : un fichier légitime qui n'est pas un PSD (PNG généré par sharp) nommé .psd.
 const NOT_PSD = path.join(DIR, "pas-un-kit.psd");
-execFileSync("ffmpeg", ["-nostdin", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=1", "-frames:v", "1", "-f", "image2", "-c:v", "png", NOT_PSD]);
+await sharp({ create: { width: 640, height: 360, channels: 3, background: "#6c8ebf" } }).png().toFile(NOT_PSD);
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });

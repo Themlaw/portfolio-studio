@@ -5,7 +5,7 @@
  * Thèmes → « Tuto du kit » : focus sur le titre, toutes les slides au clavier
  * (→) jusqu'à la fin sans image cassée, focus piégé (Tab), Échap → fermé,
  * focus rendu au bouton ; écran du kit → reprise à la dernière slide vue,
- * « Renvoyer le kit » (slide 13) mène à l'envoi ; slide 2 : « Télécharger le
+ * « Renvoyer le kit » (slide 14) mène à l'envoi ; slide 2 : « Télécharger le
  * kit » ; 390 px : balayage tactile, aucune animation en mouvement réduit ;
  * étiquettes jamais sur leur cadre (toutes les slides) ; image ≥ 55 % de la
  * largeur en 1440 ; 390 px : légende, image agrandie au toucher (Échap),
@@ -78,8 +78,8 @@ await page.getByTestId("tuto-open").click();
 await dialog.waitFor();
 ok("dialogue modal accessible (aria-modal, titre)", (await dialog.getAttribute("aria-modal")) === "true" && Boolean(await dialog.getAttribute("aria-labelledby")));
 ok("focus sur le titre de la slide à l'ouverture", await page.evaluate(() => document.activeElement?.hasAttribute("data-tuto-title")));
-ok("slide 1 / 17", (await counter())?.trim() === "1 / 17", await counter());
-const total = 17;
+ok("slide 1 / 16", (await counter())?.trim() === "1 / 16", await counter());
+const total = 16;
 const broken = [];
 const titles = [];
 const overlaps = [];
@@ -108,9 +108,9 @@ for (let i = 0; i < total; i++) {
   if (i === 1) ok("slide 2 : bouton « Télécharger le kit Photoshop »", (await dialog.getByRole("button", { name: "Télécharger le kit Photoshop", exact: true }).count()) === 1);
   if (i < total - 1) await page.keyboard.press("ArrowRight");
 }
-ok("navigation au clavier jusqu'à la fin : 17 / 17", (await counter())?.trim() === "17 / 17", await counter());
-ok("aucune image cassée sur les 17 slides", broken.length === 0, broken.join(","));
-ok("étiquettes d'annotation jamais sur le cadre qu'elles désignent (17 slides)", overlaps.length === 0, overlaps.join(" "));
+ok("navigation au clavier jusqu'à la fin : 16 / 16", (await counter())?.trim() === "16 / 16", await counter());
+ok("aucune image cassée sur les 16 slides", broken.length === 0, broken.join(","));
+ok("étiquettes d'annotation jamais sur le cadre qu'elles désignent (16 slides)", overlaps.length === 0, overlaps.join(" "));
 console.log(`      slides : ${titles.map((t, i) => `${i + 1}. ${t}`).join(" | ")}`);
 for (let i = 0; i < 25; i++) await page.keyboard.press("Tab");
 ok("focus piégé dans le dialogue (25 × Tab)", await page.evaluate(() => Boolean(document.querySelector(".a-tuto")?.contains(document.activeElement))));
@@ -123,10 +123,10 @@ ok("focus rendu au bouton « Tuto du kit »", await page.evaluate(() => document
 await page.goto(`${BASE}/admin/themes/galerie-lumineuse/kit`, { waitUntil: "networkidle" });
 await page.getByTestId("tuto-open").click();
 await dialog.waitFor();
-ok("reprise à la dernière slide vue (17 / 17)", (await counter())?.trim() === "17 / 17", await counter());
-await page.locator(".a-tuto-dot").nth(14).click();
+ok("reprise à la dernière slide vue (16 / 16)", (await counter())?.trim() === "16 / 16", await counter());
+await page.locator(".a-tuto-dot").nth(13).click();
 const send = dialog.getByRole("button", { name: "Renvoyer le kit", exact: true });
-ok("slide 15 depuis un thème : bouton « Renvoyer le kit »", (await send.count()) === 1);
+ok("slide 14 depuis un thème : bouton « Renvoyer le kit »", (await send.count()) === 1);
 await send.click();
 await sleep(400);
 ok("« Renvoyer le kit » ferme le tuto et mène à l'envoi", (await dialog.count()) === 0 && (await page.locator("#kit-send").isVisible()));
@@ -135,7 +135,7 @@ ok("« Renvoyer le kit » ferme le tuto et mène à l'envoi", (await dialog.coun
 await page.getByTestId("tuto-open").click();
 await dialog.waitFor();
 const measures = [];
-for (const [name, n] of [["principe", 0], ["carte", 3], ["paysage", 4], ["icones", 9], ["palette", 11], ["curseur", 12], ["revue", 15]]) {
+for (const [name, n] of [["principe", 0], ["carte", 3], ["paysage", 4], ["icones", 8], ["curseur", 9], ["revue", 14]]) {
   await page.locator(".a-tuto-dot").nth(n).click();
   await waitImage();
   await sleep(300);
@@ -166,7 +166,7 @@ const sb = await slide.boundingBox();
 await slide.dispatchEvent("pointerdown", { pointerType: "touch", clientX: sb.x + 300, clientY: sb.y + 200 });
 await slide.dispatchEvent("pointerup", { pointerType: "touch", clientX: sb.x + 80, clientY: sb.y + 200 });
 await sleep(200);
-ok("390 px : balayage vers la gauche → slide suivante", (await m.locator(".a-tuto-count").textContent())?.trim() === "2 / 17", await m.locator(".a-tuto-count").textContent());
+ok("390 px : balayage vers la gauche → slide suivante", (await m.locator(".a-tuto-count").textContent())?.trim() === "2 / 16", await m.locator(".a-tuto-count").textContent());
 ok("mouvement réduit : aucune animation de slide", (await m.$eval(".a-tuto-slide", (e) => getComputedStyle(e).animationName)) === "none");
 const stacked = await m.evaluate(() => {
   const a = document.querySelector(".a-tuto-media").getBoundingClientRect();
@@ -176,7 +176,7 @@ const stacked = await m.evaluate(() => {
 ok("390 px : image au-dessus, texte dessous", stacked);
 ok("390 px : barre de progression au lieu des points", (await m.locator(".a-tuto-progress").isVisible()) && !(await m.locator(".a-tuto-dots").isVisible()));
 await m.locator(".a-tuto-dot").first().evaluate((b) => b.click());
-await m.waitForFunction(() => document.querySelector(".a-tuto-count")?.textContent.trim() === "1 / 17");
+await m.waitForFunction(() => document.querySelector(".a-tuto-count")?.textContent.trim() === "1 / 16");
 ok("390 px : étiquettes remplacées par des numéros hors cadre et une légende", (await m.locator(".a-tuto-legend").isVisible()) && !(await m.locator(".a-tuto-tag").first().isVisible()) && (await m.locator(".a-tuto-hint").isVisible()));
 await m.locator(".a-tuto-zoomable").click();
 await m.locator(".a-tuto-zoom").waitFor();
@@ -184,7 +184,7 @@ const zoomOk = await m.$eval("[data-tuto-zoom]", (i) => i.complete && i.naturalW
 await m.keyboard.press("Escape");
 await sleep(200);
 ok("390 px : toucher l'image l'agrandit ; Échap ferme l'image, pas le tuto", zoomOk && (await m.locator(".a-tuto-zoom").count()) === 0 && (await m.getByRole("dialog").count()) === 1);
-for (const [name, n] of [["principe", 0], ["carte", 3], ["paysage", 4], ["icones", 9], ["palette", 11], ["curseur", 12], ["revue", 15]]) {
+for (const [name, n] of [["principe", 0], ["carte", 3], ["paysage", 4], ["icones", 8], ["curseur", 9], ["revue", 14]]) {
   await m.locator(".a-tuto-dot").nth(n).evaluate((b) => b.click());
   await m.waitForFunction(() => {
     const i = document.querySelector("[data-tuto-image]");
