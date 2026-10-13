@@ -147,7 +147,7 @@ function findUsers(role: BaseKey): Found {
   const docW = document.documentElement.scrollWidth;
   const docH = document.documentElement.scrollHeight;
   const surfaceRole = role === "bg" || role === "surface";
-  const all = document.querySelectorAll<HTMLElement>("body *");
+  const all = [document.body, ...document.querySelectorAll<HTMLElement>("body *")];
   for (const el of all) {
     if (el.closest(".pe-host") || /^(script|style|link|meta|noscript|svg|path)$/i.test(el.tagName)) continue;
     const r = el.getBoundingClientRect();

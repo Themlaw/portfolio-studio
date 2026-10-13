@@ -321,8 +321,9 @@ if (run("L")) {
   ok("L1c valeur lue : 96 px", /96 px/.test((await page.getByTestId("logo-size-out").textContent()) ?? ""));
   await settled();
   ok("L1d brouillon du site : logo.size = 96", await waitFor(() => siteDraftStyles()?.logo?.size === 96), JSON.stringify(siteDraftStyles()));
-  await slider.fill("5");
-  ok("L1e en dessous de la borne : 24 px", (await slider.inputValue()) === "24");
+  await slider.focus();
+  await page.keyboard.press("Home");
+  ok("L1e borne basse (Début) : 24 px, jamais en dessous", (await slider.inputValue()) === "24");
   await slider.fill("96");
 
   /* L2. Poignée sur la toile */
@@ -358,15 +359,15 @@ if (run("L")) {
   /* L3. Logo image du kit : même réglage */
   await f.evaluate(() => {
     document.documentElement.setAttribute("data-kit-signature", "");
-    const svg = "data:image/svg+xml;utf8," + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 40'><rect width='200' height='40'/></svg>");
+    const svg = "data:image/svg+xml;utf8," + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 40'><rect width='200' height='40'/></svg>");
     document.documentElement.style.setProperty("--t-kit-signature", `url("${svg}")`);
-    document.documentElement.style.setProperty("--t-kit-signature-ratio", "5 / 1");
+    document.documentElement.style.setProperty("--t-kit-signature-ratio", "3 / 1");
   });
   const sig = await f.evaluate(() => {
     const s = document.querySelector(".site-signature").getBoundingClientRect();
     return { h: s.height, w: s.width };
   });
-  ok("L3 signature du kit : même hauteur (120 px), largeur selon sa proportion", near(sig.h, 120) && near(sig.w, 600, 4), JSON.stringify(sig));
+  ok("L3 signature du kit : même hauteur (120 px), largeur selon sa proportion (3:1)", near(sig.h, 120) && near(sig.w, 360, 4), JSON.stringify(sig));
   await f.evaluate(() => {
     document.documentElement.removeAttribute("data-kit-signature");
     document.documentElement.style.removeProperty("--t-kit-signature");
