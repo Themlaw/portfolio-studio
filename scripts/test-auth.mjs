@@ -1792,8 +1792,8 @@ for (let k = 1; k <= 4; k++) {
 const job = query(dirG, "select status, attempts, error from jobs where media_id = ?", killedId);
 const med = query(dirG, "select status, error from media where id = ?", killedId);
 ok(
-  `G1 4 × kill -9 pendant le traitement : job et média en échec, message clair (essais : ${job?.attempts})`,
-  job?.status === "failed" && med?.status === "failed" && /échoué plusieurs fois/.test(med?.error ?? ""),
+  `G1 4 × kill -9 pendant le traitement : job et média en échec dès le 2e arrêt d'une image (lot 17b), message clair (essais : ${job?.attempts})`,
+  job?.status === "failed" && job?.attempts === 2 && med?.status === "failed" && /s'est arrêté pendant le traitement de cette image.*Réduis-la/.test(med?.error ?? ""),
   JSON.stringify({ job, med }),
 );
 const delG = await callActionJson(jarG, ids.deleteMediaAction, [killedId], "/admin/medias");

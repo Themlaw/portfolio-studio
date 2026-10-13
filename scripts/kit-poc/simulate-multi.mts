@@ -20,7 +20,7 @@ import { readPsd, writePsdBuffer, type Layer } from "ag-psd";
 import sharp from "sharp";
 
 import { ensureAgPsd } from "@/lib/kit/ag-psd-node";
-import { DECOR_HEAD, frameOf, KIT_FILES, KIT_ROLES, SLOTS, type KitRole } from "@/lib/kit/spec";
+import { ALL_SLOTS, CURSOR_DRAWING_LAYER, DECOR_HEAD, drawScale, frameOf, HOTSPOT_LAYER, KIT_FILES, KIT_ROLES, SLOTS, type KitRole } from "@/lib/kit/spec";
 import { extractEntry, listZip, writeZipFile } from "@/lib/kit/zip-archive";
 
 const [cmd, zipPath, out, ...rest] = process.argv.slice(2);
@@ -69,6 +69,38 @@ try {
     const img = await raster(`<svg xmlns="http://www.w3.org/2000/svg" width="368" height="320"><path d="M8 112 H208 V16 L360 160 L208 304 V208 H8 Z" fill="#1f2a6b"/></svg>`);
     const box = frameOf(SLOTS.find((s) => s.id === "icones/fleche-droite")!, "multi");
     Object.assign(arrow, { left: box.x + 72, top: box.y + 88, right: box.x + 72 + img.width, bottom: box.y + 88 + img.height, imageData: img });
+    write(psd, out);
+  } else if (cmd === "cursor") {
+    const psd = readPsd(readFileSync(files.icones), READ);
+    // Crayon (pointe en haut à gauche) et main ronde, dessinés sur 64 × 64 puis agrandis à la case du kit.
+    const DRAWINGS = {
+      normal: { svg: `<path d="M6 6 L20 44 L28 36 L52 60 L60 52 L36 28 L44 20 Z" fill="#2b1d3a" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke"/>`, hotspot: { x: 6, y: 6 } },
+      clic: { svg: `<circle cx="32" cy="34" r="20" fill="#2b1d3a" stroke="#ffffff" stroke-width="3"/><path d="M28 4 L36 4 L36 30 L28 30 Z" fill="#2b1d3a" stroke="#ffffff" stroke-width="3" stroke-linejoin="round" paint-order="stroke"/>`, hotspot: { x: 32, y: 5 } },
+    } as const;
+    for (const slot of ALL_SLOTS.filter((x) => x.kind === "cursor")) {
+      const group = find(psd.children, slot.layer);
+      const drawing = group?.children?.find((l) => l.name === CURSOR_DRAWING_LAYER);
+      const marker = group?.children?.find((l) => l.name === HOTSPOT_LAYER);
+      if (!drawing || !marker) throw new Error(`curseur « ${slot.layer} » incomplet`);
+      const spec = DRAWINGS[slot.cursor as "normal" | "clic"] ?? DRAWINGS[slot.layer.toLowerCase() as "normal" | "clic"];
+      const k = drawScale(slot);
+      const side = 64 * k;
+      const img = await raster(`<svg xmlns="http://www.w3.org/2000/svg" width="${side}" height="${side}" viewBox="0 0 64 64">${spec.svg}</svg>`);
+      let [t, b, l, r] = [side, -1, side, -1];
+      for (let y = 0; y < side; y++) for (let x = 0; x < side; x++) if (img.data[(y * side + x) * 4 + 3]) [t, b, l, r] = [Math.min(t, y), Math.max(b, y), Math.min(l, x), Math.max(r, x)];
+      const w = r - l + 1;
+      const h = b - t + 1;
+      const crop = new Uint8ClampedArray(w * h * 4);
+      for (let y = 0; y < h; y++) crop.set(img.data.subarray(((t + y) * side + l) * 4, ((t + y) * side + l + w) * 4), y * w * 4);
+      const f = frameOf(slot, "multi");
+      Object.assign(drawing, { left: f.x + l, top: f.y + t, right: f.x + l + w, bottom: f.y + t + h, imageData: { width: w, height: h, data: crop } });
+      const mw = (marker.right ?? 0) - (marker.left ?? 0);
+      const mh = (marker.bottom ?? 0) - (marker.top ?? 0);
+      marker.left = f.x + spec.hotspot.x * k + Math.floor(k / 2) - Math.floor((mw - 1) / 2);
+      marker.top = f.y + spec.hotspot.y * k + Math.floor(k / 2) - Math.floor((mh - 1) / 2);
+      marker.right = marker.left + mw;
+      marker.bottom = marker.top + mh;
+    }
     write(psd, out);
   } else if (cmd === "decor") {
     const psd = readPsd(readFileSync(files.decor), READ);

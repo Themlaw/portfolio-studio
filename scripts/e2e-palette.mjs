@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * Palette du thème, kit v3 (palette et curseurs), curseurs sur le site (lot 4).
+ * Palette du thème, kit v4 (curseurs), curseurs sur le site (lot 4).
  * UN chromium, UN onglet ; serveur dev redémarré et pré-chauffé ; une connexion.
  *
  * A. Éditeur de palette (copie de galerie-lumineuse) : groupes, « Revenir à
  *    auto », une base qui change entraîne sa nuance auto, échantillon, contraste
  *    (✗ puis « Ajuster »), enregistrement, état relu après rechargement.
- * B. Kit v3 : export (file lourde) → pastille « Action · survol » repeinte et
- *    deux curseurs redessinés (scripts/kit-poc/simulate-v3-edit.mts) → envoi →
- *    revue (couleur avant / après et contraste, cartes des curseurs, point
- *    chaud) → « Appliquer au thème » : copie brouillon, couleur forcée.
+ * B. Kit v4 : export (file lourde, archive de trois PSD) → deux curseurs
+ *    redessinés (scripts/kit-poc/simulate-multi.mts cursor) → envoi → revue
+ *    (cartes des curseurs, point chaud, plus de revue des couleurs : la palette
+ *    se règle dans l'éditeur visuel) → « Appliquer au thème » : copie brouillon.
  * C. Site (aperçu du brouillon) : curseurs émis, PNG 32 × 32 servi, repli
  *    obligatoire, liens en « clic », champ de texte en barre de saisie, admin
  *    sans curseur ; capture avec le curseur incrusté (Playwright ne capture pas
@@ -102,7 +102,9 @@ ok("enregistré et relu : survol toujours « auto », valeur recalculée", (awai
 const saved = readTheme(COPY);
 ok("base de données : palette.auto = [primaryHover], valeur effective enregistrée", saved.tokens.palette?.auto?.join() === "primaryHover" && saved.tokens.color.primaryHover === followed && saved.tokens.color.primary === "#1d6b4f", JSON.stringify(saved.tokens.palette));
 
-/* ---- B. Kit v3 : aller-retour -------------------------------------------- */
+/* ---- B. Kit v4 : aller-retour (curseurs) ---------------------------------- */
+// La palette n'est plus lue dans la revue d'import (elle se règle dans l'éditeur visuel, lot 17f) : seuls les curseurs font l'aller-retour.
+const sim = (...args) => execFileSync(process.execPath, ["--import", "tsx", "scripts/kit-poc/simulate-multi.mts", ...args], { stdio: "ignore" });
 const kitUrl = `${BASE}/admin/api/theme-kit/${COPY}`;
 let ready = false;
 for (let i = 0; i < 90 && !ready; i++) {
@@ -110,14 +112,16 @@ for (let i = 0; i < 90 && !ready; i++) {
   ready = (await res.json()).ready === true;
   if (!ready) await sleep(2000);
 }
-ok("export du kit v3 (file lourde) prêt", ready);
-const kitFile = path.join(DIR, "kit-v3.psd");
+ok("export du kit v4 (file lourde) prêt", ready);
+const kitFile = path.join(DIR, "kit-v4.zip");
 const dl = await page.request.get(kitUrl);
-writeFileSync(kitFile, await dl.body());
-const head = (await dl.body()).subarray(0, 26);
-ok("kit v3 téléchargé : PSD 4000 × 4880", head.subarray(0, 4).toString("latin1") === "8BPS" && head.readUInt32BE(18) === 4000 && head.readUInt32BE(14) === 4880);
-const edited = path.join(DIR, "kit-v3-modifie.psd");
-execFileSync(process.execPath, ["--import", "tsx", "scripts/kit-poc/simulate-v3-edit.mts", kitFile, edited, "Action · survol=#8b1e3f"], { stdio: "ignore" });
+const kitBytes = await dl.body();
+writeFileSync(kitFile, kitBytes);
+ok("kit v4 téléchargé : archive .zip de trois PSD", dl.ok() && kitBytes.subarray(0, 2).toString("latin1") === "PK" && /application\/zip/.test(dl.headers()["content-type"] ?? ""));
+const iconPsd = path.join(DIR, "icones-curseurs.psd");
+const edited = path.join(DIR, "kit-v4-curseurs.zip");
+sim("cursor", kitFile, iconPsd);
+sim("zip", kitFile, edited, iconPsd);
 
 await page.goto(`${BASE}/admin/themes/${COPY}/kit`, { waitUntil: "networkidle" });
 await page.setInputFiles('[data-testid="kit-file"]', edited);
@@ -125,26 +129,19 @@ await page.waitForURL(/\/kit\?import=/, { timeout: 120000 });
 await page.locator(".a-kit-card").nth(15).waitFor({ timeout: 180000 });
 await page.waitForLoadState("networkidle");
 await page.waitForFunction(() => [...document.querySelectorAll(".a-kit-card img")].every((i) => i.complete), null, { timeout: 30000 });
-const review = page.locator('[data-testid="kit-colors-review"]');
-const hoverRow = review.locator('li[data-color="primaryHover"]');
-ok("revue : « Action · survol » repeinte, avant → après", (await hoverRow.count()) === 1 && (await hoverRow.textContent()).includes(followed) && (await hoverRow.textContent()).includes("#8b1e3f"), await review.textContent().catch(() => ""));
-ok("revue : contraste affiché, « était auto : devient choisie »", (await hoverRow.locator(".a-ratio").count()) <= 1 && (await hoverRow.textContent()).includes("devient choisie"));
-ok("revue : une seule couleur repeinte", (await review.locator("li[data-color]").count()) === 1);
+ok("revue : plus de revue des couleurs (la palette se règle dans l'éditeur visuel)", (await page.locator('[data-testid="kit-colors-review"]').count()) === 0);
 const cards = await page.$$eval(".a-kit-card", (els) => els.map((e) => ({ slot: e.dataset.slot, change: e.dataset.change, status: e.dataset.status, text: e.textContent ?? "" })));
 const cn = cards.find((c) => c.slot === "curseur/normal");
 const cc = cards.find((c) => c.slot === "curseur/clic");
 ok("revue : curseurs « redessinés », point chaud lu (3, 3) et (16, 3)", cn?.change === "redrawn" && cc?.change === "redrawn" && cn.text.includes("point chaud 3, 3") && cc.text.includes("point chaud 16, 3"), JSON.stringify([cn, cc]));
-ok("revue : les 14 éléments d'avant inchangés", cards.filter((c) => !c.slot.startsWith("curseur/")).every((c) => c.change === "unchanged"), JSON.stringify(cards.filter((c) => c.change !== "unchanged").map((c) => c.slot)));
-await page.locator('[data-testid="kit-colors"]').scrollIntoViewIfNeeded();
-ok("« Appliquer les couleurs repeintes » coché par défaut", await page.locator('[data-testid="kit-colors"]').isChecked());
+ok("revue : les 14 autres éléments inchangés", cards.length === 16 && cards.filter((c) => !c.slot.startsWith("curseur/")).every((c) => c.change === "unchanged"), JSON.stringify(cards.filter((c) => c.change !== "unchanged").map((c) => c.slot)));
 await page.screenshot({ path: `${SHOTS}/revue-import.png`, fullPage: true });
-await review.screenshot({ path: `${SHOTS}/revue-import-couleurs.png` });
 await page.locator('.a-kit-card[data-slot="curseur/normal"]').screenshot({ path: `${SHOTS}/revue-import-curseur.png` });
-await Promise.all([page.waitForURL(new RegExp(`/admin/themes/${COPY}-kit[a-z0-9-]*$|/admin/themes/[a-z0-9-]*-kit[a-z0-9-]*$`), { timeout: 60000 }), page.getByRole("button", { name: "Appliquer au thème" }).click()]);
+await Promise.all([page.waitForURL(new RegExp(`/admin/themes/[a-z0-9-]*-kit[a-z0-9-]*$`), { timeout: 60000 }), page.getByRole("button", { name: "Appliquer au thème" }).click()]);
 const DRAFT = page.url().split("/").pop();
 created.push(DRAFT);
 const draft = readTheme(DRAFT);
-ok("copie brouillon : survol forcé #8b1e3f, sorti de palette.auto", draft.tokens.color.primaryHover === "#8b1e3f" && !draft.tokens.palette?.auto?.includes("primaryHover"), JSON.stringify({ c: draft.tokens.color.primaryHover, p: draft.tokens.palette }));
+ok("copie brouillon : couleurs du thème inchangées", draft.tokens.color.primary === "#1d6b4f" && draft.tokens.color.primaryHover === followed, JSON.stringify({ c: draft.tokens.color.primary, h: draft.tokens.color.primaryHover }));
 ok("copie brouillon : curseurs normal et clic (PNG du kit, points chauds)", draft.assets.kit?.cursors?.default?.x === 3 && draft.assets.kit?.cursors?.pointer?.x === 16 && /\/media\/kit\/[0-9a-f]{16}\.png$/.test(draft.assets.kit?.cursors?.default?.png2x ?? ""), JSON.stringify(draft.assets.kit?.cursors));
 
 /* ---- C. Site : curseurs ----------------------------------------------------- */

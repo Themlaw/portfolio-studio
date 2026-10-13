@@ -146,7 +146,12 @@ const imgInfo = (p, sel) =>
   });
 /** Boîte en coordonnées de PAGE (les captures pleine page découpent en coordonnées de page). */
 const pbox = async (loc) => {
-  const b = await loc.boundingBox();
+  // L'enveloppe d'une carte de rubrique (lot 17c) est `display: contents` en vue brouillon : on descend jusqu'au premier élément qui a une boîte.
+  let b = await loc.boundingBox();
+  for (let depth = 0; !b && depth < 4; depth++) {
+    loc = loc.locator("> *").first();
+    b = await loc.boundingBox();
+  }
   return { ...b, y: b.y + (await loc.page().evaluate(() => scrollY)) };
 };
 const blockImg = (uid) => `[data-edit-block="${uid}"] img.block-image-media`;
