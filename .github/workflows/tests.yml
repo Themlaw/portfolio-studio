@@ -59,6 +59,7 @@ jobs:
             { id: "kit17a", cmd: "node scripts/e2e-kit-theme.mjs", browser: "chromium" },
             { id: "kithttp", cmd: "node scripts/e2e-kit-http.mjs", browser: "chromium" },
             { id: "cartes17c", cmd: "node scripts/e2e-cartes.mjs", browser: "chromium" },
+            { id: "texte19a", cmd: "node scripts/e2e-texte.mjs", browser: "chromium" },
             { id: "integ17", cmd: "node scripts/e2e-integ17.mjs", browser: "chromium" },
             { id: "palogo17f", cmd: "node scripts/e2e-palette-logo.mjs", browser: "chromium" },
             { id: "editor", cmd: "node scripts/e2e-editor.mjs", browser: "chromium" },

@@ -10,12 +10,18 @@ export const HELP_TEXT = {
   title: { fr: "Titre de la rubrique", en: "Section title" },
 } as const;
 
-/** Rubriques de texte proposées en premier : propriétés du bloc `rich-text` neuf et champ à éditer d'emblée. */
+/**
+ * Rubriques de texte proposées en premier (lot 19a). Trois choix nets : « Texte » (un paragraphe, rien d'autre),
+ * « Titre » (un titre seul, étiquette facultative) et « Titre + texte ». `block` : type du bloc créé ; `props` :
+ * ses propriétés de départ (un champ absent n'existe pas : ni place, ni texte d'aide) ; `edit` : champ édité d'emblée.
+ */
 export const TEXT_STARTERS = {
-  text: { label: "Texte", description: "Quelques lignes de texte, sans titre.", props: { title: undefined, paragraphs: [HELP_TEXT.paragraph] }, edit: "paragraphs.0" },
+  text: { label: "Texte", description: "Un paragraphe seul : ni titre, ni étiquette.", block: "rich-text", props: { paragraphs: [HELP_TEXT.paragraph] }, edit: "paragraphs.0" },
+  title: { label: "Titre", description: "Un titre seul, avec une étiquette facultative.", block: "section-title", props: { title: HELP_TEXT.title }, edit: "title" },
   "title-text": {
     label: "Titre + texte",
     description: "Un titre et un paragraphe dessous.",
+    block: "rich-text",
     props: { title: HELP_TEXT.title, paragraphs: [HELP_TEXT.paragraph] },
     edit: "title",
   },
@@ -37,4 +43,10 @@ export function helpTextProblem(props: Record<string, unknown>): string | null {
     return "Remplace le texte d'exemple de cette rubrique Texte (ou supprime-la).";
   }
   return null;
+}
+
+/** Idem pour un bloc Titre : son titre est resté le texte d'aide (un titre lié au projet n'a pas de texte propre). */
+export function titleHelpProblem(props: Record<string, unknown>): string | null {
+  if (props.linked) return null;
+  return isHelpText(props.title as Localized, HELP_TEXT.title) ? "Remplace le texte d'exemple de ce titre (ou supprime-le)." : null;
 }

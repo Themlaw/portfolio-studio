@@ -30,7 +30,7 @@ import {
   treeProblem,
   withFreshUids,
 } from "../src/blocks/tree.ts";
-import { pinImageFit, renameVideoLook, siteNameI18n, upgradeContent } from "../src/lib/db/upgrade.ts";
+import { dropEmptyTextFields, pinImageFit, renameVideoLook, siteNameI18n, upgradeContent } from "../src/lib/db/upgrade.ts";
 import { defaultContactForm, makeField, validateSubmission, ContactFormSchema } from "../src/lib/contact-form.ts";
 import { canonicalSnap, detectNetwork, NavItemSchema, safeNavHref, safeSocialHref, SiteSnapSchema, SocialSchema } from "../src/lib/site-schema.ts";
 
@@ -330,6 +330,41 @@ test("0019 : image pleine largeur au format imposé garde « cover » (publié, 
   assert.equal(draft.blocks[0].props.fit, "cover");
   assert.equal(draft.blocks[1].props.fit, undefined);
   assert.equal(pinImageFit(db), 0, "idempotente");
+});
+
+test("migration 0020 : titres et étiquettes vides d'un bloc Texte retirés, rien d'autre ne bouge", () => {
+  const db = new Database(":memory:");
+  db.exec("create table blocks (id integer primary key, page_id integer, position integer, type text, props text)");
+  db.exec("create table pages (id integer primary key, draft text)");
+  assert.equal(dropEmptyTextFields(db), 0, "base vide");
+  const put = (pos, type, props) => db.prepare("insert into blocks (page_id, position, type, props) values (1, ?, ?, ?)").run(pos, type, typeof props === "string" ? props : JSON.stringify(props));
+  const E = { fr: "", en: "" };
+  const P = [{ fr: "a", en: "b" }];
+  put(0, "rich-text", { title: E, paragraphs: P });
+  put(1, "rich-text", { title: { fr: "Mon titre", en: "" }, paragraphs: P });
+  put(2, "rich-text", { eyebrow: E, title: E, paragraphs: P, surface: { color: "ink" } });
+  put(3, "rich-text", { eyebrow: { fr: "", en: "Label" }, title: E, paragraphs: P });
+  put(4, "rich-text", { title: { fr: "  ", en: "" }, paragraphs: P });
+  put(5, "section-title", { title: E, intro: E });
+  put(6, "grid", { children: [{ uid: "a", type: "rich-text", props: { title: E, paragraphs: P } }, { uid: "b", type: "rich-text", props: { title: { fr: "T", en: "" }, paragraphs: P } }] });
+  put(7, "rich-text", "{pas du json");
+  db.prepare("insert into pages (id, draft) values (1, ?)").run(JSON.stringify({ blocks: [{ uid: "d", type: "rich-text", props: { title: E, paragraphs: P } }, { uid: "e", type: "rich-text", props: { paragraphs: P } }] }));
+  assert.equal(dropEmptyTextFields(db), 6, "5 blocs publiés (dont la grille) + le brouillon");
+  const rows = db.prepare("select props from blocks order by position").all();
+  const p = (i) => JSON.parse(rows[i].props);
+  assert.equal("title" in p(0), false, "titre vide retiré");
+  assert.equal(p(1).title.fr, "Mon titre", "titre saisi conservé");
+  assert.deepEqual(Object.keys(p(2)).sort(), ["paragraphs", "surface"], "titre et étiquette vides retirés, carte conservée");
+  assert.equal(p(3).eyebrow.en, "Label", "étiquette saisie (une langue) conservée");
+  assert.equal("title" in p(3), false);
+  assert.equal("title" in p(4), false, "titre d'espaces vide");
+  assert.equal(p(5).title !== undefined, true, "autres types de bloc intacts");
+  assert.equal("title" in p(6).children[0].props, false, "Texte dans une grille");
+  assert.equal(p(6).children[1].props.title.fr, "T");
+  assert.equal(rows[7].props, "{pas du json", "ligne illisible laissée telle quelle");
+  const draft = JSON.parse(db.prepare("select draft from pages").get().draft);
+  assert.equal("title" in draft.blocks[0].props, false, "brouillon");
+  assert.equal(dropEmptyTextFields(db), 0, "idempotente");
 });
 
 /* ---- 3. Données du site ----------------------------------------------------- */

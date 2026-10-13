@@ -1485,3 +1485,65 @@ html[data-edit-mode] .pe-add-end button,
 html[data-edit-mode] .pe-cell-text {
   cursor: pointer;
 }
+
+/* Texte (lot 19a) : « + Ajouter un titre » / « Retirer le titre », dans la marge haute du bloc, au survol ou à la sélection. */
+.pe-field-op {
+  position: absolute;
+  top: -32px;
+  left: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 4px 12px;
+  border: 1px dashed rgba(46, 78, 158, 0.6);
+  border-radius: 999px;
+  background: rgba(232, 237, 248, 0.92);
+  color: #2e4e9e;
+  font: 600 12px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+html[data-edit-mode] .pe-field-host:hover .pe-field-op,
+html[data-edit-mode] .pe-field-op:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Pas de survol (tactile) : le bouton reste visible. */
+@media (hover: none) {
+  html[data-edit-mode] .pe-field-op {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.pe-field-op:hover,
+.pe-field-op:focus-visible {
+  border-style: solid;
+  background: #e8edf8;
+  outline: none;
+}
+
+html:not([data-edit-mode]) .pe-field-op {
+  display: none !important;
+}
+
+/* Case vide d'une grille : les trois choix de texte. */
+.pe-cell-choices {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Dans une case de grille, pas de marge haute où se loger : le bouton se pose en haut à droite du texte. */
+.pe-field-op[data-cell] {
+  top: 0;
+  right: 0;
+  left: auto;
+}

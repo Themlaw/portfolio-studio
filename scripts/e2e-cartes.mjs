@@ -185,11 +185,11 @@ if (run("A") || run("B") || run("C"))
   const dlg = page.locator("dialog.ve-add");
   ok("A2 le choix illustré s'ouvre", await dlg.waitFor({ timeout: 20000 }).then(() => true, () => false));
   const cards = dlg.locator(".ve-add-card");
-  const first = [(await cards.nth(0).getAttribute("data-starter")), (await cards.nth(1).getAttribute("data-starter"))];
-  ok("A2 « Texte » et « Titre + texte » en premier", first.join() === "text,title-text" && /Texte/.test((await cards.nth(0).textContent()) ?? "") && /Titre \+ texte/.test((await cards.nth(1).textContent()) ?? ""), first.join());
+  const first = [(await cards.nth(0).getAttribute("data-starter")), (await cards.nth(1).getAttribute("data-starter")), (await cards.nth(2).getAttribute("data-starter"))];
+  ok("A2 « Texte », « Titre » et « Titre + texte » en premier", first.join() === "text,title,title-text" && /Texte/.test((await cards.nth(0).textContent()) ?? "") && /Titre \+ texte/.test((await cards.nth(2).textContent()) ?? ""), first.join());
   ok("A2 les autres composants suivent (avec leur vignette)", (await cards.count()) > 6 && (await dlg.locator(".ve-add-card .ve-thumb").count()) === (await cards.count()));
   await page.screenshot({ path: path.join(SHOTS, "a2-choix-illustre.png") });
-  await cards.nth(1).click();
+  await cards.nth(2).click();
   ok("A3 « Titre + texte » ajouté à la fin de la page", await waitFor(() => draftBlocks().length === baseCount + 1 && draftBlocks().at(-1).type === "rich-text" && draftBlocks().at(-1).props.title?.fr === "Titre de la rubrique"));
   ok("A3 édition en place ouverte sur le titre, texte d'aide sélectionné", (await f.locator('[data-editing][data-inline="title"]').waitFor({ timeout: 60000 }).then(() => true, () => false)) && (await selectedText(f)) === "Titre de la rubrique", await selectedText(f));
   await page.screenshot({ path: path.join(SHOTS, "a3-edition-en-place.png") });
@@ -277,7 +277,7 @@ if (run("A") || run("B") || run("C"))
   // Panneau « Ajouter » : les deux rubriques de texte sont en tête.
   await page.getByRole("tab", { name: "Ajouter" }).click();
   const starters = page.locator(".ve-starters .ve-starter");
-  ok("A8 panneau « Ajouter » : « Texte » et « Titre + texte » en tête", (await starters.count()) === 2 && /Texte/.test((await starters.first().textContent()) ?? ""));
+  ok("A8 panneau « Ajouter » : « Texte », « Titre » et « Titre + texte » en tête", (await starters.count()) === 3 && /Texte/.test((await starters.first().textContent()) ?? ""));
 });
 
 /* ---- B. Carte d'une rubrique ----------------------------------------------------------------------------------- */
@@ -484,7 +484,7 @@ if (run("C"))
   const again = await cardInfo(f, uidFirst);
   ok("C6 persistance : l'éditeur rouvert montre les cartes publiées", again?.on === "on" && same(rgbOf(again.bg), hexRgb("#f6d6e4")) && again.corners === "round", JSON.stringify(again));
   await f.locator(`.pe-focus[data-uid="${uidFirst}"]`).scrollIntoViewIfNeeded();
-  await f.locator(`[data-edit-block="${uidFirst}"] section`).first().click({ position: { x: 4, y: 30 } });
+  await f.locator(`[data-edit-block="${uidFirst}"] section`).first().click({ position: { x: 4, y: 10 } });
   await f.locator(".pe-tools .sm-button").click();
   const menu = f.locator(".sm");
   ok("C6 le popover relit la carte : interrupteur allumé, couleur perso, en retrait, coins arrondis", (await menu.getByRole("switch", { name: "Carte" }).getAttribute("aria-checked")) === "true" && (await menu.locator('[data-width="inset"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-corners="round"]').getAttribute("aria-checked")) === "true");
@@ -511,7 +511,7 @@ if (run("D"))
   f = await openEditor();
   const uid = (await textUids(f))[0];
   await f.locator(`.pe-focus[data-uid="${uid}"]`).scrollIntoViewIfNeeded();
-  await f.locator(`[data-edit-block="${uid}"] section`).first().click({ position: { x: 4, y: 30 } });
+  await f.locator(`[data-edit-block="${uid}"] section`).first().click({ position: { x: 4, y: 10 } });
   await f.locator(".pe-tools .sm-button").click();
   // La rubrique publiée a déjà sa carte : éteinte puis rallumée, elle repart des réglages du thème (`{}`).
   const sw = f.locator(".sm").getByRole("switch", { name: "Carte" });

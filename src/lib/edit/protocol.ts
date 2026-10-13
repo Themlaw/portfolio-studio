@@ -104,7 +104,9 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("surface"), uid: Uid, surface: SurfaceSchema.nullable(), continuous: z.boolean().optional() }),
   // Ajout d'une rubrique depuis la toile (lot 17c) : `choose` ouvre le choix illustré de l'éditeur, les
   // autres ajoutent aussitôt un texte (bloc `rich-text` avec son texte d'aide) à cet endroit.
-  z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title-text"]) }),
+  z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title", "title-text"]) }),
+  // Champ facultatif d'un bloc Texte, ajouté ou retiré depuis la toile (lot 19a) : « + Ajouter un titre » / « Retirer le titre » (Texte), « + Ajouter une étiquette » / « Retirer l'étiquette » (Titre).
+  z.object({ kind: z.literal("field-op"), uid: Uid, op: z.enum(["add-title", "remove-title", "add-eyebrow", "remove-eyebrow"]) }),
   // Palette et logo du site (lot 17f) : état COMPLET voulu (palette = bases choisies, logo = taille et comportement).
   z.object({ kind: z.literal("site-look"), palette: SitePaletteSchema, logo: LogoSchema }),
   // Ce que la toile a trouvé pour le rôle de couleur survolé (légende « utilisé par »).

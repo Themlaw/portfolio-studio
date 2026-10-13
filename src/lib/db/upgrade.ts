@@ -401,3 +401,65 @@ export function pinImageFit(db: Database.Database): number {
   }
   return n;
 }
+
+/* ---- 0020 : titre / étiquette vides d'un bloc Texte = champ absent ------------------------------------ */
+
+const isBlank = (v: unknown) => {
+  if (!v || typeof v !== "object") return false;
+  const o = v as { fr?: unknown; en?: unknown };
+  return (o.fr === undefined || (typeof o.fr === "string" && o.fr.trim() === "")) && (o.en === undefined || (typeof o.en === "string" && o.en.trim() === ""));
+};
+
+function dropBlankInTree(node: unknown): boolean {
+  if (Array.isArray(node)) return node.map(dropBlankInTree).some(Boolean);
+  if (!node || typeof node !== "object") return false;
+  const b = node as { type?: unknown; props?: Record<string, unknown> };
+  let changed = false;
+  if (b.type === "rich-text" && b.props) {
+    for (const key of ["title", "eyebrow"]) {
+      if (Object.hasOwn(b.props, key) && isBlank(b.props[key])) {
+        delete b.props[key];
+        changed = true;
+      }
+    }
+  }
+  if (b.props && Array.isArray(b.props.children)) changed = dropBlankInTree(b.props.children) || changed;
+  if (Array.isArray((node as { blocks?: unknown }).blocks)) changed = dropBlankInTree((node as { blocks: unknown[] }).blocks) || changed;
+  return changed;
+}
+
+/**
+ * Migration 0020 (v0.18) : « Texte » n'a plus de titre ni d'étiquette tant qu'on n'en a pas demandé. Les
+ * blocs Texte des versions précédentes portaient un `title: { fr: "", en: "" }` (ancien défaut) : il
+ * réservait une place de titre sur la toile. Il est retiré (publié, dans un conteneur, brouillons) ; un
+ * titre ou une étiquette saisi n'est jamais touché. Le rendu public ne change pas. Idempotente ;
+ * renvoie le nombre de lignes réécrites.
+ */
+export function dropEmptyTextFields(db: Database.Database): number {
+  let n = 0;
+  for (const r of db.prepare("select id, type, props from blocks where type = 'rich-text' or props like '%\"rich-text\"%'").all() as { id: number; type: string; props: string }[]) {
+    let props: unknown;
+    try {
+      props = JSON.parse(r.props);
+    } catch {
+      continue;
+    }
+    if (dropBlankInTree({ type: r.type, props })) {
+      db.prepare("update blocks set props = ? where id = ?").run(JSON.stringify(props), r.id);
+      n++;
+    }
+  }
+  for (const p of db.prepare("select id, draft from pages where draft like '%\"rich-text\"%'").all() as { id: number; draft: string }[]) {
+    let draft: unknown;
+    try {
+      draft = JSON.parse(p.draft);
+    } catch {
+      continue;
+    }
+    if (dropBlankInTree(draft)) {
+      db.prepare("update pages set draft = ? where id = ?").run(JSON.stringify(draft), p.id);
+      n++;
+    }
+  }
+  return n;
+}

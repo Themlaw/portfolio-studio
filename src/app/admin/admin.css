@@ -5696,7 +5696,7 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
 /* ---- Ajouter du texte, d'un geste (lot 17c) ------------------------------------------------------------ */
 .ve-starters {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   margin: 0 0 12px;
 }
@@ -5715,8 +5715,8 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
 }
 
 .ve-starter .ve-thumb {
-  width: 96px;
-  height: 60px;
+  width: 100%;
+  height: auto;
 }
 
 .ve-starter strong {
@@ -5759,7 +5759,7 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   height: 60px;
 }
 
-.ve-add-grid li:nth-child(-n + 2) .ve-add-card {
+.ve-add-grid li:nth-child(-n + 3) .ve-add-card {
   border-color: var(--admin-accent);
   background: var(--admin-accent-soft);
 }

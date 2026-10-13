@@ -27,7 +27,7 @@ import {
   siteDraftAction,
 } from "@/app/admin/(espace)/pages/actions";
 import { BlockEditorContext } from "@/blocks/editor-context";
-import { TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
+import { HELP_TEXT, TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
 import { blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
 import { makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
@@ -668,15 +668,46 @@ export default function VisualEditor({
     if (mobile) setSheet(false);
   };
 
-  /** Rubrique de texte (« Texte », « Titre + texte ») : bloc `rich-text` avec son texte d'aide, édité aussitôt. */
+  /** Le texte d'aide n'est posé que dans la langue qu'on édite : l'autre reste vide, comme tout texte neuf. */
+  const helpIn = (v: { fr: string; en: string }) => ({ fr: locale === "fr" ? v.fr : "", en: locale === "en" ? v.en : "" });
+
+  /** Rubrique de texte (« Texte », « Titre », « Titre + texte ») : le bloc et ses seuls champs voulus, avec leur texte d'aide, édité aussitôt. */
   const insertStarter = (starter: TextStarter, at?: Place) => {
     const s = TEXT_STARTERS[starter];
-    // Le texte d'aide n'est posé que dans la langue qu'on édite : l'autre reste vide, comme tout texte neuf.
-    const only = (v: { fr: string; en: string }) => ({ fr: locale === "fr" ? v.fr : "", en: locale === "en" ? v.en : "" });
-    const props: Record<string, unknown> = { paragraphs: s.props.paragraphs.map(only) };
-    // `title: undefined` écrase le titre vide du bloc neuf (insert() clone ensuite, ce qui retire la clé).
-    props.title = s.props.title ? only(s.props.title) : undefined;
-    insert("rich-text", at, { props, edit: s.edit });
+    const props: Record<string, unknown> = {};
+    if ("title" in s.props) props.title = helpIn(s.props.title);
+    if ("paragraphs" in s.props) props.paragraphs = s.props.paragraphs.map(helpIn);
+    insert(s.block, at, { props, edit: s.edit });
+  };
+
+  /**
+   * Champ facultatif ajouté ou retiré depuis la toile : le titre d'un bloc Texte (« + Ajouter un titre » / « Retirer le
+   * titre »), l'étiquette d'un bloc Titre. Un champ ajouté s'édite aussitôt ; false = refusé ou sans effet.
+   */
+  const fieldOp = (uid: string, op: "add-title" | "remove-title" | "add-eyebrow" | "remove-eyebrow"): boolean => {
+    const list = draftRef.current.blocks;
+    const block = findBlock(list, uid);
+    const title = op.endsWith("title");
+    if (!block || block.type !== (title ? "rich-text" : "section-title") || (!title && block.props.linked)) return false;
+    const props = { ...block.props };
+    if (op === "add-title") {
+      if (props.title !== undefined) return false;
+      props.title = helpIn(HELP_TEXT.title);
+    } else if (op === "add-eyebrow") {
+      if (props.eyebrow !== undefined) return false;
+      props.eyebrow = { fr: "", en: "" };
+    } else if (op === "remove-title") {
+      if (props.title === undefined && props.eyebrow === undefined) return false;
+      delete props.title;
+      delete props.eyebrow;
+    } else {
+      if (props.eyebrow === undefined) return false;
+      delete props.eyebrow;
+    }
+    setBlocks(updateBlock(list, uid, (b) => ({ ...b, props })), { structural: true });
+    selectBlock(uid);
+    if (op === "add-title" || op === "add-eyebrow") send({ kind: "edit-text", uid, path: title ? "title" : "eyebrow" });
+    return true;
   };
 
   /** Demande de la toile : choix illustré, ou texte tout de suite, à cet endroit. */
@@ -1385,9 +1416,9 @@ export default function VisualEditor({
     });
   };
 
-  const handlers = useRef({ op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook });
+  const handlers = useRef({ op, editText, fieldOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook });
   useEffect(() => {
-    handlers.current = { op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook };
+    handlers.current = { op, editText, fieldOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -1513,6 +1544,9 @@ export default function VisualEditor({
         case "surface":
           // Refusé (composant d'un conteneur) ou sans effet : la toile retire son aperçu.
           if (!h.applySurface(msg.uid, msg.surface, msg.continuous) && msg.seq) send({ kind: "revert", seq: msg.seq });
+          break;
+        case "field-op":
+          h.fieldOp(msg.uid, msg.op);
           break;
         case "insert":
           h.requestInsert(msg.parent, msg.index, msg.what);

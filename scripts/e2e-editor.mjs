@@ -177,8 +177,11 @@ ok("le nouveau bloc est sélectionné", await until(f, (uid) => Boolean(document
 /* ---- Titre modifié en place, FR puis EN ------------------------------------ */
 
 const titleSel = (uid) => `[data-edit-block="${uid}"] [data-inline="title"]`;
-await f.locator(titleSel(textUid)).dblclick();
-ok("double-clic : le titre devient modifiable", (await f.locator(titleSel(textUid)).getAttribute("contenteditable")) !== null);
+// Le Texte de la palette est un paragraphe seul (lot 19a) : son titre s'ajoute au survol, puis se saisit d'une frappe sur le texte d'aide.
+await f.locator(`[data-edit-block="${textUid}"] [data-inline="paragraphs.0"]`).hover();
+await f.locator(`[data-edit-block="${textUid}"] [data-edit-field-op="add-title"]`).click();
+await f.locator(`${titleSel(textUid)}[contenteditable]`).waitFor({ timeout: 30000 });
+ok("« + Ajouter un titre » : le titre devient modifiable", (await f.locator(titleSel(textUid)).getAttribute("contenteditable")) !== null);
 await page.keyboard.type(TITLE_FR);
 await page.keyboard.press("Enter");
 await settled();

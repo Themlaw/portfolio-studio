@@ -2,7 +2,7 @@
 
 /**
  * « Ajouter une rubrique » (lot 17c) : le choix illustré ouvert par « + Ajouter une rubrique » (bas de page),
- * le « + » entre deux rubriques, ou une case vide d'une grille. « Texte » et « Titre + texte » viennent en
+ * le « + » entre deux rubriques, ou une case vide d'une grille. « Texte », « Titre » et « Titre + texte » viennent en
  * premier (c'est ce qu'on cherche le plus souvent), suivis des autres composants du catalogue. Un choix ferme
  * la fenêtre ; l'ajout et l'édition en place du texte d'aide sont faits par l'éditeur (VisualEditor).
  */
@@ -36,7 +36,7 @@ export default function AddSectionDialog({
     if (open && !d.open) d.showModal();
     if (!open && d.open) d.close();
   }, [open]);
-  const others = catalog.filter((c) => !c.hidden && c.key !== "rich-text");
+  const others = catalog.filter((c) => !c.hidden && c.key !== "rich-text" && c.key !== "section-title");
   return (
     <dialog
       ref={ref}
