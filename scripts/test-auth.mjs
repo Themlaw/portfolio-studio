@@ -1798,7 +1798,9 @@ ok(
 );
 const delG = await callActionJson(jarG, ids.deleteMediaAction, [killedId], "/admin/medias");
 ok("G2 un média en échec reste supprimable", delG.text.includes('"ok":true') && !query(dirG, "select id from media where id = ?", killedId), delG.text.slice(0, 160));
-ok("G3 aucun job ni média resté en cours", query(dirG, "select count(*) n from jobs where status in ('queued','running')").n === 0 && query(dirG, "select count(*) n from media where status = 'processing'").n === 0);
+// Le préchauffage des recadrages (crop-warm, lot 17d) se remet en file au démarrage pour chaque page publiée : ce n'est pas un traitement de média.
+const stuckG = { jobs: query(dirG, "select count(*) n from jobs where kind != 'crop-warm' and status in ('queued','running')").n, media: query(dirG, "select count(*) n from media where status = 'processing'").n };
+ok("G3 aucun job ni média resté en cours", stuckG.jobs === 0 && stuckG.media === 0, JSON.stringify(stuckG));
 
 // T6 : purge des fichiers abandonnés (au démarrage, puis toutes les 15 min).
 mkdirSync(path.join(dirG, "tmp"), { recursive: true });

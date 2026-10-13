@@ -16,8 +16,9 @@ const ROOT = new URL("..", import.meta.url).pathname;
 const DIRS = ["src/components", "src/app", "src/blocks"];
 // globals.css relaie les variables du thème ; admin.css définit le jeu de
 // tokens fixe de l'admin (indépendant du thème public).
+// highlight.css : surlignage de l'interface d'édition (jetons --pe-*), chargé à part avec la toile et le pont d aperçu.
 // EditThisPage : bouton de l'admin posé sur le site, styles en ligne (pas de CSS admin dans le bundle public).
-const EXCLUDE = new Set(["src/app/globals.css", "src/app/admin/admin.css", "src/app/admin/preview-banner.css", "src/app/admin/edit-layer.css", "src/components/EditThisPage.tsx"]);
+const EXCLUDE = new Set(["src/app/globals.css", "src/app/admin/admin.css", "src/app/admin/preview-banner.css", "src/app/admin/edit-layer.css", "src/app/admin/highlight.css", "src/components/EditThisPage.tsx"]);
 const EXT = /\.(tsx?|jsx?|mjs|css)$/;
 
 const PALETTE =
