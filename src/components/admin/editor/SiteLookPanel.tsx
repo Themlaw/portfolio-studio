@@ -8,8 +8,12 @@
  * et la légende « utilisé par » revient de la toile. Un clic ouvre le sélecteur (roue, HEX, RVB) : la
  * couleur est montrée tout de suite sur la toile. Contraste AA en direct ; s'il est insuffisant, avertissement
  * et « Ajuster automatiquement » — la saisie n'est jamais bloquée, seule la publication l'est (serveur).
- * Les nuances calculées sont en lecture seule, repliées. La palette du THÈME n'est jamais modifiée : ce
- * sont des surcharges du site (`styles.palette`), publiées avec la page comme l'en-tête.
+ * Les nuances calculées sont en lecture seule, repliées. En mode « site » (éditeur visuel), la palette du THÈME
+ * n'est jamais modifiée : ce sont des surcharges du site (`styles.palette`), publiées avec la page comme l'en-tête.
+ *
+ * Mode « theme » (lot 19b, Admin → Thèmes → un thème) : le même panneau édite les couleurs du THÈME. `theme` porte
+ * alors les couleurs COURANTES du formulaire (aperçu compris), `baseline` celles enregistrées (« modifiée » =
+ * différente de l'enregistré), et `onChange` reçoit un correctif ({ rôle: couleur }) à poser sur ces couleurs.
  *
  * Logo : taille (curseur) et comportement (fixe, réduit au défilement, déborde sous le bandeau).
  */
@@ -22,6 +26,7 @@ import type { BaseKey, NuanceKey, PaletteColors, PaletteState } from "@/themes/p
 import { autoAdjustBase, CONTRAST_BASES, effectiveSitePalette, NUANCE_USES, nuanceLabel, rolePairs, SITE_ROLES, sitePaletteIssues } from "@/themes/site-palette";
 
 import "@/app/admin/look-panel.css";
+import "@/app/admin/typo-controls.css";
 
 export type ThemeColors = { name: string; color: PaletteColors; palette: PaletteState | null };
 export type HighlightInfo = { role: BaseKey | null; count: number; uses: string[] };
@@ -31,16 +36,23 @@ const ratioText = (n: number) => n.toFixed(2).replace(".", ",");
 
 export function ColorsPanel({
   theme,
-  value,
+  value: siteValue,
   onChange,
   onHighlight,
   info,
   locked,
+  mode = "site",
+  baseline,
 }: {
   theme: ThemeColors;
-  /** Surcharges du site (état voulu, aperçu compris). */
+  /** Surcharges du site (état voulu, aperçu compris). Ignoré en mode « theme ». */
   value: SitePalette;
+  /** Mode « site » : nouvel état des surcharges. Mode « theme » : correctif à poser sur les couleurs courantes. */
   onChange: (next: SitePalette) => void;
+  /** « site » : surcharges du site par-dessus le thème (éditeur visuel). « theme » : couleurs du thème lui-même. */
+  mode?: "site" | "theme";
+  /** Mode « theme » : couleurs enregistrées du thème (repère « modifiée », retour à l'enregistré). */
+  baseline?: PaletteColors;
   /** Rôle à surligner sur la toile (null : rien). */
   onHighlight: (role: BaseKey | null) => void;
   info: HighlightInfo | null;
@@ -56,21 +68,33 @@ export function ColorsPanel({
   }, [highlighted, onHighlight]);
   useEffect(() => () => onHighlight(null), [onHighlight]);
 
+  const isTheme = mode === "theme";
   const palette = theme.palette ?? undefined;
+  // Mode « theme » : les couleurs courantes SONT l'état ; la comparaison se fait avec l'enregistré.
+  const value: SitePalette = isTheme ? {} : siteValue;
   const base = effectiveSitePalette(theme.color, palette, undefined);
   const eff = effectiveSitePalette(theme.color, palette, value);
-  const modifiedCount = Object.keys(value).length;
+  const reference = isTheme && baseline ? baseline : null;
+  const isModified = (key: BaseKey) => (reference ? eff[key].toLowerCase() !== String(reference[key]).toLowerCase() : typeof value[key] === "string");
+  const modifiedKeys = SITE_ROLES.map((r) => r.key).filter(isModified);
+  const modifiedCount = modifiedKeys.length;
   // Palette du site qui rendrait du texte illisible avec le thème actif : le rendu public l'ignore (layout), la publication est refusée.
   const issues = sitePaletteIssues(theme.color, palette, value);
-  const ignored = modifiedCount > 0 && issues.length > 0;
+  const ignored = !isTheme && modifiedCount > 0 && issues.length > 0;
   const worstIssue = issues.reduce((a, b) => (b.ratio < a.ratio ? b : a), issues[0]);
   // Pastilles du sélecteur : valeurs effectives (le panneau ne charge pas la feuille du thème).
   const swatch = (c: PaletteColor): string =>
     ({ ink: eff.ink, "ink-soft": eff.inkSoft, primary: eff.primary, secondary: eff.secondary, tertiary: eff.tertiary, eyebrow: eff.eyebrow, bg: eff.bg, surface: eff.surface })[c];
 
   const set = (key: BaseKey, hex: string | undefined) => {
-    const next = { ...value };
     const clean = hex?.toLowerCase();
+    if (isTheme) {
+      // Revenir (hex absent) = la couleur enregistrée du thème.
+      const target = clean ?? (reference ? String(reference[key]).toLowerCase() : undefined);
+      if (target) onChange({ [key]: target });
+      return;
+    }
+    const next = { ...value };
     // Revenir exactement à la couleur du thème = plus de surcharge.
     if (!clean || clean === base[key].toLowerCase()) delete next[key];
     else next[key] = clean;
@@ -78,12 +102,14 @@ export function ColorsPanel({
   };
 
   return (
-    <section className="lp lp-colors" aria-labelledby="lp-colors-title" data-testid="colors-panel">
-      <h3 id="lp-colors-title" className="lp-title">
-        Couleurs
+    <section className="lp lp-colors" aria-labelledby="lp-colors-title" data-testid="colors-panel" data-mode={mode}>
+      <h3 id="lp-colors-title" className="lp-title" hidden={isTheme}>
+        {isTheme ? "Couleurs de la DA" : "Couleurs"}
       </h3>
       <p className="lp-help">
-        Survole une couleur pour voir où elle sert sur la page, clique pour la changer. Pour tout le site, publié avec cette page ; le thème « {theme.name} » n&apos;est pas modifié.
+        {isTheme
+          ? `Survole une couleur pour voir où elle sert dans l'aperçu, clique pour la changer : l'aperçu suit tout de suite. Les couleurs sont écrites dans le thème « ${theme.name} » à l'enregistrement.`
+          : `Survole une couleur pour voir où elle sert sur la page, clique pour la changer. Pour tout le site, publié avec cette page ; le thème « ${theme.name} » n'est pas modifié.`}
       </p>
       {locked && <p className="a-field-error">Les couleurs du site sont en cours de modification sur la page « {locked} ».</p>}
       {ignored && (
@@ -97,12 +123,14 @@ export function ColorsPanel({
       )}
       <ul className="lc-roles">
         {SITE_ROLES.map((role) => {
-          const modified = typeof value[role.key] === "string";
+          const modified = isModified(role.key);
           const isOpen = open === role.key;
           const pairs = CONTRAST_BASES.includes(role.key) ? rolePairs(theme.color, palette, value, role.key) : [];
           const failing = pairs.filter((p) => !p.ok);
           const lowest = pairs.reduce((m, p) => Math.min(m, p.ratio), Infinity);
-          const fixed = failing.length ? autoAdjustBase(theme.color, theme.palette ?? undefined, value, role.key) : null;
+          // Thème : on tolère ce que la couleur enregistrée tolérait déjà (le thème peut avoir ses propres écarts).
+          const allowed = isTheme && reference ? sitePaletteIssues({ ...theme.color, [role.key]: reference[role.key] }, palette, undefined).length : undefined;
+          const fixed = failing.length ? autoAdjustBase(theme.color, theme.palette ?? undefined, value, role.key, allowed) : null;
           const legend = info && info.role === role.key && highlighted === role.key ? info : null;
           return (
             <li key={role.key} className="lc-role-item" data-role={role.key} data-open={isOpen || undefined} data-modified={modified || undefined} data-invalid={failing.length > 0 || undefined}>
@@ -122,10 +150,10 @@ export function ColorsPanel({
                   <strong>{role.name}</strong>
                   <small>{role.phrase}</small>
                 </span>
-                <span className="lc-state">{modified ? "modifiée" : "thème"}</span>
+                <span className="lc-state">{modified ? "modifiée" : isTheme ? "enregistrée" : "thème"}</span>
               </button>
               {highlighted === role.key && (
-                <p className="lc-uses" role="status" data-testid="hl-legend">
+                <p className="lc-uses" data-floating={!isOpen || undefined} role="status" data-testid="hl-legend">
                   Utilisé par : {legend && legend.uses.length ? legend.uses.join(", ") : role.uses}
                   {legend && legend.count > 0 ? ` · ${legend.count} élément${legend.count > 1 ? "s" : ""} sur cette page` : ""}
                 </p>
@@ -144,8 +172,9 @@ export function ColorsPanel({
                       swatch={swatch}
                       onChange={(c) => c && set(role.key, c)}
                       onClose={() => setOpen(null)}
+                      live={isTheme}
                       solid={{
-                        resetLabel: "Revenir à la couleur du thème",
+                        resetLabel: isTheme ? "Revenir à la couleur enregistrée" : "Revenir à la couleur du thème",
                         onReset: () => {
                           set(role.key, undefined);
                           setEpoch((n) => n + 1);
@@ -193,11 +222,11 @@ export function ColorsPanel({
           type="button"
           className="a-btn a-btn-small a-btn-quiet"
           onClick={() => {
-            onChange({});
+            onChange(isTheme && reference ? Object.fromEntries(modifiedKeys.map((k) => [k, String(reference[k]).toLowerCase()])) : {});
             setEpoch((n) => n + 1);
           }}
         >
-          Revenir aux couleurs du thème
+          {isTheme ? "Revenir aux couleurs enregistrées" : "Revenir aux couleurs du thème"}
         </button>
       )}
       <details className="lc-nuances">

@@ -1,0 +1,37 @@
+/* ==========================================================================
+   Surlignage des éléments qui utilisent un rôle de couleur (lots 17f et 19b) :
+   src/components/edit/highlight.tsx. Partagé par la toile de l'éditeur visuel et
+   par l'aperçu de l'éditeur de thème. Couleurs de l'interface d'édition (--pe-*,
+   posées par `.pe-host`), jamais celles du thème.
+   ========================================================================== */
+.sl-hl {
+  position: absolute;
+  box-sizing: border-box;
+  pointer-events: none;
+  border-radius: 3px;
+  outline: 2px solid var(--pe-accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--pe-accent) 22%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sl-hl {
+    animation: sl-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes sl-pulse {
+  50% {
+    box-shadow: 0 0 0 10px color-mix(in srgb, var(--pe-accent) 6%, transparent);
+  }
+}
+
+/* Fond de page : liseré autour de la fenêtre (une boîte de la hauteur du document ne dirait rien). */
+.sl-frame {
+  position: fixed;
+  inset: 6px;
+  box-sizing: border-box;
+  border: 3px dashed var(--pe-accent);
+  border-radius: 8px;
+  pointer-events: none;
+}

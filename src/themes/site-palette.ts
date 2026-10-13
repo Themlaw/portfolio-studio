@@ -146,13 +146,16 @@ export const CONTRAST_BASES: readonly BaseKey[] = ["bg", "surface", "ink", "prim
  * minimum : assombrir ou éclaircir selon le cas) après laquelle la palette n'a pas plus de couples sous 4,5:1
  * qu'avant ce changement, NUANCES RECALCULÉES COMPRISES (un fond plus teinté change le fond profond, qui doit
  * lui aussi tenir). Null si aucune teinte proche ne convient.
+ *
+ * `allowedIssues` (couleurs du thème, lot 19b) : nombre de couples sous 4,5:1 toléré, quand `color` porte déjà la
+ * couleur à ajuster (ici le thème lui-même, pas une surcharge qu'on retire pour savoir ce qui était acceptable).
  */
-export function autoAdjustBase(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined, key: BaseKey): string | null {
+export function autoAdjustBase(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined, key: BaseKey, allowedIssues?: number): string | null {
   if (!CONTRAST_BASES.includes(key)) return null;
   const without: SitePalette = { ...(overrides ?? {}) };
   const current = effectiveSitePalette(color, palette, overrides)[key];
   delete without[key];
-  const allowed = sitePaletteIssues(color, palette, without).length;
+  const allowed = allowedIssues ?? sitePaletteIssues(color, palette, without).length;
   for (const candidate of lightnessCandidates(current)) {
     if (sitePaletteIssues(color, palette, { ...without, [key]: candidate.toLowerCase() }).length <= allowed) return candidate.toLowerCase();
   }

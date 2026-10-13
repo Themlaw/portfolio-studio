@@ -109,6 +109,9 @@ export default function ThemeList({
                     Modifier
                   </Link>
                 )}
+                <Link className="a-btn a-btn-small" href={`/admin/themes/${encodeURIComponent(theme.id)}#couleurs-da`} data-testid="theme-da-link">
+                  Couleurs de la DA
+                </Link>
                 <button type="button" className="a-btn a-btn-small" onClick={() => duplicate(theme)} disabled={busy}>
                   Dupliquer
                 </button>
@@ -125,7 +128,7 @@ export default function ThemeList({
                   </button>
                 )}
               </div>
-              {theme.preset && <p className="a-help">Thème livré : duplique-le pour le modifier.</p>}
+              {theme.preset && <p className="a-help">Thème livré : duplique-le pour le modifier (ou essaie ses couleurs, une copie te sera proposée).</p>}
             </section>
           );
         })}

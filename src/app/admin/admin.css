@@ -5763,3 +5763,67 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   border-color: var(--admin-accent);
   background: var(--admin-accent-soft);
 }
+
+/* ---- Couleurs de la DA d'un thème (lot 19b) ------------------------------ */
+.a-da {
+  scroll-margin-top: 16px;
+  /* Variables de l'éditeur visuel (panneau « Couleurs »), reprises sur l'admin. */
+  --lk-ink: var(--admin-ink);
+  --lk-ink-soft: var(--admin-ink-soft);
+  --lk-surface: var(--admin-surface);
+  --lk-line: var(--admin-line-strong);
+  --lk-accent: var(--admin-accent);
+  --lk-accent-soft: var(--admin-accent-soft);
+  --lk-font: var(--admin-font-ui);
+  --lk-shadow: 0 8px 24px color-mix(in srgb, var(--admin-ink) 24%, transparent);
+}
+
+.a-da .lp {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.a-da-save {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 12px;
+}
+
+.a-da-save .a-help {
+  margin: 0;
+}
+
+.a-da-copy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.a-da-changes {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.a-preview-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.a-preview-page select {
+  min-height: 28px;
+  max-width: 170px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  color: var(--admin-ink);
+  font: 500 13px/1 var(--admin-font-ui);
+}
