@@ -52,6 +52,20 @@ export const FONT_IDS = [
 ] as const;
 export const fontId = z.enum(FONT_IDS);
 
+/**
+ * Carte de rubrique (lot 17c, src/themes/surface.ts) : jetons de la palette proposés comme fond, et réglages
+ * d'une carte. Définis ICI (zod seul : ce fichier est chargé tel quel par Node), repris par surface.ts.
+ * `#rrggbb[aa]` en minuscules : le format de CUSTOM_COLOR_RE (src/lib/color.ts, vérifié par test-surface).
+ */
+export const SURFACE_TOKENS = ["bg", "bgDeep", "surface", "primary", "secondary", "ink"] as const;
+export const SURFACE_WIDTHS = ["full", "inset"] as const;
+export const SURFACE_CORNERS = ["square", "round"] as const;
+export const SurfaceSchema = z.strictObject({
+  color: z.union([z.enum(SURFACE_TOKENS), z.string().max(9).regex(/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/, "Couleur invalide (#rrggbb).")]).optional(),
+  width: z.enum(SURFACE_WIDTHS).optional(),
+  corners: z.enum(SURFACE_CORNERS).optional(),
+});
+
 /** Rôles typographiques (styles du site du lot 2, typographie du thème). */
 export const TEXT_ROLES = ["h1", "h2", "eyebrow", "body", "caption", "menu", "brand"] as const;
 export type FontId = z.infer<typeof fontId>;
@@ -229,6 +243,8 @@ export const ThemeSchema = z
           mediaRadius: z.enum(["none", "soft", "medium", "strong"]),
           /** Fond derrière le métier dans l'ouverture (« Chara design · … »). */
           heroRoleBackdrop: z.enum(["none", "shadow", "band", "highlight"]),
+          /** Carte des rubriques (lot 17c) : réglages utilisés quand une rubrique active sa carte sans les préciser. */
+          card: SurfaceSchema,
         })
         .partial()
         .strict()

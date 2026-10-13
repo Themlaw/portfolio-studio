@@ -89,6 +89,8 @@ export function lookOf(uid: string): Look {
 /** Élément racine rendu par le bloc (sous son enveloppe de mise en page), ou null (conteneur sans boîte). */
 function rootOf(uid: string): HTMLElement | null {
   let el = wrapperOf(uid)?.firstElementChild as HTMLElement | null;
+  // Carte de rubrique (lot 17c) : l'enveloppe `.surface-card` est toujours là en vue brouillon, elle aussi se traverse.
+  if (el?.classList.contains("surface-card")) el = el.firstElementChild as HTMLElement | null;
   if (el?.classList.contains("blk")) el = el.firstElementChild as HTMLElement | null;
   if (!el || el.hasAttribute("data-edit-block")) return null;
   return el;

@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       suites:
-        description: "Suites à lancer, séparées par des virgules (vide = toutes) : checks, auth, pdf, v013, lot1, lot8, lot11, palette, look, state, themes, kit, kit17a, editor, boards, admin, medias, medias-firefox, 17b, crop17d"
+        description: "Suites à lancer, séparées par des virgules (vide = toutes) : checks, auth, pdf, v013, lot1, lot8, lot11, palette, look, state, themes, kit, kit17a, cartes17c, editor, boards, admin, medias, medias-firefox, 17b, crop17d"
         required: false
         default: ""
 
@@ -57,6 +57,7 @@ jobs:
             { id: "themes", cmd: "node scripts/e2e-themes.mjs", browser: "chromium" },
             { id: "kit", cmd: "node scripts/e2e-kit.mjs", browser: "chromium" },
             { id: "kit17a", cmd: "node scripts/e2e-kit-theme.mjs", browser: "chromium" },
+            { id: "cartes17c", cmd: "node scripts/e2e-cartes.mjs", browser: "chromium" },
             { id: "editor", cmd: "node scripts/e2e-editor.mjs", browser: "chromium" },
             { id: "boards", cmd: "node scripts/e2e-boards.mjs", browser: "chromium" },
             { id: "admin", cmd: "node scripts/e2e-admin.mjs", browser: "chromium" },

@@ -1,10 +1,13 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import type { RawBlock } from "@/lib/pages";
 
 import { cropStyle, lookAttributes, readLook, type Look } from "@/lib/look";
 import { own } from "@/lib/own";
 import { cellShare, type GridLayout } from "./grid-layouts";
+import { getActiveTheme } from "@/lib/theme";
+import { resolvePalette } from "@/themes/palette";
+import { cardStyle, cardVars, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
 import { BLOCKS } from "./registry";
 import { MAX_NESTING } from "./tree";
 import type { BlockContext } from "./types";
@@ -58,7 +61,43 @@ function withLook(node: ReactNode, look: Look | undefined, key: string): ReactNo
   );
 }
 
-function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?: { uid: string }, inherited?: Look): ReactNode {
+/** Palette du thème et carte par défaut : lus une fois par page, seulement si une carte est rendue (ou en édition). */
+type CardEnv = { palette: CardPalette; defaults: ResolvedSurface };
+
+/**
+ * Carte de rubrique (lot 17c) : un aplat de la couleur choisie derrière la rubrique, posé sur le papier du
+ * site (src/app/look.css, `.surface-card`) ; largeur, coins et couleurs lisibles dans la carte viennent de
+ * `props.surface` et du thème (src/themes/surface.ts). Sans carte, aucune enveloppe en public : DOM inchangé.
+ * Vue brouillon : l'enveloppe est toujours là (sans carte : `display: contents`) pour que la toile puisse
+ * montrer un choix tout de suite sans toucher aux nœuds de React.
+ */
+function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv | null, edit: boolean | undefined, key: string): ReactNode {
+  if (!env) return node;
+  const defaults = edit ? { "data-card-default": JSON.stringify(env.defaults) } : {};
+  if (!surface) {
+    return edit ? (
+      <div key={`card-${key}`} className="surface-card" data-surface="off" {...defaults}>
+        {node}
+      </div>
+    ) : (
+      node
+    );
+  }
+  const resolved = resolveSurface(surface, env.defaults);
+  return (
+    <div
+      key={`card-${key}`}
+      className="surface-card"
+      {...surfaceAttributes(resolved)}
+      style={cardVars(cardStyle(resolved.color, env.palette)) as CSSProperties}
+      {...(edit ? { ...defaults, "data-edit-surface": JSON.stringify(surface) } : {})}
+    >
+      {node}
+    </div>
+  );
+}
+
+function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?: { uid: string }, inherited?: Look, card: CardEnv | null = null): ReactNode {
   // En édition, la clé suit le contenu : un bloc modifié (texte saisi en
   // place dans le DOM) est remonté à neuf au rafraîchissement.
   const key = ctx.edit ? `${block.uid ?? block.id}:${contentHash(block.props)}` : (block.uid ?? block.id);
@@ -123,19 +162,45 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
   }
   // Conteneur sans boîte : ses espaces sont passés à ses composants.
   const shown = BOXLESS.has(block.type) && look ? { ...look, spaceTop: undefined, spaceBottom: undefined } : look;
+  // La carte ne concerne que les blocs de premier niveau (`card` n'est transmis qu'à eux).
+  const surface = card ? readSurface((block.props as { surface?: unknown } | null)?.surface) : undefined;
   return wrap(
-    withLook(
-      <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id, look }}>
-        {children}
-      </Component>,
-      shown,
-      `look-${key}`,
+    withSurface(
+      withLook(
+        <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id, look }}>
+          {children}
+        </Component>,
+        shown,
+        `look-${key}`,
+      ),
+      surface,
+      card,
+      ctx.edit,
+      String(key),
     ),
   );
 }
 
-export default function BlockList({ blocks, ctx }: { blocks: RawBlock[]; ctx: BlockContext }) {
+export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; ctx: BlockContext }) {
   // Toute la page, pour les blocs qui se calculent depuis son contenu (compteurs).
   const base: BlockContext = { ...ctx, pageBlocks: blocks.filter((b) => !b.corrupt).map((b) => ({ type: b.type, props: b.props })) };
-  return <>{blocks.map((block) => renderBlock(block, base, 0))}</>;
+  // Le thème n'est lu que pour une carte (ou en édition, qui peut en créer une) : les pages sans carte restent comme avant.
+  let card: CardEnv | null = null;
+  if (ctx.edit || blocks.some((b) => !b.corrupt && readSurface((b.props as { surface?: unknown } | null)?.surface))) {
+    const theme = await getActiveTheme();
+    card = { palette: resolvePalette(theme.tokens.color, theme.tokens.palette), defaults: resolveSurface(theme.tokens.layout?.card ?? {}) };
+  }
+  return (
+    <>
+      {blocks.map((block) => renderBlock(block, base, 0, undefined, undefined, card))}
+      {ctx.edit && (
+        // Toile : « + Ajouter une rubrique » toujours visible en bas de page (EditLayer l'écoute ; absent en aperçu).
+        <div className="pe-add-end" data-edit-add-end="" lang="fr">
+          <button type="button" data-edit-add="end">
+            <span aria-hidden="true">+</span> Ajouter une rubrique
+          </button>
+        </div>
+      )}
+    </>
+  );
 }

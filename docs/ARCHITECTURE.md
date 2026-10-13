@@ -995,6 +995,40 @@ libres ni de valeur arbitraire) : `src/lib/look.ts` (module pur, testé par
   (`useDismiss(ref, onClose)`) ; un clic « sur le texte visé » se déclare par
   `ignore`.
 
+## Cartes de rubrique et ajout de texte (lot 17c)
+
+**Demande.** L'illustratrice garde son papier de kit en fond mais veut, « par-dessus, pour chaque petite rubrique, un
+rectangle d'une couleur », choisie au moment de l'édition, aux bords droits ou arrondis, pleine largeur ou en retrait
+pour que le papier se voie. Et elle ne trouvait pas comment ajouter du texte.
+
+**Carte.** `props.surface` d'un bloc de premier niveau : `{ color, width: full|inset, corners: square|round }`, tout
+facultatif (zod strict, `SurfaceSchema` dans `src/themes/schema.ts`). `color` : un jeton de la palette (fond, fond
+profond, surface, action, accent secondaire, texte) ou une couleur libre `#rrggbb[aa]` (celle du sélecteur de texte).
+Clé absente = pas de carte, DOM public inchangé (8 presets au pixel : `parity-shots` avant / après identiques).
+`{}` = carte avec les réglages du thème (`tokens.layout.card`, éditeur de thème), sinon `FALLBACK_CARD`
+(surface, en retrait, arrondie). Rayon : `max(--t-radius-lg, 12px)`, gouttière : `--gutter` du thème.
+
+**Lisibilité.** `cardStyle` (src/themes/surface.ts, module pur) choisit le texte du thème s'il passe AA sur la carte,
+sinon le texte inverse (fond du thème, texte des boutons), sinon le meilleur ; texte secondaire, liens, étiquettes,
+accent et boutons suivent (ils gardent la teinte du thème tant qu'elle se lit). Le résultat est posé en `--card-*` sur
+l'enveloppe ; `look.css` les relaie vers `--color-*` / `--btn-*` à l'intérieur de la carte seulement (les variables
+dérivées de `:root` comme `--btn-bg` sont recalculées à la main : elles sont résolues sur `:root`). Si même ainsi le
+texte reste sous 4,5:1, `ok` est faux : pastille d'alerte et message dans le popover, rien n'est bloqué.
+
+**Toile.** Bouton « Fond » dans la barre du bloc (`SurfaceMenu.tsx`) : interrupteur, pastilles de la palette, « Autre
+couleur… » (`ColorPicker`), largeur, coins. Intention `surface` (protocole), aperçu immédiat (`previewSurface`) gardé
+jusqu'à l'acquittement, rétabli par `revert` si l'écriture est refusée (composant de conteneur) ; Annuler / Rétablir
+par l'historique (`setBlocks` avec la clé `surface:<uid>`). L'enveloppe `.surface-card` est toujours rendue en vue
+brouillon (sans carte : `display: contents`) pour ne jamais ajouter ni déplacer de nœud de React.
+
+**Ajout de texte (U5).** Cause : la rubrique « Texte » existait, mais seulement dans l'onglet « Ajouter » du panneau
+(douzième carte d'une longue liste, un glisser-déposer), sans aucun point d'entrée sur la page ; « Titre » (le premier
+type de texte de la liste) était le seul qu'on voyait. Désormais : « + Ajouter une rubrique » en bas de page, « + » entre
+deux rubriques au survol, « Texte » dans une case vide de grille et deux boutons en tête du panneau ; le choix illustré
+(`AddSectionDialog`) met « Texte » et « Titre + texte » en premier. Le bloc inséré (`rich-text` + texte d'aide,
+`help-text.ts`) s'ouvre en édition en place, texte d'aide sélectionné (message `edit-text`) ; la publication refuse un
+texte d'aide non remplacé.
+
 ## Authentification (phase 3)
 
 - **Better Auth 1.7**, adaptateur Drizzle, tables `user`, `session`, `account`,

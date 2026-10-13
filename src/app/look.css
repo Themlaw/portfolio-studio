@@ -196,3 +196,59 @@ figure.block-image[data-fit="contain"] .block-image-media.block-image-media {
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
+
+/* ---- Carte de rubrique (lot 17c) — src/themes/surface.ts, BlockList --------
+   Un aplat posé sur le papier du site derrière UNE rubrique de premier niveau.
+   Les variables --card-* sont calculées (palette du thème ou couleur libre,
+   variante LISIBLE du texte, des filets, des liens et des boutons) et posées en
+   ligne sur l'enveloppe ; ici elles remplacent, DANS la carte seulement, les
+   couleurs du thème que les composants lisent. Aucune couleur littérale.
+   Vue brouillon sans carte : enveloppe sans boîte (display: contents). */
+.surface-card[data-surface="off"] {
+  display: contents;
+}
+.surface-card[data-surface="on"] {
+  --color-ink: var(--card-ink);
+  --color-ink-soft: var(--card-ink-soft);
+  --color-line: var(--card-line);
+  --color-primary: var(--card-link);
+  --color-primary-hover: var(--card-link-hover);
+  --color-eyebrow: var(--card-eyebrow);
+  --color-secondary: var(--card-accent);
+  --btn-bg: var(--card-btn-bg);
+  --btn-fg: var(--card-btn-fg);
+  --btn-bg-hover: var(--card-btn-hover);
+  --strip-nav-fg: var(--card-ink);
+  --strip-nav-line: var(--card-line);
+  --strip-nav-bg: color-mix(in srgb, var(--card-bg) 88%, transparent);
+  /* Rayon des coins arrondis : « grands blocs » du thème, jamais moins de 12 px (un thème aux angles
+     vifs garde un arrondi visible quand on le demande). */
+  --card-radius: max(var(--t-radius-lg), 12px);
+  position: relative;
+  box-sizing: border-box;
+  /* Marge latérale : aucune (bord à bord) ou la gouttière du thème (le papier se voit autour). */
+  margin-inline: 0;
+  margin-block: var(--t-space-s);
+  padding-block: var(--t-space-m);
+  background-color: var(--card-bg);
+  color: var(--card-ink);
+  border-radius: 0;
+}
+.surface-card[data-surface="on"][data-width="inset"] {
+  margin-inline: var(--gutter);
+}
+.surface-card[data-surface="on"][data-corners="round"] {
+  border-radius: var(--card-radius);
+  /* Les fonds des composants (bande, section profonde) suivent les coins. */
+  overflow: clip;
+}
+/* Dans une carte, l'espace du haut que se donne une section (entre sections de la page) est celui de la carte :
+   le padding de la carte reste symétrique (haut = bas). Un espace choisi sur la toile (data-pt) garde la main. */
+.surface-card[data-surface="on"] > [class*="pt-[var(--section-gap)]"],
+.surface-card[data-surface="on"] > .blk > [class*="pt-[var(--section-gap)]"] {
+  padding-top: 0;
+}
+/* … et le premier élément de la section n'ajoute pas sa propre marge haute (titre, paragraphe) : rien ne s'additionne au padding. */
+.surface-card[data-surface="on"] [class*="pt-[var(--section-gap)]"] > :first-child > :first-child {
+  margin-top: 0;
+}

@@ -27,6 +27,7 @@ import {
   siteDraftAction,
 } from "@/app/admin/(espace)/pages/actions";
 import { BlockEditorContext } from "@/blocks/editor-context";
+import { TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
 import { blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
 import { makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
@@ -42,12 +43,14 @@ import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
 import { cleanLook, cleanSiteStyles, googleOf, readLook, type Look, type Role, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
+import { cleanSurface, readSurface, type Surface } from "@/themes/surface";
 
 import { clone, ConfirmDialog, toast, useUnsavedGuard } from "../editing";
 import { filterMedia } from "../LibraryStrip";
 import Uploader from "../Uploader";
 import { isUploaded, useUploadQueue } from "../UploadQueue";
 import { isPdfFile, readRatio, sendFile, useMediaWatch } from "../uploads";
+import AddSectionDialog, { type AddChoice } from "./AddSectionDialog";
 import { BlockLookPanel, SiteStylesPanel } from "./LookPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
 import SiteEditor, { applySiteOp, siteText } from "./SiteEditor";
@@ -66,7 +69,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "op", "move", "layout", "slot-text", "project-text"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "op", "move", "layout", "slot-text", "project-text", "surface"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /** Ce qui part vers la toile (ni fichier, ni identifiants internes). */
@@ -231,6 +234,8 @@ export default function VisualEditor({
   const [deleting, setDeleting] = useState<string | null>(null);
   /** Planches (avec images modifiées) que la suppression demandée retirerait. */
   const [deletingLost, setDeletingLost] = useState<string[]>([]);
+  /** « Ajouter une rubrique » ouvert depuis la toile : l'endroit visé (lot 17c). */
+  const [adding, setAdding] = useState<Place | null>(null);
   const [discarding, setDiscarding] = useState(false);
   const [discardBusy, setDiscardBusy] = useState(false);
 
@@ -490,6 +495,9 @@ export default function VisualEditor({
       const prev = draftRef.current;
       // Rien de changé (la toile renvoie un état identique) : ni historique ni enregistrement.
       if (next === prev || JSON.stringify(next) === JSON.stringify(prev)) return;
+      // Ce qui a refusé la publication n'est plus vrai du brouillon modifié : le bandeau et les erreurs repartent au prochain « Publier ».
+      setPublishMessage(null);
+      setPublishErrors({});
       history.current = { past: merge ? history.current.past : [...history.current.past, { draft: prev }].slice(-HISTORY_MAX), future: [] };
       bumpHistory();
       coalesce.current = opts.key ? { key: opts.key, at: now } : null;
@@ -629,7 +637,7 @@ export default function VisualEditor({
   };
 
   /** Ajoute un composant de la palette (clé : type ou raccourci) à un endroit, ou après le bloc choisi. */
-  const insert = (key: string, at?: Place) => {
+  const insert = (key: string, at?: Place, opts?: { props?: Record<string, unknown>; edit?: string }) => {
     const def = catalog.find((c) => c.key === key && !c.hidden);
     if (!def) return;
     const list = draftRef.current.blocks;
@@ -638,7 +646,7 @@ export default function VisualEditor({
       toast("40 blocs au plus par page.", "error");
       return;
     }
-    const block = withFreshUids({ uid: "", type: def.type, props: clone(def.defaults) } as DraftBlock, newUid);
+    const block = withFreshUids({ uid: "", type: def.type, props: clone({ ...def.defaults, ...opts?.props }) } as DraftBlock, newUid);
     const next = insertBlock(list, block, place.parent, place.index);
     if (!next) {
       const parent = place.parent ? findBlock(list, place.parent) : null;
@@ -647,8 +655,47 @@ export default function VisualEditor({
     }
     setBlocks(next);
     selectBlock(block.uid, { scroll: true });
+    // Rubrique Texte neuve : la toile ouvre l'édition en place, son texte d'aide sélectionné.
+    if (opts?.edit) send({ kind: "edit-text", uid: block.uid, path: opts.edit });
     toast(`« ${def.label} » ajouté${place.parent ? ` dans « ${own(byType, findBlock(list, place.parent)?.type ?? "")?.label ?? "le conteneur"} »` : ""}`);
     if (mobile) setSheet(false);
+  };
+
+  /** Rubrique de texte (« Texte », « Titre + texte ») : bloc `rich-text` avec son texte d'aide, édité aussitôt. */
+  const insertStarter = (starter: TextStarter, at?: Place) => {
+    const s = TEXT_STARTERS[starter];
+    // Le texte d'aide n'est posé que dans la langue qu'on édite : l'autre reste vide, comme tout texte neuf.
+    const only = (v: { fr: string; en: string }) => ({ fr: locale === "fr" ? v.fr : "", en: locale === "en" ? v.en : "" });
+    const props: Record<string, unknown> = { paragraphs: s.props.paragraphs.map(only) };
+    // `title: undefined` écrase le titre vide du bloc neuf (insert() clone ensuite, ce qui retire la clé).
+    props.title = s.props.title ? only(s.props.title) : undefined;
+    insert("rich-text", at, { props, edit: s.edit });
+  };
+
+  /** Demande de la toile : choix illustré, ou texte tout de suite, à cet endroit. */
+  const requestInsert = (parent: string | null, index: number, what: "choose" | TextStarter) => {
+    if (what === "choose") setAdding({ parent, index });
+    else insertStarter(what, { parent, index });
+  };
+
+  /** Fond d'une rubrique de premier niveau, depuis la toile (lot 17c) ; false = refusé ou sans effet. */
+  const applySurface = (uid: string, next: Surface | null): boolean => {
+    const list = draftRef.current.blocks;
+    const at = locate(list, uid);
+    const block = findBlock(list, uid);
+    if (!at || at.parent !== null || !block) return false;
+    const clean = next ? cleanSurface(next) : null;
+    if (JSON.stringify(readSurface(block.props.surface) ?? null) === JSON.stringify(clean)) return false;
+    setBlocks(
+      updateBlock(list, uid, (b) => {
+        const props = { ...b.props };
+        if (clean) props.surface = clean;
+        else delete props.surface;
+        return { ...b, props };
+      }),
+      { key: `surface:${uid}` },
+    );
+    return true;
   };
 
   const op = (kind: "up" | "down" | "duplicate" | "delete" | "out" | "in", uid: string) => {
@@ -1266,9 +1313,9 @@ export default function VisualEditor({
     });
   };
 
-  const handlers = useRef({ op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle });
+  const handlers = useRef({ op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert });
   useEffect(() => {
-    handlers.current = { op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle };
+    handlers.current = { op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -1390,6 +1437,13 @@ export default function VisualEditor({
           break;
         case "site-style":
           h.applySiteStyle(msg.role, msg.style);
+          break;
+        case "surface":
+          // Refusé (composant d'un conteneur) ou sans effet : la toile retire son aperçu.
+          if (!h.applySurface(msg.uid, msg.surface) && msg.seq) send({ kind: "revert", seq: msg.seq });
+          break;
+        case "insert":
+          h.requestInsert(msg.parent, msg.index, msg.what);
           break;
         case "drag-index":
           dropIndexRef.current = msg.refused ? null : { parent: msg.parent ?? null, index: msg.index };
@@ -1685,6 +1739,14 @@ export default function VisualEditor({
         {tab === "ajouter" && (
           <>
             <p className="ve-hint">{mobile ? "Touche un composant pour l'ajouter sous le bloc choisi." : "Glisse-le sur la page, à l'endroit voulu. Ou clique pour l'ajouter sous le bloc sélectionné."}</p>
+            <div className="ve-starters" role="group" aria-label="Ajouter du texte">
+              {(Object.keys(TEXT_STARTERS) as TextStarter[]).map((k) => (
+                <button key={k} type="button" className="ve-starter" data-starter={k} onClick={() => insertStarter(k)}>
+                  <BlockThumb type="rich-text" preset={k} />
+                  <strong>{TEXT_STARTERS[k].label}</strong>
+                </button>
+              ))}
+            </div>
             <ul className="ve-palette">
               {catalog.filter((c) => !c.hidden).map((c) => (
                 <li key={c.key}>
@@ -2112,6 +2174,30 @@ export default function VisualEditor({
         {deletingLost.length > 0 && <p>Les changements d&apos;images {deletingLost.length > 1 ? "de ses planches" : "de sa planche"} ne seront pas publiés (les images en ligne ne bougent pas).</p>}
         <p className="muted">Il disparaît du brouillon ; « Annuler » (Ctrl+Z) le récupère. Le site ne change qu&apos;à la publication.</p>
       </ConfirmDialog>
+
+      <AddSectionDialog
+        open={adding !== null}
+        catalog={catalog}
+        where={
+          adding === null
+            ? ""
+            : adding.parent
+              ? `Dans « ${own(byType, findBlock(blocks, adding.parent)?.type ?? "")?.label ?? "le conteneur"} »`
+              : adding.index >= blocks.length
+                ? "À la fin de la page"
+                : adding.index === 0
+                  ? "En tête de page"
+                  : "Entre deux rubriques"
+        }
+        onClose={() => setAdding(null)}
+        onPick={(choice: AddChoice) => {
+          const at = adding;
+          setAdding(null);
+          if (!at) return;
+          if (choice.kind === "starter") insertStarter(choice.starter, at);
+          else insert(choice.key, at);
+        }}
+      />
 
       <MediaPickerDialog
         open={mediaPick !== null}
