@@ -367,6 +367,8 @@ if (run("G")) {
   await page.goto(`${BASE}/admin/reglages`, { waitUntil: "networkidle" });
   const before = await page.locator(".a-socials-row").count();
   const kindsBefore = JSON.parse(q("select value from settings where key = 'socials'")[0].value).map((s) => s.kind ?? null);
+  // Au centre de la fenêtre : en bas d'écran, la barre d'enregistrement collante recouvre le bouton (le clic souris tomberait dessus).
+  await page.getByRole("button", { name: "+ Réseau" }).evaluate((el) => el.scrollIntoView({ block: "center" }));
   await realClick(page.getByRole("button", { name: "+ Réseau" }));
   ok("G1 « + Réseau » : menu des réseaux classiques + Autre lien", (await page.getByRole("menuitem", { name: "Behance" }).count()) === 1 && (await page.getByRole("menuitem", { name: "Autre lien" }).count()) === 1);
   await page.screenshot({ path: `${SHOTS}/G-reglages-plus-reseau.png` });
