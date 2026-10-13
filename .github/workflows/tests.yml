@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       suites:
-        description: "Suites à lancer, séparées par des virgules (vide = toutes) : checks, auth, pdf, v013, lot1, lot8, lot11, palette, look, state, themes, kit, editor, boards, admin, medias, medias-firefox"
+        description: "Suites à lancer, séparées par des virgules (vide = toutes) : checks, auth, pdf, v013, lot1, lot8, lot11, palette, look, state, themes, kit, editor, boards, admin, medias, medias-firefox, 17b, crop17d"
         required: false
         default: ""
 
@@ -61,6 +61,8 @@ jobs:
             { id: "admin", cmd: "node scripts/e2e-admin.mjs", browser: "chromium" },
             { id: "medias", cmd: "node scripts/e2e-medias.mjs", browser: "chromium" },
             { id: "medias-firefox", cmd: "node scripts/e2e-medias.mjs", browser: "firefox", only: "AB" },
+            { id: "17b", cmd: "node scripts/e2e-17b.mjs", browser: "chromium" },
+            { id: "crop17d", cmd: "node scripts/e2e-crop.mjs", browser: "chromium" },
           ];
           const want = (process.env.SUITES ?? "").split(/[\s,]+/).filter(Boolean);
           const on = (id) => !want.length || want.includes(id);

@@ -1,0 +1,177 @@
+#!/usr/bin/env node
+/**
+ * Lot 17d — recadrage libre (inclus dans npm test) :
+ *  1. schéma : rectangle borné, dans l'image, refusé sinon (y compris dans `look`) ;
+ *  2. clés : rectangle en dix-millièmes, URL `crop/…` analysée strictement, largeurs d'une liste fermée ;
+ *  3. signature : seule une URL écrite par le serveur est acceptée ;
+ *  4. choix du rectangle d'un emplacement (libre, ancien cadrage converti, décor dans une case étroite) ;
+ *  5. cache disque (sharp réel) : pixels extraits de l'ORIGINAL, orientation EXIF, une génération par
+ *     variante, largeur hors liste refusée, file d'attente bornée, au plus MAX_RECTS par média, purge.
+ * Usage : node --import tsx scripts/test-crop.mjs
+ */
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
+import sharp from "sharp";
+
+const DIR = mkdtempSync(path.join(process.env.TEST_TMP ?? tmpdir(), "pf-crop-"));
+process.env.DATA_DIR = DIR;
+process.env.BETTER_AUTH_SECRET = "test-secret-0123456789abcdef-0123456789abcdef";
+
+let failures = 0;
+const ok = (label, pass, detail = "") => {
+  if (!pass) failures++;
+  console.log(`${pass ? "PASS" : "FAIL"}  ${label}${!pass && detail ? ` — ${detail}` : ""}`);
+};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+try {
+  const crop = await import("../src/lib/images/crop.ts");
+  const { LookSchema, lookAttributes, cropStyle } = await import("../src/lib/look.ts");
+  const { resolveCrop } = await import("../src/lib/images/crop-view.ts");
+
+  /* ---- 1. schéma ------------------------------------------------------------------ */
+  const good = { x: 0.1, y: 0.2, w: 0.5, h: 0.4 };
+  ok("rectangle valide accepté", crop.RectSchema.safeParse(good).success);
+  ok("rectangle plein accepté", crop.RectSchema.safeParse({ x: 0, y: 0, w: 1, h: 1 }).success);
+  for (const [label, bad] of [
+    ["x négatif", { ...good, x: -0.1 }],
+    ["largeur nulle", { ...good, w: 0 }],
+    ["largeur sous 1 %", { ...good, w: 0.005 }],
+    ["déborde à droite", { ...good, x: 0.6 }],
+    ["déborde en bas", { ...good, y: 0.7 }],
+    ["clé en trop", { ...good, extra: 1 }],
+    ["NaN", { ...good, w: Number.NaN }],
+    ["texte", { ...good, h: "0.5" }],
+  ]) ok(`rectangle refusé : ${label}`, !crop.RectSchema.safeParse(bad).success);
+  const withRect = { crop: { mediaId: { x: 50, y: 50, zoom: 1, rect: good } } };
+  ok("look.crop accepte un rectangle", LookSchema.safeParse(withRect).success);
+  ok("look.tileCrop accepte un rectangle", LookSchema.safeParse({ tileCrop: { characters: { x: 50, y: 50, zoom: 1, rect: good } } }).success);
+  ok("look.crop refuse un rectangle hors de l'image", !LookSchema.safeParse({ crop: { mediaId: { x: 50, y: 50, zoom: 1, rect: { ...good, w: 0.95 } } } }).success);
+  ok("l'ancien cadrage (sans rectangle) reste valide", LookSchema.safeParse({ crop: { mediaId: { x: 30, y: 60, zoom: 1.5 } } }).success);
+  const rectLook = LookSchema.parse(withRect);
+  ok("un recadrage libre ne pose ni data-crop ni variables CSS de zoom", lookAttributes(rectLook) === null && cropStyle(rectLook) === undefined);
+  ok("un ancien cadrage pose toujours data-crop", "data-crop" in (lookAttributes(LookSchema.parse({ crop: { mediaId: { x: 30, y: 60, zoom: 1.5 } } })) ?? {}));
+
+  /* ---- 2. clés --------------------------------------------------------------------- */
+  const u = crop.toUnits({ x: 0.123456, y: 0.2, w: 0.5, h: 0.4 });
+  ok("arrondi au dix-millième", u.x === 1235 && u.y === 2000 && u.w === 5000 && u.h === 4000, JSON.stringify(u));
+  ok("clé du rectangle et retour", crop.rectKey(u) === "x1235y2000w5000h4000" && JSON.stringify(crop.parseRectKey("x1235y2000w5000h4000")) === JSON.stringify(u));
+  ok("toUnits garde le rectangle dans l'image", (() => { const v = crop.toUnits({ x: 0.9, y: 0, w: 0.5, h: 1 }); return v.x + v.w <= 10000; })());
+  for (const bad of ["x0y0w50h50", "x0y0w10001h5000", "x6000y0w5000h5000", "x0y0w5000h5000x", "x123456y0w5000h5000", "x0y0w0h5000", "../x0y0w5000h5000", ""])
+    ok(`clé de rectangle refusée : « ${bad} »`, crop.parseRectKey(bad) === null);
+  const sig = "0123456789abcdef0123";
+  ok("URL de recadrage valide analysée", crop.parseCropKey(`crop/12/x0y0w10000h5000-${sig}/960.avif`)?.width === 960);
+  for (const bad of [
+    `crop/0/x0y0w10000h5000-${sig}/960.avif`,
+    `crop/012/x0y0w10000h5000-${sig}/960.avif`,
+    `crop/12/x0y0w10000h5000-${sig.slice(1)}/960.avif`,
+    `crop/12/x0y0w10000h5000-${sig.toUpperCase()}/960.avif`,
+    `crop/12/x0y0w10000h5000-${sig}/96000.avif`,
+    `crop/12/x0y0w10000h5000-${sig}/960.gif`,
+    `crop/12/x0y0w10000h5000-${sig}/960.avif/extra`,
+    `crop/12/../x0y0w10000h5000-${sig}/960.avif`,
+    `crop/1234567890/x0y0w10000h5000-${sig}/960.avif`,
+    `crop/12/x0y0w50h5000-${sig}/960.avif`,
+  ])
+    ok(`URL de recadrage refusée : ${bad.slice(0, 48)}…`, crop.parseCropKey(bad) === null);
+  const w1 = crop.cropWidths(1200, 800);
+  ok("largeurs : sous la taille réelle, puis la taille réelle", w1.join() === "480,960,1200", w1.join());
+  const w2 = crop.cropWidths(20000, 4000);
+  ok("largeurs : liste fermée au plus 4800 px", w2.join() === "480,960,1600,2400,3600,4800", w2.join());
+  const w3 = crop.cropWidths(6000, 6000);
+  ok("largeurs : sortie plafonnée en pixels (carré 6000 → pas de 4800)", Math.max(...w3) * Math.max(...w3) <= crop.CROP_MAX_PIXELS && !w3.includes(4800), w3.join());
+  ok("largeurs : petit recadrage (300 px) = sa taille", crop.cropWidths(300, 200).join() === "300", crop.cropWidths(300, 200).join());
+  const src = crop.cropSources({ id: 7, width: 20000, height: 4000 }, { x: 0.5, y: 0, w: 0.25, h: 1 }, () => sig, (k) => `/media/${k}`, "#123456");
+  ok("sources recadrées : 5000 × 4000 px, srcset AVIF (5 largeurs sous le plafond de pixels) et WebP", src.width === 5000 && src.height === 4000 && src.sources.avif.split(",").length === 5 && src.sources.webp.split(",").length === 5 && /\/media\/crop\/7\/x5000y0w2500h10000-0123456789abcdef0123\/480\.avif 480w/.test(src.sources.avif), JSON.stringify(src.sources.avif));
+  ok("sources recadrées : la plus grande variante = la dernière largeur, au rapport exact", src.sources.largest.w === 3600 && src.sources.largest.h === 2880, JSON.stringify(src.sources.largest));
+
+  /* ---- 3. signature -------------------------------------------------------------- */
+  const cache = await import("../src/lib/images/crop-cache.ts");
+  const key = crop.rectKey(u);
+  const s = cache.signCrop(7, key);
+  ok("signature de 20 hexadécimaux, vérifiée", /^[0-9a-f]{20}$/.test(s) && cache.verifyCrop(7, key, s));
+  ok("signature : un autre média, un autre rectangle ou une signature modifiée sont refusés", !cache.verifyCrop(8, key, s) && !cache.verifyCrop(7, "x0y0w10000h10000", s) && !cache.verifyCrop(7, key, `${s.slice(0, 19)}${s[19] === "0" ? "1" : "0"}`) && !cache.verifyCrop(7, key, s.slice(1)));
+
+  /* ---- 4. choix du rectangle ------------------------------------------------------ */
+  ok("recadrage libre : son rectangle, le cadre le suit", (() => { const r = resolveCrop({ x: 50, y: 50, zoom: 1, rect: good }, 5, 0.8, true); return r?.free === true && r.rect.w === 0.5; })());
+  ok("recadrage libre couvrant tout : rien à faire", resolveCrop({ x: 50, y: 50, zoom: 1, rect: { x: 0, y: 0, w: 1, h: 1 } }, 5, 0.8, true) === null);
+  const pano = resolveCrop({ x: 50, y: 50, zoom: 1.5 }, 5, 0.8, true);
+  ok("ancien cadrage (zoom 150 %) d'un panorama 5:1 dans une case 4:5 : fenêtre = 1/6,25/1,5 de la largeur, hauteur 1/1,5", pano?.free === false && Math.abs(pano.rect.w - 0.16 / 1.5) < 1e-9 && Math.abs(pano.rect.h - 1 / 1.5) < 1e-9, JSON.stringify(pano));
+  ok("décor 5:1 sans cadrage dans une case 4:5 : fenêtre centrée", (() => { const r = resolveCrop(undefined, 5, 0.8, true); return Boolean(r) && Math.abs(r.rect.x + r.rect.w / 2 - 0.5) < 1e-9 && r.rect.h === 1; })());
+  ok("image au format du cadre ou peu rognée : servie entière", resolveCrop(undefined, 1.5, 1.6, true) === null && resolveCrop(undefined, 1.4, 1, true) === null && resolveCrop(undefined, 5, null, true) === null);
+  ok("« image entière » (contain) : aucune fenêtre", resolveCrop(undefined, 5, 0.8, false) === null);
+
+  /* ---- 5. cache disque -------------------------------------------------------------- */
+  const media = path.join(DIR, "media", "originals");
+  mkdirSync(media, { recursive: true });
+  // 3000 × 1000 : moitié gauche rouge, moitié droite bleue.
+  const half = async (w, h, left, right) =>
+    sharp({ create: { width: w, height: h, channels: 3, background: right } })
+      .composite([{ input: await sharp({ create: { width: w / 2, height: h, channels: 3, background: left } }).png().toBuffer(), left: 0, top: 0 }])
+      .png()
+      .toBuffer();
+  writeFileSync(path.join(media, "a.png"), await half(3000, 1000, { r: 255, g: 0, b: 0 }, { r: 0, g: 0, b: 255 }));
+  const m = { id: 1, key: "originals/a.png", width: 3000, height: 1000 };
+  const R = crop.toUnits({ x: 0.5, y: 0, w: 0.5, h: 1 });
+  const first = await cache.ensureCrop(m, R, 960, "webp");
+  const meta = await sharp(first.file).metadata();
+  const px = await sharp(first.file).resize(1, 1, { kernel: "nearest" }).raw().toBuffer();
+  ok("variante recadrée : 960 × 640 px (rapport exact du rectangle 1500 × 1000)", meta.width === 960 && meta.height === 640 && meta.format === "webp", `${meta.width}x${meta.height}`);
+  ok("variante recadrée : pixels de la moitié DROITE de l'original (bleu)", px[2] > 200 && px[0] < 40, [...px].join());
+  const t0 = statSync(first.file).mtimeMs;
+  await sleep(20);
+  const again = await cache.ensureCrop(m, R, 960, "webp");
+  ok("deuxième demande : servie du disque, sans régénération", again.file === first.file && statSync(again.file).mtimeMs === t0);
+  const avif = await cache.ensureCrop(m, R, 480, "avif");
+  ok("AVIF généré aussi", (await sharp(avif.file).metadata()).format === "heif");
+  let rejected = null;
+  try {
+    await cache.ensureCrop(m, R, 1234, "webp");
+  } catch (error) {
+    rejected = error;
+  }
+  ok("largeur hors de la liste : refusée (CropRejected), rien écrit", rejected instanceof cache.CropRejected && !readdirSync(path.join(DIR, "cache", "crops", "1", crop.rectKey(R))).includes("1234.webp"));
+  const same = await Promise.all([cache.ensureCrop(m, R, 480, "webp"), cache.ensureCrop(m, R, 480, "webp")]);
+  ok("deux demandes simultanées de la même variante : un seul fichier", same[0].file === same[1].file);
+
+  // Orientation EXIF 6 (rotation 90° horaire à l'affichage) : l'image vue fait 200 × 400, la moitié rouge (gauche du fichier) est en HAUT.
+  writeFileSync(path.join(media, "o.jpg"), await sharp(await half(400, 200, { r: 255, g: 0, b: 0 }, { r: 0, g: 0, b: 255 })).withMetadata({ orientation: 6 }).jpeg({ quality: 95 }).toBuffer());
+  const mo = { id: 2, key: "originals/o.jpg", width: 200, height: 400 };
+  const top = await cache.ensureCrop(mo, crop.toUnits({ x: 0, y: 0, w: 1, h: 0.5 }), 200, "webp");
+  const topMeta = await sharp(top.file).metadata();
+  const topPx = await sharp(top.file).resize(1, 1, { kernel: "nearest" }).raw().toBuffer();
+  ok("EXIF 6 : le rectangle est celui de l'image vue (moitié haute = 200 × 200, rouge)", topMeta.width === 200 && topMeta.height === 200 && topPx[0] > 200 && topPx[2] < 60, `${topMeta.width}x${topMeta.height} ${[...topPx].join()}`);
+
+  // File d'attente bornée : plus de demandes que la file n'en tient → les dernières reçoivent CropBusy, les autres aboutissent.
+  const many = Array.from({ length: cache.MAX_WAITING + 8 }, (_, i) => crop.toUnits({ x: 0, y: 0, w: 0.2 + i * 0.02, h: 1 }));
+  const results = await Promise.allSettled(many.map((r) => cache.ensureCrop({ ...m, id: 3 }, r, 480, "webp")));
+  const busy = results.filter((r) => r.status === "rejected" && r.reason instanceof cache.CropBusy).length;
+  const done = results.filter((r) => r.status === "fulfilled").length;
+  const other = results.filter((r) => r.status === "rejected" && !(r.reason instanceof cache.CropBusy));
+  ok(`file pleine : ${busy} demande(s) refusée(s) (CropBusy), ${done} traitée(s), aucune autre erreur`, busy >= 1 && done >= cache.MAX_WAITING && other.length === 0, other.map((o) => String(o.reason)).join("; "));
+  await sleep(50);
+  ok("file vidée ensuite", cache.cropQueueLength() === 0);
+
+  // Au plus MAX_RECTS recadrages par média : le plus ancien part.
+  for (let i = 0; i < cache.MAX_RECTS + 4; i++) {
+    await cache.ensureCrop({ ...m, id: 4 }, crop.toUnits({ x: 0, y: 0, w: 0.3 + i * 0.01, h: 0.9 }), 480, "webp");
+    await sleep(6);
+  }
+  const dirs = readdirSync(path.join(DIR, "cache", "crops", "4"));
+  ok(`au plus ${cache.MAX_RECTS} recadrages gardés par média (${dirs.length}), le plus ancien effacé, le dernier présent`, dirs.length <= cache.MAX_RECTS && !dirs.includes(crop.rectKey(crop.toUnits({ x: 0, y: 0, w: 0.3, h: 0.9 }))) && dirs.includes(crop.rectKey(crop.toUnits({ x: 0, y: 0, w: 0.3 + (cache.MAX_RECTS + 3) * 0.01, h: 0.9 }))));
+
+  await cache.purgeCrops(1);
+  let gone = false;
+  try {
+    statSync(path.join(DIR, "cache", "crops", "1"));
+  } catch {
+    gone = true;
+  }
+  ok("purge : le dossier du média disparaît (les autres médias restent)", gone && readdirSync(path.join(DIR, "cache", "crops", "4")).length > 0);
+} finally {
+  rmSync(DIR, { recursive: true, force: true });
+}
+console.log(failures ? `\n${failures} échec(s)` : "\nTout passe");
+process.exit(failures ? 1 : 0);

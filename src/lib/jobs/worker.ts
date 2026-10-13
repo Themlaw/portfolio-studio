@@ -33,18 +33,23 @@ const BACKOFF_MS = [10_000, 60_000, 300_000];
 const MAX_JOB_MS = Number(process.env.JOB_MAX_DURATION_S || 120) * 1000;
 const later = (attempts: number) => new Date(Date.now() + BACKOFF_MS[Math.min(Math.max(attempts, 1), BACKOFF_MS.length) - 1]);
 const KIT_INTERRUPTED = "Traitement du kit interrompu (serveur redémarré) : renvoie le fichier ou relance le téléchargement.";
+/** Essais d'une image dont le traitement a déjà interrompu le serveur (mémoire ?) : un seul nouvel essai, jamais en boucle. */
+const IMAGE_CRASH_ATTEMPTS = 2;
+const IMAGE_INTERRUPTED = "Le serveur s'est arrêté pendant le traitement de cette image (probablement faute de mémoire). Réduis-la (moins de pixels) puis renvoie-la, ou touche « Réessayer ».";
+const STALLED = "Le traitement ne répond plus. Touche « Réessayer », ou renvoie l'image.";
 const GAVE_UP = "Le traitement a échoué plusieurs fois. Supprime le fichier et renvoie-le, ou essaie un autre format.";
 /** Purge des envois abandonnés : au démarrage puis toutes les 15 minutes. */
 const PURGE_EVERY_MS = 15 * 60_000;
 type Lane = "light" | "heavy";
 const LANES: Record<Lane, ("image" | "video" | "kit" | "kit-import" | "pdf")[]> = { light: ["image"], heavy: ["video", "kit", "kit-import", "pdf"] };
-type State = { busy: Record<Lane, boolean>; started: boolean; timer?: NodeJS.Timeout };
+type State = { busy: Record<Lane, boolean>; started: boolean; timer?: NodeJS.Timeout; /** Jobs en cours dans ce processus (le chien de garde ne les touche pas). */ current: Set<number> };
 const G = globalThis as typeof globalThis & { __portfolioJobs2?: State };
 
 function state(): State {
-  G.__portfolioJobs2 ??= { busy: { light: false, heavy: false }, started: false };
+  G.__portfolioJobs2 ??= { busy: { light: false, heavy: false }, started: false, current: new Set() };
   // État d'une version précédente du module (files image / vidéo) : remis à neuf.
   if (!("light" in G.__portfolioJobs2.busy)) G.__portfolioJobs2.busy = { light: false, heavy: false };
+  G.__portfolioJobs2.current ??= new Set();
   return G.__portfolioJobs2;
 }
 
@@ -69,6 +74,25 @@ function claim(lane: Lane) {
       .run();
     return { ...job, attempts: job.attempts + 1 };
   });
+}
+
+/**
+ * Marque un job (et son média) en échec ou à retenter. Ne lève jamais : un
+ * incident de base ici laisserait sinon le job « running » pour toujours (le
+ * chien de garde le reprend alors).
+ */
+function settleFailure(job: { id: number; mediaId: number | null }, message: string, retryAt: Date | null) {
+  try {
+    getDb().transaction((tx) => {
+      tx.update(schema.jobs)
+        .set({ status: retryAt ? "queued" : "failed", error: message, runAfter: retryAt, updatedAt: new Date() })
+        .where(eq(schema.jobs.id, job.id))
+        .run();
+      if (!retryAt && job.mediaId) tx.update(schema.media).set({ status: "failed", error: message }).where(eq(schema.media.id, job.mediaId)).run();
+    });
+  } catch (error) {
+    console.error(`[jobs] job ${job.id} : état d'échec non enregistré`, error);
+  }
 }
 
 async function runImageJob(job: { id: number; mediaId: number; attempts: number }) {
@@ -101,13 +125,7 @@ async function runImageJob(job: { id: number; mediaId: number; attempts: number 
     // Une image illisible le restera : pas de nouvel essai. Seul un incident
     // passager du disque est retenté, jusqu'à MAX_ATTEMPTS.
     const retry = job.attempts < MAX_ATTEMPTS && /ENOSPC|EIO|EMFILE|EBUSY/.test(String(error));
-    db.transaction((tx) => {
-      tx.update(schema.jobs)
-        .set({ status: retry ? "queued" : "failed", error: message, runAfter: retry ? later(job.attempts) : null, updatedAt: new Date() })
-        .where(eq(schema.jobs.id, job.id))
-        .run();
-      if (!retry) tx.update(schema.media).set({ status: "failed", error: message }).where(eq(schema.media.id, media.id)).run();
-    });
+    settleFailure({ id: job.id, mediaId: media.id }, message, retry ? later(job.attempts) : null);
   }
   await notifyMediaChanged(media.id);
 }
@@ -225,29 +243,68 @@ async function tick(lane: Lane) {
   if (s.busy[lane]) return;
   s.busy[lane] = true;
   try {
+    reapStalled(lane);
     for (let job = claim(lane); job; job = claim(lane)) {
-      if (job.attempts > MAX_ATTEMPTS) {
-        getDb().transaction((tx) => {
-          tx.update(schema.jobs).set({ status: "failed", error: GAVE_UP, updatedAt: new Date() }).where(eq(schema.jobs.id, job.id)).run();
-          if (job.mediaId) tx.update(schema.media).set({ status: "failed", error: GAVE_UP }).where(eq(schema.media.id, job.mediaId)).run();
-        });
-      } else if (job.kind === "image" && job.mediaId) await runImageJob({ ...job, mediaId: job.mediaId });
-      else if (job.kind === "video" && job.mediaId) await runVideoJob({ ...job, mediaId: job.mediaId });
-      else if (job.kind === "pdf" && job.mediaId) await runPdfJob({ ...job, mediaId: job.mediaId });
-      else if (job.kind === "kit") await runKitJob(job);
-      else if (job.kind === "kit-import") await runKitImportJob(job);
-      else {
-        getDb()
-          .update(schema.jobs)
-          .set({ status: "failed", error: "type de job non pris en charge", updatedAt: new Date() })
-          .where(eq(schema.jobs.id, job.id))
-          .run();
+      s.current.add(job.id);
+      try {
+        await runJob(job);
+      } finally {
+        s.current.delete(job.id);
       }
     }
   } catch (error) {
     console.error("[jobs] erreur du worker", error);
   } finally {
     s.busy[lane] = false;
+  }
+}
+
+async function runJob(job: NonNullable<ReturnType<typeof claim>>) {
+  try {
+    if (job.attempts > MAX_ATTEMPTS) {
+      getDb().transaction((tx) => {
+        tx.update(schema.jobs).set({ status: "failed", error: GAVE_UP, updatedAt: new Date() }).where(eq(schema.jobs.id, job.id)).run();
+        if (job.mediaId) tx.update(schema.media).set({ status: "failed", error: GAVE_UP }).where(eq(schema.media.id, job.mediaId)).run();
+      });
+    } else if (job.kind === "image" && job.mediaId) await runImageJob({ ...job, mediaId: job.mediaId });
+    else if (job.kind === "video" && job.mediaId) await runVideoJob({ ...job, mediaId: job.mediaId });
+    else if (job.kind === "pdf" && job.mediaId) await runPdfJob({ ...job, mediaId: job.mediaId });
+    else if (job.kind === "kit") await runKitJob(job);
+    else if (job.kind === "kit-import") await runKitImportJob(job);
+    else {
+      getDb()
+        .update(schema.jobs)
+        .set({ status: "failed", error: "type de job non pris en charge", updatedAt: new Date() })
+        .where(eq(schema.jobs.id, job.id))
+        .run();
+    }
+  } catch (error) {
+    // Exception hors des garde-fous de chaque type de job : jamais « running » pour toujours.
+    console.error(`[jobs] job ${job.id} (${job.kind}) : erreur imprévue`, error);
+    settleFailure(job, job.kind === "image" ? STALLED : "Le traitement a échoué de façon imprévue : relance-le.", null);
+  }
+}
+
+/**
+ * Chien de garde : un job « running » que ce processus ne traite pas (échec
+ * d'écriture en base, ancienne copie du module…) depuis plus de deux fois la
+ * durée maximale est mis en échec, média compris : l'artiste voit « Échec » et
+ * « Réessayer » au lieu d'un « traitement » éternel.
+ */
+export function reapStalled(lane: Lane = "light") {
+  const s = state();
+  const db = getDb();
+  const limit = new Date(Date.now() - 2 * MAX_JOB_MS - 60_000);
+  if (lane !== "light") return; // les conversions longues (file lourde) ont leurs propres délais
+  const stale = db
+    .select({ id: schema.jobs.id, mediaId: schema.jobs.mediaId })
+    .from(schema.jobs)
+    .where(and(inArray(schema.jobs.kind, LANES[lane]), eq(schema.jobs.status, "running"), lt(schema.jobs.updatedAt, limit)))
+    .all()
+    .filter((j) => !s.current.has(j.id));
+  for (const j of stale) {
+    console.warn(`[jobs] job ${j.id} resté « running » sans traitement : mis en échec`);
+    settleFailure(j, STALLED, null);
   }
 }
 
@@ -336,6 +393,21 @@ export async function startWorker() {
   // Jobs interrompus (processus arrêté pendant un traitement) : remis en file
   // tant qu'il reste des essais ; sinon échec définitif, média compris (il
   // reste supprimable).
+  // Une image dont le traitement a déjà coupé le serveur une fois (mémoire) : pas de boucle de
+  // plantages, échec lisible avec « Réessayer » (un nouvel essai se fait à la demande).
+  const crashed = db.transaction((tx) => {
+    const dead = tx
+      .update(schema.jobs)
+      .set({ status: "failed", error: IMAGE_INTERRUPTED, updatedAt: new Date() })
+      .where(and(eq(schema.jobs.status, "running"), eq(schema.jobs.kind, "image"), gte(schema.jobs.attempts, IMAGE_CRASH_ATTEMPTS)))
+      .returning({ mediaId: schema.jobs.mediaId })
+      .all();
+    for (const j of dead) {
+      if (j.mediaId) tx.update(schema.media).set({ status: "failed", error: IMAGE_INTERRUPTED }).where(eq(schema.media.id, j.mediaId)).run();
+    }
+    return dead.length;
+  });
+  if (crashed) console.warn(`[jobs] ${crashed} image(s) en échec : le serveur s'était arrêté pendant leur traitement`);
   const exhausted = db.transaction((tx) => {
     const dead = tx
       .update(schema.jobs)

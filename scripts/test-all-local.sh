@@ -7,7 +7,7 @@
 #
 # Usage (depuis le dépôt) :
 #   scripts/test-all-local.sh [suite…]      # vide = toutes
-#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit editor boards admin medias medias-firefox
+#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit editor boards admin medias medias-firefox 17b crop17d crop17d-http
 # En fond détaché :
 #   ssh -f vm-dev 'cd ~/wt/lot1 && setsid nohup scripts/test-all-local.sh >/root/battery.out 2>&1 </dev/null'
 # Variables : PORT (3121), LOCK (/root/heavy.lock), LOCK_WAIT (secondes, 3600), BATTERY_DIR,
@@ -27,7 +27,8 @@ export PUBLIC_BASE_URL="http://localhost:$PORT"
 export PORT
 mkdir -p "$BATTERY_DIR"
 
-# id|commande|navigateur|ONLY (même liste que le job « plan » du workflow)
+# id|commande|navigateur|ONLY|variables d'environnement du serveur et de la suite (même liste que le job « plan » du workflow)
+# 17b : allocateur glibc réglé comme le conteneur (Dockerfile) : la mémoire anonyme mesurée est celle de la prod.
 E2E=(
   "v013|node scripts/e2e-v013.mjs|chromium|"
   "lot1|node scripts/e2e-lot1.mjs|chromium|"
@@ -43,6 +44,9 @@ E2E=(
   "admin|node scripts/e2e-admin.mjs|chromium|"
   "medias|node scripts/e2e-medias.mjs|chromium|"
   "medias-firefox|node scripts/e2e-medias.mjs|firefox|AB"
+  "17b|node scripts/e2e-17b.mjs|chromium||MALLOC_ARENA_MAX=2 MALLOC_MMAP_THRESHOLD_=131072 MALLOC_TRIM_THRESHOLD_=131072"
+  "crop17d|node scripts/e2e-crop.mjs|chromium|"
+  "crop17d-http|node scripts/e2e-crop-http.mjs|chromium|"
 )
 
 WANT=("$@")
@@ -135,12 +139,12 @@ run_suite pdf "node --import tsx scripts/test-pdf.mjs"
 
 # --- e2e : serveur dev neuf et base neuve par suite (RUNNER_TEMP dédié) ---
 for entry in "${E2E[@]}"; do
-  IFS='|' read -r id cmd browser only <<<"$entry"
+  IFS='|' read -r id cmd browser only extra <<<"$entry"
   want "$id" || continue
   rt="${BATT_PREFIX:-/root/pf-batt}-$id"
   rm -rf "$rt"
   mkdir -p "$rt"
-  run_suite "$id" "RUNNER_TEMP=$rt BROWSER=$browser ONLY=$only PORT=$PORT bash .github/scripts/e2e.sh $id $cmd"
+  run_suite "$id" "${extra:+$extra }RUNNER_TEMP=$rt BROWSER=$browser ONLY=$only PORT=$PORT bash .github/scripts/e2e.sh $id $cmd"
   [ -f "$rt/logs/$id-server.log" ] && cp "$rt/logs/$id-server.log" "$BATTERY_DIR/$id-server.log"
   rm -rf "$rt/data-$id"
 done

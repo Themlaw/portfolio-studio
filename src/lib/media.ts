@@ -84,6 +84,19 @@ export async function getMedia(id: number | undefined | null): Promise<MediaInfo
 }
 
 /**
+ * Média dont on peut extraire un recadrage (route /media/crop) : image raster prête, avec son original
+ * (clé de stockage) et ses dimensions orientées. Null pour le reste (vidéo, PDF, SVG du seed, absent).
+ */
+export function findCropSource(id: number): { id: number; key: string; width: number; height: number } | null {
+  const row = getDb().select().from(schema.media).where(eq(schema.media.id, id)).get();
+  if (!row || row.status !== "ready" || row.kind !== "image" || !row.width || !row.height || !row.sha256 || !parseVariants(row.variants)) return null;
+  if (!isOriginalKey(row.key) || row.mime === "image/svg+xml") return null;
+  return { id: row.id, key: row.key, width: row.width, height: row.height };
+}
+
+const isOriginalKey = (key: string) => key.startsWith(ORIGINALS_PREFIX);
+
+/**
  * Lecture directe (route /media) : type et statut d'une clé publique.
  * - originals/… : jamais servi (original conservé pour régénérer) ;
  * - img/<hash>/<largeur>.<format> (et vid/…, doc/…) : variante d'un média

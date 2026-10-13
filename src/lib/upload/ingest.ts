@@ -17,6 +17,7 @@ import { eq } from "drizzle-orm";
 import sharp from "sharp";
 
 import { getDb, schema } from "@/lib/db";
+import { decodeProblem } from "@/lib/images/budget";
 import { MAX_PIXELS, MAX_PIXELS_16BIT, MAX_SIDE } from "@/lib/images/process";
 import { ORIGINALS_PREFIX } from "@/lib/images/variants";
 import { wakeWorker } from "@/lib/jobs/worker";
@@ -78,6 +79,8 @@ export async function ingestImage(file: Received): Promise<IngestedMedia> {
         `Cette image en 16 bits par couleur est trop grande (${mp(pixels)} mégapixels) : ${mp(MAX_PIXELS_16BIT)} mégapixels au plus en 16 bits. Exporte-la en 8 bits, ou réduis-la.`,
       );
     }
+    const heavy = decodeProblem({ ...meta, width: meta.width, height: meta.height });
+    if (heavy) throw new UploadError(422, heavy);
     // Orientation EXIF 5 à 8 : l'image affichée est tournée d'un quart de tour.
     const rotated = (meta.orientation ?? 1) >= 5;
     const width = rotated ? meta.height : meta.width;

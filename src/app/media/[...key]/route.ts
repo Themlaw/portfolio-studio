@@ -7,14 +7,20 @@
  * - nosniff et CSP `default-src 'none'; style-src 'unsafe-inline'; sandbox`
  *   sur TOUS les médias : un fichier ouvert directement ne peut ni exécuter de
  *   script ni charger quoi que ce soit (SVG piégé, HTML déguisé…).
+ * - `crop/<média>/<rect>-<signature>/<largeur>.<format>` : variante RECADRÉE, extraite de
+ *   l'original à la demande (src/lib/images/crop-cache.ts) ; signature, largeur et file
+ *   d'attente bornées (503 si pleine). Lecture seule, jamais d'écriture venue du client.
  * - PDF (bloc CV, doc/<hash>/document.pdf) : TOUJOURS en pièce jointe
  *   (Content-Disposition: attachment), jamais affiché dans le navigateur sur
  *   l'origine du site ; nom de fichier propre tiré de `?name=` réduit à
  *   [a-z0-9-] (« cv » sinon), jamais le nom du fichier envoyé.
  */
+import { createReadStream } from "node:fs";
 import { Readable } from "node:stream";
 
-import { findMediaByKey } from "@/lib/media";
+import { CROP_PREFIX, parseCropKey, rectKey, type CropRequest } from "@/lib/images/crop";
+import { CropBusy, CropRejected, ensureCrop, verifyCrop } from "@/lib/images/crop-cache";
+import { findCropSource, findMediaByKey } from "@/lib/media";
 import { attachmentHeader } from "@/lib/pdf/limits";
 import { getStorage, isValidKey, type ByteRange } from "@/lib/storage";
 
@@ -61,9 +67,46 @@ function parseRange(header: string | null, size: number): ByteRange | "unsatisfi
   return { start, end };
 }
 
+const CROP_MIME = { avif: "image/avif", webp: "image/webp" } as const;
+
+/** Variante recadrée : signature vérifiée AVANT tout accès au disque ou à sharp. */
+async function serveCrop(request: Request, crop: CropRequest, head: boolean) {
+  if (!verifyCrop(crop.mediaId, rectKey(crop.units), crop.sig)) return notFound();
+  const source = findCropSource(crop.mediaId);
+  if (!source) return notFound();
+  const etag = `"crop-${crop.mediaId}-${rectKey(crop.units)}-${crop.width}-${crop.format}"`;
+  const headers = new Headers({
+    "Content-Type": CROP_MIME[crop.format],
+    ETag: etag,
+    "Cache-Control": "public, max-age=31536000, immutable",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Security-Policy": MEDIA_CSP,
+  });
+  const inm = request.headers.get("if-none-match");
+  if (inm && weakMatch(inm, etag)) return new Response(null, { status: 304, headers });
+  let out: { file: string; size: number };
+  try {
+    out = await ensureCrop(source, crop.units, crop.width, crop.format);
+  } catch (error) {
+    if (error instanceof CropBusy) {
+      return new Response("Busy", { status: 503, headers: { "Retry-After": "2", "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8", "X-Content-Type-Options": "nosniff" } });
+    }
+    if (error instanceof CropRejected) return notFound();
+    console.error(`[crop] média ${crop.mediaId} : génération impossible`, error);
+    return new Response("Error", { status: 500, headers: { "Cache-Control": "no-store", "Content-Type": "text/plain; charset=utf-8", "X-Content-Type-Options": "nosniff" } });
+  }
+  headers.set("Content-Length", String(out.size));
+  if (head) return new Response(null, { status: 200, headers });
+  return new Response(Readable.toWeb(createReadStream(out.file)) as ReadableStream, { status: 200, headers });
+}
+
 async function serve(request: Request, { params }: Params, head: boolean) {
   const key = (await params).key.join("/");
   if (!isValidKey(key)) return notFound();
+  if (key.startsWith(CROP_PREFIX)) {
+    const crop = parseCropKey(key);
+    return crop ? serveCrop(request, crop, head) : notFound();
+  }
 
   // Éléments du kit de thème : contenu adressé (kit/<hash>.<ext>), produit par le
   // pipeline du kit ; type d'après l'extension, mêmes en-têtes que les médias.

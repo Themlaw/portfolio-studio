@@ -4,6 +4,7 @@ import type { RawBlock } from "@/lib/pages";
 
 import { cropStyle, lookAttributes, readLook, type Look } from "@/lib/look";
 import { own } from "@/lib/own";
+import { cellShare, type GridLayout } from "./grid-layouts";
 import { BLOCKS } from "./registry";
 import { MAX_NESTING } from "./tree";
 import type { BlockContext } from "./types";
@@ -101,13 +102,14 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
   const { Component } = def;
   let children: ReactNode[] | undefined;
   if (def.container && depth < MAX_NESTING) {
-    const data = parsed.data as { project?: string; children?: { uid: string; type: string; props: Record<string, unknown> }[] };
+    const data = parsed.data as { project?: string; layout?: GridLayout; ratio?: string; children?: { uid: string; type: string; props: Record<string, unknown> }[] };
     const uid = block.uid ?? String(block.id);
     const childCtx: BlockContext = {
       ...ctx,
       parent: uid,
       project: data.project ?? ctx.project,
       cell: block.type === "grid",
+      cellRatio: block.type === "grid" ? data.ratio : undefined,
     };
     const kids = (data.children ?? []).filter((c) => own(BLOCKS, c.type) && def.container!.accepts.includes(c.type));
     const boxless = BOXLESS.has(block.type);
@@ -115,7 +117,8 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
       const pass: Look = {};
       if (boxless && i === 0 && look?.spaceTop) pass.spaceTop = look.spaceTop;
       if (boxless && i === kids.length - 1 && look?.spaceBottom) pass.spaceBottom = look.spaceBottom;
-      return renderBlock({ id: -(i + 1), uid: c.uid, type: c.type, props: c.props, corrupt: false }, childCtx, depth + 1, { uid }, Object.keys(pass).length ? pass : undefined);
+      const cellCtx: BlockContext = block.type === "grid" && data.layout ? { ...childCtx, cellColumns: cellShare(data.layout, i) } : childCtx;
+      return renderBlock({ id: -(i + 1), uid: c.uid, type: c.type, props: c.props, corrupt: false }, cellCtx, depth + 1, { uid }, Object.keys(pass).length ? pass : undefined);
     });
   }
   // Conteneur sans boîte : ses espaces sont passés à ses composants.

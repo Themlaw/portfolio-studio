@@ -21,14 +21,19 @@ import sharp from "sharp";
 import { dataDir } from "@/lib/db";
 import { getStorage } from "@/lib/storage";
 
-import { variantBoxes, variantKey, VARIANT_WIDTHS, type ImageVariants, type VariantFile } from "./variants";
+import { decodeProblem } from "./budget";
+import { topBox, variantBoxes, variantKey, type ImageVariants, type VariantFile } from "./variants";
 
 sharp.concurrency(1);
 sharp.cache(false);
 
 export const MAX_PIXELS = 100_000_000;
-/** Plus grand côté accepté (en-tête) : borne la mémoire même pour une image très haute. */
-export const MAX_SIDE = 16_384;
+/**
+ * Plus grand côté accepté (en-tête). Les décors panoramiques dépassent 16 384 px
+ * (20 000 px de large et plus) : c'est le plafond de mégapixels qui borne la
+ * mémoire, pas le côté.
+ */
+export const MAX_SIDE = 32_768;
 /**
  * PNG 16 bits (pas de réduction au décodage, deux octets par canal) : plafond
  * propre, réglable. Mesuré (test:auth, section F) : +217 Mo de pic pour un
@@ -41,9 +46,13 @@ export const MAX_PIXELS_16BIT = Math.max(1, Number(process.env.MAX_MEGAPIXELS_16
 export function processingError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (/pixel limit|exceeds pixel/i.test(message)) return "L'image dépasse 100 mégapixels : réduis-la avant de l'envoyer.";
+  if (error instanceof ImageTooHeavy) return message;
   if (/trop de temps/.test(message)) return "Le traitement a pris trop de temps. Réduis l'image ou essaie un autre format, puis renvoie-la.";
   return "Le fichier n'a pas pu être lu comme une image (fichier abîmé ou incomplet ?). Essaie de l'exporter de nouveau.";
 }
+
+/** Image dont le décodage tiendrait trop de mémoire (voir budget.ts) : le message est destiné à l'artiste. */
+export class ImageTooHeavy extends Error {}
 
 const hex = (n: number) => Math.round(n).toString(16).padStart(2, "0");
 
@@ -89,8 +98,12 @@ export async function processImage(originalKey: string, hash16: string): Promise
   const { file, cleanup } = await originalFile(originalKey);
   try {
     const options = { limitInputPixels: MAX_PIXELS, failOn: "error" as const, pages: 1, sequentialRead: true };
-    const { orientation } = await sharp(file, options).metadata();
-    const top = VARIANT_WIDTHS[VARIANT_WIDTHS.length - 1];
+    const meta = await sharp(file, options).metadata();
+    const { orientation } = meta;
+    // Garde-fou aussi ici (original déjà rangé, ou plafond abaissé depuis) : jamais de décodage qui fasse tomber le serveur.
+    const heavy = meta.width && meta.height ? decodeProblem({ ...meta, width: meta.width, height: meta.height }) : null;
+    if (heavy) throw new ImageTooHeavy(heavy);
+    const top = topBox(meta.width ?? 0, meta.height ?? 0);
     // Boîte carrée : l'orientation ne change pas le résultat de « fit: inside ».
     const reduced = await sharp(file, options)
       .resize({ width: top, height: top, fit: "inside", withoutEnlargement: true })
@@ -111,7 +124,7 @@ export async function processImage(originalKey: string, hash16: string): Promise
     const dominantColor = stats.isOpaque ? `#${hex(d.r)}${hex(d.g)}${hex(d.b)}` : null;
 
     const files: VariantFile[] = [];
-    for (const box of variantBoxes(Math.max(info.width, info.height))) {
+    for (const box of variantBoxes(Math.max(info.width, info.height), Math.min(info.width, info.height))) {
       for (const format of ["avif", "webp"] as const) {
         const resized = sharp(data, raw).resize({ width: box, height: box, fit: "inside", withoutEnlargement: true });
         const encoded =

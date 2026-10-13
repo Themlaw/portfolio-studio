@@ -169,7 +169,7 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
 - **Envoi** : `POST /admin/api/upload` (une image par requête : progression par fichier),
   `assertAdmin()` + même origine. Hors du `matcher` du proxy : un proxy Next met le corps en
   mémoire et le tronque à 10 Mo. busboy écrit en flux dans `${DATA_DIR}/tmp` (jamais `/tmp`,
-  tmpfs), SHA-256 au fil de l'eau, plafond `MAX_IMAGE_MB` (40) appliqué pendant le flux.
+  tmpfs), SHA-256 au fil de l'eau, plafond `MAX_IMAGE_MB` (200) appliqué pendant le flux.
 - **Type** par signature (`src/lib/upload/sniff.ts`) : JPEG, PNG, WebP, AVIF, GIF ; tout le
   reste refusé (415). Dimensions lues dans l'en-tête : plus de 100 mégapixels → refus (422)
   sans décodage. Même contenu envoyé deux fois → même média.
@@ -195,11 +195,29 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   (déposer, réordonner, retirer, supprimer) sont des actions immédiates et annoncées ; les
   textes s'enregistrent avec un bouton. Un emplacement vidé garde sa place (ratio 4:3).
 - **Robustesse (passe 4b2)** :
-  - côté de plus de 16 384 px refusé dès l'en-tête ; décodage borné à une boîte de
+  - côté de plus de 32 768 px refusé dès l'en-tête (les décors panoramiques dépassent 16 384 px ;
+    c'est le plafond de 100 Mpx qui borne la mémoire) ; décodage borné à une boîte de
     2400 × 2400 (`fit: inside`, réduction au décodage JPEG/WebP), sortie 8 bits sRGB ;
     variantes en boîtes carrées (`img/<hash>/<boîte>.<format>`). Pics mesurés (VmHWM du
     serveur, `test:auth` section F) : JPEG 6000×4000 +146 Mo, PNG 2400×16000 +15 Mo,
     PNG 16 bits 8000×8000 +237 Mo, 16384×16384 refusé (> 100 MP) sans décodage ;
+  - **Mémoire de décodage (lot 17b)** : un PNG classique ou un JPEG de base se décodent en flux (pic
+    mesuré : 20000 × 4000 RGBA +100 Mo, PNG de 60 Mo +200 Mo, 30 Mpx JPEG +90 Mo). Un PNG ENTRELACÉ
+    (Adam7), un JPEG progressif, un AVIF/HEIF ne se lisent qu'entiers : 20000 × 4000 RGBA entrelacé
+    = +370 Mo, 100 Mpx 16 bits = 800 Mo, au-delà de ce que le conteneur (1 Gio, serveur compris)
+    supporte. `src/lib/images/budget.ts` estime ce coût depuis l'en-tête (`IMAGE_DECODE_BUDGET_MB`,
+    350 par défaut) : refus 422 à l'envoi, avec la marche à suivre (« décoche Entrelacé »), et même
+    garde-fou dans le worker. Plafond d'envoi `MAX_IMAGE_MB` : 200 (PNG de 80 Mpx = 100 à 180 Mo).
+  - **Panoramas** : une image au moins deux fois plus large que haute reçoit deux variantes de plus
+    (3600 et 4800 px) ; une case étroite n'en montre qu'une bande étirée bien au-delà de 2400 px.
+    `sizes` d'une image rognée (`src/lib/images/sizes.ts`) = largeur de la case × part rognée ×
+    zoom du cadrage, pas la largeur de la case.
+  - **Un traitement ne reste jamais « en cours »** : toute exception du worker met job ET média en
+    échec (`settleFailure`) ; un chien de garde (`reapStalled`) échoue un job « running » oublié ;
+    une image dont le traitement a déjà interrompu le serveur une fois n'est pas reprise (échec
+    lisible, « Réessayer » à la demande) pour ne pas boucler sur des plantages. Côté éditeur, la
+    grille de l'onglet Médias suit les médias en traitement (`useMediaWatch`) et rafraîchit à la fin ;
+    un média en échec y propose « Réessayer ».
   - job interrompu `MAX_ATTEMPTS` (3) fois : au démarrage, job et média passent en échec
     (message lisible), le média reste supprimable ; délai croissant entre essais
     (`jobs.run_after` : 10 s, 60 s, 5 min) ; 2 min au plus par traitement
@@ -347,8 +365,12 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   des bords : `mask-image` dégradé sur le rail (l'image se dissout dans ce qui
   est derrière : fond, texture, papier), bords pilotés par `--strip-fade-l/-r`
   (`@property`, sans animation : animer le masque coûtait 5–6 images longues
-  par glisser) selon `data-at-start` / `data-at-end` / `data-overflows`
-  écrits sur le DOM dans un rAF, sans rendu React. Jetons `--strip-nav-*`.
+  par glisser). Chaque bord ne se fond que contre une image réellement coupée
+  (lot 17b) : `--strip-fade-l/-r` sont écrits sur le DOM dans un rAF (sans rendu React) et valent
+  `min(--strip-fade, partie visible de l'image coupée par ce bord)`, `0px` sans coupe : jamais sur
+  une image entièrement visible (la marge de fin de la bande ne compte pas comme du contenu à
+  faire défiler) ; `data-at-start` /
+  `data-at-end` / `data-overflows` ne pilotent plus que les flèches. Jetons `--strip-nav-*`.
 - **Barre de défilement** (`RailScrollbar`) : aucun état React pendant le
   défilement ; curseur en `transform` dans un rAF ; glisser et molette regroupés
   par image ; accrochage suspendu pendant le geste (`.strip-rail[data-dragging]`) ;
@@ -383,6 +405,46 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   place pas dans une planche. Tests : `npm test` (test-pdf : règles, lancement,
   rendu réel de PDF hostiles si poppler est installé), `test:auth` section PDF,
   `test:e2e-medias`.
+
+### Recadrage libre, image seule (lot 17d)
+
+- **Donnée** : `look.crop.mediaId.rect` (aussi accepté dans `look.tileCrop[…]`) = rectangle normalisé
+  `{x, y, w, h}` de l'image ORIENTÉE (0..1, côtés ≥ 1 %, dans l'image : `RectSchema`, `src/lib/images/crop.ts`).
+  Par emplacement (bloc, case de grille) : la même image posée plusieurs fois a un recadrage par placement ;
+  l'original n'est jamais modifié. Avec `rect`, `x/y/zoom` restent à 50/50/1 et sont ignorés ; sans `rect`,
+  l'ancien cadrage (point focal + zoom dans un cadre au format imposé) fonctionne comme avant.
+- **Rendu** (`ImageBlock`, `crop-view.ts`) : un recadrage libre donne une variante extraite de l'ORIGINAL ; le
+  cadre prend son rapport (`data-free` : `aspect-ratio: auto`, le format imposé du bloc ou de la grille est
+  ignoré), les cases d'une grille restent alignées en haut de la rangée et gardent chacune leur hauteur. Un ancien
+  cadrage dans un cadre au format imposé, et un décor sans cadrage dont le cadre le rogne d'au moins 1,5 fois,
+  sont servis de la même façon (leur fenêtre est un rectangle de l'original) : netteté pleine au lieu d'une
+  image entière agrandie par CSS (`data-cropped` neutralise alors décalage et zoom CSS).
+- **Variantes recadrées** : `GET /media/crop/<média>/<rect>-<signature>/<largeur>.<avif|webp>`
+  (`src/app/media/[...key]/route.ts`). Rectangle en dix-millièmes (`x1235y2000w5000h4000`), largeur dans une
+  liste fermée (480, 960, 1600, 2400, 3600, 4800, ou la taille réelle du recadrage) bornée à 12 Mpx de sortie.
+  **Signature** HMAC (`BETTER_AUTH_SECRET`) posée au rendu par le serveur : on ne génère que ce que le site a
+  écrit lui-même (brouillon compris), jamais un recadrage choisi par un tiers ; signature, forme, rectangle,
+  largeur et média (image raster prête avec original) sont vérifiés AVANT tout accès au disque ou à sharp.
+  Changer le secret invalide les signatures des pages en cache (pages à régénérer).
+- **Génération** (`src/lib/images/crop-cache.ts`) : `extract` puis réduction depuis l'original lu par chemin
+  (orientation EXIF appliquée avant l'extraction, budget de décodage de `budget.ts` vérifié), concurrence 1,
+  file bornée (`MAX_WAITING` = 24, au-delà 503 + `Retry-After`), deux demandes de la même variante n'en font
+  qu'une. Cache disque `${DATA_DIR}/cache/crops/<média>/<rect>/<largeur>.<format>`, au plus `MAX_RECTS` (32)
+  rectangles par média (le plus ancien est effacé, il se régénère si on le redemande). Le dossier d'un média
+  est purgé à sa suppression (`deleteMedia`). La file n'est pas partagée avec le worker des jobs : une
+  extraction peut tourner pendant un job d'image (sharp reste à un thread).
+- **Image seule** : plafond de hauteur `width: min(100%, 85svh × --ir)` (`data-solo`, `--ir` = rapport affiché) :
+  une image plus haute est réduite et centrée, jamais rognée (hors cases de grille : la grille fixe sa géométrie). Option du bloc `fit` : « Image entière »
+  (`contain`) ou « Remplir le cadre » (`cover`) ; sans choix, entière pour un bloc pleine largeur, remplie sinon.
+- **Modale « Cadrer l'image »** : `FreeCropDialog.tsx` (mode Libre par défaut : huit poignées, glisser, formats
+  rapides Original / 1:1 / 4:5 / 3:2 / 16:9 qui verrouillent le rapport aux coins) et, quand le bloc impose un
+  format, l'onglet « Dans le cadre du bloc » (ancien point focal + zoom). La modale montre toujours l'image
+  ENTIÈRE (`data-full-src` posé par le bloc ou la tuile en édition seulement). Tuile de collection : recadrage
+  libre aussi (`look.tileCrop[collection].rect`, couverture raster ; la tuile prend le rapport du rectangle,
+  `data-free`, même route signée) ; fond de l'ouverture et portrait : ancien mode seulement.
+- Tests : `npm test` (`test-crop.mjs` : schéma, clés, signature, cache réel), `scripts/e2e-crop.mjs` (suite
+  `crop17d`, chromium) et `scripts/e2e-crop-http.mjs` (mêmes contrôles de rendu, de route et de tuile sans
+  navigateur : HTML servi + octets des variantes ; pour les machines sans chromium).
 
 ### Kit de thème PSD (phases 6b–6d)
 

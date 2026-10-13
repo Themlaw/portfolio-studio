@@ -95,7 +95,7 @@ export default function MediaPickerDialog({
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={m.thumb} alt="" loading="lazy" />
                       )}
-                      {m.status === "processing" && <span className="ve-media-state">Conversion…</span>}
+                      {m.status === "processing" && <span className="ve-media-state">{m.kind === "video" ? "Conversion…" : "Traitement…"}</span>}
                     </button>
                   </li>
                 ))}

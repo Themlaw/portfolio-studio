@@ -25,13 +25,31 @@ export const VIDEO_PREFIX = "vid/";
 export const DOC_PREFIX = "doc/";
 
 /**
+ * Décors panoramiques (au moins 2 fois plus larges que hauts) : un cadre
+ * étroit n'en montre qu'une bande, étirée bien au-delà de 2400 px (case
+ * portrait d'une grille, zoom d'un cadrage) ; deux variantes de plus, sans
+ * quoi cette bande est floue. Peu coûteux : 4800 × 960 px = 4,6 Mpx.
+ */
+export const PANORAMA_MIN_RATIO = 2;
+export const PANORAMA_WIDTHS = [3600, 4800] as const;
+
+/** Plus grande boîte (côté le plus long) produite pour une image de ces dimensions. */
+export function topBox(width: number, height: number): number {
+  const panorama = Math.max(width, height) / Math.max(1, Math.min(width, height)) >= PANORAMA_MIN_RATIO;
+  return panorama ? PANORAMA_WIDTHS[PANORAMA_WIDTHS.length - 1] : VARIANT_WIDTHS[VARIANT_WIDTHS.length - 1];
+}
+
+/**
  * Tailles à produire : chaque variante tient dans une boîte carrée de cette
  * taille (côté le plus long), jamais au-delà de l'original ; l'original
- * lui-même si son plus grand côté est sous 2400.
+ * lui-même si son plus grand côté est sous la plus grande boîte (2400, ou 4800
+ * pour un panorama : `shortSide` donné).
  */
-export function variantBoxes(longSide: number): number[] {
-  const out: number[] = VARIANT_WIDTHS.filter((w) => w < longSide);
-  out.push(Math.min(longSide, VARIANT_WIDTHS[VARIANT_WIDTHS.length - 1]));
+export function variantBoxes(longSide: number, shortSide = longSide): number[] {
+  const top = topBox(longSide, shortSide);
+  const all: number[] = [...VARIANT_WIDTHS, ...(top > VARIANT_WIDTHS[VARIANT_WIDTHS.length - 1] ? PANORAMA_WIDTHS : [])];
+  const out: number[] = all.filter((w) => w < longSide);
+  out.push(Math.min(longSide, top));
   return [...new Set(out)].sort((a, b) => a - b);
 }
 

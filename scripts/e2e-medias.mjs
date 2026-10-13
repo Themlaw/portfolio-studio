@@ -136,7 +136,14 @@ if (run("A")) {
     return { image: cs.maskImage || cs.webkitMaskImage, l: cs.getPropertyValue("--strip-fade-l"), r: cs.getPropertyValue("--strip-fade-r") };
   });
   // Bord inactif : 0px ; actif : la largeur du fondu (expression en % de la bande).
-  ok("A9 fondu : masque dégradé sur la bande, bords gauche et droit actifs une fois défilée", /linear-gradient/.test(mask.image) && mask.l.trim() !== "0px" && mask.r.trim() !== "0px", JSON.stringify(mask));
+  // Lot 17b : chaque bord ne se fond que contre une image réellement coupée par ce bord.
+  const cuts = await rail.evaluate((r) => {
+    const v = r.getBoundingClientRect();
+    const f = [...r.querySelectorAll(".strip-frame")].map((e) => e.getBoundingClientRect());
+    // Coupée d'au moins 1 px (en deçà, rien de visible à estomper).
+    return { l: f.some((b) => b.left < v.left - 1 && b.right > v.left + 1), r: f.some((b) => b.left < v.right - 1 && b.right > v.right + 1), raw: f.map((b) => [Math.round(b.left - v.left), Math.round(b.right - v.left)]).filter(([l, r]) => r > -50 && l < v.width + 50) };
+  });
+  ok("A9 fondu : masque dégradé sur la bande, un bord ne se fond que s'il coupe une image", /linear-gradient/.test(mask.image) && (mask.l.trim() !== "0px") === cuts.l && (mask.r.trim() !== "0px") === cuts.r && mask.l.trim() !== "0px", JSON.stringify({ mask, cuts }));
   await page.mouse.move(5, 5);
   await sleep(600);
   const bg = parseRgb(await page.evaluate((s) => getComputedStyle(document.querySelector(s)).backgroundColor, stripSel));
@@ -145,7 +152,7 @@ if (run("A")) {
   const edge = await pixel(1438, midY);
   const inner = await pixel(720, midY);
   const near = (a, b, t) => a.every((v, i) => Math.abs(v - b[i]) <= t);
-  ok("A10 bord droit : l'image coupée disparaît dans le fond (pixel du bord ≈ fond)", near(edge, pageBg, 10) && !near(inner, pageBg, 10), `bord ${edge} fond ${pageBg} centre ${inner}`);
+  ok("A10 bord droit : l'image coupée disparaît dans le fond (pixel du bord ≈ fond) ; sans image coupée, rien n'est estompé", (!cuts.r || near(edge, pageBg, 10)) && !near(inner, pageBg, 10), `bord ${edge} fond ${pageBg} centre ${inner}`);
   await page.screenshot({ path: `${SHOTS}-A-fondu.png`, clip: { x: 0, y: rb.y - 20, width: 1440, height: rb.height + 40 } });
   // Butée droite au clavier : focus sur « suivante », Entrée jusqu'au bout.
   await next.focus();

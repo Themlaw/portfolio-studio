@@ -479,6 +479,17 @@ export function ImageEditor() {
         ]}
         onChange={(v) => set("ratio", v === "auto" ? undefined : v)}
       />
+      <Select
+        label="Dans le cadre"
+        help="Sans format imposé, l'image garde le sien. Avec un format : « Image entière » la montre en entier (bandes vides si besoin), « Remplir le cadre » la rogne. Un recadrage libre (« Cadrer » sur la page) suit son propre format."
+        value={(value.fit as string) ?? "auto"}
+        options={[
+          { value: "auto", label: "Automatique (entière en pleine largeur)" },
+          { value: "contain", label: "Image entière" },
+          { value: "cover", label: "Remplir le cadre" },
+        ]}
+        onChange={(v) => set("fit", v === "auto" ? undefined : v)}
+      />
     </>
   );
 }

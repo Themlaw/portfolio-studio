@@ -299,3 +299,65 @@
   box-shadow: var(--lk-shadow);
   pointer-events: none;
 }
+
+/* ---- Cadrage libre (lot 17d) : formats rapides, onglets, poignées -------------------- */
+.lk-crop-formats,
+.lk-crop-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-self: start;
+}
+.lk-crop-formats button,
+.lk-crop-tabs button {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--lk-line);
+  border-radius: 6px;
+  background: var(--pe-surface);
+  color: var(--pe-ink);
+  font: 600 12.5px/1 var(--lk-font);
+  cursor: pointer;
+}
+.lk-crop-formats button[aria-pressed="true"],
+.lk-crop-tabs button[aria-selected="true"] {
+  border-color: var(--pe-accent);
+  background: var(--pe-accent);
+  color: var(--pe-surface);
+}
+/* Les poignées des bords débordent de la scène : la découpe garde de la marge (l'ombre grisée y reste aussi). */
+.lk-crop-free {
+  overflow: visible;
+  clip-path: inset(-9px);
+}
+.lk-crop-handle {
+  position: absolute;
+  box-sizing: border-box;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--pe-ink);
+  border-radius: 3px;
+  background: var(--pe-surface);
+  touch-action: none;
+}
+/* Zone de saisie élargie (doigt) autour de la poignée visible. */
+.lk-crop-handle::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+}
+.lk-crop-handle[data-handle="nw"] { left: 0; top: 0; transform: translate(-50%, -50%); cursor: nwse-resize; }
+.lk-crop-handle[data-handle="n"] { left: 50%; top: 0; transform: translate(-50%, -50%); cursor: ns-resize; }
+.lk-crop-handle[data-handle="ne"] { left: 100%; top: 0; transform: translate(-50%, -50%); cursor: nesw-resize; }
+.lk-crop-handle[data-handle="e"] { left: 100%; top: 50%; transform: translate(-50%, -50%); cursor: ew-resize; }
+.lk-crop-handle[data-handle="se"] { left: 100%; top: 100%; transform: translate(-50%, -50%); cursor: nwse-resize; }
+.lk-crop-handle[data-handle="s"] { left: 50%; top: 100%; transform: translate(-50%, -50%); cursor: ns-resize; }
+.lk-crop-handle[data-handle="sw"] { left: 0; top: 100%; transform: translate(-50%, -50%); cursor: nesw-resize; }
+.lk-crop-handle[data-handle="w"] { left: 0; top: 50%; transform: translate(-50%, -50%); cursor: ew-resize; }
+.lk-crop-size {
+  margin: 0;
+  justify-self: start;
+  color: var(--lk-ink-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
