@@ -16,24 +16,44 @@
  *    faux : l'éditeur le signale sans rien bloquer.
  */
 import { contrastRatio, mixOklab, opaqueOn, parseColor, toHex, type ResolvedPalette } from "./palette";
-import { SURFACE_CORNERS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema } from "./schema";
+import { SURFACE_BASE_TOKENS, SURFACE_CORNERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema } from "./schema";
 import type { z } from "zod";
 
 // Schéma et listes vivent dans schema.ts (zod seul, chargé tel quel par les scripts Node).
-export { SURFACE_CORNERS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema };
+export { SURFACE_BASE_TOKENS, SURFACE_CORNERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema };
+/** Nom des couleurs dont on tire une teinte (mêmes noms que le panneau « Couleurs »). */
+const TINT_BASE_NAMES: Record<(typeof SURFACE_TINT_BASES)[number], string> = { ink: "Texte", primary: "Boutons et liens", secondary: "Accent", tertiary: "Ornements" };
+/** Les six couleurs de la DA proposées en premier comme fond de carte, avec leur nom dans le panneau « Couleurs ». */
+export const SURFACE_DA_TOKENS = ["bg", "surface", "ink", "primary", "secondary", "tertiary"] as const;
+export const SURFACE_DA_NAMES: Record<(typeof SURFACE_DA_TOKENS)[number], string> = { bg: "Fond de page", surface: "Cartes et encadrés", ink: "Texte", primary: "Boutons et liens", secondary: "Accent", tertiary: "Ornements" };
+
+/** `primary12` → { base: "primary", percent: 12 }. */
+export function tintParts(token: SurfaceTint): { base: (typeof SURFACE_TINT_BASES)[number]; percent: (typeof SURFACE_TINT_PERCENTS)[number] } {
+  const m = /^([a-z]+)(\d+)$/.exec(token)!;
+  return { base: m[1] as (typeof SURFACE_TINT_BASES)[number], percent: Number(m[2]) as (typeof SURFACE_TINT_PERCENTS)[number] };
+}
+
 export const SURFACE_TOKEN_LABELS: Record<SurfaceToken, string> = {
-  bg: "Fond",
+  bg: "Fond de page",
   bgDeep: "Fond profond",
-  surface: "Surface",
-  primary: "Action",
-  secondary: "Accent secondaire",
+  surface: "Cartes et encadrés",
+  primary: "Boutons et liens",
+  secondary: "Accent",
   ink: "Texte",
+  tertiary: "Ornements",
+  ...(Object.fromEntries(
+    SURFACE_TINTS.map((t) => {
+      const { base, percent } = tintParts(t);
+      return [t, `${TINT_BASE_NAMES[base]}, teinte ${percent} %`];
+    }),
+  ) as Record<(typeof SURFACE_TINTS)[number], string>),
 };
 
 export const SURFACE_WIDTH_LABELS: Record<(typeof SURFACE_WIDTHS)[number], string> = { full: "Pleine largeur", inset: "En retrait" };
 export const SURFACE_CORNER_LABELS: Record<(typeof SURFACE_CORNERS)[number], string> = { square: "Coins droits", round: "Coins arrondis" };
 
 export type SurfaceToken = (typeof SURFACE_TOKENS)[number];
+export type SurfaceTint = (typeof SURFACE_TINTS)[number];
 export type Surface = z.infer<typeof SurfaceSchema>;
 /** Carte par défaut d'un thème (`tokens.layout.card`) : mêmes champs que la carte d'un bloc. */
 export type CardDefaults = Surface;
@@ -43,6 +63,7 @@ export type ResolvedSurface = Required<Surface>;
 export const FALLBACK_CARD: ResolvedSurface = { color: "surface", width: "inset", corners: "round" };
 
 export const isSurfaceToken = (v: string): v is SurfaceToken => (SURFACE_TOKENS as readonly string[]).includes(v);
+export const isSurfaceTint = (v: string): v is SurfaceTint => (SURFACE_TINTS as readonly string[]).includes(v);
 
 /** Lecture tolérante : un champ invalide est ignoré (jamais le bloc), `undefined` = pas de carte. */
 export function readSurface(raw: unknown): Surface | undefined {
@@ -74,7 +95,7 @@ export function cleanSurface(surface: Surface): Surface {
 /* ---- Lisibilité ------------------------------------------------------------------ */
 
 /** Couleurs du thème dont la carte a besoin (sous-ensemble de la palette résolue). */
-export type CardPalette = Pick<ResolvedPalette, "bg" | "bgDeep" | "surface" | "ink" | "inkSoft" | "primary" | "primaryHover" | "onPrimary" | "secondary" | "eyebrow">;
+export type CardPalette = Pick<ResolvedPalette, "bg" | "bgDeep" | "surface" | "ink" | "inkSoft" | "primary" | "primaryHover" | "onPrimary" | "secondary" | "tertiary" | "eyebrow">;
 
 /** Seuil AA du texte courant (src/themes/contrast.ts). */
 const AA = 4.5;
@@ -100,11 +121,23 @@ export type CardStyle = {
   ok: boolean;
 };
 
-const CARD_KEYS: Record<SurfaceToken, keyof CardPalette> = { bg: "bg", bgDeep: "bgDeep", surface: "surface", primary: "primary", secondary: "secondary", ink: "ink" };
+const CARD_KEYS: Record<(typeof SURFACE_BASE_TOKENS)[number], keyof CardPalette> = { bg: "bg", bgDeep: "bgDeep", surface: "surface", primary: "primary", secondary: "secondary", ink: "ink", tertiary: "tertiary" };
 
-/** Fond CSS d'une couleur de carte (jeton résolu dans la palette du thème, ou couleur libre). */
+/** Teinte douce : `percent` % de la couleur mélangés au fond de page (une couleur translucide se lit d'abord sur lui). */
+export function softTint(base: string, ground: string, percent: number): string {
+  return mixOklab(ground, opaqueOn(base, ground), percent / 100);
+}
+
+/**
+ * Fond CSS d'une couleur de carte : jeton de base (résolu dans la palette), teinte douce (recalculée sur la palette,
+ * elle suit tout changement de couleur) ou couleur libre.
+ */
 export function cardBackground(color: string, p: CardPalette): string {
-  return isSurfaceToken(color) ? p[CARD_KEYS[color]] : color;
+  if (isSurfaceTint(color)) {
+    const { base, percent } = tintParts(color);
+    return softTint(p[base], p.bg, percent);
+  }
+  return isSurfaceToken(color) ? p[CARD_KEYS[color as (typeof SURFACE_BASE_TOKENS)[number]]] : color;
 }
 
 /**

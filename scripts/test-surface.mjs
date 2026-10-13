@@ -2,7 +2,8 @@
 /**
  * Cartes de rubrique (lot 17c) : schéma strict et borné, lecture tolérante, réglages par défaut du thème,
  * variante lisible du texte (tous les presets × tous les jetons), protocole éditeur ↔ toile, texte d'aide
- * de la rubrique Texte, et rien de changé pour les thèmes livrés.
+ * de la rubrique Texte, et rien de changé pour les thèmes livrés. Lot 19b : jetons dérivés (teintes douces de la DA :
+ * calculées sur la palette, bornées, lisibles, qui suivent un changement de palette).
  * Usage : node --import tsx scripts/test-surface.mjs   (inclus dans npm test)
  */
 import { readFileSync } from "node:fs";
@@ -10,9 +11,9 @@ import { readFileSync } from "node:fs";
 import { acceptFromCanvas, acceptToCanvas, EDIT_MSG } from "../src/lib/edit/protocol.ts";
 import { CUSTOM_COLOR_RE } from "../src/lib/color.ts";
 import { helpTextProblem, HELP_TEXT, TEXT_STARTERS } from "../src/blocks/help-text.ts";
-import { resolvePalette, contrastRatio } from "../src/themes/palette.ts";
-import { ThemeSchema, SURFACE_TOKENS } from "../src/themes/schema.ts";
-import { cardStyle, cardVars, cleanSurface, FALLBACK_CARD, readSurface, resolveSurface, SurfaceSchema, surfaceAttributes } from "../src/themes/surface.ts";
+import { resolvePalette, contrastRatio, mixOklab, opaqueOn } from "../src/themes/palette.ts";
+import { ThemeSchema, SURFACE_TINTS, SURFACE_TOKENS } from "../src/themes/schema.ts";
+import { cardBackground, cardStyle, cardVars, cleanSurface, FALLBACK_CARD, readSurface, resolveSurface, SURFACE_DA_NAMES, SURFACE_DA_TOKENS, SURFACE_TOKEN_LABELS, SurfaceSchema, surfaceAttributes, tintParts } from "../src/themes/surface.ts";
 import { loadPreset, presetSlugs } from "./lib/presets.mjs";
 
 let failures = 0;
@@ -72,13 +73,14 @@ for (const [slug, raw] of themes) {
   const p = resolvePalette(t.tokens.color, t.tokens.palette);
   for (const token of SURFACE_TOKENS) {
     const s = cardStyle(token, p);
-    const shown = contrastRatio(s.ink, p[token]);
+    const bgOf = opaqueOn(cardBackground(token, p), p.bg);
+    const shown = contrastRatio(s.ink, bgOf);
     if (Math.abs(shown - s.ratio) > 0.01) bad.push(`${slug}/${token}: ratio annoncé ${s.ratio.toFixed(2)} ≠ ${shown.toFixed(2)}`);
     if (s.ok !== s.ratio >= AA) bad.push(`${slug}/${token}: ok incohérent`);
     if (!s.ok) warned++;
     // Tout ce qui se pose sur la carte se lit : texte secondaire, liens, étiquettes.
     for (const [name, c] of [["inkSoft", s.inkSoft], ["link", s.link], ["eyebrow", s.eyebrow], ["accent", s.accent]]) {
-      if (s.ok && contrastRatio(c, p[token]) < AA) bad.push(`${slug}/${token}: ${name} ${c} ${contrastRatio(c, p[token]).toFixed(2)}`);
+      if (s.ok && contrastRatio(c, bgOf) < AA) bad.push(`${slug}/${token}: ${name} ${c} ${contrastRatio(c, bgOf).toFixed(2)}`);
     }
     if (s.btnBg === s.btnFg) bad.push(`${slug}/${token}: bouton invisible`);
   }
@@ -86,6 +88,8 @@ for (const [slug, raw] of themes) {
   for (const token of ["bg", "bgDeep", "surface", "ink"]) if (!cardStyle(token, p).ok) bad.push(`${slug}/${token}: illisible`);
   // « Action » : le texte des boutons du thème se lit dessus.
   if (!cardStyle("primary", p).ok) bad.push(`${slug}/primary: illisible`);
+  // Teintes douces (12 % et 25 % de la couleur dans le fond de page) : le texte du thème s'y lit toujours.
+  for (const token of SURFACE_TINTS) if (!cardStyle(token, p).ok) bad.push(`${slug}/${token}: teinte illisible`);
 }
 ok("presets × jetons : texte, texte secondaire, liens et étiquettes lisibles (AA) dans chaque carte", bad.length === 0, bad.slice(0, 4).join(" | "));
 console.log(`      (${warned} couple(s) preset × jeton sous AA : signalés dans l'éditeur, jamais bloquants)`);
@@ -100,6 +104,35 @@ ok("couleur libre translucide : lue sur le fond du thème", cardStyle("#00000010
 const vars = cardVars(dark);
 ok("variables de la carte : toutes présentes, aucune vide", ["--card-bg", "--card-ink", "--card-ink-soft", "--card-line", "--card-link", "--card-link-hover", "--card-eyebrow", "--card-accent", "--card-btn-bg", "--card-btn-fg", "--card-btn-hover"].every((k) => vars[k]));
 ok("variables : rien d'injectable (pas de ; { } < >)", Object.values(vars).every((v) => !/[;{}<>]/.test(v)));
+
+/* ---- Jetons dérivés : teintes douces de la DA (lot 19b) ------------------------------------------------------------ */
+
+ok("jetons : 6 couleurs de la DA nommées + 8 teintes (4 couleurs × 12 % et 25 %), liste bornée", SURFACE_DA_TOKENS.length === 6 && SURFACE_TINTS.length === 8 && SURFACE_TOKENS.length === 15, String(SURFACE_TOKENS.length));
+ok("jetons : chaque jeton a un libellé en clair, les teintes disent leur couleur et leur force", SURFACE_TOKENS.every((t) => typeof SURFACE_TOKEN_LABELS[t] === "string" && SURFACE_TOKEN_LABELS[t].length > 0) && SURFACE_TOKEN_LABELS.primary12 === "Boutons et liens, teinte 12 %" && SURFACE_TOKEN_LABELS.tertiary25 === "Ornements, teinte 25 %");
+ok("jetons : les noms de la DA sont ceux du panneau « Couleurs »", SURFACE_DA_NAMES.bg === "Fond de page" && SURFACE_DA_NAMES.surface === "Cartes et encadrés" && SURFACE_DA_NAMES.primary === "Boutons et liens" && SURFACE_DA_NAMES.secondary === "Accent" && SURFACE_DA_NAMES.tertiary === "Ornements" && SURFACE_DA_NAMES.ink === "Texte");
+ok("jetons : tintParts lit la couleur et le pourcentage", JSON.stringify(tintParts("secondary25")) === '{"base":"secondary","percent":25}' && tintParts("ink12").percent === 12);
+ok("schéma : un jeton de teinte est accepté, une teinte inventée refusée (pas de hex figé, pas de pourcentage libre)", parses({ color: "primary12" }) && parses({ color: "ink25" }) && !parses({ color: "primary13" }) && !parses({ color: "bg12" }) && !parses({ color: "primary-soft" }) && !parses({ color: "accent12" }));
+{
+  const win = { name: "toile" };
+  ok("schéma : les nouveaux jetons passent le protocole éditeur ↔ toile", acceptFromCanvas({ origin: "https://portfolio.example", source: win, data: { type: EDIT_MSG, kind: "surface", uid: "b1", surface: { color: "secondary12" } } }, "https://portfolio.example", win)?.kind === "surface");
+}
+{
+  const t0 = ThemeSchema.parse(base);
+  const pal = resolvePalette(t0.tokens.color, t0.tokens.palette);
+  const soft = cardBackground("primary12", pal);
+  const tint = cardBackground("primary25", pal);
+  ok("teinte douce : la couleur mélangée au fond de page (12 % puis 25 %)", soft === mixOklab(pal.bg, pal.primary, 0.12) && tint === mixOklab(pal.bg, pal.primary, 0.25));
+  ok("teinte douce : de plus en plus proche de la couleur, jamais plus qu'elle", contrastRatio(soft, pal.bg) <= contrastRatio(tint, pal.bg) && contrastRatio(tint, pal.bg) <= contrastRatio(pal.primary, pal.bg));
+  ok("jeton de base : la couleur de la palette, couleur libre inchangée", cardBackground("tertiary", pal) === pal.tertiary && cardBackground("#aabbcc", pal) === "#aabbcc");
+  // Suivre un changement de palette : le MÊME jeton donne une autre couleur quand la palette change (jamais figé).
+  const changed = resolvePalette({ ...t0.tokens.color, primary: "#7a1f10", bg: "#fbf3e3" }, t0.tokens.palette);
+  ok("teinte douce : suit un changement de palette (même jeton, autre couleur)", cardBackground("primary12", changed) !== soft && cardBackground("primary12", changed) === mixOklab(changed.bg, changed.primary, 0.12));
+  ok("teinte douce : stockée en jeton, jamais en hex (la carte garde `primary12`)", resolveSurface({ color: "primary12" }).color === "primary12" && JSON.stringify(readSurface({ color: "primary12" })) === '{"color":"primary12"}');
+  // Ornements translucides (transparence acceptée) : la teinte se lit sur le fond de page, jamais sur du noir.
+  const translucent = { ...pal, tertiary: "rgba(0, 0, 0, 0.5)" };
+  const tt = cardBackground("tertiary12", translucent);
+  ok("teinte d'une couleur translucide : lue sur le fond de page", tt === mixOklab(translucent.bg, opaqueOn("rgba(0, 0, 0, 0.5)", translucent.bg), 0.12));
+}
 
 /* ---- Protocole ---------------------------------------------------------------------------------------------- */
 

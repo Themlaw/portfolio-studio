@@ -494,6 +494,7 @@ const PALETTE_VARS: Record<keyof CardPalette, string> = {
   primaryHover: "--t-color-primary-hover",
   onPrimary: "--t-color-on-primary",
   secondary: "--t-color-secondary",
+  tertiary: "--t-color-tertiary",
   eyebrow: "--t-color-eyebrow",
 };
 
@@ -501,7 +502,8 @@ const PALETTE_VARS: Record<keyof CardPalette, string> = {
 export function canvasPalette(): CardPalette {
   const cs = getComputedStyle(document.documentElement);
   const out = {} as Record<string, string>;
-  for (const [key, name] of Object.entries(PALETTE_VARS)) out[key] = toHex(parseColor(cs.getPropertyValue(name).trim())?.rgb ?? [0, 0, 0]);
+  // Ornements : transparence acceptée, gardée telle quelle (la teinte douce se lit sur le fond de page).
+  for (const [key, name] of Object.entries(PALETTE_VARS)) out[key] = key === "tertiary" ? cs.getPropertyValue(name).trim() : toHex(parseColor(cs.getPropertyValue(name).trim())?.rgb ?? [0, 0, 0]);
   return out as CardPalette;
 }
 
