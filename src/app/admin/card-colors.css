@@ -1,0 +1,92 @@
+/* ==========================================================================
+   Couleurs de fond d'une carte (lot 19b) — src/components/edit/CardColorChoices.tsx.
+   Partagé par la toile (--lk-* du calque) et l'admin (--admin-*) ; les pastilles
+   montrent les couleurs du thème par leurs valeurs calculées, jamais en dur.
+   ========================================================================== */
+.cc {
+  --cc-line: var(--lk-line, var(--admin-line-strong));
+  --cc-ink: var(--lk-ink, var(--admin-ink));
+  --cc-ink-soft: var(--lk-ink-soft, var(--admin-ink-soft));
+  --cc-accent: var(--lk-accent, var(--admin-accent));
+  --cc-accent-soft: var(--lk-accent-soft, var(--admin-accent-soft));
+  display: grid;
+  flex: 1 1 0;
+  gap: 6px;
+  min-width: 0;
+}
+.cc-da {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+.cc .cc-da-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  min-width: 0;
+  padding: 2px 6px 2px 3px;
+  border: 1px solid var(--cc-line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cc-ink);
+  font: 500 11.5px/1.2 inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cc .cc-da-item:hover,
+.cc .cc-da-item:focus-visible {
+  border-color: var(--cc-accent);
+}
+.cc .cc-da-item[aria-checked="true"] {
+  border-color: var(--cc-accent);
+  background: var(--cc-accent-soft);
+  color: var(--cc-accent);
+  font-weight: 600;
+}
+.cc-chip {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border: 1px solid var(--cc-line);
+  border-radius: 50%;
+}
+.cc-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+}
+.cc-sub {
+  margin: 2px 0 0;
+  color: var(--cc-ink-soft);
+  font-size: 11px;
+}
+.cc-tints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.cc .cc-tint {
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 1px solid var(--cc-line);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.cc .cc-tint[aria-checked="true"] {
+  outline: 2px solid var(--cc-accent);
+  outline-offset: 1px;
+}
+.cc .cc-tint:hover,
+.cc .cc-tint:focus-visible {
+  border-color: var(--cc-accent);
+}
+.cc-current {
+  margin: 0;
+  color: var(--cc-ink-soft);
+  font-size: 11px;
+}

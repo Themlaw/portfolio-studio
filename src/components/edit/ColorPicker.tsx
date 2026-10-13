@@ -132,8 +132,10 @@ export default function ColorPicker({ value, onChange, swatch }: ColorPickerProp
  * Émission regroupée vers le style : glisser produit des dizaines d'événements,
  * on n'en envoie qu'un toutes les 140 ms et au relâchement. Les couleurs ne
  * vont dans les « récentes » qu'à la validation (relâchement, champ, fermeture).
+ * `live` (lot 19b, couleurs du thème) : chaque changement est émis aussitôt, sans attendre ces 140 ms, pour que
+ * l'aperçu suive la main ; le gestionnaire reste léger (aperçu en direct, pas d'écriture).
  */
-function useEmitter(onChange: (c: string | undefined) => void, onRecent: (recent: string[]) => void) {
+function useEmitter(onChange: (c: string | undefined) => void, onRecent: (recent: string[]) => void, live = false) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef<string | null>(null);
   const unrecorded = useRef<string | null>(null);
@@ -159,9 +161,10 @@ function useEmitter(onChange: (c: string | undefined) => void, onRecent: (recent
       latest.current = unrecorded.current = hex;
       if (timer.current) clearTimeout(timer.current);
       if (now) flush(true);
+      else if (live) flush();
       else timer.current = setTimeout(() => flush(), 140);
     },
-    [flush],
+    [flush, live],
   );
   const cancel = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -186,7 +189,8 @@ function Popover({
   onChange,
   onClose,
   solid,
-}: ColorPickerProps & { id: string; ref: React.Ref<HTMLDivElement>; onClose: () => void; solid?: SolidOptions }) {
+  live,
+}: ColorPickerProps & { id: string; ref: React.Ref<HTMLDivElement>; onClose: () => void; solid?: SolidOptions; live?: boolean }) {
   const box = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<{ hsva: Hsva; bg: string | null; theme: string[]; recent: string[] } | null>(null);
   const [edit, setEdit] = useState<{ k: string; v: string } | null>(null);
@@ -223,7 +227,7 @@ function Popover({
     el.scrollIntoView({ block: "nearest", behavior: "instant" });
   }, [ready]);
 
-  const { schedule, flush, cancel } = useEmitter(onChange, (recent) => setState((s) => (s ? { ...s, recent } : s)));
+  const { schedule, flush, cancel } = useEmitter(onChange, (recent) => setState((s) => (s ? { ...s, recent } : s)), live);
 
   // Relâchement d'un glisser (la bibliothèque n'a pas de rappel de fin) : émission immédiate + récentes.
   useEffect(() => {
@@ -447,7 +451,7 @@ function Popover({
  * Sélecteur déjà ouvert, sans pastille (panneau « Couleurs », lot 17f) : à poser dans le flux de la
  * page. `value` est lu à l'ouverture ; remonter le composant (clé) pour le recharger.
  */
-export function SolidColorPicker({ value, onChange, swatch, onClose, solid }: ColorPickerProps & { onClose: () => void; solid: SolidOptions }) {
+export function SolidColorPicker({ value, onChange, swatch, onClose, solid, live }: ColorPickerProps & { onClose: () => void; solid: SolidOptions; live?: boolean }) {
   const id = useId();
-  return <Popover id={id} ref={null} value={value} swatch={swatch} onChange={onChange} onClose={onClose} solid={solid} />;
+  return <Popover id={id} ref={null} value={value} swatch={swatch} onChange={onChange} onClose={onClose} solid={solid} live={live} />;
 }

@@ -176,6 +176,25 @@
   color: var(--admin-ink-soft);
   font-size: 11.5px;
 }
+/* Légende d'un rôle simplement survolé : posée SUR la phrase du rôle, sans rien déplacer (une légende insérée dans le flux
+   décale la liste entre le clic et son relâchement : le clic se perd). Rôle ouvert : en ligne, elle ne bouge plus. */
+.lc-role-item {
+  position: relative;
+}
+.lc-uses[data-floating] {
+  position: absolute;
+  top: 29px;
+  left: 48px;
+  right: 96px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--admin-accent-soft);
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
 .lc-warn {
   color: var(--admin-danger);
   font-weight: 600;

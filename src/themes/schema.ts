@@ -56,8 +56,15 @@ export const fontId = z.enum(FONT_IDS);
  * Carte de rubrique (lot 17c, src/themes/surface.ts) : jetons de la palette proposés comme fond, et réglages
  * d'une carte. Définis ICI (zod seul : ce fichier est chargé tel quel par Node), repris par surface.ts.
  * `#rrggbb[aa]` en minuscules : le format de CUSTOM_COLOR_RE (src/lib/color.ts, vérifié par test-surface).
+ *
+ * Lot 19b : « tertiary » (Ornements) et des TEINTES DOUCES dérivées, `<couleur><12|25>` : la couleur mélangée à 12 % ou
+ * 25 % au fond de page, recalculée à chaque rendu. Un jeton, jamais un hex figé : il suit tout changement de palette.
  */
-export const SURFACE_TOKENS = ["bg", "bgDeep", "surface", "primary", "secondary", "ink"] as const;
+export const SURFACE_BASE_TOKENS = ["bg", "bgDeep", "surface", "primary", "secondary", "ink", "tertiary"] as const;
+export const SURFACE_TINT_BASES = ["ink", "primary", "secondary", "tertiary"] as const;
+export const SURFACE_TINT_PERCENTS = [12, 25] as const;
+export const SURFACE_TINTS = SURFACE_TINT_BASES.flatMap((b) => SURFACE_TINT_PERCENTS.map((n) => `${b}${n}` as `${(typeof SURFACE_TINT_BASES)[number]}${(typeof SURFACE_TINT_PERCENTS)[number]}`));
+export const SURFACE_TOKENS = [...SURFACE_BASE_TOKENS, ...SURFACE_TINTS] as const;
 export const SURFACE_WIDTHS = ["full", "inset"] as const;
 export const SURFACE_CORNERS = ["square", "round"] as const;
 export const SurfaceSchema = z.strictObject({

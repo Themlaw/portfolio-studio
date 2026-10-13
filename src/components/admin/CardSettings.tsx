@@ -5,7 +5,9 @@
  * active sa carte sans rien choisir (bouton « Fond » sur la page). Stocké dans `tokens.layout.card` ; ne change
  * rien aux rubriques sans carte ni aux thèmes livrés. Une carte qui garde un texte illisible est signalée.
  */
-import { resolvePalette } from "@/themes/palette";
+import CardColorChoices from "@/components/edit/CardColorChoices";
+import type { SitePalette } from "@/lib/look";
+import { effectiveSitePalette } from "@/themes/site-palette";
 import type { Theme } from "@/themes/schema";
 import {
   cardStyle,
@@ -14,16 +16,16 @@ import {
   SURFACE_CORNER_LABELS,
   SURFACE_CORNERS,
   SURFACE_TOKEN_LABELS,
-  SURFACE_TOKENS,
   SURFACE_WIDTH_LABELS,
   SURFACE_WIDTHS,
   cardBackground,
   type Surface,
 } from "@/themes/surface";
 
-export default function CardSettings({ theme, onChange }: { theme: Theme; onChange: (card: Surface | undefined) => void }) {
+export default function CardSettings({ theme, onChange, sitePalette }: { theme: Theme; onChange: (card: Surface | undefined) => void; sitePalette?: SitePalette }) {
   const card = theme.tokens.layout?.card;
-  const palette = resolvePalette(theme.tokens.color, theme.tokens.palette);
+  // Couleurs de la DA du thème, palette du site comprise quand le thème est en ligne (ce que verront les visiteurs).
+  const palette = effectiveSitePalette(theme.tokens.color, theme.tokens.palette, sitePalette);
   const resolved = resolveSurface(card ?? {});
   const style = cardStyle(resolved.color, palette);
   const set = (patch: Partial<Surface>) => {
@@ -42,21 +44,8 @@ export default function CardSettings({ theme, onChange }: { theme: Theme; onChan
         <span className="a-label-text" id="t-carte-couleur">
           Couleur par défaut
         </span>
-        <div className="a-color-row" role="radiogroup" aria-labelledby="t-carte-couleur">
-          {SURFACE_TOKENS.map((t) => (
-            <button
-              key={t}
-              type="button"
-              role="radio"
-              aria-checked={resolved.color === t}
-              className="a-swatch"
-              data-token={t}
-              title={SURFACE_TOKEN_LABELS[t]}
-              aria-label={SURFACE_TOKEN_LABELS[t]}
-              style={{ background: cardBackground(t, palette), outline: resolved.color === t ? "2px solid var(--admin-accent)" : undefined, outlineOffset: 2, cursor: "pointer" }}
-              onClick={() => set({ color: t })}
-            />
-          ))}
+        <CardColorChoices palette={palette} value={resolved.color} onPick={(t) => set({ color: t })} />
+        <div className="a-color-row" role="group" aria-labelledby="t-carte-couleur">
           <input
             type="color"
             aria-label="Autre couleur"
@@ -66,7 +55,7 @@ export default function CardSettings({ theme, onChange }: { theme: Theme; onChan
           />
         </div>
         <p className="a-help">
-          {SURFACE_TOKEN_LABELS[resolved.color as keyof typeof SURFACE_TOKEN_LABELS] ?? `Couleur libre ${resolved.color}`}.{" "}
+          {SURFACE_TOKEN_LABELS[resolved.color as keyof typeof SURFACE_TOKEN_LABELS] ?? `Couleur libre ${resolved.color}`}. Une couleur de la DA ou une teinte douce suit les changements de palette.{" "}
           {style.ok ? "Le texte se lit bien sur cette carte." : `Le texte se lit mal sur cette couleur (${style.ratio.toFixed(1).replace(".", ",")}:1, il faut 4,5:1).`}
         </p>
       </div>

@@ -3,7 +3,7 @@
 /**
  * Fond d'une rubrique sur la toile (lot 17c) : bouton « Fond » de la barre d'outils du
  * bloc (pastille de la couleur courante) et son popover — interrupteur « Carte »,
- * pastilles de la palette du thème, « Autre couleur… » (ColorPicker), Pleine largeur /
+ * couleurs de la DA du thème (avec leur nom) et teintes douces (CardColorChoices, lot 19b), « Autre couleur… » (ColorPicker), Pleine largeur /
  * En retrait, Coins droits / arrondis. Chaque choix est appliqué à l'instant (aperçu
  * optimiste, edit/optimistic.ts) et envoyé à l'éditeur (intention `surface`, validée par
  * le protocole) ; Annuler / Rétablir passent par l'historique de l'éditeur.
@@ -21,15 +21,13 @@ import {
   resolveSurface,
   SURFACE_CORNER_LABELS,
   SURFACE_CORNERS,
-  SURFACE_TOKEN_LABELS,
-  SURFACE_TOKENS,
   SURFACE_WIDTH_LABELS,
   SURFACE_WIDTHS,
   type ResolvedSurface,
   type Surface,
-  type SurfaceToken,
 } from "@/themes/surface";
 
+import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";
 import { canvasPalette, postIntent, previewSurface, surfaceState } from "./optimistic";
 import { useDismiss } from "./useDismiss";
@@ -37,16 +35,7 @@ import { useDismiss } from "./useDismiss";
 import "@/app/admin/typo-controls.css";
 import "@/app/admin/surface-menu.css";
 
-const TOKEN_VARS: Record<SurfaceToken, string> = {
-  bg: "--t-color-bg",
-  bgDeep: "--t-color-bg-deep",
-  surface: "--t-color-surface",
-  primary: "--t-color-primary",
-  secondary: "--t-color-secondary",
-  ink: "--t-color-ink",
-};
 const swatch = (c: (typeof PALETTE)[number]) => `var(--t-color-${c})`;
-const tokenCss = (t: SurfaceToken) => `var(${TOKEN_VARS[t]})`;
 
 /** Contraste en français (virgule). */
 const fr = (n: number) => n.toFixed(1).replace(".", ",");
@@ -115,22 +104,7 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
         <>
           <div className="tc-row">
             <span className="sm-label">Couleur</span>
-            <span className="tc-swatches" role="radiogroup" aria-label="Couleur de la carte">
-              {SURFACE_TOKENS.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  role="radio"
-                  aria-checked={s.resolved.color === t}
-                  className="tc-swatch"
-                  title={SURFACE_TOKEN_LABELS[t]}
-                  aria-label={SURFACE_TOKEN_LABELS[t]}
-                  data-token={t}
-                  style={{ background: tokenCss(t) }}
-                  onClick={() => patch({ color: t })}
-                />
-              ))}
-            </span>
+            <CardColorChoices palette={canvasPalette()} value={s.resolved.color} onPick={(t) => patch({ color: t })} />
           </div>
           <div className="tc-row">
             <span className="sm-label" aria-hidden="true" />

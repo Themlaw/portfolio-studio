@@ -1318,6 +1318,24 @@ l'en-tête compense exactement la hauteur perdue (pas de décalage ; transitions
 Sur la toile d'édition l'en-tête n'est pas collant : le logo y garde sa taille (la réduction se voit en
 « Aperçu exact »).
 
+## Couleurs de la DA du thème et teintes de cartes (lot 19b)
+
+Retour sur la v0.17 : « modifier les couleurs de DA directement dans le web, voir en direct ce qui change quoi, et les ajouter aux
+couleurs par défaut des fonds de cartes ».
+
+- **Section « Couleurs de la DA »** (en tête de la page d'un thème) : les six rôles de la 17f (Fond de page, Cartes et encadrés,
+  Texte, Boutons et liens, Accent, Ornements), chacun avec sa phrase, survol / focus = éléments surlignés dans l'aperçu, clic =
+  ColorPicker roue / HEX / RVB, contraste AA en direct, « Ajuster automatiquement ». C'est le MÊME composant que le panneau du site
+  (`ColorsPanel`), en mode `theme` : pas de copie. Le surlignage a été extrait en `components/edit/highlight.tsx`, partagé par la
+  toile et le cadre d'aperçu (`PreviewBridge`). Aperçu : accueil ou une page au choix (le thème en essai est conservé).
+- **Enregistrement** : thème livré = lecture seule, avec invitation à créer une copie à la première modification (la copie reprend
+  les essais sans les enregistrer) ; copie = enregistrement direct ; thème en ligne = confirmation avant de publier. La surcharge
+  `styles.palette` du site (17f) reste un mécanisme séparé : l'avis le dit et renvoie à l'éditeur de page.
+- **Fonds de cartes** : les six couleurs de la DA nommées, puis huit teintes douces (12 % et 25 % de la couleur dans le fond de
+  page) stockées comme jetons (`primary12`…), recalculées à chaque rendu : elles suivent la palette (thème et site).
+  Au passage : la légende « utilisé par » d'un rôle survolé ne décale plus la liste (un clic pouvait se perdre).
+- Schéma : `SURFACE_TOKENS` passe de 6 à 15 valeurs (zod borné). Les thèmes et pages enregistrés avant restent valides.
+
 ## Phases
 
 Chaque phase suit le même cycle : build → vérification
