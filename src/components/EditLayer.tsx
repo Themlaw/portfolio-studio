@@ -29,6 +29,7 @@ import { acceptToCanvas, insertionIndex, moveTo, type BlockInfo, type FromCanvas
 
 import BoardLayer from "./BoardLayer";
 import LookLayer from "./edit/LookLayer";
+import SiteLookLayer from "./edit/SiteLookLayer";
 import GridLayoutIcon, { LAYOUT_LABELS } from "./edit/GridLayoutIcon";
 import { listKeys, noteSettle, observeOverlays, pendingOrder, postIntent, previewLayout, previewMarked, previewOrder, previewText, resetOverlays, revertOverlay, siblingWrappers } from "./edit/optimistic";
 import { closeMarkedEditor, markState, markupOf, openMarkedEditor, toggleMark, type MarkedEditor } from "./edit/marked-edit";
@@ -967,6 +968,8 @@ export default function EditLayer() {
         dragging={Boolean(drag)}
         announce={setAnnouncement}
       />
+      {/* Palette et logo du site (lot 17f) : aperçu, surlignage d'un rôle de couleur, poignée du logo. */}
+      <SiteLookLayer headerSelected={selected === "site-header"} dragging={Boolean(drag)} />
 
       {markBar && (
         <div className="pe-markbar" role="toolbar" aria-label="Surlignage de l'accroche" style={{ top: markBar.top, left: markBar.left }}>

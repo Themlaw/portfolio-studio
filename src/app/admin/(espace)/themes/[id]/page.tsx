@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import PageHeader from "@/components/admin/PageHeader";
 import ThemeEditor from "@/components/admin/ThemeEditor";
 import { getThemeOverview } from "@/lib/admin";
+import { readPublishedSite } from "@/lib/edit/site";
 import { FONT_VARIABLE_CLASSES } from "@/themes/fonts";
 
 export const metadata = { title: "Modifier un thème" };
@@ -40,7 +41,8 @@ export default async function ThemeEditPage({ params }: { params: Promise<{ id: 
             : "Ce thème n'est pas en ligne : tes réglages ne sont visibles que dans l'aperçu."
         }
       />
-      <ThemeEditor initial={theme} isActive={theme.id === activeId} />
+      {/* Couleurs du site choisies depuis l'éditeur visuel (lot 17f) : par-dessus le thème EN LIGNE. */}
+      <ThemeEditor initial={theme} isActive={theme.id === activeId} sitePalette={theme.id === activeId ? (readPublishedSite().styles?.palette ?? {}) : {}} />
     </div>
   );
 }

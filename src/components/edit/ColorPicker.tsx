@@ -76,6 +76,13 @@ export type ColorPickerProps = {
   swatch: (c: PaletteColor) => string;
 };
 
+/**
+ * Variante « couleur de base du site » (lot 17f, panneau « Couleurs ») : roue, luminosité, HEX / RVB / TSL,
+ * sans opacité ni couleurs du thème (c'est le thème qu'on règle), avec « Revenir au thème » ; le contrôle de
+ * contraste est celui du panneau (il connaît tous les couples), pas l'aperçu sur le fond.
+ */
+export type SolidOptions = { onReset?: () => void; resetLabel?: string };
+
 export default function ColorPicker({ value, onChange, swatch }: ColorPickerProps) {
   const [open, setOpen] = useState(false);
   const custom = isCustomColor(value) ? value : undefined;
@@ -178,7 +185,8 @@ function Popover({
   swatch,
   onChange,
   onClose,
-}: ColorPickerProps & { id: string; ref: React.Ref<HTMLDivElement>; onClose: () => void }) {
+  solid,
+}: ColorPickerProps & { id: string; ref: React.Ref<HTMLDivElement>; onClose: () => void; solid?: SolidOptions }) {
   const box = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<{ hsva: Hsva; bg: string | null; theme: string[]; recent: string[] } | null>(null);
   const [edit, setEdit] = useState<{ k: string; v: string } | null>(null);
@@ -238,7 +246,8 @@ function Popover({
   const hsl = hsvToHsl(hsva);
 
   /** Applique une couleur ; l'émission vers le style est regroupée (glisser = beaucoup d'événements). */
-  const apply = (next: Hsva, now = false) => {
+  const apply = (input: Hsva, now = false) => {
+    const next = solid ? { ...input, a: 1 } : input;
     setState((s) => (s ? { ...s, hsva: next } : s));
     schedule(hexOf(next), now);
   };
@@ -299,8 +308,9 @@ function Popover({
         else if (ref) (ref as React.RefObject<HTMLDivElement | null>).current = el;
       }}
       className="cp"
+      data-inline={solid ? "" : undefined}
       role="dialog"
-      aria-label="Couleur personnalisée"
+      aria-label={solid ? "Choisir la couleur" : "Couleur personnalisée"}
       onKeyDown={(e) => {
         if (e.key === "Escape") {
           e.preventDefault();
@@ -342,7 +352,7 @@ function Popover({
           innerProps={{ role: "slider", "aria-label": "Luminosité : flèches gauche et droite", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(hsva.v * 100) }}
         />
       </div>
-      <div className="cp-slider">
+      {!solid && <div className="cp-slider">
         <span>Opacité</span>
         <Alpha
           hsva={{ h: hsva.h, s: hsva.s * 100, v: hsva.v * 100, a: hsva.a }}
@@ -351,7 +361,7 @@ function Popover({
           onChange={(c) => apply({ ...hsva, a: clamp(c.a, 0, 1) })}
           innerProps={{ role: "slider", "aria-label": "Opacité : flèches gauche et droite", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(hsva.a * 100) }}
         />
-      </div>
+      </div>}
 
       <div className="cp-fields">
         <span className="cp-flabel">HEX</span>
@@ -371,16 +381,16 @@ function Popover({
         <span className="cp-triple">{[hslField("h", "Teinte (degrés)"), hslField("s", "Saturation (pour cent)"), hslField("l", "Luminosité (pour cent)")]}</span>
       </div>
 
-      <div className="cp-preview" style={bg ? { background: bg } : undefined}>
+      {!solid && <><div className="cp-preview" style={bg ? { background: bg } : undefined}>
         <span className="cp-sample" style={{ color: hex }}>
           Aa Exemple de texte
         </span>
       </div>
       <p className="cp-contrast" role="status" data-low={low || undefined}>
         {contrast === null ? "Contraste non mesurable ici." : low ? `Contraste avec le fond du thème : ${contrast.toFixed(1).replace(".", ",")}:1, insuffisant (AA : 4,5:1).` : `Contraste avec le fond du thème : ${contrast.toFixed(1).replace(".", ",")}:1, suffisant.`}
-      </p>
+      </p></>}
 
-      <div className="cp-chips" role="group" aria-label="Couleurs du thème">
+      {!solid && <div className="cp-chips" role="group" aria-label="Couleurs du thème">
         <span className="cp-flabel">Thème</span>
         {PALETTE.map((c, i) => (
           <button
@@ -398,7 +408,7 @@ function Popover({
             }}
           />
         ))}
-      </div>
+      </div>}
       {state.recent.length > 0 && (
         <div className="cp-chips" role="group" aria-label="Couleurs récentes">
           <span className="cp-flabel">Récentes</span>
@@ -412,11 +422,12 @@ function Popover({
           type="button"
           onClick={() => {
             cancel();
-            onChange(undefined);
+            if (solid) solid.onReset?.();
+            else onChange(undefined);
             onClose();
           }}
         >
-          Retirer la couleur
+          {solid ? (solid.resetLabel ?? "Revenir au thème") : "Retirer la couleur"}
         </button>
         <button
           type="button"
@@ -430,4 +441,13 @@ function Popover({
       </div>
     </div>
   );
+}
+
+/**
+ * Sélecteur déjà ouvert, sans pastille (panneau « Couleurs », lot 17f) : à poser dans le flux de la
+ * page. `value` est lu à l'ouverture ; remonter le composant (clé) pour le recharger.
+ */
+export function SolidColorPicker({ value, onChange, swatch, onClose, solid }: ColorPickerProps & { onClose: () => void; solid: SolidOptions }) {
+  const id = useId();
+  return <Popover id={id} ref={null} value={value} swatch={swatch} onChange={onChange} onClose={onClose} solid={solid} />;
 }

@@ -22,6 +22,8 @@ export default function PreviewBridge() {
       if (data?.type !== "portfolio:theme" || typeof data.css !== "string") return;
       const style = document.getElementById("theme");
       if (style) style.textContent = data.css;
+      // On règle les couleurs du THÈME : celles que le site pose par-dessus (éditeur visuel) sont mises de côté.
+      document.getElementById("site-palette")?.setAttribute("media", "not all");
       for (const [name, value] of Object.entries(data.attrs ?? {})) {
         if (ALLOWED_ATTR.test(name) && typeof value === "string") document.documentElement.setAttribute(name, value);
       }

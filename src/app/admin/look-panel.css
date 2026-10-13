@@ -93,3 +93,154 @@
 .lp-role-body {
   padding: 4px 8px 10px;
 }
+
+/* ==========================================================================
+   Couleurs et logo du site (lot 17f) — src/components/admin/editor/SiteLookPanel.tsx.
+   Jeu de tokens de l'admin.
+   ========================================================================== */
+.lc-roles {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lc-role-item {
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: var(--admin-surface);
+}
+.lc-role-item[data-open] {
+  border-color: var(--admin-accent);
+}
+.lc-role-item[data-invalid] {
+  border-color: var(--admin-danger);
+}
+.lc-role {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--admin-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lc-role:hover,
+.lc-role:focus-visible {
+  background: var(--admin-accent-soft);
+}
+.lc-chip {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 50%;
+}
+.lc-chip-small {
+  width: 18px;
+  height: 18px;
+}
+.lc-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+}
+.lc-text strong {
+  font-size: 13px;
+}
+.lc-text small {
+  color: var(--admin-ink-soft);
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+.lc-state {
+  flex: none;
+  color: var(--admin-ink-soft);
+  font-size: 11px;
+}
+.lc-role-item[data-modified] .lc-state {
+  color: var(--admin-accent);
+  font-weight: 600;
+}
+.lc-uses,
+.lc-warn,
+.lc-ok {
+  margin: 0;
+  padding: 0 10px 8px 48px;
+  color: var(--admin-ink-soft);
+  font-size: 11.5px;
+}
+.lc-warn {
+  color: var(--admin-danger);
+  font-weight: 600;
+}
+.lc-body {
+  display: grid;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+.lc-alert p {
+  margin: 0 0 6px;
+}
+.lc-nuances summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.lc-nuance-list {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.lc-nuance-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lc-hex {
+  flex: none;
+  color: var(--admin-ink-soft);
+  font-size: 11px;
+}
+.lc-size {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lc-size input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+.lc-size output {
+  min-width: 52px;
+  font-size: 12px;
+  text-align: right;
+}
+.lc-modes {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lc-mode {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  cursor: pointer;
+}
+.lc-mode span {
+  display: grid;
+  gap: 1px;
+}
+.lc-mode small {
+  color: var(--admin-ink-soft);
+  font-size: 11.5px;
+}
