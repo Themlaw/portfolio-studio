@@ -89,6 +89,7 @@
    (image en ligne : aucun changement de mise en page pour les images qui tiennent). */
 .block-image[data-solo] .block-image-media {
   width: min(100%, calc(85svh * var(--ir, 1000)));
+  margin-inline: auto; /* l'image est un bloc (préflight) : text-align ne la centre pas */
 }
 .block-image[data-solo] > span:first-child {
   text-align: center;

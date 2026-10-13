@@ -77,6 +77,7 @@ async function ensure(name, make) {
 
 const SHEET = await ensure("17d-planche.png", sheet);
 const PORTRAIT = await ensure("17d-portrait.png", () => paint(1200, 2400, 4));
+const PORTRAIT3 = await ensure("17d-portrait3.png", () => paint(800, 2400, 5));
 const PANO = await ensure("17d-pano.png", () => paint(10000, 2500, 1));
 const pageId = pageIdOf("personnages");
 
@@ -113,6 +114,7 @@ const LAYOUT = [
     props: { layout: "2", gap: "normal", align: "stretch", ratio: "auto", top: "gap", children: [img("c-vert", SHEET, {}, rectCrop(P2)), img("c-jaune", SHEET, {}, rectCrop(P4))] },
   }]),
   img("b-portrait", PORTRAIT),
+  img("b-portrait3", PORTRAIT3),
   img("b-pano-plein", PANO, { width: "full" }),
   img("b-pano-169", PANO, { width: "full", ratio: "16:9" }),
   img("b-pano-169-cover", PANO, { width: "full", ratio: "16:9", fit: "cover" }),
@@ -138,10 +140,15 @@ const imgInfo = (p, sel) =>
   p.locator(sel).first().evaluate((i) => {
     const r = i.getBoundingClientRect();
     const px = Number(/\/(\d+)\.(?:avif|webp)$/.exec(i.currentSrc)?.[1] ?? 0);
-    const options = [...i.parentElement.querySelectorAll("source[type='image/webp']")].flatMap((s) => (s.srcset || "").split(",").map((x) => Number(/(\d+)w/.exec(x)?.[1] ?? 0)));
+    const options = [...i.parentElement.querySelectorAll("source[type='image/webp']")].flatMap((s) => (s.srcset || "").split(",").map((x) => Number(/\s(\d+)w\s*$/.exec(x)?.[1] ?? 0)));
     const cs = getComputedStyle(i);
     return { w: r.width, h: r.height, x: r.x, src: i.currentSrc, px, best: Math.max(0, ...options), fit: cs.objectFit, nat: [i.naturalWidth, i.naturalHeight], dpr: devicePixelRatio, vw: innerWidth, vh: innerHeight, cropped: i.hasAttribute("data-cropped"), attr: [i.getAttribute("width"), i.getAttribute("height")] };
   });
+/** Boîte en coordonnées de PAGE (les captures pleine page découpent en coordonnées de page). */
+const pbox = async (loc) => {
+  const b = await loc.boundingBox();
+  return { ...b, y: b.y + (await loc.page().evaluate(() => scrollY)) };
+};
 const blockImg = (uid) => `[data-edit-block="${uid}"] img.block-image-media`;
 
 /* ---- L : mise en page ------------------------------------------------------------------ */
@@ -176,16 +183,16 @@ if (run("L")) {
     ok("L même image posée 4 fois : 4 recadrages différents (4 rectangles distincts)", srcs.size === 4, String(srcs.size));
     const rows = await page.evaluate(() => [...document.querySelectorAll('[data-edit-block="g-persos"] .block-grid-cell img')].map((i) => { const r = i.getBoundingClientRect(); return { top: Math.round(r.top + scrollY), h: Math.round(r.height), w: Math.round(r.width) }; }));
     ok("L grille : cases au rapport de leur recadrage, alignées en haut de la rangée", rows.length === 2 && Math.abs(rows[0].top - rows[1].top) <= 1 && rows[0].h !== rows[1].h, JSON.stringify(rows));
-    const g = await page.locator('[data-edit-block="g-persos"]').first().boundingBox();
+    const g = await pbox(page.locator('[data-edit-block="g-persos"] > *').first());
     await page.screenshot({ path: `${SHOTS}/L-grille-persos-${TAG}.png`, clip: { x: 0, y: g.y - 10, width: 1440, height: Math.min(900, g.height + 20) }, fullPage: true });
-    const a = await page.locator('[data-edit-block="a-rouge"]').first().boundingBox();
+    const a = await pbox(page.locator('[data-edit-block="a-rouge"] > *').first());
     await page.screenshot({ path: `${SHOTS}/L-deux-placements-${TAG}.png`, clip: { x: 0, y: a.y - 10, width: 1440, height: 900 }, fullPage: true });
   }
 
   // Portrait haut : plafonné à 85 % de la hauteur de l'écran, réduit et centré, jamais rogné.
   await page.locator(blockImg("b-portrait")).scrollIntoViewIfNeeded();
   let m = await imgInfo(page, blockImg("b-portrait"));
-  const fig = await page.locator('[data-edit-block="b-portrait"]').first().boundingBox();
+  const fig = await pbox(page.locator('[data-edit-block="b-portrait"] > *').first());
   console.log(`  portrait 1:2 : ${Math.round(m.w)} × ${Math.round(m.h)} (écran ${m.vh}, plafond ${Math.round(m.vh * 0.85)})`);
   if (BEFORE) ok("L (avant) portrait : dépasse l'écran", m.h > m.vh, `${Math.round(m.h)}`);
   else {
@@ -200,14 +207,15 @@ if (run("L")) {
   m = await imgInfo(page, blockImg("b-pano-plein"));
   ok("L panorama pleine largeur : largeur de la page, hauteur naturelle (4:1), aucun rognage haut/bas", Math.abs(m.w - m.vw) <= 1 && Math.abs(m.w / m.h - 4) < 0.02, `${Math.round(m.w)} × ${Math.round(m.h)}`);
   ok("L panorama pleine largeur : variante nette", m.px >= Math.min(m.w * m.dpr, m.best) * 0.99, `${m.px} px pour ${Math.round(m.w * m.dpr)}`);
-  const pf = await page.locator('[data-edit-block="b-pano-plein"]').first().boundingBox();
+  const pf = await pbox(page.locator('[data-edit-block="b-pano-plein"] > *').first());
   await page.screenshot({ path: `${SHOTS}/L-panorama-plein-${TAG}.png`, clip: { x: 0, y: Math.max(0, pf.y - 20), width: 1440, height: Math.min(700, pf.height + 40) }, fullPage: true });
 
   // Pleine largeur avec un format imposé : « Image entière » par défaut (bandes vides), « Remplir le cadre » rogne.
   await page.locator(blockImg("b-pano-169")).scrollIntoViewIfNeeded();
   m = await imgInfo(page, blockImg("b-pano-169"));
-  ok("L pleine largeur + 16:9 : « Image entière » par défaut (object-fit: contain, cadre 16:9)", m.fit === "contain" && Math.abs(m.w / m.h - 16 / 9) < 0.02, `${m.fit} ${(m.w / m.h).toFixed(2)}`);
-  const p169 = await page.locator('[data-edit-block="b-pano-169"]').first().boundingBox();
+  if (BEFORE) ok("L (avant) pleine largeur + 16:9 : image rognée (cover)", m.fit === "cover" && Math.abs(m.w / m.h - 16 / 9) < 0.02, `${m.fit}`);
+  else ok("L pleine largeur + 16:9 : « Image entière » par défaut (object-fit: contain, cadre 16:9)", m.fit === "contain" && Math.abs(m.w / m.h - 16 / 9) < 0.02, `${m.fit} ${(m.w / m.h).toFixed(2)}`);
+  const p169 = await pbox(page.locator('[data-edit-block="b-pano-169"] > *').first());
   await page.screenshot({ path: `${SHOTS}/L-pano-169-entier-${TAG}.png`, clip: { x: 0, y: Math.max(0, p169.y - 20), width: 1440, height: Math.min(900, p169.height + 40) }, fullPage: true });
   await page.locator(blockImg("b-pano-169-cover")).scrollIntoViewIfNeeded();
   m = await imgInfo(page, blockImg("b-pano-169-cover"));
@@ -217,7 +225,7 @@ if (run("L")) {
   }
 
   // Décors dans une grille en 4:5 : cadrage ancien (zoom 150 %) et décor sans cadrage, nets.
-  const grid = page.locator('[data-edit-block="g-decors"]').first();
+  const grid = page.locator('[data-edit-block="g-decors"] > *').first();
   await grid.scrollIntoViewIfNeeded();
   for (const [uid, label] of [["d1", "décor cadré (zoom 150 %)"], ["d2", "décor sans cadrage"]]) {
     m = await imgInfo(page, blockImg(uid));
@@ -226,7 +234,7 @@ if (run("L")) {
     ok(`L ${label} dans une case 4:5 : netteté ≥ 1 (variante ${m.px} px pour ${Math.round(needed)} px)`, m.px >= needed * 0.99, `${(m.px / needed).toFixed(2)} (BEFORE=0,49 avec zoom)`);
     ok(`L ${label} : case 4:5 respectée`, Math.abs(m.w / m.h - 0.8) < 0.02, `${(m.w / m.h).toFixed(3)}`);
   }
-  const gb = await grid.boundingBox();
+  const gb = await pbox(grid);
   await page.screenshot({ path: `${SHOTS}/L-decors-grille-${TAG}.png`, clip: { x: 0, y: Math.max(0, gb.y - 20), width: 1440, height: Math.min(900, gb.height + 40) }, fullPage: true });
 }
 
@@ -290,25 +298,25 @@ if (run("M")) {
   await mob.addCookies(await ctx.cookies());
   await mp.goto(BASE + (toile.headers().location ?? "/fr"), { waitUntil: "networkidle" });
   await loadAll(mp);
-  await mp.locator(blockImg("b-portrait")).scrollIntoViewIfNeeded();
-  let m = await imgInfo(mp, blockImg("b-portrait"));
-  const fig = await mp.locator('[data-edit-block="b-portrait"]').first().boundingBox();
-  console.log(`  390 px, portrait 1:2 : ${Math.round(m.w)} × ${Math.round(m.h)} (écran ${m.vh})`);
+  await mp.locator(blockImg("b-portrait3")).scrollIntoViewIfNeeded();
+  let m = await imgInfo(mp, blockImg("b-portrait3"));
+  const fig = await pbox(mp.locator('[data-edit-block="b-portrait3"] > *').first());
+  console.log(`  390 px, portrait 1:3 : ${Math.round(m.w)} × ${Math.round(m.h)} (écran ${m.vh})`);
   if (BEFORE) ok("M (avant) portrait : plus haut que l'écran", m.h > m.vh, `${Math.round(m.h)}`);
   else {
-    ok("M portrait 1:2 : au plus 85 % de la hauteur, centré, proportions intactes", m.h <= m.vh * 0.85 + 1 && Math.abs(m.x + m.w / 2 - 195) < 3 && Math.abs(m.w / m.h - 0.5) < 0.01, `${Math.round(m.w)} × ${Math.round(m.h)} @${Math.round(m.x)}`);
+    ok("M portrait 1:3 : au plus 85 % de la hauteur, centré, proportions intactes", m.h <= m.vh * 0.85 + 1 && Math.abs(m.x + m.w / 2 - 195) < 3 && Math.abs(m.w / m.h - 1 / 3) < 0.01, `${Math.round(m.w)} × ${Math.round(m.h)} @${Math.round(m.x)}`);
   }
-  await mp.screenshot({ path: `${SHOTS}/M-portrait-${TAG}.png`, clip: { x: 0, y: Math.max(0, fig.y - 20), width: 390, height: 844 }, fullPage: true });
+  await mp.screenshot({ path: `${SHOTS}/M-portrait-haut-${TAG}.png`, clip: { x: 0, y: Math.max(0, fig.y - 20), width: 390, height: 844 }, fullPage: true });
   await mp.locator(blockImg("b-pano-plein")).scrollIntoViewIfNeeded();
   m = await imgInfo(mp, blockImg("b-pano-plein"));
   ok("M panorama pleine largeur : entier (390 px de large, 4:1)", Math.abs(m.w - 390) <= 1 && Math.abs(m.w / m.h - 4) < 0.02, `${Math.round(m.w)} × ${Math.round(m.h)}`);
-  const pf = await mp.locator('[data-edit-block="b-pano-plein"]').first().boundingBox();
+  const pf = await pbox(mp.locator('[data-edit-block="b-pano-plein"] > *').first());
   await mp.screenshot({ path: `${SHOTS}/M-panorama-${TAG}.png`, clip: { x: 0, y: Math.max(0, pf.y - 40), width: 390, height: 300 }, fullPage: true });
   if (!BEFORE) {
-    await mp.locator('[data-edit-block="a-rouge"]').first().scrollIntoViewIfNeeded();
+    await mp.locator(blockImg("a-rouge")).first().scrollIntoViewIfNeeded();
     const rouge = await imgInfo(mp, blockImg("a-rouge"));
     ok("M recadrage libre sur mobile : rapport 2:1 et variante nette (≥ pixels × DPR 3 ou plus grande)", Math.abs(rouge.w / rouge.h - 2) < 0.03 && rouge.px >= Math.min(rouge.w * 3, rouge.best) * 0.99, `${Math.round(rouge.w)} × ${Math.round(rouge.h)}, ${rouge.px} px`);
-    const rb = await mp.locator('[data-edit-block="a-rouge"]').first().boundingBox();
+    const rb = await pbox(mp.locator('[data-edit-block="a-rouge"] > *').first());
     await mp.screenshot({ path: `${SHOTS}/M-recadrage-${TAG}.png`, clip: { x: 0, y: Math.max(0, rb.y - 20), width: 390, height: 500 }, fullPage: true });
   }
   await mob.close();
@@ -417,6 +425,27 @@ if (run("D") && !BEFORE) {
   await f.locator("[data-testid=crop-window]").waitFor();
   await page.keyboard.press("Escape");
   ok("D9 Échap ferme la modale sans rien enregistrer", (await f.locator(".lk-crop").count()) === 0 && !draftBlock("e-planche")?.props.look);
+}
+
+/* ---- DM : la modale sur un écran de 390 px (capture, sans contrôle strict : l'éditeur est conçu pour un écran large) */
+if (run("D") && !BEFORE) {
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    f = await openEditor();
+    await sleep(1500);
+    const t = f.locator(blockImg("e-planche")).first();
+    await t.scrollIntoViewIfNeeded();
+    await t.hover();
+    await f.locator(".lk-crop-btn").click({ timeout: 15000 });
+    await f.locator("[data-testid=crop-window]").waitFor({ timeout: 15000 });
+    await page.screenshot({ path: `${SHOTS}/D-modale-libre-390-${TAG}.png` });
+    const box = await f.locator("[data-testid=crop-stage]").boundingBox();
+    ok("DM modale à 390 px : l'image entière et ses poignées tiennent dans l'écran", Boolean(box) && box.width <= 390 + 1, JSON.stringify(box));
+    await page.keyboard.press("Escape");
+  } catch (e) {
+    console.log(`  DM capture impossible : ${String(e).slice(0, 120)}`);
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
 }
 
 /* ---- P : page publiée ------------------------------------------------------------------ */
