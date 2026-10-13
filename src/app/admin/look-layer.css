@@ -281,3 +281,21 @@
 .lk-spacer {
   flex: 1;
 }
+
+/* ---- Lisibilité du fond de l'ouverture (HeroContrast) ------------------------- */
+.pe-hero-warn {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(34rem, calc(100vw - 64px));
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--lk-accent);
+  border-radius: 6px;
+  background: var(--lk-surface);
+  color: var(--lk-ink);
+  font: 500 12px/1.4 var(--lk-font);
+  box-shadow: var(--lk-shadow);
+  pointer-events: none;
+}

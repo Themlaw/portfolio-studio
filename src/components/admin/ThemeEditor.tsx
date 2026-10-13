@@ -12,6 +12,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition
 
 import { saveThemeAction } from "@/app/admin/(espace)/themes/actions";
 import { contrastReport } from "@/themes/contrast";
+import { themeTypeCss } from "@/lib/look";
 import { themeAttributes, themeToCss } from "@/themes/css";
 import { FONT_STACKS } from "@/themes/font-stacks";
 import { contrastRatio, normalizePalette, resolvePalette } from "@/themes/palette";
@@ -21,6 +22,7 @@ import { clone, SaveBar, same, toast, useUnsavedGuard } from "./editing";
 import CursorSettings from "./CursorSettings";
 import KitDownloadButton from "./KitDownloadButton";
 import PaletteEditor from "./PaletteEditor";
+import ThemeTypeEditor from "./ThemeTypeEditor";
 import { VARIANT_LABELS, VARIANT_THUMBS } from "./VariantThumb";
 
 /* ---- Réglettes ----------------------------------------------------------- */
@@ -86,7 +88,7 @@ function Preview({ theme, themeId, reloadKey }: { theme: Theme; themeId: string;
 
   const send = useCallback(() => {
     frame.current?.contentWindow?.postMessage(
-      { type: "portfolio:theme", css: themeToCss(theme), attrs: themeAttributes(theme) },
+      { type: "portfolio:theme", css: [themeToCss(theme), themeTypeCss(theme)].filter(Boolean).join("\n"), attrs: themeAttributes(theme) },
       window.location.origin,
     );
   }, [theme]);
@@ -251,6 +253,17 @@ export default function ThemeEditor({ initial, isActive }: { initial: Theme; isA
                 </div>
               </fieldset>
             ))}
+            <ThemeTypeEditor
+              value={theme.tokens.type}
+              onChange={(next) =>
+                setTheme((t) => {
+                  const tokens = { ...t.tokens };
+                  if (next) tokens.type = next;
+                  else delete tokens.type;
+                  return { ...t, tokens };
+                })
+              }
+            />
           </section>
 
           <section className="a-panel" aria-labelledby="t-formes">

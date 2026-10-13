@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       suites:
-        description: "Suites à lancer, séparées par des virgules (vide = toutes) : checks, auth, pdf, v013, lot1, lot8, palette, look, state, themes, kit, editor, boards, admin, medias, medias-firefox"
+        description: "Suites à lancer, séparées par des virgules (vide = toutes) : checks, auth, pdf, v013, lot1, lot8, lot11, palette, look, state, themes, kit, editor, boards, admin, medias, medias-firefox"
         required: false
         default: ""
 
@@ -50,6 +50,7 @@ jobs:
             { id: "v013", cmd: "node scripts/e2e-v013.mjs", browser: "chromium" },
             { id: "lot1", cmd: "node scripts/e2e-lot1.mjs", browser: "chromium" },
             { id: "lot8", cmd: "node scripts/e2e-lot8.mjs", browser: "chromium" },
+            { id: "lot11", cmd: "node scripts/e2e-lot11.mjs", browser: "chromium" },
             { id: "palette", cmd: "node scripts/e2e-palette.mjs", browser: "chromium" },
             { id: "look", cmd: "node scripts/e2e-look.mjs", browser: "chromium" },
             { id: "state", cmd: "node scripts/e2e-state.mjs", browser: "chromium" },

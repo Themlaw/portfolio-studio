@@ -7,13 +7,13 @@
  * colonne (≥ 3 px au plus mince), longueur couverte (≥ 95 % de sa boîte :
  * longueur proportionnelle), piste perceptible (≥ 1.5:1 hors poignée).
  * Serveur dev (aperçu /api/theme-preview).
- * Usage : node scripts/kit-poc/kit-contrast.mjs [thème]
+ * Usage : PORT=3001 node scripts/kit-poc/kit-contrast.mjs [thème]
  */
 import { chromium } from "playwright";
 import sharp from "sharp";
 
 const theme = process.argv[2] ?? "kit-a";
-const B = "http://localhost:3001";
+const B = `http://localhost:${process.env.PORT ?? 3001}`;
 const lum = ([r, g, b]) => {
   const c = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
   return 0.2126 * c(r) + 0.7152 * c(g) + 0.0722 * c(b);
@@ -51,7 +51,7 @@ async function railGeometry(page) {
 
 async function measure(page, selector, label) {
   const el = page.locator(selector).first();
-  if (!(await el.count())) return { label, missing: true };
+  if (!(await el.count()) || !(await el.first().isVisible())) return { label, missing: true };
   await el.scrollIntoViewIfNeeded();
   const box = await el.boundingBox();
   const pad = 6;
@@ -88,7 +88,12 @@ const results = [];
 await go("/fr/personnages");
 results.push(await measure(page, ".site-signature", "signature (encre)"));
 results.push(await measure(page, '.nav-underline[class*="w-full"]', "soulignement actif (primaire)"));
-results.push(await measure(page, '.rail-arrow:not([disabled]) [data-icon="arrow-right"]', "flèche du rail"));
+// Flèches de la bande (v0.14, `--strip-nav-*`) : effacées tant que la bande n'est pas survolée.
+const rail0 = page.locator(".strip-frame").first();
+await rail0.scrollIntoViewIfNeeded();
+await rail0.hover();
+await page.waitForTimeout(500);
+results.push(await measure(page, '.strip-nav-next:not(:disabled) [data-icon="arrow-right"]', "flèche de la bande"));
 results.push(await measure(page, ".rail-bar-thumb", "barre du rail (primaire)"));
 const rail = await railGeometry(page);
 const strip = page.locator(".strip").filter({ has: page.locator(".strip-frame:nth-child(2)") }).first();
@@ -103,9 +108,11 @@ results.push(await measure(page, '[data-icon="play"]', "lecture"));
 await browser.close();
 let failures = 0;
 for (const r of results) {
-  const pass = !r.missing && r.ratio >= 3;
+  // Un thème sans kit n'a ni signature ni soulignement dessinés : sans objet.
+  const skip = r.missing && !/^kit/.test(theme);
+  const pass = skip || (!r.missing && r.ratio >= 3);
   if (!pass) failures++;
-  console.log(`${pass ? "PASS" : "FAIL"}  ${r.label} : ${r.missing ? "absent" : `${r.ratio}:1 (${r.fg} sur ${r.bg})`}`);
+  console.log(`${skip ? "SKIP" : pass ? "PASS" : "FAIL"}  ${r.label} : ${r.missing ? "absent" : `${r.ratio}:1 (${r.fg} sur ${r.bg})`}`);
 }
 {
   const pass = rail.minThick >= 3 && rail.inked >= 0.95 && rail.track >= 1.5;

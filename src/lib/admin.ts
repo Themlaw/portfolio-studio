@@ -410,7 +410,14 @@ export function getEditorContext(draftPageId?: number) {
       .filter((p) => p.page === null || (draftPageId !== undefined && p.page === draftPageId))
       .map((p) => ({ slug: p.slug, title: p.title.fr, ...(p.page !== null ? { draft: true } : {}), onPage: onPage.has(p.slug) })),
     media: listMediaForAdmin().filter((m) => m.status !== "failed"),
+    heroBackdrop: activeHeroVariant() !== "type-only",
   };
+}
+
+/** Forme d'ouverture du thème en ligne. */
+function activeHeroVariant(): Theme["variants"]["hero"] | null {
+  const { activeId, themes } = getThemeOverview();
+  return themes.find((t) => t.id === activeId)?.variants.hero ?? null;
 }
 
 /** Pages qui ont un accent propre (contrôle avant de mettre un thème en ligne). */

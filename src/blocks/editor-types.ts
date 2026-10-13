@@ -12,6 +12,11 @@ export type EditorContext = {
    * montré par une planche d'une page (publiée ou en brouillon).
    */
   projects: { slug: string; title: string; draft?: boolean; onPage?: boolean }[];
+  /**
+   * Le thème en ligne a une ouverture avec un fond visuel (calques, projecteur) :
+   * faux pour l'ouverture typographique, où l'option de fond n'est pas proposée.
+   */
+  heroBackdrop?: boolean;
   /** Médiathèque (sans les échecs de traitement). */
   media: AdminMediaRow[];
   /** Éditeur visuel : crée un projet dans le brouillon de la page (son slug, ou null si refusé). */

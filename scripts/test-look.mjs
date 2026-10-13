@@ -10,6 +10,7 @@ import {
   cleanLook,
   cleanSiteStyles,
   cropFromWindow,
+  cropVars,
   cropWindow,
   fontStack,
   isFontRef,
@@ -147,6 +148,16 @@ ok("lecture tolérante : garde ce qui passe", tolerant?.spaceTop === "m" && !("r
 ok("lecture tolérante : rien de valide → undefined", readLook({ bogus: 1 }) === undefined && readLook(null) === undefined);
 ok("nettoyage : clés vides retirées", JSON.stringify(cleanLook({ spaceTop: undefined, text: {}, crop: { mediaId: undefined }, radius: "soft" })) === '{"radius":"soft"}');
 ok("nettoyage : tout vide → undefined", cleanLook({ text: {} }) === undefined);
+/* Cadrage des tuiles de collection (lot 11) : un cadrage par collection, bornes du cadrage commun. */
+ok("tileCrop valide", LookSchema.safeParse({ tileCrop: { characters: { x: 20, y: 80, zoom: 2 }, animation: { x: 50, y: 50, zoom: 1.5 } } }).success);
+for (const [label, bad] of [
+  ["tuile d'une collection inconnue", { tileCrop: { evil: { x: 50, y: 50, zoom: 1 } } }],
+  ["tuile : zoom > 4", { tileCrop: { characters: { x: 50, y: 50, zoom: 5 } } }],
+  ["tuile : point focal < 0", { tileCrop: { characters: { x: -1, y: 50, zoom: 1 } } }],
+  ["tuile : clé en trop", { tileCrop: { characters: { x: 50, y: 50, zoom: 1, rotate: 3 } } }],
+]) ok(`look refusé : ${label}`, !LookSchema.safeParse(bad).success);
+ok("nettoyage : cadrage de tuile vidé retiré", JSON.stringify(cleanLook({ tileCrop: { characters: undefined }, radius: "soft" })) === '{"radius":"soft"}');
+ok("variables d'un cadrage (point focal, zoom)", JSON.stringify(cropVars({ x: 12.345, y: 80, zoom: 2 })) === '{"--crop-pos":"12.35% 80%","--crop-zoom":"2"}');
 const attrs = lookAttributes(look);
 ok("attributs de l'enveloppe", attrs["data-pt"] === "s" && attrs["data-pb"] === "none" && attrs["data-radius"] === "none" && attrs["data-th"] === "center" && attrs["data-tv"] === "middle" && attrs["data-crop"] === "" && attrs["data-role-bd"] === "shadow");
 ok("aucun réglage d'enveloppe → pas d'enveloppe", lookAttributes({ text: { title: { italic: true } } }) === null && lookAttributes(undefined) === null);

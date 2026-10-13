@@ -242,6 +242,9 @@ export const CropSchema = z.strictObject({
 });
 export type Crop = z.infer<typeof CropSchema>;
 export const CROP_FIELDS = ["mediaId", "backgroundMediaId", "portraitMediaId"] as const;
+/** Tuiles de collection (accueil) : un cadrage par collection montrée. */
+export const TILE_KEYS = ["characters", "backgrounds", "animation"] as const;
+export type TileKey = (typeof TILE_KEYS)[number];
 
 /**
  * Fenêtre gardée (fractions de l'image) pour un cadrage, une image de ratio
@@ -285,6 +288,8 @@ export const LookSchema = z.strictObject({
   titleH: z.enum(["left", "center", "right"]).optional(),
   text: bounded(z.record(TextPath, TextStyleSchema), 40, "styles de texte").optional(),
   crop: z.partialRecord(z.enum(CROP_FIELDS), CropSchema).optional(),
+  /** Cadrage de l'image de chaque tuile d'un bloc « tuiles de collection », par collection. */
+  tileCrop: z.partialRecord(z.enum(TILE_KEYS), CropSchema).optional(),
   roleBackdrop: z.enum(BACKDROPS).optional(),
   /**
    * Arrondi d'une image précise d'une planche (intégration lots 2 + 3), par
@@ -347,7 +352,11 @@ export function lookAttributes(look: Look | undefined): Record<string, string> |
 /** Variables de cadrage posées sur l'enveloppe (un seul média recadrable par bloc). */
 export function cropStyle(look: Look | undefined): Record<string, string> | undefined {
   const crop = look?.crop && Object.values(look.crop)[0];
-  if (!crop) return undefined;
+  return crop ? cropVars(crop) : undefined;
+}
+
+/** Variables CSS d'un cadrage (`--crop-pos`, `--crop-zoom`), lues par src/app/look.css. */
+export function cropVars(crop: Crop): Record<string, string> {
   return { "--crop-pos": `${round(crop.x, 2)}% ${round(crop.y, 2)}%`, "--crop-zoom": String(round(crop.zoom)) };
 }
 

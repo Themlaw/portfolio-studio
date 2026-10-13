@@ -26,12 +26,14 @@ import {
   type Role,
   type SiteStyles,
   type TextStyle,
+  type TileKey,
 } from "@/lib/look";
 
 import "@/app/admin/look-panel.css";
 
 const TITLE_TYPES = new Set(["section-title", "collection-intro", "hero", "project-board", "collection-tiles"]);
 const MEDIA_TYPES = new Set(["image", "video-single", "cv", "grid", "project-board", "profile", "featured-project", "collection-tiles", "hero", "video", "collection-projects", "featured-projects"]);
+const TILE_LABELS: Record<TileKey, string> = { characters: "Personnages", backgrounds: "Décors", animation: "Animation" };
 const CROP_LABELS: Record<string, string> = { mediaId: "Image", backgroundMediaId: "Fond de l'ouverture", portraitMediaId: "Portrait" };
 
 function Segmented<T extends string>({
@@ -88,6 +90,7 @@ export function BlockLookPanel({ type, look, inCell, onChange }: { type: string;
   const set = (patch: Partial<Look>) => onChange({ ...look, ...patch });
   const texts = Object.keys(look.text ?? {});
   const crops = Object.keys(look.crop ?? {});
+  const tileCrops = Object.keys(look.tileCrop ?? {}) as TileKey[];
   const vertical = type === "hero" || inCell;
   return (
     <section className="lp" aria-labelledby="lp-title">
@@ -136,7 +139,7 @@ export function BlockLookPanel({ type, look, inCell, onChange }: { type: string;
           help="Auto : celui du thème. Couleur et police du métier : « Aa » sur la page."
         />
       )}
-      {crops.length > 0 && (
+      {(crops.length > 0 || tileCrops.length > 0) && (
         <div className="lp-field">
           <span className="lp-label">Cadrages</span>
           <ul className="lp-list">
@@ -144,6 +147,14 @@ export function BlockLookPanel({ type, look, inCell, onChange }: { type: string;
               <li key={k}>
                 {CROP_LABELS[k] ?? k} · zoom {Math.round((look.crop![k as "mediaId"]!.zoom ?? 1) * 100)} %
                 <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => { const crop = { ...look.crop }; delete crop[k as "mediaId"]; set({ crop }); }}>
+                  Recentrer
+                </button>
+              </li>
+            ))}
+            {tileCrops.map((k) => (
+              <li key={`tile-${k}`}>
+                Tuile « {TILE_LABELS[k]} » · zoom {Math.round((look.tileCrop![k]!.zoom ?? 1) * 100)} %
+                <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => { const tileCrop = { ...look.tileCrop }; delete tileCrop[k]; set({ tileCrop }); }}>
                   Recentrer
                 </button>
               </li>
