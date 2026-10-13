@@ -10,7 +10,8 @@
 #   ids : checks build auth pdf v013 lot1 lot8 state palette look themes kit editor boards admin medias medias-firefox
 # En fond détaché :
 #   ssh -f vm-dev 'cd ~/wt/lot1 && setsid nohup scripts/test-all-local.sh >/root/battery.out 2>&1 </dev/null'
-# Variables : PORT (3121), LOCK (/root/heavy.lock), LOCK_WAIT (secondes, 3600), BATTERY_DIR.
+# Variables : PORT (3121), LOCK (/root/heavy.lock), LOCK_WAIT (secondes, 3600), BATTERY_DIR,
+#   BATT_PREFIX (/root/pf-batt : dossiers de travail des suites e2e, à distinguer entre batteries en parallèle).
 set -uo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck disable=SC1090
@@ -135,7 +136,7 @@ run_suite pdf "node --import tsx scripts/test-pdf.mjs"
 for entry in "${E2E[@]}"; do
   IFS='|' read -r id cmd browser only <<<"$entry"
   want "$id" || continue
-  rt="/root/pf-batt-$id"
+  rt="${BATT_PREFIX:-/root/pf-batt}-$id"
   rm -rf "$rt"
   mkdir -p "$rt"
   run_suite "$id" "RUNNER_TEMP=$rt BROWSER=$browser ONLY=$only PORT=$PORT bash .github/scripts/e2e.sh $id $cmd"
