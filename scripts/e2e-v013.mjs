@@ -843,8 +843,12 @@ if (run("Q")) {
   const rp = await ctx.newPage();
   await rp.goto(`${BASE}/admin/reglages`, { waitUntil: "domcontentloaded" });
   await rp.getByText("Nom affiché").first().waitFor({ timeout: 60000 });
-  const values = await rp.evaluate(() => [...document.querySelectorAll("input")].map((i) => i.value));
-  ok("Q14 écran Réglages : nom affiché en français et en anglais", values.includes("Atelier Camille") && values.includes("Camille Studio"), JSON.stringify(values));
+  const tabs = rp.getByRole("tablist", { name: /Nom affiché/ });
+  const field = tabs.locator("xpath=..").locator("input");
+  const frValue = await field.inputValue();
+  await tabs.getByRole("tab", { name: /EN|Anglais/ }).click();
+  const enValue = await field.inputValue();
+  ok("Q14 écran Réglages : nom affiché en français et en anglais (onglets FR / EN)", frValue === "Atelier Camille" && enValue === "Camille Studio", `${frValue} / ${enValue}`);
   await rp.close();
   await pub.close();
 }
