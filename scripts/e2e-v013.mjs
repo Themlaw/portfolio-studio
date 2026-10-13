@@ -46,6 +46,7 @@ const PROJECT = "Atelier des brumes";
 let failures = 0;
 function ok(label, cond, detail = "") {
   if (!cond) failures++;
+  if (process.env.TRACE) console.log("TRACE", Date.now() % 1000000, "--- step");
   console.log(`${cond ? "PASS" : "FAIL"} ${label}${!cond && detail ? ` — ${detail}` : ""}`);
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -74,6 +75,42 @@ const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("dialog", (d) => d.accept());
+// Compteur de rafraîchissements demandés à la toile (message `refresh`) : une modification n'en doit pas multiplier.
+await page.addInitScript(() => {
+  if (window.top === window) return;
+  window.__refreshes = 0;
+  window.addEventListener("message", (e) => {
+    if (e.data?.type === "portfolio:edit" && e.data.kind === "refresh") window.__refreshes++;
+  });
+});
+if (process.env.RSC_DELAY) {
+  // Diagnostic : réponses RSC (rafraîchissement de la toile) retardées.
+  await ctx.route(/[?&]_rsc=/, async (route) => {
+    await sleep(Number(process.env.RSC_DELAY));
+    await route.continue().catch(() => {});
+  });
+}
+if (process.env.TRACE) {
+  // Diagnostic : messages éditeur→toile, retraits de nœuds (barre de surlignage, champ), rechargements de la toile.
+  await page.addInitScript(() => {
+    if (window.top === window) return;
+    const log = (...a) => console.log("TRACE", Date.now() % 1000000, ...a);
+    window.addEventListener("message", (e) => e.data?.type === "portfolio:edit" && log("msg", e.data.kind, e.data.rev ?? "", e.data.upTo ?? ""));
+    log("frame-load", location.pathname);
+    const mo = new MutationObserver((recs) => {
+      for (const r of recs)
+        for (const n of r.removedNodes) {
+          if (n.nodeType !== 1) continue;
+          if (n.matches?.(".pe-markbar") || n.querySelector?.(".pe-markbar")) log("removed markbar");
+          if (n.matches?.("[data-marked-edit]") || n.querySelector?.("[data-marked-edit]")) log("removed marked-edit");
+          if (n.matches?.("[data-marked-body]") || n.querySelector?.("[data-marked-body]")) log("removed marked-body");
+        }
+    });
+    mo.observe(document, { childList: true, subtree: true });
+    document.addEventListener("focusout", (e) => e.target?.matches?.("[data-marked-edit]") && log("blur marked-edit"), true);
+  });
+  page.on("console", (m) => m.text().startsWith("TRACE") && console.log(m.text()));
+}
 
 await page.goto(`${BASE}/admin/connexion`, { waitUntil: "networkidle" });
 await page.fill("#email", EMAIL);
@@ -88,8 +125,25 @@ async function canvas(p = page) {
   await f.waitForSelector("html[data-edit-mode]", { timeout: 120000 });
   return f;
 }
+/**
+ * Éditeur au repos : plus d'enregistrement en cours ET la toile a rendu la révision écrite (`[data-edit-rev]`
+ * >= `draft_rev` du brouillon). Sans le second point, le rendu du serveur arrive après coup (parfois des
+ * secondes sur la VM) et remplace le DOM sous le test : mesure d'une poignée périmée, champ rouvert pendant
+ * le remplacement de l'enveloppe.
+ */
 async function settled(p = page) {
   await p.waitForFunction(() => !/Enregistrement/.test(document.querySelector(".ve-status")?.textContent ?? ""), null, { timeout: 90000 });
+  const pageId = Number(/\/admin\/pages\/(\d+)\/editer/.exec(p.url())?.[1]);
+  const rev = Number.isFinite(pageId) ? q("select draft_rev as r from pages where id = ?", pageId)[0]?.r : undefined;
+  const frame = p.frames().find((fr) => fr !== p.mainFrame());
+  if (frame && rev) {
+    await frame
+      .waitForFunction((r) => {
+        const el = document.querySelector("[data-edit-rev]");
+        return !el || Number(el.getAttribute("data-edit-rev")) >= r;
+      }, rev, { timeout: 30000, polling: 100 })
+      .catch(() => {});
+  }
   await sleep(400);
 }
 const until = (f, fn, arg, timeout = 60000) =>
@@ -397,8 +451,15 @@ if (run("G")) {
   await f.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
   await sleep(300);
   await page.getByRole("tab", { name: "Réglages" }).click();
-  await f.locator(".site-header .site-header-bar").click({ position: { x: 600, y: 20 } });
-  ok("G1 en-tête sélectionné : « commun à toutes les pages », réglages dans le panneau", await until(f, () => /commun à toutes les pages/.test(document.querySelector(".pe-selected.pe-global .pe-tag")?.textContent ?? "")) && (await page.locator('[data-testid="site-editor"]').count()) === 1);
+  await settled();
+  // La sélection de l'en-tête peut se perdre si un rendu du serveur remplace le DOM entre le clic et son traitement : on reclique.
+  let g1 = false;
+  for (let i = 0; i < 3 && !g1; i++) {
+    await f.locator(".site-header .site-header-bar").click({ position: { x: 600, y: 20 } });
+    g1 = await until(f, () => /commun à toutes les pages/.test(document.querySelector(".pe-selected.pe-global .pe-tag")?.textContent ?? ""), undefined, 10000);
+  }
+  const siteEditors = await page.locator('[data-testid="site-editor"]').count();
+  ok("G1 en-tête sélectionné : « commun à toutes les pages », réglages dans le panneau", g1 && siteEditors === 1, `étiquette=${g1} panneaux=${siteEditors}`);
   await page.screenshot({ path: `${SHOTS}/G-entete-selectionne.png` });
   await f.locator('[data-testid="nav-add"]').click();
   await f.getByLabel("Texte du lien").fill("Boutique");
@@ -574,8 +635,7 @@ if (run("L")) {
   await f.locator(`${formSel} h2`).click();
   await page.getByRole("tab", { name: "Réglages" }).click();
   await page.getByRole("button", { name: "Voir le message de confirmation" }).click();
-  await sleep(600);
-  ok("L5 « Voir le message de confirmation » le montre sur la toile", await f.locator(`${formSel} [data-form-pane="success"]`).isVisible());
+  ok("L5 « Voir le message de confirmation » le montre sur la toile", await until(f, (q) => Boolean(document.querySelector(q)?.checkVisibility()), `${formSel} [data-form-pane="success"]`, 20000));
   await center(f, `${formSel} form`);
   await page.screenshot({ path: `${SHOTS}/L-formulaire-selectionne.png` });
   await page.getByRole("button", { name: "Publier" }).click();
@@ -674,6 +734,9 @@ if (run("P")) {
   f = await openEditor(1);
   await sleep(1000);
   const H = '[data-edit-type="hero"] h1[data-inline="statement"]';
+  const statementUntil = async (pred, ms = 20000) => {
+    for (const end = Date.now() + ms; Date.now() < end; await sleep(200)) if (draftOf()?.blocks && pred(statement())) return;
+  };
   const statement = (lang = "fr") => draftOf().blocks.find((b) => b.type === "hero")?.props.statement?.[lang];
   ok("P1 accroche repérée sur la toile (ouverture typographique)", (await f.locator(H).count()) === 1, "thème sans accroche affichée ?");
   const before = await f.locator(H).evaluate((el) => el.innerHTML);
@@ -697,6 +760,7 @@ if (run("P")) {
   await page.keyboard.press("Enter");
   ok("P5 Entrée : aperçu immédiat avec le mot surligné", await until(f, (sel) => document.querySelector(sel + " [data-marked-over] .hero-mark")?.textContent === "mondes", H, 5000));
   await settled();
+  await statementUntil((v) => v === "Je dessine des personnages et des <mark>mondes</mark>");
   ok("P6 stocké balisé <mark> dans le brouillon (fr)", statement() === "Je dessine des personnages et des <mark>mondes</mark>", statement());
   ok("P6b l'autre langue n'a pas bougé", statement("en") !== statement("fr"));
   ok("P6c rendu du serveur : aperçu remplacé par le rendu de React", await until(f, (sel) => !document.querySelector(sel + " [data-marked-over]") && document.querySelector(sel + " [data-marked-body] .hero-mark")?.textContent === "mondes", H, 20000));
@@ -707,21 +771,27 @@ if (run("P")) {
   await f.locator(".pe-markbar button").click();
   await page.keyboard.press("Enter");
   await settled();
+  await statementUntil((v) => v === "Je dessine des personnages et des mondes");
   ok("P8 surlignage retiré : plus de balisage", statement() === "Je dessine des personnages et des mondes", statement());
   // Un mot sans sélection : le mot sous le curseur est surligné.
+  const refreshes0 = await f.evaluate(() => window.__refreshes);
   await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
   await page.keyboard.press("ControlOrMeta+Home");
   await page.keyboard.press("ArrowRight");
   await f.locator(".pe-markbar button").click();
   await page.keyboard.press("Enter");
   await settled();
+  await statementUntil((v) => v?.startsWith("<mark>Je</mark> dessine"));
   ok("P9 curseur dans un mot (sans sélection) : le mot est surligné", statement()?.startsWith("<mark>Je</mark> dessine"), statement());
+  const refreshes = (await f.evaluate(() => window.__refreshes)) - refreshes0;
+  ok("P9b une modification d'accroche = 1 ou 2 rafraîchissements de la toile (pas de rafale)", refreshes >= 1 && refreshes <= 2, `${refreshes} rafraîchissements`);
   // Aucun HTML : ce qui ressemble à une balise est retiré à la saisie (« < » suivi d'une lettre ou de « / »), rien n'est interprété.
   await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.type("Salut <img src=x onerror=alert(1)> <b>gras</b>");
   await page.keyboard.press("Enter");
   await settled();
+  await statementUntil((v) => v?.startsWith("Salut"));
   ok("P10 balises retirées à la saisie : aucun HTML dans le brouillon", !/<\/?[a-z]/i.test(statement().replace(/<\/?mark>/g, "")) && !statement().includes("<img"), statement());
   ok("P10b rien d'interprété sur la toile", (await f.locator(`${H} img, ${H} b`).count()) === 0);
   // Un chevron isolé reste du texte (accroche de la v0.15 : « I <3 … ») : enregistré, publiable, rendu en texte.
@@ -730,6 +800,7 @@ if (run("P")) {
   await page.keyboard.type("I <3 dessiner");
   await page.keyboard.press("Enter");
   await settled();
+  await statementUntil((v) => v === "I <3 dessiner");
   ok("P10c « < » isolé conservé comme texte dans le brouillon", statement() === "I <3 dessiner", statement());
   ok("P10d rendu en texte, sans nœud HTML", await until(f, (sel) => document.querySelector(sel + " [data-marked-body]")?.textContent === "I <3 dessiner" && document.querySelectorAll(sel + " [data-marked-body] *").length === 0, H, 20000));
   // Balisage forgé : un message de la toile avec du HTML est refusé par l'éditeur ; l'aperçu n'existe pas, le brouillon reste.
