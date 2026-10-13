@@ -381,6 +381,8 @@ if (run("B") || run("C"))
   // palette, puis la largeur) enchaînés bien en moins de 1,2 s ne sont jamais fusionnés ; seuls les glissements continus (roue, curseurs) le sont.
   const look = (s) => ({ color: s?.color ?? null, width: s?.width ?? "inset" });
   const surfaceNow = () => look(inkBlocks()[0]?.props.surface);
+  // La teinte lisible du B7 doit être arrivée au brouillon avant de photographier l'état de départ (sinon course : s0 = l'ancienne couleur).
+  await waitFor(() => inkBlocks()[0]?.props.surface?.color === "#f6d6e4");
   const s0 = surfaceNow();
   const s1 = { ...s0, color: "primary" };
   const s2 = { ...s1, width: "full" };
