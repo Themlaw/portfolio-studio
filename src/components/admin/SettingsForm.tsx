@@ -50,7 +50,7 @@ export default function SettingsForm({ initial }: { initial: AdminSettings }) {
       <section className="a-panel" aria-labelledby="s-identite">
         <h2 id="s-identite">Identité</h2>
         <div className="a-form-grid">
-          <TextField label="Nom affiché" help="En haut de chaque page et dans l'onglet du navigateur." value={site.name} onChange={(name) => setSite({ name })} error={errorAt(errors, "site.name")} />
+          <TextI18n label="Nom affiché" help="En haut de chaque page et dans l'onglet du navigateur. Vide en anglais : le nom français est repris." value={site.name} onChange={(name) => setSite({ name })} error={errorAt(errors, "site.name")} />
           <TextField
             label="Adresse de contact"
             type="email"

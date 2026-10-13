@@ -470,6 +470,15 @@ if (run("H")) {
   ok("H5b sélecteur : roue, curseurs de luminosité et d'opacité, HEX / RGB / HSL, aperçu, couleurs du thème", (await f.locator(".cp .cp-wheel").count()) === 1 && (await f.locator('.cp [role=slider]:not(.cp-wheel)').count()) === 2 && (await f.locator(".cp input").count()) === 7 && (await f.locator(".cp-preview").count()) === 1 && (await f.locator('.cp [aria-label="Couleurs du thème"] .cp-chip').count()) === 8);
   ok("H5c sélecteur entièrement visible (la toile défile au besoin)", await until(f, () => { const r = document.querySelector(".cp").getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight + 1; }, null, 5000));
   await page.screenshot({ path: `${SHOTS}/H-selecteur-couleur.png` });
+  // v0.16 : la pastille des curseurs (18 px, centrée sur la valeur) restait à cheval sur le bord à 100 % d'opacité :
+  // elle dépassait d'environ 8 px de la fenêtre, qui défilait en largeur.
+  const edge = await f.evaluate(() => {
+    const cp = document.querySelector(".cp");
+    const box = cp.getBoundingClientRect();
+    const pointers = [...cp.querySelectorAll(".cp-slider [class$='-fill']")].map((e) => e.getBoundingClientRect().right);
+    return { scroll: cp.scrollWidth - cp.clientWidth, over: Math.max(...pointers) - box.right };
+  });
+  ok("H5d curseur d'opacité à 100 % : pastille dans la fenêtre, aucun défilement en largeur", edge.scroll <= 0 && edge.over <= 0, JSON.stringify(edge));
   const hex = f.locator(".cp .cp-hex");
   await hex.fill("javascript");
   await hex.press("Enter");

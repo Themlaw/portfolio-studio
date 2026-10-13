@@ -18,16 +18,41 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { acceptToCanvas, EDIT_MSG, type FromCanvas } from "@/lib/edit/protocol";
-import { safeNavHref } from "@/lib/site-schema";
+import { newFieldId } from "@/lib/contact-form";
+import { acceptToCanvas, type FromCanvas } from "@/lib/edit/protocol";
+import { safeNavHref, socialKeyOf } from "@/lib/site-schema";
 
+import { listKeys, postIntent, previewList } from "./edit/optimistic";
 import { useDismiss } from "./edit/useDismiss";
 import SocialPicker from "./SocialPicker";
 
 type Rect = { top: number; left: number; width: number; height: number };
 
-function post(msg: FromCanvas) {
-  window.parent.postMessage({ type: EDIT_MSG, ...msg }, window.location.origin);
+/** Envoie une intention (numérotée : voir edit/optimistic.ts) ; renvoie son numéro. */
+function post(msg: FromCanvas): number {
+  return postIntent(msg);
+}
+
+/**
+ * Éléments d'une liste, dans l'ordre où ils s'AFFICHENT (aperçu instantané : l'ordre visuel suit la
+ * propriété `order`, pas le DOM), sans les éléments retirés par un aperçu.
+ */
+function visual(els: HTMLElement[]): HTMLElement[] {
+  return els
+    .filter((el) => el.style.display !== "none")
+    .map((el, i) => ({ el, i, order: Number(el.style.order) || 0 }))
+    .sort((a, b) => a.order - b.order || a.i - b.i)
+    .map((x) => x.el);
+}
+/** Fils directs d'un conteneur qui sont des éléments de la liste (réels, ou fantômes d'un aperçu). */
+const itemsIn = (list: Element, selector: string) => visual([...list.children].filter((c): c is HTMLElement => c instanceof HTMLElement && (c.matches(selector) || c.hasAttribute("data-pv-ghost"))));
+
+const KEY_ATTR = { nav: "data-nav-key", social: "data-social-key" } as const;
+/** Rang d'un élément dans la liste telle que l'éditeur la tient (aperçus en attente compris) ; `fallback` sinon. */
+function rankOf(kind: "nav" | "social", el: Element | null | undefined, fallback: number): { key: string | null; index: number } {
+  const key = el?.getAttribute(KEY_ATTR[kind]) ?? null;
+  const i = key ? listKeys(kind).indexOf(key) : -1;
+  return { key, index: i >= 0 ? i : fallback };
 }
 function rectOf(el: Element): Rect {
   const r = el.getBoundingClientRect();
@@ -40,7 +65,7 @@ const fold = (s: string) =>
     .toLowerCase();
 
 type Hover = { kind: "nav" | "social"; index: number; list: Element } | null;
-type Popover = { kind: "nav-add"; anchor: Rect } | { kind: "social-add"; anchor: Rect } | { kind: "social-edit"; index: number; anchor: Rect; href: string } | null;
+type Popover = { kind: "nav-add"; anchor: Rect } | { kind: "social-add"; anchor: Rect } | { kind: "social-edit"; index: number; key: string | null; anchor: Rect; href: string } | null;
 
 export default function SiteLayer({ mode, host, selected, announce }: { mode: "off" | "edit" | "preview"; host: HTMLElement | null; selected: string | null; announce: (t: string) => void }) {
   const [, setTick] = useState(0);
@@ -50,6 +75,8 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
   const [locked, setLocked] = useState<string | null>(null);
   const [pop, setPop] = useState<Popover>(null);
   const [drag, setDrag] = useState<{ kind: "nav" | "social"; from: number; to: number; marker: Rect } | null>(null);
+  /** Glisser en cours : la barre d'outils qui porte la poignée reste montée (sinon la capture du pointeur est perdue). */
+  const dragging = useRef(false);
   const edit = mode === "edit";
 
   useEffect(() => {
@@ -71,6 +98,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
       frame = requestAnimationFrame(() => setTick((n) => n + 1));
     };
     const onMove = (e: PointerEvent) => {
+      if (dragging.current) return;
       if (e.target instanceof Element && e.target.closest(".pe-layer")) return;
       const t = e.target instanceof Element ? e.target : null;
       const nav = t?.closest<HTMLElement>("[data-edit-global='header'] [data-nav-item]");
@@ -98,7 +126,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
   }, [edit]);
 
   const header = typeof document !== "undefined" ? document.querySelector("[data-edit-global='header']") : null;
-  const navItems = header ? [...header.querySelectorAll<HTMLElement>("nav [data-nav-item]")] : [];
+  const navItems = header ? visual([...header.querySelectorAll<HTMLElement>("nav [data-nav-item], nav [data-pv-ghost]")]) : [];
   const navBox = header?.querySelector("nav") ?? null;
   const socialLists = typeof document !== "undefined" ? [...document.querySelectorAll<HTMLElement>("[data-edit-socials]")] : [];
 
@@ -111,8 +139,11 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
     } catch {}
     const handle = e.currentTarget as HTMLElement;
     handle.setPointerCapture(e.pointerId);
+    dragging.current = true;
     document.documentElement.setAttribute("data-edit-dragging", "");
-    const items = () => [...list.querySelectorAll<HTMLElement>(kind === "nav" ? "[data-nav-item]" : "[data-social-index]")];
+    const items = () => itemsIn(list, kind === "nav" ? "[data-nav-item]" : "[data-social-index]");
+    // Clé de l'élément déplacé : celui qui est au rang `from` de la liste telle que l'éditeur la tient.
+    const draggedKey = listKeys(kind)[from] ?? null;
     let to = from;
     const update = (x: number, y: number) => {
       const els = items();
@@ -139,10 +170,12 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
       handle.removeEventListener("pointerup", up);
       handle.removeEventListener("pointercancel", up);
       document.documentElement.removeAttribute("data-edit-dragging");
+      dragging.current = false;
       setDrag(null);
       if (to !== from && to !== from + 1) {
         const target = to > from ? to - 1 : to;
-        post({ kind: "site-op", op: kind === "nav" ? "nav-move" : "social-move", index: from, to: target });
+        const seq = post({ kind: "site-op", op: kind === "nav" ? "nav-move" : "social-move", index: from, to: target });
+        if (draggedKey) previewList(kind, { t: "move", key: draggedKey, to: target }, seq);
         announce(`${kind === "nav" ? "Lien" : "Réseau"} déplacé en position ${target + 1}.`);
       }
     };
@@ -166,16 +199,17 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
         </p>
       )}
 
-      {hover && hovBox && !drag && !locked && (
+      {hover && hovBox && !locked && (
         <div
           className="pe-item-tools"
           data-kind={hover.kind}
-          style={hover.kind === "nav" ? { top: hovBox.top - 26, left: hovBox.left + hovBox.width / 2 - 34 } : { top: hovBox.top, left: hovBox.left + hovBox.width + 6 }}
+          // Caché, pas démonté, pendant le glisser : la poignée garde la capture du pointeur.
+          style={{ ...(hover.kind === "nav" ? { top: hovBox.top - 26, left: hovBox.left + hovBox.width / 2 - 34 } : { top: hovBox.top, left: hovBox.left + hovBox.width + 6 }), ...(drag ? { visibility: "hidden" as const } : {}) }}
           onPointerEnter={() => setHover(hover)}
           role="toolbar"
           aria-label={hover.kind === "nav" ? "Lien du menu" : "Réseau"}
         >
-          <button type="button" className="pe-grip-sm" aria-label="Glisser pour déplacer" title="Glisser pour déplacer" onPointerDown={(e) => startDrag(e, hover.kind, hover.index, hover.list)}>
+          <button type="button" className="pe-grip-sm" aria-label="Glisser pour déplacer" title="Glisser pour déplacer" onPointerDown={(e) => startDrag(e, hover.kind, rankOf(hover.kind, hovEl, hover.index).index, hover.list)}>
             ⠿
           </button>
           {hover.kind === "social" && (
@@ -183,7 +217,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
               type="button"
               aria-label="Modifier le lien"
               title="Modifier le lien"
-              onClick={() => setPop({ kind: "social-edit", index: hover.index, anchor: hovBox, href: hovEl?.querySelector("a")?.getAttribute("href") ?? "" })}
+              onClick={() => setPop({ kind: "social-edit", index: rankOf("social", hovEl, hover.index).index, key: rankOf("social", hovEl, hover.index).key, anchor: hovBox, href: hovEl?.querySelector("a")?.getAttribute("href") ?? "" })}
             >
               ✎
             </button>
@@ -194,7 +228,9 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
             aria-label={hover.kind === "nav" ? "Retirer ce lien du menu" : "Retirer ce réseau"}
             title="Retirer"
             onClick={() => {
-              post({ kind: "site-op", op: hover.kind === "nav" ? "nav-remove" : "social-remove", index: hover.index });
+              const { key, index } = rankOf(hover.kind, hovEl, hover.index);
+              const seq = post({ kind: "site-op", op: hover.kind === "nav" ? "nav-remove" : "social-remove", index });
+              if (key) previewList(hover.kind, { t: "remove", key }, seq);
               setHover(null);
             }}
           >
@@ -235,7 +271,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
 
       {pop?.kind === "nav-add" && <NavAddPopover anchor={pop.anchor} pages={pages} onClose={() => setPop(null)} />}
       {pop?.kind === "social-add" && <SocialPopover anchor={pop.anchor} onClose={() => setPop(null)} />}
-      {pop?.kind === "social-edit" && <SocialPopover anchor={pop.anchor} editIndex={pop.index} initialHref={pop.href} onClose={() => setPop(null)} />}
+      {pop?.kind === "social-edit" && <SocialPopover anchor={pop.anchor} editIndex={pop.index} editKey={pop.key} initialHref={pop.href} onClose={() => setPop(null)} />}
     </div>,
     host,
   );
@@ -310,7 +346,8 @@ function NavAddPopover({ anchor, pages, onClose }: { anchor: Rect; pages: { id: 
             <button
               type="button"
               onClick={() => {
-                post({ kind: "site-op", op: "nav-add-page", pageId: p.id });
+                const seq = post({ kind: "site-op", op: "nav-add-page", pageId: p.id });
+                previewList("nav", { t: "add", key: `p${p.id}`, label: p.title }, seq);
                 onClose();
               }}
             >
@@ -325,7 +362,8 @@ function NavAddPopover({ anchor, pages, onClose }: { anchor: Rect; pages: { id: 
           e.preventDefault();
           e.stopPropagation();
           if (!hrefOk || !label.trim()) return;
-          post({ kind: "site-op", op: "nav-add-link", href: href.trim(), label: label.trim().slice(0, 60) });
+          const seq = post({ kind: "site-op", op: "nav-add-link", href: href.trim(), label: label.trim().slice(0, 60) });
+          previewList("nav", { t: "add", key: `l:${href.trim()}`, label: label.trim().slice(0, 60) }, seq);
           onClose();
         }}
       >
@@ -359,7 +397,7 @@ const PICKER_CLASSES = {
 };
 
 /** « + Réseau » (ou modifier un lien) : le choix de réseau partagé avec l'écran Réglages (SocialPicker). */
-function SocialPopover({ anchor, editIndex, initialHref = "", onClose }: { anchor: Rect; editIndex?: number; initialHref?: string; onClose: () => void }) {
+function SocialPopover({ anchor, editIndex, editKey, initialHref = "", onClose }: { anchor: Rect; editIndex?: number; editKey?: string | null; initialHref?: string; onClose: () => void }) {
   return (
     <Panel anchor={anchor} label={editIndex !== undefined ? "Modifier le lien du réseau" : "Ajouter un réseau"} onClose={onClose}>
       <SocialPicker
@@ -367,14 +405,23 @@ function SocialPopover({ anchor, editIndex, initialHref = "", onClose }: { ancho
         initialHref={initialHref}
         classes={PICKER_CLASSES}
         onDone={({ href, label, network }) => {
-          if (editIndex !== undefined) post({ kind: "site-op", op: "social-edit", index: editIndex, href });
-          else post({ kind: "site-op", op: "social-add", href, label, network });
+          if (editIndex !== undefined) {
+            // Le lien d'un réseau ne se voit pas : l'élément est seulement marqué « en cours ».
+            const seq = post({ kind: "site-op", op: "social-edit", index: editIndex, href });
+            if (editKey) previewList("social", { t: "pending", key: editKey }, seq);
+          } else {
+            const seq = post({ kind: "site-op", op: "social-add", href, label, network });
+            previewList("social", { t: "add", key: socialKeyOf({ label, href }), label: label.trim() }, seq);
+          }
           onClose();
         }}
       />
     </Panel>
   );
 }
+
+/** Libellé du champ neuf montré en attendant (fr, en), comme `makeField`. */
+const NEW_FIELD_LABELS = { text: ["Ton nom", "Your name"], email: ["Ton e-mail", "Your email"], textarea: ["Ton message", "Your message"], select: ["Sujet", "Topic"] } as const;
 
 /**
  * Formulaire de contact sur la toile (v0.13) : au survol d'un champ, poignée
@@ -388,6 +435,8 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
   const [hover, setHover] = useState<{ uid: string; index: number } | null>(null);
   const [menu, setMenu] = useState<{ uid: string; anchor: Rect } | null>(null);
   const [drag, setDrag] = useState<Rect | null>(null);
+  // Glisser en cours : la barre d'outils qui porte la poignée reste montée (sinon la capture du pointeur est perdue).
+  const dragging = useRef(false);
   const edit = mode === "edit";
 
   useEffect(() => {
@@ -408,6 +457,7 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
   useEffect(() => {
     if (!edit) return;
     const onMove = (e: PointerEvent) => {
+      if (dragging.current) return;
       if (e.target instanceof Element && e.target.closest(".pe-layer")) return;
       const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-form-field]") : null;
       const uid = field?.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
@@ -432,6 +482,12 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
   const fieldEl = (uid: string, i: number) => document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"] [data-form-field="${i}"]`);
   const hovEl = hover ? fieldEl(hover.uid, hover.index) : null;
   const hovBox = hovEl ? rectOf(hovEl) : null;
+  /** Rang du champ dans la liste telle que l'éditeur la tient (aperçus en attente compris), et sa clé. */
+  const fieldRank = (uid: string, el: Element | null, fallback: number) => {
+    const key = el?.getAttribute("data-form-field-id") ?? null;
+    const i = key ? listKeys(`form:${uid}`).indexOf(key) : -1;
+    return { key, index: i >= 0 ? i : fallback };
+  };
 
   const startDrag = (e: React.PointerEvent, uid: string, from: number) => {
     if (e.button !== 0) return;
@@ -441,8 +497,10 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
     } catch {}
     const handle = e.currentTarget as HTMLElement;
     handle.setPointerCapture(e.pointerId);
+    dragging.current = true;
     document.documentElement.setAttribute("data-edit-dragging", "");
-    const els = () => [...document.querySelectorAll<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"] [data-form-field]`)];
+    const els = () => visual([...document.querySelectorAll<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"] [data-form-field-id]`)]);
+    const draggedKey = listKeys(`form:${uid}`)[from] ?? null;
     let to = from;
     const move = (ev: PointerEvent) => {
       const list = els();
@@ -461,8 +519,13 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
       handle.removeEventListener("pointerup", up);
       handle.removeEventListener("pointercancel", up);
       document.documentElement.removeAttribute("data-edit-dragging");
+      dragging.current = false;
       setDrag(null);
-      if (to !== from && to !== from + 1) post({ kind: "form-field", uid, op: "move", index: from, to: to > from ? to - 1 : to });
+      if (to !== from && to !== from + 1) {
+        const target = to > from ? to - 1 : to;
+        const seq = post({ kind: "form-field", uid, op: "move", index: from, to: target });
+        if (draggedKey) previewList(`form:${uid}`, { t: "move", key: draggedKey, to: target }, seq);
+      }
     };
     handle.addEventListener("pointermove", move);
     handle.addEventListener("pointerup", up);
@@ -471,9 +534,9 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
 
   return createPortal(
     <div className="pe-layer pe-form-layer" lang="fr">
-      {hover && hovBox && !drag && (
-        <div className="pe-item-tools" data-kind="field" style={{ top: hovBox.top, left: hovBox.left + hovBox.width + 8 }} onPointerEnter={() => setHover(hover)} role="toolbar" aria-label="Champ du formulaire">
-          <button type="button" className="pe-grip-sm" aria-label="Glisser pour déplacer ce champ" title="Glisser pour déplacer" onPointerDown={(e) => startDrag(e, hover.uid, hover.index)}>
+      {hover && hovBox && (
+        <div className="pe-item-tools" data-kind="field" style={{ top: hovBox.top, left: hovBox.left + hovBox.width + 8, ...(drag ? { visibility: "hidden" as const } : {}) }} onPointerEnter={() => setHover(hover)} role="toolbar" aria-label="Champ du formulaire">
+          <button type="button" className="pe-grip-sm" aria-label="Glisser pour déplacer ce champ" title="Glisser pour déplacer" onPointerDown={(e) => startDrag(e, hover.uid, fieldRank(hover.uid, hovEl, hover.index).index)}>
             ⠿
           </button>
           <button
@@ -482,7 +545,9 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
             aria-label="Retirer ce champ"
             title={hovEl?.hasAttribute("data-form-reply") ? "Ce champ sert à te répondre" : "Retirer"}
             onClick={() => {
-              post({ kind: "form-field", uid: hover.uid, op: "remove", index: hover.index });
+              const { key, index } = fieldRank(hover.uid, hovEl, hover.index);
+              const seq = post({ kind: "form-field", uid: hover.uid, op: "remove", index });
+              if (key) previewList(`form:${hover.uid}`, { t: "remove", key }, seq);
               setHover(null);
             }}
           >
@@ -492,7 +557,7 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
       )}
       {drag && <div className="pe-drop pe-drop-cursor" style={drag} aria-hidden="true" />}
       {forms.map(({ form, uid }) => {
-        const fields = form.querySelectorAll("[data-form-field]");
+        const fields = visual([...form.querySelectorAll<HTMLElement>("[data-form-field-id]")]);
         const last = fields[fields.length - 1];
         if (!last || fields.length >= 12) return null;
         const r = rectOf(last);
@@ -530,7 +595,10 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
                   type="button"
                   role="menuitem"
                   onClick={() => {
-                    post({ kind: "form-field", uid: menu.uid, op: "add", fieldType: type });
+                    // Identifiant choisi ici : le champ montré en attendant et le champ réel se reconnaissent.
+                    const id = newFieldId();
+                    const seq = post({ kind: "form-field", uid: menu.uid, op: "add", fieldType: type, id });
+                    previewList(`form:${menu.uid}`, { t: "add", key: id, label: NEW_FIELD_LABELS[type][document.documentElement.lang === "en" ? 1 : 0] }, seq);
                     setMenu(null);
                   }}
                 >

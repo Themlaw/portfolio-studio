@@ -97,8 +97,34 @@ export const SocialSchema = z.strictObject({
 export type SocialItem = z.infer<typeof SocialSchema>;
 export const SocialsSchema = z.array(SocialSchema).max(12, "12 réseaux au plus.");
 
+/**
+ * Nom du site, fr / en (v0.16). `en` vide = le nom français. Une donnée d'avant
+ * (simple chaîne : réglage non migré, brouillon, onglet ouvert) est lue comme { fr: chaîne, en: "" }.
+ */
+export const SiteNameSchema = z.preprocess(
+  (v) => (typeof v === "string" ? { fr: v, en: "" } : v),
+  z.strictObject({ fr: z.string().trim().min(1, "Le nom du site est obligatoire.").max(80), en: z.string().trim().max(80) }),
+);
+export type SiteName = { fr: string; en: string };
+
+/** Nom du site dans la langue demandée : le français si l'anglais est vide. */
+export function siteNameFor(name: unknown, locale: string): string {
+  if (typeof name === "string") return name;
+  const o = (name ?? {}) as Partial<SiteName>;
+  const fr = typeof o.fr === "string" ? o.fr : "";
+  const own = locale === "en" && typeof o.en === "string" ? o.en.trim() : "";
+  return own || fr;
+}
+
+/** Nom du site lu dans des données quelconques (réglage ancien : chaîne ; nouveau : { fr, en }). */
+export function asSiteName(v: unknown): SiteName {
+  if (typeof v === "string") return { fr: v, en: "" };
+  const o = (v ?? {}) as Partial<SiteName>;
+  return { fr: typeof o.fr === "string" ? o.fr : "", en: typeof o.en === "string" ? o.en : "" };
+}
+
 export const IdentitySchema = z.strictObject({
-  name: z.string().trim().min(1, "Le nom du site est obligatoire.").max(80),
+  name: SiteNameSchema,
   role: Loc(160),
   email: z.union([z.literal(""), z.string().trim().max(254).regex(EMAIL, "Adresse e-mail invalide (ex. nom@domaine.fr).")]),
   credit: Loc(160),
@@ -191,3 +217,27 @@ export function editedKind(previous: Network | undefined, href: string): Network
   const found = detectNetwork(href);
   return found && (!previous || previous === "website" || previous === "other") ? found : previous;
 }
+
+/* ---- Repères d'identité des listes de la toile (aperçu instantané, v0.16) ------------ */
+
+/** Clés uniques : un doublon reçoit « #2 », « #3 »… (même adresse listée deux fois). */
+export function uniqueKeys(keys: string[]): string[] {
+  const seen = new Map<string, number>();
+  return keys.map((k) => {
+    const n = (seen.get(k) ?? 0) + 1;
+    seen.set(k, n);
+    return n > 1 ? `${k}#${n}` : k;
+  });
+}
+
+/** Clé d'un lien du menu : la page, ou l'adresse d'un lien libre. */
+export const navKeyOf = (item: { pageId?: number; href: string }): string => (item.pageId ? `p${item.pageId}` : `l:${item.href}`);
+
+/** Clés des liens du menu, dans l'ordre. */
+export const navKeys = (items: { pageId?: number; href: string }[]): string[] => uniqueKeys(items.map(navKeyOf));
+
+/** Clé d'un réseau : son nom et son adresse. */
+export const socialKeyOf = (s: { label: string; href: string }): string => `${s.label.trim()}|${s.href.trim()}`;
+
+/** Clés des réseaux, dans l'ordre. */
+export const socialKeys = (items: { label: string; href: string }[]): string[] => uniqueKeys(items.map(socialKeyOf));

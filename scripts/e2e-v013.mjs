@@ -666,6 +666,189 @@ if (run("N")) {
   await page.keyboard.press("Escape");
 }
 
+/* ---- P. Accroche de l'ouverture : texte à passage surligné, en place (v0.16) ----------------- */
+
+if (run("P")) {
+  // Le thème « Carnet d'atelier » a l'ouverture typographique (l'accroche s'y affiche).
+  await page.goto(`${BASE}/api/theme-preview?id=carnet-d-atelier&redirect=/admin`, { waitUntil: "domcontentloaded" });
+  f = await openEditor(1);
+  await sleep(1000);
+  const H = '[data-edit-type="hero"] h1[data-inline="statement"]';
+  const statement = (lang = "fr") => draftOf().blocks.find((b) => b.type === "hero")?.props.statement?.[lang];
+  ok("P1 accroche repérée sur la toile (ouverture typographique)", (await f.locator(H).count()) === 1, "thème sans accroche affichée ?");
+  const before = await f.locator(H).evaluate((el) => el.innerHTML);
+  await f.locator(H).scrollIntoViewIfNeeded();
+  await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
+  ok("P2 double-clic : champ à part, barre « Surligner »", (await until(f, () => Boolean(document.querySelector("[data-marked-edit]")))) && (await until(f, () => Boolean(document.querySelector(".pe-markbar button")))));
+  ok("P2b l'enveloppe de React est cachée, pas détruite", await f.locator(`${H} > [data-marked-body]`).evaluate((el) => el.style.display === "none" && el.childNodes.length > 0));
+  await page.screenshot({ path: `${SHOTS}/P-accroche-edition.png` });
+  // Saisie, puis un mot sélectionné au clavier et surligné par le bouton.
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("Je dessine des personnages et des mondes");
+  await page.keyboard.press("End");
+  for (let i = 0; i < 6; i++) await page.keyboard.press("Shift+ArrowLeft");
+  ok("P3 mot sélectionné : bouton « Surligner » actif", await until(f, () => {
+    const b = document.querySelector(".pe-markbar button");
+    return Boolean(b) && !b.disabled && b.getAttribute("aria-pressed") === "false";
+  }));
+  await f.locator(".pe-markbar button").click();
+  ok("P4 « Surligner » : le mot devient un passage surligné dans le champ", await until(f, () => [...document.querySelectorAll("[data-marked-edit] .hero-mark")].map((e) => e.textContent).join("|") === "mondes"));
+  ok("P4b le champ est resté ouvert (le focus n'a pas quitté le texte)", (await f.locator("[data-marked-edit]").count()) === 1);
+  await page.keyboard.press("Enter");
+  ok("P5 Entrée : aperçu immédiat avec le mot surligné", await until(f, (sel) => document.querySelector(sel + " [data-marked-over] .hero-mark")?.textContent === "mondes", H, 5000));
+  await settled();
+  ok("P6 stocké balisé <mark> dans le brouillon (fr)", statement() === "Je dessine des personnages et des <mark>mondes</mark>", statement());
+  ok("P6b l'autre langue n'a pas bougé", statement("en") !== statement("fr"));
+  ok("P6c rendu du serveur : aperçu remplacé par le rendu de React", await until(f, (sel) => !document.querySelector(sel + " [data-marked-over]") && document.querySelector(sel + " [data-marked-body] .hero-mark")?.textContent === "mondes", H, 20000));
+  // Retirer le surlignage : le bouton passe à « Retirer le surlignage ».
+  await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
+  await f.locator("[data-marked-edit] .hero-mark").dblclick();
+  ok("P7 curseur sur un mot surligné : le bouton propose de le retirer", await until(f, () => document.querySelector(".pe-markbar button")?.getAttribute("aria-pressed") === "true"));
+  await f.locator(".pe-markbar button").click();
+  await page.keyboard.press("Enter");
+  await settled();
+  ok("P8 surlignage retiré : plus de balisage", statement() === "Je dessine des personnages et des mondes", statement());
+  // Un mot sans sélection : le mot sous le curseur est surligné.
+  await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
+  await page.keyboard.press("ControlOrMeta+Home");
+  await page.keyboard.press("ArrowRight");
+  await f.locator(".pe-markbar button").click();
+  await page.keyboard.press("Enter");
+  await settled();
+  ok("P9 curseur dans un mot (sans sélection) : le mot est surligné", statement()?.startsWith("<mark>Je</mark> dessine"), statement());
+  // Aucun HTML : les chevrons saisis sont retirés, rien n'est interprété.
+  await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("Salut <img src=x onerror=alert(1)> <b>gras</b>");
+  await page.keyboard.press("Enter");
+  await settled();
+  ok("P10 chevrons retirés à la saisie : aucun HTML dans le brouillon", !/[<>]/.test(statement().replace(/<\/?mark>/g, "")) && !statement().includes("<img"), statement());
+  ok("P10b rien d'interprété sur la toile", (await f.locator(`${H} img, ${H} b`).count()) === 0);
+  // Balisage forgé : un message de la toile avec du HTML est refusé par l'éditeur ; l'aperçu n'existe pas, le brouillon reste.
+  const good = statement();
+  const uid = await f.locator('[data-edit-type="hero"]').first().getAttribute("data-edit-block");
+  await f.evaluate((u) => window.parent.postMessage({ type: "portfolio:edit", kind: "text", uid: u, path: "statement", locale: "fr", value: "<img src=x onerror=alert(1)>", seq: 90001 }, location.origin), uid);
+  await sleep(700);
+  ok("P11 balisage étranger forgé : refusé, le brouillon est inchangé", statement() === good, statement());
+  ok("P11b message d'erreur affiché", /balisage <mark>/.test((await page.locator("body").textContent()) ?? ""));
+  await f.evaluate((u) => window.parent.postMessage({ type: "portfolio:edit", kind: "text", uid: u, path: "statement", locale: "fr", value: "a <mark>b<mark>c</mark></mark>", seq: 90002 }, location.origin), uid);
+  await sleep(500);
+  ok("P11c imbrication refusée", statement() === good, statement());
+  // Anglais : édition dans la langue affichée, l'autre langue intacte.
+  const frBefore = statement();
+  await page.getByRole("group", { name: "Langue" }).getByRole("button", { name: "EN" }).click();
+  f = await canvas();
+  await sleep(800);
+  await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("I draw characters");
+  await page.keyboard.press("ControlOrMeta+Home");
+  await page.keyboard.press("Shift+ArrowRight");
+  await f.locator(".pe-markbar button").click();
+  await page.keyboard.press("Enter");
+  await settled();
+  ok("P12 anglais : phrase modifiée et surlignée dans la langue affichée", statement("en") === "<mark>I</mark> draw characters", statement("en"));
+  ok("P12b français inchangé", statement("fr") === frBefore, statement("fr"));
+  await page.screenshot({ path: `${SHOTS}/P-accroche-en.png` });
+  // Annuler (Ctrl+Z) : l'ancienne accroche revient sur la toile.
+  await page.locator('button[aria-label="Annuler"]').click();
+  ok("P13 Annuler : la toile retrouve l'ancienne accroche", await until(f, (sel) => document.querySelector(sel)?.textContent !== "I draw characters", H, 20000));
+  void before;
+
+  // Refus (éditeur arrêté : la page a été modifiée ailleurs) : l'aperçu de l'accroche, qui a plusieurs
+  // nœuds, est retiré et l'accroche d'origine revient (rétablissement des textes multi-nœuds).
+  await page.getByRole("group", { name: "Langue" }).getByRole("button", { name: "FR" }).click();
+  f = await canvas();
+  await sleep(800);
+  const keep = await f.locator(H).evaluate((el) => el.textContent);
+  const bump = new Database(DB);
+  bump.prepare("update pages set draft_rev = draft_rev + 1 where id = 1").run();
+  bump.close();
+  await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("Déclencheur");
+  await page.keyboard.press("Enter");
+  ok("P14 page modifiée ailleurs : l'éditeur s'arrête", await until(page, () => /modifiée ailleurs/i.test(document.body.textContent ?? ""), null, 30000));
+  await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("Accroche refusée");
+  await page.keyboard.press("ControlOrMeta+Home");
+  await page.keyboard.press("Shift+ArrowRight");
+  await f.locator(".pe-markbar button").click();
+  await page.keyboard.press("Enter");
+  ok("P14b accroche refusée : l'accroche d'origine revient, aucun aperçu ne reste", await until(f, ([sel, t]) => document.querySelector(sel)?.textContent === t && !document.querySelector(sel + " [data-marked-over]") && getComputedStyle(document.querySelector(sel + " [data-marked-body]")).display !== "none", [H, keep], 10000), await f.locator(H).evaluate((el) => el.textContent));
+  const unbump = new Database(DB);
+  unbump.prepare("update pages set draft_rev = draft_rev - 1 where id = 1").run();
+  unbump.close();
+}
+
+/* ---- Q. Nom du site en français et en anglais (v0.16) ------------------------------------------ */
+
+if (run("Q")) {
+  f = await openEditor(1);
+  await sleep(1000);
+  const BRAND = '[data-edit-global="header"] [data-site-inline="name"]';
+  const siteDraft = () => JSON.parse(q("select value from settings where key = 'siteDraft'")[0]?.value ?? "null")?.snap.identity.name;
+  const lang = (l) => page.getByRole("group", { name: "Langue" }).getByRole("button", { name: l });
+  const originalName = (await f.locator(BRAND).textContent())?.trim();
+  ok("Q1 réglage migré : le nom du site est { fr, en } (en vide)", JSON.parse(q("select value from settings where key = 'site'")[0].value).name?.fr === originalName);
+  await f.locator(BRAND).dblclick();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("Atelier Camille");
+  await page.keyboard.press("Enter");
+  await settled();
+  ok("Q2 nom modifié en place dans la langue affichée (fr)", siteDraft()?.fr === "Atelier Camille" && siteDraft()?.en === "", JSON.stringify(siteDraft()));
+  await lang("EN").click();
+  f = await canvas();
+  await sleep(800);
+  ok("Q3 anglais vide : le nom français est repris", (await f.locator(BRAND).textContent())?.trim() === "Atelier Camille");
+  await f.locator(BRAND).dblclick();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("Camille's Studio");
+  await page.keyboard.press("Enter");
+  await settled();
+  ok("Q4 nom modifié en place dans la langue affichée (en), le français est intact", siteDraft()?.en === "Camille's Studio" && siteDraft()?.fr === "Atelier Camille", JSON.stringify(siteDraft()));
+  ok("Q5 la toile anglaise montre le nom anglais, partout (en-tête, ouverture)", await until(f, () => [...document.querySelectorAll('[data-site-inline="name"]')].every((e) => e.textContent.trim() === "Camille's Studio"), null, 20000));
+  // Vider l'anglais : retour au français. Vider le français : refusé.
+  await f.locator(BRAND).dblclick();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("Enter");
+  await settled();
+  ok("Q6 anglais vidé : le nom français est repris", siteDraft()?.en === "" && (await until(f, () => document.querySelector('[data-edit-global="header"] [data-site-inline="name"]')?.textContent.trim() === "Atelier Camille", null, 20000)));
+  // Panneau : champs FR et EN.
+  await f.locator('[data-edit-global="header"]').click({ position: { x: 4, y: 4 }, force: true });
+  await page.getByRole("tab", { name: "Réglages" }).click();
+  ok("Q7 panneau de l'en-tête : « Nom du site (FR) » et « (EN) »", (await page.getByLabel("Nom du site (FR)").count()) === 1 && (await page.getByLabel("Nom du site (EN)").count()) === 1);
+  await page.getByLabel("Nom du site (EN)").fill("Camille Studio");
+  await page.getByLabel("Nom du site (EN)").blur();
+  await settled();
+  ok("Q8 panneau : nom anglais enregistré", siteDraft()?.en === "Camille Studio", JSON.stringify(siteDraft()));
+  // Publication : public en français, en anglais, et titre de la page 404.
+  await page.getByRole("button", { name: "Publier" }).click();
+  ok("Q9 publication acceptée", await published());
+  const pub = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const pp = await pub.newPage();
+  await pp.goto(`${BASE}/fr`, { waitUntil: "networkidle" });
+  ok("Q10 public fr : « Atelier Camille » en en-tête et au pied de page", (await pp.locator(".site-header .site-brand").first().textContent())?.trim() === "Atelier Camille" && (await pp.locator("footer").textContent())?.includes("Atelier Camille"));
+  await pp.goto(`${BASE}/en`, { waitUntil: "networkidle" });
+  ok("Q11 public en : « Camille Studio » en en-tête et au pied de page", (await pp.locator(".site-header .site-brand").first().textContent())?.trim() === "Camille Studio" && (await pp.locator("footer").textContent())?.includes("Camille Studio"));
+  await pp.goto(`${BASE}/en/page-qui-n-existe-pas`, { waitUntil: "domcontentloaded" });
+  ok("Q12 titre de la page 404 anglaise : nom anglais", (await pp.title()).includes("Camille Studio"), await pp.title());
+  await pp.goto(`${BASE}/fr/page-qui-n-existe-pas`, { waitUntil: "domcontentloaded" });
+  ok("Q12b titre de la page 404 française : nom français", (await pp.title()).includes("Atelier Camille"), await pp.title());
+  ok("Q13 réglage publié : { fr, en }", JSON.stringify(JSON.parse(q("select value from settings where key = 'site'")[0].value).name) === JSON.stringify({ fr: "Atelier Camille", en: "Camille Studio" }));
+  // Écran Réglages : le nom est fr / en.
+  await pp.close();
+  const rp = await ctx.newPage();
+  await rp.goto(`${BASE}/admin/reglages`, { waitUntil: "domcontentloaded" });
+  await rp.getByText("Nom affiché").first().waitFor({ timeout: 60000 });
+  const values = await rp.evaluate(() => [...document.querySelectorAll("input")].map((i) => i.value));
+  ok("Q14 écran Réglages : nom affiché en français et en anglais", values.includes("Atelier Camille") && values.includes("Camille Studio"), JSON.stringify(values));
+  await rp.close();
+  await pub.close();
+}
+
 /* ---- J. Sélection (seul, pour Firefox) -------------------------------------------- */
 
 if (ONLY === "J") {

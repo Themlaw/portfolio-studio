@@ -6,6 +6,8 @@
  * Usage : node --import tsx scripts/test-protocol.mjs   (inclus dans npm test)
  */
 import { acceptFromCanvas, acceptToCanvas, EDIT_MSG, inlineAllowed, moveTo, setLocalizedAt } from "../src/lib/edit/protocol.ts";
+import { isMarkedRange, markedProblem, parseMarked, toggleRange, toMarkup, wordAt } from "../src/lib/marked.ts";
+import { asSiteName, navKeys, SiteNameSchema, siteNameFor, socialKeys, uniqueKeys } from "../src/lib/site-schema.ts";
 
 let failures = 0;
 const ok = (label, cond) => {
@@ -116,6 +118,29 @@ ok("v0.13 : opération de réseau valide acceptée", acceptFromCanvas(msg({ kind
 ok("v0.13 : cible « média d'un bloc » acceptée", acceptFromCanvas(msg({ kind: "drop-target", target: { kind: "media", uid: "b3", field: "backgroundMediaId" } }), ORIGIN, frame)?.target.field === "backgroundMediaId");
 ok("v0.13 : glisser de la palette — le type du bloc ne remplace pas l'enveloppe", acceptToCanvas(msg({ kind: "drag", x: 1, y: 2, label: "x", blockType: "grid", nesting: 1 }), ORIGIN, frame)?.blockType === "grid");
 ok("v0.13 : liste de projets (« pas encore sur une page »)", acceptToCanvas(msg({ kind: "projects", list: [{ slug: "a", title: "A", onPage: false }] }), ORIGIN, frame)?.list[0].onPage === false);
+
+// v0.16 : champ ajouté avec un identifiant choisi par la toile, état « en cours » d'Annuler / Rétablir.
+ok("form-field add : identifiant de la toile accepté", acceptFromCanvas(msg({ kind: "form-field", uid: "b3", op: "add", fieldType: "text", id: "fk3j9a2b" }), ORIGIN, frame)?.id === "fk3j9a2b");
+ok("form-field add : identifiant mal formé refusé", ["x", "F1234567", "f<b>", "f", "f".repeat(30), "../x"].every((id) => acceptFromCanvas(msg({ kind: "form-field", uid: "b3", op: "add", fieldType: "text", id }), ORIGIN, frame) === null));
+ok("pending : libellé accepté, null accepté, trop long / autre type refusés", acceptToCanvas(msg({ kind: "pending", label: "Annulation en cours…" }), ORIGIN, frame)?.label === "Annulation en cours…" && acceptToCanvas(msg({ kind: "pending", label: null }), ORIGIN, frame)?.label === null && acceptToCanvas(msg({ kind: "pending", label: "x".repeat(61) }), ORIGIN, frame) === null && acceptToCanvas(msg({ kind: "pending", label: 3 }), ORIGIN, frame) === null);
+ok("pending : la toile ne peut pas en émettre (sens éditeur → toile seulement)", acceptFromCanvas(msg({ kind: "pending", label: "x" }), ORIGIN, frame) === null);
+
+// Accroche à passage surligné : balisage <mark> seul, jamais de HTML.
+ok("marked : texte simple et passage surligné valides", markedProblem("Je dessine des <mark>mondes</mark>") === null && markedProblem("sans balisage") === null && markedProblem("") === null);
+ok("marked : autre balisage, imbrication, passage vide ou ouvert refusés", ["<b>x</b>", "a <img src=x onerror=alert(1)>", "<mark>a<mark>b</mark></mark>", "<mark></mark>", "<mark>a", "a</mark>", "x > y", "<MARK>a</MARK>"].every((t) => markedProblem(t) !== null));
+ok("marked : lecture identique au rendu d'avant (parseMarked)", JSON.stringify(parseMarked("a <mark>b</mark> c <mark>d</mark>")) === JSON.stringify([{ text: "a ", mark: false }, { text: "b", mark: true }, { text: " c ", mark: false }, { text: "d", mark: true }]));
+ok("marked : toMarkup fond les voisins, retire les passages vides et les chevrons", toMarkup([{ text: "a", mark: false }, { text: "b<", mark: false }, { text: "", mark: true }, { text: "c", mark: true }, { text: "d", mark: true }]) === "ab<mark>cd</mark>");
+const parts = parseMarked("Je dessine des mondes");
+ok("marked : surligner un intervalle, les espaces de bordure ne le sont pas", toMarkup(toggleRange(parts, 15, 22)) === "Je dessine des <mark>mondes</mark>" && toMarkup(toggleRange(parts, 14, 22)) === "Je dessine des <mark>mondes</mark>");
+ok("marked : re-basculer retire le surlignage ; un surlignage partiel est complété", toMarkup(toggleRange(toggleRange(parts, 15, 21), 15, 21)) === "Je dessine des mondes" && toMarkup(toggleRange(parseMarked("ab <mark>cd</mark> ef"), 0, 8)) === "<mark>ab cd ef</mark>");
+ok("marked : isMarkedRange et wordAt", isMarkedRange(parseMarked("a <mark>bc</mark>"), 2, 4) && !isMarkedRange(parseMarked("a <mark>bc</mark>"), 0, 4) && wordAt("Je dessine des mondes", 16).join() === "15,21" && wordAt("a  b", 2).join() === "2,2");
+
+// v0.16 : nom du site fr / en.
+ok("nom du site : { fr, en } accepté, en vide accepté", SiteNameSchema.safeParse({ fr: "Camille", en: "" }).success && SiteNameSchema.safeParse({ fr: "Camille", en: "Studio" }).success);
+ok("nom du site : l'ancienne chaîne est lue comme { fr, en vide }", JSON.stringify(SiteNameSchema.parse("Camille")) === JSON.stringify({ fr: "Camille", en: "" }) && JSON.stringify(asSiteName("Camille")) === JSON.stringify({ fr: "Camille", en: "" }));
+ok("nom du site : fr vide / trop long / champ inconnu refusés", [{ fr: "", en: "x" }, { fr: " ", en: "" }, { fr: "x".repeat(81), en: "" }, { fr: "a", en: "x".repeat(81) }, { fr: "a", en: "", de: "x" }, 3, null].every((v) => !SiteNameSchema.safeParse(v).success));
+ok("nom du site : l'anglais vide reprend le français", siteNameFor({ fr: "Camille", en: "" }, "en") === "Camille" && siteNameFor({ fr: "Camille", en: " " }, "en") === "Camille" && siteNameFor({ fr: "Camille", en: "Studio" }, "en") === "Studio" && siteNameFor({ fr: "Camille", en: "Studio" }, "fr") === "Camille" && siteNameFor("Ancien", "en") === "Ancien");
+ok("clés des listes : stables, doublons distingués", JSON.stringify(uniqueKeys(["a", "b", "a", "a"])) === JSON.stringify(["a", "b", "a#2", "a#3"]) && JSON.stringify(navKeys([{ pageId: 2, href: "/x" }, { href: "https://e.fr" }])) === JSON.stringify(["p2", "l:https://e.fr"]) && socialKeys([{ label: " Insta ", href: "https://i.fr " }])[0] === "Insta|https://i.fr");
 
 ok("inline : chemin déclaré accepté", inlineAllowed(["eyebrow", "title", "paragraphs.*"], "paragraphs.3"));
 ok("inline : chemin non déclaré refusé", !inlineAllowed(["eyebrow", "title"], "intro"));

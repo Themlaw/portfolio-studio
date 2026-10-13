@@ -8,13 +8,14 @@ import { getDraftSite } from "./draft-view";
 import { parseJson } from "./json";
 import { fontFaceCss, readLibrary } from "./fonts/faces";
 import { SiteStylesSchema, type SiteStyles } from "./look";
-import { NavSchema, NETWORKS, safeSocialHref, type NavItem } from "./site-schema";
+import { asSiteName, NavSchema, NETWORKS, safeSocialHref, siteNameFor, type NavItem } from "./site-schema";
 
 const localized = z.object({ fr: z.string(), en: z.string() });
 
 /** Réglages validés ; une valeur absente ou corrompue retombe sur un défaut sûr. */
 const siteSchema = z.object({
-  name: z.string().min(1),
+  // Chaîne (avant la v0.16, ou non migrée) ou { fr, en } ; `en` vide = le nom français.
+  name: z.union([z.string().min(1), z.object({ fr: z.string().min(1), en: z.string() })]),
   role: localized,
   email: z.string(),
   credit: localized,
@@ -48,7 +49,7 @@ function validated<T>(key: string, value: unknown, schema: z.ZodType<T>, fallbac
 
 export async function getSite(locale: AppLocale): Promise<SiteIdentity> {
   const raw = validated("site", (await getRawSettings()).site, siteSchema, DEFAULT_SITE);
-  return { name: raw.name, email: raw.email, role: raw.role[locale] ?? raw.role.fr, credit: raw.credit[locale] ?? raw.credit.fr, headerSocials: raw.headerSocials === true };
+  return { name: siteNameFor(asSiteName(raw.name), locale), email: raw.email, role: raw.role[locale] ?? raw.role.fr, credit: raw.credit[locale] ?? raw.credit.fr, headerSocials: raw.headerSocials === true };
 }
 
 /**
@@ -94,7 +95,7 @@ export async function getSiteView(locale: AppLocale, pageId: number | null | und
   if (draft) {
     const i = draft.identity;
     return {
-      site: { name: i.name, email: i.email, role: i.role[locale] || i.role.fr, credit: i.credit[locale] || i.credit.fr, headerSocials: i.headerSocials === true },
+      site: { name: siteNameFor(i.name, locale), email: i.email, role: i.role[locale] || i.role.fr, credit: i.credit[locale] || i.credit.fr, headerSocials: i.headerSocials === true },
       socials: draft.socials.filter((s) => safeSocialHref(s.href)),
       nav: draft.nav,
       draft: true,

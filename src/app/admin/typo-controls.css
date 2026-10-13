@@ -316,6 +316,7 @@
   box-sizing: border-box;
   width: min(300px, calc(100vw - 16px));
   max-height: calc(100vh - 16px);
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 10px;
   border: 1px solid var(--lk-line);
@@ -349,6 +350,11 @@
 }
 .cp-slider [role="slider"] {
   cursor: pointer;
+}
+/* La pastille (18 px, centrée sur la valeur) déborde de 9 px de la piste aux extrémités : sans cette marge,
+   à 100 % elle dépassait de la fenêtre et la faisait défiler (scrollWidth > clientWidth). */
+.cp-slider > :last-child {
+  margin-inline: 9px;
 }
 .cp-fields {
   display: grid;

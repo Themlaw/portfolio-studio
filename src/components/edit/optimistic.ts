@@ -30,8 +30,16 @@
  * marqueur (nœud commentaire) accompagne donc l'aperçu : React, quand il réécrit
  * le texte (`textContent`), l'efface. Marqueur encore là au retrait = React n'a
  * rien réécrit, la valeur affichée est celle de l'aperçu : on rétablit l'origine.
+ *
+ * Plusieurs nœuds (accroche à passage surligné) : l'aperçu est un élément à nous posé à côté de
+ * l'enveloppe de React, qui est seulement cachée (`previewMarked`). Listes du site (menu, réseaux,
+ * champs de formulaire) : ordre CSS, retraits cachés, fantômes (`previewList`). Dans les deux cas
+ * React ne perd aucun nœud et retirer l'aperçu rend exactement l'état d'origine.
  */
 import { EDIT_MSG, type FromCanvas } from "@/lib/edit/protocol";
+import { parseMarked } from "@/lib/marked";
+
+import { markedNodes } from "./marked-edit";
 
 type Entry = { seq: number; apply: () => void; clear?: () => void; data?: unknown };
 type Spec = { apply?: () => void; clear?: () => void; data?: unknown };
@@ -126,11 +134,22 @@ export function observeOverlays(): () => void {
 /* ---- Textes en place ------------------------------------------------------------ */
 
 /** Aperçu de texte posé sur un élément : valeur d'origine et marqueur que React effacerait en réécrivant. */
-const shown = new WeakMap<Element, { original: string; marker: Comment }>();
+const shown = new WeakMap<Element, { original: string; marker: Comment; nodes?: ChildNode[] }>();
 
-/** Écrit un aperçu de texte dans l'élément, en gardant le nœud texte de React quand il n'y en a qu'un. */
-function writeText(el: Element, value: string) {
-  if (el.textContent === value) return;
+/**
+ * Écrit un aperçu de texte dans l'élément, en gardant le nœud texte de React quand il n'y en a qu'un.
+ * `before` : texte d'avant la saisie en place (l'élément montre déjà le texte tapé : sans lui, un refus
+ * ne saurait pas quoi rétablir).
+ */
+function writeText(el: Element, value: string, before?: string) {
+  if (el.textContent === value) {
+    if (before !== undefined && before !== value && !shown.has(el) && el.childNodes.length <= 1) {
+      const marker = document.createComment("pv");
+      el.appendChild(marker);
+      shown.set(el, { original: before, marker });
+    }
+    return;
+  }
   const mark = shown.get(el);
   if (mark && mark.marker.parentNode === el) {
     // Aperçu déjà posé et React n'a rien réécrit depuis : on ne change que la valeur affichée.
@@ -142,7 +161,12 @@ function writeText(el: Element, value: string) {
   shown.delete(el);
   const single = el.childNodes.length === 0 || (el.childNodes.length === 1 && el.firstChild?.nodeType === Node.TEXT_NODE);
   if (!single) {
-    el.textContent = value;
+    // Plusieurs nœuds (balisage dans le texte) : on garde les nœuds d'origine pour les remettre au retrait
+    // (refus, échec, Annuler). Le marqueur dit, comme pour un seul nœud, si React a réécrit entre-temps.
+    const nodes = [...el.childNodes];
+    const marker = document.createComment("pv");
+    el.replaceChildren(document.createTextNode(value), marker);
+    shown.set(el, { original: "", marker, nodes });
     return;
   }
   const original = el.textContent ?? "";
@@ -158,29 +182,67 @@ function restoreText(el: Element) {
   const mark = shown.get(el);
   if (!mark) return;
   shown.delete(el);
-  if (mark.marker.parentNode === el && !el.hasAttribute("data-editing")) el.textContent = mark.original;
+  if (mark.marker.parentNode !== el || el.hasAttribute("data-editing")) return;
+  if (mark.nodes) el.replaceChildren(...mark.nodes);
+  else el.textContent = mark.original;
 }
 
 /** Textes d'un bloc (`data-inline`) ou du site (`data-site-inline`) visés par un aperçu. */
-function textElements(target: { uid: string; path: string } | { field: string; index?: number }): HTMLElement[] {
+function textElements(target: { uid: string; path: string } | { field: string; index?: number; key?: string }): HTMLElement[] {
   if ("uid" in target) {
     const block = document.querySelector(`[data-edit-block="${CSS.escape(target.uid)}"]`);
     return [...(block?.querySelectorAll<HTMLElement>(`[data-inline="${CSS.escape(target.path)}"]`) ?? [])].filter((e) => e.closest("[data-edit-block]") === block);
   }
-  return [...document.querySelectorAll<HTMLElement>(`[data-site-inline="${CSS.escape(target.field)}"]`)].filter(
-    (e) => target.index === undefined || e.dataset.navIndex === String(target.index),
+  // Lien du menu : repéré par sa clé (l'index du DOM peut être celui d'avant un aperçu de déplacement).
+  return [...document.querySelectorAll<HTMLElement>(`[data-site-inline="${CSS.escape(target.field)}"]`)].filter((e) =>
+    target.key !== undefined ? e.closest("[data-nav-key]")?.getAttribute("data-nav-key") === target.key : target.index === undefined || e.dataset.navIndex === String(target.index),
   );
 }
 
 /** Texte posé en place : montré tel quel jusqu'à ce que le serveur le rende. */
-export function previewText(target: { uid: string; path: string } | { field: string; index?: number }, value: string, seq: number) {
-  const key = "uid" in target ? `text:${target.uid}:${target.path}` : `site-text:${target.field}:${target.index ?? ""}`;
+export function previewText(target: { uid: string; path: string } | { field: string; index?: number; key?: string }, value: string, seq: number, original?: string) {
+  const key = "uid" in target ? `text:${target.uid}:${target.path}` : `site-text:${target.field}:${target.key ?? target.index ?? ""}`;
   setOverlay(key, seq, {
     apply: () => {
-      for (const el of textElements(target)) if (!el.hasAttribute("data-editing")) writeText(el, value);
+      for (const el of textElements(target)) if (!el.hasAttribute("data-editing")) writeText(el, value, original);
     },
     clear: () => {
       for (const el of textElements(target)) restoreText(el);
+    },
+  });
+}
+
+/**
+ * Texte à passage surligné (accroche de l'ouverture, plusieurs nœuds) : l'aperçu est un élément
+ * À NOUS posé à côté de l'enveloppe de React (cachée), voir marked-edit.ts. React ne perd aucun nœud ;
+ * le retrait (acquittement, refus, échec, navigation) enlève l'aperçu et rend l'enveloppe d'origine.
+ */
+export function previewMarked(target: { uid: string; path: string }, markup: string, seq: number) {
+  setOverlay(`marked:${target.uid}:${target.path}`, seq, {
+    apply: () => {
+      for (const el of textElements(target)) {
+        if (el.hasAttribute("data-editing")) continue;
+        const body = el.querySelector<HTMLElement>(":scope > [data-marked-body]");
+        if (!body) continue;
+        let over = el.querySelector<HTMLElement>(":scope > [data-marked-over]");
+        if (!over) {
+          over = document.createElement("span");
+          over.setAttribute("data-marked-over", "");
+          body.after(over);
+        }
+        if (over.dataset.markup !== markup) {
+          over.dataset.markup = markup;
+          over.replaceChildren(...markedNodes(parseMarked(markup)));
+        }
+        body.style.display = "none";
+      }
+    },
+    clear: () => {
+      for (const el of textElements(target)) {
+        el.querySelector(":scope > [data-marked-over]")?.remove();
+        const body = el.querySelector<HTMLElement>(":scope > [data-marked-body]");
+        if (body) body.style.display = "";
+      }
     },
   });
 }
@@ -246,4 +308,169 @@ export function previewLayout(uid: string, layout: string, seq: number) {
       if (grid && grid.getAttribute("data-layout") !== layout) grid.setAttribute("data-layout", layout);
     },
   });
+}
+
+/* ---- Listes du site : menu, réseaux, champs d'un formulaire (v0.16) ------------------------ */
+
+/**
+ * Ajouter, retirer, déplacer un lien, un réseau ou un champ : montré tout de suite, SANS toucher aux
+ * nœuds de React (aucun nœud n'est déplacé ni retiré) :
+ * - ordre : la propriété CSS `order` (l'élément reste à sa place dans le DOM) ; un conteneur de bloc
+ *   (liste, `space-y`) passe en colonne flex le temps de l'aperçu (`data-pv-list`) ;
+ * - retrait : l'élément est caché (`display: none`) ;
+ * - ajout : un élément « fantôme » à nous (copie d'un voisin, en opacité réduite, non interactif) ;
+ * - modification d'un lien : état « en cours » (`data-pending`) sur l'élément.
+ * Chaque élément se reconnaît par une CLÉ STABLE (`data-nav-key`, `data-social-key`, `data-form-field-id`) :
+ * l'aperçu se rejoue sur n'importe quel rendu du serveur (en retard, ou déjà à jour) sans jamais doubler.
+ * Les opérations sont rejouées dans l'ordre sur les clés du DOM ; un acquittement ou un refus retire
+ * celles de son numéro, et le rendu reprend ce qui reste (ou tout enlève).
+ */
+export type ListOp =
+  | { t: "remove"; key: string }
+  | { t: "move"; key: string; to: number }
+  | { t: "add"; key: string; label: string }
+  | { t: "pending"; key: string };
+
+type ListSpec = { attr: string; scope?: string };
+
+function listSpec(list: string): ListSpec {
+  if (list === "nav") return { attr: "data-nav-key" };
+  if (list === "social") return { attr: "data-social-key" };
+  return { attr: "data-form-field-id", scope: `[data-edit-block="${CSS.escape(list.slice(5))}"] ` };
+}
+
+/** Éléments d'une liste, par conteneur (un menu existe en-tête, pied de page, menu mobile). */
+function listGroups(list: string): HTMLElement[][] {
+  const { attr, scope = "" } = listSpec(list);
+  const groups = new Map<Element, HTMLElement[]>();
+  for (const el of document.querySelectorAll<HTMLElement>(`${scope}[${attr}]:not([data-pv-ghost])`)) {
+    const parent = el.parentElement;
+    if (!parent) continue;
+    groups.set(parent, [...(groups.get(parent) ?? []), el]);
+  }
+  return [...groups.values()];
+}
+
+const keyOf = (list: string, el: HTMLElement) => el.getAttribute(listSpec(list).attr) ?? "";
+
+type ListModel = { keys: string[]; labels: Map<string, string>; pending: Set<string> };
+
+/** Clés du DOM (le plus fourni des conteneurs) puis opérations rejouées dans l'ordre. */
+function listModel(list: string): ListModel {
+  const groups = listGroups(list);
+  const base = [...(groups.sort((a, b) => b.length - a.length)[0] ?? [])].map((el) => keyOf(list, el));
+  const keys = [...base];
+  const labels = new Map<string, string>();
+  const pending = new Set<string>();
+  for (const op of overlayList<ListOp>(`list:${list}:`)) {
+    const i = keys.indexOf(op.key);
+    if (op.t === "remove") {
+      if (i >= 0) keys.splice(i, 1);
+    } else if (op.t === "move") {
+      if (i >= 0) {
+        keys.splice(i, 1);
+        keys.splice(Math.max(0, Math.min(keys.length, op.to)), 0, op.key);
+      }
+    } else if (op.t === "add") {
+      if (i < 0) keys.push(op.key);
+      labels.set(op.key, op.label);
+    } else pending.add(op.key);
+  }
+  return { keys, labels, pending };
+}
+
+/** Ordre (et contenu) de la liste tel que l'utilisateur doit le voir : DOM + aperçus en attente. */
+export function listKeys(list: string): string[] {
+  return listModel(list).keys;
+}
+
+const ORDER_BASE = 1000;
+
+/** Retire de la liste tout ce que l'aperçu a posé. */
+function stripList(list: string) {
+  const { attr, scope = "" } = listSpec(list);
+  for (const el of document.querySelectorAll<HTMLElement>(`${scope}[${attr}][data-pv-ghost]`)) el.remove();
+  for (const el of document.querySelectorAll<HTMLElement>(`${scope}[${attr}][data-pv]`)) {
+    el.style.removeProperty("order");
+    el.style.removeProperty("display");
+    el.removeAttribute("data-pv");
+    el.removeAttribute("data-pending");
+    el.parentElement?.removeAttribute("data-pv-list");
+  }
+}
+
+/** Fantôme d'un élément ajouté : copie d'un voisin, sans identifiant ni repère d'édition, libellé remplacé. */
+function ghostOf(template: HTMLElement, list: string, key: string, label: string): HTMLElement {
+  const g = template.cloneNode(true) as HTMLElement;
+  g.removeAttribute("id");
+  for (const el of [g, ...g.querySelectorAll<HTMLElement>("*")]) {
+    for (const a of [...el.attributes]) {
+      if (a.name === "id" || a.name.startsWith("data-") || a.name === "href" || a.name === "for" || a.name === "name" || a.name === "title") el.removeAttribute(a.name);
+    }
+    if (el.tagName === "svg" || el.tagName === "SVG") el.remove();
+  }
+  g.style.removeProperty("display");
+  g.style.removeProperty("order");
+  g.setAttribute(listSpec(list).attr, key);
+  g.setAttribute("data-pv-ghost", "");
+  g.setAttribute("data-pending", "");
+  g.setAttribute("aria-hidden", "true");
+  g.setAttribute("inert", "");
+  // Libellé : le premier texte visible de la copie (lien, libellé d'un champ).
+  const walker = document.createTreeWalker(g, NodeFilter.SHOW_TEXT);
+  let first: Text | null = null;
+  for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
+    if (n.nodeValue?.trim()) {
+      if (!first) first = n;
+      else n.nodeValue = "";
+    }
+  }
+  if (first) first.nodeValue = label;
+  else g.append(document.createTextNode(label));
+  // Champ de formulaire : rien à remplir dans un fantôme.
+  for (const el of g.querySelectorAll("input, textarea, select")) (el as HTMLElement).setAttribute("tabindex", "-1");
+  return g;
+}
+
+/** (Ré)applique l'aperçu d'une liste : ordre, retraits, fantômes, états « en cours ». Sans opération en attente : tout est retiré. */
+function renderList(list: string) {
+  if (!overlayList<ListOp>(`list:${list}:`).length) return stripList(list);
+  const model = listModel(list);
+  const attr = listSpec(list).attr;
+  for (const group of listGroups(list)) {
+    const parent = group[0].parentElement!;
+    const byKey = new Map(group.map((el) => [keyOf(list, el), el]));
+    // Un conteneur qui n'est ni flex ni grille n'obéit pas à `order` : colonne flex le temps de l'aperçu.
+    if (!parent.hasAttribute("data-pv-list") && !/flex|grid/.test(getComputedStyle(parent).display)) parent.setAttribute("data-pv-list", "");
+    for (const [key, el] of byKey) {
+      el.setAttribute("data-pv", "");
+      const i = model.keys.indexOf(key);
+      if (i < 0) {
+        el.style.display = "none";
+        continue;
+      }
+      el.style.removeProperty("display");
+      el.style.order = String(i - ORDER_BASE);
+      el.toggleAttribute("data-pending", model.pending.has(key));
+    }
+    const template = group.at(-1);
+    model.keys.forEach((key, i) => {
+      if (byKey.has(key) || !template) return;
+      let g = [...parent.children].find((c): c is HTMLElement => c instanceof HTMLElement && c.hasAttribute("data-pv-ghost") && c.getAttribute(attr) === key);
+      if (!g) {
+        g = ghostOf(template, list, key, model.labels.get(key) ?? "");
+        template.after(g);
+      }
+      g.style.order = String(i - ORDER_BASE);
+    });
+    // Fantômes devenus inutiles (retirés du modèle, ou l'élément réel est arrivé).
+    for (const c of [...parent.children]) {
+      if (c instanceof HTMLElement && c.hasAttribute("data-pv-ghost") && (byKey.has(c.getAttribute(attr) ?? "") || !model.keys.includes(c.getAttribute(attr) ?? ""))) c.remove();
+    }
+  }
+}
+
+/** Opération sur une liste du site : montrée tout de suite, retirée à l'acquittement ou au refus (son numéro). */
+export function previewList(list: string, op: ListOp, seq: number) {
+  setOverlay(`list:${list}:${seq}`, seq, { data: op, apply: () => renderList(list), clear: () => renderList(list) });
 }

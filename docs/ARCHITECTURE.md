@@ -1018,8 +1018,74 @@ blocs.
   demoreel (`reel`) sont des textes éditoriaux du bloc (`inline`, fr/en, style local
   `look.text.scroll|reel`). Absent ou vide pour la langue = message d'interface
   (`home.hero.scroll|reel`) : aucune migration, rendu identique pour l'existant. La
-  phrase d'accroche (balisage `<mark>`) reste modifiable dans le panneau seulement ;
-  la note en marge du hero « type-only » est un décor du thème (`assets.heroNote`).
+  phrase d'accroche (balisage `<mark>`) se modifie aussi sur la toile depuis la v0.16
+  (voir plus bas) ; la note en marge du hero « type-only » est un décor du thème
+  (`assets.heroNote`).
+
+## Suite de l'éditeur (v0.16, lot 10)
+
+- **Accroche de l'ouverture en place** (`hero.statement`, thèmes à ouverture
+  « type-only » : c'est le seul rendu qui l'affiche ; sinon le panneau seul). Stockage
+  inchangé : une chaîne par langue où SEUL `<mark>…</mark>` est reconnu. Module pur
+  `src/lib/marked.ts` (lecture, validation `markedProblem`, bascule d'un surlignage sur
+  un intervalle). **Aucun HTML n'entre** : la toile lit le champ en nœuds texte
+  (`textContent`), retire `<` et `>` à la saisie ET au collage ; l'éditeur refuse tout
+  balisage autre que `<mark>` bien formé (non imbriqué, non vide) et prévient (le
+  message est refusé, l'aperçu retiré) ; la publication le revérifie
+  (`publishCheck` du hero) ; le rendu ne fait que poser des nœuds texte.
+  Rendu en vue brouillon : le contenu est dans UNE enveloppe `[data-marked-body]` que
+  React gère et que la toile ne touche jamais ; le champ de saisie
+  (`[data-marked-edit]`) et l'aperçu (`[data-marked-over]`) sont des éléments à NOUS posés
+  à côté, l'enveloppe étant seulement cachée (`src/components/edit/marked-edit.ts`).
+  Double-clic → champ + petite barre « Surligner » (mot sélectionné, ou mot sous le
+  curseur ; « Retirer le surlignage » si déjà surligné ; Ctrl/Cmd+Maj+H), Entrée valide,
+  Échap annule. Langue = celle de la toile (fr / en).
+- **Rétablissement des textes à plusieurs nœuds** : l'aperçu de l'accroche
+  (`previewMarked`) se retire avec le mécanisme `revert` (refus, éditeur arrêté, Annuler) :
+  retirer l'élément à nous rend exactement l'enveloppe de React, sans rien reconstruire.
+  Repli générique (`writeText`) : un autre texte à plusieurs nœuds garde ses nœuds
+  d'origine et les remet au retrait. Correction liée : le texte tapé en place
+  (`EditLayer`) n'avait pas gardé son texte d'origine (l'élément montre déjà le texte
+  tapé) : un refus ne rétablissait rien ; `previewText` reçoit maintenant `original`. Un
+  éditeur arrêté (« modifiée ailleurs ») refuse aussi les textes en place suivants
+  (`editText` renvoie false → `revert`).
+- **Aperçu instantané des listes** (`optimistic.ts`, `previewList`, `listKeys`) : ajouter,
+  retirer, déplacer un lien du menu, un réseau, un champ de formulaire de contact. Sans
+  jamais déplacer ni retirer un nœud de React : ordre par la propriété CSS `order` (un
+  conteneur de bloc passe en colonne flex le temps de l'aperçu, `data-pv-list`), retrait
+  par `display: none`, ajout par un élément « fantôme » à nous (copie d'un voisin, opacité
+  réduite, inerte, « … » après le libellé), lien de réseau modifié = élément `data-pending`.
+  Chaque élément porte une CLÉ STABLE en vue brouillon (`data-nav-key` : page ou adresse ;
+  `data-social-key` : nom|adresse ; `data-form-field-id` : identifiant du champ ;
+  doublons `#2`, `src/lib/site-schema.ts`). L'aperçu est une suite d'opérations rejouée sur
+  les clés du DOM : il se superpose à n'importe quel rendu du serveur, en retard ou déjà à
+  jour, sans doublon (un champ ajouté porte l'identifiant choisi par la toile, protocole
+  `form-field.id`). Les gestes de l'en-tête et du pied portent maintenant un numéro
+  d'intention (`site-op`, `form-field` dans `CANVAS_INTENTS`) : refus (en-tête tenu par une
+  autre page, valeur invalide, dernier champ, champ de réponse), échec réseau → `revert`.
+  Les index envoyés à l'éditeur sont ceux de la liste telle qu'il la tient, aperçus en
+  attente compris (`rankOf`). Le nom d'un lien du menu s'aperçoit sur sa clé.
+- **Annuler / Rétablir** : le résultat n'est pas calculable par la toile ; état « en cours »
+  (message `pending` éditeur → toile) : pastille « Annulation en cours… » et voile léger
+  (`html[data-edit-pending]`, apparaît après 300 ms pour ne pas clignoter), levé à
+  l'acquittement (`refresh`/`settle` avec `upTo ≥ 0`), à l'échec, ou au bout de 10 s.
+- **Correction** : la poignée de glisser du menu, des réseaux et des champs de formulaire
+  disparaissait dès le premier mouvement (la barre d'outils était démontée pendant le
+  glisser : la capture du pointeur était perdue, le relâchement jamais vu, le repère restait
+  affiché). Elle est maintenant cachée (`visibility`), pas démontée.
+- **Nom du site fr / en** : `site.name` devient `{ fr, en }` (réglage `site` et brouillon du
+  site). `en` vide = le nom français (`siteNameFor`, `asSiteName`, `SiteNameSchema` dans
+  `src/lib/site-schema.ts`). La chaîne d'avant est lue comme `{ fr: chaîne, en: "" }`
+  (onglet ouvert, brouillon ou test d'avant) : le rendu des données existantes ne change pas.
+  Migration de contenu **0018** (`siteNameI18n`, `DATA_MIGRATIONS` ; SQL vide `SELECT 1;`),
+  idempotente, réglage ET brouillon du site. Modifiable en place dans la langue affichée
+  (en-tête, ouverture, profil ; l'anglais vide reprend le français, le français vide est
+  refusé), dans le panneau de l'en-tête (« Nom du site (FR) » / « (EN) ») et dans
+  Réglages. Texte localisé partout : en-tête, pied de page, ouverture, profil, titre de la
+  page 404 ; le kit de thème (signature) et l'écran d'administration gardent le français.
+- **Sélecteur de couleur** : la pastille des curseurs (18 px, centrée sur la valeur) dépassait
+  de 9 px de sa piste à 100 % ; la fenêtre défilait en largeur. La piste a une marge de 9 px et la
+  fenêtre `overflow-x: hidden`.
 
 ## Notes de version v0.15 : changements de rendu pour les données déjà stylées
 

@@ -163,7 +163,7 @@ ok("feuille : styles invalides → vide", siteStylesCss({ roles: { h1: { color: 
 ok("feuille : jamais de « < »", !siteStylesCss(styles).includes("<"));
 ok("nettoyage des styles : rôles vides retirés", JSON.stringify(cleanSiteStyles({ roles: { h1: {}, h2: { italic: true } } })) === '{"roles":{"h2":{"italic":true}}}');
 ok("nettoyage des styles : rien → undefined", cleanSiteStyles({ roles: {} }) === undefined);
-const snap = { identity: { name: "A", role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } }, nav: [], socials: [] };
+const snap = { identity: { name: { fr: "A", en: "" }, role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } }, nav: [], socials: [] };
 ok("brouillon du site : sans styles (données d'avant) valide", SiteSnapSchema.safeParse(snap).success);
 ok("brouillon du site : avec styles valide", SiteSnapSchema.safeParse({ ...snap, styles }).success);
 ok("brouillon du site : styles invalides refusés", !SiteSnapSchema.safeParse({ ...snap, styles: { roles: { h1: { font: "g:Nope" } } } }).success);

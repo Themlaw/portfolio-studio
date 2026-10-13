@@ -40,6 +40,8 @@ export function heroMarks(content: HeroContent) {
   return {
     eyebrow: { ...(e ? { "data-inline": "eyebrow", "data-placeholder": "Étiquette" } : {}), ...st(content.styles?.eyebrow) },
     name: { ...(e ? { "data-site-inline": "name", "data-placeholder": "Ton nom", "data-site-hint": "commun à toutes les pages" } : {}), ...st(content.styles?.name) },
+    // Phrase d'accroche : texte à passage surligné, édité par la toile avec sa propre barre (EditLayer).
+    statement: e ? { "data-inline": "statement", "data-marked": "" } : {},
     scroll: { ...(e ? { "data-inline": "scroll", "data-placeholder": "Faire défiler" } : {}), ...st(content.styles?.scroll) },
     reel: { ...(e ? { "data-inline": "reel", "data-placeholder": "Demoreel" } : {}), ...st(content.styles?.reel) },
     // `data-hero-text` (public aussi) : le fond du métier se règle (src/app/look.css).

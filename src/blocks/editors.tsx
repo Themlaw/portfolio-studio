@@ -57,7 +57,7 @@ export function HeroEditor() {
       <TextI18n label="Étiquette" help="Petit texte au-dessus de ton nom." value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
       <TextareaI18n
         label="Phrase d'accroche"
-        help="Utilisée par les thèmes à hero typographique. Entoure le mot à mettre en valeur de <mark>…</mark>."
+        help="Utilisée par les thèmes à hero typographique. Entoure le mot à mettre en valeur de <mark>…</mark> (aucun autre balisage). Sur la page : double-clic sur la phrase, sélectionne un mot et « Surligner »."
         value={l(value.statement)}
         onChange={(v) => set("statement", v)}
         error={errorAt(errors, "statement")}

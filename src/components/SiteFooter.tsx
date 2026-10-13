@@ -5,6 +5,7 @@ import Eyebrow from "@/components/Eyebrow";
 import SocialIcon from "@/components/SocialIcon";
 import { Link } from "@/i18n/navigation";
 import type { SiteIdentity, Social } from "@/lib/settings";
+import { navKeyOf, socialKeys, uniqueKeys } from "@/lib/site-schema";
 
 /** Repère d'un texte du site modifiable sur la toile (vue brouillon seulement). */
 const site$ = (edit: boolean, field: string, placeholder: string) => (edit ? { "data-site-inline": field, "data-placeholder": placeholder } : {});
@@ -16,7 +17,7 @@ export default function SiteFooter({
   edit = false,
 }: {
   site: SiteIdentity;
-  nav: { id?: string; href: string; label: string; external?: boolean }[];
+  nav: { id?: string; href: string; label: string; external?: boolean; pageId?: number }[];
   socials: Social[];
   /** Vue brouillon de l'éditeur : pied de page commun à toutes les pages, repéré. */
   edit?: boolean;
@@ -24,6 +25,9 @@ export default function SiteFooter({
   const t = useTranslations("footer");
   const tNav = useTranslations("nav");
   const year = 2025;
+  // Vue brouillon : clés stables des liens et des réseaux (aperçu instantané, src/components/edit/optimistic.ts).
+  const navKeyList = uniqueKeys(nav.map(navKeyOf));
+  const socialKeyList = socialKeys(socials);
 
   return (
     <footer
@@ -48,8 +52,8 @@ export default function SiteFooter({
           <div>
             <Eyebrow>{tNav("label")}</Eyebrow>
             <ul className="mt-4 space-y-2 text-sm">
-              {nav.map((item) => (
-                <li key={item.id ?? item.href}>
+              {nav.map((item, i) => (
+                <li key={item.id ?? item.href} {...(edit ? { "data-nav-key": navKeyList[i] } : {})}>
                   {item.external ? (
                     <a href={item.href} target="_blank" rel="noopener noreferrer" className="text-ink-soft hover:text-primary transition-colors">
                       {item.label}
@@ -68,7 +72,7 @@ export default function SiteFooter({
             <Eyebrow>{site.name}</Eyebrow>
             <ul className="mt-4 space-y-2 text-sm" {...(edit ? { "data-edit-socials": "" } : {})}>
               {socials.map((s, i) => (
-                <li key={`${s.label}-${i}`} {...(edit ? { "data-social-index": i } : {})}>
+                <li key={`${s.label}-${i}`} {...(edit ? { "data-social-index": i, "data-social-key": socialKeyList[i] } : {})}>
                   <a
                     href={s.href}
                     target="_blank"

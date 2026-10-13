@@ -10,6 +10,8 @@ import { createElement, type ComponentType, type ReactNode } from "react";
 import { z } from "zod";
 
 import { LookSchema } from "@/lib/look";
+import { markedProblem } from "@/lib/marked";
+
 
 import CollectionIntroBlock, { collectionIntroSchema } from "./CollectionIntroBlock";
 import CollectionProjectsBlock, { collectionProjectsSchema } from "./CollectionProjectsBlock";
@@ -240,7 +242,13 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       defaults: { eyebrow: L, statement: L },
       summary: "{eyebrow}",
       // Nom et métier : identité du site (communs aux pages), modifiables en place aussi.
-      inline: ["eyebrow", "scroll", "reel"],
+      inline: ["eyebrow", "statement", "scroll", "reel"],
+      // L'accroche porte du balisage <mark> : revalidé à la publication (la toile le valide déjà à la saisie).
+      publishCheck: (props) => {
+        const s = (props.statement ?? {}) as { fr?: string; en?: string };
+        const problem = markedProblem(s.fr ?? "") ?? markedProblem(s.en ?? "");
+        return problem ? `Phrase d'accroche : ${problem}` : null;
+      },
       mediaFields: [{ field: "backgroundMediaId", kind: "any" }],
     }),
     define({

@@ -36,6 +36,7 @@ import type { DraftBlock, PageDraft } from "@/lib/edit/drafts";
 import { mediaStatusAction } from "@/app/admin/(espace)/medias/actions";
 import type { AdminMediaRow } from "@/lib/admin";
 import { acceptFromCanvas, EDIT_MSG, inlineAllowed, setLocalizedAt, type BlockInfo, type DropTargetInfo, type FromCanvas, type Ghost, type ToCanvas } from "@/lib/edit/protocol";
+import { markedProblem } from "@/lib/marked";
 import { own } from "@/lib/own";
 import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
@@ -63,7 +64,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "look", "site-style", "op", "move", "layout", "slot-text", "project-text"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "op", "move", "layout", "slot-text", "project-text"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /** Ce qui part vers la toile (ni fichier, ni identifiants internes). */
@@ -544,6 +545,8 @@ export default function VisualEditor({
       await lock.current;
       const entry = history.current.past.at(-1);
       if (!entry) return;
+      // La toile ne peut pas deviner le résultat : état « en cours » jusqu'à l'acquittement.
+      send({ kind: "pending", label: "Annulation en cours…" });
       const back = await travel(entry);
       if (!back) {
         toast("Annulation impossible pour ce pas : la planche a changé (image supprimée ?).", "error");
@@ -555,8 +558,10 @@ export default function VisualEditor({
       toast("Annulé");
     } finally {
       traveling.current = false;
+      // Rien à enregistrer (refus, pas sans effet) : plus rien à attendre. Sinon l'acquittement lève l'état.
+      if (quiet(false)) send({ kind: "pending", label: null });
     }
-  }, [travel]);
+  }, [travel, send, quiet]);
 
   const redo = useCallback(async () => {
     if (blockedRef.current || traveling.current) return;
@@ -565,6 +570,7 @@ export default function VisualEditor({
       await lock.current;
       const entry = history.current.future[0];
       if (!entry) return;
+      send({ kind: "pending", label: "Rétablissement en cours…" });
       const back = await travel(entry);
       if (!back) {
         toast("Rétablissement impossible pour ce pas : la planche a changé (image supprimée ?).", "error");
@@ -576,8 +582,9 @@ export default function VisualEditor({
       toast("Rétabli");
     } finally {
       traveling.current = false;
+      if (quiet(false)) send({ kind: "pending", label: null });
     }
-  }, [travel]);
+  }, [travel, send, quiet]);
 
   const undoRef = useRef(undo);
   useEffect(() => {
@@ -711,16 +718,26 @@ export default function VisualEditor({
     } else toast("Bloc supprimé · Annuler (Ctrl+Z) pour le récupérer", "success", { label: "Annuler", run: () => void undoRef.current() });
   };
 
-  const editText = (uid: string, path: string, textLocale: string, value: string) => {
+  /** Texte posé en place ; false = refusé (la toile retire son aperçu et rétablit le texte d'origine). */
+  const editText = (uid: string, path: string, textLocale: string, value: string): boolean => {
     const list = draftRef.current.blocks;
     const block = findBlock(list, uid);
     const def = block && own(byType, block.type);
-    if (!block || !def || !inlineAllowed(def.inline, path) || (textLocale !== "fr" && textLocale !== "en")) return;
+    if (!block || !def || !inlineAllowed(def.inline, path) || (textLocale !== "fr" && textLocale !== "en")) return false;
+    // Accroche de l'ouverture : seul le balisage <mark>…</mark> bien formé entre dans le brouillon.
+    const problem = block.type === "hero" && path === "statement" ? markedProblem(value) : null;
+    if (problem) {
+      toast(problem, "error");
+      return false;
+    }
     const props = setLocalizedAt(block.props, path, textLocale, value.slice(0, 2000));
+    // Éditeur arrêté (page modifiée ailleurs) : `apply` avertit et n'écrit rien, la toile retire son aperçu.
+    const blocked = Boolean(blockedRef.current);
     setBlocks(
       updateBlock(list, uid, (b) => ({ ...b, props })),
       { structural: true },
     );
+    return !blocked;
   };
 
   /** Déplacement depuis la toile ou la structure : dans la page, dans un conteneur, entre les deux. */
@@ -733,30 +750,40 @@ export default function VisualEditor({
   };
 
   /** Champs d'un formulaire de contact retirés, déplacés ou ajoutés depuis la toile. */
-  const formField = (msg: Extract<FromCanvasMsg, { kind: "form-field" }>) => {
+  /** Champ ajouté, retiré ou déplacé depuis la toile ; false = refusé (la toile retire son aperçu). */
+  const formField = (msg: Extract<FromCanvasMsg, { kind: "form-field" }>): boolean => {
+    const refuse = (message: string) => {
+      toast(message, "error");
+      return false;
+    };
     const block = findBlock(draftRef.current.blocks, msg.uid);
-    if (!block || block.type !== "contact-form") return;
+    if (!block || block.type !== "contact-form") return false;
     const fields = ((block.props.fields as FormField[] | undefined) ?? []).slice();
     if (msg.op === "add") {
-      if (fields.length >= MAX_FIELDS) return toast(`${MAX_FIELDS} champs au plus.`, "error");
+      if (fields.length >= MAX_FIELDS) return refuse(`${MAX_FIELDS} champs au plus.`);
       const field = makeField(msg.fieldType ?? "text");
+      // Identifiant choisi par la toile (son aperçu et le champ réel se reconnaissent), s'il est libre.
+      if (msg.id && !fields.some((f) => f.id === msg.id)) field.id = msg.id;
       if (field.type === "email" && !fields.some((f) => f.reply)) field.reply = true;
       setProp(msg.uid, "fields", [...fields, field]);
-      return toast("Champ ajouté · double-clic sur son libellé pour le renommer");
+      toast("Champ ajouté · double-clic sur son libellé pour le renommer");
+      return true;
     }
     const i = msg.index ?? -1;
-    if (!fields[i]) return;
+    if (!fields[i]) return false;
     if (msg.op === "remove") {
-      if (fields.length <= 1) return toast("Un formulaire garde au moins un champ.", "error");
-      if (fields[i].reply) return toast("Ce champ e-mail sert à te répondre : dans le panneau, désactive « Sert à te répondre » (ou choisis un autre champ) avant de le retirer.", "error");
+      if (fields.length <= 1) return refuse("Un formulaire garde au moins un champ.");
+      if (fields[i].reply) return refuse("Ce champ e-mail sert à te répondre : dans le panneau, désactive « Sert à te répondre » (ou choisis un autre champ) avant de le retirer.");
       setProp(msg.uid, "fields", fields.filter((_, j) => j !== i));
-      return toast("Champ retiré", "success", { label: "Annuler", run: () => void undoRef.current() });
+      toast("Champ retiré", "success", { label: "Annuler", run: () => void undoRef.current() });
+      return true;
     }
     const to = msg.to ?? i;
-    if (to < 0 || to >= fields.length || to === i) return;
+    if (to < 0 || to >= fields.length || to === i) return false;
     const [x] = fields.splice(i, 1);
     fields.splice(to, 0, x);
     setProp(msg.uid, "fields", fields);
+    return true;
   };
 
   /** Réglage d'un bloc (où qu'il soit) : agencement d'une grille, média… */
@@ -1201,10 +1228,18 @@ export default function VisualEditor({
   }, [uploadedCount, router]);
 
   /** Texte ou opération sur l'en-tête / le pied / les réseaux venus de la toile. */
-  const siteChange = (msg: Extract<FromCanvasMsg, { kind: "site-text" | "site-op" }>) => {
+  const siteChange = (msg: Extract<FromCanvasMsg, { kind: "site-text" | "site-op" }>, seq?: number) => {
+    // Refus (valeur invalide, en-tête tenu par une autre page, connexion perdue) : la toile retire son aperçu.
+    const revert = () => seq && send({ kind: "revert", seq });
     const result = msg.kind === "site-text" ? siteText(siteRef.current, msg) : applySiteOp(siteRef.current, msg, pages);
-    if ("error" in result) return toast(result.error, "error");
-    void writeSite(result.snap).then((ok) => ok && result.done && toast(result.done, "success", { label: "Annuler", run: () => void undoRef.current() }));
+    if ("error" in result) {
+      revert();
+      return toast(result.error, "error");
+    }
+    void writeSite(result.snap).then((ok) => {
+      if (!ok) revert();
+      else if (result.done) toast(result.done, "success", { label: "Annuler", run: () => void undoRef.current() });
+    });
   };
 
   const handlers = useRef({ op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle });
@@ -1313,15 +1348,18 @@ export default function VisualEditor({
         case "layout":
           h.setProp(msg.uid, "layout", msg.layout);
           break;
-        case "form-field":
-          h.formField(msg);
+        case "form-field": {
+          // Refusé (dernier champ, champ de réponse, limite…) ou sans effet : la toile retire son aperçu.
+          const before = draftRef.current;
+          if ((!h.formField(msg) || draftRef.current === before) && msg.seq) send({ kind: "revert", seq: msg.seq });
           break;
+        }
         case "site-text":
         case "site-op":
-          h.siteChange(msg);
+          h.siteChange(msg, msg.seq);
           break;
         case "text":
-          h.editText(msg.uid, msg.path, msg.locale, msg.value);
+          if (!h.editText(msg.uid, msg.path, msg.locale, msg.value) && msg.seq) send({ kind: "revert", seq: msg.seq });
           break;
         case "look":
           void h.applyLook(msg.uid, msg.look);

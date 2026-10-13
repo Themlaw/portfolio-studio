@@ -18,6 +18,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { dataDir, getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 import { getStorage } from "@/lib/storage";
+import { siteNameFor } from "@/lib/site-schema";
 import { PRESETS } from "@/themes/presets";
 import { ThemeSchema, type Theme } from "@/themes/schema";
 
@@ -48,7 +49,7 @@ export const kitFile = (themeId: string, version: string) => path.join(/* turbop
 export function kitSiteName(): string {
   const row = getDb().select().from(schema.settings).where(eq(schema.settings.key, "site")).get();
   const site = parseJson(row?.value) as { name?: unknown } | null;
-  return typeof site?.name === "string" && site.name.trim() ? site.name : "Portfolio";
+  return siteNameFor(site?.name, "fr").trim() || "Portfolio";
 }
 
 /** Version du kit d'un thème : son état enregistré et le nom du site. */

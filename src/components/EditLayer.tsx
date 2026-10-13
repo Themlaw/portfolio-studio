@@ -30,7 +30,8 @@ import { acceptToCanvas, insertionIndex, moveTo, type BlockInfo, type FromCanvas
 import BoardLayer from "./BoardLayer";
 import LookLayer from "./edit/LookLayer";
 import GridLayoutIcon, { LAYOUT_LABELS } from "./edit/GridLayoutIcon";
-import { noteSettle, observeOverlays, pendingOrder, postIntent, previewLayout, previewOrder, previewText, resetOverlays, revertOverlay, siblingWrappers } from "./edit/optimistic";
+import { listKeys, noteSettle, observeOverlays, pendingOrder, postIntent, previewLayout, previewMarked, previewOrder, previewText, resetOverlays, revertOverlay, siblingWrappers } from "./edit/optimistic";
+import { closeMarkedEditor, markState, markupOf, openMarkedEditor, toggleMark, type MarkedEditor } from "./edit/marked-edit";
 import { useDismiss } from "./edit/useDismiss";
 import SiteLayer, { FormLayer } from "./SiteLayer";
 
@@ -175,7 +176,15 @@ function clearSelection() {
   } catch {}
 }
 
-type Editing = { el: HTMLElement; original: string; target: { kind: "block"; uid: string } | { kind: "site"; field: string; index?: number } };
+type Editing = {
+  el: HTMLElement;
+  original: string;
+  target: { kind: "block"; uid: string } | { kind: "site"; field: string; index?: number };
+  /** Texte à passage surligné (accroche) : champ à part, voir edit/marked-edit.ts. */
+  marked?: MarkedEditor;
+};
+/** Barre « Surligner » de l'accroche : position (coordonnées du document) et état du bouton. */
+type MarkBar = { top: number; left: number; below: boolean; state: boolean | null };
 
 export default function EditLayer() {
   const router = useRouter();
@@ -200,6 +209,9 @@ export default function EditLayer() {
   /** Bloc grille dont le choix d'agencement est ouvert. */
   const [layoutFor, setLayoutFor] = useState<string | null>(null);
   const [projectPicker, setProjectPicker] = useState<string | null>(null);
+  const [markBar, setMarkBar] = useState<MarkBar | null>(null);
+  /** Annuler / Rétablir en cours : résultat inconnu de la toile, état « en cours » jusqu'à l'acquittement. */
+  const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   const editing = useRef<Editing | null>(null);
   const boxesRef = useRef<Box[]>([]);
   const selectedRef = useRef<string | null>(null);
@@ -285,11 +297,32 @@ export default function EditLayer() {
 
   /* ---- Texte en place ---------------------------------------------------- */
 
+  /** Barre « Surligner » : replacée au-dessus (ou sous) l'accroche en cours d'édition, bouton à jour. */
+  const refreshMarkBar = useCallback(() => {
+    const m = editing.current?.marked;
+    const r = m ? rectOf(m.host) : null;
+    if (!m || !r) return setMarkBar(null);
+    const below = r.top < 52;
+    setMarkBar({ top: below ? r.top + r.height + 10 : r.top - 46, left: Math.max(8, r.left), below, state: markState(m.editor) });
+  }, []);
+
   const finishEdit = useCallback((commit: boolean) => {
     const current = editing.current;
     if (!current) return;
     editing.current = null;
-    const { el, original, target } = current;
+    const { el, original, target, marked } = current;
+    if (marked) {
+      // Accroche : le texte est lu dans NOTRE champ (nœuds texte et passages surlignés), jamais du HTML.
+      const markup = markupOf(marked.editor);
+      closeMarkedEditor(marked);
+      el.removeAttribute("data-editing");
+      setMarkBar(null);
+      if (!commit || markup === marked.before || target.kind !== "block") return;
+      const locale = document.documentElement.lang === "en" ? "en" : "fr";
+      const seq = post({ kind: "text", uid: target.uid, path: "statement", locale, value: markup.slice(0, 2000) });
+      previewMarked({ uid: target.uid, path: "statement" }, markup.slice(0, 2000), seq);
+      return;
+    }
     const value = (el.textContent ?? "").replace(/\s*\n\s*/g, " ");
     el.removeAttribute("contenteditable");
     el.removeAttribute("data-editing");
@@ -303,10 +336,14 @@ export default function EditLayer() {
     if (target.kind === "block") {
       const path = el.dataset.inline ?? "";
       const seq = post({ kind: "text", uid: target.uid, path, locale, value: value.slice(0, 2000) });
-      previewText({ uid: target.uid, path }, value.slice(0, 2000), seq);
+      previewText({ uid: target.uid, path }, value.slice(0, 2000), seq, original);
     } else {
-      const seq = post({ kind: "site-text", field: target.field as "name", ...(target.index !== undefined ? { index: target.index } : {}), locale, value: value.slice(0, 200) });
-      previewText({ field: target.field, ...(target.index !== undefined ? { index: target.index } : {}) }, value.slice(0, 200), seq);
+      // Lien du menu : rang dans la liste telle que l'éditeur la tient (aperçus de déplacement compris), aperçu sur la clé du lien.
+      const navKey = target.field === "nav" ? el.closest("[data-nav-key]")?.getAttribute("data-nav-key") ?? undefined : undefined;
+      const rank = navKey !== undefined ? listKeys("nav").indexOf(navKey) : -1;
+      const index = rank >= 0 ? rank : target.index;
+      const seq = post({ kind: "site-text", field: target.field as "name", ...(index !== undefined ? { index } : {}), locale, value: value.slice(0, 200) });
+      previewText({ field: target.field, ...(navKey !== undefined ? { key: navKey } : index !== undefined ? { index } : {}) }, value.slice(0, 200), seq, original);
     }
   }, []);
 
@@ -330,6 +367,26 @@ export default function EditLayer() {
         select(block.dataset.editBlock);
         target = { kind: "block", uid: block.dataset.editBlock };
       }
+      if (el.hasAttribute("data-marked")) {
+        const marked = openMarkedEditor(el);
+        if (!marked) return;
+        editing.current = { el, original: marked.before, target, marked };
+        el.setAttribute("data-editing", "");
+        marked.editor.focus();
+        placeCaretAtEnd(marked.editor);
+        marked.editor.addEventListener("blur", () => finishEdit(true), { once: true });
+        marked.editor.addEventListener("input", refreshMarkBar);
+        // Ctrl/Cmd + Maj + H : surligner au clavier.
+        marked.editor.addEventListener("keydown", (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "h") {
+            e.preventDefault();
+            toggleMark(marked.editor);
+            refreshMarkBar();
+          }
+        });
+        refreshMarkBar();
+        return;
+      }
       editing.current = { el, original: el.textContent ?? "", target };
       try {
         el.contentEditable = "plaintext-only";
@@ -341,7 +398,7 @@ export default function EditLayer() {
       placeCaretAtEnd(el);
       el.addEventListener("blur", () => finishEdit(true), { once: true });
     },
-    [finishEdit, select],
+    [finishEdit, select, refreshMarkBar],
   );
 
   /* ---- Messages de l'éditeur --------------------------------------------- */
@@ -379,10 +436,16 @@ export default function EditLayer() {
         }
         case "refresh":
           noteSettle(msg.rev, msg.upTo);
+          // upTo >= 0 : tout est enregistré, la page qui arrive est celle du serveur.
+          if (msg.upTo !== undefined && msg.upTo >= 0) setPendingLabel(null);
           router.refresh();
           break;
         case "settle":
           noteSettle(msg.rev, msg.upTo);
+          setPendingLabel(null);
+          break;
+        case "pending":
+          setPendingLabel(msg.label);
           break;
         case "revert":
           revertOverlay(msg.seq);
@@ -446,6 +509,15 @@ export default function EditLayer() {
       document.removeEventListener("load", schedule, true);
     };
   }, [mode, remeasure]);
+
+  // État « en cours » : voile léger sur la page (après un court délai, pour ne pas clignoter), levé à l'acquittement ou au bout de 10 s.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.toggleAttribute("data-edit-pending", pendingLabel !== null);
+    if (pendingLabel === null) return;
+    const t = setTimeout(() => setPendingLabel(null), 10000);
+    return () => clearTimeout(t);
+  }, [pendingLabel]);
 
   // Toile en mode édition : `data-edit-mode` (repères) et `data-edit-canvas`
   // (en-tête et éléments collants du thème remis dans le flux, edit-layer.css).
@@ -561,7 +633,11 @@ export default function EditLayer() {
     document.addEventListener("dblclick", onDblClick, true);
     document.addEventListener("submit", onSubmit, true);
     document.addEventListener("keydown", onKey);
+    // Sélection modifiée dans l'accroche : l'état du bouton « Surligner » suit.
+    const onSelection = () => editing.current?.marked && refreshMarkBar();
+    document.addEventListener("selectionchange", onSelection);
     return () => {
+      document.removeEventListener("selectionchange", onSelection);
       document.removeEventListener("pointermove", onMove);
       document.documentElement.removeEventListener("pointerleave", onLeave);
       document.removeEventListener("click", onClick, true);
@@ -570,7 +646,7 @@ export default function EditLayer() {
       document.removeEventListener("keydown", onKey);
       finishEdit(true);
     };
-  }, [mode, select, startEdit, finishEdit]);
+  }, [mode, select, startEdit, finishEdit, refreshMarkBar]);
 
   /* ---- Réordonner par la poignée (page, dans un conteneur, entre les deux) */
 
@@ -891,6 +967,36 @@ export default function EditLayer() {
         dragging={Boolean(drag)}
         announce={setAnnouncement}
       />
+
+      {markBar && (
+        <div className="pe-markbar" role="toolbar" aria-label="Surlignage de l'accroche" style={{ top: markBar.top, left: markBar.left }}>
+          <button
+            type="button"
+            aria-pressed={markBar.state === true}
+            disabled={markBar.state === null}
+            title="Surligner la sélection (ou le mot sous le curseur) · Ctrl+Maj+H"
+            // Garde le focus et la sélection dans le texte : sinon le champ se refermerait.
+            onPointerDown={(e) => e.preventDefault()}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              const m = editing.current?.marked;
+              if (!m) return;
+              const on = markBar.state !== true;
+              if (toggleMark(m.editor)) setAnnouncement(on ? "Passage surligné" : "Surlignage retiré");
+              refreshMarkBar();
+            }}
+          >
+            {markBar.state === true ? "Retirer le surlignage" : "Surligner"}
+          </button>
+          <span className="pe-markbar-hint">Sélectionne un mot · Entrée valide · Échap annule</span>
+        </div>
+      )}
+
+      {pendingLabel && (
+        <p className="pe-pending" role="status">
+          {pendingLabel}
+        </p>
+      )}
 
       <p className="pe-live" role="status" aria-live="polite">
         {drag && drop

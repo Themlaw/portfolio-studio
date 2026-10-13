@@ -16,6 +16,9 @@
  *     une autre page depuis le chargement de la toile), échec réseau, Annuler juste
  *     après une saisie : la toile retrouve la bonne valeur, sans rechargement.
  *     Planche tenue au chargement : la légende d'une place ne s'ouvre pas.
+ *  E. Aperçu instantané (v0.16) : menu de l'en-tête (retirer, déplacer, ajouter), champs du
+ *     formulaire de contact, Annuler / Rétablir (état « en cours »), et rétablissement en cas de
+ *     refus du serveur, de connexion perdue ou d'éditeur bloqué.
  *
  * Usage : DATA_DIR=… ADMIN_EMAIL=… ADMIN_PASSWORD=… BASE=http://localhost:3101 \
  *         SHOTS=/root/shots-lot6 [ONLY=A,B,C] node scripts/e2e-state.mjs
@@ -921,6 +924,312 @@ if (run("D")) {
   } else ok("D4 planche tenue : aucune légende à tester dans ce jeu de données (ignoré)", true);
   write("update slots set draft_page_id = null where id = ?", slotId);
   await page.screenshot({ path: `${SHOTS}/D-planche-tenue.png` });
+}
+
+/* ---- E. Aperçu instantané des listes du site, des champs de formulaire, d'Annuler / Rétablir (v0.16) ---- */
+
+if (run("E")) {
+  const homeId = q("select page_id id from blocks where type = 'hero' limit 1")[0].id;
+  const otherId = q("select id from pages where id != ? order by id limit 1", homeId)[0].id;
+  const formPage = q("select id from pages where json_extract(slug,'$.fr') = 'a-propos'")[0]?.id;
+  const write = (sql, ...args) => {
+    const db = new Database(DB);
+    db.prepare(sql).run(...args);
+    db.close();
+  };
+  const NAV = '[data-edit-global="header"] nav';
+  /** Éléments d'une liste, tels qu'ils s'affichent (retraits cachés, ordre visuel gauche → droite ou haut → bas). */
+  const listSnap = (f_, scope, attr, horizontal) =>
+    f_.evaluate(
+      ([scope, attr, horizontal]) =>
+        [...document.querySelectorAll(`${scope} [${attr}]`)]
+          .filter((e) => e.style.display !== "none")
+          .sort((a, b) => (horizontal ? a.getBoundingClientRect().left - b.getBoundingClientRect().left : a.getBoundingClientRect().top - b.getBoundingClientRect().top))
+          .map((e) => ({ key: e.getAttribute(attr), text: e.textContent.trim(), ghost: e.hasAttribute("data-pv-ghost") })),
+      [scope, attr, horizontal],
+    );
+  const navNow = () => listSnap(f, NAV, "data-nav-key", true);
+  const labels = (l) => l.map((x) => x.text).join("|");
+  const foreignSite = () => {
+    // Brouillon du site tenu par une AUTRE page : le serveur refusera toute écriture de l'en-tête.
+    const site = setting("site") ?? {};
+    const snap = { identity: { name: site.name, role: site.role, email: site.email ?? "", credit: site.credit }, nav: setting("nav") ?? [], socials: [] };
+    write("insert into settings (key, value) values ('siteDraft', ?) on conflict(key) do update set value = excluded.value", JSON.stringify({ pageId: otherId, snap }));
+  };
+  const dropForeign = () => write("delete from settings where key = 'siteDraft'");
+  const hoverNav = async (i) => {
+    await f.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+    await f.locator(`${NAV} [data-nav-item]`).nth(i).hover();
+    await f.locator(".pe-item-tools").waitFor({ timeout: 8000 });
+  };
+
+  dropForeign();
+  f = await openEditor(homeId);
+  await sleep(1500);
+  slow = false;
+  const before = await navNow();
+  ok("E0 menu de l'en-tête repéré (clés stables)", before.length >= 3 && before.every((x) => x.key), JSON.stringify(before));
+
+  /* E1. Retirer un lien : disparaît tout de suite (réponses lentes), ne revient pas, Annuler le rend. */
+  slow = true;
+  await hoverNav(1);
+  await f.locator(".pe-item-tools .pe-danger").click();
+  const gone = await until(f, ([sel, n]) => [...document.querySelectorAll(sel)].filter((e) => e.style.display !== "none").length === n, [`${NAV} [data-nav-key]`, before.length - 1], 700);
+  ok("E1 lien retiré : disparu avant la réponse du serveur", gone, labels(await navNow()));
+  await settled();
+  await sleep(1800);
+  let now = await navNow();
+  ok("E1 lien retiré : toujours absent après les réponses lentes, un seul de moins", now.length === before.length - 1 && !now.some((x) => x.text === before[1].text), labels(now));
+  ok("E1 lien retiré : aperçu retiré à l'acquittement (plus de style posé)", (await f.locator(`${NAV} [data-pv]`).count()) === 0);
+  slow = false;
+  await page.locator('button[aria-label="Annuler"]').click();
+  ok("E1 Annuler : le lien revient", await until(f, ([sel, n]) => document.querySelectorAll(sel).length === n, [`${NAV} [data-nav-key]`, before.length], 20000));
+  await settled();
+
+  /* E2. Déplacer un lien (glisser la poignée) : le menu change d'ordre tout de suite. */
+  slow = true;
+  await hoverNav(0);
+  const grip = f.locator(".pe-item-tools .pe-grip-sm");
+  const gb = await grip.boundingBox();
+  const lastBox = await f.locator(`${NAV} [data-nav-item]`).nth(before.length - 1).boundingBox();
+  await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(gb.x + 20, gb.y + 4, { steps: 3 });
+  await page.mouse.move(lastBox.x + lastBox.width + 6, lastBox.y + lastBox.height / 2, { steps: 10 });
+  await page.mouse.up();
+  const expectedOrder = [...before.slice(1), before[0]].map((x) => x.text).join("|");
+  const reordered = await waitFor(async () => labels(await navNow()) === expectedOrder, 700);
+  ok("E2 lien déplacé : nouvel ordre visible avant la réponse du serveur", reordered, labels(await navNow()));
+  ok("E2 déplacement : le DOM de React n'a pas été touché (ordre CSS, aucun nœud déplacé)", await f.evaluate((sel) => [...document.querySelectorAll(sel)].map((e) => e.getAttribute("data-nav-item")).join(",") === [...document.querySelectorAll(sel)].map((_, i) => i).join(","), `${NAV} [data-nav-item]`));
+  await settled();
+  await sleep(1800);
+  ok("E2 déplacement : ordre conservé après les réponses lentes", labels(await navNow()) === expectedOrder, labels(await navNow()));
+  slow = false;
+  await page.locator('button[aria-label="Annuler"]').click();
+  ok("E2 Annuler : ordre d'origine", await waitFor(async () => labels(await navNow()) === labels(before), 20000), labels(await navNow()));
+  await settled();
+
+  /* E3. Ajouter un lien libre : un élément « en cours » apparaît aussitôt, puis le vrai le remplace sans doublon. */
+  slow = true;
+  await f.locator(`${NAV} [data-nav-item]`).first().hover();
+  await f.locator('[data-testid="nav-add"]').click();
+  await f.getByLabel("Texte du lien").fill("Boutique");
+  await f.getByLabel("Adresse").fill("https://boutique.example.org/");
+  await f.getByRole("button", { name: "Ajouter ce lien" }).click();
+  const ghost = await waitFor(async () => (await navNow()).some((x) => x.ghost && x.text === "Boutique"), 700);
+  ok("E3 lien ajouté : élément « en cours » visible avant la réponse du serveur", ghost, labels(await navNow()));
+  ok("E3 le fantôme est atténué et inerte", await f.evaluate((sel) => { const g = document.querySelector(`${sel} [data-pv-ghost]`); return Boolean(g) && getComputedStyle(g).opacity === "0.5" && g.hasAttribute("inert"); }, NAV));
+  await page.screenshot({ path: `${SHOTS}/E3-lien-en-cours.png` });
+  await settled();
+  await waitFor(async () => (await f.locator(`${NAV} [data-pv-ghost]`).count()) === 0, 20000);
+  now = await navNow();
+  ok("E3 lien ajouté : le vrai lien remplace le fantôme, un seul « Boutique »", now.filter((x) => x.text === "Boutique").length === 1 && now.every((x) => !x.ghost), labels(now));
+  slow = false;
+  await page.locator('button[aria-label="Annuler"]').click();
+  await waitFor(async () => (await navNow()).length === before.length, 20000);
+  await settled();
+
+  /* E4. Refus du serveur (en-tête tenu par une autre page depuis le chargement) : retrait et ajout sont annulés, sans rechargement. */
+  foreignSite();
+  await hoverNav(1);
+  await f.locator(".pe-item-tools .pe-danger").click();
+  ok("E4 refus : message du serveur", await waitFor(async () => /en cours de modification sur la page/.test((await page.locator("body").textContent()) ?? ""), 15000));
+  ok("E4 refus : le lien retiré revient", await waitFor(async () => labels(await navNow()) === labels(before), 8000), labels(await navNow()));
+  await f.locator(`${NAV} [data-nav-item]`).first().hover();
+  await f.locator('[data-testid="nav-add"]').click();
+  await f.getByLabel("Texte du lien").fill("Refusé");
+  await f.getByLabel("Adresse").fill("https://refuse.example.org/");
+  await f.getByRole("button", { name: "Ajouter ce lien" }).click();
+  await sleep(300);
+  ok("E4 refus : le lien ajouté disparaît", await waitFor(async () => (await navNow()).every((x) => x.text !== "Refusé"), 8000), labels(await navNow()));
+  ok("E4 refus : plus rien d'aperçu à l'écran", (await f.locator(`${NAV} [data-pv], ${NAV} [data-pv-ghost]`).count()) === 0);
+  ok("E4 refus : rien d'écrit", JSON.parse(q("select value v from settings where key = 'siteDraft'")[0].v).pageId === otherId);
+  // Nom vide : refusé par l'éditeur lui-même (pas d'écriture), l'ancien nom revient.
+  const brand = f.locator('[data-edit-global="header"] [data-site-inline="name"]');
+  const brandBefore = (await brand.textContent())?.trim();
+  await brand.dblclick();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.press("Delete");
+  await page.keyboard.press("Enter");
+  ok("E4 nom vidé : refusé, l'ancien nom revient", await waitFor(async () => (await brand.textContent())?.trim() === brandBefore, 8000), await brand.textContent());
+  dropForeign();
+
+  /* E5. Connexion perdue : retrait annulé à l'écran. */
+  f = await openEditor(homeId);
+  await sleep(1500);
+  failActions = true;
+  await hoverNav(1);
+  await f.locator(".pe-item-tools .pe-danger").click();
+  ok("E5 réseau : message « connexion perdue »", await waitFor(async () => /connexion perdue/i.test((await page.locator("body").textContent()) ?? ""), 15000));
+  ok("E5 réseau : le lien retiré revient", await waitFor(async () => labels(await navNow()) === labels(before), 8000), labels(await navNow()));
+  failActions = false;
+
+  /* E5b. Réseaux (pied de page) : retirer, déplacer, ajouter, modifier le lien, refus. */
+  {
+    const snap = { identity: { name: setting("site").name, role: setting("site").role, email: setting("site").email ?? "", credit: setting("site").credit }, nav: setting("nav") ?? [], socials: [{ label: "Instagram", href: "https://www.instagram.com/camille", kind: "instagram" }, { label: "Behance", href: "https://www.behance.net/camille", kind: "behance" }, { label: "Vimeo", href: "https://vimeo.com/camille", kind: "vimeo" }] };
+    write("insert into settings (key, value) values ('siteDraft', ?) on conflict(key) do update set value = excluded.value", JSON.stringify({ pageId: homeId, snap }));
+    await page.reload({ waitUntil: "domcontentloaded" });
+    f = await canvas();
+    await sleep(1500);
+    const SOC = '[data-edit-global="footer"] [data-edit-socials]';
+    const socNow = () => listSnap(f, SOC, "data-social-key", false);
+    const hoverSoc = async (i) => {
+      await f.locator(`${SOC} [data-social-index]`).nth(i).scrollIntoViewIfNeeded();
+      await f.locator(`${SOC} [data-social-index]`).nth(i).hover();
+      await f.locator('.pe-item-tools[data-kind="social"]').waitFor({ timeout: 8000 });
+    };
+    const socBefore = await socNow();
+    ok("E5b réseaux repérés (clés stables)", socBefore.length === 3 && socBefore.every((x) => x.key), JSON.stringify(socBefore));
+    slow = true;
+    await hoverSoc(0);
+    await f.locator('.pe-item-tools[data-kind="social"] .pe-danger').click();
+    ok("E5b réseau retiré : disparu avant la réponse du serveur", await waitFor(async () => (await socNow()).length === 2 && !(await socNow()).some((x) => x.text === "Instagram"), 700), labels(await socNow()));
+    await settled();
+    await sleep(1800);
+    ok("E5b réseau retiré : toujours absent après les réponses lentes", labels(await socNow()) === "Behance|Vimeo", labels(await socNow()));
+    // Déplacer « Vimeo » avant « Behance » (poignée glissée vers le haut).
+    await hoverSoc(1);
+    const sg = await f.locator('.pe-item-tools[data-kind="social"] .pe-grip-sm').boundingBox();
+    const first = await f.locator(`${SOC} [data-social-index]`).nth(0).boundingBox();
+    await page.mouse.move(sg.x + sg.width / 2, sg.y + sg.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(sg.x + 8, sg.y - 6, { steps: 3 });
+    await page.mouse.move(first.x + 20, first.y - 4, { steps: 10 });
+    await page.mouse.up();
+    ok("E5b réseau déplacé : nouvel ordre avant la réponse du serveur", await waitFor(async () => labels(await socNow()) === "Vimeo|Behance", 700), labels(await socNow()));
+    await settled();
+    await sleep(1800);
+    ok("E5b réseau déplacé : ordre conservé", labels(await socNow()) === "Vimeo|Behance", labels(await socNow()));
+    // Ajouter un réseau : « en cours » aussitôt, puis le vrai réseau remplace le fantôme.
+    await f.locator('[data-testid="social-add"]').last().scrollIntoViewIfNeeded();
+    await f.locator('[data-testid="social-add"]').last().click();
+    await f.getByRole("menuitem", { name: "Bluesky" }).click();
+    await f.getByLabel("Adresse du profil").fill("https://bsky.app/profile/camille");
+    await f.getByRole("button", { name: "Ajouter", exact: true }).click();
+    ok("E5b réseau ajouté : fantôme « en cours » avant la réponse du serveur", await waitFor(async () => (await socNow()).some((x) => x.ghost), 700), labels(await socNow()));
+    await settled();
+    await waitFor(async () => (await f.locator(`${SOC} [data-pv-ghost]`).count()) === 0, 20000);
+    ok("E5b réseau ajouté : le vrai réseau remplace le fantôme, sans doublon", (await socNow()).length === 3 && (await socNow()).every((x) => !x.ghost), labels(await socNow()));
+    // Modifier le lien : marqué « en cours » le temps de l'écriture.
+    await hoverSoc(0);
+    await f.locator('.pe-item-tools[data-kind="social"] button[aria-label="Modifier le lien"]').click();
+    await f.getByLabel("Adresse du profil").fill("https://vimeo.com/camille-bis");
+    await f.getByRole("button", { name: "Enregistrer le lien" }).click();
+    ok("E5b lien modifié : élément marqué « en cours » aussitôt", await waitFor(async () => (await f.locator(`${SOC} [data-pending]`).count()) === 1, 900));
+    slow = false;
+    await settled();
+    ok("E5b plus d'aperçu à l'écran à l'acquittement", await waitFor(async () => (await f.locator(`${SOC} [data-pv], ${SOC} [data-pv-ghost], ${SOC} [data-pending]`).count()) === 0, 20000));
+    // Refus : le brouillon du site est pris par une autre page.
+    foreignSite();
+    await hoverSoc(0);
+    const countBefore = (await socNow()).length;
+    await f.locator('.pe-item-tools[data-kind="social"] .pe-danger').click();
+    ok("E5b refus : le réseau retiré revient", await waitFor(async () => (await socNow()).length === countBefore, 8000) && (await sleep(500), (await socNow()).length === countBefore));
+    dropForeign();
+  }
+
+  /* E6. Annuler / Rétablir : état « en cours » visible jusqu'à l'acquittement. */
+  f = await openEditor(2);
+  await sleep(1500);
+  slow = true;
+  await f.locator(H1).dblclick();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("Pour annuler");
+  await page.keyboard.press("Enter");
+  await settled();
+  await page.locator('button[aria-label="Annuler"]').click();
+  ok("E6 Annuler : état « en cours » posé sur la toile aussitôt", await until(f, () => document.documentElement.hasAttribute("data-edit-pending"), null, 700));
+  ok("E6 Annuler : indicateur lisible", await until(f, () => /Annulation en cours/.test(document.querySelector(".pe-pending")?.textContent ?? ""), null, 3000));
+  await page.screenshot({ path: `${SHOTS}/E6-annulation-en-cours.png` });
+  ok("E6 Annuler : état levé à l'acquittement", await until(f, () => !document.documentElement.hasAttribute("data-edit-pending"), null, 30000));
+  slow = false;
+  await settled();
+  await page.locator('button[aria-label="Rétablir"]').click();
+  ok("E6 Rétablir : état « en cours » aussi", await until(f, () => document.documentElement.hasAttribute("data-edit-pending"), null, 3000));
+  ok("E6 Rétablir : levé à l'acquittement, texte rétabli", (await until(f, () => !document.documentElement.hasAttribute("data-edit-pending"), null, 30000)) && (await until(f, (sel) => document.querySelector(sel)?.textContent === "Pour annuler", H1, 20000)));
+
+  /* E7. Formulaire de contact : champs retirés / ajoutés / déplacés sur la toile. */
+  if (formPage) {
+    f = await openEditor(formPage);
+    await sleep(1500);
+    // Un formulaire de contact posé depuis la palette (3 champs par défaut : nom, e-mail de réponse, message).
+    await f.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" }));
+    await sleep(400);
+    const fb = await page.locator("iframe.ve-frame").boundingBox();
+    await page.getByRole("tab", { name: "Ajouter" }).click();
+    const card = page.locator('.ve-card[data-key="contact-form"]');
+    await card.scrollIntoViewIfNeeded();
+    const cb = await card.boundingBox();
+    const from = { x: cb.x + cb.width / 2, y: cb.y + cb.height / 2 };
+    const to = { x: fb.x + fb.width / 2, y: fb.y + fb.height - 140 };
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 10, from.y + 6, { steps: 3 });
+    await page.mouse.move(to.x, to.y, { steps: 18 });
+    await sleep(350);
+    await page.mouse.up();
+    await settled();
+    const FORM = "form[data-form-edit]";
+    await f.locator(FORM).waitFor({ timeout: 30000 });
+    const fieldsNow = () => listSnap(f, FORM, "data-form-field-id", false);
+    const fieldsBefore = await fieldsNow();
+    await f.locator(FORM).scrollIntoViewIfNeeded();
+    ok("E7 champs repérés (identifiants stables)", fieldsBefore.length >= 3 && fieldsBefore.every((x) => x.key), JSON.stringify(fieldsBefore));
+    const hoverField = async (i) => {
+      await f.locator(`${FORM} [data-form-field]`).nth(i).scrollIntoViewIfNeeded();
+      await f.locator(`${FORM} [data-form-field]`).nth(i).hover({ position: { x: 20, y: 10 } });
+      await f.locator('.pe-item-tools[data-kind="field"]').waitFor({ timeout: 8000 });
+    };
+    slow = true;
+    // Retirer le premier champ (pas celui qui sert à répondre).
+    await hoverField(0);
+    await f.locator('.pe-item-tools[data-kind="field"] .pe-danger').click();
+    ok("E7 champ retiré : disparu avant la réponse du serveur", await waitFor(async () => (await fieldsNow()).length === fieldsBefore.length - 1, 700), JSON.stringify(await fieldsNow()));
+    await settled();
+    await sleep(1800);
+    ok("E7 champ retiré : toujours absent après les réponses lentes", (await fieldsNow()).length === fieldsBefore.length - 1);
+    // Ajouter un champ : fantôme aussitôt, puis le vrai champ (même identifiant) sans doublon.
+    await f.locator('[data-testid="field-add"]').first().scrollIntoViewIfNeeded();
+    await f.locator('[data-testid="field-add"]').first().click();
+    await f.getByRole("menuitem", { name: "Texte court" }).click();
+    ok("E7 champ ajouté : fantôme « en cours » aussitôt", await waitFor(async () => (await fieldsNow()).some((x) => x.ghost), 700), JSON.stringify(await fieldsNow()));
+    const ghostKey = (await fieldsNow()).find((x) => x.ghost)?.key;
+    await settled();
+    await waitFor(async () => (await f.locator(`${FORM} [data-pv-ghost]`).count()) === 0, 20000);
+    const after = await fieldsNow();
+    ok("E7 champ ajouté : le vrai champ garde l'identifiant choisi par la toile, sans doublon", after.length === fieldsBefore.length && after.some((x) => x.key === ghostKey && !x.ghost), JSON.stringify(after));
+    slow = false;
+    // Refus : retirer le champ qui sert à répondre (l'éditeur refuse) : il revient.
+    const replyIdx = await f.locator(`${FORM} [data-form-field]`).evaluateAll((els) => els.findIndex((e) => e.hasAttribute("data-form-reply")));
+    if (replyIdx >= 0) {
+      const sn = await fieldsNow();
+      await hoverField(replyIdx);
+      await f.locator('.pe-item-tools[data-kind="field"] .pe-danger').click();
+      ok("E7 refus (champ de réponse) : le champ reste affiché", await waitFor(async () => (await fieldsNow()).length === sn.length, 3000) && (await sleep(800), (await fieldsNow()).length === sn.length));
+      ok("E7 refus : plus d'aperçu à l'écran", (await f.locator(`${FORM} [data-pv]`).count()) === 0);
+    }
+  } else ok("E7 aucun formulaire de contact dans ce jeu de données (ignoré)", true);
+
+  /* E8. Texte refusé parce que l'éditeur est bloqué (page modifiée ailleurs) : l'aperçu est retiré. */
+  f = await openEditor(2);
+  await sleep(1500);
+  const original = await f.locator(H1).textContent();
+  write("update pages set draft_rev = draft_rev + 1 where id = ?", 2);
+  // Premier texte : l'enregistrement échoue (version dépassée) et l'éditeur s'arrête.
+  await f.locator('[data-edit-type="collection-intro"] [data-inline="eyebrow"]').dblclick({ position: { x: 6, y: 6 } });
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("Déclencheur");
+  await page.keyboard.press("Enter");
+  ok("E8 page modifiée ailleurs : l'éditeur s'arrête", await waitFor(async () => /modifiée ailleurs/i.test((await page.locator("body").textContent()) ?? ""), 20000));
+  // Texte suivant : refusé (éditeur bloqué), aucun aperçu ne reste.
+  await closeBar();
+  await f.locator(H1).scrollIntoViewIfNeeded();
+  await f.locator(H1).dblclick({ position: { x: 8, y: 6 } });
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("Texte refusé");
+  await page.keyboard.press("Enter");
+  ok("E8 texte refusé (éditeur bloqué) : le texte d'origine revient", await until(f, ([sel, t]) => document.querySelector(sel)?.textContent === t, [H1, original], 8000), await f.locator(H1).textContent());
+  write("update pages set draft_rev = draft_rev - 1 where id = ?", 2);
 }
 
 console.log(errors.length ? `Erreurs de page : ${errors.slice(0, 5).join(" | ")}` : "Aucune erreur de page");

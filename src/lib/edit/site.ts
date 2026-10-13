@@ -15,7 +15,7 @@ import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 import { cleanSiteStyles, SiteStylesSchema } from "@/lib/look";
-import { canonicalSnap, SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
+import { asSiteName, canonicalSnap, SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
 
 import { touchPage } from "./boards";
 import type { DraftRefusal } from "./drafts";
@@ -53,7 +53,7 @@ export function readPublishedSite(): SiteSnap {
   const styles = SiteStylesSchema.safeParse(setting("styles")).data;
   const snap = {
     identity: {
-      name: typeof site.name === "string" ? site.name : "",
+      name: asSiteName(site.name),
       role: site.role ? asL(site.role) : L0,
       email: typeof site.email === "string" ? site.email : "",
       credit: site.credit ? asL(site.credit) : L0,
@@ -67,7 +67,7 @@ export function readPublishedSite(): SiteSnap {
   const parsed = SiteSnapSchema.safeParse(snap);
   if (parsed.success) return parsed.data;
   return {
-    identity: SiteSnapSchema.shape.identity.safeParse(snap.identity).data ?? { name: snap.identity.name || "Portfolio", role: L0, email: "", credit: L0 },
+    identity: SiteSnapSchema.shape.identity.safeParse(snap.identity).data ?? { name: snap.identity.name.fr ? snap.identity.name : { fr: "Portfolio", en: "" }, role: L0, email: "", credit: L0 },
     nav: SiteSnapSchema.shape.nav.safeParse(snap.nav).data ?? [],
     // Un lien invalide ancien devient « à compléter » (gardé, non publié) plutôt que de disparaître.
     socials: socials.map((s) => (SiteSnapSchema.shape.socials.element.safeParse(s).success ? s : { label: s.label.slice(0, 40) || "Réseau", href: "#" })) as SiteSnap["socials"],

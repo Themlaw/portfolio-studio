@@ -127,6 +127,13 @@
       "when": 1791751909564,
       "tag": "0017_project_text_draft",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1791755509564,
+      "tag": "0018_site_name_i18n",
+      "breakpoints": true
     }
   ]
 }

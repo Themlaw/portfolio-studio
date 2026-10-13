@@ -2,7 +2,7 @@
 import { z } from "zod";
 
 import { getDb, schema } from "@/lib/db";
-import { SocialsSchema } from "@/lib/site-schema";
+import { SiteNameSchema, SocialsSchema } from "@/lib/site-schema";
 
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
 import { readSiteDraft } from "./site";
@@ -25,7 +25,7 @@ export const httpsUrl = z
 
 export const SettingsSchema = z.object({
   site: z.object({
-    name: z.string().trim().min(1, "Le nom du site est obligatoire.").max(80),
+    name: SiteNameSchema,
     role: localized,
     email: z.email("Adresse e-mail invalide (ex. nom@domaine.fr).").max(254),
     credit: localized,

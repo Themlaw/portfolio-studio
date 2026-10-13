@@ -22,8 +22,8 @@ export default function HeroTypeOnly({ note, content }: { note?: string; content
 
       <div className="shell pb-16 pt-40 md:pb-24">
         <Eyebrow {...marks.name}>{content.name}</Eyebrow>
-        <h1 className="mt-6 max-w-5xl font-display text-[clamp(2.6rem,7.5vw,6.5rem)] leading-[1.02] text-ink">
-          <Marked text={content.statement} />
+        <h1 className="mt-6 max-w-5xl font-display text-[clamp(2.6rem,7.5vw,6.5rem)] leading-[1.02] text-ink" {...marks.statement}>
+          <Marked text={content.statement} edit={content.edit} placeholder="Ton accroche" />
         </h1>
         <p className="caption-text mt-8 max-w-xl font-caption text-[0.78rem] tracking-[0.2em] uppercase text-ink-soft" {...marks.role}>
           {content.role}

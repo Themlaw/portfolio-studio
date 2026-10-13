@@ -316,3 +316,35 @@ export function renameVideoLook(db: Database.Database): number {
   }
   return n;
 }
+
+/* ---- 0018 : nom du site fr / en --------------------------------------------- */
+
+/**
+ * Migration 0018 (v0.16) : `site.name` (chaîne) devient { fr, en }, aussi dans le
+ * brouillon du site (`siteDraft.snap.identity.name`). `en` reste vide : le site
+ * montre le nom français dans les deux langues, comme avant. Idempotente
+ * (un nom déjà fr / en n'est pas touché). Renvoie le nombre de réglages réécrits.
+ */
+export function siteNameI18n(db: Database.Database): number {
+  const rewrite = (key: string, pick: (v: Record<string, unknown>) => Record<string, unknown> | null): number => {
+    const row = db.prepare("select value from settings where key = ?").get(key) as { value: string } | undefined;
+    if (!row) return 0;
+    let value: unknown;
+    try {
+      value = JSON.parse(row.value);
+    } catch {
+      return 0;
+    }
+    if (!value || typeof value !== "object") return 0;
+    const holder = pick(value as Record<string, unknown>);
+    if (!holder || typeof holder.name !== "string") return 0;
+    holder.name = { fr: holder.name, en: "" };
+    db.prepare("update settings set value = ? where key = ?").run(JSON.stringify(value), key);
+    return 1;
+  };
+  const obj = (v: unknown) => (v && typeof v === "object" ? (v as Record<string, unknown>) : null);
+  return (
+    rewrite("site", (v) => v) +
+    rewrite("siteDraft", (v) => obj(obj(v.snap)?.identity))
+  );
+}

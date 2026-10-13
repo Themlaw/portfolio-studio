@@ -12,7 +12,7 @@ import { ThemeSchema, type Theme } from "@/themes/schema";
 import { getDb, schema } from "./db";
 import { boardRefs } from "@/blocks/tree";
 import { parseJson } from "./json";
-import { NETWORKS, type Network } from "./site-schema";
+import { asSiteName, NETWORKS, type Network } from "./site-schema";
 import { ORIGINALS_PREFIX, parseVariants } from "./images/variants";
 import { mediaUrl } from "./media";
 import { own } from "./own";
@@ -306,7 +306,7 @@ export function getProjectForEdit(id: number): AdminProjectEdit | null {
 }
 
 export type AdminSettings = {
-  site: { name: string; role: L; email: string; credit: L; headerSocials?: boolean };
+  site: { name: L; role: L; email: string; credit: L; headerSocials?: boolean };
   socials: { label: string; href: string; kind?: Network }[];
 };
 
@@ -330,7 +330,7 @@ export function getSettingsForAdmin(): AdminSettings {
     : [];
   return {
     site: {
-      name: typeof site.name === "string" ? site.name : "",
+      name: asSiteName(site.name),
       role: site.role ? asL(site.role) : EMPTY,
       email: typeof site.email === "string" ? site.email : "",
       credit: site.credit ? asL(site.credit) : EMPTY,

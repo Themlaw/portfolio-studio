@@ -6,6 +6,7 @@ import EmailText from "@/components/EmailText";
 import SocialIcon from "@/components/SocialIcon";
 import { getMedia } from "@/lib/media";
 import { getSiteView } from "@/lib/settings";
+import { socialKeys } from "@/lib/site-schema";
 
 import { inline, localized, textStyle, tr, type BlockContext, localizedText } from "./types";
 
@@ -29,6 +30,8 @@ export const profileSchema = z.object({
  */
 export default async function ProfileBlock({ props, ctx }: { props: z.infer<typeof profileSchema>; ctx: BlockContext }) {
   const [{ site, socials }, portrait] = await Promise.all([getSiteView(ctx.locale, ctx.pageId), getMedia(props.portraitMediaId)]);
+  // Vue brouillon : clés stables des réseaux (aperçu instantané des ajouts, retraits, déplacements).
+  const socialKeyList = socialKeys(socials);
   const [lead, ...rest] = props.paragraphs;
   const ph = (text: string) => (ctx.edit ? { "data-placeholder": text } : {});
   const siteMark = (field: string, text: string) => ({
@@ -115,7 +118,7 @@ export default async function ProfileBlock({ props, ctx }: { props: z.infer<type
               </Eyebrow>
               <ul className="mt-3 space-y-2" {...(ctx.edit ? { "data-edit-socials": "", "data-site-hint": "commun au site" } : {})}>
                 {socials.map((s, i) => (
-                  <li key={`${s.label}-${i}`} {...(ctx.edit ? { "data-social-index": i } : {})}>
+                  <li key={`${s.label}-${i}`} {...(ctx.edit ? { "data-social-index": i, "data-social-key": socialKeyList[i] } : {})}>
                     <a
                       href={s.href}
                       target="_blank"

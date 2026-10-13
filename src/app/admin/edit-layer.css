@@ -1266,3 +1266,124 @@ html:not([data-edit-mode]) .pe-media-empty {
   text-underline-offset: 2px;
   white-space: nowrap;
 }
+
+/* Accroche de l'ouverture : champ de saisie à côté de l'enveloppe de React, barre « Surligner ». */
+[data-edit-mode] [data-marked-edit] {
+  outline: none;
+  caret-color: currentColor;
+}
+
+[data-edit-mode] [data-marked-body][data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  opacity: 0.4;
+}
+
+.pe-markbar {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #1f2226;
+  box-shadow: 0 6px 18px rgba(31, 34, 38, 0.25);
+  color: #c9ccd1;
+  font: 500 12px/1.2 system-ui, sans-serif;
+  pointer-events: auto;
+}
+
+.pe-markbar button {
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid #ffffff;
+  border-radius: 6px;
+  background: transparent;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pe-markbar button[aria-pressed="true"] {
+  background: #ffffff;
+  color: #1f2226;
+}
+
+.pe-markbar button:hover:not(:disabled),
+.pe-markbar button:focus-visible {
+  background: rgba(255, 255, 255, 0.18);
+  outline: none;
+}
+
+.pe-markbar button[aria-pressed="true"]:hover:not(:disabled) {
+  background: #e4e6ea;
+}
+
+.pe-markbar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pe-markbar-hint {
+  white-space: nowrap;
+}
+
+/* Aperçu instantané des listes du site (menu, réseaux, champs de formulaire) et états « en cours ». */
+[data-pv-list] {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Élément ajouté ou modifié, pas encore acquitté par le serveur : atténué, non interactif. */
+[data-edit-mode] [data-pending] {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+[data-edit-mode] [data-pv-ghost] {
+  pointer-events: none;
+}
+
+[data-edit-mode] [data-pv-ghost]::after {
+  content: " …";
+}
+
+/* Annuler / Rétablir : le résultat n'est connu qu'à l'acquittement. Voile léger, après 300 ms. */
+@keyframes pe-pending-dim {
+  to {
+    opacity: 0.72;
+  }
+}
+
+[data-edit-pending] #contenu {
+  animation: pe-pending-dim 0s linear 300ms forwards;
+}
+
+@keyframes pe-pending-show {
+  to {
+    opacity: 1;
+  }
+}
+
+.pe-pending {
+  position: fixed;
+  top: 12px;
+  right: 16px;
+  z-index: 4;
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #1f2226;
+  color: #ffffff;
+  font: 600 12px/1.2 system-ui, sans-serif;
+  opacity: 0;
+  animation: pe-pending-show 0s linear 300ms forwards;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-edit-pending] #contenu {
+    animation: none;
+  }
+}

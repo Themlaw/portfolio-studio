@@ -30,7 +30,7 @@ import {
   treeProblem,
   withFreshUids,
 } from "../src/blocks/tree.ts";
-import { renameVideoLook, upgradeContent } from "../src/lib/db/upgrade.ts";
+import { renameVideoLook, siteNameI18n, upgradeContent } from "../src/lib/db/upgrade.ts";
 import { defaultContactForm, makeField, validateSubmission, ContactFormSchema } from "../src/lib/contact-form.ts";
 import { canonicalSnap, detectNetwork, NavItemSchema, safeNavHref, safeSocialHref, SiteSnapSchema, SocialSchema } from "../src/lib/site-schema.ts";
 
@@ -277,9 +277,34 @@ test("0016 : présentation du bloc Vidéo look → variant (publié, composants,
   assert.equal(renameVideoLook(db), 0);
 });
 
+test("0018 : nom du site fr / en (réglage et brouillon du site), idempotente, tolérante", () => {
+  const db = new Database(":memory:");
+  db.exec("create table settings (key text primary key, value text)");
+  assert.equal(siteNameI18n(db), 0, "rien à réécrire sur une base vide");
+  const put = (k, v) => db.prepare("insert or replace into settings (key, value) values (?, ?)").run(k, typeof v === "string" ? v : JSON.stringify(v));
+  put("site", { name: "Camille", role: { fr: "a", en: "b" }, email: "x@y.fr", credit: { fr: "", en: "" }, headerSocials: true });
+  put("siteDraft", { pageId: 3, snap: { identity: { name: "Camille B", role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } }, nav: [], socials: [] } });
+  assert.equal(siteNameI18n(db), 2);
+  const site = JSON.parse(db.prepare("select value from settings where key = 'site'").get().value);
+  assert.deepEqual(site.name, { fr: "Camille", en: "" });
+  assert.equal(site.headerSocials, true, "le reste du réglage est intact");
+  assert.deepEqual(site.role, { fr: "a", en: "b" });
+  const draft = JSON.parse(db.prepare("select value from settings where key = 'siteDraft'").get().value);
+  assert.deepEqual(draft.snap.identity.name, { fr: "Camille B", en: "" });
+  assert.equal(draft.pageId, 3);
+  assert.equal(siteNameI18n(db), 0, "idempotente");
+  // Réglage illisible, sans nom, ou déjà fr / en : laissé tel quel.
+  put("site", "{pas du json");
+  put("siteDraft", { pageId: 1, snap: { identity: { role: { fr: "", en: "" } } } });
+  assert.equal(siteNameI18n(db), 0);
+  put("site", { name: { fr: "A", en: "B" } });
+  assert.equal(siteNameI18n(db), 0);
+  assert.deepEqual(JSON.parse(db.prepare("select value from settings where key = 'site'").get().value).name, { fr: "A", en: "B" });
+});
+
 /* ---- 3. Données du site ----------------------------------------------------- */
 test("site : headerSocials false ≡ absent (forme canonique, aucun brouillon fantôme)", () => {
-  const id = { name: "A", role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } };
+  const id = { name: { fr: "A", en: "" }, role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } };
   const snap = (identity) => ({ identity, nav: [], socials: [] });
   assert.equal(JSON.stringify(canonicalSnap(snap({ ...id, headerSocials: false }))), JSON.stringify(canonicalSnap(snap(id))));
   assert.notEqual(JSON.stringify(canonicalSnap(snap({ ...id, headerSocials: true }))), JSON.stringify(canonicalSnap(snap(id))));
@@ -321,7 +346,7 @@ test("reconnaissance du réseau d'après l'adresse (sans la réécrire)", () => 
   assert.equal(detectNetwork("pas une url"), null);
 });
 test("instantané du site : 12 liens et 12 réseaux au plus, champs stricts", () => {
-  const base = { identity: { name: "C", role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } }, nav: [], socials: [] };
+  const base = { identity: { name: { fr: "C", en: "" }, role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } }, nav: [], socials: [] };
   assert.ok(SiteSnapSchema.safeParse(base).success);
   const s = { label: "S", href: "https://s.fr" };
   assert.equal(SiteSnapSchema.safeParse({ ...base, socials: Array(13).fill(s) }).success, false);

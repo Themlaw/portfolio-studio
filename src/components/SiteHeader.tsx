@@ -8,9 +8,10 @@ import SocialIcon from "@/components/SocialIcon";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { AppLocale } from "@/i18n/routing";
 import type { Social } from "@/lib/settings";
+import { navKeyOf, uniqueKeys } from "@/lib/site-schema";
 
 /** Entrée de menu : chemin sans langue (ou adresse externe) et libellé, construits depuis la base. */
-export type HeaderNavItem = { id?: string; href: string; label: string; external?: boolean };
+export type HeaderNavItem = { id?: string; href: string; label: string; external?: boolean; pageId?: number };
 
 export default function SiteHeader({
   siteName,
@@ -35,6 +36,8 @@ export default function SiteHeader({
   // sans effet (setState dans un effect = rendus en cascade).
   const [openOn, setOpenOn] = useState<string | null>(null);
   const open = openOn === pathname;
+  // Vue brouillon : clé stable de chaque lien (aperçu instantané des ajouts, retraits et déplacements).
+  const keys = uniqueKeys(nav.map(navKeyOf));
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -70,6 +73,7 @@ export default function SiteHeader({
           className="hidden md:flex items-center gap-7"
         >
           {nav.map(({ id, href, label, external }, i) => {
+            const mark = edit ? { "data-nav-item": i, "data-nav-key": keys[i] } : {};
             const active = pathname === href;
             const className = `caption-text relative font-caption text-[0.7rem] tracking-[0.18em] uppercase transition-colors ${
               active ? "text-ink" : "text-ink-soft hover:text-primary"
@@ -84,7 +88,7 @@ export default function SiteHeader({
             );
             if (external) {
               return (
-                <a key={id ?? href} href={href} target="_blank" rel="noopener noreferrer" className={className} {...(edit ? { "data-nav-item": i } : {})}>
+                <a key={id ?? href} href={href} target="_blank" rel="noopener noreferrer" className={className} {...mark}>
                   {text}
                 </a>
               );
@@ -95,7 +99,7 @@ export default function SiteHeader({
                 href={href}
                 aria-current={active ? "page" : undefined}
                 className={className}
-                {...(edit ? { "data-nav-item": i } : {})}
+                {...mark}
               >
                 {text}
                 <span

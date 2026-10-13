@@ -1071,7 +1071,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     const siteRow = () => query(dirA, "select value from settings where key = 'siteDraft'")?.value ?? null;
     const publishedSite = query(dirA, "select value from settings where key = 'site'").value;
     const snap = (over = {}) => ({
-      identity: { name: "Nom de brouillon SD", role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } },
+      identity: { name: { fr: "Nom de brouillon SD", en: "" }, role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } },
       nav: [],
       socials: [],
       ...over,
@@ -1132,7 +1132,14 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("A13b « _ » en tête et majuscules → refusés", res.text.includes("commencer par « _ »") || res.text.includes('"ok":false'), res.text.slice(0, 300));
   res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "Doublon", en: "Duplicate" }, slug: { fr: "personnages", en: "duplicate" } }], "/admin/pages");
   ok("A13c slug déjà pris dans la langue → refusé", res.text.includes("déjà prise"), res.text.slice(0, 300));
-  const site = { name: "Test", role: { fr: "", en: "" }, email: "test@example.test", credit: { fr: "", en: "" } };
+  const site = { name: { fr: "Test", en: "" }, role: { fr: "", en: "" }, email: "test@example.test", credit: { fr: "", en: "" } };
+  // v0.16 : nom du site fr / en. Le français est obligatoire, les noms trop longs et les champs inconnus sont refusés.
+  for (const [label, name] of [["fr vide", { fr: "", en: "x" }], ["trop long", { fr: "x".repeat(81), en: "" }], ["champ inconnu", { fr: "a", en: "", de: "b" }]]) {
+    res = await callActionJson(jar, ids.saveSettingsAction, [{ site: { ...site, name }, socials: [] }], "/admin/reglages");
+    ok(`A13d nom du site refusé (${label})`, res.text.includes('"ok":false'), res.text.slice(0, 200));
+  }
+  res = await callActionJson(jar, ids.saveSettingsAction, [{ site: { ...site, name: "Ancien format" }, socials: [{ label: "X", href: "javascript:alert(1)" }] }], "/admin/reglages");
+  ok("A13e nom du site : l'ancienne chaîne reste lisible (refus dû aux réseaux seulement)", res.text.includes('"ok":false') && !res.text.includes("nom du site"), res.text.slice(0, 200));
   res = await callActionJson(jar, ids.saveSettingsAction, [{ site, socials: [{ label: "X", href: "javascript:alert(1)" }] }], "/admin/reglages");
   ok("A14 URL javascript: dans les réseaux → refusée", res.text.includes("https://") && res.text.includes('"ok":false'), res.text.slice(0, 300));
   res = await callActionJson(jar, ids.saveSettingsAction, [{ site, socials: [{ label: "X", href: "data:text/html,<script>alert(1)</script>" }] }], "/admin/reglages");

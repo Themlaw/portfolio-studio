@@ -5,6 +5,7 @@ import LoginForm from "@/components/admin/LoginForm";
 import { getSettingsForAdmin } from "@/lib/admin";
 import { readAuthConfig } from "@/lib/auth/config";
 import { getAdminSession } from "@/lib/auth/guard";
+import { siteNameFor } from "@/lib/site-schema";
 
 export const metadata = { title: "Connexion" };
 
@@ -40,7 +41,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main className="a-login">
       <div className="a-login-card">
         <span className="a-brand">
-          {site.site.name || "Portfolio"}
+          {siteNameFor(site.site.name, "fr") || "Portfolio"}
           <small>administration</small>
         </span>
         <h1>Connexion</h1>

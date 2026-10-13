@@ -71,6 +71,8 @@ export const FromCanvasSchema = z.union([
     index: z.number().int().min(0).max(11).optional(),
     to: z.number().int().min(0).max(11).optional(),
     fieldType: z.enum(["text", "email", "textarea", "select"]).optional(),
+    /** Identifiant du champ ajouté, choisi par la toile (son aperçu et le champ réel se reconnaissent). */
+    id: z.string().regex(/^f[a-z0-9]{6,12}$/).optional(),
   }),
   z.object({
     kind: z.literal("site-text"),
@@ -107,6 +109,11 @@ export const ToCanvasSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("settle"), rev: Rev, upTo: UpTo }),
   /** L'écriture de l'intention `seq` a été refusée ou a échoué : retirer son aperçu et rétablir la valeur d'origine. */
   z.object({ kind: z.literal("revert"), seq: z.number().int().min(1).max(999_999_999) }),
+  /**
+   * Annuler / Rétablir en cours : la toile ne peut pas deviner le résultat, elle montre un état
+   * « en cours » (libellé) jusqu'au prochain acquittement ; null le retire.
+   */
+  z.object({ kind: z.literal("pending"), label: z.string().max(60).nullable() }),
   z.object({
     kind: z.literal("drag"),
     x: Coord,

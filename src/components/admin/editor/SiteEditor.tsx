@@ -40,8 +40,9 @@ export function siteText(snap: SiteSnap, msg: Extract<FromCanvas, { kind: "site-
   const value = msg.value.trim();
   switch (msg.field) {
     case "name":
-      if (!value) return { error: "Le nom du site ne peut pas être vide." };
-      next.identity.name = value.slice(0, 80);
+      // Le nom français est obligatoire ; l'anglais vide reprend le français.
+      if (!value && msg.locale === "fr") return { error: "Le nom du site ne peut pas être vide." };
+      next.identity.name = { ...next.identity.name, [msg.locale]: value.slice(0, 80) };
       break;
     case "email":
       next.identity.email = value;
@@ -171,7 +172,8 @@ export default function SiteEditor({
       </p>
       {locked && <p className="a-field-error">En cours de modification sur la page « {locked} » : publie-la ou abandonne-la d&apos;abord.</p>}
       <fieldset disabled={Boolean(locked)} className="ve-site-fields">
-        <Text label="Nom du site" value={snap.identity.name} onCommit={(v) => v.trim() && set((s) => void (s.identity.name = v.trim()))} help="Logo de l'en-tête, ouverture, profil, pied de page." />
+        <Text label="Nom du site (FR)" value={snap.identity.name.fr} onCommit={(v) => v.trim() && set((s) => void (s.identity.name.fr = v.trim()))} help="Logo de l'en-tête, ouverture, profil, pied de page, titre des pages." />
+        <Text label="Nom du site (EN)" value={snap.identity.name.en} placeholder={snap.identity.name.fr} onCommit={(v) => set((s) => void (s.identity.name.en = v.trim()))} help="Vide : le nom français est repris." />
         <Text label="Métier (FR)" value={snap.identity.role.fr} onCommit={(v) => set((s) => void (s.identity.role.fr = v))} />
         <Text label="Métier (EN)" value={snap.identity.role.en} onCommit={(v) => set((s) => void (s.identity.role.en = v))} />
         {which === "footer" && (

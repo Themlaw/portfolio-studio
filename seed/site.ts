@@ -20,7 +20,7 @@ export type SeedPage = {
 
 export const SITE_SETTINGS = {
   site: {
-    name: "Camille Roussel",
+    name: { fr: "Camille Roussel", en: "" },
     role: {
       fr: "Chara design · Décors · Animation",
       en: "Character design · Backgrounds · Animation",

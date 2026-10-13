@@ -6,6 +6,7 @@ import { getEditorContext, getSettingsForAdmin, listPagesForAdmin, overlayProjec
 import { readDraft } from "@/lib/edit/drafts";
 import { lookContextForEditor } from "@/lib/edit/look-context";
 import { siteForEditor } from "@/lib/edit/site";
+import { siteNameFor } from "@/lib/site-schema";
 
 export const metadata = { title: "Éditeur de page" };
 
@@ -37,7 +38,7 @@ export default async function VisualEditorPage({ params, searchParams }: { param
       catalog={blockCatalog()}
       editors={blockEditors()}
       context={getEditorContext(Number(id))}
-      siteName={getSettingsForAdmin().site.name || "Portfolio"}
+      siteName={siteNameFor(getSettingsForAdmin().site.name, "fr") || "Portfolio"}
       initialLocale={langue === "en" ? "en" : "fr"}
       site={siteForEditor(Number(id))}
       look={lookContextForEditor()}

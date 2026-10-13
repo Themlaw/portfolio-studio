@@ -74,7 +74,7 @@ export default function ContactForm({
   return (
     <form className="mt-8 grid max-w-xl gap-6" onSubmit={onSubmit} noValidate={edit} data-form-edit={edit || undefined}>
       {fields.map((f, i) => (
-        <div key={f.id} className="contact-field" {...(edit ? { "data-form-field": i, "data-form-reply": f.reply || undefined } : {})}>
+        <div key={f.id} className="contact-field" {...(edit ? { "data-form-field": i, "data-form-field-id": f.id, "data-form-reply": f.reply || undefined } : {})}>
           <label htmlFor={`cf-${f.id}`} className="caption-text block font-caption text-[0.75rem] tracking-[0.12em] uppercase text-ink-soft">
             <span {...mark(`fields.${i}.label`, "Libellé")}>{f.label}</span>
             {f.required && <span aria-hidden="true"> *</span>}

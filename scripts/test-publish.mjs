@@ -295,7 +295,7 @@ const C = newPage("t-nav-c");
 const about = db.select().from(schema.pages).all().find((p) => p.slug.fr === "a-propos").id;
 await test("D4–D5 page mise au menu depuis la liste pendant un brouillon d'en-tête : reportée dans le brouillon", () => {
   const pub = readPublishedSite();
-  assert.equal(saveSiteDraft(A, { ...pub, identity: { ...pub.identity, name: "Nom brouillon" } }, rev(A)).ok, true);
+  assert.equal(saveSiteDraft(A, { ...pub, identity: { ...pub.identity, name: { fr: "Nom brouillon", en: "Brouillon name" } } }, rev(A)).ok, true);
   assert.equal(setInMenu(B, true).ok, true);
   assert.ok(navIds().includes(B), "menu publié");
   assert.ok(readSiteDraft().snap.nav.some((i) => i.kind === "page" && i.pageId === B), "brouillon de l'en-tête");
@@ -310,11 +310,11 @@ await test("D7–D10 publier l'en-tête : la page supprimée ne revient pas, la 
   assert.ok(!navIds().includes(about));
   assert.ok(navIds().includes(B));
   assert.equal(db.select({ n: schema.pages.navOrder }).from(schema.pages).where(eq(schema.pages.id, B)).get().n !== null, true);
-  assert.equal(readPublishedSite().identity.name, "Nom brouillon");
+  assert.deepEqual(readPublishedSite().identity.name, { fr: "Nom brouillon", en: "Brouillon name" });
 });
 await test("D11–D12 l'éditeur n'est jamais bloqué : une page disparue est retirée en silence", () => {
   const pub = readPublishedSite();
-  const res = saveSiteDraft(A, { ...pub, nav: [...pub.nav, { kind: "page", pageId: 99999 }], identity: { ...pub.identity, name: "Encore" } }, rev(A));
+  const res = saveSiteDraft(A, { ...pub, nav: [...pub.nav, { kind: "page", pageId: 99999 }], identity: { ...pub.identity, name: { fr: "Encore", en: "" } } }, rev(A));
   assert.equal(res.ok, true);
   assert.ok(!readSiteDraft().snap.nav.some((i) => i.kind === "page" && i.pageId === 99999));
   assert.ok(siteForEditor(A).snap.nav.every((i) => i.kind !== "page" || i.pageId !== 99999));
@@ -322,7 +322,7 @@ await test("D11–D12 l'éditeur n'est jamais bloqué : une page disparue est re
 });
 await test("ordre du menu changé depuis la liste pendant un brouillon d'en-tête : reporté", () => {
   const pub = readPublishedSite();
-  saveSiteDraft(C, { ...pub, identity: { ...pub.identity, name: "C" } }, rev(C));
+  saveSiteDraft(C, { ...pub, identity: { ...pub.identity, name: { fr: "C", en: "" } } }, rev(C));
   const pages = navIds();
   const reversed = [...pages].reverse();
   assert.equal(reorderMenu(reversed).ok, true);
@@ -333,7 +333,7 @@ await test("ordre du menu changé depuis la liste pendant un brouillon d'en-têt
 await test("E1–E2 case « dans le menu » cochée dans le brouillon de la page + en-tête modifié : la page entre au menu", () => {
   const pub = readPublishedSite();
   saveDraft(A, { ...base(A), published: true, inMenu: true, blocks: [] }, rev(A));
-  saveSiteDraft(A, { ...pub, identity: { ...pub.identity, name: "X" } }, rev(A));
+  saveSiteDraft(A, { ...pub, identity: { ...pub.identity, name: { fr: "X", en: "" } } }, rev(A));
   assert.equal(publishDraft(A, rev(A)).ok, true);
   assert.ok(navIds().includes(A));
 });
@@ -355,13 +355,13 @@ await test("G1–G8 éditeur resté ouvert : un changement du menu fait ailleurs
   saveDraft(GB, { ...base(GB), published: true, blocks: [] }, rev(GB));
   publishDraft(GB, rev(GB));
   const snap = siteForEditor(GA).snap;
-  const r1 = saveSiteDraft(GA, { ...snap, identity: { ...snap.identity, name: "N1" } }, rev(GA));
+  const r1 = saveSiteDraft(GA, { ...snap, identity: { ...snap.identity, name: { fr: "N1", en: "" } } }, rev(GA));
   assert.equal(r1.ok, true);
   const { after, rev: revA } = r1.data;
   assert.equal(setInMenu(GB, true).ok, true);
   assert.ok(readSiteDraft().snap.nav.some((i) => i.kind === "page" && i.pageId === GB), "reporté dans le brouillon");
   assert.equal(rev(GA), revA + 1, "version de la page porteuse incrémentée");
-  const stale = saveSiteDraft(GA, { ...after, identity: { ...after.identity, name: "N2" } }, revA);
+  const stale = saveSiteDraft(GA, { ...after, identity: { ...after.identity, name: { fr: "N2", en: "" } } }, revA);
   assert.equal(stale.ok, false);
   assert.equal(stale.code, "conflict", "l'éditeur périmé reçoit « Modifié ailleurs »");
   assert.equal(publishDraft(GA, rev(GA)).ok, true);
