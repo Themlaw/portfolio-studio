@@ -341,9 +341,9 @@
     padding-block: var(--rail-room);
     /* Fondu : masque dégradé (alpha seul) — l'image se dissout dans ce qui
        est derrière la bande (fond, texture, papier du kit), sans coupe nette.
-       Bords pilotés par deux propriétés (@property, medias.css) : le fondu
-       gauche n'apparaît qu'une fois la bande défilée, le droit disparaît en
-       butée. Sans transition : animer le masque le recalcule à chaque image
+       Bords pilotés par deux propriétés (@property, medias.css) : chaque
+       fondu n'existe que là où une image est réellement coupée par le bord.
+       Sans transition : animer le masque le recalcule à chaque image
        (mesuré : 5–6 images longues sur un glisser, ×4 plus lent ; aucune
        sans animation, scripts/rail-perf.mjs). */
     -webkit-mask-image: linear-gradient(
@@ -362,13 +362,9 @@
     );
   }
 
-  .strip-viewport[data-overflows="true"]:not([data-at-end="true"]) .strip-rail {
-    --strip-fade-r: var(--strip-fade);
-  }
-
-  .strip-viewport[data-overflows="true"]:not([data-at-start="true"]) .strip-rail {
-    --strip-fade-l: var(--strip-fade);
-  }
+  /* --strip-fade-l/-r (@property, medias.css) : écrits par ProjectStrip au défilement,
+     partie visible de l'image coupée par chaque bord, plafonnée à --strip-fade ;
+     0px = rien de coupé de ce côté. Une image entière reste nette. */
 
   /* Accrochage : seulement pour le doigt (écran tactile). À la souris, les
      flèches calent déjà une image à la fois ; la barre, la molette et le

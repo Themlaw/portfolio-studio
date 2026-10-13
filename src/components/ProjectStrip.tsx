@@ -113,6 +113,26 @@ export default function ProjectStrip({
       set("overflows", over);
       set("atStart", atStart);
       set("atEnd", atEnd);
+      // Fondu de chaque bord : seulement sur une image réellement coupée par ce bord,
+      // et jamais plus large que sa partie visible. Une image entièrement visible
+      // (ou un bord sans rien à faire défiler) ne s'estompe pas.
+      let cutL = 0;
+      let cutR = 0;
+      const view = rail.clientWidth;
+      for (const child of rail.children) {
+        const el = child as HTMLElement;
+        if (!el.offsetWidth) continue; // enveloppe « display: contents » : ses enfants comptent seuls
+        const x = el.offsetLeft - rail.scrollLeft;
+        if (x < -1 && x + el.offsetWidth > 1) cutL = Math.max(cutL, Math.round(x + el.offsetWidth));
+        if (x < view - 1 && x + el.offsetWidth > view + 1) cutR = Math.max(cutR, Math.round(view - x));
+      }
+      // Largeur du fondu = partie visible de l'image coupée, plafonnée à --strip-fade ; « 0px » sans coupe.
+      const fade = (name: string, px: number) => {
+        const value = px > 0 ? `min(var(--strip-fade), ${px}px)` : "0px";
+        if (rail.style.getPropertyValue(name) !== value) rail.style.setProperty(name, value);
+      };
+      fade("--strip-fade-l", over ? cutL : 0);
+      fade("--strip-fade-r", over ? cutR : 0);
       setOverflows(over);
       const prev = prevRef.current;
       const next = nextRef.current;
