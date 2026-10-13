@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import { BLOCKS } from "@/blocks/registry";
 import { getDb, schema } from "@/lib/db";
+import { purgeCrops } from "@/lib/images/crop-cache";
 import { parseVariants } from "@/lib/images/variants";
 import { own } from "@/lib/own";
 import { findMediaUsages } from "@/lib/references";
@@ -96,5 +97,7 @@ export async function deleteMedia(
   for (const key of outcome.keys) {
     await storage.delete(key).catch((e) => console.error(`[media] suppression de ${key} impossible`, e));
   }
+  // Recadrages gardés sur disque (variantes extraites de l'original) : plus de média, plus de recadrage.
+  await purgeCrops(id);
   return done({ emptiedSlots: outcome.slots.length, projectIds: [...new Set(outcome.slots.map((s) => s.projectId))] });
 }

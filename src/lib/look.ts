@@ -17,6 +17,8 @@
  */
 import { z } from "zod";
 
+import { RectSchema } from "@/lib/images/crop";
+
 import { CUSTOM_COLOR_RE } from "./color";
 
 import { RADIUS_VALUES } from "../themes/css";
@@ -239,6 +241,11 @@ export const CropSchema = z.strictObject({
   y: z.number().min(0).max(100),
   /** Zoom autour du point focal (1 = image entière dans son cadre). */
   zoom: z.number().min(1).max(4),
+  /**
+   * Recadrage libre (rectangle normalisé de l'image entière, voir images/crop.ts) : quand il est
+   * présent, il remplace point focal et zoom (laissés à 50 / 50 / 1) ; le cadre suit son rapport.
+   */
+  rect: RectSchema.optional(),
 });
 export type Crop = z.infer<typeof CropSchema>;
 export const CROP_FIELDS = ["mediaId", "backgroundMediaId", "portraitMediaId"] as const;
@@ -345,14 +352,15 @@ export function lookAttributes(look: Look | undefined): Record<string, string> |
   if (look.titleH) a["data-th"] = look.titleH;
   if (look.roleBackdrop) a["data-role-bd"] = look.roleBackdrop;
   const crop = look.crop && Object.values(look.crop)[0];
-  if (crop) a["data-crop"] = "";
+  // Recadrage libre : l'image affichée EST la zone gardée (variante extraite), rien à décaler ni à zoomer en CSS.
+  if (crop && !crop.rect) a["data-crop"] = "";
   return Object.keys(a).length ? a : null;
 }
 
 /** Variables de cadrage posées sur l'enveloppe (un seul média recadrable par bloc). */
 export function cropStyle(look: Look | undefined): Record<string, string> | undefined {
   const crop = look?.crop && Object.values(look.crop)[0];
-  return crop ? cropVars(crop) : undefined;
+  return crop && !crop.rect ? cropVars(crop) : undefined;
 }
 
 /** Variables CSS d'un cadrage (`--crop-pos`, `--crop-zoom`), lues par src/app/look.css. */
