@@ -48,3 +48,4 @@ next-env.d.ts
 /screenshots
 *.log
 nohup.out
+/e2e-echec.png
