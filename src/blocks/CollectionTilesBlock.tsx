@@ -4,7 +4,10 @@ import { z } from "zod";
 import CollectionTiles, { type Tile } from "@/components/CollectionTiles";
 import Eyebrow from "@/components/Eyebrow";
 import { countCollection, getCollectionCover } from "@/lib/gallery";
+import { cropSources } from "@/lib/images/crop";
+import { signCrop } from "@/lib/images/crop-cache";
 import { cropVars } from "@/lib/look";
+import { mediaUrl } from "@/lib/media";
 import { hrefForPage } from "@/lib/pages";
 
 import { collection, inline, localized, pageRef, tr, type BlockContext, localizedText } from "./types";
@@ -34,19 +37,23 @@ export default async function CollectionTilesBlock({
     const cover = await getCollectionCover(item.collection, ctx.locale);
     if (!cover) continue;
     const crop = ctx.look?.tileCrop?.[item.collection];
+    // Recadrage libre (lot 17d) : variante extraite de l'ORIGINAL de la couverture ; la tuile prend le rapport du rectangle.
+    const free = crop?.rect && cover.mediaId && cover.sources && !cover.video ? cropSources({ id: cover.mediaId, width: cover.width, height: cover.height }, crop.rect, signCrop, mediaUrl, cover.sources.color) : null;
     tiles.push({
       key: item.collection,
-      ...(crop ? { cropStyle: cropVars(crop) } : {}),
+      ...(crop && !crop.rect ? { cropStyle: cropVars(crop) } : {}),
+      ...(free ? { free: true } : {}),
+      ...(ctx.edit && cover.mediaId && cover.sources && !cover.video ? { full: { src: cover.image, ratio: cover.width / Math.max(1, cover.height), w: cover.width, h: cover.height } } : {}),
       href: await hrefForPage(item.pageId, ctx.locale),
       eyebrow: tr(item.eyebrow, ctx.locale),
       title: tr(item.title, ctx.locale),
       intro: tr(item.intro, ctx.locale),
       count: tg("count", { count: await countCollection(item.collection) }),
       image: cover.image,
-      sources: cover.sources,
+      sources: free ? free.sources : cover.sources,
       imageAlt: cover.alt,
-      width: cover.width,
-      height: cover.height,
+      width: free ? free.width : cover.width,
+      height: free ? free.height : cover.height,
     });
   }
 

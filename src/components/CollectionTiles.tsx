@@ -12,6 +12,10 @@ export type Tile = {
   key: string;
   /** Variables de cadrage (`--crop-pos`, `--crop-zoom`) : point focal et zoom choisis sur la toile. */
   cropStyle?: Record<string, string>;
+  /** Recadrage libre : l'image est la zone gardée (variante extraite de l'original), la tuile prend son rapport. */
+  free?: boolean;
+  /** Vue brouillon : l'image ENTIÈRE de la couverture (modale « Cadrer l'image »). */
+  full?: { src: string; ratio: number; w: number; h: number };
   /** Chemin sans langue, résolu depuis la page cible en base. */
   href: string;
   eyebrow: string;
@@ -57,7 +61,9 @@ export default function CollectionTiles({
                 className="tile-frame"
                 style={tile.cropStyle}
                 {...(tile.cropStyle ? { "data-crop": "" } : {})}
-                {...(edit && fixed ? { "data-edit-tile": tile.key } : {})}
+                {...(tile.free ? { "data-free": "" } : {})}
+                {...(edit && (fixed || tile.full) ? { "data-edit-tile": tile.key } : {})}
+                {...(edit && tile.full ? { "data-full-src": tile.full.src, "data-full-ratio": tile.full.ratio.toFixed(5), "data-full-px": `${tile.full.w}x${tile.full.h}` } : {})}
               >
                 <Picture
                   src={tile.image}
@@ -68,6 +74,7 @@ export default function CollectionTiles({
                   // Image rognée par le format imposé et zoomée par le cadrage : affichée plus large que sa tuile.
                   sizes={scaleSizes("(min-width: 768px) 66vw, 100vw", coverFactor(tile.width / Math.max(1, tile.height), parseRatio(fixed), Number(tile.cropStyle?.["--crop-zoom"]) || 1))}
                   className="h-auto w-full rounded-[2px]"
+                  cropped={tile.free}
                 />
               </span>
             </div>

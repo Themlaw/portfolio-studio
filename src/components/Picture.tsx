@@ -19,6 +19,7 @@ export default function Picture({
   className,
   priority = false,
   largest = false,
+  cropped = false,
 }: {
   src: string;
   sources?: PictureSources | null;
@@ -29,6 +30,8 @@ export default function Picture({
   className?: string;
   priority?: boolean;
   largest?: boolean;
+  /** Variante recadrée (extraite de l'original) : l'image EST la zone gardée, aucun décalage ni zoom CSS à lui appliquer. */
+  cropped?: boolean;
 }) {
   if (!sources) {
     return <Image src={src} alt={alt} width={width} height={height} sizes={sizes} className={className} priority={priority} />;
@@ -46,6 +49,7 @@ export default function Picture({
         className={className}
         loading={priority ? "eager" : "lazy"}
         decoding="async"
+        {...(cropped ? { "data-cropped": "" } : {})}
         fetchPriority={priority ? "high" : undefined}
         style={sources.color ? { backgroundColor: sources.color } : undefined}
       />

@@ -82,6 +82,35 @@
   transform-origin: var(--crop-pos, 50% 50%);
 }
 
+/* ---- Image seule (lot 17d) -----------------------------------------------
+   Plafond de hauteur : une image seule ne dépasse jamais 85 % de la hauteur de l'écran ; plus
+   haute, elle est réduite (largeur = 85 svh × son rapport) et centrée, sans rien rogner. `--ir` =
+   rapport de ce qui est affiché (posé par le bloc). Le centrage passe par text-align du <span>
+   (image en ligne : aucun changement de mise en page pour les images qui tiennent). */
+.block-image[data-solo] .block-image-media {
+  width: min(100%, calc(85svh * var(--ir, 1000)));
+}
+.block-image[data-solo] > span:first-child {
+  text-align: center;
+}
+/* Recadrage libre : le cadre suit le rapport de la zone gardée (celui des attributs width / height de l'image),
+   quel que soit le format imposé par le bloc ou par sa grille. */
+figure.block-image[data-free] .block-image-media.block-image-media {
+  aspect-ratio: auto;
+  height: auto;
+  object-fit: fill;
+}
+/* Image entière dans un cadre au format imposé : bandes vides à la place du rognage (le fond de chargement ne les teinte pas). */
+figure.block-image[data-fit="contain"] .block-image-media.block-image-media {
+  object-fit: contain;
+  background-color: transparent !important;
+}
+/* Variante extraite de l'original (cadrage ancien converti en rectangle) : déjà à la bonne place, ni décalage ni zoom. */
+.blk[data-crop] .block-image-media[data-cropped] {
+  transform: none;
+  object-position: 50% 50%;
+}
+
 /* Tuiles de collection : format imposé, puis cadrage de chaque image (variables
    posées sur la tuile elle-même, une par collection). */
 .tile-frame {
@@ -100,6 +129,12 @@
 .tiles[data-ratio="4:3"] .tile-frame img { aspect-ratio: 4 / 3; }
 .tiles[data-ratio="1:1"] .tile-frame img { aspect-ratio: 1; }
 .tiles[data-ratio="4:5"] .tile-frame img { aspect-ratio: 4 / 5; }
+/* Recadrage libre d'une tuile : l'image EST la zone gardée, la tuile suit son rapport (aucun rognage ni format imposé). */
+.tiles[data-ratio] .tile-frame[data-free] img {
+  aspect-ratio: auto;
+  height: auto;
+  object-fit: fill;
+}
 .tile-frame[data-crop] img {
   object-fit: cover;
   object-position: var(--crop-pos, 50% 50%);

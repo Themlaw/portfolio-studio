@@ -32,6 +32,8 @@ export type LocalizedArtwork = {
   image: string;
   /** Texte alternatif de l'image (à défaut, le titre de l'œuvre). */
   alt: string;
+  /** Média de l'image (recadrage libre d'une tuile de collection, lot 17d). */
+  mediaId?: number;
   /** Variantes AVIF/WebP d'une image téléversée (absent : SVG du seed). */
   sources?: PictureSources;
   /** Vidéo hébergée (MP4 convertis, poster, durée ; boucle si muette et courte). */
@@ -100,6 +102,7 @@ type RawArtwork = {
   duration: string | null;
   videoId: string | null;
   reel: boolean;
+  mediaId: number | null;
   key: string;
   sources: PictureSources | null;
   video: VideoView | null;
@@ -178,6 +181,7 @@ function toArtworks(rows: { slot: SlotRow; media: MediaRow | null }[]): RawArtwo
       duration: slot.duration,
       videoId: slot.videoId,
       reel: slot.reel,
+      mediaId: media!.id,
       key: media!.key,
       sources: mediaSources(media!),
       video: videoView(media!),
@@ -273,6 +277,7 @@ function draftSnapshot(): Snapshot {
         duration: null,
         videoId: null,
         reel: false,
+        mediaId: null,
         key: "",
         sources: null,
         video: null,
@@ -302,6 +307,7 @@ function localize(a: RawArtwork, locale: AppLocale): LocalizedArtwork {
     year: a.year,
     featured: a.featured,
   };
+  if (a.mediaId) out.mediaId = a.mediaId;
   if (a.sources) out.sources = a.sources;
   if (a.video) out.video = a.video;
   if (a.duration) out.duration = a.duration;
