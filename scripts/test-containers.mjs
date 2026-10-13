@@ -30,7 +30,7 @@ import {
   treeProblem,
   withFreshUids,
 } from "../src/blocks/tree.ts";
-import { renameVideoLook, siteNameI18n, upgradeContent } from "../src/lib/db/upgrade.ts";
+import { pinImageFit, renameVideoLook, siteNameI18n, upgradeContent } from "../src/lib/db/upgrade.ts";
 import { defaultContactForm, makeField, validateSubmission, ContactFormSchema } from "../src/lib/contact-form.ts";
 import { canonicalSnap, detectNetwork, NavItemSchema, safeNavHref, safeSocialHref, SiteSnapSchema, SocialSchema } from "../src/lib/site-schema.ts";
 
@@ -300,6 +300,36 @@ test("0018 : nom du site fr / en (réglage et brouillon du site), idempotente, t
   put("site", { name: { fr: "A", en: "B" } });
   assert.equal(siteNameI18n(db), 0);
   assert.deepEqual(JSON.parse(db.prepare("select value from settings where key = 'site'").get().value).name, { fr: "A", en: "B" });
+});
+
+test("0019 : image pleine largeur au format imposé garde « cover » (publié, brouillon, conteneur), neuve inchangée, idempotente", () => {
+  const db = new Database(":memory:");
+  db.exec("create table blocks (id integer primary key, page_id integer, position integer, type text, props text)");
+  db.exec("create table pages (id integer primary key, draft text)");
+  assert.equal(pinImageFit(db), 0, "base vide");
+  const put = (pos, type, props) => db.prepare("insert into blocks (page_id, position, type, props) values (1, ?, ?, ?)").run(pos, type, typeof props === "string" ? props : JSON.stringify(props));
+  put(0, "image", { mediaId: 1, width: "full", ratio: "16:9" });
+  put(1, "image", { mediaId: 1, width: "full", ratio: "16:9", fit: "contain" });
+  put(2, "image", { mediaId: 1, width: "full" });
+  put(3, "image", { mediaId: 1, width: "wide", ratio: "4:3" });
+  put(4, "image", { mediaId: 1, width: "full", ratio: "auto" });
+  put(5, "grid", { children: [{ uid: "a", type: "image", props: { width: "full", ratio: "1:1" } }] });
+  put(6, "image", "{pas du json");
+  db.prepare("insert into pages (id, draft) values (1, ?)").run(JSON.stringify({ blocks: [{ uid: "d", type: "image", props: { width: "full", ratio: "3:4" } }, { uid: "e", type: "image", props: { width: "full" } }] }));
+  assert.equal(pinImageFit(db), 3, "bloc publié, bloc dans un conteneur, brouillon");
+  const rows = db.prepare("select props from blocks order by position").all();
+  const p = (i) => JSON.parse(rows[i].props);
+  assert.equal(p(0).fit, "cover", "pleine largeur + format imposé : cover");
+  assert.equal(p(1).fit, "contain", "choix explicite respecté");
+  assert.equal(p(2).fit, undefined, "sans format imposé : rien à figer");
+  assert.equal(p(3).fit, undefined, "largeur « wide » : déjà cover par défaut");
+  assert.equal(p(4).fit, undefined, "format « auto » : rien à figer");
+  assert.equal(p(5).children[0].props.fit, "cover", "image d une grille");
+  assert.equal(rows[6].props, "{pas du json", "ligne illisible laissée telle quelle");
+  const draft = JSON.parse(db.prepare("select draft from pages").get().draft);
+  assert.equal(draft.blocks[0].props.fit, "cover");
+  assert.equal(draft.blocks[1].props.fit, undefined);
+  assert.equal(pinImageFit(db), 0, "idempotente");
 });
 
 /* ---- 3. Données du site ----------------------------------------------------- */

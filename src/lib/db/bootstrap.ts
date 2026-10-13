@@ -17,7 +17,7 @@ import { readMigrationFiles, type MigrationMeta } from "drizzle-orm/migrator";
 
 import { dataDir, getDb, getSqlite } from "./index";
 import { isSeeded, prepareSeedFiles, seedRows, syncPresets, type SeedFiles } from "./seed";
-import { renameVideoLook, siteNameI18n, upgradeContent } from "./upgrade";
+import { pinImageFit, renameVideoLook, siteNameI18n, upgradeContent } from "./upgrade";
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 
@@ -38,6 +38,10 @@ const DATA_MIGRATIONS: Record<string, () => void> = {
   "0018_site_name_i18n": () => {
     const rows = siteNameI18n(getSqlite());
     console.log(`[db] 0018 : nom du site fr / en — ${rows} réglage(s) réécrit(s)`);
+  },
+  "0019_image_fit_cover": () => {
+    const rows = pinImageFit(getSqlite());
+    console.log(`[db] 0019 : images pleine largeur à format imposé figées en « cover » — ${rows} ligne(s) réécrite(s)`);
   },
 };
 

@@ -348,3 +348,56 @@ export function siteNameI18n(db: Database.Database): number {
     rewrite("siteDraft", (v) => obj(obj(v.snap)?.identity))
   );
 }
+
+/* ---- 0019 : image pleine largeur au format imposé = « cover » ------------------- */
+
+/** Image pleine largeur au format imposé, sans choix d'ajustement : avant la v0.17 elle remplissait son cadre. */
+function pinFitInTree(node: unknown): boolean {
+  if (Array.isArray(node)) return node.map(pinFitInTree).some(Boolean);
+  if (!node || typeof node !== "object") return false;
+  const b = node as { type?: unknown; props?: Record<string, unknown> };
+  let changed = false;
+  if (b.type === "image" && b.props && b.props.width === "full" && typeof b.props.ratio === "string" && b.props.ratio !== "auto" && b.props.fit === undefined) {
+    b.props.fit = "cover";
+    changed = true;
+  }
+  if (b.props && Array.isArray(b.props.children)) changed = pinFitInTree(b.props.children) || changed;
+  if (Array.isArray((node as { blocks?: unknown }).blocks)) changed = pinFitInTree((node as { blocks: unknown[] }).blocks) || changed;
+  return changed;
+}
+
+/**
+ * Migration 0019 (v0.17) : le défaut de « Dans le cadre » d'une image pleine largeur à
+ * format imposé passe de « cover » à « contain » pour les blocs NEUFS. Les blocs déjà
+ * présents (publiés, dans un conteneur, brouillons) gardent leur rendu : `fit: "cover"`
+ * est écrit sans action de l'artiste. Un choix explicite n'est jamais touché. Idempotente ;
+ * renvoie le nombre de lignes réécrites.
+ */
+export function pinImageFit(db: Database.Database): number {
+  let n = 0;
+  for (const r of db.prepare("select id, type, props from blocks where type = 'image' or props like '%\"image\"%'").all() as { id: number; type: string; props: string }[]) {
+    let props: unknown;
+    try {
+      props = JSON.parse(r.props);
+    } catch {
+      continue;
+    }
+    if (pinFitInTree({ type: r.type, props })) {
+      db.prepare("update blocks set props = ? where id = ?").run(JSON.stringify(props), r.id);
+      n++;
+    }
+  }
+  for (const p of db.prepare("select id, draft from pages where draft like '%\"image\"%'").all() as { id: number; draft: string }[]) {
+    let draft: unknown;
+    try {
+      draft = JSON.parse(p.draft);
+    } catch {
+      continue;
+    }
+    if (pinFitInTree(draft)) {
+      db.prepare("update pages set draft = ? where id = ?").run(JSON.stringify(draft), p.id);
+      n++;
+    }
+  }
+  return n;
+}
