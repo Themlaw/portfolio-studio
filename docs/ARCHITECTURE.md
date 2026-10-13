@@ -1121,6 +1121,39 @@ pareil (aucune migration, la donnée n'a pas changé) :
 - **Couleur** : `color` accepte aussi une couleur libre `#rrggbb[aa]` (sans effet sur
   l'existant).
 
+## Palette et logo du site depuis l'éditeur visuel (lot 17f)
+
+**Où vit la palette ?** Trois emplacements existaient : le thème (`themes.data`, éditeur de thème, contrôle AA
+bloquant), la couche « look » (`styles` du brouillon du site : textes par rôle, arrondi) et les réglages d'un
+bloc. Une palette éditée depuis la toile doit se publier avec « Publier », ne jamais toucher un thème livré et
+rester lisible des deux côtés : elle est donc une **surcharge explicite** de `styles` (`styles.palette`, six bases
+en `#rrggbb`), au même endroit et sous la même règle que les styles de rôle (brouillon du site porté par une page,
+appliqué à sa publication, abandon = effacé). Écrire dans le thème aurait modifié un thème partagé (livré ou
+dupliqué) à l'insu de l'éditeur de thème ; ajouter une table aurait créé une troisième source. Côté éditeur de
+thème, un avis (`site-palette-notice`) dit quelles couleurs le site remplace par-dessus le thème en ligne, et son
+aperçu en direct met la surcharge de côté. Côté éditeur visuel, chaque rôle est marqué « thème » ou « modifiée »
+et « Revenir aux couleurs du thème » retire tout.
+
+**Nuances.** Jamais surchargées : `applySitePalette` passe en « auto » les nuances enregistrées qui lisent la base
+changée (fond profond, filets, texte secondaire, survol, texte des boutons) et laisse celles qu'un thème a forcées
+sans dépendre d'elle (ombres, voile). Conséquence assumée : teinter le fond de page peut faire passer le fond
+profond sous 4,5:1 pour les étiquettes ; l'avertissement le dit et « Ajuster automatiquement » (`autoAdjustBase`)
+cherche la teinte la plus proche dont les nuances recalculées passent aussi.
+
+**Contraste.** Saisie libre ; publication refusée (`site.palette`, éditeur et formulaire de la page) ; rendu public
+qui ignore une palette devenue illisible après un changement de thème (journal `[palette]`). `color-scheme` suit le
+fond effectif, mais les variantes `data-scheme` du thème (posées sur `<html>` par le layout racine, mis en cache)
+restent celles du thème : passer d'un fond clair à un fond sombre n'active pas les règles propres aux thèmes sombres.
+
+**Logo.** `styles.logo` = `{ size 24–160, mode fixed | shrink | overhang }`, feuille `#site-logo`
+(`logoCss`). Hauteur proportionnelle ×0,75 plafonnée à 64 px sous 48 rem. « Réduit » : l'en-tête reçoit
+`data-scrolled` (déjà calculé par `SiteHeader`), la barre et le logo transitent ensemble et la marge basse de
+l'en-tête compense exactement la hauteur perdue (pas de décalage ; transitions seulement si
+`prefers-reduced-motion: no-preference`). « Déborde » : barre à hauteur fixe, logo aligné en haut. `--header-h`
+(ouverture de la page) suit la hauteur réglée. S'applique à `.site-signature` (kit) et, sans logo, au nom du site.
+Sur la toile d'édition l'en-tête n'est pas collant : le logo y garde sa taille (la réduction se voit en
+« Aperçu exact »).
+
 ## Phases
 
 Chaque phase suit le même cycle : build → vérification
