@@ -159,6 +159,23 @@ export function adjustToken(colors: ColorTokens, key: keyof ColorTokens, min = A
   return null;
 }
 
+/**
+ * Variantes d'une couleur (même teinte et saturation), de la plus proche à la plus lointaine en luminosité
+ * (un point à la fois, des deux côtés ; la couleur elle-même en premier). Sert à chercher la teinte la plus
+ * proche qui passe un contrôle qu'on ne sait pas écrire comme un simple contraste (nuances recalculées).
+ */
+export function lightnessCandidates(hex: string): string[] {
+  const [h, s, l0] = rgbToHsl(hexToRgb(hex));
+  const out = [hex];
+  for (let step = 1; step <= 100; step++) {
+    for (const dir of [-1, 1]) {
+      const l = l0 + (dir * step) / 100;
+      if (l >= 0 && l <= 1) out.push(hslToHex([h, s, l]));
+    }
+  }
+  return out;
+}
+
 /** Teinte de survol : même teinte, luminosité décalée de 8 points (vers le noir si clair). */
 export function hoverShade(hex: string): string {
   const [h, s, l] = rgbToHsl(hexToRgb(hex));

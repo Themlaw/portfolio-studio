@@ -605,6 +605,12 @@ html[data-edit-canvas] .site-header {
   backdrop-filter: none !important;
 }
 
+/* Logo « réduit au défilement » (lot 17f) : sur la toile, l'en-tête n'est pas collant, le logo garde sa
+   taille réglée ; la réduction se voit dans « Aperçu exact ». */
+html[data-edit-canvas] .site-header[data-scrolled] {
+  --lh: var(--lh-top) !important;
+}
+
 html[data-edit-canvas] #contenu .fixed {
   position: absolute !important;
 }

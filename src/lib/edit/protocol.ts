@@ -8,7 +8,8 @@
 import { z } from "zod";
 
 import { SurfaceSchema } from "../../themes/surface";
-import { LookSchema, ROLES, TextStyleSchema } from "../look";
+import { LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
+import { BASE_KEYS } from "../../themes/palette";
 
 export const EDIT_MSG = "portfolio:edit";
 
@@ -103,6 +104,10 @@ export const FromCanvasSchema = z.union([
   // Ajout d'une rubrique depuis la toile (lot 17c) : `choose` ouvre le choix illustré de l'éditeur, les
   // autres ajoutent aussitôt un texte (bloc `rich-text` avec son texte d'aide) à cet endroit.
   z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title-text"]) }),
+  // Palette et logo du site (lot 17f) : état COMPLET voulu (palette = bases choisies, logo = taille et comportement).
+  z.object({ kind: z.literal("site-look"), palette: SitePaletteSchema, logo: LogoSchema }),
+  // Ce que la toile a trouvé pour le rôle de couleur survolé (légende « utilisé par »).
+  z.object({ kind: z.literal("highlight-info"), role: z.enum(BASE_KEYS).nullable(), count: z.number().int().min(0).max(100000), uses: z.array(z.string().max(40)).max(12) }),
 ]);
 
 /** Éditeur → toile. */
@@ -172,6 +177,14 @@ export const ToCanvasSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("focus-slot"), key: SlotKey }),
   /** Ouvrir l'édition en place d'un texte du bloc (rubrique Texte tout juste ajoutée), son texte d'aide sélectionné. */
   z.object({ kind: z.literal("edit-text"), uid: Uid, path: z.string().regex(/^[a-zA-Z]+(\.(\d{1,2}|[a-zA-Z]+))*$/).max(80) }),
+  /**
+   * Palette et logo du site posés depuis le panneau (lot 17f) : la toile les montre aussitôt (aperçu
+   * gardé jusqu'à l'acquittement, optimistic.ts) et renvoie l'intention `site-look` (numéro `seq`),
+   * que l'éditeur enregistre comme toute intention de la toile.
+   */
+  z.object({ kind: z.literal("site-look"), palette: SitePaletteSchema, logo: LogoSchema }),
+  /** Surligner les éléments qui utilisent ce rôle de couleur (null : retirer). */
+  z.object({ kind: z.literal("highlight"), role: z.enum(BASE_KEYS).nullable() }),
   /** Polices Google déjà téléchargées par le serveur (menu des polices, lot 2). */
   z.object({ kind: z.literal("fonts"), installed: z.array(z.string().max(60)).max(20), busy: z.string().max(60).nullable().optional() }),
 ]);

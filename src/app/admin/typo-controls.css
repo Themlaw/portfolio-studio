@@ -429,3 +429,11 @@
   justify-content: space-between;
   gap: 6px;
 }
+
+/* Sélecteur ouvert dans le flux du panneau « Couleurs » (lot 17f). */
+.cp[data-inline] {
+  position: static;
+  width: auto;
+  max-height: none;
+  box-shadow: none;
+}

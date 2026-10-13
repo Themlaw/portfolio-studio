@@ -49,6 +49,7 @@ export default function SiteHeader({
   return (
     <header
       {...(edit ? { "data-edit-global": "header", "data-edit-label": "En-tête · commun à toutes les pages" } : {})}
+      data-scrolled={scrolled || undefined}
       className={`site-header sticky top-0 z-50 transition-[background-color,box-shadow,backdrop-filter] duration-500 ease-soft ${
         scrolled
           ? "bg-bg/92 backdrop-blur-xl shadow-[0_1px_0_0_var(--color-line)]"

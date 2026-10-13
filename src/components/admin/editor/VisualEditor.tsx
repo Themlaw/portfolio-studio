@@ -41,9 +41,10 @@ import { markedProblem } from "@/lib/marked";
 import { own } from "@/lib/own";
 import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
-import { cleanLook, cleanSiteStyles, googleOf, readLook, type Look, type Role, type SiteStyles, type TextStyle } from "@/lib/look";
+import { cleanLook, cleanSiteStyles, googleOf, readLook, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 import { cleanSurface, readSurface, type Surface } from "@/themes/surface";
+import { effectiveSitePalette } from "@/themes/site-palette";
 
 import { clone, ConfirmDialog, toast, useUnsavedGuard } from "../editing";
 import { filterMedia } from "../LibraryStrip";
@@ -52,6 +53,7 @@ import { isUploaded, useUploadQueue } from "../UploadQueue";
 import { isPdfFile, readRatio, sendFile, useMediaWatch } from "../uploads";
 import AddSectionDialog, { type AddChoice } from "./AddSectionDialog";
 import { BlockLookPanel, SiteStylesPanel } from "./LookPanel";
+import { ColorsPanel, LogoPanel, type HighlightInfo } from "./SiteLookPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
 import SiteEditor, { applySiteOp, siteText } from "./SiteEditor";
 import StructureTree from "./StructureTree";
@@ -69,7 +71,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "op", "move", "layout", "slot-text", "project-text", "surface"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "slot-text", "project-text", "surface"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /** Ce qui part vers la toile (ni fichier, ni identifiants internes). */
@@ -342,7 +344,10 @@ export default function VisualEditor({
     return ok;
   }, [pageId, refreshMsg, send, stop]);
 
-  const flush = useCallback((): Promise<boolean> => {
+  // Palette / logo en attente d'enregistrement (lot 17f) : validés avant tout enregistrement ou publication.
+  const commitLookRef = useRef<() => Promise<void>>(async () => {});
+  const flush = useCallback(async (): Promise<boolean> => {
+    await commitLookRef.current();
     clearTimeout(timer.current);
     return withLock(async () => (dirty.current ? runSave(true) : true));
   }, [runSave, withLock]);
@@ -560,6 +565,7 @@ export default function VisualEditor({
     if (blockedRef.current || traveling.current) return;
     traveling.current = true;
     try {
+      await commitLookRef.current();
       // Les écritures en cours finissent d'abord : leur pas d'historique existe avant qu'on revienne en arrière.
       await lock.current;
       const entry = history.current.past.at(-1);
@@ -586,6 +592,7 @@ export default function VisualEditor({
     if (blockedRef.current || traveling.current) return;
     traveling.current = true;
     try {
+      await commitLookRef.current();
       await lock.current;
       const entry = history.current.future[0];
       if (!entry) return;
@@ -951,6 +958,70 @@ export default function VisualEditor({
       return { ...current, roles };
     }, [style ?? undefined]);
 
+  /* ---- Palette et logo du site (lot 17f) ----------------------------------
+     L'aperçu est immédiat (la toile le pose et renvoie l'intention `site-look`) ; l'écriture est
+     regroupée (350 ms sans nouveau geste) : un glisser sur la roue ou le curseur = un seul pas
+     d'historique. Tant qu'un réglage attend, rien n'est acquitté (`working`). */
+  const [pendingLook, setPendingLook] = useState<{ palette: SitePalette; logo: Logo } | null>(null);
+  const [hlInfo, setHlInfo] = useState<HighlightInfo | null>(null);
+  const lookQueued = useRef<{ palette: SitePalette; logo: Logo; seq?: number } | null>(null);
+  const lookTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const commitLook = useCallback(async () => {
+    clearTimeout(lookTimer.current);
+    const q = lookQueued.current;
+    if (!q) return;
+    lookQueued.current = null;
+    try {
+      let unchanged = false;
+      const ok = await writeSite((cur) => {
+        const { styles: old, ...rest } = cur;
+        const clean = cleanSiteStyles({ ...(old ?? {}), palette: q.palette, logo: q.logo });
+        unchanged = JSON.stringify(clean ?? null) === JSON.stringify(old ?? null);
+        return unchanged ? null : { ...rest, ...(clean ? { styles: clean } : {}) };
+      });
+      // Refusé (planche tenue ailleurs, connexion perdue…) : la toile retire son aperçu. Inchangé : rien à écrire, elle le lâche.
+      if (!ok && !unchanged && q.seq) send({ kind: "revert", seq: q.seq });
+    } finally {
+      working.current--;
+      if (!lookQueued.current) setPendingLook(null);
+      settleIfQuiet();
+    }
+  }, [send, settleIfQuiet, writeSite]);
+  useEffect(() => {
+    commitLookRef.current = commitLook;
+  }, [commitLook]);
+  const queueLook = useCallback(
+    (palette: SitePalette, logo: Logo, seq?: number) => {
+      if (!lookQueued.current) working.current++;
+      lookQueued.current = { palette, logo, seq };
+      setPendingLook({ palette, logo });
+      clearTimeout(lookTimer.current);
+      lookTimer.current = setTimeout(() => void commitLook(), 350);
+    },
+    [commitLook],
+  );
+  useEffect(() => () => clearTimeout(lookTimer.current), []);
+  /** Depuis le panneau : montré sur la toile (qui renvoie l'intention), ou directement si la toile n'est pas prête. */
+  const lookEchoed = useRef(0);
+  const requestLook = (palette: SitePalette, logo: Logo) => {
+    setPendingLook({ palette, logo });
+    if (frameReady && mode === "edit") {
+      const before = lookEchoed.current;
+      send({ kind: "site-look", palette, logo });
+      // Calque de la toile pas encore monté (chargement, changement de mode) : sans écho, on enregistre directement.
+      setTimeout(() => {
+        if (lookEchoed.current === before) queueLook(palette, logo);
+      }, 800);
+    } else queueLook(palette, logo);
+  };
+  const highlightRole = useCallback(
+    (role: HighlightInfo["role"]) => {
+      if (!role) setHlInfo(null);
+      send({ kind: "highlight", role });
+    },
+    [send],
+  );
+
   /* ---- Messages de la toile ---------------------------------------------- */
 
   /* ---- Planches sur la toile : projets, dépôts, fantômes ----------------- */
@@ -1313,9 +1384,9 @@ export default function VisualEditor({
     });
   };
 
-  const handlers = useRef({ op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert });
+  const handlers = useRef({ op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook });
   useEffect(() => {
-    handlers.current = { op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert };
+    handlers.current = { op, editText, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -1445,6 +1516,13 @@ export default function VisualEditor({
         case "insert":
           h.requestInsert(msg.parent, msg.index, msg.what);
           break;
+        case "site-look":
+          lookEchoed.current++;
+          h.queueLook(msg.palette, msg.logo, msg.seq);
+          break;
+        case "highlight-info":
+          setHlInfo({ role: msg.role, count: msg.count, uses: msg.uses });
+          break;
         case "drag-index":
           dropIndexRef.current = msg.refused ? null : { parent: msg.parent ?? null, index: msg.index };
           setDropIndex(msg.refused ? null : msg.index);
@@ -1566,6 +1644,7 @@ export default function VisualEditor({
   const publish = async () => {
     setPublishing(true);
     try {
+      await commitLookRef.current();
       clearTimeout(timer.current);
       const result = await withLock(async () => {
         if (dirty.current && !(await runSave())) return null;
@@ -1648,6 +1727,12 @@ export default function VisualEditor({
   };
 
   /* ---- Rendu -------------------------------------------------------------- */
+
+  // Palette et logo voulus : l'aperçu en attente fait foi sur le brouillon enregistré.
+  const liveLook: { palette: SitePalette; logo: Logo } = pendingLook ?? { palette: siteSnap.styles?.palette ?? {}, logo: siteSnap.styles?.logo ?? {} };
+  // Pastilles des couleurs du thème dans les panneaux de texte : celles du site (thème + couleurs choisies).
+  const effective = effectiveSitePalette(lookContext.theme.color, lookContext.theme.palette ?? undefined, liveLook.palette);
+  const swatches = { ink: effective.ink, "ink-soft": effective.inkSoft, primary: effective.primary, secondary: effective.secondary, tertiary: effective.tertiary, eyebrow: effective.eyebrow, bg: effective.bg, surface: effective.surface };
 
   const selBlock = selected && !selected.startsWith("site-") ? findBlock(blocks, selected) : null;
   const selAt = selBlock ? locate(blocks, selBlock.uid) : null;
@@ -1849,6 +1934,7 @@ export default function VisualEditor({
 
         {tab === "reglages" &&
           (selected === "site-header" || selected === "site-footer" ? (
+            <>
             <SiteEditor
               which={selected === "site-header" ? "header" : "footer"}
               snap={siteSnap}
@@ -1862,6 +1948,8 @@ export default function VisualEditor({
                 })
               }
             />
+            {selected === "site-header" && <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} />}
+            </>
           ) : selBlock && selDef ? (
             <div className="ve-settings">
               {selChain.length > 0 && (
@@ -1937,7 +2025,9 @@ export default function VisualEditor({
               <p className="ve-hint">
                 Titre, adresses et référencement de la page : <Link href={`/admin/pages/${pageId}`}>formulaire de la page</Link>.
               </p>
-              <SiteStylesPanel styles={siteSnap.styles} onChange={(s) => void applySiteStyles(() => s, Object.values(cleanSiteStyles(s)?.roles ?? {}))} palette={lookContext.palette} installed={fontFamilies} locked={siteLocked} />
+              <ColorsPanel theme={lookContext.theme} value={liveLook.palette} onChange={(p) => requestLook(p, liveLook.logo)} onHighlight={highlightRole} info={hlInfo} locked={siteLocked} />
+              <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} />
+              <SiteStylesPanel styles={siteSnap.styles} onChange={(s) => void applySiteStyles(() => s, Object.values(cleanSiteStyles(s)?.roles ?? {}))} palette={swatches} installed={fontFamilies} locked={siteLocked} />
             </div>
           ))}
       </div>

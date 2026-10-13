@@ -24,6 +24,8 @@ import CursorSettings from "./CursorSettings";
 import PaperSettings from "./PaperSettings";
 import KitDownloadButton from "./KitDownloadButton";
 import PaletteEditor from "./PaletteEditor";
+import type { SitePalette } from "@/lib/look";
+import { SITE_ROLES } from "@/themes/site-palette";
 import ThemeTypeEditor from "./ThemeTypeEditor";
 import { VARIANT_LABELS, VARIANT_THUMBS } from "./VariantThumb";
 
@@ -148,7 +150,7 @@ function Preview({ theme, themeId, reloadKey }: { theme: Theme; themeId: string;
 
 /* ---- Éditeur ------------------------------------------------------------ */
 
-export default function ThemeEditor({ initial, isActive }: { initial: Theme; isActive: boolean }) {
+export default function ThemeEditor({ initial, isActive, sitePalette = {} }: { initial: Theme; isActive: boolean; sitePalette?: SitePalette }) {
   const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [theme, setTheme] = useState(() => clone(initial));
@@ -227,6 +229,14 @@ export default function ThemeEditor({ initial, isActive }: { initial: Theme; isA
 
           <section className="a-panel" aria-labelledby="t-couleurs">
             <h2 id="t-couleurs">Palette</h2>
+            {Object.keys(sitePalette).length > 0 && (
+              <div className="a-notice" role="note" data-testid="site-palette-notice">
+                <p>
+                  Le site remplace {Object.keys(sitePalette).length > 1 ? "des couleurs" : "une couleur"} de ce thème depuis l&apos;éditeur visuel :{" "}
+                  {SITE_ROLES.filter((r) => sitePalette[r.key]).map((r) => r.name.toLowerCase()).join(", ")}. Elles s&apos;appliquent par-dessus ce thème tant qu&apos;il est en ligne ; les couleurs ci-dessous restent celles du thème. Pour les retirer : éditeur visuel, panneau « Couleurs » du site, « Revenir aux couleurs du thème ».
+                </p>
+              </div>
+            )}
             <PaletteEditor colors={colors} palette={theme.tokens.palette} onChange={setPalette} errors={errors} />
           </section>
 

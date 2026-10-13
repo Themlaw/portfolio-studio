@@ -8,7 +8,8 @@
  * l'aperçu en direct.
  */
 import { FONT_STACKS as FONT_CATALOG } from "./font-stacks";
-import { resolvePalette } from "./palette";
+import { resolvePalette, type PaletteColors } from "./palette";
+import { applySitePalette, type SitePalette } from "./site-palette";
 import type { KitAssets, KitCursor, KitImage, Theme } from "./schema";
 
 /** Image d'un asset du kit : SVG, ou AVIF + WebP (image-set). Chemins validés par le schéma. */
@@ -170,13 +171,10 @@ export function layoutVariables(theme: Theme): Record<string, string> {
 }
 // ── fin mise en page ────────────────────────────────────────────────────────
 
-/** Variables runtime du thème (préfixe --t-). */
-export function themeVariables(theme: Theme): Record<string, string> {
-  const { color, font, radius, space, motion } = theme.tokens;
-  // Palette résolue : nuances « auto » dérivées (src/themes/palette.ts).
-  const p = resolvePalette(color, theme.tokens.palette);
-  const display = FONT_CATALOG[font.display];
-
+/** Couleurs du thème d'un jeu de couleurs (nuances « auto » dérivées : src/themes/palette.ts). */
+export type ThemeColor = Theme["tokens"]["color"];
+export function colorVariables(color: ThemeColor, palette: Theme["tokens"]["palette"]): Record<string, string> {
+  const p = resolvePalette(color, palette);
   return {
     "--t-color-bg": p.bg,
     "--t-color-bg-deep": p.bgDeep,
@@ -201,6 +199,16 @@ export function themeVariables(theme: Theme): Record<string, string> {
     "--t-color-viewer": neutralGray(p.scrim),
     // Ombres. Auto : teintées d'encre en clair, noires en sombre.
     "--t-color-shadow": p.shadow,
+  };
+}
+
+/** Variables runtime du thème (préfixe --t-). */
+export function themeVariables(theme: Theme): Record<string, string> {
+  const { color, font, radius, space, motion } = theme.tokens;
+  const display = FONT_CATALOG[font.display];
+
+  return {
+    ...colorVariables(color, theme.tokens.palette),
     "--t-hero-halo": color.heroHalo ?? "transparent",
     // Halo des images de planche : émis seulement si le thème en a un.
     "--t-strip-halo": color.accentGlow
@@ -238,6 +246,37 @@ export function themeToCss(theme: Theme): string {
     .map(([k, v]) => `${k}:${v};`)
     .join("");
   return `:root{color-scheme:${themeScheme(theme)};${decls}}`.replace(/</g, "\\3c ");
+}
+
+/**
+ * Palette du site (lot 17f, src/themes/site-palette.ts) : variables de couleur du
+ * thème dont la valeur change quand les bases du site sont posées dessus. `all` :
+ * toutes les variables (aperçu de la toile, qui doit pouvoir REVENIR à la couleur du
+ * thème par-dessus la feuille que le serveur a déjà rendue). Ne lit que les couleurs
+ * du thème : la toile n'en reçoit pas davantage.
+ */
+export function sitePaletteVariables(base: { color: ThemeColor; palette?: Theme["tokens"]["palette"] | null }, overrides: SitePalette | undefined, all = false): Record<string, string> {
+  const palette = base.palette ?? undefined;
+  const applied = applySitePalette(base.color as PaletteColors, palette, overrides);
+  if (applied.color === base.color && !all) return {};
+  const before = colorVariables(base.color, palette);
+  const after = colorVariables(applied.color as ThemeColor, applied.palette);
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(after)) if (all || before[k] !== v) out[k] = v;
+  return out;
+}
+
+/**
+ * Feuille de la palette du site : `:root:root` (passe devant le `:root` du thème). Vide sans
+ * surcharge (rendu strictement celui du thème). `color-scheme` suit le fond effectif.
+ */
+export function sitePaletteCss(base: { color: ThemeColor; palette?: Theme["tokens"]["palette"] | null }, overrides: SitePalette | undefined, all = false): string {
+  const vars = sitePaletteVariables(base, overrides, all);
+  if (!Object.keys(vars).length) return "";
+  const bg = applySitePalette(base.color as PaletteColors, base.palette ?? undefined, overrides).color.bg;
+  const scheme = relativeLuminance(bg) < 0.2 ? "dark" : "light";
+  const decls = Object.entries(vars).map(([k, v]) => `${k}:${v};`).join("");
+  return `:root:root{color-scheme:${scheme};${decls}}`.replace(/</g, "\\3c ");
 }
 
 /** Attributs de variantes, posés sur <html>. */
