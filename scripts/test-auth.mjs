@@ -2625,7 +2625,7 @@ ok("TI8 import d'un autre thème : écran, état, aperçu 404 ; application refu
 // « Appliquer » : copie brouillon ; thème source et thème en ligne inchangés ; miroir.
 const activeBefore = query(dirK, "select value from settings where key = 'activeThemeId'")?.value;
 const sourceBefore = themeData("galerie-lumineuse");
-const applied = await callActionJson(kv.jar, ids.applyKitImportAction, ["galerie-lumineuse", importId, { palette: false, mirror: true }], `/admin/themes/galerie-lumineuse/kit`);
+const applied = await callActionJson(kv.jar, ids.applyKitImportAction, ["galerie-lumineuse", importId, { mirror: true }], `/admin/themes/galerie-lumineuse/kit`);
 const draftId = /"id":"(galerie-lumineuse-kit[a-z0-9-]*)"/.exec(applied.text)?.[1];
 const draft = draftId ? JSON.parse(themeData(draftId)) : null;
 const arrowUrl = draft?.assets?.kit?.icons?.arrowRight?.svg;

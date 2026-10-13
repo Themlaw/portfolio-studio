@@ -14,7 +14,7 @@ import { KitApplyPanel, KitBasePicker, KitImportUpload, KitImportWatch } from "@
 import PageHeader from "@/components/admin/PageHeader";
 import { getThemeOverview } from "@/lib/admin";
 import { assertAdmin } from "@/lib/auth/guard";
-import { arrowMirror, baseThemeIdOf, decorApplicable, firstViewTotal, isApplicable, kitColorFailures, paletteFailures, withKitColors } from "@/lib/kit/apply";
+import { arrowMirror, baseThemeIdOf, decorApplicable, firstViewTotal, isApplicable, kitColorFailures, withKitColors } from "@/lib/kit/apply";
 import { loadSavedTheme } from "@/lib/kit/export-job";
 import type { SlotReport } from "@/lib/kit/import";
 import { beforePreviews, getKitImport, isImportId, listKitImports } from "@/lib/kit/import-job";
@@ -26,7 +26,6 @@ export const metadata = { title: "Kit Photoshop" };
 export const dynamic = "force-dynamic";
 
 const FORMAT: Record<string, string> = { svg: "SVG", "svg-mask": "SVG (forme teintée par le thème)", avif: "AVIF + WebP", "avif-mask": "AVIF (forme teintée par le thème)", png: "PNG 32 et 64 px (écrans HiDPI)" };
-const ROLE: Record<string, string> = { bg: "Fond", bgDeep: "Fond profond", ink: "Texte", inkSoft: "Texte doux", primary: "Accent", secondary: "Secondaire", tertiary: "Tertiaire" };
 
 /** Phrase de la carte : « Flèche droite : redessinée », « Plan 3 : inchangé »… */
 function headline(s: SlotReport): string {
@@ -70,8 +69,6 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
   const decorOnly = Boolean(report && decorApplicable(report) && !report.slots.some((x) => x.id.startsWith("decor/") && isApplicable(x)));
   const changed = report ? report.slots.filter(isApplicable).length + (decorOnly ? 1 : 0) : 0;
   const counts = report ? { unchanged: report.slots.filter((s) => s.change === "unchanged").length, changed, warn: report.slots.filter((s) => s.status === "warn").length, error: report.slots.filter((s) => s.status === "error").length } : null;
-  const palette = report?.palette ? Object.entries(report.palette.roles).map(([role, hex]) => ({ role, label: ROLE[role] ?? role, hex: hex! })) : null;
-  const paletteProblem = report && palette ? paletteFailures(base, report) : [];
   // Couleurs repeintes (« 8 · Palette ») : avant / après, contraste du thème une fois appliquées.
   const colorChanges = report?.colors?.filter((c) => c.change === "changed") ?? [];
   const colorProblems = report && colorChanges.length ? kitColorFailures(base, report) : [];
@@ -288,8 +285,6 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                 themeName={base.name}
                 tape={report.slots.some((s) => s.id === "accessoires/scotch" && s.change === "redrawn" && isApplicable(s))}
                 changed={changed}
-                palette={palette}
-                paletteProblem={paletteProblem.length ? `Cette palette ne passe pas le contraste (${paletteProblem[0]}) : ignore-la, ou ajuste les couleurs dans l'éditeur.` : null}
                 applied={state.meta.appliedThemeId ?? null}
                 mirror={mirror}
               />

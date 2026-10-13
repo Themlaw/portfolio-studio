@@ -31,22 +31,6 @@ const FIRST_VIEW = ["hero/plan-1", "hero/plan-2", "hero/plan-3", "hero/plan-4", 
 
 export { arrowMirror, decorApplicable, isApplicable };
 
-/** Palette suggérée appliquée aux couleurs du thème (rôles présents seulement). */
-export function withPalette(colors: Theme["tokens"]["color"], report: KitReport): Theme["tokens"]["color"] {
-  const roles = report.palette?.roles ?? {};
-  const out = { ...colors };
-  for (const key of ["bg", "bgDeep", "ink", "inkSoft", "primary", "secondary", "tertiary"] as const) if (roles[key]) out[key] = roles[key]!;
-  return out;
-}
-
-/** La palette suggérée passe-t-elle le contraste AA sur ce thème ? (couples en échec) */
-export function paletteFailures(theme: Theme, report: KitReport): string[] {
-  if (!report.palette) return [];
-  return contrastReport(withPalette(theme.tokens.color, report))
-    .filter((p) => !p.ok)
-    .map((p) => `${p.label} : ${p.ratio.toFixed(2)}:1 (il faut ${AA}:1)`);
-}
-
 /* ---- Couleurs repeintes (« 8 · Palette ») -------------------------------- */
 
 /** Couleurs du kit appliquées : base → les nuances auto suivent ; nuance → choisie (forcée). */
@@ -153,7 +137,7 @@ async function keptPlan(source: Theme, j: number): Promise<KitPlan | null> {
   return { svg: `/media/${key}`, w: 2880, h: 1600, x: 0, y: 0 };
 }
 
-export type ApplyOptions = { palette: boolean; mirror: boolean; colors?: boolean; /** Thème sur lequel poser le kit (défaut : thème d'origine du kit, sinon celui de l'écran). */ baseThemeId?: string };
+export type ApplyOptions = { mirror: boolean; colors?: boolean; /** Thème sur lequel poser le kit (défaut : thème d'origine du kit, sinon celui de l'écran). */ baseThemeId?: string };
 
 /** Thème de départ d'un import : choisi, sinon celui dont le kit a été exporté, sinon celui de l'écran d'envoi. */
 export function baseThemeIdOf(report: KitReport | null | undefined, uploadThemeId: string, chosen?: string): string {
@@ -173,11 +157,9 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
   const changed = report.slots.filter(isApplicable);
   const decorApplied = decorApplicable(report);
   const colorsChanged = Boolean(opts.colors && report.colors?.some((c) => c.change === "changed"));
-  if (changed.length === 0 && !decorApplied && !(opts.palette && report.palette) && !colorsChanged) return fail("Rien à appliquer : aucun élément n'a été redessiné.");
-  if (opts.palette && paletteFailures(source, report).length) return fail("La palette suggérée ne passe pas le contraste : applique sans la palette, puis ajuste les couleurs dans l'éditeur.");
+  if (changed.length === 0 && !decorApplied && !colorsChanged) return fail("Rien à appliquer : aucun élément n'a été redessiné.");
   if (colorsChanged) {
-    const base = opts.palette && report.palette ? { ...source, tokens: { ...source.tokens, color: withPalette(source.tokens.color, report) } } : source;
-    const failures = kitColorFailures(base, report);
+    const failures = kitColorFailures(source, report);
     if (failures.length) return fail(`Les couleurs repeintes ne passent pas le contraste (${failures[0]}) : décoche-les, ou corrige-les dans Photoshop.`);
   }
 
@@ -295,8 +277,7 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
     name,
     preset: false,
     tokens: (() => {
-      const tokens = opts.palette && report.palette ? { ...source.tokens, color: withPalette(source.tokens.color, report) } : source.tokens;
-      return colorsChanged ? withKitColors(tokens, report) : tokens;
+      return colorsChanged ? withKitColors(source.tokens, report) : source.tokens;
     })(),
     // Scotch REDESSINÉ (pas simplement importé faute de kit d'origine reconnu : ce serait le
     // gabarit) : visible avec la variante « scotch » des planches. Sinon les variantes du thème de base restent.

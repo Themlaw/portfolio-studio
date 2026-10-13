@@ -714,3 +714,7 @@ Tests : `scripts/test-kit-multi.mjs` (dans `npm test` : export → archive → r
 icône à 512, logo, curseur, décor libre, archive défensive, anciens kits), `test-kit-import.mjs`,
 `test-theme-kit.mjs` ; e2e `kit` (archive, un PSD, deux PSD ensemble, décor libre appliqué, fichier de
 l'artiste) et `kit17a` (logo et papier seuls, appliqués au thème d'origine).
+
+### Palette suggérée retirée de la revue (lot 17e)
+
+La revue ne propose plus de palette tirée du paysage (`kit/palette.ts` supprimé, option `palette` de « Appliquer » retirée) : les couleurs se choisissent dans l'éditeur visuel (lot 17f). La lecture du groupe « 8 · Palette » des anciens kits v1/v2/v3 est conservée (section « Couleurs de la palette » de la revue, `extras.ts`).

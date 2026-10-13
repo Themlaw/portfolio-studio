@@ -159,7 +159,7 @@ ok("H3 aperçus du décor : « avant » du plan inchangé (plan exporté), « ap
 /* ---- H4. Application : copie brouillon ------------------------------------------------------------ */
 const activeBefore = tsx(`import { getDb, schema } from "./src/lib/db/index.ts"; import { eq } from "drizzle-orm"; console.log(getDb().select().from(schema.settings).where(eq(schema.settings.key, "activeThemeId")).get()?.value ?? "");`).trim();
 const sourceBefore = JSON.stringify(themeData("galerie-lumineuse"));
-const applied = tsx(`import { applyKitImport } from "./src/lib/kit/apply.ts"; console.log(JSON.stringify(await applyKitImport("galerie-lumineuse", ${JSON.stringify(batchId)}, { palette: false, mirror: true })));`);
+const applied = tsx(`import { applyKitImport } from "./src/lib/kit/apply.ts"; console.log(JSON.stringify(await applyKitImport("galerie-lumineuse", ${JSON.stringify(batchId)}, { mirror: true })));`);
 const appliedJson = JSON.parse(applied.trim().split("\n").pop());
 const draftId = appliedJson.data?.id;
 if (draftId) created.push(draftId);

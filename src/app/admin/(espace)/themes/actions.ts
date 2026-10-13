@@ -69,18 +69,17 @@ export async function deleteThemeAction(id: unknown): Promise<ActionResult<null>
 
 /**
  * Import de kit relu : crée une COPIE BROUILLON du thème avec les nouveaux
- * assets (jamais le thème en ligne remplacé). Options : `palette` (appliquer la
- * palette suggérée), `mirror` (une seule flèche redessinée : son miroir pour l'autre),
+ * assets (jamais le thème en ligne remplacé). Options : `mirror` (une seule flèche redessinée : son miroir pour l'autre),
  * `colors` (couleurs repeintes dans « 8 · Palette »), `base` (thème sur lequel poser le kit).
  */
 export async function applyKitImportAction(themeIdInput: unknown, importId: unknown, options: unknown): Promise<ActionResult<{ id: string }>> {
   await assertAdmin();
   const tid = themeId(themeIdInput);
   if (!tid || !isImportId(importId)) return fail("Import inconnu.");
-  const o = (options && typeof options === "object" ? options : {}) as { palette?: unknown; mirror?: unknown; colors?: unknown; base?: unknown };
+  const o = (options && typeof options === "object" ? options : {}) as { mirror?: unknown; colors?: unknown; base?: unknown };
   const base = o.base === undefined ? undefined : themeId(o.base);
   if (o.base !== undefined && !base) return fail("Thème de départ inconnu.");
-  const result = await applyKitImport(tid, importId, { palette: o.palette === true, mirror: o.mirror === true, colors: o.colors === true, baseThemeId: base ?? undefined });
+  const result = await applyKitImport(tid, importId, { mirror: o.mirror === true, colors: o.colors === true, baseThemeId: base ?? undefined });
   if (result.ok) revalidateTheme();
   return result;
 }

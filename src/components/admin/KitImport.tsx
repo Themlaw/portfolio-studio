@@ -102,8 +102,6 @@ export function KitImportWatch({ themeId, importId }: { themeId: string; importI
   );
 }
 
-type Swatch = { role: string; label: string; hex: string };
-
 /**
  * Thème sur lequel le kit sera posé : dit clairement lequel (celui dont le kit a été
  * exporté par défaut), et laisse en choisir un autre. Le choix passe dans l'adresse
@@ -149,8 +147,6 @@ export function KitApplyPanel({
   baseId,
   tape = false,
   changed,
-  palette,
-  paletteProblem,
   applied,
   mirror,
   colors = null,
@@ -167,12 +163,9 @@ export function KitApplyPanel({
   /** Le scotch est redessiné : la copie active la variante « scotch » des planches. */
   tape?: boolean;
   changed: number;
-  palette: Swatch[] | null;
-  paletteProblem: string | null;
   applied: string | null;
 }) {
   const router = useRouter();
-  const [usePalette, setUsePalette] = useState(false);
   const [useMirror, setUseMirror] = useState(true);
   const [useColors, setUseColors] = useState(Boolean(colors?.count && !colors.problem));
   const [busy, setBusy] = useState(false);
@@ -181,7 +174,7 @@ export function KitApplyPanel({
   const apply = async () => {
     setBusy(true);
     setError("");
-    const res = await applyKitImportAction(themeId, importId, { palette: usePalette, mirror: Boolean(mirror) && useMirror, colors: Boolean(colors?.count) && useColors, base: baseId });
+    const res = await applyKitImportAction(themeId, importId, { mirror: Boolean(mirror) && useMirror, colors: Boolean(colors?.count) && useColors, base: baseId });
     setBusy(false);
     if (!res.ok) {
       setError(res.message);
@@ -193,32 +186,6 @@ export function KitApplyPanel({
 
   return (
     <section className="a-card a-kit-apply" aria-labelledby="kit-apply-title">
-      {palette && (
-        <div className="a-kit-palette">
-          <h2 id="kit-palette-title">Palette suggérée</h2>
-          <p className="a-help">Tirée de ton paysage. Elle remplace les couleurs du thème dans la copie, si tu l&apos;appliques.</p>
-          <ul className="a-kit-swatches">
-            {palette.map((s) => (
-              <li key={s.role}>
-                <span className="a-kit-swatch" style={{ background: s.hex }} aria-hidden />
-                {s.label} <code>{s.hex}</code>
-              </li>
-            ))}
-          </ul>
-          {paletteProblem ? (
-            <p className="a-help">⚠ {paletteProblem}</p>
-          ) : (
-            <div className="a-kit-choice" role="group" aria-label="Palette suggérée">
-              <button type="button" className={`a-btn a-btn-small${usePalette ? "" : " a-btn-quiet"}`} aria-pressed={usePalette} onClick={() => setUsePalette(true)}>
-                Appliquer cette palette
-              </button>
-              <button type="button" className={`a-btn a-btn-small${usePalette ? " a-btn-quiet" : ""}`} aria-pressed={!usePalette} onClick={() => setUsePalette(false)}>
-                Ignorer
-              </button>
-            </div>
-          )}
-        </div>
-      )}
       {mirror && (
         <div className="a-kit-mirror">
           <label className="a-kit-mirror-check">
@@ -245,8 +212,7 @@ export function KitApplyPanel({
       )}
       <h2 id="kit-apply-title">Appliquer au thème</h2>
       <p className="a-help">
-        Crée une copie brouillon de « {themeName} » avec {changed > 1 ? `les ${changed} éléments redessinés` : changed === 1 ? "l'élément redessiné" : useColors && colors?.count ? "tes couleurs" : "la palette"}
-        {usePalette && changed > 0 ? " et la palette" : ""}
+        Crée une copie brouillon de « {themeName} » avec {changed > 1 ? `les ${changed} éléments redessinés` : changed === 1 ? "l'élément redessiné" : useColors && colors?.count ? "tes couleurs" : "les éléments redessinés"}
         {useColors && colors?.count && changed > 0 ? " et tes couleurs" : ""}, puis ouvre son aperçu en direct. Le thème en ligne ne change pas tant que tu n&apos;actives pas la copie.
       </p>
       {colors?.problem && (
@@ -260,7 +226,7 @@ export function KitApplyPanel({
           Déjà appliqué : <a href={`/admin/themes/${encodeURIComponent(applied)}`}>ouvrir la copie</a>.
         </p>
       )}
-      <button type="button" className="a-btn a-btn-primary" onClick={apply} disabled={busy || (changed === 0 && !usePalette && !(useColors && colors?.count))} aria-busy={busy}>
+      <button type="button" className="a-btn a-btn-primary" onClick={apply} disabled={busy || (changed === 0 && !(useColors && colors?.count))} aria-busy={busy}>
         {busy ? "Création de la copie…" : "Appliquer au thème"}
       </button>
       {error && (

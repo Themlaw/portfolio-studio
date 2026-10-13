@@ -50,6 +50,5 @@ console.log(
     reference: report.reference,
     slots: report.slots.map((s) => ({ id: s.id, status: s.status, change: s.change, src: s.source, ms: s.ms, peakMb: s.peakMb, fid: s.fidelity, chosen: s.chosen, bytes: s.bytes, cand: s.candidates, tex: s.textured, seam: s.seam, mono: s.mono, msg: s.messages })),
     ignored: report.ignoredLayers,
-    palette: report.palette,
   }),
 );

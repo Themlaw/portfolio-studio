@@ -22,7 +22,6 @@ import sharp from "sharp";
 
 import { ensureAgPsd } from "./ag-psd-node";
 import { alphaBox, contourFidelity, crop, encodeBitmap, monoStats, opaqueShare, reduceTo, seamStats, stretchableSvg, SVG_MAX_PATHS, SVG_MAX_RATIO, textureStats, thumbHashOf, TILE_REPEAT, tileRepeatStats, translucentShare, vectorizeLayer, type Rgba } from "./formats";
-import { suggestPalette, type PaletteSuggestion } from "./palette";
 import { preflightProblem, preflightPsd, PsdPreflightError, type PreflightLimits, type PsdPreflight } from "./psd-header";
 import { emptyFrameHash, findReference, frameHash, writePreview, type KitManifest } from "./manifest";
 import { flattenSlot, freeRaw, layoutOf, resolveDecor, resolveSlots, SlotRefusal, treeProblem, treeStats, type TreeStats } from "./resolve";
@@ -115,7 +114,6 @@ export type KitReport = {
   peakMb?: number;
   slots: SlotReport[];
   ignoredLayers: string[];
-  palette?: PaletteSuggestion | null;
   totals?: { firstView: number; all: number };
   /** Kit v3 : couleurs des pastilles de « 8 · Palette » (absent : pas de groupe Palette dans ce kit). */
   colors?: ColorReport[];
@@ -466,7 +464,6 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
   // celui de la page ; `foreign` n'est que l'avertissement d'un écart.
   const { reference: ref } = findReference(exportId, hashes, opts.manifests ?? [], undefined);
   const foreign = ref && opts.themeId !== undefined && ref.manifest.themeId !== opts.themeId ? ref : null;
-  let planChanged = false;
   // Décor libre : plans exportés (empreintes `hero/plan-n`, dans l'ordre), pour reconnaître un plan inchangé même déplacé.
   const refPlans: string[] = [];
   if (ref) for (let i = 1; ref.manifest.slots[`hero/plan-${i}`]; i++) refPlans.push(ref.manifest.slots[`hero/plan-${i}`].hash);
@@ -495,7 +492,6 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
       done();
       continue;
     }
-    if (slot.kind === "plan") planChanged = true;
     await writePreview(framed, path.join(outDir, `${base}.apres.png`), slot.kind === "plan");
     report.preview = `${base}.apres.png`;
 
@@ -657,14 +653,6 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
     slots.push(report);
   }
 
-  // Palette : seulement si le paysage a changé (sinon, c'est celle du thème) ;
-  // plans relus du disque à ce moment-là seulement.
-  let palette: PaletteSuggestion | null = null;
-  if (planChanged) {
-    const plans: Rgba[] = [];
-    for (const { slot, base } of pending) if (slot.kind === "plan") plans.push({ width: slot.size.w, height: slot.size.h, data: await readFile(path.join(work, `${base}.rgba`)) });
-    palette = await suggestPalette(plans);
-  }
   await rm(work, { recursive: true, force: true });
   // Ordre : fichier par fichier, puis ordre de la spec (les emplacements absents ou en erreur sont arrivés en phase 1).
   // Kit v4 : l'ordre des cartes dans le fichier (de haut en bas, de gauche à droite).
@@ -693,7 +681,6 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
     peakMb: peakMbNow(),
     slots,
     ignoredLayers,
-    palette,
     totals,
     files: fileReports,
     ...(decor ? { decor } : {}),

@@ -3599,31 +3599,8 @@ label.a-file-btn:focus-within {
   font-size: 12.5px;
 }
 
-.a-kit-swatches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  margin: 8px 0 10px;
-  padding: 0;
-  list-style: none;
-  font-size: 13px;
-}
 
-.a-kit-swatch {
-  display: inline-block;
-  width: 18px;
-  height: 18px;
-  margin-right: 6px;
-  vertical-align: -4px;
-  border: 1px solid var(--admin-line-strong);
-  border-radius: 4px;
-}
 
-.a-kit-choice {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
-}
 
 .a-kit-apply {
   display: grid;
