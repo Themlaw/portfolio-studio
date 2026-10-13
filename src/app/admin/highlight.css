@@ -35,3 +35,23 @@
   border-radius: 8px;
   pointer-events: none;
 }
+
+/* Surlignage d'un rôle de couleur dans l'aperçu de l'éditeur de thème (lot 19b) : chargé avec PreviewBridge, hors du CSS public. */
+[data-preview-framed] .pe-host {
+  --pe-accent: #2e4e9e;
+  --pe-surface: #ffffff;
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  z-index: 2147483000;
+}
+
+[data-preview-framed] .pe-layer {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
