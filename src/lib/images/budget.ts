@@ -59,3 +59,17 @@ export function decodeProblem(meta: DecodeMeta): string | null {
         : "Réexporte-la en PNG ou en JPEG, ou réduis-la.";
   return `Cette image est trop lourde à ouvrir (${mb} Mo de mémoire, ${budget} Mo au plus pour ce format). ${advice}`;
 }
+
+/** Image à partir de laquelle son traitement est « lourd » (Mpx) : exclusion mutuelle avec les kits (src/lib/jobs/memory-gate.ts). */
+export function heavyImageMpx(): number {
+  return Math.max(1, Number(process.env.IMAGE_HEAVY_MPX || 16));
+}
+
+/**
+ * Le traitement de cette image pèse-t-il sur la mémoire du conteneur ? Oui au-delà de `heavyImageMpx` pixels
+ * (tampons de réduction et d'encodage), ou si elle se décode d'un bloc (> 100 Mo) ; sans dimensions lisibles, par prudence.
+ */
+export function isHeavyImage(meta: DecodeMeta): boolean {
+  if (!meta.width || !meta.height) return true;
+  return (meta.width * meta.height) / 1e6 > heavyImageMpx() || decodeMemoryMb(meta) > 100;
+}

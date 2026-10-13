@@ -4,7 +4,8 @@
  *  - légère : images ;
  *  - lourde : conversions vidéo (ffmpeg), exports et imports de kit PSD
  *    (processus enfant), aperçus de PDF (pdftoppm) : jamais deux à la fois, la mémoire du conteneur ne tiendrait pas
- *    (docs/THEME-KIT.md). Une conversion longue ne bloque pas les images. Démarré par src/lib/db/start.ts ; les jobs
+ *    (docs/THEME-KIT.md). Une conversion longue ne bloque pas les images. Exception mémoire : un kit (export ou
+ *    import) et une image lourde ne tournent jamais ensemble (memory-gate.ts) ; une image légère passe toujours. Démarré par src/lib/db/start.ts ; les jobs
  * `running` laissés par un arrêt brutal sont remis en file au démarrage.
  *
  * Next charge parfois ce module plusieurs fois (instrumentation, routes) :
@@ -16,8 +17,12 @@ import { and, asc, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import { readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
+import sharp from "sharp";
+
 import { dataDir, getDb, schema } from "@/lib/db";
+import { isHeavyImage } from "@/lib/images/budget";
 import { originalFile, processImage, processingError } from "@/lib/images/process";
+import { memoryGate } from "@/lib/jobs/memory-gate";
 import { getStorage } from "@/lib/storage";
 import { videoLimits } from "@/lib/video/limits";
 import { transcodeVideo } from "@/lib/video/transcode";
@@ -57,16 +62,24 @@ export function uploadTmpDir(): string {
   return path.join(/* turbopackIgnore: true */ dataDir(), "tmp");
 }
 
-/** Prend le plus ancien job en file de cette file (atomique) ou null. */
-function claim(lane: Lane) {
+type Job = typeof schema.jobs.$inferSelect;
+
+/** Jobs de cette file prêts à partir, du plus ancien au plus récent (borné). */
+function candidates(lane: Lane): Job[] {
+  return getDb()
+    .select()
+    .from(schema.jobs)
+    .where(and(inArray(schema.jobs.kind, LANES[lane]), eq(schema.jobs.status, "queued"), or(isNull(schema.jobs.runAfter), lte(schema.jobs.runAfter, new Date()))))
+    .orderBy(asc(schema.jobs.id))
+    .limit(25)
+    .all();
+}
+
+/** Prend ce job (atomique : un autre appel a pu le prendre entre-temps) ou null. */
+function claimJob(id: number) {
   const db = getDb();
   return db.transaction((tx) => {
-    const job = tx
-      .select()
-      .from(schema.jobs)
-      .where(and(inArray(schema.jobs.kind, LANES[lane]), eq(schema.jobs.status, "queued"), or(isNull(schema.jobs.runAfter), lte(schema.jobs.runAfter, new Date()))))
-      .orderBy(asc(schema.jobs.id))
-      .get();
+    const job = tx.select().from(schema.jobs).where(and(eq(schema.jobs.id, id), eq(schema.jobs.status, "queued"))).get();
     if (!job) return null;
     tx.update(schema.jobs)
       .set({ status: "running", attempts: job.attempts + 1, updatedAt: new Date() })
@@ -74,6 +87,47 @@ function claim(lane: Lane) {
       .run();
     return { ...job, attempts: job.attempts + 1 };
   });
+}
+
+/** Image lourde à traiter ? (en-tête seul : aucune décompression). Illisible : lourde, par prudence. */
+async function heavyImageOf(mediaId: number | null): Promise<boolean> {
+  if (!mediaId) return false;
+  const media = getDb().select().from(schema.media).where(eq(schema.media.id, mediaId)).get();
+  if (!media) return false;
+  let source: { file: string; cleanup: () => Promise<void> } | null = null;
+  try {
+    source = await originalFile(media.key);
+    const meta = await sharp(source.file, { limitInputPixels: false, failOn: "none", pages: 1, sequentialRead: true }).metadata();
+    return isHeavyImage({ ...meta, width: meta.width ?? 0, height: meta.height ?? 0 });
+  } catch {
+    return true;
+  } finally {
+    await source?.cleanup();
+  }
+}
+
+/**
+ * Ce job doit-il attendre ? Un kit ne part pas pendant le traitement d'une image lourde, une image lourde
+ * ne part pas pendant un kit (ni quand un kit est prêt à partir : pas de famine), mais une image légère
+ * passe toujours (src/lib/jobs/memory-gate.ts).
+ */
+async function mustWait(job: Job): Promise<boolean> {
+  const holder = memoryGate().holder();
+  if (job.kind === "kit" || job.kind === "kit-import") return holder === "image";
+  if (job.kind !== "image") return false;
+  const kitReady = !state().busy.heavy && candidates("heavy").some((j) => j.kind === "kit" || j.kind === "kit-import");
+  if (holder !== "kit" && !kitReady) return false;
+  return heavyImageOf(job.mediaId);
+}
+
+/** Prend le plus ancien job de la file qui peut partir maintenant, ou null. */
+async function claim(lane: Lane) {
+  for (const candidate of candidates(lane)) {
+    if (await mustWait(candidate)) continue;
+    const job = claimJob(candidate.id);
+    if (job) return job;
+  }
+  return null;
 }
 
 /**
@@ -106,11 +160,15 @@ async function runImageJob(job: { id: number; mediaId: number; attempts: number 
   const started = Date.now();
   try {
     if (!hash16) throw new Error(`clé d'original inattendue : ${media.key}`);
-    let timer: NodeJS.Timeout | undefined;
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`traitement : trop de temps (plus de ${MAX_JOB_MS / 1000} s)`)), MAX_JOB_MS);
-    });
-    const out = await Promise.race([processImage(media.key, hash16), timeout]).finally(() => clearTimeout(timer));
+    const work = async () => {
+      let timer: NodeJS.Timeout | undefined;
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`traitement : trop de temps (plus de ${MAX_JOB_MS / 1000} s)`)), MAX_JOB_MS);
+      });
+      return Promise.race([processImage(media.key, hash16), timeout]).finally(() => clearTimeout(timer));
+    };
+    // Image lourde : jamais en même temps qu'un import ou un export de kit (mémoire du conteneur) ; le délai ne court qu'une fois la porte prise.
+    const out = (await heavyImageOf(media.id)) ? await memoryGate().run("image", work) : await work();
     db.transaction((tx) => {
       tx.update(schema.media)
         .set({ status: "ready", error: null, variants: out.variants, dominantColor: out.dominantColor })
@@ -244,7 +302,7 @@ async function tick(lane: Lane) {
   s.busy[lane] = true;
   try {
     reapStalled(lane);
-    for (let job = claim(lane); job; job = claim(lane)) {
+    for (let job = await claim(lane); job; job = await claim(lane)) {
       s.current.add(job.id);
       try {
         await runJob(job);
@@ -259,7 +317,7 @@ async function tick(lane: Lane) {
   }
 }
 
-async function runJob(job: NonNullable<ReturnType<typeof claim>>) {
+async function runJob(job: NonNullable<Awaited<ReturnType<typeof claim>>>) {
   try {
     if (job.attempts > MAX_ATTEMPTS) {
       getDb().transaction((tx) => {
@@ -269,8 +327,8 @@ async function runJob(job: NonNullable<ReturnType<typeof claim>>) {
     } else if (job.kind === "image" && job.mediaId) await runImageJob({ ...job, mediaId: job.mediaId });
     else if (job.kind === "video" && job.mediaId) await runVideoJob({ ...job, mediaId: job.mediaId });
     else if (job.kind === "pdf" && job.mediaId) await runPdfJob({ ...job, mediaId: job.mediaId });
-    else if (job.kind === "kit") await runKitJob(job);
-    else if (job.kind === "kit-import") await runKitImportJob(job);
+    else if (job.kind === "kit") await memoryGate().run("kit", () => runKitJob(job));
+    else if (job.kind === "kit-import") await memoryGate().run("kit", () => runKitImportJob(job));
     else {
       getDb()
         .update(schema.jobs)
@@ -310,6 +368,15 @@ export function reapStalled(lane: Lane = "light") {
 
 /** Réveille les deux files (après l'ajout d'un job). */
 export function wakeWorker() {
+  const g = globalThis as typeof globalThis & { __portfolioGateWake?: boolean };
+  if (!g.__portfolioGateWake) {
+    g.__portfolioGateWake = true;
+    // Porte mémoire libérée : l'autre file relève ce qu'elle avait laissé en attente.
+    memoryGate().onRelease(() => {
+      void tick("light");
+      void tick("heavy");
+    });
+  }
   void tick("light");
   void tick("heavy");
 }
