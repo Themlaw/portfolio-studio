@@ -190,8 +190,14 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   tournent JAMAIS ensemble : `src/lib/jobs/memory-gate.ts` (exclusion mutuelle, ordre d'arrivée, libération sur
   erreur) ; le worker ne démarre pas une image lourde pendant un kit (ni un kit pendant une image lourde, ni une
   image lourde quand un kit est prêt : pas de famine) et laisse passer les images légères. Mesuré avant
-  correction : 556 Mo (image seule) + 579 Mo (import seul) = 891 Mo sans le serveur, OOM avec. Test :
-  `test-memory-gate.mjs`.
+  correction : 556 Mo (image seule) + 579 Mo (import seul) = 891 Mo sans le serveur, OOM avec. Le journal
+  dit quand une tâche attend (`[jobs] mémoire : …`). `MEMORY_GATE=0` désactive la porte (mesures « avant / après »
+  seulement). Tests : `test-memory-gate.mjs` ; mesure sous `docker run --memory=1g` : `scripts/mem/mem17.sh`
+  (conteneur du standalone, image de 100 Mpx et import d'un kit en même temps, `memory.peak` du cgroup, `OOMKilled`).
+  Mesuré (v0.17, conteneur de 1 Gio, PNG entrelacé 20000 × 4000, import de l'archive de 22 Mo, image lancée 1, 4 ou 7 s
+  après l'import) : image seule 591 Mo, import seul 736 Mo ; sans porte 940, 1024 (limite atteinte 495 fois) et 976 Mo ;
+  avec la porte 749, 743 et 737 Mo, l'image démarrant à la fin du kit (aucun OOM dans les deux cas : le noyau purge le
+  cache, mais sans marge pour une image plus lourde).
 - **Rendu** : `src/components/Picture.tsx` (`<picture>` AVIF puis WebP, `sizes`, dimensions,
   fond = couleur dominante d'une image opaque, `loading="lazy"` sauf `priority`). La
   visionneuse ne propose que la plus grande variante. Les SVG du seed gardent `next/image`.

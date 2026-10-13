@@ -23,7 +23,7 @@ import { dataDir, getDb, schema } from "@/lib/db";
 import { isHeavyImage } from "@/lib/images/budget";
 import { originalFile, processImage, processingError } from "@/lib/images/process";
 import { enqueueCropWarmAll, runCropWarm } from "@/lib/jobs/crop-warm";
-import { memoryGate } from "@/lib/jobs/memory-gate";
+import { memoryGate, memoryGateEnabled } from "@/lib/jobs/memory-gate";
 import { getStorage } from "@/lib/storage";
 import { videoLimits } from "@/lib/video/limits";
 import { transcodeVideo } from "@/lib/video/transcode";
@@ -113,6 +113,7 @@ async function heavyImageOf(mediaId: number | null): Promise<boolean> {
  * passe toujours (src/lib/jobs/memory-gate.ts).
  */
 async function mustWait(job: Job): Promise<boolean> {
+  if (!memoryGateEnabled()) return false;
   const holder = memoryGate().holder();
   if (job.kind === "kit" || job.kind === "kit-import") return holder === "image";
   if (job.kind !== "image") return false;

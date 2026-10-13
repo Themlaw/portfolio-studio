@@ -21,6 +21,10 @@ export interface MemoryGate {
   onRelease(listener: () => void): void;
 }
 
+/** MEMORY_GATE=0 : porte désactivée (mesures comparatives « avant / après » ; jamais en production). */
+const disabled = () => process.env.MEMORY_GATE === "0";
+export const memoryGateEnabled = () => !disabled();
+
 export function createMemoryGate(): MemoryGate {
   let holder: GateKind | null = null;
   const queue: { kind: GateKind; go: () => void }[] = [];
@@ -46,11 +50,20 @@ export function createMemoryGate(): MemoryGate {
 
   return {
     async run<T>(kind: GateKind, fn: () => Promise<T>): Promise<T> {
-      if (holder !== null) await new Promise<void>((go) => queue.push({ kind, go }));
-      else holder = kind;
+      if (disabled()) return fn();
+      const asked = Date.now();
+      const label = kind === "kit" ? "kit" : "image lourde";
+      if (holder !== null) {
+        console.log(`[jobs] mémoire : ${label} attend la fin d'un${holder === "kit" ? " kit" : "e image lourde"}`);
+        await new Promise<void>((go) => queue.push({ kind, go }));
+      } else holder = kind;
+      const started = Date.now();
+      if (started - asked > 0) console.log(`[jobs] mémoire : ${label} démarre après ${started - asked} ms d'attente`);
+      else console.log(`[jobs] mémoire : ${label} démarre`);
       try {
         return await fn();
       } finally {
+        console.log(`[jobs] mémoire : ${label} terminé en ${Date.now() - started} ms`);
         release();
       }
     },

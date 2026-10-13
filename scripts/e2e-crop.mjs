@@ -501,7 +501,8 @@ if (run("X") && !BEFORE) {
 }
 
 /* ---- F : 40 recadrages à froid, file pleine (503) : repli sans image cassée ------------------ */
-if (run("F") && !BEFORE) {
+// F : seulement demandée (ONLY=F), le serveur doit tourner avec CROP_WARM=0 et CROP_MAX_WAITING=3 (suite crop17g).
+if (ONLY.split(",").includes("F") && !BEFORE) {
   const QUADS = [
     [0, 0, "red"],
     [0.5, 0, "green"],
