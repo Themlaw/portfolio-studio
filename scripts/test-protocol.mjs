@@ -145,6 +145,31 @@ ok("marked : toMarkup garde « <3 », et deux passages voisins ne recomposent pa
   ok("marked : toMarkup(max) coupe le texte, jamais une balise, pour toute longueur", cutOk);
   ok("marked : toMarkup(max) sans dépassement garde tout", toMarkup(long, 1000) === toMarkup(long));
 }
+// Aller-retour : aucune sortie de toMarkup n'est refusée par markedProblem.
+ok("marked : toMarkup(« Cœur < » + passage + « s ») est accepté", markedProblem(toMarkup([{ text: "Cœur <", mark: false }, { text: "amour", mark: true }, { text: "s", mark: false }])) === null);
+{
+  const alphabet = ["<", ">", "/", "a", "b", "m", "mark", "<mark>", "</mark>", "<b", "</", " ", "œ", "😀", "é", "\u0000"];
+  let seed = 12345;
+  const rnd = (n) => Math.floor((seed = (seed * 1103515245 + 12345) % 2147483648) / 65536) % n;
+  let bad = null;
+  for (let i = 0; i < 3000 && !bad; i++) {
+    const ps = Array.from({ length: 1 + rnd(5) }, () => ({ text: Array.from({ length: rnd(5) }, () => alphabet[rnd(alphabet.length)]).join(""), mark: rnd(2) === 0 }));
+    for (const max of [Infinity, 40, 7]) {
+      const out = toMarkup(ps.map((p) => ({ ...p })), max);
+      if (markedProblem(out) !== null || out.length > max) bad = JSON.stringify({ ps, max, out });
+    }
+  }
+  ok("marked : fuzz, aucune sortie de toMarkup n'est refusée", bad === null, bad ?? "");
+}
+// Troncature : jamais au milieu d'une paire de substitution ni d'un graphème.
+{
+  const emoji = [{ text: "ab😀😀", mark: false }];
+  const lone = (s) => /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/.test(s);
+  let cutEmoji = true;
+  for (let max = 0; max <= 7; max++) if (lone(toMarkup(emoji, max))) cutEmoji = false;
+  ok("marked : toMarkup(max) ne coupe pas un émoji en deux", cutEmoji && toMarkup(emoji, 3) === "ab" && toMarkup(emoji, 4) === "ab😀");
+  ok("marked : toMarkup(max) ne coupe pas un graphème composé", toMarkup([{ text: "a👨‍👩‍👧", mark: false }], 5) === "a");
+}
 const parts = parseMarked("Je dessine des mondes");
 ok("marked : surligner un intervalle, les espaces de bordure ne le sont pas", toMarkup(toggleRange(parts, 15, 22)) === "Je dessine des <mark>mondes</mark>" && toMarkup(toggleRange(parts, 14, 22)) === "Je dessine des <mark>mondes</mark>");
 ok("marked : re-basculer retire le surlignage ; un surlignage partiel est complété", toMarkup(toggleRange(toggleRange(parts, 15, 21), 15, 21)) === "Je dessine des mondes" && toMarkup(toggleRange(parseMarked("ab <mark>cd</mark> ef"), 0, 8)) === "<mark>ab cd ef</mark>");

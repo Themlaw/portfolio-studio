@@ -1036,6 +1036,56 @@ if (run("R")) {
     await page.keyboard.press("Enter");
     await settled();
   }
+  // IME / touche morte : une composition en cours pendant que le rendu tardif arrive ne doit être ni rétablie ni dupliquée.
+  if (ENGINE === chromium) {
+    const cdp = await page.context().newCDPSession(page);
+    // Élément de la toile (document d'iframe) pour DOMDebugger : par le DOM du protocole, qui traverse l'iframe.
+    await cdp.send("DOM.enable");
+    const frameEl = async (sel) => {
+      const { root } = await cdp.send("DOM.getDocument", { depth: 0 });
+      const { nodeId: iframeId } = await cdp.send("DOM.querySelector", { nodeId: root.nodeId, selector: "iframe.ve-frame" });
+      const { node } = await cdp.send("DOM.describeNode", { nodeId: iframeId, pierce: true });
+      const { nodeIds } = await cdp.send("DOM.pushNodesByBackendIdsToFrontend", { backendNodeIds: [node.contentDocument.backendNodeId] });
+      const { nodeId } = await cdp.send("DOM.querySelector", { nodeId: nodeIds[0], selector: sel });
+      return (await cdp.send("DOM.resolveNode", { nodeId })).object.objectId;
+    };
+    rscDelay = 1500;
+    const base = "Ime";
+    await f.locator(BRAND).dblclick();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.type(base);
+    await page.keyboard.press("Enter");
+    await f.locator(BRAND).dblclick();
+    await page.keyboard.press("ControlOrMeta+End");
+    const rev0 = await rev();
+    await cdp.send("Input.imeSetComposition", { text: "é", selectionStart: 1, selectionEnd: 1 });
+    // Le rendu du serveur arrive PENDANT la composition.
+    for (const end = Date.now() + 15000; Date.now() < end && (await rev()) <= rev0; ) await sleep(100);
+    ok("R-ime0 le rendu du serveur est arrivé PENDANT la composition", (await rev()) > rev0);
+    await sleep(300);
+    await cdp.send("Input.insertText", { text: "é" });
+    await sleep(500);
+    const shownIme = (await f.locator(BRAND).textContent())?.trim();
+    ok("R-ime1 texte validé exactement une fois à l'écran", shownIme === `${base}é`, JSON.stringify(shownIme));
+    await page.keyboard.press("Enter");
+    await settled();
+    for (const end = Date.now() + 20000; Date.now() < end && siteName() !== `${base}é`; ) await sleep(200);
+    ok("R-ime2 texte validé exactement une fois en base", siteName() === `${base}é`, JSON.stringify(siteName()));
+    rscDelay = 0;
+    // Écouteurs : cinq ouvertures du même champ, plus aucun écouteur de saisie une fois fermé.
+    await sleep(2500);
+    const tagged = await f.evaluate((sel) => { document.querySelector(sel).setAttribute("data-probe", "1"); return true; }, BRAND);
+    for (let k = 0; k < 5; k++) {
+      await f.locator(BRAND).dblclick();
+      await page.keyboard.press("Enter");
+      await sleep(150);
+    }
+    ok("R-ev0 le même élément a servi aux cinq ouvertures", tagged && (await f.locator(BRAND).getAttribute("data-probe")) === "1");
+    const { listeners } = await cdp.send("DOMDebugger.getEventListeners", { objectId: await frameEl(BRAND) });
+        const left = listeners.filter((l) => ["input", "beforeinput", "compositionstart", "compositionend", "blur"].includes(l.type)).map((l) => l.type);
+    ok("R-ev1 après 5 ouvertures, plus aucun écouteur de saisie sur le champ", left.length === 0, left.join(","));
+    await cdp.detach();
+  }
   rscDelay = Number(process.env.RSC_DELAY ?? 0);
 }
 

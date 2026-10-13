@@ -34,7 +34,8 @@ export function parseMarked(text: string): MarkedPart[] {
 /** Message d'erreur si le balisage n'est pas celui que l'on accepte, sinon null. */
 export function markedProblem(text: string): string | null {
   if (/<mark><\/mark>/.test(text)) return "Un passage surligné ne peut pas être vide.";
-  const rest = text.replace(MARK, "");
+  // Séparateur neutre (et non une chaîne vide) : « a <<mark>b</mark>c » ne doit pas recoller « < » et « c » en fausse balise.
+  const rest = text.replace(MARK, "\u0000");
   if (TAGLIKE.test(rest)) return "Seul le balisage <mark>…</mark> est accepté (sans imbrication), aucune autre balise.";
   return null;
 }
@@ -45,6 +46,16 @@ function noTags(text: string): string {
   // Jusqu'à stabilité : retirer un « < » peut en rapprocher un autre d'une lettre (« <</b »).
   while (TAGLIKE.test(out)) out = out.replace(/<(?=\/?[a-zA-Z])/g, "");
   return out;
+}
+
+/** Début du texte d'au plus `len` unités, coupé sur une frontière de graphème (jamais au milieu d'un émoji). */
+function cutGraphemes(text: string, len: number): string {
+  let end = 0;
+  for (const { segment } of new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)) {
+    if (end + segment.length > len) break;
+    end += segment.length;
+  }
+  return text.slice(0, end);
 }
 
 /**
@@ -67,7 +78,7 @@ export function toMarkup(parts: MarkedPart[], max = Infinity): string {
   let out = render();
   while (out.length > max && kept.length) {
     const last = kept[kept.length - 1];
-    last.text = last.text.slice(0, Math.max(0, last.text.length - (out.length - max)));
+    last.text = cutGraphemes(last.text, Math.max(0, last.text.length - (out.length - max)));
     if (!last.text) kept.pop();
     out = render();
   }

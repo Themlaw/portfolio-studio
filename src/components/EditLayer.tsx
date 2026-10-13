@@ -21,7 +21,7 @@
  * puis demande un rafraîchissement.
  */
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { MAX_NESTING } from "@/blocks/tree";
@@ -191,6 +191,10 @@ type Editing = {
   text?: string;
   /** Une saisie de l'utilisateur est en cours de traitement (entre `beforeinput` et `input`) : pas une réécriture du serveur. */
   typing?: boolean;
+  /** Composition (IME, touche morte) en cours : le texte du champ contient une saisie non validée, on n'y touche pas. */
+  composing?: boolean;
+  /** Écouteurs de la saisie (champ sans passage surligné) : retirés d'un coup à la fin de la saisie. */
+  ac?: AbortController;
 };
 /** Barre « Surligner » de l'accroche : position (coordonnées du document) et état du bouton. */
 type MarkBar = { top: number; left: number; below: boolean; state: boolean | null };
@@ -319,6 +323,7 @@ export default function EditLayer() {
     const current = editing.current;
     if (!current) return;
     editing.current = null;
+    current.ac?.abort();
     const { el, original, target, marked } = current;
     if (marked) {
       // Accroche : le texte est lu dans NOTRE champ (nœuds texte et passages surlignés), jamais du HTML.
@@ -365,7 +370,7 @@ export default function EditLayer() {
     queueMicrotask(() => {
       if (editing.current !== cur) return;
       if (cur.el.isConnected) finishEdit(true);
-      else resumeRef.current(cur);
+      else if (!cur.composing) resumeRef.current(cur);
     });
   }, [finishEdit]);
   const bindMarked = useCallback(
@@ -390,18 +395,71 @@ export default function EditLayer() {
 
   const bindPlain = useCallback(
     (el: HTMLElement, id: number) => {
-      el.addEventListener("blur", () => onEditBlur(id), { once: true });
-      el.addEventListener("beforeinput", () => {
-        if (editing.current?.el !== el) return;
-        editing.current.typing = true;
-        setTimeout(() => editing.current?.el === el && (editing.current.typing = false));
-      });
-      el.addEventListener("input", () => {
-        if (editing.current?.el !== el) return;
-        editing.current.text = el.textContent ?? "";
-        editing.current.sel = selectionRange(el);
-        editing.current.typing = false;
-      });
+      const cur = editing.current;
+      if (!cur || cur.id !== id) return;
+      // Un seul jeu d'écouteurs par saisie : ceux d'une reprise précédente sont retirés, ceux-ci le sont à la fin.
+      cur.ac?.abort();
+      const ac = new AbortController();
+      cur.ac = ac;
+      const { signal } = ac;
+      el.addEventListener("blur", () => onEditBlur(id), { once: true, signal });
+      el.addEventListener(
+        "beforeinput",
+        () => {
+          if (editing.current?.el !== el) return;
+          editing.current.typing = true;
+          setTimeout(() => editing.current?.el === el && (editing.current.typing = false));
+        },
+        { signal },
+      );
+      // Texte et sélection d'avant la composition : un rendu du serveur peut réécrire le champ (donc replacer le curseur au début)
+      // pendant qu'elle dure ; à la fin le texte validé est replacé là où la composition a commencé.
+      let before: { text: string; sel: [number, number] } | null = null;
+      const endComposition = (data: string) => {
+        const start = before;
+        before = null;
+        // Après le dernier `input` de la composition : le texte validé fait foi, puis on rattrape ce que le rendu a pu faire entre-temps.
+        setTimeout(() => {
+          const now = editing.current;
+          if (!now || now.el !== el) return;
+          now.composing = false;
+          if (!el.isConnected) return resumeRef.current(now);
+          if (start && data) {
+            const want = start.text.slice(0, start.sel[0]) + data + start.text.slice(start.sel[1]);
+            if (el.textContent !== want) {
+              el.textContent = want;
+              selectRange(el, start.sel[0] + data.length, start.sel[0] + data.length);
+            }
+          }
+          now.text = el.textContent ?? "";
+          now.sel = selectionRange(el);
+        });
+      };
+      el.addEventListener(
+        "input",
+        (e) => {
+          const now = editing.current;
+          if (now?.el !== el) return;
+          // Une insertion hors composition alors qu'une composition était ouverte la valide (sans `compositionend` chez certains pilotes).
+          if (now.composing && !(e as InputEvent).isComposing) endComposition((e as InputEvent).data ?? "");
+          now.text = el.textContent ?? "";
+          now.sel = selectionRange(el);
+          now.typing = false;
+        },
+        { signal },
+      );
+      el.addEventListener(
+        "compositionstart",
+        () => {
+          const now = editing.current;
+          if (now?.el !== el) return;
+          now.composing = true;
+          const len = (el.textContent ?? "").length;
+          before = { text: el.textContent ?? "", sel: selectionRange(el) ?? [len, len] };
+        },
+        { signal },
+      );
+      el.addEventListener("compositionend", (e) => endComposition(e.data), { signal });
     },
     [onEditBlur],
   );
@@ -506,15 +564,19 @@ export default function EditLayer() {
     },
     [finishEdit, refreshMarkBar, bindMarked, bindPlain],
   );
-  resumeRef.current = resumeEdit;
+  useLayoutEffect(() => {
+    resumeRef.current = resumeEdit;
+  }, [resumeEdit]);
 
   useEffect(() => {
     const mo = new MutationObserver(() => {
       const cur = editing.current;
       if (!cur) return;
+      // Pendant une composition (IME, touche morte), rien n'est rétabli ni repris : la reprise attend `compositionend`.
+      if (cur.composing) return;
       if (!cur.el.isConnected) return resumeRef.current(cur);
       // Rendu tardif qui réécrit le texte de l'élément en cours de saisie (sans le remonter) : le texte tapé fait foi.
-      if (!cur.marked && !cur.typing && cur.text !== undefined && cur.el.textContent !== cur.text) {
+      if (!cur.marked && !cur.typing && !cur.composing && cur.text !== undefined && cur.el.textContent !== cur.text) {
         cur.el.textContent = cur.text;
         if (document.activeElement !== cur.el) cur.el.focus();
         if (cur.sel) selectRange(cur.el, cur.sel[0], cur.sel[1]);
