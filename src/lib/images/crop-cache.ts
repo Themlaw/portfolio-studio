@@ -11,7 +11,8 @@
  *    plafonnée en pixels (CROP_MAX_PIXELS) ;
  *  - une seule extraction à la fois (concurrence 1), file d'attente bornée
  *    (CropBusy → 503 + Retry-After) ; deux demandes de la même variante n'en
- *    font qu'une ;
+ *    font qu'une ; une demande refusée est gardée (bornée) et préparée en fond
+ *    dès que la file se libère : la nouvelle tentative du visiteur la trouve ;
  *  - au plus MAX_RECTS recadrages gardés par média (le plus ancien est effacé) ;
  *  - mémoire : sharp lit le CHEMIN de l'original, l'extraction précède la
  *    réduction, le budget de décodage de budget.ts est vérifié avant.
@@ -33,7 +34,7 @@ import type { VariantFormat } from "./variants";
 /** Recadrages gardés par média ; au-delà, le plus ancien est effacé (il se régénère si on le redemande). */
 export const MAX_RECTS = 32;
 /** Demandes en attente au plus (hors celle en cours) ; au-delà : CropBusy. */
-export const MAX_WAITING = 24;
+export const MAX_WAITING = Math.max(1, Number(process.env.CROP_MAX_WAITING || 24));
 
 /** Demande refusée parce que la file est pleine (réponse 503, à réessayer). */
 export class CropBusy extends Error {}
@@ -114,7 +115,19 @@ function exclusive<T>(fn: () => Promise<T>): Promise<T> {
   );
   return run.finally(() => {
     waiting--;
+    drainDeferred();
   });
+}
+
+/** Demandes refusées (file pleine) gardées pour être préparées en fond ; bornées, les plus anciennes d'abord. */
+const MAX_DEFERRED = 256;
+const deferred = new Map<string, () => Promise<unknown>>();
+function drainDeferred() {
+  while (deferred.size > 0 && waiting < MAX_WAITING) {
+    const [file, start] = deferred.entries().next().value!;
+    deferred.delete(file);
+    start().catch(() => {});
+  }
 }
 
 /** Demandes en cours ou en attente (tests, diagnostic). */
@@ -176,8 +189,16 @@ export async function ensureCrop(media: CropMedia, units: RectUnits, width: numb
   if (hit) return hit;
   let flight = inflight.get(file);
   if (!flight) {
-    flight = exclusive(() => generate(media, units, width, format, file)).finally(() => inflight.delete(file));
-    inflight.set(file, flight);
+    const start = () => {
+      const f = exclusive(() => generate(media, units, width, format, file)).finally(() => inflight.delete(file));
+      inflight.set(file, f);
+      return f;
+    };
+    if (waiting >= MAX_WAITING) {
+      if (deferred.size < MAX_DEFERRED) deferred.set(file, start);
+      throw new CropBusy("file pleine");
+    }
+    flight = start();
   }
   return flight;
 }

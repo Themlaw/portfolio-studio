@@ -5,6 +5,7 @@ import CollectionTiles, { type Tile } from "@/components/CollectionTiles";
 import Eyebrow from "@/components/Eyebrow";
 import { countCollection, getCollectionCover } from "@/lib/gallery";
 import { cropSources } from "@/lib/images/crop";
+import { scaleSizes } from "@/lib/images/sizes";
 import { signCrop } from "@/lib/images/crop-cache";
 import { cropVars } from "@/lib/look";
 import { mediaUrl } from "@/lib/media";
@@ -43,6 +44,9 @@ export default async function CollectionTilesBlock({
       key: item.collection,
       ...(crop && !crop.rect ? { cropStyle: cropVars(crop) } : {}),
       ...(free ? { free: true } : {}),
+      ...(free && crop?.rect && cover.sources
+        ? { fallback: { src: cover.image, sources: cover.sources, width: cover.width, height: cover.height, sizes: scaleSizes("(min-width: 768px) 66vw, 100vw", 1 / crop.rect.w), rect: crop.rect } }
+        : {}),
       ...(ctx.edit && cover.mediaId && cover.sources && !cover.video ? { full: { src: cover.image, ratio: cover.width / Math.max(1, cover.height), w: cover.width, h: cover.height } } : {}),
       href: await hrefForPage(item.pageId, ctx.locale),
       eyebrow: tr(item.eyebrow, ctx.locale),

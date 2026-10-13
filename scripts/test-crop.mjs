@@ -9,7 +9,7 @@
  *     variante, largeur hors liste refusée, file d'attente bornée, au plus MAX_RECTS par média, purge.
  * Usage : node --import tsx scripts/test-crop.mjs
  */
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -235,8 +235,14 @@ try {
   const done = results.filter((r) => r.status === "fulfilled").length;
   const other = results.filter((r) => r.status === "rejected" && !(r.reason instanceof cache.CropBusy));
   ok(`file pleine : ${busy} demande(s) refusée(s) (CropBusy), ${done} traitée(s), aucune autre erreur`, busy >= 1 && done >= cache.MAX_WAITING && other.length === 0, other.map((o) => String(o.reason)).join("; "));
-  await sleep(50);
-  ok("file vidée ensuite", cache.cropQueueLength() === 0);
+  for (const end = Date.now() + 20000; Date.now() < end && cache.cropQueueLength() > 0; await sleep(50));
+  ok("file vidée ensuite (demandes gardées comprises)", cache.cropQueueLength() === 0);
+  // Les demandes refusées ne sont pas perdues : la variante est préparée en fond dès que la file se libère (la nouvelle tentative du visiteur la trouve).
+  const refused = results.map((r, i) => (r.status === "rejected" && r.reason instanceof cache.CropBusy ? many[i] : null)).filter(Boolean);
+  ok("demandes refusées (503) : variantes préparées en fond, présentes sur disque peu après", refused.length > 0 && (await (async () => {
+    for (const end = Date.now() + 20000; Date.now() < end; await sleep(100)) if (refused.every((u) => existsSync(cache.cropFile(3, u, 480, "webp")))) return true;
+    return false;
+  })()), `${refused.filter((u) => existsSync(cache.cropFile(3, u, 480, "webp"))).length}/${refused.length}`);
 
   // Au plus MAX_RECTS recadrages par média : le plus ancien part.
   for (let i = 0; i < cache.MAX_RECTS + 4; i++) {

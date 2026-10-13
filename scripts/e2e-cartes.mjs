@@ -377,21 +377,31 @@ if (run("B") || run("C"))
   await page.keyboard.press("Escape");
   await settled();
 
-  // Annuler / Rétablir passent par l'historique de l'éditeur.
-  const before = JSON.stringify(inkBlocks()[0].props.surface);
-  let undone = 0;
-  for (; undone < 4; ) {
-    await page.locator('button.a-icon-btn[aria-label="Annuler"]').click();
-    undone++;
-    await settled();
-    if (JSON.stringify(inkBlocks()[0]?.props.surface) !== before) break;
-  }
-  ok("B8 Annuler : la dernière couleur est défaite", JSON.stringify(inkBlocks()[0]?.props.surface) !== before, before);
-  for (let k = 0; k < undone; k++) {
-    await page.locator('button.a-icon-btn[aria-label="Rétablir"]').click();
-    await settled();
-  }
-  ok("B8 Rétablir : elle revient", await waitFor(() => JSON.stringify(inkBlocks()[0]?.props.surface) === before), JSON.stringify(inkBlocks()[0]?.props.surface));
+  // Annuler / Rétablir passent par l'historique de l'éditeur : UN PAS PAR RÉGLAGE DISTINCT. Deux clics du popover (une couleur de la
+  // palette, puis la largeur) enchaînés bien en moins de 1,2 s ne sont jamais fusionnés ; seuls les glissements continus (roue, curseurs) le sont.
+  const look = (s) => ({ color: s?.color ?? null, width: s?.width ?? "inset" });
+  const surfaceNow = () => look(inkBlocks()[0]?.props.surface);
+  const s0 = surfaceNow();
+  const s1 = { ...s0, color: "primary" };
+  const s2 = { ...s1, width: "full" };
+  if (!(await menu.isVisible())) await fond.click();
+  await menu.waitFor();
+  await menu.locator('[data-token="primary"]').click();
+  await menu.locator('[data-width="full"]').click();
+  ok("B8 deux réglages enchaînés : le brouillon porte les deux", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s2)), JSON.stringify(surfaceNow()));
+  await settled();
+  await page.keyboard.press("Escape");
+  await settled();
+  const undo = page.locator('button.a-icon-btn[aria-label="Annuler"]');
+  const redo = page.locator('button.a-icon-btn[aria-label="Rétablir"]');
+  await undo.click();
+  ok("B8 Annuler (1er pas) : seule la largeur est défaite, la couleur reste", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s1)), JSON.stringify(surfaceNow()));
+  await undo.click();
+  ok("B8 Annuler (2e pas) : la couleur d'avant revient", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s0)), JSON.stringify(surfaceNow()));
+  await redo.click();
+  ok("B8 Rétablir (1er pas) : la couleur revient, pas la largeur", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s1)), JSON.stringify(surfaceNow()));
+  await redo.click();
+  ok("B8 Rétablir (2e pas) : la largeur revient", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s2)), JSON.stringify(surfaceNow()));
   await settled();
 
   // Deuxième rubrique : carte sombre (jeton « Texte »), pleine largeur, coins droits.

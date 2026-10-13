@@ -13,7 +13,7 @@
  * Une route qui ajoute un job appelle wakeWorker() ; sinon le worker relève la
  * file toutes les 2 s.
  */
-import { and, asc, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
@@ -22,6 +22,7 @@ import sharp from "sharp";
 import { dataDir, getDb, schema } from "@/lib/db";
 import { isHeavyImage } from "@/lib/images/budget";
 import { originalFile, processImage, processingError } from "@/lib/images/process";
+import { enqueueCropWarmAll, runCropWarm } from "@/lib/jobs/crop-warm";
 import { memoryGate } from "@/lib/jobs/memory-gate";
 import { getStorage } from "@/lib/storage";
 import { videoLimits } from "@/lib/video/limits";
@@ -46,7 +47,7 @@ const GAVE_UP = "Le traitement a échoué plusieurs fois. Supprime le fichier et
 /** Purge des envois abandonnés : au démarrage puis toutes les 15 minutes. */
 const PURGE_EVERY_MS = 15 * 60_000;
 type Lane = "light" | "heavy";
-const LANES: Record<Lane, ("image" | "video" | "kit" | "kit-import" | "pdf")[]> = { light: ["image"], heavy: ["video", "kit", "kit-import", "pdf"] };
+const LANES: Record<Lane, ("image" | "video" | "kit" | "kit-import" | "pdf" | "crop-warm")[]> = { light: ["image", "crop-warm"], heavy: ["video", "kit", "kit-import", "pdf"] };
 type State = { busy: Record<Lane, boolean>; started: boolean; timer?: NodeJS.Timeout; /** Jobs en cours dans ce processus (le chien de garde ne les touche pas). */ current: Set<number> };
 const G = globalThis as typeof globalThis & { __portfolioJobs2?: State };
 
@@ -70,7 +71,7 @@ function candidates(lane: Lane): Job[] {
     .select()
     .from(schema.jobs)
     .where(and(inArray(schema.jobs.kind, LANES[lane]), eq(schema.jobs.status, "queued"), or(isNull(schema.jobs.runAfter), lte(schema.jobs.runAfter, new Date()))))
-    .orderBy(asc(schema.jobs.id))
+    .orderBy(sql`case when ${schema.jobs.kind} = 'crop-warm' then 1 else 0 end`, asc(schema.jobs.id))
     .limit(25)
     .all();
 }
@@ -186,6 +187,32 @@ async function runImageJob(job: { id: number; mediaId: number; attempts: number 
     settleFailure({ id: job.id, mediaId: media.id }, message, retry ? later(job.attempts) : null);
   }
   await notifyMediaChanged(media.id);
+}
+
+/**
+ * Préchauffage des recadrages d'une page (src/lib/jobs/crop-warm.ts) : la file image le sert en dernier et cède la
+ * place dès qu'une image attend (le job se remet en file avec sa progression, sans compter un essai).
+ */
+async function runCropWarmJob(job: { id: number; attempts: number; payload: Record<string, unknown> | null }) {
+  const db = getDb();
+  const pageId = Number(job.payload?.pageId);
+  const offset = Number(job.payload?.offset) || 0;
+  try {
+    const waiting = () => candidates("light").some((j) => j.kind !== "crop-warm");
+    const out = await runCropWarm({ pageId, offset }, waiting);
+    if (out.done) {
+      db.delete(schema.jobs).where(eq(schema.jobs.id, job.id)).run();
+      if (out.made) console.log(`[jobs] recadrages de la page ${pageId} : ${out.made} variante(s) préparée(s)`);
+    } else {
+      db.update(schema.jobs).set({ status: "queued", attempts: 0, payload: { pageId, offset: out.offset }, runAfter: null, updatedAt: new Date() }).where(eq(schema.jobs.id, job.id)).run();
+    }
+  } catch (error) {
+    const raw = error instanceof Error ? error.message : String(error);
+    console.warn(`[jobs] préchauffage des recadrages (page ${pageId}) : ${raw} (essai ${job.attempts})`);
+    // Serveur pas encore prêt, page en erreur : quelques essais espacés, sinon abandon silencieux (la route génère à la demande).
+    if (job.attempts < MAX_ATTEMPTS) settleFailure({ id: job.id, mediaId: null }, raw, later(job.attempts));
+    else db.delete(schema.jobs).where(eq(schema.jobs.id, job.id)).run();
+  }
 }
 
 const VIDEO_FAILED = "La vidéo n'a pas pu être convertie (fichier abîmé ou codec non pris en charge). Exporte-la de nouveau en MP4 (H.264) puis renvoie-la.";
@@ -327,6 +354,7 @@ async function runJob(job: NonNullable<Awaited<ReturnType<typeof claim>>>) {
     } else if (job.kind === "image" && job.mediaId) await runImageJob({ ...job, mediaId: job.mediaId });
     else if (job.kind === "video" && job.mediaId) await runVideoJob({ ...job, mediaId: job.mediaId });
     else if (job.kind === "pdf" && job.mediaId) await runPdfJob({ ...job, mediaId: job.mediaId });
+    else if (job.kind === "crop-warm") await runCropWarmJob(job);
     else if (job.kind === "kit") await memoryGate().run("kit", () => runKitJob(job));
     else if (job.kind === "kit-import") await memoryGate().run("kit", () => runKitImportJob(job));
     else {
@@ -514,6 +542,10 @@ export async function startWorker() {
     if (/^video-\d+-\d+$/.test(name) || isPdfTmpName(name)) await rm(path.join(/* turbopackIgnore: true */ uploadTmpDir(), name), { recursive: true, force: true });
   }
   await purgeTmp();
+  // Préchauffage des recadrages de chaque page publiée (les jobs en file d'une exécution précédente sont refaits).
+  db.delete(schema.jobs).where(and(eq(schema.jobs.kind, "crop-warm"), inArray(schema.jobs.status, ["queued", "running"]))).run();
+  const warmed = enqueueCropWarmAll();
+  if (warmed) console.log(`[jobs] préchauffage des recadrages : ${warmed} page(s) publiée(s) en file`);
   s.timer = setInterval(() => wakeWorker(), 2000);
   s.timer.unref();
   setInterval(() => void purgeTmp(), PURGE_EVERY_MS).unref();

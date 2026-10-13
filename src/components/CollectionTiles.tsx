@@ -1,6 +1,6 @@
 import type { PictureSources } from "@/lib/images/variants";
 
-import Picture from "./Picture";
+import Picture, { type CropFallback } from "./Picture";
 
 import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
 
@@ -14,6 +14,8 @@ export type Tile = {
   cropStyle?: Record<string, string>;
   /** Recadrage libre : l'image est la zone gardée (variante extraite de l'original), la tuile prend son rapport. */
   free?: boolean;
+  /** Recadrage libre : l'image entière à montrer si la variante recadrée n'est pas prête. */
+  fallback?: CropFallback;
   /** Vue brouillon : l'image ENTIÈRE de la couverture (modale « Cadrer l'image »). */
   full?: { src: string; ratio: number; w: number; h: number };
   /** Chemin sans langue, résolu depuis la page cible en base. */
@@ -75,6 +77,7 @@ export default function CollectionTiles({
                   sizes={scaleSizes("(min-width: 768px) 66vw, 100vw", coverFactor(tile.width / Math.max(1, tile.height), parseRatio(fixed), Number(tile.cropStyle?.["--crop-zoom"]) || 1))}
                   className="h-auto w-full rounded-[2px]"
                   cropped={tile.free}
+                  fallback={tile.fallback}
                 />
               </span>
             </div>

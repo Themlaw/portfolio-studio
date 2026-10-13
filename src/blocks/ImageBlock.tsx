@@ -70,6 +70,18 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
   const caption = props.caption ? tr(props.caption, ctx.locale) : "";
   const ratioAttr = !free && props.ratio && props.ratio !== "auto" ? { "data-ratio": props.ratio } : {};
   const editFull = ctx.edit && image ? { "data-full-src": image.url, "data-full-ratio": natural.toFixed(5), "data-full-px": `${image.width ?? 0}x${image.height ?? 0}` } : {};
+  // Repli si la variante recadrée n'est pas prête (générée à la demande, une à la fois) : l'image entière, cadrée en CSS.
+  const fallback =
+    cropped && image?.sources
+      ? {
+          src: image.url,
+          sources: image.sources,
+          width: image.width ?? 1200,
+          height: image.height ?? 800,
+          sizes: scaleSizes(baseSizes, free && resolved ? 1 / resolved.rect.w : coverFactor(natural, box, crop?.zoom)),
+          ...(free && resolved ? { rect: resolved.rect } : {}),
+        }
+      : undefined;
   const body = (
     <figure
       className={`block-image ${ctx.cell ? "" : props.width === "text" ? "max-w-2xl" : ""}`}
@@ -81,7 +93,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
     >
       {image ? (
         <span
-          className={legacy && !resolved ? "block-image-frame" : "block"}
+          className={legacy ? "block-image-frame" : "block"}
           data-edit-media={ctx.edit ? "mediaId" : undefined}
           data-edit-media-kind={ctx.edit ? "image" : undefined}
           {...editFull}
@@ -95,6 +107,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
             sizes={scaleSizes(baseSizes, stretch)}
             className="block-image-media h-auto w-full rounded-strip"
             cropped={Boolean(cropped)}
+            fallback={fallback}
           />
         </span>
       ) : (

@@ -15,10 +15,13 @@
  *  P  page publiée : variantes recadrées servies, aucun repère d'édition dans le HTML.
  *  X  suppression d'un média : son dossier de variantes recadrées disparaît.
  *  M  petit écran (390 px) : portrait plafonné, panorama entier.
+ *  F  40 recadrages À FROID (serveur lancé avec CROP_WARM=0 et CROP_MAX_WAITING=3 : la file déborde, la route répond 503) :
+ *     aucune image cassée à l'écran, l'image entière cadrée en CSS (bon personnage, pixels) prend la place, puis les variantes
+ *     recadrées la remplacent. Suite « crop17g » (ONLY=F).
  * BEFORE=1 : sans les recadrages libres (captures « avant » sur l'ancien code).
- * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=L,R,D,P,X,M] [SHOTS=dossier] node scripts/e2e-crop.mjs
+ * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=L,R,D,P,X,M,F] [SHOTS=dossier] node scripts/e2e-crop.mjs
  */
-import { existsSync, mkdirSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -495,6 +498,110 @@ if (run("X") && !BEFORE) {
   await page.locator("dialog[open]").getByRole("button", { name: "Supprimer", exact: true }).click();
   ok("X média supprimé", await waitFor(() => !mediaOf(name), 30000));
   ok("X son dossier de variantes recadrées est purgé", await waitFor(() => !existsSync(dir), 15000));
+}
+
+/* ---- F : 40 recadrages à froid, file pleine (503) : repli sans image cassée ------------------ */
+if (run("F") && !BEFORE) {
+  const QUADS = [
+    [0, 0, "red"],
+    [0.5, 0, "green"],
+    [0, 0.5, "blue"],
+    [0.5, 0.5, "yellow"],
+  ];
+  // 40 rectangles distincts, chacun DANS un personnage (position et taille variées).
+  const cases = Array.from({ length: 40 }, (_, i) => {
+    const [qx, qy, color] = QUADS[i % 4];
+    const w = 0.16 + (i % 5) * 0.04;
+    const h = 0.18 + (i % 3) * 0.08;
+    const rect = { x: qx + 0.02 + ((i * 7) % 10) * 0.01, y: qy + 0.02 + ((i * 3) % 10) * 0.01, w, h };
+    return { uid: `f${i}`, color, rect };
+  });
+  setDraft(cases.map((c) => img(c.uid, SHEET, {}, rectCrop(c.rect))));
+  await openEditor();
+  await sleep(1000);
+  await settled();
+  await page.getByRole("button", { name: "Publier", exact: true }).click();
+  ok("F page publiée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+  // À froid : aucune variante recadrée sur le disque.
+  await sleep(1500);
+  rmSync(path.join(DATA, "cache", "crops"), { recursive: true, force: true });
+  const pub = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
+  const pp = await pub.newPage();
+  const busy = [];
+  const bad = [];
+  pp.on("response", (r) => {
+    if (!r.url().includes("/media/crop/")) return;
+    if (r.status() === 503) busy.push(r.url());
+    else if (r.status() >= 400) bad.push(`${r.status()} ${r.url()}`);
+  });
+  await pp.goto(`${BASE}/fr/personnages`, { waitUntil: "domcontentloaded" });
+  await pp.evaluate(() => document.querySelectorAll("img").forEach((i) => (i.loading = "eager")));
+  // Images « à l'écran » : toutes celles des blocs, hors sondes invisibles de nouvel essai. Une image cassée AVANT l'hydratation
+  // (la page n'a pas encore ses gestionnaires) est remplacée dès que React la prend en charge : on ne retient que celles
+  // qui restent cassées, hydratées, d'un échantillon au suivant.
+  const state = () =>
+    pp.evaluate(() => {
+      const imgs = [...document.querySelectorAll("figure.block-image img:not([aria-hidden])")];
+      const hydrated = (i) => Object.keys(i).some((k) => k.startsWith("__reactProps"));
+      const broken = imgs.map((i, n) => (i.complete && i.naturalWidth === 0 ? n : -1)).filter((n) => n >= 0);
+      return { n: imgs.length, broken: broken.length, stuck: broken.filter((n) => hydrated(imgs[n])), pending: imgs.filter((i) => !i.complete).length, fallbacks: document.querySelectorAll("[data-crop-fallback]").length };
+    });
+  ok("F les 40 blocs sont affichés", await waitFor(async () => (await state()).n >= 40, 120000), JSON.stringify(await state()));
+  // Fenêtre où la file déborde : on observe jusqu'à ce que tout soit posé, en comptant les images cassées à CHAQUE instant.
+  let preBroken = 0;
+  let stuckMax = 0;
+  let sawFallback = false;
+  let lastStuck = [];
+  const end = Date.now() + 90000;
+  while (Date.now() < end) {
+    const st = await state();
+    preBroken = Math.max(preBroken, st.broken);
+    const again = st.stuck.filter((n) => lastStuck.includes(n));
+    stuckMax = Math.max(stuckMax, again.length);
+    lastStuck = st.stuck;
+    if (st.fallbacks > 0) sawFallback = true;
+    if (st.pending === 0 && st.fallbacks > 0 && sawFallback) break;
+    await sleep(250);
+  }
+  console.log(`  images cassées avant hydratation (max, transitoire) : ${preBroken}`);
+  const maxBroken = stuckMax;
+  ok(`F la file a débordé (${busy.length} réponses 503) et le repli s'est affiché`, busy.length > 0 && sawFallback, `${busy.length} 503, repli : ${sawFallback}`);
+  ok("F jamais d'image cassée qui reste à l'écran pendant le débordement (hydratée, deux échantillons de suite)", maxBroken === 0, `max ${maxBroken}`);
+  ok("F aucune autre erreur de la route (hors 503)", bad.length === 0, bad.slice(0, 3).join(" | "));
+  // Pixels : chaque cadre montre son personnage (variante recadrée ou image entière cadrée en CSS).
+  const wrong = [];
+  for (const c of cases) {
+    const el = pp.locator(`figure.block-image:has(img)`).nth(Number(c.uid.slice(1)));
+    await el.scrollIntoViewIfNeeded();
+    const shot = await el.locator("img:not([aria-hidden]), [data-crop-fallback]").first().screenshot();
+    const seen = await perso(shot);
+    if (seen !== c.color) wrong.push(`${c.uid}: ${seen} au lieu de ${c.color}`);
+  }
+  ok("F chaque cadre montre le bon personnage (repli ou variante)", wrong.length === 0, wrong.slice(0, 4).join(" | "));
+  // Rapport du cadre = rapport du rectangle, en repli comme en variante.
+  const ratios = await pp.evaluate(() =>
+    [...document.querySelectorAll("figure.block-image")].map((f) => {
+      const box = (f.querySelector("[data-crop-fallback]") ?? f.querySelector("img:not([aria-hidden])"))?.getBoundingClientRect();
+      return box ? box.width / box.height : 0;
+    }),
+  );
+  const badRatio = cases.filter((c, i) => Math.abs(ratios[i] / ((c.rect.w * 4800) / (c.rect.h * 2400)) - 1) > 0.03).map((c) => c.uid);
+  ok("F le cadre garde le rapport de la zone gardée", badRatio.length === 0, badRatio.slice(0, 5).join(","));
+  // Nouvel essai plus tard : les variantes recadrées remplacent l'image entière, toujours sans image cassée.
+  let late = 0;
+  let lastLate = [];
+  const retryEnd = Date.now() + 240000;
+  while (Date.now() < retryEnd) {
+    const st = await state();
+    late = Math.max(late, st.stuck.filter((n) => lastLate.includes(n)).length);
+    lastLate = st.stuck;
+    if (st.fallbacks === 0 && st.pending === 0) break;
+    await sleep(500);
+  }
+  const done = await state();
+  ok("F nouvel essai : plus aucun repli, toutes les variantes recadrées affichées", done.fallbacks === 0 && done.broken === 0, JSON.stringify(done));
+  ok("F toujours aucune image cassée pendant les essais", late === 0, `max ${late}`);
+  await pub.close();
 }
 
 ok("aucune erreur JavaScript de page", errors.length === 0, errors.slice(0, 3).join(" | "));

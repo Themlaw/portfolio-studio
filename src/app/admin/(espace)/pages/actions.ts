@@ -20,6 +20,7 @@ import { boardOp, createDraftProject, restoreBoard, type BoardResult } from "@/l
 import { saveSiteDraft, type SiteResult } from "@/lib/edit/site";
 import { collectFonts, installGoogleFont, type InstallResult } from "@/lib/fonts/library";
 import { fail, type ActionResult } from "@/lib/edit/result";
+import { enqueueCropWarm } from "@/lib/jobs/crop-warm";
 import { revalidateNav, revalidatePage, revalidateProject, revalidateSettings } from "@/lib/revalidate";
 
 const Id = z.number().int().positive();
@@ -47,6 +48,7 @@ export async function savePageAction(id: unknown, input: unknown, rev: unknown):
   const result = savePageFromForm(pid, input, rev);
   if (!result.ok) return result;
   revalidatePage(pid, { structure: true });
+  enqueueCropWarm(pid);
   if (result.data.site) revalidateSettings();
   for (const project of result.data.projects) revalidateProject(project, { structure: true });
   return { ok: true, data: { rev: result.data.rev } };
@@ -72,6 +74,8 @@ export async function publishDraftAction(id: unknown, rev: unknown): Promise<Dra
   const result = publishDraft(pid, rev);
   if (!result.ok) return result;
   revalidatePage(pid, { structure: true });
+  // Recadrages de la page publiée préparés en fond (file image, basse priorité) : pas de première visite lente.
+  enqueueCropWarm(pid);
   // En-tête, pied ou réseaux publiés avec la page : toutes les pages changent.
   if (result.data.site) revalidateSettings();
   for (const project of result.data.projects) revalidateProject(project, { structure: true });
@@ -146,6 +150,7 @@ export async function setPublishedAction(id: unknown, published: unknown): Promi
   if (result.ok) {
     syncDraftFlags(pid, { published });
     revalidatePage(pid, { structure: true });
+    if (published) enqueueCropWarm(pid);
   }
   return result;
 }
