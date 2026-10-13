@@ -42,6 +42,9 @@ export type BlockContext = {
   pageBlocks?: { type: string; props: unknown }[];
   /** Rendu dans une cellule de grille : pas de marges de section. */
   cell?: boolean;
+  /** Cellule de grille : nombre de colonnes (≥ 768 px) et format imposé aux images (« auto » = le leur). */
+  cellColumns?: number;
+  cellRatio?: string;
   /** Identifiant en base du bloc rendu (version publiée ; négatif en vue brouillon). */
   blockId?: number;
   /** Réglages de mise en page du bloc (props.look, lot 2) : styles de ses textes. */

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import Picture from "@/components/Picture";
+import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { getMedia } from "@/lib/media";
 
 import { inline, localized, mediaRef, tr, type BlockContext } from "./types";
@@ -24,6 +25,17 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
   const media = await getMedia(props.mediaId);
   const image = media && !media.video && !media.pdf ? media : null;
   if (!image && !ctx.edit) return null;
+  // Cadre au format imposé (le sien, sinon celui de la grille) + zoom du cadrage : l'image est
+  // affichée plus large que son cadre, `sizes` doit en tenir compte (variante nette).
+  const box = parseRatio(props.ratio && props.ratio !== "auto" ? props.ratio : ctx.cell ? ctx.cellRatio : undefined);
+  const stretch = image ? coverFactor((image.width ?? 1200) / Math.max(1, image.height ?? 800), box, ctx.look?.crop?.mediaId?.zoom) : 1;
+  const cols = ctx.cell ? (ctx.cellColumns ?? 2) : 1;
+  const baseSizes =
+    cols > 1
+      ? `(min-width: 1236px) ${Math.round(1200 / cols)}px, (min-width: 768px) ${(100 / cols).toFixed(1)}vw, 100vw`
+      : ctx.cell || props.width !== "full"
+        ? "(min-width: 1236px) 1200px, 100vw"
+        : "100vw";
   const caption = props.caption ? tr(props.caption, ctx.locale) : "";
   const body = (
     <figure className={`block-image ${ctx.cell ? "" : props.width === "text" ? "max-w-2xl" : ""}`} data-width={props.width} {...(props.ratio && props.ratio !== "auto" ? { "data-ratio": props.ratio } : {})}>
@@ -35,7 +47,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
             alt={image.alt ? tr(image.alt, ctx.locale) : caption}
             width={image.width ?? 1200}
             height={image.height ?? 800}
-            sizes={ctx.cell ? "(min-width: 768px) 50vw, 100vw" : props.width === "full" ? "100vw" : "(min-width: 1236px) 1200px, 100vw"}
+            sizes={scaleSizes(baseSizes, stretch)}
             className="block-image-media h-auto w-full rounded-strip"
           />
         </span>

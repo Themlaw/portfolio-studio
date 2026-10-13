@@ -2,6 +2,8 @@ import type { PictureSources } from "@/lib/images/variants";
 
 import Picture from "./Picture";
 
+import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
+
 import Eyebrow from "@/components/Eyebrow";
 import { Link } from "@/i18n/navigation";
 
@@ -63,7 +65,8 @@ export default function CollectionTiles({
                   alt={tile.imageAlt}
                   width={tile.width}
                   height={tile.height}
-                  sizes="(min-width: 768px) 66vw, 100vw"
+                  // Image rognée par le format imposé et zoomée par le cadrage : affichée plus large que sa tuile.
+                  sizes={scaleSizes("(min-width: 768px) 66vw, 100vw", coverFactor(tile.width / Math.max(1, tile.height), parseRatio(fixed), Number(tile.cropStyle?.["--crop-zoom"]) || 1))}
                   className="h-auto w-full rounded-[2px]"
                 />
               </span>
