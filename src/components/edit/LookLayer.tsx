@@ -21,8 +21,11 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import FreeCropDialog from "@/components/edit/FreeCropDialog";
 import HeroContrast from "@/components/edit/HeroContrast";
 import { acceptToCanvas } from "@/lib/edit/protocol";
+import { type Rect as CropRect } from "@/lib/images/crop";
+import { parseRatio } from "@/lib/images/sizes";
 import {
   BACKDROP_LABELS,
   BACKDROPS,
@@ -505,7 +508,18 @@ function TitlePosition({ uid, type, inCell, rect }: { uid: string; type: string;
 
 /* ---- Cadrage ------------------------------------------------------------------------ */
 
-type CropTarget = { uid: string; field: "mediaId" | "backgroundMediaId" | "portraitMediaId"; media: HTMLImageElement | HTMLVideoElement; /** Tuile de collection : son cadrage vit dans `look.tileCrop[tile]`. */ tile?: TileKey };
+type CropTarget = {
+  uid: string;
+  field: "mediaId" | "backgroundMediaId" | "portraitMediaId";
+  media: HTMLImageElement | HTMLVideoElement;
+  /** Tuile de collection : son cadrage vit dans `look.tileCrop[tile]`. */
+  tile?: TileKey;
+  /**
+   * Bloc Image (lot 17d) : l'image ENTIÈRE (le cadre peut afficher une variante recadrée), son rapport, ses
+   * pixels, et le format imposé au cadre (null : aucun). Recadrage libre possible seulement avec elle.
+   */
+  full?: { src: string; ratio: number; w: number; h: number; box: number | null };
+};
 const CROPPABLE: Record<string, CropTarget["field"]> = { image: "mediaId", hero: "backgroundMediaId", profile: "portraitMediaId" };
 
 function mediaRatio(m: HTMLImageElement | HTMLVideoElement): number {
@@ -524,6 +538,14 @@ function cropTargetAt(t: EventTarget | null): CropTarget | null {
     const tile = tileHost.dataset.editTile as TileKey | undefined;
     const img = tileHost.querySelector<HTMLImageElement>("img");
     if (!tileBlock?.dataset.editBlock || !tile || !(TILE_KEYS as readonly string[]).includes(tile) || !img) return null;
+    // Couverture raster : recadrage libre toujours possible (l'image ENTIÈRE vient de la tuile, pas de la variante affichée).
+    const fullSrc = tileHost.dataset.fullSrc;
+    if (fullSrc) {
+      const [fw, fh] = (tileHost.dataset.fullPx ?? "0x0").split("x").map(Number);
+      const ratio = Number(tileHost.dataset.fullRatio);
+      if (!ratio || !fw || !fh) return null;
+      return { uid: tileBlock.dataset.editBlock, field: "mediaId", media: img, tile, full: { src: fullSrc, ratio, w: fw, h: fh, box: parseRatio(tileHost.closest<HTMLElement>(".tiles")?.dataset.ratio) } };
+    }
     const ir = mediaRatio(img);
     const box = img.getBoundingClientRect();
     // Le zoom agrandit l'image dans son cadre : le cadre (parent) donne le format.
@@ -538,24 +560,86 @@ function cropTargetAt(t: EventTarget | null): CropTarget | null {
   // Ouverture : seulement une image ou vidéo de fond choisie (pas le décor du thème).
   const media = host.querySelector<HTMLImageElement | HTMLVideoElement>(field === "backgroundMediaId" ? ".hero-backdrop img, .hero-backdrop video" : "img");
   if (!media) return null;
+  // Bloc Image : toujours recadrable (libre) ; l'image entière vient du bloc, pas de la variante affichée.
+  const fullSrc = host.dataset.fullSrc;
+  if (field === "mediaId" && fullSrc && media instanceof HTMLImageElement) {
+    const [fw, fh] = (host.dataset.fullPx ?? "0x0").split("x").map(Number);
+    const ratio = Number(host.dataset.fullRatio);
+    if (!ratio || !fw || !fh) return null;
+    const figure = host.closest<HTMLElement>("figure.block-image");
+    const box = parseRatio(figure?.dataset.editBox);
+    return { uid: block.dataset.editBlock, field, media, full: { src: fullSrc, ratio, w: fw, h: fh, box } };
+  }
   const ir = mediaRatio(media);
   const box = media.getBoundingClientRect();
   if (!ir || !box.height || !needsCrop(ir, box.width / box.height)) return null;
   return { uid: block.dataset.editBlock, field, media };
 }
 
+/** Onglets Libre / Cadre du bloc de la modale « Cadrer l'image ». */
+function CropTabs({ mode, onMode }: { mode: "free" | "frame"; onMode: (m: "free" | "frame") => void }) {
+  return (
+    <div className="lk-crop-tabs" role="tablist" aria-label="Mode de cadrage">
+      <button type="button" role="tab" aria-selected={mode === "free"} onClick={() => onMode("free")}>
+        Libre
+      </button>
+      <button type="button" role="tab" aria-selected={mode === "frame"} onClick={() => onMode("frame")} title="Point focal et zoom dans le format imposé au bloc">
+        Dans le cadre du bloc
+      </button>
+    </div>
+  );
+}
+
+/** Modale de cadrage : « Libre » par défaut pour une image seule ; « Dans le cadre du bloc » (point focal + zoom) quand un format est imposé. */
 function CropDialog({ target, onClose }: { target: CropTarget; onClose: () => void }) {
+  const look = lookOf(target.uid);
+  const existing = target.tile ? look.tileCrop?.[target.tile] : look.crop?.[target.field];
+  const full = target.full;
+  // Cadre au format imposé : l'ancien mode (point focal + zoom) reste possible, et reste ouvert s'il est déjà réglé.
+  const frameOk = Boolean(full?.box) || Boolean(existing && !existing.rect);
+  const [mode, setMode] = useState<"free" | "frame">(full && !(existing && !existing.rect && frameOk) ? "free" : "frame");
+  if (full && mode === "free") {
+    return (
+      <FreeCropDialog
+        src={full.src}
+        px={{ w: full.w, h: full.h }}
+        initial={existing?.rect ?? null}
+        tabs={frameOk ? <CropTabs mode="free" onMode={setMode} /> : undefined}
+        onClose={onClose}
+        onSave={(rect: CropRect | null) => {
+          if (target.tile) {
+            const tiles = { ...(look.tileCrop ?? {}) };
+            if (rect) tiles[target.tile] = { x: 50, y: 50, zoom: 1, rect };
+            else delete tiles[target.tile];
+            sendLook(target.uid, { ...look, tileCrop: tiles });
+          } else {
+            const next = { ...(look.crop ?? {}) };
+            if (rect) next[target.field] = { x: 50, y: 50, zoom: 1, rect };
+            else delete next[target.field];
+            sendLook(target.uid, { ...look, crop: next });
+          }
+          onClose();
+        }}
+      />
+    );
+  }
+  return <FrameCropDialog target={target} onClose={onClose} tabs={full && frameOk ? <CropTabs mode="frame" onMode={setMode} /> : undefined} />;
+}
+
+function FrameCropDialog({ target, onClose, tabs }: { target: CropTarget; onClose: () => void; tabs?: React.ReactNode }) {
   const look = lookOf(target.uid);
   // Une tuile : le cadre est le parent de l'image (l'image zoomée déborde de sa boîte).
   const box = (target.tile ? target.media.closest("[data-edit-tile]") ?? target.media : target.media).getBoundingClientRect();
-  const boxRatio = box.width / box.height;
-  const ir = mediaRatio(target.media);
-  const [crop, setCrop] = useState<Crop>((target.tile ? look.tileCrop?.[target.tile] : look.crop?.[target.field]) ?? { x: 50, y: 50, zoom: 1 });
+  // Bloc Image : le format du cadre est celui que le bloc impose (l'image affichée peut être une variante recadrée).
+  const boxRatio = target.full?.box ?? box.width / box.height;
+  const ir = target.full?.ratio ?? mediaRatio(target.media);
+  const stored = target.tile ? look.tileCrop?.[target.tile] : look.crop?.[target.field];
+  const [crop, setCrop] = useState<Crop>(stored && !stored.rect ? stored : { x: 50, y: 50, zoom: 1 });
   const stage = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDivElement>(null);
   useEffect(() => dialog.current?.focus(), []);
   const win = cropWindow(crop, ir, boxRatio);
-  const src = target.media instanceof HTMLImageElement ? target.media.currentSrc || target.media.src : "";
+  const src = target.full?.src ?? (target.media instanceof HTMLImageElement ? target.media.currentSrc || target.media.src : "");
   const poster = target.media instanceof HTMLVideoElement ? target.media.poster : "";
   // Taille de l'image affichée : tient dans 80 % × 62 % de la fenêtre.
   const maxW = window.innerWidth * 0.8;
@@ -640,6 +724,7 @@ function CropDialog({ target, onClose }: { target: CropTarget; onClose: () => vo
         }}
       >
         <p className="lk-crop-title">Cadrer l&apos;image</p>
+        {tabs}
         <p className="lk-crop-help">La zone claire est gardée sur la page. Glisse-la, zoome à la molette (ou + / −) ; flèches pour la déplacer.</p>
         <div
           ref={stage}

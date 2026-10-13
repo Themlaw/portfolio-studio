@@ -145,17 +145,17 @@ export function BlockLookPanel({ type, look, inCell, onChange }: { type: string;
           <ul className="lp-list">
             {crops.map((k) => (
               <li key={k}>
-                {CROP_LABELS[k] ?? k} · zoom {Math.round((look.crop![k as "mediaId"]!.zoom ?? 1) * 100)} %
+                {CROP_LABELS[k] ?? k} · {look.crop![k as "mediaId"]!.rect ? "recadrage libre" : `zoom ${Math.round((look.crop![k as "mediaId"]!.zoom ?? 1) * 100)} %`}
                 <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => { const crop = { ...look.crop }; delete crop[k as "mediaId"]; set({ crop }); }}>
-                  Recentrer
+                  {look.crop![k as "mediaId"]!.rect ? "Image entière" : "Recentrer"}
                 </button>
               </li>
             ))}
             {tileCrops.map((k) => (
               <li key={`tile-${k}`}>
-                Tuile « {TILE_LABELS[k]} » · zoom {Math.round((look.tileCrop![k]!.zoom ?? 1) * 100)} %
+                Tuile « {TILE_LABELS[k]} » · {look.tileCrop![k]!.rect ? "recadrage libre" : `zoom ${Math.round((look.tileCrop![k]!.zoom ?? 1) * 100)} %`}
                 <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => { const tileCrop = { ...look.tileCrop }; delete tileCrop[k]; set({ tileCrop }); }}>
-                  Recentrer
+                  {look.tileCrop![k]!.rect ? "Image entière" : "Recentrer"}
                 </button>
               </li>
             ))}
