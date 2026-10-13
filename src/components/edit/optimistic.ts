@@ -31,6 +31,10 @@
  * le texte (`textContent`), l'efface. Marqueur encore là au retrait = React n'a
  * rien réécrit, la valeur affichée est celle de l'aperçu : on rétablit l'origine.
  *
+ * Carte de rubrique (lot 17c) : l'enveloppe `.surface-card` est TOUJOURS dans la page rendue en édition
+ * (sans carte : `display: contents`) ; l'aperçu n'y change que des attributs et des variables CSS, jamais un
+ * nœud de React (`previewSurface`).
+ *
  * Plusieurs nœuds (accroche à passage surligné) : l'aperçu est un élément à nous posé à côté de
  * l'enveloppe de React, qui est seulement cachée (`previewMarked`). Listes du site (menu, réseaux,
  * champs de formulaire) : ordre CSS, retraits cachés, fantômes (`previewList`). Dans les deux cas
@@ -38,6 +42,9 @@
  */
 import { EDIT_MSG, type FromCanvas } from "@/lib/edit/protocol";
 import { parseMarked } from "@/lib/marked";
+
+import { parseColor, toHex } from "@/themes/palette";
+import { cardStyle, cardVars, FALLBACK_CARD, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
 
 import { markedNodes } from "./marked-edit";
 
@@ -473,4 +480,90 @@ function renderList(list: string) {
 /** Opération sur une liste du site : montrée tout de suite, retirée à l'acquittement ou au refus (son numéro). */
 export function previewList(list: string, op: ListOp, seq: number) {
   setOverlay(`list:${list}:${seq}`, seq, { data: op, apply: () => renderList(list), clear: () => renderList(list) });
+}
+
+/* ---- Carte de rubrique (lot 17c) ------------------------------------------------------------ */
+
+const PALETTE_VARS: Record<keyof CardPalette, string> = {
+  bg: "--t-color-bg",
+  bgDeep: "--t-color-bg-deep",
+  surface: "--t-color-surface",
+  ink: "--t-color-ink",
+  inkSoft: "--t-color-ink-soft",
+  primary: "--t-color-primary",
+  primaryHover: "--t-color-primary-hover",
+  onPrimary: "--t-color-on-primary",
+  secondary: "--t-color-secondary",
+  eyebrow: "--t-color-eyebrow",
+};
+
+/** Palette du thème lue sur la toile (variables émises par le layout) : mêmes entrées que le serveur. */
+export function canvasPalette(): CardPalette {
+  const cs = getComputedStyle(document.documentElement);
+  const out = {} as Record<string, string>;
+  for (const [key, name] of Object.entries(PALETTE_VARS)) out[key] = toHex(parseColor(cs.getPropertyValue(name).trim())?.rgb ?? [0, 0, 0]);
+  return out as CardPalette;
+}
+
+/** Enveloppe de la carte d'un bloc de premier niveau (toujours présente en vue brouillon). */
+function surfaceWrapper(uid: string): HTMLElement | null {
+  return document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"] > .surface-card`);
+}
+
+function parseData<T>(raw: string | undefined): T | null {
+  try {
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Carte du bloc telle qu'on doit la voir (aperçu en attente, sinon page rendue) et réglages par défaut du thème. */
+export function surfaceState(uid: string): { surface: Surface | null; defaults: ResolvedSurface } {
+  const el = surfaceWrapper(uid);
+  const defaults = parseData<ResolvedSurface>(el?.dataset.cardDefault) ?? FALLBACK_CARD;
+  const pending = entries.get(`surface:${uid}`);
+  if (pending) return { surface: (pending.data as { surface: Surface | null }).surface, defaults };
+  return { surface: readSurface(parseData(el?.dataset.editSurface)) ?? null, defaults };
+}
+
+/** État de l'enveloppe avant l'aperçu, pour le rétablir (refus, échec). */
+const surfaceOriginal = new WeakMap<Element, { attrs: Record<string, string | null>; style: string | null }>();
+const SURFACE_ATTRS = ["data-surface", "data-width", "data-corners"];
+
+/**
+ * Carte posée (ou retirée) depuis la toile : montrée tout de suite — attributs et variables CSS de
+ * l'enveloppe —, gardée jusqu'à l'acquittement du serveur, rétablie si l'écriture est refusée. Le serveur
+ * rend ensuite un bloc neuf (sa clé suit les props) : l'enveloppe d'aperçu disparaît avec l'ancien nœud.
+ */
+export function previewSurface(uid: string, surface: Surface | null, seq: number) {
+  setOverlay(`surface:${uid}`, seq, {
+    data: { surface },
+    apply: () => {
+      const el = surfaceWrapper(uid);
+      if (!el) return;
+      if (!surfaceOriginal.has(el)) surfaceOriginal.set(el, { attrs: Object.fromEntries(SURFACE_ATTRS.map((a) => [a, el.getAttribute(a)])), style: el.getAttribute("style") });
+      for (const a of SURFACE_ATTRS) el.removeAttribute(a);
+      el.removeAttribute("style");
+      if (!surface) {
+        el.setAttribute("data-surface", "off");
+        return;
+      }
+      const resolved = resolveSurface(surface, parseData<ResolvedSurface>(el.dataset.cardDefault) ?? undefined);
+      for (const [k, v] of Object.entries(surfaceAttributes(resolved))) el.setAttribute(k, v);
+      for (const [k, v] of Object.entries(cardVars(cardStyle(resolved.color, canvasPalette())))) el.style.setProperty(k, v);
+    },
+    clear: () => {
+      const el = surfaceWrapper(uid);
+      const before = el && surfaceOriginal.get(el);
+      if (!el || !before) return;
+      surfaceOriginal.delete(el);
+      for (const [a, v] of Object.entries(before.attrs)) {
+        if (v === null) el.removeAttribute(a);
+        else el.setAttribute(a, v);
+      }
+      if (before.style === null) el.removeAttribute("style");
+      else el.setAttribute("style", before.style);
+    },
+  });
 }

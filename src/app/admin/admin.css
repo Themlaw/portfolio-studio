@@ -5665,3 +5665,74 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
 .a-type-role > .a-btn {
   margin-top: 10px;
 }
+
+/* ---- Ajouter du texte, d'un geste (lot 17c) ------------------------------------------------------------ */
+.ve-starters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.ve-starter {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  padding: 8px;
+  border: 1px solid var(--admin-accent);
+  border-radius: var(--admin-radius);
+  background: var(--admin-accent-soft);
+  color: var(--admin-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ve-starter .ve-thumb {
+  width: 96px;
+  height: 60px;
+}
+
+.ve-starter strong {
+  font-size: 13px;
+}
+
+.ve-starter:hover {
+  border-color: var(--admin-ink);
+}
+
+/* « Ajouter une rubrique » : fenêtre de choix illustrée. */
+.a-dialog.ve-add {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.ve-add-where {
+  margin: -4px 0 12px;
+  color: var(--admin-ink-soft);
+  font-size: 13px;
+}
+
+.ve-add-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.ve-add-card {
+  cursor: pointer;
+  grid-template-columns: 96px 1fr;
+}
+
+.ve-add-card .ve-thumb {
+  width: 96px;
+  height: 60px;
+}
+
+.ve-add-grid li:nth-child(-n + 2) .ve-add-card {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+}

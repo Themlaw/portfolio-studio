@@ -1387,3 +1387,95 @@ html:not([data-edit-mode]) .pe-media-empty {
     animation: none;
   }
 }
+
+/* ---- Ajouter une rubrique (lot 17c) --------------------------------------------------------------------------
+   « + Ajouter une rubrique » en bas de page (dans la page, BlockList), « + » entre deux rubriques au survol
+   (calque), « Texte » dans une case vide de grille. Le choix illustré est une fenêtre de l'éditeur. */
+.pe-add-end {
+  display: flex;
+  justify-content: center;
+  padding: 28px 16px 36px;
+}
+
+.pe-add-end button,
+.pe-cell-text {
+  margin: 0;
+  border: 2px dashed rgba(46, 78, 158, 0.6);
+  background: rgba(232, 237, 248, 0.7);
+  color: #2e4e9e;
+  font: 600 14px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.pe-add-end button {
+  padding: 12px 22px;
+  border-radius: 999px;
+}
+
+.pe-add-end button:hover,
+.pe-add-end button:focus-visible,
+.pe-cell-text:hover,
+.pe-cell-text:focus-visible {
+  border-style: solid;
+  background: #e8edf8;
+  outline: none;
+}
+
+html:not([data-edit-mode]) .pe-add-end {
+  display: none !important;
+}
+
+.pe-cell-free {
+  align-content: center;
+  gap: 8px;
+}
+
+.pe-cell-text {
+  justify-self: center;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+.pe-gap {
+  position: absolute;
+  left: 0;
+  width: 100vw;
+  height: 0;
+  border-top: 2px dashed rgba(46, 78, 158, 0.55);
+  pointer-events: none;
+}
+
+.pe-gap button {
+  position: absolute;
+  top: -15px;
+  /* Ni sous le fil d'Ariane (à gauche), ni sous la barre d'outils (à droite), ni sur la poignée (au milieu). */
+  left: 28%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin: 0;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pe-accent);
+  color: var(--pe-surface);
+  font: 600 12px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 4px 14px rgba(31, 34, 38, 0.28);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.pe-gap button:hover,
+.pe-gap button:focus-visible {
+  background: var(--pe-ink);
+  outline: none;
+}
+
+html[data-edit-mode] .pe-add-end button,
+html[data-edit-mode] .pe-cell-text {
+  cursor: pointer;
+}

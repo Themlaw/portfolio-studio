@@ -46,26 +46,24 @@ function post(msg: FromCanvas) {
   window.parent.postMessage({ type: EDIT_MSG, ...msg }, window.location.origin);
 }
 
+/** Boîte (fenêtre) d'un élément ; en display: contents, réunion de celles de ses enfants, récursivement (enveloppe de carte comprise). */
+function viewBox(el: Element): { top: number; left: number; right: number; bottom: number } | null {
+  const r = el.getBoundingClientRect();
+  if (r.width || r.height) return { top: r.top, left: r.left, right: r.right, bottom: r.bottom };
+  let out: { top: number; left: number; right: number; bottom: number } | null = null;
+  for (const c of el.children) {
+    const b = viewBox(c);
+    if (!b) continue;
+    out = out ? { top: Math.min(out.top, b.top), left: Math.min(out.left, b.left), right: Math.max(out.right, b.right), bottom: Math.max(out.bottom, b.bottom) } : b;
+  }
+  return out;
+}
+
 /** Boîte d'un élément en coordonnées du document (réunion des enfants s'il est en display: contents). */
 function boxOf(el: Element): Rect | null {
-  let r = el.getBoundingClientRect();
-  if (!r.width && !r.height) {
-    let top = Infinity;
-    let left = Infinity;
-    let right = -Infinity;
-    let bottom = -Infinity;
-    for (const c of el.children) {
-      const b = c.getBoundingClientRect();
-      if (!b.width && !b.height) continue;
-      top = Math.min(top, b.top);
-      left = Math.min(left, b.left);
-      right = Math.max(right, b.right);
-      bottom = Math.max(bottom, b.bottom);
-    }
-    if (top === Infinity) return null;
-    r = new DOMRect(left, top, right - left, bottom - top);
-  }
-  return { top: r.top + window.scrollY, left: r.left + window.scrollX, width: r.width, height: r.height };
+  const r = viewBox(el);
+  if (!r) return null;
+  return { top: r.top + window.scrollY, left: r.left + window.scrollX, width: r.right - r.left, height: r.bottom - r.top };
 }
 
 const slotEls = (rail: Element) => [...rail.querySelectorAll<HTMLElement>(":scope > [data-edit-slot]")];

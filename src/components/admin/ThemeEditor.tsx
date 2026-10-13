@@ -19,6 +19,7 @@ import { contrastRatio, normalizePalette, resolvePalette } from "@/themes/palett
 import { FONT_IDS, type FontId, type Theme } from "@/themes/schema";
 
 import { clone, SaveBar, same, toast, useUnsavedGuard } from "./editing";
+import CardSettings from "./CardSettings";
 import CursorSettings from "./CursorSettings";
 import PaperSettings from "./PaperSettings";
 import KitDownloadButton from "./KitDownloadButton";
@@ -337,6 +338,20 @@ export default function ThemeEditor({ initial, isActive }: { initial: Theme; isA
             />
           </section>
 
+          <CardSettings
+            theme={theme}
+            onChange={(card) =>
+              setTheme((t) => {
+                const layout = { ...t.tokens.layout };
+                if (card) layout.card = card;
+                else delete layout.card;
+                const tokens = { ...t.tokens };
+                if (Object.keys(layout).length) tokens.layout = layout;
+                else delete tokens.layout;
+                return { ...t, tokens };
+              })
+            }
+          />
           <PaperSettings theme={theme} onChange={(kit) => setTheme((t) => ({ ...t, assets: { ...t.assets, kit } }))} />
           <CursorSettings theme={theme} onChange={(kit) => setTheme((t) => ({ ...t, assets: { ...t.assets, kit } }))} />
 

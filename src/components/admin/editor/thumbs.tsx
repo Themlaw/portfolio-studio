@@ -153,6 +153,21 @@ const THUMBS: Record<string, React.ReactNode> = {
 };
 
 export default function BlockThumb({ type, preset }: { type: string; preset?: string }) {
+  // Rubriques de texte proposées en premier (« Ajouter une rubrique », lot 17c).
+  if (preset === "text" || preset === "title-text")
+    return (
+      <svg className="ve-thumb" viewBox="0 0 96 60" width="96" height="60" aria-hidden="true">
+        <rect width="96" height="60" rx="4" fill="var(--admin-bg)" />
+        {preset === "title-text" ? (
+          <>
+            <rect x="10" y="9" width="44" height="7" rx="2" fill={INK} />
+            <Lines x={10} y={24} w={72} n={4} />
+          </>
+        ) : (
+          <Lines x={10} y={13} w={72} n={6} gap={7} />
+        )}
+      </svg>
+    );
   if (preset === "grid-videos")
     return (
       <svg className="ve-thumb" viewBox="0 0 96 60" width="96" height="60" aria-hidden="true">

@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { LookSchema } from "@/lib/look";
 import { markedProblem } from "@/lib/marked";
+import { SurfaceSchema } from "@/themes/surface";
 
 
 import CollectionIntroBlock, { collectionIntroSchema } from "./CollectionIntroBlock";
@@ -51,6 +52,7 @@ import HeroBlock, { heroSchema } from "./HeroBlock";
 import ProfileBlock, { profileSchema } from "./ProfileBlock";
 import ProjectBoardBlock, { projectBoardSchema } from "./ProjectBoardBlock";
 import type { BlockCatalogEntry } from "./editor-types";
+import { helpTextProblem } from "./help-text";
 import { BLOCK_REFS, type BlockRefs } from "./refs";
 import RichTextBlock, { richTextSchema } from "./RichTextBlock";
 import type { BlockContext } from "./types";
@@ -108,7 +110,8 @@ function define<S extends z.ZodType>(def: Omit<BlockDefinition<S>, "refs" | "con
   const container = Object.hasOwn(CONTAINERS, def.type) ? CONTAINERS[def.type] : undefined;
   // Mise en page (lot 2) : tout bloc porte ses réglages `look` (src/lib/look.ts) ;
   // un réglage illisible est ignoré, il ne masque jamais le bloc.
-  const schema = def.schema instanceof z.ZodObject ? def.schema.safeExtend({ look: LookSchema.optional().catch(undefined) }) : def.schema;
+  // Carte de rubrique (lot 17c) : `surface` de même, rendue seulement sur un bloc de premier niveau (BlockList).
+  const schema = def.schema instanceof z.ZodObject ? def.schema.safeExtend({ look: LookSchema.optional().catch(undefined), surface: SurfaceSchema.optional().catch(undefined) }) : def.schema;
   return { ...def, schema, refs, ...(container ? { container } : {}) } as unknown as BlockDefinition;
 }
 
@@ -284,6 +287,8 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       defaults: { title: L, paragraphs: [L] },
       summary: "{title} · {paragraphs} paragraphes",
       inline: ["eyebrow", "title", "paragraphs.*"],
+      // Texte d'aide d'une rubrique neuve (« Ajouter une rubrique ») : à remplacer avant de publier.
+      publishCheck: (props) => helpTextProblem(props),
     }),
     define({
       type: "contact",

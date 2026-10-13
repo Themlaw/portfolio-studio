@@ -32,6 +32,7 @@ import LookLayer from "./edit/LookLayer";
 import GridLayoutIcon, { LAYOUT_LABELS } from "./edit/GridLayoutIcon";
 import { listKeys, noteSettle, observeOverlays, pendingOrder, postIntent, previewLayout, previewMarked, previewOrder, previewText, resetOverlays, revertOverlay, siblingWrappers } from "./edit/optimistic";
 import { closeMarkedEditor, markState, markupOf, openMarkedEditor, toggleMark, type MarkedEditor } from "./edit/marked-edit";
+import SurfaceMenu, { SurfaceButton } from "./edit/SurfaceMenu";
 import { useDismiss } from "./edit/useDismiss";
 import SiteLayer, { FormLayer } from "./SiteLayer";
 
@@ -150,6 +151,22 @@ function markerY(boxes: Box[], index: number): number {
   return (prev.top + prev.height + top[index].top) / 2;
 }
 
+/** Distance (px) du pointeur à une frontière entre deux rubriques pour y proposer « + » (lot 17c). */
+const GAP_REACH = 16;
+
+/**
+ * Frontière entre deux rubriques de la page proche de y (coordonnées du document) : rang d'insertion et
+ * position du « + ». Avant la première rubrique et entre deux ; la fin de page a son bouton fixe.
+ */
+function gapAt(boxes: Box[], y: number): { index: number; top: number } | null {
+  const top = boxes.filter((b) => !b.parent && b.height > 0);
+  for (let i = 0; i < top.length; i++) {
+    const edge = i === 0 ? top[0].top : (top[i - 1].top + top[i - 1].height + top[i].top) / 2;
+    if (Math.abs(y - edge) <= GAP_REACH) return { index: i, top: edge };
+  }
+  return null;
+}
+
 /** Rang d'insertion parmi des boîtes en ordre de lecture (lignes, puis gauche → droite). */
 function readingIndex(children: Rect[], x: number, y: number): number {
   let i = 0;
@@ -210,6 +227,14 @@ export default function EditLayer() {
   const [layoutFor, setLayoutFor] = useState<string | null>(null);
   const [projectPicker, setProjectPicker] = useState<string | null>(null);
   const [markBar, setMarkBar] = useState<MarkBar | null>(null);
+  /** Bloc dont le menu « Fond » (carte de rubrique) est ouvert ; `bump` redessine après un choix (aperçu optimiste). */
+  const [surfaceFor, setSurfaceFor] = useState<string | null>(null);
+  const [, bump] = useState(0);
+  /** « + » proposé entre deux rubriques sous le pointeur. */
+  const [gap, setGap] = useState<{ index: number; top: number } | null>(null);
+  /** Texte à ouvrir en édition dès que son bloc est rendu (rubrique Texte tout juste ajoutée). */
+  const pendingEdit = useRef<{ uid: string; path: string; at: number } | null>(null);
+  const tryEditRef = useRef<() => void>(() => {});
   /** Annuler / Rétablir en cours : résultat inconnu de la toile, état « en cours » jusqu'à l'acquittement. */
   const [pendingLabel, setPendingLabel] = useState<string | null>(null);
   const editing = useRef<Editing | null>(null);
@@ -240,6 +265,7 @@ export default function EditLayer() {
         window.scrollTo({ top: Math.max(0, box.top - 80), behavior: "smooth" });
       }
     }
+    tryEditRef.current();
     const order = next.map((b) => `${b.parent ?? ""}/${b.uid}`).join(",");
     if (order !== lastOrder.current) {
       lastOrder.current = order;
@@ -249,6 +275,7 @@ export default function EditLayer() {
 
   const select = useCallback((uid: string | null, notify = true) => {
     setSelected(uid);
+    setSurfaceFor(null);
     if (notify) post({ kind: "select", uid });
   }, []);
 
@@ -348,7 +375,7 @@ export default function EditLayer() {
   }, []);
 
   const startEdit = useCallback(
-    (el: HTMLElement) => {
+    (el: HTMLElement, opts: { selectAll?: boolean } = {}) => {
       let target: Editing["target"];
       if (el.dataset.siteInline) {
         const index = el.dataset.navIndex !== undefined ? Number(el.dataset.navIndex) : undefined;
@@ -395,11 +422,30 @@ export default function EditLayer() {
       }
       el.setAttribute("data-editing", "");
       el.focus();
-      placeCaretAtEnd(el);
+      if (opts.selectAll) window.getSelection()?.selectAllChildren(el);
+      else placeCaretAtEnd(el);
       el.addEventListener("blur", () => finishEdit(true), { once: true });
     },
     [finishEdit, select, refreshMarkBar],
   );
+
+  // Rubrique Texte tout juste ajoutée : son texte d'aide s'ouvre en édition (sélectionné) dès qu'il est rendu.
+  useEffect(() => {
+    tryEditRef.current = () => {
+      const p = pendingEdit.current;
+      if (!p) return;
+      if (Date.now() - p.at > 20000) {
+        pendingEdit.current = null;
+        return;
+      }
+      if (!document.documentElement.hasAttribute("data-edit-mode")) return;
+      const el = document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(p.uid)}"] [data-inline="${CSS.escape(p.path)}"]`);
+      if (!el) return;
+      pendingEdit.current = null;
+      el.scrollIntoView({ block: "center", behavior: "instant" });
+      startEdit(el, { selectAll: true });
+    };
+  }, [startEdit]);
 
   /* ---- Messages de l'éditeur --------------------------------------------- */
 
@@ -425,8 +471,13 @@ export default function EditLayer() {
             setMode(msg.mode);
           }
           break;
+        case "edit-text":
+          pendingEdit.current = { uid: msg.uid, path: msg.path, at: Date.now() };
+          tryEditRef.current();
+          break;
         case "select": {
           setSelected(msg.uid);
+          setSurfaceFor(null);
           if (msg.uid && msg.scroll) {
             const box = boxesRef.current.find((b) => b.uid === msg.uid);
             if (box) window.scrollTo({ top: Math.max(0, box.top - 80), behavior: "smooth" });
@@ -553,12 +604,34 @@ export default function EditLayer() {
     };
 
     const onMove = (e: PointerEvent) => {
-      if (inLayer(e.target)) return;
-      setHover(targetOf(e.target));
+      // Sur le « + » lui-même : il reste (le pointeur le tient).
+      if (e.target instanceof Element && e.target.closest(".pe-gap")) return;
+      if (!inLayer(e.target)) setHover(targetOf(e.target));
+      // « + » entre deux rubriques : au pointeur seulement (jamais au toucher), pas pendant une saisie.
+      const next = e.pointerType === "touch" || editing.current ? null : gapAt(boxesRef.current, e.clientY + window.scrollY);
+      setGap((cur) => (cur?.index === next?.index && cur?.top === next?.top ? cur : next));
     };
-    const onLeave = () => setHover(null);
+    const onLeave = () => {
+      setHover(null);
+      setGap(null);
+    };
     const onClick = (e: MouseEvent) => {
       if (inLayer(e.target)) return;
+      // Ajouter une rubrique : bouton fixe du bas de page, ou « Texte » d'une case vide de grille (lot 17c).
+      const t = e.target instanceof Element ? e.target : null;
+      const addEnd = t?.closest("[data-edit-add]");
+      const cellText = t?.closest<HTMLElement>("[data-edit-cell-text]");
+      if (addEnd || cellText) {
+        e.preventDefault();
+        e.stopPropagation();
+        finishEdit(true);
+        if (addEnd) post({ kind: "insert", parent: null, index: boxesRef.current.filter((b) => !b.parent).length, what: "choose" });
+        else {
+          const grid = cellText!.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
+          if (grid) post({ kind: "insert", parent: grid, index: boxesRef.current.filter((b) => b.parent === grid).length, what: "text" });
+        }
+        return;
+      }
       if (editing.current && e.target instanceof Node && editing.current.el.contains(e.target)) return;
       // Liens, boutons, formulaires et visionneuses du site restent inertes en édition.
       e.preventDefault();
@@ -575,6 +648,8 @@ export default function EditLayer() {
     };
     const onSubmit = (e: Event) => e.preventDefault();
     const onKey = (e: KeyboardEvent) => {
+      // Menu « Fond » : ses touches (Échap, Suppr…) sont les siennes, pas celles du bloc (useDismiss le ferme).
+      if (e.target instanceof Element && e.target.closest(".sm")) return;
       const mod = e.ctrlKey || e.metaKey;
       // Saisie dans un champ de la couche (planche neuve, texte posé par-dessus) : rien ici.
       if (!editing.current && e.target instanceof HTMLElement && (e.target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName))) return;
@@ -897,6 +972,7 @@ export default function EditLayer() {
                 Agencement
               </button>
             )}
+            {!sel.parent && <SurfaceButton uid={sel.uid} open={surfaceFor === sel.uid} onToggle={() => setSurfaceFor((o) => (o === sel.uid ? null : sel.uid))} />}
             <button type="button" aria-label="Monter" title="Monter" disabled={siblingsOf(sel)[0]?.uid === sel.uid} onClick={() => orderOp("up", sel)}>
               ↑
             </button>
@@ -925,6 +1001,14 @@ export default function EditLayer() {
               ✕
             </button>
           </div>
+          {!sel.parent && surfaceFor === sel.uid && (
+            <SurfaceMenu
+              uid={sel.uid}
+              top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40}
+              onClose={() => setSurfaceFor(null)}
+              onChanged={() => bump((n) => n + 1)}
+            />
+          )}
           {sel.type === "grid" && layoutFor === sel.uid && (
             <LayoutPicker uid={sel.uid} top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40} onClose={() => setLayoutFor(null)} />
           )}
@@ -934,6 +1018,14 @@ export default function EditLayer() {
       {topCount === 0 && (
         <div className="pe-empty" style={{ top: markerY(boxes, 0) }} data-over={drop !== null || undefined}>
           Page vide : glisse un composant ici depuis « Ajouter », ou clique sur l&apos;un d&apos;eux.
+        </div>
+      )}
+
+      {gap && !drag && !surfaceFor && !layoutFor && !projectPicker && (
+        <div className="pe-gap" style={{ top: gap.top }}>
+          <button type="button" data-edit-gap={gap.index} onClick={() => post({ kind: "insert", parent: null, index: gap.index, what: "choose" })}>
+            <span aria-hidden="true">+</span> Ajouter une rubrique
+          </button>
         </div>
       )}
 
