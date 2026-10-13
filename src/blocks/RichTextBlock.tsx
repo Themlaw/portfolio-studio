@@ -15,9 +15,9 @@ export default function RichTextBlock({ props, ctx }: { props: z.infer<typeof ri
   return (
     <section className="shell pt-[var(--section-gap)]">
       <div className="max-w-2xl">
-        {props.eyebrow && <Eyebrow {...inline(ctx, "eyebrow")}>{tr(props.eyebrow, ctx.locale)}</Eyebrow>}
-        {/* En édition, le titre absent reste saisissable en place. */}
-        {(props.title || ctx.edit) && (
+        {/* Titre ou étiquette vides : aucune place en public (pas même leur marge) ; en édition ils restent saisissables. */}
+        {props.eyebrow && (ctx.edit || tr(props.eyebrow, ctx.locale)) && <Eyebrow {...inline(ctx, "eyebrow")}>{tr(props.eyebrow, ctx.locale)}</Eyebrow>}
+        {(ctx.edit || (props.title && tr(props.title, ctx.locale))) && (
           <h2 className="mt-4 font-display text-[clamp(2rem,5vw,3.5rem)] text-ink" {...inline(ctx, "title")} data-placeholder={ctx.edit ? "Titre" : undefined}>
             {props.title ? tr(props.title, ctx.locale) : ""}
           </h2>

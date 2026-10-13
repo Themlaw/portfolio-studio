@@ -193,17 +193,20 @@ if (run("A") || run("B") || run("C"))
   ok("A3 « Titre + texte » ajouté à la fin de la page", await waitFor(() => draftBlocks().length === baseCount + 1 && draftBlocks().at(-1).type === "rich-text" && draftBlocks().at(-1).props.title?.fr === "Titre de la rubrique"));
   ok("A3 édition en place ouverte sur le titre, texte d'aide sélectionné", (await f.locator('[data-editing][data-inline="title"]').waitFor({ timeout: 60000 }).then(() => true, () => false)) && (await selectedText(f)) === "Titre de la rubrique", await selectedText(f));
   await page.screenshot({ path: path.join(SHOTS, "a3-edition-en-place.png") });
-  // Un texte d'aide resté tel quel refuse la publication.
+  // Un texte d'aide resté tel quel : accepté dans le brouillon (enregistré, aucun bandeau d'erreur), refusé à la publication seulement.
   await page.keyboard.press("Escape");
   await settled();
+  ok("A3b texte d'aide laissé tel quel : brouillon enregistré (état « enregistré », pas de bandeau d'erreur)", (await waitFor(() => draftBlocks().at(-1)?.props.title?.fr === "Titre de la rubrique" && draftBlocks().at(-1)?.props.paragraphs?.[0]?.fr === "Écris ton texte ici.")) && /enregistré/i.test((await page.locator(".ve-status").textContent()) ?? "") && (await page.locator(".ve-alert").count()) === 0, (await page.locator(".ve-status").textContent()) ?? "");
   await page.getByRole("button", { name: "Publier", exact: true }).click();
   ok("A4 texte d'aide resté tel quel : publication refusée, message clair", await page.getByText(/Remplace le texte d'exemple/).first().waitFor({ timeout: 60000 }).then(() => true, () => false));
+  ok("A4 le message de refus vient de la publication (bandeau), le brouillon reste enregistré", (await page.locator(".ve-alert").count()) === 1 && /enregistré/i.test((await page.locator(".ve-status").textContent()) ?? ""));
   // Saisie du titre puis du paragraphe.
   await f.locator('[data-edit-type="rich-text"] [data-inline="title"]').last().dblclick();
   await page.keyboard.press("Control+a");
   await page.keyboard.type("Mes carnets d'été");
   await page.keyboard.press("Enter");
   ok("A5 titre saisi en place, enregistré", await waitFor(() => inkBlocks().at(-1)?.props.title?.fr === "Mes carnets d'été"));
+  ok("A5 le bandeau périmé disparaît dès qu'on modifie le brouillon", await page.locator(".ve-alert").waitFor({ state: "detached", timeout: 20000 }).then(() => true, () => false));
   await f.locator('[data-edit-type="rich-text"] [data-inline="paragraphs.0"]').last().dblclick();
   await page.keyboard.press("Control+a");
   await page.keyboard.type("Croquis d'observation au bord de l'eau, pris sur le vif pendant deux semaines de vacances.");
@@ -429,13 +432,19 @@ if (run("C"))
       const cs = getComputedStyle(el);
       const r = el.getBoundingClientRect();
       const text = el.querySelector("p, h2");
-      return { bg: cs.backgroundColor, radius: parseFloat(cs.borderTopLeftRadius) || 0, left: r.left + scrollX, width: r.width, top: r.top + scrollY, height: r.height, vw: document.documentElement.clientWidth, fg: text ? getComputedStyle(text).color : "", width_attr: el.getAttribute("data-width") };
+      const first = el.querySelector("h2, p");
+      const last = [...el.querySelectorAll("p")].at(-1);
+      const gapTop = first ? first.getBoundingClientRect().top - r.top : 0;
+      const gapBottom = last ? r.bottom - last.getBoundingClientRect().bottom : 0;
+      return { gapTop, gapBottom, bg: cs.backgroundColor, radius: parseFloat(cs.borderTopLeftRadius) || 0, left: r.left + scrollX, width: r.width, top: r.top + scrollY, height: r.height, vw: document.documentElement.clientWidth, fg: text ? getComputedStyle(text).color : "", width_attr: el.getAttribute("data-width") };
     }),
   );
   ok("C1 public : deux cartes", cards.length === 2, String(cards.length));
   const [c1, c2] = cards;
   ok("C2 carte 1 : couleur calculée #f6d6e4, en retrait, coins arrondis", same(rgbOf(c1.bg), hexRgb("#f6d6e4")) && c1.left > 20 && c1.width < c1.vw - 40 && c1.radius >= 12, JSON.stringify(c1));
   ok("C2 carte 2 : couleur du texte du thème, bord à bord, coins droits", c2.left < 1 && Math.abs(c2.width - c2.vw) < 2 && c2.radius === 0 && c2.bg !== c1.bg, JSON.stringify(c2));
+  ok("C2b carte 1 : padding symétrique (rien ne s'ajoute en haut, pas de titre vide)", Math.abs(c1.gapTop - c1.gapBottom) <= 8 && c1.gapTop < 80, `haut ${c1.gapTop.toFixed(1)} px, bas ${c1.gapBottom.toFixed(1)} px`);
+  ok("C2b carte 2 : padding symétrique", Math.abs(c2.gapTop - c2.gapBottom) <= 12, `haut ${c2.gapTop.toFixed(1)} px, bas ${c2.gapBottom.toFixed(1)} px`);
   ok("C3 texte lisible dans chaque carte (≥ 4,5:1)", cards.every((c) => ratio(rgbOf(c.fg), rgbOf(c.bg)) >= 4.5), cards.map((c) => `${c.fg}/${c.bg}`).join(" | "));
   // Le papier se voit dans la marge de la carte en retrait (pas dans la carte, bord à bord).
   await pub.evaluate((y) => window.scrollTo(0, Math.max(0, y - 120)), c1.top);

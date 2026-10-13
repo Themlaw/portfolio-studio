@@ -495,6 +495,9 @@ export default function VisualEditor({
       const prev = draftRef.current;
       // Rien de changé (la toile renvoie un état identique) : ni historique ni enregistrement.
       if (next === prev || JSON.stringify(next) === JSON.stringify(prev)) return;
+      // Ce qui a refusé la publication n'est plus vrai du brouillon modifié : le bandeau et les erreurs repartent au prochain « Publier ».
+      setPublishMessage(null);
+      setPublishErrors({});
       history.current = { past: merge ? history.current.past : [...history.current.past, { draft: prev }].slice(-HISTORY_MAX), future: [] };
       bumpHistory();
       coalesce.current = opts.key ? { key: opts.key, at: now } : null;

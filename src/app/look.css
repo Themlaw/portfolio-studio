@@ -206,9 +206,13 @@
   /* Les fonds des composants (bande, section profonde) suivent les coins. */
   overflow: clip;
 }
-/* Dans une carte, l'espace du haut des sections (entre sections de la page) laisse place au padding de la carte ;
-   un espace choisi sur la toile (data-pt) garde la main (spécificité plus haute). */
-.surface-card[data-surface="on"] > section,
-.surface-card[data-surface="on"] > .blk > section {
-  padding-top: var(--t-space-m);
+/* Dans une carte, l'espace du haut que se donne une section (entre sections de la page) est celui de la carte :
+   le padding de la carte reste symétrique (haut = bas). Un espace choisi sur la toile (data-pt) garde la main. */
+.surface-card[data-surface="on"] > [class*="pt-[var(--section-gap)]"],
+.surface-card[data-surface="on"] > .blk > [class*="pt-[var(--section-gap)]"] {
+  padding-top: 0;
+}
+/* … et le premier élément de la section n'ajoute pas sa propre marge haute (titre, paragraphe) : rien ne s'additionne au padding. */
+.surface-card[data-surface="on"] [class*="pt-[var(--section-gap)]"] > :first-child > :first-child {
+  margin-top: 0;
 }
