@@ -206,7 +206,7 @@ Aucune logique de thème dans les composants : `css.ts` émet des variables
 |---|---|---|
 | Plans du hero | `<img>` SVG ou `<picture>` AVIF/WebP, rognés et replacés dans la toile tenue en « cover » (unités `cq*`), ThumbHash en fond jusqu'au chargement, plans opaques seulement (sur un plan détouré, l'alpha flouté déborde et dessine la boîte : bande claire, phase 6c) ; `complete` lu au montage (image chargée avant l'hydratation) ; test `npm run test:kit-hero` ; plan 1 `fetchpriority="high"`, les autres `low` ; parallaxe et `prefers-reduced-motion` inchangés | plan par plan : le calque SVG du thème |
 | Signature | `mask-image` teinté `--color-ink` (`--color-primary` au survol), ratio de l'asset ; le nom reste lu (texte masqué visuellement) | le nom en texte |
-| Papier | tuile `image-set()` AVIF/WebP en fond (affichée à 50 % : tuile 2×) ; superposée au hero (`mix-blend-mode: multiply`, opacité `overHero`, jeton `--t-kit-paper-hero`, défaut discret 0,35, plafond 0,6) | `texture` du thème |
+| Papier | tuile `image-set()` AVIF/WebP en fond (affichée à 50 % : tuile 2×) ; superposée au hero (`mix-blend-mode: multiply`, opacité `overHero`, jeton `--t-kit-paper-hero`, défaut discret 0,35, plafond 0,6) ; **pas sous le bandeau du haut** (lot 17a) : `.site-header` reste un aplat `--color-bg` sauf option de thème `paper.underHeader` (`data-kit-paper-header`, case « Papier sous le bandeau du haut » de l'éditeur) | `texture` du thème |
 | Cadre | `border-image` (9-slice, marges du kit) sur les entrées de collection (`.tile-media`, tuiles de l'accueil) ; plus sur la visionneuse depuis le lot médias (image agrandie posée à nu, fond gris neutre) | passe-partout actuel |
 | Trait | `mask-image` étiré (SVG du trait en `preserveAspectRatio="none"` à l'import : sinon il garde ses proportions au centre de la boîte) : soulignement actif de la nav (`--color-primary`), filets `hr.rule` (`--color-line`), barre du rail : poignée 16 px de longueur proportionnelle (≥ 3 px d'encre au plus mince, mesuré par `kit-contrast.mjs`), piste dessinée en `::before` (un masque sur la piste rognerait la poignée) teinte encre 28 % sur filet | traits CSS |
 | Icônes | `mask-image` + `currentColor` sur les `[data-icon]` (flèches sur les bords des planches (lot médias) et de la visionneuse, fermer, lecture) | glyphes et SVG actuels |
@@ -422,7 +422,7 @@ redessinée → « Utiliser le miroir de ta flèche droite pour la flèche gauch
 l'asset converti (SVG : `matrix(-1 0 0 1 l 0)` ; bitmap : `flop`), sans
 re-tracer (`mirror.ts`). **« Appliquer au thème »** crée une
 copie brouillon « … (kit) » (jamais le thème en ligne), avec les nouveaux assets
-(scotch redessiné : variante « scotch » activée sur la copie), puis ouvre son
+(scotch REDESSINÉ — pas simplement importé faute de kit d'origine : variante « scotch » activée sur la copie ; sinon les variantes du thème de base restent). **Thème de base** (lot 17a) : le kit d'origine est reconnu quel que soit l'écran où le PSD est envoyé ; la copie part du thème dont le kit a été exporté (`reference.themeId`), sinon de celui de l'écran, sinon du thème choisi dans le sélecteur « Kit appliqué sur le thème » (`?base=`, listé avec « en ligne » et « thème d'origine du kit » ; la revue — contrastes, poids — est recalculée sur lui), puis ouvre son
 éditeur et son aperçu en direct. Thèmes livrés compris.
 
 ### Mesures (VM, 2026-10-01)
@@ -560,9 +560,18 @@ restent importés ; sans ces groupes, ni palette ni curseur ne sont rapportés.
   base. Consigne de la carte : « Repeins une pastille pour changer cette
   couleur ; laisse-la telle quelle pour la garder (une nuance « auto » suit
   alors sa couleur de base) », Alt+Maj+Retour arrière pour remplir.
-- **Lecture** : couleur de remplissage si Photoshop en a fait un calque de
-  forme (`vectorFill`), sinon la couleur la plus présente des pixels visibles
-  (avertissement sous 50 %) ; opacité ignorée sauf filets et détails. Comparée
+- **Lecture** (lot 17a : gestes naturels de Photoshop) : couleur de
+  remplissage si Photoshop en a fait un calque de forme (`vectorFill`) ;
+  sinon, avec la couleur exportée connue, la couleur la plus présente parmi
+  les pixels REPEINTS (écart ≥ 3 niveaux à la couleur exportée, au moins 3 %
+  de la pastille : un coup de pinceau sur un tiers compte, avertissement sous
+  50 %), sans elle la couleur la plus présente des pixels visibles. Avant la
+  lecture, la pastille est aplatie avec : les calques AJOUTÉS dans le groupe
+  qui recoupent sa case (nouveau calque de peinture, calque de forme — rangés
+  par leur place dans la pile ; un calque sous la pastille est couvert par
+  elle ; un calque hors de toute case ou de réglage est signalé dans la
+  revue), et le style de calque « Incrustation couleur » actif (mode normal ;
+  les autres styles sont signalés). Opacité ignorée sauf filets et détails. Comparée
   à la couleur exportée (manifeste : `colors`) — empreinte identique ou même
   couleur : **inchangée** (une nuance auto reste auto) ; sinon **changée**
   (forcée à l'application). Sans kit d'origine reconnu : comparée à la palette
@@ -580,7 +589,8 @@ restent importés ; sans ces groupes, ni palette ni curseur ne sont rapportés.
   après application, « était auto : devient choisie ») ; les curseurs ont leur
   carte comme les autres éléments (avant / après, poids, point chaud). Case
   « Appliquer les couleurs repeintes » (cochée sauf contraste en échec, refusé
-  aussi côté serveur) ; « Appliquer au thème » : bases d'abord (les nuances auto
+  aussi côté serveur : la revue le dit alors en toutes lettres, « Tes couleurs
+  ne seront PAS appliquées », avec le décompte lues / repeintes / illisibles) ; « Appliquer au thème » : bases d'abord (les nuances auto
   suivent), puis nuances forcées ; de nouveaux curseurs réactivent les curseurs
   sur la copie.
 

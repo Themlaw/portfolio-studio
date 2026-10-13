@@ -18,7 +18,7 @@
 import { getLayerImageData, type Layer } from "ag-psd";
 
 import type { Rgba } from "./formats";
-import { ALL_SLOTS, ELEMENTS, EXPORT_ID_RE, frameOf, HOTSPOT_LAYER, isIgnoredName, looseName, type ElementSpec, type Frame, type Layout, type SlotSpec } from "./spec";
+import { ALL_SLOTS, ELEMENTS, EXPORT_ID_RE, frameOf, HOTSPOT_LAYER, isIgnoredName, looseName, SWATCH_SLOTS, type ElementSpec, type Frame, type Layout, type SlotSpec } from "./spec";
 
 export type SlotSource = {
   slot: SlotSpec;
@@ -69,10 +69,20 @@ function boardOf(l: Layer, layout: Layout): { x: number; y: number } | undefined
   return r && layout === "v2" ? { x: r.left, y: r.top } : undefined;
 }
 
+/** Calque non reconnu du groupe « 8 · Palette » : rattaché plus tard à la pastille qu'il recouvre. */
+type Loose = { layer: Layer; path: string; origin?: { x: number; y: number }; order: number };
+
+/** Rectangle du calque (coordonnées du document) recoupe-t-il la case ? */
+const overlaps = (l: Layer, f: Frame) => (l.right ?? 0) > f.x && (l.left ?? 0) < f.x + f.w && (l.bottom ?? 0) > f.y && (l.top ?? 0) < f.y + f.h;
+
 export function resolveSlots(children: Layer[] | undefined, layout: Layout): Resolution {
   const sources = new Map<string, SlotSource>();
   const ignored: string[] = [];
   let exportId: string | null = null;
+  /** Palette : ordre de pile (du bas vers le haut) des calques, reconnus ou non. */
+  let order = 0;
+  const mainOrder = new Map<string, number>();
+  const loose: Loose[] = [];
 
   const take = (slot: SlotSpec, nodes: Layer[], path: string, boardOrigin?: { x: number; y: number }) => {
     if (sources.has(slot.id)) {
@@ -85,6 +95,7 @@ export function resolveSlots(children: Layer[] | undefined, layout: Layout): Res
       return;
     }
     sources.set(slot.id, { slot, nodes, path, boardOrigin });
+    if (slot.kind === "swatch") mainOrder.set(slot.id, order++);
   };
 
   const walk = (list: Layer[] | undefined, prefix: string[], within: ElementSpec | undefined, boardOrigin: { x: number; y: number } | undefined) => {
@@ -119,11 +130,64 @@ export function resolveSlots(children: Layer[] | undefined, layout: Layout): Res
       }
       const slot = slotByAlias(n, within);
       if (slot) take(slot, [l], path, boardOrigin);
+      else if (within?.id === "palette") loose.push({ layer: l, path, origin: boardOrigin, order: order++ });
       else ignored.push(within ? `${path} (hors d'un emplacement de « ${within.group} » : range-le dans un des calques reconnus)` : `${path} (calque non reconnu)`);
     }
   };
   walk(children, [], undefined, undefined);
+  adoptLoosePaint(loose, sources, mainOrder, ignored, layout);
   return { sources, ignored, exportId };
+}
+
+/**
+ * Palette : un calque ajouté dans « 8 · Palette » (nouveau calque de
+ * peinture, calque de forme…) est le geste le plus naturel pour repeindre une
+ * pastille. Il est rattaché à chaque pastille dont la case il recoupe, empilé
+ * au-dessus (ou en dessous) du calque de la pastille selon sa place dans le
+ * groupe ; sans calque de pastille (supprimé), il tient lieu de pastille.
+ * Hors de toute case, trop grand, ou sans pixels (calque de réglage) : ignoré
+ * et signalé.
+ */
+function adoptLoosePaint(loose: Loose[], sources: Map<string, SlotSource>, mainOrder: Map<string, number>, ignored: string[], layout: Layout) {
+  const stacks = new Map<string, { order: number; node: Layer; origin?: { x: number; y: number } }[]>();
+  for (const { layer, path, origin, order } of loose) {
+    const w = (layer.right ?? 0) - (layer.left ?? 0);
+    const h = (layer.bottom ?? 0) - (layer.top ?? 0);
+    const why = (m: string) => ignored.push(`${path} (${m})`);
+    if (layer.adjustment) {
+      why("calque de réglage : non pris en compte, fusionne-le avec la pastille (Calque > Fusionner avec le calque inférieur)");
+      continue;
+    }
+    if (w <= 0 || h <= 0) {
+      why("calque vide");
+      continue;
+    }
+    if (w > SWATCH_SLOTS[0].size.w + 2 * LAYER_MARGIN || h > SWATCH_SLOTS[0].size.h + 2 * LAYER_MARGIN) {
+      why("ce calque déborde de plusieurs pastilles : recadre-le sur la pastille à repeindre");
+      continue;
+    }
+    let hit = false;
+    for (const slot of SWATCH_SLOTS) {
+      if (!overlaps(layer, frameOf(slot, layout, sources.get(slot.id)?.boardOrigin ?? origin))) continue;
+      hit = true;
+      const list = stacks.get(slot.id) ?? [];
+      list.push({ order, node: layer, origin });
+      stacks.set(slot.id, list);
+    }
+    if (!hit) why("hors de toute pastille : peins dans le calque de la pastille");
+  }
+  for (const [id, extra] of stacks) {
+    const slot = SWATCH_SLOTS.find((s) => s.id === id)!;
+    const main = sources.get(id);
+    const all = [...(main ? [{ order: mainOrder.get(id) ?? 0, node: main.nodes[0] }] : []), ...extra].sort((a, b) => a.order - b.order);
+    const n = extra.length;
+    sources.set(id, {
+      slot,
+      nodes: all.map((x) => x.node),
+      boardOrigin: main?.boardOrigin ?? extra[0].origin,
+      path: main ? `${main.path} (+ ${n} calque${n > 1 ? "s" : ""} ajouté${n > 1 ? "s" : ""})` : `8 · Palette / ${slot.layer} (calque ajouté)`,
+    });
+  }
 }
 
 /** Disposition d'après la taille du document. */
@@ -178,6 +242,30 @@ function decode(l: Layer, frame: Frame): Decoded | null {
   return d ?? null;
 }
 
+type FillColor = { r?: number; g?: number; b?: number; fr?: number; fg?: number; fb?: number };
+
+/**
+ * Style « Incrustation couleur » actif d'un calque (Photoshop : Calque > Style
+ * de calque), en RVB 0–255 avec son opacité ; null sans style, désactivé, ou
+ * dans un mode de fusion autre que « normal ».
+ */
+export function overlayFill(l: Layer): { rgb: [number, number, number]; opacity: number } | null {
+  if (l.effects?.disabled) return null;
+  for (const fx of l.effects?.solidFill ?? []) {
+    if (fx.enabled === false || fx.present === false) continue;
+    if (fx.blendMode && fx.blendMode !== "normal") continue;
+    const c = fx.color as FillColor | undefined;
+    const rgb: [number, number, number] | null =
+      c && typeof c.r === "number" && typeof c.g === "number" && typeof c.b === "number"
+        ? [c.r, c.g, c.b]
+        : c && typeof c.fr === "number" && typeof c.fg === "number" && typeof c.fb === "number"
+          ? [c.fr * 255, c.fg * 255, c.fb * 255]
+          : null;
+    if (rgb) return { rgb: rgb.map((v) => Math.max(0, Math.min(255, Math.round(v)))) as [number, number, number], opacity: fx.opacity ?? 1 };
+  }
+  return null;
+}
+
 /** Un canal (pixels ou masque) compressé en ZIP, avec ou sans prédiction. */
 export function hasZipChannels(l: Layer): boolean {
   const channels = (l.rawData as { channels?: { compression?: number }[] } | undefined)?.channels ?? [];
@@ -216,7 +304,7 @@ function put(dst: Uint8ClampedArray, di: number, r: number, g: number, b: number
  * `dst` ; un groupe avec opacité ou mode : dans son propre tampon 8 bits,
  * posé ensuite. Imbrication bornée (MAX_NESTING) : jamais plus de 8 tampons.
  */
-function composite(nodes: Layer[], frame: Frame, dst: Uint8ClampedArray, warn: (m: string) => void, path: string, depth: number): { overflow: boolean; any: boolean } {
+function composite(nodes: Layer[], frame: Frame, dst: Uint8ClampedArray, warn: (m: string) => void, path: string, depth: number, fx: boolean): { overflow: boolean; any: boolean } {
   let overflow = false;
   let any = false;
   for (const l of nodes) {
@@ -228,13 +316,13 @@ function composite(nodes: Layer[], frame: Frame, dst: Uint8ClampedArray, warn: (
       const children = l.children.filter((c) => !isIgnoredName(c.name ?? ""));
       const opacity = l.opacity ?? 1;
       if ((mode === "pass through" || mode === "normal") && opacity >= 0.999) {
-        const inner = composite(children, frame, dst, warn, `${path} / ${name}`, depth + 1);
+        const inner = composite(children, frame, dst, warn, `${path} / ${name}`, depth + 1, fx);
         overflow ||= inner.overflow;
         any ||= inner.any;
         continue;
       }
       const own = new Uint8ClampedArray(frame.w * frame.h * 4);
-      const inner = composite(children, frame, own, warn, `${path} / ${name}`, depth + 1);
+      const inner = composite(children, frame, own, warn, `${path} / ${name}`, depth + 1, fx);
       overflow ||= inner.overflow;
       if (!inner.any) continue;
       any = true;
@@ -250,6 +338,7 @@ function composite(nodes: Layer[], frame: Frame, dst: Uint8ClampedArray, warn: (
     const lx = l.left ?? 0;
     const ly = l.top ?? 0;
     const k = (l.fillOpacity ?? 1) * (l.opacity ?? 1);
+    const overlay = fx ? overlayFill(l) : null;
     for (let y = 0; y < d.height; y++) {
       const dy = ly + y - frame.y;
       for (let x = 0; x < d.width; x++) {
@@ -261,7 +350,11 @@ function composite(nodes: Layer[], frame: Frame, dst: Uint8ClampedArray, warn: (
           if (a > 8) overflow = true;
           continue;
         }
-        put(dst, (dy * frame.w + dx) * 4, d.data[si], d.data[si + 1], d.data[si + 2], (a / 255) * k, f);
+        const di = (dy * frame.w + dx) * 4;
+        if (overlay) {
+          const o = overlay.opacity;
+          put(dst, di, d.data[si] * (1 - o) + overlay.rgb[0] * o, d.data[si + 1] * (1 - o) + overlay.rgb[1] * o, d.data[si + 2] * (1 - o) + overlay.rgb[2] * o, (a / 255) * k, f);
+        } else put(dst, di, d.data[si], d.data[si + 1], d.data[si + 2], (a / 255) * k, f);
         any = true;
       }
     }
@@ -275,11 +368,12 @@ function composite(nodes: Layer[], frame: Frame, dst: Uint8ClampedArray, warn: (
  * Un seul calque normal à 100 % : copie exacte (pas d'arrondi).
  * Lève SlotRefusal (calque plus grand que sa case, imbrication trop profonde).
  */
-export function flattenSlot(source: SlotSource, layout: Layout, warn: (m: string) => void): { img: Rgba; frame: Frame; overflow: boolean } | null {
+export function flattenSlot(source: SlotSource, layout: Layout, warn: (m: string) => void, opts: { overlay?: boolean } = {}): { img: Rgba; frame: Frame; overflow: boolean } | null {
   const frame = frameOf(source.slot, layout, source.boardOrigin);
   const nodes = source.nodes;
   const out = Buffer.alloc(frame.w * frame.h * 4);
-  const simple = nodes.length === 1 && !nodes[0].children && (nodes[0].blendMode ?? "normal") === "normal" && (nodes[0].opacity ?? 1) >= 0.999 && (nodes[0].fillOpacity ?? 1) >= 0.999 && !nodes[0].clipping;
+  const fx = Boolean(opts.overlay);
+  const simple = nodes.length === 1 && !nodes[0].children && !(fx && overlayFill(nodes[0])) && (nodes[0].blendMode ?? "normal") === "normal" && (nodes[0].opacity ?? 1) >= 0.999 && (nodes[0].fillOpacity ?? 1) >= 0.999 && !nodes[0].clipping;
   if (simple) {
     const l = nodes[0];
     if (l.mask && !l.mask.disabled) warn(`Masque de fusion sur « ${l.name} » : ignoré, applique-le dans Photoshop (clic droit sur le masque > Appliquer le masque de fusion).`);
@@ -308,7 +402,7 @@ export function flattenSlot(source: SlotSource, layout: Layout, warn: (m: string
     return { img: { width: frame.w, height: frame.h, data: out }, frame, overflow };
   }
   const buf = new Uint8ClampedArray(out.buffer, out.byteOffset, out.length);
-  const { overflow, any } = composite(nodes, frame, buf, warn, source.path, 0);
+  const { overflow, any } = composite(nodes, frame, buf, warn, source.path, 0, fx);
   if (!any) return null;
   for (let i = 0; i < out.length; i += 4) if (out[i + 3] <= 8) out.writeUInt32LE(0, i);
   return { img: { width: frame.w, height: frame.h, data: out }, frame, overflow };

@@ -10,10 +10,11 @@ import { notFound } from "next/navigation";
 
 import KitDownloadButton from "@/components/admin/KitDownloadButton";
 import KitTutorial from "@/components/admin/KitTutorial";
-import { KitApplyPanel, KitImportUpload, KitImportWatch } from "@/components/admin/KitImport";
+import { KitApplyPanel, KitBasePicker, KitImportUpload, KitImportWatch } from "@/components/admin/KitImport";
 import PageHeader from "@/components/admin/PageHeader";
+import { getThemeOverview } from "@/lib/admin";
 import { assertAdmin } from "@/lib/auth/guard";
-import { arrowMirror, firstViewTotal, isApplicable, kitColorFailures, paletteFailures, withKitColors } from "@/lib/kit/apply";
+import { arrowMirror, baseThemeIdOf, firstViewTotal, isApplicable, kitColorFailures, paletteFailures, withKitColors } from "@/lib/kit/apply";
 import { loadSavedTheme } from "@/lib/kit/export-job";
 import type { SlotReport } from "@/lib/kit/import";
 import { beforePreviews, getKitImport, isImportId, listKitImports } from "@/lib/kit/import-job";
@@ -44,7 +45,7 @@ function headline(s: SlotReport): string {
 const formatBytes = (n: number) => (n < 1024 ? `${n} o` : n < 1024 * 1024 ? `${Math.round(n / 1024)} Ko` : `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`);
 const icon = (s: SlotReport) => (s.status === "error" ? "✗" : s.status === "warn" ? "⚠" : "✓");
 
-export default async function ThemeKitPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ import?: string }> }) {
+export default async function ThemeKitPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ import?: string; base?: string }> }) {
   await assertAdmin();
   const { id } = await params;
   const theme = /^[a-z0-9-]{1,80}$/.test(id) ? loadSavedTheme(id) : null;
@@ -56,17 +57,22 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
   const state = currentId ? await getKitImport(currentId, theme.id) : null;
   if (wanted && !state) notFound();
   const report = state?.report ?? null;
+  // Thème sur lequel le kit sera posé : choisi (?base=), sinon celui dont le kit a été exporté, sinon celui de cet écran.
+  const overview = getThemeOverview();
+  const baseId = baseThemeIdOf(report, theme.id, /^[a-z0-9-]{1,80}$/.test((await searchParams).base ?? "") ? (await searchParams).base : undefined);
+  const base = baseId === theme.id ? theme : (loadSavedTheme(baseId) ?? theme);
   const preview = (s: SlotReport, which: "avant" | "apres") => `/admin/api/theme-kit/${encodeURIComponent(theme.id)}/import/${state!.meta.id}/preview/${s.id.replace(/\//g, "--")}/${which}`;
-  const totals = report ? await firstViewTotal(theme, report) : null;
+  const totals = report ? await firstViewTotal(base, report) : null;
   const befores = await beforePreviews(report?.reference?.exportId);
   const changed = report ? report.slots.filter(isApplicable).length : 0;
   const counts = report ? { unchanged: report.slots.filter((s) => s.change === "unchanged").length, changed, warn: report.slots.filter((s) => s.status === "warn").length, error: report.slots.filter((s) => s.status === "error").length } : null;
   const palette = report?.palette ? Object.entries(report.palette.roles).map(([role, hex]) => ({ role, label: ROLE[role] ?? role, hex: hex! })) : null;
-  const paletteProblem = report && palette ? paletteFailures(theme, report) : [];
+  const paletteProblem = report && palette ? paletteFailures(base, report) : [];
   // Couleurs repeintes (« 8 · Palette ») : avant / après, contraste du thème une fois appliquées.
   const colorChanges = report?.colors?.filter((c) => c.change === "changed") ?? [];
-  const colorProblems = report && colorChanges.length ? kitColorFailures(theme, report) : [];
-  const after = report && colorChanges.length ? withKitColors(theme.tokens, report) : null;
+  const colorProblems = report && colorChanges.length ? kitColorFailures(base, report) : [];
+  const after = report && colorChanges.length ? withKitColors(base.tokens, report) : null;
+  const paletteIgnored = report?.ignoredLayers.filter((l) => /palette/i.test(l)) ?? [];
   const afterPairs = after ? contrastReport(after.color) : [];
   const afterResolved = after ? resolvePalette(after.color, after.palette) : null;
   const pair = report ? arrowMirror(report) : null;
@@ -110,7 +116,7 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
               <div className="a-kit-summary">
                 {report.foreign && (
                   <strong role="alert">
-                    Ce kit vient du thème « {loadSavedTheme(report.foreign.themeId)?.name ?? report.foreign.themeId} », pas de « {theme.name} » : rien n&apos;est marqué inchangé, chaque élément est importé. Vérifie que c&apos;est le bon fichier.
+                    Ce kit vient du thème « {loadSavedTheme(report.foreign.themeId)?.name ?? report.foreign.themeId} », pas de « {theme.name} » (l&apos;écran où tu l&apos;as envoyé) : il est appliqué à son thème d&apos;origine, sauf si tu en choisis un autre plus bas.
                   </strong>
                 )}
                 <span>
@@ -176,8 +182,26 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
               {report.colors && (
                 <section className="a-kit-colors" aria-labelledby="kit-colors-title" data-testid="kit-colors-review">
                   <h3 id="kit-colors-title">Couleurs de la palette</h3>
+                  <p className="a-help" data-testid="kit-colors-count">
+                    {report.colors.length} pastille{report.colors.length > 1 ? "s" : ""} lue{report.colors.length > 1 ? "s" : ""} : {colorChanges.length} repeinte{colorChanges.length > 1 ? "s" : ""},{" "}
+                    {report.colors.filter((c) => c.change === "unchanged").length} inchangée{report.colors.filter((c) => c.change === "unchanged").length > 1 ? "s" : ""}
+                    {report.colors.some((c) => c.change === "missing") ? `, ${report.colors.filter((c) => c.change === "missing").length} illisible${report.colors.filter((c) => c.change === "missing").length > 1 ? "s" : ""}` : ""}
+                    {paletteIgnored.length ? `, ${paletteIgnored.length} calque${paletteIgnored.length > 1 ? "s" : ""} ignoré${paletteIgnored.length > 1 ? "s" : ""}` : ""}.
+                  </p>
+                  {colorProblems.length > 0 && (
+                    <p className="a-field-error" role="alert" data-testid="kit-colors-blocked">
+                      Tes couleurs ne seront PAS appliquées : une fois posées, le contraste est insuffisant ({colorProblems.slice(0, 3).join(" ; ")}). Corrige-les dans Photoshop et renvoie le kit.
+                    </p>
+                  )}
+                  {paletteIgnored.map((l) => (
+                    <p key={l} className="a-help" data-testid="kit-colors-ignored">
+                      ⚠ Calque ignoré : {l}
+                    </p>
+                  ))}
                   {colorChanges.length === 0 ? (
-                    <p className="a-help">Aucune pastille repeinte : les couleurs du thème restent telles quelles (les nuances « auto » suivent leur base).</p>
+                    <p className="a-help">
+                      Aucune pastille repeinte détectée : les couleurs du thème restent telles quelles (les nuances « auto » suivent leur base). Pour changer une couleur, peins la pastille elle-même (pinceau, pot de peinture, ou un calque ajouté dans « 8 · Palette » par-dessus), puis enregistre le .psd.
+                    </p>
                   ) : (
                     <>
                       <p className="a-help">
@@ -186,7 +210,7 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                       </p>
                       <ul className="a-kit-color-list">
                         {colorChanges.map((c) => {
-                          const wasAuto = isNuance(c.key) && isAuto(theme.tokens.color, theme.tokens.palette, c.key as NuanceKey);
+                          const wasAuto = isNuance(c.key) && isAuto(base.tokens.color, base.tokens.palette, c.key as NuanceKey);
                           const pairs = afterPairs.filter((p) => p.fg === c.key || p.bg === c.key || (c.key === "secondary" && p.fg === "eyebrow"));
                           const scrim = afterResolved && (c.key === "scrim" || c.key === "onScrim") ? contrastRatio(afterResolved.onScrim, afterResolved.scrim) : null;
                           const worst = Math.min(...pairs.map((p) => p.ratio), scrim ?? Infinity);
@@ -226,11 +250,20 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                     ))}
                 </section>
               )}
+              <KitBasePicker
+                themeId={theme.id}
+                importId={state.meta.id}
+                baseId={base.id}
+                originId={report.reference?.themeId}
+                themes={overview.themes.map((t) => ({ id: t.id, name: t.name, live: t.id === overview.activeId }))}
+              />
               <KitApplyPanel
                 colors={colorChanges.length ? { count: colorChanges.length, problem: colorProblems.length ? `Contraste insuffisant une fois appliquées (${colorProblems[0]}) : corrige ces couleurs dans Photoshop, ou applique sans elles.` : null } : null}
                 themeId={theme.id}
                 importId={state.meta.id}
-                themeName={theme.name}
+                baseId={base.id}
+                themeName={base.name}
+                tape={report.slots.some((s) => s.id === "accessoires/scotch" && s.change === "redrawn" && isApplicable(s))}
                 changed={changed}
                 palette={palette}
                 paletteProblem={paletteProblem.length ? `Cette palette ne passe pas le contraste (${paletteProblem[0]}) : ignore-la, ou ajuste les couleurs dans l'éditeur.` : null}

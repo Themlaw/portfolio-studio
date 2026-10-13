@@ -58,6 +58,13 @@ ok("refus : papier sur le hero au-delà du plafond (0.6)", !ThemeSchema.safePars
 const variantsCss = readFileSync(new URL("../src/themes/variants.css", import.meta.url), "utf8");
 ok("papier sur le hero : opacité par défaut discrète (0.35)", variantsCss.includes("opacity: var(--t-kit-paper-hero, 0.35)"));
 
+// Papier sous le bandeau (lot 17a) : par défaut le bandeau collant est un aplat ; l'option remet la tuile.
+ok("papier : bandeau du haut en aplat par défaut (règle CSS, sans data-kit-paper-header)", /\[data-kit-paper\]:not\(\[data-kit-paper-header\]\) \.site-header \{[^}]*background-color: var\(--color-bg\);[^}]*background-image: none;/.test(variantsCss));
+ok("papier : pas d'attribut data-kit-paper-header par défaut", !attrs.includes("data-kit-paper-header"));
+const under = ThemeSchema.parse(withKit({ paper: { image: img("b"), overHero: 0.35, underHeader: true } }));
+ok("papier : option underHeader → data-kit-paper-header", Object.keys(themeAttributes(under)).includes("data-kit-paper-header"));
+ok("refus : underHeader non booléen", !ThemeSchema.safeParse(withKit({ paper: { image: img("b"), underHeader: "oui" } })).success);
+
 // Répétition visible d'une tuile : un grain passe, un motif à l'échelle de la tuile est signalé.
 let seed = 7;
 const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);

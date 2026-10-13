@@ -120,7 +120,13 @@ export async function firstViewTotal(theme: Theme, report: KitReport): Promise<{
 
 /* ---- Application ---------------------------------------------------------- */
 
-export type ApplyOptions = { palette: boolean; mirror: boolean; colors?: boolean };
+export type ApplyOptions = { palette: boolean; mirror: boolean; colors?: boolean; /** Thème sur lequel poser le kit (défaut : thème d'origine du kit, sinon celui de l'écran). */ baseThemeId?: string };
+
+/** Thème de départ d'un import : choisi, sinon celui dont le kit a été exporté, sinon celui de l'écran d'envoi. */
+export function baseThemeIdOf(report: KitReport | null | undefined, uploadThemeId: string, chosen?: string): string {
+  const candidates = [chosen, report?.reference?.themeId, uploadThemeId];
+  return candidates.find((id): id is string => Boolean(id) && Boolean(loadSavedTheme(id!))) ?? uploadThemeId;
+}
 
 export async function applyKitImport(themeId: string, importId: string, opts: ApplyOptions): Promise<ActionResult<{ id: string }>> {
   // L'import doit appartenir au thème de l'écran (sinon : inconnu).
@@ -128,7 +134,8 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
   if (!state?.report) return fail("Cet import n'est pas terminé ou n'existe plus.");
   const { meta, report } = state;
   if (!report.ok && report.problem) return fail(report.problem);
-  const source = loadSavedTheme(meta.themeId);
+  const baseId = baseThemeIdOf(report, meta.themeId, opts.baseThemeId);
+  const source = loadSavedTheme(baseId);
   if (!source) return fail("Le thème d'origine n'existe plus.");
   const changed = report.slots.filter(isApplicable);
   const colorsChanged = Boolean(opts.colors && report.colors?.some((c) => c.change === "changed"));
@@ -176,7 +183,7 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
   const sig = get("signature");
   if (sig) kit.signature = await image(sig);
   const paper = get("papier");
-  if (paper) kit.paper = { image: await image(paper), overHero: prev.paper?.overHero ?? PAPER_OVER_HERO_DEFAULT };
+  if (paper) kit.paper = { image: await image(paper), overHero: prev.paper?.overHero ?? PAPER_OVER_HERO_DEFAULT, ...(prev.paper?.underHeader ? { underHeader: true } : {}) };
   const frame = get("cadre");
   if (frame) kit.frame = { image: await image(frame), slice: [48, 48, 48, 48] };
   const stroke = get("trait");
@@ -243,8 +250,9 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
       const tokens = opts.palette && report.palette ? { ...source.tokens, color: withPalette(source.tokens.color, report) } : source.tokens;
       return colorsChanged ? withKitColors(tokens, report) : tokens;
     })(),
-    // Scotch redessiné : visible avec la variante « scotch » des planches.
-    variants: tape ? { ...source.variants, strip: "taped" } : source.variants,
+    // Scotch REDESSINÉ (pas simplement importé faute de kit d'origine reconnu : ce serait le
+    // gabarit) : visible avec la variante « scotch » des planches. Sinon les variantes du thème de base restent.
+    variants: tape && tape.change === "redrawn" ? { ...source.variants, strip: "taped" } : source.variants,
     assets: { ...source.assets, kit },
   });
   if (!parsed.success) {

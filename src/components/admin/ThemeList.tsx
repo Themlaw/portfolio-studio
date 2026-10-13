@@ -75,6 +75,11 @@ export default function ThemeList({
 
   return (
     <>
+      {active && (
+        <p className="a-theme-live" data-testid="theme-live-banner">
+          Thème en ligne : <strong>{active.name}</strong>. Les autres ne sont visibles que dans l&apos;aperçu (une copie « kit » ou « copie » n&apos;est jamais en ligne tant que tu ne l&apos;y mets pas).
+        </p>
+      )}
       <div className="a-grid a-theme-grid">
         {themes.map((theme) => {
           const isActive = theme.id === activeId;
@@ -82,7 +87,13 @@ export default function ThemeList({
             <section key={theme.id} className="a-card a-theme-card" aria-labelledby={`theme-${theme.id}`} data-active={isActive}>
               <div className="a-card-head">
                 <h2 id={`theme-${theme.id}`}>{theme.name}</h2>
-                {isActive ? <span className="a-badge">En ligne</span> : theme.preset && <span className="a-tag">Livré</span>}
+                {isActive ? (
+                  <span className="a-badge a-badge-live" data-testid="theme-live">
+                    <span aria-hidden="true">●</span> En ligne
+                  </span>
+                ) : (
+                  <span className="a-tag">{theme.preset ? "Livré · hors ligne" : "Hors ligne"}</span>
+                )}
               </div>
               <ThemeThumb theme={theme} src={theme.preset ? thumbs[theme.id] : null} />
               <ThemeSwatches theme={theme} />

@@ -103,11 +103,50 @@ export function KitImportWatch({ themeId, importId }: { themeId: string; importI
 
 type Swatch = { role: string; label: string; hex: string };
 
+/**
+ * Thème sur lequel le kit sera posé : dit clairement lequel (celui dont le kit a été
+ * exporté par défaut), et laisse en choisir un autre. Le choix passe dans l'adresse
+ * (?base=) : la revue (contrastes, poids, avant / après) est recalculée sur ce thème.
+ */
+export function KitBasePicker({ themeId, importId, baseId, originId, themes }: { themeId: string; importId: string; baseId: string; originId?: string; themes: { id: string; name: string; live: boolean }[] }) {
+  const router = useRouter();
+  const base = themes.find((t) => t.id === baseId);
+  return (
+    <div className="a-kit-base" data-testid="kit-base">
+      <label htmlFor="kit-base-select">
+        <strong>Kit appliqué sur le thème</strong>
+      </label>
+      <select
+        id="kit-base-select"
+        className="a-select"
+        value={baseId}
+        data-testid="kit-base-select"
+        onChange={(e) => router.replace(`/admin/themes/${encodeURIComponent(themeId)}/kit?import=${importId}&base=${encodeURIComponent(e.target.value)}`)}
+      >
+        {themes.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name}
+            {t.id === originId ? " — thème d'origine du kit" : ""}
+            {t.live ? " — en ligne" : ""}
+          </option>
+        ))}
+      </select>
+      <p className="a-help">
+        La copie brouillon reprend « {base?.name ?? baseId} » (couleurs, variantes, éléments non redessinés) et y pose ce qui a changé dans le kit.
+        {originId && originId !== baseId ? " Ce n'est pas le thème dont le kit a été exporté." : ""}
+        {base?.live ? " C'est le thème actuellement en ligne ; la copie, elle, ne l'est pas." : " Ce thème n'est pas celui qui est en ligne."}
+      </p>
+    </div>
+  );
+}
+
 /** Palette suggérée (à appliquer ou ignorer) et « Appliquer au thème ». */
 export function KitApplyPanel({
   themeId,
   importId,
   themeName,
+  baseId,
+  tape = false,
   changed,
   palette,
   paletteProblem,
@@ -122,6 +161,10 @@ export function KitApplyPanel({
   /** Une seule flèche redessinée : proposer son miroir pour l'autre. */
   mirror: { from: string; to: string; preview: string } | null;
   themeName: string;
+  /** Thème sur lequel la copie est faite (défaut : le thème dont le kit a été exporté). */
+  baseId: string;
+  /** Le scotch est redessiné : la copie active la variante « scotch » des planches. */
+  tape?: boolean;
   changed: number;
   palette: Swatch[] | null;
   paletteProblem: string | null;
@@ -137,7 +180,7 @@ export function KitApplyPanel({
   const apply = async () => {
     setBusy(true);
     setError("");
-    const res = await applyKitImportAction(themeId, importId, { palette: usePalette, mirror: Boolean(mirror) && useMirror, colors: Boolean(colors?.count) && useColors });
+    const res = await applyKitImportAction(themeId, importId, { palette: usePalette, mirror: Boolean(mirror) && useMirror, colors: Boolean(colors?.count) && useColors, base: baseId });
     setBusy(false);
     if (!res.ok) {
       setError(res.message);
@@ -205,6 +248,12 @@ export function KitApplyPanel({
         {usePalette && changed > 0 ? " et la palette" : ""}
         {useColors && colors?.count && changed > 0 ? " et tes couleurs" : ""}, puis ouvre son aperçu en direct. Le thème en ligne ne change pas tant que tu n&apos;actives pas la copie.
       </p>
+      {colors?.problem && (
+        <p className="a-field-error" role="alert" data-testid="kit-colors-skipped">
+          Tes couleurs repeintes ne seront pas appliquées : {colors.problem}
+        </p>
+      )}
+      {tape && <p className="a-help">Le scotch est redessiné : la copie active la variante « scotch » des planches (à retirer dans l&apos;éditeur si tu n&apos;en veux pas).</p>}
       {applied && (
         <p className="a-help">
           Déjà appliqué : <a href={`/admin/themes/${encodeURIComponent(applied)}`}>ouvrir la copie</a>.
