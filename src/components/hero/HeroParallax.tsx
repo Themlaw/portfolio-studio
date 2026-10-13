@@ -71,6 +71,10 @@ const MOTION = [
   { depth: 16, scroll: 0.15 },
   { depth: 26, scroll: 0.22 },
   { depth: 40, scroll: 0.3 },
+  // Décor libre (kit v4) : jusqu'à 8 plans, l'amplitude croît encore vers l'avant.
+  { depth: 54, scroll: 0.38 },
+  { depth: 70, scroll: 0.46 },
+  { depth: 88, scroll: 0.54 },
 ];
 
 function motionFor(index: number) {

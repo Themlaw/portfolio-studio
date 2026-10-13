@@ -110,8 +110,10 @@ export type KitCursor = z.infer<typeof kitCursor>;
 
 export const KitAssetsSchema = z
   .object({
-    /** Plans du hero 1 (ciel) à 5 ; null : le calque SVG actuel du thème. */
-    plans: z.array(kitPlan.nullable()).max(5).optional(),
+    /** Plans du hero, du plus lointain à l'avant (au plus 8) ; null : le calque SVG de même rang du thème. */
+    plans: z.array(kitPlan.nullable()).max(8).optional(),
+    /** Décor libre du kit v4 : les plans ci-dessus sont TOUT le décor (les calques SVG du thème ne s'y ajoutent pas). */
+    plansOnly: z.boolean().optional(),
     signature: kitImage.optional(),
     paper: z
       .object({

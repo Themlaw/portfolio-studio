@@ -39,6 +39,14 @@ export function frameHash(img: Rgba): string {
   return createHash("sha256").update(img.data).digest("hex").slice(0, 24);
 }
 
+/** Empreinte d'une case entièrement transparente de `bytes` octets, sans allouer le tampon. */
+export function emptyFrameHash(bytes: number): string {
+  const h = createHash("sha256");
+  const zeros = Buffer.alloc(1 << 20);
+  for (let left = bytes; left > 0; left -= zeros.length) h.update(left >= zeros.length ? zeros : zeros.subarray(0, left));
+  return h.digest("hex").slice(0, 24);
+}
+
 /** Pixels d'un raster d'export tels que l'import les relira (alpha ≤ 8 → 0). */
 export function asImported(img: Rgba): Rgba {
   const data = Buffer.from(img.data);
@@ -88,7 +96,8 @@ export function findReference(exportId: string | null, hashes: Map<string, strin
       const n = count(m);
       if (!best || n > best.matches) best = { manifest: m, how: "contenu", matches: n };
     }
-    return best && best.matches >= Math.ceil(SLOTS.length / 2) ? best : null;
+    // Fichiers envoyés en partie (kit v4) : la moitié des emplacements LUS, au moins un.
+    return best && best.matches >= Math.max(1, Math.ceil(Math.min(SLOTS.length, hashes.size) / 2)) ? best : null;
   };
   if (themeId === undefined) return { reference: pick(manifests), foreign: null };
   const reference = pick(manifests.filter((m) => m.themeId === themeId));

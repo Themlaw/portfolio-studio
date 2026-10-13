@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { applyKitImportAction } from "@/app/admin/(espace)/themes/actions";
 
 import { toast } from "./editing";
-import { uploadKitPsd } from "./uploads";
+import { uploadKit } from "./uploads";
 
 export function KitImportUpload({ themeId }: { themeId: string }) {
   const router = useRouter();
@@ -20,11 +20,12 @@ export function KitImportUpload({ themeId }: { themeId: string }) {
   const [error, setError] = useState("");
   const [over, setOver] = useState(false);
 
-  const send = async (file: File | undefined) => {
-    if (!file) return;
+  const send = async (list: FileList | File[] | null | undefined) => {
+    const files = [...(list ?? [])];
+    if (!files.length) return;
     setError("");
     setProgress(0);
-    const res = await uploadKitPsd(file, themeId, (sent, total) => setProgress(total ? sent / total : 0));
+    const res = await uploadKit(files, themeId, (sent, total) => setProgress(total ? sent / total : 0));
     setProgress(null);
     if (input.current) input.current.value = "";
     if (!res.ok) {
@@ -48,15 +49,15 @@ export function KitImportUpload({ themeId }: { themeId: string }) {
       onDrop={(e) => {
         e.preventDefault();
         setOver(false);
-        void send(e.dataTransfer.files[0]);
+        void send(e.dataTransfer.files);
       }}
     >
       <p>
-        <strong>Envoie le kit rempli</strong> (le fichier .psd enregistré depuis Photoshop, tel quel).
+        <strong>Envoie le kit rempli</strong> : l&apos;archive .zip, ou un ou plusieurs fichiers .psd choisis ensemble (enregistrés depuis Photoshop, tels quels). Tu peux n&apos;envoyer que les fichiers que tu as modifiés : le reste ne change pas.
       </p>
       <label className="a-btn">
-        Choisir le fichier .psd
-        <input ref={input} type="file" accept=".psd,image/vnd.adobe.photoshop" className="sr-only" onChange={(e) => void send(e.target.files?.[0])} disabled={progress !== null} data-testid="kit-file" />
+        Choisir le .zip ou les .psd
+        <input ref={input} type="file" multiple accept=".zip,.psd,application/zip,image/vnd.adobe.photoshop" className="sr-only" onChange={(e) => void send(e.target.files)} disabled={progress !== null} data-testid="kit-file" />
       </label>
       {progress !== null && (
         <p className="a-help" role="status">

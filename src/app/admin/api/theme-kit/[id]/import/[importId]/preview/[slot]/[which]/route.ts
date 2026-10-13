@@ -7,6 +7,9 @@ import { assertAdmin } from "@/lib/auth/guard";
 import { isImportId, readPreview } from "@/lib/kit/import-job";
 import { ALL_SLOTS } from "@/lib/kit/spec";
 
+/** Plan du décor libre (kit v4) : `decor--<n>`, n de 1 à 8. */
+const DECOR_SLOT = /^decor--([1-8])$/;
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -16,7 +19,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   await assertAdmin();
   const { id, importId, slot, which } = await params;
   if (!/^[a-z0-9-]{1,80}$/.test(id) || !isImportId(importId) || (which !== "avant" && which !== "apres")) return notFound();
-  const spec = ALL_SLOTS.find((s) => s.id.replace(/\//g, "--") === slot);
+  const spec = ALL_SLOTS.find((s) => s.id.replace(/\//g, "--") === slot) ?? (DECOR_SLOT.test(slot) ? { id: slot.replace("--", "/") } : undefined);
   if (!spec) return notFound();
   const data = await readPreview(importId, id, spec.id, which);
   if (!data) return notFound();

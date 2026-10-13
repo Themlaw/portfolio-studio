@@ -89,7 +89,16 @@ export async function preflightPsd(file: string, maxLayers = 400): Promise<PsdPr
 }
 
 /** `sizes` : tailles de document admises (kit v2, et v1 encore importé). */
-export type PreflightLimits = { maxFileBytes: number; maxLayers: number; maxLayerArea: number; sizes: { width: number; height: number }[] };
+export type PreflightLimits = {
+  maxFileBytes: number;
+  maxLayers: number;
+  maxLayerArea: number;
+  sizes: { width: number; height: number }[];
+  /** Surface cumulée admise pour un document de cette taille (kit v4 : le décor accepte jusqu'à 8 plans pleine toile) ; sinon `maxLayerArea`. */
+  areaFor?: (width: number, height: number) => number;
+};
+/** Surface cumulée de calques admise pour un document. */
+export const layerAreaLimit = (limits: Pick<PreflightLimits, "maxLayerArea" | "areaFor">, width: number, height: number) => limits.areaFor?.(width, height) ?? limits.maxLayerArea;
 
 /** Refus clair, avant tout décodage. */
 export function preflightProblem(p: PsdPreflight, limits: PreflightLimits): string | null {
@@ -100,11 +109,14 @@ export function preflightProblem(p: PsdPreflight, limits: PreflightLimits): stri
   if (p.depth !== 8) return `Le document est en ${p.depth} bits par couche : passe-le en 8 bits (Image > Mode > 8 bits/couche).`;
   if (!limits.sizes.some((z) => z.width === p.width && z.height === p.height)) {
     const want = limits.sizes[0];
-    return `Le document fait ${p.width} × ${p.height} px : garde ${want.width} × ${want.height} (ne redimensionne pas la zone de travail).`;
+    return limits.sizes.length > 3
+      ? `Le document fait ${p.width} × ${p.height} px : ce n'est la taille d'aucun fichier du kit (ne redimensionne pas la zone de travail, et envoie les .psd du kit tels quels).`
+      : `Le document fait ${p.width} × ${p.height} px : garde ${want.width} × ${want.height} (ne redimensionne pas la zone de travail).`;
   }
   if (p.layerCount > limits.maxLayers) return `Le document contient ${p.layerCount} calques : ${limits.maxLayers} au plus. Fusionne ou supprime les calques en trop.`;
-  if (p.layerArea > limits.maxLayerArea) {
-    return `Les calques couvrent ${Math.round(p.layerArea / 1e6)} mégapixels au total : ${Math.round(limits.maxLayerArea / 1e6)} au plus. Supprime ou rogne les calques pleine toile en trop.`;
+  const maxArea = layerAreaLimit(limits, p.width, p.height);
+  if (p.layerArea > maxArea) {
+    return `Les calques couvrent ${Math.round(p.layerArea / 1e6)} mégapixels au total : ${Math.round(maxArea / 1e6)} au plus. Supprime ou rogne les calques pleine toile en trop.`;
   }
   return null;
 }

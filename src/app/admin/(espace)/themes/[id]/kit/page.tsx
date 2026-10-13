@@ -14,11 +14,11 @@ import { KitApplyPanel, KitBasePicker, KitImportUpload, KitImportWatch } from "@
 import PageHeader from "@/components/admin/PageHeader";
 import { getThemeOverview } from "@/lib/admin";
 import { assertAdmin } from "@/lib/auth/guard";
-import { arrowMirror, baseThemeIdOf, firstViewTotal, isApplicable, kitColorFailures, paletteFailures, withKitColors } from "@/lib/kit/apply";
+import { arrowMirror, baseThemeIdOf, decorApplicable, firstViewTotal, isApplicable, kitColorFailures, paletteFailures, withKitColors } from "@/lib/kit/apply";
 import { loadSavedTheme } from "@/lib/kit/export-job";
 import type { SlotReport } from "@/lib/kit/import";
 import { beforePreviews, getKitImport, isImportId, listKitImports } from "@/lib/kit/import-job";
-import { ALL_SLOTS } from "@/lib/kit/spec";
+import { ALL_SLOTS, slotSpecOf } from "@/lib/kit/spec";
 import { contrastReport } from "@/themes/contrast";
 import { contrastRatio, isAuto, isNuance, resolvePalette, type NuanceKey } from "@/themes/palette";
 
@@ -43,6 +43,8 @@ function headline(s: SlotReport): string {
   }
 }
 const formatBytes = (n: number) => (n < 1024 ? `${n} o` : n < 1024 * 1024 ? `${Math.round(n / 1024)} Ko` : `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`);
+/** Aperçu « avant » d'un emplacement : le sien, ou (décor libre) celui du plan exporté de même rang ou dont il est la copie. */
+const beforeKey = (s: SlotReport) => (s.id.startsWith("decor/") ? `hero--plan-${(s.from ?? Number(s.id.slice(6)) - 1) + 1}` : s.id.replace(/\//g, "--"));
 const icon = (s: SlotReport) => (s.status === "error" ? "✗" : s.status === "warn" ? "⚠" : "✓");
 
 export default async function ThemeKitPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ import?: string; base?: string }> }) {
@@ -64,7 +66,9 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
   const preview = (s: SlotReport, which: "avant" | "apres") => `/admin/api/theme-kit/${encodeURIComponent(theme.id)}/import/${state!.meta.id}/preview/${s.id.replace(/\//g, "--")}/${which}`;
   const totals = report ? await firstViewTotal(base, report) : null;
   const befores = await beforePreviews(report?.reference?.exportId);
-  const changed = report ? report.slots.filter(isApplicable).length : 0;
+  // Décor libre : sa composition seule (plan retiré, ordre changé) compte comme un élément à appliquer.
+  const decorOnly = Boolean(report && decorApplicable(report) && !report.slots.some((x) => x.id.startsWith("decor/") && isApplicable(x)));
+  const changed = report ? report.slots.filter(isApplicable).length + (decorOnly ? 1 : 0) : 0;
   const counts = report ? { unchanged: report.slots.filter((s) => s.change === "unchanged").length, changed, warn: report.slots.filter((s) => s.status === "warn").length, error: report.slots.filter((s) => s.status === "error").length } : null;
   const palette = report?.palette ? Object.entries(report.palette.roles).map(([role, hex]) => ({ role, label: ROLE[role] ?? role, hex: hex! })) : null;
   const paletteProblem = report && palette ? paletteFailures(base, report) : [];
@@ -77,6 +81,50 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
   const afterResolved = after ? resolvePalette(after.color, after.palette) : null;
   const pair = report ? arrowMirror(report) : null;
   const mirror = pair && pair.from.preview ? { from: pair.from.label, to: ALL_SLOTS.find((x) => x.id === pair.to)!.label, preview: preview(pair.from, "apres") } : null;
+
+  const renderCard = (s: SlotReport) => {
+                  const spec = slotSpecOf(s.id);
+                  return (
+                    <article key={s.id} className="a-kit-card" data-status={s.status} data-change={s.change} data-slot={s.id}>
+                      <h3>
+                        <span aria-hidden>{icon(s)}</span>
+                        <span>{headline(s)}</span>
+                      </h3>
+                      {s.change !== "missing" && s.status !== "error" && (
+                        <div className="a-kit-pair">
+                          {befores.has(beforeKey(s)) && (
+                            <figure>
+                              <img src={preview(s, "avant")} alt={`${s.label}, avant`} />
+                              <figcaption>Avant</figcaption>
+                            </figure>
+                          )}
+                          {s.preview && (
+                            <figure>
+                              <img src={preview(s, "apres")} alt={`${s.label}, après`} />
+                              <figcaption>Après</figcaption>
+                            </figure>
+                          )}
+                        </div>
+                      )}
+                      {s.messages.length > 0 && (
+                        <ul>
+                          {s.messages.map((m) => (
+                            <li key={m}>{m}</li>
+                          ))}
+                        </ul>
+                      )}
+                      <p className="a-kit-meta">
+                        {s.change === "unchanged"
+                          ? "Gardé tel quel (pas reconverti)."
+                          : s.chosen
+                            ? `${FORMAT[s.chosen]} · ${formatBytes(s.bytes ?? 0)}${s.fidelity ? ` · contour à ${s.fidelity.deviation.toFixed(2)} px` : ""}${s.hotspot ? ` · point chaud ${s.hotspot.x}, ${s.hotspot.y} px` : ""}`
+                            : s.change === "missing"
+                              ? `L'élément actuel du thème est gardé.${spec ? ` Calque attendu : « ${spec.layer} ».` : ""}`
+                              : ""}
+                      </p>
+                    </article>
+                  );
+                  };
 
   return (
     <>
@@ -134,51 +182,26 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                 </span>
               </div>
               {report.ignoredLayers.length > 0 && <p className="a-help">Calques ignorés : {report.ignoredLayers.join(" ; ")}.</p>}
-              <div className="a-kit-cards">
-                {report.slots.map((s) => {
-                  const spec = ALL_SLOTS.find((x) => x.id === s.id);
-                  return (
-                    <article key={s.id} className="a-kit-card" data-status={s.status} data-change={s.change} data-slot={s.id}>
-                      <h3>
-                        <span aria-hidden>{icon(s)}</span>
-                        <span>{headline(s)}</span>
-                      </h3>
-                      {s.change !== "missing" && s.status !== "error" && (
-                        <div className="a-kit-pair">
-                          {befores.has(s.id.replace(/\//g, "--")) && (
-                            <figure>
-                              <img src={preview(s, "avant")} alt={`${s.label}, avant`} />
-                              <figcaption>Avant</figcaption>
-                            </figure>
-                          )}
-                          {s.preview && (
-                            <figure>
-                              <img src={preview(s, "apres")} alt={`${s.label}, après`} />
-                              <figcaption>Après</figcaption>
-                            </figure>
-                          )}
-                        </div>
-                      )}
-                      {s.messages.length > 0 && (
-                        <ul>
-                          {s.messages.map((m) => (
-                            <li key={m}>{m}</li>
-                          ))}
-                        </ul>
-                      )}
-                      <p className="a-kit-meta">
-                        {s.change === "unchanged"
-                          ? "Gardé tel quel (pas reconverti)."
-                          : s.chosen
-                            ? `${FORMAT[s.chosen]} · ${formatBytes(s.bytes ?? 0)}${s.fidelity ? ` · contour à ${s.fidelity.deviation.toFixed(2)} px` : ""}${s.hotspot ? ` · point chaud ${s.hotspot.x}, ${s.hotspot.y} px` : ""}`
-                            : s.change === "missing"
-                              ? `L'élément actuel du thème est gardé.${spec ? ` Calque attendu : « ${spec.layer} ».` : ""}`
-                              : ""}
-                      </p>
-                    </article>
-                  );
-                })}
-              </div>
+              {report.decor && (
+                <p className="a-help" data-testid="kit-decor-summary">
+                  Décor d&apos;accueil : {report.decor.count} plan{report.decor.count > 1 ? "s" : ""} lu{report.decor.count > 1 ? "s" : ""} (du plus lointain à l&apos;avant)
+                  {report.decor.reference ? (report.decor.structure === "unchanged" ? ", même composition que le kit exporté" : `, composition changée (le kit exporté en comptait ${report.decor.previous})`) : ""}.
+                  {!decorApplicable(report) && report.slots.some((x) => x.id.startsWith("decor/") && x.status === "error") ? " Un plan est à corriger : le décor actuel est gardé en attendant." : ""}
+                </p>
+              )}
+              {(report.files ?? []).length > 1 || (report.files ?? [])[0]?.id !== "mono" ? (
+                (report.files ?? []).map((f) => (
+                  <section key={f.id} className="a-kit-file" data-file={f.id} data-received={f.received} aria-labelledby={`kit-file-${f.id}`}>
+                    <h3 id={`kit-file-${f.id}`}>
+                      {f.label}
+                      <small>{f.received ? ` — ${f.fileName} · ${f.slots} élément${f.slots > 1 ? "s" : ""}` : " — pas envoyé : inchangé"}</small>
+                    </h3>
+                    {f.received ? <div className="a-kit-cards">{report.slots.filter((s) => s.file === f.id).map(renderCard)}</div> : <p className="a-help">Aucun élément de ce fichier ne change : ceux du thème sont gardés.</p>}
+                  </section>
+                ))
+              ) : (
+                <div className="a-kit-cards">{report.slots.map(renderCard)}</div>
+              )}
               {report.colors && (
                 <section className="a-kit-colors" aria-labelledby="kit-colors-title" data-testid="kit-colors-review">
                   <h3 id="kit-colors-title">Couleurs de la palette</h3>

@@ -25,8 +25,9 @@ import { attachUploadTags, parseTagLabels, tagCapacityProblem } from "@/lib/tags
 import { wakeWorker } from "@/lib/jobs/worker";
 import { loadSavedTheme } from "@/lib/kit/export-job";
 import { DEFAULT_LIMITS } from "@/lib/kit/limits";
-import { createKitImport } from "@/lib/kit/import-job";
+import { createKitImport, KitImportBatchError, MAX_IMPORT_FILES } from "@/lib/kit/import-job";
 import { preflightProblem, preflightPsd, PsdPreflightError } from "@/lib/kit/psd-header";
+import { extractEntry, KitZipError, listZip } from "@/lib/kit/zip-archive";
 
 import { ingestImage, type IngestedMedia } from "./ingest";
 import { quotaProblem } from "./quota";
@@ -45,7 +46,14 @@ const InitSchema = z.strictObject({
   /** Tags du fichier : gardés sur l'envoi, attachés au média à sa création. */
   tags: z.unknown().optional(),
   /** Kit de thème (PSD) : jamais un média, rangé pour l'import du thème visé. */
-  purpose: z.strictObject({ kind: z.literal("kit"), themeId: z.string().regex(/^[a-z0-9-]{1,80}$/) }).optional(),
+  purpose: z
+    .strictObject({
+      kind: z.literal("kit"),
+      themeId: z.string().regex(/^[a-z0-9-]{1,80}$/),
+      /** Plusieurs PSD envoyés l'un après l'autre (identifiant choisi par le client) : le dernier (`last`) lance l'import. */
+      batch: z.strictObject({ id: z.string().uuid(), last: z.boolean() }).optional(),
+    })
+    .optional(),
 });
 
 const Id = z.string().uuid();
@@ -65,10 +73,25 @@ function row(id: unknown, userId: string) {
 
 export type UploadStatus = { id: string; name: string; size: number; offset: number; kind: "image" | "video" | "kit"; chunkSize: number };
 
-/** Kit PSD : extension .psd, taille du kit au plus (refus AVANT l'envoi), thème existant. */
+/**
+ * Cible d'un envoi de kit, rangée dans `uploads.target` : `<thème>`, ou `<thème>#<lot>#<0|1>` pour un
+ * PSD d'un envoi groupé (identifiant du lot, dernier fichier ou non). Pas de migration : la colonne est du texte.
+ */
+const kitTarget = (themeId: string, batch?: { id: string; last: boolean }) => (batch ? `${themeId}#${batch.id}#${batch.last ? 1 : 0}` : themeId);
+function parseKitTarget(target: string | null): { themeId: string; batch?: { id: string; last: boolean } } {
+  const [themeId, id, last] = (target ?? "").split("#");
+  return id ? { themeId, batch: { id, last: last === "1" } } : { themeId };
+}
+
+/** Archive du kit : les trois PSD (300 Mo au plus chacun) et un peu de marge. */
+const MAX_KIT_ZIP_BYTES = MAX_IMPORT_FILES * DEFAULT_LIMITS.maxFileBytes + 16 * 1024 * 1024;
+
+/** Kit : un .psd ou l'archive .zip du kit, taille bornée (refus AVANT l'envoi), thème existant. */
 function kitProblem(name: string, size: number, themeId: string): UploadError | null {
-  if (!/\.psd$/i.test(name)) return new UploadError(415, "Choisis le fichier Photoshop du kit (.psd).");
-  if (size > DEFAULT_LIMITS.maxFileBytes) return new UploadError(413, `Ce fichier fait ${Math.round(size / 1024 / 1024)} Mo : ${Math.round(DEFAULT_LIMITS.maxFileBytes / 1024 / 1024)} Mo au plus. Supprime les calques inutiles (ou fusionne-les), puis réenregistre.`);
+  const zip = /\.zip$/i.test(name);
+  if (!zip && !/\.psd$/i.test(name)) return new UploadError(415, "Choisis le kit : l'archive .zip, ou un ou plusieurs fichiers Photoshop (.psd).");
+  if (zip && size > MAX_KIT_ZIP_BYTES) return new UploadError(413, `Cette archive fait ${Math.round(size / 1024 / 1024)} Mo : ${Math.round(MAX_KIT_ZIP_BYTES / 1024 / 1024)} Mo au plus.`);
+  if (!zip && size > DEFAULT_LIMITS.maxFileBytes) return new UploadError(413, `Ce fichier fait ${Math.round(size / 1024 / 1024)} Mo : ${Math.round(DEFAULT_LIMITS.maxFileBytes / 1024 / 1024)} Mo au plus. Supprime les calques inutiles (ou fusionne-les), puis réenregistre.`);
   if (!loadSavedTheme(themeId)) return new UploadError(404, "Ce thème n'existe plus.");
   return null;
 }
@@ -86,7 +109,7 @@ export async function initUpload(input: unknown, userId: string): Promise<Upload
     const id = randomUUID();
     await mkdir(partDir(), { recursive: true });
     await (await open(partPath(id), "wx")).close();
-    getDb().insert(schema.uploads).values({ id, name, size, declaredType: type.slice(0, 100), kind: "kit", target: purpose.themeId, offset: 0, userId, tags: [] }).run();
+    getDb().insert(schema.uploads).values({ id, name, size, declaredType: type.slice(0, 100), kind: "kit", target: kitTarget(purpose.themeId, purpose.batch), offset: 0, userId, tags: [] }).run();
     return { id, name, size, offset: 0, kind: "kit", chunkSize: CHUNK_BYTES };
   }
   const tags = parseTagLabels(parsed.data.tags ?? []);
@@ -199,29 +222,76 @@ export async function completeUpload(id: unknown, userId: string, tagsInput?: un
 }
 
 /**
- * Fin d'un envoi de kit : signature et en-tête contrôlés SANS décodage
- * (psd-header.ts : PSB, RVB, 8 bits, dimensions, calques), puis import en file.
+ * Fin d'un envoi de kit : un PSD, plusieurs PSD d'un envoi groupé, ou l'archive .zip du kit.
+ * Signature et en-tête de chaque PSD contrôlés SANS décodage (psd-header.ts : PSB, RVB, 8 bits,
+ * dimensions, calques) ; l'archive est lue défensivement (zip-archive.ts : seules les entrées
+ * .psd sont extraites, tailles bornées). Puis import en file.
  */
 async function completeKit(r: typeof schema.uploads.$inferSelect, userId: string): Promise<{ id: string; themeId: string }> {
   if (r.offset !== r.size) throw new UploadError(409, `Envoi incomplet : ${r.offset} octets reçus sur ${r.size}.`);
   const file = partPath(r.id);
   getDb().delete(schema.uploads).where(eq(schema.uploads.id, r.id)).run();
+  const extracted: string[] = [];
   const reject = async (status: number, message: string): Promise<never> => {
     await rm(file, { force: true });
+    for (const f of extracted) await rm(f, { force: true });
     throw new UploadError(status, message);
   };
-  const themeId = r.target ?? "";
+  const { themeId, batch } = parseKitTarget(r.target);
   if (!loadSavedTheme(themeId)) return reject(404, "Ce thème n'existe plus.");
-  let pre: Awaited<ReturnType<typeof preflightPsd>>;
-  try {
-    pre = await preflightPsd(file, DEFAULT_LIMITS.maxLayers * 4);
-  } catch (error) {
-    return reject(415, error instanceof PsdPreflightError ? `${error.message} Enregistre le kit depuis Photoshop au format PSD.` : "Fichier illisible : enregistre le kit depuis Photoshop au format PSD.");
+
+  // Les PSD de cet envoi : le fichier lui-même, ou ceux de l'archive.
+  const psds: { file: string; name: string; size: number }[] = [];
+  if (/\.zip$/i.test(r.name)) {
+    if (batch) return reject(400, "Une archive .zip s'envoie seule.");
+    let entries: Awaited<ReturnType<typeof listZip>>;
+    try {
+      entries = (await listZip(file)).filter((e) => /\.psd$/i.test(e.name) && !/(^|\/)(__MACOSX\/|\._)/.test(e.name) && !e.name.endsWith("/"));
+    } catch (error) {
+      return reject(415, error instanceof KitZipError ? error.message : "Archive illisible : ce n'est pas un .zip valide.");
+    }
+    if (entries.length === 0) return reject(422, "Aucun fichier Photoshop (.psd) dans cette archive : envoie le .zip du kit tel que tu l'as téléchargé.");
+    if (entries.length > MAX_IMPORT_FILES) return reject(422, `Cette archive contient ${entries.length} fichiers .psd : le kit en compte ${MAX_IMPORT_FILES} au plus.`);
+    let left = MAX_IMPORT_FILES * DEFAULT_LIMITS.maxFileBytes;
+    for (const [i, e] of entries.entries()) {
+      const dest = path.join(partDir(), `${r.id}-zip-${i}.part`);
+      extracted.push(dest);
+      try {
+        left -= await extractEntry(file, e, dest, Math.min(DEFAULT_LIMITS.maxFileBytes, left));
+      } catch (error) {
+        return reject(422, error instanceof KitZipError ? error.message : "Archive illisible : réessaie avec le .zip du kit tel que tu l'as téléchargé.");
+      }
+      psds.push({ file: dest, name: e.name.split("/").pop() ?? e.name, size: (await stat(dest)).size });
+    }
+    await rm(file, { force: true });
+  } else {
+    psds.push({ file, name: r.name, size: r.size });
   }
-  const problem = preflightProblem(pre, DEFAULT_LIMITS);
-  if (problem) return reject(422, problem);
-  const meta = await createKitImport({ file, themeId, userId, fileName: r.name, size: r.size }, wakeWorker);
-  return { id: meta.id, themeId };
+  const label = (name: string) => (psds.length > 1 || batch ? `« ${name} » : ` : "");
+  for (const p of psds) {
+    let pre: Awaited<ReturnType<typeof preflightPsd>>;
+    try {
+      pre = await preflightPsd(p.file, DEFAULT_LIMITS.maxLayers * 4);
+    } catch (error) {
+      extracted.push(p.file);
+      return reject(415, `${label(p.name)}${error instanceof PsdPreflightError ? `${error.message} Enregistre le kit depuis Photoshop au format PSD.` : "Fichier illisible : enregistre le kit depuis Photoshop au format PSD."}`);
+    }
+    const problem = preflightProblem(pre, DEFAULT_LIMITS);
+    if (problem) {
+      extracted.push(p.file);
+      return reject(422, `${label(p.name)}${problem}`);
+    }
+  }
+  try {
+    const meta = await createKitImport({ files: psds, themeId, userId, ...(batch ? { batch } : {}) }, wakeWorker);
+    return { id: meta.id, themeId };
+  } catch (error) {
+    if (error instanceof KitImportBatchError) {
+      for (const p of psds) await rm(p.file, { force: true });
+      throw new UploadError(409, error.message);
+    }
+    throw error;
+  }
 }
 
 async function ingestCompleted(r: typeof schema.uploads.$inferSelect): Promise<IngestedMedia & { kind: "image" | "video" | "pdf" }> {

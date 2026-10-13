@@ -30,7 +30,7 @@ export default function KitDownloadButton({ themeId, small = false }: { themeId:
           // Téléchargement (Content-Disposition: attachment) sans quitter la page.
           const link = document.createElement("a");
           link.href = url;
-          link.download = `kit-${themeId}.psd`;
+          link.download = `kit-${themeId}.zip`;
           document.body.append(link);
           link.click();
           link.remove();

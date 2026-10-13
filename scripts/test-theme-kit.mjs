@@ -50,7 +50,8 @@ for (const [label, bad] of [
   ok(`refus : ${label}`, !ThemeSchema.safeParse(withKit({ signature: { svg: bad, w: 10, h: 10 } })).success);
 }
 ok("refus : asset sans SVG ni paire AVIF + WebP", !ThemeSchema.safeParse(withKit({ stroke: { avif: "/media/kit/0123456789abcdef.avif", w: 10, h: 10 } })).success);
-ok("refus : plus de 5 plans", !ThemeSchema.safeParse(withKit({ plans: [null, null, null, null, null, null] })).success);
+ok("décor libre (kit v4) : jusqu'à 8 plans, plansOnly accepté", ThemeSchema.safeParse(withKit({ plans: Array(8).fill(null), plansOnly: true })).success);
+ok("refus : plus de 8 plans", !ThemeSchema.safeParse(withKit({ plans: Array(9).fill(null) })).success);
 ok("refus : clé inconnue (strict)", !ThemeSchema.safeParse(withKit({ logo: img("a") })).success);
 ok("refus : ThumbHash non base64", !ThemeSchema.safeParse(withKit({ signature: { ...img("a"), thumbhash: "<script>" } })).success);
 

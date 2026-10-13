@@ -324,3 +324,16 @@ export async function thumbHashOf(img: Rgba): Promise<string> {
   const { data, info } = await raw(img).resize(100, 100, { fit: "inside" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   return Buffer.from(rgbaToThumbHash(info.width, info.height, data)).toString("base64");
 }
+
+/**
+ * Réduction d'un élément dessiné en grand (kit v4) à sa taille d'usage :
+ * lanczos3, alpha prémultiplié par libvips (pas de liseré sombre ni clair au
+ * bord d'une forme détourée). Ce qui est quasi transparent (alpha ≤ 8) est
+ * remis à zéro, comme à l'import d'un kit mono-fichier.
+ */
+export async function reduceTo(img: Rgba, width: number, height: number): Promise<Rgba> {
+  if (img.width === width && img.height === height) return img;
+  const data = await raw(img).resize(width, height, { fit: "fill", kernel: "lanczos3" }).ensureAlpha().raw().toBuffer();
+  for (let i = 0; i < data.length; i += 4) if (data[i + 3] <= 8) data.writeUInt32LE(0, i);
+  return { width, height, data };
+}

@@ -3513,6 +3513,26 @@ label.a-file-btn:focus-within {
   gap: 14px;
 }
 
+/* Kit v4 : la revue est groupée par fichier (décor, logo et papier, icônes et curseurs). */
+.a-kit-file {
+  margin-top: 22px;
+}
+
+.a-kit-file > h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.a-kit-file > h3 small {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--admin-ink-soft);
+}
+
+.a-kit-file[data-received="false"] > h3 small {
+  color: var(--admin-ink);
+}
+
 .a-kit-card {
   display: grid;
   gap: 8px;

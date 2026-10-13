@@ -8,17 +8,20 @@
  * bundle esbuild `kit-child.cjs` à la racine du standalone ; en dev, via tsx.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { rename, writeFile } from "node:fs/promises";
+import { rename, rm } from "node:fs/promises";
 
 import { ThemeSchema } from "@/themes/schema";
 
-import { buildKit, type BuildOptions } from "./build";
+import { type BuildOptions } from "./build";
+import { archiveReadme, buildKitMulti } from "./build-multi";
 import { importKit } from "./import";
 import { loadManifests } from "./manifest";
+import { KIT_FILES, KIT_ROLES } from "./spec";
+import { writeZipFile } from "./zip-archive";
 
 type Input =
   | { mode?: "export"; theme: unknown; publicDir: string; out: string; exportId: string; themeVersion: string; siteName: string; manifestDir: string; assets?: BuildOptions["assets"] }
-  | { mode: "import"; psd: string; outDir: string; manifestDir: string; themeId?: string; palette?: Record<string, string> };
+  | { mode: "import"; psd: string | { path: string; name?: string }[]; outDir: string; manifestDir: string; themeId?: string; palette?: Record<string, string> };
 
 const peakMb = () => Math.round(process.resourceUsage().maxRSS / 1024);
 
@@ -52,11 +55,17 @@ async function main() {
     return;
   }
   const theme = ThemeSchema.parse(input.theme);
-  const { psd, stats } = await buildKit(theme, input.publicDir, { exportId: input.exportId, themeVersion: input.themeVersion, siteName: input.siteName, assets: input.assets, manifestDir: input.manifestDir });
-  // Écriture atomique : le fichier n'apparaît en cache qu'entier.
-  await writeFile(`${input.out}.tmp`, psd);
-  await rename(`${input.out}.tmp`, input.out);
-  process.stdout.write(`${JSON.stringify({ ok: true, bytes: psd.length, ms: Date.now() - t0, peakMb: peakMb(), oom, stats })}\n`);
+  // Les trois PSD dans un dossier de travail, puis l'archive (écriture atomique : elle n'apparaît en cache qu'entière).
+  const parts = `${input.out}.parts`;
+  await rm(parts, { recursive: true, force: true });
+  try {
+    const { files, stats } = await buildKitMulti(theme, input.publicDir, { exportId: input.exportId, themeVersion: input.themeVersion, siteName: input.siteName, assets: input.assets, manifestDir: input.manifestDir, outDir: parts });
+    const bytes = await writeZipFile(`${input.out}.tmp`, [...KIT_ROLES.map((r) => ({ name: KIT_FILES[r].file, file: files.find((f) => f.role === r)!.path })), { name: "LISEZ-MOI.txt", data: Buffer.from(archiveReadme(input.siteName), "utf8") }]);
+    await rename(`${input.out}.tmp`, input.out);
+    process.stdout.write(`${JSON.stringify({ ok: true, bytes, ms: Date.now() - t0, peakMb: peakMb(), oom, stats })}\n`);
+  } finally {
+    await rm(parts, { recursive: true, force: true });
+  }
 }
 
 main().catch((error: unknown) => {

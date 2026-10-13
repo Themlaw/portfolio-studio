@@ -18,7 +18,7 @@
 import { getLayerImageData, type Layer } from "ag-psd";
 
 import type { Rgba } from "./formats";
-import { ALL_SLOTS, ELEMENTS, EXPORT_ID_RE, frameOf, HOTSPOT_LAYER, isIgnoredName, looseName, SWATCH_SLOTS, type ElementSpec, type Frame, type Layout, type SlotSpec } from "./spec";
+import { ALL_SLOTS, ELEMENTS, EXPORT_ID_RE, decorSlot, frameOf, HOTSPOT_LAYER, isIgnoredName, looseName, roleOfSize, slotsOfRole, SWATCH_SLOTS, type ElementSpec, type Frame, type KitRole, type Layout, type SlotSpec } from "./spec";
 
 export type SlotSource = {
   slot: SlotSpec;
@@ -58,10 +58,17 @@ export type Resolution = {
   ignored: string[];
   /** Identifiant d'export lu dans un nom de calque (kit v2). */
   exportId: string | null;
+  /** Rôle noté dans l'identifiant (kit v4), sinon null : la taille du document fait foi. */
+  role: KitRole | null;
 };
 
-const elementByAlias = (n: string) => ELEMENTS.find((e) => e.aliases.includes(n));
-const slotByAlias = (n: string, within?: ElementSpec) => ALL_SLOTS.find((s) => s.aliases.includes(n) && (!within || s.element === within.id));
+/** Emplacements lisibles : ceux du fichier (kit v4), sinon tous (kits mono-fichier). */
+type Pool = SlotSpec[];
+const elementByAlias = (n: string, pool: Pool) => ELEMENTS.find((e) => e.aliases.includes(n) && pool.some((s) => s.element === e.id));
+const slotByAlias = (n: string, pool: Pool, within?: ElementSpec) => pool.find((s) => s.aliases.includes(n) && (!within || s.element === within.id));
+
+/** Rôle du fichier, écrit dans le nom du calque d'identifiant de `_guides` (« kit k2-… · role-logo — ne pas supprimer »). */
+export const ROLE_RE = /\brole-(decor|logo|icones)\b/;
 
 /** Plan de travail : son rectangle fait la carte (même origine). */
 function boardOf(l: Layer, layout: Layout): { x: number; y: number } | undefined {
@@ -75,10 +82,55 @@ type Loose = { layer: Layer; path: string; origin?: { x: number; y: number }; or
 /** Rectangle du calque (coordonnées du document) recoupe-t-il la case ? */
 const overlaps = (l: Layer, f: Frame) => (l.right ?? 0) > f.x && (l.left ?? 0) < f.x + f.w && (l.bottom ?? 0) > f.y && (l.top ?? 0) < f.y + f.h;
 
-export function resolveSlots(children: Layer[] | undefined, layout: Layout): Resolution {
+/** Identifiant d'export et rôle, lus dans les calques de `_guides` (à tout niveau). */
+function readIdentity(children: Layer[] | undefined): { exportId: string | null; role: KitRole | null } {
+  let exportId: string | null = null;
+  let role: KitRole | null = null;
+  const walk = (list: Layer[] | undefined) => {
+    for (const l of list ?? []) {
+      const name = l.name ?? "";
+      const id = name.match(EXPORT_ID_RE);
+      if (id) {
+        exportId ??= id[1];
+        role ??= (name.match(ROLE_RE)?.[1] as KitRole | undefined) ?? null;
+      }
+      if (l.children && isIgnoredName(name)) walk(l.children);
+    }
+  };
+  walk(children);
+  return { exportId, role };
+}
+
+/**
+ * Décor libre (kit v4, fichier « décor ») : chaque calque ou groupe de PREMIER
+ * niveau est un plan, du fond (en bas de la pile) vers l'avant. Guides,
+ * consignes et aperçus ignorés ; un calque masqué est ignoré (c'est le geste
+ * naturel pour « retirer » un plan sans le supprimer).
+ */
+export function resolveDecor(children: Layer[] | undefined): { plans: SlotSource[]; ignored: string[]; exportId: string | null; role: KitRole | null } {
+  const { exportId, role } = readIdentity(children);
+  const plans: SlotSource[] = [];
+  const ignored: string[] = [];
+  for (const l of children ?? []) {
+    const name = l.name ?? "";
+    if (isIgnoredName(name)) continue;
+    if (l.hidden) {
+      ignored.push(`${name} (calque masqué : ignoré)`);
+      continue;
+    }
+    const slot = decorSlot(plans.length + 1);
+    slot.label = `Plan ${plans.length + 1} (« ${name.trim() || "sans nom"} »)`;
+    plans.push({ slot, nodes: [l], path: name });
+  }
+  return { plans, ignored, exportId, role };
+}
+
+export function resolveSlots(children: Layer[] | undefined, layout: Layout, role?: KitRole | null): Resolution {
   const sources = new Map<string, SlotSource>();
   const ignored: string[] = [];
-  let exportId: string | null = null;
+  const identity = readIdentity(children);
+  let exportId: string | null = identity.exportId;
+  const pool: Pool = layout === "multi" ? slotsOfRole(role ?? identity.role ?? "icones") : ALL_SLOTS;
   /** Palette : ordre de pile (du bas vers le haut) des calques, reconnus ou non. */
   let order = 0;
   const mainOrder = new Map<string, number>();
@@ -112,10 +164,10 @@ export function resolveSlots(children: Layer[] | undefined, layout: Layout): Res
       const n = looseName(name);
       const path = [...prefix, name].join(" / ");
       if (l.children) {
-        const el = !within ? elementByAlias(n) : undefined;
+        const el = !within ? elementByAlias(n, pool) : undefined;
         if (el) {
           const origin = boardOf(l, layout) ?? boardOrigin;
-          const slots = ALL_SLOTS.filter((s) => s.element === el.id);
+          const slots = pool.filter((s) => s.element === el.id);
           if (slots.length === 1) {
             take(slots[0], l.children.filter((c) => !isIgnoredName(c.name ?? "")), path, origin);
           } else {
@@ -123,12 +175,12 @@ export function resolveSlots(children: Layer[] | undefined, layout: Layout): Res
           }
           continue;
         }
-        const slot = slotByAlias(n, within);
+        const slot = slotByAlias(n, pool, within);
         if (slot) take(slot, [l], path, boardOrigin);
         else walk(l.children, [...prefix, name], within, boardOrigin);
         continue;
       }
-      const slot = slotByAlias(n, within);
+      const slot = slotByAlias(n, pool, within);
       if (slot) take(slot, [l], path, boardOrigin);
       else if (within?.id === "palette") loose.push({ layer: l, path, origin: boardOrigin, order: order++ });
       else ignored.push(within ? `${path} (hors d'un emplacement de « ${within.group} » : range-le dans un des calques reconnus)` : `${path} (calque non reconnu)`);
@@ -136,7 +188,7 @@ export function resolveSlots(children: Layer[] | undefined, layout: Layout): Res
   };
   walk(children, [], undefined, undefined);
   adoptLoosePaint(loose, sources, mainOrder, ignored, layout);
-  return { sources, ignored, exportId };
+  return { sources, ignored, exportId, role: identity.role };
 }
 
 /**
@@ -192,6 +244,7 @@ function adoptLoosePaint(loose: Loose[], sources: Map<string, SlotSource>, mainO
 
 /** Disposition d'après la taille du document. */
 export function layoutOf(width: number, height: number): Layout | null {
+  if (roleOfSize(width, height)) return "multi";
   if (width === 2880 && height === 2560) return "v1";
   // v2 : 4000 × 4000 (avant la palette et les curseurs) ou 4000 × 4880 (kit v3, mêmes cases).
   if (width === 4000 && (height === 4000 || height === 4880)) return "v2";
@@ -439,10 +492,11 @@ export function treeStats(children: Layer[] | undefined): TreeStats {
 /** Limites de l'arbre (mêmes plafonds que l'en-tête, plus profondeur et plus grand calque). */
 export const TREE_LIMITS = { maxDepth: 12, maxSide: 8192 };
 
-export function treeProblem(st: TreeStats, limits: { maxLayers: number; maxLayerArea: number }, doc: { width: number; height: number }): string | null {
+export function treeProblem(st: TreeStats, limits: { maxLayers: number; maxLayerArea: number; areaFor?: (width: number, height: number) => number }, doc: { width: number; height: number }): string | null {
+  const maxArea = limits.areaFor?.(doc.width, doc.height) ?? limits.maxLayerArea;
   if (st.layers > limits.maxLayers) return `Le document contient ${st.layers} calques et groupes : ${limits.maxLayers} au plus. Fusionne ou supprime les calques en trop.`;
   if (st.depth > TREE_LIMITS.maxDepth) return `Groupes imbriqués sur ${st.depth} niveaux : ${TREE_LIMITS.maxDepth} au plus. Sors des calques de leurs groupes ou fusionne des groupes.`;
-  if (st.area > limits.maxLayerArea) return `Les calques couvrent ${Math.round(st.area / 1e6)} mégapixels au total : ${Math.round(limits.maxLayerArea / 1e6)} au plus. Supprime ou rogne les calques pleine toile en trop.`;
+  if (st.area > maxArea) return `Les calques couvrent ${Math.round(st.area / 1e6)} mégapixels au total : ${Math.round(maxArea / 1e6)} au plus. Supprime ou rogne les calques pleine toile en trop.`;
   if (st.widest > TREE_LIMITS.maxSide || st.largest > doc.width * doc.height) return "Un calque est plus grand que tout le document : recadre-le (Image > Rogner) puis réenregistre.";
   return null;
 }

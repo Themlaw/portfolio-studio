@@ -196,11 +196,12 @@ export const becomesForced = (key: PaletteKey, auto: readonly string[] | undefin
  * Point chaud (px de la case 64 × 64) : centre du calque repère ; absent ou
  * hors de la case → défaut / ramené dans la case, avec un message.
  */
-export function readHotspot(source: SlotSource | undefined, frame: { x: number; y: number }, fallback: { x: number; y: number }): { x: number; y: number; message?: string } {
+export function readHotspot(source: SlotSource | undefined, frame: { x: number; y: number }, fallback: { x: number; y: number }, scale = 1): { x: number; y: number; message?: string } {
   const h = source?.hotspot;
   if (!h) return { ...fallback, message: "Repère « point chaud » introuvable : le point chaud par défaut est utilisé (pointe en haut à gauche)." };
-  const x = Math.floor((h.left + h.right - 1) / 2) - frame.x;
-  const y = Math.floor((h.top + h.bottom - 1) / 2) - frame.y;
+  // Kit v4 : la case est `scale` fois plus grande que le curseur (64 px) ; le point chaud est ramené à la taille du curseur.
+  const x = Math.floor((Math.floor((h.left + h.right - 1) / 2) - frame.x) / scale);
+  const y = Math.floor((Math.floor((h.top + h.bottom - 1) / 2) - frame.y) / scale);
   const cx = Math.max(0, Math.min(CURSOR.size - 1, x));
   const cy = Math.max(0, Math.min(CURSOR.size - 1, y));
   return cx !== x || cy !== y ? { x: cx, y: cy, message: "Le repère « point chaud » sort de la case : ramené au bord." } : { x, y };

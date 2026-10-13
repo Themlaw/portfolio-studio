@@ -134,15 +134,15 @@ export async function uploadChunked(file: File, onProgress: (sent: number, total
 }
 
 /**
- * Envoi du kit Photoshop rempli d'un thème : même envoi par morceaux (reprise
- * après coupure), refus avant l'envoi (taille, extension), contrôle de
- * l'en-tête à la fin, puis import en file. Renvoie l'identifiant de l'import.
+ * Envoi d'UN fichier du kit (PSD ou archive .zip) : même envoi par morceaux (reprise après
+ * coupure), refus avant l'envoi (taille, extension), contrôle à la fin sans décodage.
+ * `batch` : fichier d'un envoi groupé ; le dernier (`last`) lance l'import.
  */
-export async function uploadKitPsd(file: File, themeId: string, onProgress: (sent: number, total: number) => void): Promise<{ ok: true; importId: string } | { ok: false; message: string }> {
+async function uploadKitFile(file: File, themeId: string, batch: { id: string; last: boolean } | undefined, onProgress: (sent: number, total: number) => void): Promise<{ ok: true; importId: string } | { ok: false; message: string }> {
   const init = await api<{ upload: { id: string; chunkSize: number } }>("/admin/api/upload/init", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: file.name, size: file.size, type: file.type || "image/vnd.adobe.photoshop", purpose: { kind: "kit", themeId } }),
+    body: JSON.stringify({ name: file.name, size: file.size, type: file.type || (/\.zip$/i.test(file.name) ? "application/zip" : "image/vnd.adobe.photoshop"), purpose: { kind: "kit", themeId, ...(batch ? { batch } : {}) } }),
   });
   if (!init.ok) return { ok: false, message: init.message };
   const id = init.data.upload.id;
@@ -173,6 +173,30 @@ export async function uploadKitPsd(file: File, themeId: string, onProgress: (sen
   const done = await api<{ kitImport: { id: string } }>(`/admin/api/upload/${id}/complete`, { method: "POST" });
   if (!done.ok) return { ok: false, message: done.message };
   return { ok: true, importId: done.data.kitImport.id };
+}
+
+/**
+ * Envoi du kit Photoshop rempli d'un thème : l'archive .zip, un seul .psd, ou plusieurs .psd
+ * choisis ensemble (envoyés l'un après l'autre, importés d'un seul coup). Renvoie l'identifiant
+ * de l'import. Un fichier refusé arrête l'envoi, avec son nom dans le message.
+ */
+export async function uploadKit(files: File[], themeId: string, onProgress: (sent: number, total: number) => void): Promise<{ ok: true; importId: string } | { ok: false; message: string }> {
+  if (files.length === 0) return { ok: false, message: "Choisis le kit : l'archive .zip, ou un ou plusieurs fichiers Photoshop (.psd)." };
+  if (files.length === 1) return uploadKitFile(files[0], themeId, undefined, onProgress);
+  const bad = files.find((f) => !/\.psd$/i.test(f.name));
+  if (bad) return { ok: false, message: `« ${bad.name} » n'est pas un fichier Photoshop (.psd) : pour plusieurs fichiers, choisis seulement des .psd (ou envoie le .zip seul).` };
+  if (files.length > 3) return { ok: false, message: "Le kit compte 3 fichiers au plus." };
+  const total = files.reduce((n, f) => n + f.size, 0);
+  const batch = crypto.randomUUID();
+  let done = 0;
+  let importId = batch;
+  for (const [i, file] of files.entries()) {
+    const res = await uploadKitFile(file, themeId, { id: batch, last: i === files.length - 1 }, (sent) => onProgress(done + sent, total));
+    if (!res.ok) return { ok: false, message: `« ${file.name} » : ${res.message}` };
+    importId = res.importId;
+    done += file.size;
+  }
+  return { ok: true, importId };
 }
 
 /** Envoi d'un fichier : direct (petite image) ou par morceaux (vidéo, grande image). */

@@ -41,7 +41,7 @@ export default async function Hero({ content }: { content: HeroContent }) {
       const plans = (theme.assets.kit?.plans ?? []).map((p) =>
         p ? { ...p, placeholder: planPlaceholder(p.thumbhash) } : null,
       );
-      return <HeroParallax layers={theme.assets.heroLayers ?? []} plans={plans} content={content} />;
+      return <HeroParallax layers={theme.assets.kit?.plansOnly ? [] : (theme.assets.heroLayers ?? [])} plans={plans} content={content} />;
     }
     case "spotlight":
       return <HeroSpotlight content={content} />;
