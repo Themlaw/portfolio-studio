@@ -118,6 +118,8 @@ export const KitAssetsSchema = z
         image: kitImage,
         /** Opacité de la tuile superposée au hero (grain du paysage), défaut PAPER_OVER_HERO_DEFAULT ; absente : pas de superposition. */
         overHero: z.number().min(0).max(PAPER_OVER_HERO_MAX).optional(),
+        /** Tuile aussi sous le bandeau du haut (collant) ; absent / false : le bandeau est un aplat de la couleur de fond. */
+        underHeader: z.boolean().optional(),
       })
       .strict()
       .optional(),

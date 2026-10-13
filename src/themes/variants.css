@@ -315,6 +315,14 @@
   background-repeat: repeat;
 }
 
+/* Le bandeau du haut (collant) reste un aplat de la couleur de fond : la tuile y
+   gêne la lecture de la navigation. Option de thème « Papier sous le bandeau »
+   (assets.kit.paper.underHeader) : data-kit-paper-header, le papier y repasse. */
+[data-kit-paper]:not([data-kit-paper-header]) .site-header {
+  background-color: var(--color-bg);
+  background-image: none;
+}
+
 [data-kit-paper-hero] .hero-parallax::after {
   content: "";
   position: absolute;

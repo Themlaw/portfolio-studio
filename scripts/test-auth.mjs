@@ -2665,8 +2665,8 @@ const st3 = await waitImport("pro", foreignUp.body.kitImport?.id);
 const rap3 = st3.status === "done" ? rapportOf(dirK, foreignUp.body.kitImport.id) : null;
 const foreignHtml = rap3 ? await (await fetch(`${BASE}/admin/themes/pro/kit?import=${foreignUp.body.kitImport.id}`, { headers: { cookie: kv.jar.header() } })).text() : "";
 ok(
-  "TI10 kit d'un autre thème : signalé (« Ce kit vient du thème … »), rien marqué inchangé",
-  rap3?.reference === null && rap3?.foreign?.themeId === "galerie-lumineuse" && rap3.slots.every((x) => x.change !== "unchanged") && /Ce kit vient du thème/.test(foreignHtml),
+  "TI10 kit d'un autre thème : signalé (« Ce kit vient du thème … »), reconnu, appliqué à son thème d'origine (choix du thème visé affiché)",
+  rap3?.reference?.themeId === "galerie-lumineuse" && rap3?.foreign?.themeId === "galerie-lumineuse" && rap3.slots.filter((x) => x.change === "redrawn").length === 1 && /Ce kit vient du thème/.test(foreignHtml) && /data-testid="kit-base-select"/.test(foreignHtml),
   JSON.stringify({ st3, ref: rap3?.reference, foreign: rap3?.foreign }),
 );
 

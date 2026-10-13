@@ -87,6 +87,7 @@ export function kitAttributes(kit: KitAssets | undefined): Record<`data-${string
   if (kit.signature) a["data-kit-signature"] = "";
   if (kit.paper) a["data-kit-paper"] = "";
   if (kit.paper?.overHero !== undefined) a["data-kit-paper-hero"] = "";
+  if (kit.paper?.underHeader) a["data-kit-paper-header"] = "";
   if (kit.frame) a["data-kit-frame"] = "";
   if (kit.stroke) a["data-kit-stroke"] = "";
   for (const [key, name] of ICONS) if (kit.icons?.[key]) a[`data-kit-icon-${name}`] = "";

@@ -1275,6 +1275,35 @@ body:has(.a-sidepanel) .a-toasts {
 
 .a-theme-card[data-active="true"] {
   border-color: var(--admin-success);
+  border-width: 2px;
+  box-shadow: 0 0 0 3px var(--admin-success-soft);
+}
+
+.a-badge-live {
+  gap: 5px;
+}
+
+.a-theme-live {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--admin-success);
+  border-radius: 6px;
+  background: var(--admin-success-soft);
+  color: var(--admin-ink);
+  font-size: 14px;
+}
+
+.a-kit-base {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 6px;
+}
+
+.a-kit-base .a-select {
+  max-width: 420px;
 }
 
 .a-card-head {

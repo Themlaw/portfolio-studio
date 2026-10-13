@@ -20,6 +20,7 @@ import { FONT_IDS, type FontId, type Theme } from "@/themes/schema";
 
 import { clone, SaveBar, same, toast, useUnsavedGuard } from "./editing";
 import CursorSettings from "./CursorSettings";
+import PaperSettings from "./PaperSettings";
 import KitDownloadButton from "./KitDownloadButton";
 import PaletteEditor from "./PaletteEditor";
 import ThemeTypeEditor from "./ThemeTypeEditor";
@@ -336,6 +337,7 @@ export default function ThemeEditor({ initial, isActive }: { initial: Theme; isA
             />
           </section>
 
+          <PaperSettings theme={theme} onChange={(kit) => setTheme((t) => ({ ...t, assets: { ...t.assets, kit } }))} />
           <CursorSettings theme={theme} onChange={(kit) => setTheme((t) => ({ ...t, assets: { ...t.assets, kit } }))} />
 
           <SaveBar

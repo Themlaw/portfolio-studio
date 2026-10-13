@@ -262,7 +262,7 @@ ok("fichier réel de l'artiste : aucun canal ZIP (RLE Photoshop)", !readPsd(read
   const { buildKit } = await kit("build.ts");
   const { readHotspot, dominantColor, shapeFill, sameColor } = await kit("extras.ts");
   const { withKitColors, kitColorFailures } = await kit("apply.ts");
-  const { CURSOR_SLOTS, SWATCH_SLOTS, frameOf: frameOfV, CURSOR_DEFAULT_HOTSPOT } = await kit("spec.ts");
+  const { CURSOR_SLOTS, SWATCH_SLOTS, frameOf: frameOfV, CURSOR_DEFAULT_HOTSPOT, SLOTS: SLOTS_ALL } = await kit("spec.ts");
   const { PRESETS } = await import(new URL("../src/themes/presets/index.ts", import.meta.url));
   const P = await import(new URL("../src/themes/palette.ts", import.meta.url));
   // Thème de test : survol de l'action en « auto », le reste comme le preset.
@@ -297,6 +297,10 @@ ok("fichier réel de l'artiste : aucun canal ZIP (RLE Photoshop)", !readPsd(read
   const marker = normal.children.find((l) => l.name === "point chaud");
   for (const k of ["left", "right"]) marker[k] += 6;
   for (const k of ["top", "bottom"]) marker[k] += 8;
+  // Logo collé avec son fond opaque (1200 × 300) : refusé, sinon un rectangle plein dans le bandeau.
+  const sigLayer = group("2 · Signature").children.find((l) => l.name === "Signature");
+  const sz = frameOfV(SLOTS_ALL.find((x) => x.id === "signature"), "v2");
+  Object.assign(sigLayer, { left: sz.x, top: sz.y, right: sz.x + 1200, bottom: sz.y + 300, imageData: { width: 1200, height: 300, data: new Uint8ClampedArray(1200 * 300 * 4).fill(255) } });
   const edited = path.join(tmp, "kit-v3-modifie.psd");
   writeFileSync(edited, writePsdBuffer({ width: back.width, height: back.height, children: back.children }, { noBackground: true }));
 
@@ -310,6 +314,8 @@ ok("fichier réel de l'artiste : aucun canal ZIP (RLE Photoshop)", !readPsd(read
   ok(`import : les ${SWATCH_SLOTS.length - 2} autres pastilles inchangées`, unchanged === SWATCH_SLOTS.length - 2, r3.colors.filter((c) => c.change !== "unchanged").map((c) => c.key).join(","));
   const cn = r3.slots.find((x) => x.id === "curseur/normal");
   const cc = r3.slots.find((x) => x.id === "curseur/clic");
+  const sg = r3.slots.find((x) => x.id === "signature");
+  ok("import : logo opaque (fond plein) → erreur claire, pas un rectangle plein dans le bandeau", sg?.status === "error" && /rectangle plein/.test(sg.messages.join(" ")), JSON.stringify({ status: sg?.status, msg: sg?.messages }));
   ok("import : curseur normal redessiné, point chaud déplacé (4,4)+(6,8) px de la case → (5, 6) px CSS", cn?.change === "redrawn" && cn.hotspot?.x === 5 && cn.hotspot?.y === 6, JSON.stringify({ change: cn?.change, hotspot: cn?.hotspot, msg: cn?.messages }));
   ok("import : curseur « clic » laissé tel quel → inchangé (curseur du système gardé)", cc?.change === "unchanged", cc?.change);
   const png = cn?.files?.find((f) => !f.endsWith(".2x.png"));
@@ -338,6 +344,57 @@ ok("fichier réel de l'artiste : aucun canal ZIP (RLE Photoshop)", !readPsd(read
   ok("comparaison de couleurs : hex et rgba", sameColor("#E5E2DB", "#e5e2db") && sameColor("rgba(237, 232, 220, 0.14)", "rgba(237,232,220,0.14)") && !sameColor("#000000", "#000001"));
   ok("point chaud : repère supprimé → défaut + message", readHotspot(undefined, zone, CURSOR_DEFAULT_HOTSPOT.default).message?.includes("introuvable"));
   ok("ancien kit (v1, fichier réel) : ni palette ni curseurs rapportés", !report.colors && report.extras?.palette === false && !report.slots.some((x) => x.id.startsWith("curseur/")), JSON.stringify(report.extras));
+}
+
+/* ---- Palette : gestes naturels de Photoshop (lot 17a), aller-retour PSD réel ---- */
+{
+  const { readSwatchSlot, compareSwatches } = await kit("extras.ts");
+  const { frameOf: frameOfS, SWATCH_SLOTS: SW } = await kit("spec.ts");
+  const { swatchRaster } = await kit("build.ts");
+  const slot = SW.find((x) => x.paletteKey === "bg");
+  const f = frameOfS(slot, "v2");
+  const before = "#f4f1ea";
+  const layer = (name, color, mutate) => {
+    const r = swatchRaster(color, 150);
+    const data = new Uint8ClampedArray(r.data);
+    mutate?.(data);
+    return { name, left: f.x, top: f.y, right: f.x + 150, bottom: f.y + 150, imageData: { width: 150, height: 150, data } };
+  };
+  const paintLeft = (share) => (d) => {
+    for (let y = 0; y < 150; y++) for (let x = 0; x < 150 * share; x++) if (d[(y * 150 + x) * 4 + 3]) d.set([192, 57, 43, 255], (y * 150 + x) * 4);
+  };
+  /** Lit la pastille « Fond » d'un groupe « 8 · Palette » comme l'import (fichier réécrit puis relu). */
+  const readBg = (children) => {
+    const buf = writePsdBuffer({ width: 4000, height: 4880, children: [{ name: "8 · Palette", children }] }, { noBackground: true });
+    const tree = readPsd(buf, { ...PSD_READ_OPTIONS });
+    const { sources, ignored } = resolveSlots(tree.children, "v2");
+    const src = sources.get(slot.id);
+    if (!src) return { ignored };
+    const [c] = compareSwatches([readSwatchSlot(slot, src, "v2", before)], null, { bg: before });
+    return { ...c, ignored };
+  };
+  const painted = (label, r) => ok(`palette : ${label} → changé, #c0392b`, r.change === "changed" && r.after === "#c0392b", JSON.stringify(r));
+  painted("pot de peinture sur toute la pastille", readBg([layer("Fond", "#c0392b")]));
+  const part = readBg([layer("Fond", before, paintLeft(0.3))]);
+  painted("coup de pinceau sur 30 % de la pastille (la couleur d'avant reste majoritaire)", part);
+  ok("palette : repeint partiel annoncé dans la revue", part.messages?.some((m) => /repeinte en partie \(30 %/.test(m)), JSON.stringify(part.messages));
+  const added = readBg([layer("Fond", before), layer("Calque 1", "#c0392b")]);
+  painted("nouveau calque posé sur la pastille (« Calque 1 »)", added);
+  ok("palette : le calque ajouté n'est pas « ignoré »", added.ignored.length === 0, added.ignored.join(" ; "));
+  const under = readBg([layer("Calque 1", "#c0392b"), layer("Fond", before)]);
+  ok("palette : calque ajouté SOUS la pastille → la pastille couvre, inchangé", under.change === "unchanged", JSON.stringify(under));
+  painted("pastille supprimée, remplacée par un nouveau calque", readBg([layer("Calque 1", "#c0392b")]));
+  painted("incrustation couleur (style de calque)", readBg([{ ...layer("Fond", before), effects: { solidFill: [{ enabled: true, present: true, color: { r: 192, g: 57, b: 43 }, opacity: 1, blendMode: "normal" }] } }]));
+  const off = readBg([{ ...layer("Fond", before), effects: { solidFill: [{ enabled: false, present: true, color: { r: 192, g: 57, b: 43 }, opacity: 1, blendMode: "normal" }] } }]);
+  ok("palette : incrustation couleur désactivée → inchangé", off.change === "unchanged", JSON.stringify(off));
+  const shape = readBg([{ name: "Fond", left: f.x, top: f.y, right: f.x + 150, bottom: f.y + 150, vectorFill: { type: "color", color: { r: 192, g: 57, b: 43 } } }]);
+  ok("palette : calque de forme (couleur de remplissage)", shape.change === "changed" && shape.after === "#c0392b" && shape.how === "forme", JSON.stringify(shape));
+  const stray = readBg([layer("Fond", before, paintLeft(0.01))]);
+  ok("palette : un grain isolé (1 %) n'est pas un repeint", stray.change === "unchanged", JSON.stringify(stray));
+  const far = readBg([layer("Fond", before), { name: "Calque 2", left: f.x + 160, top: f.y, right: f.x + 230, bottom: f.y + 70, imageData: { width: 70, height: 70, data: new Uint8ClampedArray(70 * 70 * 4).fill(255) } }]);
+  ok("palette : calque hors de toute pastille → ignoré avec la raison", far.change === "unchanged" && far.ignored.some((m) => /Calque 2.*hors de toute pastille/.test(m)), JSON.stringify(far.ignored));
+  const adj = resolveSlots([{ name: "8 · Palette", children: [{ name: "Teinte/Saturation 1", left: f.x, top: f.y, right: f.x + 150, bottom: f.y + 150, adjustment: { type: "hue/saturation" } }] }], "v2");
+  ok("palette : calque de réglage → ignoré, dit clairement", adj.ignored.some((m) => /calque de réglage/.test(m)), JSON.stringify(adj.ignored));
 }
 
 rmSync(tmp, { recursive: true, force: true });

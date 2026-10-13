@@ -27,7 +27,7 @@ import { preflightProblem, preflightPsd, type PreflightLimits, type PsdPreflight
 import { findReference, frameHash, writePreview, type KitManifest } from "./manifest";
 import { flattenSlot, freeRaw, layoutOf, resolveSlots, SlotRefusal, treeProblem, treeStats, type TreeStats } from "./resolve";
 import { DEFAULT_LIMITS } from "./limits";
-import { compareSwatches, cursorWarning, encodeCursor, hotspotCss, readHotspot, readSwatch, type ColorReport, type SwatchRead } from "./extras";
+import { compareSwatches, cursorWarning, encodeCursor, hotspotCss, readHotspot, readSwatchSlot, type ColorReport, type SwatchRead } from "./extras";
 import { ALL_SLOTS, CURSOR_DEFAULT_HOTSPOT, CURSOR_SLOTS, frameOf, HERO, SLOTS, SWATCH_SLOTS, type Layout, type SlotSpec } from "./spec";
 
 /**
@@ -93,7 +93,7 @@ export type KitReport = {
   exportId?: string | null;
   /** Kit d'origine reconnu (par l'identifiant du PSD ou par le contenu). */
   reference?: { exportId: string; themeId: string; how: "identifiant" | "contenu"; matches: number } | null;
-  /** Kit reconnu mais exporté depuis un AUTRE thème : rien n'est marqué inchangé. */
+  /** Kit reconnu mais exporté depuis un AUTRE thème que celui de l'écran d'envoi : appliqué à son thème d'origine par défaut. */
   foreign?: { exportId: string; themeId: string } | null;
   /** Arbre recompté après lecture (fait foi sur l'en-tête). */
   tree?: TreeStats;
@@ -254,16 +254,16 @@ export async function importKit(psdPath: string, outDir: string, opts: ImportOpt
     pending.push({ slot, report, base, ms: performance.now() - start });
   }
 
-  // Palette et curseurs (kit v3) : lus seulement si leur groupe est là.
+  // Palette et curseurs (kit v3) : lus seulement si leur groupe est là. La couleur
+  // exportée (manifeste du kit d'origine, sinon couleur du thème) sert à repérer
+  // les pixels repeints, même partiellement.
   const swatchReads: SwatchRead[] = [];
+  const idManifest = exportId ? (opts.manifests ?? []).find((m) => m.exportId === exportId) : undefined;
   for (const slot of SWATCH_SLOTS) {
     const source = sources.get(slot.id);
     if (!source) continue;
-    const messages: string[] = [];
     try {
-      const flat = flattenSlot(source, layout, (m) => messages.push(m));
-      const read = readSwatch(slot, source, flat?.img ?? null, flat ? frameHash(flat.img) : undefined);
-      swatchReads.push({ ...read, messages: [...messages, ...read.messages] });
+      swatchReads.push(readSwatchSlot(slot, source, layout, idManifest?.colors?.[slot.paletteKey!] ?? opts.palette?.[slot.paletteKey!]));
     } catch (error) {
       if (!(error instanceof SlotRefusal)) throw error;
       swatchReads.push({ slot, messages: [error.message] });
@@ -319,7 +319,11 @@ export async function importKit(psdPath: string, outDir: string, opts: ImportOpt
   /** RSS courant (pas le pic) une fois le PSD libéré. */
   const afterFreeMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
 
-  const { reference: ref, foreign } = findReference(exportId, hashes, opts.manifests ?? [], opts.themeId);
+  // Le kit d'origine est reconnu quel que soit l'écran où il est envoyé : le thème
+  // visé par défaut est celui dont le kit a été exporté (`reference.themeId`), pas
+  // celui de la page ; `foreign` n'est que l'avertissement d'un écart.
+  const { reference: ref } = findReference(exportId, hashes, opts.manifests ?? []);
+  const foreign = ref && opts.themeId !== undefined && ref.manifest.themeId !== opts.themeId ? ref : null;
   let planChanged = false;
 
   for (const { slot, report, base, ms } of pending) {
@@ -360,6 +364,18 @@ export async function importKit(psdPath: string, outDir: string, opts: ImportOpt
       report.messages.push("Plan entièrement opaque : il masquerait les plans du fond. Efface le ciel au-dessus du décor.");
       done();
       continue;
+    }
+    // Forme teintée (signature, trait, icônes) : seule la forme est gardée. Un logo collé avec son fond
+    // opaque deviendrait un rectangle plein de la couleur du texte dans le bandeau.
+    if (slot.mono && slot.transparent && shareOpaque > 0.98) {
+      const msg = "Calque entièrement opaque : le site ne garde que la forme, qui serait un rectangle plein. Efface le fond autour du dessin (fond transparent).";
+      if (slot.kind === "signature") {
+        report.status = "error";
+        report.messages.push(msg);
+        done();
+        continue;
+      }
+      warn(msg);
     }
     if (slot.kind === "plan" && slot.usefulHeight && box.y < HERO.height - slot.usefulHeight - 40) {
       warn(`Le décor monte à ${HERO.height - box.y} px depuis le bas, au-delà de la hauteur utile (${slot.usefulHeight} px) : il risque de passer derrière le titre.`);
