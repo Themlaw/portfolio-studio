@@ -1069,6 +1069,15 @@ deux rubriques au survol, « Texte » dans une case vide de grille et deux bouto
 `help-text.ts`) s'ouvre en édition en place, texte d'aide sélectionné (message `edit-text`) ; la publication refuse un
 texte d'aide non remplacé.
 
+**Texte, Titre, Titre + texte (lot 19a).** Cause du retour de la v0.17 : le bloc `rich-text` neuf portait `title: {fr:"",en:""}`
+et la toile rend le titre dès que la clé existe (gros « Titre » gris), et le paragraphe gardait `mt-6` même sans titre : un
+« Texte » seul réservait une place de titre et ouvrait 24 px de trop au-dessus (avant : 183 px de haut sur la toile, 122 en
+public ; après : 86 et 98, soit l'espace de section puis le paragraphe). Modélisation retenue : **un champ n'existe que si sa
+clé existe** (pas de second type de bloc : « Texte » et « Titre + texte » sont le même `rich-text`, « Titre » est le
+`section-title` existant). `TEXT_STARTERS` pose le bloc et ses seuls champs ; « + Ajouter un titre » / « Retirer le titre »
+(intention `field-op`) créent ou retirent la clé sur la toile. Les anciens blocs au titre vide sont migrés (0020, rendu public
+inchangé : un titre vide n'y était déjà pas rendu), ceux qui ont un titre se rendent à l'identique (HTML comparé au caractère près).
+
 ## Authentification (phase 3)
 
 - **Better Auth 1.7**, adaptateur Drizzle, tables `user`, `session`, `account`,

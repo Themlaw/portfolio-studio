@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 
 import { acceptFromCanvas, acceptToCanvas, EDIT_MSG } from "../src/lib/edit/protocol.ts";
 import { CUSTOM_COLOR_RE } from "../src/lib/color.ts";
-import { helpTextProblem, HELP_TEXT, TEXT_STARTERS } from "../src/blocks/help-text.ts";
+import { helpTextProblem, titleHelpProblem, HELP_TEXT, TEXT_STARTERS } from "../src/blocks/help-text.ts";
 import { resolvePalette, contrastRatio } from "../src/themes/palette.ts";
 import { ThemeSchema, SURFACE_TOKENS } from "../src/themes/schema.ts";
 import { cardStyle, cardVars, cleanSurface, FALLBACK_CARD, readSurface, resolveSurface, SurfaceSchema, surfaceAttributes } from "../src/themes/surface.ts";
@@ -110,16 +110,53 @@ const from = (data) => acceptFromCanvas(msg(data), ORIGIN, frame);
 ok("protocole : intention `surface` acceptée (carte, `{}`, retrait)", from({ kind: "surface", uid: "b1", surface: { color: "#aabbcc", width: "full" } })?.kind === "surface" && from({ kind: "surface", uid: "b1", surface: {} })?.kind === "surface" && from({ kind: "surface", uid: "b1", surface: null })?.kind === "surface");
 ok("protocole : `surface` invalide refusée (couleur, clé, uid)", ["rose", "#ABC", 3].every((c) => from({ kind: "surface", uid: "b1", surface: { color: c } }) === null) && from({ kind: "surface", uid: "b1", surface: { x: 1 } }) === null && from({ kind: "surface", uid: "B 1", surface: {} }) === null && from({ kind: "surface", uid: "b1" }) === null);
 ok("protocole : seq conservé sur `surface`", acceptFromCanvas({ origin: ORIGIN, source: frame, data: { type: EDIT_MSG, kind: "surface", uid: "b1", surface: {}, seq: 7 } }, ORIGIN, frame)?.seq === 7);
-ok("protocole : `insert` (choix, texte, titre + texte) accepté", ["choose", "text", "title-text"].every((what) => from({ kind: "insert", parent: null, index: 3, what })?.kind === "insert") && from({ kind: "insert", parent: "g1", index: 0, what: "text" })?.parent === "g1");
+ok("protocole : `insert` (choix, texte, titre, titre + texte) accepté", ["choose", "text", "title", "title-text"].every((what) => from({ kind: "insert", parent: null, index: 3, what })?.kind === "insert") && from({ kind: "insert", parent: "g1", index: 0, what: "text" })?.parent === "g1");
 ok("protocole : `insert` invalide refusé", from({ kind: "insert", parent: null, index: -1, what: "text" }) === null && from({ kind: "insert", parent: null, index: 1, what: "image" }) === null && from({ kind: "insert", parent: "x y", index: 1, what: "text" }) === null && from({ kind: "insert", index: 1, what: "text" }) === null);
+ok("protocole : `field-op` (titre / étiquette ajoutés ou retirés) accepté", ["add-title", "remove-title", "add-eyebrow", "remove-eyebrow"].every((op) => from({ kind: "field-op", uid: "b1", op })?.kind === "field-op"));
+ok("protocole : `field-op` invalide refusé", from({ kind: "field-op", uid: "b1", op: "add-intro" }) === null && from({ kind: "field-op", uid: "x y", op: "add-title" }) === null && from({ kind: "field-op", op: "add-title" }) === null);
 const to = (data) => acceptToCanvas(msg(data), ORIGIN, frame);
 ok("protocole : `edit-text` vers la toile (chemin borné)", to({ kind: "edit-text", uid: "b2", path: "paragraphs.0" })?.kind === "edit-text" && to({ kind: "edit-text", uid: "b2", path: "title" })?.kind === "edit-text" && to({ kind: "edit-text", uid: "b2", path: "__proto__.x" }) === null && to({ kind: "edit-text", uid: "b2", path: "a".repeat(81) }) === null);
 
 /* ---- Texte d'aide ---------------------------------------------------------------------------------------------- */
 
-ok("rubriques de texte : « Texte » sans titre, « Titre + texte » avec titre, édition d'emblée", TEXT_STARTERS.text.props.title === undefined && TEXT_STARTERS["title-text"].props.title === HELP_TEXT.title && TEXT_STARTERS.text.edit === "paragraphs.0" && TEXT_STARTERS["title-text"].edit === "title");
+ok("rubriques de texte : trois choix, « Texte » sans titre, « Titre » = bloc Titre sans présentation, « Titre + texte » complet", TEXT_STARTERS.text.block === "rich-text" && !("title" in TEXT_STARTERS.text.props) && TEXT_STARTERS.title.block === "section-title" && TEXT_STARTERS.title.props.title === HELP_TEXT.title && !("intro" in TEXT_STARTERS.title.props) && !("paragraphs" in TEXT_STARTERS.title.props) && TEXT_STARTERS["title-text"].block === "rich-text" && TEXT_STARTERS["title-text"].props.title === HELP_TEXT.title && Object.keys(TEXT_STARTERS).join() === "text,title,title-text");
+ok("rubriques de texte : champ édité d'emblée", TEXT_STARTERS.text.edit === "paragraphs.0" && TEXT_STARTERS.title.edit === "title" && TEXT_STARTERS["title-text"].edit === "title");
+ok("un Titre dont le titre est resté le texte d'aide : publication refusée ; titre remplacé, vide ou lié au projet : rien à signaler", titleHelpProblem({ title: HELP_TEXT.title }) !== null && titleHelpProblem({ title: { fr: "Bonjour", en: HELP_TEXT.title.en } }) !== null && titleHelpProblem({ title: { fr: "Bonjour", en: "" } }) === null && titleHelpProblem({ title: { fr: "", en: "" } }) === null && titleHelpProblem({ title: HELP_TEXT.title, linked: true }) === null);
 ok("texte d'aide resté tel quel : publication refusée (paragraphe ou titre, dans l'une ou l'autre langue)", helpTextProblem({ paragraphs: [HELP_TEXT.paragraph] }) !== null && helpTextProblem({ title: HELP_TEXT.title, paragraphs: [{ fr: "Bonjour", en: "" }] }) !== null && helpTextProblem({ paragraphs: [{ fr: "Bonjour", en: HELP_TEXT.paragraph.en }] }) !== null);
 ok("texte remplacé ou vide : rien à signaler", helpTextProblem({ paragraphs: [{ fr: "Bonjour", en: "Hello" }] }) === null && helpTextProblem({ title: { fr: "", en: "" }, paragraphs: [{ fr: "", en: "" }] }) === null && helpTextProblem({}) === null);
+
+/* ---- Bloc Texte (lot 19a) : un champ n'existe que s'il a été demandé -------------------------------------------- */
+
+try {
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { createElement } = await import("react");
+  const RichText = (await import("../src/blocks/RichTextBlock.tsx")).default;
+  const SectionTitle = (await import("../src/blocks/SectionTitleBlock.tsx")).default;
+  const Rich = RichText.default ?? RichText;
+  const Title = SectionTitle.default ?? SectionTitle;
+  const L = (fr, en = "") => ({ fr, en });
+  const html = (props, edit = false) => renderToStaticMarkup(createElement(Rich, { props, ctx: { locale: "fr", pageId: 1, edit } }));
+  // Rendu public d'un bloc avec titre : identique à celui de la v0.17 (HTML mesuré avant le lot 19a).
+  const TITLED =
+    '<section class="shell pt-[var(--section-gap)]"><div class="max-w-2xl"><p class="eyebrow ">E</p><h2 class="mt-4 font-display text-[clamp(2rem,5vw,3.5rem)] text-ink">T</h2><div class="mt-6 space-y-6 text-base leading-relaxed text-ink-soft"><p>P1</p><p>P2</p></div></div></section>';
+  ok("Texte : rendu public d'un bloc avec titre et étiquette inchangé (au caractère près)", html({ eyebrow: L("E"), title: L("T"), paragraphs: [L("P1"), L("P2")] }) === TITLED);
+  const alone = html({ paragraphs: [L("P")] });
+  ok("Texte seul (public) : ni titre, ni étiquette, aucune marge réservée au-dessus du paragraphe", !/<h2|eyebrow|mt-6|mt-4/.test(alone) && /<p>P<\/p>/.test(alone), alone);
+  ok("Texte à titre vide (ancien défaut) : public identique à un Texte seul", html({ title: L("", ""), paragraphs: [L("P")] }) === alone);
+  const edit = html({ paragraphs: [L("P")] }, true);
+  ok("Texte seul (toile) : aucun champ de titre ni texte gris « Titre » ; « + Ajouter un titre » proposé", !/<h2|data-inline="title"|data-placeholder="Titre"|data-inline="eyebrow"/.test(edit) && /data-edit-field-op="add-title"/.test(edit), edit);
+  const editTitled = html({ title: L("T"), paragraphs: [L("P")] }, true);
+  ok("Texte avec titre (toile) : champ saisissable, « Retirer le titre » proposé, pas de « Ajouter »", /data-inline="title"/.test(editTitled) && /data-edit-field-op="remove-title"/.test(editTitled) && !/add-title/.test(editTitled));
+  ok("Texte : aucun bouton ni repère d'édition en public", !/data-edit-field-op|pe-field/.test(html({ title: L("T"), paragraphs: [L("P")] })) && !/data-edit-field-op|pe-field/.test(alone));
+  const title = async (props, edit = false) => renderToStaticMarkup(await Title({ props, ctx: { locale: "fr", pageId: 1, edit } }));
+  const titleEdit = await title({ title: L("T") }, true);
+  ok("Titre seul (toile) : pas de champ « Présentation » ni d'étiquette grise ; « + Ajouter une étiquette » proposé", !/data-inline="intro"|data-inline="eyebrow"|Présentation/.test(titleEdit) && /data-edit-field-op="add-eyebrow"/.test(titleEdit), titleEdit);
+  const titlePublic = await title({ title: L("T") });
+  ok("Titre seul (public) : le titre, rien d'autre (ni étiquette vide, ni présentation vide)", /<h2[^>]*>T<\/h2>/.test(titlePublic) && !/eyebrow|<p/.test(titlePublic), titlePublic);
+  ok("Titre avec étiquette et présentation (anciens blocs) : champs conservés sur la toile", /data-inline="eyebrow"/.test(await title({ eyebrow: L(""), title: L("T"), intro: L("") }, true)) && /data-inline="intro"/.test(await title({ eyebrow: L(""), title: L("T"), intro: L("") }, true)));
+} catch (e) {
+  ok("blocs Texte et Titre rendables par Node", false, String(e).slice(0, 300));
+}
 
 /* ---- Blocs : `surface` au registre (illisible = ignoré, jamais le bloc masqué) ------------------------------------ */
 
