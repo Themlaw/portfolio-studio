@@ -65,10 +65,14 @@ export default function GridBlock({ props, ctx, children }: { props: z.infer<typ
           <div key={`free-${i}`} className="block-grid-cell" data-edit-cell-free="" lang="fr">
             <span className="pe-cell-free">
               <span aria-hidden="true">+</span>
-              {/* « Texte » : une rubrique de texte dans cette case, éditée aussitôt (lot 17c). */}
-              <button type="button" className="pe-cell-text" data-edit-cell-text="">
-                Texte
-              </button>
+              {/* Une rubrique de texte dans cette case, éditée aussitôt (lot 17c ; trois choix au lot 19a). */}
+              <span className="pe-cell-choices">
+                {([["text", "Texte"], ["title", "Titre"], ["title-text", "Titre + texte"]] as const).map(([k, label]) => (
+                  <button key={k} type="button" className="pe-cell-text" data-edit-cell-text={k}>
+                    {label}
+                  </button>
+                ))}
+              </span>
             </span>
           </div>
         ))}

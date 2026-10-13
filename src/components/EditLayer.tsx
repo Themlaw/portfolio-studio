@@ -808,6 +808,16 @@ export default function EditLayer() {
       const t = e.target instanceof Element ? e.target : null;
       const addEnd = t?.closest("[data-edit-add]");
       const cellText = t?.closest<HTMLElement>("[data-edit-cell-text]");
+      const fieldOp = t?.closest<HTMLElement>("[data-edit-field-op]");
+      if (fieldOp) {
+        e.preventDefault();
+        e.stopPropagation();
+        finishEdit(true);
+        const uid = fieldOp.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
+        const op = fieldOp.dataset.editFieldOp;
+        if (uid && (op === "add-title" || op === "remove-title" || op === "add-eyebrow" || op === "remove-eyebrow")) post({ kind: "field-op", uid, op });
+        return;
+      }
       if (addEnd || cellText) {
         e.preventDefault();
         e.stopPropagation();
@@ -815,7 +825,7 @@ export default function EditLayer() {
         if (addEnd) post({ kind: "insert", parent: null, index: boxesRef.current.filter((b) => !b.parent).length, what: "choose" });
         else {
           const grid = cellText!.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
-          if (grid) post({ kind: "insert", parent: grid, index: boxesRef.current.filter((b) => b.parent === grid).length, what: "text" });
+          if (grid) post({ kind: "insert", parent: grid, index: boxesRef.current.filter((b) => b.parent === grid).length, what: (cellText!.dataset.editCellText as "text" | "title" | "title-text") || "text" });
         }
         return;
       }

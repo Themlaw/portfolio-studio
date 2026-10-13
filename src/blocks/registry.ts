@@ -52,7 +52,7 @@ import HeroBlock, { heroSchema } from "./HeroBlock";
 import ProfileBlock, { profileSchema } from "./ProfileBlock";
 import ProjectBoardBlock, { projectBoardSchema } from "./ProjectBoardBlock";
 import type { BlockCatalogEntry } from "./editor-types";
-import { helpTextProblem } from "./help-text";
+import { helpTextProblem, titleHelpProblem } from "./help-text";
 import { BLOCK_REFS, type BlockRefs } from "./refs";
 import RichTextBlock, { richTextSchema } from "./RichTextBlock";
 import type { BlockContext } from "./types";
@@ -230,10 +230,12 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Component: SectionTitleBlock,
       Editor: SectionTitleEditor,
       label: "Titre",
-      description: "Une étiquette, un titre et une présentation ; dans un projet mis en avant, peut reprendre le nom du projet.",
-      defaults: { eyebrow: L, title: L, intro: L },
+      description: "Une étiquette facultative et un titre ; dans un projet mis en avant, peut reprendre le nom du projet.",
+      // Sans présentation (clé `intro` absente) : aucune place ni texte d'aide pour un champ qu'on n'a pas demandé.
+      defaults: { title: L },
       summary: "{title}",
       inline: ["eyebrow", "title", "intro"],
+      publishCheck: (props) => titleHelpProblem(props),
     }),
     define({
       type: "hero",
@@ -282,9 +284,9 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Component: RichTextBlock,
       Editor: RichTextEditor,
       label: "Texte",
-      description: "Un titre facultatif et quelques paragraphes de texte.",
-      // Titre présent (vide) : il se saisit directement sur la toile.
-      defaults: { title: L, paragraphs: [L] },
+      description: "Un paragraphe de texte ; un titre peut s'ajouter au survol sur la page.",
+      // Un champ n'existe que s'il a été demandé : un Texte neuf est un paragraphe seul (lot 19a).
+      defaults: { paragraphs: [L] },
       summary: "{title} · {paragraphs} paragraphes",
       inline: ["eyebrow", "title", "paragraphs.*"],
       // Texte d'aide d'une rubrique neuve (« Ajouter une rubrique ») : à remplacer avant de publier.

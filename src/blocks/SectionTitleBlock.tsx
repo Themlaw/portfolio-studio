@@ -34,8 +34,14 @@ export default async function SectionTitleBlock({ props, ctx }: { props: z.infer
   const title = props.linked ? (project?.title ?? "") : props.title ? tr(props.title, ctx.locale) : "";
   const intro = props.linked ? (project?.description ?? "") : props.intro ? tr(props.intro, ctx.locale) : null;
   const header = (
-    <header className="title-head max-w-2xl" {...(linkedEdit ? { ...boardMarks(linkedEdit), "data-edit-board-label": project?.title } : {})}>
-      {(props.eyebrow || ctx.edit) && (
+    <header className={`title-head max-w-2xl${ctx.edit && !props.linked ? " relative pe-field-host" : ""}`} {...(linkedEdit ? { ...boardMarks(linkedEdit), "data-edit-board-label": project?.title } : {})}>
+      {/* Étiquette : un champ qui n'existe que s'il a été demandé (« + Ajouter une étiquette » au survol, lot 19a). */}
+      {ctx.edit && !props.linked && (
+        <button type="button" className="pe-field-op" data-edit-field-op={props.eyebrow === undefined ? "add-eyebrow" : "remove-eyebrow"} {...(ctx.cell ? { "data-cell": "" } : {})}>
+          {props.eyebrow === undefined ? "+ Ajouter une étiquette" : "Retirer l'étiquette"}
+        </button>
+      )}
+      {(props.eyebrow || (ctx.edit && props.linked)) && (
         <Eyebrow {...inline(ctx, "eyebrow")} {...ph("Étiquette")}>
           {props.eyebrow ? tr(props.eyebrow, ctx.locale) : ""}
         </Eyebrow>
@@ -47,7 +53,8 @@ export default async function SectionTitleBlock({ props, ctx }: { props: z.infer
       >
         {title}
       </h2>
-      {(intro !== null || ctx.edit) && (
+      {/* Présentation : un champ qui n'existe que s'il a été demandé (clé `intro`) ; un « Titre » neuf n'en réserve pas (lot 19a). */}
+      {(intro !== null || (ctx.edit && props.intro !== undefined)) && (
         <p
           className="mt-5 text-base leading-relaxed text-ink-soft"
           {...(props.linked ? { ...(linkedEdit ? { "data-project-inline": "description", "data-look-key": "intro" } : {}), ...textStyle(ctx, "intro") } : inline(ctx, "intro"))}
@@ -59,5 +66,5 @@ export default async function SectionTitleBlock({ props, ctx }: { props: z.infer
     </header>
   );
   if (ctx.cell) return header;
-  return <section className="shell pt-[var(--section-gap)]">{header}</section>;
+  return <section className={ctx.edit && !props.linked ? "shell pt-[var(--section-gap)] pe-field-host" : "shell pt-[var(--section-gap)]"}>{header}</section>;
 }
