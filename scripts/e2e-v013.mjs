@@ -716,14 +716,22 @@ if (run("P")) {
   await page.keyboard.press("Enter");
   await settled();
   ok("P9 curseur dans un mot (sans sélection) : le mot est surligné", statement()?.startsWith("<mark>Je</mark> dessine"), statement());
-  // Aucun HTML : les chevrons saisis sont retirés, rien n'est interprété.
+  // Aucun HTML : ce qui ressemble à une balise est retiré à la saisie (« < » suivi d'une lettre ou de « / »), rien n'est interprété.
   await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
   await page.keyboard.press("ControlOrMeta+a");
   await page.keyboard.type("Salut <img src=x onerror=alert(1)> <b>gras</b>");
   await page.keyboard.press("Enter");
   await settled();
-  ok("P10 chevrons retirés à la saisie : aucun HTML dans le brouillon", !/[<>]/.test(statement().replace(/<\/?mark>/g, "")) && !statement().includes("<img"), statement());
+  ok("P10 balises retirées à la saisie : aucun HTML dans le brouillon", !/<\/?[a-z]/i.test(statement().replace(/<\/?mark>/g, "")) && !statement().includes("<img"), statement());
   ok("P10b rien d'interprété sur la toile", (await f.locator(`${H} img, ${H} b`).count()) === 0);
+  // Un chevron isolé reste du texte (accroche de la v0.15 : « I <3 … ») : enregistré, publiable, rendu en texte.
+  await f.locator(H).dblclick({ position: { x: 20, y: 20 } });
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.type("I <3 dessiner");
+  await page.keyboard.press("Enter");
+  await settled();
+  ok("P10c « < » isolé conservé comme texte dans le brouillon", statement() === "I <3 dessiner", statement());
+  ok("P10d rendu en texte, sans nœud HTML", await until(f, (sel) => document.querySelector(sel + " [data-marked-body]")?.textContent === "I <3 dessiner" && document.querySelectorAll(sel + " [data-marked-body] *").length === 0, H, 20000));
   // Balisage forgé : un message de la toile avec du HTML est refusé par l'éditeur ; l'aperçu n'existe pas, le brouillon reste.
   const good = statement();
   const uid = await f.locator('[data-edit-type="hero"]').first().getAttribute("data-edit-block");

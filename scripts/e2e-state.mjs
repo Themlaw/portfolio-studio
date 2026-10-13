@@ -66,7 +66,7 @@ const run = (k) => !ONLY || ONLY.split(",").includes(k);
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-const page = await ctx.newPage();
+let page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 
@@ -1262,6 +1262,10 @@ if (run("F")) {
   /** Éditeur de l'accueil sur un brouillon du site neuf (ouvert d'abord : l'ouverture abandonne un brouillon resté en base). */
   const open = async (socials) => {
     slow = false;
+    // Onglet neuf à chaque cas : le rendu de la toile, après une longue suite, finit par manquer de mémoire (VM de 2 Go).
+    await page.close().catch(() => {});
+    page = await ctx.newPage();
+    page.on("pageerror", (e) => errors.push(e.message));
     write("delete from settings where key = 'siteDraft'");
     f = await openEditor(homeId);
     seed(socials);
