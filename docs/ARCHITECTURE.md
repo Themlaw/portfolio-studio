@@ -406,6 +406,46 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   rendu réel de PDF hostiles si poppler est installé), `test:auth` section PDF,
   `test:e2e-medias`.
 
+### Recadrage libre, image seule (lot 17d)
+
+- **Donnée** : `look.crop.mediaId.rect` (aussi accepté dans `look.tileCrop[…]`) = rectangle normalisé
+  `{x, y, w, h}` de l'image ORIENTÉE (0..1, côtés ≥ 1 %, dans l'image : `RectSchema`, `src/lib/images/crop.ts`).
+  Par emplacement (bloc, case de grille) : la même image posée plusieurs fois a un recadrage par placement ;
+  l'original n'est jamais modifié. Avec `rect`, `x/y/zoom` restent à 50/50/1 et sont ignorés ; sans `rect`,
+  l'ancien cadrage (point focal + zoom dans un cadre au format imposé) fonctionne comme avant.
+- **Rendu** (`ImageBlock`, `crop-view.ts`) : un recadrage libre donne une variante extraite de l'ORIGINAL ; le
+  cadre prend son rapport (`data-free` : `aspect-ratio: auto`, le format imposé du bloc ou de la grille est
+  ignoré), les cases d'une grille restent alignées en haut de la rangée et gardent chacune leur hauteur. Un ancien
+  cadrage dans un cadre au format imposé, et un décor sans cadrage dont le cadre le rogne d'au moins 1,5 fois,
+  sont servis de la même façon (leur fenêtre est un rectangle de l'original) : netteté pleine au lieu d'une
+  image entière agrandie par CSS (`data-cropped` neutralise alors décalage et zoom CSS).
+- **Variantes recadrées** : `GET /media/crop/<média>/<rect>-<signature>/<largeur>.<avif|webp>`
+  (`src/app/media/[...key]/route.ts`). Rectangle en dix-millièmes (`x1235y2000w5000h4000`), largeur dans une
+  liste fermée (480, 960, 1600, 2400, 3600, 4800, ou la taille réelle du recadrage) bornée à 12 Mpx de sortie.
+  **Signature** HMAC (`BETTER_AUTH_SECRET`) posée au rendu par le serveur : on ne génère que ce que le site a
+  écrit lui-même (brouillon compris), jamais un recadrage choisi par un tiers ; signature, forme, rectangle,
+  largeur et média (image raster prête avec original) sont vérifiés AVANT tout accès au disque ou à sharp.
+  Changer le secret invalide les signatures des pages en cache (pages à régénérer).
+- **Génération** (`src/lib/images/crop-cache.ts`) : `extract` puis réduction depuis l'original lu par chemin
+  (orientation EXIF appliquée avant l'extraction, budget de décodage de `budget.ts` vérifié), concurrence 1,
+  file bornée (`MAX_WAITING` = 24, au-delà 503 + `Retry-After`), deux demandes de la même variante n'en font
+  qu'une. Cache disque `${DATA_DIR}/cache/crops/<média>/<rect>/<largeur>.<format>`, au plus `MAX_RECTS` (32)
+  rectangles par média (le plus ancien est effacé, il se régénère si on le redemande). Le dossier d'un média
+  est purgé à sa suppression (`deleteMedia`). La file n'est pas partagée avec le worker des jobs : une
+  extraction peut tourner pendant un job d'image (sharp reste à un thread).
+- **Image seule** : plafond de hauteur `width: min(100%, 85svh × --ir)` (`data-solo`, `--ir` = rapport affiché) :
+  une image plus haute est réduite et centrée, jamais rognée (hors cases de grille : la grille fixe sa géométrie). Option du bloc `fit` : « Image entière »
+  (`contain`) ou « Remplir le cadre » (`cover`) ; sans choix, entière pour un bloc pleine largeur, remplie sinon.
+- **Modale « Cadrer l'image »** : `FreeCropDialog.tsx` (mode Libre par défaut : huit poignées, glisser, formats
+  rapides Original / 1:1 / 4:5 / 3:2 / 16:9 qui verrouillent le rapport aux coins) et, quand le bloc impose un
+  format, l'onglet « Dans le cadre du bloc » (ancien point focal + zoom). La modale montre toujours l'image
+  ENTIÈRE (`data-full-src` posé par le bloc ou la tuile en édition seulement). Tuile de collection : recadrage
+  libre aussi (`look.tileCrop[collection].rect`, couverture raster ; la tuile prend le rapport du rectangle,
+  `data-free`, même route signée) ; fond de l'ouverture et portrait : ancien mode seulement.
+- Tests : `npm test` (`test-crop.mjs` : schéma, clés, signature, cache réel), `scripts/e2e-crop.mjs` (suite
+  `crop17d`, chromium) et `scripts/e2e-crop-http.mjs` (mêmes contrôles de rendu, de route et de tuile sans
+  navigateur : HTML servi + octets des variantes ; pour les machines sans chromium).
+
 ### Kit de thème PSD (phases 6b–6d)
 
 Spécification, mesures et décisions : `docs/THEME-KIT.md`. En bref : module
