@@ -408,6 +408,43 @@ await test("formId en double : refusé au brouillon et à la publication (même 
   assert.ok(Object.values(pub.fieldErrors ?? {}).some((m) => /autre page/.test(m)), JSON.stringify(pub.fieldErrors));
   assert.equal(saveDraft(G, { ...base(G), blocks: [{ ...other, uid: "c1" }] }, rev(G)).ok, true, "un identifiant neuf passe");
 });
+await test("fond de l'ouverture : un PDF est refusé au brouillon ET à la publication, image et vidéo passent", () => {
+  const media = (kind, mime) => db.insert(schema.media).values({ key: `t-bg-${kind}`, kind, mime, size: 1, status: "ready" }).returning({ id: schema.media.id }).get().id;
+  const pdf = media("pdf", "application/pdf");
+  const img = media("image", "image/webp");
+  const vid = media("video", "video/mp4");
+  const G = newPage("t-bg-kind");
+  const hero = (backgroundMediaId) => k("h", "hero", { eyebrow: L("x"), statement: L("y"), backgroundMediaId });
+  const refused = saveDraft(G, { ...base(G), blocks: [hero(pdf)] }, rev(G));
+  assert.equal(refused.ok, false, "PDF refusé au brouillon");
+  assert.match(refused.message, /image ou une vidéo/);
+  // Dans un conteneur aussi.
+  assert.equal(saveDraft(G, { ...base(G), blocks: [k("c", "grid", { children: [hero(pdf)] })] }, rev(G)).ok, false, "PDF refusé dans un conteneur");
+  assert.equal(saveDraft(G, { ...base(G), blocks: [hero(img)] }, rev(G)).ok, true, "image acceptée");
+  assert.equal(saveDraft(G, { ...base(G), blocks: [hero(vid)] }, rev(G)).ok, true, "vidéo acceptée");
+  // Publication : brouillon écrit sans passer par saveDraft.
+  db.update(schema.pages).set({ draft: { ...base(G), blocks: [hero(pdf)] } }).where(eq(schema.pages.id, G)).run();
+  const pub = publishDraft(G, rev(G));
+  assert.equal(pub.ok, false, "PDF refusé à la publication");
+  assert.ok(Object.values(pub.fieldErrors ?? {}).some((m) => /image ou une vidéo/.test(m)), JSON.stringify(pub.fieldErrors));
+});
+await test("entrées des collections : le cadrage d'une collection retirée du bloc est purgé à la publication", () => {
+  const G = newPage("t-tilecrop");
+  const crop = { x: 40, y: 60, zoom: 1.5 };
+  const item = (collection) => ({ collection, pageId: G, eyebrow: L("e"), title: L("t"), intro: L("i") });
+  const block = (items, tileCrop) => k("t", "collection-tiles", { eyebrow: L("a"), title: L("b"), items, look: { tileCrop } });
+  const published = () => db.select().from(schema.blocks).where(eq(schema.blocks.pageId, G)).all().map((b) => JSON.parse(b.props));
+  assert.equal(saveDraft(G, { ...base(G), blocks: [block([item("characters")], { characters: crop, backgrounds: crop })] }, rev(G)).ok, true);
+  const pub = publishDraft(G, rev(G));
+  assert.equal(pub.ok, true, JSON.stringify(pub));
+  assert.deepEqual(Object.keys(published()[0].look.tileCrop), ["characters"], "backgrounds purgé, characters gardé");
+  assert.equal(saveDraft(G, { ...base(G), blocks: [block([item("characters")], { characters: crop })] }, rev(G)).ok, true);
+  assert.equal(publishDraft(G, rev(G)).ok, true);
+  assert.deepEqual(published()[0].look.tileCrop, { characters: crop }, "rien à purger : inchangé");
+  assert.equal(saveDraft(G, { ...base(G), blocks: [block([item("animation")], { characters: crop })] }, rev(G)).ok, true);
+  assert.equal(publishDraft(G, rev(G)).ok, true);
+  assert.equal(published()[0].look?.tileCrop, undefined, "plus aucune tuile cadrée : tileCrop retiré");
+});
 await test("contact : Content-Length trop grand → 413 sans lecture ; corps énorme sans longueur (flux) → 413, RSS stable", async () => {
   assert.equal(await send(JSON.stringify(ok), { "content-length": String(10 * 1024 * 1024) }), 413);
   const chunk = new TextEncoder().encode("a".repeat(64 * 1024));

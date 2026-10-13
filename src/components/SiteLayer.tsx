@@ -174,7 +174,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
       setDrag(null);
       if (to !== from && to !== from + 1) {
         const target = to > from ? to - 1 : to;
-        const seq = post({ kind: "site-op", op: kind === "nav" ? "nav-move" : "social-move", index: from, to: target });
+        const seq = post({ kind: "site-op", op: kind === "nav" ? "nav-move" : "social-move", index: from, ...(draggedKey ? { key: draggedKey } : {}), to: target });
         if (draggedKey) previewList(kind, { t: "move", key: draggedKey, to: target }, seq);
         announce(`${kind === "nav" ? "Lien" : "Réseau"} déplacé en position ${target + 1}.`);
       }
@@ -229,7 +229,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
             title="Retirer"
             onClick={() => {
               const { key, index } = rankOf(hover.kind, hovEl, hover.index);
-              const seq = post({ kind: "site-op", op: hover.kind === "nav" ? "nav-remove" : "social-remove", index });
+              const seq = post({ kind: "site-op", op: hover.kind === "nav" ? "nav-remove" : "social-remove", index, ...(key ? { key } : {}) });
               if (key) previewList(hover.kind, { t: "remove", key }, seq);
               setHover(null);
             }}
@@ -407,7 +407,7 @@ function SocialPopover({ anchor, editIndex, editKey, initialHref = "", onClose }
         onDone={({ href, label, network }) => {
           if (editIndex !== undefined) {
             // Le lien d'un réseau ne se voit pas : l'élément est seulement marqué « en cours ».
-            const seq = post({ kind: "site-op", op: "social-edit", index: editIndex, href });
+            const seq = post({ kind: "site-op", op: "social-edit", index: editIndex, ...(editKey ? { key: editKey } : {}), href });
             if (editKey) previewList("social", { t: "pending", key: editKey }, seq);
           } else {
             const seq = post({ kind: "site-op", op: "social-add", href, label, network });

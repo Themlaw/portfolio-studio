@@ -16,7 +16,7 @@ import { Toggle } from "@/app/admin/_fields";
 import SocialsEditor from "@/components/admin/SocialsEditor";
 
 import type { FromCanvas } from "@/lib/edit/protocol";
-import { editedKind, NETWORKS, SiteSnapSchema, socialKind, type Network, type SiteSnap } from "@/lib/site-schema";
+import { editedKind, navKeyOf, NETWORKS, SiteSnapSchema, socialKind, socialKeys, uniqueKeys, type Network, type SiteSnap } from "@/lib/site-schema";
 
 type Result = { snap: SiteSnap; done?: string } | { error: string };
 type Page = { id: number; title: string };
@@ -26,6 +26,15 @@ function checked(snap: SiteSnap, done?: string): Result {
   return parsed.success ? { snap: parsed.data, ...(done ? { done } : {}) } : { error: parsed.error.issues[0]?.message ?? "Valeur invalide." };
 }
 const clone = (s: SiteSnap): SiteSnap => JSON.parse(JSON.stringify(s));
+/**
+ * Rang visé : la clé stable de l'élément (menu : page ou adresse ; réseau : nom et adresse) quand la toile en
+ * donne une, sinon le rang envoyé. Un rang compte les aperçus en attente de la toile : si l'un d'eux a été
+ * refusé, il ne désigne plus le même élément. -1 : l'élément n'existe plus.
+ */
+function rankFor(keys: string[], index: number | undefined, key: string | undefined): number {
+  return key !== undefined ? keys.indexOf(key) : (index ?? -1);
+}
+const navKeysOf = (snap: SiteSnap) => uniqueKeys(snap.nav.map((i) => navKeyOf(i.kind === "page" ? { pageId: i.pageId, href: "" } : { href: i.href })));
 function moved<T>(list: T[], from: number, to: number): T[] | null {
   if (from < 0 || from >= list.length || to < 0 || to >= list.length) return null;
   const next = list.slice();
@@ -52,7 +61,7 @@ export function siteText(snap: SiteSnap, msg: Extract<FromCanvas, { kind: "site-
       next.identity[msg.field] = { ...next.identity[msg.field], [msg.locale]: value.slice(0, 160) };
       break;
     case "nav": {
-      const item = msg.index !== undefined ? next.nav[msg.index] : undefined;
+      const item = next.nav[rankFor(navKeysOf(next), msg.index, msg.key)];
       if (!item) return { error: "Ce lien n'existe plus : recharge l'éditeur." };
       if (item.kind === "link") {
         if (!value) return { error: "Le texte d'un lien ne peut pas être vide." };
@@ -73,12 +82,14 @@ export function siteText(snap: SiteSnap, msg: Extract<FromCanvas, { kind: "site-
 export function applySiteOp(snap: SiteSnap, msg: Extract<FromCanvas, { kind: "site-op" }>, pages: Page[]): Result {
   const next = clone(snap);
   switch (msg.op) {
-    case "nav-remove":
-      if (!next.nav[msg.index]) return { error: "Ce lien n'existe plus." };
-      next.nav.splice(msg.index, 1);
+    case "nav-remove": {
+      const at = rankFor(navKeysOf(next), msg.index, msg.key);
+      if (!next.nav[at]) return { error: "Ce lien n'existe plus." };
+      next.nav.splice(at, 1);
       return checked(next, "Lien retiré du menu");
+    }
     case "nav-move": {
-      const list = moved(next.nav, msg.index, msg.to);
+      const list = moved(next.nav, rankFor(navKeysOf(next), msg.index, msg.key), msg.to);
       if (!list) return { error: "Déplacement impossible." };
       next.nav = list;
       return checked(next);
@@ -92,18 +103,20 @@ export function applySiteOp(snap: SiteSnap, msg: Extract<FromCanvas, { kind: "si
     case "nav-add-link":
       next.nav.push({ kind: "link", href: msg.href, label: { fr: msg.label, en: msg.label } });
       return checked(next, "Lien ajouté au menu");
-    case "social-remove":
-      if (!next.socials[msg.index]) return { error: "Ce réseau n'existe plus." };
-      next.socials.splice(msg.index, 1);
+    case "social-remove": {
+      const at = rankFor(socialKeys(next.socials), msg.index, msg.key);
+      if (!next.socials[at]) return { error: "Ce réseau n'existe plus." };
+      next.socials.splice(at, 1);
       return checked(next, "Réseau retiré");
+    }
     case "social-move": {
-      const list = moved(next.socials, msg.index, msg.to);
+      const list = moved(next.socials, rankFor(socialKeys(next.socials), msg.index, msg.key), msg.to);
       if (!list) return { error: "Déplacement impossible." };
       next.socials = list;
       return checked(next);
     }
     case "social-edit": {
-      const s = next.socials[msg.index];
+      const s = next.socials[rankFor(socialKeys(next.socials), msg.index, msg.key)];
       if (!s) return { error: "Ce réseau n'existe plus." };
       s.href = msg.href;
       const kind = editedKind(s.kind, msg.href);
@@ -152,13 +165,10 @@ export default function SiteEditor({
   snap: SiteSnap;
   pages: Page[];
   locked: string | null;
-  onChange: (next: SiteSnap) => void;
+  /** La modification est appliquée par l'éditeur au dernier état écrit (pas à `snap`, peut-être en retard). */
+  onChange: (change: (s: SiteSnap) => void) => void;
 }) {
-  const set = (fn: (s: SiteSnap) => void) => {
-    const next = clone(snap);
-    fn(next);
-    if (SiteSnapSchema.safeParse(next).success) onChange(next);
-  };
+  const set = onChange;
   const title = (id: number) => pages.find((p) => p.id === id)?.title ?? `page ${id}`;
   const free = pages.filter((p) => !snap.nav.some((i) => i.kind === "page" && i.pageId === p.id));
   return (

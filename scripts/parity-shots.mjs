@@ -3,7 +3,7 @@
  * Captures de parité visuelle : 4 thèmes × pages publiques, pleine page.
  * Sert à comparer deux états du site (ex. avant/après une refonte des données).
  *
- * Usage : PORT=3001 PARITY_LABEL=avant node scripts/parity-shots.mjs [preset…]
+ * Usage : PORT=3001 PARITY_LABEL=avant [PARITY_PAGES=accueil,personnages] node scripts/parity-shots.mjs [preset…]
  * Sortie : screenshots/parity/<label>/<preset>/<page>.png (hors git).
  * Comparaison : diff pixel à pixel des deux dossiers (ex. PIL ImageChops).
  */
@@ -28,6 +28,10 @@ const PAGES = [
   ["en-characters", "/en/characters"],
 ];
 const MOBILE = [["accueil-390", "/fr"]];
+
+// PARITY_PAGES=accueil,personnages : seulement ces pages (par nom ci-dessus) ; vide = toutes.
+const only = (process.env.PARITY_PAGES ?? "").split(",").filter(Boolean);
+const keep = (list) => (only.length ? list.filter(([name]) => only.includes(name)) : list);
 
 const wanted = process.argv.slice(2);
 const presets = wanted.length ? PRESETS.filter((p) => wanted.includes(p)) : PRESETS;
@@ -54,9 +58,10 @@ for (const preset of presets) {
   const dir = `${OUT}${preset}/`;
   mkdirSync(dir, { recursive: true });
   for (const [viewport, pages] of [
-    [{ width: 1440, height: 900 }, PAGES],
-    [{ width: 390, height: 844 }, MOBILE],
+    [{ width: 1440, height: 900 }, keep(PAGES)],
+    [{ width: 390, height: 844 }, keep(MOBILE)],
   ]) {
+    if (!pages.length) continue;
     const context = await browser.newContext({ viewport });
     const page = await context.newPage();
     // Aperçu = draft mode + cookie d'id, posés par la route (dev uniquement).

@@ -1093,6 +1093,16 @@ blocs.
   de 9 px de sa piste à 100 % ; la fenêtre défilait en largeur. La piste a une marge de 9 px et la
   fenêtre `overflow-x: hidden`.
 
+## Notes de version v0.16 : retour à la v0.15 destructif pour le nom du site
+
+La migration de contenu **0018** (`siteNameI18n`) transforme le nom du site, dans le réglage `site`
+ET dans le brouillon du site, de la chaîne d'avant en `{ fr, en }`. Une v0.15 relancée sur une base
+de v0.16 ne sait pas lire cette forme : le nom du site (en-tête, ouverture, profil, titre des
+pages) s'affiche vide ou cassé, et l'enregistrer depuis la v0.15 perd le nom anglais. **Un retour
+en arrière n'est pas sans perte : sauvegarder `/data` (base SQLite, `media/`, `fonts/`) AVANT la
+mise en ligne de la v0.16**, et restaurer cette sauvegarde (pas seulement l'image Docker) pour
+revenir à la v0.15. Dans l'autre sens, la v0.16 lit sans migration manuelle une base de v0.15.
+
 ## Notes de version v0.15 : changements de rendu pour les données déjà stylées
 
 Des réglages de texte enregistrés avant la v0.15 ne s'affichent plus tout à fait

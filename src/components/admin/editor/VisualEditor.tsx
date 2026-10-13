@@ -30,7 +30,7 @@ import { BlockEditorContext } from "@/blocks/editor-context";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
 import { blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
 import { makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
-import type { SiteSnap } from "@/lib/site-schema";
+import { SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
 import type { BoardOp, BoardResult, BoardSnap } from "@/lib/edit/boards";
 import type { DraftBlock, PageDraft } from "@/lib/edit/drafts";
 import { mediaStatusAction } from "@/app/admin/(espace)/medias/actions";
@@ -59,6 +59,8 @@ type Device = "desktop" | "tablet" | "phone";
 type Tab = "ajouter" | "medias" | "structure" | "reglages";
 type SaveState = "idle" | "pending" | "saving" | "error";
 /** Un pas d'historique : le brouillon, et l'instantané d'une planche ou du site (en-tête…) s'il a changé. */
+/** Nouvel état du site calculé sur le dernier état écrit : état, refus (message) ou rien à écrire. */
+type SiteUpdate = (cur: SiteSnap) => SiteSnap | { error: string } | null;
 type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: BoardSnap }; site?: SiteSnap };
 /** Où insérer : la page (parent null) ou un conteneur. */
 type Place = { parent: string | null; index: number };
@@ -367,7 +369,7 @@ export default function VisualEditor({
   const [sitePending, setSitePending] = useState(initialSite.pending);
   const siteLocked = initialSite.lockedBy;
   // Défini plus bas (après runSave) ; appelé par l'historique.
-  const writeSiteRef = useRef<(next: SiteSnap, record?: boolean) => Promise<boolean>>(async () => false);
+  const writeSiteRef = useRef<(next: SiteSnap | SiteUpdate, record?: boolean) => Promise<boolean>>(async () => false);
 
   /**
    * Écrit sur une planche (opération ou instantané), après le brouillon en
@@ -413,9 +415,12 @@ export default function VisualEditor({
   /**
    * Écrit le brouillon du site (en-tête, pied, réseaux) après le brouillon en
    * attente, avec la version de la page. `record` : inscrit dans l'historique.
+   * `next` peut être une fonction : elle est appelée DANS le verrou, sur le dernier état
+   * écrit (jamais sur un état antérieur à une écriture encore en vol) ; elle renvoie le
+   * nouvel état, `{ error }` (message affiché, rien n'est écrit) ou null (rien à écrire).
    */
   const writeSite = useCallback(
-    (next: SiteSnap, record = true): Promise<boolean> =>
+    (next: SiteSnap | SiteUpdate, record = true): Promise<boolean> =>
       withLock(async () => {
         if (blockedRef.current) return false;
         if (siteLocked) {
@@ -423,10 +428,16 @@ export default function VisualEditor({
           return false;
         }
         if (dirty.current && !(await runSave())) return false;
+        const snap = typeof next === "function" ? next(siteRef.current) : next;
+        if (!snap) return false;
+        if ("error" in snap) {
+          toast(snap.error, "error");
+          return false;
+        }
         setSaveState("saving");
         let result: Awaited<ReturnType<typeof siteDraftAction>>;
         try {
-          result = await siteDraftAction(pageId, next, revRef.current);
+          result = await siteDraftAction(pageId, snap, revRef.current);
         } catch {
           result = { ok: false, message: "connexion perdue" };
         }
@@ -444,8 +455,8 @@ export default function VisualEditor({
           coalesce.current = null;
           bumpHistory();
         }
-        siteRef.current = next;
-        setSiteSnap(next);
+        siteRef.current = snap;
+        setSiteSnap(snap);
         setSitePending(result.data.pending);
         setHasDraft(true);
         setSaveState("idle");
@@ -865,29 +876,33 @@ export default function VisualEditor({
   };
 
   /** Styles du site (brouillon du site : toutes les pages à la publication). */
-  const applySiteStyles = async (styles: SiteStyles | undefined) => {
-    const clean = cleanSiteStyles(styles);
+  const applySiteStyles = async (update: (cur: SiteStyles | undefined) => SiteStyles | undefined, fonts: (TextStyle | undefined)[]) => {
     working.current++;
     try {
-      if (!(await ensureFonts(Object.values(clean?.roles ?? {})))) {
+      if (!(await ensureFonts(fonts))) {
         send({ kind: "refresh", rev: revRef.current, upTo: -1 });
         return;
       }
-      const { styles: _old, ...rest } = siteRef.current;
-      void _old;
-      await writeSite({ ...rest, ...(clean ? { styles: clean } : {}) });
+      // Calculé dans le verrou, sur le dernier état écrit : deux réglages rapprochés se cumulent.
+      await writeSite((cur) => {
+        const clean = cleanSiteStyles(update(cur.styles));
+        const { styles: _old, ...rest } = cur;
+        void _old;
+        return { ...rest, ...(clean ? { styles: clean } : {}) };
+      });
     } finally {
       working.current--;
       settleIfQuiet();
     }
   };
-  const applySiteStyle = (role: Role, style: TextStyle | null) => {
-    const current = siteRef.current.styles ?? {};
-    const roles = { ...(current.roles ?? {}) };
-    if (style) roles[role] = style;
-    else delete roles[role];
-    void applySiteStyles({ ...current, roles });
-  };
+  const applySiteStyle = (role: Role, style: TextStyle | null) =>
+    void applySiteStyles((cur) => {
+      const current = cur ?? {};
+      const roles = { ...(current.roles ?? {}) };
+      if (style) roles[role] = style;
+      else delete roles[role];
+      return { ...current, roles };
+    }, [style ?? undefined]);
 
   /* ---- Messages de la toile ---------------------------------------------- */
 
@@ -1231,14 +1246,17 @@ export default function VisualEditor({
   const siteChange = (msg: Extract<FromCanvasMsg, { kind: "site-text" | "site-op" }>, seq?: number) => {
     // Refus (valeur invalide, en-tête tenu par une autre page, connexion perdue) : la toile retire son aperçu.
     const revert = () => seq && send({ kind: "revert", seq });
-    const result = msg.kind === "site-text" ? siteText(siteRef.current, msg) : applySiteOp(siteRef.current, msg, pages);
-    if ("error" in result) {
-      revert();
-      return toast(result.error, "error");
-    }
-    void writeSite(result.snap).then((ok) => {
+    // Calculé dans le verrou, sur le dernier état écrit : les rangs de la toile comptent ses aperçus en
+    // attente, c'est-à-dire les intentions précédentes, déjà écrites quand celle-ci s'exécute.
+    let done: string | undefined;
+    void writeSite((cur) => {
+      const result = msg.kind === "site-text" ? siteText(cur, msg) : applySiteOp(cur, msg, pages);
+      if ("error" in result) return result;
+      done = result.done;
+      return result.snap;
+    }).then((ok) => {
       if (!ok) revert();
-      else if (result.done) toast(result.done, "success", { label: "Annuler", run: () => void undoRef.current() });
+      else if (done) toast(done, "success", { label: "Annuler", run: () => void undoRef.current() });
     });
   };
 
@@ -1755,7 +1773,13 @@ export default function VisualEditor({
               snap={siteSnap}
               pages={pages}
               locked={siteLocked}
-              onChange={(next) => void writeSite(next)}
+              onChange={(change) =>
+                void writeSite((cur) => {
+                  const next = JSON.parse(JSON.stringify(cur)) as SiteSnap;
+                  change(next);
+                  return SiteSnapSchema.safeParse(next).success ? next : null;
+                })
+              }
             />
           ) : selBlock && selDef ? (
             <div className="ve-settings">
@@ -1832,7 +1856,7 @@ export default function VisualEditor({
               <p className="ve-hint">
                 Titre, adresses et référencement de la page : <Link href={`/admin/pages/${pageId}`}>formulaire de la page</Link>.
               </p>
-              <SiteStylesPanel styles={siteSnap.styles} onChange={(s) => void applySiteStyles(s)} palette={lookContext.palette} installed={fontFamilies} locked={siteLocked} />
+              <SiteStylesPanel styles={siteSnap.styles} onChange={(s) => void applySiteStyles(() => s, Object.values(cleanSiteStyles(s)?.roles ?? {}))} palette={lookContext.palette} installed={fontFamilies} locked={siteLocked} />
             </div>
           ))}
       </div>

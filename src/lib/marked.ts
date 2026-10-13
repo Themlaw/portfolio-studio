@@ -3,8 +3,9 @@
  * partagé par le rendu (`Marked`), la toile (édition en place) et l'éditeur.
  *
  * Stockage : une chaîne dont SEUL le balisage `<mark>…</mark>` est reconnu
- * (jamais imbriqué, jamais vide) ; aucun autre `<` ou `>`. Aucun HTML n'est
- * jamais interprété : le rendu pose le texte dans des nœuds texte, et le
+ * (jamais imbriqué, jamais vide) ; rien d'autre qui ressemble à une balise (`<` suivi
+ * d'une lettre ou de `/`). Un `<` ou un `>` isolé (« I <3 ») reste du texte. Aucun HTML
+ * n'est jamais interprété : le rendu pose le texte dans des nœuds texte, et le
  * balisage est revalidé ici avant d'entrer dans le brouillon.
  */
 
@@ -12,8 +13,10 @@ export type MarkedPart = { text: string; mark: boolean };
 
 /** Lecture (rendu) : comme avant la v0.16, tolérante pour les données anciennes. */
 const READ = /<mark>(.*?)<\/mark>/g;
-/** Écriture (validation) : un passage sans « < » ni « > ». */
-const MARK = /<mark>([^<>]*)<\/mark>/g;
+/** Ce qui ressemble à une balise (ouvrante ou fermante). */
+const TAGLIKE = /<\/?[a-z]/i;
+/** Écriture (validation) : un passage dont le contenu ne ressemble à aucune balise. */
+const MARK = /<mark>((?:(?!<\/?[a-zA-Z])[\s\S])*?)<\/mark>/g;
 
 /** Passages du texte (mis en valeur ou non), comme le rendu les lit. */
 export function parseMarked(text: string): MarkedPart[] {
@@ -32,21 +35,43 @@ export function parseMarked(text: string): MarkedPart[] {
 export function markedProblem(text: string): string | null {
   if (/<mark><\/mark>/.test(text)) return "Un passage surligné ne peut pas être vide.";
   const rest = text.replace(MARK, "");
-  if (/[<>]/.test(rest)) return "Seul le balisage <mark>…</mark> est accepté (sans imbrication), aucun autre « < » ou « > ».";
+  if (TAGLIKE.test(rest)) return "Seul le balisage <mark>…</mark> est accepté (sans imbrication), aucune autre balise.";
   return null;
 }
 
-/** Passages → chaîne stockée : passages voisins de même nature fondus, vides retirés, « < » et « > » retirés. */
-export function toMarkup(parts: MarkedPart[]): string {
+/** Texte sans ce qui ressemblerait à une balise (« < » suivi d'une lettre ou de « / ») ; « I <3 » est gardé. */
+function noTags(text: string): string {
+  let out = text;
+  // Jusqu'à stabilité : retirer un « < » peut en rapprocher un autre d'une lettre (« <</b »).
+  while (TAGLIKE.test(out)) out = out.replace(/<(?=\/?[a-zA-Z])/g, "");
+  return out;
+}
+
+/**
+ * Passages → chaîne stockée : passages voisins de même nature fondus, vides retirés, ce qui ressemblerait
+ * à une balise retiré. `max` : longueur maximale de la chaîne ; le surplus est coupé dans le TEXTE de la
+ * fin (jamais au milieu d'une balise : le résultat reste valide).
+ */
+export function toMarkup(parts: MarkedPart[], max = Infinity): string {
   const merged: MarkedPart[] = [];
   for (const p of parts) {
-    const text = p.text.replace(/[<>]/g, "");
-    if (!text) continue;
+    if (!p.text) continue;
     const last = merged.at(-1);
-    if (last && last.mark === p.mark) last.text += text;
-    else merged.push({ text, mark: p.mark });
+    if (last && last.mark === p.mark) last.text += p.text;
+    else merged.push({ text: p.text, mark: p.mark });
   }
-  return merged.map((p) => (p.mark ? `<mark>${p.text}</mark>` : p.text)).join("");
+  // Après la fusion : deux passages voisins ne peuvent pas recomposer une balise.
+  for (const p of merged) p.text = noTags(p.text);
+  const kept = merged.filter((p) => p.text);
+  const render = () => kept.map((p) => (p.mark ? `<mark>${p.text}</mark>` : p.text)).join("");
+  let out = render();
+  while (out.length > max && kept.length) {
+    const last = kept[kept.length - 1];
+    last.text = last.text.slice(0, Math.max(0, last.text.length - (out.length - max)));
+    if (!last.text) kept.pop();
+    out = render();
+  }
+  return out;
 }
 
 /** Texte brut (sans balisage) des passages. */

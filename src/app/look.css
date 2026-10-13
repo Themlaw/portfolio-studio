@@ -86,8 +86,13 @@
    posées sur la tuile elle-même, une par collection). */
 .tile-frame {
   display: block;
-  overflow: hidden;
   border-radius: var(--media-radius, 2px);
+}
+/* Rognage seulement quand il y a quelque chose à rogner (format imposé, cadrage) : sans réglage, le
+   cadre ne coupe rien (l'ombre de l'image des thèmes « scotchés » déborde, comme avant v0.16). */
+.tiles[data-ratio] .tile-frame,
+.tile-frame[data-crop] {
+  overflow: hidden;
 }
 .tiles[data-ratio] .tile-frame img { height: auto; object-fit: cover; }
 .tiles[data-ratio="16:9"] .tile-frame img { aspect-ratio: 16 / 9; }

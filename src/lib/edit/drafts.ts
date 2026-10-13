@@ -39,7 +39,7 @@ import { getPageForEdit } from "@/lib/admin";
 import { getDb, schema } from "@/lib/db";
 import { own } from "@/lib/own";
 
-import { deprecatedProblem, formIdProblem, savePage } from "./pages";
+import { deprecatedProblem, formIdProblem, mediaKindProblem, savePage } from "./pages";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
 import { applySiteDraft, discardSiteDraft } from "./site";
 
@@ -164,6 +164,10 @@ export function saveDraft(pageId: number, input: unknown, rev: unknown): DraftRe
     if (old) return fail(old);
     const dupForm = formIdProblem(pageId, parsed.data.blocks);
     if (dupForm) return fail(dupForm.message, { [dupForm.path]: dupForm.message });
+    for (const b of flatBlocks(parsed.data.blocks)) {
+      const wrongKind = mediaKindProblem(b.type, b.props);
+      if (wrongKind) return fail(wrongKind, { [errorPath(parsed.data.blocks, b) ?? "blocks"]: wrongKind });
+    }
     const now = new Date();
     // Écriture conditionnelle : la version n'a pas bougé depuis la lecture.
     const result = getDb()

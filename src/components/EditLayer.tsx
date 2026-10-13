@@ -319,8 +319,8 @@ export default function EditLayer() {
       setMarkBar(null);
       if (!commit || markup === marked.before || target.kind !== "block") return;
       const locale = document.documentElement.lang === "en" ? "en" : "fr";
-      const seq = post({ kind: "text", uid: target.uid, path: "statement", locale, value: markup.slice(0, 2000) });
-      previewMarked({ uid: target.uid, path: "statement" }, markup.slice(0, 2000), seq);
+      const seq = post({ kind: "text", uid: target.uid, path: "statement", locale, value: markup });
+      previewMarked({ uid: target.uid, path: "statement" }, markup, seq);
       return;
     }
     const value = (el.textContent ?? "").replace(/\s*\n\s*/g, " ");
@@ -342,7 +342,7 @@ export default function EditLayer() {
       const navKey = target.field === "nav" ? el.closest("[data-nav-key]")?.getAttribute("data-nav-key") ?? undefined : undefined;
       const rank = navKey !== undefined ? listKeys("nav").indexOf(navKey) : -1;
       const index = rank >= 0 ? rank : target.index;
-      const seq = post({ kind: "site-text", field: target.field as "name", ...(index !== undefined ? { index } : {}), locale, value: value.slice(0, 200) });
+      const seq = post({ kind: "site-text", field: target.field as "name", ...(index !== undefined ? { index } : {}), ...(navKey ? { key: navKey } : {}), locale, value: value.slice(0, 200) });
       previewText({ field: target.field, ...(navKey !== undefined ? { key: navKey } : index !== undefined ? { index } : {}) }, value.slice(0, 200), seq, original);
     }
   }, []);

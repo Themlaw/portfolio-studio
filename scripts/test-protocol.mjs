@@ -127,9 +127,24 @@ ok("pending : la toile ne peut pas en émettre (sens éditeur → toile seulemen
 
 // Accroche à passage surligné : balisage <mark> seul, jamais de HTML.
 ok("marked : texte simple et passage surligné valides", markedProblem("Je dessine des <mark>mondes</mark>") === null && markedProblem("sans balisage") === null && markedProblem("") === null);
-ok("marked : autre balisage, imbrication, passage vide ou ouvert refusés", ["<b>x</b>", "a <img src=x onerror=alert(1)>", "<mark>a<mark>b</mark></mark>", "<mark></mark>", "<mark>a", "a</mark>", "x > y", "<MARK>a</MARK>"].every((t) => markedProblem(t) !== null));
+ok("marked : autre balisage, imbrication, passage vide ou ouvert refusés", ["<b>x</b>", "a <img src=x onerror=alert(1)>", "<mark>a<mark>b</mark></mark>", "<mark></mark>", "<mark>a", "a</mark>", "<MARK>a</MARK>", "<mark><b>x</b></mark>", "<mark>a<img src=x></mark>"].every((t) => markedProblem(t) !== null));
+// Accroches de la v0.15 : un « < » ou un « > » isolé est du texte (jamais interprété), la publication n'est pas bloquée.
+ok("marked : « < » et « > » isolés acceptés comme texte", ["I <3 dessiner", "x > y", "a < b", "<3", "1 << 2 >> 1", "I <3 <mark>mondes</mark>", "<mark>a <3 b</mark> > c", "</3"].every((t) => markedProblem(t) === null));
+ok("marked : un chevron isolé est rendu en nœud texte (jamais du HTML)", JSON.stringify(parseMarked("I <3 <mark>x</mark>")) === JSON.stringify([{ text: "I <3 ", mark: false }, { text: "x", mark: true }]));
 ok("marked : lecture identique au rendu d'avant (parseMarked)", JSON.stringify(parseMarked("a <mark>b</mark> c <mark>d</mark>")) === JSON.stringify([{ text: "a ", mark: false }, { text: "b", mark: true }, { text: " c ", mark: false }, { text: "d", mark: true }]));
-ok("marked : toMarkup fond les voisins, retire les passages vides et les chevrons", toMarkup([{ text: "a", mark: false }, { text: "b<", mark: false }, { text: "", mark: true }, { text: "c", mark: true }, { text: "d", mark: true }]) === "ab<mark>cd</mark>");
+ok("marked : toMarkup fond les voisins, retire les passages vides et ce qui ressemble à une balise", toMarkup([{ text: "a", mark: false }, { text: "b<i>", mark: false }, { text: "", mark: true }, { text: "c", mark: true }, { text: "d", mark: true }]) === "abi><mark>cd</mark>");
+ok("marked : toMarkup garde « <3 », et deux passages voisins ne recomposent pas une balise", toMarkup([{ text: "I <3 ", mark: false }, { text: "x", mark: true }]) === "I <3 <mark>x</mark>" && markedProblem(toMarkup([{ text: "a<", mark: false }, { text: "mark>b", mark: false }, { text: "</", mark: false }, { text: "<b", mark: false }])) === null && toMarkup([{ text: "<<b", mark: true }, { text: "</<i", mark: false }]) === "<mark>b</mark>/i");
+// Longueur maximale : coupée sur le texte, jamais dans une balise ; le résultat reste valide.
+{
+  const long = [{ text: "a".repeat(30), mark: false }, { text: "b".repeat(30), mark: true }, { text: "c".repeat(30), mark: false }];
+  let cutOk = true;
+  for (let max = 0; max <= 120; max++) {
+    const out = toMarkup(long, max);
+    if (out.length > max || markedProblem(out) !== null || (out.includes("<mark>") && !out.includes("</mark>"))) cutOk = false;
+  }
+  ok("marked : toMarkup(max) coupe le texte, jamais une balise, pour toute longueur", cutOk);
+  ok("marked : toMarkup(max) sans dépassement garde tout", toMarkup(long, 1000) === toMarkup(long));
+}
 const parts = parseMarked("Je dessine des mondes");
 ok("marked : surligner un intervalle, les espaces de bordure ne le sont pas", toMarkup(toggleRange(parts, 15, 22)) === "Je dessine des <mark>mondes</mark>" && toMarkup(toggleRange(parts, 14, 22)) === "Je dessine des <mark>mondes</mark>");
 ok("marked : re-basculer retire le surlignage ; un surlignage partiel est complété", toMarkup(toggleRange(toggleRange(parts, 15, 21), 15, 21)) === "Je dessine des mondes" && toMarkup(toggleRange(parseMarked("ab <mark>cd</mark> ef"), 0, 8)) === "<mark>ab cd ef</mark>");

@@ -54,6 +54,41 @@ export function formIdProblem(pageId: number, blocks: { type: string; props?: un
 }
 
 /**
+ * Média posé dans un champ « image ou vidéo » (`mediaFields`, genre « any » : fond de l'ouverture) :
+ * jamais un PDF (le sélecteur ne le propose pas, mais l'envoi d'un brouillon est libre). Message ou null.
+ * Appelée à l'enregistrement du brouillon et à la publication (savePage).
+ */
+export function mediaKindProblem(type: string, props: unknown): string | null {
+  const fields = own(BLOCKS, type)?.mediaFields?.filter((f) => f.kind === "any") ?? [];
+  if (!fields.length || !props || typeof props !== "object") return null;
+  for (const f of fields) {
+    const id = Object.hasOwn(props, f.field) ? (props as Record<string, unknown>)[f.field] : undefined;
+    if (!Number.isInteger(id)) continue;
+    const row = getDb().select({ kind: schema.media.kind }).from(schema.media).where(eq(schema.media.id, id as number)).get();
+    // Média disparu : signalé ailleurs (« n'existe plus »).
+    if (row && row.kind !== "image" && row.kind !== "video") return "Ce bloc attend une image ou une vidéo (pas un PDF) : choisis-en une autre.";
+  }
+  return null;
+}
+
+/**
+ * « Entrées des collections » : le cadrage (`look.tileCrop`) d'une collection qui n'est plus dans le bloc
+ * n'a plus de tuile à cadrer. Retiré à l'enregistrement du bloc (publication) ; props rendues sans copie
+ * si rien ne change.
+ */
+export function prunedTileCrop(type: string, props: Record<string, unknown>): Record<string, unknown> {
+  if (type !== "collection-tiles") return props;
+  const look = props.look as { tileCrop?: Record<string, unknown> } | undefined;
+  if (!look?.tileCrop) return props;
+  const present = new Set(((props.items as { collection?: string }[] | undefined) ?? []).map((i) => i.collection));
+  const kept = Object.fromEntries(Object.entries(look.tileCrop).filter(([k]) => present.has(k)));
+  if (Object.keys(kept).length === Object.keys(look.tileCrop).length) return props;
+  const { tileCrop: _old, ...rest } = look;
+  void _old;
+  return { ...props, look: Object.keys(kept).length ? { ...rest, tileCrop: kept } : rest };
+}
+
+/**
  * Types retirés de la palette (v0.13 : anciennes planches d'une collection,
  * anciens projets mis en avant, ancienne vitrine vidéo) : encore rendus s'ils
  * traînent sur une page, mais on n'en ajoute plus. Message si `blocks` en
@@ -203,7 +238,7 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
         Object.assign(errors, zodFieldErrors(result.error.issues, `${key}.props`));
         return;
       }
-      const props = { ...(result.data as Record<string, unknown>) };
+      const props = prunedTileCrop(block.type, { ...(result.data as Record<string, unknown>) });
       // Références du bloc lui-même (ses composants sont contrôlés un par un).
       const refs = extractRefs(block.type, props, 2);
       if (refs.pages.some((p) => !pageIds.has(p))) errors[key] = "Ce bloc pointe vers une page qui n'existe plus : choisis-en une autre.";
@@ -215,6 +250,8 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
       const required = def.publishCheck?.(props, { project: inherited });
       if (required) errors[key] = required;
       if (refs.media.some((m) => !mediaIds.has(m))) errors[key] = "Ce bloc utilise un média qui n'existe plus : choisis-en un autre.";
+      const wrongKind = mediaKindProblem(block.type, props);
+      if (wrongKind) errors[key] = wrongKind;
       if (def.container) {
         const project = typeof props.project === "string" ? props.project : inherited;
         props.children = validate((props.children as Out[]) ?? [], `${key}.props.children`, block.type, project);

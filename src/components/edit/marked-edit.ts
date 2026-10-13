@@ -14,6 +14,9 @@
  */
 import { isMarkedRange, parseMarked, plainOf, toggleRange, toMarkup, wordAt, type MarkedPart } from "@/lib/marked";
 
+/** Longueur maximale de l'accroche envoyée (celle du message `text`) ; coupée sur le texte, jamais dans une balise. */
+const MARKUP_MAX = 2000;
+
 export const BODY = "[data-marked-body]";
 
 /** Passages → nœuds du DOM (texte, et `.hero-mark` pour un passage surligné). */
@@ -44,7 +47,7 @@ export function partsOf(root: Node): MarkedPart[] {
 }
 
 /** Texte tel que le serveur le recevra (lu dans l'élément : champ, aperçu ou enveloppe de React). */
-export const markupOf = (root: Node): string => toMarkup(partsOf(root));
+export const markupOf = (root: Node): string => toMarkup(partsOf(root), MARKUP_MAX);
 
 /** Position dans le texte brut du point (nœud, décalage) de `root`. */
 function plainOffset(root: Node, node: Node, offset: number): number {

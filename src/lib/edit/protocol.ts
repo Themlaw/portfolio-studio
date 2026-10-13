@@ -18,6 +18,8 @@ const Blocks = z.array(Block).max(400);
 /** Liste visée par un dépôt ou un déplacement : la page (null), ou un conteneur. */
 const Parent = Uid.nullable();
 const MediaField = z.enum(["mediaId", "backgroundMediaId", "portraitMediaId"]);
+/** Clé stable d'un lien du menu ou d'un réseau (voir site-schema : navKeyOf, socialKeyOf). */
+const SiteKey = z.string().max(400);
 const NavIndex = z.number().int().min(0).max(20);
 const Coord = z.number().finite().min(-100000).max(100000);
 const Index = z.number().int().min(0).max(60);
@@ -78,16 +80,18 @@ export const FromCanvasSchema = z.union([
     kind: z.literal("site-text"),
     field: z.enum(["name", "role", "email", "credit", "nav"]),
     index: NavIndex.optional(),
+    /** Clé stable du lien (data-nav-key) : prime sur le rang (qui compte les aperçus en attente de la toile). */
+    key: SiteKey.optional(),
     locale: Locale,
     value: z.string().max(200),
   }),
-  z.object({ kind: z.literal("site-op"), op: z.literal("nav-remove"), index: NavIndex }),
-  z.object({ kind: z.literal("site-op"), op: z.literal("nav-move"), index: NavIndex, to: NavIndex }),
+  z.object({ kind: z.literal("site-op"), op: z.literal("nav-remove"), index: NavIndex, key: SiteKey.optional() }),
+  z.object({ kind: z.literal("site-op"), op: z.literal("nav-move"), index: NavIndex, key: SiteKey.optional(), to: NavIndex }),
   z.object({ kind: z.literal("site-op"), op: z.literal("nav-add-page"), pageId: z.number().int().positive() }),
   z.object({ kind: z.literal("site-op"), op: z.literal("nav-add-link"), href: Href, label: z.string().trim().min(1).max(60) }),
-  z.object({ kind: z.literal("site-op"), op: z.literal("social-remove"), index: NavIndex }),
-  z.object({ kind: z.literal("site-op"), op: z.literal("social-move"), index: NavIndex, to: NavIndex }),
-  z.object({ kind: z.literal("site-op"), op: z.literal("social-edit"), index: NavIndex, href: Href }),
+  z.object({ kind: z.literal("site-op"), op: z.literal("social-remove"), index: NavIndex, key: SiteKey.optional() }),
+  z.object({ kind: z.literal("site-op"), op: z.literal("social-move"), index: NavIndex, key: SiteKey.optional(), to: NavIndex }),
+  z.object({ kind: z.literal("site-op"), op: z.literal("social-edit"), index: NavIndex, key: SiteKey.optional(), href: Href }),
   z.object({ kind: z.literal("site-op"), op: z.literal("social-add"), href: Href, label: z.string().trim().min(1).max(40), network: z.string().max(20) }),
   // Mise en page (lot 2) : réglages d'un bloc (null = tout revient au thème),
   // style global d'un rôle de texte (null = réinitialiser).

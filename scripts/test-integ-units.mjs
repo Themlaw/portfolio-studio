@@ -122,6 +122,13 @@ try {
     gc = await lib.collectFonts();
     ok("polices : bail échu et toujours inutilisée → retirée par le GC, fichiers effacés", gc.removed.join() === families[12] && fontFiles().length === 0, JSON.stringify(gc.removed));
     ok("polices : baux échus oubliés", !JSON.parse(getSqlite().prepare("select value from settings where key = 'fontLeases'").get().value)[families[12]]);
+    // Baux douteux : daté du futur (horloge reculée, base trafiquée) = ignoré ; « toString » n'est pas une police de la bibliothèque.
+    await lib.installGoogleFont(families[12], 400, false);
+    const putLeases = (o) => getSqlite().prepare("insert into settings (key, value) values ('fontLeases', ?) on conflict(key) do update set value = excluded.value").run(JSON.stringify(o));
+    putLeases({ [families[12]]: Date.now() + 3_600_000, toString: Date.now(), constructor: Date.now() });
+    gc = await lib.collectFonts();
+    ok("polices : bail daté du futur ignoré (la police inutilisée est retirée)", gc.removed.join() === families[12], JSON.stringify(gc.removed));
+    ok("polices : baux sans police propre (toString, constructor) et baux du futur oubliés", Object.keys(JSON.parse(getSqlite().prepare("select value from settings where key = 'fontLeases'").get().value)).length === 0, getSqlite().prepare("select value from settings where key = 'fontLeases'").get().value);
     await lib.installGoogleFont(families[12], 400, false);
     pastGrace();
     // Toutes utilisées : refus clair, rien d'écrit.

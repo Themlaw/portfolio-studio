@@ -19,6 +19,9 @@
  *  E. Aperçu instantané (v0.16) : menu de l'en-tête (retirer, déplacer, ajouter), champs du
  *     formulaire de contact, Annuler / Rétablir (état « en cours »), et rétablissement en cas de
  *     refus du serveur, de connexion perdue ou d'éditeur bloqué.
+ *  F. Brouillon du site, intentions RAPPROCHÉES (v0.16) : deux retraits, deux ajouts, deux textes,
+ *     la réponse du serveur à la première arrivant après la deuxième intention : le résultat est
+ *     exact (chaque intention s'applique au dernier état écrit, pas à un état antérieur).
  *
  * Usage : DATA_DIR=… ADMIN_EMAIL=… ADMIN_PASSWORD=… BASE=http://localhost:3101 \
  *         SHOTS=/root/shots-lot6 [ONLY=A,B,C] node scripts/e2e-state.mjs
@@ -39,6 +42,7 @@ const SHOTS = process.env.SHOTS ?? "screenshots/state";
 const ONLY = process.env.ONLY ?? "";
 // Lenteur imposée au serveur : la fenêtre où une réponse en retard peut écraser l'état local.
 const SAVE_DELAY = Number(process.env.SAVE_DELAY ?? 300);
+let saveDelay = SAVE_DELAY;
 const REFRESH_DELAY = Number(process.env.REFRESH_DELAY ?? 900);
 mkdirSync(SHOTS, { recursive: true });
 
@@ -100,7 +104,7 @@ await ctx.route("**/*", async (route) => {
     }
     const response = await route.fetch();
     if (hold) await gate;
-    else await sleep(save ? SAVE_DELAY : REFRESH_DELAY);
+    else await sleep(save ? saveDelay : REFRESH_DELAY);
     await route.fulfill({ response });
   } catch {
     await route.abort().catch(() => {});
@@ -262,7 +266,7 @@ const noRollback = (label, log, key, expectedLast, only) => {
 const refreshHeld = () => waitFor(() => held, 20000);
 /** La modification suivante est faite et enregistrée : la réponse ancienne peut arriver. */
 async function releaseStale() {
-  await sleep(SAVE_DELAY * 3 + 800);
+  await sleep(saveDelay * 3 + 800);
   release();
 }
 
@@ -1230,6 +1234,118 @@ if (run("E")) {
   await page.keyboard.press("Enter");
   ok("E8 texte refusé (éditeur bloqué) : le texte d'origine revient", await until(f, ([sel, t]) => document.querySelector(sel)?.textContent === t, [H1, original], 8000), await f.locator(H1).textContent());
   write("update pages set draft_rev = draft_rev - 1 where id = ?", 2);
+}
+
+/* ---- F. Intentions rapprochées sur le brouillon du site ---------------------------------- */
+
+if (run("F")) {
+  const homeId = q("select page_id id from blocks where type = 'hero' limit 1")[0].id;
+  const write = (sql, ...args) => {
+    const db = new Database(DB);
+    db.prepare(sql).run(...args);
+    db.close();
+  };
+  const SOCIALS3 = [
+    { label: "Instagram", href: "https://www.instagram.com/camille", kind: "instagram" },
+    { label: "Behance", href: "https://www.behance.net/camille", kind: "behance" },
+    { label: "Vimeo", href: "https://vimeo.com/camille", kind: "vimeo" },
+  ];
+  /** Brouillon du site neuf, tenu par la page d'accueil. */
+  const seed = (socials) => {
+    const site = setting("site") ?? {};
+    const snap = { identity: { name: site.name, role: site.role, email: site.email ?? "", credit: site.credit }, nav: setting("nav") ?? [], socials };
+    write("insert into settings (key, value) values ('siteDraft', ?) on conflict(key) do update set value = excluded.value", JSON.stringify({ pageId: homeId, snap }));
+  };
+  const draftSite = () => setting("siteDraft")?.snap;
+  const SOC = '[data-edit-global="footer"] [data-edit-socials]';
+  const NAV = '[data-edit-global="header"] nav';
+  /** Éditeur de l'accueil sur un brouillon du site neuf (ouvert d'abord : l'ouverture abandonne un brouillon resté en base). */
+  const open = async (socials) => {
+    slow = false;
+    write("delete from settings where key = 'siteDraft'");
+    f = await openEditor(homeId);
+    seed(socials);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    f = await canvas();
+    await sleep(1500);
+  };
+  /** Les écritures (1,5 s chacune) sont toutes passées : on lit alors la base. */
+  const drain = async () => {
+    await sleep(saveDelay * 4 + 1000);
+    await settled();
+  };
+  const socialTool = async (key, sel) => {
+    const li = f.locator(`${SOC} [data-social-key^="${key}|"]`).first();
+    await li.scrollIntoViewIfNeeded();
+    await li.hover();
+    await f.locator('.pe-item-tools[data-kind="social"]').waitFor({ timeout: 8000 });
+    await f.locator(`.pe-item-tools[data-kind="social"] ${sel}`).click();
+  };
+
+  /* F1. Deux retraits de réseaux rapprochés : Instagram puis Vimeo (rang 1 dans la liste attendue). */
+  await open(SOCIALS3);
+  saveDelay = 1500;
+  slow = true;
+  await socialTool("Instagram", ".pe-danger");
+  await socialTool("Vimeo", ".pe-danger");
+  await drain();
+  slow = false;
+  const labelsOf = (snap) => (snap?.socials ?? []).map((x) => x.label).join("|");
+  ok("F1 deux retraits rapprochés : seul « Behance » reste", labelsOf(draftSite()) === "Behance", labelsOf(draftSite()));
+  ok("F1 la toile montre le même résultat", (await f.locator(`${SOC} [data-social-key]:visible`).allTextContents()).map((t) => t.trim()).join("|") === "Behance");
+
+  /* F2. Deux ajouts de réseaux rapprochés : aucun n'est perdu. */
+  await open(SOCIALS3);
+  saveDelay = 1500;
+  slow = true;
+  for (const [name, url] of [["Bluesky", "https://bsky.app/profile/camille"], ["YouTube", "https://www.youtube.com/@camille"]]) {
+    await f.locator('[data-testid="social-add"]').last().scrollIntoViewIfNeeded();
+    await f.locator('[data-testid="social-add"]').last().click();
+    await f.getByRole("menuitem", { name }).click();
+    await f.getByLabel("Adresse du profil").fill(url);
+    await f.getByRole("button", { name: "Ajouter", exact: true }).click();
+  }
+  await drain();
+  slow = false;
+  ok("F2 deux ajouts rapprochés : les deux réseaux sont là, dans l'ordre", labelsOf(draftSite()) === "Instagram|Behance|Vimeo|Bluesky|YouTube", labelsOf(draftSite()));
+
+  /* F3. Deux textes du site rapprochés (nom, puis mention du pied de page) : les deux sont gardés. */
+  await open(SOCIALS3);
+  saveDelay = 1500;
+  slow = true;
+  const brand = f.locator('[data-edit-global="header"] [data-site-inline="name"]');
+  await brand.dblclick();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("Atelier Un");
+  await page.keyboard.press("Enter");
+  const credit = f.locator('[data-edit-global="footer"] [data-site-inline="credit"]');
+  await credit.scrollIntoViewIfNeeded();
+  await credit.dblclick();
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type("Crédit Deux");
+  await page.keyboard.press("Enter");
+  await drain();
+  slow = false;
+  ok("F3 deux textes rapprochés : le nom ET la mention sont enregistrés", draftSite()?.identity?.name?.fr === "Atelier Un" && draftSite()?.identity?.credit?.fr === "Crédit Deux", JSON.stringify([draftSite()?.identity?.name, draftSite()?.identity?.credit]));
+
+  /* F4. Deux retraits de liens du menu rapprochés : les deux premiers disparaissent. */
+  await open(SOCIALS3);
+  const navCount = (setting("nav") ?? []).length;
+  saveDelay = 1500;
+  slow = true;
+  if (navCount >= 3) {
+    for (let i = 0; i < 2; i++) {
+      await f.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+      await f.locator(`${NAV} [data-nav-item]:visible`).first().hover();
+      await f.locator(".pe-item-tools").waitFor({ timeout: 8000 });
+      await f.locator(".pe-item-tools .pe-danger").click();
+    }
+    await drain();
+    ok("F4 deux retraits rapprochés du menu : deux liens de moins, les deux premiers", draftSite()?.nav?.length === navCount - 2 && JSON.stringify(draftSite().nav) === JSON.stringify(setting("nav").slice(2)), `${draftSite()?.nav?.length} / ${navCount}`);
+  } else ok("F4 menu trop court dans ce jeu de données (ignoré)", true);
+  slow = false;
+  saveDelay = SAVE_DELAY;
+  write("delete from settings where key = 'siteDraft'");
 }
 
 console.log(errors.length ? `Erreurs de page : ${errors.slice(0, 5).join(" | ")}` : "Aucune erreur de page");

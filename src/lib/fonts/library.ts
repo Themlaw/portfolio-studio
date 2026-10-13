@@ -66,10 +66,13 @@ function writeLeases(leases: Leases): void {
   getDb().insert(schema.settings).values({ key: "fontLeases", value: v }).onConflictDoUpdate({ target: schema.settings.key, set: { value: v } }).run();
 }
 
-/** Familles dont le bail court encore. */
+/** Familles dont le bail court encore (un bail daté du futur n'est pas un bail : ignoré, donc oublié). */
 function leasedFamilies(leases: Leases): string[] {
   const now = Date.now();
-  return Object.keys(leases).filter((f) => now - leases[f] < FONT_GRACE_MS);
+  return Object.keys(leases).filter((f) => {
+    const age = now - leases[f];
+    return age >= 0 && age < FONT_GRACE_MS;
+  });
 }
 
 /** À appeler dans une transaction : (re)loue une famille et oublie les baux échus. */
@@ -170,7 +173,7 @@ async function collectUnlocked(keep: string[] = []): Promise<{ removed: string[]
       for (const f of gone) delete lib[f];
       if (gone.length) writeLibrary(lib);
       // Baux échus ou sans police : oubliés.
-      const live = Object.fromEntries(held.filter((f) => f in lib).map((f) => [f, leases[f]]));
+      const live = Object.fromEntries(held.filter((f) => Object.hasOwn(lib, f)).map((f) => [f, leases[f]]));
       if (Object.keys(live).length !== Object.keys(leases).length) writeLeases(live);
       return { removed: gone, library: lib };
     })
