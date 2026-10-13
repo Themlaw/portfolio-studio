@@ -4808,6 +4808,36 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   text-align: center;
 }
 
+.ve-media li[data-status="failed"] {
+  opacity: 1;
+}
+
+.ve-media li[data-status="failed"] > img {
+  opacity: 0.5;
+}
+
+.ve-media-state[data-failed] {
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--admin-danger-soft);
+  color: var(--admin-danger);
+  cursor: default;
+}
+
+.ve-media-retry {
+  cursor: pointer;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 1px 6px;
+}
+
 .ve-ghost-thumb {
   width: 40px;
   height: 30px;

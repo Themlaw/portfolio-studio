@@ -38,8 +38,8 @@ function maxDurationMs(): number {
 }
 
 export function maxImageBytes(): number {
-  const mb = Number(process.env.MAX_IMAGE_MB || 40);
-  return Math.max(1, Number.isFinite(mb) ? mb : 40) * 1024 * 1024;
+  const mb = Number(process.env.MAX_IMAGE_MB || 200);
+  return Math.max(1, Number.isFinite(mb) ? mb : 200) * 1024 * 1024;
 }
 
 /** `maxBytes` : plafond propre à l'envoi (défaut : MAX_IMAGE_MB). */

@@ -1,7 +1,7 @@
 /**
  * POST /admin/api/upload — envoi d'UNE image ou d'UN PDF (multipart, champ « file »).
  * Admin connecté et même origine ; réception en flux plafonnée
- * (MAX_IMAGE_MB, 40 par défaut) ; type vérifié par signature ; traitement
+ * (MAX_IMAGE_MB, 200 par défaut) ; type vérifié par signature ; traitement
  * asynchrone (job). Réponse JSON : { ok, media } ou { ok: false, message }.
  */
 import { rm } from "node:fs/promises";

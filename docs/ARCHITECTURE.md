@@ -169,7 +169,7 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
 - **Envoi** : `POST /admin/api/upload` (une image par requête : progression par fichier),
   `assertAdmin()` + même origine. Hors du `matcher` du proxy : un proxy Next met le corps en
   mémoire et le tronque à 10 Mo. busboy écrit en flux dans `${DATA_DIR}/tmp` (jamais `/tmp`,
-  tmpfs), SHA-256 au fil de l'eau, plafond `MAX_IMAGE_MB` (40) appliqué pendant le flux.
+  tmpfs), SHA-256 au fil de l'eau, plafond `MAX_IMAGE_MB` (200) appliqué pendant le flux.
 - **Type** par signature (`src/lib/upload/sniff.ts`) : JPEG, PNG, WebP, AVIF, GIF ; tout le
   reste refusé (415). Dimensions lues dans l'en-tête : plus de 100 mégapixels → refus (422)
   sans décodage. Même contenu envoyé deux fois → même média.
@@ -195,11 +195,29 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   (déposer, réordonner, retirer, supprimer) sont des actions immédiates et annoncées ; les
   textes s'enregistrent avec un bouton. Un emplacement vidé garde sa place (ratio 4:3).
 - **Robustesse (passe 4b2)** :
-  - côté de plus de 16 384 px refusé dès l'en-tête ; décodage borné à une boîte de
+  - côté de plus de 32 768 px refusé dès l'en-tête (les décors panoramiques dépassent 16 384 px ;
+    c'est le plafond de 100 Mpx qui borne la mémoire) ; décodage borné à une boîte de
     2400 × 2400 (`fit: inside`, réduction au décodage JPEG/WebP), sortie 8 bits sRGB ;
     variantes en boîtes carrées (`img/<hash>/<boîte>.<format>`). Pics mesurés (VmHWM du
     serveur, `test:auth` section F) : JPEG 6000×4000 +146 Mo, PNG 2400×16000 +15 Mo,
     PNG 16 bits 8000×8000 +237 Mo, 16384×16384 refusé (> 100 MP) sans décodage ;
+  - **Mémoire de décodage (lot 17b)** : un PNG classique ou un JPEG de base se décodent en flux (pic
+    mesuré : 20000 × 4000 RGBA +100 Mo, PNG de 60 Mo +200 Mo, 30 Mpx JPEG +90 Mo). Un PNG ENTRELACÉ
+    (Adam7), un JPEG progressif, un AVIF/HEIF ne se lisent qu'entiers : 20000 × 4000 RGBA entrelacé
+    = +370 Mo, 100 Mpx 16 bits = 800 Mo, au-delà de ce que le conteneur (1 Gio, serveur compris)
+    supporte. `src/lib/images/budget.ts` estime ce coût depuis l'en-tête (`IMAGE_DECODE_BUDGET_MB`,
+    350 par défaut) : refus 422 à l'envoi, avec la marche à suivre (« décoche Entrelacé »), et même
+    garde-fou dans le worker. Plafond d'envoi `MAX_IMAGE_MB` : 200 (PNG de 80 Mpx = 100 à 180 Mo).
+  - **Panoramas** : une image au moins deux fois plus large que haute reçoit deux variantes de plus
+    (3600 et 4800 px) ; une case étroite n'en montre qu'une bande étirée bien au-delà de 2400 px.
+    `sizes` d'une image rognée (`src/lib/images/sizes.ts`) = largeur de la case × part rognée ×
+    zoom du cadrage, pas la largeur de la case.
+  - **Un traitement ne reste jamais « en cours »** : toute exception du worker met job ET média en
+    échec (`settleFailure`) ; un chien de garde (`reapStalled`) échoue un job « running » oublié ;
+    une image dont le traitement a déjà interrompu le serveur une fois n'est pas reprise (échec
+    lisible, « Réessayer » à la demande) pour ne pas boucler sur des plantages. Côté éditeur, la
+    grille de l'onglet Médias suit les médias en traitement (`useMediaWatch`) et rafraîchit à la fin ;
+    un média en échec y propose « Réessayer ».
   - job interrompu `MAX_ATTEMPTS` (3) fois : au démarrage, job et média passent en échec
     (message lisible), le média reste supprimable ; délai croissant entre essais
     (`jobs.run_after` : 10 s, 60 s, 5 min) ; 2 min au plus par traitement
@@ -347,8 +365,12 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   des bords : `mask-image` dégradé sur le rail (l'image se dissout dans ce qui
   est derrière : fond, texture, papier), bords pilotés par `--strip-fade-l/-r`
   (`@property`, sans animation : animer le masque coûtait 5–6 images longues
-  par glisser) selon `data-at-start` / `data-at-end` / `data-overflows`
-  écrits sur le DOM dans un rAF, sans rendu React. Jetons `--strip-nav-*`.
+  par glisser). Chaque bord ne se fond que contre une image réellement coupée
+  (lot 17b) : `--strip-fade-l/-r` sont écrits sur le DOM dans un rAF (sans rendu React) et valent
+  `min(--strip-fade, partie visible de l'image coupée par ce bord)`, `0px` sans coupe : jamais sur
+  une image entièrement visible (la marge de fin de la bande ne compte pas comme du contenu à
+  faire défiler) ; `data-at-start` /
+  `data-at-end` / `data-overflows` ne pilotent plus que les flèches. Jetons `--strip-nav-*`.
 - **Barre de défilement** (`RailScrollbar`) : aucun état React pendant le
   défilement ; curseur en `transform` dans un rAF ; glisser et molette regroupés
   par image ; accrochage suspendu pendant le geste (`.strip-rail[data-dragging]`) ;

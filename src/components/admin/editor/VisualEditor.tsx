@@ -33,7 +33,7 @@ import { makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
 import { SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
 import type { BoardOp, BoardResult, BoardSnap } from "@/lib/edit/boards";
 import type { DraftBlock, PageDraft } from "@/lib/edit/drafts";
-import { mediaStatusAction } from "@/app/admin/(espace)/medias/actions";
+import { mediaStatusAction, retryMediaAction } from "@/app/admin/(espace)/medias/actions";
 import type { AdminMediaRow } from "@/lib/admin";
 import { acceptFromCanvas, EDIT_MSG, inlineAllowed, setLocalizedAt, type BlockInfo, type DropTargetInfo, type FromCanvas, type Ghost, type ToCanvas } from "@/lib/edit/protocol";
 import { markedProblem } from "@/lib/marked";
@@ -47,7 +47,7 @@ import { clone, ConfirmDialog, toast, useUnsavedGuard } from "../editing";
 import { filterMedia } from "../LibraryStrip";
 import Uploader from "../Uploader";
 import { isUploaded, useUploadQueue } from "../UploadQueue";
-import { isPdfFile, readRatio, sendFile } from "../uploads";
+import { isPdfFile, readRatio, sendFile, useMediaWatch } from "../uploads";
 import { BlockLookPanel, SiteStylesPanel } from "./LookPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
 import SiteEditor, { applySiteOp, siteText } from "./SiteEditor";
@@ -1241,6 +1241,12 @@ export default function VisualEditor({
     if (uploadedCount > lastUploaded.current) router.refresh();
     lastUploaded.current = uploadedCount;
   }, [uploadedCount, router]);
+  // Médias en traitement : la grille et le sélecteur sont un instantané du serveur ; sans ce suivi,
+  // une image restait « Conversion… » (sans miniature, impossible à placer) jusqu'au rechargement.
+  const processingIds = context.media.filter((m) => m.status === "processing").map((m) => m.id);
+  useMediaWatch(processingIds, (rows) => {
+    if (rows.some((r) => r.status !== "processing")) router.refresh();
+  });
 
   /** Texte ou opération sur l'en-tête / le pied / les réseaux venus de la toile. */
   const siteChange = (msg: Extract<FromCanvasMsg, { kind: "site-text" | "site-op" }>, seq?: number) => {
@@ -1739,7 +1745,20 @@ export default function VisualEditor({
                       <img src={m.thumb} alt={m.alt.fr || m.name} loading="lazy" draggable={false} />
                     )}
                     {m.kind === "video" && <span className="ve-media-kind" aria-hidden="true">▶</span>}
-                    {m.status === "processing" && <span className="ve-media-state">Conversion…</span>}
+                    {m.status === "processing" && <span className="ve-media-state">{m.kind === "video" ? "Conversion…" : "Traitement…"}</span>}
+                    {m.status === "failed" && (
+                      <span className="ve-media-state" data-failed="" title={m.error ?? undefined}>
+                        Échec
+                        <button
+                          type="button"
+                          className="ve-media-retry"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => void retryMediaAction(m.id).then((r) => (r.ok ? router.refresh() : toast(r.message, "error")))}
+                        >
+                          Réessayer
+                        </button>
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

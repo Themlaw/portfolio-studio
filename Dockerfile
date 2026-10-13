@@ -129,6 +129,12 @@ LABEL org.opencontainers.image.source="https://github.com/Themlaw/portfolio" \
       org.opencontainers.image.title="portfolio" \
       org.opencontainers.image.description="Portfolio d'artiste (Next.js standalone, distroless)"
 
+# Allocateur glibc : sans ces réglages, les grosses images décodées (sharp) laissent le tas
+# fragmenté et le processus garde ~350 Mo de plus (mesuré : pic anonyme 929 → 585 Mo sur un PNG
+# entrelacé 20000 × 4000, conteneur de 1 Gio). Gros blocs rendus à l'OS aussitôt libérés.
+ENV MALLOC_ARENA_MAX=2 \
+    MALLOC_MMAP_THRESHOLD_=131072 \
+    MALLOC_TRIM_THRESHOLD_=131072
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \

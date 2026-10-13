@@ -144,7 +144,7 @@ dev **redémarré puis pré-chauffé**, une connexion) et `npm run shots:editors
 - **Médiathèque** (`/admin/medias`, ancienne adresse `/admin/mediatheque` redirigée) :
   filtres, recherche, envoi, détail avec « Utilisée dans… », suppression.
 - **Formats acceptés** : JPEG, PNG, WebP, AVIF, GIF (première image), reconnus par leur
-  contenu ; 40 Mo, 100 mégapixels et 16 384 px de côté au plus. Les métadonnées (EXIF,
+  contenu ; 200 Mo, 100 mégapixels et 32 768 px de côté au plus (PNG entrelacé et JPEG progressif : 350 Mo de mémoire de décodage au plus). Les métadonnées (EXIF,
   GPS) sont retirées, et seul le site sert les variantes AVIF/WebP : l'original est
   conservé, jamais servi.
 - **Titres** : une image envoyée n'a pas de titre ; le panneau propose un « Titre
@@ -154,7 +154,7 @@ dev **redémarré puis pré-chauffé**, une connexion) et `npm run shots:editors
 
 | Variable | Rôle |
 |---|---|
-| `MAX_IMAGE_MB` | Taille maximale d'une image envoyée (défaut 40). La lecture s'arrête dès le dépassement. |
+| `MAX_IMAGE_MB` | Taille maximale d'une image envoyée (défaut 200). La lecture s'arrête dès le dépassement. |
 | `MEDIA_MAX_TOTAL_GB` | Quota facultatif de stockage des médias (originaux + variantes). Au-delà, envoi refusé (« Ton espace de stockage est plein… ») ; l'occupation s'affiche dans la médiathèque. |
 | `UPLOAD_IDLE_TIMEOUT_S` | Abandon d'un envoi qui ne reçoit plus rien (défaut 30 s), fichier temporaire supprimé. |
 | `UPLOAD_MAX_DURATION_S` | Durée totale maximale d'un envoi (défaut 600 s). |
