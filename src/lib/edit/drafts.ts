@@ -41,7 +41,7 @@ import { own } from "@/lib/own";
 
 import { deprecatedProblem, formIdProblem, mediaKindProblem, savePage } from "./pages";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
-import { applySiteDraft, discardSiteDraft } from "./site";
+import { applySiteDraft, discardSiteDraft, siteDraftPaletteProblem } from "./site";
 
 type L = { fr: string; en: string };
 
@@ -460,6 +460,8 @@ export function publishDraft(pageId: number, rev: unknown): DraftResult<PublishR
   if (empty) return fail("Publication impossible : corrige ce qui est signalé.", empty);
   const invalidText = invalidProjectTexts(pageId, new Set(referencedProjects(state.draft.blocks)));
   if (invalidText) return fail(invalidText);
+  const unreadable = siteDraftPaletteProblem(pageId);
+  if (unreadable) return fail("Publication impossible : corrige ce qui est signalé.", { "site.palette": unreadable });
   // Version publiée lue AVANT l'écriture : les projets retirés du brouillon
   // sont revalidés eux aussi.
   const before = getPageForEdit(pageId);
@@ -544,6 +546,8 @@ export function savePageFromForm(pageId: number, input: unknown, rev: unknown): 
   if (isCorrupt(row.draft)) return corruptRefusal(row.rev);
   const invalidText = invalidProjectTexts(pageId, new Set(referencedProjects((input as { blocks?: { type: string; props: unknown }[] })?.blocks ?? [])));
   if (invalidText) return fail(invalidText);
+  const unreadable = siteDraftPaletteProblem(pageId);
+  if (unreadable) return fail("Enregistrement impossible : les couleurs du site sont illisibles.", { "site.palette": unreadable });
   const before = getPageForEdit(pageId);
   const draftBlocks = (DraftSchema.safeParse(row.draft).data?.blocks ?? []) as DraftBlock[];
   const db = getDb();

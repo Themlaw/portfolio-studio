@@ -7,7 +7,8 @@
  */
 import { z } from "zod";
 
-import { LookSchema, ROLES, TextStyleSchema } from "../look";
+import { LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
+import { BASE_KEYS } from "../../themes/palette";
 
 export const EDIT_MSG = "portfolio:edit";
 
@@ -97,6 +98,10 @@ export const FromCanvasSchema = z.union([
   // style global d'un rôle de texte (null = réinitialiser).
   z.object({ kind: z.literal("look"), uid: Uid, look: LookSchema.nullable() }),
   z.object({ kind: z.literal("site-style"), role: z.enum(ROLES), style: TextStyleSchema.nullable() }),
+  // Palette et logo du site (lot 17f) : état COMPLET voulu (palette = bases choisies, logo = taille et comportement).
+  z.object({ kind: z.literal("site-look"), palette: SitePaletteSchema, logo: LogoSchema }),
+  // Ce que la toile a trouvé pour le rôle de couleur survolé (légende « utilisé par »).
+  z.object({ kind: z.literal("highlight-info"), role: z.enum(BASE_KEYS).nullable(), count: z.number().int().min(0).max(100000), uses: z.array(z.string().max(40)).max(12) }),
 ]);
 
 /** Éditeur → toile. */
@@ -164,6 +169,14 @@ export const ToCanvasSchema = z.discriminatedUnion("kind", [
       .max(60),
   }),
   z.object({ kind: z.literal("focus-slot"), key: SlotKey }),
+  /**
+   * Palette et logo du site posés depuis le panneau (lot 17f) : la toile les montre aussitôt (aperçu
+   * gardé jusqu'à l'acquittement, optimistic.ts) et renvoie l'intention `site-look` (numéro `seq`),
+   * que l'éditeur enregistre comme toute intention de la toile.
+   */
+  z.object({ kind: z.literal("site-look"), palette: SitePaletteSchema, logo: LogoSchema }),
+  /** Surligner les éléments qui utilisent ce rôle de couleur (null : retirer). */
+  z.object({ kind: z.literal("highlight"), role: z.enum(BASE_KEYS).nullable() }),
   /** Polices Google déjà téléchargées par le serveur (menu des polices, lot 2). */
   z.object({ kind: z.literal("fonts"), installed: z.array(z.string().max(60)).max(20), busy: z.string().max(60).nullable().optional() }),
 ]);

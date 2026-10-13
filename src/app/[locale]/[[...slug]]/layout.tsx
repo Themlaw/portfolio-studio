@@ -6,8 +6,12 @@ import type { AppLocale } from "@/i18n/routing";
 import { isDraftView } from "@/lib/draft-view";
 import { resolvePage } from "@/lib/page-preview";
 import { alternatesFor, getNav } from "@/lib/pages";
-import { siteStylesCss } from "@/lib/look";
+import { logoCss, siteStylesCss } from "@/lib/look";
 import { getFontFacesCss, getSiteView } from "@/lib/settings";
+import { getActiveTheme } from "@/lib/theme";
+import { sitePaletteCss } from "@/themes/css";
+import { sitePaletteProblem } from "@/themes/site-palette";
+import type { PaletteColors } from "@/themes/palette";
 
 /**
  * Cadre du site (en-tête, contenu, pied), construit depuis la base : menu
@@ -33,11 +37,23 @@ export default async function SiteLayout({
   // Styles du site (lot 2) : polices téléchargées (servies par /fonts) et
   // styles des textes par rôle ; vue brouillon : ceux du brouillon du site.
   const siteCss = [fontFaces, siteStylesCss(view.styles)].filter(Boolean).join("\n");
+  // Palette et logo du site (lot 17f) : feuilles à part, posées AVANT les styles de rôle (un réglage
+  // de taille du « Nom du site » passe devant celle du logo). Sans réglage : aucune balise, rendu du thème.
+  // Palette qui rendrait du texte illisible avec le thème actif (thème changé depuis) : ignorée au rendu
+  // public et signalée au journal, comme l'accent d'une page ; la vue brouillon la montre pour la corriger.
+  const theme = await getActiveTheme();
+    const overrides = view.styles?.palette;
+  const unreadable = !edit && overrides ? sitePaletteProblem(theme.tokens.color as PaletteColors, theme.tokens.palette, overrides) : null;
+  if (unreadable) console.error(`[palette] palette du site ignorée : ${unreadable}`);
+  const paletteCss = unreadable ? "" : sitePaletteCss(theme.tokens, overrides);
+  const logoRules = logoCss(view.styles?.logo);
 
   return (
     // Cadre pleine hauteur (v0.13.1) : le contenu s'étire, le pied reste en bas
     // de l'écran même sur une page courte (`.site-frame`, globals.css).
     <div className="site-frame">
+      {(paletteCss || edit) && <style id="site-palette" dangerouslySetInnerHTML={{ __html: paletteCss }} {...(edit ? { "data-edit-theme": JSON.stringify({ color: theme.tokens.color, palette: theme.tokens.palette ?? null }) } : {})} />}
+      {(logoRules || edit) && <style id="site-logo" dangerouslySetInnerHTML={{ __html: logoRules }} />}
       {(siteCss || edit) && <style id="site-styles" dangerouslySetInnerHTML={{ __html: siteCss }} {...(edit ? { "data-edit-styles": JSON.stringify(view.styles ?? {}) } : {})} />}
       <SiteHeader siteName={view.site.name} nav={nav} alternates={alternatesFor(page)} socials={view.site.headerSocials ? view.socials : []} edit={edit} />
       <main id="contenu">{children}</main>

@@ -20,6 +20,7 @@ import { z } from "zod";
 import { CUSTOM_COLOR_RE } from "./color";
 
 import { RADIUS_VALUES } from "../themes/css";
+import { BASE_KEYS } from "../themes/palette";
 import { FONT_STACKS } from "../themes/font-stacks";
 import { CATEGORY_FALLBACK, googleFamily, isGoogleFamily } from "../themes/google-fonts";
 import { FONT_IDS, TEXT_ROLES, type FontId, type Theme } from "../themes/schema";
@@ -362,15 +363,6 @@ export function cropVars(crop: Crop): Record<string, string> {
 
 /* ---- Styles du site (globaux) --------------------------------------------------------- */
 
-export const SiteStylesSchema = z.strictObject({
-  roles: z.partialRecord(z.enum(ROLES), TextStyleSchema).optional(),
-  /** Arrondi des images et cartes du site (surcharge le thème). */
-  radius: z.enum(RADII).optional(),
-});
-export type SiteStyles = z.infer<typeof SiteStylesSchema>;
-
-export const radiusValue = (r: Radius) => RADIUS_VALUES[r];
-
 /**
  * Préfixe de spécificité des styles du site : un réglage de l'utilisateur doit
  * toujours gagner sur les variantes du thème (`[data-caption] .eyebrow`,
@@ -378,6 +370,68 @@ export const radiusValue = (r: Radius) => RADIUS_VALUES[r];
  * Sans lui, la taille choisie était ignorée sur ces rôles (lot 7).
  */
 const WIN = ":root:root:root";
+
+
+/**
+ * Palette du site (lot 17f) : couleurs de BASE choisies depuis l'éditeur visuel,
+ * par-dessus celles du thème (jamais écrites dans le thème). `#rrggbb` opaque,
+ * minuscules ; les nuances (fond profond, filets, survol…) en sont recalculées
+ * (src/themes/site-palette.ts). Absent = la couleur du thème.
+ */
+const BaseColor = z.string().max(7).regex(/^#[0-9a-f]{6}$/, "Couleur invalide (#rrggbb).");
+export const SitePaletteSchema = z.strictObject(Object.fromEntries(BASE_KEYS.map((k) => [k, BaseColor.optional()])) as Record<(typeof BASE_KEYS)[number], z.ZodOptional<typeof BaseColor>>);
+export type SitePalette = z.infer<typeof SitePaletteSchema>;
+
+/**
+ * Logo du site (lot 17f) : taille (hauteur en px sur grand écran, proportionnelle
+ * et plafonnée sur mobile) et comportement. S'applique à la signature du kit et,
+ * sans logo, au nom du site. Absent = rendu du thème.
+ */
+export const LOGO_SIZE_MIN = 24;
+export const LOGO_SIZE_MAX = 160;
+/** Taille de départ du curseur quand rien n'est réglé (≈ la signature des thèmes à kit). */
+export const LOGO_SIZE_DEFAULT = 40;
+export const LOGO_MODES = ["fixed", "shrink", "overhang"] as const;
+export type LogoMode = (typeof LOGO_MODES)[number];
+export const LOGO_MODE_LABELS: Record<LogoMode, string> = {
+  fixed: "Fixe",
+  shrink: "Grand en haut, réduit au défilement",
+  overhang: "Déborde sous le bandeau",
+};
+export const LogoSchema = z.strictObject({
+  size: z.number().int().min(LOGO_SIZE_MIN).max(LOGO_SIZE_MAX).optional(),
+  mode: z.enum(LOGO_MODES).optional(),
+});
+export type Logo = z.infer<typeof LogoSchema>;
+
+export const SiteStylesSchema = z.strictObject({
+  roles: z.partialRecord(z.enum(ROLES), TextStyleSchema).optional(),
+  /** Arrondi des images et cartes du site (surcharge le thème). */
+  radius: z.enum(RADII).optional(),
+  palette: SitePaletteSchema.optional(),
+  logo: LogoSchema.optional(),
+});
+export type SiteStyles = z.infer<typeof SiteStylesSchema>;
+
+/** Palette du site sans clé vide ; undefined s'il ne reste rien. */
+export function cleanSitePalette(p: SitePalette | undefined): SitePalette | undefined {
+  const out = Object.fromEntries(Object.entries(p ?? {}).filter(([, v]) => typeof v === "string")) as SitePalette;
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * Logo canonique : « Fixe » est le comportement par défaut (jamais écrit) ;
+ * undefined s'il ne reste aucun réglage (le rendu est alors celui du thème).
+ */
+export function cleanLogo(l: Logo | undefined): Logo | undefined {
+  if (!l) return undefined;
+  const out: Logo = {};
+  if (l.size !== undefined) out.size = l.size;
+  if (l.mode && l.mode !== "fixed") out.mode = l.mode;
+  return Object.keys(out).length ? out : undefined;
+}
+
+export const radiusValue = (r: Radius) => RADIUS_VALUES[r];
 
 /** Feuille des styles globaux (règles générées depuis des crans validés). */
 export function siteStylesCss(styles: SiteStyles | undefined): string {
@@ -393,6 +447,46 @@ export function siteStylesCss(styles: SiteStyles | undefined): string {
   }
   // Rien d'injectable n'arrive ici (crans et catalogue), ceinture quand même.
   return rules.join("\n").replace(/</g, "\\3c ");
+}
+
+/**
+ * Feuille du logo (lot 17f). Hauteur `--lh` : la taille réglée (mobile : ×0,75, entre 24 et 64 px).
+ * « shrink » : au défilement (`data-scrolled` sur l'en-tête, posé par SiteHeader) elle passe à 60 %
+ * (24 px au moins). La hauteur de la barre suit celle du logo et une marge basse égale à ce que la barre
+ * a perdu garde le contenu en place : aucun décalage de mise en page pendant la transition.
+ * « overhang » : barre à hauteur fixe, le logo (aligné en haut) dépasse sous elle.
+ * Les transitions n'existent que si l'utilisateur ne demande pas moins de mouvement.
+ * Posée AVANT les styles de rôle : une taille réglée sur « Nom du site » passe devant celle du logo.
+ * Aucun réglage = chaîne vide : le rendu est exactement celui du thème.
+ */
+export function logoCss(logo: Logo | undefined): string {
+  const parsed = LogoSchema.safeParse(logo ?? {});
+  if (!parsed.success) return "";
+  const l = cleanLogo(parsed.data);
+  if (!l) return "";
+  const size = l.size ?? LOGO_SIZE_DEFAULT;
+  const mode = l.mode ?? "fixed";
+  const H = `${WIN} .site-header`;
+  const row = mode === "overhang" ? "var(--lb)" : "max(var(--lh),2rem)";
+  const rowTop = mode === "overhang" ? "var(--lb)" : "max(var(--lh-top),2rem)";
+  const rules = [
+    // Variables sur :root (l'ouverture de la page en a besoin : --header-h = hauteur de l'en-tête au repos).
+    `${WIN}{--lg:${size};--bp:1rem;--lb:2.5rem;--lh-top:clamp(24px,calc(var(--lg)*.75px),64px);--lh-min:max(24px,calc(var(--lh-top)*.6));--header-h:calc(${rowTop} + 2*var(--bp))}`,
+    `@media (min-width:48rem){${WIN}{--bp:1.25rem;--lh-top:calc(var(--lg)*1px)}}`,
+    `${H}{--lh:var(--lh-top)}`,
+  ];
+  if (mode === "shrink") rules.push(`${H}[data-scrolled]{--lh:var(--lh-min)}`);
+  rules.push(
+    `${H}{margin-bottom:calc(${rowTop} - ${row})}`,
+    `${H} .site-header-bar{height:calc(${row} + 2*var(--bp))}`,
+    `${WIN} .site-brand{display:flex;align-items:center;height:var(--lh);min-width:0;max-width:60vw;font-size:calc(var(--lh)*.5)${mode === "overhang" ? ";align-self:flex-start" : ""}}`,
+    `${WIN} .site-brand-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`,
+    `${WIN} .site-signature{height:var(--lh);max-width:100%}`,
+    // En-tête centré (nom au-dessus, menu dessous) : la barre garde sa hauteur naturelle.
+    `@media (min-width:48rem){${WIN}[data-header="centered"]{--header-h:calc(var(--lh-top) + 3.2rem)}${WIN}[data-header="centered"] .site-header{margin-bottom:${mode === "overhang" ? "0" : "calc(var(--lh-top) - var(--lh))"}}${WIN}[data-header="centered"] .site-header-bar{height:auto}${WIN}[data-header="centered"] .site-brand{align-self:auto}}`,
+    `@media (prefers-reduced-motion:no-preference){${H}{transition-property:background-color,box-shadow,backdrop-filter,margin-bottom}${H} .site-header-bar,${WIN} .site-signature{transition:height .5s var(--ease-soft)}${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft)}}`,
+  );
+  return rules.join("\n");
 }
 
 /**
@@ -426,6 +520,8 @@ export function cleanSiteStyles(styles: SiteStyles | undefined): SiteStyles | un
       .map(([k, v]) => [k, Object.fromEntries(Object.entries(v ?? {}).filter(([, x]) => x !== undefined))])
       .filter(([, v]) => Object.keys(v as object).length),
   ) as SiteStyles["roles"];
-  const out: SiteStyles = { ...(roles && Object.keys(roles).length ? { roles } : {}), ...(styles.radius ? { radius: styles.radius } : {}) };
+  const palette = cleanSitePalette(styles.palette);
+  const logo = cleanLogo(styles.logo);
+  const out: SiteStyles = { ...(roles && Object.keys(roles).length ? { roles } : {}), ...(styles.radius ? { radius: styles.radius } : {}), ...(palette ? { palette } : {}), ...(logo ? { logo } : {}) };
   return Object.keys(out).length ? out : undefined;
 }

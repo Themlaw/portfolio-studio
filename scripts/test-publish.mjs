@@ -368,6 +368,54 @@ await test("G1–G8 éditeur resté ouvert : un changement du menu fait ailleurs
   assert.ok(navIds().includes(GB), "B toujours au menu après la publication");
 });
 
+/* ---- 2b. Palette et logo du site (lot 17f) ------------------------------------------ */
+
+const { activeThemeForEdit } = await import("../src/lib/edit/look-context.ts");
+const { savePageFromForm } = await import("../src/lib/edit/drafts.ts");
+const settingOf = (key) => {
+  const raw = db.select().from(schema.settings).where(eq(schema.settings.key, key)).get()?.value;
+  return raw ? JSON.parse(raw) : undefined;
+};
+
+await test("17f : palette illisible → la publication est refusée (site.palette), la saisie ne l'est pas", () => {
+  const page = newPage("t-17f-a");
+  const theme = activeThemeForEdit();
+  const pub = readPublishedSite();
+  saveDraft(page, { ...base(page), blocks: [k("b", "section-title", { linked: true })] }, rev(page));
+  // Fond = couleur du texte : la saisie est acceptée…
+  const saved = saveSiteDraft(page, { ...pub, styles: { palette: { bg: theme.tokens.color.ink } } }, rev(page));
+  assert.equal(saved.ok, true, "enregistrement du brouillon jamais bloqué");
+  // …la mise en ligne non.
+  const refused = publishDraft(page, rev(page));
+  assert.equal(refused.ok, false);
+  assert.ok(refused.fieldErrors?.["site.palette"]?.includes("illisible"), JSON.stringify(refused.fieldErrors));
+  assert.equal(settingOf("styles")?.palette, undefined, "rien n'est publié");
+  const viaForm = savePageFromForm(page, { ...base(page), blocks: [] }, rev(page));
+  assert.equal(viaForm.ok, false, "le formulaire de la page ne contourne pas la règle");
+  assert.equal(discardDraft(page, rev(page)).ok, true);
+});
+await test("17f : palette lisible → publiée avec la page, thème intact ; Annuler (retour à la palette du thème) la retire", () => {
+  const page = newPage("t-17f-b");
+  const themeBefore = JSON.stringify(activeThemeForEdit());
+  const pub = readPublishedSite();
+  saveDraft(page, { ...base(page), blocks: [k("b", "section-title", { linked: true })] }, rev(page));
+  assert.equal(saveSiteDraft(page, { ...pub, styles: { palette: { primary: "#7a1f10" }, logo: { size: 96, mode: "shrink" } } }, rev(page)).ok, true);
+  assert.deepEqual(readSiteDraft().snap.styles, { palette: { primary: "#7a1f10" }, logo: { size: 96, mode: "shrink" } });
+  assert.equal(settingOf("styles")?.palette, undefined, "brouillon : rien en ligne avant Publier");
+  const done = publishDraft(page, rev(page));
+  assert.equal(done.ok, true, JSON.stringify(done));
+  assert.deepEqual(settingOf("styles"), { palette: { primary: "#7a1f10" }, logo: { size: 96, mode: "shrink" } });
+  assert.equal(JSON.stringify(activeThemeForEdit()), themeBefore, "le thème n'est jamais modifié");
+  // Retour aux réglages du thème : palette et logo vides disparaissent des styles publiés.
+  const after = readPublishedSite();
+  assert.deepEqual(after.styles?.palette, { primary: "#7a1f10" });
+  saveDraft(page, { ...base(page), blocks: [k("b", "section-title", { linked: true })] }, rev(page));
+  assert.equal(saveSiteDraft(page, { ...after, styles: { palette: {}, logo: { mode: "fixed" } } }, rev(page)).ok, true);
+  assert.equal(readSiteDraft().snap.styles, undefined, "palette / logo vides = pas de styles");
+  assert.equal(publishDraft(page, rev(page)).ok, true);
+  assert.equal(settingOf("styles"), undefined);
+});
+
 /* ---- 3. POST /api/contact ------------------------------------------------------ */
 
 const F = newPage("t-form");
