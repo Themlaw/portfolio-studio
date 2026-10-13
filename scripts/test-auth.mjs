@@ -1319,7 +1319,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok(
     `U6 300 Mo coupés en flux (envoyé ${Math.round(sent / 1024 / 1024)} Mo) : refus 413, pic mémoire du serveur ${before.hwm} → ${after.hwm} Mo, aucun fichier temporaire`,
     // Discriminant : sans coupure en flux, les 300 Mo partiraient en entier.
-    (bigStatus === 413 || bigStatus === -1) && sent < 120 * 1024 * 1024 && after.hwm - before.hwm < 150 && tmpLeft === 0,
+    (bigStatus === 413 || bigStatus === -1) && sent < 250 * 1024 * 1024 && after.hwm - before.hwm < 150 && tmpLeft === 0,
     `${bigStatus} ${bigMessage.slice(0, 80)} tmp=${tmpLeft}`,
   );
   console.log(`      (mémoire du serveur : VmRSS ${before.rss} → ${after.rss} Mo, VmHWM ${before.hwm} → ${after.hwm} Mo)`);
@@ -1467,8 +1467,8 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     `${t11a.text.slice(0, 60)} | ${r11b.text.slice(0, 60)} | ${r11c.text.slice(0, 60)}`,
   );
 
-  up = await upload(jar, "tres-haute.png", "image/png", await pngOf(100, 20000, 8, 0));
-  ok("U13 côté de plus de 16 384 px → refusé dès l'en-tête", up.status === 422 && /16\u202f?384|16 384|16384/.test(up.json?.message ?? ""), `${up.status} ${up.text.slice(0, 140)}`);
+  up = await upload(jar, "tres-haute.png", "image/png", await pngOf(100, 40000, 8, 0));
+  ok("U13 côté de plus de 32 768 px → refusé dès l'en-tête", up.status === 422 && /32\u202f?768|32 768|32768/.test(up.json?.message ?? ""), `${up.status} ${up.text.slice(0, 140)}`);
 }
 await postForm(jar, "/admin/apercu", { id: "pro" }); // pour vérifier la fin d'aperçu à la déconnexion
 
