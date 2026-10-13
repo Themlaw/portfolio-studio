@@ -37,3 +37,15 @@ export function arrowMirror(report: KitReport): { from: SlotReport; to: "icones/
   return l ? { from: left!, to: "icones/fleche-droite" } : { from: right!, to: "icones/fleche-gauche" };
 }
 
+
+/**
+ * Décor libre (kit v4) à appliquer : sa composition (nombre, ordre des plans) a
+ * changé, ou un plan est redessiné. Un plan en erreur bloque tout le décor (il
+ * manquerait dans la pile) : le décor actuel est gardé et la revue le dit.
+ */
+export function decorApplicable(report: KitReport): boolean {
+  if (!report.decor) return false;
+  const plans = report.slots.filter((s) => s.id.startsWith("decor/"));
+  if (plans.some((s) => s.status === "error")) return false;
+  return report.decor.structure === "changed" || plans.some(isApplicable);
+}

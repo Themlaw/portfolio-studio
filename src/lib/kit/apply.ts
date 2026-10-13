@@ -24,28 +24,12 @@ import { PAPER_OVER_HERO_DEFAULT, ThemeSchema, type KitAssets, type KitImage, ty
 import { loadSavedTheme } from "./export-job";
 import type { KitReport, SlotReport } from "./import";
 import { getKitImport, importOutDir, writeImportMeta } from "./import-job";
-import { arrowMirror, isApplicable, mirrorBitmap, mirrorSvg } from "./mirror";
-import { ALL_SLOTS } from "./spec";
+import { arrowMirror, decorApplicable, isApplicable, mirrorBitmap, mirrorSvg } from "./mirror";
+import { slotSpecOf } from "./spec";
 
 const FIRST_VIEW = ["hero/plan-1", "hero/plan-2", "hero/plan-3", "hero/plan-4", "hero/plan-5", "signature", "papier"];
 
-export { arrowMirror, isApplicable };
-
-/** Palette suggérée appliquée aux couleurs du thème (rôles présents seulement). */
-export function withPalette(colors: Theme["tokens"]["color"], report: KitReport): Theme["tokens"]["color"] {
-  const roles = report.palette?.roles ?? {};
-  const out = { ...colors };
-  for (const key of ["bg", "bgDeep", "ink", "inkSoft", "primary", "secondary", "tertiary"] as const) if (roles[key]) out[key] = roles[key]!;
-  return out;
-}
-
-/** La palette suggérée passe-t-elle le contraste AA sur ce thème ? (couples en échec) */
-export function paletteFailures(theme: Theme, report: KitReport): string[] {
-  if (!report.palette) return [];
-  return contrastReport(withPalette(theme.tokens.color, report))
-    .filter((p) => !p.ok)
-    .map((p) => `${p.label} : ${p.ratio.toFixed(2)}:1 (il faut ${AA}:1)`);
-}
+export { arrowMirror, decorApplicable, isApplicable };
 
 /* ---- Couleurs repeintes (« 8 · Palette ») -------------------------------- */
 
@@ -105,11 +89,26 @@ async function currentBytes(theme: Theme, id: string): Promise<number> {
   return 0;
 }
 
+/** Poids actuel du plan n° j (0 = le plus lointain) du décor du thème. */
+const currentPlanBytes = (theme: Theme, j: number) => {
+  const plan = theme.assets.kit?.plans?.[j];
+  return plan ? imageBytes(plan) : theme.assets.kit?.plansOnly ? Promise.resolve(0) : urlBytes(theme.assets.heroLayers?.[j]);
+};
+
 /** Total au premier affichage APRÈS application (nouveaux assets + assets gardés). */
 export async function firstViewTotal(theme: Theme, report: KitReport): Promise<{ before: number; after: number }> {
   let before = 0;
   let after = 0;
+  const decorPlans = report.slots.filter((s) => s.id.startsWith("decor/"));
+  if (decorPlans.length) {
+    // Décor libre : le décor actuel est remplacé EN ENTIER par les plans lus.
+    const count = Math.max(theme.assets.kit?.plans?.length ?? 0, theme.assets.heroLayers?.length ?? 0);
+    for (let j = 0; j < count; j++) before += await currentPlanBytes(theme, j);
+    for (const s of decorPlans) after += s.change === "unchanged" && s.from !== undefined ? await currentPlanBytes(theme, s.from) : (s.bytes ?? 0);
+    if (!decorApplicable(report)) after = before;
+  }
   for (const id of FIRST_VIEW) {
+    if (decorPlans.length && id.startsWith("hero/")) continue;
     const cur = await currentBytes(theme, id);
     const slot = report.slots.find((s) => s.id === id);
     before += cur;
@@ -120,7 +119,25 @@ export async function firstViewTotal(theme: Theme, report: KitReport): Promise<{
 
 /* ---- Application ---------------------------------------------------------- */
 
-export type ApplyOptions = { palette: boolean; mirror: boolean; colors?: boolean; /** Thème sur lequel poser le kit (défaut : thème d'origine du kit, sinon celui de l'écran). */ baseThemeId?: string };
+/**
+ * Plan inchangé d'un décor libre, à son nouveau rang : le plan dessiné du thème, sinon le
+ * calque SVG de même rang (fichier public, rangé dans /media/kit comme les autres).
+ */
+async function keptPlan(source: Theme, j: number): Promise<KitPlan | null> {
+  const drawn = source.assets.kit?.plans?.[j];
+  if (drawn) return drawn;
+  const layer = source.assets.heroLayers?.[j];
+  if (!layer || !layer.endsWith(".svg")) return null;
+  const file = path.join(/* turbopackIgnore: true */ process.cwd(), "public", layer.replace(/^\//, ""));
+  const data = await readFile(file).catch(() => null);
+  if (!data) return null;
+  const key = `kit/${createHash("sha256").update(data).digest("hex").slice(0, 16)}.svg`;
+  const storage = getStorage();
+  if (!(await storage.stat(key))) await storage.put(key, Readable.from(data));
+  return { svg: `/media/${key}`, w: 2880, h: 1600, x: 0, y: 0 };
+}
+
+export type ApplyOptions = { mirror: boolean; colors?: boolean; /** Thème sur lequel poser le kit (défaut : thème d'origine du kit, sinon celui de l'écran). */ baseThemeId?: string };
 
 /** Thème de départ d'un import : choisi, sinon celui dont le kit a été exporté, sinon celui de l'écran d'envoi. */
 export function baseThemeIdOf(report: KitReport | null | undefined, uploadThemeId: string, chosen?: string): string {
@@ -138,12 +155,11 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
   const source = loadSavedTheme(baseId);
   if (!source) return fail("Le thème d'origine n'existe plus.");
   const changed = report.slots.filter(isApplicable);
+  const decorApplied = decorApplicable(report);
   const colorsChanged = Boolean(opts.colors && report.colors?.some((c) => c.change === "changed"));
-  if (changed.length === 0 && !(opts.palette && report.palette) && !colorsChanged) return fail("Rien à appliquer : aucun élément n'a été redessiné.");
-  if (opts.palette && paletteFailures(source, report).length) return fail("La palette suggérée ne passe pas le contraste : applique sans la palette, puis ajuste les couleurs dans l'éditeur.");
+  if (changed.length === 0 && !decorApplied && !colorsChanged) return fail("Rien à appliquer : aucun élément n'a été redessiné.");
   if (colorsChanged) {
-    const base = opts.palette && report.palette ? { ...source, tokens: { ...source.tokens, color: withPalette(source.tokens.color, report) } } : source;
-    const failures = kitColorFailures(base, report);
+    const failures = kitColorFailures(source, report);
     if (failures.length) return fail(`Les couleurs repeintes ne passent pas le contraste (${failures[0]}) : décoche-les, ou corrige-les dans Photoshop.`);
   }
 
@@ -158,7 +174,7 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
     return `/media/${key}`;
   };
   const image = async (s: SlotReport): Promise<KitImage> => {
-    const spec = ALL_SLOTS.find((x) => x.id === s.id)!;
+    const spec = slotSpecOf(s.id)!;
     const w = spec.crop ? s.box!.w : spec.size.w;
     const h = spec.crop ? s.box!.h : spec.size.h;
     const out: KitImage = { w, h, ...(s.thumbhash ? { thumbhash: s.thumbhash } : {}) };
@@ -180,6 +196,20 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
     if (s) plans[n - 1] = { ...(await image(s)), x: s.box!.x, y: s.box!.y };
   }
   if (plans.some(Boolean)) kit.plans = plans;
+  // Décor libre (kit v4) : les plans lus remplacent TOUT le décor, dans l'ordre du PSD.
+  if (decorApplied) {
+    const stack: KitPlan[] = [];
+    for (const s of report.slots.filter((x) => x.id.startsWith("decor/"))) {
+      if (s.change === "unchanged" && s.from !== undefined) {
+        const kept = await keptPlan(source, s.from);
+        if (kept) stack.push(kept);
+      } else if (isApplicable(s)) stack.push({ ...(await image(s)), x: s.box!.x, y: s.box!.y });
+    }
+    if (stack.length) {
+      kit.plans = stack;
+      kit.plansOnly = true;
+    }
+  }
   const sig = get("signature");
   if (sig) kit.signature = await image(sig);
   const paper = get("papier");
@@ -247,8 +277,7 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
     name,
     preset: false,
     tokens: (() => {
-      const tokens = opts.palette && report.palette ? { ...source.tokens, color: withPalette(source.tokens.color, report) } : source.tokens;
-      return colorsChanged ? withKitColors(tokens, report) : tokens;
+      return colorsChanged ? withKitColors(source.tokens, report) : source.tokens;
     })(),
     // Scotch REDESSINÉ (pas simplement importé faute de kit d'origine reconnu : ce serait le
     // gabarit) : visible avec la variante « scotch » des planches. Sinon les variantes du thème de base restent.

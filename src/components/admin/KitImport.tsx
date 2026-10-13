@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { applyKitImportAction } from "@/app/admin/(espace)/themes/actions";
 
 import { toast } from "./editing";
-import { uploadKitPsd } from "./uploads";
+import { uploadKit } from "./uploads";
 
 export function KitImportUpload({ themeId }: { themeId: string }) {
   const router = useRouter();
@@ -20,11 +20,12 @@ export function KitImportUpload({ themeId }: { themeId: string }) {
   const [error, setError] = useState("");
   const [over, setOver] = useState(false);
 
-  const send = async (file: File | undefined) => {
-    if (!file) return;
+  const send = async (list: FileList | File[] | null | undefined) => {
+    const files = [...(list ?? [])];
+    if (!files.length) return;
     setError("");
     setProgress(0);
-    const res = await uploadKitPsd(file, themeId, (sent, total) => setProgress(total ? sent / total : 0));
+    const res = await uploadKit(files, themeId, (sent, total) => setProgress(total ? sent / total : 0));
     setProgress(null);
     if (input.current) input.current.value = "";
     if (!res.ok) {
@@ -48,15 +49,15 @@ export function KitImportUpload({ themeId }: { themeId: string }) {
       onDrop={(e) => {
         e.preventDefault();
         setOver(false);
-        void send(e.dataTransfer.files[0]);
+        void send(e.dataTransfer.files);
       }}
     >
       <p>
-        <strong>Envoie le kit rempli</strong> (le fichier .psd enregistré depuis Photoshop, tel quel).
+        <strong>Envoie le kit rempli</strong> : l&apos;archive .zip, ou un ou plusieurs fichiers .psd choisis ensemble (enregistrés depuis Photoshop, tels quels). Tu peux n&apos;envoyer que les fichiers que tu as modifiés : le reste ne change pas.
       </p>
       <label className="a-btn">
-        Choisir le fichier .psd
-        <input ref={input} type="file" accept=".psd,image/vnd.adobe.photoshop" className="sr-only" onChange={(e) => void send(e.target.files?.[0])} disabled={progress !== null} data-testid="kit-file" />
+        Choisir le .zip ou les .psd
+        <input ref={input} type="file" multiple accept=".zip,.psd,application/zip,image/vnd.adobe.photoshop" className="sr-only" onChange={(e) => void send(e.target.files)} disabled={progress !== null} data-testid="kit-file" />
       </label>
       {progress !== null && (
         <p className="a-help" role="status">
@@ -100,8 +101,6 @@ export function KitImportWatch({ themeId, importId }: { themeId: string; importI
     </p>
   );
 }
-
-type Swatch = { role: string; label: string; hex: string };
 
 /**
  * Thème sur lequel le kit sera posé : dit clairement lequel (celui dont le kit a été
@@ -148,8 +147,6 @@ export function KitApplyPanel({
   baseId,
   tape = false,
   changed,
-  palette,
-  paletteProblem,
   applied,
   mirror,
   colors = null,
@@ -166,12 +163,9 @@ export function KitApplyPanel({
   /** Le scotch est redessiné : la copie active la variante « scotch » des planches. */
   tape?: boolean;
   changed: number;
-  palette: Swatch[] | null;
-  paletteProblem: string | null;
   applied: string | null;
 }) {
   const router = useRouter();
-  const [usePalette, setUsePalette] = useState(false);
   const [useMirror, setUseMirror] = useState(true);
   const [useColors, setUseColors] = useState(Boolean(colors?.count && !colors.problem));
   const [busy, setBusy] = useState(false);
@@ -180,7 +174,7 @@ export function KitApplyPanel({
   const apply = async () => {
     setBusy(true);
     setError("");
-    const res = await applyKitImportAction(themeId, importId, { palette: usePalette, mirror: Boolean(mirror) && useMirror, colors: Boolean(colors?.count) && useColors, base: baseId });
+    const res = await applyKitImportAction(themeId, importId, { mirror: Boolean(mirror) && useMirror, colors: Boolean(colors?.count) && useColors, base: baseId });
     setBusy(false);
     if (!res.ok) {
       setError(res.message);
@@ -192,32 +186,6 @@ export function KitApplyPanel({
 
   return (
     <section className="a-card a-kit-apply" aria-labelledby="kit-apply-title">
-      {palette && (
-        <div className="a-kit-palette">
-          <h2 id="kit-palette-title">Palette suggérée</h2>
-          <p className="a-help">Tirée de ton paysage. Elle remplace les couleurs du thème dans la copie, si tu l&apos;appliques.</p>
-          <ul className="a-kit-swatches">
-            {palette.map((s) => (
-              <li key={s.role}>
-                <span className="a-kit-swatch" style={{ background: s.hex }} aria-hidden />
-                {s.label} <code>{s.hex}</code>
-              </li>
-            ))}
-          </ul>
-          {paletteProblem ? (
-            <p className="a-help">⚠ {paletteProblem}</p>
-          ) : (
-            <div className="a-kit-choice" role="group" aria-label="Palette suggérée">
-              <button type="button" className={`a-btn a-btn-small${usePalette ? "" : " a-btn-quiet"}`} aria-pressed={usePalette} onClick={() => setUsePalette(true)}>
-                Appliquer cette palette
-              </button>
-              <button type="button" className={`a-btn a-btn-small${usePalette ? " a-btn-quiet" : ""}`} aria-pressed={!usePalette} onClick={() => setUsePalette(false)}>
-                Ignorer
-              </button>
-            </div>
-          )}
-        </div>
-      )}
       {mirror && (
         <div className="a-kit-mirror">
           <label className="a-kit-mirror-check">
@@ -244,8 +212,7 @@ export function KitApplyPanel({
       )}
       <h2 id="kit-apply-title">Appliquer au thème</h2>
       <p className="a-help">
-        Crée une copie brouillon de « {themeName} » avec {changed > 1 ? `les ${changed} éléments redessinés` : changed === 1 ? "l'élément redessiné" : useColors && colors?.count ? "tes couleurs" : "la palette"}
-        {usePalette && changed > 0 ? " et la palette" : ""}
+        Crée une copie brouillon de « {themeName} » avec {changed > 1 ? `les ${changed} éléments redessinés` : changed === 1 ? "l'élément redessiné" : useColors && colors?.count ? "tes couleurs" : "les éléments redessinés"}
         {useColors && colors?.count && changed > 0 ? " et tes couleurs" : ""}, puis ouvre son aperçu en direct. Le thème en ligne ne change pas tant que tu n&apos;actives pas la copie.
       </p>
       {colors?.problem && (
@@ -259,7 +226,7 @@ export function KitApplyPanel({
           Déjà appliqué : <a href={`/admin/themes/${encodeURIComponent(applied)}`}>ouvrir la copie</a>.
         </p>
       )}
-      <button type="button" className="a-btn a-btn-primary" onClick={apply} disabled={busy || (changed === 0 && !usePalette && !(useColors && colors?.count))} aria-busy={busy}>
+      <button type="button" className="a-btn a-btn-primary" onClick={apply} disabled={busy || (changed === 0 && !(useColors && colors?.count))} aria-busy={busy}>
         {busy ? "Création de la copie…" : "Appliquer au thème"}
       </button>
       {error && (

@@ -616,3 +616,105 @@ Tests : `scripts/test-palette.mjs` (migration, auto / forcé, OKLCH, schéma,
 CSS des curseurs, visibilité) et la section « Kit v3 » de
 `scripts/test-kit-import.mjs` (aller-retour réel : export, pastilles et
 curseur modifiés avec ag-psd, import, application).
+
+## 9. Kit v4 (lot 17e) : trois PSD aérés dans une archive
+
+Retours de l'illustratrice (Photoshop sur tablette graphique, Windows) sur le kit
+v3 (un seul PSD de 4000 × 4880, groupes numérotés) : « c'est très dense, on a peu de
+pixels pour dessiner » (icônes 128 × 128, curseur 64 × 64), « pour le décor, je n'ai
+pas besoin d'utiliser les plans 1, 2, 3, 4 ? je peux séparer comme je veux sur
+différents calques et c'est le site qui gère ? », et les couleurs de la palette « incompréhensibles »
+dans le PSD. Décisions : on dessine EN GRAND et le site réduit ; le décor est à calques libres ;
+la palette SORT du kit (elle se choisit dans l'éditeur visuel, lot 17f).
+
+### Export : `kit-<thème>.zip`
+
+| Fichier | Document | Contenu (case de dessin → taille d'usage) |
+|---|---|---|
+| `1-decor-accueil.psd` | 5760 × 3960 (bande de consignes 760 px + cadre du décor 5760 × 3200) | Calques LIBRES de premier niveau : chacun (ou groupe) est un plan, du fond (bas de la pile) vers l'avant, jusqu'à 8. Le décor actuel du thème (calques SVG du hero, ou plans déjà dessinés) y est découpé en ses plans, à 2 × leur taille d'usage. Repères : cadre du décor, zone du titre. |
+| `2-logo-papier.psd` | 3000 × 4640 | Logo 2400 × 600 → 1200 × 300 ; papier : tuile 1024 × 1024 → 512 × 512 avec, à côté, l'aperçu 3 × 3 de la tuile actuelle (raccords repérés en pointillés roses) ; trait 2400 × 160 → 1200 × 80. |
+| `3-icones-curseurs.psd` | 3400 × 5770 | 4 icônes 512 × 512 → 128 × 128 ; 2 curseurs 512 × 512 → 64 × 64 (affiché 32, point chaud : anneau rose de 88 px) ; cadre 900 × 900 → 300 × 300 (marges 144 px = 48) ; scotch 1200 × 480 → 400 × 160. |
+| `LISEZ-MOI.txt` | | Court : trois fichiers, comment faire, envoyer seulement les fichiers modifiés. |
+
+Où ranger quoi : le logo (identité), le papier (répété) et le trait (étiré) sont ce qui se
+répète ou s'étire sur toutes les pages ; le cadre, le scotch, les icônes et les curseurs sont de
+**petits objets posés**, qui se dessinent tous de la même façon (une grande case, réduite à
+l'import) : ils vivent ensemble dans le fichier 3, le cadre et le scotch rejoignant les icônes
+plutôt que le logo (un fichier de plus pour deux éléments n'aurait pas aidé).
+
+Chaque fichier : calque « LISEZ-MOI » tout en haut (consigne et exemple illustré : trois calques
+= trois plans, ou « tu dessines en grand, le site réduit »), groupe `_guides` verrouillé (cases
+roses, **zone utile** en pointillés bleus, marges du cadre en vert) qui porte l'identifiant du kit
+ET le rôle du fichier (`kit k2-… · role-logo — ne pas supprimer`), cartes verrouillées
+« Aperçu — ne pas modifier » sous les cases (titre, **taille finale** de chaque case, « où ça
+apparaît », vignette du site, consignes en ≥ 36 px). Le même identifiant d'export sert aux trois
+fichiers ; manifeste unique (empreinte de chaque case en grand, plans du décor sous `hero/plan-n`).
+
+Cache : `cache/kits/<thème>-<version>-v4.zip`. L'enfant écrit les PSD dans `…zip.parts/`, puis
+l'archive (écriture en flux, entrées stockées : un PSD est déjà en RLE), puis supprime le dossier.
+
+### Import
+
+- **Envoi** : un `.zip`, un `.psd`, ou plusieurs `.psd` choisis ensemble (3 au plus). Un PSD :
+  comme avant. Plusieurs : envoyés l'un après l'autre avec un identifiant de lot choisi par le client
+  (`purpose.batch`, rangé dans `uploads.target` : pas de migration) ; seul le dernier lance l'import
+  (`createKitImport`, `meta.collecting`). Archive : lue sur le disque (`zip-archive.ts`) — répertoire
+  central, ≤ 200 entrées, seules les entrées `.psd` sont extraites (jamais par leur nom comme chemin),
+  taille déclarée ET taille réellement écrite bornées, chiffrement et ZIP64 refusés ; ≤ 3 PSD.
+- **Reconnaissance** : chaque PSD par la **taille de son document** (trois tailles distinctes) ;
+  le rôle noté dans l'identifiant de `_guides` doit concorder (sinon : refus clair). Le nom du fichier
+  n'est jamais lu. Un ancien kit (v1/v2/v3) s'envoie seul ; mélangé aux fichiers du v4 : refusé.
+- **Éléments absents** : un fichier non envoyé n'est pas une erreur : la revue dit « pas envoyé :
+  inchangé » et rien de ses éléments ne change. Un calque supprimé dans un fichier reçu : « introuvable :
+  l'élément actuel est gardé » comme avant.
+- **Réduction** (`formats.reduceTo`) : lanczos3, alpha prémultiplié par libvips (ni liseré sombre ni
+  clair au bord d'une forme), alpha ≤ 8 remis à zéro. Les icônes, le logo et le trait restent des
+  **masques** (la forme seule : la teinte vient du thème) ; l'empreinte comparée au manifeste est
+  celle de la case en grand. Curseur : réduit à 64 × 64, point chaud = centre de l'anneau, ramené à la
+  taille du curseur (÷ 8). Mesure : disque dur de 360 px dessiné dans la case 512 → 90 px, 284 pixels
+  de bord lissés, écart moyen à un disque idéal 0,24 niveau (`test-kit-multi.mjs`).
+- **Décor libre** (`resolveDecor`) : chaque calque ou groupe de premier niveau est un plan (guides,
+  consignes, aperçus ignorés ; calque masqué ignoré ; calque vide ou hors du cadre ignoré), converti
+  comme avant (SVG ou AVIF + WebP au plus léger, ThumbHash). Au plus 8 plans (sinon refus), le premier
+  peut être opaque, les suivants non. Un plan dont l'empreinte est celle d'un plan exporté est
+  « inchangé » **même déplacé** (`from` = rang d'origine) : retirer ou réordonner des plans est une
+  composition changée (`report.decor.structure`) sans pixel reconverti. Application : `kit.plans` = les
+  N plans (SVG, AVIF, ou le calque SVG du thème rangé dans `/media/kit`), `kit.plansOnly = true` (les
+  calques du thème ne s'y ajoutent plus) ; un plan en erreur bloque tout le décor (l'actuel est gardé).
+  Schéma : `plans` ≤ 8, `plansOnly`. Parallaxe : amplitude croissante jusqu'à 8 plans.
+- **Revue** : groupée par fichier (titre, nom du fichier reçu, nombre d'éléments), fichiers manquants
+  en « pas envoyé : inchangé », résumé du décor (« N plans lus, composition changée »), aperçu
+  « avant » d'un plan = le plan exporté dont il est la copie.
+- **Limites** (`limits.ts`) : fichier ≤ 300 Mo (décor : 256 Mo), surface cumulée des calques ≤ 5 documents
+  v2 (décor : 10 × 5760 × 3200), 3 fichiers au plus ; empreintes et arbre contrôlés avant décodage, comme avant.
+
+### Mémoire (VM, 2026-10-13, Node 24, enfant de production : `--expose-gc --max-old-space-size=256`, `MALLOC_ARENA_MAX=2`)
+
+| Opération | Durée | Pic |
+|---|---|---|
+| Export des trois PSD + archive (galerie-lumineuse) | 10,5 s | **480 Mo** (le pic est le décor : 5 plans à 5760 × 3200 en RVBA, 74 Mo chacun) |
+| Réimport des trois fichiers (non modifiés) | 3,8 s | **331 Mo** |
+| Import d'un décor « lourd » : 5 plans pleine toile (5760 × 3200, grain), PSD de **265 Mo** | 13,8 s | **582 Mo** |
+
+Le pic de l'import est (Node ≈ 120 Mo) + le fichier en mémoire + un calque décodé (74 Mo) + sa copie
+dans la case (74 Mo) : il croît avec le poids du PSD ; d'où le plafond de 256 Mo pour le fichier du décor
+(≈ 570 Mo, sous les 650 Mo de l'enfant, serveur ≈ 250 Mo au repos : 820 Mo dans le conteneur de 1 Gio).
+Un décor d'illustratrice (aplats, quelques calques) pèse 10 à 100 Mo : pic de 330 à 450 Mo. Jamais en
+même temps qu'une conversion vidéo (file lourde exclusive, inchangé). Les plafonds mémoire et durée de
+l'enfant (§ « Défenses ») s'appliquent tels quels.
+
+### Compatibilité et nettoyage
+
+Les anciens kits restent lus : `layout` `v1` / `v2` (cases d'usage, groupe « 8 · Palette » avec la lecture
+des gestes naturels du lot 17a, curseurs 64 × 64) ; `buildKit` (export v3) n'est plus appelé par
+l'application, il sert aux tests de compatibilité (`test-kit-import.mjs`) et au script du tuto. Le
+fichier réel `tests/fixtures/kit-synthetique.psd` est toujours lu à l'identique.
+
+Tests : `scripts/test-kit-multi.mjs` (dans `npm test` : export → archive → réimport sans changement,
+icône à 512, logo, curseur, décor libre, archive défensive, anciens kits), `test-kit-import.mjs`,
+`test-theme-kit.mjs` ; e2e `kit` (archive, un PSD, deux PSD ensemble, décor libre appliqué, fichier de
+l'artiste) et `kit17a` (logo et papier seuls, appliqués au thème d'origine).
+
+### Palette suggérée retirée de la revue (lot 17e)
+
+La revue ne propose plus de palette tirée du paysage (`kit/palette.ts` supprimé, option `palette` de « Appliquer » retirée) : les couleurs se choisissent dans l'éditeur visuel (lot 17f). La lecture du groupe « 8 · Palette » des anciens kits v1/v2/v3 est conservée (section « Couleurs de la palette » de la revue, `extras.ts`).

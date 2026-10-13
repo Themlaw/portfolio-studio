@@ -34,13 +34,23 @@ export const isImportId = (id: unknown): id is string => typeof id === "string" 
 export const importDir = (id: string) => path.join(/* turbopackIgnore: true */ kitImportsDir(), id);
 export const importOutDir = (id: string) => path.join(/* turbopackIgnore: true */ importDir(id), "out");
 
+/** Fichiers reçus d'un import (kit v4 : un à trois PSD ; ancien kit : un seul, `source.psd` à l'origine). */
+export type KitImportFile = { name: string; size: number; stored: string };
+/** Un import reçoit au plus les trois fichiers du kit. */
+export const MAX_IMPORT_FILES = 3;
+
 export type KitImportMeta = {
   id: string;
   themeId: string;
   userId: string;
+  /** Nom du fichier, ou noms des fichiers joints (affichage). */
   fileName: string;
   size: number;
   createdAt: string;
+  /** Fichiers rangés dans le dossier de l'import (absent : ancien import, `source.psd`). */
+  files?: KitImportFile[];
+  /** Envoi de plusieurs PSD en cours : l'import n'est pas encore en file (le dernier fichier la déclenche). */
+  collecting?: boolean;
   /** Copie brouillon créée par « Appliquer au thème ». */
   appliedThemeId?: string | null;
 };
@@ -52,18 +62,55 @@ export type KitImportState = {
   report: KitReport | null;
 };
 
-/** Range le PSD reçu et met l'import en file. */
-export async function createKitImport(input: { file: string; themeId: string; userId: string; fileName: string; size: number }, wake: () => void): Promise<KitImportMeta> {
-  const id = randomUUID();
+/**
+ * Range les PSD reçus et met l'import en file. `batch` : plusieurs PSD envoyés l'un après l'autre
+ * (même identifiant choisi par le client) ; seul le dernier (`last`) déclenche l'import.
+ */
+export async function createKitImport(
+  input: { files: { file: string; name: string; size: number }[]; themeId: string; userId: string; batch?: { id: string; last: boolean } },
+  wake: () => void,
+): Promise<KitImportMeta> {
+  const id = input.batch?.id ?? randomUUID();
   const dir = importDir(id);
+  let meta = input.batch ? await readImportMeta(id) : null;
+  if (meta && (meta.userId !== input.userId || meta.themeId !== input.themeId || !meta.collecting)) throw new KitImportBatchError("Cet envoi groupé n'est plus ouvert : recommence l'envoi des fichiers.");
+  const already = meta?.files ?? [];
+  if (already.length + input.files.length > MAX_IMPORT_FILES) throw new KitImportBatchError(`Le kit compte ${MAX_IMPORT_FILES} fichiers au plus.`);
   await mkdir(dir, { recursive: true });
-  await rename(input.file, path.join(/* turbopackIgnore: true */ dir, "source.psd"));
-  const meta: KitImportMeta = { id, themeId: input.themeId, userId: input.userId, fileName: input.fileName, size: input.size, createdAt: new Date().toISOString(), appliedThemeId: null };
+  const stored: KitImportFile[] = [...already];
+  for (const f of input.files) {
+    const name = `source-${stored.length}.psd`;
+    await rename(f.file, path.join(/* turbopackIgnore: true */ dir, name));
+    stored.push({ name: f.name, size: f.size, stored: name });
+  }
+  const collecting = Boolean(input.batch && !input.batch.last);
+  meta = {
+    id,
+    themeId: input.themeId,
+    userId: input.userId,
+    fileName: stored.map((f) => f.name).join(" + "),
+    size: stored.reduce((n, f) => n + f.size, 0),
+    createdAt: meta?.createdAt ?? new Date().toISOString(),
+    files: stored,
+    ...(collecting ? { collecting: true } : {}),
+    appliedThemeId: null,
+  };
   await writeFile(path.join(/* turbopackIgnore: true */ dir, "meta.json"), JSON.stringify(meta));
-  getDb().insert(schema.jobs).values({ kind: "kit-import", payload: { importId: id, themeId: input.themeId } }).run();
-  wake();
-  await pruneImports(input.themeId);
+  if (!collecting) {
+    getDb().insert(schema.jobs).values({ kind: "kit-import", payload: { importId: id, themeId: input.themeId } }).run();
+    wake();
+    await pruneImports(input.themeId);
+  }
   return meta;
+}
+
+/** Envoi groupé invalide (identifiant inconnu, déjà clos, trop de fichiers). */
+export class KitImportBatchError extends Error {}
+
+/** Supprime les PSD reçus d'un import (après l'import, ou après un échec). */
+export async function removeImportSources(id: string): Promise<void> {
+  const dir = importDir(id);
+  for (const name of await readdir(dir).catch(() => [] as string[])) if (/^source(-\d+)?\.psd$/.test(name)) await rm(path.join(/* turbopackIgnore: true */ dir, name), { force: true });
 }
 
 export async function readImportMeta(id: string): Promise<KitImportMeta | null> {
@@ -119,7 +166,7 @@ export async function listKitImports(themeId: string): Promise<KitImportMeta[]> 
   const out: KitImportMeta[] = [];
   for (const name of await readdir(kitImportsDir()).catch(() => [] as string[])) {
     const meta = await readImportMeta(name);
-    if (meta?.themeId === themeId) out.push(meta);
+    if (meta?.themeId === themeId && !meta.collecting) out.push(meta);
   }
   return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
@@ -132,14 +179,15 @@ export async function runKitImportJob(job: { id: number; payload: Record<string,
   const id = String(job.payload?.importId ?? "");
   const meta = await readImportMeta(id);
   if (!meta) return void finish("failed", "Cet import n'existe plus.");
-  const source = path.join(/* turbopackIgnore: true */ importDir(id), "source.psd");
-  if (!(await stat(source).catch(() => null))) return void finish("failed", "Le fichier reçu a disparu : renvoie le kit.");
+  // Anciens imports : un seul `source.psd`.
+  const inputs = (meta.files ?? [{ name: meta.fileName, size: meta.size, stored: "source.psd" }]).map((f) => ({ path: path.join(/* turbopackIgnore: true */ importDir(id), f.stored), name: f.name }));
+  for (const f of inputs) if (!(await stat(f.path).catch(() => null))) return void finish("failed", "Le fichier reçu a disparu : renvoie le kit.");
   await mkdir(manifestDir(), { recursive: true });
   // Palette actuelle du thème : référence des pastilles si le kit d'origine n'est pas reconnu, fonds des curseurs.
   const theme = loadSavedTheme(meta.themeId);
   const palette = theme ? resolvePalette(theme.tokens.color, theme.tokens.palette) : undefined;
-  const result = await runKitChild({ mode: "import", psd: source, outDir: importOutDir(id), manifestDir: manifestDir(), themeId: meta.themeId, palette }, IMPORT_TIMEOUT_MS);
-  await rm(source, { force: true });
+  const result = await runKitChild({ mode: "import", psd: inputs, outDir: importOutDir(id), manifestDir: manifestDir(), themeId: meta.themeId, palette }, IMPORT_TIMEOUT_MS);
+  await removeImportSources(id);
   if (!result.ok) {
     console.error(`[kit] import ${id} : échec`, result.error);
     await rm(importOutDir(id), { recursive: true, force: true });
@@ -204,7 +252,10 @@ export async function readPreview(id: string, themeId: string, slotId: string, w
   } else {
     const ref = state.report.reference?.exportId;
     if (!ref || !/^[a-z0-9-]{1,80}$/.test(ref)) return null;
-    name = `${ref}--${base}.png`;
+    // Décor libre : l'avant d'un plan est le plan exporté dont il est la copie, sinon celui de même rang.
+    const decor = /^decor\/(\d+)$/.exec(slotId);
+    const before = decor ? `hero--plan-${(state.report.slots.find((s) => s.id === slotId)?.from ?? Number(decor[1]) - 1) + 1}` : base;
+    name = `${ref}--${before}.png`;
     dir = manifestDir();
   }
   return readFile(path.join(/* turbopackIgnore: true */ dir, name)).catch(() => null);

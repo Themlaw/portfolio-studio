@@ -2455,15 +2455,34 @@ const t0 = Date.now();
 const first = await waitReady("galerie-lumineuse");
 const firstMs = Date.now() - t0;
 const dl = await fetch(kitUrl("galerie-lumineuse"), { headers: { cookie: kv.jar.header() } });
-const psd = Buffer.from(await dl.arrayBuffer());
+const zipKit = Buffer.from(await dl.arrayBuffer());
+/** Archive « stockée » du kit (lot 17e, zip-archive.ts) : nom → octets. */
+function unzipStored(buf) {
+  const eocd = buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  const n = buf.readUInt16LE(eocd + 10);
+  let p = buf.readUInt32LE(eocd + 16);
+  const out = {};
+  for (let i = 0; i < n; i++) {
+    const size = buf.readUInt32LE(p + 24);
+    const nl = buf.readUInt16LE(p + 28);
+    const el = buf.readUInt16LE(p + 30);
+    const cl = buf.readUInt16LE(p + 32);
+    const off = buf.readUInt32LE(p + 42);
+    const start = off + 30 + buf.readUInt16LE(off + 26) + buf.readUInt16LE(off + 28);
+    out[buf.toString("utf8", p + 46, p + 46 + nl)] = buf.subarray(start, start + size);
+    p += 46 + nl + el + cl;
+  }
+  return out;
+}
+const kitFiles = first.ready ? unzipStored(zipKit) : {};
 ok(
-  `TK3 export de galerie-lumineuse prêt en ${firstMs} ms, téléchargé (PSD ${Math.round(psd.length / 1024)} Ko, pièce jointe)`,
-  first.ready && dl.status === 200 && psd.subarray(0, 4).toString("latin1") === "8BPS" && /attachment; filename="kit-galerie-lumineuse\.psd"/.test(dl.headers.get("content-disposition") ?? ""),
+  `TK3 export de galerie-lumineuse prêt en ${firstMs} ms, téléchargé (archive ${Math.round(zipKit.length / 1024)} Ko, pièce jointe) : trois PSD et le LISEZ-MOI.txt`,
+  first.ready && dl.status === 200 && zipKit.subarray(0, 2).toString("latin1") === "PK" && /attachment; filename="kit-galerie-lumineuse\.zip"/.test(dl.headers.get("content-disposition") ?? "") && ["1-decor-accueil.psd", "2-logo-papier.psd", "3-icones-curseurs.psd"].every((n) => kitFiles[n]?.subarray(0, 4).toString("latin1") === "8BPS") && Boolean(kitFiles["LISEZ-MOI.txt"]),
   JSON.stringify(first),
 );
 const line = serverLog(kv.server, /\[kit\] thème galerie-lumineuse : kit [^\n]+/g).pop() ?? "";
 console.log(`      processus enfant (bundle kit-child.cjs) : ${line}`);
-ok("TK3b processus enfant (kit v3 4000 × 4880) : pic mémoire sous 400 Mo, priorité OOM maximale (1000)", Number(/pic (\d+) Mo/.exec(line)?.[1] ?? 9999) < 400 && /oom 1000/.test(line), line);
+ok("TK3b processus enfant (kit v4, décor 5760 × 3200) : pic mémoire sous 600 Mo, priorité OOM maximale (1000)", Number(/pic (\d+) Mo/.exec(line)?.[1] ?? 9999) < 600 && /oom 1000/.test(line), line);
 const jobsBefore = kitJobs().length;
 const again = await (await post("galerie-lumineuse")).json();
 ok("TK4 second export : servi depuis le cache, aucun nouveau job", again.ready && kitJobs().length === jobsBefore, `${JSON.stringify(again)} ${kitJobs().length}/${jobsBefore}`);
@@ -2534,7 +2553,7 @@ ok(
 );
 
 // Signature invalide : un PNG légitime (ffmpeg) nommé .psd → refusé à la fin, sans job.
-ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=1", "-frames:v", "1", "-f", "image2", "-c:v", "png", src("pas-un-kit.png")]);
+await sharp({ create: { width: 640, height: 360, channels: 3, background: "#6c8ebf" } }).png().toFile(src("pas-un-kit.png"));
 const jobs0 = importJobs().length;
 const notPsd = await kitUpload(readFileSync(src("pas-un-kit.png")), "pas-un-kit.psd");
 ok("TI3 signature invalide (PNG nommé .psd) : 415, message clair, aucun job", notPsd.status === 415 && /pas un fichier Photoshop/.test(notPsd.body.message ?? "") && importJobs().length === jobs0, `${notPsd.status} ${notPsd.body.message}`);
@@ -2556,7 +2575,7 @@ const importLine = serverLog(kv.server, /\[kit\] import [^\n]+/g).pop() ?? "";
 console.log(`      processus enfant (bundle kit-child.cjs) : ${importLine}`);
 ok(
   "TI5 fichier réel de l'artiste : importé (file lourde, enfant), seule la flèche droite redessinée, PSD supprimé",
-  real.status === 200 && st.status === "done" && redrawn.length === 1 && redrawn[0] === "icones/fleche-droite" && !existsSync(path.join(dirK, "kit-imports", importId, "source.psd")),
+  real.status === 200 && st.status === "done" && redrawn.length === 1 && redrawn[0] === "icones/fleche-droite" && !readdirSync(path.join(dirK, "kit-imports", importId)).some((n) => /^source.*\.psd$/.test(n)),
   `${real.status} ${JSON.stringify(st)} ${redrawn.join(",")}`,
 );
 ok("TI5b processus enfant de l'import : pic mémoire sous 400 Mo, priorité OOM maximale (1000)", Number(/pic (\d+) Mo/.exec(importLine)?.[1] ?? 9999) < 400 && /oom 1000/.test(importLine), importLine);
@@ -2606,7 +2625,7 @@ ok("TI8 import d'un autre thème : écran, état, aperçu 404 ; application refu
 // « Appliquer » : copie brouillon ; thème source et thème en ligne inchangés ; miroir.
 const activeBefore = query(dirK, "select value from settings where key = 'activeThemeId'")?.value;
 const sourceBefore = themeData("galerie-lumineuse");
-const applied = await callActionJson(kv.jar, ids.applyKitImportAction, ["galerie-lumineuse", importId, { palette: false, mirror: true }], `/admin/themes/galerie-lumineuse/kit`);
+const applied = await callActionJson(kv.jar, ids.applyKitImportAction, ["galerie-lumineuse", importId, { mirror: true }], `/admin/themes/galerie-lumineuse/kit`);
 const draftId = /"id":"(galerie-lumineuse-kit[a-z0-9-]*)"/.exec(applied.text)?.[1];
 const draft = draftId ? JSON.parse(themeData(draftId)) : null;
 const arrowUrl = draft?.assets?.kit?.icons?.arrowRight?.svg;
@@ -2621,17 +2640,20 @@ ok(
 
 // Aller-retour sans fin : le kit de la copie contient la flèche de l'artiste ; réimporté tel quel → tout inchangé.
 initializeCanvas(() => { throw new Error("canvas"); }, (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }));
-const caseMask = (psdBuf, name, box) => {
+/** Masque (128 × 128) du calque `name` d'une case ; `box` = coin de la case, `k` = taille de la case / 128. */
+const caseMask = (psdBuf, name, box, k = 1) => {
   const doc = readPsd(psdBuf, { useImageData: true, skipCompositeImageData: true, skipThumbnail: true });
   const find = (list) => { for (const l of list ?? []) { if (l.name === name) return l; const f = find(l.children); if (f) return f; } return null; };
   const l = find(doc.children);
   const m = new Uint8Array(128 * 128);
   const d = l?.imageData;
   if (!d) return m;
+  // Réduction par blocs : un pixel du masque est « plein » si le centre de son bloc l'est.
   for (let y = 0; y < d.height; y++) for (let x = 0; x < d.width; x++) {
     const cx = l.left + x - box.x;
     const cy = l.top + y - box.y;
-    if (cx >= 0 && cy >= 0 && cx < 128 && cy < 128 && d.data[(y * d.width + x) * 4 + 3] > 127) m[cy * 128 + cx] = 1;
+    if (cx < 0 || cy < 0 || cx >= 128 * k || cy >= 128 * k || cx % k !== k >> 1 || cy % k !== k >> 1) continue;
+    if (d.data[(y * d.width + x) * 4 + 3] > 127) m[Math.floor(cy / k) * 128 + Math.floor(cx / k)] = 1;
   }
   return m;
 };
@@ -2640,9 +2662,11 @@ for (let i = 0; i < 180 && !draftReady.ready; i++) {
   draftReady = await (await post(draftId)).json().catch(() => ({}));
   if (!draftReady.ready) await sleep(500);
 }
-const draftPsd = Buffer.from(await (await fetch(kitUrl(draftId), { headers: { cookie: kv.jar.header() } })).arrayBuffer());
+const draftZip = Buffer.from(await (await fetch(kitUrl(draftId), { headers: { cookie: kv.jar.header() } })).arrayBuffer());
+const draftIcons = unzipStored(draftZip)["3-icones-curseurs.psd"];
 const theirs = caseMask(fixturePsd, "fleche-droite", { x: 2560, y: 1720 });
-const ours = caseMask(draftPsd, "Flèche droite", { x: 310, y: 3442 });
+// Kit v4 : la flèche droite est dans une case de 512 × 512 en (620, 752).
+const ours = caseMask(draftIcons, "Flèche droite", { x: 620, y: 752 }, 4);
 let inter = 0;
 let union = 0;
 for (let i = 0; i < theirs.length; i++) {
@@ -2650,14 +2674,44 @@ for (let i = 0; i < theirs.length; i++) {
   union += theirs[i] | ours[i];
 }
 const iou = union ? inter / union : 0;
-const again2 = await kitUpload(draftPsd, `kit-${draftId}.psd`, draftId);
+const again2 = await kitUpload(draftZip, `kit-${draftId}.zip`, draftId);
 const st2 = await waitImport(draftId, again2.body.kitImport?.id);
 const rap2 = st2.status === "done" ? rapportOf(dirK, again2.body.kitImport.id) : null;
 ok(
-  `TI9 kit (v3) de la copie : case « Flèche droite » = flèche de l'artiste (IoU ${iou.toFixed(3)}) ; réimporté tel quel → ${rap2?.slots.length} éléments (curseurs compris) et ${rap2?.colors?.length} couleurs inchangés`,
-  draftReady.ready && iou > 0.9 && rap2?.reference?.how === "identifiant" && rap2.slots.length === 16 && rap2.slots.every((x) => x.change === "unchanged") && rap2.colors?.length === 15 && rap2.colors.every((c) => c.change === "unchanged"),
-  `${JSON.stringify(draftReady)} ${rap2 && rap2.slots.filter((x) => x.change !== "unchanged").map((x) => x.id)} ${rap2 && (rap2.colors ?? []).filter((c) => c.change !== "unchanged").map((c) => c.key)}`,
+  `TI9 kit (v4) de la copie : case « Flèche droite » = flèche de l'artiste dessinée en 512 × 512 (IoU ${iou.toFixed(3)}) ; archive réimportée telle quelle → ${rap2?.slots.length} éléments inchangés dans ${rap2?.files?.length} fichiers`,
+  draftReady.ready && iou > 0.85 && rap2?.reference?.how === "identifiant" && rap2.slots.length === 16 && rap2.slots.every((x) => x.change === "unchanged") && rap2.files?.every((f) => f.received),
+  `${JSON.stringify(draftReady)} ${rap2 && rap2.slots.filter((x) => x.change !== "unchanged").map((x) => x.id)}`,
 );
+
+// Kit v4 : un seul fichier de l'archive, puis deux fichiers d'un envoi groupé ; fichiers manquants dits.
+const iconsOnly = await kitUpload(kitFiles["3-icones-curseurs.psd"], "peu-importe.psd");
+const stIcons = await waitImport("galerie-lumineuse", iconsOnly.body.kitImport?.id);
+const rapIcons = stIcons.status === "done" ? rapportOf(dirK, iconsOnly.body.kitImport.id) : null;
+ok("TI12 un seul fichier du kit (nom quelconque) : reconnu par son contenu, les deux autres « pas envoyés »", rapIcons?.files?.map((f) => `${f.id}:${f.received}`).join(",") === "decor:false,logo:false,icones:true" && rapIcons.slots.length === 8, JSON.stringify(rapIcons?.files));
+const bid = "0d3a7f10-2b6c-4a41-9c55-7e1f0a8d6b21";
+const bInit = (name, size, last) => kitInit({ name, size, type: "image/vnd.adobe.photoshop", purpose: { kind: "kit", themeId: "galerie-lumineuse", batch: { id: bid, last } } });
+const sendBatch = async (data, name, last) => {
+  const init = await (await bInit(name, data.length, last)).json();
+  for (let offset = 0; offset < data.length; ) {
+    const part = data.subarray(offset, offset + 8 * 1024 * 1024);
+    offset = (await (await fetch(`${BASE}/admin/api/upload/${init.upload.id}/chunk?offset=${offset}`, { method: "PUT", headers: { ...HK, "content-length": String(part.length) }, body: part })).json()).upload.offset;
+  }
+  const done = await fetch(`${BASE}/admin/api/upload/${init.upload.id}/complete`, { method: "POST", headers: HK });
+  return { status: done.status, body: await done.json().catch(() => ({})) };
+};
+const jobsBeforeBatch = importJobs().length;
+const bOne = await sendBatch(kitFiles["1-decor-accueil.psd"], "decor.psd", false);
+const noJobYet = importJobs().length === jobsBeforeBatch;
+const bTwo = await sendBatch(kitFiles["2-logo-papier.psd"], "logo.psd", true);
+const stBatch = await waitImport("galerie-lumineuse", bid);
+const rapBatch = stBatch.status === "done" ? rapportOf(dirK, bid) : null;
+ok(
+  "TI13 envoi groupé de deux PSD : le premier ne lance rien, le dernier lance UN import (décor et logo reçus, icônes « pas envoyé »)",
+  bOne.status === 200 && noJobYet && bTwo.status === 200 && rapBatch?.files?.map((f) => `${f.id}:${f.received}`).join(",") === "decor:true,logo:true,icones:false" && rapBatch.slots.length === 8 && importJobs().length === jobsBeforeBatch + 1,
+  `${bOne.status} ${bTwo.status} ${JSON.stringify(rapBatch?.files)}`,
+);
+const closed = await sendBatch(kitFiles["3-icones-curseurs.psd"], "icones.psd", true);
+ok("TI14 lot refermé : un fichier de plus est refusé (409)", closed.status === 409, `${closed.status} ${closed.body.message}`);
 
 // Kit d'un autre thème : le fichier de galerie-lumineuse envoyé pour « pro ».
 const foreignUp = await kitUpload(fixturePsd, "kit-synthetique.psd", "pro");

@@ -23,11 +23,11 @@ import { closeVignetteSvg, HIGHLIGHT, vignetteSvg } from "./vignettes";
 import { isAuto, isNuance, NUANCE_KEYS, parseColor, resolvePalette } from "@/themes/palette";
 import type { Theme } from "@/themes/schema";
 
-type Raster = { width: number; height: number; data: Uint8ClampedArray };
+export type Raster = { width: number; height: number; data: Uint8ClampedArray };
 
-const toRaster = ({ data, info }: { data: Buffer; info: OutputInfo }): Raster => ({ width: info.width, height: info.height, data: new Uint8ClampedArray(data.buffer, data.byteOffset, data.length) });
+export const toRaster = ({ data, info }: { data: Buffer; info: OutputInfo }): Raster => ({ width: info.width, height: info.height, data: new Uint8ClampedArray(data.buffer, data.byteOffset, data.length) });
 
-async function rasterSvg(svg: string | Buffer, width: number, height: number): Promise<Raster> {
+export async function rasterSvg(svg: string | Buffer, width: number, height: number): Promise<Raster> {
   return toRaster(
     await sharp(typeof svg === "string" ? Buffer.from(svg) : svg, { density: 144 })
       .resize(width, height, { fit: "cover" })
@@ -37,7 +37,7 @@ async function rasterSvg(svg: string | Buffer, width: number, height: number): P
   );
 }
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** Taille des textes (px à 100 %) : consignes ≥ 36 px (demande de l'artiste : lisible sans zoomer). */
 export const TEXT = { title: 44, body: 36, readmeTitle: 48, readme: 40, label: 36 } as const;
@@ -47,14 +47,14 @@ export const TEXT = { title: 44, body: 36, readmeTitle: 48, readme: 40, label: 3
  * (public/kit/Figtree.ttf, OFL) : aucune police système (image distroless).
  * `width` : retour à la ligne (px).
  */
-async function textRaster(markup: string, fontFile: string, size: number, width?: number, family = "Figtree"): Promise<Raster> {
+export async function textRaster(markup: string, fontFile: string, size: number, width?: number, family = "Figtree"): Promise<Raster> {
   return toRaster(
     await sharp({ text: { text: markup, fontfile: fontFile, font: `${family} ${size}`, rgba: true, dpi: 72, spacing: Math.round(size * 0.15), ...(width ? { width, wrap: "word" as const } : {}) } })
       .raw()
       .toBuffer({ resolveWithObject: true }),
   );
 }
-const rawInput = (r: Raster) => ({ input: Buffer.from(r.data.buffer, r.data.byteOffset, r.data.length), raw: { width: r.width, height: r.height, channels: 4 as const } });
+export const rawInput = (r: Raster) => ({ input: Buffer.from(r.data.buffer, r.data.byteOffset, r.data.length), raw: { width: r.width, height: r.height, channels: 4 as const } });
 
 /**
  * Ce que le site affiche AUJOURD'HUI pour un emplacement sans asset dessiné
@@ -63,10 +63,11 @@ const rawInput = (r: Raster) => ({ input: Buffer.from(r.data.buffer, r.data.byte
  * (`.mat`), trait droit, fond uni ou pointillé. La signature (nom du site dans
  * la police de titre) est rendue à part (signatureRaster).
  */
-function currentLookSvg(slot: SlotSpec, theme: Theme): string {
+export function currentLookSvg(slot: SlotSpec, theme: Theme, scale = 1): string {
   const c = theme.tokens.color;
   const { w, h } = slot.size;
-  const open = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`;
+  // `scale` (kit v4) : même dessin vectoriel rendu à la taille de la grande case.
+  const open = `<svg xmlns="http://www.w3.org/2000/svg" width="${w * scale}" height="${h * scale}" viewBox="0 0 ${w} ${h}">`;
   const arrow = (dir: 1 | -1) => {
     // « ← » : trait horizontal et pointe, épaisseur d'un glyphe fin.
     const [tip, tail] = dir < 0 ? [24, 104] : [104, 24];
@@ -130,10 +131,10 @@ const ARROW_PATH = "M4 4 L4 50 L15 39 L22 55 L29 52 L22 36 L37 36 Z";
 const HAND_PATH =
   "M22 8 Q22 3 26.5 3 Q31 3 31 8 L31 26 Q31 22 35.5 22 Q40 22 40 26.5 L40 28 Q40 24 44.5 24 Q49 24 49 28.5 L49 31 Q49 27 52.5 27 Q56 27 56 31 L56 46 Q56 60 42 60 L30 60 Q22 60 17 52 L9 40 Q7 36 10.5 34.5 Q14 33 17 37 L22 43 Z";
 /** Repère du point chaud : anneau rose de 11 × 11 px centré sur le point (son centre fait foi à l'import). */
-const HOTSPOT_R = 5;
-async function hotspotRaster(): Promise<Raster> {
-  const d = 2 * HOTSPOT_R + 1;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}"><circle cx="${d / 2}" cy="${d / 2}" r="${HOTSPOT_R - 1}" fill="none" stroke="${HIGHLIGHT}" stroke-width="2"/></svg>`;
+export const HOTSPOT_R = 5;
+export async function hotspotRaster(scale = 1): Promise<Raster> {
+  const d = (2 * HOTSPOT_R + 1) * scale;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}"><circle cx="${d / 2}" cy="${d / 2}" r="${(HOTSPOT_R - 1) * scale}" fill="none" stroke="${HIGHLIGHT}" stroke-width="${2 * scale}"/></svg>`;
   return toRaster(await sharp(Buffer.from(svg)).ensureAlpha().raw().toBuffer({ resolveWithObject: true }));
 }
 /* ---- fin Curseurs (lot 4) ---- */
@@ -160,14 +161,14 @@ export function swatchRaster(color: string, size: number): Raster {
 }
 
 /** Nom du site dans la police de titre du thème, à sa graisse, encre sur transparent, centré dans la case. */
-async function signatureRaster(theme: Theme, siteName: string, publicDir: string, slot: SlotSpec): Promise<Raster> {
+export async function signatureRaster(theme: Theme, siteName: string, publicDir: string, slot: SlotSpec, scale = 1): Promise<Raster> {
   const font = KIT_FONTS[theme.tokens.font.display];
   const file = path.join(/* turbopackIgnore: true */ publicDir, "kit", "fonts", font.file);
   const markup = `<span foreground="${theme.tokens.color.ink}">${esc(siteName)}</span>`;
   const { w, h } = slot.size;
-  let size = 170;
+  let size = 170 * scale;
   let text = await textRaster(markup, file, size, undefined, font.pango);
-  const fit = Math.min((w - 80) / text.width, (h - 40) / text.height, 1);
+  const fit = Math.min((w - 80 * scale) / text.width, (h - 40 * scale) / text.height, 1);
   if (fit < 1) {
     size = Math.floor(size * fit);
     text = await textRaster(markup, file, size, undefined, font.pango);
@@ -180,7 +181,7 @@ async function signatureRaster(theme: Theme, siteName: string, publicDir: string
 }
 
 /** Hauteur réservée au titre, au-dessus de chaque carte. */
-const TITLE_H = 62;
+export const TITLE_H = 62;
 
 /**
  * Carte d'un élément (calque « Aperçu — ne pas modifier », sous ses
@@ -323,7 +324,7 @@ async function readmeRaster(fontFile: string): Promise<Raster> {
  * n'occupe que sa hauteur utile, la mémoire de l'export baisse d'autant.
  * L'import replace chaque calque dans sa case : sans effet sur l'empreinte.
  */
-function layerAt(name: string, x: number, y: number, r: Raster, extra: Partial<Layer> = {}): Layer {
+export function layerAt(name: string, x: number, y: number, r: Raster, extra: Partial<Layer> = {}): Layer {
   let top = r.height;
   let bottom = -1;
   let left = r.width;
@@ -351,12 +352,12 @@ function layerAt(name: string, x: number, y: number, r: Raster, extra: Partial<L
   return { name, left: x + left, top: y + top, right: x + left + img.width, bottom: y + top + img.height, imageData: img, ...extra };
 }
 /** Mesure de l'export par étape (KIT_MEM_DEBUG=1 : pic et RSS courant sur stderr). */
-const memStep = (step: string) => {
+export const memStep = (step: string) => {
   if (process.env.KIT_MEM_DEBUG) console.error(`[kit-mem] ${step} : pic ${Math.round(process.resourceUsage().maxRSS / 1024)} Mo, rss ${Math.round(process.memoryUsage().rss / 1048576)} Mo`);
 };
 /** Ramasse-miettes explicite (processus enfant lancé avec --expose-gc). */
-const gc = () => (globalThis as { gc?: () => void }).gc?.();
-const LOCKED = { protected: { transparency: true, composite: true, position: true } };
+export const gc = () => (globalThis as { gc?: () => void }).gc?.();
+export const LOCKED = { protected: { transparency: true, composite: true, position: true } };
 
 export type KitBuildStats = { layers: number; prefilled: string[]; placeholders: string[]; exportId: string };
 /** `compositeFile` : garder le rendu composite (PNG) à cet endroit (captures). */
@@ -434,8 +435,8 @@ function packBits(row: Uint8Array, out: Buffer): Buffer {
  * Compression RLE, comptes d'octets de toutes les lignes de toutes les
  * couches, puis les lignes couche par couche.
  */
-async function compositeRle(file: string, channels: number): Promise<Buffer> {
-  const { width, height } = DOC;
+export async function compositeRle(file: string, channels: number, size: { width: number; height: number } = DOC): Promise<Buffer> {
+  const { width, height } = size;
   const rows: Buffer[][] = [[], [], []];
   const stride = width * channels;
   const line = Buffer.alloc(stride);
@@ -462,7 +463,7 @@ async function compositeRle(file: string, channels: number): Promise<Buffer> {
   return Buffer.concat([head, counts, ...rows[0], ...rows[1], ...rows[2]]);
 }
 /** En-tête du format natif de libvips (.v). */
-const VIPS_HEADER = 64;
+export const VIPS_HEADER = 64;
 
 /** PSD du kit pour un thème. `publicDir` : dossier public/ (assets actuels du thème). */
 export async function buildKit(theme: Theme, publicDir: string, opts: BuildOptions): Promise<{ psd: Buffer; stats: KitBuildStats; manifest: KitManifest }> {
@@ -620,7 +621,7 @@ export async function buildKit(theme: Theme, publicDir: string, opts: BuildOptio
 }
 
 /** Composites `.v` laissés par un export tué (processus disparu). */
-async function purgeStaleComposites(dir: string): Promise<void> {
+export async function purgeStaleComposites(dir: string): Promise<void> {
   for (const name of await readdir(dir).catch(() => [] as string[])) {
     const m = /^kit-composite-(\d+)-\d+\.v$/.exec(name);
     if (!m || Number(m[1]) === process.pid) continue;

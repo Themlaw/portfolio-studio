@@ -6,6 +6,7 @@ import HeroTypeOnly from "@/components/hero/HeroTypeOnly";
 import type { HeroContent } from "@/components/hero/types";
 import type { AppLocale } from "@/i18n/routing";
 import { getActiveTheme } from "@/lib/theme";
+import { heroStack } from "@/themes/hero-plans";
 import { thumbHashToDataURL } from "thumbhash";
 
 /**
@@ -38,10 +39,10 @@ export default async function Hero({ content }: { content: HeroContent }) {
     case "parallax-layers": {
       // Plans dessinés (kit) : données seulement, le placeholder ThumbHash
       // décodé ici (le client ne reçoit qu'une petite image PNG).
-      const plans = (theme.assets.kit?.plans ?? []).map((p) =>
+      const plans = heroStack(theme.assets).plans.map((p) =>
         p ? { ...p, placeholder: planPlaceholder(p.thumbhash) } : null,
       );
-      return <HeroParallax layers={theme.assets.heroLayers ?? []} plans={plans} content={content} />;
+      return <HeroParallax layers={heroStack(theme.assets).layers} plans={plans} content={content} />;
     }
     case "spotlight":
       return <HeroSpotlight content={content} />;

@@ -458,6 +458,9 @@ migration 0010), en-tête contrôlé sans décodage, job « kit-import » de la 
 file lourde dans l'enfant, manifeste d'export pour reconnaître les éléments
 inchangés, écran de revue `/admin/themes/<id>/kit`, application en copie
 brouillon (`apply.ts`). Jeu de test réel : `tests/fixtures/kit-synthetique.psd`.
+Lot 17e : le kit exporté est une archive de trois PSD (décor à calques libres, logo et
+papier, icônes et curseurs ; cases en grand, réduites à l'import), l'import accepte le .zip,
+un PSD ou plusieurs PSD choisis ensemble (`docs/THEME-KIT.md` §9).
 
 ## Admin (`/admin`, hors i18n, en français)
 

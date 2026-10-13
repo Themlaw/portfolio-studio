@@ -3,11 +3,11 @@
  * Kit Photoshop : parcours de l'illustratrice (lot 17a), UN chromium, UN onglet.
  * Serveur dev requis (redémarré puis pré-chauffé), une connexion.
  *
- *  B1. Kit de « Studio » exporté, palette repeinte par cinq gestes naturels de
- *      Photoshop (pot de peinture, calque ajouté, pinceau partiel, incrustation
- *      couleur, calque de forme), tuile de cœurs, logo : TOUTES les couleurs
- *      sont lues et appliquées à la copie.
- *  B2. Le kit est envoyé sur l'écran d'un AUTRE thème (« Pro » : mauvaise carte
+ *  B1. Kit de « Studio » exporté (archive de trois PSD, lot 17e) ; seul le fichier
+ *      « logo et papier » est retouché (tuile de cœurs 1024 × 1024, logo
+ *      2400 × 600) et envoyé : la revue dit les deux autres fichiers « pas envoyé :
+ *      inchangé », le logo et le papier sont réduits à leur taille d'usage.
+ *  B2. Le fichier est envoyé sur l'écran d'un AUTRE thème (« Pro » : mauvaise carte
  *      cliquée) : il est appliqué à son thème d'origine (Studio) par défaut, le
  *      thème visé est annoncé et modifiable, les variantes (strip « edge »)
  *      sont gardées, aucun scotch ajouté.
@@ -61,7 +61,7 @@ await page.fill("#email", EMAIL);
 await page.fill("#password", PASSWORD);
 await Promise.all([page.waitForURL((u) => !u.pathname.startsWith("/admin/connexion"), { timeout: 60000 }), page.click("button[type=submit]")]);
 
-/* ---- Export du kit de Studio, retouches « Photoshop » ----------------------- */
+/* ---- Export du kit de Studio (archive de trois PSD), retouches « Photoshop » ------ */
 const kitUrl = `${BASE}/admin/api/theme-kit/studio`;
 let ready = false;
 for (let i = 0; i < 90 && !ready; i++) {
@@ -70,16 +70,19 @@ for (let i = 0; i < 90 && !ready; i++) {
   if (!ready) await sleep(2000);
 }
 ok("export du kit de Studio prêt", ready);
-const kitFile = path.join(DIR, "kit-studio.psd");
-writeFileSync(kitFile, await (await page.request.get(kitUrl)).body());
-const edited = path.join(DIR, "kit-studio-retouche.psd");
-execFileSync(process.execPath, ["--import", "tsx", "scripts/kit-poc/simulate-17a.mts", kitFile, edited, ...(OPAQUE_LOGO ? ["--opaque-logo"] : [])], { stdio: "inherit" });
+const kitFile = path.join(DIR, "kit-studio.zip");
+const dl = await page.request.get(kitUrl);
+writeFileSync(kitFile, await dl.body());
+ok("kit téléchargé : archive .zip (pièce jointe kit-studio.zip)", dl.ok() && /application\/zip/.test(dl.headers()["content-type"] ?? "") && /kit-studio\.zip/.test(dl.headers()["content-disposition"] ?? "") && (await dl.body()).subarray(0, 2).toString("latin1") === "PK");
+// Seul le fichier « logo et papier » est retouché (tuile de cœurs en 1024 × 1024, logo en 2400 × 600) ET c'est le seul envoyé.
+const edited = path.join(DIR, "logo-papier-retouche.psd");
+execFileSync(process.execPath, ["--import", "tsx", "scripts/kit-poc/simulate-multi.mts", "studio", kitFile, edited, ...(OPAQUE_LOGO ? ["--opaque-logo"] : [])], { stdio: "inherit" });
 
 /* ---- Envoi sur l'écran d'un AUTRE thème (Pro) ------------------------------ */
 await page.goto(`${BASE}/admin/themes/pro/kit`, { waitUntil: "networkidle" });
 await page.setInputFiles('[data-testid="kit-file"]', edited);
 await page.waitForURL(/\/kit\?import=/, { timeout: 120000 });
-await page.locator(".a-kit-card").nth(10).waitFor({ timeout: 240000 });
+await page.locator(".a-kit-card").nth(2).waitFor({ timeout: 240000 });
 await page.waitForLoadState("networkidle");
 await page.waitForFunction(() => [...document.querySelectorAll(".a-kit-card img")].every((i) => i.complete), null, { timeout: 30000 });
 await page.screenshot({ path: `${SHOTS}/revue-1440.png`, fullPage: true });
@@ -90,29 +93,28 @@ console.log("éléments changés :", changed.join(", "));
 const sig = cards.find((c) => c.slot === "signature");
 console.log("signature :", JSON.stringify(sig));
 
-// B1 : les cinq couleurs repeintes sont lues, dites, et appliquées.
-const colorKeys = await page.$$eval("[data-testid=kit-colors-review] [data-color]", (els) => els.map((e) => e.dataset.color));
-ok("B1 revue : bg, surface, ink, primary, secondary lues comme repeintes", ["bg", "surface", "ink", "primary", "secondary"].every((k) => colorKeys.includes(k)), colorKeys.join(","));
-const countTxt = await page.locator("[data-testid=kit-colors-count]").textContent().catch(() => "");
-ok("B1 revue : un décompte des pastilles lues / repeintes est affiché", /repeinte/.test(countTxt ?? ""), countTxt ?? "");
-ok("B1 revue : la case « appliquer les couleurs » est cochée", await page.locator('[data-testid="kit-colors"]').isChecked().catch(() => false));
+// Lot 17e : la revue est groupée par fichier ; les fichiers non envoyés sont dits « pas envoyé : inchangé ».
+const files = await page.$$eval(".a-kit-file", (els) => els.map((e) => ({ file: e.dataset.file, received: e.dataset.received, title: e.querySelector("h3")?.textContent ?? "" })));
+ok("B1 revue : trois fichiers listés, seul « logo et papier » reçu", files.map((f) => `${f.file}:${f.received}`).join(",") === "decor:false,logo:true,icones:false", JSON.stringify(files));
+ok("B1 revue : les fichiers manquants disent « pas envoyé : inchangé »", files.filter((f) => f.received === "false").every((f) => /pas envoyé : inchangé/.test(f.title)), JSON.stringify(files));
+ok("B1 revue : logo et papier redessinés (le trait, intact, est reconnu inchangé)", changed.includes("signature") && changed.includes("papier") && cards.find((c) => c.slot === "trait")?.change === "unchanged", changed.join(","));
+ok("B1 revue : plus de section « Couleurs de la palette » (la palette sort du kit)", (await page.locator("[data-testid=kit-colors-review]").count()) === 0);
 
 // B2 : thème visé annoncé, Studio par défaut (thème d'origine du kit), pas Pro.
 const baseSel = page.locator('[data-testid="kit-base-select"]');
 ok("B2 revue : le thème visé est affiché et vaut Studio (thème d'origine du kit)", (await baseSel.count()) === 1 && (await baseSel.inputValue()) === "studio", `${await baseSel.count()}`);
-ok("B2 revue : kit d'origine reconnu malgré l'écran de Pro (éléments inchangés)", cards.filter((c) => c.change === "unchanged").length >= 8, JSON.stringify(cards.map((c) => c.change)));
-ok("B2 revue : le scotch n'est pas importé (gabarit inchangé)", cards.find((c) => c.slot === "accessoires/scotch")?.change === "unchanged");
+ok("B2 revue : kit d'origine reconnu malgré l'écran de Pro (élément inchangé)", cards.filter((c) => c.change === "unchanged").length >= 1, JSON.stringify(cards.map((c) => c.change)));
 
 await Promise.all([page.waitForURL(/\/admin\/themes\/[a-z0-9-]*-kit[a-z0-9-]*$/, { timeout: 60000 }), page.getByRole("button", { name: "Appliquer au thème" }).click()]);
 const draftId = page.url().split("/").pop();
 created.push(draftId);
 const data = themeData(draftId);
 ok("B2 copie : partie de Studio (nom, variantes gardées, pas de scotch)", /^Studio/.test(data?.name ?? "") && data.variants.strip === "edge" && !data.assets?.kit?.tape, JSON.stringify({ name: data?.name, v: data?.variants }));
-const c = data?.tokens?.color ?? {};
-ok("B1 copie : fond, surface, texte, action, accent secondaire repeints", c.bg === "#fde8ee" && c.surface === "#fff6f8" && c.ink === "#3a1224" && c.primary === "#c21e56" && c.secondary === "#8a1c4a", JSON.stringify(c));
 const studio = themeData("studio");
-ok("B5 copie : décor d'ouverture (calques du hero) = celui de Studio, aucun plan converti (la rangée de vignettes grises et le carré bleu sont le décor de Studio)", JSON.stringify(data?.assets?.heroLayers) === JSON.stringify(studio?.assets?.heroLayers) && !data?.assets?.kit?.plans, JSON.stringify(data?.assets?.kit?.plans)?.slice(0, 120));
-ok("B7 copie : papier présent, pas sous le bandeau (défaut)", Boolean(data?.assets?.kit?.paper) && !data.assets.kit.paper.underHeader, JSON.stringify(data?.assets?.kit?.paper));
+ok("B1 copie : couleurs de Studio inchangées (le kit ne porte plus de palette)", JSON.stringify(data?.tokens?.color) === JSON.stringify(studio?.tokens?.color), JSON.stringify(data?.tokens?.color));
+ok("B1 copie : logo redessiné rangé (réduit de moitié : 1200 px de large au plus)", Boolean(data?.assets?.kit?.signature) && data.assets.kit.signature.w <= 1200 && data.assets.kit.signature.h <= 300, JSON.stringify(data?.assets?.kit?.signature));
+ok("B5 copie : décor d'ouverture (calques du hero) = celui de Studio, aucun plan converti (fichier décor non envoyé)", JSON.stringify(data?.assets?.heroLayers) === JSON.stringify(studio?.assets?.heroLayers) && !data?.assets?.kit?.plans, JSON.stringify(data?.assets?.kit?.plans)?.slice(0, 120));
+ok("B7 copie : papier présent (tuile réduite à 512 × 512), pas sous le bandeau (défaut)", Boolean(data?.assets?.kit?.paper) && !data.assets.kit.paper.underHeader && data.assets.kit.paper.image.w === 512, JSON.stringify(data?.assets?.kit?.paper));
 
 /* ---- Aperçu de l'accueil : bandeau, papier, logo -------------------------- */
 await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
@@ -162,6 +164,8 @@ if (await toggle.count()) {
     f.submit();
   }, draftId);
   await page.waitForURL(/\/fr$/, { timeout: 60000 });
+  await page.waitForLoadState("networkidle");
+  await sleep(1500);
   await page.mouse.wheel(0, 700);
   await sleep(900);
   const hdr2 = await header();

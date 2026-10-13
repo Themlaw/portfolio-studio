@@ -3,11 +3,13 @@
  * Parcours d'import d'un kit Photoshop (phase 6d), UN chromium, UN onglet.
  * Serveur dev requis (redémarré puis pré-chauffé), une connexion.
  *
- * A. Aller-retour : export v3 de galerie-lumineuse (file lourde) → modification
- *    simulée (flèche droite redessinée, recadrée comme par Photoshop) → refus
- *    d'un fichier qui n'est pas un PSD (PNG légitime généré par ffmpeg) →
- *    envoi → revue (flèche « redessinée », le reste « inchangé », avant /
- *    après) → « Appliquer au thème » : copie brouillon, éditeur et aperçu.
+ * A. Aller-retour du kit v4 (lot 17e) : export de galerie-lumineuse (file lourde,
+ *    archive .zip de trois PSD) → retouches simulées (flèche droite redessinée en
+ *    grand, décor à calques libres) → refus d'un fichier qui n'est pas un PSD
+ *    (PNG légitime généré par ffmpeg) → envoi de l'archive entière, d'un seul PSD
+ *    (les autres fichiers « pas envoyé : inchangé »), puis de deux PSD choisis
+ *    ensemble → revue groupée par fichier → « Appliquer au thème » : copie
+ *    brouillon (décor libre de 4 plans), éditeur et aperçu.
  * B. Fichier réel de l'artiste (tests/fixtures/kit-synthetique.psd, kit
  *    v1) : revue, application, puis la flèche de l'artiste rendue dans le
  *    rail des planches et dans la visionneuse (aperçu du brouillon).
@@ -27,7 +29,7 @@ const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
 const PASSWORD = process.env.ADMIN_PASSWORD;
 if (!EMAIL || !PASSWORD) throw new Error("Définir ADMIN_EMAIL et ADMIN_PASSWORD");
-const SHOTS = "screenshots/phase6d";
+const SHOTS = process.env.SHOTS ?? "screenshots/phase6d";
 mkdirSync(SHOTS, { recursive: true });
 const DIR = path.join(tmpdir(), "e2e-kit");
 mkdirSync(DIR, { recursive: true });
@@ -44,9 +46,9 @@ const manifests = path.join(DATA, "cache/kits/manifests");
 mkdirSync(manifests, { recursive: true });
 if (!existsSync(path.join(manifests, "legacy-galerie-lumineuse-v1.json"))) copyFileSync("tests/fixtures/kit-galerie-lumineuse-v1.manifest.json", path.join(manifests, "legacy-galerie-lumineuse-v1.json"));
 
-// Refus : un fichier légitime qui n'est pas un PSD (PNG ffmpeg) nommé .psd.
+// Refus : un fichier légitime qui n'est pas un PSD (PNG généré par sharp) nommé .psd.
 const NOT_PSD = path.join(DIR, "pas-un-kit.psd");
-execFileSync("ffmpeg", ["-nostdin", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=1", "-frames:v", "1", "-f", "image2", "-c:v", "png", NOT_PSD]);
+await sharp({ create: { width: 640, height: 360, channels: 3, background: "#6c8ebf" } }).png().toFile(NOT_PSD);
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -61,17 +63,18 @@ await page.fill("#email", EMAIL);
 await page.fill("#password", PASSWORD);
 await Promise.all([page.waitForURL((u) => !u.pathname.startsWith("/admin/connexion"), { timeout: 60000 }), page.click("button[type=submit]")]);
 
-/** Envoi d'un PSD sur l'écran du kit, puis revue complète (14 cartes, 16 avec les curseurs d'un kit v3). */
-async function sendAndReview(file) {
+/** Envoi de fichiers (PSD, archive ou plusieurs PSD choisis ensemble) sur l'écran du kit, puis revue complète (`count` cartes). */
+async function sendAndReview(files, count) {
   await page.goto(`${BASE}/admin/themes/galerie-lumineuse/kit`, { waitUntil: "networkidle" });
-  await page.setInputFiles('[data-testid="kit-file"]', file);
-  await page.waitForURL(/\/kit\?import=/, { timeout: 120000 });
-  await page.locator(".a-kit-card").nth(13).waitFor({ timeout: 180000 });
+  await page.setInputFiles('[data-testid="kit-file"]', files);
+  await page.waitForURL(/\/kit\?import=/, { timeout: 180000 });
+  await page.locator(".a-kit-card").nth(count - 1).waitFor({ timeout: 240000 });
   await page.waitForLoadState("networkidle");
   await page.waitForFunction(() => [...document.querySelectorAll(".a-kit-card img")].every((i) => i.complete), null, { timeout: 30000 });
   const cards = await page.$$eval(".a-kit-card", (els) => els.map((e) => ({ slot: e.dataset.slot, change: e.dataset.change, status: e.dataset.status, title: e.querySelector("h3")?.textContent ?? "" })));
   const imgs = await page.$$eval('.a-kit-card[data-slot="icones/fleche-droite"] img', (els) => els.map((i) => ({ alt: i.alt, w: i.naturalWidth })));
-  return { cards, imgs };
+  const sections = await page.$$eval(".a-kit-file", (els) => els.map((e) => ({ file: e.dataset.file, received: e.dataset.received, title: e.querySelector("h3")?.textContent ?? "", cards: e.querySelectorAll(".a-kit-card").length })));
+  return { cards, imgs, sections };
 }
 
 async function apply() {
@@ -82,8 +85,15 @@ async function apply() {
   created.push(id);
   return id;
 }
+const tsx = (code) => execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", code], { env: { ...process.env, DATA_DIR: DATA }, encoding: "utf8" });
+const themeData = (id) =>
+  JSON.parse(
+    tsx(`import { getDb, schema } from "./src/lib/db/index.ts"; import { eq } from "drizzle-orm";
+     console.log(getDb().select().from(schema.themes).where(eq(schema.themes.id, ${JSON.stringify(id)})).get()?.data ?? "null");`),
+  );
+const sim = (...args) => execFileSync(process.execPath, ["--import", "tsx", "scripts/kit-poc/simulate-multi.mts", ...args], { stdio: "ignore" });
 
-/* ---- A. Aller-retour v3 ------------------------------------------------- */
+/* ---- A. Aller-retour du kit v4 : archive de trois PSD ------------------- */
 const kitUrl = `${BASE}/admin/api/theme-kit/galerie-lumineuse`;
 let ready = false;
 for (let i = 0; i < 90 && !ready; i++) {
@@ -91,33 +101,81 @@ for (let i = 0; i < 90 && !ready; i++) {
   ready = (await res.json()).ready === true;
   if (!ready) await sleep(2000);
 }
-ok("export du kit v3 (file lourde) prêt", ready);
-const kitFile = path.join(DIR, "kit-v3.psd");
+ok("export du kit v4 (file lourde) prêt", ready);
+const kitFile = path.join(DIR, "kit-v4.zip");
 const dl = await page.request.get(kitUrl);
-writeFileSync(kitFile, await dl.body());
-ok("kit v3 téléchargé (PSD)", dl.ok() && (await dl.body()).subarray(0, 4).toString("latin1") === "8BPS");
-const edited = path.join(DIR, "kit-v3-modifie.psd");
-execFileSync(process.execPath, ["--import", "tsx", "scripts/kit-poc/simulate-edit.mts", kitFile, edited], { stdio: "ignore" });
+const kitBytes = await dl.body();
+writeFileSync(kitFile, kitBytes);
+ok("kit téléchargé : archive .zip (pièce jointe kit-galerie-lumineuse.zip)", dl.ok() && /application\/zip/.test(dl.headers()["content-type"] ?? "") && /kit-galerie-lumineuse\.zip/.test(dl.headers()["content-disposition"] ?? "") && kitBytes.subarray(0, 2).toString("latin1") === "PK");
+const iconPsd = path.join(DIR, "icones-modifie.psd");
+const decorPsd = path.join(DIR, "decor-libre.psd");
+const zipEdited = path.join(DIR, "kit-v4-modifie.zip");
+const parts = path.join(DIR, "parts");
+sim("extract", kitFile, parts);
+sim("icone", kitFile, iconPsd);
+sim("decor", kitFile, decorPsd);
+sim("zip", kitFile, zipEdited, iconPsd);
+ok("trois PSD dans l'archive, sous leurs noms d'export", ["1-decor-accueil.psd", "2-logo-papier.psd", "3-icones-curseurs.psd"].every((n) => existsSync(path.join(parts, n))));
 
 await page.goto(`${BASE}/admin/themes/galerie-lumineuse/kit`, { waitUntil: "networkidle" });
 await page.setInputFiles('[data-testid="kit-file"]', NOT_PSD);
 const refusal = await page.locator(".a-kit-drop [role=alert]").textContent({ timeout: 30000 });
 ok("fichier qui n'est pas un PSD : refusé, message clair", /pas un fichier Photoshop/.test(refusal ?? ""), refusal ?? "");
 
-const a = await sendAndReview(edited);
+// A1. L'archive entière (icônes retouchées dedans) : 16 éléments, un seul redessiné.
+const a = await sendAndReview(zipEdited, 16);
 const changedA = a.cards.filter((c) => c.change !== "unchanged");
-ok("aller-retour : seule « Flèche droite » redessinée", changedA.length === 1 && changedA[0].slot === "icones/fleche-droite" && /Flèche droite : redessinée/.test(changedA[0].title), JSON.stringify(changedA));
-ok(`aller-retour : ${a.cards.length - 1} inchangés sur ${a.cards.length} (reconnus par l'identifiant d'export ; kit v3 : curseurs compris)`, a.cards.length === 16 && a.cards.filter((c) => c.change === "unchanged").length === a.cards.length - 1 && /identifiant du fichier/.test(await page.locator(".a-kit-summary").textContent()));
+ok("archive : seule « Flèche droite » redessinée (dessin en grand, réduit par le site)", changedA.length === 1 && changedA[0].slot === "icones/fleche-droite" && /Flèche droite : redessinée/.test(changedA[0].title), JSON.stringify(changedA));
+ok("archive : 15 inchangés sur 16 (reconnus par l'identifiant d'export), curseurs compris", a.cards.length === 16 && a.cards.filter((c) => c.change === "unchanged").length === 15 && /identifiant du fichier/.test(await page.locator(".a-kit-summary").textContent()));
+ok("archive : revue groupée par fichier (décor 5, logo 3, icônes 8), tous reçus", a.sections.map((s) => `${s.file}:${s.received}:${s.cards}`).join(",") === "decor:true:5,logo:true:3,icones:true:8", JSON.stringify(a.sections));
 ok("avant / après affichés pour la flèche", a.imgs.length === 2 && a.imgs.every((i) => i.w > 0), JSON.stringify(a.imgs));
-await page.screenshot({ path: `${SHOTS}/revue-aller-retour-1440.png`, fullPage: true });
+await page.screenshot({ path: `${SHOTS}/revue-archive-1440.png`, fullPage: true });
+
+// A2. Un seul PSD envoyé : les deux autres fichiers sont « pas envoyé : inchangé ».
+const a2 = await sendAndReview(iconPsd, 8);
+ok("un seul PSD : les fichiers décor et logo « pas envoyé : inchangé »", a2.sections.map((s) => `${s.file}:${s.received}`).join(",") === "decor:false,logo:false,icones:true" && a2.sections.filter((s) => s.received === "false").every((s) => /pas envoyé : inchangé/.test(s.title)), JSON.stringify(a2.sections));
+ok("un seul PSD : fichier reconnu par son contenu (pas par son nom), flèche seule redessinée", a2.cards.filter((c) => c.change !== "unchanged").map((c) => c.slot).join() === "icones/fleche-droite", JSON.stringify(a2.cards.map((c) => `${c.slot}:${c.change}`)));
+await page.screenshot({ path: `${SHOTS}/revue-un-fichier-1440.png`, fullPage: true });
+
+// A3. Deux PSD choisis ensemble (décor à calques libres + icônes) : un seul import, décor libre appliqué.
+const a3 = await sendAndReview([decorPsd, iconPsd], 12);
+ok("deux PSD choisis ensemble : un import, logo « pas envoyé », décor 4 plans + icônes 8", a3.sections.map((s) => `${s.file}:${s.received}:${s.cards}`).join(",") === "decor:true:4,logo:false:0,icones:true:8", JSON.stringify(a3.sections));
+const decorCards = a3.cards.filter((c) => c.slot.startsWith("decor/"));
+ok("décor libre : 4 plans (3 inchangés d'un plan exporté, « mes nuages » redessiné)", decorCards.length === 4 && decorCards.filter((c) => c.change === "unchanged").length === 3 && decorCards.filter((c) => c.change === "redrawn").length === 1 && /mes nuages/.test(decorCards[1].title), JSON.stringify(decorCards));
+ok("décor libre : résumé « composition changée »", /composition changée/.test((await page.locator('[data-testid="kit-decor-summary"]').textContent()) ?? ""));
+await page.screenshot({ path: `${SHOTS}/revue-decor-libre-1440.png`, fullPage: true });
 const draftA = await apply();
 ok("« Appliquer » : copie brouillon créée, éditeur ouvert", /galerie-lumineuse-kit/.test(draftA) && (await page.locator("h1").first().textContent()).includes("(kit)"));
+const dataA = themeData(draftA);
+ok("copie : décor libre = 4 plans, ils remplacent tout le décor (plansOnly)", dataA?.assets?.kit?.plansOnly === true && dataA.assets.kit.plans?.length === 4 && dataA.assets.kit.plans.every(Boolean), JSON.stringify(dataA?.assets?.kit?.plans?.map((p) => Object.keys(p).join("+"))));
 await page.locator("iframe").first().waitFor({ timeout: 30000 });
 await sleep(2500);
 await page.screenshot({ path: `${SHOTS}/copie-brouillon-apercu-1440.png` });
+// Aperçu public du brouillon : le hero n'a que les 4 plans.
+await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+await page.evaluate((id) => {
+  const f = document.createElement("form");
+  f.method = "post";
+  f.action = "/admin/apercu";
+  const i = document.createElement("input");
+  i.name = "id";
+  i.value = id;
+  f.append(i);
+  document.body.append(f);
+  f.submit();
+}, draftA);
+await page.waitForURL(/\/fr$/, { timeout: 60000 });
+await page.waitForLoadState("networkidle");
+await sleep(1500);
+const planCount = await page.locator(".hero-parallax .hero-layer-kit").count();
+const svgLayers = await page.locator(".hero-parallax .absolute > img").count();
+ok("accueil du brouillon : exactement 4 plans dans le hero (les calques SVG du thème ne s'y ajoutent pas)", planCount === 4 && svgLayers === 0, `${planCount} plans, ${svgLayers} calques SVG`);
+await page.screenshot({ path: `${SHOTS}/accueil-decor-libre-1440.png` });
+await page.request.post(`${BASE}/admin/apercu/quitter`, { headers: { origin: BASE } }).catch(() => {});
 
 /* ---- B. Fichier réel de l'artiste -------------------------------------- */
-const b = await sendAndReview(path.resolve("tests/fixtures/kit-synthetique.psd"));
+const b = await sendAndReview(path.resolve("tests/fixtures/kit-synthetique.psd"), 14);
+ok("ancien kit v1 (un seul fichier) : lu comme avant, 14 cartes, sans titre de fichier", b.cards.length === 14 && b.sections.length === 0, JSON.stringify(b.sections));
 const changedB = b.cards.filter((c) => c.change !== "unchanged");
 ok("fichier de l'artiste : seule « Flèche droite » redessinée", changedB.length === 1 && changedB[0].slot === "icones/fleche-droite", JSON.stringify(changedB));
 ok("fichier de l'artiste : « Plan 3 : inchangé »", b.cards.some((c) => c.slot === "hero/plan-3" && /Plan 3 : inchangé/.test(c.title)));

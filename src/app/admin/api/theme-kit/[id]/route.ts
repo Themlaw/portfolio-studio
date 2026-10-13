@@ -2,7 +2,7 @@
  * Kit Photoshop d'un thème (admin) :
  *  - POST : état de l'export de l'état ENREGISTRÉ du thème ; le met en file
  *    (file lourde, exclusive avec la vidéo) s'il n'est ni prêt ni en cours ;
- *  - GET : téléchargement du PSD une fois prêt (404 sinon).
+ *  - GET : téléchargement de l'archive .zip des trois PSD une fois prête (404 sinon).
  */
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
@@ -44,9 +44,9 @@ export async function GET(_request: Request, { params }: Params) {
   if (!info) return json(404, { ok: false, ready: false, message: "Le kit n'est pas encore prêt." });
   return new Response(Readable.toWeb(createReadStream(file)) as ReadableStream, {
     headers: {
-      "Content-Type": "image/vnd.adobe.photoshop",
+      "Content-Type": "application/zip",
       "Content-Length": String(info.size),
-      "Content-Disposition": `attachment; filename="kit-${theme.id}.psd"`,
+      "Content-Disposition": `attachment; filename="kit-${theme.id}.zip"`,
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
     },

@@ -23,7 +23,7 @@ import { PRESETS } from "@/themes/presets";
 import { ThemeSchema, type Theme } from "@/themes/schema";
 
 import { exportIdOf, loadManifests } from "./manifest";
-import { KIT_VERSION } from "./spec";
+import { KIT_V4_VERSION } from "./spec";
 import { themeVersion } from "./version";
 
 /** Durée maximale d'un export (au-delà : processus tué, job en échec). */
@@ -42,8 +42,8 @@ const MAX_CHILD_OUTPUT = 64 * 1024;
 export const kitDir = () => path.join(/* turbopackIgnore: true */ dataDir(), "cache", "kits");
 /** Manifestes des kits exportés (empreintes, aperçus « avant ») : gardés, petits, l'import en a besoin. */
 export const manifestDir = () => path.join(/* turbopackIgnore: true */ kitDir(), "manifests");
-/** PSD en cache : thème, état enregistré, version du FORMAT du kit (un kit v1 en cache n'est pas resservi). */
-export const kitFile = (themeId: string, version: string) => path.join(/* turbopackIgnore: true */ kitDir(), `${themeId}-${version}-v${KIT_VERSION}.psd`);
+/** Archive en cache : thème, état enregistré, version du FORMAT du kit (un kit v3 en cache n'est pas resservi). */
+export const kitFile = (themeId: string, version: string) => path.join(/* turbopackIgnore: true */ kitDir(), `${themeId}-${version}-v${KIT_V4_VERSION}.zip`);
 
 /** Nom du site (réglages, lu en base : le worker n'a pas le cache de Next). */
 export function kitSiteName(): string {
@@ -67,25 +67,25 @@ export function loadSavedTheme(id: string): Theme | null {
 
 /** Supprime les kits en cache d'un thème (sauf, éventuellement, une version). */
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** PSD en cache de CE thème : `<id>-<hex12>-v<n>.psd` exactement (un thème « a-b » n'est pas « a »). */
-const kitFileRe = (themeId: string) => new RegExp(`^${escapeRe(themeId)}-[0-9a-f]{12}-v\\d+\\.psd(\\.tmp)?$`);
+/** Kit en cache de CE thème : `<id>-<hex12>-v<n>.zip` (ou `.psd` des anciens formats) exactement (un thème « a-b » n'est pas « a »). */
+const kitFileRe = (themeId: string) => new RegExp(`^${escapeRe(themeId)}-[0-9a-f]{12}-v\\d+\\.(?:zip|psd)(\\.tmp|\\.parts)?$`);
 
 export async function purgeKits(themeId: string, keep?: string): Promise<void> {
   const re = kitFileRe(themeId);
   for (const name of await readdir(kitDir()).catch(() => [] as string[])) {
     if (re.test(name) && (!keep || name !== path.basename(kitFile(themeId, keep)))) {
-      await rm(path.join(/* turbopackIgnore: true */ kitDir(), name), { force: true });
+      await rm(path.join(/* turbopackIgnore: true */ kitDir(), name), { force: true, recursive: true });
     }
   }
 }
 
-/** Cache des kits borné : au plus MAX_CACHED_KITS PSD, les plus anciens supprimés. */
+/** Cache des kits borné : au plus MAX_CACHED_KITS archives (ou anciens PSD), les plus anciennes supprimées. */
 export const MAX_CACHED_KITS = 20;
 export async function capKitCache(max = MAX_CACHED_KITS): Promise<number> {
   const dir = kitDir();
   const files: { name: string; mtime: number }[] = [];
   for (const name of await readdir(dir).catch(() => [] as string[])) {
-    if (!name.endsWith(".psd")) continue;
+    if (!name.endsWith(".zip") && !name.endsWith(".psd")) continue;
     const info = await stat(path.join(/* turbopackIgnore: true */ dir, name)).catch(() => null);
     if (info) files.push({ name, mtime: info.mtimeMs });
   }
@@ -295,7 +295,7 @@ export async function runKitJob(job: { id: number; payload: Record<string, unkno
     theme,
     publicDir: path.join(/* turbopackIgnore: true */ process.cwd(), "public"),
     out: kitFile(themeId, version),
-    exportId: exportIdOf(themeId, version, KIT_VERSION),
+    exportId: exportIdOf(themeId, version, KIT_V4_VERSION),
     themeVersion: version,
     siteName,
     assets: await kitAssetFiles(theme),

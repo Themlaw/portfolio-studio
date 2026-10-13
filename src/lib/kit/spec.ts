@@ -34,12 +34,40 @@ export const DOC_V1 = { width: 2880, height: 2560 } as const;
 export const DOC_V2 = { width: 4000, height: 4000 } as const;
 export const DOC = { width: 4000, height: 4880 } as const;
 export const HERO = { width: 2880, height: 1600 } as const;
+const HERO_W = 2880;
+const HERO_H = 1600;
 /** Zone du titre du hero, relative au plan (le décor y reste calme). */
 export const TITLE_ZONE = { x: 240, y: 420, w: 1260, h: 560 } as const;
 
 export type SlotKind = "plan" | "signature" | "tile" | "nine" | "stroke" | "icon" | "tape" | "swatch" | "cursor";
 export type Frame = { x: number; y: number; w: number; h: number };
-export type Layout = "v1" | "v2";
+export type Layout = "v1" | "v2" | "multi";
+
+/**
+ * Kit v4 (lot 17e) : une archive de TROIS PSD aérés, chacun reconnu par son
+ * identifiant de rôle (calque de `_guides`) ou, à défaut, par la taille de son
+ * document. Les éléments se dessinent en GRAND dans une case ; le site les
+ * réduit à leur taille d'usage (`SlotSpec.size`).
+ *   decor   : décor d'accueil, calques libres (chaque calque ou groupe de premier niveau = un plan)
+ *   logo    : logo, papier (tuile), trait
+ *   icones  : icônes, curseurs, cadre, scotch
+ */
+export type KitRole = "decor" | "logo" | "icones";
+export const KIT_ROLES: KitRole[] = ["decor", "logo", "icones"];
+export const KIT_V4_VERSION = 4;
+/** Décor en grand format : 2 × le plan d'usage (2880 × 1600), sous une bande de consignes. */
+export const DECOR_SCALE = 2;
+export const DECOR_HEAD = 760;
+export const DECOR_CANVAS = { width: HERO_W * DECOR_SCALE, height: HERO_H * DECOR_SCALE } as const;
+/** Plans du décor libre : au plus (borne de l'import). */
+export const MAX_DECOR_PLANS = 8;
+export const KIT_FILES: Record<KitRole, { file: string; label: string; doc: { width: number; height: number }; /** Nom court dans la revue. */ short: string }> = {
+  decor: { file: "1-decor-accueil.psd", label: "1 · Décor d'accueil", short: "Décor d'accueil", doc: { width: DECOR_CANVAS.width, height: DECOR_HEAD + DECOR_CANVAS.height } },
+  logo: { file: "2-logo-papier.psd", label: "2 · Logo et papier", short: "Logo et papier", doc: { width: 3000, height: 4640 } },
+  icones: { file: "3-icones-curseurs.psd", label: "3 · Icônes et curseurs", short: "Icônes et curseurs", doc: { width: 3400, height: 5770 } },
+};
+/** Rôle d'un document d'après sa taille (repli quand l'identifiant de rôle a été supprimé). */
+export const roleOfSize = (width: number, height: number): KitRole | null => KIT_ROLES.find((r) => KIT_FILES[r].doc.width === width && KIT_FILES[r].doc.height === height) ?? null;
 
 export interface SlotSpec {
   /** Identifiant stable (rapports, assets) : « hero/plan-1 », « icones/fermer »… */
@@ -75,6 +103,12 @@ export interface SlotSpec {
   paletteKey?: PaletteKey;
   /** Curseur : normal ou « clic ». */
   cursor?: "default" | "pointer";
+  /** Kit v4 : taille de la case de dessin (plus grande que `size` : le site réduit). */
+  draw?: { w: number; h: number };
+  /** Kit v4 : fichier et position (coin haut-gauche) de la case dans son document. */
+  at?: { role: KitRole; x: number; y: number };
+  /** Plan du décor libre (kit v4) : le premier (le plus lointain) peut être opaque. */
+  firstPlan?: boolean;
 }
 
 export type ElementId = "paysage" | "signature" | "papier" | "cadre" | "trait" | "icones" | "scotch" | "palette" | "curseur";
@@ -124,7 +158,7 @@ export const ELEMENTS: ElementSpec[] = [
     id: "signature",
     group: "2 · Signature",
     title: "2 · Signature — 1200 × 300 px",
-    aliases: ["signature"],
+    aliases: ["signature", "logo"],
     board: { x: 0, y: 2140, w: 2300, h: 572 },
     where: "Ce que tu dessines ici remplace ton nom écrit en haut à gauche de toutes les pages.",
     rules: ["1200 × 300 px, fond transparent, une seule couleur : le site la teinte.", IGNORED_RULE, "Pas envie ? Laisse-la telle quelle : ton nom reste écrit."],
@@ -331,6 +365,185 @@ export const CURSOR_SLOTS: SlotSpec[] = (
 /** Tous les emplacements : éléments convertis en assets, puis pastilles et curseurs. */
 export const ALL_SLOTS: SlotSpec[] = [...SLOTS, ...SWATCH_SLOTS, ...CURSOR_SLOTS];
 export const isNuanceSwatch = (s: SlotSpec) => Boolean(s.paletteKey && isNuance(s.paletteKey));
+/* ---- Kit v4 (lot 17e) : cases de dessin en grand, une par fichier ---- */
+
+/**
+ * Case de dessin (px du document) de chaque emplacement des trois fichiers :
+ * `scale` × la taille d'usage. Les cartes (consignes, vignettes) sont posées
+ * par build-multi.ts autour de ces cases (MULTI_CARDS : leurs rectangles).
+ */
+const SCALE: Record<string, number> = { signature: 2, papier: 2, trait: 2, cadre: 3, "accessoires/scotch": 3, curseur: 8, icone: 4 };
+const MULTI_AT: Record<string, { role: KitRole; x: number; y: number }> = {
+  signature: { role: "logo", x: 60, y: 752 },
+  papier: { role: "logo", x: 60, y: 1992 },
+  trait: { role: "logo", x: 60, y: 3792 },
+  "icones/fleche-gauche": { role: "icones", x: 60, y: 752 },
+  "icones/fleche-droite": { role: "icones", x: 620, y: 752 },
+  "icones/fermer": { role: "icones", x: 1180, y: 752 },
+  "icones/lecture": { role: "icones", x: 1740, y: 752 },
+  "curseur/normal": { role: "icones", x: 60, y: 2092 },
+  "curseur/clic": { role: "icones", x: 620, y: 2092 },
+  cadre: { role: "icones", x: 60, y: 3382 },
+  "accessoires/scotch": { role: "icones", x: 60, y: 4672 },
+};
+for (const s of ALL_SLOTS) {
+  const at = MULTI_AT[s.id];
+  if (!at) continue;
+  const k = s.kind === "icon" ? SCALE.icone : s.kind === "cursor" ? SCALE.curseur : SCALE[s.id];
+  s.draw = { w: s.size.w * k, h: s.size.h * k };
+  s.at = at;
+}
+/** Hauteur de la bande de consignes en tête des fichiers « logo » et « icônes » (le décor : DECOR_HEAD). */
+export const MULTI_HEAD = 640;
+/** Carte d'un élément (kit v4) : groupe, consignes, et où poser le panneau de texte (relatif à la carte). */
+export type MultiCard = {
+  element: ElementId;
+  role: KitRole;
+  group: string;
+  board: Frame;
+  title: string;
+  where: string;
+  rules: string[];
+  panel: { x: number; y: number; w: number };
+  /** Vignette du site (où l'élément apparaît), relative à la carte. */
+  vignette?: { x: number; y: number; w: number; h: number };
+  /** Marge de la zone utile dans la case (px de la case) : cadre en pointillés dans `_guides`. */
+  margin?: number;
+};
+const IGN = "Ignoré : effets, textes non pixellisés, ce qui dépasse de la case.";
+const KEEP = "Pas envie ? Laisse tel quel : c'est gardé.";
+export const MULTI_CARDS: MultiCard[] = [
+  {
+    element: "signature",
+    role: "logo",
+    group: "1 · Logo",
+    board: { x: 0, y: 660, w: 3000, h: 1200 },
+    title: "1 · Logo — case de 2400 × 600 px",
+    where: "Ce que tu dessines ici remplace ton nom écrit en haut à gauche de toutes les pages.",
+    rules: [
+      "Dessine en grand : le site réduit la case de moitié (1200 × 300 px au plus à l'écran).",
+      "Fond transparent, une seule couleur : le site la teinte selon le thème.",
+      "Zone utile (pointillés) : garde le dessin à l'intérieur ; ce qui dépasse de la case est coupé.",
+      IGN,
+      "Pas envie ? Laisse-le tel quel : ton nom reste écrit.",
+    ],
+    panel: { x: 60, y: 830, w: 2300 },
+    vignette: { x: 2460, y: 830, w: 480, h: 300 },
+    margin: 60,
+  },
+  {
+    element: "papier",
+    role: "logo",
+    group: "2 · Papier",
+    board: { x: 0, y: 1900, w: 3000, h: 1760 },
+    title: "2 · Papier — tuile de 1024 × 1024 px",
+    where: "Ce que tu peins ici devient le fond de toutes les pages, répété comme un papier peint, et un voile léger sur le décor.",
+    rules: [
+      "Dessine en grand : la tuile est réduite de moitié (512 × 512 px). L'aperçu 3 × 3 à droite montre la tuile actuelle répétée.",
+      "Opaque, sans raccord visible (Filtre > Autres > Translation pour le vérifier).",
+      "Un grain fin et sans forme : un motif à l'échelle de la tuile dessinerait une grille.",
+      IGN,
+      KEEP,
+    ],
+    panel: { x: 60, y: 1260, w: 2300 },
+    vignette: { x: 2460, y: 1260, w: 480, h: 300 },
+  },
+  {
+    element: "trait",
+    role: "logo",
+    group: "3 · Trait",
+    board: { x: 0, y: 3700, w: 3000, h: 900 },
+    title: "3 · Trait — case de 2400 × 160 px",
+    where: "Ce que tu dessines ici souligne le menu, sépare les sections et sert de barre de défilement sous les planches.",
+    rules: ["Dessine en grand : réduit de moitié (1200 × 80 px).", "Fond transparent, une seule couleur.", "Étiré en largeur et en hauteur : garde une épaisseur régulière.", IGN, KEEP],
+    panel: { x: 60, y: 390, w: 2300 },
+    vignette: { x: 2460, y: 390, w: 480, h: 300 },
+  },
+  {
+    element: "icones",
+    role: "icones",
+    group: "1 · Icônes",
+    board: { x: 0, y: 660, w: 3400, h: 1300 },
+    title: "1 · Icônes — 4 cases de 512 × 512 px",
+    where: "Ce que tu dessines ici devient les flèches sur les bords des planches, la croix de l'image agrandie et le bouton lecture.",
+    rules: [
+      "Dessine chaque icône en grand dans sa case : le site la réduit à 128 × 128 px (4 fois plus petite).",
+      "Zone utile (pointillés) : garde le dessin à l'intérieur. Fond transparent, une seule couleur : le site la teinte.",
+      IGN,
+      "Pas envie ? Laisse telles quelles celles que tu ne veux pas dessiner.",
+    ],
+    panel: { x: 60, y: 760, w: 2000 },
+    vignette: { x: 2160, y: 760, w: 480, h: 200 },
+    margin: 48,
+  },
+  {
+    element: "curseur",
+    role: "icones",
+    group: "2 · Curseurs",
+    board: { x: 0, y: 2000, w: 3400, h: 1250 },
+    title: "2 · Curseurs — 2 cases de 512 × 512 px",
+    where: "La souris sur ton site : « Normal » partout, « Clic » sur ce qui se clique (liens, boutons, images).",
+    rules: [
+      "Dessine en grand : réduit à 64 × 64 px, affiché en 32 × 32 à l'écran (8 fois plus petit).",
+      "Le rond rose « point chaud » marque le point qui clique : déplace-le avec ton dessin.",
+      "Un contour clair et un foncé : visible sur tous les fonds.",
+      "Les champs de texte gardent leur barre de saisie.",
+      "Pas envie ? Laisse tel quel : le curseur actuel reste.",
+    ],
+    panel: { x: 1260, y: 92, w: 2000 },
+    margin: 32,
+  },
+  {
+    element: "cadre",
+    role: "icones",
+    group: "3 · Cadre des entrées de collection",
+    board: { x: 0, y: 3290, w: 3400, h: 1250 },
+    title: "3 · Cadre des entrées de collection — case de 900 × 900 px",
+    where: "Ce que tu dessines ici entoure la grande image de chaque collection (Personnages, Décors…) sur l'accueil.",
+    rules: ["Dessine en grand : réduit au tiers (300 × 300 px).", "Centre transparent.", "Les 144 px du bord (lignes vertes) s'étirent ; les coins restent fixes.", IGN, KEEP],
+    panel: { x: 1020, y: 92, w: 2300 },
+    vignette: { x: 1020, y: 760, w: 480, h: 300 },
+  },
+  {
+    element: "scotch",
+    role: "icones",
+    group: "4 · Scotch",
+    board: { x: 0, y: 4580, w: 3400, h: 1150 },
+    title: "4 · Scotch — case de 1200 × 480 px",
+    where: "Ce que tu dessines ici tient les images des planches : le même morceau est posé en haut de chaque image.",
+    rules: ["Dessine en grand : réduit au tiers (400 × 160 px).", "Fond transparent ; la transparence partielle est gardée.", IGN, KEEP],
+    panel: { x: 60, y: 710, w: 2000 },
+    vignette: { x: 2160, y: 710, w: 480, h: 300 },
+  },
+];
+
+/** Facteur de réduction d'un emplacement du kit v4 (1 : pas de réduction). */
+export const drawScale = (s: SlotSpec) => (s.draw ? s.draw.w / s.size.w : 1);
+/** Spécification d'un emplacement par son identifiant (y compris « decor/n », plan du décor libre). */
+export const slotSpecOf = (id: string): SlotSpec | undefined => ALL_SLOTS.find((s) => s.id === id) ?? (/^decor\/\d+$/.test(id) ? decorSlot(Number(id.slice(6))) : undefined);
+/** Emplacements d'un fichier du kit v4. */
+export const slotsOfRole = (role: KitRole) => ALL_SLOTS.filter((s) => s.at?.role === role);
+
+/** Plan n (1 = le plus lointain) du décor libre : mêmes règles qu'un plan du kit v2, sans hauteur utile. */
+export function decorSlot(n: number): SlotSpec {
+  return {
+    id: `decor/${n}`,
+    element: "paysage",
+    layer: `Plan ${n}`,
+    label: n === 1 ? "Plan 1 (le plus lointain)" : `Plan ${n}`,
+    aliases: [],
+    kind: "plan",
+    size: { w: HERO.width, h: HERO.height },
+    v1: { x: 0, y: 0 },
+    transparent: true,
+    mono: false,
+    crop: true,
+    draw: { w: DECOR_CANVAS.width, h: DECOR_CANVAS.height },
+    at: { role: "decor", x: 0, y: DECOR_HEAD },
+    firstPlan: n === 1,
+  };
+}
+/* ---- fin Kit v4 ---- */
 /* ---- fin Palette et curseurs (lot 4) ---- */
 
 /** Position de la zone à peindre dans sa carte v2 (coin haut-gauche). */
@@ -345,6 +558,10 @@ export function zoneOffset(slot: SlotSpec): { x: number; y: number } {
 
 /** Cadre de l'emplacement dans le document, selon la disposition (et le plan de travail éventuel). */
 export function frameOf(slot: SlotSpec, layout: Layout, boardOrigin?: { x: number; y: number }): Frame {
+  if (layout === "multi") {
+    if (!slot.at || !slot.draw) throw new Error(`emplacement sans case dans le kit v4 : ${slot.id}`);
+    return { x: slot.at.x, y: slot.at.y, w: slot.draw.w, h: slot.draw.h };
+  }
   if (layout === "v1") return { ...slot.v1, ...slot.size };
   const board = boardOrigin ?? element(slot.element).board;
   const o = zoneOffset(slot);

@@ -23,7 +23,7 @@ import { videoLimits } from "@/lib/video/limits";
 import { transcodeVideo } from "@/lib/video/transcode";
 import { notifyMediaChanged } from "@/lib/jobs/notify";
 import { runKitJob } from "@/lib/kit/export-job";
-import { importDir, isImportId, purgeKitImports, runKitImportJob } from "@/lib/kit/import-job";
+import { isImportId, purgeKitImports, removeImportSources, runKitImportJob } from "@/lib/kit/import-job";
 import { isPdfTmpName, processPdf } from "@/lib/pdf/render";
 
 const MAX_ATTEMPTS = 3;
@@ -387,7 +387,7 @@ export async function startWorker() {
     .all();
   for (const j of kitDead) {
     const importId = j.kind === "kit-import" ? j.payload?.importId : null;
-    if (isImportId(importId)) await rm(path.join(/* turbopackIgnore: true */ importDir(importId), "source.psd"), { force: true });
+    if (isImportId(importId)) await removeImportSources(importId);
   }
   if (kitDead.length) console.warn(`[jobs] ${kitDead.length} job(s) de kit interrompu(s) : en échec, sans nouvel essai`);
   // Jobs interrompus (processus arrêté pendant un traitement) : remis en file
