@@ -144,6 +144,90 @@ try {
   const topPx = await sharp(top.file).resize(1, 1, { kernel: "nearest" }).raw().toBuffer();
   ok("EXIF 6 : le rectangle est celui de l'image vue (moitié haute = 200 × 200, rouge)", topMeta.width === 200 && topMeta.height === 200 && topPx[0] > 200 && topPx[2] < 60, `${topMeta.width}x${topMeta.height} ${[...topPx].join()}`);
 
+  // Les 8 orientations EXIF : la scène VUE (600 × 300) porte un « personnage » (carré magenta) et quatre quadrants de couleurs ;
+  // le fichier est fabriqué par la transformation inverse, puis recadré. Le rectangle est toujours celui de l'image vue.
+  const scene = await (async () => {
+    const quad = async (w, h, c) => sharp({ create: { width: w, height: h, channels: 3, background: c } }).png().toBuffer();
+    return sharp({ create: { width: 600, height: 300, channels: 3, background: { r: 255, g: 0, b: 0 } } })
+      .composite([
+        { input: await quad(300, 150, { r: 0, g: 200, b: 0 }), left: 300, top: 0 },
+        { input: await quad(300, 150, { r: 0, g: 0, b: 255 }), left: 0, top: 150 },
+        { input: await quad(300, 150, { r: 250, g: 250, b: 0 }), left: 300, top: 150 },
+        { input: await quad(60, 60, { r: 255, g: 0, b: 255 }), left: 390, top: 40 }, // le personnage, en haut à droite
+      ])
+      .removeAlpha()
+      .png()
+      .toBuffer();
+  })();
+  const rawOf = async (buf) => {
+    const { data, info } = await buf.raw().toBuffer({ resolveWithObject: true });
+    return sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } });
+  };
+  // Inverse de l'orientation EXIF o : fichier (non tourné) dont l'affichage corrigé redonne la scène.
+  const inverse = async (o) => {
+    const base = sharp(scene);
+    switch (o) {
+      case 1: return base;
+      case 2: return base.flop();
+      case 3: return base.rotate(180);
+      case 4: return base.flip();
+      case 5: return rawOf((await rawOf(base.flop())).rotate(270));
+      case 6: return base.rotate(270);
+      case 7: return rawOf((await rawOf(base.flop())).rotate(90));
+      default: return base.rotate(90);
+    }
+  };
+  const frame = { x: 0.55, y: 0.05, w: 0.4, h: 0.45 }; // contient le personnage (x 390..450 de 600 = 0,65..0,75 ; y 40..100 de 300)
+  let orientOk = 0;
+  const detail = [];
+  for (let o = 1; o <= 8; o++) {
+    const file = `eo${o}.jpg`;
+    writeFileSync(path.join(media, file), await (await inverse(o)).withMetadata({ orientation: o }).jpeg({ quality: 100, chromaSubsampling: "4:4:4" }).toBuffer());
+    const viewed = await sharp(path.join(media, file)).rotate().raw().toBuffer({ resolveWithObject: true });
+    const generator = viewed.info.width === 600 && viewed.info.height === 300 && viewed.data[0] > 230 && viewed.data[1] < 30 && viewed.data[2] < 30;
+    const mo8 = { id: 20 + o, key: `originals/${file}`, width: 600, height: 300 };
+    const out = await cache.ensureCrop(mo8, crop.toUnits(frame), 240, "webp");
+    const { data, info } = await sharp(out.file).raw().toBuffer({ resolveWithObject: true });
+    const at = (fx, fy) => {
+      const i = (Math.round(fy * (info.height - 1)) * info.width + Math.round(fx * (info.width - 1))) * info.channels;
+      return [data[i], data[i + 1], data[i + 2]];
+    };
+    // Cadre : x 330..570, y 15..150 de la scène. Personnage (390..450, 40..100) : centre (420, 70) => fx 0,375 ; fy 0,41.
+    const marker = at(0.375, 0.41);
+    const bg = at(0.8, 0.9); // x 522, y 135 : quadrant haut-droit (vert) de la scène
+    const good = info.width === 240 && info.height === 135 && marker[0] > 220 && marker[1] < 60 && marker[2] > 220 && bg[1] > 150 && bg[0] < 60 && generator;
+    if (good) orientOk++;
+    else detail.push(`o${o}: ${info.width}x${info.height} marqueur ${marker} fond ${bg} fichier ${generator}`);
+  }
+  ok("EXIF 1 à 8 : le personnage est dans la découpe, aux bonnes couleurs et à la bonne taille (240 × 135, rectangle de l'image vue)", orientOk === 8, detail.join(" | "));
+
+  // Mémoire : un JPEG de 100 Mpx (10000 × 10000) en orientation 6 ne doit pas coûter plus que le même en orientation 1.
+  {
+    const big = path.join(media, "big1.jpg");
+    const { spawnSync } = await import("node:child_process");
+    const noise = Buffer.alloc(1000 * 1000 * 3);
+    for (let i = 0; i < noise.length; i++) noise[i] = (i * 7919 + (i >> 9)) & 255;
+    const tile = await sharp(noise, { raw: { width: 1000, height: 1000, channels: 3 } }).png().toBuffer();
+    const bigBuf = await sharp({ create: { width: 10000, height: 10000, channels: 3, background: { r: 40, g: 80, b: 120 } } })
+      .composite(Array.from({ length: 10 }, (_, i) => ({ input: tile, left: i * 1000, top: i * 1000 })))
+      .withMetadata({ orientation: 1 })
+      .jpeg({ quality: 70 })
+      .toBuffer();
+    writeFileSync(big, bigBuf);
+    writeFileSync(path.join(media, "big6.jpg"), await sharp(bigBuf).withMetadata({ orientation: 6 }).jpeg({ quality: 70 }).toBuffer());
+    const rss = (key, id) => {
+      const r = spawnSync(process.execPath, ["--import", "tsx", new URL("./crop-rss-child.mjs", import.meta.url).pathname, DIR, key, String(id)], { encoding: "utf8", env: { ...process.env, MALLOC_ARENA_MAX: "2", MALLOC_MMAP_THRESHOLD_: "131072", MALLOC_TRIM_THRESHOLD_: "131072" } });
+      const m = /MAXRSS (\d+)/.exec(r.stdout);
+      return m ? Number(m[1]) : NaN;
+    };
+    const r1 = rss("originals/big1.jpg", 40);
+    const r6 = rss("originals/big6.jpg", 41);
+    ok(`JPEG 100 Mpx : recadrage en orientation 6 (${r6} Mo) pas plus gourmand qu'en orientation 1 (${r1} Mo)`, Number.isFinite(r1) && Number.isFinite(r6) && r6 <= r1 * 1.2 + 25, `${r1} / ${r6}`);
+    ok(`JPEG 100 Mpx : maxRSS en orientation 6 sous 300 Mo (${r6} Mo)`, r6 < 300);
+    rmSync(big, { force: true });
+    rmSync(path.join(media, "big6.jpg"), { force: true });
+  }
+
   // File d'attente bornée : plus de demandes que la file n'en tient → les dernières reçoivent CropBusy, les autres aboutissent.
   const many = Array.from({ length: cache.MAX_WAITING + 8 }, (_, i) => crop.toUnits({ x: 0, y: 0, w: 0.2 + i * 0.02, h: 1 }));
   const results = await Promise.allSettled(many.map((r) => cache.ensureCrop({ ...m, id: 3 }, r, 480, "webp")));

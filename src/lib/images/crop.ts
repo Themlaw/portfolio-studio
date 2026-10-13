@@ -71,6 +71,38 @@ export function rectPixels(u: RectUnits, width: number, height: number): { w: nu
   return { w, h, left: Math.min(width - w, px(u.x, width)), top: Math.min(height - h, px(u.y, height)) };
 }
 
+/**
+ * Rectangle de l'image VUE (orientation EXIF appliquée), `px` en pixels, reporté dans le repère du
+ * FICHIER (`width × height`, non tourné) : permet d'extraire en lecture séquentielle puis d'orienter la
+ * petite découpe, au lieu de décoder l'image entière tournée. Orientations 1 à 8 (5 à 8 échangent les axes).
+ */
+export function fileRect(
+  px: { left: number; top: number; w: number; h: number },
+  orientation: number,
+  width: number,
+  height: number,
+): { left: number; top: number; w: number; h: number } {
+  const { left, top, w, h } = px;
+  switch (orientation) {
+    case 2:
+      return { left: width - left - w, top, w, h };
+    case 3:
+      return { left: width - left - w, top: height - top - h, w, h };
+    case 4:
+      return { left, top: height - top - h, w, h };
+    case 5:
+      return { left: top, top: left, w: h, h: w };
+    case 6:
+      return { left: top, top: height - left - w, w: h, h: w };
+    case 7:
+      return { left: width - top - h, top: height - left - w, w: h, h: w };
+    case 8:
+      return { left: width - top - h, top: left, w: h, h: w };
+    default:
+      return { left, top, w, h };
+  }
+}
+
 /* ---- Largeurs servies ------------------------------------------------------------- */
 
 export const CROP_WIDTHS = [480, 960, 1600, 2400, 3600, 4800] as const;

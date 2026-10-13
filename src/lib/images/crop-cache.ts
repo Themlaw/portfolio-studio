@@ -26,8 +26,8 @@ import sharp from "sharp";
 import { dataDir } from "@/lib/db";
 
 import { decodeProblem } from "./budget";
-import { cropHeight, cropWidths, rectKey, rectPixels, SIG_LENGTH, type RectUnits } from "./crop";
-import { ImageTooHeavy, MAX_PIXELS, originalFile } from "./process";
+import { cropHeight, cropWidths, fileRect, rectKey, rectPixels, SIG_LENGTH, type RectUnits } from "./crop";
+import { ImageTooHeavy, MAX_PIXELS, orient, originalFile } from "./process";
 import type { VariantFormat } from "./variants";
 
 /** Recadrages gardés par média ; au-delà, le plus ancien est effacé (il se régénère si on le redemande). */
@@ -130,22 +130,26 @@ async function generate(media: CropMedia, units: RectUnits, width: number, forma
   await evict(media.id, rectKey(units));
   const { file: source, cleanup } = await originalFile(media.key);
   try {
-    const orientation = (await sharp(source, { limitInputPixels: MAX_PIXELS, failOn: "error", pages: 1 }).metadata()).orientation ?? 1;
-    // Orientation EXIF : l'image est tournée AVANT l'extraction (le rectangle est celui de l'image vue), ce qui oblige à une lecture non séquentielle.
-    const options = { limitInputPixels: MAX_PIXELS, failOn: "error" as const, pages: 1, sequentialRead: orientation === 1 };
+    // Lecture séquentielle dans tous les cas : le rectangle (celui de l'image VUE) est reporté dans le repère du FICHIER,
+    // extrait et réduit à cet endroit, puis seulement orienté (petite image). Jamais l'image entière tournée en mémoire.
+    const options = { limitInputPixels: MAX_PIXELS, failOn: "error" as const, pages: 1, sequentialRead: true };
     const meta = await sharp(source, options).metadata();
     if (!meta.width || !meta.height) throw new CropRejected("dimensions illisibles");
     const heavy = decodeProblem({ ...meta, width: meta.width, height: meta.height });
     if (heavy) throw new ImageTooHeavy(heavy);
-    const ow = orientation >= 5 ? meta.height : meta.width;
-    const oh = orientation >= 5 ? meta.width : meta.height;
-    const px = rectPixels(units, ow, oh);
-    let img = sharp(source, options);
-    if (orientation > 1) img = img.rotate();
-    const resized = img
-      .extract({ left: px.left, top: px.top, width: px.w, height: px.h })
-      .resize({ width, height: cropHeight(width, px.w, px.h), fit: "fill" })
-      .toColourspace("srgb");
+    const orientation = meta.orientation ?? 1;
+    const swap = orientation >= 5;
+    const px = rectPixels(units, swap ? meta.height : meta.width, swap ? meta.width : meta.height);
+    const outW = width;
+    const outH = cropHeight(width, px.w, px.h);
+    const raw = fileRect(px, orientation, meta.width, meta.height);
+    const reduced = await sharp(source, options)
+      .extract({ left: raw.left, top: raw.top, width: raw.w, height: raw.h })
+      .resize({ width: swap ? outH : outW, height: swap ? outW : outH, fit: "fill" })
+      .toColourspace("srgb")
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const resized = orient(sharp(reduced.data, { raw: { width: reduced.info.width, height: reduced.info.height, channels: reduced.info.channels } }), orientation);
     const encoded = format === "avif" ? resized.avif({ quality: 55, effort: 2, bitdepth: 8 }) : resized.webp({ quality: 80, effort: 4, smartSubsample: true });
     const out = await encoded.toBuffer();
     await mkdir(path.dirname(file), { recursive: true });

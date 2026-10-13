@@ -57,7 +57,7 @@ export class ImageTooHeavy extends Error {}
 const hex = (n: number) => Math.round(n).toString(16).padStart(2, "0");
 
 /** Orientation EXIF (1 à 8) appliquée à une image déjà réduite. */
-function orient(img: ReturnType<typeof sharp>, orientation: number | undefined): ReturnType<typeof sharp> {
+export function orient(img: ReturnType<typeof sharp>, orientation: number | undefined): ReturnType<typeof sharp> {
   switch (orientation) {
     case 2:
       return img.flop();
@@ -65,12 +65,14 @@ function orient(img: ReturnType<typeof sharp>, orientation: number | undefined):
       return img.rotate(180);
     case 4:
       return img.flip();
+    // sharp applique flip / flop AVANT la rotation d'un même pipeline : transposée (5) = miroir vertical puis 90°,
+    // transverse (7) = miroir horizontal puis 90°.
     case 5:
-      return img.rotate(90).flop();
+      return img.flip().rotate(90);
     case 6:
       return img.rotate(90);
     case 7:
-      return img.rotate(270).flop();
+      return img.flop().rotate(90);
     case 8:
       return img.rotate(270);
     default:
