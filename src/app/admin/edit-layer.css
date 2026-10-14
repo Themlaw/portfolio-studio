@@ -1672,11 +1672,14 @@ html:not([data-edit-mode]) .pe-field-op {
   left: 0;
   z-index: 3;
   display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   gap: 6px;
   pointer-events: none;
 }
 .pe-field-ops .pe-field-op {
   position: static;
+  flex: none;
 }
 
 /* Dans une carte, la section n'a pas de marge haute (padding de la carte) : le bouton sortirait de son hôte et le
@@ -1687,6 +1690,7 @@ html:not([data-edit-mode]) .pe-field-op {
   top: 0;
   right: 0;
   left: auto;
+  justify-content: flex-end;
 }
 
 /* Dans une case de grille, pas de marge haute où se loger : le bouton se pose en haut à droite du texte. */

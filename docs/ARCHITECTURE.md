@@ -1448,6 +1448,9 @@ remplacée, et `backdropContrast` fait afficher une pastille « ! » (jamais blo
 palette)`) n'est lue que si un `backdropColor` existe.
 
 **Réglage d'avant le lot.** `roleBackdrop` reste lu et rendu par les mêmes règles CSS (rendu inchangé). La barre l'affiche comme
-le fond de `site.role` et le migre dans `look.text["site.role"]` à la première modification (le champ est retiré). Limite connue : « Surlignage »
-est `display: inline` (comme avant sur le métier) ; sur un texte de bloc (titre, `li`), le texte devient en ligne et perd ses marges
-verticales.
+le fond de `site.role` et le migre dans `look.text["site.role"]` à la première modification (le champ est retiré). « Surlignage » est un
+gros trait de soulignement (`text-decoration-thickness: 1.15em`, `text-underline-offset: -0.88em`, couleur du fond) posé derrière
+le texte, ligne par ligne : l'élément garde sa boîte (display, marges, retours à la ligne), sur un titre comme sur un `li`
+(`scripts/test-highlight-layout.mjs`, mesuré dans chromium). Limite : pas de marge horizontale autour du texte (le trait suit les
+lettres) ; `text-decoration` du texte (lien souligné) est remplacé. Le fond du métier d'avant le lot (`roleBackdrop`, look.css)
+garde son rendu en ligne d'avant.

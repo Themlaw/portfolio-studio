@@ -19,7 +19,7 @@
  * jusqu'à ce que le serveur ait rendu une révision au moins aussi récente :
  * jamais d'affichage intermédiaire de l'ancienne valeur.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import FreeCropDialog from "@/components/edit/FreeCropDialog";
 import HeroContrast from "@/components/edit/HeroContrast";
@@ -388,6 +388,41 @@ function TextBar({
     const t = setTimeout(onClose, 2000);
     return () => clearTimeout(t);
   }, [missing, onClose, tick]);
+  // La barre ne recouvre jamais la barre d'outils du bloc sélectionné (`.pe-tools` : Monter, Descendre, Supprimer…) : au-dessus du
+  // texte par défaut, sinon dessous, sinon décalée à gauche de cette barre d'outils. Calculé sur les tailles (pas sur la position
+  // actuelle), donc sans boucle ; refait à chaque rendu (la barre d'outils apparaît quand la saisie sélectionne le bloc).
+  const [avoid, setAvoid] = useState<{ below: boolean; left: number | null } | null>(null);
+  // Sans liste de dépendances (volontaire) : la barre d'outils apparaît et bouge sans que ce composant le sache ; le setState ne
+  // change rien (même objet) quand le placement est déjà bon, donc pas de boucle.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    const text = document.querySelector<HTMLElement>(target.path);
+    let next: { below: boolean; left: number | null } | null = null;
+    if (bar && text) {
+      const tr = docRect(text);
+      const tools = [...document.querySelectorAll<HTMLElement>(".pe-tools")].map(docRect).filter((t) => t.width > 0);
+      const [w, h] = [bar.offsetWidth, bar.offsetHeight];
+      const gap = 6;
+      const left0 = Math.max(window.scrollX + 8, Math.min(tr.left, window.scrollX + document.documentElement.clientWidth - 560));
+      const hitTool = (below: boolean, left: number) => {
+        const top = below ? tr.top + tr.height + 8 : tr.top - 8 - h;
+        return tools.find((t) => left < t.left + t.width + gap && left + w > t.left - gap && top < t.top + t.height + gap && top + h > t.top - gap);
+      };
+      const hits = (below: boolean, left: number) => Boolean(hitTool(below, left));
+      const below0 = tr.top - window.scrollY < 150;
+      if (tools.length && hits(below0, left0)) {
+        const shifted = (below: boolean) => {
+          const t = hitTool(below, left0);
+          return t ? Math.max(window.scrollX + 8, t.left - gap - w) : left0;
+        };
+        if (!hits(!below0, left0)) next = { below: !below0, left: null };
+        else if (!hits(below0, shifted(below0))) next = { below: below0, left: shifted(below0) };
+        else if (!hits(!below0, shifted(!below0))) next = { below: !below0, left: shifted(!below0) };
+      }
+    }
+    setAvoid((prev) => (prev?.below === next?.below && prev?.left === next?.left ? prev : next));
+  });
   if (!el) return null;
   const r = docRect(el);
   const look = target.local ? lookOf(target.local.uid) : {};
@@ -415,7 +450,7 @@ function TextBar({
       previewRole(target.role, next, seq);
     }
   };
-  const below = r.top - window.scrollY < 150;
+  const below = avoid ? avoid.below : r.top - window.scrollY < 150;
   return (
     <div
       ref={barRef}
@@ -423,7 +458,7 @@ function TextBar({
       role="toolbar"
       aria-label="Style du texte"
       data-below={below || undefined}
-      style={{ top: below ? r.top + r.height + 8 : r.top - 8, left: Math.max(window.scrollX + 8, Math.min(r.left, window.scrollX + document.documentElement.clientWidth - 560)) }}
+      style={{ top: below ? r.top + r.height + 8 : r.top - 8, left: avoid?.left ?? Math.max(window.scrollX + 8, Math.min(r.left, window.scrollX + document.documentElement.clientWidth - 560)) }}
       onPointerDown={(e) => e.stopPropagation()}
     >
       <div className="lk-bar-head">

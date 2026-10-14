@@ -41,7 +41,7 @@ ok("réglages d'un bloc : le fond d'un texte précis (look.text)", LookSchema.sa
 const auto = (b) => Object.fromEntries(backdropDecls(b, undefined));
 ok("Auto ombre douce : le halo du thème (--role-shadow)", auto("shadow")["text-shadow"] === "var(--role-shadow)" && auto("shadow").background === "none");
 ok("Auto bandeau : fond du thème à 86 %, boîte en ligne", auto("band").background === "color-mix(in srgb, var(--color-bg) 86%, transparent)" && auto("band").display === "inline-block" && auto("band").padding === "0.45em 0.8em");
-ok("Auto surlignage : couleur principale, texte sur-principal, coupure clonée", auto("highlight").background === "var(--color-primary)" && auto("highlight").color === "var(--user-ink, var(--color-on-primary))" && auto("highlight").display === "inline" && auto("highlight")["box-decoration-break"] === "clone");
+ok("Auto surlignage : trait de la couleur principale, texte sur-principal, boîte de l'élément gardée (ni display ni padding)", auto("highlight")["text-decoration-color"] === "var(--color-primary)" && auto("highlight")["text-decoration-line"] === "underline" && auto("highlight").color === "var(--user-ink, var(--color-on-primary))" && auto("highlight").display === undefined && auto("highlight").padding === undefined && auto("highlight").background === "none");
 ok("Auto ne lit pas la palette : même résultat avec et sans", JSON.stringify(backdropDecls("band", undefined, { palette })) === JSON.stringify(backdropDecls("band", undefined)));
 ok("Aucun : efface le fond du thème (rien d'autre)", JSON.stringify(auto("none")) === JSON.stringify({ background: "none", padding: "0", "text-shadow": "none" }));
 ok("Aucun ignore la couleur", JSON.stringify(textStyleDecls({ backdrop: "none", backdropColor: "primary" })) === JSON.stringify(textStyleDecls({ backdrop: "none" })));
@@ -53,7 +53,7 @@ ok("jeton : variable du thème (suit la palette)", backdropColorCss("primary") =
 ok("teinte douce : mélange Oklab de la couleur sur le fond de page", backdropColorCss("primary12") === "color-mix(in oklab, var(--t-color-primary) 12%, var(--t-color-bg))" && backdropColorCss("ink25").includes("25%"));
 ok("couleur libre : telle quelle (alpha compris)", backdropColorCss("#a1b2c3") === "#a1b2c3" && backdropColorCss("#a1b2c380") === "#a1b2c380");
 ok("bandeau coloré : la couleur exacte", decl({ backdrop: "band", backdropColor: "secondary" }, "background") === "var(--t-color-secondary)");
-ok("surlignage coloré : la couleur exacte", decl({ backdrop: "highlight", backdropColor: "#a1b2c3" }, "background") === "#a1b2c3");
+ok("surlignage coloré : la couleur exacte", decl({ backdrop: "highlight", backdropColor: "#a1b2c3" }, "text-decoration-color") === "#a1b2c3");
 const halo = decl({ backdrop: "shadow", backdropColor: "#a1b2c3" }, "text-shadow");
 ok("ombre douce colorée : le halo de CETTE couleur (16 couches + diffusion), la pastille s'applique", halo.split("#a1b2c3").length - 1 === 17 && halo.includes("color-mix(in srgb, #a1b2c3 60%, transparent)"));
 ok("halo : même empilement que --role-shadow (16 rayons du thème, puis la diffusion)", (halo.match(/0 0 \d+px/g) ?? []).length === 17);
@@ -77,7 +77,7 @@ for (const [slug, t] of themes) {
 ok("8 presets × jetons × 3 fonds : la couleur du texte est celle de la règle des cartes", bad.length === 0, bad.slice(0, 3).join(" | "));
 ok("couleur de texte choisie : jamais écrasée (local : sa déclaration suit)", decl({ backdrop: "band", backdropColor: "ink", color: "primary" }, "color", palette) === "var(--t-color-primary)" && textStyleDecls({ backdrop: "band", backdropColor: "ink", color: "primary" }, palette).filter(([k]) => k === "color").length === 1);
 ok("couleur libre du texte : gardée", decl({ backdrop: "highlight", backdropColor: "primary", color: "#445566" }, "color", palette) === "#445566");
-ok("style React : custom property absente, camelCase conservé", textStyleObject({ backdrop: "highlight" })?.boxDecorationBreak === "clone" && textStyleObject({ backdrop: "highlight" })?.WebkitBoxDecorationBreak === "clone");
+ok("style React : custom property absente, camelCase conservé", textStyleObject({ backdrop: "highlight" })?.textDecorationLine === "underline" && textStyleObject({ backdrop: "highlight" })?.textUnderlineOffset !== undefined);
 // Alerte : texte de couleur choisie sur un fond coloré.
 const low = backdropContrast("ink", "ink", palette);
 ok("alerte : encre sur fond encre = illisible", low !== null && !low.ok && low.ratio < 1.5);

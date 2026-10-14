@@ -147,7 +147,7 @@ run_suite() {
 # --- checks : tsc, lint, tokens, contraste, thèmes, tests unitaires (npm test) ---
 read -r -d '' CHECKS_CMD <<'EOS'
 rc=0
-for step in "npx tsc --noEmit" "npm run lint" "npm run check:tokens" "npm run check:contrast" "npm run theme:check" "npm test"; do
+for step in "npx tsc --noEmit" "npm run lint" "npm run check:tokens" "npm run check:contrast" "npm run theme:check" "npm test" "node --import tsx scripts/test-highlight-layout.mjs"; do
   echo "##### $step"
   $step || { echo "FAIL checks : $step"; rc=1; }
 done

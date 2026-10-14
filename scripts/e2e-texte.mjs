@@ -167,10 +167,6 @@ async function idle() {
 }
 
 let f = await openEditor();
-// La saisie en place ouvre la barre typographique ; depuis le lot 21 (ligne « Fond ») elle est plus haute et couvre le bouton « Supprimer » du bloc : on la ferme.
-const closeTextBar = async () => {
-  if (await f.locator(".lk-bar").count()) await f.locator(".lk-bar .lk-close").click();
-};
 const baseCount = await f.locator("[data-edit-block]:not([data-edit-parent])").count();
 const dlg = page.locator("dialog.ve-add");
 async function openChoice() {
@@ -258,8 +254,28 @@ if (run("A") || run("B") || run("C") || run("D"))
     await settled();
     // Retire l'essai du panneau.
     const extra = draftBlocks().at(-1).uid;
-    await f.evaluate((u) => document.querySelector(`.pe-focus[data-uid="${u}"]`)?.click(), extra);
-    await closeTextBar();
+    // Saisie en place : la barre typographique s'ouvre ; elle ne recouvre jamais la barre d'outils du bloc, dont le bouton
+    // « Supprimer » se clique directement, sans fermer la barre (v0.19).
+    await f.locator(`[data-edit-block="${extra}"] [data-inline="paragraphs.0"]`).dblclick();
+    await page.keyboard.press("Control+a");
+    await page.keyboard.type("Essai");
+    ok("A5 saisie en place : la barre typographique est ouverte", await waitFor(async () => (await f.locator(".lk-bar").count()) === 1));
+    ok("A5 la barre d'outils du bloc est là", await waitFor(async () => (await f.locator('.pe-tools [aria-label="Supprimer"]').count()) === 1));
+    await sleep(500);
+    const overlap = await f.evaluate(() => {
+      const [bar, tools] = [document.querySelector(".lk-bar"), document.querySelector(".pe-tools")].map((e) => e?.getBoundingClientRect());
+      if (!bar || !tools) return "absent";
+      const hit = bar.left < tools.right && bar.right > tools.left && bar.top < tools.bottom && bar.bottom > tools.top;
+      return hit ? JSON.stringify([bar, tools]) : "";
+    });
+    ok("A5 la barre typographique ne recouvre pas la barre d'outils du bloc", overlap === "", overlap);
+    await page.screenshot({ path: path.join(SHOTS, "a5-barre-et-supprimer.png") });
+    ok("A5 le centre du bouton « Supprimer » reçoit le clic (rien dessus)", await f.evaluate(() => {
+      const b = document.querySelector('.pe-tools [aria-label="Supprimer"]');
+      const r = b.getBoundingClientRect();
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return top === b || b.contains(top);
+    }));
     await f.locator('.pe-tools [aria-label="Supprimer"]').click();
     await page.locator("dialog[open]").getByRole("button", { name: /Supprimer/ }).click();
     ok("A5 essai du panneau retiré", await waitFor(() => draftBlocks().length === baseCount + 3));
@@ -287,7 +303,6 @@ if (run("A") || run("B") || run("C") || run("D"))
     await settled();
     const gridUid = draftBlocks().at(-1).uid;
     await f.evaluate((u) => document.querySelector(`.pe-focus[data-uid="${u}"]`)?.click(), gridUid);
-    await closeTextBar();
     await f.locator('.pe-tools [aria-label="Supprimer"]').click();
     await page.locator("dialog[open]").getByRole("button", { name: /Supprimer/ }).click();
     ok("A6 grille de l'essai retirée", await waitFor(() => draftBlocks().every((b) => b.type !== "grid")));
@@ -470,6 +485,8 @@ if (run("F"))
 
     /** Survole le contenu de l'hôte, puis rejoint le bouton en 25 pas et clique : comme une main. */
     async function clickOp(uid, op, anchor) {
+      // La barre typographique de la saisie précédente peut se poser sur le bloc voisin : on la referme (un clic ailleurs la ferme aussi).
+      if (await f.locator(".lk-bar").count()) await f.locator(".lk-bar .lk-close").click();
       await f.evaluate((u) => document.querySelector(`.pe-focus[data-uid="${u}"]`)?.scrollIntoView({ block: "center" }), uid);
       await stableScroll(f);
       const a = await f.locator(`[data-edit-block="${uid}"] ${anchor}`).first().boundingBox();
@@ -479,10 +496,11 @@ if (run("F"))
       const b = await btn.boundingBox();
       await page.mouse.move(a.x + 40, a.y + a.height / 2);
       await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 25 });
-      const hit = await btn.evaluate((e) => { const r = e.getBoundingClientRect(); const t = e.ownerDocument.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return t === e || e.contains(t); });
+      const hit = await btn.evaluate((e) => { const r = e.getBoundingClientRect(); const t = e.ownerDocument.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return t === e || e.contains(t) ? "" : `${t?.tagName}.${t?.className} ${JSON.stringify(r)}`; });
       await page.mouse.down();
       await page.mouse.up();
-      return hit;
+      if (hit) console.log("clickOp", op, "bouton recouvert par", hit);
+      return !hit;
     }
     const prop = (uid) => draftBlocks().find((b) => b.uid === uid)?.props;
     const inCard = await f.evaluate(() => document.querySelectorAll('[data-edit-block="f-text"] > .surface-card[data-surface="on"], [data-edit-block="f-title"] > .surface-card[data-surface="on"]').length);

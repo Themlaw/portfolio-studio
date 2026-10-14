@@ -54,7 +54,11 @@ export type BackdropOptions = {
 };
 
 /** Propriétés posées par un fond (le style d'un rôle les range à part pour le menu). */
-export const BACKDROP_PROPS = new Set(["display", "padding", "background", "text-shadow", "box-decoration-break", "-webkit-box-decoration-break"]);
+export const BACKDROP_PROPS = new Set(["display", "padding", "background", "text-shadow", "text-decoration", "text-decoration-line", "text-decoration-color", "text-decoration-thickness", "text-decoration-skip-ink", "text-underline-offset"]);
+
+/** Épaisseur et décalage du trait du surlignage (en em du texte) : de la tête des capitales au bas des descendantes. */
+const HIGHLIGHT_THICKNESS = "1.15em";
+const HIGHLIGHT_OFFSET = "-0.88em";
 
 /** Déclarations CSS d'un fond de texte (kebab-case) ; vide sans fond choisi. */
 export function backdropDecls(backdrop: BackdropKind | undefined, color: string | undefined, { palette, userColor }: BackdropOptions = {}): [string, string][] {
@@ -67,19 +71,22 @@ export function backdropDecls(backdrop: BackdropKind | undefined, color: string 
   };
   switch (backdrop) {
     case "none":
-      return [["background", "none"], ["padding", "0"], ["text-shadow", "none"]];
+      return [["background", "none"], ["padding", "0"], ["text-shadow", "none"], ["text-decoration", "none"]];
     case "shadow":
-      return [["background", "none"], ["padding", "0"], ["text-shadow", css ? shadowStack(css) : "var(--role-shadow)"], ...ink(null)];
+      return [["background", "none"], ["padding", "0"], ["text-shadow", css ? shadowStack(css) : "var(--role-shadow)"], ["text-decoration", "none"], ...ink(null)];
     case "band":
-      return [["display", "inline-block"], ["padding", "0.45em 0.8em"], ["background", css ?? "color-mix(in srgb, var(--color-bg) 86%, transparent)"], ["text-shadow", "none"], ...ink(null)];
+      return [["display", "inline-block"], ["padding", "0.45em 0.8em"], ["background", css ?? "color-mix(in srgb, var(--color-bg) 86%, transparent)"], ["text-shadow", "none"], ["text-decoration", "none"], ...ink(null)];
     case "highlight":
+      // Surlignage : un gros trait de soulignement posé DERRIÈRE le texte, ligne par ligne. L'élément garde sa boîte
+      // (display, marges, retours à la ligne) ; un `display: inline` la lui aurait fait perdre (marges verticales).
       return [
-        ["display", "inline"],
-        ["padding", "0.2em 0.45em"],
-        ["background", css ?? "var(--color-primary)"],
+        ["background", "none"],
         ["text-shadow", "none"],
-        ["box-decoration-break", "clone"],
-        ["-webkit-box-decoration-break", "clone"],
+        ["text-decoration-line", "underline"],
+        ["text-decoration-color", css ?? "var(--color-primary)"],
+        ["text-decoration-thickness", HIGHLIGHT_THICKNESS],
+        ["text-underline-offset", HIGHLIGHT_OFFSET],
+        ["text-decoration-skip-ink", "none"],
         ...ink("var(--color-on-primary)"),
       ];
   }

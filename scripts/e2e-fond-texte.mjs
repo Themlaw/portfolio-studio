@@ -175,7 +175,16 @@ const styleRgba = (fr, sel, prop, nth = 0) =>
     },
     { sel, prop, nth },
   );
-const bgOf = (fr, sel, nth = 0) => styleRgba(fr, sel, "backgroundColor", nth);
+// « Surlignage » colore un trait de soulignement épais (la boîte de l'élément reste la sienne) : sa couleur tient lieu de fond.
+const bgOf = async (fr, sel, nth = 0) => {
+  const hl = await fr.evaluate(({ sel, nth }) => {
+    const el = document.querySelectorAll(sel)[nth];
+    if (!el) return false;
+    const c = getComputedStyle(el);
+    return c.textDecorationLine.includes("underline") && c.textUnderlineOffset.startsWith("-");
+  }, { sel, nth });
+  return styleRgba(fr, sel, hl ? "textDecorationColor" : "backgroundColor", nth);
+};
 const inkOf = (fr, sel, nth = 0) => styleRgba(fr, sel, "color", nth);
 
 /** Ouvre la barre typographique d'un texte (« Aa » au survol). */
@@ -372,7 +381,7 @@ if (run("C")) {
   const colored = await f.evaluate(
     () => {
       const els = [...document.querySelectorAll(".caption-text, figcaption, .strip-caption")].filter((e) => !e.closest(".site-header"));
-      return els.filter((e) => getComputedStyle(e).backgroundColor !== "rgba(0, 0, 0, 0)").length;
+      return els.filter((e) => (getComputedStyle(e).backgroundColor !== "rgba(0, 0, 0, 0)" || (getComputedStyle(e).textDecorationLine.includes("underline") && getComputedStyle(e).textUnderlineOffset.startsWith("-")))).length;
     },
     null,
   );
@@ -383,10 +392,10 @@ if (run("C")) {
   await pub.goto(`${BASE}/fr`, { waitUntil: "networkidle" });
   const pubInfo = await pub.evaluate(() => {
     const els = [...document.querySelectorAll(".caption-text, figcaption, .strip-caption")].filter((e) => !e.closest(".site-header"));
-    return { n: els.length, colored: els.filter((e) => getComputedStyle(e).backgroundColor !== "rgba(0, 0, 0, 0)").length };
+    return { n: els.length, colored: els.filter((e) => (getComputedStyle(e).backgroundColor !== "rgba(0, 0, 0, 0)" || (getComputedStyle(e).textDecorationLine.includes("underline") && getComputedStyle(e).textUnderlineOffset.startsWith("-")))).length };
   });
   ok("C5 PUBLIC : tous les textes du rôle ont le fond", pubInfo.n > 0 && pubInfo.n === pubInfo.colored, JSON.stringify(pubInfo));
-  const pubCap = await pub.evaluate(() => { const e = document.querySelector("[data-hero-text=role]"); const cv = document.createElement("canvas").getContext("2d", { willReadFrequently: true }); cv.fillStyle = getComputedStyle(e).backgroundColor; cv.fillRect(0, 0, 1, 1); return [...cv.getImageData(0, 0, 1, 1).data]; });
+  const pubCap = await pub.evaluate(() => { const e = document.querySelector("[data-hero-text=role]"); const cv = document.createElement("canvas").getContext("2d", { willReadFrequently: true }); const cs = getComputedStyle(e); cv.fillStyle = cs.textDecorationLine.includes("underline") && cs.textUnderlineOffset.startsWith("-") ? cs.textDecorationColor : cs.backgroundColor; cv.fillRect(0, 0, 1, 1); return [...cv.getImageData(0, 0, 1, 1).data]; });
   ok("C6 PUBLIC : couleur « Ornements » du thème", same(pubCap, P.tertiary), JSON.stringify(pubCap));
   // Étiquettes du pied : un autre rôle, un autre fond, sans toucher aux légendes.
   await openBar(f, EYEBROWS, 1);
