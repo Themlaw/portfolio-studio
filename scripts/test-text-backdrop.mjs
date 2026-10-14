@@ -43,7 +43,7 @@ ok("Auto ombre douce : le halo du thème (--role-shadow)", auto("shadow")["text-
 ok("Auto bandeau : fond du thème à 86 %, boîte en ligne", auto("band").background === "color-mix(in srgb, var(--color-bg) 86%, transparent)" && auto("band").display === "inline-block" && auto("band").padding === "0.45em 0.8em");
 ok("Auto surlignage : trait de la couleur principale, texte sur-principal, boîte de l'élément gardée (ni display ni padding)", auto("highlight")["text-decoration-color"] === "var(--color-primary)" && auto("highlight")["text-decoration-line"] === "underline" && auto("highlight").color === "var(--user-ink, var(--color-on-primary))" && auto("highlight").display === undefined && auto("highlight").padding === undefined && auto("highlight").background === "none");
 ok("Auto ne lit pas la palette : même résultat avec et sans", JSON.stringify(backdropDecls("band", undefined, { palette })) === JSON.stringify(backdropDecls("band", undefined)));
-ok("Aucun : efface le fond du thème (rien d'autre)", JSON.stringify(auto("none")) === JSON.stringify({ background: "none", padding: "0", "text-shadow": "none" }));
+ok("Aucun : efface le fond du thème (rien d'autre)", JSON.stringify(auto("none")) === JSON.stringify({ background: "none", padding: "0", "text-shadow": "none", "text-decoration": "none" }));
 ok("Aucun ignore la couleur", JSON.stringify(textStyleDecls({ backdrop: "none", backdropColor: "primary" })) === JSON.stringify(textStyleDecls({ backdrop: "none" })));
 ok("sans fond : aucune déclaration de fond", textStyleDecls({ size: "l" }).every(([k]) => k === "font-size"));
 ok("la couleur sans fond est sans effet", textStyleDecls({ backdropColor: "primary" }).length === 0);
