@@ -141,7 +141,12 @@ if (run("B3U")) {
     const name = `17b-editeur-${Date.now()}.png`;
     await page.goto(`${BASE}/admin/pages/${pageId}/editer`, { waitUntil: "domcontentloaded" });
     await page.getByRole("tab", { name: /Médias/ }).waitFor({ timeout: 120000 });
-    await page.getByRole("tab", { name: /Médias/ }).click();
+    // Un clic posé avant l'hydratation de l'éditeur est perdu (le panneau reste sur « Ajouter ») : on reclique jusqu'à ce que l'onglet soit actif.
+    const mediasTab = page.getByRole("tab", { name: /Médias/ });
+    ok("B3 onglet Médias : le panneau d'envoi s'ouvre", await waitFor(async () => {
+      if ((await mediasTab.getAttribute("aria-selected")) !== "true") await mediasTab.click();
+      return (await page.locator(".ve-panel input[type=file]").count()) > 0;
+    }, 60000));
     await page.locator(".ve-panel input[type=file]").first().setInputFiles({ name, mimeType: "image/png", buffer });
     const appeared = await waitFor(() => mediaOf(name)?.id, 120000);
     const done = await waitFor(() => mediaOf(name)?.status === "ready", 120000);
