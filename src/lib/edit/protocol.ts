@@ -114,6 +114,8 @@ export const FromCanvasSchema = z.union([
   // Ajout d'une rubrique depuis la toile (lot 17c) : `choose` ouvre le choix illustré de l'éditeur, les
   // autres ajoutent aussitôt un texte (bloc `rich-text` avec son texte d'aide) à cet endroit.
   z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title", "title-text"]) }),
+  // Case vide de grille, « Image » / « Vidéo » (lot 25) : l'éditeur ouvre le choix du média, posé dans une nouvelle case de la grille `uid`.
+  z.object({ kind: z.literal("cell-media"), uid: Uid, media: z.enum(["image", "video"]) }),
   // Champ facultatif d'un bloc Texte, ajouté ou retiré depuis la toile (lot 19a) : « + Ajouter un titre » / « Retirer le titre » (Texte), « + Ajouter une étiquette » / « Retirer l'étiquette » (Titre).
   // Lot 27 : même geste pour Grille, Contact, Profil et CV (src/blocks/optional-fields.ts).
   z.object({ kind: z.literal("field-op"), uid: Uid, op: z.enum(FIELD_OPS) }),

@@ -64,10 +64,20 @@
 .block-image[data-ratio="1:1"] .block-image-media { aspect-ratio: 1; }
 .block-image[data-ratio="4:5"] .block-image-media { aspect-ratio: 4 / 5; }
 .block-image[data-ratio="3:4"] .block-image-media { aspect-ratio: 3 / 4; }
+.block-image[data-ratio="3:2"] .block-image-media { aspect-ratio: 3 / 2; }
+.block-image[data-ratio="2:3"] .block-image-media { aspect-ratio: 2 / 3; }
+.block-image[data-ratio="2:1"] .block-image-media { aspect-ratio: 2 / 1; }
+.block-image[data-ratio="21:9"] .block-image-media { aspect-ratio: 21 / 9; }
 .block-image[data-ratio]:not([data-ratio="auto"]) .block-image-media { height: auto; object-fit: cover; }
 .profile-portrait[data-ratio="4:5"] img { aspect-ratio: 4 / 5; }
 .profile-portrait[data-ratio="3:4"] img { aspect-ratio: 3 / 4; }
 .profile-portrait[data-ratio="1:1"] img { aspect-ratio: 1; }
+.profile-portrait[data-ratio="3:2"] img { aspect-ratio: 3 / 2; }
+.profile-portrait[data-ratio="4:3"] img { aspect-ratio: 4 / 3; }
+.profile-portrait[data-ratio="2:3"] img { aspect-ratio: 2 / 3; }
+.profile-portrait[data-ratio="2:1"] img { aspect-ratio: 2 / 1; }
+.profile-portrait[data-ratio="21:9"] img { aspect-ratio: 21 / 9; }
+.profile-portrait[data-ratio="16:9"] img { aspect-ratio: 16 / 9; }
 .profile-portrait[data-ratio]:not([data-ratio="auto"]) img { height: auto; object-fit: cover; }
 .block-image-frame,
 .profile-portrait-frame {
@@ -154,6 +164,10 @@ figure.block-image[data-fit="contain"] .block-image-media.block-image-media {
 .tiles[data-ratio="4:3"] .tile-frame img { aspect-ratio: 4 / 3; }
 .tiles[data-ratio="1:1"] .tile-frame img { aspect-ratio: 1; }
 .tiles[data-ratio="4:5"] .tile-frame img { aspect-ratio: 4 / 5; }
+.tiles[data-ratio="3:4"] .tile-frame img { aspect-ratio: 3 / 4; }
+.tiles[data-ratio="2:3"] .tile-frame img { aspect-ratio: 2 / 3; }
+.tiles[data-ratio="2:1"] .tile-frame img { aspect-ratio: 2 / 1; }
+.tiles[data-ratio="21:9"] .tile-frame img { aspect-ratio: 21 / 9; }
 /* Recadrage libre d'une tuile : l'image EST la zone gardée, la tuile suit son rapport (aucun rognage ni format imposé). */
 .tiles[data-ratio] .tile-frame[data-free] img {
   aspect-ratio: auto;

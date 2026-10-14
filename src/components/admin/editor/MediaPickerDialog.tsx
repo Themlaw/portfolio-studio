@@ -2,7 +2,8 @@
 
 /**
  * Choisir l'image d'un emplacement (Remplacer, place vide) : la bibliothèque,
- * filtrable par tags, ou un fichier de l'ordinateur.
+ * filtrable par nom et par tags, ou un fichier de l'ordinateur. Chaque image est montrée ENTIÈRE
+ * (jamais rognée, fond neutre) avec son nom, comme dans le sélecteur de l'administration.
  */
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
@@ -11,14 +12,20 @@ import type { AdminMediaRow } from "@/lib/admin";
 import { filterMedia } from "../LibraryStrip";
 import { ACCEPT } from "../uploads";
 
+const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/avif,image/gif";
+const VIDEO_ACCEPT = "video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,.mkv";
+
 export default function MediaPickerDialog({
   open,
+  kind,
   media,
   onClose,
   onPick,
   onFile,
 }: {
   open: boolean;
+  /** Image ou vidéo attendue (titre et fichiers acceptés) ; sinon l'un ou l'autre. */
+  kind?: "image" | "video";
   media: AdminMediaRow[];
   onClose: () => void;
   onPick: (mediaId: number) => void;
@@ -26,6 +33,7 @@ export default function MediaPickerDialog({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [tags, setTags] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
   const titleId = useId();
   const inputId = useId();
   useEffect(() => {
@@ -39,7 +47,7 @@ export default function MediaPickerDialog({
     for (const m of media) for (const t of m.tags) seen.set(t.label.toLowerCase(), t.label);
     return [...seen.values()].sort((a, b) => a.localeCompare(b, "fr"));
   }, [media]);
-  const list = useMemo(() => filterMedia(media, tags, "").filter((m) => m.status !== "failed"), [media, tags]);
+  const list = useMemo(() => filterMedia(media, tags, query).filter((m) => m.status !== "failed"), [media, tags, query]);
   return (
     <dialog
       ref={ref}
@@ -57,7 +65,7 @@ export default function MediaPickerDialog({
     >
       {open && (
         <>
-          <h2 id={titleId}>Choisir une image</h2>
+          <h2 id={titleId}>{kind === "video" ? "Choisir une vidéo" : kind === "image" ? "Choisir une image" : "Choisir une image ou une vidéo"}</h2>
           <div className="a-dialog-body">
             <label className="a-btn ve-picker-file" htmlFor={inputId}>
               Envoyer un fichier de l&apos;ordinateur…
@@ -66,12 +74,16 @@ export default function MediaPickerDialog({
               id={inputId}
               className="sr-only"
               type="file"
-              accept={ACCEPT}
+              accept={kind === "video" ? VIDEO_ACCEPT : kind === "image" ? IMAGE_ACCEPT : ACCEPT}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) onFile(file);
               }}
             />
+            <label className="ve-picker-search">
+              <span className="sr-only">Rechercher par nom ou tag</span>
+              <input className="a-input" type="search" placeholder="Rechercher par nom ou tag…" value={query} onChange={(e) => setQuery(e.target.value)} />
+            </label>
             {options.length > 0 && (
               <div className="ve-chips" role="group" aria-label="Filtrer par tags">
                 {options.map((t) => {
@@ -90,12 +102,15 @@ export default function MediaPickerDialog({
               <ul className="ve-picker-grid" aria-label="Bibliothèque">
                 {list.slice(0, 200).map((m) => (
                   <li key={m.id}>
-                    <button type="button" onClick={() => onPick(m.id)} aria-label={`Choisir ${m.name}`} style={{ backgroundColor: m.color ?? undefined }}>
-                      {m.thumb && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={m.thumb} alt="" loading="lazy" />
-                      )}
-                      {m.status === "processing" && <span className="ve-media-state">{m.kind === "video" ? "Conversion…" : "Traitement…"}</span>}
+                    <button type="button" onClick={() => onPick(m.id)} aria-label={`Choisir ${m.name}`} title={m.name}>
+                      <span className="ve-picker-thumb">
+                        {m.thumb && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={m.thumb} alt="" loading="lazy" />
+                        )}
+                        {m.status === "processing" && <span className="ve-media-state">{m.kind === "video" ? "Conversion…" : "Traitement…"}</span>}
+                      </span>
+                      <span className="ve-picker-name">{m.name}</span>
                     </button>
                   </li>
                 ))}

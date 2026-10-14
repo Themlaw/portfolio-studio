@@ -2,6 +2,7 @@ import { Children, type ReactNode } from "react";
 import { z } from "zod";
 
 import Eyebrow from "@/components/Eyebrow";
+import { RATIO_VALUES } from "@/lib/images/formats";
 
 import { FieldOps } from "./FieldOps";
 import { GRID_LAYOUTS, GRID_PATTERN } from "./grid-layouts";
@@ -15,7 +16,7 @@ export const gridSchema = z.object({
   gap: z.enum(["tight", "normal", "wide"]).default("normal"),
   align: z.enum(["start", "center", "end", "stretch"]).default("stretch"),
   /** Ratio imposé aux images des cellules (les vidéos gardent le 16:9). */
-  ratio: z.enum(["auto", "16:9", "1:1", "4:5"]).default("auto"),
+  ratio: z.enum(RATIO_VALUES).default("auto"),
   /** Marge au-dessus (espacement de section du thème), ou aucune. */
   top: z.enum(["gap", "none"]).default("gap"),
   eyebrow: localized.optional(),
@@ -70,8 +71,15 @@ export default function GridBlock({ props, ctx, children }: { props: z.infer<typ
         {Array.from({ length: free }, (_, i) => (
           <div key={`free-${i}`} className="block-grid-cell" data-edit-cell-free="" lang="fr">
             <span className="pe-cell-free">
-              <span aria-hidden="true">+</span>
-              <span className="pe-cell-hint">Dépose une image ou une vidéo ici, ou ajoute un texte.</span>
+              {/* Deux choix clairs (lot 25) : une image ou une vidéo de la médiathèque (ou de l'ordinateur), posée dans cette case. */}
+              <span className="pe-cell-media" role="group" aria-label="Que mettre dans cette case ?">
+                {([["image", "Image"], ["video", "Vidéo"]] as const).map(([k, label]) => (
+                  <button key={k} type="button" className="pe-cell-pick" data-edit-cell-media={k}>
+                    <span aria-hidden="true">+</span> {label}
+                  </button>
+                ))}
+              </span>
+              <span className="pe-cell-or">ou du texte</span>
               {/* Une rubrique de texte dans cette case, éditée aussitôt (lot 17c ; trois choix au lot 19a). */}
               <span className="pe-cell-choices">
                 {([["text", "Texte"], ["title", "Titre"], ["title-text", "Titre + texte"]] as const).map(([k, label]) => (

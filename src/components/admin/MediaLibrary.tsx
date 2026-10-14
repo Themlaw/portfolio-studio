@@ -88,7 +88,7 @@ export function MediaGrid({
                 {checked.has(m.id) ? "✓" : ""}
               </span>
             )}
-            <span className="a-media-thumb" style={m.color ? { backgroundColor: m.color } : undefined}>
+            <span className="a-media-thumb">
               {m.thumb ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={m.thumb} alt="" loading="lazy" />

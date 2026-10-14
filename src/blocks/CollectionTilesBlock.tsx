@@ -4,6 +4,7 @@ import { z } from "zod";
 import CollectionTiles, { type Tile } from "@/components/CollectionTiles";
 import Eyebrow from "@/components/Eyebrow";
 import { countCollection, getCollectionCover } from "@/lib/gallery";
+import { RATIO_VALUES } from "@/lib/images/formats";
 import { cropSources } from "@/lib/images/crop";
 import { parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { signCrop } from "@/lib/images/crop-cache";
@@ -29,7 +30,7 @@ export const collectionTilesSchema = z.object({
   /** Taille des images : colonne image et plafond de hauteur (lot 22). Absent = moyenne. */
   size: z.enum(["small", "medium", "large"]).optional(),
   /** Format imposé des images (elles sont alors cadrées : « Cadrer » sur la toile). Auto : leur format. */
-  ratio: z.enum(["auto", "16:9", "3:2", "4:3", "1:1", "4:5"]).optional(),
+  ratio: z.enum(RATIO_VALUES).optional(),
   /** Mode manuel : la liste des entrées. */
   items: z.array(itemSchema).max(MAX_TILES).optional(),
   /** Mode automatique : textes modifiés sur la tuile, attachés à la page (clé : identifiant de page). */

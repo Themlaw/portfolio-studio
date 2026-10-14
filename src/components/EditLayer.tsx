@@ -861,6 +861,7 @@ export default function EditLayer() {
       const t = e.target instanceof Element ? e.target : null;
       const addEnd = t?.closest("[data-edit-add]");
       const cellText = t?.closest<HTMLElement>("[data-edit-cell-text]");
+      const cellMedia = t?.closest<HTMLElement>("[data-edit-cell-media]");
       const fieldOp = t?.closest<HTMLElement>("[data-edit-field-op]");
       // État vide d'un bloc média : « Choisir une image / une vidéo / un PDF » (lot 27).
       const emptyMedia = t?.closest<HTMLElement>("[data-edit-empty-media]");
@@ -901,6 +902,14 @@ export default function EditLayer() {
         const uid = fieldOp.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
         const op = fieldOp.dataset.editFieldOp;
         if (uid && op && (FIELD_OP_NAMES as readonly string[]).includes(op.replace(/^(add|remove)-/, ""))) post({ kind: "field-op", uid, op: op as Extract<FromCanvas, { kind: "field-op" }>["op"] });
+        return;
+      }
+      if (cellMedia) {
+        e.preventDefault();
+        e.stopPropagation();
+        finishEdit(true);
+        const grid = cellMedia.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
+        if (grid) post({ kind: "cell-media", uid: grid, media: cellMedia.dataset.editCellMedia === "video" ? "video" : "image" });
         return;
       }
       if (addEnd || cellText) {

@@ -237,6 +237,12 @@ export default function ProjectStrip({
         <span className="eyebrow strip-count">
           {tg("count", { count: shownArtworks.length })}
         </span>
+        {/* Toile de l'éditeur : « Ajouter des images » (fichiers de l'ordinateur) à la fin de la planche ; jamais en public. */}
+        {edit && (
+          <button type="button" className="pe-board-add" data-edit-board-add="" lang="fr">
+            Ajouter des images
+          </button>
+        )}
       </header>
 
       <div ref={viewportRef} className="strip-viewport" data-overflows="false" data-at-start="true" data-at-end="false">

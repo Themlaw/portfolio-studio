@@ -206,5 +206,9 @@ ok("setLocalizedAt : clé dangereuse ignorée", setLocalizedAt(props, "__proto__
 ok("moveTo : déplacement vers le bas", moveTo(["a", "b", "c"], 0, 2).join("") === "bac");
 ok("moveTo : sans effet sur place", moveTo(["a", "b", "c"], 1, 2).join("") === "abc");
 
+// Lot 25 : case vide de grille, « Image » / « Vidéo ».
+ok("cell-media : image et vidéo acceptées", ["image", "video"].every((media) => acceptFromCanvas(msg({ kind: "cell-media", uid: "g1", media }), ORIGIN, frame)?.media === media));
+ok("cell-media : autre média, sans uid ou uid invalide refusés", acceptFromCanvas(msg({ kind: "cell-media", uid: "g1", media: "pdf" }), ORIGIN, frame) === null && acceptFromCanvas(msg({ kind: "cell-media", media: "image" }), ORIGIN, frame) === null && acceptFromCanvas(msg({ kind: "cell-media", uid: "x y", media: "image" }), ORIGIN, frame) === null);
+
 console.log(failures ? `test-protocol : ${failures} échec(s)` : "test-protocol : OK");
 process.exit(failures ? 1 : 0);
