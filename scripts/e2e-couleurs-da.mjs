@@ -270,7 +270,12 @@ if (run("A"))
     ok("A6 texte presque blanc : contraste insuffisant annoncé en direct", await role("ink").locator('[data-testid="contrast-status"][role="alert"]').waitFor({ timeout: 10000 }).then(() => true, () => false));
     await role("ink").locator('[data-testid="contrast-fix"]').click();
     ok("A6b « Ajuster automatiquement » : contraste suffisant", await role("ink").locator('[data-testid="contrast-status"]').filter({ hasText: "Contraste suffisant" }).waitFor({ timeout: 10000 }).then(() => true, () => false));
-    const inkNow = await frameVar(fr, "--t-color-ink");
+    // L'aperçu reçoit la teinte ajustée un instant après le bouton : on attend qu'elle change (flake constaté en mode rapide).
+    let inkNow = await frameVar(fr, "--t-color-ink");
+    for (let i = 0; i < 20 && (same(rgbOf(inkNow), hexRgb(BAD_INK)) || ratio(rgbOf(inkNow), rgbOf(await frameVar(fr, "--t-color-bg"))) < 4.5); i++) {
+      await new Promise((r) => setTimeout(r, 300));
+      inkNow = await frameVar(fr, "--t-color-ink");
+    }
     ok("A6c l'aperçu montre la teinte ajustée", !same(rgbOf(inkNow), hexRgb(BAD_INK)) && ratio(rgbOf(inkNow), rgbOf(await frameVar(fr, "--t-color-bg"))) >= 4.5, inkNow);
     // Retour de « Texte » à l'enregistré : seule la couleur d'accent reste modifiée.
     await role("ink").getByRole("button", { name: "Revenir à la couleur enregistrée" }).click();
