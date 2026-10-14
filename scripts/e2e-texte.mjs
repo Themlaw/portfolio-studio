@@ -9,6 +9,7 @@
  *  B. Hauteurs et rythme : un Texte seul n'a que l'espace de section au-dessus de son paragraphe (le rythme des autres
  *     rubriques), sur la toile ET en public ; un titre ajouté puis retiré rend exactement la hauteur d'origine.
  *  C. « + Ajouter un titre » / « Retirer le titre » au survol de la toile.
+ *  F. En carte (Texte, Titre) : boutons de champ atteignables à la souris, « Retirer le titre » sans l'étiquette, toile = public.
  *  D. Publication : un texte d'aide resté tel quel (Texte, Titre, titre ajouté) est refusé, le brouillon est enregistré.
  * Captures : $SHOTS (défaut screenshots/texte19a).
  * Usage : DATA_DIR=… ADMIN_EMAIL=… ADMIN_PASSWORD=… BASE=http://localhost:3102 node scripts/e2e-texte.mjs
@@ -434,6 +435,100 @@ if (run("E"))
     await pub.evaluate(() => document.querySelectorAll("section").forEach((s) => (s.textContent ?? "").includes("Mes carnets") && s.scrollIntoView({ block: "start" })));
     await sleep(500);
     await pub.screenshot({ path: path.join(SHOTS, "e2-public-zoom.png") });
+  });
+
+/* ---- F. En carte : boutons de champ atteignables à la souris, rendu toile = public, étiquette (v0.18.1) -------------- */
+
+if (run("F"))
+  await section("F", async () => {
+    const P = (t) => ({ fr: t, en: t });
+    const para = (t) => ({ paragraphs: [P(t)] });
+    const BLOCKS = [
+      { uid: "f-text", type: "rich-text", props: { ...para("Un texte en carte, sans titre, dont le bouton doit rester atteignable."), surface: {} } },
+      { uid: "f-title", type: "section-title", props: { title: P("Un titre en carte"), surface: {} } },
+      { uid: "f-both", type: "rich-text", props: { title: P("Titre et texte en carte"), ...para("Le paragraphe qui suit le titre, dans la carte."), surface: {} } },
+      { uid: "f-grid", type: "grid", props: { layout: "2", gap: "normal", align: "stretch", ratio: "auto", top: "gap", children: [{ uid: "f-gc1", type: "rich-text", props: para("Cellule de la grille après la carte.") }, { uid: "f-gc2", type: "rich-text", props: para("Seconde cellule de la grille.") }] } },
+      { uid: "f-eb", type: "rich-text", props: { eyebrow: P("Étiquette du texte"), title: P("Titre à retirer seul"), ...para("Paragraphe d'un Texte qui porte une étiquette.") } },
+    ];
+    {
+      const db = new Database(DB);
+      db.pragma("busy_timeout = 5000");
+      const row = db.prepare("select title, slug, meta, nav_order from pages where id = ?").get(PAGE_ID);
+      const draft = { title: JSON.parse(row.title), slug: JSON.parse(row.slug), meta: row.meta ? JSON.parse(row.meta) : { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: row.nav_order !== null, accent: null, blocks: BLOCKS };
+      db.prepare("update pages set draft = ?, draft_updated_at = unixepoch(), draft_rev = draft_rev + 1 where id = ?").run(JSON.stringify(draft), PAGE_ID);
+      db.close();
+    }
+    await page.goto(`${BASE}/admin/pages/${PAGE_ID}/editer`, { waitUntil: "domcontentloaded" });
+    f = await canvas();
+    await sleep(1500);
+
+    /** Survole le contenu de l'hôte, puis rejoint le bouton en 25 pas et clique : comme une main. */
+    async function clickOp(uid, op, anchor) {
+      await f.evaluate((u) => document.querySelector(`.pe-focus[data-uid="${u}"]`)?.scrollIntoView({ block: "center" }), uid);
+      await stableScroll(f);
+      const a = await f.locator(`[data-edit-block="${uid}"] ${anchor}`).first().boundingBox();
+      const btn = f.locator(`[data-edit-block="${uid}"] [data-edit-field-op="${op}"]`);
+      await page.mouse.move(a.x + 40, a.y + a.height / 2, { steps: 4 });
+      await btn.waitFor({ state: "attached", timeout: 30000 });
+      const b = await btn.boundingBox();
+      await page.mouse.move(a.x + 40, a.y + a.height / 2);
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 25 });
+      const hit = await btn.evaluate((e) => { const r = e.getBoundingClientRect(); const t = e.ownerDocument.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return t === e || e.contains(t); });
+      await page.mouse.down();
+      await page.mouse.up();
+      return hit;
+    }
+    const prop = (uid) => draftBlocks().find((b) => b.uid === uid)?.props;
+    const inCard = await f.evaluate(() => document.querySelectorAll('[data-edit-block="f-text"] > .surface-card[data-surface="on"], [data-edit-block="f-title"] > .surface-card[data-surface="on"]').length);
+    ok("F0 deux blocs en carte sur la toile", inCard === 2, String(inCard));
+
+    ok("F1 Texte en carte : le bouton « + Ajouter un titre » est atteignable à la souris (25 pas) et le clic l'active", (await clickOp("f-text", "add-title", '[data-inline="paragraphs.0"]')) && (await waitFor(() => prop("f-text")?.title !== undefined, 15000)), JSON.stringify(prop("f-text")));
+    await typeOver(f, "title", "Titre ajouté en carte");
+    await settled();
+    ok("F2 Titre en carte : « + Ajouter une étiquette » atteignable à la souris et actif", (await clickOp("f-title", "add-eyebrow", '[data-inline="title"]')) && (await waitFor(() => prop("f-title")?.eyebrow !== undefined, 15000)), JSON.stringify(prop("f-title")));
+    await typeOver(f, "eyebrow", "Carnet");
+    await settled();
+
+    // Lot 19a.1 : « Retirer le titre » ne retire que le titre ; l'étiquette a son propre bouton.
+    ok("F3 « Retirer le titre » : le titre part, l'étiquette reste", (await clickOp("f-eb", "remove-title", '[data-inline="paragraphs.0"]')) && (await waitFor(() => prop("f-eb") && !("title" in prop("f-eb")), 15000)) && prop("f-eb").eyebrow?.fr === "Étiquette du texte", JSON.stringify(prop("f-eb")));
+    await settled();
+    ok("F3 « Retirer l'étiquette » existe sur le Texte et retire l'étiquette", (await clickOp("f-eb", "remove-eyebrow", '[data-inline="paragraphs.0"]')) && (await waitFor(() => prop("f-eb") && !("eyebrow" in prop("f-eb")), 15000)) && prop("f-eb").paragraphs?.[0]?.fr.startsWith("Paragraphe"), JSON.stringify(prop("f-eb")));
+    await settled();
+
+    // Rendu toile = public : décalage du titre dans sa carte, espace entre une carte et la grille qui suit.
+    const MEAS = (root) => {
+      const cards = [...root.querySelectorAll(".surface-card[data-surface=on]")];
+      // Début du contenu de la grille (après son espace de section) ; la toile y ajoute ses places « Étiquette » / « Titre », absentes en public.
+      const grid = root.querySelector(".block-grid-section");
+      const out = {};
+      for (const c of cards) {
+        const key = ["Titre et texte en carte", "Titre ajouté en carte", "Un titre en carte"].find((k) => (c.textContent ?? "").includes(k));
+        if (!key) continue;
+        const r = c.getBoundingClientRect();
+        const h2 = [...c.querySelectorAll("h2")].find((h) => (h.textContent ?? "").includes(key));
+        out[key] = { h2Top: h2 ? Math.round((h2.getBoundingClientRect().top - r.top) * 10) / 10 : null, h2Margin: h2 ? parseFloat(getComputedStyle(h2).marginTop) : null, h: Math.round(r.height * 10) / 10 };
+        if (key === "Titre et texte en carte" && grid) out.gapToGrid = Math.round((grid.getBoundingClientRect().top + parseFloat(getComputedStyle(grid).paddingTop) - r.bottom) * 10) / 10;
+      }
+      return out;
+    };
+    const onCanvas = await f.evaluate(`(${MEAS.toString()})(document)`);
+    ok("F4 publication de la page de l'essai", await publish(), `${await page.locator(".ve-status").textContent()}`);
+    // Même largeur que la toile : l'espace de section et le retrait des cartes suivent la largeur de la fenêtre.
+    const canvasW = await f.evaluate(() => document.documentElement.clientWidth);
+    const pub = await (await browser.newContext({ viewport: { width: canvasW, height: 900 } })).newPage();
+    await pub.goto(`${BASE}/fr/a-propos`, { waitUntil: "networkidle" });
+    const onPublic = await pub.evaluate(`(${MEAS.toString()})(document)`);
+    console.log(`INFO toile ${JSON.stringify(onCanvas)} ; public ${JSON.stringify(onPublic)}`);
+    const keys = ["Titre et texte en carte", "Titre ajouté en carte", "Un titre en carte"];
+    for (const k of keys) {
+      const a = onCanvas[k];
+      const b = onPublic[k];
+      ok(`F5 « ${k} » : titre à la même hauteur dans sa carte, toile et public (≤ 4 px)`, Boolean(a && b) && Math.abs(a.h2Top - b.h2Top) <= 4, `${JSON.stringify(a)} vs ${JSON.stringify(b)}`);
+      // Un titre sous une étiquette garde sa marge (16 px) ; sans étiquette, rien ne s'ajoute au padding de la carte.
+      if (k !== "Un titre en carte") ok(`F5 « ${k} » : le titre n'ajoute pas de marge haute dans la carte (toile)`, Boolean(a) && a.h2Margin === 0, JSON.stringify(a));
+    }
+    ok("F6 espace entre la carte et la grille qui suit : toile = public (≤ 4 px)", onCanvas.gapToGrid !== undefined && onPublic.gapToGrid !== undefined && Math.abs(onCanvas.gapToGrid - onPublic.gapToGrid) <= 4, `${onCanvas.gapToGrid} vs ${onPublic.gapToGrid}`);
+    await pub.context().close();
   });
 
 ok("aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));

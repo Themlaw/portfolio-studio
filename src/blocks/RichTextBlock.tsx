@@ -24,9 +24,17 @@ export default function RichTextBlock({ props, ctx }: { props: z.infer<typeof ri
     <section className={ctx.edit ? "shell pt-[var(--section-gap)] pe-field-host" : "shell pt-[var(--section-gap)]"}>
       <div className={ctx.edit ? "max-w-2xl relative" : "max-w-2xl"}>
         {ctx.edit && (
-          <button type="button" className="pe-field-op" data-edit-field-op={props.title === undefined ? "add-title" : "remove-title"} {...(ctx.cell ? { "data-cell": "" } : {})}>
-            {props.title === undefined ? "+ Ajouter un titre" : "Retirer le titre"}
-          </button>
+          <div className="pe-field-ops" {...(ctx.cell ? { "data-cell": "" } : {})}>
+            <button type="button" className="pe-field-op" data-edit-field-op={props.title === undefined ? "add-title" : "remove-title"}>
+              {props.title === undefined ? "+ Ajouter un titre" : "Retirer le titre"}
+            </button>
+            {/* L'étiquette a son propre bouton : « Retirer le titre » ne touche qu'au titre. */}
+            {props.eyebrow !== undefined && (
+              <button type="button" className="pe-field-op" data-edit-field-op="remove-eyebrow">
+                Retirer l'étiquette
+              </button>
+            )}
+          </div>
         )}
         {showEyebrow && <Eyebrow {...inline(ctx, "eyebrow")} data-placeholder={ctx.edit ? "Étiquette" : undefined}>{tr(props.eyebrow!, ctx.locale)}</Eyebrow>}
         {showTitle && (

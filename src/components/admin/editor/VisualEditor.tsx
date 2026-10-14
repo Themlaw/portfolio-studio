@@ -688,7 +688,9 @@ export default function VisualEditor({
     const list = draftRef.current.blocks;
     const block = findBlock(list, uid);
     const title = op.endsWith("title");
-    if (!block || block.type !== (title ? "rich-text" : "section-title") || (!title && block.props.linked)) return false;
+    // Titre : bloc Texte. Étiquette : bloc Titre, ou bloc Texte qui en porte une (« Retirer l'étiquette » seulement).
+    const okType = title ? block?.type === "rich-text" : block?.type === "section-title" || (block?.type === "rich-text" && op === "remove-eyebrow");
+    if (!block || !okType || (!title && block.props.linked)) return false;
     const props = { ...block.props };
     if (op === "add-title") {
       if (props.title !== undefined) return false;
@@ -697,9 +699,8 @@ export default function VisualEditor({
       if (props.eyebrow !== undefined) return false;
       props.eyebrow = { fr: "", en: "" };
     } else if (op === "remove-title") {
-      if (props.title === undefined && props.eyebrow === undefined) return false;
+      if (props.title === undefined) return false;
       delete props.title;
-      delete props.eyebrow;
     } else {
       if (props.eyebrow === undefined) return false;
       delete props.eyebrow;

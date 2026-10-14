@@ -251,7 +251,8 @@ figure.block-image[data-fit="contain"] .block-image-media.block-image-media {
   padding-top: 0;
 }
 /* … et le premier élément de la section n'ajoute pas sa propre marge haute (titre, paragraphe) : rien ne s'ajoute au padding. */
-.surface-card[data-surface="on"] [class*="pt-[var(--section-gap)]"] > :first-child > :first-child {
+.surface-card[data-surface="on"] [class*="pt-[var(--section-gap)]"] > :first-child > :first-child:not(.pe-field-op):not(.pe-field-ops),
+.surface-card[data-surface="on"] [class*="pt-[var(--section-gap)]"] > :first-child > :is(.pe-field-op, .pe-field-ops) + * {
   margin-top: 0;
 }
 /* La marge basse du dernier élément de la rubrique précédente reste chez elle (comme avec le padding d'une section) :

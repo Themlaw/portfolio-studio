@@ -1541,6 +1541,30 @@ html:not([data-edit-mode]) .pe-field-op {
   gap: 6px;
 }
 
+/* Bloc Texte : « Retirer le titre » et « Retirer l'étiquette » côte à côte dans un même conteneur positionné. */
+.pe-field-ops {
+  position: absolute;
+  top: -32px;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
+}
+.pe-field-ops .pe-field-op {
+  position: static;
+}
+
+/* Dans une carte, la section n'a pas de marge haute (padding de la carte) : le bouton sortirait de son hôte et le
+   survol se perdrait en chemin. Il se pose donc dans la boîte de l'hôte, en haut à droite, comme dans une case. */
+.surface-card[data-surface="on"] .pe-field-op,
+.surface-card[data-surface="on"] .pe-field-ops,
+.pe-field-ops[data-cell] {
+  top: 0;
+  right: 0;
+  left: auto;
+}
+
 /* Dans une case de grille, pas de marge haute où se loger : le bouton se pose en haut à droite du texte. */
 .pe-field-op[data-cell] {
   top: 0;
