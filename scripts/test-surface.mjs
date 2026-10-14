@@ -61,7 +61,7 @@ ok("aucun preset livré ne porte de carte par défaut (rendu inchangé)", themes
 const withCard = (t, card) => ThemeSchema.safeParse({ ...t, tokens: { ...t.tokens, layout: { ...t.tokens.layout, card } } });
 const base = themes[0][1];
 ok("thème : carte par défaut valide acceptée", withCard(base, { color: "bgDeep", width: "full", corners: "square" }).success && withCard(base, {}).success);
-ok("thème : carte par défaut invalide refusée (couleur, clé inconnue)", !withCard(base, { color: "nope" }).success && !withCard(base, { radius: 3 }).success && !withCard(base, { color: "#ABCDEF" }).success);
+ok("thème : clé inconnue de la carte par défaut refusée ; couleur inconnue ignorée (lecture tolérante, repli sur le défaut)", !withCard(base, { radius: 3 }).success && withCard(base, { color: "nope" }).data?.tokens.layout?.card?.color === undefined && withCard(base, { color: "#ABCDEF" }).data?.tokens.layout?.card?.color === undefined);
 
 /* ---- Lisibilité : tous les presets × tous les jetons ----------------------------------------------------------- */
 
@@ -203,6 +203,17 @@ try {
   ok("registre : la publication du texte d'aide est refusée par le bloc Texte", BLOCKS["rich-text"].publishCheck?.({ paragraphs: [HELP_TEXT.paragraph] }, {}) !== null);
 } catch (e) {
   ok("registre des blocs chargeable par Node", false, String(e).slice(0, 200));
+}
+
+/* ---- Carte par défaut du thème : lecture tolérante (v0.18.1) ----------------------------------------------- */
+{
+  const base = await loadPreset(presetSlugs()[0]);
+  const withCard = (card) => ThemeSchema.safeParse({ ...base, tokens: { ...base.tokens, layout: { ...(base.tokens.layout ?? {}), card } } });
+  const bad = withCard({ color: "nouvelleteinte99", width: "inset", corners: "round" });
+  ok("un jeton de carte inconnu (venu d'une version suivante) ne fait pas rejeter le thème", bad.success, bad.success ? "" : JSON.stringify(bad.error.issues).slice(0, 200));
+  ok("… il retombe sur la valeur par défaut (color absente), le reste est gardé", bad.success && bad.data.tokens.layout?.card?.color === undefined && bad.data.tokens.layout?.card?.width === "inset" && bad.data.tokens.layout?.card?.corners === "round");
+  ok("un jeton connu et une couleur libre restent lus tels quels", withCard({ color: "primary12" }).data?.tokens.layout?.card?.color === "primary12" && withCard({ color: "#f6d6e4" }).data?.tokens.layout?.card?.color === "#f6d6e4");
+  ok("un champ inconnu de la carte reste refusé (schéma strict)", !withCard({ colour: "bg" }).success);
 }
 
 console.log(failures ? `test-surface : ${failures} échec(s)` : "test-surface : OK");

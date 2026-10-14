@@ -1238,6 +1238,27 @@ blocs.
   de 9 px de sa piste à 100 % ; la fenêtre défilait en largeur. La piste a une marge de 9 px et la
   fenêtre `overflow-x: hidden`.
 
+## Notes de version v0.18 : retour à la v0.17 et changements visibles
+
+**Retour arrière vers la v0.17.** Un thème dont la carte par défaut (`tokens.layout.card.color`) est une teinte neuve
+(`primary12`, etc., ajoutées au lot 19b) est **rejeté en entier** par la v0.17, qui retombe alors sur le thème
+`galerie-lumineuse`. Avant de redescendre, remettre un jeton connu de la v0.17 dans la carte par défaut du thème
+(`bg`, `surface`, `primary`…). Rien n'est effacé : le thème reste en base, il redevient lisible une fois le jeton
+remplacé ou la v0.18 remise en ligne. À partir de la v0.18, `layout.card` est lu avec tolérance (un champ `color`,
+`width` ou `corners` inconnu est ignoré et retombe sur la valeur par défaut au lieu de faire rejeter le thème) : les
+versions suivantes ne rejetteront plus un thème pour un jeton qu'elles ne connaissent pas encore. Les clés inconnues
+de la carte restent refusées.
+
+**Changements visibles sur les pages existantes** (voulus, aucun réglage à reprendre) :
+
+- Les Textes **sans titre** perdent la marge de 24 px qui les séparait de la rubrique précédente : un paragraphe seul
+  prend le rythme des autres rubriques (espace de section du thème).
+- **Espacement des cartes** : l'espace de section du thème se place avant la carte (le padding de la carte reste
+  symétrique) et un espace choisi à la main sur la toile (`data-pt`) est désormais appliqué aussi dans une carte.
+
+**Enregistrer le thème en ligne** exige une confirmation vérifiée côté serveur (`saveThemeAction(id, thème, confirmLive)`) ;
+l'interface l'envoie après sa boîte de confirmation.
+
 ## Notes de version v0.17 : retour à la v0.16
 
 Aucune colonne n'est ajoutée par la v0.17 (la migration **0019** est une migration de contenu : `fit: "cover"` sur

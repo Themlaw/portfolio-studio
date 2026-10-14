@@ -73,6 +73,21 @@ export const SurfaceSchema = z.strictObject({
   corners: z.enum(SURFACE_CORNERS).optional(),
 });
 
+/**
+ * Carte par défaut d'un thème, lue avec tolérance : une valeur que cette version ne connaît pas (un jeton de teinte
+ * ajouté par une version suivante, par exemple) est ignorée et retombe sur la valeur par défaut, au lieu de faire
+ * rejeter le thème entier. Les clés inconnues restent refusées (schéma strict).
+ */
+const LenientSurfaceSchema = z.preprocess((raw) => {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (k !== "color" && k !== "width" && k !== "corners") out[k] = v;
+    else if (SurfaceSchema.safeParse({ [k]: v }).success) out[k] = v;
+  }
+  return out;
+}, SurfaceSchema);
+
 /** Rôles typographiques (styles du site du lot 2, typographie du thème). */
 export const TEXT_ROLES = ["h1", "h2", "eyebrow", "body", "caption", "menu", "brand"] as const;
 export type FontId = z.infer<typeof fontId>;
@@ -253,7 +268,7 @@ export const ThemeSchema = z
           /** Fond derrière le métier dans l'ouverture (« Chara design · … »). */
           heroRoleBackdrop: z.enum(["none", "shadow", "band", "highlight"]),
           /** Carte des rubriques (lot 17c) : réglages utilisés quand une rubrique active sa carte sans les préciser. */
-          card: SurfaceSchema,
+          card: LenientSurfaceSchema,
         })
         .partial()
         .strict()
