@@ -67,21 +67,21 @@ await test("I1 : planche retirée (bloc supprimé) → surcouche jamais appliqu�
   assert.equal(JSON.stringify(slotsOf(Q.id)), before);
   assert.equal(db.select().from(schema.slots).where(eq(schema.slots.draftPageId, page)).all().length, 0, "surcouche effacée");
 });
-await test("I1 : conteneur supprimé (planche héritée) → rien d'appliqué", () => {
+await test("I1 : grille supprimée (planche imbriquée à projet en dur) → rien d'appliqué", () => {
   const page = newPage("t-i1b");
   const before = JSON.stringify(slotsOf(P.id));
-  saveDraft(page, { ...base(page), blocks: [k("c", "featured-project", { project: P.slug, children: [k("g", "grid", { children: [k("b", "project-board")] })] })] }, rev(page));
+  saveDraft(page, { ...base(page), blocks: [k("g", "grid", { children: [k("b", "project-board", { project: P.slug })] })] }, rev(page));
   const first = db.select().from(schema.slots).where(eq(schema.slots.projectId, P.id)).all()[0];
   assert.equal(boardOp(page, P.id, { op: "retire", key: `s${first.id}` }, rev(page)).ok, true, "planche imbriquée modifiable depuis la toile");
-  // Le conteneur garde le projet mais n'en montre plus la planche : pas affiché.
-  saveDraft(page, { ...base(page), blocks: [k("c", "featured-project", { project: P.slug, children: [k("t", "section-title", { linked: true })] })] }, rev(page));
+  // Un Titre lié cite le projet mais n'en montre plus la planche : pas affiché.
+  saveDraft(page, { ...base(page), blocks: [k("t", "section-title", { linked: true, project: P.slug })] }, rev(page));
   assert.equal(publishDraft(page, rev(page)).ok, true);
   assert.equal(JSON.stringify(slotsOf(P.id)), before);
 });
 await test("I1 : planche imbriquée présente → sa surcouche est appliquée", () => {
   const page = newPage("t-i1c");
   const count = slotsOf(P.id).length;
-  saveDraft(page, { ...base(page), blocks: [k("c", "featured-project", { project: P.slug, children: [k("g", "grid", { children: [k("b", "project-board")] })] })] }, rev(page));
+  saveDraft(page, { ...base(page), blocks: [k("g", "grid", { children: [k("b", "project-board", { project: P.slug })] })] }, rev(page));
   const first = db.select().from(schema.slots).where(eq(schema.slots.projectId, P.id)).all()[0];
   boardOp(page, P.id, { op: "retire", key: `s${first.id}` }, rev(page));
   assert.equal(publishDraft(page, rev(page)).ok, true);
@@ -100,11 +100,46 @@ await test("I1 : clé inconnue dans les props (non publiée) n'ouvre pas l'appli
   assert.equal(JSON.stringify(slotsOf(Q.id)), before);
 });
 
+await test("v0.19 : « Projet mis en avant » refusé à la création, toléré sur une page qui en a déjà un (publié)", () => {
+  const fresh = newPage("t-v19a");
+  const container = [k("c", "featured-project", { project: P.slug, children: [k("t", "section-title", { linked: true })] })];
+  const refused = saveDraft(fresh, { ...base(fresh), blocks: container }, rev(fresh));
+  assert.equal(refused.ok, false, JSON.stringify(refused));
+  assert.match(JSON.stringify(refused), /n'existe plus/);
+  const old = newPage("t-v19b");
+  db.insert(schema.blocks).values({ pageId: old, position: 0, type: "featured-project", props: JSON.stringify({ project: P.slug, children: [] }) }).run();
+  assert.equal(saveDraft(old, { ...base(old), blocks: container }, rev(old)).ok, true, "page qui en avait déjà un : brouillon enregistrable");
+  assert.equal(publishDraft(old, rev(old)).ok, true, "… et republiable");
+});
+await test("v0.19 : Titre lié sans projet refusé à la publication ; avec projet, accepté et projet cité", () => {
+  const page = newPage("t-v19c");
+  saveDraft(page, { ...base(page), blocks: [k("t", "section-title", { linked: true })] }, rev(page));
+  const refused = publishDraft(page, rev(page));
+  assert.equal(refused.ok, false);
+  assert.match(JSON.stringify(refused), /Choisis le projet/);
+  saveDraft(page, { ...base(page), blocks: [k("t", "section-title", { linked: true, project: P.slug })] }, rev(page));
+  assert.equal(publishDraft(page, rev(page)).ok, true);
+  const row = db.select().from(schema.blocks).where(eq(schema.blocks.pageId, page)).all()[0];
+  assert.equal(JSON.parse(row.props).project, P.slug);
+  saveDraft(page, { ...base(page), blocks: [k("t", "section-title", { linked: true, project: "projet-qui-n-existe-pas" })] }, rev(page));
+  assert.equal(publishDraft(page, rev(page)).ok, false, "projet cité inexistant : refusé");
+});
+await test("v0.19 : « Lien vers une page » : page exigée à la publication, page supprimée refusée", () => {
+  const page = newPage("t-v19d");
+  saveDraft(page, { ...base(page), blocks: [k("l", "page-link", { label: L("Voir") })] }, rev(page));
+  assert.equal(publishDraft(page, rev(page)).ok, false);
+  const target = newPage("t-v19e");
+  saveDraft(page, { ...base(page), blocks: [k("l", "page-link", { label: L("Voir"), pageId: target })] }, rev(page));
+  assert.equal(publishDraft(page, rev(page)).ok, true);
+  assert.equal(deletePage(target).ok, false, "page citée par un lien : suppression refusée");
+});
+
 /* ---- 1b. Textes d'un projet depuis un bloc qui le montre (v0.15) ------------------ */
 
 const text = (id) => db.select().from(schema.projects).where(eq(schema.projects.id, id)).get();
 const projectOp = (page, id, field, value, locale = "fr") => boardOp(page, id, { op: "project", field, locale, value }, rev(page));
-const featuredTitle = (project) => [k("c", "featured-project", { project, children: [k("t", "section-title", { linked: true })] })];
+// v0.19 : le Titre lié porte lui-même son projet (plus de conteneur « Projet mis en avant »).
+const featuredTitle = (project) => [k("t", "section-title", { linked: true, project })];
 
 await test("T1 : titre modifié depuis un Titre lié (sans planche) → surcouche ; public inchangé jusqu'à la publication", () => {
   const page = newPage("t-txt1");
@@ -381,7 +416,7 @@ await test("17f : palette illisible → la publication est refusée (site.palett
   const page = newPage("t-17f-a");
   const theme = activeThemeForEdit();
   const pub = readPublishedSite();
-  saveDraft(page, { ...base(page), blocks: [k("b", "section-title", { linked: true })] }, rev(page));
+  saveDraft(page, { ...base(page), blocks: [k("b", "section-title", { title: L("Titre") })] }, rev(page));
   // Fond = couleur du texte : la saisie est acceptée…
   const saved = saveSiteDraft(page, { ...pub, styles: { palette: { bg: theme.tokens.color.ink } } }, rev(page));
   assert.equal(saved.ok, true, "enregistrement du brouillon jamais bloqué");
@@ -398,7 +433,7 @@ await test("17f : palette lisible → publiée avec la page, thème intact ; Ann
   const page = newPage("t-17f-b");
   const themeBefore = JSON.stringify(activeThemeForEdit());
   const pub = readPublishedSite();
-  saveDraft(page, { ...base(page), blocks: [k("b", "section-title", { linked: true })] }, rev(page));
+  saveDraft(page, { ...base(page), blocks: [k("b", "section-title", { title: L("Titre") })] }, rev(page));
   assert.equal(saveSiteDraft(page, { ...pub, styles: { palette: { primary: "#7a1f10" }, logo: { size: 96, mode: "shrink" } } }, rev(page)).ok, true);
   assert.deepEqual(readSiteDraft().snap.styles, { palette: { primary: "#7a1f10" }, logo: { size: 96, mode: "shrink" } });
   assert.equal(settingOf("styles")?.palette, undefined, "brouillon : rien en ligne avant Publier");
@@ -409,7 +444,7 @@ await test("17f : palette lisible → publiée avec la page, thème intact ; Ann
   // Retour aux réglages du thème : palette et logo vides disparaissent des styles publiés.
   const after = readPublishedSite();
   assert.deepEqual(after.styles?.palette, { primary: "#7a1f10" });
-  saveDraft(page, { ...base(page), blocks: [k("b", "section-title", { linked: true })] }, rev(page));
+  saveDraft(page, { ...base(page), blocks: [k("b", "section-title", { title: L("Titre") })] }, rev(page));
   assert.equal(saveSiteDraft(page, { ...after, styles: { palette: {}, logo: { mode: "fixed" } } }, rev(page)).ok, true);
   assert.equal(readSiteDraft().snap.styles, undefined, "palette / logo vides = pas de styles");
   assert.equal(publishDraft(page, rev(page)).ok, true);

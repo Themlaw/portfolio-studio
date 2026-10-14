@@ -143,6 +143,13 @@ const THUMBS: Record<string, React.ReactNode> = {
       <rect x="36" y="36" width="24" height="8" rx="4" fill={ACCENT} />
     </>
   ),
+  "page-link": (
+    <>
+      <rect x="22" y="26" width="42" height="4" rx="2" fill={INK} />
+      <rect x="22" y="33" width="42" height="1.5" rx="0.75" fill={ACCENT} />
+      <path d="M68 28 L74 28 M71.5 25.5 L74.5 28 L71.5 30.5" fill="none" stroke={ACCENT} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
   profile: (
     <>
       <rect x="10" y="8" width="28" height="40" rx="2" fill={SOFT} />

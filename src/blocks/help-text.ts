@@ -27,6 +27,8 @@ export const TEXT_STARTERS = {
   },
 } as const;
 export type TextStarter = keyof typeof TEXT_STARTERS;
+/** Les trois raccourcis en liste (panneau « Ajouter », fenêtre « Ajouter une rubrique »). */
+export const STARTER_LIST = (Object.keys(TEXT_STARTERS) as TextStarter[]).map((key) => ({ key, ...TEXT_STARTERS[key] }));
 
 type Localized = { fr?: unknown; en?: unknown } | undefined;
 

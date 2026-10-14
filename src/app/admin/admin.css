@@ -1550,6 +1550,15 @@ body:has(.a-sidepanel) .a-toasts {
   gap: 6px;
 }
 
+.a-block-group {
+  margin: 14px 0 6px;
+  color: var(--admin-ink-soft);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .a-font-choice,
 .a-variant-choice,
 .a-block-type {
@@ -5759,9 +5768,32 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   height: 60px;
 }
 
-.ve-add-grid li:nth-child(-n + 3) .ve-add-card {
+.ve-add-card[data-starter] {
   border-color: var(--admin-accent);
   background: var(--admin-accent-soft);
+}
+
+/* Groupes de composants (v0.19) : panneau « Ajouter » et fenêtre « Ajouter une rubrique ». */
+.ve-group {
+  margin: 0 0 16px;
+}
+
+.ve-add-where {
+  margin-bottom: 18px;
+}
+
+.ve-group-title {
+  margin: 0 0 8px;
+  color: var(--admin-ink-soft);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ve-search {
+  width: 100%;
+  margin: 0 0 14px;
 }
 
 /* ---- Couleurs de la DA d'un thème (lot 19b) ------------------------------ */

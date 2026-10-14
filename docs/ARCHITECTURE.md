@@ -715,14 +715,15 @@ la toile, toujours dans la surcouche d'emplacements DE LA PAGE éditée
 déclare au registre `container: { accepts }` (table `CONTAINERS` de
 `tree.ts`, reprise par `define()`) et porte ses composants dans
 `props.children` = `{ uid, type, props }[]`. Deux niveaux de conteneurs au
-plus (Projet mis en avant › Grille › Vidéo), 24 composants par conteneur,
-uid obligatoires et uniques dans toute la page. Conteneurs livrés :
-« Projet mis en avant » (`featured-project` : projet transmis aux
-composants, lien « voir plus ») et « Grille » (`grid` : agencement par
+plus (Grille › Vidéo ; au plus un conteneur dans un conteneur), 24 composants par conteneur,
+uid obligatoires et uniques dans toute la page. Conteneur livré : « Grille » (`grid` : agencement par
 motif répété `1`, `1+2`, `2`, `3`, `2x2`, `4`, `2+1` ; espacement, alignement,
 ratio des images ; classes `.block-grid` de `globals.css`, tokens du thème).
+**Le conteneur « Projet mis en avant » (`featured-project`, v0.13 à v0.18) a disparu en v0.19** (voir plus bas :
+migration 0021) ; son code reste en lecture pour un conteneur que la migration n'aurait pas pu déballer (page de plus
+de 40 blocs), il n'est plus proposé ni créable (`deprecated`).
 Composants simples : Titre (`section-title`, peut reprendre le nom et la
-présentation du projet du conteneur), Planche d'un projet, Image, Texte,
+présentation d'un projet : `linked` + `project`), Planche d'un projet, Image, Texte,
 Vidéo (`video-single`, UNE vidéo : médiathèque, ou plan YouTube migré).
 
 - **Validation** : forme de l'arbre (`treeProblem`) au brouillon
@@ -753,7 +754,7 @@ Vidéo (`video-single`, UNE vidéo : médiathèque, ou plan YouTube migré).
   deux blocs de la page), ligne intérieure (barre verticale dans une grille)
   et cadre du conteneur, cadre rouge « n'accepte pas » sinon ; la poignée
   déplace dans / hors d'un conteneur ; barre ⇱ (sortir) / ⇲ (entrer dans le
-  conteneur voisin) au clavier ; fil d'Ariane « Projet mis en avant › Titre »
+  conteneur voisin) au clavier ; fil d'Ariane « Grille › Titre »
   (Échap remonte au parent). Panneau : arbre (`StructureTree`, dépliable,
   glisser avant / après / au milieu d'un conteneur), fil d'Ariane, réglages
   du composant choisi. Messages `move { parent }`, `drag-index { parent,
@@ -784,6 +785,33 @@ créé dans l'écran Projets n'apparaît plus tout seul sur une page (la
 palette signale les projets « pas encore sur une page ») ; le drapeau
 « mis en avant » d'un projet ne pilote plus l'accueil. Les anciens types
 restent lisibles (rendus) mais ne se créent plus (`deprecatedProblem`).
+
+**Migration de contenu 0021 (v0.19) : plus de conteneur « Projet mis en avant »** (`src/lib/db/unwrap.ts`,
+`unwrapContainers` ; `DATA_MIGRATIONS["0021_unwrap_containers"]` et le seed, qui l'enchaîne après `upgradeContent`).
+Chaque conteneur (publié, brouillons, conteneurs imbriqués) est « déballé » : ses composants deviennent des blocs de
+premier niveau, à la même place et dans le même ordre. Idempotente ; un brouillon réécrit voit son `draft_rev`
+augmenter (un onglet resté ouvert reçoit un conflit au lieu de ré-enregistrer l'ancien conteneur).
+- `project` du conteneur → porté en dur par ceux qui le reprenaient : Planche d'un projet (`project`) et Titre lié
+  (`section-title`, nouveau champ `project`, `linked` gardé), dans une grille comprise. Ils restent donc liés au
+  projet (nom, présentation, images ; surcouche de textes `projects.draft_text` et intentions `slot-text` /
+  `project-text` inchangées : elles sont clés sur le projet, pas sur le conteneur). Conteneur sans projet : rien à
+  porter.
+- `more` (lien « voir plus ») → bloc **« Lien vers une page »** (`page-link`, même balisage : rendu public identique)
+  posé après le dernier composant ; conteneur vide : disparaît avec son lien (publié) ou garde le lien (brouillon).
+- `look` → espace du haut sur le premier composant, du bas sur le dernier (comme le rendu sans boîte), les autres
+  réglages (arrondi, titres, fond…) sur chaque composant sous les siens ; `surface` (carte) → la même carte sur chaque
+  composant (une carte ne peut plus envelopper un groupe) ; une carte périmée d'un composant est retirée.
+- Page qui dépasserait 40 blocs une fois déballée : le conteneur reste en place (lu et rendu), journalisé.
+Tests : `scripts/test-composants.mjs` (cas réalistes, idempotence, aucun texte perdu, démarrage réel du migrateur),
+`scripts/e2e-composants.mjs`. La limite connue : le conteneur ne se recrée plus ; une grille remplace son usage
+« composants rangés ensemble », un Titre lié + une Planche remplacent « un projet et son titre ».
+
+**Regroupement des composants (v0.19)** : `src/blocks/groups.ts` (module pur) est la source UNIQUE du panneau « Ajouter »
+et de la fenêtre « Ajouter une rubrique » : chaque type du registre porte `group` (`text`, `projects`, `media`,
+`grids`, `other`) et `order` (rang dans le groupe), les raccourcis (`presets`) leur propre `order` ;
+`pickerGroups(catalog, STARTER_LIST, requête)` en tire les groupes à en-tête (Texte : les trois raccourcis ; Projets ;
+Images et vidéos ; Grilles ; Autres). `blockCatalog()` les publie. Recherche « Chercher un composant » : nom +
+description, sans accents ni casse, tous les mots (`matchesSearch`). Pistes non faites : ordre personnalisé par glisser.
 
 **Compteurs « N œuvres · M projets »** de l'en-tête de collection :
 calculés depuis la page (`pageCounts` + `boardWorkCount`), brouillon sur la
@@ -1237,6 +1265,17 @@ blocs.
 - **Sélecteur de couleur** : la pastille des curseurs (18 px, centrée sur la valeur) dépassait
   de 9 px de sa piste à 100 % ; la fenêtre défilait en largeur. La piste a une marge de 9 px et la
   fenêtre `overflow-x: hidden`.
+
+## Notes de version v0.19 : composants regroupés, plus de « Projet mis en avant »
+
+**Retour arrière vers la v0.18.** La migration 0021 réécrit les blocs (publiés et brouillons) : les conteneurs
+« Projet mis en avant » n'existent plus, la v0.18 lit les nouveaux blocs mais ignore le champ `project` d'un Titre
+(`section-title` : un Titre lié sans conteneur ne rend rien) et ne connaît pas « Lien vers une page » (`page-link`,
+bloc ignoré). Avant de redescendre, restaurer la base de la v0.18 (sauvegarde du volume `data`).
+
+**Changements visibles sur les pages existantes** : les conteneurs sont remplacés par leurs composants posés les uns
+sous les autres (rendu public identique, sauf une carte de couleur qui enveloppait le conteneur : une carte par
+composant désormais) ; l'ajout de composants est rangé en groupes.
 
 ## Notes de version v0.18 : retour à la v0.17 et changements visibles
 

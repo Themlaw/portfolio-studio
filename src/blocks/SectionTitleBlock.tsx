@@ -4,28 +4,31 @@ import Eyebrow from "@/components/Eyebrow";
 import { boardMarks } from "@/lib/board-marks";
 import { getProjectBoard } from "@/lib/gallery";
 
-import { inline, localized, localizedText, textStyle, tr, type BlockContext } from "./types";
+import { inline, localized, localizedText, projectSlug, textStyle, tr, type BlockContext } from "./types";
 
 export const sectionTitleSchema = z.object({
   eyebrow: localized.optional(),
   title: localized.optional(),
   intro: localizedText.optional(),
   /**
-   * Titre lié au projet du conteneur : son nom (titre) et sa présentation
-   * (texte) viennent du projet ; l'étiquette reste celle du bloc.
+   * Titre lié à un projet : son nom (titre) et sa présentation (texte) viennent du projet ; l'étiquette
+   * reste celle du bloc.
    */
   linked: z.boolean().optional(),
+  /** Projet repris par un titre lié (v0.19). Absent : le projet du conteneur qui le porte (grille, ancien conteneur). */
+  project: projectSlug.optional(),
 });
 
 /**
  * Titre de section : étiquette, titre, présentation. Même rendu que l'ancien
  * en-tête des « Projets mis en avant » (la migration 0014 s'appuie dessus :
- * parité au pixel). Dans un conteneur, peut reprendre le nom et la
- * présentation du projet du conteneur (projet créé sur la page : nom
- * modifiable en place, comme sur sa planche).
+ * parité au pixel). Peut reprendre le nom et la présentation d'un projet
+ * (`linked` + `project`, projet créé sur la page : nom modifiable en place,
+ * comme sur sa planche) ; à défaut de `project`, celui du conteneur.
  */
 export default async function SectionTitleBlock({ props, ctx }: { props: z.infer<typeof sectionTitleSchema>; ctx: BlockContext }) {
-  const project = props.linked && ctx.project ? await getProjectBoard(ctx.project, ctx.locale) : null;
+  const slug = props.project ?? ctx.project;
+  const project = props.linked && slug ? await getProjectBoard(slug, ctx.locale) : null;
   if (props.linked && !project && !ctx.edit) return null;
   const ph = (text: string) => (ctx.edit ? { "data-placeholder": text } : {});
   // Vue brouillon : le nom et la présentation du projet se modifient en place (v0.15). Le contenu
@@ -49,7 +52,7 @@ export default async function SectionTitleBlock({ props, ctx }: { props: z.infer
       <h2
         className="mt-4 font-display text-[clamp(2rem,5vw,3.75rem)] text-ink"
         {...(props.linked ? { ...(linkedEdit ? { "data-project-inline": "title", "data-look-key": "title" } : {}), ...textStyle(ctx, "title") } : inline(ctx, "title"))}
-        {...ph(props.linked ? (ctx.project ? "Nom du projet" : "Choisis le projet du conteneur") : "Titre")}
+        {...ph(props.linked ? (slug ? "Nom du projet" : "Choisis le projet du titre") : "Titre")}
       >
         {title}
       </h2>

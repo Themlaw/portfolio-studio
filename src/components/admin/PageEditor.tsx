@@ -8,6 +8,7 @@
  * page est publiée ; s'il existe un brouillon de l'éditeur visuel, le
  * formulaire l'affiche et l'enregistrement le publie (un seul état).
  */
+import { groupEntries } from "@/blocks/groups";
 import { withFreshUids } from "@/blocks/tree";
 import { own } from "@/lib/own";
 import { useRouter } from "next/navigation";
@@ -52,7 +53,7 @@ function blockErrors(errors: Record<string, string>, index: number): Record<stri
 
 function AddBlock({ catalog, onAdd }: { catalog: BlockCatalogEntry[]; onAdd: (type: string) => void }) {
   const [open, setOpen] = useState(false);
-  const [choice, setChoice] = useState(catalog[0]?.type ?? "");
+  const [choice, setChoice] = useState(groupEntries(catalog)[0]?.entries[0]?.type ?? catalog[0]?.type ?? "");
   const name = useId();
   return (
     <>
@@ -70,14 +71,20 @@ function AddBlock({ catalog, onAdd }: { catalog: BlockCatalogEntry[]; onAdd: (ty
         }}
       >
         <div className="a-block-types" role="radiogroup" aria-label="Type de bloc">
-          {catalog.map((c) => (
-            <label key={c.type} className="a-block-type">
-              <input type="radio" name={name} checked={choice === c.type} onChange={() => setChoice(c.type)} />
-              <span>
-                <strong>{c.label}</strong>
-                <span className="muted">{c.description}</span>
-              </span>
-            </label>
+          {/* Mêmes groupes que l'éditeur visuel (src/blocks/groups.ts). */}
+          {groupEntries(catalog).map((g) => (
+            <div key={g.id} role="presentation">
+              <p className="a-block-group">{g.label}</p>
+              {g.entries.map((c) => (
+                <label key={c.type} className="a-block-type">
+                  <input type="radio" name={name} checked={choice === c.type} onChange={() => setChoice(c.type)} />
+                  <span>
+                    <strong>{c.label}</strong>
+                    <span className="muted">{c.description}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
           ))}
         </div>
         <p className="a-help">Le bloc est ajouté en fin de page ; déplace-le ensuite par sa poignée.</p>

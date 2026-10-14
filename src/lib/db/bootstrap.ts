@@ -18,6 +18,7 @@ import { readMigrationFiles, type MigrationMeta } from "drizzle-orm/migrator";
 import { dataDir, getDb, getSqlite } from "./index";
 import { isSeeded, prepareSeedFiles, seedRows, syncPresets, type SeedFiles } from "./seed";
 import { dropEmptyTextFields, pinImageFit, renameVideoLook, siteNameI18n, upgradeContent } from "./upgrade";
+import { unwrapContainers } from "./unwrap";
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 
@@ -46,6 +47,13 @@ const DATA_MIGRATIONS: Record<string, () => void> = {
   "0020_text_fields": () => {
     const rows = dropEmptyTextFields(getSqlite());
     console.log(`[db] 0020 : titres et étiquettes vides des blocs Texte retirés — ${rows} ligne(s) réécrite(s)`);
+  },
+  "0021_unwrap_containers": () => {
+    const r = unwrapContainers(getSqlite());
+    console.log(
+      `[db] 0021 : conteneurs « Projet mis en avant » déballés — ${r.unwrapped} conteneur(s), ${r.pages} page(s) (${r.published} publiée(s), ${r.drafts} brouillon(s))` +
+        (r.kept ? `, ${r.kept} laissé(s) en place (page de plus de 40 blocs une fois déballée)` : ""),
+    );
   },
 };
 
