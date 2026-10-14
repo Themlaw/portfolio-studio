@@ -60,6 +60,7 @@ import { ColorsPanel, LogoPanel, type HighlightInfo } from "./SiteLookPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
 import SiteEditor, { applySiteOp, siteText } from "./SiteEditor";
 import StructureTree from "./StructureTree";
+import TopMore from "./TopMore";
 import BlockThumb from "./thumbs";
 
 type Locale = "fr" | "en";
@@ -106,6 +107,9 @@ const TABS: { id: Tab; label: string }[] = [
 const DEBOUNCE_MS = 800;
 const HISTORY_MAX = 100;
 const MOBILE = "(max-width: 819px)";
+/** Barre du haut (lot 24) : « Abandonner » passe dans le menu « Plus » sous 1360 px, la largeur d'aperçu sous 1180 px ; « Publier » reste visible. */
+const TOP_TIGHT = "(max-width: 1360px)";
+const TOP_TIGHTER = "(max-width: 1180px)";
 
 /** Texte tel que l'artiste le lit : le mot mis en valeur (<mark>) entre « ». */
 const readable = (text: string) => text.replace(/<mark>([\s\S]*?)<\/mark>/g, "« $1 »").replace(/<\/?mark>/g, "");
@@ -205,6 +209,8 @@ export default function VisualEditor({
 }) {
   const router = useRouter();
   const mobile = useMedia(MOBILE);
+  const topTight = useMedia(TOP_TIGHT);
+  const topTighter = useMedia(TOP_TIGHTER);
   // Par type : l'entrée du type lui-même (pas un raccourci de la palette).
   const byType = useMemo(() => Object.fromEntries(catalog.filter((c) => !c.preset).map((c) => [c.type, c])), [catalog]);
   /** Recherche d'un composant (onglet « Ajouter »). */
@@ -2187,7 +2193,7 @@ export default function VisualEditor({
             ))}
           </div>
           <span className="ve-break" aria-hidden="true" />
-          {!mobile && (
+          {!mobile && !topTighter && (
             <div className="a-seg ve-seg" role="group" aria-label="Largeur d'aperçu">
               {DEVICES.map((d) => (
                 <button key={d.id} type="button" aria-pressed={device === d.id} onClick={() => setDevice(d.id)} title={`${d.label} (${d.width} px)`}>
@@ -2220,10 +2226,18 @@ export default function VisualEditor({
             )}
           </span>
           {/* En erreur, la place va à la raison et à « Réessayer ». */}
-          {hasDraft && !mobile && !blocked && saveState !== "error" && (
+          {hasDraft && !mobile && !topTight && !blocked && saveState !== "error" && (
             <button type="button" className="a-btn a-btn-quiet ve-discard" onClick={() => setDiscarding(true)}>
               Abandonner les modifications
             </button>
+          )}
+          {!mobile && topTight && (
+            <TopMore
+              devices={topTighter ? DEVICES : undefined}
+              device={device}
+              onDevice={(id) => setDevice(id as Device)}
+              onDiscard={hasDraft && !blocked && saveState !== "error" ? () => setDiscarding(true) : undefined}
+            />
           )}
           <button type="button" className="a-btn" onClick={() => setMode("preview")} disabled={foreign}>
             Aperçu
