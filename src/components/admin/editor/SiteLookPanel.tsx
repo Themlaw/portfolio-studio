@@ -6,7 +6,7 @@
  * Couleurs : chaque rôle porte un nom parlant et une phrase (« Fond de page », « Cartes et encadrés »…).
  * Au survol ou au focus d'un rôle, la toile surligne les éléments qui l'utilisent (message `highlight`)
  * et la légende « utilisé par » revient de la toile. Un clic ouvre le sélecteur (roue, HEX, RVB) : la
- * couleur est montrée tout de suite sur la toile. Contraste AA en direct ; s'il est insuffisant, avertissement
+ * couleur est montrée tout de suite sur la toile. Lisibilité (contraste AA) en direct, le rapport en info-bulle ; s'il est insuffisant, avertissement
  * et « Ajuster automatiquement » — la saisie n'est jamais bloquée, seule la publication l'est (serveur).
  * Les nuances calculées sont en lecture seule, repliées. En mode « site » (éditeur visuel), la palette du THÈME
  * n'est jamais modifiée : ce sont des surcharges du site (`styles.palette`), publiées avec la page comme l'en-tête.
@@ -21,9 +21,9 @@
 import { useEffect, useState } from "react";
 
 import { SolidColorPicker } from "@/components/edit/ColorPicker";
+import { pairsReadability, ratioTip } from "@/components/edit/readability";
 import type { AdminMediaRow } from "@/lib/admin";
 import { LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, type Logo, type PaletteColor, type SitePalette } from "@/lib/look";
-import { AA } from "@/themes/contrast";
 import type { BaseKey, NuanceKey, PaletteColors, PaletteState } from "@/themes/palette";
 import { autoAdjustBase, CONTRAST_BASES, effectiveSitePalette, NUANCE_USES, nuanceLabel, rolePairs, SITE_ROLES, sitePaletteIssues } from "@/themes/site-palette";
 
@@ -34,7 +34,6 @@ export type ThemeColors = { name: string; color: PaletteColors; palette: Palette
 export type HighlightInfo = { role: BaseKey | null; count: number; uses: string[] };
 
 const NUANCE_ORDER: NuanceKey[] = ["bgDeep", "line", "inkSoft", "shadow", "primaryHover", "onPrimary", "eyebrow", "scrim", "onScrim"];
-const ratioText = (n: number) => n.toFixed(2).replace(".", ",");
 
 export function ColorsPanel({
   theme,
@@ -118,7 +117,7 @@ export function ColorsPanel({
         <div className="a-field-error lc-ignored" role="alert" data-testid="palette-ignored">
           <p>
             <strong>Ces couleurs ne sont pas appliquées sur le site en ligne.</strong> Avec le thème actif « {theme.name} » (changé depuis qu&apos;elles ont été choisies, ou modifié), elles rendent du texte illisible
-            ({worstIssue.label.toLowerCase()} : {ratioText(worstIssue.ratio)}:1, il faut au moins {ratioText(AA)}:1) : le site montre alors les couleurs du thème. La mise en ligne est refusée tant que ce n&apos;est pas corrigé.
+            (<span title={ratioTip(worstIssue.ratio)}>{worstIssue.label.toLowerCase()} : lisibilité insuffisante</span>) : le site montre alors les couleurs du thème. La mise en ligne est refusée tant que ce n&apos;est pas corrigé.
           </p>
           <p>Ajuste les couleurs signalées ci-dessous, ou reviens aux couleurs du thème.</p>
         </div>
@@ -161,8 +160,8 @@ export function ColorsPanel({
                 </p>
               )}
               {!isOpen && failing.length > 0 && (
-                <p className="lc-warn" role="status">
-                  Contraste insuffisant ({ratioText(lowest)}:1).
+                <p className="lc-warn" role="status" title={ratioTip(lowest)}>
+                  Lisibilité : insuffisante.
                 </p>
               )}
               {isOpen && (
@@ -186,13 +185,13 @@ export function ColorsPanel({
                   </div>
                   {pairs.length > 0 &&
                     (failing.length === 0 ? (
-                      <p className="lc-ok" role="status" data-testid="contrast-status">
-                        Contraste suffisant : {ratioText(lowest)}:1 au plus bas (AA : {ratioText(AA)}:1).
+                      <p className="lc-ok" role="status" data-testid="contrast-status" title={ratioTip(lowest)}>
+                        Lisibilité : {pairsReadability(pairs).label}.
                       </p>
                     ) : (
                       <div className="a-field-error lc-alert" role="alert" data-testid="contrast-status">
-                        <p>
-                          Contraste insuffisant (minimum {ratioText(AA)}:1) : {failing.map((p) => `${p.label.toLowerCase()} ${ratioText(p.ratio)}:1`).join(", ")}. Du texte serait difficile à lire ; la mise en ligne sera refusée tant que ce n&apos;est pas corrigé.
+                        <p title={ratioTip(lowest)}>
+                          Lisibilité insuffisante : {failing.map((p) => p.label.toLowerCase()).join(", ")}. Du texte serait difficile à lire ; la mise en ligne sera refusée tant que ce n&apos;est pas corrigé.
                         </p>
                         {fixed ? (
                           <button

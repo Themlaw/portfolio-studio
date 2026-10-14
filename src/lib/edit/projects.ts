@@ -168,7 +168,7 @@ export function deleteProject(id: number): ActionResult<{ title: string }> | { o
   if (references.length) {
     return {
       ok: false,
-      message: `Ce projet est affiché par ${references.length} bloc${references.length > 1 ? "s" : ""} : retire-le de ces blocs avant de le supprimer.`,
+      message: `Ce projet est affiché par ${references.length} rubrique${references.length > 1 ? "s" : ""} : retire-le de ces rubriques avant de le supprimer.`,
       references,
     };
   }
@@ -280,7 +280,7 @@ export function setSlotMedia(slotId: number, mediaId: unknown): ActionResult<{ p
   if (parsed.data !== null) {
     const target = db.select({ status: schema.media.status, kind: schema.media.kind, deletedAt: schema.media.deletedAt }).from(schema.media).where(eq(schema.media.id, parsed.data)).get();
     if (!target || target.deletedAt) return fail("Cette image n'existe plus : recharge la médiathèque.");
-    if (target.kind === "pdf") return fail("Un PDF ne se place pas dans une planche : utilise le bloc « CV ».");
+    if (target.kind === "pdf") return fail("Un PDF ne se place pas dans une planche : utilise la rubrique « CV ».");
     if (target.status === "failed") return fail("Ce média est en échec : relance-le depuis la médiathèque avant de le placer.");
   }
   // Retirer l'image garde le ratio de la place (aspect inchangé) ; une

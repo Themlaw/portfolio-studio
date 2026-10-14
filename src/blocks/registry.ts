@@ -362,7 +362,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Component: ContactFormBlock,
       Editor: ContactFormEditor,
       label: "Formulaire de contact (ancien)",
-      description: "Ancien bloc, remplacé par « Contact » avec l'option formulaire.",
+      description: "Ancienne rubrique, remplacée par « Contact » avec l'option formulaire.",
       defaults: defaultContactForm(),
       summary: "{title} · {fields} champs",
       inline: ["eyebrow", "title", "intro", "submit", "success", "error", "fields.*.label", "fields.*.help"],

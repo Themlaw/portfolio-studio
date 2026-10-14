@@ -82,7 +82,7 @@ export default function CollectionTiles({
   );
   /** Couverture (lot 26), depuis la tuile : choisir une image, ou revenir à celle de la collection. */
   const coverTools = (tile: Tile) => (
-    <span className="pe-tile-cover" role="group" aria-label={`Couverture de « ${tile.title} »`}>
+    <span className="pe-tile-cover" role="group" aria-label={`Couverture de l'entrée « ${tile.title} »`}>
       <button type="button" data-edit-tile-op="cover" data-index={tile.itemIndex} data-page-id={tile.pageId} title="Choisir l'image de couverture de cette entrée dans la médiathèque, ou en envoyer une">
         Changer la couverture
       </button>

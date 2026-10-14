@@ -150,7 +150,7 @@ export default function ProjectsManager({
                       {p.title}
                     </Link>
                   </h2>
-                  {showFeatured && p.featured && <span className="a-badge">À la une de l&apos;ancien bloc</span>}
+                  {showFeatured && p.featured && <span className="a-badge">À la une de l&apos;ancienne rubrique</span>}
                 </div>
                 <p className="muted">{[p.context, p.year].filter(Boolean).join(" · ")}</p>
                 <p className="a-help">
@@ -278,12 +278,12 @@ export default function ProjectsManager({
         {removing && removing.blockedBy.length > 0 ? (
           <div className="a-alert" role="alert" data-testid="suppression-bloquee">
             <p>
-              Ce projet est affiché par {removing.blockedBy.length} bloc{removing.blockedBy.length > 1 ? "s" : ""} : retire-le de ces blocs avant de le supprimer.
+              Ce projet est affiché par {removing.blockedBy.length} rubrique{removing.blockedBy.length > 1 ? "s" : ""} : retire-le de ces rubriques avant de le supprimer.
             </p>
             <ul className="a-refs">
               {removing.blockedBy.map((r, i) => (
                 <li key={i}>
-                  Bloc « {r.blockType} » de la page <Link href={r.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${r.pageId}/editer`}>{r.pageTitle}</Link>
+                  Rubrique « {r.blockType} » de la page <Link href={r.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${r.pageId}/editer`}>{r.pageTitle}</Link>
                   {r.trashed && <span className="muted"> (à la corbeille)</span>}
                 </li>
               ))}

@@ -169,7 +169,8 @@ async function heroScenario(label, themeName, variant) {
   ok(`A ${label} : petits textes à halo sur le fond`, await until(f, () => document.querySelector(".hero .eyebrow")?.classList.contains("hero-halo") === true));
   ok(`A ${label} : avertissement de lisibilité (damier)`, await until(f, () => Boolean(document.querySelector('[data-testid="hero-contrast-warning"]')), null, 30000));
   const warn = await f.locator('[data-testid="hero-contrast-warning"]').textContent().catch(() => "");
-  ok(`A ${label} : avertissement chiffré (ratio, seuil)`, /\d,\d+:1.*il faut (4,5|3):1/.test(warn ?? ""), warn ?? "");
+  const warnTip = (await f.locator('[data-testid="hero-contrast-warning"]').getAttribute("title").catch(() => "")) ?? "";
+  ok(`A ${label} : avertissement en mots (pas de ratio dans le texte), ratio et seuil en info-bulle`, /peu lisible/.test(warn ?? "") && !/:1/.test(warn ?? "") && /Contraste \d+,\d:1 \(il faut au moins (4,5|3,0):1\)/.test(warnTip), `${warn} | ${warnTip}`);
   await page.screenshot({ path: `${SHOTS}/A-${label}-damier.png` });
   // Cadrage (point focal + zoom), comme les autres images.
   await f.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));

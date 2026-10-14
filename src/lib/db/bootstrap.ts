@@ -56,11 +56,12 @@ const DATA_MIGRATIONS: Record<string, () => void> = {
   "0023_blocs_fusion": () => {
     const r = mergeBlocks(getSqlite());
     console.log(
-      `[db] 0023 : « Formulaire de contact » fusionné dans « Contact » (${r.forms}), champs facultatifs vides retirés (Grille, Contact, Profil, CV : ${r.emptied} bloc(s) de plus), ` +
+      `[db] 0023 : « Formulaire de contact » fusionné dans « Contact » (${r.forms}), champs facultatifs vides retirés (Grille, Contact, Profil, CV : ${r.emptied} rubrique(s) de plus), ` +
         `${r.published} ligne(s) publiée(s) et ${r.drafts} brouillon(s) réécrits` +
-        (r.legacy ? `, ${r.legacy} ancien(s) bloc(s) laissé(s) en lecture (page de plus de 40 blocs une fois déballée)` : ""),
+        (r.legacy ? `, ${r.legacy} ancienne(s) rubrique(s) laissée(s) en lecture (page de plus de 40 rubriques une fois déballée)` : ""),
     );
   },
+  // 0024_corbeille : SQL seul (colonnes deleted_at / trashed_in_menu), aucune migration de contenu.
   "0021_unwrap_containers": () => {
     const r = unwrapContainers(getSqlite());
     console.log(

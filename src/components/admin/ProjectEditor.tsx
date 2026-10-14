@@ -96,8 +96,8 @@ function ProjectMeta({ project, legacyFeatured }: { project: AdminProjectEdit; l
           {/* Le réglage ne sert qu'à l'ancien bloc « Projets mis en avant » (sans projets choisis) : sans lui, il n'a plus d'effet. */}
           {legacyFeatured.length > 0 && (
             <Toggle
-              label="À la une de l'ancien bloc « Projets mis en avant »"
-              help={`Cet ancien bloc, encore présent sur ${legacyFeatured.map((p) => `« ${p.pageTitle} »`).join(", ")}, affiche en premier les projets cochés ici. Les blocs « Planche d'un projet » n'en tiennent pas compte.`}
+              label="À la une de l'ancienne rubrique « Projets mis en avant »"
+              help={`Cette ancienne rubrique, encore présente sur ${legacyFeatured.map((p) => `« ${p.pageTitle} »`).join(", ")}, affiche en premier les projets cochés ici. Les rubriques « Planche d'un projet » n'en tiennent pas compte.`}
               checked={meta.featured}
               onChange={(v) => set("featured", v)}
             />
@@ -367,7 +367,7 @@ function SlotPanel({
       </div>
       <Toggle
         label={`Couverture de « ${COLLECTIONS.find((c) => c.value === form.collection)?.label ?? form.collection} »`}
-        help={`Cette image illustre la tuile « ${COLLECTIONS.find((c) => c.value === form.collection)?.label ?? form.collection} » de l'accueil (bloc « Entrées des collections »). Si plusieurs images sont cochées, c'est la première de la collection qui sert ; aucune cochée : la première image de la collection.`}
+        help={`Cette image illustre la tuile « ${COLLECTIONS.find((c) => c.value === form.collection)?.label ?? form.collection} » de l'accueil (rubrique « Entrées des collections »). Si plusieurs images sont cochées, c'est la première de la collection qui sert ; aucune cochée : la première image de la collection.`}
         checked={form.featured}
         onChange={(v) => set("featured", v)}
       />

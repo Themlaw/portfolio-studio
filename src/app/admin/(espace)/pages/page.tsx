@@ -12,7 +12,7 @@ export default async function PagesPage({ searchParams }: { searchParams: Promis
     <>
       <PageHeader
         title="Pages"
-        intro="Organise les pages de ton site : leur place dans le menu, leur adresse en français et en anglais, et les blocs qui les composent."
+        intro="Organise les pages de ton site : leur place dans le menu, leur adresse en français et en anglais, et les rubriques qui les composent."
       />
       <TrashViews base="/admin/pages" label="Pages" view={view} trashCount={trashed.length} />
       <PagesManager pages={listPagesForAdmin()} trashed={trashed} view={view} summary={getTrashSummary()} />

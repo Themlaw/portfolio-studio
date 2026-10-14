@@ -305,4 +305,37 @@ await test("définitif : une page encore citée reste ; « vider » supprime tou
   assert.equal(getTrashSummary().total, 0);
 });
 
+/* ---- 6. Références du lot 26 : logo du site et couverture d'une tuile (intégration v0.20) --------------------- */
+await test("logo du site et couverture d'une tuile comptés comme usages : compteur, détail, suppression et purge refusées", async () => {
+  const home = db.select().from(schema.pages).all().find((p) => p.slug.fr === "").id;
+  const setStyles = (v) => db.insert(schema.settings).values({ key: "styles", value: JSON.stringify(v) }).onConflictDoUpdate({ target: schema.settings.key, set: { value: JSON.stringify(v) } }).run();
+  const before = db.select().from(schema.settings).where(eq(schema.settings.key, "styles")).get()?.value;
+  // Logo publié.
+  const logo = addMedia("logo.png", "1090109010901090");
+  setStyles({ logo: { mediaId: logo.id } });
+  assert.equal(mediaUsagesByMedia().get(logo.id)?.length, 1, "le logo compte (compteur de la médiathèque)");
+  assert.deepEqual(getMediaUses(logo.id).map((u) => [u.kind, u.blockType, u.pageId]), [["block", "Logo du site", home]]);
+  const refused = await deleteMedia(logo.id);
+  assert.equal(refused.ok, false);
+  assert.equal(refused.references.length, 1);
+  assert.equal(db.select().from(schema.media).where(eq(schema.media.id, logo.id)).get().deletedAt, null, "pas à la corbeille");
+  // Logo seulement dans le brouillon du site, tenu par une page.
+  setStyles({});
+  db.insert(schema.settings).values({ key: "siteDraft", value: JSON.stringify({ pageId: home, snap: { styles: { logo: { mediaId: logo.id } } } }) }).run();
+  assert.equal(mediaUsagesByMedia().get(logo.id)?.length, 1, "le brouillon du site compte aussi");
+  assert.equal((await deleteMedia(logo.id)).ok, false);
+  db.delete(schema.settings).where(eq(schema.settings.key, "siteDraft")).run();
+  // Couverture choisie sur une tuile de collection (items[].mediaId, manuel).
+  const cover = addMedia("couv.png", "1090109010902090");
+  db.insert(schema.blocks).values({ pageId: home, position: 97, type: "collection-tiles", props: JSON.stringify({ items: [{ pageId: home, mediaId: cover.id }] }) }).run();
+  assert.equal(mediaUsagesByMedia().get(cover.id)?.length, 1, "couverture de tuile comptée (une fois par page et par type)");
+  assert.equal((await deleteMedia(cover.id)).ok, false);
+  db.delete(schema.blocks).where(eq(schema.blocks.position, 97)).run();
+  // Libres : corbeille possible, mais le logo ne peut plus choisir une image à la corbeille.
+  assert.equal((await deleteMedia(cover.id)).ok, true);
+  assert.equal(mediaUsagesByMedia().get(cover.id), undefined);
+  if (before === undefined) db.delete(schema.settings).where(eq(schema.settings.key, "styles")).run();
+  else setStyles(JSON.parse(before));
+});
+
 console.log(`\ntest-trash : ${passed} tests OK`);

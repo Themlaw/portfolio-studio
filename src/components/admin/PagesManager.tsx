@@ -185,7 +185,7 @@ function TrashList({ pages, summary }: { pages: AdminPageRow[]; summary: TrashSu
                     >
                       Restaurer
                     </button>
-                    <PurgeItem kind="page" id={p.id} name={p.title} lost={`ses ${p.blocks} bloc${p.blocks > 1 ? "s" : ""} et son brouillon disparaissent.`} />
+                    <PurgeItem kind="page" id={p.id} name={p.title} lost={`ses ${p.blocks} rubrique${p.blocks > 1 ? "s" : ""} et son brouillon disparaissent.`} />
                   </td>
                 </tr>
               ))}
@@ -311,7 +311,7 @@ export default function PagesManager({ pages, trashed, view, summary }: { pages:
                     <Link href={`/admin/pages/${p.id}/editer`} className="a-strong-link">
                       {p.title}
                     </Link>
-                    <span className="muted"> · {p.blocks} bloc{p.blocks > 1 ? "s" : ""}</span>
+                    <span className="muted"> · {p.blocks} rubrique{p.blocks > 1 ? "s" : ""}</span>
                     {p.hasDraft && (
                       <>
                         {" "}
@@ -416,12 +416,12 @@ export default function PagesManager({ pages, trashed, view, summary }: { pages:
         {pending && pending.page.blockedBy.length > 0 ? (
           <div className="a-alert" role="alert" data-testid="suppression-bloquee">
             <p>
-              Cette page est utilisée par {pending.page.blockedBy.length} bloc{pending.page.blockedBy.length > 1 ? "s" : ""} : retire ces liens avant de la supprimer.
+              Cette page est utilisée par {pending.page.blockedBy.length} rubrique{pending.page.blockedBy.length > 1 ? "s" : ""} : retire ces liens avant de la supprimer.
             </p>
             <ul className="a-refs">
               {pending.page.blockedBy.map((r, i) => (
                 <li key={i}>
-                  Bloc « {r.blockType} » de la page <Link href={r.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${r.pageId}/editer`}>{r.pageTitle}</Link>
+                  Rubrique « {r.blockType} » de la page <Link href={r.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${r.pageId}/editer`}>{r.pageTitle}</Link>
                   {r.trashed && <span className="muted"> (à la corbeille)</span>}
                 </li>
               ))}

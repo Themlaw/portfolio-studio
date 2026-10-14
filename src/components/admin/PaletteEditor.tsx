@@ -10,6 +10,7 @@
  */
 import { useId, useState, type CSSProperties } from "react";
 
+import { pairsReadability, ratioTip, readability } from "@/components/edit/readability";
 import { FREE_FORMAT_HINT, OPAQUE_HEX, PICKER_FALLBACK, THEME_COLOR } from "@/themes/color-format";
 import { AA, adjustToken, pairsForToken } from "@/themes/contrast";
 import { contrastRatio, isAuto, PALETTE_GROUPS, resolvePalette, ROLE_NAMES, setBase, setNuance, type BaseKey, type NuanceKey, type NuanceSpec, type PaletteKey, type ResolvedPalette } from "@/themes/palette";
@@ -100,13 +101,13 @@ export function ColorField({ tokenKey, label, help, free, value, contrastColors,
           onBlur={() => setDraft(null)}
         />
         {pairs.length > 0 && (
-          <span className={`a-ratio ${failing.length ? "a-ratio-bad" : "a-ratio-ok"}`} title={pairs.map((p) => `${p.label} : ${p.ratio.toFixed(2)}:1`).join("\n")}>
-            {failing.length ? "✗" : "✓"} {worst.toFixed(1)}:1
+          <span className={`a-ratio ${failing.length ? "a-ratio-bad" : "a-ratio-ok"}`} title={pairs.map((p) => `${p.label} : ${ratioTip(p.ratio)}`).join("\n")}>
+            {failing.length ? "✗" : "✓"} Lisibilité : {pairsReadability(pairs).label}
           </span>
         )}
         {extra && (
-          <span className={`a-ratio ${extraBad ? "a-ratio-bad" : "a-ratio-ok"}`} title={`${extra.label} : ${extra.ratio.toFixed(2)}:1`}>
-            {extraBad ? "✗" : "✓"} {extra.ratio.toFixed(1)}:1
+          <span className={`a-ratio ${extraBad ? "a-ratio-bad" : "a-ratio-ok"}`} title={`${extra.label} : ${ratioTip(extra.ratio)}`}>
+            {extraBad ? "✗" : "✓"} {extra.label} : lisibilité {readability(extra.ratio).label}
           </span>
         )}
       </div>
@@ -123,14 +124,14 @@ export function ColorField({ tokenKey, label, help, free, value, contrastColors,
       )}
       {!valid && <p className="a-field-error">Couleur attendue au format {free ? FREE_FORMAT_HINT : "#rrggbb"}.</p>}
       {extraBad && extra && (
-        <p className="a-field-error" role="alert">
-          Texte illisible sur le voile : {extra.ratio.toFixed(2)}:1, il faut au moins {AA}:1.
+        <p className="a-field-error" role="alert" title={ratioTip(extra.ratio)}>
+          Texte illisible sur le voile : lisibilité insuffisante.
         </p>
       )}
       {blamed && (
         <div className="a-field-error" role="alert">
-          <p>
-            Contraste insuffisant (minimum {AA}:1) : {failing.map((p) => `${p.label.toLowerCase()} ${p.ratio.toFixed(2)}:1`).join(", ")}.
+          <p title={ratioTip(worst)}>
+            Lisibilité insuffisante : {failing.map((p) => p.label.toLowerCase()).join(", ")}.
           </p>
           {fixed ? (
             <button type="button" className="a-btn a-btn-small a-fix" onClick={() => onChange(fixed)}>
@@ -225,7 +226,7 @@ export default function PaletteEditor({
     <>
       <p className="a-help a-panel-intro">
         Six couleurs de base et leurs nuances. Une nuance « auto » suit sa couleur de base ; change-la pour la choisir toi-même. Chaque texte doit rester lisible
-        sur chaque fond : au moins {AA}:1 (norme WCAG AA). Un indicateur rouge bloque l&apos;enregistrement.
+        sur chaque fond (norme WCAG AA ; le rapport exact est dans l&apos;info-bulle). Un indicateur rouge bloque l&apos;enregistrement.
       </p>
       <PaletteSample p={resolved} />
       <div className="a-pal-groups">

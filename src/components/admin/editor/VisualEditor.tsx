@@ -2164,7 +2164,7 @@ export default function VisualEditor({
                 {shownMedia.slice(0, 120).map((m) => (
                   <li
                     key={m.id}
-                    title={`${m.name} : clique pour la poser dans le bloc choisi (ou l'afficher), glisse-la sur une planche`}
+                    title={`${m.name} : clique pour la poser dans la rubrique choisie (ou l'afficher), glisse-la sur une planche`}
                     data-media={m.id}
                     data-status={m.status}
                     tabIndex={m.status === "failed" ? undefined : 0}
