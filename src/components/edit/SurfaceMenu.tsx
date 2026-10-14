@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * Fond d'une rubrique sur la toile (lot 17c) : bouton « Fond » de la barre d'outils du
- * bloc (pastille de la couleur courante) et son popover — interrupteur « Carte »,
+ * Carte d'une rubrique sur la toile (lot 17c ; bouton « Fond » jusqu'à la v0.19, renommé « Carte » au lot 26 : la
+ * couleur de la carte posée sous la rubrique, à ne pas confondre avec le « Fond du texte » de la barre d'un texte) :
+ * bouton « Carte » de la barre d'outils du bloc (pastille de la couleur courante) et son popover — interrupteur « Une carte sous la rubrique »,
  * couleurs de la DA du thème (avec leur nom) et teintes douces (CardColorChoices, lot 19b), « Autre couleur… » (ColorPicker), Pleine largeur /
  * En retrait, Coins droits / arrondis. Chaque choix est appliqué à l'instant (aperçu
  * optimiste, edit/optimistic.ts) et envoyé à l'éditeur (intention `surface`, validée par
@@ -47,14 +48,14 @@ function summary(cur: Surface | null, defaults: ResolvedSurface) {
   return { resolved, style: cardStyle(resolved.color, canvasPalette()) };
 }
 
-/** Bouton « Fond » de la barre d'outils : pastille de la couleur de la carte (ou du fond de la page). */
+/** Bouton « Carte » de la barre d'outils : pastille de la couleur de la carte (vide : pas de carte). */
 export function SurfaceButton({ uid, open, onToggle }: { uid: string; open: boolean; onToggle: () => void }) {
   const { surface, defaults } = surfaceState(uid);
   const s = summary(surface, defaults);
   return (
-    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} title="Fond de la rubrique : carte colorée sur le papier" onClick={onToggle}>
+    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} title="Carte de la rubrique : une carte colorée posée sur le papier du site" onClick={onToggle}>
       <span className="sm-dot" data-on={s ? "" : undefined} style={s ? { background: s.style.bg } : undefined} aria-hidden="true" />
-      Fond
+      Carte
       {s && !s.style.ok && (
         <span className="sm-alert" data-testid="surface-alert" title="Texte peu lisible sur cette couleur" aria-label="Texte peu lisible sur cette couleur">
           !
@@ -93,17 +94,17 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
   };
 
   return (
-    <div ref={ref} className="sm tc" role="dialog" aria-label="Fond de la rubrique" style={{ top }}>
+    <div ref={ref} className="sm tc" role="dialog" aria-label="Carte de la rubrique" style={{ top }}>
       <button type="button" role="switch" aria-checked={s !== null} className="sm-switch" onClick={() => change(s ? null : {})}>
         <span className="sm-switch-track" aria-hidden="true">
           <span />
         </span>
-        Carte
+        Une carte sous la rubrique
       </button>
       {s ? (
         <>
           <div className="tc-row">
-            <span className="sm-label">Couleur</span>
+            <span className="sm-label">Couleur de la carte</span>
             <CardColorChoices palette={canvasPalette()} value={s.resolved.color} onPick={(t) => patch({ color: t })} />
           </div>
           <div className="tc-row">
@@ -143,7 +144,7 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
           )}
         </>
       ) : (
-        <p className="sm-hint">Pose cette rubrique sur une carte colorée : le papier du site se voit autour.</p>
+        <p className="sm-hint">Pose cette rubrique sur une carte colorée : le papier du site se voit autour. La couleur du texte, elle, se règle sur le texte (« Fond du texte »).</p>
       )}
     </div>
   );

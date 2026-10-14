@@ -136,7 +136,24 @@ export const PALETTE_GROUPS: PaletteGroup[] = [
   },
 ];
 
+/** Libellés du KIT (calques du PSD) : ne pas changer, un kit exporté s'importe d'après eux. */
 export const BASE_LABELS: Record<BaseKey, string> = { bg: "Fond", surface: "Surface", ink: "Texte", primary: "Action", secondary: "Accent secondaire", tertiary: "Détails" };
+
+/**
+ * Vocabulaire de couleurs de l'artiste (lot 26) : LE nom de chacun des six rôles, dans l'ordre (`BASE_KEYS`), partout où une
+ * couleur du site est nommée dans l'interface (panneau « Couleurs », page d'un thème, couleur d'un texte, d'une carte, d'un
+ * fond de texte, aperçus, avertissements de contraste). Une seule source : jamais un second libellé.
+ */
+export const ROLE_NAMES: Record<BaseKey, string> = {
+  bg: "Fond de page",
+  surface: "Cartes et encadrés",
+  ink: "Texte",
+  primary: "Boutons et liens",
+  secondary: "Accent",
+  tertiary: "Ornements",
+};
+/** Nuances de couleur que la couleur d'un texte peut aussi prendre (après les six rôles). */
+export const NUANCE_NAMES = { "ink-soft": "Texte secondaire", eyebrow: "Étiquettes" } as const;
 
 export const isStoredNuance = (k: string): k is StoredNuance => (STORED_NUANCES as readonly string[]).includes(k);
 export const isOptionalNuance = (k: string): k is OptionalNuance => (OPTIONAL_NUANCES as readonly string[]).includes(k);

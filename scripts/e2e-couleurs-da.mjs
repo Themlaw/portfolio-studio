@@ -12,7 +12,7 @@
  *  C. Thème en ligne : « Enregistrer » demande une confirmation claire ; le site public ne change qu'après elle.
  *  D. Surcharge du site (17f) : avertissement « Le site remplace N de ces couleurs » avec lien, sans fusion silencieuse.
  *  E. Fonds de cartes : « Cartes des rubriques » (six couleurs de la DA nommées, huit teintes douces, jetons) et
- *     popover « Fond » de l'éditeur visuel ; la teinte suit un changement de palette (aperçu et rendu public).
+ *     popover « Carte » de l'éditeur visuel ; la teinte suit un changement de palette (aperçu et rendu public).
  *
  * Captures 1440 px : $SHOTS (défaut screenshots/couleurs19b).
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… [BASE=http://localhost:3250] [SHOTS=…] [ONLY=A,B] node scripts/e2e-couleurs-da.mjs
@@ -415,7 +415,7 @@ if (run("E"))
     ok("E6 enregistrée comme JETON (`tertiary25`), jamais un hex figé", await waitFor(() => themeData(COPY)?.tokens.layout?.card?.color === "tertiary25"), JSON.stringify(themeData(COPY)?.tokens.layout));
   });
 
-/* ---- Éditeur visuel : popover « Fond » ---------------------------------------------------------- */
+/* ---- Éditeur visuel : popover « Carte » ---------------------------------------------------------- */
 
 if (run("F"))
   await section("F", async () => {
@@ -453,9 +453,9 @@ if (run("F"))
     await fond.waitFor({ timeout: 30000 });
     await fond.click();
     const menu = f.locator(".sm");
-    await menu.getByRole("switch", { name: "Carte" }).click();
+    await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
     const cc = menu.locator('[data-testid="card-colors"]');
-    ok("F1 popover « Fond » : les six couleurs de la DA, nommées, en premier", JSON.stringify(await cc.locator('[data-testid="card-da-color"] .cc-name').allTextContents()) === JSON.stringify(["Fond de page", "Cartes et encadrés", "Texte", "Boutons et liens", "Accent", "Ornements"]));
+    ok("F1 popover « Carte » : les six couleurs de la DA, nommées, en premier", JSON.stringify(await cc.locator('[data-testid="card-da-color"] .cc-name').allTextContents()) === JSON.stringify(["Fond de page", "Cartes et encadrés", "Texte", "Boutons et liens", "Accent", "Ornements"]));
     ok("F1b suivies d'une rangée de huit teintes douces", (await cc.locator('[data-testid="card-tint"]').count()) === 8);
     await page.screenshot({ path: path.join(SHOTS, "3b-popover-fond-teintes-1440.png") });
     const cardBg = () => f.evaluate((u) => getComputedStyle(document.querySelector(`[data-edit-block="${u}"] > .surface-card`)).backgroundColor, uid);

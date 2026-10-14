@@ -294,7 +294,7 @@ export default function EditLayer() {
   const [tilePick, setTilePick] = useState<{ uid: string; top: number; left: number; items: { pageId: number; title: string }[] } | null>(null);
   const [projectPicker, setProjectPicker] = useState<string | null>(null);
   const [markBar, setMarkBar] = useState<MarkBar | null>(null);
-  /** Bloc dont le menu « Fond » (carte de rubrique) est ouvert ; `bump` redessine après un choix (aperçu optimiste). */
+  /** Bloc dont le menu « Carte » (carte de rubrique) est ouvert ; `bump` redessine après un choix (aperçu optimiste). */
   const [surfaceFor, setSurfaceFor] = useState<string | null>(null);
   const [, bump] = useState(0);
   /** « + » proposé entre deux rubriques sous le pointeur. */
@@ -875,8 +875,11 @@ export default function EditLayer() {
         const host = (tileOp ?? tileAdd)!;
         const uid = host.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
         if (uid && tileOp) {
-          const op = tileOp.dataset.editTileOp as "remove" | "up" | "down";
-          post({ kind: "tile-op", uid, op, index: Number(tileOp.dataset.index) });
+          const op = tileOp.dataset.editTileOp as "remove" | "up" | "down" | "cover" | "cover-clear";
+          // Couverture (lot 26) : l'entrée se désigne par son rang (liste manuelle) ou par sa page (automatique).
+          const index = tileOp.dataset.index !== undefined ? Number(tileOp.dataset.index) : undefined;
+          const pageId = tileOp.dataset.pageId !== undefined ? Number(tileOp.dataset.pageId) : undefined;
+          post({ kind: "tile-op", uid, op, ...(index !== undefined && Number.isInteger(index) ? { index } : {}), ...(pageId !== undefined && Number.isInteger(pageId) ? { pageId } : {}) });
         } else if (uid && tileAdd && !(tileAdd as HTMLButtonElement).disabled) {
           const r = tileAdd.getBoundingClientRect();
           let items: { pageId: number; title: string }[] = [];
@@ -939,7 +942,7 @@ export default function EditLayer() {
     };
     const onSubmit = (e: Event) => e.preventDefault();
     const onKey = (e: KeyboardEvent) => {
-      // Menu « Fond » : ses touches (Échap, Suppr…) sont les siennes, pas celles du bloc (useDismiss le ferme).
+      // Menu « Carte » : ses touches (Échap, Suppr…) sont les siennes, pas celles du bloc (useDismiss le ferme).
       if (e.target instanceof Element && e.target.closest(".sm")) return;
       const mod = e.ctrlKey || e.metaKey;
       // Saisie dans un champ de la couche (planche neuve, texte posé par-dessus) : rien ici.

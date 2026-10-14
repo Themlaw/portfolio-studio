@@ -4,12 +4,13 @@
  * les laisse vides (ils gardent leur place). Original et variantes sont
  * supprimés du stockage.
  */
-import { and, eq, isNotNull, isNull, like, or } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, like, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { BLOCKS } from "@/blocks/registry";
 import { getDb, schema } from "@/lib/db";
 import { purgeCrops } from "@/lib/images/crop-cache";
+import { parseJson } from "@/lib/json";
 import { parseVariants } from "@/lib/images/variants";
 import { own } from "@/lib/own";
 import { findMediaUsages } from "@/lib/references";
@@ -65,7 +66,19 @@ export async function deleteMedia(
       .where(and(isNotNull(schema.slots.draftPageId), or(eq(schema.slots.draftMediaId, id), and(eq(schema.slots.draftState, "added"), eq(schema.slots.mediaId, id)))))
       .all()
       .map((s) => ({ kind: "block" as const, blockId: -s.id, pageId: s.pageId as number, type: "project-board", path: "media" as const }));
-    if (blocks.length || drafts.length) return { kind: "blocked" as const, blocks: [...blocks, ...drafts] };
+    // Logo du site (lot 26) : l'image du logo, publiée (`styles`) ou dans le brouillon du site (`siteDraft`, tenu par une page).
+    const home = tx.select({ id: schema.pages.id }).from(schema.pages).orderBy(schema.pages.id).get()?.id ?? 0;
+    const logos = tx
+      .select()
+      .from(schema.settings)
+      .where(inArray(schema.settings.key, ["styles", "siteDraft"]))
+      .all()
+      .flatMap((r) => {
+        const v = parseJson(r.value) as { logo?: { mediaId?: unknown }; pageId?: number; snap?: { styles?: { logo?: { mediaId?: unknown } } } } | null;
+        const used = r.key === "styles" ? v?.logo?.mediaId === id : v?.snap?.styles?.logo?.mediaId === id;
+        return used ? [{ kind: "block" as const, blockId: -1, pageId: r.key === "styles" ? home : (v?.pageId ?? home), type: "Logo du site", path: "media" as const }] : [];
+      });
+    if (blocks.length || drafts.length || logos.length) return { kind: "blocked" as const, blocks: [...blocks, ...drafts, ...logos] };
     const slots = usages.flatMap((u) => (u.kind === "slot" ? [u] : []));
     // Les emplacements vidés gardent la largeur de l'image.
     if (media.width && media.height) {

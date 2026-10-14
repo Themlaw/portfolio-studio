@@ -2,7 +2,7 @@
 
 /**
  * « Cartes des rubriques » d'un thème (lot 17c) : couleur, largeur et coins que prend une rubrique quand on
- * active sa carte sans rien choisir (bouton « Fond » sur la page). Stocké dans `tokens.layout.card` ; ne change
+ * active sa carte sans rien choisir (bouton « Carte » sur la page). Stocké dans `tokens.layout.card` ; ne change
  * rien aux rubriques sans carte ni aux thèmes livrés. Une carte qui garde un texte illisible est signalée.
  */
 import CardColorChoices from "@/components/edit/CardColorChoices";
@@ -37,7 +37,7 @@ export default function CardSettings({ theme, onChange, sitePalette }: { theme: 
     <section className="a-panel" aria-labelledby="t-cartes">
       <h2 id="t-cartes">Cartes des rubriques</h2>
       <p className="a-help">
-        Une rubrique peut être posée sur une carte colorée (bouton « Fond » sur la page). Voici ce qu&apos;elle prend quand on active la carte sans
+        Une rubrique peut être posée sur une carte colorée (bouton « Carte » sur la page). Voici ce qu&apos;elle prend quand on active la carte sans
         rien choisir de plus. Les rubriques sans carte ne changent pas.
       </p>
       <div className="a-field">

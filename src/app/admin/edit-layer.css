@@ -800,6 +800,64 @@ html[data-edit-mode] .pe-tile-tools:focus-within {
   position: relative;
 }
 
+.pe-tile-empty-why {
+  display: block;
+  margin-top: 4px;
+  font-weight: 400;
+}
+
+/* Couverture d'une entrée (lot 26) : « Changer la couverture » au survol de la tuile, en haut à gauche (les outils d'entrée sont à droite). */
+html[data-edit-mode] .pe-tile-cover {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: calc(100% - 140px);
+  padding: 4px;
+  border-radius: 8px;
+  background: #1f2226;
+  box-shadow: 0 6px 18px rgba(31, 34, 38, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+html[data-edit-mode] .tile:hover .pe-tile-cover,
+html[data-edit-mode] .pe-tile-cover:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  html[data-edit-mode] .pe-tile-cover {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.pe-tile-cover button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #e6e8eb;
+  font: 600 12.5px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pe-tile-cover button:hover,
+.pe-tile-cover button:focus-visible {
+  background: rgba(255, 255, 255, 0.14);
+  outline: none;
+}
+
 .pe-tile-add-row {
   display: flex;
   align-items: center;

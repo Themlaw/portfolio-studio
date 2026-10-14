@@ -15,11 +15,13 @@
  * alors les couleurs COURANTES du formulaire (aperçu compris), `baseline` celles enregistrées (« modifiée » =
  * différente de l'enregistré), et `onChange` reçoit un correctif ({ rôle: couleur }) à poser sur ces couleurs.
  *
- * Logo : taille (curseur) et comportement (fixe, réduit au défilement, déborde sous le bandeau).
+ * Logo : image (médiathèque ou envoi, lot 26 ; retirée : le logo texte ou celui du thème), taille (curseur) et comportement
+ * (fixe, réduit au défilement, déborde sous le bandeau).
  */
 import { useEffect, useState } from "react";
 
 import { SolidColorPicker } from "@/components/edit/ColorPicker";
+import type { AdminMediaRow } from "@/lib/admin";
 import { LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, type Logo, type PaletteColor, type SitePalette } from "@/lib/look";
 import { AA } from "@/themes/contrast";
 import type { BaseKey, NuanceKey, PaletteColors, PaletteState } from "@/themes/palette";
@@ -255,9 +257,27 @@ const MODE_HELP: Record<(typeof LOGO_MODES)[number], string> = {
   overhang: "Le logo dépasse un peu sous la barre du haut.",
 };
 
-export function LogoPanel({ value, onChange, locked }: { value: Logo; onChange: (next: Logo) => void; locked: string | null }) {
+export function LogoPanel({
+  value,
+  onChange,
+  locked,
+  media = [],
+  signature = false,
+  onChooseImage,
+}: {
+  value: Logo;
+  onChange: (next: Logo) => void;
+  locked: string | null;
+  /** Médiathèque (nom et vignette de l'image choisie). */
+  media?: AdminMediaRow[];
+  /** Le thème actif dessine sa propre signature : retirer l'image y revient (sinon : le nom du site en texte). */
+  signature?: boolean;
+  /** Ouvre le choix d'une image (médiathèque ou envoi) ; absent : la section image n'est pas montrée. */
+  onChooseImage?: () => void;
+}) {
   const size = value.size ?? LOGO_SIZE_DEFAULT;
   const mode = value.mode ?? "fixed";
+  const image = value.mediaId !== undefined ? (media.find((m) => m.id === value.mediaId) ?? null) : null;
   return (
     <section className="lp lp-logo" aria-labelledby="lp-logo-title" data-testid="logo-panel">
       <h3 id="lp-logo-title" className="lp-title">
@@ -267,6 +287,34 @@ export function LogoPanel({ value, onChange, locked }: { value: Logo; onChange: 
         La signature de l&apos;en-tête, ou le nom du site quand le thème n&apos;en a pas. Tu peux aussi le régler sur la page : poignée sous le logo.
       </p>
       {locked && <p className="a-field-error">Le logo est en cours de modification sur la page « {locked} ».</p>}
+      {onChooseImage && (
+        <div className="lp-field lc-logo-image" data-testid="logo-image">
+          <span className="lp-label">Image du logo</span>
+          {value.mediaId !== undefined ? (
+            <div className="lc-logo-current">
+              {image?.thumb ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="lc-logo-thumb" src={image.thumb} alt="" data-testid="logo-thumb" />
+              ) : (
+                <span className="lc-logo-thumb lc-logo-missing" aria-hidden="true" />
+              )}
+              <span className="lc-logo-name">{image ? image.name : "Image introuvable (retirée de la médiathèque)"}</span>
+            </div>
+          ) : (
+            <small className="lp-hint">{signature ? "Le logo est celui du thème (une signature dessinée)." : "Le logo est le nom du site, écrit en texte."} Remplace-le par ton image.</small>
+          )}
+          <div className="lc-logo-actions">
+            <button type="button" className="a-btn a-btn-small" data-testid="logo-choose" onClick={onChooseImage}>
+              {value.mediaId !== undefined ? "Remplacer l'image…" : "Choisir une image…"}
+            </button>
+            {value.mediaId !== undefined && (
+              <button type="button" className="a-btn a-btn-small a-btn-quiet" data-testid="logo-revert" onClick={() => onChange({ ...value, mediaId: undefined })}>
+                {signature ? "Revenir au logo du thème" : "Revenir au logo texte"}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       <div className="lp-field">
         <label className="lp-label" htmlFor="lp-logo-size">
           Taille

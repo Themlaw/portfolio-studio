@@ -219,7 +219,7 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
   if (data.accent) {
     const colors = activeColors();
     const problem = colors ? accentProblem(data.accent, colors) : null;
-    if (problem) errors.accent = `${problem} Choisis une teinte plus contrastée ou retire l'accent.`;
+    if (problem) errors.accent = `${problem} Choisis une teinte plus contrastée ou retire cette couleur.`;
   }
 
   // Blocs : forme de l'arbre (conteneurs), type connu, props valides, références existantes.

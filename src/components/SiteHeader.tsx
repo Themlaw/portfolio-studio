@@ -4,14 +4,19 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import LocaleSwitcher from "@/components/LocaleSwitcher";
+import Picture from "@/components/Picture";
 import SocialIcon from "@/components/SocialIcon";
 import { Link, usePathname } from "@/i18n/navigation";
 import type { AppLocale } from "@/i18n/routing";
+import type { PictureSources } from "@/lib/images/variants";
 import type { Social } from "@/lib/settings";
 import { navKeyOf, uniqueKeys } from "@/lib/site-schema";
 
 /** Entrée de menu : chemin sans langue (ou adresse externe) et libellé, construits depuis la base. */
 export type HeaderNavItem = { id?: string; href: string; label: string; external?: boolean; pageId?: number };
+
+/** Image du logo choisie dans l'éditeur (lot 26) : remplace la signature du thème et le nom en texte. */
+export type HeaderLogo = { src: string; sources: PictureSources | null; width: number; height: number };
 
 export default function SiteHeader({
   siteName,
@@ -19,6 +24,7 @@ export default function SiteHeader({
   alternates,
   socials = [],
   edit = false,
+  logo,
 }: {
   siteName: string;
   nav: HeaderNavItem[];
@@ -28,6 +34,8 @@ export default function SiteHeader({
   socials?: Social[];
   /** Vue brouillon de l'éditeur : repères de l'en-tête (commun à toutes les pages). Jamais en public. */
   edit?: boolean;
+  /** Image du logo (réglage du site) ; absente : signature du thème ou nom du site en texte. */
+  logo?: HeaderLogo;
 }) {
   const t = useTranslations("nav");
   const pathname = usePathname();
@@ -60,6 +68,7 @@ export default function SiteHeader({
         <Link
           href="/"
           className="site-brand font-display text-lg md:text-xl leading-none text-ink hover:text-primary transition-colors"
+          {...(logo ? { "data-logo-image": "" } : {})}
         >
           {/* Signature dessinée (kit) : affichée par variants.css quand le thème
               en a une ; le nom reste alors lisible des lecteurs d'écran. */}
@@ -67,6 +76,7 @@ export default function SiteHeader({
             {siteName}
           </span>
           <span className="site-signature" aria-hidden="true" />
+          {logo && <Picture src={logo.src} sources={logo.sources} alt="" width={logo.width} height={logo.height} sizes="18rem" className="site-logo-img" priority />}
         </Link>
 
         <nav

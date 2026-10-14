@@ -12,7 +12,7 @@ import { useId, useState, type CSSProperties } from "react";
 
 import { FREE_FORMAT_HINT, OPAQUE_HEX, PICKER_FALLBACK, THEME_COLOR } from "@/themes/color-format";
 import { AA, adjustToken, pairsForToken } from "@/themes/contrast";
-import { contrastRatio, isAuto, PALETTE_GROUPS, resolvePalette, setBase, setNuance, type BaseKey, type NuanceKey, type NuanceSpec, type PaletteKey, type ResolvedPalette } from "@/themes/palette";
+import { contrastRatio, isAuto, PALETTE_GROUPS, resolvePalette, ROLE_NAMES, setBase, setNuance, type BaseKey, type NuanceKey, type NuanceSpec, type PaletteKey, type ResolvedPalette } from "@/themes/palette";
 import type { Theme } from "@/themes/schema";
 
 type Colors = Theme["tokens"]["color"];
@@ -24,14 +24,14 @@ const HEX = OPAQUE_HEX;
 const FREE = THEME_COLOR;
 const expand = (hex: string) => (hex.length === 4 ? `#${[...hex.slice(1)].map((c) => c + c).join("")}` : hex);
 
-/** Libellés des bases dans l'éditeur (identiques à ceux d'avant la palette : tests, habitudes). */
+/** Libellés des bases : le vocabulaire unique des six rôles (`ROLE_NAMES`, lot 26), comme le panneau « Couleurs ». */
 const BASE_FIELD: Record<BaseKey, { label: string; free?: boolean }> = {
-  bg: { label: "Fond" },
-  surface: { label: "Surface" },
-  ink: { label: "Texte" },
-  primary: { label: "Action" },
-  secondary: { label: "Accent secondaire" },
-  tertiary: { label: "Détails", free: true },
+  bg: { label: ROLE_NAMES.bg },
+  surface: { label: ROLE_NAMES.surface },
+  ink: { label: ROLE_NAMES.ink },
+  primary: { label: ROLE_NAMES.primary },
+  secondary: { label: ROLE_NAMES.secondary },
+  tertiary: { label: ROLE_NAMES.tertiary, free: true },
 };
 
 type FieldProps = {
@@ -231,7 +231,7 @@ export default function PaletteEditor({
       <div className="a-pal-groups">
         {PALETTE_GROUPS.map((g) => (
           <fieldset key={g.id} className="a-fieldset a-pal-group" data-group={g.id}>
-            <legend>{g.label}</legend>
+            <legend>{g.base ? ROLE_NAMES[g.base] : g.label}</legend>
             <div className="a-colors">
               {g.base && (
                 <ColorField

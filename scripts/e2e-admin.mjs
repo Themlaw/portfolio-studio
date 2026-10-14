@@ -137,7 +137,7 @@ try {
   ok("A5 « Ajuster » propose une teinte qui passe AA", await inkSoft.locator(".a-ratio-ok").isVisible(), adjusted);
 
   const NEW_PRIMARY = "#7a2e8e";
-  await page.locator('.a-color[data-token="primary"]').getByLabel("Action", { exact: true }).fill(NEW_PRIMARY);
+  await page.locator('.a-color[data-token="primary"]').getByLabel("Boutons et liens", { exact: true }).fill(NEW_PRIMARY);
   await page.waitForTimeout(400);
   const live = await frame.locator("html").evaluate((el) => getComputedStyle(el).getPropertyValue("--t-color-primary").trim());
   ok("A6 l'aperçu suit les réglages sans rechargement", live === NEW_PRIMARY, live);
