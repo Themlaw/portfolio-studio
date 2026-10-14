@@ -102,3 +102,44 @@ export async function purgeTrash(now: number = Date.now()): Promise<PurgeReport>
   }
   return report;
 }
+
+export type TrashKind = "page" | "project" | "media";
+
+/**
+ * « Supprimer définitivement » un élément de la corbeille, sans attendre les 30 jours (même purge que le job,
+ * pour cet élément seul). Refusé si l'élément n'est pas à la corbeille, ou s'il est encore cité par un bloc.
+ */
+export async function purgeOne(kind: TrashKind, id: number): Promise<{ ok: true } | { ok: false; message: string }> {
+  const db = getDb();
+  const row =
+    kind === "page"
+      ? db.select({ d: schema.pages.deletedAt }).from(schema.pages).where(eq(schema.pages.id, id)).get()
+      : kind === "project"
+        ? db.select({ d: schema.projects.deletedAt }).from(schema.projects).where(eq(schema.projects.id, id)).get()
+        : db.select({ d: schema.media.deletedAt }).from(schema.media).where(eq(schema.media.id, id)).get();
+  if (!row?.d) return { ok: false, message: "Cet élément n'est pas dans la corbeille." };
+  const done = kind === "page" ? purgePage(id) : kind === "project" ? purgeProject(id) : await purgeMedia(id);
+  return done ? { ok: true } : { ok: false, message: "Cet élément est encore utilisé (bloc, planche ou brouillon) : il reste à la corbeille." };
+}
+
+/**
+ * « Vider la corbeille » : purge immédiate de tout, dans l'ordre du job (pages, projets, puis médias que les
+ * premiers libèrent). Plusieurs tours : une page peut ne devenir supprimable qu'une fois une autre partie.
+ * `kept` : éléments encore cités, restés à la corbeille.
+ */
+export async function emptyTrash(): Promise<PurgeReport & { kept: number }> {
+  const db = getDb();
+  const report: PurgeReport = { pages: 0, projects: 0, media: 0 };
+  for (let pass = 0; pass < 5; pass++) {
+    const before = report.pages + report.projects + report.media;
+    for (const p of db.select({ id: schema.pages.id }).from(schema.pages).where(isNotNull(schema.pages.deletedAt)).all()) if (purgePage(p.id)) report.pages++;
+    for (const p of db.select({ id: schema.projects.id }).from(schema.projects).where(isNotNull(schema.projects.deletedAt)).all()) if (purgeProject(p.id)) report.projects++;
+    for (const m of db.select({ id: schema.media.id }).from(schema.media).where(isNotNull(schema.media.deletedAt)).all()) if (await purgeMedia(m.id)) report.media++;
+    if (report.pages + report.projects + report.media === before) break;
+  }
+  const kept =
+    db.select({ id: schema.pages.id }).from(schema.pages).where(isNotNull(schema.pages.deletedAt)).all().length +
+    db.select({ id: schema.projects.id }).from(schema.projects).where(isNotNull(schema.projects.deletedAt)).all().length +
+    db.select({ id: schema.media.id }).from(schema.media).where(isNotNull(schema.media.deletedAt)).all().length;
+  return { ...report, kept };
+}

@@ -5987,3 +5987,27 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
 .admin a.a-menu-item:hover {
   text-decoration: none;
 }
+
+/* Suppression définitive : confirmation intégrée à la page. */
+.a-inline-confirm {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--admin-danger);
+  border-radius: var(--admin-radius);
+  background: var(--admin-danger-soft);
+  color: var(--admin-ink);
+}
+
+.a-inline-confirm p {
+  margin: 0 0 8px;
+}
+
+.a-inline-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.a-trash-empty {
+  margin: 0 0 12px;
+}

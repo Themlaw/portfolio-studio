@@ -13,11 +13,12 @@ import {
   setInMenuAction,
   setPublishedAction,
 } from "@/app/admin/(espace)/pages/actions";
-import type { AdminPageRow } from "@/lib/admin";
+import type { AdminPageRow, TrashSummary } from "@/lib/admin";
 import { slugify } from "@/lib/slug";
 import { daysLeft, TRASH_DAYS } from "@/lib/trash";
 
 import { ConfirmDialog, same, toast, undoToast } from "./editing";
+import { EmptyTrash, PurgeItem } from "./TrashControls";
 import { DragHandle, SortableList } from "./Sortable";
 
 const isHome = (p: AdminPageRow) => p.slug.fr === "" && p.slug.en === "";
@@ -131,7 +132,7 @@ function CreatePage({ open, onClose }: { open: boolean; onClose: () => void }) {
 
 /* ---- Corbeille ------------------------------------------------------------ */
 
-function TrashList({ pages }: { pages: AdminPageRow[] }) {
+function TrashList({ pages, summary }: { pages: AdminPageRow[]; summary: TrashSummary }) {
   const router = useRouter();
   const [busy, start] = useTransition();
   return (
@@ -140,6 +141,7 @@ function TrashList({ pages }: { pages: AdminPageRow[] }) {
       <p className="a-help a-panel-intro">
         Une page supprimée n&apos;est plus sur le site ni dans le menu. Elle reste {TRASH_DAYS} jours ici : restaure-la en un clic, après quoi elle est effacée pour de bon.
       </p>
+      <EmptyTrash summary={summary} />
       {pages.length === 0 ? (
         <p className="muted" data-testid="corbeille-vide">La corbeille est vide.</p>
       ) : (
@@ -183,6 +185,7 @@ function TrashList({ pages }: { pages: AdminPageRow[] }) {
                     >
                       Restaurer
                     </button>
+                    <PurgeItem kind="page" id={p.id} name={p.title} lost={`ses ${p.blocks} bloc${p.blocks > 1 ? "s" : ""} et son brouillon disparaissent.`} />
                   </td>
                 </tr>
               ))}
@@ -198,7 +201,7 @@ function TrashList({ pages }: { pages: AdminPageRow[] }) {
 
 type Pending = { kind: "delete"; page: AdminPageRow } | null;
 
-export default function PagesManager({ pages, trashed, view }: { pages: AdminPageRow[]; trashed: AdminPageRow[]; view: "liste" | "corbeille" }) {
+export default function PagesManager({ pages, trashed, view, summary }: { pages: AdminPageRow[]; trashed: AdminPageRow[]; view: "liste" | "corbeille"; summary: TrashSummary }) {
   const router = useRouter();
   const menuSaved = pages.filter((p) => p.navOrder !== null).sort((a, b) => (a.navOrder ?? 0) - (b.navOrder ?? 0));
   const [menu, setMenu] = useState(menuSaved);
@@ -224,7 +227,7 @@ export default function PagesManager({ pages, trashed, view }: { pages: AdminPag
       router.refresh();
     });
 
-  if (view === "corbeille") return <TrashList pages={trashed} />;
+  if (view === "corbeille") return <TrashList pages={trashed} summary={summary} />;
 
   return (
     <>

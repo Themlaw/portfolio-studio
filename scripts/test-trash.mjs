@@ -27,12 +27,12 @@ const { eq } = await import("drizzle-orm");
 const { createPage, deletePage, restorePage, savePage } = await import("../src/lib/edit/pages.ts");
 const { createProject, deleteProject, restoreProject } = await import("../src/lib/edit/projects.ts");
 const { deleteMedia, restoreMedia } = await import("../src/lib/edit/media.ts");
-const { purgeTrash } = await import("../src/lib/edit/trash.ts");
+const { purgeTrash, purgeOne, emptyTrash } = await import("../src/lib/edit/trash.ts");
 const { reviveIfTrashed } = await import("../src/lib/upload/revive.ts");
 const { saveDraft, readDraft } = await import("../src/lib/edit/drafts.ts");
 const { publishedSlugExists } = await import("../src/lib/pages-index.ts");
 const { findMediaByKey } = await import("../src/lib/media.ts");
-const { listPagesForAdmin, listTrashedPages, listProjectsForAdmin, listTrashedProjects, listMediaForAdmin, listTrashedMedia, getMediaUses, getPageForEdit, getProjectForEdit } = await import("../src/lib/admin.ts");
+const { getTrashSummary, listPagesForAdmin, listTrashedPages, listProjectsForAdmin, listTrashedProjects, listMediaForAdmin, listTrashedMedia, getMediaUses, getPageForEdit, getProjectForEdit } = await import("../src/lib/admin.ts");
 const { mediaUsagesByMedia } = await import("../src/lib/references.ts");
 const { readNav } = await import("../src/lib/edit/nav.ts");
 const { daysLeft, purgeAt, TRASH_DAYS } = await import("../src/lib/trash.ts");
@@ -258,6 +258,51 @@ await test("un média en traitement ne se supprime pas ; une planche d'un projet
   backdate(schema.projects, project, 31);
   await purgeTrash();
   assert.equal((await deleteMedia(free.id)).ok, true, "projet purgé : le média est libre");
+});
+
+/* ---- 5. Supprimer définitivement, vider la corbeille --------------------------------- */
+await test("définitif : refusé hors corbeille ; média bloqué → projet supprimé définitivement → média supprimable", async () => {
+  const free = addMedia("bloque.png", "dd44dd44dd44dd44");
+  const project = createProject({ title: L("Bloqueur") }).data.id;
+  db.insert(schema.slots).values({ projectId: project, position: 0, mediaId: free.id, slug: "bloqueur-1", collection: "characters", title: L(""), description: L(""), year: 2026 }).run();
+  assert.equal((await purgeOne("project", project)).ok, false, "pas à la corbeille : refusé");
+  assert.equal((await purgeOne("media", free.id)).ok, false);
+  assert.equal(db.select().from(schema.projects).where(eq(schema.projects.id, project)).get() !== undefined, true);
+  assert.equal(deleteProject(project).ok, true);
+  assert.equal((await deleteMedia(free.id)).ok, false, "bloqué par le projet de la corbeille");
+  const r = await purgeOne("project", project);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(db.select().from(schema.projects).where(eq(schema.projects.id, project)).get(), undefined, "projet effacé tout de suite (pas 30 jours)");
+  assert.equal((await deleteMedia(free.id)).ok, true, "média de nouveau supprimable");
+  assert.equal((await purgeOne("media", free.id)).ok, true);
+  assert.equal(existsSync(free.file), false, "fichiers effacés");
+  assert.equal((await purgeOne("media", free.id)).ok, false, "déjà parti");
+  assert.equal((await purgeOne("page", 999999)).ok, false);
+});
+await test("définitif : une page encore citée reste ; « vider » supprime tout dans l'ordre, résumé exact", async () => {
+  const kept = createPage({ title: L("Citée"), slug: L("citee") }).data.id;
+  assert.equal(deletePage(kept).ok, true);
+  const home = db.select().from(schema.pages).all().find((p) => p.slug.fr === "").id;
+  db.insert(schema.blocks).values({ pageId: home, position: 98, type: "hero", props: JSON.stringify({ eyebrow: L(""), statement: L(""), reelPageId: kept }) }).run();
+  assert.equal((await purgeOne("page", kept)).ok, false, "citée : refusée");
+  const pg = createPage({ title: L("Vidable"), slug: L("vidable") }).data.id;
+  deletePage(pg);
+  const free = addMedia("vidable.png", "ee55ee55ee55ee55");
+  const pr = createProject({ title: L("Vidable P") }).data.id;
+  db.insert(schema.slots).values({ projectId: pr, position: 0, mediaId: free.id, slug: "vidable-1", collection: "characters", title: L(""), description: L(""), year: 2026 }).run();
+  deleteProject(pr);
+  const sum = getTrashSummary();
+  assert.equal(sum.projects, 1);
+  assert.equal(sum.slots, 1);
+  assert.ok(sum.pages >= 2 && sum.total === sum.pages + sum.projects + sum.media);
+  const rep = await emptyTrash();
+  assert.equal(rep.projects, 1);
+  assert.equal(db.select().from(schema.pages).where(eq(schema.pages.id, pg)).get(), undefined);
+  assert.ok(db.select().from(schema.pages).where(eq(schema.pages.id, kept)).get(), "page citée gardée");
+  assert.equal(rep.kept, 1, "une seule gardée");
+  db.delete(schema.blocks).where(eq(schema.blocks.position, 98)).run();
+  assert.equal((await emptyTrash()).kept, 0, "libérée : tout part");
+  assert.equal(getTrashSummary().total, 0);
 });
 
 console.log(`\ntest-trash : ${passed} tests OK`);

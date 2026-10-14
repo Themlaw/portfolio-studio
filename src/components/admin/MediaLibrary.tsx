@@ -31,12 +31,13 @@ import {
   setMediaTagsAction,
 } from "@/app/admin/(espace)/medias/actions";
 import { formatDuration, isLoop } from "@/lib/video/limits";
-import type { AdminMediaRow, MediaUseRow } from "@/lib/admin";
+import type { AdminMediaRow, MediaUseRow, TrashSummary } from "@/lib/admin";
 import { tagKey } from "@/lib/tag-key";
 import { daysLeft, TRASH_DAYS } from "@/lib/trash";
 import type { TagRow } from "@/lib/tags";
 
 import AltMissing from "./AltMissing";
+import { EmptyTrash, PurgeItem } from "./TrashControls";
 import { ConfirmDialog, same, toast, undoToast, useUnsavedGuard } from "./editing";
 import { filterMedia } from "./LibraryStrip";
 import Uploader from "./Uploader";
@@ -477,6 +478,7 @@ function TrashedDetail({ media, onClose }: { media: AdminMediaRow; onClose: () =
           Restaurer
         </button>
       </div>
+      <PurgeItem kind="media" id={media.id} name={media.name} lost="le fichier et toutes ses variantes sont effacés." />
     </aside>
   );
 }
@@ -770,7 +772,7 @@ function TagManager({ onChanged }: { onChanged: () => void }) {
 
 /* ---- Écran ------------------------------------------------------------------- */
 
-export default function MediaLibrary({ initial, trashed, usage }: { initial: AdminMediaRow[]; trashed: AdminMediaRow[]; usage: { used: string; quota: string | null; ratio: number | null } }) {
+export default function MediaLibrary({ initial, trashed, summary, usage }: { initial: AdminMediaRow[]; trashed: AdminMediaRow[]; summary: TrashSummary; usage: { used: string; quota: string | null; ratio: number | null } }) {
   const router = useRouter();
   const queue = useUploadQueue();
   const { media, merge } = useMediaState(initial);
@@ -865,6 +867,7 @@ export default function MediaLibrary({ initial, trashed, usage }: { initial: Adm
             <p className="a-help a-panel-intro">
               Un média supprimé reste {TRASH_DAYS} jours ici, restaurable en un clic, puis il est effacé pour de bon avec ses fichiers. Renvoyer le même fichier le ressort aussi.
             </p>
+            <EmptyTrash summary={summary} />
             {trashed.length === 0 ? (
               <p className="muted" data-testid="corbeille-vide">La corbeille est vide.</p>
             ) : (

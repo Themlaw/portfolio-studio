@@ -184,6 +184,8 @@ const ADMIN_ACTIONS = [
   "reorderMenuAction",
   "deletePageAction",
   "restorePageAction",
+  "purgeTrashItemAction",
+  "emptyTrashAction",
   "createProjectAction",
   "saveProjectAction",
   "reorderProjectsAction",
@@ -1176,6 +1178,17 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
       if (!r.text.includes('"ok":false')) bad.push(JSON.stringify(arg));
     }
     ok(`A15c ${name} : identifiant invalide ou inconnu → refusé`, bad.length === 0, bad.join(" "));
+  }
+  {
+    const bad = [];
+    for (const arg of ["x", null, {}, [1], { kind: "page" }, { kind: "page", id: -1 }, { kind: "page", id: 1.5 }, { kind: "autre", id: 1 }, { kind: "page", id: 1, extra: true }, { kind: "page", id: 999999 }]) {
+      const r = await callActionJson(jar, ids.purgeTrashItemAction, [arg], "/admin/pages");
+      if (!r.text.includes('"ok":false')) bad.push(JSON.stringify(arg));
+    }
+    ok("A15c2 purgeTrashItemAction : charge invalide ou inconnue → refusée", bad.length === 0, bad.join(" "));
+    const homeRow = query(dirA, "select id from pages where json_extract(slug,'$.fr')=''").id;
+    res = await callActionJson(jar, ids.purgeTrashItemAction, [{ kind: "page", id: homeRow }], "/admin/pages");
+    ok("A15c3 supprimer définitivement une page EN LIGNE → refusé, page intacte", res.text.includes('"ok":false') && res.text.includes("corbeille") && Boolean(query(dirA, "select id from pages where id = ?", homeRow)), res.text.slice(0, 160));
   }
   res = await callActionJson(jar, ids.restorePageAction, [persoId], "/admin/pages");
   ok("A15d restaurer une page qui n'est pas à la corbeille → refusé", res.text.includes('"ok":false') && res.text.includes("corbeille"), res.text.slice(0, 200));

@@ -88,6 +88,8 @@ const EXPECTED = [
   "reorderMenuAction",
   "deletePageAction",
   "restorePageAction",
+  "purgeTrashItemAction",
+  "emptyTrashAction",
   "deleteMessageAction",
   "deleteAllMessagesAction",
   "siteDraftAction",

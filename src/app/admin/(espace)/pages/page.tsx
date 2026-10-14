@@ -1,7 +1,7 @@
 import PageHeader from "@/components/admin/PageHeader";
 import PagesManager from "@/components/admin/PagesManager";
 import TrashViews from "@/components/admin/TrashViews";
-import { listPagesForAdmin, listTrashedPages } from "@/lib/admin";
+import { getTrashSummary, listPagesForAdmin, listTrashedPages } from "@/lib/admin";
 
 export const metadata = { title: "Pages" };
 
@@ -15,7 +15,7 @@ export default async function PagesPage({ searchParams }: { searchParams: Promis
         intro="Organise les pages de ton site : leur place dans le menu, leur adresse en français et en anglais, et les blocs qui les composent."
       />
       <TrashViews base="/admin/pages" label="Pages" view={view} trashCount={trashed.length} />
-      <PagesManager pages={listPagesForAdmin()} trashed={trashed} view={view} />
+      <PagesManager pages={listPagesForAdmin()} trashed={trashed} view={view} summary={getTrashSummary()} />
     </>
   );
 }

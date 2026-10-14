@@ -6,14 +6,15 @@ import { useState, useTransition } from "react";
 
 import { TextField } from "@/app/admin/_fields";
 import { createProjectAction, deleteProjectAction, reorderProjectsAction, restoreProjectAction } from "@/app/admin/(espace)/projets/actions";
-import type { AdminProjectRow } from "@/lib/admin";
+import type { AdminProjectRow, TrashSummary } from "@/lib/admin";
 import { daysLeft, TRASH_DAYS } from "@/lib/trash";
 
 import { ConfirmDialog, same, toast, undoToast } from "./editing";
+import { EmptyTrash, PurgeItem } from "./TrashControls";
 import { DragHandle, SortableList } from "./Sortable";
 
 /** Corbeille des projets : restauration en un clic, purge au bout de 30 jours. */
-function TrashList({ projects }: { projects: AdminProjectRow[] }) {
+function TrashList({ projects, summary }: { projects: AdminProjectRow[]; summary: TrashSummary }) {
   const router = useRouter();
   const [busy, start] = useTransition();
   return (
@@ -22,6 +23,7 @@ function TrashList({ projects }: { projects: AdminProjectRow[] }) {
       <p className="a-help a-panel-intro">
         Un projet supprimé n&apos;est plus sur le site. Il reste {TRASH_DAYS} jours ici avec sa planche : restaure-le en un clic, après quoi il est effacé pour de bon (ses images restent dans la médiathèque).
       </p>
+      <EmptyTrash summary={summary} />
       {projects.length === 0 ? (
         <p className="muted" data-testid="corbeille-vide">La corbeille est vide.</p>
       ) : (
@@ -67,6 +69,7 @@ function TrashList({ projects }: { projects: AdminProjectRow[] }) {
                     >
                       Restaurer
                     </button>
+                    <PurgeItem kind="project" id={p.id} name={p.title} lost={`sa planche et ses ${p.slots} emplacement${p.slots > 1 ? "s" : ""} disparaissent ; ses images restent dans la médiathèque.`} />
                   </td>
                 </tr>
               ))}
@@ -83,12 +86,14 @@ export default function ProjectsManager({
   trashed,
   view,
   showFeatured,
+  summary,
 }: {
   projects: AdminProjectRow[];
   trashed: AdminProjectRow[];
   view: "liste" | "corbeille";
   /** Un ancien bloc « Projets mis en avant » lit encore le réglage : seulement alors, le badge a un sens. */
   showFeatured: boolean;
+  summary: TrashSummary;
 }) {
   const router = useRouter();
   const [order, setOrder] = useState(projects);
@@ -105,7 +110,7 @@ export default function ProjectsManager({
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [busy, start] = useTransition();
 
-  if (view === "corbeille") return <TrashList projects={trashed} />;
+  if (view === "corbeille") return <TrashList projects={trashed} summary={summary} />;
 
   return (
     <>

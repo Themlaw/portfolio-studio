@@ -179,6 +179,18 @@ export const listProjectsForAdmin = (): AdminProjectRow[] => projectRows(false);
 /** Projets à la corbeille, le plus récent d'abord. */
 export const listTrashedProjects = (): AdminProjectRow[] => projectRows(true);
 
+/** Ce que « Vider la corbeille » supprimerait : de quoi nommer ce qui sera perdu. */
+export type TrashSummary = { pages: number; projects: number; media: number; slots: number; total: number };
+
+export function getTrashSummary(): TrashSummary {
+  const db = getDb();
+  const pages = db.select({ n: count() }).from(schema.pages).where(isNotNull(schema.pages.deletedAt)).get()?.n ?? 0;
+  const media = db.select({ n: count() }).from(schema.media).where(isNotNull(schema.media.deletedAt)).get()?.n ?? 0;
+  const trashedProjects = db.select({ id: schema.projects.id }).from(schema.projects).where(isNotNull(schema.projects.deletedAt)).all().map((p) => p.id);
+  const slots = db.select({ p: schema.slots.projectId }).from(schema.slots).all().filter((s) => trashedProjects.includes(s.p)).length;
+  return { pages, projects: trashedProjects.length, media, slots, total: pages + media + trashedProjects.length };
+}
+
 /**
  * Pages où un ancien bloc « Projets mis en avant » (sans projets choisis) lit encore le réglage « Mis en avant »
  * des projets. Vide : le réglage ne sert plus à rien et l'interrupteur disparaît de l'éditeur de projet.
