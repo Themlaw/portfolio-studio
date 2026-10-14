@@ -28,6 +28,7 @@ import {
 } from "@/app/admin/(espace)/pages/actions";
 import { PageCollectionField } from "@/app/admin/_fields";
 import { BlockEditorContext } from "@/blocks/editor-context";
+import { MAX_TILES } from "@/blocks/collection-pages";
 import { pickerGroups } from "@/blocks/groups";
 import { HELP_TEXT, STARTER_LIST, TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
@@ -659,9 +660,9 @@ export default function VisualEditor({
       toast("40 blocs au plus par page.", "error");
       return;
     }
-    // Premier Titre d'une page sans titre principal (ni ouverture, qui porte le sien) : il l'est (h1) ; un titre de section sinon (lot 22).
+    // Titre inséré tout en haut d'une page (aucun bloc avant) sans titre principal (ni ouverture, qui porte le sien) : il l'est (h1) ; un titre de section sinon (lot 22).
     const principal =
-      def.type === "section-title" && place.parent === null && !list.some((b) => b.type === "hero" || b.type === "profile" || (b.type === "section-title" && b.props.main === true));
+      def.type === "section-title" && place.parent === null && place.index === 0 && !list.some((b) => b.type === "hero" || b.type === "profile" || (b.type === "section-title" && b.props.main === true));
     const block = withFreshUids({ uid: "", type: def.type, props: clone({ ...def.defaults, ...(principal ? { main: true } : {}), ...opts?.props }) } as DraftBlock, newUid);
     const next = insertBlock(list, block, place.parent, place.index);
     if (!next) {
@@ -724,7 +725,7 @@ export default function VisualEditor({
     const items = [...((block.props.items as { pageId?: number }[] | undefined) ?? [])];
     if (msg.op === "add") {
       const page = context.collectionPages?.find((p) => p.pageId === msg.pageId);
-      if (!page || items.length >= 24 || items.some((i) => i.pageId === page.pageId)) return false;
+      if (!page || items.length >= MAX_TILES || items.some((i) => i.pageId === page.pageId)) return false;
       items.push({ collection: page.collection, pageId: page.pageId, eyebrow: page.eyebrow, title: page.title, intro: page.intro } as (typeof items)[number]);
     } else {
       const i = msg.index;
