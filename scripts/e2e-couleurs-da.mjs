@@ -241,14 +241,13 @@ if (run("A"))
     await role("ink").locator(".lc-role").hover();
     ok("A3 survol « Texte » : éléments surlignés dans l'aperçu", await fr.waitForFunction(() => document.querySelectorAll('[data-testid="hl-box"]').length > 0, null, { timeout: 30000 }).then(() => true, () => false));
     ok("A3b légende « utilisé par » avec le nombre d'éléments", await waitFor(async () => /Utilisé par : .*(titres|paragraphes|menu)/.test((await page.locator('[data-testid="hl-legend"]').textContent().catch(() => "")) ?? "") && /\d+ éléments? sur cette page/.test((await page.locator('[data-testid="hl-legend"]').textContent().catch(() => "")) ?? "")));
-    const boxes = await fr.locator('[data-testid="hl-box"]').count();
     await sectionShot("1-da-survol-1440.png");
     await role("ink").locator(".lc-role").blur();
     await page.mouse.move(5, 5);
     ok("A3c plus de survol : plus de surlignage", await fr.waitForFunction(() => document.querySelectorAll('[data-testid="hl-box"], [data-testid="hl-frame"]').length === 0, null, { timeout: 15000 }).then(() => true, () => false));
     // Focus clavier d'un autre rôle.
     await role("secondary").locator(".lc-role").focus();
-    ok("A3d focus clavier « Accent » : surlignage aussi", await fr.waitForFunction(() => document.querySelectorAll('[data-testid="hl-box"]').length > 0, null, { timeout: 30000 }).then(() => true, () => false) || boxes > 0);
+    ok("A3d focus clavier « Accent » : surlignage aussi", await fr.waitForFunction(() => document.querySelectorAll('[data-testid="hl-box"]').length > 0, null, { timeout: 30000 }).then(() => true, () => false));
     await role("bg").locator(".lc-role").hover();
     ok("A3e « Fond de page » : liseré autour de la fenêtre", await fr.waitForFunction(() => document.querySelectorAll('[data-testid="hl-frame"]').length > 0, null, { timeout: 30000 }).then(() => true, () => false));
     await page.mouse.move(5, 5);
