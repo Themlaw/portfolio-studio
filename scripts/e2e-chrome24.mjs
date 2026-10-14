@@ -70,7 +70,7 @@ const until = (f, fn, arg, timeout = 30000) =>
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await ctx.newPage();
-page.setDefaultTimeout(60000);
+page.setDefaultTimeout(Number(process.env.TIMEOUT ?? 60000));
 page.setDefaultNavigationTimeout(180000);
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -116,7 +116,7 @@ async function openEditor(id = 1) {
 
 /* ---- A. Barre du haut --------------------------------------------------------------------------- */
 if (run("A")) {
-  let f = await openEditor();
+  await openEditor();
   // Un brouillon pour que « Abandonner » existe.
   await page.locator('.ve-starter[data-starter]').first().click();
   await settled();
@@ -191,8 +191,6 @@ if (run("C")) {
   await sleep(500);
   const blocks = () => draftOf(1)?.blocks ?? [];
   ok("C0 deux rubriques ajoutées en fin de page", await waitFor(() => blocks().length >= 2 && blocks().at(-1).type === "image" && blocks().at(-2).type === "rich-text"), JSON.stringify(blocks().map((b) => b.type)));
-  const textUid = blocks().at(-2).uid;
-  const imageUid = blocks().at(-1).uid;
   await page.getByRole("button", { name: "Publier", exact: true }).click();
   const panel = page.locator('[data-testid="publish-problems"]');
   ok("C1 la liste des problèmes s'affiche", await panel.waitFor({ timeout: 60000 }).then(() => true, () => false));
@@ -235,7 +233,7 @@ if (run("D")) {
   let f = await openEditor();
   const tab = (name) => page.getByRole("tab", { name, exact: true });
   const selectedTab = async () => (await page.locator('[role="tab"][aria-selected="true"]').first().textContent())?.trim();
-  // D1-D3 : depuis Ajouter, Médias et Structure, un clic sur une rubrique de la toile ouvre Réglages sur elle.
+  // D1-D3 : depuis Ajouter et Structure, un clic sur une rubrique de la toile ouvre Réglages sur elle ; Médias reste ouvert.
   const blockLabels = async () => f.evaluate(() => [...document.querySelectorAll("[data-edit-block]:not([data-edit-parent])")].map((e) => e.dataset.editBlock));
   const uids = await blockLabels();
   ok("D0 la page porte des rubriques", uids.length >= 2, JSON.stringify(uids));
@@ -252,6 +250,12 @@ if (run("D")) {
     }, uid);
     const fb = await (await page.waitForSelector("iframe.ve-frame")).boundingBox();
     await page.mouse.click(fb.x + box.x, fb.y + box.y);
+    if (name === "Médias") {
+      // On y glisse des images vers les planches : un clic pour viser une planche ne ferme pas l'onglet.
+      await sleep(800);
+      ok(`${n} depuis « ${name} » : l'onglet reste ouvert (glisser des images)`, (await selectedTab()) === "Médias", await selectedTab());
+      continue;
+    }
     ok(`${n} depuis « ${name} » : un clic sur la toile ouvre Réglages`, await waitFor(async () => (await selectedTab()) === "Réglages", 10000), await selectedTab());
     ok(`${n}b le panneau montre les réglages de la rubrique choisie`, await page.locator(".ve-settings-head h2").first().waitFor({ timeout: 10000 }).then(() => true, () => false));
   }

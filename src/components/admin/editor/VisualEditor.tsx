@@ -1545,8 +1545,9 @@ export default function VisualEditor({
           break;
         case "select":
           h.selectBlock(msg.uid, { notify: false });
-          // Un clic sur un bloc de la toile ouvre ses Réglages, d'où qu'on vienne (Ajouter, Médias, Structure) ; « Ajouter » ajoute ensuite sous lui.
-          if (msg.uid && msg.click) setTab("reglages");
+          // Un clic sur une rubrique de la toile ouvre ses Réglages (depuis Ajouter ou Structure) ; « Ajouter » ajoute ensuite sous elle.
+          // Médias reste ouvert : on y glisse des images vers les planches, un clic pour viser une planche ne doit pas le fermer.
+          if (msg.uid && msg.click) setTab((t) => (t === "medias" ? t : "reglages"));
           break;
         case "op":
           h.op(msg.op, msg.uid);

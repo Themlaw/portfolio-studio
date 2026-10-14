@@ -349,6 +349,7 @@ await m.unroute("**/admin/api/upload**", slow);
 await settled(m);
 // Planche neuve à 390.
 await m.locator(".ve-fab").click();
+await m.getByRole("tab", { name: "Ajouter" }).click();
 await m.locator('.ve-card[data-type="project-board"]').click();
 ok("390 : planche neuve ajoutée au toucher", await until(mf, () => Boolean(document.querySelector(".pe-board-new input")), null, 30000));
 await settled(m);
