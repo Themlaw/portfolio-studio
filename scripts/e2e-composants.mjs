@@ -218,10 +218,10 @@ if (run("C"))
     await f.locator(`[data-edit-block="${target.uid}"] section`).first().click({ position: { x: 4, y: 30 } });
     ok("C5 un ancien composant se choisit seul (pas de conteneur parent dans le fil d'Ariane)", await waitFor(async () => ((await f.locator(".pe-crumbs").textContent().catch(() => "")) ?? "").trim() === "Texte"), await f.locator(".pe-crumbs").textContent().catch(() => ""));
     const fond = f.locator(".pe-tools .sm-button");
-    ok("C5 bouton « Fond » (carte) disponible sur cet ancien composant", await fond.waitFor({ timeout: 30000 }).then(() => true, () => false));
+    ok("C5 bouton « Carte » disponible sur cet ancien composant", await fond.waitFor({ timeout: 30000 }).then(() => true, () => false));
     await fond.click();
     const menu = f.locator(".sm");
-    await menu.getByRole("switch", { name: "Carte" }).click();
+    await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
     await menu.locator('[data-token="primary"]').click();
     ok("C6 carte de couleur appliquée : brouillon et toile", (await waitFor(() => draftOf(pageId).blocks.find((b) => b.uid === target.uid)?.props.surface?.color === "primary")) && (await f.locator(`[data-edit-block="${target.uid}"] .surface-card[data-surface="on"]`).count()) === 1, JSON.stringify(draftOf(pageId).blocks.find((b) => b.uid === target.uid)?.props.surface));
     await f.locator("body").click({ position: { x: 5, y: 5 } }).catch(() => {});

@@ -468,7 +468,7 @@ if (run("H")) {
   ok("H4 dernière pastille : roue des couleurs (dégradé conique)", (await wheel.count()) === 1 && /conic-gradient/.test((await wheel.getAttribute("style")) ?? "") && (await f.locator(".lk-bar .tc-swatches > :last-child.tc-wheel").count()) === 1);
   await wheel.click();
   ok("H5 sélecteur ouvert dans la toile", await until(f, () => Boolean(document.querySelector(".cp .cp-wheel"))));
-  ok("H5b sélecteur : roue, curseurs de luminosité et d'opacité, HEX / RGB / HSL, aperçu, couleurs du thème", (await f.locator(".cp .cp-wheel").count()) === 1 && (await f.locator('.cp [role=slider]:not(.cp-wheel)').count()) === 2 && (await f.locator(".cp input").count()) === 7 && (await f.locator(".cp-preview").count()) === 1 && (await f.locator('.cp [aria-label="Couleurs du thème"] .cp-chip').count()) === 8);
+  ok("H5b sélecteur : roue, curseurs de luminosité et d'opacité, HEX / RGB / HSL, aperçu ; plus de seconde rangée « couleurs du thème » (lot 26)", (await f.locator(".cp .cp-wheel").count()) === 1 && (await f.locator('.cp [role=slider]:not(.cp-wheel)').count()) === 2 && (await f.locator(".cp input").count()) === 7 && (await f.locator(".cp-preview").count()) === 1 && (await f.locator('.cp [aria-label="Couleurs du thème"] .cp-chip').count()) === 0);
   ok("H5c sélecteur entièrement visible (la toile défile au besoin)", await until(f, () => { const r = document.querySelector(".cp").getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight + 1; }, null, 5000));
   await page.screenshot({ path: `${SHOTS}/H-selecteur-couleur.png` });
   // v0.16 : la pastille des curseurs (18 px, centrée sur la valeur) restait à cheval sur le bord à 100 % d'opacité :

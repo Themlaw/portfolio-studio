@@ -68,7 +68,7 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("media-op"), uid: Uid, field: MediaField, op: z.enum(["replace", "clear"]) }),
   z.object({ kind: z.literal("layout"), uid: Uid, layout: z.enum(["1", "1+2", "2", "3", "2x2", "4", "2+1"]) }),
   // Entrées des collections (lot 22) : entrées choisies à la main (ajouter une page de collection, retirer, ordre).
-  z.object({ kind: z.literal("tile-op"), uid: Uid, op: z.enum(["add", "remove", "up", "down"]), index: z.number().int().min(0).max(23).optional(), pageId: z.number().int().positive().optional() }),
+  z.object({ kind: z.literal("tile-op"), uid: Uid, op: z.enum(["add", "remove", "up", "down", "cover", "cover-clear"]), index: z.number().int().min(0).max(23).optional(), pageId: z.number().int().positive().optional() }),
   // Entrées des collections (lot 22) : taille des images, depuis la barre du bloc.
   z.object({ kind: z.literal("tile-size"), uid: Uid, size: z.enum(["small", "medium", "large"]) }),
   // Formulaire de contact : champs retirés, déplacés, ajoutés sur la toile.

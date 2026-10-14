@@ -69,7 +69,7 @@ export default function BackdropRow({ value, set, palette, swatch, blocked, inhe
   return (
     <div className="tc-row tc-bd" title={blocked}>
       <span className="tc-bd-label">
-        Fond :
+        Fond du texte :
       </span>
       <span className="tc-seg" role="radiogroup" aria-label="Fond du texte">
         {BACKDROPS.map((b) => (

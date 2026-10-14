@@ -75,12 +75,12 @@ await Promise.all([page.waitForURL((u) => !u.pathname.startsWith("/admin/connexi
 await page.goto(`${BASE}/admin/themes/${COPY}`, { waitUntil: "networkidle" });
 const field = (token) => page.locator(`.a-color[data-token="${token}"]`);
 const hex = (token) => field(token).locator(".a-color-hex").inputValue();
-ok("palette : 7 groupes (Fond, Surface, Texte, Action, Accent secondaire, Détails, Visionneuse)", (await page.locator(".a-pal-group").count()) === 7);
+ok("palette : 7 groupes (Fond de page, Cartes et encadrés, Texte, Boutons et liens, Accent, Ornements, Visionneuse)", (await page.locator(".a-pal-group").count()) === 7);
 ok("migration : survol « choisie » (valeur du preset), voile « auto »", (await field("primaryHover").getAttribute("data-auto")) === "false" && (await hex("primaryHover")) === "#24408a" && (await field("scrim").getAttribute("data-auto")) === "true");
 await field("primaryHover").getByRole("button", { name: /Revenir à auto/ }).click();
 const autoHover = await hex("primaryHover");
 ok(`« Revenir à auto » : survol dérivé (${autoHover})`, (await field("primaryHover").getAttribute("data-auto")) === "true" && /^#[0-9a-f]{6}$/.test(autoHover) && autoHover !== "#24408a");
-await field("primary").getByLabel("Action", { exact: true }).fill("#1d6b4f");
+await field("primary").getByLabel("Boutons et liens", { exact: true }).fill("#1d6b4f");
 await sleep(200);
 const followed = await hex("primaryHover");
 ok(`base changée : la nuance auto suit (${autoHover} → ${followed})`, followed !== autoHover && (await field("primaryHover").getAttribute("data-auto")) === "true");

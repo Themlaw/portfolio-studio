@@ -28,6 +28,8 @@ export type LookContext = {
   fonts: FontLibrary;
   /** Couleurs du thème actif SANS la palette du site (panneau « Couleurs » : `thème` / `modifiée`, contraste en direct). */
   theme: { name: string; color: PaletteColors; palette: PaletteState | null };
+  /** Le thème actif dessine sa propre signature (kit) : « Revenir au logo du thème » plutôt que « au logo texte » (lot 26). */
+  signature: boolean;
 };
 
 export function lookContextForEditor(): LookContext {
@@ -35,6 +37,7 @@ export function lookContextForEditor(): LookContext {
   const c = theme.tokens.color;
   return {
     theme: { name: theme.name, color: c as PaletteColors, palette: theme.tokens.palette ?? null },
+    signature: Boolean(theme.assets.kit?.signature),
     palette: {
       ink: c.ink,
       "ink-soft": c.inkSoft,

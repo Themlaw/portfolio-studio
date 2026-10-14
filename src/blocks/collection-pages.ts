@@ -17,9 +17,16 @@ export const MAX_TILES = 24;
 /** Page de collection et ce que sa tuile en reprend. */
 export type CollectionPage = { pageId: number; collection: CollectionKey; eyebrow: L; title: L; intro: L };
 
-/** Textes d'une tuile modifiés sur la tuile (automatique) : gardés, attachés à la page. */
-export type TileEdit = { pageId: number; eyebrow?: L; title?: L; intro?: L };
-export type TileItem = { collection: CollectionKey; pageId: number; eyebrow: L; title: L; intro: L };
+/**
+ * Textes d'une tuile modifiés sur la tuile (automatique) : gardés, attachés à la page. `mediaId` (lot 26) : couverture
+ * choisie sur la tuile (une image de la médiathèque) à la place de celle de la collection ; absent = la couverture de la collection.
+ */
+export type TileEdit = { pageId: number; eyebrow?: L; title?: L; intro?: L; mediaId?: number };
+export type TileItem = { collection: CollectionKey; pageId: number; eyebrow: L; title: L; intro: L; mediaId?: number };
+
+/** Nom des collections dans l'interface (mots de l'admin : COLLECTION_OPTIONS). */
+export const COLLECTION_NAMES: Record<CollectionKey, string> = { characters: "Personnages", backgrounds: "Décors", animation: "Animation" };
+const isMediaId = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v > 0;
 export const TEXT_FIELDS = ["eyebrow", "title", "intro"] as const;
 export type TextField = (typeof TEXT_FIELDS)[number];
 
@@ -63,7 +70,7 @@ export function orderCollectionPages(
 }
 
 /** Tuile à montrer. `edited` : champs dont le texte vient de la tuile et non de l'en-tête de la page. */
-export type Entry = CollectionPage & { edited: Partial<Record<TextField, true>> };
+export type Entry = CollectionPage & { edited: Partial<Record<TextField, true>>; mediaId?: number };
 
 /** Mode automatique : une tuile par page de collection, textes d'en-tête sauf ceux modifiés sur la tuile. */
 export function autoEntries(found: CollectionPage[], edits: TileEdit[] | undefined): Entry[] {
@@ -77,6 +84,8 @@ export function autoEntries(found: CollectionPage[], edits: TileEdit[] | undefin
         out.edited[f] = true;
       }
     }
+    const cover = edit?.mediaId;
+    if (isMediaId(cover)) out.mediaId = cover;
     return out;
   });
 }
@@ -103,6 +112,7 @@ export function editsFromItems(items: TileItem[], found: CollectionPage[]): Tile
     if (!page) continue;
     const edit: TileEdit = { pageId: it.pageId };
     for (const f of TEXT_FIELDS) if (!sameL(it[f], page[f])) edit[f] = it[f];
+    if (isMediaId(it.mediaId)) edit.mediaId = it.mediaId;
     if (Object.keys(edit).length > 1) out.push(edit);
   }
   return out;
@@ -110,7 +120,7 @@ export function editsFromItems(items: TileItem[], found: CollectionPage[]): Tile
 
 /** Liste manuelle équivalente à ce que montre le mode automatique (passage auto → manuel). */
 export function itemsFromEntries(entries: Entry[]): TileItem[] {
-  return entries.map((e) => ({ collection: e.collection, pageId: e.pageId, eyebrow: e.eyebrow, title: e.title, intro: e.intro }));
+  return entries.map((e) => ({ collection: e.collection, pageId: e.pageId, eyebrow: e.eyebrow, title: e.title, intro: e.intro, ...(e.mediaId !== undefined ? { mediaId: e.mediaId } : {}) }));
 }
 
 /**
@@ -134,12 +144,20 @@ export function migrateTilesProps(props: Record<string, unknown>, found: Collect
     eyebrow: asL(it.eyebrow),
     title: asL(it.title),
     intro: asL(it.intro),
+    ...(isMediaId(it.mediaId) ? { mediaId: it.mediaId } : {}),
   }));
   const edits = editsFromItems(list, found);
   const { items: _items, ...rest } = props;
   void _items;
   return { props: { ...rest, mode: "auto", ...(edits.length ? { edits } : {}) }, mode: "auto", changed: true };
 }
+
+/**
+ * Ce que montre une entrée selon les œuvres PUBLIÉES de sa collection (lot 26) : « tile » = la tuile ; « notice » = collection
+ * vide, sur la toile : un avis dans la tuile (« Cette collection n'a encore aucune œuvre publiée ») ; « hidden » = collection
+ * vide en public : rien (une tuile sans image n'a pas de sens).
+ */
+export const tileVisibility = (works: number, edit: boolean): "tile" | "notice" | "hidden" => (works > 0 ? "tile" : edit ? "notice" : "hidden");
 
 /** Taille des images d'une tuile. */
 export type TileSize = "small" | "medium" | "large";

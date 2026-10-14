@@ -27,6 +27,7 @@ import {
   siteDraftAction,
 } from "@/app/admin/(espace)/pages/actions";
 import { PageCollectionField } from "@/app/admin/_fields";
+import PageButtonsColorField from "@/app/admin/_fields/PageButtonsColorField";
 import { BlockEditorContext } from "@/blocks/editor-context";
 import { MAX_TILES } from "@/blocks/collection-pages";
 import { pickerGroups } from "@/blocks/groups";
@@ -718,10 +719,16 @@ export default function VisualEditor({
    * Entrées des collections choisies à la main, depuis la toile : ajoute une page de collection qui n'a pas encore
    * d'entrée (textes de son Titre), retire, monte ou descend une entrée. false = refusé ou sans effet.
    */
-  const tileOp = (msg: { uid: string; op: "add" | "remove" | "up" | "down"; index?: number; pageId?: number }): boolean => {
+  const tileOp = (msg: { uid: string; op: "add" | "remove" | "up" | "down" | "cover" | "cover-clear"; index?: number; pageId?: number }): boolean => {
     const list = draftRef.current.blocks;
     const block = findBlock(list, msg.uid);
-    if (!block || block.type !== "collection-tiles" || block.props.mode === "auto") return false;
+    if (block?.type === "collection-tiles" && msg.op === "cover") {
+      // Couverture de l'entrée (lot 26) : choix d'une image de la médiathèque ou envoi, dans les deux modes.
+      setTileCover({ uid: msg.uid, ...(msg.index !== undefined ? { index: msg.index } : {}), ...(msg.pageId !== undefined ? { pageId: msg.pageId } : {}) });
+      return true;
+    }
+    if (block?.type === "collection-tiles" && msg.op === "cover-clear") return applyTileCover({ uid: msg.uid, index: msg.index, pageId: msg.pageId }, undefined);
+    if (!block || block.type !== "collection-tiles" || block.props.mode === "auto" || msg.op === "cover" || msg.op === "cover-clear") return false;
     const items = [...((block.props.items as { pageId?: number }[] | undefined) ?? [])];
     if (msg.op === "add") {
       const page = context.collectionPages?.find((p) => p.pageId === msg.pageId);
@@ -740,6 +747,59 @@ export default function VisualEditor({
     setBlocks(updateBlock(list, msg.uid, (b) => ({ ...b, props: { ...b.props, items } })), { structural: true });
     return true;
   };
+
+  /**
+   * Couverture d'une entrée de collection choisie sur la tuile (lot 26) : `mediaId` (image de la médiathèque) posé sur l'entrée
+   * (liste manuelle : `items[i]` ; automatique : `edits[]`, attaché à la page) ; undefined = la couverture de la collection. Le
+   * cadrage de la tuile est retiré (il visait l'ancienne image). false = refusé ou sans effet.
+   */
+  const applyTileCover = (target: { uid: string; index?: number; pageId?: number }, mediaId: number | undefined): boolean => {
+    const list = draftRef.current.blocks;
+    const block = findBlock(list, target.uid);
+    if (!block || block.type !== "collection-tiles") return false;
+    const props = { ...block.props } as Record<string, unknown>;
+    type Cover = { pageId?: number; collection?: string; mediaId?: number } & Record<string, unknown>;
+    let collection: string | undefined;
+    if (props.mode === "auto") {
+      const page = context.collectionPages?.find((p) => p.pageId === target.pageId);
+      if (!page) return false;
+      collection = page.collection;
+      const edits = [...((props.edits as Cover[] | undefined) ?? [])];
+      const at = edits.findIndex((e) => e.pageId === page.pageId);
+      const current = at >= 0 ? edits[at] : { pageId: page.pageId };
+      if (current.mediaId === mediaId) return false;
+      const { mediaId: _old, ...rest } = current;
+      void _old;
+      const next: Cover = mediaId === undefined ? rest : { ...rest, mediaId };
+      if (at >= 0) edits.splice(at, 1, next);
+      else edits.push(next);
+      const kept = edits.filter((e) => Object.keys(e).length > 1);
+      if (kept.length) props.edits = kept;
+      else delete props.edits;
+    } else {
+      const items = [...((props.items as Cover[] | undefined) ?? [])];
+      const i = target.index ?? items.findIndex((it) => it.pageId === target.pageId);
+      if (i === undefined || i < 0 || i >= items.length) return false;
+      collection = items[i].collection;
+      if (items[i].mediaId === mediaId) return false;
+      const { mediaId: _old, ...rest } = items[i];
+      void _old;
+      items[i] = mediaId === undefined ? rest : { ...rest, mediaId };
+      props.items = items;
+    }
+    const look = readLook(props.look);
+    if (collection && look?.tileCrop && (look.tileCrop as Record<string, unknown>)[collection]) {
+      const { [collection as keyof typeof look.tileCrop]: _crop, ...tileCrop } = look.tileCrop;
+      void _crop;
+      const nextLook = cleanLook({ ...look, tileCrop });
+      if (nextLook) props.look = nextLook;
+      else delete props.look;
+    }
+    setBlocks(updateBlock(list, target.uid, (b) => ({ ...b, props })), { structural: true });
+    toast(mediaId === undefined ? "Couverture de la collection rétablie" : "Couverture choisie", "success", { label: "Annuler", run: () => void undoRef.current() });
+    return true;
+  };
+  const [tileCover, setTileCover] = useState<{ uid: string; index?: number; pageId?: number } | null>(null);
 
   /** Demande de la toile : choix illustré, ou texte tout de suite, à cet endroit. */
   const requestInsert = (parent: string | null, index: number, what: "choose" | TextStarter) => {
@@ -1066,6 +1126,8 @@ export default function VisualEditor({
   useEffect(() => () => clearTimeout(lookTimer.current), []);
   /** Depuis le panneau : montré sur la toile (qui renvoie l'intention), ou directement si la toile n'est pas prête. */
   const lookEchoed = useRef(0);
+  /** Image du logo (lot 26) : choix dans la médiathèque ou envoi d'un fichier, depuis le panneau « Logo ». */
+  const [logoPick, setLogoPick] = useState(false);
   const requestLook = (palette: SitePalette, logo: Logo) => {
     setPendingLook({ palette, logo });
     if (frameReady && mode === "edit") {
@@ -1186,32 +1248,39 @@ export default function VisualEditor({
     toast(field.kind === "video" ? "Vidéo placée" : field.kind === "pdf" ? "PDF placé" : "Image placée", "success", { label: "Annuler", run: () => void undoRef.current() });
   };
 
+  /** Envoie un fichier et attend sa conversion : l'identifiant du média prêt, ou null (le message d'erreur est affiché). */
+  const sendAndWait = async (file: File): Promise<number | null> => {
+    toast(`Envoi de « ${file.name.slice(0, 60)} »…`);
+    const up = await sendFile(file, () => undefined);
+    if (!up.ok) {
+      toast(up.message, "error");
+      return null;
+    }
+    router.refresh();
+    let ready = false;
+    for (let i = 0; i < 1300; i++) {
+      const st = await mediaStatusAction([up.media.id]);
+      const row = st.ok ? st.data[0] : undefined;
+      if (row?.status === "ready") {
+        ready = true;
+        break;
+      }
+      if (!row || row.status === "failed") break;
+      await new Promise((r) => setTimeout(r, 700));
+    }
+    if (!ready) {
+      toast(`« ${file.name.slice(0, 60)} » : conversion impossible.`, "error");
+      return null;
+    }
+    return up.media.id;
+  };
+
   /** Fichiers déposés sur un bloc média ou une place libre : envoyés, convertis, puis posés. */
   const uploadToBlock = async (target: Extract<DropTargetInfo, { kind: "media" | "cell" }>, files: File[]) => {
     for (const file of target.kind === "media" ? files.slice(0, 1) : files) {
-      toast(`Envoi de « ${file.name.slice(0, 60)} »…`);
-      const up = await sendFile(file, () => undefined);
-      if (!up.ok) {
-        toast(up.message, "error");
-        continue;
-      }
-      router.refresh();
-      let ready = false;
-      for (let i = 0; i < 1300; i++) {
-        const st = await mediaStatusAction([up.media.id]);
-        const row = st.ok ? st.data[0] : undefined;
-        if (row?.status === "ready") {
-          ready = true;
-          break;
-        }
-        if (!row || row.status === "failed") break;
-        await new Promise((r) => setTimeout(r, 700));
-      }
-      if (!ready) {
-        toast(`« ${file.name.slice(0, 60)} » : conversion impossible.`, "error");
-        continue;
-      }
-      placeMedia(target, up.media.id, file.type.startsWith("video/") ? "video" : isPdfFile(file) ? "pdf" : "image");
+      const id = await sendAndWait(file);
+      if (id === null) continue;
+      placeMedia(target, id, file.type.startsWith("video/") ? "video" : isPdfFile(file) ? "pdf" : "image");
     }
   };
 
@@ -2053,7 +2122,7 @@ export default function VisualEditor({
                 })
               }
             />
-            {selected === "site-header" && <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} />}
+            {selected === "site-header" && <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />}
             </>
           ) : selBlock && selDef ? (
             <div className="ve-settings">
@@ -2138,9 +2207,15 @@ export default function VisualEditor({
                   pageId={pageId}
                   error={publishErrors.collection}
                 />
+                <PageButtonsColorField
+                  value={draft.accent ?? null}
+                  onChange={(v) => apply({ ...draftRef.current, accent: v }, { structural: true })}
+                  colors={effective}
+                  error={publishErrors.accent}
+                />
               </div>
               <ColorsPanel theme={lookContext.theme} value={liveLook.palette} onChange={(p) => requestLook(p, liveLook.logo)} onHighlight={highlightRole} info={hlInfo} locked={siteLocked} />
-              <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} />
+              <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />
               <SiteStylesPanel styles={siteSnap.styles} onChange={(s) => void applySiteStyles(() => s, Object.values(cleanSiteStyles(s)?.roles ?? {}))} palette={swatches} cardPalette={effective} installed={fontFamilies} locked={siteLocked} />
             </div>
           ))}
@@ -2400,6 +2475,38 @@ export default function VisualEditor({
           if (!at) return;
           if (choice.kind === "starter") insertStarter(choice.starter, at);
           else insert(choice.key, at);
+        }}
+      />
+
+      <MediaPickerDialog
+        open={tileCover !== null}
+        media={context.media.filter((m) => m.kind === "image")}
+        onClose={() => setTileCover(null)}
+        onPick={(mediaId) => {
+          const t = tileCover;
+          setTileCover(null);
+          if (t) applyTileCover(t, mediaId);
+        }}
+        onFile={(file) => {
+          const t = tileCover;
+          setTileCover(null);
+          if (t) void sendAndWait(file).then((id) => id !== null && applyTileCover(t, id));
+        }}
+      />
+
+      <MediaPickerDialog
+        open={logoPick}
+        media={context.media.filter((m) => m.kind === "image")}
+        onClose={() => setLogoPick(false)}
+        onPick={(mediaId) => {
+          setLogoPick(false);
+          requestLook(liveLook.palette, { ...liveLook.logo, mediaId });
+        }}
+        onFile={(file) => {
+          setLogoPick(false);
+          void sendAndWait(file).then((id) => {
+            if (id !== null) requestLook(liveLook.palette, { ...liveLook.logo, mediaId: id });
+          });
         }}
       />
 

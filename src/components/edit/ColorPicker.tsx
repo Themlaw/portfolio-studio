@@ -5,7 +5,8 @@
  * du texte (dégradé conique), qui ouvre une fenêtre avec une roue chromatique
  * (teinte = angle, saturation = rayon), un curseur de luminosité, un curseur
  * d'opacité, saisie HEX / RGB / HSL, aperçu sur le fond du thème avec
- * avertissement de contraste (jamais bloquant), couleurs du thème et récentes.
+ * avertissement de contraste (jamais bloquant) et couleurs récentes. Pas de seconde rangée « couleurs du thème » (lot 26) :
+ * les pastilles nommées du site sont déjà à côté (barre du texte, choix de carte ou de fond), la roue ne les redouble pas.
  *
  * Roue, luminosité et opacité : @uiw/react-color-wheel / -shade-slider / -alpha
  * (styles en ligne uniquement : aucune feuille injectée, la toile reste sous CSP ;
@@ -24,7 +25,7 @@ import Wheel from "@uiw/react-color-wheel";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { hslToHsv, hsvToHsl, hsvToRgb, isCustomColor, over, parseColor, rgbaToHex, rgbToHsv, wheelGradient, type Hsva } from "@/lib/color";
-import { PALETTE, PALETTE_LABELS, type PaletteColor } from "@/lib/look";
+import { PALETTE, type PaletteColor } from "@/lib/look";
 import { AA, ratio } from "@/themes/contrast";
 
 import { useDismiss } from "./useDismiss";
@@ -192,7 +193,7 @@ function Popover({
   live,
 }: ColorPickerProps & { id: string; ref: React.Ref<HTMLDivElement>; onClose: () => void; solid?: SolidOptions; live?: boolean }) {
   const box = useRef<HTMLDivElement | null>(null);
-  const [state, setState] = useState<{ hsva: Hsva; bg: string | null; theme: string[]; recent: string[] } | null>(null);
+  const [state, setState] = useState<{ hsva: Hsva; bg: string | null; recent: string[] } | null>(null);
   const [edit, setEdit] = useState<{ k: string; v: string } | null>(null);
 
   // Lecture du thème dans le document de la toile, une fois ouvert.
@@ -203,10 +204,6 @@ function Popover({
     setState({
       hsva: rgbToHsv(start ?? { r: 0, g: 0, b: 0, a: 1 }),
       bg: bg ? rgbaToHex({ ...bg, a: 1 }) : null,
-      theme: PALETTE.map((c) => {
-        const rgba = resolveCss(swatch(c), doc);
-        return rgba ? rgbaToHex(rgba) : "";
-      }),
       recent: readRecent(),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -394,25 +391,6 @@ function Popover({
         {contrast === null ? "Contraste non mesurable ici." : low ? `Contraste avec le fond du thème : ${contrast.toFixed(1).replace(".", ",")}:1, insuffisant (AA : 4,5:1).` : `Contraste avec le fond du thème : ${contrast.toFixed(1).replace(".", ",")}:1, suffisant.`}
       </p></>}
 
-      {!solid && <div className="cp-chips" role="group" aria-label="Couleurs du thème">
-        <span className="cp-flabel">Thème</span>
-        {PALETTE.map((c, i) => (
-          <button
-            key={c}
-            type="button"
-            className="cp-chip"
-            style={{ background: swatch(c) }}
-            title={PALETTE_LABELS[c]}
-            aria-label={PALETTE_LABELS[c]}
-            onClick={() => {
-              const rgbaT = state.theme[i] ? parseColor(state.theme[i]) : null;
-              if (rgbaT) setState({ ...state, hsva: rgbToHsv(rgbaT, hsva.h) });
-              cancel();
-              onChange(c);
-            }}
-          />
-        ))}
-      </div>}
       {state.recent.length > 0 && (
         <div className="cp-chips" role="group" aria-label="Couleurs récentes">
           <span className="cp-flabel">Récentes</span>

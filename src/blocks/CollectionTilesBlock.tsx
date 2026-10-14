@@ -8,14 +8,14 @@ import { cropSources } from "@/lib/images/crop";
 import { parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { signCrop } from "@/lib/images/crop-cache";
 import { cropVars } from "@/lib/look";
-import { mediaUrl } from "@/lib/media";
+import { getMedia, mediaUrl } from "@/lib/media";
 import { getNav, getPageBlocks, getPageIndex, hrefForPage } from "@/lib/pages";
 import { getSiteView } from "@/lib/settings";
 
-import { autoEntries, manualEntries, MAX_TILES, orderCollectionPages, tilesMode, TILE_GEOMETRY, tileSize, type CollectionPage, type TileItem } from "./collection-pages";
-import { collection, inline, localized, pageRef, tr, type BlockContext, localizedText } from "./types";
+import { autoEntries, COLLECTION_NAMES, manualEntries, MAX_TILES, orderCollectionPages, tilesMode, TILE_GEOMETRY, tileSize, tileVisibility, type CollectionPage, type TileItem } from "./collection-pages";
+import { collection, inline, localized, mediaRef, pageRef, tr, type BlockContext, localizedText } from "./types";
 
-const itemSchema = z.object({ collection, pageId: pageRef, eyebrow: localized, title: localized, intro: localizedText });
+const itemSchema = z.object({ collection, pageId: pageRef, eyebrow: localized, title: localized, intro: localizedText, mediaId: mediaRef.optional() });
 
 export const collectionTilesSchema = z.object({
   eyebrow: localized,
@@ -34,7 +34,7 @@ export const collectionTilesSchema = z.object({
   items: z.array(itemSchema).max(MAX_TILES).optional(),
   /** Mode automatique : textes modifiés sur la tuile, attachés à la page (clé : identifiant de page). */
   edits: z
-    .array(z.object({ pageId: pageRef, eyebrow: localized.optional(), title: localized.optional(), intro: localizedText.optional() }))
+    .array(z.object({ pageId: pageRef, eyebrow: localized.optional(), title: localized.optional(), intro: localizedText.optional(), mediaId: mediaRef.optional() }))
     .max(MAX_TILES * 2)
     .optional(),
 });
@@ -60,12 +60,12 @@ export default async function CollectionTilesBlock({
   const geo = TILE_GEOMETRY[size];
 
   const { found, published } = await findCollectionPages(ctx);
-  type Row = { key: string; pageId: number; collection: TileItem["collection"]; eyebrow: { fr: string; en: string }; title: { fr: string; en: string }; intro: { fr: string; en: string }; broken?: true; index?: number };
+  type Row = { key: string; pageId: number; collection: TileItem["collection"]; eyebrow: { fr: string; en: string }; title: { fr: string; en: string }; intro: { fr: string; en: string }; broken?: true; index?: number; mediaId?: number };
   let rows: Row[];
   if (tilesMode(props) === "auto") {
-    rows = autoEntries(found, props.edits).map((e) => ({ key: String(e.pageId), pageId: e.pageId, collection: e.collection, eyebrow: e.eyebrow, title: e.title, intro: e.intro }));
+    rows = autoEntries(found, props.edits).map((e) => ({ key: String(e.pageId), pageId: e.pageId, collection: e.collection, eyebrow: e.eyebrow, title: e.title, intro: e.intro, ...(e.mediaId !== undefined ? { mediaId: e.mediaId } : {}) }));
   } else {
-    rows = manualEntries(props.items ?? [], published).map((it, i) => ({ index: i, key: `${i}-${it.pageId}`, pageId: it.pageId, collection: it.collection, eyebrow: it.eyebrow, title: it.title, intro: it.intro, ...(it.broken ? { broken: true as const } : {}) }));
+    rows = manualEntries(props.items ?? [], published).map((it, i) => ({ index: i, key: `${i}-${it.pageId}`, pageId: it.pageId, collection: it.collection, eyebrow: it.eyebrow, title: it.title, intro: it.intro, ...(it.mediaId !== undefined ? { mediaId: it.mediaId } : {}), ...(it.broken ? { broken: true as const } : {}) }));
   }
 
   const fixed = props.ratio && props.ratio !== "auto" ? props.ratio : undefined;
@@ -76,7 +76,19 @@ export default async function CollectionTilesBlock({
       if (ctx.edit) tiles.push({ key: row.key, broken: true, itemIndex: row.index, href: "#", eyebrow: "", title: tr(row.title, ctx.locale), intro: "", count: "", image: "", imageAlt: "", width: 1, height: 1, shownRatio: 1 });
       continue;
     }
-    const cover = await getCollectionCover(row.collection, ctx.locale);
+    // Collection sans œuvre publiée : rien en public ; sur la toile, un avis dans la tuile (lot 26).
+    const works = await countCollection(row.collection);
+    const visibility = tileVisibility(works, Boolean(ctx.edit));
+    if (visibility !== "tile") {
+      if (visibility === "notice") tiles.push({ key: row.key, empty: true, collectionName: COLLECTION_NAMES[row.collection], pageId: row.pageId, itemIndex: row.index, href: "#", eyebrow: "", title: tr(row.title, ctx.locale), intro: "", count: "", image: "", imageAlt: "", width: 1, height: 1, shownRatio: 1 });
+      continue;
+    }
+    // Couverture choisie sur la tuile (une image de la médiathèque), sinon celle de la collection (œuvre « Couverture » de l'admin, ou la première).
+    const chosen = row.mediaId !== undefined ? await getMedia(row.mediaId) : null;
+    const own = chosen && !chosen.video && !chosen.pdf && chosen.width && chosen.height ? chosen : null;
+    const cover = own
+      ? { image: own.url, sources: own.sources ?? undefined, width: own.width!, height: own.height!, mediaId: own.id, video: undefined, alt: (own.alt ? tr(own.alt, ctx.locale) : "") || tr(row.title, ctx.locale) }
+      : await getCollectionCover(row.collection, ctx.locale);
     if (!cover) continue;
     const crop = ctx.look?.tileCrop?.[row.collection];
     // Recadrage libre (lot 17d) : variante extraite de l'ORIGINAL de la couverture ; la tuile prend le rapport du rectangle.
@@ -85,6 +97,8 @@ export default async function CollectionTilesBlock({
     const height = free ? free.height : cover.height;
     tiles.push({
       key: row.collection,
+      pageId: row.pageId,
+      ...(own ? { ownCover: true } : {}),
       ...(row.index !== undefined ? { itemIndex: row.index } : {}),
       ...(crop && !crop.rect ? { cropStyle: cropVars(crop) } : {}),
       ...(free ? { free: true } : {}),
@@ -96,7 +110,7 @@ export default async function CollectionTilesBlock({
       eyebrow: tr(row.eyebrow, ctx.locale),
       title: tr(row.title, ctx.locale),
       intro: tr(row.intro, ctx.locale),
-      count: tg("count", { count: await countCollection(row.collection) }),
+      count: tg("count", { count: works }),
       image: cover.image,
       sources: free ? free.sources : cover.sources,
       imageAlt: cover.alt,

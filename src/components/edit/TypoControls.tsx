@@ -11,7 +11,7 @@
  */
 import { useState } from "react";
 
-import { fontLabel, fontStack, googleOf, PALETTE, PALETTE_LABELS, SIZE_LABELS, SIZES, WEIGHTS, type PaletteColor, type TextStyle } from "@/lib/look";
+import { fontLabel, fontStack, googleOf, PALETTE_DISPLAY, PALETTE_LABELS, SIZE_LABELS, SIZES, WEIGHTS, type PaletteColor, type TextStyle } from "@/lib/look";
 import { googleFamily } from "@/themes/google-fonts";
 import type { CardPalette } from "@/themes/surface";
 
@@ -112,7 +112,7 @@ export default function TypoControls({ value, onChange, installed, swatch, theme
       </div>
       <div className="tc-row">
         <span className="tc-swatches" role="radiogroup" aria-label="Couleur">
-          {PALETTE.map((c) => (
+          {PALETTE_DISPLAY.map((c) => (
             <button
               key={c}
               type="button"
@@ -126,6 +126,11 @@ export default function TypoControls({ value, onChange, installed, swatch, theme
             />
           ))}
           <ColorPicker value={value.color} onChange={(color) => set({ color })} swatch={swatch} />
+          {value.color && (
+            <span className="tc-color-name" data-testid="text-color-name">
+              {PALETTE_LABELS[value.color as PaletteColor] ?? "Couleur libre"}
+            </span>
+          )}
         </span>
         <span className="tc-seg" role="radiogroup" aria-label="Alignement">
           {(["left", "center", "right"] as const).map((a) => (

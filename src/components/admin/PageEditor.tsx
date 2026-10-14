@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Éditeur de page : informations (titre, adresses, référencement, accent),
+ * Éditeur de page : informations (titre, adresses, collection, couleur des boutons et liens de la page), référencement,
  * puis la liste des blocs (cartes repliables, réordonnables, ajout par
  * sélecteur décrivant chaque type). Chaque bloc s'édite avec le formulaire
  * déclaré par son type dans le registre. Enregistrer publie aussitôt si la
@@ -14,13 +14,14 @@ import { own } from "@/lib/own";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 
+import PageButtonsColorField from "@/app/admin/_fields/PageButtonsColorField";
 import { errorAt, Field, PageCollectionField, TextareaI18n, TextField, TextI18n, Toggle } from "@/app/admin/_fields";
 import { savePageAction } from "@/app/admin/(espace)/pages/actions";
 import { BlockEditorContext } from "@/blocks/editor-context";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
 import { renderSummary } from "@/blocks/summary";
 import type { AdminPageEdit } from "@/lib/admin";
-import { accentProblem, nearestAccent } from "@/themes/contrast";
+import { accentProblem } from "@/themes/contrast";
 
 import { clone, ConfirmDialog, SaveBar, same, toast, useUnsavedGuard } from "./editing";
 import { DragHandle, SortableList } from "./Sortable";
@@ -127,9 +128,6 @@ export default function PageEditor({
   // Types seulement (ni raccourcis de la palette, ni types anciens).
   const byType = Object.fromEntries(catalog.filter((c) => !c.preset).map((c) => [c.type, c]));
   const accentIssue = state.accent && colors ? accentProblem(state.accent, colors) : null;
-  const accentFix = state.accent && colors && accentIssue ? nearestAccent(state.accent, colors) : null;
-  // Accent enregistré devenu illisible après un changement de thème : ignoré au rendu.
-  const savedAccentIgnored = Boolean(saved.accent && colors && accentProblem(saved.accent, colors));
 
   const toggleOpen = (id: string) =>
     setOpenBlocks((s) => {
@@ -141,7 +139,7 @@ export default function PageEditor({
 
   const save = () => {
     if (accentIssue) {
-      setError("L'accent de la page n'est pas assez contrasté : ajuste-le ou retire-le avant d'enregistrer.");
+      setError("La couleur des boutons et liens de la page n'est pas assez contrastée : ajuste-la ou retire-la avant d'enregistrer.");
       return;
     }
     start(async () => {
@@ -223,6 +221,7 @@ export default function PageEditor({
           />
           <Toggle label="Dans le menu" help="En fin de menu ; change l'ordre depuis la liste des pages." checked={state.inMenu} onChange={(v) => set("inMenu", v)} />
           <PageCollectionField value={state.collection} onChange={(v) => set("collection", v)} pages={context.pages} pageId={page.id} error={errors.collection} />
+          <PageButtonsColorField value={state.accent} onChange={(v) => set("accent", v)} colors={colors} savedValue={saved.accent} error={errors.accent} />
         </div>
       </section>
 
@@ -238,42 +237,6 @@ export default function PageEditor({
             error={errorAt(errors, "meta.description")}
           />
         </div>
-      </section>
-
-      <section className="a-panel" aria-labelledby="pe-accent">
-        <h2 id="pe-accent">Accent de la page</h2>
-        <Toggle
-          label="Couleur d'accent propre à cette page"
-          help="Remplace la couleur d'action du thème (liens, boutons) sur cette page seulement."
-          checked={state.accent !== null}
-          onChange={(on) => set("accent", on && colors ? colors.primary : null)}
-        />
-        {savedAccentIgnored && (
-          <p className="a-notice" role="status">
-            Cette couleur n&apos;est plus lisible avec le thème en ligne : elle est ignorée.
-          </p>
-        )}
-        {state.accent !== null && (
-          <Field label="Accent" error={accentIssue ?? errors.accent} htmlFor="pe-accent-hex">
-            <div className="a-color-row">
-              <input type="color" aria-label="Accent : sélecteur" value={state.accent} onChange={(e) => set("accent", e.target.value)} />
-              <input
-                id="pe-accent-hex"
-                className="a-input mono a-color-hex"
-                value={state.accent}
-                onChange={(e) => /^#[0-9a-fA-F]{6}$/.test(e.target.value.trim()) && set("accent", e.target.value.trim())}
-              />
-              {!accentIssue && <span className="a-ratio a-ratio-ok">✓ AA</span>}
-            </div>
-            {accentFix && (
-              <button type="button" className="a-btn a-btn-small a-fix" onClick={() => set("accent", accentFix)}>
-                Ajuster à la teinte la plus proche qui passe
-                <span className="a-chip" style={{ background: accentFix }} aria-hidden="true" />
-                <span className="mono">{accentFix}</span>
-              </button>
-            )}
-          </Field>
-        )}
       </section>
 
       <section className="a-panel" aria-labelledby="pe-blocs">

@@ -444,7 +444,7 @@ if (run("D")) {
   // Couleur de texte choisie : conservée, alerte.
   await popToken(f, "ink").click();
   await settled();
-  await f.locator('.lk-bar .tc-swatches [aria-label="Encre"]').click();
+  await f.locator('.lk-bar .tc-swatches [aria-label="Texte"]').click();
   await settled();
   ok("D4 couleur de texte choisie (Encre) sur fond Encre : conservée, pas écrasée", await until(f, () => true) && same(await inkOf(f, SCROLL), P.ink), JSON.stringify(await inkOf(f, SCROLL)));
   ok("D5 pastille « ! » d'alerte de contraste", await f.locator('[data-testid="bd-alert"]').waitFor({ timeout: 10000 }).then(() => true, () => false));
@@ -457,10 +457,10 @@ if (run("D")) {
   ok("D7 fond clair + texte Encre : plus d'alerte", await f.locator('[data-testid="bd-alert"]').waitFor({ state: "detached", timeout: 10000 }).then(() => true, () => false));
   // Couleur du texte choisie dans le style du RÔLE : un fond local ne l'écrase pas non plus.
   await scopeButton(f, "Tous les").click();
-  await f.locator('.lk-bar .tc-swatches [aria-label="Principale"]').click();
+  await f.locator('.lk-bar .tc-swatches [aria-label="Boutons et liens"]').click();
   await settled();
   await scopeButton(f, "Ce texte").click();
-  await f.locator('.lk-bar .tc-swatches [aria-label="Encre"]').click();
+  await f.locator('.lk-bar .tc-swatches [aria-label="Texte"]').click();
   await settled(); // retire la couleur locale (re-clic = retour au style global)
   await openDot(f).catch(() => {});
   await popToken(f, "ink").click();
