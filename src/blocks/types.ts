@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 
 import type { AppLocale } from "@/i18n/routing";
 import { textStyleObject, type Look } from "@/lib/look";
+import type { CardPalette } from "@/themes/surface";
 
 /** Texte court localisé (étiquette, titre, bouton). */
 export const localized = z.object({ fr: z.string().max(200), en: z.string().max(200) });
@@ -49,6 +50,8 @@ export type BlockContext = {
   blockId?: number;
   /** Réglages de mise en page du bloc (props.look, lot 2) : styles de ses textes. */
   look?: Look;
+  /** Palette effective du thème : choisit le texte lisible sur un fond de texte coloré (lot 21). Absente = non lue. */
+  palette?: CardPalette;
 };
 
 /**
@@ -65,7 +68,7 @@ export function inline(ctx: BlockContext, path: string): { "data-inline"?: strin
  */
 export function textStyle(ctx: BlockContext, path: string): { style?: CSSProperties } {
   const own = ctx.look?.text && Object.hasOwn(ctx.look.text, path) ? ctx.look.text[path] : undefined;
-  const style = textStyleObject(own);
+  const style = textStyleObject(own, ctx.palette);
   return style ? { style: style as CSSProperties } : {};
 }
 

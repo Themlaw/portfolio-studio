@@ -7,8 +7,8 @@ import { own } from "@/lib/own";
 import { cellShare, type GridLayout } from "./grid-layouts";
 import { getSiteView } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
-import { resolvePalette, type PaletteColors } from "@/themes/palette";
-import { effectiveSitePalette, sitePaletteProblem } from "@/themes/site-palette";
+import type { PaletteColors } from "@/themes/palette";
+import { pagePalette } from "@/themes/site-palette";
 import { cardStyle, cardVars, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
 import { BLOCKS } from "./registry";
 import { MAX_NESTING } from "./tree";
@@ -185,18 +185,18 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
 
 export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; ctx: BlockContext }) {
   // Toute la page, pour les blocs qui se calculent depuis son contenu (compteurs).
-  const base: BlockContext = { ...ctx, pageBlocks: blocks.filter((b) => !b.corrupt).map((b) => ({ type: b.type, props: b.props })) };
+  const baseCtx: BlockContext = { ...ctx, pageBlocks: blocks.filter((b) => !b.corrupt).map((b) => ({ type: b.type, props: b.props })) };
   // Le thème n'est lu que pour une carte (ou en édition, qui peut en créer une) : les pages sans carte restent comme avant.
   let card: CardEnv | null = null;
-  if (ctx.edit || blocks.some((b) => !b.corrupt && readSurface((b.props as { surface?: unknown } | null)?.surface))) {
+  // Fond de texte coloré (lot 21) : la palette sert à choisir le texte lisible dessus.
+  const coloredBackdrop = blocks.some((b) => !b.corrupt && JSON.stringify(b.props ?? null).includes('"backdropColor"'));
+  if (ctx.edit || coloredBackdrop || blocks.some((b) => !b.corrupt && readSurface((b.props as { surface?: unknown } | null)?.surface))) {
     const [theme, view] = await Promise.all([getActiveTheme(), getSiteView(ctx.locale, ctx.pageId)]);
     // Palette du site (lot 17f) : quand elle surcharge des couleurs du thème, la carte se calcule sur la palette EFFECTIVE
     // (mêmes règles que le layout : en public, une palette devenue illisible est ignorée).
-    const color = theme.tokens.color as PaletteColors;
-    const overrides = view.styles?.palette;
-    const usable = overrides && (ctx.edit || !sitePaletteProblem(color, theme.tokens.palette, overrides));
-    card = { palette: usable ? effectiveSitePalette(color, theme.tokens.palette, overrides) : resolvePalette(theme.tokens.color, theme.tokens.palette), defaults: resolveSurface(theme.tokens.layout?.card ?? {}) };
+    card = { palette: pagePalette(theme.tokens.color as PaletteColors, theme.tokens.palette, view.styles?.palette, Boolean(ctx.edit)), defaults: resolveSurface(theme.tokens.layout?.card ?? {}) };
   }
+  const base: BlockContext = { ...baseCtx, ...(card ? { palette: card.palette } : {}) };
   return (
     <>
       {blocks.map((block) => renderBlock(block, base, 0, undefined, undefined, card))}

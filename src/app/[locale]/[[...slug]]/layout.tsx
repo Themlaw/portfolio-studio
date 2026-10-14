@@ -10,7 +10,7 @@ import { logoCss, siteStylesCss } from "@/lib/look";
 import { getFontFacesCss, getSiteView } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
 import { sitePaletteCss } from "@/themes/css";
-import { sitePaletteProblem } from "@/themes/site-palette";
+import { pagePalette, sitePaletteProblem } from "@/themes/site-palette";
 import type { PaletteColors } from "@/themes/palette";
 
 /**
@@ -36,13 +36,15 @@ export default async function SiteLayout({
   const [nav, fontFaces] = await Promise.all([getNav(locale, view.draft ? view.nav : undefined), getFontFacesCss()]);
   // Styles du site (lot 2) : polices téléchargées (servies par /fonts) et
   // styles des textes par rôle ; vue brouillon : ceux du brouillon du site.
-  const siteCss = [fontFaces, siteStylesCss(view.styles)].filter(Boolean).join("\n");
+  const theme = await getActiveTheme();
+  // Fond de texte coloré (lot 21) : la palette effective choisit le texte lisible dessus (lue seulement alors).
+  const textPalette = JSON.stringify(view.styles?.roles ?? null).includes('"backdropColor"') ? pagePalette(theme.tokens.color as PaletteColors, theme.tokens.palette, view.styles?.palette, edit) : undefined;
+  const siteCss = [fontFaces, siteStylesCss(view.styles, textPalette)].filter(Boolean).join("\n");
   // Palette et logo du site (lot 17f) : feuilles à part, posées AVANT les styles de rôle (un réglage
   // de taille du « Nom du site » passe devant celle du logo). Sans réglage : aucune balise, rendu du thème.
   // Palette qui rendrait du texte illisible avec le thème actif (thème changé depuis) : ignorée au rendu
   // public et signalée au journal, comme l'accent d'une page ; la vue brouillon la montre pour la corriger.
-  const theme = await getActiveTheme();
-    const overrides = view.styles?.palette;
+  const overrides = view.styles?.palette;
   const unreadable = !edit && overrides ? sitePaletteProblem(theme.tokens.color as PaletteColors, theme.tokens.palette, overrides) : null;
   if (unreadable) console.error(`[palette] palette du site ignorée : ${unreadable}`);
   const paletteCss = unreadable ? "" : sitePaletteCss(theme.tokens, overrides);
