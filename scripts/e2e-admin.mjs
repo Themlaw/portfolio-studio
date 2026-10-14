@@ -220,7 +220,7 @@ try {
   await textBlock.getByLabel("Texte", { exact: true }).fill("Observation sketches, summer 2026.");
   await addBlock("Contact");
   const contactBlock = page.locator(".a-block").last();
-  for (const [label, fr] of [["Étiquette", "Contact"], ["Titre", "Écris-moi"], ["Présentation", "Une commande ?"], ["Texte du bouton", "M'écrire"]]) {
+  for (const [label, fr] of [["Étiquette (facultative)", "Contact"], ["Titre (facultatif)", "Écris-moi"], ["Présentation (facultative)", "Une commande ?"], ["Texte du bouton (facultatif)", "M'écrire"]]) {
     await contactBlock.getByLabel(label, { exact: true }).fill(fr);
   }
   // Sans traduction anglaise du titre du contact : autorisé (texte vide), on la remplit quand même.

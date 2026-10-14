@@ -33,7 +33,8 @@ import { pickerGroups } from "@/blocks/groups";
 import { HELP_TEXT, STARTER_LIST, TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
 import { blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
-import { makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
+import { fieldOpDef, hasOptionalField, withOptionalField } from "@/blocks/optional-fields";
+import { isFormBlock, makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
 import { SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
 import type { BoardOp, BoardResult, BoardSnap } from "@/lib/edit/boards";
 import type { DraftBlock, PageDraft } from "@/lib/edit/drafts";
@@ -627,6 +628,8 @@ export default function VisualEditor({
   /* ---- Opérations sur les blocs ------------------------------------------ */
 
   const blocks = draft.blocks;
+  /** Types déjà posés sur la page (composants compris) : grise l'ajout d'un composant « une seule fois par page ». */
+  const present = useMemo(() => new Set(walkTree(blocks).map((v) => v.block.type)), [blocks]);
   const setBlocks = (next: DraftBlock[], opts: { key?: string; structural?: boolean } = { structural: true }) =>
     apply({ ...draftRef.current, blocks: next }, opts);
 
@@ -655,6 +658,11 @@ export default function VisualEditor({
     const def = catalog.find((c) => c.key === key && !c.hidden);
     if (!def) return;
     const list = draftRef.current.blocks;
+    // Une seule fois par page (l'Ouverture) : le panneau grise déjà l'ajout, ceci couvre le glisser et le « + » de la toile.
+    if (def.single && walkTree(list).some((v) => v.block.type === def.type)) {
+      toast(def.single, "error");
+      return;
+    }
     const place = at ?? defaultPlace(def.type);
     if (place.parent === null && list.length >= 40) {
       toast("40 blocs au plus par page.", "error");
@@ -663,7 +671,9 @@ export default function VisualEditor({
     // Titre inséré tout en haut d'une page (aucun bloc avant) sans titre principal (ni ouverture, qui porte le sien) : il l'est (h1) ; un titre de section sinon (lot 22).
     const principal =
       def.type === "section-title" && place.parent === null && place.index === 0 && !list.some((b) => b.type === "hero" || b.type === "profile" || (b.type === "section-title" && b.props.main === true));
-    const block = withFreshUids({ uid: "", type: def.type, props: clone({ ...def.defaults, ...(principal ? { main: true } : {}), ...opts?.props }) } as DraftBlock, newUid);
+    // Un Profil posé sur une page qui a déjà une Ouverture ne répète pas le nom (elle l'affiche déjà ; lot 27).
+    const nameOnce = def.type === "profile" && list.some((b) => b.type === "hero");
+    const block = withFreshUids({ uid: "", type: def.type, props: clone({ ...def.defaults, ...(principal ? { main: true } : {}), ...(nameOnce ? { showName: false } : {}), ...opts?.props }) } as DraftBlock, newUid);
     const next = insertBlock(list, block, place.parent, place.index);
     if (!next) {
       const parent = place.parent ? findBlock(list, place.parent) : null;
@@ -698,6 +708,17 @@ export default function VisualEditor({
   const fieldOp = (uid: string, op: Extract<FromCanvas, { kind: "field-op" }>["op"]): boolean => {
     const list = draftRef.current.blocks;
     const block = findBlock(list, uid);
+    // Grille, Contact, Profil, CV (lot 27) : table de src/blocks/optional-fields.ts.
+    const named = /^(add|remove)-(.+)$/.exec(op);
+    const def = block && named ? fieldOpDef(block.type, named[2]) : undefined;
+    if (block && def && named) {
+      const add = named[1] === "add";
+      if (add === hasOptionalField(def, block.props)) return false;
+      setBlocks(updateBlock(list, uid, (b) => ({ ...b, props: withOptionalField(def, b.props, add) })), { structural: true });
+      selectBlock(uid);
+      if (add && def.kind === "text") send({ kind: "edit-text", uid, path: def.prop });
+      return true;
+    }
     const [verb, field] = op.split("-") as ["add" | "remove", "title" | "eyebrow" | "intro" | "counts"];
     // Titre : bloc Texte. Étiquette : bloc Titre, ou bloc Texte qui en porte une (« Retirer l'étiquette » seulement). Présentation, compteurs : bloc Titre.
     const okType = field === "title" ? block?.type === "rich-text" : block?.type === "section-title" || (block?.type === "rich-text" && op === "remove-eyebrow");
@@ -885,7 +906,7 @@ export default function VisualEditor({
       return false;
     };
     const block = findBlock(draftRef.current.blocks, msg.uid);
-    if (!block || block.type !== "contact-form") return false;
+    if (!block || !isFormBlock(block.type, block.props)) return false;
     const fields = ((block.props.fields as FormField[] | undefined) ?? []).slice();
     if (msg.op === "add") {
       if (fields.length >= MAX_FIELDS) return refuse(`${MAX_FIELDS} champs au plus.`);
@@ -1935,28 +1956,61 @@ export default function VisualEditor({
                 )}
                 {g.entries.length > 0 && (
                   <ul className="ve-palette">
-                    {g.entries.map((c) => (
-                      <li key={c.key}>
-                        <button
-                          type="button"
-                          className="ve-card"
-                          data-type={c.type}
-                          data-key={c.key}
-                          data-dragging={paletteDrag?.type === c.type || undefined}
-                          onPointerDown={(e) => onPaletteDown(e, c)}
-                          onClick={(e) => {
-                            if (e.currentTarget.dataset.dragged) return;
-                            insert(c.key);
-                          }}
-                        >
-                          <BlockThumb type={c.type} preset={c.key} />
-                          <span>
-                            <strong>{c.label}</strong>
-                            <span className="ve-card-desc">{c.description}</span>
-                          </span>
-                        </button>
-                      </li>
-                    ))}
+                    {g.entries.map((c) => {
+                      // Une seule fois par page : déjà sur la page, la carte est grisée et dit pourquoi.
+                      const taken = Boolean(c.single) && present.has(c.type);
+                      return (
+                        <li key={c.key} className={c.models.length || taken ? "ve-card-wrap" : undefined}>
+                          <button
+                            type="button"
+                            className="ve-card"
+                            data-type={c.type}
+                            data-key={c.key}
+                            disabled={taken}
+                            data-dragging={paletteDrag?.type === c.type || undefined}
+                            onPointerDown={(e) => onPaletteDown(e, c)}
+                            onClick={(e) => {
+                              if (e.currentTarget.dataset.dragged) return;
+                              insert(c.key);
+                            }}
+                          >
+                            <BlockThumb type={c.type} preset={c.key} />
+                            <span>
+                              <strong>{c.label}</strong>
+                              <span className="ve-card-desc">{c.description}</span>
+                            </span>
+                          </button>
+                          {taken && (
+                            <p className="ve-card-note" data-testid="palette-single-note">
+                              {c.single}
+                            </p>
+                          )}
+                          {c.models.length > 0 && (
+                            <div className="ve-models" role="group" aria-label={`Modèles de départ : ${c.label}`}>
+                              <span className="ve-models-title">Modèles :</span>
+                              {c.models.map((m) => (
+                                <button
+                                  key={m.key}
+                                  type="button"
+                                  className="ve-model"
+                                  data-key={m.key}
+                                  data-type={m.type}
+                                  title={m.description}
+                                  data-dragging={paletteDrag?.label === m.label || undefined}
+                                  onPointerDown={(e) => onPaletteDown(e, m)}
+                                  onClick={(e) => {
+                                    if (e.currentTarget.dataset.dragged) return;
+                                    insert(m.key);
+                                  }}
+                                >
+                                  {m.short ?? m.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </section>
@@ -2382,6 +2436,7 @@ export default function VisualEditor({
       <AddSectionDialog
         open={adding !== null}
         catalog={catalog}
+        present={present}
         where={
           adding === null
             ? ""

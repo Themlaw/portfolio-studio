@@ -129,7 +129,7 @@ async function dragTo(from, to) {
 }
 async function dragPalette(key, to) {
   await page.getByRole("tab", { name: "Ajouter" }).click();
-  const card = page.locator(`.ve-card[data-key="${key}"]`);
+  const card = page.locator(`.ve-card[data-key="${key}"], .ve-model[data-key="${key}"]`).first();
   await card.scrollIntoViewIfNeeded();
   const b = await card.boundingBox();
   await dragTo({ x: b.x + b.width / 2, y: b.y + b.height / 2 }, to);
@@ -158,9 +158,9 @@ if (run("A")) {
   await sleep(400);
   const fb = await frameBox();
   const prof = await f.locator('[data-edit-type="profile"] section').first().boundingBox();
-  await dragPalette("contact-form", { x: fb.x + fb.width / 2, y: Math.min(prof.y + prof.height + 40, fb.y + fb.height - 30) });
+  await dragPalette("contact-with-form", { x: fb.x + fb.width / 2, y: Math.min(prof.y + prof.height + 40, fb.y + fb.height - 30) });
   await settled();
-  const block = () => draftOf(about)?.blocks.find((b) => b.type === "contact-form");
+  const block = () => draftOf(about)?.blocks.find((b) => b.type === "contact" && b.props.form === true);
   ok("A1 formulaire posé (3 champs)", block()?.props.fields.length === 3);
   await f.waitForSelector("form[data-form-edit]", { timeout: 30000 });
   // Puce tout en bas de la toile : là où le menu s'ouvrait hors de la fenêtre.

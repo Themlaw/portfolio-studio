@@ -112,7 +112,10 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
         </span>
       ) : (
         <span className="pe-media-empty" data-edit-media="mediaId" data-edit-media-kind="image" lang="fr">
-          Dépose une image ici
+          <span>Dépose une image ici</span>
+          <button type="button" className="pe-empty-action" data-edit-empty-media="mediaId">
+            Choisir dans la médiathèque
+          </button>
         </span>
       )}
       {(caption || ctx.edit) && (

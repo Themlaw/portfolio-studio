@@ -265,7 +265,7 @@ export function withFreshUids<B extends TreeBlock>(block: B, newUid: () => strin
   const children = childrenOf(block);
   const copy = { ...block, uid: newUid() } as B;
   // Formulaire de contact : son identifiant public suit le bloc (nouveau bloc → nouvel identifiant).
-  if (block.type === "contact-form") {
+  if (block.type === "contact-form" || (block.type === "contact" && (block.props as { form?: unknown } | undefined)?.form === true)) {
     copy.props = { ...((block.props ?? {}) as object), formId: `f${newUid().replace(/[^a-z0-9]/g, "")}${Math.random().toString(36).slice(2, 8)}`.slice(0, 32) };
   }
   return children.length || isContainer(block.type) ? setChildren(copy, children.map((c) => withFreshUids(c, newUid))) : copy;

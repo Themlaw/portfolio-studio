@@ -12,6 +12,7 @@ import { extractProjectRefs, extractRefs } from "@/blocks/refs";
 import { containerAccepts, errorPath, flatBlocks, treeProblem } from "@/blocks/tree";
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
+import { FORM_BLOCK_TYPES, isFormBlock } from "@/lib/contact-form";
 import { findPageReferences } from "@/lib/references";
 import { accentProblem } from "@/themes/contrast";
 import { ThemeSchema } from "@/themes/schema";
@@ -27,17 +28,18 @@ import { discardSiteDraft } from "./site";
  * transaction de publication (savePage).
  */
 export function formIdProblem(pageId: number, blocks: { type: string; props?: unknown }[]): { path: string; message: string } | null {
-  const forms = flatBlocks(blocks).filter((b) => b.type === "contact-form");
+  const forms = flatBlocks(blocks).filter((b) => isFormBlock(b.type, b.props));
   if (!forms.length) return null;
   const elsewhere = new Set<string>();
   const rows = getDb()
-    .select({ props: schema.blocks.props, pageId: schema.blocks.pageId })
+    .select({ props: schema.blocks.props, pageId: schema.blocks.pageId, type: schema.blocks.type })
     .from(schema.blocks)
     .innerJoin(schema.pages, eq(schema.blocks.pageId, schema.pages.id))
-    .where(and(eq(schema.blocks.type, "contact-form"), eq(schema.pages.published, true)))
+    .where(and(inArray(schema.blocks.type, [...FORM_BLOCK_TYPES]), eq(schema.pages.published, true)))
     .all();
   for (const r of rows) {
     if (r.pageId === pageId) continue;
+    if (!isFormBlock(r.type, parseJson(r.props))) continue;
     const id = (parseJson(r.props) as { formId?: unknown } | undefined)?.formId;
     if (typeof id === "string") elsewhere.add(id);
   }

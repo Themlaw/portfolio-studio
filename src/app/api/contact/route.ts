@@ -19,11 +19,11 @@
  */
 import { createHash } from "node:crypto";
 
-import { and, count, eq, gt, lt } from "drizzle-orm";
+import { and, count, eq, gt, inArray, lt } from "drizzle-orm";
 
 import { readAuthConfig } from "@/lib/auth/config";
 import { clientIpFromForwarded, UNKNOWN_IP } from "@/lib/auth/client-ip";
-import { ContactFormSchema, MESSAGES_CAP, validateSubmission } from "@/lib/contact-form";
+import { ContactFormSchema, FORM_BLOCK_TYPES, isFormBlock, MESSAGES_CAP, validateSubmission } from "@/lib/contact-form";
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 
@@ -82,13 +82,16 @@ async function readBody(req: Request): Promise<string | null> {
 /** Formulaire publié désigné par son identifiant stable. */
 function findForm(formId: string) {
   const rows = getDb()
-    .select({ id: schema.blocks.id, props: schema.blocks.props, pageId: schema.blocks.pageId })
+    .select({ id: schema.blocks.id, props: schema.blocks.props, pageId: schema.blocks.pageId, type: schema.blocks.type })
     .from(schema.blocks)
     .innerJoin(schema.pages, eq(schema.blocks.pageId, schema.pages.id))
-    .where(and(eq(schema.blocks.type, "contact-form"), eq(schema.pages.published, true)))
+    .where(and(inArray(schema.blocks.type, [...FORM_BLOCK_TYPES]), eq(schema.pages.published, true)))
     .all();
   for (const row of rows) {
-    const form = ContactFormSchema.safeParse(parseJson(row.props));
+    const props = parseJson(row.props);
+    // « Contact » sans l'option formulaire : aucun formulaire à désigner (même si des champs traînent dans ses réglages).
+    if (!isFormBlock(row.type, props)) continue;
+    const form = ContactFormSchema.safeParse(props);
     if (form.success && form.data.formId === formId) return { ...row, form: form.data };
   }
   return null;

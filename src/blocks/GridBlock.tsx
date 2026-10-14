@@ -3,7 +3,9 @@ import { z } from "zod";
 
 import Eyebrow from "@/components/Eyebrow";
 
+import { FieldOps } from "./FieldOps";
 import { GRID_LAYOUTS, GRID_PATTERN } from "./grid-layouts";
+import { hasText } from "./optional-fields";
 import { MAX_CHILDREN } from "./tree";
 import { childBlock, inline, localized, tr, type BlockContext } from "./types";
 
@@ -31,29 +33,33 @@ export default function GridBlock({ props, ctx, children }: { props: z.infer<typ
   const cells = Children.toArray(children);
   const pattern = GRID_PATTERN[props.layout];
   const free = ctx.edit ? (cells.length === 0 ? pattern : (pattern - (cells.length % pattern)) % pattern) : 0;
-  const hasHeading = Boolean(props.eyebrow || props.title || ctx.edit);
-  if (!cells.length && !ctx.edit && !props.title && !props.eyebrow) return null;
+  // Étiquette et titre : des champs qui n'existent que s'ils ont été demandés (« + Ajouter … » sur la toile, lot 27).
+  // Vide en public : aucune place ; sur la toile, un champ présent reste saisissable.
+  const showEyebrow = props.eyebrow !== undefined && (ctx.edit || hasText(props.eyebrow));
+  const showTitle = props.title !== undefined && (ctx.edit || hasText(props.title));
+  if (!cells.length && !ctx.edit && !showTitle && !showEyebrow) return null;
   return (
     // Espace en bas (v0.13.1) : la grille se referme sur son propre pas (l'écart entre
     // cellules), comme une planche sur sa marge ; le bloc suivant ne colle plus.
-    <section className={`block-grid-section shell ${props.top === "gap" ? "pt-[var(--section-gap)]" : ""}`}>
-      {hasHeading && (props.eyebrow || props.title || ctx.edit) && (
-        <>
-          {(props.eyebrow || ctx.edit) && (
-            <Eyebrow {...inline(ctx, "eyebrow")} {...(ctx.edit ? { "data-placeholder": "Étiquette (facultative)" } : {})}>
-              {props.eyebrow ? tr(props.eyebrow, ctx.locale) : ""}
-            </Eyebrow>
-          )}
-          {(props.title || ctx.edit) && (
-            <h2
-              className={`mt-3 font-display text-[clamp(1.75rem,4vw,2.75rem)] text-ink ${props.title ? "mb-8" : ""}`}
-              {...inline(ctx, "title")}
-              {...(ctx.edit ? { "data-placeholder": "Titre (facultatif)" } : {})}
-            >
-              {props.title ? tr(props.title, ctx.locale) : ""}
-            </h2>
-          )}
-        </>
+    <section className={`block-grid-section shell ${props.top === "gap" ? "pt-[var(--section-gap)]" : ""}${ctx.edit ? " pe-field-host" : ""}`}>
+      {ctx.edit && (
+        <div className="relative">
+          <FieldOps ctx={ctx} type="grid" props={props} />
+        </div>
+      )}
+      {showEyebrow && (
+        <Eyebrow {...inline(ctx, "eyebrow")} {...(ctx.edit ? { "data-placeholder": "Étiquette" } : {})}>
+          {tr(props.eyebrow!, ctx.locale)}
+        </Eyebrow>
+      )}
+      {showTitle && (
+        <h2
+          className={`mt-3 font-display text-[clamp(1.75rem,4vw,2.75rem)] text-ink ${hasText(props.title) ? "mb-8" : ""}`}
+          {...inline(ctx, "title")}
+          {...(ctx.edit ? { "data-placeholder": "Titre" } : {})}
+        >
+          {tr(props.title!, ctx.locale)}
+        </h2>
       )}
       <div className="block-grid" data-layout={props.layout} data-gap={props.gap} data-align={props.align} data-ratio={props.ratio}>
         {cells.map((cell, i) => (
@@ -65,6 +71,7 @@ export default function GridBlock({ props, ctx, children }: { props: z.infer<typ
           <div key={`free-${i}`} className="block-grid-cell" data-edit-cell-free="" lang="fr">
             <span className="pe-cell-free">
               <span aria-hidden="true">+</span>
+              <span className="pe-cell-hint">Dépose une image ou une vidéo ici, ou ajoute un texte.</span>
               {/* Une rubrique de texte dans cette case, éditée aussitôt (lot 17c ; trois choix au lot 19a). */}
               <span className="pe-cell-choices">
                 {([["text", "Texte"], ["title", "Titre"], ["title-text", "Titre + texte"]] as const).map(([k, label]) => (

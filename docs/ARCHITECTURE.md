@@ -852,7 +852,7 @@ Glisser : aucune sélection de texte native (`data-edit-dragging`,
 `data-ve-dragging`, `user-select`, sélection effacée au départ), sauf dans un
 champ en cours d'édition (vérifié dans Chromium ET Firefox).
 
-**Formulaire de contact** (bloc `contact-form`, `src/lib/contact-form.ts`,
+**Formulaire de contact** (option `form: true` du bloc `contact` depuis la v0.20 ; ancien bloc `contact-form` fusionné par la migration 0023 ; `src/lib/contact-form.ts`,
 `POST /api/contact`, table `messages` — migration 0015). Champs définis dans
 le bloc (texte court, e-mail, texte long, choix ; 12 au plus ; un champ
 e-mail « sert à répondre », protégé), textes en place sur la toile, champs

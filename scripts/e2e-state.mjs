@@ -1148,7 +1148,7 @@ if (run("E")) {
     await sleep(400);
     const fb = await page.locator("iframe.ve-frame").boundingBox();
     await page.getByRole("tab", { name: "Ajouter" }).click();
-    const card = page.locator('.ve-card[data-key="contact-form"]');
+    const card = page.locator('.ve-model[data-key="contact-with-form"]');
     await card.scrollIntoViewIfNeeded();
     const cb = await card.boundingBox();
     const from = { x: cb.x + cb.width / 2, y: cb.y + cb.height / 2 };

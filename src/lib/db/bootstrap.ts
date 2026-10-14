@@ -18,6 +18,7 @@ import { readMigrationFiles, type MigrationMeta } from "drizzle-orm/migrator";
 import { dataDir, getDb, getSqlite } from "./index";
 import { isSeeded, prepareSeedFiles, seedRows, syncPresets, type SeedFiles } from "./seed";
 import { collectionPages, dropEmptyTextFields, pinImageFit, renameVideoLook, siteNameI18n, upgradeContent } from "./upgrade";
+import { mergeBlocks } from "./blocs";
 import { unwrapContainers } from "./unwrap";
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
@@ -51,6 +52,14 @@ const DATA_MIGRATIONS: Record<string, () => void> = {
   "0020_text_fields": () => {
     const rows = dropEmptyTextFields(getSqlite());
     console.log(`[db] 0020 : titres et étiquettes vides des blocs Texte retirés — ${rows} ligne(s) réécrite(s)`);
+  },
+  "0023_blocs_fusion": () => {
+    const r = mergeBlocks(getSqlite());
+    console.log(
+      `[db] 0023 : « Formulaire de contact » fusionné dans « Contact » (${r.forms}), champs facultatifs vides retirés (Grille, Contact, Profil, CV : ${r.emptied} bloc(s) de plus), ` +
+        `${r.published} ligne(s) publiée(s) et ${r.drafts} brouillon(s) réécrits` +
+        (r.legacy ? `, ${r.legacy} ancien(s) bloc(s) laissé(s) en lecture (page de plus de 40 blocs une fois déballée)` : ""),
+    );
   },
   "0021_unwrap_containers": () => {
     const r = unwrapContainers(getSqlite());

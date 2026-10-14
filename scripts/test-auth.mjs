@@ -1514,9 +1514,9 @@ ok("A10c l'admin légitime (autre IP) se connecte pendant l'attaque", r.status =
 {
   const L = (s) => ({ fr: s, en: s });
   const field = (id, type, required) => ({ id, type, label: L(id), required });
-  const form = { formId: "ftestauth01", title: L("T"), fields: [field("fname", "text", false), field("femail", "email", true), field("fmessage", "textarea", true)], submit: L("Envoyer"), success: L("Merci"), error: L("Erreur"), subject: L("Sujet") };
+  const form = { form: true, formId: "ftestauth01", title: L("T"), fields: [field("fname", "text", false), field("femail", "email", true), field("fmessage", "textarea", true)], submit: L("Envoyer"), success: L("Merci"), error: L("Erreur"), subject: L("Sujet") };
   const home = query(dirA, `select id from pages where json_extract(slug,'$.fr')=''`).id;
-  writeDb(dirA, "insert into blocks (page_id, position, type, props) values (?, 99, 'contact-form', ?)", home, JSON.stringify(form));
+  writeDb(dirA, "insert into blocks (page_id, position, type, props) values (?, 99, 'contact', ?)", home, JSON.stringify(form));
   const values = { femail: "a@b.fr", fmessage: "bonjour" };
   const post = (body, xff, headers = {}) => http("/api/contact", { method: "POST", body, headers: { "sec-fetch-site": "same-origin", "x-forwarded-for": xff, ...headers } });
   const codesC = [];
@@ -1532,7 +1532,7 @@ ok("A10c l'admin légitime (autre IP) se connecte pendant l'attaque", r.status =
   ok("C4 corps > 32 Ko → 413", r.status === 413, String(r.status));
   r = await http("/admin/messages");
   ok("C5 /admin/messages sans session → /admin/connexion", r.status === 307 && r.headers.get("location")?.endsWith("/admin/connexion"), `${r.status} ${r.headers.get("location")}`);
-  writeDb(dirA, "delete from blocks where page_id = ? and type = 'contact-form'", home);
+  writeDb(dirA, "delete from blocks where page_id = ? and type = 'contact'  and position = 99", home);
   writeDb(dirA, "delete from messages");
 }
 

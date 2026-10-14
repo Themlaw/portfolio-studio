@@ -25,6 +25,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 
 import { TILE_SIZE_LABELS, TILE_SIZES } from "@/blocks/collection-pages";
+import { FIELD_OP_NAMES } from "@/blocks/optional-fields";
 import { MAX_NESTING } from "@/blocks/tree";
 import { acceptToCanvas, insertionIndex, moveTo, type BlockInfo, type FromCanvas } from "@/lib/edit/protocol";
 
@@ -861,6 +862,8 @@ export default function EditLayer() {
       const addEnd = t?.closest("[data-edit-add]");
       const cellText = t?.closest<HTMLElement>("[data-edit-cell-text]");
       const fieldOp = t?.closest<HTMLElement>("[data-edit-field-op]");
+      // État vide d'un bloc média : « Choisir une image / une vidéo / un PDF » (lot 27).
+      const emptyMedia = t?.closest<HTMLElement>("[data-edit-empty-media]");
       // Entrées des collections choisies à la main (lot 22) : retirer, monter, descendre ; « + Ajouter une entrée ».
       const tileOp = t?.closest<HTMLElement>("[data-edit-tile-op]");
       const tileAdd = t?.closest<HTMLElement>("[data-edit-tile-add]");
@@ -883,13 +886,21 @@ export default function EditLayer() {
         }
         return;
       }
+      if (emptyMedia) {
+        e.preventDefault();
+        e.stopPropagation();
+        const uid = emptyMedia.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
+        const field = emptyMedia.dataset.editEmptyMedia;
+        if (uid && (field === "mediaId" || field === "backgroundMediaId" || field === "portraitMediaId")) post({ kind: "media-op", uid, field, op: "replace" });
+        return;
+      }
       if (fieldOp) {
         e.preventDefault();
         e.stopPropagation();
         finishEdit(true);
         const uid = fieldOp.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
         const op = fieldOp.dataset.editFieldOp;
-        if (uid && op && /^(add|remove)-(title|eyebrow|intro|counts)$/.test(op)) post({ kind: "field-op", uid, op: op as Extract<FromCanvas, { kind: "field-op" }>["op"] });
+        if (uid && op && (FIELD_OP_NAMES as readonly string[]).includes(op.replace(/^(add|remove)-/, ""))) post({ kind: "field-op", uid, op: op as Extract<FromCanvas, { kind: "field-op" }>["op"] });
         return;
       }
       if (addEnd || cellText) {

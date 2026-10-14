@@ -8,17 +8,23 @@ import { getMedia } from "@/lib/media";
 import { getSiteView } from "@/lib/settings";
 import { socialKeys } from "@/lib/site-schema";
 
+import { FieldOps } from "./FieldOps";
+import { hasText } from "./optional-fields";
 import { inline, localized, textStyle, tr, type BlockContext, localizedText } from "./types";
 
 export const profileSchema = z.object({
   portraitMediaId: z.number().int().positive().optional(),
-  portraitCaption: localized,
-  eyebrow: localized,
+  /** Étiquettes et légende : facultatives (clé absente = rien, « + Ajouter … » sur la toile, lot 27). */
+  portraitCaption: localized.optional(),
+  eyebrow: localized.optional(),
   /** Le premier paragraphe est l'accroche (encre pleine). */
   paragraphs: z.array(localizedText).min(1).max(30),
-  contactEyebrow: localized,
-  contactLabel: localized,
-  socialEyebrow: localized,
+  contactEyebrow: localized.optional(),
+  /** Texte du bouton e-mail (absent : pas de bouton, l'adresse reste). */
+  contactLabel: localized.optional(),
+  socialEyebrow: localized.optional(),
+  /** false : le nom du site n'est pas répété ici (quand l'Ouverture de la page l'affiche déjà). Absent : affiché. */
+  showName: z.boolean().optional(),
   /** Format imposé au portrait (cadré : « Cadrer » sur la toile). Auto : son format. */
   portraitRatio: z.enum(["auto", "4:5", "3:4", "1:1"]).optional(),
 });
@@ -34,13 +40,15 @@ export default async function ProfileBlock({ props, ctx }: { props: z.infer<type
   const socialKeyList = socialKeys(socials);
   const [lead, ...rest] = props.paragraphs;
   const ph = (text: string) => (ctx.edit ? { "data-placeholder": text } : {});
+  // Un champ n'existe que s'il a été demandé ; vide en public : aucune place (sur la toile, un champ présent reste saisissable).
+  const shown = (v: { fr: string; en: string } | undefined) => v !== undefined && (ctx.edit ? true : hasText(v));
   const siteMark = (field: string, text: string) => ({
     ...(ctx.edit ? { "data-site-inline": field, "data-placeholder": text, "data-site-hint": "commun au site" } : {}),
     ...textStyle(ctx, `site.${field}`),
   });
 
   return (
-    <section className="page-top shell">
+    <section className={ctx.edit ? "page-top shell pe-field-host" : "page-top shell"}>
       <div className="grid gap-[clamp(2.5rem,6vw,5rem)] md:grid-cols-12">
         <div className="md:col-span-5 lg:col-span-4">
           <div
@@ -49,7 +57,10 @@ export default async function ProfileBlock({ props, ctx }: { props: z.infer<type
             {...(ctx.edit ? { "data-edit-media": "portraitMediaId", "data-edit-media-kind": "image" } : {})}>
             {!portrait && ctx.edit && (
               <span className="pe-media-empty pe-media-portrait" lang="fr">
-                Dépose ton portrait ici
+                <span>Dépose ton portrait ici</span>
+                <button type="button" className="pe-empty-action" data-edit-empty-media="portraitMediaId">
+                  Choisir dans la médiathèque
+                </button>
               </span>
             )}
             {portrait && (() => {
@@ -68,19 +79,26 @@ export default async function ProfileBlock({ props, ctx }: { props: z.infer<type
               // Cadré avec zoom : le cadre rogne l'image agrandie.
               return ctx.look?.crop?.portraitMediaId ? <span className="profile-portrait-frame">{picture}</span> : picture;
             })()}
-            <p className="eyebrow pt-3" {...inline(ctx, "portraitCaption")} {...ph("Légende du portrait")}>
-              {tr(props.portraitCaption, ctx.locale)}
-            </p>
+            {shown(props.portraitCaption) && (
+              <p className="eyebrow pt-3" {...inline(ctx, "portraitCaption")} {...ph("Légende du portrait")}>
+                {tr(props.portraitCaption!, ctx.locale)}
+              </p>
+            )}
           </div>
         </div>
 
-        <div className="md:col-span-7 lg:col-span-7 lg:col-start-6">
-          <Eyebrow {...inline(ctx, "eyebrow")} {...ph("Étiquette")}>
-            {tr(props.eyebrow, ctx.locale)}
-          </Eyebrow>
-          <h1 className="mt-4 font-display text-[clamp(2.75rem,7vw,5rem)] text-ink" {...siteMark("name", "Ton nom")}>
-            {site.name}
-          </h1>
+        <div className={ctx.edit ? "md:col-span-7 lg:col-span-7 lg:col-start-6 relative" : "md:col-span-7 lg:col-span-7 lg:col-start-6"}>
+          <FieldOps ctx={ctx} type="profile" props={props} />
+          {shown(props.eyebrow) && (
+            <Eyebrow {...inline(ctx, "eyebrow")} {...ph("Étiquette")}>
+              {tr(props.eyebrow!, ctx.locale)}
+            </Eyebrow>
+          )}
+          {props.showName !== false && (
+            <h1 className="mt-4 font-display text-[clamp(2.75rem,7vw,5rem)] text-ink" {...siteMark("name", "Ton nom")}>
+              {site.name}
+            </h1>
+          )}
           <p className="caption-text mt-4 font-caption text-[0.72rem] tracking-[0.2em] uppercase text-secondary" {...siteMark("role", "Ton métier")}>
             {site.role}
           </p>
@@ -100,22 +118,28 @@ export default async function ProfileBlock({ props, ctx }: { props: z.infer<type
 
           <div className="grid gap-10 sm:grid-cols-2">
             <div>
-              <Eyebrow {...inline(ctx, "contactEyebrow")} {...ph("Étiquette")}>
-                {tr(props.contactEyebrow, ctx.locale)}
-              </Eyebrow>
+              {shown(props.contactEyebrow) && (
+                <Eyebrow {...inline(ctx, "contactEyebrow")} {...ph("Étiquette")}>
+                  {tr(props.contactEyebrow!, ctx.locale)}
+                </Eyebrow>
+              )}
               <a href={`mailto:${site.email}`} className="email-link link-underline mt-3">
                 <EmailText email={site.email} editable={ctx.edit ? siteMark("email", "ton@adresse.fr") : undefined} style={textStyle(ctx, "site.email").style} />
               </a>
-              <a className="btn mt-6" href={`mailto:${site.email}`}>
-                {ctx.edit ? <span {...inline(ctx, "contactLabel")}>{tr(props.contactLabel, ctx.locale)}</span> : tr(props.contactLabel, ctx.locale)}
-                <span aria-hidden="true">→</span>
-              </a>
+              {shown(props.contactLabel) && (
+                <a className="btn mt-6" href={`mailto:${site.email}`}>
+                  {ctx.edit ? <span {...inline(ctx, "contactLabel")} {...ph("Texte du bouton")}>{tr(props.contactLabel!, ctx.locale)}</span> : tr(props.contactLabel!, ctx.locale)}
+                  <span aria-hidden="true">→</span>
+                </a>
+              )}
             </div>
 
             <div>
-              <Eyebrow {...inline(ctx, "socialEyebrow")} {...ph("Étiquette")}>
-                {tr(props.socialEyebrow, ctx.locale)}
-              </Eyebrow>
+              {shown(props.socialEyebrow) && (
+                <Eyebrow {...inline(ctx, "socialEyebrow")} {...ph("Étiquette")}>
+                  {tr(props.socialEyebrow!, ctx.locale)}
+                </Eyebrow>
+              )}
               <ul className="mt-3 space-y-2" {...(ctx.edit ? { "data-edit-socials": "", "data-site-hint": "commun au site" } : {})}>
                 {socials.map((s, i) => (
                   <li key={`${s.label}-${i}`} {...(ctx.edit ? { "data-social-index": i, "data-social-key": socialKeyList[i] } : {})}>
