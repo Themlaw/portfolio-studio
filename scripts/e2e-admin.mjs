@@ -276,7 +276,7 @@ try {
   await d.getByRole("button", { name: "Supprimer" }).click();
   await d.locator(".a-refs li").first().waitFor();
   const refs = await d.locator(".a-refs").innerText();
-  ok("B12 suppression bloquée, blocs référents listés", /Entrées des collections|Projet mis en avant/.test(refs) && /Accueil/.test(refs), refs);
+  ok("B12 suppression bloquée, blocs référents listés", /Entrées des collections|Projet mis en avant|Lien vers une page/.test(refs) && /Accueil/.test(refs), refs);
   await d.getByRole("button", { name: "Annuler" }).click();
   r = await anon("/fr/personnages");
   ok("B12b la page référencée existe toujours", r.status === 200);

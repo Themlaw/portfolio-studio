@@ -198,9 +198,16 @@ for (let i = 0; i < 6; i++) {
     await sleep(800);
   }
 }
-await f.locator(`[data-edit-block="${textUid}"] [data-inline="paragraphs.0"]`).hover();
-// Le bouton n'a de pointer-events qu'au survol de son hôte : on le rejoint à la souris (hover()/click() de Playwright refusent un élément « couvert »).
-const addBox = await addTitleBtn.boundingBox();
+// Le serveur peut encore redessiner la toile (mode start, rapide) : le survol et la mesure sont retentés tant que le DOM bouge.
+let addBox = null;
+for (let i = 0; i < 8 && !addBox; i++) {
+  try {
+    await f.locator(`[data-edit-block="${textUid}"] [data-inline="paragraphs.0"]`).hover({ timeout: 4000 });
+    // Le bouton n'a de pointer-events qu'au survol de son hôte : on le rejoint à la souris (hover()/click() de Playwright refusent un élément « couvert »).
+    addBox = await addTitleBtn.boundingBox();
+  } catch {}
+  if (!addBox) await sleep(800);
+}
 await page.mouse.move(addBox.x + addBox.width / 2, addBox.y + addBox.height / 2, { steps: 8 });
 await addTitleBtn.click({ trial: false });
 await f.locator(`${titleSel(textUid)}[contenteditable]`).waitFor({ timeout: 30000 });
