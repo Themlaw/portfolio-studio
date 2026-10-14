@@ -291,8 +291,6 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
     }),
     define({
       type: "collection-intro",
-      group: "other",
-      order: 70,
       schema: collectionIntroSchema,
       Component: CollectionIntroBlock,
       Editor: CollectionIntroEditor,

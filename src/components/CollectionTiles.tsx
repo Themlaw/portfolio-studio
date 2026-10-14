@@ -5,7 +5,7 @@ import type { PictureSources } from "@/lib/images/variants";
 import Picture, { type CropFallback } from "./Picture";
 
 import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
-import { TILE_GEOMETRY, type TileSize } from "@/blocks/collection-pages";
+import { MAX_TILES, TILE_GEOMETRY, type TileSize } from "@/blocks/collection-pages";
 
 import Eyebrow from "@/components/Eyebrow";
 import { Link } from "@/i18n/navigation";
@@ -139,10 +139,10 @@ export default function CollectionTiles({
       )}
       {tools && (
         <div className="pe-tile-add-row">
-          <button type="button" className="pe-tile-add" data-edit-tile-add="" data-candidates={JSON.stringify(candidates)} disabled={itemCount >= 24 || candidates.length === 0}>
+          <button type="button" className="pe-tile-add" data-edit-tile-add="" data-candidates={JSON.stringify(candidates)} disabled={itemCount >= MAX_TILES || candidates.length === 0}>
             + Ajouter une entrée
           </button>
-          {candidates.length === 0 && itemCount < 24 && <span className="pe-tile-add-note">Toutes les pages de collection ont déjà une entrée.</span>}
+          {candidates.length === 0 && itemCount < MAX_TILES && <span className="pe-tile-add-note">Toutes les pages de collection ont déjà une entrée.</span>}
         </div>
       )}
     </div>

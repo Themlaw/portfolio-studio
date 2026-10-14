@@ -554,7 +554,7 @@ export function collectionPages(db: Database.Database): number {
   for (const p of pages) {
     const d = parseJson(p.draft);
     if (p.collection && isObj(d) && d.collection === undefined) {
-      db.prepare("update pages set draft = ? where id = ?").run(JSON.stringify({ ...d, collection: p.collection }), p.id);
+      db.prepare("update pages set draft = ?, draft_rev = draft_rev + 1 where id = ?").run(JSON.stringify({ ...d, collection: p.collection }), p.id);
       p.draft = JSON.stringify({ ...d, collection: p.collection });
     }
   }
@@ -591,7 +591,7 @@ export function collectionPages(db: Database.Database): number {
     }
     if (touched) {
       p.draft = JSON.stringify(draft);
-      db.prepare("update pages set draft = ? where id = ?").run(p.draft, p.id);
+      db.prepare("update pages set draft = ?, draft_rev = draft_rev + 1 where id = ?").run(p.draft, p.id);
       n++;
     }
   }
@@ -608,7 +608,7 @@ export function collectionPages(db: Database.Database): number {
     if (!p.draft?.includes("collection-intro")) continue;
     const draft = parseJson(p.draft);
     if (convertIntros(draft)) {
-      db.prepare("update pages set draft = ? where id = ?").run(JSON.stringify(draft), p.id);
+      db.prepare("update pages set draft = ?, draft_rev = draft_rev + 1 where id = ?").run(JSON.stringify(draft), p.id);
       n++;
     }
   }

@@ -183,7 +183,7 @@ test("migrateTilesProps : idempotente, un mode existant n'est pas retouché", ()
 /** Base en mémoire : pages (avec `collection`), blocs, menu, brouillons. */
 function makeDb() {
   const db = new Database(":memory:");
-  db.exec("create table pages (id integer primary key, title text, published integer, nav_order integer, collection text unique, draft text)");
+  db.exec("create table pages (id integer primary key, title text, published integer, nav_order integer, collection text unique, draft text, draft_rev integer not null default 0)");
   db.exec("create table blocks (id integer primary key, page_id integer, position integer, type text, props text)");
   db.exec("create table settings (key text primary key, value text)");
   /** `blocks` : écrits tels quels ; `collection` : réglage de la page (déjà posé) ou null. */
@@ -236,6 +236,7 @@ test("0022 : un En-tête de collection placé seulement dans le brouillon règle
   assert.equal(draft.collection, "animation");
   assert.equal(draft.blocks[0].type, "section-title", "converti dans le brouillon");
   assert.equal(draft.blocks[0].props.counts, true, "showCounts absent = compteurs (défaut du schéma)");
+  assert.ok(row(1).draft_rev >= 1, "le brouillon réécrit change de version (la toile ouverte se rafraîchit)");
 });
 
 test("0022 : En-tête de collection -> Titre principal, mêmes textes, compteurs selon showCounts, réglages gardés (publié, brouillon, composant)", () => {

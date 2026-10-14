@@ -157,7 +157,7 @@ export function CollectionTilesEditor() {
         label="Entrées"
         help={
           mode === "auto"
-            ? "Une entrée par page de collection (page avec un « En-tête de collection »), dans l'ordre du menu : ajouter, retirer ou dépublier une page change la liste toute seule."
+            ? "Une entrée par page de collection (page réglée « Cette page est la collection »), dans l'ordre du menu : ajouter, retirer ou dépublier une page change la liste toute seule."
             : "Tu choisis les entrées, leur ordre et leur page de destination."
         }
         value={mode}
