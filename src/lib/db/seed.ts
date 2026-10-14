@@ -27,6 +27,7 @@ import { DEFAULT_THEME_ID, PRESETS } from "@/themes/presets";
 
 import { getSqlite, type Db } from "./index";
 import { renameVideoLook, upgradeContent } from "./upgrade";
+import { unwrapContainers } from "./unwrap";
 import { blocks, media, pages, projects, settings, slots, themes, type Localized } from "./schema";
 
 export const SEEDED_AT_KEY = "seededAt";
@@ -279,6 +280,8 @@ export function seedRows(db: Db, files: SeedFiles): void {
   // Contenu de départ écrit dans l'ancien format, puis converti comme une base
   // existante (migration 0014 : conteneurs, grilles, menu) : un seul chemin.
   upgradeContent(getSqlite());
+  // Puis comme la migration 0021 (v0.19) : plus de conteneur « Projet mis en avant » (la migration 0014 en produit encore).
+  unwrapContainers(getSqlite());
   renameVideoLook(getSqlite());
 
   db.insert(settings)
