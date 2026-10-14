@@ -33,6 +33,7 @@ import {
   GridEditor,
   HeroEditor,
   ImageEditor,
+  PageLinkEditor,
   ProfileEditor,
   ProjectBoardEditor,
   RichTextEditor,
@@ -44,12 +45,14 @@ import FeaturedProjectBlock, { featuredProjectSchema } from "./FeaturedProjectBl
 import FeaturedProjectsBlock, { featuredProjectsSchema } from "./FeaturedProjectsBlock";
 import GridBlock, { gridSchema } from "./GridBlock";
 import { GRID_PATTERN } from "./grid-layouts";
+import type { BlockGroup } from "./groups";
 import ImageBlock, { imageSchema } from "./ImageBlock";
 import SectionTitleBlock, { sectionTitleSchema } from "./SectionTitleBlock";
-import { CONTAINERS, needsInheritedProject, type TreeBlock } from "./tree";
+import { CONTAINERS } from "./tree";
 import VideoSingleBlock, { videoSingleSchema } from "./VideoSingleBlock";
 import HeroBlock, { heroSchema } from "./HeroBlock";
 import ProfileBlock, { profileSchema } from "./ProfileBlock";
+import PageLinkBlock, { pageLinkSchema } from "./PageLinkBlock";
 import ProjectBoardBlock, { projectBoardSchema } from "./ProjectBoardBlock";
 import type { BlockCatalogEntry } from "./editor-types";
 import { helpTextProblem, titleHelpProblem } from "./help-text";
@@ -100,8 +103,14 @@ export type BlockDefinition<S extends z.ZodType = z.ZodType> = {
   mediaFields?: { field: string; kind: "image" | "video" | "pdf" | "any" }[];
   /** Retiré de la palette : encore rendu s'il traîne, plus créable. */
   deprecated?: boolean;
-  /** Raccourcis de la palette (même type, réglages de départ différents). */
-  presets?: { key: string; label: string; description: string; defaults: Record<string, unknown> }[];
+  /**
+   * Groupe d'ajout (panneau « Ajouter », fenêtre « Ajouter une rubrique ») et rang dans ce groupe
+   * (src/blocks/groups.ts). Obligatoires pour tout type créable (test-containers).
+   */
+  group?: BlockGroup;
+  order?: number;
+  /** Raccourcis de la palette (même type, réglages de départ différents) : même groupe, rang propre. */
+  presets?: { key: string; label: string; description: string; defaults: Record<string, unknown>; order: number }[];
 };
 
 function define<S extends z.ZodType>(def: Omit<BlockDefinition<S>, "refs" | "container">): BlockDefinition {
@@ -127,6 +136,8 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
     // Geste principal de l'éditeur visuel : en tête de la palette.
     define({
       type: "project-board",
+      group: "projects",
+      order: 10,
       schema: projectBoardSchema,
       Component: ProjectBoardBlock,
       Editor: ProjectBoardEditor,
@@ -137,31 +148,28 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       inline: [],
       publishCheck: (props, ctx) => (props.project || ctx.project ? null : "Nomme le projet de cette planche, ou choisis-en un existant."),
     }),
+    // Ancien conteneur (v0.13 à v0.18), retiré en v0.19 : la migration 0021 (src/lib/db/unwrap.ts) en déballe les composants.
+    // Encore rendu s'il en reste un (page de plus de 40 blocs une fois déballé), jamais proposé ni créable.
     define({
       type: "featured-project",
       schema: featuredProjectSchema,
       Component: FeaturedProjectBlock,
       Editor: FeaturedProjectEditor,
-      label: "Projet mis en avant",
-      description: "Un conteneur pour un projet : choisis-le, puis compose avec son titre, sa planche, des images, du texte ou une grille.",
-      defaults: {
-        children: [
-          child("section-title", { eyebrow: { fr: "Projet mis en avant", en: "Featured project" }, linked: true }),
-          child("project-board", { header: false }),
-        ],
-      },
+      label: "Projet mis en avant (ancien)",
+      description: "Ancien conteneur, remplacé par des blocs posés les uns sous les autres (Titre lié à un projet, Planche d'un projet…).",
+      defaults: { children: [] },
       summary: "{project} · {children} composants",
       inline: ["more.label"],
+      deprecated: true,
       publishCheck: (props) => {
-        // Projet exigé seulement si un composant compte dessus (planche sans projet, titre lié).
-        const kids = (props.children as TreeBlock[] | undefined) ?? [];
-        if (!props.project && needsInheritedProject(kids)) return "Choisis le projet mis en avant (ou crée-le).";
         const more = props.more as { pageId?: number } | undefined;
         return more && !more.pageId ? "Choisis la page du lien « voir plus »." : null;
       },
     }),
     define({
       type: "video-single",
+      group: "media",
+      order: 20,
       schema: videoSingleSchema,
       Component: VideoSingleBlock,
       Editor: VideoSingleEditor,
@@ -175,6 +183,8 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
     }),
     define({
       type: "grid",
+      group: "grids",
+      order: 10,
       schema: gridSchema,
       Component: GridBlock,
       Editor: GridEditor,
@@ -186,12 +196,14 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       presets: [
         {
           key: "grid-videos",
+          order: 30,
           label: "Grille de vidéos",
           description: "Une grande vidéo et deux petites dessous (l'agencement se change ensuite).",
           defaults: { layout: "1+2", children: videos(GRID_PATTERN["1+2"]) },
         },
         {
           key: "grid-images",
+          order: 20,
           label: "Grille d'images",
           description: "Trois images côte à côte (l'agencement se change ensuite).",
           defaults: { layout: "3", ratio: "4:5", children: images(GRID_PATTERN["3"]) },
@@ -200,6 +212,8 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
     }),
     define({
       type: "image",
+      group: "media",
+      order: 10,
       schema: imageSchema,
       Component: ImageBlock,
       Editor: ImageEditor,
@@ -213,6 +227,8 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
     }),
     define({
       type: "cv",
+      group: "other",
+      order: 10,
       schema: cvSchema,
       Component: CvBlock,
       Editor: CvEditor,
@@ -226,19 +242,23 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
     }),
     define({
       type: "section-title",
+      group: "text",
+      order: 20,
       schema: sectionTitleSchema,
       Component: SectionTitleBlock,
       Editor: SectionTitleEditor,
       label: "Titre",
-      description: "Une étiquette facultative et un titre ; dans un projet mis en avant, peut reprendre le nom du projet.",
+      description: "Une étiquette facultative et un titre ; peut aussi reprendre le nom et la présentation d'un projet.",
       // Sans présentation (clé `intro` absente) : aucune place ni texte d'aide pour un champ qu'on n'a pas demandé.
       defaults: { title: L },
       summary: "{title}",
       inline: ["eyebrow", "title", "intro"],
-      publishCheck: (props) => titleHelpProblem(props),
+      publishCheck: (props, ctx) => titleHelpProblem(props) ?? (props.linked && !props.project && !ctx.project ? "Choisis le projet repris par ce titre." : null),
     }),
     define({
       type: "hero",
+      group: "other",
+      order: 60,
       schema: heroSchema,
       Component: HeroBlock,
       Editor: HeroEditor,
@@ -258,6 +278,8 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
     }),
     define({
       type: "collection-tiles",
+      group: "other",
+      order: 80,
       schema: collectionTilesSchema,
       Component: CollectionTilesBlock,
       Editor: CollectionTilesEditor,
@@ -269,6 +291,8 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
     }),
     define({
       type: "collection-intro",
+      group: "other",
+      order: 70,
       schema: collectionIntroSchema,
       Component: CollectionIntroBlock,
       Editor: CollectionIntroEditor,
@@ -280,6 +304,8 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
     }),
     define({
       type: "rich-text",
+      group: "text",
+      order: 10,
       schema: richTextSchema,
       Component: RichTextBlock,
       Editor: RichTextEditor,
@@ -294,6 +320,8 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
     }),
     define({
       type: "contact",
+      group: "other",
+      order: 30,
       schema: contactSchema,
       Component: ContactBlock,
       Editor: ContactEditor,
@@ -305,6 +333,8 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
     }),
     define({
       type: "contact-form",
+      group: "other",
+      order: 40,
       schema: contactFormSchema,
       Component: ContactFormBlock,
       Editor: ContactFormEditor,
@@ -316,7 +346,23 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       publishCheck: (props) => (props.formId ? null : "Ce formulaire n'a pas d'identifiant : supprime-le et ajoute-le à nouveau."),
     }),
     define({
+      type: "page-link",
+      group: "other",
+      order: 50,
+      schema: pageLinkSchema,
+      Component: PageLinkBlock,
+      Editor: PageLinkEditor,
+      label: "Lien vers une page",
+      description: "Un lien « Texte → » vers une page du site, entre deux rubriques.",
+      defaults: { label: L },
+      summary: "{label}",
+      inline: ["label"],
+      publishCheck: (props) => (props.pageId ? null : "Choisis la page de destination de ce lien."),
+    }),
+    define({
       type: "profile",
+      group: "other",
+      order: 20,
       schema: profileSchema,
       Component: ProfileBlock,
       Editor: ProfileEditor,
@@ -385,9 +431,9 @@ export function blockCatalog(): BlockCatalogEntry[] {
       inline: b.inline,
       ...(b.container ? { container: b.container } : {}),
       ...(b.mediaFields ? { mediaFields: b.mediaFields } : {}),
-      ...(b.deprecated ? { hidden: true } : {}),
+      ...(b.deprecated ? { hidden: true } : { group: b.group, order: b.order }),
     };
-    return [base, ...(b.presets ?? []).map((p) => ({ ...base, key: p.key, label: p.label, description: p.description, defaults: p.defaults, preset: true }))];
+    return [base, ...(b.presets ?? []).map((p) => ({ ...base, key: p.key, label: p.label, description: p.description, defaults: p.defaults, order: p.order, preset: true }))];
   });
 }
 

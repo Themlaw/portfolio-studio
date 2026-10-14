@@ -527,17 +527,37 @@ export function CvEditor() {
 }
 
 export function SectionTitleEditor() {
-  const { value, onChange, errors } = useBlockEditor();
+  const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
   const linked = Boolean(value.linked);
   return (
     <>
       <Toggle
-        label="Reprendre le nom et la présentation du projet"
-        help="Dans un « Projet mis en avant » : le titre et la présentation sont ceux du projet. Tu les modifies sur la page ; ils changent aussi sur sa planche et sa page, après publication."
+        label="Reprendre le nom et la présentation d'un projet"
+        help="Le titre et la présentation sont ceux du projet : tu les modifies sur la page ; ils changent aussi sur sa planche et sa page, après publication."
         checked={linked}
         onChange={(on) => set("linked", on || undefined)}
       />
+      {linked && (
+        <>
+          <ProjectCombobox
+            prefix="ve"
+            label="Projet repris par ce titre"
+            projects={context.projects}
+            value={value.project as string | undefined}
+            onPick={(slug) => set("project", slug)}
+            onCreate={
+              context.createProject
+                ? async (name) => {
+                    const slug = await context.createProject!(name);
+                    if (slug) set("project", slug);
+                  }
+                : undefined
+            }
+          />
+          {errorAt(errors, "project") && <p className="a-field-error">{errorAt(errors, "project")}</p>}
+        </>
+      )}
       <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
       {!linked && (
         <>
@@ -545,6 +565,17 @@ export function SectionTitleEditor() {
           <TextareaI18n label="Présentation" value={l(value.intro)} onChange={(v) => set("intro", v)} error={errorAt(errors, "intro")} />
         </>
       )}
+    </>
+  );
+}
+
+export function PageLinkEditor() {
+  const { value, onChange, errors, context } = useBlockEditor();
+  const set = useSet(value, onChange);
+  return (
+    <>
+      <TextI18n label="Texte du lien" value={l(value.label)} onChange={(v) => set("label", v)} error={errorAt(errors, "label")} />
+      <PagePicker label="Page de destination" value={value.pageId as number | undefined} onChange={(v) => set("pageId", v)} error={errorAt(errors, "pageId")} context={context} />
     </>
   );
 }

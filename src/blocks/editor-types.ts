@@ -2,6 +2,8 @@
 
 import type { AdminMediaRow } from "@/lib/admin";
 
+import type { BlockGroup } from "./groups";
+
 export type L = { fr: string; en: string };
 
 /** Données de choix fournies par le serveur aux éditeurs (pickers). */
@@ -52,6 +54,9 @@ export type BlockCatalogEntry = {
   mediaFields?: { field: string; kind: "image" | "video" | "pdf" | "any" }[];
   /** Type ancien : jamais proposé. */
   hidden?: boolean;
+  /** Groupe d'ajout (src/blocks/groups.ts) et rang dans ce groupe. */
+  group?: BlockGroup;
+  order?: number;
   /** Raccourci d'un type (palette). */
   preset?: boolean;
 };
