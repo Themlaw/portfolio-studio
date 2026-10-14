@@ -479,6 +479,93 @@ if (run("C"))
   ok("C4 dans la carte, le papier est caché (aplat)", new Set([...Array(cardPixels.length / 3).keys()].map((i) => `${cardPixels[i * 3]},${cardPixels[i * 3 + 1]},${cardPixels[i * 3 + 2]}`)).size <= 2);
   await pub.screenshot({ path: path.join(SHOTS, "c-public-deux-cartes.png"), fullPage: true });
   ok("C5 les autres rubriques n'ont pas de carte (profil inchangé)", (await pub.locator(".surface-card").count()) === 2 && (await pub.locator("main").evaluate((m) => m.children.length)) > 2);
+  // C8. Espacement de section autour des cartes : une carte garde, vis-à-vis de ses voisins, l'écart normal du thème
+  // (celui de deux rubriques sans carte), mesuré du bord de la carte au contenu voisin.
+  const measureGaps = async (p) =>
+    p.evaluate(() => {
+      const LEAF = "h1,h2,h3,h4,p,a,button,img,figure,li,blockquote,input,textarea,label,video,[class*='frame']";
+      const extent = (el) => {
+        const rs = [...el.querySelectorAll(LEAF)].map((n) => n.getBoundingClientRect()).filter((r) => r.height > 0 && r.width > 0);
+        return rs.length ? { top: Math.min(...rs.map((r) => r.top)) + scrollY, bottom: Math.max(...rs.map((r) => r.bottom)) + scrollY } : null;
+      };
+      const main = document.querySelector("main");
+      const kidsNow = () => [...main.children].filter((el) => el.getBoundingClientRect().height > 0);
+      const isCard = (el) => el.classList.contains("surface-card");
+      const abs = (el) => {
+        const r = el.getBoundingClientRect();
+        return { top: r.top + scrollY, bottom: r.bottom + scrollY };
+      };
+      const kids = kidsNow();
+      const cards = kids.filter(isCard);
+      const firstCard = kids.indexOf(cards[0]);
+      const last = cards.at(-1);
+      const footer = document.querySelector("footer");
+      const proto = cards[0]?.querySelector(":scope > section");
+      // Références : la MÊME rubrique sans carte (copie de la section de la première carte), posée à la place de la carte.
+      const clone = () => proto.cloneNode(true);
+      const before = firstCard > 0 && !isCard(kids[firstCard - 1]) ? extent(kids[firstCard - 1]) : null;
+      let refAfterPlain = null;
+      let refPair = null;
+      let refFooter = null;
+      if (proto) {
+        const c1 = clone();
+        main.insertBefore(c1, cards[0]);
+        if (before) refAfterPlain = extent(c1).top - before.bottom;
+        const c2 = clone();
+        main.insertBefore(c2, cards[0]);
+        refPair = extent(c2).top - extent(c1).bottom;
+        c1.remove();
+        c2.remove();
+        if (kids.at(-1) === last && footer) {
+          const c3 = clone();
+          main.append(c3);
+          refFooter = footer.getBoundingClientRect().top + scrollY - extent(c3).bottom;
+          c3.remove();
+        }
+      }
+      return {
+        refAfterPlain,
+        refPair,
+        refFooter,
+        afterPlain: before ? abs(cards[0]).top - before.bottom : null,
+        cardToCard: cards.length >= 2 && kids.indexOf(cards[1]) === firstCard + 1 ? abs(cards[1]).top - abs(cards[0]).bottom : null,
+        beforeFooter: footer && kids.at(-1) === last ? footer.getBoundingClientRect().top + scrollY - abs(last).bottom : null,
+      };
+    });
+  for (const [label, width] of [["1440", 1440], ["390", 390]]) {
+    const ctxW = await browser.newContext({ viewport: { width, height: 900 } });
+    const pw = await ctxW.newPage();
+    await pw.goto(`${BASE}/fr/a-propos`, { waitUntil: "networkidle" });
+    const g = await measureGaps(pw);
+    const near = (v, ref) => ref != null && v != null && Math.abs(v - ref) <= 4;
+    ok(`C8 (${label} px) références mesurables (même rubrique sans carte)`, [g.refAfterPlain, g.refPair, g.refFooter].every((v) => v != null && v > 8), JSON.stringify(g));
+    ok(`C8 (${label} px) carte après un bloc sans carte : écart = celui de deux rubriques sans carte (${g.refAfterPlain?.toFixed(1)} px)`, near(g.afterPlain, g.refAfterPlain), `${g.afterPlain?.toFixed(1)} px`);
+    ok(`C8 (${label} px) deux cartes consécutives : séparées de l'écart normal (${g.refPair?.toFixed(1)} px), pas collées`, near(g.cardToCard, g.refPair) && g.cardToCard > 8, `${g.cardToCard?.toFixed(1)} px`);
+    ok(`C8 (${label} px) carte avant le pied de page : écart normal (${g.refFooter?.toFixed(1)} px)`, near(g.beforeFooter, g.refFooter), `${g.beforeFooter?.toFixed(1)} px`);
+    if (label === "1440") {
+      // Un espace choisi à la main sur la toile (data-pt) garde la main : il s'ajoute au padding de la carte au lieu d'être écrasé.
+      const hand = await pw.evaluate(() => {
+        const card = document.querySelector(".surface-card");
+        const sec = card.firstElementChild;
+        const probe = document.createElement("div");
+        probe.style.paddingTop = "var(--t-space-xl)";
+        document.body.append(probe);
+        const xl = parseFloat(getComputedStyle(probe).paddingTop);
+        probe.remove();
+        const before = getComputedStyle(sec).paddingTop;
+        const w = document.createElement("div");
+        w.className = "blk";
+        w.dataset.pt = "xl";
+        w.style.display = "contents";
+        card.insertBefore(w, sec);
+        w.append(sec);
+        return { xl, before: parseFloat(before), after: parseFloat(getComputedStyle(sec).paddingTop) };
+      });
+      ok("C8 espace choisi à la main (data-pt) : respecté dans la carte", hand.after === hand.xl && hand.before === 0, JSON.stringify(hand));
+    }
+    if (label === "1440") await pw.screenshot({ path: path.join(SHOTS, "c8-ecarts-1440.png"), fullPage: true });
+    await ctxW.close();
+  }
   // Persistance : rouvrir l'éditeur retrouve les réglages.
   await anon.close();
   f = await openEditor();

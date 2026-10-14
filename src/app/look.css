@@ -228,7 +228,9 @@ figure.block-image[data-fit="contain"] .block-image-media.block-image-media {
   box-sizing: border-box;
   /* Marge latérale : aucune (bord à bord) ou la gouttière du thème (le papier se voit autour). */
   margin-inline: 0;
-  margin-block: var(--t-space-s);
+  /* Espace de section du thème AVANT la carte (celui que l'on voit entre deux rubriques sans carte : le padding haut de la
+     section, que la carte absorbe plus bas), rien après (la rubrique ou le pied de page suivant apporte le sien). */
+  margin-block: var(--section-gap) 0;
   padding-block: var(--t-space-m);
   background-color: var(--card-bg);
   color: var(--card-ink);
@@ -245,10 +247,15 @@ figure.block-image[data-fit="contain"] .block-image-media.block-image-media {
 /* Dans une carte, l'espace du haut que se donne une section (entre sections de la page) est celui de la carte :
    le padding de la carte reste symétrique (haut = bas). Un espace choisi sur la toile (data-pt) garde la main. */
 .surface-card[data-surface="on"] > [class*="pt-[var(--section-gap)]"],
-.surface-card[data-surface="on"] > .blk > [class*="pt-[var(--section-gap)]"] {
+.surface-card[data-surface="on"] > .blk:not([data-pt]) > [class*="pt-[var(--section-gap)]"] {
   padding-top: 0;
 }
-/* … et le premier élément de la section n'ajoute pas sa propre marge haute (titre, paragraphe) : rien ne s'additionne au padding. */
+/* … et le premier élément de la section n'ajoute pas sa propre marge haute (titre, paragraphe) : rien ne s'ajoute au padding. */
 .surface-card[data-surface="on"] [class*="pt-[var(--section-gap)]"] > :first-child > :first-child {
   margin-top: 0;
+}
+/* La marge basse du dernier élément de la rubrique précédente reste chez elle (comme avec le padding d'une section) :
+   elle ne se confond pas avec l'espace de section de la carte. */
+main > :has(+ .surface-card[data-surface="on"]) {
+  display: flow-root;
 }
