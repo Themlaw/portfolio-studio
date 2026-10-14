@@ -183,8 +183,10 @@ const titleSel = (uid) => `[data-edit-block="${uid}"] [data-inline="title"]`;
 const addTitleBtn = f.locator(`[data-edit-block="${textUid}"] [data-edit-field-op="add-title"]`);
 await addTitleBtn.scrollIntoViewIfNeeded();
 await f.locator(`[data-edit-block="${textUid}"] [data-inline="paragraphs.0"]`).hover();
-await addTitleBtn.hover();
-await addTitleBtn.click();
+// Le bouton n'a de pointer-events qu'au survol de son hôte : on le rejoint à la souris (hover()/click() de Playwright refusent un élément « couvert »).
+const addBox = await addTitleBtn.boundingBox();
+await page.mouse.move(addBox.x + addBox.width / 2, addBox.y + addBox.height / 2, { steps: 8 });
+await addTitleBtn.click({ trial: false });
 await f.locator(`${titleSel(textUid)}[contenteditable]`).waitFor({ timeout: 30000 });
 ok("« + Ajouter un titre » : le titre devient modifiable", (await f.locator(titleSel(textUid)).getAttribute("contenteditable")) !== null);
 await page.keyboard.type(TITLE_FR);
