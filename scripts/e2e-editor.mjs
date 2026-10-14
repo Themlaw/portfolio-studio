@@ -178,8 +178,13 @@ ok("le nouveau bloc est sélectionné", await until(f, (uid) => Boolean(document
 
 const titleSel = (uid) => `[data-edit-block="${uid}"] [data-inline="title"]`;
 // Le Texte de la palette est un paragraphe seul (lot 19a) : son titre s'ajoute au survol, puis se saisit d'une frappe sur le texte d'aide.
+// Défilement AVANT le survol : si Playwright fait défiler la page pour atteindre le bouton, la souris sort de l'hôte et le
+// bouton perd ses pointer-events (flake en parallèle). On survole donc le paragraphe une fois la page stable, puis le bouton.
+const addTitleBtn = f.locator(`[data-edit-block="${textUid}"] [data-edit-field-op="add-title"]`);
+await addTitleBtn.scrollIntoViewIfNeeded();
 await f.locator(`[data-edit-block="${textUid}"] [data-inline="paragraphs.0"]`).hover();
-await f.locator(`[data-edit-block="${textUid}"] [data-edit-field-op="add-title"]`).click();
+await addTitleBtn.hover();
+await addTitleBtn.click();
 await f.locator(`${titleSel(textUid)}[contenteditable]`).waitFor({ timeout: 30000 });
 ok("« + Ajouter un titre » : le titre devient modifiable", (await f.locator(titleSel(textUid)).getAttribute("contenteditable")) !== null);
 await page.keyboard.type(TITLE_FR);
