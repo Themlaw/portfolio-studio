@@ -24,6 +24,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { TILE_SIZE_LABELS, TILE_SIZES } from "@/blocks/collection-pages";
 import { MAX_NESTING } from "@/blocks/tree";
 import { acceptToCanvas, insertionIndex, moveTo, type BlockInfo, type FromCanvas } from "@/lib/edit/protocol";
 
@@ -31,7 +32,7 @@ import BoardLayer from "./BoardLayer";
 import LookLayer from "./edit/LookLayer";
 import SiteLookLayer from "./edit/SiteLookLayer";
 import GridLayoutIcon, { LAYOUT_LABELS } from "./edit/GridLayoutIcon";
-import { listKeys, noteSettle, observeOverlays, pendingOrder, postIntent, previewLayout, previewMarked, previewOrder, previewText, resetOverlays, revertOverlay, siblingWrappers } from "./edit/optimistic";
+import { listKeys, noteSettle, observeOverlays, pendingOrder, postIntent, previewLayout, previewMarked, previewOrder, previewText, previewTileSize, resetOverlays, revertOverlay, siblingWrappers } from "./edit/optimistic";
 import { parseMarked } from "@/lib/marked";
 import { closeMarkedEditor, markedNodes, markState, markupOf, openMarkedEditor, selectionRange, selectRange, toggleMark, type MarkedEditor } from "./edit/marked-edit";
 import SurfaceMenu, { SurfaceButton } from "./edit/SurfaceMenu";
@@ -92,6 +93,55 @@ function LayoutPicker({ top, uid, onClose }: { top: number; uid: string; onClose
           }}
         >
           <GridLayoutIcon layout={l} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Choix de la page de collection d'une nouvelle entrée (lot 22) : se ferme d'un clic ailleurs. */
+function TilePagePicker({ top, left, uid, items, onClose }: { top: number; left: number; uid: string; items: { pageId: number; title: string }[]; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, onClose);
+  return (
+    <div ref={ref} className="pe-layouts pe-tile-pick" role="menu" aria-label="Page de la nouvelle entrée" style={{ top, left, right: "auto" }}>
+      {items.map((p) => (
+        <button
+          key={p.pageId}
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            post({ kind: "tile-op", uid, op: "add", pageId: p.pageId });
+            onClose();
+          }}
+        >
+          {p.title}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Taille des images des entrées de collection (lot 22) : se ferme d'un clic ailleurs. */
+function TileSizePicker({ top, uid, onClose }: { top: number; uid: string; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, onClose);
+  const [current, setCurrent] = useState(() => document.querySelector(`[data-edit-block="${CSS.escape(uid)}"] .tiles`)?.getAttribute("data-size") ?? "medium");
+  return (
+    <div ref={ref} className="pe-layouts pe-sizes" role="radiogroup" aria-label="Taille des images" style={{ top }}>
+      {TILE_SIZES.map((s) => (
+        <button
+          key={s}
+          type="button"
+          role="radio"
+          aria-checked={current === s}
+          onClick={() => {
+            const seq = post({ kind: "tile-size", uid, size: s });
+            previewTileSize(uid, s, seq);
+            setCurrent(s);
+          }}
+        >
+          {TILE_SIZE_LABELS[s]}
         </button>
       ))}
     </div>
@@ -239,6 +289,8 @@ export default function EditLayer() {
   const [announcement, setAnnouncement] = useState("");
   /** Bloc grille dont le choix d'agencement est ouvert. */
   const [layoutFor, setLayoutFor] = useState<string | null>(null);
+  const [sizeFor, setSizeFor] = useState<string | null>(null);
+  const [tilePick, setTilePick] = useState<{ uid: string; top: number; left: number; items: { pageId: number; title: string }[] } | null>(null);
   const [projectPicker, setProjectPicker] = useState<string | null>(null);
   const [markBar, setMarkBar] = useState<MarkBar | null>(null);
   /** Bloc dont le menu « Fond » (carte de rubrique) est ouvert ; `bump` redessine après un choix (aperçu optimiste). */
@@ -809,13 +861,35 @@ export default function EditLayer() {
       const addEnd = t?.closest("[data-edit-add]");
       const cellText = t?.closest<HTMLElement>("[data-edit-cell-text]");
       const fieldOp = t?.closest<HTMLElement>("[data-edit-field-op]");
+      // Entrées des collections choisies à la main (lot 22) : retirer, monter, descendre ; « + Ajouter une entrée ».
+      const tileOp = t?.closest<HTMLElement>("[data-edit-tile-op]");
+      const tileAdd = t?.closest<HTMLElement>("[data-edit-tile-add]");
+      if (tileOp || tileAdd) {
+        e.preventDefault();
+        e.stopPropagation();
+        finishEdit(true);
+        const host = (tileOp ?? tileAdd)!;
+        const uid = host.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
+        if (uid && tileOp) {
+          const op = tileOp.dataset.editTileOp as "remove" | "up" | "down";
+          post({ kind: "tile-op", uid, op, index: Number(tileOp.dataset.index) });
+        } else if (uid && tileAdd && !(tileAdd as HTMLButtonElement).disabled) {
+          const r = tileAdd.getBoundingClientRect();
+          let items: { pageId: number; title: string }[] = [];
+          try {
+            items = JSON.parse(tileAdd.dataset.candidates ?? "[]");
+          } catch {}
+          setTilePick({ uid, top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX, items });
+        }
+        return;
+      }
       if (fieldOp) {
         e.preventDefault();
         e.stopPropagation();
         finishEdit(true);
         const uid = fieldOp.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
         const op = fieldOp.dataset.editFieldOp;
-        if (uid && (op === "add-title" || op === "remove-title" || op === "add-eyebrow" || op === "remove-eyebrow")) post({ kind: "field-op", uid, op });
+        if (uid && op && /^(add|remove)-(title|eyebrow|intro|counts)$/.test(op)) post({ kind: "field-op", uid, op: op as Extract<FromCanvas, { kind: "field-op" }>["op"] });
         return;
       }
       if (addEnd || cellText) {
@@ -1175,6 +1249,11 @@ export default function EditLayer() {
                 Agencement
               </button>
             )}
+            {sel.type === "collection-tiles" && (
+              <button type="button" className="pe-tool-text" aria-expanded={sizeFor === sel.uid} onClick={() => setSizeFor((o) => (o === sel.uid ? null : sel.uid))}>
+                Taille des images
+              </button>
+            )}
             {!sel.parent && <SurfaceButton uid={sel.uid} open={surfaceFor === sel.uid} onToggle={() => setSurfaceFor((o) => (o === sel.uid ? null : sel.uid))} />}
             <button type="button" aria-label="Monter" title="Monter" disabled={siblingsOf(sel)[0]?.uid === sel.uid} onClick={() => orderOp("up", sel)}>
               ↑
@@ -1212,11 +1291,16 @@ export default function EditLayer() {
               onChanged={() => bump((n) => n + 1)}
             />
           )}
+          {sel.type === "collection-tiles" && sizeFor === sel.uid && (
+            <TileSizePicker uid={sel.uid} top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40} onClose={() => setSizeFor(null)} />
+          )}
           {sel.type === "grid" && layoutFor === sel.uid && (
             <LayoutPicker uid={sel.uid} top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40} onClose={() => setLayoutFor(null)} />
           )}
         </div>
       )}
+
+      {tilePick && <TilePagePicker {...tilePick} onClose={() => setTilePick(null)} />}
 
       {topCount === 0 && (
         <div className="pe-empty" style={{ top: markerY(boxes, 0) }} data-over={drop !== null || undefined}>
@@ -1224,7 +1308,7 @@ export default function EditLayer() {
         </div>
       )}
 
-      {gap && !drag && !surfaceFor && !layoutFor && !projectPicker && (
+      {gap && !drag && !surfaceFor && !layoutFor && !sizeFor && !projectPicker && (
         <div className="pe-gap" style={{ top: gap.top }}>
           <button type="button" data-edit-gap={gap.index} onClick={() => post({ kind: "insert", parent: null, index: gap.index, what: "choose" })}>
             <span aria-hidden="true">+</span> Ajouter une rubrique

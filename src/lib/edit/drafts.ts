@@ -53,6 +53,8 @@ export type PageDraft = {
   published: boolean;
   inMenu: boolean;
   accent: string | null;
+  /** Collection que la page présente (lot 22) ; un brouillon d'avant ne la porte pas (= celle de la page publiée). */
+  collection: "characters" | "backgrounds" | "animation" | null;
   blocks: DraftBlock[];
 };
 
@@ -76,6 +78,7 @@ const DraftSchema = z.object({
   published: z.boolean(),
   inMenu: z.boolean(),
   accent: z.string().max(7).nullable(),
+  collection: z.enum(["characters", "backgrounds", "animation"]).nullable().optional(),
   blocks: z
     .array(
       z.object({
@@ -125,12 +128,12 @@ export function readDraft(pageId: number): DraftState | null {
   const page = getPageForEdit(pageId);
   if (!row || !page) return null;
   const parsed = DraftSchema.safeParse(row.draft);
-  if (parsed.success) return { draft: parsed.data as PageDraft, hasDraft: true, corrupt: false, updatedAt: row.at ?? null, rev: row.rev, isHome: page.isHome };
+  if (parsed.success) return { draft: { ...parsed.data, collection: parsed.data.collection === undefined ? page.collection : parsed.data.collection } as PageDraft, hasDraft: true, corrupt: false, updatedAt: row.at ?? null, rev: row.rev, isHome: page.isHome };
   const corrupt = row.draft !== null;
   if (corrupt) console.error(`[brouillon] page ${pageId} : brouillon illisible, en attente d'un choix explicite`);
-  const { title, slug, meta, published, inMenu, accent, blocks } = page;
+  const { title, slug, meta, published, inMenu, accent, collection, blocks } = page;
   return {
-    draft: { title, slug, meta, published, inMenu, accent, blocks: blocks.map((b, i) => ({ uid: `b${i}`, type: b.type, props: b.props })) },
+    draft: { title, slug, meta, published, inMenu, accent, collection, blocks: blocks.map((b, i) => ({ uid: `b${i}`, type: b.type, props: b.props })) },
     hasDraft: corrupt,
     corrupt,
     updatedAt: row.at ?? null,

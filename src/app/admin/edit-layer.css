@@ -723,6 +723,130 @@ html[data-edit-canvas] #contenu .fixed {
   outline: none;
 }
 
+.pe-tile-pick {
+  flex-direction: column;
+  min-width: 180px;
+}
+
+.pe-tile-pick button {
+  width: auto;
+  justify-content: start;
+  padding: 0 12px;
+  text-align: left;
+  font: 500 13px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Entrées des collections choisies à la main (lot 22) : outils au survol d'une entrée, ajout sous la dernière. */
+html[data-edit-mode] .pe-tile-tools {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  background: #1f2226;
+  box-shadow: 0 6px 18px rgba(31, 34, 38, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+html[data-edit-mode] .tile:hover .pe-tile-tools,
+html[data-edit-mode] .pe-tile-broken:hover .pe-tile-tools,
+html[data-edit-mode] .pe-tile-tools:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  html[data-edit-mode] .pe-tile-tools {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.pe-tile-tools button {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #e6e8eb;
+  font: 600 14px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.pe-tile-tools button:hover:not(:disabled),
+.pe-tile-tools button:focus-visible {
+  background: rgba(255, 255, 255, 0.14);
+  outline: none;
+}
+
+.pe-tile-tools button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pe-tile-tools .pe-danger:hover:not(:disabled) {
+  background: #8f1d1d;
+}
+
+.pe-tile-broken {
+  position: relative;
+}
+
+.pe-tile-add-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.pe-tile-add {
+  margin: 0;
+  padding: 8px 18px;
+  border: 1px dashed rgba(46, 78, 158, 0.6);
+  border-radius: 999px;
+  background: rgba(232, 237, 248, 0.92);
+  color: #2e4e9e;
+  font: 600 13px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.pe-tile-add:hover:not(:disabled),
+.pe-tile-add:focus-visible {
+  border-style: solid;
+  background: #e8edf8;
+  outline: none;
+}
+
+.pe-tile-add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pe-tile-add-note {
+  font: 500 12px/1.3 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  color: #5b6068;
+}
+
+html:not([data-edit-mode]) :is(.pe-tile-tools, .pe-tile-add-row) {
+  display: none !important;
+}
+
+.pe-sizes button {
+  width: auto;
+  padding: 0 10px;
+  font: 500 12px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+}
+
 .pe-layouts button[aria-checked="true"] {
   border-color: #ffffff;
   color: #ffffff;

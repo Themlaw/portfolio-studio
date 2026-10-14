@@ -67,6 +67,10 @@ export const FromCanvasSchema = z.union([
   // v0.13 : médias des blocs, grilles, en-tête / pied / réseaux (communs au site).
   z.object({ kind: z.literal("media-op"), uid: Uid, field: MediaField, op: z.enum(["replace", "clear"]) }),
   z.object({ kind: z.literal("layout"), uid: Uid, layout: z.enum(["1", "1+2", "2", "3", "2x2", "4", "2+1"]) }),
+  // Entrées des collections (lot 22) : entrées choisies à la main (ajouter une page de collection, retirer, ordre).
+  z.object({ kind: z.literal("tile-op"), uid: Uid, op: z.enum(["add", "remove", "up", "down"]), index: z.number().int().min(0).max(23).optional(), pageId: z.number().int().positive().optional() }),
+  // Entrées des collections (lot 22) : taille des images, depuis la barre du bloc.
+  z.object({ kind: z.literal("tile-size"), uid: Uid, size: z.enum(["small", "medium", "large"]) }),
   // Formulaire de contact : champs retirés, déplacés, ajoutés sur la toile.
   z.object({
     kind: z.literal("form-field"),
@@ -106,7 +110,7 @@ export const FromCanvasSchema = z.union([
   // autres ajoutent aussitôt un texte (bloc `rich-text` avec son texte d'aide) à cet endroit.
   z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title", "title-text"]) }),
   // Champ facultatif d'un bloc Texte, ajouté ou retiré depuis la toile (lot 19a) : « + Ajouter un titre » / « Retirer le titre » (Texte), « + Ajouter une étiquette » / « Retirer l'étiquette » (Titre).
-  z.object({ kind: z.literal("field-op"), uid: Uid, op: z.enum(["add-title", "remove-title", "add-eyebrow", "remove-eyebrow"]) }),
+  z.object({ kind: z.literal("field-op"), uid: Uid, op: z.enum(["add-title", "remove-title", "add-eyebrow", "remove-eyebrow", "add-intro", "remove-intro", "add-counts", "remove-counts"]) }),
   // Palette et logo du site (lot 17f) : état COMPLET voulu (palette = bases choisies, logo = taille et comportement).
   z.object({ kind: z.literal("site-look"), palette: SitePaletteSchema, logo: LogoSchema }),
   // Ce que la toile a trouvé pour le rôle de couleur survolé (légende « utilisé par »).

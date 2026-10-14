@@ -2,11 +2,13 @@
 
 import type { AdminMediaRow } from "@/lib/admin";
 
+import type { CollectionPage } from "./collection-pages";
+
 export type L = { fr: string; en: string };
 
 /** Données de choix fournies par le serveur aux éditeurs (pickers). */
 export type EditorContext = {
-  pages: { id: number; title: string; slug: string }[];
+  pages: { id: number; title: string; slug: string; collection?: "characters" | "backgrounds" | "animation" | null }[];
   /**
    * `draft` : projet créé dans le brouillon de la page éditée. `onPage` : déjà
    * montré par une planche d'une page (publiée ou en brouillon).
@@ -17,6 +19,8 @@ export type EditorContext = {
    * faux pour l'ouverture typographique, où l'option de fond n'est pas proposée.
    */
   heroBackdrop?: boolean;
+  /** Pages de collection publiées, dans l'ordre du menu (entrées automatiques des collections, lot 22). */
+  collectionPages?: CollectionPage[];
   /** Médiathèque (sans les échecs de traitement). */
   media: AdminMediaRow[];
   /** Éditeur visuel : crée un projet dans le brouillon de la page (son slug, ou null si refusé). */

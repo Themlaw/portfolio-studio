@@ -26,7 +26,7 @@ import { contentKey, getStorage } from "@/lib/storage";
 import { DEFAULT_THEME_ID, PRESETS } from "@/themes/presets";
 
 import { getSqlite, type Db } from "./index";
-import { renameVideoLook, upgradeContent } from "./upgrade";
+import { renameVideoLook, collectionPages, upgradeContent } from "./upgrade";
 import { blocks, media, pages, projects, settings, slots, themes, type Localized } from "./schema";
 
 export const SEEDED_AT_KEY = "seededAt";
@@ -279,6 +279,7 @@ export function seedRows(db: Db, files: SeedFiles): void {
   // Contenu de départ écrit dans l'ancien format, puis converti comme une base
   // existante (migration 0014 : conteneurs, grilles, menu) : un seul chemin.
   upgradeContent(getSqlite());
+  collectionPages(getSqlite());
   renameVideoLook(getSqlite());
 
   db.insert(settings)

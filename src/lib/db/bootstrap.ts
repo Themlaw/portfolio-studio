@@ -17,7 +17,7 @@ import { readMigrationFiles, type MigrationMeta } from "drizzle-orm/migrator";
 
 import { dataDir, getDb, getSqlite } from "./index";
 import { isSeeded, prepareSeedFiles, seedRows, syncPresets, type SeedFiles } from "./seed";
-import { dropEmptyTextFields, pinImageFit, renameVideoLook, siteNameI18n, upgradeContent } from "./upgrade";
+import { collectionPages, dropEmptyTextFields, pinImageFit, renameVideoLook, siteNameI18n, upgradeContent } from "./upgrade";
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 
@@ -42,6 +42,10 @@ const DATA_MIGRATIONS: Record<string, () => void> = {
   "0019_image_fit_cover": () => {
     const rows = pinImageFit(getSqlite());
     console.log(`[db] 0019 : images pleine largeur à format imposé figées en « cover » — ${rows} ligne(s) réécrite(s)`);
+  },
+  "0021_page_collection": () => {
+    const rows = collectionPages(getSqlite());
+    console.log(`[db] 0021 : collection de page, entrées automatiques si la liste suit les pages, en-têtes de collection → Titre — ${rows} ligne(s) réécrite(s)`);
   },
   "0020_text_fields": () => {
     const rows = dropEmptyTextFields(getSqlite());

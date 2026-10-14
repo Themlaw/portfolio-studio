@@ -66,6 +66,11 @@ export const pages = sqliteTable("pages", {
   navOrder: integer("nav_order"),
   published: integer("published", { mode: "boolean" }).notNull().default(true),
   themeOverrides: text("theme_overrides", { mode: "json" }),
+  /**
+   * Collection que la page présente (characters, backgrounds, animation), ou null (lot 22). Une collection n'a
+   * qu'UNE page (index unique) : les entrées automatiques de l'accueil suivent ces pages.
+   */
+  collection: text("collection", { enum: ["characters", "backgrounds", "animation"] }).unique(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   /**
    * Brouillon de l'éditeur visuel (JSON : titre, adresses, méta, accent,

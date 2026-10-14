@@ -112,6 +112,30 @@ figure.block-image[data-fit="contain"] .block-image-media.block-image-media {
   object-position: 50% 50%;
 }
 
+/* Tuiles de collection (lot 22) : taille des images. Une tuile ne dépasse jamais l'écran : la hauteur de
+   l'image est plafonnée (--tile-cap, en svh) SANS rien rogner. Un portrait est réduit (largeur = plafond ×
+   rapport affiché `--ir`, posé par le bloc) et centré dans sa colonne ; le passe-partout / cadre / scotch qui
+   l'entoure suit l'image (--tile-extra : ce que le thème ajoute autour, de chaque côté). Les colonnes
+   (petite 5/12, moyenne 6/12, grande 8/12) viennent du bloc. Sur mobile, l'image est au-dessus du texte. */
+.tiles { --tile-cap: 70svh; --tile-extra: calc(2 * var(--mat-padding)); }
+.tiles[data-size="small"] { --tile-cap: 50svh; }
+.tiles[data-size="large"] { --tile-cap: 85svh; }
+@media (min-width: 768px) {
+  .tiles .tile-img { grid-column: span 6; }
+  .tiles .tile-txt { grid-column: span 6; }
+  .tiles[data-size="small"] .tile-img { grid-column: span 5; }
+  .tiles[data-size="small"] .tile-txt { grid-column: span 7; }
+  .tiles[data-size="large"] .tile-img { grid-column: span 8; }
+  .tiles[data-size="large"] .tile-txt { grid-column: span 4; }
+  /* Une entrée sur deux : image à droite, texte à gauche. */
+  .tiles .tile:nth-of-type(even) .tile-img { order: 2; grid-column-end: -1; }
+  .tiles .tile:nth-of-type(even) .tile-txt { order: 1; grid-row-start: 1; }
+}
+.tiles .tile-media {
+  width: min(100%, calc(var(--tile-cap) * var(--ir, 1.5) + var(--tile-extra)));
+  margin-inline: auto;
+}
+
 /* Tuiles de collection : format imposé, puis cadrage de chaque image (variables
    posées sur la tuile elle-même, une par collection). */
 .tile-frame {

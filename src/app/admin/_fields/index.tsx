@@ -257,6 +257,40 @@ export function CollectionPicker({
   );
 }
 
+/**
+ * Réglage de page « Cette page est la collection » (lot 22) : Personnages, Décors, Animation ou aucune. Une collection
+ * n'a qu'une page : celles que d'autres pages ont déjà ne sont pas proposées (le serveur le contrôle aussi).
+ */
+export function PageCollectionField({
+  value,
+  onChange,
+  pages,
+  pageId,
+  error,
+}: {
+  value: "characters" | "backgrounds" | "animation" | null | undefined;
+  onChange: (v: "characters" | "backgrounds" | "animation" | null) => void;
+  pages: { id: number; title: string; collection?: string | null }[];
+  pageId: number;
+  error?: string;
+}) {
+  const takenBy = (c: string) => pages.find((p) => p.collection === c && p.id !== pageId);
+  const taken = COLLECTION_OPTIONS.filter((o) => takenBy(o.value));
+  return (
+    <Select
+      label="Cette page est la collection"
+      help={`Les entrées automatiques de l'accueil suivent les pages qui ont une collection. Une collection n'a qu'une page${
+        taken.length ? ` (déjà prise : ${taken.map((o) => `${o.label}, page « ${takenBy(o.value)!.title} »`).join(" ; ")})` : ""
+      }.`}
+      value={value ?? undefined}
+      options={COLLECTION_OPTIONS.filter((o) => !takenBy(o.value))}
+      allowEmpty="Aucune"
+      onChange={(v) => onChange(v ?? null)}
+      error={error}
+    />
+  );
+}
+
 export function PagePicker({
   label,
   help,

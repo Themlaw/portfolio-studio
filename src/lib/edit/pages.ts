@@ -80,6 +80,8 @@ export function prunedTileCrop(type: string, props: Record<string, unknown>): Re
   if (type !== "collection-tiles") return props;
   const look = props.look as { tileCrop?: Record<string, unknown> } | undefined;
   if (!look?.tileCrop) return props;
+  // Entrées automatiques (lot 22) : les collections montrées dépendent des pages du site, rien à retirer ici.
+  if (props.mode === "auto") return props;
   const present = new Set(((props.items as { collection?: string }[] | undefined) ?? []).map((i) => i.collection));
   const kept = Object.fromEntries(Object.entries(look.tileCrop).filter(([k]) => present.has(k)));
   if (Object.keys(kept).length === Object.keys(look.tileCrop).length) return props;
@@ -178,6 +180,8 @@ const SavePageSchema = z.object({
   published: z.boolean(),
   inMenu: z.boolean(),
   accent: z.string().max(7).regex(HEX, "Couleur attendue au format #rrggbb.").nullable(),
+  /** Collection présentée par la page (lot 22) ; absent = inchangée. */
+  collection: z.enum(["characters", "backgrounds", "animation"]).nullable().optional(),
   blocks: z.array(z.object({ type: z.string().max(60), props: z.unknown() })).max(40, "40 blocs au plus par page."),
 });
 
@@ -203,6 +207,12 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
   const slug = home ? { fr: "", en: "" } : data.slug;
   if (!home) Object.assign(errors, slugErrors(slug, id));
   if (home && !data.published) errors.published = "La page d'accueil reste toujours publiée.";
+
+  // Une collection n'a qu'une page.
+  if (data.collection) {
+    const other = db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).where(eq(schema.pages.collection, data.collection)).get();
+    if (other && other.id !== id) errors.collection = `Cette collection est déjà celle de la page « ${other.title.fr || other.title.en} » : retire-la de cette page d'abord.`;
+  }
 
   if (data.accent) {
     const colors = activeColors();
@@ -239,6 +249,14 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
         return;
       }
       const props = prunedTileCrop(block.type, { ...(result.data as Record<string, unknown>) });
+      // Entrées automatiques : les textes modifiés d'une page qui n'existe plus n'ont plus de tuile.
+      if (block.type === "collection-tiles" && Array.isArray(props.edits)) {
+        const kept = (props.edits as { pageId: number }[]).filter((e) => pageIds.has(e.pageId));
+        if (kept.length !== props.edits.length) {
+          if (kept.length) props.edits = kept;
+          else delete props.edits;
+        }
+      }
       // Références du bloc lui-même (ses composants sont contrôlés un par un).
       const refs = extractRefs(block.type, props, 2);
       if (refs.pages.some((p) => !pageIds.has(p))) errors[key] = "Ce bloc pointe vers une page qui n'existe plus : choisis-en une autre.";
@@ -275,6 +293,7 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
         meta: data.meta,
         published: home ? true : data.published,
         themeOverrides: data.accent ? { primary: data.accent } : null,
+        ...(data.collection !== undefined ? { collection: data.collection } : {}),
         updatedAt: new Date(),
       })
       .where(eq(schema.pages.id, id))

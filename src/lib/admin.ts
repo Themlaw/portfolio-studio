@@ -4,6 +4,7 @@
  */
 import { asc, count, desc, eq } from "drizzle-orm";
 
+import { orderCollectionPages } from "@/blocks/collection-pages";
 import { extractRefs } from "@/blocks/refs";
 import { BLOCKS } from "@/blocks/registry";
 
@@ -12,7 +13,7 @@ import { ThemeSchema, type Theme } from "@/themes/schema";
 import { getDb, schema } from "./db";
 import { boardRefs } from "@/blocks/tree";
 import { parseJson } from "./json";
-import { asSiteName, NETWORKS, type Network } from "./site-schema";
+import { asSiteName, NavSchema, NETWORKS, type Network } from "./site-schema";
 import { ORIGINALS_PREFIX, parseVariants } from "./images/variants";
 import { mediaUrl } from "./media";
 import { own } from "./own";
@@ -351,6 +352,8 @@ export type AdminPageEdit = {
   published: boolean;
   inMenu: boolean;
   accent: string | null;
+  /** Collection que la page présente (lot 22), ou null. */
+  collection: "characters" | "backgrounds" | "animation" | null;
   blocks: { type: string; props: Record<string, unknown> }[];
 };
 
@@ -375,6 +378,7 @@ export function getPageForEdit(id: number): AdminPageEdit | null {
     published: page.published,
     inMenu: page.navOrder !== null,
     accent: typeof overrides?.primary === "string" ? overrides.primary : null,
+    collection: page.collection ?? null,
     blocks,
   };
 }
@@ -393,14 +397,27 @@ export function getEditorContext(draftPageId?: number) {
     const blocks = (p.draft as { blocks?: unknown } | null)?.blocks;
     if (Array.isArray(blocks)) for (const b of boardRefs(blocks.filter((x) => x && typeof x.type === "string"))) onPage.add(b.slug);
   }
+  // Pages de collection publiées, dans l'ordre du menu : entrées automatiques des collections (lot 22).
+  const navRow = db.select({ value: schema.settings.value }).from(schema.settings).where(eq(schema.settings.key, "nav")).get();
+  const navList = NavSchema.safeParse(parseJson(navRow?.value));
+  const livePages = db.select().from(schema.pages).where(eq(schema.pages.published, true)).orderBy(asc(schema.pages.id)).all();
+  const menu = navList.success
+    ? navList.data.flatMap((n) => (n.kind === "page" ? [n.pageId] : []))
+    : livePages.filter((p) => p.navOrder !== null).sort((a, b) => (a.navOrder ?? 0) - (b.navOrder ?? 0)).map((p) => p.id);
+  const blockRows = db.select({ pageId: schema.blocks.pageId, type: schema.blocks.type, props: schema.blocks.props }).from(schema.blocks).orderBy(asc(schema.blocks.position)).all();
+  const collectionPages = orderCollectionPages(
+    livePages.map((p) => ({ id: p.id, title: p.title, collection: p.collection, blocks: blockRows.filter((b) => b.pageId === p.id).map((b) => ({ type: b.type, props: parseJson(b.props) })) })),
+    menu,
+  );
   return {
+    collectionPages,
     pages: db
       .select()
       .from(schema.pages)
       .orderBy(asc(schema.pages.id))
       .all()
       .filter((p) => !p.slug.fr.startsWith("_"))
-      .map((p) => ({ id: p.id, title: p.title.fr, slug: p.slug.fr })),
+      .map((p) => ({ id: p.id, title: p.title.fr, slug: p.slug.fr, collection: p.collection ?? null })),
     // Projets publiés, plus ceux créés dans le brouillon de la page éditée.
     projects: db
       .select({ slug: schema.projects.slug, title: schema.projects.title, page: schema.projects.draftPageId })

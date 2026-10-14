@@ -21,6 +21,8 @@ export type PageSummary = {
   title: L;
   meta: { title: L; description: L } | null;
   navOrder: number | null;
+  /** Collection que la page présente (réglage « Cette page est la collection »), ou null. */
+  collection: string | null;
   /** Surcharges de tokens de la page (accent : { primary }). */
   themeOverrides?: unknown;
 };
@@ -45,6 +47,7 @@ export async function getPageIndex(): Promise<PageSummary[]> {
         title: schema.pages.title,
         meta: schema.pages.meta,
         navOrder: schema.pages.navOrder,
+        collection: schema.pages.collection,
         themeOverrides: schema.pages.themeOverrides,
       })
       .from(schema.pages)
