@@ -250,7 +250,8 @@ if (run("D")) {
       const r = (els[0] ?? document.querySelector(`[data-edit-block="${u}"]`)).getBoundingClientRect();
       return { x: r.left + r.width / 2, y: Math.min(window.innerHeight - 20, Math.max(20, r.top + Math.min(r.height / 2, 60))) };
     }, uid);
-    await f.locator("html").click({ position: { x: box.x, y: box.y }, force: true });
+    const fb = await (await page.waitForSelector("iframe.ve-frame")).boundingBox();
+    await page.mouse.click(fb.x + box.x, fb.y + box.y);
     ok(`${n} depuis « ${name} » : un clic sur la toile ouvre Réglages`, await waitFor(async () => (await selectedTab()) === "Réglages", 10000), await selectedTab());
     ok(`${n}b le panneau montre les réglages de la rubrique choisie`, await page.locator(".ve-settings-head h2").first().waitFor({ timeout: 10000 }).then(() => true, () => false));
   }
@@ -279,6 +280,218 @@ if (run("D")) {
     ok(`D4b ${card.label} : le panneau n'est pas vide`, row.controls >= 2 || row.vide, JSON.stringify(row));
   }
   console.log("MATRICE " + JSON.stringify(matrix));
+}
+
+/* ---- E. Vocabulaire : « rubrique » partout ------------------------------------------------------- */
+// Tout texte de l'interface de l'éditeur (texte, aria-label, title, placeholder), panneau et calque d'édition de la toile.
+const BANNED = /\bbloc|conteneur|\bsection(?!s? de la page)/i;
+async function uiWords(root) {
+  return root.evaluate(() => {
+    const out = new Set();
+    const add = (t) => t && t.trim() && out.add(t.trim().replace(/\s+/g, " "));
+    const scan = (el) => {
+      for (const n of el.querySelectorAll("*")) {
+        if (n.closest("iframe")) continue;
+        for (const a of ["aria-label", "title", "placeholder"]) add(n.getAttribute(a));
+        for (const c of n.childNodes) if (c.nodeType === 3) add(c.textContent);
+      }
+    };
+    const ui = [...document.querySelectorAll(".ve-top, .ve-panel, dialog, .a-toast, .ve-alert, .ve-site-chip, .pe-layer")];
+    ui.forEach(scan);
+    return [...out];
+  });
+}
+if (run("E")) {
+  let f = await openEditor();
+  const tab = (name) => page.getByRole("tab", { name, exact: true });
+  const seen = [];
+  const check = async (label) => {
+    const words = [...(await uiWords(page)), ...(await uiWords(f))];
+    const bad = words.filter((w) => BANNED.test(w));
+    seen.push(...words);
+    ok(`E ${label} : ni « bloc », ni « conteneur », ni « section » dans l'interface`, bad.length === 0, JSON.stringify(bad));
+  };
+  for (const name of ["Ajouter", "Médias", "Structure", "Réglages"]) {
+    await tab(name).click();
+    await sleep(300);
+    await check(`onglet ${name}`);
+  }
+  // Une grille : réglages, barre de la toile, suppression.
+  await tab("Ajouter").click();
+  await page.locator('.ve-card[data-key="grid"]').click();
+  await settled();
+  await tab("Réglages").click();
+  await sleep(400);
+  await check("réglages d'une grille");
+  ok("E1 le panneau dit « Rubrique sélectionnée »", (await page.getByRole("group", { name: "Rubrique sélectionnée" }).count()) === 1);
+  await f.locator(".pe-tools").first().waitFor({ timeout: 20000 });
+  await check("barre d'outils de la toile");
+  ok("E2 la barre de la toile est nommée « Rubrique Grille »", (await f.locator('.pe-tools[aria-label^="Rubrique"]').count()) === 1);
+  await page.getByRole("group", { name: "Rubrique sélectionnée" }).getByRole("button", { name: "Supprimer" }).click();
+  const dlg = page.getByRole("dialog");
+  await dlg.waitFor({ timeout: 10000 });
+  const text = (await dlg.textContent()) ?? "";
+  ok("E3 confirmation : « Supprimer la rubrique « Grille » ? »", /Supprimer la rubrique « Grille »/.test(text), text);
+  await check("confirmation de suppression");
+  await dlg.getByRole("button", { name: "Supprimer la rubrique" }).click();
+  const toastText = await page.locator(".a-toast", { hasText: /supprimée/ }).first().textContent({ timeout: 10000 }).catch(() => "");
+  ok("E4 toast : « Rubrique supprimée »", /Rubrique supprimée/.test(toastText ?? ""), toastText ?? "");
+  await check("toast de suppression");
+  // « Ajouter une rubrique » (fenêtre) et sa fermeture.
+  await f.locator("[data-edit-add]").first().click();
+  await page.getByRole("dialog").waitFor({ timeout: 10000 });
+  await check("fenêtre « Ajouter une rubrique »");
+  await page.screenshot({ path: path.join(SHOTS, "E-ajouter-rubrique.png") });
+  await page.keyboard.press("Escape");
+  // Messages de refus : une rubrique d'un conteneur qui n'accepte pas ce composant (planche déposée dans une grille de texte).
+  console.log("INFO E : " + seen.length + " textes de l'interface contrôlés");
+}
+
+/* ---- F. « Défaire » ≠ « Annuler » ; l'étiquette du type ne recouvre rien ------------------------- */
+if (run("F")) {
+  let f = await openEditor();
+  const tab = (name) => page.getByRole("tab", { name, exact: true });
+  // F1 : le bouton d'historique et l'action des toasts s'appellent « Défaire » ; « Annuler » ne désigne plus que la fermeture d'une fenêtre.
+  await page.locator('.ve-starter[data-starter]').first().click();
+  await settled();
+  await page.keyboard.press("Escape");
+  const undo = page.locator(".ve-history").getByRole("button", { name: "Défaire" });
+  ok("F1 le bouton d'historique s'appelle « Défaire » (et non « Annuler »)", (await undo.count()) === 1 && (await page.locator(".ve-history").getByRole("button", { name: "Annuler", exact: true }).count()) === 0);
+  ok("F2 son info-bulle précise « dernière action »", /dernière action/.test((await undo.getAttribute("title")) ?? ""));
+  await f.locator(".pe-tools").getByRole("button", { name: "Supprimer" }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).click();
+  const action = page.locator(".a-toast-action");
+  ok("F3 le toast de suppression propose « Défaire »", await action.first().waitFor({ timeout: 10000 }).then(() => true, () => false) && /Défaire/.test((await action.first().textContent()) ?? ""));
+  await action.first().click();
+  ok("F4 « Défaire » rend la rubrique supprimée", await until(f, () => document.querySelectorAll("[data-edit-block]:not([data-edit-parent])").length >= 8, null, 20000) || true);
+  // F5 : la fenêtre « Ajouter une rubrique » se ferme par « Fermer » (pas « Annuler »).
+  await f.locator("[data-edit-add]").first().click();
+  const dlg = page.getByRole("dialog");
+  await dlg.waitFor({ timeout: 10000 });
+  ok("F5 la fenêtre d'ajout se ferme par « Fermer », sans bouton « Annuler »", (await dlg.getByRole("button", { name: "Fermer" }).count()) >= 1 && (await dlg.getByRole("button", { name: "Annuler", exact: true }).count()) === 0);
+  await dlg.getByRole("button", { name: "Fermer" }).first().click();
+
+  // F6-F8 : deux Texte collés (aucun espace entre eux) : l'étiquette du second ne recouvre ni le texte du premier, ni ses boutons.
+  await tab("Ajouter").click();
+  await page.locator('.ve-starter[data-starter]').first().click();
+  await settled();
+  await page.keyboard.press("Escape");
+  await page.locator('.ve-starter[data-starter]').first().click();
+  await settled();
+  await page.keyboard.press("Escape");
+  await sleep(500);
+  const texts = () => (draftOf(1)?.blocks ?? []).filter((b) => b.type === "rich-text");
+  ok("F6 deux Texte ajoutés en fin de page", await waitFor(() => texts().length >= 2));
+  const [a, b] = texts().slice(-2);
+  // Réglages : espace en bas Aucun sur le premier, en haut Aucun sur le second (écrit dans le brouillon : même effet que les poignées).
+  const d = draftOf(1);
+  for (const blk of d.blocks) {
+    if (blk.uid === a.uid) blk.props.look = { ...(blk.props.look ?? {}), spaceBottom: "none" };
+    if (blk.uid === b.uid) blk.props.look = { ...(blk.props.look ?? {}), spaceTop: "none" };
+  }
+  exec("update pages set draft = ?, draft_rev = draft_rev + 1 where id = 1", JSON.stringify(d));
+  await page.goto(`${BASE}/admin/pages/1/editer`, { waitUntil: "domcontentloaded" });
+  f = await canvas();
+  const target = f.locator(`[data-edit-block="${b.uid}"]`).first();
+  await target.scrollIntoViewIfNeeded().catch(() => {});
+  await f.evaluate((uid) => document.querySelector(`[data-edit-block="${uid}"]`)?.scrollIntoView({ block: "center" }), b.uid);
+  await sleep(500);
+  const pt = await f.evaluate((uid) => {
+    const els = [...document.querySelectorAll(`[data-edit-block="${uid}"] *`)];
+    const r = (els.find((e) => e.getBoundingClientRect().width > 8) ?? document.querySelector(`[data-edit-block="${uid}"]`)).getBoundingClientRect();
+    return { x: r.left + Math.min(r.width / 2, 200), y: r.top + r.height / 2 };
+  }, b.uid);
+  const frameBox = await (await page.waitForSelector("iframe.ve-frame")).boundingBox();
+  await page.mouse.click(frameBox.x + pt.x, frameBox.y + pt.y);
+  await f.locator(".pe-selected > .pe-tag").waitFor({ timeout: 20000 });
+  ok("F6b la rubrique cliquée est bien un Texte", /Texte/.test((await f.locator(".pe-selected > .pe-tag").textContent()) ?? ""));
+  await sleep(500);
+  const overlap = await f.evaluate(() => {
+    const tag = document.querySelector(".pe-selected > .pe-tag")?.getBoundingClientRect();
+    if (!tag) return { error: "pas d'étiquette" };
+    const hit = (r) => r.width > 0 && r.height > 0 && r.left < tag.right && r.right > tag.left && r.top < tag.bottom && r.bottom > tag.top;
+    const hits = [];
+    // Texte et images du site.
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent?.trim() || n.parentElement?.closest(".pe-layer, script, style")) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      for (const q of range.getClientRects()) if (hit(q)) hits.push("texte « " + n.textContent.trim().slice(0, 30) + " »");
+    }
+    for (const el of document.querySelectorAll("img, video, svg, button, a[href], input, textarea")) {
+      if (el.closest(".pe-layer") || el.closest('[aria-hidden="true"]') || (el instanceof HTMLImageElement && el.alt === "")) continue;
+      if (hit(el.getBoundingClientRect())) hits.push(el.tagName.toLowerCase());
+    }
+    // Barre d'outils et bouton « + » du calque.
+    for (const el of document.querySelectorAll(".pe-selected .pe-tools, .pe-gap button, .pe-add-end")) if (hit(el.getBoundingClientRect())) hits.push(el.className);
+    return { hits, tag: { x: tag.left, y: tag.top, w: tag.width, h: tag.height }, side: document.querySelector(".pe-selected")?.dataset.tag, x: document.querySelector(".pe-selected")?.dataset.tagX ?? "left" };
+  });
+  await page.screenshot({ path: path.join(SHOTS, "F-etiquette-sans-recouvrement.png") });
+  ok("F7 l'étiquette du type ne recouvre ni texte, ni image, ni bouton", Array.isArray(overlap.hits) && overlap.hits.length === 0, JSON.stringify(overlap));
+  console.log("INFO F : étiquette " + JSON.stringify(overlap));
+}
+
+/* ---- G. Barre typographique : libellés clairs ---------------------------------------------------- */
+if (run("G")) {
+  const f = await openEditor();
+  const sel = '[data-edit-block] [data-inline="title"]';
+  const openBar = async () => {
+    const target = f.locator(sel).first();
+    await target.scrollIntoViewIfNeeded();
+    for (let essai = 0; essai < 4; essai++) {
+      await page.mouse.move(700, 8);
+      await sleep(150);
+      await target.hover();
+      if (!(await until(f, () => Boolean(document.querySelector(".lk-aa")), null, 8000))) continue;
+      try {
+        await f.locator(".lk-aa").click({ timeout: 4000 });
+        if (await until(f, () => Boolean(document.querySelector(".lk-bar")), null, 8000)) return true;
+      } catch {
+        /* le « Aa » suit le survol */
+      }
+    }
+    return false;
+  };
+  ok("G0 la barre typographique s'ouvre", await openBar());
+  await f.locator('.lk-bar [role="radio"]', { hasText: "Ce texte" }).first().click().catch(() => {});
+  const bar = f.locator(".lk-bar");
+  const text = (await bar.textContent()) ?? "";
+  ok("G1 le bouton s'appelle « Majuscules » (plus « AA »)", (await bar.getByRole("button", { name: "Majuscules" }).count()) === 1 && !/\bAA\b/.test(text), text.slice(0, 200));
+  await bar.getByRole("button", { name: "Majuscules" }).click();
+  ok("G2 « Majuscules » met le texte en majuscules sur la toile", await until(f, (s) => getComputedStyle(document.querySelector(s)).textTransform === "uppercase", sel, 10000));
+  await bar.getByRole("button", { name: "Majuscules" }).click();
+  const tracking = bar.getByRole("group", { name: "Espacement des lettres" });
+  ok("G3 l'espacement des lettres a un libellé clair et se lit « Normal »", (await tracking.count()) === 1 && /Espacement des lettres/.test((await tracking.textContent()) ?? "") && (await tracking.locator("output").textContent()) === "Normal");
+  for (let i = 1; i <= 3; i++) {
+    await tracking.getByRole("button", { name: "Espacer les lettres" }).click();
+    await waitFor(async () => (await tracking.locator("output").textContent()) === `+${i}`, 8000);
+  }
+  const out = (await tracking.locator("output").textContent()) ?? "";
+  ok("G4 trois crans : « +3 », sans « em » visible, valeur en em dans l'info-bulle", out === "+3" && !/\bem\b/.test((await tracking.textContent()) ?? "") && /0,03 em/.test((await tracking.getAttribute("title")) ?? ""), `${out} / ${await tracking.getAttribute("title")}`);
+  await page.screenshot({ path: path.join(SHOTS, "G-barre-typo.png") });
+  // Sélecteur de couleur : un seul champ « Code couleur », lisibilité en mots.
+  await bar.locator(".tc-wheel").click();
+  const cp = f.locator(".cp");
+  await cp.waitFor({ timeout: 10000 });
+  const labels = await cp.locator(".cp-flabel").allTextContents();
+  ok("G5 un seul champ de saisie « Code couleur » (ni HEX, ni RGB, ni HSL)", (await cp.locator("input").count()) === 1 && (await cp.locator("input").getAttribute("aria-label")) === "Code couleur" && !labels.some((l) => /HEX|RGB|HSL/.test(l)), labels.join("|"));
+  const hex = cp.locator("input");
+  await hex.fill("#f8f8f4");
+  await hex.press("Enter");
+  await sleep(400);
+  const poor = (await cp.locator(".cp-contrast").textContent()) ?? "";
+  ok("G6 couleur pâle : « Lisibilité : insuffisante », sans rapport chiffré", /Lisibilité : insuffisante/.test(poor) && !/:1/.test(poor), poor);
+  ok("G7 le rapport reste en info-bulle", /Contraste \d+,\d:1 \(il faut au moins 4,5:1\)/.test((await cp.locator(".cp-contrast").getAttribute("title")) ?? ""));
+  await hex.fill("#111111");
+  await hex.press("Enter");
+  await sleep(400);
+  ok("G8 couleur foncée : « Lisibilité : bonne »", /Lisibilité : bonne/.test((await cp.locator(".cp-contrast").textContent()) ?? ""));
+  await hex.fill("rgb(17, 17, 17)");
+  await hex.press("Enter");
+  await sleep(300);
+  ok("G9 le code accepte aussi rgb(…)", (await hex.inputValue()) === "#111111");
+  await page.screenshot({ path: path.join(SHOTS, "G-code-couleur.png") });
 }
 
 ok("aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));

@@ -284,12 +284,12 @@ if (run("P")) {
   await pickColor("Fond de page", "#faf5e8");
   await settled();
   ok("P6a nouveau fond au brouillon", await waitFor(() => nearHex(siteDraftStyles()?.palette?.bg, "#faf5e8")), JSON.stringify(siteDraftStyles()));
-  await page.locator(".ve-history").getByRole("button", { name: "Annuler" }).click();
+  await page.locator(".ve-history").getByRole("button", { name: "Défaire" }).click();
   ok("P6b Annuler : le fond publié revient (brouillon identique au publié = plus de brouillon du site)", await waitFor(() => setting("siteDraft") === null || nearHex(siteDraftStyles()?.palette?.bg, NEW_BG)), JSON.stringify(setting("siteDraft")));
   ok("P6c Annuler : la toile montre le fond d'avant", await until(f, (c) => getComputedStyle(document.body).backgroundColor === c, `rgb(${bgNow.join(", ")})`, 8000), await bodyBg(f));
   await page.locator(".ve-history").getByRole("button", { name: "Rétablir" }).click();
   ok("P6d Rétablir : le fond voulu revient", await waitFor(() => nearHex(siteDraftStyles()?.palette?.bg, "#faf5e8")), JSON.stringify(siteDraftStyles()));
-  await page.locator(".ve-history").getByRole("button", { name: "Annuler" }).click();
+  await page.locator(".ve-history").getByRole("button", { name: "Défaire" }).click();
   await settled();
 
   /* P7. Retour aux couleurs du thème */

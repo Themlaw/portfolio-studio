@@ -57,4 +57,19 @@ for (const p of list) assert.ok(!/blocks\.|props\./.test(`${p.where} ${p.field ?
 // Une clé qui ne désigne aucun bloc (brouillon modifié depuis) devient un problème de page, sans planter.
 assert.equal(describeProblems(blocks, { "blocks.9.props.title.fr": "x" }, label)[0].uid, null);
 
+// 2. Lisibilité en mots
+import { frRatio, ratioTip, readability, readabilityText } from "../src/components/edit/readability.ts";
+assert.equal(readability(3.99).label, "insuffisante");
+assert.equal(readability(4.5).label, "juste");
+assert.equal(readability(5.39).label, "juste");
+assert.equal(readability(5.4).label, "bonne");
+assert.equal(readability(21).label, "bonne");
+assert.equal(readability(2.9, 3).label, "insuffisante", "grand texte : seuil 3");
+assert.equal(readability(3.2, 3).label, "juste");
+assert.equal(readability(3.6, 3).label, "bonne");
+assert.equal(readabilityText(4), "Lisibilité : insuffisante");
+assert.equal(frRatio(4.04), "4,0");
+assert.match(ratioTip(4), /^Contraste 4,0:1 \(il faut au moins 4,5:1\)$/);
+assert.ok(!/:1/.test(readabilityText(4)), "le rapport n'est jamais dans le texte lu");
+
 console.log("test-chrome24 : OK");

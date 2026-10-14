@@ -330,7 +330,7 @@ if (run("B") || run("C"))
 
   // Couleur perso par « Autre couleur… ».
   await menu.getByRole("button", { name: "Couleur personnalisée" }).click();
-  const hex = f.locator('.cp input[aria-label="Valeur hexadécimale"]');
+  const hex = f.locator('.cp input[aria-label="Code couleur"]');
   await hex.waitFor({ timeout: 20000 });
   await hex.fill("#f6d6e4");
   await hex.press("Enter");
@@ -394,7 +394,7 @@ if (run("B") || run("C"))
   await settled();
   await page.keyboard.press("Escape");
   await settled();
-  const undo = page.locator('button.a-icon-btn[aria-label="Annuler"]');
+  const undo = page.locator('button.a-icon-btn[aria-label="Défaire"]');
   const redo = page.locator('button.a-icon-btn[aria-label="Rétablir"]');
   await undo.click();
   ok("B8 Annuler (1er pas) : seule la largeur est défaite, la couleur reste", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s1)), JSON.stringify(surfaceNow()));

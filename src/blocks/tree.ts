@@ -74,28 +74,28 @@ export function treeProblem(blocks: TreeBlock[], known: (type: string) => boolea
     for (const raw of list) {
       if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "Composant illisible.";
       const block = raw as { uid?: unknown; type?: unknown; props?: unknown };
-      if (typeof block.type !== "string" || !known(block.type)) return `Type de bloc inconnu « ${String(block.type).slice(0, 60)} ».`;
+      if (typeof block.type !== "string" || !known(block.type)) return `Type de rubrique inconnu « ${String(block.type).slice(0, 60)} ».`;
       if (parent !== null) {
-        if (!containerAccepts(parent, block.type)) return "Ce conteneur n'accepte pas ce composant.";
+        if (!containerAccepts(parent, block.type)) return "Cette rubrique n'accepte pas ce composant.";
         if (!uidOk(block.uid)) return "Identifiant de composant invalide.";
       }
       if (block.uid !== undefined) {
-        if (!uidOk(block.uid)) return "Identifiant de bloc invalide.";
-        if (uids.has(block.uid as string)) return "Blocs en double.";
+        if (!uidOk(block.uid)) return "Identifiant de rubrique invalide.";
+        if (uids.has(block.uid as string)) return "Rubriques en double.";
         uids.add(block.uid as string);
       }
       const props = block.props;
       if (parent !== null && (!props || typeof props !== "object" || Array.isArray(props))) return "Réglages d'un composant illisibles.";
       const hasChildren = Boolean(props) && typeof props === "object" && "children" in (props as object);
       if (!isContainer(block.type)) {
-        if (hasChildren) return "Seul un conteneur porte des composants.";
+        if (hasChildren) return "Seule une rubrique à composants (Grille…) en porte.";
         continue;
       }
-      if (depth >= MAX_NESTING) return "Trop de conteneurs imbriqués.";
+      if (depth >= MAX_NESTING) return "Trop de rubriques imbriquées.";
       if (!hasChildren) continue;
       const children = (props as { children: unknown }).children;
-      if (!Array.isArray(children)) return "Composants du conteneur illisibles.";
-      if (children.length > MAX_CHILDREN) return `${MAX_CHILDREN} composants au plus par conteneur.`;
+      if (!Array.isArray(children)) return "Composants de la rubrique illisibles.";
+      if (children.length > MAX_CHILDREN) return `${MAX_CHILDREN} composants au plus par rubrique.`;
       const problem = check(children, block.type, depth + 1);
       if (problem) return problem;
     }

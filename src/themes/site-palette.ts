@@ -64,7 +64,7 @@ export const SITE_ROLES: RoleInfo[] = [
 
 /** Usage de chaque nuance, en clair. */
 export const NUANCE_USES: Record<NuanceKey, string> = {
-  bgDeep: "Sépare deux sections sans filet.",
+  bgDeep: "Sépare deux rubriques sans filet.",
   line: "Traits de séparation.",
   inkSoft: "Présentations et légendes.",
   shadow: "Teinte des ombres des cartes et des images.",

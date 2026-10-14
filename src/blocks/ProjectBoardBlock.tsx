@@ -41,7 +41,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     return (
       <section className="shell py-[var(--t-board-pad)]" lang="fr">
         <p className="pe-wait" data-edit-board-wait="">
-          Planche du projet : choisis d&apos;abord le projet du conteneur.
+          Planche du projet : choisis d&apos;abord le projet de la rubrique.
         </p>
       </section>
     );

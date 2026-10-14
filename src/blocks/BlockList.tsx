@@ -128,11 +128,11 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
     );
   if (block.corrupt) {
     console.error(`[blocks] page ${ctx.pageId}, bloc ${block.id} (${block.type}) : props JSON illisibles, ignoré`);
-    return ctx.edit ? wrap(<p data-edit-invalid="">Bloc illisible : supprime-le.</p>) : null;
+    return ctx.edit ? wrap(<p data-edit-invalid="">Rubrique illisible : supprime-la.</p>) : null;
   }
   if (!def) {
     console.error(`[blocks] page ${ctx.pageId}, bloc ${block.id} : type inconnu « ${block.type} », ignoré`);
-    return ctx.edit ? wrap(<p data-edit-invalid="">Type de bloc inconnu : supprime-le.</p>) : null;
+    return ctx.edit ? wrap(<p data-edit-invalid="">Type de rubrique inconnu : supprime-la.</p>) : null;
   }
   const parsed = def.schema.safeParse(block.props);
   if (!parsed.success) {

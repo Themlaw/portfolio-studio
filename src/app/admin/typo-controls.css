@@ -76,6 +76,12 @@
   min-width: 26px;
   padding: 0 4px;
 }
+.tc-step-label {
+  margin-right: 4px;
+  color: var(--lk-ink-soft);
+  font-size: 11px;
+  white-space: nowrap;
+}
 .tc-num {
   min-width: 44px;
   font-size: 11px;
@@ -358,7 +364,7 @@
 }
 .cp-fields {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 4px 8px;
 }

@@ -115,5 +115,5 @@ export function describeProblems(blocks: TreeBlock[], errors: Record<string, str
     }
     return 0;
   });
-  return out.map(({ order: _order, ...p }) => p);
+  return out.map((p) => ({ key: p.key, uid: p.uid, where: p.where, field: p.field, message: p.message, kind: p.kind }));
 }

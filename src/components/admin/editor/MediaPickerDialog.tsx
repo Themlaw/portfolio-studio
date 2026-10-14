@@ -104,7 +104,7 @@ export default function MediaPickerDialog({
           </div>
           <div className="a-dialog-actions">
             <button type="button" className="a-btn" onClick={onClose}>
-              Annuler
+              Fermer
             </button>
           </div>
         </>

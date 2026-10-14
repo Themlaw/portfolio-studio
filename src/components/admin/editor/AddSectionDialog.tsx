@@ -84,7 +84,7 @@ export default function AddSectionDialog({
           ))}
           <div className="a-dialog-actions">
             <button type="button" className="a-btn" onClick={onClose}>
-              Annuler
+              Fermer
             </button>
           </div>
         </>

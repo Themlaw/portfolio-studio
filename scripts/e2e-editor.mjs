@@ -254,7 +254,7 @@ await f.locator(".pe-tools").getByRole("button", { name: "Supprimer" }).click();
 const confirm = page.getByRole("dialog");
 const shown = () => confirm.waitFor({ state: "visible", timeout: 10000 }).then(() => true, () => false);
 ok("supprimer demande confirmation", await shown());
-await confirm.getByRole("button", { name: "Supprimer le bloc" }).click();
+await confirm.getByRole("button", { name: "Supprimer la rubrique" }).click();
 ok("supprimé", await countIs(f, published.length + 1));
 await settled();
 await page.keyboard.press("Control+z");
@@ -433,7 +433,7 @@ for (;;) {
   await f.locator(titleSel(extra.uid)).click();
   await until(f, () => Boolean(document.querySelector(".pe-tools")));
   await f.locator(".pe-tools").getByRole("button", { name: "Supprimer" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Supprimer le bloc" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).click();
   await countIs(f, list.length - 1);
   await settled();
 }

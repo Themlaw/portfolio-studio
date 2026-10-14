@@ -92,7 +92,7 @@ export const PALETTE_GROUPS: PaletteGroup[] = [
     base: "bg",
     baseHelp: "Le fond des pages.",
     nuances: [
-      { key: "bgDeep", label: "Fond profond", short: "profond", help: "Sépare deux sections sans filet.", contrast: true, rule: "le fond, un cran plus foncé (plus clair sur un thème sombre)" },
+      { key: "bgDeep", label: "Fond profond", short: "profond", help: "Sépare deux rubriques sans filet.", contrast: true, rule: "le fond, un cran plus foncé (plus clair sur un thème sombre)" },
       { key: "line", label: "Filets", short: "filets", help: "Traits de séparation ; transparence acceptée.", free: true, rule: "12 % du texte dans le fond" },
     ],
   },

@@ -30,6 +30,7 @@ import {
 import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";
 import { canvasPalette, postIntent, previewSurface, surfaceState } from "./optimistic";
+import { ratioTip, readabilityText } from "./readability";
 import { useDismiss } from "./useDismiss";
 
 import "@/app/admin/typo-controls.css";
@@ -37,8 +38,6 @@ import "@/app/admin/surface-menu.css";
 
 const swatch = (c: (typeof PALETTE)[number]) => `var(--t-color-${c})`;
 
-/** Contraste en français (virgule). */
-const fr = (n: number) => n.toFixed(1).replace(".", ",");
 
 /** Résumé du fond courant : réglages complets + contraste du texte sur cette carte. */
 function summary(cur: Surface | null, defaults: ResolvedSurface) {
@@ -134,11 +133,11 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
             </span>
           </div>
           {!s.style.ok && (
-            <p className="sm-warn" role="status" data-testid="surface-warning">
+            <p className="sm-warn" role="status" data-testid="surface-warning" title={ratioTip(s.style.ratio)}>
               <span className="sm-alert" aria-hidden="true">
                 !
               </span>
-              Le texte se lit mal sur cette couleur ({fr(s.style.ratio)}:1, il faut 4,5:1). Essaie une teinte plus claire ou plus foncée.
+              {readabilityText(s.style.ratio)} : le texte se lit mal sur cette couleur. Essaie une teinte plus claire ou plus foncée.
             </p>
           )}
         </>

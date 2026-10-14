@@ -585,16 +585,16 @@ export default function VisualEditor({
       const entry = history.current.past.at(-1);
       if (!entry) return;
       // La toile ne peut pas deviner le résultat : état « en cours » jusqu'à l'acquittement.
-      send({ kind: "pending", label: "Annulation en cours…" });
+      send({ kind: "pending", label: "Retour en arrière en cours…" });
       const back = await travel(entry);
       if (!back) {
-        toast("Annulation impossible pour ce pas : la planche a changé (image supprimée ?).", "error");
+        toast("Impossible de défaire ce pas : la planche a changé (image supprimée ?).", "error");
         return;
       }
       const h = history.current;
       history.current = { past: h.past.filter((e) => e !== entry), future: [back, ...h.future] };
       bumpHistory();
-      toast("Annulé");
+      toast("Action défaite");
     } finally {
       traveling.current = false;
       // Rien à enregistrer (refus, pas sans effet) : plus rien à attendre. Sinon l'acquittement lève l'état.
@@ -664,7 +664,7 @@ export default function VisualEditor({
     const list = draftRef.current.blocks;
     const place = at ?? defaultPlace(def.type);
     if (place.parent === null && list.length >= 40) {
-      toast("40 blocs au plus par page.", "error");
+      toast("40 rubriques au plus par page.", "error");
       return;
     }
     // Titre inséré tout en haut d'une page (aucun bloc avant) sans titre principal (ni ouverture, qui porte le sien) : il l'est (h1) ; un titre de section sinon (lot 22).
@@ -674,14 +674,14 @@ export default function VisualEditor({
     const next = insertBlock(list, block, place.parent, place.index);
     if (!next) {
       const parent = place.parent ? findBlock(list, place.parent) : null;
-      toast(parent ? `« ${own(byType, parent.type)?.label ?? "Ce conteneur"} » n'accepte pas « ${def.label} » (ou il est plein).` : "Impossible d'ajouter ce composant ici.", "error");
+      toast(parent ? `« ${own(byType, parent.type)?.label ?? "Cette rubrique"} » n'accepte pas « ${def.label} » (ou elle est pleine).` : "Impossible d'ajouter ce composant ici.", "error");
       return;
     }
     setBlocks(next);
     selectBlock(block.uid, { scroll: true });
     // Rubrique Texte neuve : la toile ouvre l'édition en place, son texte d'aide sélectionné.
     if (opts?.edit) send({ kind: "edit-text", uid: block.uid, path: opts.edit });
-    toast(`« ${def.label} » ajouté${place.parent ? ` dans « ${own(byType, findBlock(list, place.parent)?.type ?? "")?.label ?? "le conteneur"} »` : ""}`);
+    toast(`« ${def.label} » ajouté${place.parent ? ` dans « ${own(byType, findBlock(list, place.parent)?.type ?? "")?.label ?? "la rubrique"} »` : ""}`);
     if (mobile) setSheet(false);
   };
 
@@ -800,7 +800,7 @@ export default function VisualEditor({
     if (kind === "out" && at.parent) {
       // Sortir : juste après son conteneur, dans la liste du conteneur.
       const outer = locate(list, at.parent)!;
-      move(outer.parent, outer.index + 1, "Sorti du conteneur");
+      move(outer.parent, outer.index + 1, "Sorti de la rubrique");
     }
     if (kind === "in") {
       // Entrer dans le conteneur voisin (après, sinon avant) qui l'accepte.
@@ -809,21 +809,21 @@ export default function VisualEditor({
       const prev = siblings[i - 1];
       const target = [next, prev].find((c) => c && isContainer(c.type) && canPlace(removeBlock(list, uid), block, c.uid));
       if (!target) {
-        toast("Aucun conteneur voisin n'accepte ce composant.", "error");
+        toast("Aucune rubrique voisine n'accepte ce composant.", "error");
         return;
       }
       const index = target === next ? 0 : (listOf(list, target.uid)?.length ?? 0);
-      move(target.uid, index, `Placé dans « ${own(byType, target.type)?.label ?? "le conteneur"} »`);
+      move(target.uid, index, `Placé dans « ${own(byType, target.type)?.label ?? "la rubrique"} »`);
     }
     if (kind === "duplicate") {
       if (at.parent === null && list.length >= 40) {
-        toast("40 blocs au plus par page.", "error");
+        toast("40 rubriques au plus par page.", "error");
         return;
       }
       const copy = withFreshUids(clone(siblings[i]), newUid);
       const next = insertBlock(list, copy, at.parent, i + 1);
       if (!next) {
-        toast("Ce conteneur est plein.", "error");
+        toast("Cette rubrique est pleine.", "error");
         return;
       }
       setBlocks(next);
@@ -849,8 +849,8 @@ export default function VisualEditor({
     if (selected === uid) selectBlock(at?.parent ?? null);
     if (lost.length) {
       // La surcouche d'une planche n'est appliquée que si la page l'affiche.
-      toast(`Bloc supprimé · Les changements d'images de ${lost.length > 1 ? "ces planches" : "cette planche"} ne seront pas publiés`, "success", { label: "Annuler", run: () => void undoRef.current() });
-    } else toast("Bloc supprimé · Annuler (Ctrl+Z) pour le récupérer", "success", { label: "Annuler", run: () => void undoRef.current() });
+      toast(`${at?.parent ? "Composant supprimé" : "Rubrique supprimée"} · Les changements d'images de ${lost.length > 1 ? "ces planches" : "cette planche"} ne seront pas publiés`, "success", { label: "Défaire", run: () => void undoRef.current() });
+    } else toast(`${at?.parent ? "Composant supprimé" : "Rubrique supprimée"} · Défaire (Ctrl+Z) pour la récupérer`, "success", { label: "Défaire", run: () => void undoRef.current() });
   };
 
   /** Texte posé en place ; false = refusé (la toile retire son aperçu et rétablit le texte d'origine). */
@@ -878,9 +878,9 @@ export default function VisualEditor({
   /** Déplacement depuis la toile ou la structure : dans la page, dans un conteneur, entre les deux. */
   const moveTree = (uid: string, parent: string | null, index: number) => {
     const list = draftRef.current.blocks;
-    if (parent === null && locate(list, uid)?.parent !== null && list.length >= 40) return toast("40 blocs au plus par page.", "error");
+    if (parent === null && locate(list, uid)?.parent !== null && list.length >= 40) return toast("40 rubriques au plus par page.", "error");
     const next = moveBlock(list, uid, parent, index);
-    if (!next) return toast(parent ? "Ce conteneur n'accepte pas ce composant (ou il est plein)." : "Déplacement impossible.", "error");
+    if (!next) return toast(parent ? "Cette rubrique n'accepte pas ce composant (ou elle est pleine)." : "Déplacement impossible.", "error");
     if (next !== list) setBlocks(next);
   };
 
@@ -910,7 +910,7 @@ export default function VisualEditor({
       if (fields.length <= 1) return refuse("Un formulaire garde au moins un champ.");
       if (fields[i].reply) return refuse("Ce champ e-mail sert à te répondre : dans le panneau, désactive « Sert à te répondre » (ou choisis un autre champ) avant de le retirer.");
       setProp(msg.uid, "fields", fields.filter((_, j) => j !== i));
-      toast("Champ retiré", "success", { label: "Annuler", run: () => void undoRef.current() });
+      toast("Champ retiré", "success", { label: "Défaire", run: () => void undoRef.current() });
       return true;
     }
     const to = msg.to ?? i;
@@ -1176,7 +1176,7 @@ export default function VisualEditor({
     const block = findBlock(list, target.uid);
     if (!block) return;
     if (target.kind === "cell") {
-      if (kind === "pdf") return toast("Un PDF se pose dans un bloc « CV ».", "error");
+      if (kind === "pdf") return toast("Un PDF se pose dans une rubrique « CV ».", "error");
       const type = kind === "video" ? "video-single" : "image";
       const child = { uid: newUid(), type, props: type === "video-single" ? { variant: "card", mode: "player", mediaId } : { width: "wide", mediaId } } as DraftBlock;
       const next = insertBlock(list, child, target.uid, listOf(list, target.uid)?.length ?? 0);
@@ -1187,10 +1187,10 @@ export default function VisualEditor({
     }
     const field = own(byType, block.type)?.mediaFields?.find((f) => f.field === target.field);
     if (!field) return;
-    const expected = { video: "Ce bloc attend une vidéo.", pdf: "Ce bloc attend un PDF.", image: "Ce bloc attend une image.", any: "Ce bloc attend une image ou une vidéo." }[field.kind];
+    const expected = { video: "Cette rubrique attend une vidéo.", pdf: "Cette rubrique attend un PDF.", image: "Cette rubrique attend une image.", any: "Cette rubrique attend une image ou une vidéo." }[field.kind];
     if (kind && (field.kind === "any" ? kind === "pdf" : kind !== field.kind)) return toast(expected, "error");
     setProp(target.uid, target.field, mediaId);
-    toast(field.kind === "video" ? "Vidéo placée" : field.kind === "pdf" ? "PDF placé" : "Image placée", "success", { label: "Annuler", run: () => void undoRef.current() });
+    toast(field.kind === "video" ? "Vidéo placée" : field.kind === "pdf" ? "PDF placé" : "Image placée", "success", { label: "Défaire", run: () => void undoRef.current() });
   };
 
   /** Fichiers déposés sur un bloc média ou une place libre : envoyés, convertis, puis posés. */
@@ -1229,7 +1229,7 @@ export default function VisualEditor({
     if (!decl) return;
     if (what === "clear") {
       setProp(uid, field, undefined);
-      toast(field === "backgroundMediaId" ? "Fond du thème rétabli" : "Média retiré", "success", { label: "Annuler", run: () => void undoRef.current() });
+      toast(field === "backgroundMediaId" ? "Fond du thème rétabli" : "Média retiré", "success", { label: "Défaire", run: () => void undoRef.current() });
     } else setMediaPick({ uid, field, kind: decl.kind });
   };
 
@@ -1364,7 +1364,7 @@ export default function VisualEditor({
         return;
       }
       const result = await boardDo(board, { op, key });
-      if (result) toast(op === "remove" ? "Image retirée · la place reste" : "Place retirée", "success", { label: "Annuler", run: () => undoRef.current() });
+      if (result) toast(op === "remove" ? "Image retirée · la place reste" : "Place retirée", "success", { label: "Défaire", run: () => undoRef.current() });
   };
 
   /** Pendant un glisser : aucune sélection de texte native (éditeur), sélection en cours effacée. */
@@ -1450,7 +1450,7 @@ export default function VisualEditor({
       return result.snap;
     }).then((ok) => {
       if (!ok) revert();
-      else if (done) toast(done, "success", { label: "Annuler", run: () => void undoRef.current() });
+      else if (done) toast(done, "success", { label: "Défaire", run: () => void undoRef.current() });
     });
   };
 
@@ -1546,7 +1546,7 @@ export default function VisualEditor({
         case "select":
           h.selectBlock(msg.uid, { notify: false });
           // Un clic sur un bloc de la toile ouvre ses Réglages, d'où qu'on vienne (Ajouter, Médias, Structure) ; « Ajouter » ajoute ensuite sous lui.
-          if (msg.uid) setTab("reglages");
+          if (msg.uid && msg.click) setTab("reglages");
           break;
         case "op":
           h.op(msg.op, msg.uid);
@@ -1918,7 +1918,7 @@ export default function VisualEditor({
       <div className="ve-pane" role="tabpanel" id={`ve-pane-${tab}`} aria-labelledby={`ve-tab-${tab}`}>
         {tab === "ajouter" && (
           <>
-            <p className="ve-hint">{mobile ? "Touche un composant pour l'ajouter sous le bloc choisi." : "Glisse-le sur la page, à l'endroit voulu. Ou clique pour l'ajouter sous le bloc sélectionné."}</p>
+            <p className="ve-hint">{mobile ? "Touche un composant pour l'ajouter sous la rubrique choisie." : "Glisse-le sur la page, à l'endroit voulu. Ou clique pour l'ajouter sous la rubrique sélectionnée."}</p>
             <input
               type="search"
               className="a-input ve-search"
@@ -2077,7 +2077,7 @@ export default function VisualEditor({
           ) : selBlock && selDef ? (
             <div className="ve-settings">
               {selChain.length > 0 && (
-                <nav className="ve-crumbs" aria-label="Emplacement du bloc">
+                <nav className="ve-crumbs" aria-label="Emplacement de la rubrique">
                   {selChain.map((c) => (
                     <span key={c.uid}>
                       <button type="button" className="ve-crumb" onClick={() => selectBlock(c.uid, { scroll: true })}>
@@ -2091,7 +2091,7 @@ export default function VisualEditor({
               )}
               <header className="ve-settings-head">
                 <h2>{selDef.label}</h2>
-                <div className="ve-settings-tools" role="group" aria-label="Bloc sélectionné">
+                <div className="ve-settings-tools" role="group" aria-label="Rubrique sélectionnée">
                   <button type="button" className="a-icon-btn" aria-label="Monter" disabled={selAt?.index === 0} onClick={() => op("up", selBlock.uid)}>
                     ↑
                   </button>
@@ -2099,7 +2099,7 @@ export default function VisualEditor({
                     ↓
                   </button>
                   {selAt?.parent && (
-                    <button type="button" className="a-icon-btn" aria-label="Sortir du conteneur" title="Sortir du conteneur" onClick={() => op("out", selBlock.uid)}>
+                    <button type="button" className="a-icon-btn" aria-label="Sortir de la rubrique" title="Sortir de la rubrique" onClick={() => op("out", selBlock.uid)}>
                       ⇱
                     </button>
                   )}
@@ -2149,7 +2149,7 @@ export default function VisualEditor({
             </div>
           ) : (
             <div className="ve-settings-empty">
-              <p>Clique sur un bloc de la page pour le régler. Les textes se modifient directement sur la page.</p>
+              <p>Clique sur une rubrique de la page pour la régler. Les textes se modifient directement sur la page.</p>
               <p className="ve-hint">
                 Titre, adresses et référencement de la page : <Link href={`/admin/pages/${pageId}`}>formulaire de la page</Link>.
               </p>
@@ -2221,7 +2221,7 @@ export default function VisualEditor({
           )}
           <span className="ve-spacer" />
           <div className="ve-history" role="group" aria-label="Historique">
-            <button type="button" className="a-icon-btn" onClick={undo} disabled={!historyLen.past} aria-label="Annuler" title="Annuler (Ctrl+Z)">
+            <button type="button" className="a-icon-btn" onClick={undo} disabled={!historyLen.past} aria-label="Défaire" title="Défaire la dernière action (Ctrl+Z)">
               ↶
             </button>
             <button type="button" className="a-icon-btn" onClick={redo} disabled={!historyLen.future} aria-label="Rétablir" title="Rétablir (Ctrl+Maj+Z)">
@@ -2412,8 +2412,8 @@ export default function VisualEditor({
 
       <ConfirmDialog
         open={deleting !== null}
-        title={`Supprimer ${deletingBlock && isContainer(deletingBlock.type) ? "le conteneur" : "le bloc"} « ${deletingBlock ? (own(byType, deletingBlock.type)?.label ?? "") : ""} » ?`}
-        confirmLabel={deletingCount ? `Supprimer avec ses ${deletingCount} composant${deletingCount > 1 ? "s" : ""}` : "Supprimer le bloc"}
+        title={`Supprimer ${deletingBlock && locate(blocks, deletingBlock.uid)?.parent ? "le composant" : "la rubrique"} « ${deletingBlock ? (own(byType, deletingBlock.type)?.label ?? "") : ""} » ?`}
+        confirmLabel={deletingCount ? `Supprimer avec ses ${deletingCount} composant${deletingCount > 1 ? "s" : ""}` : deletingBlock && locate(blocks, deletingBlock.uid)?.parent ? "Supprimer le composant" : "Supprimer la rubrique"}
         danger
         onClose={() => setDeleting(null)}
         onConfirm={() => deleting && remove(deleting)}
@@ -2426,7 +2426,7 @@ export default function VisualEditor({
           </p>
         )}
         {deletingLost.length > 0 && <p>Les changements d&apos;images {deletingLost.length > 1 ? "de ses planches" : "de sa planche"} ne seront pas publiés (les images en ligne ne bougent pas).</p>}
-        <p className="muted">Il disparaît du brouillon ; « Annuler » (Ctrl+Z) le récupère. Le site ne change qu&apos;à la publication.</p>
+        <p className="muted">Il disparaît du brouillon ; « Défaire » (Ctrl+Z) le récupère. Le site ne change qu&apos;à la publication.</p>
       </ConfirmDialog>
 
       <AddSectionDialog
@@ -2436,7 +2436,7 @@ export default function VisualEditor({
           adding === null
             ? ""
             : adding.parent
-              ? `Dans « ${own(byType, findBlock(blocks, adding.parent)?.type ?? "")?.label ?? "le conteneur"} »`
+              ? `Dans « ${own(byType, findBlock(blocks, adding.parent)?.type ?? "")?.label ?? "la rubrique"} »`
               : adding.index >= blocks.length
                 ? "À la fin de la page"
                 : adding.index === 0
@@ -2494,7 +2494,7 @@ export default function VisualEditor({
       </ConfirmDialog>
 
       <p className="sr-only" aria-live="polite">
-        {canvasBlocks.length ? `${canvasBlocks.length} blocs sur la toile` : ""}
+        {canvasBlocks.length ? `${canvasBlocks.length} rubriques sur la toile` : ""}
       </p>
     </div>
   );
