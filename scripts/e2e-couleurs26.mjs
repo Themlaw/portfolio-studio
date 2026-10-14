@@ -134,6 +134,13 @@ async function openBar(f, sel, nth = 0) {
   return false;
 }
 
+/** Interrupteur « Boutons et liens de cette page » (la piste de l'interrupteur recouvre la case : on clique son libellé). */
+async function setPageColor(on) {
+  const sw = page.getByRole("switch", { name: "Boutons et liens de cette page" });
+  if ((await sw.isChecked()) !== on) await page.locator("label.a-toggle", { hasText: "Boutons et liens de cette page" }).click();
+  await page.waitForFunction(([want]) => document.querySelector('[data-testid="page-buttons-color"] input[role="switch"]')?.checked === want, [on], { timeout: 10000 });
+}
+
 /* ======================================== V. Vocabulaire ======================================== */
 if (run("V")) {
   console.log("== V. Vocabulaire de couleurs");
@@ -187,20 +194,20 @@ if (run("V")) {
   ok("V7 formulaire : plus de panneau « Accent de la page »", (await page.getByRole("heading", { name: "Accent de la page" }).count()) === 0);
   const where = await page.locator('[data-testid="page-buttons-color"]').evaluate((el) => el.closest("section")?.querySelector("h2")?.textContent ?? "");
   ok("V7b la couleur des boutons et liens est dans « Informations »", where === "Informations", where);
-  await page.getByRole("switch", { name: "Boutons et liens de cette page" }).check();
+  await setPageColor(true);
   ok("V7c la couleur apparaît, contraste AA", (await page.locator("#pe-accent-hex").count()) === 1 && (await page.locator(".a-ratio-ok").count()) >= 1);
   await page.screenshot({ path: `${SHOTS}/V7-formulaire-page.png`, fullPage: true });
-  await page.getByRole("switch", { name: "Boutons et liens de cette page" }).uncheck();
+  await setPageColor(false);
   // Éditeur visuel : même réglage, avec les autres réglages de la page (collection).
   await openEditor(homeId);
   await page.getByRole("tab", { name: "Réglages" }).click();
   await page.locator('[data-testid="page-buttons-color"]').waitFor({ timeout: 20000 });
   ok("V8 éditeur visuel : réglage de page « Boutons et liens de cette page » à côté de « Cette page est la collection »", (await page.locator(".ve-page-collection").locator('[data-testid="page-buttons-color"]').count()) === 1);
-  await page.getByRole("switch", { name: "Boutons et liens de cette page" }).check();
+  await setPageColor(true);
   await settled();
   ok("V8b brouillon : couleur enregistrée", await waitFor(() => typeof draftOf(homeId)?.accent === "string"));
   await page.screenshot({ path: `${SHOTS}/V8-editeur-reglages-page.png` });
-  await page.getByRole("switch", { name: "Boutons et liens de cette page" }).uncheck();
+  await setPageColor(false);
   await settled();
   ok("V8c retirée du brouillon", await waitFor(() => draftOf(homeId)?.accent === null));
 }
@@ -215,7 +222,7 @@ if (run("L")) {
   ok("L1 panneau Logo : section « Image du logo » avec « Choisir une image… »", (await logo.getByRole("button", { name: /Choisir une image/ }).count()) === 1 && (await logo.locator('[data-testid="logo-revert"]').count()) === 0);
   await page.screenshot({ path: `${SHOTS}/L1-logo-sans-image.png` });
   await logo.getByRole("button", { name: /Choisir une image/ }).click();
-  const dlg = page.locator("dialog.ve-picker");
+  const dlg = page.locator("dialog.ve-picker[open]");
   await dlg.waitFor({ timeout: 10000 });
   ok("L2 médiathèque proposée + envoi d'un fichier", (await dlg.locator('ul[aria-label="Bibliothèque"] button').count()) > 0 && (await dlg.getByText("Envoyer un fichier de l'ordinateur").count()) === 1);
   const first = dlg.locator('ul[aria-label="Bibliothèque"] button').first();
@@ -223,7 +230,7 @@ if (run("L")) {
   await first.click();
   ok("L3 image choisie : enregistrée dans le brouillon du site", await waitFor(() => Number.isInteger(siteLogo()?.mediaId)));
   const picked = siteLogo()?.mediaId;
-  ok("L3b c'est bien une image de la médiathèque", q("select kind, name from media where id = ?", picked)[0]?.kind === "image" && q("select name from media where id = ?", picked)[0]?.name === name, `${picked} ${name}`);
+  ok("L3b c'est bien une image de la médiathèque", q("select kind, original_name as name from media where id = ?", picked)[0]?.kind === "image" && q("select original_name as name from media where id = ?", picked)[0]?.name === name, `${picked} ${name}`);
   ok("L4 la toile montre l'image à la place du nom", await until(f, () => Boolean(document.querySelector(".site-brand[data-logo-image] img.site-logo-img")), null, 60000));
   ok("L4b l'image a la hauteur du logo (pas de nom en texte visible)", await f.evaluate(() => { const i = document.querySelector(".site-logo-img"); const t = document.querySelector(".site-brand-text"); return i.getBoundingClientRect().height >= 20 && t.getBoundingClientRect().width <= 2; }));
   ok("L5 le panneau montre l'image choisie et propose « Remplacer » et « Revenir au logo texte »", await until(page.mainFrame(), () => Boolean(document.querySelector('[data-testid="logo-thumb"]')) && Boolean(document.querySelector('[data-testid="logo-revert"]')), null, 30000));
@@ -238,8 +245,21 @@ if (run("L")) {
   await dlg.locator('input[type="file"]').setInputFiles({ name: "logo-test-26.png", mimeType: "image/png", buffer: png });
   ok("L6 fichier envoyé depuis le panneau : nouveau logo enregistré", await waitFor(() => Number.isInteger(siteLogo()?.mediaId) && siteLogo().mediaId !== picked, 180000));
   const uploaded = siteLogo()?.mediaId;
-  ok("L6b le média envoyé est une image de la médiathèque", q("select kind, name from media where id = ?", uploaded)[0]?.name === "logo-test-26.png");
+  ok("L6b le média envoyé est une image de la médiathèque", q("select kind, original_name as name from media where id = ?", uploaded)[0]?.name === "logo-test-26.png");
   ok("L6c la toile montre le logo envoyé", await until(f, () => Boolean(document.querySelector(".site-brand[data-logo-image] img.site-logo-img")), null, 60000));
+  // Médiathèque : l'image du logo n'est pas supprimable (elle casserait l'en-tête).
+  await settled();
+  await page.goto(`${BASE}/admin/medias`, { waitUntil: "networkidle" });
+  await page.locator('button.a-media-tile[title="logo-test-26.png"]').first().click();
+  await page.getByRole("button", { name: "Supprimer l'image" }).click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Supprimer", exact: true }).click();
+  ok("L6d suppression refusée tant que l'image est le logo du site", await page.locator("dialog[open] .a-refs li").first().waitFor({ timeout: 20000 }).then(() => true, () => false) && /Logo du site/.test((await page.locator("dialog[open] .a-refs").textContent()) ?? "") && q("select id from media where id = ?", uploaded).length === 1);
+  await page.keyboard.press("Escape");
+  // Retour dans l'éditeur SANS abandonner le brouillon (openEditor le fait).
+  await page.goto(`${BASE}/admin/pages/${homeId}/editer`, { waitUntil: "domcontentloaded" });
+  const f3 = await canvas();
+  await sleep(1500);
+  ok("L6e le logo est toujours là au retour dans l'éditeur", await until(f3, () => Boolean(document.querySelector(".site-brand[data-logo-image] img.site-logo-img")), null, 60000));
   // Publication : le public montre l'image ; le nom reste lisible des lecteurs d'écran.
   ok("L7 publication", await publish());
   const pub = await anon("/fr");
@@ -249,13 +269,12 @@ if (run("L")) {
   await openEditor(homeId);
   await page.getByRole("tab", { name: "Réglages" }).click();
   await page.locator('[data-testid="logo-revert"]').click();
-  ok("L8 « Revenir au logo texte » : plus d'image dans le brouillon du site", await waitFor(() => siteLogo()?.mediaId === undefined));
+  ok("L8 « Revenir au logo texte » : plus d'image dans le brouillon du site", await waitFor(() => setting("siteDraft") !== null && siteLogo()?.mediaId === undefined));
   await settled();
   const f2 = await canvas();
   ok("L8b la toile redonne le nom en texte", await until(f2, () => !document.querySelector(".site-brand[data-logo-image]") && document.querySelector(".site-brand-text").getBoundingClientRect().width > 20, null, 60000));
   ok("L8c publication : le public redonne le nom en texte", (await publish()) && !/data-logo-image/.test((await anon("/fr")).html));
   await page.screenshot({ path: `${SHOTS}/L8-logo-texte.png` });
-  // Refus serveur : une image qui n'existe pas.
   ok("L9 aucune erreur de page", errors.length === 0, errors.join(" | "));
 }
 
@@ -275,15 +294,19 @@ if (run("T")) {
   await page.screenshot({ path: `${SHOTS}/T1-tuile-couverture.png` });
   const pageId = Number(await tile.locator(".pe-tile-cover button").first().getAttribute("data-page-id"));
   await change.click();
-  const dlg = page.locator("dialog.ve-picker");
+  const dlg = page.locator("dialog.ve-picker[open]");
   await dlg.waitFor({ timeout: 10000 });
   const options = dlg.locator('ul[aria-label="Bibliothèque"] button');
-  const label = (await options.last().getAttribute("aria-label")) ?? "";
-  await options.last().click();
+  // Une image différente de la couverture actuelle (celle de la tuile, par son nom de fichier).
+  const labels = await options.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") ?? ""));
+  const current = decodeURIComponent(before.split("/").pop() ?? "").replace(/^[0-9a-f]+-/, "").replace(/\.[a-z]+$/, "");
+  const at = labels.findIndex((l) => !l.includes(current));
+  const label = labels[at] ?? "";
+  await options.nth(at).click();
   ok("T2 image choisie : posée sur l'entrée au brouillon", await waitFor(() => Number.isInteger(tilesDraft()?.edits?.find((e) => e.pageId === pageId)?.mediaId)));
   const chosen = tilesDraft().edits.find((e) => e.pageId === pageId).mediaId;
-  ok("T2b c'est l'image choisie dans la médiathèque", q("select name from media where id = ?", chosen)[0]?.name === label.replace(/^Choisir /, ""), `${chosen} ${label}`);
-  ok("T3 la tuile montre la nouvelle image", await until(f, (old) => (document.querySelector(".tiles .tile .tile-frame img")?.currentSrc ?? "") !== old, before, 60000));
+  ok("T2b c'est l'image choisie dans la médiathèque", q("select original_name as name from media where id = ?", chosen)[0]?.name === label.replace(/^Choisir /, ""), `${chosen} ${label}`);
+  ok("T3 la tuile montre la nouvelle image", await until(f, (old) => (document.querySelector(".tiles .tile .tile-frame img")?.currentSrc ?? "") !== old, before, 60000), `avant ${before} / maintenant ${await imgSrc()} / brouillon ${JSON.stringify(tilesDraft()?.edits)}`);
   await f.locator(".tiles .tile").first().hover();
   const auto = f.locator(".tiles .tile").first().locator(".pe-tile-cover button", { hasText: "Couverture automatique" });
   ok("T3b « Couverture automatique » proposé", await auto.waitFor({ state: "visible", timeout: 15000 }).then(() => true, () => false));
