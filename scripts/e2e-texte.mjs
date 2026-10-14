@@ -167,6 +167,10 @@ async function idle() {
 }
 
 let f = await openEditor();
+// La saisie en place ouvre la barre typographique ; depuis le lot 21 (ligne « Fond ») elle est plus haute et couvre le bouton « Supprimer » du bloc : on la ferme.
+const closeTextBar = async () => {
+  if (await f.locator(".lk-bar").count()) await f.locator(".lk-bar .lk-close").click();
+};
 const baseCount = await f.locator("[data-edit-block]:not([data-edit-parent])").count();
 const dlg = page.locator("dialog.ve-add");
 async function openChoice() {
@@ -255,6 +259,7 @@ if (run("A") || run("B") || run("C") || run("D"))
     // Retire l'essai du panneau.
     const extra = draftBlocks().at(-1).uid;
     await f.evaluate((u) => document.querySelector(`.pe-focus[data-uid="${u}"]`)?.click(), extra);
+    await closeTextBar();
     await f.locator('.pe-tools [aria-label="Supprimer"]').click();
     await page.locator("dialog[open]").getByRole("button", { name: /Supprimer/ }).click();
     ok("A5 essai du panneau retiré", await waitFor(() => draftBlocks().length === baseCount + 3));
@@ -282,6 +287,7 @@ if (run("A") || run("B") || run("C") || run("D"))
     await settled();
     const gridUid = draftBlocks().at(-1).uid;
     await f.evaluate((u) => document.querySelector(`.pe-focus[data-uid="${u}"]`)?.click(), gridUid);
+    await closeTextBar();
     await f.locator('.pe-tools [aria-label="Supprimer"]').click();
     await page.locator("dialog[open]").getByRole("button", { name: /Supprimer/ }).click();
     ok("A6 grille de l'essai retirée", await waitFor(() => draftBlocks().every((b) => b.type !== "grid")));
