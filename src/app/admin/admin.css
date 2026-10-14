@@ -5859,3 +5859,71 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   color: var(--admin-ink);
   font: 500 13px/1 var(--admin-font-ui);
 }
+
+/* Modèles de départ d'un composant (lot 27) : « Grille » propose « Avec 3 images », « Avec des vidéos »… sous sa carte. */
+.ve-card-wrap {
+  display: grid;
+  gap: 6px;
+}
+
+.ve-models {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px 2px;
+}
+
+.ve-models-title {
+  color: var(--admin-ink-soft);
+  font-size: 12px;
+}
+
+.ve-model {
+  padding: 3px 10px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 999px;
+  background: var(--admin-surface);
+  color: var(--admin-ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: grab;
+  touch-action: manipulation;
+}
+
+.ve-model:hover,
+.ve-model:focus-visible {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+}
+
+.ve-model[data-dragging] {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+}
+
+@media (hover: none) {
+  .ve-model {
+    min-height: 36px;
+    cursor: pointer;
+  }
+}
+
+/* Composant à n'ajouter qu'une fois par page (l'Ouverture), déjà présent : grisé, avec l'explication dessous. */
+.ve-card:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ve-card:disabled:hover {
+  border-color: var(--admin-line);
+  box-shadow: none;
+}
+
+.ve-card-note {
+  margin: 0;
+  padding: 0 4px;
+  color: var(--admin-ink-soft);
+  font-size: 12px;
+  line-height: 1.35;
+}

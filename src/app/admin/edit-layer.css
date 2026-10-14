@@ -1699,3 +1699,76 @@ html:not([data-edit-mode]) .pe-field-op {
   right: 0;
   left: auto;
 }
+
+/* Lot 27 : beaucoup de champs facultatifs (Profil) : les boutons se rangent AU-DESSUS du bloc et grandissent vers le haut. */
+.pe-field-ops[data-many] {
+  top: auto;
+  bottom: calc(100% - 28px);
+}
+
+/* Place vide d'une grille : ce qu'on peut y faire, en une ligne. */
+.pe-cell-hint {
+  max-width: 22ch;
+  font: 400 12px/1.35 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  color: #2e4e9e;
+}
+
+/* Zone de dépôt vide d'un bloc média : le texte, puis le bouton qui ouvre la médiathèque. */
+.pe-media-empty {
+  gap: 10px;
+  align-content: center;
+}
+
+/* État vide d'un bloc (lot 27) : dit quoi faire et propose l'action, au lieu d'un cadre muet. Jamais en public. */
+.pe-empty-block {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 18px 16px;
+  border: 2px dashed rgba(46, 78, 158, 0.5);
+  border-radius: 8px;
+  background: rgba(232, 237, 248, 0.6);
+  color: #2e4e9e;
+  font: 600 14px/1.3 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-align: center;
+  text-transform: none;
+}
+
+.pe-empty-block p {
+  margin: 0;
+}
+
+.pe-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.pe-empty-action {
+  margin: 0;
+  padding: 6px 14px;
+  border: 1px solid #2e4e9e;
+  border-radius: 999px;
+  background: #2e4e9e;
+  color: #fff;
+  font: 600 13px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pe-empty-action:hover,
+.pe-empty-action:focus-visible {
+  background: #1f3a7a;
+  outline: 2px solid rgba(46, 78, 158, 0.35);
+  outline-offset: 2px;
+}
+
+html:not([data-edit-mode]) .pe-empty-block,
+html:not([data-edit-mode]) .pe-empty-action {
+  display: none !important;
+}

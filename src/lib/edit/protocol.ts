@@ -7,11 +7,16 @@
  */
 import { z } from "zod";
 
+import { FIELD_OP_NAMES } from "../../blocks/optional-fields";
 import { SurfaceSchema } from "../../themes/surface";
 import { LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
 import { BASE_KEYS } from "../../themes/palette";
 
 export const EDIT_MSG = "portfolio:edit";
+
+/** « add-<champ> » / « remove-<champ> » pour chaque champ facultatif (src/blocks/optional-fields.ts). */
+type FieldOp = `${"add" | "remove"}-${(typeof FIELD_OP_NAMES)[number]}`;
+const FIELD_OPS = FIELD_OP_NAMES.flatMap((f) => [`add-${f}`, `remove-${f}`]) as [FieldOp, ...FieldOp[]];
 
 const Uid = z.string().regex(/^[a-z0-9-]{1,32}$/);
 /** `parent` : conteneur du bloc (v0.13) ; absent = bloc de la page. */
@@ -110,7 +115,8 @@ export const FromCanvasSchema = z.union([
   // autres ajoutent aussitôt un texte (bloc `rich-text` avec son texte d'aide) à cet endroit.
   z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title", "title-text"]) }),
   // Champ facultatif d'un bloc Texte, ajouté ou retiré depuis la toile (lot 19a) : « + Ajouter un titre » / « Retirer le titre » (Texte), « + Ajouter une étiquette » / « Retirer l'étiquette » (Titre).
-  z.object({ kind: z.literal("field-op"), uid: Uid, op: z.enum(["add-title", "remove-title", "add-eyebrow", "remove-eyebrow", "add-intro", "remove-intro", "add-counts", "remove-counts"]) }),
+  // Lot 27 : même geste pour Grille, Contact, Profil et CV (src/blocks/optional-fields.ts).
+  z.object({ kind: z.literal("field-op"), uid: Uid, op: z.enum(FIELD_OPS) }),
   // Palette et logo du site (lot 17f) : état COMPLET voulu (palette = bases choisies, logo = taille et comportement).
   z.object({ kind: z.literal("site-look"), palette: SitePaletteSchema, logo: LogoSchema }),
   // Ce que la toile a trouvé pour le rôle de couleur survolé (légende « utilisé par »).

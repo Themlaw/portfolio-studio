@@ -21,11 +21,14 @@ export default function AddSectionDialog({
   open,
   catalog,
   where,
+  present,
   onPick,
   onClose,
 }: {
   open: boolean;
   catalog: BlockCatalogEntry[];
+  /** Types déjà sur la page : un composant « une seule fois par page » (l'Ouverture) est grisé, avec l'explication. */
+  present: ReadonlySet<string>;
   /** Où la rubrique ira (« dans la grille », « entre deux rubriques »…), pour le sous-titre. */
   where: string;
   onPick: (choice: AddChoice) => void;
@@ -68,17 +71,31 @@ export default function AddSectionDialog({
                     </button>
                   </li>
                 ))}
-                {g.entries.map((c) => (
-                  <li key={c.key}>
-                    <button type="button" className="ve-card ve-add-card" data-type={c.type} data-key={c.key} onClick={() => onPick({ kind: "block", key: c.key })}>
-                      <BlockThumb type={c.type} preset={c.key} />
-                      <span>
-                        <strong>{c.label}</strong>
-                        <span className="ve-card-desc">{c.description}</span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
+                {g.entries.map((c) => {
+                  const taken = Boolean(c.single) && present.has(c.type);
+                  return (
+                    <li key={c.key} className={c.models.length || taken ? "ve-card-wrap" : undefined}>
+                      <button type="button" className="ve-card ve-add-card" data-type={c.type} data-key={c.key} disabled={taken} onClick={() => onPick({ kind: "block", key: c.key })}>
+                        <BlockThumb type={c.type} preset={c.key} />
+                        <span>
+                          <strong>{c.label}</strong>
+                          <span className="ve-card-desc">{c.description}</span>
+                        </span>
+                      </button>
+                      {taken && <p className="ve-card-note">{c.single}</p>}
+                      {c.models.length > 0 && (
+                        <div className="ve-models" role="group" aria-label={`Modèles de départ : ${c.label}`}>
+                          <span className="ve-models-title">Modèles :</span>
+                          {c.models.map((m) => (
+                            <button key={m.key} type="button" className="ve-model" data-key={m.key} data-type={m.type} title={m.description} onClick={() => onPick({ kind: "block", key: m.key })}>
+                              {m.short ?? m.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ))}

@@ -26,7 +26,7 @@ import Link from "next/link";
 
 import GridLayoutIcon, { LAYOUT_LABELS } from "@/components/edit/GridLayoutIcon";
 import ProjectCombobox from "@/components/edit/ProjectCombobox";
-import { FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, type FieldType, type FormField } from "@/lib/contact-form";
+import { defaultContactForm, FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, newFormId, type FieldType, type FormField } from "@/lib/contact-form";
 
 import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, sameL, TILE_SIZE_LABELS, TILE_SIZES, tilesMode, tileSize, type CollectionPage, type TextField as TileTextField, type TileEdit, type TileItem } from "./collection-pages";
 import { useBlockEditor } from "./editor-context";
@@ -333,15 +333,43 @@ export function RichTextEditor() {
   );
 }
 
+/** Texte facultatif : vide, la clé disparaît (le champ n'occupe plus de place ; « + Ajouter … » le recrée sur la page). */
+const optional = (v: L): L | undefined => (v.fr || v.en ? v : undefined);
+
 export function ContactEditor() {
   const { value, onChange, errors } = useBlockEditor();
   const set = useSet(value, onChange);
+  const form = value.form === true;
+  // Option formulaire : active, le bloc porte les réglages de l'ancien « Formulaire de contact » (champs, messages, envoi).
+  // Désactivée, les champs saisis sont gardés dans le brouillon (réactiver les retrouve) mais n'ont plus d'identifiant public.
+  const setForm = (on: boolean) => {
+    if (!on) {
+      const next: P = { ...value, form: false };
+      delete next.formId;
+      onChange(next);
+      return;
+    }
+    const defaults: P = { ...defaultContactForm() };
+    delete defaults.intro;
+    delete defaults.title;
+    onChange({ ...defaults, ...value, form: true, formId: newFormId() });
+  };
   return (
     <>
-      <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
-      <TextI18n label="Titre" value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
-      <TextareaI18n label="Présentation" value={l(value.intro)} onChange={(v) => set("intro", v)} error={errorAt(errors, "intro")} />
-      <TextI18n label="Texte du bouton" help="Le bouton ouvre un e-mail vers l'adresse des réglages." value={l(value.cta)} onChange={(v) => set("cta", v)} error={errorAt(errors, "cta")} />
+      <Toggle
+        label="Avec un formulaire"
+        help="Un formulaire pour t'écrire (champs au choix) à la place du bouton e-mail. Les messages arrivent dans Admin → Messages."
+        checked={form}
+        onChange={setForm}
+      />
+      <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", optional(v))} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label="Titre (facultatif)" value={l(value.title)} onChange={(v) => set("title", optional(v))} error={errorAt(errors, "title")} />
+      <TextareaI18n label="Présentation (facultative)" value={l(value.intro)} onChange={(v) => set("intro", optional(v))} error={errorAt(errors, "intro")} />
+      {form ? (
+        <ContactFormEditor />
+      ) : (
+        <TextI18n label="Texte du bouton (facultatif)" help="Le bouton ouvre un e-mail vers l'adresse des réglages. Vide : pas de bouton." value={l(value.cta)} onChange={(v) => set("cta", optional(v))} error={errorAt(errors, "cta")} />
+      )}
     </>
   );
 }
@@ -364,17 +392,23 @@ export function ProfileEditor() {
         ]}
         onChange={(v) => set("portraitRatio", v === "auto" ? undefined : v)}
       />
-      <TextI18n label="Légende du portrait" value={l(value.portraitCaption)} onChange={(v) => set("portraitCaption", v)} error={errorAt(errors, "portraitCaption")} />
-      <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
+      <TextI18n label="Légende du portrait (facultative)" value={l(value.portraitCaption)} onChange={(v) => set("portraitCaption", optional(v))} error={errorAt(errors, "portraitCaption")} />
+      <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", optional(v))} error={errorAt(errors, "eyebrow")} />
+      <Toggle
+        label="Afficher ton nom"
+        help="Le nom du site, en grand. À retirer quand l'Ouverture de la page l'affiche déjà."
+        checked={value.showName !== false}
+        onChange={(on) => set("showName", on ? undefined : false)}
+      />
       <Paragraphs
         value={(value.paragraphs as L[]) ?? [EMPTY]}
         onChange={(v) => set("paragraphs", v)}
         errors={errors}
         first="Le premier paragraphe est mis en avant."
       />
-      <TextI18n label="Étiquette du contact" value={l(value.contactEyebrow)} onChange={(v) => set("contactEyebrow", v)} error={errorAt(errors, "contactEyebrow")} />
-      <TextI18n label="Texte du bouton de contact" value={l(value.contactLabel)} onChange={(v) => set("contactLabel", v)} error={errorAt(errors, "contactLabel")} />
-      <TextI18n label="Étiquette des réseaux" value={l(value.socialEyebrow)} onChange={(v) => set("socialEyebrow", v)} error={errorAt(errors, "socialEyebrow")} />
+      <TextI18n label="Étiquette du contact (facultative)" value={l(value.contactEyebrow)} onChange={(v) => set("contactEyebrow", optional(v))} error={errorAt(errors, "contactEyebrow")} />
+      <TextI18n label="Texte du bouton de contact (facultatif)" help="Vide : pas de bouton (l'adresse e-mail reste affichée)." value={l(value.contactLabel)} onChange={(v) => set("contactLabel", optional(v))} error={errorAt(errors, "contactLabel")} />
+      <TextI18n label="Étiquette des réseaux (facultative)" value={l(value.socialEyebrow)} onChange={(v) => set("socialEyebrow", optional(v))} error={errorAt(errors, "socialEyebrow")} />
     </>
   );
 }

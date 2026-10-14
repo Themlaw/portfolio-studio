@@ -42,7 +42,7 @@ export const ContactFormSchema = z.object({
    */
   formId: z.string().regex(/^[a-z0-9]{6,32}$/).optional(),
   eyebrow: Loc(200).optional(),
-  title: Loc(200),
+  title: Loc(200).optional(),
   intro: Loc(2000).optional(),
   fields: z
     .array(FormFieldSchema)
@@ -57,6 +57,20 @@ export const ContactFormSchema = z.object({
   subject: Loc(160),
 });
 export type ContactForm = z.infer<typeof ContactFormSchema>;
+
+/** Types de bloc qui peuvent porter un formulaire : « contact » (option formulaire) et l'ancien « contact-form » (lu seulement). */
+export const FORM_BLOCK_TYPES = ["contact", "contact-form"] as const;
+
+/** Ce bloc est-il un formulaire de contact ? « Contact » avec l'option formulaire, ou l'ancien « Formulaire de contact ». */
+export function isFormBlock(type: string, props: unknown): boolean {
+  if (type === "contact-form") return true;
+  return type === "contact" && Boolean(props) && typeof props === "object" && (props as { form?: unknown }).form === true;
+}
+
+/** Identifiant public d'un formulaire neuf (stable : gardé d'une publication à l'autre). */
+export function newFormId(): string {
+  return `f${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-6)}`.replace(/[^a-z0-9]/g, "").slice(0, 32);
+}
 
 const EMAIL = /^[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[^\s@<>()"',;:]{2,}$/;
 

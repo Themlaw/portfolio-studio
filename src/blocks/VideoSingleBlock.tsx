@@ -65,7 +65,10 @@ export default async function VideoSingleBlock({ props, ctx }: { props: z.infer<
     <VideoCard item={item} look={props.variant} loop={props.mode === "loop"} texts={texts} edit={ctx.edit} styles={{ description: textStyle(ctx, "description").style }} />
   ) : ctx.edit ? (
     <div className="pe-media-empty pe-media-video" data-edit-media="mediaId" data-edit-media-kind="video" lang="fr">
-      Choisir une vidéo
+      <span>Dépose une vidéo ici</span>
+      <button type="button" className="pe-empty-action" data-edit-empty-media="mediaId">
+        Choisir dans la médiathèque
+      </button>
     </div>
   ) : null;
   if (!body) return null;

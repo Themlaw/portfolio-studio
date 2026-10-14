@@ -6,6 +6,8 @@ import Eyebrow from "@/components/Eyebrow";
 import { getMedia } from "@/lib/media";
 import { downloadName } from "@/lib/pdf/limits";
 
+import { FieldOps } from "./FieldOps";
+import { hasText } from "./optional-fields";
 import { inline, localized, localizedText, mediaRef, tr, type BlockContext } from "./types";
 
 export const cvSchema = z.object({
@@ -44,23 +46,26 @@ export default async function CvBlock({ props, ctx }: { props: z.infer<typeof cv
   const button = (props.button && tr(props.button, ctx.locale)) || t("download");
   const href = pdf ? `${pdf.href}?name=${downloadName(props.fileName)}` : null;
 
+  const shown = (v: { fr: string; en: string } | undefined) => v !== undefined && (ctx.edit ? true : hasText(v));
   const body = (
-    <div className="cv-block">
+    <div className={ctx.edit ? "cv-block relative" : "cv-block"}>
+      <FieldOps ctx={ctx} type="cv" props={props} />
       <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
         <div className="max-w-2xl">
-          {(props.eyebrow || ctx.edit) && (
+          {/* Étiquette, titre, présentation : des champs qui n'existent que s'ils ont été demandés (lot 27). */}
+          {shown(props.eyebrow) && (
             <Eyebrow {...inline(ctx, "eyebrow")} {...ph("Étiquette")}>
-              {props.eyebrow ? tr(props.eyebrow, ctx.locale) : ""}
+              {tr(props.eyebrow!, ctx.locale)}
             </Eyebrow>
           )}
-          {(title || ctx.edit) && (
+          {shown(props.title) && (
             <h2 className="mt-3 font-display text-[clamp(2rem,5vw,3.25rem)] text-ink" {...inline(ctx, "title")} {...ph("Titre")}>
               {title}
             </h2>
           )}
-          {(props.intro || ctx.edit) && (
+          {shown(props.intro) && (
             <p className="mt-4 text-base leading-relaxed text-ink-soft" {...inline(ctx, "intro")} {...ph("Présentation")}>
-              {props.intro ? tr(props.intro, ctx.locale) : ""}
+              {tr(props.intro!, ctx.locale)}
             </p>
           )}
         </div>
@@ -87,12 +92,17 @@ export default async function CvBlock({ props, ctx }: { props: z.infer<typeof cv
           />
         ) : (
           <span className="pe-media-empty pe-media-pdf" lang="fr">
-            {media ? "Aperçu du PDF en préparation…" : "Dépose ton CV (PDF) ici"}
+            <span>{media ? "Aperçu du PDF en préparation…" : "Dépose ton CV (PDF) ici"}</span>
+            {!media && (
+              <button type="button" className="pe-empty-action" data-edit-empty-media="mediaId">
+                Choisir dans la médiathèque
+              </button>
+            )}
           </span>
         )}
       </div>
     </div>
   );
   if (ctx.cell) return body;
-  return <section className="shell pt-[var(--section-gap)]">{body}</section>;
+  return <section className={ctx.edit ? "shell pt-[var(--section-gap)] pe-field-host" : "shell pt-[var(--section-gap)]"}>{body}</section>;
 }

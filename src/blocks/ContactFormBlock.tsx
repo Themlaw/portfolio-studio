@@ -2,6 +2,8 @@ import ContactForm from "@/components/ContactForm";
 import Eyebrow from "@/components/Eyebrow";
 import { ContactFormSchema } from "@/lib/contact-form";
 
+import { FieldOps } from "./FieldOps";
+import { hasText } from "./optional-fields";
 import { inline, textStyle, tr, type BlockContext } from "./types";
 
 export const contactFormSchema = ContactFormSchema;
@@ -15,24 +17,32 @@ export const contactFormSchema = ContactFormSchema;
  */
 export default function ContactFormBlock({ props, ctx }: { props: ReturnType<typeof ContactFormSchema.parse>; ctx: BlockContext }) {
   const L = (v: { fr: string; en: string } | undefined) => (v ? tr(v, ctx.locale) : "");
+  // Un champ vide n'occupe aucune place en public ; sur la toile, un champ présent reste saisissable (lot 27).
+  const shown = (v: { fr: string; en: string } | undefined) => v !== undefined && (ctx.edit ? true : hasText(v));
+  const hasHead = shown(props.eyebrow) || shown(props.title) || shown(props.intro);
   return (
-    <section className="shell pt-[var(--section-gap)]">
-      <div className="contact-form rounded-lg border border-line bg-surface px-[clamp(1.5rem,5vw,4rem)] py-[clamp(2.5rem,6vw,4.5rem)] shadow-card">
-        <div className="max-w-xl">
-          {(props.eyebrow || ctx.edit) && (
-            <Eyebrow {...inline(ctx, "eyebrow")} {...(ctx.edit ? { "data-placeholder": "Étiquette (facultative)" } : {})}>
-              {L(props.eyebrow)}
-            </Eyebrow>
-          )}
-          <h2 className="mt-4 font-display text-[clamp(2rem,5vw,3.5rem)] text-ink" {...inline(ctx, "title")}>
-            {L(props.title)}
-          </h2>
-          {(props.intro?.fr || props.intro?.en || ctx.edit) && (
-            <p className="mt-5 text-sm leading-relaxed text-ink-soft" {...inline(ctx, "intro")} {...(ctx.edit ? { "data-placeholder": "Présentation (facultative)" } : {})}>
-              {L(props.intro)}
-            </p>
-          )}
-        </div>
+    <section className={ctx.edit ? "shell pt-[var(--section-gap)] pe-field-host" : "shell pt-[var(--section-gap)]"}>
+      <div className={`contact-form rounded-lg border border-line bg-surface px-[clamp(1.5rem,5vw,4rem)] py-[clamp(2.5rem,6vw,4.5rem)] shadow-card${ctx.edit ? " relative" : ""}`}>
+        <FieldOps ctx={ctx} type="contact" props={{ ...props, form: true }} skip={["cta"]} />
+        {hasHead && (
+          <div className="max-w-xl">
+            {shown(props.eyebrow) && (
+              <Eyebrow {...inline(ctx, "eyebrow")} {...(ctx.edit ? { "data-placeholder": "Étiquette" } : {})}>
+                {L(props.eyebrow)}
+              </Eyebrow>
+            )}
+            {shown(props.title) && (
+              <h2 className="mt-4 font-display text-[clamp(2rem,5vw,3.5rem)] text-ink" {...inline(ctx, "title")} {...(ctx.edit ? { "data-placeholder": "Titre" } : {})}>
+                {L(props.title)}
+              </h2>
+            )}
+            {shown(props.intro) && (
+              <p className="mt-5 text-sm leading-relaxed text-ink-soft" {...inline(ctx, "intro")} {...(ctx.edit ? { "data-placeholder": "Présentation" } : {})}>
+                {L(props.intro)}
+              </p>
+            )}
+          </div>
+        )}
         <ContactForm
           formId={!ctx.edit ? (props.formId ?? null) : null}
           locale={ctx.locale}
