@@ -161,8 +161,8 @@ async function openEditor(id) {
 
 /* ---- Échantillonneur : tout ce que la toile MONTRE, image par image ----------------- */
 
-const H1 = '[data-edit-type="collection-intro"] h1[data-inline="title"]';
-const SECTION = '[data-edit-type="collection-intro"] section';
+const H1 = '[data-edit-type="section-title"] h1[data-inline="title"]';
+const SECTION = '[data-edit-type="section-title"] section';
 async function startSampler(f) {
   await f.evaluate(
     ([h1, section]) => {
@@ -1207,7 +1207,7 @@ if (run("E")) {
   const original = await f.locator(H1).textContent();
   write("update pages set draft_rev = draft_rev + 1 where id = ?", 2);
   // Premier texte : l'enregistrement échoue (version dépassée) et l'éditeur s'arrête.
-  await f.locator('[data-edit-type="collection-intro"] [data-inline="eyebrow"]').dblclick({ position: { x: 6, y: 6 } });
+  await f.locator('[data-edit-type="section-title"] [data-inline="eyebrow"]').dblclick({ position: { x: 6, y: 6 } });
   await page.keyboard.press("Control+a");
   await page.keyboard.type("Déclencheur");
   await page.keyboard.press("Enter");

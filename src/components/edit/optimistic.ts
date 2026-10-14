@@ -317,6 +317,16 @@ export function previewLayout(uid: string, layout: string, seq: number) {
   });
 }
 
+/** Taille des images des entrées de collection : l'attribut suffit, le CSS (look.css) règle colonnes et plafond. */
+export function previewTileSize(uid: string, size: string, seq: number) {
+  setOverlay(`tile-size:${uid}`, seq, {
+    apply: () => {
+      const tiles = document.querySelector(`[data-edit-block="${CSS.escape(uid)}"] .tiles`);
+      if (tiles && tiles.getAttribute("data-size") !== size) tiles.setAttribute("data-size", size);
+    },
+  });
+}
+
 /* ---- Listes du site : menu, réseaux, champs d'un formulaire (v0.16) ------------------------ */
 
 /**

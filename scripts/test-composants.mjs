@@ -62,7 +62,7 @@ test("regroupement : ordre Texte, Projets, Images et vidéos, Grilles, Autres ; 
   assert.deepEqual(names(groups[1]), ["Planche d'un projet"]);
   assert.deepEqual(names(groups[2]), ["Image", "Vidéo"]);
   assert.deepEqual(names(groups[3]), ["Grille", "Grille d'images", "Grille de vidéos"]);
-  assert.deepEqual(names(groups[4]), ["CV", "Profil", "Contact", "Formulaire de contact", "Lien vers une page", "Ouverture", "En-tête de collection", "Entrées des collections"]);
+  assert.deepEqual(names(groups[4]), ["CV", "Profil", "Contact", "Formulaire de contact", "Lien vers une page", "Ouverture", "Entrées des collections"]);
   // Chaque composant créable (hors rich-text / section-title, remplacés par les trois raccourcis) apparaît une seule fois.
   const all = groups.flatMap((g) => g.entries.map((e) => e.key));
   assert.equal(new Set(all).size, all.length);
@@ -75,7 +75,7 @@ test("regroupement : groupEntries ignore les entrées masquées", () => {
 });
 test("recherche : nom et description, sans accents ni casse, tous les mots", () => {
   const find = (q) => pickerGroups(catalog, STARTER_LIST, q).flatMap((g) => [...g.starters, ...g.entries].map((e) => e.label));
-  assert.deepEqual(find("planche"), ["Planche d'un projet", "En-tête de collection"], "nom d'abord, puis la description qui la cite");
+  assert.deepEqual(find("planche"), ["Planche d'un projet"], "nom ou description");
   assert.ok(find("VIDEO").includes("Vidéo") && find("vidéo").includes("Grille de vidéos"));
   assert.ok(find("ecrire").includes("Contact"), "description : « écrire »");
   assert.deepEqual(find("grille image"), ["Grille", "Grille d'images"], "tous les mots, dans nom + description");
@@ -284,7 +284,9 @@ test("seed : l'accueil neuf n'a plus de conteneur (Titre, deux Planches à proje
   assert.ok(home[i + 3].props.pageId > 0 && home[i + 3].props.label.fr);
 });
 
-live.prepare("delete from __drizzle_migrations where created_at = 1791766309564").run();
+// Retour à une base v0.18 : migrations 0021 (déballage) et 0022 (colonne pages.collection) à rejouer.
+live.prepare("delete from __drizzle_migrations where created_at >= 1791766309564").run();
+live.exec("DROP INDEX pages_collection_unique; ALTER TABLE pages DROP COLUMN collection;");
 const legacy = seedLegacyPage(live);
 test("démarrage : base v0.18 (migrations jusqu'à 0020 faites) avec trois conteneurs publiés + un brouillon", () => {
   assert.equal(live.prepare("select count(*) n from blocks where page_id = ? and type = 'featured-project'").get(legacy.id).n, 3);

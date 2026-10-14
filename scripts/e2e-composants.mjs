@@ -63,7 +63,7 @@ const CONTENT = {
   Projets: ["Planche d'un projet"],
   "Images et vidéos": ["Image", "Vidéo"],
   Grilles: ["Grille", "Grille d'images", "Grille de vidéos"],
-  Autres: ["CV", "Profil", "Contact", "Formulaire de contact", "Lien vers une page", "Ouverture", "En-tête de collection", "Entrées des collections"],
+  Autres: ["CV", "Profil", "Contact", "Formulaire de contact", "Lien vers une page", "Ouverture", "Entrées des collections"],
 };
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });

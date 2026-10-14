@@ -98,11 +98,9 @@ export const SEED_PAGES: SeedPage[] = [
         props: {
           eyebrow: { fr: "Collections — 01", en: "Collections — 01" },
           title: { fr: "Trois manières de raconter", en: "Three ways of telling a story" },
-          items: (["characters", "backgrounds", "animation"] as const).map((c) => ({
-            collection: c,
-            page: c,
-            ...collectionTexts[c],
-          })),
+          // Entrées automatiques (v0.19) : une tuile par page de collection, textes de son en-tête.
+          mode: "auto",
+          size: "medium",
         },
       },
       {

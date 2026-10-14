@@ -178,6 +178,7 @@
 /* Tuiles de collection : même langage que les planches (pas de
    passe-partout, légère inclinaison, scotch, ombre douce). Inclinaisons plus
    faibles : les tuiles sont bien plus larges. */
+[data-strip="taped"] .tiles { --tile-extra: 0px; }
 [data-strip="taped"] .tile-media {
   position: relative;
   background: transparent;
@@ -339,6 +340,7 @@
 /* ---- Cadre : passe-partout dessiné en 9-slice, HORS visionneuse ------------
    Lot médias : l'image agrandie est posée à nu (globals.css, .lightbox-frame) ;
    le cadre de l'artiste habille les entrées de collection (tuiles de l'accueil). */
+[data-kit-frame] .tiles { --tile-extra: calc(2 * var(--mat-padding) + 2 * var(--t-kit-frame-width)); }
 [data-kit-frame] .tile-media {
   border-style: solid;
   border-color: transparent;

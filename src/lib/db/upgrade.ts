@@ -22,6 +22,8 @@
  */
 import type Database from "better-sqlite3";
 
+import { isCollectionKey, migrateTilesProps, orderCollectionPages } from "../../blocks/collection-pages";
+
 type Raw = { uid?: string; type: string; props: Record<string, unknown> };
 type Ctx = {
   projects: { id: number; slug: string; featured: boolean }[];
@@ -457,6 +459,155 @@ export function dropEmptyTextFields(db: Database.Database): number {
       continue;
     }
     if (dropBlankInTree(draft)) {
+      db.prepare("update pages set draft = ? where id = ?").run(JSON.stringify(draft), p.id);
+      n++;
+    }
+  }
+  return n;
+}
+
+/* ---- 0022 : page de collection, Titre principal, entrées automatiques ---------------------------------- */
+
+type Json = Record<string, unknown>;
+const parseJson = (text: string | null | undefined): unknown => {
+  try {
+    return text == null ? undefined : JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+};
+const isObj = (v: unknown): v is Json => Boolean(v) && typeof v === "object" && !Array.isArray(v);
+
+/** « En-tête de collection » → « Titre » : mêmes textes, titre principal (h1, grand), compteurs si `showCounts`. */
+function introToTitle(props: Json): Json {
+  const { collection: _c, showCounts, eyebrow, title, intro, ...rest } = props;
+  void _c;
+  const empty = { fr: "", en: "" };
+  return { ...rest, eyebrow: eyebrow ?? empty, title: title ?? empty, intro: intro ?? empty, main: true, ...(showCounts === false ? {} : { counts: true }) };
+}
+
+/** Remplace chaque « En-tête de collection » de l'arbre (blocs et composants) ; renvoie vrai si quelque chose a changé. */
+function convertIntros(node: unknown): boolean {
+  if (Array.isArray(node)) return node.map(convertIntros).some(Boolean);
+  if (!isObj(node)) return false;
+  let changed = false;
+  if (node.type === "collection-intro" && isObj(node.props)) {
+    node.type = "section-title";
+    node.props = introToTitle(node.props);
+    changed = true;
+  }
+  if (isObj(node.props) && Array.isArray(node.props.children)) changed = convertIntros(node.props.children) || changed;
+  if (Array.isArray(node.blocks)) changed = convertIntros(node.blocks) || changed;
+  return changed;
+}
+
+/**
+ * Migration 0022 (v0.19), après l'ajout de la colonne `pages.collection` :
+ *  1. La collection de chaque « En-tête de collection » (ou, à défaut, des anciennes « Planches d'une collection »)
+ *     devient le réglage de SA page : les pages publiées d'abord, par identifiant, une collection n'allant qu'à une
+ *     seule page (la suivante qui la réclamait n'en garde pas). Le brouillon de la page porte le même réglage.
+ *  2. « Entrées des collections » : sans `mode`, automatique SEULEMENT si la liste est déjà exactement celle des
+ *     pages de collection publiées, dans l'ordre du menu (textes modifiés gardés, attachés à la page) ; sinon manuel,
+ *     liste intacte. Publié et brouillons.
+ *  3. Chaque « En-tête de collection » (publié, brouillons, composants) devient un « Titre » : étiquette, titre,
+ *     présentation, compteurs (si `showCounts`), titre principal. Rendu public identique.
+ * Idempotente ; renvoie le nombre de lignes réécrites.
+ */
+export function collectionPages(db: Database.Database): number {
+  const pages = db.prepare("select id, title, published, nav_order navOrder, collection, draft from pages order by id").all() as {
+    id: number;
+    title: string;
+    published: number;
+    navOrder: number | null;
+    collection: string | null;
+    draft: string | null;
+  }[];
+  const blockRows = db.prepare("select id, page_id pageId, type, props from blocks order by position, id").all() as { id: number; pageId: number; type: string; props: string }[];
+  const blocksOf = (id: number) => blockRows.filter((b) => b.pageId === id).map((b) => ({ type: b.type, props: parseJson(b.props) }));
+  const titleOf = (p: { title: string }) => {
+    const t = parseJson(p.title) as { fr?: unknown; en?: unknown } | undefined;
+    return { fr: typeof t?.fr === "string" ? t.fr : "", en: typeof t?.en === "string" ? t.en : "" };
+  };
+  let n = 0;
+
+  // 1. Réglage « collection » des pages.
+  const taken = new Set<string>(pages.flatMap((p) => (isCollectionKey(p.collection) ? [p.collection] : [])));
+  const claim = (blocks: { type: string; props: unknown }[]): string | null => {
+    for (const type of ["collection-intro", "collection-projects"]) {
+      for (const b of blocks) if (b.type === type && isObj(b.props) && isCollectionKey(b.props.collection)) return b.props.collection;
+    }
+    return null;
+  };
+  const draftBlocks = (p: { draft: string | null }) => {
+    const d = parseJson(p.draft) as { blocks?: unknown } | undefined;
+    return d && Array.isArray(d.blocks) ? (d.blocks as { type: string; props: unknown }[]).filter((b) => b && typeof b.type === "string") : [];
+  };
+  for (const p of [...pages].sort((a, b) => b.published - a.published || a.id - b.id)) {
+    if (p.collection) continue;
+    const wanted = claim(blocksOf(p.id)) ?? claim(draftBlocks(p));
+    if (!wanted || taken.has(wanted)) continue;
+    taken.add(wanted);
+    p.collection = wanted;
+    db.prepare("update pages set collection = ? where id = ?").run(wanted, p.id);
+    n++;
+  }
+  for (const p of pages) {
+    const d = parseJson(p.draft);
+    if (p.collection && isObj(d) && d.collection === undefined) {
+      db.prepare("update pages set draft = ? where id = ?").run(JSON.stringify({ ...d, collection: p.collection }), p.id);
+      p.draft = JSON.stringify({ ...d, collection: p.collection });
+    }
+  }
+
+  // 2. Entrées des collections.
+  const nav = parseJson((db.prepare("select value from settings where key = 'nav'").get() as { value: string } | undefined)?.value);
+  const menu = Array.isArray(nav)
+    ? nav.flatMap((x: { kind?: string; pageId?: unknown }) => (x && x.kind === "page" && typeof x.pageId === "number" ? [x.pageId] : []))
+    : pages.filter((p) => p.navOrder !== null).sort((a, b) => (a.navOrder ?? 0) - (b.navOrder ?? 0)).map((p) => p.id);
+  const found = orderCollectionPages(
+    pages.filter((p) => p.published).map((p) => ({ id: p.id, title: titleOf(p), collection: p.collection, blocks: blocksOf(p.id) })),
+    menu,
+  );
+  for (const r of db.prepare("select id, props from blocks where type = 'collection-tiles'").all() as { id: number; props: string }[]) {
+    const props = parseJson(r.props);
+    if (!isObj(props)) continue;
+    const next = migrateTilesProps(props, found);
+    if (next.changed) {
+      db.prepare("update blocks set props = ? where id = ?").run(JSON.stringify(next.props), r.id);
+      n++;
+    }
+  }
+  for (const p of pages) {
+    const draft = parseJson(p.draft);
+    if (!isObj(draft) || !Array.isArray(draft.blocks) || !p.draft?.includes("collection-tiles")) continue;
+    let touched = false;
+    for (const b of draft.blocks as { type?: unknown; props?: unknown }[]) {
+      if (!b || b.type !== "collection-tiles" || !isObj(b.props)) continue;
+      const next = migrateTilesProps(b.props, found);
+      if (next.changed) {
+        b.props = next.props;
+        touched = true;
+      }
+    }
+    if (touched) {
+      p.draft = JSON.stringify(draft);
+      db.prepare("update pages set draft = ? where id = ?").run(p.draft, p.id);
+      n++;
+    }
+  }
+
+  // 3. « En-tête de collection » → « Titre ».
+  for (const r of db.prepare("select id, type, props from blocks where type = 'collection-intro' or props like '%collection-intro%'").all() as { id: number; type: string; props: string }[]) {
+    const holder = { type: r.type, props: parseJson(r.props) };
+    if (isObj(holder.props) && convertIntros(holder)) {
+      db.prepare("update blocks set type = ?, props = ? where id = ?").run(holder.type, JSON.stringify(holder.props), r.id);
+      n++;
+    }
+  }
+  for (const p of pages) {
+    if (!p.draft?.includes("collection-intro")) continue;
+    const draft = parseJson(p.draft);
+    if (convertIntros(draft)) {
       db.prepare("update pages set draft = ? where id = ?").run(JSON.stringify(draft), p.id);
       n++;
     }

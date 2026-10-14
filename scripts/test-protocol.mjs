@@ -83,6 +83,10 @@ const ghost = { id: "g1", board: 3, index: 0, label: "x", aspect: 1, progress: 0
 ok("fantôme : aperçu blob: accepté", acceptToCanvas(msg({ kind: "ghosts", items: [{ ...ghost, preview: "blob:https://portfolio.example/abc" }] }), ORIGIN, frame)?.items.length === 1);
 ok("fantôme : aperçu javascript: ignoré", acceptToCanvas(msg({ kind: "ghosts", items: [{ ...ghost, preview: "javascript:alert(1)" }] }), ORIGIN, frame) === null);
 
+ok("lot 22 : entrées à la main, ajout / retrait / ordre acceptés", ["add", "remove", "up", "down"].every((op) => acceptFromCanvas(msg({ kind: "tile-op", uid: "t1", op, index: 2, pageId: 5 }), ORIGIN, frame)?.op === op));
+ok("lot 22 : champs facultatifs d'un Titre (présentation, compteurs) acceptés", ["add-intro", "remove-intro", "add-counts", "remove-counts"].every((op) => acceptFromCanvas(msg({ kind: "field-op", uid: "t1", op }), ORIGIN, frame)?.op === op));
+ok("lot 22 : taille des images des entrées acceptée", acceptFromCanvas(msg({ kind: "tile-size", uid: "t1", size: "large" }), ORIGIN, frame)?.size === "large");
+
 // Conteneurs, médias de blocs, en-tête commun (v0.13).
 ok("v0.13 : déplacement dans un conteneur accepté", acceptFromCanvas(msg({ kind: "move", uid: "b3", index: 1, parent: "n1abc" }), ORIGIN, frame)?.parent === "n1abc");
 ok("v0.13 : déplacement vers la page (parent null) accepté", acceptFromCanvas(msg({ kind: "move", uid: "b3", index: 0, parent: null }), ORIGIN, frame)?.parent === null);
@@ -95,6 +99,14 @@ const badV13 = [
   { kind: "media-op", uid: "b3", field: "props", op: "replace" },
   { kind: "media-op", uid: "b3", field: "mediaId", op: "delete-all" },
   { kind: "layout", uid: "g1", layout: "9" },
+  { kind: "tile-size", uid: "t1", size: "huge" },
+  { kind: "tile-size", uid: "../t", size: "small" },
+  { kind: "tile-op", uid: "t1", op: "explode" },
+  { kind: "tile-op", uid: "t1", op: "remove", index: 24 },
+  { kind: "tile-op", uid: "t1", op: "remove", index: -1 },
+  { kind: "tile-op", uid: "t1", op: "add", pageId: 0 },
+  { kind: "tile-op", uid: "../t", op: "up", index: 0 },
+  { kind: "field-op", uid: "t1", op: "add-counter" },
   { kind: "site-text", field: "password", locale: "fr", value: "x" },
   { kind: "site-text", field: "nav", index: 99, locale: "fr", value: "x" },
   { kind: "site-text", field: "name", locale: "fr", value: "x".repeat(201) },

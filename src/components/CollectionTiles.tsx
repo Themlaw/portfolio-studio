@@ -1,8 +1,11 @@
+import type { CSSProperties } from "react";
+
 import type { PictureSources } from "@/lib/images/variants";
 
 import Picture, { type CropFallback } from "./Picture";
 
 import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
+import { TILE_GEOMETRY, type TileSize } from "@/blocks/collection-pages";
 
 import Eyebrow from "@/components/Eyebrow";
 import { Link } from "@/i18n/navigation";
@@ -29,36 +32,65 @@ export type Tile = {
   imageAlt: string;
   width: number;
   height: number;
+  /** Rapport de ce qui est affiché : borne la largeur de la tuile pour que sa hauteur reste sous le plafond. */
+  shownRatio: number;
+  /** Liste manuelle : rang de l'entrée dans la liste du bloc (retrait et ordre depuis la toile). */
+  itemIndex?: number;
+  /** Liste manuelle : la page de l'entrée n'existe plus ou n'est plus publiée (signalée sur la toile, absente en public). */
+  broken?: boolean;
 };
 
 export default function CollectionTiles({
   tiles,
   cta,
   ratio,
+  size = "medium",
   edit,
+  manual,
+  itemCount = 0,
+  candidates = [],
 }: {
   tiles: Tile[];
   cta: string;
   /** Format imposé des images (sinon celui de chaque image). */
   ratio?: string;
+  /** Taille des images : part de la largeur et plafond de hauteur (lot 22). */
+  size?: TileSize;
   /** Vue brouillon de l'éditeur : repère du cadrage des images. */
   edit?: boolean;
+  /** Vue brouillon, entrées choisies à la main : retirer, monter, descendre, ajouter depuis la toile (lot 22). */
+  manual?: boolean;
+  itemCount?: number;
+  /** Pages de collection sans entrée (proposées par « + Ajouter une entrée »). */
+  candidates?: { pageId: number; title: string }[];
 }) {
+  const tools = Boolean(edit && manual);
+  const toolbar = (i: number) => (
+    <span className="pe-tile-tools" role="group" aria-label="Entrée">
+      <button type="button" data-edit-tile-op="up" data-index={i} disabled={i === 0} aria-label="Monter l'entrée" title="Monter l'entrée">↑</button>
+      <button type="button" data-edit-tile-op="down" data-index={i} disabled={i >= itemCount - 1} aria-label="Descendre l'entrée" title="Descendre l'entrée">↓</button>
+      <button type="button" data-edit-tile-op="remove" data-index={i} className="pe-danger" aria-label="Retirer l'entrée" title="Retirer l'entrée">✕</button>
+    </span>
+  );
   const fixed = ratio && ratio !== "auto" ? ratio : undefined;
+  const geo = TILE_GEOMETRY[size];
   return (
-    <div className="tiles flex flex-col gap-[var(--t-space-l)]" {...(fixed ? { "data-ratio": fixed } : {})}>
-      {tiles.map((tile, index) => (
+    <div className="tiles flex flex-col gap-[var(--t-space-l)]" data-size={size} {...(fixed ? { "data-ratio": fixed } : {})}>
+      {tiles.map((tile) =>
+        tile.broken ? (
+          <p key={tile.key} data-edit-invalid="" data-tile-broken="" className="pe-tile-broken">
+            Cette entrée mène à une page supprimée ou non publiée : elle est masquée sur le site. Choisis une autre page, ou retire-la.
+            {tools && tile.itemIndex !== undefined && toolbar(tile.itemIndex)}
+          </p>
+        ) : (
         <Link
-          key={tile.href}
+          key={tile.key}
           href={tile.href}
-          className="tile mat-hover group grid items-center gap-8 md:grid-cols-12"
+          className={`tile mat-hover group grid items-center gap-8 md:grid-cols-12${tools ? " relative" : ""}`}
         >
-          <div
-            className={`md:col-span-8 ${
-              index % 2 === 1 ? "md:order-2 md:col-start-5" : ""
-            }`}
-          >
-            <div className="tile-media mat">
+          {tools && tile.itemIndex !== undefined && toolbar(tile.itemIndex)}
+          <div className="tile-img">
+            <div className="tile-media mat" style={{ "--ir": tile.shownRatio.toFixed(4) } as CSSProperties}>
               <span
                 className="tile-frame"
                 style={tile.cropStyle}
@@ -74,7 +106,7 @@ export default function CollectionTiles({
                   width={tile.width}
                   height={tile.height}
                   // Image rognée par le format imposé et zoomée par le cadrage : affichée plus large que sa tuile.
-                  sizes={scaleSizes("(min-width: 768px) 66vw, 100vw", coverFactor(tile.width / Math.max(1, tile.height), parseRatio(fixed), Number(tile.cropStyle?.["--crop-zoom"]) || 1))}
+                  sizes={scaleSizes(geo.sizes, coverFactor(tile.width / Math.max(1, tile.height), parseRatio(fixed), Number(tile.cropStyle?.["--crop-zoom"]) || 1))}
                   className="h-auto w-full rounded-[2px]"
                   cropped={tile.free}
                   fallback={tile.fallback}
@@ -83,11 +115,7 @@ export default function CollectionTiles({
             </div>
           </div>
 
-          <div
-            className={`md:col-span-4 ${
-              index % 2 === 1 ? "md:order-1 md:row-start-1" : ""
-            }`}
-          >
+          <div className="tile-txt">
             <Eyebrow>{tile.eyebrow}</Eyebrow>
             <h3 className="mt-3 font-display text-[clamp(2rem,4.4vw,3.25rem)] text-ink transition-colors group-hover:text-primary">
               {tile.title}
@@ -107,7 +135,16 @@ export default function CollectionTiles({
             <p className="eyebrow mt-2">{tile.count}</p>
           </div>
         </Link>
-      ))}
+        ),
+      )}
+      {tools && (
+        <div className="pe-tile-add-row">
+          <button type="button" className="pe-tile-add" data-edit-tile-add="" data-candidates={JSON.stringify(candidates)} disabled={itemCount >= 24 || candidates.length === 0}>
+            + Ajouter une entrée
+          </button>
+          {candidates.length === 0 && itemCount < 24 && <span className="pe-tile-add-note">Toutes les pages de collection ont déjà une entrée.</span>}
+        </div>
+      )}
     </div>
   );
 }

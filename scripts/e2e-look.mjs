@@ -126,7 +126,7 @@ const cranPx = (f, key) =>
     p.remove();
     return v;
   }, key);
-const introPad = (f) => f.evaluate(() => parseFloat(getComputedStyle(document.querySelector('[data-edit-type="collection-intro"] section')).paddingTop));
+const introPad = (f) => f.evaluate(() => parseFloat(getComputedStyle(document.querySelector('[data-edit-type="section-title"] section')).paddingTop));
 
 let f;
 
@@ -139,7 +139,7 @@ if (run("A") || run("B") || run("C") || run("F")) {
 
 if (run("A")) {
   const before = await introPad(f);
-  await f.locator('[data-edit-type="collection-intro"] h1').first().click();
+  await f.locator('[data-edit-type="section-title"] h1').first().click();
   ok("A1 bloc choisi : poignées d'espacement haut et bas", await until(f, () => document.querySelectorAll(".lk-space-handle").length === 2));
   const handle = f.locator('.lk-space-handle[data-side="top"]');
   const hb = await handle.boundingBox();
@@ -153,27 +153,27 @@ if (run("A")) {
   await page.screenshot({ path: `${SHOTS}/A-poignee-espacement-glisser.png` });
   await page.mouse.up();
   await settled();
-  ok("A3 relâché : espace haut « Aucun » enregistré dans le brouillon", await waitFor(() => blockOf(2, "collection-intro")?.props.look?.spaceTop === "none"), JSON.stringify(blockOf(2, "collection-intro")?.props.look));
-  ok("A4 rendu : padding haut à 0 (avant : " + Math.round(before) + " px)", await until(f, () => parseFloat(getComputedStyle(document.querySelector('[data-edit-type="collection-intro"] section')).paddingTop) === 0));
+  ok("A3 relâché : espace haut « Aucun » enregistré dans le brouillon", await waitFor(() => blockOf(2, "section-title")?.props.look?.spaceTop === "none"), JSON.stringify(blockOf(2, "section-title")?.props.look));
+  ok("A4 rendu : padding haut à 0 (avant : " + Math.round(before) + " px)", await until(f, () => parseFloat(getComputedStyle(document.querySelector('[data-edit-type="section-title"] section')).paddingTop) === 0));
   // Clavier : flèche bas = cran suivant.
-  await f.locator('[data-edit-type="collection-intro"] h1').first().click();
+  await f.locator('[data-edit-type="section-title"] h1').first().click();
   await until(f, () => document.querySelectorAll(".lk-space-handle").length === 2);
   await f.locator('.lk-space-handle[data-side="top"]').focus();
   await page.keyboard.press("ArrowDown");
   await settled();
-  await waitFor(() => blockOf(2, "collection-intro")?.props.look?.spaceTop === "s");
-  const kb = blockOf(2, "collection-intro")?.props.look?.spaceTop;
+  await waitFor(() => blockOf(2, "section-title")?.props.look?.spaceTop === "s");
+  const kb = blockOf(2, "section-title")?.props.look?.spaceTop;
   ok("A5 clavier (flèche bas) : cran suivant « S »", kb === "s", String(kb));
   const s = await cranPx(f, "s");
-  ok(`A6 rendu : padding haut = cran S du thème (${s} px)`, await until(f, (v) => Math.abs(parseFloat(getComputedStyle(document.querySelector('[data-edit-type="collection-intro"] section')).paddingTop) - v) < 0.5, s));
-  await f.locator('[data-edit-type="collection-intro"] h1').first().click();
+  ok(`A6 rendu : padding haut = cran S du thème (${s} px)`, await until(f, (v) => Math.abs(parseFloat(getComputedStyle(document.querySelector('[data-edit-type="section-title"] section')).paddingTop) - v) < 0.5, s));
+  await f.locator('[data-edit-type="section-title"] h1').first().click();
   await sleep(400);
   await page.screenshot({ path: `${SHOTS}/A-poignees-espacement.png` });
 }
 
 /* ---- B. Barre typographique ---------------------------------------------------------- */
 
-const h1 = '[data-edit-type="collection-intro"] h1[data-inline="title"]';
+const h1 = '[data-edit-type="section-title"] h1[data-inline="title"]';
 if (run("B")) {
   await f.locator(h1).hover();
   ok("B1 survol d'un titre : « Aa »", await until(f, () => Boolean(document.querySelector(".lk-aa"))));
@@ -183,7 +183,7 @@ if (run("B")) {
   await f.locator('.lk-bar .ms-button[aria-label^="Taille"]').click();
   await f.locator('.ms-option[data-value="4xl"]').click();
   await settled();
-  ok("B3 taille de CE texte enregistrée (look.text.title)", await waitFor(() => blockOf(2, "collection-intro")?.props.look?.text?.title?.size === "4xl"), JSON.stringify(blockOf(2, "collection-intro")?.props.look));
+  ok("B3 taille de CE texte enregistrée (look.text.title)", await waitFor(() => blockOf(2, "section-title")?.props.look?.text?.title?.size === "4xl"), JSON.stringify(blockOf(2, "section-title")?.props.look));
   ok("B4 rendu : taille en ligne sur le titre", await until(f, (s) => (document.querySelector(s)?.getAttribute("style") ?? "").includes("clamp(3rem"), h1));
   // Tous les « Titre 1 » : style du site.
   if (!(await f.locator(".lk-bar").count())) {
@@ -220,7 +220,7 @@ if (run("C")) {
   await settled();
   const faces = setting("fontLibrary")?.[FONT] ?? [];
   ok("C4 fichiers woff2 latin + latin-ext dans le volume de données", faces.some((x) => x.subset === "latin") && faces.every((x) => existsSync(path.join(DATA, "fonts", x.file))), JSON.stringify(faces));
-  ok("C5 police appliquée à CE texte (brouillon)", await waitFor(() => blockOf(2, "collection-intro")?.props.look?.text?.title?.font === `g:${FONT}`));
+  ok("C5 police appliquée à CE texte (brouillon)", await waitFor(() => blockOf(2, "section-title")?.props.look?.text?.title?.font === `g:${FONT}`));
   ok("C6 @font-face servi par le site (/fonts/…)", await until(f, (n) => { const t = document.getElementById("site-styles")?.textContent ?? ""; return t.includes(`font-family:"${n}"`) && t.includes('url("/fonts/'); }, FONT));
   ok("C7 titre rendu dans la police téléchargée", await until(f, async (args) => { await document.fonts.ready; return getComputedStyle(document.querySelector(args.s)).fontFamily.replace(/"/g, "").startsWith(`${args.n},`) && document.fonts.check(`40px "${args.n}"`); }, { s: h1, n: FONT }, 60000));
   if (faces[0]) {
@@ -405,8 +405,8 @@ if (run("H")) {
   }
 
   // H1-H3. Toutes les tailles, sur plusieurs rôles : strictement croissantes, valeur exacte.
-  const eyebrow = '[data-edit-type="collection-intro"] [data-inline="eyebrow"]';
-  const intro = '[data-edit-type="collection-intro"] [data-inline="intro"]';
+  const eyebrow = '[data-edit-type="section-title"] [data-inline="eyebrow"]';
+  const intro = '[data-edit-type="section-title"] [data-inline="intro"]';
   // Variantes du thème qui visent .eyebrow / .site-brand à spécificité plus haute : le réglage doit gagner.
   await f.evaluate(() => {
     document.documentElement.dataset.caption = "handwritten";
@@ -456,7 +456,7 @@ if (run("H")) {
     ok("H3b menu de graisse : plus de <select> natif dans la barre", (await f.locator(".lk-bar select").count()) === 0);
     await page.screenshot({ path: `${SHOTS}/H-menu-graisse.png` });
     await f.locator('.ms-option[data-value="700"]').click();
-    ok("H3c graisse 700 enregistrée pour CE texte", await waitFor(() => blockOf(2, "collection-intro")?.props.look?.text?.title?.weight === 700));
+    ok("H3c graisse 700 enregistrée pour CE texte", await waitFor(() => blockOf(2, "section-title")?.props.look?.text?.title?.weight === 700));
     await page.keyboard.press("Escape");
   }
 
@@ -483,10 +483,10 @@ if (run("H")) {
   await hex.fill("javascript");
   await hex.press("Enter");
   await sleep(500);
-  ok("H6 saisie invalide : rien n'est enregistré", blockOf(2, "collection-intro")?.props.look?.text?.title?.color === undefined);
+  ok("H6 saisie invalide : rien n'est enregistré", blockOf(2, "section-title")?.props.look?.text?.title?.color === undefined);
   await hex.fill("#336699");
   await hex.press("Enter");
-  ok("H7 HEX saisi : couleur normalisée enregistrée (zod)", await waitFor(() => blockOf(2, "collection-intro")?.props.look?.text?.title?.color === "#336699"), JSON.stringify(blockOf(2, "collection-intro")?.props.look?.text?.title));
+  ok("H7 HEX saisi : couleur normalisée enregistrée (zod)", await waitFor(() => blockOf(2, "section-title")?.props.look?.text?.title?.color === "#336699"), JSON.stringify(blockOf(2, "section-title")?.props.look?.text?.title));
   ok("H8 rendu : le titre prend la couleur (rgb(51, 102, 153))", await until(f, (s) => getComputedStyle(document.querySelector(s)).color === "rgb(51, 102, 153)", h1));
   ok("H8b la valeur est en ligne sur le titre, sans autre propriété injectée", await until(f, (s) => /color:\s*(#336699|rgb\(51, 102, 153\))/.test(document.querySelector(s).getAttribute("style") ?? ""), h1));
   const rgbFields = await f.locator(".cp .cp-triple").first().locator("input").evaluateAll((els) => els.map((e) => e.value));
@@ -508,7 +508,7 @@ if (run("H")) {
   ok("H11b roue : saturation ~ rayon (50 % à droite du centre, ~58 % de rayon), teinte cohérente", hslNow[0] >= 0 && hslNow[0] <= 360 && hslNow[1] > 0, hslNow.join(","));
   const rgbNow = await f.locator(".cp .cp-triple").first().locator("input").evaluateAll((els) => els.map((e) => Number(e.value)));
   ok("H11c roue : champs RGB synchronisés avec le HEX", `#${rgbNow.map((n) => n.toString(16).padStart(2, "0")).join("")}` === wheelHex.toLowerCase(), `${rgbNow} / ${wheelHex}`);
-  ok("H11d roue : enregistrée dans le style", await waitFor(() => blockOf(2, "collection-intro")?.props.look?.text?.title?.color === wheelHex.toLowerCase()), blockOf(2, "collection-intro")?.props.look?.text?.title?.color);
+  ok("H11d roue : enregistrée dans le style", await waitFor(() => blockOf(2, "section-title")?.props.look?.text?.title?.color === wheelHex.toLowerCase()), blockOf(2, "section-title")?.props.look?.text?.title?.color);
   // Hors de la roue (bord extérieur) : saturation plafonnée à 100 %, la fenêtre ne se ferme pas.
   await page.mouse.move(cx, cy);
   await page.mouse.down();
@@ -542,7 +542,7 @@ if (run("H")) {
   const ab = await f.locator('.cp [role=slider][aria-label^="Opacité"]').boundingBox();
   await page.mouse.click(ab.x + ab.width * 0.5, ab.y + ab.height / 2);
   await sleep(500);
-  ok("H12 opacité : format #rrggbbaa enregistré (~50 %)", await waitFor(() => /^#[0-9a-f]{6}(7[89a-f]|8[0-7])$/.test(blockOf(2, "collection-intro")?.props.look?.text?.title?.color ?? "")), blockOf(2, "collection-intro")?.props.look?.text?.title?.color);
+  ok("H12 opacité : format #rrggbbaa enregistré (~50 %)", await waitFor(() => /^#[0-9a-f]{6}(7[89a-f]|8[0-7])$/.test(blockOf(2, "section-title")?.props.look?.text?.title?.color ?? "")), blockOf(2, "section-title")?.props.look?.text?.title?.color);
   // Échap ferme le sélecteur seulement (la barre reste), le focus revient sur la pastille.
   await page.keyboard.press("Escape");
   ok("H13 Échap : sélecteur fermé, barre toujours ouverte", (await until(f, () => !document.querySelector(".cp"))) && (await f.locator(".lk-bar").count()) === 1);

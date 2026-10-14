@@ -26,7 +26,7 @@ import { contentKey, getStorage } from "@/lib/storage";
 import { DEFAULT_THEME_ID, PRESETS } from "@/themes/presets";
 
 import { getSqlite, type Db } from "./index";
-import { renameVideoLook, upgradeContent } from "./upgrade";
+import { collectionPages, renameVideoLook, upgradeContent } from "./upgrade";
 import { unwrapContainers } from "./unwrap";
 import { blocks, media, pages, projects, settings, slots, themes, type Localized } from "./schema";
 
@@ -282,6 +282,8 @@ export function seedRows(db: Db, files: SeedFiles): void {
   upgradeContent(getSqlite());
   // Puis comme la migration 0021 (v0.19) : plus de conteneur « Projet mis en avant » (la migration 0014 en produit encore).
   unwrapContainers(getSqlite());
+  // Et comme la migration 0022 (v0.19) : page de collection, entrées automatiques, en-têtes de collection → Titre.
+  collectionPages(getSqlite());
   renameVideoLook(getSqlite());
 
   db.insert(settings)

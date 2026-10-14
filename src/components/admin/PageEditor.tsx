@@ -14,7 +14,7 @@ import { own } from "@/lib/own";
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 
-import { errorAt, Field, TextareaI18n, TextField, TextI18n, Toggle } from "@/app/admin/_fields";
+import { errorAt, Field, PageCollectionField, TextareaI18n, TextField, TextI18n, Toggle } from "@/app/admin/_fields";
 import { savePageAction } from "@/app/admin/(espace)/pages/actions";
 import { BlockEditorContext } from "@/blocks/editor-context";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
@@ -36,9 +36,9 @@ let addedSeq = 0;
 const newUid = () => `n${++addedSeq}`;
 
 function toState(page: AdminPageEdit): State {
-  const { title, slug, meta, published, inMenu, accent, blocks } = page;
+  const { title, slug, meta, published, inMenu, accent, collection, blocks } = page;
   return {
-    ...clone({ title, slug, meta, published, inMenu, accent }),
+    ...clone({ title, slug, meta, published, inMenu, accent, collection }),
     blocks: blocks.map((b, i) => ({ uid: `b${i}`, type: b.type, props: clone(b.props) })),
   };
 }
@@ -222,6 +222,7 @@ export default function PageEditor({
             error={errors.published}
           />
           <Toggle label="Dans le menu" help="En fin de menu ; change l'ordre depuis la liste des pages." checked={state.inMenu} onChange={(v) => set("inMenu", v)} />
+          <PageCollectionField value={state.collection} onChange={(v) => set("collection", v)} pages={context.pages} pageId={page.id} error={errors.collection} />
         </div>
       </section>
 

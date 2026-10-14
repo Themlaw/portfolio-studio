@@ -1268,7 +1268,7 @@ blocs.
 
 ## Notes de version v0.19 : composants regroupés, plus de « Projet mis en avant »
 
-**Retour arrière vers la v0.18.** La migration 0021 réécrit les blocs (publiés et brouillons) : les conteneurs
+**Retour arrière vers la v0.18.** Les migrations 0021 (déballage des conteneurs) et 0022 (colonne `pages.collection`, En-tête de collection → Titre) réécrivent les blocs (publiés et brouillons) : les conteneurs
 « Projet mis en avant » n'existent plus, la v0.18 lit les nouveaux blocs mais ignore le champ `project` d'un Titre
 (`section-title` : un Titre lié sans conteneur ne rend rien) et ne connaît pas « Lien vers une page » (`page-link`,
 bloc ignoré). Avant de redescendre, restaurer la base de la v0.18 (sauvegarde du volume `data`).

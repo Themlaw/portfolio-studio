@@ -17,6 +17,7 @@ export type BlockRefs = { media?: string[]; pages?: string[]; projects?: string[
 export const BLOCK_REFS: Record<string, BlockRefs> = {
   hero: { pages: ["reelPageId"], media: ["backgroundMediaId"] },
   "collection-tiles": { pages: ["items[].pageId"] },
+  // Mode automatique : les entrées suivent les pages de collection ; `edits[].pageId` (textes modifiés) ne retient aucune page.
   // Conteneur (v0.13) : ses composants (props.children) sont parcourus aussi.
   "featured-project": { pages: ["more.pageId"], projects: ["project"] },
   "collection-intro": {},

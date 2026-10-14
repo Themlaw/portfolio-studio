@@ -28,6 +28,7 @@ import GridLayoutIcon, { LAYOUT_LABELS } from "@/components/edit/GridLayoutIcon"
 import ProjectCombobox from "@/components/edit/ProjectCombobox";
 import { FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, type FieldType, type FormField } from "@/lib/contact-form";
 
+import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, sameL, TILE_SIZE_LABELS, TILE_SIZES, tilesMode, tileSize, type CollectionPage, type TextField as TileTextField, type TileEdit, type TileItem } from "./collection-pages";
 import { useBlockEditor } from "./editor-context";
 import type { L } from "./editor-types";
 import { GRID_LAYOUTS } from "./grid-layouts";
@@ -97,10 +98,47 @@ export function CollectionTilesEditor() {
   const set = useSet(value, onChange);
   type Item = { collection: string; pageId?: number; eyebrow: L; title: L; intro: L };
   const items = (value.items as Item[]) ?? [];
+  const found = context.collectionPages ?? [];
+  const edits = (value.edits as TileEdit[] | undefined) ?? [];
+  const mode = tilesMode(value);
+  const entries = autoEntries(found, edits);
+  const switchMode = (next: "auto" | "manual") => {
+    if (next === mode) return;
+    if (next === "manual") {
+      // La liste de départ est ce que montre le mode automatique (textes compris) : rien ne change à l'écran.
+      const { edits: _e, ...rest } = value;
+      void _e;
+      onChange({ ...rest, mode: "manual", items: itemsFromEntries(entries) });
+    } else {
+      // Les textes de la liste qui diffèrent de l'en-tête de leur page deviennent des modifications de tuile.
+      const { items: _i, ...rest } = value;
+      void _i;
+      const kept = editsFromItems(items.filter((i): i is TileItem => i.pageId !== undefined && (COLLECTION_KEYS as readonly string[]).includes(i.collection)), found);
+      onChange({ ...rest, mode: "auto", ...(kept.length ? { edits: kept } : {}) });
+    }
+  };
+  /** Un texte de tuile : égal à l'en-tête de la page = pas de modification ; sinon gardé, attaché à la page. */
+  const setEdit = (page: CollectionPage, field: TileTextField, v: L) => {
+    const current = edits.find((e) => e.pageId === page.pageId) ?? { pageId: page.pageId };
+    const { [field]: _drop, ...others } = current;
+    void _drop;
+    const next: TileEdit = sameL(v, page[field]) ? (others as TileEdit) : { ...others, [field]: v };
+    const rest = edits.filter((e) => e.pageId !== page.pageId);
+    const list = Object.keys(next).length > 1 ? [...rest, next] : rest;
+    onChange({ ...value, edits: list.length ? list : undefined });
+  };
   return (
     <>
       <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
       <TextI18n label="Titre de la section" value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
+      <Select
+        label="Taille des images"
+        help="Une entrée ne dépasse jamais la hauteur de l'écran : un portrait est réduit, pas coupé."
+        value={tileSize(value.size)}
+        options={TILE_SIZES.map((s) => ({ value: s, label: TILE_SIZE_LABELS[s] }))}
+        onChange={(v) => set("size", v ?? "medium")}
+        error={errorAt(errors, "size")}
+      />
       <Select
         label="Format des images"
         help="Imposé : les images sont cadrées (sur la page, survole une image puis « Cadrer » pour choisir la zone gardée)."
@@ -115,25 +153,59 @@ export function CollectionTilesEditor() {
         ]}
         onChange={(v) => set("ratio", v === "auto" ? undefined : v)}
       />
-      <ListField<Item>
+      <Select
         label="Entrées"
-        help="Chaque entrée montre une grande image de la collection et mène à sa page."
-        items={items}
-        onChange={(next) => set("items", next)}
-        make={() => ({ collection: "characters", eyebrow: EMPTY, title: EMPTY, intro: EMPTY })}
-        addLabel="Ajouter une entrée"
-        itemLabel={(i) => `Entrée ${i + 1}`}
-        error={errorAt(errors, "items")}
-        render={(item, update, i) => (
-          <>
-            <CollectionPicker value={item.collection} onChange={(v) => update({ ...item, collection: v })} error={errorAt(errors, `items.${i}.collection`)} />
-            <PagePicker label="Page de destination" value={item.pageId} onChange={(v) => update({ ...item, pageId: v })} error={errorAt(errors, `items.${i}.pageId`)} context={context} />
-            <TextI18n label="Étiquette" value={item.eyebrow} onChange={(v) => update({ ...item, eyebrow: v })} error={errorAt(errors, `items.${i}.eyebrow`)} />
-            <TextI18n label="Titre" value={item.title} onChange={(v) => update({ ...item, title: v })} error={errorAt(errors, `items.${i}.title`)} />
-            <TextareaI18n label="Présentation" value={item.intro} onChange={(v) => update({ ...item, intro: v })} error={errorAt(errors, `items.${i}.intro`)} />
-          </>
-        )}
+        help={
+          mode === "auto"
+            ? "Une entrée par page de collection (page avec un « En-tête de collection »), dans l'ordre du menu : ajouter, retirer ou dépublier une page change la liste toute seule."
+            : "Tu choisis les entrées, leur ordre et leur page de destination."
+        }
+        value={mode}
+        options={[
+          { value: "auto", label: "Automatiques" },
+          { value: "manual", label: "Choisies à la main" },
+        ]}
+        onChange={(v) => switchMode(v === "manual" ? "manual" : "auto")}
       />
+      {mode === "auto" ? (
+        <div className="a-field" data-testid="tiles-auto">
+          {entries.length === 0 && <p className="a-help">Aucune page de collection publiée pour l&apos;instant.</p>}
+          {entries.map((e) => (
+            <fieldset key={e.pageId} className="a-card" data-tile-page={e.pageId}>
+              <legend>{e.title.fr || `Page ${e.pageId}`}</legend>
+              <p className="a-help">Textes de l&apos;en-tête de la page{Object.keys(e.edited).length ? ", sauf ceux que tu as modifiés ici." : "."}</p>
+              <TextI18n label="Étiquette" value={e.eyebrow} onChange={(v) => setEdit(e, "eyebrow", v)} />
+              <TextI18n label="Titre" value={e.title} onChange={(v) => setEdit(e, "title", v)} />
+              <TextareaI18n label="Présentation" value={e.intro} onChange={(v) => setEdit(e, "intro", v)} />
+              {Object.keys(e.edited).length > 0 && (
+                <button type="button" className="a-btn" onClick={() => onChange({ ...value, edits: edits.filter((x) => x.pageId !== e.pageId).length ? edits.filter((x) => x.pageId !== e.pageId) : undefined })}>
+                  Reprendre les textes de la page
+                </button>
+              )}
+            </fieldset>
+          ))}
+        </div>
+      ) : (
+        <ListField<Item>
+          label="Liste des entrées"
+          help="Chaque entrée montre une grande image de la collection et mène à sa page. Une entrée dont la page est supprimée ou non publiée est masquée sur le site."
+          items={items}
+          onChange={(next) => set("items", next)}
+          make={() => ({ collection: "characters", eyebrow: EMPTY, title: EMPTY, intro: EMPTY })}
+          addLabel="Ajouter une entrée"
+          itemLabel={(i) => `Entrée ${i + 1}`}
+          error={errorAt(errors, "items")}
+          render={(item, update, i) => (
+            <>
+              <CollectionPicker value={item.collection} onChange={(v) => update({ ...item, collection: v })} error={errorAt(errors, `items.${i}.collection`)} />
+              <PagePicker label="Page de destination" value={item.pageId} onChange={(v) => update({ ...item, pageId: v })} error={errorAt(errors, `items.${i}.pageId`)} context={context} />
+              <TextI18n label="Étiquette" value={item.eyebrow} onChange={(v) => update({ ...item, eyebrow: v })} error={errorAt(errors, `items.${i}.eyebrow`)} />
+              <TextI18n label="Titre" value={item.title} onChange={(v) => update({ ...item, title: v })} error={errorAt(errors, `items.${i}.title`)} />
+              <TextareaI18n label="Présentation" value={item.intro} onChange={(v) => update({ ...item, intro: v })} error={errorAt(errors, `items.${i}.intro`)} />
+            </>
+          )}
+        />
+      )}
     </>
   );
 }
@@ -563,6 +635,18 @@ export function SectionTitleEditor() {
         <>
           <TextI18n label="Titre" value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
           <TextareaI18n label="Présentation" value={l(value.intro)} onChange={(v) => set("intro", v)} error={errorAt(errors, "intro")} />
+          <Toggle
+            label="Titre principal de la page (h1)"
+            help="Le grand titre de la page, en haut : un seul par page (l'ouverture de l'accueil en est déjà un). Un Titre inséré en haut d'une page sans titre principal l'est d'emblée ; les autres sont des titres de section (h2)."
+            checked={value.main === true}
+            onChange={(on) => set("main", on ? true : undefined)}
+          />
+          <Toggle
+            label="Compteurs « N œuvres · M projets »"
+            help="Calculés depuis les planches de la page, sous le titre."
+            checked={value.counts === true}
+            onChange={(on) => set("counts", on ? true : undefined)}
+          />
         </>
       )}
     </>

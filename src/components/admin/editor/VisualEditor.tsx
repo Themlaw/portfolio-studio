@@ -26,6 +26,7 @@ import {
   saveDraftAction,
   siteDraftAction,
 } from "@/app/admin/(espace)/pages/actions";
+import { PageCollectionField } from "@/app/admin/_fields";
 import { BlockEditorContext } from "@/blocks/editor-context";
 import { pickerGroups } from "@/blocks/groups";
 import { HELP_TEXT, STARTER_LIST, TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
@@ -72,7 +73,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "slot-text", "project-text", "surface"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /** Ce qui part vers la toile (ni fichier, ni identifiants internes). */
@@ -658,7 +659,10 @@ export default function VisualEditor({
       toast("40 blocs au plus par page.", "error");
       return;
     }
-    const block = withFreshUids({ uid: "", type: def.type, props: clone({ ...def.defaults, ...opts?.props }) } as DraftBlock, newUid);
+    // Premier Titre d'une page sans titre principal (ni ouverture, qui porte le sien) : il l'est (h1) ; un titre de section sinon (lot 22).
+    const principal =
+      def.type === "section-title" && place.parent === null && !list.some((b) => b.type === "hero" || b.type === "profile" || (b.type === "section-title" && b.props.main === true));
+    const block = withFreshUids({ uid: "", type: def.type, props: clone({ ...def.defaults, ...(principal ? { main: true } : {}), ...opts?.props }) } as DraftBlock, newUid);
     const next = insertBlock(list, block, place.parent, place.index);
     if (!next) {
       const parent = place.parent ? findBlock(list, place.parent) : null;
@@ -687,32 +691,52 @@ export default function VisualEditor({
 
   /**
    * Champ facultatif ajouté ou retiré depuis la toile : le titre d'un bloc Texte (« + Ajouter un titre » / « Retirer le
-   * titre »), l'étiquette d'un bloc Titre. Un champ ajouté s'édite aussitôt ; false = refusé ou sans effet.
+   * titre »), l'étiquette, la présentation et les compteurs d'un bloc Titre. Un champ ajouté s'édite aussitôt ; false =
+   * refusé ou sans effet.
    */
-  const fieldOp = (uid: string, op: "add-title" | "remove-title" | "add-eyebrow" | "remove-eyebrow"): boolean => {
+  const fieldOp = (uid: string, op: Extract<FromCanvas, { kind: "field-op" }>["op"]): boolean => {
     const list = draftRef.current.blocks;
     const block = findBlock(list, uid);
-    const title = op.endsWith("title");
-    // Titre : bloc Texte. Étiquette : bloc Titre, ou bloc Texte qui en porte une (« Retirer l'étiquette » seulement).
-    const okType = title ? block?.type === "rich-text" : block?.type === "section-title" || (block?.type === "rich-text" && op === "remove-eyebrow");
-    if (!block || !okType || (!title && block.props.linked)) return false;
+    const [verb, field] = op.split("-") as ["add" | "remove", "title" | "eyebrow" | "intro" | "counts"];
+    // Titre : bloc Texte. Étiquette : bloc Titre, ou bloc Texte qui en porte une (« Retirer l'étiquette » seulement). Présentation, compteurs : bloc Titre.
+    const okType = field === "title" ? block?.type === "rich-text" : block?.type === "section-title" || (block?.type === "rich-text" && op === "remove-eyebrow");
+    if (!block || !okType || (field !== "title" && block.type === "section-title" && block.props.linked)) return false;
     const props = { ...block.props };
-    if (op === "add-title") {
-      if (props.title !== undefined) return false;
-      props.title = helpIn(HELP_TEXT.title);
-    } else if (op === "add-eyebrow") {
-      if (props.eyebrow !== undefined) return false;
-      props.eyebrow = { fr: "", en: "" };
-    } else if (op === "remove-title") {
-      if (props.title === undefined) return false;
-      delete props.title;
-    } else {
-      if (props.eyebrow === undefined) return false;
-      delete props.eyebrow;
-    }
+    const has = field === "counts" ? props.counts === true : props[field] !== undefined;
+    if ((verb === "add") === has) return false;
+    if (verb === "remove") delete props[field];
+    else if (field === "counts") props.counts = true;
+    else props[field] = field === "title" ? helpIn(HELP_TEXT.title) : { fr: "", en: "" };
     setBlocks(updateBlock(list, uid, (b) => ({ ...b, props })), { structural: true });
     selectBlock(uid);
-    if (op === "add-title" || op === "add-eyebrow") send({ kind: "edit-text", uid, path: title ? "title" : "eyebrow" });
+    if (verb === "add" && field !== "counts") send({ kind: "edit-text", uid, path: field });
+    return true;
+  };
+
+  /**
+   * Entrées des collections choisies à la main, depuis la toile : ajoute une page de collection qui n'a pas encore
+   * d'entrée (textes de son Titre), retire, monte ou descend une entrée. false = refusé ou sans effet.
+   */
+  const tileOp = (msg: { uid: string; op: "add" | "remove" | "up" | "down"; index?: number; pageId?: number }): boolean => {
+    const list = draftRef.current.blocks;
+    const block = findBlock(list, msg.uid);
+    if (!block || block.type !== "collection-tiles" || block.props.mode === "auto") return false;
+    const items = [...((block.props.items as { pageId?: number }[] | undefined) ?? [])];
+    if (msg.op === "add") {
+      const page = context.collectionPages?.find((p) => p.pageId === msg.pageId);
+      if (!page || items.length >= 24 || items.some((i) => i.pageId === page.pageId)) return false;
+      items.push({ collection: page.collection, pageId: page.pageId, eyebrow: page.eyebrow, title: page.title, intro: page.intro } as (typeof items)[number]);
+    } else {
+      const i = msg.index;
+      if (i === undefined || i >= items.length) return false;
+      if (msg.op === "remove") items.splice(i, 1);
+      else {
+        const j = msg.op === "up" ? i - 1 : i + 1;
+        if (j < 0 || j >= items.length) return false;
+        [items[i], items[j]] = [items[j], items[i]];
+      }
+    }
+    setBlocks(updateBlock(list, msg.uid, (b) => ({ ...b, props: { ...b.props, items } })), { structural: true });
     return true;
   };
 
@@ -1422,9 +1446,9 @@ export default function VisualEditor({
     });
   };
 
-  const handlers = useRef({ op, editText, fieldOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook });
+  const handlers = useRef({ op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook });
   useEffect(() => {
-    handlers.current = { op, editText, fieldOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook };
+    handlers.current = { op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -1527,6 +1551,12 @@ export default function VisualEditor({
           break;
         case "layout":
           h.setProp(msg.uid, "layout", msg.layout);
+          break;
+        case "tile-op":
+          if (!h.tileOp(msg) && msg.seq) send({ kind: "revert", seq: msg.seq });
+          break;
+        case "tile-size":
+          h.setProp(msg.uid, "size", msg.size);
           break;
         case "form-field": {
           // Refusé (dernier champ, champ de réponse, limite…) ou sans effet : la toile retire son aperçu.
@@ -2099,6 +2129,15 @@ export default function VisualEditor({
               <p className="ve-hint">
                 Titre, adresses et référencement de la page : <Link href={`/admin/pages/${pageId}`}>formulaire de la page</Link>.
               </p>
+              <div className="ve-page-collection">
+                <PageCollectionField
+                  value={draft.collection}
+                  onChange={(v) => apply({ ...draftRef.current, collection: v }, { structural: true })}
+                  pages={context.pages}
+                  pageId={pageId}
+                  error={publishErrors.collection}
+                />
+              </div>
               <ColorsPanel theme={lookContext.theme} value={liveLook.palette} onChange={(p) => requestLook(p, liveLook.logo)} onHighlight={highlightRole} info={hlInfo} locked={siteLocked} />
               <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} />
               <SiteStylesPanel styles={siteSnap.styles} onChange={(s) => void applySiteStyles(() => s, Object.values(cleanSiteStyles(s)?.roles ?? {}))} palette={swatches} installed={fontFamilies} locked={siteLocked} />
