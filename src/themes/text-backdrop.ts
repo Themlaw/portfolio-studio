@@ -51,17 +51,22 @@ export type BackdropOptions = {
   palette?: CardPalette;
   /** Le texte a une couleur choisie : on ne la remplace pas. */
   userColor?: boolean;
+  /**
+   * Style d'un RÔLE (feuille globale) : il vise tous les éléments du rôle, dont des blocs (`p`). Le bandeau n'y change donc
+   * pas leur `display` (des `inline-block` les mettraient côte à côte) et n'ajoute pas de marge intérieure.
+   */
+  role?: boolean;
 };
 
 /** Propriétés posées par un fond (le style d'un rôle les range à part pour le menu). */
-export const BACKDROP_PROPS = new Set(["display", "padding", "background", "text-shadow", "text-decoration", "text-decoration-line", "text-decoration-color", "text-decoration-thickness", "text-decoration-skip-ink", "text-underline-offset"]);
+export const BACKDROP_PROPS = new Set(["display", "width", "outline", "padding", "background", "text-shadow", "text-decoration", "text-decoration-line", "text-decoration-color", "text-decoration-thickness", "text-decoration-skip-ink", "text-underline-offset"]);
 
 /** Épaisseur et décalage du trait du surlignage (en em du texte) : de la tête des capitales au bas des descendantes. */
 const HIGHLIGHT_THICKNESS = "1.15em";
 const HIGHLIGHT_OFFSET = "-0.88em";
 
 /** Déclarations CSS d'un fond de texte (kebab-case) ; vide sans fond choisi. */
-export function backdropDecls(backdrop: BackdropKind | undefined, color: string | undefined, { palette, userColor }: BackdropOptions = {}): [string, string][] {
+export function backdropDecls(backdrop: BackdropKind | undefined, color: string | undefined, { palette, userColor, role }: BackdropOptions = {}): [string, string][] {
   if (!backdrop) return [];
   const css = color ? backdropColorCss(color) : null;
   const ink = (auto: string | null): [string, string][] => {
@@ -75,6 +80,12 @@ export function backdropDecls(backdrop: BackdropKind | undefined, color: string 
     case "shadow":
       return [["background", "none"], ["padding", "0"], ["text-shadow", css ? shadowStack(css) : "var(--role-shadow)"], ["text-decoration", "none"], ...ink(null)];
     case "band":
+      // Rôle : la boîte garde sa place (ni `display`, ni padding : les voisins ne bougent pas) ; le bandeau est son fond plus un
+      // contour de même couleur qui l'élargit, au ras du texte (largeur du contenu).
+      if (role) {
+        const c = css ?? "color-mix(in srgb, var(--color-bg) 86%, transparent)";
+        return [["width", "fit-content"], ["background", c], ["outline", `0.45em solid ${c}`], ["text-shadow", "none"], ["text-decoration", "none"], ...ink(null)];
+      }
       return [["display", "inline-block"], ["padding", "0.45em 0.8em"], ["background", css ?? "color-mix(in srgb, var(--color-bg) 86%, transparent)"], ["text-shadow", "none"], ["text-decoration", "none"], ...ink(null)];
     case "highlight":
       // Surlignage : un gros trait de soulignement posé DERRIÈRE le texte, ligne par ligne. L'élément garde sa boîte

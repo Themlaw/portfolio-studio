@@ -1454,3 +1454,10 @@ le texte, ligne par ligne : l'élément garde sa boîte (display, marges, retour
 (`scripts/test-highlight-layout.mjs`, mesuré dans chromium). Limite : pas de marge horizontale autour du texte (le trait suit les
 lettres) ; `text-decoration` du texte (lien souligné) est remplacé. Le fond du métier d'avant le lot (`roleBackdrop`, look.css)
 garde son rendu en ligne d'avant.
+
+**Fond sur un RÔLE** (feuille globale `siteStylesCss`, qui vise tous les éléments du rôle) : le « Bandeau » n'y passe pas les
+éléments en `inline-block` (des paragraphes iraient côte à côte) ; il pose la couleur, `width: fit-content` et un contour
+de même couleur (`outline`), sans toucher ni à `display` ni au padding : aucun voisin ne bouge. Le rôle « Corps » pose le fond
+(et la couleur de texte lisible) sur `#contenu p` seulement, jamais sur les `li` de structure (réseaux du Profil, cartes
+vidéo, pages du CV). Menu et nom du site, éléments en ligne, gardent le bandeau `inline-block`. Mesuré dans
+`scripts/test-highlight-layout.mjs`.

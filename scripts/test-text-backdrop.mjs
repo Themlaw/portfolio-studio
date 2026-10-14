@@ -89,7 +89,7 @@ ok("teintes du texte : « Encre douce » et « Étiquettes » reconnues", backdr
 /* ---- Feuille des styles du site : un seul mécanisme pour tous les rôles ----------------------------------------- */
 for (const role of ROLES) {
   const css = siteStylesCss({ roles: { [role]: { backdrop: "band", backdropColor: "primary12" } } }, palette);
-  ok(`rôle ${role} : bandeau coloré dans la feuille`, css.includes("color-mix(in oklab, var(--t-color-primary) 12%, var(--t-color-bg))") && css.includes("display:inline-block"));
+  ok(`rôle ${role} : bandeau coloré dans la feuille`, css.includes("color-mix(in oklab, var(--t-color-primary) 12%, var(--t-color-bg))") && (["menu", "brand"].includes(role) ? css.includes("display:inline-block") : css.includes("width:fit-content") && css.includes("outline:0.45em solid") && !css.includes("display:inline-block")));
   const none = siteStylesCss({ roles: { [role]: { backdrop: "none" } } });
   ok(`rôle ${role} : « Aucun » dans la feuille`, none.includes("text-shadow:none") && none.includes("background:none"));
 }

@@ -226,7 +226,7 @@ const round = (n: number, d = 3) => Math.round(n * 10 ** d) / 10 ** d;
  * Déclarations CSS d'un style (propriétés kebab-case), valeurs déjà bornées. `palette` (palette effective du
  * thème) sert à choisir la couleur de texte lisible sur un fond coloré ; sans elle, le fond reste appliqué.
  */
-export function textStyleDecls(style: TextStyle | undefined, palette?: CardPalette): [string, string][] {
+export function textStyleDecls(style: TextStyle | undefined, palette?: CardPalette, role = false): [string, string][] {
   const parsed = TextStyleSchema.safeParse(style ?? {});
   if (!parsed.success) return [];
   const s = parsed.data;
@@ -241,7 +241,7 @@ export function textStyleDecls(style: TextStyle | undefined, palette?: CardPalet
   if (s.case) out.push(["text-transform", s.case === "upper" ? "uppercase" : "none"]);
   if (s.tracking !== undefined) out.push(["letter-spacing", `${round(s.tracking)}em`]);
   // Fond avant la couleur : un texte de couleur choisie garde sa couleur (déclaration suivante).
-  out.push(...backdropDecls(s.backdrop, s.backdrop === "none" ? undefined : s.backdropColor, { palette, userColor: Boolean(s.color) }));
+  out.push(...backdropDecls(s.backdrop, s.backdrop === "none" ? undefined : s.backdropColor, { palette, userColor: Boolean(s.color), role }));
   if (s.color) out.push(["color", (PALETTE as readonly string[]).includes(s.color) ? `var(--t-color-${s.color})` : s.color]);
   if (s.align) out.push(["text-align", s.align]);
   return out;
@@ -471,14 +471,19 @@ export function siteStylesCss(styles: SiteStyles | undefined, palette?: CardPale
   if (s.radius) rules.push(`:root{--media-radius:${RADIUS_VALUES[s.radius]}}`);
   // Ordre : légendes avant menu et nom du site (à spécificité égale, le dernier gagne).
   for (const role of ["body", "caption", "eyebrow", "h2", "h1", "menu", "brand"] as Role[]) {
-    const decls = textStyleDecls(s.roles?.[role], palette);
+    // Menu et nom du site : de petits éléments en ligne (le bandeau y est `inline-block`) ; les autres rôles visent aussi des blocs.
+    const decls = textStyleDecls(s.roles?.[role], palette, role !== "menu" && role !== "brand");
     // Choix de couleur du rôle : publié pour qu'un fond posé sur un texte précis (style local) ne le remplace pas.
     const chosen = s.roles?.[role]?.color ? decls.find(([k]) => k === "color") : undefined;
     // Menu : le fond se pose sur le lien seul (le sélecteur du rôle vise aussi son <span>, la boîte serait doublée).
-    const boxed = role === "menu" ? decls.filter(([k]) => BACKDROP_PROPS.has(k)) : [];
-    const plain = role === "menu" ? decls.filter(([k]) => !BACKDROP_PROPS.has(k)) : decls;
+    // Corps : le fond se pose sur les paragraphes seuls, pas sur les `li` de structure (réseaux du Profil, cartes vidéo, pages du CV),
+    // et la couleur de texte lisible qui l'accompagne (`--user-ink`) aussi.
+    const isBox = ([k, v]: [string, string]) => BACKDROP_PROPS.has(k) || (role === "body" && k === "color" && v.startsWith("var(--user-ink,"));
+    const boxedTarget = role === "menu" ? ".site-header nav a" : role === "body" ? "#contenu p:not(.eyebrow, .caption-text, .strip-caption)" : null;
+    const boxed = boxedTarget ? decls.filter(isBox) : [];
+    const plain = boxedTarget ? decls.filter((d) => !isBox(d)) : decls;
     if (plain.length) rules.push(`${WIN} ${ROLE_SELECTORS[role]}{${plain.map(([k, v]) => `${k}:${v}`).join(";")}}`);
-    if (boxed.length) rules.push(`${WIN} .site-header nav a{${boxed.map(([k, v]) => `${k}:${v}`).join(";")}}`);
+    if (boxed.length && boxedTarget) rules.push(`${WIN} ${boxedTarget}{${boxed.map(([k, v]) => `${k}:${v}`).join(";")}}`);
     if (chosen) rules.push(`${WIN} ${ROLE_SELECTORS[role]}{--user-ink:${chosen[1]}}`);
   }
   // Rien d'injectable n'arrive ici (crans et catalogue), ceinture quand même.
