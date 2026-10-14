@@ -44,7 +44,7 @@ const sameL = (a: L | null | undefined, b: L | null | undefined) => (a?.fr ?? ""
 type SlotRow = typeof schema.slots.$inferSelect;
 
 /** Un PDF (bloc CV) ne se pose pas dans une planche. */
-const PDF_NOT_IN_BOARD = "Un PDF ne se place pas dans une planche : utilise le bloc « CV ».";
+const PDF_NOT_IN_BOARD = "Un PDF ne se place pas dans une planche : utilise la rubrique « CV ».";
 
 export const MAX_BOARD_SLOTS = 200;
 /** Projets créés au plus dans le brouillon d'une page. */

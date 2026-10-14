@@ -237,7 +237,7 @@ export default function FreeCropDialog({
           </button>
           <span className="lk-spacer" />
           <button type="button" onClick={onClose}>
-            Annuler
+            Fermer sans enregistrer
           </button>
           <button type="button" className="lk-primary" onClick={save}>
             Enregistrer le cadrage

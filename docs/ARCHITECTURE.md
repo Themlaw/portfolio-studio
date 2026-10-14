@@ -1218,7 +1218,7 @@ blocs.
   à côté, l'enveloppe étant seulement cachée (`src/components/edit/marked-edit.ts`).
   Double-clic → champ + petite barre « Surligner » (mot sélectionné, ou mot sous le
   curseur ; « Retirer le surlignage » si déjà surligné ; Ctrl/Cmd+Maj+H), Entrée valide,
-  Échap annule. Langue = celle de la toile (fr / en).
+  Échap valide (comme un clic ailleurs). Langue = celle de la toile (fr / en).
 - **Rétablissement des textes à plusieurs nœuds** : l'aperçu de l'accroche
   (`previewMarked`) se retire avec le mécanisme `revert` (refus, éditeur arrêté, Annuler) :
   retirer l'élément à nous rend exactement l'enveloppe de React, sans rien reconstruire.

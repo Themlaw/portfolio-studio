@@ -24,6 +24,7 @@ const msg = (data, origin = ORIGIN, source = frame) => ({ origin, source, data: 
 ok("project-text : présentation acceptée (2000 car.)", acceptFromCanvas(msg({ kind: "project-text", board: 3, field: "description", locale: "fr", value: "x".repeat(2000) }), ORIGIN, frame)?.field === "description");
 ok("project-text : présentation trop longue / champ inconnu refusés", acceptFromCanvas(msg({ kind: "project-text", board: 3, field: "description", locale: "fr", value: "x".repeat(2001) }), ORIGIN, frame) === null && acceptFromCanvas(msg({ kind: "project-text", board: 3, field: "featured", locale: "fr", value: "1" }), ORIGIN, frame) === null);
 ok("message valide accepté", acceptFromCanvas(msg({ kind: "select", uid: "b1" }), ORIGIN, frame)?.uid === "b1");
+ok("select : `click` (choisi d'un clic) accepté, valeur autre refusée", acceptFromCanvas(msg({ kind: "select", uid: "b1", click: true }), ORIGIN, frame)?.click === true && acceptFromCanvas(msg({ kind: "select", uid: "b1", click: "oui" }), ORIGIN, frame) === null);
 ok("autre origine ignorée", acceptFromCanvas(msg({ kind: "select", uid: "b1" }, "https://evil.example"), ORIGIN, frame) === null);
 ok("autre fenêtre (source) ignorée", acceptFromCanvas(msg({ kind: "select", uid: "b1" }, ORIGIN, other), ORIGIN, frame) === null);
 ok("source absente ignorée", acceptFromCanvas(msg({ kind: "select", uid: "b1" }), ORIGIN, null) === null);

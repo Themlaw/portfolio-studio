@@ -53,7 +53,8 @@ const FileValue = z.custom<File>((v) => typeof File !== "undefined" && v instanc
 export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("ready"), path: z.string().max(400), locale: z.string().max(5), blocks: Blocks }),
   z.object({ kind: z.literal("blocks"), blocks: Blocks }),
-  z.object({ kind: z.literal("select"), uid: Uid.nullable() }),
+  // `click` : choisi d'un clic (ou d'Entrée) sur la toile ; l'éditeur ouvre alors Réglages. Sans : sélection venue d'ailleurs (saisie, Échap).
+  z.object({ kind: z.literal("select"), uid: Uid.nullable(), click: z.boolean().optional() }),
   z.object({ kind: z.literal("op"), op: z.enum(["up", "down", "duplicate", "delete", "out", "in"]), uid: Uid }),
   z.object({ kind: z.literal("move"), uid: Uid, index: Index, parent: Parent.optional() }),
   z.object({ kind: z.literal("text"), uid: Uid, path: z.string().regex(/^[a-zA-Z]+(\.(\d{1,2}|[a-zA-Z]+))*$/).max(80), locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),

@@ -98,7 +98,7 @@ export function BlockLookPanel({ type, look, inCell, onChange }: { type: string;
       <h3 id="lp-title" className="lp-title">
         Mise en page
       </h3>
-      <p className="lp-help">Aussi sur la page : poignées en haut et en bas du bloc choisi, « Aa » sur un texte, « Cadrer » sur une image.</p>
+      <p className="lp-help">Aussi sur la page : poignées en haut et en bas de la rubrique choisie, « Aa » sur un texte, « Cadrer » sur une image.</p>
       {type !== "hero" && (
         <>
           <Segmented label="Espace en haut" value={look.spaceTop} options={SPACES} labels={SPACE_LABELS} onChange={(v) => set({ spaceTop: v })} />

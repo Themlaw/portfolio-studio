@@ -721,11 +721,11 @@ export default function BoardLayer({
             }}
           />
           <small className="pe-board-help">
-            Choisis le projet de ce bloc : son titre, sa présentation et ses images viennent de lui (textes et images se modifient ensuite sur la page). Un projet créé ici devient public avec la page.
+            Choisis le projet de cette rubrique : son titre, sa présentation et ses images viennent de lui (textes et images se modifient ensuite sur la page). Un projet créé ici devient public avec la page.
           </small>
           {change && (
             <button type="button" className="pe-link-btn" onClick={onPickerClose}>
-              Annuler
+              Fermer
             </button>
           )}
         </PickerCard>

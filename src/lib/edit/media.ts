@@ -102,7 +102,7 @@ export async function deleteMedia(
     const titles = new Map(db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).all().map((p) => [p.id, p.title.fr]));
     return {
       ok: false,
-      message: `Cette image est utilisée par ${outcome.blocks.length} bloc${outcome.blocks.length > 1 ? "s" : ""} : remplace-la dans ces blocs avant de la supprimer.`,
+      message: `Cette image est utilisée par ${outcome.blocks.length} rubrique${outcome.blocks.length > 1 ? "s" : ""} : remplace-la dans ces rubriques avant de la supprimer.`,
       references: outcome.blocks.map((b) => ({ pageId: b.pageId, pageTitle: titles.get(b.pageId) ?? `page ${b.pageId}`, blockType: own(BLOCKS, b.type)?.label ?? b.type })),
     };
   }

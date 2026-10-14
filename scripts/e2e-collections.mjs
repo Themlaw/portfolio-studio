@@ -264,7 +264,7 @@ console.log("== D. Entrées choisies à la main");
   ok("D6 descendre une entrée : la première passe en seconde", await waitFor(() => order() === "Carnets d'été|Personnages|Décors"), order());
 
   // Annuler / rétablir passent par l'historique de l'éditeur.
-  await page.getByRole("button", { name: "Annuler", exact: true }).click();
+  await page.getByRole("button", { name: "Défaire", exact: true }).click();
   await settled();
   ok("D7 annuler rétablit l'ordre précédent", await waitFor(() => order() === "Personnages|Carnets d'été|Décors"), order());
   await page.getByRole("button", { name: "Rétablir", exact: true }).click();

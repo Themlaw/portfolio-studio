@@ -222,7 +222,7 @@ const openDot = async (f) => {
   await f.locator(".bd-pop").waitFor({ timeout: 10000 });
 };
 const popToken = (f, t) => f.locator(`.bd-pop [data-token="${t}"]`).first();
-const undo = page.locator('button.a-icon-btn[aria-label="Annuler"]');
+const undo = page.locator('button.a-icon-btn[aria-label="Défaire"]');
 const redo = page.locator('button.a-icon-btn[aria-label="Rétablir"]');
 
 const EYEBROW = '[data-edit-type="hero"] [data-inline="eyebrow"]';
@@ -349,7 +349,7 @@ if (run("B")) {
   // Couleur libre.
   await popToken(f, "primary12").waitFor();
   await f.locator('.bd-pop').getByRole("button", { name: "Couleur personnalisée" }).click();
-  const hex = f.locator('.cp input[aria-label="Valeur hexadécimale"]');
+  const hex = f.locator('.cp input[aria-label="Code couleur"]');
   await hex.waitFor({ timeout: 20000 });
   await hex.fill("#f6d6e4");
   await hex.press("Enter");

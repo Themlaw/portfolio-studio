@@ -131,7 +131,7 @@ export function CollectionTilesEditor() {
   return (
     <>
       <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
-      <TextI18n label="Titre de la section" value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
+      <TextI18n label="Titre de la rubrique" value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
       <Select
         label="Taille des images"
         help="Une entrée ne dépasse jamais la hauteur de l'écran : un portrait est réduit, pas coupé."
@@ -408,7 +408,7 @@ export function ProjectBoardEditor() {
       }
     >
       <select id={id} className="a-input" value={(value.project as string | undefined) ?? ""} onChange={(e) => set("project", e.target.value || undefined)}>
-        <option value="">— Projet du conteneur (ou à choisir) —</option>
+        <option value="">— Projet de la rubrique (ou à choisir) —</option>
         {context.projects.map((p) => (
           <option key={p.slug} value={p.slug}>
             {p.title}
@@ -435,7 +435,7 @@ export function FeaturedProjectEditor() {
     <>
       <ProjectCombobox
         prefix="ve"
-        label="Projet affiché dans ce bloc"
+        label="Projet affiché dans cette rubrique"
         projects={context.projects}
         value={value.project as string | undefined}
         onPick={(slug) => set("project", slug)}
@@ -496,7 +496,7 @@ export function GridEditor() {
         options={[
           { value: "tight", label: "Serré" },
           { value: "normal", label: "Normal" },
-          { value: "wide", label: "Large (espacement de section du thème)" },
+          { value: "wide", label: "Large (espacement entre rubriques du thème)" },
         ]}
         onChange={(v) => set("gap", v ?? "normal")}
       />
@@ -512,7 +512,7 @@ export function GridEditor() {
         onChange={(v) => set("align", v ?? "stretch")}
       />
       <FormatSelect label="Format des images" help="Les vidéos gardent leur cadre 16:9." explicitAuto />
-      <Toggle label="Espace au-dessus (comme entre deux sections)" checked={(value.top ?? "gap") === "gap"} onChange={(on) => set("top", on ? "gap" : "none")} />
+      <Toggle label="Espace au-dessus (comme entre deux rubriques)" checked={(value.top ?? "gap") === "gap"} onChange={(on) => set("top", on ? "gap" : "none")} />
       <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
       <TextI18n label="Titre (facultatif)" value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
     </>
@@ -624,7 +624,7 @@ export function SectionTitleEditor() {
           <TextareaI18n label="Présentation" value={l(value.intro)} onChange={(v) => set("intro", v)} error={errorAt(errors, "intro")} />
           <Toggle
             label="Titre principal de la page (h1)"
-            help="Le grand titre de la page, en haut : un seul par page (l'ouverture de l'accueil en est déjà un). Un Titre inséré en haut d'une page sans titre principal l'est d'emblée ; les autres sont des titres de section (h2)."
+            help="Le grand titre de la page, en haut : un seul par page (l'ouverture de l'accueil en est déjà un). Un Titre inséré en haut d'une page sans titre principal l'est d'emblée ; les autres sont des titres de rubrique (h2)."
             checked={value.main === true}
             onChange={(on) => set("main", on ? true : undefined)}
           />

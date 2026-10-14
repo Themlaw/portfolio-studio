@@ -468,7 +468,7 @@ if (run("H")) {
   ok("H4 dernière pastille : roue des couleurs (dégradé conique)", (await wheel.count()) === 1 && /conic-gradient/.test((await wheel.getAttribute("style")) ?? "") && (await f.locator(".lk-bar .tc-swatches > :last-child.tc-wheel").count()) === 1);
   await wheel.click();
   ok("H5 sélecteur ouvert dans la toile", await until(f, () => Boolean(document.querySelector(".cp .cp-wheel"))));
-  ok("H5b sélecteur : roue, curseurs de luminosité et d'opacité, HEX / RGB / HSL, aperçu ; plus de seconde rangée « couleurs du thème » (lot 26)", (await f.locator(".cp .cp-wheel").count()) === 1 && (await f.locator('.cp [role=slider]:not(.cp-wheel)').count()) === 2 && (await f.locator(".cp input").count()) === 7 && (await f.locator(".cp-preview").count()) === 1 && (await f.locator('.cp [aria-label="Couleurs du thème"] .cp-chip').count()) === 0);
+  ok("H5b sélecteur : roue, curseurs de luminosité et d'opacité, un seul champ « Code couleur », aperçu ; plus de seconde rangée « couleurs du thème » (lots 24 et 26)", (await f.locator(".cp .cp-wheel").count()) === 1 && (await f.locator('.cp [role=slider]:not(.cp-wheel)').count()) === 2 && (await f.locator(".cp input").count()) === 1 && (await f.locator(".cp input").first().getAttribute("aria-label")) === "Code couleur" && (await f.locator(".cp-preview").count()) === 1 && (await f.locator('.cp [aria-label="Couleurs du thème"] .cp-chip').count()) === 0);
   ok("H5c sélecteur entièrement visible (la toile défile au besoin)", await until(f, () => { const r = document.querySelector(".cp").getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight + 1; }, null, 5000));
   await page.screenshot({ path: `${SHOTS}/H-selecteur-couleur.png` });
   // v0.16 : la pastille des curseurs (18 px, centrée sur la valeur) restait à cheval sur le bord à 100 % d'opacité :
@@ -490,10 +490,17 @@ if (run("H")) {
   ok("H7 HEX saisi : couleur normalisée enregistrée (zod)", await waitFor(() => blockOf(2, "section-title")?.props.look?.text?.title?.color === "#336699"), JSON.stringify(blockOf(2, "section-title")?.props.look?.text?.title));
   ok("H8 rendu : le titre prend la couleur (rgb(51, 102, 153))", await until(f, (s) => getComputedStyle(document.querySelector(s)).color === "rgb(51, 102, 153)", h1));
   ok("H8b la valeur est en ligne sur le titre, sans autre propriété injectée", await until(f, (s) => /color:\s*(#336699|rgb\(51, 102, 153\))/.test(document.querySelector(s).getAttribute("style") ?? ""), h1));
-  const rgbFields = await f.locator(".cp .cp-triple").first().locator("input").evaluateAll((els) => els.map((e) => e.value));
-  ok("H9 champs RGB synchronisés avec le HEX", rgbFields.join(",") === "51,102,153", rgbFields.join(","));
+  // Un seul champ : le code accepte aussi rgb(…) et hsl(…) (hsl(210, 50%, 40%) = #336699).
+  await hex.fill("hsl(210, 50%, 40%)");
+  await hex.press("Enter");
+  await sleep(500);
+  ok("H9 « Code couleur » : hsl(…) saisi, même couleur enregistrée en #336699", (await hex.inputValue()) === "#336699" && blockOf(2, "section-title")?.props.look?.text?.title?.color === "#336699", `${await hex.inputValue()} ${JSON.stringify(blockOf(2, "section-title")?.props.look?.text?.title)}`);
+  await hex.fill("rgb(51, 102, 153)");
+  await hex.press("Enter");
+  await sleep(300);
+  ok("H9b … rgb(…) aussi", (await hex.inputValue()) === "#336699");
   const status = (await f.locator(".cp-contrast").textContent()) ?? "";
-  ok("H10 avertissement de contraste présent (valeur mesurée)", /Contraste avec le fond du thème : \d+,\d:1/.test(status), status);
+  ok("H10 lisibilité en mots (bonne / juste / insuffisante), ratio en info-bulle", /Lisibilité : (bonne|juste|insuffisante) sur le fond du thème/.test(status) && !/:1/.test(status) && /Contraste \d+,\d:1/.test((await f.locator(".cp-contrast").getAttribute("title")) ?? ""), status);
   // Roue : sélection par glisser (teinte = angle, saturation = rayon).
   const wb = await f.locator(".cp .cp-wheel").boundingBox();
   const cx = wb.x + wb.width / 2, cy = wb.y + wb.height / 2, rad = wb.width / 2;
@@ -505,10 +512,16 @@ if (run("H")) {
   await sleep(500);
   const wheelHex = await hex.inputValue();
   ok("H11 roue : le glisser change la couleur (valeur HEX obtenue)", /^#[0-9a-f]{6}$/i.test(wheelHex) && wheelHex.toLowerCase() !== "#336699", wheelHex);
-  const hslNow = await f.locator(".cp .cp-triple").nth(1).locator("input").evaluateAll((els) => els.map((e) => Number(e.value)));
+  const hexHsl = (h) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+    const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+    const hue = d === 0 ? 0 : max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [Math.round(hue * 60), Math.round(s * 100), Math.round(l * 100)];
+  };
+  const hslNow = hexHsl(wheelHex);
   ok("H11b roue : saturation ~ rayon (50 % à droite du centre, ~58 % de rayon), teinte cohérente", hslNow[0] >= 0 && hslNow[0] <= 360 && hslNow[1] > 0, hslNow.join(","));
-  const rgbNow = await f.locator(".cp .cp-triple").first().locator("input").evaluateAll((els) => els.map((e) => Number(e.value)));
-  ok("H11c roue : champs RGB synchronisés avec le HEX", `#${rgbNow.map((n) => n.toString(16).padStart(2, "0")).join("")}` === wheelHex.toLowerCase(), `${rgbNow} / ${wheelHex}`);
+  ok("H11c roue : « Code couleur » synchronisé (une valeur #rrggbb)", /^#[0-9a-f]{6}$/i.test(await hex.inputValue()), await hex.inputValue());
   ok("H11d roue : enregistrée dans le style", await waitFor(() => blockOf(2, "section-title")?.props.look?.text?.title?.color === wheelHex.toLowerCase()), blockOf(2, "section-title")?.props.look?.text?.title?.color);
   // Hors de la roue (bord extérieur) : saturation plafonnée à 100 %, la fenêtre ne se ferme pas.
   await page.mouse.move(cx, cy);
@@ -516,7 +529,7 @@ if (run("H")) {
   await page.mouse.move(cx - rad * 3, cy, { steps: 6 });
   await page.mouse.up();
   await sleep(500);
-  const hslEdge = await f.locator(".cp .cp-triple").nth(1).locator("input").evaluateAll((els) => els.map((e) => Number(e.value)));
+  const hslEdge = hexHsl(await hex.inputValue());
   ok("H11e glisser hors de la roue : sélecteur encore ouvert, saturation maximale", (await f.locator(".cp").count()) === 1 && hslEdge[1] >= 95, hslEdge.join(","));
   // Luminosité : curseur ShadeSlider, clic au quart gauche = clair, au quart droit = sombre.
   const hexBeforeV = await hex.inputValue();

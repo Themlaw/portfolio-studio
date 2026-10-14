@@ -1414,6 +1414,16 @@ html:not([data-edit-mode]) .pe-media-empty {
   border-radius: 0 0 6px 6px;
 }
 
+/* Dedans (étiquette qui n'a pas de place au-dessus) : coin haut gauche, déjà le défaut de .pe-tag. À droite : coin haut droit. */
+.pe-box[data-tag-x="right"] > .pe-tag {
+  right: 0;
+  left: auto;
+}
+
+.pe-box[data-tag="above"][data-tag-x="right"] > .pe-tag {
+  border-radius: 6px 6px 0 0;
+}
+
 /* Planche dont les images sont en brouillon sur une autre page (v0.13.1). */
 .pe-board-held {
   display: block;
