@@ -1161,7 +1161,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("A14b URL data: → refusée (v0.13 : http(s) et mailto: seulement)", res.text.includes('"ok":false'));
   const persoId = query(dirA, `select id from pages where json_extract(slug,'$.fr')='personnages'`).id;
   res = await callActionJson(jar, ids.deletePageAction, [persoId], "/admin/pages");
-  ok("A15 supprimer une page référencée → bloqué avec la liste", res.text.includes("references") && res.text.includes("Entrées des collections"), res.text.slice(0, 300));
+  ok("A15 supprimer une page référencée → bloqué avec la liste (entrées automatiques : seul le lien « voir plus » la retient)", res.text.includes("references") && /Entrées des collections|Projet mis en avant/.test(res.text), res.text.slice(0, 300));
   const homeId = query(dirA, `select id from pages where json_extract(slug,'$.fr')=''`).id;
   res = await callActionJson(jar, ids.deletePageAction, [homeId], "/admin/pages");
   ok("A15b l'accueil ne se supprime pas", res.text.includes("accueil ne se supprime pas"));

@@ -260,7 +260,7 @@ if (run("B")) {
   await page.screenshot({ path: `${SHOTS}/B-cadrage-tuile.png` });
   await f.getByRole("button", { name: "Enregistrer le cadrage" }).click();
   await settled();
-  const key = blockOf(homeId, "collection-tiles")?.props.items?.[0]?.collection;
+  const key = blockOf(homeId, "collection-tiles")?.props.items?.[0]?.collection ?? "characters"; // entrées automatiques (lot 22) : pas de liste, la première tuile est Personnages
   ok("B5 cadrage enregistré pour CETTE tuile (look.tileCrop[collection], zoom > 1)", await waitFor(() => (blockOf(homeId, "collection-tiles")?.props.look?.tileCrop?.[key]?.zoom ?? 1) > 1.2), JSON.stringify(blockOf(homeId, "collection-tiles")?.props.look));
   ok("B6 rendu : image cadrée (cover, zoom, point focal) ; la tuile suivante intacte", await until(f, () => {
     const frames = [...document.querySelectorAll(".tile-frame")];
