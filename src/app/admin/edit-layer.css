@@ -976,7 +976,9 @@ html:not([data-edit-mode]) :is(.pe-tile-tools, .pe-tile-add-row) {
   min-height: 220px;
 }
 
+/* Cadre vide d'une vidéo : une vignette (16:9, 24 rem au plus), pas un grand rectangle pleine largeur. */
 .pe-media-video {
+  width: min(100%, 24rem);
   aspect-ratio: 16 / 9;
   min-height: 0;
 }
@@ -1562,6 +1564,67 @@ html:not([data-edit-mode]) .pe-add-end {
   gap: 8px;
 }
 
+/* « Ajouter des images » dans l'en-tête de la planche (toile seulement). */
+.pe-board-add {
+  align-self: flex-end;
+  margin: 0;
+  padding: 8px 18px;
+  border: 2px dashed rgba(46, 78, 158, 0.6);
+  border-radius: 999px;
+  background: rgba(232, 237, 248, 0.7);
+  color: #2e4e9e;
+  font: 600 14px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.pe-board-add:hover,
+.pe-board-add:focus-visible {
+  border-style: solid;
+  background: #e8edf8;
+  outline: none;
+}
+
+html:not([data-edit-mode]) .pe-board-add {
+  display: none !important;
+}
+
+.pe-board-file {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pe-cell-media {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.pe-cell-pick {
+  margin: 0;
+  padding: 12px 26px;
+  border: 2px solid #2e4e9e;
+  border-radius: 10px;
+  background: #e8edf8;
+  color: #2e4e9e;
+  font: 600 16px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.pe-cell-pick:hover,
+.pe-cell-pick:focus-visible {
+  background: #2e4e9e;
+  color: #fff;
+  outline: none;
+}
+
 .pe-cell-text {
   justify-self: center;
   padding: 6px 16px;
@@ -1655,6 +1718,13 @@ html[data-edit-mode] .pe-field-op:focus-visible {
 
 html:not([data-edit-mode]) .pe-field-op {
   display: none !important;
+}
+
+.pe-cell-or {
+  color: #2e4e9e;
+  font: 500 12px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 /* Case vide d'une grille : les trois choix de texte. */

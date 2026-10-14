@@ -768,6 +768,24 @@
 .block-grid[data-ratio="4:5"] .block-image-media {
   aspect-ratio: 4 / 5;
 }
+.block-grid[data-ratio="3:4"] .block-image-media {
+  aspect-ratio: 3 / 4;
+}
+.block-grid[data-ratio="2:3"] .block-image-media {
+  aspect-ratio: 2 / 3;
+}
+.block-grid[data-ratio="4:3"] .block-image-media {
+  aspect-ratio: 4 / 3;
+}
+.block-grid[data-ratio="3:2"] .block-image-media {
+  aspect-ratio: 3 / 2;
+}
+.block-grid[data-ratio="2:1"] .block-image-media {
+  aspect-ratio: 2 / 1;
+}
+.block-grid[data-ratio="21:9"] .block-image-media {
+  aspect-ratio: 21 / 9;
+}
 .block-grid:not([data-ratio="auto"]) .block-image-media {
   height: auto;
   object-fit: cover;

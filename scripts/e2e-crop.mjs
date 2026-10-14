@@ -359,9 +359,9 @@ if (run("D") && !BEFORE) {
   await target.hover();
   ok("D1 image seule : « Cadrer » au survol (même sans format imposé)", await until(f, () => Boolean(document.querySelector(".lk-crop-btn"))));
   await f.locator(".lk-crop-btn").click();
-  ok("D2 la modale s'ouvre en mode Libre : formats rapides et huit poignées", await until(f, () => document.querySelectorAll(".lk-crop [data-handle]").length === 8 && document.querySelectorAll(".lk-crop-formats button").length === 6));
+  ok("D2 la modale s'ouvre en mode Libre : formats rapides et huit poignées", await until(f, () => document.querySelectorAll(".lk-crop [data-handle]").length === 8 && document.querySelectorAll(".lk-crop-formats button").length === 9));
   const formats = await f.locator(".lk-crop-formats button").allInnerTexts();
-  ok("D2 formats : Libre, Original, 1:1, 4:5, 3:2, 16:9 ; « Libre » actif", formats.join("|") === "Libre|Original|1:1|4:5|3:2|16:9" && (await f.locator('.lk-crop-formats button[data-format="libre"]').getAttribute("aria-pressed")) === "true", formats.join("|"));
+  ok("D2 formats : liste commune (Libre, Original, 1:1, 3:4, 2:3, 4:3, 3:2, 2:1, 21:9) ; « Libre » actif", formats.join("|") === "Libre|Original|Carré 1:1|Portrait 3:4|Portrait 2:3|Paysage 4:3|Paysage 3:2|Panoramique 2:1|Panoramique 21:9" && (await f.locator('.lk-crop-formats button[data-format="libre"]').getAttribute("aria-pressed")) === "true", formats.join("|"));
   const stageBg = await f.locator("[data-testid=crop-stage]").evaluate((e) => e.style.backgroundImage);
   ok("D2 la modale montre l'image ENTIÈRE", /\/media\/img\//.test(stageBg), stageBg.slice(0, 80));
   await page.screenshot({ path: `${SHOTS}/D-modale-libre-${TAG}.png` });

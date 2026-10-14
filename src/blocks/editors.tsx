@@ -30,6 +30,7 @@ import { FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, type FieldType, type 
 
 import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, sameL, TILE_SIZE_LABELS, TILE_SIZES, tilesMode, tileSize, type CollectionPage, type TextField as TileTextField, type TileEdit, type TileItem } from "./collection-pages";
 import { useBlockEditor } from "./editor-context";
+import FormatSelect from "./FormatSelect";
 import type { L } from "./editor-types";
 import { GRID_LAYOUTS } from "./grid-layouts";
 
@@ -139,20 +140,7 @@ export function CollectionTilesEditor() {
         onChange={(v) => set("size", v ?? "medium")}
         error={errorAt(errors, "size")}
       />
-      <Select
-        label="Format des images"
-        help="Imposé : les images sont cadrées (sur la page, survole une image puis « Cadrer » pour choisir la zone gardée)."
-        value={(value.ratio as string) ?? "auto"}
-        options={[
-          { value: "auto", label: "Celui de l'image" },
-          { value: "16:9", label: "Paysage 16:9" },
-          { value: "3:2", label: "Paysage 3:2" },
-          { value: "4:3", label: "Paysage 4:3" },
-          { value: "1:1", label: "Carré" },
-          { value: "4:5", label: "Portrait 4:5" },
-        ]}
-        onChange={(v) => set("ratio", v === "auto" ? undefined : v)}
-      />
+      <FormatSelect label="Format des images" help="Imposé : les images sont cadrées (sur la page, survole une image puis « Cadrer » pour choisir la zone gardée)." />
       <Select
         label="Entrées"
         help={
@@ -352,18 +340,7 @@ export function ProfileEditor() {
   return (
     <>
       <MediaPicker label="Portrait" value={value.portraitMediaId as number | undefined} onChange={(v) => set("portraitMediaId", v)} error={errorAt(errors, "portraitMediaId")} context={context} />
-      <Select
-        label="Format du portrait"
-        help="Imposé : le portrait est cadré (sur la page, « Cadrer »)."
-        value={(value.portraitRatio as string) ?? "auto"}
-        options={[
-          { value: "auto", label: "Celui de l'image" },
-          { value: "4:5", label: "Portrait 4:5" },
-          { value: "3:4", label: "Portrait 3:4" },
-          { value: "1:1", label: "Carré" },
-        ]}
-        onChange={(v) => set("portraitRatio", v === "auto" ? undefined : v)}
-      />
+      <FormatSelect label="Format du portrait" ratioProp="portraitRatio" mediaProp="portraitMediaId" help="Imposé : le portrait est cadré (sur la page, « Cadrer »)." />
       <TextI18n label="Légende du portrait" value={l(value.portraitCaption)} onChange={(v) => set("portraitCaption", v)} error={errorAt(errors, "portraitCaption")} />
       <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
       <Paragraphs
@@ -500,18 +477,7 @@ export function GridEditor() {
         ]}
         onChange={(v) => set("align", v ?? "stretch")}
       />
-      <Select
-        label="Format des images"
-        help="Les vidéos gardent leur cadre 16:9."
-        value={(value.ratio as string) ?? "auto"}
-        options={[
-          { value: "auto", label: "Libre (format d'origine)" },
-          { value: "16:9", label: "16:9" },
-          { value: "1:1", label: "Carré" },
-          { value: "4:5", label: "Portrait 4:5" },
-        ]}
-        onChange={(v) => set("ratio", v ?? "auto")}
-      />
+      <FormatSelect label="Format des images" help="Les vidéos gardent leur cadre 16:9." explicitAuto />
       <Toggle label="Espace au-dessus (comme entre deux sections)" checked={(value.top ?? "gap") === "gap"} onChange={(on) => set("top", on ? "gap" : "none")} />
       <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
       <TextI18n label="Titre (facultatif)" value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
@@ -537,20 +503,7 @@ export function ImageEditor() {
         ]}
         onChange={(v) => set("width", v ?? "wide")}
       />
-      <Select
-        label="Format"
-        help="Imposé : l'image est cadrée (sur la page, survole-la puis « Cadrer » pour choisir la zone gardée)."
-        value={(value.ratio as string) ?? "auto"}
-        options={[
-          { value: "auto", label: "Celui de l'image" },
-          { value: "16:9", label: "Paysage 16:9" },
-          { value: "4:3", label: "Paysage 4:3" },
-          { value: "1:1", label: "Carré" },
-          { value: "4:5", label: "Portrait 4:5" },
-          { value: "3:4", label: "Portrait 3:4" },
-        ]}
-        onChange={(v) => set("ratio", v === "auto" ? undefined : v)}
-      />
+      <FormatSelect help="Imposé : l'image est cadrée (sur la page, survole-la puis « Cadrer » pour choisir la zone gardée)." mediaProp="mediaId" />
       <Select
         label="Dans le cadre"
         help="Sans format imposé, l'image garde le sien. Avec un format : « Image entière » la montre en entier (bandes vides si besoin), « Remplir le cadre » la rogne. Un recadrage libre (« Cadrer » sur la page) suit son propre format."

@@ -4,6 +4,7 @@ import { z } from "zod";
 import Eyebrow from "@/components/Eyebrow";
 import EmailText from "@/components/EmailText";
 import SocialIcon from "@/components/SocialIcon";
+import { RATIO_VALUES } from "@/lib/images/formats";
 import { getMedia } from "@/lib/media";
 import { getSiteView } from "@/lib/settings";
 import { socialKeys } from "@/lib/site-schema";
@@ -20,7 +21,7 @@ export const profileSchema = z.object({
   contactLabel: localized,
   socialEyebrow: localized,
   /** Format imposé au portrait (cadré : « Cadrer » sur la toile). Auto : son format. */
-  portraitRatio: z.enum(["auto", "4:5", "3:4", "1:1"]).optional(),
+  portraitRatio: z.enum(RATIO_VALUES).optional(),
 });
 
 /**

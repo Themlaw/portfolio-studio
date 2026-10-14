@@ -58,6 +58,7 @@ import AddSectionDialog, { type AddChoice } from "./AddSectionDialog";
 import { BlockLookPanel, SiteStylesPanel } from "./LookPanel";
 import { ColorsPanel, LogoPanel, type HighlightInfo } from "./SiteLookPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
+import MediaPreviewDialog from "./MediaPreviewDialog";
 import SiteEditor, { applySiteOp, siteText } from "./SiteEditor";
 import StructureTree from "./StructureTree";
 import BlockThumb from "./thumbs";
@@ -747,6 +748,12 @@ export default function VisualEditor({
     else insertStarter(what, { parent, index });
   };
 
+  /** Case vide de grille, « Image » / « Vidéo » : le choix du média s'ouvre ; il est posé dans une nouvelle case. */
+  const [cellPick, setCellPick] = useState<{ uid: string; kind: "image" | "video" } | null>(null);
+  const requestCellMedia = (uid: string, kind: "image" | "video") => {
+    if (findBlock(draftRef.current.blocks, uid)?.type === "grid") setCellPick({ uid, kind });
+  };
+
   /** Fond d'une rubrique de premier niveau, depuis la toile (lot 17c) ; false = refusé ou sans effet. */
   const applySurface = (uid: string, next: Surface | null, continuous = false): boolean => {
     const list = draftRef.current.blocks;
@@ -1400,6 +1407,9 @@ export default function VisualEditor({
       el.removeEventListener("pointerup", up);
       el.removeEventListener("pointercancel", cancel);
       if (!dragging) return;
+      // Le « clic » qui suit un glisser n'est pas une demande de pose.
+      justDragged.current = true;
+      setTimeout(() => (justDragged.current = false), 300);
       noSelection(false);
       const target = dropTargetRef.current;
       dropTargetRef.current = null;
@@ -1412,6 +1422,23 @@ export default function VisualEditor({
     el.addEventListener("pointermove", move);
     el.addEventListener("pointerup", up);
     el.addEventListener("pointercancel", cancel);
+  };
+
+  /**
+   * Clic (sans glisser) sur une vignette de l'onglet Médias : la pose dans le bloc sélectionné qui peut la
+   * recevoir (image, vidéo, fond, portrait ; ou case de la grille sélectionnée), sinon en ouvre l'aperçu.
+   */
+  const [mediaPreview, setMediaPreview] = useState<AdminMediaRow | null>(null);
+  const justDragged = useRef(false);
+  const activateMedia = (m: AdminMediaRow) => {
+    if (m.status === "failed" || justDragged.current) return;
+    const block = selected && !selected.startsWith("site-") ? findBlock(draftRef.current.blocks, selected) : null;
+    if (block && m.status === "ready" && m.kind !== "pdf") {
+      const field = own(byType, block.type)?.mediaFields?.find((f) => f.kind === m.kind || (f.kind === "any" && m.kind !== "pdf"));
+      if (field) return placeMedia({ kind: "media", uid: block.uid, field: field.field as "mediaId" | "backgroundMediaId" | "portraitMediaId" }, m.id, m.kind);
+      if (block.type === "grid") return placeMedia({ kind: "cell", uid: block.uid }, m.id, m.kind);
+    }
+    setMediaPreview(m);
   };
 
   // Envois de l'onglet Médias (Uploader) : la grille se met à jour sans rechargement.
@@ -1447,9 +1474,9 @@ export default function VisualEditor({
     });
   };
 
-  const handlers = useRef({ op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook });
+  const handlers = useRef({ op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook });
   useEffect(() => {
-    handlers.current = { op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook };
+    handlers.current = { op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -1587,6 +1614,9 @@ export default function VisualEditor({
           break;
         case "insert":
           h.requestInsert(msg.parent, msg.index, msg.what);
+          break;
+        case "cell-media":
+          h.requestCellMedia(msg.uid, msg.media);
           break;
         case "site-look":
           lookEchoed.current++;
@@ -1848,12 +1878,13 @@ export default function VisualEditor({
   const frameSrc = `/admin/api/editeur/toile?page=${pageId}&langue=${locale}`;
   const media = context.media;
   const [mediaTags, setMediaTags] = useState<string[]>([]);
+  const [mediaQuery, setMediaQuery] = useState("");
   const tagOptions = useMemo(() => {
     const seen = new Map<string, string>();
     for (const m of media) for (const t of m.tags) seen.set(t.label.toLowerCase(), t.label);
     return [...seen.values()].sort((a, b) => a.localeCompare(b, "fr"));
   }, [media]);
-  const shownMedia = useMemo(() => filterMedia(media, mediaTags, ""), [media, mediaTags]);
+  const shownMedia = useMemo(() => filterMedia(media, mediaTags, mediaQuery), [media, mediaTags, mediaQuery]);
 
   const panel = (
     <aside className="ve-panel" data-open={sheet || undefined} aria-label="Outils de l'éditeur" inert={mobile && !sheet ? true : undefined}>
@@ -1967,6 +1998,10 @@ export default function VisualEditor({
         {tab === "medias" && (
           <>
             <Uploader origin={`editeur-${pageId}`} libraryLabel="Voir dans la Médiathèque" />
+            <label className="ve-media-search">
+              <span className="sr-only">Rechercher par nom ou tag</span>
+              <input className="a-input" type="search" placeholder="Rechercher par nom ou tag…" value={mediaQuery} onChange={(e) => setMediaQuery(e.target.value)} />
+            </label>
             {tagOptions.length > 0 && (
               <div className="ve-chips" role="group" aria-label="Filtrer par tags">
                 {tagOptions.map((t) => {
@@ -1980,21 +2015,31 @@ export default function VisualEditor({
               </div>
             )}
             {shownMedia.length === 0 ? (
-              <p className="ve-empty">{media.length ? "Aucun média ne porte tous ces tags." : "Ta médiathèque est vide : dépose des fichiers ci-dessus."}</p>
+              <p className="ve-empty">{media.length ? "Aucun média ne correspond." : "Ta médiathèque est vide : dépose des fichiers ci-dessus."}</p>
             ) : (
               <ul className="ve-media" aria-label="Médias">
                 {shownMedia.slice(0, 120).map((m) => (
                   <li
                     key={m.id}
-                    title={`${m.name} : glisse sur une planche`}
-                    style={{ backgroundColor: m.color ?? undefined }}
+                    title={`${m.name} : clique pour la poser dans le bloc choisi (ou l'afficher), glisse-la sur une planche`}
                     data-media={m.id}
                     data-status={m.status}
+                    tabIndex={m.status === "failed" ? undefined : 0}
+                    role="button"
+                    aria-label={`${m.name} : poser ou afficher`}
                     onPointerDown={(e) => onMediaDown(e, m)}
+                    onClick={() => activateMedia(m)}
+                    onKeyDown={(e) => {
+                      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                        e.preventDefault();
+                        activateMedia(m);
+                      }
+                    }}
                   >
+                    <span className="ve-media-thumb">
                     {m.thumb && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={m.thumb} alt={m.alt.fr || m.name} loading="lazy" draggable={false} />
+                      <img src={m.thumb} alt="" loading="lazy" draggable={false} />
                     )}
                     {m.kind === "video" && <span className="ve-media-kind" aria-hidden="true">▶</span>}
                     {m.status === "processing" && <span className="ve-media-state">{m.kind === "video" ? "Conversion…" : "Traitement…"}</span>}
@@ -2011,13 +2056,15 @@ export default function VisualEditor({
                         </button>
                       </span>
                     )}
+                    </span>
+                    <span className="ve-media-name">{m.name}</span>
                   </li>
                 ))}
               </ul>
             )}
             <p className="ve-hint">
-              Glisse une image sur une planche de la page : entre deux images, ou sur une place vide. Tu peux aussi déposer des fichiers de ton
-              ordinateur directement sur la planche.
+              Clique une vignette pour la poser dans l&apos;image, la vidéo ou la grille sélectionnée (sinon elle s&apos;affiche en grand), ou glisse-la sur une
+              planche de la page : entre deux images, ou sur une place vide. Tu peux aussi déposer des fichiers de ton ordinateur directement sur la planche.
             </p>
           </>
         )}
@@ -2403,8 +2450,28 @@ export default function VisualEditor({
         }}
       />
 
+      <MediaPreviewDialog media={mediaPreview} onClose={() => setMediaPreview(null)} />
+
+      <MediaPickerDialog
+        open={cellPick !== null}
+        kind={cellPick?.kind}
+        media={context.media.filter((m) => m.kind === (cellPick?.kind ?? "image"))}
+        onClose={() => setCellPick(null)}
+        onPick={(mediaId) => {
+          const p = cellPick;
+          setCellPick(null);
+          if (p) placeMedia({ kind: "cell", uid: p.uid }, mediaId, p.kind);
+        }}
+        onFile={(file) => {
+          const p = cellPick;
+          setCellPick(null);
+          if (p) void uploadToBlock({ kind: "cell", uid: p.uid }, [file]);
+        }}
+      />
+
       <MediaPickerDialog
         open={mediaPick !== null}
+        kind={mediaPick?.kind === "video" ? "video" : mediaPick?.kind === "image" ? "image" : undefined}
         media={mediaPick && mediaPick.kind !== "any" ? context.media.filter((m) => m.kind === mediaPick.kind) : context.media.filter((m) => m.kind !== "pdf")}
         onClose={() => setMediaPick(null)}
         onPick={(mediaId) => {
