@@ -28,5 +28,7 @@ function frenchMessage(message: string): string {
   if (/Too small|at least 1/i.test(message)) return "Ce champ ne peut pas être vide.";
   if (/Invalid email/i.test(message)) return "Adresse e-mail invalide (ex. nom@domaine.fr).";
   if (/Invalid url|Invalid URL/i.test(message)) return "Adresse web invalide (ex. https://…).";
+  if (/Too big|at most \d+|<=\s*\d+/i.test(message)) return "Ce texte est trop long : raccourcis-le.";
+  if (/Invalid option|Invalid input|expected .* received/i.test(message)) return "Valeur incorrecte : vérifie ce champ.";
   return message;
 }

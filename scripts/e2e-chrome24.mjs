@@ -153,6 +153,83 @@ if (run("A")) {
   await page.setViewportSize({ width: 1440, height: 900 });
 }
 
+/* ---- B. Échap valide la saisie en place --------------------------------------------------------- */
+if (run("B")) {
+  const f = await openEditor();
+  const field = f.locator("[data-edit-block] [data-inline]").first();
+  await field.scrollIntoViewIfNeeded();
+  const before = ((await field.textContent()) ?? "").trim();
+  const typed = "Texte validé par Échap";
+  await field.dblclick();
+  ok("B1 la saisie en place s'ouvre", await until(f, () => Boolean(document.querySelector("[data-editing]"))));
+  await page.keyboard.press("Control+a");
+  await page.keyboard.type(typed);
+  await page.keyboard.press("Escape");
+  ok("B2 Échap ferme la saisie", await until(f, () => !document.querySelector("[data-editing]")));
+  ok("B3 le texte tapé reste affiché", await until(f, (t) => [...document.querySelectorAll("[data-edit-block] [data-inline]")].some((e) => e.textContent?.trim() === t), typed), "");
+  await settled();
+  ok("B4 le texte tapé est dans le brouillon", await waitFor(() => JSON.stringify(draftOf(1)).includes(typed)));
+  await page.screenshot({ path: path.join(SHOTS, "B-echap-valide.png") });
+  // Annuler (Ctrl+Z) rend le texte d'avant.
+  await page.locator(".ve-top").click({ position: { x: 700, y: 10 } });
+  await page.keyboard.press("Control+z");
+  ok("B5 Ctrl+Z rend le texte d'avant", await until(f, (t) => ![...document.querySelectorAll("[data-edit-block] [data-inline]")].some((e) => e.textContent?.trim() === t), typed), before);
+  await settled();
+  ok("B6 le brouillon n'a plus le texte tapé", await waitFor(() => !JSON.stringify(draftOf(1) ?? "").includes(typed)));
+}
+
+/* ---- C. Publication refusée : liste en français, lignes cliquables ------------------------------- */
+if (run("C")) {
+  let f = await openEditor();
+  // Deux rubriques inachevées en bas de page : un Texte laissé tel quel (texte d'aide) et une Image sans fichier.
+  await page.locator('.ve-starter[data-starter]').first().click();
+  await settled();
+  await page.keyboard.press("Escape");
+  await page.getByRole("tab", { name: "Ajouter" }).click();
+  await page.locator('.ve-card[data-key="image"]').click();
+  await settled();
+  await sleep(500);
+  const blocks = () => draftOf(1)?.blocks ?? [];
+  ok("C0 deux rubriques ajoutées en fin de page", await waitFor(() => blocks().length >= 2 && blocks().at(-1).type === "image" && blocks().at(-2).type === "rich-text"), JSON.stringify(blocks().map((b) => b.type)));
+  const textUid = blocks().at(-2).uid;
+  const imageUid = blocks().at(-1).uid;
+  await page.getByRole("button", { name: "Publier", exact: true }).click();
+  const panel = page.locator('[data-testid="publish-problems"]');
+  ok("C1 la liste des problèmes s'affiche", await panel.waitFor({ timeout: 60000 }).then(() => true, () => false));
+  const lines = await panel.locator("li").allInnerTexts();
+  await page.screenshot({ path: path.join(SHOTS, "C-liste-problemes.png") });
+  ok("C2 une ligne par rubrique inachevée", lines.length === 2, JSON.stringify(lines));
+  const all = (await panel.textContent()) ?? "";
+  ok("C3 texte en français : rubrique nommée, aucune chaîne technique", /Rubrique n° \d+ « Texte »/.test(all) && /Rubrique n° \d+ « Image »/.test(all) && !/blocks\.|props\.|undefined|\[object/.test(all), all);
+  ok("C4 le titre dit le nombre de points à corriger", /2 points à corriger/.test(all), all);
+  // Défile jusqu'en haut de la page : la ligne de l'image doit ramener la rubrique dans la vue et la choisir.
+  await f.evaluate(() => window.scrollTo(0, 0));
+  await sleep(500);
+  await panel.locator("li", { hasText: "« Image »" }).getByRole("button").click();
+  ok("C5 clic sur la ligne : la rubrique est choisie sur la toile", await until(f, () => document.querySelector(".pe-selected") !== null));
+  ok("C6 clic sur la ligne : l'onglet Réglages est ouvert", (await page.getByRole("tab", { name: "Réglages" }).getAttribute("aria-selected")) === "true");
+  ok("C7 clic sur la ligne : le panneau montre les réglages de l'image", await page.locator(".ve-settings-head h2", { hasText: "Image" }).waitFor({ timeout: 10000 }).then(() => true, () => false));
+  const vis = await waitFor(async () => {
+    const r = await f.evaluate(() => {
+      const el = document.querySelector(".pe-selected");
+      if (!el) return null;
+      const b = el.getBoundingClientRect();
+      return { top: b.top, bottom: b.bottom, h: window.innerHeight };
+    });
+    return Boolean(r && r.bottom > 0 && r.top < r.h);
+  }, 15000);
+  ok("C8 clic sur la ligne : la toile a défilé jusqu'à la rubrique", vis);
+  // La ligne du texte mène à lui.
+  await f.evaluate(() => window.scrollTo(0, 0));
+  await sleep(400);
+  await panel.locator("li", { hasText: "« Texte »" }).getByRole("button").click();
+  ok("C9 la ligne du Texte choisit le Texte", await waitFor(() => f.evaluate(() => { const b = document.querySelector(".pe-selected")?.getBoundingClientRect(); return Boolean(b && b.bottom > 0 && b.top < window.innerHeight); })));
+  ok("C10 les réglages montrent le Texte", await page.locator(".ve-settings-head h2", { hasText: "Texte" }).waitFor({ timeout: 10000 }).then(() => true, () => false));
+  // Corriger (ici depuis le panneau) fait disparaître la liste.
+  await page.locator(".ve-settings textarea").first().fill("Un vrai texte");
+  ok("C11 la liste périmée disparaît dès qu'on modifie la page", await panel.waitFor({ state: "detached", timeout: 20000 }).then(() => true, () => false));
+}
+
 ok("aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));
 await browser.close();
 if (failures) {

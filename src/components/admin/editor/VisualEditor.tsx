@@ -60,6 +60,7 @@ import { ColorsPanel, LogoPanel, type HighlightInfo } from "./SiteLookPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
 import SiteEditor, { applySiteOp, siteText } from "./SiteEditor";
 import StructureTree from "./StructureTree";
+import { describeProblems, type Problem } from "./problems";
 import TopMore from "./TopMore";
 import BlockThumb from "./thumbs";
 
@@ -1754,7 +1755,7 @@ export default function VisualEditor({
           setTab("reglages");
           if (mobile) setSheet(true);
         }
-        toast("Publication impossible : corrige ce qui est signalé.", "error");
+        toast("Publication impossible : la liste des points à corriger est en haut de la page.", "error");
         return;
       }
       revRef.current = result.data.rev;
@@ -1824,7 +1825,19 @@ export default function VisualEditor({
   const editor = selBlock ? own(editors, selBlock.type) : undefined;
   // Fil d'Ariane du bloc choisi (conteneurs qui l'englobent).
   const selChain = selBlock ? walkTree(blocks).find((v) => v.block.uid === selBlock.uid)?.ancestors ?? [] : [];
-  const pageErrors = Object.entries(publishErrors).filter(([k]) => !k.startsWith("blocks."));
+  // Publication refusée : la liste des problèmes en français (chaque ligne mène au bon endroit).
+  const problems = useMemo(() => describeProblems(blocks, publishErrors, (t) => own(byType, t)?.label ?? t), [blocks, publishErrors, byType]);
+  const goToProblem = (p: Problem) => {
+    if (p.kind === "block" && p.uid) {
+      selectBlock(p.uid, { scroll: true });
+      setTab("reglages");
+    } else if (p.kind === "page") {
+      // Réglages de la page et du site : visibles quand aucun bloc n'est choisi.
+      selectBlock(null);
+      setTab("reglages");
+      if (mobile) setSheet(true);
+    }
+  };
   const deletingBlock = deleting ? findBlock(blocks, deleting) : null;
   const deletingCount = descendantCount(deletingBlock);
   /** Blocs et composants signalés par la publication (uid). */
@@ -2257,14 +2270,33 @@ export default function VisualEditor({
       <div className="ve-body">
         {mode === "edit" && panel}
         <main className="ve-canvas" data-device={mobile ? "phone" : device}>
-          {(publishMessage || pageErrors.length > 0) && mode === "edit" && (
-            <div className="ve-alert" role="alert">
-              <strong>{publishMessage}</strong>
-              {pageErrors.map(([k, v]) => (
-                <span key={k}>
-                  {v} <Link href={`/admin/pages/${pageId}`}>Ouvrir le formulaire</Link>
-                </span>
-              ))}
+          {(publishMessage || problems.length > 0) && mode === "edit" && (
+            <div className="ve-alert ve-problems" role="alert" data-testid="publish-problems">
+              <strong>
+                {problems.length > 0 ? `Publication impossible : ${problems.length} point${problems.length > 1 ? "s" : ""} à corriger.` : publishMessage}
+              </strong>
+              {problems.length > 0 && (
+                <>
+                  <span className="ve-problems-hint">Clique sur une ligne pour aller au bon endroit de la page.</span>
+                  <ul className="ve-problems-list">
+                    {problems.map((p) => (
+                      <li key={p.key}>
+                        {p.kind === "form" ? (
+                          <Link href={`/admin/pages/${pageId}`} className="ve-problem">
+                            <span className="ve-problem-where">{p.field ?? p.where}</span>
+                            <span className="ve-problem-msg">{p.message} Ouvrir le formulaire de la page.</span>
+                          </Link>
+                        ) : (
+                          <button type="button" className="ve-problem" onClick={() => goToProblem(p)}>
+                            <span className="ve-problem-where">{p.field && p.kind === "block" ? `${p.where} · ${p.field}` : (p.field ?? p.where)}</span>
+                            <span className="ve-problem-msg">{p.message}</span>
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           )}
           {blocked === "conflict" && mode === "edit" && (

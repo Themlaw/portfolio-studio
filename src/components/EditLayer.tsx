@@ -929,8 +929,9 @@ export default function EditLayer() {
           e.preventDefault();
           finishEdit(true);
         } else if (e.key === "Escape") {
+          // Échap VALIDE la saisie (comme cliquer ailleurs) : ce qui est tapé n'est jamais perdu. Pour revenir en arrière : Annuler / Ctrl+Z.
           e.preventDefault();
-          finishEdit(false);
+          finishEdit(true);
         }
         return;
       }
@@ -1369,7 +1370,7 @@ export default function EditLayer() {
           >
             {markBar.state === true ? "Retirer le surlignage" : "Surligner"}
           </button>
-          <span className="pe-markbar-hint">Sélectionne un mot · Entrée valide · Échap annule</span>
+          <span className="pe-markbar-hint">Sélectionne un mot · Entrée ou Échap valide</span>
         </div>
       )}
 
