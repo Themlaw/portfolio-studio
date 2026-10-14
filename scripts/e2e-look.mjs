@@ -9,7 +9,7 @@
  *  C. Police Google choisie dans le menu : téléchargée par le SERVEUR, servie
  *     par /fonts/, appliquée ; AUCUNE requête du navigateur vers Google.
  *  D. Cadrage du portrait (format imposé) : zone déplacée et zoomée au clavier.
- *  E. Ouverture : fond du métier (bandeau) depuis la barre du texte.
+ *  E. Ouverture : fond du métier (bandeau) depuis la barre du texte (ligne « Fond » commune à tous les textes, lot 21 : e2e-fond-texte.mjs).
  *  H. Tailles (échelle croissante, réellement appliquée, gagne sur les variantes du
  *     thème), couleur libre (sélecteur : HEX, clavier, Échap, clic extérieur,
  *     écran étroit), menu de graisse maison.
@@ -334,10 +334,11 @@ if (run("E")) {
   await until(f, () => Boolean(document.querySelector(".lk-aa")));
   await f.locator(".lk-aa").click();
   await until(f, () => Boolean(document.querySelector(".lk-bar")));
-  ok("E1 barre du métier : choix du fond", (await f.locator(".lk-bar .lk-row button").count()) === 4);
-  await f.locator(".lk-bar .lk-row button", { hasText: "Bandeau" }).click();
+  // Lot 21 : le fond est une propriété du style du texte (ligne « Fond » de TypoControls, la même pour tous les textes).
+  ok("E1 barre du métier : choix du fond", (await f.locator('.lk-bar .tc-bd [role="radio"]').count()) === 4);
+  await f.locator('.lk-bar .tc-bd [role="radio"]', { hasText: "Bandeau" }).click();
   await settled();
-  ok("E2 fond « bandeau » enregistré sur l'ouverture", await waitFor(() => blockOf(1, "hero")?.props.look?.roleBackdrop === "band"));
+  ok("E2 fond « bandeau » enregistré sur le texte du métier", await waitFor(() => blockOf(1, "hero")?.props.look?.text?.["site.role"]?.backdrop === "band"), JSON.stringify(blockOf(1, "hero")?.props.look));
   ok("E3 rendu : bandeau derrière le métier", await until(f, (s) => getComputedStyle(document.querySelector(s)).backgroundColor !== "rgba(0, 0, 0, 0)", role));
   await page.keyboard.press("Escape");
   await sleep(600);
