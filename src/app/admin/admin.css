@@ -6140,6 +6140,7 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   color: var(--admin-ink-soft);
   font-size: 12px;
   line-height: 1.35;
+}
 
 /* ---- Lot 23 : corbeille, adresses discrètes, menu « … » des thèmes ------------------ */
 
