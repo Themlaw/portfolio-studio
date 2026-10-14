@@ -328,7 +328,7 @@ export default function ThemeEditor({
   const persist = () => {
     setConfirmLive(false);
     startSaving(async () => {
-      const result = await saveThemeAction(initial.id, theme);
+      const result = await saveThemeAction(initial.id, theme, isActive);
       if (!result.ok) {
         setError(result.message);
         setErrors(result.fieldErrors ?? {});

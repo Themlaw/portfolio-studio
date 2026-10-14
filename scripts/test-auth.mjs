@@ -1126,6 +1126,21 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   theme.tokens.color.bg = "#fff;}body{display:none";
   res = await callActionJson(jar, ids.saveThemeAction, [copyId, theme], `/admin/themes/${copyId}`);
   ok("A12d valeur CSS injectée → refusée par le schéma", res.text.includes('"ok":false'), res.text.slice(0, 200));
+  // v0.18.1 : le thème en ligne ne s'enregistre que confirmé (champ `confirmLive`, vérifié côté serveur).
+  {
+    const live = JSON.parse(query(dirA, "select data from themes where id = ?", copyId).data);
+    await callActionJson(jar, ids.activateThemeAction, [copyId], "/admin/themes");
+    live.name = "Copie en ligne renommée";
+    res = await callActionJson(jar, ids.saveThemeAction, [copyId, live], `/admin/themes/${copyId}`);
+    ok("A12e thème en ligne sans confirmLive → refusé avec un message clair", res.text.includes('"ok":false') && res.text.includes("Confirme la mise en ligne") && JSON.parse(query(dirA, "select data from themes where id = ?", copyId).data).name !== live.name, res.text.slice(0, 200));
+    res = await callActionJson(jar, ids.saveThemeAction, [copyId, live, "oui"], `/admin/themes/${copyId}`);
+    ok("A12e confirmLive doit valoir exactement true", res.text.includes('"ok":false'), res.text.slice(0, 200));
+    res = await callActionJson(jar, ids.saveThemeAction, [copyId, live, true], `/admin/themes/${copyId}`);
+    ok("A12e thème en ligne avec confirmLive: true → enregistré", res.text.includes('"ok":true') && JSON.parse(query(dirA, "select data from themes where id = ?", copyId).data).name === live.name, res.text.slice(0, 200));
+    await callActionJson(jar, ids.activateThemeAction, ["galerie-lumineuse"], "/admin/themes");
+    res = await callActionJson(jar, ids.saveThemeAction, [copyId, { ...live, name: "Hors ligne" }], `/admin/themes/${copyId}`);
+    ok("A12e thème hors ligne : aucune confirmation demandée", res.text.includes('"ok":true'), res.text.slice(0, 200));
+  }
   res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "Admin", en: "Admin" }, slug: { fr: "admin", en: "admin-en" } }], "/admin/pages");
   ok("A13 slug réservé → refusé", res.text.includes("réservé") && res.text.includes('"ok":false'), res.text.slice(0, 300));
   res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "X", en: "X" }, slug: { fr: "_cache", en: "Majuscules" } }], "/admin/pages");

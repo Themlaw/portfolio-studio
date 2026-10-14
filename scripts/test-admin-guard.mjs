@@ -190,6 +190,14 @@ for (const rel of GUARDED_GET) {
 for (const name of EXPECTED) {
   if (!found.has(name)) failures.push(`action attendue « ${name} » introuvable (supprimée ? renommée ? mettre à jour EXPECTED)`);
 }
+// Le thème en ligne ne s'enregistre pas sans confirmation vérifiée CÔTÉ SERVEUR (v0.18.1) : l'action transmet `confirmLive`
+// et saveTheme refuse sans lui quand le thème est l'actif.
+{
+  const act = readFileSync(join(ROOT, "src/app/admin/(espace)/themes/actions.ts"), "utf8");
+  const lib = readFileSync(join(ROOT, "src/lib/edit/themes.ts"), "utf8");
+  if (!/saveThemeAction\(id: unknown, input: unknown, confirmLive\?: unknown\)/.test(act) || !/saveTheme\(tid, input, confirmLive === true\)/.test(act)) failures.push("saveThemeAction : le champ confirmLive n'est plus transmis à saveTheme");
+  if (!/activeThemeId\(\) === id && confirmLive !== true/.test(lib)) failures.push("saveTheme : le refus du thème en ligne sans confirmLive a disparu");
+}
 if (checked === 0) failures.push("aucune server action trouvée : le test ne vérifie rien (chemins à revoir ?)");
 
 if (failures.length) {

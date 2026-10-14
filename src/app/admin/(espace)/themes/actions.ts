@@ -31,11 +31,12 @@ export async function duplicateThemeAction(id: unknown): Promise<ActionResult<{ 
   return result;
 }
 
-export async function saveThemeAction(id: unknown, input: unknown): Promise<ActionResult<null>> {
+/** `confirmLive` : confirmation de la mise en ligne, exigée (côté serveur) quand le thème enregistré est le thème actif. */
+export async function saveThemeAction(id: unknown, input: unknown, confirmLive?: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const tid = themeId(id);
   if (!tid) return fail("Thème inconnu.");
-  const result = saveTheme(tid, input);
+  const result = saveTheme(tid, input, confirmLive === true);
   if (result.ok) {
     revalidateTheme();
     // Le thème a changé : ses kits en cache sont périmés.
