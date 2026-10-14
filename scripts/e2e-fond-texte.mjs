@@ -370,7 +370,7 @@ if (run("C")) {
   // Hors métier (qui a son propre style local éventuel) : toutes les légendes de la page.
   const legendes = await f.evaluate(() => [...document.querySelectorAll(".caption-text, figcaption, .strip-caption")].filter((e) => !e.closest(".site-header")).length);
   const colored = await f.evaluate(
-    (T) => {
+    () => {
       const els = [...document.querySelectorAll(".caption-text, figcaption, .strip-caption")].filter((e) => !e.closest(".site-header"));
       return els.filter((e) => getComputedStyle(e).backgroundColor !== "rgba(0, 0, 0, 0)").length;
     },
