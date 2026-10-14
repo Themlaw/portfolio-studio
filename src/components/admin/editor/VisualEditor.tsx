@@ -1545,8 +1545,8 @@ export default function VisualEditor({
           break;
         case "select":
           h.selectBlock(msg.uid, { notify: false });
-          // Depuis Ajouter ou Médias, un clic choisit l'endroit visé : l'onglet reste.
-          if (msg.uid && !mobile) setTab((t) => (t === "structure" ? "reglages" : t));
+          // Un clic sur un bloc de la toile ouvre ses Réglages, d'où qu'on vienne (Ajouter, Médias, Structure) ; « Ajouter » ajoute ensuite sous lui.
+          if (msg.uid) setTab("reglages");
           break;
         case "op":
           h.op(msg.op, msg.uid);
@@ -2133,7 +2133,11 @@ export default function VisualEditor({
                   {editor}
                 </BlockEditorContext.Provider>
               ) : (
-                <p className="ve-empty">Ce type de bloc n&apos;a pas de réglages.</p>
+                <p className="ve-empty">
+                  {selDef.inline.length > 0
+                    ? "Cette rubrique n'a pas de réglage à part : ses textes se modifient directement sur la page (double-clic dessus). Sa mise en page se règle ci-dessous."
+                    : "Cette rubrique n'a pas de réglage à part : elle s'affiche telle quelle. Sa mise en page (espaces) se règle ci-dessous ; tu peux aussi la déplacer, la dupliquer ou la supprimer avec les boutons ci-dessus."}
+                </p>
               )}
               <BlockLookPanel
                 key={selBlock.uid}

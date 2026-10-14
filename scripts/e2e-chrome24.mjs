@@ -230,6 +230,57 @@ if (run("C")) {
   ok("C11 la liste périmée disparaît dès qu'on modifie la page", await panel.waitFor({ state: "detached", timeout: 20000 }).then(() => true, () => false));
 }
 
+/* ---- D. Un clic sur un bloc ouvre Réglages ; matrice type → réglages ----------------------------- */
+if (run("D")) {
+  let f = await openEditor();
+  const tab = (name) => page.getByRole("tab", { name, exact: true });
+  const selectedTab = async () => (await page.locator('[role="tab"][aria-selected="true"]').first().textContent())?.trim();
+  // D1-D3 : depuis Ajouter, Médias et Structure, un clic sur une rubrique de la toile ouvre Réglages sur elle.
+  const blockLabels = async () => f.evaluate(() => [...document.querySelectorAll("[data-edit-block]:not([data-edit-parent])")].map((e) => e.dataset.editBlock));
+  const uids = await blockLabels();
+  ok("D0 la page porte des rubriques", uids.length >= 2, JSON.stringify(uids));
+  for (const [n, name] of [["D1", "Ajouter"], ["D2", "Médias"], ["D3", "Structure"]]) {
+    await tab(name).click();
+    const uid = uids[1];
+    const target = f.locator(`[data-edit-block="${uid}"]`).first();
+    await target.scrollIntoViewIfNeeded();
+    // Un point de la rubrique hors poignées : son milieu.
+    const box = await f.evaluate((u) => {
+      const els = [...document.querySelectorAll(`[data-edit-block="${u}"] *`)].filter((e) => e.getBoundingClientRect().height > 8 && e.getBoundingClientRect().width > 8);
+      const r = (els[0] ?? document.querySelector(`[data-edit-block="${u}"]`)).getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: Math.min(window.innerHeight - 20, Math.max(20, r.top + Math.min(r.height / 2, 60))) };
+    }, uid);
+    await f.locator("html").click({ position: { x: box.x, y: box.y }, force: true });
+    ok(`${n} depuis « ${name} » : un clic sur la toile ouvre Réglages`, await waitFor(async () => (await selectedTab()) === "Réglages", 10000), await selectedTab());
+    ok(`${n}b le panneau montre les réglages de la rubrique choisie`, await page.locator(".ve-settings-head h2").first().waitFor({ timeout: 10000 }).then(() => true, () => false));
+  }
+  await page.screenshot({ path: path.join(SHOTS, "D-clic-reglages.png") });
+
+  // D4 : matrice type de bloc → réglages (un exemplaire de chaque composant du panneau « Ajouter »).
+  await tab("Ajouter").click();
+  const cards = await page.evaluate(() => [...document.querySelectorAll(".ve-card")].map((c) => ({ key: c.dataset.key, type: c.dataset.type, label: c.querySelector("strong")?.textContent?.trim() })));
+  const matrix = [];
+  for (const card of cards) {
+    await tab("Ajouter").click();
+    await page.locator(`.ve-card[data-key="${card.key}"]`).click();
+    await settled();
+    await tab("Réglages").click();
+    await page.locator(".ve-settings-head h2").first().waitFor({ timeout: 10000 }).catch(() => {});
+    const row = await page.evaluate(() => {
+      const root = document.querySelector(".ve-settings");
+      const text = (sel) => [...new Set([...(root?.querySelectorAll(sel) ?? [])].map((e) => e.textContent?.trim().replace(/\s+/g, " ")).filter(Boolean))];
+      const look = root?.querySelector(".lp");
+      const lookLabels = [...(look?.querySelectorAll(".lp-label") ?? [])].map((e) => e.textContent?.trim());
+      const own = text(".a-field > label, .a-field > .a-label, legend, .a-field-label, [role=group][aria-label]").filter((t) => !lookLabels.includes(t));
+      return { title: root?.querySelector(".ve-settings-head h2")?.textContent?.trim(), contenu: own.slice(0, 14), miseEnPage: lookLabels, vide: Boolean(root?.querySelector(".ve-empty")), controls: root?.querySelectorAll("input, select, textarea, button[aria-pressed], [role=switch]").length ?? 0 };
+    });
+    matrix.push({ ...card, ...row });
+    ok(`D4 ${card.label} : des réglages ou une phrase utile (${row.controls} commandes)`, row.title === card.label.replace(/ \(ancien\)$/, "") || Boolean(row.title), JSON.stringify(row));
+    ok(`D4b ${card.label} : le panneau n'est pas vide`, row.controls >= 2 || row.vide, JSON.stringify(row));
+  }
+  console.log("MATRICE " + JSON.stringify(matrix));
+}
+
 ok("aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));
 await browser.close();
 if (failures) {
