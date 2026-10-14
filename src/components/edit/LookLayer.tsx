@@ -426,9 +426,12 @@ function TextBar({
   if (!el) return null;
   const r = docRect(el);
   const look = target.local ? lookOf(target.local.uid) : {};
-  // Fond du métier de l'ouverture réglé avant le lot 21 (`look.roleBackdrop`) : montré comme celui du texte,
-  // et migré dans son style dès qu'on le modifie (le rendu ne change pas).
-  const legacyBackdrop = target.local?.key === "site.role" ? look.roleBackdrop : undefined;
+  // Fond du métier de l'ouverture réglé avant le lot 21 (`look.roleBackdrop`) : « Ombre douce » et « Bandeau » sont montrés comme
+  // celui du texte et migrés dans son style dès qu'on le modifie (le rendu ne change pas). L'ancien « Surlignage » (aplat en
+  // ligne, look.css) n'a pas le rendu du nouveau (trait derrière le texte) : il reste tel quel, sans être montré ni migré,
+  // jusqu'à ce qu'on choisisse un nouveau fond (ou « Revenir au style global »).
+  const oldBackdrop = target.local?.key === "site.role" ? look.roleBackdrop : undefined;
+  const legacyBackdrop = oldBackdrop && oldBackdrop !== "highlight" ? oldBackdrop : undefined;
   const localStyle: TextStyle = target.local ? { ...(legacyBackdrop ? { backdrop: legacyBackdrop } : {}), ...(look.text?.[target.local.key] ?? {}) } : {};
   const roleStyle = siteStyles().roles?.[target.role] ?? {};
   const value = scope === "local" ? localStyle : roleStyle;
@@ -442,7 +445,7 @@ function TextBar({
       const text = { ...(look.text ?? {}) };
       if (next) text[target.local.key] = next;
       else delete text[target.local.key];
-      const seq = sendLook(target.local.uid, { ...look, text, ...(legacyBackdrop ? { roleBackdrop: undefined } : {}) });
+      const seq = sendLook(target.local.uid, { ...look, text, ...(oldBackdrop && (legacyBackdrop || next === undefined || next.backdrop !== undefined) ? { roleBackdrop: undefined } : {}) });
       // Aperçu immédiat sur ce texte.
       previewTextStyle(target.local, next, seq);
     } else {

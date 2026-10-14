@@ -566,6 +566,32 @@ if (run("F")) {
   await f.locator(".lk-bar .lk-close").click();
 }
 
+/* ---- G. Ancien « Surlignage » du métier (look.roleBackdrop = highlight) : gardé tel quel, ni montré ni migré ------------------------------- */
+
+if (run("G")) {
+  f = await openEditor(1);
+  await sleep(1200);
+  const d = draftOf(1);
+  const hero = d.blocks.find((b) => b.type === "hero");
+  hero.props.look = { roleBackdrop: "highlight" };
+  exec("update pages set draft = ?, draft_rev = draft_rev + 1 where id = 1", JSON.stringify(d));
+  await page.goto(`${BASE}/admin/pages/1/editer`, { waitUntil: "domcontentloaded" });
+  f = await canvas();
+  await sleep(1500);
+  await openBar(f, ROLE);
+  await scopeButton(f, "Ce texte").click();
+  ok("G1 l'ancien surlignage n'est pas montré comme « Surlignage » (son rendu n'est pas celui du nouveau)", (await f.locator('.lk-bar .tc-bd [aria-checked="true"]').innerText()) !== "Surlignage");
+  await f.locator(".lk-bar .tc-italic").click();
+  await settled();
+  ok("G2 un autre réglage (italique) ne le migre pas : roleBackdrop reste", heroLook()?.roleBackdrop === "highlight" && heroLook()?.text?.["site.role"]?.backdrop === undefined, JSON.stringify(heroLook()));
+  await pick(f, "Bandeau");
+  await settled();
+  ok("G3 un nouveau fond choisi remplace l'ancien", await waitFor(() => heroLook()?.text?.["site.role"]?.backdrop === "band" && heroLook().roleBackdrop === undefined), JSON.stringify(heroLook()));
+  await f.locator(".lk-bar .tc-reset").click();
+  await settled();
+  await f.locator(".lk-bar .lk-close").click().catch(() => {});
+}
+
 ok("aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));
 await browser.close();
 if (failures) {
