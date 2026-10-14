@@ -97,6 +97,14 @@ export function expandContainer(container: Raw, opts: Options, inheritedProject?
   const rest: Look = { ...(look ?? {}) };
   delete rest.spaceTop;
   delete rest.spaceBottom;
+  // Le style du texte du lien « voir plus » (`text["more.label"]`) va au bloc « Lien vers une page », pas aux composants.
+  const moreStyle = isObj(rest.text) && isObj((rest.text as Record<string, unknown>)["more.label"]) ? clone((rest.text as Record<string, unknown>)["more.label"]) : undefined;
+  if (moreStyle !== undefined && isObj(rest.text)) {
+    const text = { ...(rest.text as Record<string, unknown>) };
+    delete text["more.label"];
+    if (Object.keys(text).length) (rest as Record<string, unknown>).text = text;
+    else delete (rest as Record<string, unknown>).text;
+  }
   const out = flat.map((k, i) => {
     if (project) pinProject(k, project);
     const base: Look = { ...rest };
@@ -112,7 +120,7 @@ export function expandContainer(container: Raw, opts: Options, inheritedProject?
     return k;
   });
   if (more && (out.length > 0 || opts.draft)) {
-    const link: Raw = { type: "page-link", props: { label: clone(more.label ?? { fr: "", en: "" }), ...(typeof more.pageId === "number" ? { pageId: more.pageId } : {}) } };
+    const link: Raw = { type: "page-link", props: { label: clone(more.label ?? { fr: "", en: "" }), ...(typeof more.pageId === "number" ? { pageId: more.pageId } : {}), ...(moreStyle !== undefined ? { look: { text: { label: moreStyle } } } : {}), ...(surface ? { surface: clone(surface) } : {}) } };
     if (opts.draft) link.uid = freshUid(container.uid ?? "c", opts.used);
     out.push(link);
   }

@@ -17,7 +17,7 @@ import { BLOCKS, blockCatalog } from "../src/blocks/registry.ts";
 import { BLOCK_GROUPS, groupEntries, matchesSearch, pickerGroups } from "../src/blocks/groups.ts";
 import { STARTER_LIST } from "../src/blocks/help-text.ts";
 import { treeProblem } from "../src/blocks/tree.ts";
-import { unwrapContainers, unwrapList } from "../src/lib/db/unwrap.ts";
+import { expandContainer, unwrapContainers, unwrapList } from "../src/lib/db/unwrap.ts";
 import { seedLegacyPage } from "./lib/legacy-containers.mjs";
 
 let passed = 0;
@@ -196,6 +196,26 @@ test("0021 : look du conteneur (espaces aux extrémités, reste à chacun, le r�
   assert.deepEqual(grid.props.look, { spaceBottom: "s", radius: "soft", titleH: "center" }, "dernier composant : espace du bas");
   for (const b of [image, text, grid]) assert.deepEqual(b.props.surface, { color: "primary12", width: "inset" }, "carte du conteneur sur chaque composant");
   assert.equal("surface" in published(db, 1)[1].props, false, "pas de carte sans carte");
+});
+test("0021 : style du texte « voir plus » et carte du conteneur reportés sur le lien (plus sur les composants)", () => {
+  const container = {
+    type: "featured-project",
+    props: {
+      project: "alpha",
+      more: { label: T("Voir plus"), pageId: 2 },
+      look: { radius: "soft", text: { "more.label": { size: "l", italic: true }, title: { weight: 700 } } },
+      surface: { color: "primary12", width: "inset" },
+      children: [kid("k1", "rich-text", { paragraphs: [T("x")] })],
+    },
+  };
+  const [text, link] = expandContainer(JSON.parse(JSON.stringify(container)), { draft: false, used: new Set() });
+  assert.deepEqual(link.props.look, { text: { label: { size: "l", italic: true } } });
+  assert.deepEqual(link.props.surface, { color: "primary12", width: "inset" });
+  assert.deepEqual(text.props.look, { radius: "soft", text: { title: { weight: 700 } } }, "le style du lien ne reste pas sur le composant");
+  // Sans style de lien ni carte : le lien reste nu.
+  const bare = { type: "featured-project", props: { more: { label: T("Voir"), pageId: 2 }, children: [kid("k2", "rich-text", {})] } };
+  const [, l2] = expandContainer(bare, { draft: false, used: new Set() });
+  assert.equal("look" in l2.props || "surface" in l2.props, false);
 });
 test("0021 : brouillon — uid conservés et uniques, lien posé, conteneur imbriqué aplati, arbre valide, version augmentée", () => {
   const db = fixture();
