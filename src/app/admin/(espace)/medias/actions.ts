@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { getMediaUses, listMediaForAdmin, type AdminMediaRow, type MediaUseRow } from "@/lib/admin";
 import { assertAdmin } from "@/lib/auth/guard";
-import { deleteMedia, retryMedia, saveMediaAlt, type MediaBlockUse } from "@/lib/edit/media";
+import { deleteMedia, restoreMedia, retryMedia, saveMediaAlt, type MediaUseRef } from "@/lib/edit/media";
 import { wakeWorker } from "@/lib/jobs/worker";
 import { listPendingUploads, type UploadStatus } from "@/lib/upload/chunks";
 import { fail, type ActionResult } from "@/lib/edit/result";
@@ -23,13 +23,27 @@ export async function saveMediaAltAction(mediaId: unknown, alt: unknown): Promis
   return result;
 }
 
+/** Supprimer = mettre à la corbeille (restaurable 30 jours : `restoreMediaAction`) ; refusé si le média sert. */
 export async function deleteMediaAction(
   mediaId: unknown,
-): Promise<ActionResult<{ emptiedSlots: number; projectIds: number[] }> | { ok: false; message: string; references: MediaBlockUse[] }> {
+): Promise<ActionResult<{ name: string }> | { ok: false; message: string; references: MediaUseRef[] }> {
   await assertAdmin();
   const parsed = Id.safeParse(mediaId);
   if (!parsed.success) return fail("Image inconnue.");
   const result = await deleteMedia(parsed.data);
+  if (result.ok) {
+    revalidateMedia();
+    revalidateProjects();
+  }
+  return result;
+}
+
+/** Restaure un média de la corbeille. */
+export async function restoreMediaAction(mediaId: unknown): Promise<ActionResult<{ name: string }>> {
+  await assertAdmin();
+  const parsed = Id.safeParse(mediaId);
+  if (!parsed.success) return fail("Image inconnue.");
+  const result = restoreMedia(parsed.data);
   if (result.ok) {
     revalidateMedia();
     revalidateProjects();

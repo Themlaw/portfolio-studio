@@ -126,8 +126,8 @@ export function saveSiteDraft(pageId: number, input: unknown, rev: unknown): Act
   // Image du logo (lot 26) : une image de la médiathèque, qui existe encore.
   const logoMediaId = parsed.data.styles?.logo?.mediaId;
   if (logoMediaId !== undefined) {
-    const media = getDb().select({ kind: schema.media.kind }).from(schema.media).where(eq(schema.media.id, logoMediaId)).get();
-    if (media?.kind !== "image") return fail("L'image du logo n'existe plus ou n'est pas une image : choisis-en une autre dans la médiathèque.");
+    const media = getDb().select({ kind: schema.media.kind, deletedAt: schema.media.deletedAt }).from(schema.media).where(eq(schema.media.id, logoMediaId)).get();
+    if (media?.kind !== "image" || media.deletedAt) return fail("L'image du logo n'existe plus ou n'est pas une image : choisis-en une autre dans la médiathèque.");
   }
   const locked = siteLockedBy(pageId);
   if (locked) return fail(`L'en-tête est en cours de modification sur la page ${locked} : publie-la ou abandonne-la d'abord.`);

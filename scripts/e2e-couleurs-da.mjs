@@ -221,8 +221,10 @@ if (run("A"))
     // Le lien depuis la liste des thèmes.
     await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
     const card = page.locator(".a-theme-card", { hasText: "Galerie lumineuse" }).first();
-    ok("A0 la carte du thème a un lien « Couleurs de la DA » (thème livré compris)", (await card.locator('[data-testid="theme-da-link"]').count()) === 1);
-    await card.locator('[data-testid="theme-da-link"]').click();
+    // Lot 23 : le lien est dans le menu « … » de la carte.
+    await card.getByRole("button", { name: /Plus d'actions/ }).click();
+    ok("A0 le menu de la carte du thème a un lien « Couleurs de la DA » (thème livré compris)", (await page.locator('[data-testid="theme-da-link"]').count()) === 1);
+    await page.locator('[data-testid="theme-da-link"]').click();
     await page.waitForURL(/\/admin\/themes\/galerie-lumineuse/);
     const da = page.locator('[data-testid="da-section"]');
     await da.waitFor();

@@ -2532,12 +2532,15 @@ label.a-file-btn:focus-within {
 }
 
 .a-slot-warn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   margin-left: auto;
-  padding: 0 5px;
-  border-radius: 3px;
+  border-radius: 999px;
   background: var(--admin-warning-soft);
   color: var(--admin-warning);
-  font: 600 11px/18px var(--admin-font-mono);
 }
 
 .a-slot-empty {
@@ -6137,4 +6140,184 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   color: var(--admin-ink-soft);
   font-size: 12px;
   line-height: 1.35;
+
+/* ---- Lot 23 : corbeille, adresses discrètes, menu « … » des thèmes ------------------ */
+
+/* Bascule « liste / Corbeille » d'un écran (Pages, Projets). */
+.a-views {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.a-views a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-bottom: 2px solid transparent;
+  color: var(--admin-ink-soft);
+  font-weight: 600;
+}
+
+.a-views a:hover {
+  color: var(--admin-ink);
+  text-decoration: none;
+}
+
+.a-views a[aria-current="page"] {
+  border-bottom-color: var(--admin-accent);
+  color: var(--admin-ink);
+}
+
+.a-views-count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--admin-line);
+  color: var(--admin-ink);
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Une donnée technique (adresse) sous le titre : petite et grise. */
+.a-sub {
+  display: block;
+  margin-top: 2px;
+  color: var(--admin-ink-soft);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.a-alt-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 999px;
+  text-decoration: none;
+  font: inherit;
+}
+
+/* Menu « … » : Popover et Menu de React Aria, habillés avec les tokens de l'admin. */
+.a-menu-btn {
+  min-width: 34px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.a-menu-popover {
+  min-width: 260px;
+  max-width: min(340px, calc(100vw - 32px));
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  box-shadow: var(--admin-shadow-menu);
+  font-family: var(--admin-font-ui);
+  font-size: 14px;
+  color: var(--admin-ink);
+}
+
+.a-menu {
+  display: grid;
+  padding: 4px;
+  outline: none;
+}
+
+.a-menu-item {
+  display: grid;
+  gap: 1px;
+  padding: 7px 10px;
+  border-radius: 4px;
+  color: var(--admin-ink);
+  cursor: pointer;
+  outline: none;
+}
+
+.admin .a-menu-item:hover {
+  color: var(--admin-ink);
+  text-decoration: none;
+}
+
+.a-menu-item [slot="label"] {
+  font-weight: 600;
+}
+
+.a-menu-item [slot="description"] {
+  color: var(--admin-ink-soft);
+  font-size: 12.5px;
+}
+
+.a-menu-item[data-focused],
+.a-menu-item[data-hovered] {
+  background: var(--admin-accent-soft);
+}
+
+.a-menu-item[data-disabled] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.a-menu-danger [slot="label"] {
+  color: var(--admin-danger);
+}
+
+.a-menu-danger[data-focused],
+.a-menu-danger[data-hovered] {
+  background: var(--admin-danger-soft);
+}
+
+.a-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--admin-line);
+}
+
+/* Réglages : section « Avancé » repliée. */
+.a-advanced > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--admin-ink-soft);
+}
+
+.a-advanced[open] > summary {
+  margin-bottom: 12px;
+}
+
+.admin a.a-menu-item {
+  color: var(--admin-ink);
+}
+
+.admin a.a-menu-item:hover {
+  text-decoration: none;
+}
+
+/* Suppression définitive : confirmation intégrée à la page. */
+.a-inline-confirm {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--admin-danger);
+  border-radius: var(--admin-radius);
+  background: var(--admin-danger-soft);
+  color: var(--admin-ink);
+}
+
+.a-inline-confirm p {
+  margin: 0 0 8px;
+}
+
+.a-inline-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.a-trash-empty {
+  margin: 0 0 12px;
 }

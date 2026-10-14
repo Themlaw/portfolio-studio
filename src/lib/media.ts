@@ -1,4 +1,4 @@
-import { and, eq, like } from "drizzle-orm";
+import { and, eq, isNull, like } from "drizzle-orm";
 
 import { DOC_PREFIX, hashOfVariantKey, ORIGINALS_PREFIX, parseVariants, pdfView, pictureSources, variantMime, VARIANTS_PREFIX, VIDEO_PREFIX, videoSources, type PdfView, type PictureSources, type VideoSources } from "./images/variants";
 import { formatDuration, isLoop } from "./video/limits";
@@ -66,7 +66,7 @@ export async function getMedia(id: number | undefined | null): Promise<MediaInfo
   if (!id) return null;
   return cached([`media:${id}`], [TAGS.media], () => {
     const row = getDb().select().from(schema.media).where(eq(schema.media.id, id)).get();
-    if (!row || row.status !== "ready") return null;
+    if (!row || row.status !== "ready" || row.deletedAt) return null;
     const sources = mediaSources(row);
     return {
       id: row.id,
@@ -89,7 +89,7 @@ export async function getMedia(id: number | undefined | null): Promise<MediaInfo
  */
 export function findCropSource(id: number): { id: number; key: string; width: number; height: number } | null {
   const row = getDb().select().from(schema.media).where(eq(schema.media.id, id)).get();
-  if (!row || row.status !== "ready" || row.kind !== "image" || !row.width || !row.height || !row.sha256 || !parseVariants(row.variants)) return null;
+  if (!row || row.deletedAt || row.status !== "ready" || row.kind !== "image" || !row.width || !row.height || !row.sha256 || !parseVariants(row.variants)) return null;
   if (!isOriginalKey(row.key) || row.mime === "image/svg+xml") return null;
   return { id: row.id, key: row.key, width: row.width, height: row.height };
 }
@@ -112,7 +112,7 @@ export function findMediaByKey(key: string): { mime: string; status: string } | 
     const row = db
       .select({ status: schema.media.status, variants: schema.media.variants })
       .from(schema.media)
-      .where(and(like(schema.media.sha256, `${hash16}%`), eq(schema.media.status, "ready")))
+      .where(and(like(schema.media.sha256, `${hash16}%`), eq(schema.media.status, "ready"), isNull(schema.media.deletedAt)))
       .get();
     const file = row ? parseVariants(row.variants)?.files.find((f) => f.key === key) : undefined;
     if (!row || !file) return null;
@@ -122,7 +122,7 @@ export function findMediaByKey(key: string): { mime: string; status: string } | 
   const row = db
     .select({ mime: schema.media.mime, status: schema.media.status })
     .from(schema.media)
-    .where(and(eq(schema.media.key, key), eq(schema.media.status, "ready")))
+    .where(and(eq(schema.media.key, key), eq(schema.media.status, "ready"), isNull(schema.media.deletedAt)))
     .get();
   return row ?? null;
 }

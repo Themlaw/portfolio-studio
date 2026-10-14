@@ -294,11 +294,17 @@ if (run("B")) {
 
 /* ---- C. Typographie du thème ---------------------------------------------------------------- */
 
+/** Menu « … » d'une carte de thème (lot 23) : l'ouvre, puis choisit l'entrée. */
+const menuItem = async (card, name) => {
+  await card.getByRole("button", { name: /Plus d'actions/ }).click();
+  await page.getByRole("menuitem", { name }).click();
+};
+
 if (run("C")) {
   console.log("== C. Admin → Thèmes : tokens.type");
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
   const before = await page.locator(".a-theme-card").count();
-  await page.locator(".a-theme-card", { hasText: "Galerie lumineuse" }).first().getByRole("button", { name: "Dupliquer" }).click();
+  await menuItem(page.locator(".a-theme-card", { hasText: "Galerie lumineuse" }).first(), "Dupliquer");
   await page.waitForFunction((n) => document.querySelectorAll(".a-theme-card").length > n, before, { timeout: 30000 }).catch(() => {});
   await page.waitForLoadState("networkidle");
   const copyId = q("select id from themes where id like 'galerie-lumineuse-%' order by rowid desc limit 1")[0]?.id ?? q("select id from themes order by rowid desc limit 1")[0].id;
@@ -358,9 +364,10 @@ if (run("C")) {
   // Cleanup : les deux copies.
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
   for (let i = 0; i < 2; i++) {
-    const extra = page.locator(".a-theme-card").filter({ has: page.getByRole("button", { name: "Supprimer" }) }).first();
+    // Copies seulement : ni thème livré, ni thème en ligne (leur menu n'a pas « Supprimer »).
+    const extra = page.locator('.a-theme-card[data-active="false"]', { hasNotText: "Livré" }).first();
     if (!(await extra.count())) break;
-    await extra.getByRole("button", { name: "Supprimer" }).click();
+    await menuItem(extra, "Supprimer");
     await page.locator("dialog[open]").getByRole("button", { name: "Supprimer" }).click();
     await page.locator("dialog[open]").waitFor({ state: "detached" });
     await page.reload({ waitUntil: "networkidle" });

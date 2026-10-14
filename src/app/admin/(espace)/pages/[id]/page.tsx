@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { blockCatalog, blockEditors } from "@/blocks/registry";
 import PageEditor from "@/components/admin/PageEditor";
 import PageHeader from "@/components/admin/PageHeader";
 import { getActiveThemeColors, getEditorContext, getPageForEdit } from "@/lib/admin";
@@ -17,9 +16,6 @@ export default async function PageEditPage({ params }: { params: Promise<{ id: s
   const state = readDraft(published.id);
   const page = state?.hasDraft ? { ...published, ...state.draft, blocks: state.draft.blocks.map(({ type, props }) => ({ type, props })) } : published;
 
-  // Tout vient du registre : ajouter un type de bloc n'exige rien ici.
-  const catalog = blockCatalog();
-  const editors = blockEditors();
   const colors = getActiveThemeColors();
 
   return (
@@ -58,7 +54,7 @@ export default async function PageEditPage({ params }: { params: Promise<{ id: s
           publie, comme « Publier » dans l&apos;éditeur.
         </p>
       )}
-      <PageEditor rev={state?.rev ?? 0} page={page} catalog={catalog} editors={editors} context={getEditorContext()} colors={colors} />
+      <PageEditor rev={state?.rev ?? 0} page={page} context={getEditorContext()} colors={colors} />
     </>
   );
 }

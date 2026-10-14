@@ -11,7 +11,7 @@
  *    remet en file avec sa progression) : un envoi ne attend jamais derrière le préchauffage.
  * Désactivable : CROP_WARM=0. Adresse du serveur : PORT (3000 par défaut), CROP_WARM_ORIGIN pour la changer.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { CROP_PREFIX, parseCropKey, type CropRequest } from "@/lib/images/crop";
@@ -74,7 +74,7 @@ export function enqueueCropWarm(pageId: number, delayMs = 3000): boolean {
 /** Un job par page publiée (démarrage du serveur) ; renvoie le nombre mis en file. */
 export function enqueueCropWarmAll(delayMs = 20_000): number {
   let n = 0;
-  for (const p of getDb().select({ id: schema.pages.id }).from(schema.pages).where(eq(schema.pages.published, true)).all()) if (enqueueCropWarm(p.id, delayMs)) n++;
+  for (const p of getDb().select({ id: schema.pages.id }).from(schema.pages).where(and(eq(schema.pages.published, true), isNull(schema.pages.deletedAt))).all()) if (enqueueCropWarm(p.id, delayMs)) n++;
   return n;
 }
 
@@ -88,8 +88,8 @@ export type WarmOutcome = { done: true; made: number } | { done: false; offset: 
  * Lève si la page ne répond pas (le worker retente).
  */
 export async function runCropWarm(payload: WarmPayload, shouldYield: () => boolean): Promise<WarmOutcome> {
-  const row = getDb().select({ slug: schema.pages.slug, published: schema.pages.published }).from(schema.pages).where(eq(schema.pages.id, payload.pageId)).get();
-  if (!row || !row.published) return { done: true, made: 0 };
+  const row = getDb().select({ slug: schema.pages.slug, published: schema.pages.published, deletedAt: schema.pages.deletedAt }).from(schema.pages).where(eq(schema.pages.id, payload.pageId)).get();
+  if (!row || !row.published || row.deletedAt) return { done: true, made: 0 };
   const slug = row.slug.fr ?? "";
   const res = await fetch(`${origin()}/fr${slug ? `/${slug}` : ""}`, { headers: { "user-agent": "portfolio-crop-warm" }, signal: AbortSignal.timeout(60_000) });
   if (!res.ok) throw new Error(`page publique : réponse ${res.status}`);

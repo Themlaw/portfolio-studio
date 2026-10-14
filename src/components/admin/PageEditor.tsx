@@ -1,40 +1,28 @@
 "use client";
 
 /**
- * Éditeur de page : informations (titre, adresses, collection, couleur des boutons et liens de la page), référencement,
- * puis la liste des blocs (cartes repliables, réordonnables, ajout par
- * sélecteur décrivant chaque type). Chaque bloc s'édite avec le formulaire
- * déclaré par son type dans le registre. Enregistrer publie aussitôt si la
- * page est publiée ; s'il existe un brouillon de l'éditeur visuel, le
- * formulaire l'affiche et l'enregistrement le publie (un seul état).
+ * Formulaire d'une page : informations (titre, adresses, publication, menu, collection, couleur des boutons et liens de
+ * la page) et référencement. Le CONTENU (rubriques) se compose dans l'éditeur visuel, qui propose tout ce que ce formulaire
+ * offrait (ajouter, déplacer, supprimer, régler chaque composant) : ici, un lien. Les rubriques sont renvoyées telles que chargées, pour
+ * que l'enregistrement ne les change pas. Enregistrer publie aussitôt si la page est publiée ; s'il existe un
+ * brouillon de l'éditeur visuel, le formulaire le reprend et l'enregistrement le publie (un seul état).
  */
-import { groupEntries } from "@/blocks/groups";
-import { withFreshUids } from "@/blocks/tree";
-import { own } from "@/lib/own";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useId, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 
 import PageButtonsColorField from "@/app/admin/_fields/PageButtonsColorField";
 import { errorAt, Field, PageCollectionField, TextareaI18n, TextField, TextI18n, Toggle } from "@/app/admin/_fields";
 import { savePageAction } from "@/app/admin/(espace)/pages/actions";
-import { BlockEditorContext } from "@/blocks/editor-context";
-import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
-import { renderSummary } from "@/blocks/summary";
+import type { EditorContext } from "@/blocks/editor-types";
 import type { AdminPageEdit } from "@/lib/admin";
 import { accentProblem } from "@/themes/contrast";
 
-import { clone, ConfirmDialog, SaveBar, same, toast, useUnsavedGuard } from "./editing";
-import { DragHandle, SortableList } from "./Sortable";
+import { clone, SaveBar, same, toast, useUnsavedGuard } from "./editing";
 
 type Colors = { bg: string; bgDeep: string; surface: string; onPrimary: string; primary: string };
 type EditBlock = { uid: string; type: string; props: Record<string, unknown> };
 type State = Omit<AdminPageEdit, "blocks" | "id" | "isHome"> & { blocks: EditBlock[] };
-
-// Identifiants locaux des blocs (clés React, id HTML) : déterministes au
-// premier rendu (même valeur côté serveur et client), puis uniques pour les
-// blocs ajoutés dans le navigateur.
-let addedSeq = 0;
-const newUid = () => `n${++addedSeq}`;
 
 function toState(page: AdminPageEdit): State {
   const { title, slug, meta, published, inMenu, accent, collection, blocks } = page;
@@ -44,98 +32,37 @@ function toState(page: AdminPageEdit): State {
   };
 }
 
+/** Charge envoyée au serveur : les rubriques telles que chargées (jamais modifiés ici). */
 const payload = (s: State) => ({ ...s, blocks: s.blocks.map(({ type, props }) => ({ type, props })) });
-
-/** Erreurs d'un bloc, relatives à ses props. */
-function blockErrors(errors: Record<string, string>, index: number): Record<string, string> {
-  const prefix = `blocks.${index}.props.`;
-  return Object.fromEntries(Object.entries(errors).filter(([k]) => k.startsWith(prefix)).map(([k, v]) => [k.slice(prefix.length), v]));
-}
-
-function AddBlock({ catalog, onAdd }: { catalog: BlockCatalogEntry[]; onAdd: (type: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [choice, setChoice] = useState(groupEntries(catalog)[0]?.entries[0]?.type ?? catalog[0]?.type ?? "");
-  const name = useId();
-  return (
-    <>
-      <button type="button" className="a-btn a-add-block" onClick={() => setOpen(true)}>
-        + Ajouter un bloc
-      </button>
-      <ConfirmDialog
-        open={open}
-        title="Ajouter un bloc"
-        confirmLabel="Ajouter ce bloc"
-        onClose={() => setOpen(false)}
-        onConfirm={() => {
-          onAdd(choice);
-          setOpen(false);
-        }}
-      >
-        <div className="a-block-types" role="radiogroup" aria-label="Type de bloc">
-          {/* Mêmes groupes que l'éditeur visuel (src/blocks/groups.ts). */}
-          {groupEntries(catalog).map((g) => (
-            <div key={g.id} role="presentation">
-              <p className="a-block-group">{g.label}</p>
-              {g.entries.map((c) => (
-                <label key={c.type} className="a-block-type">
-                  <input type="radio" name={name} checked={choice === c.type} onChange={() => setChoice(c.type)} />
-                  <span>
-                    <strong>{c.label}</strong>
-                    <span className="muted">{c.description}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          ))}
-        </div>
-        <p className="a-help">Le bloc est ajouté en fin de page ; déplace-le ensuite par sa poignée.</p>
-      </ConfirmDialog>
-    </>
-  );
-}
 
 export default function PageEditor({
   page,
-  catalog,
-  editors,
   context,
   colors,
   rev: initialRev,
 }: {
   page: AdminPageEdit;
+  /** Pages du site (choix de la collection que la page présente). */
+  context: Pick<EditorContext, "pages">;
   /** Version du contenu lue au chargement (contrôle optimiste, src/lib/edit/drafts.ts). */
   rev: number;
-  catalog: BlockCatalogEntry[];
-  /** Élément de l'éditeur de chaque type (composant client déclaré au registre). */
-  editors: Record<string, React.ReactNode>;
-  context: EditorContext;
   colors: Colors | null;
 }) {
   const router = useRouter();
   const [saved, setSaved] = useState(() => toState(page));
   const [state, setState] = useState(saved);
-  const [openBlocks, setOpenBlocks] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
-  const [removing, setRemoving] = useState<EditBlock | null>(null);
   const [saving, start] = useTransition();
   const [rev, setRev] = useState(initialRev);
   const [conflict, setConflict] = useState<string | null>(null);
   const dirty = !same(payload(state), payload(saved));
+  // Erreurs de rubrique renvoyées par la validation du serveur (une rubrique publiée devenue invalide, par exemple).
+  const blockProblems = Object.entries(errors).filter(([k]) => k === "blocks" || k.startsWith("blocks."));
   useUnsavedGuard(dirty);
 
   const set = <K extends keyof State>(k: K, v: State[K]) => setState((s) => ({ ...s, [k]: v }));
-  // Types seulement (ni raccourcis de la palette, ni types anciens).
-  const byType = Object.fromEntries(catalog.filter((c) => !c.preset).map((c) => [c.type, c]));
   const accentIssue = state.accent && colors ? accentProblem(state.accent, colors) : null;
-
-  const toggleOpen = (id: string) =>
-    setOpenBlocks((s) => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
 
   const save = () => {
     if (accentIssue) {
@@ -152,14 +79,7 @@ export default function PageEditor({
           return;
         }
         setError(result.message);
-        const fe = result.fieldErrors ?? {};
-        setErrors(fe);
-        // Ouvre les blocs fautifs.
-        setOpenBlocks((s) => {
-          const n = new Set(s);
-          state.blocks.forEach((b, i) => Object.keys(fe).some((k) => k === `blocks.${i}` || k.startsWith(`blocks.${i}.`)) && n.add(b.uid));
-          return n;
-        });
+        setErrors(result.fieldErrors ?? {});
         return;
       }
       setError(null);
@@ -239,77 +159,25 @@ export default function PageEditor({
         </div>
       </section>
 
-      <section className="a-panel" aria-labelledby="pe-blocs">
-        <div className="a-panel-head">
-          <h2 id="pe-blocs">Blocs</h2>
-          <span className="muted">{state.blocks.length} bloc{state.blocks.length > 1 ? "s" : ""}</span>
-        </div>
-        {state.blocks.length === 0 && <p className="muted a-section-tight">Cette page est vide : ajoute son premier bloc.</p>}
-        <SortableList
-          items={state.blocks}
-          getId={(b) => b.uid}
-          getLabel={(b) => own(byType, b.type)?.label ?? b.type}
-          onReorder={(blocks) => set("blocks", blocks)}
-          className="a-sortable a-blocks"
-          render={(b, i) => {
-            const meta = own(byType, b.type);
-            const open = openBlocks.has(b.uid);
-            const err = blockErrors(errors, i);
-            const general = errors[`blocks.${i}`];
-            const hasError = Boolean(general) || Object.keys(err).length > 0;
-            const summary = meta ? renderSummary(meta.summary, b.props) : "";
-            const bodyId = `bloc-${b.uid}`;
-            const editor = own(editors, b.type);
-            return (
-              <article className="a-block" data-open={open} data-invalid={hasError || undefined} aria-label={`Bloc ${i + 1} : ${meta?.label ?? b.type}`}>
-                <header className="a-block-head">
-                  <DragHandle />
-                  <button type="button" className="a-block-toggle" aria-expanded={open} aria-controls={bodyId} onClick={() => toggleOpen(b.uid)}>
-                    <span className="a-block-type-name">{meta?.label ?? b.type}</span>
-                    {summary && <span className="a-block-summary">{summary}</span>}
-                    {hasError && <span className="a-tag a-tag-danger">À corriger</span>}
-                    <span className="a-chevron" aria-hidden="true" />
-                  </button>
-                  <button type="button" className="a-icon-btn a-danger-text" aria-label={`Supprimer le bloc ${meta?.label ?? b.type}`} onClick={() => setRemoving(b)}>
-                    ✕
-                  </button>
-                </header>
-                {open && (
-                  <div className="a-block-body" id={bodyId}>
-                    {general && <p className="a-field-error">{general}</p>}
-                    {editor ? (
-                      <BlockEditorContext.Provider
-                        value={{
-                          value: b.props,
-                          onChange: (props) =>
-                            setState((s) => ({ ...s, blocks: s.blocks.map((x) => (x.uid === b.uid ? { ...x, props } : x)) })),
-                          errors: err,
-                          context,
-                          idPrefix: b.uid,
-                        }}
-                      >
-                        {editor}
-                      </BlockEditorContext.Provider>
-                    ) : (
-                      <p className="muted">Ce type de bloc n&apos;a pas de formulaire.</p>
-                    )}
-                  </div>
-                )}
-              </article>
-            );
-          }}
-        />
-        <AddBlock
-          catalog={catalog.filter((c) => !c.preset && !c.hidden)}
-          onAdd={(type) => {
-            const def = own(byType, type);
-            if (!def) return;
-            // Conteneur : ses composants de départ reçoivent leurs uid.
-            const block = withFreshUids({ uid: "", type, props: clone(def.defaults) }, newUid);
-            setState((s) => ({ ...s, blocks: [...s.blocks, block] }));
-            setOpenBlocks((s) => new Set(s).add(block.uid));
-          }}
-        />
+      <section className="a-panel" aria-labelledby="pe-contenu">
+        <h2 id="pe-contenu">Contenu</h2>
+        <p className="a-help a-panel-intro">
+          {state.blocks.length === 0 ? "Cette page est vide." : `${state.blocks.length} rubrique${state.blocks.length > 1 ? "s" : ""} composent cette page.`} Le contenu se compose dans l&apos;éditeur visuel : tu y
+          ajoutes, déplaces et supprimes les rubriques, et tu règles chacun directement sur la page.
+        </p>
+        {blockProblems.length > 0 && (
+          <div className="a-alert" role="alert">
+            <p>Une rubrique empêche l&apos;enregistrement : corrige-la dans l&apos;éditeur.</p>
+            <ul className="a-refs">
+              {blockProblems.map(([k, m]) => (
+                <li key={k}>{m}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <Link className="a-btn a-btn-primary" href={`/admin/pages/${page.id}/editer`} data-testid="lien-editeur">
+          Modifier le contenu dans l&apos;éditeur
+        </Link>
       </section>
 
       <SaveBar
@@ -326,19 +194,6 @@ export default function PageEditor({
         }
       />
 
-      <ConfirmDialog
-        open={removing !== null}
-        title={`Supprimer le bloc « ${removing ? (own(byType, removing.type)?.label ?? removing.type) : ""} » ?`}
-        confirmLabel="Supprimer le bloc"
-        danger
-        onClose={() => setRemoving(null)}
-        onConfirm={() => {
-          if (removing) setState((s) => ({ ...s, blocks: s.blocks.filter((x) => x.uid !== removing.uid) }));
-          setRemoving(null);
-        }}
-      >
-        <p className="muted">Le bloc disparaît de la page quand tu enregistres. Tant que tu n&apos;as pas enregistré, recharger la page l&apos;annule.</p>
-      </ConfirmDialog>
     </div>
   );
 }

@@ -496,8 +496,8 @@ if (run("X") && !BEFORE) {
   await page.locator(`button.a-media-tile[title="${name}"]`).first().click();
   await page.getByRole("button", { name: "Supprimer l'image" }).click();
   await page.locator("dialog[open]").getByRole("button", { name: "Supprimer", exact: true }).click();
-  ok("X média supprimé", await waitFor(() => !mediaOf(name), 30000));
-  ok("X son dossier de variantes recadrées est purgé", await waitFor(() => !existsSync(dir), 15000));
+  ok("X média supprimé (corbeille)", await waitFor(() => Boolean(q1("select deleted_at d from media where original_name = ? order by id desc", name)?.d), 30000));
+  ok("X son dossier de variantes recadrées est purgé (un cache : refait si le média revient)", await waitFor(() => !existsSync(dir), 15000));
 }
 
 /* ---- F : 40 recadrages à froid, file pleine (503) : repli sans image cassée ------------------ */

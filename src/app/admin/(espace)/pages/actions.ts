@@ -11,6 +11,7 @@ import {
   createPage,
   deletePage,
   reorderMenu,
+  restorePage,
   setInMenu,
   setPublished,
   type PageReference,
@@ -174,14 +175,29 @@ export async function reorderMenuAction(ids: unknown): Promise<ActionResult<null
   return result;
 }
 
+/** Supprimer = mettre à la corbeille (restaurable 30 jours : `restorePageAction`). */
 export async function deletePageAction(
   id: unknown,
-): Promise<ActionResult<null> | { ok: false; message: string; references: PageReference[] }> {
+): Promise<ActionResult<{ title: string }> | { ok: false; message: string; references: PageReference[] }> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   const result = deletePage(pid);
   if (result.ok) revalidatePage(pid, { structure: true });
+  return result;
+}
+
+/** Restaure une page de la corbeille (l'adresse reprise entre-temps est remplacée par une variante libre). */
+export async function restorePageAction(id: unknown): Promise<ActionResult<{ title: string; slugChanged: boolean }>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Page inconnue.");
+  const result = restorePage(pid);
+  if (result.ok) {
+    revalidatePage(pid, { structure: true });
+    // Page publiée : recadrages préparés de nouveau (ils n'étaient plus rendus à la corbeille).
+    enqueueCropWarm(pid);
+  }
   return result;
 }
 

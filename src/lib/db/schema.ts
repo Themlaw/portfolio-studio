@@ -52,6 +52,8 @@ export const media = sqliteTable("media", {
   status: text("status", { enum: ["processing", "ready", "failed"] }).notNull().default("ready"),
   error: text("error"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  /** Corbeille (lot 23) : date de mise à la corbeille ; null = dans la médiathèque. Purgé 30 jours après. */
+  deletedAt: integer("deleted_at", { mode: "timestamp" }),
 });
 
 export const pages = sqliteTable("pages", {
@@ -86,6 +88,13 @@ export const pages = sqliteTable("pages", {
    * formulaire. Chaque écriture envoie la version lue ; refusée si elle a changé.
    */
   draftRev: integer("draft_rev").notNull().default(0),
+  /**
+   * Corbeille (lot 23) : date de mise à la corbeille ; null = page du site. Une page à la corbeille
+   * n'est ni publique ni dans le menu (comme une page non publiée) ; restaurable 30 jours, puis purgée.
+   */
+  deletedAt: integer("deleted_at", { mode: "timestamp" }),
+  /** Elle figurait au menu quand elle a été mise à la corbeille (restaurée, elle y revient en fin de menu). */
+  trashedInMenu: integer("trashed_in_menu", { mode: "boolean" }).notNull().default(false),
 });
 
 export const blocks = sqliteTable(
@@ -129,6 +138,8 @@ export const projects = sqliteTable("projects", {
    */
   draftText: text("draft_text", { mode: "json" }).$type<{ title: Localized; context: Localized; description: Localized; year: string }>(),
   draftTextPageId: integer("draft_text_page_id").references((): AnySQLiteColumn => pages.id, { onDelete: "set null" }),
+  /** Corbeille (lot 23) : date de mise à la corbeille ; null = projet du site. Purgé 30 jours après. */
+  deletedAt: integer("deleted_at", { mode: "timestamp" }),
 });
 
 /**

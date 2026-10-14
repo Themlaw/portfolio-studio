@@ -25,16 +25,20 @@ import {
   pendingUploadsAction,
   removeMediaTagsAction,
   renameTagAction,
+  restoreMediaAction,
   retryMediaAction,
   saveMediaAltAction,
   setMediaTagsAction,
 } from "@/app/admin/(espace)/medias/actions";
 import { formatDuration, isLoop } from "@/lib/video/limits";
-import type { AdminMediaRow, MediaUseRow } from "@/lib/admin";
+import type { AdminMediaRow, MediaUseRow, TrashSummary } from "@/lib/admin";
 import { tagKey } from "@/lib/tag-key";
+import { daysLeft, TRASH_DAYS } from "@/lib/trash";
 import type { TagRow } from "@/lib/tags";
 
-import { ConfirmDialog, same, toast, useUnsavedGuard } from "./editing";
+import AltMissing from "./AltMissing";
+import { EmptyTrash, PurgeItem } from "./TrashControls";
+import { ConfirmDialog, same, toast, undoToast, useUnsavedGuard } from "./editing";
 import { filterMedia } from "./LibraryStrip";
 import Uploader from "./Uploader";
 import { useUploadQueue } from "./UploadQueue";
@@ -108,9 +112,7 @@ export function MediaGrid({
                 </span>
               )}
               {m.status === "ready" && !m.alt.fr.trim() && (
-                <span className="a-alt-badge" title="Texte alternatif manquant">
-                  alt<span className="sr-only"> manquant</span>
-                </span>
+                <AltMissing className="a-alt-badge" />
               )}
             </span>
             <span className="a-media-name">{m.name}</span>
@@ -217,7 +219,7 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
   const [savedAlt, setSavedAlt] = useState(media.alt);
   const [uses, setUses] = useState<MediaUseRow[] | null>(null);
   const [confirm, setConfirm] = useState(false);
-  const [blocked, setBlocked] = useState<{ message: string; refs: { pageId: number; pageTitle: string; blockType: string }[] } | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
   const [busy, start] = useTransition();
   const dirty = !same(alt, savedAlt);
   useUnsavedGuard(dirty);
@@ -244,8 +246,9 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
     };
   }, [media.id]);
 
-  const slotUses = uses?.filter((u) => u.kind === "slot") ?? [];
-  const blockUses = uses?.filter((u) => u.kind === "block") ?? [];
+  // Un média utilisé ne se supprime pas : bouton inactif, endroits listés (cliquables) juste au-dessus.
+  const inUse = (uses?.length ?? media.uses) > 0;
+  const noun = media.kind === "video" ? "la vidéo" : media.kind === "pdf" ? "le PDF" : "l'image";
 
   return (
     <aside className="a-sidepanel" aria-labelledby="md-title">
@@ -351,15 +354,18 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
       ) : uses.length === 0 ? (
         <p className="muted">Nulle part pour l&apos;instant.</p>
       ) : (
-        <ul className="a-refs">
+        <ul className="a-refs" data-testid="media-usages">
           {uses.map((u, i) =>
             u.kind === "slot" ? (
               <li key={i}>
-                Planche <Link href={`/admin/projets/${u.projectId}`}>{u.projectTitle}</Link> · {u.slotTitle}
+                Planche <Link href={u.trashed ? "/admin/projets?vue=corbeille" : `/admin/projets/${u.projectId}`}>{u.projectTitle}</Link> · {u.slotTitle}
+                {u.draftPage && <span className="muted"> (brouillon non publié de la page « {u.draftPage} »)</span>}
+                {u.trashed && <span className="muted"> (projet à la corbeille)</span>}
               </li>
             ) : (
               <li key={i}>
-                Bloc « {u.blockType} » de la page <Link href={`/admin/pages/${u.pageId}`}>{u.pageTitle}</Link>
+                Bloc « {u.blockType} » de la page <Link href={u.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${u.pageId}/editer`}>{u.pageTitle}</Link>
+                {u.trashed && <span className="muted"> (page à la corbeille)</span>}
               </li>
             ),
           )}
@@ -367,9 +373,23 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
       )}
 
       <div className="a-panel-danger">
-        <button type="button" className="a-btn a-btn-quiet a-danger-text" disabled={media.status === "processing"} onClick={() => setConfirm(true)}>
+        <button
+          type="button"
+          className="a-btn a-btn-quiet a-danger-text"
+          disabled={media.status === "processing" || inUse}
+          aria-describedby={inUse ? "md-use-note" : undefined}
+          onClick={() => {
+            setRefusal(null);
+            setConfirm(true);
+          }}
+        >
           {media.kind === "video" ? "Supprimer la vidéo" : media.kind === "pdf" ? "Supprimer le PDF" : "Supprimer l'image"}
         </button>
+        {inUse && (
+          <p className="a-help" id="md-use-note">
+            Utilisée à {uses?.length ?? media.uses} endroit{(uses?.length ?? media.uses) > 1 ? "s" : ""} : remplace-la ou retire-la de {(uses?.length ?? media.uses) > 1 ? "ces endroits" : "cet endroit"} avant de la supprimer.
+          </p>
+        )}
       </div>
 
       <ConfirmDialog
@@ -378,21 +398,26 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
         confirmLabel="Supprimer"
         danger
         busy={busy}
-        confirmDisabled={uses === null}
+        confirmDisabled={uses === null || inUse}
         onClose={() => {
           setConfirm(false);
-          setBlocked(null);
+          setRefusal(null);
         }}
         onConfirm={() =>
           start(async () => {
             const r = await deleteMediaAction(media.id);
             if (!r.ok) {
-              setBlocked({ message: r.message, refs: "references" in r ? r.references : [] });
+              setRefusal(r.message);
               return;
             }
             setConfirm(false);
-            const what = media.kind === "video" ? "Vidéo supprimée" : media.kind === "pdf" ? "PDF supprimé" : "Image supprimée";
-            toast(r.data.emptiedSlots ? `${what} · ${r.data.emptiedSlots} emplacement${r.data.emptiedSlots > 1 ? "s" : ""} vidé${r.data.emptiedSlots > 1 ? "s" : ""}` : what);
+            undoToast(media.name, () =>
+              void restoreMediaAction(media.id).then((res) => {
+                if (!res.ok) return toast(res.message, "error");
+                toast(`${noun === "la vidéo" ? "Vidéo restaurée" : noun === "le PDF" ? "PDF restauré" : "Image restaurée"}`);
+                router.refresh();
+              }),
+            );
             onDeleted();
             setTimeout(() => router.refresh(), 0);
           })
@@ -400,28 +425,60 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
       >
         {uses === null ? (
           <p className="muted">Vérification de son utilisation…</p>
-        ) : blockUses.length > 0 ? (
-          <p className="muted">Elle est utilisée par des blocs : la suppression sera refusée tant qu&apos;ils la montrent.</p>
-        ) : slotUses.length > 0 ? (
-          <p>
-            Les {slotUses.length} emplacement{slotUses.length > 1 ? "s" : ""} qui la montrent gardent leur place, vide{slotUses.length > 1 ? "s" : ""}.
-          </p>
         ) : (
-          <p className="muted">Elle n&apos;est utilisée nulle part. Le fichier et ses variantes seront effacés.</p>
+          <p className="muted">
+            Elle n&apos;est utilisée nulle part. Elle reste {TRASH_DAYS} jours dans la corbeille de la médiathèque : tu peux la restaurer ou annuler juste après.
+          </p>
         )}
-        {blocked && (
-          <div className="a-alert" role="alert">
-            <p>{blocked.message}</p>
-            <ul className="a-refs">
-              {blocked.refs.map((r, i) => (
-                <li key={i}>
-                  Bloc « {r.blockType} » de la page <Link href={`/admin/pages/${r.pageId}`}>{r.pageTitle}</Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {refusal && <p className="a-alert" role="alert">{refusal}</p>}
       </ConfirmDialog>
+    </aside>
+  );
+}
+
+/** Détail d'un média à la corbeille : aperçu, délai avant la purge, « Restaurer ». */
+function TrashedDetail({ media, onClose }: { media: AdminMediaRow; onClose: () => void }) {
+  const router = useRouter();
+  const [busy, start] = useTransition();
+  const left = media.deletedAt ? daysLeft(media.deletedAt) : TRASH_DAYS;
+  return (
+    <aside className="a-sidepanel" aria-labelledby="md-title">
+      <div className="a-sidepanel-head">
+        <h2 id="md-title">{media.name}</h2>
+        <button type="button" className="a-icon-btn" aria-label="Fermer le détail" onClick={onClose}>
+          ✕
+        </button>
+      </div>
+      <div className="a-media-preview" style={media.color ? { backgroundColor: media.color } : undefined}>
+        {media.preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={media.preview} alt="" />
+        ) : (
+          <span className="a-media-state">{STATUS_LABEL[media.status]}</span>
+        )}
+      </div>
+      <p className="a-help">
+        Dans la corbeille : effacée pour de bon dans {left} jour{left > 1 ? "s" : ""}. Restaurée, elle retrouve sa place dans la médiathèque.
+      </p>
+      <div className="a-panel-actions">
+        <button
+          type="button"
+          className="a-btn a-btn-primary"
+          disabled={busy}
+          onClick={() =>
+            start(async () => {
+              const r = await restoreMediaAction(media.id);
+              if (!r.ok) return toast(r.message, "error");
+              toast(`« ${media.name} » restaurée`);
+              onClose();
+              setTimeout(() => router.refresh(), 0);
+            })
+          }
+        >
+          Restaurer
+        </button>
+      </div>
+      <PurgeItem kind="media" id={media.id} name={media.name} lost="le fichier et toutes ses variantes sont effacés." />
     </aside>
   );
 }
@@ -715,22 +772,22 @@ function TagManager({ onChanged }: { onChanged: () => void }) {
 
 /* ---- Écran ------------------------------------------------------------------- */
 
-export default function MediaLibrary({ initial, usage }: { initial: AdminMediaRow[]; usage: { used: string; quota: string | null; ratio: number | null } }) {
+export default function MediaLibrary({ initial, trashed, summary, usage }: { initial: AdminMediaRow[]; trashed: AdminMediaRow[]; summary: TrashSummary; usage: { used: string; quota: string | null; ratio: number | null } }) {
   const router = useRouter();
   const queue = useUploadQueue();
   const { media, merge } = useMediaState(initial);
   const [selected, setSelected] = useState<number | null>(null);
-  const [tab, setTab] = useState<"media" | "tags">("media");
+  const [tab, setTab] = useState<"media" | "tags" | "trash">("media");
   const [checked, setChecked] = useState<Set<number> | null>(null);
   const { list, controls } = useFiltered(media, queue.tags);
   const refresh = useCallback(() => setTimeout(() => router.refresh(), 0), [router]);
   useEffect(() => queue.onMediaCreated(() => refresh()), [queue, refresh]);
   const processing = media.filter((m) => m.status === "processing").map((m) => m.id);
   useMediaWatch(processing, merge);
-  const current = media.find((m) => m.id === selected) ?? null;
+  const current = (tab === "trash" ? trashed : media).find((m) => m.id === selected) ?? null;
 
   return (
-    <div className="a-library" data-detail={current && tab === "media" ? "open" : undefined}>
+    <div className="a-library" data-detail={current && tab !== "tags" ? "open" : undefined}>
       <div className="a-library-main">
         <div className="a-usage">
           <span>
@@ -751,6 +808,19 @@ export default function MediaLibrary({ initial, usage }: { initial: AdminMediaRo
           </button>
           <button type="button" role="tab" id="tab-tags" aria-selected={tab === "tags"} aria-controls="panel-tags" onClick={() => setTab("tags")}>
             Tags <span className="muted">{queue.tags.length}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="tab-trash"
+            aria-selected={tab === "trash"}
+            aria-controls="panel-trash"
+            onClick={() => {
+              setTab("trash");
+              setSelected(null);
+            }}
+          >
+            Corbeille <span className="muted">{trashed.length}</span>
           </button>
         </div>
         {tab === "media" ? (
@@ -788,13 +858,26 @@ export default function MediaLibrary({ initial, usage }: { initial: AdminMediaRo
               />
             )}
           </div>
-        ) : (
+        ) : tab === "tags" ? (
           <div role="tabpanel" id="panel-tags" aria-labelledby="tab-tags">
             <TagManager onChanged={refresh} />
+          </div>
+        ) : (
+          <div role="tabpanel" id="panel-trash" aria-labelledby="tab-trash">
+            <p className="a-help a-panel-intro">
+              Un média supprimé reste {TRASH_DAYS} jours ici, restaurable en un clic, puis il est effacé pour de bon avec ses fichiers. Renvoyer le même fichier le ressort aussi.
+            </p>
+            <EmptyTrash summary={summary} />
+            {trashed.length === 0 ? (
+              <p className="muted" data-testid="corbeille-vide">La corbeille est vide.</p>
+            ) : (
+              <MediaGrid items={trashed} selectedId={selected} onSelect={(m) => setSelected(m.id)} label="Médias à la corbeille" />
+            )}
           </div>
         )}
       </div>
       {current && tab === "media" && <MediaDetail key={current.id} media={current} onClose={() => setSelected(null)} onDeleted={() => setSelected(null)} />}
+      {current && tab === "trash" && <TrashedDetail key={current.id} media={current} onClose={() => setSelected(null)} />}
     </div>
   );
 }

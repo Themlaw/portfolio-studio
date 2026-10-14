@@ -24,10 +24,25 @@ import { mkdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright";
 
+import { publishBlocks } from "./lib/page-draft.mjs";
+
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
 const PASSWORD = process.env.ADMIN_PASSWORD;
 if (!EMAIL || !PASSWORD) throw new Error("Définir ADMIN_EMAIL et ADMIN_PASSWORD");
+
+const DB_FILE = path.join(process.env.DATA_DIR ?? "data", "portfolio.db");
+/** Lecture directe de la base de l'essai (lecture seule). */
+function dbq(sql, ...args) {
+  const d = new Database(DB_FILE, { readonly: true });
+  try {
+    return d.prepare(sql).all(...args);
+  } finally {
+    d.close();
+  }
+}
+const sdbBlocks = (id) => dbq("select type from blocks where page_id = ? order by position", id).map((r) => r.type);
+const sdbCount = (id) => sdbBlocks(id).length;
 
 let failures = 0;
 function ok(label, cond, detail = "") {
@@ -63,6 +78,12 @@ async function moveWithKeyboard(handleName, key, times) {
   await page.waitForTimeout(400);
 }
 
+/** Menu « … » d'une carte de thème (lot 23) : l'ouvre, puis choisit l'entrée. */
+const menuItem = async (card, name) => {
+  await card.getByRole("button", { name: /Plus d'actions/ }).click();
+  await page.getByRole("menuitem", { name }).click();
+};
+
 /** Nettoyage de secours (essai interrompu) : page et copies de thème du test. */
 async function cleanup() {
   try {
@@ -75,7 +96,7 @@ async function cleanup() {
       await page.reload({ waitUntil: "networkidle" });
     }
     while (await page.locator(".a-theme-card", { hasText: "(copie" }).count()) {
-      await page.locator(".a-theme-card", { hasText: "(copie" }).first().getByRole("button", { name: "Supprimer" }).click();
+      await menuItem(page.locator(".a-theme-card", { hasText: "(copie" }).first(), "Supprimer");
       await page.locator("dialog[open]").getByRole("button", { name: "Supprimer" }).click();
       await page.locator("dialog[open]").waitFor({ state: "detached" });
       await page.reload({ waitUntil: "networkidle" });
@@ -114,7 +135,7 @@ try {
   // (sur une machine lente, l'éditeur de la copie arrive après sa disparition).
   const duplicated = toast("dupliqué");
   duplicated.catch(() => {}); // rejet traité au await plus bas (pas de rejet non géré entre-temps)
-  await source.getByRole("button", { name: "Dupliquer" }).click();
+  await menuItem(source, "Dupliquer");
   await page.waitForURL(/\/admin\/themes\/[a-z0-9-]+$/);
   const themeId = page.url().split("/").pop();
   ok("A1 preset dupliqué → éditeur de la copie", /copie/.test(themeId), themeId);
@@ -176,7 +197,7 @@ try {
   await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
   await toast("mis en ligne");
   await page.reload({ waitUntil: "networkidle" });
-  await page.locator(`.a-theme-card:has(#theme-${themeId})`).getByRole("button", { name: "Supprimer" }).click();
+  await menuItem(page.locator(`.a-theme-card:has(#theme-${themeId})`), "Supprimer");
   ok("A11 suppression confirmée en nommant le thème", /Supprimer le thème « Galerie lumineuse \(copie[^»]*\) » \?/.test(await page.locator("dialog[open] h2").innerText()));
   await page.locator("dialog[open]").getByRole("button", { name: "Supprimer" }).click();
   await toast("supprimé");
@@ -199,46 +220,41 @@ try {
   ok("B2 slug réservé refusé, erreur sous le champ", true);
   await d.getByLabel("Adresse en français").fill("carnets");
   await d.getByRole("button", { name: "Créer la page" }).click();
-  // Le toast ne vit que 3 s et part avant la navigation : on le guette d autant plus tôt que
-  // la compilation de l éditeur (serveur de dev) peut dépasser ce délai.
+  // Le toast ne vit que 3 s et part avant la navigation : on le guette d'autant plus tôt que
+  // la compilation de l'éditeur (serveur de dev) peut dépasser ce délai.
   await toast("Page créée");
-  await page.waitForURL(/\/admin\/pages\/\d+$/, { timeout: 60000 });
-  const pageId = Number(page.url().split("/").pop());
-  ok("B3 page créée → éditeur", pageId > 0);
+  // Lot 23 : après « Créer », on arrive directement dans l'éditeur visuel de la nouvelle page.
+  await page.waitForURL(/\/admin\/pages\/\d+\/editer$/, { timeout: 90000 });
+  const pageId = Number(page.url().split("/").at(-2));
+  ok("B3 page créée → éditeur visuel de la nouvelle page", pageId > 0);
 
-  const addBlock = async (label) => {
-    await page.getByRole("button", { name: "+ Ajouter un bloc" }).click();
-    const dd = page.locator("dialog[open]");
-    await dd.locator(".a-block-type", { has: page.locator("strong", { hasText: new RegExp(`^${label}$`) }) }).click();
-    await dd.getByRole("button", { name: "Ajouter ce bloc" }).click();
-  };
-  await addBlock("Texte");
-  const textBlock = page.locator(".a-block").last();
-  await textBlock.getByLabel("Titre (facultatif)", { exact: true }).fill("Carnets");
-  await textBlock.getByLabel("Texte", { exact: true }).fill("Croquis d'observation, été 2026.");
-  await textBlock.getByRole("tab", { name: /^EN/ }).nth(2).click();
-  await textBlock.getByLabel("Texte", { exact: true }).fill("Observation sketches, summer 2026.");
-  await addBlock("Contact");
-  const contactBlock = page.locator(".a-block").last();
-  for (const [label, fr] of [["Étiquette (facultative)", "Contact"], ["Titre (facultatif)", "Écris-moi"], ["Présentation (facultative)", "Une commande ?"], ["Texte du bouton (facultatif)", "M'écrire"]]) {
-    await contactBlock.getByLabel(label, { exact: true }).fill(fr);
-  }
-  // Sans traduction anglaise du titre du contact : autorisé (texte vide), on la remplit quand même.
-  // Réordonner au clavier : Contact remonte au-dessus de Texte.
-  await moveWithKeyboard("Déplacer Contact", "ArrowUp", 1);
-  const order = await page.locator(".a-block .a-block-type-name").allInnerTexts();
-  ok("B4 blocs réordonnés au clavier", order.join(",") === "Contact,Texte", order.join(","));
-  const live2 = await page.locator("#DndLiveRegion-0, [id^=DndLiveRegion]").last().innerText().catch(() => "");
-  ok("B4b annonce aria-live du déplacement", /posé en position 1/.test(live2), live2);
+  // Le contenu se compose dans l'éditeur : brouillon écrit, puis « Publier » (le formulaire ne porte plus les blocs).
+  const published = await publishBlocks(
+    page,
+    BASE,
+    pageId,
+    () => [
+      { uid: "bcontact", type: "contact", props: { eyebrow: { fr: "Contact", en: "Contact" }, title: { fr: "Écris-moi", en: "Write to me" }, intro: { fr: "Une commande ?", en: "A commission?" }, cta: { fr: "M'écrire", en: "Write" } } },
+      { uid: "btexte", type: "rich-text", props: { title: { fr: "Carnets", en: "Sketchbooks" }, paragraphs: [{ fr: "Croquis d'observation, été 2026.", en: "Observation sketches, summer 2026." }] } },
+    ],
+    () => sdbCount(pageId) === 2,
+  );
+  ok("B4 contenu posé par l'éditeur (deux rubriques, dans l'ordre)", published && sdbBlocks(pageId).join(",") === "contact,rich-text", sdbBlocks(pageId).join(","));
 
+  // Le formulaire : informations seulement, et un lien vers l'éditeur à la place de la liste des rubriques.
+  await page.goto(`${BASE}/admin/pages/${pageId}`, { waitUntil: "networkidle" });
+  ok("B4a le formulaire n'a plus de liste de rubriques ni de « + Ajouter une rubrique »", (await page.getByRole("button", { name: "+ Ajouter une rubrique" }).count()) === 0 && (await page.locator(".a-block").count()) === 0);
+  const toEditor = page.getByRole("link", { name: "Modifier le contenu dans l'éditeur" });
+  ok("B4b lien « Modifier le contenu dans l'éditeur » vers l'éditeur de la page", (await toEditor.getAttribute("href")) === `/admin/pages/${pageId}/editer` && /2 rubriques/.test(await page.locator("#pe-contenu").locator("..").innerText()));
   await page.locator("label.a-toggle", { hasText: "Publiée" }).click();
   await page.locator("label.a-toggle", { hasText: "Dans le menu" }).click();
   ok("B4c interrupteurs activés", (await page.getByRole("switch", { name: "Publiée" }).isChecked()) && (await page.getByRole("switch", { name: "Dans le menu" }).isChecked()));
   ok("B5 état « non enregistré » visible", await page.locator(".a-save-state", { hasText: "non enregistrées" }).isVisible());
-  // Prévisualiser avant d'enregistrer : l'éditeur prévient que l'aperçu montre la version enregistrée.
+  // Prévisualiser avant d'enregistrer : le formulaire prévient que l'aperçu montre la version enregistrée.
   ok("B5b l'aperçu signale qu'il montre la version enregistrée", await page.getByText("L'aperçu montre la version enregistrée").isVisible());
   await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
   await toast("Enregistré");
+  ok("B5c enregistrer par le formulaire ne change pas les blocs", sdbBlocks(pageId).join(",") === "contact,rich-text");
 
   r = await anon("/fr/carnets");
   const posContact = r.html.indexOf("Écris-moi");
@@ -249,7 +265,7 @@ try {
   r = await anon("/fr");
   ok("B8 la page apparaît dans le menu public", r.html.includes('href="/fr/carnets"') && r.html.includes("Carnets d&#x27;été"));
 
-  // Aperçu de la page (nouvel onglet) depuis l'éditeur.
+  // Aperçu de la page (nouvel onglet) depuis le formulaire.
   const [pv] = await Promise.all([ctx.waitForEvent("page"), page.getByRole("button", { name: /Prévisualiser la page/ }).click()]);
   await pv.waitForLoadState("domcontentloaded");
   ok("B9 « Prévisualiser la page ↗ » ouvre la page enregistrée", pv.url().endsWith("/fr/carnets") && (await pv.content()).includes("Écris-moi"));
@@ -273,10 +289,10 @@ try {
   await page.locator("tr", { hasText: "Personnages" }).getByRole("button", { name: "Supprimer" }).click();
   d = page.locator("dialog[open]");
   ok("B11 confirmation nomme la page", /Supprimer la page « Personnages » \?/.test(await d.locator("h2").innerText()));
-  await d.getByRole("button", { name: "Supprimer" }).click();
+  // Lot 23 : le refus est annoncé AVANT, le bouton « Supprimer » n'est jamais proposé pour une suppression refusée.
   await d.locator(".a-refs li").first().waitFor();
   const refs = await d.locator(".a-refs").innerText();
-  ok("B12 suppression bloquée, blocs référents listés", /Entrées des collections|Projet mis en avant|Lien vers une page/.test(refs) && /Accueil/.test(refs), refs);
+  ok("B12 suppression bloquée d'avance : rubriques référentes listés, bouton « Supprimer » inactif", /Entrées des collections|Projet mis en avant|Lien vers une page/.test(refs) && /Accueil/.test(refs) && (await d.getByRole("button", { name: "Supprimer", exact: true }).isDisabled()), refs);
   await d.getByRole("button", { name: "Annuler" }).click();
   r = await anon("/fr/personnages");
   ok("B12b la page référencée existe toujours", r.status === 200);
@@ -300,9 +316,9 @@ try {
   // Suppression de la page créée.
   await page.locator("tr", { hasText: "Carnets d'été" }).getByRole("button", { name: "Supprimer" }).click();
   await page.locator("dialog[open]").getByRole("button", { name: "Supprimer" }).click();
-  await toast("supprimée");
+  await toast("Supprimé");
   r = await anon("/fr/carnets");
-  ok("B16 page supprimée → 404", r.status === 404);
+  ok("B16 page supprimée (corbeille) → 404", r.status === 404);
 
   // ---- C. Réglages ---------------------------------------------------------
   await page.goto(`${BASE}/admin/reglages`, { waitUntil: "networkidle" });

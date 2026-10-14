@@ -307,9 +307,11 @@ test("seed : l'accueil neuf n'a plus de conteneur (Titre, deux Planches à proje
   assert.ok(home[i + 3].props.pageId > 0 && home[i + 3].props.label.fr);
 });
 
-// Retour à une base v0.18 : migrations 0021 (déballage) et 0022 (colonne pages.collection) à rejouer.
+// Retour à une base v0.18 : migrations 0021 (déballage), 0022 (colonne pages.collection), 0023 (fusion des rubriques) et
+// 0024 (colonnes de la corbeille) à rejouer.
 live.prepare("delete from __drizzle_migrations where created_at >= 1791766309564").run();
 live.exec("DROP INDEX pages_collection_unique; ALTER TABLE pages DROP COLUMN collection;");
+live.exec("ALTER TABLE media DROP COLUMN deleted_at; ALTER TABLE pages DROP COLUMN deleted_at; ALTER TABLE pages DROP COLUMN trashed_in_menu; ALTER TABLE projects DROP COLUMN deleted_at;");
 const legacy = seedLegacyPage(live);
 test("démarrage : base v0.18 (migrations jusqu'à 0020 faites) avec trois conteneurs publiés + un brouillon", () => {
   assert.equal(live.prepare("select count(*) n from blocks where page_id = ? and type = 'featured-project'").get(legacy.id).n, 3);

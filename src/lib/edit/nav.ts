@@ -11,7 +11,7 @@
  * y sont reportés aussi : la publication de l'en-tête ne les défait jamais.
  * Une page disparue est retirée partout (autonettoyage, jamais de blocage).
  */
-import { asc, eq, isNotNull } from "drizzle-orm";
+import { asc, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
@@ -23,6 +23,7 @@ function livePages(): Set<number> {
     getDb()
       .select({ id: schema.pages.id, slug: schema.pages.slug })
       .from(schema.pages)
+      .where(isNull(schema.pages.deletedAt))
       .all()
       .filter((p) => !p.slug.fr.startsWith("_"))
       .map((p) => p.id),
