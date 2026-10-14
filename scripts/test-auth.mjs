@@ -675,8 +675,8 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     withBlocks([
       secretBlock,
       { uid: "n2", type: "hero", props: { eyebrow: { fr: "", en: "" }, statement: { fr: "", en: "" }, reelPageId: targetPage } },
-      // v0.13 : conteneur « Projet mis en avant » (l'ancien bloc n'est plus créable).
-      { uid: "n3", type: "featured-project", props: { project: projectSlug, children: [] } },
+      // Planche d'un projet à projet en dur (le conteneur « Projet mis en avant » n'est plus créable depuis la v0.19).
+      { uid: "n3", type: "project-board", props: { project: projectSlug } },
       { uid: "n4", type: "profile", props: { portraitMediaId: targetMedia } },
     ]),
     pageRev(homeId),

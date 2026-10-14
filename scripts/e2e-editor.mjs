@@ -152,7 +152,8 @@ const b = await blockRect(f, 2);
 const frameBox = await page.locator("iframe.ve-frame").boundingBox();
 const targetY = frameBox.y + (a.bottom + b.top) / 2;
 const targetX = frameBox.x + frameBox.width / 2;
-const card = page.locator('.ve-card[data-type="rich-text"]');
+// v0.19 : « Texte » est l'un des trois raccourcis en tête du panneau (plus une carte du catalogue) ; on le glisse comme avant.
+const card = page.locator('.ve-starter[data-starter="text"]');
 // Palette plus longue en v0.13 : la carte est amenée à l'écran.
 await card.scrollIntoViewIfNeeded();
 const cb = await card.boundingBox();
@@ -173,6 +174,13 @@ ok("état « Brouillon enregistré »", /Brouillon enregistré/.test(await statu
 let blocks = await blocksOf(f);
 const textUid = blocks[2].uid;
 ok("le nouveau bloc est sélectionné", await until(f, (uid) => Boolean(document.querySelector(".pe-selected")) && document.querySelectorAll("[data-edit-block]:not([data-edit-parent])")[2]?.dataset.editBlock === uid, textUid));
+// Le raccourci « Texte » ouvre l'édition en place du texte d'aide : remplacé d'une frappe, comme le fait l'artiste.
+await f.locator("[data-editing]").first().waitFor({ timeout: 30000 }).catch(() => {});
+await page.keyboard.type("Un premier paragraphe");
+await page.keyboard.press("Enter");
+// La barre de style du texte reste ouverte après la saisie : Échap la ferme (elle couvrirait le survol qui suit).
+await page.keyboard.press("Escape");
+await settled();
 
 /* ---- Titre modifié en place, FR puis EN ------------------------------------ */
 
@@ -181,7 +189,15 @@ const titleSel = (uid) => `[data-edit-block="${uid}"] [data-inline="title"]`;
 // Défilement AVANT le survol : si Playwright fait défiler la page pour atteindre le bouton, la souris sort de l'hôte et le
 // bouton perd ses pointer-events (flake en parallèle). On survole donc le paragraphe une fois la page stable, puis le bouton.
 const addTitleBtn = f.locator(`[data-edit-block="${textUid}"] [data-edit-field-op="add-title"]`);
-await addTitleBtn.scrollIntoViewIfNeeded();
+// Le rendu du serveur peut encore remplacer le DOM après la saisie : on retente tant que le bouton est remplacé.
+for (let i = 0; i < 6; i++) {
+  try {
+    await addTitleBtn.scrollIntoViewIfNeeded();
+    break;
+  } catch {
+    await sleep(800);
+  }
+}
 await f.locator(`[data-edit-block="${textUid}"] [data-inline="paragraphs.0"]`).hover();
 // Le bouton n'a de pointer-events qu'au survol de son hôte : on le rejoint à la souris (hover()/click() de Playwright refusent un élément « couvert »).
 const addBox = await addTitleBtn.boundingBox();
@@ -310,7 +326,7 @@ const slow = async (route) => {
   await route.continue();
 };
 await page.route("**/admin/pages/1/editer**", slow);
-await page.locator('.ve-card[data-type="rich-text"]').click();
+await page.locator('.ve-starter[data-starter="text"]').click();
 ok("état « Enregistrement… »", await until(page.mainFrame(), () => /Enregistrement…/.test(document.querySelector(".ve-status")?.textContent ?? ""), null, 5000));
 await bar("enregistrement");
 await settled();
@@ -333,7 +349,7 @@ other.on("pageerror", (e) => errors.push(e.message));
 await other.goto(`${BASE}/admin/pages/1/editer`, { waitUntil: "domcontentloaded" });
 const of = await canvas(other);
 const otherBefore = (await blocksOf(of)).length;
-await other.locator('.ve-card[data-type="rich-text"]').click();
+await other.locator('.ve-starter[data-starter="text"]').click();
 await countIs(of, otherBefore + 1);
 await settled(other);
 await page.locator('.ve-card[data-type="contact"]').click();
@@ -367,7 +383,7 @@ await m.getByRole("button", { name: "＋ Composants" }).click();
 await sleep(400);
 await m.screenshot({ path: `${SHOTS}/390-composants.png` });
 const mBefore = (await blocksOf(mf)).length;
-await m.locator('.ve-card[data-type="rich-text"]').click();
+await m.locator('.ve-card[data-type="contact"]').click();
 ok("390 : toucher un composant l'ajoute, la feuille se referme", (await countIs(mf, mBefore + 1)) && (await m.locator(".ve-panel[data-open]").count()) === 0);
 await settled(m);
 ok("390 : le bloc ajouté est sélectionné, avec ses boutons", await until(mf, () => Boolean(document.querySelector(".pe-tools"))));

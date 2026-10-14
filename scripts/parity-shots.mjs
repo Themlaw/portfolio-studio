@@ -3,7 +3,8 @@
  * Captures de parité visuelle : 4 thèmes × pages publiques, pleine page.
  * Sert à comparer deux états du site (ex. avant/après une refonte des données).
  *
- * Usage : PORT=3001 PARITY_LABEL=avant [PARITY_PAGES=accueil,personnages] node scripts/parity-shots.mjs [preset…]
+ * Usage : PORT=3001 PARITY_LABEL=avant [PARITY_PAGES=accueil,personnages] [PARITY_EXTRA=nom:/fr/chemin,…] node scripts/parity-shots.mjs [preset…]
+ * PARITY_EXTRA ajoute des pages (nom:chemin) à la liste : ex. une page ajoutée en base pour l'occasion.
  * Sortie : screenshots/parity/<label>/<preset>/<page>.png (hors git).
  * Comparaison : diff pixel à pixel des deux dossiers (ex. PIL ImageChops).
  */
@@ -27,6 +28,10 @@ const PAGES = [
   ["en-accueil", "/en"],
   ["en-characters", "/en/characters"],
 ];
+for (const item of (process.env.PARITY_EXTRA ?? "").split(",").filter(Boolean)) {
+  const [name, ...rest] = item.split(":");
+  PAGES.push([name, rest.join(":")]);
+}
 const MOBILE = [["accueil-390", "/fr"]];
 
 // PARITY_PAGES=accueil,personnages : seulement ces pages (par nom ci-dessus) ; vide = toutes.

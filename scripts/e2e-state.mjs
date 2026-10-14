@@ -725,23 +725,9 @@ if (run("C")) {
     ok("C6 clic ailleurs : le menu des réseaux se ferme", await gone(".pe-popover"));
   }
 
-  /* C7. Page d'accueil : choix du projet mis en avant, agencement d'une grille, champs du formulaire. */
+  /* C7. Page d'accueil : agencement d'une grille, champs du formulaire. (v0.19 : plus de conteneur « Projet mis en avant » ni de choix de projet de conteneur.) */
   f = await openEditor(1);
   await sleep(1500);
-  const featured = '[data-edit-type="featured-project"]';
-  if (await f.locator(featured).count()) {
-    await f.locator(featured).first().scrollIntoViewIfNeeded();
-    await f.locator(`${featured} h2, ${featured} h3, ${featured} [data-inline]`).first().click({ force: true });
-    // Le clic choisit le composant le plus profond : remonter au conteneur par le fil d'Ariane.
-    const crumb = f.locator(".pe-crumbs .pe-crumb", { hasText: "Projet mis en avant" });
-    if (await crumb.count()) await crumb.first().click();
-    await f.locator(".pe-tools").getByRole("button", { name: "Changer de projet" }).click();
-    ok("C7 choix du projet ouvert", await shown(".pe-container-picker input"));
-    await f.locator(".pe-container-picker input").fill("a");
-    ok("C7 liste des projets affichée", await shown(".pe-combo-list"));
-    await clickElsewhere();
-    ok("C7 clic ailleurs : liste ET choix de projet fermés", (await gone(".pe-combo-list")) && (await gone(".pe-container-picker")));
-  }
   await page.getByRole("tab", { name: "Ajouter" }).click();
   const gridCard = page.locator('.ve-card[data-type="grid"]').first();
   if (await gridCard.count()) {

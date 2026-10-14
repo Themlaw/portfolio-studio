@@ -5,21 +5,24 @@
  * (seed : la migration 0014 y est jouée), une connexion.
  *
  *  A. En-tête non collant dans la toile (mode édition) ; collant en aperçu et en public.
- *  B. « Projet mis en avant » glissé depuis la palette : choix du projet sur la
- *     toile (combobox, « Créer »), titre lié + planche par défaut.
+ *  B. « Planche d'un projet » glissée depuis la palette : nom du projet saisi sur la
+ *     toile (combobox, « Créer »), puis un Titre lié à ce projet (raccourci « Titre »
+ *     glissé, projet choisi dans le panneau). v0.19 : le conteneur « Projet mis en
+ *     avant » n'existe plus, ce couple le remplace.
  *  C. Images déposées DANS sa planche, à une position précise (média, puis
  *     fichier entre deux).
- *  D. Glisser un composant DANS le conteneur (repère intérieur), refus pour un
+ *  D. Glisser un composant DANS une grille (repère intérieur), refus pour un
  *     bloc non accepté, sortir un composant, le faire rentrer par la poignée.
  *  E. Grille de vidéos : agencement changé sans perte, vidéo déposée dans une
  *     cellule précise, place libre « + ».
- *  F. Suppression du conteneur : confirmation qui compte les composants.
+ *  F. Suppression de la grille : confirmation qui compte les composants.
  *  G. En-tête et pied (communs) : lien ajouté, renommé ; réseaux classique et « Autre lien ».
  *  H. Ouverture : texte en place, fond remplacé par un média.
- *  I. Publication et rendu public ; correction I1 (planche retirée avec son
- *     conteneur : images en ligne intactes).
+ *  I. Publication et rendu public ; correction I1 (planche retirée de la
+ *     page : images en ligne intactes).
  *  J. Aucune sélection de texte native après les glisser.
  *  K. Compteur « N œuvres · M projets » calculé depuis la page.
+ *  N. Grille vide : places « + » sur la toile, aucune boîte fantôme en aperçu.
  *
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… SHOTS=/root/shots-v013 node scripts/e2e-v013.mjs
  *         BROWSER=firefox ONLY=J node scripts/e2e-v013.mjs   (sélection seulement)
@@ -198,7 +201,8 @@ async function dragTo(from, to, shot) {
 }
 async function dragPalette(key, to, shot) {
   await page.getByRole("tab", { name: "Ajouter" }).click();
-  const card = page.locator(`.ve-card[data-key="${key}"]`);
+  // Carte du catalogue, ou raccourci Texte (« text », « title », « title-text »).
+  const card = page.locator(`.ve-card[data-key="${key}"], .ve-starter[data-starter="${key}"]`).first();
   await card.scrollIntoViewIfNeeded();
   const b = await card.boundingBox();
   await dragTo({ x: b.x + b.width / 2, y: b.y + b.height / 2 }, to, shot);
@@ -226,9 +230,14 @@ async function noSelection(f) {
   return { outer, inner, ok: !outer && !inner };
 }
 const sel = {
-  container: '[data-edit-block][data-edit-type="featured-project"]',
+  // Grille d'images posée en D (3 images à choisir, puis un Texte) : seul conteneur de la page à cet endroit.
+  grid: '[data-edit-block][data-edit-type="grid"]',
   board: `[data-edit-board][data-edit-board-label="${PROJECT}"]`,
 };
+/** Grille de vidéos de la section E (la première composante est une vidéo). */
+const videoGrid = () => findIn(draftOf().blocks, (b) => b.type === "grid" && b.props.children?.[0]?.type === "video-single");
+/** Grille d'images de la section D. */
+const imageGrid = () => findIn(draftOf().blocks, (b) => b.type === "grid" && b.props.children?.[0]?.type !== "video-single");
 const run = (k) => !ONLY || ONLY.split(",").includes(k);
 
 let f = await openEditor(1);
@@ -257,10 +266,10 @@ if (run("A")) {
   await f.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
 }
 
-/* ---- B. Conteneur « Projet mis en avant » --------------------------------------- */
+/* ---- B. Planche neuve et Titre lié à son projet --------------------------------- */
 
 if (run("B")) {
-  // Déposé entre l'ouverture et les tuiles.
+  // Déposée entre l'ouverture et la rubrique suivante.
   const between = await f.evaluate(() => {
     const els = [...document.querySelectorAll("[data-edit-block]:not([data-edit-parent])")];
     const box = (el) => {
@@ -270,42 +279,51 @@ if (run("B")) {
     return (box(els[0]).bottom + box(els[1]).top) / 2;
   });
   const fb = await frameBox();
-  await dragPalette("featured-project", { x: fb.x + fb.width / 2, y: fb.y + Math.min(between, fb.height - 40) });
-  ok("B1 conteneur posé : choix du projet sur la toile (combobox)", await until(f, () => Boolean(document.querySelector(".pe-container-picker input[role=combobox]"))));
+  await dragPalette("project-board", { x: fb.x + fb.width / 2, y: fb.y + Math.min(between, fb.height - 40) });
+  ok("B1 planche posée : nom du projet à saisir sur la toile (combobox)", await until(f, () => Boolean(document.querySelector(".pe-board-new input[role=combobox]"))));
   await settled();
-  const d = draftOf();
-  const cont = findIn(d.blocks, (b) => b.type === "featured-project" && !b.props.project);
-  ok("B2 composants par défaut : titre lié au projet + planche", cont?.props.children?.map((c) => c.type).join(",") === "section-title,project-board" && cont.props.children[0].props.linked === true, JSON.stringify(cont?.props.children));
-  const input = f.locator(".pe-container-picker input[role=combobox]");
+  const input = f.locator(".pe-board-new input[role=combobox]");
   await input.fill(PROJECT);
   await sleep(300);
-  ok("B3 la liste propose « Créer « … » »", (await f.locator(".pe-combo-opt[data-kind=create]").textContent())?.includes(PROJECT));
+  ok("B2 la liste propose « Créer « … » »", (await f.locator(".pe-combo-opt[data-kind=create]").textContent())?.includes(PROJECT));
   await page.screenshot({ path: `${SHOTS}/B-choix-du-projet.png` });
   await input.press("Enter");
-  ok("B4 projet créé : la planche du conteneur apparaît", await until(f, (s) => Boolean(document.querySelector(s)), sel.board));
+  ok("B3 projet créé : la planche apparaît", await until(f, (s) => Boolean(document.querySelector(s)), sel.board));
   await settled();
   const created = q("select id, slug, draft_page_id p from projects where json_extract(title,'$.fr') = ?", PROJECT)[0];
-  ok("B5 projet en brouillon de la page, cité par le conteneur", created?.p === 1 && findIn(draftOf().blocks, (b) => b.type === "featured-project")?.props.project === created.slug, JSON.stringify(created));
-  // Sélection du conteneur par son fil d'Ariane depuis un composant.
+  ok("B4 projet en brouillon de la page, cité par la planche", created?.p === 1 && findIn(draftOf().blocks, (b) => b.type === "project-board")?.props.project === created.slug, JSON.stringify(created));
+  // Titre (raccourci glissé) juste au-dessus de la planche, puis lié à ce projet depuis le panneau « Réglages ».
   await center(f, sel.board);
-  await f.locator(`${sel.container} [data-edit-block][data-edit-type="section-title"] h2`).first().click();
-  ok("B6 clic sur un composant : il est choisi, fil d'Ariane « Projet mis en avant › Titre »", await until(f, () => /Projet mis en avant\s*›\s*Titre/.test(document.querySelector(".pe-crumbs")?.textContent ?? "")));
-  await f.locator(".pe-crumbs .pe-crumb").first().click();
-  ok("B7 le fil d'Ariane remonte au conteneur", await until(f, () => (document.querySelector(".pe-crumbs")?.textContent ?? "").trim() === "Projet mis en avant"));
-  await sleep(300);
-  await page.screenshot({ path: `${SHOTS}/B-conteneur-selectionne-avec-composants.png` });
-  await page.getByRole("tab", { name: "Structure" }).click();
-  await sleep(300);
-  ok("B8 structure : arbre indenté (composants au niveau 2)", (await page.locator('.ve-tree [role=treeitem][aria-level="2"]').count()) >= 2);
-  await page.screenshot({ path: `${SHOTS}/B-arbre-du-panneau.png` });
+  const above = await framePoint(f, sel.board, "top");
+  await dragPalette("title", { x: above.x, y: above.y - 14 });
+  await f.locator("[data-editing]").first().waitFor({ timeout: 60000 }).catch(() => {});
+  await page.keyboard.type("Titre de test");
+  await page.keyboard.press("Enter");
+  await settled();
+  const top = draftOf().blocks;
+  const bi = top.findIndex((b) => b.type === "project-board");
+  ok("B5 Titre posé juste avant la planche, sur la page (pas dans un conteneur)", top[bi - 1]?.type === "section-title", JSON.stringify(top.map((b) => b.type)));
+  const titleUid = top[bi - 1].uid;
+  await f.locator(`[data-edit-block="${titleUid}"] h2`).first().click();
+  await page.getByRole("tab", { name: "Réglages" }).click();
+  await page.locator("label.a-toggle", { hasText: "Reprendre le nom et la présentation d'un projet" }).click();
+  const pick = page.getByRole("combobox", { name: /Projet repris par ce titre/ });
+  await pick.fill(PROJECT);
+  await pick.press("ArrowDown");
+  await pick.press("Enter");
+  await settled();
+  const linked = findIn(draftOf().blocks, (b) => b.uid === titleUid);
+  ok("B6 Titre lié : projet porté par le Titre lui-même", linked?.props.linked === true && linked.props.project === created.slug, JSON.stringify(linked?.props));
+  ok("B7 la toile montre le nom du projet dans le Titre", await until(f, (n) => [...document.querySelectorAll('[data-edit-type="section-title"] h2')].some((h) => h.textContent?.includes(n)), PROJECT));
+  await page.screenshot({ path: `${SHOTS}/B-titre-lie-et-planche.png` });
 }
 
-/* ---- C. Images dans la planche du conteneur, à une position ---------------------- */
+/* ---- C. Images dans la planche, à une position ---------------------- */
 
 if (run("C")) {
   await center(f, sel.board);
   await dragMedia(images[0], await framePoint(f, `${sel.board} [data-edit-rail]`, "left"));
-  ok("C1 1er média déposé dans la planche du conteneur", await until(f, (s) => document.querySelectorAll(`${s} [data-edit-slot]`).length === 1, sel.board));
+  ok("C1 1er média déposé dans la planche", await until(f, (s) => document.querySelectorAll(`${s} [data-edit-slot]`).length === 1, sel.board));
   await settled();
   // Le 2e AVANT le premier (bord gauche).
   await dragMedia(images[1], await framePoint(f, `${sel.board} [data-edit-slot]`, "left"), async () => {
@@ -337,47 +355,62 @@ if (run("C")) {
   ok("J1 aucune sélection de texte après les glisser de médias", s.ok, JSON.stringify(s));
 }
 
-/* ---- D. Glisser dans / hors du conteneur ---------------------------------------- */
+/* ---- D. Glisser dans / hors d'une grille --------------------------------------- */
 
 if (run("D")) {
-  await center(f, sel.container);
-  // « Texte » de la palette DANS le conteneur, entre le titre et la planche.
-  const title = await framePoint(f, `${sel.container} [data-edit-type="section-title"] h2`, "bottom");
-  await dragPalette("rich-text", { x: title.x, y: title.y + 40 }, async () => {
-    ok("D1 repère intérieur + cadre du conteneur pendant le glisser", (await f.locator(".pe-marker-inner").count()) === 1 && (await f.locator(".pe-drop-container:not([data-refused])").count()) === 1);
-    await page.screenshot({ path: `${SHOTS}/D-depot-a-l-interieur-du-conteneur.png` });
-  });
+  // Grille d'images (3 images à choisir) sous la planche.
+  await center(f, sel.board);
+  const below = await framePoint(f, sel.board, "bottom");
+  await dragPalette("grid-images", below);
   await settled();
-  let cont = findIn(draftOf().blocks, (b) => b.type === "featured-project");
-  ok("D2 « Texte » ajouté DANS le conteneur, en 2e position", cont?.props.children?.map((c) => c.type).join(",") === "section-title,rich-text,project-board", JSON.stringify(cont?.props.children?.map((c) => c.type)));
-  const textUid = cont.props.children[1].uid;
-  // Composant non accepté (Contact) glissé sur le conteneur : refusé, rien n'est ajouté.
+  let grid = imageGrid();
+  ok("D0 grille d'images posée : 3 images à choisir", grid?.props.children?.length === 3 && grid.props.children.every((c) => c.type === "image"), JSON.stringify(grid?.props));
+  const gridSel = `[data-edit-block="${grid.uid}"]`;
+  await page.getByRole("tab", { name: "Structure" }).click();
+  await sleep(300);
+  ok("D0 structure : arbre indenté (composants de la grille au niveau 2)", (await page.locator('.ve-tree [role=treeitem][aria-level="2"]').count()) >= 3);
+  await page.screenshot({ path: `${SHOTS}/D-arbre-du-panneau.png` });
+  await center(f, gridSel);
+  // « Texte » du panneau DANS la grille, sur la première image.
+  const cell = await framePoint(f, `${gridSel} .pe-media-empty`, "bottom");
+  await dragPalette("text", cell, async () => {
+    ok("D1 repère intérieur + cadre de la grille pendant le glisser", (await f.locator(".pe-marker-inner, .pe-marker-inner-v").count()) === 1 && (await f.locator(".pe-drop-container:not([data-refused])").count()) === 1);
+    await page.screenshot({ path: `${SHOTS}/D-depot-a-l-interieur-de-la-grille.png` });
+  });
+  await f.locator("[data-editing]").first().waitFor({ timeout: 60000 }).catch(() => {});
+  await page.keyboard.type("Texte dans la grille");
+  await page.keyboard.press("Enter");
+  await settled();
+  grid = imageGrid();
+  ok("D2 « Texte » ajouté DANS la grille (4 composants)", grid?.props.children?.length === 4 && grid.props.children.some((c) => c.type === "rich-text"), JSON.stringify(grid?.props.children?.map((c) => c.type)));
+  const textUid = grid.props.children.find((c) => c.type === "rich-text").uid;
+  // Composant non accepté (Contact) glissé sur la grille : refusé, rien n'est ajouté.
   const blocksBefore = draftOf().blocks.length;
-  const inside = await framePoint(f, `${sel.container} [data-edit-type="rich-text"] section`);
+  const inside = await framePoint(f, `${gridSel} [data-edit-type="rich-text"] section`);
   await dragPalette("contact", inside, async () => {
-    ok("D3 bloc non accepté : repère « refusé » sur le conteneur", (await f.locator(".pe-drop-container[data-refused]").count()) === 1);
+    ok("D3 bloc non accepté : repère « refusé » sur la grille", (await f.locator(".pe-drop-container[data-refused]").count()) === 1);
     await page.screenshot({ path: `${SHOTS}/D-depot-refuse.png` });
   });
   await settled();
   const after = draftOf().blocks;
-  ok("D4 refus : rien d'ajouté (ni dans le conteneur, ni sur la page)", after.length === blocksBefore && !findIn(findIn(after, (b) => b.type === "featured-project").props.children, (b) => b.type === "contact"));
-  // Sortir le Texte du conteneur (barre : ⇱), puis le refaire entrer par la poignée.
-  await center(f, sel.container);
-  await f.locator(`[data-edit-block="${textUid}"] p`).first().click();
+  ok("D4 refus : rien d'ajouté (ni dans la grille, ni sur la page)", after.length === blocksBefore && !findIn(imageGrid().props.children, (b) => b.type === "contact"));
+  // Sortir le Texte de la grille (barre : ⇱), puis le refaire entrer par la poignée.
+  await center(f, gridSel);
+  // Cellule étroite : la barre d'outils du bloc (déjà choisi) couvre le paragraphe, le clic est forcé.
+  await f.locator(`[data-edit-block="${textUid}"] p`).first().click({ force: true });
   await f.locator('.pe-tools button[aria-label="Sortir du conteneur"]').click();
   await settled();
-  let top = draftOf().blocks;
-  const ci = top.findIndex((b) => b.type === "featured-project");
-  ok("D5 « Sortir du conteneur » : le Texte est sur la page, juste après lui", top[ci + 1]?.uid === textUid, JSON.stringify(top.map((b) => b.type)));
+  const top = draftOf().blocks;
+  const gi = top.findIndex((b) => b.uid === grid.uid);
+  ok("D5 « Sortir du conteneur » : le Texte est sur la page, juste après la grille", top[gi + 1]?.uid === textUid, JSON.stringify(top.map((b) => b.type)));
   await center(f, `[data-edit-block="${textUid}"]`);
-  await f.locator(`[data-edit-block="${textUid}"] p`).first().click();
+  await f.locator(`[data-edit-block="${textUid}"] p`).first().click({ force: true });
   await sleep(300);
   const g2 = await f.locator(".pe-selected .pe-grip").boundingBox();
-  const intoTitle = await framePoint(f, `${sel.container} [data-edit-type="section-title"] h2`, "bottom");
-  await dragTo({ x: g2.x + g2.width / 2, y: g2.y + g2.height / 2 }, { x: intoTitle.x, y: intoTitle.y + 30 });
+  const intoCell = await framePoint(f, `${gridSel} .pe-media-empty`, "bottom");
+  await dragTo({ x: g2.x + g2.width / 2, y: g2.y + g2.height / 2 }, { x: intoCell.x, y: intoCell.y });
   await settled();
-  cont = findIn(draftOf().blocks, (b) => b.type === "featured-project");
-  ok("D6 poignée : le Texte rentre dans le conteneur", cont.props.children.some((c) => c.uid === textUid), JSON.stringify(cont.props.children.map((c) => c.type)));
+  ok("D6 poignée : le Texte rentre dans la grille", imageGrid().props.children.some((c) => c.uid === textUid), JSON.stringify(imageGrid().props.children.map((c) => c.type)));
   const s = await noSelection(f);
   ok("J2 aucune sélection de texte après les glisser de blocs", s.ok, JSON.stringify(s));
 }
@@ -392,7 +425,7 @@ if (run("E")) {
   const contactTop = await framePoint(f, '[data-edit-block][data-edit-type="contact"]:not([data-edit-parent]) h2', "bottom");
   await dragPalette("grid-videos", { x: fb.x + fb.width / 2, y: Math.min(contactTop.y + 160, fb.y + fb.height - 30) });
   await settled();
-  let grid = findIn(draftOf().blocks, (b) => b.type === "grid");
+  let grid = videoGrid();
   ok("E1 grille de vidéos : 3 vidéos à choisir, agencement 1 grand + 2", grid?.props.layout === "1+2" && grid.props.children.length === 3 && grid.props.children.every((c) => c.type === "video-single"), JSON.stringify(grid?.props));
   const gridSel = `[data-edit-block="${grid.uid}"]`;
   await center(f, gridSel);
@@ -407,7 +440,7 @@ if (run("E")) {
   await page.screenshot({ path: `${SHOTS}/E-selecteur-d-agencement.png` });
   await f.locator('.pe-layouts button[aria-label="4 petits (2 × 2)"]').click();
   await settled();
-  grid = findIn(draftOf().blocks, (b) => b.type === "grid");
+  grid = videoGrid();
   ok("E3 agencement changé (2 × 2) sans perdre de composant", grid.props.layout === "2x2" && grid.props.children.length === 3);
   ok("E4 cellule libre « + » sur la toile", await until(f, (s) => document.querySelectorAll(`${s} [data-edit-cell-free]`).length === 1, gridSel));
   await center(f, gridSel);
@@ -429,25 +462,28 @@ if (run("E")) {
   let ok2 = false;
   for (let i = 0; i < 150 && !ok2; i++) {
     await sleep(1000);
-    const g = findIn(draftOf().blocks, (b) => b.type === "grid");
+    const g = videoGrid();
     ok2 = Boolean(g?.props.children[1]?.props.mediaId) && !g.props.children[0].props.mediaId && !g.props.children[2].props.mediaId;
   }
   ok("E5 vidéo déposée dans la 2e cellule précisément (envoi + conversion)", ok2);
   await settled();
 }
 
-/* ---- F. Supprimer le conteneur : confirmation qui compte --------------------------- */
+/* ---- F. Supprimer la grille : confirmation qui compte ------------------------------ */
 
 if (run("F")) {
-  await center(f, sel.container);
-  await f.locator(`${sel.container} [data-edit-type="section-title"] h2`).first().click();
+  const grid = imageGrid();
+  await center(f, `[data-edit-block="${grid.uid}"]`);
+  await f.locator(`[data-edit-block="${grid.uid}"] [data-edit-block]`).first().click();
   await f.locator(".pe-crumbs .pe-crumb").first().click();
   await f.locator('.pe-tools button[aria-label="Supprimer"]').click();
   const dialog = page.getByRole("dialog");
-  ok("F1 confirmation : nombre de composants retirés", /3 composants seront retirés/.test((await dialog.textContent()) ?? ""), (await dialog.textContent())?.slice(0, 200));
-  ok("F2 avertissement : les changements d'images de la planche ne seront pas publiés", /ne seront pas publiés/.test((await dialog.textContent()) ?? ""));
-  await page.screenshot({ path: `${SHOTS}/F-suppression-du-conteneur.png` });
-  await dialog.getByRole("button", { name: "Annuler" }).click();
+  ok("F1 confirmation : nombre de composants retirés", new RegExp(`${grid.props.children.length} composants seront retirés`).test((await dialog.textContent()) ?? ""), (await dialog.textContent())?.slice(0, 200));
+  await page.screenshot({ path: `${SHOTS}/F-suppression-de-la-grille.png` });
+  // Confirmée : la grille (et ses composants) disparaît du brouillon, le reste de la page est intact.
+  await dialog.getByRole("button", { name: /Supprimer/ }).click();
+  await settled();
+  ok("F2 grille d'images supprimée du brouillon", !imageGrid() && Boolean(videoGrid()) && Boolean(findIn(draftOf().blocks, (b) => b.type === "project-board")));
 }
 
 /* ---- G. En-tête et pied (communs) -------------------------------------------------- */
@@ -540,7 +576,7 @@ const published = () => until(page, () => /^Publié/.test(document.querySelector
 
 if (run("I")) {
   // Les vidéos encore à choisir bloquent la publication : on y glisse la vidéo envoyée en E.
-  const grid = findIn(draftOf().blocks, (b) => b.type === "grid");
+  const grid = videoGrid();
   const video = grid?.props.children.find((c) => c.props.mediaId)?.props.mediaId;
   if (grid && video) {
     await page.getByRole("button", { name: "Publier" }).click();
@@ -552,7 +588,7 @@ if (run("I")) {
       await dragMedia(video, target);
       await settled();
     }
-    ok("I0b vidéos placées dans les cellules restantes", findIn(draftOf().blocks, (b) => b.type === "grid").props.children.every((c) => c.props.mediaId));
+    ok("I0b vidéos placées dans les cellules restantes", videoGrid().props.children.every((c) => c.props.mediaId));
   }
   await page.getByRole("button", { name: "Publier" }).click();
   ok("I1 publication acceptée", await published());
@@ -560,7 +596,7 @@ if (run("I")) {
   const pp = await pub.newPage();
   await pp.goto(`${BASE}/fr`, { waitUntil: "networkidle" });
   const html = await pp.content();
-  ok("I2 public : le projet du conteneur et sa planche (3 images)", html.includes(PROJECT) && (await pp.locator(`section[aria-labelledby^="project-"] .strip-rail img`).count()) >= 3);
+  ok("I2 public : le projet (Titre lié) et sa planche (3 images)", html.includes(PROJECT) && (await pp.locator(`section[aria-labelledby^="project-"] .strip-rail img`).count()) >= 3);
   ok("I3 public : aucun repère d'édition", !/data-edit-|pe-media-empty|data-edit-cell-free/.test(html));
   ok("I4 public : menu publié (Boutique, Paysages)", (await pp.locator(".site-header nav").first().textContent()).includes("Boutique") && (await pp.locator(".site-header nav").first().textContent()).includes("Paysages"));
   const behance = pp.locator('footer a[href="https://www.behance.net/camille"]');
@@ -569,7 +605,7 @@ if (run("I")) {
   await pp.screenshot({ path: `${SHOTS}/I-rendu-public-apres-publication.png`, fullPage: false });
   await pub.close();
 
-  // I1 : une planche retirée (avec son conteneur) n'efface pas les images en ligne.
+  // I1 : une planche retirée de la page n'efface pas les images en ligne.
   f = await openEditor(1);
   const project = q("select id from projects where json_extract(title,'$.fr') = ?", PROJECT)[0];
   const before = q("select id, media_id m, position p from slots where project_id = ? order by position", project.id);
@@ -578,14 +614,13 @@ if (run("I")) {
   await slot.hover();
   await f.locator(".pe-slot-tools button", { hasText: "Retirer la place" }).click();
   await settled();
-  ok("I7 brouillon : place retirée dans la planche du conteneur", q("select count(*) n from slots where project_id = ? and draft_state = 'retired'", project.id)[0].n === 1);
-  await f.locator(`${sel.container} [data-edit-type="section-title"] h2`).first().click();
-  await f.locator(".pe-crumbs .pe-crumb").first().click();
+  ok("I7 brouillon : place retirée dans la planche", q("select count(*) n from slots where project_id = ? and draft_state = 'retired'", project.id)[0].n === 1);
+  await f.locator(`${sel.board} header`).first().click();
   await f.locator('.pe-tools button[aria-label="Supprimer"]').click();
   await page.getByRole("dialog").getByRole("button", { name: /Supprimer/ }).click();
   await settled();
   await page.getByRole("button", { name: "Publier" }).click();
-  ok("I8 publication sans le conteneur", await published());
+  ok("I8 publication sans la planche", await published());
   const after = q("select id, media_id m, position p from slots where project_id = ? order by position", project.id);
   ok("I9 correction I1 : images du projet en ligne intactes (surcouche non appliquée)", JSON.stringify(after) === JSON.stringify(before), `${JSON.stringify(before)} → ${JSON.stringify(after)}`);
   ok("I10 surcouche effacée", q("select count(*) n from slots where project_id = ? and draft_page_id is not null", project.id)[0].n === 0);
@@ -692,7 +727,7 @@ if (run("M")) {
   await page.keyboard.press("Escape");
 }
 
-/* ---- N. Conteneur vide ------------------------------------------------------------ */
+/* ---- N. Grille vide ---------------------------------------------------------------- */
 
 if (run("N")) {
   f = await openEditor(1);
@@ -702,35 +737,18 @@ if (run("N")) {
     return (Math.max(...r(els[0]).map((x) => x.bottom)) + Math.min(...r(els[1]).map((x) => x.top))) / 2;
   });
   const fb = await frameBox();
-  await dragPalette("featured-project", { x: fb.x + fb.width / 2, y: fb.y + Math.min(between, fb.height - 40) });
+  await dragPalette("grid", { x: fb.x + fb.width / 2, y: fb.y + Math.min(between, fb.height - 40) });
   await settled();
-  // Projet existant choisi dans la liste (↓ puis Entrée).
-  const input = f.locator(".pe-container-picker input[role=combobox]");
-  await input.click();
-  await page.keyboard.press("ArrowDown");
-  await sleep(200);
-  const active = await f.locator(".pe-combo-opt[aria-selected=true]").textContent().catch(() => null);
-  await page.keyboard.press("Enter");
-  let cont = null;
-  for (let i = 0; i < 40 && !cont?.props.project; i++) {
-    await sleep(300);
-    cont = findIn(draftOf()?.blocks ?? [], (b) => b.type === "featured-project");
-  }
-  await settled();
-  ok("N1 projet existant choisi dans la liste (↓ Entrée)", Boolean(cont?.props.project), `option active : ${active}`);
-  for (const child of cont.props.children) {
-    await center(f, `[data-edit-block="${child.uid}"]`);
-    await f.locator(`[data-edit-block="${child.uid}"] *`).filter({ visible: true }).first().click();
-    await f.locator('.pe-tools button[aria-label="Supprimer"]').click();
-    await page.getByRole("dialog").getByRole("button", { name: /Supprimer/ }).click();
-    await settled();
-  }
-  ok("N2 conteneur vide : zone « Glisse un composant ici »", await until(f, () => /Glisse un composant ici/.test(document.querySelector(".pe-container-dropzone")?.textContent ?? "")));
-  await center(f, '[data-edit-block][data-edit-type="featured-project"] .pe-container-empty');
-  await page.screenshot({ path: `${SHOTS}/N-conteneur-vide.png` });
+  const grid = findIn(draftOf()?.blocks ?? [], (b) => b.type === "grid" && b.props.children.length === 0);
+  ok("N1 « Grille » du panneau : grille vide posée", Boolean(grid), JSON.stringify(draftOf()?.blocks?.map((b) => b.type)));
+  const gridSel = `[data-edit-block="${grid.uid}"]`;
+  ok("N2 grille vide : places libres « + » sur la toile", await until(f, (s) => document.querySelectorAll(`${s} [data-edit-cell-free]`).length >= 2, gridSel));
+  await center(f, gridSel);
+  await page.screenshot({ path: `${SHOTS}/N-grille-vide.png` });
   await page.getByRole("button", { name: "Aperçu", exact: true }).click();
   await sleep(600);
-  ok("N3 aperçu : aucune boîte fantôme pour le conteneur vide", !(await f.locator(".pe-container-dropzone").count()) && (await f.locator(".pe-container-empty").evaluate((el) => getComputedStyle(el).display)) === "none");
+  const shown = await f.locator(`${gridSel} [data-edit-cell-free]`).evaluateAll((els) => els.filter((el) => getComputedStyle(el).display !== "none").length);
+  ok("N3 aperçu : aucune place « + » (boîte fantôme) pour la grille vide", shown === 0, `${shown} place(s) visible(s)`);
   await page.keyboard.press("Escape");
 }
 

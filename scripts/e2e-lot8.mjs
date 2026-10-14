@@ -203,11 +203,15 @@ const NEW_DESC = "Présentation éditée depuis l'accueil.";
 if (run("B")) {
   const before = project(HAUTS);
   let f = await openEditor(homeId);
-  // Le Titre du conteneur reprend le projet : le même projet est alors montré deux fois (titre lié + planche).
+  // v0.19 (plus de conteneur) : le Titre cite le projet lui-même ; le même projet est alors montré deux fois (titre lié + planche).
   await f.locator('[data-edit-type="section-title"] h2').first().scrollIntoViewIfNeeded();
   await f.locator('[data-edit-type="section-title"] h2').first().click({ position: { x: 4, y: 4 } });
   await page.getByRole("tab", { name: "Réglages" }).click();
-  await page.locator("label.a-toggle", { hasText: "Reprendre le nom et la présentation du projet" }).click();
+  await page.locator("label.a-toggle", { hasText: "Reprendre le nom et la présentation d'un projet" }).click();
+  const pick = page.getByRole("combobox", { name: /Projet repris par ce titre/ });
+  await pick.fill("Les hauts chemins");
+  await pick.press("ArrowDown");
+  await pick.press("Enter");
   await settled(page);
   const linkedSel = '[data-edit-type="section-title"] h2[data-project-inline="title"]';
   ok("B1 Titre lié : son titre est éditable en place (texte du projet)", await until(f, (s) => Boolean(document.querySelector(s)), linkedSel));
@@ -234,7 +238,7 @@ if (run("B")) {
   await f.locator(".lk-aa").click();
   await f.locator('.lk-bar button[title="Italique"]').click();
   await settled(page);
-  const titleBlock = () => draftOf(homeId).blocks.flatMap((b) => b.props.children ?? []).find((c) => c.type === "section-title");
+  const titleBlock = () => draftOf(homeId).blocks.find((b) => b.type === "section-title" && b.props.linked);
   ok("B5 « Aa » sur le titre lié : mise en forme dans le bloc (look.text.title), contenu toujours au projet", (await eventually(() => titleBlock()?.props?.look?.text?.title?.italic === true)) && !JSON.stringify(draftOf(homeId)).includes(NEW_TITLE), JSON.stringify(titleBlock()?.props));
   ok("B5b la planche du même projet garde sa propre mise en forme", await f.evaluate((id) => getComputedStyle(document.querySelector(`[data-edit-board="${id}"][data-edit-board-label] header h2`)).fontStyle !== "italic", before.id));
   // Rien en ligne avant Publier.
