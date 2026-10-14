@@ -4,7 +4,8 @@
  * Réglages typographiques d'un texte (lot 2), partagés par la barre flottante
  * de la toile et les « Styles du site » du panneau : police, taille (échelle
  * du thème + ajustement), graisse, italique, casse, interlettrage, couleur
- * (palette du thème), alignement, « Réinitialiser ». Toutes les valeurs sont
+ * (palette du thème), alignement, fond du texte (BackdropRow, lot 21 : la même ligne
+ * pour tous les rôles), « Réinitialiser ». Toutes les valeurs sont
  * des crans bornés (src/lib/look.ts). Classes neutres `tc-*` : la toile
  * (look-layer.css) et le panneau (look-panel.css) les habillent.
  */
@@ -12,7 +13,9 @@ import { useState } from "react";
 
 import { fontLabel, fontStack, googleOf, PALETTE, PALETTE_LABELS, SIZE_LABELS, SIZES, WEIGHTS, type PaletteColor, type TextStyle } from "@/lib/look";
 import { googleFamily } from "@/themes/google-fonts";
+import type { CardPalette } from "@/themes/surface";
 
+import BackdropRow from "./BackdropRow";
 import ColorPicker from "./ColorPicker";
 import FontMenu from "./FontMenu";
 import MenuSelect from "./MenuSelect";
@@ -33,9 +36,15 @@ export type TypoProps = {
   /** Libellé de « Réinitialiser » (ex. « Revenir au style global »). */
   resetLabel?: string;
   compact?: boolean;
+  /** Palette effective du thème : couleurs proposées pour le fond du texte et lisibilité (lot 21). */
+  palette: CardPalette;
+  /** Raison pour laquelle ce texte ne peut pas recevoir de fond (ligne désactivée). */
+  backdropBlocked?: string;
+  /** Couleur de texte choisie dans le style du rôle (vue depuis « Ce texte »). */
+  inheritedColor?: string;
 };
 
-export default function TypoControls({ value, onChange, installed, swatch, themeNames, resetLabel = "Réinitialiser", compact }: TypoProps) {
+export default function TypoControls({ value, onChange, installed, swatch, themeNames, resetLabel = "Réinitialiser", compact, palette, backdropBlocked, inheritedColor }: TypoProps) {
   const [menu, setMenu] = useState(false);
   const set = (patch: Partial<TextStyle>) => {
     const next: TextStyle = { ...value, ...patch };
@@ -135,6 +144,7 @@ export default function TypoControls({ value, onChange, installed, swatch, theme
           {resetLabel}
         </button>
       </div>
+      <BackdropRow value={value} set={set} palette={palette} swatch={swatch} blocked={backdropBlocked} inheritedColor={inheritedColor} />
       {menu && (
         <FontMenu
           value={value.font}

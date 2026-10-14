@@ -13,8 +13,7 @@ import { useState } from "react";
 
 import TypoControls from "@/components/edit/TypoControls";
 import {
-  BACKDROP_LABELS,
-  BACKDROPS,
+  BACKDROP_BLOCKED,
   RADII,
   RADIUS_LABELS,
   ROLE_LABELS,
@@ -28,6 +27,8 @@ import {
   type TextStyle,
   type TileKey,
 } from "@/lib/look";
+
+import type { CardPalette } from "@/themes/surface";
 
 import "@/app/admin/look-panel.css";
 
@@ -129,16 +130,6 @@ export function BlockLookPanel({ type, look, inCell, onChange }: { type: string;
           )}
         </>
       )}
-      {type === "hero" && (
-        <Segmented
-          label="Fond derrière le métier"
-          value={look.roleBackdrop}
-          options={BACKDROPS}
-          labels={BACKDROP_LABELS}
-          onChange={(v) => set({ roleBackdrop: v })}
-          help="Auto : celui du thème. Couleur et police du métier : « Aa » sur la page."
-        />
-      )}
       {(crops.length > 0 || tileCrops.length > 0) && (
         <div className="lp-field">
           <span className="lp-label">Cadrages</span>
@@ -187,10 +178,13 @@ export function SiteStylesPanel({
   palette,
   installed,
   locked,
+  cardPalette,
 }: {
   styles: SiteStyles | undefined;
   onChange: (next: SiteStyles) => void;
   palette: Record<PaletteColor, string>;
+  /** Palette effective du site : couleurs du fond de texte et lisibilité. */
+  cardPalette: CardPalette;
   installed: string[];
   locked: string | null;
 }) {
@@ -223,7 +217,7 @@ export function SiteStylesPanel({
               </button>
               {open === role && (
                 <div className="lp-role-body">
-                  <TypoControls value={roles[role] ?? {}} onChange={(s) => setRole(role, s)} installed={installed} swatch={(c) => palette[c]} resetLabel="Revenir au thème" />
+                  <TypoControls value={roles[role] ?? {}} onChange={(s) => setRole(role, s)} installed={installed} swatch={(c) => palette[c]} resetLabel="Revenir au thème" palette={cardPalette} backdropBlocked={BACKDROP_BLOCKED[role]} />
                 </div>
               )}
             </li>
