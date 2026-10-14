@@ -27,7 +27,8 @@ import {
   siteDraftAction,
 } from "@/app/admin/(espace)/pages/actions";
 import { BlockEditorContext } from "@/blocks/editor-context";
-import { HELP_TEXT, TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
+import { pickerGroups } from "@/blocks/groups";
+import { HELP_TEXT, STARTER_LIST, TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
 import { blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
 import { makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
@@ -204,6 +205,10 @@ export default function VisualEditor({
   const mobile = useMedia(MOBILE);
   // Par type : l'entrée du type lui-même (pas un raccourci de la palette).
   const byType = useMemo(() => Object.fromEntries(catalog.filter((c) => !c.preset).map((c) => [c.type, c])), [catalog]);
+  /** Recherche d'un composant (onglet « Ajouter »). */
+  const [addQuery, setAddQuery] = useState("");
+  /** Composants proposés à l'ajout : groupes (src/blocks/groups.ts), filtrés par la recherche. */
+  const addGroups = useMemo(() => pickerGroups(catalog, STARTER_LIST, addQuery), [catalog, addQuery]);
 
   /* ---- Brouillon et historique ------------------------------------------- */
 
@@ -1614,9 +1619,10 @@ export default function VisualEditor({
   const [paletteDrag, setPaletteDrag] = useState<{ type: string; label: string; x: number; y: number; over: boolean } | null>(null);
 
   /** Conteneurs qu'apporte un composant de la palette (une grille : 1). */
-  const nestingOfEntry = (entry: BlockCatalogEntry) => (entry.container ? 1 : 0);
+  const nestingOfEntry = (entry: Pick<BlockCatalogEntry, "container">) => (entry.container ? 1 : 0);
 
-  const onPaletteDown = (e: React.PointerEvent<HTMLButtonElement>, entry: BlockCatalogEntry) => {
+  /** `starter` : glissé depuis un raccourci Texte (Texte, Titre, Titre + texte) plutôt qu'une carte du catalogue. */
+  const onPaletteDown = (e: React.PointerEvent<HTMLButtonElement>, entry: Pick<BlockCatalogEntry, "key" | "type" | "label" | "container">, starter?: TextStarter) => {
     if (e.button !== 0 || e.pointerType === "touch") return;
     const card = e.currentTarget;
     const startX = e.clientX;
@@ -1659,7 +1665,10 @@ export default function VisualEditor({
       dropIndexRef.current = null;
       noSelection(false);
       send({ kind: "drag-end" });
-      if (commit && place !== null) insert(entry.key, place);
+      if (commit && place !== null) {
+        if (starter) insertStarter(starter, place);
+        else insert(entry.key, place);
+      }
     };
     const up = () => end(true);
     const cancel = () => end(false);
@@ -1860,38 +1869,67 @@ export default function VisualEditor({
         {tab === "ajouter" && (
           <>
             <p className="ve-hint">{mobile ? "Touche un composant pour l'ajouter sous le bloc choisi." : "Glisse-le sur la page, à l'endroit voulu. Ou clique pour l'ajouter sous le bloc sélectionné."}</p>
-            <div className="ve-starters" role="group" aria-label="Ajouter du texte">
-              {(Object.keys(TEXT_STARTERS) as TextStarter[]).map((k) => (
-                <button key={k} type="button" className="ve-starter" data-starter={k} onClick={() => insertStarter(k)}>
-                  <BlockThumb type="rich-text" preset={k} />
-                  <strong>{TEXT_STARTERS[k].label}</strong>
-                </button>
-              ))}
-            </div>
-            <ul className="ve-palette">
-              {catalog.filter((c) => !c.hidden).map((c) => (
-                <li key={c.key}>
-                  <button
-                    type="button"
-                    className="ve-card"
-                    data-type={c.type}
-                    data-key={c.key}
-                    data-dragging={paletteDrag?.type === c.type || undefined}
-                    onPointerDown={(e) => onPaletteDown(e, c)}
-                    onClick={(e) => {
-                      if (e.currentTarget.dataset.dragged) return;
-                      insert(c.key);
-                    }}
-                  >
-                    <BlockThumb type={c.type} preset={c.key} />
-                    <span>
-                      <strong>{c.label}</strong>
-                      <span className="ve-card-desc">{c.description}</span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <input
+              type="search"
+              className="a-input ve-search"
+              placeholder="Chercher un composant"
+              aria-label="Chercher un composant"
+              value={addQuery}
+              onChange={(e) => setAddQuery(e.target.value)}
+            />
+            {addGroups.length === 0 && <p className="ve-empty">Aucun composant ne correspond à « {addQuery.trim()} ».</p>}
+            {addGroups.map((g) => (
+              <section key={g.id} className="ve-group" data-group={g.id} aria-label={g.label}>
+                <h3 className="ve-group-title">{g.label}</h3>
+                {g.starters.length > 0 && (
+                  <div className="ve-starters" role="group" aria-label="Ajouter du texte">
+                    {g.starters.map((st) => (
+                      <button
+                        key={st.key}
+                        type="button"
+                        className="ve-starter"
+                        data-starter={st.key}
+                        data-dragging={paletteDrag?.label === st.label || undefined}
+                        onPointerDown={(e) => onPaletteDown(e, { key: st.key, type: st.block, label: st.label }, st.key)}
+                        onClick={(e) => {
+                          if (e.currentTarget.dataset.dragged) return;
+                          insertStarter(st.key);
+                        }}
+                      >
+                        <BlockThumb type="rich-text" preset={st.key} />
+                        <strong>{st.label}</strong>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {g.entries.length > 0 && (
+                  <ul className="ve-palette">
+                    {g.entries.map((c) => (
+                      <li key={c.key}>
+                        <button
+                          type="button"
+                          className="ve-card"
+                          data-type={c.type}
+                          data-key={c.key}
+                          data-dragging={paletteDrag?.type === c.type || undefined}
+                          onPointerDown={(e) => onPaletteDown(e, c)}
+                          onClick={(e) => {
+                            if (e.currentTarget.dataset.dragged) return;
+                            insert(c.key);
+                          }}
+                        >
+                          <BlockThumb type={c.type} preset={c.key} />
+                          <span>
+                            <strong>{c.label}</strong>
+                            <span className="ve-card-desc">{c.description}</span>
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            ))}
           </>
         )}
 
