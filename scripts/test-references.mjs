@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import assert from "node:assert/strict";
 
 const refs = await import(new URL("../src/blocks/refs.ts", import.meta.url));
-const { BLOCK_REFS, valuesAt, extractRefs, mediaUsages, pageReferences, projectReferences } = refs;
+const { BLOCK_REFS, valuesAt, extractRefs, mediaUsages, mediaUsageIndex, pageReferences, projectReferences } = refs;
 
 let passed = 0;
 const test = (name, fn) => {
@@ -62,6 +62,35 @@ test("mediaUsages : slots (FK) et blocs (props)", () => {
   assert.equal(u.length, 2);
   assert.deepEqual(u.map((x) => x.kind).sort(), ["block", "slot"]);
   assert.equal(mediaUsages(99, rows).length, 0);
+});
+
+test("mediaUsageIndex (lot 23) : le brouillon d'un bloc publié est la même place (compteur = détail)", () => {
+  const blocks = [
+    { id: 1, pageId: 1, type: "profile", props: { portraitMediaId: 5 } },
+    // Brouillon de la même page : le même bloc, retouché.
+    { id: -1001, pageId: 1, type: "profile", props: { portraitMediaId: 5 }, draft: true },
+    // Autre page : une autre place.
+    { id: 2, pageId: 2, type: "profile", props: { portraitMediaId: 5 } },
+    // Brouillon seul (bloc ajouté, pas encore publié) : une place.
+    { id: -2001, pageId: 3, type: "profile", props: { portraitMediaId: 5 }, draft: true },
+    // Deux blocs publiés de même type sur une page : deux places ; leur brouillon ne les double pas.
+    { id: 3, pageId: 4, type: "image", props: { mediaId: 7 } },
+    { id: 4, pageId: 4, type: "image", props: { mediaId: 7 } },
+    { id: -4001, pageId: 4, type: "image", props: { mediaId: 7 }, draft: true },
+    { id: -4002, pageId: 4, type: "image", props: { mediaId: 7 }, draft: true },
+  ];
+  const slots = [
+    { id: 1, projectId: 10, slug: "a", mediaId: 5 },
+    // Même emplacement vu deux fois (média publié et média de brouillon identiques) : une place.
+    { id: 1, projectId: 10, slug: "a", mediaId: 5, draftPageId: 1 },
+    { id: 2, projectId: 10, slug: "b", mediaId: 8, draftPageId: 1 },
+  ];
+  const index = mediaUsageIndex({ slots, blocks });
+  assert.equal(index.get(5).length, 1 + 3, "1 emplacement + pages 1, 2, 3");
+  assert.equal(index.get(7).length, 2, "deux blocs, pas quatre");
+  assert.equal(index.get(8)[0].draftPageId, 1, "la page du brouillon est nommée");
+  for (const m of [5, 7, 8]) assert.equal(mediaUsages(m, { slots, blocks }).length, index.get(m).length, "mediaUsages = index");
+  assert.equal(index.get(99), undefined);
 });
 
 test("pageReferences : tuiles, lien « voir plus », bouton demoreel", () => {

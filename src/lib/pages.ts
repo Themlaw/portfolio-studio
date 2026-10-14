@@ -3,7 +3,7 @@
  * « / » + slug[locale] est le chemin de la page, sans préfixe de langue
  * (le Link de next-intl l'ajoute).
  */
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 
 import { routing, type AppLocale } from "@/i18n/routing";
 
@@ -48,7 +48,7 @@ export async function getPageIndex(): Promise<PageSummary[]> {
         themeOverrides: schema.pages.themeOverrides,
       })
       .from(schema.pages)
-      .where(eq(schema.pages.published, true))
+      .where(and(eq(schema.pages.published, true), isNull(schema.pages.deletedAt)))
       .orderBy(asc(schema.pages.id))
       .all(),
   );

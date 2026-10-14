@@ -19,7 +19,7 @@
  */
 import { createHash } from "node:crypto";
 
-import { and, count, eq, gt, lt } from "drizzle-orm";
+import { and, count, eq, gt, isNull, lt } from "drizzle-orm";
 
 import { readAuthConfig } from "@/lib/auth/config";
 import { clientIpFromForwarded, UNKNOWN_IP } from "@/lib/auth/client-ip";
@@ -85,7 +85,7 @@ function findForm(formId: string) {
     .select({ id: schema.blocks.id, props: schema.blocks.props, pageId: schema.blocks.pageId })
     .from(schema.blocks)
     .innerJoin(schema.pages, eq(schema.blocks.pageId, schema.pages.id))
-    .where(and(eq(schema.blocks.type, "contact-form"), eq(schema.pages.published, true)))
+    .where(and(eq(schema.blocks.type, "contact-form"), eq(schema.pages.published, true), isNull(schema.pages.deletedAt)))
     .all();
   for (const row of rows) {
     const form = ContactFormSchema.safeParse(parseJson(row.props));

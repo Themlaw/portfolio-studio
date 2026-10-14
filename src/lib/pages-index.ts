@@ -5,7 +5,7 @@
  * publiées aussi (aperçu de l'admin ; la page vérifie ensuite draft mode ET
  * session avant de les rendre).
  */
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { getDb, schema } from "./db";
 import { parseJson } from "./json";
@@ -14,8 +14,9 @@ import { parseJson } from "./json";
 export const NOT_FOUND_SLUG = "_404";
 
 export function publishedSlugExists(locale: string, slug: string, { includeDrafts = false } = {}): boolean {
+  // Une page à la corbeille n'existe plus, ni en public ni en aperçu.
   const query = getDb().select({ slug: schema.pages.slug }).from(schema.pages);
-  const rows = includeDrafts ? query.all() : query.where(eq(schema.pages.published, true)).all();
+  const rows = includeDrafts ? query.where(isNull(schema.pages.deletedAt)).all() : query.where(and(eq(schema.pages.published, true), isNull(schema.pages.deletedAt))).all();
   return rows.some((r) => {
     const value = (typeof r.slug === "string" ? parseJson(r.slug) : r.slug) as Record<string, string> | undefined;
     return (value?.[locale] ?? "") === slug;

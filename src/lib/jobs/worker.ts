@@ -22,6 +22,7 @@ import sharp from "sharp";
 import { dataDir, getDb, schema } from "@/lib/db";
 import { isHeavyImage } from "@/lib/images/budget";
 import { originalFile, processImage, processingError } from "@/lib/images/process";
+import { purgeTrash } from "@/lib/edit/trash";
 import { enqueueCropWarmAll, runCropWarm } from "@/lib/jobs/crop-warm";
 import { memoryGate, memoryGateEnabled } from "@/lib/jobs/memory-gate";
 import { getStorage } from "@/lib/storage";
@@ -543,6 +544,8 @@ export async function startWorker() {
     if (/^video-\d+-\d+$/.test(name) || isPdfTmpName(name)) await rm(path.join(/* turbopackIgnore: true */ uploadTmpDir(), name), { recursive: true, force: true });
   }
   await purgeTmp();
+  // Corbeille (lot 23) : éléments supprimés depuis plus de 30 jours.
+  await purgeTrash().catch((e) => console.error("[corbeille] purge impossible", e));
   // Préchauffage des recadrages de chaque page publiée (les jobs en file d'une exécution précédente sont refaits).
   db.delete(schema.jobs).where(and(eq(schema.jobs.kind, "crop-warm"), inArray(schema.jobs.status, ["queued", "running"]))).run();
   const warmed = enqueueCropWarmAll();
@@ -550,5 +553,6 @@ export async function startWorker() {
   s.timer = setInterval(() => wakeWorker(), 2000);
   s.timer.unref();
   setInterval(() => void purgeTmp(), PURGE_EVERY_MS).unref();
+  setInterval(() => void purgeTrash().catch((e) => console.error("[corbeille] purge impossible", e)), PURGE_EVERY_MS).unref();
   wakeWorker();
 }

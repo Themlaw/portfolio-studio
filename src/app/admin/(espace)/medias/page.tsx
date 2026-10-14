@@ -1,6 +1,6 @@
 import MediaLibrary from "@/components/admin/MediaLibrary";
 import PageHeader from "@/components/admin/PageHeader";
-import { listMediaForAdmin } from "@/lib/admin";
+import { listMediaForAdmin, listTrashedMedia } from "@/lib/admin";
 import { formatGb, storageUsage } from "@/lib/upload/quota";
 
 export const metadata = { title: "Médiathèque" };
@@ -14,6 +14,7 @@ export default function MediaPage() {
       />
       <MediaLibrary
         initial={listMediaForAdmin()}
+        trashed={listTrashedMedia()}
         usage={(() => {
           const u = storageUsage();
           return { used: formatGb(u.usedBytes), quota: u.quotaBytes ? formatGb(u.quotaBytes) : null, ratio: u.quotaBytes ? u.usedBytes / u.quotaBytes : null };

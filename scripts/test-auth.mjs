@@ -183,10 +183,12 @@ const ADMIN_ACTIONS = [
   "setInMenuAction",
   "reorderMenuAction",
   "deletePageAction",
+  "restorePageAction",
   "createProjectAction",
   "saveProjectAction",
   "reorderProjectsAction",
   "deleteProjectAction",
+  "restoreProjectAction",
   "addSlotsAction",
   "saveSlotAction",
   "setSlotMediaAction",
@@ -194,6 +196,7 @@ const ADMIN_ACTIONS = [
   "reorderSlotsAction",
   "saveMediaAltAction",
   "deleteMediaAction",
+  "restoreMediaAction",
   "mediaStatusAction",
   "mediaUsesAction",
   "retryMediaAction",
@@ -516,7 +519,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings/.test(name) ? "/admin/reglages"
     : /Message/.test(name) ? "/admin/messages"
-    : /^(create|delete|reorder)Projects?Action$/.test(name) ? "/admin/projets"
+    : /^(create|delete|reorder|restore)Projects?Action$/.test(name) ? "/admin/projets"
     : /Project|Slot/.test(name) ? "/admin/projets/1"
     : /^media|Media|Uploads|Tag/.test(name) ? "/admin/medias"
     : "/admin/pages";
@@ -1107,7 +1110,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   const homeRow = query(dirA, "select title, slug, meta, published, nav_order from pages where id = ?", homeId);
   res = await callActionJson(jar, ids.savePageAction, [homeId, { title: JSON.parse(homeRow.title), slug: JSON.parse(homeRow.slug), meta: homeRow.meta ? JSON.parse(homeRow.meta) : { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: homeRow.nav_order !== null, accent: null, blocks: homeBlocks }, pageRev(homeId)], `/admin/pages/${homeId}`);
   const del = await callActionJson(jar, ids.deleteProjectAction, [created.id], "/admin/projets");
-  ok("BD12 remise en état (planches retirées, projet supprimé)", isOk(res) && isOk(del) && !query(dirA, "select id from projects where id = ?", created.id), `${line(res)} ${line(del)}`);
+  ok("BD12 remise en état (planches retirées, projet supprimé → corbeille)", isOk(res) && isOk(del) && Boolean(query(dirA, "select deleted_at d from projects where id = ?", created.id)?.d), `${line(res)} ${line(del)}`);
 }
 {
   let res = await callActionJson(jar, ids.duplicateThemeAction, ["galerie-lumineuse"], "/admin/themes");
@@ -1165,6 +1168,33 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   const homeId = query(dirA, `select id from pages where json_extract(slug,'$.fr')=''`).id;
   res = await callActionJson(jar, ids.deletePageAction, [homeId], "/admin/pages");
   ok("A15b l'accueil ne se supprime pas", res.text.includes("accueil ne se supprime pas"));
+  // Corbeille (lot 23) : supprimer = mettre à la corbeille, restaurer ; identifiants invalides refusés (client forgé).
+  for (const [name, screen] of [["restorePageAction", "/admin/pages"], ["restoreProjectAction", "/admin/projets"], ["restoreMediaAction", "/admin/medias"], ["deletePageAction", "/admin/pages"], ["deleteProjectAction", "/admin/projets"], ["deleteMediaAction", "/admin/medias"]]) {
+    const bad = [];
+    for (const arg of ["x", -1, 0, 1.5, null, {}, [1], 1e21, 999999]) {
+      const r = await callActionJson(jar, ids[name], [arg], screen);
+      if (!r.text.includes('"ok":false')) bad.push(JSON.stringify(arg));
+    }
+    ok(`A15c ${name} : identifiant invalide ou inconnu → refusé`, bad.length === 0, bad.join(" "));
+  }
+  res = await callActionJson(jar, ids.restorePageAction, [persoId], "/admin/pages");
+  ok("A15d restaurer une page qui n'est pas à la corbeille → refusé", res.text.includes('"ok":false') && res.text.includes("corbeille"), res.text.slice(0, 200));
+  {
+    const mk = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "Corbeille A15", en: "" }, slug: { fr: "corbeille-a15", en: "" } }], "/admin/pages");
+    const pid = Number(/"ok":true,"data":\{"id":(\d+)\}/.exec(mk.text)?.[1]);
+    ok("A15e création sans titre anglais ni adresse anglaise → acceptée, repli sur le français", Boolean(pid) && JSON.parse(query(dirA, "select title t from pages where id = ?", pid).t).en === "Corbeille A15" && JSON.parse(query(dirA, "select slug s from pages where id = ?", pid).s).en === "corbeille-a15", mk.text.slice(0, 200));
+    await callActionJson(jar, ids.setPublishedAction, [pid, true], "/admin/pages");
+    const live = await http("/fr/corbeille-a15");
+    ok("A15e2 page publiée → 200 en public", live.status === 200, String(live.status));
+    res = await callActionJson(jar, ids.deletePageAction, [pid], "/admin/pages");
+    const row = query(dirA, "select deleted_at d from pages where id = ?", pid);
+    ok("A15f supprimer une page → corbeille (ligne gardée, date posée), jamais effacée", res.text.includes('"ok":true') && Boolean(row?.d), `${res.text.slice(0, 160)} ${JSON.stringify(row)}`);
+    const pub = await http("/fr/corbeille-a15");
+    ok("A15g une page à la corbeille répond 404 en public", pub.status === 404, String(pub.status));
+    res = await callActionJson(jar, ids.restorePageAction, [pid], "/admin/pages");
+    ok("A15h restaurer → de retour (date effacée)", res.text.includes('"ok":true') && query(dirA, "select deleted_at d from pages where id = ?", pid)?.d === null, res.text.slice(0, 160));
+    await callActionJson(jar, ids.deletePageAction, [pid], "/admin/pages");
+  }
   res = await callSavePage(jar, [homeId, { title: { fr: "A", en: "A" }, slug: { fr: "", en: "" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: null, blocks: [{ type: "hero", props: { eyebrow: { fr: "", en: "" }, statement: { fr: "", en: "" }, reelPageId: 99999 } }] }], `/admin/pages/${homeId}`);
   ok("A16 bloc pointant vers une page inexistante → refusé", res.text.includes("page qui n") && res.text.includes('"ok":false'), res.text.slice(0, 300));
   res = await callSavePage(jar, [homeId, { title: { fr: "A", en: "A" }, slug: { fr: "", en: "" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: "#fafafa", blocks: [] }], `/admin/pages/${homeId}`);
@@ -1814,7 +1844,7 @@ ok(
   JSON.stringify({ job, med }),
 );
 const delG = await callActionJson(jarG, ids.deleteMediaAction, [killedId], "/admin/medias");
-ok("G2 un média en échec reste supprimable", delG.text.includes('"ok":true') && !query(dirG, "select id from media where id = ?", killedId), delG.text.slice(0, 160));
+ok("G2 un média en échec reste supprimable (corbeille)", delG.text.includes('"ok":true') && Boolean(query(dirG, "select deleted_at d from media where id = ?", killedId)?.d), delG.text.slice(0, 160));
 // Le préchauffage des recadrages (crop-warm, lot 17d) se remet en file au démarrage pour chaque page publiée : ce n'est pas un traitement de média.
 const stuckG = { jobs: query(dirG, "select count(*) n from jobs where kind != 'crop-warm' and status in ('queued','running')").n, media: query(dirG, "select count(*) n from media where status = 'processing'").n };
 ok("G3 aucun job ni média resté en cours", stuckG.jobs === 0 && stuckG.media === 0, JSON.stringify(stuckG));
@@ -2199,7 +2229,7 @@ const retry = await callActionJson(tv.jar, ids.retryMediaAction, [slow.body.medi
 const retried = query(dirT, "select status from media where id = ?", slow.body.media?.id)?.status;
 await waitMedia(dirT, slow.body.media?.id, 60000);
 const delFailed = await callActionJson(tv.jar, ids.deleteMediaAction, [slow.body.media?.id], "/admin/medias");
-ok("P18 vidéo en échec : « Réessayer » relance la conversion, puis suppression possible", retry.text.includes('"ok":true') && retried === "processing" && delFailed.text.includes('"ok":true') && !query(dirT, "select id from media where id = ?", slow.body.media?.id), `${retry.text.slice(0, 80)} ${retried} ${delFailed.text.slice(0, 80)}`);
+ok("P18 vidéo en échec : « Réessayer » relance la conversion, puis suppression possible", retry.text.includes('"ok":true') && retried === "processing" && delFailed.text.includes('"ok":true') && Boolean(query(dirT, "select deleted_at d from media where id = ?", slow.body.media?.id)?.d), `${retry.text.slice(0, 80)} ${retried} ${delFailed.text.slice(0, 80)}`);
 await stop(tv.server);
 
 // KEEP_VIDEO_ORIGINALS=true : l'original reste sur disque, jamais servi.

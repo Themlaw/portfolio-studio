@@ -8,14 +8,15 @@
  * média d'un emplacement en brouillon) : supprimer ce qu'un brouillon non
  * publié utilise casserait sa publication.
  */
-import { mediaUsages, pageReferences, projectReferences, type BlockRow, type Usage } from "@/blocks/refs";
+import { mediaUsageIndex, pageReferences, projectReferences, type BlockRow, type Usage } from "@/blocks/refs";
 
 import { getDb, schema } from "./db";
 import { parseJson } from "./json";
 
 export type { Usage };
 
-function allBlocks(): BlockRow[] {
+/** Tous les blocs (publiés et brouillons de pages) : la matière de toutes les règles de référence. */
+export function allBlocks(): BlockRow[] {
   const db = getDb();
   const published = db
     .select({ id: schema.blocks.id, pageId: schema.blocks.pageId, type: schema.blocks.type, props: schema.blocks.props })
@@ -30,20 +31,29 @@ function allBlocks(): BlockRow[] {
     .flatMap((p) => {
       const blocks = (p.draft as { blocks?: { type?: unknown; props?: unknown }[] } | null)?.blocks;
       return Array.isArray(blocks)
-        ? blocks.filter((b) => typeof b?.type === "string").map((b, i) => ({ id: -(p.pageId * 1000 + i + 1), pageId: p.pageId, type: b.type as string, props: b.props }))
+        ? blocks.filter((b) => typeof b?.type === "string").map((b, i) => ({ id: -(p.pageId * 1000 + i + 1), pageId: p.pageId, type: b.type as string, props: b.props, draft: true }))
         : [];
     });
   return [...published, ...drafts];
 }
 
-export function findMediaUsages(mediaId: number): Usage[] {
+/** Index « média → ses utilisations » : la source unique du compteur, du détail et du blocage (lot 23). */
+export function mediaUsagesByMedia(): Map<number, Usage[]> {
   const rows = getDb()
-    .select({ id: schema.slots.id, projectId: schema.slots.projectId, slug: schema.slots.slug, mediaId: schema.slots.mediaId, draftMediaId: schema.slots.draftMediaId })
+    .select({ id: schema.slots.id, projectId: schema.slots.projectId, slug: schema.slots.slug, mediaId: schema.slots.mediaId, draftMediaId: schema.slots.draftMediaId, draftPageId: schema.slots.draftPageId, draftState: schema.slots.draftState })
     .from(schema.slots)
     .all();
-  // Un emplacement compte pour son média publié ET pour celui de son brouillon.
-  const slots = rows.flatMap(({ draftMediaId, ...s }) => (draftMediaId !== null && draftMediaId !== s.mediaId ? [s, { ...s, mediaId: draftMediaId }] : [s]));
-  return mediaUsages(mediaId, { slots, blocks: allBlocks() });
+  // Un emplacement compte pour son média publié ET pour celui de son brouillon (la page qui le porte est nommée).
+  const slots = rows.flatMap(({ draftMediaId, draftPageId, draftState, ...s }) => {
+    // « added » : emplacement créé dans un brouillon, son média n'existe que par ce brouillon.
+    const published = draftState === "added" && draftPageId ? { ...s, draftPageId } : s;
+    return draftMediaId !== null && draftMediaId !== s.mediaId ? [published, { ...s, mediaId: draftMediaId, draftPageId }] : [published];
+  });
+  return mediaUsageIndex({ slots, blocks: allBlocks() });
+}
+
+export function findMediaUsages(mediaId: number): Usage[] {
+  return mediaUsagesByMedia().get(mediaId) ?? [];
 }
 
 export function findPageReferences(pageId: number): Usage[] {

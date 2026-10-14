@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 /* ---- Toasts ------------------------------------------------------------- */
 
 type ToastAction = { label: string; run: () => void };
-type Toast = { id: number; message: string; tone: "success" | "error"; count: number; action?: ToastAction };
+type Toast = { id: number; message: string; tone: "success" | "error"; count: number; action?: ToastAction; ms?: number };
 let toasts: Toast[] = [];
 let nextId = 1;
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
@@ -22,29 +22,29 @@ const MAX_TOASTS = 3;
 
 function schedule(id: number) {
   clearTimeout(timers.get(id));
-  const withAction = toasts.find((t) => t.id === id)?.action;
+  const t = toasts.find((x) => x.id === id);
   timers.set(
     id,
     setTimeout(() => {
       timers.delete(id);
-      toasts = toasts.filter((t) => t.id !== id);
+      toasts = toasts.filter((x) => x.id !== id);
       emit();
-    }, withAction ? TOAST_MS * 2 : TOAST_MS),
+    }, t?.ms ?? (t?.action ? TOAST_MS * 2 : TOAST_MS)),
   );
 }
 
 /**
  * Un message identique déjà affiché est fusionné (compteur ×N) et prolongé.
- * `action` : un bouton (ex. « Annuler ») ; le toast reste alors plus longtemps.
+ * `action` : un bouton (ex. « Annuler ») ; le toast reste alors plus longtemps. `ms` : durée choisie.
  */
-export function toast(message: string, tone: Toast["tone"] = "success", action?: ToastAction) {
+export function toast(message: string, tone: Toast["tone"] = "success", action?: ToastAction, ms?: number) {
   const same = action ? undefined : toasts.find((t) => t.message === message && t.tone === tone && !t.action);
   if (same) {
     toasts = toasts.map((t) => (t === same ? { ...t, count: t.count + 1 } : t));
     schedule(same.id);
   } else {
     const id = nextId++;
-    toasts = [...toasts, { id, message, tone, count: 1, action }];
+    toasts = [...toasts, { id, message, tone, count: 1, action, ms }];
     while (toasts.length > MAX_TOASTS) {
       clearTimeout(timers.get(toasts[0].id));
       toasts = toasts.slice(1);
@@ -52,6 +52,17 @@ export function toast(message: string, tone: Toast["tone"] = "success", action?:
     schedule(id);
   }
   emit();
+}
+
+/** Durée du toast « Supprimé · Annuler » (lot 23). */
+export const UNDO_MS = 10_000;
+
+/**
+ * Après une suppression (mise à la corbeille) : « Supprimé · « Nom » » et un bouton « Annuler » qui restaure,
+ * affichés 10 s. `undo` est appelée au clic.
+ */
+export function undoToast(name: string, undo: () => void) {
+  toast(`Supprimé · « ${name} »`, "success", { label: "Annuler", run: undo }, UNDO_MS);
 }
 
 const EMPTY: Toast[] = [];

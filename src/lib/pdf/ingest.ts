@@ -7,6 +7,7 @@
  * `%PDF-`, taille, structure lisible par pdfinfo (délai et mémoire bornés),
  * pas de mot de passe, nombre de pages. Fichier temporaire toujours supprimé.
  */
+import { reviveIfTrashed } from "@/lib/upload/revive";
 import { createReadStream } from "node:fs";
 import { rm } from "node:fs/promises";
 
@@ -47,6 +48,7 @@ export async function ingestPdf(file: Received): Promise<IngestedMedia> {
 
     const db = getDb();
     const known = db.select().from(schema.media).where(eq(schema.media.sha256, file.sha256)).get();
+    if (known) reviveIfTrashed(known);
     if (known && known.status !== "failed") return asIngested(known, true);
 
     // Structure (pdfinfo : aucun rendu) : lisible, sans mot de passe, pages bornées.
