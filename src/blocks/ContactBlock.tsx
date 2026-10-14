@@ -54,7 +54,13 @@ export default async function ContactBlock({ props, ctx }: { props: z.infer<type
   const ph = (text: string) => (ctx.edit ? { "data-placeholder": text } : {});
   return (
     <section className={ctx.edit ? "shell pt-[var(--section-gap)] pe-field-host" : "shell pt-[var(--section-gap)]"}>
-      <div className={`rounded-lg border border-line bg-surface px-[clamp(1.5rem,5vw,4rem)] py-[clamp(2.5rem,6vw,4.5rem)] text-center shadow-card${ctx.edit ? " relative" : ""}`}>
+      <div
+        className={
+          ctx.edit
+            ? "rounded-lg border border-line bg-surface px-[clamp(1.5rem,5vw,4rem)] py-[clamp(2.5rem,6vw,4.5rem)] text-center shadow-card relative"
+            : "rounded-lg border border-line bg-surface px-[clamp(1.5rem,5vw,4rem)] py-[clamp(2.5rem,6vw,4.5rem)] text-center shadow-card"
+        }
+      >
         <FieldOps ctx={ctx} type="contact" props={props} />
         {nothing && ctx.edit && (
           <EmptyHint text="Ce contact est vide : ajoute ce que tu veux montrer." actions={[["title", "+ Ajouter un titre"], ["intro", "+ Ajouter une présentation"], ["cta", "+ Ajouter un bouton e-mail"]]} />

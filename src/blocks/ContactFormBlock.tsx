@@ -22,7 +22,13 @@ export default function ContactFormBlock({ props, ctx }: { props: ReturnType<typ
   const hasHead = shown(props.eyebrow) || shown(props.title) || shown(props.intro);
   return (
     <section className={ctx.edit ? "shell pt-[var(--section-gap)] pe-field-host" : "shell pt-[var(--section-gap)]"}>
-      <div className={`contact-form rounded-lg border border-line bg-surface px-[clamp(1.5rem,5vw,4rem)] py-[clamp(2.5rem,6vw,4.5rem)] shadow-card${ctx.edit ? " relative" : ""}`}>
+      <div
+        className={
+          ctx.edit
+            ? "contact-form rounded-lg border border-line bg-surface px-[clamp(1.5rem,5vw,4rem)] py-[clamp(2.5rem,6vw,4.5rem)] shadow-card relative"
+            : "contact-form rounded-lg border border-line bg-surface px-[clamp(1.5rem,5vw,4rem)] py-[clamp(2.5rem,6vw,4.5rem)] shadow-card"
+        }
+      >
         <FieldOps ctx={ctx} type="contact" props={{ ...props, form: true }} skip={["cta"]} />
         {hasHead && (
           <div className="max-w-xl">

@@ -87,7 +87,7 @@ export default async function ProfileBlock({ props, ctx }: { props: z.infer<type
           </div>
         </div>
 
-        <div className={`md:col-span-7 lg:col-span-7 lg:col-start-6${ctx.edit ? " relative" : ""}`}>
+        <div className={ctx.edit ? "md:col-span-7 lg:col-span-7 lg:col-start-6 relative" : "md:col-span-7 lg:col-span-7 lg:col-start-6"}>
           <FieldOps ctx={ctx} type="profile" props={props} />
           {shown(props.eyebrow) && (
             <Eyebrow {...inline(ctx, "eyebrow")} {...ph("Étiquette")}>
