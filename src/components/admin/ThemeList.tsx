@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { Button as AriaButton, Menu, MenuItem, MenuTrigger, Popover, Separator, Text } from "react-aria-components";
 
 import {
   activateThemeAction,
@@ -12,7 +13,7 @@ import {
 import { accentProblem } from "@/themes/contrast";
 import type { Theme } from "@/themes/schema";
 
-import KitDownloadButton from "./KitDownloadButton";
+import { useKitDownload } from "./KitDownloadButton";
 import { ConfirmDialog, toast } from "./editing";
 import ThemeSwatches from "./ThemeSwatches";
 import ThemeThumb from "./ThemeThumb";
@@ -32,6 +33,61 @@ function PreviewButton({ id, label = "Prévisualiser", small }: { id: string; la
 }
 
 type Pending = { kind: "activate" | "delete"; theme: Theme } | null;
+
+/**
+ * Actions secondaires d'une carte de thème, derrière « … » : de quoi garder la carte lisible (Prévisualiser,
+ * Mettre en ligne / Modifier seulement). Les deux téléchargements ont des noms et des phrases distincts :
+ * l'archive du thème (se réimporte) n'est pas le kit Photoshop (se redessine).
+ */
+function ThemeMenu({ theme, isActive, busy, onDuplicate, onDelete }: { theme: Theme; isActive: boolean; busy: boolean; onDuplicate: () => void; onDelete: () => void }) {
+  const kit = useKitDownload(theme.id);
+  const id = encodeURIComponent(theme.id);
+  return (
+    <>
+      <MenuTrigger>
+        <AriaButton className="a-btn a-btn-small a-menu-btn" aria-label={`Plus d'actions pour ${theme.name}`}>
+          <span aria-hidden="true">…</span>
+        </AriaButton>
+        <Popover className="a-menu-popover" placement="bottom end" offset={4}>
+          <Menu className="a-menu" aria-label={`Actions de ${theme.name}`}>
+            <MenuItem className="a-menu-item" href={`/admin/themes/${id}#couleurs-da`} data-testid="theme-da-link" textValue="Couleurs de la DA">
+              <Text slot="label">Couleurs de la DA</Text>
+              <Text slot="description">Les six couleurs du thème, avec aperçu.</Text>
+            </MenuItem>
+            <MenuItem className="a-menu-item" onAction={onDuplicate} isDisabled={busy} textValue="Dupliquer">
+              <Text slot="label">Dupliquer</Text>
+              <Text slot="description">Une copie que tu peux modifier.</Text>
+            </MenuItem>
+            <Separator className="a-menu-sep" />
+            <MenuItem className="a-menu-item" href={`/admin/api/themes/${id}/export`} download={`theme-${theme.id}.zip`} textValue="Exporter le thème (.zip)">
+              <Text slot="label">Exporter le thème (.zip)</Text>
+              <Text slot="description">Une archive à réimporter sur ce site ou un autre.</Text>
+            </MenuItem>
+            <MenuItem className="a-menu-item" onAction={() => void kit.start()} isDisabled={kit.busy} textValue="Télécharger le kit Photoshop">
+              <Text slot="label">{kit.busy ? "Préparation du kit…" : "Télécharger le kit Photoshop"}</Text>
+              <Text slot="description">Un fichier de calques à redessiner dans Photoshop.</Text>
+            </MenuItem>
+            <MenuItem className="a-menu-item" href={`/admin/themes/${id}/kit`} textValue="Renvoyer le kit Photoshop">
+              <Text slot="label">Renvoyer le kit Photoshop</Text>
+              <Text slot="description">Après l&apos;avoir redessiné : vérifie puis applique.</Text>
+            </MenuItem>
+            {!theme.preset && !isActive && (
+              <>
+                <Separator className="a-menu-sep" />
+                <MenuItem className="a-menu-item a-menu-danger" onAction={onDelete} textValue="Supprimer">
+                  <Text slot="label">Supprimer</Text>
+                </MenuItem>
+              </>
+            )}
+          </Menu>
+        </Popover>
+      </MenuTrigger>
+      <span className="sr-only" aria-live="polite">
+        {kit.status}
+      </span>
+    </>
+  );
+}
 
 export default function ThemeList({
   themes,
@@ -77,7 +133,7 @@ export default function ThemeList({
     <>
       {active && (
         <p className="a-theme-live" data-testid="theme-live-banner">
-          Thème en ligne : <strong>{active.name}</strong>. Les autres ne sont visibles que dans l&apos;aperçu (une copie « kit » ou « copie » n&apos;est jamais en ligne tant que tu ne l&apos;y mets pas).
+          Thème en ligne : <strong>{active.name}</strong>
         </p>
       )}
       <div className="a-grid a-theme-grid">
@@ -109,26 +165,8 @@ export default function ThemeList({
                     Modifier
                   </Link>
                 )}
-                <Link className="a-btn a-btn-small" href={`/admin/themes/${encodeURIComponent(theme.id)}#couleurs-da`} data-testid="theme-da-link">
-                  Couleurs de la DA
-                </Link>
-                <button type="button" className="a-btn a-btn-small" onClick={() => duplicate(theme)} disabled={busy}>
-                  Dupliquer
-                </button>
-                <a className="a-btn a-btn-small a-btn-quiet" href={`/admin/api/themes/${encodeURIComponent(theme.id)}/export`} download={`theme-${theme.id}.zip`}>
-                  Exporter
-                </a>
-                <KitDownloadButton themeId={theme.id} small />
-                <Link className="a-btn a-btn-small a-btn-quiet" href={`/admin/themes/${encodeURIComponent(theme.id)}/kit`}>
-                  Kit rempli…
-                </Link>
-                {!theme.preset && !isActive && (
-                  <button type="button" className="a-btn a-btn-small a-btn-quiet a-danger-text" onClick={() => setPending({ kind: "delete", theme })}>
-                    Supprimer
-                  </button>
-                )}
+                <ThemeMenu theme={theme} isActive={isActive} busy={busy} onDuplicate={() => duplicate(theme)} onDelete={() => setPending({ kind: "delete", theme })} />
               </div>
-              {theme.preset && <p className="a-help">Thème livré : duplique-le pour le modifier (ou essaie ses couleurs, une copie te sera proposée).</p>}
             </section>
           );
         })}

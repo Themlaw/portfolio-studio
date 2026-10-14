@@ -11,6 +11,8 @@ import path from "node:path";
 
 import Database from "better-sqlite3";
 
+import { publishBlocks } from "./page-draft.mjs";
+
 const DB = path.join(process.env.DATA_DIR ?? "data", "portfolio.db");
 export const q1 = (sql, ...args) => {
   const db = new Database(DB, { readonly: true });
@@ -83,26 +85,10 @@ export function makePdf(pages = 2, name = CV_NAME, extra = "") {
   return file;
 }
 
-/** Ajoute un bloc en fin de page par le formulaire de la page, et l'ouvre. */
-async function addBlock(page, base, pageId, label) {
-  await page.goto(`${base}/admin/pages/${pageId}`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "+ Ajouter un bloc" }).click();
-  const dialog = page.locator("dialog[open]");
-  await dialog.locator("label.a-block-type", { hasText: label }).first().click();
-  await dialog.getByRole("button", { name: "Ajouter ce bloc" }).click();
-}
-
-/** Choisit (ou envoie) un média dans le sélecteur ouvert par `button`. */
-async function pickMedia(page, button, file, name, confirm) {
-  await button.click();
-  const dialog = page.locator("dialog[open]");
-  const tile = dialog.locator(`button.a-media-tile[title="${name}"]`);
-  if (!(await tile.count())) {
-    await dialog.locator("input[type=file]").setInputFiles(file);
-    await tile.first().waitFor({ timeout: 60000 });
-  }
-  await tile.first().click();
-  await dialog.getByRole("button", { name: confirm }).click();
+/** Envoie un fichier par la médiathèque, comme l'artiste (les vidéos passent par l'envoi par morceaux, géré par l'interface). */
+async function uploadFile(page, base, file) {
+  await page.goto(`${base}/admin/medias`, { waitUntil: "networkidle" });
+  await page.locator("input[type=file]").first().setInputFiles(file);
 }
 
 const mediaOf = (name) => q1("select id, status from media where original_name = ? order by id desc", name);
@@ -115,14 +101,18 @@ export async function ensureVideoBlock(page, base) {
   const known = mediaOf(VIDEO_NAME);
   if (known && blockWith(pageId, "video-single", known.id)) return known.id;
   const file = makeVideo();
-  await addBlock(page, base, pageId, "Vidéo");
-  await pickMedia(page, page.getByRole("button", { name: "Choisir une vidéo" }).last(), file, VIDEO_NAME, "Utiliser cette vidéo");
-  await page.getByLabel("Titre", { exact: true }).last().fill(VIDEO_TITLE);
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
-  const id = await waitFor(() => mediaOf(VIDEO_NAME)?.id && blockWith(pageId, "video-single", mediaOf(VIDEO_NAME).id));
-  if (!id) throw new Error("bloc Vidéo non enregistré");
+  if (!known) await uploadFile(page, base, file);
   if (!(await waitFor(() => mediaOf(VIDEO_NAME)?.status === "ready", 240000))) throw new Error("vidéo non convertie");
-  return mediaOf(VIDEO_NAME).id;
+  const mediaId = mediaOf(VIDEO_NAME).id;
+  const ok = await publishBlocks(
+    page,
+    base,
+    pageId,
+    (blocks) => [...blocks, { uid: "lot3video", type: "video-single", props: { mediaId, variant: "card", mode: "player", title: { fr: VIDEO_TITLE, en: VIDEO_TITLE } } }],
+    () => blockWith(pageId, "video-single", mediaId) > 0,
+  );
+  if (!ok) throw new Error("bloc Vidéo non enregistré");
+  return mediaId;
 }
 
 /** Bloc « CV » en fin de page Personnages, avec le PDF de test. */
@@ -132,19 +122,23 @@ export async function ensureCvBlock(page, base) {
   if (known && blockWith(pageId, "cv", known.id)) {
     // Média en échec (ou marqué tel pour un nouveau rendu) : même fichier renvoyé, même ligne retraitée.
     if (known.status === "failed") {
-      const res = await page.request.post(`${base}/admin/api/upload`, { headers: { origin: base }, multipart: { file: { name: CV_NAME, mimeType: "application/pdf", buffer: readFileSync(makePdf(2)) } } });
-      if (!res.ok()) throw new Error(`nouveau rendu du CV refusé : ${res.status()}`);
+      await uploadFile(page, base, makePdf(2));
       if (!(await waitFor(() => mediaOf(CV_NAME)?.status === "ready", 120000))) throw new Error("PDF non traité");
     }
     return known.id;
   }
-  const file = makePdf(2);
-  await addBlock(page, base, pageId, "CV");
-  await pickMedia(page, page.getByRole("button", { name: "Choisir un PDF" }).last(), file, CV_NAME, "Utiliser ce PDF");
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
-  if (!(await waitFor(() => mediaOf(CV_NAME)?.id && blockWith(pageId, "cv", mediaOf(CV_NAME).id)))) throw new Error("bloc CV non enregistré");
+  if (!known) await uploadFile(page, base, makePdf(2));
   if (!(await waitFor(() => mediaOf(CV_NAME)?.status === "ready", 120000))) throw new Error("PDF non traité");
-  return mediaOf(CV_NAME).id;
+  const mediaId = mediaOf(CV_NAME).id;
+  const ok = await publishBlocks(
+    page,
+    base,
+    pageId,
+    (blocks) => [...blocks, { uid: "lot3cv", type: "cv", props: { mediaId, eyebrow: { fr: "Parcours", en: "Background" }, title: { fr: "Curriculum vitae", en: "Résumé" }, fileName: "cv" } }],
+    () => blockWith(pageId, "cv", mediaId) > 0,
+  );
+  if (!ok) throw new Error("bloc CV non enregistré");
+  return mediaId;
 }
 
 export const STRIP_TITLE = "Bande lot 3";

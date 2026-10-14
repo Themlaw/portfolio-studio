@@ -8,7 +8,7 @@
 #
 # Usage (depuis le dépôt) :
 #   scripts/test-all-local.sh [suite…]      # vide = toutes
-#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b
+#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c texte19a palogo17f integ17 editor boards admin admin23 medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b
 # Rapide (VM de 3 cœurs et plus, voir docs/ARCHITECTURE.md) :
 #   BATT_SERVER=start BATT_JOBS=2 scripts/test-all-local.sh
 # En fond détaché :
@@ -77,6 +77,7 @@ E2E=(
   "editor|node scripts/e2e-editor.mjs|chromium|"
   "boards|node scripts/e2e-boards.mjs|chromium|"
   "admin|node scripts/e2e-admin.mjs|chromium|"
+  "admin23|node scripts/e2e-admin23.mjs|chromium|"
   "medias|node scripts/e2e-medias.mjs|chromium|"
   "medias-firefox|node scripts/e2e-medias.mjs|firefox|AB"
   "17b|node scripts/e2e-17b.mjs|chromium||MALLOC_ARENA_MAX=2 MALLOC_MMAP_THRESHOLD_=131072 MALLOC_TRIM_THRESHOLD_=131072"

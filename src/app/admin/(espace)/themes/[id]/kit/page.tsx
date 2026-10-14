@@ -112,7 +112,7 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                       )}
                       <p className="a-kit-meta">
                         {s.change === "unchanged"
-                          ? "Gardé tel quel (pas reconverti)."
+                          ? "Inchangé."
                           : s.chosen
                             ? `${FORMAT[s.chosen]} · ${formatBytes(s.bytes ?? 0)}${s.fidelity ? ` · contour à ${s.fidelity.deviation.toFixed(2)} px` : ""}${s.hotspot ? ` · point chaud ${s.hotspot.x}, ${s.hotspot.y} px` : ""}`
                             : s.change === "missing"
@@ -175,7 +175,7 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                   {counts.error ? ` · ${counts.error} à corriger` : ""}
                 </span>
                 <span>
-                  Premier affichage : <strong>{formatBytes(totals.after)}</strong> (aujourd&apos;hui {formatBytes(totals.before)})
+                  Poids au chargement : <strong>{formatBytes(totals.after)}</strong> (aujourd&apos;hui {formatBytes(totals.before)})
                 </span>
               </div>
               {report.ignoredLayers.length > 0 && <p className="a-help">Calques ignorés : {report.ignoredLayers.join(" ; ")}.</p>}

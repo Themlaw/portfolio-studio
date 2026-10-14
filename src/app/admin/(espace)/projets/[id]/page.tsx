@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import PageHeader from "@/components/admin/PageHeader";
 import ProjectEditor from "@/components/admin/ProjectEditor";
-import { getProjectForEdit, listMediaForAdmin } from "@/lib/admin";
+import { getProjectForEdit, legacyFeaturedPages, listMediaForAdmin } from "@/lib/admin";
 
 export const metadata = { title: "Modifier un projet" };
 
@@ -33,11 +33,11 @@ export default async function ProjectEditPage({ params }: { params: Promise<{ id
       {project.textHeldBy && (
         <p className="a-notice" role="status">
           Les textes de ce projet (nom, contexte, présentation, année) sont en cours de modification dans l&apos;éditeur de la page «&nbsp;{project.textHeldBy}&nbsp;» :
-          publie cette page ou abandonne ses modifications avant de les changer ici (« Mis en avant » reste enregistrable).
+          publie cette page ou abandonne ses modifications avant de les changer ici.
         </p>
       )}
       {/* Un PDF (bloc CV) ne se place pas dans une planche. */}
-      <ProjectEditor project={project} library={listMediaForAdmin().filter((m) => m.kind !== "pdf")} />
+      <ProjectEditor project={project} library={listMediaForAdmin().filter((m) => m.kind !== "pdf")} legacyFeatured={legacyFeaturedPages()} />
     </>
   );
 }

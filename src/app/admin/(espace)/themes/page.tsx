@@ -17,7 +17,7 @@ export default function ThemesPage() {
     <>
       <PageHeader
         title="Thèmes"
-        intro="Choisis l'apparence de ton site : couleurs, typographies et mise en page. Prévisualise un thème sur tes vraies pages avant de le mettre en ligne."
+        intro="Seul le thème en ligne est vu par tes visiteurs : prévisualise les autres sur tes vraies pages, duplique un thème livré pour le modifier, et retrouve dans « … » l'archive .zip du thème (à réimporter) et le kit Photoshop (à redessiner)."
         action={
           <div className="a-header-actions">
             {/* Tuto du kit : le bouton « Télécharger le kit » de la slide 2 vise le thème en ligne. */}
@@ -49,11 +49,6 @@ export default function ThemesPage() {
           thumbs={Object.fromEntries(sorted.map((t) => [t.id, presetThumb(t.id)]))}
         />
       )}
-      <p className="a-help a-section">
-        L&apos;aperçu n&apos;est visible que par toi, tant que tu es connecté : tes visiteurs voient le thème en ligne. Pour
-        créer ton propre thème, duplique un thème livré puis modifie la copie. « Exporter » enregistre un thème dans
-        une archive .zip ; « Importer un thème… » l&apos;ajoute ici (sur ce site ou un autre), sans le mettre en ligne.
-      </p>
     </>
   );
 }

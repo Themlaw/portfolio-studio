@@ -1357,6 +1357,23 @@ couleurs par défaut des fonds de cartes ».
   Au passage : la légende « utilisé par » d'un rôle survolé ne décale plus la liste (un clic pouvait se perdre).
 - Schéma : `SURFACE_TOKENS` passe de 6 à 15 valeurs (zod borné). Les thèmes et pages enregistrés avant restent valides.
 
+## Corbeille et usages (lot 23)
+
+Décision : **supprimer ne détruit plus tout de suite**. `pages`, `projects` et `media` portent `deleted_at` (migration 0021) ; la
+ligne et ses fichiers restent 30 jours (`TRASH_DAYS`, `src/lib/trash.ts`), restaurables (toast « Annuler » 10 s, vue Corbeille), puis
+`purgeTrash` (`src/lib/edit/trash.ts`, worker : au démarrage puis toutes les 15 min) supprime pour de bon : pages (blocs, surcouches),
+projets (emplacements en cascade, médias conservés), médias (ligne, original, variantes, recadrages). Ordre de purge : pages, projets,
+médias (ce que les premiers libèrent). Une purge ne casse jamais de lien : un élément encore cité reste à la corbeille.
+
+Intégrité : un élément à la corbeille disparaît de toute lecture publique et des sélecteurs (voir docs/ARCHITECTURE.md pour la liste des filtres) ;
+une page à la corbeille est traitée comme une page non publiée, hors menu (`trashed_in_menu` mémorise la place) et sans adresse retenue.
+Supprimer reste interdit tant qu'un bloc montre l'élément, que le média est utilisé (bloc, planche, brouillon, élément à la corbeille) :
+l'interface le sait d'avance. « Usage » d'un média = `mediaUsageIndex` (une place par emplacement ; par page, type de bloc et média, le plus
+grand des deux nombres publié / brouillon) : compteur, détail et blocage lisent le même calcul.
+
+Limite connue : pas de « supprimer définitivement » ni de « vider la corbeille » ; un média de la planche d'un projet à la corbeille
+reste « utilisé » jusqu'à la purge du projet.
+
 ## Phases
 
 Chaque phase suit le même cycle : build → vérification

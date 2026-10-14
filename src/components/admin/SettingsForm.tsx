@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -10,7 +11,7 @@ import type { AdminSettings } from "@/lib/admin";
 import { clone, SaveBar, same, toast, useUnsavedGuard } from "./editing";
 import SocialsEditor from "./SocialsEditor";
 
-export default function SettingsForm({ initial }: { initial: AdminSettings }) {
+export default function SettingsForm({ initial, pending }: { initial: AdminSettings; pending: { pageId: number; pageTitle: string } | null }) {
   const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [value, setValue] = useState(() => clone(initial));
@@ -40,6 +41,18 @@ export default function SettingsForm({ initial }: { initial: AdminSettings }) {
     });
 
   return (
+    <>
+    {pending && (
+      <div className="a-notice" role="status" data-testid="site-draft-notice">
+        <p>
+          <strong>Modifications en attente dans l&apos;éditeur de la page « {pending.pageTitle} ».</strong> Le nom, le métier, les réseaux, l&apos;en-tête ou le pied de page y ont été
+          changés mais ne sont pas encore en ligne : ils le seront quand tu publieras cette page. Tant qu&apos;elles existent, enregistrer ici est refusé.
+        </p>
+        <Link className="a-btn a-btn-small" href={`/admin/pages/${pending.pageId}/editer`}>
+          Ouvrir l&apos;éditeur de cette page
+        </Link>
+      </div>
+    )}
     <form
       className="a-form"
       onSubmit={(e) => {
@@ -83,5 +96,6 @@ export default function SettingsForm({ initial }: { initial: AdminSettings }) {
 
       <SaveBar dirty={dirty} saving={saving} onSave={save} error={error} />
     </form>
+    </>
   );
 }

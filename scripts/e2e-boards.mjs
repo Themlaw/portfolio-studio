@@ -134,7 +134,7 @@ ok("palette : plus de « Planches d'une collection »", (await page.locator('.ve
 await page.locator(".ve-pane").evaluate((el) => el.scrollTo(0, 0));
 await sleep(300);
 await page.screenshot({ path: `${SHOTS2}/1440-palette.png` });
-const publishedProjects = q("select count(*) n from projects where draft_page_id is null")[0].n;
+const publishedProjects = q("select count(*) n from projects where draft_page_id is null and deleted_at is null")[0].n;
 // Composant glissé entre les blocs 2 et 3.
 await f.evaluate(() => {
   const el = document.querySelectorAll("[data-edit-block]:not([data-edit-parent])")[2];
@@ -414,7 +414,7 @@ const row = page.locator("tr, li, article").filter({ hasText: PROJECT }).first()
 await row.getByRole("button", { name: "Supprimer" }).click();
 await page.getByRole("dialog").getByRole("button", { name: "Supprimer le projet" }).click();
 await sleep(1500);
-ok("remise en état : projet supprimé, accueil d'origine", !q("select id from projects where id = ?", board).length && q("select count(*) n from projects where draft_page_id is null")[0].n === publishedProjects && !(await (await anon.request.get(`${BASE}/fr`)).text()).includes(PROJECT));
+ok("remise en état : projet supprimé (corbeille), accueil d'origine", Boolean(q("select deleted_at d from projects where id = ?", board)[0]?.d) && q("select count(*) n from projects where draft_page_id is null and deleted_at is null")[0].n === publishedProjects && !(await (await anon.request.get(`${BASE}/fr`)).text()).includes(PROJECT));
 
 ok("aucune erreur JavaScript", errors.length === 0, errors.slice(0, 3).join(" | "));
 await anon.close();
