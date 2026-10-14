@@ -6313,6 +6313,15 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   margin: 0 0 8px;
 }
 
+/* Dans la colonne d'actions d'un tableau (nowrap, alignée à droite) : la confirmation passe sous le bouton, sur plusieurs lignes. */
+.a-row-actions > .a-inline-confirm {
+  display: block;
+  max-width: min(36rem, 100%);
+  margin: 8px 0 0 auto;
+  white-space: normal;
+  text-align: left;
+}
+
 .a-inline-confirm-actions {
   display: flex;
   flex-wrap: wrap;
