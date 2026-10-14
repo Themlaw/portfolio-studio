@@ -1764,7 +1764,9 @@ for (const [label, name, mime, data, expected, env] of cases) {
     shape = Boolean(top && top.h > top.w); // 9000 × 6000 tourné d'un quart : portrait
   }
   const asExpected = expected === "ready" ? res.status === 200 && row?.status === "ready" : res.status === 422 && expected.test(res.json?.message ?? "");
-  const limitMb = expected === "ready" ? 500 : after.hwm; // refus : seul l'absence de décodage compte (+20 Mo au plus)
+  // Seuil 560 Mo : le pic d’un PNG 16 bits varie de 453 à 523 Mo d’un run à l’autre (mesures de la batterie v0.18, code d’image
+  // inchangé), donc 500 Mo échouait au hasard sans régression.
+  const limitMb = expected === "ready" ? 560 : after.hwm; // refus : seul l'absence de décodage compte (+20 Mo au plus)
   ok(
     `F ${label} : ${expected === "ready" ? "traitée" : "refusée"}, pic du serveur ${after.hwm} Mo (+${after.hwm - before.hwm})${name === "tourne.png" ? ", orientation appliquée" : ""}`,
     asExpected && shape && after.hwm <= limitMb && (expected === "ready" || after.hwm - before.hwm <= 20),
