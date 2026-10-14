@@ -31,7 +31,7 @@ export default function RichTextBlock({ props, ctx }: { props: z.infer<typeof ri
             {/* L'étiquette a son propre bouton : « Retirer le titre » ne touche qu'au titre. */}
             {props.eyebrow !== undefined && (
               <button type="button" className="pe-field-op" data-edit-field-op="remove-eyebrow">
-                Retirer l'étiquette
+                {"Retirer l'étiquette"}
               </button>
             )}
           </div>
