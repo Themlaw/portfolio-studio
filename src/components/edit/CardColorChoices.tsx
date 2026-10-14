@@ -26,11 +26,12 @@ import "@/app/admin/card-colors.css";
 
 const TINTS: SurfaceToken[] = SURFACE_TINT_BASES.flatMap((b) => SURFACE_TINT_PERCENTS.map((n) => `${b}${n}` as SurfaceToken));
 
-export default function CardColorChoices({ palette, value, onPick }: { palette: CardPalette; value: string; onPick: (token: SurfaceToken) => void }) {
-  const current = (SURFACE_TOKEN_LABELS as Record<string, string>)[value] ?? `Couleur libre ${value}`;
+/** `value` vide : aucun choix (« Auto » chez l'appelant). `label` : nom du groupe, selon ce qu'on colore. */
+export default function CardColorChoices({ palette, value, onPick, label = "Couleur de la carte" }: { palette: CardPalette; value: string; onPick: (token: SurfaceToken) => void; label?: string }) {
+  const current = !value ? "Auto : couleur du thème" : ((SURFACE_TOKEN_LABELS as Record<string, string>)[value] ?? `Couleur libre ${value}`);
   return (
     <div className="cc" data-testid="card-colors">
-      <div className="cc-da" role="radiogroup" aria-label="Couleur de la carte">
+      <div className="cc-da" role="radiogroup" aria-label={label}>
         {SURFACE_DA_TOKENS.map((t) => (
           <button
             key={t}

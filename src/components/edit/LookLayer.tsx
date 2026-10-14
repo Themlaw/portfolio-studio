@@ -27,8 +27,7 @@ import { acceptToCanvas } from "@/lib/edit/protocol";
 import { type Rect as CropRect } from "@/lib/images/crop";
 import { parseRatio } from "@/lib/images/sizes";
 import {
-  BACKDROP_LABELS,
-  BACKDROPS,
+  BACKDROP_BLOCKED,
   cleanLook,
   cropFromWindow,
   cropWindow,
@@ -53,7 +52,7 @@ import {
 
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 
-import { overlayData, overlayList, postIntent, setOverlay } from "./optimistic";
+import { canvasPalette, overlayData, overlayList, postIntent, setOverlay } from "./optimistic";
 import TypoControls from "./TypoControls";
 import { useDismiss } from "./useDismiss";
 
@@ -278,7 +277,6 @@ type TextTarget = {
   role: Role;
   /** Texte d'un bloc : style local possible (chemin dans look.text). */
   local: { uid: string; key: string } | null;
-  isRole: boolean;
 };
 
 /**
@@ -298,7 +296,7 @@ function targetOf(el: HTMLElement): TextTarget {
   let local: TextTarget["local"] = null;
   if (block?.dataset.editBlock && inline && el.closest("[data-edit-block]") === block) local = { uid: block.dataset.editBlock, key: inline };
   else if (block?.dataset.editBlock && (site === "name" || site === "role")) local = { uid: block.dataset.editBlock, key: `site.${site}` };
-  return { path: pathOf(el), role: roleOf(el), local, isRole: el.dataset.heroText === "role" };
+  return { path: pathOf(el), role: roleOf(el), local };
 }
 
 /** Styles du site tels que le serveur les a rendus (feuille `#site-styles`). */
@@ -335,7 +333,7 @@ function renderRolePreview() {
     el.id = "pe-style-preview";
     document.body.appendChild(el);
   }
-  const css = siteStylesCss(siteStyles());
+  const css = siteStylesCss(siteStyles(), canvasPalette());
   if (el.textContent !== css) el.textContent = css;
 }
 
@@ -354,7 +352,7 @@ function localTexts(local: { uid: string; key: string }): HTMLElement[] {
 
 /** Aperçu immédiat du style de CE texte, gardé jusqu'à ce que le serveur le rende. */
 function previewTextStyle(local: { uid: string; key: string }, style: TextStyle | undefined, seq: number) {
-  const css = textStyleDecls(style).map(([k, v]) => `${k}:${v}`).join(";");
+  const css = textStyleDecls(style, canvasPalette()).map(([k, v]) => `${k}:${v}`).join(";");
   setOverlay(`tstyle:${local.uid}:${local.key}`, seq, {
     apply: () => {
       for (const el of localTexts(local)) if (el.getAttribute("style") !== css) el.setAttribute("style", css);
@@ -382,10 +380,21 @@ function TextBar({
   // reste cliquable (déplacer le curseur pendant la saisie) sans la fermer.
   useDismiss(barRef, onClose, { ignore: (t) => Boolean(document.querySelector(target.path)?.contains(t)) });
   void tick;
+  // Le texte n'est plus là (la page s'est redessinée autrement, ex. le bloc a perdu son enveloppe) : la barre n'a plus de cible
+  // et, sans cette fermeture, bloquerait le « Aa » des autres textes. Un redessin passager la retrouve avant le délai.
+  const missing = !el;
+  useEffect(() => {
+    if (!missing) return;
+    const t = setTimeout(onClose, 2000);
+    return () => clearTimeout(t);
+  }, [missing, onClose, tick]);
   if (!el) return null;
   const r = docRect(el);
   const look = target.local ? lookOf(target.local.uid) : {};
-  const localStyle = target.local ? (look.text?.[target.local.key] ?? {}) : {};
+  // Fond du métier de l'ouverture réglé avant le lot 21 (`look.roleBackdrop`) : montré comme celui du texte,
+  // et migré dans son style dès qu'on le modifie (le rendu ne change pas).
+  const legacyBackdrop = target.local?.key === "site.role" ? look.roleBackdrop : undefined;
+  const localStyle: TextStyle = target.local ? { ...(legacyBackdrop ? { backdrop: legacyBackdrop } : {}), ...(look.text?.[target.local.key] ?? {}) } : {};
   const roleStyle = siteStyles().roles?.[target.role] ?? {};
   const value = scope === "local" ? localStyle : roleStyle;
   const change = (input: TextStyle | undefined) => {
@@ -398,7 +407,7 @@ function TextBar({
       const text = { ...(look.text ?? {}) };
       if (next) text[target.local.key] = next;
       else delete text[target.local.key];
-      const seq = sendLook(target.local.uid, { ...look, text });
+      const seq = sendLook(target.local.uid, { ...look, text, ...(legacyBackdrop ? { roleBackdrop: undefined } : {}) });
       // Aperçu immédiat sur ce texte.
       previewTextStyle(target.local, next, seq);
     } else {
@@ -440,17 +449,10 @@ function TextBar({
         themeNames={themeNames}
         compact
         resetLabel={scope === "local" ? "Revenir au style global" : "Revenir au thème"}
+        palette={canvasPalette()}
+        backdropBlocked={BACKDROP_BLOCKED[target.role]}
+        inheritedColor={scope === "local" ? roleStyle.color : undefined}
       />
-      {target.isRole && target.local && (
-        <div className="lk-row" role="radiogroup" aria-label="Fond derrière le métier">
-          <span className="lk-row-label">Fond :</span>
-          {BACKDROPS.map((b) => (
-            <button key={b} type="button" role="radio" aria-checked={(look.roleBackdrop ?? null) === b} onClick={() => sendLook(target.local!.uid, { ...look, roleBackdrop: look.roleBackdrop === b ? undefined : b })}>
-              {BACKDROP_LABELS[b]}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

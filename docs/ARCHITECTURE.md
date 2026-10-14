@@ -918,7 +918,7 @@ libres ni de valeur arbitraire) : `src/lib/look.ts` (module pur, testé par
   (`none · soft · medium · strong`), position du titre (`titleH`, `titleV`),
   styles de texte par chemin (`text["title"]`, `text["paragraphs.0"]`,
   `text["site.role"]`…), cadrage par champ média (`crop.mediaId` = point focal
-  + zoom), fond du métier de l'ouverture (`roleBackdrop`).
+  + zoom), ancien fond du métier de l'ouverture (`roleBackdrop`, lu tel quel ; remplacé au lot 21 par le fond de tout texte).
 - **Typographie d'un texte** (lot 7) : tailles en échelle absolue de 11 crans
   (`xs` 12 px … `7xl` jusqu'à 208 px, libellés avec leur valeur), gagnantes sur
   les variantes du thème (préfixe de spécificité des règles de rôle) ; couleur
@@ -1419,3 +1419,35 @@ indépendante (GO / NO-GO mesuré) → validation visuelle → commit squashé s
 
 Multi-utilisateurs avec rôles, historique des versions de contenu (au-delà du
 brouillon unique par page de la phase 7a), HLS adaptatif, CDN.
+
+## Fond de tout texte (lot 21)
+
+**Cause.** Avant le lot 21, la ligne « Fond » n'existait pas dans `TypoControls` : `LookLayer.TextBar` l'ajoutait à part
+pour un seul texte, le métier de l'ouverture (`target.isRole`, `data-hero-text="role"`), et le réglage n'était pas un style de
+texte mais `look.roleBackdrop` du bloc, rendu par des règles CSS propres à ce métier (`look.css`, `data-role-bd`). Aucune
+liste blanche de rôles : les autres textes n'avaient simplement aucun fond dans le modèle (`TextStyleSchema`), et « Tous les X »
+n'en avait pas non plus. D'où deux barres qui divergeaient (la capture du « Légende » ouverture, celle de l'étiquette).
+
+**Une définition.** `TextStyleSchema` porte `backdrop` (`none · shadow · band · highlight`) et `backdropColor` (jeton de carte,
+teinte douce du lot 19b, ou `#rrggbb[aa]`, même schéma que `SurfaceSchema.color`). Le style local (`look.text[chemin]`) et le style
+d'un rôle (`styles.roles[rôle]`) sont le même objet : `textStyleDecls` (pur) en tire les déclarations, inline pour un texte,
+feuille `siteStylesCss` pour un rôle (menu : fond sur le lien seul). `src/themes/text-backdrop.ts` (pur) fait le calcul ;
+`src/components/edit/BackdropRow.tsx` est la ligne, rendue par `TypoControls` — donc la barre de la toile ET « Styles du site »
+du panneau, pour tous les rôles et les deux portées. `BACKDROP_BLOCKED` (look.ts) dirait pourquoi un rôle ne peut pas recevoir
+de fond (ligne désactivée + infobulle) ; il est vide aujourd'hui.
+
+**Couleur.** « Auto » (rien d'écrit) = le rendu d'avant, via `--color-*` (suit donc aussi une carte de rubrique). Une couleur
+est traduite en variables CSS (`--t-color-*`, teinte = `color-mix(in oklab, …)`), jamais recopiée : le fond suit la palette, la toile
+la suit en direct. « Ombre douce » a une couleur dans le code (le halo `--role-shadow` est de la couleur du fond de page) : la
+pastille s'y applique, et le halo prend la couleur choisie.
+
+**Lisibilité.** Fond coloré et pas de couleur de texte choisie : le texte prend la couleur que `cardStyle` (lot 17c) choisit,
+écrite `color: var(--user-ink, …)` ; le style d'un rôle à couleur choisie publie `--user-ink` dans une règle à part, donc un
+fond posé sur un texte précis ne l'écrase pas. Couleur choisie sur le texte lui-même : déclaration `color` après le fond, jamais
+remplacée, et `backdropContrast` fait afficher une pastille « ! » (jamais bloquant). La palette (`ctx.palette`, `siteStylesCss(…,
+palette)`) n'est lue que si un `backdropColor` existe.
+
+**Réglage d'avant le lot.** `roleBackdrop` reste lu et rendu par les mêmes règles CSS (rendu inchangé). La barre l'affiche comme
+le fond de `site.role` et le migre dans `look.text["site.role"]` à la première modification (le champ est retiré). Limite connue : « Surlignage »
+est `display: inline` (comme avant sur le métier) ; sur un texte de bloc (titre, `li`), le texte devient en ligne et perd ses marges
+verticales.

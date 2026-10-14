@@ -97,6 +97,15 @@ export function effectiveSitePalette(color: PaletteColors, palette: PaletteState
   return resolvePalette(a.color, a.palette);
 }
 
+/**
+ * Palette que lisent les pages : la palette effective du site, ou celle du thème si la palette du site rendrait du
+ * texte illisible (ignorée au rendu public ; la vue brouillon la montre pour la corriger). Mêmes règles que le layout.
+ */
+export function pagePalette(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined, edit: boolean): ResolvedPalette {
+  const usable = overrides && (edit || !sitePaletteProblem(color, palette, overrides));
+  return usable ? effectiveSitePalette(color, palette, overrides) : resolvePalette(color, palette);
+}
+
 /** Un couple texte / fond : libellé, ratio et jetons de la palette concernés (texte, fond). */
 export type SiteContrastPair = { label: string; ratio: number; ok: boolean; tokens: [string, string] };
 

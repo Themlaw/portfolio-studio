@@ -25,7 +25,9 @@ import { RADIUS_VALUES } from "../themes/css";
 import { BASE_KEYS } from "../themes/palette";
 import { FONT_STACKS } from "../themes/font-stacks";
 import { CATEGORY_FALLBACK, googleFamily, isGoogleFamily } from "../themes/google-fonts";
-import { FONT_IDS, TEXT_ROLES, type FontId, type Theme } from "../themes/schema";
+import { FONT_IDS, SURFACE_TOKENS, TEXT_ROLES, type FontId, type Theme } from "../themes/schema";
+import { BACKDROP_PROPS, backdropDecls } from "../themes/text-backdrop";
+import type { CardPalette } from "../themes/surface";
 
 /* ---- Crans ------------------------------------------------------------------ */
 
@@ -130,6 +132,12 @@ export const ROLE_SELECTORS: Record<Role, string> = {
 export const BACKDROPS = ["none", "shadow", "band", "highlight"] as const;
 export type Backdrop = (typeof BACKDROPS)[number];
 export const BACKDROP_LABELS: Record<Backdrop, string> = { none: "Aucun", shadow: "Ombre douce", band: "Bandeau", highlight: "Surlignage" };
+/**
+ * Rôles qui ne peuvent techniquement pas recevoir de fond : la ligne « Fond » reste visible mais désactivée,
+ * avec cette phrase en infobulle (jamais de disparition silencieuse). Aucun pour l'instant : les sept rôles
+ * (titres, étiquette, texte, légende, menu, nom du site) et les textes de blocs en acceptent un.
+ */
+export const BACKDROP_BLOCKED: Partial<Record<Role, string>> = {};
 
 /* ---- Polices ------------------------------------------------------------------ */
 
@@ -195,6 +203,13 @@ export const TextStyleSchema = z.strictObject({
   /** Teinte de la palette du thème, ou couleur libre (#rrggbb[aa]). */
   color: z.union([z.enum(PALETTE), CustomColorSchema]).optional(),
   align: z.enum(["left", "center", "right"]).optional(),
+  /** Fond derrière le texte (lot 21) : même définition pour tous les rôles et les textes de blocs. */
+  backdrop: z.enum(BACKDROPS).optional(),
+  /**
+   * Couleur de ce fond : jeton de la palette ou teinte douce (suit la palette), ou `#rrggbb[aa]`, comme les cartes.
+   * Absente (« Auto ») : la couleur du thème. Sans effet sans `backdrop`.
+   */
+  backdropColor: z.union([z.enum(SURFACE_TOKENS), CustomColorSchema]).optional(),
 });
 export type TextStyle = z.infer<typeof TextStyleSchema>;
 
@@ -207,8 +222,11 @@ export function resolveTextStyle(global: TextStyle | undefined, local: TextStyle
 
 const round = (n: number, d = 3) => Math.round(n * 10 ** d) / 10 ** d;
 
-/** Déclarations CSS d'un style (propriétés kebab-case), valeurs déjà bornées. */
-export function textStyleDecls(style: TextStyle | undefined): [string, string][] {
+/**
+ * Déclarations CSS d'un style (propriétés kebab-case), valeurs déjà bornées. `palette` (palette effective du
+ * thème) sert à choisir la couleur de texte lisible sur un fond coloré ; sans elle, le fond reste appliqué.
+ */
+export function textStyleDecls(style: TextStyle | undefined, palette?: CardPalette): [string, string][] {
   const parsed = TextStyleSchema.safeParse(style ?? {});
   if (!parsed.success) return [];
   const s = parsed.data;
@@ -222,14 +240,16 @@ export function textStyleDecls(style: TextStyle | undefined): [string, string][]
   if (s.italic !== undefined) out.push(["font-style", s.italic ? "italic" : "normal"]);
   if (s.case) out.push(["text-transform", s.case === "upper" ? "uppercase" : "none"]);
   if (s.tracking !== undefined) out.push(["letter-spacing", `${round(s.tracking)}em`]);
+  // Fond avant la couleur : un texte de couleur choisie garde sa couleur (déclaration suivante).
+  out.push(...backdropDecls(s.backdrop, s.backdrop === "none" ? undefined : s.backdropColor, { palette, userColor: Boolean(s.color) }));
   if (s.color) out.push(["color", (PALETTE as readonly string[]).includes(s.color) ? `var(--t-color-${s.color})` : s.color]);
   if (s.align) out.push(["text-align", s.align]);
   return out;
 }
 
 /** Style React (camelCase) d'un style local. */
-export function textStyleObject(style: TextStyle | undefined): Record<string, string> | undefined {
-  const decls = textStyleDecls(style);
+export function textStyleObject(style: TextStyle | undefined, palette?: CardPalette): Record<string, string> | undefined {
+  const decls = textStyleDecls(style, palette);
   if (!decls.length) return undefined;
   return Object.fromEntries(decls.map(([k, v]) => [k.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase()), v]));
 }
@@ -298,6 +318,7 @@ export const LookSchema = z.strictObject({
   crop: z.partialRecord(z.enum(CROP_FIELDS), CropSchema).optional(),
   /** Cadrage de l'image de chaque tuile d'un bloc « tuiles de collection », par collection. */
   tileCrop: z.partialRecord(z.enum(TILE_KEYS), CropSchema).optional(),
+  /** Ancien fond du métier de l'ouverture (avant le lot 21) : toujours rendu tel quel ; la barre le migre dans `text['site.role'].backdrop` à la première modification. */
   roleBackdrop: z.enum(BACKDROPS).optional(),
   /**
    * Arrondi d'une image précise d'une planche (intégration lots 2 + 3), par
@@ -442,7 +463,7 @@ export function cleanLogo(l: Logo | undefined): Logo | undefined {
 export const radiusValue = (r: Radius) => RADIUS_VALUES[r];
 
 /** Feuille des styles globaux (règles générées depuis des crans validés). */
-export function siteStylesCss(styles: SiteStyles | undefined): string {
+export function siteStylesCss(styles: SiteStyles | undefined, palette?: CardPalette): string {
   const parsed = SiteStylesSchema.safeParse(styles ?? {});
   if (!parsed.success) return "";
   const s = parsed.data;
@@ -450,8 +471,15 @@ export function siteStylesCss(styles: SiteStyles | undefined): string {
   if (s.radius) rules.push(`:root{--media-radius:${RADIUS_VALUES[s.radius]}}`);
   // Ordre : légendes avant menu et nom du site (à spécificité égale, le dernier gagne).
   for (const role of ["body", "caption", "eyebrow", "h2", "h1", "menu", "brand"] as Role[]) {
-    const decls = textStyleDecls(s.roles?.[role]);
-    if (decls.length) rules.push(`${WIN} ${ROLE_SELECTORS[role]}{${decls.map(([k, v]) => `${k}:${v}`).join(";")}}`);
+    const decls = textStyleDecls(s.roles?.[role], palette);
+    // Choix de couleur du rôle : publié pour qu'un fond posé sur un texte précis (style local) ne le remplace pas.
+    const chosen = s.roles?.[role]?.color ? decls.find(([k]) => k === "color") : undefined;
+    // Menu : le fond se pose sur le lien seul (le sélecteur du rôle vise aussi son <span>, la boîte serait doublée).
+    const boxed = role === "menu" ? decls.filter(([k]) => BACKDROP_PROPS.has(k)) : [];
+    const plain = role === "menu" ? decls.filter(([k]) => !BACKDROP_PROPS.has(k)) : decls;
+    if (plain.length) rules.push(`${WIN} ${ROLE_SELECTORS[role]}{${plain.map(([k, v]) => `${k}:${v}`).join(";")}}`);
+    if (boxed.length) rules.push(`${WIN} .site-header nav a{${boxed.map(([k, v]) => `${k}:${v}`).join(";")}}`);
+    if (chosen) rules.push(`${WIN} ${ROLE_SELECTORS[role]}{--user-ink:${chosen[1]}}`);
   }
   // Rien d'injectable n'arrive ici (crans et catalogue), ceinture quand même.
   return rules.join("\n").replace(/</g, "\\3c ");

@@ -96,23 +96,17 @@
 .lk-bar[data-below] {
   translate: 0 0;
 }
-.lk-bar-head,
-.lk-row {
+.lk-bar-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;
 }
-.lk-row-label {
-  color: var(--lk-ink-soft);
-  font-size: 11.5px;
-}
 .lk-seg {
   display: inline-flex;
   gap: 2px;
 }
-.lk-bar-head button,
-.lk-row button {
+.lk-bar-head button {
   min-height: 26px;
   margin: 0;
   padding: 0 8px;
@@ -123,8 +117,7 @@
   font: 600 11.5px/1 var(--lk-font);
   cursor: pointer;
 }
-.lk-bar-head [aria-checked="true"],
-.lk-row [aria-checked="true"] {
+.lk-bar-head [aria-checked="true"] {
   border-color: var(--pe-accent);
   background: var(--pe-accent-soft);
   color: var(--pe-accent);
