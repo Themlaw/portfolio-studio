@@ -205,8 +205,10 @@ const animationId = pageIdOf("animation");
   await d.getByLabel("Titre en anglais").fill("Summer sketchbooks");
   await d.getByLabel("Adresse en français").fill("carnets");
   await d.getByRole("button", { name: "Créer la page" }).click();
-  await page.waitForURL(/\/admin\/pages\/\d+$/, { timeout: 90000 });
-  const carnetsId = Number(page.url().split("/").pop());
+  // Lot 23 : « Créer la page » mène à l'éditeur visuel ; le formulaire (informations, collection) est l'écran voisin.
+  await page.waitForURL(/\/admin\/pages\/\d+\/editer$/, { timeout: 90000 });
+  const carnetsId = Number(page.url().split("/").at(-2));
+  await page.goto(`${BASE}/admin/pages/${carnetsId}`, { waitUntil: "networkidle" });
   await page.locator("label.a-toggle", { hasText: "Publiée" }).click();
   ok("C4 les collections déjà prises ne sont pas proposées", !(await page.getByLabel("Cette page est la collection").locator("option[value=characters]").count()) && (await page.getByLabel("Cette page est la collection").locator("option[value=animation]").count()) === 1);
   await page.getByLabel("Cette page est la collection").selectOption("animation");

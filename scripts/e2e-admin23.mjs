@@ -126,7 +126,7 @@ try {
   ok("A3 sans titre anglais : repli sur le français (titre et adresse)", JSON.parse(row0.title).en === "Carnets 23" && JSON.parse(row0.slug).en === "carnets-23" && row0.published === 0, JSON.stringify(row0));
 
   await goto(`/admin/pages/${pageId}`);
-  ok("A4 le formulaire n'a plus de liste de blocs ni de bouton « + Ajouter un bloc »", (await page.getByRole("button", { name: "+ Ajouter un bloc" }).count()) === 0 && (await page.locator(".a-block").count()) === 0);
+  ok("A4 le formulaire n'a plus de liste de rubriques ni de bouton « + Ajouter une rubrique »", (await page.getByRole("button", { name: /^\+ Ajouter une? (rubrique|bloc)$/ }).count()) === 0 && (await page.locator(".a-block").count()) === 0);
   const link = page.getByRole("link", { name: "Modifier le contenu dans l'éditeur" });
   ok("A5 lien « Modifier le contenu dans l'éditeur » vers l'éditeur de la page", (await link.getAttribute("href")) === `/admin/pages/${pageId}/editer`);
   // Rien n'est perdu : tout ce que la liste des blocs offrait (ajouter, déplacer, supprimer, régler) est dans l'éditeur.
@@ -197,7 +197,7 @@ try {
   await page.locator("tr", { hasText: "Personnages" }).getByRole("button", { name: "Supprimer" }).click();
   d = page.locator("dialog[open]");
   const refs = await d.locator(".a-refs").innerText();
-  ok("A16 page citée : les blocs sont listés dès l'ouverture du dialogue", /Entrées des collections/.test(refs) && /Accueil/.test(refs), refs);
+  ok("A16 page citée : les rubriques sont listées dès l'ouverture du dialogue", /Entrées des collections|Projet mis en avant|Lien vers une page/.test(refs) && /Accueil/.test(refs), refs);
   ok("A16b le bouton « Supprimer » est inactif (jamais proposé pour un refus annoncé)", await d.getByRole("button", { name: "Supprimer", exact: true }).isDisabled());
   ok("A16c chaque bloc cité est un lien vers l'éditeur de sa page", (await d.locator(".a-refs a").first().getAttribute("href"))?.endsWith("/editer") === true);
   await shot("a16-page-citee");

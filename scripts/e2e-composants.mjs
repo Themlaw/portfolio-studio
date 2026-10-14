@@ -7,7 +7,7 @@
  *     vidéos, Grilles, Autres), contenu de chaque groupe ; les trois raccourcis Texte en tête ; recherche (nom et
  *     description, sans accents ni casse) ; un composant trouvé par la recherche s'ajoute.
  *  B. Fenêtre « Ajouter une rubrique » : mêmes groupes, mêmes en-têtes, rien en double, pas de « Projet mis en avant » ;
- *     liste de l'éditeur classique (« + Ajouter un bloc ») sans lui non plus.
+ *     formulaire de la page (plus de liste de rubriques depuis le lot 23) : rien à proposer.
  *  C. Page v0.18 avec trois conteneurs (publiée + brouillon), migrée (fonction du démarrage) puis rouverte dans
  *     l'éditeur : blocs séparés (aucun parent), Titre lié au bon nom de projet, lien « voir plus » en bloc, carte de
  *     couleur applicable à un ancien composant, publication acceptée, rendu public.
@@ -175,18 +175,11 @@ if (run("B"))
     ok("B3 fenêtre : aucun « Projet mis en avant »", !/mis en avant/i.test((await dlg.textContent()) ?? "") && (await dlg.locator('[data-type="featured-project"]').count()) === 0);
     await page.keyboard.press("Escape");
     await dlg.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
-    // Éditeur classique : liste à plat, sans le conteneur.
+    // Formulaire de la page (lot 23) : plus de liste de rubriques ni de « + Ajouter une rubrique » ; la fenêtre de l'éditeur visuel (B1 à B3) est la seule.
     await page.goto(`${BASE}/admin/pages/1`, { waitUntil: "domcontentloaded" });
-    // Hydratation : le bouton peut être cliqué avant que React ne l'ait relié.
-    const opener = page.getByRole("button", { name: "+ Ajouter un bloc" });
-    await opener.waitFor({ timeout: 60000 });
-    for (let i = 0; i < 8 && !(await page.locator("dialog[open]").count()); i++) {
-      await opener.click();
-      await sleep(700);
-    }
-    const names = await page.getByRole("radiogroup", { name: "Type de bloc" }).locator("strong").allTextContents();
-    ok("B4 éditeur classique : « + Ajouter un bloc » sans « Projet mis en avant »", names.length > 5 && !names.some((n) => /mis en avant/i.test(n)), names.join(", "));
-    ok("B4 éditeur classique : « Lien vers une page » proposé", names.includes("Lien vers une page"));
+    const toEditor = page.getByRole("link", { name: "Modifier le contenu dans l'éditeur" });
+    await toEditor.waitFor({ timeout: 60000 });
+    ok("B4 formulaire de la page : lien vers l'éditeur visuel, plus de « + Ajouter une rubrique »", (await page.getByRole("button", { name: /^\+ Ajouter une? (rubrique|bloc)$/ }).count()) === 0);
   });
 
 /* ---- C. Page v0.18 avec conteneurs, migrée, rouverte dans l'éditeur ---------------------------------------- */

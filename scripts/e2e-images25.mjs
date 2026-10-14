@@ -135,7 +135,7 @@ const section = async (name, fn) => {
   try {
     await fn();
   } catch (e) {
-    ok(`${name} : exception inattendue`, false, String(e.message).split("\n").slice(0, 2).join(" "));
+    ok(`${name} : exception inattendue`, false, String(e.message).split("\n").slice(0, 8).join(" "));
     await page.screenshot({ path: path.join(SHOTS, `erreur-${name}.png`) }).catch(() => {});
   }
 };
@@ -249,7 +249,7 @@ if (run("G"))
     const dlg = page.locator("dialog.ve-picker[open]");
     await dlg.waitFor({ timeout: 20000 });
     ok("G2 « Vidéo » ouvre le choix d'une vidéo (aucune image proposée)", ((await dlg.locator("h2").textContent()) ?? "") === "Choisir une vidéo" && (await dlg.locator(".ve-picker-grid img[src]").count()) === (await dlg.locator(".ve-picker-grid li").count()), await dlg.locator("h2").textContent());
-    await dlg.getByRole("button", { name: "Annuler" }).click();
+    await dlg.getByRole("button", { name: "Fermer" }).click();
     await cell.locator('[data-edit-cell-media="image"]').click();
     await dlg.waitFor({ timeout: 20000 });
     ok("G3 « Image » ouvre le choix d'une image", ((await dlg.locator("h2").textContent()) ?? "") === "Choisir une image");

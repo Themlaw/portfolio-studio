@@ -364,7 +364,7 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
               </li>
             ) : (
               <li key={i}>
-                Rubrique « {u.blockType} » de la page <Link href={u.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${u.pageId}/editer`}>{u.pageTitle}</Link>
+                {u.logo ? "Logo du site, réglé depuis la page" : <>Rubrique « {u.blockType} » de la page</>} <Link href={u.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${u.pageId}/editer`}>{u.pageTitle}</Link>
                 {u.trashed && <span className="muted"> (page à la corbeille)</span>}
               </li>
             ),

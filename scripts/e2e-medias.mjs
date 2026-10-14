@@ -99,7 +99,7 @@ if (run("A")) {
   const rail = strip.locator(".strip-rail");
   const prev = strip.locator(".strip-nav-prev");
   const next = strip.locator(".strip-nav-next");
-  ok("A1 en-tête : « N œuvres » gardé, plus de flèches en haut à droite", (await strip.locator("header .rail-arrow, header button").count()) === 0 && /8 œuvres/i.test((await strip.locator("header .strip-count").textContent()) ?? ""));
+  ok("A1 en-tête : « N œuvres » gardé, plus de flèches en haut à droite (le bouton « Ajouter des images » du lot 25 est une commande de la toile)", (await strip.locator("header .rail-arrow, header button:not(.pe-board-add)").count()) === 0 && /8 œuvres/i.test((await strip.locator("header .strip-count").textContent()) ?? ""), (await strip.locator("header").innerHTML()).slice(0, 600));
   ok("A2 deux flèches posées sur la bande, avec un nom accessible", (await prev.count()) === 1 && (await next.count()) === 1 && /Image suivante/.test((await next.getAttribute("aria-label")) ?? ""));
   await page.mouse.move(5, 5);
   await sleep(400);

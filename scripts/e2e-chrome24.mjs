@@ -263,7 +263,8 @@ if (run("D")) {
 
   // D4 : matrice type de bloc → réglages (un exemplaire de chaque composant du panneau « Ajouter »).
   await tab("Ajouter").click();
-  const cards = await page.evaluate(() => [...document.querySelectorAll(".ve-card")].map((c) => ({ key: c.dataset.key, type: c.dataset.type, label: c.querySelector("strong")?.textContent?.trim() })));
+  // Lot 27 : un composant « une seule fois par page » (l'Ouverture) déjà présent est grisé : rien à ajouter, on ne le parcourt pas.
+  const cards = await page.evaluate(() => [...document.querySelectorAll(".ve-card:not(:disabled)")].map((c) => ({ key: c.dataset.key, type: c.dataset.type, label: c.querySelector("strong")?.textContent?.trim() })));
   const matrix = [];
   for (const card of cards) {
     await tab("Ajouter").click();

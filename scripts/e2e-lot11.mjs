@@ -242,10 +242,10 @@ if (run("B")) {
   const tiles = '[data-edit-type="collection-tiles"]';
   await f.locator(`${tiles} h2`).first().click();
   await page.getByRole("tab", { name: "Réglages" }).click();
-  await page.getByLabel("Format des images").selectOption("16:9");
+  await page.getByLabel("Format des images").selectOption("3:2");
   await settled();
-  ok("B1 format imposé (16:9) enregistré au brouillon", await waitFor(() => blockOf(homeId, "collection-tiles")?.props.ratio === "16:9"));
-  ok("B2 images des tuiles au format imposé", await until(f, () => { const i = document.querySelector(".tile-frame img"); return i && Math.abs(i.clientWidth / i.clientHeight - 16 / 9) < 0.03; }));
+  ok("B1 format imposé (3:2, liste des formats du lot 25) enregistré au brouillon", await waitFor(() => blockOf(homeId, "collection-tiles")?.props.ratio === "3:2"));
+  ok("B2 images des tuiles au format imposé", await until(f, () => { const i = document.querySelector(".tile-frame img"); return i && Math.abs(i.clientWidth / i.clientHeight - 3 / 2) < 0.03; }));
   // Arrondi des images : respecté par le cadre des tuiles.
   await page.getByRole("button", { name: "Fort" }).first().click();
   await settled();

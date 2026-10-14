@@ -251,9 +251,10 @@ if (run("L")) {
   await settled();
   await page.goto(`${BASE}/admin/medias`, { waitUntil: "networkidle" });
   await page.locator('button.a-media-tile[title="logo-test-26.png"]').first().click();
-  await page.getByRole("button", { name: "Supprimer l'image" }).click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Supprimer", exact: true }).click();
-  ok("L6d suppression refusée tant que l'image est le logo du site", await page.locator("dialog[open] .a-refs li").first().waitFor({ timeout: 20000 }).then(() => true, () => false) && /Logo du site/.test((await page.locator("dialog[open] .a-refs").textContent()) ?? "") && q("select id from media where id = ?", uploaded).length === 1);
+  // Lot 23 : le refus est annoncé d'avance (bouton inactif, endroits listés), le logo en fait partie.
+  await page.locator('[data-testid="media-usages"]').waitFor({ timeout: 20000 }).catch(() => {});
+  const usesText = await page.locator('[data-testid="media-usages"]').innerText().catch(() => "");
+  ok("L6d suppression refusée d'avance tant que l'image est le logo du site (bouton inactif, « Logo du site » listé)", (await page.getByRole("button", { name: "Supprimer l'image" }).isDisabled()) && /Logo du site/.test(usesText) && !/Rubrique « Logo/.test(usesText) && q("select id from media where id = ?", uploaded).length === 1, usesText);
   await page.keyboard.press("Escape");
   // Retour dans l'éditeur SANS abandonner le brouillon (openEditor le fait).
   await page.goto(`${BASE}/admin/pages/${homeId}/editer`, { waitUntil: "domcontentloaded" });

@@ -97,7 +97,7 @@ async function section(name, fn) {
   try {
     await fn();
   } catch (e) {
-    ok(`${name} : exception inattendue`, false, String(e.message).split("\n").slice(0, 2).join(" "));
+    ok(`${name} : exception inattendue`, false, String(e.message).split("\n").slice(0, 8).join(" "));
     await page.screenshot({ path: path.join(SHOTS, `erreur-${name}.png`) }).catch(() => {});
   }
 }
@@ -375,7 +375,8 @@ if (run("E"))
     await f.locator(`[data-edit-block="${emptyContact.uid}"] .pe-empty-block`).click({ position: { x: 4, y: 4 } });
     await page.keyboard.press("Delete");
     await sleep(500);
-    if (await page.getByRole("button", { name: /Supprimer le bloc/ }).count()) await page.getByRole("button", { name: /Supprimer le bloc/ }).click();
+    // Lot 24 : la suppression d'une rubrique demande confirmation.
+    if (await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).count()) await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).click();
     await settled();
     await page.getByRole("button", { name: "Publier", exact: true }).click();
     ok("E9 publication acceptée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000), await page.locator(".ve-status").textContent());

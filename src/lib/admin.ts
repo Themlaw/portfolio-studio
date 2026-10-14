@@ -17,7 +17,7 @@ import { asSiteName, NavSchema, NETWORKS, type Network } from "./site-schema";
 import { ORIGINALS_PREFIX, parseVariants } from "./images/variants";
 import { mediaUrl } from "./media";
 import { own } from "./own";
-import { allBlocks, findMediaUsages, mediaUsagesByMedia } from "./references";
+import { allBlocks, findMediaUsages, LOGO_USAGE_TYPE, mediaUsagesByMedia } from "./references";
 import { tagsByMedia, type MediaTag } from "./tags";
 
 type L = { fr: string; en: string };
@@ -308,7 +308,7 @@ export const listTrashedMedia = (): AdminMediaRow[] => mediaRows(true);
 
 export type MediaUseRow =
   | { kind: "slot"; projectId: number; projectTitle: string; slotId: number; slotTitle: string; trashed: boolean; draftPage?: string }
-  | { kind: "block"; pageId: number; pageTitle: string; blockType: string; trashed: boolean };
+  | { kind: "block"; pageId: number; pageTitle: string; blockType: string; trashed: boolean; /** Logo du site (réglé depuis cette page), pas une rubrique. */ logo?: true };
 
 /** « Utilisé dans… » d'un média, avec les libellés à afficher (même calcul que le compteur). */
 export function getMediaUses(id: number): MediaUseRow[] {
@@ -327,7 +327,7 @@ export function getMediaUses(id: number): MediaUseRow[] {
           trashed: Boolean(projects.get(u.projectId)?.deletedAt),
           ...(u.draftPageId ? { draftPage: pages.get(u.draftPageId)?.title.fr || `page ${u.draftPageId}` } : {}),
         }
-      : { kind: "block", pageId: u.pageId, pageTitle: pages.get(u.pageId)?.title.fr ?? "", blockType: own(BLOCKS, u.type)?.label ?? u.type, trashed: Boolean(pages.get(u.pageId)?.deletedAt) },
+      : { kind: "block", pageId: u.pageId, pageTitle: pages.get(u.pageId)?.title.fr ?? "", blockType: own(BLOCKS, u.type)?.label ?? u.type, trashed: Boolean(pages.get(u.pageId)?.deletedAt), ...(u.type === LOGO_USAGE_TYPE ? { logo: true as const } : {}) },
   );
 }
 
