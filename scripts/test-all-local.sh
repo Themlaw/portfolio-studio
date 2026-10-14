@@ -8,7 +8,7 @@
 #
 # Usage (depuis le dépôt) :
 #   scripts/test-all-local.sh [suite…]      # vide = toutes
-#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21
+#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27
 # Rapide (VM de 3 cœurs et plus, voir docs/ARCHITECTURE.md) :
 #   BATT_SERVER=start BATT_JOBS=2 scripts/test-all-local.sh
 # En fond détaché :
@@ -86,6 +86,7 @@ E2E=(
   "crop17d-http|node scripts/e2e-crop-http.mjs|chromium|"
   "crop17g|node scripts/e2e-crop.mjs|chromium|F|CROP_WARM=0 CROP_MAX_WAITING=3"
   "collections22|node scripts/e2e-collections.mjs|chromium|"
+  "blocs27|node scripts/e2e-blocs27.mjs|chromium|"
 )
 
 

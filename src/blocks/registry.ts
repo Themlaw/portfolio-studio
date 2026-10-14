@@ -198,7 +198,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Component: GridBlock,
       Editor: GridEditor,
       label: "Grille",
-      description: "Des images, des vidéos ou des textes rangés en colonnes. Choisis un modèle de départ (images, vidéos) ou pars d'une grille vide.",
+      description: "Des images, des vidéos ou des textes rangés en colonnes, à partir d'un modèle ou d'une grille vide.",
       defaults: { layout: "2", children: [] },
       summary: "Grille {layout} · {children} composants",
       inline: ["eyebrow", "title"],
@@ -345,7 +345,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       publishCheck: (props) => (props.form === true && !props.formId ? "Ce formulaire n'a pas d'identifiant : désactive puis réactive l'option formulaire." : null),
       presets: [
         {
-          key: "contact-form",
+          key: "contact-with-form",
           order: 31,
           short: "Avec un formulaire",
           label: "Contact avec formulaire",

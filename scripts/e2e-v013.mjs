@@ -202,7 +202,7 @@ async function dragTo(from, to, shot) {
 async function dragPalette(key, to, shot) {
   await page.getByRole("tab", { name: "Ajouter" }).click();
   // Carte du catalogue, ou raccourci Texte (« text », « title », « title-text »).
-  const card = page.locator(`.ve-card[data-key="${key}"], .ve-starter[data-starter="${key}"]`).first();
+  const card = page.locator(`.ve-card[data-key="${key}"], .ve-model[data-key="${key}"], .ve-starter[data-starter="${key}"]`).first();
   await card.scrollIntoViewIfNeeded();
   const b = await card.boundingBox();
   await dragTo({ x: b.x + b.width / 2, y: b.y + b.height / 2 }, to, shot);
@@ -433,7 +433,7 @@ if (run("E")) {
   await until(f, (s) => document.querySelectorAll(s).length === 3, `${gridSel} .pe-media-video`, 15000);
   ok("E2 « Choisir une vidéo » sur la toile", (await f.locator(`${gridSel} .pe-media-video`).count()) === 3);
   await page.screenshot({ path: `${SHOTS}/E-video-a-choisir.png` });
-  await f.locator(`${gridSel} .pe-media-video`).first().click();
+  await f.locator(`${gridSel} .pe-media-video`).first().click({ position: { x: 6, y: 6 } });
   await f.locator(".pe-crumbs .pe-crumb").first().click();
   await f.locator(".pe-tools .pe-tool-text", { hasText: "Agencement" }).click();
   await sleep(300);
@@ -650,16 +650,16 @@ if (run("L")) {
   await sleep(400);
   const fb = await frameBox();
   const prof = await framePoint(f, '[data-edit-type="profile"] section', "bottom");
-  await dragPalette("contact-form", { x: fb.x + fb.width / 2, y: Math.min(prof.y + 60, fb.y + fb.height - 30) });
+  await dragPalette("contact-with-form", { x: fb.x + fb.width / 2, y: Math.min(prof.y + 60, fb.y + fb.height - 30) });
   await settled();
-  let block = draftOf(about).blocks.find((b) => b.type === "contact-form");
+  let block = draftOf(about).blocks.find((b) => b.type === "contact" && b.props.form === true);
   ok("L1 formulaire posé : 3 champs par défaut (nom, e-mail de réponse, message)", block?.props.fields.length === 3 && block.props.fields[1].reply === true);
   const formSel = `[data-edit-block="${block.uid}"]`;
   await center(f, `${formSel} form`);
   await f.locator(`${formSel} [data-testid="field-add"]`).click().catch(async () => f.locator('[data-testid="field-add"]').click());
   await f.getByRole("menuitem", { name: "Texte court" }).click();
   await settled();
-  block = draftOf(about).blocks.find((b) => b.type === "contact-form");
+  block = draftOf(about).blocks.find((b) => b.type === "contact" && b.props.form === true);
   ok("L2 champ ajouté (texte court)", block.props.fields.length === 4 && block.props.fields[3].type === "text");
   await center(f, `${formSel} [data-form-field="3"]`);
   await f.locator(`${formSel} [data-form-field="3"] [data-inline="fields.3.label"]`).dblclick({ position: { x: 10, y: 6 } });
@@ -667,13 +667,13 @@ if (run("L")) {
   await page.keyboard.type("Ton studio");
   await page.keyboard.press("Enter");
   await settled();
-  block = draftOf(about).blocks.find((b) => b.type === "contact-form");
+  block = draftOf(about).blocks.find((b) => b.type === "contact" && b.props.form === true);
   ok("L3 champ renommé en place", block.props.fields[3].label.fr === "Ton studio");
   // Retirer le champ e-mail de réponse : refusé (averti).
   await f.locator(`${formSel} [data-form-field="1"]`).hover();
   await f.locator('.pe-item-tools[data-kind="field"] button[aria-label="Retirer ce champ"]').click();
   await sleep(500);
-  ok("L4 le champ e-mail de réponse n'est pas retiré (avertissement)", draftOf(about).blocks.find((b) => b.type === "contact-form").props.fields.length === 4);
+  ok("L4 le champ e-mail de réponse n'est pas retiré (avertissement)", draftOf(about).blocks.find((b) => b.type === "contact" && b.props.form === true).props.fields.length === 4);
   // Formulaire choisi, message de confirmation montré depuis le panneau.
   await f.locator(`${formSel} h2`).click();
   await page.getByRole("tab", { name: "Réglages" }).click();
@@ -683,7 +683,7 @@ if (run("L")) {
   await page.screenshot({ path: `${SHOTS}/L-formulaire-selectionne.png` });
   await page.getByRole("button", { name: "Publier" }).click();
   ok("L6 publication", await published());
-  const formId = JSON.parse(q("select props from blocks where page_id = ? and type = 'contact-form'", about)[0]?.props ?? "{}").formId;
+  const formId = JSON.parse(q("select props from blocks where page_id = ? and type = 'contact'", about)[0]?.props ?? "{}").formId;
   const pub = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const pp = await pub.newPage();
   await pp.goto(`${BASE}/fr/a-propos`, { waitUntil: "networkidle" });

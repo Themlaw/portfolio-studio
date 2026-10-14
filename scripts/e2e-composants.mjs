@@ -62,8 +62,9 @@ const CONTENT = {
   Texte: ["Texte", "Titre", "Titre + texte"],
   Projets: ["Planche d'un projet"],
   "Images et vidéos": ["Image", "Vidéo"],
-  Grilles: ["Grille", "Grille d'images", "Grille de vidéos"],
-  Autres: ["CV", "Profil", "Contact", "Formulaire de contact", "Lien vers une page", "Ouverture", "Entrées des collections"],
+  // Lot 27 : Grille et Contact proposent leurs modèles sous leur carte ; plus de « Formulaire de contact » à part.
+  Grilles: ["Grille"],
+  Autres: ["CV", "Profil", "Contact", "Lien vers une page", "Ouverture", "Entrées des collections"],
 };
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
@@ -143,7 +144,7 @@ if (run("A"))
     };
     const v1 = await found("vidéo");
     const v2 = await found("VIDEO");
-    ok("A7 « vidéo » = « VIDEO » (sans accents ni casse)", JSON.stringify(v1) === JSON.stringify(v2) && v1.includes("Vidéo") && v1.includes("Grille de vidéos"), `${v1} / ${v2}`);
+    ok("A7 « vidéo » = « VIDEO » (sans accents ni casse)", JSON.stringify(v1) === JSON.stringify(v2) && v1.includes("Vidéo") && v1.includes("Grille"), `${v1} / ${v2}`);
     await page.screenshot({ path: path.join(SHOTS, "a-recherche-video.png") });
     ok("A8 la recherche couvre la description (« ecrire » trouve Contact)", (await found("ecrire")).includes("Contact"));
     ok("A9 les groupes sans résultat disparaissent (« grille image » : seulement Grilles)", JSON.stringify((await panelGroups()).map((g) => g.title)) === JSON.stringify(["Grilles"]) || (await found("grille image")).length > 0 && (await panelGroups()).length === 1);
