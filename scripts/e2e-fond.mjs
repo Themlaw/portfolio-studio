@@ -186,6 +186,19 @@ async function themeColor(where, name) {
   return rgb(await where.evaluate((n) => { const s = document.createElement("span"); s.style.color = `var(--t-color-${n})`; document.body.appendChild(s); const c = getComputedStyle(s).color; s.remove(); return c; }, name));
 }
 
+/* ---- P. Parité : rien sans réglage -------------------------------------------------------------------------------------------- */
+
+await section("P", async () => {
+  const anon = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const pub = await anon.newPage();
+  await pub.goto(PUBLIC, { waitUntil: "networkidle" });
+  const html = await pub.content();
+  ok("P1 sans fond : aucune enveloppe de fond, aucun attribut de fusion dans le HTML public", !/fond-bloc/.test(html) && !/data-fond/.test(html) && !/data-join/.test(html));
+  ok("P1 une carte sans bordure n'a pas d'attribut de bordure", !/data-border/.test(html));
+  await anon.close();
+});
+
+
 let f = await openEditor();
 
 /** Sélectionne un Texte, ouvre son menu « Fond ». */
@@ -256,7 +269,10 @@ await section("A", async () => {
   await undo().click();
   ok("A10 Annuler : Charlie reprend la couleur d'avant, les deux cartes se rejoignent", await waitFor(async () => bgOfDraft("Charlie")?.color === "primary" && near((await measure(f, "Charlie")).card.t - (await measure(f, "Bravo")).card.b, gapSame, 1.5)));
   await undo().click();
-  ok("A10 Annuler encore : Charlie sans fond, Bravo garde le sien (écart normal)", await waitFor(async () => bgOfDraft("Charlie") === undefined && (await measure(f, "Charlie")).fond === null && bgOfDraft("Bravo")?.color === "primary"));
+  ok("A10 Annuler encore : Charlie revient au fond profond posé par « Couleur » (un pas par choix)", await waitFor(() => bgOfDraft("Charlie")?.color === "bgDeep"));
+  await undo().click();
+  ok("A10 Annuler encore : Charlie sans fond, Bravo garde le sien", await waitFor(async () => bgOfDraft("Charlie") === undefined && (await measure(f, "Charlie")).fond === null && bgOfDraft("Bravo")?.color === "primary"));
+  await redo().click();
   await redo().click();
   await redo().click();
   ok("A11 Rétablir deux fois : fond de Charlie différent de nouveau", await waitFor(() => bgOfDraft("Charlie")?.color === "ink"));
@@ -343,7 +359,8 @@ await section("D", async () => {
   let m = await measure(f, "Bravo");
   ok("D3 aperçu : bordure Moyenne de 6 px, pleine", m.border.attr === "medium" && near(m.border.t, 6, 0.6) && near(m.border.l, 6, 0.6) && m.border.style === "solid", JSON.stringify(m.border));
   ok("D4 la couleur de la bordure suit la couleur lisible du texte de la carte", sameRgb(rgb(m.border.color), rgb(m.cardInk.startsWith("#") ? hexToRgbCss(m.cardInk) : m.cardInk)), JSON.stringify([m.border.color, m.cardInk]));
-  ok("D5 le fond s'arrête à l'intérieur de la bordure", near(m.fond.l, m.card.l + 6, 1.5) && near(m.fond.r, m.card.r - 6, 1.5) && near(m.fond.t, m.card.t + 6, 1.5) && near(m.fond.b, m.card.b - 6, 1.5), JSON.stringify([m.fond, m.card]));
+  ok("D5 le fond s'arrête à l'intérieur de la bordure (côtés et haut)", near(m.fond.l, m.card.l + 6, 1.5) && near(m.fond.r, m.card.r - 6, 1.5) && near(m.fond.t, m.card.t + 6, 1.5), JSON.stringify([m.fond, m.card]));
+  ok("D5 jonction avec la carte voisine de même fond : pas de bordure entre les deux, couleur continue", near(m.border.b, 0) && near(m.fond.b, m.card.b), JSON.stringify([m.border, m.fond, m.card]));
   await menu.locator('[data-border-width="thick"]').click();
   await waitFor(() => borderOf("Bravo")?.width === "thick");
   m = await measure(f, "Bravo");
@@ -392,8 +409,8 @@ await section("D", async () => {
   await undo().click();
   ok("D13 Annuler : la bordure revient", await waitFor(() => borderOf("Bravo")?.width === "thick"));
   await redo().click();
-  await waitFor(() => borderOf("Bravo") === false);
-  await settled();
+  ok("D13 Rétablir : bordure éteinte de nouveau", await waitFor(() => borderOf("Bravo") === false));
+  ok("D13 publication", await publish());
 });
 
 /* ---- E. Papier du site × fond --------------------------------------------------------------------------------------------- */
@@ -431,11 +448,8 @@ await section("E", async () => {
   ok("E6 public = éditeur (papier sous la carte : rien sur le fond)", pb.paper === "none" || pb.paper === "normal");
   await anon.close();
   // Le site montre le papier sur les cartes : fond sur la page et sur une carte sans réglage de papier.
-  const row = q("select data from themes where id = ?", PAPER_THEME_ID)[0];
-  const th = JSON.parse(row.data);
-  th.assets.kit.paper.onCards = true;
-  th.assets.kit.paper.onCardsOpacity = 0.4;
-  exec("update themes set data = ? where id = ?", JSON.stringify(th), PAPER_THEME_ID);
+  installPaperTheme(DATA, { id: "papier-dore", name: "Papier doré", key: "c0e4a2c0e4a20002", paper: { onCards: true, onCardsOpacity: 0.4 } });
+  await activateTheme("Papier doré");
   const anon2 = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const pub2 = await anon2.newPage();
   await pub2.goto(PUBLIC, { waitUntil: "networkidle" });
@@ -451,32 +465,19 @@ await section("E", async () => {
 /* ---- D'. Bordure par défaut du thème ------------------------------------------------------------------------------------------ */
 
 await section("Dprime", async () => {
-  const row = q("select data from themes where id = ?", PAPER_THEME_ID)[0];
-  const th = JSON.parse(row.data);
+  installPaperTheme(DATA, { id: "papier-borde", name: "Papier bordé", key: "c0e4a2c0e4a20003" });
+  const th = JSON.parse(q("select data from themes where id = 'papier-borde'")[0].data);
   th.tokens.layout = { ...(th.tokens.layout ?? {}), card: { border: { width: "thin", color: "primary" } } };
-  exec("update themes set data = ? where id = ?", JSON.stringify(th), PAPER_THEME_ID);
+  exec("update themes set data = ? where id = 'papier-borde'", JSON.stringify(th));
+  await activateTheme("Papier bordé");
   const anon = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const pub = await anon.newPage();
   await pub.goto(PUBLIC, { waitUntil: "networkidle" });
   const c = await measure(pub, "Charlie");
   const primaryRgb = await themeColor(pub, "primary");
-  ok("D14 « Cartes des rubriques » : la bordure par défaut du thème s'applique à une carte sans réglage (Fin, palette)", c.border.attr === "thin" && near(c.border.t, 2, 0.6) && sameRgb(rgb(c.border.color), primaryRgb), JSON.stringify([c.border, primaryRgb]));
+  ok("D14 « Cartes des rubriques » : la bordure par défaut du thème s'applique à une carte sans réglage (Fin, palette)", c.border.attr === "thin" && near(c.border.l, 2, 0.6) && sameRgb(rgb(c.border.color), primaryRgb), JSON.stringify([c.border, primaryRgb]));
   const b = await measure(pub, "Bravo");
   ok("D14 une carte avec `border: false` reste sans bordure", b.border.attr === null && near(b.border.t, 0));
-  await anon.close();
-});
-
-/* ---- P. Parité : rien sans réglage -------------------------------------------------------------------------------------------- */
-
-await section("P", async () => {
-  seedPage();
-  exec("update pages set draft = NULL where id = ?", PAGE_ID);
-  const anon = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const pub = await anon.newPage();
-  await pub.goto(PUBLIC, { waitUntil: "networkidle" });
-  const html = await pub.content();
-  ok("P1 sans fond : aucune enveloppe de fond, aucun attribut de fusion dans le HTML public", !/fond-bloc/.test(html) && !/data-fond/.test(html) && !/data-join/.test(html));
-  ok("P1 une carte sans bordure n'a pas d'attribut de bordure", !/data-border/.test(html));
   await anon.close();
 });
 

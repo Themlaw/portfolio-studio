@@ -43,7 +43,7 @@ function summary(cur: Background | null) {
 export function FondButton({ uid, open, onToggle }: { uid: string; open: boolean; onToggle: () => void }) {
   const s = summary(fondState(uid));
   return (
-    <button type="button" className="pe-tool-text sm-button" data-testid="fond-button" aria-haspopup="dialog" aria-expanded={open} title="Fond de couleur du composant, sur toute sa hauteur" onClick={onToggle}>
+    <button type="button" className="pe-tool-text fond-btn" data-testid="fond-button" aria-haspopup="dialog" aria-expanded={open} title="Fond de couleur du composant, sur toute sa hauteur" onClick={onToggle}>
       <span className="sm-dot" data-on={s ? "" : undefined} style={s ? { background: s.style.bg } : undefined} aria-hidden="true" />
       Fond
       {s && !s.style.ok && (
