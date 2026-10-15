@@ -24,8 +24,8 @@ import { SolidColorPicker } from "@/components/edit/ColorPicker";
 import { pairsReadability, ratioTip } from "@/components/edit/readability";
 import type { AdminMediaRow } from "@/lib/admin";
 import { LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, type Logo, type PaletteColor, type SitePalette } from "@/lib/look";
-import type { BaseKey, NuanceKey, PaletteColors, PaletteState } from "@/themes/palette";
-import { autoAdjustBase, CONTRAST_BASES, effectiveSitePalette, NUANCE_USES, nuanceLabel, rolePairs, SITE_ROLES, sitePaletteIssues } from "@/themes/site-palette";
+import { NUANCE_KEYS, PALETTE_GROUPS, type BaseKey, type NuanceKey, type PaletteColors, type PaletteState } from "@/themes/palette";
+import { autoAdjustBase, autoOverride, CONTRAST_BASES, effectiveSitePalette, nuanceOrigin, nuancesUnder, rolePairs, SITE_NUANCES, SITE_ROLES, sitePaletteIssues, sitePalettePairs } from "@/themes/site-palette";
 
 import "@/app/admin/look-panel.css";
 import "@/app/admin/typo-controls.css";
@@ -33,7 +33,8 @@ import "@/app/admin/typo-controls.css";
 export type ThemeColors = { name: string; color: PaletteColors; palette: PaletteState | null };
 export type HighlightInfo = { role: BaseKey | null; count: number; uses: string[] };
 
-const NUANCE_ORDER: NuanceKey[] = ["bgDeep", "line", "inkSoft", "shadow", "primaryHover", "onPrimary", "eyebrow", "scrim", "onScrim"];
+/** Règle du calcul « auto » d'une nuance, en clair. */
+const ruleOf = (k: NuanceKey) => PALETTE_GROUPS.flatMap((g) => g.nuances).find((n) => n.key === k)?.rule ?? "";
 
 export function ColorsPanel({
   theme,
@@ -60,6 +61,8 @@ export function ColorsPanel({
   locked: string | null;
 }) {
   const [open, setOpen] = useState<BaseKey | null>(null);
+  // Nuance dont le sélecteur est ouvert (une seule fenêtre ouverte à la fois, rôle ou nuance).
+  const [openNuance, setOpenNuance] = useState<NuanceKey | null>(null);
   const [hover, setHover] = useState<BaseKey | null>(null);
   // Remonte le sélecteur (clé) quand la couleur change ailleurs que dans lui (revenir au thème, ajuster).
   const [epoch, setEpoch] = useState(0);
@@ -78,14 +81,87 @@ export function ColorsPanel({
   const reference = isTheme && baseline ? baseline : null;
   const isModified = (key: BaseKey) => (reference ? eff[key].toLowerCase() !== String(reference[key]).toLowerCase() : typeof value[key] === "string");
   const modifiedKeys = SITE_ROLES.map((r) => r.key).filter(isModified);
-  const modifiedCount = modifiedKeys.length;
-  // Palette du site qui rendrait du texte illisible avec le thème actif : simple avertissement, rien n'est bloqué (v0.21.1).
+  const nuanceOverrides = isTheme ? 0 : NUANCE_KEYS.filter((k) => typeof value[k] === "string").length;
+  const modifiedCount = modifiedKeys.length + nuanceOverrides;
+  // Palette du site qui rendrait du texte difficile à lire avec le thème actif : simple avertissement (lot 29), elle est appliquée et publiée.
   const issues = sitePaletteIssues(theme.color, palette, value);
   const ignored = !isTheme && modifiedCount > 0 && issues.length > 0;
   const worstIssue = issues.reduce((a, b) => (b.ratio < a.ratio ? b : a), issues[0]);
   // Pastilles du sélecteur : valeurs effectives (le panneau ne charge pas la feuille du thème).
   const swatch = (c: PaletteColor): string =>
     ({ ink: eff.ink, "ink-soft": eff.inkSoft, primary: eff.primary, secondary: eff.secondary, tertiary: eff.tertiary, eyebrow: eff.eyebrow, bg: eff.bg, surface: eff.surface })[c];
+
+  /** Nuance choisie (hex), ou retour au calcul (undefined). Thème : correctif { nuance: couleur | "auto" } ; site : surcharge. */
+  const setNuanceValue = (key: NuanceKey, hex: string | undefined) => {
+    const clean = hex?.toLowerCase();
+    if (isTheme) {
+      onChange({ [key]: clean ?? "auto" });
+      return;
+    }
+    const next = { ...value };
+    if (clean === undefined) {
+      const back = autoOverride(theme.color, palette, value, key);
+      if (back) next[key] = back;
+      else delete next[key];
+    } else next[key] = clean;
+    onChange(next);
+  };
+  const allPairs = sitePalettePairs(theme.color, palette, value);
+  const renderNuance = (k: NuanceKey) => {
+    const info = SITE_NUANCES[k];
+    const isOpenN = openNuance === k;
+    const origin = nuanceOrigin(theme.color, palette, value, k);
+    const failing = allPairs.filter((p) => !p.ok && p.tokens.includes(k));
+    const state = origin === "site" ? "choisie" : origin === "auto" ? "automatique" : isTheme ? "choisie" : "thème";
+    return (
+      <li key={k} className="lc-nuance-item" data-nuance={k} data-open={isOpenN || undefined} data-origin={origin} data-invalid={failing.length > 0 || undefined}>
+        <button
+          type="button"
+          className="lc-nuance"
+          aria-expanded={isOpenN}
+          aria-controls={`lc-nbody-${k}`}
+          onClick={() => {
+            setOpen(null);
+            setOpenNuance(isOpenN ? null : k);
+          }}
+        >
+          <span className="lc-chip lc-chip-small" style={{ background: eff[k] }} aria-hidden="true" />
+          <span className="lc-text">
+            <strong>{info.name}</strong>
+            <small>{info.phrase}</small>
+            {origin === "auto" && <small data-testid="nuance-auto">Automatique (calculée : {ruleOf(k)})</small>}
+          </span>
+          <span className="lc-nstate">{state}</span>
+        </button>
+        {failing.length > 0 && (
+          <p className="lc-nwarn" role="status" title={ratioTip(Math.min(...failing.map((p) => p.ratio)))}>
+            Lisibilité : insuffisante.
+          </p>
+        )}
+        {isOpenN && (
+          <div className="lc-body" id={`lc-nbody-${k}`}>
+            <div className="tc">
+              <SolidColorPicker
+                key={`n-${k}-${epoch}`}
+                value={eff[k]}
+                swatch={swatch}
+                onChange={(c) => c && setNuanceValue(k, c)}
+                onClose={() => setOpenNuance(null)}
+                live
+                solid={{
+                  resetLabel: "Revenir à l'automatique",
+                  onReset: () => {
+                    setNuanceValue(k, undefined);
+                    setEpoch((n) => n + 1);
+                  },
+                }}
+              />
+            </div>
+          </div>
+        )}
+      </li>
+    );
+  };
 
   const set = (key: BaseKey, hex: string | undefined) => {
     const clean = hex?.toLowerCase();
@@ -114,12 +190,12 @@ export function ColorsPanel({
       </p>
       {locked && <p className="a-field-error">Les couleurs du site sont en cours de modification sur la page « {locked} ».</p>}
       {ignored && (
-        <div className="a-field-error lc-ignored" role="alert" data-testid="palette-ignored">
+        <div className="a-notice lc-ignored" role="status" data-testid="palette-ignored">
           <p>
-            <strong>Attention, du texte risque d&apos;être difficile à lire.</strong> Avec le thème actif « {theme.name} », ces couleurs donnent
-            (<span title={ratioTip(worstIssue.ratio)}>{worstIssue.label.toLowerCase()} : lisibilité insuffisante</span>). Elles sont quand même enregistrées et mises en ligne.
+            <strong>Attention : ces couleurs rendent du texte difficile à lire</strong> avec le thème actif « {theme.name} »
+            (<span title={ratioTip(worstIssue.ratio)}>{worstIssue.label.toLowerCase()} : lisibilité insuffisante</span>). Elles sont appliquées quand même, sur le site en ligne comme dans l&apos;aperçu ; la mise en ligne n&apos;est pas bloquée.
           </p>
-          <p>Si tu veux, ajuste les couleurs signalées ci-dessous.</p>
+          <p>Si tu veux plus de confort de lecture, ajuste les couleurs signalées ci-dessous.</p>
         </div>
       )}
       <ul className="lc-roles">
@@ -134,7 +210,7 @@ export function ColorsPanel({
           const fixed = failing.length ? autoAdjustBase(theme.color, theme.palette ?? undefined, value, role.key, allowed) : null;
           const legend = info && info.role === role.key && highlighted === role.key ? info : null;
           return (
-            <li key={role.key} className="lc-role-item" data-role={role.key} data-open={isOpen || undefined} data-modified={modified || undefined} data-invalid={failing.length > 0 || undefined}>
+            <li key={role.key} className="lc-role-item" data-role={role.key} data-open={isOpen || undefined} data-modified={modified || undefined} data-invalid={failing.length > 0 || undefined} data-legend={(highlighted === role.key && !isOpen) || undefined}>
               <button
                 type="button"
                 className="lc-role"
@@ -144,7 +220,10 @@ export function ColorsPanel({
                 onPointerLeave={() => setHover((h) => (h === role.key ? null : h))}
                 onFocus={() => setHover(role.key)}
                 onBlur={() => setHover((h) => (h === role.key ? null : h))}
-                onClick={() => setOpen(isOpen ? null : role.key)}
+                onClick={() => {
+                  setOpenNuance(null);
+                  setOpen(isOpen ? null : role.key);
+                }}
               >
                 <span className="lc-chip" style={{ background: eff[role.key] }} aria-hidden="true" />
                 <span className="lc-text">
@@ -189,9 +268,9 @@ export function ColorsPanel({
                         Lisibilité : {pairsReadability(pairs).label}.
                       </p>
                     ) : (
-                      <div className="a-field-error lc-alert" role="alert" data-testid="contrast-status">
+                      <div className="a-notice lc-alert" role="status" data-testid="contrast-status">
                         <p title={ratioTip(lowest)}>
-                          Lisibilité insuffisante : {failing.map((p) => p.label.toLowerCase()).join(", ")}. Du texte risque d&apos;être difficile à lire (simple avertissement : tu peux enregistrer et publier quand même).
+                          Lisibilité insuffisante : {failing.map((p) => p.label.toLowerCase()).join(", ")}. Du texte serait difficile à lire ; la couleur est appliquée quand même, la mise en ligne n&apos;est pas bloquée.
                         </p>
                         {fixed ? (
                           <button
@@ -214,9 +293,19 @@ export function ColorsPanel({
                     ))}
                 </div>
               )}
+              {nuancesUnder(role.key).length > 0 && (
+                <ul className="lc-nuance-sub" aria-label={`Réglages liés : ${role.name}`}>
+                  {nuancesUnder(role.key).map(renderNuance)}
+                </ul>
+              )}
             </li>
           );
         })}
+      </ul>
+      <h4 className="lc-group-title">Image agrandie</h4>
+      <p className="lp-help">Quand on clique sur une image : le voile derrière elle et ce qui s&apos;écrit dessus.</p>
+      <ul className="lc-nuance-sub lc-lightbox" data-testid="lightbox-colors">
+        {nuancesUnder("lightbox").map(renderNuance)}
       </ul>
       {modifiedCount > 0 && (
         <button
@@ -230,22 +319,6 @@ export function ColorsPanel({
           {isTheme ? "Revenir aux couleurs enregistrées" : "Revenir aux couleurs du thème"}
         </button>
       )}
-      <details className="lc-nuances">
-        <summary>Nuances calculées</summary>
-        <p className="lp-help">Déduites des couleurs ci-dessus, en lecture seule ; elles suivent tes changements.</p>
-        <ul className="lc-nuance-list">
-          {NUANCE_ORDER.map((k) => (
-            <li key={k} data-nuance={k}>
-              <span className="lc-chip lc-chip-small" style={{ background: eff[k] }} aria-hidden="true" />
-              <span className="lc-text">
-                <strong>{nuanceLabel(k)}</strong>
-                <small>{NUANCE_USES[k]}</small>
-              </span>
-              <span className="mono lc-hex">{eff[k]}</span>
-            </li>
-          ))}
-        </ul>
-      </details>
     </section>
   );
 }

@@ -182,10 +182,8 @@ if (run("P")) {
   for (const n of ["Fond de page", "Cartes et encadrés", "Texte", "Boutons et liens", "Accent"]) ok(`P1 rôle « ${n} »`, (await page.locator(".lc-role strong", { hasText: n }).count()) === 1);
   ok("P1b chaque rôle a une phrase qui dit à quoi il sert", (await page.locator(".lc-role small").allTextContents()).every((t) => t.trim().length > 15));
   ok("P1c aucun jargon de schéma dans les noms (Surface, Action, profond, filets)", !/Surface|Action\b|profond|filets/i.test((await page.locator(".lc-role strong").allTextContents()).join(" ")));
-  ok("P1d « Nuances calculées » repliées", (await page.locator("details.lc-nuances").getAttribute("open")) === null);
-  await page.locator("details.lc-nuances summary").click();
-  ok("P1e nuances en lecture seule : neuf, avec leur usage, sans champ", (await page.locator(".lc-nuance-list li").count()) === 9 && (await page.locator(".lc-nuances input, .lc-nuances button").count()) === 0 && /Fond profond/.test((await page.locator(".lc-nuance-list").textContent()) ?? ""));
-  await page.locator("details.lc-nuances summary").click();
+  ok("P1d (lot 29) plus de bloc « Nuances calculées » replié : les neuf nuances sont rangées sous leur couleur ou sous « Image agrandie »", (await page.locator("details.lc-nuances").count()) === 0 && (await page.locator(".lc-nuance-item").count()) === 9);
+  ok("P1e chaque nuance est un bouton qui ouvre un sélecteur, avec son usage ; état « automatique » ou « thème » lisible", (await page.locator(".lc-nuance-item button.lc-nuance").count()) === 9 && /Fond des rubriques alternées/.test((await page.locator(".lc-role-item").first().textContent()) ?? "") && (await page.locator(".lc-nuance-item .lc-nstate").allTextContents()).every((t) => /automatique|thème|choisie/.test(t)));
 
   /* P2. Surlignage */
   await role("Texte").locator(".lc-role").hover();
@@ -239,20 +237,22 @@ if (run("P")) {
   ok("P3j brouillon du site : palette.primary enregistrée, bg conservée", await waitFor(() => nearHex(siteDraftStyles()?.palette?.primary, NEW_PRIMARY) && nearHex(siteDraftStyles()?.palette?.bg, NEW_BG)), JSON.stringify(siteDraftStyles()));
   ok("P3k contraste suffisant affiché", /Lisibilité : (bonne|juste)/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? ""));
 
-  /* P4. Contraste : avertissement, ajustement, publication bloquée */
+  /* P4. Contraste (lot 29) : avertissement et ajustement, jamais de blocage : la couleur est publiée et appliquée */
   await pickColor("Texte", BAD_INK);
   ok("P4a avertissement clair + proposition", await waitFor(async () => /Lisibilité insuffisante/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")) && (await page.getByTestId("contrast-fix").isVisible()));
   ok("P4b le rôle est signalé en erreur", (await role("Texte").getAttribute("data-invalid")) !== null);
-  ok("P4b' avertissement en tête du panneau : palette non appliquée sur le site en ligne, thème nommé", await waitFor(async () => /ne sont pas appliquées sur le site en ligne/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "") && /thème actif/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "")));
+  ok("P4b' avertissement en tête du panneau (non bloquant) : couleurs appliquées quand même, thème nommé", await waitFor(async () => /appliquées quand même/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "") && /thème actif/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "") && /lisibilité insuffisante/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "")));
+  ok("P4b'' l'avertissement n'est pas une alerte bloquante (role=status)", (await page.getByTestId("palette-ignored").getAttribute("role")) === "status");
   await settled();
   ok("P4c la saisie n'est pas bloquée : palette.ink enregistrée au brouillon", await waitFor(() => nearHex(siteDraftStyles()?.palette?.ink, BAD_INK)), JSON.stringify(siteDraftStyles()));
   await page.screenshot({ path: `${SHOTS}/P-contraste-alerte-1440.png` });
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  ok("P4d publication refusée : texte illisible nommé", await waitFor(async () => /illisible/.test((await page.locator(".ve").textContent()) ?? ""), 60000));
-  ok("P4e rien n'est publié", setting("styles") === null);
+  ok("P4d publication ACCEPTÉE malgré le manque de contraste (lot 29)", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 60000));
+  ok("P4e la couleur peu contrastée est publiée telle quelle, sans retour aux couleurs du thème", await waitFor(() => nearHex(setting("styles")?.palette?.ink, BAD_INK)), JSON.stringify(setting("styles")));
+  ok("P4e' public : la feuille de la palette porte le texte choisi", /--t-color-ink:#eee6d4/.test(((await (await fetch(`${BASE}/fr`)).text()).match(/<style id="site-palette"[^>]*>([^<]*)<\/style>/) ?? [])[1] ?? ""));
   await page.getByTestId("contrast-fix").click();
   ok("P4f « Ajuster automatiquement » : contraste suffisant", await waitFor(async () => /Lisibilité : (bonne|juste)/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")));
-  ok("P4f' l'avertissement « non appliquée » disparaît une fois corrigé", await waitFor(async () => (await page.getByTestId("palette-ignored").count()) === 0));
+  ok("P4f' l'avertissement disparaît une fois corrigé", await waitFor(async () => (await page.getByTestId("palette-ignored").count()) === 0));
   await settled();
   const inkNow = parseRgb(await themeVar(f, "--t-color-ink"));
   const bgNow = parseRgb(await bodyBg(f));

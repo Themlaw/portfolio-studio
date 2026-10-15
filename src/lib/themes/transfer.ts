@@ -164,7 +164,7 @@ export async function parseThemePackage(buf: Buffer): Promise<ParsedPackage> {
   // Palette (lot 4) : nuances « auto » recalculées depuis leurs bases, jamais
   // la valeur de l'archive (même règle que l'enregistrement d'un thème).
   const theme: Theme = { ...parsed.data, tokens: { ...parsed.data.tokens, color: normalizePalette(parsed.data.tokens.color, parsed.data.tokens.palette) } };
-  // Contraste insuffisant : importé quand même (avertissement dans l'éditeur, v0.21.1).
+  // Lisibilité (lot 29) : un thème importé peu contrasté est accepté, l'éditeur de thème le signale.
 
   // Calques du hero : uniquement des fichiers livrés avec le site (aucun envoi possible ici).
   for (const layer of theme.assets.heroLayers ?? []) {

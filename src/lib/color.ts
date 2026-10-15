@@ -108,3 +108,31 @@ export function wheelGradient(): string {
   const stops = Array.from({ length: 13 }, (_, i) => `${rgbaToHex(hsvToRgb({ h: i * 30, s: 1, v: 1, a: 1 }))} ${Math.round((i / 12) * 100)}%`);
   return `conic-gradient(${stops.join(", ")})`;
 }
+
+/* ---- Sélecteur « à la Photoshop » (lot 29) ------------------------------------------- */
+
+/** Dégradé vertical de la bande de teinte : rouge en haut (360°), magenta, bleu, cyan, vert, jaune, rouge en bas (0°). */
+export function hueStripGradient(): string {
+  const stops = Array.from({ length: 13 }, (_, i) => `${rgbaToHex(hsvToRgb({ h: 360 - i * 30, s: 1, v: 1, a: 1 }))} ${Math.round((i / 12) * 100)}%`);
+  return `linear-gradient(to bottom, ${stops.join(", ")})`;
+}
+
+/** Fond du carré saturation × luminosité pour une teinte : couleur pure, voile blanc à gauche, voile noir en bas. */
+export function saturationPlane(h: number): { backgroundColor: string; backgroundImage: string } {
+  const white = rgbaToHex(hsvToRgb({ h: 0, s: 0, v: 1, a: 1 }));
+  const black = rgbaToHex(hsvToRgb({ h: 0, s: 0, v: 0, a: 1 }));
+  return {
+    backgroundColor: rgbaToHex(hsvToRgb({ h, s: 1, v: 1, a: 1 })),
+    backgroundImage: `linear-gradient(to top, ${black}, transparent), linear-gradient(to right, ${white}, transparent)`,
+  };
+}
+
+/** Point du carré (fractions 0-1 depuis le coin haut gauche) → saturation (gauche → droite) et luminosité (bas → haut). */
+export function planeToSv(fx: number, fy: number): { s: number; v: number } {
+  return { s: clamp(fx, 0, 1), v: 1 - clamp(fy, 0, 1) };
+}
+
+/** Position verticale (fraction 0-1 depuis le haut) sur la bande → teinte : haut = 360°, bas = 0°. */
+export function stripToHue(fy: number): number {
+  return (1 - clamp(fy, 0, 1)) * 360;
+}

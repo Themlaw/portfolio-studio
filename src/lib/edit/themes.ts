@@ -59,7 +59,7 @@ export function saveTheme(id: string, input: unknown, confirmLive = false): Acti
   }
   // Nuances « auto » recalculées depuis leurs bases (jamais la valeur du client).
   const data: Theme = { ...parsed.data, tokens: { ...parsed.data.tokens, color: normalizePalette(parsed.data.tokens.color, parsed.data.tokens.palette) } };
-  // Contraste insuffisant : avertissement dans l'éditeur seulement, l'enregistrement passe (v0.21.1).
+  // Lisibilité (lot 29) : un manque de contraste n'est jamais bloquant ; l'éditeur de thème l'affiche en avertissement.
   getDb()
     .update(schema.themes)
     .set({ name: data.name, data: JSON.stringify(data), updatedAt: new Date() })

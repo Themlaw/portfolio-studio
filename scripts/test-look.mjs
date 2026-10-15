@@ -26,7 +26,7 @@ import {
   TextStyleSchema,
   themeTypeCss,
 } from "../src/lib/look.ts";
-import { hslToRgb, normalizeCustomColor, parseColor, rgbaToHex, rgbToHsv, hsvToRgb, wheelGradient } from "../src/lib/color.ts";
+import { hslToRgb, normalizeCustomColor, parseColor, rgbaToHex, rgbToHsv, hsvToRgb, wheelGradient, hueStripGradient, saturationPlane, planeToSv, stripToHue } from "../src/lib/color.ts";
 import { SIZE_LABELS, SIZE_VALUES, SIZES } from "../src/lib/look.ts";
 import { ThemeSchema } from "../src/themes/schema.ts";
 import { fontFaceCss, googleCssUrl, parseGoogleCss, readLibrary } from "../src/lib/fonts/faces.ts";
@@ -128,6 +128,33 @@ const hsvTrip = rgbToHsv(parseColor("#3366cc"));
 ok("aller-retour RGB ↔ HSV", rgbaToHex(hsvToRgb(hsvTrip)) === "#3366cc");
 ok("HSL → RGB (gris, bleu pur)", rgbaToHex(hslToRgb({ h: 0, s: 0, l: 0.5, a: 1 })) === "#808080" && rgbaToHex(hslToRgb({ h: 240, s: 1, l: 0.5, a: 1 })) === "#0000ff");
 ok("dégradé de la roue : calculé, valide", /^conic-gradient\((#[0-9a-f]{6} \d+%(, )?){13}\)$/.test(wheelGradient()));
+
+/* ---- Sélecteur « à la Photoshop » (lot 29) : carré saturation × luminosité, bande de teinte --------- */
+{
+  // Aller-retour hex → HSV → hex exact : un échantillon régulier de tout le cube RVB, bornes comprises.
+  let bad = 0;
+  let n = 0;
+  for (let r = 0; r < 256; r += r < 250 ? 17 : 5) for (let g = 0; g < 256; g += g < 250 ? 17 : 5) for (let b = 0; b < 256; b += b < 250 ? 17 : 5) {
+    const hex = rgbaToHex({ r, g, b, a: 1 });
+    const hsv = rgbToHsv(parseColor(hex));
+    const back = rgbaToHex(hsvToRgb(hsv));
+    n++;
+    if (back !== hex || hsv.h < 0 || hsv.h >= 360 || hsv.s < 0 || hsv.s > 1 || hsv.v < 0 || hsv.v > 1) bad++;
+  }
+  ok(`hsv ↔ hex : aller-retour exact et bornes respectées (${n} couleurs)`, bad === 0, `${bad} écarts`);
+  const hx = (h, s, v) => rgbaToHex(hsvToRgb({ h, s, v, a: 1 }));
+  ok("hsv : coins du carré (blanc, noir, couleur pure) et gris sans saturation", hx(200, 0, 1) === "#ffffff" && hx(200, 0, 0) === "#000000" && hx(200, 1, 0) === "#000000" && hx(0, 1, 1) === "#ff0000" && hx(120, 1, 1) === "#00ff00" && hx(240, 1, 1) === "#0000ff" && hx(77, 0, 0.5) === "#808080");
+  ok("hsv : 360° = 0° (le haut et le bas de la bande sont tous deux rouges)", hx(360, 1, 1) === hx(0, 1, 1));
+  ok("hsv : un gris garde la teinte donnée (le curseur ne saute pas)", rgbToHsv(parseColor("#808080"), 210).h === 210 && rgbToHsv(parseColor("#000000"), 33).h === 33);
+  ok("carré : gauche → droite = saturation, haut → bas = luminosité décroissante", JSON.stringify(planeToSv(0, 0)) === '{"s":0,"v":1}' && JSON.stringify(planeToSv(1, 1)) === '{"s":1,"v":0}' && planeToSv(0.5, 0.25).s === 0.5 && planeToSv(0.5, 0.25).v === 0.75);
+  ok("carré : hors du carré = bornes", JSON.stringify(planeToSv(-4, 9)) === '{"s":0,"v":0}' && JSON.stringify(planeToSv(7, -2)) === '{"s":1,"v":1}');
+  ok("bande : rouge en haut (360°), bas = 0°, milieu = cyan (180°)", stripToHue(0) === 360 && stripToHue(1) === 0 && stripToHue(0.5) === 180 && stripToHue(-1) === 360 && stripToHue(3) === 0);
+  ok("bande : magenta, bleu, cyan, vert, jaune du haut vers le bas", [1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6].map((f) => hx(stripToHue(f), 1, 1)).join() === "#ff00ff,#0000ff,#00ffff,#00ff00,#ffff00");
+  const strip = hueStripGradient();
+  ok("dégradé de la bande : vertical, 13 arrêts calculés, rouge aux deux bouts", /^linear-gradient\(to bottom, (#[0-9a-f]{6} \d+%(, )?){13}\)$/.test(strip) && strip.includes("#ff0000 0%") && strip.includes("#ff0000 100%"));
+  const plane = saturationPlane(0);
+  ok("fond du carré : couleur pure de la teinte + voiles blanc (gauche) et noir (bas), rien d'écrit à la main", plane.backgroundColor === "#ff0000" && /to top, #000000, transparent/.test(plane.backgroundImage) && /to right, #ffffff, transparent/.test(plane.backgroundImage) && saturationPlane(240).backgroundColor === "#0000ff");
+}
 
 /* ---- Réglages d'un bloc ------------------------------------------------------------- */
 const look = { spaceTop: "s", spaceBottom: "none", radius: "none", titleH: "center", titleV: "middle", text: { title: { size: "3xl" }, "paragraphs.0": { italic: true }, "site.role": { color: "primary" } }, crop: { mediaId: { x: 30, y: 70, zoom: 1.5 } }, roleBackdrop: "shadow" };

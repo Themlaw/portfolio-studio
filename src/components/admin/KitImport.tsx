@@ -167,7 +167,7 @@ export function KitApplyPanel({
 }) {
   const router = useRouter();
   const [useMirror, setUseMirror] = useState(true);
-  const [useColors, setUseColors] = useState(Boolean(colors?.count && !colors.problem));
+  const [useColors, setUseColors] = useState(Boolean(colors?.count));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -204,7 +204,7 @@ export function KitApplyPanel({
       {colors && colors.count > 0 && (
         <div className="a-kit-mirror">
           <label className="a-kit-mirror-check">
-            <input type="checkbox" checked={useColors} disabled={Boolean(colors.problem)} onChange={(e) => setUseColors(e.target.checked)} data-testid="kit-colors" />
+            <input type="checkbox" checked={useColors} onChange={(e) => setUseColors(e.target.checked)} data-testid="kit-colors" />
             Appliquer {colors.count > 1 ? `les ${colors.count} couleurs repeintes` : "la couleur repeinte"}
           </label>
           {colors.problem && <p className="a-help">⚠ {colors.problem}</p>}
@@ -215,9 +215,9 @@ export function KitApplyPanel({
         Crée une copie brouillon de « {themeName} » avec {changed > 1 ? `les ${changed} éléments redessinés` : changed === 1 ? "l'élément redessiné" : useColors && colors?.count ? "tes couleurs" : "les éléments redessinés"}
         {useColors && colors?.count && changed > 0 ? " et tes couleurs" : ""}, puis ouvre son aperçu en direct. Le thème en ligne ne change pas tant que tu n&apos;actives pas la copie.
       </p>
-      {colors?.problem && (
-        <p className="a-field-error" role="alert" data-testid="kit-colors-skipped">
-          Tes couleurs repeintes ne seront pas appliquées : {colors.problem}
+      {colors?.problem && useColors && (
+        <p className="a-notice" role="status" data-testid="kit-colors-skipped">
+          Attention : {colors.problem}
         </p>
       )}
       {tape && <p className="a-help">Le scotch est redessiné : la copie active la variante « scotch » des planches (à retirer dans l&apos;éditeur si tu n&apos;en veux pas).</p>}

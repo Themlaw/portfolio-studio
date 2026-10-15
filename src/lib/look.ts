@@ -22,7 +22,7 @@ import { RectSchema } from "@/lib/images/crop";
 import { CUSTOM_COLOR_RE } from "./color";
 
 import { RADIUS_VALUES } from "../themes/css";
-import { BASE_KEYS, NUANCE_NAMES, ROLE_NAMES } from "../themes/palette";
+import { BASE_KEYS, NUANCE_KEYS, NUANCE_NAMES, ROLE_NAMES } from "../themes/palette";
 import { FONT_STACKS } from "../themes/font-stacks";
 import { CATEGORY_FALLBACK, googleFamily, isGoogleFamily } from "../themes/google-fonts";
 import { FONT_IDS, SURFACE_TOKENS, TEXT_ROLES, type FontId, type Theme } from "../themes/schema";
@@ -414,7 +414,12 @@ const WIN = ":root:root:root";
  * (src/themes/site-palette.ts). Absent = la couleur du thème.
  */
 const BaseColor = z.string().max(7).regex(/^#[0-9a-f]{6}$/, "Couleur invalide (#rrggbb).");
-export const SitePaletteSchema = z.strictObject(Object.fromEntries(BASE_KEYS.map((k) => [k, BaseColor.optional()])) as Record<(typeof BASE_KEYS)[number], z.ZodOptional<typeof BaseColor>>);
+/** Nuance (lot 29) : une couleur, ou « auto » = le calcul (même si le thème avait forcé une valeur). */
+const NuanceColor = z.union([BaseColor, z.literal("auto")]);
+export const SitePaletteSchema = z.strictObject({
+  ...(Object.fromEntries(BASE_KEYS.map((k) => [k, BaseColor.optional()])) as Record<(typeof BASE_KEYS)[number], z.ZodOptional<typeof BaseColor>>),
+  ...(Object.fromEntries(NUANCE_KEYS.map((k) => [k, NuanceColor.optional()])) as Record<(typeof NUANCE_KEYS)[number], z.ZodOptional<typeof NuanceColor>>),
+});
 export type SitePalette = z.infer<typeof SitePaletteSchema>;
 
 /**

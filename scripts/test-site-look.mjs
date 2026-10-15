@@ -22,7 +22,7 @@ import { FromCanvasSchema, ToCanvasSchema } from "../src/lib/edit/protocol.ts";
 import { SiteSnapSchema } from "../src/lib/site-schema.ts";
 import { colorVariables, sitePaletteCss, sitePaletteVariables, themeVariables } from "../src/themes/css.ts";
 import { contrastRatio, resolvePalette } from "../src/themes/palette.ts";
-import { applySitePalette, autoAdjustBase, effectiveSitePalette, rolePairs, sitePaletteIssues, sitePaletteProblem, SITE_ROLES } from "../src/themes/site-palette.ts";
+import { applySitePalette, autoAdjustBase, autoOverride, effectiveSitePalette, nuanceOrigin, nuancesUnder, rolePairs, sitePaletteIssues, sitePaletteProblem, SITE_NUANCES, SITE_ROLES } from "../src/themes/site-palette.ts";
 import { PRESETS } from "../src/themes/presets/index.ts";
 
 let failures = 0;
@@ -36,7 +36,9 @@ function ok(label, cond, detail = "") {
 /* ---- Schémas ----------------------------------------------------------------------------- */
 ok("palette : #rrggbb minuscules accepté", SitePaletteSchema.safeParse({ bg: "#faf6ee", primary: "#2e4e9e" }).success);
 for (const bad of ["#FAF6EE", "#fff", "#faf6ee80", "rgb(1,2,3)", "red", "#faf6e;", "#12345g", "</style>"]) ok(`palette : ${bad} refusé`, !SitePaletteSchema.safeParse({ bg: bad }).success);
-ok("palette : clé inconnue (nuance) refusée — les nuances sont calculées", !SitePaletteSchema.safeParse({ bgDeep: "#000000" }).success && !SitePaletteSchema.safeParse({ line: "#000000" }).success);
+ok("palette (lot 29) : les neuf nuances se choisissent (#rrggbb ou « auto »)", ["bgDeep", "line", "inkSoft", "shadow", "primaryHover", "onPrimary", "eyebrow", "scrim", "onScrim"].every((k) => SitePaletteSchema.safeParse({ [k]: "#000000" }).success && SitePaletteSchema.safeParse({ [k]: "auto" }).success));
+ok("palette : nuance invalide ou clé inconnue refusée", !SitePaletteSchema.safeParse({ scrim: "#FFF" }).success && !SitePaletteSchema.safeParse({ scrim: "autre" }).success && !SitePaletteSchema.safeParse({ scrim: "#00000080" }).success && !SitePaletteSchema.safeParse({ ombre: "#000000" }).success);
+ok("palette : « auto » refusé pour une base", !SitePaletteSchema.safeParse({ bg: "auto" }).success);
 ok("palette : les six bases acceptées", SitePaletteSchema.safeParse({ bg: "#000000", surface: "#000000", ink: "#000000", primary: "#000000", secondary: "#000000", tertiary: "#000000" }).success);
 ok("logo : bornes de taille", LogoSchema.safeParse({ size: LOGO_SIZE_MIN }).success && LogoSchema.safeParse({ size: LOGO_SIZE_MAX }).success && !LogoSchema.safeParse({ size: LOGO_SIZE_MIN - 1 }).success && !LogoSchema.safeParse({ size: LOGO_SIZE_MAX + 1 }).success);
 ok("logo : taille entière", !LogoSchema.safeParse({ size: 40.5 }).success && !LogoSchema.safeParse({ size: "40" }).success);
@@ -99,7 +101,24 @@ for (const id of ids) {
 const pro = PRESETS[ids[0]];
 const eff = effectiveSitePalette(pro.tokens.color, pro.tokens.palette, { ink: "#ffeedd" });
 ok("texte : le texte secondaire est recalculé depuis le nouveau texte", eff.ink === "#ffeedd" && eff.inkSoft !== resolvePalette(pro.tokens.color, pro.tokens.palette).inkSoft);
-ok("jamais d'écriture d'une nuance : seules les bases se surchargent", SITE_ROLES.length === 6 && SITE_ROLES.every((r) => ["bg", "surface", "ink", "primary", "secondary", "tertiary"].includes(r.key)));
+ok("six rôles, et chaque nuance est rangée sous un rôle ou sous « Image agrandie »", SITE_ROLES.length === 6 && SITE_ROLES.every((r) => ["bg", "surface", "ink", "primary", "secondary", "tertiary"].includes(r.key)) && Object.keys(SITE_NUANCES).length === 9 && SITE_ROLES.flatMap((r) => nuancesUnder(r.key)).concat(nuancesUnder("lightbox")).length === 9);
+ok("nuances rangées : survol et texte des boutons sous « Boutons et liens », voile et texte sur le voile sous « Image agrandie »", nuancesUnder("primary").join() === "primaryHover,onPrimary" && nuancesUnder("lightbox").join() === "scrim,onScrim" && nuancesUnder("ink").includes("eyebrow") && nuancesUnder("bg").join() === "bgDeep,line");
+{
+  const t = pro.tokens;
+  const base = resolvePalette(t.color, t.palette);
+  const e = effectiveSitePalette(t.color, t.palette, { primaryHover: "#112233", eyebrow: "#445566", scrim: "#0a0b0c", onScrim: "#fefefe" });
+  ok("nuances choisies : appliquées (survol, étiquettes, voile, texte du voile)", e.primaryHover === "#112233" && e.eyebrow === "#445566" && e.scrim === "#0a0b0c" && e.onScrim === "#fefefe");
+  ok("nuances choisies : les autres couleurs ne bougent pas", e.bg === base.bg && e.ink === base.ink && e.primary === base.primary && e.inkSoft === base.inkSoft);
+  const withBase = effectiveSitePalette(t.color, t.palette, { primary: "#aa3322", primaryHover: "#112233" });
+  ok("une nuance choisie survit au changement de sa base (le survol ne se recalcule plus)", withBase.primaryHover === "#112233" && withBase.primary === "#aa3322");
+  const auto = effectiveSitePalette(t.color, t.palette, { scrim: "auto", primaryHover: "auto" });
+  const wanted = resolvePalette({ ...t.color, scrim: undefined }, { auto: [...(t.palette?.auto ?? []), "primaryHover"] });
+  ok("« auto » rend le calcul même si le thème avait forcé une valeur", auto.scrim === wanted.scrim && auto.primaryHover === wanted.primaryHover, `${auto.scrim} ${auto.primaryHover}`);
+  ok("origine d'une nuance : choisie / automatique / thème", nuanceOrigin(t.color, t.palette, { scrim: "#000000" }, "scrim") === "site" && nuanceOrigin(t.color, t.palette, { scrim: "auto" }, "scrim") === "auto" && nuanceOrigin(t.color, t.palette, { bg: "#ffffff" }, "bgDeep") === "auto");
+  ok("revenir à l'automatique : retire la surcharge si le thème calcule déjà, sinon écrit « auto »", autoOverride(t.color, t.palette, { bg: "#ffffff", bgDeep: "#101010" }, "bgDeep") === undefined && autoOverride(t.color, t.palette, { primaryHover: "#101010" }, "primaryHover") === (nuanceOrigin(t.color, t.palette, {}, "primaryHover") === "auto" ? undefined : "auto"));
+  ok("voile choisi : la visionneuse prend sa couleur telle quelle ; calculé, gris neutre", sitePaletteCss(t, { scrim: "#0a0b0c" }).includes("--t-color-viewer:#0a0b0c") && !sitePaletteCss(t, { scrim: "auto", primary: "#aa3322" }).includes("--t-color-viewer:#0a0b0c"));
+  ok("feuille du site : les nuances choisies sont émises", sitePaletteCss(t, { scrim: "#0a0b0c", primaryHover: "#112233" }).includes("--t-color-scrim:#0a0b0c") && sitePaletteCss(t, { scrim: "#0a0b0c", primaryHover: "#112233" }).includes("--t-color-primary-hover:#112233"));
+}
 ok("chaque rôle a un nom parlant et une phrase", SITE_ROLES.every((r) => r.name.length > 3 && r.phrase.endsWith(".")) && SITE_ROLES.some((r) => r.name === "Fond de page") && SITE_ROLES.some((r) => r.name === "Cartes et encadrés") && SITE_ROLES.some((r) => r.name === "Boutons et liens"));
 
 /* ---- Contraste AA à la publication ---------------------------------------------------------------- */

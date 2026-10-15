@@ -467,8 +467,8 @@ if (run("H")) {
   const wheel = f.locator(".lk-bar .tc-wheel");
   ok("H4 dernière pastille : roue des couleurs (dégradé conique)", (await wheel.count()) === 1 && /conic-gradient/.test((await wheel.getAttribute("style")) ?? "") && (await f.locator(".lk-bar .tc-swatches > :last-child.tc-wheel").count()) === 1);
   await wheel.click();
-  ok("H5 sélecteur ouvert dans la toile", await until(f, () => Boolean(document.querySelector(".cp .cp-wheel"))));
-  ok("H5b sélecteur : roue, curseurs de luminosité et d'opacité, un seul champ « Code couleur », aperçu ; plus de seconde rangée « couleurs du thème » (lots 24 et 26)", (await f.locator(".cp .cp-wheel").count()) === 1 && (await f.locator('.cp [role=slider]:not(.cp-wheel)').count()) === 2 && (await f.locator(".cp input").count()) === 1 && (await f.locator(".cp input").first().getAttribute("aria-label")) === "Code couleur" && (await f.locator(".cp-preview").count()) === 1 && (await f.locator('.cp [aria-label="Couleurs du thème"] .cp-chip').count()) === 0);
+  ok("H5 sélecteur ouvert dans la toile", await until(f, () => Boolean(document.querySelector(".cp .cp-sv"))));
+  ok("H5b sélecteur (lot 29) : carré saturation × luminosité, bande de teinte, curseur d'opacité, un seul champ « Code couleur », aperçu actuelle / précédente ; plus de roue ni de curseur de luminosité", (await f.locator(".cp .cp-sv").count()) === 1 && (await f.locator(".cp .cp-hue").count()) === 1 && (await f.locator(".cp .cp-wheel, .cp [aria-label^='Roue']").count()) === 0 && (await f.locator(".cp-slider [role=slider]").count()) === 1 && (await f.locator(".cp .cp-prev").count()) === 1 && (await f.locator(".cp input").count()) === 1 && (await f.locator(".cp input").first().getAttribute("aria-label")) === "Code couleur" && (await f.locator(".cp-preview").count()) === 1 && (await f.locator('.cp [aria-label="Couleurs du thème"] .cp-chip').count()) === 0);
   ok("H5c sélecteur entièrement visible (la toile défile au besoin)", await until(f, () => { const r = document.querySelector(".cp").getBoundingClientRect(); return r.top >= 0 && r.bottom <= window.innerHeight + 1; }, null, 5000));
   await page.screenshot({ path: `${SHOTS}/H-selecteur-couleur.png` });
   // v0.16 : la pastille des curseurs (18 px, centrée sur la valeur) restait à cheval sur le bord à 100 % d'opacité :
@@ -501,17 +501,16 @@ if (run("H")) {
   ok("H9b … rgb(…) aussi", (await hex.inputValue()) === "#336699");
   const status = (await f.locator(".cp-contrast").textContent()) ?? "";
   ok("H10 lisibilité en mots (bonne / juste / insuffisante), ratio en info-bulle", /Lisibilité : (bonne|juste|insuffisante) sur le fond du thème/.test(status) && !/:1/.test(status) && /Contraste \d+,\d:1/.test((await f.locator(".cp-contrast").getAttribute("title")) ?? ""), status);
-  // Roue : sélection par glisser (teinte = angle, saturation = rayon).
-  const wb = await f.locator(".cp .cp-wheel").boundingBox();
-  const cx = wb.x + wb.width / 2, cy = wb.y + wb.height / 2, rad = wb.width / 2;
-  await page.mouse.move(cx, cy);
+  // Carré saturation × luminosité : sélection par glisser (saturation = gauche → droite, luminosité = bas → haut).
+  const wb = await f.locator(".cp .cp-sv").boundingBox();
+  await page.mouse.move(wb.x + wb.width * 0.2, wb.y + wb.height * 0.2);
   await page.mouse.down();
-  await page.mouse.move(cx + rad * 0.5, cy, { steps: 6 });
-  await page.mouse.move(cx + rad * 0.5, cy + rad * 0.3, { steps: 6 });
+  await page.mouse.move(wb.x + wb.width * 0.5, wb.y + wb.height * 0.2, { steps: 6 });
+  await page.mouse.move(wb.x + wb.width * 0.5, wb.y + wb.height * 0.3, { steps: 6 });
   await page.mouse.up();
   await sleep(500);
   const wheelHex = await hex.inputValue();
-  ok("H11 roue : le glisser change la couleur (valeur HEX obtenue)", /^#[0-9a-f]{6}$/i.test(wheelHex) && wheelHex.toLowerCase() !== "#336699", wheelHex);
+  ok("H11 carré : le glisser change la couleur (valeur HEX obtenue)", /^#[0-9a-f]{6}$/i.test(wheelHex) && wheelHex.toLowerCase() !== "#336699", wheelHex);
   const hexHsl = (h) => {
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
     const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
@@ -519,39 +518,52 @@ if (run("H")) {
     const hue = d === 0 ? 0 : max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
     return [Math.round(hue * 60), Math.round(s * 100), Math.round(l * 100)];
   };
-  const hslNow = hexHsl(wheelHex);
-  ok("H11b roue : saturation ~ rayon (50 % à droite du centre, ~58 % de rayon), teinte cohérente", hslNow[0] >= 0 && hslNow[0] <= 360 && hslNow[1] > 0, hslNow.join(","));
-  ok("H11c roue : « Code couleur » synchronisé (une valeur #rrggbb)", /^#[0-9a-f]{6}$/i.test(await hex.inputValue()), await hex.inputValue());
-  ok("H11d roue : enregistrée dans le style", await waitFor(() => blockOf(2, "section-title")?.props.look?.text?.title?.color === wheelHex.toLowerCase()), blockOf(2, "section-title")?.props.look?.text?.title?.color);
-  // Hors de la roue (bord extérieur) : saturation plafonnée à 100 %, la fenêtre ne se ferme pas.
-  await page.mouse.move(cx, cy);
+  const hexHsv = (h) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    return [Math.round((max === 0 ? 0 : (max - min) / max) * 100), Math.round(max * 100)];
+  };
+  const [satNow, valNow] = hexHsv(wheelHex);
+  ok("H11b carré : saturation ~ 50 % (milieu), luminosité ~ 70 % (30 % depuis le haut), teinte inchangée", Math.abs(satNow - 50) <= 3 && Math.abs(valNow - 70) <= 3 && Math.abs(hexHsl(wheelHex)[0] - 210) <= 3, `${satNow} ${valNow} ${hexHsl(wheelHex).join(",")}`);
+  ok("H11c carré : « Code couleur » synchronisé (une valeur #rrggbb)", /^#[0-9a-f]{6}$/i.test(await hex.inputValue()), await hex.inputValue());
+  ok("H11d carré : enregistrée dans le style", await waitFor(() => blockOf(2, "section-title")?.props.look?.text?.title?.color === wheelHex.toLowerCase()), blockOf(2, "section-title")?.props.look?.text?.title?.color);
+  ok("H11d2 carré : aria-valuetext lisible (« Saturation 50 %, luminosité 70 % »)", /^Saturation \d+ %, luminosité \d+ %$/.test((await f.locator(".cp .cp-sv").getAttribute("aria-valuetext")) ?? ""), await f.locator(".cp .cp-sv").getAttribute("aria-valuetext"));
+  // Hors du carré (à droite) : saturation plafonnée à 100 %, la fenêtre ne se ferme pas.
+  await page.mouse.move(wb.x + wb.width * 0.5, wb.y + wb.height * 0.3);
   await page.mouse.down();
-  await page.mouse.move(cx - rad * 3, cy, { steps: 6 });
+  await page.mouse.move(wb.x + wb.width * 3, wb.y + wb.height * 0.3, { steps: 6 });
   await page.mouse.up();
   await sleep(500);
-  const hslEdge = hexHsl(await hex.inputValue());
-  ok("H11e glisser hors de la roue : sélecteur encore ouvert, saturation maximale", (await f.locator(".cp").count()) === 1 && hslEdge[1] >= 95, hslEdge.join(","));
-  // Luminosité : curseur ShadeSlider, clic au quart gauche = clair, au quart droit = sombre.
+  const edgeSv = hexHsv(await hex.inputValue());
+  ok("H11e glisser hors du carré : sélecteur encore ouvert, saturation maximale", (await f.locator(".cp").count()) === 1 && edgeSv[0] >= 99, edgeSv.join(","));
+  // Luminosité : le bas du carré assombrit.
   const hexBeforeV = await hex.inputValue();
-  const sb = await f.locator(".cp .cp-slider").nth(0).locator('[role=slider]').boundingBox();
-  await page.mouse.click(sb.x + sb.width * 0.85, sb.y + sb.height / 2);
+  await page.mouse.click(wb.x + wb.width * 0.5, wb.y + wb.height * 0.95);
   await sleep(500);
   const hexDark = await hex.inputValue();
   const lum = (h) => parseInt(h.slice(1, 3), 16) + parseInt(h.slice(3, 5), 16) + parseInt(h.slice(5, 7), 16);
-  ok("H11f luminosité : curseur à droite assombrit", lum(hexDark) < lum(hexBeforeV), `${hexBeforeV} → ${hexDark}`);
-  // Clavier : la roue se règle aux flèches ; le curseur d'opacité aussi.
-  await f.locator(".cp .cp-wheel").focus();
+  ok("H11f luminosité : un clic en bas du carré assombrit", lum(hexDark) < lum(hexBeforeV), `${hexBeforeV} → ${hexDark}`);
+  // Bande de teinte : rouge en haut, bas = rouge ; un clic au tiers change la teinte.
+  const hb = await f.locator(".cp .cp-hue").boundingBox();
+  await page.mouse.click(hb.x + hb.width / 2, hb.y + hb.height * (2 / 6));
+  await sleep(500);
+  const hueHex = await hex.inputValue();
+  ok("H11f2 bande : un clic au tiers du haut = bleu (teinte ~240°)", Math.abs(hexHsl(hueHex)[0] - 240) <= 4, `${hueHex} ${hexHsl(hueHex).join(",")}`);
+  ok("H11f3 bande : aria-valuetext « Teinte 240° »", /^Teinte 2[34]\d°$/.test((await f.locator(".cp .cp-hue").getAttribute("aria-valuetext")) ?? ""), await f.locator(".cp .cp-hue").getAttribute("aria-valuetext"));
+  // Clavier : le carré se règle aux flèches (Maj = pas de 10) ; la bande aussi.
+  await f.locator(".cp .cp-sv").focus();
   const before = await hex.inputValue();
-  await page.keyboard.press("Shift+ArrowRight");
+  await page.keyboard.press("Shift+ArrowLeft");
   await page.keyboard.press("ArrowUp");
   await sleep(400);
-  ok("H11g clavier : flèches sur la roue modifient la couleur", (await hex.inputValue()) !== before, `${before} → ${await hex.inputValue()}`);
-  const hexBeforeK = await hex.inputValue();
-  await f.locator('.cp [role=slider][aria-label^="Luminosité"]').focus();
-  await page.keyboard.press("ArrowLeft");
-  await page.keyboard.press("ArrowLeft");
+  ok("H11g clavier : flèches sur le carré modifient la couleur", (await hex.inputValue()) !== before, `${before} → ${await hex.inputValue()}`);
+  const hueBefore = Number(await f.locator(".cp .cp-hue").getAttribute("aria-valuenow"));
+  await f.locator(".cp .cp-hue").focus();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
   await sleep(400);
-  ok("H11h clavier : flèches sur le curseur de luminosité", (await hex.inputValue()) !== hexBeforeK, `${hexBeforeK} → ${await hex.inputValue()}`);
+  // La couleur est ici presque noire : le code hex ne bouge pas à 2° près, mais la teinte (valeur du curseur) si.
+  ok("H11h clavier : flèches sur la bande de teinte (−2°)", Number(await f.locator(".cp .cp-hue").getAttribute("aria-valuenow")) === hueBefore - 2, `${hueBefore} → ${await f.locator(".cp .cp-hue").getAttribute("aria-valuenow")}`);
   // Opacité : couleur translucide #rrggbbaa (clic au milieu du curseur).
   const ab = await f.locator('.cp [role=slider][aria-label^="Opacité"]').boundingBox();
   await page.mouse.click(ab.x + ab.width * 0.5, ab.y + ab.height / 2);
@@ -573,7 +585,7 @@ if (run("H")) {
   f = await canvas();
   if (!(await f.locator(".lk-bar .tc-wheel").count())) await openBar(h1);
   await f.locator(".lk-bar .tc-wheel").click();
-  await until(f, () => Boolean(document.querySelector(".cp .cp-wheel")));
+  await until(f, () => Boolean(document.querySelector(".cp .cp-sv")));
   await sleep(300);
   const box = await f.evaluate(() => {
     const r = document.querySelector(".cp").getBoundingClientRect();

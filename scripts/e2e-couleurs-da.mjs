@@ -269,7 +269,7 @@ if (run("A"))
 
     // Contraste en direct + « Ajuster automatiquement ».
     await typeHex("ink", BAD_INK);
-    ok("A6 texte presque blanc : contraste insuffisant annoncé en direct", await role("ink").locator('[data-testid="contrast-status"][role="alert"]').waitFor({ timeout: 10000 }).then(() => true, () => false));
+    ok("A6 texte presque blanc : contraste insuffisant annoncé en direct", await role("ink").locator('[data-testid="contrast-status"]').filter({ hasText: /Lisibilité insuffisante/ }).waitFor({ timeout: 10000 }).then(() => true, () => false));
     await role("ink").locator('[data-testid="contrast-fix"]').click();
     ok("A6b « Ajuster automatiquement » : contraste suffisant", await role("ink").locator('[data-testid="contrast-status"]').filter({ hasText: /Lisibilité : (bonne|juste)/ }).waitFor({ timeout: 10000 }).then(() => true, () => false));
     // L'aperçu reçoit la teinte ajustée un instant après le bouton : on attend qu'elle change (flake constaté en mode rapide).
@@ -340,7 +340,7 @@ if (run("D"))
     ok("D3 lien vers l'éditeur de page", /\/admin\/pages\/1\/editer$/.test((await link.getAttribute("href")) ?? ""));
     const fr = await previewFrame();
     ok("D4 pas de fusion silencieuse : l'aperçu montre les couleurs du THÈME, pas celles du site", same(rgbOf(await frameVar(fr, "--t-color-primary")), hexRgb(colorsOf(COPY).primary)) && same(rgbOf(await frameVar(fr, "--t-color-secondary")), hexRgb(colorsOf(COPY).secondary)));
-    ok("D5 le panneau des couleurs du thème garde celles du thème", same(rgbOf(await role("primary").locator(".lc-chip").evaluate((el) => getComputedStyle(el).backgroundColor)), hexRgb(colorsOf(COPY).primary)));
+    ok("D5 le panneau des couleurs du thème garde celles du thème", same(rgbOf(await role("primary").locator(".lc-role .lc-chip").evaluate((el) => getComputedStyle(el).backgroundColor)), hexRgb(colorsOf(COPY).primary)));
     await sectionShot("5-da-surcharge-site-1440.png");
     if (prev) exec("update settings set value = ? where key = 'styles'", prev);
     else exec("delete from settings where key = 'styles'");

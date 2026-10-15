@@ -2,17 +2,17 @@
 
 /**
  * Sélecteur de couleur libre d'un texte (lot 7) : dernière pastille des couleurs
- * du texte (dégradé conique), qui ouvre une fenêtre avec une roue chromatique
- * (teinte = angle, saturation = rayon), un curseur de luminosité, un curseur
- * d'opacité, un seul champ « Code couleur » (hexadécimal, rgb ou hsl), aperçu sur le fond du thème avec
+ * du texte (dégradé conique), qui ouvre une fenêtre dans le style du panneau « Couleur » de Photoshop (lot 29) :
+ * aperçu actuelle / précédente (clic sur la précédente = revenir), carré saturation × luminosité, bande verticale
+ * de teinte, un curseur d'opacité, un seul champ « Code couleur » (hexadécimal, rgb ou hsl), aperçu sur le fond du thème avec
  * avertissement de contraste (jamais bloquant) et couleurs récentes. Pas de seconde rangée « couleurs du thème » (lot 26) :
- * les pastilles nommées du site sont déjà à côté (barre du texte, choix de carte ou de fond), la roue ne les redouble pas.
+ * les pastilles nommées du site sont déjà à côté (barre du texte, choix de carte ou de fond), le sélecteur ne les redouble pas.
  *
- * Roue, luminosité et opacité : @uiw/react-color-wheel / -shade-slider / -alpha
+ * Carré et bande : ColorPlane.tsx (maison, pointer events). Opacité : @uiw/react-color-alpha
  * (styles en ligne uniquement : aucune feuille injectée, la toile reste sous CSP ;
  * les couleurs qu'ils dessinent sont des données). Conversions : src/lib/color.ts.
- * Clavier : flèches sur la roue (gauche / droite = teinte, haut / bas = saturation,
- * Maj = pas de 10), flèches sur les curseurs (natif @uiw), champs.
+ * Clavier : flèches sur le carré (saturation / luminosité), sur la bande (teinte),
+ * Maj = pas de 10 ; flèches sur le curseur d'opacité (natif @uiw), champs.
  * Fermeture : `useDismiss` (clic extérieur, Échap, focus dans l'autre cadre).
  *
  * La valeur émise est `#rrggbb[aa]` (format canonique de src/lib/color.ts) ou
@@ -20,14 +20,13 @@
  * Les couleurs affichées ici sont des données calculées (jamais écrites en dur).
  */
 import Alpha from "@uiw/react-color-alpha";
-import ShadeSlider from "@uiw/react-color-shade-slider";
-import Wheel from "@uiw/react-color-wheel";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { hsvToRgb, isCustomColor, over, parseColor, rgbaToHex, rgbToHsv, wheelGradient, type Hsva } from "@/lib/color";
 import { PALETTE, type PaletteColor } from "@/lib/look";
 import { AA, ratio } from "@/themes/contrast";
 
+import { HueStrip, SaturationPlane } from "./ColorPlane";
 import { ratioTip, readabilityText } from "./readability";
 
 import { useDismiss } from "./useDismiss";
@@ -67,7 +66,6 @@ function resolveCss(css: string, doc: Document) {
 }
 
 const isPalette = (v: string | undefined): v is PaletteColor => (PALETTE as readonly string[]).includes(v ?? "");
-const WHEEL = 168; // px : la bibliothèque calcule la position du doigt dans une roue de cette largeur
 /** Variables du curseur d'opacité de @uiw : fond du damier et pastille sur les tokens de l'interface. */
 const alphaVars = { "--alpha-background-color": "var(--lk-surface)", "--alpha-pointer-background-color": "var(--lk-surface)", "--alpha-pointer-box-shadow": "0 0 0 1.5px var(--lk-ink)", borderRadius: 7, border: "1px solid var(--lk-line)" } as React.CSSProperties;
 
@@ -84,7 +82,7 @@ export type ColorPickerProps = {
  * sans opacité ni couleurs du thème (c'est le thème qu'on règle), avec « Revenir au thème » ; le contrôle de
  * contraste est celui du panneau (il connaît tous les couples), pas l'aperçu sur le fond.
  */
-export type SolidOptions = { onReset?: () => void; resetLabel?: string };
+export type SolidOptions = { onReset?: () => void; resetLabel?: string; /** Pas de bouton de retour (sélecteur de l'administration, lot 29). */ noReset?: boolean };
 
 export default function ColorPicker({ value, onChange, swatch }: ColorPickerProps) {
   const [open, setOpen] = useState(false);
@@ -184,7 +182,7 @@ function useEmitter(onChange: (c: string | undefined) => void, onRecent: (recent
   return { schedule, flush, cancel };
 }
 
-function Popover({
+export function Popover({
   id,
   ref,
   value,
@@ -195,7 +193,7 @@ function Popover({
   live,
 }: ColorPickerProps & { id: string; ref: React.Ref<HTMLDivElement>; onClose: () => void; solid?: SolidOptions; live?: boolean }) {
   const box = useRef<HTMLDivElement | null>(null);
-  const [state, setState] = useState<{ hsva: Hsva; bg: string | null; recent: string[] } | null>(null);
+  const [state, setState] = useState<{ hsva: Hsva; prev: string; bg: string | null; recent: string[] } | null>(null);
   const [edit, setEdit] = useState<{ k: string; v: string } | null>(null);
 
   // Lecture du thème dans le document de la toile, une fois ouvert.
@@ -205,6 +203,7 @@ function Popover({
     const bg = resolveCss(swatch("bg"), doc);
     setState({
       hsva: rgbToHsv(start ?? { r: 0, g: 0, b: 0, a: 1 }),
+      prev: rgbaToHex(start ?? { r: 0, g: 0, b: 0, a: 1 }),
       bg: bg ? rgbaToHex({ ...bg, a: 1 }) : null,
       recent: readRecent(),
     });
@@ -237,13 +236,13 @@ function Popover({
     return () => doc.removeEventListener("pointerup", end);
   }, [ready, flush]);
 
-  // Focus sur la roue à l'ouverture.
+  // Focus sur le carré à l'ouverture.
   useEffect(() => {
-    if (ready) box.current?.querySelector<HTMLElement>(".cp-wheel")?.focus({ preventScroll: true });
+    if (ready) box.current?.querySelector<HTMLElement>(".cp-sv")?.focus({ preventScroll: true });
   }, [ready]);
 
   if (!state) return <div className="cp" ref={(el) => void (box.current = el)} />;
-  const { hsva, bg } = state;
+  const { hsva, bg, prev } = state;
   const rgba = hsvToRgb(hsva);
   const hex = rgbaToHex(rgba);
 
@@ -275,7 +274,6 @@ function Popover({
   });
   const contrast = bg ? ratio(rgbaToHex(over(rgba, parseColor(bg)!)), bg) : null;
   const low = contrast !== null && contrast < AA;
-  const pct = (n: number) => String(Math.round(n * 100));
 
   return (
     <div
@@ -298,37 +296,21 @@ function Popover({
         }
       }}
     >
-      <div className="cp-wheelbox">
-        <Wheel
-          className="cp-wheel"
-          width={WHEEL}
-          height={WHEEL}
-          color={{ h: hsva.h, s: hsva.s * 100, v: hsva.v * 100, a: hsva.a }}
-          onChange={(c) => apply({ ...hsva, h: c.hsva.h, s: c.hsva.s / 100 })}
-          role="slider"
-          aria-label="Roue des couleurs : flèches gauche et droite pour la teinte, haut et bas pour la saturation"
-          aria-valuemin={0}
-          aria-valuemax={360}
-          aria-valuenow={Math.round(hsva.h)}
-          aria-valuetext={`Teinte ${Math.round(hsva.h)} degrés, saturation ${pct(hsva.s)} %`}
-          onKeyDown={(e: React.KeyboardEvent) => {
-            const step = e.shiftKey ? 10 : 1;
-            const d: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step / 100], ArrowDown: [0, -step / 100] };
-            if (!d[e.key]) return;
-            e.preventDefault();
-            apply({ ...hsva, h: (hsva.h + d[e.key][0] + 360) % 360, s: clamp(hsva.s + d[e.key][1], 0, 1) });
-          }}
+      <div className="cp-top">
+        <span className="cp-now" style={{ background: hex }} role="img" aria-label={`Couleur actuelle ${hex}`} title={`Actuelle ${hex}`} />
+        <button
+          type="button"
+          className="cp-prev"
+          style={{ background: prev }}
+          aria-label={`Revenir à la couleur précédente ${prev}`}
+          title={`Précédente ${prev} : cliquer pour revenir`}
+          onClick={() => apply(rgbToHsv(parseColor(prev)!, hsva.h), true)}
         />
+        <span className="cp-flabel">Actuelle / précédente</span>
       </div>
-      <div className="cp-slider">
-        <span>Luminosité</span>
-        <ShadeSlider
-          hsva={{ h: hsva.h, s: hsva.s * 100, v: hsva.v * 100, a: hsva.a }}
-          style={alphaVars}
-          radius={7}
-          onChange={(c) => apply({ ...hsva, v: clamp(c.v / 100, 0, 1) })}
-          innerProps={{ role: "slider", "aria-label": "Luminosité : flèches gauche et droite", "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": Math.round(hsva.v * 100) }}
-        />
+      <div className="cp-plane">
+        <SaturationPlane h={hsva.h} s={hsva.s} v={hsva.v} onChange={(s, v) => apply({ ...hsva, s, v })} />
+        <HueStrip h={hsva.h} onChange={(h) => apply({ ...hsva, h })} />
       </div>
       {!solid && <div className="cp-slider">
         <span>Opacité</span>
@@ -374,17 +356,21 @@ function Popover({
         </div>
       )}
       <div className="cp-foot">
-        <button
-          type="button"
-          onClick={() => {
-            cancel();
-            if (solid) solid.onReset?.();
-            else onChange(undefined);
-            onClose();
-          }}
-        >
-          {solid ? (solid.resetLabel ?? "Revenir au thème") : "Retirer la couleur"}
-        </button>
+        {solid?.noReset ? (
+          <span />
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              cancel();
+              if (solid) solid.onReset?.();
+              else onChange(undefined);
+              onClose();
+            }}
+          >
+            {solid ? (solid.resetLabel ?? "Revenir au thème") : "Retirer la couleur"}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => {

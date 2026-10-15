@@ -195,8 +195,8 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
   if (ctx.edit || coloredBackdrop || blocks.some((b) => !b.corrupt && readSurface((b.props as { surface?: unknown } | null)?.surface))) {
     const [theme, view] = await Promise.all([getActiveTheme(), getSiteView(ctx.locale, ctx.pageId)]);
     // Palette du site (lot 17f) : quand elle surcharge des couleurs du thème, la carte se calcule sur la palette EFFECTIVE
-    // (mêmes règles que le layout : en public, une palette devenue illisible est ignorée).
-    card = { palette: pagePalette(theme.tokens.color as PaletteColors, theme.tokens.palette, view.styles?.palette, Boolean(ctx.edit)), defaults: resolveSurface(theme.tokens.layout?.card ?? {}) };
+    // (mêmes règles que le layout : la palette du site est toujours appliquée).
+    card = { palette: pagePalette(theme.tokens.color as PaletteColors, theme.tokens.palette, view.styles?.palette), defaults: resolveSurface(theme.tokens.layout?.card ?? {}) };
   }
   const base: BlockContext = { ...baseCtx, ...(card ? { palette: card.palette } : {}) };
   return (
