@@ -247,12 +247,21 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
   /** Valide une liste (la page, ou les composants d'un conteneur), récursivement. */
   const validate = (list: { uid?: unknown; type: string; props: unknown }[], prefix: string, parent: string | null, inherited: string | undefined): Out[] => {
     const out: Out[] = [];
+    const singles = new Set<string>();
     list.forEach((block, i) => {
       const key = `${prefix}.${i}`;
       const def = own(BLOCKS, block.type);
       if (!def) {
         errors[key] = `Type de rubrique inconnu « ${block.type} ».`;
         return;
+      }
+      // Une rubrique « une seule fois par page » (l'Ouverture) : le panneau la grise, le serveur refuse aussi l'exemplaire en trop.
+      if (def.single) {
+        if (singles.has(block.type)) {
+          errors[key] = `« ${def.label} » ne se pose qu'une fois par page : retire l'exemplaire en trop.`;
+          return;
+        }
+        singles.add(block.type);
       }
       if (parent && !containerAccepts(parent, block.type)) {
         errors[key] = "Cette rubrique n'accepte pas ce composant.";

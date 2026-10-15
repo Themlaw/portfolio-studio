@@ -408,4 +408,14 @@ await test("m6 : restauration — variante d'adresse par langue, valide et libre
   assert.deepEqual(slugOf(p), { fr: "carte-m6-2", en: "map-m6" }, "seule la langue prise change");
 });
 
+/* ---- 10. Audit v0.20 (m3) : Ouverture unique aussi côté serveur ------------------------------------------------------ */
+await test("m3 : deux Ouvertures sur une page → enregistrement refusé, l'exemplaire en trop nommé", () => {
+  const id = createPage({ title: L("Deux ouvertures"), slug: L("deux-ouvertures") }).data.id;
+  const hero = (uid) => ({ uid, type: "hero", props: { eyebrow: L(""), statement: L("Accroche") } });
+  const r = savePage(id, { title: L("Deux ouvertures"), slug: L("deux-ouvertures"), meta: { title: L(""), description: L("") }, published: false, inMenu: false, accent: null, blocks: [hero("h1"), hero("h2")] });
+  assert.equal(r.ok, false);
+  assert.match(r.fieldErrors?.["blocks.1"] ?? "", /ne se pose qu'une fois par page/);
+  assert.equal(r.fieldErrors?.["blocks.0"], undefined, "la première reste valable");
+});
+
 console.log(`\ntest-trash : ${passed} tests OK`);
