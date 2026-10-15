@@ -10,7 +10,7 @@
  *  C. Contraste : une couleur peu contrastée est acceptée, enregistrée, publiée et APPLIQUÉE (avertissement seulement) :
  *     boutons et liens d'une page, palette du site, couleurs d'un thème.
  *  N. Nuances : survol, petits textes, voile de l'image agrandie choisis dans le panneau « Couleurs », visibles en public ;
- *     « Revenir à l'automatique » restaure le calcul.
+ *     « Revenir… » efface le choix (lot 30 : valeur du thème si elle en fixe une, sinon calcul).
  *
  * Usage : BASE=http://localhost:3380 DATA_DIR=~/pf/data-29 ADMIN_EMAIL=… ADMIN_PASSWORD=… SHOTS=/dossier [ONLY=P,Q,C,N] node scripts/e2e-couleurps29.mjs
  */
@@ -511,14 +511,14 @@ if (run("N")) {
 
   // Retour à l'automatique.
   await item("primaryHover").locator(".lc-nuance").click();
-  await item("primaryHover").locator(".cp-foot button", { hasText: "Revenir à l'automatique" }).click();
+  await item("primaryHover").locator(".cp-foot button", { hasText: "Revenir à la couleur du thème" }).click();
   await item("scrim").locator(".lc-nuance").click();
   await item("scrim").locator(".cp-foot button", { hasText: "Revenir à l'automatique" }).click();
   await settled();
   ok("N7 « Revenir à l'automatique » : survol et voile ne sont plus choisis", await waitFor(() => { const p = sitePalette(); return p.primaryHover !== "#aa0000" && p.scrim !== "#102030"; }), JSON.stringify(sitePalette()));
   ok("N7b … les autres nuances choisies restent", sitePalette().eyebrow === "#00aa00" && sitePalette().onScrim === "#fefefe");
   ok("N7c … l'état redevient « automatique » (calculé) pour le voile", (await item("scrim").getAttribute("data-origin")) === "auto");
-  ok("N7d la toile retrouve le calcul : voile de la visionneuse = gris neutre d'avant, survol = valeur calculée (plus #aa0000)", (await rootVar(f, "--t-color-viewer")) === startScrim && (await colorVar(f, "--t-color-primary-hover")) !== "rgb(170, 0, 0)" && (await item("primaryHover").getAttribute("data-origin")) === "auto", `${await rootVar(f, "--t-color-viewer")} / ${startScrim} ; ${await colorVar(f, "--t-color-primary-hover")} / ${startHover}`);
+  ok("N7d la toile retrouve le calcul : voile de la visionneuse = gris neutre d'avant, survol = valeur du thème (le thème le fixe)", (await rootVar(f, "--t-color-viewer")) === startScrim && (await colorVar(f, "--t-color-primary-hover")) === startHover && (await item("primaryHover").getAttribute("data-origin")) === "theme", `${await rootVar(f, "--t-color-viewer")} / ${startScrim} ; ${await colorVar(f, "--t-color-primary-hover")} / ${startHover}`);
   ok("N8 publication du retour", await publish());
   const sheet2 = paletteSheet((await anon("/fr")).html);
   ok("N8b public : plus de survol ni de voile choisis, étiquettes toujours choisies", !sheet2.includes("#aa0000") && !sheet2.includes("--t-color-scrim:#102030") && sheet2.includes("--t-color-eyebrow:#00aa00"), sheet2.slice(0, 300));

@@ -25,7 +25,7 @@ import { pairsReadability, ratioTip } from "@/components/edit/readability";
 import type { AdminMediaRow } from "@/lib/admin";
 import { LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, type Logo, type PaletteColor, type SitePalette } from "@/lib/look";
 import { NUANCE_KEYS, PALETTE_GROUPS, type BaseKey, type NuanceKey, type PaletteColors, type PaletteState } from "@/themes/palette";
-import { autoAdjustBase, autoOverride, CONTRAST_BASES, effectiveSitePalette, nuanceOrigin, nuancesUnder, rolePairs, SITE_NUANCES, SITE_ROLES, sitePaletteIssues, sitePalettePairs } from "@/themes/site-palette";
+import { autoAdjustBase, CONTRAST_BASES, effectiveSitePalette, nuanceOrigin, nuancesUnder, rolePairs, SITE_NUANCES, SITE_ROLES, sitePaletteIssues, sitePalettePairs, themeFixesNuance } from "@/themes/site-palette";
 
 import "@/app/admin/look-panel.css";
 import "@/app/admin/typo-controls.css";
@@ -81,7 +81,7 @@ export function ColorsPanel({
   const reference = isTheme && baseline ? baseline : null;
   const isModified = (key: BaseKey) => (reference ? eff[key].toLowerCase() !== String(reference[key]).toLowerCase() : typeof value[key] === "string");
   const modifiedKeys = SITE_ROLES.map((r) => r.key).filter(isModified);
-  const nuanceOverrides = isTheme ? 0 : NUANCE_KEYS.filter((k) => typeof value[k] === "string").length;
+  const nuanceOverrides = isTheme ? 0 : NUANCE_KEYS.filter((k) => typeof value[k] === "string" && value[k] !== "auto").length;
   const modifiedCount = modifiedKeys.length + nuanceOverrides;
   // Palette du site qui rendrait du texte difficile à lire avec le thème actif : simple avertissement (lot 29), elle est appliquée et publiée.
   const issues = sitePaletteIssues(theme.color, palette, value);
@@ -100,9 +100,7 @@ export function ColorsPanel({
     }
     const next = { ...value };
     if (clean === undefined) {
-      const back = autoOverride(theme.color, palette, value, key);
-      if (back) next[key] = back;
-      else delete next[key];
+      delete next[key];
     } else next[key] = clean;
     onChange(next);
   };
@@ -149,7 +147,7 @@ export function ColorsPanel({
                 onClose={() => setOpenNuance(null)}
                 live
                 solid={{
-                  resetLabel: "Revenir à l'automatique",
+                  resetLabel: !isTheme && themeFixesNuance(theme.color, palette, value, k) ? "Revenir à la couleur du thème" : "Revenir à l'automatique",
                   onReset: () => {
                     setNuanceValue(k, undefined);
                     setEpoch((n) => n + 1);

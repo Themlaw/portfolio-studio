@@ -22,7 +22,7 @@ import { FromCanvasSchema, ToCanvasSchema } from "../src/lib/edit/protocol.ts";
 import { SiteSnapSchema } from "../src/lib/site-schema.ts";
 import { colorVariables, sitePaletteCss, sitePaletteVariables, themeVariables } from "../src/themes/css.ts";
 import { contrastRatio, resolvePalette } from "../src/themes/palette.ts";
-import { applySitePalette, autoAdjustBase, autoOverride, effectiveSitePalette, nuanceOrigin, nuancesUnder, rolePairs, sitePaletteIssues, sitePaletteProblem, SITE_NUANCES, SITE_ROLES } from "../src/themes/site-palette.ts";
+import { applySitePalette, autoAdjustBase, themeFixesNuance, effectiveSitePalette, nuanceOrigin, nuancesUnder, rolePairs, sitePaletteIssues, sitePaletteProblem, SITE_NUANCES, SITE_ROLES } from "../src/themes/site-palette.ts";
 import { PRESETS } from "../src/themes/presets/index.ts";
 
 let failures = 0;
@@ -111,11 +111,20 @@ ok("nuances rangées : survol et texte des boutons sous « Boutons et liens », 
   ok("nuances choisies : les autres couleurs ne bougent pas", e.bg === base.bg && e.ink === base.ink && e.primary === base.primary && e.inkSoft === base.inkSoft);
   const withBase = effectiveSitePalette(t.color, t.palette, { primary: "#aa3322", primaryHover: "#112233" });
   ok("une nuance choisie survit au changement de sa base (le survol ne se recalcule plus)", withBase.primaryHover === "#112233" && withBase.primary === "#aa3322");
-  const auto = effectiveSitePalette(t.color, t.palette, { scrim: "auto", primaryHover: "auto" });
-  const wanted = resolvePalette({ ...t.color, scrim: undefined }, { auto: [...(t.palette?.auto ?? []), "primaryHover"] });
-  ok("« auto » rend le calcul même si le thème avait forcé une valeur", auto.scrim === wanted.scrim && auto.primaryHover === wanted.primaryHover, `${auto.scrim} ${auto.primaryHover}`);
+  // Lot 30 : « Revenir… » efface le choix. Un « auto » déjà enregistré (v0.22.0) = pas de choix.
+  const none = effectiveSitePalette(t.color, t.palette, {});
+  const legacy = effectiveSitePalette(t.color, t.palette, { scrim: "auto", primaryHover: "auto" });
+  ok("« auto » hérité de la v0.22.0 : lu comme « pas de choix » (valeur du thème, ou calcul si le thème n'en fixe pas)", JSON.stringify(legacy) === JSON.stringify(none), `${legacy.primaryHover} ${none.primaryHover}`);
+  ok("« auto » hérité : origine = celle sans choix", nuanceOrigin(t.color, t.palette, { primaryHover: "auto" }, "primaryHover") === nuanceOrigin(t.color, t.palette, {}, "primaryHover") && nuanceOrigin(t.color, t.palette, { scrim: "auto" }, "scrim") === "auto");
+  ok("« auto » hérité : rien n'est émis dans la feuille du site", sitePaletteCss(t, { primaryHover: "auto", scrim: "auto" }) === "");
+  const fixed = nuanceOrigin(t.color, t.palette, {}, "primaryHover") === "theme";
+  ok("le thème pro fixe son survol (hypothèse des tests suivants)", fixed && nuanceOrigin(t.color, t.palette, {}, "scrim") === "auto");
+  ok("thème fixe la nuance : retour = valeur du thème (la clé effacée rend exactement la valeur d'avant), libellé « couleur du thème »", themeFixesNuance(t.color, t.palette, { primaryHover: "#101010" }, "primaryHover") === true && effectiveSitePalette(t.color, t.palette, {}).primaryHover === base.primaryHover && effectiveSitePalette(t.color, t.palette, { primaryHover: "#101010" }).primaryHover === "#101010");
+  ok("thème ne fixe pas la nuance : retour = calcul, libellé « automatique »", themeFixesNuance(t.color, t.palette, { scrim: "#0a0b0c" }, "scrim") === false && effectiveSitePalette(t.color, t.palette, {}).scrim === base.scrim);
+  ok("une base changée rend le survol calculé : plus de « couleur du thème » à rétablir", themeFixesNuance(t.color, t.palette, { primary: "#aa3322", primaryHover: "#101010" }, "primaryHover") === false);
+  const autoHover = Object.values(PRESETS).find((p) => p.tokens.palette?.auto?.includes("primaryHover"));
+  ok("un préréglage dont le survol est « auto » : retour = calcul, libellé « automatique »", Boolean(autoHover) && themeFixesNuance(autoHover.tokens.color, autoHover.tokens.palette, { primaryHover: "#101010" }, "primaryHover") === false);
   ok("origine d'une nuance : choisie / automatique / thème", nuanceOrigin(t.color, t.palette, { scrim: "#000000" }, "scrim") === "site" && nuanceOrigin(t.color, t.palette, { scrim: "auto" }, "scrim") === "auto" && nuanceOrigin(t.color, t.palette, { bg: "#ffffff" }, "bgDeep") === "auto");
-  ok("revenir à l'automatique : retire la surcharge si le thème calcule déjà, sinon écrit « auto »", autoOverride(t.color, t.palette, { bg: "#ffffff", bgDeep: "#101010" }, "bgDeep") === undefined && autoOverride(t.color, t.palette, { primaryHover: "#101010" }, "primaryHover") === (nuanceOrigin(t.color, t.palette, {}, "primaryHover") === "auto" ? undefined : "auto"));
   ok("voile choisi : la visionneuse prend sa couleur telle quelle ; calculé, gris neutre", sitePaletteCss(t, { scrim: "#0a0b0c" }).includes("--t-color-viewer:#0a0b0c") && !sitePaletteCss(t, { scrim: "auto", primary: "#aa3322" }).includes("--t-color-viewer:#0a0b0c"));
   ok("feuille du site : les nuances choisies sont émises", sitePaletteCss(t, { scrim: "#0a0b0c", primaryHover: "#112233" }).includes("--t-color-scrim:#0a0b0c") && sitePaletteCss(t, { scrim: "#0a0b0c", primaryHover: "#112233" }).includes("--t-color-primary-hover:#112233"));
 }
