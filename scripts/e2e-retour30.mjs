@@ -227,7 +227,7 @@ if (run("L")) {
   console.log("== L. Placement du sélecteur de couleur");
   await page.setViewportSize({ width: 1280, height: 800 });
   // 1. Barre du texte, sur la toile, à plusieurs largeurs (le côté suit la place).
-  for (const width of [1280, 1000, 820]) {
+  for (const width of [1280, 1180, 1100, 1000, 820]) {
     await page.setViewportSize({ width, height: 800 });
     const f = await openEditor(homeId);
     ok(`L1 ${width} px : barre du texte ouverte`, await openBar(f, H2));
@@ -235,8 +235,14 @@ if (run("L")) {
     await f.locator(".cp").waitFor({ timeout: 10000 });
     await sleep(300);
     const m = await rects(f, ".lk-bar .tc-wheel");
-    ok(`L1b ${width} px : fenêtre à côté du déclencheur (${m.side}), alignée en haut, entièrement visible`, beside(m), JSON.stringify(m));
-    ok(`L1c ${width} px : le côté suit la place`, m.side === "right" || m.side === "left", JSON.stringify(m));
+    // Côté choisi d'après la place : à droite si elle suffit, sinon à gauche ; ni l'un ni l'autre = dessous, compact, sans déborder.
+    const frame = await f.locator(".lk-bar").evaluate((e) => { const b = e.getBoundingClientRect(); return { l: b.left, r: b.right }; });
+    const trig = m.trigger;
+    const fits = (r, l) => m.w - 8 - r - 8 >= 300 ? "right" : l - 16 >= 300 ? "left" : null;
+    const want = fits(frame.r, frame.l) ?? fits(trig.r, trig.l);
+    console.log(`  (${width} px : iframe ${m.w} px, côté ${m.side}, attendu ${want})`);
+    ok(`L1b ${width} px : côté ${m.side ?? "dessous (écran étroit)"}, comme la place le veut`, (m.side ?? null) === want, JSON.stringify({ m, roomR, roomL }));
+    ok(`L1c ${width} px : ${want ? "à côté du déclencheur, alignée en haut, " : ""}entièrement visible`, want ? beside(m) : inside(m) && m.cp.r <= m.w + 1, JSON.stringify(m));
     if (width === 1280) await page.screenshot({ path: `${SHOTS}/placement-barre.png` });
     await f.locator(".cp").press("Escape");
   }

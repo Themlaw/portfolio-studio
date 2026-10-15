@@ -228,7 +228,7 @@ export function Popover({
       const inline = el.hasAttribute("data-inline");
       const anchor = trigger ?? (inline ? (el.closest<HTMLElement>(".lc-nuance-item, .lc-role-item") ?? el.parentElement) : el.parentElement);
       // Côtés : la barre ou le panneau qui contient le déclencheur (pour ne pas recouvrir ses autres boutons).
-      const frame = trigger ? (trigger.closest<HTMLElement>(".lk-bar, .tc-bar, .tc") ?? trigger) : (el.closest<HTMLElement>("aside, [data-testid=colors-panel]") ?? anchor);
+      const frame = trigger ? (trigger.closest<HTMLElement>(".lk-bar, .tc-bar, .tc") ?? trigger) : ((el.closest<HTMLElement>("aside") ?? el.closest<HTMLElement>("[data-testid=colors-panel]") ?? anchor));
       if (!anchor || !frame) return;
       const gap = 8;
       el.style.position = "";
@@ -241,8 +241,16 @@ export function Popover({
       const width = Math.min(300, view - 2 * gap);
       const f = frame.getBoundingClientRect();
       const a = anchor.getBoundingClientRect();
-      const room = { right: view - gap - f.right - gap, left: f.left - gap - gap };
-      const side = room.right >= width ? "right" : room.left >= width ? "left" : null;
+      // Côtés essayés dans l'ordre : droite puis gauche de la barre, puis (si la barre est trop large) du déclencheur seul.
+      const t = anchor.getBoundingClientRect();
+      const tries: { side: "right" | "left"; edge: number }[] = [
+        { side: "right", edge: f.right + gap },
+        { side: "left", edge: f.left - gap },
+        { side: "right", edge: t.right + gap },
+        { side: "left", edge: t.left - gap },
+      ];
+      const pick = tries.find((c) => (c.side === "right" ? view - gap - c.edge >= width : c.edge - gap >= width));
+      const side = pick?.side ?? null;
       if (!side) {
         // Dernier recours : sous le déclencheur, comme avant, sans déborder.
         el.style.translate = "0 0";
@@ -261,7 +269,7 @@ export function Popover({
       // Mesure réelle (un ancêtre transformé change le repère du « fixed ») puis correction.
       const base = el.getBoundingClientRect();
       const height = Math.min(base.height, high - 2 * gap);
-      const wantLeft = side === "right" ? f.right + gap : f.left - gap - width;
+      const wantLeft = pick!.side === "right" ? pick!.edge : pick!.edge - width;
       const wantTop = Math.max(gap, Math.min(a.top, high - gap - height));
       el.style.left = `${wantLeft - base.left}px`;
       el.style.top = `${wantTop - base.top}px`;
