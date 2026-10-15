@@ -1,8 +1,10 @@
 import { z } from "zod";
 
-import ProjectStrip from "@/components/ProjectStrip";
+import ProjectStrip, { type BoardPart } from "@/components/ProjectStrip";
 import { getProjectBoard } from "@/lib/gallery";
 
+import { renderBoardItem } from "./BlockList";
+import { itemEmpty } from "./board-layout";
 import { collection, projectSlug, type BlockContext } from "./types";
 
 export const projectBoardSchema = z.object({
@@ -21,7 +23,8 @@ export const projectBoardSchema = z.object({
 });
 
 /**
- * La planche d'un projet : son en-tête et sa bande d'images. Sur la toile de
+ * La planche d'un projet : son en-tête, puis la suite de composants du projet (lot 31) — la bande d'images, des
+ * grilles, des images, des vidéos, des textes — dans l'ordre que le projet a choisi. Sur la toile de
  * l'éditeur, une planche neuve (sans projet) laisse une place que la couche
  * d'édition remplit (nom du projet, projet existant, dépôt d'images) ; hors
  * de l'éditeur, elle n'affiche rien. Dans un conteneur sans projet propre,
@@ -33,7 +36,16 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
   if (project) {
     // Toile : si les images du projet sont en cours de modification sur une autre page, la planche
     // porte `data-edit-board-held` (ProjectStrip) et la couche d'édition l'indique au survol.
-    return <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} />;
+    // Les composants autres que la bande sont rendus ici (mêmes blocs qu'une page) ; ils appartiennent au projet,
+    // pas à la page : la planche est la même partout où elle est affichée.
+    const parts: BoardPart[] = project.layout.map((item) => ({
+      uid: item.uid,
+      type: item.type,
+      ...(item.type === "strip" ? {} : { node: renderBoardItem(item, { ...ctx, project: slug }) }),
+      // Vue brouillon : réglages du composant pour le panneau, et repère d'un composant encore vide.
+      ...(project.edit ? { props: JSON.stringify(item.props), empty: itemEmpty(item) } : {}),
+    }));
+    return <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} parts={parts} />;
   }
   if (!ctx.edit) return null;
   // Dans un conteneur encore sans projet : la planche attend le choix du conteneur.

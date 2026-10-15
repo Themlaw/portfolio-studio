@@ -1,0 +1,183 @@
+/**
+ * Contenu d'une planche de projet (lot 31) : une SUITE de composants rangés
+ * sous l'en-tête (nom, contexte, présentation). Elle appartient au PROJET (colonnes
+ * `projects.layout` / `draft_layout`, comme les textes et les emplacements), pas à la page :
+ * elle suit le projet partout où sa planche est affichée.
+ *
+ * - « Images qui défilent » (`strip`) : la bande d'images du projet (ses emplacements),
+ *   facultative, au plus une par planche.
+ * - Grille (`grid`, images et vidéos), Image (`image`, pleine largeur comprise), Vidéo
+ *   (`video-single`), Texte (`rich-text`) : les mêmes composants que sur une page, avec les
+ *   mêmes schémas (validés par le registre côté serveur).
+ *
+ * Module pur (seul import : les textes d'aide, pur lui aussi) : lu par le serveur (lecture, écriture, publication,
+ * références), l'éditeur (client) et les tests Node.
+ */
+
+import { HELP_TEXT } from "./help-text";
+
+export type BoardItemType = "strip" | "grid" | "image" | "video-single" | "rich-text";
+export type BoardItem = { uid: string; type: BoardItemType; props: Record<string, unknown> };
+
+/** Types proposés dans une planche, dans l'ordre du menu « + Ajouter ». */
+export const BOARD_ITEM_TYPES: BoardItemType[] = ["strip", "grid", "image", "video-single", "rich-text"];
+
+/** Libellés simples, tels que l'artiste les lit. */
+export const BOARD_ITEM_LABELS: Record<BoardItemType, string> = {
+  strip: "Images qui défilent",
+  grid: "Grille",
+  image: "Image",
+  "video-single": "Vidéo",
+  "rich-text": "Texte",
+};
+
+/** Une phrase par type (menu d'ajout). */
+export const BOARD_ITEM_HINTS: Record<BoardItemType, string> = {
+  strip: "Les images du projet en bande, qui défile sur le côté.",
+  grid: "Des images ou des vidéos rangées en colonnes.",
+  image: "Une image seule, jusqu'à la pleine largeur.",
+  "video-single": "Une vidéo de ta médiathèque.",
+  "rich-text": "Un paragraphe, avec un titre si tu veux.",
+};
+
+/** Composants au plus dans la suite d'une planche. */
+export const MAX_BOARD_ITEMS = 12;
+/** Composants au plus dans une grille de planche (comme une grille de page). */
+export const MAX_GRID_CHILDREN = 24;
+/** Ce qu'une grille de planche accepte : des images et des vidéos. */
+export const GRID_CHILD_TYPES = ["image", "video-single"] as const;
+/** Taille maximale de la suite sérialisée (octets). */
+export const MAX_LAYOUT_BYTES = 96 * 1024;
+
+const UID = /^[a-z0-9-]{1,32}$/;
+
+export const isBoardItemType = (t: unknown): t is BoardItemType => typeof t === "string" && (BOARD_ITEM_TYPES as string[]).includes(t);
+
+/** La suite d'un projet qui n'en a jamais eu : la bande d'images seule (rendu d'avant le lot 31). */
+export function defaultLayout(): BoardItem[] {
+  return [{ uid: "strip", type: "strip", props: {} }];
+}
+
+const isObj = (v: unknown): v is Record<string, unknown> => Boolean(v) && typeof v === "object" && !Array.isArray(v);
+
+/**
+ * Premier problème de forme d'une suite (types permis, uid bien formés et uniques, une seule bande, bornes),
+ * ou null. Les réglages de chaque composant se valident ensuite par le schéma de son type (registre).
+ */
+export function layoutProblem(raw: unknown): string | null {
+  if (!Array.isArray(raw)) return "Contenu de planche illisible.";
+  if (raw.length > MAX_BOARD_ITEMS) return `${MAX_BOARD_ITEMS} composants au plus par planche.`;
+  const uids = new Set<string>();
+  let strips = 0;
+  for (const item of raw) {
+    if (!isObj(item) || !isBoardItemType(item.type)) return "Composant de planche inconnu.";
+    if (typeof item.uid !== "string" || !UID.test(item.uid)) return "Identifiant de composant invalide.";
+    if (uids.has(item.uid)) return "Composants de planche en double.";
+    uids.add(item.uid);
+    if (!isObj(item.props)) return "Réglages d'un composant illisibles.";
+    if (item.type === "strip") {
+      strips++;
+      if (strips > 1) return "Une seule bande « Images qui défilent » par planche.";
+    }
+    const hasChildren = "children" in item.props;
+    if (item.type !== "grid") {
+      if (hasChildren) return "Seule une grille en porte d'autres.";
+      continue;
+    }
+    const kids = item.props.children;
+    if (kids === undefined) continue;
+    if (!Array.isArray(kids)) return "Contenu de la grille illisible.";
+    if (kids.length > MAX_GRID_CHILDREN) return `${MAX_GRID_CHILDREN} composants au plus par grille.`;
+    for (const kid of kids) {
+      if (!isObj(kid) || typeof kid.type !== "string" || !(GRID_CHILD_TYPES as readonly string[]).includes(kid.type)) return "Une grille de planche n'accepte que des images et des vidéos.";
+      if (typeof kid.uid !== "string" || !UID.test(kid.uid) || uids.has(kid.uid)) return "Identifiant de composant invalide.";
+      uids.add(kid.uid);
+      if (!isObj(kid.props) || "children" in kid.props) return "Réglages d'un composant illisibles.";
+    }
+  }
+  try {
+    if (JSON.stringify(raw).length > MAX_LAYOUT_BYTES) return "Le contenu de cette planche est trop lourd.";
+  } catch {
+    return "Contenu de planche illisible.";
+  }
+  return null;
+}
+
+/**
+ * La suite lue en base : absente (projet jamais touché) = la bande seule ; illisible = la bande seule aussi
+ * (jamais de planche cassée en public).
+ */
+export function readLayout(raw: unknown): BoardItem[] {
+  if (raw === null || raw === undefined) return defaultLayout();
+  return layoutProblem(raw) === null ? (raw as BoardItem[]) : defaultLayout();
+}
+
+/** Identifiants de médias cités par une suite (images, vidéos, images d'attente, cellules de grille). */
+export function layoutMediaIds(items: BoardItem[]): number[] {
+  const out: number[] = [];
+  const take = (props: Record<string, unknown>, keys: string[]) => {
+    for (const k of keys) {
+      const v = props[k];
+      if (typeof v === "number" && Number.isInteger(v)) out.push(v);
+    }
+  };
+  for (const item of items) {
+    if (item.type === "image") take(item.props, ["mediaId"]);
+    else if (item.type === "video-single") take(item.props, ["mediaId", "posterMediaId"]);
+    else if (item.type === "grid" && Array.isArray(item.props.children)) {
+      for (const kid of item.props.children as { type?: unknown; props?: unknown }[]) {
+        if (!isObj(kid.props)) continue;
+        if (kid.type === "image") take(kid.props, ["mediaId"]);
+        else if (kid.type === "video-single") take(kid.props, ["mediaId", "posterMediaId"]);
+      }
+    }
+  }
+  return out;
+}
+
+/** Le composant n'a encore rien à montrer (image sans image, grille vide…) : vide en public, repère sur la toile. */
+export function itemEmpty(item: BoardItem): boolean {
+  const p = item.props;
+  switch (item.type) {
+    case "strip":
+      return false;
+    case "image":
+    case "video-single":
+      return typeof p.mediaId !== "number" && !(item.type === "video-single" && typeof p.slot === "string");
+    case "grid":
+      return !Array.isArray(p.children) || p.children.length === 0;
+    case "rich-text":
+      return !Array.isArray(p.paragraphs) || !(p.paragraphs as { fr?: string; en?: string }[]).some((x) => x && (x.fr || x.en));
+  }
+}
+
+/** Nombre d'images et de vidéos que les composants hors bande affichent (compteur « N œuvres » de la page). */
+export function mediaCount(items: BoardItem[]): number {
+  let n = 0;
+  for (const item of items) {
+    if (item.type === "image" || item.type === "video-single") n += itemEmpty(item) ? 0 : 1;
+    else if (item.type === "grid" && Array.isArray(item.props.children)) {
+      n += (item.props.children as { props?: { mediaId?: unknown } }[]).filter((k) => typeof k?.props?.mediaId === "number").length;
+    }
+  }
+  return n;
+}
+
+/** Même suite ? (comparaison de contenu, pour savoir si une surcouche est utile). */
+export const sameLayout = (a: BoardItem[], b: BoardItem[]): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+/** Composant neuf (réglages de départ), `uid` fourni par l'appelant. */
+export function newBoardItem(type: BoardItemType, uid: string): BoardItem {
+  switch (type) {
+    case "strip":
+      return { uid, type, props: {} };
+    case "grid":
+      return { uid, type, props: { layout: "3", children: [] } };
+    case "image":
+      return { uid, type, props: { width: "full" } };
+    case "video-single":
+      return { uid, type, props: { variant: "plain", mode: "player" } };
+    case "rich-text":
+      return { uid, type, props: { paragraphs: [{ ...HELP_TEXT.paragraph }] } };
+  }
+}

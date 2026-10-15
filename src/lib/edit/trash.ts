@@ -34,6 +34,7 @@ export function purgePage(id: number): boolean {
       .where(eq(schema.slots.draftPageId, id))
       .run();
     tx.update(schema.projects).set({ draftText: null, draftTextPageId: null }).where(eq(schema.projects.draftTextPageId, id)).run();
+    tx.update(schema.projects).set({ draftLayout: null, draftLayoutPageId: null }).where(eq(schema.projects.draftLayoutPageId, id)).run();
     // Projets créés dans son brouillon (jamais publiés) : partent avec elle (clé étrangère en cascade).
     tx.delete(schema.pages).where(eq(schema.pages.id, id)).run();
   });

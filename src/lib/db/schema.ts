@@ -12,6 +12,8 @@
 import { sql } from "drizzle-orm";
 import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 
+import type { BoardItem } from "@/blocks/board-layout";
+
 export type Localized = { fr: string; en: string };
 
 /** Thèmes : `data` est un document validé par ThemeSchema (src/themes/schema.ts). */
@@ -143,6 +145,18 @@ export const projects = sqliteTable("projects", {
    */
   draftText: text("draft_text", { mode: "json" }).$type<{ title: Localized; context: Localized; description: Localized; year: string }>(),
   draftTextPageId: integer("draft_text_page_id").references((): AnySQLiteColumn => pages.id, { onDelete: "set null" }),
+  /**
+   * Contenu de la planche (lot 31) : la suite de composants rendue sous l'en-tête (Images qui défilent, Grille,
+   * Image, Vidéo, Texte ; src/blocks/board-layout.ts). null = jamais réglée = la bande d'images seule. Appartient au
+   * projet : elle suit sa planche partout où elle est affichée.
+   */
+  layout: text("layout", { mode: "json" }).$type<BoardItem[]>(),
+  /**
+   * Surcouche de cette suite portée par le brouillon d'une page (comme `draft_text`) : null = pas de surcouche. Le site
+   * public ne la lit jamais ; publier la page l'applique, « Abandonner » l'efface.
+   */
+  draftLayout: text("draft_layout", { mode: "json" }).$type<BoardItem[]>(),
+  draftLayoutPageId: integer("draft_layout_page_id").references((): AnySQLiteColumn => pages.id, { onDelete: "set null" }),
   /** Corbeille (lot 23) : date de mise à la corbeille ; null = projet du site. Purgé 30 jours après. */
   deletedAt: integer("deleted_at", { mode: "timestamp" }),
 });

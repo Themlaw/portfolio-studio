@@ -402,6 +402,7 @@ export function deletePage(id: number): ActionResult<{ title: string }> | { ok: 
       .where(eq(schema.slots.draftPageId, id))
       .run();
     tx.update(schema.projects).set({ draftText: null, draftTextPageId: null }).where(eq(schema.projects.draftTextPageId, id)).run();
+    tx.update(schema.projects).set({ draftLayout: null, draftLayoutPageId: null }).where(eq(schema.projects.draftLayoutPageId, id)).run();
     // Menu et brouillon de l'en-tête portés par cette page.
     const inMenu = isPageInNav(id);
     setPageInNav(id, false);

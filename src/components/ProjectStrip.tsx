@@ -2,12 +2,13 @@
 
 import LoopFrame from "./LoopVideo";
 import Picture from "./Picture";
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import Lightbox from "@/components/Lightbox";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
+import { BOARD_ITEM_LABELS, type BoardItemType } from "@/blocks/board-layout";
 import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedProject } from "@/lib/gallery";
 import { RADIUS_VALUES } from "@/themes/css";
@@ -33,6 +34,14 @@ function stripSizes(width: number, height: number): string {
   return `(min-width: 1236px) ${px(420)}, (min-width: 765px) calc(34vw * ${ratio.toFixed(3)}), ${px(260)}`;
 }
 
+/**
+ * Un composant de la suite de la planche (lot 31), prêt à poser sous l'en-tête. La bande d'images
+ * (`strip`) est rendue ici même (elle a besoin des œuvres et de l'état de défilement) ; les autres
+ * composants arrivent déjà rendus par le serveur (`node`, mêmes blocs qu'une page).
+ * `props` / `empty` : vue brouillon seulement (repère des réglages, composant encore vide).
+ */
+export type BoardPart = { uid: string; type: BoardItemType; node?: ReactNode; empty?: boolean; props?: string };
+
 export default function ProjectStrip({
   project,
   deep = false,
@@ -40,6 +49,7 @@ export default function ProjectStrip({
   showHeader = true,
   collection,
   slotRadius,
+  parts,
 }: {
   project: LocalizedProject;
   /** Fond papier profond, pour séparer deux projets sans boîte ni bordure. */
@@ -51,6 +61,8 @@ export default function ProjectStrip({
   collection?: string;
   /** Arrondi par image (réglage `look.slotRadius` du bloc, par slug d'emplacement). */
   slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
+  /** Suite de composants de la planche ; absente (anciens blocs de projets) : la bande d'images seule. */
+  parts?: BoardPart[];
 }) {
   const t = useTranslations("projects");
   /** Variable d'arrondi d'une image réglée seule (sinon celle du bloc / du thème). */
@@ -66,6 +78,8 @@ export default function ProjectStrip({
   const shownArtworks = edit ? project.artworks.filter((a) => !a.edit?.empty) : project.artworks;
   const tg = useTranslations("gallery");
   const Heading = headingLevel;
+  // La bande d'images est un composant facultatif de la planche : sans elle, ni compteur ni « Ajouter des images ».
+  const hasStrip = !parts || parts.some((p) => p.type === "strip");
 
   const railId = `rail-${project.slug}`;
   const railRef = useRef<HTMLDivElement | null>(null);
@@ -168,7 +182,7 @@ export default function ProjectStrip({
       observer.disconnect();
       cancelAnimationFrame(frame);
     };
-  }, [project.artworks.length, overflows]);
+  }, [project.artworks.length, overflows, hasStrip]);
 
   const step = useCallback((direction: 1 | -1) => {
     const rail = railRef.current;
@@ -187,64 +201,9 @@ export default function ProjectStrip({
     }
   }, [openIndex]);
 
-  return (
-    <section
-      className={`strip py-[clamp(3rem,7vw,5.5rem)] ${deep ? "strip-deep bg-bg-deep" : ""}`}
-      aria-labelledby={`project-${project.slug}`}
-      {...(edit ? { ...boardMarks(edit), "data-edit-board-label": project.title, ...(collection ? { "data-edit-board-collection": collection } : {}) } : {})}
-    >
-      <header className="shell flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
-        {showHeader && (
-        <div className="max-w-2xl">
-          <p className="eyebrow">
-            {/* Séparateur seulement entre deux parties non vides ; mêmes nœuds de texte
-                qu'avant quand les deux existent (parité au pixel). Vue brouillon :
-                contexte et année se modifient en place. */}
-            {editable ? (
-              <>
-                <span data-project-inline="context" data-placeholder="Contexte">
-                  {project.context}
-                </span>
-                {" · "}
-                <span data-project-inline="year" data-placeholder="Année">
-                  {project.year}
-                </span>
-              </>
-            ) : project.context && project.year ? (
-              <>
-                {project.context} · {project.year}
-              </>
-            ) : (
-              project.context || project.year
-            )}
-          </p>
-          <Heading
-            id={`project-${project.slug}`}
-            className="mt-3 font-display text-[clamp(2.2rem,5.5vw,3.5rem)] text-ink"
-            {...(editable ? { "data-project-inline": "title", "data-placeholder": "Nom du projet" } : {})}
-          >
-            {project.title}
-          </Heading>
-          <p
-            className="mt-4 text-base leading-relaxed text-ink-soft"
-            {...(editable ? { "data-project-inline": "description", "data-placeholder": "Présentation du projet" } : {})}
-          >
-            {project.description}
-          </p>
-        </div>
-        )}
-
-        <span className="eyebrow strip-count">
-          {tg("count", { count: shownArtworks.length })}
-        </span>
-        {/* Toile de l'éditeur : « Ajouter des images » (fichiers de l'ordinateur) à la fin de la planche ; jamais en public. */}
-        {edit && (
-          <button type="button" className="pe-board-add" data-edit-board-add="" lang="fr">
-            Ajouter des images
-          </button>
-        )}
-      </header>
-
+  // La bande d'images : bande défilante, flèches et barre de défilement (UN composant de la suite de la planche).
+  const stripBody = (
+    <>
       <div ref={viewportRef} className="strip-viewport" data-overflows="false" data-at-start="true" data-at-end="false">
       <div
         ref={railRef}
@@ -421,13 +380,159 @@ export default function ProjectStrip({
           />
         </div>
       )}
+    </>
+  );
 
-      <Lightbox
-        items={shownArtworks}
-        index={openIndex}
-        onIndexChange={setOpenIndex}
-        onClose={() => setOpenIndex(null)}
-      />
+  /** Suite de composants sous l'en-tête : sans `parts` (anciens blocs), la bande seule, comme avant le lot 31. */
+  const content = !parts ? (
+    stripBody
+  ) : edit ? (
+    <div className="pe-bitems" data-edit-bitems="">
+      {parts.map((part, i) => (
+        <Fragment key={part.uid}>
+          <BoardAdd board={edit.id} index={i} />
+          <BoardItemFrame board={edit.id} part={part} index={i} count={parts.length}>
+            {part.type === "strip" ? stripBody : part.node}
+          </BoardItemFrame>
+        </Fragment>
+      ))}
+      <BoardAdd board={edit.id} index={parts.length} last empty={parts.length === 0} />
+    </div>
+  ) : (
+    parts.map((part) => <Fragment key={part.uid}>{part.type === "strip" ? stripBody : part.node}</Fragment>)
+  );
+
+  return (
+    <section
+      className={`strip py-[clamp(3rem,7vw,5.5rem)] ${deep ? "strip-deep bg-bg-deep" : ""}`}
+      aria-labelledby={`project-${project.slug}`}
+      {...(edit ? { ...boardMarks(edit), "data-edit-board-label": project.title, ...(collection ? { "data-edit-board-collection": collection } : {}) } : {})}
+    >
+      <header className="shell flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
+        {showHeader && (
+        <div className="max-w-2xl">
+          <p className="eyebrow">
+            {/* Séparateur seulement entre deux parties non vides ; mêmes nœuds de texte
+                qu'avant quand les deux existent (parité au pixel). Vue brouillon :
+                contexte et année se modifient en place. */}
+            {editable ? (
+              <>
+                <span data-project-inline="context" data-placeholder="Contexte">
+                  {project.context}
+                </span>
+                {" · "}
+                <span data-project-inline="year" data-placeholder="Année">
+                  {project.year}
+                </span>
+              </>
+            ) : project.context && project.year ? (
+              <>
+                {project.context} · {project.year}
+              </>
+            ) : (
+              project.context || project.year
+            )}
+          </p>
+          <Heading
+            id={`project-${project.slug}`}
+            className="mt-3 font-display text-[clamp(2.2rem,5.5vw,3.5rem)] text-ink"
+            {...(editable ? { "data-project-inline": "title", "data-placeholder": "Nom du projet" } : {})}
+          >
+            {project.title}
+          </Heading>
+          <p
+            className="mt-4 text-base leading-relaxed text-ink-soft"
+            {...(editable ? { "data-project-inline": "description", "data-placeholder": "Présentation du projet" } : {})}
+          >
+            {project.description}
+          </p>
+        </div>
+        )}
+
+        {hasStrip && (
+        <span className="eyebrow strip-count">
+          {tg("count", { count: shownArtworks.length })}
+        </span>
+        )}
+        {/* Toile de l'éditeur : « Ajouter des images » (fichiers de l'ordinateur) à la fin de la planche ; jamais en public. */}
+        {edit && hasStrip && (
+          <button type="button" className="pe-board-add" data-edit-board-add="" lang="fr">
+            Ajouter des images
+          </button>
+        )}
+      </header>
+
+      {content}
+
+      {hasStrip && (
+        <Lightbox
+          items={shownArtworks}
+          index={openIndex}
+          onIndexChange={setOpenIndex}
+          onClose={() => setOpenIndex(null)}
+        />
+      )}
     </section>
+  );
+}
+
+/**
+ * Toile de l'éditeur : « + Ajouter » entre deux composants de la planche et en bas (discret, visible au survol
+ * de la planche ou au focus ; BoardLayer ouvre le menu des composants permis). Posé en flux sans hauteur : il ne
+ * décale rien. Jamais en public.
+ */
+function BoardAdd({ board, index, last = false, empty = false }: { board: number; index: number; last?: boolean; empty?: boolean }) {
+  return (
+    <div className="pe-bitem-add" data-last={last || undefined} data-empty={empty || undefined} lang="fr">
+      <button type="button" data-edit-bitem-add={index} data-board={board} aria-haspopup="menu">
+        <span aria-hidden="true">+</span> {empty ? "Ajouter un composant" : "Ajouter"}
+        <span className="sr-only"> {index === 0 ? "en tête de la planche" : last ? "en bas de la planche" : `après le composant ${index}`}</span>
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Toile de l'éditeur : enveloppe d'un composant de la planche, avec sa barre (monter, descendre, réglages,
+ * supprimer). Les boutons sont de vrais boutons : le clavier les atteint, BoardLayer les écoute.
+ */
+function BoardItemFrame({ board, part, index, count, children }: { board: number; part: BoardPart; index: number; count: number; children: ReactNode }) {
+  const label = BOARD_ITEM_LABELS[part.type];
+  const op = (name: "up" | "down" | "remove" | "settings", text: string, glyph: string, disabled = false) => (
+    <button type="button" className="pe-bitem-btn" data-edit-bitem-op={name} data-uid={part.uid} data-board={board} disabled={disabled} aria-label={`${text} — ${label}`} title={text}>
+      <span aria-hidden="true">{glyph}</span>
+    </button>
+  );
+  return (
+    <div
+      className="pe-bitem"
+      data-edit-bitem={part.uid}
+      data-edit-bitem-type={part.type}
+      data-board={board}
+      {...(part.props ? { "data-edit-bitem-props": part.props } : {})}
+      lang="fr"
+    >
+      <div className="pe-bitem-bar" role="group" aria-label={`${label}, composant ${index + 1} sur ${count}`}>
+        <span className="pe-bitem-name">{label}</span>
+        {part.type !== "strip" && (
+          <button type="button" className="pe-bitem-btn pe-bitem-edit" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
+            Réglages
+          </button>
+        )}
+        {op("up", "Monter", "↑", index === 0)}
+        {op("down", "Descendre", "↓", index === count - 1)}
+        {op("remove", "Supprimer", "✕")}
+      </div>
+      {part.type !== "strip" && part.empty ? (
+        <div className="pe-bitem-empty" data-edit-bitem-pick="">
+          <p>{label} : rien à montrer pour le moment.</p>
+          <button type="button" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
+            {part.type === "rich-text" ? "Écrire le texte" : part.type === "grid" ? "Choisir les images" : part.type === "image" ? "Choisir une image" : "Choisir une vidéo"}
+          </button>
+        </div>
+      ) : (
+        children
+      )}
+    </div>
   );
 }

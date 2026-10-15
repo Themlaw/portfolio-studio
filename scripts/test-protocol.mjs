@@ -77,6 +77,11 @@ ok("éditeur → toile : révision négative ou décimale ignorée", acceptToCan
 ok("planches : déplacement d'image valide accepté", acceptFromCanvas(msg({ kind: "slot-move", board: 3, key: "s12", index: 2 }), ORIGIN, frame)?.key === "s12");
 ok("planches : clé d'emplacement mal formée ignorée", acceptFromCanvas(msg({ kind: "slot-op", board: 3, key: "../12", op: "remove" }), ORIGIN, frame) === null);
 ok("planches : opération inconnue ignorée", acceptFromCanvas(msg({ kind: "slot-op", board: 3, key: "s12", op: "detruire" }), ORIGIN, frame) === null);
+ok("planche composée (lot 31) : ajout d'un composant accepté (champ `item`, pas `type`)", acceptFromCanvas(msg({ kind: "bitem-add", board: 3, item: "grid", index: 1 }), ORIGIN, frame)?.kind === "bitem-add");
+ok("planche composée : type inconnu ignoré", acceptFromCanvas(msg({ kind: "bitem-add", board: 3, item: "hero", index: 1 }), ORIGIN, frame) === null);
+ok("planche composée : position hors bornes ignorée", acceptFromCanvas(msg({ kind: "bitem-add", board: 3, item: "image", index: 99 }), ORIGIN, frame) === null);
+ok("planche composée : monter / descendre / supprimer, uid contrôlé", acceptFromCanvas(msg({ kind: "bitem-op", board: 3, uid: "c1", op: "remove" }), ORIGIN, frame)?.kind === "bitem-op" && acceptFromCanvas(msg({ kind: "bitem-op", board: 3, uid: "../x", op: "up" }), ORIGIN, frame) === null && acceptFromCanvas(msg({ kind: "bitem-op", board: 3, uid: "c1", op: "detruire" }), ORIGIN, frame) === null);
+ok("planche composée : sélection avec réglages bornés", acceptFromCanvas(msg({ kind: "bitem-select", board: 3, uid: "c1", item: "grid", props: "{}" }), ORIGIN, frame)?.kind === "bitem-select" && acceptFromCanvas(msg({ kind: "bitem-select", board: 3, uid: "c1", item: "grid", props: "x".repeat(100001) }), ORIGIN, frame) === null);
 ok("planches : fichiers qui n'en sont pas → ignoré", acceptFromCanvas(msg({ kind: "files", target: { kind: "board", board: 3, index: 0 }, files: ["/etc/passwd"] }), ORIGIN, frame) === null);
 ok("planches : vrais fichiers acceptés", acceptFromCanvas(msg({ kind: "files", target: { kind: "board", board: 3, index: 0 }, files: [new File(["x"], "a.png", { type: "image/png" })] }), ORIGIN, frame)?.files.length === 1);
 ok("planches : cible de dépôt inconnue ignorée", acceptFromCanvas(msg({ kind: "drop-target", target: { kind: "ailleurs" } }), ORIGIN, frame) === null);

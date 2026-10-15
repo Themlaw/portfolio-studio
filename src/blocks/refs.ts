@@ -92,8 +92,15 @@ export type BlockRow = { id: number; pageId: number; type: string; props: unknow
 /** `draftPageId` : page dont le brouillon (éditeur visuel) est la raison de cette utilisation, sinon absent. */
 export type SlotRow = { id: number; projectId: number; slug: string; mediaId: number | null; draftPageId?: number | null };
 
+/**
+ * Contenu de planche d'un projet (lot 31) : médias cités par la suite publiée et par la surcouche d'une page
+ * (`draftPageId`, la page qui la tient).
+ */
+export type LayoutRow = { projectId: number; slug: string; published: number[]; draft: number[]; draftPageId?: number | null };
+
 export type Usage =
   | { kind: "slot"; slotId: number; projectId: number; slug: string; draftPageId?: number }
+  | { kind: "layout"; projectId: number; slug: string; draftPageId?: number }
   | { kind: "block"; blockId: number; pageId: number; type: string; path: "media" | "pages" | "projects" };
 
 /**
@@ -103,12 +110,20 @@ export type Usage =
  * place (sans quoi le compteur disait 1 et le détail 2). Deux blocs de même type sur une page : le plus grand
  * des deux nombres (publié / brouillon) fait foi.
  */
-export function mediaUsageIndex(rows: { slots: SlotRow[]; blocks: BlockRow[] }): Map<number, Usage[]> {
+export function mediaUsageIndex(rows: { slots: SlotRow[]; blocks: BlockRow[]; layouts?: LayoutRow[] }): Map<number, Usage[]> {
   const out = new Map<number, Usage[]>();
   const push = (media: number, u: Usage) => out.set(media, [...(out.get(media) ?? []), u]);
   for (const s of rows.slots) {
     if (s.mediaId !== null && !(out.get(s.mediaId) ?? []).some((u) => u.kind === "slot" && u.slotId === s.id)) {
       push(s.mediaId, { kind: "slot", slotId: s.id, projectId: s.projectId, slug: s.slug, ...(s.draftPageId ? { draftPageId: s.draftPageId } : {}) });
+    }
+  }
+  // Contenu de planche : une utilisation par projet et par média (publiée, ou seulement dans le brouillon de la page qui la tient).
+  for (const l of rows.layouts ?? []) {
+    const published = new Set(l.published);
+    for (const media of new Set([...l.published, ...l.draft])) {
+      const onlyDraft = !published.has(media);
+      push(media, { kind: "layout", projectId: l.projectId, slug: l.slug, ...(onlyDraft && l.draftPageId ? { draftPageId: l.draftPageId } : {}) });
     }
   }
   const counts = new Map<string, { media: number; row: BlockRow; published: number; draft: number }>();
@@ -131,7 +146,7 @@ export function mediaUsageIndex(rows: { slots: SlotRow[]; blocks: BlockRow[] }):
 }
 
 /** Où un média est utilisé : slots de planche et props de blocs (voir `mediaUsageIndex`). */
-export function mediaUsages(mediaId: number, rows: { slots: SlotRow[]; blocks: BlockRow[] }): Usage[] {
+export function mediaUsages(mediaId: number, rows: { slots: SlotRow[]; blocks: BlockRow[]; layouts?: LayoutRow[] }): Usage[] {
   return mediaUsageIndex(rows).get(mediaId) ?? [];
 }
 

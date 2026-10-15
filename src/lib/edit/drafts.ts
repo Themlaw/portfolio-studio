@@ -28,6 +28,9 @@
  * (`draft_text`, `draft_text_page_id`) — le projet reste la source unique de
  * ses textes, modifiables depuis tout bloc qui le montre ; publier la page qui
  * cite le projet les applique, « Abandonner » les efface.
+ *
+ * Contenu de la planche d'un projet (lot 31) : surcouche du même genre (`draft_layout`, `draft_layout_page_id`) ;
+ * appliquée à la publication de la page qui AFFICHE la planche, effacée à l'abandon.
  */
 import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
 import { z } from "zod";
@@ -39,6 +42,7 @@ import { getPageForEdit } from "@/lib/admin";
 import { getDb, schema } from "@/lib/db";
 import { own } from "@/lib/own";
 
+import { checkLayout, incompleteLayouts } from "./board-layout";
 import { deprecatedProblem, formIdProblem, mediaKindProblem, savePage } from "./pages";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
 import { applySiteDraft, discardSiteDraft } from "./site";
@@ -379,6 +383,37 @@ export function applyProjectTextDrafts(pageId: number, cited: Set<number>): numb
   return touched;
 }
 
+const CLEAR_LAYOUT = { draftLayout: null, draftLayoutPageId: null } as const;
+
+/**
+ * Applique le contenu de planche porté par le brouillon d'une page (publication). `shown` : projets dont la page
+ * publiée affiche la planche ; la surcouche d'un autre projet est effacée sans être appliquée, comme celle d'une
+ * suite devenue invalide (dernier garde-fou). Renvoie les projets touchés (revalidation).
+ */
+export function applyProjectLayoutDrafts(pageId: number, shown: Set<number>): number[] {
+  const db = getDb();
+  const rows = db.select().from(schema.projects).where(eq(schema.projects.draftLayoutPageId, pageId)).all();
+  const touched: number[] = [];
+  for (const p of rows) {
+    const checked = p.draftLayout && shown.has(p.id) ? checkLayout(p.draftLayout, { complete: true }) : null;
+    if (checked && "layout" in checked) {
+      db.update(schema.projects).set({ layout: checked.layout, updatedAt: new Date(), ...CLEAR_LAYOUT }).where(eq(schema.projects.id, p.id)).run();
+    } else {
+      db.update(schema.projects).set(CLEAR_LAYOUT).where(eq(schema.projects.id, p.id)).run();
+    }
+    touched.push(p.id);
+  }
+  return touched;
+}
+
+/** Efface le contenu de planche porté par le brouillon d'une page (abandon, suppression). */
+export function discardProjectLayoutDrafts(pageId: number): number[] {
+  const db = getDb();
+  const ids = db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.draftLayoutPageId, pageId)).all().map((r) => r.id);
+  if (ids.length) db.update(schema.projects).set(CLEAR_LAYOUT).where(eq(schema.projects.draftLayoutPageId, pageId)).run();
+  return ids;
+}
+
 /** Efface les textes de projet portés par le brouillon d'une page (abandon, suppression). */
 export function discardProjectTextDrafts(pageId: number): number[] {
   const db = getDb();
@@ -400,7 +435,7 @@ export function discardSlotDrafts(pageId: number): number[] {
   }
   // Projets créés dans ce brouillon (emplacements en cascade).
   db.delete(schema.projects).where(eq(schema.projects.draftPageId, pageId)).run();
-  return [...new Set([...rows.map((s) => s.projectId), ...discardProjectTextDrafts(pageId)])];
+  return [...new Set([...rows.map((s) => s.projectId), ...discardProjectTextDrafts(pageId), ...discardProjectLayoutDrafts(pageId)])];
 }
 
 /**
@@ -463,6 +498,8 @@ export function publishDraft(pageId: number, rev: unknown): DraftResult<PublishR
   if (empty) return fail("Publication impossible : corrige ce qui est signalé.", empty);
   const invalidText = invalidProjectTexts(pageId, new Set(referencedProjects(state.draft.blocks)));
   if (invalidText) return fail(invalidText);
+  const invalidLayout = incompleteLayouts(pageId, new Set(displayedProjects(state.draft.blocks)));
+  if (invalidLayout) return fail(invalidLayout);
   // Version publiée lue AVANT l'écriture : les projets retirés du brouillon
   // sont revalidés eux aussi.
   const before = getPageForEdit(pageId);
@@ -479,6 +516,7 @@ export function publishDraft(pageId: number, rev: unknown): DraftResult<PublishR
       const touched = [
         ...applySlotDrafts(pageId, new Set(displayedProjects(draft.blocks))),
         ...applyProjectTextDrafts(pageId, new Set(referencedProjects(draft.blocks))),
+        ...applyProjectLayoutDrafts(pageId, new Set(displayedProjects(draft.blocks))),
       ];
       settleDraftProjects(pageId, draft.blocks);
       const site = applySiteDraft(pageId);
@@ -547,6 +585,8 @@ export function savePageFromForm(pageId: number, input: unknown, rev: unknown): 
   if (isCorrupt(row.draft)) return corruptRefusal(row.rev);
   const invalidText = invalidProjectTexts(pageId, new Set(referencedProjects((input as { blocks?: { type: string; props: unknown }[] })?.blocks ?? [])));
   if (invalidText) return fail(invalidText);
+  const invalidLayout = incompleteLayouts(pageId, new Set(displayedProjects((input as { blocks?: { type: string; props: unknown }[] })?.blocks ?? [])));
+  if (invalidLayout) return fail(invalidLayout);
   const before = getPageForEdit(pageId);
   const draftBlocks = (DraftSchema.safeParse(row.draft).data?.blocks ?? []) as DraftBlock[];
   const db = getDb();
@@ -562,6 +602,7 @@ export function savePageFromForm(pageId: number, input: unknown, rev: unknown): 
       const touched = [
         ...applySlotDrafts(pageId, new Set(displayedProjects(formBlocks))),
         ...applyProjectTextDrafts(pageId, new Set(referencedProjects(formBlocks))),
+        ...applyProjectLayoutDrafts(pageId, new Set(displayedProjects(formBlocks))),
       ];
       settleDraftProjects(pageId, formBlocks);
       const site = applySiteDraft(pageId);

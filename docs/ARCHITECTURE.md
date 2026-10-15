@@ -1480,3 +1480,30 @@ de même couleur (`outline`), sans toucher ni à `display` ni au padding : aucun
 (et la couleur de texte lisible) sur `#contenu p` seulement, jamais sur les `li` de structure (réseaux du Profil, cartes
 vidéo, pages du CV). Menu et nom du site, éléments en ligne, gardent le bandeau `inline-block`. Mesuré dans
 `scripts/test-highlight-layout.mjs`.
+
+## Planche composée (v0.23, lot 31)
+
+Le contenu d'un projet est une SUITE de composants rendue sous l'en-tête de la planche (nom, contexte, présentation) :
+« Images qui défilent » (`strip`, la bande d'images du projet, facultative, une seule), Grille (images / vidéos), Image
+(pleine largeur comprise), Vidéo, Texte. Module pur : `src/blocks/board-layout.ts` (types, bornes : 12 composants, 24
+éléments par grille, `layoutProblem`, `readLayout`).
+
+- **Stockage = le motif des textes du projet** : `projects.layout` (JSON publié ; `null` = jamais réglée = la bande seule,
+  rendu d'avant) + surcouche `projects.draft_layout` / `draft_layout_page_id` portée par le brouillon de la page qui AFFICHE
+  la planche (migration 0025). Le composant appartient au projet : toute page qui montre sa planche montre la version
+  PUBLIÉE ; seule la page qui tient la surcouche voit et modifie le brouillon (l'autre est refusée, la page est nommée).
+  Publier la page applique la surcouche (`applyProjectLayoutDrafts`, seulement si la planche est encore affichée), « Abandonner »
+  l'efface (`discardProjectLayoutDrafts`), supprimer la page aussi. Un projet créé dans CE brouillon garde sa suite sur sa ligne.
+  Choix écarté : mettre la suite dans `pages.draft` (une copie par page, deux pages divergent).
+- **Migration 0025** (`src/lib/db/project-layout.ts`) : idempotente, chaque projet sans suite reçoit [Images qui défilent] ;
+  rappelée après le seed. Rendu strictement identique (HTML public comparé à v0.22.0 sur six pages).
+- **Écriture** (`boards.ts`) : `BoardSnap.layout`, ops `item-add` / `item-move` / `item-remove` / `item-set`, Annuler /
+  Rétablir par l'instantané. `src/lib/edit/board-layout.ts` : `checkLayout` (schémas du registre, médias existants / du bon
+  genre / hors corbeille ; à la publication, mêmes exigences qu'une rubrique : image choisie, texte d'exemple remplacé).
+- **Rendu** : `ProjectBoardBlock` rend les composants (`renderBoardItem` de `BlockList`, `ctx.edit` faux) et les passe à
+  `ProjectStrip` (`parts`). Vue brouillon : enveloppes `data-edit-bitem*`, « + Ajouter » (`data-edit-bitem-add`) et barre de
+  chaque composant, gérés par `BoardLayer` ; messages `bitem-add` / `bitem-op` / `bitem-select` (champ `item`, `type` est
+  l'enveloppe) ; réglages dans le panneau (`BoardItemPanel`, mêmes formulaires que les rubriques).
+- **Références** : `layoutMediaIds`, `mediaUsageIndex` (usage `layout`, montré comme une place de la planche) : un média d'une
+  grille / image de planche est « utilisé » (publié ou brouillon).
+- Limites : pas de glisser-déposer de média sur un composant de la toile (panneau seulement), pas de texte modifiable en place.
