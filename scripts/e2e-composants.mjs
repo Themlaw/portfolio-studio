@@ -61,7 +61,8 @@ const GROUPS = ["Texte", "Projets", "Images et vidéos", "Grilles", "Autres"];
 const CONTENT = {
   Texte: ["Texte", "Titre", "Titre + texte"],
   Projets: ["Planche d'un projet"],
-  "Images et vidéos": ["Image", "Vidéo"],
+  // Lot 31b : « Images qui défilent » (carrousel, à glisser dans une planche) rejoint le groupe.
+  "Images et vidéos": ["Image", "Vidéo", "Images qui défilent"],
   // Lot 27 : Grille et Contact proposent leurs modèles sous leur carte ; plus de « Formulaire de contact » à part.
   Grilles: ["Grille"],
   Autres: ["CV", "Profil", "Contact", "Lien vers une page", "Ouverture", "Entrées des collections"],

@@ -428,20 +428,19 @@ await section("D", async () => {
   m = await measure(f, "Bravo");
   const ch = await measure(f, "Charlie");
   ok("D13b même bordure : fusion, pas de trait au raccord, bordure continue autour du groupe", m.cardJoin[1] && ch.cardJoin[0] && near(m.border.b, 0) && near(ch.border.t, 0) && near(m.border.t, 6, 0.6) && near(m.border.l, 6, 0.6) && near(ch.border.l, 6, 0.6) && near(ch.border.b, 6, 0.6) && near(m.card.b, ch.card.t, 1.5), JSON.stringify([m.border, ch.border, m.cardJoin, ch.cardJoin, m.card, ch.card]));
-  ok("D13b publication", await publish());
-  const anon2 = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const pub2 = await anon2.newPage();
-  await pub2.goto(PUBLIC, { waitUntil: "networkidle" });
-  const pb = await measure(pub2, "Bravo");
-  const pc = await measure(pub2, "Charlie");
-  ok("D13b public : un seul groupe bordé (jonction sans trait, tour complet)", pb.cardJoin[1] && pc.cardJoin[0] && near(pb.border.b, 0) && near(pc.border.t, 0) && near(pb.border.l, 6, 0.6) && near(pc.border.b, 6, 0.6) && near(pb.card.b, pc.card.t, 1.5), JSON.stringify([pb.border, pc.border]));
-  await pub2.screenshot({ path: path.join(SHOTS, "d14-groupe-borde.png"), fullPage: true });
-  await anon2.close();
-  // Remise à l'état d'avant pour la suite (Charlie sans aucun réglage : la section D' en dépend) : Annuler deux fois, puis publier.
+  // Même rendu en vue brouillon du serveur (nouvel onglet de la même session, sans publier : l'état de la suite reste celui d'avant).
+  const view = await ctx.newPage();
+  await view.goto(PUBLIC, { waitUntil: "networkidle" });
+  const pb = await measure(view, "Bravo");
+  const pc = await measure(view, "Charlie");
+  ok("D13b rendu serveur : un seul groupe bordé (jonction sans trait, tour complet)", pb.cardJoin?.[1] && pc.cardJoin?.[0] && near(pb.border.b, 0) && near(pc.border.t, 0) && near(pb.border.l, 6, 0.6) && near(pc.border.b, 6, 0.6) && near(pb.card.b, pc.card.t, 1.5), JSON.stringify([pb.border, pc.border, pb.cardJoin, pc.cardJoin]));
+  await view.screenshot({ path: path.join(SHOTS, "d13b-groupe-borde.png"), fullPage: true });
+  await view.close();
+  // Remise à l'état d'avant pour la suite (Charlie sans aucun réglage : la section D' en dépend) : Annuler deux fois.
   await undo().click();
   await undo().click();
   ok("D13b Annuler ×2 : Charlie sans réglage de bordure, Bravo sans bordure", await waitFor(() => borderOf("Charlie") === undefined && borderOf("Bravo") === false), JSON.stringify([borderOf("Charlie"), borderOf("Bravo")]));
-  ok("D13b publication", await publish());
+  await settled();
 });
 
 /* ---- E. Papier du site × fond --------------------------------------------------------------------------------------------- */
