@@ -212,18 +212,71 @@ export function Popover({
 
   const ready = state !== null;
 
-  // Décalage si la fenêtre dépasse de l'écran (écran étroit, barre près du bord).
+  // Placement (lot 30) : à DROITE du déclencheur (ou de sa barre, ou du panneau d'outils pour le sélecteur posé dans le
+  // flux), à GAUCHE si la place manque, aligné en haut sur le déclencheur et remonté pour rester entièrement visible.
+  // En dernier recours (écran trop étroit) : sous le déclencheur, compact, décalé pour ne pas déborder.
   useLayoutEffect(() => {
     const el = box.current;
     if (!el || !ready) return;
-    const view = el.ownerDocument.documentElement.clientWidth;
-    el.style.translate = "0 0";
-    const r = el.getBoundingClientRect();
-    const shift = Math.min(0, view - 8 - r.right) + Math.max(0, 8 - (r.left + Math.min(0, view - 8 - r.right)));
-    if (shift) el.style.translate = `${shift}px 0`;
-    // Sous la barre, la fenêtre sort vite de l'écran : on fait défiler la toile pour la montrer en entier.
-    el.scrollIntoView({ block: "nearest", behavior: "instant" });
-  }, [ready]);
+    const doc = el.ownerDocument;
+    const win = doc.defaultView;
+    if (!win) return;
+    const place = () => {
+      const view = doc.documentElement.clientWidth;
+      const high = doc.documentElement.clientHeight;
+      const trigger = id ? doc.querySelector<HTMLElement>(`[aria-controls="${CSS.escape(id)}"]`) : null;
+      const inline = el.hasAttribute("data-inline");
+      const anchor = trigger ?? (inline ? (el.closest<HTMLElement>(".lc-nuance-item, .lc-role-item") ?? el.parentElement) : el.parentElement);
+      // Côtés : la barre ou le panneau qui contient le déclencheur (pour ne pas recouvrir ses autres boutons).
+      const frame = trigger ? (trigger.closest<HTMLElement>(".lk-bar, .tc-bar, .tc") ?? trigger) : (el.closest<HTMLElement>("aside, [data-testid=colors-panel]") ?? anchor);
+      if (!anchor || !frame) return;
+      const gap = 8;
+      el.style.position = "";
+      el.style.translate = "";
+      el.style.top = "";
+      el.style.left = "";
+      el.style.maxHeight = "";
+      el.style.width = "";
+      el.removeAttribute("data-side");
+      const width = Math.min(300, view - 2 * gap);
+      const f = frame.getBoundingClientRect();
+      const a = anchor.getBoundingClientRect();
+      const room = { right: view - gap - f.right - gap, left: f.left - gap - gap };
+      const side = room.right >= width ? "right" : room.left >= width ? "left" : null;
+      if (!side) {
+        // Dernier recours : sous le déclencheur, comme avant, sans déborder.
+        el.style.translate = "0 0";
+        const r = el.getBoundingClientRect();
+        const shift = Math.min(0, view - gap - r.right) + Math.max(0, gap - (r.left + Math.min(0, view - gap - r.right)));
+        if (shift) el.style.translate = `${shift}px 0`;
+        el.scrollIntoView({ block: "nearest", behavior: "instant" });
+        return;
+      }
+      el.dataset.side = side;
+      el.style.position = "fixed";
+      el.style.width = `${width}px`;
+      el.style.maxHeight = `${high - 2 * gap}px`;
+      el.style.left = "0px";
+      el.style.top = "0px";
+      // Mesure réelle (un ancêtre transformé change le repère du « fixed ») puis correction.
+      const base = el.getBoundingClientRect();
+      const height = Math.min(base.height, high - 2 * gap);
+      const wantLeft = side === "right" ? f.right + gap : f.left - gap - width;
+      const wantTop = Math.max(gap, Math.min(a.top, high - gap - height));
+      el.style.left = `${wantLeft - base.left}px`;
+      el.style.top = `${wantTop - base.top}px`;
+    };
+    place();
+    win.addEventListener("resize", place);
+    const onScroll = (e: Event) => {
+      if (!(e.target instanceof Node) || !el.contains(e.target)) place();
+    };
+    doc.addEventListener("scroll", onScroll, true);
+    return () => {
+      win.removeEventListener("resize", place);
+      doc.removeEventListener("scroll", onScroll, true);
+    };
+  }, [ready, id]);
 
   const { schedule, flush, cancel } = useEmitter(onChange, (recent) => setState((s) => (s ? { ...s, recent } : s)), live);
 

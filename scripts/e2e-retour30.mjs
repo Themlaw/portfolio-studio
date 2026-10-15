@@ -6,8 +6,11 @@
  *  R. Thème livré qui force le survol (galerie lumineuse) : changer le survol puis « Revenir à la couleur du thème » →
  *     libellé, badge « thème », clé absente, toile ET public (:hover d'un bouton) exactement comme avant.
  *  S. Nuance non fixée par le thème (voile) : « Revenir à l'automatique », badge « automatique », clé absente.
+ *  L. Placement du sélecteur de couleur : à côté de son déclencheur (droite, sinon gauche), jamais en dessous sauf écran
+ *     trop étroit, entièrement dans la fenêtre : barre du texte (toile), panneau « Couleurs », sélecteur de l'administration,
+ *     téléphone.
  *
- * Usage : BASE=http://localhost:3390 DATA_DIR=~/pf/data-30 ADMIN_EMAIL=… ADMIN_PASSWORD=… SHOTS=/dossier [ONLY=R,S] node scripts/e2e-retour30.mjs
+ * Usage : BASE=http://localhost:3390 DATA_DIR=~/pf/data-30 ADMIN_EMAIL=… ADMIN_PASSWORD=… SHOTS=/dossier [ONLY=R,S,L] node scripts/e2e-retour30.mjs
  */
 import { mkdirSync } from "node:fs";
 import path from "node:path";
@@ -184,6 +187,109 @@ if (run("S")) {
   ok("S4 palette du site entièrement vide après les retours", await waitFor(() => Object.keys(sitePalette()).length === 0), JSON.stringify(sitePalette()));
 }
 
+
+const H2 = 'h2[data-inline="title"]';
+const until = (f, fn, arg, timeout = 60000) => f.waitForFunction(fn, arg, { timeout, polling: 200 }).then(() => true, () => false);
+async function openBar(f, sel) {
+  if (await f.locator(".lk-bar").count()) {
+    await f.locator(".lk-bar .lk-close").click().catch(() => {});
+    await f.locator(".lk-bar").waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
+  }
+  const target = f.locator(sel).first();
+  await target.scrollIntoViewIfNeeded();
+  for (let essai = 0; essai < 4; essai++) {
+    await page.mouse.move(700, 8);
+    await sleep(150);
+    await target.hover();
+    if (!(await until(f, () => Boolean(document.querySelector(".lk-aa")), null, 8000))) continue;
+    try {
+      await f.locator(".lk-aa").click({ timeout: 4000 });
+      if (await until(f, () => Boolean(document.querySelector(".lk-bar")), null, 8000)) return true;
+    } catch {
+      /* le « Aa » suit le survol : on recommence */
+    }
+  }
+  return false;
+}
+/** Rectangles utiles dans le document `d` (page ou toile) : fenêtre, déclencheur, fenêtre du sélecteur. */
+const rects = (d, trig) =>
+  d.evaluate((sel) => {
+    const r = (e) => { const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
+    const trigger = document.querySelector(sel);
+    const cp = document.querySelector(".cp");
+    return { w: document.documentElement.clientWidth, h: document.documentElement.clientHeight, trigger: trigger && r(trigger), cp: cp && r(cp), side: cp?.getAttribute("data-side") ?? null };
+  }, trig);
+/** À côté (pas en dessous), alignée en haut ou remontée, entièrement visible. */
+const beside = (m) => m.cp && m.trigger && (m.cp.l >= m.trigger.r - 1 || m.cp.r <= m.trigger.l + 1) && m.cp.t <= m.trigger.t + 1 && m.cp.t >= 7 && m.cp.b <= m.h - 7 && m.cp.l >= 7 && m.cp.r <= m.w - 7;
+const inside = (m) => m.cp && m.cp.l >= -1 && m.cp.r <= m.w + 1 && m.cp.t >= -1;
+
+if (run("L")) {
+  console.log("== L. Placement du sélecteur de couleur");
+  await page.setViewportSize({ width: 1280, height: 800 });
+  // 1. Barre du texte, sur la toile, à plusieurs largeurs (le côté suit la place).
+  for (const width of [1280, 1000, 820]) {
+    await page.setViewportSize({ width, height: 800 });
+    const f = await openEditor(homeId);
+    ok(`L1 ${width} px : barre du texte ouverte`, await openBar(f, H2));
+    await f.locator(".lk-bar .tc-wheel").first().click();
+    await f.locator(".cp").waitFor({ timeout: 10000 });
+    await sleep(300);
+    const m = await rects(f, ".lk-bar .tc-wheel");
+    ok(`L1b ${width} px : fenêtre à côté du déclencheur (${m.side}), alignée en haut, entièrement visible`, beside(m), JSON.stringify(m));
+    ok(`L1c ${width} px : le côté suit la place`, m.side === "right" || m.side === "left", JSON.stringify(m));
+    if (width === 1280) await page.screenshot({ path: `${SHOTS}/placement-barre.png` });
+    await f.locator(".cp").press("Escape");
+  }
+  // 2. Panneau « Couleurs » (colonne de gauche) : s'ouvre à droite du panneau, sur la toile.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  {
+    await openPanel();
+    const row = page.locator('.lc-role-item[data-role="ink"] .lc-role');
+    await row.click();
+    await page.locator(".lc-role-item[data-role=ink] .cp").waitFor();
+    await sleep(300);
+    const aside = await page.locator("aside.ve-panel").evaluate((e) => e.getBoundingClientRect().right);
+    const m = await rects(page, '.lc-role-item[data-role="ink"] .lc-role');
+    ok("L2 panneau « Couleurs » : le sélecteur s'ouvre à droite du panneau, sur la toile", m.cp && m.cp.l >= aside - 1 && inside(m) && m.cp.b <= m.h + 1 && m.side === "right", JSON.stringify({ aside, ...m }));
+    await page.screenshot({ path: `${SHOTS}/placement-panneau-couleurs.png` });
+    await page.locator(".lc-role-item[data-role=ink] .cp").press("Escape");
+    // Nuance : même règle.
+    await item("primaryHover").locator(".lc-nuance").click();
+    await item("primaryHover").locator(".cp").waitFor();
+    await sleep(300);
+    const n = await rects(page, '.lc-nuance-item[data-nuance="primaryHover"] .lc-nuance');
+    ok("L2b nuance : idem, à droite du panneau", n.cp && n.cp.l >= aside - 1 && inside(n) && n.side === "right", JSON.stringify(n));
+    await item("primaryHover").locator(".cp").press("Escape");
+  }
+  // 3. Sélecteur de l'administration (couleur des boutons de la page).
+  {
+    const sw = page.getByRole("switch", { name: "Boutons et liens de cette page" });
+    if (await sw.count()) {
+      if (!(await sw.isChecked())) await page.locator("label.a-toggle", { hasText: "Boutons et liens de cette page" }).click();
+      await page.locator(".cpw-chip").first().click();
+      await page.locator(".cpw .cp").waitFor({ timeout: 10000 });
+      await sleep(300);
+      const m = await rects(page, ".cpw-chip");
+      ok("L3 sélecteur de l'administration : à côté de la pastille, entièrement visible", beside(m), JSON.stringify(m));
+      await page.screenshot({ path: `${SHOTS}/placement-admin.png` });
+      await page.locator(".cpw .cp").press("Escape");
+      if (await sw.isChecked()) await page.locator("label.a-toggle", { hasText: "Boutons et liens de cette page" }).click();
+    } else ok("L3 réglage « Boutons et liens de cette page » introuvable", false);
+  }
+  // 4. Téléphone : dans la fenêtre, compact.
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto(`${BASE}/admin/themes/galerie-lumineuse`, { waitUntil: "networkidle" });
+  {
+    const role = page.locator('.a-da .lc-role-item[data-role="ink"] .lc-role');
+    await role.click();
+    await page.locator('.a-da .lc-role-item[data-role="ink"] .cp').waitFor();
+    await sleep(300);
+    const m = await rects(page, '.a-da .lc-role-item[data-role="ink"] .lc-role');
+    ok("L4 téléphone (390 px) : le sélecteur ne déborde pas de la fenêtre", inside(m) && m.cp.r <= m.w + 1, JSON.stringify(m));
+    await page.screenshot({ path: `${SHOTS}/placement-telephone.png` });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+}
 
 await browser.close();
 console.log(failures === 0 ? "\nTOUT PASSE" : `\n${failures} ÉCHEC(S)`);
