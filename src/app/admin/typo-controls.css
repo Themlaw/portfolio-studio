@@ -523,11 +523,15 @@
 }
 
 /* Sélecteur ouvert dans le flux du panneau « Couleurs » (lot 17f). */
-.cp[data-inline] {
+.cp[data-inline]:not([data-side]) {
   position: static;
   width: auto;
   max-height: none;
   box-shadow: none;
+}
+/* Posé à côté de son déclencheur (lot 30) : fenêtre flottante, placée par ColorPicker. */
+.cp[data-side] {
+  z-index: 60;
 }
 
 /* ---- Fond du texte (lot 21, BackdropRow) ------------------------------------ */

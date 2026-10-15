@@ -212,18 +212,89 @@ export function Popover({
 
   const ready = state !== null;
 
-  // Décalage si la fenêtre dépasse de l'écran (écran étroit, barre près du bord).
+  // Placement (lot 30) : à DROITE du déclencheur (ou de sa barre, ou du panneau d'outils pour le sélecteur posé dans le
+  // flux), à GAUCHE si la place manque, aligné en haut sur le déclencheur et remonté pour rester entièrement visible.
+  // En dernier recours (écran trop étroit) : sous le déclencheur, compact, décalé pour ne pas déborder.
   useLayoutEffect(() => {
     const el = box.current;
     if (!el || !ready) return;
-    const view = el.ownerDocument.documentElement.clientWidth;
-    el.style.translate = "0 0";
-    const r = el.getBoundingClientRect();
-    const shift = Math.min(0, view - 8 - r.right) + Math.max(0, 8 - (r.left + Math.min(0, view - 8 - r.right)));
-    if (shift) el.style.translate = `${shift}px 0`;
-    // Sous la barre, la fenêtre sort vite de l'écran : on fait défiler la toile pour la montrer en entier.
-    el.scrollIntoView({ block: "nearest", behavior: "instant" });
-  }, [ready]);
+    const doc = el.ownerDocument;
+    const win = doc.defaultView;
+    if (!win) return;
+    const place = () => {
+      const view = doc.documentElement.clientWidth;
+      const high = doc.documentElement.clientHeight;
+      const trigger = id ? doc.querySelector<HTMLElement>(`[aria-controls="${CSS.escape(id)}"]`) : null;
+      const inline = el.hasAttribute("data-inline");
+      const anchor = trigger ?? (inline ? (el.closest<HTMLElement>(".lc-nuance-item, .lc-role-item") ?? el.parentElement) : el.parentElement);
+      // Côtés : la barre ou le panneau qui contient le déclencheur (pour ne pas recouvrir ses autres boutons).
+      const frame = trigger ? (trigger.closest<HTMLElement>(".lk-bar, .tc-bar, .tc") ?? trigger) : ((el.closest<HTMLElement>("aside") ?? el.closest<HTMLElement>("[data-testid=colors-panel]") ?? anchor));
+      if (!anchor || !frame) return;
+      const gap = 8;
+      el.style.position = "";
+      el.style.translate = "";
+      el.style.top = "";
+      el.style.left = "";
+      el.style.maxHeight = "";
+      el.style.width = "";
+      el.removeAttribute("data-side");
+      const width = Math.min(300, view - 2 * gap);
+      const f = frame.getBoundingClientRect();
+      const a = anchor.getBoundingClientRect();
+      // Côtés essayés dans l'ordre : droite puis gauche de la barre, puis (si la barre est trop large) du déclencheur seul.
+      const t = anchor.getBoundingClientRect();
+      const tries: { side: "right" | "left"; edge: number }[] = [
+        { side: "right", edge: f.right + gap },
+        { side: "left", edge: f.left - gap },
+        { side: "right", edge: t.right + gap },
+        { side: "left", edge: t.left - gap },
+      ];
+      const pick = tries.find((c) => (c.side === "right" ? view - gap - c.edge >= width : c.edge - gap >= width));
+      const side = pick?.side ?? null;
+      if (!side) {
+        // Dernier recours : sous le déclencheur, comme avant, sans déborder.
+        el.style.translate = "0 0";
+        const r = el.getBoundingClientRect();
+        const shift = Math.min(0, view - gap - r.right) + Math.max(0, gap - (r.left + Math.min(0, view - gap - r.right)));
+        if (shift) el.style.translate = `${shift}px 0`;
+        el.scrollIntoView({ block: "nearest", behavior: "instant" });
+        return;
+      }
+      el.dataset.side = side;
+      el.style.position = "fixed";
+      el.style.width = `${width}px`;
+      el.style.maxHeight = `${high - 2 * gap}px`;
+      el.style.left = "0px";
+      el.style.top = "0px";
+      // Mesure réelle (un ancêtre transformé change le repère du « fixed ») puis correction.
+      const base = el.getBoundingClientRect();
+      const height = Math.min(base.height, high - 2 * gap);
+      const wantLeft = pick!.side === "right" ? pick!.edge : pick!.edge - width;
+      const wantTop = Math.max(gap, Math.min(a.top, high - gap - height));
+      el.style.left = `${wantLeft - base.left}px`;
+      el.style.top = `${wantTop - base.top}px`;
+    };
+    place();
+    win.addEventListener("resize", place);
+    // Elle grandit (couleurs récentes, aperçu) : on la recale pour qu'elle reste entièrement visible.
+    let lastHeight = el.offsetHeight;
+    const watcher = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      if (el.offsetHeight !== lastHeight) {
+        lastHeight = el.offsetHeight;
+        place();
+      }
+    });
+    watcher?.observe(el);
+    const onScroll = (e: Event) => {
+      if (!(e.target instanceof Node) || !el.contains(e.target)) place();
+    };
+    doc.addEventListener("scroll", onScroll, true);
+    return () => {
+      watcher?.disconnect();
+      win.removeEventListener("resize", place);
+      doc.removeEventListener("scroll", onScroll, true);
+    };
+  }, [ready, id]);
 
   const { schedule, flush, cancel } = useEmitter(onChange, (recent) => setState((s) => (s ? { ...s, recent } : s)), live);
 

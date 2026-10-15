@@ -10,7 +10,7 @@
  *  C. Contraste : une couleur peu contrastée est acceptée, enregistrée, publiée et APPLIQUÉE (avertissement seulement) :
  *     boutons et liens d'une page, palette du site, couleurs d'un thème.
  *  N. Nuances : survol, petits textes, voile de l'image agrandie choisis dans le panneau « Couleurs », visibles en public ;
- *     « Revenir à l'automatique » restaure le calcul.
+ *     « Revenir… » efface le choix (lot 30 : valeur du thème si elle en fixe une, sinon calcul).
  *
  * Usage : BASE=http://localhost:3380 DATA_DIR=~/pf/data-29 ADMIN_EMAIL=… ADMIN_PASSWORD=… SHOTS=/dossier [ONLY=P,Q,C,N] node scripts/e2e-couleurps29.mjs
  */
@@ -187,8 +187,8 @@ if (run("P")) {
   await cp.waitFor();
   ok("P1 structure : carré, bande de teinte, aperçu actuelle / précédente, plus de roue ni de curseur de luminosité", (await cp.locator(".cp-sv").count()) === 1 && (await cp.locator(".cp-hue").count()) === 1 && (await cp.locator(".cp-prev").count()) === 1 && (await cp.locator(".cp-now").count()) === 1 && (await cp.locator('[aria-label^="Luminosité"], .cp-wheel').count()) === 0);
   ok("P1b « Code couleur » conservé, curseur d'opacité conservé", (await cp.locator('input[aria-label="Code couleur"]').count()) === 1 && (await cp.locator(".cp-slider [role=slider]").count()) === 1);
-  const sv = await cp.locator(".cp-sv").boundingBox();
-  const hue = await cp.locator(".cp-hue").boundingBox();
+  let sv = await cp.locator(".cp-sv").boundingBox();
+  let hue = await cp.locator(".cp-hue").boundingBox();
   ok("P1c taille : carré ≈ 200-240 px de côté, bande ≈ 20 px", sv.width >= 190 && sv.width <= 240 && Math.abs(sv.width - sv.height) <= 2 && hue.width >= 18 && hue.width <= 22, JSON.stringify({ sv: [sv.width, sv.height], hue: hue.width }));
   ok("P1d disposition : bande à droite du carré, à la même hauteur", hue.x > sv.x + sv.width && Math.abs(hue.y - sv.y) <= 2 && Math.abs(hue.height - sv.height) <= 2);
   ok("P1e aucun défilement en largeur, fenêtre entièrement visible", await f.evaluate(() => { const c = document.querySelector(".cp"); const r = c.getBoundingClientRect(); return c.scrollWidth <= c.clientWidth + 1 && r.left >= 0 && r.right <= window.innerWidth + 1; }));
@@ -206,6 +206,9 @@ if (run("P")) {
   await hex.fill("#336699");
   await hex.press("Enter");
   await sleep(500);
+  // La fenêtre (posée à côté de la barre, lot 30) se recale quand elle grandit (couleurs récentes) : on remesure.
+  sv = await cp.locator(".cp-sv").boundingBox();
+  hue = await cp.locator(".cp-hue").boundingBox();
   // Clic dans le carré : saturation 90 %, luminosité 90 % (à 10 % du haut et à 90 % de la gauche).
   await page.mouse.click(sv.x + sv.width * 0.9, sv.y + sv.height * 0.1);
   await sleep(600);
@@ -511,14 +514,14 @@ if (run("N")) {
 
   // Retour à l'automatique.
   await item("primaryHover").locator(".lc-nuance").click();
-  await item("primaryHover").locator(".cp-foot button", { hasText: "Revenir à l'automatique" }).click();
+  await item("primaryHover").locator(".cp-foot button", { hasText: "Revenir à la couleur du thème" }).click();
   await item("scrim").locator(".lc-nuance").click();
   await item("scrim").locator(".cp-foot button", { hasText: "Revenir à l'automatique" }).click();
   await settled();
   ok("N7 « Revenir à l'automatique » : survol et voile ne sont plus choisis", await waitFor(() => { const p = sitePalette(); return p.primaryHover !== "#aa0000" && p.scrim !== "#102030"; }), JSON.stringify(sitePalette()));
   ok("N7b … les autres nuances choisies restent", sitePalette().eyebrow === "#00aa00" && sitePalette().onScrim === "#fefefe");
   ok("N7c … l'état redevient « automatique » (calculé) pour le voile", (await item("scrim").getAttribute("data-origin")) === "auto");
-  ok("N7d la toile retrouve le calcul : voile de la visionneuse = gris neutre d'avant, survol = valeur calculée (plus #aa0000)", (await rootVar(f, "--t-color-viewer")) === startScrim && (await colorVar(f, "--t-color-primary-hover")) !== "rgb(170, 0, 0)" && (await item("primaryHover").getAttribute("data-origin")) === "auto", `${await rootVar(f, "--t-color-viewer")} / ${startScrim} ; ${await colorVar(f, "--t-color-primary-hover")} / ${startHover}`);
+  ok("N7d la toile retrouve le calcul : voile de la visionneuse = gris neutre d'avant, survol = valeur du thème (le thème le fixe)", (await rootVar(f, "--t-color-viewer")) === startScrim && (await colorVar(f, "--t-color-primary-hover")) === startHover && (await item("primaryHover").getAttribute("data-origin")) === "theme", `${await rootVar(f, "--t-color-viewer")} / ${startScrim} ; ${await colorVar(f, "--t-color-primary-hover")} / ${startHover}`);
   ok("N8 publication du retour", await publish());
   const sheet2 = paletteSheet((await anon("/fr")).html);
   ok("N8b public : plus de survol ni de voile choisis, étiquettes toujours choisies", !sheet2.includes("#aa0000") && !sheet2.includes("--t-color-scrim:#102030") && sheet2.includes("--t-color-eyebrow:#00aa00"), sheet2.slice(0, 300));

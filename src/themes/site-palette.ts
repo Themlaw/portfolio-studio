@@ -33,8 +33,9 @@ import {
 } from "./palette";
 
 /**
- * Surcharges du site : bases (`#rrggbb`) et, depuis le lot 29, nuances (`#rrggbb`, ou « auto » = le calcul, même si le
- * thème avait forcé une valeur). Absent = la valeur du thème (calcul comprise quand le thème le laisse en auto).
+ * Surcharges du site : bases (`#rrggbb`) et, depuis le lot 29, nuances (`#rrggbb`). Absent = la valeur du thème (calcul
+ * comprise quand le thème le laisse en auto). « auto » (écrit par le lot 29, v0.22.0) est lu comme « pas de choix » : le bouton
+ * « Revenir… » efface désormais la clé au lieu d'écrire « auto ».
  */
 export type SitePalette = Partial<Record<BaseKey | NuanceKey, string>>;
 
@@ -102,10 +103,12 @@ export const nuanceLabel = (key: NuanceKey): string => PALETTE_GROUPS.flatMap((g
 
 export const roleInfo = (key: BaseKey): RoleInfo => SITE_ROLES.find((r) => r.key === key)!;
 
+const isChosen = (overrides: SitePalette | undefined) => (k: BaseKey | NuanceKey) => typeof overrides?.[k] === "string" && overrides[k] !== "auto";
+
 /** Couleurs du thème avec les bases du site posées dessus (nuances dépendantes recalculées). */
 export function applySitePalette<C extends PaletteColors>(color: C, palette: PaletteState | undefined, overrides: SitePalette | undefined): { color: C; palette: PaletteState | undefined } {
   const keys = BASE_KEYS.filter((k) => typeof overrides?.[k] === "string");
-  const picked = NUANCE_KEYS.filter((k) => typeof overrides?.[k] === "string");
+  const picked = NUANCE_KEYS.filter(isChosen(overrides));
   if (!keys.length && !picked.length) return { color, palette };
   const auto = new Set<StoredNuance>(palette?.auto ?? []);
   for (const k of keys) for (const n of DEPENDENT[k]) auto.add(n);
@@ -114,23 +117,25 @@ export function applySitePalette<C extends PaletteColors>(color: C, palette: Pal
   for (const k of keys) next[k] = overrides![k];
   let out: { color: C; palette: PaletteState | undefined } = { color: normalizePalette(next as C, p), palette: p };
   // Nuances choisies après les bases (une nuance choisie ne se recalcule plus), « auto » = retour au calcul.
-  for (const k of picked) out = setNuance(out.color, out.palette, k, overrides![k] === "auto" ? null : overrides![k]!);
+  for (const k of picked) out = setNuance(out.color, out.palette, k, overrides![k]!);
   return out;
 }
 
 /** Origine de la valeur d'une nuance : choisie sur le site, calculée (auto), ou fixée par le thème. */
 export function nuanceOrigin(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined, key: NuanceKey): "site" | "auto" | "theme" {
-  const v = overrides?.[key];
   const a = applySitePalette(color, palette, overrides);
-  if (typeof v === "string" && v !== "auto") return "site";
+  if (isChosen(overrides)(key)) return "site";
   return isAuto(a.color, a.palette, key) ? "auto" : "theme";
 }
 
-/** Valeur à écrire pour « Revenir à l'automatique » : plus de surcharge si le thème calcule déjà, sinon « auto ». */
-export function autoOverride(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined, key: NuanceKey): "auto" | undefined {
+/**
+ * « Revenir » d'une nuance : le thème fixe-t-il cette nuance (sans le choix du site) ? Oui = on retombe sur la valeur du thème
+ * (libellé « couleur du thème »), non = sur le calcul (« automatique »). Le retour lui-même efface la clé, rien à écrire.
+ */
+export function themeFixesNuance(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined, key: NuanceKey): boolean {
   const without = { ...(overrides ?? {}) };
   delete without[key];
-  return nuanceOrigin(color, palette, without, key) === "auto" ? undefined : "auto";
+  return nuanceOrigin(color, palette, without, key) === "theme";
 }
 
 /** Toutes les couleurs effectives du site (thème + surcharges), nuances résolues. */
