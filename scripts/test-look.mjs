@@ -12,6 +12,11 @@ import {
   cropFromWindow,
   cropVars,
   cropWindow,
+  FRAME_DEFAULT_COLOR,
+  FRAME_SIZES,
+  frameAttrs,
+  frameColorCss,
+  FrameSchema,
   fontStack,
   isFontRef,
   lookAttributes,
@@ -299,6 +304,16 @@ ok("tokens.type : police du thème → variable du thème", themeTypeCss({ token
 ok("look.slotRadius : crans par slug d'emplacement acceptés", LookSchema.safeParse({ slotRadius: { "vallee-suspendue": "none", "duo-marche": "strong" } }).success);
 ok("look.slotRadius : slug invalide, cran inconnu, plus de 200 entrées refusés", !LookSchema.safeParse({ slotRadius: { "../x": "none" } }).success && !LookSchema.safeParse({ slotRadius: { a: "huge" } }).success && !LookSchema.safeParse({ slotRadius: Object.fromEntries(Array.from({ length: 201 }, (_, i) => [`s-${i}`, "soft"])) }).success);
 ok("look.slotRadius : lecture tolérante (réglage invalide ignoré, le reste gardé)", JSON.stringify(readLook({ spaceTop: "m", slotRadius: { "<x>": "none" } })) === JSON.stringify({ spaceTop: "m" }));
+
+/* ---- Cadre autour d'une photo (lot 34) ------------------------------------------------------------ */
+ok("look.frame : trois épaisseurs, couleur facultative (palette ou #rrggbb[aa])", FRAME_SIZES.join() === "thin,medium,thick" && ["thin", "medium", "thick"].every((size) => LookSchema.safeParse({ frame: { size } }).success) && LookSchema.safeParse({ frame: { size: "thick", color: "tertiary" } }).success && LookSchema.safeParse({ frame: { size: "thin", color: "#a1b2c3" } }).success && LookSchema.safeParse({ frame: { size: "thin", color: "#a1b2c3cc" } }).success);
+ok("look.frame : épaisseur inconnue ou absente, couleur invalide, clé en trop refusées", ["xl", "", 6, undefined].every((size) => !FrameSchema.safeParse({ size }).success) && !FrameSchema.safeParse({}).success && ["red", "#fff", "#A1B2C3", "url(x)", "var(--x)", "#a1b2c3;x"].every((color) => !FrameSchema.safeParse({ size: "thin", color }).success) && !FrameSchema.safeParse({ size: "thin", width: 40 }).success);
+ok("look.slotFrame : cadres par slug d'emplacement, slug invalide / cadre invalide / plus de 200 entrées refusés", LookSchema.safeParse({ slotFrame: { "vallee-suspendue": { size: "medium" }, "duo-marche": { size: "thick", color: "#112233" } } }).success && !LookSchema.safeParse({ slotFrame: { "../x": { size: "thin" } } }).success && !LookSchema.safeParse({ slotFrame: { a: { size: "huge" } } }).success && !LookSchema.safeParse({ slotFrame: Object.fromEntries(Array.from({ length: 201 }, (_, i) => [`s-${i}`, { size: "thin" }])) }).success);
+ok("couleur par défaut du cadre : le texte du thème (suit le thème)", FRAME_DEFAULT_COLOR === "ink" && frameColorCss(undefined) === "var(--t-color-ink)");
+ok("couleur du cadre : palette → variable du thème, libre → telle quelle, valeur inconnue → défaut", frameColorCss("tertiary") === "var(--t-color-tertiary)" && frameColorCss("surface") === "var(--t-color-surface)" && frameColorCss("#a1b2c3") === "#a1b2c3" && frameColorCss("#a1b2c3cc") === "#a1b2c3cc" && frameColorCss("red; background:url(x)") === "var(--t-color-ink)");
+ok("frameAttrs : aucun cadre par défaut ; un cadre valide donne data-frame + --frame-color ; un cadre invalide est ignoré", frameAttrs(undefined) === null && frameAttrs({ size: "huge" }) === null && JSON.stringify(frameAttrs({ size: "medium" })) === JSON.stringify({ "data-frame": "medium", style: { "--frame-color": "var(--t-color-ink)" } }) && frameAttrs({ size: "thin", color: "#000000" })?.style["--frame-color"] === "#000000");
+ok("look.frame : lecture tolérante (cadre invalide ignoré, le reste gardé), cadre seul = réglage non vide, nettoyage", JSON.stringify(readLook({ spaceTop: "m", frame: { size: "huge" } })) === JSON.stringify({ spaceTop: "m" }) && JSON.stringify(readLook({ frame: { size: "thin", color: "primary" } })) === JSON.stringify({ frame: { size: "thin", color: "primary" } }) && cleanLook({ frame: undefined, slotFrame: {} }) === undefined && JSON.stringify(cleanLook({ slotFrame: { a: { size: "thin" } } })) === JSON.stringify({ slotFrame: { a: { size: "thin" } } }));
+ok("look.frame : pas d'attribut sur l'enveloppe du bloc (le cadre est posé par l'image elle-même)", lookAttributes({ frame: { size: "thin" } }) === null);
 
 if (failures) {
   console.error(`test-look : ÉCHEC (${failures}/${count})`);

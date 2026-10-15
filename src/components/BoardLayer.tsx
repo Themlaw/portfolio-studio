@@ -32,9 +32,10 @@ import { postIntent, previewBoardText } from "./edit/optimistic";
 import { BoardFondMenu } from "./edit/FondMenu";
 import { readBackground, type Background } from "@/themes/fond";
 
-import { RADII, RADIUS_LABELS, type Radius } from "@/lib/look";
+import { RADII, RADIUS_LABELS, type Frame, type Radius } from "@/lib/look";
 import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, isBoardItemType, type BoardItemType } from "@/blocks/board-layout";
 
+import { FrameControls } from "./edit/FrameMenu";
 import { lookOf, sendLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
 import { useDismiss } from "./edit/useDismiss";
@@ -254,6 +255,8 @@ export default function BoardLayer({
   const [tick, setTick] = useState(0);
   const [hover, setHover] = useState<SlotRef | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<SlotRef | null>(null);
+  /** Image dont la fenêtre « Cadre » (lot 34) est ouverte : la barre de cette image reste affichée tant qu'elle l'est. */
+  const [frameSlot, setFrameSlot] = useState<SlotRef | null>(null);
   const [focusSlot, setFocusSlot] = useState<SlotRef | null>(null);
   const [marker, setMarker] = useState<Marker | null>(null);
   // Un glisser est en cours (média, fichiers, image) : pas de barre d'image.
@@ -828,7 +831,7 @@ export default function BoardLayer({
   if (itemSel) document.querySelector(`[data-edit-bitem="${CSS.escape(itemSel.uid)}"]`)?.setAttribute("data-selected", "");
 
   // Barre : survol, sinon focus clavier, sinon dernière image touchée.
-  const active = hover ?? focusSlot ?? selectedSlot;
+  const active = frameSlot ?? hover ?? focusSlot ?? selectedSlot;
   const activeEl = active ? findSlot(active) : null;
   const activeBox = activeEl ? boxOf(activeEl.querySelector(".strip-media, .pe-empty-box") ?? activeEl) : null;
   const fillGhosts = ghosts.filter((g) => g.slot && g.phase !== "done");
@@ -978,7 +981,22 @@ export default function BoardLayer({
             Retirer la place
           </button>
           {!active.empty && <SlotRadius el={activeEl} />}
+          {!active.empty && activeEl && !activeEl.querySelector("video, .strip-duration") && (
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded={frameSlot?.key === active.key}
+              data-testid="slot-frame-button"
+              title="Cadre autour de cette photo"
+              onClick={() => setFrameSlot((f) => (f?.key === active.key ? null : active))}
+            >
+              Cadre
+            </button>
+          )}
         </div>
+      )}
+      {frameSlot && activeBox && active && frameSlot.key === active.key && !marker && !dragActive && activeEl && (
+        <SlotFrame el={activeEl} box={activeBox} onClose={() => setFrameSlot(null)} />
       )}
 
       {fillGhosts.map((g) => {
@@ -1217,5 +1235,34 @@ function SlotRadius({ el }: { el: Element | null }) {
         ))}
       </select>
     </label>
+  );
+}
+
+/**
+ * Cadre de CETTE image de la planche (lot 34) : réglage `look.slotFrame` du bloc planche, par slug d'emplacement ;
+ * mêmes réglages que le cadre d'une image seule (FrameControls). Fenêtre posée sous la barre, gardée dans l'écran.
+ */
+function SlotFrame({ el, box, onClose }: { el: Element; box: Rect; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, onClose);
+  const [, bump] = useState(0);
+  const slug = el.getAttribute("data-slot-slug") ?? "";
+  const uid = el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
+  if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
+  const look = lookOf(uid);
+  const current = look.slotFrame && Object.hasOwn(look.slotFrame, slug) ? look.slotFrame[slug] : undefined;
+  const change = (next: Frame | undefined) => {
+    const all = { ...(look.slotFrame ?? {}) };
+    if (next) all[slug] = next;
+    else delete all[slug];
+    sendLook(uid, { ...look, slotFrame: all });
+    bump((n) => n + 1);
+  };
+  const width = Math.min(330, document.documentElement.clientWidth - 24);
+  const left = Math.max(window.scrollX + 8, Math.min(box.left + 8, window.scrollX + document.documentElement.clientWidth - width - 8));
+  return (
+    <div ref={ref} className="sm tc pe-slot-frame" role="dialog" aria-label="Cadre de la photo" style={{ top: box.top + 46, left, right: "auto" }}>
+      <FrameControls value={current} onChange={change} />
+    </div>
   );
 }

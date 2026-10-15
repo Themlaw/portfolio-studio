@@ -307,6 +307,41 @@ export function needsCrop(imageRatio: number, boxRatio: number): boolean {
   return Math.abs(imageRatio / boxRatio - 1) > 0.02;
 }
 
+/* ---- Cadre autour d'une photo (lot 34) ------------------------------------------- */
+
+/** Épaisseurs du cadre d'une photo (largeurs réelles en CSS : src/app/look.css, adaptées au téléphone). */
+export const FRAME_SIZES = ["thin", "medium", "thick"] as const;
+export type FrameSize = (typeof FRAME_SIZES)[number];
+export const FRAME_SIZE_LABELS: Record<FrameSize, string> = { thin: "Fin", medium: "Moyen", thick: "Épais" };
+/**
+ * Couleur du cadre quand rien n'est choisi (« Couleur par défaut ») : le texte du thème (`ink`). C'est la seule teinte
+ * lisible sur le papier de tous les thèmes livrés (l'ornement `tertiary` est presque invisible sur le thème Studio : 1,7:1)
+ * et elle suit le thème (claire sur un thème sombre).
+ */
+export const FRAME_DEFAULT_COLOR: PaletteColor = "ink";
+/**
+ * Cadre d'une photo : épaisseur + couleur (clé de palette ou `#rrggbb[aa]`). Absent = pas de cadre ; sans couleur = la couleur par défaut.
+ */
+export const FrameSchema = z.strictObject({
+  size: z.enum(FRAME_SIZES),
+  color: z.union([z.enum(PALETTE), CustomColorSchema]).optional(),
+});
+export type Frame = z.infer<typeof FrameSchema>;
+
+/** Couleur CSS d'un cadre : teinte de la palette (suit le thème), couleur libre, ou la couleur par défaut. */
+export function frameColorCss(color: string | undefined): string {
+  if (color && (PALETTE as readonly string[]).includes(color)) return `var(--t-color-${color})`;
+  if (color && CUSTOM_COLOR_RE.test(color)) return color;
+  return `var(--t-color-${FRAME_DEFAULT_COLOR})`;
+}
+
+/** Attributs de rendu d'un cadre (`data-frame` + variable `--frame-color`), ou null sans cadre / cadre invalide. */
+export function frameAttrs(frame: Frame | undefined): { "data-frame": FrameSize; style: Record<string, string> } | null {
+  const ok = frame && FrameSchema.safeParse(frame);
+  if (!ok || !ok.success) return null;
+  return { "data-frame": ok.data.size, style: { "--frame-color": frameColorCss(ok.data.color) } };
+}
+
 /* ---- Réglages d'un bloc (props.look) --------------------------------------------- */
 
 /** Chemin d'un texte du bloc (comme `inline` au registre) ; `site.name` / `site.role` : textes du site posés dans le bloc. */
@@ -331,6 +366,10 @@ export const LookSchema = z.strictObject({
    * emplacement (slug de l'emplacement) : surcharge l'arrondi du bloc.
    */
   slotRadius: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), z.enum(RADII)), 200, "arrondis d'images").optional(),
+  /** Cadre autour de la photo d'un bloc Image (page, case de grille) : lot 34. */
+  frame: FrameSchema.optional(),
+  /** Cadre d'une image précise d'une planche, par emplacement (slug) : lot 34. */
+  slotFrame: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), FrameSchema), 200, "cadres d'images").optional(),
 });
 export type Look = z.infer<typeof LookSchema>;
 

@@ -11,6 +11,7 @@ import { BOARD_ITEM_LABELS, type BoardBox as BoardBoxProps, type BoardItemType }
 import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedArtwork, LocalizedProject } from "@/lib/gallery";
 import { RADIUS_VALUES } from "@/themes/css";
+import type { Frame } from "@/lib/look";
 import type { Background, FondJoin } from "@/themes/fond";
 import type { CardPalette } from "@/themes/surface";
 
@@ -53,6 +54,7 @@ export default function ProjectStrip({
   showHeader = true,
   collection,
   slotRadius,
+  slotFrame,
   parts,
   palette,
 }: {
@@ -66,6 +68,8 @@ export default function ProjectStrip({
   collection?: string;
   /** Arrondi par image (réglage `look.slotRadius` du bloc, par slug d'emplacement). */
   slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
+  /** Cadre par image (réglage `look.slotFrame` du bloc, par slug d'emplacement ; lot 34). */
+  slotFrame?: Partial<Record<string, Frame>>;
   /** Suite de composants de la planche ; absente (anciens blocs de projets) : la bande d'images seule. */
   parts?: BoardPart[];
   /** Palette effective du site : le texte lisible sur un fond de couleur (seulement si un composant en a un). */
@@ -91,7 +95,7 @@ export default function ProjectStrip({
       </BoardBox>
     ) : (
       <BoardBox box={part?.box}>
-        <StripRail artworks={project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} projectRail captions slotRadius={slotRadius} />
+        <StripRail artworks={project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} projectRail captions slotRadius={slotRadius} slotFrame={slotFrame} />
       </BoardBox>
     );
 

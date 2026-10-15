@@ -7,6 +7,7 @@ import Lightbox from "@/components/Lightbox";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
 import type { LocalizedArtwork } from "@/lib/gallery";
+import { frameAttrs, type Frame } from "@/lib/look";
 import { RADIUS_VALUES } from "@/themes/css";
 
 import LoopFrame from "./LoopVideo";
@@ -36,6 +37,7 @@ export default function StripRail({
   projectRail = false,
   captions = true,
   slotRadius,
+  slotFrame,
 }: {
   artworks: LocalizedArtwork[];
   /** Nom lu par les lecteurs d'écran (projet de la planche). */
@@ -49,6 +51,8 @@ export default function StripRail({
   /** Titre et année sous chaque image (images du projet) ; un carrousel à liste propre n'en a pas. */
   captions?: boolean;
   slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
+  /** Cadre par image (réglage `look.slotFrame` du bloc, par slug d'emplacement ; lot 34). */
+  slotFrame?: Partial<Record<string, Frame>>;
 }) {
   const t = useTranslations("projects");
   const tg = useTranslations("gallery");
@@ -56,6 +60,11 @@ export default function StripRail({
   const radiusOf = (slug: string): CSSProperties | undefined => {
     const r = slotRadius && Object.hasOwn(slotRadius, slug) ? slotRadius[slug] : undefined;
     return r && Object.hasOwn(RADIUS_VALUES, r) ? ({ "--media-radius": RADIUS_VALUES[r] } as CSSProperties) : undefined;
+  };
+  /** Cadre d'une photo réglée seule (lot 34) : attribut + couleur sur l'image de la planche, jamais sur une vidéo en boucle. */
+  const frameOf = (slug: string) => {
+    const f = slotFrame && Object.hasOwn(slotFrame, slug) ? frameAttrs(slotFrame[slug]) : null;
+    return f ? { "data-frame": f["data-frame"], style: f.style as CSSProperties } : null;
   };
   // Les places vides n'existent que sur la toile : ni compteur, ni visionneuse.
   const shownArtworks = edit ? artworks.filter((a) => !a.edit?.empty) : artworks;
@@ -278,7 +287,8 @@ export default function StripRail({
             onClick={() => setOpenIndex(index)}
             aria-label={openLabel}
             className="strip-frame group text-left"
-            style={radiusOf(artwork.slug)}
+            style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : frameOf(artwork.slug)?.style) }}
+            {...(!artwork.video && frameOf(artwork.slug) ? { "data-frame": frameOf(artwork.slug)!["data-frame"] } : {})}
             {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos, "data-slot-slug": artwork.slug } : {})}
           >
             <span className="strip-media">

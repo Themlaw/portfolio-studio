@@ -116,6 +116,24 @@ figure.block-image[data-fit="contain"] .block-image-media.block-image-media {
   object-fit: contain;
   background-color: transparent !important;
 }
+/* ---- Cadre autour d'une photo (lot 34) ---------------------------------------
+   `look.frame` (image seule, case de grille) et `look.slotFrame` (image d'une planche) : une bordure DANS la boîte de
+   l'image (box-sizing: border-box). La taille extérieure ne change jamais : en grille, la case garde celle de ses voisines ;
+   dans la bande d'une planche, l'image garde la hauteur commune. La photo est réduite d'autant (jamais couverte), le
+   rayon de l'image arrondit aussi le cadre. Épaisseurs : Fin 2 px, Moyen jusqu'à 6 px, Épais jusqu'à 12 px (plus
+   minces sur téléphone). La couleur (`--frame-color`) vient de la palette du thème ou d'une couleur libre, jamais d'ici.
+   Un cadrage ancien (point focal + zoom) déplace et agrandit l'image : le cadre est alors posé sur l'enveloppe qui la
+   rogne (.block-image-frame), pas sur l'image. La visionneuse n'a pas de cadre. */
+[data-frame] { --frame-w: 2px; }
+[data-frame="medium"] { --frame-w: clamp(3px, 0.9vw, 6px); }
+[data-frame="thick"] { --frame-w: clamp(5px, 1.8vw, 12px); }
+figure.block-image[data-frame]:not([data-legacy]) .block-image-media,
+figure.block-image[data-frame] .block-image-frame,
+.strip-frame[data-frame] .strip-media img {
+  box-sizing: border-box;
+  border: var(--frame-w) solid var(--frame-color);
+  background-clip: padding-box;
+}
 /* Variante extraite de l'original (cadrage ancien converti en rectangle) : déjà à la bonne place, ni décalage ni zoom. */
 .blk[data-crop] .block-image-media[data-cropped] {
   transform: none;
