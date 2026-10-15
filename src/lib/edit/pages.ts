@@ -4,7 +4,7 @@
  * références existantes), accent de page (contraste AA contre le thème actif).
  */
 import { own } from "@/lib/own";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { BLOCKS } from "@/blocks/registry";
@@ -12,6 +12,7 @@ import { extractProjectRefs, extractRefs } from "@/blocks/refs";
 import { containerAccepts, errorPath, flatBlocks, treeProblem } from "@/blocks/tree";
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
+import { FORM_BLOCK_TYPES, isFormBlock } from "@/lib/contact-form";
 import { findPageReferences } from "@/lib/references";
 import { accentProblem } from "@/themes/contrast";
 import { ThemeSchema } from "@/themes/schema";
@@ -27,17 +28,18 @@ import { discardSiteDraft } from "./site";
  * transaction de publication (savePage).
  */
 export function formIdProblem(pageId: number, blocks: { type: string; props?: unknown }[]): { path: string; message: string } | null {
-  const forms = flatBlocks(blocks).filter((b) => b.type === "contact-form");
+  const forms = flatBlocks(blocks).filter((b) => isFormBlock(b.type, b.props));
   if (!forms.length) return null;
   const elsewhere = new Set<string>();
   const rows = getDb()
-    .select({ props: schema.blocks.props, pageId: schema.blocks.pageId })
+    .select({ props: schema.blocks.props, pageId: schema.blocks.pageId, type: schema.blocks.type })
     .from(schema.blocks)
     .innerJoin(schema.pages, eq(schema.blocks.pageId, schema.pages.id))
-    .where(and(eq(schema.blocks.type, "contact-form"), eq(schema.pages.published, true)))
+    .where(and(inArray(schema.blocks.type, [...FORM_BLOCK_TYPES]), eq(schema.pages.published, true), isNull(schema.pages.deletedAt)))
     .all();
   for (const r of rows) {
     if (r.pageId === pageId) continue;
+    if (!isFormBlock(r.type, parseJson(r.props))) continue;
     const id = (parseJson(r.props) as { formId?: unknown } | undefined)?.formId;
     if (typeof id === "string") elsewhere.add(id);
   }
@@ -66,7 +68,7 @@ export function mediaKindProblem(type: string, props: unknown): string | null {
     if (!Number.isInteger(id)) continue;
     const row = getDb().select({ kind: schema.media.kind }).from(schema.media).where(eq(schema.media.id, id as number)).get();
     // Média disparu : signalé ailleurs (« n'existe plus »).
-    if (row && row.kind !== "image" && row.kind !== "video") return "Ce bloc attend une image ou une vidéo (pas un PDF) : choisis-en une autre.";
+    if (row && row.kind !== "image" && row.kind !== "video") return "Cette rubrique attend une image ou une vidéo (pas un PDF) : choisis-en une autre.";
   }
   return null;
 }
@@ -129,6 +131,8 @@ function slugErrors(slug: L, exceptId: number | null): Record<string, string> {
   const others = getDb()
     .select({ id: schema.pages.id, slug: schema.pages.slug })
     .from(schema.pages)
+    // Une page à la corbeille ne retient plus son adresse (restaurée, elle en reçoit une libre).
+    .where(isNull(schema.pages.deletedAt))
     .all()
     .filter((p) => p.id !== exceptId);
   for (const l of LOCALES) {
@@ -141,11 +145,20 @@ function slugErrors(slug: L, exceptId: number | null): Record<string, string> {
   return errors;
 }
 
-const titleSchema = z.object({
-  fr: z.string().trim().min(1, "Donne un titre en français.").max(80),
-  en: z.string().trim().min(1, "Donne un titre en anglais (il sert au menu en anglais).").max(80),
-});
-const slugSchema = z.object({ fr: z.string().trim().toLowerCase().max(120), en: z.string().trim().toLowerCase().max(120) });
+/**
+ * Titre d'une page : le français est obligatoire, l'anglais facultatif (lot 23) ; vide, il reprend le français
+ * (le menu et l'onglet de la version anglaise ne restent jamais sans titre).
+ */
+const titleSchema = z
+  .object({
+    fr: z.string().trim().min(1, "Donne un titre en français.").max(80),
+    en: z.string().trim().max(80),
+  })
+  .transform((t) => ({ fr: t.fr, en: t.en || t.fr }));
+/** Adresses : l'anglaise vide reprend la française (création d'une page sans titre anglais). */
+const slugSchema = z
+  .object({ fr: z.string().trim().toLowerCase().max(120), en: z.string().trim().toLowerCase().max(120) })
+  .transform((s) => ({ fr: s.fr, en: s.en || s.fr }));
 
 export const CreatePageSchema = z.object({ title: titleSchema, slug: slugSchema });
 
@@ -182,7 +195,7 @@ const SavePageSchema = z.object({
   accent: z.string().max(7).regex(HEX, "Couleur attendue au format #rrggbb.").nullable(),
   /** Collection présentée par la page (lot 22) ; absent = inchangée. */
   collection: z.enum(["characters", "backgrounds", "animation"]).nullable().optional(),
-  blocks: z.array(z.object({ type: z.string().max(60), props: z.unknown() })).max(40, "40 blocs au plus par page."),
+  blocks: z.array(z.object({ type: z.string().max(60), props: z.unknown() })).max(40, "40 rubriques au plus par page."),
 });
 
 /** Couleurs du thème actif (pour contrôler l'accent d'une page). */
@@ -197,7 +210,7 @@ function activeColors() {
 export function savePage(id: number, input: unknown): ActionResult<null> {
   const db = getDb();
   const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
-  if (!page) return fail("Cette page n'existe plus. Recharge la liste des pages.");
+  if (!page || page.deletedAt) return fail("Cette page n'existe plus. Recharge la liste des pages.");
   const parsed = SavePageSchema.safeParse(input);
   if (!parsed.success) return fail("Corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
   const data = parsed.data;
@@ -210,20 +223,22 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
 
   // Une collection n'a qu'une page.
   if (data.collection) {
-    const other = db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).where(eq(schema.pages.collection, data.collection)).get();
+    // Une page à la corbeille garde sa collection sans la retenir (index unique partiel, migration 0024).
+    const other = db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).where(and(eq(schema.pages.collection, data.collection), isNull(schema.pages.deletedAt))).get();
     if (other && other.id !== id) errors.collection = `Cette collection est déjà celle de la page « ${other.title.fr || other.title.en} » : retire-la de cette page d'abord.`;
   }
 
   if (data.accent) {
     const colors = activeColors();
     const problem = colors ? accentProblem(data.accent, colors) : null;
-    if (problem) errors.accent = `${problem} Choisis une teinte plus contrastée ou retire l'accent.`;
+    if (problem) errors.accent = `${problem} Choisis une teinte plus contrastée ou retire cette couleur.`;
   }
 
   // Blocs : forme de l'arbre (conteneurs), type connu, props valides, références existantes.
-  const pageIds = new Set(db.select({ id: schema.pages.id }).from(schema.pages).all().map((p) => p.id));
-  const mediaIds = new Set(db.select({ id: schema.media.id }).from(schema.media).all().map((m) => m.id));
-  const projectPages = new Map(db.select({ slug: schema.projects.slug, page: schema.projects.draftPageId }).from(schema.projects).all().map((p) => [p.slug, p.page]));
+  // Pages, médias et projets à la corbeille n'existent plus pour un lien : seul « Restaurer » les rend citables.
+  const pageIds = new Set(db.select({ id: schema.pages.id }).from(schema.pages).where(isNull(schema.pages.deletedAt)).all().map((p) => p.id));
+  const mediaIds = new Set(db.select({ id: schema.media.id }).from(schema.media).where(isNull(schema.media.deletedAt)).all().map((m) => m.id));
+  const projectPages = new Map(db.select({ slug: schema.projects.slug, page: schema.projects.draftPageId }).from(schema.projects).where(isNull(schema.projects.deletedAt)).all().map((p) => [p.slug, p.page]));
   const shape = treeProblem(data.blocks as { type: string; props?: unknown }[], (t) => Boolean(own(BLOCKS, t)));
   if (shape) errors.blocks = shape;
   const old = deprecatedProblem(id, data.blocks);
@@ -232,15 +247,24 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
   /** Valide une liste (la page, ou les composants d'un conteneur), récursivement. */
   const validate = (list: { uid?: unknown; type: string; props: unknown }[], prefix: string, parent: string | null, inherited: string | undefined): Out[] => {
     const out: Out[] = [];
+    const singles = new Set<string>();
     list.forEach((block, i) => {
       const key = `${prefix}.${i}`;
       const def = own(BLOCKS, block.type);
       if (!def) {
-        errors[key] = `Type de bloc inconnu « ${block.type} ».`;
+        errors[key] = `Type de rubrique inconnu « ${block.type} ».`;
         return;
       }
+      // Une rubrique « une seule fois par page » (l'Ouverture) : le panneau la grise, le serveur refuse aussi l'exemplaire en trop.
+      if (def.single) {
+        if (singles.has(block.type)) {
+          errors[key] = `« ${def.label} » ne se pose qu'une fois par page : retire l'exemplaire en trop.`;
+          return;
+        }
+        singles.add(block.type);
+      }
       if (parent && !containerAccepts(parent, block.type)) {
-        errors[key] = "Ce conteneur n'accepte pas ce composant.";
+        errors[key] = "Cette rubrique n'accepte pas ce composant.";
         return;
       }
       const result = def.schema.safeParse(block.props);
@@ -259,15 +283,15 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
       }
       // Références du bloc lui-même (ses composants sont contrôlés un par un).
       const refs = extractRefs(block.type, props, 2);
-      if (refs.pages.some((p) => !pageIds.has(p))) errors[key] = "Ce bloc pointe vers une page qui n'existe plus : choisis-en une autre.";
+      if (refs.pages.some((p) => !pageIds.has(p))) errors[key] = "Cette rubrique pointe vers une page qui n'existe plus : choisis-en une autre.";
       // Projets cités : existants, publiés ou créés dans le brouillon de CETTE page.
       for (const slug of extractProjectRefs(block.type, props, 2)) {
-        if (!projectPages.has(slug)) errors[key] = "Ce bloc cite un projet qui n'existe plus : choisis-en un autre.";
-        else if (![null, id].includes(projectPages.get(slug) ?? null)) errors[key] = "Ce bloc cite un projet en cours de création dans une autre page.";
+        if (!projectPages.has(slug)) errors[key] = "Cette rubrique cite un projet qui n'existe plus : choisis-en un autre.";
+        else if (![null, id].includes(projectPages.get(slug) ?? null)) errors[key] = "Cette rubrique cite un projet en cours de création dans une autre page.";
       }
       const required = def.publishCheck?.(props, { project: inherited });
       if (required) errors[key] = required;
-      if (refs.media.some((m) => !mediaIds.has(m))) errors[key] = "Ce bloc utilise un média qui n'existe plus : choisis-en un autre.";
+      if (refs.media.some((m) => !mediaIds.has(m))) errors[key] = "Cette rubrique utilise un média qui n'existe plus : choisis-en un autre.";
       const wrongKind = mediaKindProblem(block.type, props);
       if (wrongKind) errors[key] = wrongKind;
       if (def.container) {
@@ -312,7 +336,7 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
 
 export function setPublished(id: number, published: boolean): ActionResult<null> {
   const page = getDb().select().from(schema.pages).where(eq(schema.pages.id, id)).get();
-  if (!page) return fail("Cette page n'existe plus.");
+  if (!page || page.deletedAt) return fail("Cette page n'existe plus.");
   if (isHome(page.slug) && !published) return fail("La page d'accueil reste toujours publiée.");
   getDb().update(schema.pages).set({ published, updatedAt: new Date() }).where(eq(schema.pages.id, id)).run();
   return done(null);
@@ -321,7 +345,7 @@ export function setPublished(id: number, published: boolean): ActionResult<null>
 export function setInMenu(id: number, inMenu: boolean): ActionResult<null> {
   const db = getDb();
   const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
-  if (!page) return fail("Cette page n'existe plus.");
+  if (!page || page.deletedAt) return fail("Cette page n'existe plus.");
   db.transaction(() => setPageInNav(id, inMenu));
   return done(null);
 }
@@ -340,35 +364,53 @@ export function reorderMenu(input: unknown): ActionResult<null> {
   return done(null);
 }
 
-export type PageReference = { pageId: number; pageTitle: string; blockType: string };
+/** `trashed` : la page qui cite est elle-même à la corbeille (les liens y restent comptés tant qu'elle n'est pas purgée). */
+export type PageReference = { pageId: number; pageTitle: string; blockType: string; trashed: boolean };
 
-export function deletePage(id: number): ActionResult<null> | { ok: false; message: string; references: PageReference[] } {
+/** Pages dont des blocs (publiés ou en brouillon) pointent vers celle-ci, hors elle-même. */
+function pageBlockReferences(id: number): PageReference[] {
+  const db = getDb();
+  const refs = findPageReferences(id).flatMap((u) => (u.kind === "block" && u.pageId !== id ? [u] : []));
+  if (!refs.length) return [];
+  const pages = new Map(
+    db
+      .select({ id: schema.pages.id, title: schema.pages.title, deletedAt: schema.pages.deletedAt })
+      .from(schema.pages)
+      .where(inArray(schema.pages.id, refs.map((r) => r.pageId)))
+      .all()
+      .map((p) => [p.id, p]),
+  );
+  return refs.map((r) => ({
+    pageId: r.pageId,
+    pageTitle: pages.get(r.pageId)?.title.fr ?? `page ${r.pageId}`,
+    blockType: own(BLOCKS, r.type)?.label ?? r.type,
+    trashed: Boolean(pages.get(r.pageId)?.deletedAt),
+  }));
+}
+
+/**
+ * Supprimer une page = la mettre à la corbeille (lot 23) : elle quitte le site, le menu et l'admin, mais reste
+ * restaurable 30 jours (`restorePage`), puis un job la purge (`purgeTrash`). Refusée tant que d'autres pages la
+ * montrent (liens, tuiles, bouton d'ouverture) : la liste est donnée ; l'écran la montre avant, sans proposer
+ * « Supprimer ». Son brouillon de blocs reste intact (Annuler le retrouve) ; ce qu'elle tenait en surcouche
+ * hors de ses blocs (modifications non publiées de planches, textes de projet, brouillon du site : en-tête, pied,
+ * réseaux) est abandonné, comme à la suppression d'avant : une page à la corbeille ne publiera plus rien, et
+ * ces surcouches bloqueraient sinon l'écran Projets et les Réglages pendant 30 jours.
+ */
+export function deletePage(id: number): ActionResult<{ title: string }> | { ok: false; message: string; references: PageReference[] } {
   const db = getDb();
   const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
-  if (!page) return fail("Cette page n'existe plus.");
+  if (!page || page.deletedAt) return fail("Cette page n'existe plus.");
   if (isHome(page.slug)) return fail("La page d'accueil ne se supprime pas.");
-  const refs = findPageReferences(id).flatMap((u) => (u.kind === "block" && u.pageId !== id ? [u] : []));
-  if (refs.length > 0) {
-    const titles = new Map(
-      db
-        .select({ id: schema.pages.id, title: schema.pages.title })
-        .from(schema.pages)
-        .where(inArray(schema.pages.id, refs.map((r) => r.pageId)))
-        .all()
-        .map((p) => [p.id, p.title.fr]),
-    );
+  const references = pageBlockReferences(id);
+  if (references.length > 0) {
     return {
       ok: false,
-      message: `Cette page est utilisée par ${refs.length} bloc${refs.length > 1 ? "s" : ""} : retire ces liens avant de la supprimer.`,
-      references: refs.map((r) => ({
-        pageId: r.pageId,
-        pageTitle: titles.get(r.pageId) ?? `page ${r.pageId}`,
-        blockType: own(BLOCKS, r.type)?.label ?? r.type,
-      })),
+      message: `Cette page est utilisée par ${references.length} rubrique${references.length > 1 ? "s" : ""} : retire ces liens avant de la supprimer.`,
+      references,
     };
   }
   db.transaction((tx) => {
-    // Surcouche d'emplacements portée par le brouillon de la page : abandonnée avec elle.
     tx.delete(schema.slots).where(and(eq(schema.slots.draftPageId, id), eq(schema.slots.draftState, "added"))).run();
     tx.update(schema.slots)
       .set({ draftState: null, draftPosition: null, draftMediaId: null, draftPageId: null, draftTitle: null, draftDescription: null, draftKey: null })
@@ -376,9 +418,47 @@ export function deletePage(id: number): ActionResult<null> | { ok: false; messag
       .run();
     tx.update(schema.projects).set({ draftText: null, draftTextPageId: null }).where(eq(schema.projects.draftTextPageId, id)).run();
     // Menu et brouillon de l'en-tête portés par cette page.
+    const inMenu = isPageInNav(id);
     setPageInNav(id, false);
     discardSiteDraft(id);
-    tx.delete(schema.pages).where(eq(schema.pages.id, id)).run();
+    tx.update(schema.pages).set({ deletedAt: new Date(), trashedInMenu: inMenu }).where(eq(schema.pages.id, id)).run();
   });
-  return done(null);
+  return done({ title: page.title.fr });
+}
+
+/**
+ * Restaure une page de la corbeille. Son adresse a pu être reprise entre-temps : elle reçoit alors une
+ * variante libre (`-2`…), vérifiée pour CHAQUE langue (adresse valide, non réservée, non prise) puis revalidée
+ * par `slugErrors` ; `slugChanged` le dit. Sa collection a pu être reprise par une autre page : elle la perd
+ * (`collectionDropped`). Elle revient au menu si elle y était.
+ */
+export function restorePage(id: number): ActionResult<{ title: string; slugChanged: boolean; collectionDropped: boolean }> {
+  const db = getDb();
+  const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
+  if (!page || !page.deletedAt) return fail("Cette page n'est pas dans la corbeille.");
+  const taken = db.select({ slug: schema.pages.slug }).from(schema.pages).where(isNull(schema.pages.deletedAt)).all();
+  let slugChanged = false;
+  const slug = { ...page.slug };
+  if (!isHome(page.slug)) {
+    for (const l of LOCALES) {
+      const base = page.slug[l];
+      const free = (candidate: string) => slugProblem(candidate) === null && !taken.some((p) => p.slug[l] === candidate);
+      for (let n = 2; !free(slug[l]) && n < 100; n++) {
+        slug[l] = `${base}-${n}`;
+        slugChanged = true;
+      }
+    }
+    const problems = slugErrors(slug, id);
+    if (Object.keys(problems).length) return fail(`Impossible de lui trouver une adresse libre : ${Object.values(problems).join(" ")} Change l'adresse de la page prise ou supprime-la, puis réessaie.`);
+  }
+  const wanted = page.collection;
+  const collectionDropped = wanted !== null && Boolean(db.select({ id: schema.pages.id }).from(schema.pages).where(and(eq(schema.pages.collection, wanted), isNull(schema.pages.deletedAt))).get());
+  db.transaction((tx) => {
+    tx.update(schema.pages)
+      .set({ deletedAt: null, trashedInMenu: false, slug, updatedAt: new Date(), ...(collectionDropped ? { collection: null } : {}) })
+      .where(eq(schema.pages.id, id))
+      .run();
+    if (page.trashedInMenu) setPageInNav(id, true);
+  });
+  return done({ title: page.title.fr, slugChanged, collectionDropped });
 }

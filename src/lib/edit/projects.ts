@@ -3,7 +3,7 @@
  * suppression d'un projet bloquée s'il est cité par un bloc ; un emplacement
  * vidé garde sa place (media_id null, masqué côté public).
  */
-import { and, asc, eq, max } from "drizzle-orm";
+import { and, asc, eq, isNull, max } from "drizzle-orm";
 import { z } from "zod";
 
 import { BLOCKS } from "@/blocks/registry";
@@ -69,8 +69,13 @@ function textHeldMessage(projectId: number): string | null {
   return `Les textes de ce projet sont en cours de modification sur la page « ${title} » : publie-la ou abandonne ses modifications d'abord.`;
 }
 
-function isDraftProject(projectId: number): boolean {
-  return getDb().select({ page: schema.projects.draftPageId }).from(schema.projects).where(eq(schema.projects.id, projectId)).get()?.page != null;
+const TRASHED_PROJECT = "Ce projet est à la corbeille : restaure-le d'abord.";
+
+/** Raison pour laquelle un projet ne se modifie pas depuis cet écran (brouillon de page, corbeille), ou null. */
+function projectLock(projectId: number): string | null {
+  const row = getDb().select({ page: schema.projects.draftPageId, deletedAt: schema.projects.deletedAt }).from(schema.projects).where(eq(schema.projects.id, projectId)).get();
+  if (row?.page != null) return DRAFT_PROJECT;
+  return row?.deletedAt ? TRASHED_PROJECT : null;
 }
 
 /** Ordre exact : mêmes identifiants que l'existant, sans doublon. */
@@ -110,7 +115,8 @@ export function saveProject(id: number, input: unknown): ActionResult<{ textsHel
   if (!db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.id, id)).get()) {
     return fail("Ce projet n'existe plus. Recharge la liste des projets.");
   }
-  if (isDraftProject(id)) return fail(DRAFT_PROJECT);
+  const lock = projectLock(id);
+  if (lock) return fail(lock);
   const held = textHeldMessage(id);
   if (held) {
     const parsed = ProjectMetaSchema.pick({ featured: true }).safeParse({ featured: (input as { featured?: unknown } | null)?.featured });
@@ -130,6 +136,7 @@ export function reorderProjects(input: unknown): ActionResult<null> {
   const existing = db
     .select({ id: schema.projects.id, page: schema.projects.draftPageId })
     .from(schema.projects)
+    .where(isNull(schema.projects.deletedAt))
     .all()
     .filter((p) => p.page === null)
     .map((p) => p.id);
@@ -138,24 +145,44 @@ export function reorderProjects(input: unknown): ActionResult<null> {
   return done(null);
 }
 
-export type ProjectReference = { pageId: number; pageTitle: string; blockType: string };
+export type ProjectReference = { pageId: number; pageTitle: string; blockType: string; /** La page qui cite est à la corbeille. */ trashed: boolean };
 
-export function deleteProject(id: number): ActionResult<null> | { ok: false; message: string; references: ProjectReference[] } {
+function projectBlockReferences(slug: string): ProjectReference[] {
+  const refs = findProjectReferences(slug).flatMap((u) => (u.kind === "block" ? [u] : []));
+  if (!refs.length) return [];
+  const pages = new Map(getDb().select({ id: schema.pages.id, title: schema.pages.title, deletedAt: schema.pages.deletedAt }).from(schema.pages).all().map((p) => [p.id, p]));
+  return refs.map((r) => ({ pageId: r.pageId, pageTitle: pages.get(r.pageId)?.title.fr ?? `page ${r.pageId}`, blockType: own(BLOCKS, r.type)?.label ?? r.type, trashed: Boolean(pages.get(r.pageId)?.deletedAt) }));
+}
+
+/**
+ * Supprimer un projet = le mettre à la corbeille (lot 23) : il quitte le site et l'écran Projets, sa planche
+ * et ses emplacements restent intacts ; restaurable 30 jours (`restoreProject`), puis un job le purge
+ * (`purgeProject`). Refusé tant qu'un bloc le montre : la liste est donnée.
+ */
+export function deleteProject(id: number): ActionResult<{ title: string }> | { ok: false; message: string; references: ProjectReference[] } {
   const db = getDb();
   const project = db.select().from(schema.projects).where(eq(schema.projects.id, id)).get();
-  if (!project) return fail("Ce projet n'existe plus.");
+  if (!project || project.deletedAt) return fail("Ce projet n'existe plus.");
   if (project.draftPageId !== null) return fail(DRAFT_PROJECT);
-  const refs = findProjectReferences(project.slug).flatMap((u) => (u.kind === "block" ? [u] : []));
-  if (refs.length) {
-    const titles = new Map(db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).all().map((p) => [p.id, p.title.fr]));
+  const references = projectBlockReferences(project.slug);
+  if (references.length) {
     return {
       ok: false,
-      message: `Ce projet est affiché par ${refs.length} bloc${refs.length > 1 ? "s" : ""} : retire-le de ces blocs avant de le supprimer.`,
-      references: refs.map((r) => ({ pageId: r.pageId, pageTitle: titles.get(r.pageId) ?? `page ${r.pageId}`, blockType: own(BLOCKS, r.type)?.label ?? r.type })),
+      message: `Ce projet est affiché par ${references.length} rubrique${references.length > 1 ? "s" : ""} : retire-le de ces rubriques avant de le supprimer.`,
+      references,
     };
   }
-  db.delete(schema.projects).where(eq(schema.projects.id, id)).run(); // emplacements en cascade ; médias conservés
-  return done(null);
+  db.update(schema.projects).set({ deletedAt: new Date() }).where(eq(schema.projects.id, id)).run();
+  return done({ title: project.title.fr });
+}
+
+/** Restaure un projet de la corbeille (même place dans l'ordre, planche intacte). */
+export function restoreProject(id: number): ActionResult<{ title: string }> {
+  const db = getDb();
+  const project = db.select().from(schema.projects).where(eq(schema.projects.id, id)).get();
+  if (!project || !project.deletedAt) return fail("Ce projet n'est pas dans la corbeille.");
+  db.update(schema.projects).set({ deletedAt: null, updatedAt: new Date() }).where(eq(schema.projects.id, id)).run();
+  return done({ title: project.title.fr });
 }
 
 /* ---- Emplacements ------------------------------------------------------- */
@@ -188,13 +215,15 @@ export function addSlots(projectId: number, input: unknown, atInput?: unknown): 
   const project = db.select().from(schema.projects).where(eq(schema.projects.id, projectId)).get();
   if (!project) return fail("Ce projet n'existe plus. Recharge la page.");
   if (project.draftPageId !== null) return fail(DRAFT_PROJECT);
+  if (project.deletedAt) return fail(TRASHED_PROJECT);
   const existing = db.select().from(schema.slots).where(eq(schema.slots.projectId, projectId)).orderBy(asc(schema.slots.position)).all();
   const counts = new Map<string, number>();
   for (const s of existing) counts.set(s.collection, (counts.get(s.collection) ?? 0) + 1);
   const collection = ([...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "characters") as "characters";
-  const mediaRows = new Map(db.select().from(schema.media).all().map((m) => [m.id, m]));
+  // Média à la corbeille = absent : seul « Restaurer » le rend utilisable.
+  const mediaRows = new Map(db.select().from(schema.media).where(isNull(schema.media.deletedAt)).all().map((m) => [m.id, m]));
   for (const mid of parsed.data) if (mid !== null && !mediaRows.has(mid)) return fail("Une image n'existe plus : recharge la page.");
-  if (parsed.data.some((mid) => mid !== null && mediaRows.get(mid)?.kind === "pdf")) return fail("Un PDF ne se place pas dans une planche : utilise le bloc « CV ».");
+  if (parsed.data.some((mid) => mid !== null && mediaRows.get(mid)?.kind === "pdf")) return fail("Un PDF ne se place pas dans une planche : utilise la rubrique « CV ».");
   if (parsed.data.some((mid) => mid !== null && mediaRows.get(mid)?.status === "failed")) {
     return fail("Ce média est en échec : relance-le depuis la médiathèque avant de le placer.");
   }
@@ -230,7 +259,9 @@ export function addSlots(projectId: number, input: unknown, atInput?: unknown): 
 export function saveSlot(slotId: number, input: unknown): ActionResult<{ projectId: number }> {
   const slot = slotRow(slotId);
   if (!slot) return fail("Cet emplacement n'existe plus. Recharge la page.");
-  if (slot.draftState === "added" || isDraftProject(slot.projectId)) return fail(DRAFT_PROJECT);
+  if (slot.draftState === "added") return fail(DRAFT_PROJECT);
+  const lock = projectLock(slot.projectId);
+  if (lock) return fail(lock);
   const parsed = SlotSchema.safeParse(input);
   if (!parsed.success) return fail("L'emplacement n'a pas été enregistré : corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
   getDb().update(schema.slots).set(parsed.data).where(eq(schema.slots.id, slotId)).run();
@@ -240,14 +271,16 @@ export function saveSlot(slotId: number, input: unknown): ActionResult<{ project
 export function setSlotMedia(slotId: number, mediaId: unknown): ActionResult<{ projectId: number }> {
   const slot = slotRow(slotId);
   if (!slot) return fail("Cet emplacement n'existe plus. Recharge la page.");
-  if (slot.draftState === "added" || isDraftProject(slot.projectId)) return fail(DRAFT_PROJECT);
+  if (slot.draftState === "added") return fail(DRAFT_PROJECT);
+  const lock = projectLock(slot.projectId);
+  if (lock) return fail(lock);
   const parsed = z.number().int().positive().nullable().safeParse(mediaId);
   if (!parsed.success) return fail("Requête invalide.");
   const db = getDb();
   if (parsed.data !== null) {
-    const target = db.select({ status: schema.media.status, kind: schema.media.kind }).from(schema.media).where(eq(schema.media.id, parsed.data)).get();
-    if (!target) return fail("Cette image n'existe plus : recharge la médiathèque.");
-    if (target.kind === "pdf") return fail("Un PDF ne se place pas dans une planche : utilise le bloc « CV ».");
+    const target = db.select({ status: schema.media.status, kind: schema.media.kind, deletedAt: schema.media.deletedAt }).from(schema.media).where(eq(schema.media.id, parsed.data)).get();
+    if (!target || target.deletedAt) return fail("Cette image n'existe plus : recharge la médiathèque.");
+    if (target.kind === "pdf") return fail("Un PDF ne se place pas dans une planche : utilise la rubrique « CV ».");
     if (target.status === "failed") return fail("Ce média est en échec : relance-le depuis la médiathèque avant de le placer.");
   }
   // Retirer l'image garde le ratio de la place (aspect inchangé) ; une
@@ -267,7 +300,9 @@ export function setSlotMedia(slotId: number, mediaId: unknown): ActionResult<{ p
 export function deleteSlot(slotId: number): ActionResult<{ projectId: number }> {
   const slot = slotRow(slotId);
   if (!slot) return fail("Cet emplacement n'existe plus.");
-  if (slot.draftState === "added" || isDraftProject(slot.projectId)) return fail(DRAFT_PROJECT);
+  if (slot.draftState === "added") return fail(DRAFT_PROJECT);
+  const lock = projectLock(slot.projectId);
+  if (lock) return fail(lock);
   const db = getDb();
   db.transaction((tx) => {
     tx.delete(schema.slots).where(eq(schema.slots.id, slotId)).run();
@@ -280,7 +315,8 @@ export function deleteSlot(slotId: number): ActionResult<{ projectId: number }> 
 export function reorderSlots(projectId: number, input: unknown): ActionResult<null> {
   const parsed = Ids.safeParse(input);
   const db = getDb();
-  if (isDraftProject(projectId)) return fail(DRAFT_PROJECT);
+  const lock = projectLock(projectId);
+  if (lock) return fail(lock);
   // Emplacements publiés (ceux d'un brouillon de page ne sont pas dans cet écran).
   const existing = db
     .select({ id: schema.slots.id, state: schema.slots.draftState })

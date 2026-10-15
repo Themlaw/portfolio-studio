@@ -61,12 +61,15 @@ test("regroupement : ordre Texte, Projets, Images et vidéos, Grilles, Autres ; 
   assert.deepEqual(names(groups[0]), ["Texte", "Titre", "Titre + texte"]);
   assert.deepEqual(names(groups[1]), ["Planche d'un projet"]);
   assert.deepEqual(names(groups[2]), ["Image", "Vidéo"]);
-  assert.deepEqual(names(groups[3]), ["Grille", "Grille d'images", "Grille de vidéos"]);
-  assert.deepEqual(names(groups[4]), ["CV", "Profil", "Contact", "Formulaire de contact", "Lien vers une page", "Ouverture", "Entrées des collections"]);
+  // Lot 27 : « Grille » et « Contact » proposent leurs modèles sous leur carte (pas de cartes à part).
+  assert.deepEqual(names(groups[3]), ["Grille"]);
+  assert.deepEqual(groups[3].entries[0].models.map((m) => m.short), ["Avec 3 images", "Avec des vidéos"]);
+  assert.deepEqual(names(groups[4]), ["CV", "Profil", "Contact", "Lien vers une page", "Ouverture", "Entrées des collections"]);
+  assert.deepEqual(groups[4].entries.find((e) => e.type === "contact").models.map((m) => m.key), ["contact-with-form"]);
   // Chaque composant créable (hors rich-text / section-title, remplacés par les trois raccourcis) apparaît une seule fois.
   const all = groups.flatMap((g) => g.entries.map((e) => e.key));
   assert.equal(new Set(all).size, all.length);
-  assert.equal(all.length, creatable.filter((c) => c.type !== "rich-text" && c.type !== "section-title").length);
+  assert.equal(all.length, creatable.filter((c) => !c.preset && c.type !== "rich-text" && c.type !== "section-title").length);
 });
 test("regroupement : groupEntries ignore les entrées masquées", () => {
   const g = groupEntries([{ group: "other", order: 2, hidden: true }, { group: "other", order: 1 }]);
@@ -76,12 +79,12 @@ test("regroupement : groupEntries ignore les entrées masquées", () => {
 test("recherche : nom et description, sans accents ni casse, tous les mots", () => {
   const find = (q) => pickerGroups(catalog, STARTER_LIST, q).flatMap((g) => [...g.starters, ...g.entries].map((e) => e.label));
   assert.deepEqual(find("planche"), ["Planche d'un projet"], "nom ou description");
-  assert.ok(find("VIDEO").includes("Vidéo") && find("vidéo").includes("Grille de vidéos"));
+  assert.ok(find("VIDEO").includes("Vidéo") && find("vidéo").includes("Grille"), "un type correspond aussi par ses modèles");
   assert.ok(find("ecrire").includes("Contact"), "description : « écrire »");
-  assert.deepEqual(find("grille image"), ["Grille", "Grille d'images"], "tous les mots, dans nom + description");
+  assert.deepEqual(find("grille image"), ["Grille"], "tous les mots, dans nom + description");
   assert.ok(find("titre").includes("Titre + texte") && find("titre").includes("Titre"));
   assert.deepEqual(find("xyzzy"), []);
-  const everything = creatable.length - 2 + STARTER_LIST.length; // rich-text et section-title sont remplacés par les trois raccourcis
+  const everything = creatable.filter((c) => !c.preset).length - 2 + STARTER_LIST.length; // rich-text et section-title sont remplacés par les trois raccourcis
   assert.equal(find("").length, everything, "requête vide : tout");
   assert.equal(find("   ").length, everything);
   assert.ok(matchesSearch({ label: "Éléphant", description: "" }, "elephant"));
@@ -304,9 +307,11 @@ test("seed : l'accueil neuf n'a plus de conteneur (Titre, deux Planches à proje
   assert.ok(home[i + 3].props.pageId > 0 && home[i + 3].props.label.fr);
 });
 
-// Retour à une base v0.18 : migrations 0021 (déballage) et 0022 (colonne pages.collection) à rejouer.
+// Retour à une base v0.18 : migrations 0021 (déballage), 0022 (colonne pages.collection), 0023 (fusion des rubriques) et
+// 0024 (colonnes de la corbeille) à rejouer.
 live.prepare("delete from __drizzle_migrations where created_at >= 1791766309564").run();
 live.exec("DROP INDEX pages_collection_unique; ALTER TABLE pages DROP COLUMN collection;");
+live.exec("ALTER TABLE media DROP COLUMN deleted_at; ALTER TABLE pages DROP COLUMN deleted_at; ALTER TABLE pages DROP COLUMN trashed_in_menu; ALTER TABLE projects DROP COLUMN deleted_at;");
 const legacy = seedLegacyPage(live);
 test("démarrage : base v0.18 (migrations jusqu'à 0020 faites) avec trois conteneurs publiés + un brouillon", () => {
   assert.equal(live.prepare("select count(*) n from blocks where page_id = ? and type = 'featured-project'").get(legacy.id).n, 3);

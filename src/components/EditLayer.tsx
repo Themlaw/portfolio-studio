@@ -25,6 +25,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 
 import { TILE_SIZE_LABELS, TILE_SIZES } from "@/blocks/collection-pages";
+import { FIELD_OP_NAMES } from "@/blocks/optional-fields";
 import { MAX_NESTING } from "@/blocks/tree";
 import { acceptToCanvas, insertionIndex, moveTo, type BlockInfo, type FromCanvas } from "@/lib/edit/protocol";
 
@@ -163,6 +164,43 @@ export function rectOf(el: Element): Rect | null {
   return r ? { top: r.top + window.scrollY, left: r.left + window.scrollX, width: r.right - r.left, height: r.bottom - r.top } : null;
 }
 
+/**
+ * Le site (hors calque d'édition) montre-t-il du texte, une image ou un bouton au point (x, y) de la fenêtre ?
+ * Sert à poser l'étiquette d'un bloc là où elle ne recouvre rien (lot 24).
+ */
+function contentAt(x: number, y: number): boolean {
+  for (const el of document.elementsFromPoint(x, y)) {
+    if (el === document.documentElement || el === document.body || el.closest(".pe-layer")) continue;
+    // Décor (calques de l'ouverture, filets) : aria-hidden ou image sans texte alternatif, il ne compte pas.
+    const decor = el.closest('[aria-hidden="true"]') !== null || (el instanceof HTMLImageElement && el.alt === "");
+    if (!decor && el.matches("img, video, svg, canvas, input, textarea, select, button, a[href], [data-inline]")) return true;
+    for (const n of el.childNodes) {
+      if (n.nodeType !== Node.TEXT_NODE || !n.textContent?.trim()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      for (const q of range.getClientRects()) if (x >= q.left && x <= q.right && y >= q.top && y <= q.bottom) return true;
+    }
+  }
+  return false;
+}
+
+/** Une boîte (coordonnées du document) recouvrirait-elle du contenu du site ? Points hors de la fenêtre : ignorés. */
+export function coversContent(r: Rect): boolean {
+  const xs: number[] = [];
+  // Marge de 2 px autour de l'étiquette : un texte qui la frôle compte.
+  for (let x = r.left - 2; x < r.left + r.width + 2; x += 16) xs.push(x);
+  xs.push(r.left + r.width + 2);
+  for (const y of [r.top - 2, r.top + r.height / 2, r.top + r.height - 1]) {
+    const vy = y - window.scrollY;
+    if (vy < 0 || vy >= window.innerHeight) continue;
+    for (const x of xs) {
+      const vx = x - window.scrollX;
+      if (vx >= 0 && vx < window.innerWidth && contentAt(vx, vy)) return true;
+    }
+  }
+  return false;
+}
+
 function measure(): Box[] {
   let lastBottom = 0;
   return [...document.querySelectorAll<HTMLElement>("[data-edit-block]")].map((el) => {
@@ -293,7 +331,7 @@ export default function EditLayer() {
   const [tilePick, setTilePick] = useState<{ uid: string; top: number; left: number; items: { pageId: number; title: string }[] } | null>(null);
   const [projectPicker, setProjectPicker] = useState<string | null>(null);
   const [markBar, setMarkBar] = useState<MarkBar | null>(null);
-  /** Bloc dont le menu « Fond » (carte de rubrique) est ouvert ; `bump` redessine après un choix (aperçu optimiste). */
+  /** Bloc dont le menu « Carte » (carte de rubrique) est ouvert ; `bump` redessine après un choix (aperçu optimiste). */
   const [surfaceFor, setSurfaceFor] = useState<string | null>(null);
   const [, bump] = useState(0);
   /** « + » proposé entre deux rubriques sous le pointeur. */
@@ -339,10 +377,10 @@ export default function EditLayer() {
     }
   }, []);
 
-  const select = useCallback((uid: string | null, notify = true) => {
+  const select = useCallback((uid: string | null, notify = true, click = false) => {
     setSelected(uid);
     setSurfaceFor(null);
-    if (notify) post({ kind: "select", uid });
+    if (notify) post({ kind: "select", uid, ...(click ? { click: true } : {}) });
   }, []);
 
   /* ---- Où déposer : page ou conteneur ------------------------------------ */
@@ -860,7 +898,10 @@ export default function EditLayer() {
       const t = e.target instanceof Element ? e.target : null;
       const addEnd = t?.closest("[data-edit-add]");
       const cellText = t?.closest<HTMLElement>("[data-edit-cell-text]");
+      const cellMedia = t?.closest<HTMLElement>("[data-edit-cell-media]");
       const fieldOp = t?.closest<HTMLElement>("[data-edit-field-op]");
+      // État vide d'un bloc média : « Choisir une image / une vidéo / un PDF » (lot 27).
+      const emptyMedia = t?.closest<HTMLElement>("[data-edit-empty-media]");
       // Entrées des collections choisies à la main (lot 22) : retirer, monter, descendre ; « + Ajouter une entrée ».
       const tileOp = t?.closest<HTMLElement>("[data-edit-tile-op]");
       const tileAdd = t?.closest<HTMLElement>("[data-edit-tile-add]");
@@ -871,8 +912,11 @@ export default function EditLayer() {
         const host = (tileOp ?? tileAdd)!;
         const uid = host.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
         if (uid && tileOp) {
-          const op = tileOp.dataset.editTileOp as "remove" | "up" | "down";
-          post({ kind: "tile-op", uid, op, index: Number(tileOp.dataset.index) });
+          const op = tileOp.dataset.editTileOp as "remove" | "up" | "down" | "cover" | "cover-clear";
+          // Couverture (lot 26) : l'entrée se désigne par son rang (liste manuelle) ou par sa page (automatique).
+          const index = tileOp.dataset.index !== undefined ? Number(tileOp.dataset.index) : undefined;
+          const pageId = tileOp.dataset.pageId !== undefined ? Number(tileOp.dataset.pageId) : undefined;
+          post({ kind: "tile-op", uid, op, ...(index !== undefined && Number.isInteger(index) ? { index } : {}), ...(pageId !== undefined && Number.isInteger(pageId) ? { pageId } : {}) });
         } else if (uid && tileAdd && !(tileAdd as HTMLButtonElement).disabled) {
           const r = tileAdd.getBoundingClientRect();
           let items: { pageId: number; title: string }[] = [];
@@ -883,13 +927,29 @@ export default function EditLayer() {
         }
         return;
       }
+      if (emptyMedia) {
+        e.preventDefault();
+        e.stopPropagation();
+        const uid = emptyMedia.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
+        const field = emptyMedia.dataset.editEmptyMedia;
+        if (uid && (field === "mediaId" || field === "backgroundMediaId" || field === "portraitMediaId")) post({ kind: "media-op", uid, field, op: "replace" });
+        return;
+      }
       if (fieldOp) {
         e.preventDefault();
         e.stopPropagation();
         finishEdit(true);
         const uid = fieldOp.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
         const op = fieldOp.dataset.editFieldOp;
-        if (uid && op && /^(add|remove)-(title|eyebrow|intro|counts)$/.test(op)) post({ kind: "field-op", uid, op: op as Extract<FromCanvas, { kind: "field-op" }>["op"] });
+        if (uid && op && (FIELD_OP_NAMES as readonly string[]).includes(op.replace(/^(add|remove)-/, ""))) post({ kind: "field-op", uid, op: op as Extract<FromCanvas, { kind: "field-op" }>["op"] });
+        return;
+      }
+      if (cellMedia) {
+        e.preventDefault();
+        e.stopPropagation();
+        finishEdit(true);
+        const grid = cellMedia.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
+        if (grid) post({ kind: "cell-media", uid: grid, media: cellMedia.dataset.editCellMedia === "video" ? "video" : "image" });
         return;
       }
       if (addEnd || cellText) {
@@ -908,7 +968,7 @@ export default function EditLayer() {
       e.preventDefault();
       e.stopPropagation();
       finishEdit(true);
-      select(targetOf(e.target));
+      select(targetOf(e.target), true, true);
     };
     const onDblClick = (e: MouseEvent) => {
       if (inLayer(e.target)) return;
@@ -919,7 +979,7 @@ export default function EditLayer() {
     };
     const onSubmit = (e: Event) => e.preventDefault();
     const onKey = (e: KeyboardEvent) => {
-      // Menu « Fond » : ses touches (Échap, Suppr…) sont les siennes, pas celles du bloc (useDismiss le ferme).
+      // Menu « Carte » : ses touches (Échap, Suppr…) sont les siennes, pas celles du bloc (useDismiss le ferme).
       if (e.target instanceof Element && e.target.closest(".sm")) return;
       const mod = e.ctrlKey || e.metaKey;
       // Saisie dans un champ de la couche (planche neuve, texte posé par-dessus) : rien ici.
@@ -929,8 +989,9 @@ export default function EditLayer() {
           e.preventDefault();
           finishEdit(true);
         } else if (e.key === "Escape") {
+          // Échap VALIDE la saisie (comme cliquer ailleurs) : ce qui est tapé n'est jamais perdu. Pour revenir en arrière : Annuler / Ctrl+Z.
           e.preventDefault();
-          finishEdit(false);
+          finishEdit(true);
         }
         return;
       }
@@ -1086,7 +1147,24 @@ export default function EditLayer() {
    * Étiquette HORS de la boîte, pour ne recouvrir aucun texte : au-dessus, ou
    * dessous quand la boîte touche le haut de la page (en-tête).
    */
-  const tagSide = (b: Rect) => (b.top < 28 ? "below" : "above");
+  const TAG_H = 24;
+  /**
+   * Place de l'étiquette (lot 24) : au-dessus à gauche si rien n'y est écrit (texte collé à la rubrique précédente) ; sinon dedans
+   * (dans l'espace du haut de la rubrique), puis au-dessus à droite. Repli : au-dessus à gauche.
+   */
+  const tagAttrs = (b: Rect, text: string) => {
+    if (b.top < 28) return { "data-tag": "below" };
+    const width = text.length * 7 + 22;
+    const at = (side: "above" | "inside", x: "left" | "right") => ({
+      top: side === "above" ? b.top - TAG_H : b.top,
+      left: x === "left" ? b.left : b.left + b.width - width,
+      width,
+      height: TAG_H,
+    });
+    const options = [["above", "left"], ["inside", "left"], ["above", "right"]] as const;
+    const pick = options.find(([side, x]) => (side === "above" || b.height >= 48) && !coversContent(at(side, x))) ?? options[0];
+    return { "data-tag": pick[0], ...(pick[1] === "right" ? { "data-tag-x": "right" } : {}) };
+  };
   const selGlobal = globals.find((g) => g.uid === selected);
   const hovBlock = hover && hover !== selected ? boxes.find((b) => b.uid === hover) : undefined;
   const hovGlobal = hover && hover !== selected ? globals.find((g) => g.uid === hover) : undefined;
@@ -1147,19 +1225,19 @@ export default function EditLayer() {
       {/* Cibles clavier : Tab parcourt les blocs (composants compris), Entrée en choisit un. */}
       {boxes.map((b) => {
         const sibs = siblingsOf(b);
-        const where = b.parent ? ` dans « ${boxes.find((x) => x.uid === b.parent)?.label ?? "conteneur"} »` : "";
+        const where = b.parent ? ` dans « ${boxes.find((x) => x.uid === b.parent)?.label ?? "rubrique"} »` : "";
         return (
           <button
             key={`f-${b.uid}`}
             type="button"
             className="pe-focus"
-            aria-label={`${b.parent ? "Composant" : "Bloc"} ${sibs.indexOf(b) + 1} sur ${sibs.length}${where} : ${b.label}${b.uid === selected ? " (sélectionné)" : ""}`}
+            aria-label={`${b.parent ? "Composant" : "Rubrique"} ${sibs.indexOf(b) + 1} sur ${sibs.length}${where} : ${b.label}${b.uid === selected ? " (sélectionné)" : ""}`}
             aria-pressed={b.uid === selected}
             style={{ top: b.top, left: b.left, width: b.width, height: Math.max(b.height, 8) }}
             onFocus={() => setHover(b.uid)}
             onBlur={() => setHover(null)}
             data-uid={b.uid}
-            onClick={() => select(b.uid)}
+            onClick={() => select(b.uid, true, true)}
           />
         );
       })}
@@ -1174,7 +1252,7 @@ export default function EditLayer() {
           data-uid={g.uid}
           onFocus={() => setHover(g.uid)}
           onBlur={() => setHover(null)}
-          onClick={() => select(g.uid)}
+          onClick={() => select(g.uid, true, true)}
         />
       ))}
 
@@ -1191,18 +1269,18 @@ export default function EditLayer() {
       ))}
 
       {hovBlock && (
-        <div className="pe-box pe-hover" data-child={hovBlock.parent ? "" : undefined} data-tag={tagSide(hovBlock)} style={{ top: hovBlock.top, left: hovBlock.left, width: hovBlock.width, height: hovBlock.height }} aria-hidden="true">
+        <div className="pe-box pe-hover" data-child={hovBlock.parent ? "" : undefined} {...tagAttrs(hovBlock, hovBlock.label)} style={{ top: hovBlock.top, left: hovBlock.left, width: hovBlock.width, height: hovBlock.height }} aria-hidden="true">
           <span className="pe-tag pe-tag-soft">{hovBlock.label}</span>
         </div>
       )}
       {hovGlobal && (
-        <div className="pe-box pe-hover pe-global" data-tag={tagSide(hovGlobal)} style={{ top: hovGlobal.top, left: hovGlobal.left, width: hovGlobal.width, height: hovGlobal.height }} aria-hidden="true">
+        <div className="pe-box pe-hover pe-global" {...tagAttrs(hovGlobal, hovGlobal.label)} style={{ top: hovGlobal.top, left: hovGlobal.left, width: hovGlobal.width, height: hovGlobal.height }} aria-hidden="true">
           <span className="pe-tag pe-tag-soft pe-tag-global">{hovGlobal.label}</span>
         </div>
       )}
 
       {selGlobal && (
-        <div className="pe-box pe-selected pe-global" data-tag={tagSide(selGlobal)} style={{ top: selGlobal.top, left: selGlobal.left, width: selGlobal.width, height: selGlobal.height }}>
+        <div className="pe-box pe-selected pe-global" {...tagAttrs(selGlobal, selGlobal.label)} style={{ top: selGlobal.top, left: selGlobal.left, width: selGlobal.width, height: selGlobal.height }}>
           <span className="pe-tag pe-tag-global">{selGlobal.label}</span>
         </div>
       )}
@@ -1210,16 +1288,16 @@ export default function EditLayer() {
       {sel && (
         <div
           className="pe-box pe-selected"
-          data-tag={tagSide(sel)}
+          {...tagAttrs(sel, [...chain(sel).map((c) => c.label), sel.label].join(" › "))}
           data-dragging={draggingUid === sel.uid || undefined}
           data-container={sel.accepts ? "" : undefined}
           style={{ top: sel.top, left: sel.left, width: sel.width, height: sel.height }}
         >
           {/* Fil d'Ariane : remonter au conteneur parent (comme Elementor). */}
-          <nav className="pe-tag pe-crumbs" aria-label="Emplacement du bloc">
+          <nav className="pe-tag pe-crumbs" aria-label="Emplacement de la rubrique">
             {chain(sel).map((c) => (
               <span key={c.uid}>
-                <button type="button" className="pe-crumb" onClick={() => select(c.uid)} title={`Sélectionner « ${c.label} »`}>
+                <button type="button" className="pe-crumb" onClick={() => select(c.uid, true, true)} title={`Sélectionner « ${c.label} »`}>
                   {c.label}
                 </button>
                 <span aria-hidden="true"> › </span>
@@ -1230,11 +1308,11 @@ export default function EditLayer() {
           <div
             className="pe-tools"
             role="toolbar"
-            aria-label={`Bloc ${sel.label}`}
+            aria-label={`Rubrique ${sel.label}`}
             // Reste visible quand le haut du bloc sort de l'écran.
             style={{ top: Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) }}
           >
-            <button type="button" className="pe-grip" aria-label="Glisser pour déplacer" title="Glisser pour déplacer (dans un conteneur, ou hors de lui)" onPointerDown={(e) => onGripDown(e, sel)}>
+            <button type="button" className="pe-grip" aria-label="Glisser pour déplacer" title="Glisser pour déplacer (dans une rubrique, ou hors d'elle)" onPointerDown={(e) => onGripDown(e, sel)}>
               <svg width="10" height="16" viewBox="0 0 10 16" aria-hidden="true">
                 {[3, 8, 13].flatMap((y) => [2.5, 7.5].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.4" fill="currentColor" />))}
               </svg>
@@ -1262,7 +1340,7 @@ export default function EditLayer() {
               ↓
             </button>
             {sel.parent && (
-              <button type="button" aria-label="Sortir du conteneur" title="Sortir du conteneur (placé juste après lui)" onClick={() => post({ kind: "op", op: "out", uid: sel.uid })}>
+              <button type="button" aria-label="Sortir de la rubrique" title="Sortir de la rubrique (placé juste après elle)" onClick={() => post({ kind: "op", op: "out", uid: sel.uid })}>
                 ⇱
               </button>
             )}
@@ -1369,7 +1447,7 @@ export default function EditLayer() {
           >
             {markBar.state === true ? "Retirer le surlignage" : "Surligner"}
           </button>
-          <span className="pe-markbar-hint">Sélectionne un mot · Entrée valide · Échap annule</span>
+          <span className="pe-markbar-hint">Sélectionne un mot · Entrée ou Échap valide</span>
         </div>
       )}
 
@@ -1382,8 +1460,8 @@ export default function EditLayer() {
       <p className="pe-live" role="status" aria-live="polite">
         {drag && drop
           ? drop.refused
-            ? "Ce conteneur n'accepte pas ce composant."
-            : `${drop.parent ? `Dans « ${dropContainer?.label ?? "le conteneur"} », p` : "P"}osition ${drop.index + 1}`
+            ? "Cette rubrique n'accepte pas ce composant."
+            : `${drop.parent ? `Dans « ${dropContainer?.label ?? "la rubrique"} », p` : "P"}osition ${drop.index + 1}`
           : announcement}
       </p>
     </div>,

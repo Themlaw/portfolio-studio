@@ -294,12 +294,12 @@ if (run("B") || run("C"))
   await f.locator(`.pe-focus[data-uid="${uidFirst}"]`).scrollIntoViewIfNeeded();
   await sectionOf(uidFirst).click({ position: { x: 4, y: 30 } });
   const fond = f.locator(".pe-tools .sm-button");
-  ok("B1 le bloc a un bouton « Fond » dans sa barre d'outils", await fond.waitFor({ timeout: 30000 }).then(() => true, () => false) && /Fond/.test((await fond.textContent()) ?? ""));
+  ok("B1 le bloc a un bouton « Carte » dans sa barre d'outils (lot 26 : plus « Fond »)", await fond.waitFor({ timeout: 30000 }).then(() => true, () => false) && /^Carte/.test((await fond.textContent()) ?? ""));
   ok("B1 pas de carte au départ (l'enveloppe est sans boîte)", (await cardInfo(f, uidFirst))?.on === "off");
   await fond.click();
   const menu = f.locator(".sm");
-  ok("B1 le popover s'ouvre (interrupteur « Carte » éteint)", (await menu.waitFor({ timeout: 20000 }).then(() => true, () => false)) && (await menu.getByRole("switch", { name: "Carte" }).getAttribute("aria-checked")) === "false");
-  await menu.getByRole("switch", { name: "Carte" }).click();
+  ok("B1 le popover s'ouvre (interrupteur « Carte » éteint)", (await menu.waitFor({ timeout: 20000 }).then(() => true, () => false)) && (await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).getAttribute("aria-checked")) === "false");
+  await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
   // Aperçu immédiat : avant tout aller-retour avec le serveur.
   const info = await cardInfo(f, uidFirst);
   ok("B2 carte activée : aperçu immédiat (fond coloré, retrait, coins arrondis)", info.on === "on" && info.bg !== "rgba(0, 0, 0, 0)" && info.width === "inset" && info.corners === "round" && info.radius >= 12 && info.marginLeft > 0, JSON.stringify(info));
@@ -330,7 +330,7 @@ if (run("B") || run("C"))
 
   // Couleur perso par « Autre couleur… ».
   await menu.getByRole("button", { name: "Couleur personnalisée" }).click();
-  const hex = f.locator('.cp input[aria-label="Valeur hexadécimale"]');
+  const hex = f.locator('.cp input[aria-label="Code couleur"]');
   await hex.waitFor({ timeout: 20000 });
   await hex.fill("#f6d6e4");
   await hex.press("Enter");
@@ -368,7 +368,7 @@ if (run("B") || run("C"))
   await hex.waitFor({ timeout: 20000 });
   await hex.fill("#808080");
   await hex.press("Enter");
-  ok("B7 teinte moyenne : pastille d'alerte au bouton « Fond » et message dans le popover (jamais bloquant)", (await f.locator(".pe-tools .sm-alert").waitFor({ timeout: 20000 }).then(() => true, () => false)) && (await f.getByTestId("surface-warning").isVisible()), "");
+  ok("B7 teinte moyenne : pastille d'alerte au bouton « Carte » et message dans le popover (jamais bloquant)", (await f.locator(".pe-tools .sm-alert").waitFor({ timeout: 20000 }).then(() => true, () => false)) && (await f.getByTestId("surface-warning").isVisible()), "");
   await page.screenshot({ path: path.join(SHOTS, "b7-alerte-contraste.png") });
   ok("B7 l'enregistrement n'est pas bloqué", await waitFor(() => inkBlocks()[0]?.props.surface?.color === "#808080"));
   await hex.fill("#f6d6e4");
@@ -394,7 +394,7 @@ if (run("B") || run("C"))
   await settled();
   await page.keyboard.press("Escape");
   await settled();
-  const undo = page.locator('button.a-icon-btn[aria-label="Annuler"]');
+  const undo = page.locator('button.a-icon-btn[aria-label="Défaire"]');
   const redo = page.locator('button.a-icon-btn[aria-label="Rétablir"]');
   await undo.click();
   ok("B8 Annuler (1er pas) : seule la largeur est défaite, la couleur reste", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s1)), JSON.stringify(surfaceNow()));
@@ -414,7 +414,7 @@ if (run("B") || run("C"))
   await f.locator(`.pe-focus[data-uid="${uidSecond}"]`).scrollIntoViewIfNeeded();
   await sectionOf(uidSecond).click({ position: { x: 4, y: 30 } });
   await fond.click();
-  await menu.getByRole("switch", { name: "Carte" }).click();
+  await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
   await menu.locator('[data-token="ink"]').click();
   await menu.locator('[data-width="full"]').click();
   await menu.locator('[data-corners="square"]').click();
@@ -576,10 +576,10 @@ if (run("C"))
   await f.locator(`[data-edit-block="${uidFirst}"] section`).first().click({ position: { x: 4, y: 10 } });
   await f.locator(".pe-tools .sm-button").click();
   const menu = f.locator(".sm");
-  ok("C6 le popover relit la carte : interrupteur allumé, couleur perso, en retrait, coins arrondis", (await menu.getByRole("switch", { name: "Carte" }).getAttribute("aria-checked")) === "true" && (await menu.locator('[data-width="inset"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-corners="round"]').getAttribute("aria-checked")) === "true");
+  ok("C6 le popover relit la carte : interrupteur allumé, couleur perso, en retrait, coins arrondis", (await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).getAttribute("aria-checked")) === "true" && (await menu.locator('[data-width="inset"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-corners="round"]').getAttribute("aria-checked")) === "true");
   await page.screenshot({ path: path.join(SHOTS, "c6-popover-relu.png") });
   // Retirer la carte : interrupteur éteint.
-  await menu.getByRole("switch", { name: "Carte" }).click();
+  await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
   ok("C7 carte retirée : l'enveloppe redevient sans boîte, la clé disparaît du brouillon", (await cardInfo(f, uidFirst)).on === "off" && (await waitFor(() => inkBlocks()[0]?.props.surface === undefined)));
   await page.keyboard.press("Escape");
 });
@@ -603,7 +603,7 @@ if (run("D"))
   await f.locator(`[data-edit-block="${uid}"] section`).first().click({ position: { x: 4, y: 10 } });
   await f.locator(".pe-tools .sm-button").click();
   // La rubrique publiée a déjà sa carte : éteinte puis rallumée, elle repart des réglages du thème (`{}`).
-  const sw = f.locator(".sm").getByRole("switch", { name: "Carte" });
+  const sw = f.locator(".sm").getByRole("switch", { name: "Une carte sous la rubrique" });
   if ((await sw.getAttribute("aria-checked")) === "true") await sw.click();
   await sw.click();
   const d = await cardInfo(f, uid);

@@ -21,9 +21,8 @@ import { cardBackground, isSurfaceToken, type CardPalette } from "@/themes/surfa
 
 import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";
+import { ratioTip, readabilityText } from "./readability";
 import { useDismiss } from "./useDismiss";
-
-const fr = (n: number) => n.toFixed(1).replace(".", ",");
 
 export type BackdropRowProps = {
   value: TextStyle;
@@ -69,7 +68,7 @@ export default function BackdropRow({ value, set, palette, swatch, blocked, inhe
   return (
     <div className="tc-row tc-bd" title={blocked}>
       <span className="tc-bd-label">
-        Fond :
+        Fond du texte :
       </span>
       <span className="tc-seg" role="radiogroup" aria-label="Fond du texte">
         {BACKDROPS.map((b) => (
@@ -95,7 +94,7 @@ export default function BackdropRow({ value, set, palette, swatch, blocked, inhe
             {!value.backdropColor && <span aria-hidden="true">A</span>}
           </button>
           {low && (
-            <span className="tc-bd-alert" data-testid="bd-alert" role="img" title={`Texte peu lisible sur ce fond (${fr(verdict.ratio)}:1, il faut 4,5:1)`} aria-label={`Texte peu lisible sur ce fond (${fr(verdict.ratio)}:1, il faut 4,5:1)`}>
+            <span className="tc-bd-alert" data-testid="bd-alert" role="img" title={`Texte peu lisible sur ce fond. ${ratioTip(verdict.ratio)}`} aria-label={`Texte peu lisible sur ce fond (${readabilityText(verdict.ratio).toLowerCase()})`}>
               !
             </span>
           )}

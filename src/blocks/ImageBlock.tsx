@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { z } from "zod";
 
 import Picture from "@/components/Picture";
+import { RATIO_VALUES } from "@/lib/images/formats";
 import { cropSources } from "@/lib/images/crop";
 import { signCrop } from "@/lib/images/crop-cache";
 import { resolveCrop } from "@/lib/images/crop-view";
@@ -17,7 +18,7 @@ export const imageSchema = z.object({
   /** Largeur : colonne de texte, large (cadre du site), pleine largeur. */
   width: z.enum(["text", "wide", "full"]).default("wide"),
   /** Format imposé (l'image est alors cadrée : « Cadrer » sur la toile). Auto : son format. */
-  ratio: z.enum(["auto", "16:9", "4:3", "1:1", "4:5", "3:4"]).optional(),
+  ratio: z.enum(RATIO_VALUES).optional(),
   /**
    * Dans un cadre au format imposé : « contain » = image entière (bandes vides si besoin), « cover » =
    * cadre rempli (image rognée). Sans choix : entière pour un bloc pleine largeur (un décor
@@ -112,7 +113,10 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
         </span>
       ) : (
         <span className="pe-media-empty" data-edit-media="mediaId" data-edit-media-kind="image" lang="fr">
-          Dépose une image ici
+          <span>Dépose une image ici</span>
+          <button type="button" className="pe-empty-action" data-edit-empty-media="mediaId">
+            Choisir dans la médiathèque
+          </button>
         </span>
       )}
       {(caption || ctx.edit) && (

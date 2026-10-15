@@ -4,8 +4,9 @@
  * Sélecteur de couleur libre d'un texte (lot 7) : dernière pastille des couleurs
  * du texte (dégradé conique), qui ouvre une fenêtre avec une roue chromatique
  * (teinte = angle, saturation = rayon), un curseur de luminosité, un curseur
- * d'opacité, saisie HEX / RGB / HSL, aperçu sur le fond du thème avec
- * avertissement de contraste (jamais bloquant), couleurs du thème et récentes.
+ * d'opacité, un seul champ « Code couleur » (hexadécimal, rgb ou hsl), aperçu sur le fond du thème avec
+ * avertissement de contraste (jamais bloquant) et couleurs récentes. Pas de seconde rangée « couleurs du thème » (lot 26) :
+ * les pastilles nommées du site sont déjà à côté (barre du texte, choix de carte ou de fond), la roue ne les redouble pas.
  *
  * Roue, luminosité et opacité : @uiw/react-color-wheel / -shade-slider / -alpha
  * (styles en ligne uniquement : aucune feuille injectée, la toile reste sous CSP ;
@@ -23,9 +24,11 @@ import ShadeSlider from "@uiw/react-color-shade-slider";
 import Wheel from "@uiw/react-color-wheel";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
-import { hslToHsv, hsvToHsl, hsvToRgb, isCustomColor, over, parseColor, rgbaToHex, rgbToHsv, wheelGradient, type Hsva } from "@/lib/color";
-import { PALETTE, PALETTE_LABELS, type PaletteColor } from "@/lib/look";
+import { hsvToRgb, isCustomColor, over, parseColor, rgbaToHex, rgbToHsv, wheelGradient, type Hsva } from "@/lib/color";
+import { PALETTE, type PaletteColor } from "@/lib/look";
 import { AA, ratio } from "@/themes/contrast";
+
+import { ratioTip, readabilityText } from "./readability";
 
 import { useDismiss } from "./useDismiss";
 
@@ -192,7 +195,7 @@ function Popover({
   live,
 }: ColorPickerProps & { id: string; ref: React.Ref<HTMLDivElement>; onClose: () => void; solid?: SolidOptions; live?: boolean }) {
   const box = useRef<HTMLDivElement | null>(null);
-  const [state, setState] = useState<{ hsva: Hsva; bg: string | null; theme: string[]; recent: string[] } | null>(null);
+  const [state, setState] = useState<{ hsva: Hsva; bg: string | null; recent: string[] } | null>(null);
   const [edit, setEdit] = useState<{ k: string; v: string } | null>(null);
 
   // Lecture du thème dans le document de la toile, une fois ouvert.
@@ -203,10 +206,6 @@ function Popover({
     setState({
       hsva: rgbToHsv(start ?? { r: 0, g: 0, b: 0, a: 1 }),
       bg: bg ? rgbaToHex({ ...bg, a: 1 }) : null,
-      theme: PALETTE.map((c) => {
-        const rgba = resolveCss(swatch(c), doc);
-        return rgba ? rgbaToHex(rgba) : "";
-      }),
       recent: readRecent(),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -247,7 +246,6 @@ function Popover({
   const { hsva, bg } = state;
   const rgba = hsvToRgb(hsva);
   const hex = rgbaToHex(rgba);
-  const hsl = hsvToHsl(hsva);
 
   /** Applique une couleur ; l'émission vers le style est regroupée (glisser = beaucoup d'événements). */
   const apply = (input: Hsva, now = false) => {
@@ -275,30 +273,6 @@ function Popover({
       }
     },
   });
-  const rgbField = (k: "r" | "g" | "b", label: string) => (
-    <input
-      key={k}
-      inputMode="numeric"
-      aria-label={label}
-      {...fieldProps(`rgb-${k}`, String(rgba[k]), (t) => {
-        if (!/^\d{1,3}$/.test(t)) return;
-        apply(rgbToHsv({ ...rgba, [k]: clamp(Number(t), 0, 255) }, hsva.h));
-      })}
-    />
-  );
-  const hslField = (k: "h" | "s" | "l", label: string) => (
-    <input
-      key={k}
-      inputMode="numeric"
-      aria-label={label}
-      {...fieldProps(`hsl-${k}`, String(Math.round(k === "h" ? hsl.h : hsl[k] * 100)), (t) => {
-        if (!/^\d{1,3}$/.test(t)) return;
-        const n = Number(t);
-        apply(hslToHsv({ ...hsl, [k]: k === "h" ? clamp(n, 0, 360) : clamp(n, 0, 100) / 100 }));
-      })}
-    />
-  );
-
   const contrast = bg ? ratio(rgbaToHex(over(rgba, parseColor(bg)!)), bg) : null;
   const low = contrast !== null && contrast < AA;
   const pct = (n: number) => String(Math.round(n * 100));
@@ -368,21 +342,18 @@ function Popover({
       </div>}
 
       <div className="cp-fields">
-        <span className="cp-flabel">HEX</span>
+        <span className="cp-flabel">Code couleur</span>
         <input
           className="cp-hex"
           spellCheck={false}
-          maxLength={9}
-          aria-label="Valeur hexadécimale"
+          maxLength={40}
+          aria-label="Code couleur"
+          title="Colle un code couleur : hexadécimal (avec #), rgb ou hsl"
           {...fieldProps("hex", hex, (t) => {
             const c = parseColor(t);
-            if (c && /^#?[0-9a-f]{3,8}$/i.test(t.trim())) apply(rgbToHsv(c, hsva.h));
+            if (c && (/^#?[0-9a-f]{3,8}$/i.test(t.trim()) || /^(rgb|hsl)a?\(.*\)$/i.test(t.trim()))) apply(rgbToHsv(c, hsva.h));
           })}
         />
-        <span className="cp-flabel">RGB</span>
-        <span className="cp-triple">{[rgbField("r", "Rouge"), rgbField("g", "Vert"), rgbField("b", "Bleu")]}</span>
-        <span className="cp-flabel">HSL</span>
-        <span className="cp-triple">{[hslField("h", "Teinte (degrés)"), hslField("s", "Saturation (pour cent)"), hslField("l", "Luminosité (pour cent)")]}</span>
       </div>
 
       {!solid && <><div className="cp-preview" style={bg ? { background: bg } : undefined}>
@@ -390,29 +361,10 @@ function Popover({
           Aa Exemple de texte
         </span>
       </div>
-      <p className="cp-contrast" role="status" data-low={low || undefined}>
-        {contrast === null ? "Contraste non mesurable ici." : low ? `Contraste avec le fond du thème : ${contrast.toFixed(1).replace(".", ",")}:1, insuffisant (AA : 4,5:1).` : `Contraste avec le fond du thème : ${contrast.toFixed(1).replace(".", ",")}:1, suffisant.`}
+      <p className="cp-contrast" role="status" data-low={low || undefined} title={contrast === null ? undefined : ratioTip(contrast)}>
+        {contrast === null ? "Lisibilité non mesurable ici." : `${readabilityText(contrast)} sur le fond du thème.`}
       </p></>}
 
-      {!solid && <div className="cp-chips" role="group" aria-label="Couleurs du thème">
-        <span className="cp-flabel">Thème</span>
-        {PALETTE.map((c, i) => (
-          <button
-            key={c}
-            type="button"
-            className="cp-chip"
-            style={{ background: swatch(c) }}
-            title={PALETTE_LABELS[c]}
-            aria-label={PALETTE_LABELS[c]}
-            onClick={() => {
-              const rgbaT = state.theme[i] ? parseColor(state.theme[i]) : null;
-              if (rgbaT) setState({ ...state, hsva: rgbToHsv(rgbaT, hsva.h) });
-              cancel();
-              onChange(c);
-            }}
-          />
-        ))}
-      </div>}
       {state.recent.length > 0 && (
         <div className="cp-chips" role="group" aria-label="Couleurs récentes">
           <span className="cp-flabel">Récentes</span>

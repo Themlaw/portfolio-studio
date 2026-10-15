@@ -27,13 +27,15 @@ import {
   siteDraftAction,
 } from "@/app/admin/(espace)/pages/actions";
 import { PageCollectionField } from "@/app/admin/_fields";
+import PageButtonsColorField from "@/app/admin/_fields/PageButtonsColorField";
 import { BlockEditorContext } from "@/blocks/editor-context";
 import { MAX_TILES } from "@/blocks/collection-pages";
 import { pickerGroups } from "@/blocks/groups";
 import { HELP_TEXT, STARTER_LIST, TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
 import { blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
-import { makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
+import { fieldOpDef, hasOptionalField, withOptionalField } from "@/blocks/optional-fields";
+import { isFormBlock, makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
 import { SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
 import type { BoardOp, BoardResult, BoardSnap } from "@/lib/edit/boards";
 import type { DraftBlock, PageDraft } from "@/lib/edit/drafts";
@@ -58,8 +60,11 @@ import AddSectionDialog, { type AddChoice } from "./AddSectionDialog";
 import { BlockLookPanel, SiteStylesPanel } from "./LookPanel";
 import { ColorsPanel, LogoPanel, type HighlightInfo } from "./SiteLookPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
+import MediaPreviewDialog from "./MediaPreviewDialog";
 import SiteEditor, { applySiteOp, siteText } from "./SiteEditor";
 import StructureTree from "./StructureTree";
+import { describeProblems, type Problem } from "./problems";
+import TopMore from "./TopMore";
 import BlockThumb from "./thumbs";
 
 type Locale = "fr" | "en";
@@ -106,6 +111,9 @@ const TABS: { id: Tab; label: string }[] = [
 const DEBOUNCE_MS = 800;
 const HISTORY_MAX = 100;
 const MOBILE = "(max-width: 819px)";
+/** Barre du haut (lot 24) : « Abandonner » passe dans le menu « Plus » sous 1360 px, la largeur d'aperçu sous 1180 px ; « Publier » reste visible. */
+const TOP_TIGHT = "(max-width: 1360px)";
+const TOP_TIGHTER = "(max-width: 1180px)";
 
 /** Texte tel que l'artiste le lit : le mot mis en valeur (<mark>) entre « ». */
 const readable = (text: string) => text.replace(/<mark>([\s\S]*?)<\/mark>/g, "« $1 »").replace(/<\/?mark>/g, "");
@@ -205,6 +213,8 @@ export default function VisualEditor({
 }) {
   const router = useRouter();
   const mobile = useMedia(MOBILE);
+  const topTight = useMedia(TOP_TIGHT);
+  const topTighter = useMedia(TOP_TIGHTER);
   // Par type : l'entrée du type lui-même (pas un raccourci de la palette).
   const byType = useMemo(() => Object.fromEntries(catalog.filter((c) => !c.preset).map((c) => [c.type, c])), [catalog]);
   /** Recherche d'un composant (onglet « Ajouter »). */
@@ -578,16 +588,16 @@ export default function VisualEditor({
       const entry = history.current.past.at(-1);
       if (!entry) return;
       // La toile ne peut pas deviner le résultat : état « en cours » jusqu'à l'acquittement.
-      send({ kind: "pending", label: "Annulation en cours…" });
+      send({ kind: "pending", label: "Retour en arrière en cours…" });
       const back = await travel(entry);
       if (!back) {
-        toast("Annulation impossible pour ce pas : la planche a changé (image supprimée ?).", "error");
+        toast("Impossible de défaire ce pas : la planche a changé (image supprimée ?).", "error");
         return;
       }
       const h = history.current;
       history.current = { past: h.past.filter((e) => e !== entry), future: [back, ...h.future] };
       bumpHistory();
-      toast("Annulé");
+      toast("Action défaite");
     } finally {
       traveling.current = false;
       // Rien à enregistrer (refus, pas sans effet) : plus rien à attendre. Sinon l'acquittement lève l'état.
@@ -627,6 +637,8 @@ export default function VisualEditor({
   /* ---- Opérations sur les blocs ------------------------------------------ */
 
   const blocks = draft.blocks;
+  /** Types déjà posés sur la page (composants compris) : grise l'ajout d'un composant « une seule fois par page ». */
+  const present = useMemo(() => new Set(walkTree(blocks).map((v) => v.block.type)), [blocks]);
   const setBlocks = (next: DraftBlock[], opts: { key?: string; structural?: boolean } = { structural: true }) =>
     apply({ ...draftRef.current, blocks: next }, opts);
 
@@ -655,26 +667,33 @@ export default function VisualEditor({
     const def = catalog.find((c) => c.key === key && !c.hidden);
     if (!def) return;
     const list = draftRef.current.blocks;
+    // Une seule fois par page (l'Ouverture) : le panneau grise déjà l'ajout, ceci couvre le glisser et le « + » de la toile.
+    if (def.single && walkTree(list).some((v) => v.block.type === def.type)) {
+      toast(def.single, "error");
+      return;
+    }
     const place = at ?? defaultPlace(def.type);
     if (place.parent === null && list.length >= 40) {
-      toast("40 blocs au plus par page.", "error");
+      toast("40 rubriques au plus par page.", "error");
       return;
     }
     // Titre inséré tout en haut d'une page (aucun bloc avant) sans titre principal (ni ouverture, qui porte le sien) : il l'est (h1) ; un titre de section sinon (lot 22).
     const principal =
       def.type === "section-title" && place.parent === null && place.index === 0 && !list.some((b) => b.type === "hero" || b.type === "profile" || (b.type === "section-title" && b.props.main === true));
-    const block = withFreshUids({ uid: "", type: def.type, props: clone({ ...def.defaults, ...(principal ? { main: true } : {}), ...opts?.props }) } as DraftBlock, newUid);
+    // Un Profil posé sur une page qui a déjà une Ouverture ne répète pas le nom (elle l'affiche déjà ; lot 27).
+    const nameOnce = def.type === "profile" && list.some((b) => b.type === "hero");
+    const block = withFreshUids({ uid: "", type: def.type, props: clone({ ...def.defaults, ...(principal ? { main: true } : {}), ...(nameOnce ? { showName: false } : {}), ...opts?.props }) } as DraftBlock, newUid);
     const next = insertBlock(list, block, place.parent, place.index);
     if (!next) {
       const parent = place.parent ? findBlock(list, place.parent) : null;
-      toast(parent ? `« ${own(byType, parent.type)?.label ?? "Ce conteneur"} » n'accepte pas « ${def.label} » (ou il est plein).` : "Impossible d'ajouter ce composant ici.", "error");
+      toast(parent ? `« ${own(byType, parent.type)?.label ?? "Cette rubrique"} » n'accepte pas « ${def.label} » (ou elle est pleine).` : "Impossible d'ajouter ce composant ici.", "error");
       return;
     }
     setBlocks(next);
     selectBlock(block.uid, { scroll: true });
     // Rubrique Texte neuve : la toile ouvre l'édition en place, son texte d'aide sélectionné.
     if (opts?.edit) send({ kind: "edit-text", uid: block.uid, path: opts.edit });
-    toast(`« ${def.label} » ajouté${place.parent ? ` dans « ${own(byType, findBlock(list, place.parent)?.type ?? "")?.label ?? "le conteneur"} »` : ""}`);
+    toast(`« ${def.label} » ajouté${place.parent ? ` dans « ${own(byType, findBlock(list, place.parent)?.type ?? "")?.label ?? "la rubrique"} »` : ""}`);
     if (mobile) setSheet(false);
   };
 
@@ -698,6 +717,17 @@ export default function VisualEditor({
   const fieldOp = (uid: string, op: Extract<FromCanvas, { kind: "field-op" }>["op"]): boolean => {
     const list = draftRef.current.blocks;
     const block = findBlock(list, uid);
+    // Grille, Contact, Profil, CV (lot 27) : table de src/blocks/optional-fields.ts.
+    const named = /^(add|remove)-(.+)$/.exec(op);
+    const def = block && named ? fieldOpDef(block.type, named[2]) : undefined;
+    if (block && def && named) {
+      const add = named[1] === "add";
+      if (add === hasOptionalField(def, block.props)) return false;
+      setBlocks(updateBlock(list, uid, (b) => ({ ...b, props: withOptionalField(def, b.props, add) })), { structural: true });
+      selectBlock(uid);
+      if (add && def.kind === "text") send({ kind: "edit-text", uid, path: def.prop });
+      return true;
+    }
     const [verb, field] = op.split("-") as ["add" | "remove", "title" | "eyebrow" | "intro" | "counts"];
     // Titre : bloc Texte. Étiquette : bloc Titre, ou bloc Texte qui en porte une (« Retirer l'étiquette » seulement). Présentation, compteurs : bloc Titre.
     const okType = field === "title" ? block?.type === "rich-text" : block?.type === "section-title" || (block?.type === "rich-text" && op === "remove-eyebrow");
@@ -718,10 +748,16 @@ export default function VisualEditor({
    * Entrées des collections choisies à la main, depuis la toile : ajoute une page de collection qui n'a pas encore
    * d'entrée (textes de son Titre), retire, monte ou descend une entrée. false = refusé ou sans effet.
    */
-  const tileOp = (msg: { uid: string; op: "add" | "remove" | "up" | "down"; index?: number; pageId?: number }): boolean => {
+  const tileOp = (msg: { uid: string; op: "add" | "remove" | "up" | "down" | "cover" | "cover-clear"; index?: number; pageId?: number }): boolean => {
     const list = draftRef.current.blocks;
     const block = findBlock(list, msg.uid);
-    if (!block || block.type !== "collection-tiles" || block.props.mode === "auto") return false;
+    if (block?.type === "collection-tiles" && msg.op === "cover") {
+      // Couverture de l'entrée (lot 26) : choix d'une image de la médiathèque ou envoi, dans les deux modes.
+      setTileCover({ uid: msg.uid, ...(msg.index !== undefined ? { index: msg.index } : {}), ...(msg.pageId !== undefined ? { pageId: msg.pageId } : {}) });
+      return true;
+    }
+    if (block?.type === "collection-tiles" && msg.op === "cover-clear") return applyTileCover({ uid: msg.uid, index: msg.index, pageId: msg.pageId }, undefined);
+    if (!block || block.type !== "collection-tiles" || block.props.mode === "auto" || msg.op === "cover" || msg.op === "cover-clear") return false;
     const items = [...((block.props.items as { pageId?: number }[] | undefined) ?? [])];
     if (msg.op === "add") {
       const page = context.collectionPages?.find((p) => p.pageId === msg.pageId);
@@ -741,10 +777,69 @@ export default function VisualEditor({
     return true;
   };
 
+  /**
+   * Couverture d'une entrée de collection choisie sur la tuile (lot 26) : `mediaId` (image de la médiathèque) posé sur l'entrée
+   * (liste manuelle : `items[i]` ; automatique : `edits[]`, attaché à la page) ; undefined = la couverture de la collection. Le
+   * cadrage de la tuile est retiré (il visait l'ancienne image). false = refusé ou sans effet.
+   */
+  const applyTileCover = (target: { uid: string; index?: number; pageId?: number }, mediaId: number | undefined): boolean => {
+    const list = draftRef.current.blocks;
+    const block = findBlock(list, target.uid);
+    if (!block || block.type !== "collection-tiles") return false;
+    const props = { ...block.props } as Record<string, unknown>;
+    type Cover = { pageId?: number; collection?: string; mediaId?: number } & Record<string, unknown>;
+    let collection: string | undefined;
+    if (props.mode === "auto") {
+      const page = context.collectionPages?.find((p) => p.pageId === target.pageId);
+      if (!page) return false;
+      collection = page.collection;
+      const edits = [...((props.edits as Cover[] | undefined) ?? [])];
+      const at = edits.findIndex((e) => e.pageId === page.pageId);
+      const current = at >= 0 ? edits[at] : { pageId: page.pageId };
+      if (current.mediaId === mediaId) return false;
+      const { mediaId: _old, ...rest } = current;
+      void _old;
+      const next: Cover = mediaId === undefined ? rest : { ...rest, mediaId };
+      if (at >= 0) edits.splice(at, 1, next);
+      else edits.push(next);
+      const kept = edits.filter((e) => Object.keys(e).length > 1);
+      if (kept.length) props.edits = kept;
+      else delete props.edits;
+    } else {
+      const items = [...((props.items as Cover[] | undefined) ?? [])];
+      const i = target.index ?? items.findIndex((it) => it.pageId === target.pageId);
+      if (i === undefined || i < 0 || i >= items.length) return false;
+      collection = items[i].collection;
+      if (items[i].mediaId === mediaId) return false;
+      const { mediaId: _old, ...rest } = items[i];
+      void _old;
+      items[i] = mediaId === undefined ? rest : { ...rest, mediaId };
+      props.items = items;
+    }
+    const look = readLook(props.look);
+    if (collection && look?.tileCrop && (look.tileCrop as Record<string, unknown>)[collection]) {
+      const { [collection as keyof typeof look.tileCrop]: _crop, ...tileCrop } = look.tileCrop;
+      void _crop;
+      const nextLook = cleanLook({ ...look, tileCrop });
+      if (nextLook) props.look = nextLook;
+      else delete props.look;
+    }
+    setBlocks(updateBlock(list, target.uid, (b) => ({ ...b, props })), { structural: true });
+    toast(mediaId === undefined ? "Couverture de la collection rétablie" : "Couverture choisie", "success", { label: "Annuler", run: () => void undoRef.current() });
+    return true;
+  };
+  const [tileCover, setTileCover] = useState<{ uid: string; index?: number; pageId?: number } | null>(null);
+
   /** Demande de la toile : choix illustré, ou texte tout de suite, à cet endroit. */
   const requestInsert = (parent: string | null, index: number, what: "choose" | TextStarter) => {
     if (what === "choose") setAdding({ parent, index });
     else insertStarter(what, { parent, index });
+  };
+
+  /** Case vide de grille, « Image » / « Vidéo » : le choix du média s'ouvre ; il est posé dans une nouvelle case. */
+  const [cellPick, setCellPick] = useState<{ uid: string; kind: "image" | "video" } | null>(null);
+  const requestCellMedia = (uid: string, kind: "image" | "video") => {
+    if (findBlock(draftRef.current.blocks, uid)?.type === "grid") setCellPick({ uid, kind });
   };
 
   /** Fond d'une rubrique de premier niveau, depuis la toile (lot 17c) ; false = refusé ou sans effet. */
@@ -793,7 +888,7 @@ export default function VisualEditor({
     if (kind === "out" && at.parent) {
       // Sortir : juste après son conteneur, dans la liste du conteneur.
       const outer = locate(list, at.parent)!;
-      move(outer.parent, outer.index + 1, "Sorti du conteneur");
+      move(outer.parent, outer.index + 1, "Sorti de la rubrique");
     }
     if (kind === "in") {
       // Entrer dans le conteneur voisin (après, sinon avant) qui l'accepte.
@@ -802,21 +897,21 @@ export default function VisualEditor({
       const prev = siblings[i - 1];
       const target = [next, prev].find((c) => c && isContainer(c.type) && canPlace(removeBlock(list, uid), block, c.uid));
       if (!target) {
-        toast("Aucun conteneur voisin n'accepte ce composant.", "error");
+        toast("Aucune rubrique voisine n'accepte ce composant.", "error");
         return;
       }
       const index = target === next ? 0 : (listOf(list, target.uid)?.length ?? 0);
-      move(target.uid, index, `Placé dans « ${own(byType, target.type)?.label ?? "le conteneur"} »`);
+      move(target.uid, index, `Placé dans « ${own(byType, target.type)?.label ?? "la rubrique"} »`);
     }
     if (kind === "duplicate") {
       if (at.parent === null && list.length >= 40) {
-        toast("40 blocs au plus par page.", "error");
+        toast("40 rubriques au plus par page.", "error");
         return;
       }
       const copy = withFreshUids(clone(siblings[i]), newUid);
       const next = insertBlock(list, copy, at.parent, i + 1);
       if (!next) {
-        toast("Ce conteneur est plein.", "error");
+        toast("Cette rubrique est pleine.", "error");
         return;
       }
       setBlocks(next);
@@ -842,8 +937,8 @@ export default function VisualEditor({
     if (selected === uid) selectBlock(at?.parent ?? null);
     if (lost.length) {
       // La surcouche d'une planche n'est appliquée que si la page l'affiche.
-      toast(`Bloc supprimé · Les changements d'images de ${lost.length > 1 ? "ces planches" : "cette planche"} ne seront pas publiés`, "success", { label: "Annuler", run: () => void undoRef.current() });
-    } else toast("Bloc supprimé · Annuler (Ctrl+Z) pour le récupérer", "success", { label: "Annuler", run: () => void undoRef.current() });
+      toast(`${at?.parent ? "Composant supprimé" : "Rubrique supprimée"} · Les changements d'images de ${lost.length > 1 ? "ces planches" : "cette planche"} ne seront pas publiés`, "success", { label: "Défaire", run: () => void undoRef.current() });
+    } else toast(`${at?.parent ? "Composant supprimé" : "Rubrique supprimée"} · Défaire (Ctrl+Z) pour la récupérer`, "success", { label: "Défaire", run: () => void undoRef.current() });
   };
 
   /** Texte posé en place ; false = refusé (la toile retire son aperçu et rétablit le texte d'origine). */
@@ -871,9 +966,9 @@ export default function VisualEditor({
   /** Déplacement depuis la toile ou la structure : dans la page, dans un conteneur, entre les deux. */
   const moveTree = (uid: string, parent: string | null, index: number) => {
     const list = draftRef.current.blocks;
-    if (parent === null && locate(list, uid)?.parent !== null && list.length >= 40) return toast("40 blocs au plus par page.", "error");
+    if (parent === null && locate(list, uid)?.parent !== null && list.length >= 40) return toast("40 rubriques au plus par page.", "error");
     const next = moveBlock(list, uid, parent, index);
-    if (!next) return toast(parent ? "Ce conteneur n'accepte pas ce composant (ou il est plein)." : "Déplacement impossible.", "error");
+    if (!next) return toast(parent ? "Cette rubrique n'accepte pas ce composant (ou elle est pleine)." : "Déplacement impossible.", "error");
     if (next !== list) setBlocks(next);
   };
 
@@ -885,7 +980,7 @@ export default function VisualEditor({
       return false;
     };
     const block = findBlock(draftRef.current.blocks, msg.uid);
-    if (!block || block.type !== "contact-form") return false;
+    if (!block || !isFormBlock(block.type, block.props)) return false;
     const fields = ((block.props.fields as FormField[] | undefined) ?? []).slice();
     if (msg.op === "add") {
       if (fields.length >= MAX_FIELDS) return refuse(`${MAX_FIELDS} champs au plus.`);
@@ -899,11 +994,19 @@ export default function VisualEditor({
     }
     const i = msg.index ?? -1;
     if (!fields[i]) return false;
+    if (msg.op === "help-add" || msg.op === "help-remove") {
+      // Aide d'un champ : absente = aucune place (ni texte fantôme, ni rien en public) ; ajoutée = emplacement à remplir sur la toile.
+      const next = { ...fields[i] };
+      if (msg.op === "help-add") next.help = { fr: "", en: "" };
+      else delete next.help;
+      setProp(msg.uid, "fields", fields.map((f, j) => (j === i ? next : f)));
+      return true;
+    }
     if (msg.op === "remove") {
       if (fields.length <= 1) return refuse("Un formulaire garde au moins un champ.");
       if (fields[i].reply) return refuse("Ce champ e-mail sert à te répondre : dans le panneau, désactive « Sert à te répondre » (ou choisis un autre champ) avant de le retirer.");
       setProp(msg.uid, "fields", fields.filter((_, j) => j !== i));
-      toast("Champ retiré", "success", { label: "Annuler", run: () => void undoRef.current() });
+      toast("Champ retiré", "success", { label: "Défaire", run: () => void undoRef.current() });
       return true;
     }
     const to = msg.to ?? i;
@@ -1066,6 +1169,8 @@ export default function VisualEditor({
   useEffect(() => () => clearTimeout(lookTimer.current), []);
   /** Depuis le panneau : montré sur la toile (qui renvoie l'intention), ou directement si la toile n'est pas prête. */
   const lookEchoed = useRef(0);
+  /** Image du logo (lot 26) : choix dans la médiathèque ou envoi d'un fichier, depuis le panneau « Logo ». */
+  const [logoPick, setLogoPick] = useState(false);
   const requestLook = (palette: SitePalette, logo: Logo) => {
     setPendingLook({ palette, logo });
     if (frameReady && mode === "edit") {
@@ -1169,7 +1274,7 @@ export default function VisualEditor({
     const block = findBlock(list, target.uid);
     if (!block) return;
     if (target.kind === "cell") {
-      if (kind === "pdf") return toast("Un PDF se pose dans un bloc « CV ».", "error");
+      if (kind === "pdf") return toast("Un PDF se pose dans une rubrique « CV ».", "error");
       const type = kind === "video" ? "video-single" : "image";
       const child = { uid: newUid(), type, props: type === "video-single" ? { variant: "card", mode: "player", mediaId } : { width: "wide", mediaId } } as DraftBlock;
       const next = insertBlock(list, child, target.uid, listOf(list, target.uid)?.length ?? 0);
@@ -1180,38 +1285,45 @@ export default function VisualEditor({
     }
     const field = own(byType, block.type)?.mediaFields?.find((f) => f.field === target.field);
     if (!field) return;
-    const expected = { video: "Ce bloc attend une vidéo.", pdf: "Ce bloc attend un PDF.", image: "Ce bloc attend une image.", any: "Ce bloc attend une image ou une vidéo." }[field.kind];
+    const expected = { video: "Cette rubrique attend une vidéo.", pdf: "Cette rubrique attend un PDF.", image: "Cette rubrique attend une image.", any: "Cette rubrique attend une image ou une vidéo." }[field.kind];
     if (kind && (field.kind === "any" ? kind === "pdf" : kind !== field.kind)) return toast(expected, "error");
     setProp(target.uid, target.field, mediaId);
-    toast(field.kind === "video" ? "Vidéo placée" : field.kind === "pdf" ? "PDF placé" : "Image placée", "success", { label: "Annuler", run: () => void undoRef.current() });
+    toast(field.kind === "video" ? "Vidéo placée" : field.kind === "pdf" ? "PDF placé" : "Image placée", "success", { label: "Défaire", run: () => void undoRef.current() });
+  };
+
+  /** Envoie un fichier et attend sa conversion : l'identifiant du média prêt, ou null (le message d'erreur est affiché). */
+  const sendAndWait = async (file: File): Promise<number | null> => {
+    toast(`Envoi de « ${file.name.slice(0, 60)} »…`);
+    const up = await sendFile(file, () => undefined);
+    if (!up.ok) {
+      toast(up.message, "error");
+      return null;
+    }
+    router.refresh();
+    let ready = false;
+    for (let i = 0; i < 1300; i++) {
+      const st = await mediaStatusAction([up.media.id]);
+      const row = st.ok ? st.data[0] : undefined;
+      if (row?.status === "ready") {
+        ready = true;
+        break;
+      }
+      if (!row || row.status === "failed") break;
+      await new Promise((r) => setTimeout(r, 700));
+    }
+    if (!ready) {
+      toast(`« ${file.name.slice(0, 60)} » : conversion impossible.`, "error");
+      return null;
+    }
+    return up.media.id;
   };
 
   /** Fichiers déposés sur un bloc média ou une place libre : envoyés, convertis, puis posés. */
   const uploadToBlock = async (target: Extract<DropTargetInfo, { kind: "media" | "cell" }>, files: File[]) => {
     for (const file of target.kind === "media" ? files.slice(0, 1) : files) {
-      toast(`Envoi de « ${file.name.slice(0, 60)} »…`);
-      const up = await sendFile(file, () => undefined);
-      if (!up.ok) {
-        toast(up.message, "error");
-        continue;
-      }
-      router.refresh();
-      let ready = false;
-      for (let i = 0; i < 1300; i++) {
-        const st = await mediaStatusAction([up.media.id]);
-        const row = st.ok ? st.data[0] : undefined;
-        if (row?.status === "ready") {
-          ready = true;
-          break;
-        }
-        if (!row || row.status === "failed") break;
-        await new Promise((r) => setTimeout(r, 700));
-      }
-      if (!ready) {
-        toast(`« ${file.name.slice(0, 60)} » : conversion impossible.`, "error");
-        continue;
-      }
-      placeMedia(target, up.media.id, file.type.startsWith("video/") ? "video" : isPdfFile(file) ? "pdf" : "image");
+      const id = await sendAndWait(file);
+      if (id === null) continue;
+      placeMedia(target, id, file.type.startsWith("video/") ? "video" : isPdfFile(file) ? "pdf" : "image");
     }
   };
 
@@ -1222,7 +1334,7 @@ export default function VisualEditor({
     if (!decl) return;
     if (what === "clear") {
       setProp(uid, field, undefined);
-      toast(field === "backgroundMediaId" ? "Fond du thème rétabli" : "Média retiré", "success", { label: "Annuler", run: () => void undoRef.current() });
+      toast(field === "backgroundMediaId" ? "Fond du thème rétabli" : "Média retiré", "success", { label: "Défaire", run: () => void undoRef.current() });
     } else setMediaPick({ uid, field, kind: decl.kind });
   };
 
@@ -1357,7 +1469,7 @@ export default function VisualEditor({
         return;
       }
       const result = await boardDo(board, { op, key });
-      if (result) toast(op === "remove" ? "Image retirée · la place reste" : "Place retirée", "success", { label: "Annuler", run: () => undoRef.current() });
+      if (result) toast(op === "remove" ? "Image retirée · la place reste" : "Place retirée", "success", { label: "Défaire", run: () => undoRef.current() });
   };
 
   /** Pendant un glisser : aucune sélection de texte native (éditeur), sélection en cours effacée. */
@@ -1400,6 +1512,9 @@ export default function VisualEditor({
       el.removeEventListener("pointerup", up);
       el.removeEventListener("pointercancel", cancel);
       if (!dragging) return;
+      // Le « clic » qui suit un glisser n'est pas une demande de pose.
+      justDragged.current = true;
+      setTimeout(() => (justDragged.current = false), 300);
       noSelection(false);
       const target = dropTargetRef.current;
       dropTargetRef.current = null;
@@ -1412,6 +1527,23 @@ export default function VisualEditor({
     el.addEventListener("pointermove", move);
     el.addEventListener("pointerup", up);
     el.addEventListener("pointercancel", cancel);
+  };
+
+  /**
+   * Clic (sans glisser) sur une vignette de l'onglet Médias : la pose dans le bloc sélectionné qui peut la
+   * recevoir (image, vidéo, fond, portrait ; ou case de la grille sélectionnée), sinon en ouvre l'aperçu.
+   */
+  const [mediaPreview, setMediaPreview] = useState<AdminMediaRow | null>(null);
+  const justDragged = useRef(false);
+  const activateMedia = (m: AdminMediaRow) => {
+    if (m.status === "failed" || justDragged.current) return;
+    const block = selected && !selected.startsWith("site-") ? findBlock(draftRef.current.blocks, selected) : null;
+    if (block && m.status === "ready" && m.kind !== "pdf") {
+      const field = own(byType, block.type)?.mediaFields?.find((f) => f.kind === m.kind || (f.kind === "any" && m.kind !== "pdf"));
+      if (field) return placeMedia({ kind: "media", uid: block.uid, field: field.field as "mediaId" | "backgroundMediaId" | "portraitMediaId" }, m.id, m.kind);
+      if (block.type === "grid") return placeMedia({ kind: "cell", uid: block.uid }, m.id, m.kind);
+    }
+    setMediaPreview(m);
   };
 
   // Envois de l'onglet Médias (Uploader) : la grille se met à jour sans rechargement.
@@ -1443,13 +1575,13 @@ export default function VisualEditor({
       return result.snap;
     }).then((ok) => {
       if (!ok) revert();
-      else if (done) toast(done, "success", { label: "Annuler", run: () => void undoRef.current() });
+      else if (done) toast(done, "success", { label: "Défaire", run: () => void undoRef.current() });
     });
   };
 
-  const handlers = useRef({ op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook });
+  const handlers = useRef({ op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook });
   useEffect(() => {
-    handlers.current = { op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, queueLook };
+    handlers.current = { op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -1538,8 +1670,9 @@ export default function VisualEditor({
           break;
         case "select":
           h.selectBlock(msg.uid, { notify: false });
-          // Depuis Ajouter ou Médias, un clic choisit l'endroit visé : l'onglet reste.
-          if (msg.uid && !mobile) setTab((t) => (t === "structure" ? "reglages" : t));
+          // Un clic sur une rubrique de la toile ouvre ses Réglages (depuis Ajouter ou Structure) ; « Ajouter » ajoute ensuite sous elle.
+          // Médias reste ouvert : on y glisse des images vers les planches, un clic pour viser une planche ne doit pas le fermer.
+          if (msg.uid && msg.click) setTab((t) => (t === "medias" ? t : "reglages"));
           break;
         case "op":
           h.op(msg.op, msg.uid);
@@ -1587,6 +1720,9 @@ export default function VisualEditor({
           break;
         case "insert":
           h.requestInsert(msg.parent, msg.index, msg.what);
+          break;
+        case "cell-media":
+          h.requestCellMedia(msg.uid, msg.media);
           break;
         case "site-look":
           lookEchoed.current++;
@@ -1748,7 +1884,7 @@ export default function VisualEditor({
           setTab("reglages");
           if (mobile) setSheet(true);
         }
-        toast("Publication impossible : corrige ce qui est signalé.", "error");
+        toast("Publication impossible : la liste des points à corriger est en haut de la page.", "error");
         return;
       }
       revRef.current = result.data.rev;
@@ -1818,7 +1954,19 @@ export default function VisualEditor({
   const editor = selBlock ? own(editors, selBlock.type) : undefined;
   // Fil d'Ariane du bloc choisi (conteneurs qui l'englobent).
   const selChain = selBlock ? walkTree(blocks).find((v) => v.block.uid === selBlock.uid)?.ancestors ?? [] : [];
-  const pageErrors = Object.entries(publishErrors).filter(([k]) => !k.startsWith("blocks."));
+  // Publication refusée : la liste des problèmes en français (chaque ligne mène au bon endroit).
+  const problems = useMemo(() => describeProblems(blocks, publishErrors, (t) => own(byType, t)?.label ?? t), [blocks, publishErrors, byType]);
+  const goToProblem = (p: Problem) => {
+    if (p.kind === "block" && p.uid) {
+      selectBlock(p.uid, { scroll: true });
+      setTab("reglages");
+    } else if (p.kind === "page") {
+      // Réglages de la page et du site : visibles quand aucun bloc n'est choisi.
+      selectBlock(null);
+      setTab("reglages");
+      if (mobile) setSheet(true);
+    }
+  };
   const deletingBlock = deleting ? findBlock(blocks, deleting) : null;
   const deletingCount = descendantCount(deletingBlock);
   /** Blocs et composants signalés par la publication (uid). */
@@ -1848,12 +1996,13 @@ export default function VisualEditor({
   const frameSrc = `/admin/api/editeur/toile?page=${pageId}&langue=${locale}`;
   const media = context.media;
   const [mediaTags, setMediaTags] = useState<string[]>([]);
+  const [mediaQuery, setMediaQuery] = useState("");
   const tagOptions = useMemo(() => {
     const seen = new Map<string, string>();
     for (const m of media) for (const t of m.tags) seen.set(t.label.toLowerCase(), t.label);
     return [...seen.values()].sort((a, b) => a.localeCompare(b, "fr"));
   }, [media]);
-  const shownMedia = useMemo(() => filterMedia(media, mediaTags, ""), [media, mediaTags]);
+  const shownMedia = useMemo(() => filterMedia(media, mediaTags, mediaQuery), [media, mediaTags, mediaQuery]);
 
   const panel = (
     <aside className="ve-panel" data-open={sheet || undefined} aria-label="Outils de l'éditeur" inert={mobile && !sheet ? true : undefined}>
@@ -1899,7 +2048,7 @@ export default function VisualEditor({
       <div className="ve-pane" role="tabpanel" id={`ve-pane-${tab}`} aria-labelledby={`ve-tab-${tab}`}>
         {tab === "ajouter" && (
           <>
-            <p className="ve-hint">{mobile ? "Touche un composant pour l'ajouter sous le bloc choisi." : "Glisse-le sur la page, à l'endroit voulu. Ou clique pour l'ajouter sous le bloc sélectionné."}</p>
+            <p className="ve-hint">{mobile ? "Touche un composant pour l'ajouter sous la rubrique choisie." : "Glisse-le sur la page, à l'endroit voulu. Ou clique pour l'ajouter sous la rubrique sélectionnée."}</p>
             <input
               type="search"
               className="a-input ve-search"
@@ -1935,28 +2084,61 @@ export default function VisualEditor({
                 )}
                 {g.entries.length > 0 && (
                   <ul className="ve-palette">
-                    {g.entries.map((c) => (
-                      <li key={c.key}>
-                        <button
-                          type="button"
-                          className="ve-card"
-                          data-type={c.type}
-                          data-key={c.key}
-                          data-dragging={paletteDrag?.type === c.type || undefined}
-                          onPointerDown={(e) => onPaletteDown(e, c)}
-                          onClick={(e) => {
-                            if (e.currentTarget.dataset.dragged) return;
-                            insert(c.key);
-                          }}
-                        >
-                          <BlockThumb type={c.type} preset={c.key} />
-                          <span>
-                            <strong>{c.label}</strong>
-                            <span className="ve-card-desc">{c.description}</span>
-                          </span>
-                        </button>
-                      </li>
-                    ))}
+                    {g.entries.map((c) => {
+                      // Une seule fois par page : déjà sur la page, la carte est grisée et dit pourquoi.
+                      const taken = Boolean(c.single) && present.has(c.type);
+                      return (
+                        <li key={c.key} className={c.models.length || taken ? "ve-card-wrap" : undefined}>
+                          <button
+                            type="button"
+                            className="ve-card"
+                            data-type={c.type}
+                            data-key={c.key}
+                            disabled={taken}
+                            data-dragging={paletteDrag?.type === c.type || undefined}
+                            onPointerDown={(e) => onPaletteDown(e, c)}
+                            onClick={(e) => {
+                              if (e.currentTarget.dataset.dragged) return;
+                              insert(c.key);
+                            }}
+                          >
+                            <BlockThumb type={c.type} preset={c.key} />
+                            <span>
+                              <strong>{c.label}</strong>
+                              <span className="ve-card-desc">{c.description}</span>
+                            </span>
+                          </button>
+                          {taken && (
+                            <p className="ve-card-note" data-testid="palette-single-note">
+                              {c.single}
+                            </p>
+                          )}
+                          {c.models.length > 0 && (
+                            <div className="ve-models" role="group" aria-label={`Modèles de départ : ${c.label}`}>
+                              <span className="ve-models-title">Modèles :</span>
+                              {c.models.map((m) => (
+                                <button
+                                  key={m.key}
+                                  type="button"
+                                  className="ve-model"
+                                  data-key={m.key}
+                                  data-type={m.type}
+                                  title={m.description}
+                                  data-dragging={paletteDrag?.label === m.label || undefined}
+                                  onPointerDown={(e) => onPaletteDown(e, m)}
+                                  onClick={(e) => {
+                                    if (e.currentTarget.dataset.dragged) return;
+                                    insert(m.key);
+                                  }}
+                                >
+                                  {m.short ?? m.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </section>
@@ -1967,6 +2149,10 @@ export default function VisualEditor({
         {tab === "medias" && (
           <>
             <Uploader origin={`editeur-${pageId}`} libraryLabel="Voir dans la Médiathèque" />
+            <label className="ve-media-search">
+              <span className="sr-only">Rechercher par nom ou tag</span>
+              <input className="a-input" type="search" placeholder="Rechercher par nom ou tag…" value={mediaQuery} onChange={(e) => setMediaQuery(e.target.value)} />
+            </label>
             {tagOptions.length > 0 && (
               <div className="ve-chips" role="group" aria-label="Filtrer par tags">
                 {tagOptions.map((t) => {
@@ -1980,21 +2166,31 @@ export default function VisualEditor({
               </div>
             )}
             {shownMedia.length === 0 ? (
-              <p className="ve-empty">{media.length ? "Aucun média ne porte tous ces tags." : "Ta médiathèque est vide : dépose des fichiers ci-dessus."}</p>
+              <p className="ve-empty">{media.length ? "Aucun média ne correspond." : "Ta médiathèque est vide : dépose des fichiers ci-dessus."}</p>
             ) : (
               <ul className="ve-media" aria-label="Médias">
                 {shownMedia.slice(0, 120).map((m) => (
                   <li
                     key={m.id}
-                    title={`${m.name} : glisse sur une planche`}
-                    style={{ backgroundColor: m.color ?? undefined }}
+                    title={`${m.name} : clique pour la poser dans la rubrique choisie (ou l'afficher), glisse-la sur une planche`}
                     data-media={m.id}
                     data-status={m.status}
+                    tabIndex={m.status === "failed" ? undefined : 0}
+                    role="button"
+                    aria-label={`${m.name} : poser ou afficher`}
                     onPointerDown={(e) => onMediaDown(e, m)}
+                    onClick={() => activateMedia(m)}
+                    onKeyDown={(e) => {
+                      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                        e.preventDefault();
+                        activateMedia(m);
+                      }
+                    }}
                   >
+                    <span className="ve-media-thumb">
                     {m.thumb && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={m.thumb} alt={m.alt.fr || m.name} loading="lazy" draggable={false} />
+                      <img src={m.thumb} alt="" loading="lazy" draggable={false} />
                     )}
                     {m.kind === "video" && <span className="ve-media-kind" aria-hidden="true">▶</span>}
                     {m.status === "processing" && <span className="ve-media-state">{m.kind === "video" ? "Conversion…" : "Traitement…"}</span>}
@@ -2011,13 +2207,15 @@ export default function VisualEditor({
                         </button>
                       </span>
                     )}
+                    </span>
+                    <span className="ve-media-name">{m.name}</span>
                   </li>
                 ))}
               </ul>
             )}
             <p className="ve-hint">
-              Glisse une image sur une planche de la page : entre deux images, ou sur une place vide. Tu peux aussi déposer des fichiers de ton
-              ordinateur directement sur la planche.
+              Clique une vignette pour la poser dans l&apos;image, la vidéo ou la grille sélectionnée (sinon elle s&apos;affiche en grand), ou glisse-la sur une
+              planche de la page : entre deux images, ou sur une place vide. Tu peux aussi déposer des fichiers de ton ordinateur directement sur la planche.
             </p>
           </>
         )}
@@ -2053,12 +2251,12 @@ export default function VisualEditor({
                 })
               }
             />
-            {selected === "site-header" && <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} />}
+            {selected === "site-header" && <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />}
             </>
           ) : selBlock && selDef ? (
             <div className="ve-settings">
               {selChain.length > 0 && (
-                <nav className="ve-crumbs" aria-label="Emplacement du bloc">
+                <nav className="ve-crumbs" aria-label="Emplacement de la rubrique">
                   {selChain.map((c) => (
                     <span key={c.uid}>
                       <button type="button" className="ve-crumb" onClick={() => selectBlock(c.uid, { scroll: true })}>
@@ -2072,7 +2270,7 @@ export default function VisualEditor({
               )}
               <header className="ve-settings-head">
                 <h2>{selDef.label}</h2>
-                <div className="ve-settings-tools" role="group" aria-label="Bloc sélectionné">
+                <div className="ve-settings-tools" role="group" aria-label="Rubrique sélectionnée">
                   <button type="button" className="a-icon-btn" aria-label="Monter" disabled={selAt?.index === 0} onClick={() => op("up", selBlock.uid)}>
                     ↑
                   </button>
@@ -2080,7 +2278,7 @@ export default function VisualEditor({
                     ↓
                   </button>
                   {selAt?.parent && (
-                    <button type="button" className="a-icon-btn" aria-label="Sortir du conteneur" title="Sortir du conteneur" onClick={() => op("out", selBlock.uid)}>
+                    <button type="button" className="a-icon-btn" aria-label="Sortir de la rubrique" title="Sortir de la rubrique" onClick={() => op("out", selBlock.uid)}>
                       ⇱
                     </button>
                   )}
@@ -2114,7 +2312,11 @@ export default function VisualEditor({
                   {editor}
                 </BlockEditorContext.Provider>
               ) : (
-                <p className="ve-empty">Ce type de bloc n&apos;a pas de réglages.</p>
+                <p className="ve-empty">
+                  {selDef.inline.length > 0
+                    ? "Cette rubrique n'a pas de réglage à part : ses textes se modifient directement sur la page (double-clic dessus). Sa mise en page se règle ci-dessous."
+                    : "Cette rubrique n'a pas de réglage à part : elle s'affiche telle quelle. Sa mise en page (espaces) se règle ci-dessous ; tu peux aussi la déplacer, la dupliquer ou la supprimer avec les boutons ci-dessus."}
+                </p>
               )}
               <BlockLookPanel
                 key={selBlock.uid}
@@ -2126,7 +2328,7 @@ export default function VisualEditor({
             </div>
           ) : (
             <div className="ve-settings-empty">
-              <p>Clique sur un bloc de la page pour le régler. Les textes se modifient directement sur la page.</p>
+              <p>Clique sur une rubrique de la page pour la régler. Les textes se modifient directement sur la page.</p>
               <p className="ve-hint">
                 Titre, adresses et référencement de la page : <Link href={`/admin/pages/${pageId}`}>formulaire de la page</Link>.
               </p>
@@ -2138,9 +2340,15 @@ export default function VisualEditor({
                   pageId={pageId}
                   error={publishErrors.collection}
                 />
+                <PageButtonsColorField
+                  value={draft.accent ?? null}
+                  onChange={(v) => apply({ ...draftRef.current, accent: v }, { structural: true })}
+                  colors={effective}
+                  error={publishErrors.accent}
+                />
               </div>
               <ColorsPanel theme={lookContext.theme} value={liveLook.palette} onChange={(p) => requestLook(p, liveLook.logo)} onHighlight={highlightRole} info={hlInfo} locked={siteLocked} />
-              <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} />
+              <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />
               <SiteStylesPanel styles={siteSnap.styles} onChange={(s) => void applySiteStyles(() => s, Object.values(cleanSiteStyles(s)?.roles ?? {}))} palette={swatches} cardPalette={effective} installed={fontFamilies} locked={siteLocked} />
             </div>
           ))}
@@ -2187,7 +2395,7 @@ export default function VisualEditor({
             ))}
           </div>
           <span className="ve-break" aria-hidden="true" />
-          {!mobile && (
+          {!mobile && !topTighter && (
             <div className="a-seg ve-seg" role="group" aria-label="Largeur d'aperçu">
               {DEVICES.map((d) => (
                 <button key={d.id} type="button" aria-pressed={device === d.id} onClick={() => setDevice(d.id)} title={`${d.label} (${d.width} px)`}>
@@ -2198,7 +2406,7 @@ export default function VisualEditor({
           )}
           <span className="ve-spacer" />
           <div className="ve-history" role="group" aria-label="Historique">
-            <button type="button" className="a-icon-btn" onClick={undo} disabled={!historyLen.past} aria-label="Annuler" title="Annuler (Ctrl+Z)">
+            <button type="button" className="a-icon-btn" onClick={undo} disabled={!historyLen.past} aria-label="Défaire" title="Défaire la dernière action (Ctrl+Z)">
               ↶
             </button>
             <button type="button" className="a-icon-btn" onClick={redo} disabled={!historyLen.future} aria-label="Rétablir" title="Rétablir (Ctrl+Maj+Z)">
@@ -2220,10 +2428,18 @@ export default function VisualEditor({
             )}
           </span>
           {/* En erreur, la place va à la raison et à « Réessayer ». */}
-          {hasDraft && !mobile && !blocked && saveState !== "error" && (
+          {hasDraft && !mobile && !topTight && !blocked && saveState !== "error" && (
             <button type="button" className="a-btn a-btn-quiet ve-discard" onClick={() => setDiscarding(true)}>
               Abandonner les modifications
             </button>
+          )}
+          {!mobile && topTight && (
+            <TopMore
+              devices={topTighter ? DEVICES : undefined}
+              device={device}
+              onDevice={(id) => setDevice(id as Device)}
+              onDiscard={hasDraft && !blocked && saveState !== "error" ? () => setDiscarding(true) : undefined}
+            />
           )}
           <button type="button" className="a-btn" onClick={() => setMode("preview")} disabled={foreign}>
             Aperçu
@@ -2243,14 +2459,33 @@ export default function VisualEditor({
       <div className="ve-body">
         {mode === "edit" && panel}
         <main className="ve-canvas" data-device={mobile ? "phone" : device}>
-          {(publishMessage || pageErrors.length > 0) && mode === "edit" && (
-            <div className="ve-alert" role="alert">
-              <strong>{publishMessage}</strong>
-              {pageErrors.map(([k, v]) => (
-                <span key={k}>
-                  {v} <Link href={`/admin/pages/${pageId}`}>Ouvrir le formulaire</Link>
-                </span>
-              ))}
+          {(publishMessage || problems.length > 0) && mode === "edit" && (
+            <div className="ve-alert ve-problems" role="alert" data-testid="publish-problems">
+              <strong>
+                {problems.length > 0 ? `Publication impossible : ${problems.length} point${problems.length > 1 ? "s" : ""} à corriger.` : publishMessage}
+              </strong>
+              {problems.length > 0 && (
+                <>
+                  <span className="ve-problems-hint">Clique sur une ligne pour aller au bon endroit de la page.</span>
+                  <ul className="ve-problems-list">
+                    {problems.map((p) => (
+                      <li key={p.key}>
+                        {p.kind === "form" ? (
+                          <Link href={`/admin/pages/${pageId}`} className="ve-problem">
+                            <span className="ve-problem-where">{p.field ?? p.where}</span>
+                            <span className="ve-problem-msg">{p.message} Ouvrir le formulaire de la page.</span>
+                          </Link>
+                        ) : (
+                          <button type="button" className="ve-problem" onClick={() => goToProblem(p)}>
+                            <span className="ve-problem-where">{p.field && p.kind === "block" ? `${p.where} · ${p.field}` : (p.field ?? p.where)}</span>
+                            <span className="ve-problem-msg">{p.message}</span>
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </div>
           )}
           {blocked === "conflict" && mode === "edit" && (
@@ -2362,8 +2597,8 @@ export default function VisualEditor({
 
       <ConfirmDialog
         open={deleting !== null}
-        title={`Supprimer ${deletingBlock && isContainer(deletingBlock.type) ? "le conteneur" : "le bloc"} « ${deletingBlock ? (own(byType, deletingBlock.type)?.label ?? "") : ""} » ?`}
-        confirmLabel={deletingCount ? `Supprimer avec ses ${deletingCount} composant${deletingCount > 1 ? "s" : ""}` : "Supprimer le bloc"}
+        title={`Supprimer ${deletingBlock && locate(blocks, deletingBlock.uid)?.parent ? "le composant" : "la rubrique"} « ${deletingBlock ? (own(byType, deletingBlock.type)?.label ?? "") : ""} » ?`}
+        confirmLabel={deletingCount ? `Supprimer avec ses ${deletingCount} composant${deletingCount > 1 ? "s" : ""}` : deletingBlock && locate(blocks, deletingBlock.uid)?.parent ? "Supprimer le composant" : "Supprimer la rubrique"}
         danger
         onClose={() => setDeleting(null)}
         onConfirm={() => deleting && remove(deleting)}
@@ -2376,17 +2611,18 @@ export default function VisualEditor({
           </p>
         )}
         {deletingLost.length > 0 && <p>Les changements d&apos;images {deletingLost.length > 1 ? "de ses planches" : "de sa planche"} ne seront pas publiés (les images en ligne ne bougent pas).</p>}
-        <p className="muted">Il disparaît du brouillon ; « Annuler » (Ctrl+Z) le récupère. Le site ne change qu&apos;à la publication.</p>
+        <p className="muted">Il disparaît du brouillon ; « Défaire » (Ctrl+Z) le récupère. Le site ne change qu&apos;à la publication.</p>
       </ConfirmDialog>
 
       <AddSectionDialog
         open={adding !== null}
         catalog={catalog}
+        present={present}
         where={
           adding === null
             ? ""
             : adding.parent
-              ? `Dans « ${own(byType, findBlock(blocks, adding.parent)?.type ?? "")?.label ?? "le conteneur"} »`
+              ? `Dans « ${own(byType, findBlock(blocks, adding.parent)?.type ?? "")?.label ?? "la rubrique"} »`
               : adding.index >= blocks.length
                 ? "À la fin de la page"
                 : adding.index === 0
@@ -2403,8 +2639,60 @@ export default function VisualEditor({
         }}
       />
 
+      <MediaPreviewDialog media={mediaPreview} onClose={() => setMediaPreview(null)} />
+
+      <MediaPickerDialog
+        open={cellPick !== null}
+        kind={cellPick?.kind}
+        media={context.media.filter((m) => m.kind === (cellPick?.kind ?? "image"))}
+        onClose={() => setCellPick(null)}
+        onPick={(mediaId) => {
+          const p = cellPick;
+          setCellPick(null);
+          if (p) placeMedia({ kind: "cell", uid: p.uid }, mediaId, p.kind);
+        }}
+        onFile={(file) => {
+          const p = cellPick;
+          setCellPick(null);
+          if (p) void uploadToBlock({ kind: "cell", uid: p.uid }, [file]);
+        }}
+      />
+
+      <MediaPickerDialog
+        open={tileCover !== null}
+        media={context.media.filter((m) => m.kind === "image")}
+        onClose={() => setTileCover(null)}
+        onPick={(mediaId) => {
+          const t = tileCover;
+          setTileCover(null);
+          if (t) applyTileCover(t, mediaId);
+        }}
+        onFile={(file) => {
+          const t = tileCover;
+          setTileCover(null);
+          if (t) void sendAndWait(file).then((id) => id !== null && applyTileCover(t, id));
+        }}
+      />
+
+      <MediaPickerDialog
+        open={logoPick}
+        media={context.media.filter((m) => m.kind === "image")}
+        onClose={() => setLogoPick(false)}
+        onPick={(mediaId) => {
+          setLogoPick(false);
+          requestLook(liveLook.palette, { ...liveLook.logo, mediaId });
+        }}
+        onFile={(file) => {
+          setLogoPick(false);
+          void sendAndWait(file).then((id) => {
+            if (id !== null) requestLook(liveLook.palette, { ...liveLook.logo, mediaId: id });
+          });
+        }}
+      />
+
       <MediaPickerDialog
         open={mediaPick !== null}
+        kind={mediaPick?.kind === "video" ? "video" : mediaPick?.kind === "image" ? "image" : undefined}
         media={mediaPick && mediaPick.kind !== "any" ? context.media.filter((m) => m.kind === mediaPick.kind) : context.media.filter((m) => m.kind !== "pdf")}
         onClose={() => setMediaPick(null)}
         onPick={(mediaId) => {
@@ -2444,7 +2732,7 @@ export default function VisualEditor({
       </ConfirmDialog>
 
       <p className="sr-only" aria-live="polite">
-        {canvasBlocks.length ? `${canvasBlocks.length} blocs sur la toile` : ""}
+        {canvasBlocks.length ? `${canvasBlocks.length} rubriques sur la toile` : ""}
       </p>
     </div>
   );

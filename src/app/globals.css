@@ -252,6 +252,28 @@
     display: none;
   }
 
+  /* Image du logo choisie dans l'éditeur (lot 26) : remplace la signature du thème et le nom en texte (celui-ci reste
+     lu par les lecteurs d'écran). Hauteur = celle du logo (`--lh`, logoCss) ; sans réglage de taille, celle de la signature. */
+  .site-logo-img {
+    display: block;
+    width: auto;
+    height: var(--lh, 2.6rem);
+    max-width: min(60vw, 18rem);
+    object-fit: contain;
+    object-position: left center;
+  }
+  .site-brand[data-logo-image] .site-signature {
+    display: none;
+  }
+  .site-brand[data-logo-image] .site-brand-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
   /* Plans du hero dessinés : la toile 2880 × 1600 tenue en « cover » dans le
      calque (comme un SVG preserveAspectRatio slice), chaque plan replacé dans
      sa boîte d'origine. */
@@ -767,6 +789,24 @@
 }
 .block-grid[data-ratio="4:5"] .block-image-media {
   aspect-ratio: 4 / 5;
+}
+.block-grid[data-ratio="3:4"] .block-image-media {
+  aspect-ratio: 3 / 4;
+}
+.block-grid[data-ratio="2:3"] .block-image-media {
+  aspect-ratio: 2 / 3;
+}
+.block-grid[data-ratio="4:3"] .block-image-media {
+  aspect-ratio: 4 / 3;
+}
+.block-grid[data-ratio="3:2"] .block-image-media {
+  aspect-ratio: 3 / 2;
+}
+.block-grid[data-ratio="2:1"] .block-image-media {
+  aspect-ratio: 2 / 1;
+}
+.block-grid[data-ratio="21:9"] .block-image-media {
+  aspect-ratio: 21 / 9;
 }
 .block-grid:not([data-ratio="auto"]) .block-image-media {
   height: auto;

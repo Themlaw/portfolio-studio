@@ -11,7 +11,8 @@ import { toast } from "./editing";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export default function KitDownloadButton({ themeId, small = false }: { themeId: string; small?: boolean }) {
+/** Préparation puis téléchargement du kit : l'état vit chez l'appelant (un menu qui se referme ne l'interrompt pas). */
+export function useKitDownload(themeId: string) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const url = `/admin/api/theme-kit/${encodeURIComponent(themeId)}`;
@@ -49,6 +50,11 @@ export default function KitDownloadButton({ themeId, small = false }: { themeId:
     }
   };
 
+  return { start, busy, status };
+}
+
+export default function KitDownloadButton({ themeId, small = false }: { themeId: string; small?: boolean }) {
+  const { start, busy, status } = useKitDownload(themeId);
   return (
     <>
       <button type="button" className={`a-btn${small ? " a-btn-small" : ""}`} onClick={start} disabled={busy} aria-busy={busy}>

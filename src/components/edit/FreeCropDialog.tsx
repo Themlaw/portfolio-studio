@@ -3,7 +3,7 @@
 /**
  * « Cadrer l'image », mode Libre (lot 17d) : un rectangle quelconque posé sur
  * l'image ENTIÈRE, poignées aux coins et sur les bords, glissé pour le déplacer.
- * Formats rapides : Original, 1:1, 4:5, 3:2, 16:9 (le rectangle garde alors son
+ * Formats rapides : Libre, Original, puis la liste commune des formats (le rectangle garde alors son
  * format aux coins ; il se pose dans la zone déjà choisie). Le résultat est un
  * rectangle normalisé {x, y, w, h} (src/lib/images/crop.ts), enregistré dans
  * `look.crop` du bloc par la couche (LookLayer) : jamais l'image elle-même.
@@ -11,6 +11,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { FORMAT_KEYS, FORMAT_LABELS } from "@/lib/images/formats";
 import { fromUnits, isWholeImage, MIN_SIDE, toUnits, type Rect } from "@/lib/images/crop";
 
 type Handle = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
@@ -26,13 +27,14 @@ const HANDLE_LABELS: Record<Handle, string> = {
   sw: "coin bas gauche",
 };
 
+/** Libre, Original, puis la liste de formats commune à tous les réglages (src/lib/images/formats.ts). */
 export const FORMATS: { id: string; label: string; ratio: number | null }[] = [
-  { id: "libre", label: "Libre", ratio: null },
+  { id: "libre", label: FORMAT_LABELS.auto, ratio: null },
   { id: "original", label: "Original", ratio: null },
-  { id: "1:1", label: "1:1", ratio: 1 },
-  { id: "4:5", label: "4:5", ratio: 4 / 5 },
-  { id: "3:2", label: "3:2", ratio: 3 / 2 },
-  { id: "16:9", label: "16:9", ratio: 16 / 9 },
+  ...FORMAT_KEYS.filter((k) => k !== "auto").map((k) => {
+    const [w, h] = k.split(":").map(Number);
+    return { id: k, label: FORMAT_LABELS[k], ratio: w / h };
+  }),
 ];
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -235,7 +237,7 @@ export default function FreeCropDialog({
           </button>
           <span className="lk-spacer" />
           <button type="button" onClick={onClose}>
-            Annuler
+            Fermer sans enregistrer
           </button>
           <button type="button" className="lk-primary" onClick={save}>
             Enregistrer le cadrage

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Fond d'une rubrique sur la toile (lot 17c) — src/components/edit/SurfaceMenu.tsx.
+   Carte d'une rubrique sur la toile (lot 17c ; « Fond » avant le lot 26) — src/components/edit/SurfaceMenu.tsx.
    Couleurs de l'admin (--lk-* / --pe-* du calque), jamais celles du thème ;
    les pastilles montrent les couleurs du thème par leurs variables, jamais en dur.
    ========================================================================== */
@@ -26,7 +26,7 @@
   flex-wrap: wrap;
 }
 .sm-label {
-  flex: 0 0 56px;
+  flex: 0 0 76px;
   color: var(--lk-ink-soft);
 }
 .sm-hint {

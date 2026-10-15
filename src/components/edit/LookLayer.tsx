@@ -625,14 +625,14 @@ function CropTabs({ mode, onMode }: { mode: "free" | "frame"; onMode: (m: "free"
       <button type="button" role="tab" aria-selected={mode === "free"} onClick={() => onMode("free")}>
         Libre
       </button>
-      <button type="button" role="tab" aria-selected={mode === "frame"} onClick={() => onMode("frame")} title="Point focal et zoom dans le format imposé au bloc">
-        Dans le cadre du bloc
+      <button type="button" role="tab" aria-selected={mode === "frame"} onClick={() => onMode("frame")} title="Point focal et zoom dans le format imposé à la rubrique">
+        Dans le cadre de la rubrique
       </button>
     </div>
   );
 }
 
-/** Modale de cadrage : « Libre » par défaut pour une image seule ; « Dans le cadre du bloc » (point focal + zoom) quand un format est imposé. */
+/** Modale de cadrage : « Libre » par défaut pour une image seule ; « Dans le cadre de la rubrique » (point focal + zoom) quand un format est imposé. */
 function CropDialog({ target, onClose }: { target: CropTarget; onClose: () => void }) {
   const look = lookOf(target.uid);
   const existing = target.tile ? look.tileCrop?.[target.tile] : look.crop?.[target.field];
@@ -795,7 +795,7 @@ function FrameCropDialog({ target, onClose, tabs }: { target: CropTarget; onClos
           </button>
           <span className="lk-spacer" />
           <button type="button" onClick={onClose}>
-            Annuler
+            Fermer sans enregistrer
           </button>
           <button type="button" className="lk-primary" onClick={save}>
             Enregistrer le cadrage

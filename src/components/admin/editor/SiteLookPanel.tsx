@@ -6,7 +6,7 @@
  * Couleurs : chaque rôle porte un nom parlant et une phrase (« Fond de page », « Cartes et encadrés »…).
  * Au survol ou au focus d'un rôle, la toile surligne les éléments qui l'utilisent (message `highlight`)
  * et la légende « utilisé par » revient de la toile. Un clic ouvre le sélecteur (roue, HEX, RVB) : la
- * couleur est montrée tout de suite sur la toile. Contraste AA en direct ; s'il est insuffisant, avertissement
+ * couleur est montrée tout de suite sur la toile. Lisibilité (contraste AA) en direct, le rapport en info-bulle ; s'il est insuffisant, avertissement
  * et « Ajuster automatiquement » — la saisie n'est jamais bloquée, seule la publication l'est (serveur).
  * Les nuances calculées sont en lecture seule, repliées. En mode « site » (éditeur visuel), la palette du THÈME
  * n'est jamais modifiée : ce sont des surcharges du site (`styles.palette`), publiées avec la page comme l'en-tête.
@@ -15,13 +15,15 @@
  * alors les couleurs COURANTES du formulaire (aperçu compris), `baseline` celles enregistrées (« modifiée » =
  * différente de l'enregistré), et `onChange` reçoit un correctif ({ rôle: couleur }) à poser sur ces couleurs.
  *
- * Logo : taille (curseur) et comportement (fixe, réduit au défilement, déborde sous le bandeau).
+ * Logo : image (médiathèque ou envoi, lot 26 ; retirée : le logo texte ou celui du thème), taille (curseur) et comportement
+ * (fixe, réduit au défilement, déborde sous le bandeau).
  */
 import { useEffect, useState } from "react";
 
 import { SolidColorPicker } from "@/components/edit/ColorPicker";
+import { pairsReadability, ratioTip } from "@/components/edit/readability";
+import type { AdminMediaRow } from "@/lib/admin";
 import { LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, type Logo, type PaletteColor, type SitePalette } from "@/lib/look";
-import { AA } from "@/themes/contrast";
 import type { BaseKey, NuanceKey, PaletteColors, PaletteState } from "@/themes/palette";
 import { autoAdjustBase, CONTRAST_BASES, effectiveSitePalette, NUANCE_USES, nuanceLabel, rolePairs, SITE_ROLES, sitePaletteIssues } from "@/themes/site-palette";
 
@@ -32,7 +34,6 @@ export type ThemeColors = { name: string; color: PaletteColors; palette: Palette
 export type HighlightInfo = { role: BaseKey | null; count: number; uses: string[] };
 
 const NUANCE_ORDER: NuanceKey[] = ["bgDeep", "line", "inkSoft", "shadow", "primaryHover", "onPrimary", "eyebrow", "scrim", "onScrim"];
-const ratioText = (n: number) => n.toFixed(2).replace(".", ",");
 
 export function ColorsPanel({
   theme,
@@ -116,7 +117,7 @@ export function ColorsPanel({
         <div className="a-field-error lc-ignored" role="alert" data-testid="palette-ignored">
           <p>
             <strong>Ces couleurs ne sont pas appliquées sur le site en ligne.</strong> Avec le thème actif « {theme.name} » (changé depuis qu&apos;elles ont été choisies, ou modifié), elles rendent du texte illisible
-            ({worstIssue.label.toLowerCase()} : {ratioText(worstIssue.ratio)}:1, il faut au moins {ratioText(AA)}:1) : le site montre alors les couleurs du thème. La mise en ligne est refusée tant que ce n&apos;est pas corrigé.
+            (<span title={ratioTip(worstIssue.ratio)}>{worstIssue.label.toLowerCase()} : lisibilité insuffisante</span>) : le site montre alors les couleurs du thème. La mise en ligne est refusée tant que ce n&apos;est pas corrigé.
           </p>
           <p>Ajuste les couleurs signalées ci-dessous, ou reviens aux couleurs du thème.</p>
         </div>
@@ -159,8 +160,8 @@ export function ColorsPanel({
                 </p>
               )}
               {!isOpen && failing.length > 0 && (
-                <p className="lc-warn" role="status">
-                  Contraste insuffisant ({ratioText(lowest)}:1).
+                <p className="lc-warn" role="status" title={ratioTip(lowest)}>
+                  Lisibilité : insuffisante.
                 </p>
               )}
               {isOpen && (
@@ -184,13 +185,13 @@ export function ColorsPanel({
                   </div>
                   {pairs.length > 0 &&
                     (failing.length === 0 ? (
-                      <p className="lc-ok" role="status" data-testid="contrast-status">
-                        Contraste suffisant : {ratioText(lowest)}:1 au plus bas (AA : {ratioText(AA)}:1).
+                      <p className="lc-ok" role="status" data-testid="contrast-status" title={ratioTip(lowest)}>
+                        Lisibilité : {pairsReadability(pairs).label}.
                       </p>
                     ) : (
                       <div className="a-field-error lc-alert" role="alert" data-testid="contrast-status">
-                        <p>
-                          Contraste insuffisant (minimum {ratioText(AA)}:1) : {failing.map((p) => `${p.label.toLowerCase()} ${ratioText(p.ratio)}:1`).join(", ")}. Du texte serait difficile à lire ; la mise en ligne sera refusée tant que ce n&apos;est pas corrigé.
+                        <p title={ratioTip(lowest)}>
+                          Lisibilité insuffisante : {failing.map((p) => p.label.toLowerCase()).join(", ")}. Du texte serait difficile à lire ; la mise en ligne sera refusée tant que ce n&apos;est pas corrigé.
                         </p>
                         {fixed ? (
                           <button
@@ -255,9 +256,27 @@ const MODE_HELP: Record<(typeof LOGO_MODES)[number], string> = {
   overhang: "Le logo dépasse un peu sous la barre du haut.",
 };
 
-export function LogoPanel({ value, onChange, locked }: { value: Logo; onChange: (next: Logo) => void; locked: string | null }) {
+export function LogoPanel({
+  value,
+  onChange,
+  locked,
+  media = [],
+  signature = false,
+  onChooseImage,
+}: {
+  value: Logo;
+  onChange: (next: Logo) => void;
+  locked: string | null;
+  /** Médiathèque (nom et vignette de l'image choisie). */
+  media?: AdminMediaRow[];
+  /** Le thème actif dessine sa propre signature : retirer l'image y revient (sinon : le nom du site en texte). */
+  signature?: boolean;
+  /** Ouvre le choix d'une image (médiathèque ou envoi) ; absent : la section image n'est pas montrée. */
+  onChooseImage?: () => void;
+}) {
   const size = value.size ?? LOGO_SIZE_DEFAULT;
   const mode = value.mode ?? "fixed";
+  const image = value.mediaId !== undefined ? (media.find((m) => m.id === value.mediaId) ?? null) : null;
   return (
     <section className="lp lp-logo" aria-labelledby="lp-logo-title" data-testid="logo-panel">
       <h3 id="lp-logo-title" className="lp-title">
@@ -267,6 +286,34 @@ export function LogoPanel({ value, onChange, locked }: { value: Logo; onChange: 
         La signature de l&apos;en-tête, ou le nom du site quand le thème n&apos;en a pas. Tu peux aussi le régler sur la page : poignée sous le logo.
       </p>
       {locked && <p className="a-field-error">Le logo est en cours de modification sur la page « {locked} ».</p>}
+      {onChooseImage && (
+        <div className="lp-field lc-logo-image" data-testid="logo-image">
+          <span className="lp-label">Image du logo</span>
+          {value.mediaId !== undefined ? (
+            <div className="lc-logo-current">
+              {image?.thumb ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="lc-logo-thumb" src={image.thumb} alt="" data-testid="logo-thumb" />
+              ) : (
+                <span className="lc-logo-thumb lc-logo-missing" aria-hidden="true" />
+              )}
+              <span className="lc-logo-name">{image ? image.name : "Image introuvable (retirée de la médiathèque)"}</span>
+            </div>
+          ) : (
+            <small className="lp-hint">{signature ? "Le logo est celui du thème (une signature dessinée)." : "Le logo est le nom du site, écrit en texte."} Remplace-le par ton image.</small>
+          )}
+          <div className="lc-logo-actions">
+            <button type="button" className="a-btn a-btn-small" data-testid="logo-choose" onClick={onChooseImage}>
+              {value.mediaId !== undefined ? "Remplacer l'image…" : "Choisir une image…"}
+            </button>
+            {value.mediaId !== undefined && (
+              <button type="button" className="a-btn a-btn-small a-btn-quiet" data-testid="logo-revert" onClick={() => onChange({ ...value, mediaId: undefined })}>
+                {signature ? "Revenir au logo du thème" : "Revenir au logo texte"}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       <div className="lp-field">
         <label className="lp-label" htmlFor="lp-logo-size">
           Taille

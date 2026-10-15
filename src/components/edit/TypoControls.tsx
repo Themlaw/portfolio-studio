@@ -11,7 +11,7 @@
  */
 import { useState } from "react";
 
-import { fontLabel, fontStack, googleOf, PALETTE, PALETTE_LABELS, SIZE_LABELS, SIZES, WEIGHTS, type PaletteColor, type TextStyle } from "@/lib/look";
+import { fontLabel, fontStack, googleOf, PALETTE_DISPLAY, PALETTE_LABELS, SIZE_LABELS, SIZES, WEIGHTS, type PaletteColor, type TextStyle } from "@/lib/look";
 import { googleFamily } from "@/themes/google-fonts";
 import type { CardPalette } from "@/themes/surface";
 
@@ -24,6 +24,8 @@ import "@/app/admin/typo-controls.css";
 
 const WEIGHT_LABELS: Record<number, string> = { 100: "Fine", 200: "Très légère", 300: "Légère", 400: "Normale", 500: "Moyenne", 600: "Demi-grasse", 700: "Grasse", 800: "Très grasse", 900: "Noire" };
 const round = (n: number, d: number) => Math.round(n * 10 ** d) / 10 ** d;
+/** Espacement des lettres en mots : « Normal », sinon le nombre de crans (chaque cran = 0,01 em), l'em restant dans l'info-bulle. */
+const trackingText = (t: number) => (Math.round(t * 100) === 0 ? "Normal" : `${t > 0 ? "+" : "−"}${Math.abs(Math.round(t * 100))}`);
 
 export type TypoProps = {
   value: TextStyle;
@@ -97,22 +99,23 @@ export default function TypoControls({ value, onChange, installed, swatch, theme
         <button type="button" className="tc-toggle tc-italic" aria-pressed={value.italic === true} title="Italique" onClick={() => set({ italic: value.italic ? undefined : true })}>
           I
         </button>
-        <button type="button" className="tc-toggle" aria-pressed={value.case === "upper"} title="MAJUSCULES" onClick={() => set({ case: value.case === "upper" ? "normal" : "upper" })}>
-          AA
+        <button type="button" className="tc-toggle tc-caps" aria-pressed={value.case === "upper"} title="Tout le texte en majuscules" onClick={() => set({ case: value.case === "upper" ? "normal" : "upper" })}>
+          Majuscules
         </button>
-        <span className="tc-step" role="group" aria-label="Interlettrage">
-          <button type="button" aria-label="Resserrer les lettres" title="Resserrer" disabled={tracking <= -0.05} onClick={() => set({ tracking: round(Math.max(-0.05, tracking - 0.01), 2) })}>
-            ⇥⇤
+        <span className="tc-step tc-tracking" role="group" aria-label="Espacement des lettres" title={`Espacement des lettres : ${round(tracking, 2).toLocaleString("fr-FR")} em`}>
+          <span className="tc-step-label">Espacement des lettres</span>
+          <button type="button" aria-label="Resserrer les lettres" title="Resserrer les lettres" disabled={tracking <= -0.05} onClick={() => set({ tracking: round(Math.max(-0.05, tracking - 0.01), 2) })}>
+            −
           </button>
-          <output className="tc-num">{round(tracking, 2)} em</output>
-          <button type="button" aria-label="Espacer les lettres" title="Espacer" disabled={tracking >= 0.4} onClick={() => set({ tracking: round(Math.min(0.4, tracking + 0.01), 2) })}>
-            ⇤⇥
+          <output className="tc-num" aria-live="polite">{trackingText(tracking)}</output>
+          <button type="button" aria-label="Espacer les lettres" title="Espacer les lettres" disabled={tracking >= 0.4} onClick={() => set({ tracking: round(Math.min(0.4, tracking + 0.01), 2) })}>
+            +
           </button>
         </span>
       </div>
       <div className="tc-row">
         <span className="tc-swatches" role="radiogroup" aria-label="Couleur">
-          {PALETTE.map((c) => (
+          {PALETTE_DISPLAY.map((c) => (
             <button
               key={c}
               type="button"
@@ -126,6 +129,11 @@ export default function TypoControls({ value, onChange, installed, swatch, theme
             />
           ))}
           <ColorPicker value={value.color} onChange={(color) => set({ color })} swatch={swatch} />
+          {value.color && (
+            <span className="tc-color-name" data-testid="text-color-name">
+              {PALETTE_LABELS[value.color as PaletteColor] ?? "Couleur libre"}
+            </span>
+          )}
         </span>
         <span className="tc-seg" role="radiogroup" aria-label="Alignement">
           {(["left", "center", "right"] as const).map((a) => (

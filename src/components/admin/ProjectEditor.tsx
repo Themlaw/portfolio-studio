@@ -49,6 +49,7 @@ import { DragHandle, SortableItems } from "./Sortable";
 import Uploader from "./Uploader";
 import { isUploaded, useUploadQueue, type QueueItem } from "./UploadQueue";
 import { ACCEPT, formatSent, hasFiles, useMediaWatch } from "./uploads";
+import AltMissing from "./AltMissing";
 import { formatDuration, isLoop } from "@/lib/video/limits";
 
 const STRIP_H = 180;
@@ -72,7 +73,7 @@ const slotLabel = (slot: AdminSlot, index: number) => slot.title.fr.trim() || `E
 
 type Meta = Pick<AdminProjectEdit, "title" | "context" | "description" | "year" | "featured">;
 
-function ProjectMeta({ project }: { project: AdminProjectEdit }) {
+function ProjectMeta({ project, legacyFeatured }: { project: AdminProjectEdit; legacyFeatured: { pageId: number; pageTitle: string }[] }) {
   const router = useRouter();
   const initial: Meta = { title: project.title, context: project.context, description: project.description, year: project.year, featured: project.featured };
   const [saved, setSaved] = useState(initial);
@@ -92,7 +93,15 @@ function ProjectMeta({ project }: { project: AdminProjectEdit }) {
         <TextareaI18n label="Description" value={meta.description} onChange={(v) => set("description", v)} error={errorAt(errors, "description")} />
         <div>
           <TextField label="Année ou période" help="Affichée telle quelle (ex. 2023–2024)." value={meta.year} onChange={(v) => set("year", v)} error={errors.year} />
-          <Toggle label="Mis en avant" help="Proposé en premier par le bloc « Projets mis en avant »." checked={meta.featured} onChange={(v) => set("featured", v)} />
+          {/* Le réglage ne sert qu'à l'ancien bloc « Projets mis en avant » (sans projets choisis) : sans lui, il n'a plus d'effet. */}
+          {legacyFeatured.length > 0 && (
+            <Toggle
+              label="À la une de l'ancienne rubrique « Projets mis en avant »"
+              help={`Cette ancienne rubrique, encore présente sur ${legacyFeatured.map((p) => `« ${p.pageTitle} »`).join(", ")}, affiche en premier les projets cochés ici. Les rubriques « Planche d'un projet » n'en tiennent pas compte.`}
+              checked={meta.featured}
+              onChange={(v) => set("featured", v)}
+            />
+          )}
         </div>
       </div>
       <SaveBar
@@ -110,10 +119,10 @@ function ProjectMeta({ project }: { project: AdminProjectEdit }) {
             setError(null);
             setErrors({});
             if (r.data.textsHeld) {
-              // Seul « Mis en avant » est enregistré : les textes restent à enregistrer (modifs conservées dans le formulaire).
+              // Les textes sont tenus par une page : seul le réglage « à la une » est enregistré, les textes restent à enregistrer.
               setSaved((s) => ({ ...s, featured: meta.featured }));
-              setError(`Seul « Mis en avant » a été enregistré. ${r.data.textsHeld}`);
-              toast("Mis en avant enregistré · textes non enregistrés", "error");
+              setError(`Les textes n'ont pas été enregistrés. ${r.data.textsHeld}`);
+              toast("Textes non enregistrés", "error");
             } else {
               setSaved(clone(meta));
               toast("Projet enregistré");
@@ -218,11 +227,7 @@ function SlotTile({
       <div className="a-slot-bar">
         <DragHandle />
         <span className="a-slot-title">{label}</span>
-        {!media.alt.fr.trim() && media.status === "ready" && (
-          <span className="a-slot-warn" title="Texte alternatif manquant">
-            alt
-          </span>
-        )}
+        {!media.alt.fr.trim() && media.status === "ready" && <AltMissing className="a-slot-warn" />}
       </div>
     </div>
   );
@@ -348,12 +353,24 @@ function SlotPanel({
       )}
       <TextareaI18n label="Description" value={form.description} onChange={(v) => set("description", v)} error={errorAt(errors, "description")} />
       <div className="a-form-grid">
-        <Select label="Collection" value={form.collection} options={COLLECTIONS} onChange={(v) => v && set("collection", v)} error={errors.collection} />
+        <Select
+          label="Collection"
+          help="Le rayon où cette image est rangée : elle apparaît dans la page de cette collection, et la tuile de l'accueil la compte."
+          value={form.collection}
+          options={COLLECTIONS}
+          onChange={(v) => v && set("collection", v)}
+          error={errors.collection}
+        />
         <Field label="Année" error={errors.year} htmlFor={`${fileId}-year`}>
           <input id={`${fileId}-year`} className="a-input" type="number" min={1900} max={2200} value={form.year} onChange={(e) => set("year", Number(e.target.value))} />
         </Field>
       </div>
-      <Toggle label="Mis en avant" checked={form.featured} onChange={(v) => set("featured", v)} />
+      <Toggle
+        label={`Couverture de « ${COLLECTIONS.find((c) => c.value === form.collection)?.label ?? form.collection} »`}
+        help={`Cette image illustre la tuile « ${COLLECTIONS.find((c) => c.value === form.collection)?.label ?? form.collection} » de l'accueil (rubrique « Entrées des collections »). Si plusieurs images sont cochées, c'est la première de la collection qui sert ; aucune cochée : la première image de la collection.`}
+        checked={form.featured}
+        onChange={(v) => set("featured", v)}
+      />
       {slot.media && (
         <>
           <TextI18n
@@ -494,7 +511,7 @@ const collision: CollisionDetection = (args) => (isLib(args.active.id) ? pointer
 /** Les emplacements ne bougent qu'à l'horizontale ; une vignette de la Bibliothèque, librement. */
 const axis: Modifier = (args) => (args.active && isLib(args.active.id) ? args.transform : restrictToHorizontalAxis(args));
 
-export default function ProjectEditor({ project, library }: { project: AdminProjectEdit; library: AdminMediaRow[] }) {
+export default function ProjectEditor({ project, library, legacyFeatured }: { project: AdminProjectEdit; library: AdminMediaRow[]; legacyFeatured: { pageId: number; pageTitle: string }[] }) {
   const router = useRouter();
   const queue = useUploadQueue();
   const [slots, setSlots] = useState(project.slots);
@@ -611,7 +628,7 @@ export default function ProjectEditor({ project, library }: { project: AdminProj
 
   return (
     <div className="a-project-editor" data-panel={current ? "open" : undefined}>
-      <ProjectMeta project={project} />
+      <ProjectMeta project={project} legacyFeatured={legacyFeatured} />
 
       <section className="a-panel a-planche-panel" aria-labelledby="pr-planche">
         <div className="a-panel-head">

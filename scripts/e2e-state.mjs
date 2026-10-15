@@ -896,7 +896,7 @@ if (run("D")) {
   slow = false;
   await edit(PTITLE, "Annulé au bouton");
   await settled();
-  await page.locator('button[aria-label="Annuler"]').click();
+  await page.locator('button[aria-label="Défaire"]').click();
   ok("D3 bouton Annuler : la toile revient à l'original", await until(f, ([sel, t]) => document.querySelector(sel)?.textContent?.trim() === t, [PTITLE, original], 30000), `affiché : ${await titleNow()}`);
 
   /* D4. Planche dont les images sont tenues par une autre page (au chargement) : la légende ne s'ouvre pas. */
@@ -972,7 +972,7 @@ if (run("E")) {
   ok("E1 lien retiré : toujours absent après les réponses lentes, un seul de moins", now.length === before.length - 1 && !now.some((x) => x.text === before[1].text), labels(now));
   ok("E1 lien retiré : aperçu retiré à l'acquittement (plus de style posé)", (await f.locator(`${NAV} [data-pv]`).count()) === 0);
   slow = false;
-  await page.locator('button[aria-label="Annuler"]').click();
+  await page.locator('button[aria-label="Défaire"]').click();
   ok("E1 Annuler : le lien revient", await until(f, ([sel, n]) => document.querySelectorAll(sel).length === n, [`${NAV} [data-nav-key]`, before.length], 20000));
   await settled();
 
@@ -995,7 +995,7 @@ if (run("E")) {
   await sleep(1800);
   ok("E2 déplacement : ordre conservé après les réponses lentes", labels(await navNow()) === expectedOrder, labels(await navNow()));
   slow = false;
-  await page.locator('button[aria-label="Annuler"]').click();
+  await page.locator('button[aria-label="Défaire"]').click();
   ok("E2 Annuler : ordre d'origine", await waitFor(async () => labels(await navNow()) === labels(before), 20000), labels(await navNow()));
   await settled();
 
@@ -1015,7 +1015,7 @@ if (run("E")) {
   now = await navNow();
   ok("E3 lien ajouté : le vrai lien remplace le fantôme, un seul « Boutique »", now.filter((x) => x.text === "Boutique").length === 1 && now.every((x) => !x.ghost), labels(now));
   slow = false;
-  await page.locator('button[aria-label="Annuler"]').click();
+  await page.locator('button[aria-label="Défaire"]').click();
   await waitFor(async () => (await navNow()).length === before.length, 20000);
   await settled();
 
@@ -1127,9 +1127,9 @@ if (run("E")) {
   await page.keyboard.type("Pour annuler");
   await page.keyboard.press("Enter");
   await settled();
-  await page.locator('button[aria-label="Annuler"]').click();
+  await page.locator('button[aria-label="Défaire"]').click();
   ok("E6 Annuler : état « en cours » posé sur la toile aussitôt", await until(f, () => document.documentElement.hasAttribute("data-edit-pending"), null, 700));
-  ok("E6 Annuler : indicateur lisible", await until(f, () => /Annulation en cours/.test(document.querySelector(".pe-pending")?.textContent ?? ""), null, 3000));
+  ok("E6 Annuler : indicateur lisible", await until(f, () => /Retour en arrière en cours/.test(document.querySelector(".pe-pending")?.textContent ?? ""), null, 3000));
   await page.screenshot({ path: `${SHOTS}/E6-annulation-en-cours.png` });
   ok("E6 Annuler : état levé à l'acquittement", await until(f, () => !document.documentElement.hasAttribute("data-edit-pending"), null, 30000));
   await settled();
@@ -1148,7 +1148,7 @@ if (run("E")) {
     await sleep(400);
     const fb = await page.locator("iframe.ve-frame").boundingBox();
     await page.getByRole("tab", { name: "Ajouter" }).click();
-    const card = page.locator('.ve-card[data-key="contact-form"]');
+    const card = page.locator('.ve-model[data-key="contact-with-form"]');
     await card.scrollIntoViewIfNeeded();
     const cb = await card.boundingBox();
     const from = { x: cb.x + cb.width / 2, y: cb.y + cb.height / 2 };

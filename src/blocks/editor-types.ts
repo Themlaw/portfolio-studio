@@ -60,6 +60,9 @@ export type BlockCatalogEntry = {
   /** Groupe d'ajout (src/blocks/groups.ts) et rang dans ce groupe. */
   group?: BlockGroup;
   order?: number;
-  /** Raccourci d'un type (palette). */
+  /** Raccourci d'un type (palette) : un modèle de départ du type, avec son nom court. */
   preset?: boolean;
+  short?: string;
+  /** Une seule fois par page : raison affichée quand l'ajout est grisé (déjà présent sur la page). */
+  single?: string;
 };

@@ -9,18 +9,22 @@ import {
   createPageAction,
   deletePageAction,
   reorderMenuAction,
+  restorePageAction,
   setInMenuAction,
   setPublishedAction,
 } from "@/app/admin/(espace)/pages/actions";
-import type { AdminPageRow } from "@/lib/admin";
-import type { PageReference } from "@/lib/edit/pages";
+import type { AdminPageRow, TrashSummary } from "@/lib/admin";
 import { slugify } from "@/lib/slug";
+import { daysLeft, lostWithPage, restoredMessage, TRASH_DAYS } from "@/lib/trash";
 
-import { ConfirmDialog, same, toast } from "./editing";
+import { ConfirmDialog, same, toast, undoToast } from "./editing";
+import { EmptyTrash, PurgeItem } from "./TrashControls";
 import { DragHandle, SortableList } from "./Sortable";
 
 const isHome = (p: AdminPageRow) => p.slug.fr === "" && p.slug.en === "";
 const path = (locale: string, slug: string) => (slug ? `/${locale}/${slug}` : `/${locale}`);
+/** Adresses d'une page, en petit et en gris sous son titre. */
+const addresses = (p: AdminPageRow) => `${path("fr", p.slug.fr)} · ${path("en", p.slug.en)}`;
 
 function PreviewPage({ id, small }: { id: number; small?: boolean }) {
   return (
@@ -46,9 +50,15 @@ function CreatePage({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
 
+  // L'adresse anglaise suit le titre anglais, ou à défaut le titre français (titre anglais facultatif).
+  const follow = (t: { fr: string; en: string }, s: { fr: string; en: string }, tc: { fr: boolean; en: boolean }) => ({
+    fr: tc.fr ? s.fr : slugify(t.fr),
+    en: tc.en ? s.en : slugify(t.en || t.fr),
+  });
   const setT = (l: "fr" | "en", v: string) => {
-    setTitle((t) => ({ ...t, [l]: v }));
-    if (!touched[l]) setSlug((s) => ({ ...s, [l]: slugify(v) }));
+    const next = { ...title, [l]: v };
+    setTitle(next);
+    setSlug((s) => follow(next, s, touched));
   };
   const reset = () => {
     setTitle({ fr: "", en: "" });
@@ -78,14 +88,22 @@ function CreatePage({ open, onClose }: { open: boolean; onClose: () => void }) {
           }
           toast("Page créée · pas encore publiée");
           reset();
-          router.push(`/admin/pages/${result.data.id}`);
+          // Droit dans l'éditeur visuel : c'est là qu'on compose la page.
+          router.push(`/admin/pages/${result.data.id}/editer`);
         })
       }
     >
-      <p className="muted">La page est créée sans être publiée : ajoute ses blocs, puis publie-la quand elle est prête.</p>
+      <p className="muted">La page est créée sans être publiée : tu la composes dans l&apos;éditeur, puis tu la publies quand elle est prête.</p>
       <div className="a-form-grid a-section-tight">
         <TextField label="Titre en français" value={title.fr} onChange={(v) => setT("fr", v)} error={errors["title.fr"]} placeholder="Carnets" />
-        <TextField label="Titre en anglais" value={title.en} onChange={(v) => setT("en", v)} error={errors["title.en"]} placeholder="Sketchbooks" />
+        <TextField
+          label="Titre en anglais"
+          help="Facultatif : le titre français sinon."
+          value={title.en}
+          onChange={(v) => setT("en", v)}
+          error={errors["title.en"]}
+          placeholder="Sketchbooks"
+        />
         <TextField
           label="Adresse en français"
           help={`Ton site${path("fr", slug.fr || "…")}`}
@@ -112,18 +130,84 @@ function CreatePage({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
+/* ---- Corbeille ------------------------------------------------------------ */
+
+function TrashList({ pages, summary }: { pages: AdminPageRow[]; summary: TrashSummary }) {
+  const router = useRouter();
+  const [busy, start] = useTransition();
+  return (
+    <section className="a-panel" aria-labelledby="p-corbeille">
+      <h2 id="p-corbeille">Pages supprimées</h2>
+      <p className="a-help a-panel-intro">
+        Une page supprimée n&apos;est plus sur le site ni dans le menu. Elle reste {TRASH_DAYS} jours ici : restaure-la en un clic, après quoi elle est effacée pour de bon.
+      </p>
+      <EmptyTrash summary={summary} />
+      {pages.length === 0 ? (
+        <p className="muted" data-testid="corbeille-vide">La corbeille est vide.</p>
+      ) : (
+        <div className="a-table-wrap">
+          <table className="a-table a-table-stack">
+            <thead>
+              <tr>
+                <th scope="col">Page</th>
+                <th scope="col">Supprimée</th>
+                <th scope="col">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {pages.map((p) => (
+                <tr key={p.id} data-testid="corbeille-ligne">
+                  <td data-label="Page">
+                    <strong>{p.title}</strong>
+                    <span className="a-sub">{addresses(p)}</span>
+                  </td>
+                  <td data-label="Supprimée">
+                    {p.deletedAt ? new Date(p.deletedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : ""}
+                    <span className="a-sub">
+                      effacée dans {p.deletedAt ? daysLeft(p.deletedAt) : TRASH_DAYS} jour{p.deletedAt && daysLeft(p.deletedAt) < 2 ? "" : "s"}
+                    </span>
+                  </td>
+                  <td className="a-row-actions">
+                    <button
+                      type="button"
+                      className="a-btn a-btn-small"
+                      disabled={busy}
+                      onClick={() =>
+                        start(async () => {
+                          const r = await restorePageAction(p.id);
+                          if (!r.ok) return toast(r.message, "error");
+                          toast(restoredMessage(p.title, r.data));
+                          router.refresh();
+                        })
+                      }
+                    >
+                      Restaurer
+                    </button>
+                    <PurgeItem kind="page" id={p.id} name={p.title} lost={lostWithPage(p.blocks, p.hasDraft)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /* ---- Liste --------------------------------------------------------------- */
 
 type Pending = { kind: "delete"; page: AdminPageRow } | null;
 
-export default function PagesManager({ pages }: { pages: AdminPageRow[] }) {
+export default function PagesManager({ pages, trashed, view, summary }: { pages: AdminPageRow[]; trashed: AdminPageRow[]; view: "liste" | "corbeille"; summary: TrashSummary }) {
   const router = useRouter();
   const menuSaved = pages.filter((p) => p.navOrder !== null).sort((a, b) => (a.navOrder ?? 0) - (b.navOrder ?? 0));
   const [menu, setMenu] = useState(menuSaved);
   const [menuKey, setMenuKey] = useState(JSON.stringify(menuSaved.map((p) => p.id)));
   const [creating, setCreating] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
-  const [refs, setRefs] = useState<PageReference[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, start] = useTransition();
 
@@ -142,6 +226,8 @@ export default function PagesManager({ pages }: { pages: AdminPageRow[] }) {
       toast(success);
       router.refresh();
     });
+
+  if (view === "corbeille") return <TrashList pages={trashed} summary={summary} />;
 
   return (
     <>
@@ -210,7 +296,6 @@ export default function PagesManager({ pages }: { pages: AdminPageRow[] }) {
             <thead>
               <tr>
                 <th scope="col">Page</th>
-                <th scope="col">Adresses</th>
                 <th scope="col">État</th>
                 <th scope="col">Menu</th>
                 <th scope="col">
@@ -226,7 +311,7 @@ export default function PagesManager({ pages }: { pages: AdminPageRow[] }) {
                     <Link href={`/admin/pages/${p.id}/editer`} className="a-strong-link">
                       {p.title}
                     </Link>
-                    <span className="muted"> · {p.blocks} bloc{p.blocks > 1 ? "s" : ""}</span>
+                    <span className="muted"> · {p.blocks} rubrique{p.blocks > 1 ? "s" : ""}</span>
                     {p.hasDraft && (
                       <>
                         {" "}
@@ -235,11 +320,8 @@ export default function PagesManager({ pages }: { pages: AdminPageRow[] }) {
                         </span>
                       </>
                     )}
-                  </td>
-                  <td data-label="Adresses" className="mono">
-                    {path("fr", p.slug.fr)}
-                    <br />
-                    {path("en", p.slug.en)}
+                    {/* L'adresse reste visible, en petit : le titre est ce qu'on cherche. */}
+                    <span className="a-sub mono">{addresses(p)}</span>
                   </td>
                   <td data-label="État">
                     {p.published ? <span className="a-badge">Publiée</span> : <span className="a-tag">Non publiée</span>}
@@ -276,7 +358,7 @@ export default function PagesManager({ pages }: { pages: AdminPageRow[] }) {
                       Modifier
                     </Link>
                     <Link className="a-btn a-btn-small a-btn-quiet" href={`/admin/pages/${p.id}`}>
-                      Formulaire
+                      Infos de la page
                     </Link>
                     <PreviewPage id={p.id} small />
                     {!isHome(p) && (
@@ -284,7 +366,6 @@ export default function PagesManager({ pages }: { pages: AdminPageRow[] }) {
                         type="button"
                         className="a-btn a-btn-small a-btn-quiet a-danger-text"
                         onClick={() => {
-                          setRefs(null);
                           setError(null);
                           setPending({ kind: "delete", page: p });
                         }}
@@ -308,38 +389,51 @@ export default function PagesManager({ pages }: { pages: AdminPageRow[] }) {
         confirmLabel="Supprimer"
         danger
         busy={busy}
+        // Jamais « Supprimer » proposé pour un refus annoncé : tant que d'autres blocs la montrent, le bouton est inactif.
+        confirmDisabled={(pending?.page.blockedBy.length ?? 0) > 0}
         onClose={() => setPending(null)}
         onConfirm={() =>
           pending &&
           start(async () => {
-            const result = await deletePageAction(pending.page.id);
+            const page = pending.page;
+            const result = await deletePageAction(page.id);
             if (!result.ok) {
               setError(result.message);
-              setRefs("references" in result ? result.references : null);
               return;
             }
             setPending(null);
-            toast(`« ${pending.page.title} » supprimée`);
+            undoToast(page.title, () =>
+              void restorePageAction(page.id).then((r) => {
+                if (!r.ok) return toast(r.message, "error");
+                toast(restoredMessage(page.title, r.data));
+                router.refresh();
+              }),
+            );
             router.refresh();
           })
         }
       >
-        <p className="muted">Ses blocs seront supprimés avec elle. Ses adresses répondront « page introuvable ».</p>
-        {error && (
-          <div className="a-alert" role="alert">
-            <p>{error}</p>
-            {refs && (
-              <ul className="a-refs">
-                {refs.map((r, i) => (
-                  <li key={i}>
-                    Bloc « {r.blockType} » de la page{" "}
-                    <Link href={`/admin/pages/${r.pageId}`}>{r.pageTitle}</Link>
-                  </li>
-                ))}
-              </ul>
-            )}
+        {pending && pending.page.blockedBy.length > 0 ? (
+          <div className="a-alert" role="alert" data-testid="suppression-bloquee">
+            <p>
+              Cette page est utilisée par {pending.page.blockedBy.length} rubrique{pending.page.blockedBy.length > 1 ? "s" : ""} : retire ces liens avant de la supprimer.
+            </p>
+            <ul className="a-refs">
+              {pending.page.blockedBy.map((r, i) => (
+                <li key={i}>
+                  Rubrique « {r.blockType} » de la page <Link href={r.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${r.pageId}/editer`}>{r.pageTitle}</Link>
+                  {r.trashed && <span className="muted"> (à la corbeille)</span>}
+                </li>
+              ))}
+            </ul>
           </div>
+        ) : (
+          <p className="muted">
+            Elle quitte le site et le menu, mais reste {TRASH_DAYS} jours dans la corbeille : tu peux l&apos;y retrouver ou annuler juste après.
+            {pending?.page.hasDraft && " Son brouillon de l'éditeur est conservé ; ses modifications non publiées de planches ou de l'en-tête (réseaux, pied de page) sont abandonnées."}
+          </p>
         )}
+        {error && <p className="a-alert">{error}</p>}
       </ConfirmDialog>
     </>
   );

@@ -214,6 +214,9 @@ export default function BoardLayer({
   const ghostsRef = useRef<Ghost[]>([]);
   const pendingFocus = useRef<string | null>(null);
   const textRef = useRef<TextEdit | null>(null);
+  // « Ajouter des images » : champ fichier de la couche, et planche visée.
+  const addInput = useRef<HTMLInputElement>(null);
+  const addBoard = useRef<number | null>(null);
   useEffect(() => {
     textRef.current = text;
   }, [text]);
@@ -493,6 +496,20 @@ export default function BoardLayer({
         post({ kind: "ghost-op", id: op.dataset.ghostId ?? "", op: op.dataset.ghostOp === "retry" ? "retry" : "remove" });
         return;
       }
+      // « Ajouter des images » de la planche : le sélecteur de fichiers, puis dépôt à la fin de la bande.
+      const add = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-edit-board-add]") : null;
+      if (add) {
+        e.preventDefault();
+        e.stopPropagation();
+        const board = boardOf(add);
+        const input = addInput.current;
+        if (board && input) {
+          addBoard.current = Number(board.dataset.editBoard) || null;
+          input.value = "";
+          input.click();
+        }
+        return;
+      }
       const slot = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-edit-slot]") : null;
       setSelectedSlot(slot ? slotRefOf(slot) : null);
     };
@@ -637,6 +654,27 @@ export default function BoardLayer({
 
   return createPortal(
     <div className="pe-layer pe-board-layer" lang="fr">
+      <input
+        ref={addInput}
+        className="pe-board-file"
+        data-edit-board-file=""
+        type="file"
+        multiple
+        accept="image/jpeg,image/png,image/webp,image/avif,image/gif,video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,.webm,.mkv"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={(e) => {
+          const files = [...(e.target.files ?? [])].slice(0, 30);
+          const board = addBoard.current;
+          e.target.value = "";
+          if (!board || !files.length) return;
+          const el = document.querySelector<HTMLElement>(`[data-edit-board="${board}"]`);
+          const rail = el?.querySelector("[data-edit-rail]");
+          const c = el?.dataset.editBoardCollection as (typeof COLLECTIONS)[number] | undefined;
+          const index = rail ? fullIndex(slotEls(rail), slotEls(rail).length) : 0;
+          post({ kind: "files", target: { kind: "board", board, index, ...(c && COLLECTIONS.includes(c) ? { collection: c } : {}) }, files });
+        }}
+      />
       {newBoards.map(({ uid, box }) => (
         <div
           key={`new-${uid}`}
@@ -683,11 +721,11 @@ export default function BoardLayer({
             }}
           />
           <small className="pe-board-help">
-            Choisis le projet de ce bloc : son titre, sa présentation et ses images viennent de lui (textes et images se modifient ensuite sur la page). Un projet créé ici devient public avec la page.
+            Choisis le projet de cette rubrique : son titre, sa présentation et ses images viennent de lui (textes et images se modifient ensuite sur la page). Un projet créé ici devient public avec la page.
           </small>
           {change && (
             <button type="button" className="pe-link-btn" onClick={onPickerClose}>
-              Annuler
+              Fermer
             </button>
           )}
         </PickerCard>

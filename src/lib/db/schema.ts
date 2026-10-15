@@ -52,9 +52,13 @@ export const media = sqliteTable("media", {
   status: text("status", { enum: ["processing", "ready", "failed"] }).notNull().default("ready"),
   error: text("error"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  /** Corbeille (lot 23) : date de mise à la corbeille ; null = dans la médiathèque. Purgé 30 jours après. */
+  deletedAt: integer("deleted_at", { mode: "timestamp" }),
 });
 
-export const pages = sqliteTable("pages", {
+export const pages = sqliteTable(
+  "pages",
+  {
   id: integer("id").primaryKey({ autoIncrement: true }),
   /** Slug localisé, sans barre ; "" = accueil. */
   slug: text("slug", { mode: "json" }).notNull().$type<Localized>(),
@@ -70,7 +74,7 @@ export const pages = sqliteTable("pages", {
    * Collection que la page présente (characters, backgrounds, animation), ou null (lot 22). Une collection n'a
    * qu'UNE page (index unique) : les entrées automatiques de l'accueil suivent ces pages.
    */
-  collection: text("collection", { enum: ["characters", "backgrounds", "animation"] }).unique(),
+  collection: text("collection", { enum: ["characters", "backgrounds", "animation"] }),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   /**
    * Brouillon de l'éditeur visuel (JSON : titre, adresses, méta, accent,
@@ -86,7 +90,17 @@ export const pages = sqliteTable("pages", {
    * formulaire. Chaque écriture envoie la version lue ; refusée si elle a changé.
    */
   draftRev: integer("draft_rev").notNull().default(0),
-});
+  /**
+   * Corbeille (lot 23) : date de mise à la corbeille ; null = page du site. Une page à la corbeille
+   * n'est ni publique ni dans le menu (comme une page non publiée) ; restaurable 30 jours, puis purgée.
+   */
+  deletedAt: integer("deleted_at", { mode: "timestamp" }),
+  /** Elle figurait au menu quand elle a été mise à la corbeille (restaurée, elle y revient en fin de menu). */
+  trashedInMenu: integer("trashed_in_menu", { mode: "boolean" }).notNull().default(false),
+},
+  // Une collection n'a qu'une page DU SITE : une page à la corbeille garde la sienne sans la bloquer (migration 0024).
+  (t) => [uniqueIndex("pages_collection_unique").on(t.collection).where(sql`${t.deletedAt} is null`)],
+);
 
 export const blocks = sqliteTable(
   "blocks",
@@ -129,6 +143,8 @@ export const projects = sqliteTable("projects", {
    */
   draftText: text("draft_text", { mode: "json" }).$type<{ title: Localized; context: Localized; description: Localized; year: string }>(),
   draftTextPageId: integer("draft_text_page_id").references((): AnySQLiteColumn => pages.id, { onDelete: "set null" }),
+  /** Corbeille (lot 23) : date de mise à la corbeille ; null = projet du site. Purgé 30 jours après. */
+  deletedAt: integer("deleted_at", { mode: "timestamp" }),
 });
 
 /**

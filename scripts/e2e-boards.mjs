@@ -134,7 +134,7 @@ ok("palette : plus de « Planches d'une collection »", (await page.locator('.ve
 await page.locator(".ve-pane").evaluate((el) => el.scrollTo(0, 0));
 await sleep(300);
 await page.screenshot({ path: `${SHOTS2}/1440-palette.png` });
-const publishedProjects = q("select count(*) n from projects where draft_page_id is null")[0].n;
+const publishedProjects = q("select count(*) n from projects where draft_page_id is null and deleted_at is null")[0].n;
 // Composant glissé entre les blocs 2 et 3.
 await f.evaluate(() => {
   const el = document.querySelectorAll("[data-edit-block]:not([data-edit-parent])")[2];
@@ -252,7 +252,7 @@ await sleep(300);
 await page.screenshot({ path: `${SHOTS}/1440-barre-survol.png` });
 await f.locator(".pe-slot-tools").getByRole("button", { name: "Supprimer" }).click();
 ok("Supprimer : la place reste, vide", await until(f, (sel) => document.querySelectorAll(`${sel} [data-edit-slot][data-empty]`).length === 1 && document.querySelectorAll(`${sel} [data-edit-rail] > [data-edit-slot]`).length === 3, boardSel(PROJECT)));
-ok("toast avec « Annuler »", await page.locator(".a-toast-action", { hasText: "Annuler" }).first().isVisible());
+ok("toast avec « Annuler »", await page.locator(".a-toast-action", { hasText: "Défaire" }).first().isVisible());
 await settled();
 await page.mouse.move(0, 0);
 await f.locator(`${boardSel(PROJECT)} [data-edit-slot][data-empty]`).scrollIntoViewIfNeeded();
@@ -349,6 +349,7 @@ await m.unroute("**/admin/api/upload**", slow);
 await settled(m);
 // Planche neuve à 390.
 await m.locator(".ve-fab").click();
+await m.getByRole("tab", { name: "Ajouter" }).click();
 await m.locator('.ve-card[data-type="project-board"]').click();
 ok("390 : planche neuve ajoutée au toucher", await until(mf, () => Boolean(document.querySelector(".pe-board-new input")), null, 30000));
 await settled(m);
@@ -384,13 +385,13 @@ const pUid = await f.$eval(boardSel(PROJECT), (el) => el.closest("[data-edit-blo
 await f.locator(`[data-edit-block="${pUid}"] header h2`).click();
 await until(f, () => Boolean(document.querySelector(".pe-tools")));
 await f.locator(".pe-tools").getByRole("button", { name: "Supprimer" }).click();
-await page.getByRole("dialog").getByRole("button", { name: "Supprimer le bloc" }).click();
+await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).click();
 const i1 = page.locator(".a-toast", { hasText: "ne seront pas publiés" });
 ok("bloc planche supprimé : « Les changements d'images de cette planche ne seront pas publiés »", await i1.waitFor({ state: "visible", timeout: 15000 }).then(() => true, () => false));
 await sleep(300);
 await page.screenshot({ path: `${SHOTS2}/1440-toast-planche.png` });
 await settled();
-await i1.getByRole("button", { name: "Annuler" }).click();
+await i1.getByRole("button", { name: "Défaire" }).click();
 ok("Annuler retrouve la planche et ses changements", await slotCount(f, PROJECT, 4));
 await settled();
 const throwaway = q("select id from projects where json_extract(title,'$.fr') = ?", THROWAWAY)[0]?.id;
@@ -405,7 +406,7 @@ const blockUid = await f.$eval(boardSel(PROJECT), (el) => el.closest("[data-edit
 await f.locator(`[data-edit-block="${blockUid}"] header h2`).click();
 await until(f, () => Boolean(document.querySelector(".pe-tools")));
 await f.locator(".pe-tools").getByRole("button", { name: "Supprimer" }).click();
-await page.getByRole("dialog").getByRole("button", { name: "Supprimer le bloc" }).click();
+await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).click();
 await settled();
 await page.getByRole("button", { name: "Publier" }).click();
 await until(page.mainFrame(), () => /Publié : la page est en ligne/.test(document.body.innerText), null, 60000);
@@ -414,7 +415,7 @@ const row = page.locator("tr, li, article").filter({ hasText: PROJECT }).first()
 await row.getByRole("button", { name: "Supprimer" }).click();
 await page.getByRole("dialog").getByRole("button", { name: "Supprimer le projet" }).click();
 await sleep(1500);
-ok("remise en état : projet supprimé, accueil d'origine", !q("select id from projects where id = ?", board).length && q("select count(*) n from projects where draft_page_id is null")[0].n === publishedProjects && !(await (await anon.request.get(`${BASE}/fr`)).text()).includes(PROJECT));
+ok("remise en état : projet supprimé (corbeille), accueil d'origine", Boolean(q("select deleted_at d from projects where id = ?", board)[0]?.d) && q("select count(*) n from projects where draft_page_id is null and deleted_at is null")[0].n === publishedProjects && !(await (await anon.request.get(`${BASE}/fr`)).text()).includes(PROJECT));
 
 ok("aucune erreur JavaScript", errors.length === 0, errors.slice(0, 3).join(" | "));
 await anon.close();

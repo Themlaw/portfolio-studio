@@ -20,7 +20,7 @@ import CollectionTilesBlock, { collectionTilesSchema } from "./CollectionTilesBl
 import ContactBlock, { contactSchema } from "./ContactBlock";
 import ContactFormBlock, { contactFormSchema } from "./ContactFormBlock";
 import CvBlock, { cvSchema } from "./CvBlock";
-import { defaultContactForm } from "@/lib/contact-form";
+import { ContactFormSchema, defaultContactForm } from "@/lib/contact-form";
 import {
   CollectionIntroEditor,
   CollectionProjectsEditor,
@@ -110,7 +110,9 @@ export type BlockDefinition<S extends z.ZodType = z.ZodType> = {
   group?: BlockGroup;
   order?: number;
   /** Raccourcis de la palette (même type, réglages de départ différents) : même groupe, rang propre. */
-  presets?: { key: string; label: string; description: string; defaults: Record<string, unknown>; order: number }[];
+  presets?: { key: string; label: string; /** Nom court du modèle (puce de la carte du type, panneau « Ajouter »). */ short: string; description: string; defaults: Record<string, unknown>; order: number }[];
+  /** Une seule fois par page (l'Ouverture) : le panneau grise l'ajout s'il y en a déjà un, avec l'explication. */
+  single?: { reason: string };
 };
 
 function define<S extends z.ZodType>(def: Omit<BlockDefinition<S>, "refs" | "container">): BlockDefinition {
@@ -130,6 +132,13 @@ const videos = (n: number) => Array.from({ length: n }, () => child("video-singl
 const images = (n: number) => Array.from({ length: n }, () => child("image", { width: "wide" }));
 
 const L = { fr: "", en: "" };
+
+/** Réglages d'un « Contact avec formulaire » neuf : les champs de l'ancien formulaire, sans présentation vide. */
+function contactFormDefaults(): Record<string, unknown> {
+  const form: Record<string, unknown> = { ...defaultContactForm(), form: true };
+  delete form.intro;
+  return form;
+}
 
 export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
   [
@@ -156,7 +165,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Component: FeaturedProjectBlock,
       Editor: FeaturedProjectEditor,
       label: "Projet mis en avant (ancien)",
-      description: "Ancien conteneur, remplacé par des blocs posés les uns sous les autres (Titre lié à un projet, Planche d'un projet…).",
+      description: "Ancienne rubrique, remplacée par des rubriques posées les unes sous les autres (Titre lié à un projet, Planche d'un projet…).",
       defaults: { children: [] },
       summary: "{project} · {children} composants",
       inline: ["more.label"],
@@ -189,7 +198,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Component: GridBlock,
       Editor: GridEditor,
       label: "Grille",
-      description: "Un conteneur en grille : vidéos, images, textes… rangés selon l'agencement choisi.",
+      description: "Des images, des vidéos ou des textes rangés en colonnes, à partir d'un modèle ou d'une grille vide.",
       defaults: { layout: "2", children: [] },
       summary: "Grille {layout} · {children} composants",
       inline: ["eyebrow", "title"],
@@ -197,6 +206,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
         {
           key: "grid-videos",
           order: 30,
+          short: "Avec des vidéos",
           label: "Grille de vidéos",
           description: "Une grande vidéo et deux petites dessous (l'agencement se change ensuite).",
           defaults: { layout: "1+2", children: videos(GRID_PATTERN["1+2"]) },
@@ -204,6 +214,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
         {
           key: "grid-images",
           order: 20,
+          short: "Avec 3 images",
           label: "Grille d'images",
           description: "Trois images côte à côte (l'agencement se change ensuite).",
           defaults: { layout: "3", ratio: "4:5", children: images(GRID_PATTERN["3"]) },
@@ -238,7 +249,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       summary: "CV · {title}",
       inline: ["eyebrow", "title", "intro", "button"],
       mediaFields: [{ field: "mediaId", kind: "pdf" }],
-      publishCheck: (props) => (props.mediaId ? null : "Choisis le PDF de ton CV (dépose-le sur le bloc, ou prends-le dans la médiathèque)."),
+      publishCheck: (props) => (props.mediaId ? null : "Choisis le PDF de ton CV (dépose-le sur la rubrique, ou prends-le dans la médiathèque)."),
     }),
     define({
       type: "section-title",
@@ -265,6 +276,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       label: "Ouverture",
       description: "Le grand bandeau d'accueil : ton nom, ton métier et une accroche, dans la forme choisie par le thème.",
       defaults: { eyebrow: L, statement: L },
+      single: { reason: "Il y a déjà une Ouverture sur cette page : une page n'en porte qu'une." },
       summary: "{eyebrow}",
       // Nom et métier : identité du site (communs aux pages), modifiables en place aussi.
       inline: ["eyebrow", "statement", "scroll", "reel"],
@@ -295,7 +307,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Component: CollectionIntroBlock,
       Editor: CollectionIntroEditor,
       label: "En-tête de collection (ancien)",
-      description: "Ancien bloc, remplacé par un « Titre » principal avec présentation et compteurs, et le réglage « Cette page est la collection ».",
+      description: "Ancienne rubrique, remplacée par un « Titre » principal avec présentation et compteurs, et le réglage « Cette page est la collection ».",
       defaults: { collection: "characters", eyebrow: L, title: L, intro: L, showCounts: true },
       summary: "{title} · {collection}",
       inline: ["eyebrow", "title", "intro"],
@@ -325,23 +337,42 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Component: ContactBlock,
       Editor: ContactEditor,
       label: "Contact",
-      description: "Une invitation à t'écrire, avec un bouton vers ton adresse e-mail.",
-      defaults: { eyebrow: L, title: L, intro: L, cta: L },
-      summary: "{title}",
-      inline: ["eyebrow", "title", "intro", "cta"],
+      description: "Une invitation à t'écrire : un bouton vers ton adresse e-mail, ou un formulaire (les messages arrivent dans Admin → Messages).",
+      // Les champs n'existent que s'ils ont été demandés (« + Ajouter … » sur la toile, lot 27).
+      defaults: { title: { fr: "Écris-moi", en: "Write to me" }, cta: { fr: "Envoyer un e-mail", en: "Send an email" } },
+      summary: "{title} · {fields} champs",
+      inline: ["eyebrow", "title", "intro", "cta", "submit", "success", "error", "fields.*.label", "fields.*.help"],
+      publishCheck: (props) => {
+        if (props.form !== true) return null;
+        if (!props.formId) return "Ce formulaire n'a pas d'identifiant : désactive puis réactive l'option formulaire.";
+        // Même contrôle que le rendu public (ContactBlock) : un formulaire invalide ne s'afficherait pas, on refuse de le publier.
+        const form = ContactFormSchema.safeParse(props);
+        return form.success ? null : `Ce formulaire est incomplet : ${form.error.issues[0]?.message ?? "réglages invalides"}.`;
+      },
+      presets: [
+        {
+          key: "contact-with-form",
+          order: 31,
+          short: "Avec un formulaire",
+          label: "Contact avec formulaire",
+          description: "Un formulaire pour t'écrire : champs au choix, message de confirmation.",
+          defaults: contactFormDefaults(),
+        },
+      ],
     }),
+    // Ancien « Formulaire de contact » (jusqu'à v0.19), fusionné dans « Contact » (option formulaire) par la migration 0023.
+    // Encore rendu s'il en traîne un, jamais proposé ni créable.
     define({
       type: "contact-form",
-      group: "other",
-      order: 40,
       schema: contactFormSchema,
       Component: ContactFormBlock,
       Editor: ContactFormEditor,
-      label: "Formulaire de contact",
-      description: "Un formulaire pour t'écrire : champs au choix, message de confirmation. Les messages arrivent dans Admin → Messages.",
+      label: "Formulaire de contact (ancien)",
+      description: "Ancienne rubrique, remplacée par « Contact » avec l'option formulaire.",
       defaults: defaultContactForm(),
       summary: "{title} · {fields} champs",
       inline: ["eyebrow", "title", "intro", "submit", "success", "error", "fields.*.label", "fields.*.help"],
+      deprecated: true,
       publishCheck: (props) => (props.formId ? null : "Ce formulaire n'a pas d'identifiant : supprime-le et ajoute-le à nouveau."),
     }),
     define({
@@ -367,7 +398,8 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Editor: ProfileEditor,
       label: "Profil",
       description: "Ton portrait, ta présentation, ton contact et tes réseaux.",
-      defaults: { portraitCaption: L, eyebrow: L, paragraphs: [L], contactEyebrow: L, contactLabel: L, socialEyebrow: L },
+      // Les étiquettes et la légende n'existent que si elles ont été demandées (lot 27).
+      defaults: { paragraphs: [L] },
       summary: "{eyebrow} · {paragraphs} paragraphes",
       inline: ["eyebrow", "portraitCaption", "paragraphs.*", "contactEyebrow", "contactLabel", "socialEyebrow"],
       mediaFields: [{ field: "portraitMediaId", kind: "image" }],
@@ -380,7 +412,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Component: FeaturedProjectsBlock,
       Editor: FeaturedProjectsEditor,
       label: "Projets mis en avant (ancien)",
-      description: "Ancien bloc, remplacé par « Projet mis en avant ».",
+      description: "Ancienne rubrique, remplacée par « Projet mis en avant ».",
       defaults: { eyebrow: L, title: L, intro: L, limit: 2 },
       summary: "{title} · {limit} projets",
       inline: ["eyebrow", "title", "intro"],
@@ -392,7 +424,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Component: CollectionProjectsBlock,
       Editor: CollectionProjectsEditor,
       label: "Planches d'une collection (ancien)",
-      description: "Ancien bloc, remplacé par des « Planche d'un projet » posées une à une.",
+      description: "Ancienne rubrique, remplacée par des « Planche d'un projet » posées une à une.",
       defaults: { collection: "characters" },
       summary: "Planches · {collection}",
       inline: [],
@@ -430,9 +462,10 @@ export function blockCatalog(): BlockCatalogEntry[] {
       inline: b.inline,
       ...(b.container ? { container: b.container } : {}),
       ...(b.mediaFields ? { mediaFields: b.mediaFields } : {}),
+      ...(b.single ? { single: b.single.reason } : {}),
       ...(b.deprecated ? { hidden: true } : { group: b.group, order: b.order }),
     };
-    return [base, ...(b.presets ?? []).map((p) => ({ ...base, key: p.key, label: p.label, description: p.description, defaults: p.defaults, order: p.order, preset: true }))];
+    return [base, ...(b.presets ?? []).map((p) => ({ ...base, key: p.key, label: p.label, short: p.short, description: p.description, defaults: p.defaults, order: p.order, preset: true }))];
   });
 }
 

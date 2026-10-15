@@ -224,9 +224,9 @@ if (run("P")) {
 
   /* P3''. Fond trop teinté : le défaut vient d'une NUANCE (fond profond), l'avertissement et l'ajustement la voient */
   await pickColor("Fond de page", TOO_TINTED_BG);
-  ok("P3m fond trop teinté : avertissement sur « Fond de page » (fond profond nommé)", await waitFor(async () => /Contraste insuffisant.*fond profond/i.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")));
+  ok("P3m fond trop teinté : avertissement sur « Fond de page » (fond profond nommé)", await waitFor(async () => /Lisibilité insuffisante.*fond profond/i.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")));
   await page.getByTestId("contrast-fix").click();
-  ok("P3n « Ajuster automatiquement » : contraste suffisant, nuances comprises", await waitFor(async () => /Contraste suffisant/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")));
+  ok("P3n « Ajuster automatiquement » : contraste suffisant, nuances comprises", await waitFor(async () => /Lisibilité : (bonne|juste)/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")));
   await pickColor("Fond de page", NEW_BG);
   await settled();
 
@@ -237,11 +237,11 @@ if (run("P")) {
   ok("P3i survol et texte des boutons recalculés", (await themeVar(f, "--t-color-primary-hover")) !== hoverBefore);
   await settled();
   ok("P3j brouillon du site : palette.primary enregistrée, bg conservée", await waitFor(() => nearHex(siteDraftStyles()?.palette?.primary, NEW_PRIMARY) && nearHex(siteDraftStyles()?.palette?.bg, NEW_BG)), JSON.stringify(siteDraftStyles()));
-  ok("P3k contraste suffisant affiché", /Contraste suffisant/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? ""));
+  ok("P3k contraste suffisant affiché", /Lisibilité : (bonne|juste)/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? ""));
 
   /* P4. Contraste : avertissement, ajustement, publication bloquée */
   await pickColor("Texte", BAD_INK);
-  ok("P4a avertissement clair + proposition", await waitFor(async () => /Contraste insuffisant/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")) && (await page.getByTestId("contrast-fix").isVisible()));
+  ok("P4a avertissement clair + proposition", await waitFor(async () => /Lisibilité insuffisante/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")) && (await page.getByTestId("contrast-fix").isVisible()));
   ok("P4b le rôle est signalé en erreur", (await role("Texte").getAttribute("data-invalid")) !== null);
   ok("P4b' avertissement en tête du panneau : palette non appliquée sur le site en ligne, thème nommé", await waitFor(async () => /ne sont pas appliquées sur le site en ligne/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "") && /thème actif/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "")));
   await settled();
@@ -251,7 +251,7 @@ if (run("P")) {
   ok("P4d publication refusée : texte illisible nommé", await waitFor(async () => /illisible/.test((await page.locator(".ve").textContent()) ?? ""), 60000));
   ok("P4e rien n'est publié", setting("styles") === null);
   await page.getByTestId("contrast-fix").click();
-  ok("P4f « Ajuster automatiquement » : contraste suffisant", await waitFor(async () => /Contraste suffisant/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")));
+  ok("P4f « Ajuster automatiquement » : contraste suffisant", await waitFor(async () => /Lisibilité : (bonne|juste)/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")));
   ok("P4f' l'avertissement « non appliquée » disparaît une fois corrigé", await waitFor(async () => (await page.getByTestId("palette-ignored").count()) === 0));
   await settled();
   const inkNow = parseRgb(await themeVar(f, "--t-color-ink"));
@@ -284,12 +284,12 @@ if (run("P")) {
   await pickColor("Fond de page", "#faf5e8");
   await settled();
   ok("P6a nouveau fond au brouillon", await waitFor(() => nearHex(siteDraftStyles()?.palette?.bg, "#faf5e8")), JSON.stringify(siteDraftStyles()));
-  await page.locator(".ve-history").getByRole("button", { name: "Annuler" }).click();
+  await page.locator(".ve-history").getByRole("button", { name: "Défaire" }).click();
   ok("P6b Annuler : le fond publié revient (brouillon identique au publié = plus de brouillon du site)", await waitFor(() => setting("siteDraft") === null || nearHex(siteDraftStyles()?.palette?.bg, NEW_BG)), JSON.stringify(setting("siteDraft")));
   ok("P6c Annuler : la toile montre le fond d'avant", await until(f, (c) => getComputedStyle(document.body).backgroundColor === c, `rgb(${bgNow.join(", ")})`, 8000), await bodyBg(f));
   await page.locator(".ve-history").getByRole("button", { name: "Rétablir" }).click();
   ok("P6d Rétablir : le fond voulu revient", await waitFor(() => nearHex(siteDraftStyles()?.palette?.bg, "#faf5e8")), JSON.stringify(siteDraftStyles()));
-  await page.locator(".ve-history").getByRole("button", { name: "Annuler" }).click();
+  await page.locator(".ve-history").getByRole("button", { name: "Défaire" }).click();
   await settled();
 
   /* P7. Retour aux couleurs du thème */

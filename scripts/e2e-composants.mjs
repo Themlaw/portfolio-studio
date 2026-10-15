@@ -7,7 +7,7 @@
  *     vidéos, Grilles, Autres), contenu de chaque groupe ; les trois raccourcis Texte en tête ; recherche (nom et
  *     description, sans accents ni casse) ; un composant trouvé par la recherche s'ajoute.
  *  B. Fenêtre « Ajouter une rubrique » : mêmes groupes, mêmes en-têtes, rien en double, pas de « Projet mis en avant » ;
- *     liste de l'éditeur classique (« + Ajouter un bloc ») sans lui non plus.
+ *     formulaire de la page (plus de liste de rubriques depuis le lot 23) : rien à proposer.
  *  C. Page v0.18 avec trois conteneurs (publiée + brouillon), migrée (fonction du démarrage) puis rouverte dans
  *     l'éditeur : blocs séparés (aucun parent), Titre lié au bon nom de projet, lien « voir plus » en bloc, carte de
  *     couleur applicable à un ancien composant, publication acceptée, rendu public.
@@ -62,8 +62,9 @@ const CONTENT = {
   Texte: ["Texte", "Titre", "Titre + texte"],
   Projets: ["Planche d'un projet"],
   "Images et vidéos": ["Image", "Vidéo"],
-  Grilles: ["Grille", "Grille d'images", "Grille de vidéos"],
-  Autres: ["CV", "Profil", "Contact", "Formulaire de contact", "Lien vers une page", "Ouverture", "Entrées des collections"],
+  // Lot 27 : Grille et Contact proposent leurs modèles sous leur carte ; plus de « Formulaire de contact » à part.
+  Grilles: ["Grille"],
+  Autres: ["CV", "Profil", "Contact", "Lien vers une page", "Ouverture", "Entrées des collections"],
 };
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
@@ -143,7 +144,7 @@ if (run("A"))
     };
     const v1 = await found("vidéo");
     const v2 = await found("VIDEO");
-    ok("A7 « vidéo » = « VIDEO » (sans accents ni casse)", JSON.stringify(v1) === JSON.stringify(v2) && v1.includes("Vidéo") && v1.includes("Grille de vidéos"), `${v1} / ${v2}`);
+    ok("A7 « vidéo » = « VIDEO » (sans accents ni casse)", JSON.stringify(v1) === JSON.stringify(v2) && v1.includes("Vidéo") && v1.includes("Grille"), `${v1} / ${v2}`);
     await page.screenshot({ path: path.join(SHOTS, "a-recherche-video.png") });
     ok("A8 la recherche couvre la description (« ecrire » trouve Contact)", (await found("ecrire")).includes("Contact"));
     ok("A9 les groupes sans résultat disparaissent (« grille image » : seulement Grilles)", JSON.stringify((await panelGroups()).map((g) => g.title)) === JSON.stringify(["Grilles"]) || (await found("grille image")).length > 0 && (await panelGroups()).length === 1);
@@ -174,18 +175,11 @@ if (run("B"))
     ok("B3 fenêtre : aucun « Projet mis en avant »", !/mis en avant/i.test((await dlg.textContent()) ?? "") && (await dlg.locator('[data-type="featured-project"]').count()) === 0);
     await page.keyboard.press("Escape");
     await dlg.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
-    // Éditeur classique : liste à plat, sans le conteneur.
+    // Formulaire de la page (lot 23) : plus de liste de rubriques ni de « + Ajouter une rubrique » ; la fenêtre de l'éditeur visuel (B1 à B3) est la seule.
     await page.goto(`${BASE}/admin/pages/1`, { waitUntil: "domcontentloaded" });
-    // Hydratation : le bouton peut être cliqué avant que React ne l'ait relié.
-    const opener = page.getByRole("button", { name: "+ Ajouter un bloc" });
-    await opener.waitFor({ timeout: 60000 });
-    for (let i = 0; i < 8 && !(await page.locator("dialog[open]").count()); i++) {
-      await opener.click();
-      await sleep(700);
-    }
-    const names = await page.getByRole("radiogroup", { name: "Type de bloc" }).locator("strong").allTextContents();
-    ok("B4 éditeur classique : « + Ajouter un bloc » sans « Projet mis en avant »", names.length > 5 && !names.some((n) => /mis en avant/i.test(n)), names.join(", "));
-    ok("B4 éditeur classique : « Lien vers une page » proposé", names.includes("Lien vers une page"));
+    const toEditor = page.getByRole("link", { name: "Modifier le contenu dans l'éditeur" });
+    await toEditor.waitFor({ timeout: 60000 });
+    ok("B4 formulaire de la page : lien vers l'éditeur visuel, plus de « + Ajouter une rubrique »", (await page.getByRole("button", { name: /^\+ Ajouter une? (rubrique|bloc)$/ }).count()) === 0);
   });
 
 /* ---- C. Page v0.18 avec conteneurs, migrée, rouverte dans l'éditeur ---------------------------------------- */
@@ -218,10 +212,10 @@ if (run("C"))
     await f.locator(`[data-edit-block="${target.uid}"] section`).first().click({ position: { x: 4, y: 30 } });
     ok("C5 un ancien composant se choisit seul (pas de conteneur parent dans le fil d'Ariane)", await waitFor(async () => ((await f.locator(".pe-crumbs").textContent().catch(() => "")) ?? "").trim() === "Texte"), await f.locator(".pe-crumbs").textContent().catch(() => ""));
     const fond = f.locator(".pe-tools .sm-button");
-    ok("C5 bouton « Fond » (carte) disponible sur cet ancien composant", await fond.waitFor({ timeout: 30000 }).then(() => true, () => false));
+    ok("C5 bouton « Carte » disponible sur cet ancien composant", await fond.waitFor({ timeout: 30000 }).then(() => true, () => false));
     await fond.click();
     const menu = f.locator(".sm");
-    await menu.getByRole("switch", { name: "Carte" }).click();
+    await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
     await menu.locator('[data-token="primary"]').click();
     ok("C6 carte de couleur appliquée : brouillon et toile", (await waitFor(() => draftOf(pageId).blocks.find((b) => b.uid === target.uid)?.props.surface?.color === "primary")) && (await f.locator(`[data-edit-block="${target.uid}"] .surface-card[data-surface="on"]`).count()) === 1, JSON.stringify(draftOf(pageId).blocks.find((b) => b.uid === target.uid)?.props.surface));
     await f.locator("body").click({ position: { x: 5, y: 5 } }).catch(() => {});

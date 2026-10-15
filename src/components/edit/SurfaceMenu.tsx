@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * Fond d'une rubrique sur la toile (lot 17c) : bouton « Fond » de la barre d'outils du
- * bloc (pastille de la couleur courante) et son popover — interrupteur « Carte »,
+ * Carte d'une rubrique sur la toile (lot 17c ; bouton « Fond » jusqu'à la v0.19, renommé « Carte » au lot 26 : la
+ * couleur de la carte posée sous la rubrique, à ne pas confondre avec le « Fond du texte » de la barre d'un texte) :
+ * bouton « Carte » de la barre d'outils du bloc (pastille de la couleur courante) et son popover — interrupteur « Une carte sous la rubrique »,
  * couleurs de la DA du thème (avec leur nom) et teintes douces (CardColorChoices, lot 19b), « Autre couleur… » (ColorPicker), Pleine largeur /
  * En retrait, Coins droits / arrondis. Chaque choix est appliqué à l'instant (aperçu
  * optimiste, edit/optimistic.ts) et envoyé à l'éditeur (intention `surface`, validée par
@@ -30,6 +31,7 @@ import {
 import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";
 import { canvasPalette, postIntent, previewSurface, surfaceState } from "./optimistic";
+import { ratioTip, readabilityText } from "./readability";
 import { useDismiss } from "./useDismiss";
 
 import "@/app/admin/typo-controls.css";
@@ -37,8 +39,6 @@ import "@/app/admin/surface-menu.css";
 
 const swatch = (c: (typeof PALETTE)[number]) => `var(--t-color-${c})`;
 
-/** Contraste en français (virgule). */
-const fr = (n: number) => n.toFixed(1).replace(".", ",");
 
 /** Résumé du fond courant : réglages complets + contraste du texte sur cette carte. */
 function summary(cur: Surface | null, defaults: ResolvedSurface) {
@@ -47,14 +47,14 @@ function summary(cur: Surface | null, defaults: ResolvedSurface) {
   return { resolved, style: cardStyle(resolved.color, canvasPalette()) };
 }
 
-/** Bouton « Fond » de la barre d'outils : pastille de la couleur de la carte (ou du fond de la page). */
+/** Bouton « Carte » de la barre d'outils : pastille de la couleur de la carte (vide : pas de carte). */
 export function SurfaceButton({ uid, open, onToggle }: { uid: string; open: boolean; onToggle: () => void }) {
   const { surface, defaults } = surfaceState(uid);
   const s = summary(surface, defaults);
   return (
-    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} title="Fond de la rubrique : carte colorée sur le papier" onClick={onToggle}>
+    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} title="Carte de la rubrique : une carte colorée posée sur le papier du site" onClick={onToggle}>
       <span className="sm-dot" data-on={s ? "" : undefined} style={s ? { background: s.style.bg } : undefined} aria-hidden="true" />
-      Fond
+      Carte
       {s && !s.style.ok && (
         <span className="sm-alert" data-testid="surface-alert" title="Texte peu lisible sur cette couleur" aria-label="Texte peu lisible sur cette couleur">
           !
@@ -93,17 +93,17 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
   };
 
   return (
-    <div ref={ref} className="sm tc" role="dialog" aria-label="Fond de la rubrique" style={{ top }}>
+    <div ref={ref} className="sm tc" role="dialog" aria-label="Carte de la rubrique" style={{ top }}>
       <button type="button" role="switch" aria-checked={s !== null} className="sm-switch" onClick={() => change(s ? null : {})}>
         <span className="sm-switch-track" aria-hidden="true">
           <span />
         </span>
-        Carte
+        Une carte sous la rubrique
       </button>
       {s ? (
         <>
           <div className="tc-row">
-            <span className="sm-label">Couleur</span>
+            <span className="sm-label">Couleur de la carte</span>
             <CardColorChoices palette={canvasPalette()} value={s.resolved.color} onPick={(t) => patch({ color: t })} />
           </div>
           <div className="tc-row">
@@ -134,16 +134,16 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
             </span>
           </div>
           {!s.style.ok && (
-            <p className="sm-warn" role="status" data-testid="surface-warning">
+            <p className="sm-warn" role="status" data-testid="surface-warning" title={ratioTip(s.style.ratio)}>
               <span className="sm-alert" aria-hidden="true">
                 !
               </span>
-              Le texte se lit mal sur cette couleur ({fr(s.style.ratio)}:1, il faut 4,5:1). Essaie une teinte plus claire ou plus foncée.
+              {readabilityText(s.style.ratio)} : le texte se lit mal sur cette couleur. Essaie une teinte plus claire ou plus foncée.
             </p>
           )}
         </>
       ) : (
-        <p className="sm-hint">Pose cette rubrique sur une carte colorée : le papier du site se voit autour.</p>
+        <p className="sm-hint">Pose cette rubrique sur une carte colorée : le papier du site se voit autour. La couleur du texte, elle, se règle sur le texte (« Fond du texte »).</p>
       )}
     </div>
   );

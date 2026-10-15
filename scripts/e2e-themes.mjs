@@ -167,7 +167,8 @@ if (ONLY.includes("B")) {
 
   // Nettoyage : suppression du thème importé.
   if (await importedCard.count()) {
-    await importedCard.getByRole("button", { name: "Supprimer" }).click();
+    await importedCard.getByRole("button", { name: /Plus d'actions/ }).click();
+    await page.getByRole("menuitem", { name: "Supprimer" }).click();
     await page.locator("dialog[open]").getByRole("button", { name: "Supprimer" }).click();
     await page.locator("dialog[open]").waitFor({ state: "detached" });
     await page.reload({ waitUntil: "networkidle" });

@@ -852,7 +852,7 @@ Glisser : aucune sélection de texte native (`data-edit-dragging`,
 `data-ve-dragging`, `user-select`, sélection effacée au départ), sauf dans un
 champ en cours d'édition (vérifié dans Chromium ET Firefox).
 
-**Formulaire de contact** (bloc `contact-form`, `src/lib/contact-form.ts`,
+**Formulaire de contact** (option `form: true` du bloc `contact` depuis la v0.20 ; ancien bloc `contact-form` fusionné par la migration 0023 ; `src/lib/contact-form.ts`,
 `POST /api/contact`, table `messages` — migration 0015). Champs définis dans
 le bloc (texte court, e-mail, texte long, choix ; 12 au plus ; un champ
 e-mail « sert à répondre », protégé), textes en place sur la toile, champs
@@ -1218,7 +1218,7 @@ blocs.
   à côté, l'enveloppe étant seulement cachée (`src/components/edit/marked-edit.ts`).
   Double-clic → champ + petite barre « Surligner » (mot sélectionné, ou mot sous le
   curseur ; « Retirer le surlignage » si déjà surligné ; Ctrl/Cmd+Maj+H), Entrée valide,
-  Échap annule. Langue = celle de la toile (fr / en).
+  Échap valide (comme un clic ailleurs). Langue = celle de la toile (fr / en).
 - **Rétablissement des textes à plusieurs nœuds** : l'aperçu de l'accroche
   (`previewMarked`) se retire avec le mécanisme `revert` (refus, éditeur arrêté, Annuler) :
   retirer l'élément à nous rend exactement l'enveloppe de React, sans rien reconstruire.
@@ -1395,6 +1395,23 @@ couleurs par défaut des fonds de cartes ».
   page) stockées comme jetons (`primary12`…), recalculées à chaque rendu : elles suivent la palette (thème et site).
   Au passage : la légende « utilisé par » d'un rôle survolé ne décale plus la liste (un clic pouvait se perdre).
 - Schéma : `SURFACE_TOKENS` passe de 6 à 15 valeurs (zod borné). Les thèmes et pages enregistrés avant restent valides.
+
+## Corbeille et usages (lot 23)
+
+Décision : **supprimer ne détruit plus tout de suite**. `pages`, `projects` et `media` portent `deleted_at` (migration 0024) ; la
+ligne et ses fichiers restent 30 jours (`TRASH_DAYS`, `src/lib/trash.ts`), restaurables (toast « Annuler » 10 s, vue Corbeille), puis
+`purgeTrash` (`src/lib/edit/trash.ts`, worker : au démarrage puis toutes les 15 min) supprime pour de bon : pages (blocs, surcouches),
+projets (emplacements en cascade, médias conservés), médias (ligne, original, variantes, recadrages). Ordre de purge : pages, projets,
+médias (ce que les premiers libèrent). Une purge ne casse jamais de lien : un élément encore cité reste à la corbeille.
+
+Intégrité : un élément à la corbeille disparaît de toute lecture publique et des sélecteurs (voir docs/ARCHITECTURE.md pour la liste des filtres) ;
+une page à la corbeille est traitée comme une page non publiée, hors menu (`trashed_in_menu` mémorise la place) et sans adresse retenue.
+Supprimer reste interdit tant qu'un bloc montre l'élément, que le média est utilisé (bloc, planche, brouillon, élément à la corbeille) :
+l'interface le sait d'avance. « Usage » d'un média = `mediaUsageIndex` (une place par emplacement ; par page, type de bloc et média, le plus
+grand des deux nombres publié / brouillon) : compteur, détail et blocage lisent le même calcul.
+
+Limite connue : pas de « supprimer définitivement » ni de « vider la corbeille » ; un média de la planche d'un projet à la corbeille
+reste « utilisé » jusqu'à la purge du projet.
 
 ## Phases
 

@@ -22,7 +22,7 @@ import { RectSchema } from "@/lib/images/crop";
 import { CUSTOM_COLOR_RE } from "./color";
 
 import { RADIUS_VALUES } from "../themes/css";
-import { BASE_KEYS } from "../themes/palette";
+import { BASE_KEYS, NUANCE_NAMES, ROLE_NAMES } from "../themes/palette";
 import { FONT_STACKS } from "../themes/font-stacks";
 import { CATEGORY_FALLBACK, googleFamily, isGoogleFamily } from "../themes/google-fonts";
 import { FONT_IDS, SURFACE_TOKENS, TEXT_ROLES, type FontId, type Theme } from "../themes/schema";
@@ -92,16 +92,22 @@ export type PaletteColor = (typeof PALETTE)[number];
  * `color:`, rien d'autre ne peut y entrer.
  */
 export const CustomColorSchema = z.string().max(9).regex(CUSTOM_COLOR_RE, "Couleur invalide (#rrggbb).");
+/**
+ * Noms des couleurs d'un texte : ceux des six rôles de la palette du site (« Fond de page », « Texte »,
+ * « Boutons et liens »…, `ROLE_NAMES`), partout les mêmes ; les deux nuances gardent leur nom de nuance.
+ */
 export const PALETTE_LABELS: Record<PaletteColor, string> = {
-  ink: "Encre",
-  "ink-soft": "Encre douce",
-  primary: "Principale",
-  secondary: "Secondaire",
-  tertiary: "Tertiaire",
-  eyebrow: "Étiquettes",
-  bg: "Fond",
-  surface: "Surface",
+  ink: ROLE_NAMES.ink,
+  "ink-soft": NUANCE_NAMES["ink-soft"],
+  primary: ROLE_NAMES.primary,
+  secondary: ROLE_NAMES.secondary,
+  tertiary: ROLE_NAMES.tertiary,
+  eyebrow: NUANCE_NAMES.eyebrow,
+  bg: ROLE_NAMES.bg,
+  surface: ROLE_NAMES.surface,
 };
+/** Ordre d'affichage des couleurs d'un texte : les six rôles dans l'ordre du panneau « Couleurs », puis les deux nuances. */
+export const PALETTE_DISPLAY: readonly PaletteColor[] = ["bg", "surface", "ink", "primary", "secondary", "tertiary", "ink-soft", "eyebrow"];
 
 /** Rôles : liste unique dans le schéma du thème (typographie du thème, mêmes sélecteurs). */
 export const ROLES = TEXT_ROLES;
@@ -415,6 +421,9 @@ export type SitePalette = z.infer<typeof SitePaletteSchema>;
  * Logo du site (lot 17f) : taille (hauteur en px sur grand écran, proportionnelle
  * et plafonnée sur mobile) et comportement. S'applique à la signature du kit et,
  * sans logo, au nom du site. Absent = rendu du thème.
+ *
+ * Image du logo (lot 26) : `mediaId` = une image de la médiathèque qui REMPLACE la signature du thème ou le nom du site
+ * écrit en texte (le nom reste lu par les lecteurs d'écran). Absent = le logo du thème (ou le nom en texte).
  */
 export const LOGO_SIZE_MIN = 24;
 export const LOGO_SIZE_MAX = 160;
@@ -430,6 +439,7 @@ export const LOGO_MODE_LABELS: Record<LogoMode, string> = {
 export const LogoSchema = z.strictObject({
   size: z.number().int().min(LOGO_SIZE_MIN).max(LOGO_SIZE_MAX).optional(),
   mode: z.enum(LOGO_MODES).optional(),
+  mediaId: z.number().int().positive().optional(),
 });
 export type Logo = z.infer<typeof LogoSchema>;
 
@@ -457,6 +467,7 @@ export function cleanLogo(l: Logo | undefined): Logo | undefined {
   const out: Logo = {};
   if (l.size !== undefined) out.size = l.size;
   if (l.mode && l.mode !== "fixed") out.mode = l.mode;
+  if (l.mediaId !== undefined) out.mediaId = l.mediaId;
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -523,9 +534,10 @@ export function logoCss(logo: Logo | undefined): string {
     `${WIN} .site-brand{display:flex;align-items:center;height:var(--lh);min-width:0;max-width:60vw;font-size:calc(var(--lh)*.5)${mode === "overhang" ? ";align-self:flex-start" : ""}}`,
     `${WIN} .site-brand-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`,
     `${WIN} .site-signature{height:var(--lh);max-width:100%}`,
+    `${WIN} .site-logo-img{height:var(--lh);max-width:100%}`,
     // En-tête centré (nom au-dessus, menu dessous) : la barre garde sa hauteur naturelle.
     `@media (min-width:48rem){${WIN}[data-header="centered"]{--header-h:calc(var(--lh-top) + 3.2rem)}${WIN}[data-header="centered"] .site-header{margin-bottom:${mode === "overhang" ? "0" : "calc(var(--lh-top) - var(--lh))"}}${WIN}[data-header="centered"] .site-header-bar{height:auto}${WIN}[data-header="centered"] .site-brand{align-self:auto}}`,
-    `@media (prefers-reduced-motion:no-preference){${H}{transition-property:background-color,box-shadow,backdrop-filter,margin-bottom}${H} .site-header-bar,${WIN} .site-signature{transition:height .5s var(--ease-soft)}${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft)}}`,
+    `@media (prefers-reduced-motion:no-preference){${H}{transition-property:background-color,box-shadow,backdrop-filter,margin-bottom}${H} .site-header-bar,${WIN} .site-signature,${WIN} .site-logo-img{transition:height .5s var(--ease-soft)}${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft)}}`,
   );
   return rules.join("\n");
 }

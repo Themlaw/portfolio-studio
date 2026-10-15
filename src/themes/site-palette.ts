@@ -17,6 +17,7 @@ import { AA, contrastReport, lightnessCandidates, ratio } from "./contrast";
 import {
   BASE_KEYS,
   normalizePalette,
+  ROLE_NAMES,
   PALETTE_GROUPS,
   resolvePalette,
   STORED_NUANCES,
@@ -54,17 +55,17 @@ export type RoleInfo = {
 
 /** Les rôles de couleur, dans l'ordre du panneau. */
 export const SITE_ROLES: RoleInfo[] = [
-  { key: "bg", name: "Fond de page", phrase: "La couleur derrière tout le site.", uses: "fond des pages et de l'en-tête", nuances: ["bgDeep", "line", "scrim", "onScrim"] },
-  { key: "surface", name: "Cartes et encadrés", phrase: "Le fond des cartes, des champs de saisie et des encadrés.", uses: "cartes, champs, encadrés", nuances: [] },
-  { key: "ink", name: "Texte", phrase: "Titres, paragraphes et menus.", uses: "titres, paragraphes, menu", nuances: ["inkSoft", "shadow"] },
-  { key: "primary", name: "Boutons et liens", phrase: "Les liens et les boutons : tout ce qui se clique.", uses: "liens, boutons", nuances: ["primaryHover", "onPrimary"] },
-  { key: "secondary", name: "Accent", phrase: "Les petits détails mis en valeur : étiquettes, soulignés.", uses: "étiquettes, soulignés", nuances: ["eyebrow"] },
-  { key: "tertiary", name: "Ornements", phrase: "Traits et ornements discrets.", uses: "ornements, détails", nuances: [] },
+  { key: "bg", name: ROLE_NAMES.bg, phrase: "La couleur derrière tout le site.", uses: "fond des pages et de l'en-tête", nuances: ["bgDeep", "line", "scrim", "onScrim"] },
+  { key: "surface", name: ROLE_NAMES.surface, phrase: "Le fond des cartes, des champs de saisie et des encadrés.", uses: "cartes, champs, encadrés", nuances: [] },
+  { key: "ink", name: ROLE_NAMES.ink, phrase: "Titres, paragraphes et menus.", uses: "titres, paragraphes, menu", nuances: ["inkSoft", "shadow"] },
+  { key: "primary", name: ROLE_NAMES.primary, phrase: "Les liens et les boutons : tout ce qui se clique.", uses: "liens, boutons", nuances: ["primaryHover", "onPrimary"] },
+  { key: "secondary", name: ROLE_NAMES.secondary, phrase: "Les petits détails mis en valeur : étiquettes, soulignés.", uses: "étiquettes, soulignés", nuances: ["eyebrow"] },
+  { key: "tertiary", name: ROLE_NAMES.tertiary, phrase: "Traits et ornements discrets.", uses: "ornements, détails", nuances: [] },
 ];
 
 /** Usage de chaque nuance, en clair. */
 export const NUANCE_USES: Record<NuanceKey, string> = {
-  bgDeep: "Sépare deux sections sans filet.",
+  bgDeep: "Sépare deux rubriques sans filet.",
   line: "Traits de séparation.",
   inkSoft: "Présentations et légendes.",
   shadow: "Teinte des ombres des cartes et des images.",

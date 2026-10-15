@@ -27,17 +27,19 @@ export type ContrastPair = {
   label: string;
 };
 
+// Noms des six rôles (`ROLE_NAMES`, palette.ts : vocabulaire unique de l'interface, vérifié par test-couleurs26) ; ce
+// module n'importe rien (script Node de la CI), les noms sont donc répétés ici.
 const TEXTS: [keyof ColorTokens, string][] = [
   ["ink", "Texte"],
-  ["inkSoft", "Texte secondaire et légendes"],
+  ["inkSoft", "Texte secondaire"],
   ["eyebrow", "Étiquettes"],
-  ["secondary", "Accent secondaire"],
-  ["primary", "Liens et actions"],
+  ["secondary", "Accent"],
+  ["primary", "Boutons et liens"],
 ];
 const GROUNDS: [keyof ColorTokens, string][] = [
-  ["bg", "fond"],
+  ["bg", "fond de page"],
   ["bgDeep", "fond profond"],
-  ["surface", "surface"],
+  ["surface", "cartes et encadrés"],
 ];
 
 /** Couples texte / fond vérifiés (ceux que les composants utilisent réellement). */

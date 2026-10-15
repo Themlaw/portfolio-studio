@@ -800,6 +800,64 @@ html[data-edit-mode] .pe-tile-tools:focus-within {
   position: relative;
 }
 
+.pe-tile-empty-why {
+  display: block;
+  margin-top: 4px;
+  font-weight: 400;
+}
+
+/* Couverture d'une entrée (lot 26) : « Changer la couverture » au survol de la tuile, en haut à gauche (les outils d'entrée sont à droite). */
+html[data-edit-mode] .pe-tile-cover {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: calc(100% - 140px);
+  padding: 4px;
+  border-radius: 8px;
+  background: #1f2226;
+  box-shadow: 0 6px 18px rgba(31, 34, 38, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+
+html[data-edit-mode] .tile:hover .pe-tile-cover,
+html[data-edit-mode] .pe-tile-cover:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  html[data-edit-mode] .pe-tile-cover {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.pe-tile-cover button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #e6e8eb;
+  font: 600 12.5px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pe-tile-cover button:hover,
+.pe-tile-cover button:focus-visible {
+  background: rgba(255, 255, 255, 0.14);
+  outline: none;
+}
+
 .pe-tile-add-row {
   display: flex;
   align-items: center;
@@ -976,7 +1034,9 @@ html:not([data-edit-mode]) :is(.pe-tile-tools, .pe-tile-add-row) {
   min-height: 220px;
 }
 
+/* Cadre vide d'une vidéo : une vignette (16:9, 24 rem au plus), pas un grand rectangle pleine largeur. */
 .pe-media-video {
+  width: min(100%, 24rem);
   aspect-ratio: 16 / 9;
   min-height: 0;
 }
@@ -1163,6 +1223,13 @@ html:not([data-edit-mode]) .pe-media-empty {
 .pe-grip-sm {
   cursor: grab !important;
   touch-action: none;
+}
+
+/* « + Ajouter une aide » / « Retirer l'aide » d'un champ du formulaire de contact (lot 27) : un libellé, pas une icône. */
+.pe-item-tools .pe-field-op-sm {
+  padding: 0 8px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .pe-add-chip {
@@ -1352,6 +1419,16 @@ html:not([data-edit-mode]) .pe-media-empty {
 .pe-box[data-tag="below"] > .pe-tag {
   top: 100%;
   border-radius: 0 0 6px 6px;
+}
+
+/* Dedans (étiquette qui n'a pas de place au-dessus) : coin haut gauche, déjà le défaut de .pe-tag. À droite : coin haut droit. */
+.pe-box[data-tag-x="right"] > .pe-tag {
+  right: 0;
+  left: auto;
+}
+
+.pe-box[data-tag="above"][data-tag-x="right"] > .pe-tag {
+  border-radius: 6px 6px 0 0;
 }
 
 /* Planche dont les images sont en brouillon sur une autre page (v0.13.1). */
@@ -1562,6 +1639,67 @@ html:not([data-edit-mode]) .pe-add-end {
   gap: 8px;
 }
 
+/* « Ajouter des images » dans l'en-tête de la planche (toile seulement). */
+.pe-board-add {
+  align-self: flex-end;
+  margin: 0;
+  padding: 8px 18px;
+  border: 2px dashed rgba(46, 78, 158, 0.6);
+  border-radius: 999px;
+  background: rgba(232, 237, 248, 0.7);
+  color: #2e4e9e;
+  font: 600 14px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.pe-board-add:hover,
+.pe-board-add:focus-visible {
+  border-style: solid;
+  background: #e8edf8;
+  outline: none;
+}
+
+html:not([data-edit-mode]) .pe-board-add {
+  display: none !important;
+}
+
+.pe-board-file {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pe-cell-media {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.pe-cell-pick {
+  margin: 0;
+  padding: 12px 26px;
+  border: 2px solid #2e4e9e;
+  border-radius: 10px;
+  background: #e8edf8;
+  color: #2e4e9e;
+  font: 600 16px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.pe-cell-pick:hover,
+.pe-cell-pick:focus-visible {
+  background: #2e4e9e;
+  color: #fff;
+  outline: none;
+}
+
 .pe-cell-text {
   justify-self: center;
   padding: 6px 16px;
@@ -1657,6 +1795,13 @@ html:not([data-edit-mode]) .pe-field-op {
   display: none !important;
 }
 
+.pe-cell-or {
+  color: #2e4e9e;
+  font: 500 12px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 /* Case vide d'une grille : les trois choix de texte. */
 .pe-cell-choices {
   display: flex;
@@ -1698,4 +1843,77 @@ html:not([data-edit-mode]) .pe-field-op {
   top: 0;
   right: 0;
   left: auto;
+}
+
+/* Lot 27 : beaucoup de champs facultatifs (Profil) : les boutons se rangent AU-DESSUS du bloc et grandissent vers le haut. */
+.pe-field-ops[data-many] {
+  top: auto;
+  bottom: calc(100% - 28px);
+}
+
+/* Place vide d'une grille : ce qu'on peut y faire, en une ligne. */
+.pe-cell-hint {
+  max-width: 22ch;
+  font: 400 12px/1.35 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  color: #2e4e9e;
+}
+
+/* Zone de dépôt vide d'un bloc média : le texte, puis le bouton qui ouvre la médiathèque. */
+.pe-media-empty {
+  gap: 10px;
+  align-content: center;
+}
+
+/* État vide d'un bloc (lot 27) : dit quoi faire et propose l'action, au lieu d'un cadre muet. Jamais en public. */
+.pe-empty-block {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 18px 16px;
+  border: 2px dashed rgba(46, 78, 158, 0.5);
+  border-radius: 8px;
+  background: rgba(232, 237, 248, 0.6);
+  color: #2e4e9e;
+  font: 600 14px/1.3 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-align: center;
+  text-transform: none;
+}
+
+.pe-empty-block p {
+  margin: 0;
+}
+
+.pe-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.pe-empty-action {
+  margin: 0;
+  padding: 6px 14px;
+  border: 1px solid #2e4e9e;
+  border-radius: 999px;
+  background: #2e4e9e;
+  color: #fff;
+  font: 600 13px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pe-empty-action:hover,
+.pe-empty-action:focus-visible {
+  background: #1f3a7a;
+  outline: 2px solid rgba(46, 78, 158, 0.35);
+  outline-offset: 2px;
+}
+
+html:not([data-edit-mode]) .pe-empty-block,
+html:not([data-edit-mode]) .pe-empty-action {
+  display: none !important;
 }

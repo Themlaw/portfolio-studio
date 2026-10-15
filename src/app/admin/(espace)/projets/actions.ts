@@ -15,6 +15,7 @@ import {
   deleteSlot,
   reorderProjects,
   reorderSlots,
+  restoreProject,
   saveProject,
   saveSlot,
   setSlotMedia,
@@ -52,13 +53,24 @@ export async function reorderProjectsAction(ids: unknown): Promise<ActionResult<
   return result;
 }
 
+/** Supprimer = mettre à la corbeille (restaurable 30 jours : `restoreProjectAction`). */
 export async function deleteProjectAction(
   projectId: unknown,
-): Promise<ActionResult<null> | { ok: false; message: string; references: ProjectReference[] }> {
+): Promise<ActionResult<{ title: string }> | { ok: false; message: string; references: ProjectReference[] }> {
   await assertAdmin();
   const pid = id(projectId);
   if (!pid) return fail("Projet inconnu.");
   const result = deleteProject(pid);
+  if (result.ok) revalidateProject(pid, { structure: true });
+  return result;
+}
+
+/** Restaure un projet de la corbeille. */
+export async function restoreProjectAction(projectId: unknown): Promise<ActionResult<{ title: string }>> {
+  await assertAdmin();
+  const pid = id(projectId);
+  if (!pid) return fail("Projet inconnu.");
+  const result = restoreProject(pid);
   if (result.ok) revalidateProject(pid, { structure: true });
   return result;
 }

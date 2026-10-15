@@ -24,6 +24,7 @@ const msg = (data, origin = ORIGIN, source = frame) => ({ origin, source, data: 
 ok("project-text : présentation acceptée (2000 car.)", acceptFromCanvas(msg({ kind: "project-text", board: 3, field: "description", locale: "fr", value: "x".repeat(2000) }), ORIGIN, frame)?.field === "description");
 ok("project-text : présentation trop longue / champ inconnu refusés", acceptFromCanvas(msg({ kind: "project-text", board: 3, field: "description", locale: "fr", value: "x".repeat(2001) }), ORIGIN, frame) === null && acceptFromCanvas(msg({ kind: "project-text", board: 3, field: "featured", locale: "fr", value: "1" }), ORIGIN, frame) === null);
 ok("message valide accepté", acceptFromCanvas(msg({ kind: "select", uid: "b1" }), ORIGIN, frame)?.uid === "b1");
+ok("select : `click` (choisi d'un clic) accepté, valeur autre refusée", acceptFromCanvas(msg({ kind: "select", uid: "b1", click: true }), ORIGIN, frame)?.click === true && acceptFromCanvas(msg({ kind: "select", uid: "b1", click: "oui" }), ORIGIN, frame) === null);
 ok("autre origine ignorée", acceptFromCanvas(msg({ kind: "select", uid: "b1" }, "https://evil.example"), ORIGIN, frame) === null);
 ok("autre fenêtre (source) ignorée", acceptFromCanvas(msg({ kind: "select", uid: "b1" }, ORIGIN, other), ORIGIN, frame) === null);
 ok("source absente ignorée", acceptFromCanvas(msg({ kind: "select", uid: "b1" }), ORIGIN, null) === null);
@@ -133,6 +134,7 @@ ok("v0.13 : liste de projets (« pas encore sur une page »)", acceptToCanvas(ms
 
 // v0.16 : champ ajouté avec un identifiant choisi par la toile, état « en cours » d'Annuler / Rétablir.
 ok("form-field add : identifiant de la toile accepté", acceptFromCanvas(msg({ kind: "form-field", uid: "b3", op: "add", fieldType: "text", id: "fk3j9a2b" }), ORIGIN, frame)?.id === "fk3j9a2b");
+ok("form-field help-add / help-remove acceptés (aide d'un champ)", ["help-add", "help-remove"].every((op) => acceptFromCanvas(msg({ kind: "form-field", uid: "b3", op, index: 1 }), ORIGIN, frame)?.op === op));
 ok("form-field add : identifiant mal formé refusé", ["x", "F1234567", "f<b>", "f", "f".repeat(30), "../x"].every((id) => acceptFromCanvas(msg({ kind: "form-field", uid: "b3", op: "add", fieldType: "text", id }), ORIGIN, frame) === null));
 ok("pending : libellé accepté, null accepté, trop long / autre type refusés", acceptToCanvas(msg({ kind: "pending", label: "Annulation en cours…" }), ORIGIN, frame)?.label === "Annulation en cours…" && acceptToCanvas(msg({ kind: "pending", label: null }), ORIGIN, frame)?.label === null && acceptToCanvas(msg({ kind: "pending", label: "x".repeat(61) }), ORIGIN, frame) === null && acceptToCanvas(msg({ kind: "pending", label: 3 }), ORIGIN, frame) === null);
 ok("pending : la toile ne peut pas en émettre (sens éditeur → toile seulement)", acceptFromCanvas(msg({ kind: "pending", label: "x" }), ORIGIN, frame) === null);
@@ -205,6 +207,10 @@ ok("setLocalizedAt : seule la langue visée change", next.paragraphs[0].en === "
 ok("setLocalizedAt : clé dangereuse ignorée", setLocalizedAt(props, "__proto__", "fr", "x").polluted === undefined && {}.fr === undefined);
 ok("moveTo : déplacement vers le bas", moveTo(["a", "b", "c"], 0, 2).join("") === "bac");
 ok("moveTo : sans effet sur place", moveTo(["a", "b", "c"], 1, 2).join("") === "abc");
+
+// Lot 25 : case vide de grille, « Image » / « Vidéo ».
+ok("cell-media : image et vidéo acceptées", ["image", "video"].every((media) => acceptFromCanvas(msg({ kind: "cell-media", uid: "g1", media }), ORIGIN, frame)?.media === media));
+ok("cell-media : autre média, sans uid ou uid invalide refusés", acceptFromCanvas(msg({ kind: "cell-media", uid: "g1", media: "pdf" }), ORIGIN, frame) === null && acceptFromCanvas(msg({ kind: "cell-media", media: "image" }), ORIGIN, frame) === null && acceptFromCanvas(msg({ kind: "cell-media", uid: "x y", media: "image" }), ORIGIN, frame) === null);
 
 console.log(failures ? `test-protocol : ${failures} échec(s)` : "test-protocol : OK");
 process.exit(failures ? 1 : 0);

@@ -202,7 +202,7 @@ async function dragTo(from, to, shot) {
 async function dragPalette(key, to, shot) {
   await page.getByRole("tab", { name: "Ajouter" }).click();
   // Carte du catalogue, ou raccourci Texte (« text », « title », « title-text »).
-  const card = page.locator(`.ve-card[data-key="${key}"], .ve-starter[data-starter="${key}"]`).first();
+  const card = page.locator(`.ve-card[data-key="${key}"], .ve-model[data-key="${key}"], .ve-starter[data-starter="${key}"]`).first();
   await card.scrollIntoViewIfNeeded();
   const b = await card.boundingBox();
   await dragTo({ x: b.x + b.width / 2, y: b.y + b.height / 2 }, to, shot);
@@ -398,11 +398,11 @@ if (run("D")) {
   await center(f, gridSel);
   // Cellule étroite : la barre d'outils du bloc (déjà choisi) couvre le paragraphe, le clic est forcé.
   await f.locator(`[data-edit-block="${textUid}"] p`).first().click({ force: true });
-  await f.locator('.pe-tools button[aria-label="Sortir du conteneur"]').click();
+  await f.locator('.pe-tools button[aria-label="Sortir de la rubrique"]').click();
   await settled();
   const top = draftOf().blocks;
   const gi = top.findIndex((b) => b.uid === grid.uid);
-  ok("D5 « Sortir du conteneur » : le Texte est sur la page, juste après la grille", top[gi + 1]?.uid === textUid, JSON.stringify(top.map((b) => b.type)));
+  ok("D5 « Sortir de la rubrique » : le Texte est sur la page, juste après la grille", top[gi + 1]?.uid === textUid, JSON.stringify(top.map((b) => b.type)));
   await center(f, `[data-edit-block="${textUid}"]`);
   await f.locator(`[data-edit-block="${textUid}"] p`).first().click({ force: true });
   await sleep(300);
@@ -433,7 +433,7 @@ if (run("E")) {
   await until(f, (s) => document.querySelectorAll(s).length === 3, `${gridSel} .pe-media-video`, 15000);
   ok("E2 « Choisir une vidéo » sur la toile", (await f.locator(`${gridSel} .pe-media-video`).count()) === 3);
   await page.screenshot({ path: `${SHOTS}/E-video-a-choisir.png` });
-  await f.locator(`${gridSel} .pe-media-video`).first().click();
+  await f.locator(`${gridSel} .pe-media-video`).first().click({ position: { x: 6, y: 6 } });
   await f.locator(".pe-crumbs .pe-crumb").first().click();
   await f.locator(".pe-tools .pe-tool-text", { hasText: "Agencement" }).click();
   await sleep(300);
@@ -650,16 +650,16 @@ if (run("L")) {
   await sleep(400);
   const fb = await frameBox();
   const prof = await framePoint(f, '[data-edit-type="profile"] section', "bottom");
-  await dragPalette("contact-form", { x: fb.x + fb.width / 2, y: Math.min(prof.y + 60, fb.y + fb.height - 30) });
+  await dragPalette("contact-with-form", { x: fb.x + fb.width / 2, y: Math.min(prof.y + 60, fb.y + fb.height - 30) });
   await settled();
-  let block = draftOf(about).blocks.find((b) => b.type === "contact-form");
+  let block = draftOf(about).blocks.find((b) => b.type === "contact" && b.props.form === true);
   ok("L1 formulaire posé : 3 champs par défaut (nom, e-mail de réponse, message)", block?.props.fields.length === 3 && block.props.fields[1].reply === true);
   const formSel = `[data-edit-block="${block.uid}"]`;
   await center(f, `${formSel} form`);
   await f.locator(`${formSel} [data-testid="field-add"]`).click().catch(async () => f.locator('[data-testid="field-add"]').click());
   await f.getByRole("menuitem", { name: "Texte court" }).click();
   await settled();
-  block = draftOf(about).blocks.find((b) => b.type === "contact-form");
+  block = draftOf(about).blocks.find((b) => b.type === "contact" && b.props.form === true);
   ok("L2 champ ajouté (texte court)", block.props.fields.length === 4 && block.props.fields[3].type === "text");
   await center(f, `${formSel} [data-form-field="3"]`);
   await f.locator(`${formSel} [data-form-field="3"] [data-inline="fields.3.label"]`).dblclick({ position: { x: 10, y: 6 } });
@@ -667,13 +667,13 @@ if (run("L")) {
   await page.keyboard.type("Ton studio");
   await page.keyboard.press("Enter");
   await settled();
-  block = draftOf(about).blocks.find((b) => b.type === "contact-form");
+  block = draftOf(about).blocks.find((b) => b.type === "contact" && b.props.form === true);
   ok("L3 champ renommé en place", block.props.fields[3].label.fr === "Ton studio");
   // Retirer le champ e-mail de réponse : refusé (averti).
   await f.locator(`${formSel} [data-form-field="1"]`).hover();
   await f.locator('.pe-item-tools[data-kind="field"] button[aria-label="Retirer ce champ"]').click();
   await sleep(500);
-  ok("L4 le champ e-mail de réponse n'est pas retiré (avertissement)", draftOf(about).blocks.find((b) => b.type === "contact-form").props.fields.length === 4);
+  ok("L4 le champ e-mail de réponse n'est pas retiré (avertissement)", draftOf(about).blocks.find((b) => b.type === "contact" && b.props.form === true).props.fields.length === 4);
   // Formulaire choisi, message de confirmation montré depuis le panneau.
   await f.locator(`${formSel} h2`).click();
   await page.getByRole("tab", { name: "Réglages" }).click();
@@ -683,7 +683,7 @@ if (run("L")) {
   await page.screenshot({ path: `${SHOTS}/L-formulaire-selectionne.png` });
   await page.getByRole("button", { name: "Publier" }).click();
   ok("L6 publication", await published());
-  const formId = JSON.parse(q("select props from blocks where page_id = ? and type = 'contact-form'", about)[0]?.props ?? "{}").formId;
+  const formId = JSON.parse(q("select props from blocks where page_id = ? and type = 'contact'", about)[0]?.props ?? "{}").formId;
   const pub = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const pp = await pub.newPage();
   await pp.goto(`${BASE}/fr/a-propos`, { waitUntil: "networkidle" });
@@ -856,7 +856,7 @@ if (run("P")) {
   ok("P12b français inchangé", statement("fr") === frBefore, statement("fr"));
   await page.screenshot({ path: `${SHOTS}/P-accroche-en.png` });
   // Annuler (Ctrl+Z) : l'ancienne accroche revient sur la toile.
-  await page.locator('button[aria-label="Annuler"]').click();
+  await page.locator('button[aria-label="Défaire"]').click();
   ok("P13 Annuler : la toile retrouve l'ancienne accroche", await until(f, (sel) => document.querySelector(sel)?.textContent !== "I draw characters", H, 20000));
   void before;
 
@@ -951,8 +951,13 @@ if (run("Q")) {
   const tabs = rp.getByRole("tablist", { name: /Nom affiché/ });
   const field = tabs.locator("xpath=..").locator("input");
   const frValue = await field.inputValue();
-  await tabs.getByRole("tab", { name: /EN|Anglais/ }).click();
-  const enValue = await field.inputValue();
+  // Page chargée à « domcontentloaded » : le clic peut précéder l'hydratation, on le rejoue jusqu'à ce que l'onglet réponde.
+  let enValue = frValue;
+  for (let essai = 0; essai < 8 && enValue === frValue; essai++) {
+    await tabs.getByRole("tab", { name: /EN|Anglais/ }).click();
+    await sleep(600);
+    enValue = await field.inputValue();
+  }
   ok("Q14 écran Réglages : nom affiché en français et en anglais (onglets FR / EN)", frValue === "Atelier Camille" && enValue === "Camille Studio", `${frValue} / ${enValue}`);
   await rp.close();
   await pub.close();
@@ -1034,7 +1039,12 @@ if (run("R")) {
     await page.keyboard.press("ControlOrMeta+a");
     await page.keyboard.type(base);
     await page.keyboard.press("Enter");
-    await f.locator(BRAND).dblclick();
+    // Le rendu du serveur peut redessiner le nom juste après « Entrée » : le double-clic est rejoué tant que le champ ne s'est pas ouvert
+    // (sinon la frappe part dans le vide et le texte tapé « disparaît » : même flake sur la base v0.19).
+    for (let essai = 0; essai < 6; essai++) {
+      await f.locator(BRAND).dblclick();
+      if (await f.locator("[data-editing]").first().waitFor({ timeout: 3000 }).then(() => true, () => false)) break;
+    }
     await page.keyboard.press("ControlOrMeta+End");
     const rn = await typeSlowly("-", "abcdefghijklmnopqrstuvwxyz".slice(i * 4) + "abcdefghijklmnopqrstuvwxyz".slice(0, i * 4));
     const typedName = rn.typed;

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { ratioTip } from "./readability";
 import { contrastRatio } from "@/themes/palette";
 
 /**
@@ -193,8 +194,8 @@ export default function HeroContrast() {
 
   if (!verdict || !anchor) return null;
   return (
-    <p className="pe-hero-warn" role="status" data-testid="hero-contrast-warning" data-measures={JSON.stringify(verdict.all.map((m) => [m.label, m.ratio, m.need]))} style={{ top: anchor.top + 12, left: anchor.left + 16 }}>
-      Sur ce fond, {verdict.label} est peu lisible ({verdict.ratio.toLocaleString("fr-FR")}:1, il faut {verdict.need.toLocaleString("fr-FR")}:1). Choisis une image plus calme, plus sombre ou plus claire, ou recadre-la.
+    <p className="pe-hero-warn" role="status" data-testid="hero-contrast-warning" title={ratioTip(verdict.ratio, verdict.need)} data-measures={JSON.stringify(verdict.all.map((m) => [m.label, m.ratio, m.need]))} style={{ top: anchor.top + 12, left: anchor.left + 16 }}>
+      Sur ce fond, {verdict.label} est peu lisible. Choisis une image plus calme, plus sombre ou plus claire, ou recadre-la.
     </p>
   );
 }

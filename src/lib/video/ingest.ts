@@ -5,6 +5,7 @@
  * (sha256). Média créé en `processing`, job vidéo ajouté. Le fichier reçu est
  * supprimé dans tous les cas.
  */
+import { reviveIfTrashed } from "@/lib/upload/revive";
 import { createReadStream } from "node:fs";
 import { rm } from "node:fs/promises";
 
@@ -69,6 +70,7 @@ export async function ingestVideo(file: Received): Promise<IngestedMedia> {
     const db = getDb();
     const known = db.select().from(schema.media).where(eq(schema.media.sha256, file.sha256)).get();
     if (known) {
+      reviveIfTrashed(known);
       if (known.status === "failed") {
         db.transaction((tx) => {
           tx.update(schema.media).set({ status: "processing", error: null }).where(eq(schema.media.id, known.id)).run();

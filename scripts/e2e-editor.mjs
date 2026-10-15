@@ -136,6 +136,9 @@ await page.keyboard.press("Enter");
 ok("Entrée sélectionne le bloc", await until(f, () => Boolean(document.querySelector(".pe-selected"))));
 await page.keyboard.press("Escape");
 ok("Échap désélectionne", await until(f, () => !document.querySelector(".pe-selected")));
+// Entrée a choisi le bloc : le panneau est passé sur Réglages (lot 24) ; la suite glisse un composant depuis « Ajouter ».
+ok("choisir un bloc ouvre l'onglet Réglages", await until(page, () => document.querySelector("#ve-tab-reglages")?.getAttribute("aria-selected") === "true", null, 10000));
+await page.getByRole("tab", { name: "Ajouter" }).click();
 
 /* ---- Glisser un Texte entre deux blocs ------------------------------------- */
 
@@ -202,7 +205,13 @@ for (let i = 0; i < 6; i++) {
 let addBox = null;
 for (let i = 0; i < 8 && !addBox; i++) {
   try {
-    await f.locator(`[data-edit-block="${textUid}"] [data-inline="paragraphs.0"]`).hover({ timeout: 4000 });
+    // La souris reste là où le glisser l'a laissée, au bord de deux rubriques : la puce « + Ajouter une rubrique » de cet interstice
+    // (`data-edit-gap`) peut alors recouvrir le centre du paragraphe d'un Texte court et « intercepter » le survol, que Playwright
+    // retente sans jamais bouger la souris (même flake sur la base v0.19, un peu moins fréquent). On l'écarte d'abord, puis on
+    // survole le haut-gauche du paragraphe, loin de l'interstice.
+    await page.mouse.move(700, 8);
+    await sleep(200);
+    await f.locator(`[data-edit-block="${textUid}"] [data-inline="paragraphs.0"]`).hover({ timeout: 4000, position: { x: 12, y: 4 } });
     // Le bouton n'a de pointer-events qu'au survol de son hôte : on le rejoint à la souris (hover()/click() de Playwright refusent un élément « couvert »).
     addBox = await addTitleBtn.boundingBox();
   } catch {}
@@ -254,7 +263,7 @@ await f.locator(".pe-tools").getByRole("button", { name: "Supprimer" }).click();
 const confirm = page.getByRole("dialog");
 const shown = () => confirm.waitFor({ state: "visible", timeout: 10000 }).then(() => true, () => false);
 ok("supprimer demande confirmation", await shown());
-await confirm.getByRole("button", { name: "Supprimer le bloc" }).click();
+await confirm.getByRole("button", { name: "Supprimer la rubrique" }).click();
 ok("supprimé", await countIs(f, published.length + 1));
 await settled();
 await page.keyboard.press("Control+z");
@@ -312,6 +321,7 @@ await site.close();
 
 f = await canvas();
 const before = (await blocksOf(f)).length;
+await page.getByRole("tab", { name: "Ajouter" }).click();
 await page.locator('.ve-card[data-type="contact"]').click();
 ok("clic sur un composant : ajouté", await countIs(f, before + 1));
 await settled();
@@ -333,6 +343,7 @@ const slow = async (route) => {
   await route.continue();
 };
 await page.route("**/admin/pages/1/editer**", slow);
+await page.getByRole("tab", { name: "Ajouter" }).click();
 await page.locator('.ve-starter[data-starter="text"]').click();
 ok("état « Enregistrement… »", await until(page.mainFrame(), () => /Enregistrement…/.test(document.querySelector(".ve-status")?.textContent ?? ""), null, 5000));
 await bar("enregistrement");
@@ -343,6 +354,7 @@ await bar("brouillon-enregistre");
 // Connexion coupée : « Erreur d'enregistrement », avec la raison et « Réessayer ».
 const cut = (route) => (route.request().method() === "POST" ? route.abort() : route.continue());
 await page.route("**/admin/pages/1/editer**", cut);
+await page.getByRole("tab", { name: "Ajouter" }).click();
 await page.locator('.ve-card[data-type="contact"]').click();
 ok("état « Erreur d'enregistrement » avec la raison", await until(page.mainFrame(), () => /Erreur d'enregistrement\s*· \S.+/.test(document.querySelector(".ve-status")?.textContent ?? ""), null, 15000), await status());
 await bar("erreur");
@@ -356,9 +368,11 @@ other.on("pageerror", (e) => errors.push(e.message));
 await other.goto(`${BASE}/admin/pages/1/editer`, { waitUntil: "domcontentloaded" });
 const of = await canvas(other);
 const otherBefore = (await blocksOf(of)).length;
+await other.getByRole("tab", { name: "Ajouter" }).click();
 await other.locator('.ve-starter[data-starter="text"]').click();
 await countIs(of, otherBefore + 1);
 await settled(other);
+await page.getByRole("tab", { name: "Ajouter" }).click();
 await page.locator('.ve-card[data-type="contact"]').click();
 const conflictBanner = page.getByTestId("conflict");
 ok("onglet en retard : bandeau « Cette page a été modifiée ailleurs »", await conflictBanner.waitFor({ state: "visible", timeout: 30000 }).then(() => true, () => false));
@@ -390,6 +404,7 @@ await m.getByRole("button", { name: "＋ Composants" }).click();
 await sleep(400);
 await m.screenshot({ path: `${SHOTS}/390-composants.png` });
 const mBefore = (await blocksOf(mf)).length;
+await m.getByRole("tab", { name: "Ajouter" }).click();
 await m.locator('.ve-card[data-type="contact"]').click();
 ok("390 : toucher un composant l'ajoute, la feuille se referme", (await countIs(mf, mBefore + 1)) && (await m.locator(".ve-panel[data-open]").count()) === 0);
 await settled(m);
@@ -433,7 +448,7 @@ for (;;) {
   await f.locator(titleSel(extra.uid)).click();
   await until(f, () => Boolean(document.querySelector(".pe-tools")));
   await f.locator(".pe-tools").getByRole("button", { name: "Supprimer" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Supprimer le bloc" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).click();
   await countIs(f, list.length - 1);
   await settled();
 }

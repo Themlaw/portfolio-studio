@@ -50,7 +50,9 @@ export function matchesSearch(entry: { label: string; description: string }, que
 /** Types du groupe « Texte » proposés par les trois raccourcis (Texte, Titre, Titre + texte), pas comme cartes. */
 export const STARTER_BLOCKS: readonly string[] = ["rich-text", "section-title"];
 
-export type PickerGroup<T, S> = { id: BlockGroup; label: string; starters: S[]; entries: T[] };
+/** Une carte du panneau : le type, et ses modèles de départ (puces « Avec 3 images »…), jamais des cartes à part (lot 27). */
+export type PickerEntry<T> = T & { models: T[] };
+export type PickerGroup<T, S> = { id: BlockGroup; label: string; starters: S[]; entries: PickerEntry<T>[] };
 
 /**
  * Ce que montrent le panneau « Ajouter » et la fenêtre « Ajouter une rubrique » : les groupes dans l'ordre de
@@ -58,16 +60,21 @@ export type PickerGroup<T, S> = { id: BlockGroup; label: string; starters: S[]; 
  * types rich-text / section-title du registre. `query` filtre par nom et description (sans accents ni casse) ;
  * un groupe sans résultat est omis.
  */
-export function pickerGroups<T extends Groupable & { type: string; label: string; description: string }, S extends { label: string; description: string }>(
+export function pickerGroups<T extends Groupable & { type: string; label: string; description: string; preset?: boolean }, S extends { label: string; description: string }>(
   catalog: T[],
   starters: S[],
   query = "",
 ): PickerGroup<T, S>[] {
-  const groups = groupEntries(catalog.filter((c) => !STARTER_BLOCKS.includes(c.type)));
+  // Les modèles de départ d'un type (`preset`) se rangent sous sa carte : « Grille » propose « Avec 3 images », « Avec des vidéos »…
+  const models = (type: string) => catalog.filter((c) => c.preset && c.type === type && !c.hidden).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const groups = groupEntries(catalog.filter((c) => !STARTER_BLOCKS.includes(c.type) && !c.preset));
   return BLOCK_GROUPS.map((g) => ({
     id: g.id,
     label: g.label,
     starters: g.id === "text" ? starters.filter((s) => matchesSearch(s, query)) : [],
-    entries: (groups.find((x) => x.id === g.id)?.entries ?? []).filter((e) => matchesSearch(e, query)),
+    entries: (groups.find((x) => x.id === g.id)?.entries ?? [])
+      .map((e) => ({ ...e, models: models(e.type) }))
+      // Un type correspond à la recherche par son nom, sa description ou celle d'un de ses modèles.
+      .filter((e) => matchesSearch(e, query) || e.models.some((m) => matchesSearch(m, query))),
   })).filter((g) => g.starters.length > 0 || g.entries.length > 0);
 }

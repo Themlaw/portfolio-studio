@@ -76,6 +76,12 @@
   min-width: 26px;
   padding: 0 4px;
 }
+.tc-step-label {
+  margin-right: 4px;
+  color: var(--lk-ink-soft);
+  font-size: 11px;
+  white-space: nowrap;
+}
 .tc-num {
   min-width: 44px;
   font-size: 11px;
@@ -106,6 +112,14 @@
 .tc-seg {
   display: inline-flex;
   gap: 2px;
+}
+/* Nom de la couleur choisie (même vocabulaire que le panneau « Couleurs ») : visible, pas seulement en info-bulle. */
+.tc .tc-color-name {
+  align-self: center;
+  margin-left: 5px;
+  color: var(--lk-ink-soft);
+  font-size: 11.5px;
+  white-space: nowrap;
 }
 .tc-reset {
   margin-left: auto !important;
@@ -358,7 +372,7 @@
 }
 .cp-fields {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 4px 8px;
 }

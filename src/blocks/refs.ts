@@ -16,7 +16,8 @@ export type BlockRefs = { media?: string[]; pages?: string[]; projects?: string[
 
 export const BLOCK_REFS: Record<string, BlockRefs> = {
   hero: { pages: ["reelPageId"], media: ["backgroundMediaId"] },
-  "collection-tiles": { pages: ["items[].pageId"] },
+  // Couverture choisie sur une tuile (lot 26) : `items[].mediaId` (manuel), `edits[].mediaId` (automatique).
+  "collection-tiles": { pages: ["items[].pageId"], media: ["items[].mediaId", "edits[].mediaId"] },
   // Mode automatique : les entrées suivent les pages de collection ; `edits[].pageId` (textes modifiés) ne retient aucune page.
   // Conteneur (v0.13) : ses composants (props.children) sont parcourus aussi.
   "featured-project": { pages: ["more.pageId"], projects: ["project"] },
@@ -86,25 +87,52 @@ export function extractRefs(type: string, props: unknown, depth = 0): { media: n
   return out;
 }
 
-export type BlockRow = { id: number; pageId: number; type: string; props: unknown };
-export type SlotRow = { id: number; projectId: number; slug: string; mediaId: number | null };
+/** `draft` : bloc du brouillon d'une page (éditeur visuel), pas de la version publiée. */
+export type BlockRow = { id: number; pageId: number; type: string; props: unknown; draft?: boolean };
+/** `draftPageId` : page dont le brouillon (éditeur visuel) est la raison de cette utilisation, sinon absent. */
+export type SlotRow = { id: number; projectId: number; slug: string; mediaId: number | null; draftPageId?: number | null };
 
 export type Usage =
-  | { kind: "slot"; slotId: number; projectId: number; slug: string }
+  | { kind: "slot"; slotId: number; projectId: number; slug: string; draftPageId?: number }
   | { kind: "block"; blockId: number; pageId: number; type: string; path: "media" | "pages" | "projects" };
 
-/** Où un média est utilisé : slots de planche et props de blocs. */
-export function mediaUsages(mediaId: number, rows: { slots: SlotRow[]; blocks: BlockRow[] }): Usage[] {
-  const out: Usage[] = [];
+/**
+ * UNE seule règle pour « où chaque média est utilisé » (compteur de la médiathèque, détail « Utilisée dans… »,
+ * blocage de la suppression). Un emplacement compte une fois ; un bloc compte une fois par page et par type et
+ * par média, que la page le porte publié, en brouillon ou les deux : le brouillon d'un bloc publié est LA MÊME
+ * place (sans quoi le compteur disait 1 et le détail 2). Deux blocs de même type sur une page : le plus grand
+ * des deux nombres (publié / brouillon) fait foi.
+ */
+export function mediaUsageIndex(rows: { slots: SlotRow[]; blocks: BlockRow[] }): Map<number, Usage[]> {
+  const out = new Map<number, Usage[]>();
+  const push = (media: number, u: Usage) => out.set(media, [...(out.get(media) ?? []), u]);
   for (const s of rows.slots) {
-    if (s.mediaId === mediaId) out.push({ kind: "slot", slotId: s.id, projectId: s.projectId, slug: s.slug });
-  }
-  for (const b of rows.blocks) {
-    if (extractRefs(b.type, b.props).media.includes(mediaId)) {
-      out.push({ kind: "block", blockId: b.id, pageId: b.pageId, type: b.type, path: "media" });
+    if (s.mediaId !== null && !(out.get(s.mediaId) ?? []).some((u) => u.kind === "slot" && u.slotId === s.id)) {
+      push(s.mediaId, { kind: "slot", slotId: s.id, projectId: s.projectId, slug: s.slug, ...(s.draftPageId ? { draftPageId: s.draftPageId } : {}) });
     }
   }
+  const counts = new Map<string, { media: number; row: BlockRow; published: number; draft: number }>();
+  for (const b of rows.blocks) {
+    for (const media of extractRefs(b.type, b.props).media) {
+      const key = `${media}:${b.pageId}:${b.type}`;
+      const c = counts.get(key) ?? { media, row: b, published: 0, draft: 0 };
+      if (b.draft) c.draft++;
+      else {
+        c.published++;
+        c.row = b;
+      }
+      counts.set(key, c);
+    }
+  }
+  for (const { media, row, published, draft } of counts.values()) {
+    for (let i = 0; i < Math.max(published, draft); i++) push(media, { kind: "block", blockId: row.id, pageId: row.pageId, type: row.type, path: "media" });
+  }
   return out;
+}
+
+/** Où un média est utilisé : slots de planche et props de blocs (voir `mediaUsageIndex`). */
+export function mediaUsages(mediaId: number, rows: { slots: SlotRow[]; blocks: BlockRow[] }): Usage[] {
+  return mediaUsageIndex(rows).get(mediaId) ?? [];
 }
 
 /** Slugs de projet référencés par un bloc. */

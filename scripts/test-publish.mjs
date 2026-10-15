@@ -454,7 +454,7 @@ await test("17f : palette lisible → publiée avec la page, thème intact ; Ann
 /* ---- 3. POST /api/contact ------------------------------------------------------ */
 
 const F = newPage("t-form");
-const form = withFreshUids({ uid: "", type: "contact-form", props: defaultContactForm() }, () => "fx");
+const form = withFreshUids({ uid: "", type: "contact", props: { ...defaultContactForm(), form: true } }, () => "fx");
 saveDraft(F, { ...base(F), published: true, blocks: [{ ...form, uid: "f1" }] }, rev(F));
 assert.equal(publishDraft(F, rev(F)).ok, true);
 const formId = form.props.formId;
@@ -480,7 +480,7 @@ await test("formId en double : refusé au brouillon et à la publication (même 
   const r1 = saveDraft(G, { ...base(G), published: true, blocks: [{ ...form, uid: "c1" }] }, rev(G));
   assert.equal(r1.ok, false, "même identifiant qu'un formulaire publié d'une autre page (brouillon)");
   assert.match(r1.message, /autre page/);
-  const other = withFreshUids({ uid: "", type: "contact-form", props: defaultContactForm() }, () => "gx");
+  const other = withFreshUids({ uid: "", type: "contact", props: { ...defaultContactForm(), form: true } }, () => "gx");
   const r2 = saveDraft(G, { ...base(G), published: true, blocks: [{ ...other, uid: "c1" }, { ...other, uid: "c2" }] }, rev(G));
   assert.equal(r2.ok, false, "deux fois le même identifiant sur la page");
   assert.match(r2.message, /même identifiant/);

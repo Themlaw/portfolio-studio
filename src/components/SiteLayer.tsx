@@ -541,6 +541,18 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
           </button>
           <button
             type="button"
+            className="pe-field-op-sm"
+            data-testid="field-help-op"
+            onClick={() => {
+              const { index } = fieldRank(hover.uid, hovEl, hover.index);
+              post({ kind: "form-field", uid: hover.uid, op: hovEl?.hasAttribute("data-form-has-help") ? "help-remove" : "help-add", index });
+              setHover(null);
+            }}
+          >
+            {hovEl?.hasAttribute("data-form-has-help") ? "Retirer l'aide" : "+ Ajouter une aide"}
+          </button>
+          <button
+            type="button"
             className="pe-danger"
             aria-label="Retirer ce champ"
             title={hovEl?.hasAttribute("data-form-reply") ? "Ce champ sert à te répondre" : "Retirer"}

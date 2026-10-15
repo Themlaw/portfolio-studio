@@ -8,7 +8,7 @@
  * des œuvres (collections, couverture, demoreel) est l'ordre des slots (id).
  * Un slot sans média (image retirée) est masqué côté public.
  * ----------------------------------------------------------------------- */
-import { asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import type { AppLocale } from "@/i18n/routing";
 
@@ -120,7 +120,7 @@ async function projectIds(): Promise<number[]> {
     getDb()
       .select({ id: schema.projects.id })
       .from(schema.projects)
-      .where(isNull(schema.projects.draftPageId))
+      .where(and(isNull(schema.projects.draftPageId), isNull(schema.projects.deletedAt)))
       .orderBy(asc(schema.projects.position))
       .all()
       .map((r) => r.id),
@@ -234,6 +234,7 @@ function draftSnapshot(): Snapshot {
   const projects = db
     .select({ id: schema.projects.id, page: schema.projects.draftPageId })
     .from(schema.projects)
+    .where(isNull(schema.projects.deletedAt))
     .orderBy(asc(schema.projects.position))
     .all()
     .filter((p) => p.page === null || p.page === pageId);

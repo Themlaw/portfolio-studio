@@ -244,6 +244,39 @@
   font-size: 12px;
   text-align: right;
 }
+/* Image du logo (lot 26) */
+.lc-logo-current {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lc-logo-thumb {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 40px;
+  box-sizing: border-box;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 6px;
+  background: var(--admin-surface);
+  object-fit: contain;
+}
+.lc-logo-missing {
+  background: repeating-linear-gradient(135deg, var(--admin-line) 0 4px, transparent 4px 8px);
+}
+.lc-logo-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.lc-logo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.lp-hint {
+  color: var(--admin-ink-soft);
+  font-size: 12px;
+}
 .lc-modes {
   margin: 0;
   padding: 0;

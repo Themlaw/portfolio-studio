@@ -10,6 +10,7 @@
  *    la ligne gagnante ; tout autre échec supprime l'original écrit.
  * Le fichier temporaire est supprimé dans tous les cas.
  */
+import { reviveIfTrashed } from "./revive";
 import { createReadStream } from "node:fs";
 import { rm } from "node:fs/promises";
 
@@ -88,7 +89,10 @@ export async function ingestImage(file: Received): Promise<IngestedMedia> {
 
     const db = getDb();
     const known = db.select().from(schema.media).where(eq(schema.media.sha256, file.sha256)).get();
-    if (known) return known.status === "failed" ? retryFailed(known) : asIngested(known, true);
+    if (known) {
+      reviveIfTrashed(known);
+      return known.status === "failed" ? retryFailed(known) : asIngested(known, true);
+    }
 
     const full = quotaProblem(file.size);
     if (full) throw new UploadError(507, full);

@@ -5,14 +5,96 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { TextField } from "@/app/admin/_fields";
-import { createProjectAction, deleteProjectAction, reorderProjectsAction } from "@/app/admin/(espace)/projets/actions";
-import type { AdminProjectRow } from "@/lib/admin";
-import type { ProjectReference } from "@/lib/edit/projects";
+import { createProjectAction, deleteProjectAction, reorderProjectsAction, restoreProjectAction } from "@/app/admin/(espace)/projets/actions";
+import type { AdminProjectRow, TrashSummary } from "@/lib/admin";
+import { daysLeft, lostWithProject, TRASH_DAYS } from "@/lib/trash";
 
-import { ConfirmDialog, same, toast } from "./editing";
+import { ConfirmDialog, same, toast, undoToast } from "./editing";
+import { EmptyTrash, PurgeItem } from "./TrashControls";
 import { DragHandle, SortableList } from "./Sortable";
 
-export default function ProjectsManager({ projects }: { projects: AdminProjectRow[] }) {
+/** Corbeille des projets : restauration en un clic, purge au bout de 30 jours. */
+function TrashList({ projects, summary }: { projects: AdminProjectRow[]; summary: TrashSummary }) {
+  const router = useRouter();
+  const [busy, start] = useTransition();
+  return (
+    <section className="a-panel" aria-labelledby="pr-corbeille">
+      <h2 id="pr-corbeille">Projets supprimés</h2>
+      <p className="a-help a-panel-intro">
+        Un projet supprimé n&apos;est plus sur le site. Il reste {TRASH_DAYS} jours ici avec sa planche : restaure-le en un clic, après quoi il est effacé pour de bon (ses images restent dans la médiathèque).
+      </p>
+      <EmptyTrash summary={summary} />
+      {projects.length === 0 ? (
+        <p className="muted" data-testid="corbeille-vide">La corbeille est vide.</p>
+      ) : (
+        <div className="a-table-wrap">
+          <table className="a-table a-table-stack">
+            <thead>
+              <tr>
+                <th scope="col">Projet</th>
+                <th scope="col">Supprimé</th>
+                <th scope="col">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {projects.map((p) => (
+                <tr key={p.id} data-testid="corbeille-ligne">
+                  <td data-label="Projet">
+                    <strong>{p.title}</strong>
+                    <span className="a-sub">
+                      {[p.context, p.year].filter(Boolean).join(" · ")} · {p.slots - p.empty} image{p.slots - p.empty > 1 ? "s" : ""}
+                    </span>
+                  </td>
+                  <td data-label="Supprimé">
+                    {p.deletedAt ? new Date(p.deletedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : ""}
+                    <span className="a-sub">
+                      effacé dans {p.deletedAt ? daysLeft(p.deletedAt) : TRASH_DAYS} jour{p.deletedAt && daysLeft(p.deletedAt) < 2 ? "" : "s"}
+                    </span>
+                  </td>
+                  <td className="a-row-actions">
+                    <button
+                      type="button"
+                      className="a-btn a-btn-small"
+                      disabled={busy}
+                      onClick={() =>
+                        start(async () => {
+                          const r = await restoreProjectAction(p.id);
+                          if (!r.ok) return toast(r.message, "error");
+                          toast(`« ${p.title} » restauré`);
+                          router.refresh();
+                        })
+                      }
+                    >
+                      Restaurer
+                    </button>
+                    <PurgeItem kind="project" id={p.id} name={p.title} lost={lostWithProject(p.slots)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export default function ProjectsManager({
+  projects,
+  trashed,
+  view,
+  showFeatured,
+  summary,
+}: {
+  projects: AdminProjectRow[];
+  trashed: AdminProjectRow[];
+  view: "liste" | "corbeille";
+  /** Un ancien bloc « Projets mis en avant » lit encore le réglage : seulement alors, le badge a un sens. */
+  showFeatured: boolean;
+  summary: TrashSummary;
+}) {
   const router = useRouter();
   const [order, setOrder] = useState(projects);
   const [source, setSource] = useState(projects);
@@ -25,8 +107,10 @@ export default function ProjectsManager({ projects }: { projects: AdminProjectRo
   const [title, setTitle] = useState({ fr: "", en: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<AdminProjectRow | null>(null);
-  const [blocked, setBlocked] = useState<{ message: string; refs: ProjectReference[] } | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const [busy, start] = useTransition();
+
+  if (view === "corbeille") return <TrashList projects={trashed} summary={summary} />;
 
   return (
     <>
@@ -66,7 +150,7 @@ export default function ProjectsManager({ projects }: { projects: AdminProjectRo
                       {p.title}
                     </Link>
                   </h2>
-                  {p.featured && <span className="a-badge">Mis en avant</span>}
+                  {showFeatured && p.featured && <span className="a-badge">À la une de l&apos;ancienne rubrique</span>}
                 </div>
                 <p className="muted">{[p.context, p.year].filter(Boolean).join(" · ")}</p>
                 <p className="a-help">
@@ -82,7 +166,7 @@ export default function ProjectsManager({ projects }: { projects: AdminProjectRo
                     type="button"
                     className="a-btn a-btn-small a-btn-quiet a-danger-text"
                     onClick={() => {
-                      setBlocked(null);
+                      setRemoveError(null);
                       setRemoving(p);
                     }}
                   >
@@ -167,34 +251,50 @@ export default function ProjectsManager({ projects }: { projects: AdminProjectRo
         confirmLabel="Supprimer le projet"
         danger
         busy={busy}
+        // Jamais « Supprimer » proposé pour un refus annoncé : tant qu'un bloc le montre, le bouton est inactif.
+        confirmDisabled={(removing?.blockedBy.length ?? 0) > 0}
         onClose={() => setRemoving(null)}
         onConfirm={() =>
           removing &&
           start(async () => {
-            const r = await deleteProjectAction(removing.id);
+            const project = removing;
+            const r = await deleteProjectAction(project.id);
             if (!r.ok) {
-              setBlocked({ message: r.message, refs: "references" in r ? r.references : [] });
+              setRemoveError(r.message);
               return;
             }
-            toast(`« ${removing.title} » supprimé`);
             setRemoving(null);
+            undoToast(project.title, () =>
+              void restoreProjectAction(project.id).then((res) => {
+                if (!res.ok) return toast(res.message, "error");
+                toast(`« ${project.title} » restauré`);
+                router.refresh();
+              }),
+            );
             setTimeout(() => router.refresh(), 0);
           })
         }
       >
-        <p className="muted">Sa planche et ses {removing?.slots ?? 0} emplacements disparaissent. Ses images restent dans la médiathèque.</p>
-        {blocked && (
-          <div className="a-alert" role="alert">
-            <p>{blocked.message}</p>
+        {removing && removing.blockedBy.length > 0 ? (
+          <div className="a-alert" role="alert" data-testid="suppression-bloquee">
+            <p>
+              Ce projet est affiché par {removing.blockedBy.length} rubrique{removing.blockedBy.length > 1 ? "s" : ""} : retire-le de ces rubriques avant de le supprimer.
+            </p>
             <ul className="a-refs">
-              {blocked.refs.map((r, i) => (
+              {removing.blockedBy.map((r, i) => (
                 <li key={i}>
-                  Bloc « {r.blockType} » de la page <Link href={`/admin/pages/${r.pageId}`}>{r.pageTitle}</Link>
+                  Rubrique « {r.blockType} » de la page <Link href={r.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${r.pageId}/editer`}>{r.pageTitle}</Link>
+                  {r.trashed && <span className="muted"> (à la corbeille)</span>}
                 </li>
               ))}
             </ul>
           </div>
+        ) : (
+          <p className="muted">
+            Il quitte le site, mais sa planche et ses {removing?.slots ?? 0} emplacements restent {TRASH_DAYS} jours dans la corbeille : tu peux le restaurer ou annuler juste après. Ses images restent dans la médiathèque.
+          </p>
         )}
+        {removeError && <p className="a-alert">{removeError}</p>}
       </ConfirmDialog>
     </>
   );

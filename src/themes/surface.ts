@@ -15,17 +15,17 @@
  *    le meilleur contraste. Si même ainsi le texte reste sous AA (4,5:1), `ok` est
  *    faux : l'éditeur le signale sans rien bloquer.
  */
-import { contrastRatio, mixOklab, opaqueOn, parseColor, toHex, type ResolvedPalette } from "./palette";
+import { contrastRatio, mixOklab, opaqueOn, parseColor, ROLE_NAMES, toHex, type ResolvedPalette } from "./palette";
 import { SURFACE_BASE_TOKENS, SURFACE_CORNERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema } from "./schema";
 import type { z } from "zod";
 
 // Schéma et listes vivent dans schema.ts (zod seul, chargé tel quel par les scripts Node).
 export { SURFACE_BASE_TOKENS, SURFACE_CORNERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema };
 /** Nom des couleurs dont on tire une teinte (mêmes noms que le panneau « Couleurs »). */
-const TINT_BASE_NAMES: Record<(typeof SURFACE_TINT_BASES)[number], string> = { ink: "Texte", primary: "Boutons et liens", secondary: "Accent", tertiary: "Ornements" };
+const TINT_BASE_NAMES: Record<(typeof SURFACE_TINT_BASES)[number], string> = { ink: ROLE_NAMES.ink, primary: ROLE_NAMES.primary, secondary: ROLE_NAMES.secondary, tertiary: ROLE_NAMES.tertiary };
 /** Les six couleurs de la DA proposées en premier comme fond de carte, avec leur nom dans le panneau « Couleurs ». */
 export const SURFACE_DA_TOKENS = ["bg", "surface", "ink", "primary", "secondary", "tertiary"] as const;
-export const SURFACE_DA_NAMES: Record<(typeof SURFACE_DA_TOKENS)[number], string> = { bg: "Fond de page", surface: "Cartes et encadrés", ink: "Texte", primary: "Boutons et liens", secondary: "Accent", tertiary: "Ornements" };
+export const SURFACE_DA_NAMES: Record<(typeof SURFACE_DA_TOKENS)[number], string> = { bg: ROLE_NAMES.bg, surface: ROLE_NAMES.surface, ink: ROLE_NAMES.ink, primary: ROLE_NAMES.primary, secondary: ROLE_NAMES.secondary, tertiary: ROLE_NAMES.tertiary };
 
 /** `primary12` → { base: "primary", percent: 12 }. */
 export function tintParts(token: SurfaceTint): { base: (typeof SURFACE_TINT_BASES)[number]; percent: (typeof SURFACE_TINT_PERCENTS)[number] } {
@@ -34,13 +34,13 @@ export function tintParts(token: SurfaceTint): { base: (typeof SURFACE_TINT_BASE
 }
 
 export const SURFACE_TOKEN_LABELS: Record<SurfaceToken, string> = {
-  bg: "Fond de page",
+  bg: ROLE_NAMES.bg,
   bgDeep: "Fond profond",
-  surface: "Cartes et encadrés",
-  primary: "Boutons et liens",
-  secondary: "Accent",
-  ink: "Texte",
-  tertiary: "Ornements",
+  surface: ROLE_NAMES.surface,
+  primary: ROLE_NAMES.primary,
+  secondary: ROLE_NAMES.secondary,
+  ink: ROLE_NAMES.ink,
+  tertiary: ROLE_NAMES.tertiary,
   ...(Object.fromEntries(
     SURFACE_TINTS.map((t) => {
       const { base, percent } = tintParts(t);

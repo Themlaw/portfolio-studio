@@ -5,6 +5,7 @@
  * les pages publiées existent (index en cache).
  */
 import { draftMode } from "next/headers";
+import { isNull } from "drizzle-orm";
 import { cache } from "react";
 
 import type { AppLocale } from "@/i18n/routing";
@@ -35,6 +36,7 @@ export const resolvePage = cache(async (locale: AppLocale, segments: string[] = 
       themeOverrides: schema.pages.themeOverrides,
     })
     .from(schema.pages)
+    .where(isNull(schema.pages.deletedAt))
     .all()
     .find((p) => (p.slug[locale] ?? "") === wanted);
   return row ? (row as PageSummary) : null;

@@ -7,11 +7,16 @@
  */
 import { z } from "zod";
 
+import { FIELD_OP_NAMES } from "../../blocks/optional-fields";
 import { SurfaceSchema } from "../../themes/surface";
 import { LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
 import { BASE_KEYS } from "../../themes/palette";
 
 export const EDIT_MSG = "portfolio:edit";
+
+/** « add-<champ> » / « remove-<champ> » pour chaque champ facultatif (src/blocks/optional-fields.ts). */
+type FieldOp = `${"add" | "remove"}-${(typeof FIELD_OP_NAMES)[number]}`;
+const FIELD_OPS = FIELD_OP_NAMES.flatMap((f) => [`add-${f}`, `remove-${f}`]) as [FieldOp, ...FieldOp[]];
 
 const Uid = z.string().regex(/^[a-z0-9-]{1,32}$/);
 /** `parent` : conteneur du bloc (v0.13) ; absent = bloc de la page. */
@@ -48,7 +53,8 @@ const FileValue = z.custom<File>((v) => typeof File !== "undefined" && v instanc
 export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("ready"), path: z.string().max(400), locale: z.string().max(5), blocks: Blocks }),
   z.object({ kind: z.literal("blocks"), blocks: Blocks }),
-  z.object({ kind: z.literal("select"), uid: Uid.nullable() }),
+  // `click` : choisi d'un clic (ou d'Entrée) sur la toile ; l'éditeur ouvre alors Réglages. Sans : sélection venue d'ailleurs (saisie, Échap).
+  z.object({ kind: z.literal("select"), uid: Uid.nullable(), click: z.boolean().optional() }),
   z.object({ kind: z.literal("op"), op: z.enum(["up", "down", "duplicate", "delete", "out", "in"]), uid: Uid }),
   z.object({ kind: z.literal("move"), uid: Uid, index: Index, parent: Parent.optional() }),
   z.object({ kind: z.literal("text"), uid: Uid, path: z.string().regex(/^[a-zA-Z]+(\.(\d{1,2}|[a-zA-Z]+))*$/).max(80), locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
@@ -68,14 +74,14 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("media-op"), uid: Uid, field: MediaField, op: z.enum(["replace", "clear"]) }),
   z.object({ kind: z.literal("layout"), uid: Uid, layout: z.enum(["1", "1+2", "2", "3", "2x2", "4", "2+1"]) }),
   // Entrées des collections (lot 22) : entrées choisies à la main (ajouter une page de collection, retirer, ordre).
-  z.object({ kind: z.literal("tile-op"), uid: Uid, op: z.enum(["add", "remove", "up", "down"]), index: z.number().int().min(0).max(23).optional(), pageId: z.number().int().positive().optional() }),
+  z.object({ kind: z.literal("tile-op"), uid: Uid, op: z.enum(["add", "remove", "up", "down", "cover", "cover-clear"]), index: z.number().int().min(0).max(23).optional(), pageId: z.number().int().positive().optional() }),
   // Entrées des collections (lot 22) : taille des images, depuis la barre du bloc.
   z.object({ kind: z.literal("tile-size"), uid: Uid, size: z.enum(["small", "medium", "large"]) }),
   // Formulaire de contact : champs retirés, déplacés, ajoutés sur la toile.
   z.object({
     kind: z.literal("form-field"),
     uid: Uid,
-    op: z.enum(["remove", "move", "add"]),
+    op: z.enum(["remove", "move", "add", "help-add", "help-remove"]),
     index: z.number().int().min(0).max(11).optional(),
     to: z.number().int().min(0).max(11).optional(),
     fieldType: z.enum(["text", "email", "textarea", "select"]).optional(),
@@ -109,8 +115,11 @@ export const FromCanvasSchema = z.union([
   // Ajout d'une rubrique depuis la toile (lot 17c) : `choose` ouvre le choix illustré de l'éditeur, les
   // autres ajoutent aussitôt un texte (bloc `rich-text` avec son texte d'aide) à cet endroit.
   z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title", "title-text"]) }),
+  // Case vide de grille, « Image » / « Vidéo » (lot 25) : l'éditeur ouvre le choix du média, posé dans une nouvelle case de la grille `uid`.
+  z.object({ kind: z.literal("cell-media"), uid: Uid, media: z.enum(["image", "video"]) }),
   // Champ facultatif d'un bloc Texte, ajouté ou retiré depuis la toile (lot 19a) : « + Ajouter un titre » / « Retirer le titre » (Texte), « + Ajouter une étiquette » / « Retirer l'étiquette » (Titre).
-  z.object({ kind: z.literal("field-op"), uid: Uid, op: z.enum(["add-title", "remove-title", "add-eyebrow", "remove-eyebrow", "add-intro", "remove-intro", "add-counts", "remove-counts"]) }),
+  // Lot 27 : même geste pour Grille, Contact, Profil et CV (src/blocks/optional-fields.ts).
+  z.object({ kind: z.literal("field-op"), uid: Uid, op: z.enum(FIELD_OPS) }),
   // Palette et logo du site (lot 17f) : état COMPLET voulu (palette = bases choisies, logo = taille et comportement).
   z.object({ kind: z.literal("site-look"), palette: SitePaletteSchema, logo: LogoSchema }),
   // Ce que la toile a trouvé pour le rôle de couleur survolé (légende « utilisé par »).

@@ -38,6 +38,14 @@ export type Tile = {
   itemIndex?: number;
   /** Liste manuelle : la page de l'entrée n'existe plus ou n'est plus publiée (signalée sur la toile, absente en public). */
   broken?: boolean;
+  /** Page de collection de l'entrée (couverture choisie sur la tuile, lot 26). */
+  pageId?: number;
+  /** La couverture a été choisie sur la tuile (sinon : celle de la collection) : « Couverture automatique » la retire. */
+  ownCover?: boolean;
+  /** Vue brouillon : la collection n'a aucune œuvre publiée (avis dans la tuile, rien en public). */
+  empty?: boolean;
+  /** Nom de la collection dans l'avis « vide » (Personnages, Décors, Animation). */
+  collectionName?: string;
 };
 
 export default function CollectionTiles({
@@ -72,6 +80,19 @@ export default function CollectionTiles({
       <button type="button" data-edit-tile-op="remove" data-index={i} className="pe-danger" aria-label="Retirer l'entrée" title="Retirer l'entrée">✕</button>
     </span>
   );
+  /** Couverture (lot 26), depuis la tuile : choisir une image, ou revenir à celle de la collection. */
+  const coverTools = (tile: Tile) => (
+    <span className="pe-tile-cover" role="group" aria-label={`Couverture de l'entrée « ${tile.title} »`}>
+      <button type="button" data-edit-tile-op="cover" data-index={tile.itemIndex} data-page-id={tile.pageId} title="Choisir l'image de couverture de cette entrée dans la médiathèque, ou en envoyer une">
+        Changer la couverture
+      </button>
+      {tile.ownCover && (
+        <button type="button" data-edit-tile-op="cover-clear" data-index={tile.itemIndex} data-page-id={tile.pageId} title="Reprendre la couverture de la collection">
+          Couverture automatique
+        </button>
+      )}
+    </span>
+  );
   const fixed = ratio && ratio !== "auto" ? ratio : undefined;
   const geo = TILE_GEOMETRY[size];
   return (
@@ -82,13 +103,22 @@ export default function CollectionTiles({
             Cette entrée mène à une page supprimée ou non publiée : elle est masquée sur le site. Choisis une autre page, ou retire-la.
             {tools && tile.itemIndex !== undefined && toolbar(tile.itemIndex)}
           </p>
+        ) : tile.empty ? (
+          <p key={tile.key} data-edit-invalid="" data-tile-empty="" className="pe-tile-broken">
+            Cette collection n&apos;a encore aucune œuvre publiée.{" "}
+            <span className="pe-tile-empty-why">
+              La tuile « {tile.title || tile.collectionName} » n&apos;apparaît pas sur le site tant que la collection {tile.collectionName ? `« ${tile.collectionName} » ` : ""}est vide : publie une œuvre dans cette collection.
+            </span>
+            {tools && tile.itemIndex !== undefined && toolbar(tile.itemIndex)}
+          </p>
         ) : (
         <Link
           key={tile.key}
           href={tile.href}
-          className={`tile mat-hover group grid items-center gap-8 md:grid-cols-12${tools ? " relative" : ""}`}
+          className={`tile mat-hover group grid items-center gap-8 md:grid-cols-12${edit ? " relative" : ""}`}
         >
           {tools && tile.itemIndex !== undefined && toolbar(tile.itemIndex)}
+          {edit && coverTools(tile)}
           <div className="tile-img">
             <div className="tile-media mat" style={{ "--ir": tile.shownRatio.toFixed(4) } as CSSProperties}>
               <span

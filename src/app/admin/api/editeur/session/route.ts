@@ -7,6 +7,8 @@
  * visiteurs n'interrogent jamais la session.
  */
 import { getAdminSession } from "@/lib/auth/guard";
+import { isNull } from "drizzle-orm";
+
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 
@@ -30,7 +32,7 @@ export async function GET(request: Request) {
       slug = null;
     }
     if (slug !== null) {
-      const rows = getDb().select({ id: schema.pages.id, slug: schema.pages.slug }).from(schema.pages).all();
+      const rows = getDb().select({ id: schema.pages.id, slug: schema.pages.slug }).from(schema.pages).where(isNull(schema.pages.deletedAt)).all();
       const page = rows.find((r) => {
         const value = (typeof r.slug === "string" ? parseJson(r.slug) : r.slug) as Record<string, string> | undefined;
         return (value?.[locale] ?? "") === slug;

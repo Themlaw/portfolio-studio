@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Couleurs proposées pour le fond d'une carte (lot 19b), partagées par le popover « Fond » de la toile
+ * Couleurs proposées pour le fond d'une carte (lot 19b), partagées par le popover « Carte » de la toile
  * (SurfaceMenu) et « Cartes des rubriques » de l'éditeur de thème (CardSettings) :
  *
  * 1. les couleurs de la DA du thème actif, palette du site comprise, chacune avec son nom (celui du panneau
