@@ -99,8 +99,8 @@ const lookOfDraft = (uid) => find(draftBlocks(), uid)?.props.look;
 
 setDraft([
   img("solo", A),
-  grid("gridR", "1:1", [img("ga", A), img("gb", B)]),
-  grid("gridA", "auto", [img("aa", A), img("ab", A)]),
+  grid("gridr", "1:1", [img("ga", A), img("gb", B)]),
+  grid("grida", "auto", [img("aa", A), img("ab", A)]),
   { uid: "board1", type: "project-board", props: { project } },
 ]);
 
@@ -247,7 +247,7 @@ if (run("G"))
     ok("G2 la case cadrée garde sa taille extérieure (largeur ET hauteur avant/après)", near(s.w, base.ga.w, 0.6) && near(s.h, base.ga.h, 0.6), `${s.w}x${s.h} / avant ${base.ga.w}x${base.ga.h}`);
     ok("G2 …égale à celle de sa voisine non cadrée", near(s.w, nb.w, 0.6) && near(s.h, nb.h, 0.6), `${s.w}x${s.h} / ${nb.w}x${nb.h}`);
     ok("G2 la voisine n'a pas de cadre et n'a pas bougé", nb.top === 0 && near(nb.w, base.gb.w, 0.6) && near(nb.h, base.gb.h, 0.6));
-    await f.locator('[data-edit-block="gridR"]').scrollIntoViewIfNeeded();
+    await f.locator('[data-edit-block="gridr"]').scrollIntoViewIfNeeded();
     await page.screenshot({ path: path.join(SHOTS, "g1-grille.png") });
     await page.keyboard.press("Escape");
 
