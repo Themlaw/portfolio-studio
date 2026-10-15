@@ -442,4 +442,16 @@ await test("m4 : un fichier réutilisé par une ligne média apparue pendant la 
   assert.ok(existsSync(m.file), "la variante, redevenue utilisée, est restée sur le disque");
 });
 
+/* ---- 12. Audit v0.20 (m5) : la page qui cite est à la corbeille ----------------------------------------------------- */
+await test("m5 : refus de supprimer une page citée par une page à la corbeille — la référence est marquée « trashed »", () => {
+  const a = createPage({ title: L("Citée m5"), slug: L("citee-m5") }).data.id;
+  const b = createPage({ title: L("Citante m5"), slug: L("citante-m5") }).data.id;
+  db.insert(schema.blocks).values({ pageId: b, position: 0, type: "page-link", props: JSON.stringify({ pageId: a, label: L("Voir") }) }).run();
+  assert.equal(deletePage(b).ok, true, "la citante part d'abord à la corbeille");
+  const r = deletePage(a);
+  assert.equal(r.ok, false);
+  assert.deepEqual(r.references.map((x) => [x.pageId, x.trashed]), [[b, true]]);
+  db.delete(schema.blocks).where(eq(schema.blocks.pageId, b)).run();
+});
+
 console.log(`\ntest-trash : ${passed} tests OK`);

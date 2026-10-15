@@ -145,13 +145,13 @@ export function reorderProjects(input: unknown): ActionResult<null> {
   return done(null);
 }
 
-export type ProjectReference = { pageId: number; pageTitle: string; blockType: string };
+export type ProjectReference = { pageId: number; pageTitle: string; blockType: string; /** La page qui cite est à la corbeille. */ trashed: boolean };
 
 function projectBlockReferences(slug: string): ProjectReference[] {
   const refs = findProjectReferences(slug).flatMap((u) => (u.kind === "block" ? [u] : []));
   if (!refs.length) return [];
-  const titles = new Map(getDb().select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).all().map((p) => [p.id, p.title.fr]));
-  return refs.map((r) => ({ pageId: r.pageId, pageTitle: titles.get(r.pageId) ?? `page ${r.pageId}`, blockType: own(BLOCKS, r.type)?.label ?? r.type }));
+  const pages = new Map(getDb().select({ id: schema.pages.id, title: schema.pages.title, deletedAt: schema.pages.deletedAt }).from(schema.pages).all().map((p) => [p.id, p]));
+  return refs.map((r) => ({ pageId: r.pageId, pageTitle: pages.get(r.pageId)?.title.fr ?? `page ${r.pageId}`, blockType: own(BLOCKS, r.type)?.label ?? r.type, trashed: Boolean(pages.get(r.pageId)?.deletedAt) }));
 }
 
 /**

@@ -364,25 +364,27 @@ export function reorderMenu(input: unknown): ActionResult<null> {
   return done(null);
 }
 
-export type PageReference = { pageId: number; pageTitle: string; blockType: string };
+/** `trashed` : la page qui cite est elle-même à la corbeille (les liens y restent comptés tant qu'elle n'est pas purgée). */
+export type PageReference = { pageId: number; pageTitle: string; blockType: string; trashed: boolean };
 
 /** Pages dont des blocs (publiés ou en brouillon) pointent vers celle-ci, hors elle-même. */
 function pageBlockReferences(id: number): PageReference[] {
   const db = getDb();
   const refs = findPageReferences(id).flatMap((u) => (u.kind === "block" && u.pageId !== id ? [u] : []));
   if (!refs.length) return [];
-  const titles = new Map(
+  const pages = new Map(
     db
-      .select({ id: schema.pages.id, title: schema.pages.title })
+      .select({ id: schema.pages.id, title: schema.pages.title, deletedAt: schema.pages.deletedAt })
       .from(schema.pages)
       .where(inArray(schema.pages.id, refs.map((r) => r.pageId)))
       .all()
-      .map((p) => [p.id, p.title.fr]),
+      .map((p) => [p.id, p]),
   );
   return refs.map((r) => ({
     pageId: r.pageId,
-    pageTitle: titles.get(r.pageId) ?? `page ${r.pageId}`,
+    pageTitle: pages.get(r.pageId)?.title.fr ?? `page ${r.pageId}`,
     blockType: own(BLOCKS, r.type)?.label ?? r.type,
+    trashed: Boolean(pages.get(r.pageId)?.deletedAt),
   }));
 }
 
