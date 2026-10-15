@@ -1558,4 +1558,17 @@ enveloppe (raccord possible entre deux fonds fusionnés).
 (2 / 6 / 12 px, 1,5 / 4 / 8 px sous 768 px) : suit les coins, rien ne la décale de façon gênante (la carte n'a pas de marge latérale interne),
 le fond s'arrête à son bord intérieur. Couleur par défaut = l'encre lisible de la carte (visible sur tout thème).
 
+**Bordure et fusion (v0.24).** Deux cartes de même fond ne fusionnent que si leur BORDURE est la même : `fondKey(bg, onCard, border)`, signature
+`cardBorderSignature` (largeur + couleur calculée, vide sans bordure), lue sur le serveur (`BlockList`) et sur la toile (`refreshFondJoins`, attributs
+`data-border` / `--card-bc`). Choix écarté : « la bordure de la première carte entoure tout le groupe » (réglage de la seconde ignoré en silence, copie de
+bordure à tenir à jour sur la toile). Avec la règle retenue, ce qu'on voit est ce qu'on a réglé : une seule carte bordée reste une carte à part, un trait ne
+s'arrête jamais au raccord.
+
+**Planche composée (v0.24).** `props.background` d'un composant de planche (`BoardItem.props`, bande des images du projet comprise : `source` reste
+absent, elle reste la bande du projet) est posé par `ProjectBoardBlock` / `ProjectStrip` avec la même enveloppe que les pages (`FondWrap`, composant sans
+état partagé avec `withFond`), AUTOUR de la colonne réglée par `box` (le fond reste bord à bord de la planche), et la même fusion des voisins
+(`fondJoins`, `onCard` faux). `renderBoardItem` n'en pose pas lui-même. Palette : `effectivePalette(ctx)` (le JSON de la page ne contient pas les fonds
+de la planche). Écriture : op de planche `item-fond` (Annuler / Rétablir, version de page, brouillon du projet) ; bouton « Fond » dans la barre du composant
+(`BoardLayer`, message `bitem-fond`, `BoardFondMenu` = la fenêtre `FondMenu` sans aperçu local). Test : `e2e-fond-planche.mjs` (suite `fondplanche24`).
+
 Tests : `test-fond.mjs`, `test-surface.mjs`, `e2e-fond.mjs` (suite `fond32`). Pas de migration (props facultatives).
