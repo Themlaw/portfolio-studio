@@ -149,10 +149,14 @@ try {
   await inkSoft.getByLabel("Texte secondaire", { exact: true }).fill("#c4c4c4");
   ok("A3 couleur sous AA signalée", await inkSoft.locator(".a-ratio-bad").isVisible());
   await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  // Depuis la v0.21.1 le contraste n'est jamais bloquant : le thème est enregistré, l'avertissement (A3) reste affiché.
+  await toast("Enregistré");
   ok(
-    "A4 enregistrement refusé tant que le contraste est insuffisant",
-    await page.locator(".a-save-state", { hasText: "Contraste insuffisant" }).isVisible(),
+    "A4 contraste insuffisant : thème enregistré quand même (aucun refus pour contraste)",
+    (await page.locator(".a-save-state", { hasText: /✓\s*Enregistré/ }).waitFor({ timeout: 10000 }).then(() => true, () => false)) &&
+      (await page.locator(".a-save-state", { hasText: "Contraste insuffisant" }).count()) === 0,
   );
+  ok("A4b l'avertissement de lisibilité reste affiché après l'enregistrement", await inkSoft.locator(".a-ratio-bad").isVisible());
   await inkSoft.getByRole("button", { name: /Ajuster à la teinte la plus proche/ }).click();
   const adjusted = await inkSoft.getByLabel("Texte secondaire", { exact: true }).inputValue();
   ok("A5 « Ajuster » propose une teinte qui passe AA", await inkSoft.locator(".a-ratio-ok").isVisible(), adjusted);

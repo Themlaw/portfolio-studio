@@ -1122,9 +1122,10 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   const theme = JSON.parse(query(dirA, "select data from themes where id = ?", copyId).data);
   theme.tokens.color.inkSoft = "#d0d0d0";
   res = await callActionJson(jar, ids.saveThemeAction, [copyId, theme], `/admin/themes/${copyId}`);
-  ok("A12 contraste insuffisant forcé côté client → refusé par le serveur", res.status === 200 && res.text.includes("Contraste insuffisant") && res.text.includes('"ok":false'), res.text.slice(0, 300));
+  // Depuis la v0.21.1 le contraste n'est jamais bloquant : l'éditeur de thème avertit, le serveur enregistre.
+  ok("A12 contraste insuffisant (texte secondaire #d0d0d0) → accepté par le serveur, sans refus pour contraste", res.status === 200 && res.text.includes('"ok":true') && !res.text.includes("Contraste insuffisant"), res.text.slice(0, 300));
   const stored = JSON.parse(query(dirA, "select data from themes where id = ?", copyId).data);
-  ok("A12b rien n'est enregistré", stored.tokens.color.inkSoft !== "#d0d0d0");
+  ok("A12b la couleur est enregistrée telle quelle", stored.tokens.color.inkSoft === "#d0d0d0", stored.tokens.color.inkSoft);
   res = await callActionJson(jar, ids.saveThemeAction, ["galerie-lumineuse", theme], "/admin/themes");
   ok("A12c un preset ne se modifie pas", res.text.includes("duplique-le"), res.text.slice(0, 200));
   theme.tokens.color.inkSoft = "#5f636a";
@@ -1210,8 +1211,13 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   }
   res = await callSavePage(jar, [homeId, { title: { fr: "A", en: "A" }, slug: { fr: "", en: "" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: null, blocks: [{ type: "hero", props: { eyebrow: { fr: "", en: "" }, statement: { fr: "", en: "" }, reelPageId: 99999 } }] }], `/admin/pages/${homeId}`);
   ok("A16 bloc pointant vers une page inexistante → refusé", res.text.includes("page qui n") && res.text.includes('"ok":false'), res.text.slice(0, 300));
-  res = await callSavePage(jar, [homeId, { title: { fr: "A", en: "A" }, slug: { fr: "", en: "" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: "#fafafa", blocks: [] }], `/admin/pages/${homeId}`);
-  ok("A16b accent de page sous AA → refusé", res.text.includes("Contraste insuffisant") && res.text.includes('"ok":false'), res.text.slice(0, 300));
+  // Accent de page peu contrasté (#fafafa sur le fond du thème) : accepté et enregistré (avertissement dans l'éditeur seulement).
+  // Page de passage : l'accueil garde son contenu pour la suite.
+  res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "Accent A16b", en: "Accent A16b" }, slug: { fr: "accent-a16b", en: "accent-a16b" } }], "/admin/pages");
+  const lowId = Number(/"data":\{"id":(\d+)\}/.exec(res.text)?.[1]);
+  res = await callSavePage(jar, [lowId, { title: { fr: "Accent A16b", en: "Accent A16b" }, slug: { fr: "accent-a16b", en: "accent-a16b" }, meta: { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: false, accent: "#fafafa", blocks: [] }], `/admin/pages/${lowId}`);
+  ok("A16b accent de page sous AA → accepté et enregistré (jamais refusé pour contraste)", res.text.includes('"ok":true') && !res.text.includes("Contraste insuffisant") && /#fafafa/i.test(query(dirA, "select theme_overrides o from pages where id = ?", lowId)?.o ?? ""), res.text.slice(0, 300));
+  await callActionJson(jar, ids.deletePageAction, [lowId], "/admin/pages");
   res = await callActionJson(jar, ids.deleteThemeAction, ["galerie-lumineuse"], "/admin/themes");
   ok("A17 thème en ligne ou livré : suppression refusée", res.text.includes('"ok":false'));
   res = await callActionJson(jar, ids.deleteThemeAction, [copyId], "/admin/themes");
@@ -1295,8 +1301,8 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("A23a accent appliqué au rendu", (await r3.text()).includes("--color-primary:#2e4e9e"));
   await callActionJson(jar, ids.activateThemeAction, ["salle-de-projection"], "/admin/themes");
   r3 = await http("/fr/accent-test");
-  ok("A23b thème sombre en ligne : accent illisible ignoré au rendu", !(await r3.text()).includes("--color-primary:#2e4e9e"));
-  ok("A23c le serveur le signale dans ses journaux", s.text().includes("accent #2e4e9e de la page"));
+  ok("A23b thème sombre en ligne : l'accent peu lisible est quand même appliqué au rendu (avertissement seulement)", (await r3.text()).includes("--color-primary:#2e4e9e"));
+  ok("A23c le serveur ne l'écarte plus (aucun journal « accent … de la page » ignoré)", !s.text().includes("accent #2e4e9e de la page"));
   await callActionJson(jar, ids.activateThemeAction, ["galerie-lumineuse"], "/admin/themes");
   await callActionJson(jar, ids.deletePageAction, [accentId], "/admin/pages");
 
@@ -2899,7 +2905,7 @@ await stop(km2.server);
 // ---- v0.14 : export / import de thème (route mutante gardée, archive bornée) ---------------
 {
 console.log("\n== TH. thèmes : export et import d'archive");
-const { maliciousPackages, maliciousRichPackages, richPackage, validPackage } = await import("./lib/theme-packages.mjs");
+const { lowContrastPackage, maliciousPackages, maliciousRichPackages, richPackage, validPackage } = await import("./lib/theme-packages.mjs");
 const { loadPreset, presetSlugs } = await import("./lib/presets.mjs");
 const dirT = `${TMP}/vtheme`;
 const tv = await freshAdmin(dirT);
@@ -2957,6 +2963,12 @@ const richExp = richBody.theme && (await fetch(`${BASE}/admin/api/themes/${richB
 const richZip = richExp ? Buffer.from(await richExp.arrayBuffer()) : Buffer.alloc(0);
 ok("TH4c export d'un thème à curseurs : les deux PNG sont dans l'archive", richExp?.status === 200 && richZip.includes(`assets/${path.basename(rich.cursorPath)}`) && (richZip.toString("latin1").match(/assets\/[0-9a-f]{16}\.png/g) ?? []).length >= 2, `${richExp?.status}`);
 
+// Contraste insuffisant (texte secondaire = fond) : l'import est accepté (v0.21.1), la couleur est gardée telle quelle.
+const low = await importZip(lowContrastPackage(base));
+const lowBody = await low.json().catch(() => ({}));
+const lowRow = lowBody.theme && JSON.parse(query(dirT, "select data from themes where id = ?", lowBody.theme.id).data);
+ok("TH4d import d'un thème au contraste insuffisant : accepté (pas de refus pour contraste), couleur gardée", low.status === 200 && lowBody.ok !== false && lowRow?.tokens.color.inkSoft === base.tokens.color.bg, `${low.status} ${JSON.stringify(lowBody).slice(0, 200)}`);
+
 // Archives malveillantes : toutes refusées, avec le bon message, sans rien créer ni écrire.
 const mid = themeCount();
 const kitDirBefore = existsSync(path.join(dirT, "media", "kit")) ? readdirSync(path.join(dirT, "media", "kit")).length : 0;
@@ -2974,7 +2986,7 @@ const big = Buffer.alloc(13 * 1024 * 1024, 1);
 const streamed = await importZip(big);
 const tmpLeft = existsSync(path.join(dirT, "tmp")) ? readdirSync(path.join(dirT, "tmp")).filter((f) => f.startsWith("upload-")).length : 0;
 ok("TH7 archive de plus de 12 Mo refusée (413), annoncée ou en flux ; fichier temporaire supprimé", huge.status === 413 && streamed.status === 413 && tmpLeft === 0, `${huge.status} ${streamed.status} tmp=${tmpLeft}`);
-ok("TH8 thèmes créés : exactement les trois imports valides", themeCount() === before + 3, `${themeCount()} vs ${before + 3}`);
+ok("TH8 thèmes créés : exactement les quatre imports acceptés (export ré-importé, SVG, riche, contraste faible)", themeCount() === before + 4, `${themeCount()} vs ${before + 4}`);
 await stop(tv.server);
 }
 

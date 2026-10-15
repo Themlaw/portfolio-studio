@@ -24,6 +24,14 @@ export function validPackage(base, name = "Thème importé e2e") {
   return { zip: writeZip([{ name: "theme.json", data: manifest(theme) }, { name: `assets/${h}.svg`, data: svg }]), kitPath: `/media/kit/${h}.svg` };
 }
 
+/**
+ * Archive valide dont le texte secondaire a le MÊME ton que le fond : contraste nul. Depuis la v0.21.1 (lot 29) le contraste n'est
+ * jamais bloquant : l'import est accepté, c'est l'éditeur de thème qui avertit. (Ce n'était pas une archive malveillante.)
+ */
+export function lowContrastPackage(base, name = "Thème peu contrasté e2e") {
+  return writeZip([{ name: "theme.json", data: manifest({ ...base, name, tokens: { ...base.tokens, color: { ...base.tokens.color, inkSoft: base.tokens.color.bg } } }) }]);
+}
+
 /** PNG carré de `side` px (curseur de test : carré sombre au contour clair). */
 async function cursorPng(side, shade = 20) {
   const inner = Math.round(side * 0.6);
@@ -100,7 +108,6 @@ export function maliciousPackages(base) {
     ["réglage inconnu (css libre)", writeZip([{ name: "theme.json", data: manifest({ ...base, tokens: { ...base.tokens, css: "body{display:none}" } }) }]), /inconnus/],
     ["URL externe en calque du hero", writeZip([{ name: "theme.json", data: manifest({ ...base, variants: { ...base.variants, hero: "parallax-layers" }, assets: { heroLayers: ["https://evil.example/a.svg"] } }) }]), /Thème invalide/],
     ["calque inexistant", writeZip([{ name: "theme.json", data: manifest({ ...base, assets: { heroLayers: ["/themes/nulle-part/x.svg"] } }) }]), /introuvable/],
-    ["contraste insuffisant", writeZip([{ name: "theme.json", data: manifest({ ...base, tokens: { ...base.tokens, color: { ...base.tokens.color, inkSoft: base.tokens.color.bg } } }) }]), /Contraste/],
     ["SVG avec script", writeZip([{ name: "theme.json", data: manifest({ ...base, assets: { kit: { signature: { svg: `/media/kit/${eh}.svg`, w: 10, h: 10 } } } }) }, { name: `assets/${eh}.svg`, data: evilSvg }]), /refusé/],
     ["image déguisée (PNG nommé .webp)", writeZip([{ name: "theme.json", data: manifest({ ...base, assets: { kit: { signature: { avif: `/media/kit/${ph}.avif`, webp: `/media/kit/${ph}.webp`, w: 1, h: 1 } } } }) }, { name: `assets/${ph}.webp`, data: png }, { name: `assets/${ph}.avif`, data: png }]), /pas une image/],
     ["asset au hash falsifié", writeZip([{ name: "theme.json", data: manifest({ ...base, assets: { kit: { signature: { svg: "/media/kit/0123456789abcdef.svg", w: 10, h: 10 } } } }) }, { name: "assets/0123456789abcdef.svg", data: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>') }]), /différent de son nom/],
