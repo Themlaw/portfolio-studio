@@ -33,7 +33,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
   if (project) {
     // Toile : si les images du projet sont en cours de modification sur une autre page, la planche
     // porte `data-edit-board-held` (ProjectStrip) et la couche d'édition l'indique au survol.
-    return <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} />;
+    return <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} slotFrame={ctx.look?.slotFrame} />;
   }
   if (!ctx.edit) return null;
   // Dans un conteneur encore sans projet : la planche attend le choix du conteneur.

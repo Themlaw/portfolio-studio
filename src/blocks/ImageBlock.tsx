@@ -10,6 +10,8 @@ import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { ORIGINALS_PREFIX } from "@/lib/images/variants";
 import { getMedia, mediaUrl } from "@/lib/media";
 
+import { frameAttrs } from "@/lib/look";
+
 import { inline, localized, mediaRef, tr, type BlockContext } from "./types";
 
 export const imageSchema = z.object({
@@ -37,6 +39,8 @@ export const imageSchema = z.object({
  * variante extraite de l'ORIGINAL ; le cadre prend alors son rapport et ignore le
  * format imposé. Un ancien cadrage (point focal + zoom) dans un cadre au format
  * imposé est servi de la même façon (sa fenêtre), donc net. Une image seule ne
+ * Cadre (lot 34) : `look.frame` {size, color} pose une bordure dans la boîte de l'image (jamais de rognage de la boîte, ni de
+ * changement de sa taille extérieure) ; rien par défaut. Une image seule ne
  * dépasse jamais 85 % de la hauteur de l'écran (CSS `data-solo`, sans rognage ; pas dans une grille, qui fixe
  * elle-même la géométrie de ses cases).
  */
@@ -83,6 +87,8 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
           ...(free && resolved ? { rect: resolved.rect } : {}),
         }
       : undefined;
+  // Cadre autour de la photo (lot 34, `look.frame`) : bordure DANS la boîte de l'image (look.css), jamais sur une place vide.
+  const frame = image ? frameAttrs(ctx.look?.frame) : null;
   const body = (
     <figure
       className={`block-image ${ctx.cell ? "" : props.width === "text" ? "max-w-2xl" : ""}`}
@@ -90,7 +96,8 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       {...(ctx.cell ? {} : { "data-solo": "" })}
       {...(ctx.edit && forced ? { "data-edit-box": forced } : {})}
       {...(free ? { "data-free": "" } : { ...ratioAttr, ...(box && !cover ? { "data-fit": "contain" } : {}) })}
-      style={{ "--ir": shownRatio.toFixed(4) } as CSSProperties}
+      {...(frame ? { "data-frame": frame["data-frame"], ...(legacy ? { "data-legacy": "" } : {}) } : {})}
+      style={{ "--ir": shownRatio.toFixed(4), ...(frame?.style ?? {}) } as CSSProperties}
     >
       {image ? (
         <span

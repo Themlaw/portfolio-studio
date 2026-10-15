@@ -9,6 +9,7 @@ import Lightbox from "@/components/Lightbox";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
 import { boardMarks } from "@/lib/board-marks";
+import { frameAttrs, type Frame } from "@/lib/look";
 import type { LocalizedProject } from "@/lib/gallery";
 import { RADIUS_VALUES } from "@/themes/css";
 
@@ -40,6 +41,7 @@ export default function ProjectStrip({
   showHeader = true,
   collection,
   slotRadius,
+  slotFrame,
 }: {
   project: LocalizedProject;
   /** Fond papier profond, pour séparer deux projets sans boîte ni bordure. */
@@ -51,12 +53,19 @@ export default function ProjectStrip({
   collection?: string;
   /** Arrondi par image (réglage `look.slotRadius` du bloc, par slug d'emplacement). */
   slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
+  /** Cadre par image (réglage `look.slotFrame` du bloc, par slug d'emplacement ; lot 34). */
+  slotFrame?: Partial<Record<string, Frame>>;
 }) {
   const t = useTranslations("projects");
   /** Variable d'arrondi d'une image réglée seule (sinon celle du bloc / du thème). */
   const radiusOf = (slug: string): CSSProperties | undefined => {
     const r = slotRadius && Object.hasOwn(slotRadius, slug) ? slotRadius[slug] : undefined;
     return r && Object.hasOwn(RADIUS_VALUES, r) ? ({ "--media-radius": RADIUS_VALUES[r] } as CSSProperties) : undefined;
+  };
+  /** Cadre d'une photo réglée seule (lot 34) : attribut + couleur sur l'image de la planche, jamais sur une vidéo en boucle. */
+  const frameOf = (slug: string) => {
+    const f = slotFrame && Object.hasOwn(slotFrame, slug) ? frameAttrs(slotFrame[slug]) : null;
+    return f ? { "data-frame": f["data-frame"], style: f.style as CSSProperties } : null;
   };
   // Vue brouillon de l'éditeur : repères de la planche (jamais dans le HTML public).
   const edit = project.edit;
@@ -342,7 +351,8 @@ export default function ProjectStrip({
             onClick={() => setOpenIndex(index)}
             aria-label={openLabel}
             className="strip-frame group text-left"
-            style={radiusOf(artwork.slug)}
+            style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : frameOf(artwork.slug)?.style) }}
+            {...(!artwork.video && frameOf(artwork.slug) ? { "data-frame": frameOf(artwork.slug)!["data-frame"] } : {})}
             {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos, "data-slot-slug": artwork.slug } : {})}
           >
             <span className="strip-media">
