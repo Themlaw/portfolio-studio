@@ -26,16 +26,23 @@
  * lié d'un « Projet mis en avant »), ils ne sont publics qu'à la publication
  * de la page ; un projet créé dans CE brouillon porte ses textes sur sa ligne.
  * Une seule page à la fois tient la surcouche de textes d'un projet.
+ *
+ * Contenu de la planche (lot 31 : la suite de composants sous l'en-tête, `BoardSnap.layout`) : même instantané,
+ * même historique, une surcouche à part (`projects.draft_layout` + `draft_layout_page_id`) tenue par une seule
+ * page à la fois ; publiée avec la page qui la tient, abandonnée avec elle. Un projet créé dans CE brouillon
+ * garde sa suite sur sa ligne (invisible ailleurs).
  */
 import { randomBytes } from "node:crypto";
 
 import { and, asc, eq, max } from "drizzle-orm";
 import { z } from "zod";
 
+import { BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, defaultLayout, newBoardItem, readLayout, sameLayout, type BoardItem } from "@/blocks/board-layout";
 import { getPageForEdit } from "@/lib/admin";
 import { getDb, schema } from "@/lib/db";
 import { slugify } from "@/lib/slug";
 
+import { checkLayout } from "./board-layout";
 import { displayedProjects, projectTextProblem, referencedProjects, type DraftRefusal } from "./drafts";
 import { done, fail, type ActionResult } from "./result";
 
@@ -64,10 +71,15 @@ const SnapSlot = z.strictObject({
   /** Métier d'un emplacement ajouté depuis une planche filtrée (planche d'une collection migrée). */
   collection: Collection.optional(),
 });
+const Uid = z.string().regex(/^[a-z0-9-]{1,32}$/);
+/** Un composant de la suite de la planche : la forme ici, les réglages par le registre (`checkLayout`). */
+const LayoutItem = z.strictObject({ uid: Uid, type: z.enum(BOARD_ITEM_TYPES as [BoardItem["type"], ...BoardItem["type"][]]), props: z.record(z.string(), z.unknown()) });
 export const BoardSnapSchema = z.strictObject({
   projectId: z.number().int().positive(),
   project: z.strictObject({ title: TrimLoc(120), context: TrimLoc(200), description: TrimLoc(2000), year: z.string().trim().max(20) }).nullable(),
   slots: z.array(SnapSlot).max(MAX_BOARD_SLOTS),
+  /** Suite de composants de la planche (lot 31). */
+  layout: z.array(LayoutItem).max(MAX_BOARD_ITEMS),
 });
 export type BoardSnap = z.infer<typeof BoardSnapSchema>;
 
@@ -79,6 +91,11 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("fill"), key: Key, mediaId: z.number().int().positive() }),
   z.strictObject({ op: z.literal("text"), key: Key, field: z.enum(["title", "description"]), locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
   z.strictObject({ op: z.literal("project"), field: z.enum(["title", "context", "description", "year"]), locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
+  // Contenu de la planche (lot 31) : ajouter un composant à une position, le déplacer d'un cran, le retirer, régler ses props.
+  z.strictObject({ op: z.literal("item-add"), type: z.enum(BOARD_ITEM_TYPES as [BoardItem["type"], ...BoardItem["type"][]]), index: z.number().int().min(0).max(MAX_BOARD_ITEMS), uid: Uid.optional() }),
+  z.strictObject({ op: z.literal("item-move"), uid: Uid, dir: z.enum(["up", "down"]) }),
+  z.strictObject({ op: z.literal("item-remove"), uid: Uid }),
+  z.strictObject({ op: z.literal("item-set"), uid: Uid, props: z.record(z.string(), z.unknown()) }),
 ]);
 export type BoardOp = z.infer<typeof BoardOpSchema>;
 
@@ -141,6 +158,29 @@ function textAccess(pageId: number, projectId: number): string | null {
   return null;
 }
 
+/**
+ * Le contenu de la planche est-il modifiable depuis le brouillon de cette page ? Comme les emplacements : la page doit
+ * AFFICHER la planche de ce projet ; la surcouche ne peut être tenue que par une page à la fois.
+ */
+function layoutAccess(pageId: number, projectId: number): string | null {
+  const db = getDb();
+  const project = db
+    .select({ draftPageId: schema.projects.draftPageId, layoutPage: schema.projects.draftLayoutPageId })
+    .from(schema.projects)
+    .where(eq(schema.projects.id, projectId))
+    .get();
+  if (!project) return "Ce projet n'existe plus : recharge l'éditeur.";
+  const pageName = (id: number) => db.select({ title: schema.pages.title }).from(schema.pages).where(eq(schema.pages.id, id)).get()?.title.fr || `n° ${id}`;
+  if (project.draftPageId !== null && project.draftPageId !== pageId) {
+    return `Ce projet est en cours de création sur la page ${pageName(project.draftPageId)} : publie-la ou abandonne-la d'abord.`;
+  }
+  if (project.layoutPage !== null && project.layoutPage !== pageId) {
+    return `Le contenu de cette planche est en cours de modification sur la page ${pageName(project.layoutPage)} : publie-la ou abandonne-la d'abord.`;
+  }
+  if (!displayedProjects(draftBlocks(pageId)).includes(projectId)) return "Cette page n'affiche pas ce projet : ajoute d'abord sa planche à la page.";
+  return null;
+}
+
 /** Blocs du brouillon de la page (sinon de la version publiée). */
 function draftBlocks(pageId: number): { type: string; props: unknown }[] {
   const draft = getDb().select({ draft: schema.pages.draft }).from(schema.pages).where(eq(schema.pages.id, pageId)).get()?.draft as { blocks?: unknown } | null | undefined;
@@ -161,6 +201,12 @@ function projectText(row: ProjectRow, pageId: number): ProjectText {
   return { title: row.title, context: row.context, description: row.description, year: row.year };
 }
 
+/** Suite de composants telle que le brouillon de la page la montre : sa surcouche, sinon la suite du projet. */
+function projectLayout(row: ProjectRow, pageId: number): BoardItem[] {
+  if (row.draftLayoutPageId === pageId && row.draftLayout) return readLayout(row.draftLayout);
+  return readLayout(row.layout);
+}
+
 /** Instantané de la planche telle que le brouillon de la page la montre. */
 export function readBoard(pageId: number, projectId: number): BoardSnap {
   const db = getDb();
@@ -175,6 +221,7 @@ export function readBoard(pageId: number, projectId: number): BoardSnap {
   return {
     projectId,
     project: project ? projectText(project, pageId) : null,
+    layout: project ? projectLayout(project, pageId) : defaultLayout(),
     slots: rows.map(({ row, mine }) => ({
       key: keyOf(row),
       mediaId: mine ? (row.draftState === "removed" ? null : (row.draftMediaId ?? row.mediaId)) : row.mediaId,
@@ -228,7 +275,7 @@ function checkSnap(pageId: number, snap: BoardSnap, allowPending = false): strin
 }
 
 /** Écrit l'instantané comme surcouche de la page (dans une transaction de l'appelant). */
-function writeBoard(pageId: number, snap: BoardSnap, only: { slots: boolean; text: boolean }): void {
+function writeBoard(pageId: number, snap: BoardSnap, only: { slots: boolean; text: boolean; layout: boolean }): void {
   const db = getDb();
   const project = db.select().from(schema.projects).where(eq(schema.projects.id, snap.projectId)).get();
   if (!project) throw new Error("projet disparu");
@@ -242,6 +289,19 @@ function writeBoard(pageId: number, snap: BoardSnap, only: { slots: boolean; tex
       const same = sameL(t.title, project.title) && sameL(t.context, project.context) && sameL(t.description, project.description) && t.year === project.year;
       db.update(schema.projects)
         .set(same ? { draftText: null, draftTextPageId: null } : { draftText: t, draftTextPageId: pageId })
+        .where(eq(schema.projects.id, project.id))
+        .run();
+    }
+  }
+  if (only.layout) {
+    if (project.draftPageId === pageId) {
+      // Projet créé dans ce brouillon : sa suite est sur sa ligne (invisible ailleurs).
+      db.update(schema.projects).set({ layout: snap.layout }).where(eq(schema.projects.id, project.id)).run();
+    } else {
+      // Projet publié : surcouche de la page ; revenir à la suite publiée l'efface.
+      const same = sameLayout(snap.layout, readLayout(project.layout));
+      db.update(schema.projects)
+        .set(same ? { draftLayout: null, draftLayoutPageId: null } : { draftLayout: snap.layout, draftLayoutPageId: pageId })
         .where(eq(schema.projects.id, project.id))
         .run();
     }
@@ -339,7 +399,7 @@ function pageRev(pageId: number): number | null {
 }
 
 /** Applique une transformation de l'instantané, gardée et versionnée. */
-function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (snap: BoardSnap) => BoardSnap | string, restoring = false, textOp = false): ActionResult<BoardResult> | DraftRefusal {
+function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (snap: BoardSnap) => BoardSnap | string, restoring = false, textOp = false, layoutOp = false): ActionResult<BoardResult> | DraftRefusal {
   if (!validRev(rev)) return fail("Requête invalide (version manquante) : recharge l'éditeur.");
   const projectId = z.number().int().positive().safeParse(projectIdInput);
   if (!projectId.success) return fail("Projet inconnu.");
@@ -353,11 +413,22 @@ function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (
   // deux écritures, deux gardes. Un texte seul ne touche pas aux emplacements.
   const slotsChanged = JSON.stringify(before.slots) !== JSON.stringify(next.slots);
   const textChanged = JSON.stringify(before.project) !== JSON.stringify(next.project);
+  const layoutChanged = !sameLayout(before.layout, next.layout);
   // Un texte « modifié » à l'identique : rien à écrire, rien à garder (pas de faux refus d'accès à la planche).
   if (textOp && !textChanged) return done({ before, after: before, rev: current, slug: slugOf(projectId.data) });
-  if (slotsChanged || !textChanged) {
+  // Un composant déjà tout en haut / en bas, des réglages identiques : rien à écrire non plus.
+  if (layoutOp && !layoutChanged) return done({ before, after: before, rev: current, slug: slugOf(projectId.data) });
+  if (slotsChanged || (!textChanged && !layoutChanged)) {
     const denied = access(pageId, projectId.data);
     if (denied) return fail(denied);
+  }
+  if (layoutChanged) {
+    const denied = layoutAccess(pageId, projectId.data);
+    if (denied) return fail(denied);
+    // Forme, réglages (schémas du registre) et médias de la suite ; un composant inachevé reste un brouillon.
+    const checked = checkLayout(next.layout, { allowPending: restoring });
+    if ("error" in checked) return fail(checked.error);
+    next.layout = checked.layout;
   }
   if (textChanged) {
     const denied = textAccess(pageId, projectId.data);
@@ -372,7 +443,7 @@ function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (
   try {
     getDb().transaction(() => {
       if (!touchPage(pageId, rev)) throw new ConflictError();
-      writeBoard(pageId, next, { slots: slotsChanged || !textChanged, text: textChanged });
+      writeBoard(pageId, next, { slots: slotsChanged || (!textChanged && !layoutChanged), text: textChanged, layout: layoutChanged });
     });
   } catch (error) {
     if (error instanceof ConflictError) return conflict(pageRev(pageId) ?? rev);
@@ -384,6 +455,7 @@ function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (
 const slugOf = (projectId: number) => getDb().select({ slug: schema.projects.slug }).from(schema.projects).where(eq(schema.projects.id, projectId)).get()?.slug ?? "";
 
 const newKey = () => `k${randomBytes(8).toString("hex")}`;
+const newItemUid = () => `c${randomBytes(6).toString("hex")}`;
 const EMPTY: L = { fr: "", en: "" };
 
 /** Une opération sur la planche (toile : ajouter, déplacer, retirer, remplacer, textes). */
@@ -426,6 +498,37 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         snap.slots[i][op.field] = { ...snap.slots[i][op.field], [op.locale]: op.value.slice(0, max) };
         return snap;
       }
+      case "item-add": {
+        if (snap.layout.length >= MAX_BOARD_ITEMS) return `${MAX_BOARD_ITEMS} composants au plus par planche.`;
+        if (op.index > snap.layout.length) return "Position invalide.";
+        if (op.type === "strip" && snap.layout.some((i) => i.type === "strip")) return "Cette planche a déjà sa bande « Images qui défilent ».";
+        const uid = op.uid ?? newItemUid();
+        if (snap.layout.some((i) => i.uid === uid)) return "Composant en double.";
+        snap.layout.splice(op.index, 0, newBoardItem(op.type, uid));
+        return snap;
+      }
+      case "item-move": {
+        const from = snap.layout.findIndex((i) => i.uid === op.uid);
+        if (from < 0) return "Ce composant n'est plus sur cette planche.";
+        const to = from + (op.dir === "up" ? -1 : 1);
+        if (to < 0 || to >= snap.layout.length) return snap;
+        const [item] = snap.layout.splice(from, 1);
+        snap.layout.splice(to, 0, item);
+        return snap;
+      }
+      case "item-remove": {
+        const from = snap.layout.findIndex((i) => i.uid === op.uid);
+        if (from < 0) return "Ce composant n'est plus sur cette planche.";
+        snap.layout.splice(from, 1);
+        return snap;
+      }
+      case "item-set": {
+        const item = snap.layout.find((i) => i.uid === op.uid);
+        if (!item) return "Ce composant n'est plus sur cette planche.";
+        if (item.type === "strip") return "La bande d'images n'a pas de réglage.";
+        item.props = op.props;
+        return snap;
+      }
       case "project": {
         if (!snap.project) return "Ce projet n'existe plus : recharge l'éditeur.";
         // Espaces retirés avant la coupe, comme l'écran Projets (`trim` puis `max`).
@@ -437,7 +540,7 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         return snap;
       }
     }
-  }, false, op.op === "project");
+  }, false, op.op === "project", op.op.startsWith("item-"));
 }
 
 /** Annuler / Rétablir : réécrit un instantané (contrôlé). */

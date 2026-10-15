@@ -20,6 +20,9 @@
  * - Planche neuve : nom du projet (Entrée crée le projet), ou projet existant.
  * - Titres, légendes et (projet créé ici) nom, contexte, année : double-clic,
  *   éditeur posé par-dessus le texte (le DOM du site n'est jamais modifié).
+ * - Contenu de la planche (lot 31, `data-edit-bitem*` posés par ProjectStrip) : « + Ajouter » entre deux
+ *   composants et en bas (menu des composants permis), barre de chaque composant (monter, descendre,
+ *   supprimer, réglages), composant choisi d'un clic ; tout passe par des messages à l'éditeur.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -28,6 +31,7 @@ import { acceptToCanvas, EDIT_MSG, type DropTargetInfo, type FromCanvas, type Gh
 import { postIntent, previewBoardText } from "./edit/optimistic";
 
 import { RADII, RADIUS_LABELS, type Radius } from "@/lib/look";
+import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, isBoardItemType, type BoardItemType } from "@/blocks/board-layout";
 
 import { lookOf, sendLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
@@ -67,6 +71,7 @@ function boxOf(el: Element): Rect | null {
 }
 
 const slotEls = (rail: Element) => [...rail.querySelectorAll<HTMLElement>(":scope > [data-edit-slot]")];
+const boardEl = (board: number) => document.querySelector<HTMLElement>(`[data-edit-board="${board}"]`);
 const boardOf = (el: Element | null) => el?.closest<HTMLElement>("[data-edit-board]") ?? null;
 const slotRefOf = (el: HTMLElement): SlotRef | null => {
   const board = Number(boardOf(el)?.dataset.editBoard);
@@ -207,6 +212,9 @@ export default function BoardLayer({
   const [ghosts, setGhosts] = useState<Ghost[]>([]);
   const [projects, setProjects] = useState<ComboProject[]>([]);
   const [text, setText] = useState<TextEdit | null>(null);
+  // Contenu de la planche (lot 31) : menu « + Ajouter » ouvert, composant choisi.
+  const [addMenu, setAddMenu] = useState<{ board: number; index: number; top: number; left: number; hasStrip: boolean; count: number } | null>(null);
+  const [itemSel, setItemSel] = useState<{ board: number; uid: string } | null>(null);
   // Texte (ou image) d'un projet survolé : indicateur « modifié aussi sur sa planche et sa page ».
   const [projectHint, setProjectHint] = useState<{ el: HTMLElement; board: number; label: string; draft: boolean; textHeld: string | null; slotHeld?: boolean } | null>(null);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -229,6 +237,7 @@ export default function BoardLayer({
     const onMessage = (event: MessageEvent) => {
       const msg = acceptToCanvas(event, window.location.origin, window.parent);
       if (!msg) return;
+      if (msg.kind === "select" && msg.uid) setItemSel(null);
       if (msg.kind === "ghosts") {
         ghostsRef.current = msg.items;
         setGhosts(msg.items);
@@ -489,6 +498,50 @@ export default function BoardLayer({
     };
     const onClick = (e: MouseEvent) => {
       if (inLayer(e.target)) return;
+      // Contenu de la planche (lot 31).
+      const hit = e.target instanceof Element ? e.target : null;
+      const itemAdd = hit?.closest<HTMLElement>("[data-edit-bitem-add]");
+      const itemOp = hit?.closest<HTMLElement>("[data-edit-bitem-op]");
+      const itemFrame = hit?.closest<HTMLElement>("[data-edit-bitem]");
+      if (itemAdd) {
+        e.preventDefault();
+        e.stopPropagation();
+        const board = Number(itemAdd.dataset.board);
+        const frames = [...(boardEl(board)?.querySelectorAll<HTMLElement>("[data-edit-bitem]") ?? [])];
+        const r = itemAdd.getBoundingClientRect();
+        setAddMenu({
+          board,
+          index: Number(itemAdd.dataset.editBitemAdd),
+          top: r.bottom + window.scrollY + 4,
+          left: Math.max(8, Math.min(r.left + window.scrollX, window.scrollX + window.innerWidth - 300)),
+          hasStrip: frames.some((f) => f.dataset.editBitemType === "strip"),
+          count: frames.length,
+        });
+        return;
+      }
+      if (itemOp) {
+        e.preventDefault();
+        e.stopPropagation();
+        const board = Number(itemOp.dataset.board);
+        const uid = itemOp.dataset.uid ?? "";
+        const op = itemOp.dataset.editBitemOp;
+        if (!board || !uid) return;
+        if (op === "settings") selectItem(itemOp.closest<HTMLElement>("[data-edit-bitem]") ?? itemFrame ?? null);
+        else if (op === "up" || op === "down" || op === "remove") {
+          setItemSel((cur) => (cur?.uid === uid && op === "remove" ? null : cur));
+          post({ kind: "bitem-op", board, uid, op });
+          announce(op === "remove" ? "Composant supprimé. Annuler le rétablit." : op === "up" ? "Composant monté." : "Composant descendu.");
+        }
+        return;
+      }
+      // Un composant autre que la bande : un clic le choisit (ses réglages s'ouvrent dans le panneau).
+      if (itemFrame && itemFrame.dataset.editBitemType !== "strip") {
+        e.preventDefault();
+        e.stopPropagation();
+        selectItem(itemFrame);
+        return;
+      }
+      if (itemSel) setItemSel(null);
       const op = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-ghost-op]") : null;
       if (op) {
         e.preventDefault();
@@ -512,6 +565,15 @@ export default function BoardLayer({
       }
       const slot = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-edit-slot]") : null;
       setSelectedSlot(slot ? slotRefOf(slot) : null);
+    };
+    // Un composant de la planche choisi : l'éditeur ouvre ses réglages.
+    const selectItem = (frame: HTMLElement | null) => {
+      const board = Number(frame?.dataset.board);
+      const uid = frame?.dataset.editBitem;
+      const type = frame?.dataset.editBitemType;
+      if (!frame || !board || !uid || !isBoardItemType(type)) return;
+      setItemSel({ board, uid });
+      post({ kind: "bitem-select", board, uid, item: type, props: (frame.dataset.editBitemProps ?? "{}").slice(0, 100_000) });
     };
     const onDblClick = (e: MouseEvent) => {
       const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-slot-inline], [data-project-inline]") : null;
@@ -628,10 +690,15 @@ export default function BoardLayer({
       document.removeEventListener("dragleave", onDragLeave, true);
       document.removeEventListener("drop", onDrop, true);
     };
-  }, [edit, startText, announce]);
+  }, [edit, startText, announce, itemSel]);
 
   if (!edit || !host) return null;
   void tick;
+  // Composant choisi : repère sur la toile (réappliqué à chaque rafraîchissement du rendu).
+  for (const el of document.querySelectorAll("[data-edit-bitem][data-selected]")) {
+    if (!itemSel || (el as HTMLElement).dataset.editBitem !== itemSel.uid) el.removeAttribute("data-selected");
+  }
+  if (itemSel) document.querySelector(`[data-edit-bitem="${CSS.escape(itemSel.uid)}"]`)?.setAttribute("data-selected", "");
 
   // Barre : survol, sinon focus clavier, sinon dernière image touchée.
   const active = hover ?? focusSlot ?? selectedSlot;
@@ -874,8 +941,54 @@ export default function BoardLayer({
           onBlur={(e) => finishText(true, e.currentTarget.textContent ?? "")}
         />
       )}
+
+      {addMenu && (
+        <BoardAddMenu
+          {...addMenu}
+          onClose={() => setAddMenu(null)}
+          onPick={(type) => {
+            post({ kind: "bitem-add", board: addMenu.board, item: type, index: addMenu.index });
+            announce(`${BOARD_ITEM_LABELS[type]} ajouté.`);
+            setAddMenu(null);
+          }}
+        />
+      )}
     </div>,
     host,
+  );
+}
+
+/**
+ * Menu court des composants permis dans une planche (« + Ajouter ») : cinq choix, clavier compris (flèches,
+ * Entrée, Échap). La bande d'images se grise quand la planche en a déjà une, tout se grise quand elle est pleine.
+ */
+function BoardAddMenu({ top, left, hasStrip, count, onPick, onClose }: { board: number; index: number; top: number; left: number; hasStrip: boolean; count: number; onPick: (type: BoardItemType) => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, onClose);
+  const full = count >= MAX_BOARD_ITEMS;
+  useEffect(() => {
+    ref.current?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
+  }, []);
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const items = [...(ref.current?.querySelectorAll<HTMLButtonElement>("button:not([disabled])") ?? [])];
+    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (!items.length) return;
+    e.preventDefault();
+    items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
+  };
+  return (
+    <div ref={ref} className="pe-layouts pe-bitem-menu" role="menu" aria-label="Ajouter un composant à la planche" style={{ top, left, right: "auto" }} onKeyDown={onKeyDown}>
+      {BOARD_ITEM_TYPES.map((type) => {
+        const off = full || (type === "strip" && hasStrip);
+        return (
+          <button key={type} type="button" role="menuitem" disabled={off} onClick={() => onPick(type)} data-bitem-type={type}>
+            <strong>{BOARD_ITEM_LABELS[type]}</strong>
+            <small>{full ? `${MAX_BOARD_ITEMS} composants au plus.` : type === "strip" && hasStrip ? "Déjà dans cette planche." : BOARD_ITEM_HINTS[type]}</small>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

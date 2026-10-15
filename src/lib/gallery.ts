@@ -10,6 +10,7 @@
  * ----------------------------------------------------------------------- */
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
+import { mediaCount, readLayout, type BoardItem } from "@/blocks/board-layout";
 import type { AppLocale } from "@/i18n/routing";
 
 import { cached, TAGS } from "./cache";
@@ -64,6 +65,8 @@ export type LocalizedProject = {
   context: string;
   description: string;
   artworks: LocalizedArtwork[];
+  /** Contenu de la planche (lot 31) : la suite de composants sous l'en-tête ; par défaut la bande d'images seule. */
+  layout: BoardItem[];
   /** Vue brouillon seulement : identifiant, et projet créé dans ce brouillon. */
   /**
    * Vue brouillon seulement. `heldBy` : titre de la page dont le brouillon
@@ -72,7 +75,7 @@ export type LocalizedProject = {
    * les TEXTES du projet (nom, contexte, présentation, année) ; `textDraft` :
    * cette page porte une modification de ces textes (v0.15).
    */
-  edit?: { id: number; draft: boolean; heldBy?: string; textHeldBy?: string; textDraft?: boolean };
+  edit?: { id: number; draft: boolean; heldBy?: string; textHeldBy?: string; textDraft?: boolean; layoutHeldBy?: string; layoutDraft?: boolean };
 };
 
 type RawProject = {
@@ -87,6 +90,11 @@ type RawProject = {
   /** Vue brouillon : page qui tient les textes du projet (autre que la vue), ou surcouche de la vue. */
   textHeldBy?: string;
   textDraft?: boolean;
+  /** Suite de composants de la planche (version publiée, ou surcouche de la page en vue brouillon). */
+  layout: BoardItem[];
+  /** Vue brouillon : page qui tient le contenu de la planche (autre que la vue), ou surcouche de la vue. */
+  layoutHeldBy?: string;
+  layoutDraft?: boolean;
 };
 
 type RawArtwork = {
@@ -150,18 +158,31 @@ function readProjects(ids: number[], overlayPage?: number | null): RawProject[] 
       description: schema.projects.description,
       draftText: schema.projects.draftText,
       draftTextPageId: schema.projects.draftTextPageId,
+      layout: schema.projects.layout,
+      draftLayout: schema.projects.draftLayout,
+      draftLayoutPageId: schema.projects.draftLayoutPageId,
     })
     .from(schema.projects)
     .where(inArray(schema.projects.id, ids))
     .orderBy(asc(schema.projects.position))
     .all();
   let titles: Map<number, string> | null = null;
-  return rows.map(({ draftText, draftTextPageId, ...p }) => {
-    if (overlayPage === undefined || draftTextPageId === null) return p;
-    if (draftTextPageId === overlayPage && draftText) return { ...p, ...draftText, textDraft: true };
-    if (draftTextPageId === overlayPage) return p;
+  const pageTitle = (id: number) => {
     titles ??= new Map(db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).all().map((x) => [x.id, x.title.fr || `n° ${x.id}`]));
-    return { ...p, textHeldBy: titles.get(draftTextPageId) ?? `n° ${draftTextPageId}` };
+    return titles.get(id) ?? `n° ${id}`;
+  };
+  return rows.map(({ draftText, draftTextPageId, layout, draftLayout, draftLayoutPageId, ...p }) => {
+    let out: RawProject = { ...p, layout: readLayout(layout) };
+    if (overlayPage === undefined) return out;
+    // Contenu de la planche : la surcouche de la page vue remplace la suite publiée ; celle d'une autre page n'est pas montrée.
+    if (draftLayoutPageId !== null) {
+      if (draftLayoutPageId === overlayPage && draftLayout) out = { ...out, layout: readLayout(draftLayout), layoutDraft: true };
+      else if (draftLayoutPageId !== overlayPage) out = { ...out, layoutHeldBy: pageTitle(draftLayoutPageId) };
+    }
+    if (draftTextPageId === null) return out;
+    if (draftTextPageId === overlayPage && draftText) return { ...out, ...draftText, textDraft: true };
+    if (draftTextPageId === overlayPage) return out;
+    return { ...out, textHeldBy: pageTitle(draftTextPageId) };
   });
 }
 
@@ -323,6 +344,8 @@ const projectEdit = (p: RawProject) => ({
   draft: p.draftPageId !== null,
   ...(p.textHeldBy ? { textHeldBy: p.textHeldBy } : {}),
   ...(p.textDraft ? { textDraft: true } : {}),
+  ...(p.layoutHeldBy ? { layoutHeldBy: p.layoutHeldBy } : {}),
+  ...(p.layoutDraft ? { layoutDraft: true } : {}),
 });
 
 function localizeProject(
@@ -343,6 +366,7 @@ function localizeProject(
     title: project.title[locale] ?? project.title.fr,
     context: project.context[locale] ?? project.context.fr,
     description: project.description[locale] ?? project.description.fr,
+    layout: project.layout,
     artworks: own.map((a) => localize(a, locale)),
   };
 }
@@ -424,7 +448,11 @@ export async function boardWorkCount(slug: string, collection?: string): Promise
   const { projects, artworks } = await snapshot();
   const project = projects.find((p) => p.slug === slug);
   if (!project) return null;
-  return artworks.filter((a) => a.projectId === project.id && shown(a) && (!collection || a.collection === collection)).length;
+  // Les œuvres de la bande (si la planche en a une) et les images / vidéos des autres composants.
+  const strip = project.layout.some((i) => i.type === "strip")
+    ? artworks.filter((a) => a.projectId === project.id && shown(a) && (!collection || a.collection === collection)).length
+    : 0;
+  return strip + mediaCount(project.layout);
 }
 
 /**

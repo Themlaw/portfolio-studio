@@ -10,6 +10,7 @@
  */
 import { inArray } from "drizzle-orm";
 
+import { layoutMediaIds, readLayout } from "@/blocks/board-layout";
 import { mediaUsageIndex, pageReferences, projectReferences, type BlockRow, type Usage } from "@/blocks/refs";
 
 import { getDb, schema } from "./db";
@@ -51,7 +52,19 @@ export function mediaUsagesByMedia(): Map<number, Usage[]> {
     const published = draftState === "added" && draftPageId ? { ...s, draftPageId } : s;
     return draftMediaId !== null && draftMediaId !== s.mediaId ? [published, { ...s, mediaId: draftMediaId, draftPageId }] : [published];
   });
-  const index = mediaUsageIndex({ slots, blocks: allBlocks() });
+  // Contenu des planches (lot 31) : images et vidéos des grilles, images et vidéos de la suite d'un projet, publiée ou en brouillon.
+  const layouts = getDb()
+    .select({ projectId: schema.projects.id, slug: schema.projects.slug, layout: schema.projects.layout, draft: schema.projects.draftLayout, page: schema.projects.draftLayoutPageId })
+    .from(schema.projects)
+    .all()
+    .map((p) => ({
+      projectId: p.projectId,
+      slug: p.slug,
+      published: layoutMediaIds(readLayout(p.layout)),
+      draft: p.draft ? layoutMediaIds(readLayout(p.draft)) : [],
+      draftPageId: p.page,
+    }));
+  const index = mediaUsageIndex({ slots, blocks: allBlocks(), layouts });
   // Logo du site (lot 26) : une image de la médiathèque hors de toute rubrique. Elle compte comme un usage, sur la page
   // d'accueil (logo publié) ou sur la page qui tient le brouillon du site : sans cela, la corbeille et le compteur
   // de la médiathèque la diraient libre.

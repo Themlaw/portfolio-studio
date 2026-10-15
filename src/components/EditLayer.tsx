@@ -894,6 +894,13 @@ export default function EditLayer() {
     };
     const onClick = (e: MouseEvent) => {
       if (inLayer(e.target)) return;
+      // Contenu d'une planche (lot 31) : « + Ajouter », barre d'un composant, composant (hors bande) — gérés par BoardLayer.
+      if (e.target instanceof Element && e.target.closest("[data-edit-bitem-add], [data-edit-bitem-op], [data-edit-bitem]:not([data-edit-bitem-type='strip'])")) {
+        e.preventDefault();
+        e.stopPropagation();
+        finishEdit(true);
+        return;
+      }
       // Ajouter une rubrique : bouton fixe du bas de page, ou « Texte » d'une case vide de grille (lot 17c).
       const t = e.target instanceof Element ? e.target : null;
       const addEnd = t?.closest("[data-edit-add]");

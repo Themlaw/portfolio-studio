@@ -46,6 +46,7 @@ import { markedProblem } from "@/lib/marked";
 import { own } from "@/lib/own";
 import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
+import { BOARD_ITEM_LABELS, type BoardItemType } from "@/blocks/board-layout";
 import { cleanLook, cleanSiteStyles, googleOf, readLook, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 import { cleanSurface, readSurface, type Surface } from "@/themes/surface";
@@ -59,6 +60,7 @@ import { isPdfFile, readRatio, sendFile, useMediaWatch } from "../uploads";
 import AddSectionDialog, { type AddChoice } from "./AddSectionDialog";
 import { BlockLookPanel, SiteStylesPanel } from "./LookPanel";
 import { ColorsPanel, LogoPanel, type HighlightInfo } from "./SiteLookPanel";
+import BoardItemPanel from "./BoardItemPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
 import MediaPreviewDialog from "./MediaPreviewDialog";
 import SiteEditor, { applySiteOp, siteText } from "./SiteEditor";
@@ -363,7 +365,10 @@ export default function VisualEditor({
 
   // Palette / logo en attente d'enregistrement (lot 17f) : validés avant tout enregistrement ou publication.
   const commitLookRef = useRef<() => Promise<void>>(async () => {});
+  // Réglages d'un composant de planche en attente d'écriture (saisie : une écriture après 600 ms de calme).
+  const itemFlushRef = useRef<() => Promise<void>>(async () => {});
   const flush = useCallback(async (): Promise<boolean> => {
+    await itemFlushRef.current();
     await commitLookRef.current();
     clearTimeout(timer.current);
     return withLock(async () => (dirty.current ? runSave(true) : true));
@@ -426,6 +431,7 @@ export default function VisualEditor({
           }
           revRef.current = result.data.rev;
           boards.current.set(result.data.after.projectId, result.data.after);
+          syncItemRef.current(result.data.after);
           if (result.data.slug) overlaySlugs.current.add(result.data.slug);
           setHasDraft(true);
           setSaveState("idle");
@@ -1579,9 +1585,77 @@ export default function VisualEditor({
     });
   };
 
-  const handlers = useRef({ op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook });
+  /* ---- Contenu de la planche d'un projet (lot 31) --------------------------------- */
+
+  // Composant de planche dont les réglages sont ouverts dans le panneau (props = dernier état connu, saisie comprise).
+  const [itemSel, setItemSel] = useState<{ board: number; uid: string; type: BoardItemType; props: Record<string, unknown> } | null>(null);
+  const itemTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const itemPending = useRef<{ board: number; uid: string; props: Record<string, unknown> } | null>(null);
   useEffect(() => {
-    handlers.current = { op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook };
+    itemFlushRef.current = async () => {
+      clearTimeout(itemTimer.current);
+      const p = itemPending.current;
+      itemPending.current = null;
+      if (p) await boardDo(p.board, { op: "item-set", uid: p.uid, props: p.props });
+    };
+  });
+  /** Après une écriture ou un retour en arrière : le panneau suit l'état écrit (ou se ferme si le composant a disparu). */
+  const syncItem = (snap: BoardSnap) => {
+    setItemSel((cur) => {
+      if (!cur || cur.board !== snap.projectId) return cur;
+      const item = snap.layout.find((i) => i.uid === cur.uid);
+      return item ? { ...cur, type: item.type, props: itemPending.current ? cur.props : item.props } : null;
+    });
+  };
+  const syncItemRef = useRef(syncItem);
+  useEffect(() => {
+    syncItemRef.current = syncItem;
+  });
+
+  const itemAdd = async (board: number, type: BoardItemType, index: number) => {
+    await itemFlushRef.current();
+    const r = await boardDo(board, { op: "item-add", type, index });
+    if (!r) return;
+    const added = r.after.layout[index];
+    if (added && added.type !== "strip") {
+      setSelected(null);
+      send({ kind: "select", uid: null });
+      setItemSel({ board, uid: added.uid, type: added.type, props: added.props });
+      setTab("reglages");
+      if (mobile) setSheet(true);
+    }
+    toast(`« ${BOARD_ITEM_LABELS[type]} » ajouté`, "success", { label: "Défaire", run: () => undoRef.current() });
+  };
+  const itemOp = async (board: number, uid: string, op: "up" | "down" | "remove") => {
+    await itemFlushRef.current();
+    const r = await boardDo(board, { op: op === "remove" ? "item-remove" : "item-move", uid, ...(op === "remove" ? {} : { dir: op }) } as BoardOp);
+    if (r && op === "remove") toast("Composant supprimé", "success", { label: "Annuler", run: () => undoRef.current() });
+  };
+  const itemSelect = (board: number, uid: string, type: BoardItemType, props: string) => {
+    void itemFlushRef.current();
+    let parsed: Record<string, unknown> = {};
+    try {
+      const v = JSON.parse(props);
+      if (v && typeof v === "object" && !Array.isArray(v)) parsed = v;
+    } catch {}
+    setSelected(null);
+    send({ kind: "select", uid: null });
+    setItemSel({ board, uid, type, props: parsed });
+    setTab("reglages");
+    if (mobile) setSheet(true);
+  };
+  const itemProps = (next: Record<string, unknown>) => {
+    setItemSel((cur) => (cur ? { ...cur, props: next } : cur));
+    const cur = itemSel;
+    if (!cur) return;
+    itemPending.current = { board: cur.board, uid: cur.uid, props: next };
+    clearTimeout(itemTimer.current);
+    itemTimer.current = setTimeout(() => void itemFlushRef.current().then(() => itemSel && setItemSel((c) => c)), 600);
+  };
+
+  const handlers = useRef({ itemAdd, itemOp, itemSelect, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook });
+  useEffect(() => {
+    handlers.current = { itemAdd, itemOp, itemSelect, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -1642,6 +1716,15 @@ export default function VisualEditor({
         case "slot-op":
           void h.slotOp(msg.board, msg.key, msg.op);
           break;
+        case "bitem-add":
+          void h.itemAdd(msg.board, msg.item, msg.index);
+          break;
+        case "bitem-op":
+          void h.itemOp(msg.board, msg.uid, msg.op);
+          break;
+        case "bitem-select":
+          h.itemSelect(msg.board, msg.uid, msg.item, msg.props);
+          break;
         case "slot-move":
           void h.boardDo(msg.board, { op: "move", key: msg.key, index: msg.index });
           break;
@@ -1669,6 +1752,7 @@ export default function VisualEditor({
           else h.setGhostList((list) => list.filter((g) => g.id !== msg.id));
           break;
         case "select":
+          setItemSel(null);
           h.selectBlock(msg.uid, { notify: false });
           // Un clic sur une rubrique de la toile ouvre ses Réglages (depuis Ajouter ou Structure) ; « Ajouter » ajoute ensuite sous elle.
           // Médias reste ouvert : on y glisse des images vers les planches, un clic pour viser une planche ne doit pas le fermer.
@@ -2236,7 +2320,38 @@ export default function VisualEditor({
           ))}
 
         {tab === "reglages" &&
-          (selected === "site-header" || selected === "site-footer" ? (
+          (itemSel && itemSel.type !== "strip" ? (
+            <BoardItemPanel
+              type={itemSel.type}
+              uid={itemSel.uid}
+              props={itemSel.props}
+              onChange={itemProps}
+              context={editorContext}
+              editor={own(editors, itemSel.type)}
+              head={
+                <div className="ve-settings-tools" role="group" aria-label="Composant de la planche">
+                  <button type="button" className="a-icon-btn" aria-label="Monter" onClick={() => void itemOp(itemSel.board, itemSel.uid, "up")}>
+                    ↑
+                  </button>
+                  <button type="button" className="a-icon-btn" aria-label="Descendre" onClick={() => void itemOp(itemSel.board, itemSel.uid, "down")}>
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    className="a-icon-btn a-danger-text"
+                    aria-label="Supprimer"
+                    onClick={() => {
+                      const { board, uid } = itemSel;
+                      setItemSel(null);
+                      void itemOp(board, uid, "remove");
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              }
+            />
+          ) : selected === "site-header" || selected === "site-footer" ? (
             <>
             <SiteEditor
               which={selected === "site-header" ? "header" : "footer"}

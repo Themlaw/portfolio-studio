@@ -20,6 +20,7 @@ import { isSeeded, prepareSeedFiles, seedRows, syncPresets, type SeedFiles } fro
 import { collectionPages, dropEmptyTextFields, pinImageFit, renameVideoLook, siteNameI18n, upgradeContent } from "./upgrade";
 import { mergeBlocks } from "./blocs";
 import { unwrapContainers } from "./unwrap";
+import { seedProjectLayouts } from "./project-layout";
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 
@@ -60,6 +61,10 @@ const DATA_MIGRATIONS: Record<string, () => void> = {
         `${r.published} ligne(s) publiée(s) et ${r.drafts} brouillon(s) réécrits` +
         (r.legacy ? `, ${r.legacy} ancienne(s) rubrique(s) laissée(s) en lecture (page de plus de 40 rubriques une fois déballée)` : ""),
     );
+  },
+  "0025_project_layout": () => {
+    const rows = seedProjectLayouts(getSqlite());
+    console.log(`[db] 0025 : contenu de planche — ${rows} projet(s) reçoivent la bande « Images qui défilent » (rendu inchangé)`);
   },
   // 0024_corbeille : SQL seul (colonnes deleted_at / trashed_in_menu), aucune migration de contenu.
   "0021_unwrap_containers": () => {
@@ -126,6 +131,8 @@ export async function bootstrap(): Promise<void> {
       }
       if (!files) throw new Error("seed requis mais fichiers non préparés");
       seedRows(db, files);
+      // Lot 31 : les projets du seed reçoivent leur suite de composants (la bande d'images), comme ceux que migre 0025.
+      seedProjectLayouts(sqlite);
       return { applied, seeded: true, presetsAdded: 0, presetsUpdated: 0 };
     })
     .immediate();

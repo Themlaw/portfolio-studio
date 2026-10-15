@@ -317,7 +317,18 @@ export function getMediaUses(id: number): MediaUseRow[] {
   const pages = new Map(db.select().from(schema.pages).all().map((p) => [p.id, p]));
   const slots = new Map(db.select().from(schema.slots).all().map((s) => [s.id, s.title.fr]));
   return findMediaUsages(id).map((u) =>
-    u.kind === "slot"
+    u.kind === "layout"
+      ? {
+          // Contenu de la planche (lot 31) : montré comme un emplacement de la planche du projet.
+          kind: "slot" as const,
+          projectId: u.projectId,
+          projectTitle: projects.get(u.projectId)?.title.fr ?? "",
+          slotId: 0,
+          slotTitle: "Grille, image ou vidéo de la planche",
+          trashed: Boolean(projects.get(u.projectId)?.deletedAt),
+          ...(u.draftPageId ? { draftPage: pages.get(u.draftPageId)?.title.fr || `page ${u.draftPageId}` } : {}),
+        }
+      : u.kind === "slot"
       ? {
           kind: "slot",
           projectId: u.projectId,

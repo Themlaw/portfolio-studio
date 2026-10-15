@@ -176,6 +176,13 @@
       "when": 1791971368016,
       "tag": "0024_corbeille",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1791975968016,
+      "tag": "0025_project_layout",
+      "breakpoints": true
     }
   ]
 }

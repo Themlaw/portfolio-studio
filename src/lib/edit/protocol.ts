@@ -7,6 +7,7 @@
  */
 import { z } from "zod";
 
+import { BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, type BoardItemType } from "../../blocks/board-layout";
 import { FIELD_OP_NAMES } from "../../blocks/optional-fields";
 import { SurfaceSchema } from "../../themes/surface";
 import { LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
@@ -35,6 +36,8 @@ const SlotIndex = z.number().int().min(0).max(200);
 const Board = z.number().int().positive();
 const SlotKey = z.string().regex(/^(s\d{1,9}|k[a-z0-9]{8,24})$/);
 const Slug = z.string().regex(/^[a-z0-9-]{1,80}$/);
+/** Type d'un composant de planche (lot 31). */
+const BoardItemKind = z.enum(BOARD_ITEM_TYPES as [BoardItemType, ...BoardItemType[]]);
 const Locale = z.enum(["fr", "en"]);
 const Rev = z.number().int().min(0).max(1_000_000_000);
 const UpTo = z.number().int().min(-1).max(1_000_000_000);
@@ -67,6 +70,11 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("slot-move"), board: Board, key: SlotKey, index: SlotIndex }),
   z.object({ kind: z.literal("slot-text"), board: Board, key: SlotKey, field: z.enum(["title", "description"]), locale: Locale, value: z.string().max(2000) }),
   z.object({ kind: z.literal("project-text"), board: Board, field: z.enum(["title", "context", "description", "year"]), locale: Locale, value: z.string().max(2000) }),
+  // Contenu de la planche (lot 31) : ajouter un composant à une position (menu « + Ajouter »), le monter, le descendre, le supprimer.
+  z.object({ kind: z.literal("bitem-add"), board: Board, item: BoardItemKind, index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
+  z.object({ kind: z.literal("bitem-op"), board: Board, uid: Uid, op: z.enum(["up", "down", "remove"]) }),
+  // Un composant de la planche choisi sur la toile : l'éditeur montre ses réglages (props = JSON des réglages tels que la toile les a lus).
+  z.object({ kind: z.literal("bitem-select"), board: Board, uid: Uid, item: BoardItemKind, props: z.string().max(100_000) }),
   z.object({ kind: z.literal("drop-target"), target: DropTarget.nullable() }),
   z.object({ kind: z.literal("files"), target: DropTarget, files: z.array(FileValue).min(1).max(30) }),
   z.object({ kind: z.literal("ghost-op"), id: z.string().max(40), op: z.enum(["retry", "remove"]) }),
