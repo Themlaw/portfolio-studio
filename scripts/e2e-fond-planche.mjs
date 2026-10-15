@@ -202,6 +202,21 @@ try {
   const effective = () => json(project().draft_layout) ?? published();
   ok("C7 Annuler : le fond revient (Annuler / Rétablir de la planche)", await waitFor(() => bgOf(effective(), 1)?.color === "bgDeep"), JSON.stringify(effective().map((i) => i.props?.background)));
   await settled();
+  // Capture : une couleur bien visible sur la bande et le premier composant (fusionnés), le troisième garde le fond du thème.
+  for (const i of [0, 1]) {
+    const fr = board3.locator("[data-edit-bitem]").nth(i);
+    await fr.scrollIntoViewIfNeeded();
+    await fr.hover();
+    await fr.locator('[data-edit-bitem-op="fond"]').click();
+    await f.locator('[data-testid="fond-menu"]').waitFor({ timeout: 20000 });
+    await f.locator('[data-testid="fond-menu"] [aria-label="Couleur du fond"] [data-token="primary"]').first().click();
+    ok(`E1 composant ${i + 1} : couleur forte enregistrée`, await waitFor(() => bgOf(effective(), i)?.color === "primary"), JSON.stringify(effective()[i]?.props?.background));
+    await page.keyboard.press("Escape");
+    await settled();
+  }
+  await board3.evaluate((el) => el.scrollIntoView({ block: "start" }));
+  await sleep(600);
+  await shot("3-couleur-forte-toile");
   ok("D aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));
 } finally {
   await browser.close();
