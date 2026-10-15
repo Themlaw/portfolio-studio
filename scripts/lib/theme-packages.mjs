@@ -32,6 +32,11 @@ export function lowContrastPackage(base, name = "Thème peu contrasté e2e") {
   return writeZip([{ name: "theme.json", data: manifest({ ...base, name, tokens: { ...base.tokens, color: { ...base.tokens.color, inkSoft: base.tokens.color.bg } } }) }]);
 }
 
+/** Idem pour le voile de la palette (texte sur voile presque de la même teinte que lui) : accepté aussi. */
+export function lowContrastScrimPackage(base, name = "Thème voile peu contrasté e2e") {
+  return writeZip([{ name: "theme.json", data: manifest({ ...base, name, tokens: { ...base.tokens, color: { ...base.tokens.color, scrim: "#777777", onScrim: "#888888" } } }) }]);
+}
+
 /** PNG carré de `side` px (curseur de test : carré sombre au contour clair). */
 async function cursorPng(side, shade = 20) {
   const inner = Math.round(side * 0.6);
@@ -83,7 +88,6 @@ export async function maliciousRichPackages(base) {
     ["curseur : même PNG en 1x et en 2x", writeZip([{ name: "theme.json", data: manifest(cur(`/media/kit/${h64}.png`, `/media/kit/${h64}.png`)) }, { name: `assets/${h64}.png`, data: p64 }]), /il faut 32/],
     ["curseur : SVG nommé .png", writeZip([{ name: "theme.json", data: manifest(cur(`/media/kit/${hs}.png`, `/media/kit/${h64}.png`)) }, { name: `assets/${hs}.png`, data: svg }, { name: `assets/${h64}.png`, data: p64 }]), /différent de son nom|pas une image/],
     ["PNG hors curseur (signature)", writeZip([{ name: "theme.json", data: manifest({ ...base, name: "Piège png", assets: { kit: { signature: { svg: `/media/kit/${h32}.png`, w: 1, h: 1 } } } }) }, { name: `assets/${h32}.png`, data: p32 }]), /Thème invalide/],
-    ["voile illisible (palette)", writeZip([{ name: "theme.json", data: manifest({ ...base, name: "Piège voile", tokens: { ...base.tokens, color: { ...base.tokens.color, scrim: "#777777", onScrim: "#888888" } } }) }]), /voile/],
     ["typographie : police téléchargée refusée", writeZip([{ name: "theme.json", data: manifest({ ...base, name: "Piège typo", tokens: { ...base.tokens, type: { h1: { font: "g:Roboto" } } } }) }]), /Thème invalide/],
   ];
 }

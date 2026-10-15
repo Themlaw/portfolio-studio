@@ -2905,7 +2905,7 @@ await stop(km2.server);
 // ---- v0.14 : export / import de thème (route mutante gardée, archive bornée) ---------------
 {
 console.log("\n== TH. thèmes : export et import d'archive");
-const { lowContrastPackage, maliciousPackages, maliciousRichPackages, richPackage, validPackage } = await import("./lib/theme-packages.mjs");
+const { lowContrastPackage, lowContrastScrimPackage, maliciousPackages, maliciousRichPackages, richPackage, validPackage } = await import("./lib/theme-packages.mjs");
 const { loadPreset, presetSlugs } = await import("./lib/presets.mjs");
 const dirT = `${TMP}/vtheme`;
 const tv = await freshAdmin(dirT);
@@ -2969,6 +2969,10 @@ const lowBody = await low.json().catch(() => ({}));
 const lowRow = lowBody.theme && JSON.parse(query(dirT, "select data from themes where id = ?", lowBody.theme.id).data);
 ok("TH4d import d'un thème au contraste insuffisant : accepté (pas de refus pour contraste), couleur gardée", low.status === 200 && lowBody.ok !== false && lowRow?.tokens.color.inkSoft === base.tokens.color.bg, `${low.status} ${JSON.stringify(lowBody).slice(0, 200)}`);
 
+const lowScrim = await importZip(lowContrastScrimPackage(base));
+const lowScrimBody = await lowScrim.json().catch(() => ({}));
+ok("TH4e import d'un thème au voile illisible (palette) : accepté, pas de refus pour contraste", lowScrim.status === 200 && lowScrimBody.ok !== false && Boolean(lowScrimBody.theme), `${lowScrim.status} ${JSON.stringify(lowScrimBody).slice(0, 200)}`);
+
 // Archives malveillantes : toutes refusées, avec le bon message, sans rien créer ni écrire.
 const mid = themeCount();
 const kitDirBefore = existsSync(path.join(dirT, "media", "kit")) ? readdirSync(path.join(dirT, "media", "kit")).length : 0;
@@ -2986,7 +2990,7 @@ const big = Buffer.alloc(13 * 1024 * 1024, 1);
 const streamed = await importZip(big);
 const tmpLeft = existsSync(path.join(dirT, "tmp")) ? readdirSync(path.join(dirT, "tmp")).filter((f) => f.startsWith("upload-")).length : 0;
 ok("TH7 archive de plus de 12 Mo refusée (413), annoncée ou en flux ; fichier temporaire supprimé", huge.status === 413 && streamed.status === 413 && tmpLeft === 0, `${huge.status} ${streamed.status} tmp=${tmpLeft}`);
-ok("TH8 thèmes créés : exactement les quatre imports acceptés (export ré-importé, SVG, riche, contraste faible)", themeCount() === before + 4, `${themeCount()} vs ${before + 4}`);
+ok("TH8 thèmes créés : exactement les cinq imports acceptés (export ré-importé, SVG, riche, contraste faible, voile faible)", themeCount() === before + 5, `${themeCount()} vs ${before + 5}`);
 await stop(tv.server);
 }
 
