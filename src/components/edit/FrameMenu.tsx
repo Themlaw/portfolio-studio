@@ -10,12 +10,13 @@
  * `look.slotFrame` du bloc planche, par emplacement). Chaque choix part aussitôt (intention `look`, annulable).
  * Les pastilles montrent les couleurs du thème par leurs variables, jamais en dur.
  */
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import { FRAME_DEFAULT_COLOR, FRAME_SIZE_LABELS, FRAME_SIZES, frameColorCss, PALETTE_DISPLAY, PALETTE_LABELS, type Frame, type PaletteColor } from "@/lib/look";
 
 import ColorPicker from "./ColorPicker";
 import { lookOf, sendLook } from "./LookLayer";
+import { postIntent } from "./optimistic";
 import { useDismiss } from "./useDismiss";
 
 import "@/app/admin/typo-controls.css";
@@ -105,6 +106,25 @@ export function FrameButton({ uid, open, onToggle }: { uid: string; open: boolea
       <span className="sm-dot" data-on={frame ? "" : undefined} style={frame ? { background: frameColorCss(frame.color) } : undefined} aria-hidden="true" />
       Cadre
     </button>
+  );
+}
+
+/**
+ * Cadre d'un composant Image de la PLANCHE d'un projet (barre du composant, BoardLayer) : même fenêtre, mais le réglage est celui du
+ * composant (`props.look.frame`), qui appartient au projet : écriture de planche `item-frame` (Annuler / Rétablir, version de page).
+ */
+export function BoardFrameMenu({ board, uid, initial, top, left, onClose }: { board: number; uid: string; initial: Frame | undefined; top: number; left: number; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, onClose);
+  const [cur, setCur] = useState<Frame | undefined>(initial);
+  const change = (next: Frame | undefined) => {
+    setCur(next);
+    postIntent({ kind: "bitem-frame", board, uid, frame: next ?? null });
+  };
+  return (
+    <div ref={ref} className="sm tc" role="dialog" aria-label="Cadre de la photo" data-testid="frame-menu" style={{ top, left, right: "auto" }}>
+      <FrameControls value={cur} onChange={change} />
+    </div>
   );
 }
 

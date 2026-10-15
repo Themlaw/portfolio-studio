@@ -332,7 +332,9 @@ export type Frame = z.infer<typeof FrameSchema>;
 export function frameColorCss(color: string | undefined): string {
   if (color && (PALETTE as readonly string[]).includes(color)) return `var(--t-color-${color})`;
   if (color && CUSTOM_COLOR_RE.test(color)) return color;
-  return `var(--t-color-${FRAME_DEFAULT_COLOR})`;
+  // `--color-ink` : le texte du thème, mais remappé en encre LISIBLE dans une carte ou sur un fond de couleur (lot 32) : un cadre
+  // par défaut ne disparaît pas sur un fond sombre.
+  return `var(--color-${FRAME_DEFAULT_COLOR})`;
 }
 
 /** Attributs de rendu d'un cadre (`data-frame` + variable `--frame-color`), ou null sans cadre / cadre invalide. */

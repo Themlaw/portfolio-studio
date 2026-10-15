@@ -47,7 +47,7 @@ import { own } from "@/lib/own";
 import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
 import { BOARD_ITEM_LABELS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
-import { cleanLook, cleanSiteStyles, googleOf, readLook, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
+import { cleanLook, cleanSiteStyles, googleOf, readLook, type Frame, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 import { readBackground, supportsFond, type Background } from "@/themes/fond";
 import { cleanSurface, readSurface, type Surface } from "@/themes/surface";
@@ -1697,15 +1697,26 @@ export default function VisualEditor({
     await itemFlushRef.current();
     await boardDo(board, { op: "item-fond", uid, background });
   };
+  /** Cadre de la photo d'un composant Image de la planche (lot 34) : une écriture après 250 ms de calme (la roue de couleur envoie en continu). */
+  const frameTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const itemFrame = (board: number, uid: string, frame: Frame | null) => {
+    clearTimeout(frameTimer.current);
+    frameTimer.current = setTimeout(() => {
+      void (async () => {
+        await itemFlushRef.current();
+        await handlers.current.boardDo(board, { op: "item-frame", uid, frame });
+      })();
+    }, 250);
+  };
   /** Déplacer un composant à un rang (glisser par la poignée). */
   const itemTo = async (board: number, uid: string, index: number) => {
     await itemFlushRef.current();
     await boardDo(board, { op: "item-to", uid, index });
   };
 
-  const handlers = useRef({ itemAdd, itemOp, itemFond, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook });
+  const handlers = useRef({ itemAdd, itemOp, itemFond, itemFrame, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook });
   useEffect(() => {
-    handlers.current = { itemAdd, itemOp, itemFond, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook };
+    handlers.current = { itemAdd, itemOp, itemFond, itemFrame, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -1777,6 +1788,9 @@ export default function VisualEditor({
           break;
         case "bitem-op":
           void h.itemOp(msg.board, msg.uid, msg.op);
+          break;
+        case "bitem-frame":
+          h.itemFrame(msg.board, msg.uid, msg.frame);
           break;
         case "bitem-fond":
           void h.itemFond(msg.board, msg.uid, msg.background, msg.continuous);

@@ -217,6 +217,43 @@ try {
   await board3.evaluate((el) => el.scrollIntoView({ block: "start" }));
   await sleep(600);
   await shot("3-couleur-forte-toile");
+  /* ---- F. Cadre autour de la photo d'un composant Image de la planche (lot 34), sur un fond de couleur ---- */
+  const lookFrame = (i) => effective()[i]?.props?.look?.frame;
+  const fr0 = board3.locator("[data-edit-bitem]").nth(0);
+  ok("F0 la bande n'a pas de bouton « Cadre » (seules les images en ont un)", (await fr0.locator('[data-edit-bitem-op="frame"]').count()) === 0);
+  const imgFrame = board3.locator("[data-edit-bitem]").nth(1);
+  await imgFrame.scrollIntoViewIfNeeded();
+  await imgFrame.hover();
+  await imgFrame.locator('[data-edit-bitem-op="frame"]').click();
+  const fmenu = f.locator('[data-testid="frame-menu"]');
+  await fmenu.waitFor({ timeout: 20000 });
+  await fmenu.locator('[data-testid="frame-switch"]').click();
+  ok("F1 cadre posé : `props.look.frame = { size: medium }` dans la suite du projet", await waitFor(() => lookFrame(1)?.size === "medium"), JSON.stringify(effective()[1]?.props));
+  await fmenu.locator('[data-frame-size="thick"]').click();
+  ok("F2 Épais enregistré", await waitFor(() => lookFrame(1)?.size === "thick"), JSON.stringify(lookFrame(1)));
+  await page.keyboard.press("Escape");
+  await settled();
+  const fm = () =>
+    f.evaluate((id) => {
+      const fr = document.querySelectorAll(`[data-edit-board="${id}"] [data-edit-bitem]`)[1];
+      const fig = fr?.querySelector("figure[data-frame]");
+      const media = fig?.querySelector(".block-image-media, .block-image-frame") ?? fig;
+      const wrap = fr?.querySelector(".fond-bloc");
+      if (!fig || !media || !wrap) return null;
+      const cs = getComputedStyle(media);
+      const mr = media.getBoundingClientRect();
+      const wr = wrap.getBoundingClientRect();
+      return { bw: parseFloat(cs.borderTopWidth), color: cs.borderTopColor, ink: getComputedStyle(wrap).color, mw: mr.width, ww: wr.width };
+    }, PROJECT.id);
+  let m = null;
+  ok("F3 toile : bordure Épais autour de l'image, couleur par défaut = encre lisible du fond (pas celle du thème, illisible sur fond fort)", await waitFor(async () => { m = await fm(); return m && m.bw >= 5 && m.color === m.ink; }), JSON.stringify(m));
+  ok("F4 le cadre entoure l'image, pas la colonne ni le fond (l'image est plus étroite que le fond)", m && m.mw < m.ww - 40, JSON.stringify(m));
+  await shot("4-cadre-image-planche");
+  await page.keyboard.press("Control+z");
+  ok("F5 Annuler : le cadre disparaît (Annuler / Rétablir de la planche)", await waitFor(() => lookFrame(1)?.size === "medium" || lookFrame(1) === undefined), JSON.stringify(lookFrame(1)));
+  await page.keyboard.press("Control+z");
+  ok("F5b Annuler encore : plus de cadre", await waitFor(() => lookFrame(1) === undefined), JSON.stringify(lookFrame(1)));
+  await settled();
   ok("D aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));
 } finally {
   await browser.close();

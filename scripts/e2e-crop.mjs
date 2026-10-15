@@ -5,7 +5,7 @@
  *     fois avec un recadrage libre différent : chaque cadre prend le rapport de son rectangle, montre le bon
  *     personnage (pixels de la variante servie), netteté (largeur de la variante / pixels affichés × DPR) ≥ 1 ;
  *     portrait haut plafonné à 85 vh sans rognage, centré ; panorama pleine largeur entier (aucun rognage haut/bas) ;
- *     option « Image entière / Remplir le cadre » ; décors dans une grille en 4:5 (ancien cadrage zoom 150 % et
+ *     option « Image entière / Remplir la case » ; décors dans une grille en 4:5 (ancien cadrage zoom 150 % et
  *     décor sans cadrage) servis nets.
  *  R  route publique en lecture seule : variante servie avec en-têtes de cache ; signature modifiée, autre
  *     rectangle, autre média, largeur hors liste, format inconnu, remontée de dossier, méthode d'écriture : refusés,
@@ -218,7 +218,7 @@ if (run("L")) {
   const pf = await pbox(page.locator('[data-edit-block="b-pano-plein"] > *').first());
   await page.screenshot({ path: `${SHOTS}/L-panorama-plein-${TAG}.png`, clip: { x: 0, y: Math.max(0, pf.y - 20), width: 1440, height: Math.min(700, pf.height + 40) }, fullPage: true });
 
-  // Pleine largeur avec un format imposé : « Image entière » par défaut (bandes vides), « Remplir le cadre » rogne.
+  // Pleine largeur avec un format imposé : « Image entière » par défaut (bandes vides), « Remplir la case » rogne.
   await page.locator(blockImg("b-pano-169")).scrollIntoViewIfNeeded();
   m = await imgInfo(page, blockImg("b-pano-169"));
   if (BEFORE) ok("L (avant) pleine largeur + 16:9 : image rognée (cover)", m.fit === "cover" && Math.abs(m.w / m.h - 16 / 9) < 0.02, `${m.fit}`);
@@ -227,9 +227,9 @@ if (run("L")) {
   await page.screenshot({ path: `${SHOTS}/L-pano-169-entier-${TAG}.png`, clip: { x: 0, y: Math.max(0, p169.y - 20), width: 1440, height: Math.min(900, p169.height + 40) }, fullPage: true });
   await page.locator(blockImg("b-pano-169-cover")).scrollIntoViewIfNeeded();
   m = await imgInfo(page, blockImg("b-pano-169-cover"));
-  ok("L pleine largeur + 16:9 + « Remplir le cadre » : rogné (cover)", m.fit === "cover" && Math.abs(m.w / m.h - 16 / 9) < 0.02, `${m.fit} ${(m.w / m.h).toFixed(2)}`);
+  ok("L pleine largeur + 16:9 + « Remplir la case » : rogné (cover)", m.fit === "cover" && Math.abs(m.w / m.h - 16 / 9) < 0.02, `${m.fit} ${(m.w / m.h).toFixed(2)}`);
   if (!BEFORE) {
-    ok("L « Remplir le cadre » : variante recadrée au rapport du cadre (fenêtre centrée, nette)", m.cropped && m.px >= Math.min(m.w * m.dpr, m.best) * 0.99, `${m.px} px pour ${Math.round(m.w * m.dpr)}, ${m.src}`);
+    ok("L « Remplir la case » : variante recadrée au rapport du cadre (fenêtre centrée, nette)", m.cropped && m.px >= Math.min(m.w * m.dpr, m.best) * 0.99, `${m.px} px pour ${Math.round(m.w * m.dpr)}, ${m.src}`);
   }
 
   // Décors dans une grille en 4:5 : cadrage ancien (zoom 150 %) et décor sans cadrage, nets.

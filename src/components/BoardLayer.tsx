@@ -30,9 +30,10 @@ import { createPortal } from "react-dom";
 import { acceptToCanvas, EDIT_MSG, type DropTargetInfo, type FromCanvas, type Ghost } from "@/lib/edit/protocol";
 import { postIntent, previewBoardText } from "./edit/optimistic";
 import { BoardFondMenu } from "./edit/FondMenu";
+import { BoardFrameMenu } from "./edit/FrameMenu";
 import { readBackground, type Background } from "@/themes/fond";
 
-import { RADII, RADIUS_LABELS, type Frame, type Radius } from "@/lib/look";
+import { FrameSchema, RADII, RADIUS_LABELS, type Frame, type Radius } from "@/lib/look";
 import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, isBoardItemType, type BoardItemType } from "@/blocks/board-layout";
 
 import { FrameControls } from "./edit/FrameMenu";
@@ -267,6 +268,8 @@ export default function BoardLayer({
   // Contenu de la planche (lot 31) : menu « + Ajouter » ouvert, composant choisi.
   const [addMenu, setAddMenu] = useState<{ board: number; index: number; top: number; left: number; hasStrip: boolean; count: number } | null>(null);
   const [itemSel, setItemSel] = useState<{ board: number; uid: string } | null>(null);
+  // Lot 34 : fenêtre « Cadre » de la barre d'un composant Image (même principe que « Fond »).
+  const [frameMenu, setFrameMenu] = useState<{ board: number; uid: string; top: number; left: number; frame: Frame | undefined } | null>(null);
   // Lot 32 : fenêtre « Fond » de la barre d'un composant (position dans la page, fond courant lu sur la barre).
   const [fondMenu, setFondMenu] = useState<{ board: number; uid: string; top: number; left: number; background: Background | null } | null>(null);
   // Texte (ou image) d'un projet survolé : indicateur « modifié aussi sur sa planche et sa page ».
@@ -648,7 +651,19 @@ export default function BoardLayer({
         const uid = itemOp.dataset.uid ?? "";
         const op = itemOp.dataset.editBitemOp;
         if (!board || !uid) return;
-        if (op === "fond") {
+        if (op === "frame") {
+          const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
+          const r = itemOp.getBoundingClientRect();
+          let current: Frame | undefined;
+          try {
+            const raw = (JSON.parse(frame?.dataset.editBitemProps ?? "{}") as { props?: { look?: { frame?: unknown } } }).props?.look?.frame;
+            const parsed = FrameSchema.safeParse(raw);
+            current = parsed.success ? parsed.data : undefined;
+          } catch {}
+          setFondMenu(null);
+          setFrameMenu((cur) => (cur?.uid === uid ? null : { board, uid, top: r.bottom + window.scrollY + 4, left: Math.max(8, Math.min(r.left + window.scrollX - 300, window.scrollX + window.innerWidth - 348)), frame: current }));
+        } else if (op === "fond") {
+          setFrameMenu(null);
           const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
           const r = itemOp.getBoundingClientRect();
           let background: Background | null = null;
@@ -1092,6 +1107,7 @@ export default function BoardLayer({
         />
       )}
 
+      {frameMenu && <BoardFrameMenu key={frameMenu.uid} board={frameMenu.board} uid={frameMenu.uid} initial={frameMenu.frame} top={frameMenu.top} left={frameMenu.left} onClose={() => setFrameMenu(null)} />}
       {fondMenu && <BoardFondMenu key={fondMenu.uid} board={fondMenu.board} uid={fondMenu.uid} initial={fondMenu.background} top={fondMenu.top} left={fondMenu.left} onClose={() => setFondMenu(null)} />}
 
       {addMenu && (

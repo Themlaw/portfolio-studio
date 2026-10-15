@@ -521,20 +521,20 @@ export function ImageEditor() {
         value={(value.width as string) ?? "wide"}
         options={[
           { value: "text", label: "Colonne de texte" },
-          { value: "wide", label: "Cadre du site" },
+          { value: "wide", label: "Largeur du site" },
           { value: "full", label: "Pleine largeur" },
         ]}
         onChange={(v) => set("width", v ?? "wide")}
       />
       <FormatSelect help="Imposé : l'image est cadrée (sur la page, survole-la puis « Cadrer » pour choisir la zone gardée)." mediaProp="mediaId" />
       <Select
-        label="Dans le cadre"
-        help="Sans format imposé, l'image garde le sien. Avec un format : « Image entière » la montre en entier (bandes vides si besoin), « Remplir le cadre » la rogne. Un recadrage libre (« Cadrer » sur la page) suit son propre format."
+        label="Dans la case"
+        help="Sans format imposé, l'image garde le sien. Avec un format : « Image entière » la montre en entier (bandes vides si besoin), « Remplir la case » la rogne. Un recadrage libre (« Cadrer » sur la page) suit son propre format."
         value={(value.fit as string) ?? "auto"}
         options={[
           { value: "auto", label: "Automatique (entière en pleine largeur)" },
           { value: "contain", label: "Image entière" },
-          { value: "cover", label: "Remplir le cadre" },
+          { value: "cover", label: "Remplir la case" },
         ]}
         onChange={(v) => set("fit", v === "auto" ? undefined : v)}
       />

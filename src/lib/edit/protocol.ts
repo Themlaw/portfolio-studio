@@ -11,7 +11,7 @@ import { BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, type BoardItemType } from "../../blo
 import { FIELD_OP_NAMES } from "../../blocks/optional-fields";
 import { BackgroundSchema } from "../../themes/schema";
 import { SurfaceSchema } from "../../themes/surface";
-import { LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
+import { FrameSchema, LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
 import { BASE_KEYS } from "../../themes/palette";
 
 export const EDIT_MSG = "portfolio:edit";
@@ -81,6 +81,8 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("bitem-op"), board: Board, uid: Uid, op: z.enum(["up", "down", "remove"]) }),
   // Lot 32 : fond de couleur d'un composant de la planche (null = aucun fond) ; `continuous` : roue de couleur en cours de glissé.
   z.object({ kind: z.literal("bitem-fond"), board: Board, uid: Uid, background: BackgroundSchema.nullable(), continuous: z.boolean().optional() }),
+  // Lot 34 : cadre autour de la photo d'un composant Image de la planche (null = aucun cadre).
+  z.object({ kind: z.literal("bitem-frame"), board: Board, uid: Uid, frame: FrameSchema.nullable() }),
   // Un composant de la planche choisi sur la toile : l'éditeur montre ses réglages (props = JSON des réglages tels que la toile les a lus).
   z.object({ kind: z.literal("bitem-select"), board: Board, uid: Uid, item: BoardItemKind, props: z.string().max(100_000) }),
   z.object({ kind: z.literal("drop-target"), target: DropTarget.nullable() }),

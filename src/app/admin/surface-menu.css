@@ -29,6 +29,9 @@
   flex: 0 0 76px;
   color: var(--lk-ink-soft);
 }
+.fr-color-name {
+  margin-top: 8px;
+}
 .sm-hint {
   margin: 0;
   color: var(--lk-ink-soft);

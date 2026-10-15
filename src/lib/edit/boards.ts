@@ -40,6 +40,7 @@ import { z } from "zod";
 import { BOARD_ITEM_TYPES, BOX_MIN, MAX_BOARD_ITEMS, defaultLayout, isProjectStrip, newBoardItem, readLayout, sameLayout, type BoardItem } from "@/blocks/board-layout";
 import { getPageForEdit } from "@/lib/admin";
 import { getDb, schema } from "@/lib/db";
+import { FrameSchema } from "@/lib/look";
 import { slugify } from "@/lib/slug";
 import { BackgroundSchema } from "@/themes/schema";
 
@@ -103,6 +104,8 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("item-remove"), uid: Uid }),
   // Lot 32 : fond de couleur du composant (`props.background`, null = aucun) ; vaut aussi pour la bande des images du projet.
   z.strictObject({ op: z.literal("item-fond"), uid: Uid, background: BackgroundSchema.nullable() }),
+  // Lot 34 : cadre autour de la photo d'un composant Image (`props.look.frame`, null = aucun cadre).
+  z.strictObject({ op: z.literal("item-frame"), uid: Uid, frame: FrameSchema.nullable() }),
   z.strictObject({ op: z.literal("item-set"), uid: Uid, props: z.record(z.string(), z.unknown()).optional(), box: Box.nullable().optional() }),
 ]);
 export type BoardOp = z.infer<typeof BoardOpSchema>;
@@ -569,6 +572,19 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         const props = { ...item.props };
         if (op.background) props.background = op.background;
         else delete props.background;
+        item.props = props;
+        return snap;
+      }
+      case "item-frame": {
+        const item = snap.layout.find((i) => i.uid === op.uid);
+        if (!item) return "Ce composant n'est plus sur cette planche.";
+        if (item.type !== "image") return "Le cadre ne concerne que les images.";
+        const look = { ...((item.props.look as Record<string, unknown> | undefined) ?? {}) };
+        if (op.frame) look.frame = op.frame;
+        else delete look.frame;
+        const props = { ...item.props };
+        if (Object.keys(look).length) props.look = look;
+        else delete props.look;
         item.props = props;
         return snap;
       }

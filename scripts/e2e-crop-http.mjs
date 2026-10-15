@@ -147,7 +147,7 @@ ok("L panorama pleine largeur : entier, non recadré, rapport 4:1", !pano.croppe
 const p169 = imgOf("b-pano-169");
 ok("L pleine largeur + 16:9 : « Image entière » (data-fit=contain), non recadré", / data-fit="contain"/.test(p169.fig) && !p169.cropped, p169.fig);
 const c169 = imgOf("b-pano-169-cover");
-ok("L pleine largeur + 16:9 + « Remplir le cadre » : fenêtre extraite 16:9 de l'original", c169.cropped && near(c169.w / c169.h, 16 / 9, 0.01) && !/data-fit/.test(c169.fig), `${c169.w}×${c169.h} ${c169.fig}`);
+ok("L pleine largeur + 16:9 + « Remplir la case » : fenêtre extraite 16:9 de l'original", c169.cropped && near(c169.w / c169.h, 16 / 9, 0.01) && !/data-fit/.test(c169.fig), `${c169.w}×${c169.h} ${c169.fig}`);
 for (const uid of ["d1", "d2"]) {
   const m = imgOf(uid);
   ok(`L décor ${uid} dans une case 4:5 : fenêtre extraite (nette) au rapport de la case`, m.cropped && near(m.w / m.h, 0.8, 0.02), `${m.w}×${m.h}`);

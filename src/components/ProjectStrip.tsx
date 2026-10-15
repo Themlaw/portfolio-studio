@@ -251,6 +251,11 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
         <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title="Fond de couleur du composant, sur toute sa hauteur">
           Fond
         </button>
+        {part.type === "image" && (
+          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="frame" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-frame-button" title="Cadre autour de la photo">
+            Cadre
+          </button>
+        )}
         {op("up", "Monter", "↑", index === 0)}
         {op("down", "Descendre", "↓", index === count - 1)}
         {op("remove", "Supprimer", "✕")}
