@@ -209,8 +209,8 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                     {paletteIgnored.length ? `, ${paletteIgnored.length} calque${paletteIgnored.length > 1 ? "s" : ""} ignoré${paletteIgnored.length > 1 ? "s" : ""}` : ""}.
                   </p>
                   {colorProblems.length > 0 && (
-                    <p className="a-field-error" role="alert" data-testid="kit-colors-blocked">
-                      Tes couleurs ne seront PAS appliquées : une fois posées, le contraste est insuffisant ({colorProblems.slice(0, 3).join(" ; ")}). Corrige-les dans Photoshop et renvoie le kit.
+                    <p className="a-notice" role="status" data-testid="kit-colors-warning">
+                      Attention : une fois posées, certaines couleurs rendront du texte difficile à lire ({colorProblems.slice(0, 3).join(" ; ")}). Elles seront appliquées quand même ; tu peux les corriger dans Photoshop ou les décocher.
                     </p>
                   )}
                   {paletteIgnored.map((l) => (
@@ -278,7 +278,7 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                 themes={overview.themes.map((t) => ({ id: t.id, name: t.name, live: t.id === overview.activeId }))}
               />
               <KitApplyPanel
-                colors={colorChanges.length ? { count: colorChanges.length, problem: colorProblems.length ? `Contraste insuffisant une fois appliquées (${colorProblems[0]}) : corrige ces couleurs dans Photoshop, ou applique sans elles.` : null } : null}
+                colors={colorChanges.length ? { count: colorChanges.length, problem: colorProblems.length ? `Lisibilité insuffisante une fois appliquées (${colorProblems[0]}) : elles seront appliquées quand même ; tu peux les corriger dans Photoshop ou les décocher.` : null } : null}
                 themeId={theme.id}
                 importId={state.meta.id}
                 baseId={base.id}

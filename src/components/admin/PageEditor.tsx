@@ -135,7 +135,7 @@ export default function PageEditor({
           />
           <Toggle label="Dans le menu" help="En fin de menu ; change l'ordre depuis la liste des pages." checked={state.inMenu} onChange={(v) => set("inMenu", v)} />
           <PageCollectionField value={state.collection} onChange={(v) => set("collection", v)} pages={context.pages} pageId={page.id} error={errors.collection} />
-          <PageButtonsColorField value={state.accent} onChange={(v) => set("accent", v)} colors={colors} savedValue={saved.accent} error={errors.accent} />
+          <PageButtonsColorField value={state.accent} onChange={(v) => set("accent", v)} colors={colors} error={errors.accent} />
         </div>
       </section>
 

@@ -162,7 +162,7 @@ if (run("V")) {
   ok("V2e couleur choisie : son nom est visible", await until(f, () => document.querySelector('[data-testid="text-color-name"]')?.textContent === "Boutons et liens", null, 8000));
   await page.screenshot({ path: `${SHOTS}/V2-barre-texte.png` });
   await f.locator(".lk-bar .tc-wheel").click();
-  ok("V3 roue des couleurs : plus de seconde rangée « Couleurs du thème »", (await f.locator('.cp [aria-label="Couleurs du thème"]').count()) === 0 && (await f.locator(".cp .cp-wheel").count()) === 1);
+  ok("V3 sélecteur de couleur (carré et bande) : plus de seconde rangée « Couleurs du thème »", (await f.locator('.cp [aria-label="Couleurs du thème"]').count()) === 0 && (await f.locator(".cp .cp-sv").count()) === 1);
   await f.locator(".cp .cp-foot button", { hasText: "Fermer" }).click();
   // Fond du texte : libellé distinct de la carte.
   ok("V4 ligne « Fond du texte : »", /Fond du texte/.test((await f.locator(".lk-bar .tc-bd-label").textContent()) ?? ""));

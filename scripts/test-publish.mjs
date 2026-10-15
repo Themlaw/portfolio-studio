@@ -412,7 +412,7 @@ const settingOf = (key) => {
   return raw ? JSON.parse(raw) : undefined;
 };
 
-await test("17f (v0.21.1) : palette peu lisible → enregistrée ET publiée (simple avertissement, jamais bloquée)", () => {
+await test("17f (lot 29) : palette peu lisible → enregistrée, publiée et appliquée : avertissement seulement, jamais de refus", () => {
   const page = newPage("t-17f-a");
   const theme = activeThemeForEdit();
   const pub = readPublishedSite();
@@ -420,17 +420,17 @@ await test("17f (v0.21.1) : palette peu lisible → enregistrée ET publiée (si
   // Fond = couleur du texte : la saisie est acceptée…
   const saved = saveSiteDraft(page, { ...pub, styles: { palette: { bg: theme.tokens.color.ink } } }, rev(page));
   assert.equal(saved.ok, true, "enregistrement du brouillon jamais bloqué");
-  // …et la mise en ligne aussi.
-  const done = publishDraft(page, rev(page));
-  assert.equal(done.ok, true, JSON.stringify(done));
-  assert.deepEqual(settingOf("styles")?.palette, { bg: theme.tokens.color.ink }, "palette publiée telle quelle");
+  // …la mise en ligne aussi (lot 29), et la couleur est bien celle qui est publiée.
+  const published = publishDraft(page, rev(page));
+  assert.equal(published.ok, true, JSON.stringify(published.fieldErrors));
+  assert.equal(settingOf("styles")?.palette?.bg, theme.tokens.color.ink, "la couleur choisie est publiée telle quelle");
+  // Le formulaire de la page n'est pas bloqué non plus.
   const viaForm = savePageFromForm(page, { ...base(page), blocks: [] }, rev(page));
-  assert.equal(viaForm.ok, true, JSON.stringify(viaForm));
-  // Remise à zéro pour les tests suivants : retour aux couleurs du thème.
-  saveDraft(page, { ...base(page), blocks: [k("b", "section-title", { title: L("Titre") })] }, rev(page));
-  assert.equal(saveSiteDraft(page, { ...readPublishedSite(), styles: { palette: {} } }, rev(page)).ok, true);
+  assert.equal(viaForm.ok, true);
+  // Nettoyage : retour à la palette du thème, publié.
+  assert.equal(saveSiteDraft(page, { ...pub, styles: {} }, rev(page)).ok, true);
   assert.equal(publishDraft(page, rev(page)).ok, true);
-  assert.equal(settingOf("styles")?.palette, undefined);
+  assert.equal(settingOf("styles")?.palette, undefined, "palette retirée");
 });
 await test("17f : palette lisible → publiée avec la page, thème intact ; Annuler (retour à la palette du thème) la retire", () => {
   const page = newPage("t-17f-b");

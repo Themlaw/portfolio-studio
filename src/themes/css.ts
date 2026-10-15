@@ -263,6 +263,10 @@ export function sitePaletteVariables(base: { color: ThemeColor; palette?: Theme[
   if (applied.color === base.color && !all) return {};
   const before = colorVariables(base.color, palette);
   const after = colorVariables(applied.color as ThemeColor, applied.palette);
+  // Voile choisi par l'artiste (lot 29) : la visionneuse prend SA couleur, telle quelle. Calculé (auto), le fond de la
+  // visionneuse reste un gris neutre de même luminance (on juge une œuvre sur un gris).
+  const chosenScrim = overrides?.scrim;
+  if (typeof chosenScrim === "string" && chosenScrim !== "auto") after["--t-color-viewer"] = chosenScrim;
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(after)) if (all || before[k] !== v) out[k] = v;
   return out;

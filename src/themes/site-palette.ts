@@ -16,7 +16,10 @@
 import { AA, contrastReport, lightnessCandidates, ratio } from "./contrast";
 import {
   BASE_KEYS,
+  isAuto,
   normalizePalette,
+  NUANCE_KEYS,
+  setNuance,
   ROLE_NAMES,
   PALETTE_GROUPS,
   resolvePalette,
@@ -29,7 +32,11 @@ import {
   type StoredNuance,
 } from "./palette";
 
-export type SitePalette = Partial<Record<BaseKey, string>>;
+/**
+ * Surcharges du site : bases (`#rrggbb`) et, depuis le lot 29, nuances (`#rrggbb`, ou « auto » = le calcul, même si le
+ * thème avait forcé une valeur). Absent = la valeur du thème (calcul comprise quand le thème le laisse en auto).
+ */
+export type SitePalette = Partial<Record<BaseKey | NuanceKey, string>>;
 
 /** Nuances enregistrées recalculées quand la base change (celles dont la dérivation la lit). */
 const DEPENDENT: Record<BaseKey, StoredNuance[]> = {
@@ -55,13 +62,28 @@ export type RoleInfo = {
 
 /** Les rôles de couleur, dans l'ordre du panneau. */
 export const SITE_ROLES: RoleInfo[] = [
-  { key: "bg", name: ROLE_NAMES.bg, phrase: "La couleur derrière tout le site.", uses: "fond des pages et de l'en-tête", nuances: ["bgDeep", "line", "scrim", "onScrim"] },
+  { key: "bg", name: ROLE_NAMES.bg, phrase: "La couleur derrière tout le site.", uses: "fond des pages et de l'en-tête", nuances: ["bgDeep", "line"] },
   { key: "surface", name: ROLE_NAMES.surface, phrase: "Le fond des cartes, des champs de saisie et des encadrés.", uses: "cartes, champs, encadrés", nuances: [] },
-  { key: "ink", name: ROLE_NAMES.ink, phrase: "Titres, paragraphes et menus.", uses: "titres, paragraphes, menu", nuances: ["inkSoft", "shadow"] },
+  { key: "ink", name: ROLE_NAMES.ink, phrase: "Titres, paragraphes et menus.", uses: "titres, paragraphes, menu", nuances: ["inkSoft", "eyebrow", "shadow"] },
   { key: "primary", name: ROLE_NAMES.primary, phrase: "Les liens et les boutons : tout ce qui se clique.", uses: "liens, boutons", nuances: ["primaryHover", "onPrimary"] },
-  { key: "secondary", name: ROLE_NAMES.secondary, phrase: "Les petits détails mis en valeur : étiquettes, soulignés.", uses: "étiquettes, soulignés", nuances: ["eyebrow"] },
+  { key: "secondary", name: ROLE_NAMES.secondary, phrase: "Les petits détails mis en valeur : étiquettes, soulignés.", uses: "étiquettes, soulignés", nuances: [] },
   { key: "tertiary", name: ROLE_NAMES.tertiary, phrase: "Traits et ornements discrets.", uses: "ornements, détails", nuances: [] },
 ];
+
+/** Nuances nommées pour l'artiste (lot 29) : nom, phrase « où ça se voit », et le groupe qui les range. */
+export const SITE_NUANCES: Record<NuanceKey, { name: string; phrase: string; under: BaseKey | "lightbox" }> = {
+  bgDeep: { name: "Fond des rubriques alternées", phrase: "Le fond d'une rubrique sur deux, pour les séparer sans trait.", under: "bg" },
+  line: { name: "Traits de séparation", phrase: "Les filets entre les éléments, les contours fins.", under: "bg" },
+  inkSoft: { name: "Texte secondaire (présentations, légendes)", phrase: "Les présentations, les légendes sous les images.", under: "ink" },
+  eyebrow: { name: "Petits textes au-dessus des titres", phrase: "Les petites étiquettes posées au-dessus d'un titre.", under: "ink" },
+  shadow: { name: "Ombres", phrase: "La teinte des ombres des cartes et des images.", under: "ink" },
+  primaryHover: { name: "Au survol", phrase: "La couleur d'un bouton ou d'un lien quand la souris passe dessus.", under: "primary" },
+  onPrimary: { name: "Texte sur les boutons", phrase: "Le texte écrit dans un bouton plein.", under: "primary" },
+  scrim: { name: "Voile derrière l'image", phrase: "Le fond derrière une image agrandie : la couleur exacte que tu choisis (automatique : un gris neutre).", under: "lightbox" },
+  onScrim: { name: "Texte et boutons sur le voile", phrase: "Légende, flèches et bouton de fermeture d'une image agrandie.", under: "lightbox" },
+};
+/** Nuances rangées sous un rôle, dans l'ordre du panneau. */
+export const nuancesUnder = (under: BaseKey | "lightbox"): NuanceKey[] => (Object.keys(SITE_NUANCES) as NuanceKey[]).filter((k) => SITE_NUANCES[k].under === under);
 
 /** Usage de chaque nuance, en clair. */
 export const NUANCE_USES: Record<NuanceKey, string> = {
@@ -83,13 +105,32 @@ export const roleInfo = (key: BaseKey): RoleInfo => SITE_ROLES.find((r) => r.key
 /** Couleurs du thème avec les bases du site posées dessus (nuances dépendantes recalculées). */
 export function applySitePalette<C extends PaletteColors>(color: C, palette: PaletteState | undefined, overrides: SitePalette | undefined): { color: C; palette: PaletteState | undefined } {
   const keys = BASE_KEYS.filter((k) => typeof overrides?.[k] === "string");
-  if (!keys.length) return { color, palette };
+  const picked = NUANCE_KEYS.filter((k) => typeof overrides?.[k] === "string");
+  if (!keys.length && !picked.length) return { color, palette };
   const auto = new Set<StoredNuance>(palette?.auto ?? []);
   for (const k of keys) for (const n of DEPENDENT[k]) auto.add(n);
   const p: PaletteState = { auto: STORED_NUANCES.filter((n) => auto.has(n)) };
   const next = { ...color } as Record<string, string | undefined>;
   for (const k of keys) next[k] = overrides![k];
-  return { color: normalizePalette(next as C, p), palette: p };
+  let out: { color: C; palette: PaletteState | undefined } = { color: normalizePalette(next as C, p), palette: p };
+  // Nuances choisies après les bases (une nuance choisie ne se recalcule plus), « auto » = retour au calcul.
+  for (const k of picked) out = setNuance(out.color, out.palette, k, overrides![k] === "auto" ? null : overrides![k]!);
+  return out;
+}
+
+/** Origine de la valeur d'une nuance : choisie sur le site, calculée (auto), ou fixée par le thème. */
+export function nuanceOrigin(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined, key: NuanceKey): "site" | "auto" | "theme" {
+  const v = overrides?.[key];
+  const a = applySitePalette(color, palette, overrides);
+  if (typeof v === "string" && v !== "auto") return "site";
+  return isAuto(a.color, a.palette, key) ? "auto" : "theme";
+}
+
+/** Valeur à écrire pour « Revenir à l'automatique » : plus de surcharge si le thème calcule déjà, sinon « auto ». */
+export function autoOverride(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined, key: NuanceKey): "auto" | undefined {
+  const without = { ...(overrides ?? {}) };
+  delete without[key];
+  return nuanceOrigin(color, palette, without, key) === "auto" ? undefined : "auto";
 }
 
 /** Toutes les couleurs effectives du site (thème + surcharges), nuances résolues. */
@@ -99,11 +140,10 @@ export function effectiveSitePalette(color: PaletteColors, palette: PaletteState
 }
 
 /**
- * Palette que lisent les pages : la palette effective du site, ou celle du thème si la palette du site rendrait du
- * texte illisible (ignorée au rendu public ; la vue brouillon la montre pour la corriger). Mêmes règles que le layout.
+ * Palette que lisent les pages : la palette effective du site (surcharges comprises, lisibles ou non : un manque de
+ * contraste n'est qu'un avertissement, lot 29), ou celle du thème sans surcharge.
  */
-export function pagePalette(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined, edit: boolean): ResolvedPalette {
-  void edit; // palette peu contrastée appliquée quand même (avertissement seulement, v0.21.1)
+export function pagePalette(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined): ResolvedPalette {
   return overrides ? effectiveSitePalette(color, palette, overrides) : resolvePalette(color, palette);
 }
 
@@ -140,12 +180,12 @@ export function rolePairs(color: PaletteColors, palette: PaletteState | undefine
   return sitePalettePairs(color, palette, overrides).filter((p) => p.tokens.some((t) => own.includes(t)));
 }
 
-/** Message de refus (publication), ou null si tout passe. */
+/** Message d'avertissement (jamais un refus, lot 29), ou null si tout passe. */
 export function sitePaletteProblem(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined): string | null {
   const issues = sitePaletteIssues(color, palette, overrides);
   if (!issues.length) return null;
   const worst = issues.reduce((a, b) => (b.ratio < a.ratio ? b : a));
-  return `Les couleurs du site rendraient du texte illisible (${worst.label.toLowerCase()} : ${worst.ratio.toFixed(2).replace(".", ",")}:1, il faut au moins ${AA.toString().replace(".", ",")}:1). Ajuste-les dans « Couleurs » ou rétablis celles du thème.`;
+  return `Les couleurs du site rendraient du texte illisible (${worst.label.toLowerCase()} : ${worst.ratio.toFixed(2).replace(".", ",")}:1, il faut au moins ${AA.toString().replace(".", ",")}:1). Elles sont appliquées quand même ; ajuste-les dans « Couleurs » si tu veux les rendre plus lisibles.`;
 }
 
 /** Bases dont le contraste est vérifié (le texte et les fonds qu'il touche). */

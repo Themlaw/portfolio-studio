@@ -217,6 +217,8 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
     if (other && other.id !== id) errors.collection = `Cette collection est déjà celle de la page « ${other.title.fr || other.title.en} » : retire-la de cette page d'abord.`;
   }
 
+  // Lisibilité de la couleur « Boutons et liens » de la page (lot 29) : jamais bloquante, l'éditeur avertit.
+
   // Blocs : forme de l'arbre (conteneurs), type connu, props valides, références existantes.
   // Pages, médias et projets à la corbeille n'existent plus pour un lien : seul « Restaurer » les rend citables.
   const pageIds = new Set(db.select({ id: schema.pages.id }).from(schema.pages).where(isNull(schema.pages.deletedAt)).all().map((p) => p.id));

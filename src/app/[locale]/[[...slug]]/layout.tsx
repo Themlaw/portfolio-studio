@@ -39,11 +39,11 @@ export default async function SiteLayout({
   // styles des textes par rôle ; vue brouillon : ceux du brouillon du site.
   const theme = await getActiveTheme();
   // Fond de texte coloré (lot 21) : la palette effective choisit le texte lisible dessus (lue seulement alors).
-  const textPalette = JSON.stringify(view.styles?.roles ?? null).includes('"backdropColor"') ? pagePalette(theme.tokens.color as PaletteColors, theme.tokens.palette, view.styles?.palette, edit) : undefined;
+  const textPalette = JSON.stringify(view.styles?.roles ?? null).includes('"backdropColor"') ? pagePalette(theme.tokens.color as PaletteColors, theme.tokens.palette, view.styles?.palette) : undefined;
   const siteCss = [fontFaces, siteStylesCss(view.styles, textPalette)].filter(Boolean).join("\n");
   // Palette et logo du site (lot 17f) : feuilles à part, posées AVANT les styles de rôle (un réglage
   // de taille du « Nom du site » passe devant celle du logo). Sans réglage : aucune balise, rendu du thème.
-  // Palette du site : toujours appliquée, même peu contrastée (simple avertissement dans l'éditeur, v0.21.1).
+  // Lisibilité (lot 29) : la palette du site est toujours appliquée, lisible ou non ; le panneau « Couleurs » avertit.
   const overrides = view.styles?.palette;
   const paletteCss = sitePaletteCss(theme.tokens, overrides);
   const logoRules = logoCss(view.styles?.logo);

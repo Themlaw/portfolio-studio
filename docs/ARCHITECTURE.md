@@ -1073,8 +1073,7 @@ Clé absente = pas de carte, DOM public inchangé (8 presets au pixel : `parity-
 (surface, en retrait, arrondie). Rayon : `max(--t-radius-lg, 12px)`, gouttière : `--gutter` du thème.
 
 **Palette du site.** Les jetons et le texte d'une carte se calculent sur la palette EFFECTIVE (thème + surcharges
-`styles.palette` du site, lot 17f) : `BlockList` (serveur, `effectiveSitePalette`, palette illisible ignorée en public
-comme dans le layout) et `canvasPalette` / `refreshCards` (toile, pendant l'aperçu de la palette). Test : `e2e-integ17.mjs`.
+`styles.palette` du site, lot 17f) : `BlockList` (serveur, `effectiveSitePalette` via `pagePalette`, toujours appliquée comme dans le layout : lot 29) et `canvasPalette` / `refreshCards` (toile, pendant l'aperçu de la palette). Test : `e2e-integ17.mjs`.
 
 **Lisibilité.** `cardStyle` (src/themes/surface.ts, module pur) choisit le texte du thème s'il passe AA sur la carte,
 sinon le texte inverse (fond du thème, texte des boutons), sinon le meilleur ; texte secondaire, liens, étiquettes,
@@ -1364,8 +1363,11 @@ sans dépendre d'elle (ombres, voile). Conséquence assumée : teinter le fond d
 profond sous 4,5:1 pour les étiquettes ; l'avertissement le dit et « Ajuster automatiquement » (`autoAdjustBase`)
 cherche la teinte la plus proche dont les nuances recalculées passent aussi.
 
-**Contraste.** Saisie libre ; publication refusée (`site.palette`, éditeur et formulaire de la page) ; rendu public
-qui ignore une palette devenue illisible après un changement de thème (journal `[palette]`). `color-scheme` suit le
+**Contraste (lot 29).** Avertissement seulement : saisie libre, publication et enregistrement acceptés, rendu public qui
+applique toujours la palette du site. Nuances (lot 29) : `styles.palette` accepte aussi les neuf nuances (`#rrggbb` ou « auto » =
+le calcul même si le thème l'avait forcée), posées après les bases par `applySitePalette` (`setNuance`) ; un voile choisi devient
+tel quel le fond de la visionneuse (`--t-color-viewer`), calculé il reste un gris neutre. Panneau « Couleurs » : nuances rangées
+sous leur rôle, groupe « Image agrandie ». `color-scheme` suit le
 fond effectif, mais les variantes `data-scheme` du thème (posées sur `<html>` par le layout racine, mis en cache)
 restent celles du thème : passer d'un fond clair à un fond sombre n'active pas les règles propres aux thèmes sombres.
 
@@ -1385,7 +1387,7 @@ couleurs par défaut des fonds de cartes ».
 
 - **Section « Couleurs de la DA »** (en tête de la page d'un thème) : les six rôles de la 17f (Fond de page, Cartes et encadrés,
   Texte, Boutons et liens, Accent, Ornements), chacun avec sa phrase, survol / focus = éléments surlignés dans l'aperçu, clic =
-  ColorPicker roue / HEX / RVB, contraste AA en direct, « Ajuster automatiquement ». C'est le MÊME composant que le panneau du site
+  ColorPicker (carré saturation × luminosité, bande de teinte, code couleur), lisibilité en direct (avertissement), « Ajuster automatiquement ». C'est le MÊME composant que le panneau du site
   (`ColorsPanel`), en mode `theme` : pas de copie. Le surlignage a été extrait en `components/edit/highlight.tsx`, partagé par la
   toile et le cadre d'aperçu (`PreviewBridge`). Aperçu : accueil ou une page au choix (le thème en essai est conservé).
 - **Enregistrement** : thème livré = lecture seule, avec invitation à créer une copie à la première modification (la copie reprend

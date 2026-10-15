@@ -10,6 +10,7 @@
  */
 import { useId, useState, type CSSProperties } from "react";
 
+import AdminColorPicker from "./AdminColorPicker";
 import { pairsReadability, ratioTip, readability } from "@/components/edit/readability";
 import { FREE_FORMAT_HINT, OPAQUE_HEX, PICKER_FALLBACK, THEME_COLOR } from "@/themes/color-format";
 import { AA, adjustToken, pairsForToken } from "@/themes/contrast";
@@ -74,13 +75,12 @@ export function ColorField({ tokenKey, label, help, free, value, contrastColors,
         {nuance && <span className={`a-pal-mode${nuance.auto ? "" : " a-pal-mode-forced"}`}>{nuance.auto ? "auto" : "choisie"}</span>}
       </div>
       <div className="a-color-row">
-        <input
-          type="color"
-          aria-label={`${label} : sélecteur`}
+        <AdminColorPicker
+          label={label}
           value={HEX.test(value) ? expand(value) : PICKER_FALLBACK}
-          onChange={(e) => {
+          onChange={(hex) => {
             setDraft(null);
-            onChange(e.target.value);
+            onChange(hex);
           }}
         />
         <input

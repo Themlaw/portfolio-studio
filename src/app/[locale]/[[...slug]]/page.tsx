@@ -9,7 +9,6 @@ import { routing, type AppLocale } from "@/i18n/routing";
 import { getDraftBlocks, getDraftPageInfo, getDraftRev, isDraftView, setDraftViewPage } from "@/lib/draft-view";
 import { resolvePage } from "@/lib/page-preview";
 import { getPageBlocks, localizedPath, pageAccent } from "@/lib/pages";
-import { getActiveTheme } from "@/lib/theme";
 import { hoverShade } from "@/themes/contrast";
 import { getSite } from "@/lib/settings";
 
@@ -84,7 +83,7 @@ export default async function Page({ params }: { params: Params }) {
   const draftInfo = draftView ? getDraftPageInfo(page.id) : null;
   const accent = draftInfo ? draftInfo.accent : pageAccent(page);
   if (!accent) return list;
-  // Accent peu contrasté : appliqué quand même (avertissement seulement dans l'éditeur, v0.21.1).
+  // Lisibilité (lot 29) : jamais bloquante, la couleur choisie est toujours appliquée (l'éditeur avertit).
   // Accent de page : surcharge des tokens primaires pour le contenu de la page
   // (display: contents → aucune boîte ajoutée, mise en page inchangée).
   const style = {
