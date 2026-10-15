@@ -187,8 +187,8 @@ if (run("P")) {
   await cp.waitFor();
   ok("P1 structure : carré, bande de teinte, aperçu actuelle / précédente, plus de roue ni de curseur de luminosité", (await cp.locator(".cp-sv").count()) === 1 && (await cp.locator(".cp-hue").count()) === 1 && (await cp.locator(".cp-prev").count()) === 1 && (await cp.locator(".cp-now").count()) === 1 && (await cp.locator('[aria-label^="Luminosité"], .cp-wheel').count()) === 0);
   ok("P1b « Code couleur » conservé, curseur d'opacité conservé", (await cp.locator('input[aria-label="Code couleur"]').count()) === 1 && (await cp.locator(".cp-slider [role=slider]").count()) === 1);
-  const sv = await cp.locator(".cp-sv").boundingBox();
-  const hue = await cp.locator(".cp-hue").boundingBox();
+  let sv = await cp.locator(".cp-sv").boundingBox();
+  let hue = await cp.locator(".cp-hue").boundingBox();
   ok("P1c taille : carré ≈ 200-240 px de côté, bande ≈ 20 px", sv.width >= 190 && sv.width <= 240 && Math.abs(sv.width - sv.height) <= 2 && hue.width >= 18 && hue.width <= 22, JSON.stringify({ sv: [sv.width, sv.height], hue: hue.width }));
   ok("P1d disposition : bande à droite du carré, à la même hauteur", hue.x > sv.x + sv.width && Math.abs(hue.y - sv.y) <= 2 && Math.abs(hue.height - sv.height) <= 2);
   ok("P1e aucun défilement en largeur, fenêtre entièrement visible", await f.evaluate(() => { const c = document.querySelector(".cp"); const r = c.getBoundingClientRect(); return c.scrollWidth <= c.clientWidth + 1 && r.left >= 0 && r.right <= window.innerWidth + 1; }));
@@ -206,6 +206,9 @@ if (run("P")) {
   await hex.fill("#336699");
   await hex.press("Enter");
   await sleep(500);
+  // La fenêtre (posée à côté de la barre, lot 30) se recale quand elle grandit (couleurs récentes) : on remesure.
+  sv = await cp.locator(".cp-sv").boundingBox();
+  hue = await cp.locator(".cp-hue").boundingBox();
   // Clic dans le carré : saturation 90 %, luminosité 90 % (à 10 % du haut et à 90 % de la gauche).
   await page.mouse.click(sv.x + sv.width * 0.9, sv.y + sv.height * 0.1);
   await sleep(600);

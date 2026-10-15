@@ -276,11 +276,21 @@ export function Popover({
     };
     place();
     win.addEventListener("resize", place);
+    // Elle grandit (couleurs récentes, aperçu) : on la recale pour qu'elle reste entièrement visible.
+    let lastHeight = el.offsetHeight;
+    const watcher = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
+      if (el.offsetHeight !== lastHeight) {
+        lastHeight = el.offsetHeight;
+        place();
+      }
+    });
+    watcher?.observe(el);
     const onScroll = (e: Event) => {
       if (!(e.target instanceof Node) || !el.contains(e.target)) place();
     };
     doc.addEventListener("scroll", onScroll, true);
     return () => {
+      watcher?.disconnect();
       win.removeEventListener("resize", place);
       doc.removeEventListener("scroll", onScroll, true);
     };

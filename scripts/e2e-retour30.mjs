@@ -241,7 +241,7 @@ if (run("L")) {
     const fits = (r, l) => m.w - 8 - r - 8 >= 300 ? "right" : l - 16 >= 300 ? "left" : null;
     const want = fits(frame.r, frame.l) ?? fits(trig.r, trig.l);
     console.log(`  (${width} px : iframe ${m.w} px, côté ${m.side}, attendu ${want})`);
-    ok(`L1b ${width} px : côté ${m.side ?? "dessous (écran étroit)"}, comme la place le veut`, (m.side ?? null) === want, JSON.stringify({ m, roomR, roomL }));
+    ok(`L1b ${width} px : côté ${m.side ?? "dessous (écran étroit)"}, comme la place le veut`, (m.side ?? null) === want, JSON.stringify({ m, frame }));
     ok(`L1c ${width} px : ${want ? "à côté du déclencheur, alignée en haut, " : ""}entièrement visible`, want ? beside(m) : inside(m) && m.cp.r <= m.w + 1, JSON.stringify(m));
     if (width === 1280) await page.screenshot({ path: `${SHOTS}/placement-barre.png` });
     await f.locator(".cp").press("Escape");
