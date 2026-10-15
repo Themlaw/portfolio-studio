@@ -951,8 +951,13 @@ if (run("Q")) {
   const tabs = rp.getByRole("tablist", { name: /Nom affiché/ });
   const field = tabs.locator("xpath=..").locator("input");
   const frValue = await field.inputValue();
-  await tabs.getByRole("tab", { name: /EN|Anglais/ }).click();
-  const enValue = await field.inputValue();
+  // Page chargée à « domcontentloaded » : le clic peut précéder l'hydratation, on le rejoue jusqu'à ce que l'onglet réponde.
+  let enValue = frValue;
+  for (let essai = 0; essai < 8 && enValue === frValue; essai++) {
+    await tabs.getByRole("tab", { name: /EN|Anglais/ }).click();
+    await sleep(600);
+    enValue = await field.inputValue();
+  }
   ok("Q14 écran Réglages : nom affiché en français et en anglais (onglets FR / EN)", frValue === "Atelier Camille" && enValue === "Camille Studio", `${frValue} / ${enValue}`);
   await rp.close();
   await pub.close();
