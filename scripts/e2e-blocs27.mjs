@@ -375,7 +375,7 @@ if (run("E"))
     await f.locator(`${formSel} [data-form-field="${noHelp}"]`).hover({ position: { x: 20, y: 10 } });
     await f.getByTestId("field-help-op").click();
     const helpOf = () => (blocksOf(legacy.id).find((b) => b.uid === tops[1].uid)?.props.fields ?? [])[noHelp]?.help;
-    ok("E7c « + Ajouter une aide » : l'aide existe (vide) dans le brouillon et son emplacement est montré", (await waitFor(() => JSON.stringify(helpOf()) === '{"fr":"","en":""}')) && (await until(f, (a) => document.querySelectorAll(`${a} [data-form-field="${noHelp}"] [data-inline$=".help"]`).length === 1, formSel, 20000)));
+    ok("E7c « + Ajouter une aide » : l'aide existe (vide) dans le brouillon et son emplacement est montré", (await waitFor(() => JSON.stringify(helpOf()) === '{"fr":"","en":""}')) && (await waitFor(async () => (await f.locator(`${formSel} [data-form-field="${noHelp}"] [data-inline$=".help"]`).count()) === 1, 20000)));
     await f.locator(`${formSel} [data-form-field="${noHelp}"]`).hover({ position: { x: 20, y: 10 } });
     await f.getByTestId("field-help-op").click();
     ok("E7d « Retirer l'aide » : la clé disparaît", await waitFor(() => helpOf() === undefined));
