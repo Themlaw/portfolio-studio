@@ -210,7 +210,7 @@ export function ColorsPanel({
           const fixed = failing.length ? autoAdjustBase(theme.color, theme.palette ?? undefined, value, role.key, allowed) : null;
           const legend = info && info.role === role.key && highlighted === role.key ? info : null;
           return (
-            <li key={role.key} className="lc-role-item" data-role={role.key} data-open={isOpen || undefined} data-modified={modified || undefined} data-invalid={failing.length > 0 || undefined}>
+            <li key={role.key} className="lc-role-item" data-role={role.key} data-open={isOpen || undefined} data-modified={modified || undefined} data-invalid={failing.length > 0 || undefined} data-legend={(highlighted === role.key && !isOpen) || undefined}>
               <button
                 type="button"
                 className="lc-role"
