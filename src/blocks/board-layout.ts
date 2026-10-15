@@ -17,7 +17,29 @@
 import { HELP_TEXT } from "./help-text";
 
 export type BoardItemType = "strip" | "grid" | "image" | "video-single" | "rich-text";
-export type BoardItem = { uid: string; type: BoardItemType; props: Record<string, unknown> };
+/**
+ * Largeur et alignement de TOUT composant de la planche (lot 31b), réglage commun hors des props du composant
+ * (les schémas des blocs retirent les clés inconnues). Absent ou largeur 100 = rendu d'avant, sans enveloppe.
+ * Largeur en % de la largeur du cadre du site (20 à 100).
+ */
+export type BoardBox = { width?: number; align?: "left" | "center" | "right" };
+export type BoardItem = { uid: string; type: BoardItemType; props: Record<string, unknown>; box?: BoardBox };
+
+/** Préréglages de largeur (Petite ~1/3, Moyenne ~1/2, Grande ~2/3, Pleine largeur). */
+export const BOX_PRESETS: { id: string; label: string; width: number }[] = [
+  { id: "small", label: "Petite", width: 33 },
+  { id: "medium", label: "Moyenne", width: 50 },
+  { id: "large", label: "Grande", width: 67 },
+  { id: "full", label: "Pleine largeur", width: 100 },
+];
+export const BOX_MIN = 20;
+export const BOX_ALIGNS = ["left", "center", "right"] as const;
+/** Le composant est-il réellement réduit (largeur < 100) ? Sinon : aucune enveloppe, rendu inchangé. */
+export const boxActive = (box: BoardBox | undefined): box is BoardBox & { width: number } => typeof box?.width === "number" && box.width < 100;
+/** Médias au plus dans un carrousel à liste propre. */
+export const MAX_RAIL_MEDIA = 60;
+/** Bande des images du PROJET (la bande d'origine, `props` vides) ou carrousel à liste propre (`source: "own"`, `media`). */
+export const isProjectStrip = (item: { type: string; props: Record<string, unknown> }) => item.type === "strip" && item.props.source !== "own";
 
 /** Types proposés dans une planche, dans l'ordre du menu « + Ajouter ». */
 export const BOARD_ITEM_TYPES: BoardItemType[] = ["strip", "grid", "image", "video-single", "rich-text"];
@@ -75,9 +97,21 @@ export function layoutProblem(raw: unknown): string | null {
     if (uids.has(item.uid)) return "Composants de planche en double.";
     uids.add(item.uid);
     if (!isObj(item.props)) return "Réglages d'un composant illisibles.";
+    if (item.box !== undefined) {
+      const b = item.box as Record<string, unknown>;
+      if (!isObj(b) || Object.keys(b).some((k) => k !== "width" && k !== "align")) return "Largeur du composant illisible.";
+      if (b.width !== undefined && !(typeof b.width === "number" && Number.isFinite(b.width) && b.width >= BOX_MIN && b.width <= 100)) return `Largeur du composant : entre ${BOX_MIN} et 100 %.`;
+      if (b.align !== undefined && !(BOX_ALIGNS as readonly unknown[]).includes(b.align)) return "Alignement du composant invalide.";
+    }
     if (item.type === "strip") {
-      strips++;
-      if (strips > 1) return "Une seule bande « Images qui défilent » par planche.";
+      const own = item.props.source === "own";
+      if (own) {
+        const m = item.props.media;
+        if (m !== undefined && (!Array.isArray(m) || m.length > MAX_RAIL_MEDIA || m.some((x) => !Number.isInteger(x) || (x as number) <= 0))) return `Un carrousel garde ${MAX_RAIL_MEDIA} médias au plus.`;
+      } else {
+        strips++;
+        if (strips > 1) return "Une seule bande des images du projet par planche.";
+      }
     }
     const hasChildren = "children" in item.props;
     if (item.type !== "grid") {
@@ -115,6 +149,7 @@ export function readLayout(raw: unknown): BoardItem[] {
 /** Identifiants de médias cités par une suite (images, vidéos, images d'attente, cellules de grille). */
 export function layoutMediaIds(items: BoardItem[]): number[] {
   const out: number[] = [];
+  for (const item of items) if (item.type === "strip" && item.props.source === "own" && Array.isArray(item.props.media)) for (const m of item.props.media) if (typeof m === "number" && Number.isInteger(m)) out.push(m);
   const take = (props: Record<string, unknown>, keys: string[]) => {
     for (const k of keys) {
       const v = props[k];
@@ -140,7 +175,7 @@ export function itemEmpty(item: BoardItem): boolean {
   const p = item.props;
   switch (item.type) {
     case "strip":
-      return false;
+      return item.props.source === "own" && (!Array.isArray(item.props.media) || item.props.media.length === 0);
     case "image":
     case "video-single":
       return typeof p.mediaId !== "number" && !(item.type === "video-single" && typeof p.slot === "string");
@@ -155,7 +190,8 @@ export function itemEmpty(item: BoardItem): boolean {
 export function mediaCount(items: BoardItem[]): number {
   let n = 0;
   for (const item of items) {
-    if (item.type === "image" || item.type === "video-single") n += itemEmpty(item) ? 0 : 1;
+    if (item.type === "strip" && item.props.source === "own" && Array.isArray(item.props.media)) n += item.props.media.length;
+    else if (item.type === "image" || item.type === "video-single") n += itemEmpty(item) ? 0 : 1;
     else if (item.type === "grid" && Array.isArray(item.props.children)) {
       n += (item.props.children as { props?: { mediaId?: unknown } }[]).filter((k) => typeof k?.props?.mediaId === "number").length;
     }
@@ -167,10 +203,11 @@ export function mediaCount(items: BoardItem[]): number {
 export const sameLayout = (a: BoardItem[], b: BoardItem[]): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 /** Composant neuf (réglages de départ), `uid` fourni par l'appelant. */
-export function newBoardItem(type: BoardItemType, uid: string): BoardItem {
+export function newBoardItem(type: BoardItemType, uid: string, source?: "project"): BoardItem {
   switch (type) {
     case "strip":
-      return { uid, type, props: {} };
+      // Sans précision : un carrousel à liste propre, vide. « project » : la bande des images du projet.
+      return source === "project" ? { uid, type, props: {} } : { uid, type, props: { source: "own", media: [] } };
     case "grid":
       return { uid, type, props: { layout: "3", children: [] } };
     case "image":

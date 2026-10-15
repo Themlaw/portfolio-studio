@@ -1507,3 +1507,25 @@ Le contenu d'un projet est une SUITE de composants rendue sous l'en-tête de la 
 - **Références** : `layoutMediaIds`, `mediaUsageIndex` (usage `layout`, montré comme une place de la planche) : un média d'une
   grille / image de planche est « utilisé » (publié ou brouillon).
 - Limites : pas de glisser-déposer de média sur un composant de la toile (panneau seulement), pas de texte modifiable en place.
+
+### Planche composée, suite (v0.23.1, lot 31b)
+
+- **Plusieurs exemplaires de tout composant.** « Images qui défilent » (`strip`) a deux sources : `props` vides ou
+  `source` absent = la bande des images du PROJET (la bande d'origine, légendes, recadrage, emplacements ; au plus une par
+  planche, `isProjectStrip`) ; `props: { source: "own", media: [id…] }` = un carrousel à liste propre (images et vidéos de la
+  médiathèque, 60 au plus, sans légende), autant qu'on veut. Aucune migration : les planches existantes (`props` vides) restent
+  la bande du projet. Rendu : `StripRail.tsx` (code unique des deux, extrait de `ProjectStrip`), `ProjectBoardBlock` lit les médias
+  du carrousel (`getMedia` : un média à la corbeille ou supprimé disparaît de l'affichage, sans trou). Références :
+  `layoutMediaIds` compte les médias des carrousels ; un média à la corbeille d'un carrousel publié reste bloqué par « utilisé ».
+- **Largeur et alignement communs** : `BoardItem.box = { width?: 20–100, align?: left|center|right }`, hors des props du bloc
+  (les schémas retirent les clés inconnues) ; UN seul bloc d'interface (`BoxField`, préréglages Petite 33 / Moyenne 50 / Grande 67 /
+  Pleine largeur, curseur fin, boutons à icônes). Absent ou 100 % : aucune enveloppe, rendu d'avant au pixel. Réduit : `BoardBox`
+  (colonne de `--bw` % du cadre du site, `.board-box` dans `globals.css`, marges de page du composant neutralisées dedans). Sous 640 px
+  la colonne reprend toute la largeur (un tiers d'écran ne montre plus rien). Image : la largeur de la planche remplace le choix
+  « colonne de texte / cadre / pleine largeur » de l'Image de page (qui reste pour les pages) ; une image « pleine largeur » reste
+  pleine largeur du site tant que `box` n'est pas réduit. Carrousel : la bande et ses flèches suivent la colonne.
+- **Glisser-déposer** (toile, `BoardLayer`) : la palette « Ajouter » (Grille, Image, Vidéo, Texte, « Images qui défilent ») se dépose
+  entre les composants d'une planche (même repère « Déposer ici » que la page ; message `bitem-drop`, `data-board-drop` masque le
+  repère de la page) ; un média de l'onglet Médias glissé sur un composant (cible `bitem`, op `item-media`) remplace l'Image / la
+  Vidéo, s'ajoute à la Grille / au carrousel — de même au clic sur une vignette quand un composant est choisi ; la poignée de la
+  barre réordonne (`bitem-to`, op `item-to`). Tout passe par `boardOp` : Annuler / Rétablir, version de page, refus nommés.

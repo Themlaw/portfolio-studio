@@ -37,7 +37,7 @@ import { randomBytes } from "node:crypto";
 import { and, asc, eq, max } from "drizzle-orm";
 import { z } from "zod";
 
-import { BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, defaultLayout, newBoardItem, readLayout, sameLayout, type BoardItem } from "@/blocks/board-layout";
+import { BOARD_ITEM_TYPES, BOX_MIN, MAX_BOARD_ITEMS, defaultLayout, isProjectStrip, newBoardItem, readLayout, sameLayout, type BoardItem } from "@/blocks/board-layout";
 import { getPageForEdit } from "@/lib/admin";
 import { getDb, schema } from "@/lib/db";
 import { slugify } from "@/lib/slug";
@@ -73,7 +73,9 @@ const SnapSlot = z.strictObject({
 });
 const Uid = z.string().regex(/^[a-z0-9-]{1,32}$/);
 /** Un composant de la suite de la planche : la forme ici, les réglages par le registre (`checkLayout`). */
-const LayoutItem = z.strictObject({ uid: Uid, type: z.enum(BOARD_ITEM_TYPES as [BoardItem["type"], ...BoardItem["type"][]]), props: z.record(z.string(), z.unknown()) });
+/** Largeur (20 à 100 %) et alignement communs à tous les composants (lot 31b). */
+const Box = z.strictObject({ width: z.number().min(BOX_MIN).max(100).optional(), align: z.enum(["left", "center", "right"]).optional() });
+const LayoutItem = z.strictObject({ uid: Uid, type: z.enum(BOARD_ITEM_TYPES as [BoardItem["type"], ...BoardItem["type"][]]), props: z.record(z.string(), z.unknown()), box: Box.optional() });
 export const BoardSnapSchema = z.strictObject({
   projectId: z.number().int().positive(),
   project: z.strictObject({ title: TrimLoc(120), context: TrimLoc(200), description: TrimLoc(2000), year: z.string().trim().max(20) }).nullable(),
@@ -92,10 +94,13 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("text"), key: Key, field: z.enum(["title", "description"]), locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
   z.strictObject({ op: z.literal("project"), field: z.enum(["title", "context", "description", "year"]), locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
   // Contenu de la planche (lot 31) : ajouter un composant à une position, le déplacer d'un cran, le retirer, régler ses props.
-  z.strictObject({ op: z.literal("item-add"), type: z.enum(BOARD_ITEM_TYPES as [BoardItem["type"], ...BoardItem["type"][]]), index: z.number().int().min(0).max(MAX_BOARD_ITEMS), uid: Uid.optional() }),
+  z.strictObject({ op: z.literal("item-add"), type: z.enum(BOARD_ITEM_TYPES as [BoardItem["type"], ...BoardItem["type"][]]), index: z.number().int().min(0).max(MAX_BOARD_ITEMS), uid: Uid.optional(), source: z.literal("project").optional() }),
+  // Lot 31b : un média de la médiathèque posé sur un composant (Image / Vidéo : remplace ; Grille, carrousel : ajoute).
+  z.strictObject({ op: z.literal("item-media"), uid: Uid, mediaId: z.number().int().positive() }),
+  z.strictObject({ op: z.literal("item-to"), uid: Uid, index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
   z.strictObject({ op: z.literal("item-move"), uid: Uid, dir: z.enum(["up", "down"]) }),
   z.strictObject({ op: z.literal("item-remove"), uid: Uid }),
-  z.strictObject({ op: z.literal("item-set"), uid: Uid, props: z.record(z.string(), z.unknown()) }),
+  z.strictObject({ op: z.literal("item-set"), uid: Uid, props: z.record(z.string(), z.unknown()).optional(), box: Box.nullable().optional() }),
 ]);
 export type BoardOp = z.infer<typeof BoardOpSchema>;
 
@@ -501,10 +506,10 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       case "item-add": {
         if (snap.layout.length >= MAX_BOARD_ITEMS) return `${MAX_BOARD_ITEMS} composants au plus par planche.`;
         if (op.index > snap.layout.length) return "Position invalide.";
-        if (op.type === "strip" && snap.layout.some((i) => i.type === "strip")) return "Cette planche a déjà sa bande « Images qui défilent ».";
+        if (op.type === "strip" && op.source === "project" && snap.layout.some(isProjectStrip)) return "Cette planche montre déjà les images du projet.";
         const uid = op.uid ?? newItemUid();
         if (snap.layout.some((i) => i.uid === uid)) return "Composant en double.";
-        snap.layout.splice(op.index, 0, newBoardItem(op.type, uid));
+        snap.layout.splice(op.index, 0, newBoardItem(op.type, uid, op.source));
         return snap;
       }
       case "item-move": {
@@ -516,6 +521,39 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         snap.layout.splice(to, 0, item);
         return snap;
       }
+      case "item-media": {
+        const item = snap.layout.find((i) => i.uid === op.uid);
+        if (!item) return "Ce composant n'est plus sur cette planche.";
+        const media = getDb().select({ kind: schema.media.kind }).from(schema.media).where(eq(schema.media.id, op.mediaId)).get();
+        if (!media) return "Ce média n'existe plus.";
+        if (media.kind === "pdf") return PDF_NOT_IN_BOARD;
+        if (item.type === "image") {
+          if (media.kind !== "image") return "Cette image attend une image, pas une vidéo.";
+          item.props = { ...item.props, mediaId: op.mediaId };
+        } else if (item.type === "video-single") {
+          if (media.kind !== "video") return "Cette vidéo attend une vidéo, pas une image.";
+          item.props = { ...item.props, mediaId: op.mediaId };
+        } else if (item.type === "grid") {
+          const kids = Array.isArray(item.props.children) ? (item.props.children as unknown[]) : [];
+          if (kids.length >= 24) return "24 éléments au plus par grille.";
+          const child = media.kind === "video" ? { type: "video-single", props: { variant: "card", mode: "player", mediaId: op.mediaId } } : { type: "image", props: { width: "wide", mediaId: op.mediaId } };
+          item.props = { ...item.props, children: [...kids, { uid: newItemUid(), ...child }] };
+        } else if (item.type === "strip" && !isProjectStrip(item)) {
+          const list = Array.isArray(item.props.media) ? (item.props.media as number[]) : [];
+          if (list.length >= 60) return "60 médias au plus par carrousel.";
+          item.props = { ...item.props, media: [...list, op.mediaId] };
+        } else return item.type === "strip" ? "Les images du projet se gèrent depuis la bande : dépose l'image sur la bande." : "Ce composant n'accepte pas d'image.";
+        return snap;
+      }
+      case "item-to": {
+        const from = snap.layout.findIndex((i) => i.uid === op.uid);
+        if (from < 0) return "Ce composant n'est plus sur cette planche.";
+        if (op.index > snap.layout.length) return "Position invalide.";
+        // Index compté dans la liste d'origine (avant le retrait), comme moveTo.
+        const [item] = snap.layout.splice(from, 1);
+        snap.layout.splice(Math.min(op.index > from ? op.index - 1 : op.index, snap.layout.length), 0, item);
+        return snap;
+      }
       case "item-remove": {
         const from = snap.layout.findIndex((i) => i.uid === op.uid);
         if (from < 0) return "Ce composant n'est plus sur cette planche.";
@@ -525,8 +563,16 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       case "item-set": {
         const item = snap.layout.find((i) => i.uid === op.uid);
         if (!item) return "Ce composant n'est plus sur cette planche.";
-        if (item.type === "strip") return "La bande d'images n'a pas de réglage.";
-        item.props = op.props;
+        if (op.props !== undefined) {
+          if (isProjectStrip(item)) return "La bande des images du projet n'a pas de réglage de contenu.";
+          item.props = op.props;
+        }
+        if (op.box !== undefined) {
+          // Rien de réglé (ou 100 %, sans alignement) : la clé disparaît, le rendu redevient celui d'avant.
+          const b = op.box;
+          if (!b || (b.width === undefined && b.align === undefined)) delete item.box;
+          else item.box = { ...(b.width !== undefined ? { width: b.width } : {}), ...(b.align !== undefined ? { align: b.align } : {}) };
+        }
         return snap;
       }
       case "project": {

@@ -1947,3 +1947,11 @@ html[data-edit-mode] .pe-bitem-empty button { margin-top: 10px; padding: 8px 14p
 .pe-bitem-menu { flex-direction: column; min-width: 260px; }
 .pe-bitem-menu button { width: auto; height: auto; padding: 8px 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
 .pe-bitem-menu small { font-weight: 400; opacity: 0.75; }
+
+/* Lot 31b : glisser dans la planche (même repère que la page), poignée de la barre, un seul repère à la fois. */
+html[data-board-drop] .pe-marker:not(.pe-marker-board), html[data-board-drop] .pe-drop-container { display: none; }
+html[data-edit-mode] .pe-bitem-handle { cursor: grab; padding: 0 4px; user-select: none; }
+html[data-edit-dragging] .pe-bitem-handle { cursor: grabbing; }
+
+/* Aperçu (hors mode édition) : ni « + Ajouter », ni barre, ni repère de composant vide (lot 31). */
+html:not([data-edit-mode]) :is(.pe-bitem-add, .pe-bitem-bar, .pe-bitem-empty) { display: none; }

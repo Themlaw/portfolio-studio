@@ -1,11 +1,13 @@
 import { z } from "zod";
 
+import BoardBox from "@/components/BoardBox";
 import ProjectStrip, { type BoardPart } from "@/components/ProjectStrip";
-import { getProjectBoard } from "@/lib/gallery";
+import { getProjectBoard, type LocalizedArtwork } from "@/lib/gallery";
+import { getMedia } from "@/lib/media";
 
 import { renderBoardItem } from "./BlockList";
 import { itemEmpty } from "./board-layout";
-import { collection, projectSlug, type BlockContext } from "./types";
+import { collection, projectSlug, tr, type BlockContext } from "./types";
 
 export const projectBoardSchema = z.object({
   /**
@@ -23,6 +25,37 @@ export const projectBoardSchema = z.object({
 });
 
 /**
+ * Images et vidéos d'un carrousel à liste propre (lot 31b), lues dans la médiathèque dans l'ordre choisi. Un média à la
+ * corbeille, supprimé ou pas encore prêt n'est pas servi (`getMedia`) : il disparaît du carrousel, sans trou.
+ */
+async function railArtworks(ids: unknown, locale: BlockContext["locale"]): Promise<LocalizedArtwork[]> {
+  const list = (Array.isArray(ids) ? ids : []).filter((x): x is number => Number.isInteger(x));
+  const rows = await Promise.all(list.map((id) => getMedia(id)));
+  const out: LocalizedArtwork[] = [];
+  for (const m of rows) {
+    if (!m || m.pdf) continue;
+    const alt = m.alt ? tr(m.alt, locale) : "";
+    out.push({
+      id: `media-${m.id}`,
+      slug: `media-${m.id}`,
+      collection: "animation",
+      title: "",
+      description: "",
+      alt,
+      image: m.url,
+      mediaId: m.id,
+      ...(m.sources ? { sources: m.sources } : {}),
+      ...(m.video ? { video: m.video } : {}),
+      width: m.width ?? (m.video ? 1280 : 1200),
+      height: m.height ?? (m.video ? 720 : 800),
+      year: 0,
+      featured: false,
+    });
+  }
+  return out;
+}
+
+/**
  * La planche d'un projet : son en-tête, puis la suite de composants du projet (lot 31) — la bande d'images, des
  * grilles, des images, des vidéos, des textes — dans l'ordre que le projet a choisi. Sur la toile de
  * l'éditeur, une planche neuve (sans projet) laisse une place que la couche
@@ -38,13 +71,27 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     // porte `data-edit-board-held` (ProjectStrip) et la couche d'édition l'indique au survol.
     // Les composants autres que la bande sont rendus ici (mêmes blocs qu'une page) ; ils appartiennent au projet,
     // pas à la page : la planche est la même partout où elle est affichée.
-    const parts: BoardPart[] = project.layout.map((item) => ({
-      uid: item.uid,
-      type: item.type,
-      ...(item.type === "strip" ? {} : { node: renderBoardItem(item, { ...ctx, project: slug }) }),
-      // Vue brouillon : réglages du composant pour le panneau, et repère d'un composant encore vide.
-      ...(project.edit ? { props: JSON.stringify(item.props), empty: itemEmpty(item) } : {}),
-    }));
+    const parts: BoardPart[] = await Promise.all(
+      project.layout.map(async (item): Promise<BoardPart> => ({
+        uid: item.uid,
+        type: item.type,
+        ...(item.box ? { box: item.box } : {}),
+        ...(item.type === "strip"
+          ? item.props.source === "own"
+            ? { artworks: await railArtworks(item.props.media, ctx.locale) }
+            : {}
+          : {
+              // Largeur réduite : une image « pleine largeur » reste dans la colonne choisie (cadre du site).
+              node: (
+                <BoardBox box={item.box}>
+                  {renderBoardItem(item, { ...ctx, project: slug })}
+                </BoardBox>
+              ),
+            }),
+        // Vue brouillon : réglages et largeur du composant pour le panneau, et repère d'un composant encore vide.
+        ...(project.edit ? { props: JSON.stringify({ props: item.props, ...(item.box ? { box: item.box } : {}) }), empty: itemEmpty(item) } : {}),
+      })),
+    );
     return <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} parts={parts} />;
   }
   if (!ctx.edit) return null;

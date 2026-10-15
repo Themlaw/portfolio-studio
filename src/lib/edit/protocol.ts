@@ -49,6 +49,8 @@ const DropTarget = z.discriminatedUnion("kind", [
   // v0.13 : image ou vidéo d'un bloc (image, vidéo, fond de l'ouverture, portrait), place libre d'une grille.
   z.object({ kind: z.literal("media"), uid: Uid, field: MediaField }),
   z.object({ kind: z.literal("cell"), uid: Uid }),
+  // Lot 31b : un composant de la planche (Image : remplace ; Grille, carrousel : ajoute) — média de la médiathèque seulement.
+  z.object({ kind: z.literal("bitem"), board: Board, uid: Uid }),
 ]);
 const FileValue = z.custom<File>((v) => typeof File !== "undefined" && v instanceof File, "Fichier attendu");
 
@@ -71,7 +73,10 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("slot-text"), board: Board, key: SlotKey, field: z.enum(["title", "description"]), locale: Locale, value: z.string().max(2000) }),
   z.object({ kind: z.literal("project-text"), board: Board, field: z.enum(["title", "context", "description", "year"]), locale: Locale, value: z.string().max(2000) }),
   // Contenu de la planche (lot 31) : ajouter un composant à une position (menu « + Ajouter »), le monter, le descendre, le supprimer.
-  z.object({ kind: z.literal("bitem-add"), board: Board, item: BoardItemKind, index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
+  z.object({ kind: z.literal("bitem-add"), board: Board, item: BoardItemKind, index: z.number().int().min(0).max(MAX_BOARD_ITEMS), source: z.literal("project").optional() }),
+  // Lot 31b : composant de la palette glissé au-dessus d'une planche (position visée, ou null hors planche) ; réordonner par la poignée.
+  z.object({ kind: z.literal("bitem-drop"), board: Board.nullable(), index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
+  z.object({ kind: z.literal("bitem-to"), board: Board, uid: Uid, index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
   z.object({ kind: z.literal("bitem-op"), board: Board, uid: Uid, op: z.enum(["up", "down", "remove"]) }),
   // Un composant de la planche choisi sur la toile : l'éditeur montre ses réglages (props = JSON des réglages tels que la toile les a lus).
   z.object({ kind: z.literal("bitem-select"), board: Board, uid: Uid, item: BoardItemKind, props: z.string().max(100_000) }),
