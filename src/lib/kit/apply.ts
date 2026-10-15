@@ -213,7 +213,7 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
   const sig = get("signature");
   if (sig) kit.signature = await image(sig);
   const paper = get("papier");
-  if (paper) kit.paper = { image: await image(paper), overHero: prev.paper?.overHero ?? PAPER_OVER_HERO_DEFAULT, ...(prev.paper?.underHeader ? { underHeader: true } : {}) };
+  if (paper) kit.paper = { image: await image(paper), overHero: prev.paper?.overHero ?? PAPER_OVER_HERO_DEFAULT, ...(prev.paper?.underHeader ? { underHeader: true } : {}), ...(prev.paper?.onCards ? { onCards: true } : {}), ...(prev.paper?.onCardsOpacity !== undefined ? { onCardsOpacity: prev.paper.onCardsOpacity } : {}) };
   const frame = get("cadre");
   if (frame) kit.frame = { image: await image(frame), slice: [48, 48, 48, 48] };
   const stroke = get("trait");

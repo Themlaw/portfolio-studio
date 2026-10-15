@@ -53,6 +53,7 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
     // Tuile dessinée en 2× : affichée à la moitié de sa taille.
     v["--t-kit-paper-size"] = `${Math.round(kit.paper.image.w / 2)}px ${Math.round(kit.paper.image.h / 2)}px`;
     if (kit.paper.overHero !== undefined) v["--t-kit-paper-hero"] = String(kit.paper.overHero);
+    if (kit.paper.onCardsOpacity !== undefined) v["--t-kit-paper-cards"] = String(kit.paper.onCardsOpacity);
   }
   if (kit.frame) {
     const [t, r, b, l] = kit.frame.slice;
@@ -89,6 +90,7 @@ export function kitAttributes(kit: KitAssets | undefined): Record<`data-${string
   if (kit.paper) a["data-kit-paper"] = "";
   if (kit.paper?.overHero !== undefined) a["data-kit-paper-hero"] = "";
   if (kit.paper?.underHeader) a["data-kit-paper-header"] = "";
+  if (kit.paper?.onCards) a["data-kit-paper-cards"] = "";
   if (kit.frame) a["data-kit-frame"] = "";
   if (kit.stroke) a["data-kit-stroke"] = "";
   for (const [key, name] of ICONS) if (kit.icons?.[key]) a[`data-kit-icon-${name}`] = "";

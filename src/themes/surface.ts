@@ -16,11 +16,11 @@
  *    faux : l'éditeur le signale sans rien bloquer.
  */
 import { contrastRatio, mixOklab, opaqueOn, parseColor, ROLE_NAMES, toHex, type ResolvedPalette } from "./palette";
-import { SURFACE_BASE_TOKENS, SURFACE_CORNERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema } from "./schema";
+import { PAPER_ON_CARDS_DEFAULT, SURFACE_BASE_TOKENS, SURFACE_CORNERS, SURFACE_PAPERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema } from "./schema";
 import type { z } from "zod";
 
 // Schéma et listes vivent dans schema.ts (zod seul, chargé tel quel par les scripts Node).
-export { SURFACE_BASE_TOKENS, SURFACE_CORNERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema };
+export { PAPER_ON_CARDS_DEFAULT, SURFACE_BASE_TOKENS, SURFACE_CORNERS, SURFACE_PAPERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema };
 /** Nom des couleurs dont on tire une teinte (mêmes noms que le panneau « Couleurs »). */
 const TINT_BASE_NAMES: Record<(typeof SURFACE_TINT_BASES)[number], string> = { ink: ROLE_NAMES.ink, primary: ROLE_NAMES.primary, secondary: ROLE_NAMES.secondary, tertiary: ROLE_NAMES.tertiary };
 /** Les six couleurs de la DA proposées en premier comme fond de carte, avec leur nom dans le panneau « Couleurs ». */
@@ -57,7 +57,8 @@ export type SurfaceTint = (typeof SURFACE_TINTS)[number];
 export type Surface = z.infer<typeof SurfaceSchema>;
 /** Carte par défaut d'un thème (`tokens.layout.card`) : mêmes champs que la carte d'un bloc. */
 export type CardDefaults = Surface;
-export type ResolvedSurface = Required<Surface>;
+/** Réglages complets de base (le papier se résout à part : `resolvePaper`, il dépend du site). */
+export type ResolvedSurface = Required<Pick<Surface, "color" | "width" | "corners">>;
 
 /** Réglages quand ni le bloc ni le thème ne disent rien. */
 export const FALLBACK_CARD: ResolvedSurface = { color: "surface", width: "inset", corners: "round" };
@@ -85,6 +86,29 @@ export function resolveSurface(surface: Surface, theme?: CardDefaults): Resolved
     width: surface.width ?? theme?.width ?? FALLBACK_CARD.width,
     corners: surface.corners ?? theme?.corners ?? FALLBACK_CARD.corners,
   };
+}
+
+/** Papier d'une carte : le site peut le montrer (`onCards`), la carte surcharger (`under` / `over`). */
+export type SitePaper = { onCards: boolean; opacity: number };
+export const NO_SITE_PAPER: SitePaper = { onCards: false, opacity: PAPER_ON_CARDS_DEFAULT };
+export const SURFACE_PAPER_LABELS: Record<(typeof SURFACE_PAPERS)[number], string> = { under: "Sous la carte (caché)", over: "Sur la carte" };
+
+/** Papier résolu d'une carte : `over` si la carte le demande, sinon si le site le montre et que la carte ne dit pas `under`. */
+export function resolvePaper(surface: Surface, site: SitePaper = NO_SITE_PAPER): { over: boolean; opacity: number } {
+  return { over: (surface.paper ?? (site.onCards ? "over" : "under")) === "over", opacity: surface.paperOpacity ?? site.opacity };
+}
+
+/**
+ * Papier posé sur la carte (src/app/look.css, `.surface-card[data-paper="over"]::before`) : attribut et intensité sur l'enveloppe.
+ * Rien tant que la carte ne le demande pas elle-même (`paper` / `paperOpacity`) : le site seul le pilote par des attributs de
+ * <html> (data-kit-paper-cards), donc une carte sans réglage garde exactement le rendu d'avant.
+ */
+export function paperAttributes(surface: Surface): { attrs: Record<string, string>; vars: Record<string, string> } {
+  const attrs: Record<string, string> = {};
+  const vars: Record<string, string> = {};
+  if (surface.paper) attrs["data-paper"] = surface.paper;
+  if (surface.paperOpacity !== undefined) vars["--card-paper-opacity"] = String(surface.paperOpacity);
+  return { attrs, vars };
 }
 
 /** Retire les champs vides : `{}` reste une carte (réglages du thème), jamais `undefined`. */

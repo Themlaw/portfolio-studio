@@ -20,8 +20,12 @@ import {
   cleanSurface,
   isSurfaceToken,
   resolveSurface,
+  PAPER_ON_CARDS_DEFAULT,
+  resolvePaper,
   SURFACE_CORNER_LABELS,
   SURFACE_CORNERS,
+  SURFACE_PAPER_LABELS,
+  SURFACE_PAPERS,
   SURFACE_WIDTH_LABELS,
   SURFACE_WIDTHS,
   type ResolvedSurface,
@@ -36,6 +40,13 @@ import { useDismiss } from "./useDismiss";
 
 import "@/app/admin/typo-controls.css";
 import "@/app/admin/surface-menu.css";
+
+/** Papier du site tel que la toile l'affiche : présent dans le thème actif ? montré sur les cartes ? à quelle intensité ? */
+function sitePaper() {
+  const root = document.documentElement;
+  const raw = Number.parseFloat(getComputedStyle(root).getPropertyValue("--t-kit-paper-cards"));
+  return { has: root.hasAttribute("data-kit-paper"), onCards: root.hasAttribute("data-kit-paper-cards"), opacity: Number.isFinite(raw) ? raw : PAPER_ON_CARDS_DEFAULT };
+}
 
 const swatch = (c: (typeof PALETTE)[number]) => `var(--t-color-${c})`;
 
@@ -81,6 +92,8 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
   const patch = (p: Partial<Surface>, continuous = false) => change(cleanSurface({ ...(cur ?? {}), ...p }), continuous);
 
   const s = summary(cur, defaults);
+  const site = sitePaper();
+  const paper = cur ? resolvePaper(cur, site) : null;
   const customColor = cur?.color && !isSurfaceToken(cur.color) ? cur.color : undefined;
 
   /** Couleur choisie dans la roue : une teinte de la palette devient un jeton si la carte en connaît un, sinon sa valeur. */
@@ -133,6 +146,42 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
               ))}
             </span>
           </div>
+          {site.has ? (
+            <>
+              <div className="tc-row">
+                <span className="sm-label">Papier du site</span>
+                <span className="tc-seg" role="radiogroup" aria-label="Papier du site sur la carte" data-testid="surface-paper">
+                  <button type="button" role="radio" aria-checked={cur?.paper === undefined} data-paper="site" onClick={() => patch({ paper: undefined, paperOpacity: undefined })}>
+                    Comme le site ({site.onCards ? "sur" : "sous"})
+                  </button>
+                  {SURFACE_PAPERS.map((p) => (
+                    <button key={p} type="button" role="radio" aria-checked={cur?.paper === p} data-paper={p} onClick={() => patch({ paper: p })}>
+                      {SURFACE_PAPER_LABELS[p]}
+                    </button>
+                  ))}
+                </span>
+              </div>
+              {paper?.over && (
+                <div className="tc-row">
+                  <span className="sm-label">Intensité</span>
+                  <input
+                    type="range"
+                    className="sm-range"
+                    min={0}
+                    max={60}
+                    step={1}
+                    value={Math.round(paper.opacity * 100)}
+                    aria-label="Intensité du papier sur la carte"
+                    data-testid="surface-paper-opacity"
+                    onChange={(e) => patch({ paperOpacity: Number(e.target.value) / 100 }, true)}
+                  />
+                  <span className="sm-hint">{Math.round(paper.opacity * 100)} %</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="sm-hint" data-testid="surface-paper-none">Le thème actif n&apos;a pas de papier dessiné : rien à montrer sur la carte.</p>
+          )}
           {!s.style.ok && (
             <p className="sm-warn" role="status" data-testid="surface-warning" title={ratioTip(s.style.ratio)}>
               <span className="sm-alert" aria-hidden="true">
