@@ -451,7 +451,8 @@ export function restorePage(id: number): ActionResult<{ title: string; slugChang
     const problems = slugErrors(slug, id);
     if (Object.keys(problems).length) return fail(`Impossible de lui trouver une adresse libre : ${Object.values(problems).join(" ")} Change l'adresse de la page prise ou supprime-la, puis réessaie.`);
   }
-  const collectionDropped = Boolean(page.collection) && Boolean(db.select({ id: schema.pages.id }).from(schema.pages).where(and(eq(schema.pages.collection, page.collection as string), isNull(schema.pages.deletedAt))).get());
+  const wanted = page.collection;
+  const collectionDropped = wanted !== null && Boolean(db.select({ id: schema.pages.id }).from(schema.pages).where(and(eq(schema.pages.collection, wanted), isNull(schema.pages.deletedAt))).get());
   db.transaction((tx) => {
     tx.update(schema.pages)
       .set({ deletedAt: null, trashedInMenu: false, slug, updatedAt: new Date(), ...(collectionDropped ? { collection: null } : {}) })
