@@ -38,10 +38,15 @@ export function readBackground(raw: unknown): Background | undefined {
 /** Couleur du fond (jeton ou `#rrggbb`), ou undefined s'il n'y en a pas. */
 export const fondColor = (bg: Background | undefined): string | undefined => (bg?.kind === "color" ? bg.color : undefined);
 
-/** Identité de fusion : deux composants se fondent quand leurs clés sont égales. `onCard` : posé sur une carte de rubrique. */
-export function fondKey(bg: Background | undefined, onCard: boolean): string | null {
+/**
+ * Identité de fusion : deux composants se fondent quand leurs clés sont égales. `onCard` : posé sur une carte de rubrique ;
+ * `border` : signature de la bordure de cette carte (`cardBorderSignature`). Deux cartes de même fond mais de bordures
+ * différentes (ou l'une sans bordure) ne fusionnent PAS : une bordure qui s'arrêterait au raccord serait un trait coupé, et
+ * « la première bordure l'emporte » ignorerait en silence le réglage de l'autre carte.
+ */
+export function fondKey(bg: Background | undefined, onCard: boolean, border = ""): string | null {
   const color = fondColor(bg);
-  return color ? `${color}|${onCard ? "card" : "page"}` : null;
+  return color ? `${color}|${onCard ? `card|${border}` : "page"}` : null;
 }
 
 export type FondJoin = { prev: boolean; next: boolean };

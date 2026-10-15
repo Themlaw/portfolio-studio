@@ -360,7 +360,8 @@ await section("D", async () => {
   ok("D3 aperçu : bordure Moyenne de 6 px, pleine", m.border.attr === "medium" && near(m.border.t, 6, 0.6) && near(m.border.l, 6, 0.6) && m.border.style === "solid", JSON.stringify(m.border));
   ok("D4 la couleur de la bordure suit la couleur lisible du texte de la carte", sameRgb(rgb(m.border.color), rgb(m.cardInk.startsWith("#") ? hexToRgbCss(m.cardInk) : m.cardInk)), JSON.stringify([m.border.color, m.cardInk]));
   ok("D5 le fond s'arrête à l'intérieur de la bordure (côtés et haut)", near(m.fond.l, m.card.l + 6, 1.5) && near(m.fond.r, m.card.r - 6, 1.5) && near(m.fond.t, m.card.t + 6, 1.5), JSON.stringify([m.fond, m.card]));
-  ok("D5 jonction avec la carte voisine de même fond : pas de bordure entre les deux, couleur continue", near(m.border.b, 0) && near(m.fond.b, m.card.b), JSON.stringify([m.border, m.fond, m.card]));
+  // Bordure ≠ voisine (ici : Bravo bordée, Charlie non) : les deux cartes ne fusionnent pas (un trait coupé au raccord serait pire) ; D14 : même bordure = un seul groupe.
+  ok("D5 voisine de même fond mais sans bordure : pas de fusion, bordure complète en bas, aucune jonction", near(m.border.b, 6, 0.6) && m.cardJoin?.[1] === false && m.fondJoin?.[1] === false, JSON.stringify([m.border, m.cardJoin, m.fondJoin]));
   await menu.locator('[data-border-width="thick"]').click();
   await waitFor(() => borderOf("Bravo")?.width === "thick");
   m = await measure(f, "Bravo");
@@ -411,6 +412,36 @@ await section("D", async () => {
   await redo().click();
   ok("D13 Rétablir : bordure éteinte de nouveau", await waitFor(() => borderOf("Bravo") === false));
   ok("D13 publication", await publish());
+
+  // D13b : deux cartes de même fond ET de même bordure = un seul groupe, le trait entoure tout le groupe (aucun trait au raccord).
+  f = await openEditor();
+  menu = await openCard("Bravo");
+  await menu.locator('[data-testid="surface-border-switch"]').click();
+  ok("D13b bordure sur Bravo seule", await waitFor(() => JSON.stringify(borderOf("Bravo")) === "{}"), JSON.stringify(borderOf("Bravo")));
+  await page.keyboard.press("Escape");
+  m = await measure(f, "Bravo");
+  ok("D13b Bravo bordée, Charlie non : pas de fusion (bordure complète en bas, aucune jonction)", near(m.border.b, 6, 0.6) && !m.cardJoin[1] && !m.fondJoin[1], JSON.stringify([m.border, m.cardJoin, m.fondJoin]));
+  menu = await openCard("Charlie");
+  await menu.locator('[data-testid="surface-border-switch"]').click();
+  ok("D13b même bordure sur Charlie", await waitFor(() => JSON.stringify(borderOf("Charlie")) === "{}"), JSON.stringify(borderOf("Charlie")));
+  await page.keyboard.press("Escape");
+  m = await measure(f, "Bravo");
+  const ch = await measure(f, "Charlie");
+  ok("D13b même bordure : fusion, pas de trait au raccord, bordure continue autour du groupe", m.cardJoin[1] && ch.cardJoin[0] && near(m.border.b, 0) && near(ch.border.t, 0) && near(m.border.t, 6, 0.6) && near(m.border.l, 6, 0.6) && near(ch.border.l, 6, 0.6) && near(ch.border.b, 6, 0.6) && near(m.card.b, ch.card.t, 1.5), JSON.stringify([m.border, ch.border, m.cardJoin, ch.cardJoin, m.card, ch.card]));
+  ok("D13b publication", await publish());
+  const anon2 = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const pub2 = await anon2.newPage();
+  await pub2.goto(PUBLIC, { waitUntil: "networkidle" });
+  const pb = await measure(pub2, "Bravo");
+  const pc = await measure(pub2, "Charlie");
+  ok("D13b public : un seul groupe bordé (jonction sans trait, tour complet)", pb.cardJoin[1] && pc.cardJoin[0] && near(pb.border.b, 0) && near(pc.border.t, 0) && near(pb.border.l, 6, 0.6) && near(pc.border.b, 6, 0.6) && near(pb.card.b, pc.card.t, 1.5), JSON.stringify([pb.border, pc.border]));
+  await pub2.screenshot({ path: path.join(SHOTS, "d14-groupe-borde.png"), fullPage: true });
+  await anon2.close();
+  // Remise à l'état d'avant pour la suite (Charlie sans aucun réglage : la section D' en dépend) : Annuler deux fois, puis publier.
+  await undo().click();
+  await undo().click();
+  ok("D13b Annuler ×2 : Charlie sans réglage de bordure, Bravo sans bordure", await waitFor(() => borderOf("Charlie") === undefined && borderOf("Bravo") === false), JSON.stringify([borderOf("Charlie"), borderOf("Bravo")]));
+  ok("D13b publication", await publish());
 });
 
 /* ---- E. Papier du site × fond --------------------------------------------------------------------------------------------- */

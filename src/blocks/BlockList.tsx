@@ -8,9 +8,10 @@ import { cellShare, type GridLayout } from "./grid-layouts";
 import { getSiteView } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
 import type { PaletteColors } from "@/themes/palette";
-import { fondAttributes, fondJoins, fondKey, fondStyle, readBackground, supportsFond, type Background, type FondJoin } from "@/themes/fond";
+import FondWrap from "@/components/FondWrap";
+import { fondJoins, fondKey, readBackground, supportsFond, type Background, type FondJoin } from "@/themes/fond";
 import { pagePalette } from "@/themes/site-palette";
-import { borderVars, cardStyle, cardVars, paperAttributes, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
+import { borderVars, cardBorderSignature, cardStyle, cardVars, paperAttributes, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
 import { BLOCKS } from "./registry";
 import { MAX_NESTING } from "./tree";
 import type { BlockContext } from "./types";
@@ -123,17 +124,10 @@ export function withFond(node: ReactNode, type: string, background: Background |
       node
     );
   }
-  const { vars } = fondStyle(background, ctx.palette);
   return (
-    <div
-      key={`fond-${key}`}
-      className="fond-bloc"
-      {...fondAttributes(join)}
-      style={vars as CSSProperties}
-      {...(ctx.edit ? { "data-edit-background": JSON.stringify(background) } : {})}
-    >
+    <FondWrap key={`fond-${key}`} background={background} join={join} palette={ctx.palette} edit={ctx.edit}>
       {node}
-    </div>
+    </FondWrap>
   );
 }
 
@@ -237,7 +231,22 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
  * (`ctx.edit` faux), la couche d'édition de la planche l'enveloppe elle-même. Un composant invalide est ignoré.
  */
 export function renderBoardItem(item: { uid: string; type: string; props: Record<string, unknown> }, ctx: BlockContext): ReactNode {
-  return renderBlock({ id: -1, uid: item.uid, type: item.type, props: item.props, corrupt: false }, { ...ctx, edit: false, parent: undefined }, 0);
+  // Le fond du composant (`props.background`) est posé par la planche, autour de la colonne réglée par `box` et avec la
+  // fusion des voisins (ProjectBoardBlock / ProjectStrip, `FondWrap`) : le bloc lui-même n'en pose pas.
+  const props = { ...item.props };
+  delete props.background;
+  return renderBlock({ id: -1, uid: item.uid, type: item.type, props, corrupt: false }, { ...ctx, edit: false, parent: undefined }, 0);
+}
+
+/**
+ * Palette EFFECTIVE du site (thème + palette du site) : celle sur laquelle un fond de couleur calcule son texte lisible.
+ * Pour un composant qui rend lui-même une suite de composants (planche composée) : `ctx.palette` n'est posée que si la page
+ * contient un fond ou une carte, et le fond d'un composant de planche n'est pas dans le JSON de la page.
+ */
+export async function effectivePalette(ctx: BlockContext): Promise<CardPalette> {
+  if (ctx.palette) return ctx.palette;
+  const [theme, view] = await Promise.all([getActiveTheme(), getSiteView(ctx.locale, ctx.pageId)]);
+  return pagePalette(theme.tokens.color as PaletteColors, theme.tokens.palette, view.styles?.palette);
 }
 
 export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; ctx: BlockContext }) {
@@ -260,7 +269,11 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
     blocks.map((b) => {
       if (b.corrupt || !supportsFond(b.type)) return null;
       const props = b.props as { background?: unknown; surface?: unknown } | null;
-      return fondKey(readBackground(props?.background), Boolean(card && readSurface(props?.surface)));
+      const surface = card ? readSurface(props?.surface) : undefined;
+      // Une carte compte avec sa bordure : deux cartes de bordures différentes ne se fondent pas (voir `fondKey`).
+      const resolved = surface && card ? resolveSurface(surface, card.defaults) : undefined;
+      const border = resolved && card ? cardBorderSignature(resolved, cardStyle(resolved.color, card.palette), card.palette) : "";
+      return fondKey(readBackground(props?.background), Boolean(surface), border);
     }),
   );
   return (

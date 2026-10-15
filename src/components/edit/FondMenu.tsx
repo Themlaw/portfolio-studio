@@ -8,7 +8,7 @@
  * Annuler / Rétablir passent par l'historique de l'éditeur. Texte illisible sur la couleur : avertissement seulement.
  * À ne pas confondre avec « Carte » (la carte posée sous une rubrique, SurfaceMenu) ni « Fond du texte » (BackdropRow).
  */
-import { useRef, useState } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 
 import { parseColor, rgbaToHex } from "@/lib/color";
 import { PALETTE } from "@/lib/look";
@@ -55,17 +55,35 @@ export function FondButton({ uid, open, onToggle }: { uid: string; open: boolean
   );
 }
 
+/** Fond d'un composant de la page ou d'un conteneur : aperçu immédiat sur la toile (`previewFond`), puis intention `background`. */
 export default function FondMenu({ uid, top, onClose, onChanged }: { uid: string; top: number; onClose: () => void; onChanged: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
   const [cur, setCur] = useState<Background | null>(() => fondState(uid));
-  useDismiss(ref, onClose);
-
   const change = (next: Background | null, continuous = false) => {
     setCur(next);
     const seq = postIntent({ kind: "background", uid, background: next, ...(continuous ? { continuous: true } : {}) });
     previewFond(uid, next, seq);
     onChanged();
   };
+  return <FondPanel cur={cur} onChange={change} onClose={onClose} style={{ top }} />;
+}
+
+/**
+ * Fond d'un composant de la PLANCHE d'un projet (barre du composant, BoardLayer) : même fenêtre, mais pas d'aperçu local — la
+ * planche appartient au projet et se réécrit par `item-fond` (Annuler / Rétablir, version de page) ; la toile se recharge ensuite.
+ */
+export function BoardFondMenu({ board, uid, initial, top, left, onClose }: { board: number; uid: string; initial: Background | null; top: number; left: number; onClose: () => void }) {
+  const [cur, setCur] = useState<Background | null>(initial);
+  const change = (next: Background | null, continuous = false) => {
+    setCur(next);
+    postIntent({ kind: "bitem-fond", board, uid, background: next, ...(continuous ? { continuous: true } : {}) });
+  };
+  return <FondPanel cur={cur} onChange={change} onClose={onClose} style={{ top, left, right: "auto" }} />;
+}
+
+function FondPanel({ cur, onChange: change, onClose, style }: { cur: Background | null; onChange: (next: Background | null, continuous?: boolean) => void; onClose: () => void; style: CSSProperties }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, onClose);
+
   const color = fondColor(cur ?? undefined);
   const s = summary(cur);
   const customColor = color && !isSurfaceToken(color) ? color : undefined;
@@ -83,7 +101,7 @@ export default function FondMenu({ uid, top, onClose, onChanged }: { uid: string
   const active = cur ? cur.kind : "none";
 
   return (
-    <div ref={ref} className="sm tc" role="dialog" aria-label="Fond du composant" data-testid="fond-menu" style={{ top }}>
+    <div ref={ref} className="sm tc" role="dialog" aria-label="Fond du composant" data-testid="fond-menu" style={style}>
       <div className="tc-row">
         <span className="sm-label">Fond</span>
         <span className="tc-seg" role="radiogroup" aria-label="Nature du fond">

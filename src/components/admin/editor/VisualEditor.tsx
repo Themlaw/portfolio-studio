@@ -1686,15 +1686,26 @@ export default function VisualEditor({
     clearTimeout(itemTimer.current);
     itemTimer.current = setTimeout(() => void itemFlushRef.current(), 600);
   };
+  /** Fond de couleur d'un composant de la planche (lot 32) ; la roue de couleur envoie en continu : une écriture après 300 ms de calme. */
+  const fondTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const itemFond = async (board: number, uid: string, background: Background | null, continuous = false) => {
+    clearTimeout(fondTimer.current);
+    if (continuous) {
+      fondTimer.current = setTimeout(() => void handlers.current.itemFond(board, uid, background), 300);
+      return;
+    }
+    await itemFlushRef.current();
+    await boardDo(board, { op: "item-fond", uid, background });
+  };
   /** Déplacer un composant à un rang (glisser par la poignée). */
   const itemTo = async (board: number, uid: string, index: number) => {
     await itemFlushRef.current();
     await boardDo(board, { op: "item-to", uid, index });
   };
 
-  const handlers = useRef({ itemAdd, itemOp, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook });
+  const handlers = useRef({ itemAdd, itemOp, itemFond, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook });
   useEffect(() => {
-    handlers.current = { itemAdd, itemOp, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook };
+    handlers.current = { itemAdd, itemOp, itemFond, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -1766,6 +1777,9 @@ export default function VisualEditor({
           break;
         case "bitem-op":
           void h.itemOp(msg.board, msg.uid, msg.op);
+          break;
+        case "bitem-fond":
+          void h.itemFond(msg.board, msg.uid, msg.background, msg.continuous);
           break;
         case "bitem-select":
           h.itemSelect(msg.board, msg.uid, msg.item, msg.props);

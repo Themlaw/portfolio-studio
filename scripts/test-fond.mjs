@@ -10,6 +10,7 @@ import { BLOCKS } from "../src/blocks/registry.ts";
 import { resolvePalette } from "../src/themes/palette.ts";
 import { SURFACE_TOKENS } from "../src/themes/schema.ts";
 import { BackgroundSchema, FOND_TYPES, fondAttributes, fondColor, fondJoins, fondKey, fondStyle, readBackground, supportsFond } from "../src/themes/fond.ts";
+import { cardBorderSignature, cardStyle, resolveSurface } from "../src/themes/surface.ts";
 import { loadPreset, presetSlugs } from "./lib/presets.mjs";
 
 let failures = 0;
@@ -56,6 +57,21 @@ ok("lisibilité : tous les presets × tous les jetons, un texte est choisi et le
     return f.vars["--card-bg"] === f.style.bg && Boolean(f.vars["--card-ink"]) && f.style.ratio > 1;
   });
 }));
+
+ok("fusion : deux cartes de bordures différentes (ou l'une sans bordure) ne fusionnent pas ; bordure égale : oui", (() => {
+  const bg = { kind: "color", color: "ink" };
+  const k = (border) => fondKey(bg, true, border);
+  return fondJoins([k("medium/#111"), k("")])[0].next === false && fondJoins([k("medium/#111"), k("thick/#111")])[0].next === false && fondJoins([k("medium/#111"), k("medium/#111")])[0].next === true && fondKey(bg, false, "medium/#111") === fondKey(bg, false);
+})());
+ok("signature de bordure : vide sans bordure, largeur + couleur calculée sinon", (() => {
+  const t = BT[presetSlugs()[0]];
+  const p = resolvePalette(t.tokens.color, t.tokens.palette);
+  const style = cardStyle("surface", p);
+  const none = cardBorderSignature(resolveSurface({}), style, p);
+  const some = cardBorderSignature(resolveSurface({ border: { width: "thick" } }), style, p);
+  const colored = cardBorderSignature(resolveSurface({ border: { width: "thick", color: "primary" } }), style, p);
+  return none === "" && some.startsWith("thick/") && colored.startsWith("thick/") && some !== colored;
+})());
 
 const win = {};
 ok("protocole : l'intention `background` passe, une nature inconnue ou un champ en trop non", (() => {

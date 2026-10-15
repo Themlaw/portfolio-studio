@@ -252,6 +252,11 @@ export function borderVars(s: ResolvedSurface, style: CardStyle, p: CardPalette)
   return s.border ? { "--card-bc": borderColor(s.border, style, p) } : {};
 }
 
+/** Signature de la bordure d'une carte (largeur + couleur calculée ; vide sans bordure) : deux cartes fusionnent si elles sont égales (`fondKey`). */
+export function cardBorderSignature(s: ResolvedSurface, style: CardStyle, p: CardPalette): string {
+  return s.border ? `${s.border.width}/${borderColor(s.border, style, p)}` : "";
+}
+
 /** Attributs de l'enveloppe de la carte (la feuille y accroche largeur, coins et bordure). */
 export function surfaceAttributes(s: ResolvedSurface): Record<string, string> {
   return { "data-surface": "on", "data-width": s.width, "data-corners": s.corners, ...(s.border ? { "data-border": s.border.width } : {}) };

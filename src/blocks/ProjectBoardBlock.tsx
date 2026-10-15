@@ -5,7 +5,8 @@ import ProjectStrip, { type BoardPart } from "@/components/ProjectStrip";
 import { getProjectBoard, type LocalizedArtwork } from "@/lib/gallery";
 import { getMedia } from "@/lib/media";
 
-import { renderBoardItem } from "./BlockList";
+import { effectivePalette, renderBoardItem } from "./BlockList";
+import { fondJoins, fondKey, readBackground } from "@/themes/fond";
 import { itemEmpty } from "./board-layout";
 import { collection, projectSlug, tr, type BlockContext } from "./types";
 
@@ -71,11 +72,16 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     // porte `data-edit-board-held` (ProjectStrip) et la couche d'édition l'indique au survol.
     // Les composants autres que la bande sont rendus ici (mêmes blocs qu'une page) ; ils appartiennent au projet,
     // pas à la page : la planche est la même partout où elle est affichée.
+    // Fond de couleur des composants (lot 32) : mêmes règles que sur une page (fusion des voisins de même fond, bord à bord de la planche).
+    const fonds = project.layout.map((item) => readBackground(item.props.background));
+    const joins = fondJoins(fonds.map((bg) => fondKey(bg, false)));
+    const palette = fonds.some(Boolean) ? await effectivePalette(ctx) : undefined;
     const parts: BoardPart[] = await Promise.all(
-      project.layout.map(async (item): Promise<BoardPart> => ({
+      project.layout.map(async (item, i): Promise<BoardPart> => ({
         uid: item.uid,
         type: item.type,
         ...(item.box ? { box: item.box } : {}),
+        ...(fonds[i] ? { fond: { background: fonds[i]!, join: joins[i] } } : {}),
         ...(item.type === "strip"
           ? item.props.source === "own"
             ? { artworks: await railArtworks(item.props.media, ctx.locale) }
@@ -92,7 +98,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
         ...(project.edit ? { props: JSON.stringify({ props: item.props, ...(item.box ? { box: item.box } : {}) }), empty: itemEmpty(item) } : {}),
       })),
     );
-    return <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} parts={parts} />;
+    return <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} parts={parts} {...(palette ? { palette } : {})} />;
   }
   if (!ctx.edit) return null;
   // Dans un conteneur encore sans projet : la planche attend le choix du conteneur.

@@ -41,6 +41,7 @@ import { BOARD_ITEM_TYPES, BOX_MIN, MAX_BOARD_ITEMS, defaultLayout, isProjectStr
 import { getPageForEdit } from "@/lib/admin";
 import { getDb, schema } from "@/lib/db";
 import { slugify } from "@/lib/slug";
+import { BackgroundSchema } from "@/themes/schema";
 
 import { checkLayout } from "./board-layout";
 import { displayedProjects, projectTextProblem, referencedProjects, type DraftRefusal } from "./drafts";
@@ -100,6 +101,8 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("item-to"), uid: Uid, index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
   z.strictObject({ op: z.literal("item-move"), uid: Uid, dir: z.enum(["up", "down"]) }),
   z.strictObject({ op: z.literal("item-remove"), uid: Uid }),
+  // Lot 32 : fond de couleur du composant (`props.background`, null = aucun) ; vaut aussi pour la bande des images du projet.
+  z.strictObject({ op: z.literal("item-fond"), uid: Uid, background: BackgroundSchema.nullable() }),
   z.strictObject({ op: z.literal("item-set"), uid: Uid, props: z.record(z.string(), z.unknown()).optional(), box: Box.nullable().optional() }),
 ]);
 export type BoardOp = z.infer<typeof BoardOpSchema>;
@@ -558,6 +561,15 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         const from = snap.layout.findIndex((i) => i.uid === op.uid);
         if (from < 0) return "Ce composant n'est plus sur cette planche.";
         snap.layout.splice(from, 1);
+        return snap;
+      }
+      case "item-fond": {
+        const item = snap.layout.find((i) => i.uid === op.uid);
+        if (!item) return "Ce composant n'est plus sur cette planche.";
+        const props = { ...item.props };
+        if (op.background) props.background = op.background;
+        else delete props.background;
+        item.props = props;
         return snap;
       }
       case "item-set": {

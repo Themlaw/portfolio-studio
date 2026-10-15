@@ -5,11 +5,14 @@ import { useTranslations } from "next-intl";
 
 import BoardBox from "@/components/BoardBox";
 import EditOnly from "@/components/EditOnly";
+import FondWrap from "@/components/FondWrap";
 import StripRail from "@/components/StripRail";
 import { BOARD_ITEM_LABELS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
 import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedArtwork, LocalizedProject } from "@/lib/gallery";
 import { RADIUS_VALUES } from "@/themes/css";
+import type { Background, FondJoin } from "@/themes/fond";
+import type { CardPalette } from "@/themes/surface";
 
 /**
  * La planche de projet : l'unité de lecture du site.
@@ -39,6 +42,8 @@ export type BoardPart = {
   box?: BoardBoxProps;
   /** Carrousel à liste propre (lot 31b) : ses images, déjà lues dans la médiathèque. Absent : la bande des images du projet. */
   artworks?: LocalizedArtwork[];
+  /** Fond de couleur du composant (lot 32) et fusion avec ses voisins de même fond ; posé ici, autour de la colonne réglée par `box`. */
+  fond?: { background: Background; join: FondJoin };
 };
 
 export default function ProjectStrip({
@@ -49,6 +54,7 @@ export default function ProjectStrip({
   collection,
   slotRadius,
   parts,
+  palette,
 }: {
   project: LocalizedProject;
   /** Fond papier profond, pour séparer deux projets sans boîte ni bordure. */
@@ -62,6 +68,8 @@ export default function ProjectStrip({
   slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
   /** Suite de composants de la planche ; absente (anciens blocs de projets) : la bande d'images seule. */
   parts?: BoardPart[];
+  /** Palette effective du site : le texte lisible sur un fond de couleur (seulement si un composant en a un). */
+  palette?: CardPalette;
 }) {
   // Vue brouillon de l'éditeur : repères de la planche (jamais dans le HTML public).
   const edit = project.edit;
@@ -87,6 +95,17 @@ export default function ProjectStrip({
       </BoardBox>
     );
 
+  /** Fond de couleur du composant, bord à bord de la planche (lot 32) ; sans fond : le composant tel quel. */
+  const fonded = (part: BoardPart, node: ReactNode) =>
+    part.fond && palette ? (
+      <FondWrap background={part.fond.background} join={part.fond.join} palette={palette}>
+        {node}
+      </FondWrap>
+    ) : (
+      node
+    );
+  const body = (part: BoardPart) => fonded(part, part.type === "strip" ? rail(part) : part.node);
+
   /** Suite de composants sous l'en-tête : sans `parts` (anciens blocs), la bande seule, comme avant le lot 31. */
   const content = !parts ? (
     rail()
@@ -96,14 +115,14 @@ export default function ProjectStrip({
         <Fragment key={part.uid}>
           <BoardAdd board={edit.id} index={i} />
           <BoardItemFrame board={edit.id} part={part} index={i} count={parts.length}>
-            {part.type === "strip" ? rail(part) : part.node}
+            {body(part)}
           </BoardItemFrame>
         </Fragment>
       ))}
       <BoardAdd board={edit.id} index={parts.length} last empty={parts.length === 0} />
     </div>
   ) : (
-    parts.map((part) => <Fragment key={part.uid}>{part.type === "strip" ? rail(part) : part.node}</Fragment>)
+    parts.map((part) => <Fragment key={part.uid}>{body(part)}</Fragment>)
   );
 
   return (
@@ -225,6 +244,9 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
             Réglages
           </button>
         )}
+        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title="Fond de couleur du composant, sur toute sa hauteur">
+          Fond
+        </button>
         {op("up", "Monter", "↑", index === 0)}
         {op("down", "Descendre", "↓", index === count - 1)}
         {op("remove", "Supprimer", "✕")}

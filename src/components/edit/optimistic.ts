@@ -649,7 +649,9 @@ export function refreshFondJoins(uid: string) {
     const wrap = h.querySelector<HTMLElement>(':scope > .fond-bloc, :scope > .surface-card > .fond-bloc');
     const card = h.querySelector<HTMLElement>(':scope > .surface-card[data-surface="on"]');
     const bg = wrap?.dataset.fond === "on" ? readBackground(parseData(wrap.dataset.editBackground)) : undefined;
-    return { wrap, card, key: fondKey(bg, Boolean(card)) };
+    // Même signature que le serveur (`cardBorderSignature`) : largeur + couleur calculée de la bordure.
+    const border = card?.dataset.border ? `${card.dataset.border}/${card.style.getPropertyValue("--card-bc")}` : "";
+    return { wrap, card, key: fondKey(bg, Boolean(card), border) };
   });
   const joins = fondJoins(parts.map((p) => p.key));
   parts.forEach((p, i) => {
