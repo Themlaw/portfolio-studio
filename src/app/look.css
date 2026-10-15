@@ -282,6 +282,31 @@ figure.block-image[data-fit="contain"] .block-image-media.block-image-media {
   /* Les fonds des composants (bande, section profonde) suivent les coins. */
   overflow: clip;
 }
+/* ---- Papier du site SUR la carte (lot 28) ------------------------------------
+   Par défaut la carte est un aplat opaque : le papier du site (tuile en fond de page) est caché dessous.
+   « Sur la carte » : la même tuile, à la même taille, est dessinée par-dessus la couleur de la carte mais sous son
+   contenu (pseudo-élément à z-index -1 dans un contexte d'empilement propre : texte, images et boutons restent
+   au-dessus, intacts et cliquables). Voulu par la carte (data-paper="over") ou par le site (data-kit-paper-cards
+   sur <html>, la carte pouvant répondre data-paper="under"). Intensité : --card-paper-opacity (carte), sinon
+   --t-kit-paper-cards (site), sinon celle du hero. Sans papier dans le thème, rien. */
+[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"],
+[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) {
+  isolation: isolate;
+}
+[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"]::before,
+[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"])::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: var(--t-kit-paper);
+  background-size: var(--t-kit-paper-size);
+  background-repeat: repeat;
+  opacity: var(--card-paper-opacity, var(--t-kit-paper-cards, 0.35));
+}
+
 /* Dans une carte, l'espace du haut que se donne une section (entre sections de la page) est celui de la carte :
    le padding de la carte reste symétrique (haut = bas). Un espace choisi sur la toile (data-pt) garde la main. */
 .surface-card[data-surface="on"] > [class*="pt-[var(--section-gap)]"],

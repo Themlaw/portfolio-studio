@@ -9,7 +9,7 @@ import { getSiteView } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
 import type { PaletteColors } from "@/themes/palette";
 import { pagePalette } from "@/themes/site-palette";
-import { cardStyle, cardVars, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
+import { cardStyle, cardVars, paperAttributes, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
 import { BLOCKS } from "./registry";
 import { MAX_NESTING } from "./tree";
 import type { BlockContext } from "./types";
@@ -86,12 +86,14 @@ function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv
     );
   }
   const resolved = resolveSurface(surface, env.defaults);
+  const paper = paperAttributes(surface);
   return (
     <div
       key={`card-${key}`}
       className="surface-card"
       {...surfaceAttributes(resolved)}
-      style={cardVars(cardStyle(resolved.color, env.palette)) as CSSProperties}
+      {...paper.attrs}
+      style={{ ...cardVars(cardStyle(resolved.color, env.palette)), ...paper.vars } as CSSProperties}
       {...(edit ? { ...defaults, "data-edit-surface": JSON.stringify(surface) } : {})}
     >
       {node}

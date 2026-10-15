@@ -111,3 +111,10 @@
 .pe-tools .sm-button .sm-alert {
   margin-left: 2px;
 }
+
+/* Intensité du papier sur la carte (lot 28). */
+.sm-range {
+  flex: 1 1 110px;
+  min-width: 0;
+  accent-color: var(--lk-ink-soft);
+}

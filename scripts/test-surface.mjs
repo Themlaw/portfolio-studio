@@ -12,8 +12,9 @@ import { acceptFromCanvas, acceptToCanvas, EDIT_MSG } from "../src/lib/edit/prot
 import { CUSTOM_COLOR_RE } from "../src/lib/color.ts";
 import { helpTextProblem, titleHelpProblem, HELP_TEXT, TEXT_STARTERS } from "../src/blocks/help-text.ts";
 import { resolvePalette, contrastRatio, mixOklab, opaqueOn } from "../src/themes/palette.ts";
-import { ThemeSchema, SURFACE_TINTS, SURFACE_TOKENS } from "../src/themes/schema.ts";
-import { cardBackground, cardStyle, cardVars, cleanSurface, FALLBACK_CARD, readSurface, resolveSurface, SURFACE_DA_NAMES, SURFACE_DA_TOKENS, SURFACE_TOKEN_LABELS, SurfaceSchema, surfaceAttributes, tintParts } from "../src/themes/surface.ts";
+import { kitAttributes, kitVariables } from "../src/themes/css.ts";
+import { KitAssetsSchema, ThemeSchema, SURFACE_TINTS, SURFACE_TOKENS } from "../src/themes/schema.ts";
+import { cardBackground, cardStyle, cardVars, cleanSurface, FALLBACK_CARD, paperAttributes, readSurface, resolvePaper, resolveSurface, SURFACE_DA_NAMES, SURFACE_DA_TOKENS, SURFACE_TOKEN_LABELS, SurfaceSchema, surfaceAttributes, tintParts } from "../src/themes/surface.ts";
 import { loadPreset, presetSlugs } from "./lib/presets.mjs";
 
 let failures = 0;
@@ -34,7 +35,7 @@ ok("largeur et coins : valeurs inconnues refusées", !parses({ width: "wide" }) 
 ok("couleur bornée (9 caractères)", !parses({ color: "#" + "a".repeat(40) }));
 ok("null, tableau, chaîne : pas une carte", !parses(null) && !parses([]) && !parses("surface"));
 const schemaSource = readFileSync(new URL("../src/themes/schema.ts", import.meta.url), "utf8");
-const schemaRegex = /export const SurfaceSchema[\s\S]*?\.regex\(\/(.+?)\/,/.exec(schemaSource)?.[1];
+const schemaRegex = /export const SurfaceBaseSchema[\s\S]*?\.regex\(\/(.+?)\/,/.exec(schemaSource)?.[1];
 ok("même format que la couleur d'un texte (CUSTOM_COLOR_RE)", schemaRegex === CUSTOM_COLOR_RE.source, `${schemaRegex} vs ${CUSTOM_COLOR_RE.source}`);
 
 /* ---- Lecture tolérante, réglages par défaut ----------------------------------------------------------------- */
@@ -51,6 +52,31 @@ ok("resolveSurface : le bloc, puis le thème, puis la carte d'origine", (() => {
 })());
 ok("cleanSurface : retire les champs vides, `{}` reste", JSON.stringify(cleanSurface({ color: undefined, width: "full" })) === '{"width":"full"}' && JSON.stringify(cleanSurface({})) === "{}");
 ok("attributs de l'enveloppe", JSON.stringify(surfaceAttributes({ color: "bg", width: "inset", corners: "round" })) === '{"data-surface":"on","data-width":"inset","data-corners":"round"}');
+
+/* ---- Papier sur la carte (lot 28) ----------------------------------------------------------------------------- */
+
+ok("papier : under / over, intensité 0 à 0,6 valides", parses({ paper: "under" }) && parses({ paper: "over", paperOpacity: 0.35 }) && parses({ paperOpacity: 0 }) && parses({ paperOpacity: 0.6 }));
+ok("papier : valeurs hors bornes, inconnues ou mal typées refusées", !parses({ paper: "site" }) && !parses({ paper: "above" }) && !parses({ paperOpacity: 0.61 }) && !parses({ paperOpacity: -0.1 }) && !parses({ paperOpacity: "0.3" }) && !parses({ paperOpacity: null }) && !parses({ paperOpacity: Number.NaN }));
+ok("papier : sans réglage, le site décide ; la carte surcharge", (() => {
+  const off = { onCards: false, opacity: 0.35 };
+  const on = { onCards: true, opacity: 0.5 };
+  return !resolvePaper({}, off).over && resolvePaper({}, on).over && resolvePaper({}, on).opacity === 0.5 && !resolvePaper({ paper: "under" }, on).over && resolvePaper({ paper: "over" }, off).over && resolvePaper({ paper: "over", paperOpacity: 0.2 }, on).opacity === 0.2 && !resolvePaper({}).over;
+})());
+ok("papier : aucun attribut tant que la carte ne le demande pas (parité)", JSON.stringify(paperAttributes({ color: "bg", width: "full" })) === '{"attrs":{},"vars":{}}' && JSON.stringify(paperAttributes({ paper: "over", paperOpacity: 0.4 })) === '{"attrs":{"data-paper":"over"},"vars":{"--card-paper-opacity":"0.4"}}');
+ok("papier : resolveSurface ne porte pas le papier (carte par défaut du thème inchangée)", JSON.stringify(resolveSurface({ paper: "over", paperOpacity: 0.3 })) === JSON.stringify(FALLBACK_CARD));
+ok("papier : readSurface garde un papier valide, ignore un invalide", JSON.stringify(readSurface({ paper: "over", paperOpacity: 9, width: "full" })) === '{"paper":"over","width":"full"}');
+{
+  const paperKit = (extra) => ({ paper: { image: { svg: "/media/kit/0123456789abcdef.svg", w: 160, h: 160 }, ...extra } });
+  const kit = KitAssetsSchema.safeParse(paperKit({ onCards: true, onCardsOpacity: 0.4 }));
+  ok("kit : onCards / onCardsOpacity acceptés, bornés (0 à 0,6)", kit.success && !KitAssetsSchema.safeParse(paperKit({ onCardsOpacity: 0.7 })).success && !KitAssetsSchema.safeParse(paperKit({ onCards: "oui" })).success && !KitAssetsSchema.safeParse(paperKit({ onCardsOpacity: -1 })).success && !KitAssetsSchema.safeParse(paperKit({ surprise: 1 })).success);
+  const v = kitVariables(kit.data);
+  const a = kitAttributes(kit.data);
+  ok("css du thème : attribut et intensité du papier sur les cartes", "data-kit-paper-cards" in a && v["--t-kit-paper-cards"] === "0.4");
+  const plain = KitAssetsSchema.parse(paperKit({}));
+  ok("css du thème : sans réglage, ni attribut ni variable (rendu d'avant)", !("data-kit-paper-cards" in kitAttributes(plain)) && !("--t-kit-paper-cards" in kitVariables(plain)));
+  const css = readFileSync(new URL("../src/app/look.css", import.meta.url), "utf8");
+  ok("look.css : papier sur la carte en pseudo-élément sous le contenu, sans prise de clic", /\.surface-card\[data-surface="on"\]\[data-paper="over"\]::before[\s\S]*?z-index: -1;[\s\S]*?pointer-events: none;[\s\S]*?var\(--t-kit-paper\)/.test(css) && /isolation: isolate;/.test(css) && /\[data-kit-paper\]\[data-kit-paper-cards\] \.surface-card\[data-surface="on"\]:not\(\[data-paper="under"\]\)::before/.test(css));
+}
 
 /* ---- Thème : carte par défaut ---------------------------------------------------------------------------------- */
 
@@ -143,6 +169,7 @@ const from = (data) => acceptFromCanvas(msg(data), ORIGIN, frame);
 ok("protocole : intention `surface` acceptée (carte, `{}`, retrait)", from({ kind: "surface", uid: "b1", surface: { color: "#aabbcc", width: "full" } })?.kind === "surface" && from({ kind: "surface", uid: "b1", surface: {} })?.kind === "surface" && from({ kind: "surface", uid: "b1", surface: null })?.kind === "surface");
 ok("protocole : `surface` invalide refusée (couleur, clé, uid)", ["rose", "#ABC", 3].every((c) => from({ kind: "surface", uid: "b1", surface: { color: c } }) === null) && from({ kind: "surface", uid: "b1", surface: { x: 1 } }) === null && from({ kind: "surface", uid: "B 1", surface: {} }) === null && from({ kind: "surface", uid: "b1" }) === null);
 ok("protocole : seq conservé sur `surface`", acceptFromCanvas({ origin: ORIGIN, source: frame, data: { type: EDIT_MSG, kind: "surface", uid: "b1", surface: {}, seq: 7 } }, ORIGIN, frame)?.seq === 7);
+ok("protocole : papier de la carte accepté, hors bornes refusé", from({ kind: "surface", uid: "b1", surface: { paper: "over", paperOpacity: 0.4 } })?.kind === "surface" && from({ kind: "surface", uid: "b1", surface: { paper: "over", paperOpacity: 2 } }) === null && from({ kind: "surface", uid: "b1", surface: { paper: "x" } }) === null);
 ok("protocole : `insert` (choix, texte, titre, titre + texte) accepté", ["choose", "text", "title", "title-text"].every((what) => from({ kind: "insert", parent: null, index: 3, what })?.kind === "insert") && from({ kind: "insert", parent: "g1", index: 0, what: "text" })?.parent === "g1");
 ok("protocole : `insert` invalide refusé", from({ kind: "insert", parent: null, index: -1, what: "text" }) === null && from({ kind: "insert", parent: null, index: 1, what: "image" }) === null && from({ kind: "insert", parent: "x y", index: 1, what: "text" }) === null && from({ kind: "insert", index: 1, what: "text" }) === null);
 ok("protocole : `field-op` (titre / étiquette ajoutés ou retirés) accepté", ["add-title", "remove-title", "add-eyebrow", "remove-eyebrow"].every((op) => from({ kind: "field-op", uid: "b1", op })?.kind === "field-op"));

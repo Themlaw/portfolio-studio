@@ -44,7 +44,7 @@ import { EDIT_MSG, type FromCanvas } from "@/lib/edit/protocol";
 import { parseMarked } from "@/lib/marked";
 
 import { parseColor, toHex } from "@/themes/palette";
-import { cardStyle, cardVars, FALLBACK_CARD, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
+import { cardStyle, cardVars, FALLBACK_CARD, paperAttributes, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
 
 import { markedNodes } from "./marked-edit";
 
@@ -557,7 +557,7 @@ export function surfaceState(uid: string): { surface: Surface | null; defaults: 
 
 /** État de l'enveloppe avant l'aperçu, pour le rétablir (refus, échec). */
 const surfaceOriginal = new WeakMap<Element, { attrs: Record<string, string | null>; style: string | null }>();
-const SURFACE_ATTRS = ["data-surface", "data-width", "data-corners"];
+const SURFACE_ATTRS = ["data-surface", "data-width", "data-corners", "data-paper"];
 
 /**
  * Carte posée (ou retirée) depuis la toile : montrée tout de suite — attributs et variables CSS de
@@ -580,6 +580,9 @@ export function previewSurface(uid: string, surface: Surface | null, seq: number
       const resolved = resolveSurface(surface, parseData<ResolvedSurface>(el.dataset.cardDefault) ?? undefined);
       for (const [k, v] of Object.entries(surfaceAttributes(resolved))) el.setAttribute(k, v);
       for (const [k, v] of Object.entries(cardVars(cardStyle(resolved.color, canvasPalette())))) el.style.setProperty(k, v);
+      const paper = paperAttributes(surface);
+      for (const [k, v] of Object.entries(paper.attrs)) el.setAttribute(k, v);
+      for (const [k, v] of Object.entries(paper.vars)) el.style.setProperty(k, v);
     },
     clear: () => {
       const el = surfaceWrapper(uid);

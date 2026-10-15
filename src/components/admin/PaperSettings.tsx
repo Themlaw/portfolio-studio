@@ -6,7 +6,7 @@
  * elle gêne la lecture, donc il reste un aplat de la couleur de fond sauf si
  * on demande le contraire ici.
  */
-import type { KitAssets, Theme } from "@/themes/schema";
+import { PAPER_ON_CARDS_DEFAULT, PAPER_OVER_HERO_MAX, type KitAssets, type Theme } from "@/themes/schema";
 
 export default function PaperSettings({ theme, onChange }: { theme: Theme; onChange: (kit: KitAssets) => void }) {
   const kit = theme.assets.kit ?? {};
@@ -33,6 +33,38 @@ export default function PaperSettings({ theme, onChange }: { theme: Theme; onCha
         Décoché (par défaut) : le bandeau collant du haut est un aplat de la couleur de fond, la tuile couvre le reste du site. Coché : la tuile passe
         aussi derrière la navigation.
       </p>
+      <label className="a-check">
+        <input
+          type="checkbox"
+          checked={paper.onCards === true}
+          data-testid="paper-on-cards"
+          onChange={(e) => {
+            const next = { ...paper };
+            if (e.target.checked) next.onCards = true;
+            else delete next.onCards;
+            onChange({ ...kit, paper: next });
+          }}
+        />
+        Papier visible sur les cartes
+      </label>
+      <p className="a-help">
+        Décoché (par défaut) : les cartes de rubrique sont des aplats opaques qui cachent le papier. Coché : le papier est dessiné par-dessus la couleur
+        de chaque carte, sous son contenu. Chaque carte peut garder son choix (menu « Carte » de la toile : « Comme le site », « Sous la carte » ou « Sur la carte »).
+      </p>
+      {paper.onCards && (
+        <label className="a-field">
+          Intensité du papier sur les cartes : {Math.round((paper.onCardsOpacity ?? PAPER_ON_CARDS_DEFAULT) * 100)} %
+          <input
+            type="range"
+            min={0}
+            max={Math.round(PAPER_OVER_HERO_MAX * 100)}
+            step={1}
+            value={Math.round((paper.onCardsOpacity ?? PAPER_ON_CARDS_DEFAULT) * 100)}
+            data-testid="paper-on-cards-opacity"
+            onChange={(e) => onChange({ ...kit, paper: { ...paper, onCardsOpacity: Number(e.target.value) / 100 } })}
+          />
+        </label>
+      )}
     </section>
   );
 }

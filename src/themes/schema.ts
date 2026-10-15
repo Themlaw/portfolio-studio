@@ -67,10 +67,18 @@ export const SURFACE_TINTS = SURFACE_TINT_BASES.flatMap((b) => SURFACE_TINT_PERC
 export const SURFACE_TOKENS = [...SURFACE_BASE_TOKENS, ...SURFACE_TINTS] as const;
 export const SURFACE_WIDTHS = ["full", "inset"] as const;
 export const SURFACE_CORNERS = ["square", "round"] as const;
-export const SurfaceSchema = z.strictObject({
+/** Réglages de base d'une carte (couleur, largeur, coins) : ceux que porte aussi la carte par défaut d'un thème. */
+export const SurfaceBaseSchema = z.strictObject({
   color: z.union([z.enum(SURFACE_TOKENS), z.string().max(9).regex(/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/, "Couleur invalide (#rrggbb).")]).optional(),
   width: z.enum(SURFACE_WIDTHS).optional(),
   corners: z.enum(SURFACE_CORNERS).optional(),
+});
+/** Papier du site sur une carte (lot 28) : `under` = caché sous la carte (rendu d'avant), `over` = dessiné sur sa couleur, sous le contenu ; absent = comme le site. */
+export const SURFACE_PAPERS = ["under", "over"] as const;
+/** Une carte de rubrique : réglages de base + papier. `paperOpacity` : 0 à 0,6 (PAPER_OVER_HERO_MAX ; au-delà le texte se lit mal) ; absente = intensité du site. */
+export const SurfaceSchema = SurfaceBaseSchema.extend({
+  paper: z.enum(SURFACE_PAPERS).optional(),
+  paperOpacity: z.number().min(0).max(0.6).optional(),
 });
 
 /**
@@ -83,10 +91,10 @@ const LenientSurfaceSchema = z.preprocess((raw) => {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(raw)) {
     if (k !== "color" && k !== "width" && k !== "corners") out[k] = v;
-    else if (SurfaceSchema.safeParse({ [k]: v }).success) out[k] = v;
+    else if (SurfaceBaseSchema.safeParse({ [k]: v }).success) out[k] = v;
   }
   return out;
-}, SurfaceSchema);
+}, SurfaceBaseSchema);
 
 /** Rôles typographiques (styles du site du lot 2, typographie du thème). */
 export const TEXT_ROLES = ["h1", "h2", "eyebrow", "body", "caption", "menu", "brand"] as const;
@@ -133,6 +141,8 @@ const kitPlan = z
  */
 export const PAPER_OVER_HERO_DEFAULT = 0.35;
 export const PAPER_OVER_HERO_MAX = 0.6;
+/** Intensité du papier sur les cartes quand ni le site ni la carte ne la précisent : comme sur le hero. */
+export const PAPER_ON_CARDS_DEFAULT = PAPER_OVER_HERO_DEFAULT;
 
 /* ---- Curseurs (lot 4) ----
  * PNG 32 × 32 (1x) et 64 × 64 (2x, écrans HiDPI), dessinés dans le kit (case
@@ -158,6 +168,10 @@ export const KitAssetsSchema = z
         overHero: z.number().min(0).max(PAPER_OVER_HERO_MAX).optional(),
         /** Tuile aussi sous le bandeau du haut (collant) ; absent / false : le bandeau est un aplat de la couleur de fond. */
         underHeader: z.boolean().optional(),
+        /** Lot 28 : le papier est aussi dessiné sur les cartes de rubrique (par-dessus leur couleur, sous leur contenu) ; absent / false : caché sous la carte. Chaque carte peut surcharger. */
+        onCards: z.boolean().optional(),
+        /** Intensité du papier sur les cartes, défaut PAPER_ON_CARDS_DEFAULT. */
+        onCardsOpacity: z.number().min(0).max(PAPER_OVER_HERO_MAX).optional(),
       })
       .strict()
       .optional(),
