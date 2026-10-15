@@ -1039,7 +1039,12 @@ if (run("R")) {
     await page.keyboard.press("ControlOrMeta+a");
     await page.keyboard.type(base);
     await page.keyboard.press("Enter");
-    await f.locator(BRAND).dblclick();
+    // Le rendu du serveur peut redessiner le nom juste après « Entrée » : le double-clic est rejoué tant que le champ ne s'est pas ouvert
+    // (sinon la frappe part dans le vide et le texte tapé « disparaît » : même flake sur la base v0.19).
+    for (let essai = 0; essai < 6; essai++) {
+      await f.locator(BRAND).dblclick();
+      if (await f.locator("[data-editing]").first().waitFor({ timeout: 3000 }).then(() => true, () => false)) break;
+    }
     await page.keyboard.press("ControlOrMeta+End");
     const rn = await typeSlowly("-", "abcdefghijklmnopqrstuvwxyz".slice(i * 4) + "abcdefghijklmnopqrstuvwxyz".slice(0, i * 4));
     const typedName = rn.typed;

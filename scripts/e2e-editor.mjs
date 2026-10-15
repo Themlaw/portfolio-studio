@@ -205,7 +205,13 @@ for (let i = 0; i < 6; i++) {
 let addBox = null;
 for (let i = 0; i < 8 && !addBox; i++) {
   try {
-    await f.locator(`[data-edit-block="${textUid}"] [data-inline="paragraphs.0"]`).hover({ timeout: 4000 });
+    // La souris reste là où le glisser l'a laissée, au bord de deux rubriques : la puce « + Ajouter une rubrique » de cet interstice
+    // (`data-edit-gap`) peut alors recouvrir le centre du paragraphe d'un Texte court et « intercepter » le survol, que Playwright
+    // retente sans jamais bouger la souris (même flake sur la base v0.19, un peu moins fréquent). On l'écarte d'abord, puis on
+    // survole le haut-gauche du paragraphe, loin de l'interstice.
+    await page.mouse.move(700, 8);
+    await sleep(200);
+    await f.locator(`[data-edit-block="${textUid}"] [data-inline="paragraphs.0"]`).hover({ timeout: 4000, position: { x: 12, y: 4 } });
     // Le bouton n'a de pointer-events qu'au survol de son hôte : on le rejoint à la souris (hover()/click() de Playwright refusent un élément « couvert »).
     addBox = await addTitleBtn.boundingBox();
   } catch {}
