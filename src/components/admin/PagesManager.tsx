@@ -15,7 +15,7 @@ import {
 } from "@/app/admin/(espace)/pages/actions";
 import type { AdminPageRow, TrashSummary } from "@/lib/admin";
 import { slugify } from "@/lib/slug";
-import { daysLeft, lostWithPage, TRASH_DAYS } from "@/lib/trash";
+import { daysLeft, lostWithPage, restoredMessage, TRASH_DAYS } from "@/lib/trash";
 
 import { ConfirmDialog, same, toast, undoToast } from "./editing";
 import { EmptyTrash, PurgeItem } from "./TrashControls";
@@ -178,7 +178,7 @@ function TrashList({ pages, summary }: { pages: AdminPageRow[]; summary: TrashSu
                         start(async () => {
                           const r = await restorePageAction(p.id);
                           if (!r.ok) return toast(r.message, "error");
-                          toast(r.data.slugChanged ? `« ${p.title} » restaurée · son adresse était prise, elle en a une nouvelle` : `« ${p.title} » restaurée`);
+                          toast(restoredMessage(p.title, r.data));
                           router.refresh();
                         })
                       }
@@ -405,7 +405,7 @@ export default function PagesManager({ pages, trashed, view, summary }: { pages:
             undoToast(page.title, () =>
               void restorePageAction(page.id).then((r) => {
                 if (!r.ok) return toast(r.message, "error");
-                toast(`« ${page.title} » restaurée`);
+                toast(restoredMessage(page.title, r.data));
                 router.refresh();
               }),
             );

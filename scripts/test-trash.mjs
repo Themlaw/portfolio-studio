@@ -35,7 +35,7 @@ const { findMediaByKey } = await import("../src/lib/media.ts");
 const { getTrashSummary, listPagesForAdmin, listTrashedPages, listProjectsForAdmin, listTrashedProjects, listMediaForAdmin, listTrashedMedia, getMediaUses, getPageForEdit, getProjectForEdit } = await import("../src/lib/admin.ts");
 const { mediaUsagesByMedia } = await import("../src/lib/references.ts");
 const { readNav } = await import("../src/lib/edit/nav.ts");
-const { daysLeft, purgeAt, TRASH_DAYS, lostWithPage, lostWithProject, emptyTrashParts, willBeDeleted } = await import("../src/lib/trash.ts");
+const { daysLeft, purgeAt, TRASH_DAYS, lostWithPage, lostWithProject, emptyTrashParts, willBeDeleted, restoredMessage } = await import("../src/lib/trash.ts");
 console.log = log;
 
 let passed = 0;
@@ -369,6 +369,43 @@ await test("Mo1 : une page de collection mise à la corbeille n'est plus propos�
   restorePage(id);
   db.update(schema.pages).set({ collection: null }).where(eq(schema.pages.id, id)).run();
   if (seeded) db.update(schema.pages).set({ collection: "animation" }).where(eq(schema.pages.id, seeded.id)).run();
+});
+
+/* ---- 9. Audit v0.20 (Mo2, m6) : collection d'une page à la corbeille, adresse de restauration ------------------------ */
+await test("Mo2 : une page à la corbeille ne retient plus sa collection ; restaurée après reprise, elle la perd (et le dit)", () => {
+  const seeded = db.select().from(schema.pages).where(eq(schema.pages.collection, "backgrounds")).get();
+  if (seeded) db.update(schema.pages).set({ collection: null }).where(eq(schema.pages.id, seeded.id)).run();
+  const meta = { title: L(""), description: L("") };
+  const a = createPage({ title: L("Décors A"), slug: L("decors-a") }).data.id;
+  const b = createPage({ title: L("Décors B"), slug: L("decors-b") }).data.id;
+  const input = (title, slug, collection) => ({ title: L(title), slug: L(slug), meta, published: false, inMenu: false, accent: null, collection, blocks: [] });
+  assert.equal(savePage(a, input("Décors A", "decors-a", "backgrounds")).ok, true);
+  assert.equal(deletePage(a).ok, true);
+  assert.equal(db.select().from(schema.pages).where(eq(schema.pages.id, a)).get().collection, "backgrounds", "la page garde sa collection à la corbeille");
+  const saved = savePage(b, input("Décors B", "decors-b", "backgrounds"));
+  assert.equal(saved.ok, true, JSON.stringify(saved));
+  const r = restorePage(a);
+  assert.equal(r.ok, true);
+  assert.equal(r.data.collectionDropped, true);
+  assert.equal(db.select().from(schema.pages).where(eq(schema.pages.id, a)).get().collection, null);
+  assert.equal(db.select().from(schema.pages).where(eq(schema.pages.id, b)).get().collection, "backgrounds");
+  assert.match(restoredMessage("Décors A", r.data), /restaurée · sa collection est maintenant celle d'une autre page/);
+  // Collection libre : conservée à la restauration.
+  assert.equal(deletePage(b).ok, true);
+  const r2 = restorePage(b);
+  assert.equal(r2.data.collectionDropped, false);
+  assert.equal(db.select().from(schema.pages).where(eq(schema.pages.id, b)).get().collection, "backgrounds");
+  db.update(schema.pages).set({ collection: null }).where(eq(schema.pages.id, b)).run();
+  if (seeded) db.update(schema.pages).set({ collection: "backgrounds" }).where(eq(schema.pages.id, seeded.id)).run();
+});
+await test("m6 : restauration — variante d'adresse par langue, valide et libre", () => {
+  const p = createPage({ title: L("Carte"), slug: { fr: "carte-m6", en: "map-m6" } }).data.id;
+  assert.equal(deletePage(p).ok, true);
+  createPage({ title: L("Autre"), slug: { fr: "carte-m6", en: "autre-m6" } });
+  const r = restorePage(p);
+  assert.equal(r.ok, true);
+  assert.equal(r.data.slugChanged, true);
+  assert.deepEqual(slugOf(p), { fr: "carte-m6-2", en: "map-m6" }, "seule la langue prise change");
 });
 
 console.log(`\ntest-trash : ${passed} tests OK`);

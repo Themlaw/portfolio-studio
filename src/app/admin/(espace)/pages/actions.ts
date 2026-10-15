@@ -188,7 +188,7 @@ export async function deletePageAction(
 }
 
 /** Restaure une page de la corbeille (l'adresse reprise entre-temps est remplacée par une variante libre). */
-export async function restorePageAction(id: unknown): Promise<ActionResult<{ title: string; slugChanged: boolean }>> {
+export async function restorePageAction(id: unknown): Promise<ActionResult<{ title: string; slugChanged: boolean; collectionDropped: boolean }>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");

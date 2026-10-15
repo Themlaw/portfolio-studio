@@ -56,7 +56,9 @@ export const media = sqliteTable("media", {
   deletedAt: integer("deleted_at", { mode: "timestamp" }),
 });
 
-export const pages = sqliteTable("pages", {
+export const pages = sqliteTable(
+  "pages",
+  {
   id: integer("id").primaryKey({ autoIncrement: true }),
   /** Slug localisé, sans barre ; "" = accueil. */
   slug: text("slug", { mode: "json" }).notNull().$type<Localized>(),
@@ -72,7 +74,7 @@ export const pages = sqliteTable("pages", {
    * Collection que la page présente (characters, backgrounds, animation), ou null (lot 22). Une collection n'a
    * qu'UNE page (index unique) : les entrées automatiques de l'accueil suivent ces pages.
    */
-  collection: text("collection", { enum: ["characters", "backgrounds", "animation"] }).unique(),
+  collection: text("collection", { enum: ["characters", "backgrounds", "animation"] }),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   /**
    * Brouillon de l'éditeur visuel (JSON : titre, adresses, méta, accent,
@@ -95,7 +97,10 @@ export const pages = sqliteTable("pages", {
   deletedAt: integer("deleted_at", { mode: "timestamp" }),
   /** Elle figurait au menu quand elle a été mise à la corbeille (restaurée, elle y revient en fin de menu). */
   trashedInMenu: integer("trashed_in_menu", { mode: "boolean" }).notNull().default(false),
-});
+},
+  // Une collection n'a qu'une page DU SITE : une page à la corbeille garde la sienne sans la bloquer (migration 0024).
+  (t) => [uniqueIndex("pages_collection_unique").on(t.collection).where(sql`${t.deletedAt} is null`)],
+);
 
 export const blocks = sqliteTable(
   "blocks",

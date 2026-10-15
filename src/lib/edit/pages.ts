@@ -223,7 +223,8 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
 
   // Une collection n'a qu'une page.
   if (data.collection) {
-    const other = db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).where(eq(schema.pages.collection, data.collection)).get();
+    // Une page à la corbeille garde sa collection sans la retenir (index unique partiel, migration 0024).
+    const other = db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).where(and(eq(schema.pages.collection, data.collection), isNull(schema.pages.deletedAt))).get();
     if (other && other.id !== id) errors.collection = `Cette collection est déjà celle de la page « ${other.title.fr || other.title.en} » : retire-la de cette page d'abord.`;
   }
 
@@ -416,25 +417,36 @@ export function deletePage(id: number): ActionResult<{ title: string }> | { ok: 
 
 /**
  * Restaure une page de la corbeille. Son adresse a pu être reprise entre-temps : elle reçoit alors une
- * variante libre (`-2`…) et `slugChanged` le dit. Elle revient au menu si elle y était.
+ * variante libre (`-2`…), vérifiée pour CHAQUE langue (adresse valide, non réservée, non prise) puis revalidée
+ * par `slugErrors` ; `slugChanged` le dit. Sa collection a pu être reprise par une autre page : elle la perd
+ * (`collectionDropped`). Elle revient au menu si elle y était.
  */
-export function restorePage(id: number): ActionResult<{ title: string; slugChanged: boolean }> {
+export function restorePage(id: number): ActionResult<{ title: string; slugChanged: boolean; collectionDropped: boolean }> {
   const db = getDb();
   const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
   if (!page || !page.deletedAt) return fail("Cette page n'est pas dans la corbeille.");
-  const taken = db.select({ slug: schema.pages.slug }).from(schema.pages).where(and(isNull(schema.pages.deletedAt))).all();
+  const taken = db.select({ slug: schema.pages.slug }).from(schema.pages).where(isNull(schema.pages.deletedAt)).all();
   let slugChanged = false;
   const slug = { ...page.slug };
-  for (const l of LOCALES) {
-    const base = slug[l];
-    for (let n = 2; taken.some((p) => p.slug[l] === slug[l]) && !isHome(page.slug); n++) {
-      slug[l] = `${base}-${n}`;
-      slugChanged = true;
+  if (!isHome(page.slug)) {
+    for (const l of LOCALES) {
+      const base = page.slug[l];
+      const free = (candidate: string) => slugProblem(candidate) === null && !taken.some((p) => p.slug[l] === candidate);
+      for (let n = 2; !free(slug[l]) && n < 100; n++) {
+        slug[l] = `${base}-${n}`;
+        slugChanged = true;
+      }
     }
+    const problems = slugErrors(slug, id);
+    if (Object.keys(problems).length) return fail(`Impossible de lui trouver une adresse libre : ${Object.values(problems).join(" ")} Change l'adresse de la page prise ou supprime-la, puis réessaie.`);
   }
+  const collectionDropped = Boolean(page.collection) && Boolean(db.select({ id: schema.pages.id }).from(schema.pages).where(and(eq(schema.pages.collection, page.collection as string), isNull(schema.pages.deletedAt))).get());
   db.transaction((tx) => {
-    tx.update(schema.pages).set({ deletedAt: null, trashedInMenu: false, slug, updatedAt: new Date() }).where(eq(schema.pages.id, id)).run();
+    tx.update(schema.pages)
+      .set({ deletedAt: null, trashedInMenu: false, slug, updatedAt: new Date(), ...(collectionDropped ? { collection: null } : {}) })
+      .where(eq(schema.pages.id, id))
+      .run();
     if (page.trashedInMenu) setPageInNav(id, true);
   });
-  return done({ title: page.title.fr, slugChanged });
+  return done({ title: page.title.fr, slugChanged, collectionDropped });
 }

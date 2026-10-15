@@ -831,7 +831,8 @@
           "columns": [
             "collection"
           ],
-          "isUnique": true
+          "isUnique": true,
+          "where": "\"pages\".\"deleted_at\" is null"
         }
       },
       "foreignKeys": {},
