@@ -418,4 +418,28 @@ await test("m3 : deux Ouvertures sur une page → enregistrement refusé, l'exem
   assert.equal(r.fieldErrors?.["blocks.0"], undefined, "la première reste valable");
 });
 
+/* ---- 11. Audit v0.20 (m4) : fichier redemandé pendant la purge ----------------------------------------------------- */
+await test("m4 : un fichier réutilisé par une ligne média apparue pendant la purge n'est pas supprimé", async () => {
+  const { getStorage } = await import("../src/lib/storage/index.ts");
+  const m = addMedia("course.png", "4444aaaa4444aaaa");
+  db.update(schema.media).set({ deletedAt: new Date(Date.now() - 40 * DAY) }).where(eq(schema.media.id, m.id)).run();
+  const storage = getStorage();
+  const realDelete = storage.delete.bind(storage);
+  let calls = 0;
+  storage.delete = async (key) => {
+    calls++;
+    if (calls === 1) {
+      // Entre deux suppressions : le même contenu est renvoyé (autre original, mêmes variantes).
+      db.insert(schema.media).values({ key: "originals/autre-m4.png", sha256: "4444aaaa4444aaaa".padEnd(64, "0"), kind: "image", mime: "image/png", originalName: "revenu.png", size: 1, width: 10, height: 10, variants: { v: 1, files: [{ key: m.key, format: "webp", w: 960, h: 960 }] }, status: "ready", alt: L("") }).run();
+    }
+    return realDelete(key);
+  };
+  try {
+    assert.equal(await purgeOne("media", m.id).then((r) => r.ok), true);
+  } finally {
+    storage.delete = realDelete;
+  }
+  assert.ok(existsSync(m.file), "la variante, redevenue utilisée, est restée sur le disque");
+});
+
 console.log(`\ntest-trash : ${passed} tests OK`);

@@ -7,7 +7,7 @@
  *
  * Module léger (ni registre de blocs ni éditeur) : le worker du serveur le charge au démarrage.
  */
-import { and, eq, isNotNull, isNull, like, lt } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, like, lt, or } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { purgeCrops } from "@/lib/images/crop-cache";
@@ -50,6 +50,12 @@ export function purgeProject(id: number): boolean {
   return true;
 }
 
+/** Une ligne média utilise-t-elle ce fichier (original, ou variante listée dans `variants`) ? */
+export function mediaKeyInUse(key: string): boolean {
+  const db = getDb();
+  return Boolean(db.select({ id: schema.media.id }).from(schema.media).where(or(eq(schema.media.key, key), like(schema.media.variants, `%${key}%`))).get());
+}
+
 /**
  * Média : ligne, original et variantes du stockage (seulement ceux qu'aucune autre ligne ne référence),
  * recadrages gardés. Refusé (false) si quelque chose l'utilise de nouveau.
@@ -76,6 +82,9 @@ export async function purgeMedia(id: number): Promise<boolean> {
   if (!keys) return false;
   const storage = getStorage();
   for (const key of keys) {
+    // Le fichier a pu être redemandé entre le calcul de la liste et ici (même contenu renvoyé, `reviveIfTrashed`) : on revérifie
+    // juste avant chaque suppression qu'aucune ligne média ne l'utilise.
+    if (mediaKeyInUse(key)) continue;
     await storage.delete(key).catch((e) => console.error(`[media] suppression de ${key} impossible`, e));
   }
   // Recadrages gardés sur disque (variantes extraites de l'original) : plus de média, plus de recadrage.
