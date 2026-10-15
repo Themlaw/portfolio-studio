@@ -14,7 +14,7 @@ import { helpTextProblem, titleHelpProblem, HELP_TEXT, TEXT_STARTERS } from "../
 import { resolvePalette, contrastRatio, mixOklab, opaqueOn } from "../src/themes/palette.ts";
 import { kitAttributes, kitVariables } from "../src/themes/css.ts";
 import { KitAssetsSchema, ThemeSchema, SURFACE_TINTS, SURFACE_TOKENS } from "../src/themes/schema.ts";
-import { cardBackground, cardStyle, cardVars, cleanSurface, FALLBACK_CARD, paperAttributes, readSurface, resolvePaper, resolveSurface, SURFACE_DA_NAMES, SURFACE_DA_TOKENS, SURFACE_TOKEN_LABELS, SurfaceSchema, surfaceAttributes, tintParts } from "../src/themes/surface.ts";
+import { borderColor, borderVars, cardBackground, cardStyle, cardVars, cleanSurface, FALLBACK_CARD, paperAttributes, readSurface, resolvePaper, resolveSurface, SURFACE_DA_NAMES, SURFACE_DA_TOKENS, SURFACE_TOKEN_LABELS, SurfaceSchema, surfaceAttributes, tintParts } from "../src/themes/surface.ts";
 import { loadPreset, presetSlugs } from "./lib/presets.mjs";
 
 let failures = 0;
@@ -35,7 +35,7 @@ ok("largeur et coins : valeurs inconnues refusées", !parses({ width: "wide" }) 
 ok("couleur bornée (9 caractères)", !parses({ color: "#" + "a".repeat(40) }));
 ok("null, tableau, chaîne : pas une carte", !parses(null) && !parses([]) && !parses("surface"));
 const schemaSource = readFileSync(new URL("../src/themes/schema.ts", import.meta.url), "utf8");
-const schemaRegex = /export const SurfaceBaseSchema[\s\S]*?\.regex\(\/(.+?)\/,/.exec(schemaSource)?.[1];
+const schemaRegex = /export const SurfaceColorSchema[\s\S]*?\.regex\(\/(.+?)\/,/.exec(schemaSource)?.[1];
 ok("même format que la couleur d'un texte (CUSTOM_COLOR_RE)", schemaRegex === CUSTOM_COLOR_RE.source, `${schemaRegex} vs ${CUSTOM_COLOR_RE.source}`);
 
 /* ---- Lecture tolérante, réglages par défaut ----------------------------------------------------------------- */
@@ -48,10 +48,45 @@ ok("resolveSurface : le bloc, puis le thème, puis la carte d'origine", (() => {
   const a = resolveSurface({}, theme);
   const b = resolveSurface({ color: "ink", corners: "round" }, theme);
   const c = resolveSurface({});
-  return JSON.stringify(a) === JSON.stringify(theme) && b.color === "ink" && b.width === "full" && b.corners === "round" && JSON.stringify(c) === JSON.stringify(FALLBACK_CARD);
+  return JSON.stringify(a) === JSON.stringify({ ...theme, border: null }) && b.color === "ink" && b.width === "full" && b.corners === "round" && JSON.stringify(c) === JSON.stringify(FALLBACK_CARD);
 })());
 ok("cleanSurface : retire les champs vides, `{}` reste", JSON.stringify(cleanSurface({ color: undefined, width: "full" })) === '{"width":"full"}' && JSON.stringify(cleanSurface({})) === "{}");
-ok("attributs de l'enveloppe", JSON.stringify(surfaceAttributes({ color: "bg", width: "inset", corners: "round" })) === '{"data-surface":"on","data-width":"inset","data-corners":"round"}');
+ok("attributs de l'enveloppe", JSON.stringify(surfaceAttributes({ color: "bg", width: "inset", corners: "round", border: null })) === '{"data-surface":"on","data-width":"inset","data-corners":"round"}');
+
+const BT = Object.fromEntries(await Promise.all(presetSlugs().map(async (slug) => [slug, await loadPreset(slug)])));
+/* ---- Bordure de la carte (lot 32) ------------------------------------------------------------------------------ */
+
+ok("bordure : false, {} et épaisseurs Fin / Moyen / Épais valides", parses({ border: false }) && parses({ border: {} }) && ["thin", "medium", "thick"].every((w) => parses({ border: { width: w } })) && parses({ border: { width: "thick", color: "primary25" } }) && parses({ border: { color: "#ff00aa" } }));
+ok("bordure : épaisseur inconnue, couleur invalide, clé inconnue, true refusés", !parses({ border: { width: "huge" } }) && !parses({ border: { width: 4 } }) && !parses({ border: { color: "red" } }) && !parses({ border: { color: "#FFF" } }) && !parses({ border: { px: 3 } }) && !parses({ border: true }) && !parses({ border: null }));
+ok("bordure : sans réglage, pas de bordure (rendu d'avant)", resolveSurface({}).border === null && FALLBACK_CARD.border === null && !("data-border" in surfaceAttributes(resolveSurface({}))));
+ok("bordure : {} = Moyen, couleur par défaut", JSON.stringify(resolveSurface({ border: {} }).border) === '{"width":"medium"}');
+ok("bordure : la carte surcharge la bordure du thème champ par champ ; false l'éteint", (() => {
+  const theme = resolveSurface({ border: { width: "thick", color: "primary" } });
+  const a = resolveSurface({}, theme);
+  const b = resolveSurface({ border: { width: "thin" } }, theme);
+  const c = resolveSurface({ border: false }, theme);
+  const d = resolveSurface({ border: {} }, theme);
+  return a.border?.width === "thick" && a.border?.color === "primary" && b.border?.width === "thin" && b.border?.color === "primary" && c.border === null && d.border?.width === "thick";
+})());
+ok("bordure : l'attribut porte l'épaisseur, la couleur est une variable", (() => {
+  const palette = resolvePalette(BT.pro.tokens.color, BT.pro.tokens.palette);
+  const r = resolveSurface({ color: "ink", border: { width: "thin" } });
+  const st = cardStyle(r.color, palette);
+  return surfaceAttributes(r)["data-border"] === "thin" && borderVars(r, st, palette)["--card-bc"] === st.ink && Object.keys(borderVars(resolveSurface({}), st, palette)).length === 0;
+})());
+ok("bordure : couleur par défaut = encre lisible de la carte (visible sur tout thème), choisie = jeton de la palette", presetSlugs().every((slug) => {
+  const t = BT[slug];
+  const palette = resolvePalette(t.tokens.color, t.tokens.palette);
+  return SURFACE_TOKENS.every((tok) => {
+    const st = cardStyle(tok, palette);
+    return borderColor({ width: "medium" }, st, palette) === st.ink && contrastRatio(st.ink, opaqueOn(st.bg, palette.bg)) >= 3 && borderColor({ width: "medium", color: "primary" }, st, palette) === palette.primary;
+  });
+}));
+ok("bordure : valeur par défaut du thème acceptée, valeur inconnue ignorée sans rejeter le thème", (() => {
+  const t = BT.pro;
+  const withBorder = (card) => ThemeSchema.safeParse({ ...t, tokens: { ...t.tokens, layout: { ...(t.tokens.layout ?? {}), card } } });
+  return withBorder({ border: { width: "thick" } }).success && withBorder({ border: { width: "gigantic" } }).success && withBorder({ border: 5 }).success;
+})());
 
 /* ---- Papier sur la carte (lot 28) ----------------------------------------------------------------------------- */
 

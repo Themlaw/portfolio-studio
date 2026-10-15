@@ -67,12 +67,29 @@ export const SURFACE_TINTS = SURFACE_TINT_BASES.flatMap((b) => SURFACE_TINT_PERC
 export const SURFACE_TOKENS = [...SURFACE_BASE_TOKENS, ...SURFACE_TINTS] as const;
 export const SURFACE_WIDTHS = ["full", "inset"] as const;
 export const SURFACE_CORNERS = ["square", "round"] as const;
-/** Réglages de base d'une carte (couleur, largeur, coins) : ceux que porte aussi la carte par défaut d'un thème. */
+/** Couleur d'un aplat (carte, bordure, fond de composant) : un jeton de la palette ou `#rrggbb[aa]`. */
+export const SurfaceColorSchema = z.union([z.enum(SURFACE_TOKENS), z.string().max(9).regex(/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/, "Couleur invalide (#rrggbb).")]);
+/** Bordure d'une carte (lot 32) : épaisseurs Fin / Moyen / Épais (≈ 2 / 6 / 12 px, plus fines sur téléphone). */
+export const SURFACE_BORDER_WIDTHS = ["thin", "medium", "thick"] as const;
+/**
+ * `false` = pas de bordure (même si le thème en donne une par défaut) ; objet = bordure, épaisseur (Moyen par défaut) et couleur
+ * (absente = la couleur lisible du texte de la carte). Clé absente = comme le thème.
+ */
+export const SurfaceBorderSchema = z.union([z.literal(false), z.strictObject({ width: z.enum(SURFACE_BORDER_WIDTHS).optional(), color: SurfaceColorSchema.optional() })]);
+/** Réglages de base d'une carte (couleur, largeur, coins, bordure) : ceux que porte aussi la carte par défaut d'un thème. */
 export const SurfaceBaseSchema = z.strictObject({
-  color: z.union([z.enum(SURFACE_TOKENS), z.string().max(9).regex(/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/, "Couleur invalide (#rrggbb).")]).optional(),
+  color: SurfaceColorSchema.optional(),
   width: z.enum(SURFACE_WIDTHS).optional(),
   corners: z.enum(SURFACE_CORNERS).optional(),
+  border: SurfaceBorderSchema.optional(),
 });
+
+/**
+ * Fond d'un composant (lot 32) : `props.background` de tout grand composant. Union discriminée par `kind` pour que d'autres
+ * natures de fond (un papier peint importé, lot 35) s'ajoutent sans toucher aux fonds de couleur déjà enregistrés.
+ */
+export const BACKGROUND_KINDS = ["color"] as const;
+export const BackgroundSchema = z.discriminatedUnion("kind", [z.strictObject({ kind: z.literal("color"), color: SurfaceColorSchema })]);
 /** Papier du site sur une carte (lot 28) : `under` = caché sous la carte (rendu d'avant), `over` = dessiné sur sa couleur, sous le contenu ; absent = comme le site. */
 export const SURFACE_PAPERS = ["under", "over"] as const;
 /** Une carte de rubrique : réglages de base + papier. `paperOpacity` : 0 à 0,6 (PAPER_OVER_HERO_MAX ; au-delà le texte se lit mal) ; absente = intensité du site. */
@@ -90,7 +107,7 @@ const LenientSurfaceSchema = z.preprocess((raw) => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(raw)) {
-    if (k !== "color" && k !== "width" && k !== "corners") out[k] = v;
+    if (k !== "color" && k !== "width" && k !== "corners" && k !== "border") out[k] = v;
     else if (SurfaceBaseSchema.safeParse({ [k]: v }).success) out[k] = v;
   }
   return out;

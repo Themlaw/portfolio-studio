@@ -90,7 +90,8 @@
   font: 700 10px/1 var(--lk-font);
 }
 /* Bouton de la barre d'outils. */
-.pe-tools .sm-button {
+.pe-tools .sm-button,
+.pe-tools .fond-btn {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
@@ -108,7 +109,8 @@
   background: transparent;
   border-style: dashed;
 }
-.pe-tools .sm-button .sm-alert {
+.pe-tools .sm-button .sm-alert,
+.pe-tools .fond-btn .sm-alert {
   margin-left: 2px;
 }
 

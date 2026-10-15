@@ -1529,3 +1529,33 @@ Le contenu d'un projet est une SUITE de composants rendue sous l'en-tête de la 
   repère de la page) ; un média de l'onglet Médias glissé sur un composant (cible `bitem`, op `item-media`) remplace l'Image / la
   Vidéo, s'ajoute à la Grille / au carrousel — de même au clic sur une vignette quand un composant est choisi ; la poignée de la
   barre réordonne (`bitem-to`, op `item-to`). Tout passe par `boardOp` : Annuler / Rétablir, version de page, refus nommés.
+
+## Fond de couleur des composants et bordure de carte (lot 32)
+
+Demande de l'illustratrice : « tous les grands composants peuvent avoir une pleine hauteur de couleur dans la carte, deux composants qui
+se suivent liés par une seule couleur ». Décision : bord à bord de la carte, sans espace entre deux composants de même couleur.
+
+**Modèle.** Une carte (lot 17c) enveloppe UNE rubrique de premier niveau et n'a aucune marge latérale à l'intérieur : une enveloppe
+`.fond-bloc` posée autour du composant (sous la carte) est donc bord à bord ; elle reprend le rembourrage haut / bas de la carte
+(marges négatives) pour couvrir toute sa hauteur, et la carte (`overflow: clip` si coins arrondis, bordure) la rogne. Hors carte, la même
+enveloppe est une bande pleine largeur de la page (choix simple : pas d'option « masquée », la bande est le comportement attendu d'un fond).
+`props.background` est `{ kind: "color", color }` : l'union discriminée par `kind` prévoit le papier peint importé (lot 35) ; l'éditeur
+(`FondMenu`, liste `KINDS`), le rendu (`withFond`) et le protocole (`background`) n'ont qu'un cas à ajouter.
+
+**Fusion.** `fondKey(bg, onCard)` identifie un fond ; `fondJoins` rend, pour une suite de frères, `data-join-prev` / `data-join-next` (serveur
+dans `BlockList`, y compris pour les enfants d'un conteneur ; toile : `refreshFondJoins`). Le bas de l'enveloppe d'avant est supprimé : l'espace
+du haut du composant suivant (déjà dans sa couleur) fait l'écart. Deux cartes de même fond se collent (marge, coins et bordure de jonction
+supprimés). Une carte et la page ne fusionnent jamais.
+
+**Lisibilité.** Mêmes règles que les cartes (`cardStyle` : texte du thème ou inverse, filets, liens, boutons, variables `--card-*` posées sur
+l'enveloppe et remappées par look.css) ; contraste sous AA : pastille « ! » dans le menu, jamais bloquant.
+
+**Papier du site (lot 28).** Sur une carte à papier « dessus » (carte ou site), le papier est redessiné sur le fond (`.fond-bloc::before`) ; carte
+« dessous » : caché. Fond posé sur la page : suit le réglage du site « papier visible sur les cartes ». Limite : la tuile repart du coin de chaque
+enveloppe (raccord possible entre deux fonds fusionnés).
+
+**Bordure de carte.** `surface.border` : `false | { width?: thin|medium|thick, color? }`, aussi dans `tokens.layout.card`. Vraie bordure CSS
+(2 / 6 / 12 px, 1,5 / 4 / 8 px sous 768 px) : suit les coins, rien ne la décale de façon gênante (la carte n'a pas de marge latérale interne),
+le fond s'arrête à son bord intérieur. Couleur par défaut = l'encre lisible de la carte (visible sur tout thème).
+
+Tests : `test-fond.mjs`, `test-surface.mjs`, `e2e-fond.mjs` (suite `fond32`). Pas de migration (props facultatives).
