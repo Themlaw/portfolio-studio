@@ -16,7 +16,6 @@ import { errorAt, Field, PageCollectionField, TextareaI18n, TextField, TextI18n,
 import { savePageAction } from "@/app/admin/(espace)/pages/actions";
 import type { EditorContext } from "@/blocks/editor-types";
 import type { AdminPageEdit } from "@/lib/admin";
-import { accentProblem } from "@/themes/contrast";
 
 import { clone, SaveBar, same, toast, useUnsavedGuard } from "./editing";
 
@@ -62,13 +61,8 @@ export default function PageEditor({
   useUnsavedGuard(dirty);
 
   const set = <K extends keyof State>(k: K, v: State[K]) => setState((s) => ({ ...s, [k]: v }));
-  const accentIssue = state.accent && colors ? accentProblem(state.accent, colors) : null;
 
   const save = () => {
-    if (accentIssue) {
-      setError("La couleur des boutons et liens de la page n'est pas assez contrastée : ajuste-la ou retire-la avant d'enregistrer.");
-      return;
-    }
     start(async () => {
       const result = await savePageAction(page.id, payload(state), rev);
       if (!result.ok) {
@@ -141,7 +135,7 @@ export default function PageEditor({
           />
           <Toggle label="Dans le menu" help="En fin de menu ; change l'ordre depuis la liste des pages." checked={state.inMenu} onChange={(v) => set("inMenu", v)} />
           <PageCollectionField value={state.collection} onChange={(v) => set("collection", v)} pages={context.pages} pageId={page.id} error={errors.collection} />
-          <PageButtonsColorField value={state.accent} onChange={(v) => set("accent", v)} colors={colors} savedValue={saved.accent} error={errors.accent} />
+          <PageButtonsColorField value={state.accent} onChange={(v) => set("accent", v)} colors={colors} error={errors.accent} />
         </div>
       </section>
 

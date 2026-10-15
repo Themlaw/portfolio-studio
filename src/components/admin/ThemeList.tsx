@@ -195,7 +195,7 @@ export default function ThemeList({
             const ignored = accents.filter((a) => accentProblem(a.accent, pending.theme.tokens.color));
             return ignored.length > 0 ? (
               <div className="a-notice">
-                <p>Avec ce thème, l&apos;accent propre de ces pages ne serait plus lisible : il sera ignoré.</p>
+                <p>Avec ce thème, la couleur propre des boutons et liens de ces pages serait peu lisible (elle reste appliquée) :</p>
                 <ul className="a-refs">
                   {ignored.map((a) => (
                     <li key={a.id}>

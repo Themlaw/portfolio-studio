@@ -13,15 +13,13 @@
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { duplicateThemeAction, saveThemeAction } from "@/app/admin/(espace)/themes/actions";
 import { ColorsPanel } from "./editor/SiteLookPanel";
-import { contrastReport } from "@/themes/contrast";
 import { themeTypeCss } from "@/lib/look";
 import { themeAttributes, themeToCss } from "@/themes/css";
 import { FONT_STACKS } from "@/themes/font-stacks";
-import { contrastRatio, normalizePalette, resolvePalette } from "@/themes/palette";
 import { FONT_IDS, type FontId, type Theme } from "@/themes/schema";
 
 import { clone, ConfirmDialog, SaveBar, same, toast, useUnsavedGuard } from "./editing";
@@ -31,7 +29,8 @@ import PaperSettings from "./PaperSettings";
 import KitDownloadButton from "./KitDownloadButton";
 import PaletteEditor from "./PaletteEditor";
 import type { SitePalette } from "@/lib/look";
-import { applySitePalette, SITE_ROLES } from "@/themes/site-palette";
+import { applySitePalette, SITE_NUANCES, SITE_ROLES } from "@/themes/site-palette";
+import type { NuanceKey } from "@/themes/palette";
 import type { BaseKey } from "@/themes/palette";
 import ThemeTypeEditor from "./ThemeTypeEditor";
 import { VARIANT_LABELS, VARIANT_THUMBS } from "./VariantThumb";
@@ -290,6 +289,11 @@ export default function ThemeEditor({
     pushRef.current?.(updated);
     setTheme(updated);
   };
+  /** Noms (en minuscules) des couleurs que le site remplace : rôles, puis nuances. */
+  const overrideNames = (sp: SitePalette) =>
+    [...SITE_ROLES.filter((r) => sp[r.key]).map((r) => r.name), ...(Object.keys(SITE_NUANCES) as NuanceKey[]).filter((k) => sp[k]).map((k) => SITE_NUANCES[k].name)]
+      .map((n) => n.toLowerCase())
+      .join(", ");
   const colorsChanged = !same(theme.tokens.color, saved.tokens.color) || !same(theme.tokens.palette ?? null, saved.tokens.palette ?? null);
 
   // Thème livré : on garde un brouillon de couleurs en mémoire, la copie est proposée tout de suite.
@@ -306,19 +310,10 @@ export default function ThemeEditor({
       router.push(`/admin/themes/${result.data.id}`);
     });
 
-  // Même contrôle que le serveur (nuances auto recalculées), plus le texte posé sur le voile.
-  const contrastFailures = useMemo(() => {
-    const normalized = normalizePalette(colors, theme.tokens.palette);
-    const p = resolvePalette(colors, theme.tokens.palette);
-    return contrastReport(normalized).some((x) => !x.ok) || contrastRatio(p.onScrim, p.scrim) < 4.5;
-  }, [colors, theme.tokens.palette]);
+  // Lisibilité (lot 29) : jamais bloquante ; les avertissements sont ceux de l'éditeur de palette.
 
   /** Enregistrer : le thème en ligne demande d'abord une confirmation quand ses couleurs changent. */
   const save = () => {
-    if (contrastFailures) {
-      setError("Contraste insuffisant : corrige les couleurs signalées (bouton « Ajuster ») avant d'enregistrer.");
-      return;
-    }
     if (isActive && colorsChanged) {
       setConfirmLive(true);
       return;
@@ -365,7 +360,7 @@ export default function ThemeEditor({
               <div className="a-notice" role="note" data-testid="da-site-override">
                 <p>
                   Le site remplace {Object.keys(sitePalette).length} de ces couleurs depuis l&apos;éditeur de page :{" "}
-                  {SITE_ROLES.filter((r) => sitePalette[r.key]).map((r) => r.name.toLowerCase()).join(", ")}. Ce que tu changes ici ne s&apos;applique pas à ces couleurs tant que le site les remplace ; les deux réglages restent séparés.{" "}
+                  {overrideNames(sitePalette)}. Ce que tu changes ici ne s&apos;applique pas à ces couleurs tant que le site les remplace ; les deux réglages restent séparés.{" "}
                   {editorHref ? (
                     <Link href={editorHref} data-testid="da-site-override-link">
                       Ouvrir l&apos;éditeur de page (panneau « Couleurs »)
@@ -441,7 +436,7 @@ export default function ThemeEditor({
               <div className="a-notice" role="note" data-testid="site-palette-notice">
                 <p>
                   Le site remplace {Object.keys(sitePalette).length > 1 ? "des couleurs" : "une couleur"} de ce thème depuis l&apos;éditeur visuel :{" "}
-                  {SITE_ROLES.filter((r) => sitePalette[r.key]).map((r) => r.name.toLowerCase()).join(", ")}. Elles s&apos;appliquent par-dessus ce thème tant qu&apos;il est en ligne ; les couleurs ci-dessous restent celles du thème. Pour les retirer : éditeur visuel, panneau « Couleurs » du site, « Revenir aux couleurs du thème ».
+                  {overrideNames(sitePalette)}. Elles s&apos;appliquent par-dessus ce thème tant qu&apos;il est en ligne ; les couleurs ci-dessous restent celles du thème. Pour les retirer : éditeur visuel, panneau « Couleurs » du site, « Revenir aux couleurs du thème ».
                 </p>
               </div>
             )}

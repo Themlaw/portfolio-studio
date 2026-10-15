@@ -17,12 +17,9 @@ import { parseJson } from "@/lib/json";
 import { cleanSiteStyles, SiteStylesSchema } from "@/lib/look";
 import { asSiteName, canonicalSnap, SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
 
-import { sitePaletteProblem } from "@/themes/site-palette";
-import type { PaletteColors } from "@/themes/palette";
 
 import { touchPage } from "./boards";
 import type { DraftRefusal } from "./drafts";
-import { activeThemeForEdit } from "./look-context";
 import { cleanNav, readNav, writeNav } from "./nav";
 import { done, fail, type ActionResult } from "./result";
 
@@ -183,19 +180,6 @@ export function applySiteDraft(pageId: number): boolean {
   }
   getDb().delete(schema.settings).where(eq(schema.settings.key, "siteDraft")).run();
   return true;
-}
-
-/**
- * Publication : la palette du brouillon du site (portée par cette page) ne doit laisser aucun texte
- * illisible (AA 4,5:1) avec le thème actif. Message, ou null. La saisie n'est jamais bloquée : seule
- * la mise en ligne l'est (comme l'accent d'une page).
- */
-export function siteDraftPaletteProblem(pageId: number): string | null {
-  const draft = readSiteDraft();
-  const palette = draft && draft.pageId === pageId ? draft.snap.styles?.palette : undefined;
-  if (!palette) return null;
-  const theme = activeThemeForEdit();
-  return sitePaletteProblem(theme.tokens.color as PaletteColors, theme.tokens.palette, palette);
 }
 
 /** Abandon (ou suppression) de la page `pageId` : son brouillon du site est effacé. */

@@ -158,10 +158,7 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
   const decorApplied = decorApplicable(report);
   const colorsChanged = Boolean(opts.colors && report.colors?.some((c) => c.change === "changed"));
   if (changed.length === 0 && !decorApplied && !colorsChanged) return fail("Rien à appliquer : aucun élément n'a été redessiné.");
-  if (colorsChanged) {
-    const failures = kitColorFailures(source, report);
-    if (failures.length) return fail(`Les couleurs repeintes ne passent pas le contraste (${failures[0]}) : décoche-les, ou corrige-les dans Photoshop.`);
-  }
+  // Lisibilité (lot 29) : des couleurs repeintes peu contrastées sont appliquées ; la revue les signale (kitColorFailures).
 
   const storage = getStorage();
   const outDir = importOutDir(importId);

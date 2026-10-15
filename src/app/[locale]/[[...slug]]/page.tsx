@@ -9,8 +9,7 @@ import { routing, type AppLocale } from "@/i18n/routing";
 import { getDraftBlocks, getDraftPageInfo, getDraftRev, isDraftView, setDraftViewPage } from "@/lib/draft-view";
 import { resolvePage } from "@/lib/page-preview";
 import { getPageBlocks, localizedPath, pageAccent } from "@/lib/pages";
-import { getActiveTheme } from "@/lib/theme";
-import { accentProblem, hoverShade } from "@/themes/contrast";
+import { hoverShade } from "@/themes/contrast";
 import { getSite } from "@/lib/settings";
 
 /**
@@ -84,13 +83,7 @@ export default async function Page({ params }: { params: Params }) {
   const draftInfo = draftView ? getDraftPageInfo(page.id) : null;
   const accent = draftInfo ? draftInfo.accent : pageAccent(page);
   if (!accent) return list;
-  // L'accent a été contrôlé contre le thème en ligne à l'enregistrement ; si le
-  // thème a changé depuis et qu'il n'est plus lisible, il est ignoré.
-  const problem = accentProblem(accent, (await getActiveTheme()).tokens.color);
-  if (problem) {
-    console.warn(`[page] accent ${accent} de la page ${page.id} ignoré : ${problem}`);
-    return list;
-  }
+  // Lisibilité (lot 29) : jamais bloquante, la couleur choisie est toujours appliquée (l'éditeur avertit).
   // Accent de page : surcharge des tokens primaires pour le contenu de la page
   // (display: contents → aucune boîte ajoutée, mise en page inchangée).
   const style = {

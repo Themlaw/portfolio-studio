@@ -412,7 +412,7 @@ const settingOf = (key) => {
   return raw ? JSON.parse(raw) : undefined;
 };
 
-await test("17f : palette illisible → la publication est refusée (site.palette), la saisie ne l'est pas", () => {
+await test("17f (lot 29) : palette peu lisible → enregistrée, publiée et appliquée : avertissement seulement, jamais de refus", () => {
   const page = newPage("t-17f-a");
   const theme = activeThemeForEdit();
   const pub = readPublishedSite();
@@ -420,14 +420,17 @@ await test("17f : palette illisible → la publication est refusée (site.palett
   // Fond = couleur du texte : la saisie est acceptée…
   const saved = saveSiteDraft(page, { ...pub, styles: { palette: { bg: theme.tokens.color.ink } } }, rev(page));
   assert.equal(saved.ok, true, "enregistrement du brouillon jamais bloqué");
-  // …la mise en ligne non.
-  const refused = publishDraft(page, rev(page));
-  assert.equal(refused.ok, false);
-  assert.ok(refused.fieldErrors?.["site.palette"]?.includes("illisible"), JSON.stringify(refused.fieldErrors));
-  assert.equal(settingOf("styles")?.palette, undefined, "rien n'est publié");
+  // …la mise en ligne aussi (lot 29), et la couleur est bien celle qui est publiée.
+  const published = publishDraft(page, rev(page));
+  assert.equal(published.ok, true, JSON.stringify(published.fieldErrors));
+  assert.equal(settingOf("styles")?.palette?.bg, theme.tokens.color.ink, "la couleur choisie est publiée telle quelle");
+  // Le formulaire de la page n'est pas bloqué non plus.
   const viaForm = savePageFromForm(page, { ...base(page), blocks: [] }, rev(page));
-  assert.equal(viaForm.ok, false, "le formulaire de la page ne contourne pas la règle");
-  assert.equal(discardDraft(page, rev(page)).ok, true);
+  assert.equal(viaForm.ok, true);
+  // Nettoyage : retour à la palette du thème, publié.
+  assert.equal(saveSiteDraft(page, { ...pub, styles: {} }, rev(page)).ok, true);
+  assert.equal(publishDraft(page, rev(page)).ok, true);
+  assert.equal(settingOf("styles")?.palette, undefined, "palette retirée");
 });
 await test("17f : palette lisible → publiée avec la page, thème intact ; Annuler (retour à la palette du thème) la retire", () => {
   const page = newPage("t-17f-b");

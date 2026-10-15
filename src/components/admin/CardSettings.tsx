@@ -7,6 +7,7 @@
  */
 import CardColorChoices from "@/components/edit/CardColorChoices";
 import type { SitePalette } from "@/lib/look";
+import AdminColorPicker from "./AdminColorPicker";
 import { effectiveSitePalette } from "@/themes/site-palette";
 import type { Theme } from "@/themes/schema";
 import {
@@ -46,12 +47,10 @@ export default function CardSettings({ theme, onChange, sitePalette }: { theme: 
         </span>
         <CardColorChoices palette={palette} value={resolved.color} onPick={(t) => set({ color: t })} />
         <div className="a-color-row" role="group" aria-labelledby="t-carte-couleur">
-          <input
-            type="color"
-            aria-label="Autre couleur"
-            title="Autre couleur"
+          <AdminColorPicker
+            label="Autre couleur"
             value={custom ? resolved.color.slice(0, 7) : cardBackground(resolved.color, palette).slice(0, 7)}
-            onChange={(e) => set({ color: e.target.value.toLowerCase() })}
+            onChange={(hex) => set({ color: hex })}
           />
         </div>
         <p className="a-help">
