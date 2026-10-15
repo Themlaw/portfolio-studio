@@ -11,7 +11,7 @@ import { getMedia } from "@/lib/media";
 import { getFontFacesCss, getSiteView } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
 import { sitePaletteCss } from "@/themes/css";
-import { pagePalette, sitePaletteProblem } from "@/themes/site-palette";
+import { pagePalette } from "@/themes/site-palette";
 import type { PaletteColors } from "@/themes/palette";
 
 /**
@@ -43,12 +43,9 @@ export default async function SiteLayout({
   const siteCss = [fontFaces, siteStylesCss(view.styles, textPalette)].filter(Boolean).join("\n");
   // Palette et logo du site (lot 17f) : feuilles à part, posées AVANT les styles de rôle (un réglage
   // de taille du « Nom du site » passe devant celle du logo). Sans réglage : aucune balise, rendu du thème.
-  // Palette qui rendrait du texte illisible avec le thème actif (thème changé depuis) : ignorée au rendu
-  // public et signalée au journal, comme l'accent d'une page ; la vue brouillon la montre pour la corriger.
+  // Palette du site : toujours appliquée, même peu contrastée (simple avertissement dans l'éditeur, v0.21.1).
   const overrides = view.styles?.palette;
-  const unreadable = !edit && overrides ? sitePaletteProblem(theme.tokens.color as PaletteColors, theme.tokens.palette, overrides) : null;
-  if (unreadable) console.error(`[palette] palette du site ignorée : ${unreadable}`);
-  const paletteCss = unreadable ? "" : sitePaletteCss(theme.tokens, overrides);
+  const paletteCss = sitePaletteCss(theme.tokens, overrides);
   const logoRules = logoCss(view.styles?.logo);
   // Image du logo (lot 26) : seulement une image prête (sans couleur de fond : un logo est souvent transparent) ; sinon (supprimée, vidéo) le logo du thème ou le nom en texte.
   const logoMedia = await getMedia(view.styles?.logo?.mediaId);

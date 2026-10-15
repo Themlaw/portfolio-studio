@@ -10,7 +10,7 @@ import { getDraftBlocks, getDraftPageInfo, getDraftRev, isDraftView, setDraftVie
 import { resolvePage } from "@/lib/page-preview";
 import { getPageBlocks, localizedPath, pageAccent } from "@/lib/pages";
 import { getActiveTheme } from "@/lib/theme";
-import { accentProblem, hoverShade } from "@/themes/contrast";
+import { hoverShade } from "@/themes/contrast";
 import { getSite } from "@/lib/settings";
 
 /**
@@ -84,13 +84,7 @@ export default async function Page({ params }: { params: Params }) {
   const draftInfo = draftView ? getDraftPageInfo(page.id) : null;
   const accent = draftInfo ? draftInfo.accent : pageAccent(page);
   if (!accent) return list;
-  // L'accent a été contrôlé contre le thème en ligne à l'enregistrement ; si le
-  // thème a changé depuis et qu'il n'est plus lisible, il est ignoré.
-  const problem = accentProblem(accent, (await getActiveTheme()).tokens.color);
-  if (problem) {
-    console.warn(`[page] accent ${accent} de la page ${page.id} ignoré : ${problem}`);
-    return list;
-  }
+  // Accent peu contrasté : appliqué quand même (avertissement seulement dans l'éditeur, v0.21.1).
   // Accent de page : surcharge des tokens primaires pour le contenu de la page
   // (display: contents → aucune boîte ajoutée, mise en page inchangée).
   const style = {

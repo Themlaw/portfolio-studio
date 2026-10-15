@@ -13,15 +13,13 @@
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { duplicateThemeAction, saveThemeAction } from "@/app/admin/(espace)/themes/actions";
 import { ColorsPanel } from "./editor/SiteLookPanel";
-import { contrastReport } from "@/themes/contrast";
 import { themeTypeCss } from "@/lib/look";
 import { themeAttributes, themeToCss } from "@/themes/css";
 import { FONT_STACKS } from "@/themes/font-stacks";
-import { contrastRatio, normalizePalette, resolvePalette } from "@/themes/palette";
 import { FONT_IDS, type FontId, type Theme } from "@/themes/schema";
 
 import { clone, ConfirmDialog, SaveBar, same, toast, useUnsavedGuard } from "./editing";
@@ -306,19 +304,8 @@ export default function ThemeEditor({
       router.push(`/admin/themes/${result.data.id}`);
     });
 
-  // Même contrôle que le serveur (nuances auto recalculées), plus le texte posé sur le voile.
-  const contrastFailures = useMemo(() => {
-    const normalized = normalizePalette(colors, theme.tokens.palette);
-    const p = resolvePalette(colors, theme.tokens.palette);
-    return contrastReport(normalized).some((x) => !x.ok) || contrastRatio(p.onScrim, p.scrim) < 4.5;
-  }, [colors, theme.tokens.palette]);
-
   /** Enregistrer : le thème en ligne demande d'abord une confirmation quand ses couleurs changent. */
   const save = () => {
-    if (contrastFailures) {
-      setError("Contraste insuffisant : corrige les couleurs signalées (bouton « Ajuster ») avant d'enregistrer.");
-      return;
-    }
     if (isActive && colorsChanged) {
       setConfirmLive(true);
       return;

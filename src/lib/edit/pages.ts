@@ -14,8 +14,6 @@ import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 import { FORM_BLOCK_TYPES, isFormBlock } from "@/lib/contact-form";
 import { findPageReferences } from "@/lib/references";
-import { accentProblem } from "@/themes/contrast";
-import { ThemeSchema } from "@/themes/schema";
 
 import { isPageInNav, readNav, reorderNavPages, setPageInNav } from "./nav";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
@@ -198,15 +196,6 @@ const SavePageSchema = z.object({
   blocks: z.array(z.object({ type: z.string().max(60), props: z.unknown() })).max(40, "40 rubriques au plus par page."),
 });
 
-/** Couleurs du thème actif (pour contrôler l'accent d'une page). */
-function activeColors() {
-  const db = getDb();
-  const active = parseJson(db.select().from(schema.settings).where(eq(schema.settings.key, "activeThemeId")).get()?.value);
-  const row = typeof active === "string" ? db.select().from(schema.themes).where(eq(schema.themes.id, active)).get() : undefined;
-  const parsed = ThemeSchema.safeParse(parseJson(row?.data));
-  return parsed.success ? parsed.data.tokens.color : null;
-}
-
 export function savePage(id: number, input: unknown): ActionResult<null> {
   const db = getDb();
   const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
@@ -226,12 +215,6 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
     // Une page à la corbeille garde sa collection sans la retenir (index unique partiel, migration 0024).
     const other = db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).where(and(eq(schema.pages.collection, data.collection), isNull(schema.pages.deletedAt))).get();
     if (other && other.id !== id) errors.collection = `Cette collection est déjà celle de la page « ${other.title.fr || other.title.en} » : retire-la de cette page d'abord.`;
-  }
-
-  if (data.accent) {
-    const colors = activeColors();
-    const problem = colors ? accentProblem(data.accent, colors) : null;
-    if (problem) errors.accent = `${problem} Choisis une teinte plus contrastée ou retire cette couleur.`;
   }
 
   // Blocs : forme de l'arbre (conteneurs), type connu, props valides, références existantes.

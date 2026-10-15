@@ -26,8 +26,7 @@ import { getDb, getSqlite, schema } from "@/lib/db";
 import { slugify } from "@/lib/slug";
 import { getStorage } from "@/lib/storage";
 import { sniffImage } from "@/lib/upload/sniff";
-import { AA, contrastReport } from "@/themes/contrast";
-import { contrastRatio, normalizePalette, resolvePalette } from "@/themes/palette";
+import { normalizePalette } from "@/themes/palette";
 import { ThemeSchema, type Theme } from "@/themes/schema";
 import { unknownKeys } from "@/themes/strict";
 
@@ -165,13 +164,7 @@ export async function parseThemePackage(buf: Buffer): Promise<ParsedPackage> {
   // Palette (lot 4) : nuances « auto » recalculées depuis leurs bases, jamais
   // la valeur de l'archive (même règle que l'enregistrement d'un thème).
   const theme: Theme = { ...parsed.data, tokens: { ...parsed.data.tokens, color: normalizePalette(parsed.data.tokens.color, parsed.data.tokens.palette) } };
-  const resolved = resolvePalette(theme.tokens.color, theme.tokens.palette);
-  const scrimRatio = contrastRatio(resolved.onScrim, resolved.scrim);
-  if (scrimRatio < AA) throw new ThemeImportError(`Contraste insuffisant sur le voile de la visionneuse (${scrimRatio.toFixed(2)}:1) : il faut au moins ${AA}:1.`);
-  const failing = contrastReport(theme.tokens.color).filter((p) => !p.ok);
-  if (failing.length) {
-    throw new ThemeImportError(`Contraste insuffisant (${failing.map((p) => `${p.label} ${p.ratio.toFixed(2)}:1`).slice(0, 3).join(" ; ")}) : il faut au moins ${AA}:1.`);
-  }
+  // Contraste insuffisant : importé quand même (avertissement dans l'éditeur, v0.21.1).
 
   // Calques du hero : uniquement des fichiers livrés avec le site (aucun envoi possible ici).
   for (const layer of theme.assets.heroLayers ?? []) {

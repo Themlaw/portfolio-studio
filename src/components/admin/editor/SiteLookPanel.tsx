@@ -79,7 +79,7 @@ export function ColorsPanel({
   const isModified = (key: BaseKey) => (reference ? eff[key].toLowerCase() !== String(reference[key]).toLowerCase() : typeof value[key] === "string");
   const modifiedKeys = SITE_ROLES.map((r) => r.key).filter(isModified);
   const modifiedCount = modifiedKeys.length;
-  // Palette du site qui rendrait du texte illisible avec le thème actif : le rendu public l'ignore (layout), la publication est refusée.
+  // Palette du site qui rendrait du texte illisible avec le thème actif : simple avertissement, rien n'est bloqué (v0.21.1).
   const issues = sitePaletteIssues(theme.color, palette, value);
   const ignored = !isTheme && modifiedCount > 0 && issues.length > 0;
   const worstIssue = issues.reduce((a, b) => (b.ratio < a.ratio ? b : a), issues[0]);
@@ -116,10 +116,10 @@ export function ColorsPanel({
       {ignored && (
         <div className="a-field-error lc-ignored" role="alert" data-testid="palette-ignored">
           <p>
-            <strong>Ces couleurs ne sont pas appliquées sur le site en ligne.</strong> Avec le thème actif « {theme.name} » (changé depuis qu&apos;elles ont été choisies, ou modifié), elles rendent du texte illisible
-            (<span title={ratioTip(worstIssue.ratio)}>{worstIssue.label.toLowerCase()} : lisibilité insuffisante</span>) : le site montre alors les couleurs du thème. La mise en ligne est refusée tant que ce n&apos;est pas corrigé.
+            <strong>Attention, du texte risque d&apos;être difficile à lire.</strong> Avec le thème actif « {theme.name} », ces couleurs donnent
+            (<span title={ratioTip(worstIssue.ratio)}>{worstIssue.label.toLowerCase()} : lisibilité insuffisante</span>). Elles sont quand même enregistrées et mises en ligne.
           </p>
-          <p>Ajuste les couleurs signalées ci-dessous, ou reviens aux couleurs du thème.</p>
+          <p>Si tu veux, ajuste les couleurs signalées ci-dessous.</p>
         </div>
       )}
       <ul className="lc-roles">
@@ -191,7 +191,7 @@ export function ColorsPanel({
                     ) : (
                       <div className="a-field-error lc-alert" role="alert" data-testid="contrast-status">
                         <p title={ratioTip(lowest)}>
-                          Lisibilité insuffisante : {failing.map((p) => p.label.toLowerCase()).join(", ")}. Du texte serait difficile à lire ; la mise en ligne sera refusée tant que ce n&apos;est pas corrigé.
+                          Lisibilité insuffisante : {failing.map((p) => p.label.toLowerCase()).join(", ")}. Du texte risque d&apos;être difficile à lire (simple avertissement : tu peux enregistrer et publier quand même).
                         </p>
                         {fixed ? (
                           <button

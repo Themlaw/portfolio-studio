@@ -158,11 +158,6 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
   const decorApplied = decorApplicable(report);
   const colorsChanged = Boolean(opts.colors && report.colors?.some((c) => c.change === "changed"));
   if (changed.length === 0 && !decorApplied && !colorsChanged) return fail("Rien à appliquer : aucun élément n'a été redessiné.");
-  if (colorsChanged) {
-    const failures = kitColorFailures(source, report);
-    if (failures.length) return fail(`Les couleurs repeintes ne passent pas le contraste (${failures[0]}) : décoche-les, ou corrige-les dans Photoshop.`);
-  }
-
   const storage = getStorage();
   const outDir = importOutDir(importId);
   /** Fichier rangé par son contenu : /media/kit/<sha256 16>.<ext>. */

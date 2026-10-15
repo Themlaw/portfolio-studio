@@ -103,8 +103,8 @@ export function effectiveSitePalette(color: PaletteColors, palette: PaletteState
  * texte illisible (ignorée au rendu public ; la vue brouillon la montre pour la corriger). Mêmes règles que le layout.
  */
 export function pagePalette(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined, edit: boolean): ResolvedPalette {
-  const usable = overrides && (edit || !sitePaletteProblem(color, palette, overrides));
-  return usable ? effectiveSitePalette(color, palette, overrides) : resolvePalette(color, palette);
+  void edit; // palette peu contrastée appliquée quand même (avertissement seulement, v0.21.1)
+  return overrides ? effectiveSitePalette(color, palette, overrides) : resolvePalette(color, palette);
 }
 
 /** Un couple texte / fond : libellé, ratio et jetons de la palette concernés (texte, fond). */
