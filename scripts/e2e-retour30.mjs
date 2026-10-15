@@ -40,35 +40,14 @@ const q = (sql, ...args) => {
   }
 };
 const homeId = q("select page_id id from blocks where type = 'hero' limit 1")[0].id;
-const draftOf = (id) => JSON.parse(q("select draft from pages where id = ?", id)[0]?.draft ?? "null");
 const setting = (key) => JSON.parse(q("select value from settings where key = ?", key)[0]?.value ?? "null");
 const sitePalette = () => setting("siteDraft")?.snap?.styles?.palette ?? {};
-const themeData = (id) => JSON.parse(q("select data from themes where id = ?", id)[0]?.data ?? "null");
 async function waitFor(fn, timeout = 60000) {
   for (const end = Date.now() + timeout; Date.now() < end; await sleep(300)) if (await fn()) return true;
   return false;
 }
-const until = (f, fn, arg, timeout = 60000) => f.waitForFunction(fn, arg, { timeout, polling: 200 }).then(() => true, () => false);
 
 /* ---- Couleurs : conversions de contrôle (indépendantes du code testé) ---- */
-const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-const rgbStr = (h) => `rgb(${hexRgb(h).join(", ")})`;
-const parseRgb = (s) => (/rgba?\(([^)]+)\)/.exec(s)?.[1] ?? "").split(",").slice(0, 3).map((v) => Math.round(Number(v)));
-const near = (a, b, tol = 2) => a.length === 3 && b.length === 3 && a.every((v, i) => Math.abs(v - b[i]) <= tol);
-const hsvToHex = (h, s, v) => {
-  const f = (n) => {
-    const k = (n + h / 60) % 6;
-    return Math.round((v - v * s * Math.max(0, Math.min(k, 4 - k, 1))) * 255);
-  };
-  return `#${[f(5), f(3), f(1)].map((x) => x.toString(16).padStart(2, "0")).join("")}`;
-};
-const hexHsv = (hex) => {
-  const [r, g, b] = hexRgb(hex).map((x) => x / 255);
-  const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
-  const h = d === 0 ? 0 : max === r ? (((g - b) / d + 6) % 6) * 60 : max === g ? ((b - r) / d + 2) * 60 : ((r - g) / d + 4) * 60;
-  return { h, s: max === 0 ? 0 : d / max, v: max };
-};
-
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await ctx.newPage();
@@ -110,38 +89,7 @@ async function publish() {
   await page.getByRole("button", { name: "Publier", exact: true }).click();
   return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
-async function anon(p) {
-  const r = await fetch(BASE + p, { redirect: "manual" });
-  return { status: r.status, html: await r.text() };
-}
 const paletteSheet = (html) => /<style id="site-palette"[^>]*>([^<]*)<\/style>/.exec(html)?.[1] ?? "";
-async function openBar(f, sel) {
-  if (await f.locator(".lk-bar").count()) {
-    await f.locator(".lk-bar .lk-close").click().catch(() => {});
-    await f.locator(".lk-bar").waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
-  }
-  const target = f.locator(sel).first();
-  await target.scrollIntoViewIfNeeded();
-  for (let essai = 0; essai < 4; essai++) {
-    await page.mouse.move(700, 8);
-    await sleep(150);
-    await target.hover();
-    if (!(await until(f, () => Boolean(document.querySelector(".lk-aa")), null, 8000))) continue;
-    try {
-      await f.locator(".lk-aa").click({ timeout: 4000 });
-      if (await until(f, () => Boolean(document.querySelector(".lk-bar")), null, 8000)) return true;
-    } catch {
-      /* le « Aa » suit le survol : on recommence */
-    }
-  }
-  return false;
-}
-const titleColor = (f) => f.evaluate(() => getComputedStyle(document.querySelector('h2[data-inline="title"]')).color);
-async function setPageColor(on) {
-  const sw = page.getByRole("switch", { name: "Boutons et liens de cette page" });
-  if ((await sw.isChecked()) !== on) await page.locator("label.a-toggle", { hasText: "Boutons et liens de cette page" }).click();
-  await page.waitForFunction(([want]) => document.querySelector('[data-testid="page-buttons-color"] input[role="switch"]')?.checked === want, [on], { timeout: 10000 });
-}
 /** Propriété personnalisée d'un document (valeur brute). */
 const rootVar = (f, name) => f.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim().toLowerCase(), name);
 /** Variable de couleur résolue (rgb). */
@@ -154,21 +102,6 @@ const colorVar = (f, name) =>
     p.remove();
     return v;
   }, name);
-
-/** Copie modifiable du thème livré (créée une fois), ouverte sur sa page. */
-async function ensureCopy() {
-  if (!themeData("galerie-lumineuse-copie")) {
-    await page.goto(`${BASE}/admin/themes/galerie-lumineuse`, { waitUntil: "networkidle" });
-    const ink = page.locator('.a-da .lc-role-item[data-role="ink"]');
-    await ink.locator(".lc-role").click();
-    await ink.locator(".cp-hex").fill("#eeeeee");
-    await ink.locator(".cp-hex").press("Enter");
-    await page.locator('[data-testid="da-copy"]').click();
-    await page.waitForURL(/\/admin\/themes\/galerie-lumineuse-copie$/, { timeout: 60000 });
-  } else await page.goto(`${BASE}/admin/themes/galerie-lumineuse-copie`, { waitUntil: "networkidle" });
-  await page.locator('[data-testid="da-section"]').waitFor();
-}
-
 
 const item = (k) => page.locator(`.lc-nuance-item[data-nuance="${k}"]`);
 const pick = async (k, hex) => {
