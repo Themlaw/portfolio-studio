@@ -172,7 +172,7 @@ if (run("B"))
     await page.screenshot({ path: path.join(SHOTS, "b-fenetre-groupes.png") });
     const groups = await dlg.locator(".ve-group").evaluateAll((els) => els.map((g) => ({ title: g.querySelector(".ve-group-title")?.textContent?.trim(), labels: [...g.querySelectorAll(".ve-card strong")].map((e) => e.textContent?.trim()) })));
     ok("B1 fenêtre : mêmes en-têtes, dans le même ordre", groups.map((g) => g.title).join("|") === GROUPS.join("|"), JSON.stringify(groups.map((g) => g.title)));
-    ok("B2 fenêtre : même contenu par groupe que le panneau", groups.every((g) => JSON.stringify(g.labels) === JSON.stringify(CONTENT[g.title])), JSON.stringify(groups));
+    ok("B2 fenêtre : même contenu par groupe que le panneau (le carrousel « Images qui défilent » ne se pose que dans une planche : panneau seulement)", groups.every((g) => JSON.stringify(g.labels) === JSON.stringify(g.title === "Images et vidéos" ? ["Image", "Vidéo"] : CONTENT[g.title])), JSON.stringify(groups));
     ok("B3 fenêtre : aucun « Projet mis en avant »", !/mis en avant/i.test((await dlg.textContent()) ?? "") && (await dlg.locator('[data-type="featured-project"]').count()) === 0);
     await page.keyboard.press("Escape");
     await dlg.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
