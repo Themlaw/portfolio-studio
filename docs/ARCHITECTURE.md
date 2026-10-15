@@ -1490,7 +1490,7 @@ se suivent liés par une seule couleur ». Décision : bord à bord de la carte,
 `.fond-bloc` posée autour du composant (sous la carte) est donc bord à bord ; elle reprend le rembourrage haut / bas de la carte
 (marges négatives) pour couvrir toute sa hauteur, et la carte (`overflow: clip` si coins arrondis, bordure) la rogne. Hors carte, la même
 enveloppe est une bande pleine largeur de la page (choix simple : pas d'option « masquée », la bande est le comportement attendu d'un fond).
-`props.background` est `{ kind: "color", color }` : l'union discriminée par `kind` prévoit le papier peint importé (lot 35) ; l'éditeur
+`props.background` est `{ kind: "color", color }` ou, depuis le lot 35, `{ kind: "wallpaper", … }` : l’union discriminée par `kind` accueille le papier peint importé (lot 35) ; l'éditeur
 (`FondMenu`, liste `KINDS`), le rendu (`withFond`) et le protocole (`background`) n'ont qu'un cas à ajouter.
 
 **Fusion.** `fondKey(bg, onCard)` identifie un fond ; `fondJoins` rend, pour une suite de frères, `data-join-prev` / `data-join-next` (serveur
@@ -1510,3 +1510,28 @@ enveloppe (raccord possible entre deux fonds fusionnés).
 le fond s'arrête à son bord intérieur. Couleur par défaut = l'encre lisible de la carte (visible sur tout thème).
 
 Tests : `test-fond.mjs`, `test-surface.mjs`, `e2e-fond.mjs` (suite `fond32`). Pas de migration (props facultatives).
+
+## Papiers peints (lot 35)
+
+Demande de l'illustratrice : « importer autant de papiers peints dessinés qu'on veut, sur des fonds transparents ; choisir le papier peint au niveau
+de la page, ou pour chaque grand composant (une surcharge) ; au niveau de la carte, comme c'est déjà le cas ». Une entrée « Papiers peints » sous « Thèmes ».
+
+**Stockage.** Table `wallpapers` (migration 0025) + un média ordinaire pour le fichier. Réutiliser la médiathèque garde l'envoi sûr (signature, bornes de pixels, variantes
+WebP/AVIF avec transparence, quota, déduplication SHA-256) sans le réécrire ; la ligne ajoute ce qui est propre au motif (nom, taille de tuile et opacité par défaut, corbeille).
+Le fichier est caché de la médiathèque (liste, compteurs, sélecteurs) et protégé de la purge tant que la ligne existe. Fermé : JPEG (pas de transparence), GIF, SVG.
+
+**Références.** Toujours par identifiant : fond d'un composant (`props.background`), papier d'une page (`theme_overrides.wallpaper`, brouillon `wallpaper`), papier d'une carte
+(`surface.paperWallpaper`), cartes du site (`settings.cardWallpaper`). `wallpaperUsages()` les recense (publié ET brouillons) pour l'avertissement de suppression. Supprimer = corbeille
+30 jours ; pendant ce temps (et après la purge) les identifiants restent mais ne résolvent plus : `wallpaperVars(undefined)` est vide, le calque n'a pas d'image, la couleur
+dessous (fond) ou l'aplat de la carte reste. Restauré, tout revient.
+
+**Rendu.** Un motif est une image répétée (`background-size: <tuile> auto`), opacité par `opacity` du calque, jamais une couleur. Papier de page : calque `.page-wallpaper`
+dans `.site-frame` (z-index -1, isolé) ; il masque le papier du kit (corps, bandes profondes, voile de l'ouverture) pour cette page seulement. Fond de composant : `::after` de
+`.fond-bloc[data-wallpaper]` au-dessus de la couleur, même enveloppe bord à bord et même fusion que la couleur (`fondKey` = motif + réglages) ; **raccord de la trame** entre
+deux voisins fusionnés par `--wp-y` (côté navigateur, `WallpaperAlign` ; `background-attachment: fixed` a été écarté : la trame ne suivrait plus le défilement). Carte : `::before`
+de la carte (motif propre ou celui du site), il passe devant le papier du kit ; un fond de couleur dans la carte le redessine comme le papier du kit (lot 28). Téléphone : tuile ×0,6.
+
+**Lisibilité.** Fond avec couleur dessous : `cardStyle` comme le fond de couleur (lot 32). Sans couleur : encre du thème. Le motif lui-même n'est pas mesuré (avertissement seulement, jamais
+bloquant) ; l'opacité d'un papier de carte est plafonnée à 0,6 comme le papier du kit.
+
+Tests : `test-papiers.mjs`, `e2e-papiers.mjs` (suite `papiers35`). Migration SQL 0025 (à renuméroter à l'intégration si besoin).

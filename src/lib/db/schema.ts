@@ -56,6 +56,27 @@ export const media = sqliteTable("media", {
   deletedAt: integer("deleted_at", { mode: "timestamp" }),
 });
 
+/**
+ * Papiers peints (lot 35) : motifs répétés importés par l'artiste (PNG / WebP sur fond transparent). Le fichier est un média
+ * ordinaire (envoi, variantes, stockage, quota, SHA-256 : rien n'est dupliqué) ; cette ligne porte ce qui est propre au motif :
+ * son nom, la taille de répétition par défaut (largeur d'une tuile, en px) et l'opacité par défaut. Un média qui a une ligne ici
+ * n'apparaît plus dans la médiathèque (il n'est pas une photo). Les références (fond d'un composant, papier d'une page ou d'une
+ * carte) sont des identifiants dans des JSON, sans clé étrangère : voir `wallpaperUsages` (src/lib/references.ts).
+ */
+export const wallpapers = sqliteTable("wallpapers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  mediaId: integer("media_id")
+    .notNull()
+    .references(() => media.id),
+  /** Largeur d'une tuile à l'écran, en px (le téléphone la réduit). */
+  size: integer("size").notNull().default(300),
+  opacity: real("opacity").notNull().default(1),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  /** Corbeille : date de mise à la corbeille ; null = dans la bibliothèque. Purgé 30 jours après. */
+  deletedAt: integer("deleted_at", { mode: "timestamp" }),
+});
+
 export const pages = sqliteTable(
   "pages",
   {

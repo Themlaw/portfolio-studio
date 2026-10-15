@@ -5,6 +5,7 @@ import type { CSSProperties } from "react";
 import type { AppLocale } from "@/i18n/routing";
 import { textStyleObject, type Look } from "@/lib/look";
 import type { CardPalette } from "@/themes/surface";
+import type { WallpaperEntry } from "@/themes/wallpaper";
 
 /** Texte court localisé (étiquette, titre, bouton). */
 export const localized = z.object({ fr: z.string().max(200), en: z.string().max(200) });
@@ -52,6 +53,8 @@ export type BlockContext = {
   look?: Look;
   /** Palette effective du thème : choisit le texte lisible sur un fond de texte coloré (lot 21). Absente = non lue. */
   palette?: CardPalette;
+  /** Papiers peints de la bibliothèque (lot 35), lus seulement si la page en montre un (ou en vue brouillon). */
+  wallpapers?: ReadonlyMap<number, WallpaperEntry>;
 };
 
 /**

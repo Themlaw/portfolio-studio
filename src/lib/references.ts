@@ -12,6 +12,8 @@ import { inArray } from "drizzle-orm";
 
 import { mediaUsageIndex, pageReferences, projectReferences, type BlockRow, type Usage } from "@/blocks/refs";
 
+import { wallpaperIdsOf } from "@/themes/wallpaper";
+
 import { getDb, schema } from "./db";
 import { parseJson } from "./json";
 
@@ -87,4 +89,39 @@ export function findPageReferences(pageId: number): Usage[] {
 
 export function findProjectReferences(slug: string): Usage[] {
   return projectReferences(slug, allBlocks());
+}
+
+/* ---- Papiers peints (lot 35) ---------------------------------------------------------------------------------- */
+
+/** Où un motif sert : fond ou papier de carte d'un composant (publié ou brouillon), papier d'une page, papier des cartes du site. */
+export type WallpaperUse = { kind: "block"; pageId: number; type: string } | { kind: "page"; pageId: number } | { kind: "cards" };
+
+/**
+ * UNE seule source pour « où chaque motif est utilisé » (écran Papiers peints, avertissement avant suppression, tests). Même règle
+ * que les médias : un composant compte une fois par page et par type, publié ou en brouillon. Les pages à la corbeille comptent
+ * (restaurées, elles retrouvent leur motif) mais sont signalées par l'écran.
+ */
+export function wallpaperUsages(): Map<number, WallpaperUse[]> {
+  const out = new Map<number, WallpaperUse[]>();
+  const seen = new Set<string>();
+  const push = (id: number, use: WallpaperUse) => {
+    const key = `${id}:${use.kind}:${"pageId" in use ? use.pageId : ""}:${"type" in use ? use.type : ""}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.set(id, [...(out.get(id) ?? []), use]);
+  };
+  for (const b of allBlocks()) for (const id of wallpaperIdsOf({ type: b.type, props: b.props })) push(id, { kind: "block", pageId: b.pageId, type: b.type });
+  const db = getDb();
+  for (const p of db.select({ id: schema.pages.id, overrides: schema.pages.themeOverrides, draft: schema.pages.draft }).from(schema.pages).all()) {
+    const published = (p.overrides as { wallpaper?: { wallpaper?: unknown } } | null)?.wallpaper?.wallpaper;
+    const drafted = (p.draft as { wallpaper?: { wallpaper?: unknown } | null } | null)?.wallpaper?.wallpaper;
+    for (const id of [published, drafted]) if (Number.isInteger(id)) push(id as number, { kind: "page", pageId: p.id });
+  }
+  const card = parseJson(db.select().from(schema.settings).where(inArray(schema.settings.key, ["cardWallpaper"])).get()?.value) as { wallpaper?: unknown } | null;
+  if (Number.isInteger(card?.wallpaper)) push(card!.wallpaper as number, { kind: "cards" });
+  return out;
+}
+
+export function findWallpaperUsages(id: number): WallpaperUse[] {
+  return wallpaperUsages().get(id) ?? [];
 }

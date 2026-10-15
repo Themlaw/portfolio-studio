@@ -44,6 +44,7 @@ import { EDIT_MSG, type FromCanvas } from "@/lib/edit/protocol";
 import { parseMarked } from "@/lib/marked";
 
 import { parseColor, toHex } from "@/themes/palette";
+import type { WallpaperEntry } from "@/themes/wallpaper";
 import { fondAttributes, fondJoins, fondKey, fondStyle, readBackground, type Background } from "@/themes/fond";
 import { borderVars, cardStyle, cardVars, FALLBACK_CARD, paperAttributes, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
 
@@ -538,7 +539,7 @@ export function refreshCards() {
     if (fondOriginal.has(el)) continue;
     const bg = readBackground(parseData<unknown>(el.dataset.editBackground));
     if (!bg) continue;
-    for (const [k, v] of Object.entries(fondStyle(bg, palette).vars)) el.style.setProperty(k, v);
+    for (const [k, v] of Object.entries(fondStyle(bg, palette, wallpaperLookup).vars)) el.style.setProperty(k, v);
   }
 }
 
@@ -566,7 +567,7 @@ export function surfaceState(uid: string): { surface: Surface | null; defaults: 
 
 /** État de l'enveloppe avant l'aperçu, pour le rétablir (refus, échec). */
 const surfaceOriginal = new WeakMap<Element, { attrs: Record<string, string | null>; style: string | null }>();
-const SURFACE_ATTRS = ["data-surface", "data-width", "data-corners", "data-paper", "data-border", "data-join-prev", "data-join-next"];
+const SURFACE_ATTRS = ["data-surface", "data-width", "data-corners", "data-paper", "data-paper-wp", "data-border", "data-join-prev", "data-join-next"];
 
 /**
  * Carte posée (ou retirée) depuis la toile : montrée tout de suite — attributs et variables CSS de
@@ -592,7 +593,7 @@ export function previewSurface(uid: string, surface: Surface | null, seq: number
       const palette = canvasPalette();
       const style = cardStyle(resolved.color, palette);
       for (const [k, v] of Object.entries({ ...cardVars(style), ...borderVars(resolved, style, palette) })) el.style.setProperty(k, v);
-      const paper = paperAttributes(surface);
+      const paper = paperAttributes(surface, wallpaperLookup);
       for (const [k, v] of Object.entries(paper.attrs)) el.setAttribute(k, v);
       for (const [k, v] of Object.entries(paper.vars)) el.style.setProperty(k, v);
       refreshFondJoins(uid);
@@ -612,6 +613,22 @@ export function previewSurface(uid: string, surface: Surface | null, seq: number
     },
   });
 }
+
+/* ---- Papiers peints (lot 35) : la bibliothèque, telle que la page de la toile la porte (`data-edit-wallpapers`, layout du site) --------- */
+
+let catalogRaw = "";
+let catalog = new Map<number, WallpaperEntry>();
+/** Motifs de la bibliothèque connus de la toile (relus quand le repère de la page change). */
+export function wallpaperCatalog(): Map<number, WallpaperEntry> {
+  const raw = document.querySelector<HTMLElement>("[data-edit-wallpapers]")?.dataset.editWallpapers ?? "";
+  if (raw !== catalogRaw) {
+    catalogRaw = raw;
+    const list = parseData<WallpaperEntry[]>(raw);
+    catalog = new Map(Array.isArray(list) ? list.map((e) => [e.id, e]) : []);
+  }
+  return catalog;
+}
+const wallpaperLookup = (id: number) => wallpaperCatalog().get(id);
 
 /* ---- Fond de couleur d'un composant (lot 32, src/themes/fond.ts) ------------------------------------------- */
 
@@ -634,7 +651,7 @@ export function fondState(uid: string): Background | null {
 }
 
 const fondOriginal = new WeakMap<Element, { attrs: Record<string, string | null>; style: string | null }>();
-const FOND_ATTRS = ["data-fond", "data-join-prev", "data-join-next", "data-edit-background"];
+const FOND_ATTRS = ["data-fond", "data-join-prev", "data-join-next", "data-edit-background", "data-wallpaper", "data-fond-clear"];
 
 /**
  * Fusion des voisins recalculée sur la page affichée (aperçu d'un fond ou d'une carte) : mêmes règles que le serveur
@@ -678,8 +695,8 @@ export function previewFond(uid: string, background: Background | null, seq: num
       if (background) el.setAttribute("data-edit-background", JSON.stringify(background));
       if (!background) el.setAttribute("data-fond", "off");
       else {
-        for (const [k, v] of Object.entries(fondAttributes({ prev: false, next: false }))) el.setAttribute(k, v);
-        for (const [k, v] of Object.entries(fondStyle(background, canvasPalette()).vars)) el.style.setProperty(k, v);
+        for (const [k, v] of Object.entries(fondAttributes({ prev: false, next: false }, background))) el.setAttribute(k, v);
+        for (const [k, v] of Object.entries(fondStyle(background, canvasPalette(), wallpaperLookup).vars)) el.style.setProperty(k, v);
       }
       refreshFondJoins(uid);
     },

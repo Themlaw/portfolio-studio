@@ -30,7 +30,7 @@ function Confirm({ message, busy, label, onConfirm, onCancel }: { message: strin
 }
 
 /** « Supprimer définitivement » d'un élément ; `lost` : ce qui part avec lui, pour la confirmation. */
-export function PurgeItem({ kind, id, name, lost }: { kind: "page" | "project" | "media"; id: number; name: string; lost: string }) {
+export function PurgeItem({ kind, id, name, lost }: { kind: "page" | "project" | "media" | "wallpaper"; id: number; name: string; lost: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, start] = useTransition();

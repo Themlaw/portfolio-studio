@@ -40,6 +40,8 @@ import { getDb, schema } from "@/lib/db";
 import { own } from "@/lib/own";
 
 import { deprecatedProblem, formIdProblem, mediaKindProblem, savePage } from "./pages";
+import { PagePaperSchema } from "@/themes/schema";
+import type { PagePaper } from "@/themes/wallpaper";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
 import { applySiteDraft, discardSiteDraft } from "./site";
 
@@ -53,6 +55,8 @@ export type PageDraft = {
   published: boolean;
   inMenu: boolean;
   accent: string | null;
+  /** Papier peint de la page (lot 35) ; absent d'un brouillon d'avant = celui de la page publiée, null = celui du site. */
+  wallpaper?: PagePaper | null;
   /** Collection que la page présente (lot 22) ; un brouillon d'avant ne la porte pas (= celle de la page publiée). */
   collection: "characters" | "backgrounds" | "animation" | null;
   blocks: DraftBlock[];
@@ -78,6 +82,7 @@ const DraftSchema = z.object({
   published: z.boolean(),
   inMenu: z.boolean(),
   accent: z.string().max(7).nullable(),
+  wallpaper: PagePaperSchema.nullable().optional(),
   collection: z.enum(["characters", "backgrounds", "animation"]).nullable().optional(),
   blocks: z
     .array(
@@ -128,12 +133,12 @@ export function readDraft(pageId: number): DraftState | null {
   const page = getPageForEdit(pageId);
   if (!row || !page) return null;
   const parsed = DraftSchema.safeParse(row.draft);
-  if (parsed.success) return { draft: { ...parsed.data, collection: parsed.data.collection === undefined ? page.collection : parsed.data.collection } as PageDraft, hasDraft: true, corrupt: false, updatedAt: row.at ?? null, rev: row.rev, isHome: page.isHome };
+  if (parsed.success) return { draft: { ...parsed.data, wallpaper: parsed.data.wallpaper === undefined ? page.wallpaper : parsed.data.wallpaper, collection: parsed.data.collection === undefined ? page.collection : parsed.data.collection } as PageDraft, hasDraft: true, corrupt: false, updatedAt: row.at ?? null, rev: row.rev, isHome: page.isHome };
   const corrupt = row.draft !== null;
   if (corrupt) console.error(`[brouillon] page ${pageId} : brouillon illisible, en attente d'un choix explicite`);
-  const { title, slug, meta, published, inMenu, accent, collection, blocks } = page;
+  const { title, slug, meta, published, inMenu, accent, wallpaper, collection, blocks } = page;
   return {
-    draft: { title, slug, meta, published, inMenu, accent, collection, blocks: blocks.map((b, i) => ({ uid: `b${i}`, type: b.type, props: b.props })) },
+    draft: { title, slug, meta, published, inMenu, accent, wallpaper, collection, blocks: blocks.map((b, i) => ({ uid: `b${i}`, type: b.type, props: b.props })) },
     hasDraft: corrupt,
     corrupt,
     updatedAt: row.at ?? null,

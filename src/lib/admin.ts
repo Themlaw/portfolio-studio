@@ -2,7 +2,7 @@
  * Lectures de l'admin : directes (sans cache Next), l'admin étant toujours
  * rendue à la demande. Aucun composant n'importe Drizzle : tout passe ici.
  */
-import { and, asc, count, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { orderCollectionPages } from "@/blocks/collection-pages";
 import { pageReferences, projectReferences, type Usage } from "@/blocks/refs";
@@ -17,7 +17,9 @@ import { asSiteName, NavSchema, NETWORKS, type Network } from "./site-schema";
 import { ORIGINALS_PREFIX, parseVariants } from "./images/variants";
 import { mediaUrl } from "./media";
 import { own } from "./own";
-import { allBlocks, findMediaUsages, LOGO_USAGE_TYPE, mediaUsagesByMedia } from "./references";
+import { allBlocks, findMediaUsages, findWallpaperUsages, LOGO_USAGE_TYPE, mediaUsagesByMedia, wallpaperUsages } from "./references";
+import { listWallpaperChoices } from "./wallpapers";
+import { readCardWallpaper, readPagePaper, type CardWallpaper, type PagePaper } from "@/themes/wallpaper";
 import { tagsByMedia, type MediaTag } from "./tags";
 
 type L = { fr: string; en: string };
@@ -29,7 +31,7 @@ export function getAdminCounts(): AdminCounts {
   // Hors corbeille.
   const pages = db.select({ n: count() }).from(schema.pages).where(isNull(schema.pages.deletedAt)).get()?.n ?? 0;
   const projects = db.select({ n: count() }).from(schema.projects).where(isNull(schema.projects.deletedAt)).get()?.n ?? 0;
-  const media = db.select({ n: count() }).from(schema.media).where(isNull(schema.media.deletedAt)).get()?.n ?? 0;
+  const media = db.select({ n: count() }).from(schema.media).where(and(isNull(schema.media.deletedAt), sql`${schema.media.id} not in (select media_id from wallpapers)`)).get()?.n ?? 0;
   return { pages, projects, media };
 }
 
@@ -295,7 +297,8 @@ function mediaRows(trashed: boolean): AdminMediaRow[] {
   return db
     .select()
     .from(schema.media)
-    .where(trashed ? isNotNull(schema.media.deletedAt) : isNull(schema.media.deletedAt))
+    // Le fichier d'un papier peint (lot 35) n'est pas une photo : il vit dans Thèmes → Papiers peints, pas dans la médiathèque.
+    .where(and(trashed ? isNotNull(schema.media.deletedAt) : isNull(schema.media.deletedAt), sql`${schema.media.id} not in (select media_id from wallpapers)`))
     .orderBy(trashed ? desc(schema.media.deletedAt) : desc(schema.media.id))
     .all()
     .map((m) => toRow(m, usage.get(m.id)?.length ?? 0, progress.get(m.id) ?? null, tags.get(m.id) ?? []));
@@ -456,6 +459,8 @@ export type AdminPageEdit = {
   published: boolean;
   inMenu: boolean;
   accent: string | null;
+  /** Papier peint de la page (lot 35) : absent = celui du site. */
+  wallpaper: PagePaper | null;
   /** Collection que la page présente (lot 22), ou null. */
   collection: "characters" | "backgrounds" | "animation" | null;
   blocks: { type: string; props: Record<string, unknown> }[];
@@ -473,7 +478,7 @@ export function getPageForEdit(id: number): AdminPageEdit | null {
     .orderBy(asc(schema.blocks.position))
     .all()
     .map((b) => ({ type: b.type, props: (parseJson(b.props) as Record<string, unknown>) ?? {} }));
-  const overrides = page.themeOverrides as { primary?: unknown } | null;
+  const overrides = page.themeOverrides as { primary?: unknown; wallpaper?: unknown } | null;
   return {
     id: page.id,
     isHome: page.slug.fr === "" && page.slug.en === "",
@@ -483,6 +488,7 @@ export function getPageForEdit(id: number): AdminPageEdit | null {
     published: page.published,
     inMenu: page.navOrder !== null,
     accent: typeof overrides?.primary === "string" ? overrides.primary : null,
+    wallpaper: readPagePaper(overrides?.wallpaper) ?? null,
     collection: page.collection ?? null,
     blocks,
   };
@@ -535,6 +541,7 @@ export function getEditorContext(draftPageId?: number) {
       .filter((p) => p.page === null || (draftPageId !== undefined && p.page === draftPageId))
       .map((p) => ({ slug: p.slug, title: p.title.fr, ...(p.page !== null ? { draft: true } : {}), onPage: onPage.has(p.slug) })),
     media: listMediaForAdmin().filter((m) => m.status !== "failed"),
+    wallpapers: listWallpaperChoices(),
     heroBackdrop: activeHeroVariant() !== "type-only",
   };
 }
@@ -600,4 +607,29 @@ export function listMessages(limit = 200): AdminMessage[] {
 export { MESSAGES_CAP } from "./contact-form";
 export function countMessages(): number {
   return getDb().select({ n: count() }).from(schema.messages).get()?.n ?? 0;
+}
+
+/* ---- Papiers peints (lot 35) ---------------------------------------------------------------------------------- */
+
+export type WallpaperUseRow = { kind: "block"; pageId: number; pageTitle: string; blockType: string; trashed: boolean } | { kind: "page"; pageId: number; pageTitle: string; trashed: boolean } | { kind: "cards" };
+
+/** « Utilisé dans… » d'un motif, avec les libellés à afficher (avertissement avant de le supprimer). */
+export function getWallpaperUses(id: number): WallpaperUseRow[] {
+  const pages = new Map(getDb().select().from(schema.pages).all().map((p) => [p.id, p]));
+  return findWallpaperUsages(id).map((u) => {
+    if (u.kind === "cards") return { kind: "cards" as const };
+    const page = pages.get(u.pageId);
+    const base = { pageId: u.pageId, pageTitle: page?.title.fr || `page ${u.pageId}`, trashed: Boolean(page?.deletedAt) };
+    return u.kind === "page" ? { kind: "page" as const, ...base } : { kind: "block" as const, ...base, blockType: own(BLOCKS, u.type)?.label ?? u.type };
+  });
+}
+
+/** Papier peint par défaut des cartes du site (réglage `cardWallpaper`), ou null. */
+export function getCardWallpaperSetting(): CardWallpaper | null {
+  return readCardWallpaper(parseJson(getDb().select().from(schema.settings).where(eq(schema.settings.key, "cardWallpaper")).get()?.value)) ?? null;
+}
+
+/** Nombre d'endroits qui utilisent chaque motif (pastille « utilisé à N endroits »). */
+export function wallpaperUseCounts(): Record<number, number> {
+  return Object.fromEntries([...wallpaperUsages()].map(([id, uses]) => [id, uses.length]));
 }

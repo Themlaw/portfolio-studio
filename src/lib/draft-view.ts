@@ -16,6 +16,7 @@ import { parseJson } from "./json";
 import { SiteSnapSchema, type SiteSnap } from "./site-schema";
 import { isAdminPreview } from "./page-preview";
 import type { RawBlock } from "./pages";
+import { readPagePaper, type PagePaper } from "@/themes/wallpaper";
 
 export const DRAFT_VIEW_COOKIE = "page-draft";
 
@@ -74,15 +75,17 @@ type L = { fr: string; en: string };
 const isL = (v: unknown): v is L => Boolean(v) && typeof (v as L).fr === "string" && typeof (v as L).en === "string";
 
 /** Titre, méta et accent du brouillon d'une page (vue brouillon), ou null. */
-export function getDraftPageInfo(pageId: number): { title: L; meta: { title: L; description: L }; accent: string | null } | null {
+export function getDraftPageInfo(pageId: number): { title: L; meta: { title: L; description: L }; accent: string | null; wallpaper: PagePaper | null | undefined } | null {
   const draft = getDb().select({ draft: schema.pages.draft }).from(schema.pages).where(eq(schema.pages.id, pageId)).get()?.draft as
-    | { title?: unknown; meta?: { title?: unknown; description?: unknown }; accent?: unknown }
+    | { title?: unknown; meta?: { title?: unknown; description?: unknown }; accent?: unknown; wallpaper?: unknown }
     | null
     | undefined;
   if (!draft || typeof draft !== "object" || !isL(draft.title)) return null;
   const meta = draft.meta && isL(draft.meta.title) && isL(draft.meta.description) ? { title: draft.meta.title, description: draft.meta.description } : { title: { fr: "", en: "" }, description: { fr: "", en: "" } };
   const accent = typeof draft.accent === "string" && /^#[0-9a-fA-F]{6}$/.test(draft.accent) ? draft.accent : null;
-  return { title: draft.title, meta, accent };
+  // Papier peint de la page : undefined = brouillon d'avant (clé absente) → celui de la page publiée ; null = comme le site.
+  const wallpaper = "wallpaper" in draft ? (readPagePaper(draft.wallpaper) ?? null) : undefined;
+  return { title: draft.title, meta, accent, wallpaper };
 }
 
 /**

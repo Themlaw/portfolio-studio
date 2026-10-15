@@ -16,6 +16,8 @@ import { FORM_BLOCK_TYPES, isFormBlock } from "@/lib/contact-form";
 import { findPageReferences } from "@/lib/references";
 
 import { isPageInNav, readNav, reorderNavPages, setPageInNav } from "./nav";
+import { PagePaperSchema } from "@/themes/schema";
+import { readPagePaper, type PagePaper } from "@/themes/wallpaper";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
 import { discardSiteDraft } from "./site";
 
@@ -191,10 +193,20 @@ const SavePageSchema = z.object({
   published: z.boolean(),
   inMenu: z.boolean(),
   accent: z.string().max(7).regex(HEX, "Couleur attendue au format #rrggbb.").nullable(),
+  /** Papier peint de la page (lot 35) : null = celui du site ; absent = inchangé. */
+  wallpaper: PagePaperSchema.nullable().optional(),
   /** Collection présentée par la page (lot 22) ; absent = inchangée. */
   collection: z.enum(["characters", "backgrounds", "animation"]).nullable().optional(),
   blocks: z.array(z.object({ type: z.string().max(60), props: z.unknown() })).max(40, "40 rubriques au plus par page."),
 });
+
+/** `themeOverrides` d'une page : couleur des boutons (`primary`) et papier peint (`wallpaper`) ; null s'il n'y a rien. */
+function overridesOf(accent: string | null, wallpaper: PagePaper | null | undefined): Record<string, unknown> | null {
+  const out: Record<string, unknown> = {};
+  if (accent) out.primary = accent;
+  if (wallpaper) out.wallpaper = wallpaper;
+  return Object.keys(out).length ? out : null;
+}
 
 export function savePage(id: number, input: unknown): ActionResult<null> {
   const db = getDb();
@@ -294,6 +306,8 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
 
   if (Object.keys(errors).length) return fail("La page n'a pas été enregistrée : corrige les champs signalés.", errors);
 
+  // Papier peint de la page (lot 35) : absent de la charge = celui de la page telle qu'enregistrée.
+  const wallpaper = data.wallpaper === undefined ? readPagePaper((page.themeOverrides as { wallpaper?: unknown } | null)?.wallpaper) : data.wallpaper;
   db.transaction((tx) => {
     tx.update(schema.pages)
       .set({
@@ -301,7 +315,7 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
         title: data.title,
         meta: data.meta,
         published: home ? true : data.published,
-        themeOverrides: data.accent ? { primary: data.accent } : null,
+        themeOverrides: overridesOf(data.accent, wallpaper),
         ...(data.collection !== undefined ? { collection: data.collection } : {}),
         updatedAt: new Date(),
       })

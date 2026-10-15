@@ -28,6 +28,7 @@ import {
 } from "@/app/admin/(espace)/pages/actions";
 import { PageCollectionField } from "@/app/admin/_fields";
 import PageButtonsColorField from "@/app/admin/_fields/PageButtonsColorField";
+import PageWallpaperField from "@/app/admin/_fields/PageWallpaperField";
 import { BlockEditorContext } from "@/blocks/editor-context";
 import { MAX_TILES } from "@/blocks/collection-pages";
 import { pickerGroups } from "@/blocks/groups";
@@ -2368,6 +2369,7 @@ export default function VisualEditor({
                   colors={effective}
                   error={publishErrors.accent}
                 />
+                <PageWallpaperField value={draft.wallpaper ?? null} onChange={(v) => apply({ ...draftRef.current, wallpaper: v }, { structural: true })} choices={context.wallpapers ?? []} />
               </div>
               <ColorsPanel theme={lookContext.theme} value={liveLook.palette} onChange={(p) => requestLook(p, liveLook.logo)} onHighlight={highlightRole} info={hlInfo} locked={siteLocked} />
               <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />

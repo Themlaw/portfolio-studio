@@ -176,6 +176,13 @@
       "when": 1791971368016,
       "tag": "0024_corbeille",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1792100352374,
+      "tag": "0025_papiers_peints",
+      "breakpoints": true
     }
   ]
 }

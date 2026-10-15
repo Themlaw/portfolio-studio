@@ -88,14 +88,38 @@ export const SurfaceBaseSchema = z.strictObject({
  * Fond d'un composant (lot 32) : `props.background` de tout grand composant. Union discriminée par `kind` pour que d'autres
  * natures de fond (un papier peint importé, lot 35) s'ajoutent sans toucher aux fonds de couleur déjà enregistrés.
  */
-export const BACKGROUND_KINDS = ["color"] as const;
-export const BackgroundSchema = z.discriminatedUnion("kind", [z.strictObject({ kind: z.literal("color"), color: SurfaceColorSchema })]);
+export const BACKGROUND_KINDS = ["color", "wallpaper"] as const;
+/**
+ * Papier peint (lot 35) : largeur d'une tuile en px (24 à 1200) et opacité (5 à 100 %). Mêmes bornes pour le papier d'une page, d'une
+ * carte et d'un composant ; absent = le réglage du motif dans la bibliothèque.
+ */
+export const WALLPAPER_SIZE_MIN = 24;
+export const WALLPAPER_SIZE_MAX = 1200;
+export const WALLPAPER_OPACITY_MIN = 0.05;
+export const WallpaperIdSchema = z.number().int().positive();
+export const WallpaperSizeSchema = z.number().int().min(WALLPAPER_SIZE_MIN).max(WALLPAPER_SIZE_MAX);
+export const WallpaperOpacitySchema = z.number().min(WALLPAPER_OPACITY_MIN).max(1);
+export const BackgroundSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("color"), color: SurfaceColorSchema }),
+  // Un motif de la bibliothèque, une couleur facultative DESSOUS (même choix que « Couleur »), taille et opacité facultatives.
+  z.strictObject({ kind: z.literal("wallpaper"), wallpaper: WallpaperIdSchema, color: SurfaceColorSchema.optional(), size: WallpaperSizeSchema.optional(), opacity: WallpaperOpacitySchema.optional() }),
+]);
+/** Papier peint d'UNE PAGE (lot 35) : absent = celui du site (rien ne change) ; `none` = aucun ; sinon un motif. */
+export const PagePaperSchema = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("none") }),
+  z.strictObject({ mode: z.literal("wallpaper"), wallpaper: WallpaperIdSchema, size: WallpaperSizeSchema.optional(), opacity: WallpaperOpacitySchema.optional() }),
+]);
+/** Papier peint par défaut des cartes du site (réglage du site) : un motif, taille et opacité facultatives. */
+export const CardWallpaperSchema = z.strictObject({ wallpaper: WallpaperIdSchema, size: WallpaperSizeSchema.optional(), opacity: WallpaperOpacitySchema.optional() });
 /** Papier du site sur une carte (lot 28) : `under` = caché sous la carte (rendu d'avant), `over` = dessiné sur sa couleur, sous le contenu ; absent = comme le site. */
 export const SURFACE_PAPERS = ["under", "over"] as const;
 /** Une carte de rubrique : réglages de base + papier. `paperOpacity` : 0 à 0,6 (PAPER_OVER_HERO_MAX ; au-delà le texte se lit mal) ; absente = intensité du site. */
 export const SurfaceSchema = SurfaceBaseSchema.extend({
   paper: z.enum(SURFACE_PAPERS).optional(),
   paperOpacity: z.number().min(0).max(0.6).optional(),
+  /** Lot 35 : un motif de la bibliothèque à la place du papier du kit (la carte le montre « dessus » ; `paper: under` le cache). */
+  paperWallpaper: WallpaperIdSchema.optional(),
+  paperSize: WallpaperSizeSchema.optional(),
 });
 
 /**

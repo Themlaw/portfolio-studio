@@ -120,3 +120,63 @@
   min-width: 0;
   accent-color: var(--lk-ink-soft);
 }
+
+/* Papiers peints (lot 35) — src/components/edit/WallpaperChoices.tsx : vignettes du motif sur un fond clair ET sur un fond sombre. */
+.wp-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 2px 0 6px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+.wp-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 3px !important;
+  border: 1.5px solid var(--lk-line) !important;
+  border-radius: 6px !important;
+  background: var(--lk-surface) !important;
+  color: var(--lk-ink) !important;
+  font: 500 11px/1.2 var(--lk-font) !important;
+  text-align: left;
+}
+.wp-item[aria-checked="true"] {
+  border-color: var(--lk-accent) !important;
+  box-shadow: 0 0 0 1.5px var(--lk-accent);
+}
+.wp-thumb {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 4px;
+}
+.wp-half {
+  background-repeat: repeat;
+  background-size: 26px auto;
+}
+.wp-half[data-tone="light"] {
+  background-color: var(--lk-surface);
+}
+.wp-half[data-tone="dark"] {
+  background-color: var(--lk-ink);
+}
+.wp-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wp-reset {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--lk-ink-soft) !important;
+  font: 500 11px/1.3 var(--lk-font) !important;
+  text-decoration: underline;
+}
+/* Pastille « Fond » d'un papier peint sans couleur dessous : damier discret (couleurs de la barre d'outils). */
+.sm-dot[data-wallpaper] {
+  background: repeating-conic-gradient(var(--pe-surface) 0% 25%, transparent 0% 50%) 50% / 6px 6px;
+}

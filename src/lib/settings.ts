@@ -8,6 +8,7 @@ import { getDraftSite } from "./draft-view";
 import { parseJson } from "./json";
 import { fontFaceCss, readLibrary } from "./fonts/faces";
 import { SiteStylesSchema, type SiteStyles } from "./look";
+import { readCardWallpaper, type CardWallpaper } from "@/themes/wallpaper";
 import { asSiteName, NavSchema, NETWORKS, safeSocialHref, siteNameFor, type NavItem } from "./site-schema";
 
 const localized = z.object({ fr: z.string(), en: z.string() });
@@ -67,6 +68,11 @@ export async function getNavSetting(): Promise<NavItem[] | null> {
   const parsed = NavSchema.safeParse(raw);
   if (!parsed.success) console.error("[settings] « nav » invalide, menu des pages utilisé");
   return parsed.success ? parsed.data : null;
+}
+
+/** Papier peint par défaut des cartes du site (lot 35, réglage `cardWallpaper`), ou undefined. */
+export async function getCardWallpaper(): Promise<CardWallpaper | undefined> {
+  return readCardWallpaper((await getRawSettings()).cardWallpaper);
 }
 
 /** Styles du site publiés (lot 2) : rôles de texte, arrondi ; absents = thème seul. */
