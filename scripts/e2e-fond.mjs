@@ -204,8 +204,17 @@ let f = await openEditor();
 /** Sélectionne un Texte, ouvre son menu « Fond ». */
 async function openFond(word) {
   const host = f.locator('[data-edit-block][data-edit-type="rich-text"]', { hasText: word }).first();
-  await host.scrollIntoViewIfNeeded();
-  await host.locator("section").first().click({ position: { x: 4, y: 30 } });
+  // La toile se rafraîchit après l'écriture précédente : le bloc peut être remplacé sous la main (« not attached »), on réessaie.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await host.scrollIntoViewIfNeeded();
+      await host.locator("section").first().click({ position: { x: 4, y: 30 } });
+      break;
+    } catch (e) {
+      if (attempt >= 3) throw e;
+      await sleep(1000);
+    }
+  }
   await f.locator('.pe-tools [data-testid="fond-button"]').click();
   const menu = f.locator('[data-testid="fond-menu"]');
   await menu.waitFor({ timeout: 20000 });

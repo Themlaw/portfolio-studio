@@ -247,7 +247,12 @@ try {
     }, PROJECT.id);
   let m = null;
   ok("F3 toile : bordure Épais autour de l'image, couleur par défaut = encre lisible du fond (pas celle du thème, illisible sur fond fort)", await waitFor(async () => { m = await fm(); return m && m.bw >= 5 && m.color === m.ink; }), JSON.stringify(m));
-  ok("F4 le cadre entoure l'image, pas la colonne ni le fond (l'image est plus étroite que le fond)", m && m.mw < m.ww - 40, JSON.stringify(m));
+  // Largeur réduite (préréglage « Petite », 33 %) : le cadre reste autour de l'IMAGE (la colonne), jamais autour du fond ni de la planche.
+  await imgFrame.locator('[data-edit-bitem-op="settings"]').click();
+  await page.locator('[data-testid="board-item-panel"] [data-preset="small"]').click();
+  ok("F4a largeur Petite enregistrée (33 %)", await waitFor(() => effective()[1]?.box?.width === 33), JSON.stringify(effective()[1]?.box));
+  await settled();
+  ok("F4 le cadre entoure l'image réduite, pas la colonne ni le fond : image plus étroite que le fond, bordure toujours là", await waitFor(async () => { m = await fm(); return m && m.bw >= 5 && m.mw < m.ww * 0.5; }), JSON.stringify(m));
   await shot("4-cadre-image-planche");
   await page.keyboard.press("Control+z");
   ok("F5 Annuler : le cadre disparaît (Annuler / Rétablir de la planche)", await waitFor(() => lookFrame(1)?.size === "medium" || lookFrame(1) === undefined), JSON.stringify(lookFrame(1)));
