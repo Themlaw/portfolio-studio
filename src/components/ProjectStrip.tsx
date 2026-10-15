@@ -40,6 +40,7 @@ export default function ProjectStrip({
   showHeader = true,
   collection,
   slotRadius,
+  styles,
 }: {
   project: LocalizedProject;
   /** Fond papier profond, pour séparer deux projets sans boîte ni bordure. */
@@ -51,6 +52,11 @@ export default function ProjectStrip({
   collection?: string;
   /** Arrondi par image (réglage `look.slotRadius` du bloc, par slug d'emplacement). */
   slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
+  /**
+   * Styles locaux des textes de l'en-tête (`look.text` du bloc : « Ce texte uniquement »). Fourni par la planche d'un projet
+   * seulement (un bloc = un projet) ; absent ailleurs, où les textes n'ont que le style global de leur rôle.
+   */
+  styles?: Partial<Record<"title" | "context" | "year" | "description", CSSProperties>>;
 }) {
   const t = useTranslations("projects");
   /** Variable d'arrondi d'une image réglée seule (sinon celle du bloc / du thème). */
@@ -66,6 +72,11 @@ export default function ProjectStrip({
   const shownArtworks = edit ? project.artworks.filter((a) => !a.edit?.empty) : project.artworks;
   const tg = useTranslations("gallery");
   const Heading = headingLevel;
+  /** Texte de l'en-tête : style local, et clé de style de la barre typographique (toile seulement). */
+  const head = (key: "title" | "context" | "year" | "description") => ({
+    ...(editable && styles ? { "data-look-key": key } : {}),
+    ...(styles?.[key] ? { style: styles[key] } : {}),
+  });
 
   const railId = `rail-${project.slug}`;
   const railRef = useRef<HTMLDivElement | null>(null);
@@ -202,13 +213,20 @@ export default function ProjectStrip({
                 contexte et année se modifient en place. */}
             {editable ? (
               <>
-                <span data-project-inline="context" data-placeholder="Contexte">
+                <span data-project-inline="context" data-placeholder="Contexte" {...head("context")}>
                   {project.context}
                 </span>
                 {" · "}
-                <span data-project-inline="year" data-placeholder="Année">
+                <span data-project-inline="year" data-placeholder="Année" {...head("year")}>
                   {project.year}
                 </span>
+              </>
+            ) : styles?.context || styles?.year ? (
+              // Un style local sur le contexte ou l'année : chacun dans son <span> (sans style, le balisage reste celui d'avant).
+              <>
+                {project.context && <span {...head("context")}>{project.context}</span>}
+                {project.context && project.year ? " · " : null}
+                {project.year && <span {...head("year")}>{project.year}</span>}
               </>
             ) : project.context && project.year ? (
               <>
@@ -222,12 +240,14 @@ export default function ProjectStrip({
             id={`project-${project.slug}`}
             className="mt-3 font-display text-[clamp(2.2rem,5.5vw,3.5rem)] text-ink"
             {...(editable ? { "data-project-inline": "title", "data-placeholder": "Nom du projet" } : {})}
+            {...head("title")}
           >
             {project.title}
           </Heading>
           <p
             className="mt-4 text-base leading-relaxed text-ink-soft"
             {...(editable ? { "data-project-inline": "description", "data-placeholder": "Présentation du projet" } : {})}
+            {...head("description")}
           >
             {project.description}
           </p>
@@ -395,6 +415,7 @@ export default function ProjectStrip({
             aria-label={t("scrollPrev", { project: project.title })}
             aria-controls={railId}
             className="strip-nav strip-nav-prev"
+            data-edit-native=""
           >
             <span aria-hidden="true" data-icon="arrow-left">←</span>
           </button>
@@ -405,6 +426,7 @@ export default function ProjectStrip({
             aria-label={t("scrollNext", { project: project.title })}
             aria-controls={railId}
             className="strip-nav strip-nav-next"
+            data-edit-native=""
           >
             <span aria-hidden="true" data-icon="arrow-right">→</span>
           </button>

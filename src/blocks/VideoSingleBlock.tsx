@@ -62,7 +62,7 @@ export default async function VideoSingleBlock({ props, ctx }: { props: z.infer<
     description: (props.description && tr(props.description, ctx.locale)) || item?.description || "",
   };
   const body = item ? (
-    <VideoCard item={item} look={props.variant} loop={props.mode === "loop"} texts={texts} edit={ctx.edit} styles={{ description: textStyle(ctx, "description").style }} />
+    <VideoCard item={item} look={props.variant} loop={props.mode === "loop"} texts={texts} edit={ctx.edit} styles={{ eyebrow: textStyle(ctx, "eyebrow").style, title: textStyle(ctx, "title").style, description: textStyle(ctx, "description").style }} />
   ) : ctx.edit ? (
     <div className="pe-media-empty pe-media-video" data-edit-media="mediaId" data-edit-media-kind="video" lang="fr">
       <span>Dépose une vidéo ici</span>

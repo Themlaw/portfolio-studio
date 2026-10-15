@@ -53,7 +53,7 @@ export default async function HeroBlock({ props, ctx }: { props: z.infer<typeof 
         reelHref: await hrefForPage(props.reelPageId, ctx.locale),
         background: bg ? { src: bg.url, sources: bg.sources, video: bg.video, width: bg.width ?? 1920, height: bg.height ?? 1080 } : null,
         edit: ctx.edit,
-        styles: { eyebrow: textStyle(ctx, "eyebrow").style, scroll: textStyle(ctx, "scroll").style, reel: textStyle(ctx, "reel").style, name: textStyle(ctx, "site.name").style, role: textStyle(ctx, "site.role").style },
+        styles: { eyebrow: textStyle(ctx, "eyebrow").style, statement: textStyle(ctx, "statement").style, scroll: textStyle(ctx, "scroll").style, reel: textStyle(ctx, "reel").style, name: textStyle(ctx, "site.name").style, role: textStyle(ctx, "site.role").style },
       }}
     />
   );

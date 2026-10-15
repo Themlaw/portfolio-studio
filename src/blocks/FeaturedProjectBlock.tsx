@@ -5,7 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { hrefForPage } from "@/lib/pages";
 
 import { MAX_CHILDREN } from "./tree";
-import { childBlock, inline, localized, pageRef, projectSlug, tr, type BlockContext } from "./types";
+import { childBlock, inline, localized, pageRef, projectSlug, textStyle, tr, type BlockContext } from "./types";
 
 export const featuredProjectSchema = z.object({
   /** Projet mis en avant (slug) : transmis aux composants qui n'en ont pas. */
@@ -44,7 +44,7 @@ export default async function FeaturedProjectBlock({
       {props.more && (moreHref || ctx.edit) && (
         <section className="shell">
           <Link className="link-underline text-sm" href={moreHref ?? "/"}>
-            {ctx.edit ? <span {...inline(ctx, "more.label")} data-placeholder="Voir plus">{tr(props.more.label, ctx.locale)}</span> : tr(props.more.label, ctx.locale)}{" "}
+            {ctx.edit || textStyle(ctx, "more.label").style ? <span {...inline(ctx, "more.label")} data-placeholder="Voir plus">{tr(props.more.label, ctx.locale)}</span> : tr(props.more.label, ctx.locale)}{" "}
             <span aria-hidden="true">→</span>
           </Link>
         </section>

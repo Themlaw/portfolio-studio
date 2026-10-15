@@ -5,7 +5,7 @@ import Eyebrow from "@/components/Eyebrow";
 import { boardWorkCount } from "@/lib/gallery";
 
 import { boardRefs, pageCounts } from "./tree";
-import { collection, inline, localized, tr, type BlockContext, localizedText } from "./types";
+import { collection, inline, localized, textStyle, tr, type BlockContext, localizedText } from "./types";
 
 export const collectionIntroSchema = z.object({
   collection,
@@ -69,7 +69,7 @@ export default async function CollectionIntroBlock({
     <section className="page-top shell pb-[clamp(1rem,3vw,2rem)]">
       <header className="page-head max-w-2xl">
         {heading}
-        <p className="eyebrow mt-6" {...(ctx.edit ? { title: "Compté automatiquement depuis les planches de cette page", "data-edit-counter": "" } : {})}>
+        <p className="eyebrow mt-6" {...(ctx.edit ? { title: "Compté automatiquement depuis les planches de cette page", "data-edit-counter": "", "data-look-key": "counts" } : {})} {...textStyle(ctx, "counts")}>
           {tg("count", { count: counts.works })} · {tp("count", { count: counts.projects })}
         </p>
       </header>

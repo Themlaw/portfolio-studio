@@ -7,7 +7,7 @@ import { getSiteView } from "@/lib/settings";
 import ContactFormBlock from "./ContactFormBlock";
 import { EmptyHint, FieldOps } from "./FieldOps";
 import { hasText } from "./optional-fields";
-import { inline, localized, tr, type BlockContext, localizedText } from "./types";
+import { inline, localized, textStyle, tr, type BlockContext, localizedText } from "./types";
 
 const F = ContactFormSchema.shape;
 
@@ -78,8 +78,8 @@ export default async function ContactBlock({ props, ctx }: { props: z.infer<type
         )}
         {cta && (
           <a className="btn mt-8" href={`mailto:${site.email}`}>
-            {/* Enveloppé seulement en édition : le HTML public ne change pas. */}
-            {ctx.edit ? <span {...inline(ctx, "cta")} {...ph("Texte du bouton")}>{tr(props.cta!, ctx.locale)}</span> : tr(props.cta!, ctx.locale)}
+            {/* Enveloppé en édition, et en public seulement si le texte a son propre style : sans style, le HTML public ne change pas. */}
+            {ctx.edit || textStyle(ctx, "cta").style ? <span {...inline(ctx, "cta")} {...ph("Texte du bouton")}>{tr(props.cta!, ctx.locale)}</span> : tr(props.cta!, ctx.locale)}
             <span aria-hidden="true">→</span>
           </a>
         )}

@@ -30,7 +30,7 @@ export type HeroContent = {
   /** Vue brouillon de l'éditeur : repères des textes et du fond (jamais en public). */
   edit?: boolean;
   /** Styles locaux des textes (barre typographique de l'éditeur, lot 2). */
-  styles?: { eyebrow?: CSSProperties; name?: CSSProperties; role?: CSSProperties; scroll?: CSSProperties; reel?: CSSProperties };
+  styles?: { eyebrow?: CSSProperties; statement?: CSSProperties; name?: CSSProperties; role?: CSSProperties; scroll?: CSSProperties; reel?: CSSProperties };
 };
 
 /** Repères d'édition : texte du bloc (data-inline) ou texte commun au site (data-site-inline). */
@@ -41,7 +41,7 @@ export function heroMarks(content: HeroContent) {
     eyebrow: { ...(e ? { "data-inline": "eyebrow", "data-placeholder": "Étiquette" } : {}), ...st(content.styles?.eyebrow) },
     name: { ...(e ? { "data-site-inline": "name", "data-placeholder": "Ton nom", "data-site-hint": "commun à toutes les pages" } : {}), ...st(content.styles?.name) },
     // Phrase d'accroche : texte à passage surligné, édité par la toile avec sa propre barre (EditLayer).
-    statement: e ? { "data-inline": "statement", "data-marked": "" } : {},
+    statement: { ...(e ? { "data-inline": "statement", "data-marked": "" } : {}), ...st(content.styles?.statement) },
     scroll: { ...(e ? { "data-inline": "scroll", "data-placeholder": "Faire défiler" } : {}), ...st(content.styles?.scroll) },
     reel: { ...(e ? { "data-inline": "reel", "data-placeholder": "Demoreel" } : {}), ...st(content.styles?.reel) },
     // `data-hero-text` (public aussi) : le fond du métier se règle (src/app/look.css).

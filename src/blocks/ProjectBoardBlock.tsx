@@ -3,7 +3,7 @@ import { z } from "zod";
 import ProjectStrip from "@/components/ProjectStrip";
 import { getProjectBoard } from "@/lib/gallery";
 
-import { collection, projectSlug, type BlockContext } from "./types";
+import { collection, projectSlug, textStyle, type BlockContext } from "./types";
 
 export const projectBoardSchema = z.object({
   /**
@@ -20,6 +20,16 @@ export const projectBoardSchema = z.object({
   header: z.boolean().optional(),
 });
 
+/** Styles locaux de l'en-tête (« Ce texte uniquement ») : nom, contexte, année, présentation. */
+function headerStyles(ctx: BlockContext) {
+  return {
+    title: textStyle(ctx, "title").style,
+    context: textStyle(ctx, "context").style,
+    year: textStyle(ctx, "year").style,
+    description: textStyle(ctx, "description").style,
+  };
+}
+
 /**
  * La planche d'un projet : son en-tête et sa bande d'images. Sur la toile de
  * l'éditeur, une planche neuve (sans projet) laisse une place que la couche
@@ -33,7 +43,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
   if (project) {
     // Toile : si les images du projet sont en cours de modification sur une autre page, la planche
     // porte `data-edit-board-held` (ProjectStrip) et la couche d'édition l'indique au survol.
-    return <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} />;
+    return <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} styles={headerStyles(ctx)} />;
   }
   if (!ctx.edit) return null;
   // Dans un conteneur encore sans projet : la planche attend le choix du conteneur.
