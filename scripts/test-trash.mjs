@@ -356,4 +356,19 @@ await test("confirmations de suppression définitive : zéro, un, plusieurs ; pa
   assert.equal(willBeDeleted(3), "3 éléments seront supprimés");
 });
 
+/* ---- 8. Audit v0.20 (Mo1) : une page à la corbeille n'est pas une entrée de collection ------------------------------ */
+const { getEditorContext } = await import("../src/lib/admin.ts");
+await test("Mo1 : une page de collection mise à la corbeille n'est plus proposée aux tuiles (collectionPages)", () => {
+  const seeded = db.select().from(schema.pages).where(eq(schema.pages.collection, "animation")).get();
+  if (seeded) db.update(schema.pages).set({ collection: null }).where(eq(schema.pages.id, seeded.id)).run();
+  const id = createPage({ title: L("Collection Mo1"), slug: L("collection-mo1") }).data.id;
+  db.update(schema.pages).set({ published: true, collection: "animation" }).where(eq(schema.pages.id, id)).run();
+  assert.ok(getEditorContext().collectionPages.some((p) => p.pageId === id || p.id === id), "présente avant");
+  assert.equal(deletePage(id).ok, true);
+  assert.ok(!getEditorContext().collectionPages.some((p) => p.pageId === id || p.id === id), "absente à la corbeille");
+  restorePage(id);
+  db.update(schema.pages).set({ collection: null }).where(eq(schema.pages.id, id)).run();
+  if (seeded) db.update(schema.pages).set({ collection: "animation" }).where(eq(schema.pages.id, seeded.id)).run();
+});
+
 console.log(`\ntest-trash : ${passed} tests OK`);

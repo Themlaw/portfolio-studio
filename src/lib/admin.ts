@@ -2,7 +2,7 @@
  * Lectures de l'admin : directes (sans cache Next), l'admin étant toujours
  * rendue à la demande. Aucun composant n'importe Drizzle : tout passe ici.
  */
-import { asc, count, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { orderCollectionPages } from "@/blocks/collection-pages";
 import { pageReferences, projectReferences, type Usage } from "@/blocks/refs";
@@ -505,7 +505,8 @@ export function getEditorContext(draftPageId?: number) {
   // Pages de collection publiées, dans l'ordre du menu : entrées automatiques des collections (lot 22).
   const navRow = db.select({ value: schema.settings.value }).from(schema.settings).where(eq(schema.settings.key, "nav")).get();
   const navList = NavSchema.safeParse(parseJson(navRow?.value));
-  const livePages = db.select().from(schema.pages).where(eq(schema.pages.published, true)).orderBy(asc(schema.pages.id)).all();
+  // Une page à la corbeille n'est ni publique ni une entrée de collection : elle n'est pas proposée aux tuiles.
+  const livePages = db.select().from(schema.pages).where(and(eq(schema.pages.published, true), isNull(schema.pages.deletedAt))).orderBy(asc(schema.pages.id)).all();
   const menu = navList.success
     ? navList.data.flatMap((n) => (n.kind === "page" ? [n.pageId] : []))
     : livePages.filter((p) => p.navOrder !== null).sort((a, b) => (a.navOrder ?? 0) - (b.navOrder ?? 0)).map((p) => p.id);
