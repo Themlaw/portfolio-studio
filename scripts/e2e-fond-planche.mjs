@@ -254,10 +254,13 @@ try {
   await settled();
   ok("F4 le cadre entoure l'image réduite, pas la colonne ni le fond : image plus étroite que le fond, bordure toujours là", await waitFor(async () => { m = await fm(); return m && m.bw >= 5 && m.mw < m.ww * 0.5; }), JSON.stringify(m));
   await shot("4-cadre-image-planche");
+  // Historique de la planche : largeur Petite, Épais, Moyen (cadre posé) : trois Annuler remettent l'image comme au départ.
   await page.keyboard.press("Control+z");
-  ok("F5 Annuler : le cadre disparaît (Annuler / Rétablir de la planche)", await waitFor(() => lookFrame(1)?.size === "medium" || lookFrame(1) === undefined), JSON.stringify(lookFrame(1)));
+  ok("F5 Annuler : la largeur Petite disparaît, le cadre Épais reste", await waitFor(() => effective()[1]?.box === undefined && lookFrame(1)?.size === "thick"), JSON.stringify([effective()[1]?.box, lookFrame(1)]));
   await page.keyboard.press("Control+z");
-  ok("F5b Annuler encore : plus de cadre", await waitFor(() => lookFrame(1) === undefined), JSON.stringify(lookFrame(1)));
+  ok("F5b Annuler : cadre Moyen", await waitFor(() => lookFrame(1)?.size === "medium"), JSON.stringify(lookFrame(1)));
+  await page.keyboard.press("Control+z");
+  ok("F5c Annuler : plus de cadre (Annuler / Rétablir de la planche)", await waitFor(() => lookFrame(1) === undefined), JSON.stringify(lookFrame(1)));
   await settled();
   ok("D aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));
 } finally {
