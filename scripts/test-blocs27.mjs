@@ -20,7 +20,7 @@ import { pickerGroups } from "../src/blocks/groups.ts";
 import { STARTER_LIST } from "../src/blocks/help-text.ts";
 import { fieldOpDef, FIELD_OP_NAMES, hasOptionalField, hasText, withOptionalField } from "../src/blocks/optional-fields.ts";
 import { contactSchema } from "../src/blocks/ContactBlock.tsx";
-import { defaultContactForm, isFormBlock } from "../src/lib/contact-form.ts";
+import { defaultContactForm, isFormBlock, withContactForm } from "../src/lib/contact-form.ts";
 import { mergeBlocks, migrateBlock } from "../src/lib/db/blocs.ts";
 import { acceptFromCanvas, EDIT_MSG } from "../src/lib/edit/protocol.ts";
 
@@ -244,6 +244,29 @@ test("migrateBlock : composants d'un conteneur parcourus ; une valeur illisible 
   assert.deepEqual(node.props.eyebrow, { fr: 3 });
   assert.equal(node.props.children[0].type, "contact");
   assert.equal(defaultContactForm().fields.length, 3);
+});
+
+test("audit m1 : publishCheck d'un Contact avec formulaire = même contrôle que le rendu (ContactFormSchema)", () => {
+  const check = BLOCKS.contact.publishCheck;
+  assert.equal(check({ form: false }), null);
+  assert.match(check({ form: true }), /identifiant/);
+  const good = withContactForm({}, true);
+  assert.equal(check(good), null, JSON.stringify(check(good)));
+  assert.match(check({ ...good, fields: [{ id: "A!", type: "text", label: { fr: "x", en: "x" } }] }), /formulaire est incomplet/);
+  assert.match(check({ ...good, fields: [] }), /formulaire est incomplet/);
+});
+test("audit m2 : réactiver « Avec un formulaire » garde l'identifiant et les champs existants", () => {
+  const on = withContactForm({}, true);
+  assert.equal(on.form, true);
+  const off = withContactForm(on, false);
+  assert.equal(off.form, false);
+  assert.equal(off.formId, on.formId, "l'identifiant est gardé à la désactivation");
+  const again = withContactForm(off, true);
+  assert.equal(again.formId, on.formId, "…et à la réactivation");
+  assert.deepEqual(again.fields, on.fields);
+  const migrated = withContactForm({ form: false, formId: "fmigre12345" }, true);
+  assert.equal(migrated.formId, "fmigre12345");
+  assert.match(withContactForm({}, true).formId, /^f[a-z0-9]{6,31}$/);
 });
 
 console.log(`\n${passed} test(s) OK`);

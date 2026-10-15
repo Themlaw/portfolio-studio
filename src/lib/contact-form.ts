@@ -95,6 +95,20 @@ export function makeField(type: FieldType): FormField {
 }
 
 /** Réglages d'un formulaire neuf (registre). */
+/**
+ * Option formulaire d'un « Contact » (réglages après l'activation ou la désactivation). Activer garde l'identifiant
+ * existant (`formId`) : les messages reçus restent rattachés au même formulaire ; désactiver garde les champs saisis
+ * (réactiver les retrouve) et l'identifiant, sans effet tant que `form` n'est pas vrai.
+ */
+export function withContactForm(value: Record<string, unknown>, on: boolean): Record<string, unknown> {
+  if (!on) return { ...value, form: false };
+  const defaults: Record<string, unknown> = { ...defaultContactForm() };
+  delete defaults.intro;
+  delete defaults.title;
+  const formId = typeof value.formId === "string" && value.formId ? value.formId : newFormId();
+  return { ...defaults, ...value, form: true, formId };
+}
+
 export function defaultContactForm(): ContactForm {
   const name = makeField("text");
   const email = { ...makeField("email"), reply: true };

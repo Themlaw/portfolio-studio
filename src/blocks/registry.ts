@@ -20,7 +20,7 @@ import CollectionTilesBlock, { collectionTilesSchema } from "./CollectionTilesBl
 import ContactBlock, { contactSchema } from "./ContactBlock";
 import ContactFormBlock, { contactFormSchema } from "./ContactFormBlock";
 import CvBlock, { cvSchema } from "./CvBlock";
-import { defaultContactForm } from "@/lib/contact-form";
+import { ContactFormSchema, defaultContactForm } from "@/lib/contact-form";
 import {
   CollectionIntroEditor,
   CollectionProjectsEditor,
@@ -342,7 +342,13 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       defaults: { title: { fr: "Écris-moi", en: "Write to me" }, cta: { fr: "Envoyer un e-mail", en: "Send an email" } },
       summary: "{title} · {fields} champs",
       inline: ["eyebrow", "title", "intro", "cta", "submit", "success", "error", "fields.*.label", "fields.*.help"],
-      publishCheck: (props) => (props.form === true && !props.formId ? "Ce formulaire n'a pas d'identifiant : désactive puis réactive l'option formulaire." : null),
+      publishCheck: (props) => {
+        if (props.form !== true) return null;
+        if (!props.formId) return "Ce formulaire n'a pas d'identifiant : désactive puis réactive l'option formulaire.";
+        // Même contrôle que le rendu public (ContactBlock) : un formulaire invalide ne s'afficherait pas, on refuse de le publier.
+        const form = ContactFormSchema.safeParse(props);
+        return form.success ? null : `Ce formulaire est incomplet : ${form.error.issues[0]?.message ?? "réglages invalides"}.`;
+      },
       presets: [
         {
           key: "contact-with-form",

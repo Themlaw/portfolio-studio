@@ -26,7 +26,7 @@ import Link from "next/link";
 
 import GridLayoutIcon, { LAYOUT_LABELS } from "@/components/edit/GridLayoutIcon";
 import ProjectCombobox from "@/components/edit/ProjectCombobox";
-import { defaultContactForm, FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, newFormId, type FieldType, type FormField } from "@/lib/contact-form";
+import { withContactForm, FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, type FieldType, type FormField } from "@/lib/contact-form";
 
 import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, sameL, TILE_SIZE_LABELS, TILE_SIZES, tilesMode, tileSize, type CollectionPage, type TextField as TileTextField, type TileEdit, type TileItem } from "./collection-pages";
 import { useBlockEditor } from "./editor-context";
@@ -329,19 +329,8 @@ export function ContactEditor() {
   const set = useSet(value, onChange);
   const form = value.form === true;
   // Option formulaire : active, le bloc porte les réglages de l'ancien « Formulaire de contact » (champs, messages, envoi).
-  // Désactivée, les champs saisis sont gardés dans le brouillon (réactiver les retrouve) mais n'ont plus d'identifiant public.
-  const setForm = (on: boolean) => {
-    if (!on) {
-      const next: P = { ...value, form: false };
-      delete next.formId;
-      onChange(next);
-      return;
-    }
-    const defaults: P = { ...defaultContactForm() };
-    delete defaults.intro;
-    delete defaults.title;
-    onChange({ ...defaults, ...value, form: true, formId: newFormId() });
-  };
+  // Désactivée, les champs saisis et l'identifiant sont gardés (réactiver les retrouve) ; sans effet tant que l'option est coupée.
+  const setForm = (on: boolean) => onChange(withContactForm(value, on) as P);
   return (
     <>
       <Toggle
