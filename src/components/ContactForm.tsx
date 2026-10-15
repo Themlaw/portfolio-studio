@@ -16,6 +16,8 @@ type Field = {
   label: string;
   placeholder: string;
   help: string;
+  /** Une aide existe (même vide) : sur la toile, son emplacement est montré ; sinon « + Ajouter une aide » au survol. */
+  hasHelp: boolean;
   required: boolean;
   reply: boolean;
   options: { value: string; label: string }[];
@@ -74,7 +76,7 @@ export default function ContactForm({
   return (
     <form className="mt-8 grid max-w-xl gap-6" onSubmit={onSubmit} noValidate={edit} data-form-edit={edit || undefined}>
       {fields.map((f, i) => (
-        <div key={f.id} className="contact-field" {...(edit ? { "data-form-field": i, "data-form-field-id": f.id, "data-form-reply": f.reply || undefined } : {})}>
+        <div key={f.id} className="contact-field" {...(edit ? { "data-form-field": i, "data-form-field-id": f.id, "data-form-reply": f.reply || undefined, "data-form-has-help": f.hasHelp || undefined } : {})}>
           <label htmlFor={`cf-${f.id}`} className="caption-text block font-caption text-[0.75rem] tracking-[0.12em] uppercase text-ink-soft">
             <span {...mark(`fields.${i}.label`, "Libellé")}>{f.label}</span>
             {f.required && <span aria-hidden="true"> *</span>}
@@ -104,7 +106,7 @@ export default function ContactForm({
               className={input}
             />
           )}
-          {(f.help || edit) && (
+          {(f.help || (edit && f.hasHelp)) && (
             <p className="mt-1 text-xs text-ink-soft" {...mark(`fields.${i}.help`, "Aide (facultative)")}>
               {f.help}
             </p>

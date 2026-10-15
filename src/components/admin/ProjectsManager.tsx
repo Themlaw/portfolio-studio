@@ -7,7 +7,7 @@ import { useState, useTransition } from "react";
 import { TextField } from "@/app/admin/_fields";
 import { createProjectAction, deleteProjectAction, reorderProjectsAction, restoreProjectAction } from "@/app/admin/(espace)/projets/actions";
 import type { AdminProjectRow, TrashSummary } from "@/lib/admin";
-import { daysLeft, TRASH_DAYS } from "@/lib/trash";
+import { daysLeft, lostWithProject, TRASH_DAYS } from "@/lib/trash";
 
 import { ConfirmDialog, same, toast, undoToast } from "./editing";
 import { EmptyTrash, PurgeItem } from "./TrashControls";
@@ -69,7 +69,7 @@ function TrashList({ projects, summary }: { projects: AdminProjectRow[]; summary
                     >
                       Restaurer
                     </button>
-                    <PurgeItem kind="project" id={p.id} name={p.title} lost={`sa planche et ses ${p.slots} emplacement${p.slots > 1 ? "s" : ""} disparaissent ; ses images restent dans la médiathèque.`} />
+                    <PurgeItem kind="project" id={p.id} name={p.title} lost={lostWithProject(p.slots)} />
                   </td>
                 </tr>
               ))}

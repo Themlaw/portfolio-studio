@@ -59,6 +59,7 @@ export default function ContactFormBlock({ props, ctx }: { props: ReturnType<typ
             label: L(f.label),
             placeholder: L(f.placeholder),
             help: L(f.help),
+            hasHelp: f.help !== undefined,
             required: f.required,
             reply: Boolean(f.reply),
             options: (f.options ?? []).map((o) => ({ value: o.fr, label: L(o) })),

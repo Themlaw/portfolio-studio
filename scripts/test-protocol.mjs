@@ -134,6 +134,7 @@ ok("v0.13 : liste de projets (« pas encore sur une page »)", acceptToCanvas(ms
 
 // v0.16 : champ ajouté avec un identifiant choisi par la toile, état « en cours » d'Annuler / Rétablir.
 ok("form-field add : identifiant de la toile accepté", acceptFromCanvas(msg({ kind: "form-field", uid: "b3", op: "add", fieldType: "text", id: "fk3j9a2b" }), ORIGIN, frame)?.id === "fk3j9a2b");
+ok("form-field help-add / help-remove acceptés (aide d'un champ)", ["help-add", "help-remove"].every((op) => acceptFromCanvas(msg({ kind: "form-field", uid: "b3", op, index: 1 }), ORIGIN, frame)?.op === op));
 ok("form-field add : identifiant mal formé refusé", ["x", "F1234567", "f<b>", "f", "f".repeat(30), "../x"].every((id) => acceptFromCanvas(msg({ kind: "form-field", uid: "b3", op: "add", fieldType: "text", id }), ORIGIN, frame) === null));
 ok("pending : libellé accepté, null accepté, trop long / autre type refusés", acceptToCanvas(msg({ kind: "pending", label: "Annulation en cours…" }), ORIGIN, frame)?.label === "Annulation en cours…" && acceptToCanvas(msg({ kind: "pending", label: null }), ORIGIN, frame)?.label === null && acceptToCanvas(msg({ kind: "pending", label: "x".repeat(61) }), ORIGIN, frame) === null && acceptToCanvas(msg({ kind: "pending", label: 3 }), ORIGIN, frame) === null);
 ok("pending : la toile ne peut pas en émettre (sens éditeur → toile seulement)", acceptFromCanvas(msg({ kind: "pending", label: "x" }), ORIGIN, frame) === null);

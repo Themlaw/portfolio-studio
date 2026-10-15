@@ -15,7 +15,7 @@ import {
 } from "@/app/admin/(espace)/pages/actions";
 import type { AdminPageRow, TrashSummary } from "@/lib/admin";
 import { slugify } from "@/lib/slug";
-import { daysLeft, TRASH_DAYS } from "@/lib/trash";
+import { daysLeft, lostWithPage, TRASH_DAYS } from "@/lib/trash";
 
 import { ConfirmDialog, same, toast, undoToast } from "./editing";
 import { EmptyTrash, PurgeItem } from "./TrashControls";
@@ -185,7 +185,7 @@ function TrashList({ pages, summary }: { pages: AdminPageRow[]; summary: TrashSu
                     >
                       Restaurer
                     </button>
-                    <PurgeItem kind="page" id={p.id} name={p.title} lost={`ses ${p.blocks} rubrique${p.blocks > 1 ? "s" : ""} et son brouillon disparaissent.`} />
+                    <PurgeItem kind="page" id={p.id} name={p.title} lost={lostWithPage(p.blocks, p.hasDraft)} />
                   </td>
                 </tr>
               ))}

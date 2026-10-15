@@ -367,6 +367,18 @@ if (run("E"))
     const tops = await f.locator("[data-edit-block]:not([data-edit-parent])").evaluateAll((els) => els.map((e) => ({ type: e.dataset.editType, uid: e.dataset.editBlock })));
     ok("E6 éditeur : Contact (formulaire), Contact, Grille… dans l'ordre", tops.map((t) => t.type).join() === "rich-text,contact,contact,grid,contact,contact", tops.map((t) => t.type).join());
     ok("E7 le formulaire migré est modifiable sur la toile", (await f.locator(`[data-edit-block="${tops[1].uid}"] form[data-form-edit]`).count()) === 1);
+    // Aide d'un champ (comme les autres champs facultatifs) : absente = rien d'affiché, « + Ajouter une aide » au survol.
+    const formSel = `[data-edit-block="${tops[1].uid}"] form[data-form-edit]`;
+    const noHelp = await f.locator(`${formSel} [data-form-field]`).evaluateAll((els) => els.findIndex((e) => !e.hasAttribute("data-form-has-help")));
+    ok("E7b un champ sans aide n'affiche aucun texte fantôme « Aide (facultative) »", noHelp >= 0 && (await f.locator(`${formSel} [data-form-field="${noHelp}"] [data-inline$=".help"]`).count()) === 0 && !/Aide \(facultative\)/.test(await f.locator(formSel).innerText()));
+    await f.locator(`${formSel} [data-form-field="${noHelp}"]`).scrollIntoViewIfNeeded();
+    await f.locator(`${formSel} [data-form-field="${noHelp}"]`).hover({ position: { x: 20, y: 10 } });
+    await f.getByTestId("field-help-op").click();
+    const helpOf = () => (blocksOf(legacy.id).find((b) => b.uid === tops[1].uid)?.props.fields ?? [])[noHelp]?.help;
+    ok("E7c « + Ajouter une aide » : l'aide existe (vide) dans le brouillon et son emplacement est montré", (await waitFor(() => JSON.stringify(helpOf()) === '{"fr":"","en":""}')) && (await until(f, (a) => document.querySelectorAll(`${a} [data-form-field="${noHelp}"] [data-inline$=".help"]`).length === 1, formSel, 20000)));
+    await f.locator(`${formSel} [data-form-field="${noHelp}"]`).hover({ position: { x: 20, y: 10 } });
+    await f.getByTestId("field-help-op").click();
+    ok("E7d « Retirer l'aide » : la clé disparaît", await waitFor(() => helpOf() === undefined));
     const emptyContact = tops[4];
     ok("E8 le Contact entièrement vide du brouillon affiche l'état vide utile", await f.locator(`[data-edit-block="${emptyContact.uid}"] .pe-empty-block`).count() === 1);
     await f.locator(`[data-edit-block="${tops[1].uid}"]`).scrollIntoViewIfNeeded();

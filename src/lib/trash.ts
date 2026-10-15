@@ -12,3 +12,33 @@ export const purgeAt = (deletedAt: number): number => deletedAt + TRASH_DAYS * D
 export function daysLeft(deletedAt: number, now = Date.now()): number {
   return Math.max(0, Math.ceil((purgeAt(deletedAt) - now) / DAY_MS));
 }
+
+/* ---- Phrases des confirmations « Supprimer définitivement » (accords et zéro gérés) ---- */
+
+/** « 0 / 1 » → singulier, sinon pluriel (français). */
+const plural = (n: number, one: string, many: string) => (n > 1 ? many : one);
+
+/** Ce qui part avec une page supprimée pour de bon. */
+export function lostWithPage(blocks: number, hasDraft: boolean): string {
+  const items = [blocks > 0 ? (blocks === 1 ? "sa rubrique" : `ses ${blocks} rubriques`) : "", hasDraft ? "son brouillon" : ""].filter(Boolean);
+  if (!items.length) return "elle est vide : rien d'autre ne disparaît.";
+  return `${items.join(" et ")} ${items.length === 1 && blocks <= 1 ? "disparaît" : "disparaissent"}.`;
+}
+
+/** Ce qui part avec un projet supprimé pour de bon (ses images restent dans la médiathèque). */
+export function lostWithProject(slots: number): string {
+  const what = slots === 0 ? "sa planche (sans emplacement) disparaît" : slots === 1 ? "sa planche et son emplacement disparaissent" : `sa planche et ses ${slots} emplacements disparaissent`;
+  return `${what} ; ses images restent dans la médiathèque.`;
+}
+
+/** Résumé de « Vider la corbeille » : « 2 pages, 1 projet (avec 3 emplacements) ». */
+export function emptyTrashParts(s: { pages: number; projects: number; media: number; slots: number }): string[] {
+  return [
+    s.pages ? `${s.pages} ${plural(s.pages, "page", "pages")}` : "",
+    s.projects ? `${s.projects} ${plural(s.projects, "projet", "projets")}${s.slots ? ` (avec ${s.slots} ${plural(s.slots, "emplacement", "emplacements")})` : " (sans emplacement)"}` : "",
+    s.media ? `${s.media} ${plural(s.media, "média", "médias")}` : "",
+  ].filter(Boolean);
+}
+
+/** « 1 élément sera supprimé » / « 3 éléments seront supprimés ». */
+export const willBeDeleted = (n: number) => `${n} ${plural(n, "élément", "éléments")} ${plural(n, "sera supprimé", "seront supprimés")}`;

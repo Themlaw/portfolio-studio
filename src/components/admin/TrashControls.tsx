@@ -9,6 +9,7 @@ import { useState, useTransition } from "react";
 
 import { emptyTrashAction, purgeTrashItemAction } from "@/app/admin/(espace)/corbeille/actions";
 import type { TrashSummary } from "@/lib/admin";
+import { emptyTrashParts, willBeDeleted } from "@/lib/trash";
 
 import { toast } from "./editing";
 
@@ -67,11 +68,7 @@ export function EmptyTrash({ summary }: { summary: TrashSummary }) {
   const [open, setOpen] = useState(false);
   const [busy, start] = useTransition();
   if (summary.total === 0) return null;
-  const parts = [
-    summary.pages ? `${summary.pages} page${summary.pages > 1 ? "s" : ""}` : "",
-    summary.projects ? `${summary.projects} projet${summary.projects > 1 ? "s" : ""} (avec ${summary.slots} emplacement${summary.slots > 1 ? "s" : ""})` : "",
-    summary.media ? `${summary.media} média${summary.media > 1 ? "s" : ""}` : "",
-  ].filter(Boolean);
+  const parts = emptyTrashParts(summary);
   return (
     <div className="a-trash-empty">
       {!open ? (
@@ -80,7 +77,7 @@ export function EmptyTrash({ summary }: { summary: TrashSummary }) {
         </button>
       ) : (
         <Confirm
-          message={`${summary.total} élément${summary.total > 1 ? "s" : ""} seront supprimés pour de bon : ${parts.join(", ")}.${summary.projects ? " Les images des projets restent dans la médiathèque." : ""} Cette action ne s'annule pas.`}
+          message={`${willBeDeleted(summary.total)} pour de bon : ${parts.join(", ")}.${summary.projects ? " Les images des projets restent dans la médiathèque." : ""} Cette action ne s'annule pas.`}
           label="Vider la corbeille"
           busy={busy}
           onCancel={() => setOpen(false)}

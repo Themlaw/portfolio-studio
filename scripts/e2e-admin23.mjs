@@ -436,7 +436,7 @@ try {
   const prow = page.locator('[data-testid="corbeille-ligne"]', { hasText: "Bloqueur 23" });
   await prow.getByRole("button", { name: "Supprimer définitivement" }).click();
   const conf = page.locator('[data-testid="confirmation-definitive"]');
-  ok("G3 confirmation intégrée à la page (pas de boîte), elle nomme ce qui sera perdu", (await page.locator("dialog[open]").count()) === 0 && /Bloqueur 23/.test(await conf.innerText()) && /1 emplacement/.test(await conf.innerText()) && /ne s'annule pas/.test(await conf.innerText()), await conf.innerText());
+  ok("G3 confirmation intégrée à la page (pas de boîte), elle nomme ce qui sera perdu", (await page.locator("dialog[open]").count()) === 0 && /Bloqueur 23/.test(await conf.innerText()) && /son emplacement|1 emplacement/.test(await conf.innerText()) && /ne s'annule pas/.test(await conf.innerText()), await conf.innerText());
   await shot("g3-confirmation-definitive");
   await conf.getByRole("button", { name: "Annuler" }).click();
   ok("G3b Annuler : rien n'est supprimé", dbq("select id from projects where id = ?", bpid).length === 1 && (await conf.count()) === 0);

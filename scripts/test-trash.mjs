@@ -35,7 +35,7 @@ const { findMediaByKey } = await import("../src/lib/media.ts");
 const { getTrashSummary, listPagesForAdmin, listTrashedPages, listProjectsForAdmin, listTrashedProjects, listMediaForAdmin, listTrashedMedia, getMediaUses, getPageForEdit, getProjectForEdit } = await import("../src/lib/admin.ts");
 const { mediaUsagesByMedia } = await import("../src/lib/references.ts");
 const { readNav } = await import("../src/lib/edit/nav.ts");
-const { daysLeft, purgeAt, TRASH_DAYS } = await import("../src/lib/trash.ts");
+const { daysLeft, purgeAt, TRASH_DAYS, lostWithPage, lostWithProject, emptyTrashParts, willBeDeleted } = await import("../src/lib/trash.ts");
 console.log = log;
 
 let passed = 0;
@@ -336,6 +336,24 @@ await test("logo du site et couverture d'une tuile comptés comme usages : compt
   assert.equal(mediaUsagesByMedia().get(cover.id), undefined);
   if (before === undefined) db.delete(schema.settings).where(eq(schema.settings.key, "styles")).run();
   else setStyles(JSON.parse(before));
+});
+
+/* ---- 7. Phrases des confirmations : accords et zéro ------------------------------------------------------------ */
+await test("confirmations de suppression définitive : zéro, un, plusieurs ; pas de « brouillon » s'il n'y en a pas", () => {
+  assert.equal(lostWithPage(0, false), "elle est vide : rien d'autre ne disparaît.");
+  assert.equal(lostWithPage(0, true), "son brouillon disparaît.");
+  assert.equal(lostWithPage(1, false), "sa rubrique disparaît.");
+  assert.equal(lostWithPage(1, true), "sa rubrique et son brouillon disparaissent.");
+  assert.equal(lostWithPage(3, false), "ses 3 rubriques disparaissent.");
+  assert.equal(lostWithPage(3, true), "ses 3 rubriques et son brouillon disparaissent.");
+  assert.match(lostWithProject(0), /^sa planche \(sans emplacement\) disparaît/);
+  assert.match(lostWithProject(1), /^sa planche et son emplacement disparaissent/);
+  assert.match(lostWithProject(4), /^sa planche et ses 4 emplacements disparaissent/);
+  assert.deepEqual(emptyTrashParts({ pages: 1, projects: 0, media: 2, slots: 0 }), ["1 page", "2 médias"]);
+  assert.deepEqual(emptyTrashParts({ pages: 2, projects: 1, media: 0, slots: 1 }), ["2 pages", "1 projet (avec 1 emplacement)"]);
+  assert.deepEqual(emptyTrashParts({ pages: 0, projects: 2, media: 0, slots: 0 }), ["2 projets (sans emplacement)"]);
+  assert.equal(willBeDeleted(1), "1 élément sera supprimé");
+  assert.equal(willBeDeleted(3), "3 éléments seront supprimés");
 });
 
 console.log(`\ntest-trash : ${passed} tests OK`);

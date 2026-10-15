@@ -1225,6 +1225,13 @@ html:not([data-edit-mode]) .pe-media-empty {
   touch-action: none;
 }
 
+/* « + Ajouter une aide » / « Retirer l'aide » d'un champ du formulaire de contact (lot 27) : un libellé, pas une icône. */
+.pe-item-tools .pe-field-op-sm {
+  padding: 0 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .pe-add-chip {
   position: absolute;
   padding: 4px 10px;

@@ -994,6 +994,14 @@ export default function VisualEditor({
     }
     const i = msg.index ?? -1;
     if (!fields[i]) return false;
+    if (msg.op === "help-add" || msg.op === "help-remove") {
+      // Aide d'un champ : absente = aucune place (ni texte fantôme, ni rien en public) ; ajoutée = emplacement à remplir sur la toile.
+      const next = { ...fields[i] };
+      if (msg.op === "help-add") next.help = { fr: "", en: "" };
+      else delete next.help;
+      setProp(msg.uid, "fields", fields.map((f, j) => (j === i ? next : f)));
+      return true;
+    }
     if (msg.op === "remove") {
       if (fields.length <= 1) return refuse("Un formulaire garde au moins un champ.");
       if (fields[i].reply) return refuse("Ce champ e-mail sert à te répondre : dans le panneau, désactive « Sert à te répondre » (ou choisis un autre champ) avant de le retirer.");

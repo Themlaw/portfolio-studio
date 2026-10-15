@@ -81,7 +81,7 @@ export const FromCanvasSchema = z.union([
   z.object({
     kind: z.literal("form-field"),
     uid: Uid,
-    op: z.enum(["remove", "move", "add"]),
+    op: z.enum(["remove", "move", "add", "help-add", "help-remove"]),
     index: z.number().int().min(0).max(11).optional(),
     to: z.number().int().min(0).max(11).optional(),
     fieldType: z.enum(["text", "email", "textarea", "select"]).optional(),
