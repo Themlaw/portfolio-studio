@@ -22,12 +22,16 @@ import {
   resolveSurface,
   PAPER_ON_CARDS_DEFAULT,
   resolvePaper,
+  DEFAULT_BORDER_WIDTH,
+  SURFACE_BORDER_LABELS,
+  SURFACE_BORDER_WIDTHS,
   SURFACE_CORNER_LABELS,
   SURFACE_CORNERS,
   SURFACE_PAPER_LABELS,
   SURFACE_PAPERS,
   SURFACE_WIDTH_LABELS,
   SURFACE_WIDTHS,
+  type ResolvedBorder,
   type ResolvedSurface,
   type Surface,
 } from "@/themes/surface";
@@ -72,6 +76,70 @@ export function SurfaceButton({ uid, open, onToggle }: { uid: string; open: bool
         </span>
       )}
     </button>
+  );
+}
+
+/**
+ * Bordure de la carte (lot 32) : interrupteur, épaisseur Fin / Moyen / Épais, couleur (« Par défaut » = la couleur lisible du texte de la
+ * carte, pastilles de la palette, couleur libre). Partagée avec « Cartes des rubriques » du thème (CardSettings, version admin à part).
+ * `border` : bordure effective (celle du bloc, sinon celle du thème) ; un choix s'écrit toujours sur le bloc.
+ */
+function BorderRows({ border, onChange }: { border: ResolvedBorder | null; onChange: (b: Surface["border"], continuous?: boolean) => void }) {
+  const customColor = border?.color && !isSurfaceToken(border.color) ? border.color : undefined;
+  const width = border?.width ?? DEFAULT_BORDER_WIDTH;
+  const set = (p: { width?: (typeof SURFACE_BORDER_WIDTHS)[number]; color?: string | undefined }, continuous = false) =>
+    onChange({ width: p.width ?? width, ...("color" in p ? (p.color ? { color: p.color } : {}) : border?.color ? { color: border.color } : {}) }, continuous);
+  const fromPicker = (c: string | undefined) => {
+    if (c === undefined) return set({ color: undefined }, true);
+    if ((PALETTE as readonly string[]).includes(c) && !isSurfaceToken(c)) {
+      const rgba = parseColor(getComputedStyle(document.documentElement).getPropertyValue(`--t-color-${c}`));
+      if (rgba) return set({ color: rgbaToHex({ ...rgba, a: 1 }) }, true);
+    }
+    set({ color: c }, true);
+  };
+  return (
+    <>
+      <div className="tc-row">
+        <span className="sm-label">Bordure</span>
+        <button type="button" role="switch" aria-checked={border !== null} className="sm-switch" data-testid="surface-border-switch" onClick={() => onChange(border ? false : {})}>
+          <span className="sm-switch-track" aria-hidden="true">
+            <span />
+          </span>
+          {border ? "Oui" : "Non"}
+        </button>
+      </div>
+      {border && (
+        <>
+          <div className="tc-row">
+            <span className="sm-label">Épaisseur</span>
+            <span className="tc-seg" role="radiogroup" aria-label="Épaisseur de la bordure" data-testid="surface-border-width">
+              {SURFACE_BORDER_WIDTHS.map((w) => (
+                <button key={w} type="button" role="radio" aria-checked={width === w} data-border-width={w} onClick={() => set({ width: w })}>
+                  {SURFACE_BORDER_LABELS[w]}
+                </button>
+              ))}
+            </span>
+          </div>
+          <div className="tc-row">
+            <span className="sm-label">Couleur de la bordure</span>
+            <CardColorChoices
+              palette={canvasPalette()}
+              value={border.color ?? ""}
+              onPick={(t) => set({ color: t })}
+              label="Couleur de la bordure"
+              auto={{ label: "Par défaut : la couleur du texte de la carte", onPick: () => set({ color: undefined }) }}
+            />
+          </div>
+          <div className="tc-row">
+            <span className="sm-label" aria-hidden="true" />
+            <span className="tc-swatches">
+              <ColorPicker value={customColor} onChange={fromPicker} swatch={swatch} />
+            </span>
+            <span className="sm-hint">Autre couleur…</span>
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -146,6 +214,7 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
               ))}
             </span>
           </div>
+          <BorderRows border={s.resolved.border} onChange={(border, continuous) => patch({ border }, continuous)} />
           {site.has ? (
             <>
               <div className="tc-row">

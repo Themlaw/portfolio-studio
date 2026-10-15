@@ -12,8 +12,11 @@ import { effectiveSitePalette } from "@/themes/site-palette";
 import type { Theme } from "@/themes/schema";
 import {
   cardStyle,
+  DEFAULT_BORDER_WIDTH,
   isSurfaceToken,
   resolveSurface,
+  SURFACE_BORDER_LABELS,
+  SURFACE_BORDER_WIDTHS,
   SURFACE_CORNER_LABELS,
   SURFACE_CORNERS,
   SURFACE_TOKEN_LABELS,
@@ -77,6 +80,38 @@ export default function CardSettings({ theme, onChange, sitePalette }: { theme: 
             </button>
           ))}
         </div>
+      </div>
+      <div className="a-field">
+        <span className="a-label-text">Bordure</span>
+        <div className="a-seg" role="group" aria-label="Bordure par défaut" data-testid="card-default-border">
+          <button type="button" aria-pressed={!resolved.border} onClick={() => set({ border: undefined })}>
+            Sans bordure
+          </button>
+          {SURFACE_BORDER_WIDTHS.map((w) => (
+            <button key={w} type="button" aria-pressed={resolved.border?.width === w} data-border-width={w} onClick={() => set({ border: { width: w, ...(resolved.border?.color ? { color: resolved.border.color } : {}) } })}>
+              {SURFACE_BORDER_LABELS[w]}
+            </button>
+          ))}
+        </div>
+        {resolved.border && (
+          <>
+            <CardColorChoices
+              palette={palette}
+              value={resolved.border.color ?? ""}
+              label="Couleur de la bordure par défaut"
+              onPick={(t) => set({ border: { width: resolved.border?.width ?? DEFAULT_BORDER_WIDTH, color: t } })}
+              auto={{ label: "Par défaut : la couleur du texte de la carte", onPick: () => set({ border: { width: resolved.border?.width ?? DEFAULT_BORDER_WIDTH } }) }}
+            />
+            <div className="a-color-row">
+              <AdminColorPicker
+                label="Autre couleur de bordure"
+                value={resolved.border.color && !isSurfaceToken(resolved.border.color) ? resolved.border.color.slice(0, 7) : cardBackground(resolved.border.color ?? "ink", palette).slice(0, 7)}
+                onChange={(hex) => set({ border: { width: resolved.border?.width ?? DEFAULT_BORDER_WIDTH, color: hex } })}
+              />
+            </div>
+          </>
+        )}
+        <p className="a-help">La bordure suit les coins de la carte ; fine, moyenne ou épaisse. Sans couleur choisie, elle prend la couleur du texte de la carte, toujours lisible sur elle.</p>
       </div>
       {card && (
         <button type="button" className="a-btn a-btn-quiet" onClick={() => onChange(undefined)}>

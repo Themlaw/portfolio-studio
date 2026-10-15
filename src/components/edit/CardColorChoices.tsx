@@ -27,11 +27,30 @@ import "@/app/admin/card-colors.css";
 const TINTS: SurfaceToken[] = SURFACE_TINT_BASES.flatMap((b) => SURFACE_TINT_PERCENTS.map((n) => `${b}${n}` as SurfaceToken));
 
 /** `value` vide : aucun choix (« Auto » chez l'appelant). `label` : nom du groupe, selon ce qu'on colore. */
-export default function CardColorChoices({ palette, value, onPick, label = "Couleur de la carte" }: { palette: CardPalette; value: string; onPick: (token: SurfaceToken) => void; label?: string }) {
-  const current = !value ? "Auto : couleur du thème" : ((SURFACE_TOKEN_LABELS as Record<string, string>)[value] ?? `Couleur libre ${value}`);
+export default function CardColorChoices({
+  palette,
+  value,
+  onPick,
+  label = "Couleur de la carte",
+  auto,
+}: {
+  palette: CardPalette;
+  value: string;
+  onPick: (token: SurfaceToken) => void;
+  label?: string;
+  /** Choix « par défaut » proposé en premier (la bordure : couleur du texte de la carte) : `value` vide = ce choix. */
+  auto?: { label: string; onPick: () => void };
+}) {
+  const current = !value ? (auto?.label ?? "Auto : couleur du thème") : ((SURFACE_TOKEN_LABELS as Record<string, string>)[value] ?? `Couleur libre ${value}`);
   return (
     <div className="cc" data-testid="card-colors">
       <div className="cc-da" role="radiogroup" aria-label={label}>
+        {auto && (
+          <button type="button" role="radio" aria-checked={!value} className="cc-da-item" data-token="auto" data-testid="card-color-auto" title={auto.label} onClick={auto.onPick}>
+            <span className="cc-chip" style={{ background: "var(--card-ink, var(--t-color-ink))" }} aria-hidden="true" />
+            <span className="cc-name">Par défaut</span>
+          </button>
+        )}
         {SURFACE_DA_TOKENS.map((t) => (
           <button
             key={t}

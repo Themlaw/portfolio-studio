@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { LookSchema } from "@/lib/look";
 import { markedProblem } from "@/lib/marked";
+import { BackgroundSchema } from "@/themes/fond";
 import { SurfaceSchema } from "@/themes/surface";
 
 
@@ -122,7 +123,11 @@ function define<S extends z.ZodType>(def: Omit<BlockDefinition<S>, "refs" | "con
   // Mise en page (lot 2) : tout bloc porte ses réglages `look` (src/lib/look.ts) ;
   // un réglage illisible est ignoré, il ne masque jamais le bloc.
   // Carte de rubrique (lot 17c) : `surface` de même, rendue seulement sur un bloc de premier niveau (BlockList).
-  const schema = def.schema instanceof z.ZodObject ? def.schema.safeExtend({ look: LookSchema.optional().catch(undefined), surface: SurfaceSchema.optional().catch(undefined) }) : def.schema;
+  // Fond de couleur du composant (lot 32) : `background` de même, lu seulement par les grands composants (src/themes/fond.ts, FOND_TYPES).
+  const schema =
+    def.schema instanceof z.ZodObject
+      ? def.schema.safeExtend({ look: LookSchema.optional().catch(undefined), surface: SurfaceSchema.optional().catch(undefined), background: BackgroundSchema.optional().catch(undefined) })
+      : def.schema;
   return { ...def, schema, refs, ...(container ? { container } : {}) } as unknown as BlockDefinition;
 }
 

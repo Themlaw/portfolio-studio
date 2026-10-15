@@ -8,8 +8,9 @@ import { cellShare, type GridLayout } from "./grid-layouts";
 import { getSiteView } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
 import type { PaletteColors } from "@/themes/palette";
+import { fondAttributes, fondJoins, fondKey, fondStyle, readBackground, supportsFond, type Background, type FondJoin } from "@/themes/fond";
 import { pagePalette } from "@/themes/site-palette";
-import { cardStyle, cardVars, paperAttributes, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
+import { borderVars, cardStyle, cardVars, paperAttributes, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
 import { BLOCKS } from "./registry";
 import { MAX_NESTING } from "./tree";
 import type { BlockContext } from "./types";
@@ -73,7 +74,7 @@ type CardEnv = { palette: CardPalette; defaults: ResolvedSurface };
  * Vue brouillon : l'enveloppe est toujours là (sans carte : `display: contents`) pour que la toile puisse
  * montrer un choix tout de suite sans toucher aux nœuds de React.
  */
-function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv | null, edit: boolean | undefined, key: string): ReactNode {
+function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv | null, edit: boolean | undefined, key: string, join?: FondJoin): ReactNode {
   if (!env) return node;
   const defaults = edit ? { "data-card-default": JSON.stringify(env.defaults) } : {};
   if (!surface) {
@@ -87,13 +88,16 @@ function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv
   }
   const resolved = resolveSurface(surface, env.defaults);
   const paper = paperAttributes(surface);
+  const style = cardStyle(resolved.color, env.palette);
   return (
     <div
       key={`card-${key}`}
       className="surface-card"
       {...surfaceAttributes(resolved)}
       {...paper.attrs}
-      style={{ ...cardVars(cardStyle(resolved.color, env.palette)), ...paper.vars } as CSSProperties}
+      {...(join?.prev ? { "data-join-prev": "" } : {})}
+      {...(join?.next ? { "data-join-next": "" } : {})}
+      style={{ ...cardVars(style), ...borderVars(resolved, style, env.palette), ...paper.vars } as CSSProperties}
       {...(edit ? { ...defaults, "data-edit-surface": JSON.stringify(surface) } : {})}
     >
       {node}
@@ -101,7 +105,39 @@ function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv
   );
 }
 
-function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?: { uid: string }, inherited?: Look, card: CardEnv | null = null): ReactNode {
+/**
+ * Fond de couleur d'un composant (lot 32, src/themes/fond.ts) : une enveloppe pleine largeur de son conteneur (la carte, ou la
+ * page) qui peint la couleur sur toute la hauteur du composant ; `join` = fusion avec le voisin de même fond (aucun espace).
+ * Les composants des cellules d'une grille n'en ont pas. Sans fond, aucune enveloppe en public ; vue brouillon : toujours là
+ * (`data-fond="off"` = `display: contents`) pour que la toile montre un choix tout de suite sans toucher aux nœuds de React.
+ * Réutilisable par un conteneur qui rend lui-même sa suite de composants (planche composée).
+ */
+export function withFond(node: ReactNode, type: string, background: Background | undefined, join: FondJoin, ctx: BlockContext, key: string): ReactNode {
+  if (!supportsFond(type) || ctx.cell) return node;
+  if (!background || !ctx.palette) {
+    return ctx.edit ? (
+      <div key={`fond-${key}`} className="fond-bloc" data-fond="off">
+        {node}
+      </div>
+    ) : (
+      node
+    );
+  }
+  const { vars } = fondStyle(background, ctx.palette);
+  return (
+    <div
+      key={`fond-${key}`}
+      className="fond-bloc"
+      {...fondAttributes(join)}
+      style={vars as CSSProperties}
+      {...(ctx.edit ? { "data-edit-background": JSON.stringify(background) } : {})}
+    >
+      {node}
+    </div>
+  );
+}
+
+function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?: { uid: string }, inherited?: Look, card: CardEnv | null = null, join: FondJoin = { prev: false, next: false }): ReactNode {
   // En édition, la clé suit le contenu : un bloc modifié (texte saisi en
   // place dans le DOM) est remonté à neuf au rafraîchissement.
   const key = ctx.edit ? `${block.uid ?? block.id}:${contentHash(block.props)}` : (block.uid ?? block.id);
@@ -156,31 +192,41 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
     };
     const kids = (data.children ?? []).filter((c) => own(BLOCKS, c.type) && def.container!.accepts.includes(c.type));
     const boxless = BOXLESS.has(block.type);
+    const kidJoins = fondJoins(kids.map((c) => (supportsFond(c.type) && !(block.type === "grid") ? fondKey(readBackground(c.props.background), false) : null)));
     children = kids.map((c, i) => {
       const pass: Look = {};
       if (boxless && i === 0 && look?.spaceTop) pass.spaceTop = look.spaceTop;
       if (boxless && i === kids.length - 1 && look?.spaceBottom) pass.spaceBottom = look.spaceBottom;
       const cellCtx: BlockContext = block.type === "grid" && data.layout ? { ...childCtx, cellColumns: cellShare(data.layout, i) } : childCtx;
-      return renderBlock({ id: -(i + 1), uid: c.uid, type: c.type, props: c.props, corrupt: false }, cellCtx, depth + 1, { uid }, Object.keys(pass).length ? pass : undefined);
+      return renderBlock({ id: -(i + 1), uid: c.uid, type: c.type, props: c.props, corrupt: false }, cellCtx, depth + 1, { uid }, Object.keys(pass).length ? pass : undefined, null, kidJoins[i]);
     });
   }
   // Conteneur sans boîte : ses espaces sont passés à ses composants.
   const shown = BOXLESS.has(block.type) && look ? { ...look, spaceTop: undefined, spaceBottom: undefined } : look;
   // La carte ne concerne que les blocs de premier niveau (`card` n'est transmis qu'à eux).
   const surface = card ? readSurface((block.props as { surface?: unknown } | null)?.surface) : undefined;
+  const background = readBackground((block.props as { background?: unknown } | null)?.background);
   return wrap(
     withSurface(
-      withLook(
-        <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id, look }}>
-          {children}
-        </Component>,
-        shown,
-        `look-${key}`,
+      withFond(
+        withLook(
+          <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id, look }}>
+            {children}
+          </Component>,
+          shown,
+          `look-${key}`,
+        ),
+        block.type,
+        background,
+        join,
+        ctx,
+        String(key),
       ),
       surface,
       card,
       ctx.edit,
       String(key),
+      join,
     ),
   );
 }
@@ -192,16 +238,25 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
   let card: CardEnv | null = null;
   // Fond de texte coloré (lot 21) : la palette sert à choisir le texte lisible dessus.
   const coloredBackdrop = blocks.some((b) => !b.corrupt && JSON.stringify(b.props ?? null).includes('"backdropColor"'));
-  if (ctx.edit || coloredBackdrop || blocks.some((b) => !b.corrupt && readSurface((b.props as { surface?: unknown } | null)?.surface))) {
+  const coloredBackground = blocks.some((b) => !b.corrupt && JSON.stringify(b.props ?? null).includes('"background":{'));
+  if (ctx.edit || coloredBackdrop || coloredBackground || blocks.some((b) => !b.corrupt && readSurface((b.props as { surface?: unknown } | null)?.surface))) {
     const [theme, view] = await Promise.all([getActiveTheme(), getSiteView(ctx.locale, ctx.pageId)]);
     // Palette du site (lot 17f) : quand elle surcharge des couleurs du thème, la carte se calcule sur la palette EFFECTIVE
     // (mêmes règles que le layout : la palette du site est toujours appliquée).
     card = { palette: pagePalette(theme.tokens.color as PaletteColors, theme.tokens.palette, view.styles?.palette), defaults: resolveSurface(theme.tokens.layout?.card ?? {}) };
   }
   const base: BlockContext = { ...baseCtx, ...(card ? { palette: card.palette } : {}) };
+  // Fond de couleur (lot 32) : un composant se fond dans son voisin de même fond ET de même contenant (carte / page).
+  const joins = fondJoins(
+    blocks.map((b) => {
+      if (b.corrupt || !supportsFond(b.type)) return null;
+      const props = b.props as { background?: unknown; surface?: unknown } | null;
+      return fondKey(readBackground(props?.background), Boolean(card && readSurface(props?.surface)));
+    }),
+  );
   return (
     <>
-      {blocks.map((block) => renderBlock(block, base, 0, undefined, undefined, card))}
+      {blocks.map((block, i) => renderBlock(block, base, 0, undefined, undefined, card, joins[i]))}
       {ctx.edit && (
         // Toile : « + Ajouter une rubrique » toujours visible en bas de page (EditLayer l'écoute ; absent en aperçu).
         <div className="pe-add-end" data-edit-add-end="" lang="fr">

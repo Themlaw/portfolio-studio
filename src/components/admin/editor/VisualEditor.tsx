@@ -48,6 +48,7 @@ import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
 import { cleanLook, cleanSiteStyles, googleOf, readLook, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
+import { readBackground, supportsFond, type Background } from "@/themes/fond";
 import { cleanSurface, readSurface, type Surface } from "@/themes/surface";
 import { effectiveSitePalette } from "@/themes/site-palette";
 
@@ -79,7 +80,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /** Ce qui part vers la toile (ni fichier, ni identifiants internes). */
@@ -863,6 +864,24 @@ export default function VisualEditor({
     return true;
   };
 
+  /** Fond de couleur d'un composant (lot 32), de la page ou d'un conteneur ; false = refusé ou sans effet. */
+  const applyBackground = (uid: string, next: Background | null, continuous = false): boolean => {
+    const list = draftRef.current.blocks;
+    const block = findBlock(list, uid);
+    if (!block || !supportsFond(block.type)) return false;
+    if (JSON.stringify(readBackground(block.props.background) ?? null) === JSON.stringify(next)) return false;
+    setBlocks(
+      updateBlock(list, uid, (b) => {
+        const props = { ...b.props };
+        if (next) props.background = next;
+        else delete props.background;
+        return { ...b, props };
+      }),
+      continuous ? { key: `background:${uid}` } : {},
+    );
+    return true;
+  };
+
   const op = (kind: "up" | "down" | "duplicate" | "delete" | "out" | "in", uid: string) => {
     const list = draftRef.current.blocks;
     const at = locate(list, uid);
@@ -1579,9 +1598,9 @@ export default function VisualEditor({
     });
   };
 
-  const handlers = useRef({ op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook });
+  const handlers = useRef({ op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook });
   useEffect(() => {
-    handlers.current = { op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook };
+    handlers.current = { op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -1710,6 +1729,9 @@ export default function VisualEditor({
           break;
         case "site-style":
           h.applySiteStyle(msg.role, msg.style);
+          break;
+        case "background":
+          if (!h.applyBackground(msg.uid, msg.background, msg.continuous) && msg.seq) send({ kind: "revert", seq: msg.seq });
           break;
         case "surface":
           // Refusé (composant d'un conteneur) ou sans effet : la toile retire son aperçu.

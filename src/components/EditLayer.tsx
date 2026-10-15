@@ -36,6 +36,8 @@ import GridLayoutIcon, { LAYOUT_LABELS } from "./edit/GridLayoutIcon";
 import { listKeys, noteSettle, observeOverlays, pendingOrder, postIntent, previewLayout, previewMarked, previewOrder, previewText, previewTileSize, resetOverlays, revertOverlay, siblingWrappers } from "./edit/optimistic";
 import { parseMarked } from "@/lib/marked";
 import { closeMarkedEditor, markedNodes, markState, markupOf, openMarkedEditor, selectionRange, selectRange, toggleMark, type MarkedEditor } from "./edit/marked-edit";
+import FondMenu, { FondButton } from "./edit/FondMenu";
+import { hasFondWrapper } from "./edit/optimistic";
 import SurfaceMenu, { SurfaceButton } from "./edit/SurfaceMenu";
 import { useDismiss } from "./edit/useDismiss";
 import SiteLayer, { FormLayer } from "./SiteLayer";
@@ -333,6 +335,7 @@ export default function EditLayer() {
   const [markBar, setMarkBar] = useState<MarkBar | null>(null);
   /** Bloc dont le menu « Carte » (carte de rubrique) est ouvert ; `bump` redessine après un choix (aperçu optimiste). */
   const [surfaceFor, setSurfaceFor] = useState<string | null>(null);
+  const [fondFor, setFondFor] = useState<string | null>(null);
   const [, bump] = useState(0);
   /** « + » proposé entre deux rubriques sous le pointeur. */
   const [gap, setGap] = useState<{ index: number; top: number } | null>(null);
@@ -1332,7 +1335,8 @@ export default function EditLayer() {
                 Taille des images
               </button>
             )}
-            {!sel.parent && <SurfaceButton uid={sel.uid} open={surfaceFor === sel.uid} onToggle={() => setSurfaceFor((o) => (o === sel.uid ? null : sel.uid))} />}
+            {!sel.parent && <SurfaceButton uid={sel.uid} open={surfaceFor === sel.uid} onToggle={() => { setFondFor(null); setSurfaceFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
+            {hasFondWrapper(sel.uid) && <FondButton uid={sel.uid} open={fondFor === sel.uid} onToggle={() => { setSurfaceFor(null); setFondFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
             <button type="button" aria-label="Monter" title="Monter" disabled={siblingsOf(sel)[0]?.uid === sel.uid} onClick={() => orderOp("up", sel)}>
               ↑
             </button>
@@ -1369,6 +1373,14 @@ export default function EditLayer() {
               onChanged={() => bump((n) => n + 1)}
             />
           )}
+          {fondFor === sel.uid && hasFondWrapper(sel.uid) && (
+            <FondMenu
+              uid={sel.uid}
+              top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40}
+              onClose={() => setFondFor(null)}
+              onChanged={() => bump((n) => n + 1)}
+            />
+          )}
           {sel.type === "collection-tiles" && sizeFor === sel.uid && (
             <TileSizePicker uid={sel.uid} top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40} onClose={() => setSizeFor(null)} />
           )}
@@ -1386,7 +1398,7 @@ export default function EditLayer() {
         </div>
       )}
 
-      {gap && !drag && !surfaceFor && !layoutFor && !sizeFor && !projectPicker && (
+      {gap && !drag && !surfaceFor && !fondFor && !layoutFor && !sizeFor && !projectPicker && (
         <div className="pe-gap" style={{ top: gap.top }}>
           <button type="button" data-edit-gap={gap.index} onClick={() => post({ kind: "insert", parent: null, index: gap.index, what: "choose" })}>
             <span aria-hidden="true">+</span> Ajouter une rubrique

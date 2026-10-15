@@ -16,11 +16,11 @@
  *    faux : l'éditeur le signale sans rien bloquer.
  */
 import { contrastRatio, mixOklab, opaqueOn, parseColor, ROLE_NAMES, toHex, type ResolvedPalette } from "./palette";
-import { PAPER_ON_CARDS_DEFAULT, SURFACE_BASE_TOKENS, SURFACE_CORNERS, SURFACE_PAPERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema } from "./schema";
+import { BackgroundSchema, PAPER_ON_CARDS_DEFAULT, SURFACE_BASE_TOKENS, SURFACE_BORDER_WIDTHS, SURFACE_CORNERS, SURFACE_PAPERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema } from "./schema";
 import type { z } from "zod";
 
 // Schéma et listes vivent dans schema.ts (zod seul, chargé tel quel par les scripts Node).
-export { PAPER_ON_CARDS_DEFAULT, SURFACE_BASE_TOKENS, SURFACE_CORNERS, SURFACE_PAPERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema };
+export { BackgroundSchema, PAPER_ON_CARDS_DEFAULT, SURFACE_BASE_TOKENS, SURFACE_BORDER_WIDTHS, SURFACE_CORNERS, SURFACE_PAPERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema };
 /** Nom des couleurs dont on tire une teinte (mêmes noms que le panneau « Couleurs »). */
 const TINT_BASE_NAMES: Record<(typeof SURFACE_TINT_BASES)[number], string> = { ink: ROLE_NAMES.ink, primary: ROLE_NAMES.primary, secondary: ROLE_NAMES.secondary, tertiary: ROLE_NAMES.tertiary };
 /** Les six couleurs de la DA proposées en premier comme fond de carte, avec leur nom dans le panneau « Couleurs ». */
@@ -57,11 +57,27 @@ export type SurfaceTint = (typeof SURFACE_TINTS)[number];
 export type Surface = z.infer<typeof SurfaceSchema>;
 /** Carte par défaut d'un thème (`tokens.layout.card`) : mêmes champs que la carte d'un bloc. */
 export type CardDefaults = Surface;
-/** Réglages complets de base (le papier se résout à part : `resolvePaper`, il dépend du site). */
-export type ResolvedSurface = Required<Pick<Surface, "color" | "width" | "corners">>;
+/** Bordure résolue : épaisseur et couleur (absente = la couleur lisible du texte de la carte). */
+export type ResolvedBorder = { width: (typeof SURFACE_BORDER_WIDTHS)[number]; color?: string };
+/** Réglages complets de base (le papier se résout à part : `resolvePaper`, il dépend du site). `border` : null = sans bordure. */
+export type ResolvedSurface = Required<Pick<Surface, "color" | "width" | "corners">> & { border: ResolvedBorder | null };
 
 /** Réglages quand ni le bloc ni le thème ne disent rien. */
-export const FALLBACK_CARD: ResolvedSurface = { color: "surface", width: "inset", corners: "round" };
+export const FALLBACK_CARD: ResolvedSurface = { color: "surface", width: "inset", corners: "round", border: null };
+export const SURFACE_BORDER_LABELS: Record<(typeof SURFACE_BORDER_WIDTHS)[number], string> = { thin: "Fin", medium: "Moyen", thick: "Épais" };
+export const DEFAULT_BORDER_WIDTH: (typeof SURFACE_BORDER_WIDTHS)[number] = "medium";
+
+/**
+ * Bordure résolue : `false` du bloc = aucune ; objet = ses champs par-dessus ceux de la bordure par défaut du thème (épaisseur
+ * Moyen si personne ne la dit) ; absente = celle du thème.
+ */
+function resolveBorder(own: Surface["border"], theme: CardDefaults["border"] | ResolvedBorder | null | undefined): ResolvedBorder | null {
+  if (own === false) return null;
+  const base = theme && typeof theme === "object" ? theme : null;
+  if (own === undefined) return base ? { width: base.width ?? DEFAULT_BORDER_WIDTH, ...(base.color ? { color: base.color } : {}) } : null;
+  const color = own.color ?? base?.color;
+  return { width: own.width ?? base?.width ?? DEFAULT_BORDER_WIDTH, ...(color ? { color } : {}) };
+}
 
 export const isSurfaceToken = (v: string): v is SurfaceToken => (SURFACE_TOKENS as readonly string[]).includes(v);
 export const isSurfaceTint = (v: string): v is SurfaceTint => (SURFACE_TINTS as readonly string[]).includes(v);
@@ -80,11 +96,12 @@ export function readSurface(raw: unknown): Surface | undefined {
 }
 
 /** Réglages complets : ceux du bloc, puis la carte par défaut du thème, puis FALLBACK_CARD. */
-export function resolveSurface(surface: Surface, theme?: CardDefaults): ResolvedSurface {
+export function resolveSurface(surface: Surface, theme?: CardDefaults | ResolvedSurface): ResolvedSurface {
   return {
     color: surface.color ?? theme?.color ?? FALLBACK_CARD.color,
     width: surface.width ?? theme?.width ?? FALLBACK_CARD.width,
     corners: surface.corners ?? theme?.corners ?? FALLBACK_CARD.corners,
+    border: resolveBorder(surface.border, theme?.border),
   };
 }
 
@@ -222,7 +239,20 @@ export function cardVars(style: CardStyle): Record<string, string> {
   };
 }
 
-/** Attributs de l'enveloppe de la carte (la feuille y accroche largeur et coins). */
+/**
+ * Couleur de la bordure d'une carte (valeur CSS) : celle choisie (jeton de la palette ou couleur libre), sinon l'encre lisible de la
+ * carte (`style.ink` : le texte du thème, ou son inverse si la carte est sombre) — toujours visible sur la carte, sur tout thème.
+ */
+export function borderColor(border: ResolvedBorder, style: CardStyle, p: CardPalette): string {
+  return border.color ? cardBackground(border.color, p) : style.ink;
+}
+
+/** Variables CSS de la bordure (look.css, `.surface-card[data-border]`) ; vide sans bordure. */
+export function borderVars(s: ResolvedSurface, style: CardStyle, p: CardPalette): Record<string, string> {
+  return s.border ? { "--card-bc": borderColor(s.border, style, p) } : {};
+}
+
+/** Attributs de l'enveloppe de la carte (la feuille y accroche largeur, coins et bordure). */
 export function surfaceAttributes(s: ResolvedSurface): Record<string, string> {
-  return { "data-surface": "on", "data-width": s.width, "data-corners": s.corners };
+  return { "data-surface": "on", "data-width": s.width, "data-corners": s.corners, ...(s.border ? { "data-border": s.border.width } : {}) };
 }

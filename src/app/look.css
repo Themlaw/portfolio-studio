@@ -307,10 +307,114 @@ figure.block-image[data-fit="contain"] .block-image-media.block-image-media {
   opacity: var(--card-paper-opacity, var(--t-kit-paper-cards, 0.35));
 }
 
+/* ---- Bordure de la carte (lot 32) ----------------------------------------------
+   Une vraie bordure (pas une ombre) : elle suit les coins arrondis, et ce qui est DANS la carte (fond de couleur d'un
+   composant, papier) s'arrête à son bord intérieur. Épaisseurs Fin / Moyen / Épais ; plus fines sur téléphone. La couleur
+   (--card-bc) est calculée avec la carte (src/themes/surface.ts, borderVars) : choisie, ou l'encre lisible de la carte. */
+.surface-card[data-surface="on"][data-border] {
+  --card-bw: 6px;
+  border: var(--card-bw) solid var(--card-bc);
+}
+.surface-card[data-surface="on"][data-border="thin"] {
+  --card-bw: 2px;
+}
+.surface-card[data-surface="on"][data-border="thick"] {
+  --card-bw: 12px;
+}
+@media (max-width: 767px) {
+  .surface-card[data-surface="on"][data-border] {
+    --card-bw: 4px;
+  }
+  .surface-card[data-surface="on"][data-border="thin"] {
+    --card-bw: 1.5px;
+  }
+  .surface-card[data-surface="on"][data-border="thick"] {
+    --card-bw: 8px;
+  }
+}
+
+/* ---- Fond de couleur d'un composant (lot 32) — src/themes/fond.ts, BlockList (withFond) ----------------------
+   Une enveloppe pleine largeur de son conteneur (la carte, ou la page) qui peint la couleur sur toute la hauteur du
+   composant. Dans une carte (qui n'a pas de marge latérale à l'intérieur) elle va donc bord à bord, et mange le
+   rembourrage haut / bas de la carte pour toucher ses bords (les coins arrondis, la bordure la rognent). Texte et
+   boutons passent à la variante LISIBLE (mêmes variables --card-* que les cartes, posées en ligne sur l'enveloppe).
+   Deux composants de même fond qui se suivent (data-join-prev / data-join-next) n'ont aucun espace entre eux : le
+   composant garde son propre espace du haut, que la couleur remplit, et le bas de l'avant-dernier est supprimé.
+   Vue brouillon sans fond : enveloppe sans boîte (display: contents). */
+.fond-bloc[data-fond="off"] {
+  display: contents;
+}
+.fond-bloc[data-fond="on"] {
+  --color-ink: var(--card-ink);
+  --color-ink-soft: var(--card-ink-soft);
+  --color-line: var(--card-line);
+  --color-primary: var(--card-link);
+  --color-primary-hover: var(--card-link-hover);
+  --color-eyebrow: var(--card-eyebrow);
+  --color-secondary: var(--card-accent);
+  --btn-bg: var(--card-btn-bg);
+  --btn-fg: var(--card-btn-fg);
+  --btn-bg-hover: var(--card-btn-hover);
+  --strip-nav-fg: var(--card-ink);
+  --strip-nav-line: var(--card-line);
+  --strip-nav-bg: color-mix(in srgb, var(--card-bg) 88%, transparent);
+  display: flow-root;
+  box-sizing: border-box;
+  width: 100%;
+  padding-bottom: var(--section-gap);
+  background-color: var(--card-bg);
+  color: var(--card-ink);
+}
+.fond-bloc[data-fond="on"][data-join-next] {
+  padding-bottom: 0;
+}
+/* Sur une carte : l'enveloppe remplit la carte de haut en bas (rembourrage de la carte repris en rembourrage du fond). */
+.surface-card[data-surface="on"] > .fond-bloc[data-fond="on"] {
+  margin-block: calc(-1 * var(--t-space-m));
+  padding-block: var(--t-space-m);
+}
+/* Papier du site (lot 28) × fond de couleur : le fond est opaque, il cacherait le papier que la carte montre « sur elle ». Il suit donc
+   la même règle que la carte : papier « sur la carte » (choisi par la carte, ou par le site sans que la carte dise « sous ») = la tuile est
+   dessinée sur la couleur du fond, sous le texte. Un fond posé directement sur la page suit le réglage du site « papier visible sur les cartes ».
+   Même tuile, même intensité (--card-paper-opacity de la carte, sinon celle du site) ; elle repart du coin de chaque enveloppe. */
+[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"] > .fond-bloc[data-fond="on"],
+[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .fond-bloc[data-fond="on"],
+[data-kit-paper][data-kit-paper-cards] :not(.surface-card[data-surface="on"]) > .fond-bloc[data-fond="on"] {
+  position: relative;
+  isolation: isolate;
+}
+[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"] > .fond-bloc[data-fond="on"]::before,
+[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .fond-bloc[data-fond="on"]::before,
+[data-kit-paper][data-kit-paper-cards] :not(.surface-card[data-surface="on"]) > .fond-bloc[data-fond="on"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--t-kit-paper);
+  background-size: var(--t-kit-paper-size);
+  background-repeat: repeat;
+  opacity: var(--card-paper-opacity, var(--t-kit-paper-cards, 0.35));
+}
+/* Cartes de même fond qui se suivent : collées, coins et bordure du côté de la jonction supprimés (un seul bloc). */
+.surface-card[data-surface="on"][data-join-prev] {
+  margin-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top-width: 0;
+}
+.surface-card[data-surface="on"][data-join-next] {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-width: 0;
+}
+
 /* Dans une carte, l'espace du haut que se donne une section (entre sections de la page) est celui de la carte :
    le padding de la carte reste symétrique (haut = bas). Un espace choisi sur la toile (data-pt) garde la main. */
 .surface-card[data-surface="on"] > [class*="pt-[var(--section-gap)]"],
-.surface-card[data-surface="on"] > .blk:not([data-pt]) > [class*="pt-[var(--section-gap)]"] {
+.surface-card[data-surface="on"] > .blk:not([data-pt]) > [class*="pt-[var(--section-gap)]"],
+.surface-card[data-surface="on"] > .fond-bloc > [class*="pt-[var(--section-gap)]"],
+.surface-card[data-surface="on"] > .fond-bloc > .blk:not([data-pt]) > [class*="pt-[var(--section-gap)]"] {
   padding-top: 0;
 }
 /* … et le premier élément de la section n'ajoute pas sa propre marge haute (titre, paragraphe) : rien ne s'ajoute au padding. */

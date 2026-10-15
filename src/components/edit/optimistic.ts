@@ -44,7 +44,8 @@ import { EDIT_MSG, type FromCanvas } from "@/lib/edit/protocol";
 import { parseMarked } from "@/lib/marked";
 
 import { parseColor, toHex } from "@/themes/palette";
-import { cardStyle, cardVars, FALLBACK_CARD, paperAttributes, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
+import { fondAttributes, fondJoins, fondKey, fondStyle, readBackground, type Background } from "@/themes/fond";
+import { borderVars, cardStyle, cardVars, FALLBACK_CARD, paperAttributes, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
 
 import { markedNodes } from "./marked-edit";
 
@@ -529,7 +530,15 @@ export function refreshCards() {
     const surface = readSurface(parseData<unknown>(el.dataset.editSurface));
     if (!surface) continue;
     const resolved = resolveSurface(surface, parseData<ResolvedSurface>(el.dataset.cardDefault) ?? undefined);
-    for (const [k, v] of Object.entries(cardVars(cardStyle(resolved.color, palette)))) el.style.setProperty(k, v);
+    const style = cardStyle(resolved.color, palette);
+    for (const [k, v] of Object.entries({ ...cardVars(style), ...borderVars(resolved, style, palette) })) el.style.setProperty(k, v);
+  }
+  // Fonds de couleur des composants (lot 32) : même recalcul sur la palette affichée.
+  for (const el of document.querySelectorAll<HTMLElement>('.fond-bloc[data-fond="on"][data-edit-background]')) {
+    if (fondOriginal.has(el)) continue;
+    const bg = readBackground(parseData<unknown>(el.dataset.editBackground));
+    if (!bg) continue;
+    for (const [k, v] of Object.entries(fondStyle(bg, palette).vars)) el.style.setProperty(k, v);
   }
 }
 
@@ -557,7 +566,7 @@ export function surfaceState(uid: string): { surface: Surface | null; defaults: 
 
 /** État de l'enveloppe avant l'aperçu, pour le rétablir (refus, échec). */
 const surfaceOriginal = new WeakMap<Element, { attrs: Record<string, string | null>; style: string | null }>();
-const SURFACE_ATTRS = ["data-surface", "data-width", "data-corners", "data-paper"];
+const SURFACE_ATTRS = ["data-surface", "data-width", "data-corners", "data-paper", "data-border", "data-join-prev", "data-join-next"];
 
 /**
  * Carte posée (ou retirée) depuis la toile : montrée tout de suite — attributs et variables CSS de
@@ -575,14 +584,18 @@ export function previewSurface(uid: string, surface: Surface | null, seq: number
       el.removeAttribute("style");
       if (!surface) {
         el.setAttribute("data-surface", "off");
+        refreshFondJoins(uid);
         return;
       }
       const resolved = resolveSurface(surface, parseData<ResolvedSurface>(el.dataset.cardDefault) ?? undefined);
       for (const [k, v] of Object.entries(surfaceAttributes(resolved))) el.setAttribute(k, v);
-      for (const [k, v] of Object.entries(cardVars(cardStyle(resolved.color, canvasPalette())))) el.style.setProperty(k, v);
+      const palette = canvasPalette();
+      const style = cardStyle(resolved.color, palette);
+      for (const [k, v] of Object.entries({ ...cardVars(style), ...borderVars(resolved, style, palette) })) el.style.setProperty(k, v);
       const paper = paperAttributes(surface);
       for (const [k, v] of Object.entries(paper.attrs)) el.setAttribute(k, v);
       for (const [k, v] of Object.entries(paper.vars)) el.style.setProperty(k, v);
+      refreshFondJoins(uid);
     },
     clear: () => {
       const el = surfaceWrapper(uid);
@@ -595,6 +608,93 @@ export function previewSurface(uid: string, surface: Surface | null, seq: number
       }
       if (before.style === null) el.removeAttribute("style");
       else el.setAttribute("style", before.style);
+      refreshFondJoins(uid);
+    },
+  });
+}
+
+/* ---- Fond de couleur d'un composant (lot 32, src/themes/fond.ts) ------------------------------------------- */
+
+/** Enveloppe du fond d'un composant (celle de CE bloc, jamais celle d'un composant de son conteneur). */
+function fondWrapper(uid: string): HTMLElement | null {
+  const host = document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"]`);
+  return host?.querySelector<HTMLElement>(':scope > .fond-bloc, :scope > .surface-card > .fond-bloc') ?? null;
+}
+
+/** Ce composant porte-t-il une enveloppe de fond (grand composant hors cellule de grille) ? */
+export function hasFondWrapper(uid: string): boolean {
+  return fondWrapper(uid) !== null;
+}
+
+/** Fond du composant tel qu'on doit le voir (aperçu en attente, sinon page rendue). */
+export function fondState(uid: string): Background | null {
+  const pending = entries.get(`fond:${uid}`);
+  if (pending) return (pending.data as { background: Background | null }).background;
+  return readBackground(parseData(fondWrapper(uid)?.dataset.editBackground)) ?? null;
+}
+
+const fondOriginal = new WeakMap<Element, { attrs: Record<string, string | null>; style: string | null }>();
+const FOND_ATTRS = ["data-fond", "data-join-prev", "data-join-next", "data-edit-background"];
+
+/**
+ * Fusion des voisins recalculée sur la page affichée (aperçu d'un fond ou d'une carte) : mêmes règles que le serveur
+ * (`fondJoins`) mais lues dans le DOM de la toile. Les frères d'un bloc sont les enveloppes d'édition de même parent.
+ */
+export function refreshFondJoins(uid: string) {
+  const host = document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"]`);
+  const parent = host?.parentElement;
+  if (!parent) return;
+  const hosts = [...parent.children].filter((c): c is HTMLElement => c instanceof HTMLElement && c.hasAttribute("data-edit-block"));
+  const parts = hosts.map((h) => {
+    const wrap = h.querySelector<HTMLElement>(':scope > .fond-bloc, :scope > .surface-card > .fond-bloc');
+    const card = h.querySelector<HTMLElement>(':scope > .surface-card[data-surface="on"]');
+    const bg = wrap?.dataset.fond === "on" ? readBackground(parseData(wrap.dataset.editBackground)) : undefined;
+    return { wrap, card, key: fondKey(bg, Boolean(card)) };
+  });
+  const joins = fondJoins(parts.map((p) => p.key));
+  parts.forEach((p, i) => {
+    for (const el of [p.wrap, p.card]) {
+      if (!el) continue;
+      for (const a of ["data-join-prev", "data-join-next"]) el.removeAttribute(a);
+      if (joins[i].prev) el.setAttribute("data-join-prev", "");
+      if (joins[i].next) el.setAttribute("data-join-next", "");
+    }
+  });
+}
+
+/**
+ * Fond posé (ou retiré) depuis la toile : montré tout de suite (attributs et variables de l'enveloppe, fusion des voisins),
+ * gardé jusqu'à l'acquittement, rétabli si l'écriture est refusée — même principe que `previewSurface`.
+ */
+export function previewFond(uid: string, background: Background | null, seq: number) {
+  setOverlay(`fond:${uid}`, seq, {
+    data: { background },
+    apply: () => {
+      const el = fondWrapper(uid);
+      if (!el) return;
+      if (!fondOriginal.has(el)) fondOriginal.set(el, { attrs: Object.fromEntries(FOND_ATTRS.map((a) => [a, el.getAttribute(a)])), style: el.getAttribute("style") });
+      for (const a of FOND_ATTRS) el.removeAttribute(a);
+      el.removeAttribute("style");
+      if (background) el.setAttribute("data-edit-background", JSON.stringify(background));
+      if (!background) el.setAttribute("data-fond", "off");
+      else {
+        for (const [k, v] of Object.entries(fondAttributes({ prev: false, next: false }))) el.setAttribute(k, v);
+        for (const [k, v] of Object.entries(fondStyle(background, canvasPalette()).vars)) el.style.setProperty(k, v);
+      }
+      refreshFondJoins(uid);
+    },
+    clear: () => {
+      const el = fondWrapper(uid);
+      const before = el && fondOriginal.get(el);
+      if (!el || !before) return;
+      fondOriginal.delete(el);
+      for (const [a, v] of Object.entries(before.attrs)) {
+        if (v === null) el.removeAttribute(a);
+        else el.setAttribute(a, v);
+      }
+      if (before.style === null) el.removeAttribute("style");
+      else el.setAttribute("style", before.style);
+      refreshFondJoins(uid);
     },
   });
 }

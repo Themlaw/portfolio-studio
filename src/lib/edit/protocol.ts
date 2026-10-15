@@ -8,6 +8,7 @@
 import { z } from "zod";
 
 import { FIELD_OP_NAMES } from "../../blocks/optional-fields";
+import { BackgroundSchema } from "../../themes/schema";
 import { SurfaceSchema } from "../../themes/surface";
 import { LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
 import { BASE_KEYS } from "../../themes/palette";
@@ -112,6 +113,8 @@ export const FromCanvasSchema = z.union([
   // Carte de rubrique (lot 17c) : fond d'un bloc de premier niveau (null = pas de carte).
   // `continuous` : glissement de la roue ou d'un curseur (fusionné dans l'historique pendant 1,2 s) ; un clic est un pas à lui seul.
   z.object({ kind: z.literal("surface"), uid: Uid, surface: SurfaceSchema.nullable(), continuous: z.boolean().optional() }),
+  // Fond de couleur d'un composant (lot 32) : `background` de n'importe quel grand composant, de la page ou d'un conteneur (null = aucun fond).
+  z.object({ kind: z.literal("background"), uid: Uid, background: BackgroundSchema.nullable(), continuous: z.boolean().optional() }),
   // Ajout d'une rubrique depuis la toile (lot 17c) : `choose` ouvre le choix illustré de l'éditeur, les
   // autres ajoutent aussitôt un texte (bloc `rich-text` avec son texte d'aide) à cet endroit.
   z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title", "title-text"]) }),
