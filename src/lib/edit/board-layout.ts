@@ -20,7 +20,9 @@ type Json = Record<string, unknown>;
  * ou le message du premier défaut.
  */
 function parseItem(item: BoardItem): { item: BoardItem } | { error: string } {
-  if (item.type === "strip") return { item };
+  // Largeur et alignement : communs à tous les composants, jamais passés par le schéma du bloc.
+  const keep = (out: BoardItem): BoardItem => (item.box ? { ...out, box: item.box } : out);
+  if (item.type === "strip") return { item: keep(item) };
   const def = own(BLOCKS, item.type);
   if (!def) return { error: "Composant de planche inconnu." };
   const result = def.schema.safeParse(item.props);
@@ -37,17 +39,19 @@ function parseItem(item: BoardItem): { item: BoardItem } | { error: string } {
     }
     props.children = kids;
   }
-  return { item: { uid: item.uid, type: item.type, props } };
+  return { item: keep({ uid: item.uid, type: item.type, props }) };
 }
 
 /** Médias cités (images, vidéos, images d'attente) avec le genre attendu : « image », « video » ou « any » (poster). */
-function mediaWanted(item: BoardItem): { id: number; kind: "image" | "video" | "poster" }[] {
-  const out: { id: number; kind: "image" | "video" | "poster" }[] = [];
+function mediaWanted(item: BoardItem): { id: number; kind: "image" | "video" | "poster" | "any" }[] {
+  const out: { id: number; kind: "image" | "video" | "poster" | "any" }[] = [];
   const take = (type: string, props: Json) => {
     if (typeof props.mediaId === "number") out.push({ id: props.mediaId, kind: type === "video-single" ? "video" : "image" });
     if (type === "video-single" && typeof props.posterMediaId === "number") out.push({ id: props.posterMediaId, kind: "poster" });
   };
-  if (item.type === "image" || item.type === "video-single") take(item.type, item.props);
+  if (item.type === "strip" && item.props.source === "own") {
+    for (const id of (Array.isArray(item.props.media) ? item.props.media : []) as unknown[]) if (typeof id === "number") out.push({ id, kind: "any" });
+  } else if (item.type === "image" || item.type === "video-single") take(item.type, item.props);
   else if (item.type === "grid") for (const kid of (item.props.children as { type: string; props: Json }[]) ?? []) take(kid.type, kid.props);
   return out;
 }
@@ -77,6 +81,7 @@ export function checkLayout(input: unknown, opts: { complete?: boolean; allowPen
       const m = byId.get(w.id);
       if (!m || m.deletedAt) return { error: "Un média de cette planche n'existe plus : choisis-en un autre." };
       if (m.kind === "pdf") return { error: "Un PDF ne se place pas dans une planche : utilise la rubrique « CV »." };
+      if (w.kind === "any" && m.kind !== "image" && m.kind !== "video") return { error: "Un carrousel n'accepte que des images et des vidéos." };
       if (w.kind === "image" && m.kind !== "image") return { error: "Ce composant attend une image, pas une vidéo." };
       if (w.kind === "video" && m.kind !== "video") return { error: "Ce composant attend une vidéo, pas une image." };
       if (m.status === "failed") return { error: "Ce média est en échec : relance-le depuis la médiathèque avant de le placer." };

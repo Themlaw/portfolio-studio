@@ -895,7 +895,7 @@ export default function EditLayer() {
     const onClick = (e: MouseEvent) => {
       if (inLayer(e.target)) return;
       // Contenu d'une planche (lot 31) : « + Ajouter », barre d'un composant, composant (hors bande) — gérés par BoardLayer.
-      if (e.target instanceof Element && e.target.closest("[data-edit-bitem-add], [data-edit-bitem-op], [data-edit-bitem]:not([data-edit-bitem-type='strip'])")) {
+      if (e.target instanceof Element && e.target.closest("[data-edit-bitem-add], [data-edit-bitem-op], [data-edit-bitem]:not([data-edit-bitem-project])")) {
         e.preventDefault();
         e.stopPropagation();
         finishEdit(true);

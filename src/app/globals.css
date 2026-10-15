@@ -880,3 +880,16 @@
 .site-frame > main {
   flex: 1 0 auto;
 }
+
+/* Largeur et alignement d'un composant de la planche (lot 31b, BoardBox) : une colonne de --bw du cadre du site. */
+.board-box { width: var(--bw, 100%); }
+.board-box[data-align="left"] { margin-right: auto; }
+.board-box[data-align="center"] { margin-inline: auto; }
+.board-box[data-align="right"] { margin-left: auto; }
+/* Les marges de page propres au composant (cadre du site) ne s'ajoutent pas à celles de la colonne. */
+.board-box .shell { max-width: none; padding-inline: 0; }
+.board-box .strip-viewport { --rail-inset: 0px; --rail-gutter: 0px; }
+/* Téléphone : pleine largeur (une colonne d'un tiers n'y montrerait presque rien). */
+@media (max-width: 640px) {
+  .board-box { width: 100%; }
+}

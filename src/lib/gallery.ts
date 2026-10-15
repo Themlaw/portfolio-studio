@@ -10,7 +10,7 @@
  * ----------------------------------------------------------------------- */
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
-import { mediaCount, readLayout, type BoardItem } from "@/blocks/board-layout";
+import { isProjectStrip, mediaCount, readLayout, type BoardItem } from "@/blocks/board-layout";
 import type { AppLocale } from "@/i18n/routing";
 
 import { cached, TAGS } from "./cache";
@@ -449,7 +449,7 @@ export async function boardWorkCount(slug: string, collection?: string): Promise
   const project = projects.find((p) => p.slug === slug);
   if (!project) return null;
   // Les œuvres de la bande (si la planche en a une) et les images / vidéos des autres composants.
-  const strip = project.layout.some((i) => i.type === "strip")
+  const strip = project.layout.some(isProjectStrip)
     ? artworks.filter((a) => a.projectId === project.id && shown(a) && (!collection || a.collection === collection)).length
     : 0;
   return strip + mediaCount(project.layout);

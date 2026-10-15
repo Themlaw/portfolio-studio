@@ -46,7 +46,7 @@ import { markedProblem } from "@/lib/marked";
 import { own } from "@/lib/own";
 import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
-import { BOARD_ITEM_LABELS, type BoardItemType } from "@/blocks/board-layout";
+import { BOARD_ITEM_LABELS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
 import { cleanLook, cleanSiteStyles, googleOf, readLook, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 import { cleanSurface, readSurface, type Surface } from "@/themes/surface";
@@ -1413,6 +1413,8 @@ export default function VisualEditor({
         await uploadToBlock(target, files);
         return;
       }
+      // Un composant de la planche reçoit des médias de la médiathèque, pas des fichiers : à déposer d'abord dans l'onglet Médias.
+      if (target.kind === "bitem") return;
       if (target.kind === "new") {
         const created = await createProject(target.uid, "Projet sans titre");
         if (!created) return;
@@ -1462,6 +1464,9 @@ export default function VisualEditor({
       else if (target.kind === "new") {
         const created = await createProject(target.uid, "Projet sans titre");
         if (created) await boardDo(created.id, { op: "add", mediaId, index: 0 });
+      } else if (target.kind === "bitem") {
+        await itemFlushRef.current();
+        await boardDo(target.board, { op: "item-media", uid: target.uid, mediaId });
       } else if (target.kind === "slot") await boardDo(target.board, { op: "fill", key: target.key, mediaId });
       else await boardDo(target.board, { op: "add", mediaId, index: target.index, ...(target.collection ? { collection: target.collection } : {}) });
     },
@@ -1543,6 +1548,11 @@ export default function VisualEditor({
   const justDragged = useRef(false);
   const activateMedia = (m: AdminMediaRow) => {
     if (m.status === "failed" || justDragged.current) return;
+    // Un composant de la planche est choisi : Image / Vidéo remplacée, Grille et carrousel complétés.
+    if (itemSel && itemSel.type !== "rich-text" && !(itemSel.type === "strip" && itemSel.props.source !== "own") && m.status === "ready" && m.kind !== "pdf") {
+      void itemFlushRef.current().then(() => boardDo(itemSel.board, { op: "item-media", uid: itemSel.uid, mediaId: m.id }));
+      return;
+    }
     const block = selected && !selected.startsWith("site-") ? findBlock(draftRef.current.blocks, selected) : null;
     if (block && m.status === "ready" && m.kind !== "pdf") {
       const field = own(byType, block.type)?.mediaFields?.find((f) => f.kind === m.kind || (f.kind === "any" && m.kind !== "pdf"));
@@ -1588,15 +1598,17 @@ export default function VisualEditor({
   /* ---- Contenu de la planche d'un projet (lot 31) --------------------------------- */
 
   // Composant de planche dont les réglages sont ouverts dans le panneau (props = dernier état connu, saisie comprise).
-  const [itemSel, setItemSel] = useState<{ board: number; uid: string; type: BoardItemType; props: Record<string, unknown> } | null>(null);
+  const [itemSel, setItemSel] = useState<{ board: number; uid: string; type: BoardItemType; props: Record<string, unknown>; box?: BoardBoxProps } | null>(null);
+  // Composant de la palette glissé au-dessus d'une planche : où il se poserait (BoardLayer).
+  const itemDropRef = useRef<{ board: number; index: number } | null>(null);
   const itemTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const itemPending = useRef<{ board: number; uid: string; props: Record<string, unknown> } | null>(null);
+  const itemPending = useRef<{ board: number; uid: string; props?: Record<string, unknown>; box?: BoardBoxProps | null } | null>(null);
   useEffect(() => {
     itemFlushRef.current = async () => {
       clearTimeout(itemTimer.current);
       const p = itemPending.current;
       itemPending.current = null;
-      if (p) await boardDo(p.board, { op: "item-set", uid: p.uid, props: p.props });
+      if (p) await boardDo(p.board, { op: "item-set", uid: p.uid, ...(p.props ? { props: p.props } : {}), ...(p.box !== undefined ? { box: p.box } : {}) });
     };
   });
   /** Après une écriture ou un retour en arrière : le panneau suit l'état écrit (ou se ferme si le composant a disparu). */
@@ -1604,7 +1616,7 @@ export default function VisualEditor({
     setItemSel((cur) => {
       if (!cur || cur.board !== snap.projectId) return cur;
       const item = snap.layout.find((i) => i.uid === cur.uid);
-      return item ? { ...cur, type: item.type, props: itemPending.current ? cur.props : item.props } : null;
+      return item ? { ...cur, type: item.type, props: itemPending.current ? cur.props : item.props, box: itemPending.current ? cur.box : item.box } : null;
     });
   };
   const syncItemRef = useRef(syncItem);
@@ -1612,19 +1624,19 @@ export default function VisualEditor({
     syncItemRef.current = syncItem;
   });
 
-  const itemAdd = async (board: number, type: BoardItemType, index: number) => {
+  const itemAdd = async (board: number, type: BoardItemType, index: number, source?: "project") => {
     await itemFlushRef.current();
-    const r = await boardDo(board, { op: "item-add", type, index });
+    const r = await boardDo(board, { op: "item-add", type, index, ...(source ? { source } : {}) });
     if (!r) return;
     const added = r.after.layout[index];
-    if (added && added.type !== "strip") {
+    if (added && !(added.type === "strip" && added.props.source !== "own")) {
       setSelected(null);
       send({ kind: "select", uid: null });
-      setItemSel({ board, uid: added.uid, type: added.type, props: added.props });
+      setItemSel({ board, uid: added.uid, type: added.type, props: added.props, ...(added.box ? { box: added.box } : {}) });
       setTab("reglages");
       if (mobile) setSheet(true);
     }
-    toast(`« ${BOARD_ITEM_LABELS[type]} » ajouté`, "success", { label: "Défaire", run: () => undoRef.current() });
+    toast(`« ${source ? "Images du projet" : BOARD_ITEM_LABELS[type]} » ajouté`, "success", { label: "Défaire", run: () => undoRef.current() });
   };
   const itemOp = async (board: number, uid: string, op: "up" | "down" | "remove") => {
     await itemFlushRef.current();
@@ -1634,28 +1646,36 @@ export default function VisualEditor({
   const itemSelect = (board: number, uid: string, type: BoardItemType, props: string) => {
     void itemFlushRef.current();
     let parsed: Record<string, unknown> = {};
+    let box: BoardBoxProps | undefined;
     try {
-      const v = JSON.parse(props);
-      if (v && typeof v === "object" && !Array.isArray(v)) parsed = v;
+      const v = JSON.parse(props) as { props?: unknown; box?: BoardBoxProps };
+      if (v && typeof v === "object" && v.props && typeof v.props === "object" && !Array.isArray(v.props)) parsed = v.props as Record<string, unknown>;
+      if (v?.box && typeof v.box === "object") box = v.box;
     } catch {}
     setSelected(null);
     send({ kind: "select", uid: null });
-    setItemSel({ board, uid, type, props: parsed });
+    setItemSel({ board, uid, type, props: parsed, ...(box ? { box } : {}) });
     setTab("reglages");
     if (mobile) setSheet(true);
   };
-  const itemProps = (next: Record<string, unknown>) => {
-    setItemSel((cur) => (cur ? { ...cur, props: next } : cur));
+  /** Réglages du composant (contenu : `props` ; largeur et alignement : `box`, null = rendu d'avant) : une écriture après 600 ms de calme. */
+  const itemChange = (patch: { props?: Record<string, unknown>; box?: BoardBoxProps | null }) => {
     const cur = itemSel;
     if (!cur) return;
-    itemPending.current = { board: cur.board, uid: cur.uid, props: next };
+    setItemSel({ ...cur, ...(patch.props ? { props: patch.props } : {}), ...(patch.box !== undefined ? { box: patch.box ?? undefined } : {}) });
+    itemPending.current = { board: cur.board, uid: cur.uid, ...(itemPending.current?.props ? { props: itemPending.current.props } : {}), ...(itemPending.current?.box !== undefined ? { box: itemPending.current.box } : {}), ...patch };
     clearTimeout(itemTimer.current);
-    itemTimer.current = setTimeout(() => void itemFlushRef.current().then(() => itemSel && setItemSel((c) => c)), 600);
+    itemTimer.current = setTimeout(() => void itemFlushRef.current(), 600);
+  };
+  /** Déplacer un composant à un rang (glisser par la poignée). */
+  const itemTo = async (board: number, uid: string, index: number) => {
+    await itemFlushRef.current();
+    await boardDo(board, { op: "item-to", uid, index });
   };
 
-  const handlers = useRef({ itemAdd, itemOp, itemSelect, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook });
+  const handlers = useRef({ itemAdd, itemOp, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook });
   useEffect(() => {
-    handlers.current = { itemAdd, itemOp, itemSelect, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook };
+    handlers.current = { itemAdd, itemOp, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -1717,7 +1737,13 @@ export default function VisualEditor({
           void h.slotOp(msg.board, msg.key, msg.op);
           break;
         case "bitem-add":
-          void h.itemAdd(msg.board, msg.item, msg.index);
+          void h.itemAdd(msg.board, msg.item, msg.index, msg.source);
+          break;
+        case "bitem-drop":
+          itemDropRef.current = msg.board ? { board: msg.board, index: msg.index } : null;
+          break;
+        case "bitem-to":
+          void h.itemTo(msg.board, msg.uid, msg.index);
           break;
         case "bitem-op":
           void h.itemOp(msg.board, msg.uid, msg.op);
@@ -1886,6 +1912,7 @@ export default function VisualEditor({
         dragging = true;
         card.setPointerCapture(ev.pointerId);
         dropIndexRef.current = null;
+        itemDropRef.current = null;
         // Pas de sélection de texte du navigateur pendant le glisser.
         noSelection(true);
       }
@@ -1895,6 +1922,7 @@ export default function VisualEditor({
       if (over && r) send({ kind: "drag", x: ev.clientX - r.left, y: ev.clientY - r.top, label: entry.label, blockType: entry.type, nesting: nestingOfEntry(entry) });
       else if (dropIndexRef.current !== null || dropRefused) {
         dropIndexRef.current = null;
+        itemDropRef.current = null;
         setDropIndex(null);
         setDropRefused(false);
         send({ kind: "drag-end" });
@@ -1910,12 +1938,19 @@ export default function VisualEditor({
       card.dataset.dragged = "1";
       setTimeout(() => delete card.dataset.dragged, 0);
       const place = dropIndexRef.current;
+      // Au-dessus d'une planche : le composant se pose DANS la planche (entre ses composants), jamais dans la page.
+      const intoBoard = itemDropRef.current;
+      itemDropRef.current = null;
       setPaletteDrag(null);
       setDropIndex(null);
       setDropRefused(false);
       dropIndexRef.current = null;
       noSelection(false);
       send({ kind: "drag-end" });
+      if (commit && intoBoard) {
+        void itemAdd(intoBoard.board, entry.type === "board-strip" ? "strip" : (entry.type as BoardItemType), intoBoard.index);
+        return;
+      }
       if (commit && place !== null) {
         if (starter) insertStarter(starter, place);
         else insert(entry.key, place);
@@ -2225,6 +2260,31 @@ export default function VisualEditor({
                     })}
                   </ul>
                 )}
+                {g.id === "media" && !addQuery.trim() && (
+                  // Lot 31b : le carrousel n'existe que dans une planche de projet : il se glisse entre ses composants.
+                  <ul className="ve-palette">
+                    <li>
+                      <button
+                        type="button"
+                        className="ve-card"
+                        data-type="board-strip"
+                        data-key="board-strip"
+                        data-dragging={paletteDrag?.type === "board-strip" || undefined}
+                        onPointerDown={(e) => onPaletteDown(e, { key: "board-strip", type: "board-strip", label: "Images qui défilent" })}
+                        onClick={(e) => {
+                          if (e.currentTarget.dataset.dragged) return;
+                          toast("Glisse « Images qui défilent » dans une planche de projet, ou utilise son « + Ajouter ».");
+                        }}
+                      >
+                        <BlockThumb type="image" preset="board-strip" />
+                        <span>
+                          <strong>Images qui défilent</strong>
+                          <span className="ve-card-desc">Un carrousel d&apos;images et de vidéos de ta médiathèque, dans une planche de projet.</span>
+                        </span>
+                      </button>
+                    </li>
+                  </ul>
+                )}
               </section>
             ))}
           </>
@@ -2320,12 +2380,14 @@ export default function VisualEditor({
           ))}
 
         {tab === "reglages" &&
-          (itemSel && itemSel.type !== "strip" ? (
+          (itemSel ? (
             <BoardItemPanel
               type={itemSel.type}
               uid={itemSel.uid}
               props={itemSel.props}
-              onChange={itemProps}
+              box={itemSel.box}
+              onChange={(props) => itemChange({ props })}
+              onBox={(box) => itemChange({ box })}
               context={editorContext}
               editor={own(editors, itemSel.type)}
               head={

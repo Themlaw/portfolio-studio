@@ -39,7 +39,7 @@ import { useDismiss } from "./edit/useDismiss";
 
 type Rect = { top: number; left: number; width: number; height: number };
 type SlotRef = { board: number; key: string; empty: boolean };
-type Marker = { kind: "cursor"; rect: Rect } | { kind: "slot"; rect: Rect } | { kind: "new"; rect: Rect } | { kind: "media"; rect: Rect };
+type Marker = { kind: "item"; rect: Rect } | { kind: "cursor"; rect: Rect } | { kind: "slot"; rect: Rect } | { kind: "new"; rect: Rect } | { kind: "media"; rect: Rect };
 type MediaRef = { uid: string; field: "mediaId" | "backgroundMediaId" | "portraitMediaId"; kind: string; empty: boolean };
 const MEDIA_FIELDS = ["mediaId", "backgroundMediaId", "portraitMediaId"] as const;
 const COLLECTIONS = ["characters", "backgrounds", "animation"] as const;
@@ -72,6 +72,44 @@ function boxOf(el: Element): Rect | null {
 
 const slotEls = (rail: Element) => [...rail.querySelectorAll<HTMLElement>(":scope > [data-edit-slot]")];
 const boardEl = (board: number) => document.querySelector<HTMLElement>(`[data-edit-board="${board}"]`);
+/** Ce que la palette peut déposer dans une planche (lot 31b) : mêmes composants que le menu « + Ajouter ». */
+const BOARD_DROP = ["grid", "image", "video-single", "rich-text", "board-strip"];
+
+const itemFrames = (board: Element) => [...board.querySelectorAll<HTMLElement>("[data-edit-bitem]")];
+
+/** Rang d'insertion parmi les composants d'une planche selon y (fenêtre) : nombre de composants dont le milieu est au-dessus. */
+function itemIndexAt(frames: HTMLElement[], y: number): number {
+  let n = 0;
+  for (const f of frames) {
+    const b = viewBox(f);
+    if (b && (b.top + b.bottom) / 2 < y) n++;
+  }
+  return n;
+}
+
+/** Trait de dépôt avant le composant n° `index` (ou sous le dernier), en coordonnées du document. */
+function itemLine(board: Element, frames: HTMLElement[], index: number): Rect | null {
+  const host = board.querySelector("[data-edit-bitems]");
+  const hb = host ? boxOf(host) : null;
+  if (!hb) return null;
+  const at = index < frames.length ? boxOf(frames[index]) : frames.length ? boxOf(frames[frames.length - 1]) : null;
+  const top = at ? (index < frames.length ? at.top : at.top + at.height) : hb.top;
+  return { top, left: hb.left, width: hb.width, height: 0 };
+}
+
+/** Planche sous le point (fenêtre) qui reçoit un composant de la palette de ce type, avec son rang d'insertion. */
+function paletteDropAt(x: number, y: number, type: string | undefined): { board: number; index: number; rect: Rect } | null {
+  if (!type || !BOARD_DROP.includes(type)) return null;
+  const el = document.elementsFromPoint(x, y).find((e) => !e.closest(".pe-layer"));
+  const board = el?.closest<HTMLElement>("[data-edit-board]");
+  if (!board || !board.querySelector("[data-edit-bitems]")) return null;
+  const frames = itemFrames(board);
+  const index = itemIndexAt(frames, y);
+  const rect = itemLine(board, frames, index);
+  const id = Number(board.dataset.editBoard);
+  return rect && id ? { board: id, index, rect } : null;
+}
+
 const boardOf = (el: Element | null) => el?.closest<HTMLElement>("[data-edit-board]") ?? null;
 const slotRefOf = (el: HTMLElement): SlotRef | null => {
   const board = Number(boardOf(el)?.dataset.editBoard);
@@ -128,7 +166,7 @@ function mediaRefOf(el: Element | null): { ref: MediaRef; el: HTMLElement } | nu
 }
 
 /** Cible de dépôt sous le point (fenêtre). */
-function dropTargetAt(x: number, y: number): { target: DropTargetInfo; marker: Marker } | null {
+function dropTargetAt(x: number, y: number, items = false): { target: DropTargetInfo; marker: Marker } | null {
   // Sous le point : la page (le calque d'édition est ignoré, sauf le panneau d'une planche neuve).
   const el = document.elementsFromPoint(x, y).find((e) => !e.closest(".pe-layer") || e.closest("[data-new-board-uid]"));
   if (!el) return null;
@@ -143,6 +181,15 @@ function dropTargetAt(x: number, y: number): { target: DropTargetInfo; marker: M
   if (cell && gridUid) {
     const box = boxOf(cell);
     return box ? { target: { kind: "cell", uid: gridUid }, marker: { kind: "media", rect: box } } : null;
+  }
+  // Lot 31b : un composant de la planche (autre que la bande du projet) reçoit un média de la médiathèque :
+  // une Image / une Vidéo le remplace, une Grille ou un carrousel l'ajoute.
+  const frame = items ? el.closest<HTMLElement>("[data-edit-bitem]:not([data-edit-bitem-project])") : null;
+  if (frame) {
+    const board = Number(frame.dataset.board);
+    const uid = frame.dataset.editBitem;
+    const box = boxOf(frame);
+    if (board && uid && box && frame.dataset.editBitemType !== "rich-text") return { target: { kind: "bitem", board, uid }, marker: { kind: "media", rect: box } };
   }
   const media = mediaRefOf(el);
   if (media && !el.closest("[data-edit-board]")) {
@@ -220,6 +267,7 @@ export default function BoardLayer({
   const hintTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [hoverMedia, setHoverMedia] = useState<MediaRef | null>(null);
   const ghostsRef = useRef<Ghost[]>([]);
+  const lastItemDrop = useRef("");
   const pendingFocus = useRef<string | null>(null);
   const textRef = useRef<TextEdit | null>(null);
   // « Ajouter des images » : champ fichier de la couche, et planche visée.
@@ -251,11 +299,23 @@ export default function BoardLayer({
           } catch {}
         }
         setDragActive(true);
-        const hit = dropTargetAt(msg.x, msg.y);
+        const hit = dropTargetAt(msg.x, msg.y, true);
         setMarker(hit?.marker ?? null);
         post({ kind: "drop-target", target: hit?.target ?? null });
         autoScroll(msg.x, msg.y);
+      } else if (msg.kind === "drag" && msg.blockType) {
+        // Composant glissé depuis « Ajouter » : au-dessus d'une planche, il se pose entre ses composants (même repère que la page).
+        const hit = paletteDropAt(msg.x, msg.y, msg.blockType);
+        document.documentElement.toggleAttribute("data-board-drop", Boolean(hit));
+        setMarker(hit ? { kind: "item", rect: hit.rect } : null);
+        const sig = hit ? `${hit.board}:${hit.index}` : "";
+        if (sig !== lastItemDrop.current) {
+          lastItemDrop.current = sig;
+          post({ kind: "bitem-drop", board: hit?.board ?? null, index: hit?.index ?? 0 });
+        }
       } else if (msg.kind === "drag-end") {
+        document.documentElement.removeAttribute("data-board-drop");
+        lastItemDrop.current = "";
         document.documentElement.removeAttribute("data-edit-dragging");
         setMarker(null);
         setDragActive(false);
@@ -417,6 +477,26 @@ export default function BoardLayer({
     let dragging: { ref: SlotRef; rail: Element; index: number } | null = null;
 
     const onMove = (e: PointerEvent) => {
+      if (itemDrag) {
+        if (!itemDrag.active && Math.hypot(e.clientX - itemDrag.x, e.clientY - itemDrag.y) > 6) {
+          itemDrag.active = true;
+          document.documentElement.setAttribute("data-edit-dragging", "");
+          try {
+            window.getSelection()?.removeAllRanges();
+          } catch {}
+        }
+        if (itemDrag.active) {
+          const board = boardEl(itemDrag.board);
+          if (board) {
+            const frames = itemFrames(board);
+            itemDrag.index = itemIndexAt(frames, e.clientY);
+            const rect = itemLine(board, frames, itemDrag.index);
+            setMarker(rect ? { kind: "item", rect } : null);
+          }
+          autoScroll(e.clientX, e.clientY);
+        }
+        return;
+      }
       if (inLayer(e.target)) {
         // Sur l'indicateur lui-même : il reste (le lien « Voir le projet » est cliquable).
         if (e.target instanceof Element && e.target.closest(".pe-project-hint")) clearTimeout(hintTimer.current);
@@ -468,7 +548,21 @@ export default function BoardLayer({
       const media = e.target instanceof Element && !slot ? mediaRefOf(e.target) : null;
       setHoverMedia((h) => (media ? (h && h.uid === media.ref.uid && h.field === media.ref.field && h.empty === media.ref.empty ? h : media.ref) : null));
     };
+    // Réordonner les composants de la planche : glisser la poignée de leur barre (lot 31b).
+    let itemDrag: { board: number; uid: string; from: number; index: number; x: number; y: number; active: boolean } | null = null;
     const onDown = (e: PointerEvent) => {
+      const handle = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-edit-bitem-handle]") : null;
+      if (handle && e.button === 0 && e.pointerType !== "touch") {
+        const board = Number(handle.dataset.board);
+        const uid = handle.dataset.editBitemHandle ?? "";
+        const frames = itemFrames(boardEl(board) ?? document.body);
+        const from = frames.findIndex((f) => f.dataset.editBitem === uid);
+        if (board && uid && from >= 0) {
+          e.preventDefault();
+          itemDrag = { board, uid, from, index: from, x: e.clientX, y: e.clientY, active: false };
+        }
+        return;
+      }
       if (e.button !== 0 || inLayer(e.target) || isTyping(e.target)) return;
       const slot = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-edit-slot]") : null;
       const ref = slot && slotRefOf(slot);
@@ -476,6 +570,27 @@ export default function BoardLayer({
       pressed = { el: slot, ref, x: e.clientX, y: e.clientY, id: e.pointerId };
     };
     const onUp = () => {
+      if (itemDrag) {
+        const d = itemDrag;
+        itemDrag = null;
+        if (d.active) {
+          document.documentElement.removeAttribute("data-edit-dragging");
+          setMarker(null);
+          // Même place (avant ou après lui-même) : rien à faire.
+          if (d.index !== d.from && d.index !== d.from + 1) {
+            post({ kind: "bitem-to", board: d.board, uid: d.uid, index: d.index });
+            announce("Composant déplacé.");
+          }
+          // Le clic qui suit un glisser ne sélectionne rien.
+          const swallow = (ev: MouseEvent) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+          };
+          document.addEventListener("click", swallow, { capture: true, once: true });
+          setTimeout(() => document.removeEventListener("click", swallow, { capture: true }), 0);
+        }
+        return;
+      }
       if (dragging) {
         const { ref, index } = dragging;
         const els = slotEls(dragging.rail);
@@ -514,7 +629,7 @@ export default function BoardLayer({
           index: Number(itemAdd.dataset.editBitemAdd),
           top: r.bottom + window.scrollY + 4,
           left: Math.max(8, Math.min(r.left + window.scrollX, window.scrollX + window.innerWidth - 300)),
-          hasStrip: frames.some((f) => f.dataset.editBitemType === "strip"),
+          hasStrip: frames.some((f) => f.hasAttribute("data-edit-bitem-project")),
           count: frames.length,
         });
         return;
@@ -535,7 +650,7 @@ export default function BoardLayer({
         return;
       }
       // Un composant autre que la bande : un clic le choisit (ses réglages s'ouvrent dans le panneau).
-      if (itemFrame && itemFrame.dataset.editBitemType !== "strip") {
+      if (itemFrame && !itemFrame.hasAttribute("data-edit-bitem-project")) {
         e.preventDefault();
         e.stopPropagation();
         selectItem(itemFrame);
@@ -876,7 +991,12 @@ export default function BoardLayer({
         );
       })}
 
-      {marker && (
+      {marker?.kind === "item" && (
+        <div className="pe-marker pe-marker-board" style={{ top: marker.rect.top, left: marker.rect.left, width: marker.rect.width }} aria-hidden="true">
+          <span>Déposer ici</span>
+        </div>
+      )}
+      {marker && marker.kind !== "item" && (
         <div
           className={`pe-drop pe-drop-${marker.kind}`}
           aria-hidden="true"
@@ -946,9 +1066,9 @@ export default function BoardLayer({
         <BoardAddMenu
           {...addMenu}
           onClose={() => setAddMenu(null)}
-          onPick={(type) => {
-            post({ kind: "bitem-add", board: addMenu.board, item: type, index: addMenu.index });
-            announce(`${BOARD_ITEM_LABELS[type]} ajouté.`);
+          onPick={(type, source) => {
+            post({ kind: "bitem-add", board: addMenu.board, item: type, index: addMenu.index, ...(source ? { source } : {}) });
+            announce(`${source ? "Images du projet" : BOARD_ITEM_LABELS[type]} ajouté.`);
             setAddMenu(null);
           }}
         />
@@ -962,7 +1082,7 @@ export default function BoardLayer({
  * Menu court des composants permis dans une planche (« + Ajouter ») : cinq choix, clavier compris (flèches,
  * Entrée, Échap). La bande d'images se grise quand la planche en a déjà une, tout se grise quand elle est pleine.
  */
-function BoardAddMenu({ top, left, hasStrip, count, onPick, onClose }: { board: number; index: number; top: number; left: number; hasStrip: boolean; count: number; onPick: (type: BoardItemType) => void; onClose: () => void }) {
+function BoardAddMenu({ top, left, hasStrip, count, onPick, onClose }: { board: number; index: number; top: number; left: number; hasStrip: boolean; count: number; onPick: (type: BoardItemType, source?: "project") => void; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, onClose);
   const full = count >= MAX_BOARD_ITEMS;
@@ -979,15 +1099,19 @@ function BoardAddMenu({ top, left, hasStrip, count, onPick, onClose }: { board: 
   };
   return (
     <div ref={ref} className="pe-layouts pe-bitem-menu" role="menu" aria-label="Ajouter un composant à la planche" style={{ top, left, right: "auto" }} onKeyDown={onKeyDown}>
-      {BOARD_ITEM_TYPES.map((type) => {
-        const off = full || (type === "strip" && hasStrip);
-        return (
-          <button key={type} type="button" role="menuitem" disabled={off} onClick={() => onPick(type)} data-bitem-type={type}>
-            <strong>{BOARD_ITEM_LABELS[type]}</strong>
-            <small>{full ? `${MAX_BOARD_ITEMS} composants au plus.` : type === "strip" && hasStrip ? "Déjà dans cette planche." : BOARD_ITEM_HINTS[type]}</small>
-          </button>
-        );
-      })}
+      {BOARD_ITEM_TYPES.map((type) => (
+        <button key={type} type="button" role="menuitem" disabled={full} onClick={() => onPick(type)} data-bitem-type={type}>
+          <strong>{BOARD_ITEM_LABELS[type]}</strong>
+          <small>{full ? `${MAX_BOARD_ITEMS} composants au plus.` : type === "strip" ? "Un carrousel avec ses propres images, choisies dans la médiathèque." : BOARD_ITEM_HINTS[type]}</small>
+        </button>
+      ))}
+      {/* La bande d'origine (les images du projet) : proposée si elle a été retirée. */}
+      {!hasStrip && (
+        <button type="button" role="menuitem" disabled={full} onClick={() => onPick("strip", "project")} data-bitem-type="strip" data-bitem-source="project">
+          <strong>Images du projet</strong>
+          <small>La bande des images du projet (légendes, recadrage).</small>
+        </button>
+      )}
     </div>
   );
 }

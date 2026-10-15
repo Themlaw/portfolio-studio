@@ -89,9 +89,9 @@ await test("brouillon : ajouter une grille, retirer la bande, réordonner → su
   assert.equal(p.draftLayoutPageId, page);
   assert.deepEqual(p.layout, defaultLayout().length ? p.layout : null);
   assert.ok(!JSON.stringify(p.layout ?? "").includes("g1"), "version publiée intacte");
-  // Bande en double refusée.
-  assert.equal(boardOp(page, P.id, { op: "item-add", type: "strip", index: 0 }, rev(page)).ok, true, "bande retirée : on peut la remettre");
-  assert.equal(boardOp(page, P.id, { op: "item-add", type: "strip", index: 0 }, rev(page)).ok, false, "mais pas deux");
+  // Bande des images du projet : une seule (les carrousels à liste propre, eux, se multiplient : voir plus bas).
+  assert.equal(boardOp(page, P.id, { op: "item-add", type: "strip", index: 0, source: "project" }, rev(page)).ok, true, "bande du projet retirée : on peut la remettre");
+  assert.equal(boardOp(page, P.id, { op: "item-add", type: "strip", index: 0, source: "project" }, rev(page)).ok, false, "mais pas deux");
   discardDraft(page, rev(page));
   assert.equal(row(P.id).draftLayoutPageId, null);
   assert.equal(row(P.id).draftLayout, null);
@@ -158,6 +158,75 @@ await test("références : un média posé dans une grille de planche est « uti
   const after = (mediaUsagesByMedia().get(m) ?? []).filter((u) => u.kind === "layout");
   assert.equal(after.length, 1);
   assert.equal(after[0].draftPageId, undefined);
+});
+
+/* ---- Lot 31b : carrousels à liste propre, largeur / alignement, médias déposés, réordonnancement ---- */
+
+await test("31b schéma : plusieurs carrousels à liste propre, une seule bande du projet, largeur 20–100 et alignement contrôlés", () => {
+  const own = (uid, media = []) => ({ uid, type: "strip", props: { source: "own", media } });
+  assert.equal(layoutProblem([own("a"), own("b"), { uid: "p", type: "strip", props: {} }]), null, "deux carrousels propres + la bande du projet");
+  assert.ok(layoutProblem([{ uid: "p", type: "strip", props: {} }, { uid: "q", type: "strip", props: {} }]), "deux bandes du projet refusées");
+  assert.ok(layoutProblem([own("a", ["x"])]), "médias : entiers");
+  assert.ok(layoutProblem([{ ...own("a"), box: { width: 10 } }]), "largeur < 20 refusée");
+  assert.ok(layoutProblem([{ ...own("a"), box: { width: 50, align: "haut" } }]), "alignement inconnu");
+  assert.ok(layoutProblem([{ ...own("a"), box: { width: 50, couleur: 1 } }]), "clé inconnue");
+  assert.equal(layoutProblem([{ ...own("a"), box: { width: 50, align: "right" } }]), null);
+  assert.deepEqual(layoutMediaIds([own("a", [3, 4])]), [3, 4]);
+});
+
+await test("31b : deux carrousels aux images différentes, média déposé (Image : remplace ; Grille, carrousel : ajoutent), réordonner, largeur", () => {
+  const page = newPage("t31g");
+  withBoard(page, Q);
+  const [m1, m2] = [media[0].id, media[1].id];
+  assert.equal(boardOp(page, Q.id, { op: "item-add", type: "strip", index: 1, uid: "r1" }, rev(page)).ok, true);
+  assert.equal(boardOp(page, Q.id, { op: "item-add", type: "strip", index: 2, uid: "r2" }, rev(page)).ok, true, "un 2e carrousel");
+  assert.equal(boardOp(page, Q.id, { op: "item-add", type: "strip", index: 0, source: "project" }, rev(page)).ok, false, "la bande du projet est déjà là");
+  assert.equal(boardOp(page, Q.id, { op: "item-media", uid: "r1", mediaId: m1 }, rev(page)).ok, true);
+  assert.equal(boardOp(page, Q.id, { op: "item-media", uid: "r2", mediaId: m2 }, rev(page)).ok, true);
+  assert.equal(boardOp(page, Q.id, { op: "item-media", uid: "r2", mediaId: m1 }, rev(page)).ok, true);
+  let snap = readBoard(page, Q.id);
+  assert.deepEqual(snap.layout.find((i) => i.uid === "r1").props.media, [m1]);
+  assert.deepEqual(snap.layout.find((i) => i.uid === "r2").props.media, [m2, m1], "images différentes d'un carrousel à l'autre");
+  assert.equal(boardOp(page, Q.id, { op: "item-media", uid: "strip", mediaId: m1 }, rev(page)).ok, false, "la bande du projet ne reçoit pas de média par ici");
+  // Image : remplace ; Grille : ajoute.
+  boardOp(page, Q.id, { op: "item-add", type: "image", index: 3, uid: "im" }, rev(page));
+  boardOp(page, Q.id, { op: "item-media", uid: "im", mediaId: m1 }, rev(page));
+  boardOp(page, Q.id, { op: "item-media", uid: "im", mediaId: m2 }, rev(page));
+  assert.equal(readBoard(page, Q.id).layout.find((i) => i.uid === "im").props.mediaId, m2, "Image : remplacée");
+  boardOp(page, Q.id, { op: "item-add", type: "grid", index: 4, uid: "gd" }, rev(page));
+  boardOp(page, Q.id, { op: "item-media", uid: "gd", mediaId: m1 }, rev(page));
+  boardOp(page, Q.id, { op: "item-media", uid: "gd", mediaId: m2 }, rev(page));
+  assert.equal(readBoard(page, Q.id).layout.find((i) => i.uid === "gd").props.children.length, 2, "Grille : ajoutés");
+  assert.equal(boardOp(page, Q.id, { op: "item-add", type: "rich-text", index: 5, uid: "tx" }, rev(page)).ok, true);
+  assert.equal(boardOp(page, Q.id, { op: "item-media", uid: "tx", mediaId: m1 }, rev(page)).ok, false, "un texte n'accepte pas d'image");
+  // Réordonner par rang (glisser).
+  const order = () => readBoard(page, Q.id).layout.map((i) => i.uid).join();
+  assert.equal(boardOp(page, Q.id, { op: "item-to", uid: "gd", index: 0 }, rev(page)).ok, true);
+  assert.equal(order().split(",")[0], "gd");
+  assert.equal(boardOp(page, Q.id, { op: "item-to", uid: "gd", index: 99 }, rev(page)).ok, false, "rang hors bornes refusé");
+  // Largeur et alignement : commun à tous les types, effaçable.
+  for (const uid of ["r1", "im", "gd", "tx", "strip"]) {
+    const r = boardOp(page, Q.id, { op: "item-set", uid, box: { width: 50, align: "right" } }, rev(page));
+    assert.equal(r.ok, true, `${uid} : ${JSON.stringify(r)}`);
+  }
+  assert.deepEqual(readBoard(page, Q.id).layout.find((i) => i.uid === "gd").box, { width: 50, align: "right" });
+  assert.equal(boardOp(page, Q.id, { op: "item-set", uid: "gd", box: { width: 10 } }, rev(page)).ok, false);
+  boardOp(page, Q.id, { op: "item-set", uid: "gd", box: null }, rev(page));
+  assert.equal(readBoard(page, Q.id).layout.find((i) => i.uid === "gd").box, undefined, "réglage effacé : rendu d'avant");
+  // Références : médias des carrousels comptés.
+  const uses = (mediaUsagesByMedia().get(m1) ?? []).filter((u) => u.kind === "layout" && u.projectId === Q.id);
+  assert.equal(uses.length, 1);
+  // Publication : un carrousel vide est refusé, rempli il est publié avec sa largeur.
+  boardOp(page, Q.id, { op: "item-add", type: "strip", index: 0, uid: "vide" }, rev(page));
+  assert.equal(publishDraft(page, rev(page)).ok, false, "carrousel vide");
+  boardOp(page, Q.id, { op: "item-remove", uid: "vide" }, rev(page));
+  boardOp(page, Q.id, { op: "item-set", uid: "tx", props: { paragraphs: [{ fr: "Un mot", en: "A word" }] } }, rev(page));
+  const pub = publishDraft(page, rev(page));
+  assert.equal(pub.ok, true, JSON.stringify(pub));
+  snap = readBoard(page, Q.id);
+  assert.deepEqual(snap.layout.find((i) => i.uid === "r2").props.media, [m2, m1]);
+  assert.deepEqual(snap.layout.find((i) => i.uid === "tx").box, { width: 50, align: "right" });
+  assert.deepEqual(row(Q.id).layout.find((i) => i.uid === "strip"), { uid: "strip", type: "strip", props: {}, box: { width: 50, align: "right" } }, "la bande d'origine reste celle du projet (props vides)");
 });
 
 console.log(`${passed} tests OK`);
