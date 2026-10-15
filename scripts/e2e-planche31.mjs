@@ -341,8 +341,9 @@ try {
   ok("J1 publié (brouillon vidé)", await waitFor(() => project().draft_layout === null && JSON.stringify(publicTypes()).includes("video-single")), JSON.stringify(project()).slice(0, 300));
   await sleep(2000);
   // Public : largeur et alignement mesurés sur la vraie page.
-  const pub = await ctx.newPage();
-  await pub.setViewportSize({ width: 1440, height: 900 });
+  // Public NON connecté : un contexte neuf, sans cookie (ni session admin, ni vue brouillon).
+  const pubCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const pub = await pubCtx.newPage();
   await pub.goto(`${BASE}/fr`, { waitUntil: "networkidle" });
   const measure = (uidSel) =>
     pub.evaluate((sel) => {
@@ -366,6 +367,10 @@ try {
   ok("J4 public : Vidéo Moyenne alignée à droite (50 %)", rows.filter((r) => r.align === "right" && near(r.ratio, 0.5) && r.right).length >= 2, JSON.stringify(rows.map((r) => [r.align, r.ratio.toFixed(2), r.right])));
   ok("J5 public : Image Petite à gauche (33 %)", rows.some((r) => r.align === "left" && near(r.ratio, 0.33) && r.left), JSON.stringify(rows.map((r) => [r.align, r.ratio.toFixed(2), r.left])));
   ok("J6 public : carrousel Grande centré (67 %), le défilement tient dans la colonne", rows.some((r) => r.align === "center" && near(r.ratio, 0.67) && r.centered), JSON.stringify(rows.map((r) => [r.align, r.ratio.toFixed(2), r.centered])));
+  // L'en-tête du site est collant : une capture de l'élément le reprend au milieu. On le vérifie, puis on le masque pour la capture.
+  const headerPos = await pub.evaluate(() => getComputedStyle(document.querySelector("header.site-header, .site-header") ?? document.body).position);
+  ok("J6g l'en-tête du site est collant (sticky / fixed) : il n'apparaît au milieu d'une capture qu'à cause d'elle", ["sticky", "fixed"].includes(headerPos), headerPos);
+  await pub.addStyleTag({ content: ".site-header{visibility:hidden !important}" });
   await pub.locator(`[aria-labelledby="project-${PROJECT.slug}"]`).screenshot({ path: path.join(SHOTS, "7-public-largeurs.png") }).catch(() => {});
   // Téléphone : les colonnes reprennent toute la largeur.
   await pub.setViewportSize({ width: 390, height: 800 });
@@ -380,7 +385,26 @@ try {
     });
   }, PROJECT.slug);
   await pub.locator(`[aria-labelledby="project-${PROJECT.slug}"]`).screenshot({ path: path.join(SHOTS, "8-public-telephone.png") }).catch(() => {});
-  ok("J6b aperçu (hors édition) : aucun « + Ajouter » ni barre visibles", (await pub.locator(".pe-bitem-add:visible, .pe-bitem-bar:visible").count()) === 0);
+  const CONTROLS = ".pe-bitem-add, .pe-bitem-bar, .pe-bitem-empty, [data-edit-bitem-handle], [data-edit-bitem-op], [data-edit-bitem-add], [data-edit-bitem]";
+  ok("J6b public non connecté : aucune commande d'édition dans le DOM", (await pub.locator(CONTROLS).count()) === 0 && !(await pub.content()).includes("data-edit-bitem") && !(await pub.content()).includes("pe-bitem"), `${await pub.locator(CONTROLS).count()} éléments ; ${((await pub.content()).match(/data-edit-[a-z-]+/g) ?? []).slice(0, 4).join(",")}`);
+  // Aperçu, connecté (page de brouillon ouverte hors de la toile, brouillon visible) : rien non plus dans le DOM.
+  const apercu = await ctx.newPage();
+  // Le cookie de vue brouillon a été posé par l'éditeur (même contexte) : /fr s'ouvre en brouillon visible.
+  await apercu.goto(`${BASE}/fr`, { waitUntil: "networkidle" });
+  await sleep(1500);
+  ok("J6c Aperçu connecté (brouillon visible, bandeau d'aperçu) : planche rendue, aucune commande d'édition dans le DOM", (await apercu.locator(`[aria-labelledby="project-${PROJECT.slug}"] .block-grid`).count()) > 0 && (await apercu.locator(".pe-bitem-add, .pe-bitem-bar, .pe-bitem-empty, [data-edit-bitem-handle], [data-edit-bitem-op], [data-edit-bitem-add]").count()) === 0, `grilles ${await apercu.locator(`[aria-labelledby="project-${PROJECT.slug}"] .block-grid`).count()}, commandes ${await apercu.locator(".pe-bitem-add, .pe-bitem-bar, .pe-bitem-empty, [data-edit-bitem-handle], [data-edit-bitem-op], [data-edit-bitem-add]").count()}, url ${apercu.url()}`);
+  ok("J6c2 c'est bien la vue brouillon (bandeau « Aperçu »)", (await apercu.content()).includes("brouillons et pages non publiées visibles"));
+  await apercu.close();
+  // Aperçu DANS l'éditeur (bouton « Aperçu ») : les commandes quittent le DOM, et reviennent en édition.
+  await page.goto(`${BASE}/admin/pages/${HOME}/editer`, { waitUntil: "domcontentloaded" });
+  f = await canvas();
+  await sleep(1500);
+  const inFrame = () => f.locator(".pe-bitem-add, .pe-bitem-bar, [data-edit-bitem-handle]").count();
+  ok("J6d édition : commandes présentes sur la toile", await waitFor(async () => (await inFrame()) > 0));
+  await page.getByRole("button", { name: "Aperçu", exact: true }).click();
+  ok("J6e Aperçu de l'éditeur : commandes absentes du DOM", await waitFor(async () => (await inFrame()) === 0));
+  await page.keyboard.press("Escape");
+  ok("J6f retour à l'édition : commandes de retour", await waitFor(async () => (await inFrame()) > 0));
   ok("J7 téléphone : chaque composant reprend toute la largeur", phone.length >= 4 && phone.every((r) => r > 0.97), JSON.stringify(phone));
   ok("J8 public : deux carrousels aux images différentes", (await pub.evaluate((slug) => document.querySelector(`[aria-labelledby="project-${slug}"]`)?.querySelectorAll(".strip-rail").length ?? 0, PROJECT.slug)) === 2);
   await pub.close();

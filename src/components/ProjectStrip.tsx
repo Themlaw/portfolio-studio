@@ -4,6 +4,7 @@ import { Fragment, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import BoardBox from "@/components/BoardBox";
+import EditOnly from "@/components/EditOnly";
 import StripRail from "@/components/StripRail";
 import { BOARD_ITEM_LABELS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
 import { boardMarks } from "@/lib/board-marks";
@@ -178,12 +179,14 @@ export default function ProjectStrip({
  */
 function BoardAdd({ board, index, last = false, empty = false }: { board: number; index: number; last?: boolean; empty?: boolean }) {
   return (
+    <EditOnly>
     <div className="pe-bitem-add" data-last={last || undefined} data-empty={empty || undefined} lang="fr">
       <button type="button" data-edit-bitem-add={index} data-board={board} aria-haspopup="menu">
         <span aria-hidden="true">+</span> {empty ? "Ajouter un composant" : "Ajouter"}
         <span className="sr-only"> {index === 0 ? "en tête de la planche" : last ? "en bas de la planche" : `après le composant ${index}`}</span>
       </button>
     </div>
+    </EditOnly>
   );
 }
 
@@ -210,13 +213,14 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
       {...(part.props ? { "data-edit-bitem-props": part.props } : {})}
       lang="fr"
     >
+      <EditOnly>
       <div className="pe-bitem-bar" role="group" aria-label={`${label}, composant ${index + 1} sur ${count}`}>
         {/* Poignée : glisser pour déplacer le composant (BoardLayer) ; les flèches font la même chose au clavier. */}
         <span className="pe-bitem-handle" data-edit-bitem-handle={part.uid} data-board={board} aria-hidden="true" title="Glisser pour déplacer">
           ⠿
         </span>
         <span className="pe-bitem-name">{label}</span>
-        {!projectStrip && (
+        {(
           <button type="button" className="pe-bitem-btn pe-bitem-edit" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
             Réglages
           </button>
@@ -225,13 +229,16 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
         {op("down", "Descendre", "↓", index === count - 1)}
         {op("remove", "Supprimer", "✕")}
       </div>
+      </EditOnly>
       {!projectStrip && part.empty ? (
+        <EditOnly fallback={children}>
         <div className="pe-bitem-empty" data-edit-bitem-pick="">
           <p>{label} : rien à montrer pour le moment.</p>
           <button type="button" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
             {part.type === "rich-text" ? "Écrire le texte" : part.type === "grid" || part.type === "strip" ? "Choisir les images" : part.type === "image" ? "Choisir une image" : "Choisir une vidéo"}
           </button>
         </div>
+        </EditOnly>
       ) : (
         children
       )}
