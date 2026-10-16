@@ -669,6 +669,39 @@ await section("G", async () => {
   await c.c.close();
 });
 
+/* ---- H. Une GRILLE (page et planche) reçoit un papier peint ET une couleur (lots 31d × 32 × 35) --------------------------------------- */
+
+await section("H", async () => {
+  const media = q("select id from media where kind = 'image' and status = 'ready' and id not in (select media_id from wallpapers) order by id limit 1")[0]?.id;
+  ok("H0 une image prête dans la médiathèque", Boolean(media));
+  const kid = (uid) => ({ uid, type: "image", props: { mediaId: media, width: "wide" } });
+  exec("insert into blocks (page_id, position, type, props) values (?, 99, 'grid', ?)", PAGE_ID, JSON.stringify({ layout: "2", gap: "normal", align: "stretch", ratio: "1:1", top: "gap", children: [kid("hk1"), kid("hk2")] }));
+  exec("update pages set draft = NULL, draft_rev = draft_rev + 1 where id = ?", PAGE_ID);
+  f = await openEditor();
+  const grid = f.locator('[data-edit-block][data-edit-type="grid"]').first();
+  await grid.locator(".block-grid").first().scrollIntoViewIfNeeded();
+  await grid.locator(".block-grid").first().click({ position: { x: 2, y: 2 } });
+  await f.locator('.pe-tools [data-testid="fond-button"]').waitFor({ timeout: 20000 });
+  ok("H1 grille de page : le bouton « Fond » est dans la barre de la rubrique", true);
+  await f.locator('.pe-tools [data-testid="fond-button"]').click();
+  const menu = f.locator('[data-testid="fond-menu"]');
+  await menu.waitFor({ timeout: 20000 });
+  await menu.locator('[data-kind="wallpaper"]').click();
+  await menu.locator(`[data-wallpaper-id="${POIS_ID}"]`).click();
+  const gridBg = () => draftOf()?.blocks?.find((b) => b.type === "grid")?.props.background;
+  ok("H2 grille de page : papier peint enregistré", await waitFor(() => gridBg()?.kind === "wallpaper" && gridBg().wallpaper === POIS_ID), JSON.stringify(gridBg()));
+  await menu.locator('[data-testid="card-da-color"]').first().click();
+  ok("H3 … avec une couleur dessous", await waitFor(() => gridBg()?.kind === "wallpaper" && typeof gridBg().color === "string"), JSON.stringify(gridBg()));
+  const wrapped = await waitFor(async () => (await f.locator('[data-edit-type="grid"] .fond-bloc[data-wallpaper]:not([data-fond-clear])').count()) === 1);
+  ok("H4 toile : la grille est dans son enveloppe de fond (papier peint sur couleur)", wrapped);
+  await page.keyboard.press("Escape");
+  await settled();
+  await page.screenshot({ path: path.join(SHOTS, "h-grille-page-papier-peint.png") });
+  // Remise en état : la grille de passage disparaît, la page redevient celle des autres sections.
+  exec("delete from blocks where page_id = ? and type = 'grid'", PAGE_ID);
+  exec("update pages set draft = NULL, draft_rev = draft_rev + 1 where id = ?", PAGE_ID);
+});
+
 ok("aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));
 await browser.close();
 console.log(failures ? `\n${failures} échec(s)` : "\nTout passe");
