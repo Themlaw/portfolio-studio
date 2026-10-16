@@ -48,7 +48,7 @@ import { markedProblem } from "@/lib/marked";
 import { own } from "@/lib/own";
 import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
-import { BOARD_ITEM_LABELS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
+import { BOARD_ITEM_LABELS, parseRailKey, railKey, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
 import { cleanLook, cleanSiteStyles, googleOf, readLook, type Frame, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 import { readBackground, supportsFond, type Background } from "@/themes/fond";
@@ -87,12 +87,31 @@ type FromCanvasMsg = FromCanvas;
 const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "bitem-text", "bitem-look", "cell-look"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
+/**
+ * Geste sur une place de bande, le même pour les images du projet (emplacement `s12`) et pour un carrousel à liste propre
+ * (place `<uid>.<rang>`, lot 31f) : l'opération de planche qui lui correspond.
+ */
+function slotBoardOp(key: string, act: { op: "remove" } | { op: "retire" } | { op: "fill"; mediaId: number } | { op: "move"; index: number }): BoardOp {
+  const r = parseRailKey(key);
+  if (!r) return { ...act, key } as BoardOp;
+  switch (act.op) {
+    case "remove":
+      return { op: "rail-clear", uid: r.uid, at: r.at };
+    case "retire":
+      return { op: "rail-retire", uid: r.uid, at: r.at };
+    case "fill":
+      return { op: "rail-fill", uid: r.uid, at: r.at, mediaId: act.mediaId };
+    case "move":
+      return { op: "rail-move", uid: r.uid, at: r.at, index: act.index };
+  }
+}
 /** Ce qui part vers la toile (ni fichier, ni identifiants internes). */
 const toWire = (g: GhostItem): Ghost => ({
   id: g.id,
   board: g.board,
   ...(g.index !== undefined ? { index: g.index } : {}),
   ...(g.slot ? { slot: g.slot } : {}),
+  ...(g.rail ? { rail: g.rail } : {}),
   label: g.label,
   ...(g.preview ? { preview: g.preview } : {}),
   aspect: g.aspect,
@@ -1548,13 +1567,17 @@ export default function VisualEditor({
       }
       g = ghostsRef.current.find((x) => x.id === id);
       if (!g) return false;
-      const op: BoardOp = g.slot ? { op: "fill", key: g.slot, mediaId } : { op: "add", mediaId, index: g.index ?? 0, ...(g.collection ? { collection: g.collection } : {}) };
+      const op: BoardOp = g.slot
+        ? slotBoardOp(g.slot, { op: "fill", mediaId })
+        : g.rail
+          ? { op: "rail-add", uid: g.rail, mediaId, index: g.index ?? 0 }
+          : { op: "add", mediaId, index: g.index ?? 0, ...(g.collection ? { collection: g.collection } : {}) };
       const result = await boardDo(g.board, op);
       if (!result) {
         patchGhost(id, { phase: "failed", progress: null, message: "placement refusé" });
         return false;
       }
-      const placed = g.slot ?? result.after.slots[g.index ?? 0]?.key;
+      const placed = g.slot ?? (g.rail ? railKey(g.rail, g.index ?? 0) : result.after.slots[g.index ?? 0]?.key);
       patchGhost(id, { phase: "done", progress: 1, key: placed });
       // Les fantômes suivants du même dépôt se placent juste après.
       if (!g.slot) setGhostList((list) => list.map((x) => (x.batch === g!.batch && x.id !== id && x.phase !== "done" && x.index !== undefined ? { ...x, index: x.index + 1 } : x)));
@@ -1571,6 +1594,7 @@ export default function VisualEditor({
       let board: number;
       let index = 0;
       let slot: string | undefined;
+      let rail: string | undefined;
       let collection: "characters" | "backgrounds" | "animation" | undefined;
       if (target.kind === "media" || target.kind === "cell") {
         await uploadToBlock(target, files);
@@ -1610,6 +1634,10 @@ export default function VisualEditor({
         board = target.board;
         slot = target.key;
         files = files.slice(0, 1);
+      } else if (target.kind === "rail") {
+        board = target.board;
+        index = target.index;
+        rail = target.uid;
       } else {
         board = target.board;
         index = target.index;
@@ -1624,6 +1652,7 @@ export default function VisualEditor({
           batch,
           board,
           ...(slot ? { slot } : { index }),
+          ...(rail ? { rail } : {}),
           label: file.name.slice(0, 200),
           preview: info?.preview,
           aspect: Math.min(10, Math.max(0.1, info?.ratio ?? 4 / 3)),
@@ -1655,7 +1684,8 @@ export default function VisualEditor({
       } else if (target.kind === "bitem") {
         await itemFlushRef.current();
         await boardDo(target.board, { op: "item-media", uid: target.uid, mediaId });
-      } else if (target.kind === "slot") await boardDo(target.board, { op: "fill", key: target.key, mediaId });
+      } else if (target.kind === "slot") await boardDo(target.board, slotBoardOp(target.key, { op: "fill", mediaId }));
+      else if (target.kind === "rail") await boardDo(target.board, { op: "rail-add", uid: target.uid, mediaId, index: target.index });
       else await boardDo(target.board, { op: "add", mediaId, index: target.index, ...(target.collection ? { collection: target.collection } : {}) });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1667,7 +1697,7 @@ export default function VisualEditor({
         setPicker({ board, key });
         return;
       }
-      const result = await boardDo(board, { op, key });
+      const result = await boardDo(board, slotBoardOp(key, { op }));
       if (result) toast(op === "remove" ? "Image retirée · la place reste" : "Place retirée", "success", { label: "Défaire", run: () => undoRef.current() });
   };
 
@@ -1824,7 +1854,7 @@ export default function VisualEditor({
       setTab("reglages");
       if (mobile) setSheet(true);
     }
-    toast(`« ${source ? "Images du projet" : BOARD_ITEM_LABELS[type]} » ajouté`, "success", { label: "Défaire", run: () => undoRef.current() });
+    toast(`« ${BOARD_ITEM_LABELS[type]} » ajouté`, "success", { label: "Défaire", run: () => undoRef.current() });
   };
   const itemOp = async (board: number, uid: string, op: "up" | "down" | "remove") => {
     await itemFlushRef.current();
@@ -1997,7 +2027,7 @@ export default function VisualEditor({
           h.itemSelect(msg.board, msg.uid, msg.item, msg.props);
           break;
         case "slot-move":
-          void h.boardDo(msg.board, { op: "move", key: msg.key, index: msg.index });
+          void h.boardDo(msg.board, slotBoardOp(msg.key, { op: "move", index: msg.index }));
           break;
         case "slot-text":
         case "project-text": {
@@ -3030,7 +3060,7 @@ export default function VisualEditor({
         onPick={(mediaId) => {
           const p = picker;
           setPicker(null);
-          if (p) void boardDo(p.board, { op: "fill", key: p.key, mediaId });
+          if (p) void boardDo(p.board, slotBoardOp(p.key, { op: "fill", mediaId }));
         }}
         onFile={(file) => {
           const p = picker;

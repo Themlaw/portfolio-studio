@@ -111,11 +111,11 @@ export default function ProjectStrip({
   const rail = (part?: BoardPart) =>
     part?.artworks ? (
       <BoardBox box={part.box}>
-        <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} captions={false} videoMode={part.videoMode} />
+        <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions={false} slotRadius={slotRadius} slotFrame={slotFrame} videoMode={part.videoMode} />
       </BoardBox>
     ) : (
       <BoardBox box={part?.box}>
-        <StripRail artworks={project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} projectRail captions slotRadius={slotRadius} slotFrame={slotFrame} videoMode={part?.videoMode} />
+        <StripRail artworks={project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} videoMode={part?.videoMode} />
       </BoardBox>
     );
 
@@ -247,9 +247,10 @@ function BoardAdd({ board, index, last = false, empty = false }: { board: number
  * supprimer). Les boutons sont de vrais boutons : le clavier les atteint, BoardLayer les écoute.
  */
 function BoardItemFrame({ board, part, index, count, children }: { board: number; part: BoardPart; index: number; count: number; children: ReactNode }) {
-  // Bande des images du PROJET (la bande d'origine) ou carrousel à liste propre (lot 31b).
+  // Une seule « Images qui défilent » pour l'artiste (lot 31f) : la source (images du projet ou liste propre) ne change ni le nom ni les outils.
   const projectStrip = part.type === "strip" && !part.artworks;
-  const label = projectStrip ? "Images du projet" : BOARD_ITEM_LABELS[part.type];
+  const isStrip = part.type === "strip";
+  const label = BOARD_ITEM_LABELS[part.type];
   // Lecture des vidéos (lot 36) : le composant Vidéo a son mode, la bande les choisit toutes (sans choix : chacune selon sa nature).
   const videoKey = part.type === "video-single" ? "mode" : part.type === "strip" ? "videoMode" : null;
   let videoNow: string | undefined = part.type === "video-single" ? "player" : undefined;
@@ -269,6 +270,7 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
       className="pe-bitem"
       data-edit-bitem={part.uid}
       data-edit-bitem-type={part.type}
+      {...(isStrip ? { "data-edit-bitem-rail": "" } : {})}
       {...(projectStrip ? { "data-edit-bitem-project": "" } : {})}
       data-board={board}
       {...(part.props ? { "data-edit-bitem-props": part.props } : {})}
@@ -285,6 +287,11 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
         {(
           <button type="button" className="pe-bitem-btn pe-bitem-edit" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
             Réglages
+          </button>
+        )}
+        {isStrip && (
+          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="add-images" data-uid={part.uid} data-board={board} data-testid="bitem-add-images" title="Ajouter des images ou des vidéos de l'ordinateur à la fin du carrousel">
+            Ajouter des images
           </button>
         )}
         <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title="Fond de couleur du composant, sur toute sa hauteur">

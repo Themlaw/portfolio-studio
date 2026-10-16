@@ -69,10 +69,10 @@ const swatch = (c: PaletteColor) => `var(--t-color-${c})`;
 
 /** Enveloppe d'édition d'un bloc. */
 const wrapperOf = (uid: string) =>
-  document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"], [data-edit-bitem="${CSS.escape(uid)}"]:not([data-edit-bitem-project]), [data-edit-bitem] [data-edit-cell="${CSS.escape(uid)}"]`);
+  document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"], [data-edit-bitem="${CSS.escape(uid)}"]:not([data-edit-bitem-rail]), [data-edit-bitem] [data-edit-cell="${CSS.escape(uid)}"]`);
 
 /** Composant d'une planche (lot 31c : un Texte…) : sa mise en forme s'écrit dans ses réglages, par l'opération de planche. */
-const itemFrameOf = (uid: string) => document.querySelector<HTMLElement>(`[data-edit-bitem="${CSS.escape(uid)}"]:not([data-edit-bitem-project])`);
+const itemFrameOf = (uid: string) => document.querySelector<HTMLElement>(`[data-edit-bitem="${CSS.escape(uid)}"]:not([data-edit-bitem-rail])`);
 
 /**
  * Réglages actuels d'un bloc : ceux envoyés mais pas encore acquittés par le
@@ -303,7 +303,7 @@ type TextTarget = {
 const LOCAL_ONLY: Record<string, Set<string>> = { "video-single": new Set(["eyebrow", "title", "description"]) };
 
 /** Bloc de la page, ou composant d'une planche (lot 31c), qui porte ce texte : le plus proche des deux. */
-const OWNER_SEL = "[data-edit-bitem]:not([data-edit-bitem-project]), [data-edit-block]";
+const OWNER_SEL = "[data-edit-bitem]:not([data-edit-bitem-rail]), [data-edit-block]";
 const ownerUid = (b: HTMLElement) => b.dataset.editBlock ?? b.dataset.editBitem;
 
 function targetOf(el: HTMLElement): TextTarget {

@@ -27,15 +27,16 @@ function stripSizes(width: number, height: number): string {
 
 /**
  * La bande d'images qui défile (bande, flèches, barre de défilement, visionneuse) : celle des images d'un
- * PROJET (`ProjectStrip`, avec ses repères d'emplacement en vue brouillon) ou un carrousel à liste propre
- * de la planche (lot 31b, images de la médiathèque, sans légende). Un seul code pour les deux : même rendu.
+ * PROJET (`ProjectStrip`, avec légendes) ou un carrousel à liste propre de la planche (lot 31b, images de la
+ * médiathèque, sans légende). Un seul code pour les deux, aussi en vue brouillon : mêmes repères d'emplacement
+ * (`data-edit-slot`), donc mêmes outils par image sur la toile (lot 31f).
  */
 export default function StripRail({
   artworks,
   title,
   idKey,
   edit = false,
-  projectRail = false,
+  editRail,
   captions = true,
   slotRadius,
   slotFrame,
@@ -48,8 +49,8 @@ export default function StripRail({
   idKey: string;
   /** Vue brouillon de l'éditeur. */
   edit?: boolean;
-  /** Bande des images du projet : porte les repères de glissement de la toile (`data-edit-rail`). */
-  projectRail?: boolean;
+  /** Repère de la bande sur la toile (`data-edit-rail`) : vide pour les images du projet, l'identifiant du composant pour un carrousel à liste propre. */
+  editRail?: string;
   /** Titre et année sous chaque image (images du projet) ; un carrousel à liste propre n'en a pas. */
   captions?: boolean;
   slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
@@ -209,7 +210,7 @@ export default function StripRail({
         className="strip-rail"
         role="group"
         aria-label={title}
-        {...(edit && projectRail ? { "data-edit-rail": "" } : {})}
+        {...(edit && editRail !== undefined ? { "data-edit-rail": editRail } : {})}
       >
         {artworks.map((artwork) => {
           const index = stills.indexOf(artwork);
@@ -228,7 +229,7 @@ export default function StripRail({
             </span>
           );
           // Légende : visible sur la toile seulement (la visionneuse l'affiche en ligne).
-          const legend = slot ? (
+          const legend = slot && captions ? (
             <span className="pe-slot-legend strip-caption" data-slot-inline="description" data-placeholder="Légende">
               {artwork.description}
             </span>

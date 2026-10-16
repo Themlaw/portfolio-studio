@@ -37,7 +37,7 @@ import { randomBytes } from "node:crypto";
 import { and, asc, eq, max } from "drizzle-orm";
 import { z } from "zod";
 
-import { BOARD_ITEM_TYPES, BOX_MIN, MAX_BOARD_ITEMS, defaultLayout, isProjectStrip, newBoardItem, readLayout, sameLayout, type BoardItem } from "@/blocks/board-layout";
+import { BOARD_ITEM_TYPES, BOX_MIN, MAX_BOARD_ITEMS, MAX_RAIL_MEDIA, defaultLayout, isProjectStrip, newBoardItem, railIds, railList, readLayout, sameLayout, type BoardItem } from "@/blocks/board-layout";
 import { isVideoMode } from "@/blocks/video-mode";
 import { getPageForEdit } from "@/lib/admin";
 import { LookSchema } from "@/lib/look";
@@ -113,6 +113,12 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("item-fond"), uid: Uid, background: BackgroundSchema.nullable() }),
   // Lot 34 : cadre autour de la photo d'un composant Image (`props.look.frame`, null = aucun cadre).
   z.strictObject({ op: z.literal("item-frame"), uid: Uid, frame: FrameSchema.nullable() }),
+  // Lot 31f : les places d'un carrousel à liste propre (`at` : rang dans sa liste), mêmes gestes que les emplacements de la bande du projet.
+  z.strictObject({ op: z.literal("rail-add"), uid: Uid, mediaId: z.number().int().positive(), index: z.number().int().min(0).max(MAX_RAIL_MEDIA) }),
+  z.strictObject({ op: z.literal("rail-fill"), uid: Uid, at: z.number().int().min(0).max(MAX_RAIL_MEDIA), mediaId: z.number().int().positive() }),
+  z.strictObject({ op: z.literal("rail-clear"), uid: Uid, at: z.number().int().min(0).max(MAX_RAIL_MEDIA) }),
+  z.strictObject({ op: z.literal("rail-retire"), uid: Uid, at: z.number().int().min(0).max(MAX_RAIL_MEDIA) }),
+  z.strictObject({ op: z.literal("rail-move"), uid: Uid, at: z.number().int().min(0).max(MAX_RAIL_MEDIA), index: z.number().int().min(0).max(MAX_RAIL_MEDIA) }),
   z.strictObject({ op: z.literal("item-set"), uid: Uid, props: z.record(z.string(), z.unknown()).optional(), box: Box.nullable().optional() }),
 ]);
 export type BoardOp = z.infer<typeof BoardOpSchema>;
@@ -493,6 +499,8 @@ function settleHelp(props: Record<string, unknown>): Record<string, unknown> {
   return out;
 }
 
+/** Identité d'une place de carrousel (`railIds`). */
+const newPlaceId = () => `n${randomBytes(4).toString("hex")}`;
 const newItemUid = () => `c${randomBytes(6).toString("hex")}`;
 const EMPTY: L = { fr: "", en: "" };
 
@@ -575,10 +583,43 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
           const child = media.kind === "video" ? { type: "video-single", props: { variant: "card", mode: "player", mediaId: op.mediaId } } : { type: "image", props: { width: "wide", mediaId: op.mediaId } };
           item.props = { ...item.props, children: [...kids, { uid: newItemUid(), ...child }] };
         } else if (item.type === "strip" && !isProjectStrip(item)) {
-          const list = Array.isArray(item.props.media) ? (item.props.media as number[]) : [];
-          if (list.length >= 60) return "60 médias au plus par carrousel.";
-          item.props = { ...item.props, media: [...list, op.mediaId] };
-        } else return item.type === "strip" ? "Les images du projet se gèrent depuis la bande : dépose l'image sur la bande." : "Ce composant n'accepte pas d'image.";
+          const list = railList(item.props);
+          if (list.length >= MAX_RAIL_MEDIA) return `${MAX_RAIL_MEDIA} médias au plus par carrousel.`;
+          item.props = { ...item.props, media: [...list, op.mediaId], ids: [...railIds(item.props), newPlaceId()] };
+        } else return item.type === "strip" ? "Cette bande montre les images du projet : dépose l'image sur la bande." : "Ce composant n'accepte pas d'image.";
+        return snap;
+      }
+      case "rail-add":
+      case "rail-fill":
+      case "rail-clear":
+      case "rail-retire":
+      case "rail-move": {
+        const item = snap.layout.find((i) => i.uid === op.uid);
+        if (!item || item.type !== "strip" || isProjectStrip(item)) return "Ce carrousel n'est plus sur cette planche.";
+        const list = railList(item.props);
+        const ids = railIds(item.props);
+        if (op.op === "rail-add") {
+          if (op.index > list.length) return "Position invalide.";
+          if (list.length >= MAX_RAIL_MEDIA) return `${MAX_RAIL_MEDIA} médias au plus par carrousel.`;
+          list.splice(op.index, 0, op.mediaId);
+          ids.splice(op.index, 0, newPlaceId());
+        } else {
+          if (op.at >= list.length) return "Cette place n'est plus dans ce carrousel.";
+          if (op.op === "rail-fill") list[op.at] = op.mediaId;
+          else if (op.op === "rail-clear") list[op.at] = null;
+          else if (op.op === "rail-retire") {
+            list.splice(op.at, 1);
+            ids.splice(op.at, 1);
+          } else {
+            if (op.index > list.length) return "Position invalide.";
+            const to = Math.min(op.index > op.at ? op.index - 1 : op.index, list.length - 1);
+            const [moved] = list.splice(op.at, 1);
+            const [movedId] = ids.splice(op.at, 1);
+            list.splice(to, 0, moved);
+            ids.splice(to, 0, movedId);
+          }
+        }
+        item.props = { ...item.props, media: list, ids };
         return snap;
       }
       case "item-text": {
@@ -640,7 +681,7 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         if (op.props !== undefined) {
           if (isProjectStrip(item)) {
             // Seul réglage de la bande du projet (lot 36) : la lecture de ses vidéos.
-            if (Object.keys(op.props).some((k) => k !== "videoMode")) return "La bande des images du projet n'a pas de réglage de contenu.";
+            if (Object.keys(op.props).some((k) => k !== "videoMode")) return "Cette bande montre les images du projet : elle n'a pas de réglage de contenu.";
             if (op.props.videoMode !== undefined && !isVideoMode(op.props.videoMode)) return "Lecture de vidéo inconnue.";
           } else if (item.type === "strip" && op.props.videoMode !== undefined && !isVideoMode(op.props.videoMode)) return "Lecture de vidéo inconnue.";
           item.props = item.type === "rich-text" ? settleHelp(op.props) : op.props;
@@ -664,7 +705,7 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         return snap;
       }
     }
-  }, false, op.op === "project", op.op.startsWith("item-"));
+  }, false, op.op === "project", op.op.startsWith("item-") || op.op.startsWith("rail-"));
 }
 
 /** Annuler / Rétablir : réécrit un instantané (contrôlé). */

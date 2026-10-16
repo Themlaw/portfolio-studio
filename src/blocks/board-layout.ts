@@ -39,6 +39,35 @@ export const BOX_ALIGNS = ["left", "center", "right"] as const;
 export const boxActive = (box: BoardBox | undefined): box is BoardBox & { width: number } => typeof box?.width === "number" && box.width < 100;
 /** Médias au plus dans un carrousel à liste propre. */
 export const MAX_RAIL_MEDIA = 60;
+/**
+ * Pour l'artiste il n'y a qu'UN composant « Images qui défilent ». En interne il a deux sources : les images du PROJET (la bande
+ * d'origine, `props` sans `source` : ses emplacements sont ceux du projet, utilisés aussi par les tuiles de collection, la couverture,
+ * le compteur et la visionneuse) ou une liste propre (`source: "own"`, `media`). Même rendu, mêmes outils par image.
+ * Dans la liste propre, `null` est une place gardée vide (comme un emplacement vide du projet).
+ */
+export type RailMedia = (number | null)[];
+/** Clé d'une place d'un carrousel à liste propre sur la toile : `<uid du composant>.<rang dans la liste>`. */
+export const railKey = (uid: string, at: number) => `${uid}.${at}`;
+/** Le composant et le rang qu'une clé de place désigne, ou null (clé d'un emplacement du projet). */
+export function parseRailKey(key: string): { uid: string; at: number } | null {
+  const m = /^([a-z0-9-]{1,32})\.(\d{1,3})$/.exec(key);
+  return m ? { uid: m[1], at: Number(m[2]) } : null;
+}
+/** La liste d'un carrousel à liste propre (places vides comprises), jamais une entrée illisible. */
+export const railList = (props: Record<string, unknown>): RailMedia => (Array.isArray(props.media) ? props.media : []).map((x) => (typeof x === "number" && Number.isInteger(x) && x > 0 ? x : null));
+/**
+ * Identité de chaque place d'un carrousel à liste propre (`props.ids`, parallèle à `media`) : l'arrondi et le cadre d'une place
+ * (`look.slotRadius` / `slotFrame` du bloc, par slug `<uid>-<identité>`) la suivent quand on la déplace, qu'on remplace son image
+ * ou qu'on en retire une autre, comme ceux d'un emplacement du projet. Absentes ou illisibles (carrousel d'avant le lot 31f) : `p<rang>`,
+ * puis écrites telles quelles au premier geste.
+ */
+export const PLACE_ID = /^[a-z0-9]{1,12}$/;
+export function railIds(props: Record<string, unknown>): string[] {
+  const media = railList(props);
+  const raw = props.ids;
+  if (Array.isArray(raw) && raw.length === media.length && raw.every((x) => typeof x === "string" && PLACE_ID.test(x)) && new Set(raw).size === raw.length) return raw as string[];
+  return media.map((_, i) => `p${i}`);
+}
 /** Bande des images du PROJET (la bande d'origine, `props` vides) ou carrousel à liste propre (`source: "own"`, `media`). */
 export const isProjectStrip = (item: { type: string; props: Record<string, unknown> }) => item.type === "strip" && item.props.source !== "own";
 
@@ -109,7 +138,9 @@ export function layoutProblem(raw: unknown): string | null {
       const own = item.props.source === "own";
       if (own) {
         const m = item.props.media;
-        if (m !== undefined && (!Array.isArray(m) || m.length > MAX_RAIL_MEDIA || m.some((x) => !Number.isInteger(x) || (x as number) <= 0))) return `Un carrousel garde ${MAX_RAIL_MEDIA} médias au plus.`;
+        const ids = item.props.ids;
+        if (ids !== undefined && (!Array.isArray(ids) || ids.length > MAX_RAIL_MEDIA || ids.some((x) => typeof x !== "string" || !PLACE_ID.test(x)))) return "Places du carrousel illisibles.";
+        if (m !== undefined && (!Array.isArray(m) || m.length > MAX_RAIL_MEDIA || m.some((x) => x !== null && (!Number.isInteger(x) || (x as number) <= 0)))) return `Un carrousel garde ${MAX_RAIL_MEDIA} médias au plus.`;
       } else {
         strips++;
         if (strips > 1) return "Une seule bande des images du projet par planche.";
@@ -177,7 +208,7 @@ export function itemEmpty(item: BoardItem): boolean {
   const p = item.props;
   switch (item.type) {
     case "strip":
-      return item.props.source === "own" && (!Array.isArray(item.props.media) || item.props.media.length === 0);
+      return item.props.source === "own" && !railList(item.props).some((id) => id !== null);
     case "image":
     case "video-single":
       return typeof p.mediaId !== "number" && !(item.type === "video-single" && typeof p.slot === "string");
@@ -192,7 +223,7 @@ export function itemEmpty(item: BoardItem): boolean {
 export function mediaCount(items: BoardItem[]): number {
   let n = 0;
   for (const item of items) {
-    if (item.type === "strip" && item.props.source === "own" && Array.isArray(item.props.media)) n += item.props.media.length;
+    if (item.type === "strip" && item.props.source === "own" && Array.isArray(item.props.media)) n += railList(item.props).filter((id) => id !== null).length;
     else if (item.type === "image" || item.type === "video-single") n += itemEmpty(item) ? 0 : 1;
     else if (item.type === "grid" && Array.isArray(item.props.children)) {
       n += (item.props.children as { props?: { mediaId?: unknown } }[]).filter((k) => typeof k?.props?.mediaId === "number").length;
