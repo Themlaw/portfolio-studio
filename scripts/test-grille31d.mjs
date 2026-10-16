@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 
 import { layoutProblem } from "../src/blocks/board-layout.ts";
 import { gridSchema } from "../src/blocks/GridBlock.tsx";
-import { adaptSpan, applyGridOp, cellShare, freeCells, GRID_LAYOUTS, GRID_PATTERN, gridCells, placeCells, toCustom } from "../src/blocks/grid-layouts.ts";
+import { adaptSpan, applyGridOp, autoSpan, cellShare, freeCells, GRID_LAYOUTS, GRID_PATTERN, gridCells, placeCells, toCustom } from "../src/blocks/grid-layouts.ts";
 import { treeProblem } from "../src/blocks/tree.ts";
 import { FromCanvasSchema } from "../src/lib/edit/protocol.ts";
 
@@ -34,7 +34,7 @@ const uidsOf = (p) => p.children.map((c) => c.uid);
 /* ---- 1. Modèle ---- */
 
 test("1a les agencements d'avant sont inchangés (motifs, nombre de places)", () => {
-  assert.deepEqual(GRID_LAYOUTS.slice(0, 7), ["1", "1+2", "2", "3", "2x2", "4", "2+1"]);
+  assert.deepEqual(GRID_LAYOUTS.slice(1, 8), ["1", "1+2", "2", "3", "2x2", "4", "2+1"]);
   assert.deepEqual([GRID_PATTERN["1"], GRID_PATTERN["1+2"], GRID_PATTERN["3"], GRID_PATTERN["2x2"], GRID_PATTERN["2+1"]], [1, 3, 3, 4, 3]);
   assert.deepEqual(place({ layout: "1+2" }, 3), [
     { col: 0, row: 0, w: 2, h: 1 },
@@ -115,6 +115,45 @@ test("1g part des colonnes pour la taille affichée (attribut sizes)", () => {
   assert.equal(cellShare("portrait-left", 1), 2);
   assert.equal(cellShare({ layout: "custom", cols: 4, spans: [{ w: 2, h: 1 }] }, 0, 3), 2);
   assert.equal(cellShare({ layout: "custom", cols: 4, spans: [] }, 1, 3), 4);
+});
+
+test("1h Automatique : la taille de chaque case suit le format de son média, calculée (jamais stockée)", () => {
+  const ratios = [2.4, 0.66, 1.5, null, 1.9, 0.8, 1.89, 0.81, undefined, 16 / 9];
+  const g = gridCells({ layout: "auto", ratios }, ratios.length);
+  assert.equal(g.cols, 2);
+  assert.equal(g.mirror, false);
+  assert.deepEqual(g.cells, [{ w: 2, h: 1 }, { w: 1, h: 2 }, { w: 1, h: 1 }, { w: 1, h: 1 }, { w: 2, h: 1 }, { w: 1, h: 2 }, { w: 1, h: 1 }, { w: 1, h: 1 }, { w: 1, h: 1 }, { w: 1, h: 1 }]);
+  // Colonnes réglables : un panorama prend toute la largeur, quelles que soient les colonnes.
+  assert.deepEqual(gridCells({ layout: "auto", cols: 4, ratios: [3] }, 1).cells, [{ w: 4, h: 1 }]);
+  assert.equal(gridCells({ layout: "auto", cols: 9 }, 1).cols, 4);
+  // Sans format connu : des cases normales (une case vide compte comme une case normale).
+  assert.deepEqual(gridCells({ layout: "auto" }, 3).cells, [{ w: 1, h: 1 }, { w: 1, h: 1 }, { w: 1, h: 1 }]);
+  assert.deepEqual(autoSpan(Number.NaN, 2), { w: 1, h: 1 });
+  assert.deepEqual(autoSpan(0, 2), { w: 1, h: 1 });
+  // Le portrait occupe deux rangées : le panorama passe dessous, les deux petites cases se rangent à côté.
+  const placed = placeCells(2, gridCells({ layout: "auto", ratios: [0.66, 1.5, 1.4, 2.4] }, 4).cells);
+  assert.deepEqual(placed, [{ col: 0, row: 0, w: 1, h: 2 }, { col: 1, row: 0, w: 1, h: 1 }, { col: 1, row: 1, w: 1, h: 1 }, { col: 0, row: 2, w: 2, h: 1 }]);
+});
+
+test("1i Automatique : places libres (une rangée sur une grille vide, sinon une case) et formats pris en compte", () => {
+  assert.equal(freeCells({ layout: "auto" }, 0).length, 2);
+  assert.equal(freeCells({ layout: "auto", cols: 3 }, 0).length, 3);
+  assert.deepEqual(freeCells({ layout: "auto" }, 5), [{ w: 1, h: 1 }]);
+  assert.equal(freeCells({ layout: "auto" }, 24).length, 0);
+  assert.equal(GRID_PATTERN.auto, 2);
+  assert.equal(cellShare({ layout: "auto", ratios: [2.4, 1.5] }, 0, 2), 1);
+  assert.equal(cellShare({ layout: "auto", ratios: [2.4, 1.5] }, 1, 2), 2);
+});
+
+test("1j Automatique -> Sur mesure : la disposition calculée est reprise telle quelle (aucun saut)", () => {
+  const ratios = [2.4, 0.66, 1.5, 1.4, 1.2, 0.5];
+  for (const cols of [undefined, 3, 4]) {
+    const shape = { layout: "auto", ...(cols ? { cols } : {}), ratios };
+    const before = place(shape, ratios.length);
+    const c = toCustom(shape, ratios.length);
+    assert.equal(c.layout, "custom");
+    assert.deepEqual(place(c, ratios.length), before, `colonnes ${cols ?? "défaut"}`);
+  }
 });
 
 /* ---- 2. Opérations ---- */
@@ -220,6 +259,29 @@ test("2f « Adapter aux images » : un portrait prend 2 rangées, un panorama 2 
   assert.ok("error" in applyGridOp({ layout: "2", children: [] }, { op: "adapt", ratios: [] }));
 });
 
+test("2z Automatique : régler les colonnes reste Automatique ; changer la taille d'une case passe en Sur mesure sans saut", () => {
+  const ratios = [2.4, 0.66, 1.5, 1.4];
+  const auto = { layout: "auto", gap: "normal", children: [kid("a", 1), kid("b", 2), kid("c", 3), kid("d", 4)] };
+  const before = place({ ...auto, ratios }, 4);
+  const cols = applyGridOp(auto, { op: "set", cols: 3 }, ratios);
+  assert.equal(cols.props.layout, "auto");
+  assert.equal(cols.props.cols, 3);
+  assert.equal(cols.props.spans, undefined, "rien n'est stocké case par case");
+  const wide = applyGridOp(auto, { op: "span", index: 3, dw: 1 }, ratios);
+  assert.equal(wide.props.layout, "custom");
+  assert.equal(wide.props.cols, 2);
+  // Seule la case modifiée a changé de taille : les autres restent exactement où le calcul les avait mises.
+  assert.deepEqual(wide.props.spans, [{ w: 2, h: 1 }, { w: 1, h: 2 }, { w: 1, h: 1 }, { w: 2, h: 1 }]);
+  const same = applyGridOp(auto, { op: "set", layout: "custom" }, ratios);
+  assert.deepEqual(place(same.props, 4), before);
+  const back = applyGridOp(same.props, { op: "set", layout: "auto" }, ratios);
+  assert.equal(back.props.layout, "auto");
+  // Un nouvel agencement fait par la fenêtre (ou le panneau) : l'automatique est accepté, la couleur du reste est gardée.
+  assert.equal(applyGridOp({ layout: "3", children: [] }, { op: "set", layout: "auto" }).props.layout, "auto");
+  // Colonnes demandées à une grille Automatique avec inversion : passe en Sur mesure (l'inversion n'existe pas en automatique).
+  assert.equal(applyGridOp(auto, { op: "set", mirror: true }, ratios).props.layout, "custom");
+});
+
 /* ---- 3. Schéma, anciennes données ---- */
 
 test("3a schéma : champs du « Sur mesure » bornés ; anciens réglages inchangés (aucune clé ajoutée)", () => {
@@ -260,6 +322,7 @@ test("4a grid-op, cell-look et cible gcell : valides ou refusés par le schéma"
   assert.ok(ok({ kind: "grid-op", uid: "g1", op: { op: "adapt" } }));
   assert.ok(ok({ kind: "grid-op", uid: "g1", op: { op: "pick", index: 24, media: "video" } }));
   assert.ok(ok({ kind: "layout", uid: "g1", layout: "custom" }));
+  assert.ok(ok({ kind: "grid-op", uid: "g1", op: { op: "set", layout: "auto" } }));
   assert.ok(!ok({ kind: "grid-op", uid: "g1", op: { op: "set", layout: "spirale" } }));
   assert.ok(!ok({ kind: "grid-op", uid: "g1", op: { op: "set", cols: 5 } }));
   assert.ok(!ok({ kind: "grid-op", uid: "g1", op: { op: "span", index: 30 } }));

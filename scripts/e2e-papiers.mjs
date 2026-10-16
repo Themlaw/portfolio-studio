@@ -698,8 +698,9 @@ await section("I", async () => {
   await cell.scrollIntoViewIfNeeded();
   const b = await cell.boundingBox();
   await page.mouse.click(b.x + b.width / 2, b.y + Math.min(b.height / 2, 120));
-  await f.locator('[data-testid="gridbar"]').waitFor({ timeout: 20000 });
-  await f.locator('[data-testid="gridbar-layout"]').click();
+  // Lot 31e : « Réglages » du composant grille ouvre la fenêtre blanche sur la toile (plus de barre de grille ouverte d'elle-même).
+  await frame.locator('[data-edit-bitem-op="settings"]').click();
+  await f.locator('[data-testid="gridsettings"]').waitFor({ timeout: 20000 });
   await f.locator('.pe-gm-layout[data-layout="portrait-left"]').click();
   ok("I2 agencement « Portrait à gauche + 2 à droite » enregistré", await waitFor(() => gridItem()?.props.layout === "portrait-left"), JSON.stringify(gridItem()?.props.layout));
   await settled();

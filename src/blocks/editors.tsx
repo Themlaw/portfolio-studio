@@ -33,7 +33,7 @@ import { useBlockEditor } from "./editor-context";
 import FormatSelect from "./FormatSelect";
 import type { L } from "./editor-types";
 import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "./video-mode";
-import { applyGridOp, CUSTOM_COLS, customCols, GRID_LAYOUTS, type GridLayout, type GridModelOp, type GridShape } from "./grid-layouts";
+import { applyGridOp, AUTO_HINT, autoCols, CUSTOM_COLS, customCols, GRID_LAYOUTS, type GridLayout, type GridModelOp, type GridShape } from "./grid-layouts";
 
 const EMPTY: L = { fr: "", en: "" };
 type P = Record<string, unknown>;
@@ -493,11 +493,11 @@ export function GridTop() {
   const layout = (value.layout as string) ?? "2";
   const kids = Array.isArray(value.children) ? (value.children as { type: string; props: P }[]) : [];
   const apply = (op: GridModelOp) => {
-    const res = applyGridOp(value, op);
+    const res = applyGridOp(value, op, ratios);
     if ("error" in res) return;
     onChange(res.props as typeof value);
   };
-  const cols = layout === "custom" ? customCols(value as GridShape) : 3;
+  const cols = layout === "custom" ? customCols(value as GridShape) : layout === "auto" ? autoCols(value as GridShape) : 3;
   const ratios = kids.map((c) => {
     const row = context.media.find((m) => m.id === c.props.mediaId);
     return row?.width && row?.height ? row.width / row.height : c.type === "video-single" ? 16 / 9 : 1.5;
@@ -522,7 +522,7 @@ export function GridTop() {
         <p className="a-help" data-testid="grid-count">
           {kids.length === 0 ? "Aucune image pour le moment." : kids.length === 1 ? "1 image dans la grille." : `${kids.length} images dans la grille.`}
         </p>
-        {layout === "custom" && (
+        {(layout === "custom" || layout === "auto") && (
           <div className="a-field" data-testid="grid-custom">
             <span className="a-label" id="ve-cols-label">
               Colonnes
@@ -534,8 +534,8 @@ export function GridTop() {
                 </button>
               ))}
             </div>
-            <Toggle label="Inverser la gauche et la droite" checked={value.mirror === true} onChange={(on) => apply({ op: "set", mirror: on })} />
-            <p className="a-help">Sur la page, chaque case a ses boutons « Plus large », « Plus haute »… dans sa barre.</p>
+            {layout === "custom" && <Toggle label="Inverser la gauche et la droite" checked={value.mirror === true} onChange={(on) => apply({ op: "set", mirror: on })} />}
+            <p className="a-help">{layout === "auto" ? AUTO_HINT : "Sur la page, chaque case a ses boutons « Plus large », « Plus haute »… dans sa barre."}</p>
           </div>
         )}
         <button type="button" className="a-btn" data-testid="grid-adapt" disabled={kids.length === 0} onClick={() => apply({ op: "adapt", ratios })}>

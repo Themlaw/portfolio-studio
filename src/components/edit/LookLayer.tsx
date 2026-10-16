@@ -895,6 +895,13 @@ export default function LookLayer({
     return () => window.removeEventListener("pe:crop", onCrop);
   }, [announce]);
 
+  // Une seule fenêtre à la fois (lot 31e) : la fenêtre « Réglages » d'une grille ferme la barre « Aa ».
+  useEffect(() => {
+    const closeBar = () => setBar(null);
+    window.addEventListener("pe:popups-close", closeBar);
+    return () => window.removeEventListener("pe:popups-close", closeBar);
+  }, []);
+
   // Survol : « Aa » sur un texte éditable, « Cadrer » sur une image à cadrer.
   useEffect(() => {
     const inLayer = (t: EventTarget | null) => t instanceof Element && Boolean(t.closest(".pe-layer"));

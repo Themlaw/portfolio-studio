@@ -204,7 +204,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       Editor: GridEditor,
       label: "Grille",
       description: "Des images, des vidéos ou des textes rangés en colonnes, à partir d'un modèle ou d'une grille vide.",
-      defaults: { layout: "2", children: [] },
+      defaults: { layout: "auto", children: [] },
       summary: "Grille {layout} · {children} composants",
       inline: ["eyebrow", "title"],
       presets: [

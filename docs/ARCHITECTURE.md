@@ -1661,6 +1661,38 @@ vides, barre d'agencement) que la planche ne savait pas.
 - Tests : `scripts/test-grille31d.mjs` (modèle, opérations, schéma, anciennes données, messages) et `scripts/e2e-grille31d.mjs`
   (suite `grille31d`).
 
+### Retouches de la grille (lot 31e)
+
+Retours de l'illustratrice sur la v0.24 : la barre de grille noire s'ouvrait toute seule en plus de la barre du bloc, la barre d'une
+case tombait en bas d'une case bien plus haute que l'image, et un décor très large restait dans une colonne.
+
+- **Fenêtre « Réglages » blanche** (`GridSettings`, dans `GridLayer.tsx`) : remplace la barre de grille. Rien ne s'ouvre tout seul ;
+  le bouton « Réglages » de la barre du bloc grille (`.pe-tools` d'une rubrique de page, `.pe-bitem-bar` d'un composant de planche)
+  envoie l'événement `pe:grid-settings` (`{uid, board?}`, bascule) et `GridLayer` pose la fenêtre sous cette barre, à son bord droit,
+  dans l'écran. Style de la fenêtre « Aa » : classes `sm tc`, tokens `--lk-*` (aucune couleur propre), bouton ✕, choix actif en bleu
+  clair. Contenu : vignettes d'agencement, espace Aucun / S / M / L, format des cases, Colonnes (+ Inverser en Sur mesure), « + Case »,
+  « Adapter aux images » (absent en Automatique : c'est ce que l'automatique fait déjà), « Plus de réglages… » (événement
+  `pe:open-panel` : `EditLayer` / `BoardLayer` choisissent la grille comme un clic, le panneau de gauche s'ouvre). Fermeture : ✕,
+  Échap, clic ailleurs (`useDismiss`, le bouton `data-grid-settings-button` bascule). Une seule fenêtre à la fois : ouvrir Réglages
+  envoie `pe:popups-close` (Carte, Fond, Cadre, barre « Aa » se ferment) ; les autres se ferment déjà d'un clic ailleurs.
+- **Barre de case** : blanche (même famille que « Aa »), accrochée à l'image ou à la vidéo elle-même (`cellBarTop`) : 36 px sous le
+  bord haut de l'image (sous le fil d'Ariane), dans la partie visible de l'écran ; une image trop basse pour la porter : juste
+  dessous. Le menu « Taille » est un frère de la barre (et non son enfant) : la barre a un `transform`, qui devient le repère des
+  coordonnées d'un enfant absolu, d'où un menu hors écran (bug de la v0.24 : le bouton « Taille » semblait ne rien faire).
+- **« Automatique » (`auto`)** : nouvel agencement, par défaut des nouvelles grilles (registre : `defaults`, `newBoardItem`) ; les
+  grilles existantes gardent le leur (pas de migration). La taille de chaque case suit le format réel de son média, CALCULÉ AU RENDU :
+  panorama (≥ 1,9) sur toute la largeur, portrait (≤ 0,8) sur 2 rangées, sinon 1 case ; 2 colonnes par défaut (2 à 4) ; une place vide
+  compte comme une case normale. `GridBlock` (devenu asynchrone) lit la largeur et la hauteur de chaque média (`getMedia`, même repli
+  qu'à l'édition : vidéo sans dimensions = 16:9) et passe `ratios` à `gridCells` (jamais stocké : un ajout, un remplacement, un retrait
+  recalculent). Rendu CSS = celui du Sur mesure (`:is([data-layout="custom"], [data-layout="auto"])`). Changer la taille d'une case ou
+  inverser passe en Sur mesure à partir de la disposition calculée (`toCustom` / `applyGridOp` reçoivent les formats de la médiathèque
+  de l'éditeur : aucun saut). Les images d'une case de panorama n'utilisent qu'une colonne pour le choix de la variante
+  (`ctx.cellAuto`).
+- **Format Libre** : une place vide ne force plus une hauteur 4:3 à côté d'un panorama (`min-height: 11rem`, étirée à la hauteur de
+  la rangée).
+- Tests : `grille31d` (sections H, I, K ; le menu « Taille » se clique à la souris sur les coordonnées réelles, bouton et choix
+  visibles à l'écran) et `scripts/test-grille31d.mjs` (1h à 1j, 2z).
+
 ## Lecteur vidéo : Boucle ou Lecteur (lot 36)
 
 Avant ce lot une vidéo hébergée jouait dans la page (lecteur en ligne), et seule une animation courte et muette d'une bande tournait en boucle.

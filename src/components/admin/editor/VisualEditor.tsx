@@ -951,7 +951,7 @@ export default function VisualEditor({
       return true;
     }
     const model: GridModelOp = op.op === "adapt" ? { op: "adapt", ratios: op.ratios ?? gridRatios(base) } : (op as GridModelOp);
-    const res = applyGridOp(base, model);
+    const res = applyGridOp(base, model, gridRatios(base));
     if ("error" in res) {
       toast(res.error, "error");
       return false;

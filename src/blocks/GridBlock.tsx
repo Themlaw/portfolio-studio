@@ -6,6 +6,8 @@ import { RATIO_VALUES } from "@/lib/images/formats";
 import { parseRatio } from "@/lib/images/sizes";
 
 import { FieldOps } from "./FieldOps";
+import { getMedia } from "@/lib/media";
+
 import { freeCells, GRID_LAYOUTS, gridCells, MAX_SPAN_H, MAX_SPAN_W } from "./grid-layouts";
 import { hasText } from "./optional-fields";
 import { MAX_CHILDREN } from "./tree";
@@ -35,13 +37,27 @@ export const gridSchema = z.object({
  * dans globals.css avec les tokens d'espacement du thème. Sur la toile : une
  * place « + » par cellule libre du motif (jamais en public).
  */
-export default function GridBlock({ props, ctx, children }: { props: z.infer<typeof gridSchema>; ctx: BlockContext; children?: ReactNode }) {
+export default async function GridBlock({ props, ctx, children }: { props: z.infer<typeof gridSchema>; ctx: BlockContext; children?: ReactNode }) {
   const cells = Children.toArray(children);
   // Repères des cases (numéros, places libres, « + Image »…) : la toile d'une page, ou celle d'une grille de planche (lot 31d).
   const canvas = Boolean(ctx.edit || ctx.gridCanvas);
-  const geometry = gridCells(props, cells.length);
+  // « Automatique » (lot 31e) : la taille de chaque case suit le format réel de son média, lu à chaque rendu (page publiée,
+  // brouillon, toile) : rien n'est figé case par case. Sans média connu (texte, image absente) : une case normale.
+  const auto = props.layout === "auto";
+  const ratios = auto
+    ? await Promise.all(
+        props.children.slice(0, cells.length).map(async (c) => {
+          const id = typeof c.props.mediaId === "number" ? c.props.mediaId : undefined;
+          const m = id ? await getMedia(id) : null;
+          if (m?.width && m?.height) return m.width / m.height;
+          return m?.video ? 16 / 9 : null;
+        }),
+      )
+    : undefined;
+  const geometry = gridCells({ ...props, ratios }, cells.length);
   const free = canvas ? freeCells(props, cells.length) : [];
-  const custom = props.layout === "custom";
+  // « Sur mesure » et « Automatique » : grille CSS à colonnes réglables, taille de chaque case en `--w` / `--h`.
+  const custom = props.layout === "custom" || auto;
   const unit = parseRatio(props.ratio) ?? 4 / 3;
   /** Taille d'une case (vue d'un agencement « Sur mesure » ou d'une case sur deux rangées). */
   const sizeAttrs = (s: { w: number; h: number }) => ({

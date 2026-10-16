@@ -285,7 +285,7 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
         </span>
         <span className="pe-bitem-name">{label}</span>
         {(
-          <button type="button" className="pe-bitem-btn pe-bitem-edit" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
+          <button type="button" className="pe-bitem-btn pe-bitem-edit" {...(part.type === "grid" ? { "data-grid-settings-button": "", "aria-haspopup": "dialog" } : {})} data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
             Réglages
           </button>
         )}

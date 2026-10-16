@@ -766,7 +766,12 @@ export default function BoardLayer({
             input.value = "";
             input.click();
           }
-        } else if (op === "settings") selectItem(itemOp.closest<HTMLElement>("[data-edit-bitem]") ?? itemFrame ?? null);
+        } else if (op === "settings") {
+          const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]") ?? itemFrame ?? null;
+          // Une grille : « Réglages » ouvre la fenêtre blanche sur la toile (GridLayer) ; les autres composants, le panneau de gauche.
+          if (frame?.dataset.editBitemType === "grid") window.dispatchEvent(new CustomEvent("pe:grid-settings", { detail: { uid, board } }));
+          else selectItem(frame);
+        }
         else if (op === "up" || op === "down" || op === "remove") {
           setItemSel((cur) => (cur?.uid === uid && op === "remove" ? null : cur));
           post({ kind: "bitem-op", board, uid, op });
@@ -917,6 +922,18 @@ export default function BoardLayer({
     const onDragStart = (e: DragEvent) => {
       if (e.target instanceof Element && e.target.closest("[data-edit-slot]")) e.preventDefault();
     };
+    // Une seule fenêtre à la fois (lot 31e) ; « Plus de réglages… » d'une grille : le panneau de gauche.
+    const closeAll = () => {
+      setFondMenu(null);
+      setFrameMenu(null);
+    };
+    const openPanel = (e: Event) => {
+      const d = (e as CustomEvent<{ uid?: string; board?: number }>).detail;
+      if (!d?.uid || !d.board) return;
+      selectItem(document.querySelector<HTMLElement>(`[data-edit-bitem="${CSS.escape(d.uid)}"][data-board="${d.board}"]`));
+    };
+    window.addEventListener("pe:popups-close", closeAll);
+    window.addEventListener("pe:open-panel", openPanel);
     document.addEventListener("dragstart", onDragStart, true);
     document.addEventListener("dragover", onDragOver, true);
     document.addEventListener("dragleave", onDragLeave, true);
@@ -930,6 +947,8 @@ export default function BoardLayer({
       document.removeEventListener("dblclick", onDblClick, true);
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("pe:popups-close", closeAll);
+      window.removeEventListener("pe:open-panel", openPanel);
       document.removeEventListener("dragstart", onDragStart, true);
       document.removeEventListener("dragover", onDragOver, true);
       document.removeEventListener("dragleave", onDragLeave, true);

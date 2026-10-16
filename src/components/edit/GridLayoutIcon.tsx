@@ -14,6 +14,8 @@ const GAP = 1.6;
 
 /** Cases d'un agencement : un motif entier pour un agencement prédéfini, un exemple parlant pour « Sur mesure ». */
 function sample(shape: GridShape): { cols: number; mirror: boolean; cells: { w: number; h: number }[] } {
+  // « Automatique » : un panorama sur toute la largeur, un portrait sur deux rangées, deux cases normales.
+  if (shape.layout === "auto") return { cols: 2, mirror: false, cells: [{ w: 2, h: 1 }, { w: 1, h: 2 }, { w: 1, h: 1 }, { w: 1, h: 1 }] };
   if (shape.layout === "custom" && !shape.spans) return { cols: 3, mirror: false, cells: [{ w: 1, h: 2 }, { w: 2, h: 1 }, { w: 1, h: 1 }, { w: 1, h: 1 }] };
   const count = shape.layout === "custom" ? Math.max(1, shape.spans?.length ?? 1) : ({ "1": 1, "1+2": 3, "2": 2, "3": 3, "2x2": 4, "4": 4, "2+1": 3, "portrait-left": 3, "portrait-right": 3 } as Record<string, number>)[shape.layout ?? "2"] ?? 2;
   const g = gridCells(shape, count);
