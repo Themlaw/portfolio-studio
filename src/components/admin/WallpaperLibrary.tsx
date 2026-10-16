@@ -145,14 +145,24 @@ function Card({ w, uses, onChanged, onDelete }: { w: AdminWallpaper; uses: numbe
 /** Papier peint par défaut des cartes du site : « le papier du thème » (comme avant) ou un motif de la bibliothèque. */
 function CardDefault({ ready, value, onChanged }: { ready: AdminWallpaper[]; value: CardWallpaper | null; onChanged: () => void }) {
   const [cur, setCur] = useState<CardWallpaper | null>(value);
+  // Nouvelle lecture du serveur : on la reprend, sauf si une modification attend encore d'être enregistrée (curseur en cours).
+  const sig = JSON.stringify(value);
+  const [seen, setSeen] = useState(sig);
+  const [waiting, setWaiting] = useState(false);
+  if (sig !== seen) {
+    setSeen(sig);
+    if (!waiting) setCur(value);
+  }
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
   const entry = cur ? ready.find((w) => w.id === cur.wallpaper) : undefined;
   const save = (next: CardWallpaper | null, delay = 0) => {
     setCur(next);
+    setWaiting(true);
     clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       const r = await saveCardWallpaperAction(next);
+      setWaiting(false);
       if (!r.ok) {
         toast(r.message, "error");
         setCur(value);
@@ -340,7 +350,7 @@ export default function WallpaperLibrary({ initial, trashed, counts, cards }: { 
         )}
       </section>
 
-      <CardDefault key={JSON.stringify(cards)} ready={ready} value={cards} onChanged={refresh} />
+      <CardDefault ready={ready} value={cards} onChanged={refresh} />
 
       {trashed.length > 0 && (
         <section className="a-panel" aria-labelledby="wp-corbeille" data-testid="wallpaper-trash">

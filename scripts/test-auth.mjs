@@ -529,7 +529,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings/.test(name) ? "/admin/reglages"
     : /Message/.test(name) ? "/admin/messages"
-    : /Wallpaper/.test(name) ? "/admin/papiers-peints"
+    : /[wW]allpaper/.test(name) ? "/admin/papiers-peints"
     : /^(create|delete|reorder|restore)Projects?Action$/.test(name) ? "/admin/projets"
     : /Project|Slot/.test(name) ? "/admin/projets/1"
     : /^media|Media|Uploads|Tag/.test(name) ? "/admin/medias"

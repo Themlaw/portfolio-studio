@@ -523,8 +523,18 @@ await section("Dsite", async () => {
   ok("D10 public : la carte qui a son propre motif garde le sien (80 px, 30 %)", br.cardWp.size.startsWith("80px") && Math.abs(br.cardWp.opacity - 0.3) < 0.01, JSON.stringify(br.cardWp));
   await p.screenshot({ path: path.join(SHOTS, "d-public-cartes.png"), fullPage: true });
   await c.close();
-  // Une carte « sous la carte » cache le motif du site.
+  // Papier de la page : on le repose (la section C l'a retiré) pour que la page publiée montre les trois endroits.
   f = await openEditor();
+  await page.getByRole("tab", { name: "Réglages" }).click();
+  const field = page.locator('[data-testid="page-wallpaper"]');
+  await field.waitFor({ timeout: 20000 });
+  await field.locator('[data-mode="wallpaper"]').click();
+  await waitFor(() => draftOf()?.wallpaper?.mode === "wallpaper");
+  await field.locator(`[data-wallpaper-id="${STAR_ID}"]`).click();
+  await waitFor(() => draftOf()?.wallpaper?.wallpaper === STAR_ID);
+  f = await canvas();
+  await paperWhen((x) => x.layer && x.mode === "wallpaper");
+  // Une carte « sous la carte » cache le motif du site.
   const menu = await openCard("Charlie");
   await menu.locator('[data-testid="surface-paper"] [data-paper="under"]').click();
   await waitFor(() => draftBlock("Charlie")?.props.surface?.paper === "under");
@@ -552,11 +562,11 @@ await section("E", async () => {
   const phone = await anonPage({ width: 390, height: 800 }, true);
   await phone.p.goto(PUBLIC, { waitUntil: "networkidle" });
   const t = await measure(phone.p, "Delta");
-  const tc = await measure(phone.p, "Charlie");
+  const tc = await measure(phone.p, "Bravo");
   const pp = await phone.p.evaluate(PAGE_PAPER);
   ok("E3 téléphone : motif de composant réduit à 60 % (200 → 120 px)", t.wp.size.startsWith("120px"), t.wp.size);
   ok("E3 téléphone : motif de page réduit à 60 % (160 → 96 px)", pp.size.startsWith("96px"), pp.size);
-  ok("E3 téléphone : motif de carte réduit à 60 % (carte sans réglage : 160 → 96 px)", tc.cardWp.size.startsWith("96px"), tc.cardWp.size);
+  ok("E3 téléphone : motif de carte réduit à 60 % (carte de Bravo : 80 → 48 px)", tc.cardWp.size.startsWith("48px"), tc.cardWp.size);
   ok("E4 téléphone : pas de défilement horizontal, bande pleine largeur", t.sw <= t.vw + 1 && near(t.fond.r - t.fond.l, t.vw, 1.5), JSON.stringify([t.sw, t.vw]));
   await phone.p.screenshot({ path: path.join(SHOTS, "e-public-telephone.png"), fullPage: true });
   await phone.c.close();
@@ -576,9 +586,9 @@ await section("F", async () => {
   await page.screenshot({ path: path.join(SHOTS, "f-avertissement.png") });
   await dlg.getByRole("button", { name: "Mettre à la corbeille" }).click();
   await dlg.waitFor({ state: "detached" });
-  ok("F3 le motif est à la corbeille (restaurable), plus dans la bibliothèque", await waitFor(() => wallpapers().find((w) => w.id === POIS_ID)?.deletedAt != null) && (await page.locator(`[data-testid="wallpaper"][data-wallpaper-id="${POIS_ID}"]`).count()) === 0);
+  ok("F3 le motif est à la corbeille (restaurable), plus dans la bibliothèque", await waitFor(() => wallpapers().find((w) => w.id === POIS_ID)?.deletedAt != null) && (await waitFor(async () => (await page.locator(`[data-testid="wallpaper"][data-wallpaper-id="${POIS_ID}"]`).count()) === 0)));
   ok("F3 « Annuler » est proposé 10 s (toast)", (await page.getByRole("button", { name: "Annuler" }).count()) >= 1);
-  ok("F3 la corbeille des papiers peints le montre", await page.locator('[data-testid="wallpaper-trash"]').getByText("Petits pois").isVisible());
+  ok("F3 la corbeille des papiers peints le montre", await page.locator('[data-testid="wallpaper-trash"]').getByText("Petits pois").first().waitFor({ timeout: 20000 }).then(() => true, () => false));
 
   // Rendu propre : le motif disparaît, le reste de la page est intact.
   const { c, p } = await anonPage();

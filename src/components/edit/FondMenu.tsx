@@ -9,7 +9,7 @@
  * Annuler / Rétablir passent par l'historique de l'éditeur. Texte illisible sur la couleur : avertissement seulement.
  * À ne pas confondre avec « Carte » (la carte posée sous une rubrique, SurfaceMenu) ni « Fond du texte » (BackdropRow).
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { parseColor, rgbaToHex } from "@/lib/color";
 import { PALETTE } from "@/lib/look";
@@ -94,6 +94,11 @@ export default function FondMenu({ uid, top, onClose, onChanged }: { uid: string
   const [wantWallpaper, setWantWallpaper] = useState(false);
   const view = wantWallpaper && !cur ? "wallpaper" : active;
   const entry = wp ? wallpaperCatalog().get(wp.wallpaper) : undefined;
+  // Le menu d'un papier peint est plus haut que celui d'une couleur : on l'amène dans la vue (toile) quand il s'ouvre ou change de nature.
+  const hasWp = wp !== null;
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: "nearest" });
+  }, [view, hasWp]);
 
   const pickKind = (kind: string) => {
     if (kind === "none") {

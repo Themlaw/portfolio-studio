@@ -11,7 +11,7 @@
  * Si même avec le texte lisible choisi par `cardStyle` le contraste reste sous AA, une
  * pastille d'alerte le dit (jamais bloquant).
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { parseColor, rgbaToHex } from "@/lib/color";
 import { PALETTE } from "@/lib/look";
@@ -167,6 +167,12 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
   const patch = (p: Partial<Surface>, continuous = false) => change(cleanSurface({ ...(cur ?? {}), ...p }), continuous);
 
   const s = summary(cur, defaults);
+  // Le menu est haut (couleurs, papier peint, bordure) : on l'amène dans la vue de la toile quand il s'ouvre ou s'allonge.
+  const hasCard = s !== null;
+  const hasWallpaper = cur?.paperWallpaper !== undefined;
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: "nearest" });
+  }, [hasCard, hasWallpaper]);
   const site = sitePaper();
   const paper = cur ? resolvePaper(cur, site) : null;
   const customColor = cur?.color && !isSurfaceToken(cur.color) ? cur.color : undefined;
