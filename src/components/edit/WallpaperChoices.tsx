@@ -65,7 +65,7 @@ export function WallpaperPaintRows({
   return (
     <>
       <div className="tc-row">
-        <span className="sm-label">Taille du motif</span>
+        <span className="sm-label">Taille</span>
         <input
           type="range"
           className="sm-range"

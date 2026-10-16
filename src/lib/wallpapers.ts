@@ -4,7 +4,7 @@
  * Écritures : src/lib/edit/wallpapers.ts. Stockage : une ligne `wallpapers` par motif + un média ordinaire pour le fichier
  * (docs/ARCHITECTURE.md, lot 35).
  */
-import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { cached, TAGS } from "./cache";
 import { getDb, schema } from "./db";
@@ -77,14 +77,14 @@ function toAdmin(w: WallpaperRow, m: MediaRow): AdminWallpaper {
   };
 }
 
-/** Bibliothèque de l'admin (hors corbeille, le plus récent d'abord) ou sa corbeille. Lecture directe, sans cache. */
+/** Bibliothèque de l'admin (hors corbeille, dans l'ordre d'import : les motifs ne changent pas de place) ou sa corbeille (la plus récente d'abord). Lecture directe, sans cache. */
 export function listWallpapersForAdmin(trashed = false): AdminWallpaper[] {
   return getDb()
     .select({ w: schema.wallpapers, m: schema.media })
     .from(schema.wallpapers)
     .innerJoin(schema.media, eq(schema.media.id, schema.wallpapers.mediaId))
     .where(trashed ? isNotNull(schema.wallpapers.deletedAt) : isNull(schema.wallpapers.deletedAt))
-    .orderBy(desc(trashed ? schema.wallpapers.deletedAt : schema.wallpapers.id))
+    .orderBy(trashed ? desc(schema.wallpapers.deletedAt) : asc(schema.wallpapers.id))
     .all()
     .map(({ w, m }) => toAdmin(w, m));
 }

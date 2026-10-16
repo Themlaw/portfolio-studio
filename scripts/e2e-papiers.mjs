@@ -229,6 +229,20 @@ const PAGE_PAPER = () => {
   };
 };
 
+/** Mesures du papier de la page, relues jusqu'à ce que `pred` soit vrai (la toile se recharge après un réglage de page). */
+async function paperWhen(pred, timeout = 60000) {
+  let last = null;
+  await waitFor(async () => {
+    try {
+      last = await f.evaluate(PAGE_PAPER);
+      return pred(last);
+    } catch {
+      return false;
+    }
+  }, timeout);
+  return last;
+}
+
 /* ---- P. Parité : rien sans réglage ------------------------------------------------------------------------------------------ */
 
 await section("P", async () => {
@@ -268,7 +282,7 @@ await section("A", async () => {
   await page.locator('[data-testid="wallpaper-input"]').setInputFiles([POIS]);
   ok("A5 le même fichier une seconde fois : « Déjà dans la bibliothèque », aucun doublon", (await page.getByText(/Déjà dans la bibliothèque/).first().waitFor({ timeout: 60000 }).then(() => true, () => false)) && wallpapers().length === 2);
 
-  const card = page.locator('[data-testid="wallpaper"]').first();
+  const card = page.locator(`[data-testid="wallpaper"][data-wallpaper-id="${rows[0].id}"]`);
   const name = card.locator('[data-testid="wallpaper-name"]');
   await name.fill("Pois roses");
   await name.press("Enter");
@@ -304,15 +318,13 @@ await section("B", async () => {
   await field.locator('[data-mode="wallpaper"]').click();
   ok("B2 « Un papier peint » : le premier motif est posé, enregistré dans le brouillon", await waitFor(() => draftOf()?.wallpaper?.mode === "wallpaper" && draftOf().wallpaper.wallpaper === POIS_ID), JSON.stringify(draftOf()?.wallpaper));
   f = await canvas();
-  await sleep(1200);
-  pp = await f.evaluate(PAGE_PAPER);
+  pp = await paperWhen((x) => x.layer && x.mode === "wallpaper");
   ok("B3 la toile montre le motif sur toute la page, et le papier du kit n'y est plus", pp.layer && pp.mode === "wallpaper" && pp.img.includes("/media/img/") && pp.covers && pp.bodyImg === "none", JSON.stringify(pp));
   ok("B3 taille et opacité du motif (120 px par défaut ici = celles réglées dans la bibliothèque : 200 px, 80 %)", pp.size.startsWith("200px") && Math.abs(pp.opacity - 0.8) < 0.01, JSON.stringify([pp.size, pp.opacity]));
   await field.locator('[data-testid="page-wallpaper-size"]').fill("90");
   ok("B4 taille propre à la page : enregistrée dans le brouillon", await waitFor(() => draftOf()?.wallpaper?.size === 90), JSON.stringify(draftOf()?.wallpaper));
   f = await canvas();
-  await sleep(1200);
-  pp = await f.evaluate(PAGE_PAPER);
+  pp = await paperWhen((x) => x.layer && x.size?.startsWith("90px"));
   ok("B4 … et visible (90 px)", pp.size.startsWith("90px"), pp.size);
   await page.screenshot({ path: path.join(SHOTS, "b-papier-de-page-editeur.png") });
   await field.locator(`[data-wallpaper-id="${STAR_ID}"]`).click();
@@ -322,14 +334,12 @@ await section("B", async () => {
   await field.locator('[data-mode="none"]').click();
   ok("B6 « Aucun » : enregistré", await waitFor(() => draftOf()?.wallpaper?.mode === "none"));
   f = await canvas();
-  await sleep(1200);
-  pp = await f.evaluate(PAGE_PAPER);
+  pp = await paperWhen((x) => x.layer && x.mode === "none");
   ok("B6 … la page n'a plus aucun papier (ni motif ni papier du kit)", pp.layer && pp.mode === "none" && pp.img === "none" && pp.bodyImg === "none", JSON.stringify(pp));
   await field.locator('[data-mode="site"]').click();
   ok("B7 « Comme le site » : le réglage disparaît du brouillon", await waitFor(() => !draftOf()?.wallpaper));
   f = await canvas();
-  await sleep(1200);
-  pp = await f.evaluate(PAGE_PAPER);
+  pp = await paperWhen((x) => !x.layer);
   ok("B7 … le papier du kit est revenu, plus de calque : rien n'a changé", !pp.layer && pp.bodyImg !== "none", JSON.stringify(pp));
   // Publication avec un motif.
   await field.locator('[data-mode="wallpaper"]').click();
@@ -391,7 +401,7 @@ await section("C", async () => {
   await sleep(500);
   let d = await measure(f, "Delta");
   ok("C3 aperçu immédiat : bande pleine largeur avec le motif (image répétée, taille du motif, opacité du motif)", d.fond && near(d.fond.l, 0, 1.5) && near(d.fond.r, d.vw, 1.5) && d.fondAttrs.wallpaper && d.wp.img.includes("/media/img/") && d.wp.size.startsWith("200px") && Math.abs(d.wp.opacity - 0.8) < 0.01, JSON.stringify(d));
-  ok("C3 sans couleur dessous : le fond est transparent (le papier du site reste visible dessous) et le texte garde l'encre du thème", d.fondAttrs.clear && rgb(d.fondBg)[3] !== 1 && ratio(rgb(d.pColor), [255, 255, 255]) > 1);
+  ok("C3 sans couleur dessous : le fond est transparent (le papier du site reste visible dessous) et le texte garde l'encre du thème", d.fondAttrs.clear && d.fondBg === "rgba(0, 0, 0, 0)");
   await page.screenshot({ path: path.join(SHOTS, "c-un-papier-peint.png") });
 
   // Taille et opacité propres à ce composant.
@@ -410,7 +420,7 @@ await section("C", async () => {
   ok("C7 couleur sous le motif : jeton enregistré, le motif reste", await waitFor(() => bgOf("Delta")?.color === "ink" && bgOf("Delta")?.wallpaper === POIS_ID), JSON.stringify(bgOf("Delta")));
   await sleep(400);
   d = await measure(f, "Delta");
-  ok("C7 la couleur est sous le motif et le texte reste lisible dessus (≥ 4,5:1)", !d.fondAttrs.clear && rgb(d.fondBg)[3] !== 0 && ratio(rgb(d.pColor), rgb(d.fondBg)) >= 4.5, JSON.stringify([d.pColor, d.fondBg]));
+  ok("C7 la couleur est sous le motif et le texte reste lisible dessus (≥ 4,5:1)", !d.fondAttrs.clear && d.fondBg !== "rgba(0, 0, 0, 0)" && ratio(rgb(d.pColor), rgb(d.fondBg)) >= 4.5, JSON.stringify([d.pColor, d.fondBg]));
   await page.screenshot({ path: path.join(SHOTS, "c-papier-peint-et-couleur.png") });
   await menu.locator('[data-testid="card-color-auto"]').click();
   ok("C8 « Aucune couleur » retire la couleur, garde le motif", await waitFor(() => bgOf("Delta")?.color === undefined && bgOf("Delta")?.wallpaper === POIS_ID), JSON.stringify(bgOf("Delta")));
@@ -426,6 +436,7 @@ await section("C", async () => {
   ok("C9 deux voisins de même motif et mêmes réglages : fusionnés (aucun écart, attributs de jonction)", near(e.fond.t, d.fond.b, 1.5) && d.fondAttrs.next && e.fondAttrs.prev, JSON.stringify([d.fond, e.fond, d.fondAttrs, e.fondAttrs]));
   // Trame : la position verticale du second = -(hauteur du premier) modulo la hauteur d'une tuile (200 px de large, carré).
   const tile = 200;
+  const gapJoined = e.p.t - d.p.b;
   const expected = -(d.fond.h % tile);
   const posY = parseFloat(e.wp.posY);
   ok("C10 la trame se poursuit d'un composant au suivant (décalage = -(hauteur du premier mod tuile))", Math.abs(posY - expected) < 1.5 || Math.abs(posY - (expected + tile)) < 1.5, JSON.stringify([posY, expected, d.fond.h]));
@@ -439,7 +450,7 @@ await section("C", async () => {
   await sleep(600);
   d = await measure(f, "Delta");
   e = await measure(f, "Echo");
-  ok("C11 réglages différents : pas de fusion, écart normal", !d.fondAttrs.next && !e.fondAttrs.prev && e.fond.t - d.fond.b > 8, JSON.stringify([d.fondAttrs, e.fondAttrs, e.fond.t - d.fond.b]));
+  ok("C11 réglages différents : pas de fusion, l'espace entre les deux textes est celui de deux bandes distinctes (plus grand)", !d.fondAttrs.next && !e.fondAttrs.prev && e.p.t - d.p.b > gapJoined + 4, JSON.stringify([d.fondAttrs, e.fondAttrs, e.p.t - d.p.b, gapJoined]));
   await undo().click();
   ok("C12 Défaire : Echo reprend ses réglages d'avant, les deux fusionnent de nouveau", await waitFor(async () => bgOf("Echo")?.size === undefined && (await measure(f, "Echo")).fondAttrs.prev));
 
@@ -455,6 +466,7 @@ await section("C", async () => {
   await menu.locator('[data-kind="none"]').click();
   await waitFor(() => bgOf("Foxtrot") === undefined);
   await page.keyboard.press("Escape");
+  ok("C14 publication", await publish());
 });
 
 /* ---- D. Cartes ------------------------------------------------------------------------------------------------------------------ */

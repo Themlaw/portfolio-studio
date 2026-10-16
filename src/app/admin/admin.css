@@ -6435,10 +6435,15 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   gap: 4px;
   margin: 0;
 }
-.a-wp-card input[type="range"],
+.a-wp input[type="range"],
 .a-page-wallpaper input[type="range"] {
   width: 100%;
   accent-color: var(--admin-accent);
+}
+/* Panneau « Papier peint des cartes » : réglages de largeur raisonnable (un curseur de 1 000 px n'est pas maniable). */
+.a-wp .a-panel .a-field,
+.a-wp .a-panel .a-wp-choices {
+  max-width: 460px;
 }
 .a-wp-preview {
   display: grid;
