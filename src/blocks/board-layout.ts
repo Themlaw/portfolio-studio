@@ -211,7 +211,7 @@ export function newBoardItem(type: BoardItemType, uid: string, source?: "project
       // Sans précision : un carrousel à liste propre, vide. « project » : la bande des images du projet.
       return source === "project" ? { uid, type, props: {} } : { uid, type, props: { source: "own", media: [] } };
     case "grid":
-      return { uid, type, props: { layout: "3", children: [] } };
+      return { uid, type, props: { layout: "auto", children: [] } };
     case "image":
       return { uid, type, props: { width: "full" } };
     case "video-single":

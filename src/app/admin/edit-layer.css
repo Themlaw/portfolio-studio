@@ -1938,6 +1938,7 @@ html[data-edit-mode] .pe-bitem-bar {
   font: 500 12px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
 }
 html[data-edit-mode] .pe-bitem:hover > .pe-bitem-bar, html[data-edit-mode] .pe-bitem:focus-within > .pe-bitem-bar, html[data-edit-mode] .pe-bitem[data-selected] > .pe-bitem-bar { opacity: 1; }
+html[data-edit-mode] .pe-bitem[data-grid-settings] > .pe-bitem-bar { opacity: 1; }
 html[data-edit-mode] .pe-bitem-name { padding: 0 6px; }
 html[data-edit-mode] .pe-bitem-btn { min-width: 28px; height: 28px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 html[data-edit-mode] .pe-bitem-btn:hover:not(:disabled), html[data-edit-mode] .pe-bitem-btn:focus-visible { background: #3a3f46; }
@@ -1984,88 +1985,86 @@ html[data-edit-mode] .pe-bitem-handle { touch-action: none; }
   white-space: nowrap;
 }
 
-/* Barre de la grille : même famille que les barres d'outils (fond sombre, boutons clairs). */
-.pe-gridbar {
-  position: absolute;
-  z-index: 6;
+/* Fenêtre « Réglages » de la grille (lot 31e) : blanche, au style de la fenêtre « Aa » du texte (classes `sm tc`, tokens `--lk-*`,
+   boutons blancs à bord gris, choix actif en bleu clair, × en haut à droite). */
+.sm.pe-gs {
+  z-index: 7;
+  display: grid;
+  gap: 10px;
+  width: min(460px, calc(100vw - 16px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+.pe-gs-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 2px 4px;
-  width: max-content;
-  max-width: min(920px, calc(100vw - 24px));
-  padding: 4px;
-  border-radius: 8px;
-  background: var(--pe-ink);
-  color: var(--pe-surface);
-  box-shadow: 0 6px 18px rgba(31, 34, 38, 0.28);
-  pointer-events: auto;
+  justify-content: space-between;
+  gap: 8px;
 }
-.pe-gb-btn,
-.pe-gb-seg {
-  display: inline-flex;
-  align-items: center;
+.pe-gs-title {
+  font-weight: 700;
+  font-size: 13px;
+}
+.pe-gs .pe-gs-close {
+  min-width: 28px;
+  padding: 0;
+}
+.pe-gs-block {
+  display: grid;
   gap: 6px;
-  min-height: 30px;
-  margin: 0;
-  padding: 0 9px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: inherit;
-  font: 600 12px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: 0;
-  text-transform: none;
-  white-space: nowrap;
-  cursor: pointer;
 }
-.pe-gb-btn svg {
-  display: block;
-  width: 26px;
-  height: 18px;
+.pe-gs .pe-gs-label,
+.pe-gs .sm-label {
+  flex: 0 0 auto;
+  min-width: 0;
 }
-.pe-gb-btn:hover:not(:disabled),
-.pe-gb-seg:hover,
-.pe-gb-btn[aria-expanded="true"] {
-  background: rgba(255, 255, 255, 0.16);
+.pe-gs-row {
+  gap: 6px 8px;
 }
-.pe-gb-btn:focus-visible,
-.pe-gb-seg:focus-visible {
-  outline: 2px solid var(--pe-surface);
-  outline-offset: -2px;
-}
-.pe-gb-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-.pe-gb-btn[role="switch"][aria-checked="true"],
-.pe-gb-seg[aria-checked="true"] {
-  background: var(--pe-surface);
-  color: var(--pe-ink);
-}
-.pe-gb-group {
+.pe-gs-seg {
   display: inline-flex;
-  align-items: center;
-  gap: 2px;
+  flex-wrap: wrap;
+  gap: 4px;
 }
-.pe-gb-label {
-  padding: 0 6px 0 4px;
-  font-weight: 500;
-  opacity: 0.75;
+.pe-gs-layouts {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
 }
-.pe-gb-seg {
-  min-width: 30px;
-  justify-content: center;
-  padding: 0 8px;
+.pe-gs .pe-gs-layout {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 4px;
+  min-height: 70px;
+  padding: 6px 2px;
+  font: 500 10.5px/1.2 var(--lk-font);
+  text-align: center;
+  white-space: normal;
 }
-.pe-gb-sep {
-  width: 1px;
-  height: 20px;
-  background: rgba(255, 255, 255, 0.25);
+.pe-gs .pe-gs-layout svg {
+  width: 44px;
+  height: 30px;
+  color: var(--lk-accent);
+}
+.pe-gs .pe-gs-more {
+  margin-left: auto;
+  border-color: transparent;
+  background: transparent;
+  color: var(--lk-ink-soft);
+  text-decoration: underline;
+}
+.pe-gs .pe-gs-more:hover:not(:disabled) {
+  border-color: transparent;
+  color: var(--lk-accent);
+}
+@media (max-width: 640px) {
+  .pe-gs-layouts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 @media (pointer: coarse) {
-  .pe-gb-btn,
-  .pe-gb-seg {
+  .pe-gs button {
     min-height: 40px;
   }
 }
@@ -2165,10 +2164,11 @@ html[data-edit-mode] .pe-bitem-handle { touch-action: none; }
   align-items: center;
   gap: 2px;
   padding: 3px;
-  border-radius: 7px;
-  background: var(--pe-ink);
-  color: var(--pe-surface);
-  box-shadow: 0 6px 18px rgba(31, 34, 38, 0.28);
+  border: 1px solid var(--lk-line);
+  border-radius: 8px;
+  background: var(--pe-surface);
+  color: var(--pe-ink);
+  box-shadow: var(--lk-shadow);
   pointer-events: auto;
 }
 .pe-cb-handle {
@@ -2184,7 +2184,7 @@ html[data-edit-mode] .pe-bitem-handle { touch-action: none; }
 }
 .pe-cb-handle:hover,
 .pe-cb-handle:focus-visible {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--pe-accent-soft);
   outline: none;
 }
 .pe-cb-num {
@@ -2193,13 +2193,13 @@ html[data-edit-mode] .pe-bitem-handle { touch-action: none; }
   font-weight: 700;
 }
 .pe-cb-btn {
-  min-height: 26px;
+  min-height: 28px;
   margin: 0;
   padding: 0 8px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: inherit;
+  border: 1px solid var(--lk-line);
+  border-radius: 5px;
+  background: var(--pe-surface);
+  color: var(--pe-ink);
   font: 600 12px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0;
   text-transform: none;
@@ -2209,15 +2209,18 @@ html[data-edit-mode] .pe-bitem-handle { touch-action: none; }
 .pe-cb-btn:hover:not(:disabled),
 .pe-cb-btn:focus-visible,
 .pe-cb-btn[aria-expanded="true"] {
-  background: rgba(255, 255, 255, 0.16);
+  border-color: var(--pe-accent);
+  background: var(--pe-accent-soft);
   outline: none;
 }
 .pe-cb-btn:disabled {
   opacity: 0.35;
   cursor: default;
 }
-.pe-cb-danger:hover {
-  background: var(--pe-danger);
+.pe-cellbar .pe-cb-danger:hover:not(:disabled) {
+  border-color: var(--pe-danger);
+  background: var(--pe-surface);
+  color: var(--pe-danger);
 }
 .pe-cb-size {
   display: inline-flex;
@@ -2313,6 +2316,13 @@ html[data-edit-dragging] .block-grid-cell {
   min-height: 0;
   aspect-ratio: var(--free-r, 1.3333);
 }
+/* Format « Libre » (lot 31e) : une place vide ne force pas une grande hauteur à côté d'une image peu haute (un panorama) ;
+   elle prend une hauteur modeste, ou celle de la plus haute image de sa rangée (la grille étire les cases d'une rangée). */
+.block-grid[data-ratio="auto"] > .block-grid-cell[data-edit-cell-free]:not([data-span-h]) .pe-cell-free {
+  height: 100%;
+  min-height: 11rem;
+  aspect-ratio: auto;
+}
 .pe-cell-num {
   position: absolute;
   top: 8px;
@@ -2345,9 +2355,17 @@ html[data-edit-dragging] .block-grid-cell {
   font: 500 12px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
   opacity: 0.75;
 }
-.pe-slot-tools .pe-seg button[aria-pressed="true"],
-html[data-edit-mode] .pe-bitem-bar .pe-seg button[aria-pressed="true"],
+.pe-cellbar .pe-seg-label {
+  color: var(--lk-ink-soft);
+  opacity: 1;
+}
 .pe-cellbar .pe-seg button[aria-pressed="true"] {
+  border-color: var(--pe-accent);
+  background: var(--pe-accent-soft);
+  color: var(--pe-accent);
+}
+.pe-slot-tools .pe-seg button[aria-pressed="true"],
+html[data-edit-mode] .pe-bitem-bar .pe-seg button[aria-pressed="true"] {
   background: rgba(255, 255, 255, 0.92);
   color: #1f2226;
 }

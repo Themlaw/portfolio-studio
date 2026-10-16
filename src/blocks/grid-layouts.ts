@@ -9,6 +9,11 @@
  * - Agencements prédéfinis : « 1 », « 1+2 », « 2 », « 3 », « 2x2 », « 4 », « 2+1 » (v0.13) ; « portrait-left »
  *   et « portrait-right » (une grande case sur deux rangées d'un côté, deux cases empilées de l'autre ; la case 1
  *   est toujours le portrait).
+ * - « Automatique » (`auto`, lot 31e ; agencement des nouvelles grilles) : la taille de chaque case suit le format RÉEL de son
+ *   image ou de sa vidéo, calculée au rendu (jamais stockée case par case, donc jamais figée) : un panorama (format ≥ 1,9)
+ *   prend toute la largeur, un portrait (≤ 0,8) deux rangées, le reste une case. 2 colonnes par défaut (2 à 4). Une case
+ *   vide compte comme une case normale. Changer à la main la taille d'une case passe en « Sur mesure » à partir de la
+ *   disposition calculée (`toCustom` avec les formats), donc sans saut.
  * - « Sur mesure » (`custom`) : 2 à 4 colonnes ; chaque case a sa largeur (1 à `cols` colonnes) et sa hauteur
  *   (1 ou 2 rangées), `spans[i]` pour l'image n° i. Rendu en CSS grid (`grid-column` / `grid-row: span`), flux
  *   `dense` : aucun trou, même si une case haute précède une case large (l'ordre de lecture est alors celui des
@@ -16,7 +21,7 @@
  * - Choisir un agencement prédéfini puis le modifier (changer la taille d'une case) passe en « Sur mesure » en
  *   gardant exactement la même disposition (`toCustom`) ; `mirror` inverse gauche et droite.
  */
-export const GRID_LAYOUTS = ["1", "1+2", "2", "3", "2x2", "4", "2+1", "portrait-left", "portrait-right", "custom"] as const;
+export const GRID_LAYOUTS = ["auto", "1", "1+2", "2", "3", "2x2", "4", "2+1", "portrait-left", "portrait-right", "custom"] as const;
 export type GridLayout = (typeof GRID_LAYOUTS)[number];
 
 /** Taille d'une case : colonnes occupées (1 à `cols`) et rangées (1 ou 2). */
@@ -29,10 +34,16 @@ export const MAX_SPAN_H = 2;
 /** Cases au plus dans une grille (page ou planche). */
 export const MAX_GRID_CELLS = 24;
 
+/** Formats (largeur / hauteur) qui décident de la taille d'une case en « Automatique ». */
+export const AUTO_PANORAMA_RATIO = 1.9;
+export const AUTO_PORTRAIT_RATIO = 0.8;
+/** Colonnes d'une grille « Automatique » sans choix. */
+export const AUTO_COLS = 2;
+
 type Preset = { cols: number; mirror?: boolean; cells: Span[] };
 const one: Span = { w: 1, h: 1 };
 /** Motif de chaque agencement prédéfini (colonnes de l'écran large ≥ 768 px, cases du motif dans l'ordre). */
-const PRESETS: Record<Exclude<GridLayout, "custom">, Preset> = {
+const PRESETS: Record<Exclude<GridLayout, "custom" | "auto">, Preset> = {
   "1": { cols: 1, cells: [one] },
   "1+2": { cols: 2, cells: [{ w: 2, h: 1 }, one, one] },
   "2": { cols: 2, cells: [one, one] },
@@ -45,10 +56,11 @@ const PRESETS: Record<Exclude<GridLayout, "custom">, Preset> = {
 };
 
 /** Cellules d'un motif (places libres de la toile). */
-export const GRID_PATTERN: Record<GridLayout, number> = { "1": 1, "1+2": 3, "2": 2, "3": 3, "2x2": 4, "4": 4, "2+1": 3, "portrait-left": 3, "portrait-right": 3, custom: 1 };
+export const GRID_PATTERN: Record<GridLayout, number> = { auto: 2, "1": 1, "1+2": 3, "2": 2, "3": 3, "2x2": 4, "4": 4, "2+1": 3, "portrait-left": 3, "portrait-right": 3, custom: 1 };
 
 /** Libellés simples (menu des agencements, info-bulles). */
 export const GRID_LAYOUT_LABELS: Record<GridLayout, string> = {
+  auto: "Automatique",
   "1": "1 grand",
   "1+2": "1 grand + 2 petits dessous",
   "2": "2 côte à côte",
@@ -62,7 +74,14 @@ export const GRID_LAYOUT_LABELS: Record<GridLayout, string> = {
 };
 
 /** Ce qui, dans les réglages d'une grille, décrit la disposition des cases. */
-export type GridShape = { layout?: string; cols?: number; spans?: Span[]; mirror?: boolean };
+export type GridShape = {
+  layout?: string;
+  cols?: number;
+  spans?: Span[];
+  mirror?: boolean;
+  /** « Automatique » : format (largeur / hauteur) de l'image ou de la vidéo de chaque case, dans l'ordre ; inconnu ou absent = case normale. Jamais stocké. */
+  ratios?: (number | null | undefined)[];
+};
 
 export const isGridLayout = (v: unknown): v is GridLayout => typeof v === "string" && (GRID_LAYOUTS as readonly string[]).includes(v);
 
@@ -71,9 +90,27 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, M
 /** Colonnes d'une grille « Sur mesure » (2 à 4). */
 export const customCols = (shape: GridShape): number => clamp(shape.cols ?? DEFAULT_CUSTOM_COLS, 2, 4);
 
+/** Explication de l'agencement « Automatique » (fenêtre Réglages de la toile et panneau). */
+export const AUTO_HINT = "Automatique : chaque image prend la place qui va à son format (un décor large prend toute la largeur, un portrait deux rangées).";
+
+/** Colonnes d'une grille « Automatique » (2 à 4). */
+export const autoCols = (shape: GridShape): number => clamp(shape.cols ?? AUTO_COLS, 2, 4);
+
+/** Taille d'une case « Automatique » d'après le format de son média : panorama sur toute la largeur, portrait sur 2 rangées. */
+export function autoSpan(ratio: number | null | undefined, cols: number): Span {
+  if (typeof ratio !== "number" || !Number.isFinite(ratio) || ratio <= 0) return { w: 1, h: 1 };
+  if (ratio >= AUTO_PANORAMA_RATIO) return { w: cols, h: 1 };
+  if (ratio <= AUTO_PORTRAIT_RATIO) return { w: 1, h: 2 };
+  return { w: 1, h: 1 };
+}
+
 /** Disposition effective : colonnes, inversion gauche / droite, et taille de chacune des `count` premières cases. */
 export function gridCells(shape: GridShape, count: number): { cols: number; mirror: boolean; cells: Span[] } {
   const layout = isGridLayout(shape.layout) ? shape.layout : "2";
+  if (layout === "auto") {
+    const cols = autoCols(shape);
+    return { cols, mirror: false, cells: Array.from({ length: count }, (_, i) => autoSpan(shape.ratios?.[i], cols)) };
+  }
   if (layout === "custom") {
     const cols = customCols(shape);
     const cells = Array.from({ length: count }, (_, i) => {
@@ -91,6 +128,8 @@ export function freeCells(shape: GridShape, count: number): Span[] {
   if (count >= MAX_GRID_CELLS) return [];
   const layout = isGridLayout(shape.layout) ? shape.layout : "2";
   if (layout === "custom") return [{ w: 1, h: 1 }];
+  // « Automatique » : une case vide compte comme une case normale ; une grille vide en montre une rangée.
+  if (layout === "auto") return Array.from({ length: count === 0 ? autoCols(shape) : 1 }, () => ({ w: 1, h: 1 }));
   const p = PRESETS[layout];
   const free = count === 0 ? p.cells.length : (p.cells.length - (count % p.cells.length)) % p.cells.length;
   return Array.from({ length: free }, (_, i) => p.cells[(count + i) % p.cells.length]);
@@ -102,7 +141,7 @@ export function toCustom(shape: GridShape, count: number): Required<Pick<GridSha
   const layout = isGridLayout(shape.layout) ? shape.layout : "2";
   // Les motifs d'une seule colonne (« 1 ») deviennent deux colonnes, chaque case sur toute la largeur.
   if (layout === "1") return { layout: "custom", cols: 2, mirror: false, spans: g.cells.map(() => ({ w: 2, h: 1 })) };
-  if (layout === "custom") return { layout: "custom", cols: g.cols, mirror: g.mirror, spans: g.cells };
+  if (layout === "custom" || layout === "auto") return { layout: "custom", cols: g.cols, mirror: g.mirror, spans: g.cells };
   return { layout: "custom", cols: g.cols, mirror: g.mirror, spans: g.cells.map((c) => ({ ...c })) };
 }
 
@@ -115,7 +154,7 @@ export function cellShare(layout: GridLayout | GridShape, index: number, count =
   const shape: GridShape = typeof layout === "string" ? { layout } : layout;
   const g = gridCells(shape, Math.max(count, index + 1));
   const l = isGridLayout(shape.layout) ? shape.layout : "2";
-  if (l === "custom") return g.cols / Math.max(1, g.cells[index].w);
+  if (l === "custom" || l === "auto") return g.cols / Math.max(1, g.cells[index].w);
   switch (l) {
     case "1":
       return 1;
@@ -195,9 +234,11 @@ export function adaptSpan(ratio: number, cols: number): Span {
  * français. Les tailles de cases (`spans`) suivent toujours l'ordre des images, même sous un agencement prédéfini
  * (revenir à « Sur mesure » les retrouve).
  */
-export function applyGridOp(props: Props, op: GridModelOp): { props: Props } | { error: string } {
+export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | null | undefined)[]): { props: Props } | { error: string } {
   const list = kids(props);
   const n = list.length;
+  /** Réglages vus avec les formats des médias (« Automatique ») : la disposition calculée devient « Sur mesure » sans changer. */
+  const shaped = (p: Props): GridShape => ({ ...(p as GridShape), ...(ratios ? { ratios } : {}) });
   const hasSpans = Array.isArray(props.spans);
   const sp = (): Span[] => spansOf(props, n);
   const withOrder = (order: number[]): Props => ({
@@ -213,13 +254,16 @@ export function applyGridOp(props: Props, op: GridModelOp): { props: Props } | {
       for (const [k, v] of Object.entries(rest)) if (v !== undefined) next[k] = v;
       const current = isGridLayout(props.layout) ? props.layout : "2";
       if (layout !== undefined && layout !== current) {
-        if (layout === "custom") next = { ...next, ...toCustom(props as GridShape, n) };
+        if (layout === "custom") next = { ...next, ...toCustom(shaped(props), n) };
         else next.layout = layout;
       }
       if (cols !== undefined || mirror !== undefined) {
         // Régler les colonnes ou l'inversion n'a de sens qu'en « Sur mesure » : on y passe sans rien changer à la disposition.
-        if (next.layout !== "custom") next = { ...next, ...toCustom(next as GridShape, n) };
-        if (cols !== undefined) {
+        // « Automatique » garde ses colonnes réglables sans quitter l'automatique.
+        const stayAuto = next.layout === "auto" && mirror === undefined;
+        if (next.layout !== "custom" && !stayAuto) next = { ...next, ...toCustom(shaped(next), n) };
+        if (cols !== undefined && stayAuto) next.cols = clamp(cols, 2, 4);
+        else if (cols !== undefined) {
           const c = clamp(cols, 2, 4);
           next.cols = c;
           next.spans = spansOf(next, n).map((s) => ({ ...s, w: Math.min(s.w, c) }));
@@ -250,7 +294,7 @@ export function applyGridOp(props: Props, op: GridModelOp): { props: Props } | {
     }
     case "span": {
       if (op.index < 0 || op.index >= n) return { error: "Cette case n'existe plus." };
-      const base = props.layout === "custom" ? { ...props } : { ...props, ...toCustom(props as GridShape, n) };
+      const base = props.layout === "custom" ? { ...props } : { ...props, ...toCustom(shaped(props), n) };
       const cols = customCols(base as GridShape);
       const spans = spansOf(base, n);
       const s = spans[op.index];

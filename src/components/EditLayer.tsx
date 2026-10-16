@@ -363,6 +363,27 @@ export default function EditLayer() {
     if (notify) post({ kind: "select", uid, ...(click ? { click: true } : {}) });
   }, []);
 
+  // Une seule fenêtre ouverte à la fois (lot 31e) : la fenêtre « Réglages » de la grille ferme Carte, Fond, Cadre ; « Plus de réglages… »
+  // choisit la grille comme un clic et ouvre ses réglages dans le panneau de gauche.
+  useEffect(() => {
+    const closeAll = () => {
+      setSurfaceFor(null);
+      setFondFor(null);
+      setFrameFor(null);
+      setSizeFor(null);
+    };
+    const openPanel = (e: Event) => {
+      const d = (e as CustomEvent<{ uid?: string; board?: number }>).detail;
+      if (d?.uid && !d.board) select(d.uid, true, true);
+    };
+    window.addEventListener("pe:popups-close", closeAll);
+    window.addEventListener("pe:open-panel", openPanel);
+    return () => {
+      window.removeEventListener("pe:popups-close", closeAll);
+      window.removeEventListener("pe:open-panel", openPanel);
+    };
+  }, [select]);
+
   /* ---- Où déposer : page ou conteneur ------------------------------------ */
 
   /**
@@ -1325,6 +1346,19 @@ export default function EditLayer() {
             {sel.type === "collection-tiles" && (
               <button type="button" className="pe-tool-text" aria-expanded={sizeFor === sel.uid} onClick={() => setSizeFor((o) => (o === sel.uid ? null : sel.uid))}>
                 Taille des images
+              </button>
+            )}
+            {sel.type === "grid" && (
+              <button
+                type="button"
+                className="pe-tool-text"
+                data-grid-settings-button=""
+                data-testid="grid-settings-button"
+                aria-haspopup="dialog"
+                title="Agencement, espace, format des cases, colonnes…"
+                onClick={() => window.dispatchEvent(new CustomEvent("pe:grid-settings", { detail: { uid: sel.uid } }))}
+              >
+                Réglages
               </button>
             )}
             {sel.type === "image" && <FrameButton uid={sel.uid} open={frameFor === sel.uid} onToggle={() => { setFondFor(null); setFrameFor((o) => (o === sel.uid ? null : sel.uid)); }} />}

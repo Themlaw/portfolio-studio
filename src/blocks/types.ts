@@ -55,6 +55,8 @@ export type BlockContext = {
   cellInfo?: { uid: string; type: string; look?: string }[];
   /** Cellule de grille : nombre de colonnes (≥ 768 px) et format imposé aux images (« auto » = le leur). */
   cellColumns?: number;
+  /** Cellule d'une grille « Automatique » (lot 31e) : une image très large y prend toute la largeur (pour le choix de la variante). */
+  cellAuto?: boolean;
   cellRatio?: string;
   /** Identifiant en base du bloc rendu (version publiée ; négatif en vue brouillon). */
   blockId?: number;

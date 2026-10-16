@@ -12,6 +12,8 @@ import { getMedia, mediaUrl } from "@/lib/media";
 
 import { frameAttrs } from "@/lib/look";
 
+import { AUTO_PANORAMA_RATIO } from "./grid-layouts";
+
 import { inline, localized, mediaRef, tr, type BlockContext } from "./types";
 
 export const imageSchema = z.object({
@@ -67,7 +69,8 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
   const stretch = !image || cropped || !cover ? 1 : coverFactor(natural, box, crop?.zoom);
   // Rapport de ce qui est affiché (plafond de hauteur) : le rectangle libre, sinon le cadre imposé, sinon l'image.
   const shownRatio = free ? frameRatio : (box ?? natural);
-  const cols = ctx.cell ? (ctx.cellColumns ?? 2) : 1;
+  // Grille « Automatique » : un panorama y occupe toute la largeur de la grille (une seule colonne pour le choix de la variante).
+  const cols = ctx.cell ? (ctx.cellAuto && natural >= AUTO_PANORAMA_RATIO ? 1 : (ctx.cellColumns ?? 2)) : 1;
   const baseSizes =
     cols > 1
       ? `(min-width: 1236px) ${Math.round(1200 / cols)}px, (min-width: 768px) ${(100 / cols).toFixed(1)}vw, 100vw`
