@@ -307,6 +307,8 @@ try {
     const i = layout().findIndex((x) => x.uid === uid);
     await center(frame(i));
     await frame(i).locator(".pe-bitem-edit").click();
+    // Lot 31e : « Réglages » d'une grille ouvre la fenêtre blanche sur la toile ; les réglages du composant sont dans « Plus de réglages… ».
+    if (await f.locator('[data-testid="gridsettings"]').waitFor({ timeout: 1500 }).then(() => true, () => false)) await f.locator('[data-testid="gridsettings-more"]').click();
     await page.getByTestId("box-field").waitFor({ timeout: 30000 });
     await page.locator(`[data-testid="box-field"] [data-preset="${preset}"]`).click();
     await page.locator(`[data-testid="box-field"] [data-align="${align}"]`).click();
