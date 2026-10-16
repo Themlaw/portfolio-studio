@@ -1572,3 +1572,20 @@ de la planche). Écriture : op de planche `item-fond` (Annuler / Rétablir, vers
 (`BoardLayer`, message `bitem-fond`, `BoardFondMenu` = la fenêtre `FondMenu` sans aperçu local). Test : `e2e-fond-planche.mjs` (suite `fondplanche24`).
 
 Tests : `test-fond.mjs`, `test-surface.mjs`, `e2e-fond.mjs` (suite `fond32`). Pas de migration (props facultatives).
+
+### Planche composée, finitions (v0.23.2, lot 31c)
+
+- **Texte en place** : un Texte de planche se modifie sur la toile (double-clic, `data-inline` posé par `ctx.inlineEdit` seulement pour ce type, sans les
+  autres commandes de page) ; `BoardLayer` poste `bitem-text`, op `item-text` (`setLocalizedAt` sur les réglages du composant), aperçu
+  gardé par `previewItemText`. La barre « Aa » (`LookLayer`) reconnaît les composants de planche (`data-edit-bitem`, `data-edit-look`) :
+  « Ce texte uniquement » et les styles globaux, écrits par `bitem-look` / op `item-look` dans `props.look` du composant.
+- **Fichiers de l'ordinateur** déposés sur une Image, une Grille, un carrousel ou une Vidéo : même envoi que sur un bloc de page
+  (`sendAndWait` : envoi, conversion, messages d'erreur), puis `item-media` (Image / Vidéo : remplace ; Grille, carrousel : ajoutent).
+- **Au doigt** : la poignée d'un composant (`touch-action: none`) le glisse ; la carte de la palette se glisse par un appui long de 350 ms
+  (le panneau défile tant qu'on bouge avant) ; les flèches restent. Le menu « + Ajouter » se replace (au-dessus, ou calé dans la fenêtre).
+- **Carte « Images qui défilent »** : un clic l'ajoute SOUS le composant de planche choisi (`item-add` avec `after`), ou à la fin de la planche
+  de la rubrique choisie (`board-add` : la toile connaît l'identifiant du projet) ; sinon un message dit où la poser.
+- **« N œuvres » : une règle partout** (`workCount`, `gallery.ts`) = les images et vidéos DISTINCTES que la planche montre : les œuvres de la
+  bande du projet (si elle y est, filtrées par métier, places vides exclues) + celles des autres composants (grille, image, vidéo, carrousel ;
+  prêtes et hors corbeille, chacune une fois). En-tête de la planche, compteurs de page (`boardWorkCount`) et tuiles de collection
+  (`countCollection` : les planches des projets qui ont du travail dans ce métier) l'appliquent ; une planche à la bande seule compte comme avant.

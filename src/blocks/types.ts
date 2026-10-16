@@ -38,6 +38,8 @@ export type BlockContext = {
   locale: AppLocale;
   pageId: number;
   edit?: boolean;
+  /** Composant de planche (lot 31c) : seuls les repères de texte modifiable en place (`data-inline`), sans les autres commandes de la toile. */
+  inlineEdit?: boolean;
   project?: string;
   parent?: string;
   pageBlocks?: { type: string; props: unknown }[];
@@ -59,7 +61,7 @@ export type BlockContext = {
  * seulement en vue brouillon, jamais dans le HTML public.
  */
 export function inline(ctx: BlockContext, path: string): { "data-inline"?: string; style?: CSSProperties } {
-  return { ...(ctx.edit ? { "data-inline": path } : {}), ...textStyle(ctx, path) };
+  return { ...(ctx.edit || ctx.inlineEdit ? { "data-inline": path } : {}), ...textStyle(ctx, path) };
 }
 
 /**

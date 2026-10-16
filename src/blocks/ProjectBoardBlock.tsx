@@ -95,6 +95,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
               ),
             }),
         // Vue brouillon : réglages et largeur du composant pour le panneau, et repère d'un composant encore vide.
+        ...(project.edit && item.props.look ? { look: JSON.stringify(item.props.look) } : {}),
         ...(project.edit ? { props: JSON.stringify({ props: item.props, ...(item.box ? { box: item.box } : {}) }), empty: itemEmpty(item) } : {}),
       })),
     );

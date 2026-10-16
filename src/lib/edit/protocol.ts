@@ -76,6 +76,9 @@ export const FromCanvasSchema = z.union([
   // Contenu de la planche (lot 31) : ajouter un composant à une position (menu « + Ajouter »), le monter, le descendre, le supprimer.
   z.object({ kind: z.literal("bitem-add"), board: Board, item: BoardItemKind, index: z.number().int().min(0).max(MAX_BOARD_ITEMS), source: z.literal("project").optional() }),
   // Lot 31b : composant de la palette glissé au-dessus d'une planche (position visée, ou null hors planche) ; réordonner par la poignée.
+  // Lot 31c : texte d'un composant modifié en place (chemin du champ), mise en forme (« Aa ») d'un composant.
+  z.object({ kind: z.literal("bitem-text"), board: Board, uid: Uid, path: z.string().regex(/^[a-zA-Z]+(\.\d{1,2})?$/).max(40), locale: Locale, value: z.string().max(2000) }),
+  z.object({ kind: z.literal("bitem-look"), board: Board, uid: Uid, look: LookSchema.nullable() }),
   z.object({ kind: z.literal("bitem-drop"), board: Board.nullable(), index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
   z.object({ kind: z.literal("bitem-to"), board: Board, uid: Uid, index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
   z.object({ kind: z.literal("bitem-op"), board: Board, uid: Uid, op: z.enum(["up", "down", "remove"]) }),
@@ -149,6 +152,8 @@ export const FromCanvasSchema = z.union([
 /** Éditeur → toile. */
 export const ToCanvasSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("mode"), mode: z.enum(["edit", "preview"]) }),
+  /** Lot 31c : ajouter un composant à la planche de cette rubrique (clic sur une carte de la palette) ; la toile connaît l'identifiant du projet. */
+  z.object({ kind: z.literal("board-add"), uid: Uid, item: BoardItemKind }),
   z.object({ kind: z.literal("select"), uid: Uid.nullable(), scroll: z.boolean().optional() }),
   /**
    * Rafraîchir la toile. `rev` : révision du brouillon écrite par l'éditeur ;

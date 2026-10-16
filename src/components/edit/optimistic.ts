@@ -272,6 +272,19 @@ export function previewBoardText(target: { board: number; field: string; key?: s
   });
 }
 
+/** Texte d'un composant de la planche (lot 31c) modifié en place : aperçu gardé jusqu'à ce que le serveur le rende (même mécanisme). */
+export function previewItemText(uid: string, path: string, value: string, seq: number) {
+  const sel = `[data-edit-bitem="${CSS.escape(uid)}"] [data-inline="${CSS.escape(path)}"]`;
+  setOverlay(`item-text:${uid}:${path}`, seq, {
+    apply: () => {
+      for (const el of document.querySelectorAll<HTMLElement>(sel)) if (!el.hasAttribute("data-editing")) writeText(el, value);
+    },
+    clear: () => {
+      for (const el of document.querySelectorAll<HTMLElement>(sel)) restoreText(el);
+    },
+  });
+}
+
 /* ---- Ordre des blocs ---------------------------------------------------------------- */
 
 /** Enveloppes d'édition des enfants d'un même parent (`null` : la page), en ordre du DOM. */

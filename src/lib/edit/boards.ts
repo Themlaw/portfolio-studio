@@ -39,6 +39,9 @@ import { z } from "zod";
 
 import { BOARD_ITEM_TYPES, BOX_MIN, MAX_BOARD_ITEMS, defaultLayout, isProjectStrip, newBoardItem, readLayout, sameLayout, type BoardItem } from "@/blocks/board-layout";
 import { getPageForEdit } from "@/lib/admin";
+import { LookSchema } from "@/lib/look";
+import { HELP_TEXT } from "@/blocks/help-text";
+import { setLocalizedAt } from "./protocol";
 import { getDb, schema } from "@/lib/db";
 import { FrameSchema } from "@/lib/look";
 import { slugify } from "@/lib/slug";
@@ -96,7 +99,10 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("text"), key: Key, field: z.enum(["title", "description"]), locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
   z.strictObject({ op: z.literal("project"), field: z.enum(["title", "context", "description", "year"]), locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
   // Contenu de la planche (lot 31) : ajouter un composant à une position, le déplacer d'un cran, le retirer, régler ses props.
-  z.strictObject({ op: z.literal("item-add"), type: z.enum(BOARD_ITEM_TYPES as [BoardItem["type"], ...BoardItem["type"][]]), index: z.number().int().min(0).max(MAX_BOARD_ITEMS), uid: Uid.optional(), source: z.literal("project").optional() }),
+  z.strictObject({ op: z.literal("item-add"), type: z.enum(BOARD_ITEM_TYPES as [BoardItem["type"], ...BoardItem["type"][]]), index: z.number().int().min(0).max(MAX_BOARD_ITEMS), uid: Uid.optional(), source: z.literal("project").optional(), after: Uid.optional() }),
+  // Lot 31c : texte modifié en place sur la toile (chemin « title », « paragraphs.0 »…), et mise en forme (« Aa ») d'un composant.
+  z.strictObject({ op: z.literal("item-text"), uid: Uid, path: z.string().regex(/^[a-zA-Z]+(\.\d{1,2})?$/).max(40), locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
+  z.strictObject({ op: z.literal("item-look"), uid: Uid, look: LookSchema.nullable() }),
   // Lot 31b : un média de la médiathèque posé sur un composant (Image / Vidéo : remplace ; Grille, carrousel : ajoute).
   z.strictObject({ op: z.literal("item-media"), uid: Uid, mediaId: z.number().int().positive() }),
   z.strictObject({ op: z.literal("item-to"), uid: Uid, index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
@@ -466,6 +472,26 @@ function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (
 const slugOf = (projectId: number) => getDb().select({ slug: schema.projects.slug }).from(schema.projects).where(eq(schema.projects.id, projectId)).get()?.slug ?? "";
 
 const newKey = () => `k${randomBytes(8).toString("hex")}`;
+/**
+ * Un Texte de planche neuf porte le texte d'exemple dans les DEUX langues ; dès qu'une langue est écrite, l'exemple de l'autre est
+ * retiré (comme sur une page, où il n'est posé que dans la langue éditée) : sinon la publication le refuserait.
+ */
+function settleHelp(props: Record<string, unknown>): Record<string, unknown> {
+  const fix = (v: unknown, help: { fr: string; en: string }): unknown => {
+    if (!v || typeof v !== "object") return v;
+    const l = v as { fr?: string; en?: string };
+    const frHelp = l.fr === help.fr;
+    const enHelp = l.en === help.en;
+    if (frHelp && !enHelp && l.en) return { ...l, fr: "" };
+    if (enHelp && !frHelp && l.fr) return { ...l, en: "" };
+    return v;
+  };
+  const out = { ...props };
+  if (out.title) out.title = fix(out.title, HELP_TEXT.title);
+  if (Array.isArray(out.paragraphs)) out.paragraphs = out.paragraphs.map((p) => fix(p, HELP_TEXT.paragraph));
+  return out;
+}
+
 const newItemUid = () => `c${randomBytes(6).toString("hex")}`;
 const EMPTY: L = { fr: "", en: "" };
 
@@ -511,11 +537,14 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       }
       case "item-add": {
         if (snap.layout.length >= MAX_BOARD_ITEMS) return `${MAX_BOARD_ITEMS} composants au plus par planche.`;
-        if (op.index > snap.layout.length) return "Position invalide.";
+        // `after` : sous ce composant (clic sur une carte de la palette), sinon à la position donnée.
+        const at = op.after ? snap.layout.findIndex((i) => i.uid === op.after) + 1 : op.index;
+        if (op.after && at === 0) return "Ce composant n'est plus sur cette planche.";
+        if (at > snap.layout.length) return "Position invalide.";
         if (op.type === "strip" && op.source === "project" && snap.layout.some(isProjectStrip)) return "Cette planche montre déjà les images du projet.";
         const uid = op.uid ?? newItemUid();
         if (snap.layout.some((i) => i.uid === uid)) return "Composant en double.";
-        snap.layout.splice(op.index, 0, newBoardItem(op.type, uid, op.source));
+        snap.layout.splice(at, 0, newBoardItem(op.type, uid, op.source));
         return snap;
       }
       case "item-move": {
@@ -549,6 +578,22 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
           if (list.length >= 60) return "60 médias au plus par carrousel.";
           item.props = { ...item.props, media: [...list, op.mediaId] };
         } else return item.type === "strip" ? "Les images du projet se gèrent depuis la bande : dépose l'image sur la bande." : "Ce composant n'accepte pas d'image.";
+        return snap;
+      }
+      case "item-text": {
+        const item = snap.layout.find((i) => i.uid === op.uid);
+        if (!item) return "Ce composant n'est plus sur cette planche.";
+        if (item.type === "strip" || item.type === "grid") return "Ce composant n'a pas de texte à modifier ici.";
+        item.props = item.type === "rich-text" ? settleHelp(setLocalizedAt(item.props, op.path, op.locale, op.value)) : setLocalizedAt(item.props, op.path, op.locale, op.value);
+        return snap;
+      }
+      case "item-look": {
+        const item = snap.layout.find((i) => i.uid === op.uid);
+        if (!item) return "Ce composant n'est plus sur cette planche.";
+        if (item.type === "strip") return "Ce composant n'a pas de mise en forme propre.";
+        const { look: _old, ...rest } = item.props;
+        void _old;
+        item.props = op.look && Object.keys(op.look).length ? { ...rest, look: op.look } : rest;
         return snap;
       }
       case "item-to": {
@@ -593,7 +638,7 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         if (!item) return "Ce composant n'est plus sur cette planche.";
         if (op.props !== undefined) {
           if (isProjectStrip(item)) return "La bande des images du projet n'a pas de réglage de contenu.";
-          item.props = op.props;
+          item.props = item.type === "rich-text" ? settleHelp(op.props) : op.props;
         }
         if (op.box !== undefined) {
           // Rien de réglé (ou 100 %, sans alignement) : la clé disparaît, le rendu redevient celui d'avant.

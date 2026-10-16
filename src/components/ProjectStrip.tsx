@@ -39,6 +39,8 @@ export type BoardPart = {
   empty?: boolean;
   /** Vue brouillon : réglages du composant (JSON), pour le panneau. */
   props?: string;
+  /** Vue brouillon : mise en forme propre du composant (JSON, `data-edit-look`), lue par la barre « Aa ». */
+  look?: string;
   /** Largeur et alignement (appliqués ici pour une bande, côté serveur pour les autres composants). */
   box?: BoardBoxProps;
   /** Carrousel à liste propre (lot 31b) : ses images, déjà lues dans la médiathèque. Absent : la bande des images du projet. */
@@ -176,9 +178,9 @@ export default function ProjectStrip({
         </div>
         )}
 
-        {hasStrip && (
+        {(hasStrip || project.count > 0) && (
         <span className="eyebrow strip-count">
-          {tg("count", { count: shownArtworks.length })}
+          {tg("count", { count: parts ? project.count : shownArtworks.length })}
         </span>
         )}
         {/* Toile de l'éditeur : « Ajouter des images » (fichiers de l'ordinateur) à la fin de la planche ; jamais en public. */}
@@ -234,6 +236,7 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
       {...(projectStrip ? { "data-edit-bitem-project": "" } : {})}
       data-board={board}
       {...(part.props ? { "data-edit-bitem-props": part.props } : {})}
+      {...(part.look ? { "data-edit-look": part.look } : {})}
       lang="fr"
     >
       <EditOnly>
