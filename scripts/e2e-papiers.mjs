@@ -681,6 +681,8 @@ await section("H", async () => {
   const grid = f.locator('[data-edit-block][data-edit-type="grid"]').first();
   await grid.locator(".block-grid").first().scrollIntoViewIfNeeded();
   await grid.locator(".block-grid").first().click({ position: { x: 2, y: 2 } });
+  // Le clic choisit une case (barre de case) : le fil d'Ariane « Grille » remonte à la rubrique, dont la barre porte « Fond ».
+  await f.locator(".pe-crumbs .pe-crumb", { hasText: "Grille" }).first().click();
   await f.locator('.pe-tools [data-testid="fond-button"]').waitFor({ timeout: 20000 });
   ok("H1 grille de page : le bouton « Fond » est dans la barre de la rubrique", true);
   await f.locator('.pe-tools [data-testid="fond-button"]').click();
