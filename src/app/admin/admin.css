@@ -6608,6 +6608,7 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
 .a-wp .a-seg {
   display: inline-flex;
   gap: 0;
+}
 
 /* Lot 31d : liste des cases d'une grille de planche (panneau), une rangée par case. */
 .ve-board-kid-list {
