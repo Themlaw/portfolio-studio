@@ -129,7 +129,7 @@ export default async function ProfileBlock({ props, ctx }: { props: z.infer<type
               </a>
               {shown(props.contactLabel) && (
                 <a className="btn mt-6" href={`mailto:${site.email}`}>
-                  {ctx.edit ? <span {...inline(ctx, "contactLabel")} {...ph("Texte du bouton")}>{tr(props.contactLabel!, ctx.locale)}</span> : tr(props.contactLabel!, ctx.locale)}
+                  {ctx.edit || textStyle(ctx, "contactLabel").style ? <span {...inline(ctx, "contactLabel")} {...ph("Texte du bouton")}>{tr(props.contactLabel!, ctx.locale)}</span> : tr(props.contactLabel!, ctx.locale)}
                   <span aria-hidden="true">→</span>
                 </a>
               )}

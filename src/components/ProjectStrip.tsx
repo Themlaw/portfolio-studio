@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type CSSProperties, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 
 import BoardBox from "@/components/BoardBox";
@@ -59,6 +59,7 @@ export default function ProjectStrip({
   slotFrame,
   parts,
   palette,
+  styles,
 }: {
   project: LocalizedProject;
   /** Fond papier profond, pour séparer deux projets sans boîte ni bordure. */
@@ -76,6 +77,11 @@ export default function ProjectStrip({
   parts?: BoardPart[];
   /** Palette effective du site : le texte lisible sur un fond de couleur (seulement si un composant en a un). */
   palette?: CardPalette;
+  /**
+   * Styles locaux des textes de l'en-tête (`look.text` du bloc : « Ce texte uniquement »). Fourni par la planche d'un projet
+   * seulement (un bloc = un projet) ; absent ailleurs, où les textes n'ont que le style global de leur rôle.
+   */
+  styles?: Partial<Record<"title" | "context" | "year" | "description", CSSProperties>>;
 }) {
   // Vue brouillon de l'éditeur : repères de la planche (jamais dans le HTML public).
   const edit = project.edit;
@@ -87,6 +93,11 @@ export default function ProjectStrip({
   const Heading = headingLevel;
   // La bande d'images est un composant facultatif de la planche : sans elle, ni compteur ni « Ajouter des images ».
   const hasStrip = !parts || parts.some((p) => p.type === "strip" && !p.artworks);
+  /** Texte de l'en-tête : style local, et clé de style de la barre typographique (toile seulement). */
+  const head = (key: "title" | "context" | "year" | "description") => ({
+    ...(editable && styles ? { "data-look-key": key } : {}),
+    ...(styles?.[key] ? { style: styles[key] } : {}),
+  });
 
   const tProject = project.title;
   /** Une bande : celle des images du projet (légendes, emplacements) ou un carrousel à liste propre. */
@@ -146,13 +157,20 @@ export default function ProjectStrip({
                 contexte et année se modifient en place. */}
             {editable ? (
               <>
-                <span data-project-inline="context" data-placeholder="Contexte">
+                <span data-project-inline="context" data-placeholder="Contexte" {...head("context")}>
                   {project.context}
                 </span>
                 {" · "}
-                <span data-project-inline="year" data-placeholder="Année">
+                <span data-project-inline="year" data-placeholder="Année" {...head("year")}>
                   {project.year}
                 </span>
+              </>
+            ) : styles?.context || styles?.year ? (
+              // Un style local sur le contexte ou l'année : chacun dans son <span> (sans style, le balisage reste celui d'avant).
+              <>
+                {project.context && <span {...head("context")}>{project.context}</span>}
+                {project.context && project.year ? " · " : null}
+                {project.year && <span {...head("year")}>{project.year}</span>}
               </>
             ) : project.context && project.year ? (
               <>
@@ -166,12 +184,14 @@ export default function ProjectStrip({
             id={`project-${project.slug}`}
             className="mt-3 font-display text-[clamp(2.2rem,5.5vw,3.5rem)] text-ink"
             {...(editable ? { "data-project-inline": "title", "data-placeholder": "Nom du projet" } : {})}
+            {...head("title")}
           >
             {project.title}
           </Heading>
           <p
             className="mt-4 text-base leading-relaxed text-ink-soft"
             {...(editable ? { "data-project-inline": "description", "data-placeholder": "Présentation du projet" } : {})}
+            {...head("description")}
           >
             {project.description}
           </p>
