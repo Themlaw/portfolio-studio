@@ -627,9 +627,13 @@ await section("G", async () => {
   f = await openEditor();
   const board = f.locator(`[data-edit-board="${project.id}"]`).first();
   await board.scrollIntoViewIfNeeded();
-  // Deux composants à papier peint identique : la bande du projet, puis un carrousel (ajouté par « + Ajouter »).
+  // Deux composants à papier peint identique : la bande du projet, puis une image (ajoutée par « + Ajouter »).
   await board.locator("[data-edit-bitem-add]").last().click({ force: true });
-  await f.locator('.pe-bitem-menu [data-bitem-type="strip"]:not([data-bitem-source])').click();
+  await f.locator('.pe-bitem-menu [data-bitem-type="image"]').click();
+  await page.getByRole("button", { name: "Choisir une image" }).first().click();
+  await page.locator(".a-picker-scroll button").first().click();
+  await page.getByRole("button", { name: "Utiliser cette image" }).click();
+  await settled();
   const layout = () => JSON.parse(q("select draft_layout, layout from projects where id = ?", project.id).map((r) => r.draft_layout ?? r.layout)[0] ?? "[]");
   ok("G1 deux composants dans la planche", await waitFor(() => layout().length === 2), JSON.stringify(layout().map((i) => i.type)));
   for (const i of [0, 1]) {
