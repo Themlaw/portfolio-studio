@@ -120,6 +120,14 @@ const EXPECTED = [
   "mergeTagsAction",
   "deleteTagAction",
   "deleteUnusedTagsAction",
+  "createWallpaperAction",
+  "renameWallpaperAction",
+  "saveWallpaperPaintAction",
+  "wallpaperUsesAction",
+  "trashWallpaperAction",
+  "restoreWallpaperAction",
+  "saveCardWallpaperAction",
+  "listWallpapersAction",
 ];
 const found = new Set();
 

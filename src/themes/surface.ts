@@ -18,6 +18,7 @@
 import { contrastRatio, mixOklab, opaqueOn, parseColor, ROLE_NAMES, toHex, type ResolvedPalette } from "./palette";
 import { BackgroundSchema, PAPER_ON_CARDS_DEFAULT, SURFACE_BASE_TOKENS, SURFACE_BORDER_WIDTHS, SURFACE_CORNERS, SURFACE_PAPERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema } from "./schema";
 import type { z } from "zod";
+import { wallpaperVars, type WallpaperLookup } from "./wallpaper";
 
 // Schéma et listes vivent dans schema.ts (zod seul, chargé tel quel par les scripts Node).
 export { BackgroundSchema, PAPER_ON_CARDS_DEFAULT, SURFACE_BASE_TOKENS, SURFACE_BORDER_WIDTHS, SURFACE_CORNERS, SURFACE_PAPERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema };
@@ -117,15 +118,33 @@ export function resolvePaper(surface: Surface, site: SitePaper = NO_SITE_PAPER):
 
 /**
  * Papier posé sur la carte (src/app/look.css, `.surface-card[data-paper="over"]::before`) : attribut et intensité sur l'enveloppe.
- * Rien tant que la carte ne le demande pas elle-même (`paper` / `paperOpacity`) : le site seul le pilote par des attributs de
- * <html> (data-kit-paper-cards), donc une carte sans réglage garde exactement le rendu d'avant.
+ * Rien tant que la carte ne le demande pas elle-même (`paper` / `paperOpacity` / `paperWallpaper`) : le site seul le pilote par des
+ * attributs de <html> (data-kit-paper-cards) ou du cadre (data-wp-cards), donc une carte sans réglage garde exactement le rendu d'avant.
+ * Papier peint (lot 35) : `paperWallpaper` pose `data-paper-wp` et les variables `--card-wp-*` du motif (taille `paperSize`, intensité
+ * `paperOpacity`) ; la carte le montre « dessus » sauf si elle dit `paper: under`. Motif absent de la bibliothèque : rien (la carte est opaque).
  */
-export function paperAttributes(surface: Surface): { attrs: Record<string, string>; vars: Record<string, string> } {
+export function paperAttributes(surface: Surface, lookup?: WallpaperLookup): { attrs: Record<string, string>; vars: Record<string, string> } {
   const attrs: Record<string, string> = {};
   const vars: Record<string, string> = {};
-  if (surface.paper) attrs["data-paper"] = surface.paper;
+  if (surface.paperWallpaper !== undefined) {
+    const wp = wallpaperVars(lookup?.(surface.paperWallpaper), { size: surface.paperSize, opacity: surface.paperOpacity }, "--card-wp");
+    if (Object.keys(wp).length) {
+      Object.assign(vars, wp);
+      attrs["data-paper-wp"] = "";
+      attrs["data-paper"] = surface.paper ?? "over";
+    }
+  }
+  if (surface.paper && !attrs["data-paper"]) attrs["data-paper"] = surface.paper;
   if (surface.paperOpacity !== undefined) vars["--card-paper-opacity"] = String(surface.paperOpacity);
   return { attrs, vars };
+}
+
+/**
+ * Signature du papier d'une carte (réglage `data-paper`, papier peint, opacité), pour la règle de fusion : deux cartes se fondent
+ * seulement si fond, bordure ET papier sont identiques. Mêmes champs côté serveur (`paperAttributes`) et côté toile (DOM).
+ */
+export function paperSignature(attrs: Record<string, string | null | undefined>, vars: Record<string, string | null | undefined>): string {
+  return [attrs["data-paper"] ?? "", attrs["data-paper-wp"] === undefined || attrs["data-paper-wp"] === null ? "" : "wp", vars["--card-wp-img"] ?? "", vars["--card-wp-size"] ?? "", vars["--card-wp-opacity"] ?? "", vars["--card-paper-opacity"] ?? ""].join(",");
 }
 
 /** Retire les champs vides : `{}` reste une carte (réglages du thème), jamais `undefined`. */

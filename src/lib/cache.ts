@@ -12,6 +12,7 @@ export const TAGS = {
   settings: "settings",
   nav: "nav",
   media: "media",
+  wallpapers: "wallpapers",
   projects: "projects",
   page: (id: number) => `page:${id}`,
   project: (id: number) => `project:${id}`,

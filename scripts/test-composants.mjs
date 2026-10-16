@@ -311,6 +311,7 @@ test("seed : l'accueil neuf n'a plus de conteneur (Titre, deux Planches à proje
 // 0024 (colonnes de la corbeille) à rejouer.
 live.prepare("delete from __drizzle_migrations where created_at >= 1791766309564").run();
 live.exec("DROP INDEX pages_collection_unique; ALTER TABLE pages DROP COLUMN collection;");
+live.exec("DROP TABLE IF EXISTS wallpapers;"); // 0026 (lot 35) : rejouée avec les migrations qui suivent 0020
 live.exec("ALTER TABLE media DROP COLUMN deleted_at; ALTER TABLE pages DROP COLUMN deleted_at; ALTER TABLE pages DROP COLUMN trashed_in_menu; ALTER TABLE projects DROP COLUMN deleted_at;");
 // 0025 (contenu de planche, lot 31) : colonnes de projet à rejouer aussi.
 live.exec("ALTER TABLE projects DROP COLUMN layout; ALTER TABLE projects DROP COLUMN draft_layout; ALTER TABLE projects DROP COLUMN draft_layout_page_id;");

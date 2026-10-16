@@ -11,7 +11,10 @@ import type { PaletteColors } from "@/themes/palette";
 import FondWrap from "@/components/FondWrap";
 import { fondJoins, fondKey, readBackground, supportsFond, type Background, type FondJoin } from "@/themes/fond";
 import { pagePalette } from "@/themes/site-palette";
-import { borderVars, cardBorderSignature, cardStyle, cardVars, paperAttributes, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
+import type { WallpaperLookup } from "@/themes/wallpaper";
+import { getWallpapers } from "@/lib/wallpapers";
+import WallpaperAlign from "@/components/WallpaperAlign";
+import { borderVars, cardBorderSignature, cardStyle, paperSignature, cardVars, paperAttributes, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
 import { BLOCKS } from "./registry";
 import { MAX_NESTING } from "./tree";
 import type { BlockContext } from "./types";
@@ -66,7 +69,7 @@ function withLook(node: ReactNode, look: Look | undefined, key: string): ReactNo
 }
 
 /** Palette du thème et carte par défaut : lus une fois par page, seulement si une carte est rendue (ou en édition). */
-type CardEnv = { palette: CardPalette; defaults: ResolvedSurface };
+type CardEnv = { palette: CardPalette; defaults: ResolvedSurface; wallpapers?: WallpaperLookup };
 
 /**
  * Carte de rubrique (lot 17c) : un aplat de la couleur choisie derrière la rubrique, posé sur le papier du
@@ -88,7 +91,7 @@ function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv
     );
   }
   const resolved = resolveSurface(surface, env.defaults);
-  const paper = paperAttributes(surface);
+  const paper = paperAttributes(surface, env.wallpapers);
   const style = cardStyle(resolved.color, env.palette);
   return (
     <div
@@ -125,7 +128,7 @@ export function withFond(node: ReactNode, type: string, background: Background |
     );
   }
   return (
-    <FondWrap key={`fond-${key}`} background={background} join={join} palette={ctx.palette} edit={ctx.edit}>
+    <FondWrap key={`fond-${key}`} background={background} join={join} palette={ctx.palette} lookup={ctx.wallpapers ? (id) => ctx.wallpapers!.get(id) : undefined} edit={ctx.edit}>
       {node}
     </FondWrap>
   );
@@ -263,7 +266,11 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
     // (mêmes règles que le layout : la palette du site est toujours appliquée).
     card = { palette: pagePalette(theme.tokens.color as PaletteColors, theme.tokens.palette, view.styles?.palette), defaults: resolveSurface(theme.tokens.layout?.card ?? {}) };
   }
-  const base: BlockContext = { ...baseCtx, ...(card ? { palette: card.palette } : {}) };
+  // Papiers peints (lot 35) : la bibliothèque n'est lue que si un composant en montre un (fond, papier de carte) ou en vue brouillon.
+  const usesWallpaper = ctx.edit || blocks.some((b) => !b.corrupt && /"kind":"wallpaper"|"paperWallpaper"/.test(JSON.stringify(b.props ?? null)));
+  const wallpapers = usesWallpaper ? await getWallpapers() : undefined;
+  if (card && wallpapers) card.wallpapers = (id) => wallpapers.get(id);
+  const base: BlockContext = { ...baseCtx, ...(card ? { palette: card.palette } : {}), ...(wallpapers ? { wallpapers } : {}) };
   // Fond de couleur (lot 32) : un composant se fond dans son voisin de même fond ET de même contenant (carte / page).
   const joins = fondJoins(
     blocks.map((b) => {
@@ -272,13 +279,17 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
       const surface = card ? readSurface(props?.surface) : undefined;
       // Une carte compte avec sa bordure : deux cartes de bordures différentes ne se fondent pas (voir `fondKey`).
       const resolved = surface && card ? resolveSurface(surface, card.defaults) : undefined;
-      const border = resolved && card ? cardBorderSignature(resolved, cardStyle(resolved.color, card.palette), card.palette) : "";
+      const paper = surface && card ? paperAttributes(surface, card.wallpapers) : undefined;
+      const border = resolved && card ? `${cardBorderSignature(resolved, cardStyle(resolved.color, card.palette), card.palette)}|${paper ? paperSignature(paper.attrs, paper.vars) : ""}` : "";
       return fondKey(readBackground(props?.background), Boolean(surface), border);
     }),
   );
+  // Raccord du motif entre composants fusionnés (lot 35) : client, seulement si un composant a un papier peint.
+  const alignWallpapers = ctx.edit || blocks.some((b) => !b.corrupt && JSON.stringify(b.props ?? null).includes('"kind":"wallpaper"'));
   return (
     <>
       {blocks.map((block, i) => renderBlock(block, base, 0, undefined, undefined, card, joins[i]))}
+      {alignWallpapers && <WallpaperAlign />}
       {ctx.edit && (
         // Toile : « + Ajouter une rubrique » toujours visible en bas de page (EditLayer l'écoute ; absent en aperçu).
         <div className="pe-add-end" data-edit-add-end="" lang="fr">

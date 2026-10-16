@@ -211,6 +211,14 @@ const ADMIN_ACTIONS = [
   "mergeTagsAction",
   "deleteTagAction",
   "deleteUnusedTagsAction",
+  "createWallpaperAction",
+  "renameWallpaperAction",
+  "saveWallpaperPaintAction",
+  "wallpaperUsesAction",
+  "trashWallpaperAction",
+  "restoreWallpaperAction",
+  "saveCardWallpaperAction",
+  "listWallpapersAction",
 ];
 
 /** Identifiants des server actions, lus dans le manifeste du build. */
@@ -521,6 +529,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings/.test(name) ? "/admin/reglages"
     : /Message/.test(name) ? "/admin/messages"
+    : /[wW]allpaper/.test(name) ? "/admin/papiers-peints"
     : /^(create|delete|reorder|restore)Projects?Action$/.test(name) ? "/admin/projets"
     : /Project|Slot/.test(name) ? "/admin/projets/1"
     : /^media|Media|Uploads|Tag/.test(name) ? "/admin/medias"

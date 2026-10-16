@@ -11,7 +11,7 @@
  * Si même avec le texte lisible choisi par `cardStyle` le contraste reste sous AA, une
  * pastille d'alerte le dit (jamais bloquant).
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { parseColor, rgbaToHex } from "@/lib/color";
 import { PALETTE } from "@/lib/look";
@@ -38,9 +38,10 @@ import {
 
 import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";
-import { canvasPalette, postIntent, previewSurface, surfaceState } from "./optimistic";
+import { canvasPalette, postIntent, previewSurface, surfaceState, wallpaperCatalog } from "./optimistic";
 import { ratioTip, readabilityText } from "./readability";
 import { useDismiss } from "./useDismiss";
+import { WallpaperGrid, WallpaperPaintRows } from "./WallpaperChoices";
 
 import "@/app/admin/typo-controls.css";
 import "@/app/admin/surface-menu.css";
@@ -48,6 +49,12 @@ import "@/app/admin/surface-menu.css";
 /** Papier du site tel que la toile l'affiche : présent dans le thème actif ? montré sur les cartes ? à quelle intensité ? */
 function sitePaper() {
   const root = document.documentElement;
+  // Papier peint par défaut des cartes du site (lot 35, Thèmes → Papiers peints) : le cadre du site le porte.
+  const frame = document.querySelector<HTMLElement>(".site-frame[data-wp-cards]");
+  if (frame) {
+    const wp = Number.parseFloat(getComputedStyle(frame).getPropertyValue("--card-wp-opacity"));
+    return { has: true, onCards: true, opacity: Math.min(0.6, Number.isFinite(wp) ? wp : PAPER_ON_CARDS_DEFAULT) };
+  }
   const raw = Number.parseFloat(getComputedStyle(root).getPropertyValue("--t-kit-paper-cards"));
   return { has: root.hasAttribute("data-kit-paper"), onCards: root.hasAttribute("data-kit-paper-cards"), opacity: Number.isFinite(raw) ? raw : PAPER_ON_CARDS_DEFAULT };
 }
@@ -160,6 +167,12 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
   const patch = (p: Partial<Surface>, continuous = false) => change(cleanSurface({ ...(cur ?? {}), ...p }), continuous);
 
   const s = summary(cur, defaults);
+  // Le menu est haut (couleurs, papier peint, bordure) : on l'amène dans la vue de la toile quand il s'ouvre ou s'allonge.
+  const hasCard = s !== null;
+  const hasWallpaper = cur?.paperWallpaper !== undefined;
+  useEffect(() => {
+    ref.current?.scrollIntoView({ block: "nearest" });
+  }, [hasCard, hasWallpaper]);
   const site = sitePaper();
   const paper = cur ? resolvePaper(cur, site) : null;
   const customColor = cur?.color && !isSurfaceToken(cur.color) ? cur.color : undefined;
@@ -215,6 +228,23 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
             </span>
           </div>
           <BorderRows border={s.resolved.border} onChange={(border, continuous) => patch({ border }, continuous)} />
+          {/* Papier peint (lot 35) : un motif de la bibliothèque à la place du papier du kit, sur CETTE carte. */}
+          <div className="tc-row">
+            <span className="sm-label">Papier peint</span>
+            <button type="button" className="wp-reset" data-testid="surface-wp-none" disabled={cur?.paperWallpaper === undefined} onClick={() => patch({ paperWallpaper: undefined, paperSize: undefined })}>
+              Aucun (papier du site)
+            </button>
+          </div>
+          <WallpaperGrid value={cur?.paperWallpaper} onPick={(id) => patch({ paperWallpaper: id, paperSize: undefined, ...(cur?.paper === "under" ? { paper: undefined } : {}) })} />
+          {cur?.paperWallpaper !== undefined && (
+            <WallpaperPaintRows
+              entry={wallpaperCatalog().get(cur.paperWallpaper)}
+              size={cur.paperSize}
+              opacity={cur.paperOpacity}
+              maxOpacity={0.6}
+              onChange={(p, continuous) => patch({ ...("size" in p ? { paperSize: p.size ?? undefined } : {}), ...("opacity" in p ? { paperOpacity: p.opacity ?? undefined } : {}) }, continuous)}
+            />
+          )}
           {site.has ? (
             <>
               <div className="tc-row">
@@ -230,7 +260,7 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
                   ))}
                 </span>
               </div>
-              {paper?.over && (
+              {paper?.over && cur?.paperWallpaper === undefined && (
                 <div className="tc-row">
                   <span className="sm-label">Intensité</span>
                   <input

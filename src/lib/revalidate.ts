@@ -35,3 +35,5 @@ export const revalidateProject = (id: number, o?: Options & { structure?: boolea
 export const revalidateProjects = (o?: Options) => expire([TAGS.projects], o);
 /** Médias (alt, remplacement, suppression). */
 export const revalidateMedia = (o?: Options) => expire([TAGS.media], o);
+/** Papiers peints (lot 35) : bibliothèque, réglage d'un motif, papier des cartes du site. Les pages qui les montrent héritent de l'étiquette. */
+export const revalidateWallpapers = (o?: Options) => expire([TAGS.wallpapers, TAGS.media, TAGS.settings], o);

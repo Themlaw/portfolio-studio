@@ -24,9 +24,9 @@ type EditBlock = { uid: string; type: string; props: Record<string, unknown> };
 type State = Omit<AdminPageEdit, "blocks" | "id" | "isHome"> & { blocks: EditBlock[] };
 
 function toState(page: AdminPageEdit): State {
-  const { title, slug, meta, published, inMenu, accent, collection, blocks } = page;
+  const { title, slug, meta, published, inMenu, accent, wallpaper, collection, blocks } = page;
   return {
-    ...clone({ title, slug, meta, published, inMenu, accent, collection }),
+    ...clone({ title, slug, meta, published, inMenu, accent, wallpaper, collection }),
     blocks: blocks.map((b, i) => ({ uid: `b${i}`, type: b.type, props: clone(b.props) })),
   };
 }

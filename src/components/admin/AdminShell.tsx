@@ -10,9 +10,11 @@ import { useDismiss } from "../edit/useDismiss";
 import { Toaster } from "./editing";
 import { QueueIndicator, UploadQueueProvider } from "./UploadQueue";
 
-const NAV = [
+/** `sub` : entrée rangée sous la précédente (Papiers peints sous Thèmes), légèrement en retrait. */
+const NAV: { href: string; label: string; sub?: boolean }[] = [
   { href: "/admin", label: "Tableau de bord" },
   { href: "/admin/themes", label: "Thèmes" },
+  { href: "/admin/papiers-peints", label: "Papiers peints", sub: true },
   { href: "/admin/pages", label: "Pages" },
   { href: "/admin/projets", label: "Projets" },
   { href: "/admin/medias", label: "Médiathèque" },
@@ -74,7 +76,7 @@ export default function AdminShell({
         <nav className="a-nav" aria-label="Administration">
           <ul>
             {NAV.map((item) => (
-              <li key={item.href}>
+              <li key={item.href} data-sub={item.sub ? "" : undefined}>
                 <Link href={item.href} aria-current={isCurrent(pathname, item.href) ? "page" : undefined}>
                   {item.label}
                 </Link>

@@ -14,6 +14,7 @@ import { RADIUS_VALUES } from "@/themes/css";
 import type { Frame } from "@/lib/look";
 import type { Background, FondJoin } from "@/themes/fond";
 import type { CardPalette } from "@/themes/surface";
+import type { WallpaperEntry } from "@/themes/wallpaper";
 
 /**
  * La planche de projet : l'unité de lecture du site.
@@ -59,6 +60,7 @@ export default function ProjectStrip({
   slotFrame,
   parts,
   palette,
+  wallpapers,
   styles,
 }: {
   project: LocalizedProject;
@@ -77,6 +79,8 @@ export default function ProjectStrip({
   parts?: BoardPart[];
   /** Palette effective du site : le texte lisible sur un fond de couleur (seulement si un composant en a un). */
   palette?: CardPalette;
+  /** Papiers peints utilisés par les fonds des composants (lot 35), par identifiant. */
+  wallpapers?: Record<number, WallpaperEntry>;
   /**
    * Styles locaux des textes de l'en-tête (`look.text` du bloc : « Ce texte uniquement »). Fourni par la planche d'un projet
    * seulement (un bloc = un projet) ; absent ailleurs, où les textes n'ont que le style global de leur rôle.
@@ -115,7 +119,7 @@ export default function ProjectStrip({
   /** Fond de couleur du composant, bord à bord de la planche (lot 32) ; sans fond : le composant tel quel. */
   const fonded = (part: BoardPart, node: ReactNode) =>
     part.fond && palette ? (
-      <FondWrap background={part.fond.background} join={part.fond.join} palette={palette}>
+      <FondWrap background={part.fond.background} join={part.fond.join} palette={palette} lookup={wallpapers ? (id) => wallpapers[id] : undefined}>
         {node}
       </FondWrap>
     ) : (

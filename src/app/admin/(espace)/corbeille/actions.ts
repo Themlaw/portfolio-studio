@@ -9,9 +9,9 @@ import { z } from "zod";
 import { assertAdmin } from "@/lib/auth/guard";
 import { emptyTrash, purgeOne, type PurgeReport } from "@/lib/edit/trash";
 import { fail, type ActionResult } from "@/lib/edit/result";
-import { revalidateMedia, revalidateNav, revalidateProjects } from "@/lib/revalidate";
+import { revalidateMedia, revalidateNav, revalidateProjects, revalidateWallpapers } from "@/lib/revalidate";
 
-const Target = z.strictObject({ kind: z.enum(["page", "project", "media"]), id: z.number().int().positive() });
+const Target = z.strictObject({ kind: z.enum(["page", "project", "media", "wallpaper"]), id: z.number().int().positive() });
 
 /** Supprime définitivement UN élément de la corbeille (jamais un élément en ligne). */
 export async function purgeTrashItemAction(input: unknown): Promise<ActionResult<null>> {
@@ -22,6 +22,7 @@ export async function purgeTrashItemAction(input: unknown): Promise<ActionResult
   if (!result.ok) return fail(result.message);
   // Rien de public n'a changé (l'élément n'y était plus) ; les compteurs et usages se relisent.
   revalidateMedia();
+  revalidateWallpapers();
   return { ok: true, data: null };
 }
 

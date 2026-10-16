@@ -5,6 +5,9 @@ import ProjectStrip, { type BoardPart } from "@/components/ProjectStrip";
 import { getProjectBoard, type LocalizedArtwork } from "@/lib/gallery";
 import { getMedia } from "@/lib/media";
 
+import WallpaperAlign from "@/components/WallpaperAlign";
+import { getWallpapers } from "@/lib/wallpapers";
+import type { WallpaperEntry } from "@/themes/wallpaper";
 import { effectivePalette, renderBoardItem } from "./BlockList";
 import { fondJoins, fondKey, readBackground } from "@/themes/fond";
 import { itemEmpty } from "./board-layout";
@@ -86,6 +89,13 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     const fonds = project.layout.map((item) => readBackground(item.props.background));
     const joins = fondJoins(fonds.map((bg) => fondKey(bg, false)));
     const palette = fonds.some(Boolean) ? await effectivePalette(ctx) : undefined;
+    // Papiers peints (lot 35) : les motifs utilisés par les fonds de la planche (bibliothèque lue seulement s'il y en a), passés au client.
+    const wallpaperIds = [...new Set(fonds.flatMap((bg) => (bg?.kind === "wallpaper" ? [bg.wallpaper] : [])))];
+    let wallpapers: Record<number, WallpaperEntry> | undefined;
+    if (wallpaperIds.length) {
+      const all = ctx.wallpapers ?? (await getWallpapers());
+      wallpapers = Object.fromEntries(wallpaperIds.flatMap((id) => (all.get(id) ? [[id, all.get(id)!] as const] : [])));
+    }
     const parts: BoardPart[] = await Promise.all(
       project.layout.map(async (item, i): Promise<BoardPart> => ({
         uid: item.uid,
@@ -109,7 +119,12 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
         ...(project.edit ? { props: JSON.stringify({ props: item.props, ...(item.box ? { box: item.box } : {}) }), empty: itemEmpty(item) } : {}),
       })),
     );
-    return <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} slotFrame={ctx.look?.slotFrame} styles={headerStyles(ctx)} parts={parts} {...(palette ? { palette } : {})} />;
+    return (
+      <>
+        <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} slotFrame={ctx.look?.slotFrame} styles={headerStyles(ctx)} parts={parts} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
+        {wallpapers && <WallpaperAlign />}
+      </>
+    );
   }
   if (!ctx.edit) return null;
   // Dans un conteneur encore sans projet : la planche attend le choix du conteneur.

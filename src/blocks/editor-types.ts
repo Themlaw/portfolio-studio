@@ -22,6 +22,8 @@ export type EditorContext = {
   heroBackdrop?: boolean;
   /** Pages de collection publiées, dans l'ordre du menu (entrées automatiques des collections, lot 22). */
   collectionPages?: CollectionPage[];
+  /** Papiers peints de la bibliothèque, prêts (lot 35) : choix du papier d'une page. */
+  wallpapers?: { id: number; name: string; thumb: string | null; size: number; opacity: number }[];
   /** Médiathèque (sans les échecs de traitement). */
   media: AdminMediaRow[];
   /** Éditeur visuel : crée un projet dans le brouillon de la page (son slug, ou null si refusé). */

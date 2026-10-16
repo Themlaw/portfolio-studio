@@ -445,3 +445,113 @@ figure.block-image[data-frame] .block-image-frame,
 main > :has(+ .surface-card[data-surface="on"]) {
   display: flow-root;
 }
+
+/* ==== Papiers peints (lot 35) — src/themes/wallpaper.ts, docs/ARCHITECTURE.md ======================================
+   Un motif est une image de fond RÉPÉTÉE (--wp-img, --wp-size en px, réduit à 60 % sous 768 px : --wp-size-m) à l'opacité --wp-opacity,
+   jamais une couleur. Trois endroits : le papier d'une page (calque derrière la page), le fond d'un composant (calque dans son enveloppe)
+   et le papier des cartes (calque dans la carte, variables --card-wp-*). Motif supprimé : les variables manquent, il n'y a plus de
+   calque visible (l'endroit retrouve sa couleur, ou rien). */
+
+/* -- Papier d'une page : remplace le papier du kit pour cette page seulement (aucun calque = page comme avant). */
+.site-frame:has(> .page-wallpaper) {
+  position: relative;
+  isolation: isolate;
+}
+.page-wallpaper {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--wp-img, none);
+  background-size: var(--wp-size) auto;
+  background-repeat: repeat;
+  opacity: var(--wp-opacity, 1);
+}
+/* « Aucun » ou un motif : le papier du kit ne se voit plus sur cette page (page, bandes profondes, voile de l'ouverture). */
+[data-kit-paper] body:has(.page-wallpaper),
+[data-kit-paper] .site-frame:has(> .page-wallpaper) .strip-deep {
+  background-image: none;
+}
+.site-frame:has(> .page-wallpaper) .hero-parallax::after {
+  display: none;
+}
+
+/* -- Fond d'un composant : la couleur (facultative) est celle de l'enveloppe ; le motif est un calque au-dessus d'elle, sous le contenu.
+   La tuile démarre au coin de l'enveloppe ; deux composants fusionnés se raccordent grâce à --wp-y (décalage de départ posé par
+   src/components/edit/wallpaper-align.ts, côté navigateur, quand la hauteur de ce qui précède est connue). */
+.fond-bloc[data-fond="on"][data-fond-clear] {
+  background-color: transparent;
+}
+.fond-bloc[data-fond="on"][data-wallpaper] {
+  position: relative;
+  isolation: isolate;
+  /* Le papier du kit ne se redessine pas sous ce motif (bande profonde d'une planche comprise). */
+  --t-kit-paper: none;
+}
+.fond-bloc[data-fond="on"][data-wallpaper]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--wp-img, none);
+  background-size: var(--wp-size) auto;
+  background-repeat: repeat;
+  background-position: 0 var(--wp-y, 0px);
+  opacity: var(--wp-opacity, 1);
+}
+
+/* -- Papier des cartes : le motif de la carte (data-paper-wp) ou celui du site (data-wp-cards sur le cadre), « dessus » sauf carte « sous ».
+   Même calque que le papier du kit (lot 28), mais indépendant du thème : un motif se voit même sans papier dessiné. */
+.surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]),
+.site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) {
+  isolation: isolate;
+}
+:root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"])::before,
+:root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"])::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: var(--card-wp-img, none);
+  background-size: var(--card-wp-size) auto;
+  background-repeat: repeat;
+  opacity: var(--card-paper-opacity, var(--card-wp-opacity, 1));
+}
+/* Un fond de couleur opaque dans la carte cacherait ce papier : il le redessine (comme le papier du kit), sauf s'il a son propre motif. */
+.surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]),
+.site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]),
+.site-frame[data-wp-cards] :not(.surface-card[data-surface="on"]) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]) {
+  position: relative;
+  isolation: isolate;
+}
+:root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before,
+:root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before,
+:root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"]) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: var(--card-wp-img, none);
+  background-size: var(--card-wp-size) auto;
+  background-repeat: repeat;
+  opacity: var(--card-paper-opacity, var(--card-wp-opacity, 1));
+}
+
+/* -- Téléphone : tuiles réduites à 60 %. */
+@media (max-width: 767px) {
+  .page-wallpaper,
+  .fond-bloc[data-fond="on"][data-wallpaper]::after {
+    background-size: var(--wp-size-m) auto;
+  }
+  :root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"])::before,
+  :root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"])::before,
+  :root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before,
+  :root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before,
+  :root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"]) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before {
+    background-size: var(--card-wp-size-m) auto;
+  }
+}

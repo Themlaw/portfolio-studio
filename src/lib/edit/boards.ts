@@ -398,8 +398,8 @@ export function touchPage(pageId: number, rev: number): boolean {
   if (draft === null) {
     const published = getPageForEdit(pageId);
     if (!published) return false;
-    const { title, slug, meta, published: pub, inMenu, accent, collection, blocks } = published;
-    draft = { title, slug, meta, published: pub, inMenu, accent, collection, blocks: blocks.map((b, i) => ({ uid: `b${i}`, type: b.type, props: b.props })) };
+    const { title, slug, meta, published: pub, inMenu, accent, wallpaper, collection, blocks } = published;
+    draft = { title, slug, meta, published: pub, inMenu, accent, wallpaper, collection, blocks: blocks.map((b, i) => ({ uid: `b${i}`, type: b.type, props: b.props })) };
   }
   const res = db
     .update(schema.pages)
