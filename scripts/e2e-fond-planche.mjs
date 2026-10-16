@@ -262,6 +262,17 @@ try {
   await page.keyboard.press("Control+z");
   ok("F5c Annuler : plus de cadre (Annuler / Rétablir de la planche)", await waitFor(() => lookFrame(1) === undefined), JSON.stringify(lookFrame(1)));
   await settled();
+  /* ---- G. Flèches de la bande dans une planche composée, sur la toile (lot 33) : elles font défiler, sans rien sélectionner ---- */
+  const rail0 = board3.locator("[data-edit-bitem]").nth(0).locator(".strip-rail").first();
+  await rail0.scrollIntoViewIfNeeded();
+  const before = await rail0.evaluate((r) => r.scrollLeft);
+  const next = board3.locator("[data-edit-bitem]").nth(0).locator(".strip-nav-next").first();
+  await next.waitFor({ timeout: 20000 });
+  await next.hover();
+  await next.click();
+  ok("G1 la flèche « suivante » de la bande fait défiler sur la toile", await waitFor(async () => (await rail0.evaluate((r) => r.scrollLeft)) > before + 20, 15000), `${before} → ${await rail0.evaluate((r) => r.scrollLeft)}`);
+  ok("G2 le clic sur la flèche ne choisit aucun composant (pas de panneau de réglages ouvert pour la bande)", (await board3.locator("[data-edit-bitem][data-selected]").count()) <= 1);
+  await shot("5-fleches-planche-composee");
   ok("D aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));
 } finally {
   await browser.close();
