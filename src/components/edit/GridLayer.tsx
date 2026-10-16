@@ -92,9 +92,9 @@ function GridBar({ grid, gref, rect, gridTop, minTop }: { grid: HTMLElement; gre
     const r = e.currentTarget.getBoundingClientRect();
     setMenu((m) => (m?.kind === kind ? null : { kind, top: r.bottom + window.scrollY + 6, left: Math.max(window.scrollX + 8, Math.min(r.left + window.scrollX, window.scrollX + window.innerWidth - 340)) }));
   };
-  // La barre se pose dans la marge au-dessus de la première rangée (jamais dessus), sous l'en-tête du site s'il est collé en haut,
+  // La barre se pose dans la marge au-dessus de la première rangée et du fil d'Ariane de la case choisie (jamais dessus), sous l'en-tête du site s'il est collé en haut,
   // et à gauche : la barre de la rubrique (Carte, Fond, flèches) reste libre à droite.
-  const top = Math.min(Math.max(minTop, gridTop - 48), rect.top + Math.max(6, rect.height - 44));
+  const top = Math.min(Math.max(minTop, gridTop - 80), rect.top + Math.max(6, rect.height - 44));
   const maxWidth = Math.max(380, Math.min(760, rect.width - 340));
   const set = (patch: Omit<Extract<GridCanvasOp, { op: "set" }>, "op">) => send(gref, { op: "set", ...patch });
   return (
