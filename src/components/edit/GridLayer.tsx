@@ -94,20 +94,15 @@ function GridBar({ grid, gref, rect, gridTop, minTop }: { grid: HTMLElement; gre
   };
   // La barre se pose dans la marge au-dessus de la première rangée et du fil d'Ariane de la case choisie (jamais dessus), sous l'en-tête du site s'il est collé en haut,
   // et à gauche : la barre de la rubrique (Carte, Fond, flèches) reste libre à droite.
-  // Pas de place au-dessus (grille collée au haut de l'écran) : sous la rubrique, décalée pour laisser l'étiquette « Auto » ; sinon
-  // (rubrique plus haute que l'écran) elle reste en haut de l'écran.
   const above = gridTop - 80;
-  const below = rect.top + rect.height + 6;
-  const roomBelow = below + 44 < window.scrollY + window.innerHeight;
-  const flip = above < minTop && roomBelow;
-  const top = flip ? below : Math.min(Math.max(minTop, above), rect.top + Math.max(6, rect.height - 44));
+  const top = Math.min(Math.max(minTop, above), rect.top + Math.max(6, rect.height - 44));
   // La barre de la rubrique (Carte, Fond, flèches), à droite, n'existe pas quand une case est choisie : toute la largeur est libre.
   const toolsRight = document.querySelector(".pe-tools") ? 340 : 24;
   const maxWidth = Math.max(380, Math.min(920, rect.width - toolsRight));
   const set = (patch: Omit<Extract<GridCanvasOp, { op: "set" }>, "op">) => send(gref, { op: "set", ...patch });
   return (
     <>
-      <div className="pe-gridbar" role="toolbar" aria-label="Réglages de la grille" data-testid="gridbar" style={{ top, left: rect.left + (flip ? 140 : 6), maxWidth }}>
+      <div className="pe-gridbar" role="toolbar" aria-label="Réglages de la grille" data-testid="gridbar" style={{ top, left: rect.left + 6, maxWidth }}>
         <button type="button" className="pe-gb-btn" aria-haspopup="menu" aria-expanded={menu?.kind === "layout"} data-testid="gridbar-layout" title="Agencement des images" onClick={(e) => open("layout", e)}>
           <GridLayoutIcon layout={layout} />
           <span>Agencement</span>
