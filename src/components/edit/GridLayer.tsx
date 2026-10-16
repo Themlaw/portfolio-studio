@@ -4,7 +4,7 @@
  * Grille unifiée sur la toile (lot 31d) : le même outil pour la grille d'une page et celle d'une planche de projet.
  *
  * - Barre de la grille (grille choisie) : agencement (vignettes), espace entre les images, format des cases, « + Case »,
- *   « Adapter aux images », colonnes et inversion en « Sur mesure », Fond.
+ *   « Adapter aux images », colonnes et inversion en « Sur mesure » (le Fond reste dans la barre de la rubrique).
  * - Barre d'une case remplie (au survol, ou au toucher) : poignée (glisser pour déplacer, ou déposer sur une autre case pour
  *   les ÉCHANGER), numéro, Remplacer, Retirer, Cadrer, Cadre, largeur et hauteur de la case.
  * - Numéros des cases de la grille choisie : on voit toujours dans quel ordre les images se rangent.
@@ -68,7 +68,18 @@ function GridMenu({ top, left, label, onClose, children, className }: { top: num
   );
 }
 
-function GridBar({ grid, gref, rect, onFond }: { grid: HTMLElement; gref: GridRef; rect: Rect; onFond: () => void }) {
+/** Menu « Taille » d'une case : quatre mots simples. */
+function SizeMenu({ top, left, onClose, children }: { top: number; left: number; onClose: () => void; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, onClose);
+  return (
+    <div ref={ref} className="pe-gridmenu pe-gridmenu-ratios" role="menu" aria-label="Taille de la case" style={{ top, left, transform: "translateY(-100%)" }}>
+      {children}
+    </div>
+  );
+}
+
+function GridBar({ grid, gref, rect, gridTop, minTop }: { grid: HTMLElement; gref: GridRef; rect: Rect; gridTop: number; minTop: number }) {
   const [menu, setMenu] = useState<Menu>(null);
   const layout = (grid.dataset.layout ?? "2") as GridLayout;
   const gap = grid.dataset.gap ?? "normal";
@@ -81,13 +92,14 @@ function GridBar({ grid, gref, rect, onFond }: { grid: HTMLElement; gref: GridRe
     const r = e.currentTarget.getBoundingClientRect();
     setMenu((m) => (m?.kind === kind ? null : { kind, top: r.bottom + window.scrollY + 6, left: Math.max(window.scrollX + 8, Math.min(r.left + window.scrollX, window.scrollX + window.innerWidth - 340)) }));
   };
-  // La barre se pose juste AU-DESSUS de la rubrique (le fil d'Ariane et les outils de la case choisie restent libres) ; elle
-  // suit la grille quand on défile et reste visible quand son haut sort de l'écran.
-  const top = Math.min(Math.max(window.scrollY + 8, rect.top - 46), rect.top + Math.max(6, rect.height - 44));
+  // La barre se pose dans la marge au-dessus de la première rangée (jamais dessus), sous l'en-tête du site s'il est collé en haut,
+  // et à gauche : la barre de la rubrique (Carte, Fond, flèches) reste libre à droite.
+  const top = Math.min(Math.max(minTop, gridTop - 48), rect.top + Math.max(6, rect.height - 44));
+  const maxWidth = Math.max(380, Math.min(760, rect.width - 340));
   const set = (patch: Omit<Extract<GridCanvasOp, { op: "set" }>, "op">) => send(gref, { op: "set", ...patch });
   return (
     <>
-      <div className="pe-gridbar" role="toolbar" aria-label="Réglages de la grille" data-testid="gridbar" style={{ top, left: rect.left + 6 }}>
+      <div className="pe-gridbar" role="toolbar" aria-label="Réglages de la grille" data-testid="gridbar" style={{ top, left: rect.left + 6, maxWidth }}>
         <button type="button" className="pe-gb-btn" aria-haspopup="menu" aria-expanded={menu?.kind === "layout"} data-testid="gridbar-layout" title="Agencement des images" onClick={(e) => open("layout", e)}>
           <GridLayoutIcon layout={layout} />
           <span>Agencement</span>
@@ -127,9 +139,6 @@ function GridBar({ grid, gref, rect, onFond }: { grid: HTMLElement; gref: GridRe
         </button>
         <button type="button" className="pe-gb-btn" data-testid="gridbar-adapt" disabled={count === 0} title="Donne à chaque case la forme de son image : un portrait sur deux rangées, un panorama sur deux colonnes" onClick={() => send(gref, { op: "adapt" })}>
           Adapter aux images
-        </button>
-        <button type="button" className="pe-gb-btn" data-testid="gridbar-fond" aria-haspopup="dialog" title="Fond de couleur de la grille" onClick={onFond}>
-          Fond
         </button>
       </div>
       {menu?.kind === "layout" && (
@@ -205,6 +214,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
   const [hover, setHover] = useState<HTMLElement | null>(null);
   const [frameFor, setFrameFor] = useState<{ uid: string; top: number; left: number } | null>(null);
   const [drag, setDrag] = useState<CellDrag | null>(null);
+  const [sizeMenu, setSizeMenu] = useState<{ uid: string; top: number; left: number } | null>(null);
   const dragRef = useRef<CellDrag | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const bump = useCallback(() => setTick((t) => t + 1), []);
@@ -337,13 +347,10 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
   const section = active?.closest<HTMLElement>(".block-grid-section") ?? active;
   const sectionRect = section ? docRect(section) : null;
 
-  const fondClick = () => {
-    if (!activeRef) return;
-    const q = activeRef.board
-      ? `[data-edit-bitem-op="fond"][data-uid="${CSS.escape(activeRef.uid)}"]`
-      : `.pe-tools [data-testid="fond-button"]`;
-    document.querySelector<HTMLElement>(q)?.click();
-  };
+  const hdr = document.querySelector("header");
+  const stuck = hdr && ["fixed", "sticky"].includes(getComputedStyle(hdr).position) ? hdr.getBoundingClientRect().bottom : 0;
+  const minTop = window.scrollY + Math.max(0, stuck) + 8;
+  const gridTop = active ? docRect(active).top : 0;
 
   const cellBar = (cell: HTMLElement, gref: GridRef) => {
     const uid = cell.dataset.editCell ?? "";
@@ -421,20 +428,35 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
             </button>
           </>
         )}
-        <span className="pe-cb-size" role="group" aria-label="Taille de la case">
-          <button type="button" className="pe-cb-btn pe-cb-ico" data-cb="narrower" aria-label="Moins large" title="Moins large" disabled={w <= 1} onClick={() => send(gref, { op: "span", index, dw: -1 })}>
-            ↤
-          </button>
-          <button type="button" className="pe-cb-btn pe-cb-ico" data-cb="wider" aria-label="Plus large" title="Plus large" disabled={w >= maxW} onClick={() => send(gref, { op: "span", index, dw: 1 })}>
-            ↦
-          </button>
-          <button type="button" className="pe-cb-btn pe-cb-ico" data-cb="shorter" aria-label="Moins haute" title="Moins haute" disabled={h <= 1} onClick={() => send(gref, { op: "span", index, dh: -1 })}>
-            ↥
-          </button>
-          <button type="button" className="pe-cb-btn pe-cb-ico" data-cb="taller" aria-label="Plus haute" title="Plus haute" disabled={h >= 2} onClick={() => send(gref, { op: "span", index, dh: 1 })}>
-            ↧
-          </button>
-        </span>
+        <button
+          type="button"
+          className="pe-cb-btn"
+          data-cb="size"
+          aria-haspopup="menu"
+          aria-expanded={sizeMenu?.uid === uid}
+          onClick={(e) => {
+            const bb = e.currentTarget.getBoundingClientRect();
+            setSizeMenu((m) => (m?.uid === uid ? null : { uid, top: bb.top + window.scrollY - 4, left: Math.max(window.scrollX + 8, Math.min(bb.left + window.scrollX, window.scrollX + window.innerWidth - 190)) }));
+          }}
+        >
+          Taille ▾
+        </button>
+        {sizeMenu?.uid === uid && (
+          <SizeMenu top={sizeMenu.top} left={sizeMenu.left} onClose={() => setSizeMenu(null)}>
+            {(
+              [
+                ["wider", "Plus large", w >= maxW, { dw: 1 }],
+                ["narrower", "Moins large", w <= 1, { dw: -1 }],
+                ["taller", "Plus haute", h >= 2, { dh: 1 }],
+                ["shorter", "Moins haute", h <= 1, { dh: -1 }],
+              ] as const
+            ).map(([k, label, off, step]) => (
+              <button key={k} type="button" role="menuitem" className="pe-gm-ratio" data-cb={k} disabled={off} onClick={() => { send(gref, { op: "span", index, ...step }); setSizeMenu(null); }}>
+                {label}
+              </button>
+            ))}
+          </SizeMenu>
+        )}
       </div>
     );
   };
@@ -457,7 +479,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
             );
           }),
       )}
-      {active && activeRef && sectionRect && <GridBar key={activeRef.uid} grid={active} gref={activeRef} rect={sectionRect} onFond={fondClick} />}
+      {active && activeRef && sectionRect && <GridBar key={activeRef.uid} grid={active} gref={activeRef} rect={sectionRect} gridTop={gridTop} minTop={minTop} />}
       {!drag && hoverCell && hoverRef && cellBar(hoverCell, hoverRef)}
       {frameFor && <CellFrame uid={frameFor.uid} top={frameFor.top} left={frameFor.left} onClose={() => setFrameFor(null)} />}
       {dragSource && (() => {

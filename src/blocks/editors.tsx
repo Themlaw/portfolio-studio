@@ -486,8 +486,8 @@ const GAP_CHOICES: [string, string][] = [
  * entre les images, format des cases, nombre d'images — puis, sous « Réglages avancés », le reste. Les mêmes gestes existent
  * sur la toile (barre de la grille et de ses cases).
  */
-export function GridEditor() {
-  const { value, onChange, errors, context } = useBlockEditor();
+export function GridTop() {
+  const { value, onChange, context } = useBlockEditor();
   const set = useSet(value, onChange);
   const layout = (value.layout as string) ?? "2";
   const kids = Array.isArray(value.children) ? (value.children as { type: string; props: P }[]) : [];
@@ -542,6 +542,15 @@ export function GridEditor() {
         </button>
         <p className="a-help">Donne à chaque case la forme de son image : un portrait sur deux rangées, un panorama sur deux colonnes.</p>
       </section>
+    </>
+  );
+}
+
+export function GridAdvanced() {
+  const { value, onChange, errors } = useBlockEditor();
+  const set = useSet(value, onChange);
+  return (
+    <>
       <details className="ve-advanced" data-testid="grid-advanced">
         <summary>Réglages avancés</summary>
         <Select
@@ -559,6 +568,16 @@ export function GridEditor() {
         <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
         <TextI18n label="Titre (facultatif)" value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
       </details>
+    </>
+  );
+}
+
+
+export function GridEditor() {
+  return (
+    <>
+      <GridTop />
+      <GridAdvanced />
     </>
   );
 }

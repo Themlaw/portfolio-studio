@@ -1303,6 +1303,8 @@ export default function EditLayer() {
             ))}
             <span aria-current="true">{sel.label}</span>
           </nav>
+          {/* Image ou vidéo d'une case de grille : une seule barre, celle de la case (GridLayer, lot 31d). */}
+          {!(sel.parent && boxes.find((b) => b.uid === sel.parent)?.type === "grid" && (sel.type === "image" || sel.type === "video-single")) && (
           <div
             className="pe-tools"
             role="toolbar"
@@ -1356,6 +1358,7 @@ export default function EditLayer() {
               ✕
             </button>
           </div>
+          )}
           {!sel.parent && surfaceFor === sel.uid && (
             <SurfaceMenu
               uid={sel.uid}

@@ -9,6 +9,7 @@
 import { useState, type ReactNode } from "react";
 
 import { BlockEditorContext } from "@/blocks/editor-context";
+import { GridAdvanced, GridTop } from "@/blocks/editors";
 import type { EditorContext } from "@/blocks/editor-types";
 import { Select } from "@/app/admin/_fields";
 import { applyGridOp, type GridModelOp } from "@/blocks/grid-layouts";
@@ -257,9 +258,16 @@ export default function BoardItemPanel({
       </header>
       <p className="ve-hint">Ce composant appartient au projet : il s&apos;affiche partout où la planche du projet est montrée.</p>
       {projectStrip && <p className="ve-hint">Ce sont les images du projet : ajoute-les, déplace-les et légende-les directement sur la planche.</p>}
-      {type === "grid" && <GridContent props={props} onChange={onChange} context={context} />}
+      {/* Grille : l'essentiel en haut (agencement, espace, format, nombre d'images), puis la liste des cases, puis les réglages avancés. */}
+      {type === "grid" && (
+        <BlockEditorContext.Provider value={{ value: props, onChange, errors: {}, context, idPrefix: `ve-bitem-${uid}` }}>
+          <GridTop />
+          <GridContent props={props} onChange={onChange} context={context} />
+          <GridAdvanced />
+        </BlockEditorContext.Provider>
+      )}
       {type === "strip" && !projectStrip && <RailContent props={props} onChange={onChange} context={context} />}
-      {type !== "strip" && <BlockEditorContext.Provider value={{ value: props, onChange, errors: {}, context, idPrefix: `ve-bitem-${uid}` }}>{editor}</BlockEditorContext.Provider>}
+      {type !== "strip" && type !== "grid" && <BlockEditorContext.Provider value={{ value: props, onChange, errors: {}, context, idPrefix: `ve-bitem-${uid}` }}>{editor}</BlockEditorContext.Provider>}
       <BoxField box={box} onChange={onBox} />
       {type !== "strip" && <BlockLookPanel
         key={uid}

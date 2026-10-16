@@ -102,6 +102,11 @@ async function hoverCell(sel, i) {
   await fr.locator('[data-testid="cellbar"]').waitFor({ timeout: 10000 });
   await sleep(200);
 }
+/** Taille d'une case : menu « Taille » de sa barre, puis un des quatre mots. */
+const size = async (name) => {
+  await fr.locator('[data-testid="cellbar"] [data-cb="size"]').click();
+  await fr.locator(`.pe-gridmenu [data-cb="${name}"]`).click();
+};
 const cb = (name) => fr.locator(`[data-testid="cellbar"] [data-cb="${name}"]`);
 const undo = async () => {
   await page.locator('.ve-history button[aria-label="Défaire"]').click();
@@ -193,22 +198,22 @@ try {
     await selectGrid(G);
     const before = JSON.stringify(pageGrid("gb").props.children.map((c) => c.uid));
     await hoverCell(G, 1);
-    await cb("wider").click();
+    await size("wider");
     ok("B1 « Plus large » passe en Sur mesure (2 colonnes), la case 2 sur 2 colonnes", await waitFor(() => pageGrid("gb")?.props.layout === "custom" && pageGrid("gb")?.props.spans?.[1]?.w === 2), JSON.stringify(pageGrid("gb")?.props));
     ok("B1b rien n'est perdu : mêmes images, même ordre, portrait toujours sur 2 rangées", JSON.stringify(pageGrid("gb").props.children.map((c) => c.uid)) === before && pageGrid("gb").props.spans[0].h === 2 && pageGrid("gb").props.cols === 2);
     await settled(page);
     let r = await rects(G);
     ok("B1c sur la toile : la case 2 occupe toute la largeur restante", r[1].width > r[0].width * 1.5 || near(r[1].width, r[0].width, 3), JSON.stringify(r.map((x) => [x.left, x.top, x.width])));
     await hoverCell(G, 2);
-    await cb("taller").click();
+    await size("taller");
     ok("B2 « Plus haute » : la case 3 sur 2 rangées", await waitFor(() => pageGrid("gb")?.props.spans?.[2]?.h === 2));
     await settled(page);
     await hoverCell(G, 2);
-    await cb("shorter").click();
+    await size("shorter");
     ok("B3 « Moins haute » la ramène à 1 rangée", await waitFor(() => pageGrid("gb")?.props.spans?.[2]?.h === 1));
     await settled(page);
     await hoverCell(G, 1);
-    await cb("narrower").click();
+    await size("narrower");
     ok("B4 « Moins large »", await waitFor(() => pageGrid("gb")?.props.spans?.[1]?.w === 1));
     await settled(page);
     // Annuler / Rétablir.
@@ -326,6 +331,9 @@ try {
     const G = PAGE_G("gd");
     await hoverCell(G, 0);
     const btns = await fr.locator('[data-testid="cellbar"] button').allInnerTexts();
+    await fr.locator('[data-edit-block="d1"] img').first().click();
+    await sleep(500);
+    ok("D0 case choisie : une seule barre (celle de la case), pas de barre de l'image ni de Fond en double", (await fr.locator(".pe-tools").count()) === 0 && (await fr.locator('[data-testid="gridbar-fond"]').count()) === 0 && (await fr.locator('[data-testid="cellbar"]').count()) === 1);
     ok("D1 la barre d'une case : Remplacer, Retirer, Cadrer, Cadre et la taille", ["Remplacer", "Retirer", "Cadrer", "Cadre"].every((t) => btns.includes(t)) && (await fr.locator('[data-testid="cell-handle"]').count()) === 1, btns.join("|"));
     await shot("D-barre-case");
     // Remplacer.
@@ -494,7 +502,7 @@ try {
     await chooseLayout("portrait-left");
     await hoverCell(BG, 1);
     const orderBefore = JSON.stringify(kids().map((c) => c.uid));
-    await cb("wider").click();
+    await size("wider");
     ok("G5 « Plus large » : Sur mesure, rien perdu", await waitFor(() => props().layout === "custom" && props().spans?.[1]?.w === 2 && JSON.stringify(kids().map((c) => c.uid)) === orderBefore), JSON.stringify(props()));
     await settled(page);
     await undo();
@@ -589,6 +597,10 @@ try {
     await selectGrid(BG);
     await page.getByRole("tab", { name: "Réglages" }).click();
     await page.getByTestId("board-item-panel").waitFor({ timeout: 20000 });
+    const yTop = (await page.getByTestId("grid-top").boundingBox()).y;
+    const yList = (await page.locator(".ve-board-kids").boundingBox()).y;
+    const yAdv = (await page.getByTestId("grid-advanced").boundingBox()).y;
+    ok("G15b panneau de planche : l'essentiel, puis la liste des cases, puis les réglages avancés", yTop < yList && yList < yAdv, `${yTop} ${yList} ${yAdv}`);
     ok("G15 panneau d'une grille de planche : l'essentiel en haut, comme une page", (await page.getByTestId("grid-top").count()) === 1 && (await page.locator('[data-testid="grid-top"] .ve-layout').count()) === 10);
     // Publication et public identique.
     setBoardDraft(project.id, pageId, [{ uid: "bg1", type: "grid", props: { layout: "custom", gap: "normal", align: "stretch", ratio: "auto", top: "gap", cols: 3, spans: [{ w: 1, h: 2 }, { w: 2, h: 1 }, { w: 1, h: 1 }, { w: 1, h: 1 }], children: [img("p1", M.portrait), img("p2", M.panorama), img("p3", M.carre), img("p4", M.paysage)] } }]);
