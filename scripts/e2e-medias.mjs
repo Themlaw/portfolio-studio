@@ -286,91 +286,96 @@ if (run("B")) {
 /* ---- C. Lecteur vidéo ---------------------------------------------------------------- */
 
 if (run("C") && ENGINE === chromium) {
+  // Visiteur anonyme : la session de l'admin porte le cookie de la vue brouillon (page rendue comme sur la toile, où la vidéo ne s'ouvre pas en grand).
+  const anon = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const cpage = await anon.newPage();
+  cpage.on("pageerror", (e) => errors.push(e.message));
   const ranges = [];
-  page.on("response", (r) => r.url().includes("/media/vid/") && ranges.push(r.status()));
-  await goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });
-  const card = page.locator(".mat-hover", { hasText: VIDEO_TITLE }).first();
+  cpage.on("response", (r) => r.url().includes("/media/vid/") && ranges.push(r.status()));
+  await cpage.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });
+  const card = cpage.locator(".mat-hover", { hasText: VIDEO_TITLE }).first();
   await card.scrollIntoViewIfNeeded();
   // Lot 36 : le Lecteur s'ouvre en grand dans la visionneuse (le lecteur maison est le même).
   await card.getByRole("button", { name: `Lire ${VIDEO_TITLE}` }).click();
-  const vp = page.locator(".video-viewer .vp");
+  const vp = cpage.locator(".video-viewer .vp");
   await vp.waitFor();
   const video = vp.locator("video");
   const st = () => vp.getAttribute("data-state");
   const t = () => video.evaluate((v) => v.currentTime);
-  await page.waitForFunction((el) => el.getAttribute("data-state") === "playing", await vp.elementHandle(), { timeout: 15000 }).catch(() => {});
+  await cpage.waitForFunction((el) => el.getAttribute("data-state") === "playing", await vp.elementHandle(), { timeout: 15000 }).catch(() => {});
   ok("C1 « Lire » : lecture lancée, lecteur maison (aucune commande native)", (await st()) === "playing" && !(await video.evaluate((v) => v.controls)));
   await sleep(1200);
   ok("C2 le temps avance", (await t()) > 0.5, String(await t()));
   await vp.hover();
   await vp.getByRole("button", { name: "Pause" }).click();
-  await vp.and(page.locator('[data-state="paused"]')).waitFor({ timeout: 5000 }).catch(() => {});
+  await vp.and(cpage.locator('[data-state="paused"]')).waitFor({ timeout: 5000 }).catch(() => {});
   ok("C3 pause", (await st()) === "paused" && (await video.evaluate((v) => v.paused)));
   const seek = vp.locator(".vp-seek");
   const sb = await seek.boundingBox();
-  await page.mouse.click(sb.x + sb.width * 0.5, sb.y + sb.height / 2);
+  await cpage.mouse.click(sb.x + sb.width * 0.5, sb.y + sb.height / 2);
   await sleep(500);
   const d = await video.evaluate((v) => v.duration);
   ok("C4 clic sur la barre (50 %) : position au milieu", Math.abs((await t()) - d / 2) < 1.2, `${await t()} / ${d}`);
   // Glisser vers l'arrière : de 80 % à 20 %.
-  await page.mouse.move(sb.x + sb.width * 0.8, sb.y + sb.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(sb.x + sb.width * 0.5, sb.y + sb.height / 2, { steps: 6 });
-  await page.mouse.move(sb.x + sb.width * 0.2, sb.y + sb.height / 2, { steps: 6 });
-  await page.mouse.up();
+  await cpage.mouse.move(sb.x + sb.width * 0.8, sb.y + sb.height / 2);
+  await cpage.mouse.down();
+  await cpage.mouse.move(sb.x + sb.width * 0.5, sb.y + sb.height / 2, { steps: 6 });
+  await cpage.mouse.move(sb.x + sb.width * 0.2, sb.y + sb.height / 2, { steps: 6 });
+  await cpage.mouse.up();
   await sleep(500);
   ok("C5 glisser la barre en arrière (80 % → 20 %)", Math.abs((await t()) - d * 0.2) < 1.2, `${await t()}`);
   ok("C6 barre accessible (slider, valeur texte)", (await seek.getAttribute("role")) === "slider" && /sur/.test((await seek.getAttribute("aria-valuetext")) ?? ""));
   await vp.focus();
   const t0 = await t();
-  await page.keyboard.press("ArrowRight");
+  await cpage.keyboard.press("ArrowRight");
   await sleep(300);
   const t1 = await t();
-  await page.keyboard.press("ArrowLeft");
+  await cpage.keyboard.press("ArrowLeft");
   await sleep(300);
   const t2 = await t();
   ok("C7 clavier → / ← : ± 10 s", Math.abs(t1 - t0 - 10) < 0.8 && Math.abs(t1 - t2 - 10) < 0.8, `${t0} → ${t1} → ${t2}`);
-  await page.keyboard.press("Space");
+  await cpage.keyboard.press("Space");
   await sleep(600);
   ok("C8 Espace : lecture", (await st()) === "playing");
-  await page.keyboard.press("m");
+  await cpage.keyboard.press("m");
   // Le bouton suit au rendu suivant : l'attendre (5 s) avant de le compter.
   await vp.getByRole("button", { name: "Remettre le son" }).waitFor({ timeout: 5000 }).catch(() => {});
   ok("C9 M : muet (bouton à jour)", (await video.evaluate((v) => v.muted)) && (await vp.getByRole("button", { name: "Remettre le son" }).count()) === 1);
-  await page.keyboard.press("m");
+  await cpage.keyboard.press("m");
   // Commandes masquées pendant la lecture, sans geste.
-  await page.mouse.move(5, 5);
+  await cpage.mouse.move(5, 5);
   await sleep(3200);
   const idle = await vp.evaluate((e) => ({ idle: e.hasAttribute("data-idle"), op: getComputedStyle(e.querySelector(".vp-bar")).opacity }));
   const vb = await vp.boundingBox();
-  await page.mouse.move(vb.x + vb.width / 2, vb.y + vb.height / 2);
+  await cpage.mouse.move(vb.x + vb.width / 2, vb.y + vb.height / 2);
   await sleep(400);
   const woke = await vp.evaluate((e) => !e.hasAttribute("data-idle"));
   ok("C10 commandes masquées pendant la lecture, revenues au moindre geste", idle.idle && idle.op === "0" && woke, JSON.stringify(idle));
   // Plein écran (API).
   await vp.getByRole("button", { name: "Plein écran" }).click();
   await sleep(600);
-  const fs = await page.evaluate(() => document.fullscreenElement?.classList.contains("vp") ?? false);
-  await page.keyboard.press("f");
+  const fs = await cpage.evaluate(() => document.fullscreenElement?.classList.contains("vp") ?? false);
+  await cpage.keyboard.press("f");
   await sleep(600);
-  const fsOut = await page.evaluate(() => document.fullscreenElement === null);
+  const fsOut = await cpage.evaluate(() => document.fullscreenElement === null);
   ok("C11 plein écran : entrée (bouton) et sortie (F)", fs && fsOut, `${fs} ${fsOut}`);
   // Fin : « Revoir ».
   await video.evaluate((v) => {
     v.currentTime = v.duration - 0.4;
     return v.play();
   });
-  await page.waitForFunction((el) => el.getAttribute("data-state") === "ended", await vp.elementHandle(), { timeout: 10000 }).catch(() => {});
+  await cpage.waitForFunction((el) => el.getAttribute("data-state") === "ended", await vp.elementHandle(), { timeout: 10000 }).catch(() => {});
   const replay = vp.locator(".vp-big", { hasText: "Revoir" });
   ok("C12 fin : « Revoir » affiché", (await st()) === "ended" && (await replay.count()) === 1);
   await replay.click();
   await sleep(800);
   ok("C13 « Revoir » : relance depuis le début", (await st()) === "playing" && (await t()) < 3, String(await t()));
   ok("C14 lecture progressive en Range (206) conservée", ranges.includes(206), ranges.join(","));
-  await page.screenshot({ path: `${SHOTS}-C-lecteur.png`, clip: { x: 0, y: Math.max(0, vb.y - 10), width: 1440, height: Math.min(880, vb.height + 20) } });
-  ok("C15 boucles : jamais de lecteur à commandes", (await page.locator("[data-loop] .vp").count()) === 0);
-  await page.keyboard.press("Escape");
-  await page.locator(".video-viewer").waitFor({ state: "detached", timeout: 8000 }).catch(() => {});
+  await cpage.screenshot({ path: `${SHOTS}-C-lecteur.png`, clip: { x: 0, y: Math.max(0, vb.y - 10), width: 1440, height: Math.min(880, vb.height + 20) } });
+  ok("C15 boucles : jamais de lecteur à commandes", (await cpage.locator("[data-loop] .vp").count()) === 0);
+  await cpage.keyboard.press("Escape");
+  await cpage.locator(".video-viewer").waitFor({ state: "detached", timeout: 8000 }).catch(() => {});
+  await anon.close();
 }
 
 /* ---- D. CV ---------------------------------------------------------------------------- */
