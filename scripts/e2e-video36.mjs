@@ -255,6 +255,7 @@ try {
     ok("B18 un clic hors de la vidéo ferme", true);
     // Focus piégé.
     await openViewer(p, trigger);
+    await p.waitForFunction((s) => document.querySelector(s)?.contains(document.activeElement), dlgSel);
     let inside = true;
     for (let i = 0; i < 18; i++) {
       await p.keyboard.press("Tab");

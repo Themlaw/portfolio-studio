@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 
@@ -37,7 +37,8 @@ export default function VideoViewer({
     closeRef.current = onClose;
   }, [onClose]);
 
-  useEffect(() => {
+  // Avant la première image : le focus est dans la visionneuse et le piège en place dès l'ouverture (pas de Tab perdu entre les deux).
+  useLayoutEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
