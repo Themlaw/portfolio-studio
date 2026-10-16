@@ -21,6 +21,7 @@
  * - Titres, légendes et (projet créé ici) nom, contexte, année : double-clic,
  *   éditeur posé par-dessus le texte (le DOM du site n'est jamais modifié).
  */
+import { NATIVE_SCROLL } from "@/components/rail-step";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -490,7 +491,7 @@ export default function BoardLayer({
     const onClick = (e: MouseEvent) => {
       if (inLayer(e.target)) return;
       // Flèches et barre de défilement de la bande : le clic leur appartient (la sélection de l'image ne bouge pas).
-      if (e.target instanceof Element && e.target.closest("[data-edit-native]")) return;
+      if (e.target instanceof Element && e.target.closest(NATIVE_SCROLL)) return;
       const op = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-ghost-op]") : null;
       if (op) {
         e.preventDefault();

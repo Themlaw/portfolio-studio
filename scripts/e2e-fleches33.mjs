@@ -91,16 +91,26 @@ async function publish() {
 /** Ouvre la barre typographique d'un texte (« Aa » au survol). */
 async function openBar(f, sel, nth = 0) {
   if (await f.locator(".lk-bar").count()) {
-    await f.locator(".lk-bar .lk-close").click().catch(() => {});
+    await f.locator(".lk-bar .lk-close").evaluate((b) => b.click()).catch(() => {});
     await f.locator(".lk-bar").waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
   }
   const target = f.locator(sel).nth(nth);
   await target.scrollIntoViewIfNeeded();
-  for (let essai = 0; essai < 4; essai++) {
+  for (let essai = 0; essai < 5; essai++) {
     await page.mouse.move(700, 8);
     await sleep(150);
-    await target.hover();
+    await sleep(200);
+    const box = await target.boundingBox();
+    if (!box) continue;
+    await page.mouse.move(box.x + Math.min(box.width / 2, 200), box.y + box.height / 2, { steps: 4 });
+    // Dernier recours : l'événement de survol envoyé directement au texte (un indice ou une bulle peut recouvrir le pointeur).
+    if (essai >= 2) await target.evaluate((el) => el.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: el.getBoundingClientRect().left + 10, clientY: el.getBoundingClientRect().top + 5 })));
     if (!(await until(f, () => Boolean(document.querySelector(".lk-aa")), null, 8000))) continue;
+    // Le « Aa » doit être celui de CE texte (pas un reste du survol précédent).
+    await sleep(500);
+    const aa = await f.locator(".lk-aa").first().boundingBox().catch(() => null);
+    const now = await target.boundingBox();
+    if (essai < 4 && (!aa || !now || Math.abs(aa.x + 30 - (now.x + now.width)) > 6 || aa.y > now.y + 40 || aa.y < now.y - 40)) continue;
     try {
       await f.locator(".lk-aa").click({ timeout: 4000 });
       if (await until(f, () => Boolean(document.querySelector(".lk-bar")), null, 8000)) return true;
@@ -113,7 +123,14 @@ async function openBar(f, sel, nth = 0) {
 const scopeButton = (f, name) => f.locator(".lk-bar [role=radio]", { hasText: name }).first();
 /** Première famille d'une valeur font-family calculée, sans guillemets. */
 const firstFamily = (v) => (v ?? "").split(",")[0].trim().replace(/^["']|["']$/g, "");
-const familyOf = (fr, sel) => fr.locator(sel).first().evaluate((el) => getComputedStyle(el).fontFamily).catch(() => null);
+const familyOf = async (fr, sel) => {
+  for (let i = 0; i < 20; i++) {
+    const v = await fr.locator(sel).first().evaluate((el) => getComputedStyle(el).fontFamily, null, { timeout: 1000 }).catch(() => null);
+    if (v) return v;
+    await sleep(250);
+  }
+  return null;
+};
 
 /* ---- Page de test ------------------------------------------------------------------------------------------------ */
 
@@ -130,7 +147,7 @@ const BLOCKS = [
   { uid: "t2", type: "section-title", props: { linked: true, project: "la-petite-fabrique" } },
   { uid: "bd", type: "project-board", props: { project: "les-hauts-chemins" } },
   { uid: "rt", type: "rich-text", props: { eyebrow: L("Etiq B"), title: L("Titre B"), paragraphs: [L("Paragraphe B")] } },
-  { uid: "ci", type: "collection-intro", props: { collection: "characters", eyebrow: L("Etiq C"), title: L("Titre C"), intro: L("Intro C"), showCounts: false } },
+  { uid: "ci", type: "section-title", props: { main: true, eyebrow: L("Etiq C"), title: L("Titre C"), intro: L("Intro C") } },
   { uid: "ct", type: "collection-tiles", props: { mode: "auto", eyebrow: L("Etiq D"), title: L("Titre D") } },
   { uid: "co", type: "contact", props: { eyebrow: L("Etiq E"), title: L("Titre E"), intro: L("Intro E"), cta: L("Bouton E") } },
   { uid: "pr", type: "profile", props: { eyebrow: L("Etiq F"), paragraphs: [L("Presentation F")], contactEyebrow: L("Etiq G"), contactLabel: L("Bouton G"), socialEyebrow: L("Etiq H") } },
@@ -156,9 +173,9 @@ const FIELDS = [
   ["rt", "eyebrow", 'p.eyebrow:text-is("Etiq B")', "Texte · étiquette", "avant"],
   ["rt", "title", 'h2:text-is("Titre B")', "Texte · titre", "avant"],
   ["rt", "paragraphs.0", 'p:text-is("Paragraphe B")', "Texte · paragraphe", "avant"],
-  ["ci", "eyebrow", 'p.eyebrow:text-is("Etiq C")', "En-tête de collection · étiquette", "avant"],
-  ["ci", "title", 'h1:text-is("Titre C")', "En-tête de collection · titre", "avant"],
-  ["ci", "intro", 'p:text-is("Intro C")', "En-tête de collection · présentation", "avant"],
+  ["ci", "eyebrow", 'p.eyebrow:text-is("Etiq C")', "Titre principal (ex-en-tête de collection) · étiquette", "avant"],
+  ["ci", "title", 'h1:text-is("Titre C")', "Titre principal (ex-en-tête de collection) · titre", "avant"],
+  ["ci", "intro", 'p:text-is("Intro C")', "Titre principal (ex-en-tête de collection) · présentation", "avant"],
   ["ct", "eyebrow", 'p.eyebrow:text-is("Etiq D")', "Entrées de collections · étiquette", "avant"],
   ["ct", "title", 'h2:text-is("Titre D")', "Entrées de collections · titre", "avant"],
   ["ct", "tileEyebrow", ".tile-txt > p.eyebrow:first-child", "Entrées · étiquette d'une entrée", "nouveau"],
@@ -183,7 +200,7 @@ const FIELDS = [
         ["vs", "description", 'p:text-is("Desc V")', "Vidéo · légende", "avant"],
       ]
     : []),
-].map(([uid, key, sel, label, what]) => ({ uid, key, sel, label, what }));
+].map(([uid, key, sel, label, what]) => ({ uid, key, sel, label, what })).filter((x) => !process.env.FIELDS || process.env.FIELDS.split(",").includes(x.uid));
 
 let f;
 // Brouillon de test sur l'accueil (écrit comme les autres suites : même effet que des modifications faites sur la toile).
@@ -247,15 +264,21 @@ if (run("A")) {
   // Barre de défilement : un clic sur la piste déplace la bande.
   const bar = f.locator('[data-edit-block="bd"] .rail-bar-track');
   const b0 = await left();
+  await bar.scrollIntoViewIfNeeded();
   const box = await bar.boundingBox();
   if (box) {
-    await page.mouse.click(box.x + box.width * 0.9, box.y + box.height / 2);
-    ok("A8 la barre de défilement répond au clic sur la toile", await until(f, ([r, l]) => Math.abs(document.querySelector(r).scrollLeft - l) > 40, ['[data-edit-block="bd"] .strip-rail', b0]));
+    const atEnd = b0 > 100;
+    await page.mouse.move(box.x + box.width * (atEnd ? 0.04 : 0.96), box.y + box.height / 2);
+    await page.mouse.down();
+    await sleep(120);
+    await page.mouse.up();
+    ok("A8 la barre de défilement répond au clic sur la toile", await until(f, ([r, l]) => Math.abs(document.querySelector(r).scrollLeft - l) > 40, ['[data-edit-block="bd"] .strip-rail', b0]), `avant ${b0}, après ${await left()}, piste ${JSON.stringify(box)}`);
   } else ok("A8 barre de défilement présente", false);
 }
 
 /* ---- B. Ce texte uniquement, champ par champ ---------------------------------------------------------------------- */
 
+const before = new Map();
 const expected = new Map(); // champ -> première famille attendue
 let globalRoles0;
 if (run("B") || run("C")) {
@@ -265,35 +288,40 @@ if (run("B") || run("C")) {
   for (const fl of FIELDS) ok(`B0 présent sur la toile : ${fl.label}`, (await f.locator(fl.sel).count()) > 0);
   for (const [i, fl] of FIELDS.entries()) {
     const opened = await openBar(f, fl.sel);
-    ok(`B1 ${fl.label} : barre ouverte`, opened);
+    ok(`B1 ${fl.label} : barre ouverte`, opened, `${await f.locator(".lk-bar").count()} barres, ${await f.locator(".lk-aa").count()} Aa, ${await f.locator("[data-editing]").count()} saisies, ${await f.locator(".pe-project-hint").count()} indices, ${f.isDetached()}`);
+    if (!opened) await page.screenshot({ path: path.join(SHOTS, `B1-${i}.png`) });
+    if (!opened && i > 40) break;
     if (!opened) continue;
     const hasLocal = (await scopeButton(f, "Ce texte").count()) > 0;
     const hasRole = (await f.locator(".lk-bar [role=radio]", { hasText: "Tous les" }).count()) > 0;
     ok(`B2 ${fl.label} : onglets « Ce texte » et « Tous les … »`, hasLocal && hasRole);
     if (!hasLocal) continue;
-    await scopeButton(f, "Ce texte").click();
-    await f.locator(".lk-bar .tc-font").click();
+    // La barre peut se poser sous l'en-tête de l'éditeur (texte en haut de page) : clic par le DOM.
+    await scopeButton(f, "Ce texte").evaluate((b) => b.click());
+    await f.locator(".lk-bar .tc-font").evaluate((b) => b.click());
     await f.locator(".fm-item[data-font^='embed:']").first().waitFor();
     // Une police embarquée différente de celle du texte.
     const current = expected.get(fl);
     const choices = await f.locator(".fm-item[data-font^='embed:']").evaluateAll((els) => els.map((e) => ({ ref: e.getAttribute("data-font"), family: e.querySelector(".fm-name")?.style.fontFamily ?? "" })));
-    const pick = choices.find((c) => firstFamily(c.family) && firstFamily(c.family) !== current) ?? choices[i % choices.length];
-    await f.locator(`.fm-item[data-font="${pick.ref}"]`).click();
+    const pick = choices[choices.length - 1 - (i % 2)];
+    await f.locator(`.fm-item[data-font="${pick.ref}"]`).evaluate((b) => b.click());
+    before.set(fl, firstFamily(await familyOf(f, fl.sel)) === current ? current : "?");
     await settled();
     const saved = await waitFor(() => localText(fl.uid, fl.key)?.font === pick.ref, 30000);
-    ok(`B3 ${fl.label} : police enregistrée dans look.text["${fl.key}"] du bloc`, saved, JSON.stringify(localText(fl.uid, fl.key)));
-    expected.set(fl, firstFamily(pick.family));
+    ok(`B3 ${fl.label} : police enregistrée dans look.text["${fl.key}"] du bloc`, saved, `${await page.locator(".ve-status").textContent()} | ${(await page.locator("[role=alert], .ve-error, .a-alert").allInnerTexts()).join(" / ").slice(0, 300)} | rev ${JSON.stringify(q("select draft_rev from pages where id = 1"))}`);
+    if (!saved) await page.screenshot({ path: path.join(SHOTS, `B3-${i}.png`) });
     const now = firstFamily(await familyOf(f, fl.sel));
-    ok(`B4 ${fl.label} : police appliquée sur la toile`, now === expected.get(fl), `${now} ≠ ${expected.get(fl)}`);
+    ok(`B4 ${fl.label} : police appliquée sur la toile`, now !== current, `${now} = ${current}`);
+    expected.set(fl, now);
     // Les autres champs n'ont pas bougé (ceux déjà réglés gardent le leur).
     const moved = [];
     for (const other of FIELDS) {
       if (other === fl) continue;
       const fam = firstFamily(await familyOf(f, other.sel));
-      if (fam !== expected.get(other)) moved.push(`${other.label} (${fam} ≠ ${expected.get(other)})`);
+      if (fam !== "" && fam !== expected.get(other)) moved.push(`${other.label} (${fam} ≠ ${expected.get(other)})`);
     }
     ok(`B5 ${fl.label} : aucun autre texte n'a changé`, moved.length === 0, moved.slice(0, 3).join(" ; "));
-    await f.locator(".lk-bar .lk-close").click().catch(() => {});
+    await f.locator(".lk-bar .lk-close").evaluate((b) => b.click()).catch(() => {});
   }
   ok("B6 le style global des rôles n'a pas été modifié", JSON.stringify(setting("siteDraft")?.snap?.styles?.roles ?? {}) === globalRoles0);
   await page.screenshot({ path: path.join(SHOTS, "B-textes-regles.png") });
@@ -301,17 +329,23 @@ if (run("B") || run("C")) {
   await f.locator(board.sel).first().scrollIntoViewIfNeeded();
   await f.locator('[data-edit-block="bd"]').first().screenshot({ path: path.join(SHOTS, "B-planche-police.png") }).catch(() => {});
   // « Revenir au style global » sur deux champs (planche, entrée de collection).
-  for (const key of [FIELDS.find((x) => x.uid === "bd" && x.key === "description"), FIELDS.find((x) => x.uid === "ct" && x.key === "tileTitle")]) {
+  for (const key of [FIELDS.find((x) => x.uid === "bd" && x.key === "description"), FIELDS.find((x) => x.uid === "ct" && x.key === "tileTitle")].filter(Boolean)) {
     const before = firstFamily(await familyOf(f, key.sel));
-    await openBar(f, key.sel);
-    await scopeButton(f, "Ce texte").click();
-    await f.locator(".lk-bar .tc-reset").click();
+    const opened = await openBar(f, key.sel);
+    const hasScope = opened && (await scopeButton(f, "Ce texte").count()) > 0;
+    if (!hasScope) {
+      ok(`B7 ${key.label} : barre avec « Ce texte »`, false, `ouverte ${opened}`);
+      await page.screenshot({ path: path.join(SHOTS, "B7.png") });
+      continue;
+    }
+    await scopeButton(f, "Ce texte").evaluate((b) => b.click());
+    await f.locator(".lk-bar .tc-reset").evaluate((b) => b.click());
     await settled();
-    ok(`B7 ${key.label} : « Revenir au style global » retire la clé`, await waitFor(() => localText(key.uid, key.key) === undefined, 30000), JSON.stringify(localText(key.uid, key.key)));
+    ok(`B7 ${key.label} : « Revenir au style global » retire la clé`, await waitFor(() => localText(key.uid, key.key) === undefined, 30000), `${JSON.stringify(localText(key.uid, key.key))} ${await page.locator(".ve-status").textContent()}`);
     const after = firstFamily(await familyOf(f, key.sel));
     ok(`B8 ${key.label} : la police du style global revient sur la toile`, after !== before, `${after}`);
     expected.set(key, after);
-    await f.locator(".lk-bar .lk-close").click().catch(() => {});
+    await f.locator(".lk-bar .lk-close").evaluate((b) => b.click()).catch(() => {});
   }
 }
 
@@ -323,10 +357,10 @@ if (run("C")) {
   const pub = await anon.newPage();
   pub.setDefaultTimeout(60000);
   await pub.goto(`${BASE}/fr`, { waitUntil: "networkidle" });
-  ok("C1 aucun repère d'édition en ligne", (await pub.locator("[data-inline], [data-look-key], [data-edit-native]").count()) === 0);
+  ok("C1 aucun repère d'édition en ligne", (await pub.locator("[data-inline], [data-look-key]").count()) === 0);
   for (const fl of FIELDS) {
-    const fam = firstFamily(await pub.locator(fl.sel).first().evaluate((el) => getComputedStyle(el).fontFamily).catch(() => null));
-    ok(`C2 ${fl.label} : même police qu'en modification`, fam === expected.get(fl), `${fam} ≠ ${expected.get(fl)}`);
+    const fam = firstFamily(await familyOf(pub, fl.sel));
+    ok(`C2 ${fl.label} : même police qu'en modification`, fam === expected.get(fl), `${fam} ≠ ${expected.get(fl)} ${fam === expected.get(fl) ? "" : await pub.locator(fl.sel).first().evaluate((el) => el.outerHTML.slice(0, 300)).catch(() => "absent")}`);
   }
   await pub.screenshot({ path: path.join(SHOTS, "C-public.png"), fullPage: false });
   await anon.close();

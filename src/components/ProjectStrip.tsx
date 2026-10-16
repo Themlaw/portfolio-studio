@@ -415,7 +415,6 @@ export default function ProjectStrip({
             aria-label={t("scrollPrev", { project: project.title })}
             aria-controls={railId}
             className="strip-nav strip-nav-prev"
-            data-edit-native=""
           >
             <span aria-hidden="true" data-icon="arrow-left">←</span>
           </button>
@@ -426,7 +425,6 @@ export default function ProjectStrip({
             aria-label={t("scrollNext", { project: project.title })}
             aria-controls={railId}
             className="strip-nav strip-nav-next"
-            data-edit-native=""
           >
             <span aria-hidden="true" data-icon="arrow-right">→</span>
           </button>

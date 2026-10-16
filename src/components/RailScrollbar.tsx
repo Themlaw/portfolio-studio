@@ -195,7 +195,6 @@ export default function RailScrollbar({
     <div
       ref={barRef}
       className="rail-bar"
-      data-edit-native=""
       data-dragging="false"
       role="scrollbar"
       aria-label={label}

@@ -20,6 +20,7 @@
  * modification part vers l'éditeur, qui tient le brouillon, l'enregistre
  * puis demande un rafraîchissement.
  */
+import { NATIVE_SCROLL } from "@/components/rail-step";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -895,7 +896,7 @@ export default function EditLayer() {
     const onClick = (e: MouseEvent) => {
       if (inLayer(e.target)) return;
       // Commandes de défilement du site (flèches et barre d'une bande d'images) : elles marchent comme en ligne.
-      if (e.target instanceof Element && e.target.closest("[data-edit-native]")) return;
+      if (e.target instanceof Element && e.target.closest(NATIVE_SCROLL)) return;
       // Ajouter une rubrique : bouton fixe du bas de page, ou « Texte » d'une case vide de grille (lot 17c).
       const t = e.target instanceof Element ? e.target : null;
       const addEnd = t?.closest("[data-edit-add]");
@@ -1022,7 +1023,7 @@ export default function EditLayer() {
         return;
       }
       // Entrée et Espace sur une flèche de défilement (ou la barre) servent à la faire défiler, pas à modifier le texte du bloc.
-      const native = e.target instanceof Element && Boolean(e.target.closest("[data-edit-native]"));
+      const native = e.target instanceof Element && Boolean(e.target.closest(NATIVE_SCROLL));
       if ((e.key === "Delete" || e.key === "Backspace") && !inLayer(e.target)) {
         e.preventDefault();
         post({ kind: "op", op: "delete", uid });
