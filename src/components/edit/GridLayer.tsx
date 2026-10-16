@@ -12,7 +12,7 @@
  * Tout passe par le message `grid-op` (repères : grid-dom.ts) ; l'éditeur l'applique au brouillon de la page ou à la planche
  * du projet (Annuler / Rétablir comme tout le reste). Rien de ceci n'existe en public.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 import { FORMAT_KEYS, FORMAT_LABELS } from "@/lib/images/formats";
 import { GRID_LAYOUT_LABELS, GRID_LAYOUTS, type GridLayout } from "@/blocks/grid-layouts";
@@ -74,7 +74,7 @@ function SizeMenu({ top, left, onClose, children }: { top: number; left: number;
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, onClose);
   return (
-    <div ref={ref} className="pe-gridmenu pe-gridmenu-ratios" role="menu" aria-label="Taille de la case" style={{ top, left, transform: "translateY(-100%)" }}>
+    <div ref={ref} className="pe-gridmenu pe-gridmenu-ratios" role="menu" aria-label="Taille de la case" style={{ top, left }}>
       {children}
     </div>
   );
@@ -370,8 +370,8 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
     const maxW = gref.grid.dataset.layout === "custom" ? cols : Number(gref.grid.dataset.gridCols ?? 2);
     const n = index + 1;
     return (
+      <Fragment key={`bar-${uid}`}>
       <div
-        key={`bar-${uid}`}
         className="pe-cellbar"
         role="toolbar"
         aria-label={`Case ${n}`}
@@ -460,11 +460,12 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
           aria-expanded={sizeMenu?.uid === uid}
           onClick={(e) => {
             const bb = e.currentTarget.getBoundingClientRect();
-            setSizeMenu((m) => (m?.uid === uid ? null : { uid, top: bb.top + window.scrollY - 4, left: Math.max(window.scrollX + 8, Math.min(bb.left + window.scrollX, window.scrollX + window.innerWidth - 190)) }));
+            setSizeMenu((m) => (m?.uid === uid ? null : { uid, top: bb.bottom + window.scrollY + 4, left: Math.max(window.scrollX + 8, Math.min(bb.left + window.scrollX, window.scrollX + window.innerWidth - 190)) }));
           }}
         >
           Taille ▾
         </button>
+      </div>
         {sizeMenu?.uid === uid && (
           <SizeMenu top={sizeMenu.top} left={sizeMenu.left} onClose={() => setSizeMenu(null)}>
             {(
@@ -481,7 +482,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
             ))}
           </SizeMenu>
         )}
-      </div>
+      </Fragment>
     );
   };
 

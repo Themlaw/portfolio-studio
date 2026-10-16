@@ -103,9 +103,20 @@ async function hoverCell(sel, i) {
   await sleep(200);
 }
 /** Taille d'une case : menu « Taille » de sa barre, puis un des quatre mots. */
+/** Comme un humain : souris sur les coordonnées réelles (pas de défilement automatique), le menu doit être visible à l'écran. */
 const size = async (name) => {
-  await fr.locator('[data-testid="cellbar"] [data-cb="size"]').click();
-  await fr.locator(`.pe-gridmenu [data-cb="${name}"]`).click();
+  const vp = page.viewportSize();
+  const click = async (loc, what) => {
+    const b = await loc.boundingBox();
+    const inView = Boolean(b) && b.y >= 0 && b.y + b.height <= vp.height && b.x >= 0 && b.x + b.width <= vp.width;
+    ok(`Taille de case : ${what} visible à l'écran`, inView, JSON.stringify(b));
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 3 });
+    await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+  };
+  await click(fr.locator('[data-testid="cellbar"] [data-cb="size"]'), "bouton Taille");
+  const item = fr.locator(`.pe-gridmenu [data-cb="${name}"]`);
+  await item.waitFor({ timeout: 5000 });
+  await click(item, `choix « ${name} »`);
 };
 const cb = (name) => fr.locator(`[data-testid="cellbar"] [data-cb="${name}"]`);
 const undo = async () => {
