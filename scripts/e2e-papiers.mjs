@@ -685,7 +685,9 @@ await section("I", async () => {
     await page.getByTestId("board-grid-add-image").click();
     const dlg = page.locator("dialog[open]").last();
     await dlg.waitFor({ timeout: 20000 });
-    await dlg.locator('button[aria-label^="Choisir "]').nth(i).click();
+    await dlg.getByRole("button", { name: /\.svg/ }).nth(i).click();
+    const use = dlg.getByRole("button", { name: "Utiliser cette image" });
+    if (await use.isVisible().catch(() => false)) await use.click();
     await dlg.waitFor({ state: "detached", timeout: 20000 }).catch(() => {});
     await settled();
   }
