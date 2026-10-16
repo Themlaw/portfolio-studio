@@ -15,6 +15,7 @@
  */
 
 import { HELP_TEXT } from "./help-text";
+import { isVideoMode } from "./video-mode";
 
 export type BoardItemType = "strip" | "grid" | "image" | "video-single" | "rich-text";
 /**
@@ -104,6 +105,7 @@ export function layoutProblem(raw: unknown): string | null {
       if (b.align !== undefined && !(BOX_ALIGNS as readonly unknown[]).includes(b.align)) return "Alignement du composant invalide.";
     }
     if (item.type === "strip") {
+      if (item.props.videoMode !== undefined && !isVideoMode(item.props.videoMode)) return "Lecture des vidéos de la bande illisible.";
       const own = item.props.source === "own";
       if (own) {
         const m = item.props.media;

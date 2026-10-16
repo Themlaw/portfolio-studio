@@ -2328,3 +2328,27 @@ html[data-edit-dragging] .block-grid-cell {
   color: var(--pe-surface);
   font: 700 12px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
 }
+
+/* Lot 36 : choix « Boucle / Lecteur » d'une vidéo dans ses barres de la toile (bouton pressé = mode actuel). */
+.pe-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 6px;
+  border-left: 1px solid rgba(255, 255, 255, 0.22);
+}
+.pe-media-tools { width: max-content; }
+.pe-seg { white-space: nowrap; }
+.pe-seg-label {
+  padding-right: 4px;
+  color: #ffffff;
+  font: 500 12px/1 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+  opacity: 0.75;
+}
+.pe-slot-tools .pe-seg button[aria-pressed="true"],
+html[data-edit-mode] .pe-bitem-bar .pe-seg button[aria-pressed="true"],
+.pe-cellbar .pe-seg button[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f2226;
+}
+html[data-edit-mode] .pe-bitem-bar .pe-seg button { height: 28px; border-radius: 6px; padding: 0 8px; }

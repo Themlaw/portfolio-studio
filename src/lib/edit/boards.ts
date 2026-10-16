@@ -38,6 +38,7 @@ import { and, asc, eq, max } from "drizzle-orm";
 import { z } from "zod";
 
 import { BOARD_ITEM_TYPES, BOX_MIN, MAX_BOARD_ITEMS, defaultLayout, isProjectStrip, newBoardItem, readLayout, sameLayout, type BoardItem } from "@/blocks/board-layout";
+import { isVideoMode } from "@/blocks/video-mode";
 import { getPageForEdit } from "@/lib/admin";
 import { LookSchema } from "@/lib/look";
 import { HELP_TEXT } from "@/blocks/help-text";
@@ -637,7 +638,11 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         const item = snap.layout.find((i) => i.uid === op.uid);
         if (!item) return "Ce composant n'est plus sur cette planche.";
         if (op.props !== undefined) {
-          if (isProjectStrip(item)) return "La bande des images du projet n'a pas de réglage de contenu.";
+          if (isProjectStrip(item)) {
+            // Seul réglage de la bande du projet (lot 36) : la lecture de ses vidéos.
+            if (Object.keys(op.props).some((k) => k !== "videoMode")) return "La bande des images du projet n'a pas de réglage de contenu.";
+            if (op.props.videoMode !== undefined && !isVideoMode(op.props.videoMode)) return "Lecture de vidéo inconnue.";
+          } else if (item.type === "strip" && op.props.videoMode !== undefined && !isVideoMode(op.props.videoMode)) return "Lecture de vidéo inconnue.";
           item.props = item.type === "rich-text" ? settleHelp(op.props) : op.props;
         }
         if (op.box !== undefined) {

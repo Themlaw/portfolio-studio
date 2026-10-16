@@ -21,6 +21,7 @@ import { collectionPages, dropEmptyTextFields, pinImageFit, renameVideoLook, sit
 import { mergeBlocks } from "./blocs";
 import { unwrapContainers } from "./unwrap";
 import { seedProjectLayouts } from "./project-layout";
+import { seedVideoModes } from "./video-mode";
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 
@@ -65,6 +66,10 @@ const DATA_MIGRATIONS: Record<string, () => void> = {
   "0025_project_layout": () => {
     const rows = seedProjectLayouts(getSqlite());
     console.log(`[db] 0025 : contenu de planche — ${rows} projet(s) reçoivent la bande « Images qui défilent » (rendu inchangé)`);
+  },
+  "0027_video_mode": () => {
+    const r = seedVideoModes(getSqlite());
+    console.log(`[db] 0027 : lecture des vidéos (Boucle / Lecteur) — ${r.published} bloc(s) publié(s), ${r.drafts} brouillon(s), ${r.layouts} planche(s) et ${r.draftLayouts} brouillon(s) de planche réécrits`);
   },
   // 0024_corbeille : SQL seul (colonnes deleted_at / trashed_in_menu), aucune migration de contenu.
   "0021_unwrap_containers": () => {

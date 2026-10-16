@@ -291,8 +291,9 @@ if (run("C") && ENGINE === chromium) {
   await goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });
   const card = page.locator(".mat-hover", { hasText: VIDEO_TITLE }).first();
   await card.scrollIntoViewIfNeeded();
+  // Lot 36 : le Lecteur s'ouvre en grand dans la visionneuse (le lecteur maison est le même).
   await card.getByRole("button", { name: `Lire ${VIDEO_TITLE}` }).click();
-  const vp = card.locator(".vp");
+  const vp = page.locator(".video-viewer .vp");
   await vp.waitFor();
   const video = vp.locator("video");
   const st = () => vp.getAttribute("data-state");
@@ -328,7 +329,7 @@ if (run("C") && ENGINE === chromium) {
   await page.keyboard.press("ArrowLeft");
   await sleep(300);
   const t2 = await t();
-  ok("C7 clavier → / ← : ± 5 s", Math.abs(t1 - t0 - 5) < 0.6 && Math.abs(t1 - t2 - 5) < 0.6, `${t0} → ${t1} → ${t2}`);
+  ok("C7 clavier → / ← : ± 10 s", Math.abs(t1 - t0 - 10) < 0.8 && Math.abs(t1 - t2 - 10) < 0.8, `${t0} → ${t1} → ${t2}`);
   await page.keyboard.press("Space");
   await sleep(600);
   ok("C8 Espace : lecture", (await st()) === "playing");
@@ -367,7 +368,9 @@ if (run("C") && ENGINE === chromium) {
   ok("C13 « Revoir » : relance depuis le début", (await st()) === "playing" && (await t()) < 3, String(await t()));
   ok("C14 lecture progressive en Range (206) conservée", ranges.includes(206), ranges.join(","));
   await page.screenshot({ path: `${SHOTS}-C-lecteur.png`, clip: { x: 0, y: Math.max(0, vb.y - 10), width: 1440, height: Math.min(880, vb.height + 20) } });
-  ok("C15 boucles décoratives : jamais de lecteur à commandes", (await page.locator("[data-loop] .vp").count()) === 0);
+  ok("C15 boucles : jamais de lecteur à commandes", (await page.locator("[data-loop] .vp").count()) === 0);
+  await page.keyboard.press("Escape");
+  await page.locator(".video-viewer").waitFor({ state: "detached", timeout: 8000 }).catch(() => {});
 }
 
 /* ---- D. CV ---------------------------------------------------------------------------- */

@@ -32,6 +32,7 @@ import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, sameL, 
 import { useBlockEditor } from "./editor-context";
 import FormatSelect from "./FormatSelect";
 import type { L } from "./editor-types";
+import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "./video-mode";
 import { applyGridOp, CUSTOM_COLS, customCols, GRID_LAYOUTS, type GridLayout, type GridModelOp, type GridShape } from "./grid-layouts";
 
 const EMPTY: L = { fr: "", en: "" };
@@ -725,11 +726,9 @@ export function VideoSingleEditor() {
       <MediaPicker label="Vidéo" kind="video" value={value.mediaId as number | undefined} onChange={(v) => set("mediaId", v)} error={errorAt(errors, "mediaId")} context={context} />
       <Select
         label="Lecture"
-        value={(value.mode as string) ?? "player"}
-        options={[
-          { value: "player", label: "Lecteur (avec le son, bouton lecture)" },
-          { value: "loop", label: "Boucle muette (sans contrôles)" },
-        ]}
+        help={VIDEO_MODE_HINTS[modeOf(value)]}
+        value={modeOf(value)}
+        options={VIDEO_MODE_OPTIONS}
         onChange={(v) => set("mode", v ?? "player")}
       />
       <Select

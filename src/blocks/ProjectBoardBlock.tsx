@@ -101,6 +101,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
         uid: item.uid,
         type: item.type,
         ...(item.box ? { box: item.box } : {}),
+        ...(item.type === "strip" && (item.props.videoMode === "loop" || item.props.videoMode === "player") ? { videoMode: item.props.videoMode } : {}),
         ...(fonds[i] ? { fond: { background: fonds[i]!, join: joins[i] } } : {}),
         ...(item.type === "strip"
           ? item.props.source === "own"

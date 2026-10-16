@@ -18,6 +18,7 @@ import { cleanLook, readLook } from "@/lib/look";
 
 import { BlockLookPanel } from "./LookPanel";
 import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
+import { isVideoMode, modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "@/blocks/video-mode";
 
 type Props = Record<string, unknown>;
 type Kid = { uid: string; type: "image" | "video-single"; props: Props };
@@ -65,6 +66,15 @@ function GridContent({ props, onChange, context }: { props: Props; onChange: (ne
                   ✕
                 </button>
               </div>
+              {k.type === "video-single" && (
+                <Select
+                  label="Lecture"
+                  help={VIDEO_MODE_HINTS[modeOf(k.props)]}
+                  value={modeOf(k.props)}
+                  options={VIDEO_MODE_OPTIONS}
+                  onChange={(v) => setKid(i, (p) => ({ ...p, mode: v ?? "player" }))}
+                />
+              )}
               {k.type === "image" && (
                 <Select
                   label="Dans la case"
@@ -167,6 +177,24 @@ function BoxField({ box, onChange }: { box: BoardBox | undefined; onChange: (nex
 }
 
 /** Carrousel à liste propre : ses images et vidéos, choisies dans la médiathèque, dans l'ordre. */
+/** Lecture des vidéos d'une bande : Boucle, Lecteur, ou chacune selon sa nature (le comportement d'avant). */
+function StripVideoMode({ props, onChange }: { props: Props; onChange: (next: Props) => void }) {
+  const current = isVideoMode(props.videoMode) ? props.videoMode : "auto";
+  return (
+    <Select
+      label="Lecture des vidéos"
+      help={current === "auto" ? "Sans choix : une animation courte et muette tourne en boucle, une vidéo plus longue s'ouvre en grand." : VIDEO_MODE_HINTS[current]}
+      value={current as string}
+      options={[{ value: "auto", label: "Selon la vidéo (courte : boucle, longue : lecteur)" }, ...VIDEO_MODE_OPTIONS]}
+      onChange={(v) => {
+        const { videoMode: _v, ...rest } = props;
+        void _v;
+        onChange(v && isVideoMode(v) ? { ...rest, videoMode: v } : rest);
+      }}
+    />
+  );
+}
+
 function RailContent({ props, onChange, context }: { props: Props; onChange: (next: Props) => void; context: EditorContext }) {
   const ids = (Array.isArray(props.media) ? props.media : []) as number[];
   const [adding, setAdding] = useState<"image" | "video" | null>(null);
@@ -180,6 +208,7 @@ function RailContent({ props, onChange, context }: { props: Props; onChange: (ne
   return (
     <section className="ve-board-kids" aria-label="Contenu du carrousel">
       <h3 className="a-subhead">Images et vidéos du carrousel</h3>
+      <StripVideoMode props={props} onChange={onChange} />
       {ids.length === 0 && <p className="ve-hint">Rien pour le moment : ajoute des images ou des vidéos de ta médiathèque (ou glisse-les depuis l&apos;onglet Médias).</p>}
       <ol className="ve-board-kid-list">
         {ids.map((id, i) => {
@@ -258,6 +287,7 @@ export default function BoardItemPanel({
       </header>
       <p className="ve-hint">Ce composant appartient au projet : il s&apos;affiche partout où la planche du projet est montrée.</p>
       {projectStrip && <p className="ve-hint">Ce sont les images du projet : ajoute-les, déplace-les et légende-les directement sur la planche.</p>}
+      {projectStrip && <StripVideoMode props={props} onChange={onChange} />}
       {/* Grille : l'essentiel en haut (agencement, espace, format, nombre d'images), puis la liste des cases, puis les réglages avancés. */}
       {type === "grid" && (
         <BlockEditorContext.Provider value={{ value: props, onChange, errors: {}, context, idPrefix: `ve-bitem-${uid}` }}>

@@ -1660,3 +1660,21 @@ vides, barre d'agencement) que la planche ne savait pas.
   étiquette, titre). Planche : la liste des cases (`GridContent`) avec Remplacer, ordre, retirer et « Dans la case ».
 - Tests : `scripts/test-grille31d.mjs` (modèle, opérations, schéma, anciennes données, messages) et `scripts/e2e-grille31d.mjs`
   (suite `grille31d`).
+
+## Lecteur vidéo : Boucle ou Lecteur (lot 36)
+
+Avant ce lot une vidéo hébergée jouait dans la page (lecteur en ligne), et seule une animation courte et muette d'une bande tournait en boucle.
+Désormais chaque vidéo a une lecture choisie par l'illustratrice :
+
+- **Boucle** : la vidéo tourne en boucle, muette, dans la page ; un clic ou un toucher la met en pause, un autre la relance ; Espace et Entrée au
+  clavier (le cadre est un bouton nommé) ; petit repère pause / lecture ; avec `prefers-reduced-motion` elle démarre en pause.
+- **Lecteur** : la page montre l'image d'attente avec un bouton lecture ; un clic ouvre la vidéo en grand (`VideoViewer`, dialogue modal
+  posé dans `<body>`, fond `--color-viewer`) avec le lecteur maison (`VideoPlayer` : lecture / pause, ± 10 s, barre cliquable et glissable,
+  temps écoulé et durée, son et volume, plein écran). Fermeture par ×, Échap ou clic hors de la vidéo ; clavier Espace, ← / →, M, F ;
+  focus piégé puis rendu au déclencheur. Sur téléphone la barre passe sur deux rangées et le volume est masqué (celui de l'appareil).
+
+Données : `mode` (`loop` | `player`) sur le composant Vidéo ; `videoMode` facultatif sur une bande (absent : chaque vidéo suit sa nature).
+Le choix se fait dans le panneau et dans la barre de la vidéo, de la case de grille, du composant ou de la bande de planche (message
+`video-mode`, opération de grille `video-mode`). Parité : le rendu serveur est le même sur la toile et en ligne (`data-video-mode`), la
+toile n'ouvre jamais la visionneuse. Migration de contenu 0027 : voir `src/lib/db/video-mode.ts` (mode explicite sur chaque vidéo existante,
+publié et brouillons, planches et leurs brouillons).

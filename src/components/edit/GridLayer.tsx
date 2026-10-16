@@ -24,6 +24,7 @@ import { postIntent } from "./optimistic";
 import { cellIndex, cellsOf, gridRefOf, type GridRef } from "./grid-dom";
 import { useDismiss } from "./useDismiss";
 import type { Frame } from "@/lib/look";
+import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 
 type Rect = { top: number; left: number; width: number; height: number };
 
@@ -411,6 +412,26 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
         <button type="button" className="pe-cb-btn pe-cb-danger" data-cb="remove" onClick={() => send(gref, { op: "remove", index })}>
           Retirer
         </button>
+        {type === "video-single" && cell.querySelector("[data-video-mode]") && (
+          <span className="pe-seg" role="group" aria-label="Lecture de la vidéo" data-testid="cell-video-mode">
+            <span className="pe-seg-label" aria-hidden="true">
+              Lecture
+            </span>
+            {VIDEO_MODES.map((m) => (
+              <button
+                key={m}
+                type="button"
+                className="pe-cb-btn"
+                data-cb={`video-${m}`}
+                aria-pressed={cell.querySelector("[data-video-mode]")?.getAttribute("data-video-mode") === m}
+                title={VIDEO_MODE_HINTS[m]}
+                onClick={() => send(gref, { op: "video-mode", index, mode: m })}
+              >
+                {VIDEO_MODE_LABELS[m]}
+              </button>
+            ))}
+          </span>
+        )}
         {image && (
           <>
             <button type="button" className="pe-cb-btn" data-cb="crop" onClick={() => window.dispatchEvent(new CustomEvent("pe:crop", { detail: { cell: uid } }))}>

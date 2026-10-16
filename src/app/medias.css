@@ -232,10 +232,124 @@
     text-transform: uppercase;
   }
 
+  /* Reculer / avancer de 10 s : flèche en arc, le « 10 » posé au centre. */
+  .vp-skip {
+    position: relative;
+  }
+
+  .vp-skip-num {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 0.2rem;
+    font-family: var(--font-caption);
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    pointer-events: none;
+  }
+
+  /* Volume : curseur fin aux couleurs du lecteur (le son se coupe aussi par le bouton). */
+  .vp-volume {
+    flex: 0 0 auto;
+    width: 4.5rem;
+    height: 1.75rem;
+    margin: 0;
+    accent-color: var(--vp-accent);
+    background: transparent;
+    cursor: var(--t-cursor-pointer, pointer);
+  }
+
+  .vp-volume:focus-visible {
+    outline: 2px solid var(--vp-accent);
+    outline-offset: 2px;
+  }
+
   @media (max-width: 30rem) {
     .vp-time {
       min-width: 0;
     }
+
+    /* Téléphone : la barre de progression prend toute la largeur au-dessus des boutons. */
+    .vp-bar {
+      flex-wrap: wrap;
+      gap: 0.15rem;
+      padding-top: 1.2rem;
+    }
+
+    .vp-seek {
+      order: -1;
+      flex: 1 0 100%;
+      margin-inline: 0.2rem;
+    }
+
+    /* Le temps suit les boutons de gauche ; le son et le plein écran restent à droite. */
+    .vp-time {
+      margin-inline-end: auto;
+    }
+  }
+
+  /* Écran tactile : le volume est celui de l'appareil, seul « couper le son » reste. */
+  @media (pointer: coarse) {
+    .vp-volume {
+      display: none;
+    }
+  }
+
+  /* ---- Visionneuse vidéo (VideoViewer) : fond sombre plein cadre, lecteur centré. */
+  .video-viewer {
+    background: var(--color-viewer);
+    color: var(--color-on-scrim);
+  }
+
+  .video-viewer-stage {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.5rem 1rem;
+  }
+
+  @media (min-width: 48rem) {
+    .video-viewer-stage {
+      padding: 0 1.5rem 2rem;
+    }
+  }
+
+  /* ---- Boucle cliquable (page) : repère pause / lecture discret en coin. */
+  .loop-click {
+    cursor: var(--t-cursor-pointer, pointer);
+  }
+
+  .loop-click:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 3px;
+  }
+
+  .loop-mark {
+    position: absolute;
+    right: 0.6rem;
+    bottom: 0.6rem;
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--btn-radius);
+    background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+    color: var(--color-primary);
+    opacity: 0.55;
+    pointer-events: none;
+    transition: opacity var(--dur-fast) var(--ease-soft);
+  }
+
+  .loop-click:hover .loop-mark,
+  .loop-click:focus-visible .loop-mark,
+  .loop-click[data-loop="paused"] .loop-mark {
+    opacity: 1;
   }
 
   /* ---- Bloc CV ---------------------------------------------------------------

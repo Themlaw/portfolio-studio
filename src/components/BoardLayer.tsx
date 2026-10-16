@@ -38,6 +38,7 @@ import { FrameSchema, RADII, RADIUS_LABELS, type Frame, type Radius } from "@/li
 import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, isBoardItemType, type BoardItemType } from "@/blocks/board-layout";
 
 import { FrameControls } from "./edit/FrameMenu";
+import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 import { lookOf, sendLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
 import { cellIndex, cellsOf, gridRefOf } from "./edit/grid-dom";
@@ -704,7 +705,11 @@ export default function BoardLayer({
         const uid = itemOp.dataset.uid ?? "";
         const op = itemOp.dataset.editBitemOp;
         if (!board || !uid) return;
-        if (op === "frame") {
+        if (op === "video-loop" || op === "video-player") {
+          const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
+          const kind = frame?.dataset.editBitemType;
+          if (isBoardItemType(kind)) post({ kind: "video-mode", board, uid, item: kind, ...(frame?.dataset.editBitemProps ? { props: frame.dataset.editBitemProps.slice(0, 100_000) } : {}), mode: op === "video-loop" ? "loop" : "player" });
+        } else if (op === "frame") {
           const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
           const r = itemOp.getBoundingClientRect();
           let current: Frame | undefined;
@@ -1020,6 +1025,18 @@ export default function BoardLayer({
           <button type="button" onClick={() => post({ kind: "media-op", uid: hoverMedia.uid, field: hoverMedia.field, op: "replace" })}>
             {hoverMedia.empty ? (hoverMedia.kind === "video" ? "Choisir une vidéo" : hoverMedia.kind === "pdf" ? "Choisir un PDF" : "Choisir une image") : hoverMedia.kind === "background" ? "Changer le fond" : hoverMedia.kind === "pdf" ? "Remplacer le PDF" : "Remplacer"}
           </button>
+          {!hoverMedia.empty && hoverMedia.kind === "video" && mediaEl?.dataset.videoMode && (
+            <span className="pe-seg" role="group" aria-label="Lecture de la vidéo" data-testid="media-video-mode">
+              <span className="pe-seg-label" aria-hidden="true">
+                Lecture
+              </span>
+              {VIDEO_MODES.map((m) => (
+                <button key={m} type="button" aria-pressed={mediaEl.dataset.videoMode === m} title={VIDEO_MODE_HINTS[m]} data-video-mode-set={m} onClick={() => post({ kind: "video-mode", uid: hoverMedia.uid, mode: m })}>
+                  {VIDEO_MODE_LABELS[m]}
+                </button>
+              ))}
+            </span>
+          )}
           {!hoverMedia.empty && (
             <button type="button" className="pe-danger" onClick={() => post({ kind: "media-op", uid: hoverMedia.uid, field: hoverMedia.field, op: "clear" })}>
               {hoverMedia.kind === "background" ? "Fond du thème" : `Retirer ${mediaWord}`}

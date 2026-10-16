@@ -82,6 +82,8 @@ export const GridCanvasOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("span"), index: CellIndex, dw: Step.optional(), dh: Step.optional() }),
   z.object({ op: z.literal("adapt"), ratios: z.array(z.number().finite().min(0.05).max(20)).max(MAX_GRID_CELLS).optional() }),
   z.object({ op: z.literal("pick"), index: z.number().int().min(0).max(MAX_GRID_CELLS), media: z.enum(["image", "video"]).optional() }),
+  // Lot 36 : lecture de la vidéo de la case n° `index` (Boucle ou Lecteur).
+  z.object({ op: z.literal("video-mode"), index: CellIndex, mode: z.enum(["loop", "player"]) }),
 ]);
 export type GridCanvasOp = z.infer<typeof GridCanvasOpSchema>;
 const FileValue = z.custom<File>((v) => typeof File !== "undefined" && v instanceof File, "Fichier attendu");
@@ -128,6 +130,10 @@ export const FromCanvasSchema = z.union([
   // Lot 31d : grille unifiée (page ou planche). `board` : composant de planche (`props` = ses réglages tels que la toile les a lus,
   // repli si l'éditeur n'a pas encore l'état de la planche) ; absent : la grille est une rubrique de la page.
   z.object({ kind: z.literal("grid-op"), uid: Uid, board: Board.optional(), props: z.string().max(100_000).optional(), op: GridCanvasOpSchema }),
+  // Lot 36 : lecture d'une vidéo (Boucle / Lecteur) depuis sa barre sur la toile : composant Vidéo d'une page (`uid`), composant
+  // Vidéo ou bande de la planche (`board` + `uid` ; `props` = ses réglages lus par la toile, repli). `mode` null : la bande suit
+  // la nature de chaque vidéo (réglage d'avant).
+  z.object({ kind: z.literal("video-mode"), uid: Uid, board: Board.optional(), item: BoardItemKind.optional(), props: z.string().max(100_000).optional(), mode: z.enum(["loop", "player"]).nullable() }),
   // Lot 31d : mise en forme (cadre, recadrage) de la case d'une grille de PLANCHE (la case n'est pas un bloc de la page).
   z.object({ kind: z.literal("cell-look"), board: Board, grid: Uid, props: z.string().max(100_000).optional(), uid: Uid, look: LookSchema.nullable() }),
   // Entrées des collections (lot 22) : entrées choisies à la main (ajouter une page de collection, retirer, ordre).

@@ -944,6 +944,37 @@ export default function VisualEditor({
     return ok;
   };
 
+  /**
+   * Lecture d'une vidéo depuis sa barre sur la toile (lot 36) : composant Vidéo d'une page, ou composant Vidéo / bande de la
+   * planche d'un projet (une bande sans choix, `mode` null, suit la nature de chaque vidéo). Une case de grille passe par `grid-op`.
+   */
+  const videoMode = async (msg: Extract<FromCanvas, { kind: "video-mode" }>): Promise<boolean> => {
+    if (blockedRef.current) return false;
+    if (!msg.board) {
+      if (!msg.mode || !findBlock(draftRef.current.blocks, msg.uid)) return false;
+      setProp(msg.uid, "mode", msg.mode);
+      return true;
+    }
+    await itemFlushRef.current();
+    const item = boards.current.get(msg.board)?.layout.find((i) => i.uid === msg.uid);
+    let base: Record<string, unknown> | null = item?.props ?? null;
+    const type = item?.type ?? msg.item;
+    if (!base) {
+      try {
+        const v = JSON.parse(msg.props ?? "null") as { props?: unknown } | null;
+        base = v?.props && typeof v.props === "object" && !Array.isArray(v.props) ? (v.props as Record<string, unknown>) : null;
+      } catch {
+        base = null;
+      }
+    }
+    if (!base || (type !== "strip" && type !== "video-single")) return false;
+    const key = type === "strip" ? "videoMode" : "mode";
+    const next = { ...base };
+    if (msg.mode) next[key] = msg.mode;
+    else delete next[key];
+    return Boolean(await boardDo(msg.board, { op: "item-set", uid: msg.uid, props: next }));
+  };
+
   /** Mise en forme (cadre, recadrage) de la case d'une grille de planche. */
   const cellLook = async (msg: Extract<FromCanvas, { kind: "cell-look" }>): Promise<boolean> => {
     if (blockedRef.current) return false;
@@ -1871,9 +1902,9 @@ export default function VisualEditor({
   };
 
   const itemFlush = () => itemFlushRef.current();
-  const handlers = useRef({ itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook });
+  const handlers = useRef({ itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, videoMode });
   useEffect(() => {
-    handlers.current = { itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook };
+    handlers.current = { itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, videoMode };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -2012,6 +2043,9 @@ export default function VisualEditor({
           break;
         case "grid-op":
           void h.gridOp(msg);
+          break;
+        case "video-mode":
+          void h.videoMode(msg);
           break;
         case "cell-look":
           void h.cellLook(msg).then((ok) => {
