@@ -102,6 +102,17 @@ function settingsTarget(t: SettingsFor): { grid: HTMLElement; bar: HTMLElement |
 function GridSettings({ grid, gref, top, left, onClose }: { grid: HTMLElement; gref: GridRef; top: number; left: number; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, onClose, { ignore: (t) => Boolean(t.closest("[data-grid-settings-button]")) });
+  // Échap ferme la fenêtre et rien d'autre : la grille reste choisie (sinon le même Échap remonterait aussi au parent).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
   const layout = (grid.dataset.layout ?? "2") as GridLayout;
   const gap = grid.dataset.gap ?? "normal";
   const ratio = grid.dataset.ratio ?? "auto";

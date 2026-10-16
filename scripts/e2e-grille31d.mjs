@@ -33,7 +33,7 @@ import { boardDraft, boardPublished, draftBlocks, findIn, grid, img, login, make
 const BASE = process.env.BASE ?? "http://localhost:3460";
 const ONLY = process.env.ONLY ?? "";
 const run = (s) => !ONLY || ONLY.split(",").includes(s);
-const SHOTS = process.env.SHOTS ?? path.join(process.env.BATTERY_DIR ?? tmpdir(), "e2e-grille31d");
+const SHOTS = process.env.SHOTS ?? path.join(process.env.DATA_DIR ?? tmpdir(), "shots", "grille31d");
 mkdirSync(SHOTS, { recursive: true });
 sharp.cache(false);
 sharp.concurrency(1);
@@ -123,6 +123,8 @@ async function chooseLayout(layout) {
   await settled(page);
 }
 async function hoverCell(sel, i) {
+  // La fenêtre Réglages peut recouvrir des cases : on la ferme (croix) avant de viser une case.
+  if (await gsWin().count()) await fr.locator('[data-testid="gridsettings-close"]').click();
   const c = cellLoc(sel, i);
   await center(c);
   const b = await c.boundingBox();
@@ -291,7 +293,6 @@ try {
     await settled(page);
     // Panneau de gauche : l'essentiel en haut (la grille elle-même est choisie par le fil d'Ariane de la case).
     await selectGrid(G);
-    await fr.locator(".pe-crumbs .pe-crumb").first().click();
     await page.getByRole("tab", { name: "Réglages" }).click();
     await page.getByTestId("grid-top").waitFor({ timeout: 20000 });
     ok("B9 panneau : agencement, espace, format, nombre d'images tout de suite visibles", (await page.getByTestId("grid-top").count()) === 1 && (await page.locator('[data-testid="grid-top"] .ve-layout').count()) === 11 && (await page.getByTestId("grid-gap").count()) === 1 && /4 images/.test(await page.getByTestId("grid-count").innerText()));
@@ -776,9 +777,9 @@ try {
     await fr.locator('.pe-gm-layout[data-layout="2"]').click();
     ok("H12 planche : un réglage s'applique au brouillon du projet", await waitFor(() => boardDraft(project.id)?.[0]?.props.layout === "2"), JSON.stringify(boardDraft(project.id)?.[0]?.props));
     await settled(page);
+    await shot("H-fenetre-reglages-planche");
     await page.keyboard.press("Escape");
     ok("H13 planche : Échap ferme la fenêtre", await waitFor(async () => (await gsWin().count()) === 0, 5000));
-    await shot("H-fenetre-reglages-planche");
   }
 
   /* ============================ I. « Automatique » et barre de case collée à l'image (lot 31e) ============================ */
