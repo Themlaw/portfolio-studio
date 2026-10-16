@@ -1589,3 +1589,49 @@ Tests : `test-fond.mjs`, `test-surface.mjs`, `e2e-fond.mjs` (suite `fond32`). Pa
   bande du projet (si elle y est, filtrées par métier, places vides exclues) + celles des autres composants (grille, image, vidéo, carrousel ;
   prêtes et hors corbeille, chacune une fois). En-tête de la planche, compteurs de page (`boardWorkCount`) et tuiles de collection
   (`countCollection` : les planches des projets qui ont du travail dans ce métier) l'appliquent ; une planche à la bande seule compte comme avant.
+
+## Grille unifiée (v0.24, lot 31d)
+
+La grille d'une page et la grille d'une planche de projet sont UN seul modèle, UN seul rendu et UN seul outil sur la toile.
+Avant : la grille de planche n'était qu'une liste d'images dans le panneau (rendue sans repère, `ctx.edit` faux) ; on glissait
+une image sans voir à quelle place elle irait, et la grille de page savait des choses (changer une image sur la toile, places
+vides, barre d'agencement) que la planche ne savait pas.
+
+- **Modèle** (`src/blocks/grid-layouts.ts`, module pur) : agencements prédéfinis `1`, `1+2`, `2`, `3`, `2x2`, `4`, `2+1` (inchangés),
+  `portrait-left` et `portrait-right` (la case 1 est le portrait, sur 2 rangées ; le second est le miroir : `direction: rtl` sur la
+  grille, `ltr` dans les cases), et `custom` (« Sur mesure », `cols` 2 à 4, `spans[i] = {w: 1..cols, h: 1..2}` dans l'ordre des
+  images, `mirror`). Champs facultatifs du schéma de la grille (`gridSchema`) : **aucune migration**, une ancienne grille (page ou
+  planche, `projects.layout` / `draft_layout`) se lit et se rend comme avant, au caractère près (aucun attribut ni style ajouté
+  pour les anciens agencements). `placeCells` reproduit le placement CSS (vignettes, tests) ; `toCustom` fait passer un agencement
+  prédéfini en « Sur mesure » SANS changer la disposition ; `applyGridOp` (fonction pure : réglages, échanger, déplacer, retirer,
+  poser une image, taille d'une case, « Adapter aux images ») est LA seule logique d'édition, appelée par la toile, le panneau de
+  la page et celui de la planche.
+- **Rendu** (`GridBlock` + `globals.css`) : CSS grid. Prédéfinis : règles d'avant (+ portraits : case 1 sur 2 rangées). Sur mesure :
+  `--cols`, `--w`, `--h` par case, `grid-column` / `grid-row: span`, `grid-auto-flow: row dense`. Choix « dense » : l'artiste règle
+  lui-même les tailles, un trou serait laid ; l'ordre de lecture est celui des numéros affichés sur la toile (pas forcément celui de
+  l'écran). Les prédéfinis gardent l'ordre (pas de `dense` : le motif se répète tel quel). Une case sur 2 rangées : l'image la remplit
+  (`object-fit: cover`) sans donner sa hauteur à la ligne, ce sont les cases d'une rangée qui la fixent (rien ne se déforme).
+  Téléphone (< 48 rem) : 2 colonnes, une case large ou haute prend toute la largeur, plus de rangées doubles. Espace : `none` s'ajoute
+  à `tight` / `normal` / `wide` (Aucun, S, M, L).
+- **Toile, mêmes repères pour les deux** : `GridBlock` pose `data-edit-grid`, `data-edit-cell` (uid de la case) / `data-cell-index` /
+  `data-cell-type`, et les places libres `data-edit-cell-free`, quand `ctx.edit` (page) OU `ctx.gridCanvas` (grille de planche : posé
+  par `renderBoardItem`, sans les autres commandes de page). Les composants d'une case (`ImageBlock`, `VideoSingleBlock`) y posent
+  leurs repères de média comme sur une page. Tout est absent du HTML public (testé).
+- **Calque `GridLayer`** (`src/components/edit/`, monté par `EditLayer`) : barre de la grille (agencement en vignettes, espace, format,
+  « + Case », « Adapter aux images », colonnes et inversion en Sur mesure, Fond) quand la grille est choisie (rubrique de page ou
+  composant de planche, ou une de ses cases) ; barre d'une case au survol (poignée, numéro, Remplacer, Retirer, Cadrer, Cadre, plus /
+  moins large, plus / moins haute) ; numéros des cases ; glisser la poignée sur une autre case les ÉCHANGE (case cible surlignée et
+  nommée). Places libres : cadre en pointillé au format des cases, numéro, « + Image » / « + Vidéo » (choix dans la médiathèque, ou
+  fichier de l'ordinateur). Dépôt d'un média ou d'un fichier : cible `gcell` (`BoardLayer.dropTargetAt`) = la case visée, ou, sur une
+  place libre, la prochaine case libre (une grille se remplit dans l'ordre) ; la case est surlignée avec son numéro.
+- **Un seul message** : `grid-op` (`uid`, `board?`, `op`) ; `layout` (ancien) passe par lui. `VisualEditor.gridOp` lit les réglages de la
+  grille (brouillon de page, ou dernier instantané de la planche, repli : ce que la toile a lu), applique `applyGridOp`, écrit : page =
+  `setBlocks` (historique de la page) ; planche = `boardDo({op: "item-set"})` (instantané, Annuler / Rétablir comme tout le reste).
+  `cell-look` : cadre et recadrage d'une case de PLANCHE (la case n'est pas un bloc de la page) ; `sendLook` / `wrapperOf` /
+  `cropTargetAt` (LookLayer) reconnaissent `data-edit-cell` dans une planche. « Adapter aux images » lit la forme de chaque image
+  dans la médiathèque de l'éditeur (largeur / hauteur), jamais dans le DOM.
+- **Panneau** (`GridEditor`, partagé page et planche) : en haut, condensé : agencement (vignettes nommées), espace, format des cases,
+  nombre d'images, colonnes / inversion / « Adapter aux images » ; dessous, « Réglages avancés » (alignement, espace au-dessus,
+  étiquette, titre). Planche : la liste des cases (`GridContent`) avec Remplacer, ordre, retirer et « Dans la case ».
+- Tests : `scripts/test-grille31d.mjs` (modèle, opérations, schéma, anciennes données, messages) et `scripts/e2e-grille31d.mjs`
+  (suite `grille31d`).

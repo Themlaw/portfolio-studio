@@ -32,8 +32,9 @@ import { acceptToCanvas, insertionIndex, moveTo, type BlockInfo, type FromCanvas
 import BoardLayer from "./BoardLayer";
 import LookLayer from "./edit/LookLayer";
 import SiteLookLayer from "./edit/SiteLookLayer";
-import GridLayoutIcon, { LAYOUT_LABELS } from "./edit/GridLayoutIcon";
-import { listKeys, noteSettle, observeOverlays, pendingOrder, postIntent, previewLayout, previewMarked, previewOrder, previewText, previewTileSize, resetOverlays, revertOverlay, siblingWrappers } from "./edit/optimistic";
+import GridLayer from "./edit/GridLayer";
+import { gridRefOf } from "./edit/grid-dom";
+import { listKeys, noteSettle, observeOverlays, pendingOrder, postIntent, previewMarked, previewOrder, previewText, previewTileSize, resetOverlays, revertOverlay, siblingWrappers } from "./edit/optimistic";
 import { parseMarked } from "@/lib/marked";
 import { closeMarkedEditor, markedNodes, markState, markupOf, openMarkedEditor, selectionRange, selectRange, toggleMark, type MarkedEditor } from "./edit/marked-edit";
 import FondMenu, { FondButton } from "./edit/FondMenu";
@@ -54,7 +55,6 @@ type Drop = { parent: string | null; index: number; refused?: boolean };
 
 const EDGE = 64;
 const GLOBAL_UIDS: Record<string, string> = { header: "site-header", footer: "site-footer" };
-const LAYOUTS = ["1", "1+2", "2", "3", "2x2", "4", "2+1"] as const;
 
 /** Envoie une intention (numérotée : voir edit/optimistic.ts) ; renvoie son numéro. */
 function post(msg: FromCanvas): number {
@@ -75,32 +75,6 @@ function previewMove(seq: number, uid: string, parent: string | null, to: number
   const from = base.indexOf(uid);
   if (from < 0) return;
   previewOrder(parent, moveTo(base, from, to), seq);
-}
-
-/** Choix d'agencement d'une grille : se ferme d'un clic ailleurs. */
-function LayoutPicker({ top, uid, onClose }: { top: number; uid: string; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
-  return (
-    <div ref={ref} className="pe-layouts" role="radiogroup" aria-label="Agencement de la grille" style={{ top }}>
-      {LAYOUTS.map((l) => (
-        <button
-          key={l}
-          type="button"
-          role="radio"
-          aria-checked={document.querySelector(`[data-edit-block="${CSS.escape(uid)}"] .block-grid`)?.getAttribute("data-layout") === l}
-          aria-label={LAYOUT_LABELS[l]}
-          title={LAYOUT_LABELS[l]}
-          onClick={() => {
-            const seq = post({ kind: "layout", uid, layout: l });
-            previewLayout(uid, l, seq);
-          }}
-        >
-          <GridLayoutIcon layout={l} />
-        </button>
-      ))}
-    </div>
-  );
 }
 
 /** Choix de la page de collection d'une nouvelle entrée (lot 22) : se ferme d'un clic ailleurs. */
@@ -329,7 +303,6 @@ export default function EditLayer() {
   const [host, setHost] = useState<HTMLElement | null>(null);
   const [announcement, setAnnouncement] = useState("");
   /** Bloc grille dont le choix d'agencement est ouvert. */
-  const [layoutFor, setLayoutFor] = useState<string | null>(null);
   const [sizeFor, setSizeFor] = useState<string | null>(null);
   const [tilePick, setTilePick] = useState<{ uid: string; top: number; left: number; items: { pageId: number; title: string }[] } | null>(null);
   const [projectPicker, setProjectPicker] = useState<string | null>(null);
@@ -900,6 +873,22 @@ export default function EditLayer() {
     };
     const onClick = (e: MouseEvent) => {
       if (inLayer(e.target)) return;
+      // Place libre d'une grille, « + Image » / « + Vidéo » (page ou planche, lot 31d) : le choix du média pour cette case.
+      const freeMedia = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-edit-cell-media]") : null;
+      const freeGrid = freeMedia ? gridRefOf(freeMedia) : null;
+      if (freeMedia && freeGrid) {
+        e.preventDefault();
+        e.stopPropagation();
+        finishEdit(true);
+        const index = Number(freeMedia.closest<HTMLElement>(".block-grid-cell[data-cell-index]")?.dataset.cellIndex);
+        postIntent({
+          kind: "grid-op",
+          uid: freeGrid.uid,
+          ...(freeGrid.board ? { board: freeGrid.board, ...(freeGrid.props ? { props: freeGrid.props } : {}) } : {}),
+          op: { op: "pick", index: Number.isInteger(index) && index >= 0 ? index : 24, media: freeMedia.dataset.editCellMedia === "video" ? "video" : "image" },
+        });
+        return;
+      }
       // Contenu d'une planche (lot 31) : « + Ajouter », barre d'un composant, composant (hors bande) — gérés par BoardLayer.
       if (e.target instanceof Element && e.target.closest("[data-edit-bitem-add], [data-edit-bitem-op], [data-edit-bitem]:not([data-edit-bitem-project])")) {
         e.preventDefault();
@@ -911,7 +900,6 @@ export default function EditLayer() {
       const t = e.target instanceof Element ? e.target : null;
       const addEnd = t?.closest("[data-edit-add]");
       const cellText = t?.closest<HTMLElement>("[data-edit-cell-text]");
-      const cellMedia = t?.closest<HTMLElement>("[data-edit-cell-media]");
       const fieldOp = t?.closest<HTMLElement>("[data-edit-field-op]");
       // État vide d'un bloc média : « Choisir une image / une vidéo / un PDF » (lot 27).
       const emptyMedia = t?.closest<HTMLElement>("[data-edit-empty-media]");
@@ -955,14 +943,6 @@ export default function EditLayer() {
         const uid = fieldOp.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
         const op = fieldOp.dataset.editFieldOp;
         if (uid && op && (FIELD_OP_NAMES as readonly string[]).includes(op.replace(/^(add|remove)-/, ""))) post({ kind: "field-op", uid, op: op as Extract<FromCanvas, { kind: "field-op" }>["op"] });
-        return;
-      }
-      if (cellMedia) {
-        e.preventDefault();
-        e.stopPropagation();
-        finishEdit(true);
-        const grid = cellMedia.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
-        if (grid) post({ kind: "cell-media", uid: grid, media: cellMedia.dataset.editCellMedia === "video" ? "video" : "image" });
         return;
       }
       if (addEnd || cellText) {
@@ -1335,11 +1315,6 @@ export default function EditLayer() {
                 Changer de projet
               </button>
             )}
-            {sel.type === "grid" && (
-              <button type="button" className="pe-tool-text" aria-expanded={layoutFor === sel.uid} onClick={() => setLayoutFor((o) => (o === sel.uid ? null : sel.uid))}>
-                Agencement
-              </button>
-            )}
             {sel.type === "collection-tiles" && (
               <button type="button" className="pe-tool-text" aria-expanded={sizeFor === sel.uid} onClick={() => setSizeFor((o) => (o === sel.uid ? null : sel.uid))}>
                 Taille des images
@@ -1403,9 +1378,6 @@ export default function EditLayer() {
           {sel.type === "collection-tiles" && sizeFor === sel.uid && (
             <TileSizePicker uid={sel.uid} top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40} onClose={() => setSizeFor(null)} />
           )}
-          {sel.type === "grid" && layoutFor === sel.uid && (
-            <LayoutPicker uid={sel.uid} top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40} onClose={() => setLayoutFor(null)} />
-          )}
         </div>
       )}
 
@@ -1417,7 +1389,7 @@ export default function EditLayer() {
         </div>
       )}
 
-      {gap && !drag && !surfaceFor && !fondFor && !frameFor && !layoutFor && !sizeFor && !projectPicker && (
+      {gap && !drag && !surfaceFor && !fondFor && !frameFor && !sizeFor && !projectPicker && (
         <div className="pe-gap" style={{ top: gap.top }}>
           <button type="button" data-edit-gap={gap.index} onClick={() => post({ kind: "insert", parent: null, index: gap.index, what: "choose" })}>
             <span aria-hidden="true">+</span> Ajouter une rubrique
@@ -1449,6 +1421,8 @@ export default function EditLayer() {
         </div>
       )}
 
+      {/* Grille unifiée (lot 31d) : barre de la grille, barre des cases, numéros. */}
+      <GridLayer selected={selected} dragging={Boolean(drag)} announce={setAnnouncement} />
       {/* Mise en page (lot 2) : espaces, textes, position du titre, cadrage. */}
       <LookLayer
         selected={sel ? { uid: sel.uid, type: sel.type, ...(sel.parent ? { parent: sel.parent, parentType: boxes.find((b) => b.uid === sel.parent)?.type } : {}) } : null}

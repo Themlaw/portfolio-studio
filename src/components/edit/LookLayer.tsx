@@ -68,7 +68,8 @@ const docRect = (el: Element): Rect => {
 const swatch = (c: PaletteColor) => `var(--t-color-${c})`;
 
 /** Enveloppe d'édition d'un bloc. */
-const wrapperOf = (uid: string) => document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"], [data-edit-bitem="${CSS.escape(uid)}"]:not([data-edit-bitem-project])`);
+const wrapperOf = (uid: string) =>
+  document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"], [data-edit-bitem="${CSS.escape(uid)}"]:not([data-edit-bitem-project]), [data-edit-bitem] [data-edit-cell="${CSS.escape(uid)}"]`);
 
 /** Composant d'une planche (lot 31c : un Texte…) : sa mise en forme s'écrit dans ses réglages, par l'opération de planche. */
 const itemFrameOf = (uid: string) => document.querySelector<HTMLElement>(`[data-edit-bitem="${CSS.escape(uid)}"]:not([data-edit-bitem-project])`);
@@ -104,7 +105,15 @@ export function sendLook(uid: string, look: Look): number {
   const clean = cleanLook(look);
   const frame = itemFrameOf(uid);
   const board = Number(frame?.dataset.board);
-  const seq = frame && board ? postIntent({ kind: "bitem-look", board, uid, look: clean ?? null }) : postIntent({ kind: "look", uid, look: clean ?? null });
+  // Case d'une grille de planche (lot 31d) : sa mise en forme s'écrit dans les réglages de la grille du projet.
+  const cell = frame ? null : document.querySelector<HTMLElement>(`[data-edit-bitem] [data-edit-cell="${CSS.escape(uid)}"]`);
+  const cellFrame = cell?.closest<HTMLElement>("[data-edit-bitem]");
+  const seq =
+    frame && board
+      ? postIntent({ kind: "bitem-look", board, uid, look: clean ?? null })
+      : cellFrame?.dataset.editBitem && Number(cellFrame.dataset.board)
+        ? postIntent({ kind: "cell-look", board: Number(cellFrame.dataset.board), grid: cellFrame.dataset.editBitem, ...(cellFrame.dataset.editBitemProps ? { props: cellFrame.dataset.editBitemProps.slice(0, 100_000) } : {}), uid, look: clean ?? null })
+        : postIntent({ kind: "look", uid, look: clean ?? null });
   setOverlay(`look:${uid}`, seq, { data: clean ?? {} });
   return seq;
 }
@@ -608,9 +617,13 @@ function cropTargetAt(t: EventTarget | null): CropTarget | null {
     return { uid: tileBlock.dataset.editBlock, field: "mediaId", media: img, tile };
   }
   const host = t.closest<HTMLElement>("[data-edit-media]");
-  const block = host?.closest<HTMLElement>("[data-edit-block]");
-  const field = block ? CROPPABLE[block.dataset.editType ?? ""] : undefined;
-  if (!host || !block?.dataset.editBlock || !field || host.dataset.editMedia !== field) return null;
+  // Case d'une grille de planche (lot 31d) : la case est le « bloc » (elle n'en est pas un de la page).
+  const boardCell = host?.closest("[data-edit-bitem]") ? host.closest<HTMLElement>(".block-grid-cell[data-edit-cell]") : null;
+  const block = boardCell ?? host?.closest<HTMLElement>("[data-edit-block]");
+  const blockUid = boardCell ? boardCell.dataset.editCell : block?.dataset.editBlock;
+  const blockType = boardCell ? boardCell.dataset.cellType : block?.dataset.editType;
+  const field = block ? CROPPABLE[blockType ?? ""] : undefined;
+  if (!host || !block || !blockUid || !field || host.dataset.editMedia !== field) return null;
   // Ouverture : seulement une image ou vidéo de fond choisie (pas le décor du thème).
   const media = host.querySelector<HTMLImageElement | HTMLVideoElement>(field === "backgroundMediaId" ? ".hero-backdrop img, .hero-backdrop video" : "img");
   if (!media) return null;
@@ -622,12 +635,12 @@ function cropTargetAt(t: EventTarget | null): CropTarget | null {
     if (!ratio || !fw || !fh) return null;
     const figure = host.closest<HTMLElement>("figure.block-image");
     const box = parseRatio(figure?.dataset.editBox);
-    return { uid: block.dataset.editBlock, field, media, full: { src: fullSrc, ratio, w: fw, h: fh, box } };
+    return { uid: blockUid, field, media, full: { src: fullSrc, ratio, w: fw, h: fh, box } };
   }
   const ir = mediaRatio(media);
   const box = media.getBoundingClientRect();
   if (!ir || !box.height || !needsCrop(ir, box.width / box.height)) return null;
-  return { uid: block.dataset.editBlock, field, media };
+  return { uid: blockUid, field, media };
 }
 
 /** Onglets Libre / Cadre du bloc de la modale « Cadrer l'image ». */
@@ -868,6 +881,20 @@ export default function LookLayer({
     };
   }, [bump]);
 
+  // « Cadrer » depuis la barre d'une case de grille (GridLayer).
+  useEffect(() => {
+    const onCrop = (e: Event) => {
+      const uid = (e as CustomEvent<{ cell?: string }>).detail?.cell;
+      const cell = uid ? document.querySelector<HTMLElement>(`[data-edit-cell="${CSS.escape(uid)}"]`) : null;
+      const img = cell?.querySelector<HTMLElement>("[data-edit-media] img") ?? null;
+      const target = img ? cropTargetAt(img) : null;
+      if (target) setCropOpen(target);
+      else announce("Cette image ne peut pas être cadrée.");
+    };
+    window.addEventListener("pe:crop", onCrop);
+    return () => window.removeEventListener("pe:crop", onCrop);
+  }, [announce]);
+
   // Survol : « Aa » sur un texte éditable, « Cadrer » sur une image à cadrer.
   useEffect(() => {
     const inLayer = (t: EventTarget | null) => t instanceof Element && Boolean(t.closest(".pe-layer"));
@@ -880,7 +907,8 @@ export default function LookLayer({
       clearTimeout(hideTimer.current);
       if (t) setHoverText((h) => (h?.el === t ? h : { el: t, rect: docRect(t) }));
       else hideTimer.current = setTimeout(() => setHoverText(null), 500);
-      const c = cropTargetAt(e.target);
+      // Case d'une grille : sa barre (GridLayer) propose « Cadrer ».
+      const c = e.target instanceof Element && e.target.closest(".block-grid-cell[data-edit-cell]") ? null : cropTargetAt(e.target);
       setCropHover((prev) => (c ? (prev?.media === c.media ? prev : c) : prev && (e.target as Element)?.closest?.("[data-edit-media], [data-edit-tile]") ? prev : null));
     };
     // Saisie d'un texte : sa barre s'ouvre d'elle-même.

@@ -127,8 +127,8 @@ try {
   ok("B3b publié intact", JSON.stringify(publicTypes()) === '["strip"]');
   await page.getByTestId("board-item-panel").waitFor({ timeout: 30000 });
   // Image dans la grille, depuis la médiathèque.
+  // Lot 31d : « + Ajouter une image » ouvre directement le choix dans la médiathèque (plus de case vide d'abord).
   await page.getByTestId("board-grid-add-image").click();
-  await page.getByRole("button", { name: "Choisir une image" }).first().click();
   await page.locator(".a-picker-scroll button").first().click();
   await page.getByRole("button", { name: "Utiliser cette image" }).click();
   ok("B4 image choisie dans la grille", await waitFor(() => (json(project().draft_layout)?.[1]?.props?.children?.[0]?.props?.mediaId ?? 0) > 0), project().draft_layout);

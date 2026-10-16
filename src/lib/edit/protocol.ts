@@ -8,6 +8,8 @@
 import { z } from "zod";
 
 import { BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, type BoardItemType } from "../../blocks/board-layout";
+import { GRID_LAYOUTS, MAX_GRID_CELLS } from "../../blocks/grid-layouts";
+import { RATIO_VALUES } from "../images/formats";
 import { FIELD_OP_NAMES } from "../../blocks/optional-fields";
 import { BackgroundSchema } from "../../themes/schema";
 import { SurfaceSchema } from "../../themes/surface";
@@ -52,7 +54,36 @@ const DropTarget = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("cell"), uid: Uid }),
   // Lot 31b : un composant de la planche (Image : remplace ; Grille, carrousel : ajoute) — média de la médiathèque seulement.
   z.object({ kind: z.literal("bitem"), board: Board, uid: Uid }),
+  // Lot 31d : une case précise d'une grille (page : `uid` = la grille ; planche : `board` + `uid` du composant). `index` au-delà de
+  // la dernière image : la prochaine case libre (une grille se remplit dans l'ordre).
+  z.object({ kind: z.literal("gcell"), uid: Uid, board: Board.optional(), props: z.string().max(100_000).optional(), index: z.number().int().min(0).max(MAX_GRID_CELLS) }),
 ]);
+/** Case d'une grille (rang de l'image, de 0 à 23). */
+const CellIndex = z.number().int().min(0).max(MAX_GRID_CELLS - 1);
+const Step = z.number().int().min(-3).max(3);
+/**
+ * Opérations de la grille unifiée (lot 31d) : les mêmes pour une grille de page et une grille de planche (voir
+ * `applyGridOp`, src/blocks/grid-layouts.ts). « pick » : choisir une image ou une vidéo pour une case (remplacer, ou
+ * ajouter à la suite) dans la médiathèque ou sur l'ordinateur.
+ */
+export const GridCanvasOpSchema = z.discriminatedUnion("op", [
+  z.object({
+    op: z.literal("set"),
+    layout: z.enum(GRID_LAYOUTS).optional(),
+    gap: z.enum(["none", "tight", "normal", "wide"]).optional(),
+    ratio: z.enum(RATIO_VALUES).optional(),
+    align: z.enum(["start", "center", "end", "stretch"]).optional(),
+    cols: z.number().int().min(2).max(4).optional(),
+    mirror: z.boolean().optional(),
+  }),
+  z.object({ op: z.literal("remove"), index: CellIndex }),
+  z.object({ op: z.literal("swap"), a: CellIndex, b: CellIndex }),
+  z.object({ op: z.literal("move"), from: CellIndex, to: CellIndex }),
+  z.object({ op: z.literal("span"), index: CellIndex, dw: Step.optional(), dh: Step.optional() }),
+  z.object({ op: z.literal("adapt"), ratios: z.array(z.number().finite().min(0.05).max(20)).max(MAX_GRID_CELLS).optional() }),
+  z.object({ op: z.literal("pick"), index: z.number().int().min(0).max(MAX_GRID_CELLS), media: z.enum(["image", "video"]).optional() }),
+]);
+export type GridCanvasOp = z.infer<typeof GridCanvasOpSchema>;
 const FileValue = z.custom<File>((v) => typeof File !== "undefined" && v instanceof File, "Fichier attendu");
 
 /** Toile → éditeur. */
@@ -93,7 +124,12 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("ghost-op"), id: z.string().max(40), op: z.enum(["retry", "remove"]) }),
   // v0.13 : médias des blocs, grilles, en-tête / pied / réseaux (communs au site).
   z.object({ kind: z.literal("media-op"), uid: Uid, field: MediaField, op: z.enum(["replace", "clear"]) }),
-  z.object({ kind: z.literal("layout"), uid: Uid, layout: z.enum(["1", "1+2", "2", "3", "2x2", "4", "2+1"]) }),
+  z.object({ kind: z.literal("layout"), uid: Uid, layout: z.enum(GRID_LAYOUTS) }),
+  // Lot 31d : grille unifiée (page ou planche). `board` : composant de planche (`props` = ses réglages tels que la toile les a lus,
+  // repli si l'éditeur n'a pas encore l'état de la planche) ; absent : la grille est une rubrique de la page.
+  z.object({ kind: z.literal("grid-op"), uid: Uid, board: Board.optional(), props: z.string().max(100_000).optional(), op: GridCanvasOpSchema }),
+  // Lot 31d : mise en forme (cadre, recadrage) de la case d'une grille de PLANCHE (la case n'est pas un bloc de la page).
+  z.object({ kind: z.literal("cell-look"), board: Board, grid: Uid, props: z.string().max(100_000).optional(), uid: Uid, look: LookSchema.nullable() }),
   // Entrées des collections (lot 22) : entrées choisies à la main (ajouter une page de collection, retirer, ordre).
   z.object({ kind: z.literal("tile-op"), uid: Uid, op: z.enum(["add", "remove", "up", "down", "cover", "cover-clear"]), index: z.number().int().min(0).max(23).optional(), pageId: z.number().int().positive().optional() }),
   // Entrées des collections (lot 22) : taille des images, depuis la barre du bloc.

@@ -32,7 +32,7 @@ import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, sameL, 
 import { useBlockEditor } from "./editor-context";
 import FormatSelect from "./FormatSelect";
 import type { L } from "./editor-types";
-import { GRID_LAYOUTS } from "./grid-layouts";
+import { applyGridOp, CUSTOM_COLS, customCols, GRID_LAYOUTS, type GridLayout, type GridModelOp, type GridShape } from "./grid-layouts";
 
 const EMPTY: L = { fr: "", en: "" };
 type P = Record<string, unknown>;
@@ -454,56 +454,111 @@ export function FeaturedProjectEditor() {
   );
 }
 
-/** Choix d'agencement par pictogrammes (aussi sur la toile, barre du conteneur). */
+/** Choix d'agencement par pictogrammes, avec le nom de chacun (la barre de la grille, sur la toile, propose les mêmes). */
 export function LayoutPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <div className="a-field">
       <span className="a-label" id="ve-layout-label">
         Agencement
       </span>
-      <div className="ve-layouts" role="radiogroup" aria-labelledby="ve-layout-label">
+      <div className="ve-layouts ve-layouts-named" role="radiogroup" aria-labelledby="ve-layout-label">
         {GRID_LAYOUTS.map((l) => (
-          <button key={l} type="button" role="radio" aria-checked={value === l} title={LAYOUT_LABELS[l]} aria-label={LAYOUT_LABELS[l]} className="ve-layout" onClick={() => onChange(l)}>
+          <button key={l} type="button" role="radio" aria-checked={value === l} title={LAYOUT_LABELS[l]} aria-label={LAYOUT_LABELS[l]} data-layout={l} className="ve-layout" onClick={() => onChange(l)}>
             <GridLayoutIcon layout={l} />
+            <span>{LAYOUT_LABELS[l]}</span>
           </button>
         ))}
       </div>
-      <p className="a-help">Les composants remplissent les cellules dans l&apos;ordre ; au-delà, le motif se répète. Changer d&apos;agencement ne retire rien.</p>
+      <p className="a-help">Les images remplissent les cases dans l&apos;ordre ; au-delà, le motif se répète. Changer d&apos;agencement ne retire rien. Modifier la taille d&apos;une case passe en « Sur mesure ».</p>
     </div>
   );
 }
 
+const GAP_CHOICES: [string, string][] = [
+  ["none", "Aucun"],
+  ["tight", "Petit"],
+  ["normal", "Moyen"],
+  ["wide", "Grand"],
+];
+
+/**
+ * Grille de la page et grille d'une planche : UN seul éditeur (lot 31d). L'essentiel est en haut — agencement, espace
+ * entre les images, format des cases, nombre d'images — puis, sous « Réglages avancés », le reste. Les mêmes gestes existent
+ * sur la toile (barre de la grille et de ses cases).
+ */
 export function GridEditor() {
-  const { value, onChange, errors } = useBlockEditor();
+  const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
+  const layout = (value.layout as string) ?? "2";
+  const kids = Array.isArray(value.children) ? (value.children as { type: string; props: P }[]) : [];
+  const apply = (op: GridModelOp) => {
+    const res = applyGridOp(value, op);
+    if ("error" in res) return;
+    onChange(res.props as typeof value);
+  };
+  const cols = layout === "custom" ? customCols(value as GridShape) : 3;
+  const ratios = kids.map((c) => {
+    const row = context.media.find((m) => m.id === c.props.mediaId);
+    return row?.width && row?.height ? row.width / row.height : c.type === "video-single" ? 16 / 9 : 1.5;
+  });
   return (
     <>
-      <LayoutPicker value={(value.layout as string) ?? "2"} onChange={(v) => set("layout", v)} />
-      <Select
-        label="Espacement"
-        value={(value.gap as string) ?? "normal"}
-        options={[
-          { value: "tight", label: "Serré" },
-          { value: "normal", label: "Normal" },
-          { value: "wide", label: "Large (espacement entre rubriques du thème)" },
-        ]}
-        onChange={(v) => set("gap", v ?? "normal")}
-      />
-      <Select
-        label="Alignement vertical"
-        value={(value.align as string) ?? "stretch"}
-        options={[
-          { value: "stretch", label: "Étirer" },
-          { value: "start", label: "En haut" },
-          { value: "center", label: "Au centre" },
-          { value: "end", label: "En bas" },
-        ]}
-        onChange={(v) => set("align", v ?? "stretch")}
-      />
-      <FormatSelect label="Format des images" help="Les vidéos gardent leur cadre 16:9." explicitAuto />
-      <Toggle label="Espace au-dessus (comme entre deux rubriques)" checked={(value.top ?? "gap") === "gap"} onChange={(on) => set("top", on ? "gap" : "none")} />
-      <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
-      <TextI18n label="Titre (facultatif)" value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
+      <section className="ve-grid-top" aria-label="Grille : l'essentiel" data-testid="grid-top">
+        <LayoutPicker value={layout} onChange={(v) => apply({ op: "set", layout: v as GridLayout })} />
+        <div className="a-field">
+          <span className="a-label" id="ve-gap-label">
+            Espace entre les images
+          </span>
+          <div className="ve-chips" role="radiogroup" aria-labelledby="ve-gap-label" data-testid="grid-gap">
+            {GAP_CHOICES.map(([v, label]) => (
+              <button key={v} type="button" role="radio" aria-checked={((value.gap as string) ?? "normal") === v} data-gap={v} className="ve-chip" onClick={() => set("gap", v)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <FormatSelect label="Format des cases" help="Les vidéos gardent leur cadre 16:9." explicitAuto />
+        <p className="a-help" data-testid="grid-count">
+          {kids.length === 0 ? "Aucune image pour le moment." : kids.length === 1 ? "1 image dans la grille." : `${kids.length} images dans la grille.`}
+        </p>
+        {layout === "custom" && (
+          <div className="a-field" data-testid="grid-custom">
+            <span className="a-label" id="ve-cols-label">
+              Colonnes
+            </span>
+            <div className="ve-chips" role="radiogroup" aria-labelledby="ve-cols-label">
+              {CUSTOM_COLS.map((c) => (
+                <button key={c} type="button" role="radio" aria-checked={cols === c} data-cols={c} className="ve-chip" onClick={() => apply({ op: "set", cols: c })}>
+                  {c}
+                </button>
+              ))}
+            </div>
+            <Toggle label="Inverser la gauche et la droite" checked={value.mirror === true} onChange={(on) => apply({ op: "set", mirror: on })} />
+            <p className="a-help">Sur la page, chaque case a ses boutons « Plus large », « Plus haute »… dans sa barre.</p>
+          </div>
+        )}
+        <button type="button" className="a-btn" data-testid="grid-adapt" disabled={kids.length === 0} onClick={() => apply({ op: "adapt", ratios })}>
+          Adapter aux images
+        </button>
+        <p className="a-help">Donne à chaque case la forme de son image : un portrait sur deux rangées, un panorama sur deux colonnes.</p>
+      </section>
+      <details className="ve-advanced" data-testid="grid-advanced">
+        <summary>Réglages avancés</summary>
+        <Select
+          label="Alignement vertical"
+          value={(value.align as string) ?? "stretch"}
+          options={[
+            { value: "stretch", label: "Étirer" },
+            { value: "start", label: "En haut" },
+            { value: "center", label: "Au centre" },
+            { value: "end", label: "En bas" },
+          ]}
+          onChange={(v) => set("align", v ?? "stretch")}
+        />
+        <Toggle label="Espace au-dessus (comme entre deux rubriques)" checked={(value.top ?? "gap") === "gap"} onChange={(on) => set("top", on ? "gap" : "none")} />
+        <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
+        <TextI18n label="Titre (facultatif)" value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
+      </details>
     </>
   );
 }
