@@ -681,10 +681,12 @@ await section("I", async () => {
   await f.locator('.pe-bitem-menu [data-bitem-type="grid"]').click();
   await page.getByTestId("board-item-panel").waitFor({ timeout: 30000 });
   for (let i = 0; i < 3; i++) {
+    // Grille unifiée (31d) : « + Ajouter une image » ouvre le sélecteur de médias, un clic sur une vignette la place.
     await page.getByTestId("board-grid-add-image").click();
-    await page.getByRole("button", { name: "Choisir une image" }).first().click();
-    await page.locator(".a-picker-scroll button").nth(i).click();
-    await page.getByRole("button", { name: "Utiliser cette image" }).click();
+    const dlg = page.locator("dialog[open]").last();
+    await dlg.waitFor({ timeout: 20000 });
+    await dlg.locator('button[aria-label^="Choisir "]').nth(i).click();
+    await dlg.waitFor({ state: "detached", timeout: 20000 }).catch(() => {});
     await settled();
   }
   const gridItem = () => items().find((i) => i.type === "grid");
