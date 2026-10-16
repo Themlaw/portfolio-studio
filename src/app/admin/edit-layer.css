@@ -1993,7 +1993,7 @@ html[data-edit-mode] .pe-bitem-handle { touch-action: none; }
   align-items: center;
   gap: 2px 4px;
   width: max-content;
-  max-width: min(760px, calc(100vw - 24px));
+  max-width: min(920px, calc(100vw - 24px));
   padding: 4px;
   border-radius: 8px;
   background: var(--pe-ink);
