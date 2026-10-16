@@ -5338,6 +5338,63 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   color: var(--admin-accent);
 }
 
+/* Lot 31d : vignettes d'agencement avec leur nom, espace en pastilles, réglages avancés repliés. */
+.ve-layouts-named {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+}
+.ve-layouts-named .ve-layout {
+  display: grid;
+  place-items: center;
+  align-content: start;
+  gap: 4px;
+  width: auto;
+  height: auto;
+  min-height: 62px;
+  padding: 6px 4px;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+}
+.ve-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ve-chip {
+  min-width: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  color: var(--admin-ink-soft);
+  font: inherit;
+  cursor: pointer;
+}
+.ve-chip[aria-checked="true"] {
+  border-color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+}
+.ve-grid-top {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.ve-advanced {
+  margin: 10px 0 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+}
+.ve-advanced > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.ve-advanced[open] > summary {
+  margin-bottom: 10px;
+}
+
 .ve-combo {
   position: relative;
   display: grid;
@@ -6551,4 +6608,47 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
 .a-wp .a-seg {
   display: inline-flex;
   gap: 0;
+
+/* Lot 31d : liste des cases d'une grille de planche (panneau), une rangée par case. */
+.ve-board-kid-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+.ve-board-kid-list > li {
+  display: grid;
+  grid-template-columns: 24px 72px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 8px;
+  padding: 8px;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+}
+.ve-board-kid-list > li > .ve-board-kid-tools,
+.ve-board-kid-list > li > .a-field {
+  grid-column: 1 / -1;
+}
+.ve-board-kid-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ve-board-kid-num {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+.ve-board-kid-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }

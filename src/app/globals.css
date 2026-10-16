@@ -735,6 +735,9 @@
   gap: var(--grid-gap);
   align-items: stretch;
 }
+.block-grid[data-gap="none"] {
+  --grid-gap: 0px;
+}
 .block-grid[data-gap="tight"] {
   --grid-gap: calc(var(--gutter) / 2);
 }
@@ -811,6 +814,83 @@
 .block-grid:not([data-ratio="auto"]) .block-image-media {
   height: auto;
   object-fit: cover;
+}
+/* Lot 31d : « Portrait + 2 » et « Sur mesure » (CSS grid, `grid-column` / `grid-row: span`). Le flux `dense` ne laisse aucun
+   trou : une case plus petite remonte combler la place d'une plus grande (l'ordre de lecture suit alors les numéros de la
+   toile). `data-mirror` inverse gauche et droite (direction rtl sur la grille, ltr dans les cases). Sous 48 rem (téléphone) :
+   deux colonnes, une case large ou haute prend toute la largeur, les autres se rangent côte à côte, sans rangées doubles. */
+.block-grid[data-layout="portrait-left"],
+.block-grid[data-layout="portrait-right"],
+.block-grid[data-layout="custom"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.block-grid[data-layout="custom"] {
+  grid-auto-flow: row dense;
+}
+.block-grid[data-layout="portrait-left"] > .block-grid-cell:nth-child(3n + 1),
+.block-grid[data-layout="portrait-right"] > .block-grid-cell:nth-child(3n + 1),
+.block-grid[data-layout="custom"] > .block-grid-cell[data-w="2"],
+.block-grid[data-layout="custom"] > .block-grid-cell[data-w="3"],
+.block-grid[data-layout="custom"] > .block-grid-cell[data-w="4"] {
+  grid-column: 1 / -1;
+}
+@media (min-width: 48rem) {
+  .block-grid[data-layout="custom"] {
+    grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  }
+  .block-grid[data-layout="portrait-left"] > .block-grid-cell:nth-child(3n + 1),
+  .block-grid[data-layout="portrait-right"] > .block-grid-cell:nth-child(3n + 1) {
+    grid-column: auto;
+    grid-row: span 2;
+  }
+  .block-grid[data-layout="custom"] > .block-grid-cell[data-w] {
+    grid-column: span var(--w, 1);
+    grid-row: span var(--h, 1);
+  }
+  .block-grid[data-mirror] {
+    direction: rtl;
+  }
+  .block-grid[data-mirror] > .block-grid-cell {
+    direction: ltr;
+  }
+}
+/* Une case sur deux rangées (portrait) : l'image remplit toute la hauteur que lui laissent ses voisines, rognée au besoin
+   (ce sont les cases d'une seule rangée qui donnent leur hauteur à la ligne : aucune ne se déforme). */
+@media (min-width: 48rem) {
+  .block-grid-cell[data-span-h],
+  .block-grid[data-layout^="portrait"] > .block-grid-cell:nth-child(3n + 1) {
+    display: flex;
+    flex-direction: column;
+  }
+  .block-grid-cell[data-span-h] .block-image,
+  .block-grid[data-layout^="portrait"] > .block-grid-cell:nth-child(3n + 1) .block-image {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .block-grid-cell[data-span-h] .block-image > span:first-child,
+  .block-grid[data-layout^="portrait"] > .block-grid-cell:nth-child(3n + 1) .block-image > span:first-child {
+    position: relative;
+    display: block;
+    flex: 1 1 auto;
+    min-height: 14rem;
+  }
+  .block-grid-cell[data-span-h] .block-image-media,
+  .block-grid[data-layout^="portrait"] > .block-grid-cell:nth-child(3n + 1) .block-image-media {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    object-fit: cover;
+  }
+}
+/* « Sur mesure » avec un format imposé : une case large garde la hauteur de ses voisines d'une colonne (format x largeur). */
+@media (min-width: 48rem) {
+  .block-grid[data-layout="custom"]:not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) .block-image-media {
+    aspect-ratio: calc(var(--grid-r, 1.3333) * var(--w, 1));
+  }
 }
 .block-image[data-width="text"] {
   max-width: 42rem;

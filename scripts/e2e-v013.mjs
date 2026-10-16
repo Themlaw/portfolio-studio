@@ -435,10 +435,11 @@ if (run("E")) {
   await page.screenshot({ path: `${SHOTS}/E-video-a-choisir.png` });
   await f.locator(`${gridSel} .pe-media-video`).first().click({ position: { x: 6, y: 6 } });
   await f.locator(".pe-crumbs .pe-crumb").first().click();
-  await f.locator(".pe-tools .pe-tool-text", { hasText: "Agencement" }).click();
+  // Lot 31d : l'agencement se choisit dans la barre de la grille (même menu en vignettes que pour une planche).
+  await f.locator('[data-testid="gridbar-layout"]').click();
   await sleep(300);
   await page.screenshot({ path: `${SHOTS}/E-selecteur-d-agencement.png` });
-  await f.locator('.pe-layouts button[aria-label="4 petits (2 × 2)"]').click();
+  await f.locator('.pe-gm-layout[aria-label="4 petits (2 × 2)"]').click();
   await settled();
   grid = videoGrid();
   ok("E3 agencement changé (2 × 2) sans perdre de composant", grid.props.layout === "2x2" && grid.props.children.length === 3);

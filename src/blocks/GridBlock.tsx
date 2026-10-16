@@ -1,11 +1,12 @@
-import { Children, type ReactNode } from "react";
+import { Children, type CSSProperties, type ReactNode } from "react";
 import { z } from "zod";
 
 import Eyebrow from "@/components/Eyebrow";
 import { RATIO_VALUES } from "@/lib/images/formats";
+import { parseRatio } from "@/lib/images/sizes";
 
 import { FieldOps } from "./FieldOps";
-import { GRID_LAYOUTS, GRID_PATTERN } from "./grid-layouts";
+import { freeCells, GRID_LAYOUTS, gridCells, MAX_SPAN_H, MAX_SPAN_W } from "./grid-layouts";
 import { hasText } from "./optional-fields";
 import { MAX_CHILDREN } from "./tree";
 import { childBlock, inline, localized, tr, type BlockContext } from "./types";
@@ -13,7 +14,11 @@ import { childBlock, inline, localized, tr, type BlockContext } from "./types";
 
 export const gridSchema = z.object({
   layout: z.enum(GRID_LAYOUTS).default("2"),
-  gap: z.enum(["tight", "normal", "wide"]).default("normal"),
+  /** « Sur mesure » (lot 31d) : colonnes (2 à 4), taille de chaque case (même ordre que `children`), gauche / droite inversés. */
+  cols: z.number().int().min(2).max(4).optional(),
+  spans: z.array(z.object({ w: z.number().int().min(1).max(MAX_SPAN_W), h: z.number().int().min(1).max(MAX_SPAN_H) })).max(MAX_CHILDREN).optional(),
+  mirror: z.boolean().optional(),
+  gap: z.enum(["none", "tight", "normal", "wide"]).default("normal"),
   align: z.enum(["start", "center", "end", "stretch"]).default("stretch"),
   /** Ratio imposé aux images des cellules (les vidéos gardent le 16:9). */
   ratio: z.enum(RATIO_VALUES).default("auto"),
@@ -32,13 +37,22 @@ export const gridSchema = z.object({
  */
 export default function GridBlock({ props, ctx, children }: { props: z.infer<typeof gridSchema>; ctx: BlockContext; children?: ReactNode }) {
   const cells = Children.toArray(children);
-  const pattern = GRID_PATTERN[props.layout];
-  const free = ctx.edit ? (cells.length === 0 ? pattern : (pattern - (cells.length % pattern)) % pattern) : 0;
+  // Repères des cases (numéros, places libres, « + Image »…) : la toile d'une page, ou celle d'une grille de planche (lot 31d).
+  const canvas = Boolean(ctx.edit || ctx.gridCanvas);
+  const geometry = gridCells(props, cells.length);
+  const free = canvas ? freeCells(props, cells.length) : [];
+  const custom = props.layout === "custom";
+  const unit = parseRatio(props.ratio) ?? 4 / 3;
+  /** Taille d'une case (vue d'un agencement « Sur mesure » ou d'une case sur deux rangées). */
+  const sizeAttrs = (s: { w: number; h: number }) => ({
+    ...(s.h > 1 ? { "data-span-h": s.h } : {}),
+    ...(custom ? { "data-w": s.w, style: { "--w": s.w, "--h": s.h } as CSSProperties } : {}),
+  });
   // Étiquette et titre : des champs qui n'existent que s'ils ont été demandés (« + Ajouter … » sur la toile, lot 27).
   // Vide en public : aucune place ; sur la toile, un champ présent reste saisissable.
   const showEyebrow = props.eyebrow !== undefined && (ctx.edit || hasText(props.eyebrow));
   const showTitle = props.title !== undefined && (ctx.edit || hasText(props.title));
-  if (!cells.length && !ctx.edit && !showTitle && !showEyebrow) return null;
+  if (!cells.length && !canvas && !showTitle && !showEyebrow) return null;
   return (
     // Espace en bas (v0.13.1) : la grille se referme sur son propre pas (l'écart entre
     // cellules), comme une planche sur sa marge ; le bloc suivant ne colle plus.
@@ -62,35 +76,72 @@ export default function GridBlock({ props, ctx, children }: { props: z.infer<typ
           {tr(props.title!, ctx.locale)}
         </h2>
       )}
-      <div className="block-grid" data-layout={props.layout} data-gap={props.gap} data-align={props.align} data-ratio={props.ratio}>
+      <div
+        className="block-grid"
+        data-layout={props.layout}
+        data-gap={props.gap}
+        data-align={props.align}
+        data-ratio={props.ratio}
+        {...(custom ? { "data-cols": geometry.cols } : {})}
+        {...(geometry.mirror ? { "data-mirror": "" } : {})}
+        {...(custom ? { style: { "--cols": geometry.cols, "--grid-r": unit } as CSSProperties } : {})}
+        {...(canvas ? { "data-edit-grid": "", "data-grid-cols": geometry.cols } : {})}
+      >
         {cells.map((cell, i) => (
-          <div key={i} className="block-grid-cell">
+          <div
+            key={i}
+            className="block-grid-cell"
+            {...sizeAttrs(geometry.cells[i])}
+            {...(canvas ? { "data-cell-index": i, "data-cell-w": geometry.cells[i].w, "data-cell-h": geometry.cells[i].h } : {})}
+            {...(canvas && ctx.cellInfo?.[i]
+              ? { "data-edit-cell": ctx.cellInfo[i].uid, "data-cell-type": ctx.cellInfo[i].type, ...(ctx.cellInfo[i].look ? { "data-edit-look": ctx.cellInfo[i].look } : {}) }
+              : {})}
+          >
             {cell}
           </div>
         ))}
-        {Array.from({ length: free }, (_, i) => (
-          <div key={`free-${i}`} className="block-grid-cell" data-edit-cell-free="" lang="fr">
-            <span className="pe-cell-free">
-              {/* Deux choix clairs (lot 25) : une image ou une vidéo de la médiathèque (ou de l'ordinateur), posée dans cette case. */}
-              <span className="pe-cell-media" role="group" aria-label="Que mettre dans cette case ?">
-                {([["image", "Image"], ["video", "Vidéo"]] as const).map(([k, label]) => (
-                  <button key={k} type="button" className="pe-cell-pick" data-edit-cell-media={k}>
-                    <span aria-hidden="true">+</span> {label}
-                  </button>
-                ))}
+        {free.map((size, i) => {
+          const index = cells.length + i;
+          return (
+            <div
+              key={`free-${i}`}
+              className="block-grid-cell"
+              data-edit-cell-free=""
+              data-cell-index={index}
+              lang="fr"
+              {...sizeAttrs(size)}
+              {...(canvas ? { style: { ...(custom ? { "--w": size.w, "--h": size.h } : {}), "--free-r": Math.max(0.2, (unit * size.w) / size.h) } as CSSProperties } : {})}
+            >
+              <span className="pe-cell-free">
+                {/* Le numéro de la case : les images la remplissent dans l'ordre (le repère n'existe que sur la toile). */}
+                <span className="pe-cell-num" aria-hidden="true">
+                  {index + 1}
+                </span>
+                {/* Deux choix clairs (lot 25) : une image ou une vidéo de la médiathèque (ou de l'ordinateur), posée dans cette case. */}
+                <span className="pe-cell-media" role="group" aria-label={`Que mettre dans la case ${index + 1} ?`}>
+                  {([["image", "Image"], ["video", "Vidéo"]] as const).map(([k, label]) => (
+                    <button key={k} type="button" className="pe-cell-pick" data-edit-cell-media={k}>
+                      <span aria-hidden="true">+</span> {label}
+                    </button>
+                  ))}
+                </span>
+                {ctx.edit && (
+                  <>
+                    <span className="pe-cell-or">ou du texte</span>
+                    {/* Une rubrique de texte dans cette case, éditée aussitôt (lot 17c ; trois choix au lot 19a). */}
+                    <span className="pe-cell-choices">
+                      {([["text", "Texte"], ["title", "Titre"], ["title-text", "Titre + texte"]] as const).map(([k, label]) => (
+                        <button key={k} type="button" className="pe-cell-text" data-edit-cell-text={k}>
+                          {label}
+                        </button>
+                      ))}
+                    </span>
+                  </>
+                )}
               </span>
-              <span className="pe-cell-or">ou du texte</span>
-              {/* Une rubrique de texte dans cette case, éditée aussitôt (lot 17c ; trois choix au lot 19a). */}
-              <span className="pe-cell-choices">
-                {([["text", "Texte"], ["title", "Titre"], ["title-text", "Titre + texte"]] as const).map(([k, label]) => (
-                  <button key={k} type="button" className="pe-cell-text" data-edit-cell-text={k}>
-                    {label}
-                  </button>
-                ))}
-              </span>
-            </span>
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
     </section>
   );

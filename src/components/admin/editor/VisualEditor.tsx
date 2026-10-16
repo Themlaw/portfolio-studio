@@ -36,6 +36,7 @@ import { HELP_TEXT, STARTER_LIST, TEXT_STARTERS, type TextStarter } from "@/bloc
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
 import { blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
 import { fieldOpDef, hasOptionalField, withOptionalField } from "@/blocks/optional-fields";
+import { applyGridOp, type GridChild, type GridModelOp } from "@/blocks/grid-layouts";
 import { isFormBlock, makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
 import { SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
 import type { BoardOp, BoardResult, BoardSnap } from "@/lib/edit/boards";
@@ -83,7 +84,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "bitem-text", "bitem-look"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "bitem-text", "bitem-look", "cell-look"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /** Ce qui part vers la toile (ni fichier, ni identifiants internes). */
@@ -844,10 +845,121 @@ export default function VisualEditor({
     else insertStarter(what, { parent, index });
   };
 
-  /** Case vide de grille, « Image » / « Vidéo » : le choix du média s'ouvre ; il est posé dans une nouvelle case. */
-  const [cellPick, setCellPick] = useState<{ uid: string; kind: "image" | "video" } | null>(null);
+  /**
+   * Grille unifiée (lot 31d) : le choix du média d'une case s'ouvre ; il est posé dans cette case (remplacée), ou à la suite
+   * des images quand la case est libre. `board` : la grille est un composant de planche (sinon une rubrique de la page).
+   */
+  const [cellPick, setCellPick] = useState<{ uid: string; board?: number; props?: string; index: number; kind?: "image" | "video" } | null>(null);
   const requestCellMedia = (uid: string, kind: "image" | "video") => {
-    if (findBlock(draftRef.current.blocks, uid)?.type === "grid") setCellPick({ uid, kind });
+    const grid = findBlock(draftRef.current.blocks, uid);
+    if (grid?.type === "grid") setCellPick({ uid, index: Array.isArray(grid.props.children) ? grid.props.children.length : 0, kind });
+  };
+
+  /** Réglages d'une grille (rubrique de la page, ou composant de planche) tels que l'éditeur les connaît ; `fallback` : ceux que la toile a lus. */
+  const gridBase = (uid: string, board?: number, fallback?: string): Record<string, unknown> | null => {
+    if (!board) {
+      const b = findBlock(draftRef.current.blocks, uid);
+      return b && b.type === "grid" ? b.props : null;
+    }
+    const item = boards.current.get(board)?.layout.find((i) => i.uid === uid);
+    if (item) return item.type === "grid" ? item.props : null;
+    try {
+      const v = JSON.parse(fallback ?? "null") as { props?: unknown } | null;
+      return v?.props && typeof v.props === "object" && !Array.isArray(v.props) ? (v.props as Record<string, unknown>) : null;
+    } catch {
+      return null;
+    }
+  };
+  /** Écrit les réglages d'une grille : le brouillon de la page (Annuler suit l'historique), ou la planche du projet (instantané). */
+  const gridWrite = async (uid: string, board: number | undefined, props: Record<string, unknown>): Promise<boolean> => {
+    if (board) return Boolean(await boardDo(board, { op: "item-set", uid, props }));
+    const list = draftRef.current.blocks;
+    if (!findBlock(list, uid)) return false;
+    setBlocks(updateBlock(list, uid, (b) => ({ ...b, props })));
+    return true;
+  };
+  const gridKids = (props: Record<string, unknown> | null): GridChild[] => (Array.isArray(props?.children) ? (props!.children as GridChild[]) : []);
+
+  /** Un média posé dans la case n° `index` d'une grille (au-delà de la dernière image : à la suite). */
+  const gridPut = async (uid: string, board: number | undefined, index: number, mediaId: number, hint?: string, fallback?: string): Promise<boolean> => {
+    if (blockedRef.current) return false;
+    if (board) await itemFlushRef.current();
+    const base = gridBase(uid, board, fallback);
+    if (!base) {
+      toast("Cette grille n'existe plus : recharge l'éditeur.", "error");
+      return false;
+    }
+    const kind = mediaKindOf(mediaId, hint);
+    if (kind === "pdf") {
+      toast("Un PDF se pose dans une rubrique « CV ».", "error");
+      return false;
+    }
+    const type = kind === "video" ? "video-single" : "image";
+    const child: GridChild = { uid: newUid(), type, props: type === "video-single" ? { variant: "card", mode: "player", mediaId } : { width: "wide", mediaId } };
+    const n = gridKids(base).length;
+    const res = applyGridOp(base, { op: "put", index: Math.min(index, n), child });
+    if ("error" in res) {
+      toast(res.error, "error");
+      return false;
+    }
+    const ok = await gridWrite(uid, board, res.props);
+    if (ok) toast(index < n ? "Image remplacée" : `${type === "video-single" ? "Vidéo" : "Image"} placée en case ${n + 1}`, "success", { label: "Défaire", run: () => void undoRef.current() });
+    return ok;
+  };
+
+  /** Format de chaque image de la grille (largeur / hauteur), d'après la médiathèque : sert à « Adapter aux images ». */
+  const gridRatios = (props: Record<string, unknown>): number[] =>
+    gridKids(props).map((c) => {
+      const row = context.media.find((m) => m.id === c.props.mediaId);
+      return row?.width && row?.height ? row.width / row.height : c.type === "video-single" ? 16 / 9 : 1.5;
+    });
+
+  /** Opération de la grille (barre de la toile, panneau) : les mêmes pour une rubrique de page et un composant de planche. */
+  const gridOp = async (msg: Extract<FromCanvas, { kind: "grid-op" }>): Promise<boolean> => {
+    if (blockedRef.current) return false;
+    if (msg.board) await itemFlushRef.current();
+    const base = gridBase(msg.uid, msg.board, msg.props);
+    if (!base) {
+      toast("Cette grille n'existe plus : recharge l'éditeur.", "error");
+      return false;
+    }
+    const op = msg.op;
+    if (op.op === "pick") {
+      const kids = gridKids(base);
+      const index = Math.min(op.index, kids.length);
+      const kind = op.media ?? (kids[index] ? (kids[index].type === "video-single" ? "video" : "image") : undefined);
+      setCellPick({ uid: msg.uid, ...(msg.board ? { board: msg.board, ...(msg.props ? { props: msg.props } : {}) } : {}), index, ...(kind ? { kind } : {}) });
+      return true;
+    }
+    const model: GridModelOp = op.op === "adapt" ? { op: "adapt", ratios: op.ratios ?? gridRatios(base) } : (op as GridModelOp);
+    const res = applyGridOp(base, model);
+    if ("error" in res) {
+      toast(res.error, "error");
+      return false;
+    }
+    if (JSON.stringify(res.props) === JSON.stringify(base)) return false;
+    const ok = await gridWrite(msg.uid, msg.board, res.props);
+    if (ok && op.op === "adapt") toast("Disposition adaptée aux images", "success", { label: "Défaire", run: () => void undoRef.current() });
+    if (ok && op.op === "remove") toast("Image retirée de la grille", "success", { label: "Défaire", run: () => void undoRef.current() });
+    return ok;
+  };
+
+  /** Mise en forme (cadre, recadrage) de la case d'une grille de planche. */
+  const cellLook = async (msg: Extract<FromCanvas, { kind: "cell-look" }>): Promise<boolean> => {
+    if (blockedRef.current) return false;
+    await itemFlushRef.current();
+    const base = gridBase(msg.grid, msg.board, msg.props);
+    const kids = gridKids(base);
+    const i = kids.findIndex((k) => k.uid === msg.uid);
+    if (!base || i < 0) return false;
+    const clean = msg.look ? cleanLook(msg.look) : undefined;
+    const children = kids.map((k, j) => {
+      if (j !== i) return k;
+      const { look: _old, ...rest } = k.props;
+      void _old;
+      return { ...k, props: clean ? { ...rest, look: clean } : rest };
+    });
+    return gridWrite(msg.grid, msg.board, { ...base, children });
   };
 
   /** Fond d'une rubrique de premier niveau, depuis la toile (lot 17c) ; false = refusé ou sans effet. */
@@ -1433,6 +1545,18 @@ export default function VisualEditor({
         await uploadToBlock(target, files);
         return;
       }
+      // Lot 31d : une case précise d'une grille. Le premier fichier prend cette case, les suivants se rangent à la suite.
+      if (target.kind === "gcell") {
+        let at = target.index;
+        for (const file of files) {
+          const id = await sendAndWait(file);
+          if (id === null) continue;
+          const kind = file.type.startsWith("video/") ? "video" : isPdfFile(file) ? "pdf" : "image";
+          if (!(await gridPut(target.uid, target.board, at, id, kind, target.props))) break;
+          at = 1000;
+        }
+        return;
+      }
       // Un composant de la planche (lot 31c) : fichiers envoyés à la médiathèque, convertis, puis posés (Image : remplace ; Grille, carrousel : ajoutent).
       if (target.kind === "bitem") {
         await itemFlushRef.current();
@@ -1493,6 +1617,7 @@ export default function VisualEditor({
         return;
       }
       if (target.kind === "media" || target.kind === "cell") placeMedia(target, mediaId, kind);
+      else if (target.kind === "gcell") await gridPut(target.uid, target.board, target.index, mediaId, kind, target.props);
       else if (target.kind === "new") {
         const created = await createProject(target.uid, "Projet sans titre");
         if (created) await boardDo(created.id, { op: "add", mediaId, index: 0 });
@@ -1746,9 +1871,9 @@ export default function VisualEditor({
   };
 
   const itemFlush = () => itemFlushRef.current();
-  const handlers = useRef({ itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook });
+  const handlers = useRef({ itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook });
   useEffect(() => {
-    handlers.current = { itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook };
+    handlers.current = { itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -1883,7 +2008,15 @@ export default function VisualEditor({
           h.mediaOp(msg.uid, msg.field, msg.op);
           break;
         case "layout":
-          h.setProp(msg.uid, "layout", msg.layout);
+          void h.gridOp({ kind: "grid-op", uid: msg.uid, op: { op: "set", layout: msg.layout } });
+          break;
+        case "grid-op":
+          void h.gridOp(msg);
+          break;
+        case "cell-look":
+          void h.cellLook(msg).then((ok) => {
+            if (!ok && msg.seq) send({ kind: "revert", seq: msg.seq });
+          });
           break;
         case "tile-op":
           if (!h.tileOp(msg) && msg.seq) send({ kind: "revert", seq: msg.seq });
@@ -2934,17 +3067,20 @@ export default function VisualEditor({
       <MediaPickerDialog
         open={cellPick !== null}
         kind={cellPick?.kind}
-        media={context.media.filter((m) => m.kind === (cellPick?.kind ?? "image"))}
+        media={context.media.filter((m) => (cellPick?.kind ? m.kind === cellPick.kind : m.kind !== "pdf"))}
         onClose={() => setCellPick(null)}
         onPick={(mediaId) => {
           const p = cellPick;
           setCellPick(null);
-          if (p) placeMedia({ kind: "cell", uid: p.uid }, mediaId, p.kind);
+          if (p) void gridPut(p.uid, p.board, p.index, mediaId, p.kind, p.props);
         }}
         onFile={(file) => {
           const p = cellPick;
           setCellPick(null);
-          if (p) void uploadToBlock({ kind: "cell", uid: p.uid }, [file]);
+          if (!p) return;
+          void sendAndWait(file).then((id) => {
+            if (id !== null) void gridPut(p.uid, p.board, p.index, id, file.type.startsWith("video/") ? "video" : "image", p.props);
+          });
         }}
       />
 

@@ -166,7 +166,12 @@ async function pick(fr, uid) {
 async function openMenu(fr, uid) {
   await pick(fr, uid);
   const dlg = fr.getByRole("dialog", { name: "Cadre de la photo" });
-  if (!(await dlg.isVisible().catch(() => false))) await fr.locator('.pe-tools [data-testid="frame-button"]').click();
+  if (!(await dlg.isVisible().catch(() => false))) {
+    // Case de grille (lot 31d) : une seule barre, celle de la case ; image seule : la barre de la rubrique.
+    const tools = fr.locator('.pe-tools [data-testid="frame-button"]');
+    if (await tools.count()) await tools.click();
+    else await fr.locator('[data-testid="cellbar"] [data-cb="frame"]').click();
+  }
   await dlg.waitFor({ timeout: 15000 });
   return dlg;
 }

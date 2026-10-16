@@ -40,11 +40,12 @@ import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS,
 import { FrameControls } from "./edit/FrameMenu";
 import { lookOf, sendLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
+import { cellIndex, cellsOf, gridRefOf } from "./edit/grid-dom";
 import { useDismiss } from "./edit/useDismiss";
 
 type Rect = { top: number; left: number; width: number; height: number };
 type SlotRef = { board: number; key: string; empty: boolean };
-type Marker = { kind: "item"; rect: Rect } | { kind: "cursor"; rect: Rect } | { kind: "slot"; rect: Rect } | { kind: "new"; rect: Rect } | { kind: "media"; rect: Rect };
+type Marker = ({ kind: "item"; rect: Rect } | { kind: "cursor"; rect: Rect } | { kind: "slot"; rect: Rect } | { kind: "new"; rect: Rect } | { kind: "media"; rect: Rect }) & { label?: string };
 type MediaRef = { uid: string; field: "mediaId" | "backgroundMediaId" | "portraitMediaId"; kind: string; empty: boolean };
 const MEDIA_FIELDS = ["mediaId", "backgroundMediaId", "portraitMediaId"] as const;
 const COLLECTIONS = ["characters", "backgrounds", "animation"] as const;
@@ -164,6 +165,8 @@ function railIndex(rail: Element, x: number): { index: number; visible: number; 
 function mediaRefOf(el: Element | null): { ref: MediaRef; el: HTMLElement } | null {
   const host = el?.closest<HTMLElement>("[data-edit-media]");
   const field = host?.dataset.editMedia as MediaRef["field"] | undefined;
+  // Case d'une grille : sa barre (GridLayer) remplace celle-ci.
+  if (host?.closest(".block-grid-cell[data-edit-cell]")) return null;
   const uid = host?.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
   if (!host || !uid || !field || !MEDIA_FIELDS.includes(field)) return null;
   // L'ouverture : seulement quand on vise son décor, pas un texte ou un bouton posé dessus.
@@ -179,6 +182,18 @@ function dropTargetAt(x: number, y: number, items = false): { target: DropTarget
   if (newPanel?.dataset.newBoardUid) {
     const box = boxOf(newPanel);
     return box ? { target: { kind: "new", uid: newPanel.dataset.newBoardUid }, marker: { kind: "new", rect: box } } : null;
+  }
+  // Case d'une grille (page ou planche, lot 31d) : le média remplace l'image de cette case ; sur une place libre, il se range à la
+  // suite des images (une grille se remplit dans l'ordre) : la case qui le recevra est surlignée avec son numéro.
+  const gcell = el.closest<HTMLElement>(".block-grid-cell[data-cell-index]");
+  const gref = gcell ? gridRefOf(gcell) : null;
+  if (gcell && gref && gcell.parentElement === gref.grid) {
+    const cells = cellsOf(gref.grid);
+    const filled = cells.filter((c) => c.hasAttribute("data-edit-cell")).length;
+    const at = Math.min(cellIndex(gcell), filled);
+    const targetEl = cells.find((c) => cellIndex(c) === at) ?? gcell;
+    const box = boxOf(targetEl);
+    if (box) return { target: { kind: "gcell", uid: gref.uid, ...(gref.board ? { board: gref.board, ...(gref.props ? { props: gref.props } : {}) } : {}), index: at }, marker: { kind: "media", rect: box, label: at < filled ? `Remplace l'image de la case ${at + 1}` : `Case ${at + 1}` } };
   }
   // Place libre d'une grille : un composant y est créé avec le média.
   const cell = el.closest<HTMLElement>("[data-edit-cell-free]");
@@ -1084,7 +1099,9 @@ export default function BoardLayer({
           className={`pe-drop pe-drop-${marker.kind}`}
           aria-hidden="true"
           style={{ top: marker.rect.top, left: marker.rect.left, width: marker.rect.width, height: marker.rect.height }}
-        />
+        >
+          {marker.label && <span className="pe-drop-label">{marker.label}</span>}
+        </div>
       )}
 
       {projectHint && !text && projectHint.el.isConnected && (() => {

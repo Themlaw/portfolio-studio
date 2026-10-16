@@ -8,9 +8,11 @@
  */
 import { useState, type ReactNode } from "react";
 
-import { MediaPicker } from "@/app/admin/_fields";
 import { BlockEditorContext } from "@/blocks/editor-context";
+import { GridAdvanced, GridTop } from "@/blocks/editors";
 import type { EditorContext } from "@/blocks/editor-types";
+import { Select } from "@/app/admin/_fields";
+import { applyGridOp, type GridModelOp } from "@/blocks/grid-layouts";
 import { BOARD_ITEM_LABELS, BOX_ALIGNS, BOX_MIN, BOX_PRESETS, MAX_GRID_CHILDREN, MAX_RAIL_MEDIA, type BoardBox, type BoardItemType } from "@/blocks/board-layout";
 import { cleanLook, readLook } from "@/lib/look";
 
@@ -23,52 +25,95 @@ type Kid = { uid: string; type: "image" | "video-single"; props: Props };
 let n = 0;
 const kidUid = () => `g${Date.now().toString(36)}${(++n).toString(36)}`;
 
-/** Images et vidéos d'une grille : choisies dans la médiathèque, dans l'ordre. */
+/**
+ * Images et vidéos d'une grille de planche, dans l'ordre des cases (lot 31d : mêmes opérations que la barre de la grille sur la
+ * toile, `applyGridOp`). Chaque case : sa vignette, Remplacer, monter / descendre, retirer, et « Dans la case » pour une image.
+ */
 function GridContent({ props, onChange, context }: { props: Props; onChange: (next: Props) => void; context: EditorContext }) {
   const kids = (Array.isArray(props.children) ? props.children : []) as Kid[];
-  const set = (next: Kid[]) => onChange({ ...props, children: next });
-  const move = (i: number, d: -1 | 1) => {
-    const next = kids.slice();
-    const [k] = next.splice(i, 1);
-    next.splice(i + d, 0, k);
-    set(next);
+  const [picking, setPicking] = useState<{ index: number; kind: "image" | "video" } | null>(null);
+  const apply = (op: GridModelOp) => {
+    const res = applyGridOp(props, op);
+    if (!("error" in res)) onChange(res.props);
   };
+  const setKid = (i: number, patch: (p: Props) => Props) => onChange({ ...props, children: kids.map((k, j) => (j === i ? { ...k, props: patch(k.props) } : k)) });
   return (
     <section className="ve-board-kids" aria-label="Contenu de la grille">
       <h3 className="a-subhead">Images et vidéos de la grille</h3>
       {kids.length === 0 && <p className="ve-hint">Rien pour le moment : ajoute une image ou une vidéo de ta médiathèque.</p>}
       <ol className="ve-board-kid-list">
-        {kids.map((k, i) => (
-          <li key={k.uid}>
-            <MediaPicker
-              label={k.type === "video-single" ? `Vidéo ${i + 1}` : `Image ${i + 1}`}
-              kind={k.type === "video-single" ? "video" : undefined}
-              value={k.props.mediaId as number | undefined}
-              onChange={(v) => set(kids.map((x, j) => (j === i ? { ...x, props: { ...x.props, mediaId: v } } : x)))}
-              context={context}
-            />
-            <div className="ve-board-kid-tools" role="group" aria-label={`Élément ${i + 1}`}>
-              <button type="button" className="a-icon-btn" aria-label="Monter" disabled={i === 0} onClick={() => move(i, -1)}>
-                ↑
-              </button>
-              <button type="button" className="a-icon-btn" aria-label="Descendre" disabled={i === kids.length - 1} onClick={() => move(i, 1)}>
-                ↓
-              </button>
-              <button type="button" className="a-icon-btn a-danger-text" aria-label="Retirer" onClick={() => set(kids.filter((_, j) => j !== i))}>
-                ✕
-              </button>
-            </div>
-          </li>
-        ))}
+        {kids.map((k, i) => {
+          const m = context.media.find((x) => x.id === k.props.mediaId);
+          return (
+            <li key={k.uid} data-media-id={k.props.mediaId as number | undefined}>
+              <span className="ve-board-kid-num" aria-hidden="true">
+                {i + 1}
+              </span>
+              <span className="a-media-field-thumb">{m?.thumb ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={m.thumb} alt="" /> : <span className="muted">vide</span>}</span>
+              <span className="a-media-field-name">{m?.name ?? (k.type === "video-single" ? "Vidéo à choisir" : "Image à choisir")}</span>
+              <div className="ve-board-kid-tools" role="group" aria-label={`Case ${i + 1}`}>
+                <button type="button" className="a-btn a-btn-small" data-testid={`board-grid-replace-${i}`} onClick={() => setPicking({ index: i, kind: k.type === "video-single" ? "video" : "image" })}>
+                  Remplacer
+                </button>
+                <button type="button" className="a-icon-btn" aria-label="Monter" disabled={i === 0} onClick={() => apply({ op: "move", from: i, to: i - 1 })}>
+                  ↑
+                </button>
+                <button type="button" className="a-icon-btn" aria-label="Descendre" disabled={i === kids.length - 1} onClick={() => apply({ op: "move", from: i, to: i + 1 })}>
+                  ↓
+                </button>
+                <button type="button" className="a-icon-btn a-danger-text" aria-label="Retirer" onClick={() => apply({ op: "remove", index: i })}>
+                  ✕
+                </button>
+              </div>
+              {k.type === "image" && (
+                <Select
+                  label="Dans la case"
+                  help="Sans format imposé, l'image garde le sien. Avec un format : « Image entière » la montre en entier, « Remplir la case » la rogne."
+                  value={(k.props.fit as string | undefined) ?? "auto"}
+                  options={[
+                    { value: "auto", label: "Automatique" },
+                    { value: "contain", label: "Image entière" },
+                    { value: "cover", label: "Remplir la case" },
+                  ]}
+                  onChange={(v) =>
+                    setKid(i, (p) => {
+                      const { fit: _f, ...rest } = p;
+                      void _f;
+                      return v && v !== "auto" ? { ...rest, fit: v } : rest;
+                    })
+                  }
+                />
+              )}
+            </li>
+          );
+        })}
       </ol>
       <div className="ve-board-kid-add">
-        <button type="button" className="a-btn" disabled={kids.length >= MAX_GRID_CHILDREN} data-testid="board-grid-add-image" onClick={() => set([...kids, { uid: kidUid(), type: "image", props: { width: "wide" } }])}>
+        <button type="button" className="a-btn" disabled={kids.length >= MAX_GRID_CHILDREN} data-testid="board-grid-add-image" onClick={() => setPicking({ index: kids.length, kind: "image" })}>
           + Ajouter une image
         </button>
-        <button type="button" className="a-btn" disabled={kids.length >= MAX_GRID_CHILDREN} data-testid="board-grid-add-video" onClick={() => set([...kids, { uid: kidUid(), type: "video-single", props: { variant: "card", mode: "player" } }])}>
+        <button type="button" className="a-btn" disabled={kids.length >= MAX_GRID_CHILDREN} data-testid="board-grid-add-video" onClick={() => setPicking({ index: kids.length, kind: "video" })}>
           + Ajouter une vidéo
         </button>
       </div>
+      <MediaPickerDialog
+        open={picking !== null}
+        media={context.media.filter((m) => m.kind === (picking?.kind ?? "image"))}
+        title={picking?.kind === "video" ? "Choisir une vidéo" : "Choisir une image"}
+        confirmLabel={picking?.kind === "video" ? "Utiliser cette vidéo" : "Utiliser cette image"}
+        onClose={() => setPicking(null)}
+        onPick={(m) => {
+          const at = picking;
+          setPicking(null);
+          if (!at) return;
+          const video = m.kind === "video";
+          apply({
+            op: "put",
+            index: at.index,
+            child: { uid: kidUid(), type: video ? "video-single" : "image", props: video ? { variant: "card", mode: "player", mediaId: m.id } : { width: "wide", mediaId: m.id } },
+          });
+        }}
+      />
     </section>
   );
 }
@@ -213,9 +258,16 @@ export default function BoardItemPanel({
       </header>
       <p className="ve-hint">Ce composant appartient au projet : il s&apos;affiche partout où la planche du projet est montrée.</p>
       {projectStrip && <p className="ve-hint">Ce sont les images du projet : ajoute-les, déplace-les et légende-les directement sur la planche.</p>}
-      {type === "grid" && <GridContent props={props} onChange={onChange} context={context} />}
+      {/* Grille : l'essentiel en haut (agencement, espace, format, nombre d'images), puis la liste des cases, puis les réglages avancés. */}
+      {type === "grid" && (
+        <BlockEditorContext.Provider value={{ value: props, onChange, errors: {}, context, idPrefix: `ve-bitem-${uid}` }}>
+          <GridTop />
+          <GridContent props={props} onChange={onChange} context={context} />
+          <GridAdvanced />
+        </BlockEditorContext.Provider>
+      )}
       {type === "strip" && !projectStrip && <RailContent props={props} onChange={onChange} context={context} />}
-      {type !== "strip" && <BlockEditorContext.Provider value={{ value: props, onChange, errors: {}, context, idPrefix: `ve-bitem-${uid}` }}>{editor}</BlockEditorContext.Provider>}
+      {type !== "strip" && type !== "grid" && <BlockEditorContext.Provider value={{ value: props, onChange, errors: {}, context, idPrefix: `ve-bitem-${uid}` }}>{editor}</BlockEditorContext.Provider>}
       <BoxField box={box} onChange={onBox} />
       {type !== "strip" && <BlockLookPanel
         key={uid}

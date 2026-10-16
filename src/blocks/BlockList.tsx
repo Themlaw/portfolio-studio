@@ -4,7 +4,7 @@ import type { RawBlock } from "@/lib/pages";
 
 import { cropStyle, lookAttributes, readLook, type Look } from "@/lib/look";
 import { own } from "@/lib/own";
-import { cellShare, type GridLayout } from "./grid-layouts";
+import { cellShare, type GridShape } from "./grid-layouts";
 import { getSiteView } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
 import type { PaletteColors } from "@/themes/palette";
@@ -178,7 +178,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
   const { Component } = def;
   let children: ReactNode[] | undefined;
   if (def.container && depth < MAX_NESTING) {
-    const data = parsed.data as { project?: string; layout?: GridLayout; ratio?: string; children?: { uid: string; type: string; props: Record<string, unknown> }[] };
+    const data = parsed.data as GridShape & { project?: string; ratio?: string; children?: { uid: string; type: string; props: Record<string, unknown> }[] };
     const uid = block.uid ?? String(block.id);
     const childCtx: BlockContext = {
       ...ctx,
@@ -194,7 +194,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
       const pass: Look = {};
       if (boxless && i === 0 && look?.spaceTop) pass.spaceTop = look.spaceTop;
       if (boxless && i === kids.length - 1 && look?.spaceBottom) pass.spaceBottom = look.spaceBottom;
-      const cellCtx: BlockContext = block.type === "grid" && data.layout ? { ...childCtx, cellColumns: cellShare(data.layout, i) } : childCtx;
+      const cellCtx: BlockContext = block.type === "grid" && data.layout ? { ...childCtx, cellColumns: cellShare(data, i, kids.length) } : childCtx;
       return renderBlock({ id: -(i + 1), uid: c.uid, type: c.type, props: c.props, corrupt: false }, cellCtx, depth + 1, { uid }, Object.keys(pass).length ? pass : undefined, null, kidJoins[i]);
     });
   }
@@ -203,11 +203,18 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
   // La carte ne concerne que les blocs de premier niveau (`card` n'est transmis qu'à eux).
   const surface = card ? readSurface((block.props as { surface?: unknown } | null)?.surface) : undefined;
   const background = readBackground((block.props as { background?: unknown } | null)?.background);
+  // Grille sur la toile (page, ou planche : `gridCanvas`) : uid et mise en forme de chaque case, pour les repères d'édition.
+  const cellInfo =
+    block.type === "grid" && (ctx.edit || ctx.gridCanvas)
+      ? ((parsed.data as { children?: { uid: string; type: string; props: Record<string, unknown> }[] }).children ?? [])
+          .filter((c) => own(BLOCKS, c.type) && def.container?.accepts.includes(c.type))
+          .map((c) => ({ uid: c.uid, type: c.type, ...(c.props.look ? { look: JSON.stringify(c.props.look) } : {}) }))
+      : undefined;
   return wrap(
     withSurface(
       withFond(
         withLook(
-          <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id, look }}>
+          <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id, look, ...(cellInfo ? { cellInfo } : {}) }}>
             {children}
           </Component>,
           shown,
@@ -238,7 +245,7 @@ export function renderBoardItem(item: { uid: string; type: string; props: Record
   // fusion des voisins (ProjectBoardBlock / ProjectStrip, `FondWrap`) : le bloc lui-même n'en pose pas.
   const props = { ...item.props };
   delete props.background;
-  return renderBlock({ id: -1, uid: item.uid, type: item.type, props, corrupt: false }, { ...ctx, edit: false, inlineEdit: Boolean(ctx.edit) && item.type === "rich-text", parent: undefined }, 0);
+  return renderBlock({ id: -1, uid: item.uid, type: item.type, props, corrupt: false }, { ...ctx, edit: false, inlineEdit: Boolean(ctx.edit) && item.type === "rich-text", gridCanvas: Boolean(ctx.edit) && item.type === "grid", parent: undefined }, 0);
 }
 
 /**

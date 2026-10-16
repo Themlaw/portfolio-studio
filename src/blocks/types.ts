@@ -46,6 +46,13 @@ export type BlockContext = {
   pageBlocks?: { type: string; props: unknown }[];
   /** Rendu dans une cellule de grille : pas de marges de section. */
   cell?: boolean;
+  /**
+   * Grille d'une planche de projet sur la toile (lot 31d) : les repères d'édition des cases (numéros, places libres,
+   * « + Image », média cadrable) sont posés comme sur une page, sans les autres commandes de la toile (`edit`).
+   */
+  gridCanvas?: boolean;
+  /** Grille : uid et mise en forme (JSON) de chacune de ses cases, dans l'ordre (vue brouillon de page, ou `gridCanvas`). */
+  cellInfo?: { uid: string; type: string; look?: string }[];
   /** Cellule de grille : nombre de colonnes (≥ 768 px) et format imposé aux images (« auto » = le leur). */
   cellColumns?: number;
   cellRatio?: string;

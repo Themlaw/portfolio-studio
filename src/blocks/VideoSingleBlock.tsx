@@ -70,6 +70,14 @@ export default async function VideoSingleBlock({ props, ctx }: { props: z.infer<
         Choisir dans la médiathèque
       </button>
     </div>
+  ) : ctx.gridCanvas && ctx.cell ? (
+    // Case vide d'une grille de planche (ancienne donnée) : le même choix que pour une place libre.
+    <div className="pe-media-empty pe-media-video" lang="fr">
+      <span>Case vide</span>
+      <button type="button" className="pe-empty-action" data-edit-cell-media="video">
+        + Vidéo
+      </button>
+    </div>
   ) : null;
   if (!body) return null;
   if (ctx.cell) return body;

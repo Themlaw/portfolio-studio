@@ -47,7 +47,9 @@ export const imageSchema = z.object({
 export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof imageSchema>; ctx: BlockContext }) {
   const media = await getMedia(props.mediaId);
   const image = media && !media.video && !media.pdf ? media : null;
-  if (!image && !ctx.edit) return null;
+  // Toile : la page en vue brouillon, ou une grille de planche (lot 31d : mêmes repères de média et de case que sur une page).
+  const canvas = Boolean(ctx.edit || ctx.gridCanvas);
+  if (!image && !canvas) return null;
   const natural = image ? (image.width ?? 1200) / Math.max(1, image.height ?? 800) : 1;
   // Cadre au format imposé (le sien, sinon celui de la grille).
   const forced = props.ratio && props.ratio !== "auto" ? props.ratio : ctx.cell ? ctx.cellRatio : undefined;
@@ -74,7 +76,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
         : "100vw";
   const caption = props.caption ? tr(props.caption, ctx.locale) : "";
   const ratioAttr = !free && props.ratio && props.ratio !== "auto" ? { "data-ratio": props.ratio } : {};
-  const editFull = ctx.edit && image ? { "data-full-src": image.url, "data-full-ratio": natural.toFixed(5), "data-full-px": `${image.width ?? 0}x${image.height ?? 0}` } : {};
+  const editFull = canvas && image ? { "data-full-src": image.url, "data-full-ratio": natural.toFixed(5), "data-full-px": `${image.width ?? 0}x${image.height ?? 0}` } : {};
   // Repli si la variante recadrée n'est pas prête (générée à la demande, une à la fois) : l'image entière, cadrée en CSS.
   const fallback =
     cropped && image?.sources
@@ -94,7 +96,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       className={`block-image ${ctx.cell ? "" : props.width === "text" ? "max-w-2xl" : ""}`}
       data-width={props.width}
       {...(ctx.cell ? {} : { "data-solo": "" })}
-      {...(ctx.edit && forced ? { "data-edit-box": forced } : {})}
+      {...(canvas && forced ? { "data-edit-box": forced } : {})}
       {...(free ? { "data-free": "" } : { ...ratioAttr, ...(box && !cover ? { "data-fit": "contain" } : {}) })}
       {...(frame ? { "data-frame": frame["data-frame"], ...(legacy ? { "data-legacy": "" } : {}) } : {})}
       style={{ "--ir": shownRatio.toFixed(4), ...(frame?.style ?? {}) } as CSSProperties}
@@ -102,8 +104,8 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       {image ? (
         <span
           className={legacy ? "block-image-frame" : "block"}
-          data-edit-media={ctx.edit ? "mediaId" : undefined}
-          data-edit-media-kind={ctx.edit ? "image" : undefined}
+          data-edit-media={canvas ? "mediaId" : undefined}
+          data-edit-media-kind={canvas ? "image" : undefined}
           {...editFull}
         >
           <Picture
@@ -118,11 +120,19 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
             fallback={fallback}
           />
         </span>
-      ) : (
+      ) : ctx.edit ? (
         <span className="pe-media-empty" data-edit-media="mediaId" data-edit-media-kind="image" lang="fr">
           <span>Dépose une image ici</span>
           <button type="button" className="pe-empty-action" data-edit-empty-media="mediaId">
             Choisir dans la médiathèque
+          </button>
+        </span>
+      ) : (
+        // Case vide d'une grille de planche (ancienne donnée) : le même choix que pour une place libre.
+        <span className="pe-media-empty" lang="fr">
+          <span>Case vide</span>
+          <button type="button" className="pe-empty-action" data-edit-cell-media="image">
+            + Image
           </button>
         </span>
       )}
