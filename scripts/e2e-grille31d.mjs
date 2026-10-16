@@ -33,7 +33,7 @@ import { boardDraft, boardPublished, draftBlocks, findIn, grid, img, login, make
 const BASE = process.env.BASE ?? "http://localhost:3460";
 const ONLY = process.env.ONLY ?? "";
 const run = (s) => !ONLY || ONLY.split(",").includes(s);
-const SHOTS = process.env.SHOTS ?? path.join(tmpdir(), "e2e-grille31d");
+const SHOTS = process.env.SHOTS ?? path.join(process.env.BATTERY_DIR ?? tmpdir(), "e2e-grille31d");
 mkdirSync(SHOTS, { recursive: true });
 sharp.cache(false);
 sharp.concurrency(1);
