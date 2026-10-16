@@ -30,12 +30,12 @@ export default function VideoCard({
   loop: boolean;
   texts: { eyebrow: string; title: string; description: string };
   edit?: boolean;
-  /** Style local de la légende (barre typographique, lot 2) ; les autres textes suivent le style du site. */
-  styles?: { description?: CSSProperties };
+  /** Styles locaux de l'étiquette, du titre et de la légende (barre typographique, lots 2 et 33). */
+  styles?: { eyebrow?: CSSProperties; title?: CSSProperties; description?: CSSProperties };
 }) {
   const [playing, setPlaying] = useState(false);
   const id = useId();
-  const mark = (path: string, placeholder: string) => ({ ...(edit ? { "data-inline": path, "data-placeholder": placeholder } : {}), ...(path === "description" && styles?.description ? { style: styles.description } : {}) });
+  const mark = (path: string, placeholder: string) => ({ ...(edit ? { "data-inline": path, "data-placeholder": placeholder } : {}), ...(styles?.[path as keyof typeof styles] ? { style: styles[path as keyof typeof styles] } : {}) });
   const shown = { ...item, title: texts.title, alt: item.alt || texts.title };
   const frame =
     loop && item.video ? (

@@ -8,7 +8,7 @@ import { getMedia } from "@/lib/media";
 import { effectivePalette, renderBoardItem } from "./BlockList";
 import { fondJoins, fondKey, readBackground } from "@/themes/fond";
 import { itemEmpty } from "./board-layout";
-import { collection, projectSlug, tr, type BlockContext } from "./types";
+import { collection, projectSlug, textStyle, tr, type BlockContext } from "./types";
 
 export const projectBoardSchema = z.object({
   /**
@@ -24,6 +24,16 @@ export const projectBoardSchema = z.object({
   /** Nom, contexte et présentation du projet en tête de planche (masquable sous un titre lié). */
   header: z.boolean().optional(),
 });
+
+/** Styles locaux de l'en-tête (« Ce texte uniquement ») : nom, contexte, année, présentation. */
+function headerStyles(ctx: BlockContext) {
+  return {
+    title: textStyle(ctx, "title").style,
+    context: textStyle(ctx, "context").style,
+    year: textStyle(ctx, "year").style,
+    description: textStyle(ctx, "description").style,
+  };
+}
 
 /**
  * Images et vidéos d'un carrousel à liste propre (lot 31b), lues dans la médiathèque dans l'ordre choisi. Un média à la
@@ -99,7 +109,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
         ...(project.edit ? { props: JSON.stringify({ props: item.props, ...(item.box ? { box: item.box } : {}) }), empty: itemEmpty(item) } : {}),
       })),
     );
-    return <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} slotFrame={ctx.look?.slotFrame} parts={parts} {...(palette ? { palette } : {})} />;
+    return <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} slotFrame={ctx.look?.slotFrame} styles={headerStyles(ctx)} parts={parts} {...(palette ? { palette } : {})} />;
   }
   if (!ctx.edit) return null;
   // Dans un conteneur encore sans projet : la planche attend le choix du conteneur.

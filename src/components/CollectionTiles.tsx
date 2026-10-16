@@ -57,6 +57,7 @@ export default function CollectionTiles({
   manual,
   itemCount = 0,
   candidates = [],
+  styles,
 }: {
   tiles: Tile[];
   cta: string;
@@ -71,8 +72,18 @@ export default function CollectionTiles({
   itemCount?: number;
   /** Pages de collection sans entrée (proposées par « + Ajouter une entrée »). */
   candidates?: { pageId: number; title: string }[];
+  /**
+   * Styles locaux des textes des entrées (`look.text` du bloc, « Ce texte uniquement ») : un seul style par champ pour
+   * toutes les entrées du bloc (leur contenu vient des pages, il ne se modifie pas ici).
+   */
+  styles?: Partial<Record<"tileEyebrow" | "tileTitle" | "tileIntro" | "tileCta" | "tileCount", CSSProperties>>;
 }) {
   const tools = Boolean(edit && manual);
+  /** Texte d'une entrée : style local, et clé de style de la barre typographique (toile seulement). */
+  const mark = (key: "tileEyebrow" | "tileTitle" | "tileIntro" | "tileCta" | "tileCount") => ({
+    ...(edit && styles ? { "data-look-key": key } : {}),
+    ...(styles?.[key] ? { style: styles[key] } : {}),
+  });
   const toolbar = (i: number) => (
     <span className="pe-tile-tools" role="group" aria-label="Entrée">
       <button type="button" data-edit-tile-op="up" data-index={i} disabled={i === 0} aria-label="Monter l'entrée" title="Monter l'entrée">↑</button>
@@ -146,14 +157,14 @@ export default function CollectionTiles({
           </div>
 
           <div className="tile-txt">
-            <Eyebrow>{tile.eyebrow}</Eyebrow>
-            <h3 className="mt-3 font-display text-[clamp(2rem,4.4vw,3.25rem)] text-ink transition-colors group-hover:text-primary">
+            <Eyebrow {...mark("tileEyebrow")}>{tile.eyebrow}</Eyebrow>
+            <h3 className="mt-3 font-display text-[clamp(2rem,4.4vw,3.25rem)] text-ink transition-colors group-hover:text-primary" {...mark("tileTitle")}>
               {tile.title}
             </h3>
-            <p className="mt-4 text-sm leading-relaxed text-ink-soft">
+            <p className="mt-4 text-sm leading-relaxed text-ink-soft" {...mark("tileIntro")}>
               {tile.intro}
             </p>
-            <p className="eyebrow mt-6 flex items-center gap-2">
+            <p className="eyebrow mt-6 flex items-center gap-2" {...mark("tileCta")}>
               {cta}
               <span
                 aria-hidden="true"
@@ -162,7 +173,7 @@ export default function CollectionTiles({
                 →
               </span>
             </p>
-            <p className="eyebrow mt-2">{tile.count}</p>
+            <p className="eyebrow mt-2" {...mark("tileCount")}>{tile.count}</p>
           </div>
         </Link>
         ),

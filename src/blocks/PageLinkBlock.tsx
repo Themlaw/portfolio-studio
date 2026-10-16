@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Link } from "@/i18n/navigation";
 import { hrefForPage } from "@/lib/pages";
 
-import { inline, localized, pageRef, tr, type BlockContext } from "./types";
+import { inline, localized, pageRef, textStyle, tr, type BlockContext } from "./types";
 
 export const pageLinkSchema = z.object({
   /** Texte du lien. */
@@ -24,7 +24,7 @@ export default async function PageLinkBlock({ props, ctx }: { props: z.infer<typ
   return (
     <section className="shell">
       <Link className="link-underline text-sm" href={href ?? "/"}>
-        {ctx.edit ? (
+        {ctx.edit || textStyle(ctx, "label").style ? (
           <span {...inline(ctx, "label")} data-placeholder="Voir plus">
             {tr(props.label, ctx.locale)}
           </span>

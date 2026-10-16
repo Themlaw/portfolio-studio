@@ -263,7 +263,7 @@ function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top"
 
 /* ---- Textes ------------------------------------------------------------------- */
 
-const TEXT_SEL = "[data-inline], [data-site-inline], [data-slot-inline], [data-project-inline]";
+const TEXT_SEL = "[data-inline], [data-site-inline], [data-slot-inline], [data-project-inline], [data-look-key]";
 
 /** Rôle global d'un texte (styles du site). */
 function roleOf(el: HTMLElement): Role {
@@ -297,10 +297,10 @@ type TextTarget = {
 
 /**
  * Blocs dont des textes sont rendus par un composant client : seuls les chemins
- * listés reçoivent un style local (passé en props). Vidéo : la légende seule.
+ * listés reçoivent un style local (passé en props). Vidéo : étiquette, titre et légende.
  * Le formulaire de contact transmet tous ses textes (ContactForm, `styles`).
  */
-const LOCAL_ONLY: Record<string, Set<string>> = { "video-single": new Set(["description"]) };
+const LOCAL_ONLY: Record<string, Set<string>> = { "video-single": new Set(["eyebrow", "title", "description"]) };
 
 /** Bloc de la page, ou composant d'une planche (lot 31c), qui porte ce texte : le plus proche des deux. */
 const OWNER_SEL = "[data-edit-bitem]:not([data-edit-bitem-project]), [data-edit-block]";
@@ -367,7 +367,7 @@ function previewRole(role: Role, style: TextStyle | undefined, seq: number) {
 function localTexts(local: { uid: string; key: string }): HTMLElement[] {
   const block = wrapperOf(local.uid);
   if (!block) return [];
-  const sel = local.key.startsWith("site.") ? `[data-site-inline="${CSS.escape(local.key.slice(5))}"]` : `[data-inline="${CSS.escape(local.key)}"]`;
+  const sel = local.key.startsWith("site.") ? `[data-site-inline="${CSS.escape(local.key.slice(5))}"]` : `[data-inline="${CSS.escape(local.key)}"], [data-look-key="${CSS.escape(local.key)}"]`;
   return [...block.querySelectorAll<HTMLElement>(sel)].filter((e) => e.closest(OWNER_SEL) === block);
 }
 

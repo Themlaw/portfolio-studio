@@ -20,6 +20,7 @@
  * modification part vers l'éditeur, qui tient le brouillon, l'enregistre
  * puis demande un rafraîchissement.
  */
+import { NATIVE_SCROLL } from "@/components/rail-step";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -889,6 +890,8 @@ export default function EditLayer() {
         });
         return;
       }
+      // Commandes de défilement du site (flèches et barre d'une bande d'images) : elles marchent comme en ligne.
+      if (e.target instanceof Element && e.target.closest(NATIVE_SCROLL)) return;
       // Contenu d'une planche (lot 31) : « + Ajouter », barre d'un composant, composant (hors bande) — gérés par BoardLayer.
       if (e.target instanceof Element && e.target.closest("[data-edit-bitem-add], [data-edit-bitem-op], [data-edit-bitem]:not([data-edit-bitem-project])")) {
         e.preventDefault();
@@ -1012,10 +1015,12 @@ export default function EditLayer() {
         }
         return;
       }
+      // Entrée et Espace sur une flèche de défilement (ou la barre) servent à la faire défiler, pas à modifier le texte du bloc.
+      const native = e.target instanceof Element && Boolean(e.target.closest(NATIVE_SCROLL));
       if ((e.key === "Delete" || e.key === "Backspace") && !inLayer(e.target)) {
         e.preventDefault();
         post({ kind: "op", op: "delete", uid });
-      } else if (e.key === "Enter" && (!inLayer(e.target) || (e.target instanceof HTMLElement && e.target.dataset.uid === uid))) {
+      } else if (e.key === "Enter" && !native && (!inLayer(e.target) || (e.target instanceof HTMLElement && e.target.dataset.uid === uid))) {
         // Entrée sur le bloc choisi : son premier texte (à lui, pas à ses composants) se modifie.
         const scope = document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"]`);
         const field = [...(scope?.querySelectorAll<HTMLElement>("[data-inline], [data-site-inline]") ?? [])].find(

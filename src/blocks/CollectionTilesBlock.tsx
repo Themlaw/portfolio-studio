@@ -14,7 +14,7 @@ import { getNav, getPageBlocks, getPageIndex, hrefForPage } from "@/lib/pages";
 import { getSiteView } from "@/lib/settings";
 
 import { autoEntries, COLLECTION_NAMES, manualEntries, MAX_TILES, orderCollectionPages, tilesMode, TILE_GEOMETRY, tileSize, tileVisibility, type CollectionPage, type TileItem } from "./collection-pages";
-import { collection, inline, localized, mediaRef, pageRef, tr, type BlockContext, localizedText } from "./types";
+import { collection, inline, localized, mediaRef, pageRef, textStyle, tr, type BlockContext, localizedText } from "./types";
 
 const itemSchema = z.object({ collection, pageId: pageRef, eyebrow: localized, title: localized, intro: localizedText, mediaId: mediaRef.optional() });
 
@@ -136,6 +136,13 @@ export default async function CollectionTilesBlock({
         ratio={props.ratio}
         size={size}
         edit={ctx.edit}
+        styles={{
+          tileEyebrow: textStyle(ctx, "tileEyebrow").style,
+          tileTitle: textStyle(ctx, "tileTitle").style,
+          tileIntro: textStyle(ctx, "tileIntro").style,
+          tileCta: textStyle(ctx, "tileCta").style,
+          tileCount: textStyle(ctx, "tileCount").style,
+        }}
         manual={tilesMode(props) === "manual"}
         itemCount={props.items?.length ?? 0}
         candidates={found.filter((p) => !(props.items ?? []).some((it) => it.pageId === p.pageId)).map((p) => ({ pageId: p.pageId, title: tr(p.title, ctx.locale) || `Page ${p.pageId}` }))}

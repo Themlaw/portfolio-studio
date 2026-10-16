@@ -61,3 +61,6 @@ export function scrollRailTo(rail: HTMLElement, left: number): void {
 export function clearRailTarget(rail: HTMLElement): void {
   targets.delete(rail);
 }
+
+/** Commandes de défilement d'une bande (flèches, barre) : sur la toile de l'éditeur, leur clic leur appartient. */
+export const NATIVE_SCROLL = ".strip-nav, .rail-bar";

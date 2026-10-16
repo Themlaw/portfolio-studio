@@ -24,6 +24,7 @@
  *   composants et en bas (menu des composants permis), barre de chaque composant (monter, descendre,
  *   supprimer, réglages), composant choisi d'un clic ; tout passe par des messages à l'éditeur.
  */
+import { NATIVE_SCROLL } from "@/components/rail-step";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -672,6 +673,8 @@ export default function BoardLayer({
     };
     const onClick = (e: MouseEvent) => {
       if (inLayer(e.target)) return;
+      // Flèches et barre de défilement de la bande : le clic leur appartient (la sélection de l'image ne bouge pas).
+      if (e.target instanceof Element && e.target.closest(NATIVE_SCROLL)) return;
       // Contenu de la planche (lot 31).
       const hit = e.target instanceof Element ? e.target : null;
       const itemAdd = hit?.closest<HTMLElement>("[data-edit-bitem-add]");

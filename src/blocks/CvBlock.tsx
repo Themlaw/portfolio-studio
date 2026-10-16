@@ -8,7 +8,7 @@ import { downloadName } from "@/lib/pdf/limits";
 
 import { FieldOps } from "./FieldOps";
 import { hasText } from "./optional-fields";
-import { inline, localized, localizedText, mediaRef, tr, type BlockContext } from "./types";
+import { inline, localized, localizedText, mediaRef, textStyle, tr, type BlockContext } from "./types";
 
 export const cvSchema = z.object({
   /** PDF de la médiathèque (pages rendues en images à l'envoi). */
@@ -76,7 +76,7 @@ export default async function CvBlock({ props, ctx }: { props: z.infer<typeof cv
               <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
                 <path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              {ctx.edit ? <span {...inline(ctx, "button")}>{button}</span> : button}
+              {ctx.edit || textStyle(ctx, "button").style ? <span {...inline(ctx, "button")}>{button}</span> : button}
             </a>
             <span className="cv-download-meta">{t("pdf", { size: sizeLabel(pdf.size, ctx.locale) })}</span>
           </div>
