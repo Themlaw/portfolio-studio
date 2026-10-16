@@ -26,6 +26,7 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 
 import { installPaperTheme, PAPER_THEME_NAME } from "./lib/paper-theme.mjs";
+import { placeBoard } from "./lib/page-board.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -616,6 +617,52 @@ await section("F", async () => {
   const d2 = await measure(again.p, "Delta");
   ok("F6 … et chez les composants qui l'utilisaient", d2.wp.img.includes("/media/img/"), JSON.stringify(d2.wp));
   await again.c.close();
+});
+
+/* ---- G. Papier peint sur un composant de PLANCHE (lots 31 × 35) : barre du composant, fusion, rendu public ---------------------------- */
+
+await section("G", async () => {
+  const project = q("select id, slug from projects order by position limit 1")[0];
+  ok("G0 planche posée sur la page", await placeBoard(page, BASE, PAGE_ID, project.slug));
+  f = await openEditor();
+  const board = f.locator(`[data-edit-board="${project.id}"]`).first();
+  await board.scrollIntoViewIfNeeded();
+  // Deux composants à papier peint identique : la bande du projet, puis un carrousel (ajouté par « + Ajouter »).
+  await board.locator("[data-edit-bitem-add]").last().click({ force: true });
+  await f.locator('.pe-bitem-menu [data-bitem-type="strip"]:not([data-bitem-source])').click();
+  const layout = () => JSON.parse(q("select draft_layout, layout from projects where id = ?", project.id).map((r) => r.draft_layout ?? r.layout)[0] ?? "[]");
+  ok("G1 deux composants dans la planche", await waitFor(() => layout().length === 2), JSON.stringify(layout().map((i) => i.type)));
+  for (const i of [0, 1]) {
+    const fr = board.locator("[data-edit-bitem]").nth(i);
+    await fr.scrollIntoViewIfNeeded();
+    await fr.hover();
+    await fr.locator('[data-edit-bitem-op="fond"]').click();
+    const menu = f.locator('[data-testid="fond-menu"]');
+    await menu.waitFor({ timeout: 20000 });
+    if (i === 0) ok("G2 la fenêtre « Fond » d'un composant de planche propose Aucun / Couleur / Papier peint", (await menu.locator("[data-kind]").evaluateAll((els) => els.map((e) => e.getAttribute("data-kind")))).join() === "none,color,wallpaper");
+    await menu.locator('[data-kind="wallpaper"]').click();
+    await menu.locator(`[data-wallpaper-id="${POIS_ID}"]`).click();
+    ok(`G3 composant ${i + 1} : papier peint enregistré dans la suite du projet`, await waitFor(() => layout()[i]?.props?.background?.kind === "wallpaper" && layout()[i].props.background.wallpaper === POIS_ID), JSON.stringify(layout()[i]?.props));
+    await page.keyboard.press("Escape");
+    await settled();
+  }
+  const geo = () =>
+    f.evaluate((id) => [...document.querySelectorAll(`[data-edit-board="${id}"] [data-edit-bitem] .fond-bloc[data-wallpaper]`)].map((w) => ({ img: getComputedStyle(w).getPropertyValue("--wp-img"), prev: w.hasAttribute("data-join-prev"), next: w.hasAttribute("data-join-next"), y: w.style.getPropertyValue("--wp-y") })), project.id);
+  let g = [];
+  ok("G4 toile : deux fonds à papier peint fusionnés (même motif, mêmes réglages)", await waitFor(async () => { g = await geo(); return g.length === 2 && g[0].next && g[1].prev && g[0].img.includes("url("); }), JSON.stringify(g));
+  await page.screenshot({ path: path.join(SHOTS, "g-papier-peint-planche.png") });
+  ok("G5 publication", await publish());
+  await sleep(1500);
+  const c = await anonPage();
+  await c.p.goto(PUBLIC, { waitUntil: "networkidle" });
+  const pub = await c.p.evaluate((slug) => {
+    const sect = document.querySelector(`[aria-labelledby="project-${slug}"]`);
+    const ws = [...(sect?.querySelectorAll('.fond-bloc[data-wallpaper]') ?? [])];
+    return ws.map((w) => ({ img: getComputedStyle(w).getPropertyValue("--wp-img"), prev: w.hasAttribute("data-join-prev"), next: w.hasAttribute("data-join-next"), edit: Boolean(w.closest("[data-edit-bitem]")) }));
+  }, project.slug);
+  ok("G6 public : deux fonds à papier peint dans la planche, fusionnés, sans repère d'édition", pub.length === 2 && pub[0].next && pub[1].prev && pub.every((x) => x.img.includes("url(") && !x.edit), JSON.stringify(pub));
+  await c.p.locator(`[aria-labelledby="project-${project.slug}"]`).screenshot({ path: path.join(SHOTS, "g-public-papier-peint-planche.png") }).catch(() => {});
+  await c.c.close();
 });
 
 ok("aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));
