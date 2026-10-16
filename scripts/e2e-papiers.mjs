@@ -669,6 +669,53 @@ await section("G", async () => {
   await c.c.close();
 });
 
+/* ---- I. Grille de planche « Portrait à gauche + 2 à droite » sur un papier peint (lots 31d × 35) ----------------------------------- */
+
+await section("I", async () => {
+  const project = q("select id, slug from projects order by position limit 1")[0];
+  const items = () => JSON.parse(q("select draft_layout, layout from projects where id = ?", project.id).map((r) => r.draft_layout ?? r.layout)[0] ?? "[]");
+  f = await openEditor();
+  const board = f.locator(`[data-edit-board="${project.id}"]`).first();
+  await board.scrollIntoViewIfNeeded();
+  await board.locator("[data-edit-bitem-add]").last().click({ force: true });
+  await f.locator('.pe-bitem-menu [data-bitem-type="grid"]').click();
+  await page.getByTestId("board-item-panel").waitFor({ timeout: 30000 });
+  for (let i = 0; i < 3; i++) {
+    await page.getByTestId("board-grid-add-image").click();
+    await page.getByRole("button", { name: "Choisir une image" }).first().click();
+    await page.locator(".a-picker-scroll button").nth(i).click();
+    await page.getByRole("button", { name: "Utiliser cette image" }).click();
+    await settled();
+  }
+  const gridItem = () => items().find((i) => i.type === "grid");
+  ok("I1 grille de planche : trois images", await waitFor(() => (gridItem()?.props.children?.length ?? 0) === 3), JSON.stringify(gridItem()?.props));
+  const frame = board.locator('[data-edit-bitem-type="grid"]');
+  const cell = frame.locator(".block-grid-cell").first();
+  await cell.scrollIntoViewIfNeeded();
+  const b = await cell.boundingBox();
+  await page.mouse.click(b.x + b.width / 2, b.y + Math.min(b.height / 2, 120));
+  await f.locator('[data-testid="gridbar"]').waitFor({ timeout: 20000 });
+  await f.locator('[data-testid="gridbar-layout"]').click();
+  await f.locator('.pe-gm-layout[data-layout="portrait-left"]').click();
+  ok("I2 agencement « Portrait à gauche + 2 à droite » enregistré", await waitFor(() => gridItem()?.props.layout === "portrait-left"), JSON.stringify(gridItem()?.props.layout));
+  await settled();
+  await page.mouse.click(5, 5);
+  await frame.hover();
+  await frame.locator('[data-edit-bitem-op="fond"]').click();
+  const menu = f.locator('[data-testid="fond-menu"]');
+  await menu.waitFor({ timeout: 20000 });
+  await menu.locator('[data-kind="wallpaper"]').click();
+  await menu.locator(`[data-wallpaper-id="${POIS_ID}"]`).click();
+  ok("I3 la grille de planche reçoit un papier peint", await waitFor(() => gridItem()?.props.background?.kind === "wallpaper"), JSON.stringify(gridItem()?.props.background));
+  await menu.locator('[data-testid="card-da-color"]').first().click();
+  ok("I4 … et une couleur dessous", await waitFor(() => typeof gridItem()?.props.background?.color === "string"), JSON.stringify(gridItem()?.props.background));
+  await page.keyboard.press("Escape");
+  await settled();
+  await frame.scrollIntoViewIfNeeded();
+  await sleep(600);
+  await page.screenshot({ path: path.join(SHOTS, "i-portrait-gauche-papier-peint.png") });
+});
+
 /* ---- H. Une GRILLE (page et planche) reçoit un papier peint ET une couleur (lots 31d × 32 × 35) --------------------------------------- */
 
 await section("H", async () => {
