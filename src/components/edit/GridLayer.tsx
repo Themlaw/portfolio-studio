@@ -208,6 +208,9 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
   const dragRef = useRef<CellDrag | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const bump = useCallback(() => setTick((t) => t + 1), []);
+  const startDrag = useCallback((d: CellDrag) => {
+    dragRef.current = d;
+  }, []);
 
   useEffect(() => {
     let frame = 0;
@@ -382,7 +385,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
             if (e.button !== 0) return;
             e.preventDefault();
             const d: CellDrag = { grid: gref.grid, ref: gref, from: index, x: e.clientX, y: e.clientY, target: null, active: false };
-            dragRef.current = d;
+            startDrag(d);
           }}
         >
           ⠿

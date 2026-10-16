@@ -103,7 +103,6 @@ async function hoverCell(sel, i) {
   await sleep(200);
 }
 const cb = (name) => fr.locator(`[data-testid="cellbar"] [data-cb="${name}"]`);
-const kidsOf = (getter) => getter()?.props?.children ?? [];
 const undo = async () => {
   await page.locator('.ve-history button[aria-label="Défaire"]').click();
   await settled(page);
@@ -179,7 +178,8 @@ try {
     const sq = await fr.evaluate((s) => [...document.querySelectorAll(`${s} .block-image-media`)].map((i) => i.getBoundingClientRect()).map((b) => b.width / b.height), G);
     ok("A6b les images de 1 rangée sont carrées sur la toile", near(sq[1], 1, 0.05) && near(sq[2], 1, 0.05), JSON.stringify(sq));
     await bar("add").click();
-    ok("A7 « + Case » ouvre le choix d'une image", await page.locator("dialog[open]").count() === 1);
+    await page.locator("dialog[open]").waitFor({ timeout: 20000 });
+    ok("A7 « + Case » ouvre le choix d'une image", (await page.locator("dialog[open]").count()) === 1);
     await page.keyboard.press("Escape");
     await sleep(300);
     await shot("A-barre");
