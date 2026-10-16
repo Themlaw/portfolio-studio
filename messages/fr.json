@@ -55,7 +55,15 @@
     "fullscreen": "Plein écran",
     "exitFullscreen": "Quitter le plein écran",
     "seek": "Position dans la vidéo",
-    "time": "{current} sur {total}"
+    "time": "{current} sur {total}",
+    "back": "Reculer de 10 secondes",
+    "forward": "Avancer de 10 secondes",
+    "volume": "Volume",
+    "close": "Fermer",
+    "viewer": "Vidéo en grand — {title}",
+    "viewerNoTitle": "Vidéo en grand",
+    "loopPause": "Mettre la vidéo en pause",
+    "loopPlay": "Relancer la vidéo"
   },
   "cv": {
     "download": "Télécharger mon CV",

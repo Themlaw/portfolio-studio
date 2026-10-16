@@ -13,11 +13,12 @@ import { GridAdvanced, GridTop } from "@/blocks/editors";
 import type { EditorContext } from "@/blocks/editor-types";
 import { Select } from "@/app/admin/_fields";
 import { applyGridOp, type GridModelOp } from "@/blocks/grid-layouts";
-import { BOARD_ITEM_LABELS, BOX_ALIGNS, BOX_MIN, BOX_PRESETS, MAX_GRID_CHILDREN, MAX_RAIL_MEDIA, type BoardBox, type BoardItemType } from "@/blocks/board-layout";
+import { BOARD_ITEM_LABELS, BOX_ALIGNS, BOX_MIN, BOX_PRESETS, MAX_GRID_CHILDREN, MAX_RAIL_MEDIA, railIds, railList, type BoardBox, type BoardItemType } from "@/blocks/board-layout";
 import { cleanLook, readLook } from "@/lib/look";
 
 import { BlockLookPanel } from "./LookPanel";
 import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
+import { isVideoMode, modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "@/blocks/video-mode";
 
 type Props = Record<string, unknown>;
 type Kid = { uid: string; type: "image" | "video-single"; props: Props };
@@ -65,6 +66,15 @@ function GridContent({ props, onChange, context }: { props: Props; onChange: (ne
                   ✕
                 </button>
               </div>
+              {k.type === "video-single" && (
+                <Select
+                  label="Lecture"
+                  help={VIDEO_MODE_HINTS[modeOf(k.props)]}
+                  value={modeOf(k.props)}
+                  options={VIDEO_MODE_OPTIONS}
+                  onChange={(v) => setKid(i, (p) => ({ ...p, mode: v ?? "player" }))}
+                />
+              )}
               {k.type === "image" && (
                 <Select
                   label="Dans la case"
@@ -167,27 +177,51 @@ function BoxField({ box, onChange }: { box: BoardBox | undefined; onChange: (nex
 }
 
 /** Carrousel à liste propre : ses images et vidéos, choisies dans la médiathèque, dans l'ordre. */
+/** Lecture des vidéos d'une bande : Boucle, Lecteur, ou chacune selon sa nature (le comportement d'avant). */
+function StripVideoMode({ props, onChange }: { props: Props; onChange: (next: Props) => void }) {
+  const current = isVideoMode(props.videoMode) ? props.videoMode : "auto";
+  return (
+    <Select
+      label="Lecture des vidéos"
+      help={current === "auto" ? "Sans choix : une animation courte et muette tourne en boucle, une vidéo plus longue s'ouvre en grand." : VIDEO_MODE_HINTS[current]}
+      value={current as string}
+      options={[{ value: "auto", label: "Selon la vidéo (courte : boucle, longue : lecteur)" }, ...VIDEO_MODE_OPTIONS]}
+      onChange={(v) => {
+        const { videoMode: _v, ...rest } = props;
+        void _v;
+        onChange(v && isVideoMode(v) ? { ...rest, videoMode: v } : rest);
+      }}
+    />
+  );
+}
+
 function RailContent({ props, onChange, context }: { props: Props; onChange: (next: Props) => void; context: EditorContext }) {
-  const ids = (Array.isArray(props.media) ? props.media : []) as number[];
+  const ids = railList(props);
+  const keys = railIds(props);
   const [adding, setAdding] = useState<"image" | "video" | null>(null);
-  const set = (next: number[]) => onChange({ ...props, media: next });
+  // La liste et l'identité de ses places avancent ensemble (réglages d'arrondi et de cadre suivent la place).
+  const set = (next: (number | null)[], nextKeys: string[]) => onChange({ ...props, media: next, ids: nextKeys });
   const move = (i: number, d: -1 | 1) => {
     const next = ids.slice();
+    const nextKeys = keys.slice();
     const [k] = next.splice(i, 1);
+    const [kk] = nextKeys.splice(i, 1);
     next.splice(i + d, 0, k);
-    set(next);
+    nextKeys.splice(i + d, 0, kk);
+    set(next, nextKeys);
   };
   return (
     <section className="ve-board-kids" aria-label="Contenu du carrousel">
       <h3 className="a-subhead">Images et vidéos du carrousel</h3>
+      <StripVideoMode props={props} onChange={onChange} />
       {ids.length === 0 && <p className="ve-hint">Rien pour le moment : ajoute des images ou des vidéos de ta médiathèque (ou glisse-les depuis l&apos;onglet Médias).</p>}
       <ol className="ve-board-kid-list">
         {ids.map((id, i) => {
-          const m = context.media.find((x) => x.id === id);
+          const m = id === null ? undefined : context.media.find((x) => x.id === id);
           return (
-            <li key={`${id}-${i}`} data-media-id={id}>
-              <span className="a-media-field-thumb">{m?.thumb ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={m.thumb} alt="" /> : <span className="muted">n° {id}</span>}</span>
-              <span className="a-media-field-name">{m?.name ?? `Média n° ${id}`}</span>
+            <li key={`${id}-${i}`} {...(id !== null ? { "data-media-id": id } : { "data-place-empty": "" })}>
+              <span className="a-media-field-thumb">{id === null ? <span className="muted">vide</span> : m?.thumb ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={m.thumb} alt="" /> : <span className="muted">n° {id}</span>}</span>
+              <span className="a-media-field-name">{id === null ? "Place gardée, sans image" : (m?.name ?? `Média n° ${id}`)}</span>
               <div className="ve-board-kid-tools" role="group" aria-label={`Élément ${i + 1}`}>
                 <button type="button" className="a-icon-btn" aria-label="Monter" disabled={i === 0} onClick={() => move(i, -1)}>
                   ↑
@@ -195,7 +229,7 @@ function RailContent({ props, onChange, context }: { props: Props; onChange: (ne
                 <button type="button" className="a-icon-btn" aria-label="Descendre" disabled={i === ids.length - 1} onClick={() => move(i, 1)}>
                   ↓
                 </button>
-                <button type="button" className="a-icon-btn a-danger-text" aria-label="Retirer" onClick={() => set(ids.filter((_, j) => j !== i))}>
+                <button type="button" className="a-icon-btn a-danger-text" aria-label="Retirer" onClick={() => set(ids.filter((_, j) => j !== i), keys.filter((_, j) => j !== i))}>
                   ✕
                 </button>
               </div>
@@ -218,7 +252,7 @@ function RailContent({ props, onChange, context }: { props: Props; onChange: (ne
         confirmLabel={adding === "video" ? "Utiliser cette vidéo" : "Utiliser cette image"}
         onClose={() => setAdding(null)}
         onPick={(m) => {
-          set([...ids, m.id]);
+          set([...ids, m.id], [...keys, `n${Math.random().toString(36).slice(2, 10)}`.slice(0, 12).replace(/[^a-z0-9]/g, "x")]);
           setAdding(null);
         }}
       />
@@ -253,11 +287,12 @@ export default function BoardItemPanel({
   return (
     <div className="ve-settings" data-testid="board-item-panel" data-type={type}>
       <header className="ve-settings-head">
-        <h2>{projectStrip ? "Images du projet" : BOARD_ITEM_LABELS[type]}</h2>
+        <h2>{BOARD_ITEM_LABELS[type]}</h2>
         {head}
       </header>
       <p className="ve-hint">Ce composant appartient au projet : il s&apos;affiche partout où la planche du projet est montrée.</p>
-      {projectStrip && <p className="ve-hint">Ce sont les images du projet : ajoute-les, déplace-les et légende-les directement sur la planche.</p>}
+      {projectStrip && <p className="ve-hint">Cette bande montre les images du projet : ajoute-les, déplace-les et légende-les directement sur la planche.</p>}
+      {projectStrip && <StripVideoMode props={props} onChange={onChange} />}
       {/* Grille : l'essentiel en haut (agencement, espace, format, nombre d'images), puis la liste des cases, puis les réglages avancés. */}
       {type === "grid" && (
         <BlockEditorContext.Provider value={{ value: props, onChange, errors: {}, context, idPrefix: `ve-bitem-${uid}` }}>

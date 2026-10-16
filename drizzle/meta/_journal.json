@@ -190,6 +190,13 @@
       "when": 1792100352374,
       "tag": "0026_papiers_peints",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1792100952374,
+      "tag": "0027_video_mode",
+      "breakpoints": true
     }
   ]
 }

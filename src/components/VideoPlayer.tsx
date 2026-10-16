@@ -9,7 +9,7 @@ import { useReducedMotion } from "./LoopVideo";
 
 /** Délai sans geste avant de masquer les commandes pendant la lecture. */
 const IDLE_MS = 2500;
-const SEEK_STEP = 5;
+const SEEK_STEP = 10;
 
 function clock(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
@@ -31,8 +31,8 @@ type IosVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
  *
  * Commandes : lecture / pause, barre de progression cliquable et glissable
  * (retour en arrière compris), temps écoulé / durée, « Revoir » à la fin,
- * son / muet, plein écran. Clavier (focus sur le lecteur) : Espace ou K,
- * ← / → (± 5 s), Début / Fin, F (plein écran), M (muet). Les commandes se
+ * reculer / avancer de 10 s, son (muet, volume), plein écran. Clavier
+ * (focus sur le lecteur) : Espace ou K, ← / → (± 10 s), Début / Fin, F (plein écran), M (muet). Les commandes se
  * masquent pendant la lecture après un moment sans geste et reviennent au
  * moindre mouvement, au focus ou à la pause. Couleurs : jetons du thème
  * (classes .vp-*, globals/medias.css). Aucun état React à chaque image : la
@@ -72,6 +72,7 @@ export default function VideoPlayer({
 
   const [state, setState] = useState<"paused" | "playing" | "ended">("paused");
   const [muted, setMuted] = useState(startMuted);
+  const [volume, setVolume] = useState(1);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(video.duration || 0);
   const [fullscreen, setFullscreen] = useState(false);
@@ -139,7 +140,10 @@ export default function VideoPlayer({
       if (Number.isFinite(v.duration)) setDuration(v.duration);
       schedule();
     };
-    const onVolume = () => setMuted(v.muted);
+    const onVolume = () => {
+      setMuted(v.muted);
+      setVolume(v.volume);
+    };
     const events: [string, () => void][] = [
       ["play", sync],
       ["playing", sync],
@@ -240,6 +244,8 @@ export default function VideoPlayer({
     if (event.altKey || event.ctrlKey || event.metaKey) return;
     const target = event.target as HTMLElement;
     const onButton = target.tagName === "BUTTON";
+    // Curseur de volume : ses flèches règlent le volume, pas la position.
+    if (target.tagName === "INPUT" && (event.key === "ArrowLeft" || event.key === "ArrowRight")) return;
     const onSlider = target === seekRef.current;
     const key = event.key;
     let handled = true;
@@ -369,6 +375,23 @@ export default function VideoPlayer({
           )}
         </button>
 
+        <button type="button" className="vp-btn vp-skip" onClick={() => seekBy(-SEEK_STEP)} aria-label={t("back")} data-vp="back">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7Z" fill="currentColor" />
+          </svg>
+          <span className="vp-skip-num" aria-hidden="true">
+            10
+          </span>
+        </button>
+        <button type="button" className="vp-btn vp-skip" onClick={() => seekBy(SEEK_STEP)} aria-label={t("forward")} data-vp="forward">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style={{ transform: "scaleX(-1)" }}>
+            <path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7Z" fill="currentColor" />
+          </svg>
+          <span className="vp-skip-num" aria-hidden="true">
+            10
+          </span>
+        </button>
+
         <span className="vp-time" aria-hidden="true">
           {clock(time)} <span className="vp-time-sep">/</span> {clock(duration)}
         </span>
@@ -405,6 +428,24 @@ export default function VideoPlayer({
             )}
           </svg>
         </button>
+
+        <input
+          type="range"
+          className="vp-volume"
+          min={0}
+          max={1}
+          step={0.05}
+          value={muted ? 0 : volume}
+          aria-label={t("volume")}
+          data-vp="volume"
+          onChange={(event) => {
+            const v = videoRef.current;
+            if (!v) return;
+            const next = Number(event.target.value);
+            v.volume = next;
+            v.muted = next === 0;
+          }}
+        />
 
         <button type="button" className="vp-btn" onClick={toggleFullscreen} aria-label={fullscreen ? t("exitFullscreen") : t("fullscreen")} data-vp="fullscreen">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">

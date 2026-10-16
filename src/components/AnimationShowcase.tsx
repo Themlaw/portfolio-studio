@@ -1,7 +1,7 @@
 "use client";
 
 import Picture from "./Picture";
-import VideoPlayer from "./VideoPlayer";
+import VideoViewer from "./VideoViewer";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -26,28 +26,23 @@ export function Frame({
   playing,
   onPlay,
   large = false,
+  edit = false,
 }: {
   item: LocalizedArtwork;
   playing: boolean;
   onPlay: () => void;
   large?: boolean;
+  /** Toile de l'éditeur : la vidéo ne s'ouvre pas en grand (le clic sert à choisir le composant). */
+  edit?: boolean;
 }) {
   const t = useTranslations("animation");
+  // Vidéo hébergée (mode « Lecteur ») : elle s'ouvre en grand dans la visionneuse ; un plan YouTube joue sur place.
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="mat">
       <div className="relative aspect-video w-full overflow-hidden rounded-[2px] bg-scrim">
-        {playing && item.video ? (
-          <VideoPlayer
-            video={item.video}
-            width={item.width}
-            height={item.height}
-            className="absolute inset-0"
-            videoClassName="h-full w-full bg-scrim object-contain"
-            autoPlay
-            label={item.title}
-          />
-        ) : playing && item.videoId ? (
+        {playing && item.videoId && !item.video ? (
           <iframe
             className="absolute inset-0 h-full w-full"
             src={`https://www.youtube-nocookie.com/embed/${item.videoId}?autoplay=1&rel=0`}
@@ -89,7 +84,11 @@ export function Frame({
             {!playing && (
               <button
                 type="button"
-                onClick={onPlay}
+                onClick={() => {
+                  if (!item.video) onPlay();
+                  else if (!edit) setOpen(true);
+                }}
+                aria-haspopup={item.video ? "dialog" : undefined}
                 aria-label={t("playAria", { title: item.title })}
                 className="video-play group absolute inset-0 flex items-end p-5 md:p-7"
               >
@@ -99,6 +98,7 @@ export function Frame({
           </>
         )}
       </div>
+      {open && item.video && <VideoViewer video={item.video} width={item.width} height={item.height} title={item.title || item.alt} onClose={() => setOpen(false)} />}
     </div>
   );
 }

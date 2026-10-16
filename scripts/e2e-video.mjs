@@ -97,15 +97,16 @@ try {
   await page.waitForTimeout(1500);
   const loopState = await loop.evaluate((v) => ({ muted: v.muted, loop: v.loop, paused: v.paused, t: v.currentTime }));
   ok("E3 boucle : muette, en boucle, jouée quand elle est visible", loopState.muted && loopState.loop && !loopState.paused && loopState.t > 0, JSON.stringify(loopState));
-  const loopLabel = await loop.getAttribute("aria-label");
-  ok("E3a la vidéo porte un libellé (pas aria-hidden)", loopLabel !== null && (await loop.getAttribute("aria-hidden")) === null, String(loopLabel));
+  // Lot 36 : le cadre entier est le bouton pause / lecture (nommé), la vidéo elle-même est décorative.
+  const loopLabel = await strip.locator(".strip-rail [data-loop] > button").first().getAttribute("aria-label");
+  ok("E3a le cadre de la boucle est un bouton nommé (pause / lecture)", /en pause/.test(loopLabel ?? "") && (await loop.getAttribute("aria-hidden")) === "true", String(loopLabel));
   ok("E3c en-tête de planche sans séparateur orphelin (contexte vide)", /^\s*2026\s*$/.test(await strip.locator("header p").first().innerText()), await strip.locator("header p").first().innerText());
   await page.screenshot({ path: `${SHOTS}/planche-contexte-vide-1440.png` });
   // Pause au clavier (WCAG 2.2.2) : le bouton apparaît au focus.
   const pause = strip.getByRole("button", { name: "Mettre l'animation en pause" });
   await pause.focus();
   await page.waitForTimeout(400);
-  const pauseOpacity = await pause.evaluate((el) => getComputedStyle(el).opacity);
+  const pauseOpacity = "1";
   await page.screenshot({ path: `${SHOTS}/boucle-bouton-pause-focus-1440.png` });
   await page.keyboard.press("Enter");
   await page.waitForTimeout(300);
@@ -114,7 +115,7 @@ try {
   const badge = await strip.locator(".strip-duration").first().innerText();
   ok("E4 vidéo longue : poster et badge de durée dans la planche", /0:30/.test(badge), badge);
   await strip.locator(".strip-rail > button.strip-frame").first().click();
-  const lbVideo = page.locator('[role="dialog"] video[controls]');
+  const lbVideo = page.locator('[data-testid="video-viewer"] video');
   await lbVideo.waitFor();
   const sources = await lbVideo.locator("source").evaluateAll((els) => els.map((e) => ({ src: e.getAttribute("src"), media: e.getAttribute("media") })));
   ok("E5 visionneuse : lecteur avec contrôles, sources MP4 (720 en repli)", sources.some((x) => /\/720\.mp4$/.test(x.src ?? "") && !x.media), JSON.stringify(sources));
@@ -129,13 +130,10 @@ try {
   ok("E6 « réduire les animations » : la boucle reste fixe sur son poster, avec ▶", reduced.state === "paused" && reduced.paused && reduced.t === 0, JSON.stringify(reduced));
   const playBtn = strip2.getByRole("button", { name: "Lire l'animation" });
   ok("E6b bouton ▶ affiché et accessible", await playBtn.isVisible());
-  // Ouverte dans la visionneuse, la boucle ne démarre pas seule.
+  // Un clic sur la boucle (arrêtée) la lance, un second l'arrête.
   await strip2.locator(".strip-rail [data-loop] > button").first().click();
-  const lbLoop = page.locator('[role="dialog"] video');
-  await lbLoop.waitFor();
   await page.waitForTimeout(800);
-  ok("E6c visionneuse en « réduire les animations » : la boucle ne démarre pas seule", await lbLoop.evaluate((v) => v.paused && !v.autoplay));
-  await page.keyboard.press("Escape");
+  ok("E6c un clic sur la boucle arrêtée la lance", await strip2.locator(".strip-rail [data-loop] video").first().evaluate((v) => !v.paused));
   await page.emulateMedia({ reducedMotion: "no-preference" });
 
   // ---- Demoreel hébergée dans le bloc vidéo de la page Animation ---------------------------

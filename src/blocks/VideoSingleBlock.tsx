@@ -18,7 +18,11 @@ export const videoSingleSchema = z.object({
   posterMediaId: mediaRef.optional(),
   /** Présentation (ancien nom `look`, repris par la mise en page du lot 2 : migration 0016). */
   variant: z.enum(["feature", "card", "plain"]).default("card"),
-  /** Lecteur avec contrôles, ou boucle muette (vidéo de la médiathèque). */
+  /**
+   * Lecture choisie par l'illustratrice (lot 36) : « loop » = Boucle (muette, sur place, un clic met en pause) ;
+   * « player » = Lecteur (image d'attente, un clic ouvre la vidéo en grand). Migration 0027 : toute vidéo existante
+   * reçoit explicitement le mode qui équivaut à son comportement d'avant.
+   */
   mode: z.enum(["player", "loop"]).default("player"),
   eyebrow: localized.optional(),
   /** Titre (sinon le texte alternatif de la vidéo, ou le titre du plan). */
@@ -62,7 +66,7 @@ export default async function VideoSingleBlock({ props, ctx }: { props: z.infer<
     description: (props.description && tr(props.description, ctx.locale)) || item?.description || "",
   };
   const body = item ? (
-    <VideoCard item={item} look={props.variant} loop={props.mode === "loop"} texts={texts} edit={ctx.edit} styles={{ eyebrow: textStyle(ctx, "eyebrow").style, title: textStyle(ctx, "title").style, description: textStyle(ctx, "description").style }} />
+    <VideoCard item={item} look={props.variant} mode={props.mode} texts={texts} edit={ctx.edit} styles={{ eyebrow: textStyle(ctx, "eyebrow").style, title: textStyle(ctx, "title").style, description: textStyle(ctx, "description").style }} />
   ) : ctx.edit ? (
     <div className="pe-media-empty pe-media-video" data-edit-media="mediaId" data-edit-media-kind="video" lang="fr">
       <span>Dépose une vidéo ici</span>

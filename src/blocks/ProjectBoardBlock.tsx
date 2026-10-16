@@ -10,7 +10,7 @@ import { getWallpapers } from "@/lib/wallpapers";
 import type { WallpaperEntry } from "@/themes/wallpaper";
 import { effectivePalette, renderBoardItem } from "./BlockList";
 import { fondJoins, fondKey, readBackground } from "@/themes/fond";
-import { itemEmpty } from "./board-layout";
+import { itemEmpty, railIds, railKey, railList } from "./board-layout";
 import { collection, projectSlug, textStyle, tr, type BlockContext } from "./types";
 
 export const projectBoardSchema = z.object({
@@ -42,16 +42,37 @@ function headerStyles(ctx: BlockContext) {
  * Images et vidéos d'un carrousel à liste propre (lot 31b), lues dans la médiathèque dans l'ordre choisi. Un média à la
  * corbeille, supprimé ou pas encore prêt n'est pas servi (`getMedia`) : il disparaît du carrousel, sans trou.
  */
-async function railArtworks(ids: unknown, locale: BlockContext["locale"]): Promise<LocalizedArtwork[]> {
-  const list = (Array.isArray(ids) ? ids : []).filter((x): x is number => Number.isInteger(x));
-  const rows = await Promise.all(list.map((id) => getMedia(id)));
+async function railArtworks(props: Record<string, unknown>, uid: string, locale: BlockContext["locale"], edit: boolean): Promise<LocalizedArtwork[]> {
+  const list = railList(props);
+  const places = railIds(props);
+  const rows = await Promise.all(list.map((id) => (id === null ? null : getMedia(id))));
   const out: LocalizedArtwork[] = [];
-  for (const m of rows) {
-    if (!m || m.pdf) continue;
+  for (const [at, m] of rows.entries()) {
+    if (!m || m.pdf) {
+      // Vue brouillon : une place vide (ou un média disparu) garde sa place et son rang, comme un emplacement vide du projet.
+      if (edit) {
+        out.push({
+          id: `empty-${uid}-${at}`,
+          slug: `${uid}-${places[at]}`,
+          collection: "animation",
+          title: "",
+          description: "",
+          alt: "",
+          image: "",
+          width: 1200,
+          height: 800,
+          year: 0,
+          featured: false,
+          edit: { key: railKey(uid, at), empty: true, pending: false, aspect: 1.5, pos: at },
+        });
+      }
+      continue;
+    }
     const alt = m.alt ? tr(m.alt, locale) : "";
     out.push({
-      id: `media-${m.id}`,
-      slug: `media-${m.id}`,
+      id: `media-${m.id}-${at}`,
+      // Arrondi et cadre propres à CETTE place de CE carrousel (`look.slotRadius` / `slotFrame` du bloc, par slug) : ils suivent la place (déplacée, image remplacée) ; deux carrousels qui montrent le même média se règlent chacun.
+      slug: `${uid}-${places[at]}`,
       collection: "animation",
       title: "",
       description: "",
@@ -64,6 +85,7 @@ async function railArtworks(ids: unknown, locale: BlockContext["locale"]): Promi
       height: m.height ?? (m.video ? 720 : 800),
       year: 0,
       featured: false,
+      ...(edit ? { edit: { key: railKey(uid, at), empty: false, pending: false, aspect: (m.width ?? 1200) / Math.max(1, m.height ?? 800), pos: at } } : {}),
     });
   }
   return out;
@@ -101,10 +123,11 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
         uid: item.uid,
         type: item.type,
         ...(item.box ? { box: item.box } : {}),
+        ...(item.type === "strip" && (item.props.videoMode === "loop" || item.props.videoMode === "player") ? { videoMode: item.props.videoMode } : {}),
         ...(fonds[i] ? { fond: { background: fonds[i]!, join: joins[i] } } : {}),
         ...(item.type === "strip"
           ? item.props.source === "own"
-            ? { artworks: await railArtworks(item.props.media, ctx.locale) }
+            ? { artworks: await railArtworks(item.props, item.uid, ctx.locale, Boolean(project.edit)) }
             : {}
           : {
               // Largeur réduite : une image « pleine largeur » reste dans la colonne choisie (cadre du site).
@@ -116,7 +139,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
             }),
         // Vue brouillon : réglages et largeur du composant pour le panneau, et repère d'un composant encore vide.
         ...(project.edit && item.props.look ? { look: JSON.stringify(item.props.look) } : {}),
-        ...(project.edit ? { props: JSON.stringify({ props: item.props, ...(item.box ? { box: item.box } : {}) }), empty: itemEmpty(item) } : {}),
+        ...(project.edit ? { props: JSON.stringify({ props: item.props, ...(item.box ? { box: item.box } : {}) }), empty: itemEmpty(item) && !(item.type === "strip" && railList(item.props).length > 0) } : {}),
       })),
     );
     return (

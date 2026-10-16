@@ -734,11 +734,11 @@ if (run("C")) {
     await gridCard.scrollIntoViewIfNeeded();
     await gridCard.click();
     await shown('[data-edit-type="grid"]');
-    await f.locator('[data-testid="gridbar-layout"]').click();
-    ok("C7 agencement de la grille ouvert (barre de la grille, lot 31d)", await shown(".pe-gridmenu-layouts"));
-    await f.locator(".pe-gridmenu-layouts [role=radio]").nth(2).click();
+    await f.locator('[data-testid="grid-settings-button"]').click();
+    ok("C7 « Réglages » de la grille ouvre la fenêtre blanche (lot 31e)", await shown('[data-testid="gridsettings"]'));
+    await f.locator('.pe-gs-layouts [role=radio][data-layout="2"]').click();
     await clickElsewhere();
-    ok("C7 clic ailleurs : l'agencement se ferme", await gone(".pe-gridmenu-layouts"));
+    ok("C7 clic ailleurs : la fenêtre se ferme", await gone('[data-testid="gridsettings"]'));
     await settled();
     ok("C7 le choix d'agencement fait avant la fermeture est conservé", await waitFor(() => JSON.stringify(draftOf(1)).includes('"layout":"2"')), "");
   }

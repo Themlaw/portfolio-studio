@@ -1660,3 +1660,80 @@ vides, barre d'agencement) que la planche ne savait pas.
   étiquette, titre). Planche : la liste des cases (`GridContent`) avec Remplacer, ordre, retirer et « Dans la case ».
 - Tests : `scripts/test-grille31d.mjs` (modèle, opérations, schéma, anciennes données, messages) et `scripts/e2e-grille31d.mjs`
   (suite `grille31d`).
+
+### Retouches de la grille (lot 31e)
+
+Retours de l'illustratrice sur la v0.24 : la barre de grille noire s'ouvrait toute seule en plus de la barre du bloc, la barre d'une
+case tombait en bas d'une case bien plus haute que l'image, et un décor très large restait dans une colonne.
+
+- **Fenêtre « Réglages » blanche** (`GridSettings`, dans `GridLayer.tsx`) : remplace la barre de grille. Rien ne s'ouvre tout seul ;
+  le bouton « Réglages » de la barre du bloc grille (`.pe-tools` d'une rubrique de page, `.pe-bitem-bar` d'un composant de planche)
+  envoie l'événement `pe:grid-settings` (`{uid, board?}`, bascule) et `GridLayer` pose la fenêtre sous cette barre, à son bord droit,
+  dans l'écran. Style de la fenêtre « Aa » : classes `sm tc`, tokens `--lk-*` (aucune couleur propre), bouton ✕, choix actif en bleu
+  clair. Contenu : vignettes d'agencement, espace Aucun / S / M / L, format des cases, Colonnes (+ Inverser en Sur mesure), « + Case »,
+  « Adapter aux images » (absent en Automatique : c'est ce que l'automatique fait déjà), « Plus de réglages… » (événement
+  `pe:open-panel` : `EditLayer` / `BoardLayer` choisissent la grille comme un clic, le panneau de gauche s'ouvre). Fermeture : ✕,
+  Échap, clic ailleurs (`useDismiss`, le bouton `data-grid-settings-button` bascule). Une seule fenêtre à la fois : ouvrir Réglages
+  envoie `pe:popups-close` (Carte, Fond, Cadre, barre « Aa » se ferment) ; les autres se ferment déjà d'un clic ailleurs.
+- **Barre de case** : blanche (même famille que « Aa »), accrochée à l'image ou à la vidéo elle-même (`cellBarTop`) : 36 px sous le
+  bord haut de l'image (sous le fil d'Ariane), dans la partie visible de l'écran ; une image trop basse pour la porter : juste
+  dessous. Le menu « Taille » est un frère de la barre (et non son enfant) : la barre a un `transform`, qui devient le repère des
+  coordonnées d'un enfant absolu, d'où un menu hors écran (bug de la v0.24 : le bouton « Taille » semblait ne rien faire).
+- **« Automatique » (`auto`)** : nouvel agencement, par défaut des nouvelles grilles (registre : `defaults`, `newBoardItem`) ; les
+  grilles existantes gardent le leur (pas de migration). La taille de chaque case suit le format réel de son média, CALCULÉ AU RENDU :
+  panorama (≥ 1,9) sur toute la largeur, portrait (≤ 0,8) sur 2 rangées, sinon 1 case ; 2 colonnes par défaut (2 à 4) ; une place vide
+  compte comme une case normale. `GridBlock` (devenu asynchrone) lit la largeur et la hauteur de chaque média (`getMedia`, même repli
+  qu'à l'édition : vidéo sans dimensions = 16:9) et passe `ratios` à `gridCells` (jamais stocké : un ajout, un remplacement, un retrait
+  recalculent). Rendu CSS = celui du Sur mesure (`:is([data-layout="custom"], [data-layout="auto"])`). Changer la taille d'une case ou
+  inverser passe en Sur mesure à partir de la disposition calculée (`toCustom` / `applyGridOp` reçoivent les formats de la médiathèque
+  de l'éditeur : aucun saut). Les images d'une case de panorama n'utilisent qu'une colonne pour le choix de la variante
+  (`ctx.cellAuto`).
+- **Format Libre** : une place vide ne force plus une hauteur 4:3 à côté d'un panorama (`min-height: 11rem`, étirée à la hauteur de
+  la rangée).
+- Tests : `grille31d` (sections H, I, K ; le menu « Taille » se clique à la souris sur les coordonnées réelles, bouton et choix
+  visibles à l'écran) et `scripts/test-grille31d.mjs` (1h à 1j, 2z).
+
+## Lecteur vidéo : Boucle ou Lecteur (lot 36)
+
+Avant ce lot une vidéo hébergée jouait dans la page (lecteur en ligne), et seule une animation courte et muette d'une bande tournait en boucle.
+Désormais chaque vidéo a une lecture choisie par l'illustratrice :
+
+- **Boucle** : la vidéo tourne en boucle, muette, dans la page ; un clic ou un toucher la met en pause, un autre la relance ; Espace et Entrée au
+  clavier (le cadre est un bouton nommé) ; petit repère pause / lecture ; avec `prefers-reduced-motion` elle démarre en pause.
+- **Lecteur** : la page montre l'image d'attente avec un bouton lecture ; un clic ouvre la vidéo en grand (`VideoViewer`, dialogue modal
+  posé dans `<body>`, fond `--color-viewer`) avec le lecteur maison (`VideoPlayer` : lecture / pause, ± 10 s, barre cliquable et glissable,
+  temps écoulé et durée, son et volume, plein écran). Fermeture par ×, Échap ou clic hors de la vidéo ; clavier Espace, ← / →, M, F ;
+  focus piégé puis rendu au déclencheur. Sur téléphone la barre passe sur deux rangées et le volume est masqué (celui de l'appareil).
+
+Données : `mode` (`loop` | `player`) sur le composant Vidéo ; `videoMode` facultatif sur une bande (absent : chaque vidéo suit sa nature).
+Le choix se fait dans le panneau et dans la barre de la vidéo, de la case de grille, du composant ou de la bande de planche (message
+`video-mode`, opération de grille `video-mode`). Parité : le rendu serveur est le même sur la toile et en ligne (`data-video-mode`), la
+toile n'ouvre jamais la visionneuse. Migration de contenu 0027 : voir `src/lib/db/video-mode.ts` (mode explicite sur chaque vidéo existante,
+publié et brouillons, planches et leurs brouillons).
+
+## Un seul carrousel (lot 31f)
+
+Pour l'artiste, il n'y a qu'UN composant « Images qui défilent » : même nom partout (palette, barre, panneau, menu « + Ajouter »),
+même rendu, mêmes outils par image sur la toile. Le nom « Images du projet » a disparu de l'interface.
+
+- **Pourquoi la bande du projet avait des outils et pas le carrousel (31b).** Les outils par image (Remplacer, Supprimer, Retirer la
+  place, Arrondi, Cadre, glisser, places vides) de `BoardLayer` sont pilotés par les repères `data-edit-rail` / `data-edit-slot`, posés
+  seulement sur la bande des images du projet, et leurs messages (`slot-op`, `slot-move`, `files`) visent un EMPLACEMENT du projet (clé
+  `s12` / `k…`, opérations `move|remove|retire|fill|add` de `boards.ts`). Le carrousel à liste propre n'avait ni repère ni message.
+- **Choix des données : (a), pas de migration.** La source reste distinguée en interne (`isProjectStrip` : images du PROJET, dont les
+  emplacements servent aussi aux tuiles de collection, à la couverture, au compteur, à la visionneuse et au filtrage par métier ; ou
+  `source: "own"` + `media`). Une migration (b) aurait copié les emplacements du projet dans une liste de la planche : les deux copies
+  divergeraient, et tuiles, couverture et compteur lisent les emplacements. Seuls l'outillage et le rendu convergent.
+- **Une seule bande côté rendu et côté toile.** `StripRail` pose `data-edit-rail` (vide = images du projet, sinon l'uid du carrousel) et
+  `data-edit-slot` sur toute image ; `BoardItemFrame` pose `data-edit-bitem-rail` sur toute bande (`-project` : la bande d'origine seule).
+  `BoardLayer` n'a qu'un code : barre de l'image (même composant `SlotRadius`, `SlotFrame`), glisser, clavier, fantômes d'envoi, dépôt.
+- **Places d'un carrousel.** `media: (number | null)[]` : `null` = place gardée vide (comme un emplacement vide du projet ; masquée en
+  public, ignorée du compteur, des références et de `itemEmpty`). Clé d'une place sur la toile : `<uid>.<rang>` (`railKey`,
+  `parseRailKey`). Le schéma `SlotKey` des messages l'accepte ; l'éditeur traduit le geste (`slotBoardOp`) en opération `rail-clear`,
+  `rail-retire`, `rail-fill`, `rail-move`, `rail-add` (`boards.ts`, surcouche de suite : mêmes gardes que `item-*`). Cible de dépôt `rail`
+  (`board`, `uid`, `index`) ; fantôme d'envoi avec `rail`.
+- **Arrondi et cadre** : `look.slotRadius` / `slotFrame` du bloc, par slug de place ; pour un carrousel le slug est `<uid>-<média>`, donc
+  deux carrousels qui montrent le même média se règlent chacun.
+- **Pas de légendes** sur un carrousel (un média n'a ni titre ni année) ; les images du projet gardent les leurs. Pas de « Cadrer » sur
+  une place de bande : le recadrage libre concerne les tuiles et les images seules, pas les bandes (aucun changement).
+- Tests : `scripts/test-carrousel31f.mjs` (unité, base réelle) et `scripts/e2e-carrousel31f.mjs` (suite `carrousel31f`, souris réelle).

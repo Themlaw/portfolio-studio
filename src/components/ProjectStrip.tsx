@@ -7,6 +7,7 @@ import BoardBox from "@/components/BoardBox";
 import EditOnly from "@/components/EditOnly";
 import FondWrap from "@/components/FondWrap";
 import StripRail from "@/components/StripRail";
+import { isVideoMode, VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 import { BOARD_ITEM_LABELS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
 import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedArtwork, LocalizedProject } from "@/lib/gallery";
@@ -46,6 +47,8 @@ export type BoardPart = {
   box?: BoardBoxProps;
   /** Carrousel à liste propre (lot 31b) : ses images, déjà lues dans la médiathèque. Absent : la bande des images du projet. */
   artworks?: LocalizedArtwork[];
+  /** Lecture des vidéos de la bande (lot 36) : Boucle ou Lecteur ; absent : chaque vidéo suit sa nature. */
+  videoMode?: "loop" | "player";
   /** Fond de couleur du composant (lot 32) et fusion avec ses voisins de même fond ; posé ici, autour de la colonne réglée par `box`. */
   fond?: { background: Background; join: FondJoin };
 };
@@ -108,11 +111,11 @@ export default function ProjectStrip({
   const rail = (part?: BoardPart) =>
     part?.artworks ? (
       <BoardBox box={part.box}>
-        <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} captions={false} />
+        <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions={false} slotRadius={slotRadius} slotFrame={slotFrame} videoMode={part.videoMode} />
       </BoardBox>
     ) : (
       <BoardBox box={part?.box}>
-        <StripRail artworks={project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} projectRail captions slotRadius={slotRadius} slotFrame={slotFrame} />
+        <StripRail artworks={project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} videoMode={part?.videoMode} />
       </BoardBox>
     );
 
@@ -244,9 +247,19 @@ function BoardAdd({ board, index, last = false, empty = false }: { board: number
  * supprimer). Les boutons sont de vrais boutons : le clavier les atteint, BoardLayer les écoute.
  */
 function BoardItemFrame({ board, part, index, count, children }: { board: number; part: BoardPart; index: number; count: number; children: ReactNode }) {
-  // Bande des images du PROJET (la bande d'origine) ou carrousel à liste propre (lot 31b).
+  // Une seule « Images qui défilent » pour l'artiste (lot 31f) : la source (images du projet ou liste propre) ne change ni le nom ni les outils.
   const projectStrip = part.type === "strip" && !part.artworks;
-  const label = projectStrip ? "Images du projet" : BOARD_ITEM_LABELS[part.type];
+  const isStrip = part.type === "strip";
+  const label = BOARD_ITEM_LABELS[part.type];
+  // Lecture des vidéos (lot 36) : le composant Vidéo a son mode, la bande les choisit toutes (sans choix : chacune selon sa nature).
+  const videoKey = part.type === "video-single" ? "mode" : part.type === "strip" ? "videoMode" : null;
+  let videoNow: string | undefined = part.type === "video-single" ? "player" : undefined;
+  if (videoKey && part.props) {
+    try {
+      const v = (JSON.parse(part.props) as { props?: Record<string, unknown> }).props?.[videoKey];
+      if (isVideoMode(v)) videoNow = v;
+    } catch {}
+  }
   const op = (name: "up" | "down" | "remove" | "settings", text: string, glyph: string, disabled = false) => (
     <button type="button" className="pe-bitem-btn" data-edit-bitem-op={name} data-uid={part.uid} data-board={board} disabled={disabled} aria-label={`${text} — ${label}`} title={text}>
       <span aria-hidden="true">{glyph}</span>
@@ -257,6 +270,7 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
       className="pe-bitem"
       data-edit-bitem={part.uid}
       data-edit-bitem-type={part.type}
+      {...(isStrip ? { "data-edit-bitem-rail": "" } : {})}
       {...(projectStrip ? { "data-edit-bitem-project": "" } : {})}
       data-board={board}
       {...(part.props ? { "data-edit-bitem-props": part.props } : {})}
@@ -271,13 +285,30 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
         </span>
         <span className="pe-bitem-name">{label}</span>
         {(
-          <button type="button" className="pe-bitem-btn pe-bitem-edit" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
+          <button type="button" className="pe-bitem-btn pe-bitem-edit" {...(part.type === "grid" ? { "data-grid-settings-button": "", "aria-haspopup": "dialog" } : {})} data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
             Réglages
+          </button>
+        )}
+        {isStrip && (
+          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="add-images" data-uid={part.uid} data-board={board} data-testid="bitem-add-images" title="Ajouter des images ou des vidéos de l'ordinateur à la fin du carrousel">
+            Ajouter des images
           </button>
         )}
         <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title="Fond de couleur du composant, sur toute sa hauteur">
           Fond
         </button>
+        {videoKey && !part.empty && (
+          <span className="pe-seg" role="group" aria-label={part.type === "strip" ? "Lecture des vidéos de la bande" : "Lecture de la vidéo"} data-testid="bitem-video-mode">
+            <span className="pe-seg-label" aria-hidden="true">
+              Lecture
+            </span>
+            {VIDEO_MODES.map((m) => (
+              <button key={m} type="button" className="pe-bitem-btn" data-edit-bitem-op={`video-${m}`} data-uid={part.uid} data-board={board} aria-pressed={videoNow === m} title={VIDEO_MODE_HINTS[m]}>
+                {VIDEO_MODE_LABELS[m]}
+              </button>
+            ))}
+          </span>
+        )}
         {part.type === "image" && (
           <button type="button" className="pe-bitem-btn" data-edit-bitem-op="frame" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-frame-button" title="Cadre autour de la photo">
             Cadre

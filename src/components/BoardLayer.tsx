@@ -35,9 +35,10 @@ import { BoardFrameMenu } from "./edit/FrameMenu";
 import { readBackground, type Background } from "@/themes/fond";
 
 import { FrameSchema, RADII, RADIUS_LABELS, type Frame, type Radius } from "@/lib/look";
-import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, isBoardItemType, type BoardItemType } from "@/blocks/board-layout";
+import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, isBoardItemType, parseRailKey, railKey, type BoardItemType } from "@/blocks/board-layout";
 
 import { FrameControls } from "./edit/FrameMenu";
+import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 import { lookOf, sendLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
 import { cellIndex, cellsOf, gridRefOf } from "./edit/grid-dom";
@@ -76,6 +77,10 @@ function boxOf(el: Element): Rect | null {
   return { top: r.top + window.scrollY, left: r.left + window.scrollX, width: r.right - r.left, height: r.bottom - r.top };
 }
 
+/** Bande qui reçoit un glisser au point (fenêtre) : celle sous le pointeur (images du projet ou carrousel), sinon la bande des images du projet de la planche. */
+const railUnder = (el: Element | undefined): HTMLElement | null => el?.closest<HTMLElement>("[data-edit-rail]") ?? el?.closest("[data-edit-board]")?.querySelector<HTMLElement>('[data-edit-rail=""]') ?? null;
+/** Bande d'une planche : celle du composant `uid` (carrousel à liste propre), ou celle des images du projet. */
+const railOf = (board: number, uid?: string) => document.querySelector<HTMLElement>(`[data-edit-board="${board}"] [data-edit-rail="${uid ? CSS.escape(uid) : ""}"]`);
 const slotEls = (rail: Element) => [...rail.querySelectorAll<HTMLElement>(":scope > [data-edit-slot]")];
 const boardEl = (board: number) => document.querySelector<HTMLElement>(`[data-edit-board="${board}"]`);
 /** Ce que la palette peut déposer dans une planche (lot 31b) : mêmes composants que le menu « + Ajouter ». */
@@ -202,9 +207,32 @@ function dropTargetAt(x: number, y: number, items = false): { target: DropTarget
     const box = boxOf(cell);
     return box ? { target: { kind: "cell", uid: gridUid }, marker: { kind: "media", rect: box } } : null;
   }
-  // Lot 31b : un composant de la planche (autre que la bande du projet) reçoit un média de la médiathèque :
-  // une Image / une Vidéo le remplace, une Grille ou un carrousel l'ajoute.
-  const frame = items ? el.closest<HTMLElement>("[data-edit-bitem]:not([data-edit-bitem-project])") : null;
+  // Lot 31f : un carrousel se traite comme la bande du projet : une place vide reçoit le média, sinon il se range à la position visée.
+  const emptyPlace = el.closest<HTMLElement>("[data-edit-slot][data-empty]");
+  if (emptyPlace) {
+    const ref = slotRefOf(emptyPlace);
+    const box = boxOf(emptyPlace.querySelector(".pe-empty-box") ?? emptyPlace);
+    if (ref && box) return { target: { kind: "slot", board: ref.board, key: ref.key }, marker: { kind: "slot", rect: box } };
+  }
+  const ownFrame = items ? el.closest<HTMLElement>("[data-edit-bitem-rail]:not([data-edit-bitem-project])") : null;
+  const ownRail = el.closest<HTMLElement>("[data-edit-rail]:not([data-edit-rail=\"\"])") ?? ownFrame?.querySelector<HTMLElement>("[data-edit-rail]") ?? null;
+  if (ownRail?.dataset.editRail) {
+    const board = Number(boardOf(ownRail)?.dataset.editBoard);
+    if (board) {
+      const { index, rect } = railIndex(ownRail, x);
+      return { target: { kind: "rail", board, uid: ownRail.dataset.editRail, index }, marker: { kind: "cursor", rect } };
+    }
+  }
+  // Carrousel encore sans image (cadre « rien à montrer », pas de bande) : le média s'ajoute à sa liste.
+  if (ownFrame && !ownRail) {
+    const board = Number(ownFrame.dataset.board);
+    const uid = ownFrame.dataset.editBitem;
+    const box = boxOf(ownFrame);
+    if (board && uid && box) return { target: { kind: "bitem", board, uid }, marker: { kind: "media", rect: box } };
+  }
+  // Lot 31b : un composant de la planche (autre qu'une bande d'images) reçoit un média de la médiathèque :
+  // une Image / une Vidéo le remplace, une Grille l'ajoute.
+  const frame = items ? el.closest<HTMLElement>("[data-edit-bitem]:not([data-edit-bitem-rail])") : null;
   if (frame) {
     const board = Number(frame.dataset.board);
     const uid = frame.dataset.editBitem;
@@ -223,7 +251,7 @@ function dropTargetAt(x: number, y: number, items = false): { target: DropTarget
     if (ref && box) return { target: { kind: "slot", board: ref.board, key: ref.key }, marker: { kind: "slot", rect: box } };
   }
   const board = boardOf(el);
-  const rail = board?.querySelector("[data-edit-rail]");
+  const rail = board?.querySelector('[data-edit-rail=""]');
   if (board && rail) {
     const { index, rect } = railIndex(rail, x);
     const c = board.dataset.editBoardCollection as (typeof COLLECTIONS)[number] | undefined;
@@ -239,7 +267,7 @@ function dropTargetAt(x: number, y: number, items = false): { target: DropTarget
 let edgeSince = 0;
 function autoScroll(x: number, y: number) {
   const el = document.elementsFromPoint(x, y).find((e) => !e.closest(".pe-layer"));
-  const rail = el?.closest("[data-edit-board]")?.querySelector<HTMLElement>("[data-edit-rail]");
+  const rail = railUnder(el);
   if (rail) {
     const b = rail.getBoundingClientRect();
     const dir = x < b.left + EDGE ? -1 : x > b.right - EDGE ? 1 : 0;
@@ -299,6 +327,8 @@ export default function BoardLayer({
   // « Ajouter des images » : champ fichier de la couche, et planche visée.
   const addInput = useRef<HTMLInputElement>(null);
   const addBoard = useRef<number | null>(null);
+  /** Carrousel qui reçoit les fichiers choisis (absent : la bande des images du projet). */
+  const addRail = useRef<string | undefined>(undefined);
   useEffect(() => {
     textRef.current = text;
   }, [text]);
@@ -369,7 +399,7 @@ export default function BoardLayer({
       // Emplacement créé et rendu : le fantôme s'efface.
       if (g.phase === "done" && g.key && findSlot({ board: g.board, key: g.key })) continue;
       if (g.slot || g.index === undefined) continue;
-      const rail = document.querySelector(`[data-edit-board="${g.board}"] [data-edit-rail]`);
+      const rail = railOf(g.board, g.rail);
       if (!rail) continue;
       live.add(g.id);
       let node = rail.querySelector<HTMLElement>(`:scope > [data-ghost="${CSS.escape(g.id)}"]`);
@@ -384,7 +414,7 @@ export default function BoardLayer({
       // Avant le n-ième emplacement réel (les fantômes d'un même dépôt se suivent).
       const els = slotEls(rail);
       const before = els.find((el, i) => fullIndex(els, i) >= g.index!) ?? null;
-      const siblings = items.filter((x) => x.board === g.board && x.index === g.index && !x.slot && x.phase !== "done");
+      const siblings = items.filter((x) => x.board === g.board && x.rail === g.rail && x.index === g.index && !x.slot && x.phase !== "done");
       const after = siblings.slice(siblings.indexOf(g) + 1).map((x) => rail.querySelector(`:scope > [data-ghost="${CSS.escape(x.id)}"]`)).find(Boolean) ?? null;
       const anchor = (after as Element | null) ?? before;
       if (node.parentElement !== rail || node.nextElementSibling !== anchor) rail.insertBefore(node, anchor);
@@ -448,7 +478,7 @@ export default function BoardLayer({
     const board = Number(boardOf(el)?.dataset.editBoard);
     if (!board) return;
     // Texte d'un composant de la planche (lot 31c, un Texte) : modifié en place comme un texte de page.
-    const itemFrame = el.dataset.inline ? el.closest<HTMLElement>("[data-edit-bitem]:not([data-edit-bitem-project])") : null;
+    const itemFrame = el.dataset.inline ? el.closest<HTMLElement>("[data-edit-bitem]:not([data-edit-bitem-rail])") : null;
     if (itemFrame?.dataset.editBitem) {
       const rect = boxOf(el);
       if (!rect) return;
@@ -704,7 +734,11 @@ export default function BoardLayer({
         const uid = itemOp.dataset.uid ?? "";
         const op = itemOp.dataset.editBitemOp;
         if (!board || !uid) return;
-        if (op === "frame") {
+        if (op === "video-loop" || op === "video-player") {
+          const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
+          const kind = frame?.dataset.editBitemType;
+          if (isBoardItemType(kind)) post({ kind: "video-mode", board, uid, item: kind, ...(frame?.dataset.editBitemProps ? { props: frame.dataset.editBitemProps.slice(0, 100_000) } : {}), mode: op === "video-loop" ? "loop" : "player" });
+        } else if (op === "frame") {
           const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
           const r = itemOp.getBoundingClientRect();
           let current: Frame | undefined;
@@ -724,7 +758,20 @@ export default function BoardLayer({
             background = readBackground((JSON.parse(frame?.dataset.editBitemProps ?? "{}") as { props?: { background?: unknown } }).props?.background) ?? null;
           } catch {}
           setFondMenu((cur) => (cur?.uid === uid ? null : { board, uid, top: r.bottom + window.scrollY + 4, left: Math.max(8, Math.min(r.left + window.scrollX - 300, window.scrollX + window.innerWidth - 348)), background }));
-        } else if (op === "settings") selectItem(itemOp.closest<HTMLElement>("[data-edit-bitem]") ?? itemFrame ?? null);
+        } else if (op === "add-images") {
+          const input = addInput.current;
+          if (input) {
+            addBoard.current = board;
+            addRail.current = frame0(itemOp)?.hasAttribute("data-edit-bitem-project") ? undefined : uid;
+            input.value = "";
+            input.click();
+          }
+        } else if (op === "settings") {
+          const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]") ?? itemFrame ?? null;
+          // Une grille : « Réglages » ouvre la fenêtre blanche sur la toile (GridLayer) ; les autres composants, le panneau de gauche.
+          if (frame?.dataset.editBitemType === "grid") window.dispatchEvent(new CustomEvent("pe:grid-settings", { detail: { uid, board } }));
+          else selectItem(frame);
+        }
         else if (op === "up" || op === "down" || op === "remove") {
           setItemSel((cur) => (cur?.uid === uid && op === "remove" ? null : cur));
           post({ kind: "bitem-op", board, uid, op });
@@ -733,7 +780,7 @@ export default function BoardLayer({
         return;
       }
       // Un composant autre que la bande : un clic le choisit (ses réglages s'ouvrent dans le panneau).
-      if (itemFrame && !itemFrame.hasAttribute("data-edit-bitem-project")) {
+      if (itemFrame && !itemFrame.hasAttribute("data-edit-bitem-rail")) {
         e.preventDefault();
         e.stopPropagation();
         selectItem(itemFrame);
@@ -756,6 +803,7 @@ export default function BoardLayer({
         const input = addInput.current;
         if (board && input) {
           addBoard.current = Number(board.dataset.editBoard) || null;
+          addRail.current = undefined;
           input.value = "";
           input.click();
         }
@@ -764,6 +812,7 @@ export default function BoardLayer({
       const slot = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-edit-slot]") : null;
       setSelectedSlot(slot ? slotRefOf(slot) : null);
     };
+    const frame0 = (el: Element) => el.closest<HTMLElement>("[data-edit-bitem]");
     // Un composant de la planche choisi : l'éditeur ouvre ses réglages.
     const selectItem = (frame: HTMLElement | null) => {
       const board = Number(frame?.dataset.board);
@@ -774,7 +823,7 @@ export default function BoardLayer({
       post({ kind: "bitem-select", board, uid, item: type, props: (frame.dataset.editBitemProps ?? "{}").slice(0, 100_000) });
     };
     const onDblClick = (e: MouseEvent) => {
-      const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-slot-inline], [data-project-inline], [data-edit-bitem]:not([data-edit-bitem-project]) [data-inline]") : null;
+      const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-slot-inline], [data-project-inline], [data-edit-bitem]:not([data-edit-bitem-rail]) [data-inline]") : null;
       if (!field) return;
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -802,7 +851,8 @@ export default function BoardLayer({
         if (e.shiftKey) {
           const to = i + dir;
           if (to < 0 || to >= els.length) return announce(dir < 0 ? "Déjà en première position." : "Déjà en dernière position.");
-          pendingFocus.current = ref.key;
+          const own = parseRailKey(ref.key);
+          pendingFocus.current = own ? railKey(own.uid, to) : ref.key;
           post({ kind: "slot-move", board: ref.board, key: ref.key, index: fullIndex(els, dir < 0 ? to : to + 1) });
           announce(`Image déplacée en position ${to + 1} sur ${els.length}.`);
         } else {
@@ -815,7 +865,9 @@ export default function BoardLayer({
         }
       } else if (e.key === "Delete" || e.key === "Backspace") {
         handled();
-        const nextKey = els[i + 1]?.dataset.editSlot ?? els[i - 1]?.dataset.editSlot;
+        // Une place retirée d'un carrousel décale les suivantes d'un rang : la clé de la voisine est celle d'un rang.
+        const own = parseRailKey(ref.key);
+        const nextKey = own ? (i + 1 < els.length ? railKey(own.uid, i) : i > 0 ? railKey(own.uid, i - 1) : undefined) : (els[i + 1]?.dataset.editSlot ?? els[i - 1]?.dataset.editSlot);
         if (e.shiftKey) {
           if (nextKey) pendingFocus.current = nextKey;
           post({ kind: "slot-op", board: ref.board, key: ref.key, op: "retire" });
@@ -870,6 +922,18 @@ export default function BoardLayer({
     const onDragStart = (e: DragEvent) => {
       if (e.target instanceof Element && e.target.closest("[data-edit-slot]")) e.preventDefault();
     };
+    // Une seule fenêtre à la fois (lot 31e) ; « Plus de réglages… » d'une grille : le panneau de gauche.
+    const closeAll = () => {
+      setFondMenu(null);
+      setFrameMenu(null);
+    };
+    const openPanel = (e: Event) => {
+      const d = (e as CustomEvent<{ uid?: string; board?: number }>).detail;
+      if (!d?.uid || !d.board) return;
+      selectItem(document.querySelector<HTMLElement>(`[data-edit-bitem="${CSS.escape(d.uid)}"][data-board="${d.board}"]`));
+    };
+    window.addEventListener("pe:popups-close", closeAll);
+    window.addEventListener("pe:open-panel", openPanel);
     document.addEventListener("dragstart", onDragStart, true);
     document.addEventListener("dragover", onDragOver, true);
     document.addEventListener("dragleave", onDragLeave, true);
@@ -883,6 +947,8 @@ export default function BoardLayer({
       document.removeEventListener("dblclick", onDblClick, true);
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("pe:popups-close", closeAll);
+      window.removeEventListener("pe:open-panel", openPanel);
       document.removeEventListener("dragstart", onDragStart, true);
       document.removeEventListener("dragover", onDragOver, true);
       document.removeEventListener("dragleave", onDragLeave, true);
@@ -934,10 +1000,11 @@ export default function BoardLayer({
           e.target.value = "";
           if (!board || !files.length) return;
           const el = document.querySelector<HTMLElement>(`[data-edit-board="${board}"]`);
-          const rail = el?.querySelector("[data-edit-rail]");
+          const uid = addRail.current;
+          const rail = railOf(board, uid);
           const c = el?.dataset.editBoardCollection as (typeof COLLECTIONS)[number] | undefined;
           const index = rail ? fullIndex(slotEls(rail), slotEls(rail).length) : 0;
-          post({ kind: "files", target: { kind: "board", board, index, ...(c && COLLECTIONS.includes(c) ? { collection: c } : {}) }, files });
+          post({ kind: "files", target: uid ? { kind: "rail", board, uid, index } : { kind: "board", board, index, ...(c && COLLECTIONS.includes(c) ? { collection: c } : {}) }, files });
         }}
       />
       {newBoards.map(({ uid, box }) => (
@@ -1020,6 +1087,18 @@ export default function BoardLayer({
           <button type="button" onClick={() => post({ kind: "media-op", uid: hoverMedia.uid, field: hoverMedia.field, op: "replace" })}>
             {hoverMedia.empty ? (hoverMedia.kind === "video" ? "Choisir une vidéo" : hoverMedia.kind === "pdf" ? "Choisir un PDF" : "Choisir une image") : hoverMedia.kind === "background" ? "Changer le fond" : hoverMedia.kind === "pdf" ? "Remplacer le PDF" : "Remplacer"}
           </button>
+          {!hoverMedia.empty && hoverMedia.kind === "video" && mediaEl?.dataset.videoMode && (
+            <span className="pe-seg" role="group" aria-label="Lecture de la vidéo" data-testid="media-video-mode">
+              <span className="pe-seg-label" aria-hidden="true">
+                Lecture
+              </span>
+              {VIDEO_MODES.map((m) => (
+                <button key={m} type="button" aria-pressed={mediaEl.dataset.videoMode === m} title={VIDEO_MODE_HINTS[m]} data-video-mode-set={m} onClick={() => post({ kind: "video-mode", uid: hoverMedia.uid, mode: m })}>
+                  {VIDEO_MODE_LABELS[m]}
+                </button>
+              ))}
+            </span>
+          )}
           {!hoverMedia.empty && (
             <button type="button" className="pe-danger" onClick={() => post({ kind: "media-op", uid: hoverMedia.uid, field: hoverMedia.field, op: "clear" })}>
               {hoverMedia.kind === "background" ? "Fond du thème" : `Retirer ${mediaWord}`}
@@ -1171,7 +1250,7 @@ export default function BoardLayer({
           onClose={() => setAddMenu(null)}
           onPick={(type, source) => {
             post({ kind: "bitem-add", board: addMenu.board, item: type, index: addMenu.index, ...(source ? { source } : {}) });
-            announce(`${source ? "Images du projet" : BOARD_ITEM_LABELS[type]} ajouté.`);
+            announce(`${BOARD_ITEM_LABELS[type]} ajouté.`);
             setAddMenu(null);
           }}
         />
@@ -1217,14 +1296,14 @@ function BoardAddMenu({ top, anchorTop, left, hasStrip, count, onPick, onClose }
       {BOARD_ITEM_TYPES.map((type) => (
         <button key={type} type="button" role="menuitem" disabled={full} onClick={() => onPick(type)} data-bitem-type={type}>
           <strong>{BOARD_ITEM_LABELS[type]}</strong>
-          <small>{full ? `${MAX_BOARD_ITEMS} composants au plus.` : type === "strip" ? "Un carrousel avec ses propres images, choisies dans la médiathèque." : BOARD_ITEM_HINTS[type]}</small>
+          <small>{full ? `${MAX_BOARD_ITEMS} composants au plus.` : type === "strip" ? "Des images et des vidéos choisies dans ta médiathèque." : BOARD_ITEM_HINTS[type]}</small>
         </button>
       ))}
       {/* La bande d'origine (les images du projet) : proposée si elle a été retirée. */}
       {!hasStrip && (
         <button type="button" role="menuitem" disabled={full} onClick={() => onPick("strip", "project")} data-bitem-type="strip" data-bitem-source="project">
-          <strong>Images du projet</strong>
-          <small>La bande des images du projet (légendes, recadrage).</small>
+          <strong>{BOARD_ITEM_LABELS.strip}</strong>
+          <small>Reprend les images du projet, avec leurs légendes.</small>
         </button>
       )}
     </div>

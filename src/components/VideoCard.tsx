@@ -6,7 +6,7 @@ import Eyebrow from "@/components/Eyebrow";
 import type { LocalizedArtwork } from "@/lib/gallery";
 
 import { Frame } from "./AnimationShowcase";
-import Video from "./Video";
+import { LoopClick } from "./LoopVideo";
 
 /**
  * Une vidéo (bloc « Vidéo », v0.13) : vidéo hébergée (médiathèque) ou plan de
@@ -14,20 +14,22 @@ import Video from "./Video";
  * l'ancienne vitrine pour que la migration garde le rendu au pixel :
  * « feature » (étiquette, titre, grand cadre, légende et durée), « card »
  * (cadre, titre et durée, légende), « plain » (le cadre seul). Mode
- * « loop » : boucle muette sans contrôles (vidéo hébergée seulement).
+ * Deux façons de lire une vidéo hébergée (réglage « Lecture » de l'illustratrice) : « Boucle » (`loop`) tourne en
+ * boucle, muette, sur place, un clic la met en pause ou la relance ; « Lecteur » (`player`) montre l'image d'attente
+ * avec un bouton lecture, un clic ouvre la vidéo en grand avec son lecteur (VideoViewer).
  * `edit` : repères de la toile (textes en place, barre Remplacer).
  */
 export default function VideoCard({
   item,
   look,
-  loop,
+  mode,
   texts,
   edit = false,
   styles,
 }: {
   item: LocalizedArtwork;
   look: "feature" | "card" | "plain";
-  loop: boolean;
+  mode: "loop" | "player";
   texts: { eyebrow: string; title: string; description: string };
   edit?: boolean;
   /** Styles locaux de l'étiquette, du titre et de la légende (barre typographique, lots 2 et 33). */
@@ -37,20 +39,22 @@ export default function VideoCard({
   const id = useId();
   const mark = (path: string, placeholder: string) => ({ ...(edit ? { "data-inline": path, "data-placeholder": placeholder } : {}), ...(styles?.[path as keyof typeof styles] ? { style: styles[path as keyof typeof styles] } : {}) });
   const shown = { ...item, title: texts.title, alt: item.alt || texts.title };
-  const frame =
-    loop && item.video ? (
-      <div className="mat">
-        <div className="relative aspect-video w-full overflow-hidden rounded-[2px] bg-scrim">
-          <Video video={item.video} width={item.width} height={item.height} className="absolute inset-0 h-full w-full object-cover" autoPlay muted loop controls={false} label={texts.title} />
-        </div>
+  const loop = mode === "loop" && Boolean(item.video);
+  const frame = loop ? (
+    <div className="mat">
+      <div className="relative aspect-video w-full overflow-hidden rounded-[2px] bg-scrim">
+        <LoopClick video={item.video!} width={item.width} height={item.height} className="absolute inset-0 h-full w-full object-cover" label={texts.title} edit={edit} />
       </div>
-    ) : (
-      <Frame item={shown} large={look === "feature"} playing={playing} onPlay={() => setPlaying(true)} />
-    );
+    </div>
+  ) : (
+    <Frame item={shown} large={look === "feature"} playing={playing} onPlay={() => setPlaying(true)} edit={edit} />
+  );
   const media = edit ? (
-    <div data-edit-media="mediaId" data-edit-media-kind="video">
+    <div data-edit-media="mediaId" data-edit-media-kind="video" {...(item.video ? { "data-video-mode": loop ? "loop" : "player" } : {})}>
       {frame}
     </div>
+  ) : item.video ? (
+    <div data-video-mode={loop ? "loop" : "player"}>{frame}</div>
   ) : (
     frame
   );

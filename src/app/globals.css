@@ -821,21 +821,21 @@
    deux colonnes, une case large ou haute prend toute la largeur, les autres se rangent côte à côte, sans rangées doubles. */
 .block-grid[data-layout="portrait-left"],
 .block-grid[data-layout="portrait-right"],
-.block-grid[data-layout="custom"] {
+.block-grid:is([data-layout="custom"], [data-layout="auto"]) {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.block-grid[data-layout="custom"] {
+.block-grid:is([data-layout="custom"], [data-layout="auto"]) {
   grid-auto-flow: row dense;
 }
 .block-grid[data-layout="portrait-left"] > .block-grid-cell:nth-child(3n + 1),
 .block-grid[data-layout="portrait-right"] > .block-grid-cell:nth-child(3n + 1),
-.block-grid[data-layout="custom"] > .block-grid-cell[data-w="2"],
-.block-grid[data-layout="custom"] > .block-grid-cell[data-w="3"],
-.block-grid[data-layout="custom"] > .block-grid-cell[data-w="4"] {
+.block-grid:is([data-layout="custom"], [data-layout="auto"]) > .block-grid-cell[data-w="2"],
+.block-grid:is([data-layout="custom"], [data-layout="auto"]) > .block-grid-cell[data-w="3"],
+.block-grid:is([data-layout="custom"], [data-layout="auto"]) > .block-grid-cell[data-w="4"] {
   grid-column: 1 / -1;
 }
 @media (min-width: 48rem) {
-  .block-grid[data-layout="custom"] {
+  .block-grid:is([data-layout="custom"], [data-layout="auto"]) {
     grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
   }
   .block-grid[data-layout="portrait-left"] > .block-grid-cell:nth-child(3n + 1),
@@ -843,7 +843,7 @@
     grid-column: auto;
     grid-row: span 2;
   }
-  .block-grid[data-layout="custom"] > .block-grid-cell[data-w] {
+  .block-grid:is([data-layout="custom"], [data-layout="auto"]) > .block-grid-cell[data-w] {
     grid-column: span var(--w, 1);
     grid-row: span var(--h, 1);
   }
@@ -888,7 +888,7 @@
 }
 /* « Sur mesure » avec un format imposé : une case large garde la hauteur de ses voisines d'une colonne (format x largeur). */
 @media (min-width: 48rem) {
-  .block-grid[data-layout="custom"]:not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) .block-image-media {
+  .block-grid:is([data-layout="custom"], [data-layout="auto"]):not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) .block-image-media {
     aspect-ratio: calc(var(--grid-r, 1.3333) * var(--w, 1));
   }
 }

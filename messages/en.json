@@ -55,7 +55,15 @@
     "fullscreen": "Full screen",
     "exitFullscreen": "Exit full screen",
     "seek": "Video position",
-    "time": "{current} of {total}"
+    "time": "{current} of {total}",
+    "back": "Back 10 seconds",
+    "forward": "Forward 10 seconds",
+    "volume": "Volume",
+    "close": "Close",
+    "viewer": "Video, enlarged — {title}",
+    "viewerNoTitle": "Video, enlarged",
+    "loopPause": "Pause the video",
+    "loopPlay": "Resume the video"
   },
   "cv": {
     "download": "Download my résumé",
