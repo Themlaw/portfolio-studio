@@ -384,7 +384,6 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
   if (dragging) return null;
   void tick;
   const active = activeGrid(selected);
-  const activeRef = active ? gridRefOf(active) : null;
   // Barre : la case survolée, sinon la case choisie (page : l'image sélectionnée dans la grille).
   const selectedCell = selected && !selected.startsWith("site-") ? (document.querySelector(`[data-edit-block="${CSS.escape(selected)}"]`)?.closest<HTMLElement>(".block-grid-cell[data-edit-cell]") ?? null) : null;
   const hoverCell = hover && document.contains(hover) ? hover : selectedCell;
