@@ -191,7 +191,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
  * (`ctx.edit` faux), la couche d'édition de la planche l'enveloppe elle-même. Un composant invalide est ignoré.
  */
 export function renderBoardItem(item: { uid: string; type: string; props: Record<string, unknown> }, ctx: BlockContext): ReactNode {
-  return renderBlock({ id: -1, uid: item.uid, type: item.type, props: item.props, corrupt: false }, { ...ctx, edit: false, parent: undefined }, 0);
+  return renderBlock({ id: -1, uid: item.uid, type: item.type, props: item.props, corrupt: false }, { ...ctx, edit: false, inlineEdit: Boolean(ctx.edit) && item.type === "rich-text", parent: undefined }, 0);
 }
 
 export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; ctx: BlockContext }) {

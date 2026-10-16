@@ -1955,3 +1955,11 @@ html[data-edit-dragging] .pe-bitem-handle { cursor: grabbing; }
 
 /* Aperçu (hors mode édition) : ni « + Ajouter », ni barre, ni repère de composant vide (lot 31). */
 html:not([data-edit-mode]) :is(.pe-bitem-add, .pe-bitem-bar, .pe-bitem-empty) { display: none; }
+
+/* Lot 31c : poignée et barre au doigt (tablette) : glisser sans faire défiler la page, cibles plus grandes. */
+html[data-edit-mode] .pe-bitem-handle { touch-action: none; }
+@media (pointer: coarse) {
+  html[data-edit-mode] .pe-bitem-handle { padding: 8px 12px; font-size: 18px; }
+  html[data-edit-mode] .pe-bitem-btn { min-width: 40px; height: 40px; }
+  html[data-edit-mode] .pe-bitem-bar { opacity: 1; }
+}

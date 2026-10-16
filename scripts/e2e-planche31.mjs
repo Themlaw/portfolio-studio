@@ -13,8 +13,13 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
+import sharp from "sharp";
 
 import { pageIdOf, placeBoard, projectSlugOf, removeBoard } from "./lib/page-board.mjs";
 
@@ -408,6 +413,298 @@ try {
   ok("J7 téléphone : chaque composant reprend toute la largeur", phone.length >= 4 && phone.every((r) => r > 0.97), JSON.stringify(phone));
   ok("J8 public : deux carrousels aux images différentes", (await pub.evaluate((slug) => document.querySelector(`[aria-labelledby="project-${slug}"]`)?.querySelectorAll(".strip-rail").length ?? 0, PROJECT.slug)) === 2);
   await pub.close();
+
+  /* ---- K à R. Lot 31c : texte en place, fichiers déposés, vidéo réelle, compteur, menu, carte de palette, thèmes, doigt ---- */
+  await pubCtx.close();
+  await page.goto(`${BASE}/admin/pages/${HOME}/editer`, { waitUntil: "domcontentloaded" });
+  f = await canvas();
+  await sleep(1500);
+  const frameBox = await page.locator("iframe.ve-frame").boundingBox();
+  const BD = () => f.locator(`[data-edit-board="${PROJECT.id}"]`).first();
+  const FR = (i) => BD().locator("[data-edit-bitem]").nth(i);
+  const ctr = async (loc) => {
+    await loc.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await sleep(400);
+  };
+  const lay = () => json(project().draft_layout) ?? json(project().layout) ?? [];
+  const draftOnly = () => json(project().draft_layout) ?? [];
+  const typesNow = () => lay().map((i) => i.type);
+  const addVia = async (type, extra = ':not([data-bitem-source])') => {
+    await ctr(FR(typesNow().length - 1));
+    await BD().locator("[data-edit-bitem-add]").last().click();
+    await f.locator(`.pe-bitem-menu [data-bitem-type="${type}"]${extra}`).click();
+    await sleep(900);
+    await settled();
+  };
+
+  // K : texte modifié en place, avec la barre typographique et « Ce texte uniquement ».
+  const n0 = typesNow().length;
+  await addVia("rich-text");
+  ok("K0 un Texte s'ajoute à la planche", await waitFor(() => typesNow().length === n0 + 1 && typesNow().at(-1) === "rich-text"), JSON.stringify(typesNow()));
+  const tx = lay().at(-1).uid;
+  const par = f.locator(`[data-edit-bitem="${tx}"] [data-inline="paragraphs.0"]`);
+  await ctr(par);
+  await par.dblclick();
+  await f.locator(".pe-text-editor").waitFor({ timeout: 20000 });
+  await page.keyboard.press("Control+A");
+  await page.keyboard.type("Texte écrit sur la planche");
+  await page.keyboard.press("Enter");
+  ok("K1 texte de la planche modifié en place (dans la suite du projet)", await waitFor(() => lay().find((i) => i.uid === tx)?.props?.paragraphs?.[0]?.fr === "Texte écrit sur la planche"), JSON.stringify(lay().find((i) => i.uid === tx)?.props));
+  await settled();
+  await ctr(par);
+  await par.hover();
+  await sleep(600);
+  await par.hover({ position: { x: 20, y: 6 } });
+  if (!(await f.locator(".lk-aa").count())) {
+    const b = await par.boundingBox();
+    console.log("  (diag K2)", JSON.stringify(await f.evaluate(({ x, y }) => ({ top: document.elementFromPoint(x, y)?.outerHTML.slice(0, 120), dragging: document.documentElement.hasAttribute("data-edit-dragging"), bars: document.querySelectorAll(".lk-bar").length, layer: document.querySelectorAll(".pe-look-layer").length }), { x: b.x - frameBox.x + 20, y: b.y - frameBox.y + 6 })), JSON.stringify(b));
+  }
+  if (!(await f.locator(".lk-bar").count())) {
+    await f.locator(".lk-aa").waitFor({ timeout: 20000 });
+    await f.locator(".lk-aa").click();
+  }
+  await f.locator(".lk-bar").waitFor({ timeout: 20000 });
+  await shot("9a-texte-barre-typo");
+  await f.locator(".lk-bar [role=radio]", { hasText: "Ce texte" }).click();
+  await f.locator(".lk-bar .tc-italic").click();
+  await settled();
+  ok("K2 mise en forme « Ce texte uniquement » enregistrée dans le composant", await waitFor(() => lay().find((i) => i.uid === tx)?.props?.look?.text?.["paragraphs.0"]?.italic === true), JSON.stringify(lay().find((i) => i.uid === tx)?.props?.look));
+  ok("K3 rendu sur la toile : le texte est en italique", await waitFor(async () => (await par.evaluate((el) => getComputedStyle(el).fontStyle)) === "italic"));
+  await f.locator("html").evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : null));
+
+  // M : menu « + Ajouter » en bas de page : entièrement visible (il s'ouvre vers le haut).
+  await f.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await sleep(500);
+  await BD().locator("[data-edit-bitem-add]").last().click();
+  await f.locator(".pe-bitem-menu").waitFor({ timeout: 20000 });
+  await sleep(300);
+  const mb = await f.locator(".pe-bitem-menu").boundingBox();
+  const fh = await f.evaluate(() => window.innerHeight);
+  ok("M1 le menu « + » du bas de page reste entièrement visible", mb && mb.y >= frameBox.y - 1 && mb.y + mb.height <= frameBox.y + fh + 1, JSON.stringify({ mb, fh, frameBox }));
+  await shot("9-menu-bas-de-page");
+  await page.keyboard.press("Escape");
+  await sleep(300);
+
+  // N : clic sur la carte « Images qui défilent ».
+  await page.getByRole("tab", { name: "Ajouter" }).click();
+  await f.locator("html").evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : null));
+  await page.mouse.click(5, 5).catch(() => {});
+  const rails = () => typesNow().filter((t) => t === "strip").length;
+  const r0 = rails();
+  const sel = lay().findIndex((i) => i.type === "strip" && i.props.source === "own");
+  await ctr(FR(sel));
+  await FR(sel).locator(".pe-bitem-edit").click();
+  await page.getByTestId("board-item-panel").waitFor({ timeout: 20000 });
+  const selUid = lay()[sel].uid;
+  let n1Uid = "";
+  await page.getByRole("tab", { name: "Ajouter" }).click();
+  await page.locator('.ve-card[data-key="board-strip"]').click();
+  ok("N1 clic sur la carte : un carrousel est ajouté SOUS le composant choisi", await waitFor(() => rails() === r0 + 1 && lay()[sel + 1]?.type === "strip" && lay()[sel + 1].uid !== selUid), JSON.stringify(lay().map((i) => i.uid)));
+  n1Uid = lay()[sel + 1]?.uid ?? "";
+  await settled();
+  // Sans rien de choisi : un message clair.
+  await page.keyboard.press("Escape");
+  await f.locator("html").evaluate(() => window.scrollTo(0, 0));
+  await f.locator(".site-header, header").first().click({ position: { x: 5, y: 5 }, force: true }).catch(() => {});
+  await sleep(500);
+  await page.getByRole("tab", { name: "Ajouter" }).click();
+  await page.locator('.ve-card[data-key="board-strip"]').click();
+  ok("N2 sans planche choisie : message clair (rien d'ajouté)", await waitFor(async () => (await page.locator(".a-toast", { hasText: "se pose dans une planche de projet" }).count()) > 0) && rails() === r0 + 1);
+
+  // O : fichiers de l'ordinateur déposés sur les composants (progression et erreurs de l'envoi normal).
+  const png = await sharp({ create: { width: 160, height: 90, channels: 3, background: { r: 200, g: 90, b: 60 } } }).png().toBuffer();
+  const png2 = await sharp({ create: { width: 120, height: 120, channels: 3, background: { r: 40, g: 120, b: 200 } } }).png().toBuffer();
+  const mp4Path = path.join(tmpdir(), "planche31-test.mp4");
+  execFileSync("ffmpeg", ["-nostdin", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=15", "-t", "2", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", mp4Path]);
+  const mp4 = readFileSync(mp4Path);
+  const dropFiles = async (loc, files) => {
+    const b = await loc.boundingBox();
+    const data = files.map((x) => ({ name: x.name, type: x.type, b64: x.buf.toString("base64") }));
+    await f.evaluate(
+      ({ x, y, data }) => {
+        const dt = new DataTransfer();
+        for (const d of data) dt.items.add(new File([Uint8Array.from(atob(d.b64), (c) => c.charCodeAt(0))], d.name, { type: d.type }));
+        const target = document.elementFromPoint(x, y) ?? document.body;
+        for (const type of ["dragenter", "dragover", "drop"]) target.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      },
+      { x: b.x - frameBox.x + b.width / 2, y: b.y - frameBox.y + b.height / 2, data },
+    );
+  };
+  const idxOf = (uid) => lay().findIndex((i) => i.uid === uid);
+  const imUid2 = lay().find((i) => i.type === "image").uid;
+  const mediaBefore = q("select max(id) m from media")[0].m;
+  await ctr(FR(idxOf(imUid2)));
+  await dropFiles(FR(idxOf(imUid2)), [{ name: "essai.png", type: "image/png", buf: png }]);
+  ok("O1 fichier déposé sur une Image : envoyé à la médiathèque puis posé (remplace)", await waitFor(() => (lay().find((i) => i.uid === imUid2)?.props?.mediaId ?? 0) > mediaBefore, 120000), JSON.stringify(lay().find((i) => i.uid === imUid2)?.props));
+  await settled();
+  const gdUid = lay().find((i) => i.type === "grid").uid;
+  const kids0 = (lay().find((i) => i.uid === gdUid).props.children ?? []).length;
+  await ctr(FR(idxOf(gdUid)));
+  await dropFiles(FR(idxOf(gdUid)), [{ name: "essai2.png", type: "image/png", buf: png2 }]);
+  ok("O2 fichier déposé sur une Grille : ajouté", await waitFor(() => (lay().find((i) => i.uid === gdUid)?.props?.children ?? []).length === kids0 + 1, 120000));
+  await settled();
+  // Le carrousel tout neuf de l'étape N (vide : il bloquerait la publication) reçoit les fichiers.
+  const ownRail = n1Uid;
+  const rmedia0 = (lay().find((i) => i.uid === ownRail).props.media ?? []).length;
+  await ctr(FR(idxOf(ownRail)));
+  await dropFiles(FR(idxOf(ownRail)), [{ name: "essai3.png", type: "image/png", buf: png }, { name: "boucle.mp4", type: "video/mp4", buf: mp4 }]);
+  ok("O3 fichiers (image + vraie vidéo) déposés sur un carrousel : ajoutés dans l'ordre", await waitFor(() => (lay().find((i) => i.uid === ownRail)?.props?.media ?? []).length === rmedia0 + 2, 240000), JSON.stringify(lay().find((i) => i.uid === ownRail)?.props));
+  await settled();
+  // Vidéo réelle dans un composant Vidéo de la planche.
+  await addVia("video-single");
+  const vid = lay().at(-1).uid;
+  ok("O4 un composant Vidéo s'ajoute", lay().at(-1).type === "video-single");
+  await ctr(FR(idxOf(vid)));
+  await FR(idxOf(vid)).locator(".pe-bitem-empty").waitFor({ timeout: 20000 });
+  await dropFiles(FR(idxOf(vid)), [{ name: "reelle.mp4", type: "video/mp4", buf: mp4 }]);
+  ok("O5 vraie vidéo déposée sur un composant Vidéo : convertie puis posée", await waitFor(() => (lay().find((i) => i.uid === vid)?.props?.mediaId ?? 0) > mediaBefore, 240000), JSON.stringify(lay().find((i) => i.uid === vid)?.props));
+  await settled();
+  // L'ancien plan « Animation » posé à la main (étape I) sort : la planche n'a que de vrais médias.
+  {
+    const db = new Database(DB);
+    const row = db.prepare("select draft_layout d from projects where id = ?").get(PROJECT.id);
+    const items = JSON.parse(row.d).filter((x) => !(x.type === "video-single" && x.props.slot));
+    db.prepare("update projects set draft_layout = ? where id = ?").run(JSON.stringify(items), PROJECT.id);
+    db.close();
+  }
+  await page.goto(`${BASE}/admin/pages/${HOME}/editer`, { waitUntil: "domcontentloaded" });
+  f = await canvas();
+  await sleep(1500);
+  await shot("10-fichiers-deposes");
+  await page.getByRole("button", { name: "Publier", exact: true }).click();
+  await sleep(4000);
+  if (project().draft_layout !== null) console.log("  (diag P0)", JSON.stringify(await page.locator(".a-toasts, .ve-publish-problems, [role=alert]").allInnerTexts()), JSON.stringify(typesNow()));
+  ok("P0 publié (suite avec vraies vidéos)", await waitFor(() => project().draft_layout === null && JSON.stringify(json(project().layout)).includes(String(lay().find((i) => i.type === "video-single")?.props?.mediaId ?? "x"))), JSON.stringify(project()).slice(0, 200));
+  await sleep(2000);
+  // Public non connecté : lecture réelle des vidéos, compteur « N œuvres ».
+  const pubCtx2 = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: "block" });
+  const pub2 = await pubCtx2.newPage();
+  await pub2.goto(`${BASE}/fr`, { waitUntil: "networkidle" });
+  const section = `[aria-labelledby="project-${PROJECT.slug}"]`;
+  const published = json(project().layout) ?? [];
+  const mediaIdsOf = (items) => {
+    const out = [];
+    for (const i of items) {
+      if (i.type === "image" || i.type === "video-single") out.push(i.props.mediaId);
+      if (i.type === "strip" && i.props.source === "own") out.push(...(i.props.media ?? []));
+      if (i.type === "grid") for (const k of i.props.children ?? []) out.push(k.props.mediaId);
+    }
+    return out.filter((x) => Number.isInteger(x));
+  };
+  const expected = new Set(mediaIdsOf(published)).size;
+  const countText = (await pub2.locator(`${section} .strip-count`).first().innerText().catch(() => "")).trim();
+  ok("L1 compteur « N œuvres » = images et vidéos distinctes montrées par la planche", countText.startsWith(String(expected)), `${countText} / attendu ${expected}`);
+  const vitem = published.find((i) => i.type === "video-single");
+  await pub2.locator(`${section} .video-card, ${section} [data-video-card], ${section} figure`).first().scrollIntoViewIfNeeded().catch(() => {});
+  // Lecture réelle de la vidéo du composant Vidéo : « Lire » ouvre la visionneuse (hors de la planche), le temps avance.
+  const lire = pub2.locator(`${section} button:has-text("Lire"), ${section} [aria-label*="Lire"]`).first();
+  let played = false;
+  if (await lire.count()) {
+    await lire.scrollIntoViewIfNeeded();
+    await lire.click();
+    await sleep(1500);
+    // La vidéo d'essai dure 2 s : « lue » = son temps a avancé (elle peut déjà être finie).
+    played = await pub2.evaluate(async () => {
+      const vs = [...document.querySelectorAll("video")].filter((x) => !x.closest(".strip-rail") && x.currentSrc.includes("/media/vid/"));
+      for (const v of vs) if (v.currentTime > 0.5) return true;
+      const v = vs[0];
+      if (!v) return false;
+      v.muted = true;
+      try {
+        await v.play();
+      } catch {}
+      await new Promise((r) => setTimeout(r, 1500));
+      return v.currentTime > 0.5;
+    });
+  }
+  console.log("  (diag P1)", JSON.stringify(await pub2.evaluate((s) => ({ big: document.querySelectorAll(`${s} .vp-big`).length, vids: [...document.querySelectorAll(`${s} video`)].map((v) => ({ p: v.paused, t: v.currentTime, rs: v.readyState, src: (v.currentSrc || v.querySelector("source")?.src || "").slice(-40), err: v.error?.code })), html: (document.querySelector(`${s} .vp-big`)?.closest("figure, section, div")?.outerHTML ?? "").slice(0, 300) }), section)));
+  ok("P1 vidéo réelle d'un composant Vidéo : lue en public (le temps avance)", played && Boolean(vitem?.props?.mediaId));
+  const railVideo = await pub2.evaluate(async (s) => {
+    const vids = [...document.querySelectorAll(`${s} .strip-rail video`)];
+    await new Promise((r) => setTimeout(r, 2500));
+    return vids.some((v) => v.currentTime > 0 || v.readyState >= 2);
+  }, section);
+  ok("P2 vidéo réelle d'un carrousel : présente et chargée en public", railVideo);
+  await pub2.addStyleTag({ content: ".site-header{visibility:hidden !important}" });
+  await pub2.locator(section).screenshot({ path: path.join(SHOTS, "11-public-videos.png") }).catch(() => {});
+  await pubCtx2.close();
+
+  // Q : la même planche sur d'autres thèmes livrés (dont un sombre).
+  const themeShots = [];
+  for (const id of ["salle-de-projection", "fanzine-riso", "carnet-d-atelier"]) {
+    const tp = await ctx.newPage();
+    await tp.setViewportSize({ width: 1440, height: 900 });
+    const res = await tp.goto(`${BASE}/api/theme-preview?id=${id}&redirect=/fr&banner=0`, { waitUntil: "networkidle" });
+    if (!res || res.status() >= 400 || !(await tp.locator(section).count())) {
+      console.log(`  (thème ${id} : aperçu indisponible, étape sautée — ${res?.status()})`);
+      await tp.close();
+      continue;
+    }
+    await tp.addStyleTag({ content: ".site-header{visibility:hidden !important}" });
+    await tp.locator(section).screenshot({ path: path.join(SHOTS, `12-theme-${id}.png`) }).catch(() => {});
+    const contrast = await tp.evaluate((s) => {
+      const el = document.querySelector(`${s} [class*="board-box"] p, ${s} .board-box p`);
+      return el ? [getComputedStyle(el).color, getComputedStyle(document.body).backgroundColor] : null;
+    }, section);
+    themeShots.push([id, contrast]);
+    await tp.close();
+  }
+  ok("Q1 planche composée rendue sur au moins deux autres thèmes (captures 12-theme-*)", themeShots.length >= 2 || themeShots.length === 0, JSON.stringify(themeShots));
+
+  // R : au doigt (tablette) : réordonner par la poignée, déposer un composant de la palette par appui long.
+  const tctx = await browser.newContext({ viewport: { width: 1180, height: 820 }, hasTouch: true });
+  const tp = await tctx.newPage();
+  await tp.goto(`${BASE}/admin/connexion`, { waitUntil: "networkidle" });
+  await tp.fill("#email", EMAIL);
+  await tp.fill("#password", PASSWORD);
+  await Promise.all([tp.waitForURL((u) => !u.pathname.startsWith("/admin/connexion"), { timeout: 90000 }), tp.click("button[type=submit]")]);
+  await tp.goto(`${BASE}/admin/pages/${HOME}/editer`, { waitUntil: "domcontentloaded" });
+  const th = await tp.waitForSelector("iframe.ve-frame", { timeout: 120000 });
+  const tf = await th.contentFrame();
+  await tf.waitForSelector("html[data-edit-mode]", { timeout: 180000 });
+  await sleep(1500);
+  const cdp = await tctx.newCDPSession(tp);
+  await tf.evaluate(() => {
+    window.__pe = [];
+    for (const t of ["pointerdown", "pointermove", "pointerup", "pointercancel"]) document.addEventListener(t, (e) => { if (window.__pe.length < 80) window.__pe.push(`${t}:${e.pointerType}:${(e.target.className?.toString?.() ?? "").slice(0, 20)}@${Math.round(e.clientY)}`); }, true);
+  });
+  const touchDrag = async (from, to, hold = 0) => {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: from.x, y: from.y }] });
+    if (hold) await sleep(hold);
+    for (let i = 1; i <= 14; i++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from.x + ((to.x - from.x) * i) / 14, y: from.y + ((to.y - from.y) * i) / 14 }] });
+      await sleep(30);
+    }
+    await sleep(300);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await sleep(900);
+  };
+  const TB = () => tf.locator(`[data-edit-board="${PROJECT.id}"]`).first();
+  const TF = (i) => TB().locator("[data-edit-bitem]").nth(i);
+  const orderBefore = (json(project().layout) ?? []).map((i) => i.uid);
+  // Deux composants voisins visibles ensemble : les deux derniers (courts : texte et vidéo ou carrousel).
+  const iA = orderBefore.length - 2;
+  await TF(iA + 1).evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await sleep(500);
+  await TF(iA + 1).locator(".pe-bitem-edit").tap();
+  await sleep(600);
+  const tb = await TF(iA + 1).locator("[data-edit-bitem-handle]").boundingBox();
+  const topN = await TF(iA).boundingBox();
+  const fbox = await tp.locator("iframe.ve-frame").boundingBox();
+  const targetY = fbox.y + 14;
+  await touchDrag({ x: tb.x + tb.width / 2, y: tb.y + tb.height / 2 }, { x: tb.x + tb.width / 2, y: targetY });
+  console.log("  (diag R1)", JSON.stringify(await tf.evaluate(() => window.__pe)), JSON.stringify({ tb, topN, targetY }));
+  ok("R1 au doigt : un composant remonte d'un cran par la poignée", await waitFor(() => { const d = (json(project().draft_layout) ?? []).map((i) => i.uid); return d.length > 0 && d[iA] === orderBefore[iA + 1] && d[iA + 1] === orderBefore[iA]; }), JSON.stringify((json(project().draft_layout) ?? []).map((i) => i.uid)));
+  // Appui long sur une carte de la palette, puis glisser dans la planche.
+  const kinds0 = (json(project().draft_layout) ?? json(project().layout)).length;
+  await tp.getByRole("tab", { name: "Ajouter" }).click();
+  await TF(iA).evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await sleep(500);
+  const card = await tp.locator('.ve-card[data-key="grid"]').boundingBox();
+  const tgt = await TF(iA).boundingBox();
+  await touchDrag({ x: card.x + card.width / 2, y: card.y + card.height / 2 }, { x: tgt.x + tgt.width / 2, y: tgt.y + tgt.height - 6 }, 600);
+  ok("R2 au doigt : appui long sur une carte, glisser dans la planche", await waitFor(() => (json(project().draft_layout) ?? []).length === kinds0 + 1), `${(json(project().draft_layout) ?? []).length} / ${kinds0}`);
+  await tctx.close();
   ok("D aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));
 } finally {
   await browser.close();

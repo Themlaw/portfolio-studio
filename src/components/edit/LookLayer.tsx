@@ -68,7 +68,10 @@ const docRect = (el: Element): Rect => {
 const swatch = (c: PaletteColor) => `var(--t-color-${c})`;
 
 /** Enveloppe d'édition d'un bloc. */
-const wrapperOf = (uid: string) => document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"]`);
+const wrapperOf = (uid: string) => document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"], [data-edit-bitem="${CSS.escape(uid)}"]:not([data-edit-bitem-project])`);
+
+/** Composant d'une planche (lot 31c : un Texte…) : sa mise en forme s'écrit dans ses réglages, par l'opération de planche. */
+const itemFrameOf = (uid: string) => document.querySelector<HTMLElement>(`[data-edit-bitem="${CSS.escape(uid)}"]:not([data-edit-bitem-project])`);
 
 /**
  * Réglages actuels d'un bloc : ceux envoyés mais pas encore acquittés par le
@@ -97,7 +100,9 @@ function rootOf(uid: string): HTMLElement | null {
 /** Envoie les réglages d'un bloc ; renvoie le numéro de l'intention (pour les aperçus). */
 export function sendLook(uid: string, look: Look): number {
   const clean = cleanLook(look);
-  const seq = postIntent({ kind: "look", uid, look: clean ?? null });
+  const frame = itemFrameOf(uid);
+  const board = Number(frame?.dataset.board);
+  const seq = frame && board ? postIntent({ kind: "bitem-look", board, uid, look: clean ?? null }) : postIntent({ kind: "look", uid, look: clean ?? null });
   setOverlay(`look:${uid}`, seq, { data: clean ?? {} });
   return seq;
 }
@@ -286,16 +291,21 @@ type TextTarget = {
  */
 const LOCAL_ONLY: Record<string, Set<string>> = { "video-single": new Set(["description"]) };
 
+/** Bloc de la page, ou composant d'une planche (lot 31c), qui porte ce texte : le plus proche des deux. */
+const OWNER_SEL = "[data-edit-bitem]:not([data-edit-bitem-project]), [data-edit-block]";
+const ownerUid = (b: HTMLElement) => b.dataset.editBlock ?? b.dataset.editBitem;
+
 function targetOf(el: HTMLElement): TextTarget {
-  const found = el.closest<HTMLElement>("[data-edit-block]");
-  const only = found && Object.hasOwn(LOCAL_ONLY, found.dataset.editType ?? "") ? LOCAL_ONLY[found.dataset.editType!] : null;
+  const found = el.closest<HTMLElement>(OWNER_SEL);
+  const only = found && Object.hasOwn(LOCAL_ONLY, found.dataset.editType ?? found.dataset.editBitemType ?? "") ? LOCAL_ONLY[(found.dataset.editType ?? found.dataset.editBitemType)!] : null;
   // `data-look-key` : texte du PROJET (contenu partagé) mis en forme localement par le bloc qui l'affiche.
   const inline = el.dataset.inline ?? el.dataset.lookKey;
   const block = found && (!only || (inline !== undefined && only.has(inline))) ? found : null;
   const site = el.dataset.siteInline;
   let local: TextTarget["local"] = null;
-  if (block?.dataset.editBlock && inline && el.closest("[data-edit-block]") === block) local = { uid: block.dataset.editBlock, key: inline };
-  else if (block?.dataset.editBlock && (site === "name" || site === "role")) local = { uid: block.dataset.editBlock, key: `site.${site}` };
+  const uid = block ? ownerUid(block) : undefined;
+  if (uid && inline && el.closest(OWNER_SEL) === block) local = { uid, key: inline };
+  else if (uid && (site === "name" || site === "role")) local = { uid, key: `site.${site}` };
   return { path: pathOf(el), role: roleOf(el), local };
 }
 
@@ -347,7 +357,7 @@ function localTexts(local: { uid: string; key: string }): HTMLElement[] {
   const block = wrapperOf(local.uid);
   if (!block) return [];
   const sel = local.key.startsWith("site.") ? `[data-site-inline="${CSS.escape(local.key.slice(5))}"]` : `[data-inline="${CSS.escape(local.key)}"]`;
-  return [...block.querySelectorAll<HTMLElement>(sel)].filter((e) => e.closest("[data-edit-block]") === block);
+  return [...block.querySelectorAll<HTMLElement>(sel)].filter((e) => e.closest(OWNER_SEL) === block);
 }
 
 /** Aperçu immédiat du style de CE texte, gardé jusqu'à ce que le serveur le rende. */

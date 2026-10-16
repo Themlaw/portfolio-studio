@@ -24,11 +24,11 @@
  *   composants et en bas (menu des composants permis), barre de chaque composant (monter, descendre,
  *   supprimer, réglages), composant choisi d'un clic ; tout passe par des messages à l'éditeur.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { acceptToCanvas, EDIT_MSG, type DropTargetInfo, type FromCanvas, type Ghost } from "@/lib/edit/protocol";
-import { postIntent, previewBoardText } from "./edit/optimistic";
+import { postIntent, previewBoardText, previewItemText } from "./edit/optimistic";
 
 import { RADII, RADIUS_LABELS, type Radius } from "@/lib/look";
 import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, isBoardItemType, type BoardItemType } from "@/blocks/board-layout";
@@ -233,7 +233,7 @@ function autoScroll(x: number, y: number) {
 
 const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
 
-type TextEdit = { el: HTMLElement; kind: "slot" | "project"; board: number; key?: string; field: string; original: string; value: string; rect: Rect; style: React.CSSProperties };
+type TextEdit = { el: HTMLElement; kind: "slot" | "project" | "item"; board: number; key?: string; field: string; original: string; value: string; rect: Rect; style: React.CSSProperties };
 
 export default function BoardLayer({
   mode,
@@ -260,7 +260,7 @@ export default function BoardLayer({
   const [projects, setProjects] = useState<ComboProject[]>([]);
   const [text, setText] = useState<TextEdit | null>(null);
   // Contenu de la planche (lot 31) : menu « + Ajouter » ouvert, composant choisi.
-  const [addMenu, setAddMenu] = useState<{ board: number; index: number; top: number; left: number; hasStrip: boolean; count: number } | null>(null);
+  const [addMenu, setAddMenu] = useState<{ board: number; index: number; top: number; anchorTop: number; left: number; hasStrip: boolean; count: number } | null>(null);
   const [itemSel, setItemSel] = useState<{ board: number; uid: string } | null>(null);
   // Texte (ou image) d'un projet survolé : indicateur « modifié aussi sur sa planche et sa page ».
   const [projectHint, setProjectHint] = useState<{ el: HTMLElement; board: number; label: string; draft: boolean; textHeld: string | null; slotHeld?: boolean } | null>(null);
@@ -286,6 +286,15 @@ export default function BoardLayer({
       const msg = acceptToCanvas(event, window.location.origin, window.parent);
       if (!msg) return;
       if (msg.kind === "select" && msg.uid) setItemSel(null);
+      // Clic sur une carte de la palette : le composant s'ajoute à la fin de la planche de la rubrique choisie.
+      if (msg.kind === "board-add") {
+        const wrapper = document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(msg.uid)}"]`);
+        const board = wrapper?.querySelector<HTMLElement>("[data-edit-board]");
+        const id = Number(board?.dataset.editBoard);
+        if (board && id) post({ kind: "bitem-add", board: id, item: msg.item, index: itemFrames(board).length });
+        else announce("Cette rubrique n'a pas de planche où ajouter ce composant.");
+        return;
+      }
       if (msg.kind === "ghosts") {
         ghostsRef.current = msg.items;
         setGhosts(msg.items);
@@ -412,6 +421,27 @@ export default function BoardLayer({
   const startText = useCallback((el: HTMLElement) => {
     const board = Number(boardOf(el)?.dataset.editBoard);
     if (!board) return;
+    // Texte d'un composant de la planche (lot 31c, un Texte) : modifié en place comme un texte de page.
+    const itemFrame = el.dataset.inline ? el.closest<HTMLElement>("[data-edit-bitem]:not([data-edit-bitem-project])") : null;
+    if (itemFrame?.dataset.editBitem) {
+      const rect = boxOf(el);
+      if (!rect) return;
+      const cs = getComputedStyle(el);
+      el.style.visibility = "hidden";
+      const original = el.textContent ?? "";
+      setText({
+        el,
+        kind: "item",
+        board,
+        key: itemFrame.dataset.editBitem,
+        field: el.dataset.inline ?? "",
+        original,
+        value: original,
+        rect: { ...rect, width: Math.max(rect.width, 160) },
+        style: { font: cs.font, letterSpacing: cs.letterSpacing, textTransform: cs.textTransform as React.CSSProperties["textTransform"], color: cs.color, lineHeight: cs.lineHeight, textAlign: cs.textAlign as React.CSSProperties["textAlign"] },
+      });
+      return;
+    }
     // Textes du projet en cours de modification sur une autre page : un seul brouillon à la fois.
     const heldBy = el.dataset.projectInline ? boardOf(el)?.dataset.editBoardTextHeld : undefined;
     if (heldBy) {
@@ -455,7 +485,11 @@ export default function BoardLayer({
     const locale = document.documentElement.lang === "en" ? "en" : "fr";
     // Le texte posé reste affiché (edit/optimistic.ts) jusqu'à ce que le serveur le rende :
     // aucun retour à l'ancienne valeur, y compris dans les autres blocs qui citent ce projet.
-    if (t.kind === "slot" && t.key) {
+    if (t.kind === "item" && t.key) {
+      const value = next.slice(0, 2000);
+      const seq = postIntent({ kind: "bitem-text", board: t.board, uid: t.key, path: t.field, locale, value });
+      previewItemText(t.key, t.field, value, seq);
+    } else if (t.kind === "slot" && t.key) {
       const value = next.slice(0, 2000);
       const seq = postIntent({ kind: "slot-text", board: t.board, key: t.key, field: t.field as "title" | "description", locale, value });
       previewBoardText({ board: t.board, field: t.field, key: t.key }, value, seq);
@@ -552,7 +586,7 @@ export default function BoardLayer({
     let itemDrag: { board: number; uid: string; from: number; index: number; x: number; y: number; active: boolean } | null = null;
     const onDown = (e: PointerEvent) => {
       const handle = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-edit-bitem-handle]") : null;
-      if (handle && e.button === 0 && e.pointerType !== "touch") {
+      if (handle && e.button === 0) {
         const board = Number(handle.dataset.board);
         const uid = handle.dataset.editBitemHandle ?? "";
         const frames = itemFrames(boardEl(board) ?? document.body);
@@ -628,6 +662,7 @@ export default function BoardLayer({
           board,
           index: Number(itemAdd.dataset.editBitemAdd),
           top: r.bottom + window.scrollY + 4,
+          anchorTop: r.top + window.scrollY,
           left: Math.max(8, Math.min(r.left + window.scrollX, window.scrollX + window.innerWidth - 300)),
           hasStrip: frames.some((f) => f.hasAttribute("data-edit-bitem-project")),
           count: frames.length,
@@ -691,7 +726,7 @@ export default function BoardLayer({
       post({ kind: "bitem-select", board, uid, item: type, props: (frame.dataset.editBitemProps ?? "{}").slice(0, 100_000) });
     };
     const onDblClick = (e: MouseEvent) => {
-      const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-slot-inline], [data-project-inline]") : null;
+      const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-slot-inline], [data-project-inline], [data-edit-bitem]:not([data-edit-bitem-project]) [data-inline]") : null;
       if (!field) return;
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -751,7 +786,7 @@ export default function BoardLayer({
     const hasFiles = (e: DragEvent) => Boolean(e.dataTransfer && [...e.dataTransfer.types].includes("Files"));
     const onDragOver = (e: DragEvent) => {
       if (!hasFiles(e)) return;
-      const hit = dropTargetAt(e.clientX, e.clientY);
+      const hit = dropTargetAt(e.clientX, e.clientY, true);
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = hit ? "copy" : "none";
       lastTarget = hit?.target ?? null;
@@ -767,7 +802,7 @@ export default function BoardLayer({
     const onDrop = (e: DragEvent) => {
       if (!hasFiles(e)) return;
       e.preventDefault();
-      const hit = dropTargetAt(e.clientX, e.clientY);
+      const hit = dropTargetAt(e.clientX, e.clientY, true);
       const target = hit?.target ?? lastTarget;
       setMarker(null);
       lastTarget = null;
@@ -1082,12 +1117,24 @@ export default function BoardLayer({
  * Menu court des composants permis dans une planche (« + Ajouter ») : cinq choix, clavier compris (flèches,
  * Entrée, Échap). La bande d'images se grise quand la planche en a déjà une, tout se grise quand elle est pleine.
  */
-function BoardAddMenu({ top, left, hasStrip, count, onPick, onClose }: { board: number; index: number; top: number; left: number; hasStrip: boolean; count: number; onPick: (type: BoardItemType, source?: "project") => void; onClose: () => void }) {
+function BoardAddMenu({ top, anchorTop, left, hasStrip, count, onPick, onClose }: { board: number; index: number; top: number; anchorTop: number; left: number; hasStrip: boolean; count: number; onPick: (type: BoardItemType, source?: "project") => void; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, onClose);
   const full = count >= MAX_BOARD_ITEMS;
+  // Le menu reste entièrement visible : sous le bouton s'il y a la place, sinon au-dessus (bas de page), sinon calé dans la fenêtre.
+  const [place, setPlace] = useState<{ top: number; maxHeight?: number }>({ top });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const h = el.offsetHeight;
+    const lo = window.scrollY + 8;
+    const hi = window.scrollY + window.innerHeight - 8;
+    if (h > hi - lo) setPlace({ top: lo, maxHeight: hi - lo });
+    else if (top + h <= hi) setPlace({ top });
+    else setPlace({ top: Math.max(lo, anchorTop - h - 4) });
+  }, [top, anchorTop]);
   useEffect(() => {
-    ref.current?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus();
+    ref.current?.querySelector<HTMLButtonElement>("button:not([disabled])")?.focus({ preventScroll: true });
   }, []);
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
@@ -1098,7 +1145,7 @@ function BoardAddMenu({ top, left, hasStrip, count, onPick, onClose }: { board: 
     items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
   };
   return (
-    <div ref={ref} className="pe-layouts pe-bitem-menu" role="menu" aria-label="Ajouter un composant à la planche" style={{ top, left, right: "auto" }} onKeyDown={onKeyDown}>
+    <div ref={ref} className="pe-layouts pe-bitem-menu" role="menu" aria-label="Ajouter un composant à la planche" style={{ top: place.top, left, right: "auto", ...(place.maxHeight ? { maxHeight: place.maxHeight, overflowY: "auto" } : {}) }} onKeyDown={onKeyDown}>
       {BOARD_ITEM_TYPES.map((type) => (
         <button key={type} type="button" role="menuitem" disabled={full} onClick={() => onPick(type)} data-bitem-type={type}>
           <strong>{BOARD_ITEM_LABELS[type]}</strong>

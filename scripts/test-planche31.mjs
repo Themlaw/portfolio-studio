@@ -229,5 +229,33 @@ await test("31b : deux carrousels aux images différentes, média déposé (Imag
   assert.deepEqual(row(Q.id).layout.find((i) => i.uid === "strip"), { uid: "strip", type: "strip", props: {}, box: { width: 50, align: "right" } }, "la bande d'origine reste celle du projet (props vides)");
 });
 
+/* ---- Lot 31c : texte en place, mise en forme, ajout sous un composant ---- */
+
+await test("31c : texte modifié en place (item-text), mise en forme du composant (item-look), ajout « sous » un composant (after)", () => {
+  const page = newPage("t31h");
+  withBoard(page, Q);
+  const base = readBoard(page, Q.id).layout.map((i) => i.uid);
+  assert.equal(boardOp(page, Q.id, { op: "item-add", type: "rich-text", index: base.length, uid: "tt" }, rev(page)).ok, true);
+  const t = boardOp(page, Q.id, { op: "item-text", uid: "tt", path: "paragraphs.0", locale: "fr", value: "Bonjour la planche" }, rev(page));
+  assert.equal(t.ok, true, JSON.stringify(t));
+  assert.equal(readBoard(page, Q.id).layout.find((i) => i.uid === "tt").props.paragraphs[0].fr, "Bonjour la planche");
+  assert.equal(readBoard(page, Q.id).layout.find((i) => i.uid === "tt").props.paragraphs[0].en, "", "l exemple de l autre langue est retiré (sinon la publication le refuserait)");
+  assert.equal(boardOp(page, Q.id, { op: "item-text", uid: "tt", path: "paragraphs.0", locale: "fr", value: "x".repeat(2001) }, rev(page)).ok, false, "trop long refusé");
+  assert.equal(boardOp(page, Q.id, { op: "item-text", uid: "tt", path: "../x", locale: "fr", value: "a" }, rev(page)).ok, false, "chemin invalide");
+  assert.equal(boardOp(page, Q.id, { op: "item-text", uid: "strip", path: "title", locale: "fr", value: "a" }, rev(page)).ok, false, "une bande n'a pas de texte");
+  const l = boardOp(page, Q.id, { op: "item-look", uid: "tt", look: { text: { "paragraphs.0": { italic: true } } } }, rev(page));
+  assert.equal(l.ok, true, JSON.stringify(l));
+  assert.equal(readBoard(page, Q.id).layout.find((i) => i.uid === "tt").props.look.text["paragraphs.0"].italic, true);
+  assert.equal(boardOp(page, Q.id, { op: "item-look", uid: "tt", look: null }, rev(page)).ok, true);
+  assert.equal(readBoard(page, Q.id).layout.find((i) => i.uid === "tt").props.look, undefined, "mise en forme retirée");
+  assert.equal(boardOp(page, Q.id, { op: "item-look", uid: "tt", look: { text: { x: { inconnu: 1 } } } }, rev(page)).ok, false, "réglage inconnu refusé");
+  // Sous un composant (clic sur la carte de la palette).
+  const r = boardOp(page, Q.id, { op: "item-add", type: "strip", index: 0, after: base[0], uid: "apres" }, rev(page));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(readBoard(page, Q.id).layout[1].uid, "apres");
+  assert.equal(boardOp(page, Q.id, { op: "item-add", type: "strip", index: 0, after: "nexistepas" }, rev(page)).ok, false);
+  discardDraft(page, rev(page));
+});
+
 console.log(`${passed} tests OK`);
 process.exit(0);

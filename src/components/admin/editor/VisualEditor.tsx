@@ -81,7 +81,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "bitem-text", "bitem-look"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /** Ce qui part vers la toile (ni fichier, ni identifiants internes). */
@@ -1413,8 +1413,20 @@ export default function VisualEditor({
         await uploadToBlock(target, files);
         return;
       }
-      // Un composant de la planche reçoit des médias de la médiathèque, pas des fichiers : à déposer d'abord dans l'onglet Médias.
-      if (target.kind === "bitem") return;
+      // Un composant de la planche (lot 31c) : fichiers envoyés à la médiathèque, convertis, puis posés (Image : remplace ; Grille, carrousel : ajoutent).
+      if (target.kind === "bitem") {
+        await itemFlushRef.current();
+        for (const file of files) {
+          const id = await sendAndWait(file);
+          if (id === null) continue;
+          const r = await boardDo(target.board, { op: "item-media", uid: target.uid, mediaId: id });
+          if (!r) break;
+          const type = r.after.layout.find((i) => i.uid === target.uid)?.type;
+          // Une Image ou une Vidéo ne reçoit qu'un fichier.
+          if (type === "image" || type === "video-single") break;
+        }
+        return;
+      }
       if (target.kind === "new") {
         const created = await createProject(target.uid, "Projet sans titre");
         if (!created) return;
@@ -1667,15 +1679,34 @@ export default function VisualEditor({
     clearTimeout(itemTimer.current);
     itemTimer.current = setTimeout(() => void itemFlushRef.current(), 600);
   };
+  /**
+   * Clic sur la carte « Images qui défilent » de la palette (lot 31c) : un carrousel s'ajoute sous le composant de planche
+   * choisi, sinon à la fin de la planche de la rubrique choisie ; ailleurs, un message dit où le poser.
+   */
+  const addCarousel = async () => {
+    if (itemSel) {
+      await itemFlushRef.current();
+      const r = await boardDo(itemSel.board, { op: "item-add", type: "strip", index: 0, after: itemSel.uid });
+      if (r) toast("« Images qui défilent » ajouté sous le composant choisi", "success", { label: "Défaire", run: () => void undoRef.current() });
+      return;
+    }
+    const block = selected && !selected.startsWith("site-") ? findBlock(draftRef.current.blocks, selected) : null;
+    if (block?.type === "project-board") {
+      send({ kind: "board-add", uid: block.uid, item: "strip" });
+      return;
+    }
+    toast("« Images qui défilent » se pose dans une planche de projet : choisis une planche (ou un de ses composants) puis clique ici, ou glisse la carte dans la planche.", "error");
+  };
   /** Déplacer un composant à un rang (glisser par la poignée). */
   const itemTo = async (board: number, uid: string, index: number) => {
     await itemFlushRef.current();
     await boardDo(board, { op: "item-to", uid, index });
   };
 
-  const handlers = useRef({ itemAdd, itemOp, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook });
+  const itemFlush = () => itemFlushRef.current();
+  const handlers = useRef({ itemFlush, itemAdd, itemOp, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook });
   useEffect(() => {
-    handlers.current = { itemAdd, itemOp, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook };
+    handlers.current = { itemFlush, itemAdd, itemOp, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, requestInsert, requestCellMedia, queueLook };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -1739,6 +1770,16 @@ export default function VisualEditor({
         case "bitem-add":
           void h.itemAdd(msg.board, msg.item, msg.index, msg.source);
           break;
+        case "bitem-text":
+        case "bitem-look": {
+          // Refusé (planche tenue ailleurs, composant disparu…) ou échec : la toile retire l'aperçu.
+          const seq = msg.seq;
+          const op: BoardOp = msg.kind === "bitem-text" ? { op: "item-text", uid: msg.uid, path: msg.path, locale: msg.locale, value: msg.value } : { op: "item-look", uid: msg.uid, look: msg.look };
+          void h.itemFlush().then(() => h.boardDo(msg.board, op)).then((r) => {
+            if (!r && seq) send({ kind: "revert", seq });
+          });
+          break;
+        }
         case "bitem-drop":
           itemDropRef.current = msg.board ? { board: msg.board, index: msg.index } : null;
           break;
@@ -1900,14 +1941,31 @@ export default function VisualEditor({
 
   /** `starter` : glissé depuis un raccourci Texte (Texte, Titre, Titre + texte) plutôt qu'une carte du catalogue. */
   const onPaletteDown = (e: React.PointerEvent<HTMLButtonElement>, entry: Pick<BlockCatalogEntry, "key" | "type" | "label" | "container">, starter?: TextStarter) => {
-    if (e.button !== 0 || e.pointerType === "touch") return;
+    if (e.button !== 0) return;
     const card = e.currentTarget;
     const startX = e.clientX;
     const startY = e.clientY;
     let dragging = false;
+    // Au doigt (tablette) : un appui long (350 ms) arme le glisser ; bouger avant, c'est faire défiler le panneau ; un simple toucher ajoute, comme avant.
+    const touch = e.pointerType === "touch";
+    let armed = !touch;
+    const stopScroll = (ev: TouchEvent) => ev.preventDefault();
+    const noMenu = (ev: Event) => ev.preventDefault();
+    const timer = touch
+      ? setTimeout(() => {
+          armed = true;
+          // Armé : le doigt glisse le composant, la page ne défile plus.
+          document.addEventListener("touchmove", stopScroll, { passive: false });
+        }, 350)
+      : undefined;
+    if (touch) card.addEventListener("contextmenu", noMenu);
     const frameRect = () => frameRef.current?.getBoundingClientRect();
     const move = (ev: PointerEvent) => {
       if (!dragging) {
+        if (touch && !armed) {
+          if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 8) end(false);
+          return;
+        }
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
         dragging = true;
         card.setPointerCapture(ev.pointerId);
@@ -1929,6 +1987,9 @@ export default function VisualEditor({
       }
     };
     const end = (commit: boolean) => {
+      clearTimeout(timer);
+      document.removeEventListener("touchmove", stopScroll);
+      card.removeEventListener("contextmenu", noMenu);
       card.removeEventListener("pointermove", move);
       card.removeEventListener("pointerup", up);
       card.removeEventListener("pointercancel", cancel);
@@ -2273,7 +2334,7 @@ export default function VisualEditor({
                         onPointerDown={(e) => onPaletteDown(e, { key: "board-strip", type: "board-strip", label: "Images qui défilent" })}
                         onClick={(e) => {
                           if (e.currentTarget.dataset.dragged) return;
-                          toast("Glisse « Images qui défilent » dans une planche de projet, ou utilise son « + Ajouter ».");
+                          void addCarousel();
                         }}
                       >
                         <BlockThumb type="image" preset="board-strip" />

@@ -10,7 +10,7 @@
  * ----------------------------------------------------------------------- */
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
-import { isProjectStrip, mediaCount, readLayout, type BoardItem } from "@/blocks/board-layout";
+import { isProjectStrip, layoutMediaIds, readLayout, type BoardItem } from "@/blocks/board-layout";
 import type { AppLocale } from "@/i18n/routing";
 
 import { cached, TAGS } from "./cache";
@@ -67,6 +67,10 @@ export type LocalizedProject = {
   artworks: LocalizedArtwork[];
   /** Contenu de la planche (lot 31) : la suite de composants sous l'en-tête ; par défaut la bande d'images seule. */
   layout: BoardItem[];
+  /**
+   * « N œuvres » de la planche (lot 31c) : les images et vidéos qu'elle montre, chacune une fois. Voir `workCount`.
+   */
+  count: number;
   /** Vue brouillon seulement : identifiant, et projet créé dans ce brouillon. */
   /**
    * Vue brouillon seulement. `heldBy` : titre de la page dont le brouillon
@@ -95,6 +99,8 @@ type RawProject = {
   /** Vue brouillon : page qui tient le contenu de la planche (autre que la vue), ou surcouche de la vue. */
   layoutHeldBy?: string;
   layoutDraft?: boolean;
+  /** Médias des composants de la suite (hors bande du projet) qui s'affichent : prêts, hors corbeille, chacun une fois. */
+  layoutLive: number[];
 };
 
 type RawArtwork = {
@@ -166,19 +172,33 @@ function readProjects(ids: number[], overlayPage?: number | null): RawProject[] 
     .where(inArray(schema.projects.id, ids))
     .orderBy(asc(schema.projects.position))
     .all();
+  // Médias cités par les suites de composants (publiée et surcouche) : seuls ceux qui s'affichent comptent (prêts, hors corbeille).
+  const wanted = [...new Set(rows.flatMap((r) => [...layoutMediaIds(readLayout(r.layout)), ...(r.draftLayout ? layoutMediaIds(readLayout(r.draftLayout)) : [])]))];
+  const live = new Set(
+    wanted.length
+      ? db
+          .select({ id: schema.media.id })
+          .from(schema.media)
+          .where(and(inArray(schema.media.id, wanted), isNull(schema.media.deletedAt), eq(schema.media.status, "ready")))
+          .all()
+          .map((m) => m.id)
+      : [],
+  );
   let titles: Map<number, string> | null = null;
   const pageTitle = (id: number) => {
     titles ??= new Map(db.select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).all().map((x) => [x.id, x.title.fr || `n° ${x.id}`]));
     return titles.get(id) ?? `n° ${id}`;
   };
   return rows.map(({ draftText, draftTextPageId, layout, draftLayout, draftLayoutPageId, ...p }) => {
-    let out: RawProject = { ...p, layout: readLayout(layout) };
-    if (overlayPage === undefined) return out;
+    let out: RawProject = { ...p, layout: readLayout(layout), layoutLive: [] };
+    const withLive = (o: RawProject): RawProject => ({ ...o, layoutLive: [...new Set(layoutMediaIds(o.layout))].filter((id) => live.has(id)) });
+    if (overlayPage === undefined) return withLive(out);
     // Contenu de la planche : la surcouche de la page vue remplace la suite publiée ; celle d'une autre page n'est pas montrée.
     if (draftLayoutPageId !== null) {
       if (draftLayoutPageId === overlayPage && draftLayout) out = { ...out, layout: readLayout(draftLayout), layoutDraft: true };
       else if (draftLayoutPageId !== overlayPage) out = { ...out, layoutHeldBy: pageTitle(draftLayoutPageId) };
     }
+    out = withLive(out);
     if (draftTextPageId === null) return out;
     if (draftTextPageId === overlayPage && draftText) return { ...out, ...draftText, textDraft: true };
     if (draftTextPageId === overlayPage) return out;
@@ -348,6 +368,18 @@ const projectEdit = (p: RawProject) => ({
   ...(p.layoutDraft ? { layoutDraft: true } : {}),
 });
 
+/**
+ * « N œuvres » d'une planche, UNE règle partout (en-tête de la planche, compteurs de page, tuiles de collection) :
+ * les images et vidéos DISTINCTES qu'elle montre — celles de la bande des images du projet (si elle y est ; `strip` : ses œuvres
+ * déjà filtrées par métier, une place vide ne compte pas) plus celles des autres composants (grille, image, vidéo, carrousel),
+ * chaque média une seule fois. Sans réglage de planche (la bande seule), c'est le compte d'avant.
+ */
+function workCount(project: RawProject, own: RawArtwork[]): number {
+  const strip = project.layout.some(isProjectStrip) ? own : [];
+  const inStrip = new Set(strip.map((a) => a.mediaId).filter((id): id is number => id !== null));
+  return strip.length + project.layoutLive.filter((id) => !inStrip.has(id)).length;
+}
+
 function localizeProject(
   project: RawProject,
   artworks: RawArtwork[],
@@ -367,6 +399,7 @@ function localizeProject(
     context: project.context[locale] ?? project.context.fr,
     description: project.description[locale] ?? project.description.fr,
     layout: project.layout,
+    count: workCount(project, own.filter(shown)),
     artworks: own.map((a) => localize(a, locale)),
   };
 }
@@ -399,8 +432,14 @@ export async function getCollectionCover(
 
 /** Nombre d'œuvres visibles par collection. */
 export async function countCollection(collection: Collection): Promise<number> {
-  const { artworks } = await snapshot();
-  return artworks.filter((a) => shown(a) && a.collection === collection).length;
+  const { projects, artworks } = await snapshot();
+  // Les planches des projets qui ont du travail dans ce métier, comptées par la règle commune (`workCount`).
+  let n = 0;
+  for (const p of projects) {
+    const own = artworks.filter((a) => a.projectId === p.id && shown(a) && a.collection === collection);
+    if (own.length) n += workCount(p, own);
+  }
+  return n;
 }
 
 /* ------------------------------------------------------------- Projets -- */
@@ -448,11 +487,7 @@ export async function boardWorkCount(slug: string, collection?: string): Promise
   const { projects, artworks } = await snapshot();
   const project = projects.find((p) => p.slug === slug);
   if (!project) return null;
-  // Les œuvres de la bande (si la planche en a une) et les images / vidéos des autres composants.
-  const strip = project.layout.some(isProjectStrip)
-    ? artworks.filter((a) => a.projectId === project.id && shown(a) && (!collection || a.collection === collection)).length
-    : 0;
-  return strip + mediaCount(project.layout);
+  return workCount(project, artworks.filter((a) => a.projectId === project.id && shown(a) && (!collection || a.collection === collection)));
 }
 
 /**
