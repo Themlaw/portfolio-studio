@@ -1678,3 +1678,30 @@ Le choix se fait dans le panneau et dans la barre de la vidéo, de la case de gr
 `video-mode`, opération de grille `video-mode`). Parité : le rendu serveur est le même sur la toile et en ligne (`data-video-mode`), la
 toile n'ouvre jamais la visionneuse. Migration de contenu 0027 : voir `src/lib/db/video-mode.ts` (mode explicite sur chaque vidéo existante,
 publié et brouillons, planches et leurs brouillons).
+
+## Un seul carrousel (lot 31f)
+
+Pour l'artiste, il n'y a qu'UN composant « Images qui défilent » : même nom partout (palette, barre, panneau, menu « + Ajouter »),
+même rendu, mêmes outils par image sur la toile. Le nom « Images du projet » a disparu de l'interface.
+
+- **Pourquoi la bande du projet avait des outils et pas le carrousel (31b).** Les outils par image (Remplacer, Supprimer, Retirer la
+  place, Arrondi, Cadre, glisser, places vides) de `BoardLayer` sont pilotés par les repères `data-edit-rail` / `data-edit-slot`, posés
+  seulement sur la bande des images du projet, et leurs messages (`slot-op`, `slot-move`, `files`) visent un EMPLACEMENT du projet (clé
+  `s12` / `k…`, opérations `move|remove|retire|fill|add` de `boards.ts`). Le carrousel à liste propre n'avait ni repère ni message.
+- **Choix des données : (a), pas de migration.** La source reste distinguée en interne (`isProjectStrip` : images du PROJET, dont les
+  emplacements servent aussi aux tuiles de collection, à la couverture, au compteur, à la visionneuse et au filtrage par métier ; ou
+  `source: "own"` + `media`). Une migration (b) aurait copié les emplacements du projet dans une liste de la planche : les deux copies
+  divergeraient, et tuiles, couverture et compteur lisent les emplacements. Seuls l'outillage et le rendu convergent.
+- **Une seule bande côté rendu et côté toile.** `StripRail` pose `data-edit-rail` (vide = images du projet, sinon l'uid du carrousel) et
+  `data-edit-slot` sur toute image ; `BoardItemFrame` pose `data-edit-bitem-rail` sur toute bande (`-project` : la bande d'origine seule).
+  `BoardLayer` n'a qu'un code : barre de l'image (même composant `SlotRadius`, `SlotFrame`), glisser, clavier, fantômes d'envoi, dépôt.
+- **Places d'un carrousel.** `media: (number | null)[]` : `null` = place gardée vide (comme un emplacement vide du projet ; masquée en
+  public, ignorée du compteur, des références et de `itemEmpty`). Clé d'une place sur la toile : `<uid>.<rang>` (`railKey`,
+  `parseRailKey`). Le schéma `SlotKey` des messages l'accepte ; l'éditeur traduit le geste (`slotBoardOp`) en opération `rail-clear`,
+  `rail-retire`, `rail-fill`, `rail-move`, `rail-add` (`boards.ts`, surcouche de suite : mêmes gardes que `item-*`). Cible de dépôt `rail`
+  (`board`, `uid`, `index`) ; fantôme d'envoi avec `rail`.
+- **Arrondi et cadre** : `look.slotRadius` / `slotFrame` du bloc, par slug de place ; pour un carrousel le slug est `<uid>-<média>`, donc
+  deux carrousels qui montrent le même média se règlent chacun.
+- **Pas de légendes** sur un carrousel (un média n'a ni titre ni année) ; les images du projet gardent les leurs. Pas de « Cadrer » sur
+  une place de bande : le recadrage libre concerne les tuiles et les images seules, pas les bandes (aucun changement).
+- Tests : `scripts/test-carrousel31f.mjs` (unité, base réelle) et `scripts/e2e-carrousel31f.mjs` (suite `carrousel31f`, souris réelle).

@@ -893,7 +893,7 @@ export default function EditLayer() {
       // Commandes de défilement du site (flèches et barre d'une bande d'images) : elles marchent comme en ligne.
       if (e.target instanceof Element && e.target.closest(NATIVE_SCROLL)) return;
       // Contenu d'une planche (lot 31) : « + Ajouter », barre d'un composant, composant (hors bande) — gérés par BoardLayer.
-      if (e.target instanceof Element && e.target.closest("[data-edit-bitem-add], [data-edit-bitem-op], [data-edit-bitem]:not([data-edit-bitem-project])")) {
+      if (e.target instanceof Element && e.target.closest("[data-edit-bitem-add], [data-edit-bitem-op], [data-edit-bitem]:not([data-edit-bitem-rail])")) {
         e.preventDefault();
         e.stopPropagation();
         finishEdit(true);

@@ -37,7 +37,8 @@ const Index = z.number().int().min(0).max(60);
 const Href = z.string().trim().min(1).max(300);
 const SlotIndex = z.number().int().min(0).max(200);
 const Board = z.number().int().positive();
-const SlotKey = z.string().regex(/^(s\d{1,9}|k[a-z0-9]{8,24})$/);
+/** Emplacement du projet (`s12`, `k…`) ou place d'un carrousel à liste propre (`<uid>.<rang>`, lot 31f). */
+const SlotKey = z.string().regex(/^(s\d{1,9}|k[a-z0-9]{8,24}|[a-z0-9-]{1,32}\.\d{1,3})$/);
 const Slug = z.string().regex(/^[a-z0-9-]{1,80}$/);
 /** Type d'un composant de planche (lot 31). */
 const BoardItemKind = z.enum(BOARD_ITEM_TYPES as [BoardItemType, ...BoardItemType[]]);
@@ -48,6 +49,8 @@ const UpTo = z.number().int().min(-1).max(1_000_000_000);
 const DropTarget = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("board"), board: Board, index: SlotIndex, collection: z.enum(["characters", "backgrounds", "animation"]).optional() }),
   z.object({ kind: z.literal("slot"), board: Board, key: SlotKey }),
+  // Lot 31f : une position précise d'un carrousel à liste propre (même geste qu'une position de la bande du projet).
+  z.object({ kind: z.literal("rail"), board: Board, uid: Uid, index: SlotIndex }),
   z.object({ kind: z.literal("new"), uid: Uid }),
   // v0.13 : image ou vidéo d'un bloc (image, vidéo, fond de l'ouverture, portrait), place libre d'une grille.
   z.object({ kind: z.literal("media"), uid: Uid, field: MediaField }),
@@ -245,6 +248,8 @@ export const ToCanvasSchema = z.discriminatedUnion("kind", [
           /** Position dans la bande (avant le n-ième emplacement), ou place remplie. */
           index: SlotIndex.optional(),
           slot: SlotKey.optional(),
+          /** Carrousel à liste propre qui reçoit le fichier (absent : la bande des images du projet). */
+          rail: Uid.optional(),
           label: z.string().max(200),
           preview: z.string().regex(/^blob:/).max(200).optional(),
           aspect: z.number().min(0.1).max(10),
