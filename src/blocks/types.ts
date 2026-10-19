@@ -62,6 +62,8 @@ export type BlockContext = {
   cellColumns?: number;
   /** Cellule d'une grille « Automatique » (lot 31e) : une image très large y prend toute la largeur (pour le choix de la variante). */
   cellAuto?: boolean;
+  /** Cellule d’une grille dont les images s’agrandissent au clic (lot 44, `zoom` de la grille ; public et Aperçu seulement). */
+  cellViewer?: boolean;
   cellRatio?: string;
   /** Identifiant en base du bloc rendu (version publiée ; négatif en vue brouillon). */
   blockId?: number;

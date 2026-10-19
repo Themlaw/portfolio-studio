@@ -3,6 +3,7 @@ import { z } from "zod";
 import VideoCard from "@/components/VideoCard";
 import { getArtwork, type LocalizedArtwork } from "@/lib/gallery";
 import { getMedia } from "@/lib/media";
+import { viewerAttrs } from "@/lib/viewer";
 
 import { localized, localizedText, mediaRef, textStyle, tr, type BlockContext } from "./types";
 
@@ -101,6 +102,15 @@ export default async function VideoSingleBlock({ props, ctx }: { props: z.infer<
     </div>
   ) : null;
   if (!body) return null;
+  // Dans une grille qui s'agrandit au clic (lot 44) : une vidéo hébergée fait partie du défilement de la visionneuse (le lecteur
+  // ou la pause en boucle gardent leur clic). Une vidéo YouTube n'a pas de fichier à montrer : hors du défilement.
+  if (ctx.cell && ctx.cellViewer && !ctx.edit && !ctx.inlineEdit && !ctx.gridCanvas && item?.video) {
+    return (
+      <div style={{ display: "contents" }} {...viewerAttrs({ id: item.id, image: item.image, sources: item.sources, alt: item.alt, width: item.width, height: item.height, title: texts.captionTitle || texts.title, description: texts.description, date: texts.date || undefined, video: item.video, plain: true }, "", true)}>
+        {body}
+      </div>
+    );
+  }
   if (ctx.cell) return body;
   return <section className="shell pt-[var(--section-gap)]">{body}</section>;
 }
