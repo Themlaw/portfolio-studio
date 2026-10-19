@@ -342,6 +342,9 @@
     /* Fondu des bords : largeur de la zone où l'image coupée « passe
        derrière le fond » (au moins la marge de page). */
     --strip-fade: max(var(--rail-inset), clamp(2.5rem, 9vw, 7.5rem));
+    /* Largeur visible d'une image (lot 45) : le contenu de la bande, entre les marges de page (--page-max les comprend). */
+    container-type: inline-size;
+    --strip-vis: calc(min(100cqw, var(--page-max)) - 2 * var(--rail-gutter));
     position: relative;
     margin-top: calc(clamp(1.75rem, 3.5vw, 2.75rem) - var(--rail-room));
     margin-bottom: calc(-1 * var(--strip-ring));
@@ -412,6 +415,14 @@
   .strip-frame {
     flex: 0 0 auto;
     scroll-snap-align: start;
+  }
+
+  /* Panorama entier (lot 45, défaut) : une image ne dépasse jamais la largeur visible de la bande. Sa hauteur est réduite pour tenir
+     (largeur visible / ratio), la largeur en découle ; une image qui tient déjà garde la hauteur de la bande (rien ne change).
+     Réduite, elle est centrée dans la hauteur de la bande ; sa légende reste dessous, à sa largeur. « À faire défiler » : comme avant. */
+  .strip-frame[data-pano="fit"] {
+    --fit-h: min(var(--strip-h), calc(var(--strip-vis) / var(--ir, 1)));
+    margin-top: calc((var(--strip-h) - var(--fit-h)) / 2);
   }
 
   .strip-media {

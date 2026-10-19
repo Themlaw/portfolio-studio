@@ -1180,6 +1180,7 @@ export default function BoardLayer({
           </button>
           {!active.empty && <SlotRadius el={activeEl} />}
           {!active.empty && activeEl && activeEl.querySelector("video, .strip-duration, [data-video-mode]") && <SlotVideoMode el={activeEl} />}
+          {!active.empty && activeEl && activeEl.hasAttribute("data-pano") && <SlotPano el={activeEl} />}
           {!active.empty && activeEl && !activeEl.querySelector("video, .strip-duration") && (
             <button
               type="button"
@@ -1511,6 +1512,39 @@ function SlotVideoMode({ el }: { el: Element }) {
           {VIDEO_MODE_LABELS[m]}
         </button>
       ))}
+    </span>
+  );
+}
+
+/**
+ * Panorama de CETTE image d'un carrousel (lot 45) : réglage `look.slotPano` du bloc planche, par slug d'emplacement.
+ * « Entier » (défaut) : l'image ne dépasse pas la largeur visible du carrousel ; « À faire défiler » : sa largeur naturelle, comme avant.
+ */
+function SlotPano({ el }: { el: Element }) {
+  const [, bump] = useState(0);
+  const slug = el.getAttribute("data-slot-slug") ?? "";
+  const uid = el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
+  if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
+  const look = lookOf(uid);
+  const now = look.slotPano && Object.hasOwn(look.slotPano, slug) ? look.slotPano[slug] : "fit";
+  const change = (m: "fit" | "scroll") => {
+    const all = { ...(look.slotPano ?? {}) };
+    if (m === "fit") delete all[slug];
+    else all[slug] = m;
+    sendLook(uid, { ...look, slotPano: all });
+    bump((n) => n + 1);
+  };
+  return (
+    <span className="pe-seg" role="group" aria-label="Panorama" data-testid="slot-pano">
+      <span className="pe-seg-label" aria-hidden="true">
+        Panorama
+      </span>
+      <button type="button" aria-pressed={now !== "scroll"} title="L'image se voit en entier, sans dépasser le carrousel" data-slot-pano-set="fit" onClick={() => change("fit")}>
+        Entier
+      </button>
+      <button type="button" aria-pressed={now === "scroll"} title="L'image garde sa taille et se découvre en faisant défiler" data-slot-pano-set="scroll" onClick={() => change("scroll")}>
+        À faire défiler
+      </button>
     </span>
   );
 }

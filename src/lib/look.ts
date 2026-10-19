@@ -417,6 +417,8 @@ export const LookSchema = z.strictObject({
   imageBg: ImageBgSchema.optional(),
   /** Fond derrière une image précise d'une planche ou d'un carrousel, par emplacement (slug) : lot 41. */
   slotBg: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), ImageBgSchema), 200, "fonds d'images").optional(),
+  /** Panorama d'une image précise d'un carrousel, par emplacement (slug) : lot 45. Absent = « fit » (entière, jamais plus large que le carrousel) ; « scroll » = à faire défiler (comme avant). */
+  slotPano: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), z.enum(["fit", "scroll"])), 200, "panoramas d'images").optional(),
 });
 export type Look = z.infer<typeof LookSchema>;
 
