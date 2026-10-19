@@ -11,6 +11,13 @@
 .strip {
   padding-block: var(--t-board-pad);
 }
+/* Espace au-dessus d'une bande de planche (lot 40, `look.spaceTop`) : la marge du cadre de la bande suit le cran choisi (« Aucun » : la bande
+   touche le composant du dessus). Le cadre a un rembourrage interne (--rail-room) que la marge absorbe : l'espace visible est le cran. */
+.strip-spaced[data-strip-pt="none"] .strip-viewport { margin-top: calc(0px - var(--rail-room)); }
+.strip-spaced[data-strip-pt="s"] .strip-viewport { margin-top: calc(var(--t-space-s) - var(--rail-room)); }
+.strip-spaced[data-strip-pt="m"] .strip-viewport { margin-top: calc(var(--t-space-m) - var(--rail-room)); }
+.strip-spaced[data-strip-pt="l"] .strip-viewport { margin-top: calc(var(--t-space-l) - var(--rail-room)); }
+.strip-spaced[data-strip-pt="xl"] .strip-viewport { margin-top: calc(var(--t-space-xl) - var(--rail-room)); }
 .page-top {
   padding-top: var(--t-page-top);
 }
@@ -103,6 +110,28 @@
 }
 .block-image[data-solo] > span:first-child {
   text-align: center;
+}
+/* Taille et place d'une image seule (lot 40, `look.imageSize` / `look.imageAlign`). Sans réglage, rien de ce qui suit ne s'applique.
+   Grande : plafond levé, l'image prend toute la largeur du cadre. Gauche / Centre / Droite : l'image ET sa légende (tout ce
+   qui suit dans la figure) prennent la largeur de l'image et se posent du même côté ; même bord gauche, largeur max = celle de l'image. */
+.block-image[data-solo][data-size="large"] .block-image-media {
+  width: 100%;
+}
+.block-image[data-solo][data-align] > * {
+  width: min(100%, calc(85svh * var(--ir, 1000)));
+  margin-inline: auto;
+}
+.block-image[data-solo][data-align="left"] > * {
+  margin-inline: 0 auto;
+}
+.block-image[data-solo][data-align="right"] > * {
+  margin-inline: auto 0;
+}
+.block-image[data-solo][data-align][data-size="large"] > * {
+  width: 100%;
+}
+.block-image[data-solo][data-align] .block-image-media {
+  width: 100%;
 }
 /* Recadrage libre : le cadre suit le rapport de la zone gardée (celui des attributs width / height de l'image),
    quel que soit le format imposé par le bloc ou par sa grille. */

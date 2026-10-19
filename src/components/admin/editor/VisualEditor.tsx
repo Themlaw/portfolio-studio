@@ -61,7 +61,7 @@ import Uploader from "../Uploader";
 import { isUploaded, useUploadQueue } from "../UploadQueue";
 import { isPdfFile, readRatio, sendFile, useMediaWatch } from "../uploads";
 import AddSectionDialog, { type AddChoice } from "./AddSectionDialog";
-import { BlockLookPanel, SiteStylesPanel } from "./LookPanel";
+import { BlockLookPanel, ImageSizeSection, SiteStylesPanel } from "./LookPanel";
 import { ColorsPanel, LogoPanel, type HighlightInfo } from "./SiteLookPanel";
 import BoardItemPanel from "./BoardItemPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
@@ -2779,6 +2779,9 @@ export default function VisualEditor({
               <p className="ve-hint">{selDef.description}</p>
               {selDef.inline.length > 0 && <p className="ve-hint">Les textes se modifient aussi directement sur la page : double-clic dessus.</p>}
               {selPath && publishErrors[selPath] && <p className="a-field-error">{publishErrors[selPath]}</p>}
+              {selBlock.type === "image" && !(selAt?.parent && findBlock(blocks, selAt.parent)?.type === "grid") && (
+                <ImageSizeSection key={`size-${selBlock.uid}`} look={readLook(selBlock.props.look) ?? {}} onChange={(next) => void applyLook(selBlock.uid, next)} />
+              )}
               {editor ? (
                 <BlockEditorContext.Provider
                   value={{

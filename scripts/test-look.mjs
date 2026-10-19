@@ -315,6 +315,11 @@ ok("frameAttrs : aucun cadre par défaut ; un cadre valide donne data-frame + --
 ok("look.frame : lecture tolérante (cadre invalide ignoré, le reste gardé), cadre seul = réglage non vide, nettoyage", JSON.stringify(readLook({ spaceTop: "m", frame: { size: "huge" } })) === JSON.stringify({ spaceTop: "m" }) && JSON.stringify(readLook({ frame: { size: "thin", color: "primary" } })) === JSON.stringify({ frame: { size: "thin", color: "primary" } }) && cleanLook({ frame: undefined, slotFrame: {} }) === undefined && JSON.stringify(cleanLook({ slotFrame: { a: { size: "thin" } } })) === JSON.stringify({ slotFrame: { a: { size: "thin" } } }));
 ok("look.frame : pas d'attribut sur l'enveloppe du bloc (le cadre est posé par l'image elle-même)", lookAttributes({ frame: { size: "thin" } }) === null);
 
+/* ---- Taille et place d'une image seule (lot 40) ---------------------------------------------------- */
+ok("look.imageSize / imageAlign : Grande et Gauche / Centre / Droite acceptés, valeur inconnue refusée", LookSchema.safeParse({ imageSize: "large" }).success && ["left", "center", "right"].every((imageAlign) => LookSchema.safeParse({ imageAlign }).success) && !LookSchema.safeParse({ imageSize: "huge" }).success && !LookSchema.safeParse({ imageAlign: "justify" }).success && !LookSchema.safeParse({ imageSize: "100%" }).success);
+ok("look.imageSize / imageAlign : lecture tolérante (valeur invalide ignorée, le reste gardé), réglage seul = non vide, nettoyage", JSON.stringify(readLook({ spaceTop: "m", imageSize: "huge" })) === JSON.stringify({ spaceTop: "m" }) && JSON.stringify(readLook({ imageSize: "large", imageAlign: "left" })) === JSON.stringify({ imageSize: "large", imageAlign: "left" }) && cleanLook({ imageSize: undefined, imageAlign: undefined }) === undefined);
+ok("look.imageSize / imageAlign : pas d'attribut sur l'enveloppe du bloc (posés par l'image elle-même) ; l'espace au-dessus garde son attribut", lookAttributes({ imageSize: "large", imageAlign: "right" }) === null && lookAttributes({ spaceTop: "none" })?.["data-pt"] === "none");
+
 if (failures) {
   console.error(`test-look : ÉCHEC (${failures}/${count})`);
   process.exit(1);

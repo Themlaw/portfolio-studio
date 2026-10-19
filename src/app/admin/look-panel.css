@@ -335,3 +335,9 @@
   color: var(--admin-ink-soft);
   font-size: 11.5px;
 }
+
+/* Taille et place d une image seule (lot 40) : en haut du panneau, un espace avant le premier champ du formulaire. */
+.lp-image-size {
+  margin-top: 6px;
+  margin-bottom: 18px;
+}

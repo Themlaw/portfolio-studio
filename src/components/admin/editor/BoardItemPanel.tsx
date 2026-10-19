@@ -16,7 +16,7 @@ import { applyGridOp, type GridModelOp } from "@/blocks/grid-layouts";
 import { BOARD_ITEM_LABELS, BOX_ALIGNS, BOX_MIN, BOX_PRESETS, MAX_GRID_CHILDREN, MAX_RAIL_MEDIA, railIds, railList, type BoardBox, type BoardItemType } from "@/blocks/board-layout";
 import { cleanLook, readLook } from "@/lib/look";
 
-import { BlockLookPanel } from "./LookPanel";
+import { BlockLookPanel, ImageSizeSection, SpaceTopSection } from "./LookPanel";
 import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
 import { isVideoMode, modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "@/blocks/video-mode";
 
@@ -301,9 +301,31 @@ export default function BoardItemPanel({
           <GridAdvanced />
         </BlockEditorContext.Provider>
       )}
+      {type === "image" && (
+        <ImageSizeSection
+          look={readLook(props.look) ?? {}}
+          onChange={(next) => {
+            const clean = cleanLook(next);
+            const { look: _old, ...rest } = props;
+            void _old;
+            onChange(clean ? { ...rest, look: clean } : rest);
+          }}
+        />
+      )}
       {type === "strip" && !projectStrip && <RailContent props={props} onChange={onChange} context={context} />}
       {type !== "strip" && type !== "grid" && <BlockEditorContext.Provider value={{ value: props, onChange, errors: {}, context, idPrefix: `ve-bitem-${uid}` }}>{editor}</BlockEditorContext.Provider>}
       <BoxField box={box} onChange={onBox} />
+      {type === "strip" && (
+        <SpaceTopSection
+          look={readLook(props.look) ?? {}}
+          onChange={(next) => {
+            const clean = cleanLook(next);
+            const { look: _old, ...rest } = props;
+            void _old;
+            onChange(clean ? { ...rest, look: clean } : rest);
+          }}
+        />
+      )}
       {type !== "strip" && <BlockLookPanel
         key={uid}
         type={type}

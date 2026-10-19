@@ -32,6 +32,7 @@ import { acceptToCanvas, EDIT_MSG, type DropTargetInfo, type FromCanvas, type Gh
 import { postIntent, previewBoardText, previewItemText } from "./edit/optimistic";
 import { BoardFondMenu } from "./edit/FondMenu";
 import { BoardFrameMenu } from "./edit/FrameMenu";
+import QuickMenu, { type QuickKind } from "./edit/QuickMenus";
 import { readBackground, type Background } from "@/themes/fond";
 
 import { FrameSchema, RADII, RADIUS_LABELS, type Frame, type Radius } from "@/lib/look";
@@ -315,6 +316,8 @@ export default function BoardLayer({
   // Lot 34 : fenêtre « Cadre » de la barre d'un composant Image (même principe que « Fond »).
   const [frameMenu, setFrameMenu] = useState<{ board: number; uid: string; top: number; left: number; frame: Frame | undefined } | null>(null);
   // Lot 32 : fenêtre « Fond » de la barre d'un composant (position dans la page, fond courant lu sur la barre).
+  /** Fenêtre « Taille » (image) ou « Espace » (au-dessus) d'un composant de la planche (lot 40) ; les réglages passent par `sendLook`. */
+  const [quickMenu, setQuickMenu] = useState<{ uid: string; kind: QuickKind; top: number; left: number } | null>(null);
   const [fondMenu, setFondMenu] = useState<{ board: number; uid: string; top: number; left: number; background: Background | null } | null>(null);
   // Texte (ou image) d'un projet survolé : indicateur « modifié aussi sur sa planche et sa page ».
   const [projectHint, setProjectHint] = useState<{ el: HTMLElement; board: number; label: string; draft: boolean; textHeld: string | null; slotHeld?: boolean } | null>(null);
@@ -748,9 +751,16 @@ export default function BoardLayer({
             current = parsed.success ? parsed.data : undefined;
           } catch {}
           setFondMenu(null);
+          setQuickMenu(null);
           setFrameMenu((cur) => (cur?.uid === uid ? null : { board, uid, top: r.bottom + window.scrollY + 4, left: Math.max(8, Math.min(r.left + window.scrollX - 300, window.scrollX + window.innerWidth - 348)), frame: current }));
+        } else if (op === "size" || op === "space") {
+          const r = itemOp.getBoundingClientRect();
+          setFondMenu(null);
+          setFrameMenu(null);
+          setQuickMenu((cur) => (cur?.uid === uid && cur.kind === op ? null : { uid, kind: op, top: r.bottom + window.scrollY + 4, left: Math.max(8, Math.min(r.left + window.scrollX - 200, window.scrollX + window.innerWidth - 348)) }));
         } else if (op === "fond") {
           setFrameMenu(null);
+          setQuickMenu(null);
           const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
           const r = itemOp.getBoundingClientRect();
           let background: Background | null = null;
@@ -926,6 +936,7 @@ export default function BoardLayer({
     const closeAll = () => {
       setFondMenu(null);
       setFrameMenu(null);
+      setQuickMenu(null);
     };
     const openPanel = (e: Event) => {
       const d = (e as CustomEvent<{ uid?: string; board?: number }>).detail;
@@ -1241,6 +1252,7 @@ export default function BoardLayer({
         />
       )}
 
+      {quickMenu && <QuickMenu key={`${quickMenu.uid}-${quickMenu.kind}`} uid={quickMenu.uid} kind={quickMenu.kind} top={quickMenu.top} left={quickMenu.left} onClose={() => setQuickMenu(null)} />}
       {frameMenu && <BoardFrameMenu key={frameMenu.uid} board={frameMenu.board} uid={frameMenu.uid} initial={frameMenu.frame} top={frameMenu.top} left={frameMenu.left} onClose={() => setFrameMenu(null)} />}
       {fondMenu && <BoardFondMenu key={fondMenu.uid} board={fondMenu.board} uid={fondMenu.uid} initial={fondMenu.background} top={fondMenu.top} left={fondMenu.left} onClose={() => setFondMenu(null)} />}
 
