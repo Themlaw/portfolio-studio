@@ -892,6 +892,34 @@
     aspect-ratio: calc(var(--grid-r, 1.3333) * var(--w, 1));
   }
 }
+/* Lot 37 : rangées justifiées (« Automatique » + format « Libre »). Chaque case a une largeur proportionnelle au format de son
+   image (`--jr`), donc toutes les images d'une rangée ont la même hauteur, sans recadrage. `--jk` = largeur en colonnes
+   (part de la rangée x nombre de cases) : la base de flex est calculée au pixel près, un peu en dessous (-0,1 px) pour que
+   la rangée ne déborde jamais, et `flex-grow` rattrape le reste. Un panorama (`data-jfull`) prend sa rangée, la dernière
+   rangée incomplète (`data-jpart`) ne s'étire pas. Téléphone : une case ne descend pas sous 140 px (`min-width`), sinon
+   la rangée passe à une image par ligne. */
+.block-grid[data-justify] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+.block-grid[data-justify] > .block-grid-cell {
+  flex: var(--jr, 1) 1 calc(var(--jk, 1) * (100% - (var(--cols, 2) - 1) * var(--grid-gap)) / var(--cols, 2) - 0.1px);
+}
+.block-grid[data-justify] > .block-grid-cell[data-jpart] {
+  flex-grow: 0;
+}
+.block-grid[data-justify] > .block-grid-cell[data-jfull] {
+  flex: 1 1 100%;
+}
+@media (max-width: 47.99rem) {
+  .block-grid[data-justify] > .block-grid-cell:not([data-jfull]) {
+    min-width: 140px;
+  }
+  .block-grid[data-justify] > .block-grid-cell[data-jpart] {
+    flex-grow: 1;
+  }
+}
 .block-image[data-width="text"] {
   max-width: 42rem;
 }

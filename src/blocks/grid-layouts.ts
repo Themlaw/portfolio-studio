@@ -81,6 +81,10 @@ export type GridShape = {
   mirror?: boolean;
   /** « Automatique » : format (largeur / hauteur) de l'image ou de la vidéo de chaque case, dans l'ordre ; inconnu ou absent = case normale. Jamais stocké. */
   ratios?: (number | null | undefined)[];
+  /** Format imposé aux images (« auto » = Libre). */
+  ratio?: string;
+  /** Rangées justifiées (lot 37b) : `alone[i]` = l'image n° i occupe seule une rangée pleine largeur (même ordre que `children`). */
+  alone?: boolean[];
 };
 
 export const isGridLayout = (v: unknown): v is GridLayout => typeof v === "string" && (GRID_LAYOUTS as readonly string[]).includes(v);
@@ -91,7 +95,78 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, M
 export const customCols = (shape: GridShape): number => clamp(shape.cols ?? DEFAULT_CUSTOM_COLS, 2, 4);
 
 /** Explication de l'agencement « Automatique » (fenêtre Réglages de la toile et panneau). */
-export const AUTO_HINT = "Automatique : chaque image prend la place qui va à son format (un décor large prend toute la largeur, un portrait deux rangées).";
+export const AUTO_HINT = "Automatique : les images d'une même rangée ont la même hauteur, sans être recadrées. Un décor très large prend toute la largeur.";
+
+/**
+ * Rangées justifiées (lot 37) : « Automatique » avec le format de case « Libre » range les images par rangées de
+ * `cols` au plus ; dans une rangée chaque image prend une largeur proportionnelle à son format (largeur / hauteur), donc
+ * toutes ont la même hauteur et aucune n'est recadrée. Un panorama (format >= 1,9) reste seul sur sa rangée. Calculé au
+ * rendu (jamais stocké). Un format imposé (Carré, 4:3…) garde les cases égales d'avant.
+ */
+export const isJustified = (shape: GridShape): boolean => {
+  if (shape.ratio !== undefined && shape.ratio !== "auto") return false;
+  const layout = isGridLayout(shape.layout) ? shape.layout : "2";
+  return layout === "auto" || JUSTIFY_PRESETS.includes(layout);
+};
+
+/**
+ * Lot 37b : les agencements en colonnes simples (cases toutes égales, sans case élargie ni sur deux rangées) sont justifiés eux
+ * aussi avec le format « Libre » ; leurs colonnes donnent le nombre maximal d'images par rangée. « 1 grand » (une image par
+ * ligne), les agencements à grandes cases et « Sur mesure » gardent leurs cases.
+ */
+const JUSTIFY_PRESETS: string[] = ["2", "3", "4", "2x2"];
+
+/** Explication du format « Libre » en rangées justifiées (fenêtre Réglages et panneau). */
+export const JUSTIFY_HINT = "Format Libre : les images d'une même rangée ont la même hauteur, sans être recadrées.";
+
+/** Format minimal pris en compte dans une rangée (en dessous, la case deviendrait trop fine). */
+const JUSTIFY_MIN_RATIO = 0.25;
+
+export type JustifiedCell = {
+  /** Format de la case (largeur / hauteur) ; 1 pour une case sans média connu. */
+  r: number;
+  /** Largeur de la case en « colonnes » : sa part de la rangée x le nombre de cases de la rangée. */
+  k: number;
+  /** Rangée seule sur toute la largeur (panorama). */
+  full: boolean;
+  /** Rangée incomplète (dernière) : garde la largeur de ses colonnes au lieu de s'étirer. */
+  part: boolean;
+  /** Rang de la rangée (0 = première). */
+  row: number;
+};
+
+/** Rangées justifiées de `ratios` (une entrée par case, vides comprises) pour `cols` colonnes. */
+export function justifyRows(ratios: (number | null | undefined)[], cols: number, alone?: (boolean | null | undefined)[]): JustifiedCell[] {
+  const valid = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
+  const out: JustifiedCell[] = [];
+  let row = 0;
+  let i = 0;
+  while (i < ratios.length) {
+    const first = ratios[i];
+    // « Seule sur sa ligne » (lot 37b) : même traitement qu'un panorama, quel que soit le format.
+    if (alone?.[i]) {
+      out.push({ r: valid(first) ? Math.max(JUSTIFY_MIN_RATIO, first) : 1, k: cols, full: true, part: false, row: row++ });
+      i++;
+      continue;
+    }
+    if (valid(first) && first >= AUTO_PANORAMA_RATIO) {
+      out.push({ r: first, k: cols, full: true, part: false, row: row++ });
+      i++;
+      continue;
+    }
+    const group: number[] = [];
+    while (i + group.length < ratios.length && group.length < cols) {
+      const v = ratios[i + group.length];
+      if ((valid(v) && v >= AUTO_PANORAMA_RATIO) || alone?.[i + group.length]) break;
+      group.push(valid(v) ? Math.max(JUSTIFY_MIN_RATIO, v) : 1);
+    }
+    const sum = group.reduce((a, b) => a + b, 0);
+    for (const r of group) out.push({ r, k: (r / sum) * group.length, full: false, part: group.length < cols, row });
+    row++;
+    i += group.length;
+  }
+  return out;
+}
 
 /** Colonnes d'une grille « Automatique » (2 à 4). */
 export const autoCols = (shape: GridShape): number => clamp(shape.cols ?? AUTO_COLS, 2, 4);
@@ -128,8 +203,8 @@ export function freeCells(shape: GridShape, count: number): Span[] {
   if (count >= MAX_GRID_CELLS) return [];
   const layout = isGridLayout(shape.layout) ? shape.layout : "2";
   if (layout === "custom") return [{ w: 1, h: 1 }];
-  // « Automatique » : une case vide compte comme une case normale ; une grille vide en montre une rangée.
-  if (layout === "auto") return Array.from({ length: count === 0 ? autoCols(shape) : 1 }, () => ({ w: 1, h: 1 }));
+  // « Automatique » et rangées justifiées : une case vide compte comme une case normale ; une grille vide en montre une rangée.
+  if (layout === "auto" || isJustified(shape)) return Array.from({ length: count === 0 ? gridCells(shape, 0).cols : 1 }, () => ({ w: 1, h: 1 }));
   const p = PRESETS[layout];
   const free = count === 0 ? p.cells.length : (p.cells.length - (count % p.cells.length)) % p.cells.length;
   return Array.from({ length: free }, (_, i) => p.cells[(count + i) % p.cells.length]);
@@ -205,6 +280,8 @@ export type GridModelOp =
   | { op: "swap"; a: number; b: number }
   /** `to` : rang final de la case. */
   | { op: "move"; from: number; to: number }
+  /** Rangées justifiées (lot 37b) : l'image n° `index` occupe seule une rangée pleine largeur (`alone`) ou se range avec les autres. */
+  | { op: "alone"; index: number; alone: boolean }
   /** Largeur / hauteur relative (« Plus large » = dw +1…) ; passe en « Sur mesure ». */
   | { op: "span"; index: number; dw?: number; dh?: number }
   /** « Adapter aux images » : `ratios[i]` = largeur / hauteur de l'image n° i. */
@@ -241,11 +318,22 @@ export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | nu
   const shaped = (p: Props): GridShape => ({ ...(p as GridShape), ...(ratios ? { ratios } : {}) });
   const hasSpans = Array.isArray(props.spans);
   const sp = (): Span[] => spansOf(props, n);
-  const withOrder = (order: number[]): Props => ({
-    ...props,
-    children: order.map((i) => list[i]),
-    ...(hasSpans ? { spans: order.map((i) => sp()[i]) } : {}),
-  });
+  const aloneOf = (): boolean[] => Array.from({ length: n }, (_, i) => Array.isArray(props.alone) && props.alone[i] === true);
+  const withOrder = (order: number[]): Props => {
+    const next: Props = {
+      ...props,
+      children: order.map((i) => list[i]),
+      ...(hasSpans ? { spans: order.map((i) => sp()[i]) } : {}),
+    };
+    // Le drapeau « Seule sur sa ligne » suit son image.
+    if (Array.isArray(props.alone)) {
+      const a = aloneOf();
+      const moved = order.map((i) => a[i]);
+      if (moved.some(Boolean)) next.alone = moved;
+      else delete next.alone;
+    }
+    return next;
+  };
   switch (op.op) {
     case "set": {
       const { op: _o, layout, cols, mirror, ...rest } = op;
@@ -292,6 +380,16 @@ export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | nu
       order.splice(op.to, 0, x);
       return { props: withOrder(order) };
     }
+    case "alone": {
+      if (op.index < 0 || op.index >= n) return { error: "Cette case n'existe plus." };
+      if (!isJustified(props as GridShape)) return { error: "« Seule sur sa ligne » demande le format Libre." };
+      const a = aloneOf();
+      a[op.index] = op.alone;
+      const next: Props = { ...props };
+      if (a.some(Boolean)) next.alone = a;
+      else delete next.alone;
+      return { props: next };
+    }
     case "span": {
       if (op.index < 0 || op.index >= n) return { error: "Cette case n'existe plus." };
       const base = props.layout === "custom" ? { ...props } : { ...props, ...toCustom(shaped(props), n) };
@@ -313,7 +411,7 @@ export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | nu
       if (op.index < 0 || op.index > n) return { error: "Cette case n'existe plus." };
       if (op.index === n) {
         if (n >= MAX_GRID_CELLS) return { error: `${MAX_GRID_CELLS} cases au plus par grille.` };
-        return { props: { ...props, children: [...list, op.child], ...(hasSpans ? { spans: [...sp(), { w: 1, h: 1 }] } : {}) } };
+        return { props: { ...props, children: [...list, op.child], ...(hasSpans ? { spans: [...sp(), { w: 1, h: 1 }] } : {}), ...(Array.isArray(props.alone) ? { alone: [...aloneOf(), false] } : {}) } };
       }
       const old = list[op.index];
       // Même sorte de média : le média change, le reste (légende, cadre, recadrage…) est gardé ; sinon la case est refaite.

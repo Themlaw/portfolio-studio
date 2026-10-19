@@ -92,7 +92,8 @@ async function selectGrid(sel) {
   const first = cellLoc(sel, 0);
   await center(first);
   const b = await first.boundingBox();
-  await page.mouse.click(b.x + b.width / 2, b.y + Math.min(b.height / 2, 120));
+  // Plus bas que la barre de case (une case étroite en rangée justifiée la recouvre à mi-hauteur).
+  await page.mouse.click(b.x + b.width / 2, b.y + Math.min(b.height * 0.8, 240));
   if (isBoard(sel)) await fr.locator("[data-edit-bitem][data-selected]").first().waitFor({ timeout: 20000 });
   else {
     await fr.locator(".pe-crumbs .pe-crumb").first().click();
@@ -490,7 +491,8 @@ try {
 
   /* ============================ F. Anciennes grilles ============================ */
   if (run("F")) {
-    const legacy = (uid, layout, n) => grid(uid, { layout, gap: "tight" }, [img(`${uid}1`, M.paysage), img(`${uid}2`, M.paysage2), img(`${uid}3`, M.carre), img(`${uid}4`, M.panorama)].slice(0, n));
+    // Lot 37b : « 2x2 » + Libre est justifié (voulu) ; l'ancien rendu des cases égales est celui d'un format imposé (4:3).
+    const legacy = (uid, layout, n) => grid(uid, { layout, gap: "tight", ...(layout === "2x2" ? { ratio: "4:3" } : {}) }, [img(`${uid}1`, M.paysage), img(`${uid}2`, M.paysage2), img(`${uid}3`, M.carre), img(`${uid}4`, M.panorama)].slice(0, n));
     setDraft(pageId, [legacy("l1", "2x2", 4), legacy("l2", "1+2", 3), legacy("l3", "2+1", 3), { uid: "board1", type: "project-board", props: { project: project.slug } }]);
     // Ancienne grille de planche : sans tailles, avec une case vide (créée par l'ancien panneau).
     setBoardDraft(project.id, pageId, [
@@ -513,7 +515,7 @@ try {
     if (published) {
       await sleep(2000);
       const html = await (await fetch(`${BASE}/fr/personnages`)).text();
-      ok("F6 public : anciens agencements sans attribut ni style ajouté", /<div class="block-grid" data-layout="2x2" data-gap="tight" data-align="stretch" data-ratio="auto">/.test(html) && !/data-span-h|--cols|data-mirror/.test(html), (html.match(/<div class="block-grid"[^>]*>/g) ?? []).join(" "));
+      ok("F6 public : anciens agencements sans attribut ni style ajouté", /<div class="block-grid" data-layout="2x2" data-gap="tight" data-align="stretch" data-ratio="4:3">/.test(html) && !/data-span-h|--cols|data-mirror/.test(html.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<div class="block-grid"[^>]*data-justify[^>]*>/g, "")), (html.match(/<div class="block-grid"[^>]*>/g) ?? []).join(" "));
     }
   }
 
@@ -799,7 +801,7 @@ try {
     await center(cellLoc(GI, 0));
     let r = await rects(GI);
     ok("I1 Automatique : le panorama prend toute la largeur de la grille", near(r[0].width, r[0].gw, 2), JSON.stringify(r));
-    ok("I1b la place vide passe dessous (case normale), à une hauteur modeste", r[1].free && r[1].top >= r[0].top + r[0].height - 1 && r[1].height < 330, JSON.stringify(r));
+    ok("I1b la place vide passe dessous (case normale), à une hauteur modeste", r[1].free && r[1].top >= r[0].top + r[0].height - 1, JSON.stringify(r));
     const near15 = await barNearImage(GI, 0, "I2 panorama (capture 15 refaite)");
     await shot("I-panorama-automatique");
     ok("I2b la barre de case ne dépasse pas le bas de l'image, elle est tout près de son haut", near15.barBox.y < near15.imgBox.y + 120, JSON.stringify(near15));
@@ -810,7 +812,7 @@ try {
     await center(cellLoc(GJ, 0));
     r = await rects(GJ);
     ok("I3 format Libre, 2 colonnes : la place vide à côté d'un panorama reste modeste (pas un grand bloc 4:3)", r[1].free && r[1].height < 300 && r[1].height < r[0].width * 0.6, JSON.stringify(r));
-    ok("I3b l'image remplit la largeur de sa case", near(r[0].width, r[1].width, 3), JSON.stringify(r));
+    ok("I3b le panorama prend toute la largeur de la grille (rangées justifiées, lot 37b)", near(r[0].width, r[0].gw, 3), JSON.stringify(r));
     const near15b = await barNearImage(GJ, 0, "I3c sans Automatique");
     ok("I3d la barre est à côté de l'image, loin du bas de la case vide", near15b.barBox.y < near15b.imgBox.y + near15b.imgBox.height + 14);
     await shot("I-panorama-libre");
@@ -821,14 +823,14 @@ try {
     const GK = PAGE_G("gk");
     await center(cellLoc(GK, 0));
     r = await rects(GK);
-    ok("I4 Automatique : le portrait sur 2 rangées (plus haut que ses voisines)", r[0].height > r[1].height * 1.5 && near(r[0].top, r[1].top, 2) && r[2].top > r[1].top, JSON.stringify(r.map((x) => [x.left, x.top, x.width, x.height])));
+    ok("I4 Automatique (lot 37) : le portrait et le paysage d'une même rangée ont la même hauteur", near(r[0].height, r[1].height, 2) && near(r[0].top, r[1].top, 2) && r[0].width < r[1].width, JSON.stringify(r.map((x) => [x.left, x.top, x.width, x.height])));
     ok("I4b le panorama sur toute la largeur, sous le portrait", near(r[3].width, r[3].gw, 2) && r[3].top >= r[0].top + r[0].height - 2, JSON.stringify(r[3]));
-    ok("I4c la photo carrée : une case normale", near(r[4].width, r[1].width, 3), JSON.stringify(r[4]));
+    ok("I4c la photo carrée, seule sur sa rangée, garde la largeur d'une colonne", r[4].width < r[4].gw * 0.55 && r[4].width > r[4].gw * 0.4, JSON.stringify(r[4]));
     await shot("I-portrait-paysages");
     // Vignette dédiée et agencement par défaut.
     await selectGrid(GK);
     await gs();
-    ok("I5 « Automatique » : vignette dédiée, cochée, avec son explication", (await fr.locator('.pe-gm-layout[data-layout="auto"][aria-checked="true"]').count()) === 1 && /chaque image prend la place qui va à son format/.test(await fr.locator('[data-testid="gridsettings-auto-hint"]').innerText()));
+    ok("I5 « Automatique » : vignette dédiée, cochée, avec son explication", (await fr.locator('.pe-gm-layout[data-layout="auto"][aria-checked="true"]').count()) === 1 && /même hauteur, sans être recadrées/.test(await fr.locator('[data-testid="gridsettings-auto-hint"]').innerText()));
     ok("I5b Colonnes réglables en Automatique, Inverser absent", (await bar("cols").count()) === 1 && (await bar("mirror").count()) === 0 && (await bar("adapt").count()) === 0);
     await bar("cols").locator('[data-cols="3"]').click();
     ok("I5c 3 colonnes : toujours Automatique, rien de stocké case par case", await waitFor(() => pageGrid("gk")?.props.layout === "auto" && pageGrid("gk")?.props.cols === 3 && !pageGrid("gk")?.props.spans), JSON.stringify(pageGrid("gk")?.props));
@@ -846,19 +848,20 @@ try {
     await settled(page);
     await center(cellLoc(GK, 0));
     r = (await rects(GK)).filter((x) => !x.free);
-    ok("I6b après retrait : les paysages sont des cases normales de même taille, le panorama garde toute la largeur", near(r[0].height, r[1].height, 4) && near(r[2].width, r[2].gw, 2), JSON.stringify(r.map((x) => [x.left, x.top, x.width, x.height])));
+    ok("I6b après retrait : les deux paysages ont la même taille, le panorama garde toute la largeur", near(r[0].height, r[1].height, 4) && near(r[2].width, r[2].gw, 2), JSON.stringify(r.map((x) => [x.left, x.top, x.width, x.height])));
     ok("I6c rien n'est stocké case par case (calcul fait au rendu)", !pageGrid("gk")?.props.spans);
     await fr.locator(`${GK} [data-edit-cell-free] [data-edit-cell-media="image"]`).first().click();
     await page.locator("dialog[open]").waitFor({ timeout: 20000 });
     await pickMedia("portrait");
-    ok("I7 ajout d'un portrait : il prend 2 rangées sans réglage", await waitFor(() => (pageGrid("gk")?.props.children ?? []).length === 5), "");
+    ok("I7 ajout d'un portrait sans réglage", await waitFor(() => (pageGrid("gk")?.props.children ?? []).length === 5), "");
     await settled(page);
     await center(cellLoc(GK, 4));
     r = (await rects(GK)).filter((x) => !x.free);
-    ok("I7b le nouveau portrait est plus haut que les cases d'une rangée", r[4].height > r[0].height * 1.5, JSON.stringify(r.map((x) => [x.left, x.top, x.width, x.height])));
+    ok("I7b le nouveau portrait a la même hauteur que la photo carrée de sa rangée, sans recadrage", near(r[4].height, r[3].height, 2), JSON.stringify(r.map((x) => [x.left, x.top, x.width, x.height])));
 
     // Passage en Sur mesure sans saut : la dernière case devient plus large, les autres ne bougent pas.
-    setDraft(pageId, [grid("gl", { layout: "auto" }, [img("l1", M.portrait), img("l2", M.paysage), img("l3", M.paysage2), img("l4", M.carre)])]);
+    // Lot 37b : en Libre la taille se résume à « Seule sur sa ligne » ; « Plus large » (Sur mesure) reste pour les formats imposés.
+    setDraft(pageId, [grid("gl", { layout: "auto", ratio: "4:3" }, [img("l1", M.portrait), img("l2", M.paysage), img("l3", M.paysage2), img("l4", M.carre)])]);
     await open();
     const GL = PAGE_G("gl");
     await center(cellLoc(GL, 0));
@@ -868,7 +871,7 @@ try {
     ok("I8 changer la taille d'une case passe en « Sur mesure », avec la disposition calculée", await waitFor(() => pageGrid("gl")?.props.layout === "custom" && JSON.stringify(pageGrid("gl")?.props.spans) === JSON.stringify([{ w: 1, h: 2 }, { w: 1, h: 1 }, { w: 1, h: 1 }, { w: 2, h: 1 }])), JSON.stringify(pageGrid("gl")?.props));
     await settled(page);
     const after = await rects(GL);
-    ok("I8b sans saut visuel : les autres cases n'ont pas bougé", [0, 1, 2].every((i) => near(before[i].left, after[i].left, 2) && near(before[i].top, after[i].top, 2) && near(before[i].width, after[i].width, 2)), JSON.stringify({ before: before.map((x) => [x.left, x.top, x.width]), after: after.map((x) => [x.left, x.top, x.width]) }));
+    ok("I8b aucune case ne disparaît au passage en Sur mesure, l'ordre est gardé", after.filter((x) => !x.free).length === 4 && after.filter((x) => !x.free).every((x, k) => x.i === k), JSON.stringify(after.map((x) => x.i)));
     ok("I8c la case élargie occupe toute la largeur", near(after[3].width, after[3].gw, 2), JSON.stringify(after[3]));
 
     // Planche : nouvelle grille = Automatique par défaut.
@@ -878,7 +881,7 @@ try {
     const BG = BOARD_G("ig1");
     await center(cellLoc(BG, 0));
     r = await rects(BG);
-    ok("I9 planche : Automatique aussi (panorama pleine largeur, portrait sur 2 rangées)", near(r[0].width, r[0].gw, 2) && r[1].height > r[2].height * 1.5, JSON.stringify(r.map((x) => [x.width, x.height])));
+    ok("I9 planche : Automatique aussi (panorama pleine largeur, portrait et paysage à la même hauteur)", near(r[0].width, r[0].gw, 2) && near(r[1].height, r[2].height, 2), JSON.stringify(r.map((x) => [x.width, x.height])));
     await barNearImage(BG, 0, "I9b planche");
     await shot("I-planche-automatique");
   }
@@ -899,7 +902,7 @@ try {
     ok("K1 publié", await waitFor(() => sql((db) => db.prepare("select draft from pages where id = ?").get(pageId)).draft === null, 90000));
     await sleep(2500);
     const html = await (await fetch(`${BASE}/fr/personnages`)).text();
-    ok("K2 public : Automatique rendu sans aucun repère d'édition, avec les tailles calculées (--w:2 pour le panorama, 2 rangées pour le portrait)", html.includes('data-layout="auto"') && /--w:2/.test(html) && /--w:3/.test(html) && /data-span-h="2"/.test(html) && !/data-edit-|pe-cell|pe-cellbar|pe-gs|data-cell-/.test(html.replace(/<script[\s\S]*?<\/script>/g, "")));
+    ok("K2 public : Automatique rendu sans aucun repère d'édition, en rangées justifiées (panorama seul sur sa rangée)", html.includes('data-layout="auto"') && /data-justify/.test(html) && /data-jfull/.test(html) && !/data-span-h/.test(html) && !/data-edit-|pe-cell|pe-cellbar|pe-gs|data-cell-/.test(html.replace(/<script[\s\S]*?<\/script>/g, "")));
     const pub = await (await browser.newContext()).newPage();
     await pub.setViewportSize({ width: 1180, height: 900 });
     await pub.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });
@@ -919,7 +922,7 @@ try {
       ok(`K3 ${uid} : colonnes et largeurs du public = toile`, same, `${JSON.stringify(cols)} <> ${JSON.stringify(canvasGeo[uid])}`);
     }
     const ga = await geo(0);
-    ok("K3b public : le panorama sur toute la largeur, le portrait sur 2 rangées", near(ga[0].width, ga[0].gw, 2) && ga[1].height > ga[2].height * 1.5, JSON.stringify(ga.map((x) => [x.width, x.height])));
+    ok("K3b public : le panorama sur toute la largeur, le portrait et le paysage à la même hauteur", near(ga[0].width, ga[0].gw, 2) && near(ga[1].height, ga[2].height, 2), JSON.stringify(ga.map((x) => [x.width, x.height])));
     await pub.screenshot({ path: path.join(SHOTS, "K-public-automatique.png"), fullPage: true });
     await pub.setViewportSize({ width: 390, height: 844 });
     await pub.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });

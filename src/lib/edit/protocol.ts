@@ -82,6 +82,8 @@ export const GridCanvasOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("remove"), index: CellIndex }),
   z.object({ op: z.literal("swap"), a: CellIndex, b: CellIndex }),
   z.object({ op: z.literal("move"), from: CellIndex, to: CellIndex }),
+  // Lot 37b : rangées justifiées, une image seule sur sa ligne ou rangée avec les autres.
+  z.object({ op: z.literal("alone"), index: CellIndex, alone: z.boolean() }),
   z.object({ op: z.literal("span"), index: CellIndex, dw: Step.optional(), dh: Step.optional() }),
   z.object({ op: z.literal("adapt"), ratios: z.array(z.number().finite().min(0.05).max(20)).max(MAX_GRID_CELLS).optional() }),
   z.object({ op: z.literal("pick"), index: z.number().int().min(0).max(MAX_GRID_CELLS), media: z.enum(["image", "video"]).optional() }),
