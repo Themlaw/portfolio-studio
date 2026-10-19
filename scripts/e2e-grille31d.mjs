@@ -92,7 +92,8 @@ async function selectGrid(sel) {
   const first = cellLoc(sel, 0);
   await center(first);
   const b = await first.boundingBox();
-  await page.mouse.click(b.x + b.width / 2, b.y + Math.min(b.height / 2, 120));
+  // Plus bas que la barre de case (une case étroite en rangée justifiée la recouvre à mi-hauteur).
+  await page.mouse.click(b.x + b.width / 2, b.y + Math.min(b.height * 0.8, 240));
   if (isBoard(sel)) await fr.locator("[data-edit-bitem][data-selected]").first().waitFor({ timeout: 20000 });
   else {
     await fr.locator(".pe-crumbs .pe-crumb").first().click();
@@ -490,7 +491,8 @@ try {
 
   /* ============================ F. Anciennes grilles ============================ */
   if (run("F")) {
-    const legacy = (uid, layout, n) => grid(uid, { layout, gap: "tight" }, [img(`${uid}1`, M.paysage), img(`${uid}2`, M.paysage2), img(`${uid}3`, M.carre), img(`${uid}4`, M.panorama)].slice(0, n));
+    // Lot 37b : « 2x2 » + Libre est justifié (voulu) ; l'ancien rendu des cases égales est celui d'un format imposé (4:3).
+    const legacy = (uid, layout, n) => grid(uid, { layout, gap: "tight", ...(layout === "2x2" ? { ratio: "4:3" } : {}) }, [img(`${uid}1`, M.paysage), img(`${uid}2`, M.paysage2), img(`${uid}3`, M.carre), img(`${uid}4`, M.panorama)].slice(0, n));
     setDraft(pageId, [legacy("l1", "2x2", 4), legacy("l2", "1+2", 3), legacy("l3", "2+1", 3), { uid: "board1", type: "project-board", props: { project: project.slug } }]);
     // Ancienne grille de planche : sans tailles, avec une case vide (créée par l'ancien panneau).
     setBoardDraft(project.id, pageId, [
@@ -513,7 +515,7 @@ try {
     if (published) {
       await sleep(2000);
       const html = await (await fetch(`${BASE}/fr/personnages`)).text();
-      ok("F6 public : anciens agencements sans attribut ni style ajouté", /<div class="block-grid" data-layout="2x2" data-gap="tight" data-align="stretch" data-ratio="auto">/.test(html) && !/data-span-h|--cols|data-mirror/.test(html), (html.match(/<div class="block-grid"[^>]*>/g) ?? []).join(" "));
+      ok("F6 public : anciens agencements sans attribut ni style ajouté", /<div class="block-grid" data-layout="2x2" data-gap="tight" data-align="stretch" data-ratio="4:3">/.test(html) && !/data-span-h|--cols|data-mirror/.test(html.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<div class="block-grid"[^>]*data-justify[^>]*>/g, "")), (html.match(/<div class="block-grid"[^>]*>/g) ?? []).join(" "));
     }
   }
 
@@ -810,7 +812,7 @@ try {
     await center(cellLoc(GJ, 0));
     r = await rects(GJ);
     ok("I3 format Libre, 2 colonnes : la place vide à côté d'un panorama reste modeste (pas un grand bloc 4:3)", r[1].free && r[1].height < 300 && r[1].height < r[0].width * 0.6, JSON.stringify(r));
-    ok("I3b l'image remplit la largeur de sa case", near(r[0].width, r[1].width, 3), JSON.stringify(r));
+    ok("I3b le panorama prend toute la largeur de la grille (rangées justifiées, lot 37b)", near(r[0].width, r[0].gw, 3), JSON.stringify(r));
     const near15b = await barNearImage(GJ, 0, "I3c sans Automatique");
     ok("I3d la barre est à côté de l'image, loin du bas de la case vide", near15b.barBox.y < near15b.imgBox.y + near15b.imgBox.height + 14);
     await shot("I-panorama-libre");
@@ -858,7 +860,8 @@ try {
     ok("I7b le nouveau portrait a la même hauteur que la photo carrée de sa rangée, sans recadrage", near(r[4].height, r[3].height, 2), JSON.stringify(r.map((x) => [x.left, x.top, x.width, x.height])));
 
     // Passage en Sur mesure sans saut : la dernière case devient plus large, les autres ne bougent pas.
-    setDraft(pageId, [grid("gl", { layout: "auto" }, [img("l1", M.portrait), img("l2", M.paysage), img("l3", M.paysage2), img("l4", M.carre)])]);
+    // Lot 37b : en Libre la taille se résume à « Seule sur sa ligne » ; « Plus large » (Sur mesure) reste pour les formats imposés.
+    setDraft(pageId, [grid("gl", { layout: "auto", ratio: "4:3" }, [img("l1", M.portrait), img("l2", M.paysage), img("l3", M.paysage2), img("l4", M.carre)])]);
     await open();
     const GL = PAGE_G("gl");
     await center(cellLoc(GL, 0));

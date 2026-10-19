@@ -20,6 +20,8 @@ export const gridSchema = z.object({
   cols: z.number().int().min(2).max(4).optional(),
   spans: z.array(z.object({ w: z.number().int().min(1).max(MAX_SPAN_W), h: z.number().int().min(1).max(MAX_SPAN_H) })).max(MAX_CHILDREN).optional(),
   mirror: z.boolean().optional(),
+  /** Rangées justifiées (lot 37b) : `true` = cette image occupe seule une rangée pleine largeur (même ordre que `children`). */
+  alone: z.array(z.boolean()).max(MAX_CHILDREN).optional(),
   gap: z.enum(["none", "tight", "normal", "wide"]).default("normal"),
   align: z.enum(["start", "center", "end", "stretch"]).default("stretch"),
   /** Ratio imposé aux images des cellules (les vidéos gardent le 16:9). */
@@ -44,7 +46,9 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
   // « Automatique » (lot 31e) : la taille de chaque case suit le format réel de son média, lu à chaque rendu (page publiée,
   // brouillon, toile) : rien n'est figé case par case. Sans média connu (texte, image absente) : une case normale.
   const auto = props.layout === "auto";
-  const ratios = auto
+  // Rangées justifiées (lots 37 et 37b) : « Automatique » et les agencements en colonnes simples, avec le format « Libre ».
+  const justified = isJustified(props);
+  const ratios = auto || justified
     ? await Promise.all(
         props.children.slice(0, cells.length).map(async (c) => {
           const id = typeof c.props.mediaId === "number" ? c.props.mediaId : undefined;
@@ -64,9 +68,8 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
     : undefined;
   const geometry = gridCells({ ...props, ratios }, cells.length);
   const free = canvas ? freeCells(props, cells.length) : [];
-  // Rangées justifiées (lot 37) : largeur de chaque case proportionnelle à son format, même hauteur par rangée.
-  const justified = isJustified(props);
-  const rows = justified ? justifyRows(ratios ?? [], geometry.cols) : [];
+  // Largeur de chaque case proportionnelle à son format, même hauteur par rangée.
+  const rows = justified ? justifyRows(ratios ?? [], geometry.cols, props.alone) : [];
   // Places libres (toile seulement) : une colonne chacune, à la suite de la dernière rangée si elle est incomplète, sinon sur une
   // nouvelle rangée ; elles ne changent jamais la largeur des images (parité avec le public).
   if (justified) {
@@ -86,6 +89,7 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
     if (!j) return {};
     return {
       ...(j.full ? { "data-jfull": "" } : {}),
+      ...(i < cells.length && props.alone?.[i] ? { "data-jalone": "" } : {}),
       ...(j.part ? { "data-jpart": "" } : {}),
       "data-jrow": j.row,
       style: { "--jr": j.r.toFixed(4), "--jk": j.k.toFixed(4) } as CSSProperties,
@@ -93,6 +97,8 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
   };
   // « Sur mesure » et « Automatique » : grille CSS à colonnes réglables, taille de chaque case en `--w` / `--h`.
   const custom = props.layout === "custom" || auto;
+  // Colonnes et format de l'écran large en variables CSS : aussi pour les préréglages justifiés.
+  const sized = custom || justified;
   const unit = parseRatio(props.ratio) ?? 4 / 3;
   /** Taille d'une case (vue d'un agencement « Sur mesure » ou d'une case sur deux rangées). */
   const sizeAttrs = (s: { w: number; h: number }) =>
@@ -136,10 +142,10 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
         data-gap={props.gap}
         data-align={props.align}
         data-ratio={props.ratio}
-        {...(custom ? { "data-cols": geometry.cols } : {})}
+        {...(sized ? { "data-cols": geometry.cols } : {})}
         {...(justified ? { "data-justify": "" } : {})}
         {...(geometry.mirror ? { "data-mirror": "" } : {})}
-        {...(custom ? { style: { "--cols": geometry.cols, "--grid-r": unit } as CSSProperties } : {})}
+        {...(sized ? { style: { "--cols": geometry.cols, "--grid-r": unit } as CSSProperties } : {})}
         {...(canvas ? { "data-edit-grid": "", "data-grid-cols": geometry.cols } : {})}
       >
         {cells.map((cell, i) => (

@@ -4,7 +4,7 @@ import type { RawBlock } from "@/lib/pages";
 
 import { cropStyle, lookAttributes, readLook, type Look } from "@/lib/look";
 import { own } from "@/lib/own";
-import { autoCols, cellShare, isJustified, type GridShape } from "./grid-layouts";
+import { cellShare, gridCells, isJustified, type GridShape } from "./grid-layouts";
 import { getSiteView } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
 import type { PaletteColors } from "@/themes/palette";
@@ -194,7 +194,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
       const pass: Look = {};
       if (boxless && i === 0 && look?.spaceTop) pass.spaceTop = look.spaceTop;
       if (boxless && i === kids.length - 1 && look?.spaceBottom) pass.spaceBottom = look.spaceBottom;
-      const cellCtx: BlockContext = block.type === "grid" && data.layout ? { ...childCtx, cellColumns: isJustified(data) ? Math.max(1, autoCols(data) * 0.6) : cellShare(data, i, kids.length), ...(data.layout === "auto" ? { cellAuto: true } : {}) } : childCtx;
+      const cellCtx: BlockContext = block.type === "grid" && data.layout ? { ...childCtx, cellColumns: isJustified(data) ? (data.alone?.[i] ? 1 : Math.max(1, gridCells(data, 0).cols * 0.6)) : cellShare(data, i, kids.length), ...(data.layout === "auto" ? { cellAuto: true } : {}) } : childCtx;
       return renderBlock({ id: -(i + 1), uid: c.uid, type: c.type, props: c.props, corrupt: false }, cellCtx, depth + 1, { uid }, Object.keys(pass).length ? pass : undefined, null, kidJoins[i]);
     });
   }

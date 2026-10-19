@@ -18,7 +18,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 import { FORMAT_KEYS, FORMAT_LABELS } from "@/lib/images/formats";
-import { AUTO_HINT, GRID_LAYOUT_LABELS, GRID_LAYOUTS, type GridLayout } from "@/blocks/grid-layouts";
+import { AUTO_HINT, GRID_LAYOUT_LABELS, GRID_LAYOUTS, JUSTIFY_HINT, type GridLayout } from "@/blocks/grid-layouts";
 import type { GridCanvasOp } from "@/lib/edit/protocol";
 import { FrameControls } from "./FrameMenu";
 import GridLayoutIcon from "./GridLayoutIcon";
@@ -142,9 +142,9 @@ function GridSettings({ grid, gref, top, left, onClose }: { grid: HTMLElement; g
             </button>
           ))}
         </div>
-        {auto && (
+        {(auto || grid.hasAttribute("data-justify")) && (
           <p className="sm-hint" data-testid="gridsettings-auto-hint">
-            {AUTO_HINT}
+            {grid.hasAttribute("data-justify") ? JUSTIFY_HINT : AUTO_HINT}
           </p>
         )}
       </div>
@@ -259,7 +259,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
       frame = requestAnimationFrame(bump);
     };
     const mo = new MutationObserver(schedule);
-    mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-selected", "data-layout", "data-gap", "data-ratio", "data-cols", "data-mirror", "data-cell-w", "data-cell-h"] });
+    mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-selected", "data-layout", "data-gap", "data-ratio", "data-cols", "data-mirror", "data-cell-w", "data-cell-h", "data-justify", "data-jalone"] });
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     document.addEventListener("load", schedule, true);
@@ -436,6 +436,9 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
     const w = Number(cell.dataset.cellW ?? 1);
     const h = Number(cell.dataset.cellH ?? 1);
     const cols = Number(gref.grid.dataset.cols ?? gref.grid.dataset.gridCols ?? 3);
+    // Rangées justifiées (lots 37, 37b) : la taille se résume à « Seule sur sa ligne » ou « Avec les autres ».
+    const justified = gref.grid.hasAttribute("data-justify");
+    const alone = cell.hasAttribute("data-jalone");
     const maxW = gref.grid.dataset.layout === "custom" ? cols : Number(gref.grid.dataset.gridCols ?? 2);
     const n = index + 1;
     return (
@@ -537,7 +540,18 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
       </div>
         {sizeMenu?.uid === uid && (
           <SizeMenu top={sizeMenu.top} left={sizeMenu.left} onClose={() => setSizeMenu(null)}>
-            {(
+            {justified
+              ? (
+                  [
+                    ["alone", "Seule sur sa ligne", true],
+                    ["with-others", "Avec les autres", false],
+                  ] as const
+                ).map(([k, label, value]) => (
+                  <button key={k} type="button" role="menuitemradio" aria-checked={alone === value} className="pe-gm-ratio" data-cb={k} onClick={() => { send(gref, { op: "alone", index, alone: value }); setSizeMenu(null); }}>
+                    {label}
+                  </button>
+                ))
+              : (
               [
                 ["wider", "Plus large", w >= maxW, { dw: 1 }],
                 ["narrower", "Moins large", w <= 1, { dw: -1 }],
