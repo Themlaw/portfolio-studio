@@ -17,7 +17,7 @@
 import { HELP_TEXT } from "./help-text";
 import { isVideoMode } from "./video-mode";
 
-export type BoardItemType = "strip" | "grid" | "image" | "video-single" | "rich-text";
+export type BoardItemType = "strip" | "grid" | "image" | "video-single" | "free-board" | "rich-text";
 /**
  * Largeur et alignement de TOUT composant de la planche (lot 31b), réglage commun hors des props du composant
  * (les schémas des blocs retirent les clés inconnues). Absent ou largeur 100 = rendu d'avant, sans enveloppe.
@@ -72,7 +72,7 @@ export function railIds(props: Record<string, unknown>): string[] {
 export const isProjectStrip = (item: { type: string; props: Record<string, unknown> }) => item.type === "strip" && item.props.source !== "own";
 
 /** Types proposés dans une planche, dans l'ordre du menu « + Ajouter ». */
-export const BOARD_ITEM_TYPES: BoardItemType[] = ["strip", "grid", "image", "video-single", "rich-text"];
+export const BOARD_ITEM_TYPES: BoardItemType[] = ["strip", "grid", "image", "video-single", "free-board", "rich-text"];
 
 /** Libellés simples, tels que l'artiste les lit. */
 export const BOARD_ITEM_LABELS: Record<BoardItemType, string> = {
@@ -80,6 +80,7 @@ export const BOARD_ITEM_LABELS: Record<BoardItemType, string> = {
   grid: "Grille",
   image: "Image",
   "video-single": "Vidéo",
+  "free-board": "Planche libre",
   "rich-text": "Texte",
 };
 
@@ -89,6 +90,7 @@ export const BOARD_ITEM_HINTS: Record<BoardItemType, string> = {
   grid: "Des images ou des vidéos rangées en colonnes.",
   image: "Une image seule, jusqu'à la pleine largeur.",
   "video-single": "Une vidéo de ta médiathèque.",
+  "free-board": "Des images détourées posées où tu veux, à ta taille et sous l'angle que tu veux.",
   "rich-text": "Un paragraphe, avec un titre si tu veux.",
 };
 
@@ -192,7 +194,9 @@ export function layoutMediaIds(items: BoardItem[]): number[] {
   for (const item of items) {
     if (item.type === "image") take(item.props, ["mediaId"]);
     else if (item.type === "video-single") take(item.props, ["mediaId", "posterMediaId"]);
-    else if (item.type === "grid" && Array.isArray(item.props.children)) {
+    else if (item.type === "free-board" && Array.isArray(item.props.items)) {
+      for (const it of item.props.items as { media?: unknown }[]) if (isObj(it) && typeof it.media === "number" && Number.isInteger(it.media)) out.push(it.media);
+    } else if (item.type === "grid" && Array.isArray(item.props.children)) {
       for (const kid of item.props.children as { type?: unknown; props?: unknown }[]) {
         if (!isObj(kid.props)) continue;
         if (kid.type === "image") take(kid.props, ["mediaId"]);
@@ -214,6 +218,8 @@ export function itemEmpty(item: BoardItem): boolean {
       return typeof p.mediaId !== "number" && !(item.type === "video-single" && typeof p.slot === "string");
     case "grid":
       return !Array.isArray(p.children) || p.children.length === 0;
+    case "free-board":
+      return !Array.isArray(p.items) || p.items.length === 0;
     case "rich-text":
       return !Array.isArray(p.paragraphs) || !(p.paragraphs as { fr?: string; en?: string }[]).some((x) => x && (x.fr || x.en));
   }
@@ -225,6 +231,7 @@ export function mediaCount(items: BoardItem[]): number {
   for (const item of items) {
     if (item.type === "strip" && item.props.source === "own" && Array.isArray(item.props.media)) n += railList(item.props).filter((id) => id !== null).length;
     else if (item.type === "image" || item.type === "video-single") n += itemEmpty(item) ? 0 : 1;
+    else if (item.type === "free-board" && Array.isArray(item.props.items)) n += item.props.items.length;
     else if (item.type === "grid" && Array.isArray(item.props.children)) {
       n += (item.props.children as { props?: { mediaId?: unknown } }[]).filter((k) => typeof k?.props?.mediaId === "number").length;
     }
@@ -247,6 +254,8 @@ export function newBoardItem(type: BoardItemType, uid: string, source?: "project
       return { uid, type, props: { width: "full" } };
     case "video-single":
       return { uid, type, props: { variant: "plain", mode: "player" } };
+    case "free-board":
+      return { uid, type, props: { format: "3:2", phone: "scale", items: [] } };
     case "rich-text":
       return { uid, type, props: { paragraphs: [{ ...HELP_TEXT.paragraph }] } };
   }

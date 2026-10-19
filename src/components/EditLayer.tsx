@@ -33,6 +33,7 @@ import { acceptToCanvas, insertionIndex, moveTo, type BlockInfo, type FromCanvas
 import BoardLayer from "./BoardLayer";
 import LookLayer from "./edit/LookLayer";
 import SiteLookLayer from "./edit/SiteLookLayer";
+import FreeLayer from "./edit/FreeLayer";
 import GridLayer from "./edit/GridLayer";
 import { gridRefOf } from "./edit/grid-dom";
 import { listKeys, noteSettle, observeOverlays, pendingOrder, postIntent, previewMarked, previewOrder, previewText, previewTileSize, resetOverlays, revertOverlay, siblingWrappers } from "./edit/optimistic";
@@ -1465,6 +1466,8 @@ export default function EditLayer() {
 
       {/* Grille unifiée (lot 31d) : barre de la grille, barre des cases, numéros. */}
       <GridLayer selected={selected} dragging={Boolean(drag)} announce={setAnnouncement} />
+      {/* Planche libre (lot 42) : images posées librement, poignées, repères, barre de l'image. */}
+      <FreeLayer selected={selected} dragging={Boolean(drag)} announce={setAnnouncement} />
       {/* Mise en page (lot 2) : espaces, textes, position du titre, cadrage. */}
       <LookLayer
         selected={sel ? { uid: sel.uid, type: sel.type, ...(sel.parent ? { parent: sel.parent, parentType: boxes.find((b) => b.uid === sel.parent)?.type } : {}) } : null}

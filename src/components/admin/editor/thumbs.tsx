@@ -56,6 +56,14 @@ const THUMBS: Record<string, React.ReactNode> = {
       <path d="M20 44 38 26 50 38 58 31 76 44Z" fill={INK} />
     </>
   ),
+  "free-board": (
+    <>
+      <rect x="10" y="9" width="76" height="42" rx="2" fill="none" stroke={SOFT} strokeWidth="1.2" strokeDasharray="3 2" />
+      <rect x="16" y="17" width="26" height="20" rx="2" fill={SOFT} transform="rotate(-8 29 27)" />
+      <rect x="36" y="22" width="24" height="24" rx="2" fill={INK} transform="rotate(6 48 34)" />
+      <rect x="58" y="14" width="20" height="26" rx="2" fill={ACCENT} transform="rotate(-4 68 27)" />
+    </>
+  ),
   "contact-form": (
     <>
       <rect x="12" y="8" width="40" height="5" rx="2" fill={INK} />

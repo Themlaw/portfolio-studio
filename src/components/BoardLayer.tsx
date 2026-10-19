@@ -41,6 +41,7 @@ import { FrameControls } from "./edit/FrameMenu";
 import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 import { lookOf, sendLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
+import { freeRefOf } from "./edit/free-dom";
 import { cellIndex, cellsOf, gridRefOf } from "./edit/grid-dom";
 import { useDismiss } from "./edit/useDismiss";
 
@@ -84,7 +85,7 @@ const railOf = (board: number, uid?: string) => document.querySelector<HTMLEleme
 const slotEls = (rail: Element) => [...rail.querySelectorAll<HTMLElement>(":scope > [data-edit-slot]")];
 const boardEl = (board: number) => document.querySelector<HTMLElement>(`[data-edit-board="${board}"]`);
 /** Ce que la palette peut déposer dans une planche (lot 31b) : mêmes composants que le menu « + Ajouter ». */
-const BOARD_DROP = ["grid", "image", "video-single", "rich-text", "board-strip"];
+const BOARD_DROP = ["grid", "image", "video-single", "free-board", "rich-text", "board-strip"];
 
 const itemFrames = (board: Element) => [...board.querySelectorAll<HTMLElement>("[data-edit-bitem]")];
 
@@ -187,6 +188,18 @@ function dropTargetAt(x: number, y: number, items = false): { target: DropTarget
   if (newPanel?.dataset.newBoardUid) {
     const box = boxOf(newPanel);
     return box ? { target: { kind: "new", uid: newPanel.dataset.newBoardUid }, marker: { kind: "new", rect: box } } : null;
+  }
+  // Planche libre (lot 42, page ou planche) : le média est posé là même (le point visé devient le centre de l'image).
+  const free = el.closest<HTMLElement>("[data-edit-free]");
+  const fref = free ? freeRefOf(free) : null;
+  if (free && fref) {
+    const zr = free.getBoundingClientRect();
+    const box = boxOf(free);
+    if (box && zr.width > 0 && zr.height > 0) {
+      const fx = Math.round(Math.min(100, Math.max(0, ((x - zr.left) / zr.width) * 100)) * 100) / 100;
+      const fy = Math.round(Math.min(100, Math.max(0, ((y - zr.top) / zr.height) * 100)) * 100) / 100;
+      return { target: { kind: "free", uid: fref.uid, ...(fref.board ? { board: fref.board, ...(fref.props ? { props: fref.props } : {}) } : {}), x: fx, y: fy }, marker: { kind: "media", rect: box, label: "Pose l'image ici" } };
+    }
   }
   // Case d'une grille (page ou planche, lot 31d) : le média remplace l'image de cette case ; sur une place libre, il se range à la
   // suite des images (une grille se remplit dans l'ordre) : la case qui le recevra est surlignée avec son numéro.

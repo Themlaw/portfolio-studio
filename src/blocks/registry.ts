@@ -31,6 +31,7 @@ import {
   CvEditor,
   FeaturedProjectEditor,
   FeaturedProjectsEditor,
+  FreeBoardEditor,
   GridEditor,
   HeroEditor,
   ImageEditor,
@@ -44,6 +45,7 @@ import {
 } from "./editors";
 import FeaturedProjectBlock, { featuredProjectSchema } from "./FeaturedProjectBlock";
 import FeaturedProjectsBlock, { featuredProjectsSchema } from "./FeaturedProjectsBlock";
+import FreeBoardBlock, { freeBoardSchema } from "./FreeBoardBlock";
 import GridBlock, { gridSchema } from "./GridBlock";
 import { GRID_PATTERN } from "./grid-layouts";
 import type { BlockGroup } from "./groups";
@@ -240,6 +242,20 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       inline: ["caption"],
       mediaFields: [{ field: "mediaId", kind: "image" }],
       publishCheck: (props) => (props.mediaId ? null : "Choisis une image (dépose-la, ou prends-la dans la médiathèque)."),
+    }),
+    define({
+      type: "free-board",
+      group: "media",
+      order: 30,
+      schema: freeBoardSchema,
+      Component: FreeBoardBlock,
+      Editor: FreeBoardEditor,
+      label: "Planche libre",
+      description: "Des images détourées (PNG sans fond) ou des vidéos posées où tu veux, à ta taille et sous l'angle que tu veux, directement sur la carte.",
+      defaults: { format: "3:2", phone: "scale", items: [] },
+      summary: "Planche libre · {items} images",
+      inline: [],
+      publishCheck: (props) => (Array.isArray(props.items) && props.items.length > 0 ? null : "Ajoute au moins une image à la planche libre (glisse-la sur la zone, ou « + Image »)."),
     }),
     define({
       type: "cv",

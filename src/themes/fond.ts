@@ -28,7 +28,7 @@ export type Background = z.infer<typeof BackgroundSchema>;
  * Grands composants qui reçoivent un fond. Pas l'Ouverture (elle a son propre fond, image ou vidéo), pas les anciens types
  * retirés de la palette, pas les cellules d'une grille (trop petites, la grille elle-même peut recevoir le fond).
  */
-export const FOND_TYPES: readonly string[] = ["project-board", "video-single", "grid", "image", "cv", "section-title", "collection-tiles", "rich-text", "contact", "page-link", "profile"];
+export const FOND_TYPES: readonly string[] = ["project-board", "video-single", "grid", "image", "free-board", "cv", "section-title", "collection-tiles", "rich-text", "contact", "page-link", "profile"];
 export const supportsFond = (type: string): boolean => FOND_TYPES.includes(type);
 
 /** Lecture tolérante : une valeur illisible est ignorée (jamais le bloc). */

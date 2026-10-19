@@ -1737,3 +1737,22 @@ même rendu, mêmes outils par image sur la toile. Le nom « Images du projet »
 - **Pas de légendes** sur un carrousel (un média n'a ni titre ni année) ; les images du projet gardent les leurs. Pas de « Cadrer » sur
   une place de bande : le recadrage libre concerne les tuiles et les images seules, pas les bandes (aucun changement).
 - Tests : `scripts/test-carrousel31f.mjs` (unité, base réelle) et `scripts/e2e-carrousel31f.mjs` (suite `carrousel31f`, souris réelle).
+
+## Planche libre (lot 42)
+
+**Idée.** Des PNG détourés se posent « comme sur une table » : un composant dont chaque image a une position, une taille et un angle propres, directement sur le
+fond de la carte (ou, avec l'option « Fond », sur une carte dans la carte). Page ET planche de projet : même type `free-board`, même schéma, mêmes opérations.
+
+**Modèle** (`src/blocks/free-board.ts`, module pur). Réglages : `format` (`16:9` | `3:2` | `4:3` | `1:1` | `free`), `aspect` (largeur ÷ hauteur, seulement en `free`, 0,4 à 4),
+`phone` (`scale` | `stack`), `items` (40 au plus). Une image : `id` (stable : suit l'image quand on la remplace), `media`, `x` `y` `w` (% de la zone, 0,01 près), `rot`
+(degrés entiers, −180 à 180), `z`, `radius?`, `frame?`. Opérations (`applyFreeOp`) : `set`, `put` (centre du point visé), `place` (déplacer / redimensionner / pivoter),
+`front` / `back` (rangs recompactés), `remove`, `replace`, `style`. `snapBox` : repères magnétiques sur 0 / 50 / 100 % et les bords / centres des autres images.
+
+**Rendu.** `FreeBoardBlock` (serveur) : `<div class="free-board">` au format fixe, un `<figure class="free-item">` par image, positions en variables CSS. Le DOM suit l'ordre de
+lecture, l'empilement le `z-index`. Un média supprimé / à la corbeille disparaît sans trou ; une vidéo est une boucle (`LoopClick`). Public identique à toutes les largeurs ;
+téléphone : composition à l'échelle (défaut) ou colonne (`phone: "stack"`).
+
+**Toile.** `FreeLayer` (calque) lit la géométrie dans les variables CSS de chaque image (`free-dom.ts`), dessine cadre, poignées, repères et barre, et envoie des `free-op`
+(protocol.ts : `FreeCanvasOpSchema`). `VisualEditor.freeOp` applique `applyFreeOp` au brouillon de la page (`setBlocks`) ou à la planche (`item-set`) : Annuler / Rétablir comme tout
+le reste. Cible de dépôt `free` (BoardLayer.dropTargetAt) pour les médias glissés et les fichiers ; `item-media` (clic sur une vignette quand le composant est choisi) pose au centre.
+Le panneau (`FreeBoardEditor`) donne les mêmes réglages au clavier : format, téléphone, liste des images (devant / derrière, largeur, rotation, remplacer, retirer).

@@ -117,7 +117,7 @@ try {
   await shot("1-planche-avant");
   await board.locator("[data-edit-bitem-add]").last().click();
   await f.locator(".pe-bitem-menu").waitFor({ timeout: 20000 });
-  ok("B2 menu court : 5 composants, carrousels à volonté (pas de « Images du projet » : la bande est là)", (await f.locator(".pe-bitem-menu button").count()) === 5 && (await f.locator('.pe-bitem-menu [data-bitem-type="strip"]').isEnabled()));
+  ok("B2 menu court : 6 composants, carrousels à volonté (pas de « Images du projet » : la bande est là)", (await f.locator(".pe-bitem-menu button").count()) === 6 && (await f.locator('.pe-bitem-menu [data-bitem-type="strip"]').isEnabled()));
   await shot("2-menu");
   await f.locator('.pe-bitem-menu [data-bitem-type="grid"]').click();
   await sleep(2500);

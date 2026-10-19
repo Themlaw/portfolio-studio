@@ -320,7 +320,7 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
       </div>
       </EditOnly>
       {/* Une grille vide montre ses places numérotées (lot 31d) : pas de cadre « rien à montrer ». */}
-      {!projectStrip && part.empty && part.type !== "grid" ? (
+      {!projectStrip && part.empty && part.type !== "grid" && part.type !== "free-board" ? (
         <EditOnly fallback={children}>
         <div className="pe-bitem-empty" data-edit-bitem-pick="">
           <p>{label} : rien à montrer pour le moment.</p>
