@@ -43,6 +43,7 @@ export default function StripRail({
   slotFrame,
   slotVideo,
   slotBg,
+  slotPano,
   videoMode,
 }: {
   artworks: LocalizedArtwork[];
@@ -63,6 +64,8 @@ export default function StripRail({
   slotVideo?: Partial<Record<string, "loop" | "player">>;
   /** Fond derrière chaque image (réglage `look.slotBg` du bloc, par slug d'emplacement ; lot 41). */
   slotBg?: Partial<Record<string, string>>;
+  /** Panorama par image (réglage `look.slotPano` du bloc, par slug d'emplacement ; lot 45) : absent = entière. */
+  slotPano?: Partial<Record<string, "fit" | "scroll">>;
   /**
    * Lecture des vidéos de la bande (lot 36) : « loop » = Boucle (muette, un clic met en pause), « player » = Lecteur
    * (un clic ouvre la vidéo en grand). Absent : chaque vidéo suit sa nature (une animation courte et muette en boucle,
@@ -86,6 +89,11 @@ export default function StripRail({
   const bgOf = (slug: string) => {
     const b = slotBg && Object.hasOwn(slotBg, slug) ? imageBgAttrs(slotBg[slug]) : null;
     return b ? { "data-img-bg": b["data-img-bg"], style: b.style as CSSProperties } : null;
+  };
+  /** Image entière dans la largeur visible (défaut) ou à faire défiler (lot 45) : `--ir` = ratio, repris par `--fit-h` (globals.css). */
+  const panoOf = (a: LocalizedArtwork) => {
+    const mode = slotPano && Object.hasOwn(slotPano, a.slug) ? slotPano[a.slug] : undefined;
+    return { "data-pano": mode === "scroll" ? "scroll" : "fit", style: { "--ir": (a.width / Math.max(1, a.height)).toFixed(4) } as CSSProperties };
   };
   // Les places vides n'existent que sur la toile : ni compteur, ni visionneuse.
   const shownArtworks = edit ? artworks.filter((a) => !a.edit?.empty) : artworks;
@@ -317,7 +325,8 @@ export default function StripRail({
             aria-haspopup={artwork.video ? "dialog" : undefined}
             data-video-mode={artwork.video ? "player" : undefined}
             className="strip-frame group text-left"
-            style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : frameOf(artwork.slug)?.style), ...(artwork.video ? {} : bgOf(artwork.slug)?.style) }}
+            style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : panoOf(artwork).style), ...(artwork.video ? {} : frameOf(artwork.slug)?.style), ...(artwork.video ? {} : bgOf(artwork.slug)?.style) }}
+            {...(!artwork.video ? { "data-pano": panoOf(artwork)["data-pano"] } : {})}
             {...(!artwork.video && frameOf(artwork.slug) ? { "data-frame": frameOf(artwork.slug)!["data-frame"] } : {})}
             {...(!artwork.video && bgOf(artwork.slug) ? { "data-img-bg": "" } : {})}
             {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos, "data-slot-slug": artwork.slug } : {})}
@@ -350,7 +359,7 @@ export default function StripRail({
                   width={artwork.width}
                   height={artwork.height}
                   sizes={artwork.sources ? stripSizes(artwork.width, artwork.height) : "(min-width: 1024px) 640px, 60vw"}
-                  className="h-[var(--strip-h)] w-auto max-w-none rounded-strip"
+                  className="h-[var(--fit-h,var(--strip-h))] w-auto max-w-none rounded-strip"
                 />
               )}
             </span>
