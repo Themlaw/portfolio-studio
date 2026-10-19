@@ -404,8 +404,7 @@ if (run("P"))
 if (run("T"))
   await section("T", async () => {
     await page.setViewportSize({ width: 1024, height: 800 });
-    await sleep(1200);
-    const ft = await canvas();
+    const ft = await openEditor();
     await pick(ft, "solo");
     const rows = (sel) =>
       ft.evaluate((q) => {
