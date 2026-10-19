@@ -1530,6 +1530,10 @@ Le contenu d'un projet est une SUITE de composants rendue sous l'en-tête de la 
   Vidéo, s'ajoute à la Grille / au carrousel — de même au clic sur une vignette quand un composant est choisi ; la poignée de la
   barre réordonne (`bitem-to`, op `item-to`). Tout passe par `boardOp` : Annuler / Rétablir, version de page, refus nommés.
 
+## Marge et coins d un fond (lot 43)
+
+`Background` porte deux champs facultatifs, `inset` et `round` (s / m / l, sur couleur ET papier peint) ; absents = bord à bord, coins droits (aucune migration). Avec `inset`, l enveloppe `.fond-bloc` prend une marge (`data-fond-inset`, 12 / 24 / 48 px, 8 / 14 / 24 sur téléphone), ne fusionne jamais (`fondKey` null) et `round` n a d effet qu avec elle (`data-fond-round`, 10 / 20 / 36 px). Ce qui entoure : `fondAround` / `fondJoins(keys, bgs)` donnent la couleur du voisin bord à bord (avant, sinon après) dans `FondJoin.around`, peinte dans la marge par une ombre pleine (`--fond-around`, `data-fond-around`) ; sans voisin coloré on voit la carte ou la page. La toile recalcule tout dans `refreshFondJoins` (optimistic.ts). Réutilisation (fond d image, planche libre) : lire `fondInset` / `fondRound`, poser `fondAttributes` et passer `join.around` à `fondStyle`.
+
 ## Fond de couleur des composants et bordure de carte (lot 32)
 
 Demande de l'illustratrice : « tous les grands composants peuvent avoir une pleine hauteur de couleur dans la carte, deux composants qui

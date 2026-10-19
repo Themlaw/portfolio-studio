@@ -10,7 +10,7 @@ import type { CardPalette } from "@/themes/surface";
  * (ProjectStrip, côté client) posent la MÊME enveloppe, avec les mêmes attributs de fusion que `fondJoins` calcule.
  */
 export default function FondWrap({ background, join, palette, lookup, edit, children }: { background: Background; join: FondJoin; palette: CardPalette; lookup?: WallpaperLookup; edit?: boolean; children: ReactNode }) {
-  const { vars } = fondStyle(background, palette, lookup);
+  const { vars } = fondStyle(background, palette, lookup, join.around);
   return (
     <div className="fond-bloc" {...fondAttributes(join, background)} style={vars as CSSProperties} {...(edit ? { "data-edit-background": JSON.stringify(background) } : {})}>
       {children}

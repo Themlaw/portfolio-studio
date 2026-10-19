@@ -45,7 +45,7 @@ import { parseMarked } from "@/lib/marked";
 
 import { parseColor, toHex } from "@/themes/palette";
 import type { WallpaperEntry } from "@/themes/wallpaper";
-import { fondAttributes, fondJoins, fondKey, fondStyle, readBackground, type Background } from "@/themes/fond";
+import { fondAround, fondAttributes, fondJoins, fondKey, fondStyle, readBackground, type Background } from "@/themes/fond";
 import { borderVars, cardStyle, cardVars, FALLBACK_CARD, paperAttributes, paperSignature, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
 
 import { markedNodes } from "./marked-edit";
@@ -664,7 +664,7 @@ export function fondState(uid: string): Background | null {
 }
 
 const fondOriginal = new WeakMap<Element, { attrs: Record<string, string | null>; style: string | null }>();
-const FOND_ATTRS = ["data-fond", "data-join-prev", "data-join-next", "data-edit-background", "data-wallpaper", "data-fond-clear"];
+const FOND_ATTRS = ["data-fond", "data-fond-inset", "data-fond-round", "data-fond-around", "data-join-prev", "data-join-next", "data-edit-background", "data-wallpaper", "data-fond-clear"];
 
 /**
  * Fusion des voisins recalculée sur la page affichée (aperçu d'un fond ou d'une carte) : mêmes règles que le serveur
@@ -686,10 +686,19 @@ export function refreshFondJoins(uid: string) {
           Object.fromEntries(["--card-wp-img", "--card-wp-size", "--card-wp-opacity", "--card-paper-opacity"].map((k) => [k, card.style.getPropertyValue(k) || null])),
         )}`
       : "";
-    return { wrap, card, key: fondKey(bg, Boolean(card), border) };
+    return { wrap, card, bg: card ? undefined : bg, key: fondKey(bg, Boolean(card), border) };
   });
   const joins = fondJoins(parts.map((p) => p.key));
+  const bgs = parts.map((p) => p.bg);
   parts.forEach((p, i) => {
+    // Couleur qui entoure un fond avec marge (lot 43) : celle du voisin bord à bord, comme le serveur (`fondAround`).
+    if (p.wrap) {
+      const around = fondAround(bgs, i);
+      if (around && p.bg) p.wrap.style.setProperty("--fond-around", fondStyle(p.bg, canvasPalette(), wallpaperLookup, around).vars["--fond-around"]);
+      else p.wrap.style.removeProperty("--fond-around");
+      if (around && p.bg) p.wrap.setAttribute("data-fond-around", "");
+      else p.wrap.removeAttribute("data-fond-around");
+    }
     for (const el of [p.wrap, p.card]) {
       if (!el) continue;
       for (const a of ["data-join-prev", "data-join-next"]) el.removeAttribute(a);

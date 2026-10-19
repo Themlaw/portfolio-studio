@@ -8,7 +8,7 @@
 #
 # Usage (depuis le dépôt) :
 #   scripts/test-all-local.sh [suite…]      # vide = toutes
-#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40
+#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43
 # Rapide (VM de 3 cœurs et plus, voir docs/ARCHITECTURE.md) :
 #   BATT_SERVER=start BATT_JOBS=2 scripts/test-all-local.sh
 # En fond détaché :
@@ -80,6 +80,7 @@ E2E=(
   "fond32|node scripts/e2e-fond.mjs|chromium|"
   "fondplanche24|node scripts/e2e-fond-planche.mjs|chromium|"
   "papiers35|node scripts/e2e-papiers.mjs|chromium|"
+  "fondmarge43|node scripts/e2e-fond-marge.mjs|chromium|"
   "editor|node scripts/e2e-editor.mjs|chromium|"
   "boards|node scripts/e2e-boards.mjs|chromium|"
   "admin|node scripts/e2e-admin.mjs|chromium|"

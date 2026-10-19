@@ -189,7 +189,8 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
     };
     const kids = (data.children ?? []).filter((c) => own(BLOCKS, c.type) && def.container!.accepts.includes(c.type));
     const boxless = BOXLESS.has(block.type);
-    const kidJoins = fondJoins(kids.map((c) => (supportsFond(c.type) && !(block.type === "grid") ? fondKey(readBackground(c.props.background), false) : null)));
+    const kidFonds = kids.map((c) => (supportsFond(c.type) && !(block.type === "grid") ? readBackground(c.props.background) : undefined));
+    const kidJoins = fondJoins(kidFonds.map((bg) => fondKey(bg, false)), kidFonds);
     children = kids.map((c, i) => {
       const pass: Look = {};
       if (boxless && i === 0 && look?.spaceTop) pass.spaceTop = look.spaceTop;
@@ -288,6 +289,12 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
   if (card && wallpapers) card.wallpapers = (id) => wallpapers.get(id);
   const base: BlockContext = { ...baseCtx, ...(card ? { palette: card.palette } : {}), ...(wallpapers ? { wallpapers } : {}) };
   // Fond de couleur (lot 32) : un composant se fond dans son voisin de même fond ET de même contenant (carte / page).
+  const topFonds = blocks.map((b) => {
+    if (b.corrupt || !supportsFond(b.type)) return undefined;
+    const props = b.props as { background?: unknown; surface?: unknown } | null;
+    // Sur une carte, le fond n'a pas de voisin de couleur : la carte l'entoure.
+    return card && readSurface(props?.surface) ? undefined : readBackground(props?.background);
+  });
   const joins = fondJoins(
     blocks.map((b) => {
       if (b.corrupt || !supportsFond(b.type)) return null;
@@ -299,6 +306,7 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
       const border = resolved && card ? `${cardBorderSignature(resolved, cardStyle(resolved.color, card.palette), card.palette)}|${paper ? paperSignature(paper.attrs, paper.vars) : ""}` : "";
       return fondKey(readBackground(props?.background), Boolean(surface), border);
     }),
+    topFonds,
   );
   // Raccord du motif entre composants fusionnés (lot 35) : client, seulement si un composant a un papier peint.
   const alignWallpapers = ctx.edit || blocks.some((b) => !b.corrupt && JSON.stringify(b.props ?? null).includes('"kind":"wallpaper"'));

@@ -9,7 +9,7 @@ import { acceptFromCanvas, EDIT_MSG } from "../src/lib/edit/protocol.ts";
 import { BLOCKS } from "../src/blocks/registry.ts";
 import { resolvePalette } from "../src/themes/palette.ts";
 import { SURFACE_TOKENS } from "../src/themes/schema.ts";
-import { BackgroundSchema, FOND_TYPES, fondAttributes, fondColor, fondJoins, fondKey, fondStyle, readBackground, supportsFond } from "../src/themes/fond.ts";
+import { BackgroundSchema, FOND_TYPES, fondAround, fondAttributes, fondColor, fondInset, fondJoins, fondRound, fondKey, fondStyle, readBackground, supportsFond } from "../src/themes/fond.ts";
 import { cardBorderSignature, cardStyle, resolveSurface } from "../src/themes/surface.ts";
 import { loadPreset, presetSlugs } from "./lib/presets.mjs";
 
@@ -80,6 +80,40 @@ ok("protocole : l'intention `background` passe, une nature inconnue ou un champ 
   const none = msg(null);
   const bad = msg({ kind: "paper", id: 1 });
   return Boolean(good) && good.kind === "background" && Boolean(none) && bad === null;
+})());
+
+/* ---- Marge et coins (lot 43) ---- */
+ok("marge / coins : S, M, L acceptés sur couleur ET papier peint, le reste refusé, absent = comportement d'avant", parses({ kind: "color", color: "primary", inset: "m", round: "l" }) && parses({ kind: "wallpaper", wallpaper: 3, inset: "s" }) && !parses({ kind: "color", color: "primary", inset: "xl" }) && !parses({ kind: "color", color: "primary", round: 8 }) && parses({ kind: "color", color: "primary" }));
+ok("marge / coins : lecture tolérante (valeur illisible = ni fond ni erreur) et accesseurs", (() => {
+  const bg = readBackground({ kind: "color", color: "primary", inset: "m", round: "s" });
+  return fondInset(bg) === "m" && fondRound(bg) === "s" && readBackground({ kind: "color", color: "primary", inset: "zz" }) === undefined && fondRound(readBackground({ kind: "color", color: "primary", round: "m" })) === undefined && fondInset(undefined) === undefined;
+})());
+ok("marge : un fond avec marge ne fusionne jamais ; sans marge, la clé d'avant est inchangée (coins seuls sans effet)", (() => {
+  const plain = { kind: "color", color: "primary" };
+  const inset = { kind: "color", color: "primary", inset: "m" };
+  return fondKey(inset, false) === null && fondKey({ ...plain, round: "m" }, false) === fondKey(plain, false) && fondKey(plain, false) === "primary|page" && fondJoins([fondKey(inset, false), fondKey(inset, false)]).every((j) => !j.prev && !j.next);
+})());
+ok("couleur autour : celle du voisin bord à bord (avant, sinon après) ; jamais celle d'un voisin à marge ; rien sans marge", (() => {
+  const green = { kind: "color", color: "primary" };
+  const beige = { kind: "color", color: "bgDeep", inset: "m" };
+  const other = { kind: "color", color: "ink" };
+  const wpNoColor = { kind: "wallpaper", wallpaper: 1 };
+  return fondAround([green, beige], 1) === "primary" && fondAround([beige, other], 0) === "ink" && fondAround([green, beige, other], 1) === "primary" && fondAround([beige, beige], 0) === undefined && fondAround([green, beige], 0) === undefined && fondAround([undefined, beige, undefined], 1) === undefined && fondAround([wpNoColor, beige], 1) === undefined && fondAround([beige], 0) === undefined;
+})());
+ok("fondJoins avec les fonds : `around` seulement sur les composants à marge", (() => {
+  const bgs = [{ kind: "color", color: "primary" }, { kind: "color", color: "bgDeep", inset: "s" }];
+  const j = fondJoins(bgs.map((b) => fondKey(b, false)), bgs);
+  return j[0].around === undefined && j[1].around === "primary" && fondJoins([null, null])[0].around === undefined;
+})());
+ok("attributs et variables : data-fond-inset / data-fond-round posés seulement avec marge ; --fond-around calculé sur la palette", (() => {
+  const t = BT[presetSlugs()[0]];
+  const p = resolvePalette(t.tokens.color, t.tokens.palette);
+  const none = fondAttributes({ prev: false, next: false }, { kind: "color", color: "primary" });
+  const roundOnly = fondAttributes({ prev: false, next: false }, { kind: "color", color: "primary", round: "m" });
+  const both = fondAttributes({ prev: false, next: false }, { kind: "color", color: "primary", inset: "l", round: "s" });
+  const withAround = fondStyle({ kind: "color", color: "bgDeep", inset: "m" }, p, undefined, "primary").vars;
+  const noInset = fondStyle({ kind: "color", color: "bgDeep" }, p, undefined, "primary").vars;
+  return !("data-fond-inset" in none) && !("data-fond-round" in roundOnly) && both["data-fond-inset"] === "l" && both["data-fond-round"] === "s" && typeof withAround["--fond-around"] === "string" && withAround["--fond-around"] === cardStyle("primary", p).bg && !("--fond-around" in noInset);
 })());
 
 console.log(failures ? `\n${failures} échec(s)` : "\nTout passe");
