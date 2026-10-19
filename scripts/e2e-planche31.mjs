@@ -218,8 +218,9 @@ try {
   await page.getByRole("tab", { name: "Ajouter" }).click();
   await center(frame(2));
   const f2 = await frame(2).boundingBox();
-  // Une image sans légende garde son plafond d'avant (lot 39 corrigé à l'intégration v0.26) : son cadre peut dépasser l'écran ; on dépose dans sa moitié basse VISIBLE.
-  await drag(page.locator('.ve-card[data-key="board-strip"]'), f2.x + f2.width / 2, Math.min(f2.y + f2.height - 4, page.viewportSize().height - 12));
+  // Dépôt aux trois quarts de la hauteur du cadre (moitié basse = « après l'image ») : le tout bas du cadre peut recouvrir la planche suivante
+  // quand l'image garde son plafond d'avant (lot 39 corrigé à l'intégration v0.26), et le dépôt irait alors dans CETTE planche.
+  await drag(page.locator('.ve-card[data-key="board-strip"]'), f2.x + f2.width / 2, Math.min(f2.y + f2.height * 0.75, page.viewportSize().height - 12));
   ok("E2 glisser « Images qui défilent » en bas de la planche", await waitFor(() => JSON.stringify(typesOf()) === '["grid","grid","image","strip"]'), JSON.stringify(typesOf()));
   await settled();
   // Dépôt hors cible : un composant lâché hors de la toile ne change ni la planche ni la page.
