@@ -342,6 +342,33 @@ if (run("B"))
     await page.screenshot({ path: path.join(SHOTS, "b2-planche-espace.png") });
   });
 
+/* ---- T. Barres d'image sur une seule ligne à 1024 px (intégration v0.26 : Cadre, Fond image, Taille, Espace, Carte, Fond) ---------- */
+if (run("T"))
+  await section("T", async () => {
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await sleep(1500);
+    const ft = f;
+    await pick(ft, "solo");
+    const rows = (sel) =>
+      ft.evaluate((q) => {
+        const bar = document.querySelector(q);
+        if (!bar) return null;
+        const tops = [...bar.querySelectorAll("button")].filter((b) => b.getBoundingClientRect().width > 0).map((b) => Math.round(b.getBoundingClientRect().top));
+        const r = bar.getBoundingClientRect();
+        return { n: tops.length, lines: new Set(tops).size, right: Math.round(r.right), vw: document.documentElement.clientWidth, height: Math.round(r.height) };
+      }, sel);
+    const pageBar = await rows(".pe-tools");
+    ok("T1 barre de l'image de la page à 1024 px : une seule ligne, dans la fenêtre", pageBar && pageBar.lines === 1 && pageBar.right <= pageBar.vw, JSON.stringify(pageBar));
+    await page.screenshot({ path: path.join(SHOTS, "t1-barre-page-1024.png") });
+    const frame = ft.locator('[data-edit-bitem="bimg"]');
+    await frame.scrollIntoViewIfNeeded();
+    await frame.hover();
+    const boardBar = await rows('[data-edit-bitem="bimg"] .pe-bitem-bar');
+    ok("T2 barre de l'image de la planche à 1024 px : une seule ligne, dans la fenêtre", boardBar && boardBar.lines === 1 && boardBar.right <= boardBar.vw, JSON.stringify(boardBar));
+    await page.screenshot({ path: path.join(SHOTS, "t2-barre-planche-1024.png") });
+    await page.setViewportSize({ width: 1440, height: 900 });
+  });
+
 /* ---- P. Publication, public, téléphone ---------------------------------------------------------------------------- */
 if (run("P"))
   await section("P", async () => {
@@ -398,32 +425,6 @@ if (run("P"))
     await mp.locator("figure.block-image[data-solo]").first().scrollIntoViewIfNeeded();
     await mp.screenshot({ path: path.join(SHOTS, "p2-telephone.png") });
     await phone.close();
-  });
-
-/* ---- T. Barres d'image sur une seule ligne à 1024 px (intégration v0.26 : Cadre, Fond image, Taille, Espace, Carte, Fond) ---------- */
-if (run("T"))
-  await section("T", async () => {
-    await page.setViewportSize({ width: 1024, height: 800 });
-    const ft = await openEditor();
-    await pick(ft, "solo");
-    const rows = (sel) =>
-      ft.evaluate((q) => {
-        const bar = document.querySelector(q);
-        if (!bar) return null;
-        const tops = [...bar.querySelectorAll("button")].filter((b) => b.getBoundingClientRect().width > 0).map((b) => Math.round(b.getBoundingClientRect().top));
-        const r = bar.getBoundingClientRect();
-        return { n: tops.length, lines: new Set(tops).size, right: Math.round(r.right), vw: document.documentElement.clientWidth, height: Math.round(r.height) };
-      }, sel);
-    const pageBar = await rows(".pe-tools");
-    ok("T1 barre de l'image de la page à 1024 px : une seule ligne, dans la fenêtre", pageBar && pageBar.lines === 1 && pageBar.right <= pageBar.vw, JSON.stringify(pageBar));
-    await page.screenshot({ path: path.join(SHOTS, "t1-barre-page-1024.png") });
-    const frame = ft.locator('[data-edit-bitem="bimg"]');
-    await frame.scrollIntoViewIfNeeded();
-    await frame.hover();
-    const boardBar = await rows('[data-edit-bitem="bimg"] .pe-bitem-bar');
-    ok("T2 barre de l'image de la planche à 1024 px : une seule ligne, dans la fenêtre", boardBar && boardBar.lines === 1 && boardBar.right <= boardBar.vw, JSON.stringify(boardBar));
-    await page.screenshot({ path: path.join(SHOTS, "t2-barre-planche-1024.png") });
-    await page.setViewportSize({ width: 1440, height: 900 });
   });
 
 ok("aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));
