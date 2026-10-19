@@ -99,10 +99,13 @@ export const WALLPAPER_OPACITY_MIN = 0.05;
 export const WallpaperIdSchema = z.number().int().positive();
 export const WallpaperSizeSchema = z.number().int().min(WALLPAPER_SIZE_MIN).max(WALLPAPER_SIZE_MAX);
 export const WallpaperOpacitySchema = z.number().min(WALLPAPER_OPACITY_MIN).max(1);
+/** Tailles S / M / L (lot 43) : marge autour du fond (`inset`) et arrondi de ses coins (`round`). Absent = comportement d'avant (bord à bord, coins droits). */
+export const FOND_STEPS = ["s", "m", "l"] as const;
+const FondStepSchema = z.enum(FOND_STEPS);
 export const BackgroundSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("color"), color: SurfaceColorSchema }),
+  z.strictObject({ kind: z.literal("color"), color: SurfaceColorSchema, inset: FondStepSchema.optional(), round: FondStepSchema.optional() }),
   // Un motif de la bibliothèque, une couleur facultative DESSOUS (même choix que « Couleur »), taille et opacité facultatives.
-  z.strictObject({ kind: z.literal("wallpaper"), wallpaper: WallpaperIdSchema, color: SurfaceColorSchema.optional(), size: WallpaperSizeSchema.optional(), opacity: WallpaperOpacitySchema.optional() }),
+  z.strictObject({ kind: z.literal("wallpaper"), wallpaper: WallpaperIdSchema, color: SurfaceColorSchema.optional(), size: WallpaperSizeSchema.optional(), opacity: WallpaperOpacitySchema.optional(), inset: FondStepSchema.optional(), round: FondStepSchema.optional() }),
 ]);
 /** Papier peint d'UNE PAGE (lot 35) : absent = celui du site (rien ne change) ; `none` = aucun ; sinon un motif. */
 export const PagePaperSchema = z.discriminatedUnion("mode", [

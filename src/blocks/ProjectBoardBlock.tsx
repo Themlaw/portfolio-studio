@@ -109,7 +109,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     // pas à la page : la planche est la même partout où elle est affichée.
     // Fond de couleur des composants (lot 32) : mêmes règles que sur une page (fusion des voisins de même fond, bord à bord de la planche).
     const fonds = project.layout.map((item) => readBackground(item.props.background));
-    const joins = fondJoins(fonds.map((bg) => fondKey(bg, false)));
+    const joins = fondJoins(fonds.map((bg) => fondKey(bg, false)), fonds);
     const palette = fonds.some(Boolean) ? await effectivePalette(ctx) : undefined;
     // Papiers peints (lot 35) : les motifs utilisés par les fonds de la planche (bibliothèque lue seulement s'il y en a), passés au client.
     const wallpaperIds = [...new Set(fonds.flatMap((bg) => (bg?.kind === "wallpaper" ? [bg.wallpaper] : [])))];

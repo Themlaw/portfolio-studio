@@ -391,6 +391,49 @@ figure.block-image[data-frame] .block-image-frame,
   margin-block: calc(-1 * var(--t-space-m));
   padding-block: var(--t-space-m);
 }
+/* Fond avec marge et coins arrondis (lot 43) : `data-fond-inset` (s / m / l) retire l'enveloppe des bords de son conteneur (marge sur
+   les quatre côtés, la carte ou la page se voit autour) ; `--fond-around` (couleur du voisin bord à bord, posée par fondJoins) est
+   peinte dans cette marge par une ombre pleine qui suit l'arrondi : le vert du composant d'avant entoure le beige, comme un
+   passe-partout. `data-fond-round` arrondit les coins (le motif et le papier du kit suivent). Sans ces attributs : rien ne change. */
+.fond-bloc[data-fond="on"][data-fond-inset] {
+  --fond-gap: 24px;
+  --fond-r: 0px;
+  width: auto;
+  margin-inline: var(--fond-gap);
+  margin-block: var(--fond-gap);
+  border-radius: var(--fond-r);
+  box-shadow: 0 0 0 var(--fond-gap) var(--fond-around, transparent);
+}
+.fond-bloc[data-fond="on"][data-fond-inset="s"] { --fond-gap: 12px; }
+.fond-bloc[data-fond="on"][data-fond-inset="l"] { --fond-gap: 48px; }
+.fond-bloc[data-fond="on"][data-fond-round] {
+  overflow: clip;
+}
+/* Coins arrondis ET couleur autour : l'ombre pleine suit l'arrondi et laisserait des encoches dans les coins de la marge. Elle est donc
+   plus épaisse que la marge et rognée au rectangle de la marge (le cadre autour est un rectangle, seul le fond est arrondi). */
+.fond-bloc[data-fond="on"][data-fond-round][data-fond-around] {
+  box-shadow: 0 0 0 calc(2 * (var(--fond-gap) + var(--fond-r))) var(--fond-around, transparent);
+  clip-path: inset(calc(-1 * var(--fond-gap)));
+}
+.fond-bloc[data-fond="on"][data-fond-round="s"] { --fond-r: 10px; }
+.fond-bloc[data-fond="on"][data-fond-round="m"] { --fond-r: 20px; }
+.fond-bloc[data-fond="on"][data-fond-round="l"] { --fond-r: 36px; }
+/* Sur une carte : la marge se compte depuis le bord de la carte (le rembourrage de la carte est repris en rembourrage du fond). */
+.surface-card[data-surface="on"] > .fond-bloc[data-fond="on"][data-fond-inset] {
+  margin-block: calc(var(--fond-gap) - var(--t-space-m));
+}
+.fond-bloc[data-fond="on"][data-fond-inset]::before,
+.fond-bloc[data-fond="on"][data-fond-inset]::after {
+  border-radius: inherit;
+}
+@media (max-width: 767px) {
+  .fond-bloc[data-fond="on"][data-fond-inset] { --fond-gap: 14px; }
+  .fond-bloc[data-fond="on"][data-fond-inset="s"] { --fond-gap: 8px; }
+  .fond-bloc[data-fond="on"][data-fond-inset="l"] { --fond-gap: 24px; }
+  .fond-bloc[data-fond="on"][data-fond-round="s"] { --fond-r: 8px; }
+  .fond-bloc[data-fond="on"][data-fond-round="m"] { --fond-r: 14px; }
+  .fond-bloc[data-fond="on"][data-fond-round="l"] { --fond-r: 24px; }
+}
 /* Papier du site (lot 28) × fond de couleur : le fond est opaque, il cacherait le papier que la carte montre « sur elle ». Il suit donc
    la même règle que la carte : papier « sur la carte » (choisi par la carte, ou par le site sans que la carte dise « sous ») = la tuile est
    dessinée sur la couleur du fond, sous le texte. Un fond posé directement sur la page suit le réglage du site « papier visible sur les cartes ».
