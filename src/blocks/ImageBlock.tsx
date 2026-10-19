@@ -1,7 +1,9 @@
 import type { CSSProperties } from "react";
+import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 
 import Picture from "@/components/Picture";
+import ViewerScope from "@/components/ViewerScope";
 import { RATIO_VALUES } from "@/lib/images/formats";
 import { cropSources } from "@/lib/images/crop";
 import { signCrop } from "@/lib/images/crop-cache";
@@ -9,6 +11,7 @@ import { resolveCrop } from "@/lib/images/crop-view";
 import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { ORIGINALS_PREFIX } from "@/lib/images/variants";
 import { getMedia, mediaUrl } from "@/lib/media";
+import { viewerAttrs } from "@/lib/viewer";
 
 import { frameAttrs, imageBgAttrs } from "@/lib/look";
 
@@ -33,6 +36,8 @@ export const imageSchema = z.object({
    * panoramique se voit en entier), cadre rempli sinon (comportement d'avant).
    */
   fit: z.enum(["contain", "cover"]).optional(),
+  /** Agrandir au clic (lot 44) : la visionneuse des images qui défilent. Absent = oui ; `false` la coupe. Dans une grille, l'image n'est dans le défilement que si la grille s'agrandit aussi. */
+  zoom: z.boolean().optional(),
 });
 
 /**
@@ -83,6 +88,26 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
         ? "(min-width: 1236px) 1200px, 100vw"
         : "100vw";
   const caption = props.caption ? tr(props.caption, ctx.locale) : "";
+  // Cliquer pour agrandir (lot 44) : public et Aperçu seulement (la toile et la planche en édition gardent le clic pour éditer).
+  const zoomable = Boolean(image) && !canvas && !ctx.inlineEdit && props.zoom !== false && (!ctx.cell || ctx.cellViewer === true);
+  const viewer =
+    zoomable && image
+      ? viewerAttrs(
+          {
+            id: `media-${image.id}`,
+            image: image.url,
+            sources: image.sources ?? undefined,
+            alt: image.alt ? tr(image.alt, ctx.locale) : caption,
+            width: image.width ?? 1200,
+            height: image.height ?? 800,
+            title: props.captionTitle ? tr(props.captionTitle, ctx.locale) : "",
+            description: caption,
+            date: props.captionDate ? tr(props.captionDate, ctx.locale) : undefined,
+            plain: true,
+          },
+          (await getTranslations({ locale: ctx.locale, namespace: "gallery" }))("open"),
+        )
+      : null;
   const ratioAttr = !free && props.ratio && props.ratio !== "auto" ? { "data-ratio": props.ratio } : {};
   const editFull = canvas && image ? { "data-full-src": image.url, "data-full-ratio": natural.toFixed(5), "data-full-px": `${image.width ?? 0}x${image.height ?? 0}` } : {};
   // Repli si la variante recadrée n'est pas prête (générée à la demande, une à la fois) : l'image entière, cadrée en CSS.
@@ -121,6 +146,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
           data-edit-media={canvas ? "mediaId" : undefined}
           data-edit-media-kind={canvas ? "image" : undefined}
           {...editFull}
+          {...(viewer ?? {})}
         >
           <Picture
             src={image.url}
@@ -154,5 +180,12 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
     </figure>
   );
   if (ctx.cell) return body;
-  return <section className={props.width === "full" ? "pt-[var(--section-gap)]" : "shell pt-[var(--section-gap)]"}>{body}</section>;
+  const sectionClass = props.width === "full" ? "pt-[var(--section-gap)]" : "shell pt-[var(--section-gap)]";
+  return viewer ? (
+    <ViewerScope as="section" className={sectionClass}>
+      {body}
+    </ViewerScope>
+  ) : (
+    <section className={sectionClass}>{body}</section>
+  );
 }

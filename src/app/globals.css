@@ -1064,3 +1064,8 @@
 @media (max-width: 640px) {
   .board-box { width: 100%; }
 }
+
+/* Cliquer pour agrandir (lot 44, src/lib/viewer.ts) : public et Aperçu seulement (la toile n émet pas l attribut). */
+[data-viewer-item][role="button"] {
+  cursor: zoom-in;
+}

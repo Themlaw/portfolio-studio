@@ -178,7 +178,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
   const { Component } = def;
   let children: ReactNode[] | undefined;
   if (def.container && depth < MAX_NESTING) {
-    const data = parsed.data as GridShape & { project?: string; ratio?: string; children?: { uid: string; type: string; props: Record<string, unknown> }[] };
+    const data = parsed.data as GridShape & { zoom?: boolean; project?: string; ratio?: string; children?: { uid: string; type: string; props: Record<string, unknown> }[] };
     const uid = block.uid ?? String(block.id);
     const childCtx: BlockContext = {
       ...ctx,
@@ -201,6 +201,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
               ...childCtx,
               cellColumns: isJustified(data) ? (data.alone?.[i] ? 1 : Math.max(1, gridCells(data, 0).cols * 0.6)) : cellShare(data, i, kids.length),
               ...(data.layout === "auto" ? { cellAuto: true } : {}),
+              ...(data.zoom !== false ? { cellViewer: true } : {}),
               // Grille de planche (lot 39) : ses cases n'ont pas d'identité de bloc, leurs textes se modifient par la grille.
               ...(ctx.inlineEdit && !ctx.edit ? { inlinePrefix: `children.${i}.props.` } : {}),
             }

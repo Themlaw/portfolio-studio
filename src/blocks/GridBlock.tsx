@@ -2,6 +2,7 @@ import { Children, type CSSProperties, type ReactNode } from "react";
 import { z } from "zod";
 
 import Eyebrow from "@/components/Eyebrow";
+import ViewerScope from "@/components/ViewerScope";
 import { RATIO_VALUES } from "@/lib/images/formats";
 import { parseRatio } from "@/lib/images/sizes";
 
@@ -35,6 +36,8 @@ export const gridSchema = z.object({
   captionTitle: localizedText.optional(),
   caption: localizedText.optional(),
   captionDate: localizedText.optional(),
+  /** Agrandir au clic (lot 44) : un clic sur une image ouvre la visionneuse, qui fait défiler toutes les images et vidéos de la grille en boucle. Absent = oui. */
+  zoom: z.boolean().optional(),
   children: z.array(childBlock).max(MAX_CHILDREN).default([]),
 });
 
@@ -118,10 +121,13 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
   const showEyebrow = props.eyebrow !== undefined && (ctx.edit || hasText(props.eyebrow));
   const showTitle = props.title !== undefined && (ctx.edit || hasText(props.title));
   if (!cells.length && !canvas && !showTitle && !showEyebrow) return null;
+  // Cliquer pour agrandir (lot 44) : la grille entière est la zone de la visionneuse (public et Aperçu seulement).
+  const zoom = props.zoom !== false && !canvas && !ctx.inlineEdit;
+  const Section = zoom ? ViewerScope : "section";
   return (
     // Espace en bas (v0.13.1) : la grille se referme sur son propre pas (l'écart entre
     // cellules), comme une planche sur sa marge ; le bloc suivant ne colle plus.
-    <section className={`block-grid-section shell ${props.top === "gap" ? "pt-[var(--section-gap)]" : ""}${ctx.edit ? " pe-field-host" : ""}`} {...capHost(ctx)}>
+    <Section {...(zoom ? { as: "section" as const } : {})} className={`block-grid-section shell ${props.top === "gap" ? "pt-[var(--section-gap)]" : ""}${ctx.edit ? " pe-field-host" : ""}`} {...capHost(ctx)}>
       {ctx.edit && (
         <div className="relative">
           <FieldOps ctx={ctx} type="grid" props={props} />
@@ -213,6 +219,6 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
       </div>
       {/* Sous la grille entière : mêmes champs que sous une image (lot 39). */}
       <BlockCaption ctx={ctx} title={captionPart(ctx, "captionTitle", props.captionTitle)} legend={captionPart(ctx, "caption", props.caption)} date={captionPart(ctx, "captionDate", props.captionDate)} />
-    </section>
+    </Section>
   );
 }

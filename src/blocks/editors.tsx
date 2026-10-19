@@ -505,6 +505,7 @@ export function GridTop() {
   return (
     <>
       <section className="ve-grid-top" aria-label="Grille : l'essentiel" data-testid="grid-top">
+        <Toggle label="Agrandir au clic" checked={value.zoom !== false} onChange={(v) => set("zoom", v ? undefined : false)} />
         <LayoutPicker value={layout} onChange={(v) => apply({ op: "set", layout: v as GridLayout })} />
         <div className="a-field">
           <span className="a-label" id="ve-gap-label">
@@ -592,6 +593,7 @@ export function ImageEditor() {
   const set = useSet(value, onChange);
   return (
     <>
+      <Toggle label="Agrandir au clic" checked={value.zoom !== false} onChange={(v) => set("zoom", v ? undefined : false)} />
       <MediaPicker label="Image" value={value.mediaId as number | undefined} onChange={(v) => set("mediaId", v)} error={errorAt(errors, "mediaId")} context={context} />
       <TextI18n label="Titre sous l'image (facultatif)" value={l(value.captionTitle)} onChange={(v) => set("captionTitle", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionTitle")} />
       <TextareaI18n label="Légende (facultative)" value={l(value.caption)} onChange={(v) => set("caption", v.fr || v.en ? v : undefined)} error={errorAt(errors, "caption")} />
