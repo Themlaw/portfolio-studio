@@ -372,6 +372,8 @@ export const LookSchema = z.strictObject({
   frame: FrameSchema.optional(),
   /** Cadre d'une image précise d'une planche, par emplacement (slug) : lot 34. */
   slotFrame: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), FrameSchema), 200, "cadres d'images").optional(),
+  /** Lecture d'une vidéo précise d'un carrousel (Boucle / Lecteur), par emplacement (slug) : lot 38. Absent : le réglage ancien de la bande, sinon la nature de la vidéo. */
+  slotVideo: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), z.enum(["loop", "player"])), 200, "lectures de vidéos").optional(),
 });
 export type Look = z.infer<typeof LookSchema>;
 

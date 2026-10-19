@@ -1737,3 +1737,9 @@ même rendu, mêmes outils par image sur la toile. Le nom « Images du projet »
 - **Pas de légendes** sur un carrousel (un média n'a ni titre ni année) ; les images du projet gardent les leurs. Pas de « Cadrer » sur
   une place de bande : le recadrage libre concerne les tuiles et les images seules, pas les bandes (aucun changement).
 - Tests : `scripts/test-carrousel31f.mjs` (unité, base réelle) et `scripts/e2e-carrousel31f.mjs` (suite `carrousel31f`, souris réelle).
+
+Lot 38 : une bande n'a plus de réglage de lecture commun (ni sur sa barre ni dans le panneau). Chaque vidéo d'un carrousel se règle sur sa propre
+barre (Boucle / Lecteur), écrit dans `look.slotVideo` du bloc planche, par emplacement (slug), à côté de `slotRadius` et `slotFrame`. Ordre de
+lecture au rendu (`StripRail`) : le choix de la vidéo, puis l'ancien `videoMode` de la bande (toujours lu, jamais migré, donc les pages existantes ne
+changent pas), puis la nature de la vidéo. Sur la toile, « Réglages » ne reste que sur la grille (il ouvre une fenêtre) ; ailleurs le nom du
+composant, sur sa barre, le choisit et ouvre son panneau. Le seed place une vidéo de test dans la médiathèque (`seed/media/video-de-test.mp4`).

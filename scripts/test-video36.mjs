@@ -20,6 +20,7 @@ import { layoutProblem } from "../src/blocks/board-layout.ts";
 import { isVideoMode, modeOf, VIDEO_MODES } from "../src/blocks/video-mode.ts";
 import { migrateVideoModes, seedVideoModes } from "../src/lib/db/video-mode.ts";
 import { acceptFromCanvas, EDIT_MSG } from "../src/lib/edit/protocol.ts";
+import { LookSchema, readLook } from "../src/lib/look.ts";
 
 let passed = 0;
 const test = (name, fn) => {
@@ -180,6 +181,29 @@ test("planche : une bande accepte « videoMode » (Boucle / Lecteur), pas une va
   assert.equal(layoutProblem(strip({ source: "own", media: [1], videoMode: "player" })), null);
   assert.ok(layoutProblem(strip({ videoMode: "auto" })));
   assert.ok(layoutProblem(strip({ source: "own", media: [], videoMode: 3 })));
+});
+
+/* ---- 5. Lot 38 : lecture par vidéo, vidéo de test du seed ------------------------------------------- */
+
+test("look.slotVideo : Boucle / Lecteur par emplacement ; slug, mode ou nombre d'entrées invalides refusés ; lecture tolérante", () => {
+  assert.ok(LookSchema.safeParse({ slotVideo: { "c1-ab12": "loop", "vallee-suspendue": "player" } }).success);
+  assert.ok(!LookSchema.safeParse({ slotVideo: { "../x": "loop" } }).success);
+  assert.ok(!LookSchema.safeParse({ slotVideo: { a: "auto" } }).success);
+  assert.ok(!LookSchema.safeParse({ slotVideo: Object.fromEntries(Array.from({ length: 201 }, (_, i) => [`s-${i}`, "loop"])) }).success);
+  assert.deepEqual(readLook({ spaceTop: "m", slotVideo: { "<x>": "loop" } }), { spaceTop: "m" });
+  assert.deepEqual(readLook({ slotVideo: { a1: "player" } }), { slotVideo: { a1: "player" } });
+});
+
+test("vidéo de test du seed : un vrai MP4 H.264 de moins de 1 Mo et son image d'attente", () => {
+  const mp4 = readFileSync("seed/media/video-de-test.mp4");
+  assert.ok(mp4.length > 10_000 && mp4.length < 1_000_000, `${mp4.length} octets`);
+  assert.equal(mp4.subarray(4, 8).toString("latin1"), "ftyp", "conteneur MP4");
+  // faststart : l'atome moov précède mdat (lecture possible avant la fin du téléchargement)
+  assert.ok(mp4.indexOf("moov") > 0 && mp4.indexOf("moov") < mp4.indexOf("mdat"), "faststart");
+  assert.ok(mp4.includes("avc1"), "H.264");
+  const poster = readFileSync("seed/media/video-de-test-poster.webp");
+  assert.equal(poster.subarray(0, 4).toString("latin1"), "RIFF");
+  assert.equal(poster.subarray(8, 12).toString("latin1"), "WEBP");
 });
 
 console.log(`\n${passed} tests OK`);
