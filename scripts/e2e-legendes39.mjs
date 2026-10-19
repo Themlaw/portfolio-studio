@@ -182,6 +182,29 @@ async function writeField(f, hostSel, scope, name, text, label, { shots } = {}) 
     await shot(page, `diag-${label.replace(/\W+/g, "-")}`);
   }
   ok(`${label} : un clic ouvre la saisie directement`, (await editor.count()) > 0);
+  // Intégration v0.26 : le champ blanc ne recouvre pas la ligne voisine (Titre / Légende se touchent).
+  if ((await editor.count()) > 0 && (await f.locator(".pe-text-editor").count()) > 0) {
+    const clash = await f.evaluate(([scopeSel, nm]) => {
+      const el = document.querySelector(`${scopeSel} [data-cap="${nm}"]`);
+      const ed = document.querySelector(".pe-text-editor");
+      const host = el?.closest(".media-caption");
+      if (!el || !ed || !host) return null;
+      const e = ed.getBoundingClientRect();
+      const me = el.getBoundingClientRect();
+      const hits = [];
+      for (const o of host.querySelectorAll("[data-cap]")) {
+        if (o === el) continue;
+        const r = o.getBoundingClientRect();
+        if (r.height < 1 || r.width < 1) continue;
+        const stacked = r.top >= me.bottom - 1 || r.bottom <= me.top + 1;
+        const overlapY = Math.min(e.bottom, r.bottom) - Math.max(e.top, r.top);
+        const overlapX = Math.min(e.right, r.right) - Math.max(e.left, r.left);
+        if (stacked && overlapY > 1 && overlapX > 1) hits.push(`${o.dataset.cap}:${Math.round(overlapY)}px`);
+      }
+      return { hits, ed: [e.top, e.height], me: [me.top, me.height] };
+    }, [scope, name]);
+    ok(`${label} : le champ ne recouvre aucune autre ligne`, clash !== null && clash.hits.length === 0, JSON.stringify(clash));
+  }
   if ((await editor.count()) === 0) throw new Error(`${label} : saisie non ouverte`);
   await visibleNow(f, sel, label);
   await page.keyboard.press("Escape");

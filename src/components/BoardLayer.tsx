@@ -757,7 +757,10 @@ export default function BoardLayer({
           const r = itemOp.getBoundingClientRect();
           setFondMenu(null);
           setFrameMenu(null);
-          setQuickMenu((cur) => (cur?.uid === uid && cur.kind === op ? null : { uid, kind: op, top: r.bottom + window.scrollY + 4, left: Math.max(8, Math.min(r.left + window.scrollX - 200, window.scrollX + window.innerWidth - 348)) }));
+          // Le composant devient le composant choisi (panneau de gauche à jour) ; la fenêtre se pose sous le bouton, centrée dessus.
+          const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
+          if (frame && !frame.hasAttribute("data-edit-bitem-rail") && itemSel?.uid !== uid) selectItem(frame);
+          setQuickMenu((cur) => (cur?.uid === uid && cur.kind === op ? null : { uid, kind: op, top: r.bottom + window.scrollY + 4, left: Math.max(8, Math.min(r.left + window.scrollX + r.width / 2 - 165, window.scrollX + window.innerWidth - 348)) }));
         } else if (op === "fond") {
           setFrameMenu(null);
           setQuickMenu(null);
@@ -1230,12 +1233,17 @@ export default function BoardLayer({
 
       {text && (
         <div
-          className="pe-text-editor"
+          className={text.el.hasAttribute("data-cap") ? "pe-text-editor pe-text-editor-line" : "pe-text-editor"}
           contentEditable
           suppressContentEditableWarning
           role="textbox"
           aria-label="Modifier le texte"
-          style={{ ...text.style, top: text.rect.top - 4, left: text.rect.left - 6, minWidth: text.rect.width + 12, minHeight: text.rect.height + 8 }}
+          style={
+            text.el.hasAttribute("data-cap")
+              ? // Titre / Légende / Date : le champ a la hauteur de SA ligne (les lignes se touchent, il ne doit recouvrir ni celle du dessus ni celle du dessous).
+                { ...text.style, top: text.rect.top, left: text.rect.left - 6, minWidth: text.rect.width + 12, minHeight: text.rect.height }
+              : { ...text.style, top: text.rect.top - 4, left: text.rect.left - 6, minWidth: text.rect.width + 12, minHeight: text.rect.height + 8 }
+          }
           ref={(node) => {
             if (node && !node.dataset.ready) {
               node.dataset.ready = "1";

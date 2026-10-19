@@ -159,6 +159,14 @@ const gapBetween = (fr, aSel, bSel) =>
 const FIG = (uid) => `[data-edit-block="${uid}"] figure.block-image`;
 const BFIG = '[data-edit-bitem="bimg"] figure.block-image';
 
+/** La fenêtre est posée sous le bouton cliqué et au-dessus de lui (intégration v0.26) : le bouton est dans sa largeur, elle commence sous lui. */
+async function anchoredUnder(dlg, btn) {
+  const d = await dlg.boundingBox();
+  const b = await btn.boundingBox();
+  const cx = b ? b.x + b.width / 2 : -1;
+  return Boolean(d && b && cx >= d.x - 1 && cx <= d.x + d.width + 1 && d.y >= b.y + b.height - 2 && d.y <= b.y + b.height + 40);
+}
+
 async function pick(fr, uid) {
   const el = fr.locator(`[data-edit-block="${uid}"] img`).first();
   await el.scrollIntoViewIfNeeded();
@@ -190,6 +198,7 @@ if (run("S"))
     // Portrait : Grande
     const dlg = await openQuick(f, "solo", "size");
     await page.screenshot({ path: path.join(SHOTS, "s0-menu-taille.png") });
+    ok("S1 la fenêtre Taille s'ouvre sous le bouton cliqué (pas au bord du bloc)", await anchoredUnder(dlg, f.locator('.pe-tools [data-testid="size-button"]')), JSON.stringify([await dlg.boundingBox(), await f.locator('.pe-tools [data-testid="size-button"]').boundingBox()]));
     ok("S1 la fenêtre propose Normale (choisie) et Grande, et Gauche / Centre / Droite", (await dlg.locator('[data-image-size="normal"]').getAttribute("aria-checked")) === "true" && (await dlg.locator("[data-image-align]").count()) === 3);
     await dlg.locator('[data-image-size="large"]').click();
     let m;
@@ -284,6 +293,8 @@ if (run("B"))
     await sizeBtn.click();
     const dlg = f.locator('[data-testid="size-menu"]');
     await dlg.waitFor({ timeout: 15000 });
+    ok("B1 la fenêtre Taille s'ouvre sous le bouton de la barre", await anchoredUnder(dlg, sizeBtn), JSON.stringify([await dlg.boundingBox(), await sizeBtn.boundingBox()]));
+    ok("B1 cliquer « Taille » choisit aussi le composant (panneau à jour)", await waitFor(async () => (await f.locator('[data-edit-bitem="bimg"][data-selected]').count()) === 1, 15000));
     await dlg.locator('[data-image-size="large"]').click();
     let m;
     ok("B2 planche : Grande = toute la largeur de la colonne", await waitFor(async () => { m = await measure(f, BFIG); return m && m.size === "large" && near(m.img.w, m.fig.w, 1.5) && m.img.w > b0.img.w + 100; }, 30000), JSON.stringify(m));
@@ -303,6 +314,7 @@ if (run("B"))
     await frame.locator('[data-testid="bitem-space-button"]').click();
     const sp = f.locator('[data-testid="space-menu"]');
     await sp.waitFor({ timeout: 15000 });
+    ok("B4 la fenêtre Espace s'ouvre sous le bouton de la barre", await anchoredUnder(sp, frame.locator('[data-testid="bitem-space-button"]')), JSON.stringify([await sp.boundingBox(), await frame.locator('[data-testid="bitem-space-button"]').boundingBox()]));
     await sp.locator('[data-space-top="none"]').click();
     let g;
     ok("B5 planche, Aucun : 0 px entre le texte et l'image", await waitFor(async () => { g = await gapBetween(f, BT, BFIG); return g !== null && Math.abs(g) <= 1; }, 30000), String(g));

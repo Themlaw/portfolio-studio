@@ -593,6 +593,12 @@ html:not([data-edit-mode]) [data-ghost] {
   pointer-events: auto;
 }
 
+/* Titre / Légende / Date d'un média (lot 39) : champ de la hauteur de sa ligne, trait tracé à l'intérieur ; il ne recouvre pas la ligne voisine. */
+.pe-text-editor.pe-text-editor-line {
+  padding: 0 6px;
+  outline-offset: -2px;
+}
+
 /* ==========================================================================
    v0.13 : toile sans éléments collants, conteneurs, médias, en-tête commun
    ========================================================================== */
