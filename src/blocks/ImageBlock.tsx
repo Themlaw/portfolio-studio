@@ -14,11 +14,15 @@ import { frameAttrs } from "@/lib/look";
 
 import { AUTO_PANORAMA_RATIO } from "./grid-layouts";
 
-import { inline, localized, mediaRef, tr, type BlockContext } from "./types";
+import { BlockCaption, capHost, captionPart } from "./caption";
+import { localizedText, mediaRef, tr, type BlockContext } from "./types";
 
 export const imageSchema = z.object({
   mediaId: mediaRef.optional(),
-  caption: localized.optional(),
+  /** Légende, Titre et Date facultatifs sous l'image (lot 39) ; texte long permis : la ligne revient à la ligne. */
+  caption: localizedText.optional(),
+  captionTitle: localizedText.optional(),
+  captionDate: localizedText.optional(),
   /** Largeur : colonne de texte, large (cadre du site), pleine largeur. */
   width: z.enum(["text", "wide", "full"]).default("wide"),
   /** Format imposé (l'image est alors cadrée : « Cadrer » sur la toile). Auto : son format. */
@@ -98,6 +102,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
     <figure
       className={`block-image ${ctx.cell ? "" : props.width === "text" ? "max-w-2xl" : ""}`}
       data-width={props.width}
+      {...capHost(ctx)}
       {...(ctx.cell ? {} : { "data-solo": "" })}
       {...(canvas && forced ? { "data-edit-box": forced } : {})}
       {...(free ? { "data-free": "" } : { ...ratioAttr, ...(box && !cover ? { "data-fit": "contain" } : {}) })}
@@ -139,11 +144,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
           </button>
         </span>
       )}
-      {(caption || ctx.edit) && (
-        <figcaption className="strip-caption mt-3" {...inline(ctx, "caption")} {...(ctx.edit ? { "data-placeholder": "Légende" } : {})}>
-          {caption}
-        </figcaption>
-      )}
+      <BlockCaption as="figcaption" ctx={ctx} title={captionPart(ctx, "captionTitle", props.captionTitle)} legend={captionPart(ctx, "caption", props.caption)} date={captionPart(ctx, "captionDate", props.captionDate)} />
     </figure>
   );
   if (ctx.cell) return body;

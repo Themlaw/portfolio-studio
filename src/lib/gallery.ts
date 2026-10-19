@@ -42,6 +42,8 @@ export type LocalizedArtwork = {
   width: number;
   height: number;
   year: number;
+  /** Date libre sous l'image d'une bande (lot 39, texte du langage courant) ; absente : l'année de l'emplacement. */
+  date?: string;
   featured: boolean;
   duration?: string;
   videoId?: string;

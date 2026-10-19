@@ -47,6 +47,8 @@ export type BoardPart = {
   box?: BoardBoxProps;
   /** Carrousel à liste propre (lot 31b) : ses images, déjà lues dans la médiathèque. Absent : la bande des images du projet. */
   artworks?: LocalizedArtwork[];
+  /** Bande des images du projet (lot 39) : la date posée sous chaque image (par slug d'emplacement, texte du langage courant). Absente : l'année. */
+  dates?: Record<string, string>;
   /** Lecture des vidéos de la bande (lot 36) : Boucle ou Lecteur ; absent : chaque vidéo suit sa nature. */
   videoMode?: "loop" | "player";
   /** Fond de couleur du composant (lot 32) et fusion avec ses voisins de même fond ; posé ici, autour de la colonne réglée par `box`. */
@@ -111,11 +113,11 @@ export default function ProjectStrip({
   const rail = (part?: BoardPart) =>
     part?.artworks ? (
       <BoardBox box={part.box}>
-        <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions={false} slotRadius={slotRadius} slotFrame={slotFrame} videoMode={part.videoMode} />
+        <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotRadius={slotRadius} slotFrame={slotFrame} videoMode={part.videoMode} />
       </BoardBox>
     ) : (
       <BoardBox box={part?.box}>
-        <StripRail artworks={project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} videoMode={part?.videoMode} />
+        <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} videoMode={part?.videoMode} />
       </BoardBox>
     );
 

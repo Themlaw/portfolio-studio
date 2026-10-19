@@ -191,7 +191,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       description: "Une vidéo de ta médiathèque : lecteur, ou boucle muette.",
       defaults: { variant: "card", mode: "player" },
       summary: "Vidéo · {title}",
-      inline: ["eyebrow", "title", "description"],
+      inline: ["eyebrow", "title", "description", "captionTitle", "captionDate"],
       mediaFields: [{ field: "mediaId", kind: "video" }],
       publishCheck: (props) => (props.mediaId || props.slot ? null : "Choisis une vidéo (dépose-la, ou prends-la dans la médiathèque)."),
     }),
@@ -206,7 +206,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       description: "Des images, des vidéos ou des textes rangés en colonnes, à partir d'un modèle ou d'une grille vide.",
       defaults: { layout: "auto", children: [] },
       summary: "Grille {layout} · {children} composants",
-      inline: ["eyebrow", "title"],
+      inline: ["eyebrow", "title", "captionTitle", "caption", "captionDate"],
       presets: [
         {
           key: "grid-videos",
@@ -237,7 +237,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       description: "Une image seule, avec une légende facultative.",
       defaults: { width: "wide" },
       summary: "Image · {caption}",
-      inline: ["caption"],
+      inline: ["captionTitle", "caption", "captionDate"],
       mediaFields: [{ field: "mediaId", kind: "image" }],
       publishCheck: (props) => (props.mediaId ? null : "Choisis une image (dépose-la, ou prends-la dans la médiathèque)."),
     }),

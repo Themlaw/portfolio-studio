@@ -113,7 +113,7 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("bitem-add"), board: Board, item: BoardItemKind, index: z.number().int().min(0).max(MAX_BOARD_ITEMS), source: z.literal("project").optional() }),
   // Lot 31b : composant de la palette glissé au-dessus d'une planche (position visée, ou null hors planche) ; réordonner par la poignée.
   // Lot 31c : texte d'un composant modifié en place (chemin du champ), mise en forme (« Aa ») d'un composant.
-  z.object({ kind: z.literal("bitem-text"), board: Board, uid: Uid, path: z.string().regex(/^[a-zA-Z]+(\.\d{1,2})?$/).max(40), locale: Locale, value: z.string().max(2000) }),
+  z.object({ kind: z.literal("bitem-text"), board: Board, uid: Uid, path: z.string().regex(/^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z0-9-]{1,80}){0,3}$/).max(120), locale: Locale, value: z.string().max(2000) }),
   z.object({ kind: z.literal("bitem-look"), board: Board, uid: Uid, look: LookSchema.nullable() }),
   z.object({ kind: z.literal("bitem-drop"), board: Board.nullable(), index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
   z.object({ kind: z.literal("bitem-to"), board: Board, uid: Uid, index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),

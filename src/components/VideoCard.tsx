@@ -3,6 +3,7 @@
 import { useId, useState, type CSSProperties } from "react";
 
 import Eyebrow from "@/components/Eyebrow";
+import MediaCaption from "@/components/MediaCaption";
 import type { LocalizedArtwork } from "@/lib/gallery";
 
 import { Frame } from "./AnimationShowcase";
@@ -26,18 +27,34 @@ export default function VideoCard({
   texts,
   edit = false,
   styles,
+  marks = edit,
+  prefix = "",
 }: {
   item: LocalizedArtwork;
   look: "feature" | "card" | "plain";
   mode: "loop" | "player";
-  texts: { eyebrow: string; title: string; description: string };
+  /** `captionTitle` et `date` (lot 39) : Titre (présentation « seule ») et Date, facultatifs ; la légende est `description`. */
+  texts: { eyebrow: string; title: string; description: string; captionTitle?: string; date?: string };
   edit?: boolean;
-  /** Styles locaux de l'étiquette, du titre et de la légende (barre typographique, lots 2 et 33). */
-  styles?: { eyebrow?: CSSProperties; title?: CSSProperties; description?: CSSProperties };
+  /** Styles locaux de l'étiquette, du titre, de la légende et de la date (barre typographique, lots 2, 33 et 39). */
+  styles?: { eyebrow?: CSSProperties; title?: CSSProperties; description?: CSSProperties; captionTitle?: CSSProperties; captionDate?: CSSProperties };
+  /** Repères de saisie en place (`data-inline`) : la toile d'une page (`edit`), ou une planche (lot 31c, `inlineEdit`). */
+  marks?: boolean;
+  /** Préfixe du chemin des textes (case d'une grille de planche, lot 39). */
+  prefix?: string;
 }) {
   const [playing, setPlaying] = useState(false);
   const id = useId();
-  const mark = (path: string, placeholder: string) => ({ ...(edit ? { "data-inline": path, "data-placeholder": placeholder } : {}), ...(styles?.[path as keyof typeof styles] ? { style: styles[path as keyof typeof styles] } : {}) });
+  const mark = (path: string, placeholder: string) => ({ ...(marks ? { "data-inline": `${prefix}${path}`, "data-placeholder": placeholder } : {}), ...(styles?.[path as keyof typeof styles] ? { style: styles[path as keyof typeof styles] } : {}) });
+  /** Date en bout de ligne des présentations « carte » et « mise en avant » (lot 39) : rien tant qu'elle est vide, hors de la toile. */
+  const dateMark = marks || Boolean(texts.date);
+  const date = dateMark ? (
+    <span className="mc-date-own" data-cap="date" data-cap-own="" {...mark("captionDate", "Date")}>
+      {texts.date}
+    </span>
+  ) : null;
+  const markAttrs = (path: string): Record<string, string> => (marks ? { "data-inline": `${prefix}${path}` } : {});
+  const host = marks ? { "data-cap-host": "" } : {};
   const shown = { ...item, title: texts.title, alt: item.alt || texts.title };
   const loop = mode === "loop" && Boolean(item.video);
   const frame = loop ? (
@@ -61,7 +78,7 @@ export default function VideoCard({
 
   if (look === "feature") {
     return (
-      <section aria-labelledby={`video-${id}`}>
+      <section aria-labelledby={`video-${id}`} {...host}>
         {(texts.eyebrow || edit) && <Eyebrow {...mark("eyebrow", "Étiquette")}>{texts.eyebrow}</Eyebrow>}
         <h2 id={`video-${id}`} className="mt-3 mb-8 font-display text-[clamp(2rem,5vw,3.5rem)] text-ink" {...mark("title", "Titre de la vidéo")}>
           {texts.title}
@@ -71,7 +88,13 @@ export default function VideoCard({
           <p className="max-w-xl text-sm leading-relaxed text-ink-soft" {...mark("description", "Légende")}>
             {texts.description}
           </p>
-          {item.duration && <p className="eyebrow">{item.duration}</p>}
+          {(item.duration || date) && (
+            <p className="eyebrow">
+              {date}
+              {texts.date && item.duration ? " · " : null}
+              {item.duration}
+            </p>
+          )}
         </div>
       </section>
     );
@@ -79,13 +102,17 @@ export default function VideoCard({
   if (look === "card") {
     const meta = item.duration ?? (item.year || "");
     return (
-      <div className="group mat-hover">
+      <div className="group mat-hover" {...host}>
         {media}
         <div className="mt-4 flex items-baseline justify-between gap-4">
           <h3 className="font-display text-xl text-ink transition-colors group-hover:text-primary" {...mark("title", "Titre de la vidéo")}>
             {texts.title}
           </h3>
-          <span className="eyebrow shrink-0">{meta}</span>
+          <span className="eyebrow shrink-0">
+            {date}
+            {texts.date && meta ? " · " : null}
+            {meta}
+          </span>
         </div>
         <p className="mt-2 text-sm leading-relaxed text-ink-soft" {...mark("description", "Légende")}>
           {texts.description}
@@ -94,13 +121,15 @@ export default function VideoCard({
     );
   }
   return (
-    <figure className="group">
+    <figure className="group" {...host}>
       {media}
-      {(texts.description || edit) && (
-        <figcaption className="strip-caption mt-3" {...mark("description", "Légende")}>
-          {texts.description}
-        </figcaption>
-      )}
+      <MediaCaption
+        as="figcaption"
+        edit={marks}
+        title={{ text: texts.captionTitle ?? "", attrs: markAttrs("captionTitle"), style: styles?.captionTitle }}
+        legend={{ text: texts.description, attrs: markAttrs("description"), style: styles?.description }}
+        date={{ text: texts.date ?? "", attrs: markAttrs("captionDate"), style: styles?.captionDate }}
+      />
     </figure>
   );
 }

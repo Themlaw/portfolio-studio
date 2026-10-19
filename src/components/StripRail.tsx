@@ -11,6 +11,7 @@ import { frameAttrs, type Frame } from "@/lib/look";
 import { RADIUS_VALUES } from "@/themes/css";
 
 import LoopFrame from "./LoopVideo";
+import MediaCaption, { type CaptionField } from "./MediaCaption";
 import Picture from "./Picture";
 import VideoViewer from "./VideoViewer";
 
@@ -215,25 +216,24 @@ export default function StripRail({
         {artworks.map((artwork) => {
           const index = stills.indexOf(artwork);
           const slot = artwork.edit;
+          // Titre, Légende, Date (lot 39) : le composant commun. Bande du projet : Titre et Légende sont ceux de l'emplacement (partagés,
+          // `data-slot-inline`), la Date est propre à la bande ; carrousel à liste propre : les trois sont propres à la place.
+          // Sans date posée, la bande du projet montre l'année de l'emplacement, comme avant.
+          const marks = (field: CaptionField): Record<string, string> | undefined => {
+            if (!slot) return undefined;
+            const path = (f: string) => `captions.${artwork.slug}.${f}`;
+            if (editRail === "") return field === "title" ? { "data-slot-inline": "title" } : field === "legend" ? { "data-slot-inline": "description" } : { "data-inline": path("date") };
+            return { "data-inline": path(field === "legend" ? "caption" : field) };
+          };
           const caption = !captions ? null : (
-            <span className="strip-caption-row flex items-baseline justify-between gap-4">
-              <span
-                className="strip-caption transition-colors group-hover:text-ink"
-                {...(slot ? { "data-slot-inline": "title", "data-placeholder": "Titre" } : {})}
-              >
-                {artwork.title}
-              </span>
-              <span className="strip-caption shrink-0">
-                {artwork.year}
-              </span>
-            </span>
+            <MediaCaption
+              edit={Boolean(slot)}
+              title={{ text: artwork.title, attrs: marks("title"), className: "transition-colors group-hover:text-ink" }}
+              legend={{ text: artwork.description, attrs: marks("legend") }}
+              date={{ text: artwork.date ?? (artwork.year > 0 ? String(artwork.year) : ""), attrs: marks("date") }}
+            />
           );
-          // Légende : visible sur la toile seulement (la visionneuse l'affiche en ligne).
-          const legend = slot && captions ? (
-            <span className="pe-slot-legend strip-caption" data-slot-inline="description" data-placeholder="Légende">
-              {artwork.description}
-            </span>
-          ) : null;
+          const host = slot ? { "data-cap-host": "" } : {};
           if (slot?.empty) {
             return (
               <div
@@ -243,6 +243,7 @@ export default function StripRail({
                 data-edit-slot={slot.key}
                 data-slot-slug={artwork.slug}
                 data-slot-pos={slot.pos}
+                {...host}
                 data-empty=""
                 tabIndex={0}
                 role="group"
@@ -254,7 +255,6 @@ export default function StripRail({
                   </span>
                 </span>
                 {caption}
-                {legend}
               </div>
             );
           }
@@ -277,9 +277,9 @@ export default function StripRail({
                 key={artwork.id}
                 style={{ display: "contents", ...radiusOf(artwork.slug) }}
                 {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos, "data-slot-slug": artwork.slug } : {})}
+                {...host}
               >
                 {loop}
-                {legend}
               </div>
             ) : (
               loop
@@ -304,6 +304,7 @@ export default function StripRail({
             style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : frameOf(artwork.slug)?.style) }}
             {...(!artwork.video && frameOf(artwork.slug) ? { "data-frame": frameOf(artwork.slug)!["data-frame"] } : {})}
             {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos, "data-slot-slug": artwork.slug } : {})}
+            {...host}
           >
             <span className="strip-media">
               {artwork.video ? (
@@ -337,7 +338,6 @@ export default function StripRail({
               )}
             </span>
             {caption}
-            {legend}
           </button>
           );
         })}

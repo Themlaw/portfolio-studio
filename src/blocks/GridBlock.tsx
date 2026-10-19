@@ -11,7 +11,8 @@ import { getMedia } from "@/lib/media";
 import { freeCells, GRID_LAYOUTS, gridCells, MAX_SPAN_H, MAX_SPAN_W } from "./grid-layouts";
 import { hasText } from "./optional-fields";
 import { MAX_CHILDREN } from "./tree";
-import { childBlock, inline, localized, tr, type BlockContext } from "./types";
+import { BlockCaption, capHost, captionPart } from "./caption";
+import { childBlock, inline, localized, localizedText, tr, type BlockContext } from "./types";
 
 
 export const gridSchema = z.object({
@@ -28,6 +29,10 @@ export const gridSchema = z.object({
   top: z.enum(["gap", "none"]).default("gap"),
   eyebrow: localized.optional(),
   title: localized.optional(),
+  /** Titre, Légende et Date facultatifs sous la grille entière (lot 39) ; chaque case a les siens (image, vidéo). */
+  captionTitle: localizedText.optional(),
+  caption: localizedText.optional(),
+  captionDate: localizedText.optional(),
   children: z.array(childBlock).max(MAX_CHILDREN).default([]),
 });
 
@@ -72,7 +77,7 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
   return (
     // Espace en bas (v0.13.1) : la grille se referme sur son propre pas (l'écart entre
     // cellules), comme une planche sur sa marge ; le bloc suivant ne colle plus.
-    <section className={`block-grid-section shell ${props.top === "gap" ? "pt-[var(--section-gap)]" : ""}${ctx.edit ? " pe-field-host" : ""}`}>
+    <section className={`block-grid-section shell ${props.top === "gap" ? "pt-[var(--section-gap)]" : ""}${ctx.edit ? " pe-field-host" : ""}`} {...capHost(ctx)}>
       {ctx.edit && (
         <div className="relative">
           <FieldOps ctx={ctx} type="grid" props={props} />
@@ -159,6 +164,8 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
           );
         })}
       </div>
+      {/* Sous la grille entière : mêmes champs que sous une image (lot 39). */}
+      <BlockCaption ctx={ctx} title={captionPart(ctx, "captionTitle", props.captionTitle)} legend={captionPart(ctx, "caption", props.caption)} date={captionPart(ctx, "captionDate", props.captionDate)} />
     </section>
   );
 }

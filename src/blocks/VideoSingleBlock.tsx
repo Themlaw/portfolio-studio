@@ -28,6 +28,12 @@ export const videoSingleSchema = z.object({
   /** Titre (sinon le texte alternatif de la vidéo, ou le titre du plan). */
   title: localized.optional(),
   description: localizedText.optional(),
+  /**
+   * Titre et Date facultatifs sous la vidéo (lot 39). La Légende est `description`. Dans la présentation « Vidéo seule » les trois
+   * se posent sous la vidéo (composant commun) ; « Carte » et « Mise en avant » gardent leur titre et leur légende, et reçoivent la date.
+   */
+  captionTitle: localizedText.optional(),
+  captionDate: localizedText.optional(),
 });
 
 /** UNE vidéo (v0.13). Sans vidéo : rien en public, « Choisir une vidéo » sur la toile. */
@@ -64,9 +70,20 @@ export default async function VideoSingleBlock({ props, ctx }: { props: z.infer<
     eyebrow: props.eyebrow ? tr(props.eyebrow, ctx.locale) : "",
     title: (props.title && tr(props.title, ctx.locale)) || item?.title || "",
     description: (props.description && tr(props.description, ctx.locale)) || item?.description || "",
+    captionTitle: props.captionTitle ? tr(props.captionTitle, ctx.locale) : "",
+    date: props.captionDate ? tr(props.captionDate, ctx.locale) : "",
   };
   const body = item ? (
-    <VideoCard item={item} look={props.variant} mode={props.mode} texts={texts} edit={ctx.edit} styles={{ eyebrow: textStyle(ctx, "eyebrow").style, title: textStyle(ctx, "title").style, description: textStyle(ctx, "description").style }} />
+    <VideoCard
+      item={item}
+      look={props.variant}
+      mode={props.mode}
+      texts={texts}
+      edit={ctx.edit}
+      marks={Boolean(ctx.edit || ctx.inlineEdit)}
+      prefix={ctx.inlinePrefix}
+      styles={{ eyebrow: textStyle(ctx, "eyebrow").style, title: textStyle(ctx, "title").style, description: textStyle(ctx, "description").style, captionTitle: textStyle(ctx, "captionTitle").style, captionDate: textStyle(ctx, "captionDate").style }}
+    />
   ) : ctx.edit ? (
     <div className="pe-media-empty pe-media-video" data-edit-media="mediaId" data-edit-media-kind="video" lang="fr">
       <span>Dépose une vidéo ici</span>

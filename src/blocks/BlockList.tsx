@@ -194,7 +194,16 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
       const pass: Look = {};
       if (boxless && i === 0 && look?.spaceTop) pass.spaceTop = look.spaceTop;
       if (boxless && i === kids.length - 1 && look?.spaceBottom) pass.spaceBottom = look.spaceBottom;
-      const cellCtx: BlockContext = block.type === "grid" && data.layout ? { ...childCtx, cellColumns: cellShare(data, i, kids.length), ...(data.layout === "auto" ? { cellAuto: true } : {}) } : childCtx;
+      const cellCtx: BlockContext =
+        block.type === "grid" && data.layout
+          ? {
+              ...childCtx,
+              cellColumns: cellShare(data, i, kids.length),
+              ...(data.layout === "auto" ? { cellAuto: true } : {}),
+              // Grille de planche (lot 39) : ses cases n'ont pas d'identité de bloc, leurs textes se modifient par la grille.
+              ...(ctx.inlineEdit && !ctx.edit ? { inlinePrefix: `children.${i}.props.` } : {}),
+            }
+          : childCtx;
       return renderBlock({ id: -(i + 1), uid: c.uid, type: c.type, props: c.props, corrupt: false }, cellCtx, depth + 1, { uid }, Object.keys(pass).length ? pass : undefined, null, kidJoins[i]);
     });
   }
@@ -245,7 +254,7 @@ export function renderBoardItem(item: { uid: string; type: string; props: Record
   // fusion des voisins (ProjectBoardBlock / ProjectStrip, `FondWrap`) : le bloc lui-même n'en pose pas.
   const props = { ...item.props };
   delete props.background;
-  return renderBlock({ id: -1, uid: item.uid, type: item.type, props, corrupt: false }, { ...ctx, edit: false, inlineEdit: Boolean(ctx.edit) && item.type === "rich-text", gridCanvas: Boolean(ctx.edit) && item.type === "grid", parent: undefined }, 0);
+  return renderBlock({ id: -1, uid: item.uid, type: item.type, props, corrupt: false }, { ...ctx, edit: false, inlineEdit: Boolean(ctx.edit) && (item.type === "rich-text" || item.type === "image" || item.type === "video-single" || item.type === "grid"), gridCanvas: Boolean(ctx.edit) && item.type === "grid", parent: undefined }, 0);
 }
 
 /**
