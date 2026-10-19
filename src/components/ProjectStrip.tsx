@@ -12,7 +12,7 @@ import { BOARD_ITEM_LABELS, type BoardBox as BoardBoxProps, type BoardItemType }
 import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedArtwork, LocalizedProject } from "@/lib/gallery";
 import { RADIUS_VALUES } from "@/themes/css";
-import type { Frame } from "@/lib/look";
+import type { Frame, Space } from "@/lib/look";
 import type { Background, FondJoin } from "@/themes/fond";
 import type { CardPalette } from "@/themes/surface";
 import type { WallpaperEntry } from "@/themes/wallpaper";
@@ -51,6 +51,8 @@ export type BoardPart = {
   dates?: Record<string, string>;
   /** Lecture des vidéos de la bande (lot 36) : Boucle ou Lecteur ; absent : chaque vidéo suit sa nature. */
   videoMode?: "loop" | "player";
+  /** Espace au-dessus de la bande (lot 40, `look.spaceTop` : la bande n'a pas d'enveloppe de bloc) ; absent : l'espace du thème. */
+  spaceTop?: Space;
   /** Fond de couleur du composant (lot 32) et fusion avec ses voisins de même fond ; posé ici, autour de la colonne réglée par `box`. */
   fond?: { background: Background; join: FondJoin };
 };
@@ -114,15 +116,20 @@ export default function ProjectStrip({
   const tProject = project.title;
   /** Une bande : celle des images du projet (légendes, emplacements) ou un carrousel à liste propre. */
   const rail = (part?: BoardPart) =>
-    part?.artworks ? (
-      <BoardBox box={part.box}>
-        <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} videoMode={part.videoMode} />
-      </BoardBox>
-    ) : (
-      <BoardBox box={part?.box}>
-        <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} videoMode={part?.videoMode} />
-      </BoardBox>
+    spaced(
+      part,
+      part?.artworks ? (
+        <BoardBox box={part.box}>
+          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} videoMode={part.videoMode} />
+        </BoardBox>
+      ) : (
+        <BoardBox box={part?.box}>
+          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} videoMode={part?.videoMode} />
+        </BoardBox>
+      ),
     );
+  /** Espace au-dessus choisi (lot 40) : enveloppe sans boîte qui règle la marge du cadre de la bande (look.css) ; sans choix, rien n'est ajouté. */
+  const spaced = (part: BoardPart | undefined, node: ReactNode) => (part?.spaceTop ? <div className="strip-spaced" data-strip-pt={part.spaceTop}>{node}</div> : node);
 
   /** Fond de couleur du composant, bord à bord de la planche (lot 32) ; sans fond : le composant tel quel. */
   const fonded = (part: BoardPart, node: ReactNode) =>
@@ -310,6 +317,14 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
         )}
         <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title="Fond de couleur du composant, sur toute sa hauteur">
           Fond
+        </button>
+        {part.type === "image" && !part.empty && (
+          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="size" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-size-button" title="Taille et place de l'image (la légende suit)">
+            Taille
+          </button>
+        )}
+        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="space" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-space-button" title="Espace au-dessus de ce composant">
+          Espace
         </button>
         {videoKey && !part.empty && (
           <span className="pe-seg" role="group" aria-label="Lecture de la vidéo" data-testid="bitem-video-mode">

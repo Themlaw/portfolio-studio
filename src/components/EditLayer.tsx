@@ -41,6 +41,7 @@ import { closeMarkedEditor, markedNodes, markState, markupOf, openMarkedEditor, 
 import FondMenu, { FondButton } from "./edit/FondMenu";
 import { hasFondWrapper } from "./edit/optimistic";
 import FrameMenu, { FrameButton } from "./edit/FrameMenu";
+import QuickMenu, { QuickButton, type QuickKind } from "./edit/QuickMenus";
 import SurfaceMenu, { SurfaceButton } from "./edit/SurfaceMenu";
 import { useDismiss } from "./edit/useDismiss";
 import SiteLayer, { FormLayer } from "./SiteLayer";
@@ -313,7 +314,15 @@ export default function EditLayer() {
   const [fondFor, setFondFor] = useState<string | null>(null);
   /** Bloc image dont la fenêtre « Cadre » (cadre autour de la photo, lot 34) est ouverte. */
   const [frameFor, setFrameFor] = useState<string | null>(null);
+  /** Bloc dont la fenêtre « Taille » (image seule) ou « Espace » (au-dessus) est ouverte (lot 40). */
+  const [quickFor, setQuickFor] = useState<{ uid: string; kind: QuickKind } | null>(null);
   const [, bump] = useState(0);
+  const toggleQuick = (uid: string, kind: QuickKind) => {
+    setSurfaceFor(null);
+    setFondFor(null);
+    setFrameFor(null);
+    setQuickFor((o) => (o?.uid === uid && o.kind === kind ? null : { uid, kind }));
+  };
   /** « + » proposé entre deux rubriques sous le pointeur. */
   const [gap, setGap] = useState<{ index: number; top: number } | null>(null);
   /** Texte à ouvrir en édition dès que son bloc est rendu (rubrique Texte tout juste ajoutée). */
@@ -367,6 +376,7 @@ export default function EditLayer() {
   const select = useCallback((uid: string | null, notify = true, click = false) => {
     setSelected(uid);
     setSurfaceFor(null);
+    setQuickFor(null);
     if (notify) post({ kind: "select", uid, ...(click ? { click: true } : {}) });
   }, []);
 
@@ -378,6 +388,7 @@ export default function EditLayer() {
       setFondFor(null);
       setFrameFor(null);
       setSizeFor(null);
+      setQuickFor(null);
     };
     const openPanel = (e: Event) => {
       const d = (e as CustomEvent<{ uid?: string; board?: number }>).detail;
@@ -763,6 +774,7 @@ export default function EditLayer() {
         case "select": {
           setSelected(msg.uid);
           setSurfaceFor(null);
+          setQuickFor(null);
           if (msg.uid && msg.scroll) {
             const box = boxesRef.current.find((b) => b.uid === msg.uid);
             if (box) window.scrollTo({ top: Math.max(0, box.top - 80), behavior: "smooth" });
@@ -1376,9 +1388,11 @@ export default function EditLayer() {
                 Réglages
               </button>
             )}
-            {sel.type === "image" && <FrameButton uid={sel.uid} open={frameFor === sel.uid} onToggle={() => { setFondFor(null); setFrameFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
-            {!sel.parent && <SurfaceButton uid={sel.uid} open={surfaceFor === sel.uid} onToggle={() => { setFondFor(null); setFrameFor(null); setSurfaceFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
-            {hasFondWrapper(sel.uid) && <FondButton uid={sel.uid} open={fondFor === sel.uid} onToggle={() => { setSurfaceFor(null); setFrameFor(null); setFondFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
+            {sel.type === "image" && <FrameButton uid={sel.uid} open={frameFor === sel.uid} onToggle={() => { setFondFor(null); setQuickFor(null); setFrameFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
+            {sel.type === "image" && !sel.parent && <QuickButton uid={sel.uid} kind="size" open={quickFor?.uid === sel.uid && quickFor.kind === "size"} onToggle={() => toggleQuick(sel.uid, "size")} />}
+            {!sel.parent && sel.type !== "hero" && <QuickButton uid={sel.uid} kind="space" open={quickFor?.uid === sel.uid && quickFor.kind === "space"} onToggle={() => toggleQuick(sel.uid, "space")} />}
+            {!sel.parent && <SurfaceButton uid={sel.uid} open={surfaceFor === sel.uid} onToggle={() => { setFondFor(null); setFrameFor(null); setQuickFor(null); setSurfaceFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
+            {hasFondWrapper(sel.uid) && <FondButton uid={sel.uid} open={fondFor === sel.uid} onToggle={() => { setSurfaceFor(null); setFrameFor(null); setQuickFor(null); setFondFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
             <button type="button" aria-label="Monter" title="Monter" disabled={siblingsOf(sel)[0]?.uid === sel.uid} onClick={() => orderOp("up", sel)}>
               ↑
             </button>
@@ -1432,6 +1446,16 @@ export default function EditLayer() {
               onChanged={() => bump((n) => n + 1)}
             />
           )}
+          {quickFor?.uid === sel.uid && (
+            <QuickMenu
+              key={quickFor.kind}
+              uid={sel.uid}
+              kind={quickFor.kind}
+              top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40}
+              onClose={() => setQuickFor(null)}
+              onChanged={() => bump((n) => n + 1)}
+            />
+          )}
           {sel.type === "collection-tiles" && sizeFor === sel.uid && (
             <TileSizePicker uid={sel.uid} top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40} onClose={() => setSizeFor(null)} />
           )}
@@ -1446,7 +1470,7 @@ export default function EditLayer() {
         </div>
       )}
 
-      {gap && !drag && !surfaceFor && !fondFor && !frameFor && !sizeFor && !projectPicker && (
+      {gap && !drag && !surfaceFor && !fondFor && !frameFor && !quickFor && !sizeFor && !projectPicker && (
         <div className="pe-gap" style={{ top: gap.top }}>
           <button type="button" data-edit-gap={gap.index} onClick={() => post({ kind: "insert", parent: null, index: gap.index, what: "choose" })}>
             <span aria-hidden="true">+</span> Ajouter une rubrique

@@ -104,6 +104,8 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       data-width={props.width}
       {...capHost(ctx)}
       {...(ctx.cell ? {} : { "data-solo": "" })}
+      {...(!ctx.cell && ctx.look?.imageSize ? { "data-size": ctx.look.imageSize } : {})}
+      {...(!ctx.cell && ctx.look?.imageAlign ? { "data-align": ctx.look.imageAlign } : {})}
       {...(canvas && forced ? { "data-edit-box": forced } : {})}
       {...(free ? { "data-free": "" } : { ...ratioAttr, ...(box && !cover ? { "data-fit": "contain" } : {}) })}
       {...(frame ? { "data-frame": frame["data-frame"], ...(legacy ? { "data-legacy": "" } : {}) } : {})}

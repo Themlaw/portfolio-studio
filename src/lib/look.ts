@@ -344,6 +344,16 @@ export function frameAttrs(frame: Frame | undefined): { "data-frame": FrameSize;
   return { "data-frame": ok.data.size, style: { "--frame-color": frameColorCss(ok.data.color) } };
 }
 
+/* ---- Taille et alignement d'une image seule (lot 40) ------------------------------- */
+
+/** Taille d'une image seule : Normale (plafond de 85 % de la hauteur de l'écran, rien d'enregistré), Grande (plafond levé : toute la largeur du cadre). */
+export const IMAGE_SIZES = ["normal", "large"] as const;
+export type ImageSize = (typeof IMAGE_SIZES)[number];
+export const IMAGE_SIZE_LABELS: Record<ImageSize, string> = { normal: "Normale", large: "Grande" };
+export const IMAGE_ALIGNS = ["left", "center", "right"] as const;
+export type ImageAlign = (typeof IMAGE_ALIGNS)[number];
+export const IMAGE_ALIGN_LABELS: Record<ImageAlign, string> = { left: "Gauche", center: "Centre", right: "Droite" };
+
 /* ---- Réglages d'un bloc (props.look) --------------------------------------------- */
 
 /** Chemin d'un texte du bloc (comme `inline` au registre) ; `site.name` / `site.role` : textes du site posés dans le bloc. */
@@ -374,6 +384,10 @@ export const LookSchema = z.strictObject({
   slotFrame: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), FrameSchema), 200, "cadres d'images").optional(),
   /** Lecture d'une vidéo précise d'un carrousel (Boucle / Lecteur), par emplacement (slug) : lot 38. Absent : le réglage ancien de la bande, sinon la nature de la vidéo. */
   slotVideo: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), z.enum(["loop", "player"])), 200, "lectures de vidéos").optional(),
+  /** Image seule (page ou planche, lot 40) : « large » lève le plafond de hauteur ; absent = Normale (comme avant). */
+  imageSize: z.enum(["large"]).optional(),
+  /** Image seule (lot 40) : place de l'image (et de sa légende) dans le cadre ; absent = comme avant (centrée, légende pleine largeur). */
+  imageAlign: z.enum(IMAGE_ALIGNS).optional(),
 });
 export type Look = z.infer<typeof LookSchema>;
 

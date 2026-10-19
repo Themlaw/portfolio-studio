@@ -653,7 +653,8 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       case "item-look": {
         const item = snap.layout.find((i) => i.uid === op.uid);
         if (!item) return "Ce composant n'est plus sur cette planche.";
-        if (item.type === "strip") return "Ce composant n'a pas de mise en forme propre.";
+        // La bande n'a qu'un réglage de mise en forme : l'espace au-dessus (lot 40).
+        if (item.type === "strip" && op.look && Object.keys(op.look).some((k) => k !== "spaceTop")) return "Ce composant n'a pas de mise en forme propre.";
         const { look: _old, ...rest } = item.props;
         void _old;
         item.props = op.look && Object.keys(op.look).length ? { ...rest, look: op.look } : rest;
