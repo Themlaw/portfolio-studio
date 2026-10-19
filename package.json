@@ -33,6 +33,7 @@
     "test:e2e-medias": "node scripts/e2e-medias.mjs",
     "test:e2e-crop": "node scripts/e2e-crop.mjs",
     "test:e2e-cadre34": "node scripts/e2e-cadre34.mjs",
+    "test:e2e-fondimage41": "node scripts/e2e-fondimage41.mjs",
     "test:e2e-carrousel31f": "node scripts/e2e-carrousel31f.mjs",
     "shots:medias": "node scripts/medias-shots.mjs",
     "perf:rail": "node scripts/rail-perf.mjs",

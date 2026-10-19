@@ -7,7 +7,7 @@ import Lightbox from "@/components/Lightbox";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
 import type { LocalizedArtwork } from "@/lib/gallery";
-import { frameAttrs, type Frame } from "@/lib/look";
+import { frameAttrs, imageBgAttrs, type Frame } from "@/lib/look";
 import { RADIUS_VALUES } from "@/themes/css";
 
 import LoopFrame from "./LoopVideo";
@@ -40,6 +40,7 @@ export default function StripRail({
   captions = true,
   slotRadius,
   slotFrame,
+  slotBg,
   videoMode,
 }: {
   artworks: LocalizedArtwork[];
@@ -56,6 +57,8 @@ export default function StripRail({
   slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
   /** Cadre par image (réglage `look.slotFrame` du bloc, par slug d'emplacement ; lot 34). */
   slotFrame?: Partial<Record<string, Frame>>;
+  /** Fond derrière chaque image (réglage `look.slotBg` du bloc, par slug d'emplacement ; lot 41). */
+  slotBg?: Partial<Record<string, string>>;
   /**
    * Lecture des vidéos de la bande (lot 36) : « loop » = Boucle (muette, un clic met en pause), « player » = Lecteur
    * (un clic ouvre la vidéo en grand). Absent : chaque vidéo suit sa nature (une animation courte et muette en boucle,
@@ -74,6 +77,11 @@ export default function StripRail({
   const frameOf = (slug: string) => {
     const f = slotFrame && Object.hasOwn(slotFrame, slug) ? frameAttrs(slotFrame[slug]) : null;
     return f ? { "data-frame": f["data-frame"], style: f.style as CSSProperties } : null;
+  };
+  /** Fond derrière une photo réglée seule (lot 41) : attribut + couleur sur l'image de la planche, jamais sur une vidéo. */
+  const bgOf = (slug: string) => {
+    const b = slotBg && Object.hasOwn(slotBg, slug) ? imageBgAttrs(slotBg[slug]) : null;
+    return b ? { "data-img-bg": b["data-img-bg"], style: b.style as CSSProperties } : null;
   };
   // Les places vides n'existent que sur la toile : ni compteur, ni visionneuse.
   const shownArtworks = edit ? artworks.filter((a) => !a.edit?.empty) : artworks;
@@ -301,8 +309,9 @@ export default function StripRail({
             aria-haspopup={artwork.video ? "dialog" : undefined}
             data-video-mode={artwork.video ? "player" : undefined}
             className="strip-frame group text-left"
-            style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : frameOf(artwork.slug)?.style) }}
+            style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : frameOf(artwork.slug)?.style), ...(artwork.video ? {} : bgOf(artwork.slug)?.style) }}
             {...(!artwork.video && frameOf(artwork.slug) ? { "data-frame": frameOf(artwork.slug)!["data-frame"] } : {})}
+            {...(!artwork.video && bgOf(artwork.slug) ? { "data-img-bg": "" } : {})}
             {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos, "data-slot-slug": artwork.slug } : {})}
           >
             <span className="strip-media">

@@ -61,6 +61,8 @@ import Uploader from "../Uploader";
 import { isUploaded, useUploadQueue } from "../UploadQueue";
 import { isPdfFile, readRatio, sendFile, useMediaWatch } from "../uploads";
 import AddSectionDialog, { type AddChoice } from "./AddSectionDialog";
+import { ImageBgControls } from "@/components/edit/ImageBgControls";
+
 import { BlockLookPanel, SiteStylesPanel } from "./LookPanel";
 import { ColorsPanel, LogoPanel, type HighlightInfo } from "./SiteLookPanel";
 import BoardItemPanel from "./BoardItemPanel";
@@ -1907,6 +1909,17 @@ export default function VisualEditor({
       })();
     }, 250);
   };
+  /** Fond derrière l'image d'un composant Image de la planche (lot 41) : même principe que le cadre. */
+  const bgTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const itemImageBg = (board: number, uid: string, bg: string | null) => {
+    clearTimeout(bgTimer.current);
+    bgTimer.current = setTimeout(() => {
+      void (async () => {
+        await itemFlushRef.current();
+        await handlers.current.boardDo(board, { op: "item-imgbg", uid, bg });
+      })();
+    }, 250);
+  };
   /**
    * Clic sur la carte « Images qui défilent » de la palette (lot 31c) : un carrousel s'ajoute sous le composant de planche
    * choisi, sinon à la fin de la planche de la rubrique choisie ; ailleurs, un message dit où le poser.
@@ -1932,9 +1945,9 @@ export default function VisualEditor({
   };
 
   const itemFlush = () => itemFlushRef.current();
-  const handlers = useRef({ itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, videoMode });
+  const handlers = useRef({ itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, videoMode });
   useEffect(() => {
-    handlers.current = { itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, videoMode };
+    handlers.current = { itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, videoMode };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -2019,6 +2032,9 @@ export default function VisualEditor({
           break;
         case "bitem-frame":
           h.itemFrame(msg.board, msg.uid, msg.frame);
+          break;
+        case "bitem-imgbg":
+          h.itemImageBg(msg.board, msg.uid, msg.bg);
           break;
         case "bitem-fond":
           void h.itemFond(msg.board, msg.uid, msg.background, msg.continuous);
@@ -2779,6 +2795,16 @@ export default function VisualEditor({
               <p className="ve-hint">{selDef.description}</p>
               {selDef.inline.length > 0 && <p className="ve-hint">Les textes se modifient aussi directement sur la page : double-clic dessus.</p>}
               {selPath && publishErrors[selPath] && <p className="a-field-error">{publishErrors[selPath]}</p>}
+              {selBlock.type === "image" && (
+                // Haut du panneau (lot 41) : le fond derrière l'image, comme dans la barre de l'image sur la toile (look.imageBg).
+                <section className="lp lp-image-bg tc" aria-label="Fond de l'image" data-testid="panel-imgbg">
+                  <ImageBgControls
+                    value={readLook(selBlock.props.look)?.imageBg}
+                    onChange={(imageBg) => void applyLook(selBlock.uid, { ...(readLook(selBlock.props.look) ?? {}), imageBg })}
+                    swatch={(c) => swatches[c]}
+                  />
+                </section>
+              )}
               {editor ? (
                 <BlockEditorContext.Provider
                   value={{

@@ -41,6 +41,7 @@ import { closeMarkedEditor, markedNodes, markState, markupOf, openMarkedEditor, 
 import FondMenu, { FondButton } from "./edit/FondMenu";
 import { hasFondWrapper } from "./edit/optimistic";
 import FrameMenu, { FrameButton } from "./edit/FrameMenu";
+import { ImageBgButton, ImageBgPopup } from "./edit/ImageBgMenu";
 import SurfaceMenu, { SurfaceButton } from "./edit/SurfaceMenu";
 import { useDismiss } from "./edit/useDismiss";
 import SiteLayer, { FormLayer } from "./SiteLayer";
@@ -313,6 +314,8 @@ export default function EditLayer() {
   const [fondFor, setFondFor] = useState<string | null>(null);
   /** Bloc image dont la fenêtre « Cadre » (cadre autour de la photo, lot 34) est ouverte. */
   const [frameFor, setFrameFor] = useState<string | null>(null);
+  /** Bloc image dont la fenêtre « Fond de l'image » (lot 41) est ouverte. */
+  const [imgBgFor, setImgBgFor] = useState<string | null>(null);
   const [, bump] = useState(0);
   /** « + » proposé entre deux rubriques sous le pointeur. */
   const [gap, setGap] = useState<{ index: number; top: number } | null>(null);
@@ -370,6 +373,7 @@ export default function EditLayer() {
       setSurfaceFor(null);
       setFondFor(null);
       setFrameFor(null);
+      setImgBgFor(null);
       setSizeFor(null);
     };
     const openPanel = (e: Event) => {
@@ -1361,9 +1365,21 @@ export default function EditLayer() {
                 Réglages
               </button>
             )}
-            {sel.type === "image" && <FrameButton uid={sel.uid} open={frameFor === sel.uid} onToggle={() => { setFondFor(null); setFrameFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
-            {!sel.parent && <SurfaceButton uid={sel.uid} open={surfaceFor === sel.uid} onToggle={() => { setFondFor(null); setFrameFor(null); setSurfaceFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
-            {hasFondWrapper(sel.uid) && <FondButton uid={sel.uid} open={fondFor === sel.uid} onToggle={() => { setSurfaceFor(null); setFrameFor(null); setFondFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
+            {sel.type === "image" && <FrameButton uid={sel.uid} open={frameFor === sel.uid} onToggle={() => { setFondFor(null); setImgBgFor(null); setFrameFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
+            {sel.type === "image" && (
+              <ImageBgButton
+                uid={sel.uid}
+                open={imgBgFor === sel.uid}
+                onToggle={() => {
+                  const next = imgBgFor === sel.uid ? null : sel.uid;
+                  // Une seule fenêtre à la fois (pe:popups-close ferme aussi celles des autres couches), puis la sienne.
+                  window.dispatchEvent(new CustomEvent("pe:popups-close"));
+                  setImgBgFor(next);
+                }}
+              />
+            )}
+            {!sel.parent && <SurfaceButton uid={sel.uid} open={surfaceFor === sel.uid} onToggle={() => { setFondFor(null); setFrameFor(null); setImgBgFor(null); setSurfaceFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
+            {hasFondWrapper(sel.uid) && <FondButton uid={sel.uid} open={fondFor === sel.uid} onToggle={() => { setSurfaceFor(null); setFrameFor(null); setImgBgFor(null); setFondFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
             <button type="button" aria-label="Monter" title="Monter" disabled={siblingsOf(sel)[0]?.uid === sel.uid} onClick={() => orderOp("up", sel)}>
               ↑
             </button>
@@ -1414,6 +1430,14 @@ export default function EditLayer() {
               uid={sel.uid}
               top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40}
               onClose={() => setFrameFor(null)}
+              onChanged={() => bump((n) => n + 1)}
+            />
+          )}
+          {sel.type === "image" && imgBgFor === sel.uid && (
+            <ImageBgPopup
+              uid={sel.uid}
+              style={{ top: Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40 }}
+              onClose={() => setImgBgFor(null)}
               onChanged={() => bump((n) => n + 1)}
             />
           )}

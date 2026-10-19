@@ -61,6 +61,7 @@ export default function ProjectStrip({
   collection,
   slotRadius,
   slotFrame,
+  slotBg,
   parts,
   palette,
   wallpapers,
@@ -78,6 +79,8 @@ export default function ProjectStrip({
   slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
   /** Cadre par image (réglage `look.slotFrame` du bloc, par slug d'emplacement ; lot 34). */
   slotFrame?: Partial<Record<string, Frame>>;
+  /** Fond derrière chaque image (réglage `look.slotBg` du bloc, par slug d'emplacement ; lot 41). */
+  slotBg?: Partial<Record<string, string>>;
   /** Suite de composants de la planche ; absente (anciens blocs de projets) : la bande d'images seule. */
   parts?: BoardPart[];
   /** Palette effective du site : le texte lisible sur un fond de couleur (seulement si un composant en a un). */
@@ -111,11 +114,11 @@ export default function ProjectStrip({
   const rail = (part?: BoardPart) =>
     part?.artworks ? (
       <BoardBox box={part.box}>
-        <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions={false} slotRadius={slotRadius} slotFrame={slotFrame} videoMode={part.videoMode} />
+        <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions={false} slotRadius={slotRadius} slotFrame={slotFrame} slotBg={slotBg} videoMode={part.videoMode} />
       </BoardBox>
     ) : (
       <BoardBox box={part?.box}>
-        <StripRail artworks={project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} videoMode={part?.videoMode} />
+        <StripRail artworks={project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} slotBg={slotBg} videoMode={part?.videoMode} />
       </BoardBox>
     );
 
@@ -312,6 +315,11 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
         {part.type === "image" && (
           <button type="button" className="pe-bitem-btn" data-edit-bitem-op="frame" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-frame-button" title="Cadre autour de la photo">
             Cadre
+          </button>
+        )}
+        {part.type === "image" && (
+          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="imgbg" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-imgbg-button" title="Fond derrière l'image (utile pour un PNG détouré)">
+            Fond image
           </button>
         )}
         {op("up", "Monter", "↑", index === 0)}

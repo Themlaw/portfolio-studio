@@ -10,7 +10,7 @@ import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { ORIGINALS_PREFIX } from "@/lib/images/variants";
 import { getMedia, mediaUrl } from "@/lib/media";
 
-import { frameAttrs } from "@/lib/look";
+import { frameAttrs, imageBgAttrs } from "@/lib/look";
 
 import { AUTO_PANORAMA_RATIO } from "./grid-layouts";
 
@@ -41,6 +41,7 @@ export const imageSchema = z.object({
  * variante extraite de l'ORIGINAL ; le cadre prend alors son rapport et ignore le
  * format imposé. Un ancien cadrage (point focal + zoom) dans un cadre au format
  * imposé est servi de la même façon (sa fenêtre), donc net. Une image seule ne
+ * Fond (lot 41) : `look.imageBg` colore la boîte de l'image (derrière un PNG détouré) ; rien par défaut.
  * Cadre (lot 34) : `look.frame` {size, color} pose une bordure dans la boîte de l'image (jamais de rognage de la boîte, ni de
  * changement de sa taille extérieure) ; rien par défaut. Une image seule ne
  * dépasse jamais 85 % de la hauteur de l'écran (CSS `data-solo`, sans rognage ; pas dans une grille, qui fixe
@@ -94,6 +95,8 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       : undefined;
   // Cadre autour de la photo (lot 34, `look.frame`) : bordure DANS la boîte de l'image (look.css), jamais sur une place vide.
   const frame = image ? frameAttrs(ctx.look?.frame) : null;
+  // Fond derrière l'image (lot 41, `look.imageBg`) : remplit la boîte de l'image (look.css), même « Dans la case » ; aucun par défaut.
+  const imgBg = image ? imageBgAttrs(ctx.look?.imageBg) : null;
   const body = (
     <figure
       className={`block-image ${ctx.cell ? "" : props.width === "text" ? "max-w-2xl" : ""}`}
@@ -102,7 +105,8 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       {...(canvas && forced ? { "data-edit-box": forced } : {})}
       {...(free ? { "data-free": "" } : { ...ratioAttr, ...(box && !cover ? { "data-fit": "contain" } : {}) })}
       {...(frame ? { "data-frame": frame["data-frame"], ...(legacy ? { "data-legacy": "" } : {}) } : {})}
-      style={{ "--ir": shownRatio.toFixed(4), ...(frame?.style ?? {}) } as CSSProperties}
+      {...(imgBg ? { "data-img-bg": "", ...(legacy ? { "data-legacy": "" } : {}) } : {})}
+      style={{ "--ir": shownRatio.toFixed(4), ...(frame?.style ?? {}), ...(imgBg?.style ?? {}) } as CSSProperties}
     >
       {image ? (
         <span

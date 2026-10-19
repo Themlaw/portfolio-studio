@@ -134,6 +134,19 @@ figure.block-image[data-frame] .block-image-frame,
   border: var(--frame-w) solid var(--frame-color);
   background-clip: padding-box;
 }
+/* ---- Fond derrière une image (lot 41) ----------------------------------------
+   `look.imageBg` (image seule, case de grille, image de planche) et `look.slotBg` (image d'une planche ou d'un carrousel) :
+   la couleur (`--img-bg`, palette du thème ou couleur libre, jamais d'ici) remplit la boîte de l'image, c'est-à-dire la zone
+   affichée : recadrage compris, et toute la case avec « Image entière » (qui laissait des bandes transparentes). Elle suit
+   l'arrondi de l'image et reste DANS le cadre (background-clip). Un cadrage ancien rogne dans l'enveloppe .block-image-frame :
+   le fond est posé sur elle. Sans réglage, aucune règle ne s'applique : rien ne change pour l'existant. */
+figure.block-image[data-img-bg]:not([data-legacy]) .block-image-media.block-image-media.block-image-media,
+figure.block-image[data-img-bg] .block-image-frame,
+.strip-frame[data-img-bg] .strip-media img {
+  background-color: var(--img-bg) !important;
+  background-clip: padding-box;
+}
+
 /* Variante extraite de l'original (cadrage ancien converti en rectangle) : déjà à la bonne place, ni décalage ni zoom. */
 .blk[data-crop] .block-image-media[data-cropped] {
   transform: none;

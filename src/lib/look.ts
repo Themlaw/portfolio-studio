@@ -19,6 +19,7 @@ import { z } from "zod";
 
 import { RectSchema } from "@/lib/images/crop";
 
+import { IMAGE_BG_CARD } from "../themes/image-bg";
 import { CUSTOM_COLOR_RE } from "./color";
 
 import { RADIUS_VALUES } from "../themes/css";
@@ -344,6 +345,30 @@ export function frameAttrs(frame: Frame | undefined): { "data-frame": FrameSize;
   return { "data-frame": ok.data.size, style: { "--frame-color": frameColorCss(ok.data.color) } };
 }
 
+/* ---- Fond derrière une image (lot 41) -------------------------------------------- */
+
+/**
+ * Fond d'une image (utile derrière un PNG détouré) : « card » = la couleur des cartes du thème, une teinte de la palette
+ * (suit le thème), ou une couleur libre `#rrggbb[aa]` (le blanc en est une : `IMAGE_BG_WHITE`). Absent = aucun fond (transparent).
+ */
+export const ImageBgSchema = z.union([z.literal(IMAGE_BG_CARD), z.enum(PALETTE), CustomColorSchema]);
+export type ImageBg = z.infer<typeof ImageBgSchema>;
+
+/** Couleur CSS d'un fond d'image, ou null (absent / invalide : aucun fond). */
+export function imageBgCss(bg: string | undefined): string | null {
+  if (bg === undefined) return null;
+  if (bg === IMAGE_BG_CARD) return "var(--t-color-surface)";
+  if ((PALETTE as readonly string[]).includes(bg)) return `var(--t-color-${bg})`;
+  if (CUSTOM_COLOR_RE.test(bg)) return bg;
+  return null;
+}
+
+/** Attributs de rendu d'un fond d'image (`data-img-bg` + variable `--img-bg`, lues par src/app/look.css), ou null sans fond. */
+export function imageBgAttrs(bg: string | undefined): { "data-img-bg": ""; style: Record<string, string> } | null {
+  const css = imageBgCss(bg);
+  return css ? { "data-img-bg": "", style: { "--img-bg": css } } : null;
+}
+
 /* ---- Réglages d'un bloc (props.look) --------------------------------------------- */
 
 /** Chemin d'un texte du bloc (comme `inline` au registre) ; `site.name` / `site.role` : textes du site posés dans le bloc. */
@@ -372,6 +397,10 @@ export const LookSchema = z.strictObject({
   frame: FrameSchema.optional(),
   /** Cadre d'une image précise d'une planche, par emplacement (slug) : lot 34. */
   slotFrame: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), FrameSchema), 200, "cadres d'images").optional(),
+  /** Fond derrière l'image d'un bloc Image (page, case de grille, image de planche) : lot 41. */
+  imageBg: ImageBgSchema.optional(),
+  /** Fond derrière une image précise d'une planche ou d'un carrousel, par emplacement (slug) : lot 41. */
+  slotBg: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), ImageBgSchema), 200, "fonds d'images").optional(),
 });
 export type Look = z.infer<typeof LookSchema>;
 

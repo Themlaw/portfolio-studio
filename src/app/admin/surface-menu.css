@@ -183,3 +183,18 @@
 .sm-dot[data-wallpaper] {
   background: repeating-conic-gradient(var(--pe-surface) 0% 25%, transparent 0% 50%) 50% / 6px 6px;
 }
+
+/* Fond derrière une image (lot 41) — ImageBgMenu.tsx : titre au-dessus, choix sur plusieurs lignes si besoin. */
+.ibg {
+  display: grid;
+  gap: 6px;
+}
+.sm .ibg-title {
+  display: block;
+  flex: none;
+  color: var(--lk-ink);
+  font-weight: 600;
+}
+.ibg-seg {
+  flex-wrap: wrap;
+}
