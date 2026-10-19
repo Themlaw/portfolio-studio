@@ -81,6 +81,8 @@ export type GridShape = {
   mirror?: boolean;
   /** « Automatique » : format (largeur / hauteur) de l'image ou de la vidéo de chaque case, dans l'ordre ; inconnu ou absent = case normale. Jamais stocké. */
   ratios?: (number | null | undefined)[];
+  /** Format imposé aux images (« auto » = Libre). */
+  ratio?: string;
 };
 
 export const isGridLayout = (v: unknown): v is GridLayout => typeof v === "string" && (GRID_LAYOUTS as readonly string[]).includes(v);
@@ -91,7 +93,58 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, M
 export const customCols = (shape: GridShape): number => clamp(shape.cols ?? DEFAULT_CUSTOM_COLS, 2, 4);
 
 /** Explication de l'agencement « Automatique » (fenêtre Réglages de la toile et panneau). */
-export const AUTO_HINT = "Automatique : chaque image prend la place qui va à son format (un décor large prend toute la largeur, un portrait deux rangées).";
+export const AUTO_HINT = "Automatique : les images d'une même rangée ont la même hauteur, sans être recadrées. Un décor très large prend toute la largeur.";
+
+/**
+ * Rangées justifiées (lot 37) : « Automatique » avec le format de case « Libre » range les images par rangées de
+ * `cols` au plus ; dans une rangée chaque image prend une largeur proportionnelle à son format (largeur / hauteur), donc
+ * toutes ont la même hauteur et aucune n'est recadrée. Un panorama (format >= 1,9) reste seul sur sa rangée. Calculé au
+ * rendu (jamais stocké). Un format imposé (Carré, 4:3…) garde les cases égales d'avant.
+ */
+export const isJustified = (shape: GridShape): boolean => shape.layout === "auto" && (shape.ratio === undefined || shape.ratio === "auto");
+
+/** Format minimal pris en compte dans une rangée (en dessous, la case deviendrait trop fine). */
+const JUSTIFY_MIN_RATIO = 0.25;
+
+export type JustifiedCell = {
+  /** Format de la case (largeur / hauteur) ; 1 pour une case sans média connu. */
+  r: number;
+  /** Largeur de la case en « colonnes » : sa part de la rangée x le nombre de cases de la rangée. */
+  k: number;
+  /** Rangée seule sur toute la largeur (panorama). */
+  full: boolean;
+  /** Rangée incomplète (dernière) : garde la largeur de ses colonnes au lieu de s'étirer. */
+  part: boolean;
+  /** Rang de la rangée (0 = première). */
+  row: number;
+};
+
+/** Rangées justifiées de `ratios` (une entrée par case, vides comprises) pour `cols` colonnes. */
+export function justifyRows(ratios: (number | null | undefined)[], cols: number): JustifiedCell[] {
+  const valid = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
+  const out: JustifiedCell[] = [];
+  let row = 0;
+  let i = 0;
+  while (i < ratios.length) {
+    const first = ratios[i];
+    if (valid(first) && first >= AUTO_PANORAMA_RATIO) {
+      out.push({ r: first, k: cols, full: true, part: false, row: row++ });
+      i++;
+      continue;
+    }
+    const group: number[] = [];
+    while (i + group.length < ratios.length && group.length < cols) {
+      const v = ratios[i + group.length];
+      if (valid(v) && v >= AUTO_PANORAMA_RATIO) break;
+      group.push(valid(v) ? Math.max(JUSTIFY_MIN_RATIO, v) : 1);
+    }
+    const sum = group.reduce((a, b) => a + b, 0);
+    for (const r of group) out.push({ r, k: (r / sum) * group.length, full: false, part: group.length < cols, row });
+    row++;
+    i += group.length;
+  }
+  return out;
+}
 
 /** Colonnes d'une grille « Automatique » (2 à 4). */
 export const autoCols = (shape: GridShape): number => clamp(shape.cols ?? AUTO_COLS, 2, 4);

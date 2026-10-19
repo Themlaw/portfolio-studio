@@ -8,7 +8,7 @@ import { parseRatio } from "@/lib/images/sizes";
 import { FieldOps } from "./FieldOps";
 import { getMedia } from "@/lib/media";
 
-import { freeCells, GRID_LAYOUTS, gridCells, MAX_SPAN_H, MAX_SPAN_W } from "./grid-layouts";
+import { freeCells, GRID_LAYOUTS, gridCells, isJustified, justifyRows, MAX_SPAN_H, MAX_SPAN_W } from "./grid-layouts";
 import { hasText } from "./optional-fields";
 import { MAX_CHILDREN } from "./tree";
 import { childBlock, inline, localized, tr, type BlockContext } from "./types";
@@ -49,21 +49,59 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
         props.children.slice(0, cells.length).map(async (c) => {
           const id = typeof c.props.mediaId === "number" ? c.props.mediaId : undefined;
           const m = id ? await getMedia(id) : null;
-          if (m?.width && m?.height) return m.width / m.height;
+          if (m?.width && m?.height) {
+            const natural = m.width / m.height;
+            // Format réellement affiché (lot 37) : cadrage libre posé sur l'image, sinon format propre à l'image.
+            const look = c.props.look as { crop?: { mediaId?: { rect?: { w?: number; h?: number } } } } | undefined;
+            const rect = look?.crop?.mediaId?.rect;
+            if (rect && typeof rect.w === "number" && typeof rect.h === "number" && rect.w > 0 && rect.h > 0) return (natural * rect.w) / rect.h;
+            const own = typeof c.props.ratio === "string" && c.props.ratio !== "auto" ? parseRatio(c.props.ratio) : null;
+            return own ?? natural;
+          }
           return m?.video ? 16 / 9 : null;
         }),
       )
     : undefined;
   const geometry = gridCells({ ...props, ratios }, cells.length);
   const free = canvas ? freeCells(props, cells.length) : [];
+  // Rangées justifiées (lot 37) : largeur de chaque case proportionnelle à son format, même hauteur par rangée.
+  const justified = isJustified(props);
+  const rows = justified ? justifyRows(ratios ?? [], geometry.cols) : [];
+  // Places libres (toile seulement) : une colonne chacune, à la suite de la dernière rangée si elle est incomplète, sinon sur une
+  // nouvelle rangée ; elles ne changent jamais la largeur des images (parité avec le public).
+  if (justified) {
+    let last = rows[rows.length - 1];
+    let inRow = last ? rows.filter((c) => c.row === last!.row).length : 0;
+    for (let i = 0; i < free.length; i++) {
+      if (last && last.part && !last.full && inRow < geometry.cols) inRow++;
+      else {
+        last = { r: 1, k: 1, full: false, part: true, row: (last?.row ?? -1) + 1 };
+        inRow = 1;
+      }
+      rows.push({ ...last, r: 1, k: 1, part: true });
+    }
+  }
+  const justAttrs = (i: number): { style?: CSSProperties; [k: string]: unknown } => {
+    const j = rows[i];
+    if (!j) return {};
+    return {
+      ...(j.full ? { "data-jfull": "" } : {}),
+      ...(j.part ? { "data-jpart": "" } : {}),
+      "data-jrow": j.row,
+      style: { "--jr": j.r.toFixed(4), "--jk": j.k.toFixed(4) } as CSSProperties,
+    };
+  };
   // « Sur mesure » et « Automatique » : grille CSS à colonnes réglables, taille de chaque case en `--w` / `--h`.
   const custom = props.layout === "custom" || auto;
   const unit = parseRatio(props.ratio) ?? 4 / 3;
   /** Taille d'une case (vue d'un agencement « Sur mesure » ou d'une case sur deux rangées). */
-  const sizeAttrs = (s: { w: number; h: number }) => ({
-    ...(s.h > 1 ? { "data-span-h": s.h } : {}),
-    ...(custom ? { "data-w": s.w, style: { "--w": s.w, "--h": s.h } as CSSProperties } : {}),
-  });
+  const sizeAttrs = (s: { w: number; h: number }) =>
+    justified
+      ? {}
+      : {
+          ...(s.h > 1 ? { "data-span-h": s.h } : {}),
+          ...(custom ? { "data-w": s.w, style: { "--w": s.w, "--h": s.h } as CSSProperties } : {}),
+        };
   // Étiquette et titre : des champs qui n'existent que s'ils ont été demandés (« + Ajouter … » sur la toile, lot 27).
   // Vide en public : aucune place ; sur la toile, un champ présent reste saisissable.
   const showEyebrow = props.eyebrow !== undefined && (ctx.edit || hasText(props.eyebrow));
@@ -99,6 +137,7 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
         data-align={props.align}
         data-ratio={props.ratio}
         {...(custom ? { "data-cols": geometry.cols } : {})}
+        {...(justified ? { "data-justify": "" } : {})}
         {...(geometry.mirror ? { "data-mirror": "" } : {})}
         {...(custom ? { style: { "--cols": geometry.cols, "--grid-r": unit } as CSSProperties } : {})}
         {...(canvas ? { "data-edit-grid": "", "data-grid-cols": geometry.cols } : {})}
@@ -108,6 +147,7 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
             key={i}
             className="block-grid-cell"
             {...sizeAttrs(geometry.cells[i])}
+            {...justAttrs(i)}
             {...(canvas ? { "data-cell-index": i, "data-cell-w": geometry.cells[i].w, "data-cell-h": geometry.cells[i].h } : {})}
             {...(canvas && ctx.cellInfo?.[i]
               ? { "data-edit-cell": ctx.cellInfo[i].uid, "data-cell-type": ctx.cellInfo[i].type, ...(ctx.cellInfo[i].look ? { "data-edit-look": ctx.cellInfo[i].look } : {}) }
@@ -126,7 +166,8 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
               data-cell-index={index}
               lang="fr"
               {...sizeAttrs(size)}
-              {...(canvas ? { style: { ...(custom ? { "--w": size.w, "--h": size.h } : {}), "--free-r": Math.max(0.2, (unit * size.w) / size.h) } as CSSProperties } : {})}
+              {...justAttrs(cells.length + i)}
+              {...(canvas ? { style: { ...(custom && !justified ? { "--w": size.w, "--h": size.h } : {}), ...(justAttrs(cells.length + i).style ?? {}), "--free-r": justified ? 1 : Math.max(0.2, (unit * size.w) / size.h) } as CSSProperties } : {})}
             >
               <span className="pe-cell-free">
                 {/* Le numéro de la case : les images la remplissent dans l'ordre (le repère n'existe que sur la toile). */}
