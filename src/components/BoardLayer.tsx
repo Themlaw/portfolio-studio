@@ -1128,6 +1128,7 @@ export default function BoardLayer({
             Retirer la place
           </button>
           {!active.empty && <SlotRadius el={activeEl} />}
+          {!active.empty && activeEl && activeEl.querySelector("video, .strip-duration, [data-video-mode]") && <SlotVideoMode el={activeEl} />}
           {!active.empty && activeEl && !activeEl.querySelector("video, .strip-duration") && (
             <button
               type="button"
@@ -1397,6 +1398,37 @@ function SlotRadius({ el }: { el: Element | null }) {
         ))}
       </select>
     </label>
+  );
+}
+
+/**
+ * Lecture de CETTE vidéo d'un carrousel (lot 38) : Boucle ou Lecteur, réglage `look.slotVideo` du bloc planche, par slug d'emplacement.
+ * Sans choix, la vidéo suit le réglage ancien de la bande ou sa nature (courte et muette : boucle) : le bouton montre ce que la page fait.
+ */
+function SlotVideoMode({ el }: { el: Element }) {
+  const [, bump] = useState(0);
+  const slug = el.getAttribute("data-slot-slug") ?? "";
+  const uid = el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
+  if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
+  const look = lookOf(uid);
+  const chosen = look.slotVideo && Object.hasOwn(look.slotVideo, slug) ? look.slotVideo[slug] : undefined;
+  const shown = el.getAttribute("data-video-mode") ?? el.querySelector("[data-video-mode]")?.getAttribute("data-video-mode");
+  const now = chosen ?? (shown === "loop" ? "loop" : "player");
+  const change = (m: "loop" | "player") => {
+    sendLook(uid, { ...look, slotVideo: { ...(look.slotVideo ?? {}), [slug]: m } });
+    bump((n) => n + 1);
+  };
+  return (
+    <span className="pe-seg" role="group" aria-label="Lecture de la vidéo" data-testid="slot-video-mode">
+      <span className="pe-seg-label" aria-hidden="true">
+        Lecture
+      </span>
+      {VIDEO_MODES.map((m) => (
+        <button key={m} type="button" aria-pressed={now === m} title={VIDEO_MODE_HINTS[m]} data-slot-video-set={m} onClick={() => change(m)}>
+          {VIDEO_MODE_LABELS[m]}
+        </button>
+      ))}
+    </span>
   );
 }
 

@@ -40,6 +40,7 @@ export default function StripRail({
   captions = true,
   slotRadius,
   slotFrame,
+  slotVideo,
   videoMode,
 }: {
   artworks: LocalizedArtwork[];
@@ -56,6 +57,8 @@ export default function StripRail({
   slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
   /** Cadre par image (réglage `look.slotFrame` du bloc, par slug d'emplacement ; lot 34). */
   slotFrame?: Partial<Record<string, Frame>>;
+  /** Lecture par vidéo (réglage `look.slotVideo` du bloc, par slug d'emplacement ; lot 38) : passe avant `videoMode`. */
+  slotVideo?: Partial<Record<string, "loop" | "player">>;
   /**
    * Lecture des vidéos de la bande (lot 36) : « loop » = Boucle (muette, un clic met en pause), « player » = Lecteur
    * (un clic ouvre la vidéo en grand). Absent : chaque vidéo suit sa nature (une animation courte et muette en boucle,
@@ -80,7 +83,12 @@ export default function StripRail({
   // Les vidéos ne passent pas par la visionneuse d'images : une boucle se met en pause sur place, un lecteur s'ouvre dans la visionneuse vidéo.
   const stills = shownArtworks.filter((a) => !a.video);
   const [viewing, setViewing] = useState<LocalizedArtwork | null>(null);
-  const modeOf = (a: LocalizedArtwork): "loop" | "player" | null => (a.video ? (videoMode ?? (a.video.loop ? "loop" : "player")) : null);
+  // Ordre : le choix de CETTE vidéo (lot 38), puis le réglage ancien de la bande (`videoMode`, plus proposé mais toujours lu : aucune page existante ne change), puis la nature de la vidéo.
+  const modeOf = (a: LocalizedArtwork): "loop" | "player" | null => {
+    if (!a.video) return null;
+    const own = slotVideo && Object.hasOwn(slotVideo, a.slug) ? slotVideo[a.slug] : undefined;
+    return own ?? videoMode ?? (a.video.loop ? "loop" : "player");
+  };
   const railId = `rail-${idKey}`;
   const railRef = useRef<HTMLDivElement | null>(null);
   const triggerRefs = useRef<(HTMLButtonElement | null)[]>([]);

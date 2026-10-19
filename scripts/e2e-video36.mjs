@@ -486,23 +486,25 @@ try {
     ok("F9 … « Boucle » écrit dans la planche (brouillon du projet)", await waitFor(() => boardDraft(project.id)?.find((i) => i.uid === "bv")?.props.mode === "loop"), JSON.stringify(boardDraft(project.id)?.find((i) => i.uid === "bv")?.props));
     await settled(page);
     ok("F9b … la toile montre la Boucle", await waitFor(async () => (await fr.locator('[data-edit-bitem="bv"] [data-video-mode="loop"] .loop-click').count()) === 1));
-    // Bande : « Lecture des vidéos ».
+    // Bande (lot 38) : plus de « Lecture » ni de « Réglages » sur la barre ; le réglage ancien `videoMode` reste lu au rendu.
     await hoverAt(fr.locator('[data-edit-bitem="c3"]'));
-    ok("F10 barre d'un carrousel sans choix : aucun mode pressé", (await bar("c3").locator('[data-testid="bitem-video-mode"] button[aria-pressed="true"]').count()) === 0);
+    ok("F10 barre d'un carrousel : plus de « Lecture » (ni Boucle / Lecteur) ni de bouton « Réglages »", (await bar("c3").locator('[data-testid="bitem-video-mode"]').count()) === 0 && !/Réglages|Lecture/.test(await bar("c3").innerText()));
     await shot(page, "F-barre-carrousel");
-    await bar("c3").locator('[data-edit-bitem-op="video-player"]').click();
-    ok("F11 carrousel : « Lecteur » écrit (videoMode)", await waitFor(() => boardDraft(project.id)?.find((i) => i.uid === "c3")?.props.videoMode === "player"), JSON.stringify(boardDraft(project.id)?.find((i) => i.uid === "c3")?.props));
+    const withLegacy = boardDraft(project.id).map((i) => (i.uid === "c3" ? { ...i, props: { ...i.props, videoMode: "player" } } : i));
+    setBoardDraft(project.id, pageId, withLegacy);
+    fr = await openEditor(page, BASE, pageId);
     await settled(page);
-    ok("F11b … la toile : les deux vidéos du carrousel s'ouvrent en grand (plus de boucle)", await waitFor(async () => (await fr.locator('[data-edit-bitem="c3"] button.strip-frame[data-video-mode="player"]').count()) === 2 && (await fr.locator('[data-edit-bitem="c3"] [data-loop]').count()) === 0));
-    // Panneau du carrousel.
+    ok("F11 carrousel d'avant avec `videoMode` « Lecteur » : la toile le lit toujours (les deux vidéos s'ouvrent en grand, plus de boucle)", await waitFor(async () => (await fr.locator('[data-edit-bitem="c3"] button.strip-frame[data-video-mode="player"]').count()) === 2 && (await fr.locator('[data-edit-bitem="c3"] [data-loop]').count()) === 0));
+    // Panneau du carrousel : le nom de la barre choisit le composant, plus de réglage de lecture pour toute la bande.
+    await hoverAt(fr.locator('[data-edit-bitem="c3"]'));
     await bar("c3").locator('[data-edit-bitem-op="settings"]').click();
-    const rsel = page.getByLabel("Lecture des vidéos", { exact: true });
-    await rsel.waitFor({ timeout: 15000 });
-    ok("F12 panneau du carrousel : « Lecture des vidéos » (selon la vidéo / Boucle / Lecteur)", (await rsel.inputValue()) === "player" && (await rsel.locator("option").count()) === 3);
-    await rsel.selectOption("auto");
-    ok("F13 … « selon la vidéo » retire le réglage", await waitFor(() => boardDraft(project.id)?.find((i) => i.uid === "c3")?.props.videoMode === undefined));
+    await page.getByRole("tab", { name: "Réglages" }).click();
+    await page.locator('[aria-label="Contenu du carrousel"]').waitFor({ timeout: 15000 });
+    ok("F12 panneau du carrousel : plus de liste « Lecture des vidéos »", (await page.getByLabel("Lecture des vidéos", { exact: true }).count()) === 0);
+    ok("F13 … le réglage ancien n'est pas touché dans le brouillon", boardDraft(project.id)?.find((i) => i.uid === "c3")?.props.videoMode === "player");
+    setBoardDraft(project.id, pageId, boardDraft(project.id).map((i) => (i.uid === "c3" ? { ...i, props: Object.fromEntries(Object.entries(i.props).filter(([k]) => k !== "videoMode")) } : i)));
+    fr = await openEditor(page, BASE, pageId);
     await settled(page);
-    ok("F13b … la toile retrouve le comportement d'avant (boucle courte, lecteur long)", await waitFor(async () => (await fr.locator('[data-edit-bitem="c3"] [data-video-mode="loop"]').count()) === 1));
     // Case de grille de la planche.
     const bcell = fr.locator('[data-edit-bitem="bg"] .block-grid > .block-grid-cell').nth(1);
     await hoverAt(bcell);
@@ -514,8 +516,7 @@ try {
     setBoardDraft(project.id, pageId, [{ uid: "ps", type: "strip", props: {} }, ...cur]);
     fr = await openEditor(page, BASE, pageId);
     await hoverAt(fr.locator('[data-edit-bitem="ps"]'));
-    await fr.locator('[data-edit-bitem="ps"] > .pe-bitem-bar [data-edit-bitem-op="video-loop"]').click();
-    ok("F15 bande des images du projet : « Boucle » acceptée (videoMode)", await waitFor(() => boardDraft(project.id)?.find((i) => i.uid === "ps")?.props.videoMode === "loop"), JSON.stringify(boardDraft(project.id)?.find((i) => i.uid === "ps")?.props));
+    ok("F15 bande des images du projet : plus de « Lecture » ni de « Réglages » sur sa barre", (await fr.locator('[data-edit-bitem="ps"] > .pe-bitem-bar [data-edit-bitem-op^="video-"]').count()) === 0 && !/Réglages|Lecture/.test(await fr.locator('[data-edit-bitem="ps"] > .pe-bitem-bar').innerText()));
     await settled(page);
   }
 
@@ -546,7 +547,7 @@ try {
       if (it.type === "video-single") bvs.push(it);
       for (const k of it.props.children ?? []) if (k.type === "video-single") bvs.push(k);
     }
-    ok("G4 publié (planche) : modes explicites, bande des images du projet = Boucle", bvs.length === 3 && bvs.every((v) => ["loop", "player"].includes(v.props.mode)) && lay.find((i) => i.uid === "ps")?.props.videoMode === "loop", JSON.stringify(lay.map((i) => [i.uid, i.props.mode ?? i.props.videoMode])));
+    ok("G4 publié (planche) : modes explicites des composants Vidéo ; réglage ancien des bandes (`videoMode`) publié tel quel", bvs.length === 3 && bvs.every((v) => ["loop", "player"].includes(v.props.mode)) && lay.find((i) => i.uid === "c1")?.props.videoMode === "loop" && lay.find((i) => i.uid === "c2")?.props.videoMode === "player", JSON.stringify(lay.map((i) => [i.uid, i.props.mode ?? i.props.videoMode])));
   }
 
   /* ---- H. Migration ---- */
