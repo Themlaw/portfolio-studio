@@ -108,8 +108,10 @@
   width: min(100%, calc(85svh * var(--ir, 1000)));
   margin-inline: auto; /* l'image est un bloc (préflight) : text-align ne la centre pas */
 }
-/* Lot 39 : le plafond compte la légende (sinon elle part sous le bas de l'écran). */
-.block-image[data-solo]:has(.media-caption) .block-image-media {
+/* Lot 39 : le plafond compte la légende (sinon elle part sous le bas de l'écran) — seulement quand un champ est REMPLI : une image sans
+   légende garde son plafond d'avant (intégration v0.26 : la règle suivait la simple présence de l'enveloppe, vide et cachée en public,
+   et rapetissait toutes les images hautes ; sur la toile, les trois champs vides restent proposés sans changer la taille de l'image). */
+.block-image[data-solo]:has(.media-caption [data-cap]:not(:empty)) .block-image-media {
   width: min(100%, calc((85svh - 4.5rem) * var(--ir, 1000)));
 }
 .block-image[data-solo] > span:first-child {
