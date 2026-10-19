@@ -104,15 +104,19 @@
    haute, elle est réduite (largeur = 85 svh × son rapport) et centrée, sans rien rogner. `--ir` =
    rapport de ce qui est affiché (posé par le bloc). Le centrage passe par text-align du <span>
    (image en ligne : aucun changement de mise en page pour les images qui tiennent). */
-.block-image[data-solo] .block-image-media {
-  width: min(100%, calc(85svh * var(--ir, 1000)));
-  margin-inline: auto; /* l'image est un bloc (préflight) : text-align ne la centre pas */
+.block-image[data-solo] {
+  --iw: min(100%, calc(85svh * var(--ir, 1000)));
 }
 /* Lot 39 : le plafond compte la légende (sinon elle part sous le bas de l'écran) — seulement quand un champ est REMPLI : une image sans
    légende garde son plafond d'avant (intégration v0.26 : la règle suivait la simple présence de l'enveloppe, vide et cachée en public,
-   et rapetissait toutes les images hautes ; sur la toile, les trois champs vides restent proposés sans changer la taille de l'image). */
-.block-image[data-solo]:has(.media-caption [data-cap]:not(:empty)) .block-image-media {
-  width: min(100%, calc((85svh - 4.5rem) * var(--ir, 1000)));
+   et rapetissait toutes les images hautes ; sur la toile, les trois champs vides restent proposés sans changer la taille de l'image).
+   `--iw` = largeur plafonnée de l'image ; Taille et Alignement (lot 40) la reprennent pour l'image ET sa légende. */
+.block-image[data-solo]:has(.media-caption [data-cap]:not(:empty)) {
+  --iw: min(100%, calc((85svh - 4.5rem) * var(--ir, 1000)));
+}
+.block-image[data-solo] .block-image-media {
+  width: var(--iw);
+  margin-inline: auto; /* l'image est un bloc (préflight) : text-align ne la centre pas */
 }
 .block-image[data-solo] > span:first-child {
   text-align: center;
@@ -124,7 +128,7 @@
   width: 100%;
 }
 .block-image[data-solo][data-align] > * {
-  width: min(100%, calc(85svh * var(--ir, 1000)));
+  width: var(--iw);
   margin-inline: auto;
 }
 .block-image[data-solo][data-align="left"] > * {

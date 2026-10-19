@@ -285,7 +285,7 @@ if (run("B"))
     const bimg = f.locator(BFIG);
     await bimg.scrollIntoViewIfNeeded();
     const b0 = await measure(f, BFIG);
-    ok("B0 planche : l'image est plafonnée comme sur une page (même plafond que sur une page)", b0 && near(b0.img.w, 0.85 * H * (2 / 3), 2), JSON.stringify(b0));
+    ok("B0 planche : l'image est plafonnée comme sur une page (plafond de la page moins la place de la légende, lot 39)", b0 && near(b0.img.w, (0.85 * H - 72) * (2 / 3), 2), JSON.stringify(b0));
     const frame = f.locator('[data-edit-bitem="bimg"]');
     await frame.hover();
     const sizeBtn = frame.locator('[data-testid="bitem-size-button"]');
@@ -374,7 +374,7 @@ if (run("P"))
       return t && fg ? fg.getBoundingClientRect().top - t.getBoundingClientRect().bottom : null;
     });
     ok("P4 public : 0 px entre le texte et l'image réglée sur Aucun", gapPub !== null && Math.abs(gapPub) <= 1, String(gapPub));
-    ok("P5 public : parité avec la toile (rapport largeur image / cadre du carré, de l'image gauche)", sq && Math.abs(sq.imgW / sq.figW - 1) < 0.01 && solo && Math.abs(solo.imgW - 0.85 * HP * (2 / 3)) <= 1.5);
+    ok("P5 public : parité avec la toile (rapport largeur image / cadre du carré, de l'image gauche)", sq && Math.abs(sq.imgW / sq.figW - 1) < 0.01 && solo && Math.abs(solo.imgW - (0.85 * HP - 72) * (2 / 3)) <= 1.5);
     const b = await pp.evaluate(() => {
       const fig = document.querySelectorAll("figure.block-image[data-solo]")[4];
       const t = document.querySelector(".strip");
@@ -383,7 +383,7 @@ if (run("P"))
       const r = fig.getBoundingClientRect();
       return { size: fig.dataset.size ?? null, align: fig.dataset.align ?? null, imgW: m.width, figW: r.width, spaced: Boolean(t?.querySelector(".strip-spaced[data-strip-pt=none]")) };
     });
-    ok("P6 public : planche, image centrée Normale (≈ 510 px), bande avec son espace", b && near(b.imgW, 0.85 * HP * (2 / 3), 1.5) && b.spaced, JSON.stringify(b));
+    ok("P6 public : planche, image centrée Normale (≈ 510 px), bande avec son espace", b && near(b.imgW, (0.85 * HP - 72) * (2 / 3), 1.5) && b.spaced, JSON.stringify(b));
     await pp.locator("figure.block-image[data-solo]").nth(1).scrollIntoViewIfNeeded();
     await pp.screenshot({ path: path.join(SHOTS, "p1-public-carre-grand.png") });
     await visitor.close();
