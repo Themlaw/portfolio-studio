@@ -66,6 +66,7 @@ export default function ProjectStrip({
   slotRadius,
   slotFrame,
   slotVideo,
+  slotBg,
   parts,
   palette,
   wallpapers,
@@ -85,6 +86,8 @@ export default function ProjectStrip({
   slotFrame?: Partial<Record<string, Frame>>;
   /** Lecture par vidéo (réglage `look.slotVideo` du bloc, par slug d'emplacement ; lot 38). */
   slotVideo?: Partial<Record<string, "loop" | "player">>;
+  /** Fond derrière chaque image (réglage `look.slotBg` du bloc, par slug d'emplacement ; lot 41). */
+  slotBg?: Partial<Record<string, string>>;
   /** Suite de composants de la planche ; absente (anciens blocs de projets) : la bande d'images seule. */
   parts?: BoardPart[];
   /** Palette effective du site : le texte lisible sur un fond de couleur (seulement si un composant en a un). */
@@ -120,11 +123,11 @@ export default function ProjectStrip({
       part,
       part?.artworks ? (
         <BoardBox box={part.box}>
-          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} videoMode={part.videoMode} />
+          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} videoMode={part.videoMode} />
         </BoardBox>
       ) : (
         <BoardBox box={part?.box}>
-          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} videoMode={part?.videoMode} />
+          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} videoMode={part?.videoMode} />
         </BoardBox>
       ),
     );
@@ -341,6 +344,11 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
         {part.type === "image" && (
           <button type="button" className="pe-bitem-btn" data-edit-bitem-op="frame" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-frame-button" title="Cadre autour de la photo">
             Cadre
+          </button>
+        )}
+        {part.type === "image" && (
+          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="imgbg" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-imgbg-button" title="Fond derrière l'image (utile pour un PNG détouré)">
+            Fond image
           </button>
         )}
         {op("up", "Monter", "↑", index === 0)}

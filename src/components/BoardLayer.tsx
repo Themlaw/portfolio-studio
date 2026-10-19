@@ -35,10 +35,12 @@ import { BoardFrameMenu } from "./edit/FrameMenu";
 import QuickMenu, { type QuickKind } from "./edit/QuickMenus";
 import { readBackground, type Background } from "@/themes/fond";
 
-import { FrameSchema, RADII, RADIUS_LABELS, type Frame, type Radius } from "@/lib/look";
+import { FrameSchema, ImageBgSchema, RADII, RADIUS_LABELS, type Frame, type Radius } from "@/lib/look";
 import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, isBoardItemType, parseRailKey, railKey, type BoardItemType } from "@/blocks/board-layout";
 
 import { FrameControls } from "./edit/FrameMenu";
+import { ImageBgControls } from "./edit/ImageBgControls";
+import { BoardImageBgMenu } from "./edit/ImageBgMenu";
 import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 import { lookOf, sendLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
@@ -303,6 +305,8 @@ export default function BoardLayer({
   const [selectedSlot, setSelectedSlot] = useState<SlotRef | null>(null);
   /** Image dont la fenêtre « Cadre » (lot 34) est ouverte : la barre de cette image reste affichée tant qu'elle l'est. */
   const [frameSlot, setFrameSlot] = useState<SlotRef | null>(null);
+  /** Image dont la fenêtre « Fond de l'image » (lot 41) est ouverte : même principe que « Cadre ». */
+  const [bgSlot, setBgSlot] = useState<SlotRef | null>(null);
   const [focusSlot, setFocusSlot] = useState<SlotRef | null>(null);
   const [marker, setMarker] = useState<Marker | null>(null);
   // Un glisser est en cours (média, fichiers, image) : pas de barre d'image.
@@ -315,6 +319,12 @@ export default function BoardLayer({
   const [itemSel, setItemSel] = useState<{ board: number; uid: string } | null>(null);
   // Lot 34 : fenêtre « Cadre » de la barre d'un composant Image (même principe que « Fond »).
   const [frameMenu, setFrameMenu] = useState<{ board: number; uid: string; top: number; left: number; frame: Frame | undefined } | null>(null);
+  // Lot 41 : fenêtre « Fond de l'image » de la barre d'un composant Image.
+  const [bgMenu, setBgMenu] = useState<{ board: number; uid: string; top: number; left: number; bg: string | undefined } | null>(null);
+  const bgMenuRef = useRef(bgMenu);
+  useEffect(() => {
+    bgMenuRef.current = bgMenu;
+  }, [bgMenu]);
   // Lot 32 : fenêtre « Fond » de la barre d'un composant (position dans la page, fond courant lu sur la barre).
   /** Fenêtre « Taille » (image) ou « Espace » (au-dessus) d'un composant de la planche (lot 40) ; les réglages passent par `sendLook`. */
   const [quickMenu, setQuickMenu] = useState<{ uid: string; kind: QuickKind; top: number; left: number } | null>(null);
@@ -757,11 +767,26 @@ export default function BoardLayer({
           const r = itemOp.getBoundingClientRect();
           setFondMenu(null);
           setFrameMenu(null);
+          setBgMenu(null);
           // Le composant devient le composant choisi (panneau de gauche à jour) ; la fenêtre se pose sous le bouton, centrée dessus.
           const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
           if (frame && !frame.hasAttribute("data-edit-bitem-rail") && itemSel?.uid !== uid) selectItem(frame);
           setQuickMenu((cur) => (cur?.uid === uid && cur.kind === op ? null : { uid, kind: op, top: r.bottom + window.scrollY + 4, left: Math.max(8, Math.min(r.left + window.scrollX + r.width / 2 - 165, window.scrollX + window.innerWidth - 348)) }));
+        } else if (op === "imgbg") {
+          const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
+          const r = itemOp.getBoundingClientRect();
+          let current: string | undefined;
+          try {
+            const raw = (JSON.parse(frame?.dataset.editBitemProps ?? "{}") as { props?: { look?: { imageBg?: unknown } } }).props?.look?.imageBg;
+            const parsed = ImageBgSchema.safeParse(raw);
+            current = parsed.success ? parsed.data : undefined;
+          } catch {}
+          const wasOpen = bgMenuRef.current?.uid === uid;
+          // Une seule fenêtre à la fois : pe:popups-close ferme les autres (et celle-ci), puis on ouvre la sienne.
+          window.dispatchEvent(new CustomEvent("pe:popups-close"));
+          setBgMenu(wasOpen ? null : { board, uid, top: r.bottom + window.scrollY + 4, left: Math.max(8, Math.min(r.left + window.scrollX + r.width / 2 - 165, window.scrollX + window.innerWidth - 348)), bg: current });
         } else if (op === "fond") {
+          setBgMenu(null);
           setFrameMenu(null);
           setQuickMenu(null);
           const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
@@ -949,6 +974,9 @@ export default function BoardLayer({
       setFondMenu(null);
       setFrameMenu(null);
       setQuickMenu(null);
+      setBgMenu(null);
+      setFrameSlot(null);
+      setBgSlot(null);
     };
     const openPanel = (e: Event) => {
       const d = (e as CustomEvent<{ uid?: string; board?: number }>).detail;
@@ -988,7 +1016,7 @@ export default function BoardLayer({
   if (itemSel) document.querySelector(`[data-edit-bitem="${CSS.escape(itemSel.uid)}"]`)?.setAttribute("data-selected", "");
 
   // Barre : survol, sinon focus clavier, sinon dernière image touchée.
-  const active = frameSlot ?? hover ?? focusSlot ?? selectedSlot;
+  const active = frameSlot ?? bgSlot ?? hover ?? focusSlot ?? selectedSlot;
   const activeEl = active ? findSlot(active) : null;
   const activeBox = activeEl ? boxOf(activeEl.querySelector(".strip-media, .pe-empty-box") ?? activeEl) : null;
   const fillGhosts = ghosts.filter((g) => g.slot && g.phase !== "done");
@@ -1159,12 +1187,35 @@ export default function BoardLayer({
               aria-expanded={frameSlot?.key === active.key}
               data-testid="slot-frame-button"
               title="Cadre autour de cette photo"
-              onClick={() => setFrameSlot((f) => (f?.key === active.key ? null : active))}
+              onClick={() => {
+                setBgSlot(null);
+                setFrameSlot((f) => (f?.key === active.key ? null : active));
+              }}
             >
               Cadre
             </button>
           )}
+          {!active.empty && activeEl && !activeEl.querySelector("video, .strip-duration") && (
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded={bgSlot?.key === active.key}
+              data-testid="slot-imgbg-button"
+              title="Fond derrière cette image (utile pour un PNG détouré)"
+              onClick={() => {
+                const wasOpen = bgSlot?.key === active.key;
+                // Une seule fenêtre à la fois : pe:popups-close ferme les autres (et celle-ci), puis on ouvre la sienne.
+                window.dispatchEvent(new CustomEvent("pe:popups-close"));
+                setBgSlot(wasOpen ? null : active);
+              }}
+            >
+              Fond image
+            </button>
+          )}
         </div>
+      )}
+      {bgSlot && activeBox && active && bgSlot.key === active.key && !marker && !dragActive && activeEl && (
+        <SlotImageBg el={activeEl} box={activeBox} onClose={() => setBgSlot(null)} />
       )}
       {frameSlot && activeBox && active && frameSlot.key === active.key && !marker && !dragActive && activeEl && (
         <SlotFrame el={activeEl} box={activeBox} onClose={() => setFrameSlot(null)} />
@@ -1273,6 +1324,7 @@ export default function BoardLayer({
       )}
 
       {quickMenu && <QuickMenu key={`${quickMenu.uid}-${quickMenu.kind}`} uid={quickMenu.uid} kind={quickMenu.kind} top={quickMenu.top} left={quickMenu.left} onClose={() => setQuickMenu(null)} />}
+      {bgMenu && <BoardImageBgMenu key={bgMenu.uid} board={bgMenu.board} uid={bgMenu.uid} initial={bgMenu.bg} top={bgMenu.top} left={bgMenu.left} onClose={() => setBgMenu(null)} />}
       {frameMenu && <BoardFrameMenu key={frameMenu.uid} board={frameMenu.board} uid={frameMenu.uid} initial={frameMenu.frame} top={frameMenu.top} left={frameMenu.left} onClose={() => setFrameMenu(null)} />}
       {fondMenu && <BoardFondMenu key={fondMenu.uid} board={fondMenu.board} uid={fondMenu.uid} initial={fondMenu.background} top={fondMenu.top} left={fondMenu.left} onClose={() => setFondMenu(null)} />}
 
@@ -1460,6 +1512,35 @@ function SlotVideoMode({ el }: { el: Element }) {
         </button>
       ))}
     </span>
+  );
+}
+
+/**
+ * Fond de CETTE image de la planche (lot 41) : réglage `look.slotBg` du bloc planche, par slug d'emplacement ; mêmes choix que le
+ * fond d'une image seule (ImageBgControls). Fenêtre posée sous la barre, gardée dans l'écran.
+ */
+function SlotImageBg({ el, box, onClose }: { el: Element; box: Rect; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, onClose);
+  const [, bump] = useState(0);
+  const slug = el.getAttribute("data-slot-slug") ?? "";
+  const uid = el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
+  if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
+  const look = lookOf(uid);
+  const current = look.slotBg && Object.hasOwn(look.slotBg, slug) ? look.slotBg[slug] : undefined;
+  const change = (next: string | undefined) => {
+    const all = { ...(look.slotBg ?? {}) };
+    if (next) all[slug] = next;
+    else delete all[slug];
+    sendLook(uid, { ...look, slotBg: all });
+    bump((n) => n + 1);
+  };
+  const width = Math.min(330, document.documentElement.clientWidth - 24);
+  const left = Math.max(window.scrollX + 8, Math.min(box.left + 8, window.scrollX + document.documentElement.clientWidth - width - 8));
+  return (
+    <div ref={ref} className="sm tc pe-slot-frame" role="dialog" aria-label="Fond de l'image" data-testid="imgbg-menu" style={{ top: box.top + 46, left, right: "auto" }}>
+      <ImageBgControls value={current} onChange={change} />
+    </div>
   );
 }
 

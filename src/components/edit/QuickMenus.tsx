@@ -8,7 +8,7 @@
  *   réglage que « Espace en haut » du panneau et que la poignée de la page), sans nouveau champ.
  * Chaque choix part aussitôt (`sendLook` : page, composant de planche ou case, annulable).
  */
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 
 import { cleanLook, IMAGE_ALIGN_LABELS, IMAGE_ALIGNS, readLook, SPACE_LABELS, type ImageAlign, type Look, type Space } from "@/lib/look";
 
@@ -95,25 +95,33 @@ export function SpaceControls({ look, onChange }: { look: Look; onChange: (patch
   );
 }
 
+/**
+ * Page : abscisse (dans le bloc positionné qui contient la fenêtre) qui pose la fenêtre sous le bouton `data-testid="<testId>"`, centrée
+ * dessus sans sortir du cadre. Sans bouton trouvé (ou `enabled` faux) : undefined, la fenêtre garde sa place par défaut.
+ */
+export function useAnchoredLeft(ref: RefObject<HTMLElement | null>, testId: string, enabled: boolean, dep?: string): number | undefined {
+  const [x, setX] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (!enabled) return;
+    const menu = ref.current;
+    const parent = menu?.offsetParent;
+    const btn = parent?.querySelector<HTMLElement>(`[data-testid="${testId}"]`) ?? document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+    if (!menu || !parent || !btn) return;
+    const p = parent.getBoundingClientRect();
+    const b = btn.getBoundingClientRect();
+    const v = b.left - p.left + b.width / 2 - menu.offsetWidth / 2;
+    setX(Math.max(6, Math.min(v, p.width - menu.offsetWidth - 6)));
+  }, [ref, testId, enabled, dep]);
+  return x;
+}
+
 export type QuickKind = "size" | "space";
 
 /** Fenêtre « Taille » ou « Espace » d'un bloc de la page ou d'un composant de la planche (`uid`). `left` : positionnement libre (planche). */
 export default function QuickMenu({ uid, kind, top, left, onClose, onChanged }: { uid: string; kind: QuickKind; top: number; left?: number; onClose: () => void; onChanged?: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, onClose);
-  // Page : la fenêtre se pose sous le bouton cliqué (centrée dessus, sans sortir du cadre), comme « Cadre » et « Fond ».
-  const [pageLeft, setPageLeft] = useState<number | undefined>(undefined);
-  useLayoutEffect(() => {
-    if (left !== undefined) return;
-    const menu = ref.current;
-    const parent = menu?.offsetParent;
-    const btn = parent?.querySelector<HTMLElement>(`[data-testid="${kind}-button"]`) ?? document.querySelector<HTMLElement>(`[data-testid="${kind}-button"]`);
-    if (!menu || !parent || !btn) return;
-    const p = parent.getBoundingClientRect();
-    const b = btn.getBoundingClientRect();
-    const x = b.left - p.left + b.width / 2 - menu.offsetWidth / 2;
-    setPageLeft(Math.max(6, Math.min(x, p.width - menu.offsetWidth - 6)));
-  }, [left, kind, uid]);
+  const pageLeft = useAnchoredLeft(ref, `${kind}-button`, left === undefined, uid);
   const [look, setLook] = useState<Look>(() => currentLook(uid));
   const change = (patch: Partial<Look>) => {
     const next = { ...look, ...patch };

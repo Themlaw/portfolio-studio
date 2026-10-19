@@ -16,6 +16,9 @@ import {
   FRAME_SIZES,
   frameAttrs,
   frameColorCss,
+  imageBgAttrs,
+  imageBgCss,
+  ImageBgSchema,
   FrameSchema,
   fontStack,
   isFontRef,
@@ -33,6 +36,7 @@ import {
 } from "../src/lib/look.ts";
 import { hslToRgb, normalizeCustomColor, parseColor, rgbaToHex, rgbToHsv, hsvToRgb, wheelGradient, hueStripGradient, saturationPlane, planeToSv, stripToHue } from "../src/lib/color.ts";
 import { SIZE_LABELS, SIZE_VALUES, SIZES } from "../src/lib/look.ts";
+import { IMAGE_BG_CARD, IMAGE_BG_WHITE } from "../src/themes/image-bg.ts";
 import { ThemeSchema } from "../src/themes/schema.ts";
 import { fontFaceCss, googleCssUrl, parseGoogleCss, readLibrary } from "../src/lib/fonts/faces.ts";
 import { FromCanvasSchema } from "../src/lib/edit/protocol.ts";
@@ -319,6 +323,16 @@ ok("look.frame : pas d'attribut sur l'enveloppe du bloc (le cadre est posé par 
 ok("look.imageSize / imageAlign : Grande et Gauche / Centre / Droite acceptés, valeur inconnue refusée", LookSchema.safeParse({ imageSize: "large" }).success && ["left", "center", "right"].every((imageAlign) => LookSchema.safeParse({ imageAlign }).success) && !LookSchema.safeParse({ imageSize: "huge" }).success && !LookSchema.safeParse({ imageAlign: "justify" }).success && !LookSchema.safeParse({ imageSize: "100%" }).success);
 ok("look.imageSize / imageAlign : lecture tolérante (valeur invalide ignorée, le reste gardé), réglage seul = non vide, nettoyage", JSON.stringify(readLook({ spaceTop: "m", imageSize: "huge" })) === JSON.stringify({ spaceTop: "m" }) && JSON.stringify(readLook({ imageSize: "large", imageAlign: "left" })) === JSON.stringify({ imageSize: "large", imageAlign: "left" }) && cleanLook({ imageSize: undefined, imageAlign: undefined }) === undefined);
 ok("look.imageSize / imageAlign : pas d'attribut sur l'enveloppe du bloc (posés par l'image elle-même) ; l'espace au-dessus garde son attribut", lookAttributes({ imageSize: "large", imageAlign: "right" }) === null && lookAttributes({ spaceTop: "none" })?.["data-pt"] === "none");
+
+/* ---- Fond derrière une image (lot 41) -------------------------------------------------------------- */
+ok("look.imageBg : « card », teinte de la palette, couleur libre #rrggbb[aa] (dont le blanc) acceptés", ["card", "bg", "surface", "primary", "#a1b2c3", "#a1b2c3cc", IMAGE_BG_WHITE].every((imageBg) => LookSchema.safeParse({ imageBg }).success) && IMAGE_BG_CARD === "card" && IMAGE_BG_WHITE === "#ffffff");
+ok("look.imageBg : valeur libre, nom de couleur, hex court ou majuscules, injection CSS refusés", ["red", "white", "#fff", "#A1B2C3", "url(x)", "var(--x)", "#a1b2c3;x", "", 3, null].every((imageBg) => !ImageBgSchema.safeParse(imageBg).success));
+ok("look.slotBg : fonds par slug d'emplacement, slug / fond invalide et plus de 200 entrées refusés", LookSchema.safeParse({ slotBg: { "vallee-suspendue": "card", "duo-marche": "#112233" } }).success && !LookSchema.safeParse({ slotBg: { "../x": "card" } }).success && !LookSchema.safeParse({ slotBg: { a: "red" } }).success && !LookSchema.safeParse({ slotBg: Object.fromEntries(Array.from({ length: 201 }, (_, i) => [`s-${i}`, "card"])) }).success);
+ok("imageBgCss : card → fond des cartes du thème, palette → variable du thème, libre → telle quelle, absent / invalide → aucun", imageBgCss("card") === "var(--t-color-surface)" && imageBgCss("tertiary") === "var(--t-color-tertiary)" && imageBgCss("#a1b2c3cc") === "#a1b2c3cc" && imageBgCss(IMAGE_BG_WHITE) === "#ffffff" && imageBgCss(undefined) === null && imageBgCss("red; background:url(x)") === null);
+ok("imageBgAttrs : aucun fond par défaut (rien ne change) ; un fond valide donne data-img-bg + --img-bg ; un fond invalide est ignoré", imageBgAttrs(undefined) === null && imageBgAttrs("rouge") === null && JSON.stringify(imageBgAttrs("card")) === JSON.stringify({ "data-img-bg": "", style: { "--img-bg": "var(--t-color-surface)" } }) && imageBgAttrs("#000000")?.style["--img-bg"] === "#000000");
+ok("look.imageBg : lecture tolérante (fond invalide ignoré, le reste gardé), fond seul = réglage non vide, nettoyage", JSON.stringify(readLook({ spaceTop: "m", imageBg: "rouge" })) === JSON.stringify({ spaceTop: "m" }) && JSON.stringify(readLook({ imageBg: "card" })) === JSON.stringify({ imageBg: "card" }) && cleanLook({ imageBg: undefined, slotBg: {} }) === undefined && JSON.stringify(cleanLook({ slotBg: { a: "card" } })) === JSON.stringify({ slotBg: { a: "card" } }));
+ok("look.imageBg : pas d'attribut sur l'enveloppe du bloc (le fond est posé par l'image elle-même)", lookAttributes({ imageBg: "card" }) === null);
+ok("intention « bitem-imgbg » de la toile : fond valide ou null, fond inconnu refusé", FromCanvasSchema.safeParse({ kind: "bitem-imgbg", board: 1, uid: "u1", bg: "card" }).success && FromCanvasSchema.safeParse({ kind: "bitem-imgbg", board: 1, uid: "u1", bg: null }).success && !FromCanvasSchema.safeParse({ kind: "bitem-imgbg", board: 1, uid: "u1", bg: "red" }).success);
 
 if (failures) {
   console.error(`test-look : ÉCHEC (${failures}/${count})`);

@@ -44,7 +44,7 @@ import { LookSchema } from "@/lib/look";
 import { HELP_TEXT } from "@/blocks/help-text";
 import { setLocalizedAt } from "./protocol";
 import { getDb, schema } from "@/lib/db";
-import { FrameSchema } from "@/lib/look";
+import { FrameSchema, ImageBgSchema } from "@/lib/look";
 import { slugify } from "@/lib/slug";
 import { BackgroundSchema } from "@/themes/schema";
 
@@ -117,6 +117,8 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("item-fond"), uid: Uid, background: BackgroundSchema.nullable() }),
   // Lot 34 : cadre autour de la photo d'un composant Image (`props.look.frame`, null = aucun cadre).
   z.strictObject({ op: z.literal("item-frame"), uid: Uid, frame: FrameSchema.nullable() }),
+  // Lot 41 : fond derrière l'image d'un composant Image (`props.look.imageBg`, null = aucun fond).
+  z.strictObject({ op: z.literal("item-imgbg"), uid: Uid, bg: ImageBgSchema.nullable() }),
   // Lot 31f : les places d'un carrousel à liste propre (`at` : rang dans sa liste), mêmes gestes que les emplacements de la bande du projet.
   z.strictObject({ op: z.literal("rail-add"), uid: Uid, mediaId: z.number().int().positive(), index: z.number().int().min(0).max(MAX_RAIL_MEDIA) }),
   z.strictObject({ op: z.literal("rail-fill"), uid: Uid, at: z.number().int().min(0).max(MAX_RAIL_MEDIA), mediaId: z.number().int().positive() }),
@@ -691,6 +693,19 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         const look = { ...((item.props.look as Record<string, unknown> | undefined) ?? {}) };
         if (op.frame) look.frame = op.frame;
         else delete look.frame;
+        const props = { ...item.props };
+        if (Object.keys(look).length) props.look = look;
+        else delete props.look;
+        item.props = props;
+        return snap;
+      }
+      case "item-imgbg": {
+        const item = snap.layout.find((i) => i.uid === op.uid);
+        if (!item) return "Ce composant n'est plus sur cette planche.";
+        if (item.type !== "image") return "Le fond ne concerne que les images.";
+        const look = { ...((item.props.look as Record<string, unknown> | undefined) ?? {}) };
+        if (op.bg) look.imageBg = op.bg;
+        else delete look.imageBg;
         const props = { ...item.props };
         if (Object.keys(look).length) props.look = look;
         else delete props.look;

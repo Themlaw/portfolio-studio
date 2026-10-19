@@ -42,6 +42,7 @@ import FondMenu, { FondButton } from "./edit/FondMenu";
 import { hasFondWrapper } from "./edit/optimistic";
 import FrameMenu, { FrameButton } from "./edit/FrameMenu";
 import QuickMenu, { QuickButton, type QuickKind } from "./edit/QuickMenus";
+import { ImageBgButton, ImageBgPopup } from "./edit/ImageBgMenu";
 import SurfaceMenu, { SurfaceButton } from "./edit/SurfaceMenu";
 import { useDismiss } from "./edit/useDismiss";
 import SiteLayer, { FormLayer } from "./SiteLayer";
@@ -316,6 +317,8 @@ export default function EditLayer() {
   const [frameFor, setFrameFor] = useState<string | null>(null);
   /** Bloc dont la fenêtre « Taille » (image seule) ou « Espace » (au-dessus) est ouverte (lot 40). */
   const [quickFor, setQuickFor] = useState<{ uid: string; kind: QuickKind } | null>(null);
+  /** Bloc image dont la fenêtre « Fond de l'image » (lot 41) est ouverte. */
+  const [imgBgFor, setImgBgFor] = useState<string | null>(null);
   const [, bump] = useState(0);
   const toggleQuick = (uid: string, kind: QuickKind) => {
     setSurfaceFor(null);
@@ -387,6 +390,7 @@ export default function EditLayer() {
       setSurfaceFor(null);
       setFondFor(null);
       setFrameFor(null);
+      setImgBgFor(null);
       setSizeFor(null);
       setQuickFor(null);
     };
@@ -1388,11 +1392,23 @@ export default function EditLayer() {
                 Réglages
               </button>
             )}
-            {sel.type === "image" && <FrameButton uid={sel.uid} open={frameFor === sel.uid} onToggle={() => { setFondFor(null); setQuickFor(null); setFrameFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
+            {sel.type === "image" && <FrameButton uid={sel.uid} open={frameFor === sel.uid} onToggle={() => { setFondFor(null); setImgBgFor(null); setQuickFor(null); setFrameFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
+            {sel.type === "image" && (
+              <ImageBgButton
+                uid={sel.uid}
+                open={imgBgFor === sel.uid}
+                onToggle={() => {
+                  const next = imgBgFor === sel.uid ? null : sel.uid;
+                  // Une seule fenêtre à la fois (pe:popups-close ferme aussi celles des autres couches), puis la sienne.
+                  window.dispatchEvent(new CustomEvent("pe:popups-close"));
+                  setImgBgFor(next);
+                }}
+              />
+            )}
             {sel.type === "image" && !sel.parent && <QuickButton uid={sel.uid} kind="size" open={quickFor?.uid === sel.uid && quickFor.kind === "size"} onToggle={() => toggleQuick(sel.uid, "size")} />}
             {!sel.parent && sel.type !== "hero" && <QuickButton uid={sel.uid} kind="space" open={quickFor?.uid === sel.uid && quickFor.kind === "space"} onToggle={() => toggleQuick(sel.uid, "space")} />}
-            {!sel.parent && <SurfaceButton uid={sel.uid} open={surfaceFor === sel.uid} onToggle={() => { setFondFor(null); setFrameFor(null); setQuickFor(null); setSurfaceFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
-            {hasFondWrapper(sel.uid) && <FondButton uid={sel.uid} open={fondFor === sel.uid} onToggle={() => { setSurfaceFor(null); setFrameFor(null); setQuickFor(null); setFondFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
+            {!sel.parent && <SurfaceButton uid={sel.uid} open={surfaceFor === sel.uid} onToggle={() => { setFondFor(null); setFrameFor(null); setImgBgFor(null); setQuickFor(null); setSurfaceFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
+            {hasFondWrapper(sel.uid) && <FondButton uid={sel.uid} open={fondFor === sel.uid} onToggle={() => { setSurfaceFor(null); setFrameFor(null); setImgBgFor(null); setQuickFor(null); setFondFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
             <button type="button" aria-label="Monter" title="Monter" disabled={siblingsOf(sel)[0]?.uid === sel.uid} onClick={() => orderOp("up", sel)}>
               ↑
             </button>
@@ -1453,6 +1469,14 @@ export default function EditLayer() {
               kind={quickFor.kind}
               top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40}
               onClose={() => setQuickFor(null)}
+              onChanged={() => bump((n) => n + 1)}
+            />
+          )}
+          {sel.type === "image" && imgBgFor === sel.uid && (
+            <ImageBgPopup
+              uid={sel.uid}
+              style={{ top: Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40 }}
+              onClose={() => setImgBgFor(null)}
               onChanged={() => bump((n) => n + 1)}
             />
           )}
