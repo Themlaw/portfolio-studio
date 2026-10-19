@@ -59,7 +59,14 @@ type SeedProject = {
 };
 
 type StoredFile = { key: string; size: number; mime: string };
-export type SeedFiles = { artworks: Map<string, StoredFile>; extra: Map<string, StoredFile> };
+/** Vidéo de test (lot 38) : fichier MP4 + poster, rangés comme le fait la conversion d'une vidéo envoyée (`vid/<hash16>/…`). */
+export type SeedVideo = { sha256: string; mp4: StoredFile; poster: StoredFile };
+export type SeedFiles = { artworks: Map<string, StoredFile>; extra: Map<string, StoredFile>; video: SeedVideo };
+
+/** Vidéo de test de la médiathèque de démo (lot 38) : générée par ffmpeg, 5 s, 1280 × 720, H.264 + AAC, 626 Ko :
+ *  ffmpeg -f lavfi -i testsrc2=size=1280x720:rate=25 -f lavfi -i sine=frequency=440:sample_rate=44100 -t 5 -c:v libx264 -preset slow -crf 30
+ *    -pix_fmt yuv420p -movflags +faststart -c:a aac -b:a 48k -ac 1 -af volume=0.25 video-de-test.mp4 ; poster : une image à 0,5 s, WebP. */
+const SEED_VIDEO = { file: "video-de-test.mp4", poster: "video-de-test-poster.webp", name: "video-de-test.mp4", width: 1280, height: 720, duration: 5, posterWidth: 1280, posterHeight: 720 } as const;
 
 const MIME: Record<string, string> = {
   ".svg": "image/svg+xml",
@@ -89,7 +96,20 @@ export async function prepareSeedFiles(): Promise<SeedFiles> {
   for (const a of artworkData as SeedArtwork[]) artworks.set(a.id, await importMedia(path.basename(a.image)));
   const extra = new Map<string, StoredFile>();
   for (const file of Object.keys(EXTRA_MEDIA)) extra.set(file, await importMedia(file));
-  return { artworks, extra };
+  return { artworks, extra, video: await importVideo() };
+}
+
+/** Copie la vidéo de test dans le stockage sous les clés d'une vidéo convertie (`vid/<hash16>/720.mp4`, `poster-1280.webp`). */
+async function importVideo(): Promise<SeedVideo> {
+  const dir = path.join(seedDir(), "media");
+  const bytes = await readFile(path.join(dir, SEED_VIDEO.file));
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const hash16 = sha256.slice(0, 16);
+  const mp4Key = `vid/${hash16}/720.mp4`;
+  const posterKey = `vid/${hash16}/poster-${SEED_VIDEO.posterWidth}.webp`;
+  const mp4 = await getStorage().put(mp4Key, createReadStream(path.join(dir, SEED_VIDEO.file)));
+  const poster = await getStorage().put(posterKey, createReadStream(path.join(dir, SEED_VIDEO.poster)));
+  return { sha256, mp4: { key: mp4Key, size: mp4.size, mime: "video/mp4" }, poster: { key: posterKey, size: poster.size, mime: "image/webp" } };
 }
 
 /** Résout une clé de page symbolique (`page`, `reelPage`…) en `…Id` numérique. */
@@ -207,6 +227,29 @@ export function seedRows(db: Db, files: SeedFiles): void {
         alt: info.alt,
       }),
     );
+  }
+
+  // Vidéo de test (lot 38) : prête à l'emploi dans la médiathèque (un vrai MP4, pas un SVG), comme une vidéo déjà convertie.
+  {
+    const v = files.video;
+    mediaId(db, v.mp4, {
+      sha256: v.sha256,
+      kind: "video",
+      originalName: SEED_VIDEO.name,
+      width: SEED_VIDEO.width,
+      height: SEED_VIDEO.height,
+      duration: SEED_VIDEO.duration,
+      hasAudio: true,
+      variants: {
+        v: 1,
+        originalRemoved: true,
+        files: [
+          { key: v.mp4.key, w: SEED_VIDEO.width, h: SEED_VIDEO.height, format: "mp4", size: v.mp4.size },
+          { key: v.poster.key, w: SEED_VIDEO.posterWidth, h: SEED_VIDEO.posterHeight, format: "webp", size: v.poster.size },
+        ],
+      },
+      alt: { fr: "Vidéo de test : mire animée avec compteur, 5 secondes", en: "Test video: animated test pattern with a counter, 5 seconds" },
+    });
   }
 
   // Projets (clé naturelle : slug), puis slots dans l'ordre global des œuvres.

@@ -4,7 +4,7 @@ import type { RawBlock } from "@/lib/pages";
 
 import { cropStyle, lookAttributes, readLook, type Look } from "@/lib/look";
 import { own } from "@/lib/own";
-import { cellShare, type GridShape } from "./grid-layouts";
+import { cellShare, gridCells, isJustified, type GridShape } from "./grid-layouts";
 import { getSiteView } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
 import type { PaletteColors } from "@/themes/palette";
@@ -189,12 +189,22 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
     };
     const kids = (data.children ?? []).filter((c) => own(BLOCKS, c.type) && def.container!.accepts.includes(c.type));
     const boxless = BOXLESS.has(block.type);
-    const kidJoins = fondJoins(kids.map((c) => (supportsFond(c.type) && !(block.type === "grid") ? fondKey(readBackground(c.props.background), false) : null)));
+    const kidFonds = kids.map((c) => (supportsFond(c.type) && !(block.type === "grid") ? readBackground(c.props.background) : undefined));
+    const kidJoins = fondJoins(kidFonds.map((bg) => fondKey(bg, false)), kidFonds);
     children = kids.map((c, i) => {
       const pass: Look = {};
       if (boxless && i === 0 && look?.spaceTop) pass.spaceTop = look.spaceTop;
       if (boxless && i === kids.length - 1 && look?.spaceBottom) pass.spaceBottom = look.spaceBottom;
-      const cellCtx: BlockContext = block.type === "grid" && data.layout ? { ...childCtx, cellColumns: cellShare(data, i, kids.length), ...(data.layout === "auto" ? { cellAuto: true } : {}) } : childCtx;
+      const cellCtx: BlockContext =
+        block.type === "grid" && data.layout
+          ? {
+              ...childCtx,
+              cellColumns: isJustified(data) ? (data.alone?.[i] ? 1 : Math.max(1, gridCells(data, 0).cols * 0.6)) : cellShare(data, i, kids.length),
+              ...(data.layout === "auto" ? { cellAuto: true } : {}),
+              // Grille de planche (lot 39) : ses cases n'ont pas d'identité de bloc, leurs textes se modifient par la grille.
+              ...(ctx.inlineEdit && !ctx.edit ? { inlinePrefix: `children.${i}.props.` } : {}),
+            }
+          : childCtx;
       return renderBlock({ id: -(i + 1), uid: c.uid, type: c.type, props: c.props, corrupt: false }, cellCtx, depth + 1, { uid }, Object.keys(pass).length ? pass : undefined, null, kidJoins[i]);
     });
   }
@@ -245,7 +255,7 @@ export function renderBoardItem(item: { uid: string; type: string; props: Record
   // fusion des voisins (ProjectBoardBlock / ProjectStrip, `FondWrap`) : le bloc lui-même n'en pose pas.
   const props = { ...item.props };
   delete props.background;
-  return renderBlock({ id: -1, uid: item.uid, type: item.type, props, corrupt: false }, { ...ctx, edit: false, inlineEdit: Boolean(ctx.edit) && item.type === "rich-text", gridCanvas: Boolean(ctx.edit) && item.type === "grid", parent: undefined }, 0);
+  return renderBlock({ id: -1, uid: item.uid, type: item.type, props, corrupt: false }, { ...ctx, edit: false, inlineEdit: Boolean(ctx.edit) && (item.type === "rich-text" || item.type === "image" || item.type === "video-single" || item.type === "grid"), gridCanvas: Boolean(ctx.edit) && item.type === "grid", parent: undefined }, 0);
 }
 
 /**
@@ -279,6 +289,12 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
   if (card && wallpapers) card.wallpapers = (id) => wallpapers.get(id);
   const base: BlockContext = { ...baseCtx, ...(card ? { palette: card.palette } : {}), ...(wallpapers ? { wallpapers } : {}) };
   // Fond de couleur (lot 32) : un composant se fond dans son voisin de même fond ET de même contenant (carte / page).
+  const topFonds = blocks.map((b) => {
+    if (b.corrupt || !supportsFond(b.type)) return undefined;
+    const props = b.props as { background?: unknown; surface?: unknown } | null;
+    // Sur une carte, le fond n'a pas de voisin de couleur : la carte l'entoure.
+    return card && readSurface(props?.surface) ? undefined : readBackground(props?.background);
+  });
   const joins = fondJoins(
     blocks.map((b) => {
       if (b.corrupt || !supportsFond(b.type)) return null;
@@ -290,6 +306,7 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
       const border = resolved && card ? `${cardBorderSignature(resolved, cardStyle(resolved.color, card.palette), card.palette)}|${paper ? paperSignature(paper.attrs, paper.vars) : ""}` : "";
       return fondKey(readBackground(props?.background), Boolean(surface), border);
     }),
+    topFonds,
   );
   // Raccord du motif entre composants fusionnés (lot 35) : client, seulement si un composant a un papier peint.
   const alignWallpapers = ctx.edit || blocks.some((b) => !b.corrupt && JSON.stringify(b.props ?? null).includes('"kind":"wallpaper"'));

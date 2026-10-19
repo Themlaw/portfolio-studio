@@ -33,7 +33,7 @@ import { useBlockEditor } from "./editor-context";
 import FormatSelect from "./FormatSelect";
 import type { L } from "./editor-types";
 import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "./video-mode";
-import { applyGridOp, AUTO_HINT, autoCols, CUSTOM_COLS, customCols, GRID_LAYOUTS, type GridLayout, type GridModelOp, type GridShape } from "./grid-layouts";
+import { applyGridOp, AUTO_HINT, autoCols, isJustified, JUSTIFY_HINT, CUSTOM_COLS, customCols, GRID_LAYOUTS, type GridLayout, type GridModelOp, type GridShape } from "./grid-layouts";
 
 const EMPTY: L = { fr: "", en: "" };
 type P = Record<string, unknown>;
@@ -519,6 +519,7 @@ export function GridTop() {
           </div>
         </div>
         <FormatSelect label="Format des cases" help="Les vidéos gardent leur cadre 16:9." explicitAuto />
+        {isJustified(value as GridShape) && layout !== "auto" && <p className="a-help" data-testid="grid-justify-hint">{JUSTIFY_HINT}</p>}
         <p className="a-help" data-testid="grid-count">
           {kids.length === 0 ? "Aucune image pour le moment." : kids.length === 1 ? "1 image dans la grille." : `${kids.length} images dans la grille.`}
         </p>
@@ -535,7 +536,7 @@ export function GridTop() {
               ))}
             </div>
             {layout === "custom" && <Toggle label="Inverser la gauche et la droite" checked={value.mirror === true} onChange={(on) => apply({ op: "set", mirror: on })} />}
-            <p className="a-help">{layout === "auto" ? AUTO_HINT : "Sur la page, chaque case a ses boutons « Plus large », « Plus haute »… dans sa barre."}</p>
+            <p className="a-help">{layout === "auto" ? (isJustified(value as GridShape) ? JUSTIFY_HINT : AUTO_HINT) : "Sur la page, chaque case a ses boutons « Plus large », « Plus haute »… dans sa barre."}</p>
           </div>
         )}
         <button type="button" className="a-btn" data-testid="grid-adapt" disabled={kids.length === 0} onClick={() => apply({ op: "adapt", ratios })}>
@@ -568,6 +569,9 @@ export function GridAdvanced() {
         <Toggle label="Espace au-dessus (comme entre deux rubriques)" checked={(value.top ?? "gap") === "gap"} onChange={(on) => set("top", on ? "gap" : "none")} />
         <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
         <TextI18n label="Titre (facultatif)" value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
+        <TextI18n label="Sous la grille : titre (facultatif)" value={l(value.captionTitle)} onChange={(v) => set("captionTitle", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionTitle")} />
+        <TextareaI18n label="Sous la grille : légende (facultative)" value={l(value.caption)} onChange={(v) => set("caption", v.fr || v.en ? v : undefined)} error={errorAt(errors, "caption")} />
+        <TextI18n label="Sous la grille : date (facultative)" value={l(value.captionDate)} onChange={(v) => set("captionDate", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionDate")} />
       </details>
     </>
   );
@@ -589,7 +593,9 @@ export function ImageEditor() {
   return (
     <>
       <MediaPicker label="Image" value={value.mediaId as number | undefined} onChange={(v) => set("mediaId", v)} error={errorAt(errors, "mediaId")} context={context} />
-      <TextI18n label="Légende (facultative)" value={l(value.caption)} onChange={(v) => set("caption", v.fr || v.en ? v : undefined)} error={errorAt(errors, "caption")} />
+      <TextI18n label="Titre sous l'image (facultatif)" value={l(value.captionTitle)} onChange={(v) => set("captionTitle", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionTitle")} />
+      <TextareaI18n label="Légende (facultative)" value={l(value.caption)} onChange={(v) => set("caption", v.fr || v.en ? v : undefined)} error={errorAt(errors, "caption")} />
+      <TextI18n label="Date (facultative)" help="Texte libre court, par exemple « 2026 » ou « mars 2026 »." value={l(value.captionDate)} onChange={(v) => set("captionDate", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionDate")} />
       <Select
         label="Largeur"
         help="Dans une grille, l'image occupe sa cellule."
@@ -752,6 +758,8 @@ export function VideoSingleEditor() {
       <TextI18n label="Étiquette (présentation « Grande »)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
       <TextI18n label="Titre" help="Vide : le texte alternatif de la vidéo." value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
       <TextareaI18n label="Légende" value={l(value.description)} onChange={(v) => set("description", v.fr || v.en ? v : undefined)} error={errorAt(errors, "description")} />
+      <TextI18n label="Titre sous la vidéo (présentation « Vidéo seule »)" value={l(value.captionTitle)} onChange={(v) => set("captionTitle", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionTitle")} />
+      <TextI18n label="Date (facultative)" help="Texte libre court, par exemple « 2026 » ou « mars 2026 »." value={l(value.captionDate)} onChange={(v) => set("captionDate", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionDate")} />
     </>
   );
 }

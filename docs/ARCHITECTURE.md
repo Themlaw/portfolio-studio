@@ -1530,6 +1530,10 @@ Le contenu d'un projet est une SUITE de composants rendue sous l'en-tête de la 
   Vidéo, s'ajoute à la Grille / au carrousel — de même au clic sur une vignette quand un composant est choisi ; la poignée de la
   barre réordonne (`bitem-to`, op `item-to`). Tout passe par `boardOp` : Annuler / Rétablir, version de page, refus nommés.
 
+## Marge et coins d un fond (lot 43)
+
+`Background` porte deux champs facultatifs, `inset` et `round` (s / m / l, sur couleur ET papier peint) ; absents = bord à bord, coins droits (aucune migration). Avec `inset`, l enveloppe `.fond-bloc` prend une marge (`data-fond-inset`, 12 / 24 / 48 px, 8 / 14 / 24 sur téléphone), ne fusionne jamais (`fondKey` null) et `round` n a d effet qu avec elle (`data-fond-round`, 10 / 20 / 36 px). Ce qui entoure : `fondAround` / `fondJoins(keys, bgs)` donnent la couleur du voisin bord à bord (avant, sinon après) dans `FondJoin.around`, peinte dans la marge par une ombre pleine (`--fond-around`, `data-fond-around`) ; sans voisin coloré on voit la carte ou la page. La toile recalcule tout dans `refreshFondJoins` (optimistic.ts). Réutilisation (fond d image, planche libre) : lire `fondInset` / `fondRound`, poser `fondAttributes` et passer `join.around` à `fondStyle`.
+
 ## Fond de couleur des composants et bordure de carte (lot 32)
 
 Demande de l'illustratrice : « tous les grands composants peuvent avoir une pleine hauteur de couleur dans la carte, deux composants qui
@@ -1737,3 +1741,9 @@ même rendu, mêmes outils par image sur la toile. Le nom « Images du projet »
 - **Pas de légendes** sur un carrousel (un média n'a ni titre ni année) ; les images du projet gardent les leurs. Pas de « Cadrer » sur
   une place de bande : le recadrage libre concerne les tuiles et les images seules, pas les bandes (aucun changement).
 - Tests : `scripts/test-carrousel31f.mjs` (unité, base réelle) et `scripts/e2e-carrousel31f.mjs` (suite `carrousel31f`, souris réelle).
+
+Lot 38 : une bande n'a plus de réglage de lecture commun (ni sur sa barre ni dans le panneau). Chaque vidéo d'un carrousel se règle sur sa propre
+barre (Boucle / Lecteur), écrit dans `look.slotVideo` du bloc planche, par emplacement (slug), à côté de `slotRadius` et `slotFrame`. Ordre de
+lecture au rendu (`StripRail`) : le choix de la vidéo, puis l'ancien `videoMode` de la bande (toujours lu, jamais migré, donc les pages existantes ne
+changent pas), puis la nature de la vidéo. Sur la toile, « Réglages » ne reste que sur la grille (il ouvre une fenêtre) ; ailleurs le nom du
+composant, sur sa barre, le choisit et ouvre son panneau. Le seed place une vidéo de test dans la médiathèque (`seed/media/video-de-test.mp4`).

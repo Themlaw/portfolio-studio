@@ -32,12 +32,15 @@ import { acceptToCanvas, EDIT_MSG, type DropTargetInfo, type FromCanvas, type Gh
 import { postIntent, previewBoardText, previewItemText } from "./edit/optimistic";
 import { BoardFondMenu } from "./edit/FondMenu";
 import { BoardFrameMenu } from "./edit/FrameMenu";
+import QuickMenu, { type QuickKind } from "./edit/QuickMenus";
 import { readBackground, type Background } from "@/themes/fond";
 
-import { FrameSchema, RADII, RADIUS_LABELS, type Frame, type Radius } from "@/lib/look";
+import { FrameSchema, ImageBgSchema, RADII, RADIUS_LABELS, type Frame, type Radius } from "@/lib/look";
 import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, isBoardItemType, parseRailKey, railKey, type BoardItemType } from "@/blocks/board-layout";
 
 import { FrameControls } from "./edit/FrameMenu";
+import { ImageBgControls } from "./edit/ImageBgControls";
+import { BoardImageBgMenu } from "./edit/ImageBgMenu";
 import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 import { lookOf, sendLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
@@ -302,6 +305,8 @@ export default function BoardLayer({
   const [selectedSlot, setSelectedSlot] = useState<SlotRef | null>(null);
   /** Image dont la fenêtre « Cadre » (lot 34) est ouverte : la barre de cette image reste affichée tant qu'elle l'est. */
   const [frameSlot, setFrameSlot] = useState<SlotRef | null>(null);
+  /** Image dont la fenêtre « Fond de l'image » (lot 41) est ouverte : même principe que « Cadre ». */
+  const [bgSlot, setBgSlot] = useState<SlotRef | null>(null);
   const [focusSlot, setFocusSlot] = useState<SlotRef | null>(null);
   const [marker, setMarker] = useState<Marker | null>(null);
   // Un glisser est en cours (média, fichiers, image) : pas de barre d'image.
@@ -314,7 +319,15 @@ export default function BoardLayer({
   const [itemSel, setItemSel] = useState<{ board: number; uid: string } | null>(null);
   // Lot 34 : fenêtre « Cadre » de la barre d'un composant Image (même principe que « Fond »).
   const [frameMenu, setFrameMenu] = useState<{ board: number; uid: string; top: number; left: number; frame: Frame | undefined } | null>(null);
+  // Lot 41 : fenêtre « Fond de l'image » de la barre d'un composant Image.
+  const [bgMenu, setBgMenu] = useState<{ board: number; uid: string; top: number; left: number; bg: string | undefined } | null>(null);
+  const bgMenuRef = useRef(bgMenu);
+  useEffect(() => {
+    bgMenuRef.current = bgMenu;
+  }, [bgMenu]);
   // Lot 32 : fenêtre « Fond » de la barre d'un composant (position dans la page, fond courant lu sur la barre).
+  /** Fenêtre « Taille » (image) ou « Espace » (au-dessus) d'un composant de la planche (lot 40) ; les réglages passent par `sendLook`. */
+  const [quickMenu, setQuickMenu] = useState<{ uid: string; kind: QuickKind; top: number; left: number } | null>(null);
   const [fondMenu, setFondMenu] = useState<{ board: number; uid: string; top: number; left: number; background: Background | null } | null>(null);
   // Texte (ou image) d'un projet survolé : indicateur « modifié aussi sur sa planche et sa page ».
   const [projectHint, setProjectHint] = useState<{ el: HTMLElement; board: number; label: string; draft: boolean; textHeld: string | null; slotHeld?: boolean } | null>(null);
@@ -478,7 +491,8 @@ export default function BoardLayer({
     const board = Number(boardOf(el)?.dataset.editBoard);
     if (!board) return;
     // Texte d'un composant de la planche (lot 31c, un Texte) : modifié en place comme un texte de page.
-    const itemFrame = el.dataset.inline ? el.closest<HTMLElement>("[data-edit-bitem]:not([data-edit-bitem-rail])") : null;
+    // (lot 39 : aussi un texte posé sous une image d'« Images qui défilent », `captions.<place>.<champ>`).
+    const itemFrame = el.dataset.inline ? el.closest<HTMLElement>("[data-edit-bitem]") : null;
     if (itemFrame?.dataset.editBitem) {
       const rect = boxOf(el);
       if (!rect) return;
@@ -494,7 +508,7 @@ export default function BoardLayer({
         original,
         value: original,
         rect: { ...rect, width: Math.max(rect.width, 160) },
-        style: { font: cs.font, letterSpacing: cs.letterSpacing, textTransform: cs.textTransform as React.CSSProperties["textTransform"], color: cs.color, lineHeight: cs.lineHeight, textAlign: cs.textAlign as React.CSSProperties["textAlign"] },
+        style: { font: cs.font, letterSpacing: cs.letterSpacing, textTransform: cs.textTransform as React.CSSProperties["textTransform"], lineHeight: cs.lineHeight, textAlign: cs.textAlign as React.CSSProperties["textAlign"] },
       });
       return;
     }
@@ -520,7 +534,6 @@ export default function BoardLayer({
       font: cs.font,
       letterSpacing: cs.letterSpacing,
       textTransform: cs.textTransform as React.CSSProperties["textTransform"],
-      color: cs.color,
       lineHeight: cs.lineHeight,
       textAlign: cs.textAlign as React.CSSProperties["textAlign"],
     };
@@ -748,9 +761,34 @@ export default function BoardLayer({
             current = parsed.success ? parsed.data : undefined;
           } catch {}
           setFondMenu(null);
+          setQuickMenu(null);
           setFrameMenu((cur) => (cur?.uid === uid ? null : { board, uid, top: r.bottom + window.scrollY + 4, left: Math.max(8, Math.min(r.left + window.scrollX - 300, window.scrollX + window.innerWidth - 348)), frame: current }));
-        } else if (op === "fond") {
+        } else if (op === "size" || op === "space") {
+          const r = itemOp.getBoundingClientRect();
+          setFondMenu(null);
           setFrameMenu(null);
+          setBgMenu(null);
+          // Le composant devient le composant choisi (panneau de gauche à jour) ; la fenêtre se pose sous le bouton, centrée dessus.
+          const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
+          if (frame && !frame.hasAttribute("data-edit-bitem-rail") && itemSel?.uid !== uid) selectItem(frame);
+          setQuickMenu((cur) => (cur?.uid === uid && cur.kind === op ? null : { uid, kind: op, top: r.bottom + window.scrollY + 4, left: Math.max(8, Math.min(r.left + window.scrollX + r.width / 2 - 165, window.scrollX + window.innerWidth - 348)) }));
+        } else if (op === "imgbg") {
+          const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
+          const r = itemOp.getBoundingClientRect();
+          let current: string | undefined;
+          try {
+            const raw = (JSON.parse(frame?.dataset.editBitemProps ?? "{}") as { props?: { look?: { imageBg?: unknown } } }).props?.look?.imageBg;
+            const parsed = ImageBgSchema.safeParse(raw);
+            current = parsed.success ? parsed.data : undefined;
+          } catch {}
+          const wasOpen = bgMenuRef.current?.uid === uid;
+          // Une seule fenêtre à la fois : pe:popups-close ferme les autres (et celle-ci), puis on ouvre la sienne.
+          window.dispatchEvent(new CustomEvent("pe:popups-close"));
+          setBgMenu(wasOpen ? null : { board, uid, top: r.bottom + window.scrollY + 4, left: Math.max(8, Math.min(r.left + window.scrollX + r.width / 2 - 165, window.scrollX + window.innerWidth - 348)), bg: current });
+        } else if (op === "fond") {
+          setBgMenu(null);
+          setFrameMenu(null);
+          setQuickMenu(null);
           const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
           const r = itemOp.getBoundingClientRect();
           let background: Background | null = null;
@@ -777,6 +815,15 @@ export default function BoardLayer({
           post({ kind: "bitem-op", board, uid, op });
           announce(op === "remove" ? "Composant supprimé. Annuler le rétablit." : op === "up" ? "Composant monté." : "Composant descendu.");
         }
+        return;
+      }
+      // Titre, Légende, Date sous un média (lot 39) : un clic écrit directement dedans (champ vide compris).
+      const cap = hit?.closest<HTMLElement>("[data-cap]");
+      if (cap && (cap.dataset.inline || cap.dataset.slotInline)) {
+        e.preventDefault();
+        e.stopPropagation();
+        // (Un champ déjà ouvert a été validé par la perte du focus : on ouvre simplement celui-ci.)
+        startText(cap);
         return;
       }
       // Un composant autre que la bande : un clic le choisit (ses réglages s'ouvrent dans le panneau).
@@ -823,7 +870,7 @@ export default function BoardLayer({
       post({ kind: "bitem-select", board, uid, item: type, props: (frame.dataset.editBitemProps ?? "{}").slice(0, 100_000) });
     };
     const onDblClick = (e: MouseEvent) => {
-      const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-slot-inline], [data-project-inline], [data-edit-bitem]:not([data-edit-bitem-rail]) [data-inline]") : null;
+      const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-slot-inline], [data-project-inline], [data-edit-bitem] [data-inline]") : null;
       if (!field) return;
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -926,6 +973,10 @@ export default function BoardLayer({
     const closeAll = () => {
       setFondMenu(null);
       setFrameMenu(null);
+      setQuickMenu(null);
+      setBgMenu(null);
+      setFrameSlot(null);
+      setBgSlot(null);
     };
     const openPanel = (e: Event) => {
       const d = (e as CustomEvent<{ uid?: string; board?: number }>).detail;
@@ -965,7 +1016,7 @@ export default function BoardLayer({
   if (itemSel) document.querySelector(`[data-edit-bitem="${CSS.escape(itemSel.uid)}"]`)?.setAttribute("data-selected", "");
 
   // Barre : survol, sinon focus clavier, sinon dernière image touchée.
-  const active = frameSlot ?? hover ?? focusSlot ?? selectedSlot;
+  const active = frameSlot ?? bgSlot ?? hover ?? focusSlot ?? selectedSlot;
   const activeEl = active ? findSlot(active) : null;
   const activeBox = activeEl ? boxOf(activeEl.querySelector(".strip-media, .pe-empty-box") ?? activeEl) : null;
   const fillGhosts = ghosts.filter((g) => g.slot && g.phase !== "done");
@@ -1128,6 +1179,7 @@ export default function BoardLayer({
             Retirer la place
           </button>
           {!active.empty && <SlotRadius el={activeEl} />}
+          {!active.empty && activeEl && activeEl.querySelector("video, .strip-duration, [data-video-mode]") && <SlotVideoMode el={activeEl} />}
           {!active.empty && activeEl && !activeEl.querySelector("video, .strip-duration") && (
             <button
               type="button"
@@ -1135,12 +1187,35 @@ export default function BoardLayer({
               aria-expanded={frameSlot?.key === active.key}
               data-testid="slot-frame-button"
               title="Cadre autour de cette photo"
-              onClick={() => setFrameSlot((f) => (f?.key === active.key ? null : active))}
+              onClick={() => {
+                setBgSlot(null);
+                setFrameSlot((f) => (f?.key === active.key ? null : active));
+              }}
             >
               Cadre
             </button>
           )}
+          {!active.empty && activeEl && !activeEl.querySelector("video, .strip-duration") && (
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded={bgSlot?.key === active.key}
+              data-testid="slot-imgbg-button"
+              title="Fond derrière cette image (utile pour un PNG détouré)"
+              onClick={() => {
+                const wasOpen = bgSlot?.key === active.key;
+                // Une seule fenêtre à la fois : pe:popups-close ferme les autres (et celle-ci), puis on ouvre la sienne.
+                window.dispatchEvent(new CustomEvent("pe:popups-close"));
+                setBgSlot(wasOpen ? null : active);
+              }}
+            >
+              Fond image
+            </button>
+          )}
         </div>
+      )}
+      {bgSlot && activeBox && active && bgSlot.key === active.key && !marker && !dragActive && activeEl && (
+        <SlotImageBg el={activeEl} box={activeBox} onClose={() => setBgSlot(null)} />
       )}
       {frameSlot && activeBox && active && frameSlot.key === active.key && !marker && !dragActive && activeEl && (
         <SlotFrame el={activeEl} box={activeBox} onClose={() => setFrameSlot(null)} />
@@ -1209,12 +1284,17 @@ export default function BoardLayer({
 
       {text && (
         <div
-          className="pe-text-editor"
+          className={text.el.hasAttribute("data-cap") ? "pe-text-editor pe-text-editor-line" : "pe-text-editor"}
           contentEditable
           suppressContentEditableWarning
           role="textbox"
           aria-label="Modifier le texte"
-          style={{ ...text.style, top: text.rect.top - 4, left: text.rect.left - 6, minWidth: text.rect.width + 12, minHeight: text.rect.height + 8 }}
+          style={
+            text.el.hasAttribute("data-cap")
+              ? // Titre / Légende / Date : le champ a la hauteur de SA ligne (les lignes se touchent, il ne doit recouvrir ni celle du dessus ni celle du dessous).
+                { ...text.style, top: text.rect.top, left: text.rect.left - 6, minWidth: text.rect.width + 12, minHeight: text.rect.height }
+              : { ...text.style, top: text.rect.top - 4, left: text.rect.left - 6, minWidth: text.rect.width + 12, minHeight: text.rect.height + 8 }
+          }
           ref={(node) => {
             if (node && !node.dataset.ready) {
               node.dataset.ready = "1";
@@ -1234,13 +1314,17 @@ export default function BoardLayer({
               finishText(true, e.currentTarget.textContent ?? "");
             } else if (e.key === "Escape") {
               e.preventDefault();
-              finishText(false);
+              // Titre, Légende, Date (lot 39) : Échap valide, comme sur une page (ce qui est tapé n'est jamais perdu).
+              if (text.el.hasAttribute("data-cap")) finishText(true, e.currentTarget.textContent ?? "");
+              else finishText(false);
             }
           }}
           onBlur={(e) => finishText(true, e.currentTarget.textContent ?? "")}
         />
       )}
 
+      {quickMenu && <QuickMenu key={`${quickMenu.uid}-${quickMenu.kind}`} uid={quickMenu.uid} kind={quickMenu.kind} top={quickMenu.top} left={quickMenu.left} onClose={() => setQuickMenu(null)} />}
+      {bgMenu && <BoardImageBgMenu key={bgMenu.uid} board={bgMenu.board} uid={bgMenu.uid} initial={bgMenu.bg} top={bgMenu.top} left={bgMenu.left} onClose={() => setBgMenu(null)} />}
       {frameMenu && <BoardFrameMenu key={frameMenu.uid} board={frameMenu.board} uid={frameMenu.uid} initial={frameMenu.frame} top={frameMenu.top} left={frameMenu.left} onClose={() => setFrameMenu(null)} />}
       {fondMenu && <BoardFondMenu key={fondMenu.uid} board={fondMenu.board} uid={fondMenu.uid} initial={fondMenu.background} top={fondMenu.top} left={fondMenu.left} onClose={() => setFondMenu(null)} />}
 
@@ -1397,6 +1481,66 @@ function SlotRadius({ el }: { el: Element | null }) {
         ))}
       </select>
     </label>
+  );
+}
+
+/**
+ * Lecture de CETTE vidéo d'un carrousel (lot 38) : Boucle ou Lecteur, réglage `look.slotVideo` du bloc planche, par slug d'emplacement.
+ * Sans choix, la vidéo suit le réglage ancien de la bande ou sa nature (courte et muette : boucle) : le bouton montre ce que la page fait.
+ */
+function SlotVideoMode({ el }: { el: Element }) {
+  const [, bump] = useState(0);
+  const slug = el.getAttribute("data-slot-slug") ?? "";
+  const uid = el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
+  if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
+  const look = lookOf(uid);
+  const chosen = look.slotVideo && Object.hasOwn(look.slotVideo, slug) ? look.slotVideo[slug] : undefined;
+  const shown = el.getAttribute("data-video-mode") ?? el.querySelector("[data-video-mode]")?.getAttribute("data-video-mode");
+  const now = chosen ?? (shown === "loop" ? "loop" : "player");
+  const change = (m: "loop" | "player") => {
+    sendLook(uid, { ...look, slotVideo: { ...(look.slotVideo ?? {}), [slug]: m } });
+    bump((n) => n + 1);
+  };
+  return (
+    <span className="pe-seg" role="group" aria-label="Lecture de la vidéo" data-testid="slot-video-mode">
+      <span className="pe-seg-label" aria-hidden="true">
+        Lecture
+      </span>
+      {VIDEO_MODES.map((m) => (
+        <button key={m} type="button" aria-pressed={now === m} title={VIDEO_MODE_HINTS[m]} data-slot-video-set={m} onClick={() => change(m)}>
+          {VIDEO_MODE_LABELS[m]}
+        </button>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * Fond de CETTE image de la planche (lot 41) : réglage `look.slotBg` du bloc planche, par slug d'emplacement ; mêmes choix que le
+ * fond d'une image seule (ImageBgControls). Fenêtre posée sous la barre, gardée dans l'écran.
+ */
+function SlotImageBg({ el, box, onClose }: { el: Element; box: Rect; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, onClose);
+  const [, bump] = useState(0);
+  const slug = el.getAttribute("data-slot-slug") ?? "";
+  const uid = el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
+  if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
+  const look = lookOf(uid);
+  const current = look.slotBg && Object.hasOwn(look.slotBg, slug) ? look.slotBg[slug] : undefined;
+  const change = (next: string | undefined) => {
+    const all = { ...(look.slotBg ?? {}) };
+    if (next) all[slug] = next;
+    else delete all[slug];
+    sendLook(uid, { ...look, slotBg: all });
+    bump((n) => n + 1);
+  };
+  const width = Math.min(330, document.documentElement.clientWidth - 24);
+  const left = Math.max(window.scrollX + 8, Math.min(box.left + 8, window.scrollX + document.documentElement.clientWidth - width - 8));
+  return (
+    <div ref={ref} className="sm tc pe-slot-frame" role="dialog" aria-label="Fond de l'image" data-testid="imgbg-menu" style={{ top: box.top + 46, left, right: "auto" }}>
+      <ImageBgControls value={current} onChange={change} />
+    </div>
   );
 }
 

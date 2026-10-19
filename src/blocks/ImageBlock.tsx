@@ -10,15 +10,19 @@ import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { ORIGINALS_PREFIX } from "@/lib/images/variants";
 import { getMedia, mediaUrl } from "@/lib/media";
 
-import { frameAttrs } from "@/lib/look";
+import { frameAttrs, imageBgAttrs } from "@/lib/look";
 
 import { AUTO_PANORAMA_RATIO } from "./grid-layouts";
 
-import { inline, localized, mediaRef, tr, type BlockContext } from "./types";
+import { BlockCaption, capHost, captionPart } from "./caption";
+import { localizedText, mediaRef, tr, type BlockContext } from "./types";
 
 export const imageSchema = z.object({
   mediaId: mediaRef.optional(),
-  caption: localized.optional(),
+  /** Légende, Titre et Date facultatifs sous l'image (lot 39) ; texte long permis : la ligne revient à la ligne. */
+  caption: localizedText.optional(),
+  captionTitle: localizedText.optional(),
+  captionDate: localizedText.optional(),
   /** Largeur : colonne de texte, large (cadre du site), pleine largeur. */
   width: z.enum(["text", "wide", "full"]).default("wide"),
   /** Format imposé (l'image est alors cadrée : « Cadrer » sur la toile). Auto : son format. */
@@ -41,6 +45,7 @@ export const imageSchema = z.object({
  * variante extraite de l'ORIGINAL ; le cadre prend alors son rapport et ignore le
  * format imposé. Un ancien cadrage (point focal + zoom) dans un cadre au format
  * imposé est servi de la même façon (sa fenêtre), donc net. Une image seule ne
+ * Fond (lot 41) : `look.imageBg` colore la boîte de l'image (derrière un PNG détouré) ; rien par défaut.
  * Cadre (lot 34) : `look.frame` {size, color} pose une bordure dans la boîte de l'image (jamais de rognage de la boîte, ni de
  * changement de sa taille extérieure) ; rien par défaut. Une image seule ne
  * dépasse jamais 85 % de la hauteur de l'écran (CSS `data-solo`, sans rognage ; pas dans une grille, qui fixe
@@ -94,15 +99,21 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       : undefined;
   // Cadre autour de la photo (lot 34, `look.frame`) : bordure DANS la boîte de l'image (look.css), jamais sur une place vide.
   const frame = image ? frameAttrs(ctx.look?.frame) : null;
+  // Fond derrière l'image (lot 41, `look.imageBg`) : remplit la boîte de l'image (look.css), même « Dans la case » ; aucun par défaut.
+  const imgBg = image ? imageBgAttrs(ctx.look?.imageBg) : null;
   const body = (
     <figure
       className={`block-image ${ctx.cell ? "" : props.width === "text" ? "max-w-2xl" : ""}`}
       data-width={props.width}
+      {...capHost(ctx)}
       {...(ctx.cell ? {} : { "data-solo": "" })}
+      {...(!ctx.cell && ctx.look?.imageSize ? { "data-size": ctx.look.imageSize } : {})}
+      {...(!ctx.cell && ctx.look?.imageAlign ? { "data-align": ctx.look.imageAlign } : {})}
       {...(canvas && forced ? { "data-edit-box": forced } : {})}
       {...(free ? { "data-free": "" } : { ...ratioAttr, ...(box && !cover ? { "data-fit": "contain" } : {}) })}
       {...(frame ? { "data-frame": frame["data-frame"], ...(legacy ? { "data-legacy": "" } : {}) } : {})}
-      style={{ "--ir": shownRatio.toFixed(4), ...(frame?.style ?? {}) } as CSSProperties}
+      {...(imgBg ? { "data-img-bg": "", ...(legacy ? { "data-legacy": "" } : {}) } : {})}
+      style={{ "--ir": shownRatio.toFixed(4), ...(frame?.style ?? {}), ...(imgBg?.style ?? {}) } as CSSProperties}
     >
       {image ? (
         <span
@@ -139,11 +150,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
           </button>
         </span>
       )}
-      {(caption || ctx.edit) && (
-        <figcaption className="strip-caption mt-3" {...inline(ctx, "caption")} {...(ctx.edit ? { "data-placeholder": "Légende" } : {})}>
-          {caption}
-        </figcaption>
-      )}
+      <BlockCaption as="figcaption" ctx={ctx} title={captionPart(ctx, "captionTitle", props.captionTitle)} legend={captionPart(ctx, "caption", props.caption)} date={captionPart(ctx, "captionDate", props.captionDate)} />
     </figure>
   );
   if (ctx.cell) return body;

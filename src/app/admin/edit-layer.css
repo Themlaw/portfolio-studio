@@ -582,8 +582,21 @@ html:not([data-edit-mode]) [data-ghost] {
   border-radius: 4px;
   outline: 2px solid #2e4e9e;
   background: #ffffff;
+  /* Lot 39 : le champ est blanc, son texte doit être sombre. Il reprenait la couleur du texte du site : sur un thème sombre
+     (texte clair), du blanc sur du blanc, donc « ça écrit mais ça ne se voit pas ». Plus de ligne unique qui sorte de l'écran. */
+  color: #1c1e22;
+  caret-color: #1c1e22;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+  max-width: min(36rem, calc(100vw - 24px));
   pointer-events: auto;
+}
+
+/* Titre / Légende / Date d'un média (lot 39) : champ de la hauteur de sa ligne, trait tracé à l'intérieur ; il ne recouvre pas la ligne voisine. */
+.pe-text-editor.pe-text-editor-line {
+  padding: 0 6px;
+  outline-offset: -2px;
 }
 
 /* ==========================================================================
@@ -2370,3 +2383,34 @@ html[data-edit-mode] .pe-bitem-bar .pe-seg button[aria-pressed="true"] {
   color: #1f2226;
 }
 html[data-edit-mode] .pe-bitem-bar .pe-seg button { height: 28px; border-radius: 6px; padding: 0 8px; }
+
+/* ==========================================================================
+   Titre / Légende / Date sous un média (lot 39, MediaCaption)
+   ========================================================================== */
+/* Un champ vide garde sa place (pas de saut à l'apparition du repère), mais son repère gris reste caché ... */
+[data-edit-mode] .media-caption [data-cap] {
+  min-height: 1.3em;
+  cursor: text;
+}
+
+[data-edit-mode] .media-caption [data-cap][data-placeholder]:empty::before,
+[data-edit-mode] [data-cap-own][data-placeholder]:empty::before {
+  opacity: 0;
+}
+
+/* ... et ne se montre que sur un composant survolé, choisi, ou en cours de saisie. Un champ rempli est toujours visible. */
+[data-edit-mode] [data-cap-host]:hover > .media-caption [data-cap][data-placeholder]:empty::before,
+[data-edit-mode] [data-cap-host]:focus-within > .media-caption [data-cap][data-placeholder]:empty::before,
+[data-edit-mode] [data-edit-selected] [data-cap-host] > .media-caption [data-cap][data-placeholder]:empty::before,
+[data-edit-mode] [data-edit-bitem][data-selected] [data-cap-host] > .media-caption [data-cap][data-placeholder]:empty::before,
+[data-edit-mode] [data-edit-slot][data-slot-selected] > .media-caption [data-cap][data-placeholder]:empty::before,
+[data-edit-mode] [data-cap-host]:hover [data-cap-own][data-placeholder]:empty::before,
+[data-edit-mode] [data-edit-selected] [data-cap-host] [data-cap-own][data-placeholder]:empty::before {
+  opacity: 0.45;
+}
+
+/* Lot 39 : le « + Ajouter » entre deux composants de planche chevauche de 14 px le bas du composant précédent, où se trouve désormais
+   la ligne Titre / Légende / Date : on lui laisse la place (toile seulement), sinon il recouvre le champ et le clic lui revient. */
+html[data-edit-mode] .pe-bitem:has(.media-caption) {
+  padding-bottom: 18px;
+}

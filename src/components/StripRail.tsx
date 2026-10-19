@@ -7,10 +7,11 @@ import Lightbox from "@/components/Lightbox";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
 import type { LocalizedArtwork } from "@/lib/gallery";
-import { frameAttrs, type Frame } from "@/lib/look";
+import { frameAttrs, imageBgAttrs, type Frame } from "@/lib/look";
 import { RADIUS_VALUES } from "@/themes/css";
 
 import LoopFrame from "./LoopVideo";
+import MediaCaption, { type CaptionField } from "./MediaCaption";
 import Picture from "./Picture";
 import VideoViewer from "./VideoViewer";
 
@@ -40,6 +41,8 @@ export default function StripRail({
   captions = true,
   slotRadius,
   slotFrame,
+  slotVideo,
+  slotBg,
   videoMode,
 }: {
   artworks: LocalizedArtwork[];
@@ -56,6 +59,10 @@ export default function StripRail({
   slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
   /** Cadre par image (réglage `look.slotFrame` du bloc, par slug d'emplacement ; lot 34). */
   slotFrame?: Partial<Record<string, Frame>>;
+  /** Lecture par vidéo (réglage `look.slotVideo` du bloc, par slug d'emplacement ; lot 38) : passe avant `videoMode`. */
+  slotVideo?: Partial<Record<string, "loop" | "player">>;
+  /** Fond derrière chaque image (réglage `look.slotBg` du bloc, par slug d'emplacement ; lot 41). */
+  slotBg?: Partial<Record<string, string>>;
   /**
    * Lecture des vidéos de la bande (lot 36) : « loop » = Boucle (muette, un clic met en pause), « player » = Lecteur
    * (un clic ouvre la vidéo en grand). Absent : chaque vidéo suit sa nature (une animation courte et muette en boucle,
@@ -75,12 +82,22 @@ export default function StripRail({
     const f = slotFrame && Object.hasOwn(slotFrame, slug) ? frameAttrs(slotFrame[slug]) : null;
     return f ? { "data-frame": f["data-frame"], style: f.style as CSSProperties } : null;
   };
+  /** Fond derrière une photo réglée seule (lot 41) : attribut + couleur sur l'image de la planche, jamais sur une vidéo. */
+  const bgOf = (slug: string) => {
+    const b = slotBg && Object.hasOwn(slotBg, slug) ? imageBgAttrs(slotBg[slug]) : null;
+    return b ? { "data-img-bg": b["data-img-bg"], style: b.style as CSSProperties } : null;
+  };
   // Les places vides n'existent que sur la toile : ni compteur, ni visionneuse.
   const shownArtworks = edit ? artworks.filter((a) => !a.edit?.empty) : artworks;
   // Les vidéos ne passent pas par la visionneuse d'images : une boucle se met en pause sur place, un lecteur s'ouvre dans la visionneuse vidéo.
   const stills = shownArtworks.filter((a) => !a.video);
   const [viewing, setViewing] = useState<LocalizedArtwork | null>(null);
-  const modeOf = (a: LocalizedArtwork): "loop" | "player" | null => (a.video ? (videoMode ?? (a.video.loop ? "loop" : "player")) : null);
+  // Ordre : le choix de CETTE vidéo (lot 38), puis le réglage ancien de la bande (`videoMode`, plus proposé mais toujours lu : aucune page existante ne change), puis la nature de la vidéo.
+  const modeOf = (a: LocalizedArtwork): "loop" | "player" | null => {
+    if (!a.video) return null;
+    const own = slotVideo && Object.hasOwn(slotVideo, a.slug) ? slotVideo[a.slug] : undefined;
+    return own ?? videoMode ?? (a.video.loop ? "loop" : "player");
+  };
   const railId = `rail-${idKey}`;
   const railRef = useRef<HTMLDivElement | null>(null);
   const triggerRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -215,25 +232,24 @@ export default function StripRail({
         {artworks.map((artwork) => {
           const index = stills.indexOf(artwork);
           const slot = artwork.edit;
+          // Titre, Légende, Date (lot 39) : le composant commun. Bande du projet : Titre et Légende sont ceux de l'emplacement (partagés,
+          // `data-slot-inline`), la Date est propre à la bande ; carrousel à liste propre : les trois sont propres à la place.
+          // Sans date posée, la bande du projet montre l'année de l'emplacement, comme avant.
+          const marks = (field: CaptionField): Record<string, string> | undefined => {
+            if (!slot) return undefined;
+            const path = (f: string) => `captions.${artwork.slug}.${f}`;
+            if (editRail === "") return field === "title" ? { "data-slot-inline": "title" } : field === "legend" ? { "data-slot-inline": "description" } : { "data-inline": path("date") };
+            return { "data-inline": path(field === "legend" ? "caption" : field) };
+          };
           const caption = !captions ? null : (
-            <span className="strip-caption-row flex items-baseline justify-between gap-4">
-              <span
-                className="strip-caption transition-colors group-hover:text-ink"
-                {...(slot ? { "data-slot-inline": "title", "data-placeholder": "Titre" } : {})}
-              >
-                {artwork.title}
-              </span>
-              <span className="strip-caption shrink-0">
-                {artwork.year}
-              </span>
-            </span>
+            <MediaCaption
+              edit={Boolean(slot)}
+              title={{ text: artwork.title, attrs: marks("title"), className: "transition-colors group-hover:text-ink" }}
+              legend={{ text: artwork.description, attrs: marks("legend") }}
+              date={{ text: artwork.date ?? (artwork.year > 0 ? String(artwork.year) : ""), attrs: marks("date") }}
+            />
           );
-          // Légende : visible sur la toile seulement (la visionneuse l'affiche en ligne).
-          const legend = slot && captions ? (
-            <span className="pe-slot-legend strip-caption" data-slot-inline="description" data-placeholder="Légende">
-              {artwork.description}
-            </span>
-          ) : null;
+          const host = slot ? { "data-cap-host": "" } : {};
           if (slot?.empty) {
             return (
               <div
@@ -243,6 +259,7 @@ export default function StripRail({
                 data-edit-slot={slot.key}
                 data-slot-slug={artwork.slug}
                 data-slot-pos={slot.pos}
+                {...host}
                 data-empty=""
                 tabIndex={0}
                 role="group"
@@ -254,7 +271,6 @@ export default function StripRail({
                   </span>
                 </span>
                 {caption}
-                {legend}
               </div>
             );
           }
@@ -277,9 +293,9 @@ export default function StripRail({
                 key={artwork.id}
                 style={{ display: "contents", ...radiusOf(artwork.slug) }}
                 {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos, "data-slot-slug": artwork.slug } : {})}
+                {...host}
               >
                 {loop}
-                {legend}
               </div>
             ) : (
               loop
@@ -301,9 +317,11 @@ export default function StripRail({
             aria-haspopup={artwork.video ? "dialog" : undefined}
             data-video-mode={artwork.video ? "player" : undefined}
             className="strip-frame group text-left"
-            style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : frameOf(artwork.slug)?.style) }}
+            style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : frameOf(artwork.slug)?.style), ...(artwork.video ? {} : bgOf(artwork.slug)?.style) }}
             {...(!artwork.video && frameOf(artwork.slug) ? { "data-frame": frameOf(artwork.slug)!["data-frame"] } : {})}
+            {...(!artwork.video && bgOf(artwork.slug) ? { "data-img-bg": "" } : {})}
             {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos, "data-slot-slug": artwork.slug } : {})}
+            {...host}
           >
             <span className="strip-media">
               {artwork.video ? (
@@ -337,7 +355,6 @@ export default function StripRail({
               )}
             </span>
             {caption}
-            {legend}
           </button>
           );
         })}

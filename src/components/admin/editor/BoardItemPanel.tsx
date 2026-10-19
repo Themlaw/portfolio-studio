@@ -16,9 +16,9 @@ import { applyGridOp, type GridModelOp } from "@/blocks/grid-layouts";
 import { BOARD_ITEM_LABELS, BOX_ALIGNS, BOX_MIN, BOX_PRESETS, MAX_GRID_CHILDREN, MAX_RAIL_MEDIA, railIds, railList, type BoardBox, type BoardItemType } from "@/blocks/board-layout";
 import { cleanLook, readLook } from "@/lib/look";
 
-import { BlockLookPanel } from "./LookPanel";
+import { BlockLookPanel, ImageSizeSection, SpaceTopSection } from "./LookPanel";
 import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
-import { isVideoMode, modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "@/blocks/video-mode";
+import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "@/blocks/video-mode";
 
 type Props = Record<string, unknown>;
 type Kid = { uid: string; type: "image" | "video-single"; props: Props };
@@ -177,24 +177,6 @@ function BoxField({ box, onChange }: { box: BoardBox | undefined; onChange: (nex
 }
 
 /** Carrousel à liste propre : ses images et vidéos, choisies dans la médiathèque, dans l'ordre. */
-/** Lecture des vidéos d'une bande : Boucle, Lecteur, ou chacune selon sa nature (le comportement d'avant). */
-function StripVideoMode({ props, onChange }: { props: Props; onChange: (next: Props) => void }) {
-  const current = isVideoMode(props.videoMode) ? props.videoMode : "auto";
-  return (
-    <Select
-      label="Lecture des vidéos"
-      help={current === "auto" ? "Sans choix : une animation courte et muette tourne en boucle, une vidéo plus longue s'ouvre en grand." : VIDEO_MODE_HINTS[current]}
-      value={current as string}
-      options={[{ value: "auto", label: "Selon la vidéo (courte : boucle, longue : lecteur)" }, ...VIDEO_MODE_OPTIONS]}
-      onChange={(v) => {
-        const { videoMode: _v, ...rest } = props;
-        void _v;
-        onChange(v && isVideoMode(v) ? { ...rest, videoMode: v } : rest);
-      }}
-    />
-  );
-}
-
 function RailContent({ props, onChange, context }: { props: Props; onChange: (next: Props) => void; context: EditorContext }) {
   const ids = railList(props);
   const keys = railIds(props);
@@ -213,7 +195,7 @@ function RailContent({ props, onChange, context }: { props: Props; onChange: (ne
   return (
     <section className="ve-board-kids" aria-label="Contenu du carrousel">
       <h3 className="a-subhead">Images et vidéos du carrousel</h3>
-      <StripVideoMode props={props} onChange={onChange} />
+      <p className="ve-hint">Une vidéo se règle sur son image, dans la page : Boucle ou Lecteur.</p>
       {ids.length === 0 && <p className="ve-hint">Rien pour le moment : ajoute des images ou des vidéos de ta médiathèque (ou glisse-les depuis l&apos;onglet Médias).</p>}
       <ol className="ve-board-kid-list">
         {ids.map((id, i) => {
@@ -292,7 +274,6 @@ export default function BoardItemPanel({
       </header>
       <p className="ve-hint">Ce composant appartient au projet : il s&apos;affiche partout où la planche du projet est montrée.</p>
       {projectStrip && <p className="ve-hint">Cette bande montre les images du projet : ajoute-les, déplace-les et légende-les directement sur la planche.</p>}
-      {projectStrip && <StripVideoMode props={props} onChange={onChange} />}
       {/* Grille : l'essentiel en haut (agencement, espace, format, nombre d'images), puis la liste des cases, puis les réglages avancés. */}
       {type === "grid" && (
         <BlockEditorContext.Provider value={{ value: props, onChange, errors: {}, context, idPrefix: `ve-bitem-${uid}` }}>
@@ -301,9 +282,31 @@ export default function BoardItemPanel({
           <GridAdvanced />
         </BlockEditorContext.Provider>
       )}
+      {type === "image" && (
+        <ImageSizeSection
+          look={readLook(props.look) ?? {}}
+          onChange={(next) => {
+            const clean = cleanLook(next);
+            const { look: _old, ...rest } = props;
+            void _old;
+            onChange(clean ? { ...rest, look: clean } : rest);
+          }}
+        />
+      )}
       {type === "strip" && !projectStrip && <RailContent props={props} onChange={onChange} context={context} />}
       {type !== "strip" && type !== "grid" && <BlockEditorContext.Provider value={{ value: props, onChange, errors: {}, context, idPrefix: `ve-bitem-${uid}` }}>{editor}</BlockEditorContext.Provider>}
       <BoxField box={box} onChange={onBox} />
+      {type === "strip" && (
+        <SpaceTopSection
+          look={readLook(props.look) ?? {}}
+          onChange={(next) => {
+            const clean = cleanLook(next);
+            const { look: _old, ...rest } = props;
+            void _old;
+            onChange(clean ? { ...rest, look: clean } : rest);
+          }}
+        />
+      )}
       {type !== "strip" && <BlockLookPanel
         key={uid}
         type={type}

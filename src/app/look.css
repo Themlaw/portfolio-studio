@@ -11,6 +11,13 @@
 .strip {
   padding-block: var(--t-board-pad);
 }
+/* Espace au-dessus d'une bande de planche (lot 40, `look.spaceTop`) : la marge du cadre de la bande suit le cran choisi (« Aucun » : la bande
+   touche le composant du dessus). Le cadre a un rembourrage interne (--rail-room) que la marge absorbe : l'espace visible est le cran. */
+.strip-spaced[data-strip-pt="none"] .strip-viewport { margin-top: calc(0px - var(--rail-room)); }
+.strip-spaced[data-strip-pt="s"] .strip-viewport { margin-top: calc(var(--t-space-s) - var(--rail-room)); }
+.strip-spaced[data-strip-pt="m"] .strip-viewport { margin-top: calc(var(--t-space-m) - var(--rail-room)); }
+.strip-spaced[data-strip-pt="l"] .strip-viewport { margin-top: calc(var(--t-space-l) - var(--rail-room)); }
+.strip-spaced[data-strip-pt="xl"] .strip-viewport { margin-top: calc(var(--t-space-xl) - var(--rail-room)); }
 .page-top {
   padding-top: var(--t-page-top);
 }
@@ -97,12 +104,44 @@
    haute, elle est réduite (largeur = 85 svh × son rapport) et centrée, sans rien rogner. `--ir` =
    rapport de ce qui est affiché (posé par le bloc). Le centrage passe par text-align du <span>
    (image en ligne : aucun changement de mise en page pour les images qui tiennent). */
+.block-image[data-solo] {
+  --iw: min(100%, calc(85svh * var(--ir, 1000)));
+}
+/* Lot 39 : le plafond compte la légende (sinon elle part sous le bas de l'écran) — seulement quand un champ est REMPLI : une image sans
+   légende garde son plafond d'avant (intégration v0.26 : la règle suivait la simple présence de l'enveloppe, vide et cachée en public,
+   et rapetissait toutes les images hautes ; sur la toile, les trois champs vides restent proposés sans changer la taille de l'image).
+   `--iw` = largeur plafonnée de l'image ; Taille et Alignement (lot 40) la reprennent pour l'image ET sa légende. */
+.block-image[data-solo]:has(.media-caption [data-cap]:not(:empty)) {
+  --iw: min(100%, calc((85svh - 4.5rem) * var(--ir, 1000)));
+}
 .block-image[data-solo] .block-image-media {
-  width: min(100%, calc(85svh * var(--ir, 1000)));
+  width: var(--iw);
   margin-inline: auto; /* l'image est un bloc (préflight) : text-align ne la centre pas */
 }
 .block-image[data-solo] > span:first-child {
   text-align: center;
+}
+/* Taille et place d'une image seule (lot 40, `look.imageSize` / `look.imageAlign`). Sans réglage, rien de ce qui suit ne s'applique.
+   Grande : plafond levé, l'image prend toute la largeur du cadre. Gauche / Centre / Droite : l'image ET sa légende (tout ce
+   qui suit dans la figure) prennent la largeur de l'image et se posent du même côté ; même bord gauche, largeur max = celle de l'image. */
+.block-image[data-solo][data-size="large"] .block-image-media {
+  width: 100%;
+}
+.block-image[data-solo][data-align] > * {
+  width: var(--iw);
+  margin-inline: auto;
+}
+.block-image[data-solo][data-align="left"] > * {
+  margin-inline: 0 auto;
+}
+.block-image[data-solo][data-align="right"] > * {
+  margin-inline: auto 0;
+}
+.block-image[data-solo][data-align][data-size="large"] > * {
+  width: 100%;
+}
+.block-image[data-solo][data-align] .block-image-media {
+  width: 100%;
 }
 /* Recadrage libre : le cadre suit le rapport de la zone gardée (celui des attributs width / height de l'image),
    quel que soit le format imposé par le bloc ou par sa grille. */
@@ -134,6 +173,19 @@ figure.block-image[data-frame] .block-image-frame,
   border: var(--frame-w) solid var(--frame-color);
   background-clip: padding-box;
 }
+/* ---- Fond derrière une image (lot 41) ----------------------------------------
+   `look.imageBg` (image seule, case de grille, image de planche) et `look.slotBg` (image d'une planche ou d'un carrousel) :
+   la couleur (`--img-bg`, palette du thème ou couleur libre, jamais d'ici) remplit la boîte de l'image, c'est-à-dire la zone
+   affichée : recadrage compris, et toute la case avec « Image entière » (qui laissait des bandes transparentes). Elle suit
+   l'arrondi de l'image et reste DANS le cadre (background-clip). Un cadrage ancien rogne dans l'enveloppe .block-image-frame :
+   le fond est posé sur elle. Sans réglage, aucune règle ne s'applique : rien ne change pour l'existant. */
+figure.block-image[data-img-bg]:not([data-legacy]) .block-image-media.block-image-media.block-image-media,
+figure.block-image[data-img-bg] .block-image-frame,
+.strip-frame[data-img-bg] .strip-media img {
+  background-color: var(--img-bg) !important;
+  background-clip: padding-box;
+}
+
 /* Variante extraite de l'original (cadrage ancien converti en rectangle) : déjà à la bonne place, ni décalage ni zoom. */
 .blk[data-crop] .block-image-media[data-cropped] {
   transform: none;
@@ -390,6 +442,49 @@ figure.block-image[data-frame] .block-image-frame,
 .surface-card[data-surface="on"] > .fond-bloc[data-fond="on"] {
   margin-block: calc(-1 * var(--t-space-m));
   padding-block: var(--t-space-m);
+}
+/* Fond avec marge et coins arrondis (lot 43) : `data-fond-inset` (s / m / l) retire l'enveloppe des bords de son conteneur (marge sur
+   les quatre côtés, la carte ou la page se voit autour) ; `--fond-around` (couleur du voisin bord à bord, posée par fondJoins) est
+   peinte dans cette marge par une ombre pleine qui suit l'arrondi : le vert du composant d'avant entoure le beige, comme un
+   passe-partout. `data-fond-round` arrondit les coins (le motif et le papier du kit suivent). Sans ces attributs : rien ne change. */
+.fond-bloc[data-fond="on"][data-fond-inset] {
+  --fond-gap: 24px;
+  --fond-r: 0px;
+  width: auto;
+  margin-inline: var(--fond-gap);
+  margin-block: var(--fond-gap);
+  border-radius: var(--fond-r);
+  box-shadow: 0 0 0 var(--fond-gap) var(--fond-around, transparent);
+}
+.fond-bloc[data-fond="on"][data-fond-inset="s"] { --fond-gap: 12px; }
+.fond-bloc[data-fond="on"][data-fond-inset="l"] { --fond-gap: 48px; }
+.fond-bloc[data-fond="on"][data-fond-round] {
+  overflow: clip;
+}
+/* Coins arrondis ET couleur autour : l'ombre pleine suit l'arrondi et laisserait des encoches dans les coins de la marge. Elle est donc
+   plus épaisse que la marge et rognée au rectangle de la marge (le cadre autour est un rectangle, seul le fond est arrondi). */
+.fond-bloc[data-fond="on"][data-fond-round][data-fond-around] {
+  box-shadow: 0 0 0 calc(2 * (var(--fond-gap) + var(--fond-r))) var(--fond-around, transparent);
+  clip-path: inset(calc(-1 * var(--fond-gap)));
+}
+.fond-bloc[data-fond="on"][data-fond-round="s"] { --fond-r: 10px; }
+.fond-bloc[data-fond="on"][data-fond-round="m"] { --fond-r: 20px; }
+.fond-bloc[data-fond="on"][data-fond-round="l"] { --fond-r: 36px; }
+/* Sur une carte : la marge se compte depuis le bord de la carte (le rembourrage de la carte est repris en rembourrage du fond). */
+.surface-card[data-surface="on"] > .fond-bloc[data-fond="on"][data-fond-inset] {
+  margin-block: calc(var(--fond-gap) - var(--t-space-m));
+}
+.fond-bloc[data-fond="on"][data-fond-inset]::before,
+.fond-bloc[data-fond="on"][data-fond-inset]::after {
+  border-radius: inherit;
+}
+@media (max-width: 767px) {
+  .fond-bloc[data-fond="on"][data-fond-inset] { --fond-gap: 14px; }
+  .fond-bloc[data-fond="on"][data-fond-inset="s"] { --fond-gap: 8px; }
+  .fond-bloc[data-fond="on"][data-fond-inset="l"] { --fond-gap: 24px; }
+  .fond-bloc[data-fond="on"][data-fond-round="s"] { --fond-r: 8px; }
+  .fond-bloc[data-fond="on"][data-fond-round="m"] { --fond-r: 14px; }
+  .fond-bloc[data-fond="on"][data-fond-round="l"] { --fond-r: 24px; }
 }
 /* Papier du site (lot 28) × fond de couleur : le fond est opaque, il cacherait le papier que la carte montre « sur elle ». Il suit donc
    la même règle que la carte : papier « sur la carte » (choisi par la carte, ou par le site sans que la carte dise « sous ») = la tuile est

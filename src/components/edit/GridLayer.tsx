@@ -18,9 +18,10 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 import { FORMAT_KEYS, FORMAT_LABELS } from "@/lib/images/formats";
-import { AUTO_HINT, GRID_LAYOUT_LABELS, GRID_LAYOUTS, type GridLayout } from "@/blocks/grid-layouts";
+import { AUTO_HINT, GRID_LAYOUT_LABELS, GRID_LAYOUTS, JUSTIFY_HINT, type GridLayout } from "@/blocks/grid-layouts";
 import type { GridCanvasOp } from "@/lib/edit/protocol";
 import { FrameControls } from "./FrameMenu";
+import { ImageBgPopup } from "./ImageBgMenu";
 import GridLayoutIcon from "./GridLayoutIcon";
 import { lookOf, sendLook } from "./LookLayer";
 import { postIntent } from "./optimistic";
@@ -142,9 +143,9 @@ function GridSettings({ grid, gref, top, left, onClose }: { grid: HTMLElement; g
             </button>
           ))}
         </div>
-        {auto && (
+        {(auto || grid.hasAttribute("data-justify")) && (
           <p className="sm-hint" data-testid="gridsettings-auto-hint">
-            {AUTO_HINT}
+            {grid.hasAttribute("data-justify") ? JUSTIFY_HINT : AUTO_HINT}
           </p>
         )}
       </div>
@@ -242,6 +243,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
   const [tick, setTick] = useState(0);
   const [hover, setHover] = useState<HTMLElement | null>(null);
   const [frameFor, setFrameFor] = useState<{ uid: string; top: number; left: number } | null>(null);
+  const [imgBgFor, setImgBgFor] = useState<{ uid: string; top: number; left: number } | null>(null);
   const [drag, setDrag] = useState<CellDrag | null>(null);
   const [sizeMenu, setSizeMenu] = useState<{ uid: string; top: number; left: number } | null>(null);
   const [settings, setSettings] = useState<SettingsFor | null>(null);
@@ -259,7 +261,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
       frame = requestAnimationFrame(bump);
     };
     const mo = new MutationObserver(schedule);
-    mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-selected", "data-layout", "data-gap", "data-ratio", "data-cols", "data-mirror", "data-cell-w", "data-cell-h"] });
+    mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-selected", "data-layout", "data-gap", "data-ratio", "data-cols", "data-mirror", "data-cell-w", "data-cell-h", "data-justify", "data-jalone"] });
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     document.addEventListener("load", schedule, true);
@@ -279,12 +281,16 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
       if (!d?.uid) return;
       setSettings((cur) => (cur && cur.uid === d.uid && cur.board === d.board ? null : { uid: d.uid!, ...(d.board ? { board: d.board } : {}) }));
       setFrameFor(null);
+      setImgBgFor(null);
       setSizeMenu(null);
       // Une seule fenêtre à la fois : les autres (Fond, Cadre, Carte, Aa) se ferment.
       window.dispatchEvent(new CustomEvent("pe:popups-close", { detail: { except: "grid-settings" } }));
     };
     const onClose = (e: Event) => {
-      if ((e as CustomEvent<{ except?: string }>).detail?.except !== "grid-settings") setSettings(null);
+      if ((e as CustomEvent<{ except?: string }>).detail?.except !== "grid-settings") {
+        setSettings(null);
+        setImgBgFor(null);
+      }
     };
     window.addEventListener("pe:grid-settings", onOpen);
     window.addEventListener("pe:popups-close", onClose);
@@ -436,6 +442,9 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
     const w = Number(cell.dataset.cellW ?? 1);
     const h = Number(cell.dataset.cellH ?? 1);
     const cols = Number(gref.grid.dataset.cols ?? gref.grid.dataset.gridCols ?? 3);
+    // Rangées justifiées (lots 37, 37b) : la taille se résume à « Seule sur sa ligne » ou « Avec les autres ».
+    const justified = gref.grid.hasAttribute("data-justify");
+    const alone = cell.hasAttribute("data-jalone");
     const maxW = gref.grid.dataset.layout === "custom" ? cols : Number(gref.grid.dataset.gridCols ?? 2);
     const n = index + 1;
     return (
@@ -514,10 +523,31 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
               aria-expanded={frameFor?.uid === uid}
               onClick={(e) => {
                 const b = e.currentTarget.getBoundingClientRect();
+                setImgBgFor(null);
                 setFrameFor((f) => (f?.uid === uid ? null : { uid, top: b.bottom + window.scrollY + 4, left: Math.max(window.scrollX + 8, Math.min(b.left + window.scrollX - 120, window.scrollX + window.innerWidth - 348)) }));
               }}
             >
               Cadre
+            </button>
+            <button
+              type="button"
+              className="pe-cb-btn"
+              data-cb="imgbg"
+              aria-haspopup="dialog"
+              aria-expanded={imgBgFor?.uid === uid}
+              title="Fond derrière l'image (utile pour un PNG détouré)"
+              onClick={(e) => {
+                const b = e.currentTarget.getBoundingClientRect();
+                const spot = { uid, top: b.bottom + window.scrollY + 4, left: Math.max(window.scrollX + 8, Math.min(b.left + window.scrollX - 120, window.scrollX + window.innerWidth - 348)) };
+                const wasOpen = imgBgFor?.uid === uid;
+                // Une seule fenêtre à la fois : pe:popups-close ferme celles des autres couches (et la nôtre), puis on ouvre la sienne.
+                window.dispatchEvent(new CustomEvent("pe:popups-close"));
+                setFrameFor(null);
+                setSizeMenu(null);
+                setImgBgFor(wasOpen ? null : spot);
+              }}
+            >
+              Fond image
             </button>
           </>
         )}
@@ -537,7 +567,18 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
       </div>
         {sizeMenu?.uid === uid && (
           <SizeMenu top={sizeMenu.top} left={sizeMenu.left} onClose={() => setSizeMenu(null)}>
-            {(
+            {justified
+              ? (
+                  [
+                    ["alone", "Seule sur sa ligne", true],
+                    ["with-others", "Avec les autres", false],
+                  ] as const
+                ).map(([k, label, value]) => (
+                  <button key={k} type="button" role="menuitemradio" aria-checked={alone === value} className="pe-gm-ratio" data-cb={k} onClick={() => { send(gref, { op: "alone", index, alone: value }); setSizeMenu(null); }}>
+                    {label}
+                  </button>
+                ))
+              : (
               [
                 ["wider", "Plus large", w >= maxW, { dw: 1 }],
                 ["narrower", "Moins large", w <= 1, { dw: -1 }],
@@ -575,6 +616,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
       )}
       {settingsView}
       {!drag && hoverCell && hoverRef && cellBar(hoverCell, hoverRef)}
+      {imgBgFor && <ImageBgPopup key={imgBgFor.uid} uid={imgBgFor.uid} style={{ top: imgBgFor.top, left: imgBgFor.left, right: "auto" }} onClose={() => setImgBgFor(null)} />}
       {frameFor && <CellFrame uid={frameFor.uid} top={frameFor.top} left={frameFor.left} onClose={() => setFrameFor(null)} />}
       {dragSource && (() => {
         const r = docRect(dragSource);

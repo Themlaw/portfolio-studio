@@ -13,7 +13,7 @@ import { RATIO_VALUES } from "../images/formats";
 import { FIELD_OP_NAMES } from "../../blocks/optional-fields";
 import { BackgroundSchema } from "../../themes/schema";
 import { SurfaceSchema } from "../../themes/surface";
-import { FrameSchema, LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
+import { FrameSchema, ImageBgSchema, LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
 import { BASE_KEYS } from "../../themes/palette";
 
 export const EDIT_MSG = "portfolio:edit";
@@ -82,6 +82,8 @@ export const GridCanvasOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("remove"), index: CellIndex }),
   z.object({ op: z.literal("swap"), a: CellIndex, b: CellIndex }),
   z.object({ op: z.literal("move"), from: CellIndex, to: CellIndex }),
+  // Lot 37b : rangées justifiées, une image seule sur sa ligne ou rangée avec les autres.
+  z.object({ op: z.literal("alone"), index: CellIndex, alone: z.boolean() }),
   z.object({ op: z.literal("span"), index: CellIndex, dw: Step.optional(), dh: Step.optional() }),
   z.object({ op: z.literal("adapt"), ratios: z.array(z.number().finite().min(0.05).max(20)).max(MAX_GRID_CELLS).optional() }),
   z.object({ op: z.literal("pick"), index: z.number().int().min(0).max(MAX_GRID_CELLS), media: z.enum(["image", "video"]).optional() }),
@@ -113,7 +115,7 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("bitem-add"), board: Board, item: BoardItemKind, index: z.number().int().min(0).max(MAX_BOARD_ITEMS), source: z.literal("project").optional() }),
   // Lot 31b : composant de la palette glissé au-dessus d'une planche (position visée, ou null hors planche) ; réordonner par la poignée.
   // Lot 31c : texte d'un composant modifié en place (chemin du champ), mise en forme (« Aa ») d'un composant.
-  z.object({ kind: z.literal("bitem-text"), board: Board, uid: Uid, path: z.string().regex(/^[a-zA-Z]+(\.\d{1,2})?$/).max(40), locale: Locale, value: z.string().max(2000) }),
+  z.object({ kind: z.literal("bitem-text"), board: Board, uid: Uid, path: z.string().regex(/^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z0-9-]{1,80}){0,3}$/).max(120), locale: Locale, value: z.string().max(2000) }),
   z.object({ kind: z.literal("bitem-look"), board: Board, uid: Uid, look: LookSchema.nullable() }),
   z.object({ kind: z.literal("bitem-drop"), board: Board.nullable(), index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
   z.object({ kind: z.literal("bitem-to"), board: Board, uid: Uid, index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
@@ -122,6 +124,8 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("bitem-fond"), board: Board, uid: Uid, background: BackgroundSchema.nullable(), continuous: z.boolean().optional() }),
   // Lot 34 : cadre autour de la photo d'un composant Image de la planche (null = aucun cadre).
   z.object({ kind: z.literal("bitem-frame"), board: Board, uid: Uid, frame: FrameSchema.nullable() }),
+  // Lot 41 : fond derrière l'image d'un composant Image de la planche (null = aucun fond).
+  z.object({ kind: z.literal("bitem-imgbg"), board: Board, uid: Uid, bg: ImageBgSchema.nullable() }),
   // Un composant de la planche choisi sur la toile : l'éditeur montre ses réglages (props = JSON des réglages tels que la toile les a lus).
   z.object({ kind: z.literal("bitem-select"), board: Board, uid: Uid, item: BoardItemKind, props: z.string().max(100_000) }),
   z.object({ kind: z.literal("drop-target"), target: DropTarget.nullable() }),

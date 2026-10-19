@@ -183,3 +183,26 @@
 .sm-dot[data-wallpaper] {
   background: repeating-conic-gradient(var(--pe-surface) 0% 25%, transparent 0% 50%) 50% / 6px 6px;
 }
+
+/* Fond avec marge et coins (lot 43) : mini-schémas dans les boutons, rangée de coins qui peut passer à la ligne. */
+.fond-mini {
+  vertical-align: -3px;
+  margin-right: 3px;
+}
+.tc .tc-seg[data-testid="fond-round"] {
+  flex-wrap: wrap;
+}
+/* Fond derrière une image (lot 41) — ImageBgMenu.tsx : titre au-dessus, choix sur plusieurs lignes si besoin. */
+.ibg {
+  display: grid;
+  gap: 6px;
+}
+.sm .ibg-title {
+  display: block;
+  flex: none;
+  color: var(--lk-ink);
+  font-weight: 600;
+}
+.ibg-seg {
+  flex-wrap: wrap;
+}

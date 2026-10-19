@@ -440,6 +440,69 @@
     color: var(--color-ink-soft);
   }
 
+  /*
+   * Titre / Légende / Date sous un média (lot 39, MediaCaption). Titre et Légende à gauche (l'un sous l'autre), Date à droite ;
+   * quand la ligne ne suffit pas, la Date passe dessous (conteneur flex qui revient à la ligne). Le texte revient toujours à la
+   * ligne : jamais de ligne unique qui sorte de la page.
+   */
+  .media-caption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.125rem 1rem;
+    margin-top: 0.75rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .media-caption > .mc-main {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .media-caption .strip-caption {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .media-caption > .mc-date {
+    margin-left: auto;
+    text-align: right;
+  }
+
+  /* Sous une image de bande : la légende suit la largeur de l'image, elle ne l'élargit pas (le texte long revient à la ligne). */
+  .strip-frame > .media-caption {
+    width: 0;
+    min-width: 100%;
+  }
+
+  /* Téléphone : la date passe sous la légende, alignée à gauche. */
+  @media (max-width: 480px) {
+    .media-caption > .mc-date {
+      margin-left: 0;
+      text-align: left;
+    }
+  }
+
+  /* Aperçu et public : un champ vide n'existe pas, et rien du tout si tout est vide (aucun espace). */
+  html:not([data-edit-mode]) .media-caption [data-cap]:empty {
+    display: none;
+  }
+
+  html:not([data-edit-mode]) .media-caption:not(:has([data-cap]:not(:empty))) {
+    display: none;
+  }
+
+  html:not([data-edit-mode]) .media-caption > .mc-main:not(:has([data-cap]:not(:empty))) {
+    display: none;
+  }
+
   /* Barre de glissement : rattrape le scroll quand on rate les flèches.
      La piste est calée sur la grille de page, pas sur le débord du rail :
      elle mesure la page, pas le contenu qui s'en échappe. */
@@ -890,6 +953,34 @@
 @media (min-width: 48rem) {
   .block-grid:is([data-layout="custom"], [data-layout="auto"]):not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) .block-image-media {
     aspect-ratio: calc(var(--grid-r, 1.3333) * var(--w, 1));
+  }
+}
+/* Lot 37 : rangées justifiées (« Automatique » + format « Libre »). Chaque case a une largeur proportionnelle au format de son
+   image (`--jr`), donc toutes les images d'une rangée ont la même hauteur, sans recadrage. `--jk` = largeur en colonnes
+   (part de la rangée x nombre de cases) : la base de flex est calculée au pixel près, un peu en dessous (-0,1 px) pour que
+   la rangée ne déborde jamais, et `flex-grow` rattrape le reste. Un panorama (`data-jfull`) prend sa rangée, la dernière
+   rangée incomplète (`data-jpart`) ne s'étire pas. Téléphone : une case ne descend pas sous 140 px (`min-width`), sinon
+   la rangée passe à une image par ligne. */
+.block-grid[data-justify] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+.block-grid[data-justify] > .block-grid-cell {
+  flex: var(--jr, 1) 1 calc(var(--jk, 1) * (100% - (var(--cols, 2) - 1) * var(--grid-gap)) / var(--cols, 2) - 0.1px);
+}
+.block-grid[data-justify] > .block-grid-cell[data-jpart] {
+  flex-grow: 0;
+}
+.block-grid[data-justify] > .block-grid-cell[data-jfull] {
+  flex: 1 1 100%;
+}
+@media (max-width: 47.99rem) {
+  .block-grid[data-justify] > .block-grid-cell:not([data-jfull]) {
+    min-width: 140px;
+  }
+  .block-grid[data-justify] > .block-grid-cell[data-jpart] {
+    flex-grow: 1;
   }
 }
 .block-image[data-width="text"] {

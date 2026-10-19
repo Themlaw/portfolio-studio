@@ -14,6 +14,8 @@ import { useState } from "react";
 import TypoControls from "@/components/edit/TypoControls";
 import {
   BACKDROP_BLOCKED,
+  IMAGE_ALIGN_LABELS,
+  IMAGE_ALIGNS,
   RADII,
   RADIUS_LABELS,
   ROLE_LABELS,
@@ -86,6 +88,39 @@ const TEXT_LABELS: Record<string, string> = {
   submit: "Bouton d'envoi",
 };
 const textLabel = (k: string) => TEXT_LABELS[k] ?? (k.startsWith("paragraphs.") ? `Paragraphe ${Number(k.split(".")[1]) + 1}` : k);
+
+/**
+ * Taille et place d'une image seule (lot 40), en HAUT du panneau d'une image (page ou planche) : les mêmes réglages que le bouton
+ * « Taille » de la barre (`look.imageSize`, `look.imageAlign`). Normale = le plafond de hauteur d'avant.
+ */
+export function ImageSizeSection({ look, onChange }: { look: Look; onChange: (next: Look) => void }) {
+  const set = (patch: Partial<Look>) => onChange({ ...look, ...patch });
+  return (
+    <section className="lp lp-image-size" aria-label="Taille et place de l'image" data-testid="image-size-section">
+      <h3 className="lp-title">Taille de l&apos;image</h3>
+      <Segmented
+        label="Taille"
+        value={look.imageSize ?? "normal"}
+        options={["normal", "large"] as const}
+        labels={{ normal: "Normale", large: "Grande" }}
+        onChange={(v) => set({ imageSize: v === "large" ? "large" : undefined })}
+        auto={null}
+        help="Normale : l'image ne dépasse pas la hauteur de l'écran. Grande : elle prend toute la largeur du cadre."
+      />
+      <Segmented label="Alignement" value={look.imageAlign ?? "center"} options={IMAGE_ALIGNS} labels={IMAGE_ALIGN_LABELS} onChange={(v) => set({ imageAlign: v })} auto={null} help="La légende suit l'image." />
+    </section>
+  );
+}
+
+/** Espace au-dessus d'un composant sans panneau de mise en page (la bande d'images d'une planche, lot 40). */
+export function SpaceTopSection({ look, onChange }: { look: Look; onChange: (next: Look) => void }) {
+  return (
+    <section className="lp" aria-label="Espace au-dessus" data-testid="space-top-section">
+      <h3 className="lp-title">Mise en page</h3>
+      <Segmented label="Espace en haut" value={look.spaceTop} options={SPACES} labels={SPACE_LABELS} onChange={(v) => onChange({ ...look, spaceTop: v })} />
+    </section>
+  );
+}
 
 export function BlockLookPanel({ type, look, inCell, onChange }: { type: string; look: Look; inCell: boolean; onChange: (next: Look) => void }) {
   const set = (patch: Partial<Look>) => onChange({ ...look, ...patch });

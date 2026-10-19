@@ -171,7 +171,8 @@
 }
 
 /* La légende s'écarte de la planche inclinée. */
-[data-strip="taped"] .strip-caption-row {
+[data-strip="taped"] .strip-caption-row,
+[data-strip="taped"] .strip-frame > .media-caption {
   margin-top: 1.4rem;
 }
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import BoardBox from "@/components/BoardBox";
 import ProjectStrip, { type BoardPart } from "@/components/ProjectStrip";
 import { getProjectBoard, type LocalizedArtwork } from "@/lib/gallery";
+import { readLook } from "@/lib/look";
 import { getMedia } from "@/lib/media";
 
 import WallpaperAlign from "@/components/WallpaperAlign";
@@ -10,7 +11,7 @@ import { getWallpapers } from "@/lib/wallpapers";
 import type { WallpaperEntry } from "@/themes/wallpaper";
 import { effectivePalette, renderBoardItem } from "./BlockList";
 import { fondJoins, fondKey, readBackground } from "@/themes/fond";
-import { itemEmpty, railIds, railKey, railList } from "./board-layout";
+import { isProjectStrip, itemEmpty, railIds, railKey, railList, stripCaptions } from "./board-layout";
 import { collection, projectSlug, textStyle, tr, type BlockContext } from "./types";
 
 export const projectBoardSchema = z.object({
@@ -45,9 +46,17 @@ function headerStyles(ctx: BlockContext) {
 async function railArtworks(props: Record<string, unknown>, uid: string, locale: BlockContext["locale"], edit: boolean): Promise<LocalizedArtwork[]> {
   const list = railList(props);
   const places = railIds(props);
+  const captions = stripCaptions(props);
   const rows = await Promise.all(list.map((id) => (id === null ? null : getMedia(id))));
   const out: LocalizedArtwork[] = [];
   for (const [at, m] of rows.entries()) {
+    // Titre, Légende et Date de cette place (lot 39) : ils suivent la place, pas l'image (même sur une place vide).
+    const texts = captions[`${uid}-${places[at]}`];
+    const written = {
+      title: texts?.title ? tr(texts.title, locale) : "",
+      description: texts?.caption ? tr(texts.caption, locale) : "",
+      ...(texts?.date ? { date: tr(texts.date, locale) } : {}),
+    };
     if (!m || m.pdf) {
       // Vue brouillon : une place vide (ou un média disparu) garde sa place et son rang, comme un emplacement vide du projet.
       if (edit) {
@@ -55,8 +64,7 @@ async function railArtworks(props: Record<string, unknown>, uid: string, locale:
           id: `empty-${uid}-${at}`,
           slug: `${uid}-${places[at]}`,
           collection: "animation",
-          title: "",
-          description: "",
+          ...written,
           alt: "",
           image: "",
           width: 1200,
@@ -74,8 +82,7 @@ async function railArtworks(props: Record<string, unknown>, uid: string, locale:
       // Arrondi et cadre propres à CETTE place de CE carrousel (`look.slotRadius` / `slotFrame` du bloc, par slug) : ils suivent la place (déplacée, image remplacée) ; deux carrousels qui montrent le même média se règlent chacun.
       slug: `${uid}-${places[at]}`,
       collection: "animation",
-      title: "",
-      description: "",
+      ...written,
       alt,
       image: m.url,
       mediaId: m.id,
@@ -88,6 +95,13 @@ async function railArtworks(props: Record<string, unknown>, uid: string, locale:
       ...(edit ? { edit: { key: railKey(uid, at), empty: false, pending: false, aspect: (m.width ?? 1200) / Math.max(1, m.height ?? 800), pos: at } } : {}),
     });
   }
+  return out;
+}
+
+/** Dates posées sous les images de la bande du projet (par slug d'emplacement), dans la langue de la page ; une date vide masque l'année. */
+function stripDates(props: Record<string, unknown>, locale: BlockContext["locale"]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, v] of Object.entries(stripCaptions(props))) if (v.date) out[key] = tr(v.date, locale);
   return out;
 }
 
@@ -109,7 +123,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     // pas à la page : la planche est la même partout où elle est affichée.
     // Fond de couleur des composants (lot 32) : mêmes règles que sur une page (fusion des voisins de même fond, bord à bord de la planche).
     const fonds = project.layout.map((item) => readBackground(item.props.background));
-    const joins = fondJoins(fonds.map((bg) => fondKey(bg, false)));
+    const joins = fondJoins(fonds.map((bg) => fondKey(bg, false)), fonds);
     const palette = fonds.some(Boolean) ? await effectivePalette(ctx) : undefined;
     // Papiers peints (lot 35) : les motifs utilisés par les fonds de la planche (bibliothèque lue seulement s'il y en a), passés au client.
     const wallpaperIds = [...new Set(fonds.flatMap((bg) => (bg?.kind === "wallpaper" ? [bg.wallpaper] : [])))];
@@ -123,6 +137,9 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
         uid: item.uid,
         type: item.type,
         ...(item.box ? { box: item.box } : {}),
+        // Bande des images du projet (lot 39) : la date posée sous chaque image (sans date posée, l'année de l'emplacement).
+        ...(isProjectStrip(item) ? { dates: stripDates(item.props, ctx.locale) } : {}),
+        ...(item.type === "strip" && readLook(item.props.look)?.spaceTop ? { spaceTop: readLook(item.props.look)!.spaceTop } : {}),
         ...(item.type === "strip" && (item.props.videoMode === "loop" || item.props.videoMode === "player") ? { videoMode: item.props.videoMode } : {}),
         ...(fonds[i] ? { fond: { background: fonds[i]!, join: joins[i] } } : {}),
         ...(item.type === "strip"
@@ -144,7 +161,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     );
     return (
       <>
-        <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} slotFrame={ctx.look?.slotFrame} styles={headerStyles(ctx)} parts={parts} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
+        <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} slotFrame={ctx.look?.slotFrame} slotVideo={ctx.look?.slotVideo} slotBg={ctx.look?.slotBg} styles={headerStyles(ctx)} parts={parts} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
         {wallpapers && <WallpaperAlign />}
       </>
     );

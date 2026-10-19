@@ -12,7 +12,7 @@ import { BOARD_ITEM_LABELS, type BoardBox as BoardBoxProps, type BoardItemType }
 import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedArtwork, LocalizedProject } from "@/lib/gallery";
 import { RADIUS_VALUES } from "@/themes/css";
-import type { Frame } from "@/lib/look";
+import type { Frame, Space } from "@/lib/look";
 import type { Background, FondJoin } from "@/themes/fond";
 import type { CardPalette } from "@/themes/surface";
 import type { WallpaperEntry } from "@/themes/wallpaper";
@@ -47,8 +47,12 @@ export type BoardPart = {
   box?: BoardBoxProps;
   /** Carrousel à liste propre (lot 31b) : ses images, déjà lues dans la médiathèque. Absent : la bande des images du projet. */
   artworks?: LocalizedArtwork[];
+  /** Bande des images du projet (lot 39) : la date posée sous chaque image (par slug d'emplacement, texte du langage courant). Absente : l'année. */
+  dates?: Record<string, string>;
   /** Lecture des vidéos de la bande (lot 36) : Boucle ou Lecteur ; absent : chaque vidéo suit sa nature. */
   videoMode?: "loop" | "player";
+  /** Espace au-dessus de la bande (lot 40, `look.spaceTop` : la bande n'a pas d'enveloppe de bloc) ; absent : l'espace du thème. */
+  spaceTop?: Space;
   /** Fond de couleur du composant (lot 32) et fusion avec ses voisins de même fond ; posé ici, autour de la colonne réglée par `box`. */
   fond?: { background: Background; join: FondJoin };
 };
@@ -61,6 +65,8 @@ export default function ProjectStrip({
   collection,
   slotRadius,
   slotFrame,
+  slotVideo,
+  slotBg,
   parts,
   palette,
   wallpapers,
@@ -78,6 +84,10 @@ export default function ProjectStrip({
   slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
   /** Cadre par image (réglage `look.slotFrame` du bloc, par slug d'emplacement ; lot 34). */
   slotFrame?: Partial<Record<string, Frame>>;
+  /** Lecture par vidéo (réglage `look.slotVideo` du bloc, par slug d'emplacement ; lot 38). */
+  slotVideo?: Partial<Record<string, "loop" | "player">>;
+  /** Fond derrière chaque image (réglage `look.slotBg` du bloc, par slug d'emplacement ; lot 41). */
+  slotBg?: Partial<Record<string, string>>;
   /** Suite de composants de la planche ; absente (anciens blocs de projets) : la bande d'images seule. */
   parts?: BoardPart[];
   /** Palette effective du site : le texte lisible sur un fond de couleur (seulement si un composant en a un). */
@@ -109,15 +119,20 @@ export default function ProjectStrip({
   const tProject = project.title;
   /** Une bande : celle des images du projet (légendes, emplacements) ou un carrousel à liste propre. */
   const rail = (part?: BoardPart) =>
-    part?.artworks ? (
-      <BoardBox box={part.box}>
-        <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions={false} slotRadius={slotRadius} slotFrame={slotFrame} videoMode={part.videoMode} />
-      </BoardBox>
-    ) : (
-      <BoardBox box={part?.box}>
-        <StripRail artworks={project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} videoMode={part?.videoMode} />
-      </BoardBox>
+    spaced(
+      part,
+      part?.artworks ? (
+        <BoardBox box={part.box}>
+          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} videoMode={part.videoMode} />
+        </BoardBox>
+      ) : (
+        <BoardBox box={part?.box}>
+          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} videoMode={part?.videoMode} />
+        </BoardBox>
+      ),
     );
+  /** Espace au-dessus choisi (lot 40) : enveloppe sans boîte qui règle la marge du cadre de la bande (look.css) ; sans choix, rien n'est ajouté. */
+  const spaced = (part: BoardPart | undefined, node: ReactNode) => (part?.spaceTop ? <div className="strip-spaced" data-strip-pt={part.spaceTop}>{node}</div> : node);
 
   /** Fond de couleur du composant, bord à bord de la planche (lot 32) ; sans fond : le composant tel quel. */
   const fonded = (part: BoardPart, node: ReactNode) =>
@@ -251,8 +266,9 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
   const projectStrip = part.type === "strip" && !part.artworks;
   const isStrip = part.type === "strip";
   const label = BOARD_ITEM_LABELS[part.type];
-  // Lecture des vidéos (lot 36) : le composant Vidéo a son mode, la bande les choisit toutes (sans choix : chacune selon sa nature).
-  const videoKey = part.type === "video-single" ? "mode" : part.type === "strip" ? "videoMode" : null;
+  // Lecture de la vidéo (lot 36) : le composant Vidéo a son mode sur sa barre. Une bande n'en a plus (lot 38) : chaque vidéo se règle sur
+  // son image (barre de l'image), `videoMode` de la bande reste lu au rendu mais n'est plus proposé.
+  const videoKey = part.type === "video-single" ? "mode" : null;
   let videoNow: string | undefined = part.type === "video-single" ? "player" : undefined;
   if (videoKey && part.props) {
     try {
@@ -283,9 +299,17 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
         <span className="pe-bitem-handle" data-edit-bitem-handle={part.uid} data-board={board} aria-hidden="true" title="Glisser pour déplacer">
           ⠿
         </span>
-        <span className="pe-bitem-name">{label}</span>
-        {(
-          <button type="button" className="pe-bitem-btn pe-bitem-edit" {...(part.type === "grid" ? { "data-grid-settings-button": "", "aria-haspopup": "dialog" } : {})} data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
+        {/* Pas de bouton « Réglages » qui ne ferait que basculer le panneau de gauche (lot 38) : le nom du composant le choisit (ses réglages s'affichent à gauche). */}
+        {part.type === "grid" ? (
+          <span className="pe-bitem-name">{label}</span>
+        ) : (
+          <button type="button" className="pe-bitem-btn pe-bitem-name pe-bitem-edit" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board} data-testid="bitem-name" title="Afficher les réglages dans le panneau de gauche">
+            {label}
+          </button>
+        )}
+        {/* Seule la grille garde « Réglages » : il ouvre une fenêtre sur la toile. */}
+        {part.type === "grid" && (
+          <button type="button" className="pe-bitem-btn pe-bitem-edit" data-grid-settings-button="" aria-haspopup="dialog" data-edit-bitem-op="settings" data-uid={part.uid} data-board={board}>
             Réglages
           </button>
         )}
@@ -297,8 +321,16 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
         <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title="Fond de couleur du composant, sur toute sa hauteur">
           Fond
         </button>
+        {part.type === "image" && !part.empty && (
+          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="size" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-size-button" title="Taille et place de l'image (la légende suit)">
+            Taille
+          </button>
+        )}
+        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="space" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-space-button" title="Espace au-dessus de ce composant">
+          Espace
+        </button>
         {videoKey && !part.empty && (
-          <span className="pe-seg" role="group" aria-label={part.type === "strip" ? "Lecture des vidéos de la bande" : "Lecture de la vidéo"} data-testid="bitem-video-mode">
+          <span className="pe-seg" role="group" aria-label="Lecture de la vidéo" data-testid="bitem-video-mode">
             <span className="pe-seg-label" aria-hidden="true">
               Lecture
             </span>
@@ -312,6 +344,11 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
         {part.type === "image" && (
           <button type="button" className="pe-bitem-btn" data-edit-bitem-op="frame" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-frame-button" title="Cadre autour de la photo">
             Cadre
+          </button>
+        )}
+        {part.type === "image" && (
+          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="imgbg" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-imgbg-button" title="Fond derrière l'image (utile pour un PNG détouré)">
+            Fond image
           </button>
         )}
         {op("up", "Monter", "↑", index === 0)}

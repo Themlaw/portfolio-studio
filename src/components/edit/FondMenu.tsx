@@ -13,7 +13,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { parseColor, rgbaToHex } from "@/lib/color";
 import { PALETTE } from "@/lib/look";
-import { fondColor, readBackground, type Background } from "@/themes/fond";
+import { fondColor, readBackground, type Background, type FondStep } from "@/themes/fond";
 import { cardStyle, isSurfaceToken } from "@/themes/surface";
 
 import CardColorChoices from "./CardColorChoices";
@@ -34,6 +34,24 @@ const KINDS: { kind: "none" | Background["kind"]; label: string }[] = [
 ];
 /** Couleur posée au premier choix « Couleur » : le fond profond du thème. */
 const FIRST_COLOR = "bgDeep";
+
+/** Étendue et coins (lot 43) : réglages communs à tout fond, gardés quand on change de couleur ou de nature. */
+type Shape = { inset?: FondStep; round?: FondStep };
+const STEPS: { step: FondStep; label: string }[] = [
+  { step: "s", label: "Petit" },
+  { step: "m", label: "Moyen" },
+  { step: "l", label: "Grand" },
+];
+
+/** Mini-schéma : le cadre de la carte, le fond en couleur, avec ou sans marge, coins droits ou arrondis. */
+function Mini({ inset, round }: { inset: boolean; round: number }) {
+  return (
+    <svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true" focusable="false" className="fond-mini">
+      <rect x="0.5" y="0.5" width="21" height="15" rx="2" fill="none" stroke="currentColor" opacity="0.45" />
+      <rect x={inset ? 4 : 0.5} y={inset ? 4 : 0.5} width={inset ? 14 : 21} height={inset ? 8 : 15} rx={round} fill="currentColor" />
+    </svg>
+  );
+}
 
 const swatch = (c: (typeof PALETTE)[number]) => `var(--t-color-${c})`;
 
@@ -96,7 +114,15 @@ function FondPanel({ cur, onChange: change, onClose, style }: { cur: Background 
   /** Papier peint valide à partir de champs sans valeur vide (le schéma est strict). */
   const wpBg = (p: { wallpaper: number; color?: string | undefined; size?: number | undefined; opacity?: number | undefined }) =>
     readBackground({ kind: "wallpaper", ...Object.fromEntries(Object.entries(p).filter(([, v]) => v !== undefined)) }) ?? null;
-  const setColor = (c: string, continuous = false) => change(wp ? wpBg({ ...wp, color: c }) : (readBackground({ kind: "color", color: c }) ?? null), continuous);
+  const shape: Shape = { ...(cur?.inset ? { inset: cur.inset } : {}), ...(cur?.round ? { round: cur.round } : {}) };
+  const setColor = (c: string, continuous = false) => change(wp ? wpBg({ ...wp, color: c }) : (readBackground({ kind: "color", color: c, ...shape }) ?? null), continuous);
+  /** Étendue / coins : même fond, seul le réglage change (`undefined` le retire = comportement d'avant). */
+  const setShape = (p: Shape) => {
+    if (!cur) return;
+    const next = { ...cur, ...p } as Record<string, unknown>;
+    for (const k of ["inset", "round"]) if (next[k] === undefined) delete next[k];
+    change(readBackground(next) ?? null);
+  };
 
   /** Couleur choisie dans la roue : une teinte de la palette devient un jeton si on en connaît un, sinon sa valeur. */
   const fromPicker = (c: string | undefined) => {
@@ -125,12 +151,12 @@ function FondPanel({ cur, onChange: change, onClose, style }: { cur: Background 
     }
     if (kind === "color") {
       setWantWallpaper(false);
-      return active !== "color" && change(readBackground({ kind: "color", color: color ?? FIRST_COLOR }) ?? null);
+      return active !== "color" && change(readBackground({ kind: "color", color: color ?? FIRST_COLOR, ...shape }) ?? null);
     }
     if (active === "wallpaper") return;
     const first = [...wallpaperCatalog().values()][0];
     if (!first) return setWantWallpaper(true);
-    change(wpBg({ wallpaper: first.id, color }));
+    change(wpBg({ wallpaper: first.id, color, ...shape }));
   };
 
   const colorRows = (label: string, auto?: { label: string; onPick: () => void }) => (
@@ -146,6 +172,47 @@ function FondPanel({ cur, onChange: change, onClose, style }: { cur: Background 
         </span>
         <span className="sm-hint">Autre couleur…</span>
       </div>
+    </>
+  );
+  const shapeRows = cur && (
+    <>
+      <div className="tc-row">
+        <span className="sm-label">Étendue</span>
+        <span className="tc-seg" role="radiogroup" aria-label="Étendue du fond" data-testid="fond-extent">
+          <button type="button" role="radio" aria-checked={!cur.inset} data-extent="full" onClick={() => setShape({ inset: undefined, round: cur.round })}>
+            <Mini inset={false} round={0} /> Bord à bord
+          </button>
+          <button type="button" role="radio" aria-checked={Boolean(cur.inset)} data-extent="margin" onClick={() => !cur.inset && setShape({ inset: "m" })}>
+            <Mini inset round={0} /> Avec marge
+          </button>
+        </span>
+      </div>
+      {cur.inset && (
+        <div className="tc-row">
+          <span className="sm-label">Marge</span>
+          <span className="tc-seg" role="radiogroup" aria-label="Taille de la marge" data-testid="fond-inset">
+            {STEPS.map((st) => (
+              <button key={st.step} type="button" role="radio" aria-checked={cur.inset === st.step} data-step={st.step} onClick={() => setShape({ inset: st.step })}>
+                {st.label}
+              </button>
+            ))}
+          </span>
+        </div>
+      )}
+      <div className="tc-row">
+        <span className="sm-label">Coins</span>
+        <span className="tc-seg" role="radiogroup" aria-label="Coins du fond" data-testid="fond-round">
+          <button type="button" role="radio" aria-checked={!cur.round} data-step="none" onClick={() => setShape({ round: undefined })}>
+            <Mini inset round={0} /> Droits
+          </button>
+          {STEPS.map((st, i) => (
+            <button key={st.step} type="button" role="radio" aria-checked={cur.round === st.step} data-step={st.step} onClick={() => setShape({ round: st.step })}>
+              <Mini inset round={[2, 4, 6][i]} /> {st.label}
+            </button>
+          ))}
+        </span>
+      </div>
+      <p className="sm-hint">{cur.inset ? "La couleur du composant voisin (avant, sinon après) entoure celui-ci ; sans voisin coloré : la carte ou la page." : "Les coins arrondis se voient avec une marge."}</p>
     </>
   );
   const warning = s && !s.style.ok && (
@@ -172,12 +239,13 @@ function FondPanel({ cur, onChange: change, onClose, style }: { cur: Background 
       {view === "color" && color && s ? (
         <>
           {colorRows("Couleur")}
-          <p className="sm-hint">La couleur va d&apos;un bord à l&apos;autre de la carte (ou de la page) et sur toute la hauteur du composant. Deux composants de même couleur qui se suivent ne font plus qu&apos;un seul bloc.</p>
+          {shapeRows}
+          <p className="sm-hint">Bord à bord, la couleur va d&apos;un bord à l&apos;autre de la carte (ou de la page) et sur toute la hauteur du composant. Deux composants de même couleur qui se suivent ne font plus qu&apos;un seul bloc.</p>
           {warning}
         </>
       ) : view === "wallpaper" ? (
         <>
-          <WallpaperGrid value={wp?.wallpaper} onPick={(id) => change(wpBg({ wallpaper: id, color, size: undefined, opacity: undefined }))} />
+          <WallpaperGrid value={wp?.wallpaper} onPick={(id) => change(wpBg({ wallpaper: id, color, size: undefined, opacity: undefined, ...shape }))} />
           {wp && (
             <>
               <WallpaperPaintRows
@@ -189,6 +257,7 @@ function FondPanel({ cur, onChange: change, onClose, style }: { cur: Background 
                 }
               />
               {colorRows("Couleur dessous", { label: "Aucune couleur sous le motif", onPick: () => change(wpBg({ ...wp, color: undefined })) })}
+              {shapeRows}
               <p className="sm-hint">Le motif se répète d&apos;un bord à l&apos;autre du composant. Deux composants voisins qui ont le même motif et les mêmes réglages ne font plus qu&apos;un seul bloc. Sans couleur dessous, le texte garde la couleur du thème.</p>
               {warning}
             </>
