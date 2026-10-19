@@ -478,7 +478,8 @@ export default function BoardLayer({
     const board = Number(boardOf(el)?.dataset.editBoard);
     if (!board) return;
     // Texte d'un composant de la planche (lot 31c, un Texte) : modifié en place comme un texte de page.
-    const itemFrame = el.dataset.inline ? el.closest<HTMLElement>("[data-edit-bitem]:not([data-edit-bitem-rail])") : null;
+    // (lot 39 : aussi un texte posé sous une image d'« Images qui défilent », `captions.<place>.<champ>`).
+    const itemFrame = el.dataset.inline ? el.closest<HTMLElement>("[data-edit-bitem]") : null;
     if (itemFrame?.dataset.editBitem) {
       const rect = boxOf(el);
       if (!rect) return;
@@ -494,7 +495,7 @@ export default function BoardLayer({
         original,
         value: original,
         rect: { ...rect, width: Math.max(rect.width, 160) },
-        style: { font: cs.font, letterSpacing: cs.letterSpacing, textTransform: cs.textTransform as React.CSSProperties["textTransform"], color: cs.color, lineHeight: cs.lineHeight, textAlign: cs.textAlign as React.CSSProperties["textAlign"] },
+        style: { font: cs.font, letterSpacing: cs.letterSpacing, textTransform: cs.textTransform as React.CSSProperties["textTransform"], lineHeight: cs.lineHeight, textAlign: cs.textAlign as React.CSSProperties["textAlign"] },
       });
       return;
     }
@@ -520,7 +521,6 @@ export default function BoardLayer({
       font: cs.font,
       letterSpacing: cs.letterSpacing,
       textTransform: cs.textTransform as React.CSSProperties["textTransform"],
-      color: cs.color,
       lineHeight: cs.lineHeight,
       textAlign: cs.textAlign as React.CSSProperties["textAlign"],
     };
@@ -779,6 +779,15 @@ export default function BoardLayer({
         }
         return;
       }
+      // Titre, Légende, Date sous un média (lot 39) : un clic écrit directement dedans (champ vide compris).
+      const cap = hit?.closest<HTMLElement>("[data-cap]");
+      if (cap && (cap.dataset.inline || cap.dataset.slotInline)) {
+        e.preventDefault();
+        e.stopPropagation();
+        // (Un champ déjà ouvert a été validé par la perte du focus : on ouvre simplement celui-ci.)
+        startText(cap);
+        return;
+      }
       // Un composant autre que la bande : un clic le choisit (ses réglages s'ouvrent dans le panneau).
       if (itemFrame && !itemFrame.hasAttribute("data-edit-bitem-rail")) {
         e.preventDefault();
@@ -823,7 +832,7 @@ export default function BoardLayer({
       post({ kind: "bitem-select", board, uid, item: type, props: (frame.dataset.editBitemProps ?? "{}").slice(0, 100_000) });
     };
     const onDblClick = (e: MouseEvent) => {
-      const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-slot-inline], [data-project-inline], [data-edit-bitem]:not([data-edit-bitem-rail]) [data-inline]") : null;
+      const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-slot-inline], [data-project-inline], [data-edit-bitem] [data-inline]") : null;
       if (!field) return;
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -1235,7 +1244,9 @@ export default function BoardLayer({
               finishText(true, e.currentTarget.textContent ?? "");
             } else if (e.key === "Escape") {
               e.preventDefault();
-              finishText(false);
+              // Titre, Légende, Date (lot 39) : Échap valide, comme sur une page (ce qui est tapé n'est jamais perdu).
+              if (text.el.hasAttribute("data-cap")) finishText(true, e.currentTarget.textContent ?? "");
+              else finishText(false);
             }
           }}
           onBlur={(e) => finishText(true, e.currentTarget.textContent ?? "")}

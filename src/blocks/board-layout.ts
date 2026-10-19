@@ -68,6 +68,39 @@ export function railIds(props: Record<string, unknown>): string[] {
   if (Array.isArray(raw) && raw.length === media.length && raw.every((x) => typeof x === "string" && PLACE_ID.test(x)) && new Set(raw).size === raw.length) return raw as string[];
   return media.map((_, i) => `p${i}`);
 }
+/**
+ * Titre, Légende et Date sous chaque image d'« Images qui défilent » (lot 39) : `props.captions`, par place, dont la clé est le
+ * slug de la place (`<uid>-<identité>` pour un carrousel à liste propre, slug de l'emplacement pour la bande du projet). Elles
+ * suivent la place quand on la déplace ou qu'on remplace son image. Pour la bande du projet, Titre et Légende restent ceux de
+ * l'emplacement (colonnes `title` / `description`, partagés avec la visionneuse et les autres pages) : seule la Date est ici ;
+ * sans date posée ici, la bande montre l'année de l'emplacement, comme avant.
+ */
+export const CAPTION_KEY = /^[a-z0-9-]{1,80}$/;
+export const CAPTION_FIELDS = ["title", "caption", "date"] as const;
+export type CaptionFieldName = (typeof CAPTION_FIELDS)[number];
+export type CaptionText = { fr: string; en: string };
+export type StripCaption = Partial<Record<CaptionFieldName, CaptionText>>;
+const MAX_CAPTION_TEXT = 2000;
+const isCaptionText = (v: unknown): v is CaptionText => isObj(v) && typeof v.fr === "string" && typeof v.en === "string" && v.fr.length <= MAX_CAPTION_TEXT && v.en.length <= MAX_CAPTION_TEXT;
+/** Les textes des places d'une bande (une entrée illisible est ignorée, jamais une bande cassée). */
+export function stripCaptions(props: Record<string, unknown>): Record<string, StripCaption> {
+  const raw = props.captions;
+  const out: Record<string, StripCaption> = {};
+  if (!isObj(raw)) return out;
+  for (const [key, v] of Object.entries(raw)) {
+    if (!CAPTION_KEY.test(key) || !isObj(v)) continue;
+    const entry: StripCaption = {};
+    for (const f of CAPTION_FIELDS) if (isCaptionText(v[f])) entry[f] = v[f];
+    out[key] = entry;
+  }
+  return out;
+}
+/** Chemin d'un texte de place d'une bande (`captions.<slug>.<champ>`) : le slug et le champ, ou null. */
+export function parseCaptionPath(path: string): { key: string; field: CaptionFieldName } | null {
+  const m = /^captions\.([a-z0-9-]{1,80})\.(title|caption|date)$/.exec(path);
+  return m ? { key: m[1], field: m[2] as CaptionFieldName } : null;
+}
+
 /** Bande des images du PROJET (la bande d'origine, `props` vides) ou carrousel à liste propre (`source: "own"`, `media`). */
 export const isProjectStrip = (item: { type: string; props: Record<string, unknown> }) => item.type === "strip" && item.props.source !== "own";
 
@@ -134,6 +167,13 @@ export function layoutProblem(raw: unknown): string | null {
       if (b.align !== undefined && !(BOX_ALIGNS as readonly unknown[]).includes(b.align)) return "Alignement du composant invalide.";
     }
     if (item.type === "strip") {
+      if (item.props.captions !== undefined) {
+        const c = item.props.captions;
+        if (!isObj(c) || Object.keys(c).length > 400) return "Textes des images de la bande illisibles.";
+        for (const [key, v] of Object.entries(c)) {
+          if (!CAPTION_KEY.test(key) || !isObj(v) || Object.keys(v).some((f) => !(CAPTION_FIELDS as readonly string[]).includes(f) || !isCaptionText(v[f]))) return "Textes des images de la bande illisibles.";
+        }
+      }
       if (item.props.videoMode !== undefined && !isVideoMode(item.props.videoMode)) return "Lecture des vidéos de la bande illisible.";
       const own = item.props.source === "own";
       if (own) {

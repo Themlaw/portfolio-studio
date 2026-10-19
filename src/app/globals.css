@@ -440,6 +440,69 @@
     color: var(--color-ink-soft);
   }
 
+  /*
+   * Titre / Légende / Date sous un média (lot 39, MediaCaption). Titre et Légende à gauche (l'un sous l'autre), Date à droite ;
+   * quand la ligne ne suffit pas, la Date passe dessous (conteneur flex qui revient à la ligne). Le texte revient toujours à la
+   * ligne : jamais de ligne unique qui sorte de la page.
+   */
+  .media-caption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.125rem 1rem;
+    margin-top: 0.75rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .media-caption > .mc-main {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .media-caption .strip-caption {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .media-caption > .mc-date {
+    margin-left: auto;
+    text-align: right;
+  }
+
+  /* Sous une image de bande : la légende suit la largeur de l'image, elle ne l'élargit pas (le texte long revient à la ligne). */
+  .strip-frame > .media-caption {
+    width: 0;
+    min-width: 100%;
+  }
+
+  /* Téléphone : la date passe sous la légende, alignée à gauche. */
+  @media (max-width: 480px) {
+    .media-caption > .mc-date {
+      margin-left: 0;
+      text-align: left;
+    }
+  }
+
+  /* Aperçu et public : un champ vide n'existe pas, et rien du tout si tout est vide (aucun espace). */
+  html:not([data-edit-mode]) .media-caption [data-cap]:empty {
+    display: none;
+  }
+
+  html:not([data-edit-mode]) .media-caption:not(:has([data-cap]:not(:empty))) {
+    display: none;
+  }
+
+  html:not([data-edit-mode]) .media-caption > .mc-main:not(:has([data-cap]:not(:empty))) {
+    display: none;
+  }
+
   /* Barre de glissement : rattrape le scroll quand on rate les flèches.
      La piste est calée sur la grille de page, pas sur le débord du rail :
      elle mesure la page, pas le contenu qui s'en échappe. */

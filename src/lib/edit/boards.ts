@@ -37,7 +37,7 @@ import { randomBytes } from "node:crypto";
 import { and, asc, eq, max } from "drizzle-orm";
 import { z } from "zod";
 
-import { BOARD_ITEM_TYPES, BOX_MIN, MAX_BOARD_ITEMS, MAX_RAIL_MEDIA, defaultLayout, isProjectStrip, newBoardItem, railIds, railList, readLayout, sameLayout, type BoardItem } from "@/blocks/board-layout";
+import { BOARD_ITEM_TYPES, BOX_MIN, MAX_BOARD_ITEMS, MAX_RAIL_MEDIA, defaultLayout, isProjectStrip, newBoardItem, parseCaptionPath, railIds, railList, readLayout, sameLayout, type BoardItem, type StripCaption } from "@/blocks/board-layout";
 import { isVideoMode } from "@/blocks/video-mode";
 import { getPageForEdit } from "@/lib/admin";
 import { LookSchema } from "@/lib/look";
@@ -78,10 +78,14 @@ const SnapSlot = z.strictObject({
   collection: Collection.optional(),
 });
 const Uid = z.string().regex(/^[a-z0-9-]{1,32}$/);
+/** Chemin d'un texte modifié en place (« title », « paragraphs.0 », « children.2.props.caption », « captions.<place>.date »). */
+export const ItemTextPath = z.string().regex(/^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z0-9-]{1,80}){0,3}$/).max(120);
 /** Un composant de la suite de la planche : la forme ici, les réglages par le registre (`checkLayout`). */
 /** Largeur (20 à 100 %) et alignement communs à tous les composants (lot 31b). */
 const Box = z.strictObject({ width: z.number().min(BOX_MIN).max(100).optional(), align: z.enum(["left", "center", "right"]).optional() });
 const LayoutItem = z.strictObject({ uid: Uid, type: z.enum(BOARD_ITEM_TYPES as [BoardItem["type"], ...BoardItem["type"][]]), props: z.record(z.string(), z.unknown()), box: Box.optional() });
+/** Textes d'une grille de planche modifiables en place : les siens, et ceux de ses cases (lot 39). */
+const GRID_TEXT_PATH = /^((eyebrow|title|captionTitle|caption|captionDate)|children\.\d{1,2}\.props\.(eyebrow|title|description|captionTitle|caption|captionDate))$/;
 export const BoardSnapSchema = z.strictObject({
   projectId: z.number().int().positive(),
   project: z.strictObject({ title: TrimLoc(120), context: TrimLoc(200), description: TrimLoc(2000), year: z.string().trim().max(20) }).nullable(),
@@ -102,7 +106,7 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
   // Contenu de la planche (lot 31) : ajouter un composant à une position, le déplacer d'un cran, le retirer, régler ses props.
   z.strictObject({ op: z.literal("item-add"), type: z.enum(BOARD_ITEM_TYPES as [BoardItem["type"], ...BoardItem["type"][]]), index: z.number().int().min(0).max(MAX_BOARD_ITEMS), uid: Uid.optional(), source: z.literal("project").optional(), after: Uid.optional() }),
   // Lot 31c : texte modifié en place sur la toile (chemin « title », « paragraphs.0 »…), et mise en forme (« Aa ») d'un composant.
-  z.strictObject({ op: z.literal("item-text"), uid: Uid, path: z.string().regex(/^[a-zA-Z]+(\.\d{1,2})?$/).max(40), locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
+  z.strictObject({ op: z.literal("item-text"), uid: Uid, path: ItemTextPath, locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
   z.strictObject({ op: z.literal("item-look"), uid: Uid, look: LookSchema.nullable() }),
   // Lot 31b : un média de la médiathèque posé sur un composant (Image / Vidéo : remplace ; Grille, carrousel : ajoute).
   z.strictObject({ op: z.literal("item-media"), uid: Uid, mediaId: z.number().int().positive() }),
@@ -625,7 +629,24 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       case "item-text": {
         const item = snap.layout.find((i) => i.uid === op.uid);
         if (!item) return "Ce composant n'est plus sur cette planche.";
-        if (item.type === "strip" || item.type === "grid") return "Ce composant n'a pas de texte à modifier ici.";
+        // Titre / Légende / Date sous les images d'une bande (lot 39) : `captions.<place>.<champ>`.
+        if (item.type === "strip") {
+          const cap = parseCaptionPath(op.path);
+          if (!cap) return "Ce composant n'a pas de texte à modifier ici.";
+          const prev = item.props.captions;
+          const captions: Record<string, StripCaption> = typeof prev === "object" && prev !== null && !Array.isArray(prev) ? { ...(prev as Record<string, StripCaption>) } : {};
+          const entry: StripCaption = { ...(Object.hasOwn(captions, cap.key) ? captions[cap.key] : {}) };
+          entry[cap.field] = { fr: "", en: "", ...(entry[cap.field] ?? {}), [op.locale]: op.value };
+          captions[cap.key] = entry;
+          item.props = { ...item.props, captions };
+          return snap;
+        }
+        // Une grille : ses textes (étiquette, titre, légende) et ceux de ses cases (légende d'une image, d'une vidéo).
+        if (item.type === "grid" && !GRID_TEXT_PATH.test(op.path)) return "Ce composant n'a pas de texte à modifier ici.";
+        if (item.type === "grid" && op.path.startsWith("children.")) {
+          const rank = Number(op.path.split(".")[1]);
+          if (!Array.isArray(item.props.children) || rank >= item.props.children.length) return "Cette case n'existe plus.";
+        }
         item.props = item.type === "rich-text" ? settleHelp(setLocalizedAt(item.props, op.path, op.locale, op.value)) : setLocalizedAt(item.props, op.path, op.locale, op.value);
         return snap;
       }

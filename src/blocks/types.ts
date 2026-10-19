@@ -41,6 +41,11 @@ export type BlockContext = {
   edit?: boolean;
   /** Composant de planche (lot 31c) : seuls les repères de texte modifiable en place (`data-inline`), sans les autres commandes de la toile. */
   inlineEdit?: boolean;
+  /**
+   * Case d'une grille de planche (lot 39) : les textes d'une case se modifient en place par le composant qui porte la grille
+   * (la case n'a pas d'identité de bloc propre) ; ce préfixe (`children.<rang>.props.`) complète le chemin du texte.
+   */
+  inlinePrefix?: string;
   project?: string;
   parent?: string;
   pageBlocks?: { type: string; props: unknown }[];
@@ -73,7 +78,7 @@ export type BlockContext = {
  * seulement en vue brouillon, jamais dans le HTML public.
  */
 export function inline(ctx: BlockContext, path: string): { "data-inline"?: string; style?: CSSProperties } {
-  return { ...(ctx.edit || ctx.inlineEdit ? { "data-inline": path } : {}), ...textStyle(ctx, path) };
+  return { ...(ctx.edit || ctx.inlineEdit ? { "data-inline": `${ctx.inlinePrefix ?? ""}${path}` } : {}), ...textStyle(ctx, path) };
 }
 
 /**

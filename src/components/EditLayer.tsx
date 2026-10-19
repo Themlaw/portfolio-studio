@@ -357,6 +357,13 @@ export default function EditLayer() {
     }
   }, []);
 
+  // Repère « choisi » sur l'enveloppe du bloc (lot 39) : les repères gris des champs vides (Titre / Légende / Date) n'apparaissent
+  // que sur un composant survolé ou choisi (edit-layer.css).
+  useEffect(() => {
+    for (const el of document.querySelectorAll("[data-edit-selected]")) el.removeAttribute("data-edit-selected");
+    if (selected) document.querySelector(`[data-edit-block="${CSS.escape(selected)}"]`)?.setAttribute("data-edit-selected", "");
+  }, [selected, boxes]);
+
   const select = useCallback((uid: string | null, notify = true, click = false) => {
     setSelected(uid);
     setSurfaceFor(null);
@@ -981,6 +988,14 @@ export default function EditLayer() {
         return;
       }
       if (editing.current && e.target instanceof Node && editing.current.el.contains(e.target)) return;
+      // Titre, Légende, Date sous un média (lot 39) : un clic écrit directement dedans, champ vide compris.
+      const cap = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-cap][data-inline]") : null;
+      if (cap && !cap.closest("[data-edit-bitem]")) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (editing.current?.el !== cap) startEdit(cap);
+        return;
+      }
       // Liens, boutons, formulaires et visionneuses du site restent inertes en édition.
       e.preventDefault();
       e.stopPropagation();

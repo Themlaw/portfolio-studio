@@ -101,6 +101,10 @@
   width: min(100%, calc(85svh * var(--ir, 1000)));
   margin-inline: auto; /* l'image est un bloc (préflight) : text-align ne la centre pas */
 }
+/* Lot 39 : le plafond compte la légende (sinon elle part sous le bas de l'écran). */
+.block-image[data-solo]:has(.media-caption) .block-image-media {
+  width: min(100%, calc((85svh - 4.5rem) * var(--ir, 1000)));
+}
 .block-image[data-solo] > span:first-child {
   text-align: center;
 }
