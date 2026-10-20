@@ -9,7 +9,7 @@ import { parseRatio } from "@/lib/images/sizes";
 import { FieldOps } from "./FieldOps";
 import { getMedia } from "@/lib/media";
 
-import { freeCells, GRID_LAYOUTS, gridCells, isJustified, justifyRows, MAX_SPAN_H, MAX_SPAN_W } from "./grid-layouts";
+import { aloneFlags, freeCells, GRID_LAYOUTS, gridCells, isJustified, justifyRows, MAX_SPAN_H, MAX_SPAN_W } from "./grid-layouts";
 import { hasText } from "./optional-fields";
 import { MAX_CHILDREN } from "./tree";
 import { BlockCaption, capHost, captionPart } from "./caption";
@@ -77,7 +77,8 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
   const geometry = gridCells({ ...props, ratios }, cells.length);
   const free = canvas ? freeCells(props, cells.length) : [];
   // Largeur de chaque case proportionnelle à son format, même hauteur par rangée.
-  const rows = justified ? justifyRows(ratios ?? [], geometry.cols, props.alone) : [];
+  const aloneNow = justified ? aloneFlags(props, cells.length) : undefined;
+  const rows = justified ? justifyRows(ratios ?? [], geometry.cols, aloneNow) : [];
   // Places libres (toile seulement) : une colonne chacune, à la suite de la dernière rangée si elle est incomplète, sinon sur une
   // nouvelle rangée ; elles ne changent jamais la largeur des images (parité avec le public).
   if (justified) {
@@ -97,7 +98,7 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
     if (!j) return {};
     return {
       ...(j.full ? { "data-jfull": "" } : {}),
-      ...(i < cells.length && props.alone?.[i] ? { "data-jalone": "" } : {}),
+      ...(i < cells.length && aloneNow?.[i] ? { "data-jalone": "" } : {}),
       ...(j.part ? { "data-jpart": "" } : {}),
       "data-jrow": j.row,
       style: { "--jr": j.r.toFixed(4), "--jk": j.k.toFixed(4) } as CSSProperties,

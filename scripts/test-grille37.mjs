@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 
 import { gridSchema } from "../src/blocks/GridBlock.tsx";
-import { applyGridOp, freeCells, isJustified, justifyRows } from "../src/blocks/grid-layouts.ts";
+import { aloneFlags, applyGridOp, freeCells, isJustified, justifyRows, keepsShape } from "../src/blocks/grid-layouts.ts";
 
 let passed = 0;
 const test = (name, fn) => {
@@ -48,7 +48,7 @@ test("37d case vide ou format inconnu = 1 ; formats invalides ignorés ; 3 et 4 
   assert.deepEqual(justifyRows([], 2), []);
 });
 
-test("37e Automatique et colonnes simples (2, 3, 4, 2x2) + format Libre sont justifiés ; grandes cases, Sur mesure et formats imposés inchangés", () => {
+test("37e le format Libre justifie TOUS les agencements (lot 46) ; un format imposé garde les cases d'avant", () => {
   assert.ok(isJustified({ layout: "auto" }));
   assert.ok(isJustified({ layout: "auto", ratio: "auto" }));
   assert.ok(!isJustified({ layout: "auto", ratio: "1:1" }));
@@ -58,7 +58,10 @@ test("37e Automatique et colonnes simples (2, 3, 4, 2x2) + format Libre sont jus
     assert.ok(!isJustified({ layout: l, ratio: "1:1" }), `${l} Carré`);
     assert.ok(!isJustified({ layout: l, ratio: "16:9" }), `${l} 16:9`);
   }
-  for (const l of ["1", "1+2", "2+1", "portrait-left", "portrait-right", "custom"]) assert.ok(!isJustified({ layout: l, ratio: "auto" }), l);
+  for (const l of ["1", "1+2", "2+1", "portrait-left", "portrait-right", "custom"]) {
+    assert.ok(isJustified({ layout: l, ratio: "auto" }) && isJustified({ layout: l }), `${l} + Libre`);
+    assert.ok(!isJustified({ layout: l, ratio: "1:1" }), `${l} + Carré inchangé`);
+  }
   // aucune donnée nouvelle : le schéma accepte et garde les anciennes grilles telles quelles
   const old = { layout: "auto", children: [] };
   assert.deepEqual(gridSchema.parse(old).layout, "auto");
@@ -101,7 +104,7 @@ test("37g l'option « alone » suit son image (déplacer, retirer, ajouter) et s
   assert.deepEqual(back.props, base);
   assert.ok("error" in applyGridOp(base, { op: "alone", index: 9, alone: true }));
   assert.ok("error" in applyGridOp({ ...base, ratio: "1:1" }, { op: "alone", index: 0, alone: true }), "format imposé : sans effet");
-  assert.ok("error" in applyGridOp({ ...base, layout: "portrait-left" }, { op: "alone", index: 0, alone: true }));
+  assert.ok("props" in applyGridOp({ ...base, layout: "portrait-left" }, { op: "alone", index: 0, alone: true }), "grandes cases : justifiées aussi");
   assert.deepEqual(gridSchema.parse({ layout: "3", alone: [false, true], children: [] }).alone, [false, true]);
   assert.equal(gridSchema.parse({ layout: "3", children: [] }).alone, undefined);
 });
@@ -112,7 +115,66 @@ test("37h places libres d'un préréglage justifié : une case, ou une rangée c
   assert.equal(freeCells({ layout: "4", ratio: "auto" }, 0).length, 4);
   // inchangé hors justification : motif complété
   assert.equal(freeCells({ layout: "3", ratio: "1:1" }, 4).length, 2);
-  assert.equal(freeCells({ layout: "portrait-left", ratio: "auto" }, 1).length, 2);
+  assert.equal(freeCells({ layout: "portrait-left", ratio: "auto" }, 1).length, 1, "Libre : justifié, une place libre");
+  assert.equal(freeCells({ layout: "portrait-left", ratio: "1:1" }, 1).length, 2, "Carré : motif complété");
+});
+
+test("46a Sur mesure : « seule sur sa ligne » = largeur sur toutes les colonnes ; les autres tailles sont ignorées", () => {
+  const spans = [{ w: 1, h: 2 }, { w: 2, h: 1 }, { w: 3, h: 1 }, { w: 1, h: 1 }];
+  assert.deepEqual(aloneFlags({ layout: "custom", cols: 3, spans }, 4), [false, false, true, false]);
+  assert.deepEqual(aloneFlags({ layout: "custom", cols: 2, spans }, 4), [false, true, true, false]);
+  assert.deepEqual(aloneFlags({ layout: "custom", cols: 2 }, 2), [false, false], "sans spans : une colonne chacune");
+  assert.deepEqual(aloneFlags({ layout: "3", alone: [false, true] }, 3), [false, true, false], "préréglage : le drapeau");
+  const r = justifyRows([1, 2 / 3, 1.5, 1], 2, aloneFlags({ layout: "custom", cols: 2, spans: [{ w: 1, h: 2 }, { w: 1, h: 1 }, { w: 2, h: 1 }, { w: 1, h: 1 }] }, 4));
+  assert.deepEqual(r.map((c) => c.row), [0, 0, 1, 2], "les spans hauts sont ignorés, la case pleine largeur est seule");
+  assert.ok(r[2].full);
+});
+
+test("46b menu Taille en Sur mesure : « alone » règle la largeur, sans toucher aux données par ailleurs ; ordre gardé", () => {
+  const kid = (uid) => ({ uid, type: "image", props: { mediaId: 1 } });
+  const base = { layout: "custom", cols: 3, ratio: "auto", spans: [{ w: 1, h: 2 }, { w: 1, h: 1 }, { w: 1, h: 1 }], children: [kid("a"), kid("b"), kid("c")] };
+  const r1 = applyGridOp(base, { op: "alone", index: 0, alone: true });
+  assert.ok("props" in r1);
+  assert.deepEqual(r1.props.spans[0], { w: 3, h: 2 }, "la hauteur n'est pas touchée");
+  assert.equal(r1.props.layout, "custom");
+  assert.equal(r1.props.alone, undefined, "pas de drapeau : la largeur fait foi");
+  const r2 = applyGridOp(r1.props, { op: "alone", index: 0, alone: false });
+  assert.deepEqual(r2.props.spans[0], { w: 1, h: 2 });
+  const mv = applyGridOp(r1.props, { op: "move", from: 0, to: 2 });
+  assert.deepEqual(mv.props.children.map((c) => c.uid), ["b", "c", "a"]);
+  assert.deepEqual(aloneFlags(mv.props, 3), [false, false, true], "la case pleine largeur suit son image");
+  assert.ok("error" in applyGridOp({ ...base, ratio: "1:1" }, { op: "alone", index: 0, alone: true }), "Carré : sans effet");
+  assert.ok("error" in applyGridOp(base, { op: "alone", index: 7, alone: true }));
+});
+
+test("46d préréglages à grandes cases + Libre : case pleine largeur du motif seule sur sa ligne ; « Avec les autres » passe en Sur mesure", () => {
+  const kid = (uid) => ({ uid, type: "image", props: { mediaId: 1 } });
+  const kids = [kid("a"), kid("b"), kid("c"), kid("d")];
+  assert.deepEqual(aloneFlags({ layout: "1+2" }, 4), [true, false, false, true], "1+2 : 1re et 4e (motif répété)");
+  assert.deepEqual(aloneFlags({ layout: "2+1" }, 4), [false, false, true, false]);
+  assert.deepEqual(aloneFlags({ layout: "1" }, 3), [true, true, true]);
+  assert.deepEqual(aloneFlags({ layout: "portrait-left" }, 3), [false, false, false], "portrait : aucune case pleine largeur");
+  assert.deepEqual(aloneFlags({ layout: "2" }, 3), [false, false, false]);
+  const base = { layout: "1+2", ratio: "auto", children: kids };
+  assert.deepEqual(applyGridOp(base, { op: "alone", index: 0, alone: true }).props, base, "déjà seule : rien ne change");
+  const r = applyGridOp(base, { op: "alone", index: 0, alone: false });
+  assert.equal(r.props.layout, "custom");
+  assert.deepEqual(r.props.spans[0], { w: 1, h: 1 });
+  assert.deepEqual(r.props.spans[1], { w: 1, h: 1 }, "les autres cases gardent leur taille");
+  assert.ok("error" in applyGridOp({ layout: "1", ratio: "auto", children: kids }, { op: "alone", index: 0, alone: false }));
+  const p = applyGridOp({ layout: "portrait-left", ratio: "auto", children: kids }, { op: "alone", index: 1, alone: true });
+  assert.deepEqual(p.props.alone, [false, true, false, false]);
+  assert.equal(p.props.layout, "portrait-left");
+});
+
+test("46c places libres en Sur mesure + Libre : une case ; grande case + Libre : aide « les cases gardent leur forme »", () => {
+  assert.equal(freeCells({ layout: "custom", cols: 3, ratio: "auto" }, 4).length, 1);
+  assert.equal(freeCells({ layout: "custom", cols: 3, ratio: "auto" }, 0).length, 1);
+  for (const l of ["1+2", "2+1", "portrait-left", "portrait-right"]) {
+    assert.ok(keepsShape({ layout: l }) && keepsShape({ layout: l, ratio: "auto" }), l);
+    assert.ok(!keepsShape({ layout: l, ratio: "1:1" }), `${l} Carré`);
+  }
+  for (const l of ["auto", "2", "3", "4", "2x2", "custom", "1"]) assert.ok(!keepsShape({ layout: l }), l);
 });
 
 console.log(`\n${passed} tests passés`);

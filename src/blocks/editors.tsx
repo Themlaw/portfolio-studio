@@ -33,7 +33,7 @@ import { useBlockEditor } from "./editor-context";
 import FormatSelect from "./FormatSelect";
 import type { L } from "./editor-types";
 import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "./video-mode";
-import { applyGridOp, AUTO_HINT, autoCols, isJustified, JUSTIFY_HINT, CUSTOM_COLS, customCols, GRID_LAYOUTS, type GridLayout, type GridModelOp, type GridShape } from "./grid-layouts";
+import { applyGridOp, AUTO_HINT, autoCols, isJustified, JUSTIFY_HINT, keepsShape, KEEP_SHAPE_HINT, CUSTOM_COLS, customCols, GRID_LAYOUTS, type GridLayout, type GridModelOp, type GridShape } from "./grid-layouts";
 
 const EMPTY: L = { fr: "", en: "" };
 type P = Record<string, unknown>;
@@ -521,6 +521,7 @@ export function GridTop() {
         </div>
         <FormatSelect label="Format des cases" help="Les vidéos gardent leur cadre 16:9." explicitAuto />
         {isJustified(value as GridShape) && layout !== "auto" && <p className="a-help" data-testid="grid-justify-hint">{JUSTIFY_HINT}</p>}
+        {keepsShape(value as GridShape) && <p className="a-help" data-testid="grid-keep-hint">{KEEP_SHAPE_HINT}</p>}
         <p className="a-help" data-testid="grid-count">
           {kids.length === 0 ? "Aucune image pour le moment." : kids.length === 1 ? "1 image dans la grille." : `${kids.length} images dans la grille.`}
         </p>
@@ -537,7 +538,7 @@ export function GridTop() {
               ))}
             </div>
             {layout === "custom" && <Toggle label="Inverser la gauche et la droite" checked={value.mirror === true} onChange={(on) => apply({ op: "set", mirror: on })} />}
-            <p className="a-help">{layout === "auto" ? (isJustified(value as GridShape) ? JUSTIFY_HINT : AUTO_HINT) : "Sur la page, chaque case a ses boutons « Plus large », « Plus haute »… dans sa barre."}</p>
+            <p className="a-help">{layout === "auto" ? (isJustified(value as GridShape) ? JUSTIFY_HINT : AUTO_HINT) : isJustified(value as GridShape) ? "Sur la page, chaque case a « Seule sur sa ligne » ou « Avec les autres » dans son menu Taille." : "Sur la page, chaque case a ses boutons « Plus large », « Plus haute »… dans sa barre."}</p>
           </div>
         )}
         <button type="button" className="a-btn" data-testid="grid-adapt" disabled={kids.length === 0} onClick={() => apply({ op: "adapt", ratios })}>

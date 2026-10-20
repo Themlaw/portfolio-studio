@@ -63,10 +63,10 @@ test("1c portrait à droite + 2 à gauche : le miroir (la case 1 est toujours le
 });
 
 test("1d places libres : le reste du motif ; « Sur mesure » : une seule, la prochaine", () => {
-  assert.equal(freeCells({ layout: "portrait-left" }, 0).length, 3);
-  assert.deepEqual(freeCells({ layout: "portrait-left" }, 1), [{ w: 1, h: 1 }, { w: 1, h: 1 }]);
-  assert.equal(freeCells({ layout: "portrait-left" }, 3).length, 0);
-  assert.deepEqual(freeCells({ layout: "portrait-left" }, 3).length, 0);
+  assert.equal(freeCells({ layout: "portrait-left", ratio: "4:3" }, 0).length, 3);
+  assert.deepEqual(freeCells({ layout: "portrait-left", ratio: "4:3" }, 1), [{ w: 1, h: 1 }, { w: 1, h: 1 }]);
+  assert.equal(freeCells({ layout: "portrait-left", ratio: "4:3" }, 3).length, 0);
+  assert.deepEqual(freeCells({ layout: "portrait-left", ratio: "4:3" }, 3).length, 0);
   assert.deepEqual(freeCells({ layout: "custom", cols: 3, spans: [] }, 5), [{ w: 1, h: 1 }]);
   assert.equal(freeCells({ layout: "custom" }, 24).length, 0);
 });
