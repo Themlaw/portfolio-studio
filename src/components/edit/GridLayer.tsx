@@ -148,7 +148,7 @@ function GridSettings({ grid, gref, top, left, onClose }: { grid: HTMLElement; g
             {KEEP_SHAPE_HINT}
           </p>
         )}
-        {(auto || grid.hasAttribute("data-justify")) && (
+        {(auto || (grid.hasAttribute("data-justify") && !keepsShape({ layout, ratio: grid.dataset.ratio }))) && (
           <p className="sm-hint" data-testid="gridsettings-auto-hint">
             {grid.hasAttribute("data-justify") ? JUSTIFY_HINT : AUTO_HINT}
           </p>

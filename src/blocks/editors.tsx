@@ -524,7 +524,7 @@ export function GridTop() {
           </div>
         </div>
         <FormatSelect label="Format des cases" help="Les vidéos gardent leur cadre 16:9." explicitAuto />
-        {isJustified(value as GridShape) && layout !== "auto" && <p className="a-help" data-testid="grid-justify-hint">{JUSTIFY_HINT}</p>}
+        {isJustified(value as GridShape) && layout !== "auto" && !keepsShape(value as GridShape) && <p className="a-help" data-testid="grid-justify-hint">{JUSTIFY_HINT}</p>}
         {keepsShape(value as GridShape) && <p className="a-help" data-testid="grid-keep-hint">{KEEP_SHAPE_HINT}</p>}
         <p className="a-help" data-testid="grid-count">
           {kids.length === 0 ? "Aucune image pour le moment." : kids.length === 1 ? "1 image dans la grille." : `${kids.length} images dans la grille.`}
