@@ -358,10 +358,10 @@ if (run("B") || run("C"))
   ok("B5 « En retrait » : marge latérale = gouttière du thème", inset.width === "inset" && Math.abs(inset.marginLeft - gutterPx) < 1.5 && inset.left > 20, `${JSON.stringify(inset)} gouttière ${gutterPx}`);
   await menu.locator('[data-corners="square"]').click();
   ok("B6 « Coins droits » : rayon nul", (await cardInfo(f, uidFirst)).radius === 0);
-  await menu.locator('[data-corners="round"]').click();
+  await menu.locator('[data-corners="m"]').click();
   const round = await cardInfo(f, uidFirst);
-  ok("B6 « Coins arrondis » : rayon du thème (≥ 12 px)", round.radius >= 12, String(round.radius));
-  ok("B6 brouillon : width = inset, corners = round", await waitFor(() => inkBlocks()[0]?.props.surface?.width === "inset" && inkBlocks()[0].props.surface.corners === "round"), JSON.stringify(inkBlocks()[0]?.props.surface));
+  ok("B6 Coins « Moyen » : rayon de 20 px (≥ 12 px)", round.radius >= 12, String(round.radius));
+  ok("B6 brouillon : width = inset, corners = m", await waitFor(() => inkBlocks()[0]?.props.surface?.width === "inset" && inkBlocks()[0].props.surface.corners === "m"), JSON.stringify(inkBlocks()[0]?.props.surface));
 
   // Contraste : une teinte moyenne n'est lisible avec aucun des textes du thème.
   await menu.getByRole("button", { name: "Couleur personnalisée" }).click();
@@ -576,7 +576,7 @@ if (run("C"))
   await f.locator(`[data-edit-block="${uidFirst}"] section`).first().click({ position: { x: 4, y: 10 } });
   await f.locator(".pe-tools .sm-button").click();
   const menu = f.locator(".sm");
-  ok("C6 le popover relit la carte : interrupteur allumé, couleur perso, en retrait, coins arrondis", (await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).getAttribute("aria-checked")) === "true" && (await menu.locator('[data-width="inset"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-corners="round"]').getAttribute("aria-checked")) === "true");
+  ok("C6 le popover relit la carte : interrupteur allumé, couleur perso, en retrait, coins arrondis", (await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).getAttribute("aria-checked")) === "true" && (await menu.locator('[data-width="inset"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-corners="m"]').getAttribute("aria-checked")) === "true");
   await page.screenshot({ path: path.join(SHOTS, "c6-popover-relu.png") });
   // Retirer la carte : interrupteur éteint.
   await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();

@@ -4,8 +4,8 @@
  * Carte d'une rubrique sur la toile (lot 17c ; bouton « Fond » jusqu'à la v0.19, renommé « Carte » au lot 26 : la
  * couleur de la carte posée sous la rubrique, à ne pas confondre avec le « Fond du texte » de la barre d'un texte) :
  * bouton « Carte » de la barre d'outils du bloc (pastille de la couleur courante) et son popover — interrupteur « Une carte sous la rubrique »,
- * couleurs de la DA du thème (avec leur nom) et teintes douces (CardColorChoices, lot 19b), « Autre couleur… » (ColorPicker), Pleine largeur /
- * En retrait, Coins droits / arrondis. Chaque choix est appliqué à l'instant (aperçu
+ * couleurs de la DA du thème (avec leur nom) et teintes douces (CardColorChoices, lot 19b), « Autre couleur… » (ColorPicker), Étendue (Bord à bord / Avec marge)
+ * et Coins (Droits / Petit / Moyen / Grand), les mêmes boutons que la fenêtre « Fond » (ShapeChoices.tsx). Chaque choix est appliqué à l'instant (aperçu
  * optimiste, edit/optimistic.ts) et envoyé à l'éditeur (intention `surface`, validée par
  * le protocole) ; Annuler / Rétablir passent par l'historique de l'éditeur.
  * Si même avec le texte lisible choisi par `cardStyle` le contraste reste sous AA, une
@@ -25,12 +25,10 @@ import {
   DEFAULT_BORDER_WIDTH,
   SURFACE_BORDER_LABELS,
   SURFACE_BORDER_WIDTHS,
-  SURFACE_CORNER_LABELS,
-  SURFACE_CORNERS,
+  CORNER_STEP_RADII,
+  nearestCornerStep,
   SURFACE_PAPER_LABELS,
   SURFACE_PAPERS,
-  SURFACE_WIDTH_LABELS,
-  SURFACE_WIDTHS,
   type ResolvedBorder,
   type ResolvedSurface,
   type Surface,
@@ -40,6 +38,7 @@ import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";
 import { canvasPalette, postIntent, previewSurface, surfaceState, wallpaperCatalog } from "./optimistic";
 import { ratioTip, readabilityText } from "./readability";
+import { CornersRow, ExtentRow } from "./ShapeChoices";
 import { useDismiss } from "./useDismiss";
 import { WallpaperGrid, WallpaperPaintRows } from "./WallpaperChoices";
 
@@ -61,6 +60,16 @@ function sitePaper() {
 
 const swatch = (c: (typeof PALETTE)[number]) => `var(--t-color-${c})`;
 
+
+/** Rayon de l'ancien « Coins arrondis » : « grands blocs » du thème, jamais moins de 12 px (même formule que look.css, `--card-radius`). */
+function themeCardRadius(): number {
+  const probe = document.createElement("i");
+  probe.style.cssText = "position:absolute;visibility:hidden;border-radius:max(var(--t-radius-lg), 12px)";
+  document.body.append(probe);
+  const r = Number.parseFloat(getComputedStyle(probe).borderTopLeftRadius);
+  probe.remove();
+  return Number.isFinite(r) ? r : 12;
+}
 
 /** Résumé du fond courant : réglages complets + contraste du texte sur cette carte. */
 function summary(cur: Surface | null, defaults: ResolvedSurface) {
@@ -167,6 +176,9 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
   const patch = (p: Partial<Surface>, continuous = false) => change(cleanSurface({ ...(cur ?? {}), ...p }), continuous);
 
   const s = summary(cur, defaults);
+  // Coins affichés : Droits, Petit / Moyen / Grand, ou, pour un ancien « Coins arrondis » (rayon du thème), la taille la plus proche de ce rayon.
+  const corners = s?.resolved.corners;
+  const cornersChoice: "none" | keyof typeof CORNER_STEP_RADII = !corners || corners === "square" ? "none" : corners === "round" ? nearestCornerStep(themeCardRadius()) : corners;
   // Le menu est haut (couleurs, papier peint, bordure) : on l'amène dans la vue de la toile quand il s'ouvre ou s'allonge.
   const hasCard = s !== null;
   const hasWallpaper = cur?.paperWallpaper !== undefined;
@@ -207,26 +219,24 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
             </span>
             <span className="sm-hint">Autre couleur…</span>
           </div>
-          <div className="tc-row">
-            <span className="sm-label">Largeur</span>
-            <span className="tc-seg" role="radiogroup" aria-label="Largeur de la carte">
-              {SURFACE_WIDTHS.map((w) => (
-                <button key={w} type="button" role="radio" aria-checked={s.resolved.width === w} data-width={w} onClick={() => patch({ width: w })}>
-                  {SURFACE_WIDTH_LABELS[w]}
-                </button>
-              ))}
-            </span>
-          </div>
-          <div className="tc-row">
-            <span className="sm-label">Coins</span>
-            <span className="tc-seg" role="radiogroup" aria-label="Coins de la carte">
-              {SURFACE_CORNERS.map((c) => (
-                <button key={c} type="button" role="radio" aria-checked={s.resolved.corners === c} data-corners={c} onClick={() => patch({ corners: c })}>
-                  {SURFACE_CORNER_LABELS[c]}
-                </button>
-              ))}
-            </span>
-          </div>
+          <ExtentRow
+            inset={s.resolved.width === "inset"}
+            label="Étendue de la carte"
+            testid="surface-extent"
+            attr={(inset) => ({ "data-width": inset ? "inset" : "full" })}
+            onPick={(inset) => patch({ width: inset ? "inset" : "full" })}
+          />
+          <CornersRow
+            value={cornersChoice}
+            label="Coins de la carte"
+            testid="surface-round"
+            attr={(v) => ({ "data-corners": v === "none" ? "square" : v })}
+            onPick={(v) => {
+              // Un ancien « Coins arrondis » s'affiche sur la taille la plus proche de son rayon : la choisir ne change rien (rendu d'avant gardé).
+              if (s.resolved.corners === "round" && v === cornersChoice) return;
+              patch({ corners: v === "none" ? "square" : v });
+            }}
+          />
           <BorderRows border={s.resolved.border} onChange={(border, continuous) => patch({ border }, continuous)} />
           {/* Papier peint (lot 35) : un motif de la bibliothèque à la place du papier du kit, sur CETTE carte. */}
           <div className="tc-row">

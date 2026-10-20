@@ -84,7 +84,7 @@ function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv
   if (!surface) {
     return edit ? (
       <div key={`card-${key}`} className="surface-card" data-surface="off" {...defaults}>
-        {node}
+        <div className="card-in">{node}</div>
       </div>
     ) : (
       node
@@ -104,7 +104,7 @@ function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv
       style={{ ...cardVars(style), ...borderVars(resolved, style, env.palette), ...paper.vars } as CSSProperties}
       {...(edit ? { ...defaults, "data-edit-surface": JSON.stringify(surface) } : {})}
     >
-      {node}
+      <div className="card-in">{node}</div>
     </div>
   );
 }

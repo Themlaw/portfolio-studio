@@ -54,13 +54,20 @@ const boardItems = VARIANTS.map(([, bg], i) => ({ uid: `bg${i}`, type: "grid", p
 // Planche libre (lot 42) : sans fond / marge L + coins, en page puis en planche.
 const free = (bg) => ({ format: "3:2", phone: "scale", ...(bg ? { background: bg } : {}), items: [{ id: "a1", media: M.carre, x: 10, y: 10, w: 30 }, { id: "a2", media: M.paysage, x: 50, y: 30, w: 40 }] });
 const FREE_BG = { kind: "color", color: "ink", inset: "l", round: "l" };
-const cardGrid = grid("pgc", { layout: "3", surface: {} }, kids("pc"));
+// Cartes (lot 47b) : une ancienne carte « En retrait + arrondi » (réglages par défaut), Moyen, coins droits, et une carte portant un fond (avec marge).
+const CARDS = [
+  ["carte", {}],
+  ["carte-moyen", { surface: { width: "inset", corners: "m" } }],
+  ["carte-droite", { surface: { width: "inset", corners: "square" } }],
+  ["carte+fond", { surface: { color: "surface" }, background: { kind: "color", color: "ink", inset: "m", round: "s" } }],
+];
+const cardGrids = CARDS.map(([n, extra], i) => grid(`pgc${i}`, { layout: "3", ...(n === "carte" ? { surface: {} } : extra) }, kids(`pc${i}`)));
 
 boardItems.push({ uid: "bf0", type: "free-board", props: free() }, { uid: "bf1", type: "free-board", props: free(FREE_BG) });
 sql((db) => { db.prepare("update pages set draft = NULL, draft_rev = 0 where id = ?").run(pageId); db.prepare("update projects set draft_layout = NULL, draft_layout_page_id = NULL where id = ?").run(project.id); });
 setBoardDraft(project.id, pageId, boardItems);
-const published = () => boardPublished(project.id)?.length === boardItems.length && q1("select count(*) n from blocks where page_id = ?", pageId).n === pageGrids.length + 4 && boardPublished(project.id)?.[1]?.props?.background?.color === VARIANTS[1][1].color;
-let done = await publishBlocks(page, BASE, pageId, () => [...pageGrids, cardGrid, { uid: "pf0", type: "free-board", props: free() }, { uid: "pf1", type: "free-board", props: free(FREE_BG) }, { uid: "board1", type: "project-board", props: { project: project.slug } }], published);
+const published = () => q1("select count(*) n from blocks where page_id = ? and props like '%\"corners\":\"m\"%'", pageId).n === 1 && boardPublished(project.id)?.length === boardItems.length && q1("select count(*) n from blocks where page_id = ?", pageId).n === pageGrids.length + cardGrids.length + 3 && boardPublished(project.id)?.[1]?.props?.background?.color === VARIANTS[1][1].color;
+let done = await publishBlocks(page, BASE, pageId, () => [...pageGrids, ...cardGrids, { uid: "pf0", type: "free-board", props: free() }, { uid: "pf1", type: "free-board", props: free(FREE_BG) }, { uid: "board1", type: "project-board", props: { project: project.slug } }], published);
 // Un clic trop tôt (éditeur encore en chargement) est sans effet : on recommence.
 for (let t = 0; !done && t < 4; t++) {
   await page.getByRole("button", { name: "Publier", exact: true }).click().catch(() => {});
@@ -78,8 +85,25 @@ const MEASURE = (slug) => {
     return { l: b.left, w: b.width, t: b.top + window.scrollY, h: b.height };
   };
   const one = (g) => ({ imgs: [...g.querySelectorAll("img")].filter((i) => i.getBoundingClientRect().width > 20).map(box), grid: box(g) });
+  const probe = (css) => {
+    const i = document.createElement("i");
+    i.style.cssText = `position:absolute;visibility:hidden;${css}`;
+    document.body.append(i);
+    const out = { w: i.getBoundingClientRect().width, br: parseFloat(getComputedStyle(i).borderTopLeftRadius) || 0 };
+    i.remove();
+    return out;
+  };
+  const gutter = probe("width:var(--gutter)").w;
+  const legacyR = probe("border-radius:max(var(--t-radius-lg),12px);width:10px;height:10px").br;
+  const cards = [...document.querySelectorAll('.surface-card[data-surface="on"]')].map((e) => {
+    const b = e.getBoundingClientRect();
+    return { l: b.left, w: b.width, r: parseFloat(getComputedStyle(e).borderTopLeftRadius) || 0 };
+  });
   const frees = [...document.querySelectorAll(".free-board")].map((e) => ({ ...box(e), board: Boolean(sect?.contains(e)) }));
   return {
+    gutter,
+    legacyR,
+    cards,
     frees,
     page: all.filter((g) => !inBoard(g)).map(one),
     board: all.filter(inBoard).map(one),
@@ -87,10 +111,11 @@ const MEASURE = (slug) => {
     sw: document.documentElement.scrollWidth,
   };
 };
+const near = (a, b, tol = 1) => Math.abs(a - b) <= tol;
 const same = (a, b, tol = 1) => a.imgs.length === b.imgs.length && a.imgs.length > 0 && a.imgs.every((x, i) => Math.abs(x.l - b.imgs[i].l) <= tol && Math.abs(x.w - b.imgs[i].w) <= tol);
 const fmt = (g) => g.imgs.map((x) => `${x.l.toFixed(0)}+${x.w.toFixed(0)}`).join(" ");
 
-const names = [...VARIANTS.map(([n]) => n)];
+const names = [...VARIANTS.map(([n]) => n), ...CARDS.map(([n]) => n)];
 const LAST = {};
 for (const width of [1440, 1024, 390]) {
   const c = await browser.newContext({ viewport: { width, height: 900 }, ...(width < 500 ? { isMobile: true, hasTouch: true } : {}) });
@@ -99,10 +124,16 @@ for (const width of [1440, 1024, 390]) {
   await sleep(1000);
   const m = await p.evaluate(MEASURE, project.slug);
   LAST[width] = m;
-  ok(`A${width} ${m.page.length} grilles de page, ${m.board.length} de planche mesurées`, m.page.length === 6 && m.board.length === 5, `${m.page.length}/${m.board.length}`);
+  ok(`A${width} ${m.page.length} grilles de page, ${m.board.length} de planche mesurées`, m.page.length === 9 && m.board.length === 5, `${m.page.length}/${m.board.length}`);
   for (const [where, list] of [["page", m.page], ["planche", m.board]]) {
-    console.log(`  [${width}] ${where} : ` + list.map((g, i) => `${names[i] ?? "carte"}=${fmt(g)}`).join(" | "));
-    for (let i = 1; i < Math.min(list.length, 5); i++) ok(`A${width} ${where} : « ${names[i] ?? "carte"} » garde les images de « sans »`, same(list[0], list[i]), `${fmt(list[0])} / ${fmt(list[i])}`);
+    console.log(`  [${width}] ${where} : ` + list.map((g, i) => `${names[i]}=${fmt(g)}`).join(" | "));
+    for (let i = 1; i < list.length; i++) ok(`A${width} ${where} : « ${names[i]} » garde les images de « sans »`, same(list[0], list[i]), `${fmt(list[0])} / ${fmt(list[i])}`);
+  }
+  {
+    const phone = width < 768;
+    const [c0, c1, c2] = m.cards;
+    ok(`A${width} ancienne carte « En retrait + arrondi » relue sans changement : marge = gouttière du thème (${m.gutter.toFixed(0)} px), rayon = celui du thème (${m.legacyR.toFixed(0)} px)`, m.cards.length === 4 && near(c0.l, m.gutter, 1.5) && near(c0.l + c0.w, m.vw - m.gutter, 1.5) && near(c0.r, m.legacyR, 1), JSON.stringify([m.cards[0], m.gutter, m.legacyR]));
+    ok(`A${width} carte Moyen : ${phone ? 14 : 20} px ; coins droits : 0 ; même marge`, near(c1.r, phone ? 14 : 20, 1) && c2.r === 0 && near(c1.l, m.gutter, 1.5) && near(c2.l, m.gutter, 1.5), JSON.stringify([c1, c2]));
   }
   const fp = m.frees.filter((x) => !x.board);
   const fb = m.frees.filter((x) => x.board);
@@ -111,8 +142,13 @@ for (const width of [1440, 1024, 390]) {
   ok(`A${width} pas de défilement horizontal`, m.sw <= m.vw + 1, `${m.sw}/${m.vw}`);
   if (width === 1024 && process.env.SHOT_TAG) {
     // Captures avant / après (SHOT_TAG=avant : la règle de la couche intérieure est neutralisée = ancien rendu).
-    if (process.env.SHOT_TAG === "avant") await p.addStyleTag({ content: ".fond-bloc > .fond-in { display: contents !important; margin: 0 !important; }" });
     await sleep(500);
+    for (const [i, name] of [[0, "carte-retrait"], [2, "carte-droite"]]) {
+      const c = p.locator('.surface-card[data-surface="on"]').nth(i);
+      await c.scrollIntoViewIfNeeded();
+      const b = await c.boundingBox();
+      await p.screenshot({ path: path.join(SHOTS, `${process.env.SHOT_TAG}-${name}.png`), fullPage: true, clip: { x: 0, y: b.y + (await p.evaluate(() => scrollY)) - 50, width: 1024, height: b.height + 100 } });
+    }
     for (const [i, name] of [[0, "sans-fond"], [1, "fond"], [2, "marge"]]) {
       const g = p.locator(`[aria-labelledby="project-${project.slug}"] .block-grid`).nth(i);
       await g.scrollIntoViewIfNeeded();
@@ -134,16 +170,21 @@ const fr = await openEditor(page, BASE, pageId);
 await fr.locator(".block-grid").nth(10).waitFor({ timeout: 60000 });
 {
   const m = await fr.evaluate(MEASURE, project.slug);
-  ok("B0 toile : 6 grilles de page, 5 de planche", m.page.length === 6 && m.board.length === 5, `${m.page.length}/${m.board.length}`);
+  ok("B0 toile : 9 grilles de page, 5 de planche", m.page.length === 9 && m.board.length === 5, `${m.page.length}/${m.board.length}`);
   for (const [where, list] of [["page", m.page], ["planche", m.board]]) {
-    console.log(`  [toile ${m.vw}] ${where} : ` + list.map((g, i) => `${names[i] ?? "carte"}=${fmt(g)}`).join(" | "));
-    for (let i = 1; i < Math.min(list.length, 5); i++) ok(`B1 toile, ${where} : « ${names[i] ?? "carte"} » garde les images de « sans »`, same(list[0], list[i]), `${fmt(list[0])} / ${fmt(list[i])}`);
+    console.log(`  [toile ${m.vw}] ${where} : ` + list.map((g, i) => `${names[i]}=${fmt(g)}`).join(" | "));
+    for (let i = 1; i < list.length; i++) ok(`B1 toile, ${where} : « ${names[i]} » garde les images de « sans »`, same(list[0], list[i]), `${fmt(list[0])} / ${fmt(list[i])}`);
   }
 }
 
 // Les blocs publiés reçoivent leurs identifiants à l'ouverture de l'éditeur : on lit ceux des grilles de la page.
 const GU = await fr.evaluate(() => [...document.querySelectorAll('[data-edit-block][data-edit-type="grid"]')].map((e) => e.dataset.editBlock));
-ok("B0b six grilles de page repérées sur la toile", GU.length === 6, JSON.stringify(GU));
+ok("B0b neuf grilles de page repérées sur la toile", GU.length === 9, JSON.stringify(GU));
+
+{
+  const m = await fr.evaluate(MEASURE, project.slug);
+  ok("B1b toile : ancienne carte relue sans changement (marge = gouttière, rayon du thème)", m.cards.length === 4 && near(m.cards[0].l - m.cards[3].l, 0, 3) === true && near(m.cards[0].r, m.legacyR, 1), JSON.stringify([m.cards, m.legacyR]));
+}
 
 /** Boîtes des images d'une grille de la toile (page : `[data-edit-block]`, planche : `[data-edit-bitem]`). */
 const imgsOf = (sel) =>
@@ -226,6 +267,71 @@ try {
     const saved = where === "page" ? draftBlocks(pageId).find((b) => b.uid === uid)?.props.background : boardDraft(project.id)?.find((i) => i.uid === uid)?.props.background;
     ok(`B4 enregistré (${where}) : { couleur, inset l, round m }`, saved?.kind === "color" && saved.inset === "l" && saved.round === "m", JSON.stringify(saved));
   }
+  /* ---- D. Fenêtre « Carte » : mêmes boutons que « Fond », contenu intact ---- */
+  const rowsOf = (menu) =>
+    menu.evaluate((el) =>
+      [...el.querySelectorAll(".tc-row")]
+        .filter((r) => ["Étendue", "Coins"].includes(r.querySelector(".sm-label")?.textContent.trim() ?? ""))
+        .map((r) => ({ label: r.querySelector(".sm-label").textContent.trim(), role: r.querySelector(".tc-seg")?.getAttribute("role"), buttons: [...r.querySelectorAll("button")].map((b) => ({ t: b.textContent.trim(), svg: b.querySelector("svg")?.outerHTML ?? null, cls: b.className })) })),
+    );
+  const openCard = async (uid) => {
+    const host = fr.locator(`[data-edit-block="${uid}"]`).first();
+    await host.scrollIntoViewIfNeeded();
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await host.locator(".surface-card").first().click({ position: { x: 60, y: 6 }, force: true });
+        await fr.locator('.pe-tools button[title^="Carte de la rubrique"]').click({ timeout: 4000 });
+        break;
+      } catch (e) {
+        if (attempt >= 3) throw e;
+        await sleep(800);
+      }
+    }
+    const m = fr.locator('[role="dialog"][aria-label="Carte de la rubrique"]');
+    await m.waitFor({ timeout: 20000 });
+    return m;
+  };
+  const surfaceOf = (uid) => draftBlocks(pageId).find((b) => b.uid === uid)?.props.surface;
+  const fondMenu = await openPageFond(GU[2]);
+  const fondRows = await rowsOf(fondMenu);
+  await page.keyboard.press("Escape");
+  const CARD = GU[5];
+  const cardImgs0 = await imgsOf(`[data-edit-block="${CARD}"]`);
+  const cm = await openCard(CARD);
+  const cardRows = await rowsOf(cm);
+  await page.screenshot({ path: path.join(SHOTS, "toile-fenetre-carte.png") });
+  console.log("  fenêtre carte : " + (await cm.evaluate((el) => el.innerText.replace(/\s+/g, " ").slice(0, 260))));
+  ok("D1 fenêtre Carte : mêmes lignes « Étendue » et « Coins », mêmes boutons, mêmes pictogrammes et mêmes classes que la fenêtre Fond", fondRows.length === 2 && cardRows.length === 2 && JSON.stringify(fondRows) === JSON.stringify(cardRows), JSON.stringify([fondRows.map((r) => r.buttons.map((b) => b.t)), cardRows.map((r) => r.buttons.map((b) => b.t))]));
+  ok("D2 plus de « Pleine largeur / En retrait / Coins droits / Coins arrondis » dans la fenêtre Carte", !/Pleine largeur|En retrait|Coins droits|Coins arrondis/.test(await cm.innerText()));
+  const legacyStep = await fr.evaluate(() => {
+    const i = document.createElement("i");
+    i.style.cssText = "position:absolute;visibility:hidden;border-radius:max(var(--t-radius-lg),12px);width:10px;height:10px";
+    document.body.append(i);
+    const r = parseFloat(getComputedStyle(i).borderTopLeftRadius);
+    i.remove();
+    return [["s", 10], ["m", 20], ["l", 36]].sort((a, b) => Math.abs(a[1] - r) - Math.abs(b[1] - r))[0][0];
+  });
+  ok("D3 ancienne carte : « Avec marge » coché, et la taille de coins la plus proche de son rayon cochée", (await cm.locator('[data-width="inset"]').getAttribute("aria-checked")) === "true" && (await cm.locator(`[data-testid="surface-round"] [data-step="${legacyStep}"]`).getAttribute("aria-checked")) === "true", legacyStep);
+  await cm.locator(`[data-testid="surface-round"] [data-step="${legacyStep}"]`).click();
+  await sleep(600);
+  ok("D4 cliquer la taille déjà cochée ne change rien (réglages de la carte inchangés, rendu d'avant gardé)", JSON.stringify(surfaceOf(CARD) ?? {}) === "{}", JSON.stringify(surfaceOf(CARD)));
+  const clickAndMeasure = async (sel) => {
+    await cm.locator(sel).click();
+    await sleep(500);
+    return { imgs: await imgsOf(`[data-edit-block="${CARD}"]`), card: (await fr.evaluate(MEASURE, project.slug)).cards[0] };
+  };
+  const other = legacyStep === "l" ? "s" : "l";
+  let r = await clickAndMeasure(`[data-testid="surface-round"] [data-step="${other}"]`);
+  ok(`D5 coins « ${other === "l" ? "Grand" : "Petit"} » : rayon ${other === "l" ? 36 : 10} px, images intactes`, near(r.card.r, other === "l" ? 36 : 10, 1) && same(cardImgs0, r.imgs), JSON.stringify([r.card, fmt(cardImgs0), fmt(r.imgs)]));
+  r = await clickAndMeasure('[data-testid="surface-round"] [data-step="none"]');
+  ok("D6 coins « Droits » : rayon nul, images intactes", r.card.r === 0 && same(cardImgs0, r.imgs), JSON.stringify([r.card, fmt(cardImgs0), fmt(r.imgs)]));
+  r = await clickAndMeasure('[data-extent="full"]');
+  ok("D7 « Bord à bord » : la carte occupe toute la largeur, images intactes", near(r.card.l, 0, 1.5) && same(cardImgs0, r.imgs), JSON.stringify([r.card, fmt(cardImgs0), fmt(r.imgs)]));
+  await page.screenshot({ path: path.join(SHOTS, "toile-carte-bord-a-bord.png") });
+  r = await clickAndMeasure('[data-extent="margin"]');
+  ok("D8 « Avec marge » : la carte revient à la gouttière, images intactes", near(r.card.l, await fr.evaluate(() => { const i = document.createElement("i"); i.style.cssText = "position:absolute;width:var(--gutter)"; document.body.append(i); const w = i.getBoundingClientRect().width; i.remove(); return w; }), 1.5) && same(cardImgs0, r.imgs), JSON.stringify([r.card, fmt(cardImgs0), fmt(r.imgs)]));
+  ok("D9 enregistré : { width: inset, corners: square } (coins droits choisis avant)", await waitFor(() => surfaceOf(CARD)?.width === "inset" && surfaceOf(CARD)?.corners === "square"), JSON.stringify(surfaceOf(CARD)));
+  await page.keyboard.press("Escape");
 } catch (e) {
   failures++;
   console.log(`FAIL toile : ${e.message}`);

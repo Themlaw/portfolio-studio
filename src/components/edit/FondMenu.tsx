@@ -20,6 +20,7 @@ import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";
 import { canvasPalette, fondState, postIntent, previewFond, wallpaperCatalog } from "./optimistic";
 import { ratioTip, readabilityText } from "./readability";
+import { CornersRow, ExtentRow, SHAPE_STEPS } from "./ShapeChoices";
 import { useDismiss } from "./useDismiss";
 import { WallpaperGrid, WallpaperPaintRows } from "./WallpaperChoices";
 
@@ -37,21 +38,7 @@ const FIRST_COLOR = "bgDeep";
 
 /** Étendue et coins (lot 43) : réglages communs à tout fond, gardés quand on change de couleur ou de nature. */
 type Shape = { inset?: FondStep; round?: FondStep };
-const STEPS: { step: FondStep; label: string }[] = [
-  { step: "s", label: "Petit" },
-  { step: "m", label: "Moyen" },
-  { step: "l", label: "Grand" },
-];
-
-/** Mini-schéma : le cadre de la carte, le fond en couleur, avec ou sans marge, coins droits ou arrondis. */
-function Mini({ inset, round }: { inset: boolean; round: number }) {
-  return (
-    <svg width="22" height="16" viewBox="0 0 22 16" aria-hidden="true" focusable="false" className="fond-mini">
-      <rect x="0.5" y="0.5" width="21" height="15" rx="2" fill="none" stroke="currentColor" opacity="0.45" />
-      <rect x={inset ? 4 : 0.5} y={inset ? 4 : 0.5} width={inset ? 14 : 21} height={inset ? 8 : 15} rx={round} fill="currentColor" />
-    </svg>
-  );
-}
+const STEPS: { step: FondStep; label: string }[] = SHAPE_STEPS;
 
 const swatch = (c: (typeof PALETTE)[number]) => `var(--t-color-${c})`;
 
@@ -176,17 +163,7 @@ function FondPanel({ cur, onChange: change, onClose, style }: { cur: Background 
   );
   const shapeRows = cur && (
     <>
-      <div className="tc-row">
-        <span className="sm-label">Étendue</span>
-        <span className="tc-seg" role="radiogroup" aria-label="Étendue du fond" data-testid="fond-extent">
-          <button type="button" role="radio" aria-checked={!cur.inset} data-extent="full" onClick={() => setShape({ inset: undefined, round: cur.round })}>
-            <Mini inset={false} round={0} /> Bord à bord
-          </button>
-          <button type="button" role="radio" aria-checked={Boolean(cur.inset)} data-extent="margin" onClick={() => !cur.inset && setShape({ inset: "m" })}>
-            <Mini inset round={0} /> Avec marge
-          </button>
-        </span>
-      </div>
+      <ExtentRow inset={Boolean(cur.inset)} label="Étendue du fond" testid="fond-extent" onPick={(inset) => (inset ? !cur.inset && setShape({ inset: "m" }) : setShape({ inset: undefined, round: cur.round }))} />
       {cur.inset && (
         <div className="tc-row">
           <span className="sm-label">Marge</span>
@@ -199,19 +176,7 @@ function FondPanel({ cur, onChange: change, onClose, style }: { cur: Background 
           </span>
         </div>
       )}
-      <div className="tc-row">
-        <span className="sm-label">Coins</span>
-        <span className="tc-seg" role="radiogroup" aria-label="Coins du fond" data-testid="fond-round">
-          <button type="button" role="radio" aria-checked={!cur.round} data-step="none" onClick={() => setShape({ round: undefined })}>
-            <Mini inset round={0} /> Droits
-          </button>
-          {STEPS.map((st, i) => (
-            <button key={st.step} type="button" role="radio" aria-checked={cur.round === st.step} data-step={st.step} onClick={() => setShape({ round: st.step })}>
-              <Mini inset round={[2, 4, 6][i]} /> {st.label}
-            </button>
-          ))}
-        </span>
-      </div>
+      <CornersRow value={cur.round ?? "none"} label="Coins du fond" testid="fond-round" onPick={(v) => setShape({ round: v === "none" ? undefined : v })} />
       <p className="sm-hint">{cur.inset ? "La couleur du composant voisin (avant, sinon après) entoure celui-ci ; sans voisin coloré : la carte ou la page." : "Les coins arrondis se voient avec une marge."}</p>
     </>
   );

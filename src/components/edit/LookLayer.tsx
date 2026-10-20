@@ -94,6 +94,7 @@ function rootOf(uid: string): HTMLElement | null {
   let el = wrapperOf(uid)?.firstElementChild as HTMLElement | null;
   // Carte de rubrique (lot 17c) : l'enveloppe `.surface-card` est toujours là en vue brouillon, elle aussi se traverse.
   if (el?.classList.contains("surface-card")) el = el.firstElementChild as HTMLElement | null;
+  if (el?.classList.contains("card-in")) el = el.firstElementChild as HTMLElement | null;
   // Fond de couleur du composant (lot 32) : même chose.
   if (el?.classList.contains("fond-bloc")) el = el.firstElementChild as HTMLElement | null;
   if (el?.classList.contains("fond-in")) el = el.firstElementChild as HTMLElement | null;
