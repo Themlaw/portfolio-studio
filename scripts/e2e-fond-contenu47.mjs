@@ -16,7 +16,7 @@ import path from "node:path";
 
 import { chromium } from "playwright";
 
-import { boardDraft, boardPublished, draftBlocks, grid, img, login, makeMedia, openEditor, pageIdOf, q1, settled, setBoardDraft, waitFor } from "./lib/grille31d.mjs";
+import { boardDraft, boardPublished, draftBlocks, grid, img, login, makeMedia, openEditor, pageIdOf, q1, settled, setBoardDraft, sql, waitFor } from "./lib/grille31d.mjs";
 import { publishBlocks } from "./lib/page-draft.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3600";
@@ -42,19 +42,30 @@ const project = q1("select id, slug from projects order by id limit 1");
 
 const VARIANTS = [
   ["sans", undefined],
-  ["fond", { kind: "color", color: "bgDeep" }],
-  ["marge", { kind: "color", color: "bgDeep", inset: "m" }],
-  ["marge-coins", { kind: "color", color: "bgDeep", inset: "m", round: "m" }],
-  ["grand", { kind: "color", color: "bgDeep", inset: "l", round: "l" }],
+  ["fond", { kind: "color", color: "ink" }],
+  ["marge", { kind: "color", color: "ink", inset: "m" }],
+  ["marge-coins", { kind: "color", color: "ink", inset: "m", round: "m" }],
+  ["grand", { kind: "color", color: "ink", inset: "l", round: "l" }],
 ];
 const kids = (p) => [img(`${p}1`, M.portrait), img(`${p}2`, M.paysage), img(`${p}3`, M.carre)];
 const pageGrids = VARIANTS.map(([n, bg], i) => grid(`pg${i}`, { layout: "3", ...(bg ? { background: bg } : {}) }, kids(`p${i}`)));
 // Les grilles de planche (composants du projet) portent le fond dans `props.background`.
 const boardItems = VARIANTS.map(([, bg], i) => ({ uid: `bg${i}`, type: "grid", props: { layout: "3", gap: "normal", align: "stretch", ratio: "auto", top: "gap", ...(bg ? { background: bg } : {}), children: kids(`b${i}`) } }));
+// Planche libre (lot 42) : sans fond / marge L + coins, en page puis en planche.
+const free = (bg) => ({ format: "3:2", phone: "scale", ...(bg ? { background: bg } : {}), items: [{ id: "a1", media: M.carre, x: 10, y: 10, w: 30 }, { id: "a2", media: M.paysage, x: 50, y: 30, w: 40 }] });
+const FREE_BG = { kind: "color", color: "ink", inset: "l", round: "l" };
 const cardGrid = grid("pgc", { layout: "3", surface: {} }, kids("pc"));
 
+boardItems.push({ uid: "bf0", type: "free-board", props: free() }, { uid: "bf1", type: "free-board", props: free(FREE_BG) });
+sql((db) => { db.prepare("update pages set draft = NULL, draft_rev = 0 where id = ?").run(pageId); db.prepare("update projects set draft_layout = NULL, draft_layout_page_id = NULL where id = ?").run(project.id); });
 setBoardDraft(project.id, pageId, boardItems);
-const done = await publishBlocks(page, BASE, pageId, () => [...pageGrids, cardGrid, { uid: "board1", type: "project-board", props: { project: project.slug } }], () => boardPublished(project.id)?.length === boardItems.length && q1("select count(*) n from blocks where page_id = ?", pageId).n === pageGrids.length + 2);
+const published = () => boardPublished(project.id)?.length === boardItems.length && q1("select count(*) n from blocks where page_id = ?", pageId).n === pageGrids.length + 4 && boardPublished(project.id)?.[1]?.props?.background?.color === VARIANTS[1][1].color;
+let done = await publishBlocks(page, BASE, pageId, () => [...pageGrids, cardGrid, { uid: "pf0", type: "free-board", props: free() }, { uid: "pf1", type: "free-board", props: free(FREE_BG) }, { uid: "board1", type: "project-board", props: { project: project.slug } }], published);
+// Un clic trop tôt (éditeur encore en chargement) est sans effet : on recommence.
+for (let t = 0; !done && t < 4; t++) {
+  await page.getByRole("button", { name: "Publier", exact: true }).click().catch(() => {});
+  done = await waitFor(published, 20000);
+}
 ok("0 page et planche publiées", done);
 
 /** Pour chaque grille (page : 6 premières ; planche : les 5 suivantes) : boîtes des images + de la grille. */
@@ -67,7 +78,9 @@ const MEASURE = (slug) => {
     return { l: b.left, w: b.width, t: b.top + window.scrollY, h: b.height };
   };
   const one = (g) => ({ imgs: [...g.querySelectorAll("img")].filter((i) => i.getBoundingClientRect().width > 20).map(box), grid: box(g) });
+  const frees = [...document.querySelectorAll(".free-board")].map((e) => ({ ...box(e), board: Boolean(sect?.contains(e)) }));
   return {
+    frees,
     page: all.filter((g) => !inBoard(g)).map(one),
     board: all.filter(inBoard).map(one),
     vw: document.documentElement.clientWidth,
@@ -91,7 +104,22 @@ for (const width of [1440, 1024, 390]) {
     console.log(`  [${width}] ${where} : ` + list.map((g, i) => `${names[i] ?? "carte"}=${fmt(g)}`).join(" | "));
     for (let i = 1; i < Math.min(list.length, 5); i++) ok(`A${width} ${where} : « ${names[i] ?? "carte"} » garde les images de « sans »`, same(list[0], list[i]), `${fmt(list[0])} / ${fmt(list[i])}`);
   }
+  const fp = m.frees.filter((x) => !x.board);
+  const fb = m.frees.filter((x) => x.board);
+  console.log(`  [${width}] planche libre : page ${fp.map((x) => `${x.l.toFixed(0)}+${x.w.toFixed(0)}`).join(" | ")} ; planche ${fb.map((x) => `${x.l.toFixed(0)}+${x.w.toFixed(0)}`).join(" | ")}`);
+  ok(`A${width} planche libre : le fond (marge L + coins) garde la zone de « sans », en page et en planche`, fp.length === 2 && fb.length === 2 && [fp, fb].every(([a, b]) => Math.abs(a.l - b.l) <= 1 && Math.abs(a.w - b.w) <= 1), JSON.stringify(m.frees.map((x) => [x.l, x.w])));
   ok(`A${width} pas de défilement horizontal`, m.sw <= m.vw + 1, `${m.sw}/${m.vw}`);
+  if (width === 1024 && process.env.SHOT_TAG) {
+    // Captures avant / après (SHOT_TAG=avant : la règle de la couche intérieure est neutralisée = ancien rendu).
+    if (process.env.SHOT_TAG === "avant") await p.addStyleTag({ content: ".fond-bloc > .fond-in { display: contents !important; margin: 0 !important; }" });
+    await sleep(500);
+    for (const [i, name] of [[0, "sans-fond"], [1, "fond"], [2, "marge"]]) {
+      const g = p.locator(`[aria-labelledby="project-${project.slug}"] .block-grid`).nth(i);
+      await g.scrollIntoViewIfNeeded();
+      const b = await g.boundingBox();
+      await p.screenshot({ path: path.join(SHOTS, `${process.env.SHOT_TAG}-planche-${name}.png`), fullPage: true, clip: { x: 0, y: b.y + (await p.evaluate(() => scrollY)) - 70, width: 1024, height: b.height + 140 } });
+    }
+  }
   if (width === 1440) {
     await p.locator(".block-grid").nth(2).scrollIntoViewIfNeeded();
     await p.screenshot({ path: path.join(SHOTS, "public-page-marge.png") });
