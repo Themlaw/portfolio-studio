@@ -22,6 +22,8 @@ import {
   Toggle,
 } from "@/app/admin/_fields";
 
+import { useState } from "react";
+
 import Link from "next/link";
 
 import GridLayoutIcon, { LAYOUT_LABELS } from "@/components/edit/GridLayoutIcon";
@@ -29,7 +31,9 @@ import ProjectCombobox from "@/components/edit/ProjectCombobox";
 import { withContactForm, FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, type FieldType, type FormField } from "@/lib/contact-form";
 
 import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, sameL, TILE_SIZE_LABELS, TILE_SIZES, tilesMode, tileSize, type CollectionPage, type TextField as TileTextField, type TileEdit, type TileItem } from "./collection-pages";
+import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
 import { useBlockEditor } from "./editor-context";
+import { applyFreeOp, FREE_FORMAT_LABELS, FREE_FORMATS, FREE_PHONE_LABELS, FREE_PHONE_MODES, freeItems, MAX_FREE_ITEMS, newFreeId, type FreeFormat, type FreeModelOp } from "./free-board";
 import FormatSelect from "./FormatSelect";
 import type { L } from "./editor-types";
 import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "./video-mode";
@@ -874,6 +878,107 @@ export function ContactFormEditor() {
           onChange={(t) => t && setFields([...fields, makeField(t)])}
         />
       )}
+    </>
+  );
+}
+
+/**
+ * Planche libre (lot 42) : format de la zone, comportement sur téléphone, liste des images (ordre d'empilement, du devant au
+ * fond). Les mêmes opérations que la toile (`applyFreeOp`) : le panneau est le repli au clavier et à la souris pour tout ce
+ * que l'on fait en glissant. Les positions se règlent sur la page (glisser, poignées, flèches).
+ */
+export function FreeBoardEditor() {
+  const { value, onChange, context } = useBlockEditor();
+  const [picking, setPicking] = useState<{ id?: string } | null>(null);
+  const items = freeItems(value);
+  const apply = (op: FreeModelOp) => {
+    const res = applyFreeOp(value, op);
+    if (!("error" in res)) onChange(res.props);
+  };
+  const format = (value.format as FreeFormat | undefined) ?? "3:2";
+  const phone = (value.phone as "scale" | "stack" | undefined) ?? "scale";
+  const ordered = items.slice().sort((a, b) => b.z - a.z);
+  return (
+    <>
+      <Toggle label="Agrandir au clic" checked={value.zoom !== false} onChange={(v) => onChange(v ? (({ zoom: _z, ...rest }) => (void _z, rest))(value) : { ...value, zoom: false })} />
+      <Select
+        label="Format de la zone"
+        help="La hauteur de la zone suit sa largeur. « Hauteur libre » : tire la poignée sous la zone, sur la page."
+        value={format}
+        options={FREE_FORMATS.map((f) => ({ value: f, label: FREE_FORMAT_LABELS[f] }))}
+        onChange={(v) => apply({ op: "set", format: (v as FreeFormat) ?? "3:2" })}
+      />
+      <Select
+        label="Sur téléphone (moins de 640 px)"
+        help="« À l'échelle » garde la composition telle quelle, en plus petit. « Empilées » met les images en colonne, dans l'ordre de lecture (de haut en bas, puis de gauche à droite)."
+        value={phone}
+        options={FREE_PHONE_MODES.map((m) => ({ value: m, label: FREE_PHONE_LABELS[m] }))}
+        onChange={(v) => apply({ op: "set", phone: (v as "scale" | "stack") ?? "scale" })}
+      />
+      <section className="ve-board-kids" aria-label="Images de la planche libre">
+        <h3 className="a-subhead">Images de la planche</h3>
+        {items.length === 0 && <p className="ve-hint">Rien pour le moment : ajoute une image ci-dessous, ou glisse-la depuis l&apos;onglet Médias directement sur la zone.</p>}
+        <ol className="ve-board-kid-list" data-testid="free-list">
+          {ordered.map((it, i) => {
+            const m = context.media.find((x) => x.id === it.media);
+            return (
+              <li key={it.id} data-free-id={it.id} data-media-id={it.media}>
+                <span className="a-media-field-thumb">
+                  {m?.thumb ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={m.thumb} alt="" />
+                  ) : (
+                    <span className="muted">n° {it.media}</span>
+                  )}
+                </span>
+                <span className="a-media-field-name">{m?.name ?? `Média n° ${it.media}`}</span>
+                <div className="ve-board-kid-tools" role="group" aria-label={`Image ${i + 1}`}>
+                  <button type="button" className="a-btn a-btn-small" onClick={() => setPicking({ id: it.id })}>
+                    Remplacer
+                  </button>
+                  <button type="button" className="a-icon-btn" aria-label="Passer devant" title="Passer devant" disabled={i === 0} onClick={() => apply({ op: "front", id: it.id })}>
+                    ↑
+                  </button>
+                  <button type="button" className="a-icon-btn" aria-label="Passer derrière" title="Passer derrière" disabled={i === ordered.length - 1} onClick={() => apply({ op: "back", id: it.id })}>
+                    ↓
+                  </button>
+                  <button type="button" className="a-icon-btn a-danger-text" aria-label="Retirer" onClick={() => apply({ op: "remove", id: it.id })}>
+                    ✕
+                  </button>
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                  <span>Largeur (%)</span>
+                  <input type="number" min={4} max={150} step={1} value={Math.round(it.w)} data-testid={`free-w-${i}`} onChange={(e) => Number.isFinite(e.target.valueAsNumber) && apply({ op: "place", id: it.id, w: e.target.valueAsNumber })} />
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                  <span>Rotation (°)</span>
+                  <input type="number" min={-180} max={180} step={1} value={it.rot} data-testid={`free-rot-${i}`} onChange={(e) => Number.isFinite(e.target.valueAsNumber) && apply({ op: "place", id: it.id, rot: e.target.valueAsNumber })} />
+                </label>
+              </li>
+            );
+          })}
+        </ol>
+        <div className="ve-board-kid-add">
+          <button type="button" className="a-btn" disabled={items.length >= MAX_FREE_ITEMS} data-testid="free-add-image" onClick={() => setPicking({})}>
+            + Ajouter une image
+          </button>
+        </div>
+        <MediaPickerDialog
+          open={picking !== null}
+          media={context.media.filter((m) => m.kind === "image" || m.kind === "video")}
+          title={picking?.id ? "Remplacer l'image" : "Ajouter une image"}
+          confirmLabel="Utiliser cette image"
+          onClose={() => setPicking(null)}
+          onPick={(m) => {
+            const at = picking;
+            setPicking(null);
+            if (!at) return;
+            if (at.id) return apply({ op: "replace", id: at.id, media: m.id });
+            const n = items.length;
+            apply({ op: "put", id: newFreeId(), media: m.id, x: 30 + ((n * 13) % 45), y: 38 + ((n * 17) % 30), ratio: m.width && m.height ? m.width / m.height : 1.5 });
+          }}
+        />
+      </section>
     </>
   );
 }

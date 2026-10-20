@@ -8,7 +8,7 @@
 #
 # Usage (depuis le dépôt) :
 #   scripts/test-all-local.sh [suite…]      # vide = toutes
-#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 fondimage41 visionneuse44 panorama45
+#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 fondimage41 visionneuse44 panorama45 planchelibre42
 # Rapide (VM de 3 cœurs et plus, voir docs/ARCHITECTURE.md) :
 #   BATT_SERVER=start BATT_JOBS=2 scripts/test-all-local.sh
 # En fond détaché :
@@ -112,6 +112,7 @@ E2E=(
   "fondimage41|node scripts/e2e-fondimage41.mjs|chromium|"
   "visionneuse44|node scripts/e2e-visionneuse44.mjs|chromium|"
   "panorama45|node scripts/e2e-panorama45.mjs|chromium|"
+  "planchelibre42|node scripts/e2e-planchelibre42.mjs|chromium|"
 )
 
 
