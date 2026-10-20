@@ -1534,6 +1534,12 @@ Le contenu d'un projet est une SUITE de composants rendue sous l'en-tête de la 
 
 `Background` porte deux champs facultatifs, `inset` et `round` (s / m / l, sur couleur ET papier peint) ; absents = bord à bord, coins droits (aucune migration). Avec `inset`, l enveloppe `.fond-bloc` prend une marge (`data-fond-inset`, 12 / 24 / 48 px, 8 / 14 / 24 sur téléphone), ne fusionne jamais (`fondKey` null) et `round` n a d effet qu avec elle (`data-fond-round`, 10 / 20 / 36 px). Ce qui entoure : `fondAround` / `fondJoins(keys, bgs)` donnent la couleur du voisin bord à bord (avant, sinon après) dans `FondJoin.around`, peinte dans la marge par une ombre pleine (`--fond-around`, `data-fond-around`) ; sans voisin coloré on voit la carte ou la page. La toile recalcule tout dans `refreshFondJoins` (optimistic.ts). Réutilisation (fond d image, planche libre) : lire `fondInset` / `fondRound`, poser `fondAttributes` et passer `join.around` à `fondStyle`.
 
+**Le fond ne rétrécit jamais le contenu (lot 47).** Une marge retire de la largeur à l enveloppe `.fond-bloc` (`margin-inline`) : avant, le contenu (`.shell`, `width: 100%` borné par `--page-max`) rétrécissait dès que le cadre était plus étroit que `--page-max` + 2 marges (toile de l éditeur, portable, tablette). `FondWrap` (et l enveloppe vide de la vue brouillon, `BlockList`) pose donc une couche intérieure `.fond-in` : `display: contents` sans marge, et avec `data-fond-inset` elle reprend la largeur retirée (`margin-inline: calc(-1 * var(--fond-gap))`). Le contenu garde la largeur et la place qu il a sans fond (à 1 px près, mesuré par `scripts/e2e-fond-contenu47.mjs` en page et en planche, à 1440, 1024 et 390 px) ; seule la zone colorée est rognée. Choix : la couche intérieure plutôt qu un `padding` compensé ou un pseudo-élément, parce que la couleur, le papier du kit et le papier peint (`background-color`, `::before`, `::after` de l enveloppe) gardent leur géométrie et leur arrondi sans rien changer. Limites : un contenu qui touche les bords de la page (image pleine page, bande) dépasse de la zone colorée (rognée aux coins arrondis) ; verticalement la marge écarte toujours les voisins. La fenêtre « Fond » est unique (`FondPanel`, `FondMenu.tsx`) pour la page (`FondMenu`) et la planche (`BoardFondMenu`), le rendu aussi (`fondStyle`, `FondWrap`). La **Carte** de rubrique (`props.surface`, bordure, papier ; `SurfaceMenu`) est un autre modèle, réservé aux blocs de premier niveau, mais elle suit les mêmes règles (lot 47b) :
+- Même interface : « Étendue » (Bord à bord = `width: full` / Avec marge = `width: inset`) et « Coins » (Droits / Petit / Moyen / Grand), boutons et pictogrammes partagés avec le Fond (`ShapeChoices.tsx`, `ExtentRow` / `CornersRow`).
+- `corners` accepte `square`, `round` (ancien arrondi, rayon du thème : `max(--t-radius-lg, 12px)`, lu tel quel, SANS migration) et `s` / `m` / `l` (10 / 20 / 36 px, 8 / 14 / 24 sous 768 px, comme le Fond). Un ancien « arrondi » s'affiche sur la taille la plus proche de son rayon (`nearestCornerStep`) ; cliquer cette taille ne change rien.
+- Le contenu ne rétrécit plus : couche intérieure `.card-in` (`display: contents`, ou, avec une marge ou une bordure, `margin-inline: calc(-1 * var(--card-ex))`). `--card-ex` = marge de la carte (`--card-mx`) + bordure (`--card-bw`). Un Fond posé sur la carte reprend cette marge puis rend la largeur au contenu (`.fond-in`).
+- Marge `--card-mx` : la gouttière du thème (comme avant) tant que le contenu garde au moins une demi-gouttière de respiration dans la carte, sinon (écran plus étroit que `--page-max` + gouttière) la carte se rapproche du bord — jamais le contenu. Un contenu collé à la carte serait pire que cette variation.
+
 ## Fond de couleur des composants et bordure de carte (lot 32)
 
 Demande de l'illustratrice : « tous les grands composants peuvent avoir une pleine hauteur de couleur dans la carte, deux composants qui
@@ -1747,3 +1753,21 @@ barre (Boucle / Lecteur), écrit dans `look.slotVideo` du bloc planche, par empl
 lecture au rendu (`StripRail`) : le choix de la vidéo, puis l'ancien `videoMode` de la bande (toujours lu, jamais migré, donc les pages existantes ne
 changent pas), puis la nature de la vidéo. Sur la toile, « Réglages » ne reste que sur la grille (il ouvre une fenêtre) ; ailleurs le nom du
 composant, sur sa barre, le choisit et ouvre son panneau. Le seed place une vidéo de test dans la médiathèque (`seed/media/video-de-test.mp4`).
+## Planche libre (lot 42)
+
+**Idée.** Des PNG détourés se posent « comme sur une table » : un composant dont chaque image a une position, une taille et un angle propres, directement sur le
+fond de la carte (ou, avec l'option « Fond », sur une carte dans la carte). Page ET planche de projet : même type `free-board`, même schéma, mêmes opérations.
+
+**Modèle** (`src/blocks/free-board.ts`, module pur). Réglages : `format` (`16:9` | `3:2` | `4:3` | `1:1` | `free`), `aspect` (largeur ÷ hauteur, seulement en `free`, 0,4 à 4),
+`phone` (`scale` | `stack`), `items` (40 au plus). Une image : `id` (stable : suit l'image quand on la remplace), `media`, `x` `y` `w` (% de la zone, 0,01 près), `rot`
+(degrés entiers, −180 à 180), `z`, `radius?`, `frame?`. Opérations (`applyFreeOp`) : `set`, `put` (centre du point visé), `place` (déplacer / redimensionner / pivoter),
+`front` / `back` (rangs recompactés), `remove`, `replace`, `style`. `snapBox` : repères magnétiques sur 0 / 50 / 100 % et les bords / centres des autres images.
+
+**Rendu.** `FreeBoardBlock` (serveur) : `<div class="free-board">` au format fixe, un `<figure class="free-item">` par image, positions en variables CSS. Le DOM suit l'ordre de
+lecture, l'empilement le `z-index`. Un média supprimé / à la corbeille disparaît sans trou ; une vidéo est une boucle (`LoopClick`). Public identique à toutes les largeurs ;
+téléphone : composition à l'échelle (défaut) ou colonne (`phone: "stack"`).
+
+**Toile.** `FreeLayer` (calque) lit la géométrie dans les variables CSS de chaque image (`free-dom.ts`), dessine cadre, poignées, repères et barre, et envoie des `free-op`
+(protocol.ts : `FreeCanvasOpSchema`). `VisualEditor.freeOp` applique `applyFreeOp` au brouillon de la page (`setBlocks`) ou à la planche (`item-set`) : Annuler / Rétablir comme tout
+le reste. Cible de dépôt `free` (BoardLayer.dropTargetAt) pour les médias glissés et les fichiers ; `item-media` (clic sur une vignette quand le composant est choisi) pose au centre.
+Le panneau (`FreeBoardEditor`) donne les mêmes réglages au clavier : format, téléphone, liste des images (devant / derrière, largeur, rotation, remplacer, retirer).

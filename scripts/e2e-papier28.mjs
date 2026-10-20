@@ -223,11 +223,11 @@ uid = inkBlocks().at(-1)?.uid ?? "";
 const sectionOf = () => f.locator(`[data-edit-block="${uid}"] section`).first();
 async function selectBlock() {
   await f.locator(`.pe-focus[data-uid="${uid}"]`).scrollIntoViewIfNeeded();
-  await sectionOf().click({ position: { x: 4, y: 30 } });
+  await sectionOf().click({ position: { x: 40, y: 30 } });
 }
 async function openMenu() {
   await selectBlock();
-  await f.locator(".pe-tools .sm-button").click();
+  await f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]").click();
   const menu = f.locator(".sm");
   await menu.waitFor({ timeout: 20000 });
   return menu;

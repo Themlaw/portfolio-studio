@@ -161,7 +161,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     );
     return (
       <>
-        <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} slotFrame={ctx.look?.slotFrame} slotVideo={ctx.look?.slotVideo} slotBg={ctx.look?.slotBg} styles={headerStyles(ctx)} parts={parts} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
+        <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} slotFrame={ctx.look?.slotFrame} slotVideo={ctx.look?.slotVideo} slotBg={ctx.look?.slotBg} slotPano={ctx.look?.slotPano} styles={headerStyles(ctx)} parts={parts} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
         {wallpapers && <WallpaperAlign />}
       </>
     );

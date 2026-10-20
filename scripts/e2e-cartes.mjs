@@ -292,8 +292,8 @@ if (run("B") || run("C"))
   const sectionOf = (uid) => f.locator(`[data-edit-block="${uid}"] section`).first();
   await f.locator(`[data-edit-block="${uidFirst}"]`).scrollIntoViewIfNeeded().catch(() => {});
   await f.locator(`.pe-focus[data-uid="${uidFirst}"]`).scrollIntoViewIfNeeded();
-  await sectionOf(uidFirst).click({ position: { x: 4, y: 30 } });
-  const fond = f.locator(".pe-tools .sm-button");
+  await sectionOf(uidFirst).click({ position: { x: 40, y: 30 } });
+  const fond = f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]");
   ok("B1 le bloc a un bouton « Carte » dans sa barre d'outils (lot 26 : plus « Fond »)", await fond.waitFor({ timeout: 30000 }).then(() => true, () => false) && /^Carte/.test((await fond.textContent()) ?? ""));
   ok("B1 pas de carte au départ (l'enveloppe est sans boîte)", (await cardInfo(f, uidFirst))?.on === "off");
   await fond.click();
@@ -355,13 +355,15 @@ if (run("B") || run("C"))
     p.remove();
     return w;
   });
-  ok("B5 « En retrait » : marge latérale = gouttière du thème", inset.width === "inset" && Math.abs(inset.marginLeft - gutterPx) < 1.5 && inset.left > 20, `${JSON.stringify(inset)} gouttière ${gutterPx}`);
+  const pageMaxPx = await f.evaluate(() => { const p = document.createElement("i"); p.style.cssText = "display:block;position:absolute;width:var(--t-space-page-max)"; document.body.append(p); const w = p.getBoundingClientRect().width; p.remove(); return w; });
+  const expectedMx = Math.min(gutterPx, gutterPx / 2 + Math.max(0, (inset.vw - pageMaxPx) / 2));
+  ok("B5 « En retrait » : marge latérale = gouttière du thème (rapprochée du bord sur un écran étroit, lot 47b)", inset.width === "inset" && Math.abs(inset.marginLeft - expectedMx) < 9, `${JSON.stringify(inset)} gouttière ${gutterPx}`);
   await menu.locator('[data-corners="square"]').click();
   ok("B6 « Coins droits » : rayon nul", (await cardInfo(f, uidFirst)).radius === 0);
-  await menu.locator('[data-corners="round"]').click();
+  await menu.locator('[data-corners="m"]').click();
   const round = await cardInfo(f, uidFirst);
-  ok("B6 « Coins arrondis » : rayon du thème (≥ 12 px)", round.radius >= 12, String(round.radius));
-  ok("B6 brouillon : width = inset, corners = round", await waitFor(() => inkBlocks()[0]?.props.surface?.width === "inset" && inkBlocks()[0].props.surface.corners === "round"), JSON.stringify(inkBlocks()[0]?.props.surface));
+  ok("B6 Coins « Moyen » : rayon de 20 px (≥ 12 px)", round.radius >= 12, String(round.radius));
+  ok("B6 brouillon : width = inset, corners = m", await waitFor(() => inkBlocks()[0]?.props.surface?.width === "inset" && inkBlocks()[0].props.surface.corners === "m"), JSON.stringify(inkBlocks()[0]?.props.surface));
 
   // Contraste : une teinte moyenne n'est lisible avec aucun des textes du thème.
   await menu.getByRole("button", { name: "Couleur personnalisée" }).click();
@@ -412,7 +414,7 @@ if (run("B") || run("C"))
 
   // Deuxième rubrique : carte sombre (jeton « Texte »), pleine largeur, coins droits.
   await f.locator(`.pe-focus[data-uid="${uidSecond}"]`).scrollIntoViewIfNeeded();
-  await sectionOf(uidSecond).click({ position: { x: 4, y: 30 } });
+  await sectionOf(uidSecond).click({ position: { x: 40, y: 30 } });
   await fond.click();
   await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
   await menu.locator('[data-token="ink"]').click();
@@ -437,7 +439,7 @@ if (run("C"))
   await section("C", async () => {
   ok("C0 publication", await publish(), `${await page.locator(".ve-status").textContent()} | ${(await page.locator('[role="alert"], .ve-banner, .a-alert').allTextContents()).join(" / ").slice(0, 300)}`);
   const published = publishedBlocks().filter((b) => b.type === "rich-text");
-  ok("C0 les cartes sont publiées avec le bloc", published.length === 2 && JSON.stringify(published[0].props.surface) === JSON.stringify({ color: "#f6d6e4", width: "inset", corners: "round" }) && published[1].props.surface?.color === "ink", JSON.stringify(published.map((p) => p.props.surface)));
+  ok("C0 les cartes sont publiées avec le bloc", published.length === 2 && JSON.stringify(published[0].props.surface) === JSON.stringify({ color: "#f6d6e4", width: "inset", corners: "m" }) && published[1].props.surface?.color === "ink", JSON.stringify(published.map((p) => p.props.surface)));
   const anon = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const pub = await anon.newPage();
   await pub.goto(`${BASE}/fr/a-propos`, { waitUntil: "networkidle" });
@@ -500,7 +502,7 @@ if (run("C"))
       const firstCard = kids.indexOf(cards[0]);
       const last = cards.at(-1);
       const footer = document.querySelector("footer");
-      const proto = cards[0]?.querySelector(":scope > section");
+      const proto = cards[0]?.querySelector(":scope > .card-in > section, :scope > section");
       // Références : la MÊME rubrique sans carte (copie de la section de la première carte), posée à la place de la carte.
       const clone = () => proto.cloneNode(true);
       const before = firstCard > 0 && !isCard(kids[firstCard - 1]) ? extent(kids[firstCard - 1]) : null;
@@ -571,12 +573,12 @@ if (run("C"))
   f = await openEditor();
   [uidFirst, uidSecond] = await textUids(f);
   const again = await cardInfo(f, uidFirst);
-  ok("C6 persistance : l'éditeur rouvert montre les cartes publiées", again?.on === "on" && same(rgbOf(again.bg), hexRgb("#f6d6e4")) && again.corners === "round", JSON.stringify(again));
+  ok("C6 persistance : l'éditeur rouvert montre les cartes publiées", again?.on === "on" && same(rgbOf(again.bg), hexRgb("#f6d6e4")) && again.corners === "m", JSON.stringify(again));
   await f.locator(`.pe-focus[data-uid="${uidFirst}"]`).scrollIntoViewIfNeeded();
-  await f.locator(`[data-edit-block="${uidFirst}"] section`).first().click({ position: { x: 4, y: 10 } });
-  await f.locator(".pe-tools .sm-button").click();
+  await f.locator(`[data-edit-block="${uidFirst}"] section`).first().click({ position: { x: 40, y: 10 } });
+  await f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]").click();
   const menu = f.locator(".sm");
-  ok("C6 le popover relit la carte : interrupteur allumé, couleur perso, en retrait, coins arrondis", (await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).getAttribute("aria-checked")) === "true" && (await menu.locator('[data-width="inset"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-corners="round"]').getAttribute("aria-checked")) === "true");
+  ok("C6 le popover relit la carte : interrupteur allumé, couleur perso, en retrait, coins arrondis", (await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).getAttribute("aria-checked")) === "true" && (await menu.locator('[data-width="inset"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-corners="m"]').getAttribute("aria-checked")) === "true");
   await page.screenshot({ path: path.join(SHOTS, "c6-popover-relu.png") });
   // Retirer la carte : interrupteur éteint.
   await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
@@ -600,8 +602,8 @@ if (run("D"))
   f = await openEditor();
   const uid = (await textUids(f))[0];
   await f.locator(`.pe-focus[data-uid="${uid}"]`).scrollIntoViewIfNeeded();
-  await f.locator(`[data-edit-block="${uid}"] section`).first().click({ position: { x: 4, y: 10 } });
-  await f.locator(".pe-tools .sm-button").click();
+  await f.locator(`[data-edit-block="${uid}"] section`).first().click({ position: { x: 40, y: 10 } });
+  await f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]").click();
   // La rubrique publiée a déjà sa carte : éteinte puis rallumée, elle repart des réglages du thème (`{}`).
   const sw = f.locator(".sm").getByRole("switch", { name: "Une carte sous la rubrique" });
   if ((await sw.getAttribute("aria-checked")) === "true") await sw.click();

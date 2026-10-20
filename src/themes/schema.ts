@@ -67,6 +67,8 @@ export const SURFACE_TINTS = SURFACE_TINT_BASES.flatMap((b) => SURFACE_TINT_PERC
 export const SURFACE_TOKENS = [...SURFACE_BASE_TOKENS, ...SURFACE_TINTS] as const;
 export const SURFACE_WIDTHS = ["full", "inset"] as const;
 export const SURFACE_CORNERS = ["square", "round"] as const;
+/** Coins d'une carte (lot 47b) : « round » = l'arrondi d'avant (rayon du thème, lu tel quel), « s / m / l » = les mêmes tailles que le fond d'un composant. */
+export const SURFACE_CORNER_VALUES = ["square", "round", "s", "m", "l"] as const;
 /** Couleur d'un aplat (carte, bordure, fond de composant) : un jeton de la palette ou `#rrggbb[aa]`. */
 export const SurfaceColorSchema = z.union([z.enum(SURFACE_TOKENS), z.string().max(9).regex(/^#[0-9a-f]{6}(?:[0-9a-f]{2})?$/, "Couleur invalide (#rrggbb).")]);
 /** Bordure d'une carte (lot 32) : épaisseurs Fin / Moyen / Épais (≈ 2 / 6 / 12 px, plus fines sur téléphone). */
@@ -80,7 +82,7 @@ export const SurfaceBorderSchema = z.union([z.literal(false), z.strictObject({ w
 export const SurfaceBaseSchema = z.strictObject({
   color: SurfaceColorSchema.optional(),
   width: z.enum(SURFACE_WIDTHS).optional(),
-  corners: z.enum(SURFACE_CORNERS).optional(),
+  corners: z.enum(SURFACE_CORNER_VALUES).optional(),
   border: SurfaceBorderSchema.optional(),
 });
 

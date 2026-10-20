@@ -4,7 +4,7 @@ import type { RawBlock } from "@/lib/pages";
 
 import { cropStyle, lookAttributes, readLook, type Look } from "@/lib/look";
 import { own } from "@/lib/own";
-import { cellShare, gridCells, isJustified, type GridShape } from "./grid-layouts";
+import { aloneFlags, cellShare, gridCells, isJustified, type GridShape } from "./grid-layouts";
 import { getSiteView } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
 import type { PaletteColors } from "@/themes/palette";
@@ -84,7 +84,7 @@ function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv
   if (!surface) {
     return edit ? (
       <div key={`card-${key}`} className="surface-card" data-surface="off" {...defaults}>
-        {node}
+        <div className="card-in">{node}</div>
       </div>
     ) : (
       node
@@ -104,7 +104,7 @@ function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv
       style={{ ...cardVars(style), ...borderVars(resolved, style, env.palette), ...paper.vars } as CSSProperties}
       {...(edit ? { ...defaults, "data-edit-surface": JSON.stringify(surface) } : {})}
     >
-      {node}
+      <div className="card-in">{node}</div>
     </div>
   );
 }
@@ -121,7 +121,7 @@ export function withFond(node: ReactNode, type: string, background: Background |
   if (!background || !ctx.palette) {
     return ctx.edit ? (
       <div key={`fond-${key}`} className="fond-bloc" data-fond="off">
-        {node}
+        <div className="fond-in">{node}</div>
       </div>
     ) : (
       node
@@ -178,7 +178,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
   const { Component } = def;
   let children: ReactNode[] | undefined;
   if (def.container && depth < MAX_NESTING) {
-    const data = parsed.data as GridShape & { project?: string; ratio?: string; children?: { uid: string; type: string; props: Record<string, unknown> }[] };
+    const data = parsed.data as GridShape & { zoom?: boolean; project?: string; ratio?: string; children?: { uid: string; type: string; props: Record<string, unknown> }[] };
     const uid = block.uid ?? String(block.id);
     const childCtx: BlockContext = {
       ...ctx,
@@ -199,8 +199,9 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
         block.type === "grid" && data.layout
           ? {
               ...childCtx,
-              cellColumns: isJustified(data) ? (data.alone?.[i] ? 1 : Math.max(1, gridCells(data, 0).cols * 0.6)) : cellShare(data, i, kids.length),
+              cellColumns: isJustified(data) ? (aloneFlags(data, kids.length)[i] ? 1 : Math.max(1, gridCells(data, 0).cols * 0.6)) : cellShare(data, i, kids.length),
               ...(data.layout === "auto" ? { cellAuto: true } : {}),
+              ...(data.zoom !== false ? { cellViewer: true } : {}),
               // Grille de planche (lot 39) : ses cases n'ont pas d'identité de bloc, leurs textes se modifient par la grille.
               ...(ctx.inlineEdit && !ctx.edit ? { inlinePrefix: `children.${i}.props.` } : {}),
             }
@@ -255,7 +256,7 @@ export function renderBoardItem(item: { uid: string; type: string; props: Record
   // fusion des voisins (ProjectBoardBlock / ProjectStrip, `FondWrap`) : le bloc lui-même n'en pose pas.
   const props = { ...item.props };
   delete props.background;
-  return renderBlock({ id: -1, uid: item.uid, type: item.type, props, corrupt: false }, { ...ctx, edit: false, inlineEdit: Boolean(ctx.edit) && (item.type === "rich-text" || item.type === "image" || item.type === "video-single" || item.type === "grid"), gridCanvas: Boolean(ctx.edit) && item.type === "grid", parent: undefined }, 0);
+  return renderBlock({ id: -1, uid: item.uid, type: item.type, props, corrupt: false }, { ...ctx, edit: false, inlineEdit: Boolean(ctx.edit) && (item.type === "rich-text" || item.type === "image" || item.type === "video-single" || item.type === "grid" || item.type === "free-board"), gridCanvas: Boolean(ctx.edit) && item.type === "grid", freeCanvas: Boolean(ctx.edit) && item.type === "free-board", parent: undefined }, 0);
 }
 
 /**

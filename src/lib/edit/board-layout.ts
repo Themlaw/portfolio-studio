@@ -51,6 +51,8 @@ function mediaWanted(item: BoardItem): { id: number; kind: "image" | "video" | "
   };
   if (item.type === "strip" && item.props.source === "own") {
     for (const id of (Array.isArray(item.props.media) ? item.props.media : []) as unknown[]) if (typeof id === "number") out.push({ id, kind: "any" });
+  } else if (item.type === "free-board") {
+    for (const it of (Array.isArray(item.props.items) ? item.props.items : []) as Json[]) if (typeof it?.media === "number") out.push({ id: it.media, kind: "any" });
   } else if (item.type === "image" || item.type === "video-single") take(item.type, item.props);
   else if (item.type === "grid") for (const kid of (item.props.children as { type: string; props: Json }[]) ?? []) take(kid.type, kid.props);
   return out;

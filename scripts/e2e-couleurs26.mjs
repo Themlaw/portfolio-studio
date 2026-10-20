@@ -170,7 +170,7 @@ if (run("V")) {
 
   // Carte d'une rubrique : bouton « Carte » (plus « Fond »), couleurs nommées comme le panneau.
   await f.locator('[data-edit-type="collection-tiles"] h2').first().click();
-  const button = f.locator(".pe-tools .sm-button");
+  const button = f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]");
   ok("V5 bouton « Carte » dans la barre de la rubrique", await button.waitFor({ timeout: 20000 }).then(() => true, () => false) && /^\s*Carte/.test((await button.textContent()) ?? "") && !/Fond/.test((await button.textContent()) ?? ""));
   await button.click();
   const menu = f.locator(".sm");

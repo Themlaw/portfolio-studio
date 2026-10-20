@@ -451,7 +451,7 @@ if (run("F"))
     ok("F0 rubrique Texte ajoutée", Boolean(uid));
     await f.locator(`.pe-focus[data-uid="${uid}"]`).scrollIntoViewIfNeeded();
     await f.locator(`[data-edit-block="${uid}"] section`).first().click({ position: { x: 4, y: 30 } });
-    const fond = f.locator(".pe-tools .sm-button");
+    const fond = f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]");
     await fond.waitFor({ timeout: 30000 });
     await fond.click();
     const menu = f.locator(".sm");

@@ -61,7 +61,7 @@ const GROUPS = ["Texte", "Projets", "Images et vidéos", "Grilles", "Autres"];
 const CONTENT = {
   Texte: ["Texte", "Titre", "Titre + texte"],
   Projets: ["Planche d'un projet"],
-  "Images et vidéos": ["Image", "Vidéo", "Images qui défilent"] /* + la carte du carrousel de planche (lot 31c) */,
+  "Images et vidéos": ["Image", "Vidéo", "Planche libre", "Images qui défilent"] /* + la carte du carrousel de planche (lot 31c) ; Planche libre : lot 42 */,
   // Lot 27 : Grille et Contact proposent leurs modèles sous leur carte ; plus de « Formulaire de contact » à part.
   Grilles: ["Grille"],
   Autres: ["CV", "Profil", "Contact", "Lien vers une page", "Ouverture", "Entrées des collections"],
@@ -209,9 +209,9 @@ if (run("C"))
     // Un ancien composant est un bloc à part entière : choisi seul (aucun parent), carte de couleur applicable.
     const target = tops.find((t, i) => i >= 5 && t.type === "rich-text");
     await f.locator(`[data-edit-block="${target.uid}"] section`).first().scrollIntoViewIfNeeded();
-    await f.locator(`[data-edit-block="${target.uid}"] section`).first().click({ position: { x: 4, y: 30 } });
+    await f.locator(`[data-edit-block="${target.uid}"] section`).first().click({ position: { x: 40, y: 30 } });
     ok("C5 un ancien composant se choisit seul (pas de conteneur parent dans le fil d'Ariane)", await waitFor(async () => ((await f.locator(".pe-crumbs").textContent().catch(() => "")) ?? "").trim() === "Texte"), await f.locator(".pe-crumbs").textContent().catch(() => ""));
-    const fond = f.locator(".pe-tools .sm-button");
+    const fond = f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]");
     ok("C5 bouton « Carte » disponible sur cet ancien composant", await fond.waitFor({ timeout: 30000 }).then(() => true, () => false));
     await fond.click();
     const menu = f.locator(".sm");

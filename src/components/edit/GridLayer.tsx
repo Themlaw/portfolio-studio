@@ -18,7 +18,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 import { FORMAT_KEYS, FORMAT_LABELS } from "@/lib/images/formats";
-import { AUTO_HINT, GRID_LAYOUT_LABELS, GRID_LAYOUTS, JUSTIFY_HINT, type GridLayout } from "@/blocks/grid-layouts";
+import { AUTO_HINT, GRID_LAYOUT_LABELS, GRID_LAYOUTS, JUSTIFY_HINT, keepsShape, KEEP_SHAPE_HINT, type GridLayout } from "@/blocks/grid-layouts";
 import type { GridCanvasOp } from "@/lib/edit/protocol";
 import { FrameControls } from "./FrameMenu";
 import { ImageBgPopup } from "./ImageBgMenu";
@@ -143,7 +143,12 @@ function GridSettings({ grid, gref, top, left, onClose }: { grid: HTMLElement; g
             </button>
           ))}
         </div>
-        {(auto || grid.hasAttribute("data-justify")) && (
+        {keepsShape({ layout, ratio: grid.dataset.ratio }) && (
+          <p className="sm-hint" data-testid="gridsettings-keep-hint">
+            {KEEP_SHAPE_HINT}
+          </p>
+        )}
+        {(auto || (grid.hasAttribute("data-justify") && !keepsShape({ layout, ratio: grid.dataset.ratio }))) && (
           <p className="sm-hint" data-testid="gridsettings-auto-hint">
             {grid.hasAttribute("data-justify") ? JUSTIFY_HINT : AUTO_HINT}
           </p>

@@ -16,12 +16,12 @@
  *    faux : l'éditeur le signale sans rien bloquer.
  */
 import { contrastRatio, mixOklab, opaqueOn, parseColor, ROLE_NAMES, toHex, type ResolvedPalette } from "./palette";
-import { BackgroundSchema, PAPER_ON_CARDS_DEFAULT, SURFACE_BASE_TOKENS, SURFACE_BORDER_WIDTHS, SURFACE_CORNERS, SURFACE_PAPERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema } from "./schema";
+import { BackgroundSchema, PAPER_ON_CARDS_DEFAULT, SURFACE_BASE_TOKENS, SURFACE_BORDER_WIDTHS, SURFACE_CORNERS, SURFACE_CORNER_VALUES, SURFACE_PAPERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema } from "./schema";
 import type { z } from "zod";
 import { wallpaperVars, type WallpaperLookup } from "./wallpaper";
 
 // Schéma et listes vivent dans schema.ts (zod seul, chargé tel quel par les scripts Node).
-export { BackgroundSchema, PAPER_ON_CARDS_DEFAULT, SURFACE_BASE_TOKENS, SURFACE_BORDER_WIDTHS, SURFACE_CORNERS, SURFACE_PAPERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema };
+export { BackgroundSchema, PAPER_ON_CARDS_DEFAULT, SURFACE_BASE_TOKENS, SURFACE_BORDER_WIDTHS, SURFACE_CORNERS, SURFACE_CORNER_VALUES, SURFACE_PAPERS, SURFACE_TINT_BASES, SURFACE_TINT_PERCENTS, SURFACE_TINTS, SURFACE_TOKENS, SURFACE_WIDTHS, SurfaceSchema };
 /** Nom des couleurs dont on tire une teinte (mêmes noms que le panneau « Couleurs »). */
 const TINT_BASE_NAMES: Record<(typeof SURFACE_TINT_BASES)[number], string> = { ink: ROLE_NAMES.ink, primary: ROLE_NAMES.primary, secondary: ROLE_NAMES.secondary, tertiary: ROLE_NAMES.tertiary };
 /** Les six couleurs de la DA proposées en premier comme fond de carte, avec leur nom dans le panneau « Couleurs ». */
@@ -51,6 +51,14 @@ export const SURFACE_TOKEN_LABELS: Record<SurfaceToken, string> = {
 };
 
 export const SURFACE_WIDTH_LABELS: Record<(typeof SURFACE_WIDTHS)[number], string> = { full: "Pleine largeur", inset: "En retrait" };
+/** Rayons (px) des tailles de coins d'une carte et du fond d'un composant : Petit / Moyen / Grand (look.css, `--fond-r`, `--card-r`). */
+export const CORNER_STEP_RADII = { s: 10, m: 20, l: 36 } as const;
+/** La taille de coins la plus proche d'un rayon en px : un ancien « Coins arrondis » (rayon du thème) s'affiche sur ce choix, sans changer de rendu. */
+export function nearestCornerStep(radius: number): keyof typeof CORNER_STEP_RADII {
+  let best: keyof typeof CORNER_STEP_RADII = "m";
+  for (const k of ["s", "m", "l"] as const) if (Math.abs(CORNER_STEP_RADII[k] - radius) < Math.abs(CORNER_STEP_RADII[best] - radius)) best = k;
+  return best;
+}
 export const SURFACE_CORNER_LABELS: Record<(typeof SURFACE_CORNERS)[number], string> = { square: "Coins droits", round: "Coins arrondis" };
 
 export type SurfaceToken = (typeof SURFACE_TOKENS)[number];

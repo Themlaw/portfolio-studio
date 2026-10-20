@@ -6,7 +6,7 @@ import VideoPlayer from "./VideoPlayer";
 import { useCallback, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 
-import type { LocalizedArtwork } from "@/lib/gallery";
+import type { ViewerItem } from "@/lib/viewer";
 
 /**
  * Vue plein écran d'une œuvre.
@@ -24,8 +24,11 @@ export default function Lightbox({
   index,
   onIndexChange,
   onClose,
+  bare = false,
 }: {
-  items: LocalizedArtwork[];
+  items: ViewerItem[];
+  /** Image seule (lot 44) : ni compteur ni flèches ni vignettes. */
+  bare?: boolean;
   /** null = fermée */
   index: number | null;
   onIndexChange: (index: number) => void;
@@ -103,7 +106,7 @@ export default function Lightbox({
     >
       <div className="flex items-center justify-between gap-4 px-5 py-4 md:px-8">
         <span className="eyebrow text-on-scrim">
-          {t("position", { index: index + 1, total: items.length })}
+          {bare ? "" : t("position", { index: index + 1, total: items.length })}
         </span>
         <button
           ref={closeRef}
@@ -169,7 +172,7 @@ export default function Lightbox({
                 alt={active.alt}
                 width={active.width}
                 height={active.height}
-                className="lightbox-image max-h-[44vh] w-auto max-w-full object-contain md:max-h-[56vh]"
+                className={`lightbox-image max-h-[44vh] w-auto max-w-full object-contain ${active.date ? "md:max-h-[46vh]" : "md:max-h-[56vh]"}`}
                 priority
                 largest
               />
@@ -191,13 +194,16 @@ export default function Lightbox({
 
       {/* Sur petit écran le texte cède la place à l'image : description
           écourtée et rappel clavier masqué (il n'y a pas de clavier). */}
-      <div className="mx-auto w-full max-w-2xl px-6 pt-4 text-center md:pt-6">
-        <h2 className="font-display text-xl text-on-scrim md:text-3xl">
-          {active.title || active.alt}
-        </h2>
-        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-on-scrim/70 md:mt-3 md:line-clamp-none">
+      <div className="mx-auto w-full max-w-2xl px-6 pt-4 text-center pb-4 md:pt-6">
+        {(active.title || (!active.plain && active.alt)) && (
+          <h2 className="font-display text-xl text-on-scrim md:text-3xl">
+            {active.title || active.alt}
+          </h2>
+        )}
+        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-on-scrim/70 empty:hidden md:mt-3 md:line-clamp-none">
           {active.description}
         </p>
+        {active.date && <p className="eyebrow mt-2 text-on-scrim/70" data-lightbox-date="">{active.date}</p>}
         {!solo && (
           <p className="eyebrow mt-4 hidden text-on-scrim/70 md:block">{t("hint")}</p>
         )}

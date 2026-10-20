@@ -648,7 +648,7 @@ const wallpaperLookup = (id: number) => wallpaperCatalog().get(id);
 /** Enveloppe du fond d'un composant (celle de CE bloc, jamais celle d'un composant de son conteneur). */
 function fondWrapper(uid: string): HTMLElement | null {
   const host = document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"]`);
-  return host?.querySelector<HTMLElement>(':scope > .fond-bloc, :scope > .surface-card > .fond-bloc') ?? null;
+  return host?.querySelector<HTMLElement>(':scope > .fond-bloc, :scope > .surface-card > .card-in > .fond-bloc') ?? null;
 }
 
 /** Ce composant porte-t-il une enveloppe de fond (grand composant hors cellule de grille) ? */
@@ -676,7 +676,7 @@ export function refreshFondJoins(uid: string) {
   if (!parent) return;
   const hosts = [...parent.children].filter((c): c is HTMLElement => c instanceof HTMLElement && c.hasAttribute("data-edit-block"));
   const parts = hosts.map((h) => {
-    const wrap = h.querySelector<HTMLElement>(':scope > .fond-bloc, :scope > .surface-card > .fond-bloc');
+    const wrap = h.querySelector<HTMLElement>(':scope > .fond-bloc, :scope > .surface-card > .card-in > .fond-bloc');
     const card = h.querySelector<HTMLElement>(':scope > .surface-card[data-surface="on"]');
     const bg = wrap?.dataset.fond === "on" ? readBackground(parseData(wrap.dataset.editBackground)) : undefined;
     // Même signature que le serveur (`cardBorderSignature`) : largeur + couleur calculée de la bordure.

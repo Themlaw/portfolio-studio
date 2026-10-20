@@ -37,6 +37,7 @@ import { randomBytes } from "node:crypto";
 import { and, asc, eq, max } from "drizzle-orm";
 import { z } from "zod";
 
+import { applyFreeOp, newFreeId } from "@/blocks/free-board";
 import { BOARD_ITEM_TYPES, BOX_MIN, MAX_BOARD_ITEMS, MAX_RAIL_MEDIA, defaultLayout, isProjectStrip, newBoardItem, parseCaptionPath, railIds, railList, readLayout, sameLayout, type BoardItem, type StripCaption } from "@/blocks/board-layout";
 import { isVideoMode } from "@/blocks/video-mode";
 import { getPageForEdit } from "@/lib/admin";
@@ -574,7 +575,7 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       case "item-media": {
         const item = snap.layout.find((i) => i.uid === op.uid);
         if (!item) return "Ce composant n'est plus sur cette planche.";
-        const media = getDb().select({ kind: schema.media.kind }).from(schema.media).where(eq(schema.media.id, op.mediaId)).get();
+        const media = getDb().select({ kind: schema.media.kind, width: schema.media.width, height: schema.media.height }).from(schema.media).where(eq(schema.media.id, op.mediaId)).get();
         if (!media) return "Ce média n'existe plus.";
         if (media.kind === "pdf") return PDF_NOT_IN_BOARD;
         if (item.type === "image") {
@@ -583,6 +584,12 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         } else if (item.type === "video-single") {
           if (media.kind !== "video") return "Cette vidéo attend une vidéo, pas une image.";
           item.props = { ...item.props, mediaId: op.mediaId };
+        } else if (item.type === "free-board") {
+          // Planche libre (lot 42) : l'image se pose au centre de la zone (le glisser-déposer sur la toile choisit l'endroit).
+          if (media.kind !== "image" && media.kind !== "video") return "Une planche libre accueille des images et des vidéos.";
+          const res = applyFreeOp(item.props, { op: "put", id: newFreeId(), media: op.mediaId, x: 50, y: 50, ratio: media.width && media.height ? media.width / media.height : 1.5 });
+          if ("error" in res) return res.error;
+          item.props = res.props;
         } else if (item.type === "grid") {
           const kids = Array.isArray(item.props.children) ? (item.props.children as unknown[]) : [];
           if (kids.length >= 24) return "24 éléments au plus par grille.";
@@ -649,6 +656,8 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
           const rank = Number(op.path.split(".")[1]);
           if (!Array.isArray(item.props.children) || rank >= item.props.children.length) return "Cette case n'existe plus.";
         }
+        // Planche libre : Titre / Légende / Date sous la zone (lot 39 branché par l'intégration v0.27).
+        if (item.type === "free-board" && !/^(captionTitle|caption|captionDate)$/.test(op.path)) return "Ce composant n'a pas de texte à modifier ici.";
         item.props = item.type === "rich-text" ? settleHelp(setLocalizedAt(item.props, op.path, op.locale, op.value)) : setLocalizedAt(item.props, op.path, op.locale, op.value);
         return snap;
       }

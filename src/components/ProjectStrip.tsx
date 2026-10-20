@@ -67,6 +67,7 @@ export default function ProjectStrip({
   slotFrame,
   slotVideo,
   slotBg,
+  slotPano,
   parts,
   palette,
   wallpapers,
@@ -88,6 +89,8 @@ export default function ProjectStrip({
   slotVideo?: Partial<Record<string, "loop" | "player">>;
   /** Fond derrière chaque image (réglage `look.slotBg` du bloc, par slug d'emplacement ; lot 41). */
   slotBg?: Partial<Record<string, string>>;
+  /** Panorama par image (réglage `look.slotPano` du bloc, par slug d'emplacement ; lot 45). */
+  slotPano?: Partial<Record<string, "fit" | "scroll">>;
   /** Suite de composants de la planche ; absente (anciens blocs de projets) : la bande d'images seule. */
   parts?: BoardPart[];
   /** Palette effective du site : le texte lisible sur un fond de couleur (seulement si un composant en a un). */
@@ -123,11 +126,11 @@ export default function ProjectStrip({
       part,
       part?.artworks ? (
         <BoardBox box={part.box}>
-          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} videoMode={part.videoMode} />
+          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} slotPano={slotPano} videoMode={part.videoMode} />
         </BoardBox>
       ) : (
         <BoardBox box={part?.box}>
-          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} videoMode={part?.videoMode} />
+          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} slotPano={slotPano} videoMode={part?.videoMode} />
         </BoardBox>
       ),
     );
@@ -357,7 +360,7 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
       </div>
       </EditOnly>
       {/* Une grille vide montre ses places numérotées (lot 31d) : pas de cadre « rien à montrer ». */}
-      {!projectStrip && part.empty && part.type !== "grid" ? (
+      {!projectStrip && part.empty && part.type !== "grid" && part.type !== "free-board" ? (
         <EditOnly fallback={children}>
         <div className="pe-bitem-empty" data-edit-bitem-pick="">
           <p>{label} : rien à montrer pour le moment.</p>

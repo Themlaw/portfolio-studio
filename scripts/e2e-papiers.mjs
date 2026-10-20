@@ -371,7 +371,7 @@ await section("B", async () => {
 async function openFond(word) {
   const host = f.locator('[data-edit-block][data-edit-type="rich-text"]', { hasText: word }).first();
   await host.scrollIntoViewIfNeeded();
-  await host.locator("section").first().click({ position: { x: 4, y: 30 } });
+  await host.locator("section").first().click({ position: { x: 40, y: 30 } });
   await f.locator('.pe-tools [data-testid="fond-button"]').click();
   const menu = f.locator('[data-testid="fond-menu"]');
   await menu.waitFor({ timeout: 20000 });
@@ -475,7 +475,7 @@ await section("C", async () => {
 async function openCard(word) {
   const host = f.locator('[data-edit-block][data-edit-type="rich-text"]', { hasText: word }).first();
   await host.scrollIntoViewIfNeeded();
-  await host.locator("section").first().click({ position: { x: 4, y: 30 } });
+  await host.locator("section").first().click({ position: { x: 40, y: 30 } });
   await f.locator(".pe-tools .sm-button:not([data-testid])").click();
   const menu = f.locator(".sm").first();
   await menu.waitFor({ timeout: 20000 });

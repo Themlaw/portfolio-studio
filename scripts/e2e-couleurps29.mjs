@@ -307,7 +307,7 @@ if (run("Q")) {
   const f = await openEditor(homeId);
   // Carte d'une rubrique.
   await f.locator('[data-edit-type="collection-tiles"] h2').first().click();
-  const button = f.locator(".pe-tools .sm-button");
+  const button = f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]");
   await button.waitFor({ timeout: 20000 });
   await button.click();
   const menu = f.locator(".sm");

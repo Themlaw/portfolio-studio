@@ -67,6 +67,7 @@ import { BlockLookPanel, ImageSizeSection, SiteStylesPanel } from "./LookPanel";
 import { ColorsPanel, LogoPanel, type HighlightInfo } from "./SiteLookPanel";
 import BoardItemPanel from "./BoardItemPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
+import { applyFreeOp, newFreeId, type FreeModelOp } from "@/blocks/free-board";
 import MediaPreviewDialog from "./MediaPreviewDialog";
 import SiteEditor, { applySiteOp, siteText } from "./SiteEditor";
 import StructureTree from "./StructureTree";
@@ -86,7 +87,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "bitem-text", "bitem-look", "cell-look"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "bitem-text", "bitem-look", "cell-look", "free-op"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /**
@@ -966,6 +967,95 @@ export default function VisualEditor({
   };
 
   /**
+   * Planche libre (lot 42), page ou planche de projet : les images se posent et se règlent par `applyFreeOp` (src/blocks/free-board.ts),
+   * le même modèle pour la toile, le panneau et les tests. Un geste = une écriture = un pas d'historique (Annuler / Rétablir).
+   */
+  const [freePick, setFreePick] = useState<{ uid: string; board?: number; props?: string; id?: string } | null>(null);
+  const freeBase = (uid: string, board?: number, fallback?: string): Record<string, unknown> | null => {
+    if (!board) {
+      const b = findBlock(draftRef.current.blocks, uid);
+      return b && b.type === "free-board" ? b.props : null;
+    }
+    const item = boards.current.get(board)?.layout.find((i) => i.uid === uid);
+    if (item) return item.type === "free-board" ? item.props : null;
+    try {
+      const v = JSON.parse(fallback ?? "null") as { props?: unknown } | null;
+      return v?.props && typeof v.props === "object" && !Array.isArray(v.props) ? (v.props as Record<string, unknown>) : null;
+    } catch {
+      return null;
+    }
+  };
+  /** Une image ou une vidéo posée dans la planche libre, son centre en (x, y) % de la zone. */
+  const freePut = async (uid: string, board: number | undefined, x: number, y: number, mediaId: number, hint?: string, fallback?: string): Promise<boolean> => {
+    if (blockedRef.current) return false;
+    if (board) await itemFlushRef.current();
+    const base = freeBase(uid, board, fallback);
+    if (!base) {
+      toast("Cette planche libre n'existe plus : recharge l'éditeur.", "error");
+      return false;
+    }
+    const kind = mediaKindOf(mediaId, hint);
+    if (kind === "pdf") {
+      toast("Un PDF se pose dans une rubrique « CV ».", "error");
+      return false;
+    }
+    const row = context.media.find((m) => m.id === mediaId);
+    const ratio = row?.width && row?.height ? row.width / row.height : kind === "video" ? 16 / 9 : 1.5;
+    const res = applyFreeOp(base, { op: "put", id: newFreeId(), media: mediaId, x, y, ratio });
+    if ("error" in res) {
+      toast(res.error, "error");
+      return false;
+    }
+    const ok = await gridWrite(uid, board, res.props);
+    if (ok) toast(kind === "video" ? "Vidéo posée" : "Image posée", "success", { label: "Défaire", run: () => void undoRef.current() });
+    return ok;
+  };
+  /** Choix du média pour « Remplacer » (id donné) ou « + Image » (à la suite, vers le centre). */
+  const freeChoose = async (p: NonNullable<typeof freePick>, mediaId: number, hint?: string): Promise<boolean> => {
+    const base = freeBase(p.uid, p.board, p.props);
+    if (!base) return false;
+    if (!p.id) {
+      const n = Array.isArray(base.items) ? base.items.length : 0;
+      return freePut(p.uid, p.board, n === 0 ? 50 : 35 + ((n * 13) % 40), n === 0 ? 50 : 40 + ((n * 17) % 25), mediaId, hint, p.props);
+    }
+    if (blockedRef.current) return false;
+    if (p.board) await itemFlushRef.current();
+    if (mediaKindOf(mediaId, hint) === "pdf") {
+      toast("Un PDF se pose dans une rubrique « CV ».", "error");
+      return false;
+    }
+    const res = applyFreeOp(base, { op: "replace", id: p.id, media: mediaId });
+    if ("error" in res) {
+      toast(res.error, "error");
+      return false;
+    }
+    return gridWrite(p.uid, p.board, res.props);
+  };
+  const freeOp = async (msg: Extract<FromCanvas, { kind: "free-op" }>): Promise<boolean> => {
+    if (blockedRef.current) return false;
+    if (msg.board) await itemFlushRef.current();
+    const base = freeBase(msg.uid, msg.board, msg.props);
+    if (!base) {
+      toast("Cette planche libre n'existe plus : recharge l'éditeur.", "error");
+      return false;
+    }
+    const op = msg.op;
+    if (op.op === "pick") {
+      setFreePick({ uid: msg.uid, ...(msg.board ? { board: msg.board, ...(msg.props ? { props: msg.props } : {}) } : {}), ...(op.id ? { id: op.id } : {}) });
+      return true;
+    }
+    const res = applyFreeOp(base, op as FreeModelOp);
+    if ("error" in res) {
+      toast(res.error, "error");
+      return false;
+    }
+    if (JSON.stringify(res.props) === JSON.stringify(base)) return false;
+    const ok = await gridWrite(msg.uid, msg.board, res.props);
+    if (ok && op.op === "remove") toast("Image retirée de la planche libre", "success", { label: "Défaire", run: () => void undoRef.current() });
+    return ok;
+  };
+
+  /**
    * Lecture d'une vidéo depuis sa barre sur la toile (lot 36) : composant Vidéo d'une page, ou composant Vidéo / bande de la
    * planche d'un projet (une bande sans choix, `mode` null, suit la nature de chaque vidéo). Une case de grille passe par `grid-op`.
    */
@@ -1614,6 +1704,18 @@ export default function VisualEditor({
         }
         return;
       }
+      // Lot 42 : planche libre. Les fichiers sont posés là où on les a lâchés (le premier), puis légèrement décalés.
+      if (target.kind === "free") {
+        let n = 0;
+        for (const file of files) {
+          const id = await sendAndWait(file);
+          if (id === null) continue;
+          const kind = file.type.startsWith("video/") ? "video" : isPdfFile(file) ? "pdf" : "image";
+          if (!(await freePut(target.uid, target.board, Math.min(100, target.x + n * 6), Math.min(100, target.y + n * 6), id, kind, target.props))) break;
+          n++;
+        }
+        return;
+      }
       // Un composant de la planche (lot 31c) : fichiers envoyés à la médiathèque, convertis, puis posés (Image : remplace ; Grille, carrousel : ajoutent).
       if (target.kind === "bitem") {
         await itemFlushRef.current();
@@ -1680,6 +1782,7 @@ export default function VisualEditor({
       }
       if (target.kind === "media" || target.kind === "cell") placeMedia(target, mediaId, kind);
       else if (target.kind === "gcell") await gridPut(target.uid, target.board, target.index, mediaId, kind, target.props);
+      else if (target.kind === "free") await freePut(target.uid, target.board, target.x, target.y, mediaId, kind, target.props);
       else if (target.kind === "new") {
         const created = await createProject(target.uid, "Projet sans titre");
         if (created) await boardDo(created.id, { op: "add", mediaId, index: 0 });
@@ -1778,6 +1881,8 @@ export default function VisualEditor({
       const field = own(byType, block.type)?.mediaFields?.find((f) => f.kind === m.kind || (f.kind === "any" && m.kind !== "pdf"));
       if (field) return placeMedia({ kind: "media", uid: block.uid, field: field.field as "mediaId" | "backgroundMediaId" | "portraitMediaId" }, m.id, m.kind);
       if (block.type === "grid") return placeMedia({ kind: "cell", uid: block.uid }, m.id, m.kind);
+      // Planche libre (lot 42) : l'image se pose vers le centre de la zone (le glisser sur la toile choisit l'endroit).
+      if (block.type === "free-board") return void freeChoose({ uid: block.uid }, m.id, m.kind);
     }
     setMediaPreview(m);
   };
@@ -1945,9 +2050,9 @@ export default function VisualEditor({
   };
 
   const itemFlush = () => itemFlushRef.current();
-  const handlers = useRef({ itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, videoMode });
+  const handlers = useRef({ itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode });
   useEffect(() => {
-    handlers.current = { itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, videoMode };
+    handlers.current = { itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -2089,6 +2194,12 @@ export default function VisualEditor({
           break;
         case "grid-op":
           void h.gridOp(msg);
+          break;
+        case "free-op":
+          // Refusé ou sans effet : la toile retire son aperçu et rétablit la valeur d'origine.
+          void h.freeOp(msg).then((ok) => {
+            if (!ok && msg.seq) send({ kind: "revert", seq: msg.seq });
+          });
           break;
         case "video-mode":
           void h.videoMode(msg);
@@ -3173,6 +3284,25 @@ export default function VisualEditor({
           if (!p) return;
           void sendAndWait(file).then((id) => {
             if (id !== null) void gridPut(p.uid, p.board, p.index, id, file.type.startsWith("video/") ? "video" : "image", p.props);
+          });
+        }}
+      />
+
+      <MediaPickerDialog
+        open={freePick !== null}
+        media={context.media.filter((m) => m.kind === "image" || m.kind === "video")}
+        onClose={() => setFreePick(null)}
+        onPick={(mediaId) => {
+          const p = freePick;
+          setFreePick(null);
+          if (p) void freeChoose(p, mediaId);
+        }}
+        onFile={(file) => {
+          const p = freePick;
+          setFreePick(null);
+          if (!p) return;
+          void sendAndWait(file).then((id) => {
+            if (id !== null) void freeChoose(p, id, file.type.startsWith("video/") ? "video" : "image");
           });
         }}
       />

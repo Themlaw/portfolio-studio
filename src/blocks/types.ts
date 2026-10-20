@@ -56,12 +56,16 @@ export type BlockContext = {
    * « + Image », média cadrable) sont posés comme sur une page, sans les autres commandes de la toile (`edit`).
    */
   gridCanvas?: boolean;
+  /** Planche libre d'une planche de projet sur la toile (lot 42) : repères d'édition des images, sans les autres commandes de la toile (`edit`). */
+  freeCanvas?: boolean;
   /** Grille : uid et mise en forme (JSON) de chacune de ses cases, dans l'ordre (vue brouillon de page, ou `gridCanvas`). */
   cellInfo?: { uid: string; type: string; look?: string }[];
   /** Cellule de grille : nombre de colonnes (≥ 768 px) et format imposé aux images (« auto » = le leur). */
   cellColumns?: number;
   /** Cellule d'une grille « Automatique » (lot 31e) : une image très large y prend toute la largeur (pour le choix de la variante). */
   cellAuto?: boolean;
+  /** Cellule d’une grille dont les images s’agrandissent au clic (lot 44, `zoom` de la grille ; public et Aperçu seulement). */
+  cellViewer?: boolean;
   cellRatio?: string;
   /** Identifiant en base du bloc rendu (version publiée ; négatif en vue brouillon). */
   blockId?: number;

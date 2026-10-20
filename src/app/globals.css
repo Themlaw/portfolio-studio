@@ -342,6 +342,9 @@
     /* Fondu des bords : largeur de la zone où l'image coupée « passe
        derrière le fond » (au moins la marge de page). */
     --strip-fade: max(var(--rail-inset), clamp(2.5rem, 9vw, 7.5rem));
+    /* Largeur visible d'une image (lot 45) : le contenu de la bande, entre les marges de page (--page-max les comprend). */
+    container-type: inline-size;
+    --strip-vis: calc(min(100cqw, var(--page-max)) - 2 * var(--rail-gutter));
     position: relative;
     margin-top: calc(clamp(1.75rem, 3.5vw, 2.75rem) - var(--rail-room));
     margin-bottom: calc(-1 * var(--strip-ring));
@@ -412,6 +415,14 @@
   .strip-frame {
     flex: 0 0 auto;
     scroll-snap-align: start;
+  }
+
+  /* Panorama entier (lot 45, défaut) : une image ne dépasse jamais la largeur visible de la bande. Sa hauteur est réduite pour tenir
+     (largeur visible / ratio), la largeur en découle ; une image qui tient déjà garde la hauteur de la bande (rien ne change).
+     Réduite, elle est centrée dans la hauteur de la bande ; sa légende reste dessous, à sa largeur. « À faire défiler » : comme avant. */
+  .strip-frame[data-pano="fit"] {
+    --fit-h: min(var(--strip-h), calc(var(--strip-vis) / var(--ir, 1)));
+    margin-top: calc((var(--strip-h) - var(--fit-h)) / 2);
   }
 
   .strip-media {
@@ -921,26 +932,26 @@
    (ce sont les cases d'une seule rangée qui donnent leur hauteur à la ligne : aucune ne se déforme). */
 @media (min-width: 48rem) {
   .block-grid-cell[data-span-h],
-  .block-grid[data-layout^="portrait"] > .block-grid-cell:nth-child(3n + 1) {
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) {
     display: flex;
     flex-direction: column;
   }
   .block-grid-cell[data-span-h] .block-image,
-  .block-grid[data-layout^="portrait"] > .block-grid-cell:nth-child(3n + 1) .block-image {
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image {
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
     min-height: 0;
   }
   .block-grid-cell[data-span-h] .block-image > span:first-child,
-  .block-grid[data-layout^="portrait"] > .block-grid-cell:nth-child(3n + 1) .block-image > span:first-child {
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image > span:first-child {
     position: relative;
     display: block;
     flex: 1 1 auto;
     min-height: 14rem;
   }
   .block-grid-cell[data-span-h] .block-image-media,
-  .block-grid[data-layout^="portrait"] > .block-grid-cell:nth-child(3n + 1) .block-image-media {
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image-media {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -1063,4 +1074,9 @@
 /* Téléphone : pleine largeur (une colonne d'un tiers n'y montrerait presque rien). */
 @media (max-width: 640px) {
   .board-box { width: 100%; }
+}
+
+/* Cliquer pour agrandir (lot 44, src/lib/viewer.ts) : public et Aperçu seulement (la toile n émet pas l attribut). */
+[data-viewer-item][role="button"] {
+  cursor: zoom-in;
 }
