@@ -218,11 +218,11 @@ try {
   ok("E1b repère « Déposer ici » dans la planche pendant le glisser", markerSeen);
   await settled();
   await page.getByRole("tab", { name: "Ajouter" }).click();
-  // La carte est amenée à l'écran AVANT de mesurer la planche : le défilement de la palette ne doit pas décaler la cible.
+  // La carte est amenée à l'écran AVANT de mesurer la planche ; la cible reste à 120 px du bas de la fenêtre (sinon la toile défile pendant le glisser et le dépôt tombe sous la planche).
   await page.locator('.ve-card[data-key="board-strip"]').scrollIntoViewIfNeeded();
   await center(frame(2));
   const f2 = await frame(2).boundingBox();
-  await drag(page.locator('.ve-card[data-key="board-strip"]'), f2.x + f2.width / 2, f2.y + f2.height - 4);
+  await drag(page.locator('.ve-card[data-key="board-strip"]'), f2.x + f2.width / 2, Math.min(f2.y + f2.height - 4, 780));
   ok("E2 glisser « Images qui défilent » en bas de la planche", await waitFor(() => JSON.stringify(typesOf()) === '["grid","grid","image","strip"]'), JSON.stringify(typesOf()));
   await settled();
   // Dépôt hors cible : un composant lâché hors de la toile ne change ni la planche ni la page.
