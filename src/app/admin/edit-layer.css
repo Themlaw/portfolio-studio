@@ -2413,7 +2413,8 @@ html[data-edit-mode] .pe-bitem-bar .pe-seg button { height: 28px; border-radius:
    la ligne Titre / Légende / Date : on lui laisse la place (toile seulement), sinon il recouvre le champ et le clic lui revient. */
 html[data-edit-mode] .pe-bitem:has(.media-caption) {
   padding-bottom: 18px;
-=======
+}
+
 /* ---- Planche libre (lot 42) : zone, repères, poignées ---------------------------------------------------------------------- */
 [data-edit-mode] .free-board[data-edit-free] {
   outline: 1px dashed rgba(46, 78, 158, 0.35);

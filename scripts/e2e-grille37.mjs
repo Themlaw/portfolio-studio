@@ -7,6 +7,8 @@
  *  C  Publication : public = toile, page ET planche, aucun repère d'édition, aucune image perdue, ordre gardé.
  *  E  (lot 37b) Préréglage « 3 » + Libre justifié (toile + public) ; « 3 » + Carré et « Portrait à gauche + 2 » inchangés ;
  *     menu Taille : « Seule sur sa ligne » puis « Avec les autres » (vrais clics) ; téléphone 390 px.
+ *  F  (lot 46) « Sur mesure » + Libre justifié (toile + public + téléphone) ; case pleine largeur = seule sur sa ligne ; « Sur mesure » + Carré
+ *     inchangé ; « Portrait à gauche + 2 » + Libre justifié avec son aide, + Carré inchangé ; menu Taille (vrais clics) : « Seule sur sa ligne » puis « Avec les autres ».
  *  D  Téléphone 390 px : deux paysages côte à côte ; carré + 2/3 trop étroit, une image par ligne ; pas de débordement.
  * Captures : $SHOTS. Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=A,B,C,D] [SHOTS=dossier] node scripts/e2e-grille37.mjs
  */
@@ -208,7 +210,7 @@ try {
     ok("E2 « 3 » + Carré inchangé : trois cases égales, images carrées", r.every((c) => near(c.width, r[0].width, 2) && near(c.iw, c.ih, 2)) && !(await f2.locator('[data-edit-block="e2"] .block-grid[data-justify]').count()), JSON.stringify(r.map((c) => [c.width, c.iw, c.ih])));
     await center(f2, '[data-edit-block="e3"] .block-grid');
     r = (await measure(f2, '[data-edit-block="e3"] .block-grid')).filter((c) => !c.free);
-    ok("E3 « Portrait à gauche + 2 » inchangé : pas de rangées justifiées, portrait sur deux rangées", !(await f2.locator('[data-edit-block="e3"] .block-grid[data-justify]').count()) && r[0].height > r[1].height * 1.5 && near(r[1].left, r[2].left, 2), JSON.stringify(r.map((c) => [c.left, c.top, c.height])));
+    ok("E3 « Portrait à gauche + 2 » + Libre : justifié aussi (lot 46)", !!(await f2.locator('[data-edit-block="e3"] .block-grid[data-justify]').count()) && r.every((c, i) => i === 0 || near(c.ih, r[0].ih, 2) || c.top > r[0].top), JSON.stringify(r.map((c) => [c.left, c.top, c.height])));
     await shot("E-inchanges");
 
     // E4 Taille : « Seule sur sa ligne » puis « Avec les autres », vrais clics sur la toile.
@@ -293,6 +295,153 @@ try {
     ok("E6 téléphone : pas de débordement, quatre images, la seule sur sa ligne pleine largeur", ph <= 0 && t5.length === 4 && near(t5[2].width, t5[2].gw, 2), JSON.stringify([ph, t5.map((c) => [c.top, c.width])]));
     ok("E6b téléphone : aucune image sous 138 px de large", t5.every((c) => c.width >= 138));
     await pub.screenshot({ path: path.join(SHOTS, "E-telephone.png"), fullPage: true });
+    await pub.close();
+  }
+  if (run("F")) {
+    // F1 Sur mesure 2 colonnes + Libre (cas de la capture 20) : carré + 2/3 de même hauteur, sans recadrage ; la hauteur « 2 rangées » est ignorée.
+    const cust = (uid, extra, kids) => grid(uid, { layout: "custom", cols: 2, ...extra }, kids);
+    const fr = await withCanvas([
+      cust("f1", { spans: [{ w: 1, h: 1 }, { w: 1, h: 2 }, { w: 1, h: 1 }] }, [img("f1a", M.carre), img("f1b", M.portrait), img("f1c", M.paysage)]),
+    ]);
+    const G = '[data-edit-block="f1"] .block-grid';
+    await center(fr, G);
+    let r = await measure(fr, G);
+    justified(r, [1, 2 / 3, 3 / 2], "F1 Sur mesure + Libre (toile)");
+    const real = r.filter((c) => !c.free);
+    ok("F1b deux images sur la première rangée, la troisième dessous, ordre gardé, une place libre", near(real[0].top, real[1].top, 1) && real[2].top > real[0].top && real.every((c, i) => Number(c.idx) === i) && r.filter((c) => c.free).length === 1, JSON.stringify(real.map((c) => [c.idx, c.top])));
+    ok("F1c la grille reste « Sur mesure » dans le brouillon (données intactes)", draftBlocks(pageId)[0].props.layout === "custom" && draftBlocks(pageId)[0].props.spans.length === 3);
+    await shot("F-sur-mesure-libre-toile");
+
+    // F2 une case pleine largeur (w >= colonnes) est seule sur sa ligne ; F3 Sur mesure + Carré inchangé ; F4 Portrait à gauche + 2 + Libre inchangé.
+    setDraft(pageId, [
+      cust("f2", { spans: [{ w: 1, h: 1 }, { w: 2, h: 1 }, { w: 1, h: 1 }, { w: 1, h: 1 }] }, [img("f2a", M.carre), img("f2b", M.portrait), img("f2c", M.paysage), img("f2d", M.carre)]),
+      cust("f3", { ratio: "1:1", spans: [{ w: 1, h: 1 }, { w: 2, h: 1 }, { w: 1, h: 1 }] }, [img("f3a", M.carre), img("f3b", M.portrait), img("f3c", M.paysage)]),
+      grid("f4", { layout: "portrait-left" }, [img("f4a", M.portrait), img("f4b", M.carre), img("f4c", M.paysage)]),
+      grid("f8", { layout: "portrait-left", ratio: "1:1" }, [img("f8a", M.portrait), img("f8b", M.carre), img("f8c", M.paysage)]),
+    ]);
+    const f2 = await openEditor(page, BASE, pageId);
+    await center(f2, '[data-edit-block="f2"] .block-grid');
+    r = (await measure(f2, '[data-edit-block="f2"] .block-grid')).filter((c) => !c.free);
+    ok("F2 case pleine largeur : seule sur sa ligne, avant et après rangées complétées", near(r[1].width, r[1].gw, 2) && r[1].top > r[0].top && r[2].top > r[1].top && near(r[2].top, r[3].top, 1) && near(r[1].iw / r[1].ih, 2 / 3, 0.02), JSON.stringify(r.map((c) => [c.top, c.width])));
+    await shot("F-pleine-largeur");
+    await center(f2, '[data-edit-block="f3"] .block-grid');
+    r = (await measure(f2, '[data-edit-block="f3"] .block-grid')).filter((c) => !c.free);
+    ok("F3 Sur mesure + Carré inchangé : pas justifié, case large sur 2 colonnes, images carrées", !(await f2.locator('[data-edit-block="f3"] .block-grid[data-justify]').count()) && near(r[1].width, r[1].gw, 2) && r[0].width < r[1].width && near(r[0].iw / r[0].ih, 1, 0.02), JSON.stringify(r.map((c) => [c.top, c.width, c.iw, c.ih])));
+    await center(f2, '[data-edit-block="f4"] .block-grid');
+    r = (await measure(f2, '[data-edit-block="f4"] .block-grid')).filter((c) => !c.free);
+    ok("F4 « Portrait à gauche + 2 » + Libre justifié : rangées de même hauteur, non recadrées", !!(await f2.locator('[data-edit-block="f4"] .block-grid[data-justify]').count()), "");
+    justified(r, [2 / 3, 1, 3 / 2], "F4 portrait à gauche + 2 + Libre (toile)");
+    await center(f2, '[data-edit-block="f8"] .block-grid');
+    r = (await measure(f2, '[data-edit-block="f8"] .block-grid')).filter((c) => !c.free);
+    ok("F4e « Portrait à gauche + 2 » + Carré : grandes cases inchangées (portrait sur deux rangées)", !(await f2.locator('[data-edit-block="f8"] .block-grid[data-justify]').count()) && r[0].height > r[1].height * 1.5 && near(r[1].left, r[2].left, 2), JSON.stringify(r.map((c) => [c.left, c.top, c.height])));
+    await shot("F-portrait-libre-et-carre");
+
+    // F4b l'aide « les cases gardent leur forme » : fenêtre Réglages ET panneau (et absente en Sur mesure).
+    const HINT = /Pour garder les grandes cases/;
+    const first = f2.locator('[data-edit-block="f4"] .block-grid > .block-grid-cell[data-cell-index="0"]');
+    await first.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    await sleep(600);
+    const fb = await first.boundingBox();
+    await page.mouse.click(fb.x + fb.width / 2, fb.y + Math.min(fb.height * 0.8, 240));
+    await f2.locator(".pe-crumbs .pe-crumb").first().click();
+    await f2.locator('[data-testid="grid-settings-button"]').waitFor({ timeout: 20000 });
+    await f2.locator('[data-testid="grid-settings-button"]').click();
+    await f2.locator('[data-testid="gridsettings"]').waitFor({ timeout: 10000 });
+    ok("F4b aide dans la fenêtre Réglages", HINT.test(await f2.locator('[data-testid="gridsettings-keep-hint"]').innerText()));
+    await shot("F-aide-reglages");
+    await f2.locator('[data-testid="gridsettings-more"]').click();
+    await page.getByTestId("grid-top").waitFor({ timeout: 20000 });
+    ok("F4c aide dans le panneau", HINT.test(await page.getByTestId("grid-keep-hint").innerText()));
+
+    // F5 menu Taille au vrai clic en Sur mesure : « Seule sur sa ligne » puis « Avec les autres ».
+    setDraft(pageId, [cust("f5", { spans: [{ w: 1, h: 2 }, { w: 1, h: 1 }, { w: 1, h: 1 }, { w: 1, h: 1 }] }, [img("f5a", M.carre), img("f5b", M.portrait), img("f5c", M.paysage), img("f5d", M.carre)])]);
+    const f5 = await openEditor(page, BASE, pageId);
+    const G5 = '[data-edit-block="f5"] .block-grid';
+    await center(f5, G5);
+    const hoverCell = async (i) => {
+      const c = f5.locator(`${G5} > .block-grid-cell[data-cell-index="${i}"]`);
+      await c.evaluate((el) => el.scrollIntoView({ block: "center" }));
+      await sleep(600);
+      const b = await c.boundingBox();
+      await page.mouse.move(b.x + b.width / 2 + 3, b.y + b.height / 3);
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 3 + 2, { steps: 3 });
+      await f5.locator('[data-testid="cellbar"]').waitFor({ timeout: 10000 });
+      await sleep(300);
+    };
+    const click = async (loc) => {
+      const b = await loc.boundingBox();
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 3 });
+      await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+    };
+    const choose = async (name) => {
+      await click(f5.locator('[data-testid="cellbar"] [data-cb="size"]'));
+      const item = f5.locator(`.pe-gridmenu [data-cb="${name}"]`);
+      await item.waitFor({ timeout: 5000 });
+      await click(item);
+      await sleep(1800);
+    };
+    await hoverCell(1);
+    await click(f5.locator('[data-testid="cellbar"] [data-cb="size"]'));
+    const labels = await f5.locator(".pe-gridmenu [data-cb]").allInnerTexts();
+    ok("F5a Sur mesure + Libre : le menu Taille ne propose que « Seule sur sa ligne » et « Avec les autres »", labels.map((x) => x.trim()).join("|") === "Seule sur sa ligne|Avec les autres", labels.join("|"));
+    await page.keyboard.press("Escape");
+    await hoverCell(1);
+    await choose("alone");
+    r = (await measure(f5, G5)).filter((c) => !c.free);
+    ok("F5b « Seule sur sa ligne » : pleine largeur sur sa rangée, non recadrée", near(r[1].width, r[1].gw, 2) && r[1].top > r[0].top && r[2].top > r[1].top && near(r[1].iw / r[1].ih, 2 / 3, 0.02), JSON.stringify(r.map((c) => [c.top, c.width])));
+    ok("F5c brouillon : la case n° 2 couvre les 2 colonnes, rien d'autre ne change", JSON.stringify(draftBlocks(pageId)[0].props.spans) === JSON.stringify([{ w: 1, h: 2 }, { w: 2, h: 1 }, { w: 1, h: 1 }, { w: 1, h: 1 }]) && draftBlocks(pageId)[0].props.layout === "custom");
+    await shot("F-seule");
+    await hoverCell(1);
+    await choose("with-others");
+    r = (await measure(f5, G5)).filter((c) => !c.free);
+    ok("F5d « Avec les autres » : retour à deux images par rangée", near(r[0].top, r[1].top, 1) && near(r[2].top, r[3].top, 1), JSON.stringify(r.map((c) => c.top)));
+    ok("F5e annuler (Ctrl+Z) rétablit la case seule, rétablir (Ctrl+Maj+Z) la remet avec les autres", await (async () => {
+      await page.mouse.click(2, 2);
+      await page.keyboard.press("Control+z");
+      await sleep(1800);
+      const a = (await measure(f5, G5)).filter((c) => !c.free);
+      const undone = near(a[1].width, a[1].gw, 2);
+      await page.keyboard.press("Control+Shift+z");
+      await sleep(1800);
+      const b = (await measure(f5, G5)).filter((c) => !c.free);
+      return undone && near(b[0].top, b[1].top, 1);
+    })());
+
+    // F6 public et téléphone : Sur mesure + Libre justifié, case pleine largeur seule, Sur mesure + Carré inchangé, aucune image perdue.
+    setDraft(pageId, [
+      cust("f6", { spans: [{ w: 1, h: 1 }, { w: 1, h: 2 }, { w: 2, h: 1 }, { w: 1, h: 1 }] }, [img("f6a", M.carre), img("f6b", M.portrait), img("f6c", M.paysage), img("f6d", M.carre)]),
+      cust("f7", { ratio: "1:1", spans: [{ w: 1, h: 1 }, { w: 2, h: 1 }, { w: 1, h: 1 }] }, [img("f7a", M.carre), img("f7b", M.portrait), img("f7c", M.paysage)]),
+    ]);
+    await openEditor(page, BASE, pageId);
+    await page.getByRole("button", { name: "Publier", exact: true }).click();
+    ok("F6 publié", await waitFor(() => sql((db) => db.prepare("select draft from pages where id = ?").get(pageId)).draft === null, 90000));
+    await sleep(2500);
+    const html = await (await fetch(`${BASE}/fr/personnages`)).text();
+    ok("F6b public : justifié, une case seule, aucun repère d'édition", /data-justify/.test(html) && /data-jalone/.test(html) && !/data-edit-|pe-cell|data-cell-/.test(html.replace(/<script[\s\S]*?<\/script>/g, "")));
+    const pub = await (await browser.newContext()).newPage();
+    await pub.setViewportSize({ width: 1180, height: 900 });
+    await pub.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });
+    const pm = (n) => pub.evaluate((k) => {
+      const g = document.querySelectorAll(".block-grid")[k];
+      const gb = g.getBoundingClientRect();
+      return [...g.querySelectorAll(":scope > .block-grid-cell")].map((c) => {
+        const rc = c.getBoundingClientRect();
+        const m = c.querySelector(".block-image-media")?.getBoundingClientRect();
+        return { free: false, idx: c.dataset.cellIndex, left: rc.left - gb.left, top: rc.top - gb.top, width: rc.width, height: rc.height, gw: gb.width, iw: m?.width ?? 0, ih: m?.height ?? 0 };
+      });
+    }, n);
+    const p6 = await pm(0);
+    ok("F6c public : quatre images, ordre gardé, la troisième (paysage, pleine largeur) seule", p6.length === 4 && near(p6[2].width, p6[2].gw, 2) && p6[2].top > p6[0].top && near(p6[0].top, p6[1].top, 1) && p6[3].top > p6[2].top, JSON.stringify(p6.map((c) => [c.top, c.width])));
+    justified(p6.slice(0, 2), [1, 2 / 3], "F6d public Sur mesure + Libre, rangée de deux");
+    const p7 = await pm(1);
+    ok("F6e public Sur mesure + Carré inchangé (case large, images carrées)", p7.length === 3 && near(p7[1].width, p7[1].gw, 2) && p7[0].width < p7[1].width && near(p7[0].iw / p7[0].ih, 1, 0.02), JSON.stringify(p7.map((c) => [c.width, c.iw, c.ih])));
+    await pub.screenshot({ path: path.join(SHOTS, "F-public.png"), fullPage: true });
+    await pub.setViewportSize({ width: 390, height: 844 });
+    await pub.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });
+    const ph = await pub.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    const t6 = await pm(0);
+    ok("F7 téléphone : pas de débordement, quatre images, aucune sous 138 px, la pleine largeur seule", ph <= 0 && t6.length === 4 && t6.every((c) => c.width >= 138) && near(t6[2].width, t6[2].gw, 2), JSON.stringify([ph, t6.map((c) => [c.top, c.width])]));
+    await pub.screenshot({ path: path.join(SHOTS, "F-telephone.png"), fullPage: true });
     await pub.close();
   }
 } catch (e) {
