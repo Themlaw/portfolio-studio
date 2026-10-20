@@ -120,7 +120,12 @@ async function openEditor() {
 async function publish() {
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  const okp = await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  if (!okp) {
+    await page.screenshot({ path: path.join(SHOTS, "echec-publication.png") });
+    console.log("STATUT: " + (await page.locator(".ve-status").textContent()) + " | " + (await page.evaluate(() => [...document.querySelectorAll("[role=status],[role=alert]")].map((e) => e.textContent).join(" / "))));
+  }
+  return okp;
 }
 async function activateTheme(name) {
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
@@ -208,7 +213,7 @@ async function openFond(word) {
   for (let attempt = 0; ; attempt++) {
     try {
       await host.scrollIntoViewIfNeeded();
-      await host.locator("section").first().click({ position: { x: 4, y: 30 } });
+      await host.locator("section").first().click({ position: { x: 40, y: 30 } });
       break;
     } catch (e) {
       if (attempt >= 3) throw e;
@@ -351,7 +356,7 @@ await section("C", async () => {
 async function openCard(word) {
   const host = f.locator('[data-edit-block][data-edit-type="rich-text"]', { hasText: word }).first();
   await host.scrollIntoViewIfNeeded();
-  await host.locator("section").first().click({ position: { x: 4, y: 30 } });
+  await host.locator("section").first().click({ position: { x: 40, y: 30 } });
   await f.locator(".pe-tools .sm-button:not([data-testid])").click();
   const menu = f.locator(".sm").first();
   await menu.waitFor({ timeout: 20000 });

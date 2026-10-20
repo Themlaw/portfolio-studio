@@ -345,11 +345,16 @@ figure.block-image[data-img-bg] .block-image-frame,
   border-radius: 0;
 }
 .surface-card[data-surface="on"] {
-  /* Marge latérale d'une carte « Avec marge » : la gouttière du thème. */
-  --card-mx: var(--gutter);
+  /* Marge latérale d'une carte « Avec marge » : la gouttière du thème, tant que le contenu (centré, borné à --page-max) garde au moins une
+     demi-gouttière de respiration à l'intérieur de la carte ; sur un écran plus étroit la carte se rapproche du bord, jamais le contenu
+     (il garde sa place et sa largeur sans carte). La même valeur sert à la carte et à sa couche intérieure (`100vw` : sans pourcentage). */
+  --card-mx: min(var(--gutter), calc(var(--gutter) / 2 + max(0px, (100vw - var(--page-max)) / 2)));
+  /* Largeur retirée au contenu par la carte : sa marge (« Avec marge ») et sa bordure, rendues par la couche intérieure. */
+  --card-ex: var(--card-bw, 0px);
 }
 .surface-card[data-surface="on"][data-width="inset"] {
   margin-inline: var(--card-mx);
+  --card-ex: calc(var(--card-mx) + var(--card-bw, 0px));
 }
 /* Couche intérieure (lot 47b) : sans boîte ; avec une marge elle reprend la largeur que la marge retire à la carte, donc le contenu garde
    la largeur et la place qu'il a sans carte, seule la carte colorée est rognée. Un fond de composant posé sur la carte (bord à bord de la
@@ -357,23 +362,23 @@ figure.block-image[data-img-bg] .block-image-frame,
 .surface-card > .card-in {
   display: contents;
 }
-.surface-card[data-surface="on"][data-width="inset"] > .card-in {
+.surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in {
   display: flow-root;
-  margin-inline: calc(-1 * var(--card-mx));
+  margin-inline: calc(-1 * var(--card-ex));
 }
-.surface-card[data-surface="on"][data-width="inset"] > .card-in > .fond-bloc[data-fond="on"] {
+.surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in > .fond-bloc[data-fond="on"] {
   width: auto;
-  margin-inline: var(--card-mx);
+  margin-inline: var(--card-ex);
 }
-.surface-card[data-surface="on"][data-width="inset"] > .card-in > .fond-bloc[data-fond="on"] > .fond-in {
+.surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in > .fond-bloc[data-fond="on"] > .fond-in {
   display: flow-root;
-  margin-inline: calc(-1 * var(--card-mx));
+  margin-inline: calc(-1 * var(--card-ex));
 }
-.surface-card[data-surface="on"][data-width="inset"] > .card-in > .fond-bloc[data-fond="on"][data-fond-inset] {
-  margin-inline: calc(var(--card-mx) + var(--fond-gap));
+.surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in > .fond-bloc[data-fond="on"][data-fond-inset] {
+  margin-inline: calc(var(--card-ex) + var(--fond-gap));
 }
-.surface-card[data-surface="on"][data-width="inset"] > .card-in > .fond-bloc[data-fond="on"][data-fond-inset] > .fond-in {
-  margin-inline: calc(-1 * (var(--card-mx) + var(--fond-gap)));
+.surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in > .fond-bloc[data-fond="on"][data-fond-inset] > .fond-in {
+  margin-inline: calc(-1 * (var(--card-ex) + var(--fond-gap)));
 }
 .surface-card[data-surface="on"][data-corners="round"] {
   border-radius: var(--card-radius);
