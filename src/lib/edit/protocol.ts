@@ -8,12 +8,13 @@
 import { z } from "zod";
 
 import { BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, type BoardItemType } from "../../blocks/board-layout";
+import { FREE_FORMATS } from "../../blocks/free-board";
 import { GRID_LAYOUTS, MAX_GRID_CELLS } from "../../blocks/grid-layouts";
 import { RATIO_VALUES } from "../images/formats";
 import { FIELD_OP_NAMES } from "../../blocks/optional-fields";
 import { BackgroundSchema } from "../../themes/schema";
 import { SurfaceSchema } from "../../themes/surface";
-import { FrameSchema, ImageBgSchema, LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
+import { FrameSchema, ImageBgSchema, LogoSchema, LookSchema, RADII, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
 import { BASE_KEYS } from "../../themes/palette";
 
 export const EDIT_MSG = "portfolio:edit";
@@ -60,6 +61,9 @@ const DropTarget = z.discriminatedUnion("kind", [
   // Lot 31d : une case précise d'une grille (page : `uid` = la grille ; planche : `board` + `uid` du composant). `index` au-delà de
   // la dernière image : la prochaine case libre (une grille se remplit dans l'ordre).
   z.object({ kind: z.literal("gcell"), uid: Uid, board: Board.optional(), props: z.string().max(100_000).optional(), index: z.number().int().min(0).max(MAX_GRID_CELLS) }),
+  // Lot 42 : une planche libre (page : `uid` = la rubrique ; planche : `board` + `uid` du composant). (x, y) = le point visé, en % de la
+  // zone : le centre de l'image posée.
+  z.object({ kind: z.literal("free"), uid: Uid, board: Board.optional(), props: z.string().max(100_000).optional(), x: z.number().finite().min(-50).max(150), y: z.number().finite().min(-50).max(150) }),
 ]);
 /** Case d'une grille (rang de l'image, de 0 à 23). */
 const CellIndex = z.number().int().min(0).max(MAX_GRID_CELLS - 1);
@@ -91,6 +95,30 @@ export const GridCanvasOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("video-mode"), index: CellIndex, mode: z.enum(["loop", "player"]) }),
 ]);
 export type GridCanvasOp = z.infer<typeof GridCanvasOpSchema>;
+/** Identité d'une image de la planche libre (lot 42). */
+const FreeId = z.string().regex(/^[a-z0-9]{1,12}$/);
+/**
+ * Opérations de la planche libre depuis la toile (lot 42), les mêmes pour une rubrique de page et un composant de planche (voir
+ * `applyFreeOp`, src/blocks/free-board.ts). « pick » : choisir une image ou une vidéo (remplacer celle de `id`, ou en ajouter une).
+ * Un geste (déplacer, redimensionner, pivoter) = UNE opération « place » = un pas d'historique.
+ */
+export const FreeCanvasOpSchema = z.discriminatedUnion("op", [
+  z.object({ op: z.literal("set"), format: z.enum(FREE_FORMATS).optional(), aspect: z.number().finite().min(0.4).max(4).optional(), phone: z.enum(["scale", "stack"]).optional() }),
+  z.object({ op: z.literal("pick"), id: FreeId.optional() }),
+  z.object({
+    op: z.literal("place"),
+    id: FreeId,
+    x: z.number().finite().min(-50).max(150).optional(),
+    y: z.number().finite().min(-50).max(150).optional(),
+    w: z.number().finite().min(1).max(150).optional(),
+    rot: z.number().finite().min(-180).max(180).optional(),
+  }),
+  z.object({ op: z.literal("front"), id: FreeId }),
+  z.object({ op: z.literal("back"), id: FreeId }),
+  z.object({ op: z.literal("remove"), id: FreeId }),
+  z.object({ op: z.literal("style"), id: FreeId, radius: z.enum(RADII).nullable().optional(), frame: FrameSchema.nullable().optional() }),
+]);
+export type FreeCanvasOp = z.infer<typeof FreeCanvasOpSchema>;
 const FileValue = z.custom<File>((v) => typeof File !== "undefined" && v instanceof File, "Fichier attendu");
 
 /** Toile → éditeur. */
@@ -137,6 +165,8 @@ export const FromCanvasSchema = z.union([
   // Lot 31d : grille unifiée (page ou planche). `board` : composant de planche (`props` = ses réglages tels que la toile les a lus,
   // repli si l'éditeur n'a pas encore l'état de la planche) ; absent : la grille est une rubrique de la page.
   z.object({ kind: z.literal("grid-op"), uid: Uid, board: Board.optional(), props: z.string().max(100_000).optional(), op: GridCanvasOpSchema }),
+  // Lot 42 : planche libre (page ou planche). `board` : composant de planche (`props` = ses réglages tels que la toile les a lus, repli).
+  z.object({ kind: z.literal("free-op"), uid: Uid, board: Board.optional(), props: z.string().max(100_000).optional(), op: FreeCanvasOpSchema }),
   // Lot 36 : lecture d'une vidéo (Boucle / Lecteur) depuis sa barre sur la toile : composant Vidéo d'une page (`uid`), composant
   // Vidéo ou bande de la planche (`board` + `uid` ; `props` = ses réglages lus par la toile, repli). `mode` null : la bande suit
   // la nature de chaque vidéo (réglage d'avant).
