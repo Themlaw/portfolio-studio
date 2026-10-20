@@ -141,6 +141,10 @@ await fr.locator(".block-grid").nth(10).waitFor({ timeout: 60000 });
   }
 }
 
+// Les blocs publiés reçoivent leurs identifiants à l'ouverture de l'éditeur : on lit ceux des grilles de la page.
+const GU = await fr.evaluate(() => [...document.querySelectorAll('[data-edit-block][data-edit-type="grid"]')].map((e) => e.dataset.editBlock));
+ok("B0b six grilles de page repérées sur la toile", GU.length === 6, JSON.stringify(GU));
+
 /** Boîtes des images d'une grille de la toile (page : `[data-edit-block]`, planche : `[data-edit-bitem]`). */
 const imgsOf = (sel) =>
   fr.evaluate((s) => {
@@ -185,8 +189,8 @@ const windowShape = (menu) =>
 try {
   // Page : la grille « marge M » (pg2) ouvre la fenêtre Fond ; planche : la grille « marge M » (bg2).
   console.log("  uids toile : " + (await fr.evaluate(() => [...document.querySelectorAll('[data-edit-block]')].map((e) => e.dataset.editBlock + '/' + e.dataset.editType).join(' '))));
-  const before = await imgsOf('[data-edit-block="pg0"]');
-  let menu = await openPageFond("pg2");
+  const before = await imgsOf(`[data-edit-block="${GU[0]}"]`);
+  let menu = await openPageFond(GU[2]);
   const winPage = await windowShape(menu);
   await page.screenshot({ path: path.join(SHOTS, "toile-fenetre-fond-page.png") });
   await page.keyboard.press("Escape");
@@ -200,7 +204,7 @@ try {
   ok("C2 Étendue « Bord à bord / Avec marge », Coins « Droits / Petit / Moyen / Grand », avec pictogrammes (6)", winPage.minis === 6 && ["Bord à bord", "Avec marge", "Droits", "Petit", "Moyen", "Grand"].every((t) => winPage.buttons.includes(t)) && !winPage.buttons.some((t) => /En retrait|Coins arrondis|Pleine largeur|Coins droits/.test(t)), JSON.stringify(winPage));
 
   // Aperçu immédiat : pose une couleur puis « Avec marge » + coins sur la grille sans fond (page, puis planche) ; les images ne bougent pas.
-  for (const [where, open, sel, uid] of [["page", openPageFond, '[data-edit-block="pg0"]', "pg0"], ["planche", openBoardFond, '[data-edit-bitem="bg0"]', "bg0"]]) {
+  for (const [where, open, sel, uid] of [["page", openPageFond, `[data-edit-block="${GU[0]}"]`, GU[0]], ["planche", openBoardFond, '[data-edit-bitem="bg0"]', "bg0"]]) {
     const b0 = await imgsOf(sel);
     const mn = await open(uid);
     await mn.locator('[data-kind="color"]').click();
