@@ -704,6 +704,8 @@ try {
   // Appui long sur une carte de la palette, puis glisser dans la planche.
   const kinds0 = (json(project().draft_layout) ?? json(project().layout)).length;
   await tp.getByRole("tab", { name: "Ajouter" }).click();
+  // La palette compte une carte de plus (lot 42) : la carte visée est amenée à l'écran avant les mesures.
+  await tp.locator('.ve-card[data-key="grid"]').scrollIntoViewIfNeeded();
   await TF(iA).evaluate((el) => el.scrollIntoView({ block: "center" }));
   await sleep(500);
   const card = await tp.locator('.ve-card[data-key="grid"]').boundingBox();
