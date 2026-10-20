@@ -317,6 +317,7 @@ try {
       cust("f2", { spans: [{ w: 1, h: 1 }, { w: 2, h: 1 }, { w: 1, h: 1 }, { w: 1, h: 1 }] }, [img("f2a", M.carre), img("f2b", M.portrait), img("f2c", M.paysage), img("f2d", M.carre)]),
       cust("f3", { ratio: "1:1", spans: [{ w: 1, h: 1 }, { w: 2, h: 1 }, { w: 1, h: 1 }] }, [img("f3a", M.carre), img("f3b", M.portrait), img("f3c", M.paysage)]),
       grid("f4", { layout: "portrait-left" }, [img("f4a", M.portrait), img("f4b", M.carre), img("f4c", M.paysage)]),
+      grid("f9", { layout: "portrait-right" }, [img("f9a", M.portrait), img("f9b", M.carre), img("f9c", M.paysage)]),
       grid("f8", { layout: "portrait-left", ratio: "1:1" }, [img("f8a", M.portrait), img("f8b", M.carre), img("f8c", M.paysage)]),
     ]);
     const f2 = await openEditor(page, BASE, pageId);
@@ -331,6 +332,11 @@ try {
     r = (await measure(f2, '[data-edit-block="f4"] .block-grid')).filter((c) => !c.free);
     ok("F4 « Portrait à gauche + 2 » + Libre justifié : rangées de même hauteur, non recadrées", !!(await f2.locator('[data-edit-block="f4"] .block-grid[data-justify]').count()), "");
     justified(r, [2 / 3, 1, 3 / 2], "F4 portrait à gauche + 2 + Libre (toile)");
+    // F9 « Portrait à droite » + Libre justifié : le miroir est ignoré, l'ordre visuel (gauche → droite) reste l'ordre de lecture.
+    await center(f2, '[data-edit-block="f9"] .block-grid');
+    r = (await measure(f2, '[data-edit-block="f9"] .block-grid')).filter((c) => !c.free);
+    const rows9 = r.filter((c) => near(c.top, r[0].top, 1)).sort((a, b) => a.left - b.left);
+    ok("F9 « Portrait à droite » + Libre justifié : pas de miroir, l'ordre des cases = l'ordre de lecture dans la rangée", !(await f2.locator('[data-edit-block="f9"] .block-grid[data-mirror]').count()) && rows9.every((c, i) => i === 0 || Number(rows9[i - 1].idx) < Number(c.idx)), JSON.stringify(r.map((c) => [c.idx, Math.round(c.left), Math.round(c.top)])));
     await center(f2, '[data-edit-block="f8"] .block-grid');
     r = (await measure(f2, '[data-edit-block="f8"] .block-grid')).filter((c) => !c.free);
     ok("F4e « Portrait à gauche + 2 » + Carré : grandes cases inchangées (portrait sur deux rangées)", !(await f2.locator('[data-edit-block="f8"] .block-grid[data-justify]').count()) && r[0].height > r[1].height * 1.5 && near(r[1].left, r[2].left, 2), JSON.stringify(r.map((c) => [c.left, c.top, c.height])));

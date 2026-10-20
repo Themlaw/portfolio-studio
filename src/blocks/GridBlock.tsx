@@ -156,7 +156,7 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
         data-ratio={props.ratio}
         {...(sized ? { "data-cols": geometry.cols } : {})}
         {...(justified ? { "data-justify": "" } : {})}
-        {...(geometry.mirror ? { "data-mirror": "" } : {})}
+        {...(geometry.mirror && !justified ? { "data-mirror": "" } : {})} /* Rangées justifiées : le miroir est ignoré, l'ordre visuel reste l'ordre de lecture (v0.27). */
         {...(sized ? { style: { "--cols": geometry.cols, "--grid-r": unit } as CSSProperties } : {})}
         {...(canvas ? { "data-edit-grid": "", "data-grid-cols": geometry.cols } : {})}
       >
