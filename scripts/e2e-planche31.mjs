@@ -218,6 +218,8 @@ try {
   ok("E1b repère « Déposer ici » dans la planche pendant le glisser", markerSeen);
   await settled();
   await page.getByRole("tab", { name: "Ajouter" }).click();
+  // La carte est amenée à l'écran AVANT de mesurer la planche : le défilement de la palette ne doit pas décaler la cible.
+  await page.locator('.ve-card[data-key="board-strip"]').scrollIntoViewIfNeeded();
   await center(frame(2));
   const f2 = await frame(2).boundingBox();
   await drag(page.locator('.ve-card[data-key="board-strip"]'), f2.x + f2.width / 2, f2.y + f2.height - 4);
