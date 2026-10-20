@@ -186,7 +186,7 @@ const pageGrid = (uid) => findIn(draftBlocks(pageId), uid);
 try {
   /* ============================ A. Page : barre de la grille ============================ */
   if (run("A")) {
-    setDraft(pageId, [grid("ga", { layout: "3" }, [img("a1", M.portrait), img("a2", M.paysage), img("a3", M.paysage2)])]);
+    setDraft(pageId, [grid("ga", { layout: "3", ratio: "4:3" }, [img("a1", M.portrait), img("a2", M.paysage), img("a3", M.paysage2)])]);
     await open();
     const G = PAGE_G("ga");
     await selectGrid(G);
@@ -239,7 +239,7 @@ try {
 
   /* ============================ B. Page : sur mesure ============================ */
   if (run("B")) {
-    setDraft(pageId, [grid("gb", { layout: "portrait-left" }, [img("b1", M.portrait), img("b2", M.paysage), img("b3", M.panorama), img("b4", M.carre)])]);
+    setDraft(pageId, [grid("gb", { layout: "portrait-left", ratio: "4:3" }, [img("b1", M.portrait), img("b2", M.paysage), img("b3", M.panorama), img("b4", M.carre)])]);
     await open();
     const G = PAGE_G("gb");
     await selectGrid(G);
@@ -273,7 +273,7 @@ try {
     await bar("cols").locator('[data-cols="3"]').click();
     ok("B6 colonnes : 3", await waitFor(() => pageGrid("gb")?.props.cols === 3));
     await settled(page);
-    setDraft(pageId, [grid("gb", { layout: "3" }, [img("b1", M.portrait), img("b2", M.paysage), img("b3", M.panorama), img("b4", M.carre)])]);
+    setDraft(pageId, [grid("gb", { layout: "3", ratio: "4:3" }, [img("b1", M.portrait), img("b2", M.paysage), img("b3", M.panorama), img("b4", M.carre)])]);
     await open();
     await selectGrid(G);
     const layoutBefore = JSON.stringify(pageGrid("gb").props);
@@ -433,8 +433,8 @@ try {
   if (run("E")) {
     setDraft(pageId, [
       grid("ge", { layout: "portrait-left", ratio: "4:3" }, [img("e1", M.portrait), img("e2", M.paysage), img("e3", M.paysage2)]),
-      grid("gf", { layout: "custom", cols: 3, spans: [{ w: 1, h: 2 }, { w: 2, h: 1 }, { w: 1, h: 1 }, { w: 1, h: 1 }] }, [img("f1", M.portrait), img("f2", M.panorama), img("f3", M.carre), img("f4", M.paysage)]),
-      grid("gg", { layout: "portrait-right" }, [img("g1", M.portrait), img("g2", M.paysage), img("g3", M.paysage2)]),
+      grid("gf", { layout: "custom", ratio: "4:3", cols: 3, spans: [{ w: 1, h: 2 }, { w: 2, h: 1 }, { w: 1, h: 1 }, { w: 1, h: 1 }] }, [img("f1", M.portrait), img("f2", M.panorama), img("f3", M.carre), img("f4", M.paysage)]),
+      grid("gg", { layout: "portrait-right", ratio: "4:3" }, [img("g1", M.portrait), img("g2", M.paysage), img("g3", M.paysage2)]),
     ]);
     await open();
     const canvasCols = {};
@@ -492,7 +492,7 @@ try {
   /* ============================ F. Anciennes grilles ============================ */
   if (run("F")) {
     // Lot 37b : « 2x2 » + Libre est justifié (voulu) ; l'ancien rendu des cases égales est celui d'un format imposé (4:3).
-    const legacy = (uid, layout, n) => grid(uid, { layout, gap: "tight", ...(layout === "2x2" ? { ratio: "4:3" } : {}) }, [img(`${uid}1`, M.paysage), img(`${uid}2`, M.paysage2), img(`${uid}3`, M.carre), img(`${uid}4`, M.panorama)].slice(0, n));
+    const legacy = (uid, layout, n) => grid(uid, { layout, gap: "tight", ratio: "4:3" }, [img(`${uid}1`, M.paysage), img(`${uid}2`, M.paysage2), img(`${uid}3`, M.carre), img(`${uid}4`, M.panorama)].slice(0, n));
     setDraft(pageId, [legacy("l1", "2x2", 4), legacy("l2", "1+2", 3), legacy("l3", "2+1", 3), { uid: "board1", type: "project-board", props: { project: project.slug } }]);
     // Ancienne grille de planche : sans tailles, avec une case vide (créée par l'ancien panneau).
     setBoardDraft(project.id, pageId, [
@@ -525,7 +525,7 @@ try {
     const kids = () => boardDraft(project.id)?.[0]?.props.children ?? [];
     const props = () => boardDraft(project.id)?.[0]?.props ?? {};
     setDraft(pageId, [{ uid: "board1", type: "project-board", props: { project: project.slug } }]);
-    setBoardDraft(project.id, pageId, [{ uid: "bg1", type: "grid", props: { layout: "3", gap: "normal", align: "stretch", ratio: "auto", top: "gap", children: [img("k1", M.portrait), img("k2", M.paysage), img("k3", M.paysage2)] } }]);
+    setBoardDraft(project.id, pageId, [{ uid: "bg1", type: "grid", props: { layout: "3", gap: "normal", align: "stretch", ratio: "4:3", top: "gap", children: [img("k1", M.portrait), img("k2", M.paysage), img("k3", M.paysage2)] } }]);
     await open();
     await selectGrid(BG);
     await gs();
@@ -654,7 +654,7 @@ try {
     ok("G15b panneau de planche : l'essentiel, puis la liste des cases, puis les réglages avancés", yTop < yList && yList < yAdv, `${yTop} ${yList} ${yAdv}`);
     ok("G15 panneau d'une grille de planche : l'essentiel en haut, comme une page", (await page.getByTestId("grid-top").count()) === 1 && (await page.locator('[data-testid="grid-top"] .ve-layout').count()) === 11);
     // Publication et public identique.
-    setBoardDraft(project.id, pageId, [{ uid: "bg1", type: "grid", props: { layout: "custom", gap: "normal", align: "stretch", ratio: "auto", top: "gap", cols: 3, spans: [{ w: 1, h: 2 }, { w: 2, h: 1 }, { w: 1, h: 1 }, { w: 1, h: 1 }], children: [img("p1", M.portrait), img("p2", M.panorama), img("p3", M.carre), img("p4", M.paysage)] } }]);
+    setBoardDraft(project.id, pageId, [{ uid: "bg1", type: "grid", props: { layout: "custom", gap: "normal", align: "stretch", ratio: "4:3", top: "gap", cols: 3, spans: [{ w: 1, h: 2 }, { w: 2, h: 1 }, { w: 1, h: 1 }, { w: 1, h: 1 }], children: [img("p1", M.portrait), img("p2", M.panorama), img("p3", M.carre), img("p4", M.paysage)] } }]);
     await open();
     await center(cellLoc(BG, 0));
     const canvasCols = (await rects(BG)).filter((x) => !x.free).map((x) => [Math.round((x.left / x.gw) * 50) / 50, Math.round((x.width / x.gw) * 50) / 50]);

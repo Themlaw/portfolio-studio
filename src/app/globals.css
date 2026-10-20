@@ -932,26 +932,26 @@
    (ce sont les cases d'une seule rangée qui donnent leur hauteur à la ligne : aucune ne se déforme). */
 @media (min-width: 48rem) {
   .block-grid-cell[data-span-h],
-  .block-grid[data-layout^="portrait"] > .block-grid-cell:nth-child(3n + 1) {
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) {
     display: flex;
     flex-direction: column;
   }
   .block-grid-cell[data-span-h] .block-image,
-  .block-grid[data-layout^="portrait"] > .block-grid-cell:nth-child(3n + 1) .block-image {
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image {
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
     min-height: 0;
   }
   .block-grid-cell[data-span-h] .block-image > span:first-child,
-  .block-grid[data-layout^="portrait"] > .block-grid-cell:nth-child(3n + 1) .block-image > span:first-child {
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image > span:first-child {
     position: relative;
     display: block;
     flex: 1 1 auto;
     min-height: 14rem;
   }
   .block-grid-cell[data-span-h] .block-image-media,
-  .block-grid[data-layout^="portrait"] > .block-grid-cell:nth-child(3n + 1) .block-image-media {
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image-media {
     position: absolute;
     inset: 0;
     width: 100%;

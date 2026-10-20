@@ -98,23 +98,40 @@ export const customCols = (shape: GridShape): number => clamp(shape.cols ?? DEFA
 export const AUTO_HINT = "Automatique : les images d'une même rangée ont la même hauteur, sans être recadrées. Un décor très large prend toute la largeur.";
 
 /**
- * Rangées justifiées (lot 37) : « Automatique » avec le format de case « Libre » range les images par rangées de
+ * Rangées justifiées (lot 37, étendues aux autres agencements aux lots 37b et 46) : le format de case « Libre » range les images par rangées de
  * `cols` au plus ; dans une rangée chaque image prend une largeur proportionnelle à son format (largeur / hauteur), donc
  * toutes ont la même hauteur et aucune n'est recadrée. Un panorama (format >= 1,9) reste seul sur sa rangée. Calculé au
  * rendu (jamais stocké). Un format imposé (Carré, 4:3…) garde les cases égales d'avant.
  */
-export const isJustified = (shape: GridShape): boolean => {
-  if (shape.ratio !== undefined && shape.ratio !== "auto") return false;
-  const layout = isGridLayout(shape.layout) ? shape.layout : "2";
-  return layout === "auto" || JUSTIFY_PRESETS.includes(layout);
-};
+export const isJustified = (shape: GridShape): boolean => shape.ratio === undefined || shape.ratio === "auto";
 
 /**
- * Lot 37b : les agencements en colonnes simples (cases toutes égales, sans case élargie ni sur deux rangées) sont justifiés eux
- * aussi avec le format « Libre » ; leurs colonnes donnent le nombre maximal d'images par rangée. « 1 grand » (une image par
- * ligne), les agencements à grandes cases et « Sur mesure » gardent leurs cases.
+ * Lot 46 (changement de décision) : le format « Libre » justifie TOUS les agencements ; le nombre de colonnes donne le nombre maximal
+ * d'images par rangée, une case qui couvre toutes les colonnes est seule sur sa ligne, les autres tailles sont ignorées. Les agencements à
+ * grandes cases perdent donc leurs grandes cases tant que le format est Libre : une aide le dit (un format imposé les redonne, sans migration).
  */
-const JUSTIFY_PRESETS: string[] = ["2", "3", "4", "2x2"];
+export const keepsShape = (shape: GridShape): boolean => {
+  if (shape.ratio !== undefined && shape.ratio !== "auto") return false;
+  return ["1+2", "2+1", "portrait-left", "portrait-right"].includes(isGridLayout(shape.layout) ? shape.layout : "2");
+};
+export const KEEP_SHAPE_HINT = "Format Libre : les images d'une rangée prennent la même hauteur. Pour garder les grandes cases de cet agencement, choisis un format (Carré, 4:3…).";
+
+/**
+ * « Seule sur sa ligne » de chacune des `n` premières images, en rangées justifiées : le drapeau `alone` ; en « Sur mesure »
+ * (lot 46), une case dont la largeur couvre toutes les colonnes. Les autres tailles de case sont ignorées en mode justifié.
+ */
+export function aloneFlags(shape: GridShape, n: number): boolean[] {
+  if (shape.layout === "custom") {
+    const cols = customCols(shape);
+    return Array.from({ length: n }, (_, i) => (shape.spans?.[i]?.w ?? 1) >= cols);
+  }
+  const flag = (i: number) => Array.isArray(shape.alone) && shape.alone[i] === true;
+  if (shape.layout === "auto") return Array.from({ length: n }, (_, i) => flag(i));
+  // Préréglages : le drapeau, ou une case du motif qui couvre toutes les colonnes (« 1 grand », 1re de « 1+2 », 3e de « 2+1 »).
+  const g = gridCells(shape, n);
+  return Array.from({ length: n }, (_, i) => flag(i) || g.cells[i].w >= g.cols);
+}
+
 
 /** Explication du format « Libre » en rangées justifiées (fenêtre Réglages et panneau). */
 export const JUSTIFY_HINT = "Format Libre : les images d'une même rangée ont la même hauteur, sans être recadrées.";
@@ -383,6 +400,26 @@ export function applyGridOp(props: Props, op: GridModelOp, ratios?: (number | nu
     case "alone": {
       if (op.index < 0 || op.index >= n) return { error: "Cette case n'existe plus." };
       if (!isJustified(props as GridShape)) return { error: "« Seule sur sa ligne » demande le format Libre." };
+      if (props.layout === "custom") {
+        // « Sur mesure » : seule sur sa ligne = largeur sur toutes les colonnes ; avec les autres = une colonne.
+        const cols = customCols(props as GridShape);
+        const spans = sp();
+        spans[op.index] = { ...spans[op.index], w: op.alone ? cols : 1 };
+        return { props: { ...props, cols, spans } };
+      }
+      if (props.layout !== "auto") {
+        // Préréglage : une case du motif déjà pleine largeur est seule d'office ; pour la ranger avec les autres, l'agencement passe en
+        // « Sur mesure » (même disposition, case réduite à une colonne). « 1 grand » : toutes les cases sont seules.
+        const pattern = gridCells(props as GridShape, n);
+        if (pattern.cells[op.index].w >= pattern.cols) {
+          if (op.alone) return { props };
+          if (props.layout === "1") return { error: "Avec « 1 grand », chaque image occupe sa ligne. Choisis un autre agencement." };
+          const base = { ...props, ...toCustom(shaped(props), n) };
+          const spans = spansOf(base, n);
+          spans[op.index] = { ...spans[op.index], w: 1 };
+          return { props: { ...base, spans } };
+        }
+      }
       const a = aloneOf();
       a[op.index] = op.alone;
       const next: Props = { ...props };

@@ -4,7 +4,7 @@ import type { RawBlock } from "@/lib/pages";
 
 import { cropStyle, lookAttributes, readLook, type Look } from "@/lib/look";
 import { own } from "@/lib/own";
-import { cellShare, gridCells, isJustified, type GridShape } from "./grid-layouts";
+import { aloneFlags, cellShare, gridCells, isJustified, type GridShape } from "./grid-layouts";
 import { getSiteView } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
 import type { PaletteColors } from "@/themes/palette";
@@ -199,7 +199,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
         block.type === "grid" && data.layout
           ? {
               ...childCtx,
-              cellColumns: isJustified(data) ? (data.alone?.[i] ? 1 : Math.max(1, gridCells(data, 0).cols * 0.6)) : cellShare(data, i, kids.length),
+              cellColumns: isJustified(data) ? (aloneFlags(data, kids.length)[i] ? 1 : Math.max(1, gridCells(data, 0).cols * 0.6)) : cellShare(data, i, kids.length),
               ...(data.layout === "auto" ? { cellAuto: true } : {}),
               ...(data.zoom !== false ? { cellViewer: true } : {}),
               // Grille de planche (lot 39) : ses cases n'ont pas d'identité de bloc, leurs textes se modifient par la grille.
