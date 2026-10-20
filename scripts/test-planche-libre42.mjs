@@ -116,10 +116,10 @@ test("2e devant / derrière : les rangs restent 0, 1, 2… sans trou", () => {
 test("2g fond image (lot 41) : style bg pose / retire le fond de CETTE image, couleur invalide refusée, zoom et légendes acceptés", () => {
   const p0 = freeBoardSchema.parse({ items: [{ id: "a", media: 1, x: 10, y: 10, w: 20 }, { id: "b", media: 2, x: 40, y: 10, w: 20 }] });
   const s = ok(applyFreeOp(p0, { op: "style", id: "a", bg: "card" }));
-  assert.equal(freeItems(s.props)[0].bg, "card");
-  assert.equal(freeItems(s.props)[1].bg, undefined);
-  const t = ok(applyFreeOp(s.props, { op: "style", id: "a", bg: null }));
-  assert.equal(freeItems(t.props)[0].bg, undefined);
+  assert.equal(freeItems(s)[0].bg, "card");
+  assert.equal(freeItems(s)[1].bg, undefined);
+  const t = ok(applyFreeOp(s, { op: "style", id: "a", bg: null }));
+  assert.equal(freeItems(t)[0].bg, undefined);
   assert.ok(!freeBoardSchema.safeParse({ items: [{ id: "a", media: 1, x: 1, y: 1, w: 20, bg: "red" }] }).success);
   assert.ok(freeBoardSchema.safeParse({ zoom: false, captionTitle: { fr: "a", en: "b" }, caption: { fr: "", en: "" } }).success);
 });
