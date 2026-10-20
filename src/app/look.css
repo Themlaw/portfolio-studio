@@ -650,3 +650,46 @@ main > :has(+ .surface-card[data-surface="on"]) {
     background-size: var(--card-wp-size-m) auto;
   }
 }
+
+/* ---- Planche libre (lot 42) -------------------------------------------------------------------------------------------------
+   Une zone au format fixe (`aspect-ratio`, `--fb-r` = largeur ÷ hauteur) où chaque image est posée en % de la zone (`--x`, `--y`,
+   `--w`, `--rot`, posés par le bloc ; `--px…` = aperçu d'un geste sur la toile) : la composition est la même à toutes les largeurs, elle se met à l'échelle. Aucun fond propre :
+   les images sont directement sur la carte (l'option « Fond » du composant fait une carte dans la carte). Rotation autour du centre.
+   L'empilement passe par `z-index` (posé par le bloc), l'ordre du DOM est l'ordre de lecture. Sous 640 px, au choix de l'artiste :
+   composition à l'échelle (défaut) ou images empilées en colonne (`data-phone="stack"`) ; jamais sur la toile de l'éditeur. */
+.free-board-section { overflow-x: clip; }
+.free-board { position: relative; width: 100%; aspect-ratio: var(--fb-pr, var(--fb-r, 1.5)); }
+.free-item {
+  position: absolute;
+  margin: 0;
+  left: calc(var(--px, var(--x)) * 1%);
+  top: calc(var(--py, var(--y)) * 1%);
+  width: calc(var(--pw, var(--w)) * 1%);
+  transform: rotate(calc(var(--prot, var(--rot, 0)) * 1deg));
+  transform-origin: 50% 50%;
+}
+/* Fond derrière une image de la planche libre (lot 41 branché par l'intégration v0.27) : la couleur remplit la boîte de l'image. */
+.free-item[data-img-bg] .free-media:not(.free-video) { background-color: var(--img-bg); }
+.free-media { display: block; width: 100%; height: auto; border-radius: var(--free-radius, 0); }
+.free-video { position: relative; overflow: hidden; }
+.free-item[data-frame] .free-media:not(.free-video) {
+  box-sizing: border-box;
+  border: var(--frame-w) solid var(--frame-color);
+  background-clip: padding-box;
+}
+@media (max-width: 639px) {
+  :root:not([data-edit-canvas]) .free-board[data-phone="stack"] {
+    aspect-ratio: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+  }
+  :root:not([data-edit-canvas]) .free-board[data-phone="stack"] .free-item {
+    position: relative;
+    left: auto;
+    top: auto;
+    width: min(100%, max(55%, calc(var(--w) * 1%)));
+    transform: none;
+  }
+}

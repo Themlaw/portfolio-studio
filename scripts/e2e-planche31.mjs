@@ -117,7 +117,7 @@ try {
   await shot("1-planche-avant");
   await board.locator("[data-edit-bitem-add]").last().click();
   await f.locator(".pe-bitem-menu").waitFor({ timeout: 20000 });
-  ok("B2 menu court : 5 composants, carrousels à volonté (pas de « Images du projet » : la bande est là)", (await f.locator(".pe-bitem-menu button").count()) === 5 && (await f.locator('.pe-bitem-menu [data-bitem-type="strip"]').isEnabled()));
+  ok("B2 menu court : 6 composants, carrousels à volonté (pas de « Images du projet » : la bande est là)", (await f.locator(".pe-bitem-menu button").count()) === 6 && (await f.locator('.pe-bitem-menu [data-bitem-type="strip"]').isEnabled()));
   await shot("2-menu");
   await f.locator('.pe-bitem-menu [data-bitem-type="grid"]').click();
   await sleep(2500);
@@ -191,6 +191,8 @@ try {
   };
   /** Glisse `from` (page) jusqu'au point (x, y) de la page, après un arrêt pour laisser la toile dessiner ses repères ; `during` s'exécute avant de lâcher. */
   async function drag(from, x, y, during) {
+    // La palette est plus longue (lot 42, « Planche libre ») : la carte visée peut être sous la ligne de flottaison.
+    await from.scrollIntoViewIfNeeded();
     const b = await from.boundingBox();
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
     await page.mouse.down();
@@ -216,6 +218,8 @@ try {
   ok("E1b repère « Déposer ici » dans la planche pendant le glisser", markerSeen);
   await settled();
   await page.getByRole("tab", { name: "Ajouter" }).click();
+  // La carte est amenée à l'écran AVANT de mesurer la planche ; la cible reste à 120 px du bas de la fenêtre (sinon la toile défile pendant le glisser et le dépôt tombe sous la planche).
+  await page.locator('.ve-card[data-key="board-strip"]').scrollIntoViewIfNeeded();
   await center(frame(2));
   const f2 = await frame(2).boundingBox();
   // Dépôt aux trois quarts de la hauteur du cadre (moitié basse = « après l'image ») : le tout bas du cadre peut recouvrir la planche suivante
@@ -702,6 +706,8 @@ try {
   // Appui long sur une carte de la palette, puis glisser dans la planche.
   const kinds0 = (json(project().draft_layout) ?? json(project().layout)).length;
   await tp.getByRole("tab", { name: "Ajouter" }).click();
+  // La palette compte une carte de plus (lot 42) : la carte visée est amenée à l'écran avant les mesures.
+  await tp.locator('.ve-card[data-key="grid"]').scrollIntoViewIfNeeded();
   await TF(iA).evaluate((el) => el.scrollIntoView({ block: "center" }));
   await sleep(500);
   const card = await tp.locator('.ve-card[data-key="grid"]').boundingBox();
