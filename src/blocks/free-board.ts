@@ -9,7 +9,9 @@
  */
 import { z } from "zod";
 
-import { FrameSchema, RADII, type Frame, type Radius } from "../lib/look";
+import { FrameSchema, ImageBgSchema, RADII, type Frame, type ImageBg, type Radius } from "../lib/look";
+
+import { localizedText } from "./types";
 
 /** Formats de la zone ; « free » = hauteur libre (poignée du bas), mémorisée dans `aspect`. */
 export const FREE_FORMATS = ["16:9", "3:2", "4:3", "1:1", "free"] as const;
@@ -41,6 +43,8 @@ export const FreeItemSchema = z.object({
   radius: z.enum(RADII).optional(),
   /** Cadre propre à cette image (lot 34). */
   frame: FrameSchema.optional(),
+  /** Fond derrière cette image (lot 41 : utile derrière un PNG détouré) : `card`, teinte de la palette ou couleur libre. */
+  bg: ImageBgSchema.optional(),
 });
 export type FreeItem = z.infer<typeof FreeItemSchema>;
 
@@ -51,6 +55,12 @@ export const freeBoardSchema = z.object({
   /** Sous 640 px : la composition reste à l'échelle, ou les images s'empilent dans l'ordre de lecture. */
   phone: z.enum(FREE_PHONE_MODES).default("scale"),
   items: z.array(FreeItemSchema).max(MAX_FREE_ITEMS).default([]),
+  /** Cliquer pour agrandir (lot 44) : absent = oui, `false` la coupe. */
+  zoom: z.boolean().optional(),
+  /** Titre / Légende / Date sous la planche (lot 39). */
+  captionTitle: localizedText.optional(),
+  caption: localizedText.optional(),
+  captionDate: localizedText.optional(),
 });
 export type FreeBoardProps = z.infer<typeof freeBoardSchema>;
 
@@ -102,7 +112,7 @@ export type FreeModelOp =
   | { op: "back"; id: string }
   | { op: "remove"; id: string }
   | { op: "replace"; id: string; media: number }
-  | { op: "style"; id: string; radius?: Radius | null; frame?: Frame | null };
+  | { op: "style"; id: string; radius?: Radius | null; frame?: Frame | null; bg?: ImageBg | null };
 
 const GONE = "Cette image n'est plus dans la planche libre.";
 
@@ -185,6 +195,10 @@ export function applyFreeOp(props: Props, op: FreeModelOp): { props: Props } | {
       if (op.frame !== undefined) {
         if (op.frame === null) delete cur.frame;
         else cur.frame = op.frame;
+      }
+      if (op.bg !== undefined) {
+        if (op.bg === null) delete cur.bg;
+        else cur.bg = op.bg;
       }
       return done(items.map((x, k) => (k === i ? cur : x)));
     }

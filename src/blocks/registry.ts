@@ -254,7 +254,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       description: "Des images détourées (PNG sans fond) ou des vidéos posées où tu veux, à ta taille et sous l'angle que tu veux, directement sur la carte.",
       defaults: { format: "3:2", phone: "scale", items: [] },
       summary: "Planche libre · {items} images",
-      inline: [],
+      inline: ["captionTitle", "caption", "captionDate"],
       publishCheck: (props) => (Array.isArray(props.items) && props.items.length > 0 ? null : "Ajoute au moins une image à la planche libre (glisse-la sur la zone, ou « + Image »)."),
     }),
     define({

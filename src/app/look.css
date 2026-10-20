@@ -668,6 +668,8 @@ main > :has(+ .surface-card[data-surface="on"]) {
   transform: rotate(calc(var(--prot, var(--rot, 0)) * 1deg));
   transform-origin: 50% 50%;
 }
+/* Fond derrière une image de la planche libre (lot 41 branché par l'intégration v0.27) : la couleur remplit la boîte de l'image. */
+.free-item[data-img-bg] .free-media:not(.free-video) { background-color: var(--img-bg); }
 .free-media { display: block; width: 100%; height: auto; border-radius: var(--free-radius, 0); }
 .free-video { position: relative; overflow: hidden; }
 .free-item[data-frame] .free-media:not(.free-video) {

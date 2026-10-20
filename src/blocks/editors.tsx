@@ -900,6 +900,7 @@ export function FreeBoardEditor() {
   const ordered = items.slice().sort((a, b) => b.z - a.z);
   return (
     <>
+      <Toggle label="Agrandir au clic" checked={value.zoom !== false} onChange={(v) => onChange(v ? (({ zoom: _z, ...rest }) => (void _z, rest))(value) : { ...value, zoom: false })} />
       <Select
         label="Format de la zone"
         help="La hauteur de la zone suit sa largeur. « Hauteur libre » : tire la poignée sous la zone, sur la page."

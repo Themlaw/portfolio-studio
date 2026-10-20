@@ -113,6 +113,17 @@ test("2e devant / derrière : les rangs restent 0, 1, 2… sans trou", () => {
   assert.deepEqual(again.items.map((i) => i.z), [0, 1, 2]);
 });
 
+test("2g fond image (lot 41) : style bg pose / retire le fond de CETTE image, couleur invalide refusée, zoom et légendes acceptés", () => {
+  const p0 = freeBoardSchema.parse({ items: [{ id: "a", media: 1, x: 10, y: 10, w: 20 }, { id: "b", media: 2, x: 40, y: 10, w: 20 }] });
+  const s = ok(applyFreeOp(p0, { op: "style", id: "a", bg: "card" }));
+  assert.equal(freeItems(s.props)[0].bg, "card");
+  assert.equal(freeItems(s.props)[1].bg, undefined);
+  const t = ok(applyFreeOp(s.props, { op: "style", id: "a", bg: null }));
+  assert.equal(freeItems(t.props)[0].bg, undefined);
+  assert.ok(!freeBoardSchema.safeParse({ items: [{ id: "a", media: 1, x: 1, y: 1, w: 20, bg: "red" }] }).success);
+  assert.ok(freeBoardSchema.safeParse({ zoom: false, captionTitle: { fr: "a", en: "b" }, caption: { fr: "", en: "" } }).success);
+});
+
 test("2f retirer recompacte les rangs ; remplacer garde la place ; style : arrondi et cadre, null les retire", () => {
   const p0 = base([item("a", { z: 0 }), item("b", { z: 5 }), item("c", { z: 9 })]);
   const r = ok(applyFreeOp(p0, { op: "remove", id: "b" }));

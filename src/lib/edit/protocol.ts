@@ -116,7 +116,7 @@ export const FreeCanvasOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("front"), id: FreeId }),
   z.object({ op: z.literal("back"), id: FreeId }),
   z.object({ op: z.literal("remove"), id: FreeId }),
-  z.object({ op: z.literal("style"), id: FreeId, radius: z.enum(RADII).nullable().optional(), frame: FrameSchema.nullable().optional() }),
+  z.object({ op: z.literal("style"), id: FreeId, radius: z.enum(RADII).nullable().optional(), frame: FrameSchema.nullable().optional(), bg: ImageBgSchema.nullable().optional() }),
 ]);
 export type FreeCanvasOp = z.infer<typeof FreeCanvasOpSchema>;
 const FileValue = z.custom<File>((v) => typeof File !== "undefined" && v instanceof File, "Fichier attendu");

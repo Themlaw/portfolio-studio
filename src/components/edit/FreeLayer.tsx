@@ -20,10 +20,11 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 import { FREE_MAX_W, FREE_MIN_W, snapBox, type FreeBox, type FreeGuides } from "@/blocks/free-board";
-import { RADII, RADIUS_LABELS, type Frame, type Radius } from "@/lib/look";
+import { imageBgCss, RADII, RADIUS_LABELS, type Frame, type ImageBg, type Radius } from "@/lib/look";
 import type { FreeCanvasOp } from "@/lib/edit/protocol";
 
 import { FrameControls } from "./FrameMenu";
+import { ImageBgControls } from "./ImageBgControls";
 import { clearAspect, clearItem, findItem, findZone, freeKey, freeRefOf, ITEM_SELECTOR, itemsOf, readItem, writeAspect, writeItem, type FreeGeom, type FreeRef } from "./free-dom";
 import { postIntent, setOverlay } from "./optimistic";
 import { useDismiss } from "./useDismiss";
@@ -116,10 +117,24 @@ function ItemFrame({ box, frame, onChange, onClose }: { box: Rect; frame: Frame 
   );
 }
 
+/** Fenêtre « Fond image » de l'image (lot 41) : mêmes choix que le fond d'une image seule. */
+function ItemBg({ box, bg, onChange, onClose }: { box: Rect; bg: string | undefined; onChange: (b: string | undefined) => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(ref, onClose);
+  const width = Math.min(330, document.documentElement.clientWidth - 24);
+  const left = Math.max(window.scrollX + 8, Math.min(box.left, window.scrollX + document.documentElement.clientWidth - width - 8));
+  return (
+    <div ref={ref} className="sm tc pe-slot-frame" role="dialog" aria-label="Fond de l'image" data-testid="free-imgbg" style={{ top: box.top + box.height + 8, left, right: "auto" }}>
+      <ImageBgControls value={bg} onChange={onChange} />
+    </div>
+  );
+}
+
 export default function FreeLayer({ selected, dragging, announce }: { selected: string | null; dragging: boolean; announce: (s: string) => void }) {
   const [tick, setTick] = useState(0);
   const [sel, setSelState] = useState<Sel | null>(null);
   const [frameOpen, setFrameOpen] = useState(false);
+  const [bgOpen, setBgOpen] = useState(false);
   const [guides, setGuides] = useState<(FreeGuides & { zone: Rect }) | null>(null);
   const [gesturing, setGesturing] = useState(false);
   const gesture = useRef<Gesture | null>(null);
@@ -373,7 +388,9 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
   // Une seule fenêtre à la fois (Fond, Cadre, Réglages…).
   useEffect(() => {
     const onClose = (e: Event) => {
-      if ((e as CustomEvent<{ except?: string }>).detail?.except !== "free-frame") setFrameOpen(false);
+      const except = (e as CustomEvent<{ except?: string }>).detail?.except;
+      if (except !== "free-frame") setFrameOpen(false);
+      if (except !== "free-bg") setBgOpen(false);
     };
     window.addEventListener("pe:popups-close", onClose);
     return () => window.removeEventListener("pe:popups-close", onClose);
@@ -404,7 +421,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
     const left = zr.left + (g.x / 100) * zr.width;
     const top = zr.top + (g.y / 100) * zr.height;
     const bb = docRect(itemEl);
-    let style: { radius?: Radius; frame?: Frame } = {};
+    let style: { radius?: Radius; frame?: Frame; bg?: string } = {};
     try {
       style = JSON.parse(itemEl.dataset.freeStyle ?? "{}") as typeof style;
     } catch {}
@@ -484,9 +501,28 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
                 Cadre
               </button>
             )}
+            {!isVideo && (
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                aria-expanded={bgOpen}
+                data-testid="free-imgbg-button"
+                title="Fond derrière cette image (utile pour un PNG détouré)"
+                onClick={() => {
+                  setBgOpen((o) => !o);
+                  window.dispatchEvent(new CustomEvent("pe:popups-close", { detail: { except: "free-bg" } }));
+                }}
+              >
+                <span className="sm-dot" data-on={imageBgCss(style.bg) ? "" : undefined} style={imageBgCss(style.bg) ? { background: imageBgCss(style.bg) ?? undefined } : undefined} aria-hidden="true" />
+                Fond image
+              </button>
+            )}
             <RotationField key={`${sel.id}-${g.rot}`} value={g.rot} onCommit={(rot) => commitPlace(ref, sel.id, { rot })} />
             <span data-free-bar-extra="" />
           </div>
+        )}
+        {bgOpen && !gesturing && (
+          <ItemBg box={bb} bg={style.bg} onClose={() => setBgOpen(false)} onChange={(bg) => send(ref, { op: "style", id: sel.id, bg: (bg as ImageBg | undefined) ?? null })} />
         )}
         {frameOpen && !gesturing && (
           <ItemFrame box={bb} frame={style.frame} onClose={() => setFrameOpen(false)} onChange={(frame) => send(ref, { op: "style", id: sel.id, frame: frame ?? null })} />

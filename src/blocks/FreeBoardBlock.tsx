@@ -1,11 +1,16 @@
 import type { CSSProperties } from "react";
 
+import { getTranslations } from "next-intl/server";
+
 import { LoopClick } from "@/components/LoopVideo";
 import Picture from "@/components/Picture";
-import { frameAttrs } from "@/lib/look";
+import ViewerScope from "@/components/ViewerScope";
+import { frameAttrs, imageBgAttrs } from "@/lib/look";
 import { getMedia } from "@/lib/media";
+import { viewerAttrs } from "@/lib/viewer";
 import { RADIUS_VALUES } from "@/themes/css";
 
+import { BlockCaption, capHost, captionPart } from "./caption";
 import { freeBoardSchema, freeItems, itemHeight, readingOrder, zoneAspect } from "./free-board";
 import { tr, type BlockContext } from "./types";
 
@@ -36,9 +41,13 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
   });
   if (!shown.length && !canvas) return null;
   const zone = zoneAspect(props);
+  // Cliquer pour agrandir (lot 44) : public et Aperçu seulement ; chaque image est un élément de la visionneuse, la planche en est la zone.
+  const zoom = !canvas && !ctx.inlineEdit && props.zoom !== false;
+  const openLabel = zoom ? (await getTranslations({ locale: ctx.locale, namespace: "gallery" }))("open") : "";
+  const Section = zoom ? ViewerScope : "section";
   const ordered = readingOrder(shown.map((s) => ({ ...s, id: s.it.id, x: s.it.x, y: s.it.y })));
   return (
-    <section className="free-board-section shell pt-[var(--section-gap)]">
+    <Section {...(zoom ? { as: "section" as const } : {})} className="free-board-section shell pt-[var(--section-gap)]" {...capHost(ctx)}>
       <div
         className="free-board"
         data-format={props.format}
@@ -50,6 +59,11 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
           const ratio = (m.width ?? 1200) / Math.max(1, m.height ?? 800);
           const alt = m.alt ? tr(m.alt, ctx.locale) : "";
           const frame = m.video ? null : frameAttrs(it.frame);
+          const bg = m.video ? null : imageBgAttrs(it.bg);
+          const viewer =
+            zoom && !m.video
+              ? viewerAttrs({ id: `media-${it.media}-${it.id}`, image: m.url, sources: m.sources ?? undefined, alt, width: m.width ?? 1200, height: m.height ?? 800, title: "", description: "", plain: true }, openLabel)
+              : {};
           const style = {
             "--x": it.x,
             "--y": it.y,
@@ -58,6 +72,7 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
             zIndex: it.z + 1,
             ...(it.radius && Object.hasOwn(RADIUS_VALUES, it.radius) ? { "--free-radius": RADIUS_VALUES[it.radius] } : {}),
             ...(frame?.style ?? {}),
+            ...(bg?.style ?? {}),
           } as CSSProperties;
           const sizes = `${props.phone === "stack" ? "(max-width: 639px) 100vw, " : ""}(min-width: 1236px) ${Math.round((1200 * Math.min(100, it.w)) / 100)}px, ${Math.round(Math.min(100, it.w))}vw`;
           return (
@@ -66,7 +81,9 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
               className="free-item"
               style={style}
               {...(frame ? { "data-frame": frame["data-frame"] } : {})}
-              {...(canvas ? { "data-free-item": it.id, "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}) }) } : {})}
+              {...(bg ? { "data-img-bg": "" } : {})}
+              {...viewer}
+              {...(canvas ? { "data-free-item": it.id, "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}
             >
               {m.video ? (
                 <div className="free-media free-video" style={{ aspectRatio: ratio }}>
@@ -87,6 +104,7 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
           </div>
         )}
       </div>
-    </section>
+      <BlockCaption ctx={ctx} title={captionPart(ctx, "captionTitle", props.captionTitle)} legend={captionPart(ctx, "caption", props.caption)} date={captionPart(ctx, "captionDate", props.captionDate)} />
+    </Section>
   );
 }

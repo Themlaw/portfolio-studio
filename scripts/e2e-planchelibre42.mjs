@@ -655,7 +655,49 @@ try {
       await shot(p, "F-public-fond");
       await p.context().close();
     });
+    /* Intégration v0.27 : visionneuse (lot 44), Fond image (lot 41), Titre / Légende / Date (lot 39) sur la planche libre. */
+  if (run("I")) {
+    await section("I", async () => {
+      items = pageItems;
+      const L = (t) => ({ fr: t, en: t });
+      setDraft(pageId, [FB([it("a1", ids.fleur, 12, 18, 24, 0, 0), it("a2", ids.vase, 60, 10, 22, 0, 1)], { captionTitle: L("Titre de la planche"), caption: L("Légende de la planche"), captionDate: L("2026") })]);
+      setBoardDraft(project.id, pageId, null);
+      await open();
+      await scrollToZone();
+      await click(itemEl("a1"));
+      const bar = f.getByTestId("free-bar");
+      ok("I1 la barre de l'image propose « Fond image »", (await bar.getByTestId("free-imgbg-button").count()) === 1);
+      await bar.getByTestId("free-imgbg-button").click();
+      const win = f.getByTestId("free-imgbg");
+      await win.waitFor();
+      await win.getByText("Blanc", { exact: true }).click();
+      ok("I2 Fond image « Blanc » : écrit sur cette image seulement", await waitFor(() => byId("a1").bg === "#ffffff" && !byId("a2").bg), JSON.stringify(items()));
+      await settled(page);
+      ok("I2b … et visible derrière l'image", (await itemEl("a1").locator("img").evaluate((i) => getComputedStyle(i).backgroundColor)) === "rgb(255, 255, 255)");
+      await shot(page, "I-toile-fond-image");
+      await page.keyboard.press("Escape");
+      ok("I3 Titre / Légende / Date présents sous la planche sur la toile", (await f.locator('.free-board-section [data-cap="title"], .free-board-section [data-cap="legend"], .free-board-section [data-cap="date"]').count()) === 3);
+      ok("I4 publication", await publish());
+      const p = await publicPage(1440, 900);
+      await p.locator(".free-board").evaluate((el) => el.scrollIntoView({ block: "center" }));
+      const body = await p.locator(".free-board-section").innerText();
+      ok("I5 public : Titre, Légende et Date sous la planche", body.includes("Titre de la planche") && body.includes("Légende de la planche") && body.includes("2026"), body);
+      ok("I5b public : une image a son fond (data-img-bg), l'autre non", (await p.locator(".free-item[data-img-bg]").count()) === 1);
+      ok("I6 public : chaque image est cliquable (visionneuse), aucune vidéo ici", (await p.locator(".free-item[data-viewer-item]").count()) === 2);
+      await p.locator(".free-item[data-viewer-item]").first().click();
+      await p.locator(".lightbox").waitFor();
+      ok("I7 public : un clic ouvre la visionneuse sur l'image", (await p.locator(".lightbox img.lightbox-image").count()) === 1);
+      await sleep(600);
+      await shot(p, "I-public-visionneuse");
+      await p.keyboard.press("ArrowRight");
+      await sleep(400);
+      ok("I8 flèche : passe à l'autre image de la planche", (await p.locator(".lightbox img.lightbox-image").count()) === 1);
+      await p.keyboard.press("Escape");
+      ok("I9 Échap ferme la visionneuse", await waitFor(async () => (await p.locator(".lightbox").count()) === 0, 5000));
+      await p.context().close();
+    });
   }
+}
 } finally {
   ok("aucune erreur JavaScript dans la page de l'éditeur", errors.length === 0, errors.slice(0, 3).join(" | "));
   await browser.close();

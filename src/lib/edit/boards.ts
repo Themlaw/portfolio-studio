@@ -656,6 +656,8 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
           const rank = Number(op.path.split(".")[1]);
           if (!Array.isArray(item.props.children) || rank >= item.props.children.length) return "Cette case n'existe plus.";
         }
+        // Planche libre : Titre / Légende / Date sous la zone (lot 39 branché par l'intégration v0.27).
+        if (item.type === "free-board" && !/^(captionTitle|caption|captionDate)$/.test(op.path)) return "Ce composant n'a pas de texte à modifier ici.";
         item.props = item.type === "rich-text" ? settleHelp(setLocalizedAt(item.props, op.path, op.locale, op.value)) : setLocalizedAt(item.props, op.path, op.locale, op.value);
         return snap;
       }
