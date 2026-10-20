@@ -1,0 +1,205 @@
+#!/usr/bin/env node
+/**
+ * Le Fond ne rétrécit plus le contenu (lot 47, ticket 32), UN chromium. Serveur requis, base NEUVE (seed), une connexion.
+ * Page « personnages » : cinq grilles de trois images (sans fond / fond bord à bord / marge M / marge M + coins M / marge L + coins L),
+ * puis une grille avec une carte (reglage « Carte ») ; la planche d'un projet porte les cinq mêmes grilles.
+ *
+ *  A. Public, 1440 px : la largeur et la position horizontale de chaque image sont celles de la grille sans fond (1 px près) ;
+ *     même chose à 1024 px et à 390 px (marge reduite) ; pas de défilement horizontal.
+ *  B. Toile (éditeur) : mêmes mesures que le public, page et planche ; aperçu immédiat : poser « Avec marge » depuis la fenêtre ne change
+ *     ni la largeur ni la place des images.
+ *  C. La fenêtre « Fond » d'une grille de page et celle d'une grille de planche sont la même (mêmes libellés, mêmes pictogrammes).
+ * Captures : $SHOTS. Mode DIAG=1 : affiche les mesures sans compter d'échec.
+ */
+import { mkdirSync } from "node:fs";
+import path from "node:path";
+
+import { chromium } from "playwright";
+
+import { boardDraft, boardPublished, draftBlocks, grid, img, login, makeMedia, openEditor, pageIdOf, q1, settled, setBoardDraft, waitFor } from "./lib/grille31d.mjs";
+import { publishBlocks } from "./lib/page-draft.mjs";
+
+const BASE = process.env.BASE ?? "http://localhost:3600";
+const SHOTS = process.env.SHOTS ?? "screenshots/fond-contenu47";
+const DIAG = process.env.DIAG === "1";
+mkdirSync(SHOTS, { recursive: true });
+let failures = 0;
+const ok = (label, cond, detail = "") => {
+  if (!cond && !DIAG) failures++;
+  console.log(`${cond ? "PASS" : DIAG ? "DIAG-FAIL" : "FAIL"} ${label}${!cond && detail ? ` — ${detail}` : ""}`);
+};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const page = await ctx.newPage();
+const errors = [];
+page.on("pageerror", (e) => errors.push(e.message));
+await login(page, BASE);
+const M = await makeMedia(page, BASE);
+const pageId = pageIdOf("personnages");
+const project = q1("select id, slug from projects order by id limit 1");
+
+const VARIANTS = [
+  ["sans", undefined],
+  ["fond", { kind: "color", color: "bgDeep" }],
+  ["marge", { kind: "color", color: "bgDeep", inset: "m" }],
+  ["marge-coins", { kind: "color", color: "bgDeep", inset: "m", round: "m" }],
+  ["grand", { kind: "color", color: "bgDeep", inset: "l", round: "l" }],
+];
+const kids = (p) => [img(`${p}1`, M.portrait), img(`${p}2`, M.paysage), img(`${p}3`, M.carre)];
+const pageGrids = VARIANTS.map(([n, bg], i) => grid(`pg${i}`, { layout: "3", ...(bg ? { background: bg } : {}) }, kids(`p${i}`)));
+// Les grilles de planche (composants du projet) portent le fond dans `props.background`.
+const boardItems = VARIANTS.map(([, bg], i) => ({ uid: `bg${i}`, type: "grid", props: { layout: "3", gap: "normal", align: "stretch", ratio: "auto", top: "gap", ...(bg ? { background: bg } : {}), children: kids(`b${i}`) } }));
+const cardGrid = grid("pgc", { layout: "3", surface: {} }, kids("pc"));
+
+setBoardDraft(project.id, pageId, boardItems);
+const done = await publishBlocks(page, BASE, pageId, () => [...pageGrids, cardGrid, { uid: "board1", type: "project-board", props: { project: project.slug } }], () => boardPublished(project.id)?.length === boardItems.length && q1("select count(*) n from blocks where page_id = ?", pageId).n === pageGrids.length + 2);
+ok("0 page et planche publiées", done);
+
+/** Pour chaque grille (page : 6 premières ; planche : les 5 suivantes) : boîtes des images + de la grille. */
+const MEASURE = (slug) => {
+  const all = [...document.querySelectorAll(".block-grid")];
+  const sect = document.querySelector(`[aria-labelledby="project-${slug}"]`);
+  const inBoard = (g) => sect?.contains(g);
+  const box = (e) => {
+    const b = e.getBoundingClientRect();
+    return { l: b.left, w: b.width, t: b.top + window.scrollY, h: b.height };
+  };
+  const one = (g) => ({ imgs: [...g.querySelectorAll("img")].filter((i) => i.getBoundingClientRect().width > 20).map(box), grid: box(g) });
+  return {
+    page: all.filter((g) => !inBoard(g)).map(one),
+    board: all.filter(inBoard).map(one),
+    vw: document.documentElement.clientWidth,
+    sw: document.documentElement.scrollWidth,
+  };
+};
+const same = (a, b, tol = 1) => a.imgs.length === b.imgs.length && a.imgs.length > 0 && a.imgs.every((x, i) => Math.abs(x.l - b.imgs[i].l) <= tol && Math.abs(x.w - b.imgs[i].w) <= tol);
+const fmt = (g) => g.imgs.map((x) => `${x.l.toFixed(0)}+${x.w.toFixed(0)}`).join(" ");
+
+const names = [...VARIANTS.map(([n]) => n)];
+const LAST = {};
+for (const width of [1440, 1024, 390]) {
+  const c = await browser.newContext({ viewport: { width, height: 900 }, ...(width < 500 ? { isMobile: true, hasTouch: true } : {}) });
+  const p = await c.newPage();
+  await p.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });
+  await sleep(1000);
+  const m = await p.evaluate(MEASURE, project.slug);
+  LAST[width] = m;
+  ok(`A${width} ${m.page.length} grilles de page, ${m.board.length} de planche mesurées`, m.page.length === 6 && m.board.length === 5, `${m.page.length}/${m.board.length}`);
+  for (const [where, list] of [["page", m.page], ["planche", m.board]]) {
+    console.log(`  [${width}] ${where} : ` + list.map((g, i) => `${names[i] ?? "carte"}=${fmt(g)}`).join(" | "));
+    for (let i = 1; i < Math.min(list.length, 5); i++) ok(`A${width} ${where} : « ${names[i] ?? "carte"} » garde les images de « sans »`, same(list[0], list[i]), `${fmt(list[0])} / ${fmt(list[i])}`);
+  }
+  ok(`A${width} pas de défilement horizontal`, m.sw <= m.vw + 1, `${m.sw}/${m.vw}`);
+  if (width === 1440) {
+    await p.locator(".block-grid").nth(2).scrollIntoViewIfNeeded();
+    await p.screenshot({ path: path.join(SHOTS, "public-page-marge.png") });
+    await p.locator(`[aria-labelledby="project-${project.slug}"] .block-grid`).nth(2).scrollIntoViewIfNeeded();
+    await p.screenshot({ path: path.join(SHOTS, "public-planche-marge.png") });
+  }
+  await c.close();
+}
+
+/* ---- B. Toile ------------------------------------------------------------------------------------------------------------------ */
+const fr = await openEditor(page, BASE, pageId);
+await fr.locator(".block-grid").nth(10).waitFor({ timeout: 60000 });
+{
+  const m = await fr.evaluate(MEASURE, project.slug);
+  ok("B0 toile : 6 grilles de page, 5 de planche", m.page.length === 6 && m.board.length === 5, `${m.page.length}/${m.board.length}`);
+  for (const [where, list] of [["page", m.page], ["planche", m.board]]) {
+    console.log(`  [toile ${m.vw}] ${where} : ` + list.map((g, i) => `${names[i] ?? "carte"}=${fmt(g)}`).join(" | "));
+    for (let i = 1; i < Math.min(list.length, 5); i++) ok(`B1 toile, ${where} : « ${names[i] ?? "carte"} » garde les images de « sans »`, same(list[0], list[i]), `${fmt(list[0])} / ${fmt(list[i])}`);
+  }
+}
+
+/** Boîtes des images d'une grille de la toile (page : `[data-edit-block]`, planche : `[data-edit-bitem]`). */
+const imgsOf = (sel) =>
+  fr.evaluate((s) => {
+    const g = document.querySelector(`${s} .block-grid`); if (!g) throw new Error("grille introuvable : " + s);
+    return { imgs: [...g.querySelectorAll("img")].filter((i) => i.getBoundingClientRect().width > 20).map((i) => { const b = i.getBoundingClientRect(); return { l: b.left, w: b.width }; }) };
+  }, sel);
+const openPageFond = async (uid) => {
+  const host = fr.locator(`[data-edit-block="${uid}"]`).first();
+  await host.scrollIntoViewIfNeeded();
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await host.locator(".fond-in > *").first().click({ position: { x: 3, y: 3 }, force: true });
+      await fr.locator('.pe-tools [data-testid="fond-button"]').click({ timeout: 4000 });
+      break;
+    } catch (e) {
+      if (attempt >= 3) throw e;
+      await sleep(800);
+    }
+  }
+  const menu = fr.locator('[data-testid="fond-menu"]');
+  await menu.waitFor({ timeout: 20000 });
+  return menu;
+};
+const openBoardFond = async (uid) => {
+  const frame = fr.locator(`[data-edit-bitem="${uid}"]`).first();
+  await frame.scrollIntoViewIfNeeded();
+  await frame.hover();
+  await frame.locator('[data-edit-bitem-op="fond"]').click();
+  const menu = fr.locator('[data-testid="fond-menu"]');
+  await menu.waitFor({ timeout: 20000 });
+  return menu;
+};
+const windowShape = (menu) =>
+  menu.evaluate((el) => ({
+    text: el.innerText.replace(/\s+/g, " ").trim(),
+    minis: el.querySelectorAll(".fond-mini").length,
+    rows: [...el.querySelectorAll(".sm-label")].map((l) => l.textContent.trim()).filter(Boolean),
+    buttons: [...el.querySelectorAll("button")].map((b) => b.textContent.trim()).filter(Boolean),
+    label: el.getAttribute("aria-label"),
+  }));
+
+try {
+  // Page : la grille « marge M » (pg2) ouvre la fenêtre Fond ; planche : la grille « marge M » (bg2).
+  console.log("  uids toile : " + (await fr.evaluate(() => [...document.querySelectorAll('[data-edit-block]')].map((e) => e.dataset.editBlock + '/' + e.dataset.editType).join(' '))));
+  const before = await imgsOf('[data-edit-block="pg0"]');
+  let menu = await openPageFond("pg2");
+  const winPage = await windowShape(menu);
+  await page.screenshot({ path: path.join(SHOTS, "toile-fenetre-fond-page.png") });
+  await page.keyboard.press("Escape");
+  menu = await openBoardFond("bg2");
+  const winBoard = await windowShape(menu);
+  await page.screenshot({ path: path.join(SHOTS, "toile-fenetre-fond-planche.png") });
+  await page.keyboard.press("Escape");
+  console.log("  fenêtre page   : " + winPage.text);
+  console.log("  fenêtre planche: " + winBoard.text);
+  ok("C1 même fenêtre en page et en planche : mêmes libellés, mêmes boutons, mêmes lignes", winPage.text === winBoard.text && JSON.stringify(winPage.buttons) === JSON.stringify(winBoard.buttons) && JSON.stringify(winPage.rows) === JSON.stringify(winBoard.rows) && winPage.label === winBoard.label, `${winPage.text} || ${winBoard.text}`);
+  ok("C2 Étendue « Bord à bord / Avec marge », Coins « Droits / Petit / Moyen / Grand », avec pictogrammes (6)", winPage.minis === 6 && ["Bord à bord", "Avec marge", "Droits", "Petit", "Moyen", "Grand"].every((t) => winPage.buttons.includes(t)) && !winPage.buttons.some((t) => /En retrait|Coins arrondis|Pleine largeur|Coins droits/.test(t)), JSON.stringify(winPage));
+
+  // Aperçu immédiat : pose une couleur puis « Avec marge » + coins sur la grille sans fond (page, puis planche) ; les images ne bougent pas.
+  for (const [where, open, sel, uid] of [["page", openPageFond, '[data-edit-block="pg0"]', "pg0"], ["planche", openBoardFond, '[data-edit-bitem="bg0"]', "bg0"]]) {
+    const b0 = await imgsOf(sel);
+    const mn = await open(uid);
+    await mn.locator('[data-kind="color"]').click();
+    await sleep(500);
+    const b1 = await imgsOf(sel);
+    await mn.locator('[data-extent="margin"]').click();
+    await sleep(500);
+    const b2 = await imgsOf(sel);
+    await mn.locator('[data-testid="fond-inset"] [data-step="l"]').click();
+    await mn.locator('[data-testid="fond-round"] [data-step="m"]').click();
+    await sleep(500);
+    const b3 = await imgsOf(sel);
+    await page.screenshot({ path: path.join(SHOTS, `toile-apercu-${where}.png`) });
+    ok(`B2 aperçu (${where}) : couleur, puis marge, puis marge L + coins : les images gardent largeur et place`, same(b0, b1) && same(b0, b2) && same(b0, b3), [fmt(b0), fmt(b1), fmt(b2), fmt(b3)].join(" / "));
+    await page.keyboard.press("Escape");
+    await settled(page);
+    const b4 = await imgsOf(sel);
+    ok(`B3 enregistré (${where}) : toujours les mêmes images après le rechargement de la toile`, same(b0, b4), `${fmt(b0)} / ${fmt(b4)}`);
+    const saved = where === "page" ? draftBlocks(pageId).find((b) => b.uid === uid)?.props.background : boardDraft(project.id)?.find((i) => i.uid === uid)?.props.background;
+    ok(`B4 enregistré (${where}) : { couleur, inset l, round m }`, saved?.kind === "color" && saved.inset === "l" && saved.round === "m", JSON.stringify(saved));
+  }
+} catch (e) {
+  failures++;
+  console.log(`FAIL toile : ${e.message}`);
+  await page.screenshot({ path: path.join(SHOTS, "echec.png") }).catch(() => {});
+}
+
+console.log(`erreurs de page : ${errors.length}`);
+await browser.close();
+process.exit(failures ? 1 : 0);

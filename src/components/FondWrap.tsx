@@ -8,12 +8,14 @@ import type { CardPalette } from "@/themes/surface";
  * Enveloppe du fond de couleur d une rubrique (lot 32) : bord à bord de son conteneur, sur toute la hauteur du composant.
  * Composant sans état et sans import serveur : le rendu des blocs (BlockList, `withFond`) et la planche composée
  * (ProjectStrip, côté client) posent la MÊME enveloppe, avec les mêmes attributs de fusion que `fondJoins` calcule.
+ * `.fond-in` (lot 47) : couche intérieure sans boîte (`display: contents`). Avec une marge, elle reprend la largeur que la marge retire à
+ * l'enveloppe (look.css) : la couleur est rognée, JAMAIS le contenu, qui garde la largeur et la place qu'il a sans fond.
  */
 export default function FondWrap({ background, join, palette, lookup, edit, children }: { background: Background; join: FondJoin; palette: CardPalette; lookup?: WallpaperLookup; edit?: boolean; children: ReactNode }) {
   const { vars } = fondStyle(background, palette, lookup, join.around);
   return (
     <div className="fond-bloc" {...fondAttributes(join, background)} style={vars as CSSProperties} {...(edit ? { "data-edit-background": JSON.stringify(background) } : {})}>
-      {children}
+      <div className="fond-in">{children}</div>
     </div>
   );
 }

@@ -96,6 +96,7 @@ function rootOf(uid: string): HTMLElement | null {
   if (el?.classList.contains("surface-card")) el = el.firstElementChild as HTMLElement | null;
   // Fond de couleur du composant (lot 32) : même chose.
   if (el?.classList.contains("fond-bloc")) el = el.firstElementChild as HTMLElement | null;
+  if (el?.classList.contains("fond-in")) el = el.firstElementChild as HTMLElement | null;
   if (el?.classList.contains("blk")) el = el.firstElementChild as HTMLElement | null;
   if (!el || el.hasAttribute("data-edit-block")) return null;
   return el;

@@ -121,7 +121,7 @@ export function withFond(node: ReactNode, type: string, background: Background |
   if (!background || !ctx.palette) {
     return ctx.edit ? (
       <div key={`fond-${key}`} className="fond-bloc" data-fond="off">
-        {node}
+        <div className="fond-in">{node}</div>
       </div>
     ) : (
       node

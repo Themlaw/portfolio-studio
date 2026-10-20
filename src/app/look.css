@@ -456,6 +456,15 @@ figure.block-image[data-img-bg] .block-image-frame,
   border-radius: var(--fond-r);
   box-shadow: 0 0 0 var(--fond-gap) var(--fond-around, transparent);
 }
+/* La marge ne rétrécit jamais le contenu (lot 47) : la couche intérieure reprend la largeur que la marge retire à l'enveloppe, donc le contenu
+   garde la largeur et la place qu'il a sans fond ; seule la couleur est rognée. (Sans marge, la couche n'a pas de boîte.) */
+.fond-bloc > .fond-in {
+  display: contents;
+}
+.fond-bloc[data-fond="on"][data-fond-inset] > .fond-in {
+  display: flow-root;
+  margin-inline: calc(-1 * var(--fond-gap));
+}
 .fond-bloc[data-fond="on"][data-fond-inset="s"] { --fond-gap: 12px; }
 .fond-bloc[data-fond="on"][data-fond-inset="l"] { --fond-gap: 48px; }
 .fond-bloc[data-fond="on"][data-fond-round] {
@@ -526,8 +535,8 @@ figure.block-image[data-img-bg] .block-image-frame,
    le padding de la carte reste symétrique (haut = bas). Un espace choisi sur la toile (data-pt) garde la main. */
 .surface-card[data-surface="on"] > [class*="pt-[var(--section-gap)]"],
 .surface-card[data-surface="on"] > .blk:not([data-pt]) > [class*="pt-[var(--section-gap)]"],
-.surface-card[data-surface="on"] > .fond-bloc > [class*="pt-[var(--section-gap)]"],
-.surface-card[data-surface="on"] > .fond-bloc > .blk:not([data-pt]) > [class*="pt-[var(--section-gap)]"] {
+.surface-card[data-surface="on"] > .fond-bloc > .fond-in > [class*="pt-[var(--section-gap)]"],
+.surface-card[data-surface="on"] > .fond-bloc > .fond-in > .blk:not([data-pt]) > [class*="pt-[var(--section-gap)]"] {
   padding-top: 0;
 }
 /* … et le premier élément de la section n'ajoute pas sa propre marge haute (titre, paragraphe) : rien ne s'ajoute au padding. */
