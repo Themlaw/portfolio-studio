@@ -191,6 +191,8 @@ try {
   };
   /** Glisse `from` (page) jusqu'au point (x, y) de la page, après un arrêt pour laisser la toile dessiner ses repères ; `during` s'exécute avant de lâcher. */
   async function drag(from, x, y, during) {
+    // La palette est plus longue (lot 42, « Planche libre ») : la carte visée peut être sous la ligne de flottaison.
+    await from.scrollIntoViewIfNeeded();
     const b = await from.boundingBox();
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
     await page.mouse.down();
