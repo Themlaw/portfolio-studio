@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 
 import { LoopClick } from "@/components/LoopVideo";
 import Picture from "@/components/Picture";
+import { claimEager } from "@/lib/eager";
 import ViewerScope from "@/components/ViewerScope";
 import { frameAttrs, imageBgAttrs } from "@/lib/look";
 import { getMedia } from "@/lib/media";
@@ -31,6 +32,7 @@ export { freeBoardSchema };
  * `data-free-item` (chaque image) lus par le calque FreeLayer, et « + Image » au centre d'une zone vide. Jamais en public.
  */
 export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType<typeof freeBoardSchema.parse>; ctx: BlockContext }) {
+  const eager = claimEager(2);
   const canvas = Boolean(ctx.edit || ctx.freeCanvas);
   const list = freeItems(props);
   const rows = await Promise.all(list.map((it) => getMedia(it.media)));
@@ -90,7 +92,7 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
                   <LoopClick video={m.video} width={m.width ?? 1280} height={m.height ?? 720} className="h-full w-full object-cover" label={alt} edit={canvas} />
                 </div>
               ) : (
-                <Picture src={m.url} sources={m.sources} alt={alt} width={m.width ?? 1200} height={m.height ?? 800} sizes={sizes} className="free-media" />
+                <Picture src={m.url} sources={m.sources} alt={alt} width={m.width ?? 1200} height={m.height ?? 800} sizes={sizes} className="free-media" priority={shown.findIndex((s) => s.it.id === it.id) < eager} />
               )}
             </figure>
           );

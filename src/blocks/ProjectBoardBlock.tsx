@@ -3,6 +3,7 @@ import { z } from "zod";
 import BoardBox from "@/components/BoardBox";
 import ProjectStrip, { type BoardPart } from "@/components/ProjectStrip";
 import { getProjectBoard, type LocalizedArtwork } from "@/lib/gallery";
+import { claimEager } from "@/lib/eager";
 import { readLook } from "@/lib/look";
 import { getMedia } from "@/lib/media";
 
@@ -114,6 +115,7 @@ function stripDates(props: Record<string, unknown>, locale: BlockContext["locale
  * elle montre le projet du conteneur.
  */
 export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer<typeof projectBoardSchema>; ctx: BlockContext }) {
+  const eager = claimEager(2);
   const slug = props.project ?? ctx.project;
   const project = slug ? await getProjectBoard(slug, ctx.locale, props.collection) : null;
   if (project) {
@@ -161,7 +163,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     );
     return (
       <>
-        <ProjectStrip project={project} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} slotFrame={ctx.look?.slotFrame} slotVideo={ctx.look?.slotVideo} slotBg={ctx.look?.slotBg} slotPano={ctx.look?.slotPano} styles={headerStyles(ctx)} parts={parts} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
+        <ProjectStrip project={project} eager={eager} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotRadius={ctx.look?.slotRadius} slotFrame={ctx.look?.slotFrame} slotVideo={ctx.look?.slotVideo} slotBg={ctx.look?.slotBg} slotPano={ctx.look?.slotPano} styles={headerStyles(ctx)} parts={parts} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
         {wallpapers && <WallpaperAlign />}
       </>
     );

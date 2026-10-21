@@ -4,6 +4,7 @@ import Eyebrow from "@/components/Eyebrow";
 import ProjectStrip from "@/components/ProjectStrip";
 import { Link } from "@/i18n/navigation";
 import { getFeaturedProjects } from "@/lib/gallery";
+import { claimEager } from "@/lib/eager";
 import { hrefForPage } from "@/lib/pages";
 
 import { inline, localized, pageRef, tr, type BlockContext, localizedText } from "./types";
@@ -25,6 +26,7 @@ export default async function FeaturedProjectsBlock({
   props: z.infer<typeof featuredProjectsSchema>;
   ctx: BlockContext;
 }) {
+  const eager = claimEager(2);
   const projects = await getFeaturedProjects(ctx.locale, props.limit, props.projects);
   const moreHref = props.more ? await hrefForPage(props.more.pageId, ctx.locale) : null;
 
@@ -43,7 +45,7 @@ export default async function FeaturedProjectsBlock({
       </section>
 
       {projects.map((project, index) => (
-        <ProjectStrip key={project.slug} project={project} deep={index % 2 === 0} />
+        <ProjectStrip key={project.slug} project={project} eager={index === 0 ? eager : 0} deep={index % 2 === 0} />
       ))}
 
       {props.more && moreHref && (

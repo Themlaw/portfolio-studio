@@ -2337,6 +2337,17 @@ html[data-edit-dragging] .block-grid-cell {
   min-height: 11rem;
   aspect-ratio: auto;
 }
+/* Lot 54 (PARITE-02) : en rangées justifiées, la place libre ne partage JAMAIS la rangée d'une image (sur Téléphone elle réduisait
+   l'image voisine de moitié, absente du public) : elle a sa propre rangée, basse. Une grille sans image garde ses places côte à côte. */
+.block-grid[data-justify]:has(> .block-grid-cell:not([data-edit-cell-free])) > .block-grid-cell[data-edit-cell-free] {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.block-grid[data-justify] > .block-grid-cell[data-edit-cell-free]:not([data-span-h]) .pe-cell-free {
+  height: auto;
+  min-height: 6rem;
+  aspect-ratio: auto;
+}
 .pe-cell-num {
   position: absolute;
   top: 8px;
@@ -2408,6 +2419,38 @@ html[data-edit-mode] .pe-bitem-bar .pe-seg button { height: 28px; border-radius:
 [data-edit-mode] [data-cap-host]:hover [data-cap-own][data-placeholder]:empty::before,
 [data-edit-mode] [data-edit-selected] [data-cap-host] [data-cap-own][data-placeholder]:empty::before {
   opacity: 0.45;
+}
+
+/* Lot 54 (PARITE-02) : les lignes grises vides « Titre / Légende / Date » n'existent (donc ne prennent de hauteur) que sur le média
+   survolé ou choisi, ou en cours de saisie ; sinon la toile serait plus haute que le site publié. Un champ rempli reste toujours visible. */
+[data-edit-mode] .media-caption [data-cap]:empty,
+[data-edit-mode] .media-caption > .mc-main:not(:has([data-cap]:not(:empty))),
+[data-edit-mode] .media-caption:not(:has([data-cap]:not(:empty))) {
+  display: none;
+}
+[data-edit-mode] [data-cap-host]:hover > .media-caption,
+[data-edit-mode] [data-cap-host]:focus-within > .media-caption,
+[data-edit-mode] [data-edit-selected] [data-cap-host] > .media-caption,
+[data-edit-mode] [data-edit-bitem][data-selected] [data-cap-host] > .media-caption,
+[data-edit-mode] [data-edit-slot][data-slot-selected] > .media-caption,
+[data-edit-mode] .media-caption:has(:is([data-editing], [data-cap][style*="visibility: hidden"])) {
+  display: flex;
+}
+[data-edit-mode] [data-cap-host]:hover > .media-caption > .mc-main,
+[data-edit-mode] [data-cap-host]:focus-within > .media-caption > .mc-main,
+[data-edit-mode] [data-edit-selected] [data-cap-host] > .media-caption > .mc-main,
+[data-edit-mode] [data-edit-bitem][data-selected] [data-cap-host] > .media-caption > .mc-main,
+[data-edit-mode] [data-edit-slot][data-slot-selected] > .media-caption > .mc-main,
+[data-edit-mode] .media-caption:has(:is([data-editing], [data-cap][style*="visibility: hidden"])) > .mc-main {
+  display: flex;
+}
+[data-edit-mode] [data-cap-host]:hover > .media-caption [data-cap]:empty,
+[data-edit-mode] [data-cap-host]:focus-within > .media-caption [data-cap]:empty,
+[data-edit-mode] [data-edit-selected] [data-cap-host] > .media-caption [data-cap]:empty,
+[data-edit-mode] [data-edit-bitem][data-selected] [data-cap-host] > .media-caption [data-cap]:empty,
+[data-edit-mode] [data-edit-slot][data-slot-selected] > .media-caption [data-cap]:empty,
+[data-edit-mode] .media-caption:has(:is([data-editing], [data-cap][style*="visibility: hidden"])) [data-cap]:empty {
+  display: block;
 }
 
 /* Lot 39 : le « + Ajouter » entre deux composants de planche chevauche de 14 px le bas du composant précédent, où se trouve désormais

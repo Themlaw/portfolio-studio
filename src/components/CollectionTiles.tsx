@@ -59,7 +59,10 @@ export default function CollectionTiles({
   itemCount = 0,
   candidates = [],
   styles,
+  eager = 0,
 }: {
+  /** Les premières tuiles chargent leur image tout de suite (lot 54). */
+  eager?: number;
   tiles: Tile[];
   cta: string;
   /** Format imposé des images (sinon celui de chaque image). */
@@ -109,7 +112,7 @@ export default function CollectionTiles({
   const geo = TILE_GEOMETRY[size];
   return (
     <div className="tiles flex flex-col gap-[var(--t-space-l)]" data-size={size} {...(fixed ? { "data-ratio": fixed } : {})}>
-      {tiles.map((tile) =>
+      {tiles.map((tile, tileIndex) =>
         tile.broken ? (
           <p key={tile.key} data-edit-invalid="" data-tile-broken="" className="pe-tile-broken">
             Cette entrée mène à une page supprimée ou non publiée : elle est masquée sur le site. Choisis une autre page, ou retire-la.
@@ -153,6 +156,7 @@ export default function CollectionTiles({
                   className="h-auto w-full rounded-[2px]"
                   cropped={tile.free}
                   fallback={tile.fallback}
+                  priority={tileIndex < eager}
                 />
               </span>
             </div>
