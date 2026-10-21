@@ -471,7 +471,7 @@ if (run("F"))
     await page.keyboard.press("Escape");
     await settled();
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    ok("F4 page publiée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+    ok("F4 page publiée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
     const cardVar = async () => {
       const html = await (await fetch(`${BASE}/fr/a-propos`, { cache: "no-store" })).text();
       return /--card-bg:\s*(#[0-9a-fA-F]{6})/.exec(html)?.[1]?.toLowerCase() ?? null;

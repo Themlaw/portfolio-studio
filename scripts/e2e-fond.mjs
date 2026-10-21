@@ -120,7 +120,7 @@ async function openEditor() {
 async function publish() {
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  const okp = await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  const okp = await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
   if (!okp) {
     await page.screenshot({ path: path.join(SHOTS, "echec-publication.png") });
     console.log("STATUT: " + (await page.locator(".ve-status").textContent()) + " | " + (await page.evaluate(() => [...document.querySelectorAll("[role=status],[role=alert]")].map((e) => e.textContent).join(" / "))));

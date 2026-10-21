@@ -144,7 +144,7 @@ async function openEditor(id = 1) {
 async function publish() {
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 /** Valeur d'une couleur CSS (variables du thème comprises) en [r, g, b, a], dans le document du cadre. */
 const rgbaIn = (fr, css) =>

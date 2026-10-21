@@ -114,7 +114,7 @@ async function openEditor(id) {
 async function publish() {
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 /** Valeur en px d'un cran du thème, mesurée dans la toile. */
 const cranPx = (f, key) =>

@@ -463,7 +463,7 @@ if (run("P") && !BEFORE) {
   await sleep(1000);
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  const published = await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  const published = await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
   ok("P page publiée", published);
   const pub = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 2 });
   const pp = await pub.newPage();
@@ -522,7 +522,7 @@ if (ONLY.split(",").includes("F") && !BEFORE) {
   await sleep(1000);
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  ok("F page publiée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+  ok("F page publiée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
   // À froid : aucune variante recadrée sur le disque.
   await sleep(1500);
   rmSync(path.join(DATA, "cache", "crops"), { recursive: true, force: true });

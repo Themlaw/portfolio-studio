@@ -86,14 +86,14 @@ function CreatePage({ open, onClose }: { open: boolean; onClose: () => void }) {
             setErrors(result.fieldErrors ?? {});
             return;
           }
-          toast("Page créée · pas encore publiée");
+          toast("Page créée · pas encore en ligne");
           reset();
           // Droit dans l'éditeur visuel : c'est là qu'on compose la page.
           router.push(`/admin/pages/${result.data.id}/editer`);
         })
       }
     >
-      <p className="muted">La page est créée sans être publiée : tu la composes dans l&apos;éditeur, puis tu la publies quand elle est prête.</p>
+      <p className="muted">La page est créée sans être publiée : tu la composes dans l&apos;éditeur, puis « Publier » dans l&apos;éditeur la met en ligne.</p>
       <div className="a-form-grid a-section-tight">
         <TextField label="Titre en français" value={title.fr} onChange={(v) => setT("fr", v)} error={errors["title.fr"]} placeholder="Carnets" />
         <TextField
@@ -256,7 +256,7 @@ export default function PagesManager({ pages, trashed, view, summary }: { pages:
                 <DragHandle />
                 <span className="a-sortable-pos mono">{i + 1}</span>
                 <span className="a-sortable-title">{p.title}</span>
-                {!p.published && <span className="a-tag">Non publiée</span>}
+                {!p.published && <span className="a-tag">Pas encore en ligne</span>}
               </div>
             )}
           />
@@ -316,7 +316,7 @@ export default function PagesManager({ pages, trashed, view, summary }: { pages:
                       <>
                         {" "}
                         <span className="a-tag a-tag-draft" title="Des modifications de l'éditeur ne sont pas encore publiées.">
-                          Brouillon non publié
+                          Modifications non publiées
                         </span>
                       </>
                     )}
@@ -324,17 +324,17 @@ export default function PagesManager({ pages, trashed, view, summary }: { pages:
                     <span className="a-sub mono">{addresses(p)}</span>
                   </td>
                   <td data-label="État">
-                    {p.published ? <span className="a-badge">Publiée</span> : <span className="a-tag">Non publiée</span>}
+                    {p.published ? <span className="a-badge">En ligne</span> : <span className="a-tag">Pas encore en ligne</span>}
                     {!isHome(p) && (
                       <button
                         type="button"
                         className="a-btn a-btn-small a-btn-quiet"
                         disabled={busy}
                         onClick={() =>
-                          act(() => setPublishedAction(p.id, !p.published), p.published ? `« ${p.title} » dépubliée` : `« ${p.title} » publiée`)
+                          act(() => setPublishedAction(p.id, !p.published), p.published ? `« ${p.title} » retirée du site : elle n'est plus visible` : p.hasDraft ? `« ${p.title} » en ligne, sans ses modifications non publiées` : `« ${p.title} » en ligne`)
                         }
                       >
-                        {p.published ? "Dépublier" : "Publier"}
+                        {p.published ? "Retirer du site" : "Mettre en ligne"}
                       </button>
                     )}
                   </td>

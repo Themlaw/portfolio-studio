@@ -168,6 +168,7 @@ const ADMIN_ACTIONS = [
   "saveSettingsAction",
   "createPageAction",
   "savePageAction",
+  "savePageInfoAction",
   "saveDraftAction",
   "publishDraftAction",
   "discardDraftAction",

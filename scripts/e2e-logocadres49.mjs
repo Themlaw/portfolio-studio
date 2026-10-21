@@ -85,7 +85,7 @@ async function settled() {
 async function publish() {
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 const until = (f, fn, arg, timeout = 30000) =>
   f.waitForFunction(fn, arg, { timeout, polling: 200 }).then(
@@ -121,6 +121,8 @@ async function publishBlocks(pg, base, pageId, mutate, done, timeout = 240000) {
   await canvas();
   await sleep(1500);
   await pg.getByRole("button", { name: "Publier", exact: true }).click();
+  const goLive = pg.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" });
+  if (await goLive.waitFor({ timeout: 3000 }).then(() => true, () => false)) await goLive.click();
   const ok2 = await waitFor(() => done(), timeout);
   if (!ok2) {
     info("éditeur après Publier", {

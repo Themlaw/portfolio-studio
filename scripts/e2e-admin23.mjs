@@ -135,8 +135,8 @@ try {
   // Publiée depuis la liste, pour voir la page quitter le site.
   await goto("/admin/pages");
   const row = () => page.locator("tr", { hasText: "Carnets 23" });
-  await row().getByRole("button", { name: "Publier", exact: true }).click();
-  await toast("publiée");
+  await row().getByRole("button", { name: "Mettre en ligne", exact: true }).click();
+  await toast("en ligne");
   ok("A6 page publiée : 200 en public", (await anon("/fr/carnets-23")).status === 200);
 
   // F1 : l'adresse est en petit et en gris sous le titre.

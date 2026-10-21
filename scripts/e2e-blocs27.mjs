@@ -391,7 +391,7 @@ if (run("E"))
     if (await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).count()) await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).click();
     await settled();
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    ok("E9 publication acceptée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000), await page.locator(".ve-status").textContent());
+    ok("E9 publication acceptée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000), await page.locator(".ve-status").textContent());
     const pubPage = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
     await pubPage.goto(`${BASE}/fr/${legacy.slug}`, { waitUntil: "networkidle" });
     const html = await pubPage.content();

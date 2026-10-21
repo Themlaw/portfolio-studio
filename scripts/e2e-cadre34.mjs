@@ -323,7 +323,7 @@ if (run("P"))
     // L'état de la toile avant publication (parité).
     const edit = { solo: await readFrame(f, SOLO), ga: await readFrame(f, GA), gb: await readFrame(f, GB), slot: await readFrame(f, SLOT0) };
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    ok("P0 page publiée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+    ok("P0 page publiée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
     const visitor = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const pp = await visitor.newPage();
     pp.on("pageerror", (e) => errors.push(e.message));

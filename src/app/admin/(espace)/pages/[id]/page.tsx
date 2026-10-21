@@ -12,9 +12,10 @@ export default async function PageEditPage({ params }: { params: Promise<{ id: s
   const { id } = await params;
   const published = /^\d+$/.test(id) ? getPageForEdit(Number(id)) : null;
   if (!published) notFound();
-  // Brouillon de l'éditeur visuel : le formulaire le reprend (un seul état).
+  // Le formulaire ne montre et n'enregistre que les infos de la page (lot 51) : le brouillon de contenu de l'éditeur
+  // n'y est pas repris et n'est jamais publié d'ici. Les infos du brouillon (titre, adresses…) suivent déjà celles du formulaire.
   const state = readDraft(published.id);
-  const page = state?.hasDraft ? { ...published, ...state.draft, blocks: state.draft.blocks.map(({ type, props }) => ({ type, props })) } : published;
+  const page = state?.hasDraft ? { ...published, ...state.draft, blocks: published.blocks } : published;
 
   const colors = getActiveThemeColors();
 
@@ -45,13 +46,13 @@ export default async function PageEditPage({ params }: { params: Promise<{ id: s
       {state?.corrupt && (
         <p className="a-notice a-notice-danger" role="alert">
           Le brouillon de cette page ne peut plus être lu (un composant a changé). Ouvre l&apos;éditeur visuel pour repartir de la
-          version publiée avant d&apos;enregistrer ici.
+          version en ligne avant d&apos;enregistrer ici.
         </p>
       )}
       {state?.hasDraft && !state.corrupt && (
         <p className="a-notice" role="status">
-          Cette page a un brouillon non publié dans l&apos;éditeur visuel : le formulaire le reprend. « Enregistrer » ici le
-          publie, comme « Publier » dans l&apos;éditeur.
+          Cette page a des modifications non publiées dans l&apos;éditeur visuel. « Enregistrer » ici ne change que les
+          informations : tes modifications de contenu restent en attente jusqu&apos;à « Publier ».
         </p>
       )}
       <PageEditor rev={state?.rev ?? 0} page={page} context={getEditorContext()} colors={colors} />

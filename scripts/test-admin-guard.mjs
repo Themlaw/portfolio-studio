@@ -83,6 +83,7 @@ const EXPECTED = [
   "saveSettingsAction",
   "createPageAction",
   "savePageAction",
+  "savePageInfoAction",
   "setPublishedAction",
   "setInMenuAction",
   "reorderMenuAction",

@@ -250,9 +250,10 @@ try {
   ok("B4a le formulaire n'a plus de liste de rubriques ni de « + Ajouter une rubrique »", (await page.getByRole("button", { name: "+ Ajouter une rubrique" }).count()) === 0 && (await page.locator(".a-block").count()) === 0);
   const toEditor = page.getByRole("link", { name: "Modifier le contenu dans l'éditeur" });
   ok("B4b lien « Modifier le contenu dans l'éditeur » vers l'éditeur de la page", (await toEditor.getAttribute("href")) === `/admin/pages/${pageId}/editer` && /2 rubriques/.test(await page.locator("#pe-contenu").locator("..").innerText()));
-  await page.locator("label.a-toggle", { hasText: "Publiée" }).click();
+  // Lot 51 : « Publier » dans l'éditeur a déjà mis la page en ligne (un seul geste) ; le formulaire le dit.
+  ok("B4c0 le formulaire dit « En ligne » (mise en ligne faite par l'éditeur)", await page.getByRole("switch", { name: "En ligne" }).isChecked());
   await page.locator("label.a-toggle", { hasText: "Dans le menu" }).click();
-  ok("B4c interrupteurs activés", (await page.getByRole("switch", { name: "Publiée" }).isChecked()) && (await page.getByRole("switch", { name: "Dans le menu" }).isChecked()));
+  ok("B4c interrupteurs activés", (await page.getByRole("switch", { name: "En ligne" }).isChecked()) && (await page.getByRole("switch", { name: "Dans le menu" }).isChecked()));
   ok("B5 état « non enregistré » visible", await page.locator(".a-save-state", { hasText: "non enregistrées" }).isVisible());
   // Prévisualiser avant d'enregistrer : le formulaire prévient que l'aperçu montre la version enregistrée.
   ok("B5b l'aperçu signale qu'il montre la version enregistrée", await page.getByText("L'aperçu montre la version enregistrée").isVisible());
@@ -278,8 +279,8 @@ try {
   // Dépublier depuis la liste → 404, mais l'aperçu admin la montre encore.
   await page.goto(`${BASE}/admin/pages`, { waitUntil: "networkidle" });
   const row = page.locator("tr", { hasText: "Carnets d'été" });
-  await row.getByRole("button", { name: "Dépublier" }).click();
-  await toast("dépubliée");
+  await row.getByRole("button", { name: "Retirer du site" }).click();
+  await toast("retirée du site");
   r = await anon("/fr/carnets");
   ok("B10 page dépubliée → 404 pour les visiteurs", r.status === 404, String(r.status));
   r = await anon("/fr");

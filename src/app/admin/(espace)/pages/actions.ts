@@ -16,7 +16,7 @@ import {
   setPublished,
   type PageReference,
 } from "@/lib/edit/pages";
-import { discardDraft, publishDraft, saveDraft, savePageFromForm, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
+import { discardDraft, publishDraft, saveDraft, savePageFromForm, savePageInfo, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
 import { boardOp, createDraftProject, restoreBoard, type BoardResult } from "@/lib/edit/boards";
 import { saveSiteDraft, type SiteResult } from "@/lib/edit/site";
 import { collectFonts, installGoogleFont, type InstallResult } from "@/lib/fonts/library";
@@ -56,6 +56,21 @@ export async function savePageAction(id: unknown, input: unknown, rev: unknown):
 }
 
 /**
+ * Formulaire d'infos de la page (lot 51) : enregistre SEULEMENT les infos (titre, adresses, menu, mise en ligne…).
+ * Le brouillon de contenu de l'éditeur n'est jamais publié ici. `keepOldAddress` : ancienne adresse gardée en redirection.
+ */
+export async function savePageInfoAction(id: unknown, input: unknown, rev: unknown, keepOldAddress?: unknown): Promise<DraftResult<{ rev: number; redirected: number }>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Page inconnue.");
+  const result = savePageInfo(pid, input, rev, { keepOldAddress: keepOldAddress !== false });
+  if (!result.ok) return result;
+  revalidatePage(pid, { structure: true });
+  enqueueCropWarm(pid);
+  return result;
+}
+
+/**
  * Éditeur visuel : enregistrement automatique du brouillon. Rien n'est
  * revalidé : un brouillon n'est jamais dans le cache public, la vue brouillon
  * de l'admin le relit sans cache.
@@ -68,11 +83,12 @@ export async function saveDraftAction(id: unknown, draft: unknown, rev: unknown)
 }
 
 /** Publier : validation complète (comme un enregistrement), page et projets touchés revalidés. */
-export async function publishDraftAction(id: unknown, rev: unknown): Promise<DraftResult<PublishResult>> {
+export async function publishDraftAction(id: unknown, rev: unknown, live?: unknown): Promise<DraftResult<PublishResult>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
-  const result = publishDraft(pid, rev);
+  // `live` : l'éditeur a obtenu la confirmation « Mettre cette page en ligne ? » (lot 51) ; un seul geste met contenu et page en ligne.
+  const result = publishDraft(pid, rev, { live: live === true });
   if (!result.ok) return result;
   revalidatePage(pid, { structure: true });
   // Recadrages de la page publiée préparés en fond (file image, basse priorité) : pas de première visite lente.

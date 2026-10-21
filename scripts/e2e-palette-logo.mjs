@@ -128,7 +128,7 @@ async function openEditor(id) {
 async function publish() {
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 /** Variable de couleur du thème, telle que la toile l'affiche (notation rvb du navigateur). */
 const themeVar = (f, name) =>
@@ -247,7 +247,7 @@ if (run("P")) {
   ok("P4c la saisie n'est pas bloquée : palette.ink enregistrée au brouillon", await waitFor(() => nearHex(siteDraftStyles()?.palette?.ink, BAD_INK)), JSON.stringify(siteDraftStyles()));
   await page.screenshot({ path: `${SHOTS}/P-contraste-alerte-1440.png` });
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  ok("P4d publication ACCEPTÉE malgré le manque de contraste (lot 29)", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 60000));
+  ok("P4d publication ACCEPTÉE malgré le manque de contraste (lot 29)", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 60000));
   ok("P4e la couleur peu contrastée est publiée telle quelle, sans retour aux couleurs du thème", await waitFor(() => nearHex(setting("styles")?.palette?.ink, BAD_INK)), JSON.stringify(setting("styles")));
   ok("P4e' public : la feuille de la palette porte le texte choisi", /--t-color-ink:#eee6d4/.test(((await (await fetch(`${BASE}/fr`)).text()).match(/<style id="site-palette"[^>]*>([^<]*)<\/style>/) ?? [])[1] ?? ""));
   await page.getByTestId("contrast-fix").click();
