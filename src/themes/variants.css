@@ -261,15 +261,7 @@
   max-height: none;
 }
 
-[data-lightbox="full-bleed"] .lightbox-image {
-  max-height: 54vh;
-}
-
-@media (min-width: 48rem) {
-  [data-lightbox="full-bleed"] .lightbox-image {
-    max-height: 66vh;
-  }
-}
+/* Taille de l'image agrandie : identique pour tous les thèmes (globals.css, lot 54). */
 
 /* ==========================================================================
    Éléments dessinés du kit PSD (assets.kit, docs/THEME-KIT.md).

@@ -72,7 +72,10 @@ export default function ProjectStrip({
   palette,
   wallpapers,
   styles,
+  eager = 0,
 }: {
+  /** Nombre d'images de la bande chargées tout de suite (lot 54). */
+  eager?: number;
   project: LocalizedProject;
   /** Fond papier profond, pour séparer deux projets sans boîte ni bordure. */
   deep?: boolean;
@@ -126,11 +129,11 @@ export default function ProjectStrip({
       part,
       part?.artworks ? (
         <BoardBox box={part.box}>
-          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} slotPano={slotPano} videoMode={part.videoMode} />
+          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} slotPano={slotPano} videoMode={part.videoMode} eager={eager} />
         </BoardBox>
       ) : (
         <BoardBox box={part?.box}>
-          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} slotPano={slotPano} videoMode={part?.videoMode} />
+          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} slotPano={slotPano} videoMode={part?.videoMode} eager={eager} />
         </BoardBox>
       ),
     );

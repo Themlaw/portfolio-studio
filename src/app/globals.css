@@ -584,6 +584,81 @@
     box-shadow: none;
   }
 
+  /* Taille de l'image agrandie (lot 54) : jusqu'à 92 vw sur 88 vh, proportions gardées (--lb-r = largeur / hauteur), sans
+     jamais déborder sur l'en-tête, la légende ni les vignettes : leur hauteur est retranchée de la fenêtre. */
+  .lightbox {
+    --lb-head: 3.5rem;
+    --lb-cap: 0rem;
+    --lb-thumbs: 0rem;
+    --lb-maxh: min(88vh, calc(100vh - var(--lb-head) - var(--lb-cap) - var(--lb-thumbs)));
+  }
+  @supports (height: 100dvh) {
+    .lightbox {
+      --lb-maxh: min(88dvh, calc(100dvh - var(--lb-head) - var(--lb-cap) - var(--lb-thumbs)));
+    }
+  }
+  .lightbox[data-caption] {
+    --lb-cap: 6.5rem;
+  }
+  .lightbox[data-thumbs] {
+    --lb-thumbs: 6.5rem;
+  }
+  .lightbox:not([data-caption]) .lightbox-caption {
+    display: none;
+  }
+  .lightbox-head {
+    height: var(--lb-head);
+  }
+  .lightbox-caption {
+    max-height: var(--lb-cap);
+  }
+  .lightbox-image,
+  .lb-preview {
+    display: block;
+    width: min(92vw, calc(var(--lb-maxh) * var(--lb-r, 1.5)));
+    height: auto;
+    max-width: 92vw;
+    max-height: var(--lb-maxh);
+    object-fit: contain;
+  }
+  .lb-frame {
+    display: grid;
+    place-items: center;
+  }
+  .lb-frame > .lb-preview,
+  .lb-frame > .lightbox-image,
+  .lb-frame > picture > .lightbox-image {
+    grid-area: 1 / 1;
+  }
+  .lb-main {
+    transition: opacity 0.25s ease;
+  }
+  /* Indicateur de chargement discret : un petit anneau au centre de la place de l'image. */
+  .lb-spinner {
+    grid-area: 1 / 1;
+    place-self: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 9999px;
+    border: 2px solid color-mix(in srgb, var(--color-on-scrim) 30%, transparent);
+    border-top-color: var(--color-on-scrim);
+    animation: lb-spin 0.9s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes lb-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lb-spinner {
+      animation: none;
+    }
+    .lb-main {
+      transition: none;
+    }
+  }
+
   /* ---- Vignettes de la lightbox ---------------------------------------- */
   .lb-thumbs {
     display: flex;

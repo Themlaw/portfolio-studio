@@ -1,12 +1,75 @@
 "use client";
 
 import Picture from "./Picture";
+import PictureMarkup from "./PictureMarkup";
 import { useReducedMotion } from "./LoopVideo";
 import VideoPlayer from "./VideoPlayer";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 
 import type { ViewerItem } from "@/lib/viewer";
+
+/** Part de l'écran occupée au plus par l'image agrandie (lot 54) : 92 vw sur 88 vh, proportions gardées. */
+const MAX_VW = 92;
+const MAX_VH = 88;
+
+/** URLs d'un srcset (« url 480w, url 960w »). */
+const urlsOf = (srcset: string) => srcset.split(",").map((s) => s.trim().split(/\s+/)[0]).filter(Boolean);
+
+/**
+ * Version déjà chargée de cette image dans la page (la vignette, de la variante que le navigateur a choisie), à montrer
+ * tout de suite pendant que la grande arrive. Aucune requête de plus : on lit les images déjà affichées.
+ */
+function loadedPreview(item: ViewerItem): string | undefined {
+  if (typeof document === "undefined" || !item.sources) return undefined;
+  const urls = new Set([...urlsOf(item.sources.avif), ...urlsOf(item.sources.webp)]);
+  for (const img of document.querySelectorAll<HTMLImageElement>("img")) {
+    if (img.closest(".lightbox")) continue;
+    const src = img.currentSrc;
+    if (src && img.complete && img.naturalWidth > 0 && [...urls].some((u) => src.endsWith(u) || src === new URL(u, document.baseURI).href)) return src;
+  }
+  return undefined;
+}
+
+/** Image agrandie : version déjà chargée tout de suite, indicateur discret, puis remplacement par la variante adaptée à l'écran. */
+function LightboxImage({ item }: { item: ViewerItem }) {
+  const [loaded, setLoaded] = useState(false);
+  const ref = useRef<HTMLImageElement | null>(null);
+  const preview = useMemo(() => loadedPreview(item), [item]);
+  useEffect(() => {
+    if (ref.current?.complete && ref.current.naturalWidth > 0) setLoaded(true);
+  }, []);
+  const ratio = item.width / Math.max(1, item.height);
+  const sizes = `min(${MAX_VW}vw, ${(MAX_VH * ratio).toFixed(2)}vh)`;
+  if (!item.sources) {
+    return (
+      <div className="lightbox-frame" style={{ "--lb-r": ratio.toFixed(4) } as CSSProperties}>
+        <Picture src={item.image} sources={item.sources} alt={item.alt} width={item.width} height={item.height} sizes={sizes} className="lightbox-image" priority />
+      </div>
+    );
+  }
+  return (
+    <div className="lightbox-frame lb-frame" data-loaded={loaded ? "" : undefined} style={{ "--lb-r": ratio.toFixed(4), ...(loaded || preview || !item.sources.color ? {} : { backgroundColor: item.sources.color }) } as CSSProperties}>
+      {preview && !loaded && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={preview} alt="" aria-hidden="true" width={item.width} height={item.height} className="lb-preview" />
+      )}
+      <PictureMarkup
+        sources={item.sources}
+        alt={item.alt}
+        width={item.width}
+        height={item.height}
+        sizes={sizes}
+        className="lightbox-image lb-main"
+        priority
+        imgRef={ref}
+        onLoad={() => setLoaded(true)}
+        style={{ opacity: loaded ? 1 : 0 }}
+      />
+      {!loaded && <span className="lb-spinner" aria-hidden="true" />}
+    </div>
+  );
+}
 
 /**
  * Vue plein écran d'une œuvre.
@@ -93,18 +156,23 @@ export default function Lightbox({
   if (!active) return null;
 
   const solo = items.length < 2;
+  const hasText = Boolean(active.title || (!active.plain && active.alt) || active.description || active.date);
+  // Image suivante et précédente : chargées d'avance, avec les mêmes `sizes` (donc la même variante que celle qu'on affichera).
+  const neighbours = solo ? [] : [...new Set([(index + 1) % items.length, (index - 1 + items.length) % items.length])].filter((i) => i !== index);
 
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={active.title || active.alt}
+      data-caption={hasText ? "" : undefined}
+      data-thumbs={solo ? undefined : ""}
       className="lightbox fixed inset-0 z-[80] flex flex-col"
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="flex items-center justify-between gap-4 px-5 py-4 md:px-8">
+      <div className="lightbox-head flex shrink-0 items-center justify-between gap-4 px-5 md:px-8">
         <span className="eyebrow text-on-scrim">
           {bare ? "" : t("position", { index: index + 1, total: items.length })}
         </span>
@@ -151,33 +219,32 @@ export default function Lightbox({
           </button>
         )}
 
-        <figure className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-4">
-          <div className="lightbox-frame max-h-[62vh] max-w-full overflow-hidden">
-            {active.video ? (
+        <figure className="flex min-h-0 w-full flex-1 flex-col items-center justify-center">
+          {active.video ? (
+            <div className="lightbox-frame" style={{ "--lb-r": (active.width / Math.max(1, active.height)).toFixed(4) } as CSSProperties}>
               <VideoPlayer
                 key={active.id}
                 video={active.video}
                 width={active.width}
                 height={active.height}
-                videoClassName="lightbox-image max-h-[44vh] w-auto max-w-full object-contain md:max-h-[56vh]"
+                videoClassName="lightbox-image object-contain"
                 autoPlay={active.video.loop && !reduced}
                 muted={active.video.loop}
                 loop={active.video.loop}
                 label={active.title || active.alt}
               />
-            ) : (
-              <Picture
-                src={active.image}
-                sources={active.sources}
-                alt={active.alt}
-                width={active.width}
-                height={active.height}
-                className={`lightbox-image max-h-[44vh] w-auto max-w-full object-contain ${active.date ? "md:max-h-[46vh]" : "md:max-h-[56vh]"}`}
-                priority
-                largest
-              />
-            )}
-          </div>
+            </div>
+          ) : (
+            <LightboxImage key={active.id} item={active} />
+          )}
+          {neighbours.map((i) => {
+            const n = items[i];
+            return n.video || !n.sources ? null : (
+              <div key={n.id} hidden aria-hidden="true">
+                <PictureMarkup sources={n.sources} alt="" width={n.width} height={n.height} sizes={`min(${MAX_VW}vw, ${((MAX_VH * n.width) / Math.max(1, n.height)).toFixed(2)}vh)`} eager />
+              </div>
+            );
+          })}
         </figure>
 
         {!solo && (
@@ -194,13 +261,13 @@ export default function Lightbox({
 
       {/* Sur petit écran le texte cède la place à l'image : description
           écourtée et rappel clavier masqué (il n'y a pas de clavier). */}
-      <div className="mx-auto w-full max-w-2xl px-6 pt-4 text-center pb-4 md:pt-6">
+      <div className="lightbox-caption mx-auto w-full max-w-2xl shrink-0 overflow-y-auto px-6 pb-3 pt-3 text-center empty:hidden">
         {(active.title || (!active.plain && active.alt)) && (
-          <h2 className="font-display text-xl text-on-scrim md:text-3xl">
+          <h2 className="font-display text-xl text-on-scrim md:text-2xl">
             {active.title || active.alt}
           </h2>
         )}
-        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-on-scrim/70 empty:hidden md:mt-3 md:line-clamp-none">
+        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-on-scrim/70 empty:hidden md:line-clamp-3">
           {active.description}
         </p>
         {active.date && <p className="eyebrow mt-2 text-on-scrim/70" data-lightbox-date="">{active.date}</p>}

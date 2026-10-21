@@ -4,6 +4,7 @@ import { z } from "zod";
 import CollectionTiles, { type Tile } from "@/components/CollectionTiles";
 import Eyebrow from "@/components/Eyebrow";
 import { countCollection, getCollectionCover } from "@/lib/gallery";
+import { claimEager } from "@/lib/eager";
 import { RATIO_VALUES } from "@/lib/images/formats";
 import { cropSources } from "@/lib/images/crop";
 import { parseRatio, scaleSizes } from "@/lib/images/sizes";
@@ -55,6 +56,7 @@ export default async function CollectionTilesBlock({
   props: z.infer<typeof collectionTilesSchema>;
   ctx: BlockContext;
 }) {
+  const eager = claimEager(2);
   const t = await getTranslations("home.collections");
   const tg = await getTranslations("gallery");
   const size = tileSize(props.size);
@@ -132,6 +134,7 @@ export default async function CollectionTilesBlock({
       </header>
       <CollectionTiles
         tiles={tiles}
+        eager={eager}
         cta={t("view")}
         ratio={props.ratio}
         size={size}

@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 
 import Picture from "@/components/Picture";
+import { claimEager } from "@/lib/eager";
 import ViewerScope from "@/components/ViewerScope";
 import { RATIO_VALUES } from "@/lib/images/formats";
 import { cropSources } from "@/lib/images/crop";
@@ -57,6 +58,8 @@ export const imageSchema = z.object({
  * elle-même la géométrie de ses cases).
  */
 export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof imageSchema>; ctx: BlockContext }) {
+  // Avant tout await : l'ordre des réclamations est celui du document (lot 54).
+  const eager = claimEager(1) > 0;
   const media = await getMedia(props.mediaId);
   const image = media && !media.video && !media.pdf ? media : null;
   // Toile : la page en vue brouillon, ou une grille de planche (lot 31d : mêmes repères de média et de case que sur une page).
@@ -158,6 +161,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
             className="block-image-media h-auto w-full rounded-strip"
             cropped={Boolean(cropped)}
             fallback={fallback}
+            priority={eager}
           />
         </span>
       ) : ctx.edit ? (
