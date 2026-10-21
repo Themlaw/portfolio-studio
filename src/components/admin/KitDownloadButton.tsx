@@ -5,19 +5,35 @@
  * thème (file lourde, quelques secondes, ou plus si une vidéo est en cours de
  * conversion), suit sa préparation, puis lance le téléchargement.
  */
-import { useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { toast } from "./editing";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Un seul export à la fois sur la page (tous les boutons « Télécharger le kit » se bloquent ensemble). */
+let exporting = false;
+const listeners = new Set<() => void>();
+const setExporting = (v: boolean) => {
+  exporting = v;
+  listeners.forEach((l) => l());
+};
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => void listeners.delete(l);
+};
+const useExporting = () => useSyncExternalStore(subscribe, () => exporting, () => false);
+
 /** Préparation puis téléchargement du kit : l'état vit chez l'appelant (un menu qui se referme ne l'interrompt pas). */
 export function useKitDownload(themeId: string) {
   const [busy, setBusy] = useState(false);
+  const anyExport = useExporting();
   const [status, setStatus] = useState("");
   const url = `/admin/api/theme-kit/${encodeURIComponent(themeId)}`;
 
   const start = async () => {
+    if (exporting) return;
+    setExporting(true);
     setBusy(true);
     setStatus("Préparation du kit…");
     try {
@@ -47,19 +63,36 @@ export function useKitDownload(themeId: string) {
       toast(error instanceof Error ? error.message : "La préparation du kit a échoué.", "error");
     } finally {
       setBusy(false);
+      setExporting(false);
     }
   };
 
-  return { start, busy, status };
+  return { start, busy, status, blocked: anyExport && !busy };
 }
 
 export default function KitDownloadButton({ themeId, small = false }: { themeId: string; small?: boolean }) {
-  const { start, busy, status } = useKitDownload(themeId);
+  const { start, busy, status, blocked } = useKitDownload(themeId);
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    if (!busy) return;
+    const t0 = Date.now();
+    const timer = setInterval(() => setSeconds(Math.round((Date.now() - t0) / 1000)), 1000);
+    return () => {
+      clearInterval(timer);
+      setSeconds(0);
+    };
+  }, [busy]);
   return (
     <>
-      <button type="button" className={`a-btn${small ? " a-btn-small" : ""}`} onClick={start} disabled={busy} aria-busy={busy}>
+      <button type="button" className={`a-btn${small ? " a-btn-small" : ""}`} onClick={start} disabled={busy || blocked} aria-busy={busy} data-testid="kit-download">
         {busy ? "Préparation du kit…" : "Télécharger le kit Photoshop"}
       </button>
+      {busy && (
+        <span className="a-kit-progress" data-testid="kit-download-progress">
+          <span className="a-spinner" aria-hidden="true" />
+          {status || "Préparation du kit…"} {seconds > 0 ? `${seconds} s` : ""} (jusqu&apos;à 20 secondes)
+        </span>
+      )}
       <span className="sr-only" aria-live="polite">
         {status}
       </span>

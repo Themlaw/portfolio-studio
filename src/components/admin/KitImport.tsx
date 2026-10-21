@@ -24,6 +24,14 @@ export function KitImportUpload({ themeId }: { themeId: string }) {
     const files = [...(list ?? [])];
     if (!files.length) return;
     setError("");
+    // L'ancienne revue ne concerne plus ce fichier : elle disparaît dès le début du nouvel envoi (et ne revient pas sous une erreur).
+    router.replace(`/admin/themes/${encodeURIComponent(themeId)}/kit?neuf=1`);
+    const empty = files.find((f) => f.size === 0);
+    if (empty) {
+      if (input.current) input.current.value = "";
+      setError(`« ${empty.name} » est vide : choisis le bon fichier.`);
+      return;
+    }
     setProgress(0);
     const res = await uploadKit(files, themeId, (sent, total) => setProgress(total ? sent / total : 0));
     setProgress(null);
@@ -169,18 +177,21 @@ export function KitApplyPanel({
   const [useMirror, setUseMirror] = useState(true);
   const [useColors, setUseColors] = useState(Boolean(colors?.count));
   const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
   const [error, setError] = useState("");
 
   const apply = async () => {
     setBusy(true);
     setError("");
     const res = await applyKitImportAction(themeId, importId, { mirror: Boolean(mirror) && useMirror, colors: Boolean(colors?.count) && useColors, base: baseId });
-    setBusy(false);
     if (!res.ok) {
+      setBusy(false);
       setError(res.message);
       return;
     }
-    toast("Copie brouillon créée : aperçu en direct");
+    // Le bouton reste bloqué jusqu'à l'ouverture de la copie : pas de second clic, pas de seconde copie.
+    setDone(true);
+    toast("Copie créée : ouverture de l'aperçu en direct");
     router.push(`/admin/themes/${encodeURIComponent(res.data.id)}`);
   };
 
@@ -227,8 +238,14 @@ export function KitApplyPanel({
         </p>
       )}
       <button type="button" className="a-btn a-btn-primary" onClick={apply} disabled={busy || (changed === 0 && !(useColors && colors?.count))} aria-busy={busy}>
-        {busy ? "Création de la copie…" : "Appliquer au thème"}
+        {busy ? (done ? "Copie créée…" : "Création de la copie…") : "Appliquer au thème"}
       </button>
+      {busy && (
+        <p className="a-help a-kit-progress" role="status" data-testid="kit-apply-status">
+          <span className="a-spinner" aria-hidden="true" />
+          {done ? "Copie créée : ouverture de l'aperçu en direct…" : "Création de la copie : quelques secondes, ne quitte pas la page."}
+        </p>
+      )}
       {error && (
         <p className="a-field-error" role="alert">
           {error}

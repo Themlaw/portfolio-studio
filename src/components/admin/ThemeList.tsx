@@ -63,7 +63,7 @@ function ThemeMenu({ theme, isActive, busy, onDuplicate, onDelete }: { theme: Th
               <Text slot="label">Exporter le thème (.zip)</Text>
               <Text slot="description">Une archive à réimporter sur ce site ou un autre.</Text>
             </MenuItem>
-            <MenuItem className="a-menu-item" onAction={() => void kit.start()} isDisabled={kit.busy} textValue="Télécharger le kit Photoshop">
+            <MenuItem className="a-menu-item" onAction={() => void kit.start()} isDisabled={kit.busy || kit.blocked} textValue="Télécharger le kit Photoshop">
               <Text slot="label">{kit.busy ? "Préparation du kit…" : "Télécharger le kit Photoshop"}</Text>
               <Text slot="description">Un fichier de calques à redessiner dans Photoshop.</Text>
             </MenuItem>
@@ -82,6 +82,12 @@ function ThemeMenu({ theme, isActive, busy, onDuplicate, onDelete }: { theme: Th
           </Menu>
         </Popover>
       </MenuTrigger>
+      {kit.busy && (
+        <span className="a-kit-progress" data-testid="kit-card-progress">
+          <span className="a-spinner" aria-hidden="true" />
+          {kit.status || "Préparation du kit…"}
+        </span>
+      )}
       <span className="sr-only" aria-live="polite">
         {kit.status}
       </span>

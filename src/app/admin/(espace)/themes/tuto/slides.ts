@@ -127,7 +127,8 @@ export const TUTO_SLIDES: TutoSlide[] = [
     alt: "La carte du logo, puis l'en-tête du site avec le nom écrit, et avec un logo dessiné.",
     bullets: [
       "La case (2400 × 600 px) contient ton nom tel que le site l'écrit aujourd'hui.",
-      "Dessine ton logo d'une seule couleur, sur fond transparent : le site le réduit de moitié et le teinte.",
+      "Dessine ton logo sur fond transparent. Couleurs gardées, ou une seule couleur teintée par le Nom du site : plusieurs couleurs, elles sont gardées ; une seule, elle suit le thème.",
+      "Le site l'affiche petit (environ 160 × 40 px au départ, réglable avec « Taille du logo ») : garde des traits épais.",
       "Il remplace le nom en haut à gauche de toutes les pages.",
       KEEP,
     ],

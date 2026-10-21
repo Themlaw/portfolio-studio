@@ -26,7 +26,7 @@ import { wakeWorker } from "@/lib/jobs/worker";
 import { loadSavedTheme } from "@/lib/kit/export-job";
 import { DEFAULT_LIMITS } from "@/lib/kit/limits";
 import { createKitImport, KitImportBatchError, MAX_IMPORT_FILES } from "@/lib/kit/import-job";
-import { preflightProblem, preflightPsd, PsdPreflightError } from "@/lib/kit/psd-header";
+import { DAMAGED_FILE, preflightProblem, preflightPsd, PsdPreflightError } from "@/lib/kit/psd-header";
 import { extractEntry, KitZipError, listZip } from "@/lib/kit/zip-archive";
 
 import { ingestImage, type IngestedMedia } from "./ingest";
@@ -274,7 +274,7 @@ async function completeKit(r: typeof schema.uploads.$inferSelect, userId: string
       pre = await preflightPsd(p.file, DEFAULT_LIMITS.maxLayers * 4);
     } catch (error) {
       extracted.push(p.file);
-      return reject(415, `${label(p.name)}${error instanceof PsdPreflightError ? `${error.message} Enregistre le kit depuis Photoshop au format PSD.` : "Fichier illisible : enregistre le kit depuis Photoshop au format PSD."}`);
+      return reject(415, `${label(p.name)}${error instanceof PsdPreflightError ? `${error.message}${error.message === DAMAGED_FILE ? "" : " Enregistre le kit depuis Photoshop au format PSD."}` : "Fichier illisible : enregistre le kit depuis Photoshop au format PSD."}`);
     }
     const problem = preflightProblem(pre, DEFAULT_LIMITS);
     if (problem) {

@@ -522,6 +522,12 @@ export const LOGO_SIZE_MIN = 24;
 export const LOGO_SIZE_MAX = 160;
 /** Taille de départ du curseur quand rien n'est réglé (≈ la signature des thèmes à kit). */
 export const LOGO_SIZE_DEFAULT = 40;
+/** Tailles rapides du logo (hauteur en px sur grand écran) : « Petit », « Moyen » (un peu plus que la taille du thème, assez pour un dessin détaillé), « Grand ». */
+export const LOGO_SIZE_PRESETS = [
+  { id: "small", label: "Petit", size: 32 },
+  { id: "medium", label: "Moyen", size: 56 },
+  { id: "large", label: "Grand", size: 96 },
+] as const;
 export const LOGO_MODES = ["fixed", "shrink", "overhang"] as const;
 export type LogoMode = (typeof LOGO_MODES)[number];
 export const LOGO_MODE_LABELS: Record<LogoMode, string> = {

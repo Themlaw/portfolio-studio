@@ -107,6 +107,9 @@ function readIdentity(children: Layer[] | undefined): { exportId: string | null;
  * consignes et aperçus ignorés ; un calque masqué est ignoré (c'est le geste
  * naturel pour « retirer » un plan sans le supprimer).
  */
+/** Nom donné d'office par Photoshop (« Calque 12 copie », « Groupe 1 », « Forme 3 »…) : jamais un plan voulu. */
+export const DEFAULT_LAYER_NAME = /^(calque|layer|groupe|group|forme|shape|rectangle|ellipse|polygone|ligne|line|remplissage(?: couleur)?|color fill|dégradé|gradient fill)(?:\s+\d+)?(?:\s+(?:copie|copy)(?:\s+\d+)?)?$/i;
+
 export function resolveDecor(children: Layer[] | undefined): { plans: SlotSource[]; ignored: string[]; exportId: string | null; role: KitRole | null } {
   const { exportId, role } = readIdentity(children);
   const plans: SlotSource[] = [];
@@ -116,6 +119,11 @@ export function resolveDecor(children: Layer[] | undefined): { plans: SlotSource
     if (isIgnoredName(name)) continue;
     if (l.hidden) {
       ignored.push(`${name} (calque masqué : ignoré)`);
+      continue;
+    }
+    // Un calque oublié ou copié par mégarde ne doit jamais recouvrir le décor en silence : il est signalé.
+    if (DEFAULT_LAYER_NAME.test(name.trim())) {
+      ignored.push(`Calque “${name.trim()}” ignoré : nom non reconnu (donne-lui un vrai nom, par exemple « Collines », pour en faire un plan du décor)`);
       continue;
     }
     const slot = decorSlot(plans.length + 1);
