@@ -58,6 +58,15 @@ export async function start(): Promise<void> {
     // Worker des traitements (images) : un job à la fois, reprise des orphelins.
     const { startWorker } = await import("../jobs/worker");
     await startWorker();
+    // Sauvegardes (lot 50) : restauration détectée, puis sauvegardes automatiques si WITH_BACKUP=1. Jamais fatal.
+    try {
+      const { healRestoredMedia } = await import("../backup/restore");
+      await healRestoredMedia();
+      const { startBackups } = await import("../backup/service");
+      await startBackups();
+    } catch (error) {
+      console.error("[backup] initialisation en échec (le site démarre quand même) :", error);
+    }
   } catch (error) {
     console.error("[db] ÉCHEC du démarrage (migrations/seed/admin) : arrêt du serveur.", error);
     process.exit(1);

@@ -1,5 +1,15 @@
+import { readFileSync } from "node:fs";
+
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+
+/** Version de l application, pour le manifest des sauvegardes (lot 50). */
+let appVersion = "inconnue";
+try {
+  appVersion = JSON.parse(readFileSync("package.json", "utf8")).version ?? appVersion;
+} catch {
+  // lancé hors du dossier du projet : version inconnue
+}
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
@@ -23,6 +33,7 @@ const LOW_MEM = process.env.LOW_MEM_BUILD === "1";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  env: { PORTFOLIO_VERSION: appVersion },
   // En LOW_MEM, le typecheck tourne AVANT le build (`tsc --noEmit` dans
   // build:local), pas en parallèle du serveur de build : même garantie, pic réduit.
   ...(LOW_MEM ? { typescript: { ignoreBuildErrors: true } } : {}),

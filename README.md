@@ -160,6 +160,11 @@ dev **redémarré puis pré-chauffé**, une connexion) et `npm run shots:editors
 | `UPLOAD_MAX_DURATION_S` | Durée totale maximale d'un envoi (défaut 600 s). |
 | `JOB_MAX_DURATION_S` | Durée maximale d'un traitement d'image (défaut 120 s) ; au-delà, l'image passe en échec. |
 | `MAX_MEGAPIXELS_16BIT` | Plafond facultatif pour les PNG 16 bits (défaut : 100, comme les autres). |
+| `WITH_BACKUP` | `1` ou `true` active les sauvegardes automatiques dans `/data/backup` (défaut : désactivées, aucun fichier créé). Détail et restauration : docs/SAUVEGARDES.md. |
+| `BACKUP_QUIET_MIN` | Minutes sans modification avant une sauvegarde (défaut 10). |
+| `BACKUP_MAX_HOURS` | Au plus N heures entre deux sauvegardes tant qu'il y a des modifications (défaut 6). |
+| `BACKUP_KEEP` | Nombre de sauvegardes gardées (défaut 3). |
+| `BACKUP_MEDIA` | `0` ou `false` : base seule, sans les médias (défaut : médias inclus). |
 
 Tests : `npm run test:e2e` lance aussi `scripts/e2e-planche.mjs` ; captures :
 `npm run shots:planche` (→ `screenshots/phase4b/`).

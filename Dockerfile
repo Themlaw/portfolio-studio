@@ -152,6 +152,8 @@ COPY --link --from=fs --chown=1000:1000 /out/data /data
 COPY --link --from=builder --chown=0:0 /out/deps/ /app/
 COPY --link --from=builder --chown=0:0 /app/drizzle /app/drizzle
 COPY --link --from=builder --chown=0:0 /app/seed /app/seed
+# Restauration d'une sauvegarde (docs/SAUVEGARDES.md) : l'image n'a ni shell ni tar.
+COPY --link --from=builder --chown=0:0 /app/scripts/restore-backup.mjs /app/restore-backup.mjs
 COPY --link --from=builder --chown=0:0 /app/public /app/public
 COPY --link --from=builder --chown=0:0 /app/.next/static /app/.next/static
 COPY --link --from=builder --chown=0:0 /out/app/ /app/

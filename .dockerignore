@@ -34,6 +34,8 @@ nohup.out
 scripts
 # Scripts appelés par `npm run build` (vérifié par scripts/check-docker-context.mjs).
 !scripts/copy-kit-native.mjs
+# Restauration d'une sauvegarde, copiée dans l'image (docs/SAUVEGARDES.md).
+!scripts/restore-backup.mjs
 # Jeux de test (PSD de l'artiste…) : jamais utiles au build.
 tests
 test-results
