@@ -196,11 +196,17 @@ figure.block-image[data-img-bg] .block-image-frame,
    l'image est plafonnée (--tile-cap, en svh) SANS rien rogner. Un portrait est réduit (largeur = plafond ×
    rapport affiché `--ir`, posé par le bloc) et centré dans sa colonne ; le passe-partout / cadre / scotch qui
    l'entoure suit l'image (--tile-extra : ce que le thème ajoute autour, de chaque côté). Les colonnes
-   (petite 5/12, moyenne 6/12, grande 8/12) viennent du bloc. Sur mobile, l'image est au-dessus du texte. */
-.tiles { --tile-cap: 70svh; --tile-extra: calc(2 * var(--mat-padding)); }
+   (petite 5/12, moyenne 6/12, grande 8/12) viennent du bloc.
+   Lot 48 : image et texte se placent côte à côte, ou s'empilent (image au-dessus du texte), selon la LARGEUR DU CONTENEUR (`.tiles`,
+   `container-type: inline-size`, donc la place réellement disponible dans la zone : Carte, marge du Fond, toile de l'éditeur) et non
+   plus selon celle de la fenêtre. 42 rem = la largeur du contenu d'une fenêtre de 768 px : sans Carte ni marge, rien ne change. */
+.tiles { --tile-cap: 70svh; --tile-extra: calc(2 * var(--mat-padding)); container-type: inline-size; }
 .tiles[data-size="small"] { --tile-cap: 50svh; }
 .tiles[data-size="large"] { --tile-cap: 85svh; }
-@media (min-width: 768px) {
+/* Le bloc entier est aussi un conteneur : le grand titre (hors de `.tiles`) suit la même largeur. */
+.tiles-section { container-type: inline-size; }
+@container (min-width: 42rem) {
+  .tiles .tile { grid-template-columns: repeat(12, minmax(0, 1fr)); }
   .tiles .tile-img { grid-column: span 6; }
   .tiles .tile-txt { grid-column: span 6; }
   .tiles[data-size="small"] .tile-img { grid-column: span 5; }
@@ -362,9 +368,24 @@ figure.block-image[data-img-bg] .block-image-frame,
 .surface-card > .card-in {
   display: contents;
 }
+/* Le contenu reste DANS la zone colorée (lot 48) : la couche intérieure (`.card-in`, `.fond-in`) garde au contenu la place qu'il a sans carte
+   ni fond tant qu'il tient dans la zone avec au moins --zone-pad (16 px) de marge ; sur un écran étroit, où la marge de la carte et celle du
+   fond dépassent la gouttière de page, elle lui retire juste la différence (`--zone-in`, rembourrage). Grand écran : 0, rien ne change.
+   `--shell-left` : où commence le contenu (le `.shell`, centré, borné à --page-max) depuis le bord de la fenêtre, comme `--card-mx` en `100vw`.
+   `--card-ex` + `--fond-gap` : ce que la carte et le fond retirent à gauche (et à droite). */
+.surface-card[data-surface="on"] > .card-in,
+.fond-bloc[data-fond="on"] > .fond-in {
+  --zone-pad: 16px;
+  --shell-left: max(var(--gutter), calc((100vw - var(--page-max)) / 2 + var(--gutter)));
+  --zone-in: max(0px, calc(var(--card-ex, 0px) + var(--fond-gap, 0px) + var(--zone-pad) - var(--shell-left)));
+}
 .surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in {
   display: flow-root;
   margin-inline: calc(-1 * var(--card-ex));
+}
+/* Carte sans fond de composant : c'est elle qui garde le contenu dans sa zone (avec un fond, la couche du fond le fait, à la place). */
+.surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in:not(:has(> .fond-bloc[data-fond="on"])) {
+  padding-inline: var(--zone-in);
 }
 .surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in > .fond-bloc[data-fond="on"] {
   width: auto;
@@ -373,6 +394,7 @@ figure.block-image[data-img-bg] .block-image-frame,
 .surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in > .fond-bloc[data-fond="on"] > .fond-in {
   display: flow-root;
   margin-inline: calc(-1 * var(--card-ex));
+  padding-inline: var(--zone-in);
 }
 .surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in > .fond-bloc[data-fond="on"][data-fond-inset] {
   margin-inline: calc(var(--card-ex) + var(--fond-gap));
@@ -512,6 +534,7 @@ figure.block-image[data-img-bg] .block-image-frame,
 .fond-bloc[data-fond="on"][data-fond-inset] > .fond-in {
   display: flow-root;
   margin-inline: calc(-1 * var(--fond-gap));
+  padding-inline: var(--zone-in);
 }
 .fond-bloc[data-fond="on"][data-fond-inset="s"] { --fond-gap: 12px; }
 .fond-bloc[data-fond="on"][data-fond-inset="l"] { --fond-gap: 48px; }

@@ -85,7 +85,16 @@ const MEASURE = (slug) => {
     const b = e.getBoundingClientRect();
     return { l: b.left, w: b.width, t: b.top + window.scrollY, h: b.height };
   };
-  const one = (g) => ({ imgs: [...g.querySelectorAll("img")].filter((i) => i.getBoundingClientRect().width > 20).map(box), grid: box(g) });
+  // Zone colorée qui porte le composant (le fond, sinon la carte) : le contenu y reste à 16 px au moins du bord (lot 48).
+  const zoneOf = (e) => {
+    const z = e.closest('.fond-bloc[data-fond="on"]') ?? e.closest('.surface-card[data-surface="on"]');
+    if (!z) return null;
+    // Carte : la zone est l'intérieur de sa bordure (la bordure fait partie du cadre, le contenu garde 16 px depuis elle).
+    const b = box(z), cs = getComputedStyle(z);
+    const bl = parseFloat(cs.borderLeftWidth) || 0, br = parseFloat(cs.borderRightWidth) || 0;
+    return { ...b, l: b.l + bl, w: b.w - bl - br };
+  };
+  const one = (g) => ({ imgs: [...g.querySelectorAll("img")].filter((i) => i.getBoundingClientRect().width > 20).map(box), grid: box(g), zone: zoneOf(g) });
   const probe = (css) => {
     const i = document.createElement("i");
     i.style.cssText = `position:absolute;visibility:hidden;${css}`;
@@ -101,7 +110,7 @@ const MEASURE = (slug) => {
     const b = e.getBoundingClientRect();
     return { l: b.left, w: b.width, r: parseFloat(getComputedStyle(e).borderTopLeftRadius) || 0 };
   });
-  const frees = [...document.querySelectorAll(".free-board")].map((e) => ({ ...box(e), board: Boolean(sect?.contains(e)) }));
+  const frees = [...document.querySelectorAll(".free-board")].map((e) => ({ ...box(e), board: Boolean(sect?.contains(e)), zone: zoneOf(e) }));
   return {
     gutter,
     pageMax,
@@ -115,7 +124,14 @@ const MEASURE = (slug) => {
   };
 };
 const near = (a, b, tol = 1) => Math.abs(a - b) <= tol;
-const same = (a, b, tol = 1) => a.imgs.length === b.imgs.length && a.imgs.length > 0 && a.imgs.every((x, i) => Math.abs(x.l - b.imgs[i].l) <= tol && Math.abs(x.w - b.imgs[i].w) <= tol);
+/**
+ * Le contenu ne rétrécit pas : mêmes images (1 px près) avec et sans fond. Lot 48 : sauf quand, sans fond, il ne tient pas dans la zone
+ * colorée avec 16 px de marge (écran étroit, marge L) : il rentre alors dans la zone, sans jamais s'élargir.
+ */
+const MARGIN = 16;
+const fitsIn = (boxes, zone) => !zone || boxes.every((x) => x.l >= zone.l + MARGIN - 1 && x.l + x.w <= zone.l + zone.w - MARGIN + 1);
+const sameBoxes = (a, b, zone, tol = 1) => a.length === b.length && a.length > 0 && (a.every((x, i) => Math.abs(x.l - b[i].l) <= tol && Math.abs(x.w - b[i].w) <= tol) || (!fitsIn(a, zone) && fitsIn(b, zone) && b.every((x, i) => x.w <= a[i].w + tol)));
+const same = (a, b, tol = 1) => sameBoxes(a.imgs, b.imgs, b.zone, tol);
 const fmt = (g) => g.imgs.map((x) => `${x.l.toFixed(0)}+${x.w.toFixed(0)}`).join(" ");
 
 const names = [...VARIANTS.map(([n]) => n), ...CARDS.map(([n]) => n)];
@@ -142,7 +158,7 @@ for (const width of [1440, 1024, 390]) {
   const fp = m.frees.filter((x) => !x.board);
   const fb = m.frees.filter((x) => x.board);
   console.log(`  [${width}] planche libre : page ${fp.map((x) => `${x.l.toFixed(0)}+${x.w.toFixed(0)}`).join(" | ")} ; planche ${fb.map((x) => `${x.l.toFixed(0)}+${x.w.toFixed(0)}`).join(" | ")}`);
-  ok(`A${width} planche libre : le fond (marge L + coins) garde la zone de « sans », en page et en planche`, fp.length === 2 && fb.length === 2 && [fp, fb].every(([a, b]) => Math.abs(a.l - b.l) <= 1 && Math.abs(a.w - b.w) <= 1), JSON.stringify(m.frees.map((x) => [x.l, x.w])));
+  ok(`A${width} planche libre : le fond (marge L + coins) garde la place de « sans » tant qu\'elle tient dans la zone, en page et en planche`, fp.length === 2 && fb.length === 2 && [fp, fb].every(([a, b]) => sameBoxes([a], [b], b.zone)), JSON.stringify(m.frees.map((x) => [x.l, x.w])));
   ok(`A${width} pas de défilement horizontal`, m.sw <= m.vw + 1, `${m.sw}/${m.vw}`);
   if (width === 1024 && process.env.SHOT_TAG) {
     // Captures avant / après (SHOT_TAG=avant : la règle de la couche intérieure est neutralisée = ancien rendu).
@@ -194,7 +210,10 @@ ok("B0b grilles de page repérées sur la toile", GU.length === 5 + CARDS.length
 const imgsOf = (sel) =>
   fr.evaluate((s) => {
     const g = document.querySelector(`${s} .block-grid`); if (!g) throw new Error("grille introuvable : " + s);
-    return { imgs: [...g.querySelectorAll("img")].filter((i) => i.getBoundingClientRect().width > 20).map((i) => { const b = i.getBoundingClientRect(); return { l: b.left, w: b.width }; }) };
+    const z = g.closest('.fond-bloc[data-fond="on"]') ?? g.closest('.surface-card[data-surface="on"]');
+    const zb = z?.getBoundingClientRect(), zc = z ? getComputedStyle(z) : null;
+    const bl = parseFloat(zc?.borderLeftWidth) || 0, br = parseFloat(zc?.borderRightWidth) || 0;
+    return { imgs: [...g.querySelectorAll("img")].filter((i) => i.getBoundingClientRect().width > 20).map((i) => { const b = i.getBoundingClientRect(); return { l: b.left, w: b.width }; }), zone: zb ? { l: zb.left + bl, w: zb.width - bl - br } : null };
   }, sel);
 const openPageFond = async (uid) => {
   const host = fr.locator(`[data-edit-block="${uid}"]`).first();

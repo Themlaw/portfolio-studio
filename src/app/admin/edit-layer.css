@@ -908,7 +908,8 @@ html[data-edit-mode] .pe-tile-cover:focus-within {
   color: #5b6068;
 }
 
-html:not([data-edit-mode]) :is(.pe-tile-tools, .pe-tile-add-row) {
+/* Hors du mode édition (Aperçu, site ouvert en vue brouillon) : aucune commande d'entrée, et pas d'avis sur une tuile que le public ne voit pas (lot 48). */
+html:not([data-edit-mode]) :is(.pe-tile-tools, .pe-tile-add-row, .pe-tile-cover, .pe-tile-broken) {
   display: none !important;
 }
 
