@@ -143,9 +143,9 @@ try {
   const images = await page.locator(".a-media-tile", { hasText: /\.(svg|png|jpg|webp)$/ }).count();
   ok("E7 médiathèque : filtre Vidéos (les deux vidéos, aucune image)", shown.filter((n) => n.startsWith("e2e-")).length === 2 && images === 0, shown.join(", "));
   await page.locator(".a-media-tile", { hasText: "e2e-longue.mp4" }).click();
-  await page.locator(".a-sidepanel").getByLabel("Texte alternatif", { exact: true }).fill("Demoreel e2e");
+  await page.locator(".a-sidepanel").getByLabel("Description de l'image (pour les personnes malvoyantes et Google)", { exact: true }).fill("Demoreel e2e");
   await page.locator(".a-sidepanel").getByRole("button", { name: "Enregistrer", exact: true }).click();
-  await toast("Texte alternatif enregistré");
+  await toast("Description enregistrée");
   ok("E8 détail : lecteur vidéo dans le panneau", await page.locator(".a-sidepanel video[controls]").isVisible());
 
   await page.goto(`${BASE}/admin/pages`, { waitUntil: "networkidle" });

@@ -16,6 +16,7 @@ import {
   setPublished,
   type PageReference,
 } from "@/lib/edit/pages";
+import { publishWarnings } from "@/lib/edit/warnings";
 import { discardDraft, publishDraft, saveDraft, savePageFromForm, savePageInfo, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
 import { boardOp, createDraftProject, restoreBoard, type BoardResult } from "@/lib/edit/boards";
 import { saveSiteDraft, type SiteResult } from "@/lib/edit/site";
@@ -99,7 +100,8 @@ export async function publishDraftAction(id: unknown, rev: unknown, live?: unkno
   // Polices téléchargées qu'aucun style n'utilise plus (publié ni brouillon) : retirées.
   const fonts = await collectFonts().catch(() => null);
   if (fonts?.removed.length) revalidateSettings();
-  return result;
+  // Avertissements non bloquants (lot 52) : images sans description, textes sans traduction anglaise.
+  return { ...result, data: { ...result.data, warnings: publishWarnings(pid) } };
 }
 
 /** Abandonner les modifications : brouillon et surcouche de la page effacés. */

@@ -6,7 +6,23 @@ import { z } from "zod";
 import { assertAdmin } from "@/lib/auth/guard";
 import { getDb, schema } from "@/lib/db";
 import { done, fail, type ActionResult } from "@/lib/edit/result";
-import { eq } from "drizzle-orm";
+import { lastSeenMessageId } from "@/lib/admin";
+import { desc, eq } from "drizzle-orm";
+
+/** Arrivée sur la page Messages : tout ce qui est arrivé jusque-là est vu (pastille du menu, tableau de bord). Ne recule jamais. */
+export async function markMessagesSeenAction(upTo: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const parsed = z.number().int().positive().safeParse(upTo);
+  if (!parsed.success) return fail("Message inconnu.");
+  const db = getDb();
+  const max = db.select({ id: schema.messages.id }).from(schema.messages).orderBy(desc(schema.messages.id)).limit(1).get()?.id ?? 0;
+  const seen = Math.min(parsed.data, max);
+  if (seen > lastSeenMessageId()) {
+    const value = JSON.stringify(seen);
+    db.insert(schema.settings).values({ key: "messagesSeen", value }).onConflictDoUpdate({ target: schema.settings.key, set: { value } }).run();
+  }
+  return done(null);
+}
 
 export async function deleteMessageAction(id: unknown): Promise<ActionResult<null>> {
   await assertAdmin();

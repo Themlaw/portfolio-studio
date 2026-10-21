@@ -166,6 +166,8 @@ const ADMIN_ACTIONS = [
   "activateThemeAction",
   "deleteThemeAction",
   "saveSettingsAction",
+  "saveSeoAction",
+  "markMessagesSeenAction",
   "createPageAction",
   "savePageAction",
   "savePageInfoAction",
@@ -528,7 +530,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : name === "deleteFontAction" ? "/admin/reglages"
     : /Draft|[bB]oard|Font/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
-    : /Settings/.test(name) ? "/admin/reglages"
+    : /Settings|Seo/.test(name) ? "/admin/reglages"
     : /Message/.test(name) ? "/admin/messages"
     : /[wW]allpaper/.test(name) ? "/admin/papiers-peints"
     : /^(create|delete|reorder|restore)Projects?Action$/.test(name) ? "/admin/projets"

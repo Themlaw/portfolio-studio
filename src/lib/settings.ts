@@ -9,6 +9,7 @@ import { parseJson } from "./json";
 import { fontFaceCss, readLibrary } from "./fonts/faces";
 import { SiteStylesSchema, type SiteStyles } from "./look";
 import { readCardWallpaper, type CardWallpaper } from "@/themes/wallpaper";
+import { readSeo, type SeoStored } from "./seo-schema";
 import { asSiteName, NavSchema, NETWORKS, safeSocialHref, siteNameFor, type NavItem } from "./site-schema";
 
 const localized = z.object({ fr: z.string(), en: z.string() });
@@ -59,6 +60,11 @@ export async function getSite(locale: AppLocale): Promise<SiteIdentity> {
  */
 export async function getSocials(): Promise<Social[]> {
   return validated("socials", (await getRawSettings()).socials, socialsSchema, []).filter((s) => safeSocialHref(s.href));
+}
+
+/** Partage et référencement du site (lot 52, réglage `seo`) : description, image de partage, icône. Absent = rien de réglé. */
+export async function getSeoSettings(): Promise<SeoStored> {
+  return readSeo((await getRawSettings()).seo);
 }
 
 /** Menu publié (réglage `nav`, v0.13), ou null avant la migration. */

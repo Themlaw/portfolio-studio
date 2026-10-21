@@ -33,10 +33,13 @@ function isCurrent(pathname: string, href: string) {
 export default function AdminShell({
   siteName,
   userEmail,
+  unreadMessages = 0,
   children,
 }: {
   siteName: string;
   userEmail: string;
+  /** Messages arrivés depuis la dernière visite de la page Messages : pastille sur « Messages » (lot 52). */
+  unreadMessages?: number;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -79,6 +82,12 @@ export default function AdminShell({
               <li key={item.href} data-sub={item.sub ? "" : undefined}>
                 <Link href={item.href} aria-current={isCurrent(pathname, item.href) ? "page" : undefined}>
                   {item.label}
+                  {item.href === "/admin/messages" && unreadMessages > 0 && !isCurrent(pathname, item.href) && (
+                    <span className="a-nav-badge" data-testid="messages-badge" title={`${unreadMessages} nouveau${unreadMessages > 1 ? "x" : ""} message${unreadMessages > 1 ? "s" : ""}`}>
+                      {unreadMessages > 99 ? "99+" : unreadMessages}
+                      <span className="sr-only"> nouveau{unreadMessages > 1 ? "x" : ""} message{unreadMessages > 1 ? "s" : ""}</span>
+                    </span>
+                  )}
                 </Link>
               </li>
             ))}

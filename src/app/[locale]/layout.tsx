@@ -6,7 +6,10 @@ import { setRequestLocale } from "next-intl/server";
 import EditThisPage from "@/components/EditThisPage";
 import PreviewBanner from "@/components/PreviewBanner";
 import { routing, type AppLocale } from "@/i18n/routing";
+import { isBuildPhase } from "@/lib/cache";
 import { themeTypeCss } from "@/lib/look";
+import { iconLinks } from "@/lib/seo";
+import { getSeoSettings } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
 import { themeAttributes, themeToCss } from "@/themes/css";
 import { FONT_VARIABLE_CLASSES } from "@/themes/fonts";
@@ -20,14 +23,16 @@ export function generateStaticParams() {
 const DEFAULT_BASE_URL = "https://portfolio.example.org";
 
 /** URL publique (PUBLIC_BASE_URL) : canonical et hreflang deviennent absolus. */
-export function generateMetadata(): Metadata {
+export async function generateMetadata(): Promise<Metadata> {
   let base: URL;
   try {
     base = new URL(process.env.PUBLIC_BASE_URL || DEFAULT_BASE_URL);
   } catch {
     base = new URL(DEFAULT_BASE_URL);
   }
-  return { metadataBase: base };
+  // Icône de l'onglet choisie dans les réglages (lot 52) ; sans choix, /favicon.ico (public/).
+  const seo = isBuildPhase() ? null : await getSeoSettings();
+  return { metadataBase: base, ...(seo ? { icons: iconLinks(seo) } : {}) };
 }
 
 export default async function LocaleLayout({

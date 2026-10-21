@@ -88,7 +88,7 @@ export const pages = sqliteTable(
   /** Titre court (menu, fil). */
   title: text("title", { mode: "json" }).notNull().$type<Localized>(),
   /** <title> et meta description. */
-  meta: text("meta", { mode: "json" }).$type<{ title: Localized; description: Localized }>(),
+  meta: text("meta", { mode: "json" }).$type<{ title: Localized; description: Localized; image?: number | null }>(),
   /** null = hors menu. */
   navOrder: integer("nav_order"),
   published: integer("published", { mode: "boolean" }).notNull().default(true),

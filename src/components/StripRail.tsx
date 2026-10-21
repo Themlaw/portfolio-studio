@@ -288,7 +288,8 @@ export default function StripRail({
               </div>
             );
           }
-          const openLabel = `${artwork.title || artwork.alt || artwork.year} — ${tg("open")}`;
+          // Description (sinon titre), jamais la date : c'est ce qu'annonce le bouton (lot 52).
+          const openLabel = [artwork.alt || artwork.title, tg("open")].filter(Boolean).join(" — ");
           if (artwork.video && modeOf(artwork) === "loop") {
             const loop = (
               <LoopFrame

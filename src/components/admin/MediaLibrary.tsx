@@ -140,8 +140,8 @@ export function MediaGrid({
   );
 }
 
-function useFiltered(media: AdminMediaRow[], tagOptions: TagRow[]) {
-  const [filter, setFilter] = useState<Filter>("all");
+function useFiltered(media: AdminMediaRow[], tagOptions: TagRow[], initialFilter: Filter = "all") {
+  const [filter, setFilter] = useState<Filter>(initialFilter);
   const [kind, setKind] = useState<KindFilter>("any");
   const [query, setQuery] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -173,7 +173,7 @@ function useFiltered(media: AdminMediaRow[], tagOptions: TagRow[]) {
           [
             ["all", "Tous"],
             ["unused", "Non utilisées"],
-            ["noalt", "Sans texte alternatif"],
+            ["noalt", "Sans description"],
           ] as const
         ).map(([k, l]) => (
           <button key={k} type="button" aria-pressed={filter === k} onClick={() => setFilter(k)}>
@@ -309,15 +309,18 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
         <dd>{stateLabel(media)}</dd>
       </dl>
 
+      <div className="a-alt-field" data-testid="alt-field">
+        <TextI18n
+          label="Description de l'image (pour les personnes malvoyantes et Google)"
+          help="Décris ce qu'on voit, en une phrase. Les personnes qui ne voient pas l'image l'entendent, et Google la comprend mieux."
+          value={alt}
+          onChange={setAlt}
+        />
+      </div>
+
       <TagInput label="Tags" value={tags} onChange={saveTags} options={tagOptions} help="Enregistrés aussitôt. Entrée pour valider un tag." />
 
-      <TextI18n
-        label="Texte alternatif"
-        help="Décris l'image pour les personnes qui ne la voient pas (lecteurs d'écran, moteurs de recherche)."
-        value={alt}
-        onChange={setAlt}
-      />
-      {!alt.fr.trim() && <p className="a-notice">Sans texte alternatif, le titre de l&apos;œuvre est lu à la place.</p>}
+      {media.kind === "image" && !alt.fr.trim() && <p className="a-notice">Sans description, le titre de l&apos;image est lu à la place.</p>}
       <div className="a-panel-actions">
         <span className="a-save-state" aria-live="polite">
           {dirty ? (
@@ -339,7 +342,7 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
               const r = await saveMediaAltAction(media.id, alt);
               if (!r.ok) return toast(r.message, "error");
               setSavedAlt(alt);
-              toast("Texte alternatif enregistré");
+              toast("Description enregistrée");
               setTimeout(() => router.refresh(), 0);
             })
           }
@@ -772,14 +775,14 @@ function TagManager({ onChanged }: { onChanged: () => void }) {
 
 /* ---- Écran ------------------------------------------------------------------- */
 
-export default function MediaLibrary({ initial, trashed, summary, usage }: { initial: AdminMediaRow[]; trashed: AdminMediaRow[]; summary: TrashSummary; usage: { used: string; quota: string | null; ratio: number | null } }) {
+export default function MediaLibrary({ initial, trashed, summary, usage, focus }: { initial: AdminMediaRow[]; trashed: AdminMediaRow[]; summary: TrashSummary; usage: { used: string; quota: string | null; ratio: number | null }; /** Arrivée depuis un avertissement de publication (lot 52) : liste des images sans description, image à décrire. */ focus?: { noalt?: boolean; media?: number } }) {
   const router = useRouter();
   const queue = useUploadQueue();
   const { media, merge } = useMediaState(initial);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<number | null>(focus?.media ?? null);
   const [tab, setTab] = useState<"media" | "tags" | "trash">("media");
   const [checked, setChecked] = useState<Set<number> | null>(null);
-  const { list, controls } = useFiltered(media, queue.tags);
+  const { list, controls } = useFiltered(media, queue.tags, focus?.noalt ? "noalt" : "all");
   const refresh = useCallback(() => setTimeout(() => router.refresh(), 0), [router]);
   useEffect(() => queue.onMediaCreated(() => refresh()), [queue, refresh]);
   const processing = media.filter((m) => m.status === "processing").map((m) => m.id);
@@ -884,6 +887,32 @@ export default function MediaLibrary({ initial, trashed, summary, usage }: { ini
 
 /* ---- Choisir une image ------------------------------------------------------ */
 
+/** Au moment du choix (lot 52) : une image sans description se décrit sur place, sans quitter le sélecteur. */
+function PickAlt({ media, onSaved }: { media: AdminMediaRow; onSaved: (alt: AdminMediaRow["alt"]) => void }) {
+  const [alt, setAlt] = useState(media.alt);
+  const [busy, start] = useTransition();
+  return (
+    <div className="a-alt-field" data-testid="pick-alt">
+      <TextI18n label="Description de l'image (pour les personnes malvoyantes et Google)" help="Facultatif, mais utile : tu peux la décrire maintenant." value={alt} onChange={setAlt} />
+      <button
+        type="button"
+        className="a-btn a-btn-small"
+        disabled={busy || !alt.fr.trim()}
+        onClick={() =>
+          start(async () => {
+            const r = await saveMediaAltAction(media.id, alt);
+            if (!r.ok) return toast(r.message, "error");
+            onSaved(alt);
+            toast("Description enregistrée");
+          })
+        }
+      >
+        Enregistrer la description
+      </button>
+    </div>
+  );
+}
+
 export function MediaPickerDialog({
   open,
   media: initial,
@@ -932,6 +961,7 @@ export function MediaPickerDialog({
       <div className="a-picker-scroll">
         <MediaGrid items={list} selectedId={choice} onSelect={(m) => setChoice(m.id)} label="Images" />
       </div>
+      {picked && picked.kind === "image" && picked.status === "ready" && !picked.alt.fr.trim() && <PickAlt key={picked.id} media={picked} onSaved={(alt) => merge([{ ...picked, alt }])} />}
       {picked?.status === "processing" && <p className="a-help">Cette image est en traitement : elle s&apos;affichera sur le site dès qu&apos;elle sera prête.</p>}
     </ConfirmDialog>
   );

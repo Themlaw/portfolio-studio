@@ -21,6 +21,8 @@ import { allBlocks, findMediaUsages, findWallpaperUsages, LOGO_USAGE_TYPE, media
 import { listWallpaperChoices } from "./wallpapers";
 import { readCardWallpaper, readPagePaper, type CardWallpaper, type PagePaper } from "@/themes/wallpaper";
 import { tagsByMedia, type MediaTag } from "./tags";
+import { readSeo, type SeoInput } from "./seo-schema";
+import { untranslatedCount } from "./translation-gaps";
 
 type L = { fr: string; en: string };
 
@@ -86,6 +88,8 @@ export type AdminPageRow = {
   blocks: number;
   /** Brouillon de l'éditeur visuel en attente de publication. */
   hasDraft: boolean;
+  /** Textes de la version publiée qui n'ont pas de traduction anglaise (lot 52), titre compris. */
+  untranslated: number;
   /** Blocs d'AUTRES pages qui pointent vers celle-ci : tant qu'il y en a, elle ne se supprime pas. */
   blockedBy: BlockUse[];
   /** Mise à la corbeille (ms), ou null. */
@@ -115,6 +119,7 @@ function pageRows(trashed: boolean): AdminPageRow[] {
       published: p.published,
       blocks: byPage.get(p.id) ?? 0,
       hasDraft: p.draft !== null,
+      untranslated: trashed ? 0 : untranslatedCount(p.title, all.filter((b) => b.pageId === p.id && !b.draft)),
       blockedBy: trashed ? [] : blockUses(pageReferences(p.id, all), p.id),
       deletedAt: p.deletedAt ? p.deletedAt.getTime() : null,
     }));
@@ -422,6 +427,13 @@ const asL = (v: unknown): L => {
   return { fr: typeof o?.fr === "string" ? o.fr : "", en: typeof o?.en === "string" ? o.en : "" };
 };
 
+/** Partage et référencement tels que l'écran des réglages les montre (lot 52). */
+export function getSeoForAdmin(): SeoInput {
+  const row = getDb().select().from(schema.settings).where(eq(schema.settings.key, "seo")).get();
+  const seo = readSeo(row ? parseJson(row.value) : undefined);
+  return { description: seo.description, shareImage: seo.shareImage, favicon: seo.favicon?.mediaId ?? null };
+}
+
 export function getSettingsForAdmin(): AdminSettings {
   const rows = getDb().select().from(schema.settings).all();
   const values = Object.fromEntries(rows.map((r) => [r.key, parseJson(r.value)]));
@@ -466,7 +478,7 @@ export type AdminPageEdit = {
   isHome: boolean;
   title: L;
   slug: L;
-  meta: { title: L; description: L };
+  meta: { title: L; description: L; image?: number | null };
   published: boolean;
   inMenu: boolean;
   accent: string | null;
@@ -495,7 +507,7 @@ export function getPageForEdit(id: number): AdminPageEdit | null {
     isHome: page.slug.fr === "" && page.slug.en === "",
     title: page.title,
     slug: page.slug,
-    meta: { title: asL(page.meta?.title), description: asL(page.meta?.description) },
+    meta: { title: asL(page.meta?.title), description: asL(page.meta?.description), image: Number.isInteger(page.meta?.image) ? (page.meta?.image as number) : null },
     published: page.published,
     inMenu: page.navOrder !== null,
     accent: typeof overrides?.primary === "string" ? overrides.primary : null,
@@ -613,6 +625,24 @@ export function listMessages(limit = 200): AdminMessage[] {
       const fields = Array.isArray(parsed) ? parsed.filter((f) => f && typeof f.label === "string" && typeof f.value === "string") : [];
       return { id: m.id, subject: m.subject, replyTo: m.replyTo, fields, createdAt: m.createdAt, page: m.pageId ? (titles.get(m.pageId) ?? null) : null };
     });
+}
+
+/**
+ * Aucun envoi d'e-mail n'existe encore : les messages ne sont lus qu'ici (lot 52, la page Messages le dit en clair).
+ * Passera à vrai le jour où un serveur d'envoi sera branché.
+ */
+export const messagesEmailConfigured = (): boolean => false;
+
+/** Numéro du dernier message déjà vu (réglage `messagesSeen`), 0 si jamais. */
+export function lastSeenMessageId(): number {
+  const row = getDb().select().from(schema.settings).where(eq(schema.settings.key, "messagesSeen")).get();
+  const v = row ? parseJson(row.value) : undefined;
+  return Number.isInteger(v) && (v as number) > 0 ? (v as number) : 0;
+}
+
+/** Messages arrivés depuis la dernière visite de la page Messages (pastille du menu, carte du tableau de bord). */
+export function countUnreadMessages(): number {
+  return getDb().select({ n: count() }).from(schema.messages).where(sql`${schema.messages.id} > ${lastSeenMessageId()}`).get()?.n ?? 0;
 }
 
 export { MESSAGES_CAP } from "./contact-form";

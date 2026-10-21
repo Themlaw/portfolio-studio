@@ -108,7 +108,8 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
             date: props.captionDate ? tr(props.captionDate, ctx.locale) : undefined,
             plain: true,
           },
-          (await getTranslations({ locale: ctx.locale, namespace: "gallery" }))("open"),
+          // Le bouton s'annonce avec la description (sinon la légende), puis « Agrandir l'image » (lot 52).
+          [image.alt ? tr(image.alt, ctx.locale) : caption, (await getTranslations({ locale: ctx.locale, namespace: "gallery" }))("open")].filter(Boolean).join(" — "),
         )
       : null;
   const ratioAttr = !free && props.ratio && props.ratio !== "auto" ? { "data-ratio": props.ratio } : {};
