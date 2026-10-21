@@ -844,7 +844,7 @@ export default function LookLayer({
   dragging: boolean;
   announce: (s: string) => void;
 }) {
-  const [hoverText, setHoverText] = useState<{ el: HTMLElement; rect: Rect } | null>(null);
+  const [hoverText, setHoverText] = useState<{ el: HTMLElement; rect: Rect; anchor?: HTMLElement } | null>(null);
   const [bar, setBar] = useState<TextTarget | null>(null);
   const [cropHover, setCropHover] = useState<CropTarget | null>(null);
   const [cropOpen, setCropOpen] = useState<CropTarget | null>(null);
@@ -914,7 +914,12 @@ export default function LookLayer({
       }
       const t = e.target instanceof Element ? e.target.closest<HTMLElement>(TEXT_SEL) : null;
       clearTimeout(hideTimer.current);
-      if (t) setHoverText((h) => (h?.el === t ? h : { el: t, rect: docRect(t) }));
+      // Logo dessiné (signature du kit) : le nom écrit est masqué derrière lui ; « Aa » se pose sur le logo et règle le style du nom du site
+      // (sa couleur teinte la signature d'une seule couleur ; un logo en couleurs ou une image garde les siennes).
+      const logo = !t && e.target instanceof Element ? e.target.closest<HTMLElement>(".site-header .site-signature, .site-header .site-logo-img") : null;
+      const brandText = logo?.parentElement?.querySelector<HTMLElement>(".site-brand-text") ?? null;
+      if (logo && brandText) setHoverText((h) => (h?.el === brandText && h.anchor === logo ? h : { el: brandText, rect: docRect(logo), anchor: logo }));
+      else if (t) setHoverText((h) => (h?.el === t && !h.anchor ? h : { el: t, rect: docRect(t) }));
       else hideTimer.current = setTimeout(() => setHoverText(null), 500);
       // Case d'une grille : sa barre (GridLayer) propose « Cadrer ».
       const c = e.target instanceof Element && e.target.closest(".block-grid-cell[data-edit-cell]") ? null : cropTargetAt(e.target);
@@ -939,7 +944,7 @@ export default function LookLayer({
   const root = selected && !selected.uid.startsWith("site-") ? rootOf(selected.uid) : null;
   const selLook = selected ? lookOf(selected.uid) : {};
   const selRect = selected ? (wrapperOf(selected.uid) ? rectOfWrapper(selected.uid) : null) : null;
-  const hoverValid = hoverText && document.contains(hoverText.el) ? { ...hoverText, rect: docRect(hoverText.el) } : null;
+  const hoverValid = hoverText && document.contains(hoverText.el) ? { ...hoverText, rect: docRect(hoverText.anchor ?? hoverText.el) } : null;
   const cropValid = cropHover && document.contains(cropHover.media) ? cropHover : null;
 
   return (

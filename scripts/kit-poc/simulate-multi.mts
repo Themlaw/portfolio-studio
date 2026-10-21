@@ -111,6 +111,33 @@ try {
     const nuages: Layer = { name: "mes nuages", left: 1800, top: DECOR_HEAD + 200, right: 1800 + clouds.width, bottom: DECOR_HEAD + 200 + clouds.height, imageData: clouds };
     psd.children = [plans[0], nuages, plans[2], plans[4], ...rest];
     write(psd, out);
+  } else if (cmd === "retour49") {
+    // Lot 49 : le logo en TROIS couleurs (lot « logo et papier ») et un cadre redessiné (lot « icônes et curseurs »), archive complète.
+    const logoPsd = readPsd(readFileSync(files.logo), READ);
+    const sig = find(logoPsd.children, "Signature");
+    if (!sig) throw new Error("calque « Signature » introuvable");
+    const sf = frameOf(SLOTS.find((x) => x.id === "signature")!, "multi");
+    const logo = await raster(`<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="600"><rect x="120" y="120" width="500" height="360" rx="60" fill="#e8312a"/><circle cx="900" cy="300" r="190" fill="#1f9d55"/><rect x="1180" y="160" width="900" height="280" rx="40" fill="#2a4bd7"/></svg>`);
+    Object.assign(sig, { left: sf.x, top: sf.y, right: sf.x + 2400, bottom: sf.y + 600, imageData: logo });
+    const logoFile = path.join(work, "logo-retouche.psd");
+    write(logoPsd, logoFile);
+    const iconPsd = readPsd(readFileSync(files.icones), READ);
+    const cadre = find(iconPsd.children, "Cadre");
+    if (!cadre) throw new Error("calque « Cadre » introuvable");
+    const cf = frameOf(SLOTS.find((x) => x.id === "cadre")!, "multi");
+    const k = cf.w / 300;
+    const e = (v: number) => Math.round(v * k);
+    // Bordure de 48 px (à l'échelle 300) : filet orange extérieur de 14 px, vide 6, filet vert de 8 ; centre transparent.
+    const frame = await raster(`<svg xmlns="http://www.w3.org/2000/svg" width="${cf.w}" height="${cf.h}"><rect x="${e(7)}" y="${e(7)}" width="${cf.w - e(14)}" height="${cf.h - e(14)}" fill="none" stroke="#ff7a00" stroke-width="${e(14)}"/><rect x="${e(30)}" y="${e(30)}" width="${cf.w - e(60)}" height="${cf.h - e(60)}" fill="none" stroke="#1f9d55" stroke-width="${e(8)}"/></svg>`);
+    Object.assign(cadre, { left: cf.x, top: cf.y, right: cf.x + cf.w, bottom: cf.y + cf.h, imageData: frame });
+    const iconFile = path.join(work, "icones-retouche.psd");
+    write(iconPsd, iconFile);
+    await writeZipFile(out, [
+      { name: KIT_FILES.decor.file, file: files.decor },
+      { name: KIT_FILES.logo.file, file: logoFile },
+      { name: KIT_FILES.icones.file, file: iconFile },
+      { name: "LISEZ-MOI.txt", data: Buffer.from("kit retouché (lot 49)\n") },
+    ]);
   } else if (cmd === "zip") {
     const edited = rest[0];
     if (!edited) throw new Error("usage : zip <kit.zip> <icone.psd> <sortie>");

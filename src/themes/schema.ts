@@ -164,6 +164,8 @@ const kitImage = z
     h: z.number().int().min(1).max(4096),
     /** Aperçu flou (ThumbHash, base64) pendant le chargement. */
     thumbhash: z.string().regex(/^[A-Za-z0-9+/]{8,64}={0,2}$/).optional(),
+    /** Signature en couleurs (lot 49) : affichée telle quelle, jamais en masque teinté par le thème. */
+    colors: z.literal(true).optional(),
   })
   .strict()
   .refine((v) => Boolean(v.svg || (v.avif && v.webp)), "SVG, ou AVIF et WebP");
