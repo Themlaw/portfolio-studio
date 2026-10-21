@@ -45,7 +45,7 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
   const v: Record<string, string> = {};
   if (!kit) return v;
   if (kit.signature) {
-    v["--t-kit-signature"] = kitMask(kit.signature);
+    v["--t-kit-signature"] = kit.signature.colors ? kitImage(kit.signature) : kitMask(kit.signature);
     v["--t-kit-signature-ratio"] = `${kit.signature.w} / ${kit.signature.h}`;
   }
   if (kit.paper) {
@@ -86,7 +86,7 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
 export function kitAttributes(kit: KitAssets | undefined): Record<`data-${string}`, string> {
   const a: Record<`data-${string}`, string> = {};
   if (!kit) return a;
-  if (kit.signature) a["data-kit-signature"] = "";
+  if (kit.signature) a["data-kit-signature"] = kit.signature.colors ? "colors" : "";
   if (kit.paper) a["data-kit-paper"] = "";
   if (kit.paper?.overHero !== undefined) a["data-kit-paper-hero"] = "";
   if (kit.paper?.underHeader) a["data-kit-paper-header"] = "";

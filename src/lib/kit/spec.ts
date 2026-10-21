@@ -161,7 +161,7 @@ export const ELEMENTS: ElementSpec[] = [
     aliases: ["signature", "logo"],
     board: { x: 0, y: 2140, w: 2300, h: 572 },
     where: "Ce que tu dessines ici remplace ton nom écrit en haut à gauche de toutes les pages.",
-    rules: ["1200 × 300 px, fond transparent, une seule couleur : le site la teinte.", IGNORED_RULE, "Pas envie ? Laisse-la telle quelle : ton nom reste écrit."],
+    rules: ["1200 × 300 px, fond transparent. Plusieurs couleurs : elles sont gardées. Une seule couleur : le site la teinte.", IGNORED_RULE, "Pas envie ? Laisse-la telle quelle : ton nom reste écrit."],
   },
   {
     id: "papier",
@@ -422,7 +422,7 @@ export const MULTI_CARDS: MultiCard[] = [
     where: "Ce que tu dessines ici remplace ton nom écrit en haut à gauche de toutes les pages.",
     rules: [
       "Dessine en grand : le site réduit la case de moitié (1200 × 300 px au plus à l'écran).",
-      "Fond transparent, une seule couleur : le site la teinte selon le thème.",
+      "Fond transparent. Plusieurs couleurs : elles sont gardées ; une seule couleur : le site la teinte selon le thème.",
       "Zone utile (pointillés) : garde le dessin à l'intérieur ; ce qui dépasse de la case est coupé.",
       IGN,
       "Pas envie ? Laisse-le tel quel : ton nom reste écrit.",

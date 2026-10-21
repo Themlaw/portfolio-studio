@@ -277,20 +277,27 @@
    asset, rien ne change. Images et marges arrivent par --t-kit-* (css.ts).
    ========================================================================== */
 
-/* ---- Signature : remplace le nom, teintée d'encre --------------------------- */
+/* ---- Signature : remplace le nom, teintée comme lui (encre du thème, ou la couleur choisie pour « Nom du site ») --------------------------- */
 [data-kit-signature] .site-signature {
   display: block;
   height: 2.25rem;
   max-width: min(60vw, 18rem);
   aspect-ratio: var(--t-kit-signature-ratio);
-  background-color: var(--color-ink);
+  background-color: currentColor;
   -webkit-mask: var(--t-kit-signature) left center / contain no-repeat;
   mask: var(--t-kit-signature) left center / contain no-repeat;
   transition: background-color var(--dur-fast) var(--ease-soft);
 }
 
-[data-kit-signature] .site-brand:hover .site-signature {
-  background-color: var(--color-primary);
+/* Logo en couleurs (lot 49) : l'image telle quelle, ses couleurs d'origine ; ni masque ni teinte du thème. */
+[data-kit-signature="colors"] .site-signature {
+  background-color: transparent;
+  background-image: var(--t-kit-signature);
+  background-position: left center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  -webkit-mask: none;
+  mask: none;
 }
 
 /* Le nom reste lu par les lecteurs d'écran (masqué visuellement). */
@@ -350,6 +357,23 @@
   border-image-slice: var(--t-kit-frame-slice);
   border-image-repeat: stretch;
   box-shadow: none;
+}
+
+/* Lot 49 : le cadre dessiné habille AUSSI les photos (image seule, case de grille, image d'une planche ou d'un carrousel,
+   Planche libre), pas seulement les entrées de collection. Même mécanique que le Cadre du lot 34 : une bordure DANS la boîte
+   de l'image (border-box), donc la taille extérieure ne change pas et rien n'est rogné. Un cadre choisi pour une photo
+   (`data-frame`, look.css) passe avant ; une vidéo n'est jamais encadrée. */
+[data-kit-frame] figure.block-image:not([data-frame]):not([data-legacy]) .block-image-media,
+[data-kit-frame] figure.block-image:not([data-frame]) .block-image-frame,
+[data-kit-frame] .strip-frame:not([data-frame]):not([data-video-mode]) .strip-media img,
+[data-kit-frame] .free-item:not([data-frame]) .free-media:not(.free-video) {
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: transparent;
+  border-width: var(--t-kit-frame-width);
+  border-image-source: var(--t-kit-frame);
+  border-image-slice: var(--t-kit-frame-slice);
+  border-image-repeat: stretch;
 }
 
 /* ---- Trait : soulignement actif, barre de défilement --------------------- */

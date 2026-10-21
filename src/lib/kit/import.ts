@@ -77,6 +77,8 @@ export type SlotReport = {
   hash?: string;
   textured?: { coverage8: number; distinct: number };
   mono?: { spread: number };
+  /** Signature en plusieurs couleurs : gardée telle quelle (couleurs d'origine), pas en masque teinté par le thème. */
+  colored?: boolean;
   seam?: { edge: number; interior: number; ratio: number };
   /** Répétition de la tuile : autocorrélation à une fraction de la période, contraste du motif (niveaux). */
   repeat?: { rho: number; contrast: number };
@@ -546,9 +548,16 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
         warn(`La tuile se répète de façon visible : un motif à l'échelle de la tuile (autocorrélation ${report.repeat.rho} à une fraction de la période, contraste ${report.repeat.contrast} niveaux) dessine une grille une fois répété. Préfère un grain fin et sans forme, ou atténue le motif.`);
     }
 
-    if (slot.mono) {
-      const m = monoStats(img);
-      report.mono = { spread: Math.round(m.spread * 10) / 10 };
+    // Signature en plusieurs couleurs : elle garde ses couleurs (lot 49). Une seule couleur : forme teintée par le thème.
+    const monoInfo = slot.mono ? monoStats(img) : null;
+    const colored = slot.kind === "signature" && monoInfo !== null && !monoInfo.mono;
+    if (monoInfo) report.mono = { spread: Math.round(monoInfo.spread * 10) / 10 };
+    if (colored) {
+      report.colored = true;
+      report.messages.push("Logo en plusieurs couleurs : il garde ses couleurs d'origine (il ne prend pas la couleur du thème).");
+    }
+    if (slot.mono && !colored) {
+      const m = monoInfo!;
       if (!m.mono) warn("Plusieurs couleurs : seule la forme est gardée (elle prend la couleur du thème).");
       const v = await vectorizeLayer(img, "mask", undefined, FINE, FULL);
       report.candidates.svg = Buffer.byteLength(v.svg);
@@ -573,7 +582,7 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
       if (!slot.bitmapOnly) report.messages.push(tex.textured ? "Texture ou dégradé : gardé en bitmap." : "Transparence partielle : gardée en bitmap (un tracé vectoriel la perdrait).");
     } else {
       // Aplat d'une seule couleur (bords exceptés) : forme tracée sur l'alpha, net et sans liseré.
-      const flat = tex.coverage1 >= 0.97;
+      const flat = !colored && tex.coverage1 >= 0.97;
       const v = flat ? await vectorizeLayer(img, "flat", tex.dominant, POLYGON, FULL) : await vectorizeLayer(img, "color", undefined, FINE, FULL);
       if (flat) report.messages.push(`Aplat ${tex.dominant} : tracé de la forme.`);
       report.candidates.svg = Buffer.byteLength(v.svg);
