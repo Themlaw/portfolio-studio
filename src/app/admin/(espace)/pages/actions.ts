@@ -161,7 +161,7 @@ export async function createDraftProjectAction(id: unknown, title: unknown): Pro
   return createDraftProject(pid, title);
 }
 
-export async function setPublishedAction(id: unknown, published: unknown): Promise<ActionResult<null>> {
+export async function setPublishedAction(id: unknown, published: unknown): Promise<ActionResult<{ warnings?: ReturnType<typeof publishWarnings> } | null>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid || typeof published !== "boolean") return fail("Requête invalide.");
@@ -170,6 +170,8 @@ export async function setPublishedAction(id: unknown, published: unknown): Promi
     syncDraftFlags(pid, { published });
     revalidatePage(pid, { structure: true });
     if (published) enqueueCropWarm(pid);
+    // Mêmes avertissements non bloquants que « Publier » dans l'éditeur (lots 51 + 52).
+    if (published) return { ...result, data: { warnings: publishWarnings(pid) } };
   }
   return result;
 }

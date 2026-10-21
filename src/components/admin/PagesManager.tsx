@@ -220,11 +220,18 @@ export default function PagesManager({ pages, trashed, view, summary }: { pages:
   }
   const menuDirty = !same(menu.map((p) => p.id), menuSaved.map((p) => p.id));
 
-  const act = (fn: () => Promise<{ ok: boolean; message?: string }>, success: string) =>
+  const act = (fn: () => Promise<{ ok: boolean; message?: string; data?: unknown }>, success: string) =>
     start(async () => {
       const result = await fn();
       if (!result.ok) return toast(result.message ?? "L'action a échoué.", "error");
       toast(success);
+      // Avertissements non bloquants à la mise en ligne (lot 52), comme dans l'éditeur.
+      const warn = (result.data as { warnings?: { missingAlt: unknown[]; untranslated: number } } | null | undefined)?.warnings;
+      if (warn && warn.missingAlt.length > 0) {
+        const n = warn.missingAlt.length;
+        toast(`${n} image${n > 1 ? "s" : ""} sans description (pour les personnes malvoyantes et Google). À compléter dans les médias.`, "success", undefined, 9000);
+      }
+      if (warn && warn.untranslated > 0) toast(`${untranslatedLabel(warn.untranslated)} : les visiteurs anglophones verront ces passages vides ou en français.`, "success", undefined, 9000);
       router.refresh();
     });
 
