@@ -270,6 +270,8 @@ export default function VisualEditor({
   const [publishErrors, setPublishErrors] = useState<Record<string, string>>({});
   const [publishMessage, setPublishMessage] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  /** Première mise en ligne : confirmation avant que la page devienne visible par tous (lot 51). */
+  const [askLive, setAskLive] = useState(false);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("ajouter");
@@ -2408,14 +2410,15 @@ export default function VisualEditor({
 
   /* ---- Publier, abandonner ----------------------------------------------- */
 
-  const publish = async () => {
+  const publish = async (live = false) => {
+    setAskLive(false);
     setPublishing(true);
     try {
       await commitLookRef.current();
       clearTimeout(timer.current);
       const result = await withLock(async () => {
         if (dirty.current && !(await runSave())) return null;
-        return publishDraftAction(pageId, revRef.current);
+        return publishDraftAction(pageId, revRef.current, live);
       });
       if (!result) {
         toast("Le brouillon n'est pas enregistré : réessaie.", "error");
@@ -2450,6 +2453,13 @@ export default function VisualEditor({
       setPublishErrors({});
       setPublishMessage(null);
       setHasDraft(false);
+      if (result.data.wentLive) {
+        // La page est maintenant en ligne : l'état de l'en-tête (et le brouillon enregistré ensuite) le disent aussi.
+        const inSync = JSON.stringify(draftRef.current) === savedJson.current;
+        draftRef.current = { ...draftRef.current, published: true };
+        setDraftState(draftRef.current);
+        if (inSync) savedJson.current = JSON.stringify(draftRef.current);
+      }
       toast(result.data.site ? "Publié : la page est en ligne, l'en-tête et le pied de page sont à jour sur toutes les pages" : "Publié : la page est en ligne");
       setSitePending(false);
       send(refreshMsg(false));
@@ -2559,11 +2569,11 @@ export default function VisualEditor({
           ? { tone: "error", text: "Erreur d'enregistrement", reason: saveError ?? undefined }
           : saveState === "saving" || saveState === "pending"
             ? { tone: "busy", text: "Enregistrement…" }
-            : hasDraft
-              ? { tone: "draft", text: "Brouillon enregistré" }
-              : draft.published
-                ? { tone: "ok", text: "Publié" }
-                : { tone: "idle", text: "Page non publiée" };
+            : !draft.published
+              ? { tone: "idle", text: "Pas encore en ligne" }
+              : hasDraft
+                ? { tone: "draft", text: "Modifications non publiées" }
+                : { tone: "ok", text: "En ligne" };
 
   const frameWidth = mobile ? null : DEVICES.find((d) => d.id === device)?.width ?? null;
   const frameSrc = `/admin/api/editeur/toile?page=${pageId}&langue=${locale}`;
@@ -3092,9 +3102,9 @@ export default function VisualEditor({
           <button
             type="button"
             className="a-btn a-btn-primary"
-            onClick={() => void publish()}
-            disabled={publishing || Boolean(blocked) || (!hasDraft && !sitePending && saveState === "idle")}
-            title={!hasDraft && saveState === "idle" ? "Aucune modification à publier" : undefined}
+            onClick={() => (draft.published ? void publish() : setAskLive(true))}
+            disabled={publishing || Boolean(blocked) || (!hasDraft && !sitePending && saveState === "idle" && draft.published)}
+            title={!draft.published ? "Met le contenu et la page en ligne" : !hasDraft && saveState === "idle" ? "Aucune modification à publier" : undefined}
           >
             {publishing ? "Publication…" : "Publier"}
           </button>
@@ -3373,6 +3383,17 @@ export default function VisualEditor({
           if (p) void uploadToBlock({ kind: "media", uid: p.uid, field: p.field }, [file]);
         }}
       />
+
+      <ConfirmDialog
+        open={askLive}
+        title="Mettre cette page en ligne ?"
+        confirmLabel="Mettre en ligne"
+        busy={publishing}
+        onClose={() => setAskLive(false)}
+        onConfirm={() => void publish(true)}
+      >
+        <p className="muted">Elle sera visible par tous. Tu pourras la retirer du site à tout moment, depuis la liste des pages.</p>
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={resetting}

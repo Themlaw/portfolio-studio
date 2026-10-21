@@ -154,7 +154,7 @@ await slider.fill("120");
 await page.getByRole("radio", { name: /réduit au défilement/ }).check();
 await settled();
 await page.getByRole("button", { name: "Publier", exact: true }).click();
-ok("I2a publication", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+ok("I2a publication", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
 
 /* ---- I2/I3. Public ---------------------------------------------------------------------------------- */
 const pub = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -204,7 +204,7 @@ await pp.screenshot({ path: `${SHOTS}/integ-haut-1440.png` });
 await page.getByRole("button", { name: "Revenir aux couleurs du thème" }).click();
 await settled();
 await page.getByRole("button", { name: "Publier", exact: true }).click();
-ok("I4a republication", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+ok("I4a republication", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
 await pp.goto(`${BASE}/fr/a-propos`, { waitUntil: "networkidle" });
 const cp2 = await pubCard("Carte couleur principale");
 ok("I4b sans palette du site : la carte « primary » retrouve la couleur du thème", cp2 && !near(rgbOf(cp2.bg), hexRgb(NEW_PRIMARY)), JSON.stringify(cp2));

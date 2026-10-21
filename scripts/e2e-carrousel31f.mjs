@@ -388,7 +388,7 @@ await section("U", async () => {
   // Parité : la toile avant publication.
   const edit = await f.evaluate(() => [...document.querySelectorAll("[data-edit-rail]")].map((r) => ({ rail: r.getAttribute("data-edit-rail"), n: r.querySelectorAll(":scope > [data-edit-slot]:not([data-empty])").length, radii: [...r.querySelectorAll(":scope > [data-edit-slot]:not([data-empty])")].map((e) => e.style.getPropertyValue("--media-radius")) })));
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  ok("U0 page publiée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+  ok("U0 page publiée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
   const visitor = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const pp = await visitor.newPage();
   pp.on("pageerror", (e) => errors.push(e.message));

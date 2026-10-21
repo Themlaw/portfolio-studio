@@ -23,7 +23,7 @@ import path from "node:path";
 
 import { routing } from "./i18n/routing";
 import { isAdminRequest } from "./lib/auth/guard";
-import { NOT_FOUND_SLUG, publishedSlugExists } from "./lib/pages-index";
+import { NOT_FOUND_SLUG, publishedSlugExists, redirectedSlug } from "./lib/pages-index";
 
 const intl = createMiddleware(routing);
 
@@ -152,6 +152,9 @@ export default async function proxy(request: NextRequest) {
   if (!publishedSlugExists(locale, slug)) {
     // Page non publiée : seulement pour un aperçu admin vérifié ; sinon un vrai
     // 404, identique à celui d'une adresse qui n'existe pas.
+    // Ancienne adresse gardée en redirection (lot 51) : lien déjà partagé, renvoyé vers l'adresse actuelle.
+    const moved = redirectedSlug(locale, slug);
+    if (moved) return NextResponse.redirect(new URL(`/${locale}/${encodeURIComponent(moved)}${request.nextUrl.search}`, request.url), 308);
     const draftExists = publishedSlugExists(locale, slug, { includeDrafts: true });
     if (!draftExists || !(await canPreviewDrafts(request))) return notFoundResponse(request, locale);
   }

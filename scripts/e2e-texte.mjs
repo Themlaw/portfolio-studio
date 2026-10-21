@@ -98,7 +98,7 @@ async function tryPublish() {
 }
 async function publish() {
   await tryPublish();
-  return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 const selectedText = (fr) => fr.evaluate(() => window.getSelection()?.toString() ?? "");
 async function stableScroll(fr) {

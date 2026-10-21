@@ -374,7 +374,7 @@ if (run("P"))
   await section("P", async () => {
     await settled();
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    ok("P0 page publiée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+    ok("P0 page publiée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
     await sleep(1500);
     const PUB = (uid) => `figure.block-image[data-solo]`;
     const visitor = await browser.newContext({ viewport: { width: 1440, height: 900 } });

@@ -262,7 +262,7 @@ if (run("P") || run("F") || run("T"))
   await section("P", async () => {
     await settled();
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    ok("P0 page publiée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+    ok("P0 page publiée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
     if (run("P")) {
       for (const [w, h] of [[1440, 900], [1024, 800]]) {
         const { pc, pp, m } = await publicMeasure(w, h, "");

@@ -116,7 +116,7 @@ ok("Pages : un clic sur la page ouvre l'éditeur", page.url().includes("/admin/p
 let f = await openFresh();
 const published = await blocksOf(f);
 ok("toile en vue brouillon avec ses blocs repérés", published.length >= 3, String(published.length));
-ok("état « Publié » sans brouillon", /Publié/.test(await status()), await status());
+ok("état « Publié » sans brouillon", /En ligne/.test(await status()), await status());
 await sleep(800);
 await page.screenshot({ path: `${SHOTS}/1440-normal.png` });
 
@@ -173,7 +173,7 @@ ok("Texte inséré entre les blocs 2 et 3", await until(f, (n) => {
   return els.length === n && els[2]?.dataset.editType === "rich-text";
 }, published.length + 1), JSON.stringify((await blocksOf(f)).map((x) => x.type)));
 await settled();
-ok("état « Brouillon enregistré »", /Brouillon enregistré/.test(await status()), await status());
+ok("état « Modifications non publiées »", /Modifications non publiées/.test(await status()), await status());
 let blocks = await blocksOf(f);
 const textUid = blocks[2].uid;
 ok("le nouveau bloc est sélectionné", await until(f, (uid) => Boolean(document.querySelector(".pe-selected")) && document.querySelectorAll("[data-edit-block]:not([data-edit-parent])")[2]?.dataset.editBlock === uid, textUid));
@@ -301,7 +301,7 @@ const rawHtml = await (await anon.request.get(`${BASE}/fr`)).text();
 ok("HTML public sans bouton ni repère d'édition", !/Modifier cette page|data-edit-block|data-inline|pe-layer/.test(rawHtml));
 await page.getByRole("button", { name: "Publier" }).click();
 ok("Publier : toast « Publié »", await until(page.mainFrame(), () => /Publié : la page est en ligne/.test(document.body.innerText), null, 60000));
-ok("état « Publié à l'instant »", /Publié/.test(await status()), await status());
+ok("état « Publié à l'instant »", /En ligne/.test(await status()), await status());
 await visitor.reload({ waitUntil: "networkidle" });
 ok("visiteur : la nouvelle version après Publier", (await visitor.locator("body").innerText()).includes(TITLE_FR));
 
@@ -327,7 +327,7 @@ ok("clic sur un composant : ajouté", await countIs(f, before + 1));
 await settled();
 ok("« Abandonner les modifications » proposé", await page.getByRole("button", { name: "Abandonner les modifications" }).isVisible());
 f = await discardAll();
-ok("abandon : retour à la version publiée", (await blocksOf(f)).length === before && /Publié/.test(await status()), `${(await blocksOf(f)).length} / ${before}`);
+ok("abandon : retour à la version publiée", (await blocksOf(f)).length === before && /En ligne/.test(await status()), `${(await blocksOf(f)).length} / ${before}`);
 
 /* ---- Barre d'état : les états explicites, et « modifié ailleurs » ---------- */
 
@@ -335,7 +335,7 @@ const bar = async (name) => {
   await sleep(150);
   await page.screenshot({ path: `${SHOTS2}/etat-${name}.png`, clip: { x: 0, y: 0, width: 1440, height: 56 } });
 };
-ok("état « Publié » (point vert)", /^Publié/.test((await status()).trim()) && (await page.locator(".ve-status").getAttribute("data-tone")) === "ok", await status());
+ok("état « En ligne » (point vert)", /^En ligne/.test((await status()).trim()) && (await page.locator(".ve-status").getAttribute("data-tone")) === "ok", await status());
 await bar("publie");
 // Enregistrement ralenti : l'état « Enregistrement… » reste visible.
 const slow = async (route) => {
@@ -349,7 +349,7 @@ ok("état « Enregistrement… »", await until(page.mainFrame(), () => /Enregis
 await bar("enregistrement");
 await settled();
 await page.unroute("**/admin/pages/1/editer**", slow);
-ok("état « Brouillon enregistré » (point orange)", /Brouillon enregistré/.test(await status()) && (await page.locator(".ve-status").getAttribute("data-tone")) === "draft", await status());
+ok("état « Modifications non publiées » (point orange)", /Modifications non publiées/.test(await status()) && (await page.locator(".ve-status").getAttribute("data-tone")) === "draft", await status());
 await bar("brouillon-enregistre");
 // Connexion coupée : « Erreur d'enregistrement », avec la raison et « Réessayer ».
 const cut = (route) => (route.request().method() === "POST" ? route.abort() : route.continue());
@@ -361,7 +361,7 @@ await bar("erreur");
 await page.unroute("**/admin/pages/1/editer**", cut);
 await page.locator(".ve-status").getByRole("button", { name: "Réessayer" }).click();
 await settled();
-ok("Réessayer : brouillon enregistré", /Brouillon enregistré/.test(await status()), await status());
+ok("Réessayer : brouillon enregistré", /Modifications non publiées/.test(await status()), await status());
 // Deux onglets : le second enregistre, le premier est arrêté sans rien écraser.
 const other = await ctx.newPage();
 other.on("pageerror", (e) => errors.push(e.message));
@@ -388,7 +388,7 @@ await page.screenshot({ path: `${SHOTS2}/modifie-ailleurs.png` });
 await other.close();
 await Promise.all([page.waitForEvent("framenavigated", { predicate: (fr) => fr === page.mainFrame(), timeout: 60000 }), conflictBanner.getByRole("button", { name: "Recharger" }).click()]);
 f = await canvas();
-ok("Recharger : la version de l'autre onglet, sans conflit", (await blocksOf(f)).length === otherBefore + 1 && /Brouillon enregistré/.test(await status()), `${(await blocksOf(f)).length} · ${await status()}`);
+ok("Recharger : la version de l'autre onglet, sans conflit", (await blocksOf(f)).length === otherBefore + 1 && /Modifications non publiées/.test(await status()), `${(await blocksOf(f)).length} · ${await status()}`);
 f = await discardAll();
 
 /* ---- 390 px ------------------------------------------------------------------------- */

@@ -4,8 +4,8 @@
  * Formulaire d'une page : informations (titre, adresses, publication, menu, collection, couleur des boutons et liens de
  * la page) et référencement. Le CONTENU (rubriques) se compose dans l'éditeur visuel, qui propose tout ce que ce formulaire
  * offrait (ajouter, déplacer, supprimer, régler chaque composant) : ici, un lien. Les rubriques sont renvoyées telles que chargées, pour
- * que l'enregistrement ne les change pas. Enregistrer publie aussitôt si la page est publiée ; s'il existe un
- * brouillon de l'éditeur visuel, le formulaire le reprend et l'enregistrement le publie (un seul état).
+ * que l'enregistrement ne les change pas. « Enregistrer » ne touche QU'AUX infos (lot 51) : le brouillon de contenu de
+ * l'éditeur visuel n'est jamais publié ici ; la mise en ligne se fait avec « Publier » dans l'éditeur (ou « En ligne » ci-dessous).
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -13,7 +13,7 @@ import { useState, useTransition } from "react";
 
 import PageButtonsColorField from "@/app/admin/_fields/PageButtonsColorField";
 import { errorAt, Field, PageCollectionField, TextareaI18n, TextField, TextI18n, Toggle } from "@/app/admin/_fields";
-import { savePageAction } from "@/app/admin/(espace)/pages/actions";
+import { savePageInfoAction } from "@/app/admin/(espace)/pages/actions";
 import type { EditorContext } from "@/blocks/editor-types";
 import type { AdminPageEdit } from "@/lib/admin";
 
@@ -55,6 +55,9 @@ export default function PageEditor({
   const [saving, start] = useTransition();
   const [rev, setRev] = useState(initialRev);
   const [conflict, setConflict] = useState<string | null>(null);
+  /** Page en ligne dont l'adresse change : l'ancienne adresse redirige vers la nouvelle (par défaut oui, PAGES-06). */
+  const [keepOld, setKeepOld] = useState(true);
+  const slugMoved = !page.isHome && saved.published && (state.slug.fr !== saved.slug.fr || state.slug.en !== saved.slug.en);
   const dirty = !same(payload(state), payload(saved));
   // Erreurs de rubrique renvoyées par la validation du serveur (une rubrique publiée devenue invalide, par exemple).
   const blockProblems = Object.entries(errors).filter(([k]) => k === "blocks" || k.startsWith("blocks."));
@@ -64,7 +67,7 @@ export default function PageEditor({
 
   const save = () => {
     start(async () => {
-      const result = await savePageAction(page.id, payload(state), rev);
+      const result = await savePageInfoAction(page.id, payload(state), rev, keepOld);
       if (!result.ok) {
         if ("code" in result) {
           // Modifiée ailleurs (ou brouillon illisible) : rien n'est écrasé.
@@ -80,7 +83,9 @@ export default function PageEditor({
       setErrors({});
       setRev(result.data.rev);
       setSaved(clone(state));
-      toast(state.published ? "Enregistré · en ligne" : "Enregistré");
+      const moved = saved.published && (state.slug.fr !== saved.slug.fr || state.slug.en !== saved.slug.en);
+      toast(moved ? (result.data.redirected > 0 ? "Enregistré · l'ancienne adresse renvoie vers la nouvelle" : "Enregistré · les anciens liens vers cette page ne marcheront plus") : state.published ? "Informations enregistrées · page en ligne" : "Informations enregistrées · page pas encore en ligne");
+      setKeepOld(true);
       // Hors de la transition : l'état « Enregistré » s'affiche sans attendre le rafraîchissement.
       setTimeout(() => router.refresh(), 0);
     });
@@ -126,9 +131,17 @@ export default function PageEditor({
               />
             </>
           )}
+          {slugMoved && (
+            <Toggle
+              label="Garder l'ancienne adresse"
+              help={`Les liens déjà partagés (${[saved.slug.fr !== state.slug.fr ? `/fr/${saved.slug.fr}` : "", saved.slug.en !== state.slug.en ? `/en/${saved.slug.en}` : ""].filter(Boolean).join(" et ")}) renvoient vers la nouvelle adresse. Décoché, ils afficheront « introuvable ».`}
+              checked={keepOld}
+              onChange={setKeepOld}
+            />
+          )}
           <Toggle
-            label="Publiée"
-            help={page.isHome ? "L'accueil reste toujours publié." : "Non publiée, la page répond « introuvable » à tes visiteurs."}
+            label="En ligne"
+            help={page.isHome ? "L'accueil reste toujours en ligne." : state.published ? "Visible par tous. Décoche pour retirer la page du site." : "Pas encore en ligne : la page répond « introuvable » à tes visiteurs."}
             checked={state.published}
             onChange={(v) => !page.isHome && set("published", v)}
             error={errors.published}
@@ -183,8 +196,8 @@ export default function PageEditor({
           dirty
             ? "L'aperçu montre la version enregistrée : enregistre d'abord."
             : saved.published
-              ? "Page publiée : enregistrer la met à jour aussitôt sur le site (brouillon de l'éditeur visuel compris)."
-              : "Page non publiée : visible seulement en aperçu."
+              ? "Page en ligne. « Enregistrer » ne change que ces informations : le contenu se publie avec « Publier » dans l'éditeur."
+              : "Page pas encore en ligne : visible seulement en aperçu. Elle se met en ligne avec « Publier » dans l'éditeur."
         }
       />
 

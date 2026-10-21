@@ -117,7 +117,7 @@ async function openEditor() {
 async function publish() {
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 async function activateTheme(name) {
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });

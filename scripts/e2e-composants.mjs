@@ -241,7 +241,7 @@ if (run("C"))
     }) && !JSON.stringify(draftOf(pageId)).includes(NEW_TITLE));
     ok("C10 la planche du même projet montre aussi le nouveau titre", await waitFor(async () => (await f.locator(`[data-edit-board] h2[data-project-inline="title"]`).filter({ hasText: NEW_TITLE }).count()) >= 1));
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    ok("C7 publication acceptée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000), await page.locator(".ve-status").textContent());
+    ok("C7 publication acceptée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000), await page.locator(".ve-status").textContent());
     const pub = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
     await pub.goto(`${BASE}/fr/${legacy.slug}`, { waitUntil: "networkidle" });
     const html = await pub.content();
