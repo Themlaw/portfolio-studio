@@ -88,7 +88,11 @@ const MEASURE = (slug) => {
   // Zone colorée qui porte le composant (le fond, sinon la carte) : le contenu y reste à 16 px au moins du bord (lot 48).
   const zoneOf = (e) => {
     const z = e.closest('.fond-bloc[data-fond="on"]') ?? e.closest('.surface-card[data-surface="on"]');
-    return z ? box(z) : null;
+    if (!z) return null;
+    // Carte : la zone est l'intérieur de sa bordure (la bordure fait partie du cadre, le contenu garde 16 px depuis elle).
+    const b = box(z), cs = getComputedStyle(z);
+    const bl = parseFloat(cs.borderLeftWidth) || 0, br = parseFloat(cs.borderRightWidth) || 0;
+    return { ...b, l: b.l + bl, w: b.w - bl - br };
   };
   const one = (g) => ({ imgs: [...g.querySelectorAll("img")].filter((i) => i.getBoundingClientRect().width > 20).map(box), grid: box(g), zone: zoneOf(g) });
   const probe = (css) => {
@@ -207,8 +211,9 @@ const imgsOf = (sel) =>
   fr.evaluate((s) => {
     const g = document.querySelector(`${s} .block-grid`); if (!g) throw new Error("grille introuvable : " + s);
     const z = g.closest('.fond-bloc[data-fond="on"]') ?? g.closest('.surface-card[data-surface="on"]');
-    const zb = z?.getBoundingClientRect();
-    return { imgs: [...g.querySelectorAll("img")].filter((i) => i.getBoundingClientRect().width > 20).map((i) => { const b = i.getBoundingClientRect(); return { l: b.left, w: b.width }; }), zone: zb ? { l: zb.left, w: zb.width } : null };
+    const zb = z?.getBoundingClientRect(), zc = z ? getComputedStyle(z) : null;
+    const bl = parseFloat(zc?.borderLeftWidth) || 0, br = parseFloat(zc?.borderRightWidth) || 0;
+    return { imgs: [...g.querySelectorAll("img")].filter((i) => i.getBoundingClientRect().width > 20).map((i) => { const b = i.getBoundingClientRect(); return { l: b.left, w: b.width }; }), zone: zb ? { l: zb.left + bl, w: zb.width - bl - br } : null };
   }, sel);
 const openPageFond = async (uid) => {
   const host = fr.locator(`[data-edit-block="${uid}"]`).first();
