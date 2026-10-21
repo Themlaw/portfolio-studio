@@ -14,7 +14,7 @@
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import {
   boardAction,
@@ -2493,6 +2493,24 @@ export default function VisualEditor({
     router.push(`/admin/pages/${id}/editer?langue=${locale}`);
   };
 
+  /**
+   * Quitter l'éditeur vers l'admin (lot 48) : la vue brouillon (draft mode + cookie `page-draft`, posés par la toile) est coupée en même
+   * temps, comme par « Quitter l'aperçu » (POST /admin/apercu/quitter) : le site ne s'ouvre plus en Aperçu par surprise. Clic simple seulement
+   * (Ctrl / Cmd / clic du milieu : le lien s'ouvre à part, l'éditeur reste en place avec sa vue brouillon).
+   */
+  const leaveTo = async (e: ReactMouseEvent<HTMLAnchorElement>, href: string) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    await flush();
+    try {
+      await fetch("/admin/apercu/quitter", { method: "POST", body: new URLSearchParams({ retour: href }), credentials: "same-origin", redirect: "manual" });
+    } catch {
+      // Hors ligne : on quitte quand même, la vue brouillon sera coupée à la prochaine sortie.
+    }
+    leaving.current = true;
+    window.location.assign(href);
+  };
+
   /* ---- Rendu -------------------------------------------------------------- */
 
   // Palette et logo voulus : l'aperçu en attente fait foi sur le brouillon enregistré.
@@ -2956,7 +2974,7 @@ export default function VisualEditor({
             <div className="ve-settings-empty">
               <p>Clique sur une rubrique de la page pour la régler. Les textes se modifient directement sur la page.</p>
               <p className="ve-hint">
-                Titre, adresses et référencement de la page : <Link href={`/admin/pages/${pageId}`}>formulaire de la page</Link>.
+                Titre, adresses et référencement de la page : <Link href={`/admin/pages/${pageId}`} onClick={(e) => void leaveTo(e, `/admin/pages/${pageId}`)}>formulaire de la page</Link>.
               </p>
               <div className="ve-page-collection">
                 <PageCollectionField
@@ -2987,7 +3005,7 @@ export default function VisualEditor({
     <div className="ve" data-mode={mode} data-mobile={mobile || undefined}>
       {mode === "edit" && (
         <header className="ve-top">
-          <Link href="/admin/pages" className="ve-brand" title="Retour aux pages">
+          <Link href="/admin/pages" className="ve-brand" title="Retour aux pages" onClick={(e) => void leaveTo(e, "/admin/pages")}>
             <span aria-hidden="true">←</span>
             <span className="ve-brand-text">
               {siteName}
@@ -3098,7 +3116,7 @@ export default function VisualEditor({
                     {problems.map((p) => (
                       <li key={p.key}>
                         {p.kind === "form" ? (
-                          <Link href={`/admin/pages/${pageId}`} className="ve-problem">
+                          <Link href={`/admin/pages/${pageId}`} className="ve-problem" onClick={(e) => void leaveTo(e, `/admin/pages/${pageId}`)}>
                             <span className="ve-problem-where">{p.field ?? p.where}</span>
                             <span className="ve-problem-msg">{p.message} Ouvrir le formulaire de la page.</span>
                           </Link>

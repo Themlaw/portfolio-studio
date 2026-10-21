@@ -7,6 +7,7 @@ import Picture, { type CropFallback } from "./Picture";
 import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { MAX_TILES, TILE_GEOMETRY, type TileSize } from "@/blocks/collection-pages";
 
+import EditOnly from "@/components/EditOnly";
 import Eyebrow from "@/components/Eyebrow";
 import { Link } from "@/i18n/navigation";
 
@@ -112,7 +113,7 @@ export default function CollectionTiles({
         tile.broken ? (
           <p key={tile.key} data-edit-invalid="" data-tile-broken="" className="pe-tile-broken">
             Cette entrée mène à une page supprimée ou non publiée : elle est masquée sur le site. Choisis une autre page, ou retire-la.
-            {tools && tile.itemIndex !== undefined && toolbar(tile.itemIndex)}
+            {tools && tile.itemIndex !== undefined && <EditOnly>{toolbar(tile.itemIndex)}</EditOnly>}
           </p>
         ) : tile.empty ? (
           <p key={tile.key} data-edit-invalid="" data-tile-empty="" className="pe-tile-broken">
@@ -120,16 +121,17 @@ export default function CollectionTiles({
             <span className="pe-tile-empty-why">
               La tuile « {tile.title || tile.collectionName} » n&apos;apparaît pas sur le site tant que la collection {tile.collectionName ? `« ${tile.collectionName} » ` : ""}est vide : publie une œuvre dans cette collection.
             </span>
-            {tools && tile.itemIndex !== undefined && toolbar(tile.itemIndex)}
+            {tools && tile.itemIndex !== undefined && <EditOnly>{toolbar(tile.itemIndex)}</EditOnly>}
           </p>
         ) : (
         <Link
           key={tile.key}
           href={tile.href}
-          className={`tile mat-hover group grid items-center gap-8 md:grid-cols-12${edit ? " relative" : ""}`}
+          className={`tile mat-hover group grid items-center gap-8 ${edit ? "relative" : ""}`}
         >
-          {tools && tile.itemIndex !== undefined && toolbar(tile.itemIndex)}
-          {edit && coverTools(tile)}
+          {/* Commandes de la toile (lot 48) : dans le DOM seulement sur la toile en mode édition, jamais en Aperçu ni en public. */}
+          {tools && tile.itemIndex !== undefined && <EditOnly>{toolbar(tile.itemIndex)}</EditOnly>}
+          {edit && <EditOnly>{coverTools(tile)}</EditOnly>}
           <div className="tile-img">
             <div className="tile-media mat" style={{ "--ir": tile.shownRatio.toFixed(4) } as CSSProperties}>
               <span
@@ -158,7 +160,7 @@ export default function CollectionTiles({
 
           <div className="tile-txt">
             <Eyebrow {...mark("tileEyebrow")}>{tile.eyebrow}</Eyebrow>
-            <h3 className="mt-3 font-display text-[clamp(2rem,4.4vw,3.25rem)] text-ink transition-colors group-hover:text-primary" {...mark("tileTitle")}>
+            <h3 className="mt-3 font-display text-[clamp(2rem,4.9cqw,3.25rem)] text-ink transition-colors group-hover:text-primary" {...mark("tileTitle")}>
               {tile.title}
             </h3>
             <p className="mt-4 text-sm leading-relaxed text-ink-soft" {...mark("tileIntro")}>
@@ -179,12 +181,14 @@ export default function CollectionTiles({
         ),
       )}
       {tools && (
-        <div className="pe-tile-add-row">
-          <button type="button" className="pe-tile-add" data-edit-tile-add="" data-candidates={JSON.stringify(candidates)} disabled={itemCount >= MAX_TILES || candidates.length === 0}>
-            + Ajouter une entrée
-          </button>
-          {candidates.length === 0 && itemCount < MAX_TILES && <span className="pe-tile-add-note">Toutes les pages de collection ont déjà une entrée.</span>}
-        </div>
+        <EditOnly>
+          <div className="pe-tile-add-row">
+            <button type="button" className="pe-tile-add" data-edit-tile-add="" data-candidates={JSON.stringify(candidates)} disabled={itemCount >= MAX_TILES || candidates.length === 0}>
+              + Ajouter une entrée
+            </button>
+            {candidates.length === 0 && itemCount < MAX_TILES && <span className="pe-tile-add-note">Toutes les pages de collection ont déjà une entrée.</span>}
+          </div>
+        </EditOnly>
       )}
     </div>
   );
