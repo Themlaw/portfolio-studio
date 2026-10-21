@@ -148,7 +148,7 @@ try {
   const inkSoft = page.locator('.a-color[data-token="inkSoft"]');
   await inkSoft.getByLabel("Texte secondaire", { exact: true }).fill("#c4c4c4");
   ok("A3 couleur sous AA signalée", await inkSoft.locator(".a-ratio-bad").isVisible());
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   // Depuis la v0.21.1 le contraste n'est jamais bloquant : le thème est enregistré, l'avertissement (A3) reste affiché.
   await toast("Enregistré");
   ok(
@@ -170,7 +170,7 @@ try {
   await page.waitForTimeout(300);
   ok("A6b forme changée en direct (boutons droits)", (await frame.locator("html").getAttribute("data-button")) === "square");
 
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   await toast("Enregistré");
   ok("A7 thème enregistré, état « Enregistré »", await page.locator(".a-save-state", { hasText: /✓\s*Enregistré/ }).waitFor({ timeout: 10000 }).then(() => true, () => false));
 
@@ -257,7 +257,7 @@ try {
   ok("B5 état « non enregistré » visible", await page.locator(".a-save-state", { hasText: "non enregistrées" }).isVisible());
   // Prévisualiser avant d'enregistrer : le formulaire prévient que l'aperçu montre la version enregistrée.
   ok("B5b l'aperçu signale qu'il montre la version enregistrée", await page.getByText("L'aperçu montre la version enregistrée").isVisible());
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   await toast("Enregistré");
   ok("B5c enregistrer par le formulaire ne change pas les blocs", sdbBlocks(pageId).join(",") === "contact,rich-text");
 
@@ -345,7 +345,7 @@ try {
   r = await anon("/fr/decors");
   ok("C2 le pied de page public change", r.html.includes("Mention modifiée par le test") && r.html.includes("https://example.com/reseau-1"));
   await credit.locator("input").fill(originalCredit);
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   await toast("Enregistré");
   r = await anon("/fr/decors");
   ok("C3 mention d'origine restaurée", r.html.includes(originalCredit));

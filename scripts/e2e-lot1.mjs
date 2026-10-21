@@ -385,7 +385,7 @@ if (run("G")) {
   await page.getByRole("button", { name: "Enregistrer le lien" }).click();
   // Icônes dans l'en-tête.
   ok("G4b case cochée", await setHeaderSwitch(page, true));
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   ok("G5 enregistré", await until(page, () => /Enregistré/.test(document.body.textContent ?? ""), null, 30000));
   const socials = JSON.parse(q("select value from settings where key = 'socials'")[0].value);
   const site = JSON.parse(q("select value from settings where key = 'site'")[0].value);
@@ -415,7 +415,7 @@ if (run("G")) {
   await page.reload({ waitUntil: "networkidle" });
   await setHeaderSwitch(page, false);
   await page.getByRole("button", { name: /^Retirer Behance/ }).last().click();
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   await sleep(1500);
 }
 

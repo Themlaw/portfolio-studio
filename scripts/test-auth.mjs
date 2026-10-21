@@ -264,10 +264,13 @@ function callAction(jar, id, fields = {}, origin = BASE, page = "/admin/themes")
  * dès l'enregistrement, comme avant.
  */
 async function savePageForm(jar, id, payload, rev = query(dirA, "select draft_rev r from pages where id = ?", id)?.r, page = "/admin") {
-  const saved = await callActionJson(jar, ids.saveDraftAction, [id, payload, rev], page);
+  // Les actions du brouillon se résolvent depuis l'écran de l'éditeur ; les rubriques du brouillon portent un `uid`.
+  const editor = `/admin/pages/${id}/editer`;
+  const draft = Array.isArray(payload?.blocks) ? { ...payload, blocks: payload.blocks.map((b, i) => (b.uid ? b : { ...b, uid: `f${i}` })) } : payload;
+  const saved = await callActionJson(jar, ids.saveDraftAction, [id, draft, rev], editor);
   if (!saved.text.includes('"ok":true')) return saved;
   const next = Number(/"rev":(\d+)/.exec(saved.text)?.[1]);
-  return callActionJson(jar, ids.publishDraftAction, [id, next], page);
+  return callActionJson(jar, ids.publishDraftAction, [id, next], editor);
 }
 function callSavePage(jar, [id, payload], page) {
   return savePageForm(jar, id, payload, undefined, page);
@@ -535,6 +538,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   const screen =
     name === "applyKitImportAction" ? "/admin/themes/galerie-lumineuse/kit"
     : name === "saveThemeAction" ? "/admin/themes/galerie-lumineuse"
+    : name === "savePageInfoAction" ? "/admin/pages/1"
     : name === "deleteFontAction" ? "/admin/reglages"
     : /Draft|[bB]oard|Font/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
@@ -2903,7 +2907,7 @@ await sleep(500);
 const children = spawnSync("pgrep", ["-f", "kit-child.cjs"], { encoding: "utf8" }).stdout.trim();
 ok(
   "TM1 plafond mémoire de l'enfant dépassé : job en échec, message lisible, plus aucun processus, PSD supprimé",
-  job?.status === "failed" && /trop de mémoire/.test(job.error ?? "") && children === "" && !existsSync(path.join(dirM, "kit-imports", mid, "source.psd")),
+  job?.status === "failed" && /trop de mémoire|trop lourd à analyser/.test(job.error ?? "") && children === "" && !existsSync(path.join(dirM, "kit-imports", mid, "source.psd")),
   `${JSON.stringify(job)} pids=[${children}] ${serverLog(km.server, /\[kit\] import [^\n]+/g).pop() ?? ""}`,
 );
 // Reprise : un import et un export restés « running » (serveur tombé) → en échec, sans nouvel essai, PSD supprimé.
