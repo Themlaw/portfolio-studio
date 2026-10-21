@@ -202,13 +202,13 @@ if (run("SM")) await section("SM", async () => {
   const id = sql((db) => db.prepare("select id from pages where json_extract(slug,'$.fr') = 'animation'").get())?.id;
   await page.goto(`${BASE}/admin/pages`, { waitUntil: "networkidle" });
   const row = page.locator("tr", { hasText: "/animation" }).first();
-  await row.getByRole("button", { name: "Dépublier" }).click();
+  await row.getByRole("button", { name: /Retirer du site|Dépublier/ }).click();
   const confirm = page.getByRole("dialog");
-  if (await confirm.count()) await confirm.getByRole("button", { name: /Dépublier|Confirmer/ }).click();
+  if (await confirm.count()) await confirm.getByRole("button", { name: /Retirer du site|Dépublier|Confirmer/ }).click();
   await sleep(1500);
   const sm2 = await html("/sitemap.xml");
   ok("SM2 une page dépubliée n'est plus dans le plan du site", !/\/fr\/animation</.test(sm2.text), `id ${id}`);
-  await row.getByRole("button", { name: "Publier" }).click();
+  await row.getByRole("button", { name: /Mettre en ligne|Publier/ }).click();
   await sleep(1200);
   const sm3 = await html("/sitemap.xml");
   ok("SM2 republiée, elle y revient", /\/fr\/animation</.test(sm3.text));

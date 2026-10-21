@@ -17,7 +17,7 @@ import {
   type PageReference,
 } from "@/lib/edit/pages";
 import { publishWarnings } from "@/lib/edit/warnings";
-import { discardDraft, publishDraft, saveDraft, savePageFromForm, savePageInfo, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
+import { discardDraft, publishDraft, saveDraft, savePageInfo, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
 import { boardOp, createDraftProject, restoreBoard, type BoardResult } from "@/lib/edit/boards";
 import { saveSiteDraft, type SiteResult } from "@/lib/edit/site";
 import { collectFonts, installGoogleFont, type InstallResult } from "@/lib/fonts/library";
@@ -37,23 +37,6 @@ export async function createPageAction(input: unknown): Promise<ActionResult<{ i
   const result = createPage(input);
   if (result.ok) revalidateNav();
   return result;
-}
-
-/**
- * Formulaire de page : publie ce qu'il montre (brouillon compris) et vide le
- * brouillon. `rev` : version lue au chargement (contrôle optimiste).
- */
-export async function savePageAction(id: unknown, input: unknown, rev: unknown): Promise<DraftResult<{ rev: number }>> {
-  await assertAdmin();
-  const pid = pageId(id);
-  if (!pid) return fail("Page inconnue.");
-  const result = savePageFromForm(pid, input, rev);
-  if (!result.ok) return result;
-  revalidatePage(pid, { structure: true });
-  enqueueCropWarm(pid);
-  if (result.data.site) revalidateSettings();
-  for (const project of result.data.projects) revalidateProject(project, { structure: true });
-  return { ok: true, data: { rev: result.data.rev } };
 }
 
 /**

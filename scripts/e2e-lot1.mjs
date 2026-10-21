@@ -147,7 +147,7 @@ async function between(f, i) {
     return (box(els[i]).bottom + box(els[i + 1]).top) / 2;
   }, i);
 }
-const published = () => until(page, () => /^Publié/.test(document.querySelector(".ve-status")?.textContent?.trim() ?? "") && !document.querySelector(".ve-alert[role=alert]"), null, 90000);
+const published = () => until(page, () => /^(Publié|En ligne)/.test(document.querySelector(".ve-status")?.textContent?.trim() ?? "") && !document.querySelector(".ve-alert[role=alert]"), null, 90000);
 
 /* ---- A. Formulaire : « + Ajouter un champ » au clic réel --------------------------- */
 

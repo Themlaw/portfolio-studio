@@ -215,7 +215,7 @@ if (run("P")) {
   await page.screenshot({ path: `${SHOTS}/P-selecteur-fond-1440.png` });
   await settled();
   ok("P3c brouillon du site : palette.bg enregistrée", await waitFor(() => nearHex(siteDraftStyles()?.palette?.bg, NEW_BG)), JSON.stringify(siteDraftStyles()));
-  ok("P3d état de l'éditeur : brouillon enregistré, rien en ligne", /Brouillon/.test((await page.locator(".ve-status").textContent()) ?? "") && setting("styles") === null);
+  ok("P3d état de l'éditeur : brouillon enregistré, rien en ligne", /Brouillon|Modifications non publiées/.test((await page.locator(".ve-status").textContent()) ?? "") && setting("styles") === null);
   ok("P3e le thème n'est jamais modifié", activeThemeRow() === themeRow);
   ok("P3f le rôle est marqué « modifiée »", /modifiée/.test((await role("Fond de page").locator(".lc-state").textContent()) ?? ""));
   ok("P3g toile après acquittement du serveur : même couleur (pas de retour à l'ancienne)", nearRgbStr(await bodyBg(f), NEW_BG));

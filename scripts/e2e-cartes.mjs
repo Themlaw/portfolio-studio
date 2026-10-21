@@ -196,10 +196,10 @@ if (run("A") || run("B") || run("C"))
   // Un texte d'aide resté tel quel : accepté dans le brouillon (enregistré, aucun bandeau d'erreur), refusé à la publication seulement.
   await page.keyboard.press("Escape");
   await settled();
-  ok("A3b texte d'aide laissé tel quel : brouillon enregistré (état « enregistré », pas de bandeau d'erreur)", (await waitFor(() => draftBlocks().at(-1)?.props.title?.fr === "Titre de la rubrique" && draftBlocks().at(-1)?.props.paragraphs?.[0]?.fr === "Écris ton texte ici.")) && /enregistré/i.test((await page.locator(".ve-status").textContent()) ?? "") && (await page.locator(".ve-alert").count()) === 0, (await page.locator(".ve-status").textContent()) ?? "");
+  ok("A3b texte d'aide laissé tel quel : brouillon enregistré (état « enregistré », pas de bandeau d'erreur)", (await waitFor(() => draftBlocks().at(-1)?.props.title?.fr === "Titre de la rubrique" && draftBlocks().at(-1)?.props.paragraphs?.[0]?.fr === "Écris ton texte ici.")) && /enregistré|Modifications non publiées/i.test((await page.locator(".ve-status").textContent()) ?? "") && (await page.locator(".ve-alert").count()) === 0, (await page.locator(".ve-status").textContent()) ?? "");
   await page.getByRole("button", { name: "Publier", exact: true }).click();
   ok("A4 texte d'aide resté tel quel : publication refusée, message clair", await page.getByText(/Remplace le texte d'exemple/).first().waitFor({ timeout: 60000 }).then(() => true, () => false));
-  ok("A4 le message de refus vient de la publication (bandeau), le brouillon reste enregistré", (await page.locator(".ve-alert").count()) === 1 && /enregistré/i.test((await page.locator(".ve-status").textContent()) ?? ""));
+  ok("A4 le message de refus vient de la publication (bandeau), le brouillon reste enregistré", (await page.locator(".ve-alert").count()) === 1 && /enregistré|Modifications non publiées/i.test((await page.locator(".ve-status").textContent()) ?? ""));
   // Saisie du titre puis du paragraphe.
   await f.locator('[data-edit-type="rich-text"] [data-inline="title"]').last().dblclick();
   await page.keyboard.press("Control+a");

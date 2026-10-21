@@ -573,7 +573,7 @@ if (run("H")) {
 
 /* ---- I. Publication, rendu public, correction I1 ----------------------------------- */
 
-const published = () => until(page, () => /^Publié/.test(document.querySelector(".ve-status")?.textContent?.trim() ?? "") && !document.querySelector(".ve-alert[role=alert]"), null, 90000);
+const published = () => until(page, () => /^(Publié|En ligne)/.test(document.querySelector(".ve-status")?.textContent?.trim() ?? "") && !document.querySelector(".ve-alert[role=alert]"), null, 90000);
 
 if (run("I")) {
   // Les vidéos encore à choisir bloquent la publication : on y glisse la vidéo envoyée en E.

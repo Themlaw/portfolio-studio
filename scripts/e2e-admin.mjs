@@ -340,7 +340,7 @@ try {
     await page.getByLabel("Adresse du profil").fill(`https://example.com/reseau-${i + 1}`);
     await page.getByRole("button", { name: "Enregistrer le lien" }).click();
   }
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   await toast("Enregistré");
   r = await anon("/fr/decors");
   ok("C2 le pied de page public change", r.html.includes("Mention modifiée par le test") && r.html.includes("https://example.com/reseau-1"));
