@@ -5,12 +5,13 @@ import { getTranslations } from "next-intl/server";
 
 import BlockList from "@/blocks/BlockList";
 import NotFoundView from "@/components/NotFoundView";
-import { routing, type AppLocale } from "@/i18n/routing";
+import type { AppLocale } from "@/i18n/routing";
 import { getDraftBlocks, getDraftPageInfo, getDraftRev, isDraftView, setDraftViewPage } from "@/lib/draft-view";
 import { resolvePage } from "@/lib/page-preview";
-import { getPageBlocks, localizedPath, pageAccent } from "@/lib/pages";
+import { getPageBlocks, pageAccent } from "@/lib/pages";
 import { hoverShade } from "@/themes/contrast";
-import { getSite } from "@/lib/settings";
+import { pageSocialMetadata } from "@/lib/seo";
+import { getSeoSettings, getSite } from "@/lib/settings";
 
 /**
  * Route unique des pages publiques : la page est résolue par son slug
@@ -43,14 +44,17 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const draft = (await isDraftView()) ? getDraftPageInfo(page.id) : null;
   const meta = draft ? draft.meta : page.meta;
   const title = draft ? draft.title : page.title;
-  return {
-    title: meta?.title[locale] || title[locale],
-    description: meta?.description[locale] || undefined,
-    alternates: {
-      canonical: localizedPath(page, locale),
-      languages: Object.fromEntries(routing.locales.map((l) => [l, localizedPath(page, l)])),
-    },
-  };
+  // Titre d'onglet « Page — Nom du site », description (page, sinon site) et balises de partage (lot 52).
+  const [site, seo] = await Promise.all([getSite(locale), getSeoSettings()]);
+  const isHome = !page.slug.fr && !page.slug.en;
+  return pageSocialMetadata({
+    page: draft ? { ...page, meta: draft.meta } : page,
+    locale,
+    title: meta?.title[locale] || (isHome ? "" : title[locale]),
+    description: meta?.description[locale] || "",
+    siteName: site.name,
+    seo,
+  });
 }
 
 export default async function Page({ params }: { params: Params }) {

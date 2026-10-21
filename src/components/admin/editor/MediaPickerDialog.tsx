@@ -9,6 +9,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import type { AdminMediaRow } from "@/lib/admin";
 
+import AltMissing from "../AltMissing";
 import { filterMedia } from "../LibraryStrip";
 import { ACCEPT } from "../uploads";
 
@@ -108,6 +109,7 @@ export default function MediaPickerDialog({
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={m.thumb} alt="" loading="lazy" />
                         )}
+                        {m.status === "ready" && m.kind === "image" && !m.alt.fr.trim() && <AltMissing className="a-alt-badge" />}
                         {m.status === "processing" && <span className="ve-media-state">{m.kind === "video" ? "Conversion…" : "Traitement…"}</span>}
                       </span>
                       <span className="ve-picker-name">{m.name}</span>

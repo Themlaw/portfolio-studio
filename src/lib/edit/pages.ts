@@ -189,6 +189,8 @@ const SavePageSchema = z.object({
   meta: z.object({
     title: z.object({ fr: z.string().trim().max(120), en: z.string().trim().max(120) }),
     description: z.object({ fr: z.string().trim().max(300), en: z.string().trim().max(300) }),
+    /** Image de partage de la page (média de la médiathèque), lot 52 ; absente = couverture du contenu, puis image du site. */
+    image: z.number().int().positive().nullable().optional(),
   }),
   published: z.boolean(),
   inMenu: z.boolean(),

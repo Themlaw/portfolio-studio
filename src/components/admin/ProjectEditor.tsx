@@ -374,13 +374,13 @@ function SlotPanel({
       {slot.media && (
         <>
           <TextI18n
-            label="Texte alternatif de l'image"
-            help="Décris l'image pour qui ne la voit pas. Commun à tous les emplacements qui montrent cette image."
+            label="Description de l'image (pour les personnes malvoyantes et Google)"
+            help="Décris ce qu'on voit, en une phrase. Commun à tous les emplacements qui montrent cette image."
             value={form.alt}
             onChange={(v) => set("alt", v)}
             error={errorAt(errors, "alt")}
           />
-          {!form.alt.fr.trim() && <p className="a-notice">Texte alternatif manquant : le titre sera lu à la place.</p>}
+          {!form.alt.fr.trim() && <p className="a-notice">Description manquante : le titre sera lu à la place.</p>}
         </>
       )}
       <div className="a-panel-actions">

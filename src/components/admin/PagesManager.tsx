@@ -14,6 +14,7 @@ import {
   setPublishedAction,
 } from "@/app/admin/(espace)/pages/actions";
 import type { AdminPageRow, TrashSummary } from "@/lib/admin";
+import { untranslatedLabel } from "@/lib/translation-gaps";
 import { slugify } from "@/lib/slug";
 import { daysLeft, lostWithPage, restoredMessage, TRASH_DAYS } from "@/lib/trash";
 
@@ -325,6 +326,11 @@ export default function PagesManager({ pages, trashed, view, summary }: { pages:
                   </td>
                   <td data-label="État">
                     {p.published ? <span className="a-badge">Publiée</span> : <span className="a-tag">Non publiée</span>}
+                    {p.untranslated > 0 && (
+                      <span className="a-tag a-tag-warn" data-testid="untranslated" title={untranslatedLabel(p.untranslated)}>
+                        Pas traduit en anglais
+                      </span>
+                    )}
                     {!isHome(p) && (
                       <button
                         type="button"

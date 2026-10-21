@@ -55,7 +55,7 @@ export type DraftBlock = { uid: string; type: string; props: Record<string, unkn
 export type PageDraft = {
   title: L;
   slug: L;
-  meta: { title: L; description: L };
+  meta: { title: L; description: L; image?: number | null };
   published: boolean;
   inMenu: boolean;
   accent: string | null;
@@ -82,7 +82,7 @@ const l = (max: number) => z.object({ fr: z.string().max(max), en: z.string().ma
 const DraftSchema = z.object({
   title: l(200),
   slug: l(120),
-  meta: z.object({ title: l(200), description: l(400) }),
+  meta: z.object({ title: l(200), description: l(400), image: z.number().int().positive().nullable().optional() }),
   published: z.boolean(),
   inMenu: z.boolean(),
   accent: z.string().max(7).nullable(),
@@ -483,7 +483,7 @@ function settleDraftProjects(pageId: number, blocks: { type: string; props: unkn
 /* ---- Publier, abandonner -------------------------------------------------- */
 
 /** `site` : l'en-tête, le pied ou les réseaux (communs à toutes les pages) ont changé. */
-export type PublishResult = { projects: number[]; blocks: number; rev: number; site: boolean };
+export type PublishResult = { projects: number[]; blocks: number; rev: number; site: boolean; /** Avertissements non bloquants (lot 52), ajoutés par l'action de publication. */ warnings?: { missingAlt: { id: number; name: string }[]; untranslated: number } };
 
 /**
  * Publie le brouillon, en une transaction : validation et écriture de

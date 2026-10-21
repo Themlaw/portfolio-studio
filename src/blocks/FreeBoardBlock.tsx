@@ -62,7 +62,7 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
           const bg = m.video ? null : imageBgAttrs(it.bg);
           const viewer =
             zoom && !m.video
-              ? viewerAttrs({ id: `media-${it.media}-${it.id}`, image: m.url, sources: m.sources ?? undefined, alt, width: m.width ?? 1200, height: m.height ?? 800, title: "", description: "", plain: true }, openLabel)
+              ? viewerAttrs({ id: `media-${it.media}-${it.id}`, image: m.url, sources: m.sources ?? undefined, alt, width: m.width ?? 1200, height: m.height ?? 800, title: "", description: "", plain: true }, [alt, openLabel].filter(Boolean).join(" — "))
               : {};
           const style = {
             "--x": it.x,

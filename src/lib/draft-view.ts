@@ -75,7 +75,7 @@ type L = { fr: string; en: string };
 const isL = (v: unknown): v is L => Boolean(v) && typeof (v as L).fr === "string" && typeof (v as L).en === "string";
 
 /** Titre, méta et accent du brouillon d'une page (vue brouillon), ou null. */
-export function getDraftPageInfo(pageId: number): { title: L; meta: { title: L; description: L }; accent: string | null; wallpaper: PagePaper | null | undefined } | null {
+export function getDraftPageInfo(pageId: number): { title: L; meta: { title: L; description: L; image?: number | null }; accent: string | null; wallpaper: PagePaper | null | undefined } | null {
   const draft = getDb().select({ draft: schema.pages.draft }).from(schema.pages).where(eq(schema.pages.id, pageId)).get()?.draft as
     | { title?: unknown; meta?: { title?: unknown; description?: unknown }; accent?: unknown; wallpaper?: unknown }
     | null

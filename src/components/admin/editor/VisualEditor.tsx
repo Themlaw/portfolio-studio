@@ -40,7 +40,7 @@ import { applyGridOp, type GridChild, type GridModelOp } from "@/blocks/grid-lay
 import { isFormBlock, makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
 import { SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
 import type { BoardOp, BoardResult, BoardSnap } from "@/lib/edit/boards";
-import type { DraftBlock, PageDraft } from "@/lib/edit/drafts";
+import type { DraftBlock, PageDraft, PublishResult } from "@/lib/edit/drafts";
 import { mediaStatusAction, retryMediaAction } from "@/app/admin/(espace)/medias/actions";
 import type { AdminMediaRow } from "@/lib/admin";
 import { acceptFromCanvas, EDIT_MSG, inlineAllowed, setLocalizedAt, type BlockInfo, type DropTargetInfo, type FromCanvas, type Ghost, type ToCanvas } from "@/lib/edit/protocol";
@@ -71,6 +71,7 @@ import { applyFreeOp, newFreeId, type FreeModelOp } from "@/blocks/free-board";
 import MediaPreviewDialog from "./MediaPreviewDialog";
 import SiteEditor, { applySiteOp, siteText } from "./SiteEditor";
 import StructureTree from "./StructureTree";
+import { untranslatedLabel } from "@/lib/translation-gaps";
 import { describeProblems, type Problem } from "./problems";
 import TopMore from "./TopMore";
 import BlockThumb from "./thumbs";
@@ -269,6 +270,8 @@ export default function VisualEditor({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [publishErrors, setPublishErrors] = useState<Record<string, string>>({});
   const [publishMessage, setPublishMessage] = useState<string | null>(null);
+  // Avertissements NON bloquants de la dernière publication (lot 52) : images sans description, textes sans traduction.
+  const [publishWarn, setPublishWarn] = useState<NonNullable<PublishResult["warnings"]> | null>(null);
   const [publishing, setPublishing] = useState(false);
 
   const [selected, setSelected] = useState<string | null>(null);
@@ -2449,6 +2452,8 @@ export default function VisualEditor({
       bumpHistory();
       setPublishErrors({});
       setPublishMessage(null);
+      const warn = result.data.warnings;
+      setPublishWarn(warn && (warn.missingAlt.length > 0 || warn.untranslated > 0) ? warn : null);
       setHasDraft(false);
       toast(result.data.site ? "Publié : la page est en ligne, l'en-tête et le pied de page sont à jour sur toutes les pages" : "Publié : la page est en ligne");
       setSitePending(false);
@@ -3131,6 +3136,32 @@ export default function VisualEditor({
                   </ul>
                 </>
               )}
+            </div>
+          )}
+          {publishWarn && mode === "edit" && (
+            <div className="ve-alert ve-warnings" role="status" data-testid="publish-warnings">
+              <strong>C&apos;est publié. Deux choses à regarder, rien ne bloque :</strong>
+              <ul className="ve-problems-list">
+                {publishWarn.missingAlt.length > 0 && (
+                  <li data-testid="warn-alt">
+                    {publishWarn.missingAlt.length} image{publishWarn.missingAlt.length > 1 ? "s" : ""} sans description (pour les personnes malvoyantes et Google) :{" "}
+                    <span className="muted">{publishWarn.missingAlt.slice(0, 5).map((m) => m.name).join(", ")}{publishWarn.missingAlt.length > 5 ? "…" : ""}</span>{" "}
+                    <Link href={`/admin/medias?filtre=sans-description&media=${publishWarn.missingAlt[0].id}`} onClick={(e) => void leaveTo(e, `/admin/medias?filtre=sans-description&media=${publishWarn.missingAlt[0].id}`)}>
+                      Compléter les descriptions
+                    </Link>
+                  </li>
+                )}
+                {publishWarn.untranslated > 0 && (
+                  <li data-testid="warn-translation">
+                    {untranslatedLabel(publishWarn.untranslated)}. Les visiteurs anglophones verront ces passages vides ou en français : remplis les champs « EN » dans l&apos;éditeur.
+                  </li>
+                )}
+              </ul>
+              <div className="ve-alert-actions">
+                <button type="button" className="a-btn a-btn-small" onClick={() => setPublishWarn(null)}>
+                  Fermer
+                </button>
+              </div>
             </div>
           )}
           {blocked === "conflict" && mode === "edit" && (

@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import PageButtonsColorField from "@/app/admin/_fields/PageButtonsColorField";
-import { errorAt, Field, PageCollectionField, TextareaI18n, TextField, TextI18n, Toggle } from "@/app/admin/_fields";
+import { errorAt, Field, MediaPicker, PageCollectionField, TextareaI18n, TextField, TextI18n, Toggle } from "@/app/admin/_fields";
 import { savePageAction } from "@/app/admin/(espace)/pages/actions";
 import type { EditorContext } from "@/blocks/editor-types";
 import type { AdminPageEdit } from "@/lib/admin";
@@ -42,7 +42,7 @@ export default function PageEditor({
 }: {
   page: AdminPageEdit;
   /** Pages du site (choix de la collection que la page présente). */
-  context: Pick<EditorContext, "pages">;
+  context: Pick<EditorContext, "pages" | "media">;
   /** Version du contenu lue au chargement (contrôle optimiste, src/lib/edit/drafts.ts). */
   rev: number;
   colors: Colors | null;
@@ -149,6 +149,14 @@ export default function PageEditor({
             value={state.meta.description}
             onChange={(v) => set("meta", { ...state.meta, description: v })}
             error={errorAt(errors, "meta.description")}
+          />
+          <MediaPicker
+            label="Image de partage de la page"
+            help="Affichée quand on partage le lien de cette page. Vide : la première image de la page, sinon l'image de ton site (Réglages)."
+            value={state.meta.image ?? undefined}
+            onChange={(v) => set("meta", { ...state.meta, image: v ?? null })}
+            error={errorAt(errors, "meta.image")}
+            context={context as EditorContext}
           />
         </div>
       </section>

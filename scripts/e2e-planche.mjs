@@ -179,8 +179,8 @@ try {
 
   await openSlot("E2e grand");
   const panel = page.locator(".a-slot-panel");
-  ok("P9 avertissement : texte alternatif manquant", await panel.locator(".a-notice", { hasText: "Texte alternatif manquant" }).isVisible());
-  await panel.getByLabel("Texte alternatif de l'image", { exact: true }).fill("Rectangle jaune sur fond brique");
+  ok("P9 avertissement : description manquante", await panel.locator(".a-notice", { hasText: "Description manquante" }).isVisible());
+  await panel.getByLabel("Description de l'image (pour les personnes malvoyantes et Google)", { exact: true }).fill("Rectangle jaune sur fond brique");
   await panel.getByRole("button", { name: "Enregistrer", exact: true }).click();
   await toast("Emplacement enregistré");
 
