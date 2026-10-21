@@ -22,7 +22,7 @@ import sharp from "sharp";
 
 import { ensureAgPsd } from "./ag-psd-node";
 import { alphaBox, contourFidelity, crop, encodeBitmap, monoStats, opaqueShare, reduceTo, seamStats, stretchableSvg, SVG_MAX_PATHS, SVG_MAX_RATIO, textureStats, thumbHashOf, TILE_REPEAT, tileRepeatStats, translucentShare, vectorizeLayer, type Rgba } from "./formats";
-import { preflightProblem, preflightPsd, PsdPreflightError, type PreflightLimits, type PsdPreflight } from "./psd-header";
+import { DAMAGED_FILE, preflightProblem, preflightPsd, PsdPreflightError, type PreflightLimits, type PsdPreflight } from "./psd-header";
 import { emptyFrameHash, findReference, frameHash, writePreview, type KitManifest } from "./manifest";
 import { flattenSlot, freeRaw, layoutOf, resolveDecor, resolveSlots, SlotRefusal, treeProblem, treeStats, type TreeStats } from "./resolve";
 import { DEFAULT_LIMITS } from "./limits";
@@ -192,6 +192,8 @@ export type ImportOptions = {
 };
 
 /** Un PSD à importer : chemin sur le disque, et son nom d'origine (affiché dans la revue). */
+export { DAMAGED_FILE };
+
 export type KitInput = string | { path: string; name?: string };
 
 const gcNow = () => (globalThis as { gc?: () => void }).gc?.();
@@ -272,7 +274,13 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
     const fid: FileId = role ?? "mono";
     const t0 = performance.now();
     let buffer: Buffer | null = await readFile(file.path);
-    let psd: ReturnType<typeof readPsd> | null = readPsd(buffer, { ...PSD_READ_OPTIONS });
+    let psd: ReturnType<typeof readPsd> | null;
+    try {
+      psd = readPsd(buffer, { ...PSD_READ_OPTIONS });
+    } catch {
+      // Fichier tronqué ou abîmé : le décodage échoue (la cause est le fichier, pas le serveur).
+      return { ok: false, preflight: pre, problem: `${prefix(file.name)}${DAMAGED_FILE}`, slots: [], ignoredLayers: [] };
+    }
     if (simulated) {
       psd.children = simulated;
       simulated = undefined;
@@ -535,7 +543,7 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
     const files: string[] = [];
     if (opts.keepCrops) await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 4 } }).png().toFile(path.join(outDir, `${base}.source.png`));
 
-    const { avif, webp } = await encodeBitmap(img);
+    const { avif, webp } = await encodeBitmap(img, slot.kind === "signature" || slot.kind === "tile" || slot.kind === "stroke");
     report.candidates = { avif: avif.length, webp: webp.length };
     const tex = textureStats(img);
     report.textured = { coverage8: Math.round(tex.coverage8 * 1000) / 1000, distinct: tex.distinct };

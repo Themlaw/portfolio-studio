@@ -151,9 +151,14 @@ export function opaqueShare(img: Rgba): number {
 
 const raw = (img: Rgba) => sharp(img.data, { raw: { width: img.width, height: img.height, channels: 4 } });
 
-export async function encodeBitmap(img: Rgba): Promise<{ avif: Buffer; webp: Buffer }> {
-  const avif = await raw(img).avif({ quality: 50, effort: 4 }).toBuffer();
-  const webp = await raw(img).webp({ quality: 78, alphaQuality: 90, effort: 4 }).toBuffer();
+/**
+ * `fine` : dessins aux traits ou grains fins (logo, papier, trait), réduits ensuite à l'écran :
+ * qualité plus haute et sous-échantillonnage des couleurs désactivé (sinon les traits fins
+ * de couleur bavent). Quelques dizaines de Ko de plus, pour des éléments peu nombreux.
+ */
+export async function encodeBitmap(img: Rgba, fine = false): Promise<{ avif: Buffer; webp: Buffer }> {
+  const avif = await raw(img).avif(fine ? { quality: 78, effort: 4, chromaSubsampling: "4:4:4" } : { quality: 50, effort: 4 }).toBuffer();
+  const webp = await raw(img).webp(fine ? { quality: 92, alphaQuality: 100, effort: 4, smartSubsample: false } : { quality: 78, alphaQuality: 90, effort: 4 }).toBuffer();
   return { avif, webp };
 }
 

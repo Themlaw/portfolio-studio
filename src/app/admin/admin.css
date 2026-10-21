@@ -3528,6 +3528,31 @@ label.a-file-btn:focus-within {
   border-top: 1px solid var(--admin-line);
 }
 
+/* Indicateur d'attente du kit (export, « Appliquer au thème ») : pastille qui tourne + phrase. */
+.a-kit-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.a-spinner {
+  inline-size: 14px;
+  block-size: 14px;
+  border: 2px solid var(--admin-line);
+  border-top-color: var(--admin-accent, currentColor);
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .a-spinner {
+    animation: a-spin 0.9s linear infinite;
+  }
+}
+@keyframes a-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Revue d'un kit Photoshop importé (/admin/themes/<id>/kit). */
 .a-kit-drop {
   display: grid;
