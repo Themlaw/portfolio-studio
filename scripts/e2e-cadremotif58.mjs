@@ -5,7 +5,8 @@
  *      panorama et un portrait (au pixel), les côtés RÉPÈTENT le motif (et ne s'étirent pas), l'épaisseur se réduit sur téléphone ;
  *      captures avant (stretch) / après (round) sur un panorama et une vignette.
  *  CB  Option B (un coin + un côté) : la revue le dit, le cadre est fabriqué par rotation (coins et côtés aux 4 bords).
- *  CS  « Sans cadre » : une photo qui le choisit n'a pas le cadre du kit (public ET toile) ; le bouton Cadre propose « Sans cadre ».
+ *  CS  Lot 62 : le cadre du kit n'est posé que sur le choix « Cadre du thème » (public ET toile) ; une photo sans choix n'en a pas, « Aucun » non plus ;
+ *      le bouton Cadre propose « Aucun · Cadre du thème · Bande de couleur ».
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=CA,CB,CS] [SHOTS=dossier] node scripts/e2e-cadremotif58.mjs
  */
 import { execFileSync } from "node:child_process";
@@ -148,6 +149,8 @@ async function injectBoxes(pg, stretch = false) {
       for (const [k, [w, h]] of Object.entries(sizes)) {
         const fig = document.createElement("figure");
         fig.className = "block-image";
+        // Lot 62 : le cadre du thème n'est posé que sur le choix « Cadre du thème » (ou le réglage du site), ici le choix de la photo.
+        fig.dataset.frame = "theme";
         fig.style.margin = "0";
         const m = document.createElement("div");
         m.className = "block-image-media";
@@ -290,8 +293,9 @@ if (run("CS"))
     const pageId = pageIdOf("decors");
     const blocks = [
       { uid: "s1", type: "image", props: { mediaId: media, width: "wide" } },
-      { uid: "s2", type: "image", props: { mediaId: media, width: "wide", look: { frame: { size: "none" } } } },
-      { uid: "s3", type: "image", props: { mediaId: media, width: "wide", look: { frame: { size: "thick", color: "#12ab34" } } } },
+      { uid: "s2", type: "image", props: { mediaId: media, width: "wide", look: { frame: { kind: "none" } } } },
+      { uid: "s3", type: "image", props: { mediaId: media, width: "wide", look: { frame: { kind: "band", width: "epais", color: "#12ab34" } } } },
+      { uid: "s4", type: "image", props: { mediaId: media, width: "wide", look: { frame: { kind: "theme" } } } },
     ];
     const done = await publishBlocks(page, BASE, pageId, blocks, () => q1("select count(*) n from blocks where page_id = ?", pageId).n === blocks.length, 300000);
     ok("CS0 page publiée", done);
@@ -302,31 +306,32 @@ if (run("CS"))
     })();
     ok("CS0 le thème porte un cadre du kit", kitOn, "lance CA avant CS");
     const read = (sel) => `[...document.querySelectorAll(${JSON.stringify(sel)})].map((el) => { const cs = getComputedStyle(el); return { src: cs.borderImageSource.slice(0, 12), w: parseFloat(cs.borderTopWidth), color: cs.borderTopColor }; })`;
-    const f = await pub.evaluate(`({ plain: ${read("figure.block-image:not([data-frame]) .block-image-media")}, none: ${read('figure.block-image[data-frame="none"] .block-image-media')}, chosen: ${read('figure.block-image[data-frame="thick"] .block-image-media')} })`);
+    const f = await pub.evaluate(`({ plain: ${read("figure.block-image:not([data-frame]) .block-image-media")}, none: ${read('figure.block-image[data-frame="none"] .block-image-media')}, chosen: ${read('figure.block-image[data-frame="band"] .block-image-media')}, theme: ${read('figure.block-image[data-frame="theme"] .block-image-media')} })`);
     info("CS public", f);
-    ok("CS1 public : la photo sans choix a le cadre du kit", f.plain.length === 1 && f.plain[0].src !== "none" && f.plain[0].w > 4, JSON.stringify(f.plain));
-    ok("CS2 public : « Sans cadre » = aucun cadre (ni kit, ni bordure)", f.none.length === 1 && f.none[0].src === "none" && f.none[0].w === 0, JSON.stringify(f.none));
-    ok("CS3 public : un cadre choisi garde la priorité", f.chosen.length === 1 && f.chosen[0].src === "none" && f.chosen[0].w > 0, JSON.stringify(f.chosen));
+    ok("CS1 public : la photo SANS choix n'a pas le cadre du kit (lot 62 : plus posé d'office)", f.plain.length === 1 && f.plain[0].src === "none" && f.plain[0].w === 0, JSON.stringify(f.plain));
+    ok("CS2 public : « Aucun » = aucun cadre (ni kit, ni bordure)", f.none.length === 1 && f.none[0].src === "none" && f.none[0].w === 0, JSON.stringify(f.none));
+    ok("CS3 public : une bande choisie est une bande (pas le cadre du kit)", f.chosen.length === 1 && f.chosen[0].src === "none" && f.chosen[0].w > 0, JSON.stringify(f.chosen));
+    ok("CS3b public : « Cadre du thème » = le cadre du kit", f.theme.length === 1 && f.theme[0].src !== "none" && f.theme[0].w > 4, JSON.stringify(f.theme));
     await pub.screenshot({ path: path.join(SHOTS, "cs-public.png"), fullPage: true });
     // Toile (parité).
     await page.goto(`${BASE}/admin/pages/${pageId}/editer`, { waitUntil: "domcontentloaded" });
     const fr = await canvas();
     await sleep(2000);
-    const c = await fr.evaluate(`({ plain: ${read("figure.block-image:not([data-frame]) .block-image-media")}, none: ${read('figure.block-image[data-frame="none"] .block-image-media')} })`);
+    const c = await fr.evaluate(`({ plain: ${read("figure.block-image:not([data-frame]) .block-image-media")}, none: ${read('figure.block-image[data-frame="none"] .block-image-media')}, theme: ${read('figure.block-image[data-frame="theme"] .block-image-media')} })`);
     info("CS toile", c);
-    ok("CS4 toile : même rendu que le public (cadre du kit / sans cadre)", c.plain.length === 1 && c.plain[0].src !== "none" && c.none.length === 1 && c.none[0].src === "none" && c.none[0].w === 0, JSON.stringify(c));
-    // Le bouton Cadre propose « Sans cadre » (clic sur la photo sans choix, puis Cadre).
+    ok("CS4 toile : même rendu que le public (sans choix et Aucun : rien ; Cadre du thème : le kit)", c.plain.length === 1 && c.plain[0].src === "none" && c.none.length === 1 && c.none[0].src === "none" && c.none[0].w === 0 && c.theme.length === 1 && c.theme[0].src !== "none", JSON.stringify(c));
+    // Le bouton Cadre propose les trois choix (clic sur la photo sans choix, puis Cadre).
     await fr.locator('figure.block-image:not([data-frame]) .block-image-media').first().click();
     await sleep(600);
     await fr.locator('.pe-tools [data-testid="frame-button"]').click({ timeout: 15000 }).catch(() => {});
     const dlg = fr.getByRole("dialog", { name: "Cadre de la photo" });
-    const menu = await dlg.getByTestId("frame-none").isVisible().catch(() => false);
-    ok("CS5 le bouton Cadre propose « Sans cadre »", menu);
+    const menu = (await dlg.locator("[data-frame-kind]").allTextContents().catch(() => [])).map((t) => t.trim()).join(" · ");
+    ok("CS5 le bouton Cadre propose « Aucun · Cadre du thème · Bande de couleur »", menu === "Aucun · Cadre du thème · Bande de couleur", menu);
     if (menu) {
-      await dlg.getByTestId("frame-none").click();
+      await dlg.locator('[data-frame-kind="theme"]').click();
       await sleep(1500);
-      const after = await fr.evaluate(`document.querySelectorAll('figure.block-image[data-frame="none"]').length`);
-      ok("CS5 « Sans cadre » choisi : la photo n'a plus de cadre sur la toile", after === 2, String(after));
+      const after = await fr.evaluate(`document.querySelectorAll('figure.block-image[data-frame="theme"]').length`);
+      ok("CS5 « Cadre du thème » choisi : la photo reçoit le cadre du kit sur la toile", after === 2, String(after));
     }
     await page.screenshot({ path: path.join(SHOTS, "cs-menu.png") });
   });

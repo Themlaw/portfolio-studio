@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
  * Lot 34 « cadre autour des photos » (chromium, serveur requis, base neuve, une connexion admin).
- *  I  Image seule : interrupteur « Cadre » (rôle switch), épaisseur Fin / Moyen / Épais, couleur par défaut, pastille de la
+ *  I  Image seule : choix « Bande de couleur » (lot 62 : plus d'interrupteur), épaisseur Fin / Moyen / Épais, couleur par défaut, pastille de la
  *     palette, couleur libre ; rendu sur la toile (style calculé), enregistré dans `look.frame`.
  *  G  Case de grille : même réglage ; la case garde sa taille extérieure (celle de ses voisines), rien n'est rogné.
  *  B  Image d'une planche de projet : bouton « Cadre » de la barre de l'image, enregistré dans `look.slotFrame` (par emplacement).
- *  U  Annuler retire le cadre ; désactiver l'interrupteur aussi (plus aucun réglage).
+ *  U  Annuler retire le cadre ; « Aucun » aussi (plus de bordure).
  *  P  Publication : même rendu en public (style calculé), pas de cadre sur les autres photos ni dans la visionneuse,
  *     téléphone (390 px) : cadre plus mince, aucun débordement horizontal.
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=I,G,B,U,P] [SHOTS=dossier] node scripts/e2e-cadre34.mjs
@@ -175,8 +175,13 @@ async function openMenu(fr, uid) {
   await dlg.waitFor({ timeout: 15000 });
   return dlg;
 }
-const sw = (dlg) => dlg.getByRole("switch", { name: "Cadre" });
-const sizeBtn = (dlg, s) => dlg.locator(`[data-frame-size="${s}"]`);
+// Lot 62 : plus d'interrupteurs : UN choix (Aucun · Cadre du thème · Bande de couleur). `sw` = le choix « Bande de couleur » (ce que l'interrupteur
+// « Cadre » activait), `sizeBtn` = l'épaisseur (thin/medium/thick = Fin/Moyen/Épais).
+const sw = (dlg) => dlg.locator('[data-frame-kind="band"]');
+const WIDTH = { thin: "fin", medium: "moyen", thick: "epais" };
+const sizeBtn = (dlg, s) => dlg.locator(`[data-frame-width="${WIDTH[s]}"]`);
+/** Le cadre enregistré est cette bande (épaisseur, couleur facultative), quel que soit l'ordre des clés. */
+const isBand = (f, width, color) => Boolean(f) && f.kind === "band" && f.width === width && f.color === color && Object.keys(f).length === 2 + (color ? 1 : 0);
 
 let f = await openEditor();
 const base = {};
@@ -192,10 +197,10 @@ if (run("I"))
     ok("I0 aucun cadre par défaut : ni bordure, ni réglage", [base.solo, base.ga, base.gb, base.aa, base.slot].every((s) => s && s.top === 0 && s.left === 0) && !lookOfDraft("solo"), JSON.stringify(base.solo));
     const dlg = await openMenu(f, "solo");
     await page.screenshot({ path: path.join(SHOTS, "i0-menu-sans-cadre.png") });
-    ok("I1 l'interrupteur « Cadre » est un switch, éteint au départ", (await sw(dlg).getAttribute("aria-checked")) === "false" && (await dlg.locator('[data-testid="frame-controls"] [role=radiogroup]').count()) === 0);
+    ok("I1 le choix « Bande de couleur » n'est pas coché au départ : ni épaisseur ni couleur", (await sw(dlg).getAttribute("aria-checked")) === "false" && (await dlg.locator("[data-frame-width]").count()) === 0);
     await sw(dlg).click();
     ok("I2 allumé : épaisseur et couleur apparaissent, Moyen choisi", (await sw(dlg).getAttribute("aria-checked")) === "true" && (await sizeBtn(dlg, "medium").getAttribute("aria-checked")) === "true" && (await dlg.getByRole("radio", { name: "Couleur par défaut" }).getAttribute("aria-checked")) === "true");
-    ok("I2 enregistré : look.frame = { size: medium }", await waitFor(() => JSON.stringify(lookOfDraft("solo")?.frame) === '{"size":"medium"}', 30000), JSON.stringify(lookOfDraft("solo")));
+    ok("I2 enregistré : look.frame = { kind: band, width: moyen }", await waitFor(() => isBand(lookOfDraft("solo")?.frame, "moyen"), 30000), JSON.stringify(lookOfDraft("solo")));
     const ink = await colorOf(f, "var(--t-color-ink)");
     let s;
     ok("I3 toile : bordure Moyen (3 à 6 px) dans la couleur par défaut = le texte du thème", await waitFor(async () => { s = await readFrame(f, SOLO); return s && s.top >= 3 && s.top <= 6.01 && uniform(s, s.top) && s.color === ink && s.style === "solid"; }, 30000), JSON.stringify(s) + ink);
@@ -204,7 +209,7 @@ if (run("I"))
 
     await sizeBtn(dlg, "thick").click();
     ok("I4 Épais : 5 à 12 px", await waitFor(async () => { s = await readFrame(f, SOLO); return s && s.top >= 5 && s.top <= 12.01 && s.top > 6; }, 30000), JSON.stringify(s));
-    ok("I4 enregistré : size thick", await waitFor(() => lookOfDraft("solo")?.frame?.size === "thick", 30000));
+    ok("I4 enregistré : width epais", await waitFor(() => lookOfDraft("solo")?.frame?.width === "epais", 30000));
     const thick = s.top;
     await sizeBtn(dlg, "thin").click();
     ok("I5 Fin : 2 px", await waitFor(async () => { s = await readFrame(f, SOLO); return s && near(s.top, 2, 0.1); }, 30000), JSON.stringify(s));
@@ -247,7 +252,7 @@ if (run("G"))
     const sec = await colorOf(f, "var(--t-color-secondary)");
     let s;
     ok("G1 case de grille : bordure Épais, couleur « Accent »", await waitFor(async () => { s = await readFrame(f, GA); return s && s.top > 6 && uniform(s, s.top) && s.color === sec; }, 30000), JSON.stringify(s));
-    ok("G1 enregistré sur la case : look.frame = { thick, secondary }", await waitFor(() => JSON.stringify(lookOfDraft("ga")?.frame) === '{"size":"thick","color":"secondary"}', 30000), JSON.stringify(lookOfDraft("ga")));
+    ok("G1 enregistré sur la case : look.frame = { thick, secondary }", await waitFor(() => isBand(lookOfDraft("ga")?.frame, "epais", "secondary"), 30000), JSON.stringify(lookOfDraft("ga")));
     const nb = await readFrame(f, GB);
     ok("G2 la case cadrée garde sa taille extérieure (largeur ET hauteur avant/après)", near(s.w, base.ga.w, 0.6) && near(s.h, base.ga.h, 0.6), `${s.w}x${s.h} / avant ${base.ga.w}x${base.ga.h}`);
     ok("G2 …égale à celle de sa voisine non cadrée", near(s.w, nb.w, 0.6) && near(s.h, nb.h, 0.6), `${s.w}x${s.h} / ${nb.w}x${nb.h}`);
@@ -287,7 +292,7 @@ if (run("B"))
     let s;
     ok("B2 planche : bordure Épais dans la couleur « Boutons et liens »", await waitFor(async () => { s = await readFrame(f, SLOT0); return s && s.top > 6 && uniform(s, s.top) && s.color === primary; }, 30000), JSON.stringify(s));
     ok("B2 la hauteur de l'image de la bande ne change pas", near(s.h, base.slot.h, 0.6), `${s.h} / ${base.slot.h}`);
-    ok("B3 enregistré dans le bloc planche : look.slotFrame[slug]", await waitFor(() => JSON.stringify(lookOfDraft("board1")?.slotFrame?.[slug]) === '{"size":"thick","color":"primary"}', 30000), JSON.stringify(lookOfDraft("board1")));
+    ok("B3 enregistré dans le bloc planche : look.slotFrame[slug]", await waitFor(() => isBand(lookOfDraft("board1")?.slotFrame?.[slug], "epais", "primary"), 30000), JSON.stringify(lookOfDraft("board1")));
     ok("B3 les autres images de la planche n'ont pas de cadre", (await f.locator('[data-edit-block="board1"] [data-edit-slot] .strip-media img').evaluateAll((l) => l.slice(1).every((i) => parseFloat(getComputedStyle(i).borderTopWidth) === 0))));
     ok("B4 la fenêtre reste ouverte et la barre de l'image avec elle", await dlg.isVisible() && (await bar.count()) === 1);
     await page.screenshot({ path: path.join(SHOTS, "b1-planche.png") });
@@ -309,8 +314,8 @@ if (run("U"))
     ok("U3 Rétablir : il revient", await waitFor(async () => (await readFrame(f, GB))?.top > 0 && lookOfDraft("gb")?.frame, 30000));
 
     const d2 = await openMenu(f, "gb");
-    await sw(d2).click();
-    ok("U4 interrupteur éteint : plus de bordure, plus aucun réglage (look retiré)", await waitFor(async () => (await readFrame(f, GB))?.top === 0 && lookOfDraft("gb") === undefined, 30000), JSON.stringify(lookOfDraft("gb")));
+    await d2.locator('[data-frame-kind="none"]').click();
+    ok("U4 « Aucun » : plus de bordure, le choix est « Aucun » (aucun cadre, ni bande ni cadre du thème)", await waitFor(async () => (await readFrame(f, GB))?.top === 0 && lookOfDraft("gb")?.frame?.kind === "none", 30000), JSON.stringify(lookOfDraft("gb")));
     const nb = await readFrame(f, GB);
     ok("U4 …et la case retrouve sa taille d'origine", near(nb.w, base.gb.w, 0.6) && near(nb.h, base.gb.h, 0.6));
     await page.keyboard.press("Escape");

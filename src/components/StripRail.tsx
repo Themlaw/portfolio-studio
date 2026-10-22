@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
 import type { LocalizedArtwork } from "@/lib/gallery";
-import { frameAttrs, imageBgAttrs, type Frame } from "@/lib/look";
+import { frameStyle, imageBgAttrs, type Frame } from "@/lib/look";
 import { RADIUS_VALUES } from "@/themes/css";
 
 import LoopFrame from "./LoopVideo";
@@ -86,10 +86,10 @@ export default function StripRail({
     const r = slotRadius && Object.hasOwn(slotRadius, slug) ? slotRadius[slug] : undefined;
     return r && Object.hasOwn(RADIUS_VALUES, r) ? ({ "--media-radius": RADIUS_VALUES[r] } as CSSProperties) : undefined;
   };
-  /** Cadre d'une photo réglée seule (lot 34) : attribut + couleur sur l'image de la planche, jamais sur une vidéo en boucle. */
+  /** Cadre d'une photo ou d'une vidéo réglée seule (lots 34 et 62) : attributs + couleur sur l'élément de la planche (frameStyle). */
   const frameOf = (slug: string) => {
-    const f = slotFrame && Object.hasOwn(slotFrame, slug) ? frameAttrs(slotFrame[slug]) : null;
-    return f ? { "data-frame": f["data-frame"], style: f.style as CSSProperties } : null;
+    const f = slotFrame && Object.hasOwn(slotFrame, slug) ? frameStyle(slotFrame[slug]) : null;
+    return f ? { attrs: f.attrs, style: f.style as CSSProperties } : null;
   };
   /** Fond derrière une photo réglée seule (lot 41) : attribut + couleur sur l'image de la planche, jamais sur une vidéo. */
   const bgOf = (slug: string) => {
@@ -300,6 +300,7 @@ export default function StripRail({
                 mediaClassName="h-[var(--strip-h)] w-auto max-w-none rounded-strip"
                 label={artwork.alt || artwork.title}
                 caption={caption}
+                frame={frameOf(artwork.slug)}
                 texts={{ pause: tg("pauseLoop"), play: tg("playLoop") }}
               />
             );
@@ -332,9 +333,9 @@ export default function StripRail({
             aria-haspopup={artwork.video ? "dialog" : undefined}
             data-video-mode={artwork.video ? "player" : undefined}
             className="strip-frame group text-left"
-            style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : panoOf(artwork).style), ...(artwork.video ? {} : frameOf(artwork.slug)?.style), ...(artwork.video ? {} : bgOf(artwork.slug)?.style) }}
+            style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : panoOf(artwork).style), ...frameOf(artwork.slug)?.style, ...(artwork.video ? {} : bgOf(artwork.slug)?.style) }}
             {...(!artwork.video ? { "data-pano": panoOf(artwork)["data-pano"] } : {})}
-            {...(!artwork.video && frameOf(artwork.slug) ? { "data-frame": frameOf(artwork.slug)!["data-frame"] } : {})}
+            {...frameOf(artwork.slug)?.attrs}
             {...(!artwork.video && bgOf(artwork.slug) ? { "data-img-bg": "" } : {})}
             {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos, "data-slot-slug": artwork.slug } : {})}
             {...host}

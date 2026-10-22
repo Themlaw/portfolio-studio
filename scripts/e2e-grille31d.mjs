@@ -399,8 +399,8 @@ try {
     // Cadre.
     await hoverCell(G, 2);
     await cb("frame").click();
-    await fr.locator('[data-testid="frame-switch"]').click();
-    ok("D4 « Cadre » : réglage de la case enregistré (look.frame)", await waitFor(() => pageGrid("gd")?.props.children[2].props.look?.frame?.size === "medium"), JSON.stringify(pageGrid("gd")?.props.children[2].props));
+    await fr.locator('[data-frame-kind="band"]').click();
+    ok("D4 « Cadre » : réglage de la case enregistré (look.frame)", await waitFor(() => pageGrid("gd")?.props.children[2].props.look?.frame?.kind === "band" && pageGrid("gd")?.props.children[2].props.look?.frame?.width === "moyen"), JSON.stringify(pageGrid("gd")?.props.children[2].props));
     await page.keyboard.press("Escape");
     await settled(page);
     // Cadrer.
@@ -621,8 +621,8 @@ try {
     ok("G11b Annuler la remet", await waitFor(() => JSON.stringify(kids().map((c) => c.uid)) === JSON.stringify(uids)));
     await hoverCell(BG, 1);
     await cb("frame").click();
-    await fr.locator('[data-testid="frame-switch"]').click();
-    ok("G12 « Cadre » d'une case de planche : look.frame écrit sur la case", await waitFor(() => kids()[1].props.look?.frame?.size === "medium"), JSON.stringify(kids()[1].props));
+    await fr.locator('[data-frame-kind="band"]').click();
+    ok("G12 « Cadre » d'une case de planche : look.frame écrit sur la case", await waitFor(() => kids()[1].props.look?.frame?.kind === "band" && kids()[1].props.look?.frame?.width === "moyen"), JSON.stringify(kids()[1].props));
     await page.keyboard.press("Escape");
     await settled(page);
     await hoverCell(BG, 0);

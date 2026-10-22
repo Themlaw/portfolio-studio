@@ -231,9 +231,11 @@ function CellFrame({ uid, top, left, onClose }: { uid: string; top: number; left
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, onClose);
   const [frame, setFrame] = useState<Frame | undefined>(() => lookOf(uid).frame);
+  const what = document.querySelector<HTMLElement>(`[data-edit-cell="${CSS.escape(uid)}"]`)?.dataset.cellType === "video-single" ? "vidéo" : "photo";
   return (
-    <div ref={ref} className="sm tc" role="dialog" aria-label="Cadre de la photo" data-testid="frame-menu" style={{ top, left, right: "auto" }}>
+    <div ref={ref} className="sm tc" role="dialog" aria-label={`Cadre de la ${what}`} data-testid="frame-menu" style={{ top, left, right: "auto" }}>
       <FrameControls
+        what={what}
         value={frame}
         onChange={(next) => {
           setFrame(next);
@@ -520,20 +522,26 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
             <button type="button" className="pe-cb-btn" data-cb="crop" onClick={() => window.dispatchEvent(new CustomEvent("pe:crop", { detail: { cell: uid } }))}>
               Cadrer
             </button>
-            <button
-              type="button"
-              className="pe-cb-btn"
-              data-cb="frame"
-              aria-haspopup="dialog"
-              aria-expanded={frameFor?.uid === uid}
-              onClick={(e) => {
-                const b = e.currentTarget.getBoundingClientRect();
-                setImgBgFor(null);
-                setFrameFor((f) => (f?.uid === uid ? null : { uid, top: b.bottom + window.scrollY + 4, left: Math.max(window.scrollX + 8, Math.min(b.left + window.scrollX - 120, window.scrollX + window.innerWidth - 348)) }));
-              }}
-            >
-              Cadre
-            </button>
+          </>
+        )}
+        {media && (
+        <button
+          type="button"
+          className="pe-cb-btn"
+          data-cb="frame"
+          aria-haspopup="dialog"
+          aria-expanded={frameFor?.uid === uid}
+          onClick={(e) => {
+            const b = e.currentTarget.getBoundingClientRect();
+            setImgBgFor(null);
+            setFrameFor((f) => (f?.uid === uid ? null : { uid, top: b.bottom + window.scrollY + 4, left: Math.max(window.scrollX + 8, Math.min(b.left + window.scrollX - 120, window.scrollX + window.innerWidth - 348)) }));
+          }}
+        >
+          Cadre
+        </button>
+        )}
+        {image && (
+          <>
             <button
               type="button"
               className="pe-cb-btn"

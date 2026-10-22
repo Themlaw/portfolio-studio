@@ -226,10 +226,10 @@ try {
   await imgFrame.locator('[data-edit-bitem-op="frame"]').click();
   const fmenu = f.locator('[data-testid="frame-menu"]');
   await fmenu.waitFor({ timeout: 20000 });
-  await fmenu.locator('[data-testid="frame-switch"]').click();
-  ok("F1 cadre posé : `props.look.frame = { size: medium }` dans la suite du projet", await waitFor(() => lookFrame(1)?.size === "medium"), JSON.stringify(effective()[1]?.props));
-  await fmenu.locator('[data-frame-size="thick"]').click();
-  ok("F2 Épais enregistré", await waitFor(() => lookFrame(1)?.size === "thick"), JSON.stringify(lookFrame(1)));
+  await fmenu.locator('[data-frame-kind="band"]').click();
+  ok("F1 cadre posé : `props.look.frame = { kind: band, width: moyen }` dans la suite du projet", await waitFor(() => lookFrame(1)?.kind === "band" && lookFrame(1)?.width === "moyen"), JSON.stringify(effective()[1]?.props));
+  await fmenu.locator('[data-frame-width="epais"]').click();
+  ok("F2 Épais enregistré", await waitFor(() => lookFrame(1)?.width === "epais"), JSON.stringify(lookFrame(1)));
   await page.keyboard.press("Escape");
   await settled();
   const fm = () =>
@@ -255,9 +255,9 @@ try {
   await shot("4-cadre-image-planche");
   // Historique de la planche : largeur Petite, Épais, Moyen (cadre posé) : trois Annuler remettent l'image comme au départ.
   await page.keyboard.press("Control+z");
-  ok("F5 Annuler : la largeur Petite disparaît, le cadre Épais reste", await waitFor(() => effective()[1]?.box === undefined && lookFrame(1)?.size === "thick"), JSON.stringify([effective()[1]?.box, lookFrame(1)]));
+  ok("F5 Annuler : la largeur Petite disparaît, le cadre Épais reste", await waitFor(() => effective()[1]?.box === undefined && lookFrame(1)?.width === "epais"), JSON.stringify([effective()[1]?.box, lookFrame(1)]));
   await page.keyboard.press("Control+z");
-  ok("F5b Annuler : cadre Moyen", await waitFor(() => lookFrame(1)?.size === "medium"), JSON.stringify(lookFrame(1)));
+  ok("F5b Annuler : cadre Moyen", await waitFor(() => lookFrame(1)?.width === "moyen"), JSON.stringify(lookFrame(1)));
   await page.keyboard.press("Control+z");
   ok("F5c Annuler : plus de cadre (Annuler / Rétablir de la planche)", await waitFor(() => lookFrame(1) === undefined), JSON.stringify(lookFrame(1)));
   await settled();

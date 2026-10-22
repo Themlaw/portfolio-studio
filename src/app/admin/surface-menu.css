@@ -32,6 +32,26 @@
 .sm .fr-color-name {
   margin-top: 8px;
 }
+/* Cadre (lot 62) : le choix unique prend toute la largeur de la fenêtre ; le retour au réglage du site est un lien discret. */
+.sm .fr-kinds {
+  display: flex;
+  width: 100%;
+  margin-bottom: 8px;
+}
+.sm .fr-kinds button {
+  flex: 1 1 0;
+  white-space: nowrap;
+}
+.sm-link {
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--lk-accent);
+  font: 500 11px/1.3 var(--lk-font);
+  text-decoration: underline;
+  cursor: pointer;
+}
 .sm-hint {
   margin: 0;
   color: var(--lk-ink-soft);

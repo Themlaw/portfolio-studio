@@ -222,6 +222,7 @@ const ADMIN_ACTIONS = [
   "trashWallpaperAction",
   "restoreWallpaperAction",
   "saveCardWallpaperAction",
+  "saveThemeFrameAllAction",
   "listWallpapersAction",
 ];
 

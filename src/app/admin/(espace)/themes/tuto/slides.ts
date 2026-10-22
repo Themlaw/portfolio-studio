@@ -215,7 +215,7 @@ export const TUTO_SLIDES: TutoSlide[] = [
       "Il entoure la grande image de chaque collection (Personnages, Décors…) sur l'accueil.",
       "Option A (conseillée) : dessine UN cadre carré complet dans la case de 900 × 900 px (réduite au tiers). Les lignes vertes montrent la découpe : les coins restent tels quels, les côtés répètent leur motif en boucle, sans être étirés, même sur un panorama ou une photo haute.",
       "Option B (avancée) : dessine seulement le coin du haut à gauche et le côté du haut (cadres orange), laisse le reste vide : le site les tourne pour faire tout le cadre.",
-      "À l'envoi, l'aperçu montre le cadre sur un carré, un panorama et un portrait avant d'appliquer. Il habille aussi tes photos ; sur une photo précise, choisis « Sans cadre » dans son bouton Cadre.",
+      "À l'envoi, l'aperçu montre le cadre sur un carré, un panorama et un portrait avant d'appliquer. Il peut aussi habiller tes photos : sur une photo, choisis « Cadre du thème » dans son bouton Cadre, ou, dans Thèmes, mets « Cadre du thème sur toutes les photos » sur Oui.",
       "Laisse le centre transparent : l'image s'y affiche.",
       KEEP,
     ],
