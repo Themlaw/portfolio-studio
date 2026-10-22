@@ -106,6 +106,22 @@ try {
     await shot(p, "solo-ouverte");
     await p.keyboard.press("Escape");
     ok("S6 Échap ferme, le focus revient à l'image", (await lb(p).count()) === 0 && (await p.evaluate(() => document.activeElement?.hasAttribute("data-viewer-item"))));
+    // Lot 59 : une carte ou un fond actif est un conteneur (`container-type`), donc le bloc contenant d'un `position: fixed` ;
+    // la visionneuse doit rester plein écran, sans être rognée ni décalée, même ouverte depuis l'intérieur d'une zone.
+    await solo.evaluate((e) => {
+      const z = e.closest("section");
+      z.style.containerType = "inline-size";
+      z.style.margin = "0 60px";
+    });
+    await solo.click();
+    await lb(p).waitFor();
+    const full = await lb(p).evaluate((e) => {
+      const b = e.getBoundingClientRect();
+      return { x: b.x, y: b.y, w: b.width, h: b.height, vw: innerWidth, vh: innerHeight };
+    });
+    ok("S6b visionneuse ouverte depuis un conteneur (carte, fond) : plein écran, ni rognée ni décalée", full.x === 0 && full.y === 0 && Math.abs(full.w - full.vw) < 1 && Math.abs(full.h - full.vh) < 1, JSON.stringify(full));
+    await p.keyboard.press("Escape");
+    await lb(p).waitFor({ state: "detached" });
     await p.keyboard.press("Enter");
     ok("S7 Entrée sur l'image (focus) : ouvre", await lb(p).waitFor({ timeout: 5000 }).then(() => true, () => false));
     await p.keyboard.press("Escape");

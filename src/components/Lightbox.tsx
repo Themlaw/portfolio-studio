@@ -6,6 +6,7 @@ import { useReducedMotion } from "./LoopVideo";
 import VideoPlayer from "./VideoPlayer";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslations } from "next-intl";
+import { createPortal } from "react-dom";
 
 import type { ViewerItem } from "@/lib/viewer";
 
@@ -160,7 +161,7 @@ export default function Lightbox({
   // Image suivante et précédente : chargées d'avance, avec les mêmes `sizes` (donc la même variante que celle qu'on affichera).
   const neighbours = solo ? [] : [...new Set([(index + 1) % items.length, (index - 1 + items.length) % items.length])].filter((i) => i !== index);
 
-  return (
+  const view = (
     <div
       role="dialog"
       aria-modal="true"
@@ -312,4 +313,7 @@ export default function Lightbox({
       )}
     </div>
   );
+  // Portée sur <body> (lot 59) : une carte ou un fond actif est un conteneur (`container-type`), donc le bloc contenant d'un
+  // `position: fixed` qu'il porte ; sans portail la visionneuse serait rognée et décalée dans sa zone.
+  return typeof document === "undefined" ? view : createPortal(view, document.body);
 }
