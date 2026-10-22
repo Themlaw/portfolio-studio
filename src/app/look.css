@@ -370,14 +370,55 @@ figure.block-image[data-img-bg] .block-image-frame,
 }
 /* Le contenu reste DANS la zone colorée (lot 48) : la couche intérieure (`.card-in`, `.fond-in`) garde au contenu la place qu'il a sans carte
    ni fond tant qu'il tient dans la zone avec au moins --zone-pad (16 px) de marge ; sur un écran étroit, où la marge de la carte et celle du
-   fond dépassent la gouttière de page, elle lui retire juste la différence (`--zone-in`, rembourrage). Grand écran : 0, rien ne change.
-   `--shell-left` : où commence le contenu (le `.shell`, centré, borné à --page-max) depuis le bord de la fenêtre, comme `--card-mx` en `100vw`.
-   `--card-ex` + `--fond-gap` : ce que la carte et le fond retirent à gauche (et à droite). */
+   fond dépassent la gouttière de page, elle le pousse juste assez (`--zone-in`, rembourrage). Grand écran : 0, rien ne change.
+   `--shell-left` : où commence le contenu (le `.shell`, centré, borné à --page-max) depuis le bord de la couche. */
+/* Lot 59 : `--edge` = ce que la zone colorée retire au contenu depuis le bord de la couche qui la porte (marge de la carte, plus la marge de ce fond
+   et des fonds qui l'enveloppent). La carte pose le sien (`--edge` = `--card-ex`), chaque fond avec `--edge-in` pour ceux qu'il enveloppe. */
+/* Largeur de la zone : en unités de CONTENEUR (`cqw`, la carte ou le fond), pas en `100vw` (qui compte la barre de défilement et ignore le conteneur
+   réel : un fond dans une carte, un fond dans un fond). Cartes et fonds sont donc des conteneurs de largeur : leur largeur ne dépend pas de leur
+   contenu, ils sont déjà des blocs pleine largeur. `2 * --edge` rend à la couche intérieure ce que la marge retire à la zone. */
+.surface-card[data-surface="on"],
+.fond-bloc[data-fond="on"] {
+  container-type: inline-size;
+}
 .surface-card[data-surface="on"] > .card-in,
 .fond-bloc[data-fond="on"] > .fond-in {
   --zone-pad: 16px;
-  --shell-left: max(var(--gutter), calc((100vw - var(--page-max)) / 2 + var(--gutter)));
-  --zone-in: max(0px, calc(var(--card-ex, 0px) + var(--fond-gap, 0px) + var(--zone-pad) - var(--shell-left)));
+}
+.surface-card[data-surface="on"] > .card-in {
+  --edge: var(--card-ex, 0px);
+}
+.fond-bloc[data-fond="on"] {
+  --g: 0px;
+  --edge: calc(var(--edge-in, var(--card-ex, 0px)) + var(--g));
+}
+.fond-bloc[data-fond="on"][data-fond-inset] {
+  --g: var(--fond-gap);
+}
+.fond-bloc[data-fond="on"] > .fond-in {
+  --edge-in: var(--edge);
+}
+.surface-card[data-surface="on"] > .card-in,
+.fond-bloc[data-fond="on"] > .fond-in {
+  /* Où commence le contenu (le `.shell`, centré, borné à --page-max) depuis le bord de la couche. */
+  --shell-left: max(var(--gutter), calc((100cqw + 2 * var(--edge) - var(--page-max)) / 2 + var(--gutter)));
+  /* Rembourrage de la couche : 0 tant que le contenu, là où il est, a déjà --zone-pad de marge dans la zone. Sinon il faut que la couche
+     rembourrée pousse le contenu jusque-là : le contenu se place alors à rembourrage + gouttière (et non plus au centre de la page), d'où
+     « --edge + --zone-pad - gouttière » (et pas « - --shell-left », faux dès que l'écran dépasse --page-max). */
+  --zone-in: clamp(0px, calc(1000 * (var(--edge) + var(--zone-pad) - var(--shell-left))), calc(var(--edge) + var(--zone-pad) - var(--gutter)));
+  /* Retrait d'un composant pleine largeur (`.block-bleed`, lot 59) : il n'a pas de `.shell` et remplit toute la couche intérieure ; dans une
+     zone colorée il garde donc au moins --zone-pad de la zone. */
+  --zone-full: calc(var(--edge) + var(--zone-pad) - var(--zone-in));
+}
+.surface-card[data-surface="on"] .block-bleed,
+.fond-bloc[data-fond="on"] .block-bleed {
+  margin-inline: var(--zone-full);
+}
+/* Bande d'images qui défile : sa fenêtre (et le fondu de ses bords) reste dans la zone colorée, jamais au-delà du fond ou de la carte. Bord à
+   bord de la page : rien ne change (--edge vaut 0). */
+.surface-card[data-surface="on"] .strip-viewport,
+.fond-bloc[data-fond="on"] .strip-viewport {
+  margin-inline: calc(var(--edge) - var(--zone-in));
 }
 .surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in {
   display: flow-root;
@@ -401,6 +442,30 @@ figure.block-image[data-img-bg] .block-image-frame,
 }
 .surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in > .fond-bloc[data-fond="on"][data-fond-inset] > .fond-in {
   margin-inline: calc(-1 * (var(--card-ex) + var(--fond-gap)));
+}
+/* Un fond posé plus bas qu'un enfant direct de la carte (composant d'une planche de projet : `.card-in > section.strip > .fond-bloc`) reprend
+   la même règle que les fonds de la carte : il suit la carte (pas la fenêtre), et sa couche intérieure rend au contenu la place qu'il a sans carte
+   (lot 59). La couche de la carte est alors rembourrée de `--zone-in` : le fond la déborde d'autant. Sur la toile, la rubrique est enveloppée d'un
+   fond « éteint » (`data-fond="off"`) : seuls les fonds allumés comptent. */
+.surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in .fond-bloc[data-fond="on"]:not(.card-in > .fond-bloc[data-fond="on"], .fond-bloc[data-fond="on"] .fond-bloc) {
+  width: auto;
+  margin-inline: calc(var(--card-ex) - var(--zone-in) + var(--g));
+}
+.surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in .fond-bloc[data-fond="on"]:not(.card-in > .fond-bloc[data-fond="on"], .fond-bloc[data-fond="on"] .fond-bloc) > .fond-in {
+  display: flow-root;
+  margin-inline: calc(-1 * var(--edge));
+  padding-inline: var(--zone-in);
+}
+/* Un fond posé dans un autre fond (composant d'une planche de projet dont la rubrique a elle-même un fond) : il remplit le fond qui l'enveloppe
+   (jamais au-delà), et sa couche intérieure rend au contenu la place qu'il a sans fond. */
+.fond-bloc[data-fond="on"] .fond-bloc[data-fond="on"] {
+  width: auto;
+  margin-inline: calc(var(--edge-in) - var(--zone-in) + var(--g));
+}
+.fond-bloc[data-fond="on"] .fond-bloc[data-fond="on"] > .fond-in {
+  display: flow-root;
+  margin-inline: calc(-1 * var(--edge));
+  padding-inline: var(--zone-in);
 }
 .surface-card[data-surface="on"][data-corners="round"] {
   border-radius: var(--card-radius);
