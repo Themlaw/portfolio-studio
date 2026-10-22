@@ -125,12 +125,11 @@ async function importFrame(cmd, tag) {
   await page.waitForFunction(() => [...document.querySelectorAll(".a-kit-card img")].every((i) => i.complete), null, { timeout: 30000 });
   await page.screenshot({ path: path.join(SHOTS, `revue-${tag}.png`), fullPage: true });
   const cad = await page.$$eval('.a-kit-card[data-slot="cadre"]', (els) => els.map((e) => ({ change: e.dataset.change, status: e.dataset.status, msgs: [...e.querySelectorAll("li")].map((l) => l.textContent), imgs: [...e.querySelectorAll("img")].map((i) => ({ alt: i.alt, w: i.naturalWidth, h: i.naturalHeight })) })));
-  await Promise.all([page.waitForURL(/\/admin\/themes\/[a-z0-9-]*-kit[a-z0-9-]*$/, { timeout: 60000 }), page.getByRole("button", { name: "Appliquer au thème" }).click()]);
-  const draftId = page.url().split("/").pop();
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const card = page.locator(`section[aria-labelledby="theme-${draftId}"]`);
-  await card.getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
+  // Lot 60 : le kit crée une nouvelle VERSION de Mon thème (brouillon) ; on la publie ensuite depuis l'écran Thèmes.
+  await Promise.all([page.waitForURL(/\/admin\/themes\?nouvelle=\d+&via=kit/, { timeout: 60000 }), page.getByRole("button", { name: /^Appliquer à mon thème/ }).click()]);
+  const draftId = sql((db) => db.prepare("select id from themes where mine = 1").get()).id;
+  await page.getByTestId("mine-publish").click();
+  await page.locator("dialog[open]").getByRole("button", { name: "Publier", exact: true }).click();
   await page.locator("dialog[open]").waitFor({ state: "detached" });
   await sleep(1500);
   return { card: cad[0], draftId };

@@ -166,6 +166,12 @@ const ADMIN_ACTIONS = [
   "activateThemeAction",
   "deleteThemeAction",
   "resetSiteColorsAction",
+  "applyModelAction",
+  "revertVersionAction",
+  "keepVersionCopyAction",
+  "pinVersionAction",
+  "adoptOldThemeAction",
+  "closeEditSessionAction",
   "saveSettingsAction",
   "saveSeoAction",
   "markMessagesSeenAction",
@@ -543,6 +549,8 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : name === "savePageInfoAction" ? "/admin/pages/1"
     : name === "deleteFontAction" ? "/admin/reglages"
     : name === "resetSiteColorsAction" ? "/admin/themes"
+    : name === "closeEditSessionAction" ? "/admin/themes/galerie-lumineuse"
+    : /Model|Version|OldTheme/.test(name) ? "/admin/themes"
     : /Onboarding/.test(name) ? "/admin"
     : /Draft|[bB]oard|Font/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"

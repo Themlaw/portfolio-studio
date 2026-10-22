@@ -217,12 +217,15 @@ const carryKey = (copyId: string) => `portfolio:couleurs-copie:${copyId}`;
 export default function ThemeEditor({
   initial,
   isActive,
+  isMine = false,
   sitePalette = {},
   pages = [],
   editorHref,
 }: {
   initial: Theme;
   isActive: boolean;
+  /** Mon thème (lot 60) : « Enregistrer » crée ou met à jour la version en cours (brouillon), sans publier. */
+  isMine?: boolean;
   sitePalette?: SitePalette;
   pages?: PreviewPage[];
   /** Éditeur de page (surcharge des couleurs du site) : cible du lien de l'avertissement. */
@@ -333,7 +336,13 @@ export default function ThemeEditor({
       setErrors({});
       setSaved(clone(theme));
       setReloadKey((k) => k + 1);
-      toast(isActive ? "Enregistré · en ligne pour tes visiteurs" : "Enregistré");
+      toast(
+        isMine
+          ? `Enregistré · version ${(result.data as { version?: number } | null)?.version ?? ""} (brouillon, pas encore en ligne)`
+          : isActive
+            ? "Enregistré · en ligne pour tes visiteurs"
+            : "Enregistré",
+      );
       // Hors de la transition : l'état « Enregistré » s'affiche sans attendre le rafraîchissement.
       setTimeout(() => router.refresh(), 0);
     });
@@ -583,7 +592,7 @@ export default function ThemeEditor({
             error={error}
             label={isActive ? "Enregistrer et publier…" : "Enregistrer"}
             testId="da-save"
-            note={isActive ? "Ce thème est en ligne : l'enregistrer le publie aussitôt." : undefined}
+            note={isMine ? "Enregistrer crée ou met à jour la version en cours (un brouillon) : rien n'est publié avant « Publier cette version »." : isActive ? "Ce thème est en ligne : l'enregistrer le publie aussitôt." : undefined}
           />
           <div className="a-kit-export">
             <KitDownloadButton themeId={initial.id} />

@@ -21,6 +21,7 @@ import sharp from "sharp";
 
 import { paint } from "./lib/crop-fixtures.mjs";
 import { login, pageIdOf, q1, waitFor } from "./lib/medias-setup.mjs";
+import { activateThemeUi } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3340";
 const ONLY = process.env.ONLY ?? "";
@@ -155,13 +156,8 @@ function installSignatureTheme() {
   });
 }
 async function activateTheme(name) {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const card = page.locator(".a-theme-card", { hasText: name }).first();
-  if ((await card.getAttribute("data-active")) === "true") return;
-  await card.getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").waitFor({ state: "detached" });
-  await sleep(800);
+  // Lot 60 : « Utiliser ce modèle » / « En faire mon thème », puis « Publier » (scripts/lib/theme-live.mjs).
+  await activateThemeUi(page, BASE, name);
 }
 /** Couleurs rendues du logo dans un document : nom (texte), signature (fond du masque). */
 const readLogo = (fr) =>

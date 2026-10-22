@@ -12,8 +12,8 @@
  *     propose « Supprimer » puis refuse) ; compteur « Utilisée N fois » = détail (même avec un brouillon qui
  *     double le bloc) ; média libre : Supprimer → Annuler, Corbeille → Restaurer, purge simulée ; pastille
  *     « texte alternatif manquant » (icône, infobulle).
- *  D. Thèmes : carte = Prévisualiser / Mettre en ligne / Modifier + « … » ; « Exporter le thème (.zip) » distinct de
- *     « Télécharger le kit Photoshop » ; « Renvoyer le kit Photoshop » ; une seule phrase d'explication en tête.
+ *  D. Thèmes (lot 60) : carte d'un modèle = Prévisualiser / Utiliser ce modèle + « … » (Exporter le thème .zip) ;
+ *     « Kit Photoshop ▾ » sur Mon thème ; une seule phrase d'explication en tête.
  *  E. Réglages : « Avancé » replié (diagnostic) ; avis « Modifications en attente dans l'éditeur de la page X ».
  *  F. Libellés : adresse en petit et en gris sous le titre (Pages) ; projet : plus d'interrupteur « Mis en avant »
  *     sans ancien bloc ; image : « Couverture de « Personnages » » suit la collection.
@@ -343,30 +343,34 @@ try {
   ok("C13 purge simulée : ligne et fichiers supprimés", dbq("select id from media where id = ?", mid).length === 0 && keys.length > 0 && keys.every((k) => !existsSync(k)), `${keys.length} fichiers`);
   created.media.length = 0;
 
-  /* ======================= D. Thèmes ======================= */
+  /* ======================= D. Thèmes (lot 60 : modèles, Mon thème) ======================= */
   await goto("/admin/themes");
-  const tcard = page.locator(".a-theme-card", { hasText: "Carnet d'atelier" }).first();
+  const tcard = page.locator("section[data-model]", { has: page.locator("h2#theme-carnet-d-atelier") });
   const visible = await tcard.locator(".a-card-actions").locator("a, button").evaluateAll((els) => els.map((e) => (e.getAttribute("aria-label") ?? e.textContent ?? "").replace(/↗/, "").trim()));
-  ok("D1 carte d'un thème livré hors ligne : Mettre en ligne, Prévisualiser et « … » seulement", visible.length === 3 && visible[0] === "Mettre en ligne" && visible[1] === "Prévisualiser" && /Plus d'actions/.test(visible[2]), JSON.stringify(visible));
+  ok("D1 carte d'un modèle : Prévisualiser, Utiliser ce modèle et « … » seulement", visible.length === 3 && visible[0] === "Prévisualiser" && visible[1] === "Utiliser ce modèle" && /Plus d'actions/.test(visible[2]), JSON.stringify(visible));
   const live = page.locator('.a-theme-card[data-active="true"]');
   const liveVisible = await live.locator(".a-card-actions").locator("a, button").evaluateAll((els) => els.map((e) => (e.getAttribute("aria-label") ?? e.textContent ?? "").replace(/↗/, "").trim()));
-  ok("D1b thème en ligne : Prévisualiser et « … »", liveVisible.length === 2 && liveVisible[0] === "Prévisualiser", JSON.stringify(liveVisible));
+  ok("D1b modèle en ligne : mêmes actions (« En ligne » sur la carte)", liveVisible.length === 3 && liveVisible[0] === "Prévisualiser" && (await live.locator('[data-testid="theme-live"]').count()) === 1, JSON.stringify(liveVisible));
   ok("D2 plus d'explication répétée sur chaque carte", (await page.locator(".a-theme-card > .a-help").count()) === 0);
-  ok("D2b une seule phrase d'explication en tête de page", (await page.locator(".a-page-header p").count()) === 1 && /archive \.zip/.test(await page.locator(".a-page-header p").innerText()) && /kit Photoshop/.test(await page.locator(".a-page-header p").innerText()));
+  ok("D2b une seule phrase d'explication en tête de page", (await page.locator(".a-page-header p").count()) === 1 && /Mon thème/.test(await page.locator(".a-page-header p").innerText()) && /kit Photoshop/.test(await page.locator(".a-page-header p").innerText()));
   await tcard.getByRole("button", { name: /Plus d'actions/ }).click();
   const items = await page.getByRole("menuitem").evaluateAll((els) => els.map((e) => e.querySelector('[slot="label"]')?.textContent?.trim() ?? ""));
-  ok("D3 le menu propose copie, export du thème, kit à télécharger, kit à renvoyer", ["Dupliquer", "Exporter le thème (.zip)", "Télécharger le kit Photoshop", "Renvoyer le kit Photoshop"].every((n) => items.includes(n)), JSON.stringify(items));
+  ok("D3 le menu d'un modèle propose l'export du thème (.zip) ; la copie et le kit passent par Mon thème", items.length === 1 && items[0] === "Exporter le thème (.zip)", JSON.stringify(items));
   ok("D3b « Kit rempli… » n'existe plus", !items.some((n) => /Kit rempli/.test(n)) && (await page.getByText("Kit rempli").count()) === 0);
   const descs = await page.getByRole("menuitem").evaluateAll((els) => Object.fromEntries(els.map((e) => [e.querySelector('[slot="label"]')?.textContent?.trim(), e.querySelector('[slot="description"]')?.textContent?.trim()])));
-  ok("D4 export du thème (.zip) et kit Photoshop sont expliqués différemment", /réimporter/.test(descs["Exporter le thème (.zip)"] ?? "") && /Photoshop/.test(descs["Télécharger le kit Photoshop"] ?? "") && descs["Exporter le thème (.zip)"] !== descs["Télécharger le kit Photoshop"], JSON.stringify(descs));
-  ok("D4b l'export est un téléchargement .zip, le kit renvoyé mène à l'écran du kit", (await page.getByRole("menuitem", { name: /Exporter le thème/ }).getAttribute("href"))?.endsWith("/export") === true && (await page.getByRole("menuitem", { name: /Renvoyer le kit/ }).getAttribute("href"))?.endsWith("/kit") === true);
+  ok("D4 l'export du thème (.zip) est expliqué (« à réimporter »)", /réimporter/.test(descs["Exporter le thème (.zip)"] ?? ""), JSON.stringify(descs));
+  ok("D4b l'export est un téléchargement .zip", (await page.getByRole("menuitem", { name: /Exporter le thème/ }).getAttribute("href"))?.endsWith("/export") === true);
   await shot("d3-themes-menu");
   await page.keyboard.press("Escape");
   ok("D5 Échap referme le menu", (await page.getByRole("menuitem").count()) === 0);
-  await tcard.getByRole("button", { name: /Plus d'actions/ }).click();
-  await page.getByRole("menuitem", { name: /Renvoyer le kit/ }).click();
-  await page.waitForURL(/\/admin\/themes\/carnet-d-atelier\/kit/);
-  ok("D6 « Renvoyer le kit Photoshop » ouvre l'écran du kit", true);
+  // Le kit : une seule porte d'entrée, « Kit Photoshop ▾ » sur la carte de Mon thème.
+  await tcard.getByTestId("use-model").click();
+  await page.getByTestId("mine-card").waitFor({ timeout: 30000 });
+  await page.getByTestId("mine-kit-menu").click();
+  ok("D6 « Kit Photoshop ▾ » : télécharger, renvoyer le kit rempli", (await page.getByRole("menuitem", { name: /Télécharger le kit Photoshop/ }).count()) === 1 && (await page.getByRole("menuitem", { name: /Renvoyer le kit rempli/ }).count()) === 1);
+  await page.getByRole("menuitem", { name: /Renvoyer le kit rempli/ }).click();
+  await page.waitForURL(/\/admin\/themes\/mon-theme\/kit/);
+  ok("D6b « Renvoyer le kit rempli… » ouvre l'écran du kit de Mon thème", true);
 
   /* ======================= E. Réglages ======================= */
   await goto("/admin/reglages");

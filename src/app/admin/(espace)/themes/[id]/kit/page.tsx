@@ -2,7 +2,7 @@
  * Kit Photoshop d'un thème : envoi du PSD rempli, puis revue de l'import —
  * une carte par emplacement (✓ / ⚠ / ✗ et la raison en clair, avant / après,
  * format retenu et poids), palette suggérée, total au premier affichage,
- * « Appliquer au thème » (copie brouillon). Thèmes livrés compris.
+ * « Appliquer à mon thème » (nouvelle version de Mon thème, lot 60). Thèmes livrés compris.
  */
 /* eslint-disable @next/next/no-img-element -- aperçus PNG de l'import, servis par une route admin : next/image n'apporte rien. */
 import Link from "next/link";
@@ -10,15 +10,15 @@ import { notFound } from "next/navigation";
 
 import KitDownloadButton from "@/components/admin/KitDownloadButton";
 import KitTutorial from "@/components/admin/KitTutorial";
-import { KitApplyPanel, KitBasePicker, KitImportUpload, KitImportWatch } from "@/components/admin/KitImport";
+import { KitApplyPanel, KitImportUpload, KitImportWatch, KitTargetNote } from "@/components/admin/KitImport";
 import PageHeader from "@/components/admin/PageHeader";
-import { getThemeOverview } from "@/lib/admin";
 import { assertAdmin } from "@/lib/auth/guard";
-import { arrowMirror, baseThemeIdOf, decorApplicable, firstViewTotal, isApplicable, kitColorFailures, withKitColors } from "@/lib/kit/apply";
+import { arrowMirror, decorApplicable, firstViewTotal, isApplicable, kitColorFailures, kitTarget, withKitColors } from "@/lib/kit/apply";
 import { loadSavedTheme } from "@/lib/kit/export-job";
 import type { SlotReport } from "@/lib/kit/import";
 import { beforePreviews, getKitImport, isImportId, listKitImports } from "@/lib/kit/import-job";
 import { ALL_SLOTS, slotSpecOf } from "@/lib/kit/spec";
+import { getMineState } from "@/lib/themes/versions";
 import { contrastReport } from "@/themes/contrast";
 import { contrastRatio, isAuto, isNuance, resolvePalette, type NuanceKey } from "@/themes/palette";
 
@@ -59,10 +59,11 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
   const state = currentId ? await getKitImport(currentId, theme.id) : null;
   if (wanted && !state) notFound();
   const report = state?.report ?? null;
-  // Thème sur lequel le kit sera posé : choisi (?base=), sinon celui dont le kit a été exporté, sinon celui de cet écran.
-  const overview = getThemeOverview();
-  const baseId = baseThemeIdOf(report, theme.id, /^[a-z0-9-]{1,80}$/.test((await searchParams).base ?? "") ? (await searchParams).base : undefined);
-  const base = baseId === theme.id ? theme : (loadSavedTheme(baseId) ?? theme);
+  // Mon thème (lot 60) : le kit s'applique à sa version en cours (sans Mon thème : au thème dont le kit a été exporté, qui devient Mon thème).
+  const mine = getMineState();
+  const target = kitTarget(report, theme.id);
+  const base = target?.source ?? theme;
+  const nextVersion = mine ? mine.version + 1 : 2;
   const preview = (s: SlotReport, which: "avant" | "apres") => `/admin/api/theme-kit/${encodeURIComponent(theme.id)}/import/${state!.meta.id}/preview/${s.id.replace(/\//g, "--")}/${which}`;
   const totals = report ? await firstViewTotal(base, report) : null;
   const befores = await beforePreviews(report?.reference?.exportId);
@@ -174,7 +175,7 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
               <div className="a-kit-summary">
                 {report.foreign && (
                   <strong role="alert">
-                    Ce kit vient du thème « {loadSavedTheme(report.foreign.themeId)?.name ?? report.foreign.themeId} », pas de « {theme.name} » (l&apos;écran où tu l&apos;as envoyé) : il est appliqué à son thème d&apos;origine, sauf si tu en choisis un autre plus bas.
+                    Ce kit vient du thème « {loadSavedTheme(report.foreign.themeId)?.name ?? report.foreign.themeId} », pas de « {theme.name} » (l&apos;écran où tu l&apos;as envoyé) : il est appliqué à Mon thème, et seuls les éléments redessinés changent.
                   </strong>
                 )}
                 <span>
@@ -292,22 +293,17 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                     ))}
                 </section>
               )}
-              <KitBasePicker
-                themeId={theme.id}
-                importId={state.meta.id}
-                baseId={base.id}
-                originId={report.reference?.themeId}
-                themes={overview.themes.map((t) => ({ id: t.id, name: t.name, live: t.id === overview.activeId }))}
-              />
+              <KitTargetNote mineName={mine?.name ?? null} version={mine?.version ?? null} basedOn={base.name} />
               <KitApplyPanel
                 colors={colorChanges.length ? { count: colorChanges.length, problem: colorProblems.length ? `Lisibilité insuffisante une fois appliquées (${colorProblems[0]}) : elles seront appliquées quand même ; tu peux les corriger dans Photoshop ou les décocher.` : null } : null}
                 themeId={theme.id}
                 importId={state.meta.id}
-                baseId={base.id}
-                themeName={base.name}
+                themeName={mine?.name ?? "Mon thème"}
+                nextVersion={nextVersion}
+                mineExists={Boolean(mine)}
                 tape={report.slots.some((s) => s.id === "accessoires/scotch" && s.change === "redrawn" && isApplicable(s))}
                 changed={changed}
-                applied={state.meta.appliedThemeId ?? null}
+                applied={state.meta.appliedThemeId ? { id: state.meta.appliedThemeId, version: state.meta.appliedVersion ?? null } : null}
                 mirror={mirror}
               />
             </>

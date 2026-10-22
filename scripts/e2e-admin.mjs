@@ -4,9 +4,9 @@
  * chromium. Serveur dev requis (redémarré puis pré-chauffé : voir README),
  * connexion par le vrai formulaire (1 essai : attention à la limite 5/min).
  *
- *  A. Thème : dupliquer un preset, couleur refusée sous AA puis « Ajuster »,
- *     aperçu en direct dans le cadre, enregistrer, prévisualiser, mettre en
- *     ligne → un visiteur anonyme voit le nouveau thème sans redémarrage.
+ *  A. Thème (lot 60) : « Utiliser ce modèle » crée Mon thème, couleur refusée sous AA puis « Ajuster »,
+ *     aperçu en direct dans le cadre, enregistrer (une version brouillon : le visiteur anonyme ne voit rien),
+ *     prévisualiser, publier → un visiteur anonyme voit la nouvelle version sans redémarrage, puis retour à la version 1.
  *  B. Pages : créer (slug réservé refusé), ajouter des blocs, réordonner au
  *     clavier, publier → menu public + 200 en fr/en ; dépublier → 404 ;
  *     supprimer une page référencée → bloqué avec la liste ; ordre du menu.
@@ -15,8 +15,8 @@
  *  D. Polices téléchargées (Réglages) : bibliothèque semée en base + fichiers
  *     factices (aucun accès à Google) ; liste, styles, quota, police utilisée
  *     sans bouton « Supprimer », suppression d'une police inutilisée.
- * L'état initial est restauré à la fin (thème en ligne, page supprimée,
- * mention et ordre du menu d'origine).
+ * L'état initial est restauré à la fin (page supprimée, mention et ordre du
+ * menu d'origine) ; Mon thème, une fois créé, reste (il ne se supprime pas).
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… node scripts/e2e-admin.mjs
  */
 import Database from "better-sqlite3";
@@ -78,29 +78,10 @@ async function moveWithKeyboard(handleName, key, times) {
   await page.waitForTimeout(400);
 }
 
-/** Menu « … » d'une carte de thème (lot 23) : l'ouvre, puis choisit l'entrée. */
-const menuItem = async (card, name) => {
-  await card.getByRole("button", { name: /Plus d'actions/ }).click();
-  await page.getByRole("menuitem", { name }).click();
-};
-
-/** Nettoyage de secours (essai interrompu) : page et copies de thème du test. */
+/** Nettoyage de secours (essai interrompu) : page du test. */
 async function cleanup() {
   try {
     await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-    const active = page.locator(".a-theme-card:has(#theme-galerie-lumineuse)").getByRole("button", { name: "Mettre en ligne" });
-    if (await active.count()) {
-      await active.click();
-      await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
-      await page.locator(".a-toast", { hasText: "mis en ligne" }).first().waitFor();
-      await page.reload({ waitUntil: "networkidle" });
-    }
-    while (await page.locator(".a-theme-card", { hasText: "(copie" }).count()) {
-      await menuItem(page.locator(".a-theme-card", { hasText: "(copie" }).first(), "Supprimer");
-      await page.locator("dialog[open]").getByRole("button", { name: "Supprimer" }).click();
-      await page.locator("dialog[open]").waitFor({ state: "detached" });
-      await page.reload({ waitUntil: "networkidle" });
-    }
     await page.goto(`${BASE}/admin/pages`, { waitUntil: "networkidle" });
     while (await page.locator("tr", { hasText: "Carnets d'été" }).count()) {
       await page.locator("tr", { hasText: "Carnets d'été" }).getByRole("button", { name: "Supprimer" }).click();
@@ -128,18 +109,16 @@ try {
   await page.click("button[type=submit]");
   await page.waitForURL(`${BASE}/admin`);
 
-  // ---- A. Thème ------------------------------------------------------------
+  // ---- A. Thème (lot 60 : Mon thème et ses versions) ----------------------------------------------------
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const source = page.locator(".a-theme-card:has(#theme-galerie-lumineuse)");
-  // Le toast est affiché dès le clic et s'efface en quelques secondes : on l'attend en même temps que la navigation
-  // (sur une machine lente, l'éditeur de la copie arrive après sa disparition).
-  const duplicated = toast("Copie créée");
-  duplicated.catch(() => {}); // rejet traité au await plus bas (pas de rejet non géré entre-temps)
-  await menuItem(source, "Dupliquer");
+  const source = page.locator("section[data-model]", { has: page.locator("h2#theme-galerie-lumineuse") });
+  // Le modèle déjà en ligne : « Utiliser ce modèle » crée Mon thème (version 1) et le publie aussitôt (même rendu).
+  await source.getByTestId("use-model").click();
+  await page.getByTestId("mine-card").waitFor({ timeout: 30000 });
+  await page.getByTestId("mine-edit").click();
   await page.waitForURL(/\/admin\/themes\/[a-z0-9-]+$/);
   const themeId = page.url().split("/").pop();
-  ok("A1 preset dupliqué → éditeur de la copie", /copie/.test(themeId), themeId);
-  await duplicated;
+  ok("A1 « Utiliser ce modèle » → Mon thème, éditeur ouvert", themeId === "mon-theme" && dbq("select version from themes where id = ?", themeId)[0]?.version === 1, themeId);
 
   const frame = page.frameLocator("iframe.a-preview-frame");
   await frame.locator("html[data-theme]").waitFor({ timeout: 30000 });
@@ -174,40 +153,43 @@ try {
   await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   await toast("Enregistré");
   ok("A7 thème enregistré, état « Enregistré »", await page.locator(".a-save-state", { hasText: /✓\s*Enregistré/ }).waitFor({ timeout: 10000 }).then(() => true, () => false));
+  // Enregistrer = une version brouillon : le site en ligne ne change pas.
+  let r = await anon("/fr");
+  ok("A7b l'enregistrement ne publie rien : le visiteur anonyme ne voit pas la nouvelle couleur", !r.html.includes(NEW_PRIMARY) && dbq("select version, published_version from themes where id = ?", themeId)[0]?.version === 2 && dbq("select published_version from themes where id = ?", themeId)[0]?.published_version === 1);
 
   // Prévisualiser (nouvel onglet), depuis la liste.
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
   const card = page.locator(`.a-theme-card:has(#theme-${themeId})`);
   const [preview] = await Promise.all([ctx.waitForEvent("page"), card.getByRole("button", { name: /Prévisualiser/ }).click()]);
   await preview.waitForLoadState("domcontentloaded");
-  ok("A8 « Prévisualiser ↗ » ouvre le site avec la copie", (await preview.locator("html").getAttribute("data-theme")) === themeId);
+  ok("A8 « Prévisualiser ↗ » ouvre le site avec la version en cours (brouillon)", (await preview.locator("html").getAttribute("data-theme")) === themeId && (await preview.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--t-color-primary").trim())) === NEW_PRIMARY);
   await preview.close();
 
-  // Mettre en ligne, avec confirmation « actuel → nouveau ».
-  await card.getByRole("button", { name: "Mettre en ligne" }).click();
+  // Publier, avec confirmation « avant → après ».
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByTestId("mine-publish").click();
   const dlg = page.locator("dialog[open]");
-  ok("A9 confirmation nomme le thème actuel et le nouveau", /Galerie lumineuse\s*→\s*Galerie lumineuse \(copie/.test(await dlg.locator(".a-swap").innerText()));
+  ok("A9 confirmation « En ligne : v1 → Mon thème : v2 »", /En ligne : v1\s*→\s*Mon thème : v2/.test(await dlg.locator(".a-swap").innerText()));
   ok("A9b la confirmation propose « Prévisualiser d'abord »", await dlg.getByRole("button", { name: /Prévisualiser d'abord/ }).isVisible());
-  await dlg.getByRole("button", { name: "Mettre en ligne" }).click();
+  await dlg.getByRole("button", { name: "Publier", exact: true }).click();
   await toast("mis en ligne");
-  let r = await anon("/fr");
+  r = await anon("/fr");
   ok(
-    "A10 visiteur anonyme : nouveau thème sans redémarrage",
+    "A10 visiteur anonyme : nouvelle version sans redémarrage",
     r.html.includes(`data-theme="${themeId}"`) && r.html.includes(NEW_PRIMARY) && !r.html.includes("preview-banner"),
   );
 
-  // Retour au thème d'origine, puis suppression de la copie.
-  await page.reload({ waitUntil: "networkidle" });
-  await page.locator(".a-theme-card:has(#theme-galerie-lumineuse)").getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
-  await toast("mis en ligne");
-  await page.reload({ waitUntil: "networkidle" });
-  await menuItem(page.locator(`.a-theme-card:has(#theme-${themeId})`), "Supprimer");
-  ok("A11 suppression confirmée en nommant le thème", /Supprimer le thème « Galerie lumineuse \(copie[^»]*\) » \?/.test(await page.locator("dialog[open] h2").innerText()));
-  await page.locator("dialog[open]").getByRole("button", { name: "Supprimer" }).click();
-  await toast("supprimé");
+  // Retour à la version 1 (« Revenir et publier »).
+  await page.goto(`${BASE}/admin/themes/${themeId}/versions`, { waitUntil: "networkidle" });
+  await page.locator('li[data-version="1"]').getByTestId("version-revert").click();
+  await page.locator("dialog[open]").getByTestId("revert-publish").click();
+  await toast("Retour à la version 1");
   r = await anon("/fr");
-  ok("A12 thème d'origine de nouveau en ligne", r.html.includes('data-theme="galerie-lumineuse"'));
+  ok("A11 retour à la version 1 publié : l'ancienne couleur est de retour (rien n'a été perdu : 3 versions)", !r.html.includes(NEW_PRIMARY) && dbq("select count(*) c from theme_versions where theme_id = ?", themeId)[0]?.c === 3);
+  ok("A12 Mon thème ne se supprime pas (aucun bouton « Supprimer » sur sa carte)", await (async () => {
+    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    return (await page.locator(`.a-theme-card:has(#theme-${themeId})`).getByRole("button", { name: "Supprimer" }).count()) === 0;
+  })());
 
   // ---- B. Pages ------------------------------------------------------------
   await page.goto(`${BASE}/admin/pages`, { waitUntil: "networkidle" });

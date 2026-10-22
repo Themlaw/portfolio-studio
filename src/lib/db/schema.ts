@@ -24,7 +24,41 @@ export const themes = sqliteTable("themes", {
   /** JSON (texte) ; analysé et validé à la lecture. */
   data: text("data").notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+  /**
+   * Lot 60 : « Mon thème » (au plus UN, index partiel unique). Les thèmes livrés sont des modèles ; Mon thème évolue par versions
+   * (table `theme_versions`). `data` y est la version EN COURS (brouillon, ce que montrent l'éditeur, l'aperçu et le kit).
+   */
+  mine: integer("mine", { mode: "boolean" }).notNull().default(false),
+  /** Nom du modèle de départ (« basé sur Studio »), en texte : il survit à la suppression ou au renommage du modèle. */
+  basedOn: text("based_on"),
+  /** Numéro de la version en cours (0 : thème sans versions : modèle, ancien thème). */
+  version: integer("version").notNull().default(0),
+  /** Version que voient les visiteurs quand ce thème est en ligne ; null : jamais publiée. */
+  publishedVersion: integer("published_version"),
+  /** JSON de la version publiée quand elle diffère de la version en cours (`data`) ; null : la publiée EST `data`. Lu par le site public. */
+  liveData: text("live_data"),
 });
+
+/** Versions de « Mon thème » (lot 60) : instantanés complets (réglages ET références du kit, rangées par leur contenu sous /media/kit/…, donc jamais dupliquées). */
+export const themeVersions = sqliteTable(
+  "theme_versions",
+  {
+    themeId: text("theme_id").notNull(),
+    n: integer("n").notNull(),
+    /** JSON (texte) d'un Theme complet. */
+    data: text("data").notNull(),
+    /** model | kit | import | editor | revert | migration | adopt | copy */
+    source: text("source").notNull(),
+    /** Résumé d'une ligne (« kit : logo, cadre »). */
+    summary: text("summary").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
+    /** Version marquée : jamais supprimée par le nettoyage. */
+    pinned: integer("pinned", { mode: "boolean" }).notNull().default(false),
+    /** Séance d'édition terminée : le prochain enregistrement de l'éditeur crée une nouvelle version. */
+    sealed: integer("sealed", { mode: "boolean" }).notNull().default(false),
+  },
+  (t) => [primaryKey({ columns: [t.themeId, t.n] })],
+);
 
 /** Réglages clé/valeur JSON (activeThemeId, site, socials…). */
 export const settings = sqliteTable("settings", {

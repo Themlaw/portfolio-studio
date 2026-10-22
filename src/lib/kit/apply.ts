@@ -1,7 +1,7 @@
 /**
- * « Appliquer au thème » (écran de revue d'un import de kit) : crée une COPIE
- * BROUILLON du thème avec les nouveaux assets — jamais le thème en ligne
- * remplacé sans validation. Emplacement redessiné → fichiers rangés par leur
+ * « Appliquer à mon thème » (écran de revue d'un import de kit, lot 60) : crée une NOUVELLE VERSION de Mon thème (brouillon : le thème
+ * en ligne ne change qu'à la publication ; plus de « (kit) », « (kit 2) »). Sans Mon thème, il est créé d'abord (version 1, depuis le
+ * thème dont le kit a été exporté), puis le kit en fait la version 2. Emplacement redessiné → fichiers rangés par leur
  * contenu sous /media/kit/<sha256 16>.<ext> ; inchangé, absent ou en erreur →
  * l'asset actuel du thème est gardé. Palette suggérée : seulement si demandée,
  * et seulement si elle passe le contraste AA.
@@ -11,15 +11,13 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
-import { eq } from "drizzle-orm";
-
-import { getDb, schema } from "@/lib/db";
 import { done, fail, type ActionResult } from "@/lib/edit/result";
-import { slugify } from "@/lib/slug";
 import { getStorage } from "@/lib/storage";
 import { AA, contrastReport } from "@/themes/contrast";
 import { contrastRatio, isNuance, normalizePalette, resolvePalette, setBase, setNuance, type BaseKey, type NuanceKey } from "@/themes/palette";
 import { PAPER_OVER_HERO_DEFAULT, ThemeSchema, type KitAssets, type KitImage, type KitPlan, type Theme } from "@/themes/schema";
+
+import { addKitVersion, getMineRow } from "@/lib/themes/versions";
 
 import { loadSavedTheme } from "./export-job";
 import type { KitReport, SlotReport } from "./import";
@@ -145,15 +143,26 @@ export function baseThemeIdOf(report: KitReport | null | undefined, uploadThemeI
   return candidates.find((id): id is string => Boolean(id) && Boolean(loadSavedTheme(id!))) ?? uploadThemeId;
 }
 
-export async function applyKitImport(themeId: string, importId: string, opts: ApplyOptions): Promise<ActionResult<{ id: string }>> {
+/** Thème sur lequel le kit se pose : Mon thème (sa version en cours), sinon le thème de départ (qui devient Mon thème). */
+export function kitTarget(report: KitReport | null | undefined, uploadThemeId: string, chosen?: string): { source: Theme; mine: boolean } | null {
+  const mine = getMineRow();
+  if (mine) {
+    const theme = loadSavedTheme(mine.id);
+    return theme ? { source: theme, mine: true } : null;
+  }
+  const source = loadSavedTheme(baseThemeIdOf(report, uploadThemeId, chosen));
+  return source ? { source, mine: false } : null;
+}
+
+export async function applyKitImport(themeId: string, importId: string, opts: ApplyOptions): Promise<ActionResult<{ id: string; version: number }>> {
   // L'import doit appartenir au thème de l'écran (sinon : inconnu).
   const state = await getKitImport(importId, themeId);
   if (!state?.report) return fail("Cet import n'est pas terminé ou n'existe plus.");
   const { meta, report } = state;
   if (!report.ok && report.problem) return fail(report.problem);
-  const baseId = baseThemeIdOf(report, meta.themeId, opts.baseThemeId);
-  const source = loadSavedTheme(baseId);
-  if (!source) return fail("Le thème d'origine n'existe plus.");
+  const target = kitTarget(report, meta.themeId, opts.baseThemeId);
+  if (!target) return fail("Le thème d'origine n'existe plus.");
+  const source = target.source;
   const changed = report.slots.filter(isApplicable);
   const decorApplied = decorApplicable(report);
   const colorsChanged = Boolean(opts.colors && report.colors?.some((c) => c.change === "changed"));
@@ -260,22 +269,10 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
   if (newCursor) delete cursors.off;
   if (cursors.default || cursors.pointer) kit.cursors = cursors;
 
-  // Copie brouillon : nouvel identifiant, jamais active.
-  const db = getDb();
-  const baseName = source.name.replace(/ \((?:copie|kit)(?: \d+)?\)$/, "");
-  const base = `${slugify(baseName) || "theme"}-kit`;
-  let id = base;
-  let n = 1;
-  while (db.select().from(schema.themes).where(eq(schema.themes.id, id)).get()) id = `${base}-${++n}`;
-  const name = n === 1 ? `${baseName} (kit)` : `${baseName} (kit ${n})`;
+  // Nouvelle version de Mon thème (brouillon) : jamais le thème en ligne remplacé sans validation.
   const parsed = ThemeSchema.safeParse({
     ...source,
-    id,
-    name,
-    preset: false,
-    tokens: (() => {
-      return colorsChanged ? withKitColors(source.tokens, report) : source.tokens;
-    })(),
+    tokens: colorsChanged ? withKitColors(source.tokens, report) : source.tokens,
     // Scotch REDESSINÉ (pas simplement importé faute de kit d'origine reconnu : ce serait le
     // gabarit) : visible avec la variante « scotch » des planches. Sinon les variantes du thème de base restent.
     variants: tape && tape.change === "redrawn" ? { ...source.variants, strip: "taped" } : source.variants,
@@ -285,7 +282,7 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
     console.error("[kit] application refusée", parsed.error.issues.slice(0, 3));
     return fail("Les éléments importés ne forment pas un thème valide. Renvoie le kit ; si ça recommence, signale-le.");
   }
-  db.insert(schema.themes).values({ id, name, preset: false, data: JSON.stringify(parsed.data) }).run();
-  await writeImportMeta({ ...meta, appliedThemeId: id });
-  return done({ id });
+  const added = addKitVersion(parsed.data, source);
+  await writeImportMeta({ ...meta, appliedThemeId: added.id, appliedVersion: added.version });
+  return done({ id: added.id, version: added.version });
 }

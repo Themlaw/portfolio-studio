@@ -8,13 +8,13 @@
  *    grand, décor à calques libres) → refus d'un fichier qui n'est pas un PSD
  *    (PNG légitime généré par ffmpeg) → envoi de l'archive entière, d'un seul PSD
  *    (les autres fichiers « pas envoyé : inchangé »), puis de deux PSD choisis
- *    ensemble → revue groupée par fichier → « Appliquer au thème » : copie
- *    brouillon (décor libre de 4 plans), éditeur et aperçu.
+ *    ensemble → revue groupée par fichier → « Appliquer à mon thème » : nouvelle
+ *    version de Mon thème (lot 60 ; décor libre de 4 plans), aperçu du brouillon.
  * B. Fichier réel de l'artiste (tests/fixtures/kit-synthetique.psd, kit
  *    v1) : revue, application, puis la flèche de l'artiste rendue dans le
  *    rail des planches et dans la visionneuse (aperçu du brouillon).
- * Captures : screenshots/phase6d. Les copies brouillon et les imports créés
- * sont supprimés à la fin.
+ * Captures : screenshots/phase6d. Mon thème créé par le parcours et les imports
+ * créés sont supprimés à la fin.
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… node scripts/e2e-kit.mjs
  */
 import { execFileSync } from "node:child_process";
@@ -80,9 +80,9 @@ async function sendAndReview(files, count) {
 async function apply() {
   const mirror = page.locator('[data-testid="kit-mirror"]');
   ok("revue : miroir de la flèche proposé, coché par défaut", (await mirror.count()) === 1 && (await mirror.isChecked()));
-  await Promise.all([page.waitForURL(/\/admin\/themes\/galerie-lumineuse-kit[a-z0-9-]*$/, { timeout: 60000 }), page.getByRole("button", { name: "Appliquer au thème" }).click()]);
-  const id = page.url().split("/").pop();
-  created.push(id);
+  await Promise.all([page.waitForURL(/\/admin\/themes\?nouvelle=\d+&via=kit/, { timeout: 60000 }), page.getByRole("button", { name: /^Appliquer à mon thème/ }).click()]);
+  const id = await mineId();
+  if (!created.includes(id)) created.push(id);
   return id;
 }
 const tsx = (code) => execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", code], { env: { ...process.env, DATA_DIR: DATA }, encoding: "utf8" });
@@ -91,6 +91,9 @@ const themeData = (id) =>
     tsx(`import { getDb, schema } from "./src/lib/db/index.ts"; import { eq } from "drizzle-orm";
      console.log(getDb().select().from(schema.themes).where(eq(schema.themes.id, ${JSON.stringify(id)})).get()?.data ?? "null");`),
   );
+const mineId = async () =>
+  tsx(`import { getDb, schema } from "./src/lib/db/index.ts"; import { eq } from "drizzle-orm";
+     console.log(getDb().select().from(schema.themes).where(eq(schema.themes.mine, true)).get()?.id ?? "");`).trim().split("\n").pop();
 const sim = (...args) => execFileSync(process.execPath, ["--import", "tsx", "scripts/kit-poc/simulate-multi.mts", ...args], { stdio: "ignore" });
 
 /* ---- A. Aller-retour du kit v4 : archive de trois PSD ------------------- */
@@ -145,12 +148,12 @@ ok("décor libre : 4 plans (3 inchangés d'un plan exporté, « mes nuages » re
 ok("décor libre : résumé « composition changée »", /composition changée/.test((await page.locator('[data-testid="kit-decor-summary"]').textContent()) ?? ""));
 await page.screenshot({ path: `${SHOTS}/revue-decor-libre-1440.png`, fullPage: true });
 const draftA = await apply();
-ok("« Appliquer » : copie brouillon créée, éditeur ouvert", /galerie-lumineuse-kit/.test(draftA) && (await page.locator("h1").first().textContent()).includes("(kit)"));
+ok("« Appliquer à mon thème » : nouvelle version de Mon thème (aucun « (kit) »), encart sur l'écran Thèmes", draftA === "mon-theme" && (await page.locator('[data-testid="new-version-notice"]').count()) === 1 && !/\(kit/.test(await page.locator("main").innerText()));
 const dataA = themeData(draftA);
-ok("copie : décor libre = 4 plans, ils remplacent tout le décor (plansOnly)", dataA?.assets?.kit?.plansOnly === true && dataA.assets.kit.plans?.length === 4 && dataA.assets.kit.plans.every(Boolean), JSON.stringify(dataA?.assets?.kit?.plans?.map((p) => Object.keys(p).join("+"))));
-await page.locator("iframe").first().waitFor({ timeout: 30000 });
+ok("Mon thème : décor libre = 4 plans, ils remplacent tout le décor (plansOnly)", dataA?.assets?.kit?.plansOnly === true && dataA.assets.kit.plans?.length === 4 && dataA.assets.kit.plans.every(Boolean), JSON.stringify(dataA?.assets?.kit?.plans?.map((p) => Object.keys(p).join("+"))));
+await page.locator('[data-testid="live-thumb"] iframe').first().waitFor({ timeout: 30000 });
 await sleep(2500);
-await page.screenshot({ path: `${SHOTS}/copie-brouillon-apercu-1440.png` });
+await page.screenshot({ path: `${SHOTS}/version-mon-theme-1440.png` });
 // Aperçu public du brouillon : le hero n'a que les 4 plans.
 await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
 await page.evaluate((id) => {
@@ -234,7 +237,7 @@ await page.request.post(`${BASE}/admin/apercu/quitter`, { headers: { origin: BAS
 ok("aucune erreur JS", errors.length === 0, errors.join(" | "));
 await browser.close();
 
-// Ménage : copies brouillon et imports créés par ce parcours.
+// Ménage : Mon thème et imports créés par ce parcours.
 execFileSync(
   process.execPath,
   [
@@ -243,12 +246,13 @@ execFileSync(
     "--input-type=module",
     "-e",
     `import { getDb, schema } from "./src/lib/db/index.ts"; import { inArray } from "drizzle-orm"; import { rmSync, readdirSync, readFileSync } from "node:fs";
+     getDb().delete(schema.themeVersions).where(inArray(schema.themeVersions.themeId, ${JSON.stringify(created)})).run();
      getDb().delete(schema.themes).where(inArray(schema.themes.id, ${JSON.stringify(created)})).run();
      const dir = "${DATA}/kit-imports"; for (const n of readdirSync(dir)) { const m = JSON.parse(readFileSync(dir + "/" + n + "/meta.json", "utf8")); if (${JSON.stringify(created)}.includes(m.appliedThemeId)) rmSync(dir + "/" + n, { recursive: true, force: true }); }`,
   ],
   { stdio: "inherit", env: { ...process.env, DATA_DIR: DATA } },
 );
-console.log(`brouillons supprimés : ${created.join(", ")}`);
+console.log(`Mon thème de l'essai supprimé : ${created.join(", ")}`);
 if (failures) {
   console.error(`e2e-kit : ${failures} échec(s)`);
   process.exit(1);

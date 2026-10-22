@@ -26,7 +26,8 @@ export default async function VisualEditorPage({ params, searchParams }: { param
     .map((p) => ({ id: p.id, title: p.title || "Page sans titre", slug: p.slug }));
   // Thème en préparation (aperçu depuis Admin → Thèmes) : la toile le montre, le panneau Couleurs aussi.
   const preparingRef = await getPreparingTheme();
-  const preparing = preparingRef ? ((await getTheme(preparingRef.id)) ?? null) : null;
+  // Lot 60 : l'aperçu d'une VERSION de Mon thème (`<thème>@<n>`) n'est pas un thème « en préparation » (« Mettre en ligne » publierait la version en cours).
+  const preparing = preparingRef && !preparingRef.id.includes("@") ? ((await getTheme(preparingRef.id)) ?? null) : null;
   const self = pages.find((p) => p.id === Number(id));
   return (
     <VisualEditor

@@ -22,6 +22,7 @@ import { chromium } from "playwright";
 import sharp from "sharp";
 
 import { installPaperTheme } from "./lib/paper-theme.mjs";
+import { activateThemeUi } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -109,13 +110,8 @@ async function publish() {
   return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 async function activateTheme(id) {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const card = page.locator(`.a-theme-card[aria-labelledby="theme-${id}"]`);
-  if ((await card.getAttribute("data-active")) === "true") return;
-  await card.getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").waitFor({ state: "detached" });
-  await sleep(800);
+  // Lot 60 : « Utiliser ce modèle » / « En faire mon thème », puis « Publier » (scripts/lib/theme-live.mjs).
+  await activateThemeUi(page, BASE, id);
 }
 async function section(name, fn) {
   try {

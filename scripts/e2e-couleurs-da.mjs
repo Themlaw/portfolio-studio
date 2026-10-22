@@ -22,6 +22,7 @@ import path from "node:path";
 
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
+import { activateThemeUi } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -198,13 +199,8 @@ async function latencyOf(key, hex, variable) {
 }
 const sectionShot = (name) => page.screenshot({ path: path.join(SHOTS, name) });
 async function activateTheme(name) {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const card = page.locator(".a-theme-card", { hasText: name }).first();
-  if ((await card.getAttribute("data-active")) === "true") return;
-  await card.getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").waitFor({ state: "detached" });
-  await sleep(800);
+  // Lot 60 : « Utiliser ce modèle » / « En faire mon thème », puis « Publier » (scripts/lib/theme-live.mjs).
+  await activateThemeUi(page, BASE, name);
 }
 /** HTML public de l'accueil (rendu mis en cache : on attend la revalidation). */
 const publicVar = async (url, name) => {

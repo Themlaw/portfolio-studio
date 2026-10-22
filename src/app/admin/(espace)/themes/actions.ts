@@ -17,6 +17,7 @@ import { fail, type ActionResult } from "@/lib/edit/result";
 import { resetPublishedSitePalette } from "@/lib/edit/site";
 import { revalidateSettings, revalidateTheme } from "@/lib/revalidate";
 import { PREVIEW_COOKIE } from "@/lib/theme";
+import { adoptOldTheme, keepVersionCopy, pinVersion, revertToVersion, sealEditorSession, applyModel, type ApplyModelResult } from "@/lib/themes/versions";
 
 const Id = z.string().regex(/^[a-z0-9-]{1,80}$/);
 
@@ -34,8 +35,85 @@ export async function duplicateThemeAction(id: unknown): Promise<ActionResult<{ 
   return result;
 }
 
-/** `confirmLive` : confirmation de la mise en ligne, exigée (côté serveur) quand le thème enregistré est le thème actif. */
-export async function saveThemeAction(id: unknown, input: unknown, confirmLive?: unknown): Promise<ActionResult<null>> {
+const Version = z.number().int().min(1).max(999999);
+
+/**
+ * « Utiliser ce modèle » (lot 60). Sans Mon thème : le crée (version 1). Avec : `mode` obligatoire, « replace » (nouvelle version de
+ * Mon thème à partir du modèle) ou « second » (thème à part, dans « Mes anciens thèmes »).
+ */
+export async function applyModelAction(modelId: unknown, mode?: unknown): Promise<ActionResult<ApplyModelResult & { second?: boolean }>> {
+  await assertAdmin();
+  const id = themeId(modelId);
+  if (!id) return fail("Modèle inconnu.");
+  if (mode !== undefined && mode !== "replace" && mode !== "second") return fail("Choix inconnu.");
+  const result = applyModel(id, mode);
+  if (result.ok) revalidateTheme();
+  return result;
+}
+
+/**
+ * « Revenir à cette version » : nouvelle version identique à l'ancienne. `publish` : la met aussitôt en ligne (le site reprend l'ancien
+ * aspect) ; sinon elle reste un brouillon.
+ */
+export async function revertVersionAction(id: unknown, n: unknown, publish?: unknown): Promise<ActionResult<{ version: number }>> {
+  await assertAdmin();
+  const tid = themeId(id);
+  const v = Version.safeParse(n);
+  if (!tid || !v.success) return fail("Version inconnue.");
+  const result = revertToVersion(tid, v.data);
+  if (!result.ok) return result;
+  if (publish === true) {
+    const live = activateTheme(tid);
+    if (!live.ok) return live;
+  }
+  revalidateTheme();
+  return result;
+}
+
+/** « Garder une copie à part » : la version devient un thème à part. */
+export async function keepVersionCopyAction(id: unknown, n: unknown): Promise<ActionResult<{ id: string; name: string }>> {
+  await assertAdmin();
+  const tid = themeId(id);
+  const v = Version.safeParse(n);
+  if (!tid || !v.success) return fail("Version inconnue.");
+  const result = keepVersionCopy(tid, v.data);
+  if (result.ok) revalidateTheme();
+  return result;
+}
+
+/** Marque (ou démarque) une version : le nettoyage ne la supprime jamais. */
+export async function pinVersionAction(id: unknown, n: unknown, pinned: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const tid = themeId(id);
+  const v = Version.safeParse(n);
+  if (!tid || !v.success || typeof pinned !== "boolean") return fail("Version inconnue.");
+  return pinVersion(tid, v.data, pinned);
+}
+
+/** « En faire mon thème (nouvelle version) » : un ancien thème devient une version de Mon thème. */
+export async function adoptOldThemeAction(oldId: unknown): Promise<ActionResult<{ id: string; version: number; created: boolean }>> {
+  await assertAdmin();
+  const tid = themeId(oldId);
+  if (!tid) return fail("Thème inconnu.");
+  const result = adoptOldTheme(tid);
+  if (result.ok) revalidateTheme();
+  return result;
+}
+
+/** Sortie de l'éditeur de thème : la séance d'édition est close, le prochain enregistrement crée une nouvelle version. */
+export async function closeEditSessionAction(id: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const tid = themeId(id);
+  if (!tid) return fail("Thème inconnu.");
+  sealEditorSession(tid);
+  return { ok: true, data: null };
+}
+
+/**
+ * `confirmLive` : confirmation de la mise en ligne, exigée (côté serveur) quand un ancien thème en ligne est enregistré. Mon thème
+ * (lot 60) : l'enregistrement crée ou met à jour la version en cours (brouillon), sans rien publier.
+ */
+export async function saveThemeAction(id: unknown, input: unknown, confirmLive?: unknown): Promise<ActionResult<{ version?: number; created?: boolean } | null>> {
   await assertAdmin();
   const tid = themeId(id);
   if (!tid) return fail("Thème inconnu.");
@@ -97,11 +175,11 @@ export async function deleteThemeAction(id: unknown): Promise<ActionResult<null>
 }
 
 /**
- * Import de kit relu : crée une COPIE BROUILLON du thème avec les nouveaux
+ * Import de kit relu : crée une NOUVELLE VERSION de Mon thème (brouillon, lot 60) avec les nouveaux
  * assets (jamais le thème en ligne remplacé). Options : `mirror` (une seule flèche redessinée : son miroir pour l'autre),
  * `colors` (couleurs repeintes dans « 8 · Palette »), `base` (thème sur lequel poser le kit).
  */
-export async function applyKitImportAction(themeIdInput: unknown, importId: unknown, options: unknown): Promise<ActionResult<{ id: string }>> {
+export async function applyKitImportAction(themeIdInput: unknown, importId: unknown, options: unknown): Promise<ActionResult<{ id: string; version: number }>> {
   await assertAdmin();
   const tid = themeId(themeIdInput);
   if (!tid || !isImportId(importId)) return fail("Import inconnu.");

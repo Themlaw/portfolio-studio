@@ -9,6 +9,7 @@ import { parseJson } from "@/lib/json";
 import { slugify } from "@/lib/slug";
 import { normalizePalette } from "@/themes/palette";
 import { ThemeSchema, type Theme } from "@/themes/schema";
+import { alignPublished, deleteVersionsOf, saveMine } from "@/lib/themes/versions";
 
 import { markOnboarding } from "./onboarding";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
@@ -53,10 +54,18 @@ export function duplicateTheme(sourceId: string): ActionResult<{ id: string }> {
   return done({ id });
 }
 
-export function saveTheme(id: string, input: unknown, confirmLive = false): ActionResult<null> {
+/**
+ * Enregistrement d'un thème. Mon thème (lot 60) : une VERSION en cours (brouillon), jamais publiée d'office ; le thème en ligne n'est
+ * touché que par « Publier cette version ». Un ancien thème (copie, import) s'écrit sur place, comme avant. Un modèle ne se modifie pas.
+ */
+export function saveTheme(id: string, input: unknown, confirmLive = false): ActionResult<{ version?: number; created?: boolean } | null> {
   const current = readTheme(id);
   if (!current) return fail("Ce thème n'existe plus. Recharge la page.");
-  if (current.row.preset) return fail("Un thème livré ne se modifie pas : duplique-le, puis modifie la copie.");
+  if (current.row.preset) return fail("Un modèle ne se modifie pas : utilise-le pour créer ou faire évoluer Mon thème.");
+  if (current.row.mine) {
+    const saved = saveMine(id, input);
+    return saved.ok ? done(saved.data) : saved;
+  }
   // Le thème en ligne est vu par les visiteurs dès l'enregistrement : la confirmation se vérifie ici, pas seulement dans l'interface.
   if (activeThemeId() === id && confirmLive !== true) {
     return fail("Ce thème est en ligne : l'enregistrer le publie aussitôt pour tes visiteurs. Confirme la mise en ligne, puis enregistre de nouveau.");
@@ -94,6 +103,8 @@ export function activateTheme(id: string, resetColors = false): ActionResult<nul
     .values({ key: "activeThemeId", value: JSON.stringify(id) })
     .onConflictDoUpdate({ target: schema.settings.key, set: { value: JSON.stringify(id) } })
     .run();
+  // Mon thème (lot 60) : le mettre en ligne publie sa version en cours.
+  alignPublished(id);
   markOnboarding("theme");
   return done(null);
 }
@@ -102,7 +113,9 @@ export function deleteTheme(id: string): ActionResult<null> {
   const current = readTheme(id);
   if (!current) return fail("Ce thème n'existe plus.");
   if (current.row.preset) return fail("Un thème livré ne se supprime pas.");
+  if (current.row.mine) return fail("Mon thème ne se supprime pas : remplace-le par un modèle, ou reviens à une ancienne version.");
   if (activeThemeId() === id) return fail("Ce thème est en ligne : mets-en un autre en ligne avant de le supprimer.");
+  deleteVersionsOf(id);
   getDb().delete(schema.themes).where(eq(schema.themes.id, id)).run();
   return done(null);
 }

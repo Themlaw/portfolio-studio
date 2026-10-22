@@ -2,8 +2,9 @@
  * POST /admin/api/themes/import — import d'un thème exporté (archive ZIP,
  * multipart, champ « file »). Admin connecté et même origine ; réception en
  * flux plafonnée (IMPORT_LIMITS.maxZipBytes) ; archive et contenu validés par
- * src/lib/themes/transfer.ts. Crée une copie non livrée, jamais mise en ligne.
- * Réponse JSON : { ok, theme: { id, name } } ou { ok: false, message }.
+ * src/lib/themes/transfer.ts. Jamais mise en ligne d'office. Paramètre d'adresse `mode` (lot 60) :
+ * `version` = nouvelle version de Mon thème ; `apart` (défaut) = thème à part (copie non livrée).
+ * Réponse JSON : { ok, theme: { id, name, mode, version? } } ou { ok: false, message }.
  */
 import { readFile, rm } from "node:fs/promises";
 
@@ -27,7 +28,8 @@ export async function POST(request: Request) {
   try {
     const file = await receiveOneFile(request, uploadTmpDir(), { maxBytes: IMPORT_LIMITS.maxZipBytes });
     tmpPath = file.tmpPath;
-    const theme = await importThemePackage(await readFile(file.tmpPath));
+    const mode = new URL(request.url).searchParams.get("mode") === "version" ? "version" : "apart";
+    const theme = await importThemePackage(await readFile(file.tmpPath), { mode, fileName: file.filename.replace(/[\u0000-\u001f<>"]/g, "") });
     revalidateTheme();
     return json(200, { ok: true, theme });
   } catch (error) {

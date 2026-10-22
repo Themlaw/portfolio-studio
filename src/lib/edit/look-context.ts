@@ -20,7 +20,8 @@ export function activeThemeForEdit(): Theme {
   const db = getDb();
   const active = parseJson(db.select().from(schema.settings).where(eq(schema.settings.key, "activeThemeId")).get()?.value);
   const row = typeof active === "string" ? db.select().from(schema.themes).where(eq(schema.themes.id, active)).get() : undefined;
-  return ThemeSchema.safeParse(parseJson(row?.data)).data ?? PRESETS[DEFAULT_THEME_ID];
+  // Lot 60 : la version PUBLIÉE de Mon thème (`live_data`) quand son brouillon en est différent.
+  return ThemeSchema.safeParse(parseJson(row?.liveData ?? row?.data)).data ?? PRESETS[DEFAULT_THEME_ID];
 }
 
 /** Thème en préparation (lot 55) : aperçu admin d'un thème pas encore en ligne ; le panneau Couleurs montre CE thème. */
