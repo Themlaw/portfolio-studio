@@ -148,6 +148,7 @@ export function SaveBar({
   error,
   note,
   label = "Enregistrer",
+  testId,
 }: {
   dirty: boolean;
   saving: boolean;
@@ -155,6 +156,7 @@ export function SaveBar({
   error?: string | null;
   note?: React.ReactNode;
   label?: string;
+  testId?: string;
 }) {
   return (
     <div className="a-savebar" data-dirty={dirty}>
@@ -174,7 +176,7 @@ export function SaveBar({
         )}
         {note && <span className="a-save-note">{note}</span>}
       </p>
-      <button type="button" className="a-btn a-btn-primary" onClick={onSave} disabled={saving || !dirty}>
+      <button type="button" className="a-btn a-btn-primary" onClick={onSave} disabled={saving || !dirty} data-testid={testId}>
         {saving ? "Enregistrement…" : label}
       </button>
     </div>

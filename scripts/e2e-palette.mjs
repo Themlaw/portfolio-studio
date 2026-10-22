@@ -73,6 +73,7 @@ await Promise.all([page.waitForURL((u) => !u.pathname.startsWith("/admin/connexi
 
 /* ---- A. Éditeur de palette ------------------------------------------------ */
 await page.goto(`${BASE}/admin/themes/${COPY}`, { waitUntil: "networkidle" });
+await page.locator('[data-testid="palette-details"] summary').click();
 const field = (token) => page.locator(`.a-color[data-token="${token}"]`);
 const hex = (token) => field(token).locator(".a-color-hex").inputValue();
 ok("palette : 7 groupes (Fond de page, Cartes et encadrés, Texte, Boutons et liens, Accent, Ornements, Visionneuse)", (await page.locator(".a-pal-group").count()) === 7);
@@ -88,7 +89,7 @@ ok("base changée : la nuance choisie ne bouge pas (fond profond)", (await hex("
 const sampleHover = await page.$eval(".a-pal-s-btn-hover", (e) => getComputedStyle(e).backgroundColor);
 const toRgb = (h) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(", ")})`;
 ok("échantillon : le bouton « Survol » prend la nuance", sampleHover === toRgb(followed), `${sampleHover} / ${toRgb(followed)}`);
-await field("inkSoft").getByLabel("Texte secondaire", { exact: true }).fill("#c4c4c4");
+await field("inkSoft").getByLabel(/^Texte secondaire/).fill("#c4c4c4");
 await sleep(200);
 ok("contraste : texte secondaire illisible signalé (✗, « Ajuster »)", (await field("inkSoft").locator(".a-ratio-bad").count()) === 1 && (await field("inkSoft").getByRole("button", { name: /Ajuster/ }).count()) === 1);
 await field("inkSoft").getByRole("button", { name: /Ajuster/ }).click();

@@ -92,6 +92,19 @@ export async function getPreviewTheme(): Promise<Theme | null> {
   return Object.hasOwn(state.themes, id) ? state.themes[id] : null;
 }
 
+/**
+ * Thème « en préparation » (lot 55) : prévisualisé par la requête courante ET différent du thème en ligne
+ * (prévisualiser le thème déjà en ligne n'est pas préparer quoi que ce soit). Admin seulement (draft mode + droit d'aperçu).
+ */
+export async function getPreparingTheme(): Promise<{ id: string; name: string } | null> {
+  if (isBuildPhase()) return null;
+  const id = await previewThemeId();
+  if (!id) return null;
+  const state = await getThemeState();
+  if (id === state.activeId || !Object.hasOwn(state.themes, id)) return null;
+  return { id, name: state.themes[id].name };
+}
+
 export const getActiveTheme = cache(async (): Promise<Theme> => {
   if (isBuildPhase()) return PRESETS[DEFAULT_THEME_ID];
 

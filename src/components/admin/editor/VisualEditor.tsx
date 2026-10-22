@@ -64,6 +64,7 @@ import AddSectionDialog, { type AddChoice } from "./AddSectionDialog";
 import { ImageBgControls } from "@/components/edit/ImageBgControls";
 
 import { BlockLookPanel, ImageSizeSection, SiteStylesPanel } from "./LookPanel";
+import PreparingBanner from "./PreparingBanner";
 import { ColorsPanel, LogoPanel, type HighlightInfo } from "./SiteLookPanel";
 import BoardItemPanel from "./BoardItemPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
@@ -2992,7 +2993,7 @@ export default function VisualEditor({
                 />
                 <PageWallpaperField value={draft.wallpaper ?? null} onChange={(v) => apply({ ...draftRef.current, wallpaper: v }, { structural: true })} choices={context.wallpapers ?? []} />
               </div>
-              <ColorsPanel theme={lookContext.theme} value={liveLook.palette} onChange={(p) => requestLook(p, liveLook.logo)} onHighlight={highlightRole} info={hlInfo} locked={siteLocked} />
+              <ColorsPanel theme={lookContext.theme} preparing={lookContext.preparing !== null} value={liveLook.palette} onChange={(p) => requestLook(p, liveLook.logo)} onHighlight={highlightRole} info={hlInfo} locked={siteLocked} />
               <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />
               <SiteStylesPanel styles={siteSnap.styles} onChange={(s) => void applySiteStyles(() => s, Object.values(cleanSiteStyles(s)?.roles ?? {}))} palette={swatches} cardPalette={effective} installed={fontFamilies} locked={siteLocked} />
             </div>
@@ -3003,6 +3004,7 @@ export default function VisualEditor({
 
   return (
     <div className="ve" data-mode={mode} data-mobile={mobile || undefined}>
+      {mode === "edit" && lookContext.preparing && <PreparingBanner preparing={lookContext.preparing} flush={flush} />}
       {mode === "edit" && (
         <header className="ve-top">
           <Link href="/admin/pages" className="ve-brand" title="Retour aux pages" onClick={(e) => void leaveTo(e, "/admin/pages")}>

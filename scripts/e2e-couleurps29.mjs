@@ -346,6 +346,7 @@ if (run("Q")) {
   await page.screenshot({ path: `${SHOTS}/Q3-da.png` });
   await inkItem.locator(".lc-role").click();
   await ensureCopy();
+  if ((await page.locator('[data-testid="palette-details"]').getAttribute("open")) === null) await page.locator('[data-testid="palette-details"] summary').click();
   const pal = page.locator('.a-color[data-token="primary"]');
   await pal.scrollIntoViewIfNeeded();
   ok("Q4 palette du thème : plus de sélecteur natif du navigateur", (await pal.locator('input[type="color"]').count()) === 0 && (await pal.getByRole("button", { name: "Boutons et liens : sélecteur" }).count()) === 1);

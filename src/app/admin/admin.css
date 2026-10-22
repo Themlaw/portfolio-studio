@@ -1265,7 +1265,54 @@ body:has(.a-sidepanel) .a-toasts {
 
 /* ---- Cartes de thèmes --------------------------------------------------- */
 .a-theme-grid {
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  /* 340 px : les quatre boutons d'une carte tiennent sur une ligne (cartes de même hauteur, lot 55). */
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+}
+
+.a-badge-prep {
+  background: var(--admin-warning-soft);
+  color: var(--admin-ink);
+  border: 1px solid var(--admin-line-strong);
+}
+
+.a-theme-preparing p {
+  margin: 0 0 6px;
+}
+
+.a-theme-custom-note {
+  margin: 4px 0 0;
+}
+
+.a-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.a-fold > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Bandeau fixe de l'éditeur de page : thème en préparation (lot 55). */
+.ve-preparing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--admin-line-strong);
+  background: var(--admin-warning-soft);
+  color: var(--admin-ink);
+  font-size: 14px;
+}
+
+.ve-preparing-actions {
+  display: inline-flex;
+  gap: 6px;
 }
 
 .a-theme-card {
@@ -1493,6 +1540,7 @@ body:has(.a-sidepanel) .a-toasts {
 
 .a-color-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
@@ -1545,12 +1593,14 @@ body:has(.a-sidepanel) .a-toasts {
   font-size: 13px;
 }
 
+/* Lot 55 : le verdict de lisibilité passe à la ligne au lieu de déborder sur la colonne voisine. */
 .a-ratio {
-  flex: none;
+  flex: 0 1 auto;
+  max-width: 100%;
   padding: 2px 6px;
   border-radius: 4px;
   font: 600 12px/1.4 var(--admin-font-mono);
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .a-ratio-ok {

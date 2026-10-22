@@ -9,12 +9,16 @@ import {
   activateThemeAction,
   deleteThemeAction,
   duplicateThemeAction,
+  resetSiteColorsAction,
 } from "@/app/admin/(espace)/themes/actions";
+import type { SitePalette } from "@/lib/look";
 import { accentProblem } from "@/themes/contrast";
 import type { Theme } from "@/themes/schema";
+import { NUANCE_KEYS } from "@/themes/palette";
+import { applySitePalette, SITE_NUANCES, SITE_ROLES } from "@/themes/site-palette";
 
 import { useKitDownload } from "./KitDownloadButton";
-import { ConfirmDialog, toast } from "./editing";
+import { ConfirmDialog, toast, UNDO_MS } from "./editing";
 import ThemeSwatches from "./ThemeSwatches";
 import ThemeThumb from "./ThemeThumb";
 
@@ -50,16 +54,25 @@ function ThemeMenu({ theme, isActive, busy, onDuplicate, onDelete }: { theme: Th
         </AriaButton>
         <Popover className="a-menu-popover" placement="bottom end" offset={4}>
           <Menu className="a-menu" aria-label={`Actions de ${theme.name}`}>
-            <MenuItem className="a-menu-item" href={`/admin/themes/${id}#couleurs-da`} data-testid="theme-da-link" textValue="Couleurs de la DA">
-              <Text slot="label">Couleurs de la DA</Text>
-              <Text slot="description">Les six couleurs du thème, avec aperçu.</Text>
-            </MenuItem>
+            {/* Un thème à toi s'ouvre par « Modifier » (même écran) : « Voir les couleurs » n'existe que pour un thème fourni. */}
+            {theme.preset && (
+              <MenuItem className="a-menu-item" href={`/admin/themes/${id}#couleurs`} data-testid="theme-da-link" textValue="Voir les couleurs">
+                <Text slot="label">Voir les couleurs</Text>
+                <Text slot="description">Les couleurs du thème, avec aperçu.</Text>
+              </MenuItem>
+            )}
             <MenuItem className="a-menu-item" onAction={onDuplicate} isDisabled={busy} textValue="Dupliquer">
               <Text slot="label">Dupliquer</Text>
               <Text slot="description">Une copie que tu peux modifier.</Text>
             </MenuItem>
             <Separator className="a-menu-sep" />
-            <MenuItem className="a-menu-item" href={`/admin/api/themes/${id}/export`} download={`theme-${theme.id}.zip`} textValue="Exporter le thème (.zip)">
+            <MenuItem
+              className="a-menu-item"
+              href={`/admin/api/themes/${id}/export`}
+              download={`theme-${theme.id}.zip`}
+              textValue="Exporter le thème (.zip)"
+              onAction={() => toast(`Archive en cours de téléchargement : theme-${theme.id}.zip`)}
+            >
               <Text slot="label">Exporter le thème (.zip)</Text>
               <Text slot="description">Une archive à réimporter sur ce site ou un autre.</Text>
             </MenuItem>
@@ -94,9 +107,21 @@ export default function ThemeList({
   activeId,
   accents,
   thumbs = {},
+  preparingId = null,
+  previewOn = false,
+  previousId = null,
+  customColors = {},
 }: {
   themes: Theme[];
   activeId: string;
+  /** Thème prévisualisé, pas encore en ligne (lot 55). */
+  preparingId?: string | null;
+  /** Un aperçu (thème ou pages non publiées) est ouvert dans ce navigateur. */
+  previewOn?: boolean;
+  /** Thème qui était en ligne avant le dernier changement. */
+  previousId?: string | null;
+  /** Couleurs personnalisées du site, publiées par-dessus le thème en ligne. */
+  customColors?: SitePalette;
   /** Vignettes générées des thèmes livrés (id → chemin public). */
   thumbs?: Record<string, string | null>;
   accents: { id: number; title: string; accent: string }[];
@@ -105,7 +130,49 @@ export default function ThemeList({
   const [pending, setPending] = useState<Pending>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
+  const [keepColors, setKeepColors] = useState(true);
   const active = themes.find((t) => t.id === activeId);
+  const preparing = themes.find((t) => t.id === preparingId);
+  const previous = themes.find((t) => t.id === previousId);
+  const customNames = [...SITE_ROLES.filter((r) => customColors[r.key]).map((r) => r.name), ...NUANCE_KEYS.filter((k) => customColors[k] && customColors[k] !== "auto").map((k) => SITE_NUANCES[k].name)];
+  const hasCustom = customNames.length > 0;
+
+  /** Mise en ligne, puis un toast « Revenir au thème précédent » pendant un temps raisonnable (et l'encart permanent). */
+  const publish = (theme: Theme, resetColors: boolean) =>
+    startTransition(async () => {
+      setError(null);
+      const before = active;
+      const result = await activateThemeAction(theme.id, { resetColors });
+      if (!result.ok) {
+        setError(result.message ?? "L'action a échoué.");
+        return;
+      }
+      setPending(null);
+      toast(`« ${theme.name} » mis en ligne`, "success", before ? { label: `Revenir à « ${before.name} »`, run: () => void revert(before) } : undefined, UNDO_MS);
+      router.refresh();
+    });
+  const revert = (to: Theme) =>
+    startTransition(async () => {
+      const result = await activateThemeAction(to.id);
+      if (!result.ok) return toast(result.message ?? "L'action a échoué.", "error");
+      toast(`« ${to.name} » est de nouveau en ligne`);
+      router.refresh();
+    });
+  const resetColors = () =>
+    startTransition(async () => {
+      const result = await resetSiteColorsAction();
+      if (!result.ok) return toast(result.message ?? "L'action a échoué.", "error");
+      toast("Les couleurs du thème sont de retour");
+      router.refresh();
+    });
+  const stopPreview = async (done: () => void) => {
+    try {
+      await fetch("/admin/apercu/quitter", { method: "POST", body: new URLSearchParams({ retour: "/admin/themes" }), credentials: "same-origin", redirect: "manual" });
+    } catch {
+      /* hors ligne : l'état affiché sera rafraîchi */
+    }
+    done();
+  };
 
   const run = (fn: () => Promise<{ ok: boolean; message?: string }>, success: string, after?: () => void) =>
     startTransition(async () => {
@@ -125,7 +192,7 @@ export default function ThemeList({
     startTransition(async () => {
       const result = await duplicateThemeAction(theme.id);
       if (!result.ok) return toast(result.message, "error");
-      toast(`« ${theme.name} » dupliqué`);
+      toast(`Copie créée : « ${theme.name} (copie) »`);
       router.push(`/admin/themes/${result.data.id}`);
     });
 
@@ -136,9 +203,47 @@ export default function ThemeList({
           Thème en ligne : <strong>{active.name}</strong>
         </p>
       )}
+      {preparing && (
+        <div className="a-notice a-theme-preparing" role="status" data-testid="theme-preparing-banner">
+          <p>
+            Tu prépares le thème <strong>{preparing.name}</strong> : il n&apos;est pas encore en ligne.
+          </p>
+          <p className="a-card-actions">
+            <button type="button" className="a-btn a-btn-small a-btn-primary" onClick={() => setPending({ kind: "activate", theme: preparing })}>
+              Mettre en ligne
+            </button>
+            <button type="button" className="a-btn a-btn-small" onClick={() => void stopPreview(() => router.refresh())} data-testid="theme-stop-preview">
+              Arrêter l&apos;aperçu
+            </button>
+          </p>
+        </div>
+      )}
+      {hasCustom && (
+        <div className="a-notice" role="note" data-testid="custom-colors-notice">
+          <p>
+            <strong>Couleurs personnalisées du site</strong> : {customNames.join(", ").toLowerCase()}. Elles restent appliquées par-dessus le thème en ligne, quel que soit le thème.
+          </p>
+          <p className="a-card-actions">
+            <button type="button" className="a-btn a-btn-small" onClick={resetColors} disabled={busy} data-testid="custom-colors-reset">
+              Revenir aux couleurs du thème
+            </button>
+          </p>
+        </div>
+      )}
+      {previous && (
+        <p className="a-help" data-testid="theme-previous">
+          Thème précédent : <strong>{previous.name}</strong>{" "}
+          <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => revert(previous)} disabled={busy} data-testid="theme-revert">
+            Revenir au thème précédent
+          </button>
+        </p>
+      )}
       <div className="a-grid a-theme-grid">
         {themes.map((theme) => {
           const isActive = theme.id === activeId;
+          const isPreparing = theme.id === preparingId;
+          // Ce qui serait vraiment publié : les couleurs personnalisées par-dessus le thème (vignette dessinée et pastilles).
+          const shown = hasCustom ? { ...theme, tokens: { ...theme.tokens, color: applySitePalette(theme.tokens.color, theme.tokens.palette, customColors).color } } : theme;
           return (
             <section key={theme.id} className="a-card a-theme-card" aria-labelledby={`theme-${theme.id}`} data-active={isActive}>
               <div className="a-card-head">
@@ -147,12 +252,17 @@ export default function ThemeList({
                   <span className="a-badge a-badge-live" data-testid="theme-live">
                     <span aria-hidden="true">●</span> En ligne
                   </span>
+                ) : isPreparing ? (
+                  <span className="a-badge a-badge-prep" data-testid="theme-preparing">
+                    En préparation
+                  </span>
                 ) : (
-                  <span className="a-tag">{theme.preset ? "Livré · hors ligne" : "Hors ligne"}</span>
+                  <span className="a-tag">{theme.preset ? "Thème fourni" : "Mon thème"}</span>
                 )}
               </div>
-              <ThemeThumb theme={theme} src={theme.preset ? thumbs[theme.id] : null} />
-              <ThemeSwatches theme={theme} />
+              <ThemeThumb theme={shown} src={theme.preset ? thumbs[theme.id] : null} />
+              <ThemeSwatches theme={shown} />
+              {hasCustom && <p className="a-help a-theme-custom-note">Avec tes couleurs personnalisées.</p>}
               <div className="a-card-actions">
                 {!isActive && (
                   <button type="button" className="a-btn a-btn-small a-btn-primary" onClick={() => setPending({ kind: "activate", theme })}>
@@ -180,8 +290,9 @@ export default function ThemeList({
         onClose={() => {
           setPending(null);
           setError(null);
+          setKeepColors(true);
         }}
-        onConfirm={() => pending && run(() => activateThemeAction(pending.theme.id), `« ${pending.theme.name} » mis en ligne`)}
+        onConfirm={() => pending && publish(pending.theme, hasCustom && !keepColors)}
         extra={pending && <PreviewButton id={pending.theme.id} label="Prévisualiser d'abord" />}
       >
         <p className="a-swap">
@@ -190,6 +301,18 @@ export default function ThemeList({
           <strong>{pending?.theme.name}</strong>
         </p>
         <p className="muted">Tous tes visiteurs verront ce thème dès maintenant, sur toutes les pages.</p>
+        {hasCustom && (
+          <fieldset className="a-fieldset" data-testid="activate-colors">
+            <legend>Tes couleurs personnalisées</legend>
+            <p className="muted">Tes couleurs personnalisées ({customNames.slice(0, 3).join(", ").toLowerCase()}…) restent appliquées par-dessus.</p>
+            <label className="a-check">
+              <input type="radio" name="keep-colors" checked={keepColors} onChange={() => setKeepColors(true)} /> Les garder
+            </label>
+            <label className="a-check">
+              <input type="radio" name="keep-colors" checked={!keepColors} onChange={() => setKeepColors(false)} /> Revenir aux couleurs du nouveau thème
+            </label>
+          </fieldset>
+        )}
         {pending?.kind === "activate" &&
           (() => {
             const ignored = accents.filter((a) => accentProblem(a.accent, pending.theme.tokens.color));
@@ -222,6 +345,7 @@ export default function ThemeList({
         onConfirm={() => pending && run(() => deleteThemeAction(pending.theme.id), `« ${pending.theme.name} » supprimé`)}
       >
         <p className="muted">Ses couleurs et réglages seront perdus. Tes pages et tes œuvres ne changent pas.</p>
+        {pending?.theme.id === preparingId && <p className="muted">Tu es en train de le prévisualiser : l&apos;aperçu s&apos;arrête aussi et le site te montre de nouveau le thème en ligne.</p>}
         {error && <p className="a-alert">{error}</p>}
       </ConfirmDialog>
     </>

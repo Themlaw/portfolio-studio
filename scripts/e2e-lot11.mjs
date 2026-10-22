@@ -366,7 +366,7 @@ if (run("C")) {
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
   for (let i = 0; i < 2; i++) {
     // Copies seulement : ni thème livré, ni thème en ligne (leur menu n'a pas « Supprimer »).
-    const extra = page.locator('.a-theme-card[data-active="false"]', { hasNotText: "Livré" }).first();
+    const extra = page.locator('.a-theme-card[data-active="false"]', { hasNotText: "Thème fourni" }).first();
     if (!(await extra.count())) break;
     await menuItem(extra, "Supprimer");
     await page.locator("dialog[open]").getByRole("button", { name: "Supprimer" }).click();

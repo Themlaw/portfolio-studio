@@ -341,3 +341,9 @@
   margin-top: 6px;
   margin-bottom: 18px;
 }
+
+/* Couleurs personnalisées du site (lot 55) : rappel au-dessus de la liste des couleurs. */
+.lc-custom {
+  margin: 0 0 8px;
+  font-size: 13px;
+}

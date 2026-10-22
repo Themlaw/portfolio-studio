@@ -223,12 +223,12 @@ if (run("A"))
     const card = page.locator(".a-theme-card", { hasText: "Galerie lumineuse" }).first();
     // Lot 23 : le lien est dans le menu « … » de la carte.
     await card.getByRole("button", { name: /Plus d'actions/ }).click();
-    ok("A0 le menu de la carte du thème a un lien « Couleurs de la DA » (thème livré compris)", (await page.locator('[data-testid="theme-da-link"]').count()) === 1);
+    ok("A0 le menu de la carte du thème a un lien « Voir les couleurs » (thème livré compris)", (await page.locator('[data-testid="theme-da-link"]').count()) === 1);
     await page.locator('[data-testid="theme-da-link"]').click();
     await page.waitForURL(/\/admin\/themes\/galerie-lumineuse/);
     const da = page.locator('[data-testid="da-section"]');
     await da.waitFor();
-    ok("A1 section « Couleurs de la DA » sur la page du thème livré", /Couleurs de la DA/.test((await da.locator("h2").textContent()) ?? ""));
+    ok("A1 section « Couleurs » sur la page du thème livré", /^Couleurs$/.test(((await da.locator("h2").textContent()) ?? "").trim()));
     for (const n of ["Fond de page", "Cartes et encadrés", "Texte", "Boutons et liens", "Accent", "Ornements"]) ok(`A1 rôle « ${n} »`, (await da.locator(".lc-role strong", { hasText: n }).count()) === 1);
     ok("A1b chaque rôle a une phrase", (await da.locator(".lc-role small").allTextContents()).length === 6 && (await da.locator(".lc-role small").allTextContents()).every((t) => t.trim().length > 12));
     ok("A1c thème livré : lecture seule annoncée, ni nom ni enregistrement", (await page.locator('[data-testid="da-preset-note"]').count()) === 1 && (await page.locator("#theme-name").count()) === 0 && (await page.locator('[data-testid="da-save"]').count()) === 0);

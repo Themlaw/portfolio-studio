@@ -23,7 +23,12 @@ export function activeThemeForEdit(): Theme {
   return ThemeSchema.safeParse(parseJson(row?.data)).data ?? PRESETS[DEFAULT_THEME_ID];
 }
 
+/** Thème en préparation (lot 55) : aperçu admin d'un thème pas encore en ligne ; le panneau Couleurs montre CE thème. */
+export type PreparingInfo = { id: string; name: string; liveName: string };
+
 export type LookContext = {
+  /** Thème prévisualisé, pas encore en ligne (bandeau de l'éditeur) ; null : l'éditeur montre le thème en ligne. */
+  preparing: PreparingInfo | null;
   palette: Record<PaletteColor, string>;
   fonts: FontLibrary;
   /** Couleurs du thème actif SANS la palette du site (panneau « Couleurs » : `thème` / `modifiée`, contraste en direct). */
@@ -32,10 +37,12 @@ export type LookContext = {
   signature: boolean;
 };
 
-export function lookContextForEditor(): LookContext {
-  const theme = activeThemeForEdit();
+export function lookContextForEditor(preparing?: Theme | null): LookContext {
+  const live = activeThemeForEdit();
+  const theme = preparing ?? live;
   const c = theme.tokens.color;
   return {
+    preparing: preparing ? { id: preparing.id, name: preparing.name, liveName: live.name } : null,
     theme: { name: theme.name, color: c as PaletteColors, palette: theme.tokens.palette ?? null },
     signature: Boolean(theme.assets.kit?.signature),
     palette: {

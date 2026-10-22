@@ -7,6 +7,7 @@ import { readDraft } from "@/lib/edit/drafts";
 import { lookContextForEditor } from "@/lib/edit/look-context";
 import { siteForEditor } from "@/lib/edit/site";
 import { siteNameFor } from "@/lib/site-schema";
+import { getPreparingTheme, getTheme } from "@/lib/theme";
 
 export const metadata = { title: "Éditeur de page" };
 
@@ -23,6 +24,9 @@ export default async function VisualEditorPage({ params, searchParams }: { param
   const pages = listPagesForAdmin()
     .filter((p) => !p.slug.fr.startsWith("_"))
     .map((p) => ({ id: p.id, title: p.title || "Page sans titre", slug: p.slug }));
+  // Thème en préparation (aperçu depuis Admin → Thèmes) : la toile le montre, le panneau Couleurs aussi.
+  const preparingRef = await getPreparingTheme();
+  const preparing = preparingRef ? ((await getTheme(preparingRef.id)) ?? null) : null;
   const self = pages.find((p) => p.id === Number(id));
   return (
     <VisualEditor
@@ -41,7 +45,7 @@ export default async function VisualEditorPage({ params, searchParams }: { param
       siteName={siteNameFor(getSettingsForAdmin().site.name, "fr") || "Portfolio"}
       initialLocale={langue === "en" ? "en" : "fr"}
       site={siteForEditor(Number(id))}
-      look={lookContextForEditor()}
+      look={lookContextForEditor(preparing)}
     />
   );
 }

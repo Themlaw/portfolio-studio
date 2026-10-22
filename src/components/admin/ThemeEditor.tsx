@@ -354,13 +354,22 @@ export default function ThemeEditor({
 
       <div className="a-theme-cols">
         <div className="a-theme-settings" id={`${tabsId}-rp`} role="tabpanel" aria-labelledby={`${tabsId}-r`}>
-          <section className="a-panel a-da" id="couleurs-da" aria-labelledby="t-da" data-testid="da-section">
-            <h2 id="t-da">Couleurs de la DA</h2>
+          {!preset && (
+            <nav className="a-toc" aria-label="Sections du thème">
+              <a href="#couleurs">Couleurs</a>
+              <a href="#t-typo">Polices</a>
+              <a href="#t-formes">Formes</a>
+              <a href="#t-cartes">Cartes</a>
+              <a href="#t-papier">Papier</a>
+            </nav>
+          )}
+          <section className="a-panel a-da" id="couleurs" aria-labelledby="t-da" data-testid="da-section">
+            <h2 id="t-da">Couleurs</h2>
             {Object.keys(sitePalette).length > 0 && (
               <div className="a-notice" role="note" data-testid="da-site-override">
                 <p>
-                  Le site remplace {Object.keys(sitePalette).length} de ces couleurs depuis l&apos;éditeur de page :{" "}
-                  {overrideNames(sitePalette)}. Ce que tu changes ici ne s&apos;applique pas à ces couleurs tant que le site les remplace ; les deux réglages restent séparés.{" "}
+                  <strong>Couleurs personnalisées du site</strong> : {Object.keys(sitePalette).length} de ces couleurs sont remplacées depuis l&apos;éditeur de page :{" "}
+                  {overrideNames(sitePalette)}. Ce que tu changes ici ne s&apos;applique pas à ces couleurs tant qu&apos;elles sont personnalisées ; les deux réglages restent séparés.{" "}
                   {editorHref ? (
                     <Link href={editorHref} data-testid="da-site-override-link">
                       Ouvrir l&apos;éditeur de page (panneau « Couleurs »)
@@ -411,9 +420,6 @@ export default function ThemeEditor({
                       : "Couleurs modifiées, pas encore enregistrées."
                     : "Les couleurs montrées sont celles du thème enregistré."}
                 </p>
-                <button type="button" className="a-btn a-btn-primary" onClick={save} disabled={saving || !dirty} data-testid="da-save">
-                  {saving ? "Enregistrement…" : isActive ? "Enregistrer et publier…" : "Enregistrer les couleurs"}
-                </button>
               </div>
             )}
           </section>
@@ -430,8 +436,9 @@ export default function ThemeEditor({
             </div>
           </section>
 
-          <section className="a-panel" aria-labelledby="t-couleurs">
-            <h2 id="t-couleurs">Palette</h2>
+          <details className="a-panel a-fold" data-testid="palette-details">
+            <summary id="t-couleurs">Saisir les couleurs en code (réglage précis)</summary>
+            <p className="a-help">Les mêmes couleurs que ci-dessus, avec leur code (#rrggbb) : pratique pour recopier une teinte exacte.</p>
             {Object.keys(sitePalette).length > 0 && (
               <div className="a-notice" role="note" data-testid="site-palette-notice">
                 <p>
@@ -441,7 +448,7 @@ export default function ThemeEditor({
               </div>
             )}
             <PaletteEditor colors={colors} palette={theme.tokens.palette} onChange={setPalette} errors={errors} />
-          </section>
+          </details>
 
           <section className="a-panel" aria-labelledby="t-typo">
             <h2 id="t-typo">Typographies</h2>
@@ -574,6 +581,8 @@ export default function ThemeEditor({
             saving={saving}
             onSave={save}
             error={error}
+            label={isActive ? "Enregistrer et publier…" : "Enregistrer"}
+            testId="da-save"
             note={isActive ? "Ce thème est en ligne : l'enregistrer le publie aussitôt." : undefined}
           />
           <div className="a-kit-export">

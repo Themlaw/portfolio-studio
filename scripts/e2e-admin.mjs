@@ -145,8 +145,9 @@ try {
   await frame.locator("html[data-theme]").waitFor({ timeout: 30000 });
   ok("A2 aperçu en direct chargé (accueil en draft mode)", (await frame.locator("html").getAttribute("data-theme")) === themeId);
 
+  await page.locator('[data-testid="palette-details"] summary').click();
   const inkSoft = page.locator('.a-color[data-token="inkSoft"]');
-  await inkSoft.getByLabel("Texte secondaire", { exact: true }).fill("#c4c4c4");
+  await inkSoft.getByLabel(/^Texte secondaire/).fill("#c4c4c4");
   ok("A3 couleur sous AA signalée", await inkSoft.locator(".a-ratio-bad").isVisible());
   await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
   // Depuis la v0.21.1 le contraste n'est jamais bloquant : le thème est enregistré, l'avertissement (A3) reste affiché.
@@ -158,7 +159,7 @@ try {
   );
   ok("A4b l'avertissement de lisibilité reste affiché après l'enregistrement", await inkSoft.locator(".a-ratio-bad").isVisible());
   await inkSoft.getByRole("button", { name: /Ajuster à la teinte la plus proche/ }).click();
-  const adjusted = await inkSoft.getByLabel("Texte secondaire", { exact: true }).inputValue();
+  const adjusted = await inkSoft.getByLabel(/^Texte secondaire/).inputValue();
   ok("A5 « Ajuster » propose une teinte qui passe AA", await inkSoft.locator(".a-ratio-ok").isVisible(), adjusted);
 
   const NEW_PRIMARY = "#7a2e8e";

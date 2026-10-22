@@ -5,6 +5,7 @@
  * scripts/test-admin-guard.mjs), validation serveur (src/lib/edit/themes.ts :
  * zod + contraste AA), puis invalidation de l'étiquette « theme ».
  */
+import { cookies, draftMode } from "next/headers";
 import { z } from "zod";
 
 import { assertAdmin } from "@/lib/auth/guard";
@@ -13,7 +14,9 @@ import { purgeKitData, purgeKits } from "@/lib/kit/export-job";
 import { isImportId, purgeThemeImports } from "@/lib/kit/import-job";
 import { activateTheme, deleteTheme, duplicateTheme, saveTheme } from "@/lib/edit/themes";
 import { fail, type ActionResult } from "@/lib/edit/result";
-import { revalidateTheme } from "@/lib/revalidate";
+import { resetPublishedSitePalette } from "@/lib/edit/site";
+import { revalidateSettings, revalidateTheme } from "@/lib/revalidate";
+import { PREVIEW_COOKIE } from "@/lib/theme";
 
 const Id = z.string().regex(/^[a-z0-9-]{1,80}$/);
 
@@ -45,12 +48,31 @@ export async function saveThemeAction(id: unknown, input: unknown, confirmLive?:
   return result;
 }
 
-export async function activateThemeAction(id: unknown): Promise<ActionResult<null>> {
+/**
+ * Mise en ligne d'un thème. `options.resetColors` : les couleurs personnalisées du site ne restent pas par-dessus
+ * le nouveau thème (lot 55). Le thème qui était en ligne est retenu (« Revenir au thème précédent »).
+ */
+export async function activateThemeAction(id: unknown, options?: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const tid = themeId(id);
   if (!tid) return fail("Thème inconnu.");
-  const result = activateTheme(tid);
-  if (result.ok) revalidateTheme();
+  const resetColors = Boolean(options && typeof options === "object" && (options as { resetColors?: unknown }).resetColors === true);
+  const result = activateTheme(tid, resetColors);
+  if (result.ok) {
+    revalidateTheme();
+    if (resetColors) revalidateSettings();
+  }
+  return result;
+}
+
+/** « Revenir aux couleurs du thème » : retire les couleurs personnalisées du site (lot 55). */
+export async function resetSiteColorsAction(): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const result = resetPublishedSitePalette();
+  if (result.ok) {
+    revalidateSettings();
+    revalidateTheme();
+  }
   return result;
 }
 
@@ -61,6 +83,12 @@ export async function deleteThemeAction(id: unknown): Promise<ActionResult<null>
   const result = deleteTheme(tid);
   if (result.ok) {
     revalidateTheme();
+    // Le thème supprimé était peut-être en aperçu : l'aperçu s'arrête (sinon le site passerait en « aperçu des brouillons » sans explication).
+    const jar = await cookies();
+    if (jar.get(PREVIEW_COOKIE)?.value === tid) {
+      jar.delete(PREVIEW_COOKIE);
+      (await draftMode()).disable();
+    }
     // Kits en cache, manifestes et aperçus, imports du thème.
     await purgeKitData(tid);
     await purgeThemeImports(tid);
