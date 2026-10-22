@@ -149,6 +149,8 @@ ok("copie brouillon : couleurs du thème inchangées", draft.tokens.color.primar
 ok("copie brouillon : curseurs normal et clic (PNG du kit, points chauds)", draft.assets.kit?.cursors?.default?.x === 3 && draft.assets.kit?.cursors?.pointer?.x === 16 && /\/media\/kit\/[0-9a-f]{16}\.png$/.test(draft.assets.kit?.cursors?.default?.png2x ?? ""), JSON.stringify(draft.assets.kit?.cursors));
 
 /* ---- C. Site : curseurs ----------------------------------------------------- */
+// Lot 60 : le kit ne ramène plus dans l'éditeur : on ouvre Mon thème (la nouvelle version).
+await page.goto(`${BASE}/admin/themes/${DRAFT}?etape=logo`, { waitUntil: "load" });
 await page.locator("iframe").first().waitFor({ timeout: 30000 });
 await sleep(1500);
 await page.locator('[data-testid="step-tab-logo"]').click();
