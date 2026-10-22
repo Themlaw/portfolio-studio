@@ -102,7 +102,7 @@ await save("palette enregistrée (✓ Enregistré)");
 await page.reload({ waitUntil: "networkidle" });
 ok("enregistré et relu : survol toujours « auto », valeur recalculée", (await field("primaryHover").getAttribute("data-auto")) === "true" && (await hex("primaryHover")) === followed);
 const saved = readTheme(COPY);
-ok("base de données : palette.auto = [primaryHover], valeur effective enregistrée", saved.tokens.palette?.auto?.join() === "primaryHover" && saved.tokens.color.primaryHover === followed && saved.tokens.color.primary === "#1d6b4f", JSON.stringify(saved.tokens.palette));
+ok("base de données : palette.auto contient primaryHover (onPrimary suit aussi la base), valeur effective enregistrée", saved.tokens.palette?.auto?.includes("primaryHover") && saved.tokens.color.primaryHover === followed && saved.tokens.color.primary === "#1d6b4f", JSON.stringify(saved.tokens.palette));
 
 /* ---- B. Kit v4 : aller-retour (curseurs) ---------------------------------- */
 // La palette n'est plus lue dans la revue d'import (elle se règle dans l'éditeur visuel, lot 17f) : seuls les curseurs font l'aller-retour.

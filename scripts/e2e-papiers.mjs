@@ -130,7 +130,10 @@ async function settled() {
   await page.waitForFunction(() => !/Enregistrement/.test(document.querySelector(".ve-status")?.textContent ?? ""), null, { timeout: 120000 });
   await sleep(600);
 }
+// Lot 61 : la bibliothèque est dans l'éditeur de thème, dont l'aperçu pose le cookie d'aperçu du thème : on le quitte avant de regarder le site.
+const quitPreview = () => page.request.post(`${BASE}/admin/apercu/quitter`, { headers: { origin: BASE } }).catch(() => {});
 async function openEditor() {
+  await quitPreview();
   await page.goto(`${BASE}/admin/pages/${PAGE_ID}/editer`, { waitUntil: "domcontentloaded" });
   let fr = await canvas();
   if (await page.getByRole("button", { name: "Abandonner les modifications" }).count()) {
@@ -150,6 +153,7 @@ async function publish() {
   return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 async function activateTheme(name) {
+  await quitPreview();
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
   const card = page.locator(".a-theme-card", { hasText: name }).first();
   if ((await card.getAttribute("data-active")) === "true") return;

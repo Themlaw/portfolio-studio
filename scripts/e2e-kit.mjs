@@ -145,7 +145,7 @@ ok("décor libre : 4 plans (3 inchangés d'un plan exporté, « mes nuages » re
 ok("décor libre : résumé « composition changée »", /composition changée/.test((await page.locator('[data-testid="kit-decor-summary"]').textContent()) ?? ""));
 await page.screenshot({ path: `${SHOTS}/revue-decor-libre-1440.png`, fullPage: true });
 const draftA = await apply();
-ok("« Appliquer » : copie brouillon créée, éditeur ouvert", /galerie-lumineuse-kit/.test(draftA) && (await page.locator("h1").first().textContent()).includes("(kit)"));
+ok("« Appliquer » : copie brouillon créée, éditeur ouvert", /galerie-lumineuse-kit/.test(draftA) && (await page.locator("#theme-name").inputValue()).includes("(kit)"));
 const dataA = themeData(draftA);
 ok("copie : décor libre = 4 plans, ils remplacent tout le décor (plansOnly)", dataA?.assets?.kit?.plansOnly === true && dataA.assets.kit.plans?.length === 4 && dataA.assets.kit.plans.every(Boolean), JSON.stringify(dataA?.assets?.kit?.plans?.map((p) => Object.keys(p).join("+"))));
 await page.locator("iframe").first().waitFor({ timeout: 30000 });

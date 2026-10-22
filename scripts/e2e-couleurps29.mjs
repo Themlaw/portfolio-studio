@@ -452,8 +452,8 @@ if (run("N")) {
   const f = await openEditor(homeId);
   await page.getByRole("tab", { name: "Réglages" }).click();
   const NAMES = {
-    bg: ["Fond des rubriques alternées", "Traits de séparation"],
-    ink: ["Texte secondaire (présentations, légendes)", "Petits textes au-dessus des titres", "Ombres"],
+    bg: ["Fond des blocs", "Traits fins"],
+    ink: ["Texte secondaire (présentations, légendes)", "Petits textes d'étiquette", "Ombres"],
     primary: ["Au survol", "Texte sur les boutons"],
   };
   for (const [role, names] of Object.entries(NAMES)) {
@@ -462,7 +462,7 @@ if (run("N")) {
   }
   for (const role of ["surface", "secondary", "tertiary"]) ok(`N1b « ${role} » : aucune nuance`, (await page.locator(`.lc-role-item[data-role="${role}"] .lc-nuance-item`).count()) === 0);
   const lb = (await page.locator('[data-testid="lightbox-colors"] .lc-text strong').allTextContents()).map((t) => t.trim());
-  ok("N1c groupe « Image agrandie » : voile derrière l'image, texte et boutons sur le voile", JSON.stringify(lb) === JSON.stringify(["Voile derrière l'image", "Texte et boutons sur le voile"]) && (await page.getByRole("heading", { name: "Image agrandie" }).count()) === 1, JSON.stringify(lb));
+  ok("N1c groupe « Image agrandie » : fond des images agrandies, texte et boutons", JSON.stringify(lb) === JSON.stringify(["Fond des images agrandies", "Texte et boutons des images agrandies"]) && (await page.getByRole("heading", { name: "Image agrandie" }).count()) === 1, JSON.stringify(lb));
   ok("N1d chaque nuance dit où elle se voit (phrase)", (await page.locator(".lc-nuance-item .lc-text small").count()) >= 9);
   const item = (k) => page.locator(`.lc-nuance-item[data-nuance="${k}"]`);
   ok("N2 voile : « Automatique (calculée : … ) » avec sa pastille calculée visible", (await item("scrim").getAttribute("data-origin")) === "auto" && /Automatique \(calculée/.test((await item("scrim").textContent()) ?? "") && (await item("scrim").locator(".lc-chip").evaluate((e) => getComputedStyle(e).backgroundColor)) !== "rgba(0, 0, 0, 0)");

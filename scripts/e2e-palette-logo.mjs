@@ -183,7 +183,7 @@ if (run("P")) {
   ok("P1b chaque rôle a une phrase qui dit à quoi il sert", (await page.locator(".lc-role small").allTextContents()).every((t) => t.trim().length > 15));
   ok("P1c aucun jargon de schéma dans les noms (Surface, Action, profond, filets)", !/Surface|Action\b|profond|filets/i.test((await page.locator(".lc-role strong").allTextContents()).join(" ")));
   ok("P1d (lot 29) plus de bloc « Nuances calculées » replié : les neuf nuances sont rangées sous leur couleur ou sous « Image agrandie »", (await page.locator("details.lc-nuances").count()) === 0 && (await page.locator(".lc-nuance-item").count()) === 9);
-  ok("P1e chaque nuance est un bouton qui ouvre un sélecteur, avec son usage ; état « automatique » ou « thème » lisible", (await page.locator(".lc-nuance-item button.lc-nuance").count()) === 9 && /Fond des rubriques alternées/.test((await page.locator(".lc-role-item").first().textContent()) ?? "") && (await page.locator(".lc-nuance-item .lc-nstate").allTextContents()).every((t) => /automatique|thème|choisie/.test(t)));
+  ok("P1e chaque nuance est un bouton qui ouvre un sélecteur, avec son usage ; état « automatique » ou « thème » lisible", (await page.locator(".lc-nuance-item button.lc-nuance").count()) === 9 && /Fond des blocs/.test((await page.locator(".lc-role-item").first().textContent()) ?? "") && (await page.locator(".lc-nuance-item .lc-nstate").allTextContents()).every((t) => /automatique|thème|choisie/.test(t)));
 
   /* P2. Surlignage */
   await role("Texte").locator(".lc-role").hover();
@@ -222,7 +222,7 @@ if (run("P")) {
 
   /* P3''. Fond trop teinté : le défaut vient d'une NUANCE (fond profond), l'avertissement et l'ajustement la voient */
   await pickColor("Fond de page", TOO_TINTED_BG);
-  ok("P3m fond trop teinté : avertissement sur « Fond de page » (fond profond nommé)", await waitFor(async () => /Lisibilité insuffisante.*fond profond/i.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")));
+  ok("P3m fond trop teinté : avertissement sur « Fond de page » (fond des blocs nommé)", await waitFor(async () => /Lisibilité insuffisante.*fond des blocs/i.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")));
   await page.getByTestId("contrast-fix").click();
   ok("P3n « Ajuster automatiquement » : contraste suffisant, nuances comprises", await waitFor(async () => /Lisibilité : (bonne|juste)/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")));
   await pickColor("Fond de page", NEW_BG);

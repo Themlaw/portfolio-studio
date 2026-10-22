@@ -357,7 +357,7 @@ if (run("C"))
     await page.goto(`${BASE}/admin/themes/${COPY}`, { waitUntil: "networkidle" });
     await page.locator('[data-testid="da-section"]').waitFor();
     await previewFrame();
-    ok("C1 thème en ligne annoncé", /Ce thème est en ligne/.test((await page.locator("header, .a-page-header, main").first().textContent()) ?? "") || /Ce thème est en ligne/.test((await page.textContent("body")) ?? ""));
+    ok("C1 thème en ligne annoncé (état « En ligne » dans l'en-tête)", /En ligne/.test((await page.locator('[data-testid="guide-status"]').textContent()) ?? ""));
     const liveBefore = await publicVar("/fr", "--t-color-primary");
     await latencyOf("primary", NEW_PRIMARY, "--t-color-primary");
     ok("C2 en ligne : l'aperçu change tout de suite, pas le site public", (await publicVar("/fr", "--t-color-primary")) === liveBefore && /ne les verront qu'après « Enregistrer »/.test((await page.locator('[data-testid="da-state"]').textContent()) ?? ""));

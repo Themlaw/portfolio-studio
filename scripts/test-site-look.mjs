@@ -141,7 +141,7 @@ ok("contraste de la palette effective : même formule que le thème", Math.abs(c
   const g = PRESETS["galerie-lumineuse"].tokens;
   // Un fond un peu trop teinté fait échouer les étiquettes sur le fond profond (nuance recalculée) : l'ajustement le voit.
   ok("fond trop teinté : problème détecté", sitePaletteIssues(g.color, g.palette, { bg: "#f1ead9" }).length > 0);
-  ok("fond trop teinté : le couple « sur fond profond » est rattaché au rôle « Fond de page »", rolePairs(g.color, g.palette, { bg: "#f1ead9" }, "bg").some((p) => !p.ok && /fond profond/.test(p.label)));
+  ok("fond trop teinté : le couple « sur fond des blocs » est rattaché au rôle « Fond de page »", rolePairs(g.color, g.palette, { bg: "#f1ead9" }, "bg").some((p) => !p.ok && /fond des blocs/.test(p.label)));
   ok("rôle « Cartes et encadrés » non concerné par ce défaut", rolePairs(g.color, g.palette, { bg: "#f1ead9" }, "surface").every((p) => p.ok));
   const fixedBg = autoAdjustBase(g.color, g.palette, { bg: "#f1ead9" }, "bg");
   ok("fond trop teinté : ajusté à une teinte proche qui passe (nuances comprises)", typeof fixedBg === "string" && sitePaletteIssues(g.color, g.palette, { bg: fixedBg }).length === 0, String(fixedBg));
