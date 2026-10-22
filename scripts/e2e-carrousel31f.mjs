@@ -148,8 +148,17 @@ async function hoverSlot(f, uid, i) {
   // `i` négatif : la première place remplie (la bande du projet commence parfois par une place vide).
   if (i < 0) i = await rail(f, uid).evaluate((r) => [...r.querySelectorAll(":scope > [data-edit-slot]")].findIndex((e) => !e.hasAttribute("data-empty")));
   const s = slots(f, uid).nth(i);
-  await s.scrollIntoViewIfNeeded();
-  await mHover(s.locator(".strip-media, .pe-empty-box").first());
+  // La toile se redessine juste après un réglage (la place peut être remplacée sous nos yeux) : un seul nouvel essai.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await s.scrollIntoViewIfNeeded();
+      await mHover(s.locator(".strip-media, .pe-empty-box").first());
+      break;
+    } catch (e) {
+      if (attempt >= 2) throw e;
+      await sleep(600);
+    }
+  }
   await bar(f).waitFor({ timeout: 15000 });
   return s;
 }

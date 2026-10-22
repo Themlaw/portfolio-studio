@@ -104,7 +104,6 @@ async function pickImage(zone, nth, mediaName) {
   await zone.getByRole("button", { name: /Choisir une image|Changer d'image/ }).nth(nth).click();
   const dialog = page.getByRole("dialog");
   await dialog.locator(`.a-media-tile[title="${mediaName}"]`).click();
-  await dialog.getByRole("button", { name: "Utiliser cette image" }).click();
   await dialog.waitFor({ state: "hidden" });
 }
 const saved = async (scope) => scope.getByText("Enregistré", { exact: false }).first().waitFor({ timeout: 30000 });
