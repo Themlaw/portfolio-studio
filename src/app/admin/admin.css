@@ -1347,7 +1347,7 @@ body:has(.a-sidepanel) .a-toasts {
 .ve-top > .ve-theme-btn {
   /* Se rétrécit (nom coupé par « … ») avant de faire déborder la barre. */
   flex-shrink: 1;
-  min-width: 96px;
+  min-width: 90px;
   max-width: 240px;
   min-height: 32px;
   white-space: nowrap;
@@ -4310,7 +4310,7 @@ label.a-file-btn:focus-within {
 }
 
 .ve-page select {
-  min-width: 150px;
+  min-width: 120px;
   max-width: 220px;
   min-height: 32px;
 }
@@ -4452,7 +4452,7 @@ label.a-file-btn:focus-within {
   flex-shrink: 1;
   align-items: center;
   gap: 7px;
-  min-width: 150px;
+  min-width: 110px;
   color: var(--admin-ink-soft);
   font-size: 13px;
   white-space: nowrap;
