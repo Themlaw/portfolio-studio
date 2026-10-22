@@ -1330,6 +1330,108 @@ body:has(.a-sidepanel) .a-toasts {
   gap: 5px;
 }
 
+/* « En travail » : même forme que « En ligne », en orange (lot 63). Texte #8a5a00 sur #fbf3e2 : AA. */
+.a-badge-prep.a-badge-live {
+  background: var(--admin-warning-soft);
+  color: var(--admin-warning);
+  border: 1px solid var(--admin-warning);
+}
+
+.a-theme-card[data-preparing="true"] {
+  border-color: var(--admin-warning);
+  border-width: 2px;
+  box-shadow: 0 0 0 3px var(--admin-warning-soft);
+}
+
+/* Menu « Thème » de la barre de l'éditeur (lot 63). */
+.ve-top > .ve-theme-btn {
+  /* Se rétrécit (nom coupé par « … ») avant de faire déborder la barre. */
+  flex-shrink: 1;
+  min-width: 90px;
+  max-width: 240px;
+  min-height: 32px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1560px) and (min-width: 820px) {
+  /* Le menu Thème prend la place du nom du site (la flèche « Retour aux pages » reste ; le nom est dans le bandeau de l'onglet). */
+  .ve-top .ve-brand-text {
+    display: none;
+  }
+}
+
+@media (max-width: 1180px) and (min-width: 820px) {
+  /* Deux rangées : la barre ne peut pas contenir le menu Thème en plus (seuil de la largeur d'aperçu en menu déroulant). */
+  .ve-top {
+    flex-wrap: wrap;
+  }
+
+  .ve-top > .ve-break {
+    display: block;
+    flex-basis: 100%;
+    height: 0;
+    margin: -4px 0;
+  }
+}
+
+.ve-theme-btn[data-preparing="true"] {
+  border-color: var(--admin-warning);
+  background: var(--admin-warning-soft);
+}
+
+.ve-theme-popover {
+  width: 280px;
+  max-height: min(70vh, 420px);
+  overflow: auto;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 8px;
+  background: var(--admin-surface, #fff);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+}
+
+.ve-theme-dialog {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  outline: none;
+}
+
+.ve-theme-list {
+  display: grid;
+  gap: 2px;
+  outline: none;
+}
+
+.ve-theme-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  outline: none;
+}
+
+.ve-theme-item[data-focused],
+.ve-theme-item[data-hovered] {
+  background: var(--admin-warning-soft);
+}
+
+.ve-theme-item[data-focus-visible] {
+  outline: 2px solid var(--admin-ink);
+}
+
+.ve-theme-check {
+  width: 14px;
+}
+
+.ve-theme-name {
+  flex: 1;
+}
+
 .a-theme-live {
   margin: 0 0 12px;
   padding: 8px 12px;
@@ -6905,4 +7007,11 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
 }
 .ve-frame-wrap[data-wide] .ve-frame {
   max-width: none;
+}
+
+.ve-theme-cur {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

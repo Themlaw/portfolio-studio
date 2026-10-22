@@ -12,6 +12,7 @@ import { cookies, draftMode } from "next/headers";
 
 import { assertAdmin } from "@/lib/auth/guard";
 import { getDb, schema } from "@/lib/db";
+import { touchThemeUsage } from "@/lib/edit/theme-usage";
 import { adminScreen, isSameOrigin, PREVIEW_FROM_COOKIE } from "@/lib/preview";
 import { getTheme, PREVIEW_COOKIE } from "@/lib/theme";
 
@@ -44,6 +45,8 @@ export async function POST(request: Request) {
     // Aperçu d'une page : avec le thème en ligne, pas un thème en essai.
     jar.delete(PREVIEW_COOKIE);
   } else {
+    // Thème préparé : retenu comme « utilisé » (menu Thème de l'éditeur, lot 63).
+    touchThemeUsage(id);
     jar.set(PREVIEW_COOKIE, id, {
       path: "/",
       httpOnly: true,

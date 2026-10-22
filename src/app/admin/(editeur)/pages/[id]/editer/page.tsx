@@ -4,6 +4,8 @@ import { blockCatalog, blockEditors } from "@/blocks/registry";
 import VisualEditor from "@/components/admin/editor/VisualEditor";
 import { getEditorContext, getSettingsForAdmin, listPagesForAdmin, overlayProjectSlugs } from "@/lib/admin";
 import { readDraft } from "@/lib/edit/drafts";
+import { readThemeUsage, sortThemeChoices } from "@/lib/edit/theme-usage";
+import { getThemeOverview } from "@/lib/admin";
 import { lookContextForEditor } from "@/lib/edit/look-context";
 import { siteForEditor } from "@/lib/edit/site";
 import { siteNameFor } from "@/lib/site-schema";
@@ -27,6 +29,8 @@ export default async function VisualEditorPage({ params, searchParams }: { param
   // Thème en préparation (aperçu depuis Admin → Thèmes) : la toile le montre, le panneau Couleurs aussi.
   const preparingRef = await getPreparingTheme();
   const preparing = preparingRef ? ((await getTheme(preparingRef.id)) ?? null) : null;
+  const overview = getThemeOverview();
+  const themeChoices = sortThemeChoices(overview.themes, overview.activeId, readThemeUsage());
   const self = pages.find((p) => p.id === Number(id));
   return (
     <VisualEditor
@@ -46,6 +50,7 @@ export default async function VisualEditorPage({ params, searchParams }: { param
       initialLocale={langue === "en" ? "en" : "fr"}
       site={siteForEditor(Number(id))}
       look={lookContextForEditor(preparing)}
+      themeChoices={themeChoices}
     />
   );
 }

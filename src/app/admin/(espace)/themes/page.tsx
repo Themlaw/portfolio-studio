@@ -7,6 +7,7 @@ import ThemeImportButton from "@/components/admin/ThemeImportButton";
 import ThemeList from "@/components/admin/ThemeList";
 import { getThemeOverview, listPageAccents } from "@/lib/admin";
 import { getThemeFrameAllSetting } from "@/lib/edit/frame-all";
+import { lastEditedPageId } from "@/lib/edit/theme-usage";
 import { previousThemeId } from "@/lib/edit/themes";
 import { publishedSitePalette } from "@/lib/edit/site";
 import { getPreparingTheme } from "@/lib/theme";
@@ -60,6 +61,7 @@ export default async function ThemesPage() {
           preparingId={preparing?.id ?? null}
           previewOn={previewOn}
           previousId={previousThemeId()}
+          editorPageId={lastEditedPageId()}
           customColors={publishedSitePalette()}
           thumbs={Object.fromEntries(sorted.map((t) => [t.id, presetThumb(t.id)]))}
         />
