@@ -146,9 +146,9 @@ const TABS: { id: Tab; label: string }[] = [
 const DEBOUNCE_MS = 800;
 const HISTORY_MAX = 100;
 const MOBILE = "(max-width: 819px)";
-/** Barre du haut (lot 24, seuils relevés au lot 63 : le menu « Thème » prend ~200 px) : « Abandonner » passe dans le menu « Plus » sous 1560 px, la largeur d aperçu sous 1320 px ; « Publier » reste visible. */
-const TOP_TIGHT = "(max-width: 1560px)";
-const TOP_TIGHTER = "(max-width: 1320px)";
+/** Barre du haut (lot 24) : « Abandonner » passe dans le menu « Plus » sous 1360 px, la largeur d'aperçu sous 1180 px ; « Publier » reste visible. */
+const TOP_TIGHT = "(max-width: 1360px)";
+const TOP_TIGHTER = "(max-width: 1180px)";
 
 /** Texte tel que l'artiste le lit : le mot mis en valeur (<mark>) entre « ». */
 const readable = (text: string) => text.replace(/<mark>([\s\S]*?)<\/mark>/g, "« $1 »").replace(/<\/?mark>/g, "");

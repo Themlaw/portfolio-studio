@@ -1344,12 +1344,29 @@ body:has(.a-sidepanel) .a-toasts {
 }
 
 /* Menu « Thème » de la barre de l'éditeur (lot 63). */
-.ve-theme-btn {
+.ve-top > .ve-theme-btn {
+  /* Se rétrécit (nom coupé par « … ») avant de faire déborder la barre. */
+  flex-shrink: 1;
+  min-width: 96px;
   max-width: 240px;
   min-height: 32px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+@media (max-width: 1180px) and (min-width: 820px) {
+  /* Deux rangées : la barre ne peut pas contenir le menu Thème en plus (seuil de la largeur d'aperçu en menu déroulant). */
+  .ve-top {
+    flex-wrap: wrap;
+  }
+
+  .ve-top > .ve-break {
+    display: block;
+    flex-basis: 100%;
+    height: 0;
+    margin: -4px 0;
+  }
 }
 
 .ve-theme-btn[data-preparing="true"] {
@@ -6982,4 +6999,11 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
 }
 .ve-frame-wrap[data-wide] .ve-frame {
   max-width: none;
+}
+
+.ve-theme-cur {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
