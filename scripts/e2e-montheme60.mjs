@@ -131,6 +131,7 @@ try {
 
     // Vignette réelle : la vraie page d'accueil, avec le thème de Mon thème (modèle de départ), pas celui qui est en ligne.
     const fr = await thumbFrame(page.locator('[data-testid="mine-card"] iframe'));
+    await fr.waitForSelector("html[data-preview-framed]", { timeout: 30000 }).catch(() => {});
     const bg = await frameVar(fr, "--t-color-bg");
     ok("A7 vignette réelle de l'accueil : rendue avec les couleurs de Mon thème (modèle de départ), pas du thème en ligne", bg === rgb(FIRST.tokens.color.bg) && FIRST.tokens.color.bg.toLowerCase() !== LIVE0_BG, `${bg} / ${FIRST.tokens.color.bg} / ${LIVE0_BG}`);
     ok("A7b dans la vignette : ni bandeau d'aperçu ni bouton d'édition", (await fr.locator(".preview-banner:visible, .pe-edit-this:visible").count()) === 0 && (await fr.locator("html[data-preview-framed]").count()) === 1);

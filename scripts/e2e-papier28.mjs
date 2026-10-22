@@ -390,7 +390,7 @@ await section("C", async () => {
 await section("D", async () => {
   await activateTheme("carnet-d-atelier");
   const actives = await page.locator(".a-theme-card").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-active")}:${(e.textContent ?? "").slice(0, 24)}`));
-  ok("D0 thème sans papier en ligne", actives.some((a) => /^true:Carnet/.test(a)), actives.join(" | "));
+  ok("D0 thème sans papier en ligne", actives.some((a) => /^true:Mon thème/.test(a)), actives.join(" | "));
   await page.screenshot({ path: path.join(SHOTS, "d0-themes.png") });
   // Les écrans d'édition de thème laissent un aperçu (cookie) du thème édité : on le quitte pour revoir le thème en ligne.
   await page.goto(`${BASE}/api/theme-preview?id=&banner=0`, { waitUntil: "domcontentloaded" });

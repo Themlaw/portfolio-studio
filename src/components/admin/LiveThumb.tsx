@@ -17,7 +17,7 @@ export default function LiveThumb({ themeRef, stamp }: { themeRef: string; /** C
   // Le cadre ne se charge qu'un instant APRÈS l'écran (la page d'accueil entière, ce n'est pas rien) : l'écran Thèmes reste vif et se dit « chargé » sans attendre les vignettes.
   const [armed, setArmed] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setArmed(true), 1500);
+    const t = setTimeout(() => setArmed(true), 3500);
     return () => clearTimeout(t);
   }, []);
   useEffect(() => {

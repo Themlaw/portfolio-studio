@@ -550,7 +550,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : name === "deleteFontAction" ? "/admin/reglages"
     : name === "resetSiteColorsAction" ? "/admin/themes"
     : name === "closeEditSessionAction" || name === "duplicateThemeAction" ? "/admin/themes/galerie-lumineuse"
-    : /VersionAction|KeepVersion|pinVersion/.test(name) ? "/admin/themes/mon-theme/versions"
+    : /[vV]ersion/.test(name) ? "/admin/themes/mon-theme/versions"
     : /Model|OldTheme/.test(name) ? "/admin/themes"
     : /Onboarding/.test(name) ? "/admin"
     : /Draft|[bB]oard|Font/.test(name) ? "/admin/pages/1/editer"
@@ -2827,8 +2827,8 @@ const st3 = await waitImport("pro", foreignUp.body.kitImport?.id);
 const rap3 = st3.status === "done" ? rapportOf(dirK, foreignUp.body.kitImport.id) : null;
 const foreignHtml = rap3 ? await (await fetch(`${BASE}/admin/themes/pro/kit?import=${foreignUp.body.kitImport.id}`, { headers: { cookie: kv.jar.header() } })).text() : "";
 ok(
-  "TI10 kit d'un autre thème : signalé (« Ce kit vient du thème … »), reconnu, appliqué à son thème d'origine (choix du thème visé affiché)",
-  rap3?.reference?.themeId === "galerie-lumineuse" && rap3?.foreign?.themeId === "galerie-lumineuse" && rap3.slots.filter((x) => x.change === "redrawn").length === 1 && /Ce kit vient du thème/.test(foreignHtml) && /data-testid="kit-base-select"/.test(foreignHtml),
+  "TI10 kit d'un autre thème : signalé (« Ce kit vient du thème … »), reconnu, appliqué à Mon thème (phrase « Le kit s'applique à : … » affichée, plus de choix du thème visé)",
+  rap3?.reference?.themeId === "galerie-lumineuse" && rap3?.foreign?.themeId === "galerie-lumineuse" && rap3.slots.filter((x) => x.change === "redrawn").length === 1 && /Ce kit vient du thème/.test(foreignHtml) && /data-testid="kit-base"/.test(foreignHtml) && !/data-testid="kit-base-select"/.test(foreignHtml),
   JSON.stringify({ st3, ref: rap3?.reference, foreign: rap3?.foreign }),
 );
 

@@ -299,11 +299,9 @@ const menuItem = async (card, name) => {
 if (run("C")) {
   console.log("== C. Admin → Thèmes : tokens.type");
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const before = await page.locator(".a-theme-card").count();
-  await menuItem(page.locator(".a-theme-card", { hasText: "Galerie lumineuse" }).first(), "Dupliquer");
-  await page.waitForFunction((n) => document.querySelectorAll(".a-theme-card").length > n, before, { timeout: 30000 }).catch(() => {});
-  await page.waitForLoadState("networkidle");
-  const copyId = q("select id from themes where id like 'galerie-lumineuse-%' order by rowid desc limit 1")[0]?.id ?? q("select id from themes order by rowid desc limit 1")[0].id;
+  // Lot 60 : plus de « Dupliquer » ; le thème qu'on modifie est Mon thème (créé depuis « Galerie lumineuse »).
+  await activateTheme("Galerie lumineuse");
+  const copyId = q("select id from themes where mine = 1")[0].id;
   await page.goto(`${BASE}/admin/themes/${encodeURIComponent(copyId)}`, { waitUntil: "networkidle" });
   const type = page.getByTestId("theme-type");
   ok("C1 éditeur de thème : section « Styles par rôle » (sept rôles)", (await type.locator("fieldset").count()) === 7);
@@ -357,18 +355,19 @@ if (run("C")) {
   const row = importedId ? q("select data from themes where id = ?", importedId)[0] : null;
   const kept = row && JSON.parse(row.data).tokens.type?.h2;
   ok("C6 export puis import : tokens.type conservé", imported.status === 200 && kept?.case === "upper" && kept?.weight === 300 && kept?.font === "caption", JSON.stringify(imported.body).slice(0, 200));
-  // Cleanup : les deux copies.
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  for (let i = 0; i < 2; i++) {
-    // Copies seulement : ni thème livré, ni thème en ligne (leur menu n'a pas « Supprimer »).
-    const extra = page.locator('.a-theme-card[data-active="false"]', { hasNotText: "Thème fourni" }).first();
-    if (!(await extra.count())) break;
-    await menuItem(extra, "Supprimer");
-    await page.locator("dialog[open]").getByRole("button", { name: "Supprimer" }).click();
+  // Nettoyage : le thème importé (« Mes anciens thèmes »). Mon thème, lui, reste.
+  if (importedId) {
+    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    const olds = page.locator('[data-testid="olds-section"]');
+    for (let i = 0; i < 3 && (await olds.getAttribute("open")) === null; i++) {
+      await olds.locator("summary").click();
+      await sleep(400);
+    }
+    await page.locator("section[data-old]", { has: page.locator(`h2#theme-${importedId}`) }).getByTestId("old-delete").click();
+    await page.locator("dialog[open]").getByRole("button", { name: "Supprimer", exact: true }).click();
     await page.locator("dialog[open]").waitFor({ state: "detached" });
-    await page.reload({ waitUntil: "networkidle" });
   }
-  ok("C7 copies supprimées", (await page.locator(".a-theme-card").count()) === before);
+  ok("C7 thème importé supprimé", !importedId || (await waitFor(() => q("select id from themes where id = ?", importedId).length === 0, 20000)));
 }
 
 ok("aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));
