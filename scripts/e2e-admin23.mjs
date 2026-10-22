@@ -355,7 +355,7 @@ try {
   ok("D2b une seule phrase d'explication en tête de page", (await page.locator(".a-page-header p").count()) === 1 && /Mon thème/.test(await page.locator(".a-page-header p").innerText()) && /kit Photoshop/.test(await page.locator(".a-page-header p").innerText()));
   await tcard.getByRole("button", { name: /Plus d'actions/ }).click();
   const items = await page.getByRole("menuitem").evaluateAll((els) => els.map((e) => e.querySelector('[slot="label"]')?.textContent?.trim() ?? ""));
-  ok("D3 le menu d'un modèle propose l'export du thème (.zip) ; la copie et le kit passent par Mon thème", items.length === 1 && items[0] === "Exporter le thème (.zip)", JSON.stringify(items));
+  ok("D3 le menu d'un modèle propose « Voir les couleurs » et l'export du thème (.zip) ; le kit passe par Mon thème", items.length === 2 && items[0] === "Voir les couleurs" && items[1] === "Exporter le thème (.zip)", JSON.stringify(items));
   ok("D3b « Kit rempli… » n'existe plus", !items.some((n) => /Kit rempli/.test(n)) && (await page.getByText("Kit rempli").count()) === 0);
   const descs = await page.getByRole("menuitem").evaluateAll((els) => Object.fromEntries(els.map((e) => [e.querySelector('[slot="label"]')?.textContent?.trim(), e.querySelector('[slot="description"]')?.textContent?.trim()])));
   ok("D4 l'export du thème (.zip) est expliqué (« à réimporter »)", /réimporter/.test(descs["Exporter le thème (.zip)"] ?? ""), JSON.stringify(descs));

@@ -320,8 +320,20 @@ await section("B", async () => {
 
 /* ---- C. Réglage du site ---------------------------------------------------------------------------------------------------------- */
 
+/** Lot 60 : le thème en ligne est Mon thème ; on le modifie (brouillon) puis on publie la version. */
+const mineId = () => q("select id from themes where mine = 1")[0].id;
+async function publishMine() {
+  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  const b = page.getByTestId("mine-publish");
+  if (await b.count()) {
+    await b.click();
+    await page.locator("dialog[open]").getByRole("button", { name: "Publier", exact: true }).click();
+    await page.locator("dialog[open]").waitFor({ state: "detached", timeout: 30000 });
+  }
+  await sleep(800);
+}
 await section("C", async () => {
-  await page.goto(`${BASE}/admin/themes/${THEME_ID}`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/admin/themes/${mineId()}`, { waitUntil: "networkidle" });
   const panel = page.locator("section", { has: page.getByRole("heading", { name: "Papier dessiné" }) });
   ok("C1 l'éditeur de thème a « Papier dessiné » avec « Papier visible sur les cartes »", await panel.waitFor({ timeout: 30000 }).then(() => true, () => false) && (await panel.locator('[data-testid="paper-on-cards"]').count()) === 1);
   ok("C1 curseur d'intensité masqué tant que la case est décochée", (await panel.locator('[data-testid="paper-on-cards-opacity"]').count()) === 0);
@@ -330,9 +342,10 @@ await section("C", async () => {
   await range.fill("40");
   await page.getByRole("button", { name: /^Enregistrer/ }).click();
   ok("C2 réglage enregistré dans le thème (assets.kit.paper.onCards / onCardsOpacity)", await waitFor(() => {
-    const p = JSON.parse(q("select data from themes where id = ?", THEME_ID)[0].data).assets.kit.paper;
+    const p = JSON.parse(q("select data from themes where id = ?", mineId())[0].data).assets.kit.paper;
     return p.onCards === true && p.onCardsOpacity === 0.4;
   }));
+  await publishMine();
 
   f = await openEditor();
   const menu = await openMenu();

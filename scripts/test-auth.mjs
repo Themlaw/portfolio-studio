@@ -549,8 +549,9 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : name === "savePageInfoAction" ? "/admin/pages/1"
     : name === "deleteFontAction" ? "/admin/reglages"
     : name === "resetSiteColorsAction" ? "/admin/themes"
-    : name === "closeEditSessionAction" ? "/admin/themes/galerie-lumineuse"
-    : /Model|Version|OldTheme/.test(name) ? "/admin/themes"
+    : name === "closeEditSessionAction" || name === "duplicateThemeAction" ? "/admin/themes/galerie-lumineuse"
+    : /VersionAction|KeepVersion|pinVersion/.test(name) ? "/admin/themes/mon-theme/versions"
+    : /Model|OldTheme/.test(name) ? "/admin/themes"
     : /Onboarding/.test(name) ? "/admin"
     : /Draft|[bB]oard|Font/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
@@ -1163,7 +1164,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   const stored = JSON.parse(query(dirA, "select data from themes where id = ?", copyId).data);
   ok("A12b la couleur est enregistrée telle quelle", stored.tokens.color.inkSoft === "#d0d0d0", stored.tokens.color.inkSoft);
   res = await callActionJson(jar, ids.saveThemeAction, ["galerie-lumineuse", theme], "/admin/themes");
-  ok("A12c un preset ne se modifie pas", res.text.includes("duplique-le"), res.text.slice(0, 200));
+  ok("A12c un preset ne se modifie pas", /Un modèle ne se modifie pas/.test(res.text), res.text.slice(0, 200));
   theme.tokens.color.inkSoft = "#5f636a";
   theme.tokens.color.bg = "#fff;}body{display:none";
   res = await callActionJson(jar, ids.saveThemeAction, [copyId, theme], `/admin/themes/${copyId}`);
@@ -2733,14 +2734,14 @@ ok("TI8 import d'un autre thème : écran, état, aperçu 404 ; application refu
 const activeBefore = query(dirK, "select value from settings where key = 'activeThemeId'")?.value;
 const sourceBefore = themeData("galerie-lumineuse");
 const applied = await callActionJson(kv.jar, ids.applyKitImportAction, ["galerie-lumineuse", importId, { mirror: true }], `/admin/themes/galerie-lumineuse/kit`);
-const draftId = /"id":"(galerie-lumineuse-kit[a-z0-9-]*)"/.exec(applied.text)?.[1];
+const draftId = /"id":"(mon-theme[a-z0-9-]*)"/.exec(applied.text)?.[1];
 const draft = draftId ? JSON.parse(themeData(draftId)) : null;
 const arrowUrl = draft?.assets?.kit?.icons?.arrowRight?.svg;
 const served = arrowUrl ? await fetch(`${BASE}${arrowUrl}`) : null;
 const leftUrl = draft?.assets?.kit?.icons?.arrowLeft?.svg;
 const leftSvg = leftUrl ? await (await fetch(`${BASE}${leftUrl}`)).text() : "";
 ok(
-  "TI7 application : copie brouillon (non active) avec la flèche de l'artiste et son miroir ; données du thème source et thème en ligne inchangés",
+  "TI7 application : nouvelle version de Mon thème (brouillon, non active) avec la flèche de l'artiste et son miroir ; données du thème source et thème en ligne inchangés",
   Boolean(draftId) && draft.preset === false && served?.status === 200 && /svg/.test(served.headers.get("content-type") ?? "") && leftUrl !== arrowUrl && /matrix\(-1 0 0 1 128 0\)/.test(leftSvg) && themeData("galerie-lumineuse") === sourceBefore && query(dirK, "select value from settings where key = 'activeThemeId'")?.value === activeBefore,
   `${applied.text.slice(0, 120)} ${arrowUrl}`,
 );

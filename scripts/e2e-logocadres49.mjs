@@ -401,8 +401,9 @@ if (run("KT"))
     ok("KT1 revue : le message dit que le logo garde ses couleurs", /garde ses couleurs/.test((sig?.msgs ?? []).join(" ")), JSON.stringify(sig?.msgs));
     ok("KT1 revue : plus de « elle prend la couleur du thème » pour ce logo", !/prend la couleur du thème/.test((sig?.msgs ?? []).join(" ")));
     ok("KT1 revue : le cadre redessiné est reconnu changé", cad?.change === "redrawn", JSON.stringify(cad));
-    await Promise.all([page.waitForURL(/\/admin\/themes\/[a-z0-9-]*-kit[a-z0-9-]*$/, { timeout: 60000 }), page.getByRole("button", { name: "Appliquer au thème" }).click()]);
-    const draftId = page.url().split("/").pop();
+    // Lot 60 : le kit crée une version de Mon thème (brouillon), publiée plus bas.
+    await Promise.all([page.waitForURL(/\/admin\/themes\?nouvelle=\d+&via=kit/, { timeout: 60000 }), page.getByRole("button", { name: /^Appliquer à mon thème/ }).click()]);
+    const draftId = sql((db) => db.prepare("select id from themes where mine = 1").get()).id;
     const data = JSON.parse(sql((db) => db.prepare("select data from themes where id = ?").get(draftId))?.data ?? "null");
     ok("KT2 thème : la signature est rangée « en couleurs » (colors), en SVG ou AVIF, pas en masque", data?.assets?.kit?.signature?.colors === true, JSON.stringify(data?.assets?.kit?.signature));
     ok("KT2 thème : le cadre est rangé", Boolean(data?.assets?.kit?.frame), JSON.stringify(data?.assets?.kit?.frame));
@@ -422,9 +423,8 @@ if (run("KT"))
     if (!done) info("KT3 état de l'éditeur", await page.evaluate(() => document.body.innerText.slice(0, 600)));
     ok("KT3 page publiée", done);
     await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-    const card = page.locator(".a-theme-card", { hasText: data.name }).first();
-    await card.getByRole("button", { name: "Mettre en ligne" }).click();
-    await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
+    await page.getByTestId("mine-publish").click();
+    await page.locator("dialog[open]").getByRole("button", { name: "Publier", exact: true }).click();
     await page.locator("dialog[open]").waitFor({ state: "detached" });
     await sleep2(1500);
 

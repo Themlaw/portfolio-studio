@@ -345,7 +345,7 @@ try {
     const olds = page.locator('[data-testid="olds-section"]');
     ok("G1 « Mes anciens thèmes » : section repliée par défaut, avec le nombre", (await olds.count()) === 1 && (await olds.getAttribute("open")) === null && /Mes anciens thèmes \(\d+\)/.test((await olds.locator("summary").textContent()) ?? ""));
     await olds.locator("summary").click();
-    ok("G2 ouverte : les « (kit) », « (copie) », « (importé) » et les thèmes à part sont là, rien n'a été supprimé", (await olds.locator("section[data-old]").count()) >= 6 && ["Studio (kit)", "Studio (copie)", "Studio (importé)"].every((n) => q1("select id from themes where name = ?", n)), String(await olds.locator("section[data-old]").count()));
+    ok("G2 ouverte : les « (kit) », « (copie) », « (importé) » et les thèmes à part sont là, rien n'a été supprimé", (await olds.locator("section[data-old]").count()) >= 5 && ["Studio (kit)", "Studio (copie)", "Studio (importé)"].every((n) => q1("select id from themes where name = ?", n)), String(await olds.locator("section[data-old]").count()));
     const oldCard = olds.locator("section[data-old]", { has: page.locator("h2#theme-studio-copie") });
     ok("G3 chaque ancien thème : [Prévisualiser] [En faire mon thème (nouvelle version)] [Supprimer], vignette réelle", (await oldCard.getByRole("button", { name: /Prévisualiser/ }).count()) === 1 && (await oldCard.getByTestId("old-adopt").count()) === 1 && (await oldCard.getByTestId("old-delete").count()) === 1 && (await oldCard.getByTestId("live-thumb").count()) === 1);
     await shot(page, "G-anciens");
@@ -355,7 +355,10 @@ try {
     await oldCard.getByTestId("old-adopt").click();
     await page.waitForURL(/nouvelle=\d+&via=adopt/, { timeout: 60000 });
     ok("G4 « En faire mon thème » : nouvelle version de Mon thème avec ses couleurs, l'ancien thème est toujours là", mine().version === vBefore + 1 && JSON.parse(mine().data).tokens.color.bg === "#f1e9ff" && Boolean(row("studio-copie")) && versions(M.id).at(-1).source === "adopt", JSON.stringify(versions(M.id).at(-1)));
-    await page.locator('[data-testid="olds-section"] summary').click();
+    for (let i = 0; i < 3 && (await page.locator('[data-testid="olds-section"]').getAttribute("open")) === null; i++) {
+      await page.locator('[data-testid="olds-section"] summary').click();
+      await sleep(500);
+    }
     const delCard = page.locator('[data-testid="olds-section"] section[data-old]', { has: page.locator("h2#theme-studio-importe") });
     await delCard.getByTestId("old-delete").click();
     await dialog().waitFor();

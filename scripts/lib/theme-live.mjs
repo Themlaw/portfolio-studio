@@ -19,7 +19,7 @@ export async function activateThemeUi(page, BASE, which) {
     await card.getByTestId("use-model").click();
     if (await dialog.waitFor({ timeout: 2500 }).then(() => true, () => false)) await dialog.getByRole("button", { name: "Remplacer", exact: true }).click();
     await page.getByTestId("mine-card").waitFor({ timeout: 60000 });
-    await page.waitForLoadState("networkidle");
+    await sleep(1500);
   } else if ((await card.getAttribute("data-old")) !== null) {
     if (!(await card.isVisible())) await page.locator('[data-testid="olds-section"] summary').click();
     await card.getByTestId("old-adopt").click();

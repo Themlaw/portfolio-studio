@@ -87,7 +87,7 @@ function KitMenu({ theme }: { theme: Theme }) {
 }
 
 /** Menu « … » d'une carte : l'archive du thème (se réimporte), et, pour un ancien thème, rien d'autre. */
-function MoreMenu({ theme }: { theme: Theme }) {
+function MoreMenu({ theme, colorsLink = false }: { theme: Theme; /** Modèle : « Voir les couleurs » (essai en lecture seule, sans rien modifier). */ colorsLink?: boolean }) {
   const id = encodeURIComponent(theme.id);
   return (
     <MenuTrigger>
@@ -96,6 +96,12 @@ function MoreMenu({ theme }: { theme: Theme }) {
       </AriaButton>
       <Popover className="a-menu-popover" placement="bottom end" offset={4}>
         <Menu className="a-menu" aria-label={`Actions de ${theme.name}`}>
+          {colorsLink && (
+            <MenuItem className="a-menu-item" href={`/admin/themes/${id}#couleurs`} data-testid="theme-da-link" textValue="Voir les couleurs">
+              <Text slot="label">Voir les couleurs</Text>
+              <Text slot="description">Les couleurs du modèle, avec aperçu (rien n&apos;est modifié).</Text>
+            </MenuItem>
+          )}
           <MenuItem
             className="a-menu-item"
             href={`/admin/api/themes/${id}/export`}
@@ -446,7 +452,7 @@ export default function ThemeList({
                   <button type="button" className="a-btn a-btn-small a-btn-primary" onClick={() => chooseModel(theme)} disabled={busy} data-testid="use-model">
                     Utiliser ce modèle
                   </button>
-                  <MoreMenu theme={theme} />
+                  <MoreMenu theme={theme} colorsLink />
                 </div>
               </section>
             );

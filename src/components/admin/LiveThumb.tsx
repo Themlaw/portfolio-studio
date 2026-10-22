@@ -14,6 +14,12 @@ const HEIGHT = 800;
 export default function LiveThumb({ themeRef, stamp }: { themeRef: string; /** Change quand le thème change : recharge le cadre. */ stamp?: string | number }) {
   const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.375);
+  // Le cadre ne se charge qu'un instant APRÈS l'écran (la page d'accueil entière, ce n'est pas rien) : l'écran Thèmes reste vif et se dit « chargé » sans attendre les vignettes.
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setArmed(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
   useEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -24,7 +30,7 @@ export default function LiveThumb({ themeRef, stamp }: { themeRef: string; /** C
   const src = `/fr?vignette=${encodeURIComponent(themeRef)}${stamp !== undefined ? `&t=${encodeURIComponent(String(stamp))}` : ""}`;
   return (
     <div ref={box} className="a-theme-thumb a-live-thumb" data-testid="live-thumb" data-ref={themeRef} aria-hidden="true">
-      <iframe src={src} title="" tabIndex={-1} loading="lazy" referrerPolicy="same-origin" style={{ width: WIDTH, height: HEIGHT, transform: `scale(${scale})` }} />
+      {armed && <iframe src={src} title="" tabIndex={-1} loading="lazy" referrerPolicy="same-origin" style={{ width: WIDTH, height: HEIGHT, transform: `scale(${scale})` }} />}
     </div>
   );
 }

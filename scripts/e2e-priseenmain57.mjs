@@ -22,6 +22,7 @@ import sharp from "sharp";
 
 import { paint } from "./lib/crop-fixtures.mjs";
 import { boardDraft, draftBlocks, login, openEditor, pageIdOf, q1, setBoardDraft, setDraft, settled, sleep, sql, waitFor } from "./lib/grille31d.mjs";
+import { activateThemeUi } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3700";
 const ONLY = process.env.ONLY ?? "";
@@ -92,10 +93,7 @@ await section("P", async () => {
 
   // Le thème : se coche quand on en met un en ligne.
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const other = page.getByRole("button", { name: "Mettre en ligne" }).first();
-  await other.click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").waitFor({ state: "detached", timeout: 30000 }).catch(() => {});
+  await activateThemeUi(page, BASE, "Carnet d'atelier"); // lot 60 : Utiliser ce modèle, puis Publier
   await sleep(800);
   await page.goto(`${BASE}/admin`, { waitUntil: "networkidle" });
   ok("P6 mettre un thème en ligne coche « Choisir un thème »", (await state())[0] === true, JSON.stringify(await state()));
