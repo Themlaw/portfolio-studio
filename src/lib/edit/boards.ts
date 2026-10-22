@@ -97,7 +97,7 @@ export const BoardSnapSchema = z.strictObject({
 export type BoardSnap = z.infer<typeof BoardSnapSchema>;
 
 export const BoardOpSchema = z.discriminatedUnion("op", [
-  z.strictObject({ op: z.literal("add"), mediaId: z.number().int().positive(), index: z.number().int().min(0).max(MAX_BOARD_SLOTS), collection: Collection.optional() }),
+  z.strictObject({ op: z.literal("add"), mediaId: z.number().int().positive(), index: z.number().int().min(0).max(MAX_BOARD_SLOTS), collection: Collection.optional(), end: z.literal(true).optional() }),
   z.strictObject({ op: z.literal("move"), key: Key, index: z.number().int().min(0).max(MAX_BOARD_SLOTS) }),
   z.strictObject({ op: z.literal("remove"), key: Key }),
   z.strictObject({ op: z.literal("retire"), key: Key }),
@@ -519,10 +519,13 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
   return mutate(pageId, projectId, rev, (snap) => {
     const at = (key: string) => snap.slots.findIndex((s) => s.key === key);
     switch (op.op) {
-      case "add":
-        if (op.index > snap.slots.length) return "Position invalide.";
-        snap.slots.splice(op.index, 0, { key: newKey(), mediaId: op.mediaId, title: EMPTY, description: EMPTY, ...(op.collection ? { collection: op.collection } : {}) });
+      case "add": {
+        // `end` : à la fin de la planche, sans connaître son nombre d'emplacements (clic sur un média de l'onglet Médias).
+        const index = op.end ? snap.slots.length : op.index;
+        if (index > snap.slots.length) return "Position invalide.";
+        snap.slots.splice(index, 0, { key: newKey(), mediaId: op.mediaId, title: EMPTY, description: EMPTY, ...(op.collection ? { collection: op.collection } : {}) });
         return snap;
+      }
       case "move": {
         const from = at(op.key);
         if (from < 0) return "Cet emplacement n'est pas sur cette planche.";

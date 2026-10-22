@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getDb, schema } from "@/lib/db";
 import { SiteNameSchema, SocialsSchema } from "@/lib/site-schema";
 
+import { markOnboarding } from "./onboarding";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
 import { readSiteDraft } from "./site";
 
@@ -61,6 +62,7 @@ export function saveSettings(input: unknown): ActionResult<null> {
         .run();
     }
   });
+  markOnboarding("identity");
   return done(null);
 }
 

@@ -81,6 +81,7 @@ const EXPECTED = [
   "activateThemeAction",
   "deleteThemeAction",
   "saveSettingsAction",
+  "setOnboardingHiddenAction",
   "createPageAction",
   "savePageAction",
   "setPublishedAction",

@@ -968,7 +968,6 @@ export function FreeBoardEditor() {
           open={picking !== null}
           media={context.media.filter((m) => m.kind === "image" || m.kind === "video")}
           title={picking?.id ? "Remplacer l'image" : "Ajouter une image"}
-          confirmLabel="Utiliser cette image"
           onClose={() => setPicking(null)}
           onPick={(m) => {
             const at = picking;

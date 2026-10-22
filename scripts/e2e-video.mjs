@@ -160,7 +160,6 @@ try {
   const videoBlock = page.locator("article.a-block").last();
   await videoBlock.getByRole("button", { name: "Choisir une vidéo" }).click();
   await page.locator("dialog[open] .a-media-tile", { hasText: "e2e-longue.mp4" }).click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Utiliser cette vidéo" }).click();
   await videoBlock.locator("select").filter({ has: page.locator('option[value="feature"]') }).selectOption("feature");
   await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
   await toast("Enregistré");

@@ -2,7 +2,8 @@ import Link from "next/link";
 
 import PageHeader from "@/components/admin/PageHeader";
 import ThemeSwatches from "@/components/admin/ThemeSwatches";
-import { getAdminCounts, getHomePageId, getThemeOverview } from "@/lib/admin";
+import FirstSteps from "@/components/admin/FirstSteps";
+import { getAdminCounts, getHomePageId, getOnboarding, getThemeOverview } from "@/lib/admin";
 
 export const metadata = { title: "Tableau de bord" };
 
@@ -11,6 +12,7 @@ export default function Dashboard() {
   const { activeId, themes } = getThemeOverview();
   const active = themes.find((t) => t.id === activeId);
   const home = getHomePageId();
+  const onboarding = getOnboarding();
 
   const stats = [
     { label: "Pages", value: counts.pages, href: "/admin/pages", link: "Organiser les pages" },
@@ -36,6 +38,8 @@ export default function Dashboard() {
           </div>
         }
       />
+
+      <FirstSteps onboarding={onboarding} />
 
       <div className="a-grid">
         <section className="a-card" aria-labelledby="theme-actif">

@@ -69,6 +69,7 @@ import BoardItemPanel from "./BoardItemPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
 import { applyFreeOp, newFreeId, type FreeModelOp } from "@/blocks/free-board";
 import MediaPreviewDialog from "./MediaPreviewDialog";
+import { ZoomButton } from "../MediaLibrary";
 import SiteEditor, { applySiteOp, siteText } from "./SiteEditor";
 import StructureTree from "./StructureTree";
 import { describeProblems, type Problem } from "./problems";
@@ -76,7 +77,7 @@ import TopMore from "./TopMore";
 import BlockThumb from "./thumbs";
 
 type Locale = "fr" | "en";
-type Device = "desktop" | "tablet" | "phone";
+type Device = "desktop" | "wide" | "tablet" | "phone";
 type Tab = "ajouter" | "medias" | "structure" | "reglages";
 type SaveState = "idle" | "pending" | "saving" | "error";
 /** Un pas d'historique : le brouillon, et l'instantané d'une planche ou du site (en-tête…) s'il a changé. */
@@ -124,8 +125,11 @@ const toWire = (g: GhostItem): Ghost => ({
   ...(g.key ? { key: g.key } : {}),
 });
 
+const WIDE_PX = 1440;
 const DEVICES: { id: Device; label: string; width: number | null }[] = [
   { id: "desktop", label: "Ordinateur", width: 1180 },
+  // Grand écran (lot 57) : le rendu d'un écran de 1440 px, réduit par un zoom pour tenir dans la fenêtre.
+  { id: "wide", label: "Grand écran", width: WIDE_PX },
   { id: "tablet", label: "Tablette", width: 820 },
   { id: "phone", label: "Téléphone", width: 390 },
 ];
@@ -1474,7 +1478,7 @@ export default function VisualEditor({
 
   /* ---- Planches sur la toile : projets, dépôts, fantômes ----------------- */
 
-  const [extraProjects, setExtraProjects] = useState<{ slug: string; title: string; draft: true }[]>([]);
+  const [extraProjects, setExtraProjects] = useState<{ id: number; slug: string; title: string; draft: true }[]>([]);
   const projectsList = useMemo(() => {
     const seen = new Set(context.projects.map((p) => p.slug));
     return [...context.projects, ...extraProjects.filter((p) => !seen.has(p.slug))];
@@ -1528,7 +1532,7 @@ export default function VisualEditor({
         toast(result.message, "error");
         return null;
       }
-      setExtraProjects((list) => [...list, { slug: result.data.slug, title: result.data.title, draft: true }]);
+      setExtraProjects((list) => [...list, { id: result.data.id, slug: result.data.slug, title: result.data.title, draft: true }]);
       if (uid) setBoardProject(uid, result.data.slug);
       toast(`Projet « ${result.data.title} » créé : il devient public avec la page`);
       return { id: result.data.id, slug: result.data.slug };
@@ -1835,7 +1839,7 @@ export default function VisualEditor({
       const r = frameRef.current?.getBoundingClientRect();
       const over = Boolean(r && ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom);
       setMediaDrag({ label: m.name, thumb: m.thumb, x: ev.clientX, y: ev.clientY, over });
-      if (over && r) send({ kind: "drag", x: ev.clientX - r.left, y: ev.clientY - r.top, label: m.name.slice(0, 120), payload: "media" });
+      if (over && r) send({ kind: "drag", x: (ev.clientX - r.left) / zoomRef.current, y: (ev.clientY - r.top) / zoomRef.current, label: m.name.slice(0, 120), payload: "media" });
       else if (dropTargetRef.current) {
         dropTargetRef.current = null;
         send({ kind: "drag-end" });
@@ -1883,6 +1887,15 @@ export default function VisualEditor({
       if (block.type === "grid") return placeMedia({ kind: "cell", uid: block.uid }, m.id, m.kind);
       // Planche libre (lot 42) : l'image se pose vers le centre de la zone (le glisser sur la toile choisit l'endroit).
       if (block.type === "free-board") return void freeChoose({ uid: block.uid }, m.id, m.kind);
+      // Projet (bloc « Planche d'un projet ») : l'image s'ajoute à la fin de sa bande, comme dans une grille.
+      if (block.type === "project-board") {
+        const slug = (block.props as { project?: unknown }).project;
+        const project = typeof slug === "string" ? projectsList.find((p) => p.slug === slug) : undefined;
+        if (project) {
+          void boardDo(project.id, { op: "add", mediaId: m.id, index: 0, end: true }).then((r) => r && toast(`« ${m.name} » ajoutée au projet`, "success", { label: "Défaire", run: () => undoRef.current() }));
+          return;
+        }
+      }
     }
     setMediaPreview(m);
   };
@@ -2041,7 +2054,18 @@ export default function VisualEditor({
       send({ kind: "board-add", uid: block.uid, item: "strip" });
       return;
     }
-    toast("« Images qui défilent » se pose dans une planche de projet : choisis une planche (ou un de ses composants) puis clique ici, ou glisse la carte dans la planche.", "error");
+    // Hors d'un projet : un seul bloc « Projet » sur la page, c'est là que le carrousel va ; sinon on explique le geste.
+    const boardsHere = walkTree(draftRef.current.blocks).map((v) => v.block).filter((b) => b.type === "project-board" && typeof (b.props as { project?: unknown }).project === "string");
+    if (boardsHere.length === 1) {
+      send({ kind: "board-add", uid: boardsHere[0].uid, item: "strip" });
+      return;
+    }
+    toast(
+      boardsHere.length > 1
+        ? "« Images qui défilent » se place dans un projet. Il y en a plusieurs sur cette page : clique sur le bloc « Projet » voulu, puis sur « Images qui défilent »."
+        : "« Images qui défilent » se place dans un projet. Ajoute d'abord un bloc « Projet » à la page et choisis son projet, puis reviens ici.",
+      "error",
+    );
   };
   /** Déplacer un composant à un rang (glisser par la poignée). */
   const itemTo = async (board: number, uid: string, index: number) => {
@@ -2094,7 +2118,7 @@ export default function VisualEditor({
           if (own && selected) send({ kind: "select", uid: selected });
           send({
             kind: "projects",
-            list: projectsList.map(({ slug, title, draft, ...rest }) => ({ slug, title: title.slice(0, 200), ...(draft ? { draft: true } : {}), ...("onPage" in rest ? { onPage: Boolean(rest.onPage) } : {}) })),
+            list: projectsList.map((p) => ({ slug: p.slug, title: p.title.slice(0, 200), ...(p.draft ? { draft: true } : {}), ...("onPage" in p ? { onPage: Boolean(p.onPage) } : {}) })),
           });
           send({ kind: "ghosts", items: ghostsRef.current.map(toWire) });
           send({ kind: "site-lock", page: siteLocked });
@@ -2352,7 +2376,7 @@ export default function VisualEditor({
       const r = frameRect();
       const over = Boolean(r && ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom);
       setPaletteDrag({ type: entry.type, label: entry.label, x: ev.clientX, y: ev.clientY, over });
-      if (over && r) send({ kind: "drag", x: ev.clientX - r.left, y: ev.clientY - r.top, label: entry.label, blockType: entry.type, nesting: nestingOfEntry(entry) });
+      if (over && r) send({ kind: "drag", x: (ev.clientX - r.left) / zoomRef.current, y: (ev.clientY - r.top) / zoomRef.current, label: entry.label, blockType: entry.type, nesting: nestingOfEntry(entry) });
       else if (dropIndexRef.current !== null || dropRefused) {
         dropIndexRef.current = null;
         itemDropRef.current = null;
@@ -2565,7 +2589,33 @@ export default function VisualEditor({
                 ? { tone: "ok", text: "Publié" }
                 : { tone: "idle", text: "Page non publiée" };
 
-  const frameWidth = mobile ? null : DEVICES.find((d) => d.id === device)?.width ?? null;
+  const wide = !mobile && device === "wide";
+  const frameWidth = mobile || wide ? null : DEVICES.find((d) => d.id === device)?.width ?? null;
+  // Grand écran : la toile garde sa largeur de 1440 px (le contenu se met en page comme sur un grand écran), réduite par un zoom
+  // pour tenir dans la place disponible ; la hauteur de la fenêtre suit (hauteur de la toile = hauteur de la boîte / zoom).
+  const canvasRef = useRef<HTMLElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const wrap = wrapRef.current;
+    if (!canvas || !wrap || !wide) return;
+    const measure = () => {
+      const cs = getComputedStyle(canvas);
+      const w = canvas.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      setBox((b) => (Math.abs(b.w - w) < 1 && Math.abs(b.h - wrap.clientHeight) < 1 ? b : { w, h: wrap.clientHeight }));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(canvas);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [wide, mode]);
+  const zoom = wide && box.w > 0 ? Math.min(1, box.w / WIDE_PX) : 1;
+  const zoomRef = useRef(1);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  });
   const frameSrc = `/admin/api/editeur/toile?page=${pageId}&langue=${locale}`;
   const media = context.media;
   const [mediaTags, setMediaTags] = useState<string[]>([]);
@@ -2733,7 +2783,7 @@ export default function VisualEditor({
                         <BlockThumb type="image" preset="board-strip" />
                         <span>
                           <strong>Images qui défilent</strong>
-                          <span className="ve-card-desc">Un carrousel d&apos;images et de vidéos de ta médiathèque, dans une planche de projet.</span>
+                          <span className="ve-card-desc">Un carrousel d&apos;images et de vidéos de ta médiathèque, dans un bloc « Projet ».</span>
                         </span>
                       </button>
                     </li>
@@ -2770,7 +2820,7 @@ export default function VisualEditor({
                 {shownMedia.slice(0, 120).map((m) => (
                   <li
                     key={m.id}
-                    title={`${m.name} : clique pour la poser dans la rubrique choisie (ou l'afficher), glisse-la sur une planche`}
+                    title={`${m.name} : clique pour la poser, glisse-la sur un projet`}
                     data-media={m.id}
                     data-status={m.status}
                     tabIndex={m.status === "failed" ? undefined : 0}
@@ -2807,13 +2857,14 @@ export default function VisualEditor({
                     )}
                     </span>
                     <span className="ve-media-name">{m.name}</span>
+                    {m.status === "ready" && m.kind !== "pdf" && <ZoomButton onZoom={() => setMediaPreview(m)} />}
                   </li>
                 ))}
               </ul>
             )}
             <p className="ve-hint">
-              Clique une vignette pour la poser dans l&apos;image, la vidéo ou la grille sélectionnée (sinon elle s&apos;affiche en grand), ou glisse-la sur une
-              planche de la page : entre deux images, ou sur une place vide. Tu peux aussi déposer des fichiers de ton ordinateur directement sur la planche.
+              Clique une vignette pour la poser dans l&apos;image, la vidéo ou la grille sélectionnée (la petite loupe l&apos;agrandit sans la poser), ou glisse-la sur un
+              projet de la page : entre deux images, ou sur une place vide. Tu peux aussi déposer des fichiers de ton ordinateur directement sur la planche.
             </p>
           </>
         )}
@@ -3040,6 +3091,19 @@ export default function VisualEditor({
             ))}
           </div>
           <span className="ve-break" aria-hidden="true" />
+          {!mobile && topTighter && (
+            // Peu de place (jusqu'à 1180 px) : un seul menu déroulant, toujours dans la barre (jamais caché derrière « … »).
+            <label className="ve-device-select">
+              <span className="sr-only">Largeur d&apos;aperçu</span>
+              <select className="a-input" aria-label="Largeur d'aperçu" value={device} onChange={(e) => setDevice(e.target.value as Device)}>
+                {DEVICES.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.label} ({d.width} px)
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {!mobile && !topTighter && (
             <div className="a-seg ve-seg" role="group" aria-label="Largeur d'aperçu">
               {DEVICES.map((d) => (
@@ -3080,9 +3144,6 @@ export default function VisualEditor({
           )}
           {!mobile && topTight && (
             <TopMore
-              devices={topTighter ? DEVICES : undefined}
-              device={device}
-              onDevice={(id) => setDevice(id as Device)}
               onDiscard={hasDraft && !blocked && saveState !== "error" ? () => setDiscarding(true) : undefined}
             />
           )}
@@ -3103,7 +3164,7 @@ export default function VisualEditor({
 
       <div className="ve-body">
         {mode === "edit" && panel}
-        <main className="ve-canvas" data-device={mobile ? "phone" : device}>
+        <main ref={canvasRef} className="ve-canvas" data-device={mobile ? "phone" : device}>
           {(publishMessage || problems.length > 0) && mode === "edit" && (
             <div className="ve-alert ve-problems" role="alert" data-testid="publish-problems">
               <strong>
@@ -3179,12 +3240,23 @@ export default function VisualEditor({
               </button>
             </div>
           )}
-          <div className="ve-frame-wrap" style={{ maxWidth: mode === "preview" && device === "desktop" ? undefined : (frameWidth ?? undefined) }}>
+          {wide && (
+            <p className="ve-zoom-note" data-testid="zoom-note">
+              Grand écran : {WIDE_PX} px de large, affiché à {Math.round(zoom * 100)} %
+            </p>
+          )}
+          <div
+            ref={wrapRef}
+            className="ve-frame-wrap"
+            data-wide={wide || undefined}
+            style={wide ? { width: Math.round(WIDE_PX * zoom), maxWidth: "none", flex: "1 1 0" } : { maxWidth: mode === "preview" && device === "desktop" ? undefined : (frameWidth ?? undefined) }}
+          >
             {!frameReady && <div className="ve-loading">Chargement de la page…</div>}
             <iframe
               key={locale}
               ref={frameRef}
               className="ve-frame"
+              style={wide ? { position: "absolute", top: 0, left: 0, width: WIDE_PX, height: Math.round(box.h / zoom), transform: `scale(${zoom})`, transformOrigin: "0 0" } : undefined}
               src={frameSrc}
               title={mode === "preview" ? "Aperçu de la page" : "Page en cours d'édition"}
             />
@@ -3280,6 +3352,7 @@ export default function VisualEditor({
           setAdding(null);
           if (!at) return;
           if (choice.kind === "starter") insertStarter(choice.starter, at);
+          else if (choice.kind === "carousel") void addCarousel();
           else insert(choice.key, at);
         }}
       />

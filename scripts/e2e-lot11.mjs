@@ -152,7 +152,6 @@ async function pickHeroBackground(f, mediaId) {
   const dialog = page.locator("dialog[open], [role=dialog]").last();
   const name = q("select original_name n from media where id = ?", mediaId)[0].n;
   await dialog.locator(`.a-media-tile[title="${name}"], .a-media-tile[title="${name.replace(/\.[^.]+$/, "")}"]`).first().click();
-  await dialog.getByRole("button", { name: "Utiliser cette image" }).click();
   await settled();
 }
 

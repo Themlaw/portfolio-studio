@@ -130,7 +130,6 @@ try {
   // Lot 31d : « + Ajouter une image » ouvre directement le choix dans la médiathèque (plus de case vide d'abord).
   await page.getByTestId("board-grid-add-image").click();
   await page.locator(".a-picker-scroll button").first().click();
-  await page.getByRole("button", { name: "Utiliser cette image" }).click();
   ok("B4 image choisie dans la grille", await waitFor(() => (json(project().draft_layout)?.[1]?.props?.children?.[0]?.props?.mediaId ?? 0) > 0), project().draft_layout);
   await settled();
   ok("B4b la grille est rendue sur la toile", await waitFor(async () => (await board.locator('[data-edit-bitem-type="grid"] .block-grid-cell img').count()) > 0));
@@ -141,7 +140,6 @@ try {
   ok("B5 image ajoutée au rang 2", await waitFor(() => JSON.stringify(draftTypes()) === '["strip","image","grid"]'), JSON.stringify(draftTypes()));
   await page.getByRole("button", { name: "Choisir une image" }).first().click();
   await page.locator(".a-picker-scroll button").first().click();
-  await page.getByRole("button", { name: "Utiliser cette image" }).click();
   ok("B5b image choisie (largeur « pleine »)", await waitFor(() => { const i = json(project().draft_layout)?.[1]; return i?.props?.mediaId > 0 && i.props.width === "full"; }));
   await settled();
   // Retirer la bande (barre du composant), puis Annuler / Rétablir.
@@ -517,7 +515,8 @@ try {
   await sleep(500);
   await page.getByRole("tab", { name: "Ajouter" }).click();
   await page.locator('.ve-card[data-key="board-strip"]').click();
-  ok("N2 sans planche choisie : message clair (rien d'ajouté)", await waitFor(async () => (await page.locator(".a-toast", { hasText: "se pose dans une planche de projet" }).count()) > 0) && rails() === r0 + 1);
+  // Lot 57 : sans rien de choisi, le carrousel va dans l'UNIQUE projet de la page (ajouté à la fin) ; avec zéro ou plusieurs projets, un message explique le geste.
+  ok("N2 sans composant choisi : ajouté dans l'unique projet de la page, ou message clair", await waitFor(async () => rails() === r0 + 2 || (await page.locator(".a-toast", { hasText: "se place dans un projet" }).count()) > 0));
 
   // O : fichiers de l'ordinateur déposés sur les composants (progression et erreurs de l'envoi normal).
   const png = await sharp({ create: { width: 160, height: 90, channels: 3, background: { r: 200, g: 90, b: 60 } } }).png().toBuffer();

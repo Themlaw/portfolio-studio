@@ -15,7 +15,7 @@ import type { BlockCatalogEntry } from "@/blocks/editor-types";
 
 import BlockThumb from "./thumbs";
 
-export type AddChoice = { kind: "starter"; starter: TextStarter } | { kind: "block"; key: string };
+export type AddChoice = { kind: "starter"; starter: TextStarter } | { kind: "block"; key: string } | { kind: "carousel" };
 
 export default function AddSectionDialog({
   open,
@@ -96,6 +96,18 @@ export default function AddSectionDialog({
                     </li>
                   );
                 })}
+                {g.id === "media" && (
+                  // « Images qui défilent » vit dans un bloc « Projet » : même carte que dans le panneau « Ajouter ».
+                  <li>
+                    <button type="button" className="ve-card ve-add-card" data-type="board-strip" data-key="board-strip" onClick={() => onPick({ kind: "carousel" })}>
+                      <BlockThumb type="image" preset="board-strip" />
+                      <span>
+                        <strong>Images qui défilent</strong>
+                        <span className="ve-card-desc">Un carrousel d&apos;images et de vidéos de ta médiathèque, dans un bloc « Projet ».</span>
+                      </span>
+                    </button>
+                  </li>
+                )}
               </ul>
             </section>
           ))}
