@@ -5,6 +5,7 @@
  *  B  Dernier usage : le menu classe par dernier usage (en ligne, puis les derniers préparés) ; valeur gardée côté serveur.
  *  C  Revenir au thème en ligne depuis le menu = fin de l'aperçu.
  *  D  Écran Thèmes : « Travailler au brouillon dessus » sur les cartes non en ligne, ouvre l'éditeur (dernière page éditée, sinon l'accueil) sur ce thème.
+ *  F  Barre du haut en préparation avec brouillon : « Publier » visible, pas de débordement (1440, 1280, 1024 px).
  *  E  Pastille « En travail » (orange, lisible) et encadré orange sur la carte en préparation ; le bouton « éditer » de l'aperçu reste.
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=A,B,…] [SHOTS=dossier] node scripts/e2e-essayer63.mjs
  */
@@ -166,6 +167,25 @@ try {
     ok("D6 le brouillon est conservé", draftBlocks(PAGE_ID)[0]?.uid === "essayer63d");
     ok("D7 le thème en ligne est inchangé", setting("activeThemeId") === LIVE);
     sql((db) => db.prepare("update pages set draft = null, draft_updated_at = null where id = ?").run(PAGE_ID));
+  }
+
+  /* ---- F ---- */
+  if (run("F")) {
+    await stopPreview();
+    setDraft(PAGE_ID, [{ uid: "essayer63f", type: "section-title", props: { title: { fr: "Barre", en: "Bar" } } }]);
+    await page.request.post(`${BASE}/admin/apercu`, { form: { id: T1, retour: "/admin/themes" }, headers: { origin: BASE }, maxRedirects: 0 });
+    await editor(PAGE_ID);
+    for (const w of [1440, 1280, 1024]) {
+      await page.setViewportSize({ width: w, height: 900 });
+      await sleep(600);
+      const box = await page.getByRole("button", { name: "Publier", exact: true }).boundingBox();
+      const over = await page.evaluate(() => { const el = document.querySelector(".ve-top"); return el ? el.scrollWidth - el.clientWidth : -1; });
+      ok(`F1 ${w} px : « Publier » visible et menu Thème dans la barre, sans débordement`, Boolean(box && box.x >= 0 && box.x + box.width <= w) && over <= 0 && (await picker().isVisible()), `${JSON.stringify(box)} ${over}`);
+      await page.screenshot({ path: path.join(SHOTS, `F-barre-${w}.png`), clip: { x: 0, y: 0, width: w, height: 130 } });
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+    sql((db) => db.prepare("update pages set draft = null, draft_updated_at = null where id = ?").run(PAGE_ID));
+    await stopPreview();
   }
 
   /* ---- E ---- */
