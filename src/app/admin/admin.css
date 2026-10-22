@@ -1360,6 +1360,52 @@ body:has(.a-sidepanel) .a-toasts {
   .ve-top .ve-brand-text {
     display: none;
   }
+
+  /* Barre resserrée (v0.28.1) : de quoi loger un nom de thème d'une vingtaine de caractères à 1440 px. */
+  .ve-top {
+    gap: 6px;
+    padding-inline: 10px;
+  }
+
+  .ve-top .a-seg button {
+    padding-inline: 7px;
+  }
+
+  .ve-top .ve-page select {
+    min-width: 128px;
+  }
+
+  .ve-top .ve-discard {
+    padding-inline: 8px;
+  }
+
+  .ve-top > .ve-theme-btn {
+    max-width: 320px;
+    padding-inline: 10px;
+  }
+
+  /* « Thème » passe en petit au-dessus du nom : toute la largeur du bouton sert au nom. */
+  .ve-top .ve-theme-cur {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    line-height: 1.15;
+  }
+
+  .ve-top .ve-theme-cap {
+    color: var(--admin-ink-soft);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .ve-top .ve-theme-colon {
+    display: none;
+  }
+
+  .ve-top .ve-theme-cur strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 @media (max-width: 1180px) and (min-width: 820px) {
@@ -3374,7 +3420,7 @@ label.a-file-btn:focus-within {
   padding: 1px 4px;
   background: var(--admin-surface);
   color: var(--admin-ink-soft);
-  font-size: 10.5px;
+  font-size: 11px;
   text-align: center;
 }
 
@@ -4460,7 +4506,9 @@ label.a-file-btn:focus-within {
   flex-shrink: 1;
   align-items: center;
   gap: 7px;
-  min-width: 150px;
+  /* Jamais plus étroit que son texte (sinon « Modifications non publiées » déborde sur « Abandonner ») ; de l'air avant le bouton suivant. */
+  min-width: max-content;
+  margin-right: 8px;
   color: var(--admin-ink-soft);
   font-size: 13px;
   white-space: nowrap;
@@ -5238,7 +5286,7 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   padding: 2px 4px;
   background: rgba(31, 34, 38, 0.7);
   color: var(--admin-on-accent);
-  font-size: 10.5px;
+  font-size: 11px;
   text-align: center;
 }
 

@@ -49,7 +49,7 @@ export default function ThemePicker({ themes, preparing, flush }: { themes: Them
   return (
     <DialogTrigger isOpen={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}>
       <Button className="a-btn ve-theme-btn" data-testid="theme-picker" data-preparing={preparing ? "true" : undefined} isDisabled={busy} aria-label={`Thème : ${currentName}`} data-name={currentName}>
-        <span id={labelId} className="ve-theme-cur">Thème : <strong>{currentName}</strong></span> <span aria-hidden="true">▾</span>
+        <span id={labelId} className="ve-theme-cur"><span className="ve-theme-cap">Thème<span className="ve-theme-colon"> : </span></span><strong>{currentName}</strong></span> <span aria-hidden="true">▾</span>
       </Button>
       <Popover className="ve-theme-popover" placement="bottom start" offset={4}>
         <Dialog className="ve-theme-dialog" aria-label="Choisir un thème">
