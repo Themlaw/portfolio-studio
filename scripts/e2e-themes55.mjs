@@ -242,7 +242,8 @@ try {
       await gotoThemes();
       const oldCard = page.locator("section[data-old]", { has: page.locator(`h2#theme-${oldId}`) });
       ok("H1 le thème à part est « En préparation »", (await oldCard.locator('[data-testid="theme-preparing"]').count()) === 1);
-      await oldCard.getByTestId("old-delete").click();
+      await oldCard.getByRole("button", { name: /Plus d'actions/ }).click();
+      await page.getByTestId("old-delete").click();
       const dlg = page.locator("dialog[open]");
       await dlg.waitFor();
       ok("H2 la boîte de suppression dit que le thème est en aperçu", /prévisualiser/.test((await dlg.textContent()) ?? ""));

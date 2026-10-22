@@ -478,7 +478,7 @@ try {
     const names = await page.locator(".ve-theme-item .ve-theme-name").allTextContents();
     const firstOld = names.findIndex((n) => /ancien thème/.test(n));
     const lastModel = names.map((n, i) => (Object.values(modelNames).some((m) => n.startsWith(m)) ? i : -1)).reduce((a, b) => Math.max(a, b), -1);
-    ok("I9 menu Thème : Mon thème d'abord avec « version N », puis les modèles, puis les anciens thèmes", /^Mon thème/.test(names[0] ?? "") && new RegExp(`version ${mine().version}`).test(names[0] ?? "") && lastModel > 0 && firstOld > lastModel, JSON.stringify(names));
+    ok("I9 menu Thème : Mon thème d'abord avec « version N », puis les modèles, puis les anciens thèmes", (names[0] ?? "").startsWith(JSON.parse(mine().data).name) && new RegExp(`version ${mine().version}`).test(names[0] ?? "") && lastModel > 0 && firstOld > lastModel, JSON.stringify(names));
     await shot(page, "I-menu-theme");
     await page.keyboard.press("Escape");
   }
