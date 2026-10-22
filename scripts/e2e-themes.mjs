@@ -134,9 +134,13 @@ if (ONLY.includes("B")) {
   const valid = validPackage(base);
   const tmp = path.join(process.env.TMPDIR ?? "/tmp", "theme-e2e-valide.zip");
   writeFileSync(tmp, valid.zip);
-  await page.getByTestId("theme-import-input").setInputFiles(tmp);
-  await page.locator(".a-toast", { hasText: "importé" }).first().waitFor({ timeout: 20000 }).catch(() => {});
-  await page.waitForLoadState("networkidle");
+  // Lot 60 : le bouton importe par défaut « comme nouvelle version de mon thème » (testé par montheme60) ; ici « comme thème à part » (par l'API de l'écran).
+  await page.evaluate(async (bytes) => {
+    const form = new FormData();
+    form.append("file", new Blob([new Uint8Array(bytes)], { type: "application/zip" }), "theme.zip");
+    await fetch("/admin/api/themes/import?mode=apart", { method: "POST", body: form });
+  }, [...valid.zip]);
+  await page.reload({ waitUntil: "load" });
   const importedCard = page.locator(".a-theme-card", { hasText: "Thème importé e2e" });
   // La galerie se rafraîchit APRÈS le toast : attendre la carte avant de compter.
   await importedCard.first().waitFor({ timeout: 30000 }).catch(() => {});
@@ -168,6 +172,10 @@ if (ONLY.includes("B")) {
 
   // Nettoyage : suppression du thème importé.
   if (await importedCard.count()) {
+    for (let i = 0; i < 3 && (await page.locator('[data-testid="olds-section"]').getAttribute("open")) === null; i++) {
+      await page.locator('[data-testid="olds-section"] summary').click();
+      await page.waitForTimeout(400);
+    }
     await importedCard.getByRole("button", { name: /Plus d'actions/ }).click();
     await page.getByRole("menuitem", { name: "Supprimer" }).click();
     await page.locator("dialog[open]").getByRole("button", { name: "Supprimer" }).click();

@@ -349,7 +349,7 @@ try {
   await page.waitForTimeout(700);
   const tcard = page.locator("section[data-model]", { has: page.locator("h2#theme-carnet-d-atelier") });
   const visible = await tcard.locator(".a-card-actions").locator("a, button").evaluateAll((els) => els.map((e) => (e.getAttribute("aria-label") ?? e.textContent ?? "").replace(/↗/, "").trim()));
-  ok("D1 carte d'un modèle : Prévisualiser, Utiliser ce modèle et « … » seulement", visible.length === 3 && visible[0] === "Prévisualiser" && visible[1] === "Utiliser ce modèle" && /Plus d'actions/.test(visible[2]), JSON.stringify(visible));
+  ok("D1 carte d'un modèle : Travailler au brouillon dessus (lot 63), Prévisualiser, Utiliser ce modèle et « … » seulement", visible.length === 4 && visible[0] === "Travailler au brouillon dessus" && visible[1] === "Prévisualiser" && visible[2] === "Utiliser ce modèle" && /Plus d'actions/.test(visible[3]), JSON.stringify(visible));
   const live = page.locator('.a-theme-card[data-active="true"]');
   const liveVisible = await live.locator(".a-card-actions").locator("a, button").evaluateAll((els) => els.map((e) => (e.getAttribute("aria-label") ?? e.textContent ?? "").replace(/↗/, "").trim()));
   ok("D1b modèle en ligne : mêmes actions (« En ligne » sur la carte)", liveVisible.length === 3 && liveVisible[0] === "Prévisualiser" && (await live.locator('[data-testid="theme-live"]').count()) === 1, JSON.stringify(liveVisible));

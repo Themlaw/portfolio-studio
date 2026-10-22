@@ -24,6 +24,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { gotoThemesPage } from "./lib/theme-live.mjs";
 import { chromium } from "playwright";
 import sharp from "sharp";
 
@@ -139,8 +140,9 @@ ok("revue : curseurs « redessinés », point chaud lu (3, 3) et (16, 3)", cn?.c
 ok("revue : les 14 autres éléments inchangés", cards.length === 16 && cards.filter((c) => !c.slot.startsWith("curseur/")).every((c) => c.change === "unchanged"), JSON.stringify(cards.filter((c) => c.change !== "unchanged").map((c) => c.slot)));
 await page.screenshot({ path: `${SHOTS}/revue-import.png`, fullPage: true });
 await page.locator('.a-kit-card[data-slot="curseur/normal"]').screenshot({ path: `${SHOTS}/revue-import-curseur.png` });
-await Promise.all([page.waitForURL(new RegExp(`/admin/themes/[a-z0-9-]*-kit[a-z0-9-]*$`), { timeout: 60000 }), page.getByRole("button", { name: "Appliquer au thème" }).click()]);
-const DRAFT = page.url().split("/").pop();
+await Promise.all([page.waitForURL(/\/admin\/themes\?nouvelle=\d+&via=kit/, { timeout: 60000 }), page.getByRole("button", { name: /^Appliquer à mon thème/ }).click()]);
+// Lot 60 : le kit crée une version de Mon thème (plus de copie « (kit) »).
+const DRAFT = tsx(`import { getDb, schema } from "./src/lib/db/index.ts"; import { eq } from "drizzle-orm"; console.log(getDb().select().from(schema.themes).where(eq(schema.themes.mine, true)).get()?.id ?? "");`).trim().split("\n").pop();
 created.push(DRAFT);
 const draft = readTheme(DRAFT);
 ok("copie brouillon : couleurs du thème inchangées", draft.tokens.color.primary === "#1d6b4f" && draft.tokens.color.primaryHover === followed, JSON.stringify({ c: draft.tokens.color.primary, h: draft.tokens.color.primaryHover }));
@@ -155,7 +157,7 @@ await page.locator('[aria-labelledby="t-curseurs"]').scrollIntoViewIfNeeded();
 await page.locator('[aria-labelledby="t-curseurs"]').screenshot({ path: `${SHOTS}/editeur-curseurs.png` });
 ok("admin : pas de curseur du thème dans l'administration", await page.evaluate(() => !document.documentElement.hasAttribute("data-kit-cursor") && getComputedStyle(document.body).cursor === "auto"));
 const preview = async (id) => {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   await page.evaluate((tid) => {
     const f = document.createElement("form");
     f.method = "post";

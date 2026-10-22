@@ -366,7 +366,8 @@ if (run("C")) {
       await olds.locator("summary").click();
       await sleep(400);
     }
-    await page.locator("section[data-old]", { has: page.locator(`h2#theme-${importedId}`) }).getByTestId("old-delete").click();
+    await page.locator("section[data-old]", { has: page.locator(`h2#theme-${importedId}`) }).getByRole("button", { name: /Plus d'actions/ }).click();
+    await page.getByTestId("old-delete").click();
     await page.locator("dialog[open]").getByRole("button", { name: "Supprimer", exact: true }).click();
     await page.locator("dialog[open]").waitFor({ state: "detached" });
   }

@@ -292,7 +292,8 @@ if (run("D")) {
 /* ---- E. Vocabulaire : « rubrique » partout ------------------------------------------------------- */
 // Tout texte de l'interface de l'éditeur (texte, aria-label, title, placeholder), panneau et calque d'édition de la toile.
 // Lot 57 : « bloc « Projet » » est le mot validé pour désigner le bloc d'un projet (le renommage global est le lot 56).
-const BANNED = /\bbloc(?! « Projet »)|conteneur|\bsection(?!s? de la page)/i;
+// Lot 61 : « Fond des blocs » est le nom validé du réglage du fond des rubriques alternées.
+const BANNED = /(?<!Fond des |fond d'un )\bbloc(?! « Projet »)|conteneur|\bsection(?!s? de la page)/i;
 async function uiWords(root) {
   return root.evaluate(() => {
     const out = new Set();
