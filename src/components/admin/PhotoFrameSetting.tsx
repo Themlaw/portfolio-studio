@@ -33,7 +33,7 @@ export default function PhotoFrameSetting({ initial }: { initial: boolean }) {
         Ton thème dessine un cadre. Sur « Non », tes photos n&apos;en ont pas : tu le poses photo par photo, avec le bouton « Cadre » de la barre d&apos;une image. Sur « Oui », toutes les photos qui n&apos;ont
         pas de choix l&apos;ont.
       </p>
-      <div className="a-seg" role="radiogroup" aria-label="Cadre du thème sur toutes les photos">
+      <div className="a-seg a-frame-all-seg" role="radiogroup" aria-label="Cadre du thème sur toutes les photos">
         <button type="button" role="radio" aria-checked={!on} className="a-btn a-btn-small" data-testid="frame-all-off" disabled={busy} onClick={() => choose(false)}>
           Non
         </button>

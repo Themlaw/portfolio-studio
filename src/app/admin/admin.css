@@ -1343,6 +1343,25 @@ body:has(.a-sidepanel) .a-toasts {
   box-shadow: 0 0 0 3px var(--admin-warning-soft);
 }
 
+/* Réglage « Cadre du thème sur toutes les photos » : Non / Oui lisibles, à distance de la phrase (v0.28.1). */
+.a-frame-all-seg {
+  margin-top: 12px;
+}
+
+.a-frame-all-seg button {
+  min-width: 64px;
+  min-height: 36px;
+  padding: 0 20px;
+  border-radius: 0;
+  font-size: 14px;
+}
+
+.a-frame-all-seg button[aria-checked="true"] {
+  background: var(--admin-accent);
+  color: var(--admin-on-accent);
+  font-weight: 600;
+}
+
 /* Menu « Thème » de la barre de l'éditeur (lot 63). */
 .ve-top > .ve-theme-btn {
   /* Se rétrécit (nom coupé par « … ») avant de faire déborder la barre. */
