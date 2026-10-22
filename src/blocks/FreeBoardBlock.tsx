@@ -6,7 +6,7 @@ import { LoopClick } from "@/components/LoopVideo";
 import Picture from "@/components/Picture";
 import { claimEager } from "@/lib/eager";
 import ViewerScope from "@/components/ViewerScope";
-import { frameAttrs, imageBgAttrs } from "@/lib/look";
+import { frameStyle, imageBgAttrs } from "@/lib/look";
 import { getMedia } from "@/lib/media";
 import { viewerAttrs } from "@/lib/viewer";
 import { RADIUS_VALUES } from "@/themes/css";
@@ -60,7 +60,7 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
         {ordered.map(({ it, m }) => {
           const ratio = (m.width ?? 1200) / Math.max(1, m.height ?? 800);
           const alt = m.alt ? tr(m.alt, ctx.locale) : "";
-          const frame = m.video ? null : frameAttrs(it.frame);
+          const frame = frameStyle(it.frame);
           const bg = m.video ? null : imageBgAttrs(it.bg);
           const viewer =
             zoom && !m.video
@@ -82,7 +82,7 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
               key={it.id}
               className="free-item"
               style={style}
-              {...(frame ? { "data-frame": frame["data-frame"] } : {})}
+              {...(frame ? frame.attrs : {})}
               {...(bg ? { "data-img-bg": "" } : {})}
               {...viewer}
               {...(canvas ? { "data-free-item": it.id, "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}

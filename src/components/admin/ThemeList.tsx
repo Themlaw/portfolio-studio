@@ -117,6 +117,7 @@ export default function ThemeList({
   previewOn = false,
   previousId = null,
   customColors = {},
+  editorPageId = null,
 }: {
   themes: Theme[];
   activeId: string;
@@ -131,6 +132,8 @@ export default function ThemeList({
   /** Vignettes générées des thèmes livrés (id → chemin public). */
   thumbs?: Record<string, string | null>;
   accents: { id: number; title: string; accent: string }[];
+  /** Page que « Travailler au brouillon dessus » ouvre : la dernière modifiée, sinon l'accueil (lot 63). */
+  editorPageId?: number | null;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState<Pending>(null);
@@ -171,6 +174,21 @@ export default function ThemeList({
       toast("Les couleurs du thème sont de retour");
       router.refresh();
     });
+  /** Lot 63 : prépare ce thème (aperçu admin) puis ouvre l'éditeur dessus, sur la dernière page modifiée. */
+  const [working, setWorking] = useState<string | null>(null);
+  const workOn = async (theme: Theme) => {
+    if (working) return;
+    setWorking(theme.id);
+    const target = editorPageId ? `/admin/pages/${editorPageId}/editer` : "/admin/pages";
+    try {
+      const res = await fetch("/admin/apercu", { method: "POST", body: new URLSearchParams({ id: theme.id, retour: target }), credentials: "same-origin", redirect: "manual" });
+      if (res.status >= 400) throw new Error(String(res.status));
+      window.location.assign(target);
+    } catch {
+      setWorking(null);
+      toast("Le thème n'a pas pu être ouvert dans l'éditeur. Réessaie.", "error");
+    }
+  };
   const stopPreview = async (done: () => void) => {
     try {
       await fetch("/admin/apercu/quitter", { method: "POST", body: new URLSearchParams({ retour: "/admin/themes" }), credentials: "same-origin", redirect: "manual" });
@@ -251,7 +269,7 @@ export default function ThemeList({
           // Ce qui serait vraiment publié : les couleurs personnalisées par-dessus le thème (vignette dessinée et pastilles).
           const shown = hasCustom ? { ...theme, tokens: { ...theme.tokens, color: applySitePalette(theme.tokens.color, theme.tokens.palette, customColors).color } } : theme;
           return (
-            <section key={theme.id} className="a-card a-theme-card" aria-labelledby={`theme-${theme.id}`} data-active={isActive}>
+            <section key={theme.id} className="a-card a-theme-card" aria-labelledby={`theme-${theme.id}`} data-active={isActive} data-preparing={isPreparing || undefined}>
               <div className="a-card-head">
                 <h2 id={`theme-${theme.id}`}>{theme.name}</h2>
                 {isActive ? (
@@ -259,8 +277,8 @@ export default function ThemeList({
                     <span aria-hidden="true">●</span> En ligne
                   </span>
                 ) : isPreparing ? (
-                  <span className="a-badge a-badge-prep" data-testid="theme-preparing">
-                    En préparation
+                  <span className="a-badge a-badge-prep a-badge-live" data-testid="theme-preparing">
+                    <span aria-hidden="true">●</span> En travail
                   </span>
                 ) : (
                   <span className="a-tag">{theme.preset ? "Thème fourni" : "Mon thème"}</span>
@@ -273,6 +291,11 @@ export default function ThemeList({
                 {!isActive && (
                   <button type="button" className="a-btn a-btn-small a-btn-primary" onClick={() => setPending({ kind: "activate", theme })}>
                     Mettre en ligne
+                  </button>
+                )}
+                {!isActive && (
+                  <button type="button" className="a-btn a-btn-small" disabled={working !== null} onClick={() => void workOn(theme)} data-testid="theme-work">
+                    Travailler au brouillon dessus
                   </button>
                 )}
                 <PreviewButton id={theme.id} small />

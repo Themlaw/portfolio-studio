@@ -347,8 +347,8 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
             ))}
           </span>
         )}
-        {part.type === "image" && (
-          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="frame" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-frame-button" title="Cadre autour de la photo">
+        {(part.type === "image" || (part.type === "video-single" && !part.empty)) && (
+          <button type="button" className="pe-bitem-btn" data-edit-bitem-op="frame" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-frame-button" title={part.type === "image" ? "Cadre autour de la photo" : "Cadre autour de la vidéo"}>
             Cadre
           </button>
         )}

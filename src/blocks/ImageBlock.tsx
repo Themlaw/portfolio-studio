@@ -14,7 +14,7 @@ import { ORIGINALS_PREFIX } from "@/lib/images/variants";
 import { getMedia, mediaUrl } from "@/lib/media";
 import { viewerAttrs } from "@/lib/viewer";
 
-import { frameAttrs, imageBgAttrs } from "@/lib/look";
+import { frameStyle, imageBgAttrs } from "@/lib/look";
 
 import { AUTO_PANORAMA_RATIO } from "./grid-layouts";
 
@@ -127,7 +127,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
         }
       : undefined;
   // Cadre autour de la photo (lot 34, `look.frame`) : bordure DANS la boîte de l'image (look.css), jamais sur une place vide.
-  const frame = image ? frameAttrs(ctx.look?.frame) : null;
+  const frame = image ? frameStyle(ctx.look?.frame) : null;
   // Fond derrière l'image (lot 41, `look.imageBg`) : remplit la boîte de l'image (look.css), même « Dans la case » ; aucun par défaut.
   const imgBg = image ? imageBgAttrs(ctx.look?.imageBg) : null;
   const body = (
@@ -140,7 +140,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       {...(!ctx.cell && ctx.look?.imageAlign ? { "data-align": ctx.look.imageAlign } : {})}
       {...(canvas && forced ? { "data-edit-box": forced } : {})}
       {...(free ? { "data-free": "" } : { ...ratioAttr, ...(box && !cover ? { "data-fit": "contain" } : {}) })}
-      {...(frame ? { "data-frame": frame["data-frame"], ...(legacy ? { "data-legacy": "" } : {}) } : {})}
+      {...(frame ? { ...frame.attrs, ...(legacy ? { "data-legacy": "" } : {}) } : {})}
       {...(imgBg ? { "data-img-bg": "", ...(legacy ? { "data-legacy": "" } : {}) } : {})}
       style={{ "--ir": shownRatio.toFixed(4), ...(frame?.style ?? {}), ...(imgBg?.style ?? {}) } as CSSProperties}
     >

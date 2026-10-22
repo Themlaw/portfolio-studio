@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
+import { touchThemeUsage } from "./theme-usage";
 import { slugify } from "@/lib/slug";
 import { normalizePalette } from "@/themes/palette";
 import { ThemeSchema, type Theme } from "@/themes/schema";
@@ -95,6 +96,7 @@ export function activateTheme(id: string, resetColors = false): ActionResult<nul
     .onConflictDoUpdate({ target: schema.settings.key, set: { value: JSON.stringify(id) } })
     .run();
   markOnboarding("theme");
+  touchThemeUsage(id);
   return done(null);
 }
 

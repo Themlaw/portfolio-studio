@@ -37,13 +37,12 @@ export function LoopMark({ playing }: { playing: boolean }) {
 }
 
 /**
- * Lecture d'une boucle : la vidéo tourne tant qu'elle est visible ; un clic la met en pause, un autre la relance.
- * Avec « réduire les animations », elle démarre en pause sur son image d'attente. `choice` null = comportement par défaut.
+ * Lecture d'une boucle (lot 62) : la vidéo NE DÉMARRE JAMAIS toute seule (ni au chargement, ni en arrivant à l'écran, ni en
+ * défilant) : elle montre son image d'attente. Un clic la lance, un autre la met en pause ; elle boucle tant qu'elle joue.
+ * Lancée, elle se met en pause quand elle sort de l'écran et reprend quand elle revient (rien ne tourne hors champ).
  */
 export function useLoopPlayback(ref: React.RefObject<HTMLVideoElement | null>) {
-  const reduced = useReducedMotion();
-  const [choice, setChoice] = useState<"play" | "pause" | null>(null);
-  const wantPlay = choice === "play" || (choice === null && !reduced);
+  const [wantPlay, setWantPlay] = useState(false);
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -57,16 +56,19 @@ export function useLoopPlayback(ref: React.RefObject<HTMLVideoElement | null>) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (wantPlay && visible) void el.play().catch(() => {});
+    if (wantPlay && visible) void el.play().catch((e: unknown) => {
+        // Seul un refus du navigateur remet le repère à « lecture » ; une lecture interrompue par une pause (défilement) n'est pas un refus.
+        if (e instanceof DOMException && e.name === "NotAllowedError") setWantPlay(false);
+      });
     else el.pause();
   }, [ref, wantPlay, visible]);
 
-  return { wantPlay, toggle: () => setChoice(wantPlay ? "pause" : "play") };
+  return { wantPlay, toggle: () => setWantPlay((p) => !p) };
 }
 
 /**
- * Mode « Boucle » d'une vidéo de page (composant Vidéo, case de grille) : muette, en boucle, sur place. Un clic ou un
- * toucher la met en pause, un autre la relance ; Espace et Entrée font de même au clavier (le cadre est un bouton).
+ * Mode « Boucle » d'une vidéo de page (composant Vidéo, case de grille) : muette, en boucle, sur place, à l'arrêt sur son
+ * image d'attente tant qu'on n'a pas cliqué. Un clic ou un toucher la lance, un autre la met en pause ; Espace et Entrée font de même au clavier (le cadre est un bouton).
  * Un petit repère pause / lecture le dit sans gêner. Sur la toile de l'éditeur (`edit`) le clic ne fait rien : il
  * sert à choisir le composant.
  */
@@ -130,10 +132,9 @@ export function LoopClick({
 }
 
 /**
- * Boucle d'animation dans la bande d'images (mode « Boucle ») : muette, en boucle, jouée seulement quand elle est
- * visible (pause hors champ). Le cadre entier est un bouton pause / lecture (un clic ou un toucher met en pause, un
- * autre relance ; WCAG 2.2.2), avec le repère discret en coin ; avec « réduire les animations », la boucle démarre
- * arrêtée sur son image d'attente.
+ * Boucle d'animation dans la bande d'images (mode « Boucle ») : muette, en boucle, arrêtée sur son image d'attente jusqu'au
+ * clic (lot 62). Le cadre entier est un bouton lecture / pause (un clic ou un toucher lance, un autre met en pause ;
+ * WCAG 2.2.2), avec le repère discret en coin. Cadre (`frame`, lots 34 et 62) : le choix de l'artiste, posé sur le cadre.
  */
 export default function LoopFrame({
   video,
@@ -143,6 +144,7 @@ export default function LoopFrame({
   label,
   caption,
   texts,
+  frame,
 }: {
   video: VideoView;
   width: number;
@@ -152,6 +154,7 @@ export default function LoopFrame({
   label: string;
   caption: React.ReactNode;
   texts: { pause: string; play: string };
+  frame?: { attrs: Record<string, string>; style: React.CSSProperties } | null;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const { wantPlay, toggle } = useLoopPlayback(ref);
@@ -159,7 +162,7 @@ export default function LoopFrame({
   const action = wantPlay ? texts.pause : texts.play;
 
   return (
-    <div className="strip-frame group relative" data-loop={wantPlay ? "playing" : "paused"} data-video-mode="loop">
+    <div className="strip-frame group relative" data-loop={wantPlay ? "playing" : "paused"} data-video-mode="loop" {...frame?.attrs} style={frame?.style}>
       <button type="button" onClick={toggle} aria-label={label ? `${action} — ${label}` : action} className="loop-click block w-full text-left">
         <span className="strip-media">
           <span className="relative block">

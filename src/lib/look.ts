@@ -308,30 +308,66 @@ export function needsCrop(imageRatio: number, boxRatio: number): boolean {
   return Math.abs(imageRatio / boxRatio - 1) > 0.02;
 }
 
-/* ---- Cadre autour d'une photo (lot 34) ------------------------------------------- */
+/* ---- Cadre autour d'une photo ou d'une vidéo (lots 34, 58, 62) ---------------------------------- */
 
-/** Épaisseurs du cadre d'une photo (largeurs réelles en CSS : src/app/look.css, adaptées au téléphone). */
-export const FRAME_SIZES = ["thin", "medium", "thick"] as const;
-/** « Sans cadre » (lot 58) : retire le cadre du kit sur cette photo (réglage de la photo, pas une épaisseur). */
-export const FRAME_NONE = "none" as const;
-export type FrameSize = (typeof FRAME_SIZES)[number] | typeof FRAME_NONE;
-export const FRAME_SIZE_LABELS: Record<Exclude<FrameSize, "none">, string> = { thin: "Fin", medium: "Moyen", thick: "Épais" };
 /**
- * Couleur du cadre quand rien n'est choisi (« Couleur par défaut ») : le texte du thème (`ink`). C'est la seule teinte
+ * Un seul choix par photo ou vidéo (lot 62) : « Aucun » (`none`), « Cadre du thème » (`theme` : le cadre dessiné dans le kit),
+ * « Bande de couleur » (`band` : un filet d'épaisseur et de couleur choisies) ou, plus tard, un cadre de la bibliothèque
+ * (`custom`, `id` = son identifiant : prévu dans les types, la validation et le rendu, pas encore proposé dans l'interface).
+ * Sans choix (réglage absent), la photo suit le réglage du site « Cadre du thème sur toutes les photos » (non par défaut).
+ */
+export const FRAME_KINDS = ["none", "theme", "band", "custom"] as const;
+export type FrameKind = (typeof FRAME_KINDS)[number];
+/** Épaisseurs de la bande de couleur (largeurs réelles en CSS : src/app/look.css, adaptées au téléphone). */
+export const FRAME_WIDTHS = ["fin", "moyen", "epais"] as const;
+export type FrameWidth = (typeof FRAME_WIDTHS)[number];
+export const FRAME_WIDTH_LABELS: Record<FrameWidth, string> = { fin: "Fin", moyen: "Moyen", epais: "Épais" };
+export const FRAME_DEFAULT_WIDTH: FrameWidth = "moyen";
+export const FRAME_KIND_LABELS: Record<Exclude<FrameKind, "custom">, string> = { none: "Aucun", theme: "Cadre du thème", band: "Bande de couleur" };
+/**
+ * Couleur de la bande quand rien n'est choisi (« Couleur par défaut ») : le texte du thème (`ink`). C'est la seule teinte
  * lisible sur le papier de tous les thèmes livrés (l'ornement `tertiary` est presque invisible sur le thème Studio : 1,7:1)
  * et elle suit le thème (claire sur un thème sombre).
  */
 export const FRAME_DEFAULT_COLOR: PaletteColor = "ink";
-/**
- * Cadre d'une photo : épaisseur + couleur (clé de palette ou `#rrggbb[aa]`). Absent = pas de cadre ; sans couleur = la couleur par défaut.
- */
-export const FrameSchema = z.strictObject({
-  size: z.enum([...FRAME_SIZES, FRAME_NONE]),
-  color: z.union([z.enum(PALETTE), CustomColorSchema]).optional(),
-});
-export type Frame = z.infer<typeof FrameSchema>;
 
-/** Couleur CSS d'un cadre : teinte de la palette (suit le thème), couleur libre, ou la couleur par défaut. */
+/** Anciennes épaisseurs (avant le lot 62 : `size`) → nouvelles. */
+const LEGACY_FRAME_WIDTHS: Record<string, FrameWidth> = { thin: "fin", medium: "moyen", thick: "epais" };
+
+/**
+ * Ancien réglage de cadre (avant le lot 62 : `{ size: "thin" | "medium" | "thick" | "none", color? }`) → nouvelle forme, sans changer le
+ * rendu d'un choix explicite : « none » = Aucun, une épaisseur = Bande de couleur de cette épaisseur. Une valeur déjà à la nouvelle forme,
+ * ou qui n'est pas un ancien cadre, est rendue telle quelle. Idempotent. Sert à la migration des données ET à la lecture (sauvegarde ancienne,
+ * brouillon non migré).
+ */
+export function upgradeFrame(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const o = raw as Record<string, unknown>;
+  if ("kind" in o || !("size" in o)) return raw;
+  const { size, color, ...rest } = o;
+  if (Object.keys(rest).length) return raw;
+  if (size === "none") return { kind: "none" };
+  if (typeof size === "string" && Object.hasOwn(LEGACY_FRAME_WIDTHS, size)) return { kind: "band", width: LEGACY_FRAME_WIDTHS[size], ...(color !== undefined ? { color } : {}) };
+  return raw;
+}
+
+const FrameCoreSchema = z
+  .strictObject({
+    kind: z.enum(FRAME_KINDS),
+    /** Cadre de la bibliothèque (`kind: "custom"` seulement). */
+    id: z.string().min(1).max(80).regex(/^[a-z0-9-]+$/).optional(),
+    /** Couleur de la bande : clé de palette ou `#rrggbb[aa]` ; absente = la couleur par défaut. */
+    color: z.union([z.enum(PALETTE), CustomColorSchema]).optional(),
+    /** Épaisseur de la bande ; absente = Moyen. */
+    width: z.enum(FRAME_WIDTHS).optional(),
+  })
+  .refine((f) => (f.kind === "custom") === (f.id !== undefined), { message: "Un cadre de la bibliothèque porte son identifiant (et lui seul)." })
+  .refine((f) => f.kind === "band" || (f.color === undefined && f.width === undefined), { message: "Couleur et épaisseur ne vont qu'avec une bande de couleur." });
+/** Cadre d'une photo ou d'une vidéo. Absent = pas de choix (suit le site). Les anciens réglages (`size`) sont relus à la nouvelle forme. */
+export const FrameSchema = z.preprocess(upgradeFrame, FrameCoreSchema);
+export type Frame = z.infer<typeof FrameCoreSchema>;
+
+/** Couleur CSS d'une bande : teinte de la palette (suit le thème), couleur libre, ou la couleur par défaut. */
 export function frameColorCss(color: string | undefined): string {
   if (color && (PALETTE as readonly string[]).includes(color)) return `var(--t-color-${color})`;
   if (color && CUSTOM_COLOR_RE.test(color)) return color;
@@ -340,12 +376,29 @@ export function frameColorCss(color: string | undefined): string {
   return `var(--color-${FRAME_DEFAULT_COLOR})`;
 }
 
-/** Attributs de rendu d'un cadre (`data-frame` + variable `--frame-color`), ou null sans cadre / cadre invalide. */
-export function frameAttrs(frame: Frame | undefined): { "data-frame": FrameSize; style: Record<string, string> } | null {
-  const ok = frame && FrameSchema.safeParse(frame);
+export type FrameRender = {
+  /** Attributs à poser sur l'élément qui porte le cadre (src/app/look.css et src/themes/variants.css s'y accrochent). */
+  attrs: { "data-frame": FrameKind; "data-frame-w"?: FrameWidth; "data-frame-id"?: string };
+  /** Variables CSS (`--frame-color`) à poser avec. */
+  style: Record<string, string>;
+};
+
+/**
+ * LE point de rendu d'un cadre (photo et vidéo : image seule, case de grille, planche, carrousel, Planche libre, vidéo seule) :
+ * le choix, tel quel, en attributs + variables. Ce qui s'affiche est exactement le choix coché. `null` = pas de choix (ou choix
+ * invalide) : aucun attribut, la photo suit le réglage du site « Cadre du thème sur toutes les photos ».
+ */
+export function frameStyle(frame: unknown): FrameRender | null {
+  const ok = frame === undefined || frame === null ? null : FrameSchema.safeParse(frame);
   if (!ok || !ok.success) return null;
-  return { "data-frame": ok.data.size, style: { "--frame-color": frameColorCss(ok.data.color) } };
+  const f = ok.data;
+  if (f.kind === "band") return { attrs: { "data-frame": "band", "data-frame-w": f.width ?? FRAME_DEFAULT_WIDTH }, style: { "--frame-color": frameColorCss(f.color) } };
+  if (f.kind === "custom") return { attrs: { "data-frame": "custom", "data-frame-id": f.id }, style: {} };
+  return { attrs: { "data-frame": f.kind }, style: {} };
 }
+
+/** Réglage du site « Cadre du thème sur toutes les photos » (réglage `themeFrameAll`, non par défaut) : lecture tolérante. */
+export const readThemeFrameAll = (raw: unknown): boolean => raw === true;
 
 /* ---- Taille et alignement d'une image seule (lot 40) ------------------------------- */
 

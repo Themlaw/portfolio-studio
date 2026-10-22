@@ -3,7 +3,7 @@
 import sharp from "sharp";
 
 import { assembleCornerSide, FRAME_SLICE, framePreview, isCornerSide, renderFrame, roundCount } from "../src/lib/kit/frame9.ts";
-import { FrameSchema, frameAttrs } from "../src/lib/look.ts";
+import { FrameSchema, frameStyle } from "../src/lib/look.ts";
 
 let failures = 0;
 const ok = (label, cond, detail = "") => {
@@ -71,9 +71,10 @@ const prev = await sharp(await framePreview(full)).metadata();
 ok("R6 aperçu de la revue : une image de 3 formats, assez large", prev.width > 900 && prev.height > 300, `${prev.width}x${prev.height}`);
 
 // « Sans cadre ».
-ok("N1 « Sans cadre » est un cadre valide", FrameSchema.safeParse({ size: "none" }).success);
-ok("N2 rendu : data-frame=none", frameAttrs({ size: "none" })?.["data-frame"] === "none");
-ok("N3 une épaisseur inconnue reste refusée", !FrameSchema.safeParse({ size: "huge" }).success);
+// Lot 62 : « Sans cadre » devient le choix « Aucun » (`kind: "none"`) ; l'ancienne forme `size: "none"` est relue à la nouvelle.
+ok("N1 « Aucun » est un cadre valide (et l'ancien « Sans cadre » est relu comme tel)", FrameSchema.safeParse({ kind: "none" }).success && FrameSchema.safeParse({ size: "none" }).success);
+ok("N2 rendu : data-frame=none", frameStyle({ kind: "none" })?.attrs["data-frame"] === "none" && frameStyle({ size: "none" })?.attrs["data-frame"] === "none");
+ok("N3 une épaisseur inconnue reste refusée", !FrameSchema.safeParse({ kind: "band", width: "huge" }).success && !FrameSchema.safeParse({ size: "huge" }).success);
 
 console.log(failures ? `\n${failures} échec(s)` : "\nTout est vert");
 process.exit(failures ? 1 : 0);

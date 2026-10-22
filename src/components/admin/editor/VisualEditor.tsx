@@ -65,6 +65,8 @@ import { ImageBgControls } from "@/components/edit/ImageBgControls";
 
 import { BlockLookPanel, ImageSizeSection, SiteStylesPanel } from "./LookPanel";
 import PreparingBanner from "./PreparingBanner";
+import ThemePicker from "./ThemePicker";
+import type { ThemeChoice } from "@/lib/edit/theme-usage";
 import { ColorsPanel, LogoPanel, type HighlightInfo } from "./SiteLookPanel";
 import BoardItemPanel from "./BoardItemPanel";
 import MediaPickerDialog from "./MediaPickerDialog";
@@ -221,6 +223,7 @@ export default function VisualEditor({
   initialLocale,
   site: initialSite,
   look: lookContext,
+  themeChoices = [],
 }: {
   pageId: number;
   initial: PageDraft;
@@ -243,6 +246,8 @@ export default function VisualEditor({
   site: { snap: SiteSnap; pending: boolean; lockedBy: string | null };
   /** Mise en page (lot 2) : palette du thème, polices déjà téléchargées. */
   look: LookContext;
+  /** Thèmes du menu « Thème » (lot 63) : en ligne d'abord, puis derniers utilisés. */
+  themeChoices?: ThemeChoice[];
 }) {
   const router = useRouter();
   const mobile = useMedia(MOBILE);
@@ -3090,6 +3095,7 @@ export default function VisualEditor({
               ))}
             </select>
           </label>
+          {themeChoices.length > 0 && <ThemePicker themes={themeChoices} preparing={lookContext.preparing} flush={flush} />}
           <div className="a-seg ve-seg" role="group" aria-label="Langue">
             {(["fr", "en"] as const).map((l) => (
               <button

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import VideoCard from "@/components/VideoCard";
 import { getArtwork, type LocalizedArtwork } from "@/lib/gallery";
+import { frameStyle } from "@/lib/look";
 import { getMedia } from "@/lib/media";
 import { viewerAttrs } from "@/lib/viewer";
 
@@ -81,6 +82,7 @@ export default async function VideoSingleBlock({ props, ctx }: { props: z.infer<
       mode={props.mode}
       texts={texts}
       edit={ctx.edit}
+      frame={frameStyle(ctx.look?.frame)}
       marks={Boolean(ctx.edit || ctx.inlineEdit)}
       prefix={ctx.inlinePrefix}
       styles={{ eyebrow: textStyle(ctx, "eyebrow").style, title: textStyle(ctx, "title").style, description: textStyle(ctx, "description").style, captionTitle: textStyle(ctx, "captionTitle").style, captionDate: textStyle(ctx, "captionDate").style }}

@@ -402,7 +402,7 @@ try {
       await bar.getByTestId("free-frame-button").click();
       const win = f.getByTestId("free-frame");
       await win.waitFor();
-      await win.getByTestId("frame-switch").click();
+      await win.locator('[data-frame-kind="band"]').click();
       ok("S3 Cadre : activé sur cette image", await waitFor(() => Boolean(byId("a1").frame)), JSON.stringify(byId("a1")));
       await settled(page);
       ok("S3b … la bordure est visible", await itemEl("a1").locator("img").evaluate((i) => parseFloat(getComputedStyle(i).borderTopWidth) >= 2));

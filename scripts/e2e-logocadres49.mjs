@@ -283,7 +283,7 @@ if (run("CD"))
     const A = await ensure("49-paysage.png", () => paint(1500, 1000, 1));
     const B = await ensure("49-portrait.png", () => paint(1000, 1500, 2));
     const pageId = pageIdOf("personnages");
-    const FR = { size: "thick", color: GREEN };
+    const FR = { kind: "band", width: "epais", color: GREEN };
     const img = (uid, mediaId, props = {}) => ({ uid, type: "image", props: { mediaId, width: "wide", look: { frame: FR }, ...props } });
     const grid = (uid, layout, ratio, children, extra = {}) => ({ uid, type: "grid", props: { layout, gap: "normal", align: "stretch", ratio, top: "gap", children, ...extra } });
     const kids = (p) => [img(`${p}a`, A), img(`${p}b`, B)];
@@ -417,7 +417,7 @@ if (run("KT"))
     const project = q1("select slug from projects order by id limit 1")?.slug;
     const blocks = [
       { uid: "k1", type: "image", props: { mediaId: A, width: "wide" } },
-      { uid: "k2", type: "image", props: { mediaId: A, width: "wide", look: { frame: { size: "thick", color: GREEN } } } },
+      { uid: "k2", type: "image", props: { mediaId: A, width: "wide", look: { frame: { kind: "band", width: "epais", color: GREEN } } } },
       { uid: "k3", type: "grid", props: { layout: "2", gap: "normal", align: "stretch", ratio: "1:1", top: "gap", children: [{ uid: "k3a", type: "image", props: { mediaId: A } }, { uid: "k3b", type: "image", props: { mediaId: A } }] } },
       { uid: "k4", type: "free-board", props: { format: "3:2", phone: "scale", items: [{ id: "a1", media: A, x: 10, y: 10, w: 30 }] } },
       { uid: "k5", type: "project-board", props: { project } },
@@ -430,6 +430,12 @@ if (run("KT"))
     await card.getByRole("button", { name: "Mettre en ligne" }).click();
     await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
     await page.locator("dialog[open]").waitFor({ state: "detached" });
+    await sleep2(1500);
+    // Lot 62 : le cadre dessiné n'est posé d'office sur aucune photo ; ici on active « Cadre du thème sur toutes les photos » (écran Thèmes)
+    // pour voir le cadre sur les photos SANS choix, comme avant.
+    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    await page.locator('[data-testid="frame-all-on"]').click();
+    ok("KT3b réglage « Cadre du thème sur toutes les photos » activé", await waitFor(() => Boolean(q1("select value from settings where key = 'themeFrameAll'")), 20000));
     await sleep2(1500);
 
     const pub = await ctx.newPage();

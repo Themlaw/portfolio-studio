@@ -27,6 +27,7 @@ export function Frame({
   onPlay,
   large = false,
   edit = false,
+  frame,
 }: {
   item: LocalizedArtwork;
   playing: boolean;
@@ -34,6 +35,8 @@ export function Frame({
   large?: boolean;
   /** Toile de l'éditeur : la vidéo ne s'ouvre pas en grand (le clic sert à choisir le composant). */
   edit?: boolean;
+  /** Cadre de la vidéo (lot 62) : attributs + variables de `frameStyle` (src/app/look.css). */
+  frame?: { attrs: Record<string, string>; style: React.CSSProperties } | null;
 }) {
   const t = useTranslations("animation");
   // Vidéo hébergée (mode « Lecteur ») : elle s'ouvre en grand dans la visionneuse ; un plan YouTube joue sur place.
@@ -41,7 +44,7 @@ export function Frame({
 
   return (
     <div className="mat">
-      <div className="relative aspect-video w-full overflow-hidden rounded-[2px] bg-scrim">
+      <div className="video-frame relative aspect-video w-full overflow-hidden rounded-[2px] bg-scrim" {...frame?.attrs} style={frame?.style}>
         {playing && item.videoId && !item.video ? (
           <iframe
             className="absolute inset-0 h-full w-full"

@@ -155,21 +155,23 @@ figure.block-image[data-fit="contain"] .block-image-media.block-image-media {
   object-fit: contain;
   background-color: transparent !important;
 }
-/* ---- Cadre autour d'une photo (lot 34) ---------------------------------------
-   `look.frame` (image seule, case de grille) et `look.slotFrame` (image d'une planche) : une bordure DANS la boîte de
-   l'image (box-sizing: border-box). La taille extérieure ne change jamais : en grille, la case garde celle de ses voisines ;
-   dans la bande d'une planche, l'image garde la hauteur commune. La photo est réduite d'autant (jamais couverte), le
-   rayon de l'image arrondit aussi le cadre. Épaisseurs : Fin 2 px, Moyen jusqu'à 6 px, Épais jusqu'à 12 px (plus
-   minces sur téléphone). La couleur (`--frame-color`) vient de la palette du thème ou d'une couleur libre, jamais d'ici.
+/* ---- Cadre autour d'une photo ou d'une vidéo (lots 34 et 62) ---------------------------------
+   `look.frame` (image seule, case de grille, vidéo seule), `look.slotFrame` (image ou vidéo d'une planche) et `frame` d'une image de la
+   Planche libre : UN choix par photo, posé par `frameStyle` (src/lib/look.ts) en `data-frame` = none | theme | band | custom.
+   Ici « Bande de couleur » (`band`) : une bordure DANS la boîte du média (box-sizing: border-box). La taille extérieure ne change
+   jamais : en grille, la case garde celle de ses voisines ; dans la bande d'une planche, le média garde la hauteur commune. La photo
+   est réduite d'autant (jamais couverte), le rayon du média arrondit aussi le cadre. Épaisseurs (`data-frame-w`) : Fin 2 px, Moyen
+   jusqu'à 6 px, Épais jusqu'à 12 px (plus minces sur téléphone). La couleur (`--frame-color`) vient de la palette du thème ou d'une
+   couleur libre, jamais d'ici. « Cadre du thème » (`theme`) : src/themes/variants.css. « Aucun » (`none`) : aucune règle.
    Un cadrage ancien (point focal + zoom) déplace et agrandit l'image : le cadre est alors posé sur l'enveloppe qui la
    rogne (.block-image-frame), pas sur l'image. La visionneuse n'a pas de cadre. */
-[data-frame] { --frame-w: 2px; }
-[data-frame="medium"] { --frame-w: clamp(3px, 0.9vw, 6px); }
-[data-frame="thick"] { --frame-w: clamp(5px, 1.8vw, 12px); }
-[data-frame="none"] { --frame-w: 0px; }
-figure.block-image[data-frame]:not([data-legacy]) .block-image-media,
-figure.block-image[data-frame] .block-image-frame,
-.strip-frame[data-frame] .strip-media img {
+[data-frame="band"] { --frame-w: clamp(3px, 0.9vw, 6px); }
+[data-frame="band"][data-frame-w="fin"] { --frame-w: 2px; }
+[data-frame="band"][data-frame-w="epais"] { --frame-w: clamp(5px, 1.8vw, 12px); }
+figure.block-image[data-frame="band"]:not([data-legacy]) .block-image-media,
+figure.block-image[data-frame="band"] .block-image-frame,
+.strip-frame[data-frame="band"] .strip-media :is(img, video),
+.video-frame[data-frame="band"] {
   box-sizing: border-box;
   border: var(--frame-w) solid var(--frame-color);
   background-clip: padding-box;
@@ -818,7 +820,7 @@ main > :has(+ .surface-card[data-surface="on"]) {
 .free-item[data-img-bg] .free-media:not(.free-video) { background-color: var(--img-bg); }
 .free-media { display: block; width: 100%; height: auto; border-radius: var(--free-radius, 0); }
 .free-video { position: relative; overflow: hidden; }
-.free-item[data-frame] .free-media:not(.free-video) {
+.free-item[data-frame="band"] .free-media {
   box-sizing: border-box;
   border: var(--frame-w) solid var(--frame-color);
   background-clip: padding-box;

@@ -105,14 +105,14 @@ const norm = (deg: number) => {
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Fenêtre « Cadre » de l'image : mêmes réglages que le cadre d'une image seule. */
-function ItemFrame({ box, frame, onChange, onClose }: { box: Rect; frame: Frame | undefined; onChange: (f: Frame | undefined) => void; onClose: () => void }) {
+function ItemFrame({ box, frame, onChange, onClose, what }: { box: Rect; frame: Frame | undefined; onChange: (f: Frame | undefined) => void; onClose: () => void; what: "photo" | "vidéo" }) {
   const ref = useRef<HTMLDivElement>(null);
   useDismiss(ref, onClose);
   const width = Math.min(330, document.documentElement.clientWidth - 24);
   const left = Math.max(window.scrollX + 8, Math.min(box.left, window.scrollX + document.documentElement.clientWidth - width - 8));
   return (
-    <div ref={ref} className="sm tc pe-slot-frame" role="dialog" aria-label="Cadre de la photo" data-testid="free-frame" style={{ top: box.top + box.height + 8, left, right: "auto" }}>
-      <FrameControls value={frame} onChange={onChange} />
+    <div ref={ref} className="sm tc pe-slot-frame" role="dialog" aria-label={`Cadre de la ${what}`} data-testid="free-frame" style={{ top: box.top + box.height + 8, left, right: "auto" }}>
+      <FrameControls value={frame} onChange={onChange} what={what} />
     </div>
   );
 }
@@ -486,13 +486,12 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
                 ))}
               </select>
             </label>
-            {!isVideo && (
-              <button
+            <button
                 type="button"
                 aria-haspopup="dialog"
                 aria-expanded={frameOpen}
                 data-testid="free-frame-button"
-                title="Cadre autour de cette photo"
+                title={isVideo ? "Cadre autour de cette vidéo" : "Cadre autour de cette photo"}
                 onClick={() => {
                   setFrameOpen((o) => !o);
                   window.dispatchEvent(new CustomEvent("pe:popups-close", { detail: { except: "free-frame" } }));
@@ -500,7 +499,6 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
               >
                 Cadre
               </button>
-            )}
             {!isVideo && (
               <button
                 type="button"
@@ -525,7 +523,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
           <ItemBg box={bb} bg={style.bg} onClose={() => setBgOpen(false)} onChange={(bg) => send(ref, { op: "style", id: sel.id, bg: (bg as ImageBg | undefined) ?? null })} />
         )}
         {frameOpen && !gesturing && (
-          <ItemFrame box={bb} frame={style.frame} onClose={() => setFrameOpen(false)} onChange={(frame) => send(ref, { op: "style", id: sel.id, frame: frame ?? null })} />
+          <ItemFrame what={isVideo ? "vidéo" : "photo"} box={bb} frame={style.frame} onClose={() => setFrameOpen(false)} onChange={(frame) => send(ref, { op: "style", id: sel.id, frame: frame ?? null })} />
         )}
       </Fragment>
     );

@@ -7,7 +7,7 @@ import { getDb, schema } from "./db";
 import { getDraftSite } from "./draft-view";
 import { parseJson } from "./json";
 import { fontFaceCss, readLibrary } from "./fonts/faces";
-import { SiteStylesSchema, type SiteStyles } from "./look";
+import { readThemeFrameAll, SiteStylesSchema, type SiteStyles } from "./look";
 import { readCardWallpaper, type CardWallpaper } from "@/themes/wallpaper";
 import { readSeo, type SeoStored } from "./seo-schema";
 import { asSiteName, NavSchema, NETWORKS, safeSocialHref, siteNameFor, type NavItem } from "./site-schema";
@@ -79,6 +79,11 @@ export async function getNavSetting(): Promise<NavItem[] | null> {
 /** Papier peint par défaut des cartes du site (lot 35, réglage `cardWallpaper`), ou undefined. */
 export async function getCardWallpaper(): Promise<CardWallpaper | undefined> {
   return readCardWallpaper((await getRawSettings()).cardWallpaper);
+}
+
+/** « Cadre du thème sur toutes les photos » (lot 62, réglage `themeFrameAll`) : non par défaut, y compris pour les sites existants. */
+export async function getThemeFrameAll(): Promise<boolean> {
+  return readThemeFrameAll((await getRawSettings()).themeFrameAll);
 }
 
 /** Styles du site publiés (lot 2) : rôles de texte, arrondi ; absents = thème seul. */

@@ -2,9 +2,12 @@ import { draftMode } from "next/headers";
 
 import KitTutorial from "@/components/admin/KitTutorial";
 import PageHeader from "@/components/admin/PageHeader";
+import PhotoFrameSetting from "@/components/admin/PhotoFrameSetting";
 import ThemeImportButton from "@/components/admin/ThemeImportButton";
 import ThemeList from "@/components/admin/ThemeList";
 import { getThemeOverview, listPageAccents } from "@/lib/admin";
+import { getThemeFrameAllSetting } from "@/lib/edit/frame-all";
+import { lastEditedPageId } from "@/lib/edit/theme-usage";
 import { previousThemeId } from "@/lib/edit/themes";
 import { publishedSitePalette } from "@/lib/edit/site";
 import { getPreparingTheme } from "@/lib/theme";
@@ -40,6 +43,8 @@ export default async function ThemesPage() {
           </div>
         }
       />
+      {/* Lot 62 : seulement si le thème en ligne dessine un cadre (kit). */}
+      {themes.find((t) => t.id === activeId)?.assets?.kit?.frame && <PhotoFrameSetting initial={getThemeFrameAllSetting()} />}
       {themes.length === 0 ? (
         <div className="a-empty">
           <h2>Aucun thème enregistré</h2>
@@ -56,6 +61,7 @@ export default async function ThemesPage() {
           preparingId={preparing?.id ?? null}
           previewOn={previewOn}
           previousId={previousThemeId()}
+          editorPageId={lastEditedPageId()}
           customColors={publishedSitePalette()}
           thumbs={Object.fromEntries(sorted.map((t) => [t.id, presetThumb(t.id)]))}
         />
