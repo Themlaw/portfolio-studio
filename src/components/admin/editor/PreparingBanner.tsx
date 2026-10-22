@@ -51,7 +51,7 @@ export default function PreparingBanner({ preparing, flush }: { preparing: Prepa
     setBusy(false);
     setDialog({ kind: "publish", mineId, version, fresh: true });
   };
-  const useModel = async (mode?: "replace" | "second") => {
+  const applyThisModel = async (mode?: "replace" | "second") => {
     setBusy(true);
     await flush();
     const result = await applyModelAction(preparing.id, mode);
@@ -90,7 +90,7 @@ export default function PreparingBanner({ preparing, flush }: { preparing: Prepa
   const primary = () => {
     if (preparing.kind === "model") {
       if (preparing.mineVersion != null) setDialog({ kind: "replace" });
-      else void useModel();
+      else void applyThisModel();
     } else if (preparing.kind === "old") void adopt();
     else setDialog({ kind: "publish", mineId: preparing.id, version: preparing.mineVersion ?? 0, fresh: false });
   };
@@ -144,9 +144,9 @@ export default function PreparingBanner({ preparing, flush }: { preparing: Prepa
         confirmLabel="Remplacer"
         busy={busy}
         onClose={() => setDialog(null)}
-        onConfirm={() => void useModel("replace")}
+        onConfirm={() => void applyThisModel("replace")}
         extra={
-          <button type="button" className="a-btn" onClick={() => void useModel("second")} disabled={busy} data-testid="replace-second">
+          <button type="button" className="a-btn" onClick={() => void applyThisModel("second")} disabled={busy} data-testid="replace-second">
             Créer un second thème
           </button>
         }
