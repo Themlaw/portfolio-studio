@@ -145,7 +145,7 @@ try {
   await frame.locator("html[data-theme]").waitFor({ timeout: 30000 });
   ok("A2 aperçu en direct chargé (accueil en draft mode)", (await frame.locator("html").getAttribute("data-theme")) === themeId);
 
-  await page.locator('[data-testid="palette-details"] summary').click();
+  await page.locator('[data-testid="adv-couleurs"] summary').click();
   const inkSoft = page.locator('.a-color[data-token="inkSoft"]');
   await inkSoft.locator(".a-color-hex").fill("#c4c4c4");
   ok("A3 couleur sous AA signalée", await inkSoft.locator(".a-ratio-bad").isVisible());
@@ -163,10 +163,17 @@ try {
   ok("A5 « Ajuster » propose une teinte qui passe AA", await inkSoft.locator(".a-ratio-ok").isVisible(), adjusted);
 
   const NEW_PRIMARY = "#7a2e8e";
-  await page.locator('.a-color[data-token="primary"]').getByLabel("Boutons et liens", { exact: true }).fill(NEW_PRIMARY);
+  // Couleur de base « Boutons et liens » : le sélecteur du panneau « Couleurs » (étape 1).
+  await page.locator('.a-da .lc-role-item[data-role="primary"] .lc-role').click();
+  const primaryHex = page.locator('.a-da .lc-role-item[data-role="primary"] .cp-hex');
+  await primaryHex.fill(NEW_PRIMARY);
+  await primaryHex.press("Enter");
   await page.waitForTimeout(400);
   const live = await frame.locator("html").evaluate((el) => getComputedStyle(el).getPropertyValue("--t-color-primary").trim());
   ok("A6 l'aperçu suit les réglages sans rechargement", live === NEW_PRIMARY, live);
+  // Forme des boutons : sous « Affiner » de l'étape 3 (le réglage courant est l'Arrondi).
+  await page.locator('[data-testid="step-tab-cartes"]').click();
+  await page.locator('[data-testid="adv-cartes"] summary').click();
   await page.locator(".a-variant-choice", { hasText: "Droits" }).click();
   await page.waitForTimeout(300);
   ok("A6b forme changée en direct (boutons droits)", (await frame.locator("html").getAttribute("data-button")) === "square");

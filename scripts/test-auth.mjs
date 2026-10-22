@@ -166,6 +166,7 @@ const ADMIN_ACTIONS = [
   "activateThemeAction",
   "deleteThemeAction",
   "resetSiteColorsAction",
+  "importThemeLogoAction",
   "saveSettingsAction",
   "saveSeoAction",
   "markMessagesSeenAction",

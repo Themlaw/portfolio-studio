@@ -228,9 +228,9 @@ if (run("A"))
     await page.waitForURL(/\/admin\/themes\/galerie-lumineuse/);
     const da = page.locator('[data-testid="da-section"]');
     await da.waitFor();
-    ok("A1 section « Couleurs » sur la page du thème livré", /^Couleurs$/.test(((await da.locator("h2").textContent()) ?? "").trim()));
-    for (const n of ["Fond de page", "Cartes et encadrés", "Texte", "Boutons et liens", "Accent", "Ornements"]) ok(`A1 rôle « ${n} »`, (await da.locator(".lc-role strong", { hasText: n }).count()) === 1);
-    ok("A1b chaque rôle a une phrase", (await da.locator(".lc-role small").allTextContents()).length === 6 && (await da.locator(".lc-role small").allTextContents()).every((t) => t.trim().length > 12));
+    ok("A1 étape « Couleurs » sur la page du thème livré", /^Couleurs$/.test(((await da.locator(".a-step-title").textContent()) ?? "").trim()));
+    for (const n of ["Fond de page", "Texte", "Boutons et liens", "Accent"]) ok(`A1 couleur de base « ${n} »`, (await da.locator(".lc-role strong", { hasText: n }).count()) === 1);
+    ok("A1b quatre couleurs de base seulement (les autres sous « Affiner »), chacune avec une phrase", (await da.locator(".lc-role small").allTextContents()).length === 4 && (await da.locator(".lc-role small").allTextContents()).every((t) => t.trim().length > 12));
     ok("A1c thème livré : lecture seule annoncée, ni nom ni enregistrement", (await page.locator('[data-testid="da-preset-note"]').count()) === 1 && (await page.locator("#theme-name").count()) === 0 && (await page.locator('[data-testid="da-save"]').count()) === 0);
     ok("A1d aucune invitation à créer une copie tant que rien n'est modifié", (await page.locator('[data-testid="da-copy-prompt"]').count()) === 0);
 
@@ -361,7 +361,7 @@ if (run("C"))
     const liveBefore = await publicVar("/fr", "--t-color-primary");
     await latencyOf("primary", NEW_PRIMARY, "--t-color-primary");
     ok("C2 en ligne : l'aperçu change tout de suite, pas le site public", (await publicVar("/fr", "--t-color-primary")) === liveBefore && /ne les verront qu'après « Enregistrer »/.test((await page.locator('[data-testid="da-state"]').textContent()) ?? ""));
-    ok("C2b le bouton annonce la publication", /Enregistrer et publier/.test((await page.locator('[data-testid="da-save"]').textContent()) ?? ""));
+    ok("C2b un seul bouton Enregistrer, la note annonce la publication", /Enregistrer$/.test(((await page.locator('[data-testid="da-save"]').textContent()) ?? "").trim()) && /le publie aussitôt/.test((await page.locator(".a-save-note").textContent()) ?? ""));
     await page.locator('[data-testid="da-save"]').click();
     const dlg = page.locator("dialog[open]");
     ok("C3 confirmation claire : « Ce thème est en ligne : tes visiteurs verront ces couleurs »", await dlg.waitFor({ timeout: 10000 }).then(() => true, () => false) && /Ce thème est en ligne : tes visiteurs verront ces couleurs/.test((await dlg.textContent()) ?? ""));
@@ -388,7 +388,8 @@ if (run("E"))
   await section("E", async () => {
     if (setting("activeThemeId") !== COPY) await activateTheme("Galerie lumineuse (copie)");
     await page.goto(`${BASE}/admin/themes/${COPY}`, { waitUntil: "networkidle" });
-    const cartes = page.locator("section", { has: page.locator("#t-cartes") });
+    await page.locator('[data-testid="step-tab-cartes"]').click();
+    const cartes = page.locator("section.a-panel", { has: page.locator("#t-cartes") });
     await cartes.waitFor();
     await cartes.scrollIntoViewIfNeeded();
     const names = await cartes.locator('[data-testid="card-da-color"] .cc-name').allTextContents();
@@ -402,13 +403,15 @@ if (run("E"))
     ok("E3 les teintes sont entre le fond de page et la couleur (12 % puis 25 %)", lum(soft) > lum(base) && lum(tint) < lum(soft) === (lum(base) < lum(page_bg)) && !same(soft, page_bg, 1) && !same(tint, base, 1), `${soft} ${tint}`);
     await page.screenshot({ path: path.join(SHOTS, "3-cartes-rubriques-teintes-1440.png"), fullPage: false });
 
-    // Suivre un changement de palette : la même teinte change quand la couleur change.
+    // Suivre un changement de palette : la même teinte change quand la couleur change (les couleurs de base sont à l'étape 1, la carte à l'étape 3).
+    await page.locator('[data-testid="step-tab-couleurs"]').click();
     await typeHex("secondary", "#2f6b4f");
     const tintFollow = rgbOf(await swatch("secondary25"));
     ok("E4 la teinte suit la palette (même jeton, autre couleur, aperçu immédiat)", !same(tintFollow, hexRgb("#2f6b4f"), 1) && (await waitFor(async () => same(rgbOf(await swatch("secondary")), hexRgb("#2f6b4f")))));
     const followed = rgbOf(await swatch("secondary25"));
     await role("secondary").getByRole("button", { name: "Revenir à la couleur enregistrée" }).click();
     ok("E4b retour à l'enregistré : la teinte revient", await waitFor(async () => !same(rgbOf(await swatch("secondary25")), followed, 1)));
+    await page.locator('[data-testid="step-tab-cartes"]').click();
 
     // Choisir une teinte : stockée en jeton.
     await cartes.locator('[data-token="tertiary25"]').click();

@@ -81,6 +81,7 @@ const EXPECTED = [
   "activateThemeAction",
   "deleteThemeAction",
   "resetSiteColorsAction",
+  "importThemeLogoAction",
   "saveSettingsAction",
   "saveSeoAction",
   "markMessagesSeenAction",

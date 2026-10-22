@@ -92,8 +92,8 @@ export const PALETTE_GROUPS: PaletteGroup[] = [
     base: "bg",
     baseHelp: "Le fond des pages.",
     nuances: [
-      { key: "bgDeep", label: "Fond profond", short: "profond", help: "Sépare deux rubriques sans filet.", contrast: true, rule: "le fond, un cran plus foncé (plus clair sur un thème sombre)" },
-      { key: "line", label: "Filets", short: "filets", help: "Traits de séparation ; transparence acceptée.", free: true, rule: "12 % du texte dans le fond" },
+      { key: "bgDeep", label: "Fond des blocs", short: "profond", help: "Sépare deux blocs sans trait.", contrast: true, rule: "le fond, un cran plus foncé (plus clair sur un thème sombre)" },
+      { key: "line", label: "Traits fins", short: "filets", help: "Traits fins ; transparence acceptée.", free: true, rule: "12 % du texte dans le fond" },
     ],
   },
   { id: "surface", label: "Surface", base: "surface", baseHelp: "Cartes, champs, visionneuse.", nuances: [] },
@@ -122,7 +122,7 @@ export const PALETTE_GROUPS: PaletteGroup[] = [
     label: "Accent secondaire",
     base: "secondary",
     baseHelp: "Détails mis en valeur.",
-    nuances: [{ key: "eyebrow", label: "Étiquettes", short: "étiquettes", help: "Petits textes au-dessus des titres.", contrast: true, rule: "l'accent secondaire" }],
+    nuances: [{ key: "eyebrow", label: "Petits textes d'étiquette", short: "étiquettes", help: "Petits textes au-dessus des titres.", contrast: true, rule: "l'accent secondaire" }],
   },
   { id: "details", label: "Détails", base: "tertiary", baseHelp: "Ornements discrets ; transparence acceptée.", baseFree: true, nuances: [] },
   {
@@ -130,8 +130,8 @@ export const PALETTE_GROUPS: PaletteGroup[] = [
     label: "Visionneuse",
     base: null,
     nuances: [
-      { key: "scrim", label: "Voile de la visionneuse", short: "voile", help: "Fond sombre derrière une image agrandie ou une vidéo.", rule: "le texte (le fond sur un thème sombre)" },
-      { key: "onScrim", label: "Texte sur le voile", short: "texte", help: "Légendes et boutons posés sur le voile.", contrast: true, rule: "le fond (le texte sur un thème sombre)" },
+      { key: "scrim", label: "Fond des images agrandies", short: "voile", help: "Fond sombre derrière une image agrandie ou une vidéo.", rule: "le texte (le fond sur un thème sombre)" },
+      { key: "onScrim", label: "Texte des images agrandies", short: "texte", help: "Légendes et boutons posés sur le fond des images agrandies.", contrast: true, rule: "le fond (le texte sur un thème sombre)" },
     ],
   },
 ];
@@ -153,7 +153,7 @@ export const ROLE_NAMES: Record<BaseKey, string> = {
   tertiary: "Ornements",
 };
 /** Nuances de couleur que la couleur d'un texte peut aussi prendre (après les six rôles). */
-export const NUANCE_NAMES = { "ink-soft": "Texte secondaire", eyebrow: "Étiquettes" } as const;
+export const NUANCE_NAMES = { "ink-soft": "Texte secondaire", eyebrow: "Petits textes d'étiquette" } as const;
 
 export const isStoredNuance = (k: string): k is StoredNuance => (STORED_NUANCES as readonly string[]).includes(k);
 export const isOptionalNuance = (k: string): k is OptionalNuance => (OPTIONAL_NUANCES as readonly string[]).includes(k);

@@ -1,0 +1,550 @@
+/* Éditeur de thème guidé (lot 61) : en-tête collant, cinq étapes en accordéon, « Affiner (avancé) ».
+   Jetons --admin-* uniquement (aucune couleur en dur : check:tokens). */
+
+.a-guide {
+  --guide-head-h: 64px;
+}
+
+/* ---- En-tête collant : nom, état, kit, UN seul Enregistrer ---------------- */
+.a-guide-head {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin: -28px calc(-1 * clamp(20px, 4vw, 44px)) 16px;
+  padding: 10px clamp(20px, 4vw, 44px);
+  border-bottom: 1px solid var(--admin-line);
+  background: color-mix(in srgb, var(--admin-surface) 94%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+@media (max-width: 899px) {
+  .a-guide-head {
+    top: 57px;
+    margin: -20px -16px 16px;
+    padding: 10px 16px;
+  }
+}
+
+.a-guide-title {
+  display: flex;
+  flex: 1 1 280px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+
+.a-guide-name {
+  margin: 0;
+  font: 600 20px/1.2 var(--admin-font-brand);
+  letter-spacing: -0.005em;
+}
+
+input.a-guide-name {
+  width: min(22ch, 100%);
+  padding: 4px 8px;
+}
+
+.a-guide-namefield {
+  min-width: 0;
+}
+
+.a-guide-status,
+.a-guide-version {
+  padding: 2px 10px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 999px;
+  color: var(--admin-ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.a-guide-status[data-state="live"] {
+  border-color: var(--admin-success);
+  background: var(--admin-success-soft);
+  color: var(--admin-success);
+}
+
+.a-guide-status[data-state="draft"] {
+  background: var(--admin-warning-soft);
+  color: var(--admin-warning);
+  border-color: var(--admin-warning);
+}
+
+.a-guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* La barre d'enregistrement du thème vit dans l'en-tête : plus collée en bas, sans cadre. */
+.a-savebar.a-savebar-head {
+  position: static;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.a-main:has(.a-guide) {
+  padding-bottom: 56px;
+}
+
+html:has(.a-guide) {
+  scroll-padding-top: calc(var(--guide-head-h) + 12px);
+  scroll-padding-bottom: 24px;
+}
+
+/* Menu « Dessiner dans Photoshop » */
+.a-kit-menu {
+  position: relative;
+}
+
+.a-kit-menu > summary {
+  display: inline-flex;
+  align-items: center;
+  list-style: none;
+  cursor: pointer;
+}
+
+.a-kit-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.a-kit-pop {
+  position: absolute;
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 8px;
+  width: min(340px, 86vw);
+  margin-top: 6px;
+  padding: 12px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+  box-shadow: var(--admin-shadow-menu);
+}
+
+.a-kit-pop .a-help {
+  margin: 0;
+}
+
+/* ---- Étapes : une ouverte à la fois ---------------------------------------- */
+.a-step {
+  margin: 0 0 8px;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface);
+}
+
+.a-step[data-open] {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 1px var(--admin-accent);
+}
+
+.a-step-h {
+  margin: 0;
+  font-size: 15px;
+}
+
+.a-step-btn {
+  display: grid;
+  grid-template-columns: 28px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: none;
+  color: var(--admin-ink);
+  font: 600 15px/1.2 var(--admin-font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+
+.a-step-num {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--admin-accent-soft);
+  color: var(--admin-accent);
+  font-size: 13px;
+}
+
+.a-step[data-open] .a-step-num {
+  background: var(--admin-accent);
+  color: var(--admin-on-accent);
+}
+
+.a-step-sum {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--admin-ink-soft);
+  font-size: 13px;
+  font-weight: 400;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.a-step[data-open] .a-step-sum {
+  display: none;
+}
+
+.a-step-chips {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.a-step-chip {
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 50%;
+}
+
+.a-step-body {
+  padding: 4px 14px 14px;
+}
+
+.a-step-body[hidden] {
+  display: none;
+}
+
+.a-step-intro {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.a-step-body .a-panel {
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.a-guide-block {
+  margin: 20px 0 18px;
+}
+
+.a-step-intro + .a-guide-block {
+  margin-top: 8px;
+}
+
+.a-step-body > .a-help {
+  margin: 12px 0 0;
+}
+
+.a-guide-block > .a-subhead:first-child {
+  margin-top: 0;
+}
+
+.a-step-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--admin-line);
+}
+
+/* ---- Affiner (avancé) -------------------------------------------------------- */
+.a-adv {
+  margin: 14px 0 0;
+  border: 1px dashed var(--admin-line-strong);
+  border-radius: var(--admin-radius);
+}
+
+.a-adv > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.a-adv-count {
+  color: var(--admin-ink-soft);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.a-adv-count:not([data-count="0"]) {
+  color: var(--admin-accent);
+  font-weight: 600;
+}
+
+.a-adv-body {
+  padding: 4px 12px 12px;
+}
+
+/* ---- Couleurs : quatre pastilles côte à côte ---------------------------------- */
+.a-guide .lp-colors[data-guided] .lc-roles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.a-guide .lp-colors[data-guided] .lc-role-item[data-open] {
+  grid-column: 1 / -1;
+}
+
+.a-guide .lp-colors[data-guided] .lc-state {
+  display: none;
+}
+
+.a-guide .lp-colors[data-guided] .lc-role-item[data-modified] .lc-state {
+  display: inline;
+}
+
+.a-read {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border: 1px solid var(--admin-success);
+  border-radius: var(--admin-radius);
+  background: var(--admin-success-soft);
+  color: var(--admin-success);
+  font-size: 14px;
+}
+
+.a-read[data-ok="false"] {
+  border-color: var(--admin-warning);
+  background: var(--admin-warning-soft);
+  color: var(--admin-warning);
+}
+
+.a-read p {
+  margin: 0;
+}
+
+.a-read-detail {
+  margin-top: 6px;
+  color: var(--admin-ink);
+  font-size: 13px;
+}
+
+.a-read-detail summary {
+  cursor: pointer;
+}
+
+.a-read-detail ul {
+  display: grid;
+  gap: 2px 14px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 560px) {
+  .a-read-detail ul {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.a-read-detail li[data-ok="false"] {
+  color: var(--admin-danger);
+}
+
+/* Correctif d'affichage (audit THEMES2-10) : les pastilles de lisibilité passent à la ligne au lieu d'être coupées. */
+.a-guide .a-color-row {
+  flex-wrap: wrap;
+}
+
+.a-guide .a-ratio {
+  white-space: normal;
+}
+
+.a-guide .a-colors {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.a-font-sample {
+  max-width: 100%;
+}
+
+/* ---- Arrondi : trois échantillons vivants ------------------------------------- */
+.a-round-demo {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 8px 0 12px;
+  padding: 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+  background: var(--admin-bg);
+}
+
+.a-round-btn,
+.a-round-card,
+.a-round-block {
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--admin-accent);
+  color: var(--admin-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.a-round-btn {
+  width: 84px;
+  height: 32px;
+  border-radius: min(var(--rd-btn), 16px);
+  background: var(--admin-accent);
+  color: var(--admin-on-accent);
+}
+
+.a-round-card {
+  width: 84px;
+  height: 56px;
+  border-radius: var(--rd-md);
+  background: var(--admin-surface);
+}
+
+.a-round-block {
+  flex: 1;
+  height: 72px;
+  border-radius: var(--rd-lg);
+  background: var(--admin-accent-soft);
+}
+
+.a-levels {
+  display: flex;
+  width: 100%;
+}
+
+.a-levels button {
+  flex: 1;
+  min-height: 34px;
+}
+
+/* ---- Papier et motifs ---------------------------------------------------------- */
+.a-subtabs {
+  margin: 0 0 12px;
+}
+
+.a-wp-hint {
+  margin: 10px 0 0;
+  border-color: var(--admin-line-strong);
+  background: var(--admin-bg);
+  color: var(--admin-ink);
+  font-weight: 400;
+}
+
+.a-wp-hint p {
+  margin: 0;
+}
+
+/* ---- Logo : fond clair et fond foncé -------------------------------------------- */
+.a-logo-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.a-logo-tiles > .a-help {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.a-guide-block > .a-subhead {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.a-logo-tile {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 16px 14px 10px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: var(--admin-radius);
+}
+
+.a-logo-sample {
+  display: block;
+  height: 44px;
+  max-width: 100%;
+  background-position: left center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  -webkit-mask-position: left center;
+  mask-position: left center;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+
+.a-logo-tile figcaption {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.a-logo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.a-logo-colors {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.a-logo-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.a-logo-choice input {
+  margin-top: 3px;
+}
+
+.a-logo-colors small {
+  display: block;
+  color: var(--admin-ink-soft);
+}
+
+@media (max-width: 480px) {
+  .a-logo-tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .a-step-btn {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .a-step-sum {
+    grid-column: 2;
+    text-align: left;
+  }
+}
+
+/* Case à cocher avec son libellé (le `.a-check` de l'admin est la pastille de sélection d'une vignette de médiathèque). */
+.a-guide-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  font-weight: 600;
+  cursor: pointer;
+}

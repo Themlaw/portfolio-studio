@@ -36,7 +36,7 @@ export function tintParts(token: SurfaceTint): { base: (typeof SURFACE_TINT_BASE
 
 export const SURFACE_TOKEN_LABELS: Record<SurfaceToken, string> = {
   bg: ROLE_NAMES.bg,
-  bgDeep: "Fond profond",
+  bgDeep: "Fond des blocs",
   surface: ROLE_NAMES.surface,
   primary: ROLE_NAMES.primary,
   secondary: ROLE_NAMES.secondary,

@@ -346,17 +346,19 @@ if (run("Q")) {
   await page.screenshot({ path: `${SHOTS}/Q3-da.png` });
   await inkItem.locator(".lc-role").click();
   await ensureCopy();
-  if ((await page.locator('[data-testid="palette-details"]').getAttribute("open")) === null) await page.locator('[data-testid="palette-details"] summary').click();
-  const pal = page.locator('.a-color[data-token="primary"]');
+  if ((await page.locator('[data-testid="adv-couleurs"]').getAttribute("open")) === null) await page.locator('[data-testid="adv-couleurs"] summary').click();
+  // Lot 61 : les couleurs de base sont dans le panneau « Couleurs » ; « Affiner » porte les nuances (ici « Au survol »).
+  const pal = page.locator('.a-color[data-token="primaryHover"]');
   await pal.scrollIntoViewIfNeeded();
-  ok("Q4 palette du thème : plus de sélecteur natif du navigateur", (await pal.locator('input[type="color"]').count()) === 0 && (await pal.getByRole("button", { name: "Boutons et liens : sélecteur" }).count()) === 1);
-  await pal.getByRole("button", { name: "Boutons et liens : sélecteur" }).click();
+  ok("Q4 réglages avancés des couleurs : plus de sélecteur natif du navigateur", (await pal.locator('input[type="color"]').count()) === 0 && (await pal.getByRole("button", { name: "Au survol : sélecteur" }).count()) === 1);
+  await pal.getByRole("button", { name: "Au survol : sélecteur" }).click();
   ok("Q4b palette du thème : carré + bande de teinte, code couleur", (await pal.locator(".cp-sv").count()) === 1 && (await pal.locator(".cp-hue").count()) === 1 && (await pal.locator(".cp-hex").count()) === 1);
   await pal.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${SHOTS}/Q4-palette-admin.png` });
   await page.keyboard.press("Escape");
   ok("Q4c Échap : fermé, focus rendu à la pastille", (await pal.locator(".cp").count()) === 0 && (await page.evaluate(() => document.activeElement?.classList.contains("cpw-chip"))));
   // Cartes par défaut (thème) et couleur des boutons et liens d'une page.
+  await page.locator('[data-testid="step-tab-cartes"]').click();
   const card = page.locator("#t-cartes").locator("..");
   ok("Q5 cartes des rubriques (thème) : plus de sélecteur natif", (await card.locator('input[type="color"]').count()) === 0 && (await card.getByRole("button", { name: "Autre couleur : sélecteur" }).count()) === 1);
   await page.goto(`${BASE}/admin/pages/${homeId}`, { waitUntil: "networkidle" });

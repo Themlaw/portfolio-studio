@@ -258,10 +258,10 @@ await section("P", async () => {
 
 await section("A", async () => {
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const link = page.locator('.a-nav a[href="/admin/papiers-peints"]');
-  ok("A0 « Papiers peints » est dans le menu, juste sous « Thèmes »", (await link.count()) === 1 && (await page.locator(".a-nav li").evaluateAll((els) => els.map((e) => e.textContent?.trim()).slice(1, 3))).join() === "Thèmes,Papiers peints");
-  await link.click();
-  await page.waitForURL(/\/admin\/papiers-peints/);
+  // Lot 61 : « Papiers peints » n'est plus une page du menu mais un onglet de l'étape « Papier et motifs » ; l'ancienne adresse y redirige.
+  ok("A0 « Papiers peints » n'est plus dans le menu", (await page.locator('.a-nav a[href="/admin/papiers-peints"]').count()) === 0);
+  await page.goto(`${BASE}/admin/papiers-peints`, { waitUntil: "networkidle" });
+  ok("A0b l'ancienne adresse redirige vers l'onglet « Mes papiers peints » de l'éditeur de thème", /\/admin\/themes\/[^/?]+\?etape=papier&onglet=papiers-peints$/.test(page.url()) && (await page.locator('[data-testid="paper-tab-wallpapers"]').getAttribute("aria-selected")) === "true", page.url());
   await page.locator('[data-testid="wallpaper-library"]').waitFor();
   ok("A1 bibliothèque vide : une phrase qui dit quoi faire", await page.locator('[data-testid="wallpaper-empty"]').isVisible());
   await page.screenshot({ path: path.join(SHOTS, "a-vide.png") });

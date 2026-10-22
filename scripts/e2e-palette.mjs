@@ -3,8 +3,8 @@
  * Palette du thème, kit v4 (curseurs), curseurs sur le site (lot 4).
  * UN chromium, UN onglet ; serveur dev redémarré et pré-chauffé ; une connexion.
  *
- * A. Éditeur de palette (copie de galerie-lumineuse) : groupes, « Revenir à
- *    auto », une base qui change entraîne sa nuance auto, échantillon, contraste
+ * A. Couleurs avancées (« Affiner » de l'étape 1, copie de galerie-lumineuse) : groupes, « Revenir à
+ *    auto », une base qui change entraîne sa nuance auto, contraste
  *    (✗ puis « Ajuster »), enregistrement, état relu après rechargement.
  * B. Kit v4 : export (file lourde, archive de trois PSD) → deux curseurs
  *    redessinés (scripts/kit-poc/simulate-multi.mts cursor) → envoi → revue
@@ -73,22 +73,23 @@ await Promise.all([page.waitForURL((u) => !u.pathname.startsWith("/admin/connexi
 
 /* ---- A. Éditeur de palette ------------------------------------------------ */
 await page.goto(`${BASE}/admin/themes/${COPY}`, { waitUntil: "networkidle" });
-await page.locator('[data-testid="palette-details"] summary').click();
+await page.locator('[data-testid="adv-couleurs"] summary').click();
 const field = (token) => page.locator(`.a-color[data-token="${token}"]`);
 const hex = (token) => field(token).locator(".a-color-hex").inputValue();
-ok("palette : 7 groupes (Fond de page, Cartes et encadrés, Texte, Boutons et liens, Accent, Ornements, Visionneuse)", (await page.locator(".a-pal-group").count()) === 7);
+ok("couleurs avancées : 7 groupes (Fond de page, Cartes et encadrés, Texte, Boutons et liens, Accent, Ornements, Images agrandies), sans second champ pour les 4 couleurs de base", (await page.locator(".a-pal-group").count()) === 7 && (await page.locator('.a-color[data-token="primary"]').count()) === 0);
 ok("migration : survol « choisie » (valeur du preset), voile « auto »", (await field("primaryHover").getAttribute("data-auto")) === "false" && (await hex("primaryHover")) === "#24408a" && (await field("scrim").getAttribute("data-auto")) === "true");
 await field("primaryHover").getByRole("button", { name: /Revenir à auto/ }).click();
 const autoHover = await hex("primaryHover");
 ok(`« Revenir à auto » : survol dérivé (${autoHover})`, (await field("primaryHover").getAttribute("data-auto")) === "true" && /^#[0-9a-f]{6}$/.test(autoHover) && autoHover !== "#24408a");
-await field("primary").getByLabel("Boutons et liens", { exact: true }).fill("#1d6b4f");
-await sleep(200);
+// La couleur de base se règle dans le panneau « Couleurs » (un seul bloc) ; la nuance auto la suit sous « Affiner ».
+await page.locator('.a-da .lc-role-item[data-role="primary"] .lc-role').click();
+await page.locator('.a-da .lc-role-item[data-role="primary"] .cp-hex').fill("#1d6b4f");
+await page.locator('.a-da .lc-role-item[data-role="primary"] .cp-hex').press("Enter");
+await sleep(300);
 const followed = await hex("primaryHover");
 ok(`base changée : la nuance auto suit (${autoHover} → ${followed})`, followed !== autoHover && (await field("primaryHover").getAttribute("data-auto")) === "true");
 ok("base changée : la nuance choisie ne bouge pas (fond profond)", (await hex("bgDeep")) === "#f2f0ea");
-const sampleHover = await page.$eval(".a-pal-s-btn-hover", (e) => getComputedStyle(e).backgroundColor);
-const toRgb = (h) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(", ")})`;
-ok("échantillon : le bouton « Survol » prend la nuance", sampleHover === toRgb(followed), `${sampleHover} / ${toRgb(followed)}`);
+ok("compteur « Affiner » : une nuance choisie de moins (survol revenu en auto)", /réglage/.test((await page.locator('[data-testid="adv-couleurs-count"]').textContent()) ?? ""));
 await field("inkSoft").locator(".a-color-hex").fill("#c4c4c4");
 await sleep(200);
 ok("contraste : texte secondaire illisible signalé (✗, « Ajuster »)", (await field("inkSoft").locator(".a-ratio-bad").count()) === 1 && (await field("inkSoft").getByRole("button", { name: /Ajuster/ }).count()) === 1);
@@ -96,7 +97,7 @@ await field("inkSoft").getByRole("button", { name: /Ajuster/ }).click();
 await sleep(200);
 ok("contraste : « Ajuster » → ✓", (await field("inkSoft").locator(".a-ratio-ok").count()) === 1);
 await page.locator(".a-pal-groups").first().scrollIntoViewIfNeeded();
-await page.locator('[data-testid="palette-details"]').screenshot({ path: `${SHOTS}/editeur-palette.png` });
+await page.locator('[data-testid="adv-couleurs"]').screenshot({ path: `${SHOTS}/editeur-palette.png` });
 await save("palette enregistrée (✓ Enregistré)");
 await page.reload({ waitUntil: "networkidle" });
 ok("enregistré et relu : survol toujours « auto », valeur recalculée", (await field("primaryHover").getAttribute("data-auto")) === "true" && (await hex("primaryHover")) === followed);
@@ -148,6 +149,8 @@ ok("copie brouillon : curseurs normal et clic (PNG du kit, points chauds)", draf
 /* ---- C. Site : curseurs ----------------------------------------------------- */
 await page.locator("iframe").first().waitFor({ timeout: 30000 });
 await sleep(1500);
+await page.locator('[data-testid="step-tab-logo"]').click();
+await page.locator('[data-testid="adv-logo"] summary').click();
 await page.locator('[aria-labelledby="t-curseurs"]').scrollIntoViewIfNeeded();
 await page.locator('[aria-labelledby="t-curseurs"]').screenshot({ path: `${SHOTS}/editeur-curseurs.png` });
 ok("admin : pas de curseur du thème dans l'administration", await page.evaluate(() => !document.documentElement.hasAttribute("data-kit-cursor") && getComputedStyle(document.body).cursor === "auto"));
@@ -212,7 +215,8 @@ writeFileSync(`${SHOTS}/site-curseurs.png`, await overlay(await page.screenshot(
 
 /* ---- D. Curseurs désactivés -------------------------------------------------- */
 await page.request.post(`${BASE}/admin/apercu/quitter`, { headers: { origin: BASE } }).catch(() => {});
-await page.goto(`${BASE}/admin/themes/${DRAFT}`, { waitUntil: "networkidle" });
+await page.goto(`${BASE}/admin/themes/${DRAFT}?etape=logo`, { waitUntil: "networkidle" });
+await page.locator('[data-testid="adv-logo"] summary').click();
 await page.getByLabel("Utiliser les curseurs dessinés sur le site").uncheck();
 await save("option : enregistrée");
 ok("option : curseurs désactivés enregistrés (off), dessins gardés", readTheme(DRAFT).assets.kit?.cursors?.off === true && Boolean(readTheme(DRAFT).assets.kit?.cursors?.default));

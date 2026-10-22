@@ -10,11 +10,10 @@ import { useDismiss } from "../edit/useDismiss";
 import { Toaster } from "./editing";
 import { QueueIndicator, UploadQueueProvider } from "./UploadQueue";
 
-/** `sub` : entrée rangée sous la précédente (Papiers peints sous Thèmes), légèrement en retrait. */
+/** `sub` : entrée rangée sous la précédente, légèrement en retrait (aucune pour l'instant : « Papiers peints » est un onglet de l'éditeur de thème, lot 61). */
 const NAV: { href: string; label: string; sub?: boolean }[] = [
   { href: "/admin", label: "Tableau de bord" },
   { href: "/admin/themes", label: "Thèmes" },
-  { href: "/admin/papiers-peints", label: "Papiers peints", sub: true },
   { href: "/admin/pages", label: "Pages" },
   { href: "/admin/projets", label: "Projets" },
   { href: "/admin/medias", label: "Médiathèque" },
