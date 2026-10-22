@@ -346,6 +346,9 @@
 }
 
 /* ---- Cadre : passe-partout dessiné en 9-slice, HORS visionneuse ------------
+   Lot 58 : « round » (et non stretch ou repeat) : les coins restent tels que dessinés et chaque côté répète son motif un nombre
+   ENTIER de fois (le navigateur ajuste très légèrement la taille du motif), donc jamais de demi-motif ni de motif étiré sur une
+   photo très large ou très haute. Épaisseur : celle du kit (moitié de la découpe, nette en écran 2x).
    Lot médias : l'image agrandie est posée à nu (globals.css, .lightbox-frame) ;
    le cadre de l'artiste habille les entrées de collection (tuiles de l'accueil). */
 [data-kit-frame] .tiles { --tile-extra: calc(2 * var(--mat-padding) + 2 * var(--t-kit-frame-width)); }
@@ -355,7 +358,7 @@
   border-width: var(--t-kit-frame-width);
   border-image-source: var(--t-kit-frame);
   border-image-slice: var(--t-kit-frame-slice);
-  border-image-repeat: stretch;
+  border-image-repeat: round;
   box-shadow: none;
 }
 
@@ -370,11 +373,14 @@
   box-sizing: border-box;
   border-style: solid;
   border-color: transparent;
-  border-width: var(--t-kit-frame-width);
+  /* Épaisseur réduite proportionnellement sur petit écran / petite photo (jamais plus de 4 % de la largeur de l'écran). */
+  border-width: min(var(--t-kit-frame-w), 4vw);
   border-image-source: var(--t-kit-frame);
   border-image-slice: var(--t-kit-frame-slice);
-  border-image-repeat: stretch;
+  border-image-repeat: round;
 }
+/* « Sans cadre » (lot 58) : une photo qui a choisi data-frame="none" n'a ni cadre du kit ni cadre de couleur. */
+[data-frame="none"] { --frame-w: 0px; }
 
 /* ---- Trait : soulignement actif, barre de défilement --------------------- */
 [data-kit-stroke] .nav-underline {
