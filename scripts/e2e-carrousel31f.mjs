@@ -130,8 +130,12 @@ const mHover = async (loc) => {
   await sleep(250);
 };
 const mClick = async (loc) => {
-  const { x, y } = await center(loc);
+  let { x, y } = await center(loc);
   await page.mouse.move(x, y, { steps: 5 });
+  // Lot 54 : la légende vide du média survolé apparaît et décale la barre d'outils ; on remesure avant de cliquer.
+  await sleep(300);
+  ({ x, y } = await center(loc));
+  await page.mouse.move(x, y, { steps: 2 });
   await page.mouse.click(x, y);
 };
 

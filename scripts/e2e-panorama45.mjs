@@ -292,7 +292,8 @@ if (run("P") || run("F") || run("T"))
       await pp.locator(".strip-nav-prev").first().click();
       ok("F3 flèche ← : retour sur le panorama entier", await waitFor(async () => Math.abs((await frameLeft(0)) - pad) <= 3, 8000), String(await frameLeft(0)));
       await pp.locator(".strip-frame").first().click();
-      ok("F4 un clic sur le panorama ouvre la visionneuse", await pp.getByRole("dialog").first().isVisible().catch(() => false) || (await pp.locator(".lightbox").count()) > 0);
+      // Lot 54 : la visionneuse est chargée à la première ouverture ; on l'attend.
+      ok("F4 un clic sur le panorama ouvre la visionneuse", await pp.locator(".lightbox").first().waitFor({ timeout: 15000 }).then(() => true, () => false));
       await pp.screenshot({ path: path.join(SHOTS, "visionneuse-public.png") });
       await pc.close();
     }
