@@ -166,6 +166,7 @@ figure.block-image[data-fit="contain"] .block-image-media.block-image-media {
 [data-frame] { --frame-w: 2px; }
 [data-frame="medium"] { --frame-w: clamp(3px, 0.9vw, 6px); }
 [data-frame="thick"] { --frame-w: clamp(5px, 1.8vw, 12px); }
+[data-frame="none"] { --frame-w: 0px; }
 figure.block-image[data-frame]:not([data-legacy]) .block-image-media,
 figure.block-image[data-frame] .block-image-frame,
 .strip-frame[data-frame] .strip-media img {

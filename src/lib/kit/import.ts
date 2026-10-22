@@ -23,6 +23,7 @@ import sharp from "sharp";
 import { ensureAgPsd } from "./ag-psd-node";
 import { alphaBox, contourFidelity, crop, encodeBitmap, monoStats, opaqueShare, reduceTo, seamStats, stretchableSvg, SVG_MAX_PATHS, SVG_MAX_RATIO, textureStats, thumbHashOf, TILE_REPEAT, tileRepeatStats, translucentShare, vectorizeLayer, type Rgba } from "./formats";
 import { DAMAGED_FILE, preflightProblem, preflightPsd, PsdPreflightError, type PreflightLimits, type PsdPreflight } from "./psd-header";
+import { assembleCornerSide, framePreview, isCornerSide } from "./frame9";
 import { emptyFrameHash, findReference, frameHash, writePreview, type KitManifest } from "./manifest";
 import { flattenSlot, freeRaw, layoutOf, resolveDecor, resolveSlots, SlotRefusal, treeProblem, treeStats, type TreeStats } from "./resolve";
 import { DEFAULT_LIMITS } from "./limits";
@@ -489,7 +490,7 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
       report.peakMb = peakMbNow();
       slots.push(report);
     };
-    const framed: Rgba = { width: slot.size.w, height: slot.size.h, data: await readFile(path.join(work, `${base}.rgba`)) };
+    let framed: Rgba = { width: slot.size.w, height: slot.size.h, data: await readFile(path.join(work, `${base}.rgba`)) };
     if (ref) {
       if (slot.id.startsWith("decor/")) {
         const idx = refPlans.indexOf(report.hash!);
@@ -502,7 +503,15 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
       done();
       continue;
     }
-    await writePreview(framed, path.join(outDir, `${base}.apres.png`), slot.kind === "plan");
+    // Cadre en 9 parties (lot 58) : option B (un coin + un côté) = cadre complet par rotation ; la revue montre le cadre sur 3 formats.
+    if (slot.kind === "nine" && isCornerSide(framed)) {
+      framed = assembleCornerSide(framed);
+      report.messages.push("Option B : le coin et le côté dessinés ont été tournés pour fabriquer les 4 coins et les 4 côtés.");
+    }
+    if (slot.kind === "nine" && alphaBox(framed)) {
+      await writeFile(path.join(outDir, `${base}.apres.png`), await framePreview(framed));
+      report.messages.push("Aperçu sur trois formats (carré, panorama, portrait) : les coins restent tels quels, les côtés répètent le motif.");
+    } else await writePreview(framed, path.join(outDir, `${base}.apres.png`), slot.kind === "plan");
     report.preview = `${base}.apres.png`;
 
     const box = alphaBox(framed);
@@ -543,7 +552,7 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
     const files: string[] = [];
     if (opts.keepCrops) await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 4 } }).png().toFile(path.join(outDir, `${base}.source.png`));
 
-    const { avif, webp } = await encodeBitmap(img, slot.kind === "signature" || slot.kind === "tile" || slot.kind === "stroke");
+    const { avif, webp } = await encodeBitmap(img, slot.kind === "signature" || slot.kind === "tile" || slot.kind === "stroke" || slot.kind === "nine");
     report.candidates = { avif: avif.length, webp: webp.length };
     const tex = textureStats(img);
     report.textured = { coverage8: Math.round(tex.coverage8 * 1000) / 1000, distinct: tex.distinct };

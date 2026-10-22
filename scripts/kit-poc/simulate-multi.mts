@@ -138,6 +138,36 @@ try {
       { name: KIT_FILES.icones.file, file: iconFile },
       { name: "LISEZ-MOI.txt", data: Buffer.from("kit retouché (lot 49)\n") },
     ]);
+  } else if (cmd === "cadre58a" || cmd === "cadre58b") {
+    // Lot 58 : un cadre à motif (bandes bleu / jaune sur les côtés, coins rouges). a = cadre complet (option A) ; b = coin + côté du haut seuls (option B).
+    const iconPsd = readPsd(readFileSync(files.icones), READ);
+    const cadre = find(iconPsd.children, "Cadre");
+    if (!cadre) throw new Error("calque « Cadre » introuvable");
+    const cf = frameOf(SLOTS.find((x) => x.id === "cadre")!, "multi");
+    const k = cf.w / 300;
+    const corner = (x: number, y: number) => `<rect x="${x * k}" y="${y * k}" width="${48 * k}" height="${48 * k}" fill="#d62828"/><circle cx="${(x + 24) * k}" cy="${(y + 24) * k}" r="${8 * k}" fill="#ffffff"/>`;
+    const band = (horizontal: boolean, at: number) =>
+      [0, 1, 2, 3]
+        .map((i) => {
+          const o = 48 + 51 * i;
+          const r = (off: number, len: number, col: string) => (horizontal ? `<rect x="${(o + off) * k}" y="${at * k}" width="${len * k}" height="${48 * k}" fill="${col}"/>` : `<rect x="${at * k}" y="${(o + off) * k}" width="${48 * k}" height="${len * k}" fill="${col}"/>`);
+          return r(0, 25, "#1d4ed8") + r(25, 26, "#facc15");
+        })
+        .join("");
+    const full = cmd === "cadre58a";
+    const svg = full
+      ? `${corner(0, 0)}${corner(252, 0)}${corner(0, 252)}${corner(252, 252)}${band(true, 0)}${band(true, 252)}${band(false, 0)}${band(false, 252)}`
+      : `${corner(0, 0)}${band(true, 0)}`;
+    const frame = await raster(`<svg xmlns="http://www.w3.org/2000/svg" width="${cf.w}" height="${cf.h}">${svg}</svg>`);
+    Object.assign(cadre, { left: cf.x, top: cf.y, right: cf.x + cf.w, bottom: cf.y + cf.h, imageData: frame });
+    const iconFile = path.join(work, "icones-retouche.psd");
+    write(iconPsd, iconFile);
+    await writeZipFile(out, [
+      { name: KIT_FILES.decor.file, file: files.decor },
+      { name: KIT_FILES.logo.file, file: files.logo },
+      { name: KIT_FILES.icones.file, file: iconFile },
+      { name: "LISEZ-MOI.txt", data: Buffer.from("kit retouché (lot 58)\n") },
+    ]);
   } else if (cmd === "zip") {
     const edited = rest[0];
     if (!edited) throw new Error("usage : zip <kit.zip> <icone.psd> <sortie>");

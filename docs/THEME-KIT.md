@@ -29,7 +29,7 @@ Noms : comparés **sans casse, sans accents ; espaces, tirets et soulignés
 | Plans 2 à 5 | `hero/plan-2` … `plan-5` | 0, 0, 2880 × 1600 | **exigée** | SVG ou AVIF | hauteur utile depuis le bas : 900, 760, 560, 380 px ; un plan opaque à 98 % est refusé ; un décor qui monte au-delà de la hauteur utile (+40 px) est signalé (titre) |
 | Signature | `signature` | 80, 1720, 1200 × 300 | exigée | masque SVG | une couleur (sinon : forme seule, teinte du thème) |
 | Papier | `papier` | 1400, 1720, 512 × 512 | **opaque** | bitmap (AVIF + WebP) | raccord mesuré (bords opposés contre intérieur) ; répétition visible : autocorrélation à 1/2, 1/3, 1/4 de la période sur la luminance réduite à 128 px, avertissement « la tuile se répète de façon visible » si > 0,5 et contraste > 1,5 niveau (grain : ~0,1 ; vichy du fixture A : 0,96) |
-| Cadre | `cadre` | 2000, 1720, 300 × 300 | permise | SVG ou AVIF, `border-image` | 9-slice : marges 48 px (guides Photoshop) ; pas rogné |
+| Cadre | `cadre` | 2000, 1720, 300 × 300 | permise | SVG ou AVIF, `border-image` | 9 parties (lot 58) : marges 48 px (guides Photoshop), coins fixes, côtés répétés (round) ; option B : coin + côté tournés ; pas rogné |
 | Trait | `trait` | 80, 2100, 1200 × 80 | exigée | masque SVG | soulignement étirable, une couleur |
 | Icônes | `icones/fleche-gauche`, `fleche-droite`, `fermer`, `lecture` | 128 × 128 chacune (2400–2688, 1720–2008) | exigée | masque SVG | une couleur |
 | Scotch | `accessoires/scotch` | 2000, 2100, 400 × 160 | permise | SVG ou AVIF | transparence partielle → bitmap |
