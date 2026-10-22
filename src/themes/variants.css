@@ -354,14 +354,21 @@
   box-shadow: none;
 }
 
-/* Lot 49 : le cadre dessiné habille AUSSI les photos (image seule, case de grille, image d'une planche ou d'un carrousel,
-   Planche libre), pas seulement les entrées de collection. Même mécanique que le Cadre du lot 34 : une bordure DANS la boîte
-   de l'image (border-box), donc la taille extérieure ne change pas et rien n'est rogné. Un cadre choisi pour une photo
-   (`data-frame`, look.css) passe avant ; une vidéo n'est jamais encadrée. */
-[data-kit-frame] figure.block-image:not([data-frame]):not([data-legacy]) .block-image-media,
-[data-kit-frame] figure.block-image:not([data-frame]) .block-image-frame,
-[data-kit-frame] .strip-frame:not([data-frame]):not([data-video-mode]) .strip-media img,
-[data-kit-frame] .free-item:not([data-frame]) .free-media:not(.free-video) {
+/* Lot 49 puis lot 62 : le cadre dessiné peut habiller les photos (image seule, case de grille, image d'une planche ou d'un carrousel,
+   Planche libre) ET les vidéos. Même mécanique que la Bande du lot 34 : une bordure DANS la boîte du média (border-box), donc la taille
+   extérieure ne change pas et rien n'est rogné. Il n'est posé que sur un choix de l'artiste (`data-frame="theme"`, photo ou vidéo) ou,
+   pour une PHOTO sans choix, si le réglage du site « Cadre du thème sur toutes les photos » est actif (`data-frame-all` sur
+   `.site-frame`, posé par le cadre du site ; NON par défaut, y compris pour les sites existants). Une vidéo sans choix n'est jamais
+   encadrée. « Aucun » (`data-frame="none"`) et « Bande de couleur » (look.css) n'ont jamais le cadre du thème. */
+[data-kit-frame] figure.block-image[data-frame="theme"]:not([data-legacy]) .block-image-media,
+[data-kit-frame] figure.block-image[data-frame="theme"] .block-image-frame,
+[data-kit-frame] .strip-frame[data-frame="theme"] .strip-media :is(img, video),
+[data-kit-frame] .free-item[data-frame="theme"] .free-media,
+[data-kit-frame] .video-frame[data-frame="theme"],
+[data-kit-frame] [data-frame-all] figure.block-image:not([data-frame]):not([data-legacy]) .block-image-media,
+[data-kit-frame] [data-frame-all] figure.block-image:not([data-frame]) .block-image-frame,
+[data-kit-frame] [data-frame-all] .strip-frame:not([data-frame]):not([data-video-mode]) .strip-media img,
+[data-kit-frame] [data-frame-all] .free-item:not([data-frame]) .free-media:not(.free-video) {
   box-sizing: border-box;
   border-style: solid;
   border-color: transparent;
@@ -371,8 +378,6 @@
   border-image-slice: var(--t-kit-frame-slice);
   border-image-repeat: round;
 }
-/* « Sans cadre » (lot 58) : une photo qui a choisi data-frame="none" n'a ni cadre du kit ni cadre de couleur. */
-[data-frame="none"] { --frame-w: 0px; }
 
 /* ---- Trait : soulignement actif, barre de défilement --------------------- */
 [data-kit-stroke] .nav-underline {

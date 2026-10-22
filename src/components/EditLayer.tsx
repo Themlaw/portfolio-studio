@@ -1393,7 +1393,7 @@ export default function EditLayer() {
                 Réglages
               </button>
             )}
-            {sel.type === "image" && <FrameButton uid={sel.uid} open={frameFor === sel.uid} onToggle={() => { setFondFor(null); setImgBgFor(null); setQuickFor(null); setFrameFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
+            {(sel.type === "image" || sel.type === "video-single") && <FrameButton what={sel.type === "image" ? "photo" : "vidéo"} uid={sel.uid} open={frameFor === sel.uid} onToggle={() => { setFondFor(null); setImgBgFor(null); setQuickFor(null); setFrameFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
             {sel.type === "image" && (
               <ImageBgButton
                 uid={sel.uid}
@@ -1455,8 +1455,9 @@ export default function EditLayer() {
               onChanged={() => bump((n) => n + 1)}
             />
           )}
-          {sel.type === "image" && frameFor === sel.uid && (
+          {(sel.type === "image" || sel.type === "video-single") && frameFor === sel.uid && (
             <FrameMenu
+              what={sel.type === "image" ? "photo" : "vidéo"}
               uid={sel.uid}
               top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40}
               onClose={() => setFrameFor(null)}

@@ -29,6 +29,7 @@ export default function VideoCard({
   styles,
   marks = edit,
   prefix = "",
+  frame: frameRender,
 }: {
   item: LocalizedArtwork;
   look: "feature" | "card" | "plain";
@@ -42,6 +43,8 @@ export default function VideoCard({
   marks?: boolean;
   /** Préfixe du chemin des textes (case d'une grille de planche, lot 39). */
   prefix?: string;
+  /** Cadre de la vidéo (lot 62) : le choix de l'artiste (`look.frame`), rendu par `frameStyle` ; absent = suit le réglage du site. */
+  frame?: { attrs: Record<string, string>; style: CSSProperties } | null;
 }) {
   const [playing, setPlaying] = useState(false);
   const id = useId();
@@ -59,12 +62,12 @@ export default function VideoCard({
   const loop = mode === "loop" && Boolean(item.video);
   const frame = loop ? (
     <div className="mat">
-      <div className="relative aspect-video w-full overflow-hidden rounded-[2px] bg-scrim">
+      <div className="video-frame relative aspect-video w-full overflow-hidden rounded-[2px] bg-scrim" {...frameRender?.attrs} style={frameRender?.style}>
         <LoopClick video={item.video!} width={item.width} height={item.height} className="absolute inset-0 h-full w-full object-cover" label={texts.title} edit={edit} />
       </div>
     </div>
   ) : (
-    <Frame item={shown} large={look === "feature"} playing={playing} onPlay={() => setPlaying(true)} edit={edit} />
+    <Frame item={shown} large={look === "feature"} playing={playing} onPlay={() => setPlaying(true)} edit={edit} frame={frameRender} />
   );
   const media = edit ? (
     <div data-edit-media="mediaId" data-edit-media-kind="video" {...(item.video ? { "data-video-mode": loop ? "loop" : "player" } : {})}>

@@ -3,7 +3,7 @@
  * Lot 36 « Lecteur vidéo » (chromium, serveur requis, base neuve, une connexion admin). Deux VRAIES vidéos générées par ffmpeg
  * (16 s avec son, 3 s sans son), envoyées par la médiathèque et converties par le serveur.
  *
- *  A  Boucle (page) : muette, en boucle, jouée ; un clic la met en pause, un autre la relance ; Espace et Entrée au clavier ;
+ *  A  Boucle (page) : muette, en boucle, à l'arrêt jusqu'au clic (lot 62) ; un clic la lance, un autre la met en pause ; Espace et Entrée au clavier ;
  *     repère pause / lecture discret ; « réduire les animations » : elle démarre en pause.
  *  B  Lecteur (page) : image d'attente + bouton ; un clic ouvre la visionneuse (fond sombre) ; lecture / pause, ± 10 s (boutons,
  *     bornes), barre cliquable et glissable, temps écoulé et durée, son (muet, volume), plein écran ; fermeture par ×, Échap ou clic
@@ -125,14 +125,18 @@ try {
     const p = await publicPage();
     const box = modeEl(p, "loop", 0);
     await box.scrollIntoViewIfNeeded();
-    ok("A1 Boucle : la vidéo joue (muette, en boucle)", (await playing(box)) && (await vstate(box)).muted && (await vstate(box)).loop);
+    // Lot 62 : la Boucle ne démarre plus toute seule (la suite cadres62 le vérifie sur chaque type de Boucle) : image d'attente, repère ▶, un clic la lance.
+    await sleep(2500);
+    ok("A1 Boucle : arrivée à l'écran, elle NE démarre PAS (image d'attente, repère ▶)", (await vstate(box)).paused && (await vstate(box)).t === 0 && (await box.locator('.loop-mark[data-mark="play"]').count()) === 1);
     const click = box.locator(".loop-click");
+    await click.click();
+    ok("A1a un clic la lance (muette, en boucle)", (await playing(box)) && (await vstate(box)).muted && (await vstate(box)).loop);
     ok("A1b le repère pause est affiché, discret (petit, translucide)", await click.locator('.loop-mark[data-mark="pause"]').isVisible() && (await click.locator(".loop-mark").evaluate((m) => ({ w: m.getBoundingClientRect().width, o: Number(getComputedStyle(m).opacity) }))).w <= 40);
     ok("A1c le cadre est un bouton : nom lisible, focusable", /Mettre la vidéo en pause/.test((await click.getAttribute("aria-label")) ?? "") && (await click.getAttribute("role")) === "button" && (await click.getAttribute("tabindex")) === "0");
     await shot(p, "A-boucle-lecture");
     await click.click();
     ok("A2 un clic met la boucle en pause", await isPaused(box));
-    ok("A2b état et repère à jour (pause → lecture)", (await click.getAttribute("data-loop")) === "paused" && (await click.locator('.loop-mark[data-mark="play"]').count()) === 1 && /Relancer/.test((await click.getAttribute("aria-label")) ?? ""));
+    ok("A2b état et repère à jour (pause → lecture)", (await click.getAttribute("data-loop")) === "paused" && (await click.locator('.loop-mark[data-mark="play"]').count()) === 1 && /Lire la vidéo/.test((await click.getAttribute("aria-label")) ?? ""));
     await shot(p, "A-boucle-pause");
     await click.click();
     ok("A3 un second clic la relance", await playing(box));
@@ -310,7 +314,10 @@ try {
     const p = await publicPage({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
     const loop = modeEl(p, "loop", 0);
     await loop.scrollIntoViewIfNeeded();
-    await playing(loop);
+    await sleep(2000);
+    ok("C0 téléphone : la Boucle ne démarre pas seule", (await vstate(loop)).paused && (await vstate(loop)).t === 0);
+    await loop.locator(".loop-click").tap();
+    ok("C0b toucher la Boucle : lecture", await playing(loop));
     await shot(p, "C-telephone-boucle");
     await loop.locator(".loop-click").tap();
     ok("C1 toucher la Boucle : pause", await isPaused(loop));
@@ -358,7 +365,7 @@ try {
     const playCell = g.locator('[data-video-mode="player"]');
     await g.scrollIntoViewIfNeeded();
     ok("D1 grille : une case Boucle et une case Lecteur", (await loopCell.count()) === 1 && (await playCell.count()) === 1);
-    ok("D2 case Boucle : joue, un clic la met en pause", (await playing(loopCell)) && (await loopCell.locator(".loop-click").click(), await isPaused(loopCell)));
+    ok("D2 case Boucle : à l'arrêt, un clic la lance, un autre la met en pause", (await vstate(loopCell)).paused && (await loopCell.locator(".loop-click").click(), await playing(loopCell)) && (await loopCell.locator(".loop-click").click(), await isPaused(loopCell)));
     await playCell.getByRole("button", { name: /Lire/ }).click();
     await dlg(p).waitFor();
     ok("D3 case Lecteur : s'ouvre en grand", await dPlaying(p));
@@ -379,7 +386,7 @@ try {
     ok("E1 carrousel « Boucle » : les deux vidéos sont des boucles (même la longue)", (await r1.locator('[data-video-mode="loop"]').count()) === 2 && (await r1.locator("button.strip-frame[data-video-mode=player]").count()) === 0);
     const first = r1.locator('[data-video-mode="loop"]').first();
     await first.scrollIntoViewIfNeeded();
-    ok("E2 … elle joue, un clic la met en pause, un autre la relance", (await playing(first)) && (await first.locator(".loop-click").click(), await isPaused(first)) && (await first.locator(".loop-click").click(), await playing(first)));
+    ok("E2 … à l'arrêt, un clic la lance, un autre la met en pause, un autre la relance", (await vstate(first)).paused && (await first.locator(".loop-click").click(), await playing(first)) && (await first.locator(".loop-click").click(), await isPaused(first)) && (await first.locator(".loop-click").click(), await playing(first)));
     ok("E2b … sans ouvrir de visionneuse", (await dlg(p).count()) === 0);
     const r2 = rails.nth(1);
     ok("E3 carrousel « Lecteur » : deux vignettes à ouvrir, aucune boucle", (await r2.locator("button.strip-frame[data-video-mode=player]").count()) === 2 && (await r2.locator("[data-loop]").count()) === 0);
@@ -400,7 +407,7 @@ try {
     const bgrid = s.locator(".block-grid");
     const bl = bgrid.locator('[data-video-mode="loop"]');
     await bgrid.scrollIntoViewIfNeeded();
-    ok("E7 grille de planche : Boucle qui joue et se met en pause", (await playing(bl)) && (await bl.locator(".loop-click").click(), await isPaused(bl)));
+    ok("E7 grille de planche : Boucle à l'arrêt, qui se lance et se met en pause au clic", (await vstate(bl)).paused && (await bl.locator(".loop-click").click(), await playing(bl)) && (await bl.locator(".loop-click").click(), await isPaused(bl)));
     await openViewer(p, bgrid.locator('[data-video-mode="player"]').getByRole("button", { name: /Lire/ }));
     ok("E8 grille de planche : Lecteur ouvert en grand", await dPlaying(p));
     await p.keyboard.press("Escape");
@@ -554,7 +561,7 @@ try {
   if (run("H")) {
     const journal = JSON.parse(readFileSync("drizzle/meta/_journal.json", "utf8")).entries;
     const applied = sql((db) => db.prepare("select count(*) n from __drizzle_migrations").get()).n;
-    ok("H1 le serveur a joué la migration 0027 au démarrage (journal complet appliqué)", journal.at(-1).tag === "0027_video_mode" && applied === journal.length, `${applied} / ${journal.length}`);
+    ok("H1 le serveur a joué la migration 0027 au démarrage (journal complet appliqué)", journal.some((e) => e.tag === "0027_video_mode") && applied === journal.length, `${applied} / ${journal.length}`);
     // Copie de la base de l'instance + anciennes données (sans mode), migration réelle sur la copie.
     const dir = path.join(tmpdir(), "e2e-video36-mig");
     mkdirSync(dir, { recursive: true });

@@ -331,7 +331,7 @@ export default function BoardLayer({
   const [addMenu, setAddMenu] = useState<{ board: number; index: number; top: number; anchorTop: number; left: number; hasStrip: boolean; count: number } | null>(null);
   const [itemSel, setItemSel] = useState<{ board: number; uid: string } | null>(null);
   // Lot 34 : fenêtre « Cadre » de la barre d'un composant Image (même principe que « Fond »).
-  const [frameMenu, setFrameMenu] = useState<{ board: number; uid: string; top: number; left: number; frame: Frame | undefined } | null>(null);
+  const [frameMenu, setFrameMenu] = useState<{ board: number; uid: string; top: number; left: number; frame: Frame | undefined; what: "photo" | "vidéo" } | null>(null);
   // Lot 41 : fenêtre « Fond de l'image » de la barre d'un composant Image.
   const [bgMenu, setBgMenu] = useState<{ board: number; uid: string; top: number; left: number; bg: string | undefined } | null>(null);
   const bgMenuRef = useRef(bgMenu);
@@ -775,7 +775,7 @@ export default function BoardLayer({
           } catch {}
           setFondMenu(null);
           setQuickMenu(null);
-          setFrameMenu((cur) => (cur?.uid === uid ? null : { board, uid, top: r.bottom + window.scrollY + 4, left: Math.max(8, Math.min(r.left + window.scrollX - 300, window.scrollX + window.innerWidth - 348)), frame: current }));
+          setFrameMenu((cur) => (cur?.uid === uid ? null : { board, uid, top: r.bottom + window.scrollY + 4, left: Math.max(8, Math.min(r.left + window.scrollX - 300, window.scrollX + window.innerWidth - 348)), frame: current, what: frame?.dataset.editBitemType === "video-single" ? "vidéo" : "photo" }));
         } else if (op === "size" || op === "space") {
           const r = itemOp.getBoundingClientRect();
           setFondMenu(null);
@@ -1201,13 +1201,13 @@ export default function BoardLayer({
           {!active.empty && <SlotRadius el={activeEl} />}
           {!active.empty && activeEl && activeEl.querySelector("video, .strip-duration, [data-video-mode]") && <SlotVideoMode el={activeEl} />}
           {!active.empty && activeEl && activeEl.hasAttribute("data-pano") && <SlotPano el={activeEl} />}
-          {!active.empty && activeEl && !activeEl.querySelector("video, .strip-duration") && (
+          {!active.empty && activeEl && (
             <button
               type="button"
               aria-haspopup="dialog"
               aria-expanded={frameSlot?.key === active.key}
               data-testid="slot-frame-button"
-              title="Cadre autour de cette photo"
+              title={activeEl.querySelector("video, .strip-duration") ? "Cadre autour de cette vidéo" : "Cadre autour de cette photo"}
               onClick={() => {
                 setBgSlot(null);
                 setFrameSlot((f) => (f?.key === active.key ? null : active));
@@ -1346,7 +1346,7 @@ export default function BoardLayer({
 
       {quickMenu && <QuickMenu key={`${quickMenu.uid}-${quickMenu.kind}`} uid={quickMenu.uid} kind={quickMenu.kind} top={quickMenu.top} left={quickMenu.left} onClose={() => setQuickMenu(null)} />}
       {bgMenu && <BoardImageBgMenu key={bgMenu.uid} board={bgMenu.board} uid={bgMenu.uid} initial={bgMenu.bg} top={bgMenu.top} left={bgMenu.left} onClose={() => setBgMenu(null)} />}
-      {frameMenu && <BoardFrameMenu key={frameMenu.uid} board={frameMenu.board} uid={frameMenu.uid} initial={frameMenu.frame} top={frameMenu.top} left={frameMenu.left} onClose={() => setFrameMenu(null)} />}
+      {frameMenu && <BoardFrameMenu key={frameMenu.uid} board={frameMenu.board} uid={frameMenu.uid} initial={frameMenu.frame} what={frameMenu.what} top={frameMenu.top} left={frameMenu.left} onClose={() => setFrameMenu(null)} />}
       {fondMenu && <BoardFondMenu key={fondMenu.uid} board={fondMenu.board} uid={fondMenu.uid} initial={fondMenu.background} top={fondMenu.top} left={fondMenu.left} onClose={() => setFondMenu(null)} />}
 
       {addMenu && (
@@ -1610,6 +1610,7 @@ function SlotFrame({ el, box, onClose }: { el: Element; box: Rect; onClose: () =
   const uid = el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
   if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
   const look = lookOf(uid);
+  const what = el.querySelector("video, .strip-duration") ? "vidéo" : "photo";
   const current = look.slotFrame && Object.hasOwn(look.slotFrame, slug) ? look.slotFrame[slug] : undefined;
   const change = (next: Frame | undefined) => {
     const all = { ...(look.slotFrame ?? {}) };
@@ -1621,8 +1622,8 @@ function SlotFrame({ el, box, onClose }: { el: Element; box: Rect; onClose: () =
   const width = Math.min(330, document.documentElement.clientWidth - 24);
   const left = Math.max(window.scrollX + 8, Math.min(box.left + 8, window.scrollX + document.documentElement.clientWidth - width - 8));
   return (
-    <div ref={ref} className="sm tc pe-slot-frame" role="dialog" aria-label="Cadre de la photo" style={{ top: box.top + 46, left, right: "auto" }}>
-      <FrameControls value={current} onChange={change} />
+    <div ref={ref} className="sm tc pe-slot-frame" role="dialog" aria-label={`Cadre de la ${what}`} style={{ top: box.top + 46, left, right: "auto" }}>
+      <FrameControls value={current} onChange={change} what={what} />
     </div>
   );
 }

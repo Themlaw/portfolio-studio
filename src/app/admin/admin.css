@@ -1765,7 +1765,8 @@ body:has(.a-sidepanel) .a-toasts {
   cursor: pointer;
 }
 
-.a-seg button[aria-pressed="true"] {
+.a-seg button[aria-pressed="true"],
+.a-seg button[aria-checked="true"] {
   background: var(--admin-accent-soft);
   color: var(--admin-accent);
 }

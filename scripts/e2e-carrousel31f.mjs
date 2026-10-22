@@ -235,7 +235,7 @@ await section("C", async () => {
   await mClick(toolBtn(f, "Cadre"));
   const dlg = f.getByRole("dialog", { name: "Cadre de la photo" });
   await dlg.waitFor({ timeout: 15000 });
-  await mClick(dlg.getByRole("switch").first());
+  await mClick(dlg.locator('[data-frame-kind="band"]'));
   ok("C6 Cadre : enregistré dans look.slotFrame", await waitFor(() => Boolean(lookOfDraft("board1")?.slotFrame?.[slug]), 30000), JSON.stringify(lookOfDraft("board1")));
   await page.screenshot({ path: path.join(SHOTS, "c3-cadre.png") });
   await page.keyboard.press("Escape");

@@ -116,7 +116,7 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("item-remove"), uid: Uid }),
   // Lot 32 : fond de couleur du composant (`props.background`, null = aucun) ; vaut aussi pour la bande des images du projet.
   z.strictObject({ op: z.literal("item-fond"), uid: Uid, background: BackgroundSchema.nullable() }),
-  // Lot 34 : cadre autour de la photo d'un composant Image (`props.look.frame`, null = aucun cadre).
+  // Lots 34 et 62 : cadre autour de la photo d'un composant Image, ou de la vidéo d'un composant Vidéo (`props.look.frame`, null = pas de choix).
   z.strictObject({ op: z.literal("item-frame"), uid: Uid, frame: FrameSchema.nullable() }),
   // Lot 41 : fond derrière l'image d'un composant Image (`props.look.imageBg`, null = aucun fond).
   z.strictObject({ op: z.literal("item-imgbg"), uid: Uid, bg: ImageBgSchema.nullable() }),
@@ -701,7 +701,7 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       case "item-frame": {
         const item = snap.layout.find((i) => i.uid === op.uid);
         if (!item) return "Ce composant n'est plus sur cette planche.";
-        if (item.type !== "image") return "Le cadre ne concerne que les images.";
+        if (item.type !== "image" && item.type !== "video-single") return "Le cadre ne concerne que les images et les vidéos.";
         const look = { ...((item.props.look as Record<string, unknown> | undefined) ?? {}) };
         if (op.frame) look.frame = op.frame;
         else delete look.frame;

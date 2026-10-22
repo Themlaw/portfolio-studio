@@ -131,6 +131,7 @@ const EXPECTED = [
   "trashWallpaperAction",
   "restoreWallpaperAction",
   "saveCardWallpaperAction",
+  "saveThemeFrameAllAction",
   "listWallpapersAction",
 ];
 const found = new Set();

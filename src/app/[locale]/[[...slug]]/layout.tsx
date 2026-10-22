@@ -8,7 +8,7 @@ import { resolvePage } from "@/lib/page-preview";
 import { alternatesFor, getNav } from "@/lib/pages";
 import { logoCss, siteStylesCss } from "@/lib/look";
 import { getMedia } from "@/lib/media";
-import { getCardWallpaper, getFontFacesCss, getSiteView } from "@/lib/settings";
+import { getCardWallpaper, getFontFacesCss, getSiteView, getThemeFrameAll } from "@/lib/settings";
 import { getWallpapers } from "@/lib/wallpapers";
 import { getActiveTheme } from "@/lib/theme";
 import { sitePaletteCss } from "@/themes/css";
@@ -60,6 +60,8 @@ export default async function SiteLayout({
   const drafted = edit && page ? getDraftPageInfo(page.id)?.wallpaper : undefined;
   const paper = drafted === undefined ? published : (drafted ?? undefined);
   const cardWp = await getCardWallpaper();
+  // Cadre du thème sur toutes les photos (lot 62) : réglage du site, non par défaut ; src/themes/variants.css s'y accroche.
+  const frameAll = await getThemeFrameAll();
   const library = (paper && paper.mode === "wallpaper") || cardWp || edit ? await getWallpapers() : null;
   const paperEntry = paper?.mode === "wallpaper" ? library?.get(paper.wallpaper) : undefined;
   const paperVars = paper?.mode === "wallpaper" ? wallpaperVars(paperEntry, { size: paper.size, opacity: paper.opacity }) : {};
@@ -70,7 +72,7 @@ export default async function SiteLayout({
   return (
     // Cadre pleine hauteur (v0.13.1) : le contenu s'étire, le pied reste en bas
     // de l'écran même sur une page courte (`.site-frame`, globals.css).
-    <div className="site-frame" {...(cardsOn ? { "data-wp-cards": "", style: cardVars as React.CSSProperties } : {})}>
+    <div className="site-frame" {...(frameAll ? { "data-frame-all": "" } : {})} {...(cardsOn ? { "data-wp-cards": "", style: cardVars as React.CSSProperties } : {})}>
       {paper && <div className="page-wallpaper" aria-hidden="true" data-mode={paper.mode} {...(Object.keys(paperVars).length ? { style: paperVars as React.CSSProperties } : {})} />}
       {edit && library && <span hidden data-edit-wallpapers={JSON.stringify([...library.values()])} />}
       {(paletteCss || edit) && <style id="site-palette" dangerouslySetInnerHTML={{ __html: paletteCss }} {...(edit ? { "data-edit-theme": JSON.stringify({ color: theme.tokens.color, palette: theme.tokens.palette ?? null }) } : {})} />}
