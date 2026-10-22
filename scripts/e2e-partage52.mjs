@@ -262,19 +262,15 @@ if (run("AL") || run("TR")) await section("AL", async () => {
   const alt = sql((db) => db.prepare("select alt from media where id = ?").get(a))?.alt;
   ok("AL4 la description est enregistrée", /forme violette/.test(alt ?? ""), String(alt));
 
-  // Au moment du choix : une image sans description se décrit sur place.
+  // Intégration v0.28 : un clic choisit l'image et ferme le sélecteur (lot 57) ; la description se fait dans la médiathèque (AL4)
+  // ou est rappelée à la publication (AL3). La seconde image est décrite ici directement en base.
   await page.goto(`${BASE}/admin/reglages`, { waitUntil: "networkidle" });
   const form = page.getByTestId("seo-form");
   await form.getByRole("button", { name: /Choisir une image|Changer d'image/ }).first().click();
   const dlg = page.getByRole("dialog");
   await dlg.locator(".a-media-tile", { hasText: "sans-desc-b" }).click();
-  const inline = dlg.getByTestId("pick-alt");
-  ok("AL5 au choix : l'image sans description propose son champ", await inline.isVisible());
-  await inline.getByRole("textbox").first().fill("Un aplat turquoise");
-  await inline.getByRole("button", { name: "Enregistrer la description" }).click();
-  await page.getByText("Description enregistrée").first().waitFor({ timeout: 30000 });
-  ok("AL5 description enregistrée depuis le sélecteur", /turquoise/.test(sql((db) => db.prepare("select alt from media where id = ?").get(b))?.alt ?? ""));
-  await dlg.getByRole("button", { name: "Annuler" }).click().catch(() => {});
+  ok("AL5 un clic choisit l'image et ferme le sélecteur", await dlg.waitFor({ state: "hidden", timeout: 15000 }).then(() => true, () => false));
+  sql((db) => db.prepare("update media set alt = ? where id = ?").run(JSON.stringify({ fr: "Un aplat turquoise", en: "" }), b));
 
   // Republication : plus aucun avertissement d'image.
   const again = await publishBlocks(page, BASE, pid, (blocks) => blocks.map((x) => (x.props?.paragraphs?.[0]?.fr === "Un texte seulement en français." ? { ...x, props: { paragraphs: [{ fr: "Un texte seulement en français.", en: "Only in French? No longer." }] } } : x)), done, 120000);

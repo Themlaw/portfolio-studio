@@ -83,6 +83,7 @@ const EXPECTED = [
   "saveSettingsAction",
   "saveSeoAction",
   "markMessagesSeenAction",
+  "setOnboardingHiddenAction",
   "createPageAction",
   "savePageInfoAction",
   "setPublishedAction",

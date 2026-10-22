@@ -168,6 +168,7 @@ const ADMIN_ACTIONS = [
   "saveSettingsAction",
   "saveSeoAction",
   "markMessagesSeenAction",
+  "setOnboardingHiddenAction",
   "createPageAction",
   "savePageInfoAction",
   "saveDraftAction",
@@ -540,6 +541,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : name === "saveThemeAction" ? "/admin/themes/galerie-lumineuse"
     : name === "savePageInfoAction" ? "/admin/pages/1"
     : name === "deleteFontAction" ? "/admin/reglages"
+    : /Onboarding/.test(name) ? "/admin"
     : /Draft|[bB]oard|Font/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings|Seo/.test(name) ? "/admin/reglages"

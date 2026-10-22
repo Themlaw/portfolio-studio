@@ -202,10 +202,11 @@ export function ConfirmDialog({
   open: boolean;
   title: string;
   children?: React.ReactNode;
-  confirmLabel: string;
+  /** Absent : pas de bouton de confirmation, « Fermer » seul (sélecteur où un clic choisit). */
+  confirmLabel?: string;
   danger?: boolean;
   busy?: boolean;
-  onConfirm: () => void;
+  onConfirm?: () => void;
   onClose: () => void;
   extra?: React.ReactNode;
   confirmDisabled?: boolean;
@@ -237,16 +238,18 @@ export function ConfirmDialog({
           <div className="a-dialog-actions">
             {extra}
             <button type="button" className="a-btn" onClick={close} disabled={busy}>
-              Annuler
+              {confirmLabel === undefined ? "Fermer" : "Annuler"}
             </button>
-            <button
-              type="button"
-              className={`a-btn ${danger ? "a-btn-danger" : "a-btn-primary"}`}
-              onClick={onConfirm}
-              disabled={busy || confirmDisabled}
-            >
-              {busy ? "Un instant…" : confirmLabel}
-            </button>
+            {confirmLabel !== undefined && (
+              <button
+                type="button"
+                className={`a-btn ${danger ? "a-btn-danger" : "a-btn-primary"}`}
+                onClick={onConfirm}
+                disabled={busy || confirmDisabled}
+              >
+                {busy ? "Un instant…" : confirmLabel}
+              </button>
+            )}
           </div>
         </>
       )}

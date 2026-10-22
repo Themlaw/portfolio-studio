@@ -164,7 +164,6 @@ try {
   const picker = page.locator("dialog[open]");
   await picker.getByPlaceholder("Rechercher par nom ou tag…").fill("e2e-grand");
   await picker.locator(".a-media-tile", { hasText: "e2e-grand.jpg" }).first().click();
-  await picker.getByRole("button", { name: "Utiliser cette image" }).click();
   await toast("Image placée");
   await page.waitForTimeout(800);
   ok("P7 place remplie depuis la médiathèque", (await page.locator(".a-strip .a-slot-empty").count()) === 0);

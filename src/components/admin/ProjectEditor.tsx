@@ -638,7 +638,7 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
             {slots.some((s) => !s.media) && ` · ${slots.filter((s) => !s.media).length} vide${slots.filter((s) => !s.media).length > 1 ? "s" : ""} (masqué${slots.filter((s) => !s.media).length > 1 ? "s" : ""} sur le site)`}
           </span>
         </div>
-        <Uploader origin={origin} libraryLabel="Voir dans la Bibliothèque" onSeeLibrary={() => libraryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })} />
+        <Uploader origin={origin} target={{ kind: "end", projectId: project.id }} libraryLabel="Voir dans la Bibliothèque" onSeeLibrary={() => libraryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })} />
         <DndContext
           id={dndId}
           sensors={sensors}

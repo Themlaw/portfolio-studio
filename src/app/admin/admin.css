@@ -6755,3 +6755,103 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   margin: 0 0 6px;
   font-size: 15px;
 }
+
+/* ---- Premiers pas (tableau de bord, lot 57) ------------------------------ */
+.a-firststeps {
+  margin-bottom: 14px;
+}
+.a-firststeps-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.a-firststeps-head h2 {
+  margin-right: auto;
+}
+.a-firststeps-list {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.a-firststeps-list li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.a-firststeps-list p {
+  margin: 2px 0 4px;
+}
+.a-firststeps-box {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 50%;
+  background: var(--admin-surface);
+  color: var(--admin-on-accent);
+  font-size: 13px;
+  line-height: 1;
+}
+.a-firststeps-list li[data-done] .a-firststeps-box {
+  border-color: var(--admin-success);
+  background: var(--admin-success);
+}
+.a-firststeps-list li[data-done] strong {
+  color: var(--admin-ink-soft);
+  text-decoration: line-through;
+}
+.a-firststeps-show {
+  margin: 0 0 14px;
+}
+
+/* ---- Petite loupe des vignettes de média (lot 57) : agrandir sans choisir ---------- */
+.a-media-grid2 > li,
+.ve-picker-grid > li,
+.ve-media > li {
+  position: relative;
+}
+.a-media-zoom,
+.ve-picker-grid button.a-media-zoom {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 50%;
+  background: var(--admin-surface);
+  color: var(--admin-ink);
+  cursor: zoom-in;
+  opacity: 0.85;
+}
+.a-media-zoom:hover,
+.a-media-zoom:focus-visible {
+  opacity: 1;
+  border-color: var(--admin-accent);
+  color: var(--admin-accent);
+}
+
+/* ---- Éditeur : Grand écran (zoom) et sélecteur d'appareil à l'étroit (lot 57) -------------------------------- */
+.ve-zoom-note {
+  margin: 0 0 8px;
+  color: var(--admin-ink-soft);
+  font-size: 12.5px;
+  text-align: center;
+}
+.ve-device-select select {
+  min-height: 32px;
+  max-width: 190px;
+}
+.ve-frame-wrap[data-wide] .ve-frame {
+  max-width: none;
+}

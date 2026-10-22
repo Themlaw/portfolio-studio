@@ -632,7 +632,6 @@ await section("G", async () => {
   await f.locator('.pe-bitem-menu [data-bitem-type="image"]').click();
   await page.getByRole("button", { name: "Choisir une image" }).first().click();
   await page.locator(".a-picker-scroll button").first().click();
-  await page.getByRole("button", { name: "Utiliser cette image" }).click();
   await settled();
   const layout = () => JSON.parse(q("select draft_layout, layout from projects where id = ?", project.id).map((r) => r.draft_layout ?? r.layout)[0] ?? "[]");
   ok("G1 deux composants dans la planche", await waitFor(() => layout().length === 2), JSON.stringify(layout().map((i) => i.type)));

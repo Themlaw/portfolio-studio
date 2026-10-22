@@ -12,6 +12,7 @@ import { ThemeSchema, type Theme } from "@/themes/schema";
 
 import { getDb, schema } from "./db";
 import { boardRefs } from "@/blocks/tree";
+import { readOnboarding } from "./edit/onboarding";
 import { parseJson } from "./json";
 import { asSiteName, NavSchema, NETWORKS, type Network } from "./site-schema";
 import { ORIGINALS_PREFIX, parseVariants } from "./images/variants";
@@ -35,6 +36,53 @@ export function getAdminCounts(): AdminCounts {
   const projects = db.select({ n: count() }).from(schema.projects).where(isNull(schema.projects.deletedAt)).get()?.n ?? 0;
   const media = db.select({ n: count() }).from(schema.media).where(and(isNull(schema.media.deletedAt), sql`${schema.media.id} not in (select media_id from wallpapers)`)).get()?.n ?? 0;
   return { pages, projects, media };
+}
+
+export type OnboardingStep = { key: "theme" | "project" | "page" | "publish" | "about"; done: boolean };
+export type Onboarding = { hidden: boolean; steps: OnboardingStep[] };
+
+/**
+ * « Premiers pas » du tableau de bord : chaque étape se coche d'après l'état réel du site.
+ * Thème et identité : geste enregistré (`lib/edit/onboarding`). Projet : un projet du site a au moins une image.
+ * Page : un bloc d'une page (publiée ou non) affiche un projet. Mise en ligne : une page publiée affiche un projet.
+ */
+export function getOnboarding(): Onboarding {
+  const db = getDb();
+  const state = readOnboarding();
+  const projects = db.select({ id: schema.projects.id, slug: schema.projects.slug }).from(schema.projects).where(and(isNull(schema.projects.deletedAt), isNull(schema.projects.draftPageId))).all();
+  const withImage = new Set(
+    db
+      .select({ projectId: schema.slots.projectId, state: schema.slots.draftState })
+      .from(schema.slots)
+      .where(isNotNull(schema.slots.mediaId))
+      .all()
+      .filter((s) => s.state !== "added")
+      .map((s) => s.projectId),
+  );
+  const hasImages = projects.some((p) => withImage.has(p.id));
+  const livePages = new Set(
+    db
+      .select({ id: schema.pages.id, published: schema.pages.published })
+      .from(schema.pages)
+      .where(isNull(schema.pages.deletedAt))
+      .all()
+      .filter((p) => p.published)
+      .map((p) => p.id),
+  );
+  const alive = new Set(db.select({ id: schema.pages.id }).from(schema.pages).where(isNull(schema.pages.deletedAt)).all().map((p) => p.id));
+  const blocks = allBlocks();
+  const shown = projects.some((p) => projectReferences(p.slug, blocks).some((u) => u.kind === "block" && alive.has(u.pageId)));
+  const online = projects.some((p) => projectReferences(p.slug, blocks.filter((b) => !b.draft)).some((u) => u.kind === "block" && livePages.has(u.pageId)));
+  return {
+    hidden: state.hidden === true,
+    steps: [
+      { key: "theme", done: state.theme === true },
+      { key: "project", done: hasImages },
+      { key: "page", done: shown },
+      { key: "publish", done: online },
+      { key: "about", done: state.identity === true },
+    ],
+  };
 }
 
 export type ThemeOverview = { activeId: string; themes: Theme[] };
@@ -556,13 +604,13 @@ export function getEditorContext(draftPageId?: number) {
       .map((p) => ({ id: p.id, title: p.title.fr, slug: p.slug.fr, collection: p.collection ?? null })),
     // Projets publiés, plus ceux créés dans le brouillon de la page éditée.
     projects: db
-      .select({ slug: schema.projects.slug, title: schema.projects.title, page: schema.projects.draftPageId })
+      .select({ id: schema.projects.id, slug: schema.projects.slug, title: schema.projects.title, page: schema.projects.draftPageId })
       .from(schema.projects)
       .where(isNull(schema.projects.deletedAt))
       .orderBy(asc(schema.projects.position))
       .all()
       .filter((p) => p.page === null || (draftPageId !== undefined && p.page === draftPageId))
-      .map((p) => ({ slug: p.slug, title: p.title.fr, ...(p.page !== null ? { draft: true } : {}), onPage: onPage.has(p.slug) })),
+      .map((p) => ({ id: p.id, slug: p.slug, title: p.title.fr, ...(p.page !== null ? { draft: true } : {}), onPage: onPage.has(p.slug) })),
     media: listMediaForAdmin().filter((m) => m.status !== "failed"),
     wallpapers: listWallpaperChoices(),
     heroBackdrop: activeHeroVariant() !== "type-only",

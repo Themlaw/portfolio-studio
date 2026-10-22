@@ -91,7 +91,6 @@ const animationPage = new URL(p.url()).pathname;
 await p.locator(".a-block-toggle", { hasText: "Vidéos" }).click();
 await p.getByRole("button", { name: "Choisir une vidéo" }).click();
 await p.locator("dialog[open] .a-media-tile", { hasText: "demo-reel.mp4" }).click();
-await p.locator("dialog[open]").getByRole("button", { name: "Utiliser cette vidéo" }).click();
 await p.getByRole("button", { name: "Enregistrer", exact: true }).click();
 await toast("Enregistré");
 for (const theme of ["galerie-lumineuse", "salle-de-projection"]) {

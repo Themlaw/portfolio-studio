@@ -10,7 +10,9 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { AdminMediaRow } from "@/lib/admin";
 
 import AltMissing from "../AltMissing";
+import { ZoomButton } from "../MediaLibrary";
 import { filterMedia } from "../LibraryStrip";
+import MediaPreviewDialog from "./MediaPreviewDialog";
 import { ACCEPT } from "../uploads";
 
 const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/avif,image/gif";
@@ -35,6 +37,7 @@ export default function MediaPickerDialog({
   const ref = useRef<HTMLDialogElement>(null);
   const [tags, setTags] = useState<string[]>([]);
   const [query, setQuery] = useState("");
+  const [zoomed, setZoomed] = useState<AdminMediaRow | null>(null);
   const titleId = useId();
   const inputId = useId();
   useEffect(() => {
@@ -50,6 +53,7 @@ export default function MediaPickerDialog({
   }, [media]);
   const list = useMemo(() => filterMedia(media, tags, query).filter((m) => m.status !== "failed"), [media, tags, query]);
   return (
+    <>
     <dialog
       ref={ref}
       className="a-dialog ve-picker"
@@ -97,6 +101,7 @@ export default function MediaPickerDialog({
                 })}
               </div>
             )}
+            <p className="ve-hint">Clique une image pour la choisir. La petite loupe l&apos;agrandit sans la choisir.</p>
             {list.length === 0 ? (
               <p className="ve-empty">Aucun média ne correspond.</p>
             ) : (
@@ -114,6 +119,7 @@ export default function MediaPickerDialog({
                       </span>
                       <span className="ve-picker-name">{m.name}</span>
                     </button>
+                    {m.status === "ready" && <ZoomButton onZoom={() => setZoomed(m)} />}
                   </li>
                 ))}
               </ul>
@@ -127,5 +133,7 @@ export default function MediaPickerDialog({
         </>
       )}
     </dialog>
+      <MediaPreviewDialog media={zoomed} onClose={() => setZoomed(null)} hint={null} />
+    </>
   );
 }

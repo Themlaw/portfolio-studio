@@ -839,6 +839,13 @@ export default function BoardLayer({
         startText(cap);
         return;
       }
+      // Un carrousel encore vide (« rien à montrer ») : un clic sur sa zone le choisit, comme un autre composant (lot 57).
+      if (itemFrame && hit?.closest("[data-edit-bitem-pick]")) {
+        e.preventDefault();
+        e.stopPropagation();
+        selectItem(itemFrame);
+        return;
+      }
       // Un composant autre que la bande : un clic le choisit (ses réglages s'ouvrent dans le panneau).
       if (itemFrame && !itemFrame.hasAttribute("data-edit-bitem-rail")) {
         e.preventDefault();
