@@ -21,7 +21,7 @@ import { login } from "./lib/medias-setup.mjs";
 const BASE = process.env.BASE ?? "http://localhost:3770";
 const ONLY = process.env.ONLY ?? "";
 const run = (s) => !ONLY || ONLY.split(",").includes(s);
-const SHOTS = process.env.SHOTS ?? path.join(tmpdir(), "e2e-essayer63");
+const SHOTS = process.env.SHOTS ?? (process.env.BATTERY_DIR ? path.join(process.env.BATTERY_DIR, "shots-essayer63") : path.join(tmpdir(), "e2e-essayer63"));
 mkdirSync(SHOTS, { recursive: true });
 
 let failures = 0;
