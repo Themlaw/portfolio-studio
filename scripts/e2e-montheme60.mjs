@@ -10,6 +10,7 @@
  *  F  Éditeur : « Enregistrer » crée une version (une par séance), sans publier.
  *  G  Mes anciens thèmes (repliée) : « (kit) », « (copie) », « (importé) » gardés ; « En faire mon thème (nouvelle version) », « Supprimer ».
  *  H  Import .zip : « comme nouvelle version de mon thème » ou « comme thème à part ».
+ *  I  v0.29 : vignettes à fond provisoire, bandeau de l'éditeur de page (modèle / ancien thème / Mon thème), menu Thème (Mon thème, modèles, anciens).
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=A,B,…] [SHOTS=dossier] node scripts/e2e-montheme60.mjs
  */
 import { execFileSync } from "node:child_process";
@@ -349,7 +350,10 @@ try {
     await olds.locator("summary").click();
     ok("G2 ouverte : les « (kit) », « (copie) », « (importé) » et les thèmes à part sont là, rien n'a été supprimé", (await olds.locator("section[data-old]").count()) >= 5 && ["Studio (kit)", "Studio (copie)", "Studio (importé)"].every((n) => q1("select id from themes where name = ?", n)), String(await olds.locator("section[data-old]").count()));
     const oldCard = olds.locator("section[data-old]", { has: page.locator("h2#theme-studio-copie") });
-    ok("G3 chaque ancien thème : [Prévisualiser] [En faire mon thème (nouvelle version)] [Supprimer], vignette réelle", (await oldCard.getByRole("button", { name: /Prévisualiser/ }).count()) === 1 && (await oldCard.getByTestId("old-adopt").count()) === 1 && (await oldCard.getByTestId("old-delete").count()) === 1 && (await oldCard.getByTestId("live-thumb").count()) === 1);
+    ok("G3 chaque ancien thème : [Prévisualiser] [En faire mon thème (nouvelle version)] [Supprimer], vignette réelle", (await oldCard.getByRole("button", { name: /Prévisualiser/ }).count()) === 1 && (await oldCard.getByTestId("old-adopt").count()) === 1 && (await oldCard.locator(".a-btn-danger").count()) === 0 && (await oldCard.getByTestId("live-thumb").count()) === 1);
+    await oldCard.getByRole("button", { name: /Plus d'actions/ }).click();
+    ok("G3a « Supprimer » est dans le menu « … » de l'ancien thème (pas en gros bouton rouge)", (await page.getByTestId("old-delete").count()) === 1);
+    await page.keyboard.press("Escape");
     await shot(page, "G-anciens");
     const fr = await thumbFrame(oldCard.locator("iframe"));
     ok("G3b la vignette d'un ancien thème montre SON thème (fond violet pâle de « Studio (copie) »)", (await frameVar(fr, "--t-color-bg")) === rgb("#f1e9ff"), await frameVar(fr, "--t-color-bg"));
@@ -362,7 +366,8 @@ try {
       await sleep(500);
     }
     const delCard = page.locator('[data-testid="olds-section"] section[data-old]', { has: page.locator("h2#theme-studio-importe") });
-    await delCard.getByTestId("old-delete").click();
+    await delCard.getByRole("button", { name: /Plus d'actions/ }).click();
+    await page.getByTestId("old-delete").click();
     await dialog().waitFor();
     ok("G5 « Supprimer » demande confirmation, puis supprime l'ancien thème (et lui seul)", /Supprimer le thème « Studio \(importé\) » \?/.test((await dialog().textContent()) ?? ""));
     await dialog().getByRole("button", { name: "Supprimer", exact: true }).click();
@@ -397,6 +402,85 @@ try {
     await page.setInputFiles('[data-testid="theme-import-input"]', path.join(DIR, "theme.zip"));
     await page.waitForURL(/nouvelle=\d+&via=import/, { timeout: 60000 });
     ok("H5 import par l'écran avec le choix par défaut : nouvelle version de Mon thème + encart", mine().version === before.n + 2 && (await page.locator('[data-testid="new-version-notice"]').count()) === 1);
+  }
+
+  /* ---- I. v0.29 : vignettes, bandeau de l'éditeur de page, menu Thème ---- */
+  if (run("I")) {
+    const M = mine();
+    const homeId = sql((db) => db.prepare("select id, slug from pages where deleted_at is null order by id").all()).find((p) => !JSON.parse(p.slug).fr)?.id;
+    const startPreview = (id) => page.request.post(`${BASE}/admin/apercu`, { form: { id, retour: "/admin/themes" }, headers: { origin: BASE }, maxRedirects: 0 });
+    const banner = page.locator('[data-testid="preparing-banner"]');
+    const editor = async () => {
+      await page.goto(`${BASE}/admin/pages/${homeId}/editer`, { waitUntil: "domcontentloaded" });
+      await banner.waitFor({ timeout: 120000 });
+    };
+    sql((db) => db.prepare("insert or replace into themes (id, name, preset, data) values (?, ?, 0, ?)").run("ancien-i", "Ancien de test", JSON.stringify({ ...FIRST, id: "ancien-i", name: "Ancien de test", preset: false })));
+
+    // I1 vignettes : un fond provisoire (maquette aux couleurs du thème) tant que la vraie page n'est pas affichée, jamais un rectangle blanc
+    await page.route(/\/fr\?vignette=/, async (route) => {
+      await sleep(5000);
+      await route.continue().catch(() => {});
+    });
+    await page.goto(`${BASE}/admin/themes`, { waitUntil: "domcontentloaded" });
+    await page.locator('[data-testid="mine-section"]').waitFor();
+    await page.locator('[data-testid="live-thumb"]').first().scrollIntoViewIfNeeded();
+    await sleep(800);
+    const mineBg = JSON.parse(mine().data).tokens.color.bg;
+    const ph = page.locator('[data-testid="mine-card"] [data-testid="live-thumb-placeholder"] .a-theme-mini');
+    ok("I1 vignette de Mon thème : fond provisoire (aplat des couleurs du thème) pendant le chargement", (await ph.count()) === 1 && (await ph.evaluate((e) => getComputedStyle(e).backgroundColor)) === rgb(mineBg.toLowerCase()), await ph.evaluate((e) => getComputedStyle(e).backgroundColor).catch(() => "?"));
+    const modelImgs = page.locator("section[data-model] img.a-theme-thumb");
+    ok("I1b vignettes des modèles : aplat des couleurs du thème sous l'image (jamais de blanc vide)", (await modelImgs.count()) >= 1 && (await modelImgs.evaluateAll((els) => els.every((e) => e.style.background !== ""))));
+    await page.unroute(/\/fr\?vignette=/);
+
+    // I2 modèle en préparation : « Utiliser ce modèle » -> fenêtre « Remplacer mon thème (version N) », nouvelle version, proposition de publier
+    await startPreview(SECOND_ID);
+    await editor();
+    const v0 = mine().version;
+    ok("I2 bandeau sur un MODÈLE : « Utiliser ce modèle » (plus de « Mettre en ligne »)", (await banner.getAttribute("data-kind")) === "model" && (await banner.getByRole("button", { name: "Utiliser ce modèle" }).count()) === 1 && (await banner.getByRole("button", { name: "Mettre en ligne" }).count()) === 0);
+    await shot(page, "I-bandeau-modele");
+    await banner.getByRole("button", { name: "Utiliser ce modèle" }).click();
+    await dialog().waitFor();
+    ok("I3 fenêtre « Remplacer mon thème (version N) par X ? » avec [Remplacer] [Créer un second thème] [Annuler]", new RegExp(`Remplacer mon thème \\(version ${v0}\\)`).test((await dialog().textContent()) ?? "") && (await dialog().getByTestId("replace-second").count()) === 1 && (await dialog().getByRole("button", { name: "Annuler" }).count()) === 1);
+    await dialog().getByRole("button", { name: "Remplacer", exact: true }).click();
+    await waitFor(() => mine().version === v0 + 1, 60000);
+    await dialog().waitFor();
+    ok("I4 version N+1 créée (nouveau thème : non), puis on propose de la publier (avant → après)", mine().version === v0 + 1 && JSON.parse(mine().data).name !== undefined && versions(M.id).at(-1).source === "model" && /Version \d+ de Mon thème créée/.test((await dialog().textContent()) ?? "") && (await dialog().getByTestId("activate-swap").count()) === 1, (await dialog().textContent()) ?? "");
+    await dialog().getByRole("button", { name: "Annuler" }).click();
+    await page.waitForLoadState("load");
+    await banner.waitFor({ timeout: 120000 });
+    ok("I5 « Plus tard » : la version reste un brouillon, l'éditeur prépare Mon thème (« Publier cette version »)", (await banner.getAttribute("data-kind")) === "mine" && (await banner.getByRole("button", { name: "Publier cette version" }).count()) === 1 && mine().published_version !== mine().version);
+
+    // I6 Mon thème en brouillon : « Publier cette version » (avant → après), puis le site public suit
+    await banner.getByRole("button", { name: "Publier cette version" }).click();
+    await dialog().waitFor();
+    ok("I6 fenêtre de publication avant → après", (await dialog().getByTestId("activate-swap").count()) === 1 && new RegExp(`v${v0 + 1}`).test((await dialog().getByTestId("activate-swap").textContent()) ?? ""));
+    await dialog().getByRole("button", { name: "Publier cette version" }).click();
+    ok("I6b version publiée, Mon thème en ligne", await waitFor(() => mine().published_version === v0 + 1 && setting("activeThemeId") === M.id, 60000));
+    await page.waitForLoadState("load");
+
+    // I7 ancien thème en préparation : « En faire mon thème »
+    await startPreview("ancien-i");
+    await editor();
+    ok("I7 bandeau sur un ANCIEN thème : « En faire mon thème »", (await banner.getAttribute("data-kind")) === "old" && (await banner.getByRole("button", { name: "En faire mon thème" }).count()) === 1);
+    await shot(page, "I-bandeau-ancien");
+    await banner.getByRole("button", { name: "En faire mon thème" }).click();
+    await waitFor(() => mine().version === v0 + 2, 60000);
+    await dialog().waitFor();
+    ok("I8 « En faire mon thème » : nouvelle version (adopt), ancien thème gardé, proposition de publier", versions(M.id).at(-1).source === "adopt" && Boolean(row("ancien-i")) && /mettre en ligne/.test((await dialog().textContent()) ?? ""));
+    await dialog().getByRole("button", { name: "Annuler" }).click();
+    await page.waitForLoadState("load");
+
+    // I9 menu Thème : Mon thème en premier (avec sa version), puis les modèles, puis les anciens thèmes
+    await page.request.post(`${BASE}/admin/apercu/quitter`, { form: { retour: "/admin/themes" }, headers: { origin: BASE }, maxRedirects: 0 });
+    await page.goto(`${BASE}/admin/pages/${homeId}/editer`, { waitUntil: "domcontentloaded" });
+    await page.locator('[data-testid="theme-picker"]').waitFor({ timeout: 120000 });
+    await page.locator('[data-testid="theme-picker"]').click();
+    const names = await page.locator(".ve-theme-item .ve-theme-name").allTextContents();
+    const firstOld = names.findIndex((n) => /ancien thème/.test(n));
+    const lastModel = names.map((n, i) => (Object.values(modelNames).some((m) => n.startsWith(m)) ? i : -1)).reduce((a, b) => Math.max(a, b), -1);
+    ok("I9 menu Thème : Mon thème d'abord avec « version N », puis les modèles, puis les anciens thèmes", /^Mon thème/.test(names[0] ?? "") && new RegExp(`version ${mine().version}`).test(names[0] ?? "") && lastModel > 0 && firstOld > lastModel, JSON.stringify(names));
+    await shot(page, "I-menu-theme");
+    await page.keyboard.press("Escape");
   }
 
   ok("Z aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));

@@ -117,7 +117,7 @@ try {
     const f = await openEditor(page, BASE, PAGE_ID);
     const banner = page.locator('[data-testid="preparing-banner"]');
     ok("C1 bandeau fixe de l'éditeur : « Tu prépares le thème X »", (await banner.count()) === 1 && /Tu prépares le thème/.test((await banner.textContent()) ?? "") && ((await banner.textContent()) ?? "").includes(PREP_NAME) && ((await banner.textContent()) ?? "").includes(LIVE_NAME));
-    ok("C1b boutons Mettre en ligne et Arrêter l'aperçu", (await banner.getByRole("button", { name: "Mettre en ligne" }).count()) === 1 && (await banner.getByRole("button", { name: "Arrêter l'aperçu" }).count()) === 1);
+    ok("C1b boutons « Utiliser ce modèle » (le thème préparé est un modèle) et Arrêter l'aperçu", (await banner.getByRole("button", { name: "Utiliser ce modèle" }).count()) === 1 && (await banner.getByRole("button", { name: "Arrêter l'aperçu" }).count()) === 1);
     await page.getByRole("tab", { name: "Réglages" }).click();
     await role("Fond de page").waitFor();
     const chip = await role("Fond de page").locator(".lc-role .lc-chip").evaluate((e) => getComputedStyle(e).backgroundColor);
