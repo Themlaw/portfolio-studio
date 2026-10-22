@@ -1355,6 +1355,13 @@ body:has(.a-sidepanel) .a-toasts {
   text-overflow: ellipsis;
 }
 
+@media (max-width: 1560px) and (min-width: 820px) {
+  /* Le menu Thème prend la place du nom du site (la flèche « Retour aux pages » reste ; le nom est dans le bandeau de l'onglet). */
+  .ve-top .ve-brand-text {
+    display: none;
+  }
+}
+
 @media (max-width: 1180px) and (min-width: 820px) {
   /* Deux rangées : la barre ne peut pas contenir le menu Thème en plus (seuil de la largeur d'aperçu en menu déroulant). */
   .ve-top {
@@ -4310,7 +4317,7 @@ label.a-file-btn:focus-within {
 }
 
 .ve-page select {
-  min-width: 120px;
+  min-width: 150px;
   max-width: 220px;
   min-height: 32px;
 }
@@ -4452,7 +4459,7 @@ label.a-file-btn:focus-within {
   flex-shrink: 1;
   align-items: center;
   gap: 7px;
-  min-width: 110px;
+  min-width: 150px;
   color: var(--admin-ink-soft);
   font-size: 13px;
   white-space: nowrap;
