@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import PageHeader from "@/components/admin/PageHeader";
 import ThemeVersions from "@/components/admin/ThemeVersions";
 import { assertAdmin } from "@/lib/auth/guard";
-import { getMineState, listVersions, RETAIN_UNPINNED } from "@/lib/themes/versions";
+import { getMineState, getVersionTheme, listVersions, RETAIN_UNPINNED } from "@/lib/themes/versions";
 
 export const metadata = { title: "Historique de Mon thème" };
 export const dynamic = "force-dynamic";
@@ -14,6 +14,9 @@ export default async function ThemeVersionsPage({ params }: { params: Promise<{ 
   const { id } = await params;
   const mine = getMineState();
   if (!mine || mine.id !== id) notFound();
+  const versions = listVersions(mine.id);
+  // Maquette de chaque version : fond provisoire de sa vignette, le temps que la vraie page se charge.
+  const themes = Object.fromEntries(versions.flatMap((v) => { const t = getVersionTheme(mine.id, v.n); return t ? [[v.n, t]] : []; }));
   return (
     <>
       <PageHeader
@@ -22,7 +25,8 @@ export default async function ThemeVersionsPage({ params }: { params: Promise<{ 
       />
       <ThemeVersions
         mine={{ id: mine.id, name: mine.name, version: mine.version, publishedVersion: mine.publishedVersion, live: mine.live }}
-        versions={listVersions(mine.id)}
+        versions={versions}
+        themes={themes}
       />
       <p className="a-help" style={{ marginTop: 24 }}>
         <Link href="/admin/themes">← Tous les thèmes</Link>

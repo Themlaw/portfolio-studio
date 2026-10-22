@@ -3,6 +3,7 @@
  * actif (pastilles de couleur du panneau, qui ne charge pas la feuille du
  * thème) et polices Google déjà téléchargées par le serveur.
  */
+import { getMineState } from "@/lib/themes/versions";
 import { eq } from "drizzle-orm";
 
 import { PRESETS, DEFAULT_THEME_ID } from "@/themes/presets";
@@ -25,7 +26,17 @@ export function activeThemeForEdit(): Theme {
 }
 
 /** Thème en préparation (lot 55) : aperçu admin d'un thème pas encore en ligne ; le panneau Couleurs montre CE thème. */
-export type PreparingInfo = { id: string; name: string; liveName: string };
+export type PreparingInfo = {
+  id: string;
+  name: string;
+  liveName: string;
+  /** Lot 60 : un modèle (« Utiliser ce modèle »), un ancien thème (« En faire mon thème »), ou Mon thème en brouillon (« Publier cette version »). */
+  kind: "model" | "old" | "mine";
+  /** Version en cours de Mon thème (null : il n'existe pas encore) : la fenêtre « Remplacer mon thème (version N)… ». */
+  mineVersion: number | null;
+  /** Ce qui est en ligne, pour la fenêtre « avant → après » (« Mon thème : v3 » ou le nom du thème). */
+  liveLabel: string;
+};
 
 export type LookContext = {
   /** Thème prévisualisé, pas encore en ligne (bandeau de l'éditeur) ; null : l'éditeur montre le thème en ligne. */
@@ -38,12 +49,19 @@ export type LookContext = {
   signature: boolean;
 };
 
+function preparingInfo(preparing: Theme, live: Theme): PreparingInfo {
+  const mine = getMineState();
+  const kind = mine?.id === preparing.id ? "mine" : preparing.preset ? "model" : "old";
+  const liveLabel = mine?.live && mine.publishedVersion != null ? `${mine.name} : v${mine.publishedVersion}` : live.name;
+  return { id: preparing.id, name: preparing.name, liveName: live.name, kind, mineVersion: mine?.version ?? null, liveLabel };
+}
+
 export function lookContextForEditor(preparing?: Theme | null): LookContext {
   const live = activeThemeForEdit();
   const theme = preparing ?? live;
   const c = theme.tokens.color;
   return {
-    preparing: preparing ? { id: preparing.id, name: preparing.name, liveName: live.name } : null,
+    preparing: preparing ? preparingInfo(preparing, live) : null,
     theme: { name: theme.name, color: c as PaletteColors, palette: theme.tokens.palette ?? null },
     signature: Boolean(theme.assets.kit?.signature),
     palette: {

@@ -7114,6 +7114,20 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   transform-origin: 0 0;
   pointer-events: none;
   background: #fff;
+  transition: opacity 0.2s;
+}
+
+/* Fond provisoire : la maquette du thème (aplats de ses couleurs) sous l'iframe, jamais un rectangle blanc pendant le chargement. */
+.a-live-thumb-sk {
+  position: absolute;
+  inset: 0;
+}
+
+.a-live-thumb-sk > .a-theme-thumb {
+  height: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
 }
 
 .a-mine-card {
@@ -7228,4 +7242,10 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
 
 .a-menu-item-danger [slot="label"] {
   color: var(--admin-danger, #b3261e);
+}
+
+.ve-theme-kind {
+  color: var(--admin-ink-soft, inherit);
+  font-size: 12px;
+  font-weight: 400;
 }

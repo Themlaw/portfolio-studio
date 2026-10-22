@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 
 import { keepVersionCopyAction, pinVersionAction, revertVersionAction } from "@/app/admin/(espace)/themes/actions";
 import type { VersionInfo } from "@/lib/themes/versions";
+import type { Theme } from "@/themes/schema";
 
 import { PreviewButton } from "./ThemeList";
 import LiveThumb from "./LiveThumb";
@@ -14,7 +15,7 @@ import { formatWhen } from "./theme-format";
 
 type Mine = { id: string; name: string; version: number; publishedVersion: number | null; live: boolean };
 
-export default function ThemeVersions({ mine, versions }: { mine: Mine; versions: VersionInfo[] }) {
+export default function ThemeVersions({ mine, versions, themes = {} }: { mine: Mine; versions: VersionInfo[]; /** Maquette de chaque version (numéro → thème) : fond provisoire de la vignette. */ themes?: Record<number, Theme> }) {
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [asking, setAsking] = useState<number | null>(null);
@@ -64,7 +65,7 @@ export default function ThemeVersions({ mine, versions }: { mine: Mine; versions
       <ol className="a-versions" data-testid="versions-list">
         {versions.map((v) => (
           <li key={v.n} className="a-card a-version" data-version={v.n} data-current={v.current || undefined} data-published={v.published || undefined}>
-            <LiveThumb themeRef={`${mine.id}@${v.n}`} stamp={v.createdAt} />
+            <LiveThumb themeRef={`${mine.id}@${v.n}`} stamp={v.createdAt} theme={themes[v.n]} />
             <div className="a-version-body">
               <div className="a-card-head">
                 <h3>Version {v.n}</h3>

@@ -373,7 +373,7 @@ export default function ThemeList({
         </h2>
         {mine ? (
           <section className="a-card a-theme-card a-mine-card" aria-labelledby={`theme-${mine.id}`} data-active={mine.live} data-preparing={previewsMineDraft || undefined} data-testid="mine-card">
-            <LiveThumb themeRef={mine.id} stamp={`${mine.version}-${mine.updatedAt}`} />
+            <LiveThumb themeRef={mine.id} stamp={`${mine.version}-${mine.updatedAt}`} theme={shown(mine.theme)} />
             <div className="a-mine-body">
               <div className="a-card-head">
                 <h2 id={`theme-${mine.id}`}>{mine.name}</h2>
@@ -523,7 +523,7 @@ export default function ThemeList({
                       <span className="a-tag">Ancien thème</span>
                     )}
                   </div>
-                  <LiveThumb themeRef={theme.id} stamp={updatedAt} />
+                  <LiveThumb themeRef={theme.id} stamp={updatedAt} theme={shown(theme)} />
                   <ThemeSwatches theme={shown(theme)} />
                   <p className="a-help">Modifié le {formatWhen(updatedAt)}</p>
                   <div className="a-card-actions">

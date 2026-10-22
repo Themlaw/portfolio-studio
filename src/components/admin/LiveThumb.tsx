@@ -10,6 +10,10 @@
  */
 import { useEffect, useRef, useState } from "react";
 
+import type { Theme } from "@/themes/schema";
+
+import ThemeThumb from "./ThemeThumb";
+
 const WIDTH = 1280;
 const HEIGHT = 800;
 /** Au plus ce temps pour une vignette avant de passer à la suivante (page lente ou en erreur). */
@@ -34,10 +38,11 @@ function cancel(go: () => void) {
   if (i >= 0) waiting.splice(i, 1);
 }
 
-export default function LiveThumb({ themeRef, stamp }: { themeRef: string; /** Change quand le thème change : recharge le cadre. */ stamp?: string | number }) {
+export default function LiveThumb({ themeRef, stamp, theme }: { themeRef: string; /** Change quand le thème change : recharge le cadre. */ stamp?: string | number; /** Le thème montré : sa maquette (aplats de ses couleurs) tient lieu de fond tant que la vraie page n'est pas affichée (jamais un rectangle blanc). */ theme?: Theme }) {
   const box = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.375);
   const [load, setLoad] = useState(false);
+  const [shown, setShown] = useState(false);
   const released = useRef(false);
   const finishRef = useRef<() => void>(() => {});
 
@@ -81,7 +86,12 @@ export default function LiveThumb({ themeRef, stamp }: { themeRef: string; /** C
 
   const src = `/fr?vignette=${encodeURIComponent(themeRef)}${stamp !== undefined ? `&t=${encodeURIComponent(String(stamp))}` : ""}`;
   return (
-    <div ref={box} className="a-theme-thumb a-live-thumb" data-testid="live-thumb" data-ref={themeRef} aria-hidden="true">
+    <div ref={box} className="a-theme-thumb a-live-thumb" data-testid="live-thumb" data-ref={themeRef} data-shown={shown || undefined} aria-hidden="true">
+      {theme && (
+        <div className="a-live-thumb-sk" data-testid="live-thumb-placeholder">
+          <ThemeThumb theme={theme} />
+        </div>
+      )}
       {load && (
         <iframe
           key={src}
@@ -90,9 +100,12 @@ export default function LiveThumb({ themeRef, stamp }: { themeRef: string; /** C
           tabIndex={-1}
           loading="lazy"
           referrerPolicy="same-origin"
-          onLoad={() => finishRef.current()}
+          onLoad={() => {
+            setShown(true);
+            finishRef.current();
+          }}
           onError={() => finishRef.current()}
-          style={{ width: WIDTH, height: HEIGHT, transform: `scale(${scale})` }}
+          style={{ width: WIDTH, height: HEIGHT, transform: `scale(${scale})`, opacity: shown ? 1 : 0 }}
         />
       )}
     </div>
