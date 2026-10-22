@@ -5,7 +5,6 @@
    ========================================================================== */
 .sm {
   position: absolute;
-  right: 6px;
   z-index: 6;
   box-sizing: border-box;
   width: min(330px, calc(100vw - 24px));
@@ -124,9 +123,13 @@
   display: inline-block;
   width: 12px;
   height: 12px;
-  border: 1.5px solid var(--pe-surface);
+  border: 1.5px solid var(--lk-ink-soft);
   border-radius: 50%;
   box-sizing: border-box;
+}
+/* Réglage posé : pastille pleine (accent) sauf si le bouton donne la couleur choisie en ligne. */
+.sm-dot[data-on] {
+  background: var(--pe-accent);
 }
 .sm-dot:not([data-on]) {
   background: transparent;

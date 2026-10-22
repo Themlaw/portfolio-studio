@@ -20,14 +20,13 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { FORMAT_KEYS, FORMAT_LABELS } from "@/lib/images/formats";
 import { AUTO_HINT, GRID_LAYOUT_LABELS, GRID_LAYOUTS, JUSTIFY_HINT, keepsShape, KEEP_SHAPE_HINT, type GridLayout } from "@/blocks/grid-layouts";
 import type { GridCanvasOp } from "@/lib/edit/protocol";
-import { FrameControls } from "./FrameMenu";
-import { ImageBgPopup } from "./ImageBgMenu";
+import FrameWindow from "./FrameMenu";
+import ImageBgWindow from "./ImageBgMenu";
+import Popover, { type PopoverAnchor } from "./Popover";
 import GridLayoutIcon from "./GridLayoutIcon";
 import { lookOf, sendLook } from "./LookLayer";
 import { postIntent } from "./optimistic";
 import { cellIndex, cellsOf, gridRefOf, type GridRef } from "./grid-dom";
-import { useDismiss } from "./useDismiss";
-import type { Frame } from "@/lib/look";
 import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 
 type Rect = { top: number; left: number; width: number; height: number };
@@ -60,6 +59,9 @@ function activeGrid(selected: string | null): HTMLElement | null {
   return wrapper.parentElement?.closest<HTMLElement>(".block-grid[data-edit-grid]") ?? null;
 }
 
+/** Le bouton `data-cb="<k>"` de la barre de la case `uid` : l'ancre de sa fenêtre (retrouvée à chaque calcul). */
+const cellAnchor = (uid: string, k: string) => `[data-testid="cellbar"][data-cell="${CSS.escape(uid)}"] [data-cb="${k}"]`;
+
 /** Hauteur approximative d'une barre de case (une rangée). */
 const CELLBAR_H = 40;
 
@@ -74,13 +76,11 @@ function cellBarTop(r: Rect, stuck: number): number {
 }
 
 /** Menu « Taille » d'une case : quatre mots simples (frère de la barre, jamais son enfant : la barre a un `transform`). */
-function SizeMenu({ top, left, onClose, children }: { top: number; left: number; onClose: () => void; children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
+function SizeMenu({ anchor, onClose, children }: { anchor: PopoverAnchor; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div ref={ref} className="pe-gridmenu pe-gridmenu-ratios" role="menu" aria-label="Taille de la case" style={{ top, left }}>
+    <Popover anchor={anchor} className="pe-gridmenu pe-gridmenu-ratios" role="menu" label="Taille de la case" onClose={onClose}>
       {children}
-    </div>
+    </Popover>
   );
 }
 
@@ -100,9 +100,7 @@ function settingsTarget(t: SettingsFor): { grid: HTMLElement; bar: HTMLElement |
 }
 
 /** Fenêtre « Réglages » de la grille : blanche, au style de la fenêtre « Aa » (classes `sm tc`, tokens `--lk-*`). */
-function GridSettings({ grid, gref, top, left, onClose }: { grid: HTMLElement; gref: GridRef; top: number; left: number; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose, { ignore: (t) => Boolean(t.closest("[data-grid-settings-button]")) });
+function GridSettings({ grid, gref, anchor, onClose }: { grid: HTMLElement; gref: GridRef; anchor: PopoverAnchor; onClose: () => void }) {
   // Échap ferme la fenêtre et rien d'autre : la grille reste choisie (sinon le même Échap remonterait aussi au parent).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -124,7 +122,7 @@ function GridSettings({ grid, gref, top, left, onClose }: { grid: HTMLElement; g
   const auto = layout === "auto";
   const set = (patch: Omit<Extract<GridCanvasOp, { op: "set" }>, "op">) => send(gref, { op: "set", ...patch });
   return (
-    <div ref={ref} className="sm tc pe-gs" role="dialog" aria-label="Réglages de la grille" data-testid="gridsettings" style={{ top, left, right: "auto" }}>
+    <Popover anchor={anchor} className="sm tc pe-gs" label="Réglages de la grille" testId="gridsettings" onClose={onClose} ignoreDismiss={(t) => Boolean(t.closest("[data-grid-settings-button]"))}>
       <div className="pe-gs-head">
         <span className="pe-gs-title">Réglages de la grille</span>
         <button type="button" className="pe-gs-close" aria-label="Fermer" data-testid="gridsettings-close" onClick={onClose}>
@@ -220,39 +218,19 @@ function GridSettings({ grid, gref, top, left, onClose }: { grid: HTMLElement; g
           Plus de réglages…
         </button>
       </div>
-    </div>
+    </Popover>
   );
 }
 
 type CellDrag = { grid: HTMLElement; ref: GridRef; from: number; x: number; y: number; target: number | null; active: boolean };
 
-/** Fenêtre « Cadre » d'une case (même contenu que le bouton Cadre d'une image seule). */
-function CellFrame({ uid, top, left, onClose }: { uid: string; top: number; left: number; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
-  const [frame, setFrame] = useState<Frame | undefined>(() => lookOf(uid).frame);
-  const what = document.querySelector<HTMLElement>(`[data-edit-cell="${CSS.escape(uid)}"]`)?.dataset.cellType === "video-single" ? "vidéo" : "photo";
-  return (
-    <div ref={ref} className="sm tc" role="dialog" aria-label={`Cadre de la ${what}`} data-testid="frame-menu" style={{ top, left, right: "auto" }}>
-      <FrameControls
-        what={what}
-        value={frame}
-        onChange={(next) => {
-          setFrame(next);
-          sendLook(uid, { ...lookOf(uid), frame: next });
-        }}
-      />
-    </div>
-  );
-}
-
 export default function GridLayer({ selected, dragging, announce }: { selected: string | null; dragging: boolean; announce: (s: string) => void }) {
   const [tick, setTick] = useState(0);
   const [hover, setHover] = useState<HTMLElement | null>(null);
-  const [frameFor, setFrameFor] = useState<{ uid: string; top: number; left: number } | null>(null);
-  const [imgBgFor, setImgBgFor] = useState<{ uid: string; top: number; left: number } | null>(null);
+  const [frameFor, setFrameFor] = useState<{ uid: string } | null>(null);
+  const [imgBgFor, setImgBgFor] = useState<{ uid: string } | null>(null);
   const [drag, setDrag] = useState<CellDrag | null>(null);
-  const [sizeMenu, setSizeMenu] = useState<{ uid: string; top: number; left: number } | null>(null);
+  const [sizeMenu, setSizeMenu] = useState<{ uid: string } | null>(null);
   const [settings, setSettings] = useState<SettingsFor | null>(null);
   const dragRef = useRef<CellDrag | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -416,18 +394,15 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
   // Numéros : sur la grille choisie et sur celle qu'on survole.
   const numbered = [active, hoverGrid].filter((g, i, a): g is HTMLElement => Boolean(g) && a.indexOf(g) === i);
 
-  // Fenêtre Réglages : sous la barre du bloc (à son bord droit), jamais hors de l'écran.
+  // Fenêtre Réglages : sous le bouton « Réglages » de la barre du bloc (Popover : jamais hors de l'écran).
   const target = settings ? settingsTarget(settings) : null;
   const settingsRef = target ? gridRefOf(target.grid) : null;
   let settingsView: React.ReactNode = null;
   if (settings && target && settingsRef) {
-    const width = Math.min(460, document.documentElement.clientWidth - 16);
-    const bar = target.bar ? docRect(target.bar) : null;
-    const g = docRect(target.grid);
-    const right = bar ? bar.left + bar.width : g.left + g.width;
-    const top = bar ? bar.top + bar.height + 6 : g.top + 8;
-    const left = Math.max(window.scrollX + 8, Math.min(right - width, window.scrollX + document.documentElement.clientWidth - width - 8));
-    settingsView = <GridSettings key={`${settings.board ?? 0}-${settings.uid}`} grid={target.grid} gref={settingsRef} top={top} left={left} onClose={() => setSettings(null)} />;
+    const barButton = settings.board
+      ? `[data-edit-bitem="${CSS.escape(settings.uid)}"][data-board="${settings.board}"] .pe-bitem-bar [data-grid-settings-button]`
+      : '.pe-tools [data-grid-settings-button]';
+    settingsView = <GridSettings key={`${settings.board ?? 0}-${settings.uid}`} grid={target.grid} gref={settingsRef} anchor={barButton} onClose={() => setSettings(null)} />;
   }
 
   const hdr = document.querySelector("header");
@@ -531,10 +506,9 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
           data-cb="frame"
           aria-haspopup="dialog"
           aria-expanded={frameFor?.uid === uid}
-          onClick={(e) => {
-            const b = e.currentTarget.getBoundingClientRect();
+          onClick={() => {
             setImgBgFor(null);
-            setFrameFor((f) => (f?.uid === uid ? null : { uid, top: b.bottom + window.scrollY + 4, left: Math.max(window.scrollX + 8, Math.min(b.left + window.scrollX - 120, window.scrollX + window.innerWidth - 348)) }));
+            setFrameFor((f) => (f?.uid === uid ? null : { uid }));
           }}
         >
           Cadre
@@ -549,9 +523,8 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
               aria-haspopup="dialog"
               aria-expanded={imgBgFor?.uid === uid}
               title="Fond derrière l'image (utile pour un PNG détouré)"
-              onClick={(e) => {
-                const b = e.currentTarget.getBoundingClientRect();
-                const spot = { uid, top: b.bottom + window.scrollY + 4, left: Math.max(window.scrollX + 8, Math.min(b.left + window.scrollX - 120, window.scrollX + window.innerWidth - 348)) };
+              onClick={() => {
+                const spot = { uid };
                 const wasOpen = imgBgFor?.uid === uid;
                 // Une seule fenêtre à la fois : pe:popups-close ferme celles des autres couches (et la nôtre), puis on ouvre la sienne.
                 window.dispatchEvent(new CustomEvent("pe:popups-close"));
@@ -570,16 +543,13 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
           data-cb="size"
           aria-haspopup="menu"
           aria-expanded={sizeMenu?.uid === uid}
-          onClick={(e) => {
-            const bb = e.currentTarget.getBoundingClientRect();
-            setSizeMenu((m) => (m?.uid === uid ? null : { uid, top: bb.bottom + window.scrollY + 4, left: Math.max(window.scrollX + 8, Math.min(bb.left + window.scrollX, window.scrollX + window.innerWidth - 190)) }));
-          }}
+          onClick={() => setSizeMenu((m) => (m?.uid === uid ? null : { uid }))}
         >
           Taille ▾
         </button>
       </div>
         {sizeMenu?.uid === uid && (
-          <SizeMenu top={sizeMenu.top} left={sizeMenu.left} onClose={() => setSizeMenu(null)}>
+          <SizeMenu anchor={cellAnchor(uid, "size")} onClose={() => setSizeMenu(null)}>
             {justified
               ? (
                   [
@@ -629,8 +599,26 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
       )}
       {settingsView}
       {!drag && hoverCell && hoverRef && cellBar(hoverCell, hoverRef)}
-      {imgBgFor && <ImageBgPopup key={imgBgFor.uid} uid={imgBgFor.uid} style={{ top: imgBgFor.top, left: imgBgFor.left, right: "auto" }} onClose={() => setImgBgFor(null)} />}
-      {frameFor && <CellFrame uid={frameFor.uid} top={frameFor.top} left={frameFor.left} onClose={() => setFrameFor(null)} />}
+      {imgBgFor && (
+        <ImageBgWindow
+          key={imgBgFor.uid}
+          anchor={cellAnchor(imgBgFor.uid, "imgbg")}
+          value={lookOf(imgBgFor.uid).imageBg}
+          onChange={(imageBg) => sendLook(imgBgFor.uid, { ...lookOf(imgBgFor.uid), imageBg })}
+          onClose={() => setImgBgFor(null)}
+        />
+      )}
+      {frameFor && (
+        <FrameWindow
+          key={frameFor.uid}
+          testId="frame-menu"
+          what={document.querySelector<HTMLElement>(`[data-edit-cell="${CSS.escape(frameFor.uid)}"]`)?.dataset.cellType === "video-single" ? "vidéo" : "photo"}
+          anchor={cellAnchor(frameFor.uid, "frame")}
+          value={lookOf(frameFor.uid).frame}
+          onChange={(frame) => sendLook(frameFor.uid, { ...lookOf(frameFor.uid), frame })}
+          onClose={() => setFrameFor(null)}
+        />
+      )}
       {dragSource && (() => {
         const r = docRect(dragSource);
         return <div className="pe-cell-source" style={{ top: r.top, left: r.left, width: r.width, height: r.height }} aria-hidden="true" />;

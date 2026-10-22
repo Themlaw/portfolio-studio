@@ -23,11 +23,10 @@ import { FREE_MAX_W, FREE_MIN_W, snapBox, type FreeBox, type FreeGuides } from "
 import { imageBgCss, RADII, RADIUS_LABELS, type Frame, type ImageBg, type Radius } from "@/lib/look";
 import type { FreeCanvasOp } from "@/lib/edit/protocol";
 
-import { FrameControls } from "./FrameMenu";
-import { ImageBgControls } from "./ImageBgControls";
+import FrameWindow from "./FrameMenu";
+import ImageBgWindow from "./ImageBgMenu";
 import { clearAspect, clearItem, findItem, findZone, freeKey, freeRefOf, ITEM_SELECTOR, itemsOf, readItem, writeAspect, writeItem, type FreeGeom, type FreeRef } from "./free-dom";
 import { postIntent, setOverlay } from "./optimistic";
-import { useDismiss } from "./useDismiss";
 
 type Sel = { key: string; id: string };
 type Place = Partial<Pick<FreeGeom, "x" | "y" | "w" | "rot">>;
@@ -97,38 +96,20 @@ type Gesture = {
   H0: number;
 };
 
+/** Garde la barre de l'image entièrement dans la fenêtre : calée à `left`, ramenée vers la gauche si elle déborde à droite. */
+function keepInView(el: HTMLElement | null, left: number) {
+  if (!el) return;
+  const doc = el.ownerDocument;
+  const win = doc.defaultView ?? window;
+  el.style.left = `${Math.max(win.scrollX + 6, Math.min(left, win.scrollX + doc.documentElement.clientWidth - 6 - el.offsetWidth))}px`;
+}
+
 const norm = (deg: number) => {
   let d = ((deg + 180) % 360 + 360) % 360 - 180;
   if (d === -180 && deg > 0) d = 180;
   return d;
 };
 const r2 = (n: number) => Math.round(n * 100) / 100;
-
-/** Fenêtre « Cadre » de l'image : mêmes réglages que le cadre d'une image seule. */
-function ItemFrame({ box, frame, onChange, onClose, what }: { box: Rect; frame: Frame | undefined; onChange: (f: Frame | undefined) => void; onClose: () => void; what: "photo" | "vidéo" }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
-  const width = Math.min(330, document.documentElement.clientWidth - 24);
-  const left = Math.max(window.scrollX + 8, Math.min(box.left, window.scrollX + document.documentElement.clientWidth - width - 8));
-  return (
-    <div ref={ref} className="sm tc pe-slot-frame" role="dialog" aria-label={`Cadre de la ${what}`} data-testid="free-frame" style={{ top: box.top + box.height + 8, left, right: "auto" }}>
-      <FrameControls value={frame} onChange={onChange} what={what} />
-    </div>
-  );
-}
-
-/** Fenêtre « Fond image » de l'image (lot 41) : mêmes choix que le fond d'une image seule. */
-function ItemBg({ box, bg, onChange, onClose }: { box: Rect; bg: string | undefined; onChange: (b: string | undefined) => void; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
-  const width = Math.min(330, document.documentElement.clientWidth - 24);
-  const left = Math.max(window.scrollX + 8, Math.min(box.left, window.scrollX + document.documentElement.clientWidth - width - 8));
-  return (
-    <div ref={ref} className="sm tc pe-slot-frame" role="dialog" aria-label="Fond de l'image" data-testid="free-imgbg" style={{ top: box.top + box.height + 8, left, right: "auto" }}>
-      <ImageBgControls value={bg} onChange={onChange} />
-    </div>
-  );
-}
 
 export default function FreeLayer({ selected, dragging, announce }: { selected: string | null; dragging: boolean; announce: (s: string) => void }) {
   const [tick, setTick] = useState(0);
@@ -463,7 +444,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
           />
         </div>
         {!gesturing && (
-          <div className="pe-slot-tools" role="toolbar" aria-label="Image de la planche libre" data-testid="free-bar" style={{ top: barTop, left: barLeft, width: "max-content", maxWidth: 760 }}>
+          <div ref={(el) => keepInView(el, barLeft)} className="pe-slot-tools" role="toolbar" aria-label="Image de la planche libre" data-testid="free-bar" style={{ top: barTop, left: barLeft, width: "max-content", maxWidth: "min(760px, calc(100vw - 12px))" }}>
             <button type="button" data-testid="free-replace" onClick={() => send(ref, { op: "pick", id: sel.id })}>
               Remplacer
             </button>
@@ -520,10 +501,10 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
           </div>
         )}
         {bgOpen && !gesturing && (
-          <ItemBg box={bb} bg={style.bg} onClose={() => setBgOpen(false)} onChange={(bg) => send(ref, { op: "style", id: sel.id, bg: (bg as ImageBg | undefined) ?? null })} />
+          <ImageBgWindow testId="free-imgbg" anchor='[data-testid="free-imgbg-button"]' value={style.bg} onClose={() => setBgOpen(false)} onChange={(bg) => send(ref, { op: "style", id: sel.id, bg: (bg as ImageBg | undefined) ?? null })} />
         )}
         {frameOpen && !gesturing && (
-          <ItemFrame what={isVideo ? "vidéo" : "photo"} box={bb} frame={style.frame} onClose={() => setFrameOpen(false)} onChange={(frame) => send(ref, { op: "style", id: sel.id, frame: frame ?? null })} />
+          <FrameWindow testId="free-frame" what={isVideo ? "vidéo" : "photo"} anchor='[data-testid="free-frame-button"]' value={style.frame} onClose={() => setFrameOpen(false)} onChange={(frame) => send(ref, { op: "style", id: sel.id, frame: frame ?? null })} />
         )}
       </Fragment>
     );

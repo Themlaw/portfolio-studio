@@ -11,7 +11,7 @@
  * Si même avec le texte lisible choisi par `cardStyle` le contraste reste sous AA, une
  * pastille d'alerte le dit (jamais bloquant).
  */
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import { parseColor, rgbaToHex } from "@/lib/color";
 import { PALETTE } from "@/lib/look";
@@ -36,10 +36,10 @@ import {
 
 import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";
+import Popover, { type PopoverAnchor } from "./Popover";
 import { canvasPalette, postIntent, previewSurface, surfaceState, wallpaperCatalog } from "./optimistic";
 import { ratioTip, readabilityText } from "./readability";
 import { CornersRow, ExtentRow } from "./ShapeChoices";
-import { useDismiss } from "./useDismiss";
 import { WallpaperGrid, WallpaperPaintRows } from "./WallpaperChoices";
 
 import "@/app/admin/typo-controls.css";
@@ -83,7 +83,7 @@ export function SurfaceButton({ uid, open, onToggle }: { uid: string; open: bool
   const { surface, defaults } = surfaceState(uid);
   const s = summary(surface, defaults);
   return (
-    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} title="Carte de la rubrique : une carte colorée posée sur le papier du site" onClick={onToggle}>
+    <button type="button" className="pe-tool-text sm-button" data-anchor="surface" aria-haspopup="dialog" aria-expanded={open} title="Carte de la rubrique : une carte colorée posée sur le papier du site" onClick={onToggle}>
       <span className="sm-dot" data-on={s ? "" : undefined} style={s ? { background: s.style.bg } : undefined} aria-hidden="true" />
       Carte
       {s && !s.style.ok && (
@@ -159,12 +159,10 @@ function BorderRows({ border, onChange }: { border: ResolvedBorder | null; onCha
   );
 }
 
-export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: string; top: number; onClose: () => void; onChanged: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
+export default function SurfaceMenu({ uid, anchor, onClose, onChanged }: { uid: string; anchor: PopoverAnchor; onClose: () => void; onChanged: () => void }) {
   const initial = surfaceState(uid);
   const [cur, setCur] = useState<Surface | null>(initial.surface);
   const defaults = initial.defaults;
-  useDismiss(ref, onClose);
 
   // `continuous` : roue ou curseur du sélecteur de couleur (fusionnés dans l'historique) ; un clic (pastille, largeur, coins, interrupteur) est un pas à lui seul.
   const change = (next: Surface | null, continuous = false) => {
@@ -179,12 +177,7 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
   // Coins affichés : Droits, Petit / Moyen / Grand, ou, pour un ancien « Coins arrondis » (rayon du thème), la taille la plus proche de ce rayon.
   const corners = s?.resolved.corners;
   const cornersChoice: "none" | keyof typeof CORNER_STEP_RADII = !corners || corners === "square" ? "none" : corners === "round" ? nearestCornerStep(themeCardRadius()) : corners;
-  // Le menu est haut (couleurs, papier peint, bordure) : on l'amène dans la vue de la toile quand il s'ouvre ou s'allonge.
-  const hasCard = s !== null;
-  const hasWallpaper = cur?.paperWallpaper !== undefined;
-  useEffect(() => {
-    ref.current?.scrollIntoView({ block: "nearest" });
-  }, [hasCard, hasWallpaper]);
+  // Le menu est haut (couleurs, papier peint, bordure) : le Popover le replace (retourné, ou défilant) quand il s'allonge.
   const site = sitePaper();
   const paper = cur ? resolvePaper(cur, site) : null;
   const customColor = cur?.color && !isSurfaceToken(cur.color) ? cur.color : undefined;
@@ -199,7 +192,7 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
   };
 
   return (
-    <div ref={ref} className="sm tc" role="dialog" aria-label="Carte de la rubrique" style={{ top }}>
+    <Popover anchor={anchor} label="Carte de la rubrique" onClose={onClose}>
       <button type="button" role="switch" aria-checked={s !== null} className="sm-switch" onClick={() => change(s ? null : {})}>
         <span className="sm-switch-track" aria-hidden="true">
           <span />
@@ -303,6 +296,6 @@ export default function SurfaceMenu({ uid, top, onClose, onChanged }: { uid: str
       ) : (
         <p className="sm-hint">Pose cette rubrique sur une carte colorée : le papier du site se voit autour. La couleur du texte, elle, se règle sur le texte (« Fond du texte »).</p>
       )}
-    </div>
+    </Popover>
   );
 }

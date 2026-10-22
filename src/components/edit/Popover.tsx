@@ -1,0 +1,183 @@
+"use client";
+
+/**
+ * UN SEUL composant de fenêtre / menu ancré de la toile (lot 65, R3 de l'audit A5) : généralisation du `Panel` de SiteLayer.
+ * Cadre, Fond image, Fond, Carte, Taille, Espace, Réglages de la grille, « + Ajouter », menu et réseaux… : toutes les fenêtres
+ * qui s'ouvrent depuis un bouton de barre passent par lui ; plus aucune enveloppe ne calcule sa propre position (plus de −300,
+ * −165, −120, +46, de `right: 6px` du bloc ni de calage sur l'image).
+ *
+ * L'ANCRE est le BOUTON cliqué : un élément, un sélecteur CSS (retrouvé à chaque calcul : la barre, ou toute la toile, peut être
+ * redessinée) ou une fonction. La fenêtre se pose sous lui (à `GAP` px), se retourne au-dessus s'il n'y a pas la place dessous, reste
+ * entièrement dans la fenêtre du navigateur (largeur comprise : elle tient sur 390 px) et, si ni dessous ni dessus ne suffit, prend la
+ * plus grande des deux places en défilant. Elle se RECALCULE au défilement, au redimensionnement, quand l'ancre, la fenêtre ou la
+ * page changent de taille, et quand la toile est redessinée (rechargement d'une planche, barre déplacée). Si le bouton a disparu,
+ * elle garde la dernière place connue. Fermeture : Échap et clic dehors (`useDismiss`, comme tous les menus flottants).
+ *
+ * Rendue dans l'hôte de la couche d'édition (`.pe-host`, coordonnées du document) : hors du contenu du site, donc hors des
+ * `overflow: clip`, `clip-path` et `z-index` des rubriques.
+ */
+import { useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+
+import { useDismiss } from "./useDismiss";
+
+/** Le bouton qui ouvre la fenêtre : l'élément, un sélecteur CSS (retrouvé à chaque calcul) ou une fonction. */
+export type PopoverAnchor = Element | string | (() => Element | null);
+
+/** Écart entre le bouton et la fenêtre, et marge minimale avec le bord de la fenêtre du navigateur. */
+export const POPOVER_GAP = 6;
+export const POPOVER_EDGE = 8;
+
+function resolveAnchor(a: PopoverAnchor, doc: Document): Element | null {
+  if (typeof a === "string") return doc.querySelector(a);
+  if (typeof a === "function") return a();
+  return a.isConnected ? a : null;
+}
+
+/**
+ * Place la fenêtre `el` près du rectangle `r` (coordonnées de la fenêtre du navigateur). Pur calcul sur le DOM : rend la position
+ * en coordonnées du document, ou undefined si rien n'a changé depuis `last`.
+ */
+export function placePopover(el: HTMLElement, r: { left: number; top: number; right: number; bottom: number }, align: "start" | "center" | "end") {
+  const doc = el.ownerDocument;
+  const win = doc.defaultView ?? window;
+  const vw = doc.documentElement.clientWidth;
+  const vh = win.innerHeight;
+  // Taille naturelle (sans la contrainte posée au calcul précédent).
+  el.style.maxHeight = "";
+  el.style.overflowY = "";
+  const w = Math.min(el.offsetWidth, vw - 2 * POPOVER_EDGE);
+  let h = el.offsetHeight;
+  let left = align === "center" ? (r.left + r.right) / 2 - w / 2 : align === "end" ? r.right - w : r.left;
+  left = Math.max(POPOVER_EDGE, Math.min(left, vw - POPOVER_EDGE - w));
+  const below = vh - POPOVER_EDGE - (r.bottom + POPOVER_GAP);
+  const above = r.top - POPOVER_GAP - POPOVER_EDGE;
+  let top: number;
+  if (h <= below) top = r.bottom + POPOVER_GAP;
+  else if (h <= above) top = r.top - POPOVER_GAP - h;
+  else {
+    // Ni dessous ni dessus : la plus grande place (au moins un tiers de la fenêtre), le contenu défile.
+    const room = Math.max(below, above, Math.min(vh - 2 * POPOVER_EDGE, 160));
+    h = Math.min(h, room);
+    el.style.maxHeight = `${h}px`;
+    el.style.overflowY = "auto";
+    top = below >= above ? r.bottom + POPOVER_GAP : r.top - POPOVER_GAP - h;
+  }
+  // Bouton hors de l'écran (défilé) : la fenêtre reste lisible, à la limite de la vue.
+  top = Math.max(POPOVER_EDGE, Math.min(top, vh - POPOVER_EDGE - h));
+  return { left: left + win.scrollX, top: top + win.scrollY };
+}
+
+export type PopoverProps = {
+  anchor: PopoverAnchor;
+  /** Nom accessible de la fenêtre. */
+  label: string;
+  onClose: () => void;
+  children: ReactNode;
+  /** Classes de contenu (`sm tc` : fenêtre blanche à réglages ; `pe-layouts` : menu de choix). */
+  className?: string;
+  role?: "dialog" | "menu" | "radiogroup";
+  testId?: string;
+  /** Côté du bouton sur lequel la fenêtre s'aligne (début par défaut). */
+  align?: "start" | "center" | "end";
+  /** Clics qui ne ferment pas la fenêtre en plus du bouton qui l'ouvre et d'elle-même. */
+  ignoreDismiss?: (target: Element) => boolean;
+  style?: CSSProperties;
+  onKeyDown?: (e: KeyboardEvent<HTMLDivElement>) => void;
+  /** Entrée en premier : le premier champ ou choix prend le focus à l'ouverture. */
+  focusFirst?: boolean;
+};
+
+export default function Popover({ anchor, label, onClose, children, className = "sm tc", role = "dialog", testId, align = "start", ignoreDismiss, style, onKeyDown, focusFirst }: PopoverProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef(anchor);
+  const alignRef = useRef(align);
+  useLayoutEffect(() => {
+    anchorRef.current = anchor;
+    alignRef.current = align;
+  });
+  useDismiss(ref, onClose, { ...(ignoreDismiss ? { ignore: ignoreDismiss } : {}) });
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const doc = el.ownerDocument;
+    const win = doc.defaultView ?? window;
+    // Dernière place connue du bouton (coordonnées du document) : s'il disparaît un instant (toile redessinée), la fenêtre reste là.
+    let last: { left: number; top: number; right: number; bottom: number } | null = null;
+    let seen = "";
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const a = resolveAnchor(anchorRef.current, doc);
+      if (a) {
+        const b = a.getBoundingClientRect();
+        last = { left: b.left + win.scrollX, top: b.top + win.scrollY, right: b.right + win.scrollX, bottom: b.bottom + win.scrollY };
+        if (a !== watched) {
+          if (watched) ro.unobserve(watched);
+          ro.observe(a);
+          watched = a;
+        }
+      }
+      if (!last) return;
+      const r = { left: last.left - win.scrollX, top: last.top - win.scrollY, right: last.right - win.scrollX, bottom: last.bottom - win.scrollY };
+      const key = `${Math.round(r.left)}|${Math.round(r.top)}|${Math.round(r.right)}|${Math.round(r.bottom)}|${doc.documentElement.clientWidth}|${win.innerHeight}|${el.offsetWidth}|${el.scrollHeight}`;
+      if (key === seen) return;
+      seen = key;
+      const p = placePopover(el, r, alignRef.current);
+      el.style.left = `${Math.round(p.left)}px`;
+      el.style.top = `${Math.round(p.top)}px`;
+    };
+    const schedule = () => {
+      if (!raf) raf = win.requestAnimationFrame(update);
+    };
+    let watched: Element | null = null;
+    const ro = new win.ResizeObserver(schedule);
+    ro.observe(el);
+    ro.observe(doc.documentElement);
+    // La toile est redessinée (planche rechargée, barre déplacée) : l'ancre a pu changer de place ou être remplacée.
+    const mo = new win.MutationObserver((records) => {
+      if (records.some((m) => !el.contains(m.target))) schedule();
+    });
+    mo.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["style", "class", "data-selected", "hidden"] });
+    win.addEventListener("scroll", schedule, true);
+    win.addEventListener("resize", schedule);
+    update();
+    if (focusFirst && !el.contains(doc.activeElement)) el.querySelector<HTMLElement>("input, button:not([disabled]), select, textarea")?.focus({ preventScroll: true });
+    return () => {
+      if (raf) win.cancelAnimationFrame(raf);
+      ro.disconnect();
+      mo.disconnect();
+      win.removeEventListener("scroll", schedule, true);
+      win.removeEventListener("resize", schedule);
+    };
+  }, [focusFirst]);
+
+  const host = (typeof document !== "undefined" && (document.querySelector(".pe-host") ?? document.body)) || null;
+  if (!host) return null;
+  // Dans une couche `.pe-layer` (sans taille) comme toutes les barres : les couches voisines (survol d'une case, sélection) voient
+  // la fenêtre comme faisant partie de l'éditeur, jamais comme du contenu du site.
+  return createPortal(
+    <div className="pe-layer pe-pop-layer">
+      <div ref={ref} className={`pe-pop ${className}`} role={role} aria-label={label} data-testid={testId} data-pe-pop="" style={{ right: "auto", ...style }} onKeyDown={onKeyDown}>
+        {children}
+      </div>
+    </div>,
+    host,
+  );
+}
+
+/**
+ * Valeur d'un réglage montrée par la fenêtre : celle de l'appelant au départ, puis ce qui vient d'être choisi (sans attendre la
+ * réécriture de la toile), et de nouveau celle de l'appelant dès qu'elle change (Annuler, rechargement).
+ */
+export function useLocalValue<T>(value: T): [T, (next: T) => void] {
+  const [cur, setCur] = useState(value);
+  const sig = JSON.stringify(value ?? null);
+  const [seen, setSeen] = useState(sig);
+  if (seen !== sig) {
+    setSeen(sig);
+    setCur(value);
+  }
+  return [cur, setCur];
+}

@@ -9,7 +9,7 @@
  * Annuler / Rétablir passent par l'historique de l'éditeur. Texte illisible sur la couleur : avertissement seulement.
  * À ne pas confondre avec « Carte » (la carte posée sous une rubrique, SurfaceMenu) ni « Fond du texte » (BackdropRow).
  */
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useState } from "react";
 
 import { parseColor, rgbaToHex } from "@/lib/color";
 import { PALETTE } from "@/lib/look";
@@ -21,7 +21,7 @@ import ColorPicker from "./ColorPicker";
 import { canvasPalette, fondState, postIntent, previewFond, wallpaperCatalog } from "./optimistic";
 import { ratioTip, readabilityText } from "./readability";
 import { CornersRow, ExtentRow, SHAPE_STEPS } from "./ShapeChoices";
-import { useDismiss } from "./useDismiss";
+import Popover, { type PopoverAnchor } from "./Popover";
 import { WallpaperGrid, WallpaperPaintRows } from "./WallpaperChoices";
 
 import "@/app/admin/typo-controls.css";
@@ -66,7 +66,7 @@ export function FondButton({ uid, open, onToggle }: { uid: string; open: boolean
 }
 
 /** Fond d'un composant de la page ou d'un conteneur : aperçu immédiat sur la toile (`previewFond`), puis intention `background`. */
-export default function FondMenu({ uid, top, onClose, onChanged }: { uid: string; top: number; onClose: () => void; onChanged: () => void }) {
+export default function FondMenu({ uid, anchor, onClose, onChanged }: { uid: string; anchor: PopoverAnchor; onClose: () => void; onChanged: () => void }) {
   const [cur, setCur] = useState<Background | null>(() => fondState(uid));
   const change = (next: Background | null, continuous = false) => {
     setCur(next);
@@ -74,26 +74,23 @@ export default function FondMenu({ uid, top, onClose, onChanged }: { uid: string
     previewFond(uid, next, seq);
     onChanged();
   };
-  return <FondPanel cur={cur} onChange={change} onClose={onClose} style={{ top }} />;
+  return <FondPanel cur={cur} onChange={change} onClose={onClose} anchor={anchor} />;
 }
 
 /**
  * Fond d'un composant de la PLANCHE d'un projet (barre du composant, BoardLayer) : même fenêtre, mais pas d'aperçu local — la
  * planche appartient au projet et se réécrit par `item-fond` (Annuler / Rétablir, version de page) ; la toile se recharge ensuite.
  */
-export function BoardFondMenu({ board, uid, initial, top, left, onClose }: { board: number; uid: string; initial: Background | null; top: number; left: number; onClose: () => void }) {
+export function BoardFondMenu({ board, uid, initial, anchor, onClose }: { board: number; uid: string; initial: Background | null; anchor: PopoverAnchor; onClose: () => void }) {
   const [cur, setCur] = useState<Background | null>(initial);
   const change = (next: Background | null, continuous = false) => {
     setCur(next);
     postIntent({ kind: "bitem-fond", board, uid, background: next, ...(continuous ? { continuous: true } : {}) });
   };
-  return <FondPanel cur={cur} onChange={change} onClose={onClose} style={{ top, left, right: "auto" }} />;
+  return <FondPanel cur={cur} onChange={change} onClose={onClose} anchor={anchor} />;
 }
 
-function FondPanel({ cur, onChange: change, onClose, style }: { cur: Background | null; onChange: (next: Background | null, continuous?: boolean) => void; onClose: () => void; style: CSSProperties }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
-
+function FondPanel({ cur, onChange: change, onClose, anchor }: { cur: Background | null; onChange: (next: Background | null, continuous?: boolean) => void; onClose: () => void; anchor: PopoverAnchor }) {
   const color = fondColor(cur ?? undefined);
   const s = summary(cur);
   const wp = cur?.kind === "wallpaper" ? cur : null;
@@ -125,11 +122,7 @@ function FondPanel({ cur, onChange: change, onClose, style }: { cur: Background 
   const [wantWallpaper, setWantWallpaper] = useState(false);
   const view = wantWallpaper && !cur ? "wallpaper" : active;
   const entry = wp ? wallpaperCatalog().get(wp.wallpaper) : undefined;
-  // Le menu d'un papier peint est plus haut que celui d'une couleur : on l'amène dans la vue (toile) quand il s'ouvre ou change de nature.
-  const hasWp = wp !== null;
-  useEffect(() => {
-    ref.current?.scrollIntoView({ block: "nearest" });
-  }, [view, hasWp]);
+  // Le menu d'un papier peint est plus haut que celui d'une couleur : le Popover le replace (retourné, ou défilant) quand il change de taille.
 
   const pickKind = (kind: string) => {
     if (kind === "none") {
@@ -190,7 +183,7 @@ function FondPanel({ cur, onChange: change, onClose, style }: { cur: Background 
   );
 
   return (
-    <div ref={ref} className="sm tc" role="dialog" aria-label="Fond du composant" data-testid="fond-menu" style={style}>
+    <Popover anchor={anchor} label="Fond du composant" testId="fond-menu" onClose={onClose}>
       <div className="tc-row">
         <span className="sm-label">Fond</span>
         <span className="tc-seg" role="radiogroup" aria-label="Nature du fond">
@@ -231,6 +224,6 @@ function FondPanel({ cur, onChange: change, onClose, style }: { cur: Background 
       ) : (
         <p className="sm-hint">Colore tout le composant, d&apos;un bord à l&apos;autre, ou pose un papier peint de ta bibliothèque. Le texte passe tout seul à la couleur la plus lisible.</p>
       )}
-    </div>
+    </Popover>
   );
 }

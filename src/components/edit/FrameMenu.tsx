@@ -9,18 +9,17 @@
  * le menu coche alors.
  *
  * `FrameControls` est le contenu, partagé par le bouton « Cadre » de la barre d'une image ou d'une vidéo seule / d'une case de grille
- * (`FrameMenu`, ci-dessous : réglage `look.frame` du bloc), par la barre d'une image ou d'une vidéo de planche (BoardLayer :
- * `look.slotFrame` du bloc planche, par emplacement) et par celle de la Planche libre. Chaque choix part aussitôt (intention `look`,
- * annulable). Les pastilles montrent les couleurs du thème par leurs variables, jamais en dur.
+ * (réglage `look.frame` du bloc), par la barre d'une image ou d'une vidéo de planche (BoardLayer :
+ * `look.slotFrame` du bloc planche, par emplacement) et par celle de la Planche libre. La fenêtre est `FrameWindow` (un seul
+ * `Popover` ancré au bouton). Chaque choix part aussitôt (intention `look`, annulable). Les pastilles montrent les couleurs du thème par leurs variables, jamais en dur.
  */
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import { FRAME_DEFAULT_COLOR, FRAME_DEFAULT_WIDTH, FRAME_KIND_LABELS, FRAME_WIDTH_LABELS, FRAME_WIDTHS, frameColorCss, PALETTE_DISPLAY, PALETTE_LABELS, type Frame, type PaletteColor } from "@/lib/look";
 
 import ColorPicker from "./ColorPicker";
-import { lookOf, sendLook } from "./LookLayer";
-import { postIntent } from "./optimistic";
-import { useDismiss } from "./useDismiss";
+import { lookOf } from "./LookLayer";
+import Popover, { type PopoverAnchor, useLocalValue } from "./Popover";
 
 import "@/app/admin/typo-controls.css";
 import "@/app/admin/surface-menu.css";
@@ -152,35 +151,22 @@ export function FrameButton({ uid, open, onToggle, what = "photo" }: { uid: stri
 }
 
 /**
- * Cadre d'un composant Image de la PLANCHE d'un projet (barre du composant, BoardLayer) : même fenêtre, mais le réglage est celui du
- * composant (`props.look.frame`), qui appartient au projet : écriture de planche `item-frame` (Annuler / Rétablir, version de page).
+ * Fenêtre « Cadre » (lot 65) : UNE seule, ancrée au bouton `anchor`, pour tous les conteneurs. Chaque appelant donne sa valeur et son
+ * écriture : page (`look.frame` du bloc, `sendLook`), case de grille (même chose), composant de planche (`props.look.frame` du projet,
+ * écriture `item-frame`), image de carrousel (`look.slotFrame[slug]`) et image de Planche libre (`items[].frame`).
  */
-export function BoardFrameMenu({ board, uid, initial, top, left, onClose, what = "photo" }: { board: number; uid: string; initial: Frame | undefined; top: number; left: number; onClose: () => void; what?: "photo" | "vidéo" }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
-  const [cur, setCur] = useState<Frame | undefined>(initial);
-  const change = (next: Frame | undefined) => {
-    setCur(next);
-    postIntent({ kind: "bitem-frame", board, uid, frame: next ?? null });
-  };
+export default function FrameWindow({ anchor, value, onChange, onClose, what = "photo", testId }: { anchor: PopoverAnchor; value: Frame | undefined; onChange: (next: Frame | undefined) => void; onClose: () => void; what?: "photo" | "vidéo"; testId?: string }) {
+  const [cur, setCur] = useLocalValue(value);
   return (
-    <div ref={ref} className="sm tc" role="dialog" aria-label={`Cadre de la ${what}`} data-testid="frame-menu" style={{ top, left, right: "auto" }}>
-      <FrameControls value={cur} onChange={change} what={what} />
-    </div>
-  );
-}
-
-/** Fenêtre du bouton « Cadre » d'une image seule ou d'une case de grille (réglage `look.frame` du bloc). */
-export default function FrameMenu({ uid, top, onClose, onChanged, what = "photo" }: { uid: string; top: number; onClose: () => void; onChanged: () => void; what?: "photo" | "vidéo" }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
-  const change = (next: Frame | undefined) => {
-    sendLook(uid, { ...lookOf(uid), frame: next });
-    onChanged();
-  };
-  return (
-    <div ref={ref} className="sm tc" role="dialog" aria-label={`Cadre de la ${what}`} style={{ top }}>
-      <FrameControls value={lookOf(uid).frame} onChange={change} what={what} />
-    </div>
+    <Popover anchor={anchor} label={`Cadre de la ${what}`} testId={testId} onClose={onClose}>
+      <FrameControls
+        value={cur}
+        onChange={(next) => {
+          setCur(next);
+          onChange(next);
+        }}
+        what={what}
+      />
+    </Popover>
   );
 }
