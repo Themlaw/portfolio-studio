@@ -185,7 +185,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
     </figure>
   );
   if (ctx.cell) return body;
-  const sectionClass = props.width === "full" ? "pt-[var(--section-gap)]" : "shell pt-[var(--section-gap)]";
+  const sectionClass = props.width === "full" ? "block-bleed pt-[var(--section-gap)]" : "shell pt-[var(--section-gap)]";
   return viewer ? (
     <ViewerScope as="section" className={sectionClass}>
       {body}
