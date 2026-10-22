@@ -81,9 +81,9 @@ await p.waitForFunction(() => !document.querySelector(".a-media-tile .a-progress
 
 // Bloc vidéo de la page Animation : demoreel hébergée, dans deux thèmes.
 await p.locator(".a-media-tile", { hasText: "demo-reel.mp4" }).click();
-await p.locator(".a-sidepanel").getByLabel("Texte alternatif", { exact: true }).fill("Demoreel 2026");
+await p.locator(".a-sidepanel").getByLabel("Description de l'image (pour les personnes malvoyantes et Google)", { exact: true }).fill("Demoreel 2026");
 await p.locator(".a-sidepanel").getByRole("button", { name: "Enregistrer", exact: true }).click();
-await toast("Texte alternatif enregistré");
+await toast("Description enregistrée");
 await p.goto(`${BASE}/admin/pages`, { waitUntil: "networkidle" });
 await p.locator("tr", { hasText: "Animation" }).getByRole("link", { name: "Modifier" }).click();
 await p.waitForURL(/\/admin\/pages\/\d+$/);
@@ -91,7 +91,6 @@ const animationPage = new URL(p.url()).pathname;
 await p.locator(".a-block-toggle", { hasText: "Vidéos" }).click();
 await p.getByRole("button", { name: "Choisir une vidéo" }).click();
 await p.locator("dialog[open] .a-media-tile", { hasText: "demo-reel.mp4" }).click();
-await p.locator("dialog[open]").getByRole("button", { name: "Utiliser cette vidéo" }).click();
 await p.getByRole("button", { name: "Enregistrer", exact: true }).click();
 await toast("Enregistré");
 for (const theme of ["galerie-lumineuse", "salle-de-projection"]) {

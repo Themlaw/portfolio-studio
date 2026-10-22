@@ -16,7 +16,8 @@ import {
   setPublished,
   type PageReference,
 } from "@/lib/edit/pages";
-import { discardDraft, publishDraft, saveDraft, savePageFromForm, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
+import { publishWarnings } from "@/lib/edit/warnings";
+import { discardDraft, publishDraft, saveDraft, savePageInfo, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
 import { boardOp, createDraftProject, restoreBoard, type BoardResult } from "@/lib/edit/boards";
 import { saveSiteDraft, type SiteResult } from "@/lib/edit/site";
 import { collectFonts, installGoogleFont, type InstallResult } from "@/lib/fonts/library";
@@ -39,20 +40,18 @@ export async function createPageAction(input: unknown): Promise<ActionResult<{ i
 }
 
 /**
- * Formulaire de page : publie ce qu'il montre (brouillon compris) et vide le
- * brouillon. `rev` : version lue au chargement (contrôle optimiste).
+ * Formulaire d'infos de la page (lot 51) : enregistre SEULEMENT les infos (titre, adresses, menu, mise en ligne…).
+ * Le brouillon de contenu de l'éditeur n'est jamais publié ici. `keepOldAddress` : ancienne adresse gardée en redirection.
  */
-export async function savePageAction(id: unknown, input: unknown, rev: unknown): Promise<DraftResult<{ rev: number }>> {
+export async function savePageInfoAction(id: unknown, input: unknown, rev: unknown, keepOldAddress?: unknown): Promise<DraftResult<{ rev: number; redirected: number }>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
-  const result = savePageFromForm(pid, input, rev);
+  const result = savePageInfo(pid, input, rev, { keepOldAddress: keepOldAddress !== false });
   if (!result.ok) return result;
   revalidatePage(pid, { structure: true });
   enqueueCropWarm(pid);
-  if (result.data.site) revalidateSettings();
-  for (const project of result.data.projects) revalidateProject(project, { structure: true });
-  return { ok: true, data: { rev: result.data.rev } };
+  return result;
 }
 
 /**
@@ -68,11 +67,12 @@ export async function saveDraftAction(id: unknown, draft: unknown, rev: unknown)
 }
 
 /** Publier : validation complète (comme un enregistrement), page et projets touchés revalidés. */
-export async function publishDraftAction(id: unknown, rev: unknown): Promise<DraftResult<PublishResult>> {
+export async function publishDraftAction(id: unknown, rev: unknown, live?: unknown): Promise<DraftResult<PublishResult>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
-  const result = publishDraft(pid, rev);
+  // `live` : l'éditeur a obtenu la confirmation « Mettre cette page en ligne ? » (lot 51) ; un seul geste met contenu et page en ligne.
+  const result = publishDraft(pid, rev, { live: live === true });
   if (!result.ok) return result;
   revalidatePage(pid, { structure: true });
   // Recadrages de la page publiée préparés en fond (file image, basse priorité) : pas de première visite lente.
@@ -83,7 +83,8 @@ export async function publishDraftAction(id: unknown, rev: unknown): Promise<Dra
   // Polices téléchargées qu'aucun style n'utilise plus (publié ni brouillon) : retirées.
   const fonts = await collectFonts().catch(() => null);
   if (fonts?.removed.length) revalidateSettings();
-  return result;
+  // Avertissements non bloquants (lot 52) : images sans description, textes sans traduction anglaise.
+  return { ...result, data: { ...result.data, warnings: publishWarnings(pid) } };
 }
 
 /** Abandonner les modifications : brouillon et surcouche de la page effacés. */
@@ -143,7 +144,7 @@ export async function createDraftProjectAction(id: unknown, title: unknown): Pro
   return createDraftProject(pid, title);
 }
 
-export async function setPublishedAction(id: unknown, published: unknown): Promise<ActionResult<null>> {
+export async function setPublishedAction(id: unknown, published: unknown): Promise<ActionResult<{ warnings?: ReturnType<typeof publishWarnings> } | null>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid || typeof published !== "boolean") return fail("Requête invalide.");
@@ -152,6 +153,8 @@ export async function setPublishedAction(id: unknown, published: unknown): Promi
     syncDraftFlags(pid, { published });
     revalidatePage(pid, { structure: true });
     if (published) enqueueCropWarm(pid);
+    // Mêmes avertissements non bloquants que « Publier » dans l'éditeur (lots 51 + 52).
+    if (published) return { ...result, data: { warnings: publishWarnings(pid) } };
   }
   return result;
 }

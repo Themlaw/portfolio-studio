@@ -231,7 +231,7 @@ const five = await freeDecor(
   [
     layerAtDecor("ciel", 0, 0, 800, 500, [200, 220, 240]),
     layerAtDecor("nuages", 300, 100, 600, 200, [255, 255, 255]),
-    layerAtDecor("Calque 3", 0, 800, 900, 400, [90, 120, 90]),
+    layerAtDecor("herbe", 0, 800, 900, 400, [90, 120, 90]),
     { name: "sapins", children: [layerAtDecor("a", 100, 900, 200, 500, [20, 60, 30]), layerAtDecor("b", 500, 950, 200, 450, [20, 60, 30])] },
     layerAtDecor("brume devant", 0, 1500, 1200, 300, [230, 230, 240]),
   ],
@@ -255,6 +255,36 @@ const three = await freeDecor(
 );
 const r3 = await importKit({ path: three, name: "d.psd" }, path.join(tmp, "out-3"), { manifests, themeId: theme.id });
 ok("décor : calque vide, masqué et hors du cadre ignorés → 3 plans, dans l'ordre de la pile", r3.slots.filter((s) => s.id.startsWith("decor/")).length === 3 && r3.slots.filter((s) => s.id.startsWith("decor/")).map((s) => s.source).join() === "fond,devant,milieu" && r3.ignoredLayers.some((m) => /masqué/.test(m)) && r3.ignoredLayers.some((m) => /vide|hors/.test(m)), `${r3.slots.map((s) => s.source)} | ${r3.ignoredLayers.join(" ; ")}`);
+// Calque oublié (nom donné d'office par Photoshop) : jamais appliqué en silence, listé dans la revue.
+const oubli = await freeDecor(
+  [
+    layerAtDecor("fond", 0, 0, 500, 400, [200, 220, 240]),
+    layerAtDecor("Calque 12 copie", 0, 100, 400, 400, [255, 0, 0]),
+    layerAtDecor("Layer 3", 0, 100, 400, 400, [255, 0, 0]),
+    layerAtDecor("devant", 100, 1000, 700, 300, [30, 30, 30]),
+  ],
+  "decor-oubli.psd",
+);
+const rOubli = await importKit({ path: oubli, name: "d.psd" }, path.join(tmp, "out-oubli"), { manifests, themeId: theme.id });
+ok(
+  "décor : calque au nom d'office (« Calque 12 copie », « Layer 3 ») non appliqué, listé « nom non reconnu »",
+  rOubli.ok && rOubli.slots.filter((s) => s.id.startsWith("decor/")).map((s) => s.source).join() === "fond,devant" && rOubli.ignoredLayers.some((m) => m.includes("Calque “Calque 12 copie” ignoré : nom non reconnu")) && rOubli.ignoredLayers.some((m) => /Layer 3/.test(m)),
+  `${rOubli.slots.map((s) => s.source)} | ${rOubli.ignoredLayers.join(" ; ")}`,
+);
+// Fichier tronqué : message exact, jamais « vérifie l'espace disque ».
+{
+  const { readFileSync } = await import("node:fs");
+  const buf = readFileSync(five);
+  const cut = path.join(tmp, "tronque.psd");
+  writeFileSync(cut, buf.subarray(0, Math.floor(buf.length * 0.4)));
+  let rCut;
+  try {
+    rCut = await importKit({ path: cut, name: "t.psd" }, path.join(tmp, "out-cut"), { manifests, themeId: theme.id });
+  } catch (e) {
+    rCut = { ok: false, problem: `exception : ${e.message}` };
+  }
+  ok("fichier tronqué : « Le fichier semble abîmé ou incomplet »", rCut.ok === false && /Le fichier semble abîmé ou incomplet/.test(rCut.problem ?? ""), JSON.stringify({ ok: rCut.ok, problem: rCut.problem, slots: rCut.slots?.length, ign: rCut.ignoredLayers }));
+}
 const many = await freeDecor(Array.from({ length: MAX_DECOR_PLANS + 1 }, (_, i) => layerAtDecor(`p${i}`, i * 40, i * 40, 100, 100, [10 * i, 50, 50])), "decor-9.psd");
 const r9 = await importKit({ path: many, name: "d.psd" }, path.join(tmp, "out-9"), { manifests, themeId: theme.id });
 ok(`décor : plus de ${MAX_DECOR_PLANS} plans → refusé, message clair`, r9.ok === false && new RegExp(`plus de ${MAX_DECOR_PLANS} plans`).test(r9.problem ?? ""), r9.problem);

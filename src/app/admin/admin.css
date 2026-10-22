@@ -1265,7 +1265,54 @@ body:has(.a-sidepanel) .a-toasts {
 
 /* ---- Cartes de thèmes --------------------------------------------------- */
 .a-theme-grid {
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  /* 340 px : les quatre boutons d'une carte tiennent sur une ligne (cartes de même hauteur, lot 55). */
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+}
+
+.a-badge-prep {
+  background: var(--admin-warning-soft);
+  color: var(--admin-ink);
+  border: 1px solid var(--admin-line-strong);
+}
+
+.a-theme-preparing p {
+  margin: 0 0 6px;
+}
+
+.a-theme-custom-note {
+  margin: 4px 0 0;
+}
+
+.a-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+.a-fold > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Bandeau fixe de l'éditeur de page : thème en préparation (lot 55). */
+.ve-preparing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--admin-line-strong);
+  background: var(--admin-warning-soft);
+  color: var(--admin-ink);
+  font-size: 14px;
+}
+
+.ve-preparing-actions {
+  display: inline-flex;
+  gap: 6px;
 }
 
 .a-theme-card {
@@ -1493,6 +1540,7 @@ body:has(.a-sidepanel) .a-toasts {
 
 .a-color-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
@@ -1545,12 +1593,14 @@ body:has(.a-sidepanel) .a-toasts {
   font-size: 13px;
 }
 
+/* Lot 55 : le verdict de lisibilité passe à la ligne au lieu de déborder sur la colonne voisine. */
 .a-ratio {
-  flex: none;
+  flex: 0 1 auto;
+  max-width: 100%;
   padding: 2px 6px;
   border-radius: 4px;
   font: 600 12px/1.4 var(--admin-font-mono);
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .a-ratio-ok {
@@ -3526,6 +3576,31 @@ label.a-file-btn:focus-within {
   margin-top: 18px;
   padding-top: 14px;
   border-top: 1px solid var(--admin-line);
+}
+
+/* Indicateur d'attente du kit (export, « Appliquer au thème ») : pastille qui tourne + phrase. */
+.a-kit-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.a-spinner {
+  inline-size: 14px;
+  block-size: 14px;
+  border: 2px solid var(--admin-line);
+  border-top-color: var(--admin-accent, currentColor);
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .a-spinner {
+    animation: a-spin 0.9s linear infinite;
+  }
+}
+@keyframes a-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Revue d'un kit Photoshop importé (/admin/themes/<id>/kit). */
@@ -6652,4 +6727,181 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Lot 52 : pastille des messages, partage, avertissements de publication. */
+.a-nav-badge {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--admin-accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+.a-new-badge {
+  margin-left: 8px;
+  background: var(--admin-accent);
+  color: #fff;
+}
+.a-new-count {
+  margin: 0 0 12px;
+  font-weight: 600;
+  color: var(--admin-accent);
+}
+.a-message[data-new] {
+  border-color: var(--admin-accent);
+}
+.a-share-preview {
+  margin-top: 16px;
+}
+.a-share-card {
+  display: grid;
+  gap: 4px;
+  max-width: 420px;
+  padding: 0 0 12px;
+  overflow: hidden;
+  border: 1px solid var(--admin-line);
+  border-radius: var(--admin-radius);
+  background: var(--admin-surface, transparent);
+}
+.a-share-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1.91 / 1;
+  object-fit: cover;
+}
+.a-share-card > strong,
+.a-share-card > span:not(.a-share-none) {
+  padding: 0 12px;
+}
+.a-share-none {
+  display: grid;
+  place-items: center;
+  padding: 20px 12px;
+  aspect-ratio: 1.91 / 1;
+  background: var(--admin-bg);
+  text-align: center;
+}
+.ve-alert.ve-warnings {
+  border-color: var(--admin-warning);
+  background: var(--admin-warning-soft);
+  color: var(--admin-warning);
+}
+.a-tag-warn {
+  background: var(--admin-warning-soft);
+  color: var(--admin-warning);
+}
+.a-alt-field {
+  padding: 12px;
+  border: 1px solid var(--admin-accent);
+  border-radius: var(--admin-radius);
+  background: var(--admin-accent-soft);
+}
+.a-alt-field > h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+/* ---- Premiers pas (tableau de bord, lot 57) ------------------------------ */
+.a-firststeps {
+  margin-bottom: 14px;
+}
+.a-firststeps-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.a-firststeps-head h2 {
+  margin-right: auto;
+}
+.a-firststeps-list {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.a-firststeps-list li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.a-firststeps-list p {
+  margin: 2px 0 4px;
+}
+.a-firststeps-box {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 50%;
+  background: var(--admin-surface);
+  color: var(--admin-on-accent);
+  font-size: 13px;
+  line-height: 1;
+}
+.a-firststeps-list li[data-done] .a-firststeps-box {
+  border-color: var(--admin-success);
+  background: var(--admin-success);
+}
+.a-firststeps-list li[data-done] strong {
+  color: var(--admin-ink-soft);
+  text-decoration: line-through;
+}
+.a-firststeps-show {
+  margin: 0 0 14px;
+}
+
+/* ---- Petite loupe des vignettes de média (lot 57) : agrandir sans choisir ---------- */
+.a-media-grid2 > li,
+.ve-picker-grid > li,
+.ve-media > li {
+  position: relative;
+}
+.a-media-zoom,
+.ve-picker-grid button.a-media-zoom {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 50%;
+  background: var(--admin-surface);
+  color: var(--admin-ink);
+  cursor: zoom-in;
+  opacity: 0.85;
+}
+.a-media-zoom:hover,
+.a-media-zoom:focus-visible {
+  opacity: 1;
+  border-color: var(--admin-accent);
+  color: var(--admin-accent);
+}
+
+/* ---- Éditeur : Grand écran (zoom) et sélecteur d'appareil à l'étroit (lot 57) -------------------------------- */
+.ve-zoom-note {
+  margin: 0 0 8px;
+  color: var(--admin-ink-soft);
+  font-size: 12.5px;
+  text-align: center;
+}
+.ve-device-select select {
+  min-height: 32px;
+  max-width: 190px;
+}
+.ve-frame-wrap[data-wide] .ve-frame {
+  max-width: none;
 }

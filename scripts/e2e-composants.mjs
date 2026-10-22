@@ -171,7 +171,7 @@ if (run("B"))
     await page.screenshot({ path: path.join(SHOTS, "b-fenetre-groupes.png") });
     const groups = await dlg.locator(".ve-group").evaluateAll((els) => els.map((g) => ({ title: g.querySelector(".ve-group-title")?.textContent?.trim(), labels: [...g.querySelectorAll(".ve-card strong")].map((e) => e.textContent?.trim()) })));
     ok("B1 fenêtre : mêmes en-têtes, dans le même ordre", groups.map((g) => g.title).join("|") === GROUPS.join("|"), JSON.stringify(groups.map((g) => g.title)));
-    ok("B2 fenêtre : même contenu par groupe que le panneau", groups.every((g) => JSON.stringify(g.labels) === JSON.stringify(CONTENT[g.title].filter((l) => l !== "Images qui défilent"))), JSON.stringify(groups)); // la fenêtre est celle des rubriques de PAGE : sans le carrousel de planche (lot 31c)
+    ok("B2 fenêtre : même contenu par groupe que le panneau", groups.every((g) => JSON.stringify(g.labels) === JSON.stringify(CONTENT[g.title])), JSON.stringify(groups)); // lot 57 : la fenêtre reprend aussi la carte « Images qui défilent » du panneau (elle crée un bloc Projet)
     ok("B3 fenêtre : aucun « Projet mis en avant »", !/mis en avant/i.test((await dlg.textContent()) ?? "") && (await dlg.locator('[data-type="featured-project"]').count()) === 0);
     await page.keyboard.press("Escape");
     await dlg.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
@@ -241,7 +241,7 @@ if (run("C"))
     }) && !JSON.stringify(draftOf(pageId)).includes(NEW_TITLE));
     ok("C10 la planche du même projet montre aussi le nouveau titre", await waitFor(async () => (await f.locator(`[data-edit-board] h2[data-project-inline="title"]`).filter({ hasText: NEW_TITLE }).count()) >= 1));
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    ok("C7 publication acceptée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000), await page.locator(".ve-status").textContent());
+    ok("C7 publication acceptée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000), await page.locator(".ve-status").textContent());
     const pub = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
     await pub.goto(`${BASE}/fr/${legacy.slug}`, { waitUntil: "networkidle" });
     const html = await pub.content();

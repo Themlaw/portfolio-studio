@@ -10,7 +10,7 @@
  */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import { TextI18n } from "@/app/admin/_fields";
 import TagInput from "@/app/admin/_fields/TagInput";
@@ -39,6 +39,7 @@ import type { TagRow } from "@/lib/tags";
 import AltMissing from "./AltMissing";
 import { EmptyTrash, PurgeItem } from "./TrashControls";
 import { ConfirmDialog, same, toast, undoToast, useUnsavedGuard } from "./editing";
+import MediaPreviewDialog from "./editor/MediaPreviewDialog";
 import { filterMedia } from "./LibraryStrip";
 import Uploader from "./Uploader";
 import { useUploadQueue } from "./UploadQueue";
@@ -68,6 +69,7 @@ export function MediaGrid({
   onSelect,
   label,
   checked,
+  onZoom,
 }: {
   items: AdminMediaRow[];
   selectedId: number | null;
@@ -75,6 +77,8 @@ export function MediaGrid({
   label: string;
   /** Sélection multiple : médias cochés (la vignette coche / décoche). */
   checked?: Set<number>;
+  /** Petite loupe distincte du clic de choix : agrandit le média sans le choisir. */
+  onZoom?: (m: AdminMediaRow) => void;
 }) {
   return (
     <ul className="a-media-grid2" aria-label={label} data-selecting={checked ? true : undefined}>
@@ -134,14 +138,55 @@ export function MediaGrid({
               </span>
             )}
           </button>
+          {onZoom && m.status === "ready" && <ZoomButton onZoom={() => onZoom(m)} />}
         </li>
       ))}
     </ul>
   );
 }
 
-function useFiltered(media: AdminMediaRow[], tagOptions: TagRow[]) {
-  const [filter, setFilter] = useState<Filter>("all");
+/**
+ * Petite loupe posée sur une vignette : agrandit le média sans le choisir. Un `span` à rôle de bouton (et non un `button`) : elle
+ * ne s'ajoute pas aux listes de boutons du sélecteur (une vignette = un bouton qui choisit).
+ */
+export function ZoomButton({ onZoom }: { onZoom: () => void }) {
+  return (
+    <span
+      role="button"
+      tabIndex={0}
+      className="a-media-zoom"
+      aria-label="Agrandir l'image"
+      title="Agrandir"
+      data-testid="media-zoom"
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onZoom();
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          onZoom();
+        }
+      }}
+    >
+      <ZoomIcon />
+    </span>
+  );
+}
+
+function ZoomIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+      <circle cx="6.5" cy="6.5" r="4.5" />
+      <path d="m10 10 4 4" />
+    </svg>
+  );
+}
+
+function useFiltered(media: AdminMediaRow[], tagOptions: TagRow[], initialFilter: Filter = "all") {
+  const [filter, setFilter] = useState<Filter>(initialFilter);
   const [kind, setKind] = useState<KindFilter>("any");
   const [query, setQuery] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -173,7 +218,7 @@ function useFiltered(media: AdminMediaRow[], tagOptions: TagRow[]) {
           [
             ["all", "Tous"],
             ["unused", "Non utilisées"],
-            ["noalt", "Sans texte alternatif"],
+            ["noalt", "Sans description"],
           ] as const
         ).map(([k, l]) => (
           <button key={k} type="button" aria-pressed={filter === k} onClick={() => setFilter(k)}>
@@ -309,15 +354,18 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
         <dd>{stateLabel(media)}</dd>
       </dl>
 
+      <div className="a-alt-field" data-testid="alt-field">
+        <TextI18n
+          label="Description de l'image (pour les personnes malvoyantes et Google)"
+          help="Décris ce qu'on voit, en une phrase. Les personnes qui ne voient pas l'image l'entendent, et Google la comprend mieux."
+          value={alt}
+          onChange={setAlt}
+        />
+      </div>
+
       <TagInput label="Tags" value={tags} onChange={saveTags} options={tagOptions} help="Enregistrés aussitôt. Entrée pour valider un tag." />
 
-      <TextI18n
-        label="Texte alternatif"
-        help="Décris l'image pour les personnes qui ne la voient pas (lecteurs d'écran, moteurs de recherche)."
-        value={alt}
-        onChange={setAlt}
-      />
-      {!alt.fr.trim() && <p className="a-notice">Sans texte alternatif, le titre de l&apos;œuvre est lu à la place.</p>}
+      {media.kind === "image" && !alt.fr.trim() && <p className="a-notice">Sans description, le titre de l&apos;image est lu à la place.</p>}
       <div className="a-panel-actions">
         <span className="a-save-state" aria-live="polite">
           {dirty ? (
@@ -339,7 +387,7 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
               const r = await saveMediaAltAction(media.id, alt);
               if (!r.ok) return toast(r.message, "error");
               setSavedAlt(alt);
-              toast("Texte alternatif enregistré");
+              toast("Description enregistrée");
               setTimeout(() => router.refresh(), 0);
             })
           }
@@ -772,14 +820,14 @@ function TagManager({ onChanged }: { onChanged: () => void }) {
 
 /* ---- Écran ------------------------------------------------------------------- */
 
-export default function MediaLibrary({ initial, trashed, summary, usage }: { initial: AdminMediaRow[]; trashed: AdminMediaRow[]; summary: TrashSummary; usage: { used: string; quota: string | null; ratio: number | null } }) {
+export default function MediaLibrary({ initial, trashed, summary, usage, focus }: { initial: AdminMediaRow[]; trashed: AdminMediaRow[]; summary: TrashSummary; usage: { used: string; quota: string | null; ratio: number | null }; /** Arrivée depuis un avertissement de publication (lot 52) : liste des images sans description, image à décrire. */ focus?: { noalt?: boolean; media?: number } }) {
   const router = useRouter();
   const queue = useUploadQueue();
   const { media, merge } = useMediaState(initial);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selected, setSelected] = useState<number | null>(focus?.media ?? null);
   const [tab, setTab] = useState<"media" | "tags" | "trash">("media");
   const [checked, setChecked] = useState<Set<number> | null>(null);
-  const { list, controls } = useFiltered(media, queue.tags);
+  const { list, controls } = useFiltered(media, queue.tags, focus?.noalt ? "noalt" : "all");
   const refresh = useCallback(() => setTimeout(() => router.refresh(), 0), [router]);
   useEffect(() => queue.onMediaCreated(() => refresh()), [queue, refresh]);
   const processing = media.filter((m) => m.status === "processing").map((m) => m.id);
@@ -888,51 +936,57 @@ export function MediaPickerDialog({
   open,
   media: initial,
   title = "Choisir une image",
-  confirmLabel = "Utiliser cette image",
   onPick,
   onClose,
 }: {
   open: boolean;
   media: AdminMediaRow[];
   title?: string;
-  confirmLabel?: string;
   onPick: (m: AdminMediaRow) => void;
   onClose: () => void;
 }) {
   const { media, merge } = useMediaState(initial);
-  const [choice, setChoice] = useState<number | null>(null);
+  const [zoomed, setZoomed] = useState<AdminMediaRow | null>(null);
   const queue = useUploadQueue();
   const { list, controls } = useFiltered(
     media.filter((m) => m.status !== "failed"),
     queue.tags,
   );
-  // Un fichier envoyé depuis ce sélecteur : ajouté à la grille et choisi.
+  // Un clic choisit l'image (comme partout dans l'éditeur) ; un fichier envoyé depuis ce sélecteur est choisi dès qu'il est créé.
+  const pickRef = useRef(onPick);
+  useEffect(() => {
+    pickRef.current = onPick;
+  });
+  const openRef = useRef(open);
+  useEffect(() => {
+    openRef.current = open;
+  });
   useEffect(
     () =>
       queue.onMediaCreated((item, created) => {
+        if (!openRef.current) return;
         if (item.batchId && queue.batches.find((b) => b.id === item.batchId)?.origin !== "picker") return;
-        void mediaStatusAction([created.id]).then((r) => r.ok && merge(r.data));
-        setChoice(created.id);
+        void mediaStatusAction([created.id]).then((r) => {
+          if (!r.ok) return;
+          merge(r.data);
+          const row = r.data.find((m) => m.id === created.id);
+          if (row && openRef.current) pickRef.current(row);
+        });
       }),
     [queue, merge],
   );
   useMediaWatch(media.filter((m) => m.status === "processing").map((m) => m.id), merge);
-  const picked = media.find((m) => m.id === choice);
   return (
-    <ConfirmDialog
-      open={open}
-      title={title}
-      confirmLabel={confirmLabel}
-      onClose={onClose}
-      onConfirm={() => picked && onPick(picked)}
-      confirmDisabled={!picked}
-    >
-      <Uploader origin="picker" multiple={false} label="Dépose un fichier, ou choisis-le" libraryLabel="Le choisir" onSeeLibrary={() => undefined} />
-      {controls}
-      <div className="a-picker-scroll">
-        <MediaGrid items={list} selectedId={choice} onSelect={(m) => setChoice(m.id)} label="Images" />
-      </div>
-      {picked?.status === "processing" && <p className="a-help">Cette image est en traitement : elle s&apos;affichera sur le site dès qu&apos;elle sera prête.</p>}
-    </ConfirmDialog>
+    <>
+      <ConfirmDialog open={open} title={title} onClose={onClose}>
+        <Uploader origin="picker" multiple={false} label="Dépose un fichier, ou choisis-le" libraryLabel="Le choisir" onSeeLibrary={() => undefined} />
+        {controls}
+        <p className="a-help">Clique une image pour la choisir. La petite loupe l&apos;agrandit sans la choisir.</p>
+        <div className="a-picker-scroll">
+          <MediaGrid items={list} selectedId={null} onSelect={(m) => onPick(m)} onZoom={setZoomed} label="Images" />
+        </div>
+      </ConfirmDialog>
+      <MediaPreviewDialog media={zoomed} onClose={() => setZoomed(null)} hint={null} />
+    </>
   );
 }

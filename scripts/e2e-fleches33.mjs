@@ -86,7 +86,7 @@ async function settled() {
 async function publish() {
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 /** Ouvre la barre typographique d'un texte (« Aa » au survol). */
 async function openBar(f, sel, nth = 0) {

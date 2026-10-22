@@ -98,7 +98,7 @@ async function tryPublish() {
 }
 async function publish() {
   await tryPublish();
-  return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 const selectedText = (fr) => fr.evaluate(() => window.getSelection()?.toString() ?? "");
 async function stableScroll(fr) {
@@ -200,7 +200,7 @@ if (run("A") || run("B") || run("C") || run("D"))
     await settled();
     await tryPublish();
     ok("D1 « Titre » resté tel quel : publication refusée (message clair)", await page.getByText(/Remplace le texte d'exemple de ce titre/).first().waitFor({ timeout: 60000 }).then(() => true, () => false));
-    ok("D1 le brouillon reste enregistré", /enregistré/i.test((await page.locator(".ve-status").textContent()) ?? ""));
+    ok("D1 le brouillon reste enregistré", /enregistré|Modifications non publiées/i.test((await page.locator(".ve-status").textContent()) ?? ""));
     await f.locator(`[data-edit-block="${uids.title}"] [data-inline="title"]`).dblclick();
     await page.keyboard.press("Control+a");
     await page.keyboard.type("Mes carnets");

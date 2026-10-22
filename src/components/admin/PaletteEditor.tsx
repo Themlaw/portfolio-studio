@@ -16,6 +16,7 @@ import { FREE_FORMAT_HINT, OPAQUE_HEX, PICKER_FALLBACK, THEME_COLOR } from "@/th
 import { AA, adjustToken, pairsForToken } from "@/themes/contrast";
 import { contrastRatio, isAuto, PALETTE_GROUPS, resolvePalette, ROLE_NAMES, setBase, setNuance, type BaseKey, type NuanceKey, type NuanceSpec, type PaletteKey, type ResolvedPalette } from "@/themes/palette";
 import type { Theme } from "@/themes/schema";
+import { SITE_NUANCES } from "@/themes/site-palette";
 
 type Colors = Theme["tokens"]["color"];
 type PaletteState = Theme["tokens"]["palette"];
@@ -226,7 +227,7 @@ export default function PaletteEditor({
     <>
       <p className="a-help a-panel-intro">
         Six couleurs de base et leurs nuances. Une nuance « auto » suit sa couleur de base ; change-la pour la choisir toi-même. Chaque texte doit rester lisible
-        sur chaque fond (norme WCAG AA ; le rapport exact est dans l&apos;info-bulle). Un indicateur rouge bloque l&apos;enregistrement.
+        sur chaque fond (le rapport exact est dans l&apos;info-bulle). Un indicateur rouge te prévient qu&apos;un texte sera difficile à lire, sans t&apos;empêcher d&apos;enregistrer.
       </p>
       <PaletteSample p={resolved} />
       <div className="a-pal-groups">
@@ -253,7 +254,7 @@ export default function PaletteEditor({
                   <ColorField
                     key={n.key}
                     tokenKey={n.key}
-                    label={n.label}
+                    label={SITE_NUANCES[n.key].name}
                     help={n.help}
                     free={n.free}
                     value={resolved[n.key]}

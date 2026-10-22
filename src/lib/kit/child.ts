@@ -8,7 +8,8 @@
  * bundle esbuild `kit-child.cjs` à la racine du standalone ; en dev, via tsx.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import { rename, rm } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 import { ThemeSchema } from "@/themes/schema";
 
@@ -51,6 +52,12 @@ async function main() {
   const t0 = Date.now();
   if (input.mode === "import") {
     const report = await importKit(input.psd, input.outDir, { manifests: await loadManifests(input.manifestDir), themeId: input.themeId, palette: input.palette });
+    // Refus avant lecture (fichier trop lourd, document hors gabarit…) : le rapport n'est pas écrit par l'import ;
+    // sans lui l'écran de revue resterait vide, sans explication.
+    if (!report.ok) {
+      await mkdir(input.outDir, { recursive: true });
+      await writeFile(path.join(input.outDir, "rapport.json"), JSON.stringify(report, null, 2));
+    }
     process.stdout.write(`${JSON.stringify({ ok: true, reportOk: report.ok, problem: report.problem ?? null, ms: Date.now() - t0, peakMb: peakMb(), oom })}\n`);
     return;
   }

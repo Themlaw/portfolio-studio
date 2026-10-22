@@ -22,3 +22,18 @@ export function publishedSlugExists(locale: string, slug: string, { includeDraft
     return (value?.[locale] ?? "") === slug;
   });
 }
+
+/**
+ * Adresse actuelle d'une page publiée qui a PORTÉ `slug` (renommage avec « garder l'ancienne adresse »,
+ * lot 51), ou null. Appelée seulement pour un slug inconnu.
+ */
+export function redirectedSlug(locale: string, slug: string): string | null {
+  const row = getDb().select().from(schema.settings).where(eq(schema.settings.key, "slugRedirects")).get();
+  const list = parseJson(row?.value) as { locale?: string; from?: string; pageId?: number }[] | undefined;
+  const hit = Array.isArray(list) ? list.find((r) => r?.locale === locale && r.from === slug) : undefined;
+  if (!hit || typeof hit.pageId !== "number") return null;
+  const page = getDb().select({ slug: schema.pages.slug }).from(schema.pages).where(and(eq(schema.pages.id, hit.pageId), eq(schema.pages.published, true), isNull(schema.pages.deletedAt))).get();
+  const value = (typeof page?.slug === "string" ? parseJson(page.slug) : page?.slug) as Record<string, string> | undefined;
+  const target = value?.[locale];
+  return target && target !== slug ? target : null;
+}

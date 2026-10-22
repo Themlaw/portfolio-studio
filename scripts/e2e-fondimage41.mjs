@@ -469,7 +469,7 @@ if (run("P"))
     // État final voulu : image seule blanche, case « image entière » = carte, case remplie sans fond, bande = carte (B), carrousel = accent, image de planche = blanche.
     const want = { solo: lookOfDraft("solo")?.imageBg, gb: lookOfDraft("gb")?.imageBg, ga: lookOfDraft("ga")?.imageBg };
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    ok("P0 page publiée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+    ok("P0 page publiée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
     const pp = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
     pp.on("pageerror", (e) => errors.push(e.message));
     await pp.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });

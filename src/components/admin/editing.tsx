@@ -148,6 +148,7 @@ export function SaveBar({
   error,
   note,
   label = "Enregistrer",
+  testId,
 }: {
   dirty: boolean;
   saving: boolean;
@@ -155,6 +156,7 @@ export function SaveBar({
   error?: string | null;
   note?: React.ReactNode;
   label?: string;
+  testId?: string;
 }) {
   return (
     <div className="a-savebar" data-dirty={dirty}>
@@ -174,7 +176,7 @@ export function SaveBar({
         )}
         {note && <span className="a-save-note">{note}</span>}
       </p>
-      <button type="button" className="a-btn a-btn-primary" onClick={onSave} disabled={saving || !dirty}>
+      <button type="button" className="a-btn a-btn-primary" onClick={onSave} disabled={saving || !dirty} data-testid={testId}>
         {saving ? "Enregistrement…" : label}
       </button>
     </div>
@@ -202,10 +204,11 @@ export function ConfirmDialog({
   open: boolean;
   title: string;
   children?: React.ReactNode;
-  confirmLabel: string;
+  /** Absent : pas de bouton de confirmation, « Fermer » seul (sélecteur où un clic choisit). */
+  confirmLabel?: string;
   danger?: boolean;
   busy?: boolean;
-  onConfirm: () => void;
+  onConfirm?: () => void;
   onClose: () => void;
   extra?: React.ReactNode;
   confirmDisabled?: boolean;
@@ -237,16 +240,18 @@ export function ConfirmDialog({
           <div className="a-dialog-actions">
             {extra}
             <button type="button" className="a-btn" onClick={close} disabled={busy}>
-              Annuler
+              {confirmLabel === undefined ? "Fermer" : "Annuler"}
             </button>
-            <button
-              type="button"
-              className={`a-btn ${danger ? "a-btn-danger" : "a-btn-primary"}`}
-              onClick={onConfirm}
-              disabled={busy || confirmDisabled}
-            >
-              {busy ? "Un instant…" : confirmLabel}
-            </button>
+            {confirmLabel !== undefined && (
+              <button
+                type="button"
+                className={`a-btn ${danger ? "a-btn-danger" : "a-btn-primary"}`}
+                onClick={onConfirm}
+                disabled={busy || confirmDisabled}
+              >
+                {busy ? "Un instant…" : confirmLabel}
+              </button>
+            )}
           </div>
         </>
       )}

@@ -35,15 +35,15 @@ export default async function PreviewBanner() {
         <span>
           {theme ? (
             <>
-              Aperçu : <strong>{theme.name}</strong>
+              Aperçu du thème : <strong>{theme.name}</strong>
             </>
           ) : drafts ? (
             <>
-              <strong>Aperçu</strong> : brouillons et pages non publiées visibles
+              <strong>Aperçu du site</strong> : brouillons et pages non publiées visibles
             </>
           ) : (
             <>
-              <strong>Aperçu</strong> : pages non publiées visibles
+              <strong>Aperçu du site</strong> : pages non publiées visibles
             </>
           )}
         </span>

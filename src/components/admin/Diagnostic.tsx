@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 
 import { clientIpFromForwarded, UNKNOWN_IP } from "@/lib/auth/client-ip";
 import { readAuthConfig } from "@/lib/auth/config";
+import { backupSummary } from "@/lib/backup/status";
 
 /**
  * Diagnostic réseau (admins) : IP vue par l'app et en-têtes X-Forwarded-*
@@ -22,6 +23,8 @@ export default async function Diagnostic() {
     ["Host", h.get("host")],
     ["URL publique (PUBLIC_BASE_URL)", config.baseURL],
   ];
+  const backup = backupSummary();
+  if (backup) rows.push(["Dernière sauvegarde", backup]);
   return (
     <section className="a-section" aria-labelledby="diagnostic">
       <h2 id="diagnostic">Diagnostic</h2>

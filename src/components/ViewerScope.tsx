@@ -4,8 +4,12 @@ import { createElement, useRef, useState, type HTMLAttributes, type KeyboardEven
 
 import { createPortal } from "react-dom";
 
-import Lightbox from "@/components/Lightbox";
+import dynamic from "next/dynamic";
 import type { ViewerItem } from "@/lib/viewer";
+
+/* Visionneuse chargée à la première ouverture (lot 54) : le visiteur qui ne fait que regarder n'en paie pas le script. */
+const Lightbox = dynamic(() => import("@/components/Lightbox"), { ssr: false });
+const warm = () => void import("@/components/Lightbox");
 
 type Found = { el: HTMLElement; item: ViewerItem };
 
@@ -57,6 +61,8 @@ export default function ViewerScope({ as = "div", children, ...rest }: { as?: "d
         {
           ...rest,
           ref,
+          onPointerOver: warm,
+          onTouchStart: warm,
           onClick: (event: MouseEvent<HTMLElement>) => {
             const el = target(event);
             if (el) open(el);

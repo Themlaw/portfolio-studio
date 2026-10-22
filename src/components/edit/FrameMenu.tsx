@@ -12,7 +12,7 @@
  */
 import { useRef, useState } from "react";
 
-import { FRAME_DEFAULT_COLOR, FRAME_SIZE_LABELS, FRAME_SIZES, frameColorCss, PALETTE_DISPLAY, PALETTE_LABELS, type Frame, type PaletteColor } from "@/lib/look";
+import { FRAME_DEFAULT_COLOR, FRAME_NONE, FRAME_SIZE_LABELS, FRAME_SIZES, frameColorCss, PALETTE_DISPLAY, PALETTE_LABELS, type Frame, type PaletteColor } from "@/lib/look";
 
 import ColorPicker from "./ColorPicker";
 import { lookOf, sendLook } from "./LookLayer";
@@ -27,14 +27,16 @@ const isPalette = (v: string | undefined): v is PaletteColor => (PALETTE_DISPLAY
 
 /** Interrupteur + épaisseur + couleur. `value` absent = pas de cadre ; `onChange(undefined)` le retire. */
 export function FrameControls({ value, onChange }: { value: Frame | undefined; onChange: (next: Frame | undefined) => void }) {
-  const on = value !== undefined;
+  const none = value?.size === FRAME_NONE;
+  const on = value !== undefined && !none;
+  // Lot 58 : « Sans cadre » retire le cadre dessiné dans le kit (appliqué à toutes les photos) pour cette photo.
   const patch = (p: Partial<Frame>) => {
-    const next = { ...(value ?? { size: "medium" as const }), ...p };
+    const next = { ...(value && !none ? value : { size: "medium" as const }), ...p };
     if (next.color === undefined) delete next.color;
     onChange(next as Frame);
   };
   const custom = value?.color && !isPalette(value.color) ? value.color : undefined;
-  const colorName = !value ? "" : value.color === undefined ? "Couleur par défaut" : isPalette(value.color) ? PALETTE_LABELS[value.color] : "Couleur libre";
+  const colorName = !value || none ? "" : value.color === undefined ? "Couleur par défaut" : isPalette(value.color) ? PALETTE_LABELS[value.color] : "Couleur libre";
   return (
     <div className="fr" data-testid="frame-controls">
       <button type="button" role="switch" aria-checked={on} className="sm-switch" data-testid="frame-switch" onClick={() => onChange(on ? undefined : { size: "medium" })}>
@@ -43,7 +45,15 @@ export function FrameControls({ value, onChange }: { value: Frame | undefined; o
         </span>
         Cadre
       </button>
-      {on ? (
+      <button type="button" role="checkbox" aria-checked={none} className="sm-switch" data-testid="frame-none" onClick={() => onChange(none ? undefined : { size: FRAME_NONE })}>
+        <span className="sm-switch-track" aria-hidden="true">
+          <span />
+        </span>
+        Sans cadre
+      </button>
+      {none ? (
+        <p className="sm-hint">Cette photo n&apos;a aucun cadre, même si ton kit en dessine un pour les autres.</p>
+      ) : on ? (
         <>
           <div className="tc-row">
             <span className="sm-label">Épaisseur</span>
@@ -92,7 +102,9 @@ export function FrameControls({ value, onChange }: { value: Frame | undefined; o
           </p>
         </>
       ) : (
-        <p className="sm-hint">Ajoute un cadre autour de la photo. Il ne change ni la taille ni la place de la photo.</p>
+        <p className="sm-hint">Ajoute un cadre autour de la photo. Il ne change ni la taille ni la place de la photo.{" "}
+          Si ton kit dessine un cadre, la photo l&apos;a déjà : « Sans cadre » le retire.
+        </p>
       )}
     </div>
   );
@@ -101,9 +113,10 @@ export function FrameControls({ value, onChange }: { value: Frame | undefined; o
 /** Bouton « Cadre » de la barre d'outils d'une image : pastille de la couleur du cadre (vide : pas de cadre). */
 export function FrameButton({ uid, open, onToggle }: { uid: string; open: boolean; onToggle: () => void }) {
   const frame = lookOf(uid).frame;
+  const shown = frame && frame.size !== FRAME_NONE ? frame : undefined;
   return (
     <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid="frame-button" title="Cadre autour de la photo" onClick={onToggle}>
-      <span className="sm-dot" data-on={frame ? "" : undefined} style={frame ? { background: frameColorCss(frame.color) } : undefined} aria-hidden="true" />
+      <span className="sm-dot" data-on={shown ? "" : undefined} style={shown ? { background: frameColorCss(shown.color) } : undefined} aria-hidden="true" />
       Cadre
     </button>
   );

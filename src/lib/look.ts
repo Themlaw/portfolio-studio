@@ -312,8 +312,10 @@ export function needsCrop(imageRatio: number, boxRatio: number): boolean {
 
 /** Épaisseurs du cadre d'une photo (largeurs réelles en CSS : src/app/look.css, adaptées au téléphone). */
 export const FRAME_SIZES = ["thin", "medium", "thick"] as const;
-export type FrameSize = (typeof FRAME_SIZES)[number];
-export const FRAME_SIZE_LABELS: Record<FrameSize, string> = { thin: "Fin", medium: "Moyen", thick: "Épais" };
+/** « Sans cadre » (lot 58) : retire le cadre du kit sur cette photo (réglage de la photo, pas une épaisseur). */
+export const FRAME_NONE = "none" as const;
+export type FrameSize = (typeof FRAME_SIZES)[number] | typeof FRAME_NONE;
+export const FRAME_SIZE_LABELS: Record<Exclude<FrameSize, "none">, string> = { thin: "Fin", medium: "Moyen", thick: "Épais" };
 /**
  * Couleur du cadre quand rien n'est choisi (« Couleur par défaut ») : le texte du thème (`ink`). C'est la seule teinte
  * lisible sur le papier de tous les thèmes livrés (l'ornement `tertiary` est presque invisible sur le thème Studio : 1,7:1)
@@ -324,7 +326,7 @@ export const FRAME_DEFAULT_COLOR: PaletteColor = "ink";
  * Cadre d'une photo : épaisseur + couleur (clé de palette ou `#rrggbb[aa]`). Absent = pas de cadre ; sans couleur = la couleur par défaut.
  */
 export const FrameSchema = z.strictObject({
-  size: z.enum(FRAME_SIZES),
+  size: z.enum([...FRAME_SIZES, FRAME_NONE]),
   color: z.union([z.enum(PALETTE), CustomColorSchema]).optional(),
 });
 export type Frame = z.infer<typeof FrameSchema>;
@@ -522,6 +524,12 @@ export const LOGO_SIZE_MIN = 24;
 export const LOGO_SIZE_MAX = 160;
 /** Taille de départ du curseur quand rien n'est réglé (≈ la signature des thèmes à kit). */
 export const LOGO_SIZE_DEFAULT = 40;
+/** Tailles rapides du logo (hauteur en px sur grand écran) : « Petit », « Moyen » (un peu plus que la taille du thème, assez pour un dessin détaillé), « Grand ». */
+export const LOGO_SIZE_PRESETS = [
+  { id: "small", label: "Petit", size: 32 },
+  { id: "medium", label: "Moyen", size: 56 },
+  { id: "large", label: "Grand", size: 96 },
+] as const;
 export const LOGO_MODES = ["fixed", "shrink", "overhang"] as const;
 export type LogoMode = (typeof LOGO_MODES)[number];
 export const LOGO_MODE_LABELS: Record<LogoMode, string> = {

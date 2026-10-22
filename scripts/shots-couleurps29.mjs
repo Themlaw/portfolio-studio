@@ -175,7 +175,7 @@ if (PHASE === "apres") {
   });
   await step("08-publication", async () => {
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    await page.waitForFunction(() => /Publié/.test(document.querySelector(".ve-status")?.textContent ?? ""), null, { timeout: 120000 });
+    await page.waitForFunction(() => /En ligne/.test(document.querySelector(".ve-status")?.textContent ?? ""), null, { timeout: 120000 });
   });
   const pub = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const pp = await pub.newPage();
@@ -200,7 +200,7 @@ if (PHASE === "apres") {
     await page.getByRole("button", { name: "Revenir aux couleurs du thème" }).click();
     await sleep(500);
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    await page.waitForFunction(() => /Publié/.test(document.querySelector(".ve-status")?.textContent ?? ""), null, { timeout: 120000 });
+    await page.waitForFunction(() => /En ligne/.test(document.querySelector(".ve-status")?.textContent ?? ""), null, { timeout: 120000 });
   });
 } else {
   await step("07-panneau-couleurs-complet", async () => {

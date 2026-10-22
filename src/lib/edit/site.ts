@@ -76,6 +76,26 @@ export function readPublishedSite(): SiteSnap {
   };
 }
 
+/** Couleurs personnalisées du site publiées (lot 55) : surcharges posées par-dessus le thème, vides si aucune. */
+export function publishedSitePalette(): NonNullable<NonNullable<SiteSnap["styles"]>["palette"]> {
+  return readPublishedSite().styles?.palette ?? {};
+}
+
+/**
+ * « Revenir aux couleurs du thème » (lot 55) : retire les couleurs personnalisées publiées du site. Refusé tant qu'un
+ * brouillon du site (éditeur de page) est en attente : sa publication les remettrait.
+ */
+export function resetPublishedSitePalette(): ActionResult<null> {
+  const draft = readSiteDraft();
+  if (draft) return fail(`Des changements du site sont en cours dans l'éditeur de la page « ${pageTitle(draft.pageId)} » : publie-les ou abandonne-les d'abord.`);
+  const styles = (setting("styles") ?? {}) as Record<string, unknown>;
+  if (!styles || typeof styles !== "object" || !("palette" in styles)) return done(null);
+  const { palette: _palette, ...rest } = styles;
+  if (Object.keys(rest).length) writeSetting("styles", rest);
+  else getDb().delete(schema.settings).where(eq(schema.settings.key, "styles")).run();
+  return done(null);
+}
+
 export type SiteDraft = { pageId: number; snap: SiteSnap };
 
 /** Brouillon du site en attente (lisible), ou null. */

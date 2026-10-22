@@ -223,12 +223,12 @@ if (run("A"))
     const card = page.locator(".a-theme-card", { hasText: "Galerie lumineuse" }).first();
     // Lot 23 : le lien est dans le menu « … » de la carte.
     await card.getByRole("button", { name: /Plus d'actions/ }).click();
-    ok("A0 le menu de la carte du thème a un lien « Couleurs de la DA » (thème livré compris)", (await page.locator('[data-testid="theme-da-link"]').count()) === 1);
+    ok("A0 le menu de la carte du thème a un lien « Voir les couleurs » (thème livré compris)", (await page.locator('[data-testid="theme-da-link"]').count()) === 1);
     await page.locator('[data-testid="theme-da-link"]').click();
     await page.waitForURL(/\/admin\/themes\/galerie-lumineuse/);
     const da = page.locator('[data-testid="da-section"]');
     await da.waitFor();
-    ok("A1 section « Couleurs de la DA » sur la page du thème livré", /Couleurs de la DA/.test((await da.locator("h2").textContent()) ?? ""));
+    ok("A1 section « Couleurs » sur la page du thème livré", /^Couleurs$/.test(((await da.locator("h2").textContent()) ?? "").trim()));
     for (const n of ["Fond de page", "Cartes et encadrés", "Texte", "Boutons et liens", "Accent", "Ornements"]) ok(`A1 rôle « ${n} »`, (await da.locator(".lc-role strong", { hasText: n }).count()) === 1);
     ok("A1b chaque rôle a une phrase", (await da.locator(".lc-role small").allTextContents()).length === 6 && (await da.locator(".lc-role small").allTextContents()).every((t) => t.trim().length > 12));
     ok("A1c thème livré : lecture seule annoncée, ni nom ni enregistrement", (await page.locator('[data-testid="da-preset-note"]').count()) === 1 && (await page.locator("#theme-name").count()) === 0 && (await page.locator('[data-testid="da-save"]').count()) === 0);
@@ -334,7 +334,7 @@ if (run("D"))
     exec("insert into settings (key, value) values ('styles', ?) on conflict(key) do update set value = excluded.value", JSON.stringify({ palette: { primary: "#1d4d7a", secondary: "#8a3b12" } }));
     await page.reload({ waitUntil: "networkidle" });
     const note = page.locator('[data-testid="da-site-override"]');
-    ok("D1 surcharge active : « Le site remplace 2 de ces couleurs depuis l'éditeur de page »", await note.waitFor({ timeout: 20000 }).then(() => true, () => false) && /Le site remplace 2 de ces couleurs depuis l'éditeur de page/.test((await note.textContent()) ?? ""), (await note.textContent().catch(() => "")) ?? "");
+    ok("D1 surcharge active : « Couleurs personnalisées du site : 2 de ces couleurs sont remplacées »", await note.waitFor({ timeout: 20000 }).then(() => true, () => false) && /Couleurs personnalisées du site : 2 de ces couleurs sont remplacées depuis l'éditeur de page/.test((await note.textContent()) ?? ""), (await note.textContent().catch(() => "")) ?? "");
     ok("D2 l'avertissement nomme les couleurs remplacées", /boutons et liens/.test((await note.textContent()) ?? "") && /accent/.test((await note.textContent()) ?? ""));
     const link = page.locator('[data-testid="da-site-override-link"]');
     ok("D3 lien vers l'éditeur de page", /\/admin\/pages\/1\/editer$/.test((await link.getAttribute("href")) ?? ""));
@@ -471,7 +471,7 @@ if (run("F"))
     await page.keyboard.press("Escape");
     await settled();
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    ok("F4 page publiée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+    ok("F4 page publiée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
     const cardVar = async () => {
       const html = await (await fetch(`${BASE}/fr/a-propos`, { cache: "no-store" })).text();
       return /--card-bg:\s*(#[0-9a-fA-F]{6})/.exec(html)?.[1]?.toLowerCase() ?? null;

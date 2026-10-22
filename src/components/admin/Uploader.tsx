@@ -182,7 +182,15 @@ export default function Uploader({
             <span className="a-uploader-ok" aria-hidden="true">
               ✓
             </span>
-            {count} fichier{count > 1 ? "s" : ""} ajouté{count > 1 ? "s" : ""} à ta bibliothèque
+            {target?.kind === "end" || target?.kind === "slot" ? (
+              <>
+                {count} image{count > 1 ? "s" : ""} ajoutée{count > 1 ? "s" : ""} à ce projet
+              </>
+            ) : (
+              <>
+                {count} fichier{count > 1 ? "s" : ""} ajouté{count > 1 ? "s" : ""} à ta bibliothèque
+              </>
+            )}
             {batch!.tags.length > 0 && <span className="muted"> · {batch!.tags.join(", ")}</span>}
             <span className="a-uploader-links">
               {onSeeLibrary ? (

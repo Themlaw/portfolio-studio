@@ -58,6 +58,7 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
   if (kit.frame) {
     const [t, r, b, l] = kit.frame.slice;
     v["--t-kit-frame"] = kitImage(kit.frame.image);
+    v["--t-kit-frame-w"] = `${Math.round(t / 2)}px`;
     v["--t-kit-frame-slice"] = `${t} ${r} ${b} ${l}`;
     v["--t-kit-frame-width"] = `${Math.round(t / 2)}px ${Math.round(r / 2)}px ${Math.round(b / 2)}px ${Math.round(l / 2)}px`;
   }

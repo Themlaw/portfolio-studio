@@ -130,8 +130,12 @@ const mHover = async (loc) => {
   await sleep(250);
 };
 const mClick = async (loc) => {
-  const { x, y } = await center(loc);
+  let { x, y } = await center(loc);
   await page.mouse.move(x, y, { steps: 5 });
+  // Lot 54 : la légende vide du média survolé apparaît et décale la barre d'outils ; on remesure avant de cliquer.
+  await sleep(300);
+  ({ x, y } = await center(loc));
+  await page.mouse.move(x, y, { steps: 2 });
   await page.mouse.click(x, y);
 };
 
@@ -144,8 +148,17 @@ async function hoverSlot(f, uid, i) {
   // `i` négatif : la première place remplie (la bande du projet commence parfois par une place vide).
   if (i < 0) i = await rail(f, uid).evaluate((r) => [...r.querySelectorAll(":scope > [data-edit-slot]")].findIndex((e) => !e.hasAttribute("data-empty")));
   const s = slots(f, uid).nth(i);
-  await s.scrollIntoViewIfNeeded();
-  await mHover(s.locator(".strip-media, .pe-empty-box").first());
+  // La toile se redessine juste après un réglage (la place peut être remplacée sous nos yeux) : un seul nouvel essai.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await s.scrollIntoViewIfNeeded();
+      await mHover(s.locator(".strip-media, .pe-empty-box").first());
+      break;
+    } catch (e) {
+      if (attempt >= 2) throw e;
+      await sleep(600);
+    }
+  }
   await bar(f).waitFor({ timeout: 15000 });
   return s;
 }
@@ -388,7 +401,7 @@ await section("U", async () => {
   // Parité : la toile avant publication.
   const edit = await f.evaluate(() => [...document.querySelectorAll("[data-edit-rail]")].map((r) => ({ rail: r.getAttribute("data-edit-rail"), n: r.querySelectorAll(":scope > [data-edit-slot]:not([data-empty])").length, radii: [...r.querySelectorAll(":scope > [data-edit-slot]:not([data-empty])")].map((e) => e.style.getPropertyValue("--media-radius")) })));
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  ok("U0 page publiée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+  ok("U0 page publiée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
   const visitor = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const pp = await visitor.newPage();
   pp.on("pageerror", (e) => errors.push(e.message));

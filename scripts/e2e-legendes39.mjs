@@ -290,11 +290,12 @@ try {
       // Grille entière : son champ, en bas de la grille (son bloc, pas celui d'une case).
       const gridCap = f.locator(`${pg} section.block-grid-section > .media-caption [data-cap]`);
       ok("A7 grille entière : trois champs sous la grille", (await gridCap.count()) === 3, String(await gridCap.count()));
+      // Lot 54 : les champs vides n'existent (en hauteur) que sur la grille survolée ou choisie : l'ordre se lit dans le DOM.
       const order = await f.evaluate(() => {
         const s = document.querySelector('[data-edit-block="pgrid"] section.block-grid-section');
-        const g = s.querySelector(".block-grid").getBoundingClientRect();
-        const c = s.querySelector(":scope > .media-caption").getBoundingClientRect();
-        return c.top >= g.bottom - 1;
+        const g = s.querySelector(".block-grid");
+        const c = s.querySelector(":scope > .media-caption");
+        return Boolean(g.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING);
       });
       ok("A7 …posés SOUS la grille", order);
       await writeField(f, `${pg} .block-grid`, `${pg} section.block-grid-section > .media-caption`, "title", "Les deux études", "A7 grille Titre", { shots: "A7-grille-titre" });

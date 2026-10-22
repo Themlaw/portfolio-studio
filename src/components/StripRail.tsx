@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 
-import Lightbox from "@/components/Lightbox";
+import dynamic from "next/dynamic";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
 import type { LocalizedArtwork } from "@/lib/gallery";
@@ -13,7 +13,10 @@ import { RADIUS_VALUES } from "@/themes/css";
 import LoopFrame from "./LoopVideo";
 import MediaCaption, { type CaptionField } from "./MediaCaption";
 import Picture from "./Picture";
-import VideoViewer from "./VideoViewer";
+
+/* Visionneuses chargées à la première ouverture (lot 54). */
+const Lightbox = dynamic(() => import("@/components/Lightbox"), { ssr: false });
+const VideoViewer = dynamic(() => import("./VideoViewer"), { ssr: false });
 
 /**
  * Largeur affichée d'une image de bande : hauteur du rail
@@ -45,7 +48,10 @@ export default function StripRail({
   slotBg,
   slotPano,
   videoMode,
+  eager = 0,
 }: {
+  /** Nombre des premières images chargées tout de suite, sans « lazy » (lot 54). */
+  eager?: number;
   artworks: LocalizedArtwork[];
   /** Nom lu par les lecteurs d'écran (projet de la planche). */
   title: string;
@@ -282,7 +288,8 @@ export default function StripRail({
               </div>
             );
           }
-          const openLabel = `${artwork.title || artwork.alt || artwork.year} — ${tg("open")}`;
+          // Description (sinon titre), jamais la date : c'est ce qu'annonce le bouton (lot 52).
+          const openLabel = [artwork.alt || artwork.title, tg("open")].filter(Boolean).join(" — ");
           if (artwork.video && modeOf(artwork) === "loop") {
             const loop = (
               <LoopFrame
@@ -360,6 +367,7 @@ export default function StripRail({
                   height={artwork.height}
                   sizes={artwork.sources ? stripSizes(artwork.width, artwork.height) : "(min-width: 1024px) 640px, 60vw"}
                   className="h-[var(--fit-h,var(--strip-h))] w-auto max-w-none rounded-strip"
+                  priority={index >= 0 && index < eager}
                 />
               )}
             </span>
@@ -407,7 +415,7 @@ export default function StripRail({
           />
         </div>
       )}
-    <Lightbox items={stills} index={openIndex} onIndexChange={setOpenIndex} onClose={() => setOpenIndex(null)} />
+    {openIndex !== null && <Lightbox items={stills} index={openIndex} onIndexChange={setOpenIndex} onClose={() => setOpenIndex(null)} />}
     {viewing?.video && <VideoViewer video={viewing.video} width={viewing.width} height={viewing.height} title={viewing.title || viewing.alt} onClose={() => setViewing(null)} />}
     </>
   );

@@ -5,8 +5,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { PdfView } from "@/lib/images/variants";
 import type { LocalizedArtwork } from "@/lib/gallery";
 
-import Lightbox from "./Lightbox";
+import dynamic from "next/dynamic";
+
 import Picture from "./Picture";
+
+const Lightbox = dynamic(() => import("./Lightbox"), { ssr: false });
 
 const fill = (template: string, values: Record<string, number>) => template.replace(/\{(\w+)\}/g, (_, k: string) => String(values[k] ?? ""));
 
@@ -96,7 +99,7 @@ export default function CvPages({
           </li>
         ))}
       </ul>
-      <Lightbox items={items} index={open} onIndexChange={setOpen} onClose={() => setOpen(null)} />
+      {open !== null && <Lightbox items={items} index={open} onIndexChange={setOpen} onClose={() => setOpen(null)} />}
     </>
   );
 }

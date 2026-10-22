@@ -45,7 +45,7 @@ const FIELD_LABELS: Record<string, string> = {
   href: "Adresse",
   url: "Adresse",
   email: "Adresse e-mail",
-  alt: "Texte alternatif",
+  alt: "Description de l'image",
   name: "Nom",
   formId: "Formulaire",
   portraitCaption: "Légende du portrait",

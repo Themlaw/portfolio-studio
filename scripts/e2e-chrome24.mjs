@@ -134,20 +134,22 @@ if (run("A")) {
     ok(`A2 ${w} px : la barre ne déborde pas`, overflow <= 0, String(overflow));
     await page.screenshot({ path: path.join(SHOTS, `A-barre-${w}.png`), clip: { x: 0, y: 0, width: w, height: 64 } });
   }
-  // Menu « Autres actions » : « Abandonner » à 1280 px, la largeur d'aperçu en plus à 1024 px.
+  // Menu « Autres actions » : « Abandonner » ; la largeur d'aperçu n'y est plus (lot 57) : à 1024 px, c'est un menu déroulant dans la barre.
   for (const [w, preview] of [[1280, false], [1024, true]]) {
     await page.setViewportSize({ width: w, height: 900 });
     await sleep(500);
     await page.getByRole("button", { name: "Autres actions" }).click();
     ok(`A3 ${w} px : « Abandonner les modifications » est dans le menu`, (await page.getByRole("menuitem", { name: "Abandonner les modifications" }).count()) === 1);
-    ok(`A4 ${w} px : la largeur d'aperçu ${preview ? "est" : "n'est pas"} dans le menu`, (await page.getByRole("menuitemradio", { name: "Tablette" }).count()) === (preview ? 1 : 0));
+    ok(`A4 ${w} px : la largeur d'aperçu n'est pas cachée dans le menu`, (await page.getByRole("menuitemradio", { name: "Tablette" }).count()) === 0);
     await page.screenshot({ path: path.join(SHOTS, `A-menu-${w}.png`), clip: { x: Math.max(0, w - 420), y: 0, width: Math.min(w, 420), height: 220 } });
+    await page.keyboard.press("Escape");
     if (preview) {
-      await page.getByRole("menuitemradio", { name: "Tablette" }).click();
-      ok("A5 choisir « Tablette » dans le menu change la largeur de la toile", await waitFor(async () => ((await page.locator(".ve-frame-wrap").boundingBox())?.width ?? 0) < 900), "");
-      await page.getByRole("button", { name: "Autres actions" }).click();
-      await page.getByRole("menuitemradio", { name: "Ordinateur" }).click();
-    } else await page.keyboard.press("Escape");
+      const select = page.locator("select[aria-label=\"Largeur d'aperçu\"]");
+      ok("A4b 1024 px : la largeur d'aperçu est un menu déroulant visible dans la barre", await select.isVisible());
+      await select.selectOption({ label: "Tablette (820 px)" });
+      ok("A5 choisir « Tablette » change la largeur de la toile", await waitFor(async () => ((await page.locator(".ve-frame-wrap").boundingBox())?.width ?? 0) < 900), "");
+      await select.selectOption({ label: "Ordinateur (1180 px)" });
+    }
     ok(`A6 ${w} px : Échap referme le menu`, await waitFor(async () => (await page.getByRole("menu").count()) === 0, 5000));
   }
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -289,7 +291,8 @@ if (run("D")) {
 
 /* ---- E. Vocabulaire : « rubrique » partout ------------------------------------------------------- */
 // Tout texte de l'interface de l'éditeur (texte, aria-label, title, placeholder), panneau et calque d'édition de la toile.
-const BANNED = /\bbloc|conteneur|\bsection(?!s? de la page)/i;
+// Lot 57 : « bloc « Projet » » est le mot validé pour désigner le bloc d'un projet (le renommage global est le lot 56).
+const BANNED = /\bbloc(?! « Projet »)|conteneur|\bsection(?!s? de la page)/i;
 async function uiWords(root) {
   return root.evaluate(() => {
     const out = new Set();

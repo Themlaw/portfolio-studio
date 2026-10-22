@@ -262,7 +262,7 @@ if (run("P") || run("F") || run("T"))
   await section("P", async () => {
     await settled();
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    ok("P0 page publiée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+    ok("P0 page publiée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
     if (run("P")) {
       for (const [w, h] of [[1440, 900], [1024, 800]]) {
         const { pc, pp, m } = await publicMeasure(w, h, "");
@@ -292,7 +292,8 @@ if (run("P") || run("F") || run("T"))
       await pp.locator(".strip-nav-prev").first().click();
       ok("F3 flèche ← : retour sur le panorama entier", await waitFor(async () => Math.abs((await frameLeft(0)) - pad) <= 3, 8000), String(await frameLeft(0)));
       await pp.locator(".strip-frame").first().click();
-      ok("F4 un clic sur le panorama ouvre la visionneuse", await pp.getByRole("dialog").first().isVisible().catch(() => false) || (await pp.locator(".lightbox").count()) > 0);
+      // Lot 54 : la visionneuse est chargée à la première ouverture ; on l'attend.
+      ok("F4 un clic sur le panorama ouvre la visionneuse", await pp.locator(".lightbox").first().waitFor({ timeout: 15000 }).then(() => true, () => false));
       await pp.screenshot({ path: path.join(SHOTS, "visionneuse-public.png") });
       await pc.close();
     }

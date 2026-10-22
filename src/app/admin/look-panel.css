@@ -268,6 +268,15 @@
   color: var(--admin-ink-soft);
   font-size: 11px;
 }
+.lc-modes-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.lc-modes-row .a-btn[aria-pressed="true"] {
+  outline: 2px solid var(--admin-accent, currentColor);
+}
 .lc-size {
   display: flex;
   align-items: center;
@@ -340,4 +349,10 @@
 .lp-image-size {
   margin-top: 6px;
   margin-bottom: 18px;
+}
+
+/* Couleurs personnalisées du site (lot 55) : rappel au-dessus de la liste des couleurs. */
+.lc-custom {
+  margin: 0 0 8px;
+  font-size: 13px;
 }

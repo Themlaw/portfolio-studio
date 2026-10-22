@@ -106,7 +106,7 @@ async function openEditor() {
 async function publish() {
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 async function activateTheme(id) {
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
@@ -332,7 +332,7 @@ await section("C", async () => {
   await panel.locator('[data-testid="paper-on-cards"]').check();
   const range = panel.locator('[data-testid="paper-on-cards-opacity"]');
   await range.fill("40");
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: /^Enregistrer/ }).click();
   ok("C2 réglage enregistré dans le thème (assets.kit.paper.onCards / onCardsOpacity)", await waitFor(() => {
     const p = JSON.parse(q("select data from themes where id = ?", THEME_ID)[0].data).assets.kit.paper;
     return p.onCards === true && p.onCardsOpacity === 0.4;

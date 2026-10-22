@@ -101,7 +101,6 @@ try {
     ok(`0 image ajoutée au rang ${index + 1}`, await waitFor(() => draft().length === index + 1 && draft()[index]?.type === "image"), JSON.stringify(draft().map((i) => i.type)));
     await page.getByRole("button", { name: "Choisir une image" }).first().click();
     await page.locator(".a-picker-scroll button").nth(index).click();
-    await page.getByRole("button", { name: "Utiliser cette image" }).click();
     await waitFor(() => draft()[index]?.props?.mediaId > 0);
     await settled();
   }

@@ -135,8 +135,8 @@ try {
   // Publiée depuis la liste, pour voir la page quitter le site.
   await goto("/admin/pages");
   const row = () => page.locator("tr", { hasText: "Carnets 23" });
-  await row().getByRole("button", { name: "Publier", exact: true }).click();
-  await toast("publiée");
+  await row().getByRole("button", { name: "Mettre en ligne", exact: true }).click();
+  await toast("en ligne");
   ok("A6 page publiée : 200 en public", (await anon("/fr/carnets-23")).status === 200);
 
   // F1 : l'adresse est en petit et en gris sous le titre.
@@ -291,7 +291,7 @@ try {
   await goto("/admin/medias");
   const libre = () => page.locator(".a-media-tile", { hasText: "libre-23.png" });
   const alt = libre().locator(".a-alt-badge");
-  ok("C6 pastille « texte alternatif manquant » : icône avec infobulle, plus le sigle « alt »", (await alt.getAttribute("title")) === "Texte alternatif manquant" && (await alt.locator("svg").count()) === 1 && !/^alt$/i.test((await alt.innerText()).trim().split(/\s+/)[0] ?? ""));
+  ok("C6 pastille « description manquante » : icône avec infobulle, plus le sigle « alt »", (await alt.getAttribute("title")) === "Description manquante" && (await alt.locator("svg").count()) === 1 && !/^alt$/i.test((await alt.innerText()).trim().split(/\s+/)[0] ?? ""));
   await libre().click();
   await panel.locator("h3", { hasText: "Utilisée dans" }).waitFor();
   await page.waitForFunction(() => !document.querySelector(".a-sidepanel")?.textContent?.includes("Recherche…"));
@@ -355,7 +355,7 @@ try {
   ok("D2b une seule phrase d'explication en tête de page", (await page.locator(".a-page-header p").count()) === 1 && /archive \.zip/.test(await page.locator(".a-page-header p").innerText()) && /kit Photoshop/.test(await page.locator(".a-page-header p").innerText()));
   await tcard.getByRole("button", { name: /Plus d'actions/ }).click();
   const items = await page.getByRole("menuitem").evaluateAll((els) => els.map((e) => e.querySelector('[slot="label"]')?.textContent?.trim() ?? ""));
-  ok("D3 le menu propose copie, couleurs, export du thème, kit à télécharger, kit à renvoyer", ["Couleurs de la DA", "Dupliquer", "Exporter le thème (.zip)", "Télécharger le kit Photoshop", "Renvoyer le kit Photoshop"].every((n) => items.includes(n)), JSON.stringify(items));
+  ok("D3 le menu propose copie, export du thème, kit à télécharger, kit à renvoyer", ["Dupliquer", "Exporter le thème (.zip)", "Télécharger le kit Photoshop", "Renvoyer le kit Photoshop"].every((n) => items.includes(n)), JSON.stringify(items));
   ok("D3b « Kit rempli… » n'existe plus", !items.some((n) => /Kit rempli/.test(n)) && (await page.getByText("Kit rempli").count()) === 0);
   const descs = await page.getByRole("menuitem").evaluateAll((els) => Object.fromEntries(els.map((e) => [e.querySelector('[slot="label"]')?.textContent?.trim(), e.querySelector('[slot="description"]')?.textContent?.trim()])));
   ok("D4 export du thème (.zip) et kit Photoshop sont expliqués différemment", /réimporter/.test(descs["Exporter le thème (.zip)"] ?? "") && /Photoshop/.test(descs["Télécharger le kit Photoshop"] ?? "") && descs["Exporter le thème (.zip)"] !== descs["Télécharger le kit Photoshop"], JSON.stringify(descs));

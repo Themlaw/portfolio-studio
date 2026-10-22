@@ -127,7 +127,8 @@ export const TUTO_SLIDES: TutoSlide[] = [
     alt: "La carte du logo, puis l'en-tête du site avec le nom écrit, et avec un logo dessiné.",
     bullets: [
       "La case (2400 × 600 px) contient ton nom tel que le site l'écrit aujourd'hui.",
-      "Dessine ton logo d'une seule couleur, sur fond transparent : le site le réduit de moitié et le teinte.",
+      "Dessine ton logo sur fond transparent. Couleurs gardées, ou une seule couleur teintée par le Nom du site : plusieurs couleurs, elles sont gardées ; une seule, elle suit le thème.",
+      "Le site l'affiche petit (environ 160 × 40 px au départ, réglable avec « Taille du logo ») : garde des traits épais.",
       "Il remplace le nom en haut à gauche de toutes les pages.",
       KEEP,
     ],
@@ -212,7 +213,9 @@ export const TUTO_SLIDES: TutoSlide[] = [
     alt: "La carte du cadre avec ses lignes vertes, puis les entrées des collections de l'accueil avec le passe-partout actuel et avec un cadre dessiné.",
     bullets: [
       "Il entoure la grande image de chaque collection (Personnages, Décors…) sur l'accueil.",
-      "Case de 900 × 900 px, réduite au tiers. Les coins restent tels quels ; les bords entre les lignes vertes s'étirent.",
+      "Option A (conseillée) : dessine UN cadre carré complet dans la case de 900 × 900 px (réduite au tiers). Les lignes vertes montrent la découpe : les coins restent tels quels, les côtés répètent leur motif en boucle, sans être étirés, même sur un panorama ou une photo haute.",
+      "Option B (avancée) : dessine seulement le coin du haut à gauche et le côté du haut (cadres orange), laisse le reste vide : le site les tourne pour faire tout le cadre.",
+      "À l'envoi, l'aperçu montre le cadre sur un carré, un panorama et un portrait avant d'appliquer. Il habille aussi tes photos ; sur une photo précise, choisis « Sans cadre » dans son bouton Cadre.",
       "Laisse le centre transparent : l'image s'y affiche.",
       KEEP,
     ],

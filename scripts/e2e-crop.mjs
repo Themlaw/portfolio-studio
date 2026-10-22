@@ -190,7 +190,8 @@ if (run("L")) {
     }
     ok("L même image posée 4 fois : 4 recadrages différents (4 rectangles distincts)", srcs.size === 4, String(srcs.size));
     const rows = await page.evaluate(() => [...document.querySelectorAll('[data-edit-block="g-persos"] .block-grid-cell img')].map((i) => { const r = i.getBoundingClientRect(); return { top: Math.round(r.top + scrollY), h: Math.round(r.height), w: Math.round(r.width) }; }));
-    ok("L grille : cases au rapport de leur recadrage, alignées en haut de la rangée", rows.length === 2 && Math.abs(rows[0].top - rows[1].top) <= 1 && rows[0].h !== rows[1].h, JSON.stringify(rows));
+    // Rangées justifiées (lots 37 et 46) : le vert (2,1:1) dépasse le seuil panorama et occupe seul sa rangée, le jaune (carré) a la sienne : chaque case garde le rapport de son recadrage.
+    ok("L grille : cases au rapport de leur recadrage (vert 2,1:1 seul sur sa rangée, jaune carré dessous)", rows.length === 2 && near(rows[0].w / rows[0].h, (4800 * P2.w) / (2400 * P2.h), 0.03) && near(rows[1].w / rows[1].h, 1, 0.03) && rows[1].top > rows[0].top, JSON.stringify(rows));
     const g = await pbox(page.locator('[data-edit-block="g-persos"] > *').first());
     await page.screenshot({ path: `${SHOTS}/L-grille-persos-${TAG}.png`, clip: { x: 0, y: g.y - 10, width: 1440, height: Math.min(900, g.height + 20) }, fullPage: true });
     const a = await pbox(page.locator('[data-edit-block="a-rouge"] > *').first());
@@ -463,7 +464,7 @@ if (run("P") && !BEFORE) {
   await sleep(1000);
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  const published = await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  const published = await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
   ok("P page publiée", published);
   const pub = await browser.newContext({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 2 });
   const pp = await pub.newPage();
@@ -522,7 +523,7 @@ if (ONLY.split(",").includes("F") && !BEFORE) {
   await sleep(1000);
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  ok("F page publiée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+  ok("F page publiée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
   // À froid : aucune variante recadrée sur le disque.
   await sleep(1500);
   rmSync(path.join(DATA, "cache", "crops"), { recursive: true, force: true });

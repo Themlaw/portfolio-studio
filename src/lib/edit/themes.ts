@@ -10,7 +10,9 @@ import { slugify } from "@/lib/slug";
 import { normalizePalette } from "@/themes/palette";
 import { ThemeSchema, type Theme } from "@/themes/schema";
 
+import { markOnboarding } from "./onboarding";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
+import { resetPublishedSitePalette } from "./site";
 
 function readTheme(id: string): { row: typeof schema.themes.$inferSelect; theme: Theme } | null {
   const row = getDb().select().from(schema.themes).where(eq(schema.themes.id, id)).get();
@@ -23,6 +25,13 @@ function activeThemeId(): string {
   const row = getDb().select().from(schema.settings).where(eq(schema.settings.key, "activeThemeId")).get();
   const value = parseJson(row?.value);
   return typeof value === "string" ? value : "";
+}
+
+/** Thème qui était en ligne avant le dernier changement (« Revenir au thème précédent », lot 55), s'il existe encore. */
+export function previousThemeId(): string | null {
+  const row = getDb().select().from(schema.settings).where(eq(schema.settings.key, "previousThemeId")).get();
+  const value = parseJson(row?.value);
+  return typeof value === "string" && value && value !== activeThemeId() && readTheme(value) ? value : null;
 }
 
 export function getThemeForEdit(id: string): Theme | null {
@@ -68,13 +77,24 @@ export function saveTheme(id: string, input: unknown, confirmLive = false): Acti
   return done(null);
 }
 
-export function activateTheme(id: string): ActionResult<null> {
+/** `resetColors` : retire aussi les couleurs personnalisées du site (elles ne restent pas par-dessus le nouveau thème). */
+export function activateTheme(id: string, resetColors = false): ActionResult<null> {
   if (!readTheme(id)) return fail("Ce thème n'existe plus ou est invalide.");
+  if (resetColors) {
+    const reset = resetPublishedSitePalette();
+    if (!reset.ok) return reset;
+  }
+  const before = activeThemeId();
+  if (before && before !== id) {
+    const v = JSON.stringify(before);
+    getDb().insert(schema.settings).values({ key: "previousThemeId", value: v }).onConflictDoUpdate({ target: schema.settings.key, set: { value: v } }).run();
+  }
   getDb()
     .insert(schema.settings)
     .values({ key: "activeThemeId", value: JSON.stringify(id) })
     .onConflictDoUpdate({ target: schema.settings.key, set: { value: JSON.stringify(id) } })
     .run();
+  markOnboarding("theme");
   return done(null);
 }
 

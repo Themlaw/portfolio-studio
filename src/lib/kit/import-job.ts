@@ -21,6 +21,7 @@ import { resolvePalette } from "@/themes/palette";
 
 import { loadSavedTheme, manifestDir, runKitChild } from "./export-job";
 import type { KitReport } from "./import";
+import { DAMAGED_FILE } from "./psd-header";
 
 /** Durée maximale d'un import (au-delà : processus tué, job en échec). */
 const IMPORT_TIMEOUT_MS = Number(process.env.KIT_IMPORT_MAX_DURATION_S || 300) * 1000;
@@ -193,12 +194,18 @@ export async function runKitImportJob(job: { id: number; payload: Record<string,
     await rm(importOutDir(id), { recursive: true, force: true });
     const message = /trop de temps/.test(result.error ?? "")
       ? "L'import a pris trop de temps : allège le fichier (moins de calques, calques rognés à leur case) et renvoie-le."
-      : /mémoire/.test(result.error ?? "")
-        ? "Ce fichier demande trop de mémoire à l'import : allège-le (moins de calques, calques rognés à leur case) et renvoie-le."
-        : "L'import a échoué. Renvoie le fichier ; si ça recommence, vérifie l'espace disque du serveur.";
+      : /mémoire|code null|SIGKILL/.test(result.error ?? "")
+        ? "Ce fichier est trop lourd à analyser (mémoire insuffisante) : fusionne des calques, rogne-les à leur case, ou envoie les fichiers un par un, puis renvoie-le."
+        : /RangeError|Offset|out of range|end of|Invalid|Unexpected/i.test(result.error ?? "")
+          ? DAMAGED_FILE
+          : "L'import a échoué. Renvoie le fichier ; si ça recommence, vérifie l'espace disque du serveur.";
     return void finish("failed", message);
   }
   console.log(`[kit] import ${id} (thème ${meta.themeId}) : ${result.ms} ms, pic ${result.peakMb} Mo, oom ${result.oom}`);
+  // Le processus a rendu la main sans rapport (arrêt brutal, mémoire) : jamais une revue vide sans explication.
+  if (!(await stat(path.join(/* turbopackIgnore: true */ importOutDir(id), "rapport.json")).catch(() => null))) {
+    return void finish("failed", "Ce fichier est trop lourd à analyser (mémoire insuffisante) : fusionne des calques, rogne-les à leur case, ou envoie les fichiers un par un, puis renvoie-le.");
+  }
   finish("done");
 }
 

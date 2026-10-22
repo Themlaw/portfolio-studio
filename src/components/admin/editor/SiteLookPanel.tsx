@@ -23,7 +23,7 @@ import { useEffect, useState } from "react";
 import { SolidColorPicker } from "@/components/edit/ColorPicker";
 import { pairsReadability, ratioTip } from "@/components/edit/readability";
 import type { AdminMediaRow } from "@/lib/admin";
-import { LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, type Logo, type PaletteColor, type SitePalette } from "@/lib/look";
+import { LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, LOGO_SIZE_PRESETS, type Logo, type PaletteColor, type SitePalette } from "@/lib/look";
 import { NUANCE_KEYS, PALETTE_GROUPS, type BaseKey, type NuanceKey, type PaletteColors, type PaletteState } from "@/themes/palette";
 import { autoAdjustBase, CONTRAST_BASES, effectiveSitePalette, nuanceOrigin, nuancesUnder, rolePairs, SITE_NUANCES, SITE_ROLES, sitePaletteIssues, sitePalettePairs, themeFixesNuance } from "@/themes/site-palette";
 
@@ -32,6 +32,16 @@ import "@/app/admin/typo-controls.css";
 
 export type ThemeColors = { name: string; color: PaletteColors; palette: PaletteState | null };
 export type HighlightInfo = { role: BaseKey | null; count: number; uses: string[] };
+
+/** Légende des états d'une couleur (info-bulle, lot 55). */
+const STATE_TIPS: Record<string, string> = {
+  thème: "Cette couleur est celle du thème.",
+  personnalisée: "Tu as choisi cette couleur pour tout le site : elle remplace celle du thème.",
+  modifiée: "Tu as changé cette couleur, elle n'est pas encore enregistrée.",
+  enregistrée: "Cette couleur est celle du thème enregistré.",
+  choisie: "Tu as choisi cette couleur toi-même.",
+  automatique: "Cette couleur se calcule toute seule à partir des autres.",
+};
 
 /** Règle du calcul « auto » d'une nuance, en clair. */
 const ruleOf = (k: NuanceKey) => PALETTE_GROUPS.flatMap((g) => g.nuances).find((n) => n.key === k)?.rule ?? "";
@@ -45,8 +55,11 @@ export function ColorsPanel({
   locked,
   mode = "site",
   baseline,
+  preparing = false,
 }: {
   theme: ThemeColors;
+  /** Le thème montré est en préparation (aperçu, pas encore en ligne) : les textes le disent (lot 55). */
+  preparing?: boolean;
   /** Surcharges du site (état voulu, aperçu compris). Ignoré en mode « theme ». */
   value: SitePalette;
   /** Mode « site » : nouvel état des surcharges. Mode « theme » : correctif à poser sur les couleurs courantes. */
@@ -129,11 +142,13 @@ export function ColorsPanel({
             <small>{info.phrase}</small>
             {origin === "auto" && <small data-testid="nuance-auto">Automatique (calculée : {ruleOf(k)})</small>}
           </span>
-          <span className="lc-nstate">{state}</span>
+          <span className="lc-nstate" title={STATE_TIPS[state]}>
+            {state}
+          </span>
         </button>
         {failing.length > 0 && (
           <p className="lc-nwarn" role="status" title={ratioTip(Math.min(...failing.map((p) => p.ratio)))}>
-            Lisibilité : insuffisante.
+            Lisibilité insuffisante : {failing.map((p) => p.label).join(", ")}.
           </p>
         )}
         {isOpenN && (
@@ -179,19 +194,26 @@ export function ColorsPanel({
   return (
     <section className="lp lp-colors" aria-labelledby="lp-colors-title" data-testid="colors-panel" data-mode={mode}>
       <h3 id="lp-colors-title" className="lp-title" hidden={isTheme}>
-        {isTheme ? "Couleurs de la DA" : "Couleurs"}
+        Couleurs
       </h3>
       <p className="lp-help">
         {isTheme
           ? `Survole une couleur pour voir où elle sert dans l'aperçu, clique pour la changer : l'aperçu suit tout de suite. Les couleurs sont écrites dans le thème « ${theme.name} » à l'enregistrement.`
-          : `Survole une couleur pour voir où elle sert sur la page, clique pour la changer. Pour tout le site, publié avec cette page ; le thème « ${theme.name} » n'est pas modifié.`}
+          : preparing
+            ? `Ces couleurs sont celles du thème « ${theme.name} », que tu prépares : il n'est pas encore en ligne. Survole une couleur pour voir où elle sert, clique pour la changer. Une couleur changée ici est personnalisée pour tout le site, publiée avec cette page ; le thème « ${theme.name} » n'est pas modifié.`
+            : `Survole une couleur pour voir où elle sert sur la page, clique pour la changer. Une couleur changée ici est personnalisée pour tout le site, publiée avec cette page ; le thème « ${theme.name} » n'est pas modifié.`}
       </p>
+      {!isTheme && modifiedCount > 0 && (
+        <p className="lc-custom" data-testid="custom-colors-title">
+          <strong>Couleurs personnalisées du site</strong> : {modifiedCount} {modifiedCount > 1 ? "couleurs remplacent" : "couleur remplace"} celles du thème, sur toutes les pages.
+        </p>
+      )}
       {locked && <p className="a-field-error">Les couleurs du site sont en cours de modification sur la page « {locked} ».</p>}
       {ignored && (
         <div className="a-notice lc-ignored" role="status" data-testid="palette-ignored">
           <p>
-            <strong>Attention : ces couleurs rendent du texte difficile à lire</strong> avec le thème actif « {theme.name} »
-            (<span title={ratioTip(worstIssue.ratio)}>{worstIssue.label.toLowerCase()} : lisibilité insuffisante</span>). Elles sont appliquées quand même, sur le site en ligne comme dans l&apos;aperçu ; la mise en ligne n&apos;est pas bloquée.
+            <strong>Attention : ces couleurs rendent du texte difficile à lire</strong> avec le thème « {theme.name} »{preparing ? " (en préparation)" : ""}
+            (<span title={ratioTip(worstIssue.ratio)}>{worstIssue.label.toLowerCase()} : lisibilité insuffisante</span>). Elles sont appliquées quand même ; tu peux publier sans les changer.
           </p>
           <p>Si tu veux plus de confort de lecture, ajuste les couleurs signalées ci-dessous.</p>
         </div>
@@ -228,7 +250,9 @@ export function ColorsPanel({
                   <strong>{role.name}</strong>
                   <small>{role.phrase}</small>
                 </span>
-                <span className="lc-state">{modified ? "modifiée" : isTheme ? "enregistrée" : "thème"}</span>
+                <span className="lc-state" title={STATE_TIPS[modified ? "modifiée" : isTheme ? "enregistrée" : "thème"]}>
+                  {modified ? (isTheme ? "modifiée" : "personnalisée") : isTheme ? "enregistrée" : "thème"}
+                </span>
               </button>
               {highlighted === role.key && (
                 <p className="lc-uses" data-floating={!isOpen || undefined} role="status" data-testid="hl-legend">
@@ -238,7 +262,7 @@ export function ColorsPanel({
               )}
               {!isOpen && failing.length > 0 && (
                 <p className="lc-warn" role="status" title={ratioTip(lowest)}>
-                  Lisibilité : insuffisante.
+                  Lisibilité insuffisante : {failing.map((p) => p.label).join(", ")}.
                 </p>
               )}
               {isOpen && (
@@ -386,8 +410,18 @@ export function LogoPanel({
         </div>
       )}
       <div className="lp-field">
+        <span className="lp-label" id="lp-logo-size-label">
+          Taille du logo
+        </span>
+        <div className="lc-modes-row" role="group" aria-labelledby="lp-logo-size-label" data-testid="logo-size-presets">
+          {LOGO_SIZE_PRESETS.map((p) => (
+            <button key={p.label} type="button" className="a-btn a-btn-small" aria-pressed={size === p.size && value.size !== undefined} data-testid={`logo-size-${p.id}`} onClick={() => onChange({ ...value, size: p.size })}>
+              {p.label}
+            </button>
+          ))}
+        </div>
         <label className="lp-label" htmlFor="lp-logo-size">
-          Taille
+          Réglage précis
         </label>
         <div className="lc-size">
           <input

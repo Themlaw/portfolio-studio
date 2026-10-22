@@ -1,35 +1,42 @@
+import { draftMode } from "next/headers";
+
 import KitTutorial from "@/components/admin/KitTutorial";
 import PageHeader from "@/components/admin/PageHeader";
 import ThemeImportButton from "@/components/admin/ThemeImportButton";
 import ThemeList from "@/components/admin/ThemeList";
 import { getThemeOverview, listPageAccents } from "@/lib/admin";
+import { previousThemeId } from "@/lib/edit/themes";
+import { publishedSitePalette } from "@/lib/edit/site";
+import { getPreparingTheme } from "@/lib/theme";
 import { presetThumb } from "@/themes/presets";
 
 export const metadata = { title: "Thèmes" };
 
-export default function ThemesPage() {
+export default async function ThemesPage() {
   const { activeId, themes } = getThemeOverview();
-  // Le thème en ligne d'abord, puis les tiens, puis les thèmes livrés.
-  const sorted = [...themes].sort(
-    (a, b) => Number(b.id === activeId) - Number(a.id === activeId) || Number(a.preset) - Number(b.preset) || a.name.localeCompare(b.name, "fr"),
-  );
+  const preparing = await getPreparingTheme();
+  const previewOn = (await draftMode()).isEnabled;
+  // Ordre stable (lot 55) : les tiens d'abord, puis les thèmes fournis, par nom. Mettre en ligne ou prévisualiser ne déplace aucune carte.
+  const sorted = [...themes].sort((a, b) => Number(a.preset) - Number(b.preset) || a.name.localeCompare(b.name, "fr"));
   return (
     <>
       <PageHeader
         title="Thèmes"
-        intro="Seul le thème en ligne est vu par tes visiteurs : prévisualise les autres sur tes vraies pages, duplique un thème livré pour le modifier, et retrouve dans « … » l'archive .zip du thème (à réimporter) et le kit Photoshop (à redessiner)."
+        intro="Seul le thème en ligne est vu par tes visiteurs : prévisualise les autres sur tes vraies pages, duplique un thème fourni pour le modifier, et retrouve dans « … » l'archive .zip du thème (à réimporter) et le kit Photoshop (à redessiner)."
         action={
           <div className="a-header-actions">
             {/* Tuto du kit : le bouton « Télécharger le kit » de la slide 2 vise le thème en ligne. */}
             <ThemeImportButton />
             <KitTutorial themeId={activeId || sorted[0]?.id || "galerie-lumineuse"} />
-            {/* Formulaire natif (pas de server action) : l'admin reste sur cet écran. */}
-            <form method="post" action="/admin/apercu/quitter">
-              <input type="hidden" name="retour" value="/admin/themes" />
-              <button type="submit" className="a-btn">
-                Quitter l&apos;aperçu
-              </button>
-            </form>
+            {/* Formulaire natif (pas de server action) : l'admin reste sur cet écran. Seulement s'il y a un aperçu à quitter. */}
+            {previewOn && (
+              <form method="post" action="/admin/apercu/quitter">
+                <input type="hidden" name="retour" value="/admin/themes" />
+                <button type="submit" className="a-btn" data-testid="quit-preview">
+                  Quitter l&apos;aperçu
+                </button>
+              </form>
+            )}
           </div>
         }
       />
@@ -46,6 +53,10 @@ export default function ThemesPage() {
           themes={sorted}
           activeId={activeId}
           accents={listPageAccents()}
+          preparingId={preparing?.id ?? null}
+          previewOn={previewOn}
+          previousId={previousThemeId()}
+          customColors={publishedSitePalette()}
           thumbs={Object.fromEntries(sorted.map((t) => [t.id, presetThumb(t.id)]))}
         />
       )}
