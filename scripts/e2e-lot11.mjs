@@ -24,7 +24,7 @@ import path from "node:path";
 
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
-import { activateThemeUi } from "./lib/theme-live.mjs";
+import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -298,7 +298,7 @@ const menuItem = async (card, name) => {
 
 if (run("C")) {
   console.log("== C. Admin → Thèmes : tokens.type");
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   // Lot 60 : plus de « Dupliquer » ; le thème qu'on modifie est Mon thème (créé depuis « Galerie lumineuse »).
   await activateTheme("Galerie lumineuse");
   const copyId = q("select id from themes where mine = 1")[0].id;
@@ -357,7 +357,7 @@ if (run("C")) {
   ok("C6 export puis import : tokens.type conservé", imported.status === 200 && kept?.case === "upper" && kept?.weight === 300 && kept?.font === "caption", JSON.stringify(imported.body).slice(0, 200));
   // Nettoyage : le thème importé (« Mes anciens thèmes »). Mon thème, lui, reste.
   if (importedId) {
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    await gotoThemesPage(page, BASE);
     const olds = page.locator('[data-testid="olds-section"]');
     for (let i = 0; i < 3 && (await olds.getAttribute("open")) === null; i++) {
       await olds.locator("summary").click();

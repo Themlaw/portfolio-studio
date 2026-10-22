@@ -21,7 +21,7 @@ import sharp from "sharp";
 
 import { paint } from "./lib/crop-fixtures.mjs";
 import { login, pageIdOf, q1, waitFor } from "./lib/medias-setup.mjs";
-import { activateThemeUi } from "./lib/theme-live.mjs";
+import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3340";
 const ONLY = process.env.ONLY ?? "";
@@ -422,7 +422,7 @@ if (run("KT"))
     const done = await publishBlocks(page, BASE, pageId, () => blocks, () => q1("select count(*) n from blocks where page_id = ?", pageId).n === blocks.length, 300000);
     if (!done) info("KT3 état de l'éditeur", await page.evaluate(() => document.body.innerText.slice(0, 600)));
     ok("KT3 page publiée", done);
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    await gotoThemesPage(page, BASE);
     await page.getByTestId("mine-publish").click();
     await page.locator("dialog[open]").getByRole("button", { name: "Publier", exact: true }).click();
     await page.locator("dialog[open]").waitFor({ state: "detached" });

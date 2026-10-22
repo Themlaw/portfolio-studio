@@ -25,6 +25,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 import { publishBlocks } from "./lib/page-draft.mjs";
+import { gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -81,7 +82,7 @@ async function moveWithKeyboard(handleName, key, times) {
 /** Nettoyage de secours (essai interrompu) : page du test. */
 async function cleanup() {
   try {
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    await gotoThemesPage(page, BASE);
     await page.goto(`${BASE}/admin/pages`, { waitUntil: "networkidle" });
     while (await page.locator("tr", { hasText: "Carnets d'été" }).count()) {
       await page.locator("tr", { hasText: "Carnets d'été" }).getByRole("button", { name: "Supprimer" }).click();
@@ -110,7 +111,7 @@ try {
   await page.waitForURL(`${BASE}/admin`);
 
   // ---- A. Thème (lot 60 : Mon thème et ses versions) ----------------------------------------------------
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   const source = page.locator("section[data-model]", { has: page.locator("h2#theme-galerie-lumineuse") });
   // Le modèle déjà en ligne : « Utiliser ce modèle » crée Mon thème (version 1) et le publie aussitôt (même rendu).
   await source.getByTestId("use-model").click();
@@ -158,7 +159,7 @@ try {
   ok("A7b l'enregistrement ne publie rien : le visiteur anonyme ne voit pas la nouvelle couleur", !r.html.includes(NEW_PRIMARY) && dbq("select version, published_version from themes where id = ?", themeId)[0]?.version === 2 && dbq("select published_version from themes where id = ?", themeId)[0]?.published_version === 1);
 
   // Prévisualiser (nouvel onglet), depuis la liste.
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   const card = page.locator(`.a-theme-card:has(#theme-${themeId})`);
   const [preview] = await Promise.all([ctx.waitForEvent("page"), card.getByRole("button", { name: /Prévisualiser/ }).click()]);
   await preview.waitForLoadState("domcontentloaded");
@@ -187,7 +188,7 @@ try {
   r = await anon("/fr");
   ok("A11 retour à la version 1 publié : l'ancienne couleur est de retour (rien n'a été perdu : 3 versions)", !r.html.includes(NEW_PRIMARY) && dbq("select count(*) c from theme_versions where theme_id = ?", themeId)[0]?.c === 3);
   ok("A12 Mon thème ne se supprime pas (aucun bouton « Supprimer » sur sa carte)", await (async () => {
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    await gotoThemesPage(page, BASE);
     return (await page.locator(`.a-theme-card:has(#theme-${themeId})`).getByRole("button", { name: "Supprimer" }).count()) === 0;
   })());
 

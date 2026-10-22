@@ -24,6 +24,7 @@ import path from "node:path";
 
 import { chromium } from "playwright";
 import sharp from "sharp";
+import { gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -155,7 +156,7 @@ await page.locator('[data-testid="live-thumb"] iframe').first().waitFor({ timeou
 await sleep(2500);
 await page.screenshot({ path: `${SHOTS}/version-mon-theme-1440.png` });
 // Aperçu public du brouillon : le hero n'a que les 4 plans.
-await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+await gotoThemesPage(page, BASE);
 await page.evaluate((id) => {
   const f = document.createElement("form");
   f.method = "post";
@@ -186,7 +187,7 @@ await page.screenshot({ path: `${SHOTS}/revue-fichier-artiste-1440.png`, fullPag
 const draftB = await apply();
 
 // Aperçu du brouillon sur le site (formulaire natif, comme « Prévisualiser »).
-await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+await gotoThemesPage(page, BASE);
 await page.evaluate((id) => {
   const f = document.createElement("form");
   f.method = "post";

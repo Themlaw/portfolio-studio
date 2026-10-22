@@ -26,6 +26,7 @@ import path from "node:path";
 
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
+import { gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -197,7 +198,7 @@ if (run("A")) {
 /* ---- B. Quitter l'aperçu ---------------------------------------------------------- */
 
 if (run("B")) {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   const card = page.locator("form[action='/admin/apercu'][target=_blank]").nth(1);
   const [tab] = await Promise.all([ctx.waitForEvent("page"), card.getByRole("button").click()]);
   await tab.waitForLoadState("domcontentloaded");

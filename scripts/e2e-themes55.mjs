@@ -21,6 +21,7 @@ import { chromium } from "playwright";
 
 import { canvas, openEditor, pageIdOf, q1, settled, sleep, sql, waitFor } from "./lib/grille31d.mjs";
 import { login } from "./lib/medias-setup.mjs";
+import { gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3680";
 const ONLY = process.env.ONLY ?? "";
@@ -59,7 +60,7 @@ const CUSTOM_BG = "#dfeee8";
 const shot = (name) => page.screenshot({ path: path.join(SHOTS, `${name}.png`) }).catch(() => {});
 
 const gotoThemes = async () => {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   await page.locator(".a-theme-card").first().waitFor();
 };
 const cardNames = () => page.locator("section[data-model] h2").allTextContents();

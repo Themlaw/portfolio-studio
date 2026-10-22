@@ -22,7 +22,7 @@ import path from "node:path";
 
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
-import { activateThemeUi } from "./lib/theme-live.mjs";
+import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -216,7 +216,7 @@ const original = colorsOf(PRESET);
 if (run("A"))
   await section("A", async () => {
     // Le lien depuis la liste des thèmes.
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    await gotoThemesPage(page, BASE);
     const card = page.locator(".a-theme-card", { hasText: "Galerie lumineuse" }).first();
     // Lot 23 : le lien est dans le menu « … » de la carte.
     await card.getByRole("button", { name: /Plus d'actions/ }).click();

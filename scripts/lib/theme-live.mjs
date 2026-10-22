@@ -7,8 +7,18 @@
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/**
+ * Ouvre l'écran Thèmes SANS attendre « réseau inactif » (les vignettes réelles chargent la page d'accueil, une à la fois, en tâche de fond) :
+ * on attend la section « Mon thème », puis la fin de l'hydratation.
+ */
+export async function gotoThemesPage(page, BASE, query = "") {
+  await page.goto(`${BASE}/admin/themes${query}`, { waitUntil: "load" });
+  await page.locator('[data-testid="mine-section"]').waitFor({ timeout: 60000 });
+  await sleep(700);
+}
+
 export async function activateThemeUi(page, BASE, which) {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   const byId = /^[a-z0-9-]+$/.test(which);
   const card = byId
     ? page.locator(`.a-theme-card[aria-labelledby="theme-${which}"]`).first()
@@ -25,7 +35,7 @@ export async function activateThemeUi(page, BASE, which) {
     await card.getByTestId("old-adopt").click();
     await page.waitForURL(/nouvelle=\d+&via=adopt/, { timeout: 60000 });
   }
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   const publish = page.getByTestId("mine-publish");
   if (await publish.count()) {
     await publish.click();

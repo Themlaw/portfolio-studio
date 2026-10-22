@@ -16,6 +16,7 @@ import { mkdirSync } from "node:fs";
 
 import { chromium } from "playwright";
 import sharp from "sharp";
+import { gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -72,7 +73,7 @@ const waitImage = () => page.waitForFunction(() => {
 }, null, { timeout: 15000 }).catch(() => null);
 
 /* ---- Depuis Thèmes : du début à la fin au clavier ------------------------ */
-await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+await gotoThemesPage(page, BASE);
 await page.evaluate(() => localStorage.removeItem("portfolio-tuto-kit"));
 await page.getByTestId("tuto-open").click();
 await dialog.waitFor();
@@ -157,7 +158,7 @@ await page.keyboard.press("Escape");
 const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, storageState: await ctx.storageState(), reducedMotion: "reduce", hasTouch: true });
 const m = await mobile.newPage();
 m.on("pageerror", (e) => errors.push(e.message));
-await m.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+await gotoThemesPage(m, BASE);
 await m.evaluate(() => localStorage.setItem("portfolio-tuto-kit", "0"));
 await m.getByTestId("tuto-open").click();
 await m.getByRole("dialog").waitFor();

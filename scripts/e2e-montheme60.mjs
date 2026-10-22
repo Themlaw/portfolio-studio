@@ -73,8 +73,9 @@ const FIRST = JSON.parse(row(FIRST_ID).data);
 const SECOND = JSON.parse(row(SECOND_ID).data);
 
 const gotoThemes = async (query = "") => {
-  await page.goto(`${BASE}/admin/themes${query}`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/admin/themes${query}`, { waitUntil: "load" });
   await page.locator('[data-testid="mine-section"]').waitFor();
+  await sleep(700);
 };
 const model = (id) => page.locator("section[data-model]", { has: page.locator(`h2#theme-${id}`) });
 const state = async () => ((await page.locator('[data-testid="mine-state"]').textContent()) ?? "").replace(/\s+/g, " ").trim();

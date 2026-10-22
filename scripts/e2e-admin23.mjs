@@ -344,7 +344,9 @@ try {
   created.media.length = 0;
 
   /* ======================= D. Thèmes (lot 60 : modèles, Mon thème) ======================= */
-  await goto("/admin/themes");
+  await goto("/admin/themes", { waitUntil: "load" });
+  await page.locator('[data-testid="mine-section"]').waitFor();
+  await page.waitForTimeout(700);
   const tcard = page.locator("section[data-model]", { has: page.locator("h2#theme-carnet-d-atelier") });
   const visible = await tcard.locator(".a-card-actions").locator("a, button").evaluateAll((els) => els.map((e) => (e.getAttribute("aria-label") ?? e.textContent ?? "").replace(/↗/, "").trim()));
   ok("D1 carte d'un modèle : Prévisualiser, Utiliser ce modèle et « … » seulement", visible.length === 3 && visible[0] === "Prévisualiser" && visible[1] === "Utiliser ce modèle" && /Plus d'actions/.test(visible[2]), JSON.stringify(visible));

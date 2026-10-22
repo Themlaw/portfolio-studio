@@ -27,7 +27,7 @@ import { chromium } from "playwright";
 
 import { installPaperTheme, PAPER_THEME_NAME } from "./lib/paper-theme.mjs";
 import { placeBoard } from "./lib/page-board.mjs";
-import { activateThemeUi } from "./lib/theme-live.mjs";
+import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -253,7 +253,7 @@ await section("P", async () => {
 /* ---- A. Bibliothèque -------------------------------------------------------------------------------------------------------- */
 
 await section("A", async () => {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   const link = page.locator('.a-nav a[href="/admin/papiers-peints"]');
   ok("A0 « Papiers peints » est dans le menu, juste sous « Thèmes »", (await link.count()) === 1 && (await page.locator(".a-nav li").evaluateAll((els) => els.map((e) => e.textContent?.trim()).slice(1, 3))).join() === "Thèmes,Papiers peints");
   await link.click();

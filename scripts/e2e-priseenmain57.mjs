@@ -22,7 +22,7 @@ import sharp from "sharp";
 
 import { paint } from "./lib/crop-fixtures.mjs";
 import { boardDraft, draftBlocks, login, openEditor, pageIdOf, q1, setBoardDraft, setDraft, settled, sleep, sql, waitFor } from "./lib/grille31d.mjs";
-import { activateThemeUi } from "./lib/theme-live.mjs";
+import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3700";
 const ONLY = process.env.ONLY ?? "";
@@ -92,7 +92,7 @@ await section("P", async () => {
   await shot("p1-premiers-pas");
 
   // Le thème : se coche quand on en met un en ligne.
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   await activateThemeUi(page, BASE, "Carnet d'atelier"); // lot 60 : Utiliser ce modèle, puis Publier
   await sleep(800);
   await page.goto(`${BASE}/admin`, { waitUntil: "networkidle" });

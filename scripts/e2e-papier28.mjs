@@ -22,7 +22,7 @@ import { chromium } from "playwright";
 import sharp from "sharp";
 
 import { installPaperTheme } from "./lib/paper-theme.mjs";
-import { activateThemeUi } from "./lib/theme-live.mjs";
+import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -323,7 +323,7 @@ await section("B", async () => {
 /** Lot 60 : le thème en ligne est Mon thème ; on le modifie (brouillon) puis on publie la version. */
 const mineId = () => q("select id from themes where mine = 1")[0].id;
 async function publishMine() {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   const b = page.getByTestId("mine-publish");
   if (await b.count()) {
     await b.click();
