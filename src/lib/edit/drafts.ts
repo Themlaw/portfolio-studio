@@ -32,7 +32,7 @@
  * Contenu de la planche d'un projet (lot 31) : surcouche du même genre (`draft_layout`, `draft_layout_page_id`) ;
  * appliquée à la publication de la page qui AFFICHE la planche, effacée à l'abandon.
  */
-import { and, asc, eq, inArray, isNotNull, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { BLOCKS } from "@/blocks/registry";
@@ -47,6 +47,7 @@ import { deprecatedProblem, formIdProblem, mediaKindProblem, savePage } from "./
 import { PagePaperSchema } from "@/themes/schema";
 import type { PagePaper } from "@/themes/wallpaper";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
+import { rememberOldAddresses } from "./redirects";
 import { applySiteDraft, discardSiteDraft } from "./site";
 
 type L = { fr: string; en: string };
@@ -55,7 +56,7 @@ export type DraftBlock = { uid: string; type: string; props: Record<string, unkn
 export type PageDraft = {
   title: L;
   slug: L;
-  meta: { title: L; description: L };
+  meta: { title: L; description: L; image?: number | null };
   published: boolean;
   inMenu: boolean;
   accent: string | null;
@@ -82,7 +83,7 @@ const l = (max: number) => z.object({ fr: z.string().max(max), en: z.string().ma
 const DraftSchema = z.object({
   title: l(200),
   slug: l(120),
-  meta: z.object({ title: l(200), description: l(400) }),
+  meta: z.object({ title: l(200), description: l(400), image: z.number().int().positive().nullable().optional() }),
   published: z.boolean(),
   inMenu: z.boolean(),
   accent: z.string().max(7).nullable(),
@@ -483,7 +484,7 @@ function settleDraftProjects(pageId: number, blocks: { type: string; props: unkn
 /* ---- Publier, abandonner -------------------------------------------------- */
 
 /** `site` : l'en-tête, le pied ou les réseaux (communs à toutes les pages) ont changé. */
-export type PublishResult = { projects: number[]; blocks: number; rev: number; site: boolean };
+export type PublishResult = { projects: number[]; blocks: number; rev: number; site: boolean; /** La page vient d'être mise en ligne par ce geste (elle ne l'était pas). */ wentLive: boolean; /** Avertissements non bloquants (lot 52), ajoutés par l'action de publication. */ warnings?: { missingAlt: { id: number; name: string }[]; untranslated: number } };
 
 /**
  * Publie le brouillon, en une transaction : validation et écriture de
@@ -492,13 +493,21 @@ export type PublishResult = { projects: number[]; blocks: number; rev: number; s
  * brouillon (ou brouillon illisible, ou version périmée) : refus immédiat,
  * rien n'est écrit.
  */
-export function publishDraft(pageId: number, rev: unknown): DraftResult<PublishResult> {
+export function publishDraft(pageId: number, rev: unknown, opts: { live?: boolean } = {}): DraftResult<PublishResult> {
   if (!validRev(rev)) return fail("Requête invalide (version manquante) : recharge l'éditeur.");
   const state = readDraft(pageId);
   if (!state) return fail("Cette page n'existe plus.");
   if (state.rev !== rev) return conflict(state.rev);
   if (state.corrupt) return corruptRefusal(state.rev);
-  if (!state.hasDraft) return fail("Aucune modification à publier.");
+  if (!state.hasDraft) {
+    // Page jamais mise en ligne, rien de modifié : « Publier » la met simplement en ligne (contenu déjà validé à l'enregistrement).
+    if (opts.live === true && !state.draft.published) {
+      const flipped = getDb().update(schema.pages).set({ published: true, updatedAt: new Date() }).where(and(eq(schema.pages.id, pageId), isNull(schema.pages.deletedAt))).run();
+      if (flipped.changes !== 1) return fail("Cette page n'existe plus.");
+      return done({ projects: referencedProjects(state.draft.blocks), blocks: state.draft.blocks.length, rev: state.rev, site: false, wentLive: true });
+    }
+    return fail("Aucune modification à publier.");
+  }
   const empty = emptyDraftBoards(pageId, state.draft.blocks);
   if (empty) return fail("Publication impossible : corrige ce qui est signalé.", empty);
   const invalidText = invalidProjectTexts(pageId, new Set(referencedProjects(state.draft.blocks)));
@@ -511,13 +520,17 @@ export function publishDraft(pageId: number, rev: unknown): DraftResult<PublishR
   const { draft } = state;
   const db = getDb();
   let outcome: DraftResult<PublishResult> = fail("Publication impossible.");
+  let wentLive = false;
   try {
     db.transaction((tx) => {
-      const result = savePage(pageId, { ...draft, blocks: draft.blocks.map(({ type, props }) => ({ type, props })) });
+      // Un seul geste (lot 51) : « Publier » met aussi la page en ligne quand l'appelant l'a confirmé.
+      const goLive = opts.live === true && !draft.published;
+      const result = savePage(pageId, { ...draft, published: goLive ? true : draft.published, blocks: draft.blocks.map(({ type, props }) => ({ type, props })) });
       if (!result.ok) {
         outcome = result;
         return;
       }
+      wentLive = goLive;
       const touched = [
         ...applySlotDrafts(pageId, new Set(displayedProjects(draft.blocks))),
         ...applyProjectTextDrafts(pageId, new Set(referencedProjects(draft.blocks))),
@@ -533,7 +546,7 @@ export function publishDraft(pageId: number, rev: unknown): DraftResult<PublishR
       // Écrit entre la lecture et la transaction : tout est annulé.
       if (cleared.changes !== 1) throw new ConflictError();
       const projects = [...new Set([...referencedProjects([...draft.blocks, ...(before?.blocks ?? [])]), ...touched])].sort((a, b) => a - b);
-      outcome = done({ projects, blocks: draft.blocks.length, rev: rev + 1, site });
+      outcome = done({ projects, blocks: draft.blocks.length, rev: rev + 1, site, wentLive });
     });
   } catch (error) {
     if (error instanceof ConflictError) return conflict(pageRow(pageId)?.rev ?? rev);
@@ -641,4 +654,50 @@ export function syncDraftFlags(pageId: number, flags: { published?: boolean; inM
     .set({ draft: { ...(row.draft as Record<string, unknown>), ...flags }, draftRev: row.rev + 1 })
     .where(eq(schema.pages.id, pageId))
     .run();
+}
+
+
+/**
+ * « Enregistrer » du formulaire d'infos (lot 51, PAGES-05) : titre, adresses, méta, menu, couleur, collection et
+ * mise en ligne SEULEMENT. Les rubriques publiées ne sont pas modifiées et le brouillon de l'éditeur visuel n'est
+ * JAMAIS publié en douce : ses champs d'infos suivent (sinon sa publication défairait le changement), ses
+ * rubriques restent telles quelles. La version augmente toujours : un éditeur ouvert le saura.
+ * `keepOldAddress` (défaut oui) : les anciennes adresses d'une page EN LIGNE redirigent vers la nouvelle (PAGES-06).
+ */
+export function savePageInfo(pageId: number, input: unknown, rev: unknown, opts: { keepOldAddress?: boolean } = {}): DraftResult<{ rev: number; redirected: number }> {
+  if (!validRev(rev)) return fail("Requête invalide (version manquante) : recharge la page.");
+  const row = pageRow(pageId);
+  if (!row) return fail("Cette page n'existe plus. Recharge la liste des pages.");
+  if (row.rev !== rev) return conflict(row.rev);
+  if (isCorrupt(row.draft)) return corruptRefusal(row.rev);
+  const before = getPageForEdit(pageId);
+  if (!before) return fail("Cette page n'existe plus. Recharge la liste des pages.");
+  const info = (input ?? {}) as Record<string, unknown>;
+  const db = getDb();
+  let outcome: DraftResult<{ rev: number; redirected: number }> = fail("Enregistrement impossible.");
+  try {
+    db.transaction((tx) => {
+      const result = savePage(pageId, { ...info, blocks: before.blocks.map(({ type, props }) => ({ type, props })) });
+      if (!result.ok) {
+        outcome = result;
+        return;
+      }
+      const after = getPageForEdit(pageId);
+      const redirected = after && before.published && opts.keepOldAddress !== false ? rememberOldAddresses(pageId, before.slug, after.slug) : 0;
+      // Brouillon en attente : ses champs d'infos suivent, ses rubriques ne bougent pas.
+      const draft = row.draft;
+      const patch: Record<string, unknown> = { draftRev: rev + 1 };
+      if (after && draft && typeof draft === "object" && !Array.isArray(draft)) {
+        const { title, slug, meta, published, inMenu, accent, wallpaper, collection } = after;
+        patch.draft = { ...(draft as Record<string, unknown>), title, slug, meta, published, inMenu, accent, wallpaper, collection };
+      }
+      const cleared = tx.update(schema.pages).set(patch).where(and(eq(schema.pages.id, pageId), eq(schema.pages.draftRev, rev))).run();
+      if (cleared.changes !== 1) throw new ConflictError();
+      outcome = done({ rev: rev + 1, redirected });
+    });
+  } catch (error) {
+    if (error instanceof ConflictError) return conflict(pageRow(pageId)?.rev ?? rev);
+    throw error;
+  }
+  return outcome;
 }

@@ -5,14 +5,17 @@ import { formatGb, storageUsage } from "@/lib/upload/quota";
 
 export const metadata = { title: "Médiathèque" };
 
-export default function MediaPage() {
+export default async function MediaPage({ searchParams }: { searchParams: Promise<{ filtre?: string; media?: string }> }) {
+  const q = await searchParams;
+  const media = /^\d{1,9}$/.test(q.media ?? "") ? Number(q.media) : undefined;
   return (
     <>
       <PageHeader
         title="Médiathèque"
-        intro="Toutes tes images et vidéos. Envoie-en de nouvelles, complète leur texte alternatif et vois où chacune est utilisée."
+        intro="Toutes tes images et vidéos. Envoie-en de nouvelles, décris-les (pour les personnes malvoyantes et Google) et vois où chacune est utilisée."
       />
       <MediaLibrary
+        focus={{ noalt: q.filtre === "sans-description", media }}
         initial={listMediaForAdmin()}
         trashed={listTrashedMedia()}
         summary={getTrashSummary()}

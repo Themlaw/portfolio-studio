@@ -113,6 +113,22 @@ try {
     await lb(p).waitFor();
     await lb(p).getByRole("button", { name: "Fermer" }).click();
     ok("S8 bouton Fermer : ferme, focus rendu", (await lb(p).count()) === 0 && (await waitFor(() => p.evaluate(() => document.activeElement?.hasAttribute("data-viewer-item")), 5000)));
+    // Lot 59 : une carte ou un fond actif est un conteneur (`container-type`), donc le bloc contenant d'un `position: fixed` ;
+    // la visionneuse doit rester plein écran, sans être rognée ni décalée, même ouverte depuis l'intérieur d'une zone.
+    await solo.evaluate((e) => {
+      const z = e.closest("section");
+      z.style.containerType = "inline-size";
+      z.style.margin = "0 60px";
+    });
+    await solo.click();
+    await lb(p).waitFor();
+    const full = await lb(p).evaluate((e) => {
+      const b = e.getBoundingClientRect();
+      return { x: b.x, y: b.y, w: b.width, h: b.height, vw: innerWidth, vh: innerHeight };
+    });
+    ok("S6b visionneuse ouverte depuis un conteneur (carte, fond) : plein écran, ni rognée ni décalée", full.x === 0 && full.y === 0 && Math.abs(full.w - full.vw) < 1 && Math.abs(full.h - full.vh) < 1, JSON.stringify(full));
+    await p.keyboard.press("Escape");
+    await lb(p).waitFor({ state: "detached" });
     await p.context().close();
   }
 

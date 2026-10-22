@@ -117,7 +117,7 @@ try {
     ok("C1b boutons Mettre en ligne et Arrêter l'aperçu", (await banner.getByRole("button", { name: "Mettre en ligne" }).count()) === 1 && (await banner.getByRole("button", { name: "Arrêter l'aperçu" }).count()) === 1);
     await page.getByRole("tab", { name: "Réglages" }).click();
     await role("Fond de page").waitFor();
-    const chip = await role("Fond de page").locator(".lc-chip").evaluate((e) => getComputedStyle(e).backgroundColor);
+    const chip = await role("Fond de page").locator(".lc-role .lc-chip").evaluate((e) => getComputedStyle(e).backgroundColor);
     ok("C2 le panneau Couleurs montre les couleurs du thème en préparation", chip === rgb(themeRow(PREP).tokens.color.bg), `${chip} / ${themeRow(PREP).tokens.color.bg}`);
     const help = (await page.locator('[data-testid="colors-panel"] .lp-help').first().textContent()) ?? "";
     ok("C3 l'aide parle du thème en préparation", help.includes(PREP_NAME) && /pas encore en ligne/.test(help), help);

@@ -19,7 +19,7 @@ export type PageSummary = {
   id: number;
   slug: L;
   title: L;
-  meta: { title: L; description: L } | null;
+  meta: { title: L; description: L; /** Image de partage choisie pour la page (média), lot 52. */ image?: number | null } | null;
   navOrder: number | null;
   /** Collection que la page présente (réglage « Cette page est la collection »), ou null. */
   collection: string | null;

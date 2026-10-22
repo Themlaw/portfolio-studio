@@ -268,6 +268,15 @@
   color: var(--admin-ink-soft);
   font-size: 11px;
 }
+.lc-modes-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.lc-modes-row .a-btn[aria-pressed="true"] {
+  outline: 2px solid var(--admin-accent, currentColor);
+}
 .lc-size {
   display: flex;
   align-items: center;

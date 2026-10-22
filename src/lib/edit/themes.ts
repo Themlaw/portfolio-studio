@@ -10,6 +10,7 @@ import { slugify } from "@/lib/slug";
 import { normalizePalette } from "@/themes/palette";
 import { ThemeSchema, type Theme } from "@/themes/schema";
 
+import { markOnboarding } from "./onboarding";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
 import { resetPublishedSitePalette } from "./site";
 
@@ -93,6 +94,7 @@ export function activateTheme(id: string, resetColors = false): ActionResult<nul
     .values({ key: "activeThemeId", value: JSON.stringify(id) })
     .onConflictDoUpdate({ target: schema.settings.key, set: { value: JSON.stringify(id) } })
     .run();
+  markOnboarding("theme");
   return done(null);
 }
 

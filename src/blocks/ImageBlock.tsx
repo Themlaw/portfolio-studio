@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 
 import Picture from "@/components/Picture";
+import { claimEager } from "@/lib/eager";
 import ViewerScope from "@/components/ViewerScope";
 import { RATIO_VALUES } from "@/lib/images/formats";
 import { cropSources } from "@/lib/images/crop";
@@ -57,6 +58,8 @@ export const imageSchema = z.object({
  * elle-même la géométrie de ses cases).
  */
 export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof imageSchema>; ctx: BlockContext }) {
+  // Avant tout await : l'ordre des réclamations est celui du document (lot 54).
+  const eager = claimEager(1) > 0;
   const media = await getMedia(props.mediaId);
   const image = media && !media.video && !media.pdf ? media : null;
   // Toile : la page en vue brouillon, ou une grille de planche (lot 31d : mêmes repères de média et de case que sur une page).
@@ -105,7 +108,8 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
             date: props.captionDate ? tr(props.captionDate, ctx.locale) : undefined,
             plain: true,
           },
-          (await getTranslations({ locale: ctx.locale, namespace: "gallery" }))("open"),
+          // Le bouton s'annonce avec la description (sinon la légende), puis « Agrandir l'image » (lot 52).
+          [image.alt ? tr(image.alt, ctx.locale) : caption, (await getTranslations({ locale: ctx.locale, namespace: "gallery" }))("open")].filter(Boolean).join(" — "),
         )
       : null;
   const ratioAttr = !free && props.ratio && props.ratio !== "auto" ? { "data-ratio": props.ratio } : {};
@@ -158,6 +162,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
             className="block-image-media h-auto w-full rounded-strip"
             cropped={Boolean(cropped)}
             fallback={fallback}
+            priority={eager}
           />
         </span>
       ) : ctx.edit ? (
@@ -180,7 +185,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
     </figure>
   );
   if (ctx.cell) return body;
-  const sectionClass = props.width === "full" ? "pt-[var(--section-gap)]" : "shell pt-[var(--section-gap)]";
+  const sectionClass = props.width === "full" ? "block-bleed pt-[var(--section-gap)]" : "shell pt-[var(--section-gap)]";
   return viewer ? (
     <ViewerScope as="section" className={sectionClass}>
       {body}

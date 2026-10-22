@@ -28,7 +28,7 @@ import {
 
 export default function CardSettings({ theme, onChange, sitePalette }: { theme: Theme; onChange: (card: Surface | undefined) => void; sitePalette?: SitePalette }) {
   const card = theme.tokens.layout?.card;
-  // Couleurs de la DA du thème, palette du site comprise quand le thème est en ligne (ce que verront les visiteurs).
+  // Couleurs du thème, palette du site comprise quand le thème est en ligne (ce que verront les visiteurs).
   const palette = effectiveSitePalette(theme.tokens.color, theme.tokens.palette, sitePalette);
   const resolved = resolveSurface(card ?? {});
   const style = cardStyle(resolved.color, palette);
@@ -57,7 +57,7 @@ export default function CardSettings({ theme, onChange, sitePalette }: { theme: 
           />
         </div>
         <p className="a-help">
-          {SURFACE_TOKEN_LABELS[resolved.color as keyof typeof SURFACE_TOKEN_LABELS] ?? `Couleur libre ${resolved.color}`}. Une couleur de la DA ou une teinte douce suit les changements de palette.{" "}
+          {SURFACE_TOKEN_LABELS[resolved.color as keyof typeof SURFACE_TOKEN_LABELS] ?? `Couleur libre ${resolved.color}`}. Une couleur du thème ou une teinte douce suit les changements de palette.{" "}
           {style.ok ? "Le texte se lit bien sur cette carte." : `Le texte se lit mal sur cette couleur (${style.ratio.toFixed(1).replace(".", ",")}:1, il faut 4,5:1).`}
         </p>
       </div>

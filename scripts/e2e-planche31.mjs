@@ -130,7 +130,6 @@ try {
   // Lot 31d : « + Ajouter une image » ouvre directement le choix dans la médiathèque (plus de case vide d'abord).
   await page.getByTestId("board-grid-add-image").click();
   await page.locator(".a-picker-scroll button").first().click();
-  await page.getByRole("button", { name: "Utiliser cette image" }).click();
   ok("B4 image choisie dans la grille", await waitFor(() => (json(project().draft_layout)?.[1]?.props?.children?.[0]?.props?.mediaId ?? 0) > 0), project().draft_layout);
   await settled();
   ok("B4b la grille est rendue sur la toile", await waitFor(async () => (await board.locator('[data-edit-bitem-type="grid"] .block-grid-cell img').count()) > 0));
@@ -141,7 +140,6 @@ try {
   ok("B5 image ajoutée au rang 2", await waitFor(() => JSON.stringify(draftTypes()) === '["strip","image","grid"]'), JSON.stringify(draftTypes()));
   await page.getByRole("button", { name: "Choisir une image" }).first().click();
   await page.locator(".a-picker-scroll button").first().click();
-  await page.getByRole("button", { name: "Utiliser cette image" }).click();
   ok("B5b image choisie (largeur « pleine »)", await waitFor(() => { const i = json(project().draft_layout)?.[1]; return i?.props?.mediaId > 0 && i.props.width === "full"; }));
   await settled();
   // Retirer la bande (barre du composant), puis Annuler / Rétablir.
@@ -190,7 +188,7 @@ try {
     await sleep(400);
   };
   /** Glisse `from` (page) jusqu'au point (x, y) de la page, après un arrêt pour laisser la toile dessiner ses repères ; `during` s'exécute avant de lâcher. */
-  async function drag(from, x, y, during) {
+  async function drag(from, x, y, during, aim) {
     // La palette est plus longue (lot 42, « Planche libre ») : la carte visée peut être sous la ligne de flottaison.
     await from.scrollIntoViewIfNeeded();
     const b = await from.boundingBox();
@@ -199,6 +197,13 @@ try {
     await page.mouse.move(b.x + b.width / 2 + 12, b.y + b.height / 2 + 12, { steps: 3 });
     await page.mouse.move(x, y, { steps: 14 });
     await sleep(500);
+    // Lot 54 : les légendes vides n'existent que sur le média survolé ; en entrant dans la planche, les cadres changent de hauteur.
+    // La cible est donc remesurée une fois le pointeur arrivé, puis visée de nouveau.
+    if (aim) {
+      const t = await aim();
+      await page.mouse.move(t.x, t.y, { steps: 6 });
+      await sleep(400);
+    }
     if (during) await during();
     await page.mouse.up();
     await sleep(800);
@@ -213,7 +218,7 @@ try {
   let markerSeen = false;
   await drag(page.locator('.ve-card[data-key="grid"]'), f0.x + f0.width / 2, f0.y + f0.height - 6, async () => {
     markerSeen = (await f.locator(".pe-marker-board").count()) > 0;
-  });
+  }, async () => { const b = await frame(0).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height - 6 }; });
   ok("E1 glisser une Grille entre deux composants de la planche", await waitFor(() => JSON.stringify(typesOf()) === '["grid","grid","image"]'), JSON.stringify(typesOf()));
   ok("E1b repère « Déposer ici » dans la planche pendant le glisser", markerSeen);
   await settled();
@@ -224,7 +229,7 @@ try {
   const f2 = await frame(2).boundingBox();
   // Dépôt aux trois quarts de la hauteur du cadre (moitié basse = « après l'image ») : le tout bas du cadre peut recouvrir la planche suivante
   // quand l'image garde son plafond d'avant (lot 39 corrigé à l'intégration v0.26), et le dépôt irait alors dans CETTE planche.
-  await drag(page.locator('.ve-card[data-key="board-strip"]'), f2.x + f2.width / 2, Math.min(f2.y + f2.height * 0.75, page.viewportSize().height - 12));
+  await drag(page.locator('.ve-card[data-key="board-strip"]'), f2.x + f2.width / 2, Math.min(f2.y + f2.height * 0.75, page.viewportSize().height - 12), undefined, async () => { const b = await frame(2).boundingBox(); return { x: b.x + b.width / 2, y: Math.min(b.y + b.height * 0.75, page.viewportSize().height - 12) }; });
   ok("E2 glisser « Images qui défilent » en bas de la planche", await waitFor(() => JSON.stringify(typesOf()) === '["grid","grid","image","strip"]'), JSON.stringify(typesOf()));
   await settled();
   // Dépôt hors cible : un composant lâché hors de la toile ne change ni la planche ni la page.
@@ -244,21 +249,21 @@ try {
   await page.getByRole("tab", { name: "Médias" }).click();
   await center(frame(2));
   let fr = await frame(2).boundingBox();
-  await drag(li(1), fr.x + fr.width / 2, fr.y + fr.height / 2);
+  await drag(li(1), fr.x + fr.width / 2, fr.y + fr.height / 2, undefined, async () => { const b = await frame(2).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
   ok("F1 un média glissé sur une Image la remplace", await waitFor(() => byUid(imUid)?.props?.mediaId === B), JSON.stringify(byUid(imUid)?.props));
   await settled();
   const rail1 = layout()[3].uid;
   await page.getByRole("tab", { name: "Médias" }).click();
   await center(frame(3));
   fr = await frame(3).boundingBox();
-  await drag(li(0), fr.x + fr.width / 2, fr.y + fr.height / 2);
+  await drag(li(0), fr.x + fr.width / 2, fr.y + fr.height / 2, undefined, async () => { const b = await frame(3).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
   ok("F2 un média glissé sur un carrousel l'ajoute", await waitFor(() => JSON.stringify(byUid(rail1)?.props?.media) === JSON.stringify([A])), JSON.stringify(byUid(rail1)?.props));
   await settled();
   const g2 = layout()[1].uid;
   await page.getByRole("tab", { name: "Médias" }).click();
   await center(frame(1));
   fr = await frame(1).boundingBox();
-  await drag(li(2), fr.x + fr.width / 2, fr.y + fr.height / 2);
+  await drag(li(2), fr.x + fr.width / 2, fr.y + fr.height / 2, undefined, async () => { const b = await frame(1).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
   ok("F3 un média glissé sur une Grille l'ajoute", await waitFor(() => (byUid(g2)?.props?.children ?? []).length === 1), JSON.stringify(byUid(g2)?.props));
   await settled();
   // Un 2e carrousel (menu « + »), avec d'autres images.
@@ -271,11 +276,11 @@ try {
   const rail2 = layout()[4].uid;
   await center(frame(4));
   fr = await frame(4).boundingBox();
-  await drag(li(1), fr.x + fr.width / 2, fr.y + fr.height / 2);
+  await drag(li(1), fr.x + fr.width / 2, fr.y + fr.height / 2, undefined, async () => { const b = await frame(4).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
   await settled();
   await center(frame(4));
   fr = await frame(4).boundingBox();
-  await drag(li(2), fr.x + fr.width / 2, fr.y + fr.height / 2);
+  await drag(li(2), fr.x + fr.width / 2, fr.y + fr.height / 2, undefined, async () => { const b = await frame(4).boundingBox(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; });
   ok("F5 deux carrousels aux images différentes", await waitFor(() => JSON.stringify(byUid(rail2)?.props?.media) === JSON.stringify([B, C]) && JSON.stringify(byUid(rail1)?.props?.media) === JSON.stringify([A])), `${JSON.stringify(byUid(rail1)?.props)} / ${JSON.stringify(byUid(rail2)?.props)}`);
   await settled();
   // G : clic sur une vignette quand un composant est choisi.
@@ -517,7 +522,8 @@ try {
   await sleep(500);
   await page.getByRole("tab", { name: "Ajouter" }).click();
   await page.locator('.ve-card[data-key="board-strip"]').click();
-  ok("N2 sans planche choisie : message clair (rien d'ajouté)", await waitFor(async () => (await page.locator(".a-toast", { hasText: "se pose dans une planche de projet" }).count()) > 0) && rails() === r0 + 1);
+  // Lot 57 : sans rien de choisi, le carrousel va dans l'UNIQUE projet de la page (ajouté à la fin) ; avec zéro ou plusieurs projets, un message explique le geste.
+  ok("N2 sans composant choisi : ajouté dans l'unique projet de la page, ou message clair", await waitFor(async () => rails() === r0 + 2 || (await page.locator(".a-toast", { hasText: "se place dans un projet" }).count()) > 0));
 
   // O : fichiers de l'ordinateur déposés sur les composants (progression et erreurs de l'envoi normal).
   const png = await sharp({ create: { width: 160, height: 90, channels: 3, background: { r: 200, g: 90, b: 60 } } }).png().toBuffer();

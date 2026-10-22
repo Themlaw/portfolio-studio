@@ -135,8 +135,8 @@ try {
   // Publiée depuis la liste, pour voir la page quitter le site.
   await goto("/admin/pages");
   const row = () => page.locator("tr", { hasText: "Carnets 23" });
-  await row().getByRole("button", { name: "Publier", exact: true }).click();
-  await toast("publiée");
+  await row().getByRole("button", { name: "Mettre en ligne", exact: true }).click();
+  await toast("en ligne");
   ok("A6 page publiée : 200 en public", (await anon("/fr/carnets-23")).status === 200);
 
   // F1 : l'adresse est en petit et en gris sous le titre.
@@ -291,7 +291,7 @@ try {
   await goto("/admin/medias");
   const libre = () => page.locator(".a-media-tile", { hasText: "libre-23.png" });
   const alt = libre().locator(".a-alt-badge");
-  ok("C6 pastille « texte alternatif manquant » : icône avec infobulle, plus le sigle « alt »", (await alt.getAttribute("title")) === "Texte alternatif manquant" && (await alt.locator("svg").count()) === 1 && !/^alt$/i.test((await alt.innerText()).trim().split(/\s+/)[0] ?? ""));
+  ok("C6 pastille « description manquante » : icône avec infobulle, plus le sigle « alt »", (await alt.getAttribute("title")) === "Description manquante" && (await alt.locator("svg").count()) === 1 && !/^alt$/i.test((await alt.innerText()).trim().split(/\s+/)[0] ?? ""));
   await libre().click();
   await panel.locator("h3", { hasText: "Utilisée dans" }).waitFor();
   await page.waitForFunction(() => !document.querySelector(".a-sidepanel")?.textContent?.includes("Recherche…"));

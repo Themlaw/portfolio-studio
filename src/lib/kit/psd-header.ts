@@ -20,9 +20,14 @@ export type PsdPreflight = {
   layerArea: number;
   /** Plus grand calque déclaré (px). */
   largestLayer: number;
+  /** Fichier plus court que ce qu'il annonce (coupé, envoi interrompu). */
+  truncated?: boolean;
 };
 
 export class PsdPreflightError extends Error {}
+
+/** Message d'un PSD illisible (tronqué, abîmé) : la cause est le fichier, pas le serveur. */
+export const DAMAGED_FILE = "Le fichier semble abîmé ou incomplet : réenregistre-le depuis Photoshop, puis renvoie-le.";
 
 const COLOR_MODES: Record<number, string> = { 0: "bitmap", 1: "niveaux de gris", 2: "couleurs indexées", 3: "RVB", 4: "CMJN", 7: "multicanal", 8: "bichromie", 9: "Lab" };
 
@@ -34,8 +39,14 @@ export async function preflightPsd(file: string, maxLayers = 400): Promise<PsdPr
     const read = async (n: number) => {
       const buf = Buffer.alloc(n);
       const { bytesRead } = await fh.read(buf, 0, n, pos);
-      if (bytesRead !== n) throw new PsdPreflightError("Fichier PSD tronqué.");
+      if (bytesRead !== n) throw new PsdPreflightError(DAMAGED_FILE);
       pos += n;
+      return buf;
+    };
+    const readAt = async (at: number, n: number) => {
+      const buf = Buffer.alloc(n);
+      const { bytesRead } = await fh.read(buf, 0, n, at);
+      if (bytesRead !== n) throw new PsdPreflightError(DAMAGED_FILE);
       return buf;
     };
     const head = await read(26);
@@ -56,6 +67,30 @@ export async function preflightPsd(file: string, maxLayers = 400): Promise<PsdPr
     pos += resourcesLen;
     // Calques et masques.
     const lmLen = big ? Number((await read(8)).readBigUInt64BE(0)) : (await read(4)).readUInt32BE(0);
+    // Fichier plus court que ce qu'il annonce (envoi interrompu, fichier coupé) : le décodeur, lui, comble les trous sans rien dire.
+    // Signalé ici, refusé APRÈS les autres contrôles (taille de document, mode…), qui disent mieux ce qui ne va pas.
+    let truncated = pos + lmLen > fileBytes;
+    const imageStart = pos + lmLen;
+    if (!truncated) {
+      if (imageStart + 2 > fileBytes) truncated = true;
+      else {
+        const compression = (await readAt(imageStart, 2)).readUInt16BE(0);
+        const plane = height * channels;
+        if (compression === 0) {
+          truncated = imageStart + 2 + plane * Math.ceil((width * depth) / 8) > fileBytes;
+        } else if (compression === 1) {
+          // RLE : table des longueurs de lignes (2 ou 4 octets chacune), puis les lignes.
+          const w1 = big ? 4 : 2;
+          if (imageStart + 2 + plane * w1 > fileBytes) truncated = true;
+          else {
+            const table = await readAt(imageStart + 2, plane * w1);
+            let sum = 0;
+            for (let i = 0; i < plane; i++) sum += big ? table.readUInt32BE(i * 4) : table.readUInt16BE(i * 2);
+            truncated = imageStart + 2 + plane * w1 + sum > fileBytes;
+          }
+        }
+      }
+    }
     let layerCount = 0;
     let layerArea = 0;
     let largestLayer = 0;
@@ -64,7 +99,7 @@ export async function preflightPsd(file: string, maxLayers = 400): Promise<PsdPr
       if (liLen > 0) {
         layerCount = Math.abs((await read(2)).readInt16BE(0));
         if (layerCount > maxLayers) {
-          return { fileBytes, version, channels, width, height, depth, colorMode, layerCount, layerArea: 0, largestLayer: 0 };
+          return { fileBytes, version, channels, width, height, depth, colorMode, layerCount, layerArea: 0, largestLayer: 0, truncated };
         }
         for (let i = 0; i < layerCount; i++) {
           const rec = await read(18);
@@ -82,7 +117,7 @@ export async function preflightPsd(file: string, maxLayers = 400): Promise<PsdPr
         }
       }
     }
-    return { fileBytes, version: version as 1 | 2, channels, width, height, depth, colorMode, layerCount, layerArea, largestLayer };
+    return { fileBytes, version: version as 1 | 2, channels, width, height, depth, colorMode, layerCount, layerArea, largestLayer, truncated };
   } finally {
     await fh.close();
   }
@@ -121,5 +156,6 @@ export function preflightProblem(p: PsdPreflight, limits: PreflightLimits): stri
   if (p.layerArea > maxArea) {
     return `Les calques couvrent ${Math.round(p.layerArea / 1e6)} mégapixels au total : ${Math.round(maxArea / 1e6)} au plus. Supprime ou rogne les calques pleine toile en trop.`;
   }
+  if (p.truncated) return DAMAGED_FILE;
   return null;
 }

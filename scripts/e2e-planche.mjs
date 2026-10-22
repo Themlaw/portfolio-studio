@@ -164,7 +164,6 @@ try {
   const picker = page.locator("dialog[open]");
   await picker.getByPlaceholder("Rechercher par nom ou tag…").fill("e2e-grand");
   await picker.locator(".a-media-tile", { hasText: "e2e-grand.jpg" }).first().click();
-  await picker.getByRole("button", { name: "Utiliser cette image" }).click();
   await toast("Image placée");
   await page.waitForTimeout(800);
   ok("P7 place remplie depuis la médiathèque", (await page.locator(".a-strip .a-slot-empty").count()) === 0);
@@ -179,8 +178,8 @@ try {
 
   await openSlot("E2e grand");
   const panel = page.locator(".a-slot-panel");
-  ok("P9 avertissement : texte alternatif manquant", await panel.locator(".a-notice", { hasText: "Texte alternatif manquant" }).isVisible());
-  await panel.getByLabel("Texte alternatif de l'image", { exact: true }).fill("Rectangle jaune sur fond brique");
+  ok("P9 avertissement : description manquante", await panel.locator(".a-notice", { hasText: "Description manquante" }).isVisible());
+  await panel.getByLabel("Description de l'image (pour les personnes malvoyantes et Google)", { exact: true }).fill("Rectangle jaune sur fond brique");
   await panel.getByRole("button", { name: "Enregistrer", exact: true }).click();
   await toast("Emplacement enregistré");
 

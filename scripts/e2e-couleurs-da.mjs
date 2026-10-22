@@ -334,7 +334,7 @@ if (run("D"))
     exec("insert into settings (key, value) values ('styles', ?) on conflict(key) do update set value = excluded.value", JSON.stringify({ palette: { primary: "#1d4d7a", secondary: "#8a3b12" } }));
     await page.reload({ waitUntil: "networkidle" });
     const note = page.locator('[data-testid="da-site-override"]');
-    ok("D1 surcharge active : « Le site remplace 2 de ces couleurs depuis l'éditeur de page »", await note.waitFor({ timeout: 20000 }).then(() => true, () => false) && /Le site remplace 2 de ces couleurs depuis l'éditeur de page/.test((await note.textContent()) ?? ""), (await note.textContent().catch(() => "")) ?? "");
+    ok("D1 surcharge active : « Couleurs personnalisées du site : 2 de ces couleurs sont remplacées »", await note.waitFor({ timeout: 20000 }).then(() => true, () => false) && /Couleurs personnalisées du site : 2 de ces couleurs sont remplacées depuis l'éditeur de page/.test((await note.textContent()) ?? ""), (await note.textContent().catch(() => "")) ?? "");
     ok("D2 l'avertissement nomme les couleurs remplacées", /boutons et liens/.test((await note.textContent()) ?? "") && /accent/.test((await note.textContent()) ?? ""));
     const link = page.locator('[data-testid="da-site-override-link"]');
     ok("D3 lien vers l'éditeur de page", /\/admin\/pages\/1\/editer$/.test((await link.getAttribute("href")) ?? ""));
@@ -471,7 +471,7 @@ if (run("F"))
     await page.keyboard.press("Escape");
     await settled();
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    ok("F4 page publiée", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+    ok("F4 page publiée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
     const cardVar = async () => {
       const html = await (await fetch(`${BASE}/fr/a-propos`, { cache: "no-store" })).text();
       return /--card-bg:\s*(#[0-9a-fA-F]{6})/.exec(html)?.[1]?.toLowerCase() ?? null;

@@ -128,7 +128,7 @@ async function openEditor(id) {
 async function publish() {
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 /** Variable de couleur du thème, telle que la toile l'affiche (notation rvb du navigateur). */
 const themeVar = (f, name) =>
@@ -215,9 +215,9 @@ if (run("P")) {
   await page.screenshot({ path: `${SHOTS}/P-selecteur-fond-1440.png` });
   await settled();
   ok("P3c brouillon du site : palette.bg enregistrée", await waitFor(() => nearHex(siteDraftStyles()?.palette?.bg, NEW_BG)), JSON.stringify(siteDraftStyles()));
-  ok("P3d état de l'éditeur : brouillon enregistré, rien en ligne", /Brouillon/.test((await page.locator(".ve-status").textContent()) ?? "") && setting("styles") === null);
+  ok("P3d état de l'éditeur : brouillon enregistré, rien en ligne", /Brouillon|Modifications non publiées/.test((await page.locator(".ve-status").textContent()) ?? "") && setting("styles") === null);
   ok("P3e le thème n'est jamais modifié", activeThemeRow() === themeRow);
-  ok("P3f le rôle est marqué « modifiée »", /modifiée/.test((await role("Fond de page").locator(".lc-state").textContent()) ?? ""));
+  ok("P3f le rôle est marqué « modifiée »", /modifiée|personnalisée/.test((await role("Fond de page").locator(".lc-state").textContent()) ?? ""));
   ok("P3g toile après acquittement du serveur : même couleur (pas de retour à l'ancienne)", nearRgbStr(await bodyBg(f), NEW_BG));
 
   /* P3''. Fond trop teinté : le défaut vient d'une NUANCE (fond profond), l'avertissement et l'ajustement la voient */
@@ -241,13 +241,13 @@ if (run("P")) {
   await pickColor("Texte", BAD_INK);
   ok("P4a avertissement clair + proposition", await waitFor(async () => /Lisibilité insuffisante/.test((await page.locator('[data-testid="contrast-status"]').textContent().catch(() => "")) ?? "")) && (await page.getByTestId("contrast-fix").isVisible()));
   ok("P4b le rôle est signalé en erreur", (await role("Texte").getAttribute("data-invalid")) !== null);
-  ok("P4b' avertissement en tête du panneau (non bloquant) : couleurs appliquées quand même, thème nommé", await waitFor(async () => /appliquées quand même/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "") && /thème actif/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "") && /lisibilité insuffisante/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "")));
+  ok("P4b' avertissement en tête du panneau (non bloquant) : couleurs appliquées quand même, thème nommé", await waitFor(async () => /appliquées quand même/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "") && /avec le thème/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "") && /lisibilité insuffisante/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? "")));
   ok("P4b'' l'avertissement n'est pas une alerte bloquante (role=status)", (await page.getByTestId("palette-ignored").getAttribute("role")) === "status");
   await settled();
   ok("P4c la saisie n'est pas bloquée : palette.ink enregistrée au brouillon", await waitFor(() => nearHex(siteDraftStyles()?.palette?.ink, BAD_INK)), JSON.stringify(siteDraftStyles()));
   await page.screenshot({ path: `${SHOTS}/P-contraste-alerte-1440.png` });
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  ok("P4d publication ACCEPTÉE malgré le manque de contraste (lot 29)", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 60000));
+  ok("P4d publication ACCEPTÉE malgré le manque de contraste (lot 29)", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 60000));
   ok("P4e la couleur peu contrastée est publiée telle quelle, sans retour aux couleurs du thème", await waitFor(() => nearHex(setting("styles")?.palette?.ink, BAD_INK)), JSON.stringify(setting("styles")));
   ok("P4e' public : la feuille de la palette porte le texte choisi", /--t-color-ink:#eee6d4/.test(((await (await fetch(`${BASE}/fr`)).text()).match(/<style id="site-palette"[^>]*>([^<]*)<\/style>/) ?? [])[1] ?? ""));
   await page.getByTestId("contrast-fix").click();

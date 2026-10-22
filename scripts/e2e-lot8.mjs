@@ -113,7 +113,7 @@ async function openEditor(id, p = page) {
   }
   return f;
 }
-const published = (p = page) => until(p, () => /^Publié/.test(document.querySelector(".ve-status")?.textContent?.trim() ?? "") && !document.querySelector(".ve-alert[role=alert]"), null, 90000);
+const published = (p = page) => until(p, () => /^(Publié|En ligne)/.test(document.querySelector(".ve-status")?.textContent?.trim() ?? "") && !document.querySelector(".ve-alert[role=alert]"), null, 90000);
 async function publish(p = page) {
   await p.getByRole("button", { name: "Publier" }).click();
   return published(p);

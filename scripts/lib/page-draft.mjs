@@ -48,6 +48,9 @@ export async function publishBlocks(page, base, pageId, mutate, done, timeout = 
   const publish = page.getByRole("button", { name: "Publier", exact: true });
   await publish.waitFor({ timeout });
   await publish.click();
+  // Page jamais mise en ligne (lot 51) : « Publier » demande d'abord « Mettre cette page en ligne ? ».
+  const confirm = page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" });
+  if (await confirm.waitFor({ timeout: 4000 }).then(() => true, () => false)) await confirm.click();
   const end = Date.now() + timeout;
   while (Date.now() < end) {
     if (done()) {

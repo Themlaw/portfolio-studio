@@ -133,7 +133,7 @@ try {
   const source = page.locator(".a-theme-card:has(#theme-galerie-lumineuse)");
   // Le toast est affiché dès le clic et s'efface en quelques secondes : on l'attend en même temps que la navigation
   // (sur une machine lente, l'éditeur de la copie arrive après sa disparition).
-  const duplicated = toast("dupliqué");
+  const duplicated = toast("Copie créée");
   duplicated.catch(() => {}); // rejet traité au await plus bas (pas de rejet non géré entre-temps)
   await menuItem(source, "Dupliquer");
   await page.waitForURL(/\/admin\/themes\/[a-z0-9-]+$/);
@@ -147,9 +147,9 @@ try {
 
   await page.locator('[data-testid="palette-details"] summary').click();
   const inkSoft = page.locator('.a-color[data-token="inkSoft"]');
-  await inkSoft.getByLabel(/^Texte secondaire/).fill("#c4c4c4");
+  await inkSoft.locator(".a-color-hex").fill("#c4c4c4");
   ok("A3 couleur sous AA signalée", await inkSoft.locator(".a-ratio-bad").isVisible());
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   // Depuis la v0.21.1 le contraste n'est jamais bloquant : le thème est enregistré, l'avertissement (A3) reste affiché.
   await toast("Enregistré");
   ok(
@@ -159,7 +159,7 @@ try {
   );
   ok("A4b l'avertissement de lisibilité reste affiché après l'enregistrement", await inkSoft.locator(".a-ratio-bad").isVisible());
   await inkSoft.getByRole("button", { name: /Ajuster à la teinte la plus proche/ }).click();
-  const adjusted = await inkSoft.getByLabel(/^Texte secondaire/).inputValue();
+  const adjusted = await inkSoft.locator(".a-color-hex").inputValue();
   ok("A5 « Ajuster » propose une teinte qui passe AA", await inkSoft.locator(".a-ratio-ok").isVisible(), adjusted);
 
   const NEW_PRIMARY = "#7a2e8e";
@@ -171,7 +171,7 @@ try {
   await page.waitForTimeout(300);
   ok("A6b forme changée en direct (boutons droits)", (await frame.locator("html").getAttribute("data-button")) === "square");
 
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   await toast("Enregistré");
   ok("A7 thème enregistré, état « Enregistré »", await page.locator(".a-save-state", { hasText: /✓\s*Enregistré/ }).waitFor({ timeout: 10000 }).then(() => true, () => false));
 
@@ -251,13 +251,14 @@ try {
   ok("B4a le formulaire n'a plus de liste de rubriques ni de « + Ajouter une rubrique »", (await page.getByRole("button", { name: "+ Ajouter une rubrique" }).count()) === 0 && (await page.locator(".a-block").count()) === 0);
   const toEditor = page.getByRole("link", { name: "Modifier le contenu dans l'éditeur" });
   ok("B4b lien « Modifier le contenu dans l'éditeur » vers l'éditeur de la page", (await toEditor.getAttribute("href")) === `/admin/pages/${pageId}/editer` && /2 rubriques/.test(await page.locator("#pe-contenu").locator("..").innerText()));
-  await page.locator("label.a-toggle", { hasText: "Publiée" }).click();
+  // Lot 51 : « Publier » dans l'éditeur a déjà mis la page en ligne (un seul geste) ; le formulaire le dit.
+  ok("B4c0 le formulaire dit « En ligne » (mise en ligne faite par l'éditeur)", await page.getByRole("switch", { name: "En ligne" }).isChecked());
   await page.locator("label.a-toggle", { hasText: "Dans le menu" }).click();
-  ok("B4c interrupteurs activés", (await page.getByRole("switch", { name: "Publiée" }).isChecked()) && (await page.getByRole("switch", { name: "Dans le menu" }).isChecked()));
+  ok("B4c interrupteurs activés", (await page.getByRole("switch", { name: "En ligne" }).isChecked()) && (await page.getByRole("switch", { name: "Dans le menu" }).isChecked()));
   ok("B5 état « non enregistré » visible", await page.locator(".a-save-state", { hasText: "non enregistrées" }).isVisible());
   // Prévisualiser avant d'enregistrer : le formulaire prévient que l'aperçu montre la version enregistrée.
   ok("B5b l'aperçu signale qu'il montre la version enregistrée", await page.getByText("L'aperçu montre la version enregistrée").isVisible());
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   await toast("Enregistré");
   ok("B5c enregistrer par le formulaire ne change pas les blocs", sdbBlocks(pageId).join(",") === "contact,rich-text");
 
@@ -279,8 +280,8 @@ try {
   // Dépublier depuis la liste → 404, mais l'aperçu admin la montre encore.
   await page.goto(`${BASE}/admin/pages`, { waitUntil: "networkidle" });
   const row = page.locator("tr", { hasText: "Carnets d'été" });
-  await row.getByRole("button", { name: "Dépublier" }).click();
-  await toast("dépubliée");
+  await row.getByRole("button", { name: "Retirer du site" }).click();
+  await toast("retirée du site");
   r = await anon("/fr/carnets");
   ok("B10 page dépubliée → 404 pour les visiteurs", r.status === 404, String(r.status));
   r = await anon("/fr");
@@ -340,12 +341,12 @@ try {
     await page.getByLabel("Adresse du profil").fill(`https://example.com/reseau-${i + 1}`);
     await page.getByRole("button", { name: "Enregistrer le lien" }).click();
   }
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   await toast("Enregistré");
   r = await anon("/fr/decors");
   ok("C2 le pied de page public change", r.html.includes("Mention modifiée par le test") && r.html.includes("https://example.com/reseau-1"));
   await credit.locator("input").fill(originalCredit);
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   await toast("Enregistré");
   r = await anon("/fr/decors");
   ok("C3 mention d'origine restaurée", r.html.includes(originalCredit));

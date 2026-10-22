@@ -161,7 +161,7 @@ export const ELEMENTS: ElementSpec[] = [
     aliases: ["signature", "logo"],
     board: { x: 0, y: 2140, w: 2300, h: 572 },
     where: "Ce que tu dessines ici remplace ton nom écrit en haut à gauche de toutes les pages.",
-    rules: ["1200 × 300 px, fond transparent. Plusieurs couleurs : elles sont gardées. Une seule couleur : le site la teinte.", IGNORED_RULE, "Pas envie ? Laisse-la telle quelle : ton nom reste écrit."],
+    rules: ["1200 × 300 px, fond transparent. Plusieurs couleurs : elles sont gardées. Une seule couleur : le site la teinte selon le nom du site.", IGNORED_RULE, "Pas envie ? Laisse-la telle quelle : ton nom reste écrit."],
   },
   {
     id: "papier",
@@ -191,7 +191,7 @@ export const ELEMENTS: ElementSpec[] = [
     aliases: ["cadre-des-entrees-de-collection", "cadre-des-images-agrandies", "cadre"],
     board: { x: 0, y: 2782, w: 1400, h: 560 },
     where: "Ce que tu dessines ici entoure la grande image de chaque collection (Personnages, Décors…) sur l'accueil.",
-    rules: ["300 × 300 px, centre transparent.", "Les 48 px du bord (lignes vertes) s'étirent ; les coins restent fixes.", IGNORED_RULE, KEEP_RULE],
+    rules: ["300 × 300 px, centre transparent.", "Lignes vertes : coins fixes, côtés répétés.", IGNORED_RULE, KEEP_RULE],
   },
   {
     id: "icones",
@@ -305,6 +305,9 @@ export const SLOTS: SlotSpec[] = [
     transparent: true,
     mono: false,
     slice: { top: 48, right: 48, bottom: 48, left: 48 },
+    // Toujours en bitmap (lot 58) : un SVG sans dimensions (SVGO les retire) prend la taille de la photo, donc la découpe en
+    // 48 px et l'épaisseur du bord changeaient d'une photo à l'autre. Un bitmap de 300 px garde ses 48 px, nets en écran 2x.
+    bitmapOnly: true,
     crop: false,
   },
   { id: "trait", element: "trait", layer: "Trait", label: "Trait", aliases: ["trait"], kind: "stroke", size: { w: 1200, h: 80 }, v1: { x: 80, y: 2100 }, transparent: true, mono: true, crop: true },
@@ -421,8 +424,8 @@ export const MULTI_CARDS: MultiCard[] = [
     title: "1 · Logo — case de 2400 × 600 px",
     where: "Ce que tu dessines ici remplace ton nom écrit en haut à gauche de toutes les pages.",
     rules: [
-      "Dessine en grand : le site réduit la case de moitié (1200 × 300 px au plus à l'écran).",
-      "Fond transparent. Plusieurs couleurs : elles sont gardées ; une seule couleur : le site la teinte selon le thème.",
+      "Le site affiche ton logo à environ 160 × 40 px au départ (réglable : « Taille du logo », dans l'éditeur). Garde des traits épais : un trait de moins de 12 px dans la case devient gris à l'écran.",
+      "Fond transparent. Plusieurs couleurs : elles sont gardées ; une seule couleur : le site la teinte, comme le Nom du site.",
       "Zone utile (pointillés) : garde le dessin à l'intérieur ; ce qui dépasse de la case est coupé.",
       IGN,
       "Pas envie ? Laisse-le tel quel : ton nom reste écrit.",
@@ -500,7 +503,13 @@ export const MULTI_CARDS: MultiCard[] = [
     board: { x: 0, y: 3290, w: 3400, h: 1250 },
     title: "3 · Cadre des entrées de collection — case de 900 × 900 px",
     where: "Ce que tu dessines ici entoure la grande image de chaque collection (Personnages, Décors…) sur l'accueil.",
-    rules: ["Dessine en grand : réduit au tiers (300 × 300 px).", "Centre transparent.", "Les 144 px du bord (lignes vertes) s'étirent ; les coins restent fixes.", IGN, KEEP],
+    rules: [
+      "Option A (conseillée) : dessine UN cadre carré complet dans la case, centre transparent. Les lignes vertes montrent où il est découpé : les 4 coins (144 px) restent tels quels, les 4 côtés répètent leur motif en boucle, sans être étirés.",
+      "Option B (avancée) : dessine seulement le coin du haut à gauche et le côté du haut (cadres orange) et laisse tout le reste vide : le site tourne ces deux dessins pour faire les 4 coins et les 4 côtés.",
+      "Dessine en grand : réduit au tiers (300 × 300 px).",
+      IGN,
+      KEEP,
+    ],
     panel: { x: 1020, y: 92, w: 2300 },
     vignette: { x: 1020, y: 760, w: 480, h: 300 },
   },

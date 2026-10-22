@@ -167,8 +167,11 @@ const ADMIN_ACTIONS = [
   "deleteThemeAction",
   "resetSiteColorsAction",
   "saveSettingsAction",
+  "saveSeoAction",
+  "markMessagesSeenAction",
+  "setOnboardingHiddenAction",
   "createPageAction",
-  "savePageAction",
+  "savePageInfoAction",
   "saveDraftAction",
   "publishDraftAction",
   "discardDraftAction",
@@ -257,9 +260,22 @@ function callAction(jar, id, fields = {}, origin = BASE, page = "/admin/themes")
   return http(page, { jar, method: "POST", form, headers: { origin } });
 }
 
-/** savePageAction avec la version courante de la page (contrôle optimiste). */
+/**
+ * Ancien « formulaire de page » (savePageAction, retiré au lot 51 : un seul Publier) : enregistre le contenu en brouillon puis
+ * le publie. `rev` : version supposée (défaut : la courante) ; une version périmée ou un brouillon illisible sont refusés
+ * dès l'enregistrement, comme avant.
+ */
+async function savePageForm(jar, id, payload, rev = query(dirA, "select draft_rev r from pages where id = ?", id)?.r, page = "/admin") {
+  // Les actions du brouillon se résolvent depuis l'écran de l'éditeur ; les rubriques du brouillon portent un `uid`.
+  const editor = `/admin/pages/${id}/editer`;
+  const draft = Array.isArray(payload?.blocks) ? { ...payload, blocks: payload.blocks.map((b, i) => (b.uid ? b : { ...b, uid: `f${i}` })) } : payload;
+  const saved = await callActionJson(jar, ids.saveDraftAction, [id, draft, rev], editor);
+  if (!saved.text.includes('"ok":true')) return saved;
+  const next = Number(/"rev":(\d+)/.exec(saved.text)?.[1]);
+  return callActionJson(jar, ids.publishDraftAction, [id, next], editor);
+}
 function callSavePage(jar, [id, payload], page) {
-  return callActionJson(jar, ids.savePageAction, [id, payload, query(dirA, "select draft_rev r from pages where id = ?", id)?.r], page);
+  return savePageForm(jar, id, payload, undefined, page);
 }
 
 /** Appel direct d'une server action (arguments JSON), comme le ferait un client forgé. */
@@ -524,11 +540,12 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   const screen =
     name === "applyKitImportAction" ? "/admin/themes/galerie-lumineuse/kit"
     : name === "saveThemeAction" ? "/admin/themes/galerie-lumineuse"
-    : name === "savePageAction" ? "/admin/pages/1"
+    : name === "savePageInfoAction" ? "/admin/pages/1"
     : name === "deleteFontAction" ? "/admin/reglages"
+    : /Onboarding/.test(name) ? "/admin"
     : /Draft|[bB]oard|Font/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
-    : /Settings/.test(name) ? "/admin/reglages"
+    : /Settings|Seo/.test(name) ? "/admin/reglages"
     : /Message/.test(name) ? "/admin/messages"
     : /[wW]allpaper/.test(name) ? "/admin/papiers-peints"
     : /^(create|delete|reorder|restore)Projects?Action$/.test(name) ? "/admin/projets"
@@ -568,7 +585,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   const discard = (rev, id = homeId) => callActionJson(jar, ids.discardDraftAction, [id, rev], editor);
   const isOk = (res) => res.text.includes('"ok":true');
   // Ligne de résultat de l'action (le reste de la réponse est l'arbre RSC rendu).
-  const line = (res) => res.text.split("\n").filter((l) => l.includes('"ok":')).join(" ").slice(0, 300) || line(res);
+  const line = (res) => res.text.split("\n").filter((l) => l.includes('"ok":')).join(" ").slice(0, 300) || res.text.slice(0, 200);
   const code = (res) => /"code":"(\w+)"/.exec(res.text)?.[1];
 
   let res = await save(draft, pageRev(homeId));
@@ -731,7 +748,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("ED11b onglet B en retard → refusé (conflit), brouillon intact", code(res) === "conflict" && JSON.stringify(draftOf(homeId)).includes(SECRET_TITLE), line(res));
   res = await publish(stale);
   ok("ED11c publier avec une version périmée → refusé (conflit)", code(res) === "conflict" && Boolean(draftOf(homeId)));
-  res = await callActionJson(jar, ids.savePageAction, [homeId, { ...base, blocks: published }, stale], `/admin/pages/${homeId}`);
+  res = await savePageForm(jar, homeId, { ...base, blocks: published }, stale, `/admin/pages/${homeId}`);
   ok("ED11d formulaire avec une version périmée → refusé (conflit), rien d'écrasé", code(res) === "conflict" && Boolean(draftOf(homeId)));
   res = await discard(stale);
   ok("ED11e abandonner avec une version périmée → refusé", code(res) === "conflict" && Boolean(draftOf(homeId)));
@@ -768,7 +785,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   res = await publish(pageRev(aboutId), aboutId);
   ok("ED14 publier une autre page qui partage le projet → surcouche de l'accueil intacte", isOk(res) && query(dirA, "select media_id m, draft_state s from slots where id = ?", slot.id).m === slot.mediaId && query(dirA, "select draft_state s from slots where id = ?", slot.id).s === "removed", line(res));
   // Remise en état de « À propos ».
-  await callActionJson(jar, ids.savePageAction, [aboutId, { ...aboutDraft, blocks: aboutBlocks }, pageRev(aboutId)], `/admin/pages/${aboutId}`);
+  await savePageForm(jar, aboutId, { ...aboutDraft, blocks: aboutBlocks }, pageRev(aboutId), `/admin/pages/${aboutId}`);
 
   // Publier : appliqué, revalidé.
   res = await save(draft, pageRev(homeId));
@@ -797,7 +814,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("ED17 brouillon illisible : l'enregistrement automatique refuse de l'écraser", code(res) === "corrupt" && JSON.stringify(draftOf(homeId)).includes("type-disparu"), line(res));
   res = await publish(rev);
   ok("ED17b … la publication aussi", code(res) === "corrupt");
-  res = await callActionJson(jar, ids.savePageAction, [homeId, { ...base, blocks: published }, rev], `/admin/pages/${homeId}`);
+  res = await savePageForm(jar, homeId, { ...base, blocks: published }, rev, `/admin/pages/${homeId}`);
   ok("ED17c … et le formulaire", code(res) === "corrupt" && JSON.stringify(draftOf(homeId)).includes("type-disparu"));
   r = await http(editor, { jar });
   ok("ED17d l'éditeur le signale avec « Repartir de la version publiée »", (await r.text()).includes("Repartir de la version publiée"));
@@ -836,7 +853,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("ED20c session (admin) → lien vers l'éditeur de la page", who.admin === true && who.editUrl === `/admin/pages/${homeId}/editer?langue=fr` && (r.headers.get("cache-control") ?? "").includes("no-store"), JSON.stringify(who));
 
   // Remise en état : accueil d'origine, média remis, projet ED supprimé.
-  res = await callActionJson(jar, ids.savePageAction, [homeId, { ...base, blocks: published }, pageRev(homeId)], `/admin/pages/${homeId}`);
+  res = await savePageForm(jar, homeId, { ...base, blocks: published }, pageRev(homeId), `/admin/pages/${homeId}`);
   ok("ED21 formulaire : accueil d'origine republié", isOk(res) && !draftOf(homeId), line(res));
   res = await callActionJson(jar, ids.setSlotMediaAction, [slot.id, slot.mediaId], `/admin/projets/${slot.projectId}`);
   ok("ED21b média remis en place", isOk(res) && query(dirA, "select media_id m from slots where id = ?", slot.id).m === slot.mediaId, line(res));
@@ -1120,7 +1137,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
 
   // Remise en état : planches retirées de l'accueil, projet supprimé.
   const homeRow = query(dirA, "select title, slug, meta, published, nav_order from pages where id = ?", homeId);
-  res = await callActionJson(jar, ids.savePageAction, [homeId, { title: JSON.parse(homeRow.title), slug: JSON.parse(homeRow.slug), meta: homeRow.meta ? JSON.parse(homeRow.meta) : { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: homeRow.nav_order !== null, accent: null, blocks: homeBlocks }, pageRev(homeId)], `/admin/pages/${homeId}`);
+  res = await savePageForm(jar, homeId, { title: JSON.parse(homeRow.title), slug: JSON.parse(homeRow.slug), meta: homeRow.meta ? JSON.parse(homeRow.meta) : { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: homeRow.nav_order !== null, accent: null, blocks: homeBlocks }, pageRev(homeId), `/admin/pages/${homeId}`);
   const del = await callActionJson(jar, ids.deleteProjectAction, [created.id], "/admin/projets");
   ok("BD12 remise en état (planches retirées, projet supprimé → corbeille)", isOk(res) && isOk(del) && Boolean(query(dirA, "select deleted_at d from projects where id = ?", created.id)?.d), `${line(res)} ${line(del)}`);
 }
@@ -2089,8 +2106,10 @@ for (const [label, env, file, expect] of [
 ]) {
   const dir = `${TMP}/vl-${file}-${Object.keys(env)[0]}`;
   const l = await freshAdmin(dir, env);
+  // La base de départ contient déjà la vidéo de test du seed (lot 38) : on compare à ce nombre, pas à zéro.
+  const videos0 = query(dir, "select count(*) n from media where kind = 'video'").n;
   const res = await chunked(l.jar, src(file), file);
-  ok(`${label} → ${expect.status}, message clair`, res.status === expect.status && expect.re.test(res.body.message ?? "") && (!expect.stage || res.stage === expect.stage) && query(dir, "select count(*) n from media where kind = 'video'").n === 0, `${res.stage} ${res.status} ${res.body.message}`);
+  ok(`${label} → ${expect.status}, message clair`, res.status === expect.status && expect.re.test(res.body.message ?? "") && (!expect.stage || res.stage === expect.stage) && query(dir, "select count(*) n from media where kind = 'video'").n === videos0, `${res.stage} ${res.status} ${res.body.message}`);
   await stop(l.server);
 }
 
@@ -2119,6 +2138,7 @@ ff(["-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=30", "-f", "lavfi", "-i",
 const dirP = `${TMP}/vp`;
 let pv = await freshAdmin(dirP);
 const HP = { cookie: pv.jar.header(), origin: BASE };
+const videosP0 = query(dirP, "select count(*) n from media where kind = 'video'").n; // vidéo de test du seed comprise
 const initP = async (size, name = "p.mp4", j = pv.jar) =>
   fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { cookie: j.header(), origin: BASE, "content-type": "application/json" }, body: JSON.stringify({ name, size, type: "video/mp4" }) });
 const putP = (id, offset, body, headers = {}) => fetch(`${BASE}/admin/api/upload/${id}/chunk${offset === undefined ? "" : `?offset=${offset}`}`, { method: "PUT", headers: { ...HP, ...headers }, body });
@@ -2157,9 +2177,9 @@ await putP(pid1, 600000, two.subarray(600000), { "content-length": String(two.le
 r5 = await fetch(`${BASE}/admin/api/upload/${pid1}/complete`, { method: "POST", headers: HP });
 const firstId = (await r5.json()).media?.id;
 const r6 = await fetch(`${BASE}/admin/api/upload/${pid1}/complete`, { method: "POST", headers: HP });
-ok("P5 complete appelé deux fois : 404 la seconde fois, aucun doublon", r5.status === 200 && r6.status === 404 && query(dirP, "select count(*) n from media where kind = 'video'").n === 1, `${r5.status} ${r6.status}`);
+ok("P5 complete appelé deux fois : 404 la seconde fois, aucun doublon", r5.status === 200 && r6.status === 404 && query(dirP, "select count(*) n from media where kind = 'video'").n === videosP0 + 1, `${r5.status} ${r6.status}`);
 const dup = await chunked(pv.jar, src("base.mp4"), "copie.mp4");
-ok("P6 même vidéo renvoyée sous un autre nom → même média", dup.status === 200 && dup.body.media?.id === firstId && query(dirP, "select count(*) n from media where kind = 'video'").n === 1, `${dup.status} ${dup.body.media?.id}/${firstId}`);
+ok("P6 même vidéo renvoyée sous un autre nom → même média", dup.status === 200 && dup.body.media?.id === firstId && query(dirP, "select count(*) n from media where kind = 'video'").n === videosP0 + 1, `${dup.status} ${dup.body.media?.id}/${firstId}`);
 for (const [label, id] of [["non UUID", "pas-un-uuid"], ["inconnu", "00000000-0000-4000-8000-000000000000"]]) {
   const st5 = await fetch(`${BASE}/admin/api/upload/${id}/status`, { headers: HP });
   ok(`P7 identifiant ${label} → 404`, st5.status === 404, String(st5.status));
@@ -2890,7 +2910,7 @@ await sleep(500);
 const children = spawnSync("pgrep", ["-f", "kit-child.cjs"], { encoding: "utf8" }).stdout.trim();
 ok(
   "TM1 plafond mémoire de l'enfant dépassé : job en échec, message lisible, plus aucun processus, PSD supprimé",
-  job?.status === "failed" && /trop de mémoire/.test(job.error ?? "") && children === "" && !existsSync(path.join(dirM, "kit-imports", mid, "source.psd")),
+  job?.status === "failed" && /trop de mémoire|trop lourd à analyser/.test(job.error ?? "") && children === "" && !existsSync(path.join(dirM, "kit-imports", mid, "source.psd")),
   `${JSON.stringify(job)} pids=[${children}] ${serverLog(km.server, /\[kit\] import [^\n]+/g).pop() ?? ""}`,
 );
 // Reprise : un import et un export restés « running » (serveur tombé) → en échec, sans nouvel essai, PSD supprimé.

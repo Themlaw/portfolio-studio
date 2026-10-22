@@ -102,7 +102,7 @@ const READMES: Record<KitRole, { title: string; lines: string[] }> = {
     title: "Fichier 2 sur 3 · Logo et papier",
     lines: [
       "Dessine chaque élément EN GRAND dans sa case : le site le réduit tout seul à sa taille d'usage, proprement.",
-      "Logo : 2400 × 600 px (affiché à 1200 × 300 au plus). Papier : tuile de 1024 × 1024 px, avec l'aperçu de la répétition 3 × 3. Trait : 2400 × 160 px.",
+      "Logo : 2400 × 600 px (affiché à environ 160 × 40 px au départ ; réglable avec « Taille du logo »). Papier : tuile de 1024 × 1024 px, avec l'aperçu de la répétition 3 × 3. Trait : 2400 × 160 px.",
       "Ce fichier garde ce qui se répète ou s'étire (papier, trait) et l'identité du site (logo). Les petits objets sont dans le fichier 3.",
       "Pas envie de dessiner un élément ? Laisse-le tel quel. Pas envie d'envoyer ce fichier ? Ne l'envoie pas : tout reste inchangé.",
       "RVB 8 bits, ne redimensionne pas le document, pixellise effets et textes.",
@@ -214,7 +214,7 @@ async function headerRaster(role: KitRole, theme: Theme, siteName: string, fontF
     role === "decor"
       ? await planExample(c, fontFile, exW, 560)
       : role === "logo"
-        ? await reduceExample(c, fontFile, exW, 420, "case 2400 × 600 px", "affiché 1200 × 300", true)
+        ? await reduceExample(c, fontFile, exW, 420, "case 2400 × 600 px", "affiché ~160 × 40 px", true)
         : await reduceExample(c, fontFile, exW, 420, "case 512 × 512", "affichée 128 × 128", false);
   const { data, info } = await sharp(Buffer.from(box))
     .ensureAlpha()
@@ -317,6 +317,10 @@ async function guidesRaster(card: MultiCard): Promise<Raster> {
       ]) {
         parts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#00a36c" stroke-width="3" stroke-dasharray="8 8"/>`);
       }
+      // Option B (lot 58) : le coin du haut à gauche et le côté du haut, en orange ; le reste de la case reste vide.
+      const o = 'fill="none" stroke="#e8590c" stroke-width="5" stroke-dasharray="20 10"';
+      parts.push(`<rect x="${x + 4}" y="${y + 4}" width="${left * k - 8}" height="${top * k - 8}" ${o}/>`);
+      parts.push(`<rect x="${x + left * k + 4}" y="${y + 4}" width="${f.w - (left + right) * k - 8}" height="${top * k - 8}" ${o}/>`);
     }
   }
   const { data, info } = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${b.w}" height="${b.h}">${parts.join("")}</svg>`)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });

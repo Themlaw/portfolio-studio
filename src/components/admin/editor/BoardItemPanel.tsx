@@ -110,7 +110,6 @@ function GridContent({ props, onChange, context }: { props: Props; onChange: (ne
         open={picking !== null}
         media={context.media.filter((m) => m.kind === (picking?.kind ?? "image"))}
         title={picking?.kind === "video" ? "Choisir une vidéo" : "Choisir une image"}
-        confirmLabel={picking?.kind === "video" ? "Utiliser cette vidéo" : "Utiliser cette image"}
         onClose={() => setPicking(null)}
         onPick={(m) => {
           const at = picking;
@@ -231,7 +230,6 @@ function RailContent({ props, onChange, context }: { props: Props; onChange: (ne
         open={adding !== null}
         media={context.media.filter((m) => m.kind === (adding ?? "image"))}
         title={adding === "video" ? "Ajouter une vidéo" : "Ajouter une image"}
-        confirmLabel={adding === "video" ? "Utiliser cette vidéo" : "Utiliser cette image"}
         onClose={() => setAdding(null)}
         onPick={(m) => {
           set([...ids, m.id], [...keys, `n${Math.random().toString(36).slice(2, 10)}`.slice(0, 12).replace(/[^a-z0-9]/g, "x")]);

@@ -147,7 +147,7 @@ async function between(f, i) {
     return (box(els[i]).bottom + box(els[i + 1]).top) / 2;
   }, i);
 }
-const published = () => until(page, () => /^Publié/.test(document.querySelector(".ve-status")?.textContent?.trim() ?? "") && !document.querySelector(".ve-alert[role=alert]"), null, 90000);
+const published = () => until(page, () => /^(Publié|En ligne)/.test(document.querySelector(".ve-status")?.textContent?.trim() ?? "") && !document.querySelector(".ve-alert[role=alert]"), null, 90000);
 
 /* ---- A. Formulaire : « + Ajouter un champ » au clic réel --------------------------- */
 
@@ -385,8 +385,10 @@ if (run("G")) {
   await page.getByRole("button", { name: "Enregistrer le lien" }).click();
   // Icônes dans l'en-tête.
   ok("G4b case cochée", await setHeaderSwitch(page, true));
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   ok("G5 enregistré", await until(page, () => /Enregistré/.test(document.body.textContent ?? ""), null, 30000));
+  // Le mot « Enregistré » est aussi affiché par l'autre formulaire de la page (référencement, lot 52) : on attend l'écriture elle-même.
+  for (let i = 0; i < 60 && JSON.parse(q("select value from settings where key = 'site'")[0].value).headerSocials !== true; i++) await sleep(500);
   const socials = JSON.parse(q("select value from settings where key = 'socials'")[0].value);
   const site = JSON.parse(q("select value from settings where key = 'site'")[0].value);
   ok("G6 réglages : réseau rangé avec son type, option de l'en-tête", socials.some((s) => s.kind === "behance" && s.href.endsWith("camille-roussel")) && site.headerSocials === true, JSON.stringify({ socials, site }));
@@ -415,7 +417,7 @@ if (run("G")) {
   await page.reload({ waitUntil: "networkidle" });
   await setHeaderSwitch(page, false);
   await page.getByRole("button", { name: /^Retirer Behance/ }).last().click();
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  await page.getByRole("button", { name: "Enregistrer", exact: true }).first().click();
   await sleep(1500);
 }
 

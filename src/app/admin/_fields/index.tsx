@@ -413,7 +413,6 @@ export function MediaPicker({
         open={open}
         media={context.media.filter((m) => m.kind === kind)}
         title={label}
-        confirmLabel={words.use}
         onClose={() => setOpen(false)}
         onPick={(m) => {
           onChange(m.id);

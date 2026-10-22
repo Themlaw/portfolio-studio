@@ -23,7 +23,7 @@ import { useEffect, useState } from "react";
 import { SolidColorPicker } from "@/components/edit/ColorPicker";
 import { pairsReadability, ratioTip } from "@/components/edit/readability";
 import type { AdminMediaRow } from "@/lib/admin";
-import { LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, type Logo, type PaletteColor, type SitePalette } from "@/lib/look";
+import { LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, LOGO_SIZE_PRESETS, type Logo, type PaletteColor, type SitePalette } from "@/lib/look";
 import { NUANCE_KEYS, PALETTE_GROUPS, type BaseKey, type NuanceKey, type PaletteColors, type PaletteState } from "@/themes/palette";
 import { autoAdjustBase, CONTRAST_BASES, effectiveSitePalette, nuanceOrigin, nuancesUnder, rolePairs, SITE_NUANCES, SITE_ROLES, sitePaletteIssues, sitePalettePairs, themeFixesNuance } from "@/themes/site-palette";
 
@@ -410,8 +410,18 @@ export function LogoPanel({
         </div>
       )}
       <div className="lp-field">
+        <span className="lp-label" id="lp-logo-size-label">
+          Taille du logo
+        </span>
+        <div className="lc-modes-row" role="group" aria-labelledby="lp-logo-size-label" data-testid="logo-size-presets">
+          {LOGO_SIZE_PRESETS.map((p) => (
+            <button key={p.label} type="button" className="a-btn a-btn-small" aria-pressed={size === p.size && value.size !== undefined} data-testid={`logo-size-${p.id}`} onClick={() => onChange({ ...value, size: p.size })}>
+              {p.label}
+            </button>
+          ))}
+        </div>
         <label className="lp-label" htmlFor="lp-logo-size">
-          Taille
+          Réglage précis
         </label>
         <div className="lc-size">
           <input

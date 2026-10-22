@@ -46,14 +46,15 @@ const formatBytes = (n: number) => (n < 1024 ? `${n} o` : n < 1024 * 1024 ? `${M
 const beforeKey = (s: SlotReport) => (s.id.startsWith("decor/") ? `hero--plan-${(s.from ?? Number(s.id.slice(6)) - 1) + 1}` : s.id.replace(/\//g, "--"));
 const icon = (s: SlotReport) => (s.status === "error" ? "✗" : s.status === "warn" ? "⚠" : "✓");
 
-export default async function ThemeKitPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ import?: string; base?: string }> }) {
+export default async function ThemeKitPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ import?: string; base?: string; neuf?: string }> }) {
   await assertAdmin();
   const { id } = await params;
   const theme = /^[a-z0-9-]{1,80}$/.test(id) ? loadSavedTheme(id) : null;
   if (!theme) notFound();
   const imports = await listKitImports(theme.id);
   const wanted = (await searchParams).import;
-  const currentId = isImportId(wanted) ? wanted : imports[0]?.id;
+  // ?neuf=1 : un nouvel envoi commence (ou vient d'échouer) : l'ancienne revue disparaît, elle ne concerne plus ce fichier.
+  const currentId = (await searchParams).neuf ? undefined : isImportId(wanted) ? wanted : imports[0]?.id;
   // Import d'un autre thème : introuvable ici (pas de revue croisée).
   const state = currentId ? await getKitImport(currentId, theme.id) : null;
   if (wanted && !state) notFound();
@@ -156,6 +157,18 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
               {report.problem}
             </p>
           )}
+          {report && report.ok && report.slots.length === 0 && !report.colors && (
+            <div className="a-notice" role="status" data-testid="kit-empty">
+              <p>Aucun élément à vérifier dans ce fichier : rien n&apos;a été reconnu, le thème reste tel quel.</p>
+              {report.ignoredLayers.length > 0 && (
+                <ul>
+                  {report.ignoredLayers.map((l) => (
+                    <li key={l}>{l}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
           {report && report.slots.length > 0 && counts && totals && (
             <>
               <div className="a-kit-summary">
@@ -178,7 +191,16 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
                   Poids au chargement : <strong>{formatBytes(totals.after)}</strong> (aujourd&apos;hui {formatBytes(totals.before)})
                 </span>
               </div>
-              {report.ignoredLayers.length > 0 && <p className="a-help">Calques ignorés : {report.ignoredLayers.join(" ; ")}.</p>}
+              {report.ignoredLayers.length > 0 && (
+                <div className="a-help" data-testid="kit-ignored">
+                  <strong>Calques non pris en compte</strong>
+                  <ul>
+                    {report.ignoredLayers.map((l) => (
+                      <li key={l}>{l}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {report.decor && (
                 <p className="a-help" data-testid="kit-decor-summary">
                   Décor d&apos;accueil : {report.decor.count} plan{report.decor.count > 1 ? "s" : ""} lu{report.decor.count > 1 ? "s" : ""} (du plus lointain à l&apos;avant)

@@ -1,6 +1,7 @@
 import { DeleteAllMessages, DeleteMessage } from "@/components/admin/MessageActions";
 import PageHeader from "@/components/admin/PageHeader";
-import { countMessages, listMessages, MESSAGES_CAP } from "@/lib/admin";
+import MarkMessagesSeen from "@/components/admin/MarkMessagesSeen";
+import { countMessages, lastSeenMessageId, listMessages, messagesEmailConfigured, MESSAGES_CAP } from "@/lib/admin";
 
 export const metadata = { title: "Messages" };
 export const dynamic = "force-dynamic";
@@ -11,14 +12,28 @@ export const dynamic = "force-dynamic";
  */
 export default function MessagesPage() {
   const messages = listMessages();
+  // Repère « Nouveau » : lu AVANT que la visite ne marque les messages comme vus (MarkMessagesSeen).
+  const seen = lastSeenMessageId();
+  const newCount = messages.filter((m) => m.id > seen).length;
   const total = countMessages();
   const date = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: "short" });
   return (
     <>
       <PageHeader
         title="Messages"
-        intro="Ce que les visiteurs t'écrivent depuis un formulaire de contact. Envoi par e-mail : non configuré (aucun serveur d'envoi) — les messages arrivent ici."
+        intro="Ce que les visiteurs t'écrivent depuis un formulaire de contact."
       />
+      <MarkMessagesSeen upTo={Math.max(0, ...messages.map((m) => m.id))} />
+      {!messagesEmailConfigured() && (
+        <p className="a-notice" role="status" data-testid="messages-no-email">
+          Les messages arrivent ici. Pense à passer voir.
+        </p>
+      )}
+      {newCount > 0 && (
+        <p className="a-new-count" data-testid="messages-new-count">
+          {newCount} nouveau{newCount > 1 ? "x" : ""} message{newCount > 1 ? "s" : ""}
+        </p>
+      )}
       {total >= MESSAGES_CAP && (
         <p className="a-field-error" role="alert" data-testid="messages-full">
           Boîte pleine ({total} messages) : les nouveaux envois sont refusés. Supprime des messages pour en recevoir à nouveau.
@@ -34,9 +49,12 @@ export default function MessagesPage() {
       ) : (
         <ul className="a-messages" data-testid="messages">
           {messages.map((m) => (
-            <li key={m.id} className="a-card a-message">
+            <li key={m.id} className="a-card a-message" data-new={m.id > seen ? "" : undefined}>
               <header className="a-message-head">
-                <strong>{m.subject}</strong>
+                <strong>
+                  {m.subject}
+                  {m.id > seen && <span className="a-badge a-new-badge">Nouveau</span>}
+                </strong>
                 <span className="muted">
                   {date.format(m.createdAt)}
                   {m.page ? ` · page « ${m.page} »` : ""}

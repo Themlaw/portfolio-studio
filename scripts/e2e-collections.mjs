@@ -90,7 +90,7 @@ async function openEditor(id) {
 async function publish() {
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 async function anon(p) {
   const r = await fetch(BASE + p, { redirect: "manual" });
@@ -209,7 +209,7 @@ const animationId = pageIdOf("animation");
   await page.waitForURL(/\/admin\/pages\/\d+\/editer$/, { timeout: 90000 });
   const carnetsId = Number(page.url().split("/").at(-2));
   await page.goto(`${BASE}/admin/pages/${carnetsId}`, { waitUntil: "networkidle" });
-  await page.locator("label.a-toggle", { hasText: "Publiée" }).click();
+  await page.locator("label.a-toggle", { hasText: "En ligne" }).click();
   ok("C4 les collections déjà prises ne sont pas proposées", !(await page.getByLabel("Cette page est la collection").locator("option[value=characters]").count()) && (await page.getByLabel("Cette page est la collection").locator("option[value=animation]").count()) === 1);
   await page.getByLabel("Cette page est la collection").selectOption("animation");
   await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
@@ -286,8 +286,8 @@ console.log("== E. Entrée vers une page dépubliée");
   const title = "Carnets d'été";
   await page.goto(`${BASE}/admin/pages`, { waitUntil: "networkidle" });
   const row = page.locator("tr", { hasText: title }).first();
-  await row.getByRole("button", { name: "Dépublier" }).click();
-  await page.locator(".a-toast", { hasText: "dépubliée" }).first().waitFor({ timeout: 20000 });
+  await row.getByRole("button", { name: "Retirer du site" }).click();
+  await page.locator(".a-toast", { hasText: "retirée du site" }).first().waitFor({ timeout: 20000 });
   ok("E1 public : l'entrée vers la page dépubliée est masquée", await waitFor(async () => { const t = await publicTiles(); return t.length === 2 && !t.some((x) => x.title === title); }), JSON.stringify(await publicTiles()));
   const f = await openEditor(homeId);
   ok("E2 toile : l'entrée cassée est signalée (et retirable)", await until(f, () => Boolean(document.querySelector("[data-tile-broken] [data-edit-tile-op=remove]"))));

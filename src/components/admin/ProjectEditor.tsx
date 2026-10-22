@@ -374,13 +374,13 @@ function SlotPanel({
       {slot.media && (
         <>
           <TextI18n
-            label="Texte alternatif de l'image"
-            help="Décris l'image pour qui ne la voit pas. Commun à tous les emplacements qui montrent cette image."
+            label="Description de l'image (pour les personnes malvoyantes et Google)"
+            help="Décris ce qu'on voit, en une phrase. Commun à tous les emplacements qui montrent cette image."
             value={form.alt}
             onChange={(v) => set("alt", v)}
             error={errorAt(errors, "alt")}
           />
-          {!form.alt.fr.trim() && <p className="a-notice">Texte alternatif manquant : le titre sera lu à la place.</p>}
+          {!form.alt.fr.trim() && <p className="a-notice">Description manquante : le titre sera lu à la place.</p>}
         </>
       )}
       <div className="a-panel-actions">
@@ -638,7 +638,7 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
             {slots.some((s) => !s.media) && ` · ${slots.filter((s) => !s.media).length} vide${slots.filter((s) => !s.media).length > 1 ? "s" : ""} (masqué${slots.filter((s) => !s.media).length > 1 ? "s" : ""} sur le site)`}
           </span>
         </div>
-        <Uploader origin={origin} libraryLabel="Voir dans la Bibliothèque" onSeeLibrary={() => libraryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })} />
+        <Uploader origin={origin} target={{ kind: "end", projectId: project.id }} libraryLabel="Voir dans la Bibliothèque" onSeeLibrary={() => libraryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })} />
         <DndContext
           id={dndId}
           sensors={sensors}

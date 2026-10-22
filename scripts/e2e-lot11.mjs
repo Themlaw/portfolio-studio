@@ -132,7 +132,7 @@ async function openEditor(id) {
 async function publish() {
   await settled();
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  return waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
+  return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 async function activateTheme(name) {
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
@@ -152,7 +152,6 @@ async function pickHeroBackground(f, mediaId) {
   const dialog = page.locator("dialog[open], [role=dialog]").last();
   const name = q("select original_name n from media where id = ?", mediaId)[0].n;
   await dialog.locator(`.a-media-tile[title="${name}"], .a-media-tile[title="${name.replace(/\.[^.]+$/, "")}"]`).first().click();
-  await dialog.getByRole("button", { name: "Utiliser cette image" }).click();
   await settled();
 }
 

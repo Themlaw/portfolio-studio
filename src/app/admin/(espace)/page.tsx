@@ -2,7 +2,8 @@ import Link from "next/link";
 
 import PageHeader from "@/components/admin/PageHeader";
 import ThemeSwatches from "@/components/admin/ThemeSwatches";
-import { getAdminCounts, getHomePageId, getThemeOverview } from "@/lib/admin";
+import FirstSteps from "@/components/admin/FirstSteps";
+import { countUnreadMessages, getAdminCounts, getHomePageId, getOnboarding, getThemeOverview } from "@/lib/admin";
 
 export const metadata = { title: "Tableau de bord" };
 
@@ -11,6 +12,8 @@ export default function Dashboard() {
   const { activeId, themes } = getThemeOverview();
   const active = themes.find((t) => t.id === activeId);
   const home = getHomePageId();
+  const unread = countUnreadMessages();
+  const onboarding = getOnboarding();
 
   const stats = [
     { label: "Pages", value: counts.pages, href: "/admin/pages", link: "Organiser les pages" },
@@ -37,6 +40,8 @@ export default function Dashboard() {
         }
       />
 
+      <FirstSteps onboarding={onboarding} />
+
       <div className="a-grid">
         <section className="a-card" aria-labelledby="theme-actif">
           <p className="a-card-label" id="theme-actif">
@@ -51,6 +56,13 @@ export default function Dashboard() {
             <p style={{ marginTop: 4 }}>Aucun thème actif valide : le site utilise l&apos;apparence par défaut.</p>
           )}
           <Link href="/admin/themes">Changer d&apos;apparence</Link>
+        </section>
+
+        <section className="a-card" aria-label="Messages" data-testid="dash-messages" data-unread={unread}>
+          <p className="a-card-label">Messages</p>
+          <span className="a-stat">{unread}</span>
+          <p style={{ margin: 0 }}>{unread === 0 ? "Aucun nouveau message" : unread === 1 ? "1 nouveau message" : `${unread} nouveaux messages`}</p>
+          <Link href="/admin/messages">{unread > 0 ? "Lire les messages" : "Ouvrir les messages"}</Link>
         </section>
 
         {stats.map((s) => (

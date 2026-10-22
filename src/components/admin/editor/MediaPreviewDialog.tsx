@@ -8,7 +8,9 @@ import { useEffect, useId, useRef } from "react";
 
 import type { AdminMediaRow } from "@/lib/admin";
 
-export default function MediaPreviewDialog({ media, onClose }: { media: AdminMediaRow | null; onClose: () => void }) {
+const DEFAULT_HINT = "Pour la poser : sélectionne d'abord une image, une vidéo ou une grille sur la page puis clique ce média, ou glisse-le sur un projet ou une place vide.";
+
+export default function MediaPreviewDialog({ media, onClose, hint = DEFAULT_HINT }: { media: AdminMediaRow | null; onClose: () => void; hint?: string | null }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -49,9 +51,7 @@ export default function MediaPreviewDialog({ media, onClose }: { media: AdminMed
               {media.width && media.height ? `${media.width} × ${media.height} px` : ""}
               {media.tags.length > 0 ? `${media.width ? " · " : ""}${media.tags.map((t) => t.label).join(", ")}` : ""}
             </p>
-            <p className="ve-hint">
-              Pour la poser : sélectionne d&apos;abord une image, une vidéo ou une grille sur la page puis clique ce média, ou glisse-le sur une planche ou une place vide.
-            </p>
+            {hint && <p className="ve-hint">{hint}</p>}
           </div>
           <div className="a-dialog-actions">
             <button type="button" className="a-btn" onClick={onClose}>
