@@ -1,5 +1,5 @@
 /**
- * Migration de contenu 0029 (lot 62 « Cadres des photos et des vidéos »), idempotente, sur la version publiée (table `blocks`), les
+ * Migration de contenu 0028 (lot 62 « Cadres des photos et des vidéos »), idempotente, sur la version publiée (table `blocks`), les
  * brouillons de page (`pages.draft`) et les planches de projet (`projects.layout` ET `projects.draft_layout`) : le cadre d'une photo
  * passe de l'ancienne forme `{ size: "thin" | "medium" | "thick" | "none", color? }` à UN choix `{ kind, color?, width? }` :
  *

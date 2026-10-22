@@ -3,7 +3,7 @@
  * Lot 62 (« Cadres des photos et des vidéos ») — tests unitaires (inclus dans npm test) :
  *  1. Modèle : UN choix `{ kind: none | theme | band | custom, id?, color?, width? }`, validation (dont `custom` prévu), anciennes valeurs relues.
  *  2. Rendu : `frameStyle` est le seul point (attributs + variables), photo et vidéo ; pas de choix = aucun attribut.
- *  3. Migration 0029 (src/lib/db/frame-choice.ts) : `look.frame`, `look.slotFrame`, `items[].frame` de la Planche libre, cases de grille, planches
+ *  3. Migration 0028 (src/lib/db/frame-choice.ts) : `look.frame`, `look.slotFrame`, `items[].frame` de la Planche libre, cases de grille, planches
  *     (`layout` ET `draft_layout`), brouillons de page, publié ; le rendu des choix explicites ne change pas ; les photos sans cadre ne sont pas
  *     touchées ; `draft_rev` augmente ; idempotente. Journal, fichier SQL et bootstrap existent.
  *  4. Protocole : le message `bitem-frame` et l'opération de planche libre acceptent la nouvelle forme (et l'ancienne), refusent une valeur inconnue.
@@ -87,7 +87,7 @@ test("rendu : les feuilles de style couvrent photo ET vidéo, jamais d'« interr
   }
 });
 
-/* ---- 3. Migration 0029 --------------------------------------------------------------------------------- */
+/* ---- 3. Migration 0028 --------------------------------------------------------------------------------- */
 
 function freshDb() {
   const db = new Database(":memory:");
@@ -98,17 +98,17 @@ function freshDb() {
   return db;
 }
 
-test("migration 0029 : fichier SQL, entrée du journal, bootstrap", () => {
+test("migration 0028 : fichier SQL, entrée du journal, bootstrap", () => {
   const dir = new URL("../drizzle/", import.meta.url).pathname;
-  assert.ok(readdirSync(dir).includes("0029_cadre_choix.sql"));
+  assert.ok(readdirSync(dir).includes("0028_cadre_choix.sql"));
   const journal = JSON.parse(readFileSync(dir + "meta/_journal.json", "utf8"));
-  assert.ok(journal.entries.map((e) => e.tag).includes("0029_cadre_choix"));
+  assert.ok(journal.entries.map((e) => e.tag).includes("0028_cadre_choix"));
   const when = journal.entries.map((e) => e.when);
   assert.deepEqual([...when].sort((a, b) => a - b), when, "journal chronologique");
-  assert.match(readFileSync(new URL("../src/lib/db/bootstrap.ts", import.meta.url), "utf8"), /"0029_cadre_choix"/);
+  assert.match(readFileSync(new URL("../src/lib/db/bootstrap.ts", import.meta.url), "utf8"), /"0028_cadre_choix"/);
 });
 
-test("migration 0029 : parcours d'un arbre (look.frame, slotFrame, items[].frame, cases de grille)", () => {
+test("migration 0028 : parcours d'un arbre (look.frame, slotFrame, items[].frame, cases de grille)", () => {
   const tree = [
     kid("a", "image", { look: { frame: { size: "thin" } } }),
     kid("b", "image", { look: { frame: { size: "none" }, imageSize: "large" } }),
@@ -134,7 +134,7 @@ test("migration 0029 : parcours d'un arbre (look.frame, slotFrame, items[].frame
   assert.ok(freeBoardSchema.safeParse({ format: "3:2", phone: "scale", items: tree[4].props.items }).success);
 });
 
-test("migration 0029 sur une base : publié, brouillons de page, planches et brouillons de planche ; draft_rev ; idempotente", () => {
+test("migration 0028 sur une base : publié, brouillons de page, planches et brouillons de planche ; draft_rev ; idempotente", () => {
   const db = freshDb();
   const page = db.prepare("insert into pages (slug, title, meta, nav_order, published, draft, draft_rev) values (?, ?, null, ?, 1, ?, 4)");
   const draft = (blocks) => JSON.stringify({ title: T("x"), blocks });

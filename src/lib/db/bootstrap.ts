@@ -72,9 +72,9 @@ const DATA_MIGRATIONS: Record<string, () => void> = {
     const r = seedVideoModes(getSqlite());
     console.log(`[db] 0027 : lecture des vidéos (Boucle / Lecteur) — ${r.published} bloc(s) publié(s), ${r.drafts} brouillon(s), ${r.layouts} planche(s) et ${r.draftLayouts} brouillon(s) de planche réécrits`);
   },
-  "0029_cadre_choix": () => {
+  "0028_cadre_choix": () => {
     const r = seedFrameChoices(getSqlite());
-    console.log(`[db] 0029 : cadre des photos en un seul choix (Aucun / Cadre du thème / Bande de couleur) — ${r.published} bloc(s) publié(s), ${r.drafts} brouillon(s), ${r.layouts} planche(s) et ${r.draftLayouts} brouillon(s) de planche réécrits`);
+    console.log(`[db] 0028 : cadre des photos en un seul choix (Aucun / Cadre du thème / Bande de couleur) — ${r.published} bloc(s) publié(s), ${r.drafts} brouillon(s), ${r.layouts} planche(s) et ${r.draftLayouts} brouillon(s) de planche réécrits`);
   },
   // 0024_corbeille : SQL seul (colonnes deleted_at / trashed_in_menu), aucune migration de contenu.
   "0021_unwrap_containers": () => {
