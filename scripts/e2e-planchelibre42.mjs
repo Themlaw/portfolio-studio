@@ -673,7 +673,7 @@ try {
       await win.getByText("Blanc", { exact: true }).click();
       ok("I2 Fond image « Blanc » : écrit sur cette image seulement", await waitFor(() => byId("a1").bg === "#ffffff" && !byId("a2").bg), JSON.stringify(items()));
       await settled(page);
-      ok("I2b … et visible derrière l'image", (await itemEl("a1").locator("img").evaluate((i) => getComputedStyle(i).backgroundColor)) === "rgb(255, 255, 255)");
+      ok("I2b … et visible derrière l'image", (await itemEl("a1").locator(".media-frame").evaluate((i) => getComputedStyle(i).backgroundColor)) === "rgb(255, 255, 255)");
       await shot(page, "I-toile-fond-image");
       await page.keyboard.press("Escape");
       ok("I3 Titre / Légende / Date présents sous la planche sur la toile", (await f.locator('.free-board-section [data-cap="title"], .free-board-section [data-cap="legend"], .free-board-section [data-cap="date"]').count()) === 3);

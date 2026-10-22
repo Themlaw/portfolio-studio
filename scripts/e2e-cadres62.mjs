@@ -393,7 +393,7 @@ if (run("V"))
     const strip = await shown(pub, STRIPVID);
     info("V public carrousel", strip.map((x) => x.kind));
     ok("V5 carrousel : la vidéo en Boucle a sa bande, la vidéo en Lecteur (image d'attente) le cadre du thème", strip.length >= 2 && strip[0].kind === "band" && strip.some((x) => x.kind === "theme"), JSON.stringify(strip));
-    ok("V6 composants Vidéo de la planche : Cadre du thème (Lecteur) puis bande (Boucle), comme sur une page", kinds(vs.slice(5, 7)) === "theme,band", kinds(vs));
+    ok("V6 composants Vidéo de la planche : Cadre du thème (Lecteur) puis bande (Boucle), comme sur une page", kinds(vs.slice(-2)) === "theme,band", kinds(vs));
     await shot(pub, "v-public");
     await pub.context().close();
     const fr = await openEditor(VIDEOS);

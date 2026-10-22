@@ -17,7 +17,9 @@
   box-sizing: border-box;
   width: 100%;
   aspect-ratio: var(--box-r, auto);
+  /* `clip` après `hidden` (anciens navigateurs) : `hidden` fait mal rasteriser le dessin du cadre (bord bas manquant sur un élément à moitié hors écran). */
   overflow: hidden;
+  overflow: clip;
   border-radius: var(--media-radius, var(--radius-strip));
   background-clip: padding-box;
 }
@@ -126,6 +128,18 @@ figure.block-image[data-free] .media-frame :is(img, video) {
 /* Une case sur deux rangées (portrait) : la boîte remplit toute la hauteur que lui laissent ses voisines, rognée au besoin (ce sont les
    cases d'une seule rangée qui donnent leur hauteur à la ligne : aucune ne se déforme). */
 @media (min-width: 48rem) {
+  .block-grid-cell[data-span-h],
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) {
+    display: flex;
+    flex-direction: column;
+  }
+  .block-grid-cell[data-span-h] .block-image,
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
   .block-grid-cell[data-span-h] .block-image > .media-frame,
   .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image > .media-frame {
     flex: 1 1 auto;

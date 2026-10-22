@@ -341,7 +341,7 @@ if (run("F"))
     const pub = await publicPage("/fr/decors");
     const r = await pub.evaluate(() => [...document.querySelectorAll(".free-item .media-frame")].map((f) => ({ bg: getComputedStyle(f).backgroundColor, img: getComputedStyle(f.querySelector("img")).backgroundColor, radius: getComputedStyle(f).borderTopLeftRadius, overflow: getComputedStyle(f).overflow })));
     ok("F1 le fond choisi est celui de la boîte (la couleur de chargement de la photo opaque ne le remplace pas)", r[0].bg === "rgb(255, 0, 0)" && r[0].img === "rgba(0, 0, 0, 0)", JSON.stringify(r[0]));
-    ok("F2 l'arrondi de l'image libre est respecté, la bande le suit (rognée à la boîte)", r[1].radius === "20px" && r[1].overflow === "hidden", JSON.stringify(r[1]));
+    ok("F2 l'arrondi de l'image libre est respecté, la bande le suit (rognée à la boîte)", r[1].radius === "20px" && /^(hidden|clip)$/.test(r[1].overflow), JSON.stringify(r[1]));
     await pub.context().close();
     // Toile : même rendu.
     const fr = await openEditor(page, BASE, PHOTOS);
