@@ -596,7 +596,8 @@ if (run("D"))
   await section.locator('[data-token="bgDeep"]').click();
   await section.getByRole("button", { name: "Pleine largeur" }).click();
   await section.getByRole("button", { name: "Coins droits" }).click();
-  await page.getByRole("button", { name: "Enregistrer", exact: true }).click();
+  // Thème en ligne : le bouton s'appelle « Enregistrer et publier… » (lot 55).
+  await page.getByRole("button", { name: /^Enregistrer( et publier…)?$/ }).click();
   ok("D2 réglage enregistré dans le thème (tokens.layout.card)", await waitFor(() => JSON.stringify(JSON.parse(q("select data from themes where id = ?", PAPER_THEME_ID)[0].data).tokens.layout?.card) === JSON.stringify({ color: "bgDeep", width: "full", corners: "square" })));
   ok("D3 les thèmes livrés n'ont pas de carte par défaut", q("select data from themes where preset = 1").every((r) => !JSON.parse(r.data).tokens.layout?.card));
   f = await openEditor();

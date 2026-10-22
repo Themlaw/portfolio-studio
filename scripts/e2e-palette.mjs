@@ -96,7 +96,7 @@ await field("inkSoft").getByRole("button", { name: /Ajuster/ }).click();
 await sleep(200);
 ok("contraste : « Ajuster » → ✓", (await field("inkSoft").locator(".a-ratio-ok").count()) === 1);
 await page.locator(".a-pal-groups").first().scrollIntoViewIfNeeded();
-await page.locator('[aria-labelledby="t-couleurs"]').screenshot({ path: `${SHOTS}/editeur-palette.png` });
+await page.locator('[data-testid="palette-details"]').screenshot({ path: `${SHOTS}/editeur-palette.png` });
 await save("palette enregistrée (✓ Enregistré)");
 await page.reload({ waitUntil: "networkidle" });
 ok("enregistré et relu : survol toujours « auto », valeur recalculée", (await field("primaryHover").getAttribute("data-auto")) === "true" && (await hex("primaryHover")) === followed);

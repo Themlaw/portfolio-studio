@@ -131,8 +131,8 @@ try {
     await page.getByRole("tab", { name: "Réglages" }).click();
     await role("Texte").waitFor();
     await pickColor("Texte", "#eee6d4");
-    const warn = await waitFor(async () => /Texte sur/.test((await role("Texte").locator(".lc-warn").textContent().catch(() => "")) ?? ""), 15000);
-    ok("D1 l'avertissement de lisibilité nomme la paire (« Texte sur … »)", warn, await role("Texte").locator(".lc-warn").textContent().catch(() => ""));
+    const warn = await waitFor(async () => /texte sur/i.test((await role("Texte").locator(".lc-warn, [data-testid=contrast-status]").first().textContent().catch(() => "")) ?? ""), 15000);
+    ok("D1 l'avertissement de lisibilité nomme la paire (« Texte sur … »)", warn, await role("Texte").locator(".lc-warn, [data-testid=contrast-status]").first().textContent().catch(() => ""));
     ok("D1b l'avertissement du panneau parle du thème en préparation", /\(en préparation\)/.test((await page.getByTestId("palette-ignored").textContent().catch(() => "")) ?? ""));
     await page.getByRole("button", { name: "Revenir aux couleurs du thème" }).click();
     await pickColor("Fond de page", CUSTOM_BG);
@@ -140,7 +140,7 @@ try {
     ok("D3 le bouton « Revenir aux couleurs du thème » existe", (await page.getByRole("button", { name: "Revenir aux couleurs du thème" }).count()) === 1);
     await settled(page);
     await page.getByRole("button", { name: "Publier", exact: true }).click();
-    ok("D4 publié", await waitFor(async () => /Publié/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
+    ok("D4 publié", await waitFor(async () => /^En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000));
     ok("D5 couleurs personnalisées en base", (setting("styles")?.palette?.bg ?? "").toLowerCase() === CUSTOM_BG);
   }
 
@@ -230,6 +230,7 @@ try {
       ok("H2 la boîte de suppression dit que le thème est en aperçu", /prévisualiser/.test((await dlg.textContent()) ?? ""));
       await dlg.getByRole("button", { name: "Supprimer" }).click();
       ok("H3 thème supprimé", await waitFor(() => !q1("select id from themes where id = ?", copyId), 30000));
+      await dlg.waitFor({ state: "hidden", timeout: 30000 }); // l'action a répondu (cookies d'aperçu effacés) avant de recharger
       await page.reload({ waitUntil: "networkidle" });
       ok("H4 l'aperçu s'arrête : ni bandeau, ni « Quitter l'aperçu »", (await page.locator('[data-testid="theme-preparing-banner"]').count()) === 0 && (await page.locator('[data-testid="quit-preview"]').count()) === 0);
     }
