@@ -34,13 +34,25 @@ export function touchThemeUsage(id: string): void {
   }
 }
 
-export type ThemeChoice = { id: string; name: string; live: boolean };
+export type ThemeChoice = { id: string; name: string; live: boolean; kind: "mine" | "model" | "old"; /** Mon thème : numéro de la version en cours. */ version?: number };
 
-/** Thèmes du menu de l'éditeur : le thème en ligne d'abord, puis du plus récemment utilisé au plus ancien, puis par nom. */
-export function sortThemeChoices(themes: { id: string; name: string }[], liveId: string, usage: Record<string, number>): ThemeChoice[] {
-  return themes
-    .map((t) => ({ id: t.id, name: t.name, live: t.id === liveId }))
-    .sort((a, b) => Number(b.live) - Number(a.live) || (usage[b.id] ?? 0) - (usage[a.id] ?? 0) || a.name.localeCompare(b.name, "fr"));
+/**
+ * Thèmes du menu de l'éditeur (lots 60 + 63) : Mon thème en premier (avec sa version), puis les modèles, puis les anciens thèmes ;
+ * dans chaque groupe, du plus récemment utilisé au plus ancien (le thème en ligne d'abord), puis par nom.
+ */
+export function sortThemeChoices(
+  library: { mine: { id: string; name: string; version: number } | null; models: { id: string; name: string }[]; olds: { theme: { id: string; name: string } }[] },
+  liveId: string,
+  usage: Record<string, number>,
+): ThemeChoice[] {
+  const rank = (list: ThemeChoice[]) =>
+    list.sort((a, b) => Number(b.live) - Number(a.live) || (usage[b.id] ?? 0) - (usage[a.id] ?? 0) || a.name.localeCompare(b.name, "fr"));
+  const pick = (kind: ThemeChoice["kind"]) => (t: { id: string; name: string }): ThemeChoice => ({ id: t.id, name: t.name, live: t.id === liveId, kind });
+  return [
+    ...(library.mine ? [{ id: library.mine.id, name: library.mine.name, live: library.mine.id === liveId, kind: "mine" as const, version: library.mine.version }] : []),
+    ...rank(library.models.map(pick("model"))),
+    ...rank(library.olds.map((o) => pick("old")(o.theme))),
+  ];
 }
 
 /** Page à ouvrir pour « travailler au brouillon » : la dernière modifiée (brouillon ou publication), sinon l'accueil. */

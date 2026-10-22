@@ -5,7 +5,7 @@
  *  K2  Un nouvel envoi efface l'ancienne revue AVANT d'afficher son erreur (aucune carte, aucun titre « Revue de » sous l'erreur).
  *  K3  Fichier vide : « est vide » (plus « Requête invalide »).
  *  K4  Export : bouton désactivé pendant la génération, indicateur visible, un seul export à la fois (une seule demande partie).
- *  K5  « Appliquer au thème » : bouton bloqué avec indicateur dès le clic, un seul clic envoyé ; copie créée (supprimée à la fin).
+ *  K5  « Appliquer à mon thème » (lot 60) : bouton bloqué avec indicateur dès le clic, un seul clic envoyé ; version de Mon thème créée.
  *  K6  Tuto : plus de « logo d'une seule couleur » ; la consigne dit « couleurs gardées, ou une seule couleur teintée ».
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [SHOTS=dossier] node scripts/e2e-kit53.mjs
  */
@@ -114,22 +114,21 @@ await page.route("**/admin/themes/**", async (route) => {
   }
   await route.continue();
 });
-const apply = page.getByRole("button", { name: /Appliquer au thème|Création de la copie/ });
+const apply = page.getByRole("button", { name: /Appliquer à mon thème|Création de la version/ });
 if (await apply.isEnabled()) {
   await apply.click();
   await sleep(500);
   ok("K5a bouton bloqué dès le clic", await page.locator(".a-kit-apply button.a-btn-primary").isDisabled());
-  ok("K5b indicateur « Création de la copie »", /Création de la copie/.test((await page.locator('[data-testid="kit-apply-status"]').textContent({ timeout: 3000 }).catch(() => "")) ?? ""));
+  ok("K5b indicateur « Création de la version »", /Création de la version/.test((await page.locator('[data-testid="kit-apply-status"]').textContent({ timeout: 3000 }).catch(() => "")) ?? ""));
   await page.locator(".a-kit-apply button.a-btn-primary").click({ force: true, timeout: 1500 }).catch(() => {});
-  await page.waitForURL((u) => /\/admin\/themes\/galerie-lumineuse-kit/.test(u.pathname), { timeout: 90000 });
-  ok("K5c un seul clic envoyé, copie ouverte", applies === 1, `applies=${applies}`);
-  const copyId = page.url().split("/").pop();
+  await page.waitForURL((u) => u.pathname === "/admin/themes" && /nouvelle=\d+&via=kit/.test(u.search), { timeout: 90000 });
+  ok("K5c un seul clic envoyé, retour à l'écran Thèmes avec l'encart « Version N de Mon thème créée »", applies === 1 && (await page.locator('[data-testid="new-version-notice"]').count()) === 1, `applies=${applies}`);
   await page.unroute("**/admin/themes/**");
-  await page.screenshot({ path: path.join(SHOTS, "K5-copie.png") });
-  // Nettoyage de la copie créée.
-  execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `import { getDb, schema } from "./src/lib/db/index.ts"; import { eq } from "drizzle-orm"; getDb().delete(schema.themes).where(eq(schema.themes.id, ${JSON.stringify(copyId)})).run();`], { env: { ...process.env }, stdio: "ignore" });
+  await page.screenshot({ path: path.join(SHOTS, "K5-version.png") });
+  // Nettoyage : Mon thème créé par ce parcours (et ses versions).
+  execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `import { getDb, schema } from "./src/lib/db/index.ts"; import { eq } from "drizzle-orm"; const db = getDb(); for (const t of db.select().from(schema.themes).where(eq(schema.themes.mine, true)).all()) { db.delete(schema.themeVersions).where(eq(schema.themeVersions.themeId, t.id)).run(); db.delete(schema.themes).where(eq(schema.themes.id, t.id)).run(); }`], { env: { ...process.env }, stdio: "ignore" });
 } else {
-  ok("K5 « Appliquer au thème » disponible (une flèche redessinée)", false, "bouton désactivé");
+  ok("K5 « Appliquer à mon thème » disponible (une flèche redessinée)", false, "bouton désactivé");
 }
 
 /* ---- K6 : texte du tuto ------------------------------------------------------------------------------------------------ */

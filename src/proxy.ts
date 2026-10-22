@@ -16,7 +16,7 @@
  */
 import { getSessionCookie } from "better-auth/cookies";
 import createMiddleware from "next-intl/middleware";
-import { NextResponse, type NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -92,6 +92,35 @@ async function canPreviewDrafts(request: NextRequest): Promise<boolean> {
 }
 
 /**
+ * Vignettes de l'écran Thèmes (lot 60) : la page d'accueil RÉELLE rendue avec un thème ou une version de Mon thème, dans un cadre réduit
+ * (`/fr?vignette=<thème>` ou `<thème>@<n>`). Plusieurs cadres montrent chacun un thème différent : l'aperçu habituel (cookie) est
+ * unique par navigateur, il ne convient pas. Le proxy ajoute donc, SEULEMENT à CETTE requête et pour une session admin vérifiée en
+ * base, les cookies d'aperçu (draft mode + thème) ; rien n'est posé dans le navigateur, le trafic public n'est pas concerné.
+ */
+/** Développement : l'identifiant du draft mode du serveur dev est écrit dans .next/dev/prerender-manifest.json (le cookie doit le porter). */
+function devDraftCookie(): string | null {
+  if (process.env.NODE_ENV === "production") return null;
+  try {
+    const manifest = JSON.parse(readFileSync(path.join(process.cwd(), ".next/dev/prerender-manifest.json"), "utf8"));
+    return typeof manifest?.preview?.previewModeId === "string" ? manifest.preview.previewModeId : null;
+  } catch {
+    return null;
+  }
+}
+const VIGNETTE = /^[a-z0-9-]{1,80}(?:@\d{1,6})?$/;
+const PREVIEW_COOKIES = /^(__prerender_bypass|theme-preview|theme-preview-banner)=/;
+async function vignetteRequest(request: NextRequest): Promise<NextRequest | null> {
+  const ref = request.nextUrl.searchParams.get("vignette");
+  if (ref === null || !VIGNETTE.test(ref) || !getSessionCookie(request)) return null;
+  const draft = expectedDraftCookie() ?? devDraftCookie();
+  if (!draft || !(await isAdminRequest(request.headers))) return null;
+  const kept = (request.headers.get("cookie") ?? "").split(/;\s*/).filter((c) => c && !PREVIEW_COOKIES.test(c));
+  const headers = new Headers(request.headers);
+  headers.set("cookie", [...kept, `__prerender_bypass=${draft}`, `theme-preview=${ref}`].join("; "));
+  return new NextRequest(request, { headers });
+}
+
+/**
  * CSP complète de l'admin, avec nonce par requête : Next l'applique à ses
  * propres scripts (il lit le nonce dans l'en-tête CSP de la requête). Pas
  * d'unsafe-eval en production ; en développement, Turbopack et le HMR en ont
@@ -142,6 +171,18 @@ export default async function proxy(request: NextRequest) {
   if (!match) return intl(request); // « / », langue absente : next-intl redirige
 
   const [, locale, rest = ""] = match;
+  if (rest === "" && request.nextUrl.searchParams.has("vignette")) {
+    const framed = await vignetteRequest(request);
+    if (framed) {
+      const response = intl(framed);
+      // Cadre de l'écran Thèmes (même origine) : les en-têtes « cadre » de next.config se décident sur le cookie d'aperçu du NAVIGATEUR,
+      // que cette requête n'a pas ; on les pose ici, pour cette réponse seulement. Jamais en cache.
+      response.headers.set("X-Frame-Options", "SAMEORIGIN");
+      response.headers.set("Content-Security-Policy", "frame-ancestors 'self'");
+      response.headers.set("Cache-Control", "no-store");
+      return response;
+    }
+  }
   let slug: string | null;
   try {
     slug = decodeURIComponent(rest.replace(/\/+$/, ""));

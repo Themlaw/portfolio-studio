@@ -22,6 +22,7 @@ import { chromium } from "playwright";
 import sharp from "sharp";
 
 import { installPaperTheme } from "./lib/paper-theme.mjs";
+import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -109,13 +110,8 @@ async function publish() {
   return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 async function activateTheme(id) {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const card = page.locator(`.a-theme-card[aria-labelledby="theme-${id}"]`);
-  if ((await card.getAttribute("data-active")) === "true") return;
-  await card.getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").waitFor({ state: "detached" });
-  await sleep(800);
+  // Lot 60 : « Utiliser ce modèle » / « En faire mon thème », puis « Publier » (scripts/lib/theme-live.mjs).
+  await activateThemeUi(page, BASE, id);
 }
 async function section(name, fn) {
   try {
@@ -324,8 +320,20 @@ await section("B", async () => {
 
 /* ---- C. Réglage du site ---------------------------------------------------------------------------------------------------------- */
 
+/** Lot 60 : le thème en ligne est Mon thème ; on le modifie (brouillon) puis on publie la version. */
+const mineId = () => q("select id from themes where mine = 1")[0].id;
+async function publishMine() {
+  await gotoThemesPage(page, BASE);
+  const b = page.getByTestId("mine-publish");
+  if (await b.count()) {
+    await b.click();
+    await page.locator("dialog[open]").getByRole("button", { name: "Publier", exact: true }).click();
+    await page.locator("dialog[open]").waitFor({ state: "detached", timeout: 30000 });
+  }
+  await sleep(800);
+}
 await section("C", async () => {
-  await page.goto(`${BASE}/admin/themes/${THEME_ID}`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/admin/themes/${mineId()}`, { waitUntil: "networkidle" });
   const panel = page.locator("section", { has: page.getByRole("heading", { name: "Papier dessiné" }) });
   ok("C1 l'éditeur de thème a « Papier dessiné » avec « Papier visible sur les cartes »", await panel.waitFor({ timeout: 30000 }).then(() => true, () => false) && (await panel.locator('[data-testid="paper-on-cards"]').count()) === 1);
   ok("C1 curseur d'intensité masqué tant que la case est décochée", (await panel.locator('[data-testid="paper-on-cards-opacity"]').count()) === 0);
@@ -334,9 +342,10 @@ await section("C", async () => {
   await range.fill("40");
   await page.getByRole("button", { name: /^Enregistrer/ }).click();
   ok("C2 réglage enregistré dans le thème (assets.kit.paper.onCards / onCardsOpacity)", await waitFor(() => {
-    const p = JSON.parse(q("select data from themes where id = ?", THEME_ID)[0].data).assets.kit.paper;
+    const p = JSON.parse(q("select data from themes where id = ?", mineId())[0].data).assets.kit.paper;
     return p.onCards === true && p.onCardsOpacity === 0.4;
   }));
+  await publishMine();
 
   f = await openEditor();
   const menu = await openMenu();
@@ -381,7 +390,7 @@ await section("C", async () => {
 await section("D", async () => {
   await activateTheme("carnet-d-atelier");
   const actives = await page.locator(".a-theme-card").evaluateAll((els) => els.map((e) => `${e.getAttribute("data-active")}:${(e.textContent ?? "").slice(0, 24)}`));
-  ok("D0 thème sans papier en ligne", actives.some((a) => /^true:Carnet/.test(a)), actives.join(" | "));
+  ok("D0 thème sans papier en ligne", actives.filter((a) => /^true:/.test(a)).length === 1 && q("select based_on b from themes where mine = 1")[0].b === "Carnet d'atelier", actives.join(" | "));
   await page.screenshot({ path: path.join(SHOTS, "d0-themes.png") });
   // Les écrans d'édition de thème laissent un aperçu (cookie) du thème édité : on le quitte pour revoir le thème en ligne.
   await page.goto(`${BASE}/api/theme-preview?id=&banner=0`, { waitUntil: "domcontentloaded" });

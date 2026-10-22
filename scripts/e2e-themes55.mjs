@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  * Lot 55 « préparer et appliquer un thème » (chromium, serveur de production, base neuve, une connexion admin).
+ * (Lot 60 : « Mon thème », modèles et versions ; ce suite a été alignée sur ce modèle.)
  *  A  Écran Thèmes sans aperçu : pas de « Quitter l'aperçu », vocabulaire sans jargon, ordre des cartes.
  *  B  Aperçu d'un thème : pastille « En préparation » sur la bonne carte, bandeau, « Quitter l'aperçu » seulement alors, ordre inchangé.
  *  C  Éditeur de page : bandeau fixe « Tu prépares le thème X », panneau Couleurs = couleurs de CE thème.
@@ -20,6 +21,7 @@ import { chromium } from "playwright";
 
 import { canvas, openEditor, pageIdOf, q1, settled, sleep, sql, waitFor } from "./lib/grille31d.mjs";
 import { login } from "./lib/medias-setup.mjs";
+import { gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3680";
 const ONLY = process.env.ONLY ?? "";
@@ -58,10 +60,11 @@ const CUSTOM_BG = "#dfeee8";
 const shot = (name) => page.screenshot({ path: path.join(SHOTS, `${name}.png`) }).catch(() => {});
 
 const gotoThemes = async () => {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   await page.locator(".a-theme-card").first().waitFor();
 };
-const cardNames = () => page.locator(".a-theme-card h2").allTextContents();
+const cardNames = () => page.locator("section[data-model] h2").allTextContents();
+const model = (id) => page.locator("section[data-model]", { has: page.locator(`h2#theme-${id}`) });
 const card = (name) => page.locator(".a-theme-card", { has: page.locator("h2", { hasText: new RegExp(`^${name.replace(/[()]/g, "\\$&")}$`) }) });
 const startPreview = (id) => page.request.post(`${BASE}/admin/apercu`, { form: { id, retour: "/admin/themes" }, headers: { origin: BASE }, maxRedirects: 0 });
 const stopPreview = () => page.request.post(`${BASE}/admin/apercu/quitter`, { form: { retour: "/admin/themes" }, headers: { origin: BASE }, maxRedirects: 0 });
@@ -86,7 +89,7 @@ try {
     ok("A1 sans aperçu : pas de bouton « Quitter l'aperçu »", (await page.locator('[data-testid="quit-preview"]').count()) === 0 && !(await page.getByRole("button", { name: "Quitter l'aperçu" }).count()));
     ok("A2 aucune pastille « En préparation » ni bandeau", (await page.locator('[data-testid="theme-preparing"], [data-testid="theme-preparing-banner"]').count()) === 0);
     ok("A3 vocabulaire : plus de « Livré », « Hors ligne », « DA »", !/Livré|Hors ligne|\bDA\b/.test(text), text.slice(0, 200));
-    ok("A4 « Thème fourni » sur les thèmes livrés", (await page.getByText("Thème fourni", { exact: true }).count()) >= 1);
+    ok("A4 « Modèle » sur les thèmes livrés", (await page.getByText("Modèle", { exact: true }).count()) >= 1);
     order = await cardNames();
     ok("A5 ordre : thèmes à toi d'abord, puis les fournis, par nom", JSON.stringify(order) === JSON.stringify([...order].sort((a, b) => 0)) && order.length >= 8, JSON.stringify(order));
     const live = card(LIVE_NAME);
@@ -151,12 +154,18 @@ try {
     }
     await startPreview(PREP);
     await gotoThemes();
+    // Lot 60 : on ne met plus un modèle en ligne tel quel : « Utiliser ce modèle » crée Mon thème (version 1), qu'on publie ensuite.
+    if (!q1("select id from themes where mine = 1")) {
+      await model(PREP).getByTestId("use-model").click();
+      await page.locator('[data-testid="mine-card"]').waitFor({ timeout: 60000 });
+    }
+    const MINE = q1("select id from themes where mine = 1").id;
     const notice = page.locator('[data-testid="custom-colors-notice"]');
     ok("E1 encart « Couleurs personnalisées du site » avec « Revenir aux couleurs du thème »", /Couleurs personnalisées du site/.test((await notice.textContent()) ?? "") && (await notice.getByRole("button", { name: "Revenir aux couleurs du thème" }).count()) === 1);
     const first = await card(LIVE_NAME).locator(".a-swatch").first().evaluate((e) => getComputedStyle(e).backgroundColor);
-    const firstOther = await card(PREP_NAME).locator(".a-swatch").first().evaluate((e) => getComputedStyle(e).backgroundColor);
+    const firstOther = await page.locator('[data-testid="mine-card"] .a-swatch').first().evaluate((e) => getComputedStyle(e).backgroundColor);
     ok("E2 les pastilles montrent ce qui sera publié (fond personnalisé)", first === rgb(CUSTOM_BG) && firstOther === rgb(CUSTOM_BG), `${first} ${firstOther}`);
-    await card(PREP_NAME).getByRole("button", { name: "Mettre en ligne" }).click();
+    await page.getByTestId("mine-publish").click();
     const dlg = page.locator("dialog[open]");
     await dlg.waitFor();
     const dt = (await dlg.textContent()) ?? "";
@@ -164,8 +173,8 @@ try {
     await shot("E-confirmation");
     if (run("F")) {
       await dlg.getByLabel("Revenir aux couleurs du nouveau thème").check();
-      await dlg.getByRole("button", { name: "Mettre en ligne" }).click();
-      ok("F1 thème mis en ligne", await waitFor(() => setting("activeThemeId") === PREP, 60000));
+      await dlg.getByRole("button", { name: "Publier", exact: true }).click();
+      ok("F1 Mon thème mis en ligne", await waitFor(() => setting("activeThemeId") === MINE, 60000));
       ok("F2 couleurs personnalisées retirées (choix « revenir aux couleurs du nouveau thème »)", !setting("styles")?.palette);
       ok("F3 le thème précédent est retenu", setting("previousThemeId") === LIVE, String(setting("previousThemeId")));
       ok("F4 toast avec « Revenir à … »", await page.getByRole("button", { name: new RegExp(`Revenir à « ${LIVE_NAME} »`) }).first().waitFor({ timeout: 15000 }).then(() => true, () => false));
@@ -190,12 +199,15 @@ try {
 
   /* ---- H / I / J. copie, suppression d'un thème en aperçu, export, éditeur de thème ---- */
   if (run("H") || run("I") || run("J")) {
+    // Lot 60 : plus de « Dupliquer ». J et I travaillent sur Mon thème (créé ici s'il n'existe pas) ; H sur un thème à part (« second thème »).
     await gotoThemes();
-    await card(PREP_NAME).getByRole("button", { name: /Plus d'actions/ }).click();
-    await page.getByRole("menuitem", { name: /Dupliquer/ }).click();
-    await page.waitForURL(/\/admin\/themes\/[^/]+$/);
-    const copyId = decodeURIComponent(page.url().split("/").pop());
+    if (!q1("select id from themes where mine = 1")) {
+      await model(PREP).getByTestId("use-model").click();
+      await page.locator('[data-testid="mine-card"]').waitFor({ timeout: 60000 });
+    }
+    const copyId = q1("select id from themes where mine = 1").id;
     const copyName = themeRow(copyId).name;
+    await page.goto(`${BASE}/admin/themes/${copyId}`, { waitUntil: "networkidle" });
 
     if (run("J")) {
       await page.locator('[data-testid="da-section"]').waitFor();
@@ -220,16 +232,22 @@ try {
     }
 
     if (run("H")) {
-      await startPreview(copyId);
+      // Un thème à part : « Utiliser ce modèle » puis « Créer un second thème » (Mon thème reste tel quel).
       await gotoThemes();
-      ok("H1 la copie est « En préparation »", (await card(copyName).locator('[data-testid="theme-preparing"]').count()) === 1);
-      await card(copyName).getByRole("button", { name: /Plus d'actions/ }).click();
-      await page.getByRole("menuitem", { name: /Supprimer/ }).click();
+      await model(PREP).getByTestId("use-model").click();
+      await page.locator("dialog[open]").getByRole("button", { name: "Créer un second thème" }).click();
+      const oldId = (await waitFor(() => Boolean(q1("select id from themes where mine = 0 and preset = 0 and name = ?", PREP_NAME)), 30000)) ? q1("select id from themes where mine = 0 and preset = 0 and name = ?", PREP_NAME).id : null;
+      ok("H0 un second thème est créé (rangé dans « Mes anciens thèmes »)", Boolean(oldId));
+      await startPreview(oldId);
+      await gotoThemes();
+      const oldCard = page.locator("section[data-old]", { has: page.locator(`h2#theme-${oldId}`) });
+      ok("H1 le thème à part est « En préparation »", (await oldCard.locator('[data-testid="theme-preparing"]').count()) === 1);
+      await oldCard.getByTestId("old-delete").click();
       const dlg = page.locator("dialog[open]");
       await dlg.waitFor();
       ok("H2 la boîte de suppression dit que le thème est en aperçu", /prévisualiser/.test((await dlg.textContent()) ?? ""));
       await dlg.getByRole("button", { name: "Supprimer" }).click();
-      ok("H3 thème supprimé", await waitFor(() => !q1("select id from themes where id = ?", copyId), 30000));
+      ok("H3 thème supprimé", await waitFor(() => !q1("select id from themes where id = ?", oldId), 30000));
       await dlg.waitFor({ state: "hidden", timeout: 30000 }); // l'action a répondu (cookies d'aperçu effacés) avant de recharger
       await page.reload({ waitUntil: "networkidle" });
       ok("H4 l'aperçu s'arrête : ni bandeau, ni « Quitter l'aperçu »", (await page.locator('[data-testid="theme-preparing-banner"]').count()) === 0 && (await page.locator('[data-testid="quit-preview"]').count()) === 0);

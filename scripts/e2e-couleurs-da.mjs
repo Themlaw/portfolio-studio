@@ -22,6 +22,7 @@ import path from "node:path";
 
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
+import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -84,6 +85,7 @@ const ratio = (a, b) => {
   return (hi + 0.05) / (lo + 0.05);
 };
 
+const MINE = () => q("select id from themes where mine = 1")[0]?.id;
 const PRESET = "galerie-lumineuse";
 const COPY = "galerie-lumineuse-copie";
 const NEW_ACCENT = "#7a2e4d";
@@ -198,13 +200,8 @@ async function latencyOf(key, hex, variable) {
 }
 const sectionShot = (name) => page.screenshot({ path: path.join(SHOTS, name) });
 async function activateTheme(name) {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const card = page.locator(".a-theme-card", { hasText: name }).first();
-  if ((await card.getAttribute("data-active")) === "true") return;
-  await card.getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").waitFor({ state: "detached" });
-  await sleep(800);
+  // Lot 60 : « Utiliser ce modèle » / « En faire mon thème », puis « Publier » (scripts/lib/theme-live.mjs).
+  await activateThemeUi(page, BASE, name);
 }
 /** HTML public de l'accueil (rendu mis en cache : on attend la revalidation). */
 const publicVar = async (url, name) => {
@@ -219,7 +216,7 @@ const original = colorsOf(PRESET);
 if (run("A"))
   await section("A", async () => {
     // Le lien depuis la liste des thèmes.
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    await gotoThemesPage(page, BASE);
     const card = page.locator(".a-theme-card", { hasText: "Galerie lumineuse" }).first();
     // Lot 23 : le lien est dans le menu « … » de la carte.
     await card.getByRole("button", { name: /Plus d'actions/ }).click();
@@ -327,7 +324,7 @@ if (run("B"))
 if (run("D"))
   await section("D", async () => {
     await activateTheme("Galerie lumineuse (copie)");
-    await page.goto(`${BASE}/admin/themes/${COPY}`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/admin/themes/${MINE()}`, { waitUntil: "networkidle" });
     ok("D0 sans surcharge du site : pas d'avertissement", (await page.locator('[data-testid="da-site-override"]').count()) === 0);
     // Deux couleurs remplacées par le site depuis l'éditeur de page (17f) : écrites comme le fait la publication.
     const prev = q("select value from settings where key = 'styles'")[0]?.value;
@@ -339,8 +336,8 @@ if (run("D"))
     const link = page.locator('[data-testid="da-site-override-link"]');
     ok("D3 lien vers l'éditeur de page", /\/admin\/pages\/1\/editer$/.test((await link.getAttribute("href")) ?? ""));
     const fr = await previewFrame();
-    ok("D4 pas de fusion silencieuse : l'aperçu montre les couleurs du THÈME, pas celles du site", same(rgbOf(await frameVar(fr, "--t-color-primary")), hexRgb(colorsOf(COPY).primary)) && same(rgbOf(await frameVar(fr, "--t-color-secondary")), hexRgb(colorsOf(COPY).secondary)));
-    ok("D5 le panneau des couleurs du thème garde celles du thème", same(rgbOf(await role("primary").locator(".lc-role .lc-chip").evaluate((el) => getComputedStyle(el).backgroundColor)), hexRgb(colorsOf(COPY).primary)));
+    ok("D4 pas de fusion silencieuse : l'aperçu montre les couleurs du THÈME, pas celles du site", same(rgbOf(await frameVar(fr, "--t-color-primary")), hexRgb(colorsOf(MINE()).primary)) && same(rgbOf(await frameVar(fr, "--t-color-secondary")), hexRgb(colorsOf(MINE()).secondary)));
+    ok("D5 le panneau des couleurs du thème garde celles du thème", same(rgbOf(await role("primary").locator(".lc-role .lc-chip").evaluate((el) => getComputedStyle(el).backgroundColor)), hexRgb(colorsOf(MINE()).primary)));
     await sectionShot("5-da-surcharge-site-1440.png");
     if (prev) exec("update settings set value = ? where key = 'styles'", prev);
     else exec("delete from settings where key = 'styles'");
@@ -353,26 +350,27 @@ if (run("D"))
 if (run("C"))
   await section("C", async () => {
     await activateTheme("Galerie lumineuse (copie)");
-    ok("C0 la copie est en ligne", setting("activeThemeId") === COPY);
-    await page.goto(`${BASE}/admin/themes/${COPY}`, { waitUntil: "networkidle" });
+    ok("C0 Mon thème (fait depuis la copie) est en ligne", setting("activeThemeId") === MINE());
+    await page.goto(`${BASE}/admin/themes/${MINE()}`, { waitUntil: "networkidle" });
     await page.locator('[data-testid="da-section"]').waitFor();
     await previewFrame();
-    ok("C1 thème en ligne annoncé", /Ce thème est en ligne/.test((await page.locator("header, .a-page-header, main").first().textContent()) ?? "") || /Ce thème est en ligne/.test((await page.textContent("body")) ?? ""));
+    ok("C1 état annoncé : « En ligne : v… » (bandeau de Mon thème)", /En ligne : v\d+/.test((await page.locator('[data-testid="mine-bar-state"]').textContent()) ?? ""));
     const liveBefore = await publicVar("/fr", "--t-color-primary");
     await latencyOf("primary", NEW_PRIMARY, "--t-color-primary");
-    ok("C2 en ligne : l'aperçu change tout de suite, pas le site public", (await publicVar("/fr", "--t-color-primary")) === liveBefore && /ne les verront qu'après « Enregistrer »/.test((await page.locator('[data-testid="da-state"]').textContent()) ?? ""));
-    ok("C2b le bouton annonce la publication", /Enregistrer et publier/.test((await page.locator('[data-testid="da-save"]').textContent()) ?? ""));
+    ok("C2 l'aperçu change tout de suite, pas le site public", (await publicVar("/fr", "--t-color-primary")) === liveBefore);
+    ok("C2b « Enregistrer » ne promet plus de publier (une version brouillon)", /^Enregistrer$/.test(((await page.locator('[data-testid="da-save"]').textContent()) ?? "").trim()));
     await page.locator('[data-testid="da-save"]').click();
+    ok("C3 enregistrer : une version brouillon, aucune fenêtre, le site public ne change pas", (await waitFor(() => colorsOf(MINE()).primary === NEW_PRIMARY)) && (await page.locator("dialog[open]").count()) === 0 && (await publicVar("/fr", "--t-color-primary")) === liveBefore);
+    await page.locator('[data-testid="mine-bar-publish"]').click();
     const dlg = page.locator("dialog[open]");
-    ok("C3 confirmation claire : « Ce thème est en ligne : tes visiteurs verront ces couleurs »", await dlg.waitFor({ timeout: 10000 }).then(() => true, () => false) && /Ce thème est en ligne : tes visiteurs verront ces couleurs/.test((await dlg.textContent()) ?? ""));
-    ok("C3b la confirmation liste le changement (avant → après)", /Boutons et liens/.test((await dlg.textContent()) ?? "") && (await dlg.textContent())?.toLowerCase().includes(NEW_PRIMARY));
+    ok("C3b la fenêtre de publication liste le changement (avant → après)", await dlg.waitFor({ timeout: 10000 }).then(() => true, () => false) && /Boutons et liens/.test((await dlg.textContent()) ?? "") && (await dlg.textContent())?.toLowerCase().includes(NEW_PRIMARY));
     await sectionShot("4-da-confirmation-en-ligne-1440.png");
     await dlg.getByRole("button", { name: "Annuler" }).click();
     await sleep(800);
-    ok("C4 annuler : rien n'est écrit, le site public ne change pas", colorsOf(COPY).primary !== NEW_PRIMARY && (await publicVar("/fr", "--t-color-primary")) === liveBefore);
-    await page.locator('[data-testid="da-save"]').click();
-    await dlg.getByRole("button", { name: "Enregistrer et publier" }).click();
-    ok("C5 confirmer : le thème en ligne est enregistré", await waitFor(() => colorsOf(COPY).primary === NEW_PRIMARY));
+    ok("C4 annuler : le site public ne change pas", (await publicVar("/fr", "--t-color-primary")) === liveBefore);
+    await page.locator('[data-testid="mine-bar-publish"]').click();
+    await dlg.getByRole("button", { name: "Publier", exact: true }).click();
+    ok("C5 confirmer : la version est publiée", await waitFor(() => q("select published_version p, version v from themes where mine = 1")[0].p === q("select version v from themes where mine = 1")[0].v));
     ok("C6 le site public montre les nouvelles couleurs", await waitFor(async () => (await publicVar("/fr", "--t-color-primary")) === NEW_PRIMARY, 60000), String(await publicVar("/fr", "--t-color-primary")));
     const pub = await ctx.newPage();
     await pub.setViewportSize({ width: 1440, height: 900 });
@@ -386,8 +384,8 @@ if (run("C"))
 
 if (run("E"))
   await section("E", async () => {
-    if (setting("activeThemeId") !== COPY) await activateTheme("Galerie lumineuse (copie)");
-    await page.goto(`${BASE}/admin/themes/${COPY}`, { waitUntil: "networkidle" });
+    if (setting("activeThemeId") !== MINE()) await activateTheme("Galerie lumineuse (copie)");
+    await page.goto(`${BASE}/admin/themes/${MINE()}`, { waitUntil: "networkidle" });
     const cartes = page.locator("section", { has: page.locator("#t-cartes") });
     await cartes.waitFor();
     await cartes.scrollIntoViewIfNeeded();
@@ -414,14 +412,14 @@ if (run("E"))
     await cartes.locator('[data-token="tertiary25"]').click();
     ok("E5 teinte choisie : aria-checked et nom affiché", (await cartes.locator('[data-token="tertiary25"]').getAttribute("aria-checked")) === "true" && /Ornements, teinte 25 %/.test((await cartes.locator('[data-testid="card-color-name"]').textContent()) ?? ""));
     await page.locator(".a-savebar").getByRole("button", { name: "Enregistrer" }).click();
-    ok("E6 enregistrée comme JETON (`tertiary25`), jamais un hex figé", await waitFor(() => themeData(COPY)?.tokens.layout?.card?.color === "tertiary25"), JSON.stringify(themeData(COPY)?.tokens.layout));
+    ok("E6 enregistrée comme JETON (`tertiary25`), jamais un hex figé", await waitFor(() => themeData(MINE())?.tokens.layout?.card?.color === "tertiary25"), JSON.stringify(themeData(MINE())?.tokens.layout));
   });
 
 /* ---- Éditeur visuel : popover « Carte » ---------------------------------------------------------- */
 
 if (run("F"))
   await section("F", async () => {
-    if (setting("activeThemeId") !== COPY) await activateTheme("Galerie lumineuse (copie)");
+    if (setting("activeThemeId") !== MINE()) await activateTheme("Galerie lumineuse (copie)");
     const PAGE_ID = 5;
     const draft = () => JSON.parse(q("select draft from pages where id = ?", PAGE_ID)[0]?.draft || "null");
     const draftBlocks = () => draft()?.blocks ?? [];
@@ -481,13 +479,15 @@ if (run("F"))
     ok("F5b public = aperçu de l'éditeur", same(hexRgb(publicBefore), rgbOf(chip), 2), `${publicBefore} vs ${chip}`);
 
     // Changement de palette du thème en ligne : la carte suit.
-    await page.goto(`${BASE}/admin/themes/${COPY}`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/admin/themes/${MINE()}`, { waitUntil: "networkidle" });
     await page.locator('[data-testid="da-section"]').waitFor();
     await previewFrame();
     await typeHex("secondary", "#2f6b4f");
     await page.locator('[data-testid="da-save"]').click();
-    await page.locator("dialog[open]").getByRole("button", { name: "Enregistrer et publier" }).click();
-    ok("F6 palette du thème modifiée et publiée", await waitFor(() => colorsOf(COPY).secondary === "#2f6b4f"));
+    await waitFor(() => colorsOf(MINE()).secondary === "#2f6b4f");
+    await page.locator('[data-testid="mine-bar-publish"]').click();
+    await page.locator("dialog[open]").getByRole("button", { name: "Publier", exact: true }).click();
+    ok("F6 palette du thème modifiée et publiée", await waitFor(() => colorsOf(MINE()).secondary === "#2f6b4f"));
     ok("F7 la teinte de la carte publique suit le changement de palette (jeton, pas hex figé)", await waitFor(async () => {
       const now = await cardVar();
       return now !== null && now !== publicBefore;

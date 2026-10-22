@@ -28,6 +28,8 @@ import { getStorage } from "@/lib/storage";
 import { sniffImage } from "@/lib/upload/sniff";
 import { normalizePalette } from "@/themes/palette";
 import { ThemeSchema, type Theme } from "@/themes/schema";
+
+import { addImportedVersion } from "./versions";
 import { unknownKeys } from "@/themes/strict";
 
 import { svgProblem } from "./svg-check";
@@ -209,13 +211,20 @@ export async function parseThemePackage(buf: Buffer): Promise<ParsedPackage> {
   return { theme, assets: used };
 }
 
-/** Importe l'archive : nouvelle ligne de thème (non livrée, non active). */
-export async function importThemePackage(buf: Buffer): Promise<{ id: string; name: string }> {
+/**
+ * Importe l'archive. `apart` (défaut) : nouvelle ligne de thème (non livrée, non active), dans « Mes anciens thèmes ». `version` (lot 60) :
+ * nouvelle version de Mon thème (créé depuis l'archive s'il n'existe pas), jamais mise en ligne d'office.
+ */
+export async function importThemePackage(buf: Buffer, opts: { mode?: "apart" | "version"; fileName?: string } = {}): Promise<{ id: string; name: string; version?: number; mode: "apart" | "version" }> {
   const { theme, assets } = await parseThemePackage(buf);
   const storage = getStorage();
   for (const [p, asset] of assets) {
     const key = p.slice("/media/".length);
     if (!(await storage.stat(key))) await storage.put(key, Readable.from(asset.data));
+  }
+  if (opts.mode === "version") {
+    const added = addImportedVersion(theme, opts.fileName ? opts.fileName.slice(0, 60) : undefined);
+    return { id: added.id, name: theme.name, version: added.version, mode: "version" };
   }
   const db = getDb();
   const taken = (id: string) => Boolean(db.select({ id: schema.themes.id }).from(schema.themes).where(eq(schema.themes.id, id)).get());
@@ -235,7 +244,7 @@ export async function importThemePackage(buf: Buffer): Promise<{ id: string; nam
           for (let n = 1; taken(id); n++) id = `${base}-import${n === 1 ? "" : `-${n}`}`;
           const row: Theme = ThemeSchema.parse({ ...theme, id, name, preset: false });
           db.insert(schema.themes).values({ id, name, preset: false, data: JSON.stringify(row) }).run();
-          return { id, name };
+          return { id, name, mode: "apart" as const };
         })
         .immediate();
     } catch (error) {

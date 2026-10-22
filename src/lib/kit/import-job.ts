@@ -52,8 +52,10 @@ export type KitImportMeta = {
   files?: KitImportFile[];
   /** Envoi de plusieurs PSD en cours : l'import n'est pas encore en file (le dernier fichier la déclenche). */
   collecting?: boolean;
-  /** Copie brouillon créée par « Appliquer au thème ». */
+  /** Mon thème, mis à jour par « Appliquer à mon thème » (lot 60). */
   appliedThemeId?: string | null;
+  /** Numéro de la version créée par l'application (lot 60). */
+  appliedVersion?: number | null;
 };
 
 export type KitImportState = {

@@ -27,6 +27,7 @@ import { chromium } from "playwright";
 
 import { installPaperTheme, PAPER_THEME_NAME } from "./lib/paper-theme.mjs";
 import { placeBoard } from "./lib/page-board.mjs";
+import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -150,13 +151,8 @@ async function publish() {
   return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 async function activateTheme(name) {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const card = page.locator(".a-theme-card", { hasText: name }).first();
-  if ((await card.getAttribute("data-active")) === "true") return;
-  await card.getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").waitFor({ state: "detached" });
-  await sleep(800);
+  // Lot 60 : « Utiliser ce modèle » / « En faire mon thème », puis « Publier » (scripts/lib/theme-live.mjs).
+  await activateThemeUi(page, BASE, name);
 }
 async function section(name, fn) {
   try {
@@ -257,7 +253,7 @@ await section("P", async () => {
 /* ---- A. Bibliothèque -------------------------------------------------------------------------------------------------------- */
 
 await section("A", async () => {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   const link = page.locator('.a-nav a[href="/admin/papiers-peints"]');
   ok("A0 « Papiers peints » est dans le menu, juste sous « Thèmes »", (await link.count()) === 1 && (await page.locator(".a-nav li").evaluateAll((els) => els.map((e) => e.textContent?.trim()).slice(1, 3))).join() === "Thèmes,Papiers peints");
   await link.click();

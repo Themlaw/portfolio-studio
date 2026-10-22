@@ -21,6 +21,7 @@ import { chromium } from "playwright";
 
 import { loadPreset, presetSlugs } from "./lib/presets.mjs";
 import { maliciousPackages, validPackage } from "./lib/theme-packages.mjs";
+import { gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -110,7 +111,7 @@ if (ONLY.includes("B")) {
   await page.fill("#password", PASSWORD);
   await page.click("button[type=submit]");
   await page.waitForURL(`${BASE}/admin`, { timeout: 60000 });
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   const cards = () => page.locator(".a-theme-card").count();
   const thumbs = await page.locator(".a-theme-card img.a-theme-thumb").count();
   const before = await cards();

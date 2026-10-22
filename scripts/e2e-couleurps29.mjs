@@ -19,6 +19,7 @@ import path from "node:path";
 
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
+import { activateThemeUi } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -430,18 +431,13 @@ if (run("C")) {
   ok("C3c … l'avertissement de lisibilité est affiché (rôle « Texte »)", await waitFor(async () => /Lisibilité[^.]*insuffisante/.test((await page.locator('.a-da .lc-role-item[data-role="ink"]').textContent()) ?? ""), 10000));
   await page.screenshot({ path: `${SHOTS}/C3-theme.png`, fullPage: true });
   // Mise en ligne du thème peu contrasté : acceptée.
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const row = page.locator(".a-theme-card, li", { hasText: "Galerie lumineuse (copie)" }).first();
-  await row.getByRole("button", { name: /Mettre en ligne/ }).first().click();
-  await page.getByRole("dialog").getByRole("button", { name: /Mettre en ligne/ }).last().click();
-  ok("C3d mise en ligne d'un thème peu contrasté : acceptée", await waitFor(() => setting("activeThemeId") === "galerie-lumineuse-copie", 60000), String(setting("activeThemeId")));
+  // Lot 60 : « En faire mon thème » puis « Publier » (scripts/lib/theme-live.mjs).
+  await activateThemeUi(page, BASE, "Galerie lumineuse (copie)");
+  ok("C3d mise en ligne d'un thème peu contrasté : acceptée", await waitFor(async () => /--t-color-ink:#eeeeee/.test((await anon("/fr")).html), 60000), String(setting("activeThemeId")));
   ok("C3e … le public applique ses couleurs", /--t-color-ink:#eeeeee/.test((await anon("/fr")).html));
   // Retour au thème livré.
-  await page.reload({ waitUntil: "networkidle" });
-  const preset = page.locator(".a-theme-card, li", { hasText: "Galerie lumineuse" }).filter({ hasNotText: "(copie)" }).first();
-  await preset.getByRole("button", { name: /Mettre en ligne/ }).first().click();
-  await page.getByRole("dialog").getByRole("button", { name: /Mettre en ligne/ }).last().click();
-  ok("C3f nettoyage : thème livré remis en ligne", await waitFor(() => setting("activeThemeId") === "galerie-lumineuse", 60000));
+  await activateThemeUi(page, BASE, "Galerie lumineuse");
+  ok("C3f nettoyage : thème livré remis en ligne (via Mon thème)", await waitFor(async () => !/--t-color-ink:#eeeeee/.test((await anon("/fr")).html), 60000));
 }
 
 /* ======================================== N. Nuances ======================================== */
