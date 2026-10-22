@@ -586,8 +586,8 @@ if (run("C"))
 
 if (run("D"))
   await section("D", async () => {
-  await page.goto(`${BASE}/admin/themes/${PAPER_THEME_ID}`, { waitUntil: "networkidle" });
-  const section = page.locator("section", { has: page.getByRole("heading", { name: "Cartes des rubriques" }) });
+  await page.goto(`${BASE}/admin/themes/${PAPER_THEME_ID}?etape=cartes`, { waitUntil: "networkidle" });
+  const section = page.locator("section.a-panel", { has: page.getByRole("heading", { name: "Cartes des rubriques" }) });
   ok("D1 l'éditeur de thème a « Cartes des rubriques »", await section.waitFor({ timeout: 30000 }).then(() => true, () => false));
   await section.locator('[data-token="bgDeep"]').click();
   await section.getByRole("button", { name: "Pleine largeur" }).click();

@@ -32,13 +32,13 @@ export type ContrastPair = {
 const TEXTS: [keyof ColorTokens, string][] = [
   ["ink", "Texte"],
   ["inkSoft", "Texte secondaire"],
-  ["eyebrow", "Étiquettes"],
+  ["eyebrow", "Petits textes d'étiquette"],
   ["secondary", "Accent"],
   ["primary", "Boutons et liens"],
 ];
 const GROUNDS: [keyof ColorTokens, string][] = [
   ["bg", "fond de page"],
-  ["bgDeep", "fond profond"],
+  ["bgDeep", "fond des blocs"],
   ["surface", "cartes et encadrés"],
 ];
 

@@ -347,17 +347,19 @@ if (run("Q")) {
   await page.screenshot({ path: `${SHOTS}/Q3-da.png` });
   await inkItem.locator(".lc-role").click();
   await ensureCopy();
-  if ((await page.locator('[data-testid="palette-details"]').getAttribute("open")) === null) await page.locator('[data-testid="palette-details"] summary').click();
-  const pal = page.locator('.a-color[data-token="primary"]');
+  if ((await page.locator('[data-testid="adv-couleurs"]').getAttribute("open")) === null) await page.locator('[data-testid="adv-couleurs"] summary').click();
+  // Lot 61 : les couleurs de base sont dans le panneau « Couleurs » ; « Affiner » porte les nuances (ici « Au survol »).
+  const pal = page.locator('.a-color[data-token="primaryHover"]');
   await pal.scrollIntoViewIfNeeded();
-  ok("Q4 palette du thème : plus de sélecteur natif du navigateur", (await pal.locator('input[type="color"]').count()) === 0 && (await pal.getByRole("button", { name: "Boutons et liens : sélecteur" }).count()) === 1);
-  await pal.getByRole("button", { name: "Boutons et liens : sélecteur" }).click();
+  ok("Q4 réglages avancés des couleurs : plus de sélecteur natif du navigateur", (await pal.locator('input[type="color"]').count()) === 0 && (await pal.getByRole("button", { name: "Au survol : sélecteur" }).count()) === 1);
+  await pal.getByRole("button", { name: "Au survol : sélecteur" }).click();
   ok("Q4b palette du thème : carré + bande de teinte, code couleur", (await pal.locator(".cp-sv").count()) === 1 && (await pal.locator(".cp-hue").count()) === 1 && (await pal.locator(".cp-hex").count()) === 1);
   await pal.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${SHOTS}/Q4-palette-admin.png` });
   await page.keyboard.press("Escape");
   ok("Q4c Échap : fermé, focus rendu à la pastille", (await pal.locator(".cp").count()) === 0 && (await page.evaluate(() => document.activeElement?.classList.contains("cpw-chip"))));
   // Cartes par défaut (thème) et couleur des boutons et liens d'une page.
+  await page.locator('[data-testid="step-tab-cartes"]').click();
   const card = page.locator("#t-cartes").locator("..");
   ok("Q5 cartes des rubriques (thème) : plus de sélecteur natif", (await card.locator('input[type="color"]').count()) === 0 && (await card.getByRole("button", { name: "Autre couleur : sélecteur" }).count()) === 1);
   await page.goto(`${BASE}/admin/pages/${homeId}`, { waitUntil: "networkidle" });
@@ -446,8 +448,8 @@ if (run("N")) {
   const f = await openEditor(homeId);
   await page.getByRole("tab", { name: "Réglages" }).click();
   const NAMES = {
-    bg: ["Fond des rubriques alternées", "Traits de séparation"],
-    ink: ["Texte secondaire (présentations, légendes)", "Petits textes au-dessus des titres", "Ombres"],
+    bg: ["Fond des blocs", "Traits fins"],
+    ink: ["Texte secondaire (présentations, légendes)", "Petits textes d'étiquette", "Ombres"],
     primary: ["Au survol", "Texte sur les boutons"],
   };
   for (const [role, names] of Object.entries(NAMES)) {
@@ -456,7 +458,7 @@ if (run("N")) {
   }
   for (const role of ["surface", "secondary", "tertiary"]) ok(`N1b « ${role} » : aucune nuance`, (await page.locator(`.lc-role-item[data-role="${role}"] .lc-nuance-item`).count()) === 0);
   const lb = (await page.locator('[data-testid="lightbox-colors"] .lc-text strong').allTextContents()).map((t) => t.trim());
-  ok("N1c groupe « Image agrandie » : voile derrière l'image, texte et boutons sur le voile", JSON.stringify(lb) === JSON.stringify(["Voile derrière l'image", "Texte et boutons sur le voile"]) && (await page.getByRole("heading", { name: "Image agrandie" }).count()) === 1, JSON.stringify(lb));
+  ok("N1c groupe « Image agrandie » : fond des images agrandies, texte et boutons", JSON.stringify(lb) === JSON.stringify(["Fond des images agrandies", "Texte et boutons des images agrandies"]) && (await page.getByRole("heading", { name: "Image agrandie" }).count()) === 1, JSON.stringify(lb));
   ok("N1d chaque nuance dit où elle se voit (phrase)", (await page.locator(".lc-nuance-item .lc-text small").count()) >= 9);
   const item = (k) => page.locator(`.lc-nuance-item[data-nuance="${k}"]`);
   ok("N2 voile : « Automatique (calculée : … ) » avec sa pastille calculée visible", (await item("scrim").getAttribute("data-origin")) === "auto" && /Automatique \(calculée/.test((await item("scrim").textContent()) ?? "") && (await item("scrim").locator(".lc-chip").evaluate((e) => getComputedStyle(e).backgroundColor)) !== "rgba(0, 0, 0, 0)");

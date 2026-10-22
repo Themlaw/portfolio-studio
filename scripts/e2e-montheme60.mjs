@@ -293,8 +293,8 @@ try {
     const publishedBefore = M.published_version;
     const bgBefore = await publicBg();
     await page.goto(`${BASE}/admin/themes/${M.id}`, { waitUntil: "networkidle" });
-    await page.locator('[data-testid="mine-bar"]').waitFor();
-    ok("F1 bandeau de Mon thème : version, état, « Historique des versions »", /version \d+/.test((await page.locator('[data-testid="mine-bar-state"]').textContent()) ?? "") && (await page.getByRole("link", { name: "Historique des versions" }).count()) === 1);
+    await page.locator('[data-testid="guide-head"]').waitFor();
+    ok("F1 en-tête de Mon thème : version, état, « Historique des versions »", /Version \d+/.test((await page.locator('[data-testid="guide-version"]').textContent()) ?? "") && (await page.getByRole("link", { name: "Historique des versions" }).count()) === 1);
     const saveBtn = page.locator('[data-testid="da-save"]');
     ok("F1b un seul « Enregistrer » (pas « Enregistrer et publier… » : Mon thème s'enregistre en brouillon)", (await saveBtn.count()) === 1 && /^Enregistrer$/.test(((await saveBtn.textContent()) ?? "").trim()), (await saveBtn.textContent()) ?? "");
     // couleur d'accent changée, enregistrée

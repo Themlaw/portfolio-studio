@@ -333,8 +333,8 @@ async function publishMine() {
   await sleep(800);
 }
 await section("C", async () => {
-  await page.goto(`${BASE}/admin/themes/${mineId()}`, { waitUntil: "networkidle" });
-  const panel = page.locator("section", { has: page.getByRole("heading", { name: "Papier dessiné" }) });
+  await page.goto(`${BASE}/admin/themes/${mineId()}?etape=papier`, { waitUntil: "networkidle" });
+  const panel = page.locator("section.a-panel", { has: page.getByRole("heading", { name: "Papier dessiné" }) });
   ok("C1 l'éditeur de thème a « Papier dessiné » avec « Papier visible sur les cartes »", await panel.waitFor({ timeout: 30000 }).then(() => true, () => false) && (await panel.locator('[data-testid="paper-on-cards"]').count()) === 1);
   ok("C1 curseur d'intensité masqué tant que la case est décochée", (await panel.locator('[data-testid="paper-on-cards-opacity"]').count()) === 0);
   await panel.locator('[data-testid="paper-on-cards"]').check();

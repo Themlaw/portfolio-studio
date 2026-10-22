@@ -59,7 +59,7 @@ export function kitColorFailures(theme: Theme, report: KitReport): string[] {
     .map((p) => `${p.label} : ${p.ratio.toFixed(2)}:1 (il faut ${AA}:1)`);
   const p = resolvePalette(tokens.color, tokens.palette);
   const r = contrastRatio(p.onScrim, p.scrim);
-  if (r < AA) out.push(`Texte sur le voile : ${r.toFixed(2)}:1 (il faut ${AA}:1)`);
+  if (r < AA) out.push(`Texte sur le fond des images agrandies : ${r.toFixed(2)}:1 (il faut ${AA}:1)`);
   return out;
 }
 

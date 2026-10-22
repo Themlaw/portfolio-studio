@@ -78,7 +78,7 @@ export type SlotReport = {
   hash?: string;
   textured?: { coverage8: number; distinct: number };
   mono?: { spread: number };
-  /** Signature en plusieurs couleurs : gardée telle quelle (couleurs d'origine), pas en masque teinté par le thème. */
+  /** Logo : gardé tel quel (couleurs d'origine), pas en masque teinté par le thème (lot 61 : même d'une seule couleur). */
   colored?: boolean;
   seam?: { edge: number; interior: number; ratio: number };
   /** Répétition de la tuile : autocorrélation à une fraction de la période, contraste du motif (niveaux). */
@@ -300,7 +300,7 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
       if (!report.messages.includes(m)) report.messages.push(m);
       if (report.status === "ok") report.status = "warn";
     };
-    const newReport = (slot: SlotSpec, extra: Partial<SlotReport> = {}): SlotReport => ({ id: slot.id, label: slot.label, status: "ok", change: "new", messages: [], ms: 0, file: fid, ...extra });
+    const newReport = (slot: SlotSpec, extra: Partial<SlotReport> = {}): SlotReport => ({ id: slot.id, label: slot.kind === "signature" ? "Logo" : slot.label, status: "ok", change: "new", messages: [], ms: 0, file: fid, ...extra });
 
     if (role === "decor") {
       const dec = resolveDecor(psd.children);
@@ -565,13 +565,19 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
         warn(`La tuile se répète de façon visible : un motif à l'échelle de la tuile (autocorrélation ${report.repeat.rho} à une fraction de la période, contraste ${report.repeat.contrast} niveaux) dessine une grille une fois répété. Préfère un grain fin et sans forme, ou atténue le motif.`);
     }
 
-    // Signature en plusieurs couleurs : elle garde ses couleurs (lot 49). Une seule couleur : forme teintée par le thème.
+    // Logo : il GARDE ses couleurs par défaut (lot 61 : « Garder mes couleurs »), même d'une seule couleur (lot 49 : seulement en plusieurs
+    // couleurs, d'où un logo rouge redevenu noir sur le site, audit THEMES2-05). « Prendre la couleur du texte » se choisit dans l'éditeur de
+    // thème : même fichier, rendu en masque teinté (variants.css), rien à renvoyer.
     const monoInfo = slot.mono ? monoStats(img) : null;
-    const colored = slot.kind === "signature" && monoInfo !== null && !monoInfo.mono;
+    const colored = slot.kind === "signature";
     if (monoInfo) report.mono = { spread: Math.round(monoInfo.spread * 10) / 10 };
     if (colored) {
       report.colored = true;
-      report.messages.push("Logo en plusieurs couleurs : il garde ses couleurs d'origine (il ne prend pas la couleur du thème).");
+      report.messages.push(
+        monoInfo?.mono
+          ? "Logo d'une seule couleur : il garde sa couleur. Dans l'éditeur du thème, « Prendre la couleur du texte » le teinte comme le texte."
+          : "Logo en plusieurs couleurs : il garde ses couleurs d'origine (il ne prend pas la couleur du thème).",
+      );
     }
     if (slot.mono && !colored) {
       const m = monoInfo!;

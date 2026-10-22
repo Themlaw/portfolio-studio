@@ -149,6 +149,7 @@ export function SaveBar({
   note,
   label = "Enregistrer",
   testId,
+  className,
 }: {
   dirty: boolean;
   saving: boolean;
@@ -157,9 +158,11 @@ export function SaveBar({
   note?: React.ReactNode;
   label?: string;
   testId?: string;
+  /** Classe en plus (ex. l'en-tête collant de l'éditeur de thème, lot 61). */
+  className?: string;
 }) {
   return (
-    <div className="a-savebar" data-dirty={dirty}>
+    <div className={`a-savebar${className ? ` ${className}` : ""}`} data-dirty={dirty}>
       <p className="a-save-state" aria-live="polite">
         {saving ? (
           "Enregistrement…"

@@ -73,30 +73,30 @@ export const SITE_ROLES: RoleInfo[] = [
 
 /** Nuances nommées pour l'artiste (lot 29) : nom, phrase « où ça se voit », et le groupe qui les range. */
 export const SITE_NUANCES: Record<NuanceKey, { name: string; phrase: string; under: BaseKey | "lightbox" }> = {
-  bgDeep: { name: "Fond des rubriques alternées", phrase: "Le fond d'une rubrique sur deux, pour les séparer sans trait.", under: "bg" },
-  line: { name: "Traits de séparation", phrase: "Les filets entre les éléments, les contours fins.", under: "bg" },
+  bgDeep: { name: "Fond des blocs", phrase: "Le fond d'un bloc sur deux, pour les séparer sans trait.", under: "bg" },
+  line: { name: "Traits fins", phrase: "Les traits entre les éléments, les contours fins.", under: "bg" },
   inkSoft: { name: "Texte secondaire (présentations, légendes)", phrase: "Les présentations, les légendes sous les images.", under: "ink" },
-  eyebrow: { name: "Petits textes au-dessus des titres", phrase: "Les petites étiquettes posées au-dessus d'un titre.", under: "ink" },
+  eyebrow: { name: "Petits textes d'étiquette", phrase: "Les petites étiquettes posées au-dessus d'un titre.", under: "ink" },
   shadow: { name: "Ombres", phrase: "La teinte des ombres des cartes et des images.", under: "ink" },
   primaryHover: { name: "Au survol", phrase: "La couleur d'un bouton ou d'un lien quand la souris passe dessus.", under: "primary" },
   onPrimary: { name: "Texte sur les boutons", phrase: "Le texte écrit dans un bouton plein.", under: "primary" },
-  scrim: { name: "Voile derrière l'image", phrase: "Le fond derrière une image agrandie : la couleur exacte que tu choisis (automatique : un gris neutre).", under: "lightbox" },
-  onScrim: { name: "Texte et boutons sur le voile", phrase: "Légende, flèches et bouton de fermeture d'une image agrandie.", under: "lightbox" },
+  scrim: { name: "Fond des images agrandies", phrase: "Le fond derrière une image agrandie : la couleur exacte que tu choisis (automatique : un gris neutre).", under: "lightbox" },
+  onScrim: { name: "Texte et boutons des images agrandies", phrase: "Légende, flèches et bouton de fermeture d'une image agrandie.", under: "lightbox" },
 };
 /** Nuances rangées sous un rôle, dans l'ordre du panneau. */
 export const nuancesUnder = (under: BaseKey | "lightbox"): NuanceKey[] => (Object.keys(SITE_NUANCES) as NuanceKey[]).filter((k) => SITE_NUANCES[k].under === under);
 
 /** Usage de chaque nuance, en clair. */
 export const NUANCE_USES: Record<NuanceKey, string> = {
-  bgDeep: "Sépare deux rubriques sans filet.",
-  line: "Traits de séparation.",
+  bgDeep: "Sépare deux blocs sans trait.",
+  line: "Traits fins.",
   inkSoft: "Présentations et légendes.",
   shadow: "Teinte des ombres des cartes et des images.",
   primaryHover: "Boutons et liens sous la souris.",
   onPrimary: "Posé sur la couleur des boutons.",
-  eyebrow: "Petits textes au-dessus des titres.",
-  scrim: "Fond derrière une image agrandie.",
-  onScrim: "Légendes et boutons de la visionneuse.",
+  eyebrow: "Petits textes d'étiquette.",
+  scrim: "Fond des images agrandies.",
+  onScrim: "Légendes et boutons des images agrandies.",
 };
 
 export const nuanceLabel = (key: NuanceKey): string => PALETTE_GROUPS.flatMap((g) => g.nuances).find((n) => n.key === key)?.label ?? key;
@@ -155,16 +155,16 @@ export function pagePalette(color: PaletteColors, palette: PaletteState | undefi
 /** Un couple texte / fond : libellé, ratio et jetons de la palette concernés (texte, fond). */
 export type SiteContrastPair = { label: string; ratio: number; ok: boolean; tokens: [string, string] };
 
-/** Tous les couples vérifiés avec la palette du site (couples du thème + voile de la visionneuse). */
+/** Tous les couples vérifiés avec la palette du site (couples du thème + fond des images agrandies). */
 export function sitePalettePairs(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined): SiteContrastPair[] {
   const p = effectiveSitePalette(color, palette, overrides);
   const pairs: SiteContrastPair[] = contrastReport(p).map((r) => ({ label: r.label, ratio: r.ratio, ok: r.ok, tokens: [r.fg, r.bg] }));
   const scrim = ratio(p.onScrim, p.scrim);
-  pairs.push({ label: "Texte sur le voile de la visionneuse", ratio: scrim, ok: scrim >= AA, tokens: ["onScrim", "scrim"] });
+  pairs.push({ label: "Texte sur le fond des images agrandies", ratio: scrim, ok: scrim >= AA, tokens: ["onScrim", "scrim"] });
   return pairs;
 }
 
-/** Couples sous 4,5:1 avec la palette du site, voile de la visionneuse compris. */
+/** Couples sous 4,5:1 avec la palette du site, fond des images agrandies compris. */
 export function sitePaletteIssues(color: PaletteColors, palette: PaletteState | undefined, overrides: SitePalette | undefined): SiteContrastPair[] {
   return sitePalettePairs(color, palette, overrides).filter((p) => !p.ok);
 }

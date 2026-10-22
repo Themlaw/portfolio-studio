@@ -8,7 +8,7 @@
  * logique que la CI et le serveur : src/themes/contrast.ts), échantillon de
  * composants aux couleurs de la palette.
  */
-import { useId, useState, type CSSProperties } from "react";
+import { useId, useState, type CSSProperties, type ReactNode } from "react";
 
 import AdminColorPicker from "./AdminColorPicker";
 import { pairsReadability, ratioTip, readability } from "@/components/edit/readability";
@@ -126,7 +126,7 @@ export function ColorField({ tokenKey, label, help, free, value, contrastColors,
       {!valid && <p className="a-field-error">Couleur attendue au format {free ? FREE_FORMAT_HINT : "#rrggbb"}.</p>}
       {extraBad && extra && (
         <p className="a-field-error" role="alert" title={ratioTip(extra.ratio)}>
-          Texte illisible sur le voile : lisibilité insuffisante.
+          Texte difficile à lire sur le fond des images agrandies : lisibilité insuffisante.
         </p>
       )}
       {blamed && (
@@ -184,25 +184,37 @@ export function PaletteSample({ p }: { p: ResolvedPalette }) {
           Carte <span className="a-pal-s-dot" />
         </span>
       </div>
-      <div className="a-pal-s-deep">Fond profond</div>
+      <div className="a-pal-s-deep">Fond des blocs</div>
       <div className="a-pal-s-scrim">
         <span className="a-pal-s-frame" />
-        <span>Légende sur le voile</span>
+        <span>Légende sur le fond des images agrandies</span>
       </div>
     </div>
   );
 }
+
+/** Nom d'un groupe dans l'éditeur (le libellé du groupe est celui du kit : on ne le change pas). */
+const GROUP_TITLE: Record<string, string> = { visionneuse: "Images agrandies" };
 
 export default function PaletteEditor({
   colors,
   palette,
   onChange,
   errors,
+  hideBases = [],
+  intro,
+  sample = true,
 }: {
   colors: Colors;
   palette: PaletteState;
   onChange: (color: Colors, palette: PaletteState) => void;
   errors: Record<string, string>;
+  /** Couleurs de base déjà réglées ailleurs (étape « Couleurs » de l'éditeur guidé, lot 61) : leur champ n'est pas répété ici, leurs nuances restent. */
+  hideBases?: BaseKey[];
+  /** Texte d'introduction (défaut : celui de l'éditeur de palette complet ; `null` : aucun). */
+  intro?: ReactNode | null;
+  /** Échantillon de composants aux couleurs de la palette (défaut : oui). */
+  sample?: boolean;
 }) {
   const [lastEdited, setLastEdited] = useState<PaletteKey | null>(null);
   const resolved = resolvePalette(colors, palette);
@@ -225,17 +237,23 @@ export default function PaletteEditor({
 
   return (
     <>
-      <p className="a-help a-panel-intro">
-        Six couleurs de base et leurs nuances. Une nuance « auto » suit sa couleur de base ; change-la pour la choisir toi-même. Chaque texte doit rester lisible
-        sur chaque fond (le rapport exact est dans l&apos;info-bulle). Un indicateur rouge te prévient qu&apos;un texte sera difficile à lire, sans t&apos;empêcher d&apos;enregistrer.
-      </p>
-      <PaletteSample p={resolved} />
+      {intro !== null && (
+        <p className="a-help a-panel-intro">
+          {intro ?? (
+            <>
+              Six couleurs de base et leurs nuances. Une nuance « auto » suit sa couleur de base ; change-la pour la choisir toi-même. Chaque texte doit rester lisible
+              sur chaque fond (le rapport exact est dans l&apos;info-bulle). Un indicateur rouge te prévient qu&apos;un texte sera difficile à lire, sans t&apos;empêcher d&apos;enregistrer.
+            </>
+          )}
+        </p>
+      )}
+      {sample && <PaletteSample p={resolved} />}
       <div className="a-pal-groups">
         {PALETTE_GROUPS.map((g) => (
           <fieldset key={g.id} className="a-fieldset a-pal-group" data-group={g.id}>
-            <legend>{g.base ? ROLE_NAMES[g.base] : g.label}</legend>
+            <legend>{g.base ? ROLE_NAMES[g.base] : (GROUP_TITLE[g.id] ?? g.label)}</legend>
             <div className="a-colors">
-              {g.base && (
+              {g.base && !hideBases.includes(g.base) && (
                 <ColorField
                   tokenKey={g.base}
                   label={BASE_FIELD[g.base].label}
@@ -267,7 +285,7 @@ export default function PaletteEditor({
                       auto,
                       autoValue: autoValue(n.key),
                       onReset: () => changeNuance(n.key, null),
-                      extraPair: n.key === "onScrim" ? { label: "Texte sur le voile", ratio: contrastRatio(resolved.onScrim, resolved.scrim) } : undefined,
+                      extraPair: n.key === "onScrim" ? { label: "Texte sur le fond des images agrandies", ratio: contrastRatio(resolved.onScrim, resolved.scrim) } : undefined,
                     }}
                   />
                 );

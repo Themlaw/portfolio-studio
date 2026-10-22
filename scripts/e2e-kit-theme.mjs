@@ -143,7 +143,7 @@ const bodyImg = await page.$eval("body", (b) => getComputedStyle(b).backgroundIm
 ok("B7 accueil : le papier couvre toujours le fond de la page", /url|image-set/.test(bodyImg), bodyImg);
 
 // Option « Papier sous le bandeau » (éditeur de thème) : la tuile revient.
-await page.goto(`${BASE}/admin/themes/${draftId}`, { waitUntil: "networkidle" });
+await page.goto(`${BASE}/admin/themes/${draftId}?etape=papier`, { waitUntil: "networkidle" });
 const toggle = page.locator('[data-testid="paper-under-header"]');
 ok("B7 éditeur : option « Papier sous le bandeau du haut », décochée par défaut", (await toggle.count()) === 1 && !(await toggle.isChecked()));
 if (await toggle.count()) {

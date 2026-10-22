@@ -303,6 +303,9 @@ if (run("C")) {
   await activateTheme("Galerie lumineuse");
   const copyId = q("select id from themes where mine = 1")[0].id;
   await page.goto(`${BASE}/admin/themes/${encodeURIComponent(copyId)}`, { waitUntil: "networkidle" });
+  // Lot 61 : les styles par rôle sont sous « Affiner (avancé) » de l'étape « Textes ».
+  await page.goto(`${BASE}/admin/themes/${encodeURIComponent(copyId)}?etape=textes`, { waitUntil: "networkidle" });
+  await page.locator('[data-testid="adv-textes"] summary').click();
   const type = page.getByTestId("theme-type");
   ok("C1 éditeur de thème : section « Styles par rôle » (sept rôles)", (await type.locator("fieldset").count()) === 7);
   const h2 = type.locator('fieldset[data-role="h2"]');
@@ -310,7 +313,7 @@ if (run("C")) {
   await h2.getByLabel("Graisse").selectOption("300");
   await h2.getByLabel("Italique").selectOption("1");
   await h2.getByLabel("Casse").selectOption("upper");
-  await h2.getByLabel("Interlettrage (em)").fill("0.12");
+  await h2.getByLabel("Espacement des lettres").fill("0.12");
   // Aperçu en direct (postMessage) : la feuille du thème porte la règle.
   const frame = page.frameLocator("iframe.a-preview-frame");
   ok("C2 aperçu en direct : <style id=theme> porte les règles de h2", await waitFor(async () => {

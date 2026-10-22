@@ -39,7 +39,9 @@ export default function CardSettings({ theme, onChange, sitePalette }: { theme: 
   const custom = !isSurfaceToken(resolved.color);
   return (
     <section className="a-panel" aria-labelledby="t-cartes">
-      <h2 id="t-cartes">Cartes des rubriques</h2>
+      <h3 id="t-cartes" className="a-subhead">
+        Cartes des rubriques
+      </h3>
       <p className="a-help">
         Une rubrique peut être posée sur une carte colorée (bouton « Carte » sur la page). Voici ce qu&apos;elle prend quand on active la carte sans
         rien choisir de plus. Les rubriques sans carte ne changent pas.

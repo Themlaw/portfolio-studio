@@ -17,11 +17,11 @@ type Role = (typeof TEXT_ROLES)[number];
 const ROLE_LABELS: Record<Role, [string, string]> = {
   h1: ["Titre de page", "Ton nom et le grand titre d'une page."],
   h2: ["Titres de section", "Titres des sections et des collections."],
-  eyebrow: ["Étiquettes", "Petits textes au-dessus des titres."],
+  eyebrow: ["Petits textes d'étiquette", "Petits textes au-dessus des titres."],
   body: ["Texte courant", "Paragraphes."],
   caption: ["Légendes", "Légendes des œuvres, métier."],
   menu: ["Menu", "Navigation de l'en-tête et du pied."],
-  brand: ["Signature", "Nom du site dans l'en-tête."],
+  brand: ["Logo", "Nom du site dans l'en-tête, quand il n'y a pas d'image."],
 };
 const FONT_LABELS = { display: "Police des titres", body: "Police du texte", caption: "Police des légendes" } as const;
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
@@ -40,7 +40,7 @@ export default function ThemeTypeEditor({ value, onChange }: { value: Theme["tok
     <div className="a-type-roles" data-testid="theme-type">
       <h3 className="a-subhead">Styles par rôle</h3>
       <p className="a-help">
-        Affine la police, la graisse, l&apos;italique, la casse et l&apos;interlettrage de chaque rôle de texte. « Thème » garde le réglage
+        Affine la police, la graisse, l&apos;italique, la casse et l&apos;espacement des lettres de chaque rôle de texte. « Thème » garde le réglage
         d&apos;origine ; les styles du site et ceux d&apos;un texte précis passent toujours par-dessus.
       </p>
       {TEXT_ROLES.map((role) => {
@@ -91,7 +91,7 @@ export default function ThemeTypeEditor({ value, onChange }: { value: Theme["tok
                 </select>
               </div>
               <div className="a-field">
-                <label htmlFor={`${id}-tracking`}>Interlettrage (em)</label>
+                <label htmlFor={`${id}-tracking`}>Espacement des lettres</label>
                 <input
                   id={`${id}-tracking`}
                   className="a-input"

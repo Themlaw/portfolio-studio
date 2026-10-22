@@ -46,6 +46,9 @@ const STATE_TIPS: Record<string, string> = {
 /** Règle du calcul « auto » d'une nuance, en clair. */
 const ruleOf = (k: NuanceKey) => PALETTE_GROUPS.flatMap((g) => g.nuances).find((n) => n.key === k)?.rule ?? "";
 
+/** Les quatre couleurs de base de l'éditeur de thème guidé : Fond de page, Texte, Boutons et liens, Accent. */
+export const GUIDED_ROLES: readonly BaseKey[] = ["bg", "ink", "primary", "secondary"];
+
 export function ColorsPanel({
   theme,
   value: siteValue,
@@ -56,6 +59,7 @@ export function ColorsPanel({
   mode = "site",
   baseline,
   preparing = false,
+  guided = false,
 }: {
   theme: ThemeColors;
   /** Le thème montré est en préparation (aperçu, pas encore en ligne) : les textes le disent (lot 55). */
@@ -68,6 +72,11 @@ export function ColorsPanel({
   mode?: "site" | "theme";
   /** Mode « theme » : couleurs enregistrées du thème (repère « modifiée », retour à l'enregistré). */
   baseline?: PaletteColors;
+  /**
+   * Éditeur de thème guidé (lot 61, mode « theme ») : seulement les quatre couleurs de base (Fond, Texte, Boutons, Accent) ; les autres
+   * couleurs et les nuances sont réglées sous « Affiner » (PaletteEditor), sans second bloc de couleurs.
+   */
+  guided?: boolean;
   /** Rôle à surligner sur la toile (null : rien). */
   onHighlight: (role: BaseKey | null) => void;
   info: HighlightInfo | null;
@@ -192,13 +201,15 @@ export function ColorsPanel({
   };
 
   return (
-    <section className="lp lp-colors" aria-labelledby="lp-colors-title" data-testid="colors-panel" data-mode={mode}>
+    <section className="lp lp-colors" aria-labelledby="lp-colors-title" data-testid="colors-panel" data-mode={mode} data-guided={(isTheme && guided) || undefined}>
       <h3 id="lp-colors-title" className="lp-title" hidden={isTheme}>
         Couleurs
       </h3>
       <p className="lp-help">
         {isTheme
-          ? `Survole une couleur pour voir où elle sert dans l'aperçu, clique pour la changer : l'aperçu suit tout de suite. Les couleurs sont écrites dans le thème « ${theme.name} » à l'enregistrement.`
+          ? guided
+            ? "Survole une couleur pour voir où elle sert dans l'aperçu, clique pour la changer : l'aperçu suit tout de suite."
+            : `Survole une couleur pour voir où elle sert dans l'aperçu, clique pour la changer : l'aperçu suit tout de suite. Les couleurs sont écrites dans le thème « ${theme.name} » à l'enregistrement.`
           : preparing
             ? `Ces couleurs sont celles du thème « ${theme.name} », que tu prépares : il n'est pas encore en ligne. Survole une couleur pour voir où elle sert, clique pour la changer. Une couleur changée ici est personnalisée pour tout le site, publiée avec cette page ; le thème « ${theme.name} » n'est pas modifié.`
             : `Survole une couleur pour voir où elle sert sur la page, clique pour la changer. Une couleur changée ici est personnalisée pour tout le site, publiée avec cette page ; le thème « ${theme.name} » n'est pas modifié.`}
@@ -219,7 +230,7 @@ export function ColorsPanel({
         </div>
       )}
       <ul className="lc-roles">
-        {SITE_ROLES.map((role) => {
+        {(isTheme && guided ? SITE_ROLES.filter((r) => GUIDED_ROLES.includes(r.key)) : SITE_ROLES).map((role) => {
           const modified = isModified(role.key);
           const isOpen = open === role.key;
           const pairs = CONTRAST_BASES.includes(role.key) ? rolePairs(theme.color, palette, value, role.key) : [];
@@ -315,7 +326,7 @@ export function ColorsPanel({
                     ))}
                 </div>
               )}
-              {nuancesUnder(role.key).length > 0 && (
+              {!(isTheme && guided) && nuancesUnder(role.key).length > 0 && (
                 <ul className="lc-nuance-sub" aria-label={`Réglages liés : ${role.name}`}>
                   {nuancesUnder(role.key).map(renderNuance)}
                 </ul>
@@ -324,11 +335,15 @@ export function ColorsPanel({
           );
         })}
       </ul>
-      <h4 className="lc-group-title">Image agrandie</h4>
-      <p className="lp-help">Quand on clique sur une image : le voile derrière elle et ce qui s&apos;écrit dessus.</p>
-      <ul className="lc-nuance-sub lc-lightbox" data-testid="lightbox-colors">
-        {nuancesUnder("lightbox").map(renderNuance)}
-      </ul>
+      {!(isTheme && guided) && (
+        <>
+          <h4 className="lc-group-title">Image agrandie</h4>
+          <p className="lp-help">Quand on clique sur une image : le fond derrière elle et ce qui s&apos;écrit dessus.</p>
+          <ul className="lc-nuance-sub lc-lightbox" data-testid="lightbox-colors">
+            {nuancesUnder("lightbox").map(renderNuance)}
+          </ul>
+        </>
+      )}
       {modifiedCount > 0 && (
         <button
           type="button"

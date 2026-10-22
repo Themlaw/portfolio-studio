@@ -211,15 +211,15 @@ try {
 
     if (run("J")) {
       await page.locator('[data-testid="da-section"]').waitFor();
-      ok("J1 titre « Couleurs » (plus de « DA »)", /^Couleurs$/.test(((await page.locator('[data-testid="da-section"] h2').textContent()) ?? "").trim()) && !/\bDA\b/.test(await page.locator("main").innerText()));
+      ok("J1 étape « Couleurs » (plus de « DA »)", /^Couleurs$/.test(((await page.locator('[data-testid="da-section"] .a-step-title').textContent()) ?? "").trim()) && !/\bDA\b/.test(await page.locator("main").innerText()));
       ok("J2 un seul bouton Enregistrer, pas d'« Enregistrer les couleurs »", (await page.getByRole("button", { name: "Enregistrer les couleurs" }).count()) === 0 && (await page.getByRole("button", { name: /^Enregistrer/ }).count()) === 1);
-      ok("J3 liste de codes en double repliée par défaut", (await page.locator('[data-testid="palette-details"]').getAttribute("open")) === null && !(await page.locator('.a-color[data-token="primary"]').first().isVisible()));
-      await page.locator('[data-testid="palette-details"] summary').click();
-      const help = (await page.locator('[data-testid="palette-details"]').innerText()).replace(/\s+/g, " ");
-      ok("J4 l'aide dit la vérité : avertit sans bloquer", !/bloque l'enregistrement/.test(help) && /sans t'empêcher d'enregistrer/.test(help), help.slice(0, 300));
+      ok("J3 un seul bloc de couleurs : pas de seconde liste des couleurs de base, nuances sous « Affiner » replié", (await page.locator('[data-testid="adv-couleurs"]').getAttribute("open")) === null && (await page.locator('.a-color[data-token="primary"]').count()) === 0 && (await page.locator('.a-color[data-token="bgDeep"]').count()) === 1);
+      await page.locator('[data-testid="adv-couleurs"] summary').click();
+      const read = ((await page.locator('[data-testid="readability"]').innerText()) ?? "").replace(/\s+/g, " ");
+      ok("J4 la lisibilité est dite simplement (« Lisible » ou « Difficile à lire sur le fond »)", /Lisible|Difficile à lire sur le fond/.test(read), read.slice(0, 200));
       const ratios = await page.locator(".a-ratio").evaluateAll((l) => l.every((e) => e.scrollWidth <= e.clientWidth + 1));
       ok("J5 pastilles de lisibilité non tronquées", ratios);
-      ok("J6 sommaire des sections", (await page.locator(".a-toc a").count()) >= 4);
+      ok("J6 cinq étapes dans la colonne de gauche", (await page.locator(".a-step-btn").count()) === 5);
       await shot("J-editeur-theme");
     }
 

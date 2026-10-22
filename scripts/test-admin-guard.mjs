@@ -87,6 +87,7 @@ const EXPECTED = [
   "pinVersionAction",
   "adoptOldThemeAction",
   "closeEditSessionAction",
+  "importThemeLogoAction",
   "saveSettingsAction",
   "saveSeoAction",
   "markMessagesSeenAction",

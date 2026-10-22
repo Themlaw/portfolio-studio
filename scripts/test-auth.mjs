@@ -172,6 +172,7 @@ const ADMIN_ACTIONS = [
   "pinVersionAction",
   "adoptOldThemeAction",
   "closeEditSessionAction",
+  "importThemeLogoAction",
   "saveSettingsAction",
   "saveSeoAction",
   "markMessagesSeenAction",
@@ -546,7 +547,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   // Une action se résout depuis une page qui l'importe : on vise son écran.
   const screen =
     name === "applyKitImportAction" ? "/admin/themes/galerie-lumineuse/kit"
-    : name === "saveThemeAction" ? "/admin/themes/galerie-lumineuse"
+    : name === "saveThemeAction" || name === "importThemeLogoAction" ? "/admin/themes/galerie-lumineuse"
     : name === "savePageInfoAction" ? "/admin/pages/1"
     : name === "deleteFontAction" ? "/admin/reglages"
     : name === "resetSiteColorsAction" ? "/admin/themes"
@@ -558,7 +559,8 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings|Seo/.test(name) ? "/admin/reglages"
     : /Message/.test(name) ? "/admin/messages"
-    : /[wW]allpaper/.test(name) ? "/admin/papiers-peints"
+    // Lot 61 : la bibliothèque des papiers peints est un onglet de l'éditeur de thème (l'ancienne adresse redirige).
+    : /[wW]allpaper/.test(name) ? "/admin/themes/galerie-lumineuse"
     : /^(create|delete|reorder|restore)Projects?Action$/.test(name) ? "/admin/projets"
     : /Project|Slot/.test(name) ? "/admin/projets/1"
     : /^media|Media|Uploads|Tag/.test(name) ? "/admin/medias"
@@ -2613,6 +2615,11 @@ ok(
 // Chemin de kit forgé dans un thème : refusé par le schéma.
 const forged = await callActionJson(kv.jar, ids.saveThemeAction, [copyId, { ...themeRow, assets: { ...themeRow.assets, kit: { signature: { svg: '/media/kit/0123456789abcdef.svg");background:url("//evil', w: 10, h: 10 } } } }], `/admin/themes/${copyId}`);
 ok("TK6 chemin de kit forgé (injection CSS) refusé à l'enregistrement", !forged.text.includes('"ok":true'), forged.text.slice(0, 120));
+// Logo importé depuis une image (lot 61) : identifiant invalide ou image absente refusés, jamais d'élément de kit inventé.
+for (const [label, arg] of [["texte", "x"], ["négatif", -1], ["inexistant", 99999999]]) {
+  const r = await callActionJson(kv.jar, ids.importThemeLogoAction, [arg], `/admin/themes/${copyId}`);
+  ok(`TK7 logo importé (${label}) : refusé avec un message, rien de créé`, !r.text.includes('"ok":true') && /"ok":false/.test(r.text), r.text.slice(0, 160));
+}
 
 // ---- Phase 6d : import du kit rempli (envoi PSD, revue, copie brouillon) -------------------
 console.log("\n== TI. kit Photoshop (import)");

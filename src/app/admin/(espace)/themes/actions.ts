@@ -10,6 +10,7 @@ import { z } from "zod";
 
 import { assertAdmin } from "@/lib/auth/guard";
 import { applyKitImport } from "@/lib/kit/apply";
+import { logoFromMedia } from "@/lib/kit/logo";
 import { purgeKitData, purgeKits } from "@/lib/kit/export-job";
 import { isImportId, purgeThemeImports } from "@/lib/kit/import-job";
 import { activateTheme, deleteTheme, duplicateTheme, saveTheme } from "@/lib/edit/themes";
@@ -18,6 +19,7 @@ import { resetPublishedSitePalette } from "@/lib/edit/site";
 import { revalidateSettings, revalidateTheme } from "@/lib/revalidate";
 import { PREVIEW_COOKIE } from "@/lib/theme";
 import { adoptOldTheme, keepVersionCopy, pinVersion, revertToVersion, sealEditorSession, applyModel, type ApplyModelResult } from "@/lib/themes/versions";
+import type { KitImage } from "@/themes/schema";
 
 const Id = z.string().regex(/^[a-z0-9-]{1,80}$/);
 
@@ -189,4 +191,13 @@ export async function applyKitImportAction(themeIdInput: unknown, importId: unkn
   const result = await applyKitImport(tid, importId, { mirror: o.mirror === true, colors: o.colors === true, baseThemeId: base ?? undefined });
   if (result.ok) revalidateTheme();
   return result;
+}
+
+/**
+ * Logo importé depuis une image de la médiathèque (lot 61, étape « Logo » de l'éditeur) : rend l'élément `signature` à poser dans le
+ * thème en cours d'édition ; rien n'est écrit sur le thème avant « Enregistrer ».
+ */
+export async function importThemeLogoAction(mediaId: unknown): Promise<ActionResult<{ signature: KitImage }>> {
+  await assertAdmin();
+  return logoFromMedia(mediaId);
 }

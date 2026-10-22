@@ -34,11 +34,11 @@ function headline(s: SlotReport): string {
     case "unchanged":
       return `${s.label} : inchangé`;
     case "redrawn":
-      return `${s.label} : redessiné${/^(Signature|Flèche|Lecture)/.test(s.label) ? "e" : ""}`;
+      return `${s.label} : redessiné${/^(Flèche|Lecture)/.test(s.label) ? "e" : ""}`;
     case "missing":
       return `${s.label} : calque introuvable`;
     default:
-      return `${s.label} : importé${/^(Signature|Flèche|Lecture)/.test(s.label) ? "e" : ""}`;
+      return `${s.label} : importé${/^(Flèche|Lecture)/.test(s.label) ? "e" : ""}`;
   }
 }
 const formatBytes = (n: number) => (n < 1024 ? `${n} o` : n < 1024 * 1024 ? `${Math.round(n / 1024)} Ko` : `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} Mo`);
