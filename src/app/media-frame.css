@@ -1,0 +1,154 @@
+/* ==========================================================================
+   MEDIA FRAME : LA boîte d'une photo ou d'une vidéo (lot 64) — src/components/MediaFrame.tsx
+   Cadre (bande de couleur), fond derrière le média, arrondi, format : UNE seule règle pour l'image seule, la vidéo seule, la case d'une
+   grille, le composant d'une planche, la place d'un carrousel et l'image de la Planche libre. Le cadre « du thème » (dessin du kit) est la
+   seule autre règle d'habillage : src/themes/variants.css (il a besoin des variables du kit), sur le même sélecteur `.media-frame`.
+   Aucune couleur littérale : palette du thème ou couleur libre posée en variable par `mediaLookAttrs` (src/lib/look.ts).
+   Importé APRÈS look.css (même hiérarchie : hors @layer, devant les utilitaires).
+   ========================================================================== */
+
+/* ---- La boîte --------------------------------------------------------------------------------------------------------------------
+   `--box-r` = largeur ÷ hauteur (posée par MediaFrame) : `aspect-ratio` d'un bloc sans contenu intrinsèque en `border-box`, donc la
+   taille EXTÉRIEURE est celle du format, avec ou sans cadre ; le média est réduit d'autant (jamais couvert). Elle rogne ce qui dépasse
+   (rayon, cadrage ancien, zoom) et porte l'arrondi : la bande, le fond et le cadre du thème suivent le même rayon. */
+.media-frame {
+  display: block;
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: var(--box-r, auto);
+  overflow: hidden;
+  border-radius: var(--media-radius, var(--radius-strip));
+  background-clip: padding-box;
+}
+.media-frame :is(img, video) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+}
+/* Repli d'un recadrage libre (CroppedPicture : l'image entière, agrandie et décalée dans un cadre de la zone gardée) : ce cadre remplit la boîte. */
+.media-frame > [data-crop-fallback] {
+  width: 100%;
+  height: 100% !important;
+  aspect-ratio: auto !important;
+}
+/* Vidéo : le voile du thème tient lieu de fond tant que rien ne se voit ; elle suit le même format que la photo (celui de la vidéo par défaut). */
+.media-frame[data-kind="video"] {
+  background-color: var(--color-scrim);
+}
+/* Image entière dans un cadre qui n'a pas son format : des bandes vides à la place du rognage (le fond de chargement ne les teinte pas). */
+.media-frame[data-fit="contain"] :is(img, video) {
+  object-fit: contain;
+  background-color: transparent !important;
+}
+
+/* ---- Fond derrière le média (lot 41) ---------------------------------------------------------------------------------------------
+   `look.imageBg` / `slotBg` / `items[].bg` : la couleur (`--img-bg`) remplit la boîte du média : la zone affichée, recadrage compris, et
+   toute la boîte avec « Image entière ». Elle reste DANS le cadre (background-clip) et suit l'arrondi. Le fond de chargement du média
+   (couleur dominante, posé en ligne par la balise image) ne passe jamais dessus ni dessous. */
+.media-frame[data-img-bg] {
+  background-color: var(--img-bg);
+}
+.media-frame[data-img-bg] :is(img, video) {
+  background-color: transparent !important;
+}
+
+/* ---- Cadre « bande de couleur » (lots 34 et 62) ----------------------------------------------------------------------------------
+   Une bordure DANS la boîte : la taille extérieure ne change jamais. Épaisseurs (`data-frame-w`) : Fin 2 px, Moyen jusqu'à 6 px, Épais
+   jusqu'à 12 px (plus minces sur téléphone). Couleur : `--frame-color` (palette du thème ou couleur libre, remappée dans une carte).
+   « Aucun » (`data-frame="none"`) : aucune règle. « Cadre du thème » (`theme`) : variants.css. */
+.media-frame[data-frame="band"] {
+  --frame-w: clamp(3px, 0.9vw, 6px);
+  border: var(--frame-w) solid var(--frame-color);
+}
+.media-frame[data-frame="band"][data-frame-w="fin"] {
+  --frame-w: 2px;
+}
+.media-frame[data-frame="band"][data-frame-w="epais"] {
+  --frame-w: clamp(5px, 1.8vw, 12px);
+}
+
+/* ---- Image seule (lot 17d) : plafond de hauteur, taille et place ------------------------------------------------------------------
+   Une image ou une vidéo seule ne dépasse jamais 85 % de la hauteur de l'écran : plus haute, elle est réduite (largeur = 85 svh × son
+   rapport) et centrée, sans rien rogner. `--ir` = rapport de ce qui est affiché (posé par le bloc), `--iw` = largeur plafonnée. */
+.block-image[data-solo],
+.media-solo {
+  --iw: min(100%, calc(85svh * var(--ir, 1000)));
+}
+/* Lot 39 : le plafond compte la légende (sinon elle part sous le bas de l'écran) — seulement quand un champ est REMPLI. */
+.block-image[data-solo]:has(.media-caption [data-cap]:not(:empty)),
+.media-solo:has(.media-caption [data-cap]:not(:empty)) {
+  --iw: min(100%, calc((85svh - 4.5rem) * var(--ir, 1000)));
+}
+.block-image[data-solo] > .media-frame,
+.media-solo > .media-frame {
+  width: var(--iw);
+  margin-inline: auto; /* la boîte est un bloc : text-align ne la centre pas */
+}
+/* Taille et place d'une image seule (lot 40, `look.imageSize` / `look.imageAlign`). Grande : plafond levé, toute la largeur du cadre.
+   Gauche / Centre / Droite : l'image ET sa légende (tout ce qui suit dans la figure) prennent la largeur de l'image et se posent du même côté. */
+.block-image[data-solo][data-size="large"] > .media-frame {
+  width: 100%;
+}
+.block-image[data-solo][data-align] > * {
+  width: var(--iw);
+  margin-inline: auto;
+}
+.block-image[data-solo][data-align="left"] > * {
+  margin-inline: 0 auto;
+}
+.block-image[data-solo][data-align="right"] > * {
+  margin-inline: auto 0;
+}
+.block-image[data-solo][data-align][data-size="large"] > * {
+  width: 100%;
+}
+
+/* Cadrage libre (rectangle gardé) : la boîte suit le rapport de la zone gardée, quel que soit le format imposé par le bloc ou sa grille. */
+figure.block-image[data-free] > .media-frame.media-frame.media-frame {
+  aspect-ratio: var(--box-r, auto);
+}
+figure.block-image[data-free] .media-frame :is(img, video) {
+  object-fit: fill;
+}
+/* Cadrage ancien (point focal + zoom, look.css `.blk[data-crop]`) : le média est déplacé et agrandi DANS la boîte, qui le rogne. */
+
+/* ---- Contextes -------------------------------------------------------------------------------------------------------------------- */
+/* Case d'une grille « sur mesure » / « automatique » avec un format imposé : une case large garde la hauteur de ses voisines d'une colonne
+   (format x largeur). */
+@media (min-width: 48rem) {
+  .block-grid:is([data-layout="custom"], [data-layout="auto"]):not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) .media-frame {
+    aspect-ratio: calc(var(--grid-r, 1.3333) * var(--w, 1));
+  }
+}
+/* Une case sur deux rangées (portrait) : la boîte remplit toute la hauteur que lui laissent ses voisines, rognée au besoin (ce sont les
+   cases d'une seule rangée qui donnent leur hauteur à la ligne : aucune ne se déforme). */
+@media (min-width: 48rem) {
+  .block-grid-cell[data-span-h] .block-image > .media-frame,
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image > .media-frame {
+    flex: 1 1 auto;
+    min-height: 14rem;
+    aspect-ratio: auto;
+  }
+  .block-grid-cell[data-span-h] .block-image > .media-frame :is(img, video),
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image > .media-frame :is(img, video) {
+    position: absolute;
+    inset: 0;
+    object-fit: cover;
+  }
+}
+
+/* Place d'un carrousel : la hauteur est celle de la bande (ou la hauteur réduite d'un panorama entier), la largeur en découle. */
+.strip-frame .media-frame {
+  height: var(--fit-h, var(--strip-h));
+  width: calc(var(--fit-h, var(--strip-h)) * var(--box-r, 1));
+  max-width: none;
+  aspect-ratio: auto;
+  box-shadow: var(--strip-halo);
+}
+/* Image de la Planche libre : pas d'arrondi du site par défaut (un PNG détouré n'en a pas) ; celui de l'image (`radius`) passe en ligne. */
+.free-item .media-frame {
+  --media-radius: 0px;
+}

@@ -137,7 +137,7 @@ const shown = (doc, sel) =>
       return { kind: drawn && w > 0 ? "theme" : w > 0 && cs.borderTopStyle === "solid" ? "band" : "none", w, color: cs.borderTopColor };
     });
   }, sel);
-const PHOTO = "figure.block-image .block-image-media";
+const PHOTO = "figure.block-image .media-frame";
 
 /* ---- Photos de départ ------------------------------------------------------------------------------------------------ */
 const photoBlocks = () => [
@@ -198,7 +198,7 @@ if (run("K"))
  * ========================================================================================================================== */
 const frameBtn = (fr) => fr.locator('.pe-tools [data-testid="frame-button"]');
 async function openMenu(fr, uid, what = "photo") {
-  const el = fr.locator(`[data-edit-block="${uid}"] .block-image-media, [data-edit-block="${uid}"] .video-frame`).first();
+  const el = fr.locator(`[data-edit-block="${uid}"] .media-frame, [data-edit-block="${uid}"] .media-frame[data-kind="video"]`).first();
   await el.scrollIntoViewIfNeeded();
   await el.click();
   await sleep(500);
@@ -218,7 +218,7 @@ if (run("E"))
   await section("E", async () => {
     setDraft(PHOTOS, [img("e1", M.paysage), img("e2", M.carre)]);
     const fr = await openEditor(PHOTOS);
-    const E1 = '[data-edit-block="e1"] .block-image-media';
+    const E1 = '[data-edit-block="e1"] .media-frame';
     const dlg = await openMenu(fr, "e1");
     await shot(page, "e-menu-aucun");
     ok("E1 le menu : trois boutons radio « Aucun · Cadre du thème · Bande de couleur » (le thème dessine un cadre)", (await dlg.locator("[data-frame-kind]").allTextContents()).map((t) => t.trim()).join(" · ") === "Aucun · Cadre du thème · Bande de couleur");
@@ -265,11 +265,11 @@ if (run("E"))
     await settled();
     const d2 = await openMenu(fr, "e2");
     await kindBtn(d2, "theme").click();
-    ok("E11 deuxième photo : cadre du thème posé", await waitFor(async () => (await shown(fr, '[data-edit-block="e2"] .block-image-media'))[0].kind === "theme", 30000));
+    ok("E11 deuxième photo : cadre du thème posé", await waitFor(async () => (await shown(fr, '[data-edit-block="e2"] .media-frame'))[0].kind === "theme", 30000));
     await page.keyboard.press("Escape");
     await settled();
     await page.locator('button[aria-label="Défaire"]').click();
-    ok("E11b Annuler : le cadre disparaît", await waitFor(async () => (await shown(fr, '[data-edit-block="e2"] .block-image-media'))[0].kind === "none" && !lookOf(PHOTOS, "e2")?.frame, 30000), JSON.stringify(lookOf(PHOTOS, "e2")));
+    ok("E11b Annuler : le cadre disparaît", await waitFor(async () => (await shown(fr, '[data-edit-block="e2"] .media-frame'))[0].kind === "none" && !lookOf(PHOTOS, "e2")?.frame, 30000), JSON.stringify(lookOf(PHOTOS, "e2")));
   });
 
 /* ============================================================================================================================
@@ -303,9 +303,9 @@ if (run("S"))
     const dlg = await openMenu(fr, "p1");
     ok("S5 le menu d'une photo sans choix COCHE « Cadre du thème » (ce qui s'affiche)", (await checked(kindBtn(dlg, "theme"))) && !(await checked(kindBtn(dlg, "none"))));
     await kindBtn(dlg, "none").click();
-    ok("S6 « Aucun » sur cette photo : elle perd le cadre, malgré le réglage du site", await waitFor(async () => (await shown(fr, '[data-edit-block="p1"] .block-image-media'))[0].kind === "none" && lookOf(PHOTOS, "p1")?.frame?.kind === "none", 30000), JSON.stringify(lookOf(PHOTOS, "p1")));
+    ok("S6 « Aucun » sur cette photo : elle perd le cadre, malgré le réglage du site", await waitFor(async () => (await shown(fr, '[data-edit-block="p1"] .media-frame'))[0].kind === "none" && lookOf(PHOTOS, "p1")?.frame?.kind === "none", 30000), JSON.stringify(lookOf(PHOTOS, "p1")));
     await dlg.locator('[data-testid="frame-follow-site"]').click();
-    ok("S7 « Suivre le réglage du site » : elle retrouve le cadre du thème", await waitFor(async () => (await shown(fr, '[data-edit-block="p1"] .block-image-media'))[0].kind === "theme" && !lookOf(PHOTOS, "p1")?.frame, 30000));
+    ok("S7 « Suivre le réglage du site » : elle retrouve le cadre du thème", await waitFor(async () => (await shown(fr, '[data-edit-block="p1"] .media-frame'))[0].kind === "theme" && !lookOf(PHOTOS, "p1")?.frame, 30000));
     await page.keyboard.press("Escape");
     await shot(page, "s-menu-oui");
     } finally {
@@ -358,8 +358,8 @@ if (run("M"))
  * V. La vidéo a le même menu, le même rendu, les mêmes données
  * ========================================================================================================================== */
 const FREE_VIDEO = (frame) => ({ uid: "fv", type: "free-board", props: { format: "3:2", phone: "scale", items: [{ id: "v1", media: V.short, x: 10, y: 10, w: 40, rot: 0, z: 0, ...(frame ? { frame } : {}) }, { id: "i1", media: M.paysage, x: 55, y: 10, w: 35, rot: 0, z: 1, ...(frame ? { frame } : {}) }] } });
-const VID = ".video-frame";
-const STRIPVID = ".strip-rail .strip-frame[data-video-mode] .strip-media :is(video, img)";
+const VID = ".media-frame[data-kind=\"video\"]";
+const STRIPVID = ".strip-rail .strip-frame[data-video-mode] .strip-media .media-frame";
 
 if (run("V"))
   await section("V", async () => {
@@ -384,11 +384,11 @@ if (run("V"))
     const pub = await publicPage("/fr/personnages");
     const kinds = (a) => a.map((x) => x.kind).join();
     const vs = await shown(pub, VID);
-    info("V public .video-frame", vs.map((x) => x.kind));
+    info("V public vidéos", vs.map((x) => x.kind));
     ok("V1 vidéo seule : Bande épaisse (Boucle), Cadre du thème (Lecteur), sans choix = aucun, Aucun = aucun", kinds(vs.slice(0, 4)) === "band,theme,none,none" && vs[0].w > 6, JSON.stringify(vs.slice(0, 4)));
-    ok("V2 la bande de la vidéo est la même que celle d'une photo (épaisseur et couleur)", vs[0].color === (await shown(pub, 'figure.block-image .block-image-media')).find((x) => x.kind === "band")?.color);
+    ok("V2 la bande de la vidéo est la même que celle d'une photo (épaisseur et couleur)", vs[0].color === (await shown(pub, 'figure.block-image .media-frame')).find((x) => x.kind === "band")?.color);
     ok("V3 case de grille : la vidéo a sa bande", vs[4]?.kind === "band" && vs[4].w === vs[0].w, JSON.stringify(vs[4]));
-    const free = await shown(pub, ".free-item .free-media");
+    const free = await shown(pub, ".free-item .media-frame");
     ok("V4 Planche libre : la vidéo ET la photo ont le même cadre", free.length === 2 && kinds(free) === "band,band" && free[0].w === free[1].w, JSON.stringify(free));
     const strip = await shown(pub, STRIPVID);
     info("V public carrousel", strip.map((x) => x.kind));
@@ -404,10 +404,10 @@ if (run("V"))
     const dlg = await openMenu(fr, "v3", "vidéo");
     ok("V8 menu de la vidéo seule : « Aucun · Cadre du thème · Bande de couleur », Aucun coché", (await dlg.locator("[data-frame-kind]").allTextContents()).map((t) => t.trim()).join(" · ") === "Aucun · Cadre du thème · Bande de couleur" && (await checked(kindBtn(dlg, "none"))));
     await kindBtn(dlg, "band").click();
-    ok("V9 Bande de couleur sur la vidéo : enregistrée comme pour une photo { kind: band, width: moyen }, visible sur la toile", await waitFor(async () => JSON.stringify(lookOf(VIDEOS, "v3")?.frame) === '{"kind":"band","width":"moyen"}' && (await shown(fr, '[data-edit-block="v3"] .video-frame'))[0].kind === "band", 30000), JSON.stringify(lookOf(VIDEOS, "v3")));
+    ok("V9 Bande de couleur sur la vidéo : enregistrée comme pour une photo { kind: band, width: moyen }, visible sur la toile", await waitFor(async () => JSON.stringify(lookOf(VIDEOS, "v3")?.frame) === '{"kind":"band","width":"moyen"}' && (await shown(fr, '[data-edit-block="v3"] .media-frame[data-kind="video"]'))[0].kind === "band", 30000), JSON.stringify(lookOf(VIDEOS, "v3")));
     await widthBtn(dlg, "epais").click();
     await kindBtn(dlg, "theme").click();
-    ok("V10 Cadre du thème sur la vidéo : le cadre dessiné remplace la bande", await waitFor(async () => (await shown(fr, '[data-edit-block="v3"] .video-frame'))[0].kind === "theme" && lookOf(VIDEOS, "v3")?.frame?.kind === "theme", 30000));
+    ok("V10 Cadre du thème sur la vidéo : le cadre dessiné remplace la bande", await waitFor(async () => (await shown(fr, '[data-edit-block="v3"] .media-frame[data-kind="video"]'))[0].kind === "theme" && lookOf(VIDEOS, "v3")?.frame?.kind === "theme", 30000));
     await shot(page, "v-menu-video");
     await page.keyboard.press("Escape");
 
@@ -415,7 +415,7 @@ if (run("V"))
     const gd = await openMenu(fr, "gv1", "vidéo");
     ok("V11 case de grille : la barre de la vidéo a le même menu", (await gd.locator("[data-frame-kind]").count()) === 3);
     await kindBtn(gd, "none").click();
-    ok("V11b … « Aucun » : enregistré sur la case, la vidéo perd sa bande", await waitFor(async () => lookOf(VIDEOS, "gv1")?.frame?.kind === "none" && (await shown(fr, '[data-edit-block="gv1"] .video-frame'))[0].kind === "none", 30000), JSON.stringify(lookOf(VIDEOS, "gv1")));
+    ok("V11b … « Aucun » : enregistré sur la case, la vidéo perd sa bande", await waitFor(async () => lookOf(VIDEOS, "gv1")?.frame?.kind === "none" && (await shown(fr, '[data-edit-block="gv1"] .media-frame[data-kind="video"]'))[0].kind === "none", 30000), JSON.stringify(lookOf(VIDEOS, "gv1")));
     await page.keyboard.press("Escape");
 
     // 4. Planche libre : la barre de la vidéo.
@@ -502,8 +502,8 @@ if (run("B"))
     const { done } = await publish(VIDEOS, blocks, board);
     ok("B0 page publiée", done);
     const p = await publicPage("/fr/personnages");
-    // Les Boucles : vidéo seule, case de grille, carrousel, composant de planche (repère data-video-mode) et Planche libre (.free-video).
-    const loops = p.locator('[data-video-mode="loop"], .free-video');
+    // Les Boucles : vidéo seule, case de grille, carrousel, composant de planche (repère data-video-mode) et Planche libre (boîte vidéo de l'image libre).
+    const loops = p.locator('[data-video-mode="loop"], .free-item .media-frame[data-kind="video"]');
     const n = await loops.count();
     ok("B1 la page a plusieurs Boucles (vidéo seule, case de grille, Planche libre, carrousel, composant de planche)", n >= 5, String(n));
     // Rien ne démarre : ni au chargement, ni en arrivant à l'écran, ni en défilant.

@@ -311,26 +311,14 @@ if (run("CD"))
     if (!done) info("CD0 état de l'éditeur", await page.evaluate(() => document.body.innerText.slice(0, 600)));
     ok("CD0 page publiée", done);
 
-    /** Un élément par cadre posé (`[data-frame]`) : la bordure rendue de l'élément qui la porte. */
+    /** Une boîte de média par cadre posé (`.media-frame[data-frame]`, lot 64) : la bordure rendue de la boîte qui la porte. */
     const scan = (fr) =>
       fr.evaluate(() => {
         const out = [];
-        for (const el of document.querySelectorAll("[data-frame]")) {
-          let t = null;
-          let kind = "?";
-          if (el.matches("figure.block-image")) {
-            const legacy = el.hasAttribute("data-legacy");
-            t = legacy ? el.querySelector(".block-image-frame") : el.querySelector(".block-image-media") ?? el.querySelector("img");
-            kind = legacy ? "image-legacy" : "image";
-          } else if (el.matches(".strip-frame")) {
-            t = el.querySelector(".strip-media img");
-            kind = "strip";
-          } else if (el.matches(".free-item")) {
-            t = el.querySelector(".free-media:not(.free-video)");
-            kind = "free";
-          }
-          const cs = t ? getComputedStyle(t) : null;
-          out.push({ kind, w: cs ? parseFloat(cs.borderTopWidth) : null, color: cs?.borderTopColor ?? null, style: cs?.borderTopStyle ?? null });
+        for (const t of document.querySelectorAll(".media-frame[data-frame]")) {
+          const kind = t.dataset.kind === "video" ? "video" : t.closest("figure.block-image") ? "image" : t.closest(".strip-frame") ? "strip" : t.closest(".free-item") ? "free" : "?";
+          const cs = getComputedStyle(t);
+          out.push({ kind, w: parseFloat(cs.borderTopWidth), color: cs.borderTopColor, style: cs.borderTopStyle });
         }
         return { frames: out, overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth };
       });
@@ -448,10 +436,10 @@ if (run("KT"))
         return { src: cs.borderImageSource.slice(0, 40), w: parseFloat(cs.borderTopWidth), color: cs.borderTopColor };
       });
       return {
-        solo: bi("figure.block-image:not([data-frame]) .block-image-media").slice(0, 3),
-        chosen: bi("figure.block-image[data-frame] .block-image-media"),
-        free: bi(".free-item .free-media"),
-        strip: bi(".strip-frame .strip-media img").slice(0, 2),
+        solo: bi("figure.block-image .media-frame:not([data-frame])").slice(0, 3),
+        chosen: bi("figure.block-image .media-frame[data-frame]"),
+        free: bi(".free-item .media-frame"),
+        strip: bi(".strip-frame .strip-media .media-frame").slice(0, 2),
         tile: bi(".tile-media").slice(0, 1),
         overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       };

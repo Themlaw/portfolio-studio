@@ -124,7 +124,9 @@ async function settled() {
 /** Style calculé de la photo d'un bloc (ou de l'emplacement `slot` d'une planche) dans le document `fr`. */
 const readFrame = (fr, sel) =>
   fr.evaluate((s) => {
-    const el = document.querySelector(s);
+    // Lot 64 : le cadre est posé sur la boîte du média (MediaFrame), pas sur l'<img> qu'elle contient.
+    const el0 = document.querySelector(s);
+    const el = el0?.closest(".media-frame") ?? el0;
     if (!el) return null;
     const cs = getComputedStyle(el);
     const r = el.getBoundingClientRect();
@@ -293,7 +295,7 @@ if (run("B"))
     ok("B2 planche : bordure Épais dans la couleur « Boutons et liens »", await waitFor(async () => { s = await readFrame(f, SLOT0); return s && s.top > 6 && uniform(s, s.top) && s.color === primary; }, 30000), JSON.stringify(s));
     ok("B2 la hauteur de l'image de la bande ne change pas", near(s.h, base.slot.h, 0.6), `${s.h} / ${base.slot.h}`);
     ok("B3 enregistré dans le bloc planche : look.slotFrame[slug]", await waitFor(() => isBand(lookOfDraft("board1")?.slotFrame?.[slug], "epais", "primary"), 30000), JSON.stringify(lookOfDraft("board1")));
-    ok("B3 les autres images de la planche n'ont pas de cadre", (await f.locator('[data-edit-block="board1"] [data-edit-slot] .strip-media img').evaluateAll((l) => l.slice(1).every((i) => parseFloat(getComputedStyle(i).borderTopWidth) === 0))));
+    ok("B3 les autres images de la planche n'ont pas de cadre", (await f.locator('[data-edit-block="board1"] [data-edit-slot] .strip-media .media-frame').evaluateAll((l) => l.slice(1).every((i) => parseFloat(getComputedStyle(i).borderTopWidth) === 0))));
     ok("B4 la fenêtre reste ouverte et la barre de l'image avec elle", await dlg.isVisible() && (await bar.count()) === 1);
     await page.screenshot({ path: path.join(SHOTS, "b1-planche.png") });
     await page.keyboard.press("Escape");
@@ -337,7 +339,7 @@ if (run("P"))
       solo: await readFrame(pp, 'figure.block-image[data-solo] .block-image-media'),
       slot: await readFrame(pp, ".strip-rail .strip-frame .strip-media img"),
     };
-    const frames = await pp.locator("figure.block-image .block-image-media").evaluateAll((l) => l.map((i) => ({ w: parseFloat(getComputedStyle(i).borderTopWidth), c: getComputedStyle(i).borderTopColor, r: i.getBoundingClientRect().width })));
+    const frames = await pp.locator("figure.block-image .media-frame").evaluateAll((l) => l.map((i) => ({ w: parseFloat(getComputedStyle(i).borderTopWidth), c: getComputedStyle(i).borderTopColor, r: i.getBoundingClientRect().width })));
     const primary = await colorOf(pp, "var(--t-color-primary)");
     const secondary = await colorOf(pp, "var(--t-color-secondary)");
     ok("P1 public : l'image seule a le cadre épais, couleur « Boutons et liens »", pub.solo && pub.solo.top > 6 && uniform(pub.solo, pub.solo.top) && pub.solo.color === primary && pub.solo.style === "solid", JSON.stringify(pub.solo));

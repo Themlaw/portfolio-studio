@@ -3,7 +3,10 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 
+import type { MediaLook } from "@/lib/look";
 import type { VideoView } from "@/lib/media";
+
+import MediaFrame from "./MediaFrame";
 
 /** Préférence « réduire les animations », lue sans état intermédiaire. */
 export function useReducedMotion(): boolean {
@@ -134,27 +137,25 @@ export function LoopClick({
 /**
  * Boucle d'animation dans la bande d'images (mode « Boucle ») : muette, en boucle, arrêtée sur son image d'attente jusqu'au
  * clic (lot 62). Le cadre entier est un bouton lecture / pause (un clic ou un toucher lance, un autre met en pause ;
- * WCAG 2.2.2), avec le repère discret en coin. Cadre (`frame`, lots 34 et 62) : le choix de l'artiste, posé sur le cadre.
+ * WCAG 2.2.2), avec le repère discret en coin. Habillage (`mediaLook`, lots 34, 62 et 64) : cadre, fond, arrondi de la boîte de la vidéo (MediaFrame).
  */
 export default function LoopFrame({
   video,
   width,
   height,
-  mediaClassName,
   label,
   caption,
   texts,
-  frame,
+  mediaLook,
 }: {
   video: VideoView;
   width: number;
   height: number;
-  mediaClassName?: string;
   /** Texte alternatif de l'œuvre, sinon son titre. */
   label: string;
   caption: React.ReactNode;
   texts: { pause: string; play: string };
-  frame?: { attrs: Record<string, string>; style: React.CSSProperties } | null;
+  mediaLook?: MediaLook;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const { wantPlay, toggle } = useLoopPlayback(ref);
@@ -162,28 +163,27 @@ export default function LoopFrame({
   const action = wantPlay ? texts.pause : texts.play;
 
   return (
-    <div className="strip-frame group relative" data-loop={wantPlay ? "playing" : "paused"} data-video-mode="loop" {...frame?.attrs} style={frame?.style}>
+    <div className="strip-frame group relative" data-loop={wantPlay ? "playing" : "paused"} data-video-mode="loop">
       <button type="button" onClick={toggle} aria-label={label ? `${action} — ${label}` : action} className="loop-click block w-full text-left">
         <span className="strip-media">
-          <span className="relative block">
-          <video
-            ref={ref}
-            poster={video.sources.poster.largest.webp}
-            preload={wantPlay ? "metadata" : "none"}
-            muted
-            loop
-            playsInline
-            width={width}
-            height={height}
-            className={mediaClassName}
-            tabIndex={-1}
-            aria-hidden="true"
-            style={video.sources.poster.color ? { backgroundColor: video.sources.poster.color } : undefined}
-          >
-            <source src={sd.src} type="video/mp4" />
-          </video>
-          <LoopMark playing={wantPlay} />
-          </span>
+          <MediaFrame kind="video" look={mediaLook} ratio={width / Math.max(1, height)}>
+            <video
+              ref={ref}
+              poster={video.sources.poster.largest.webp}
+              preload={wantPlay ? "metadata" : "none"}
+              muted
+              loop
+              playsInline
+              width={width}
+              height={height}
+              tabIndex={-1}
+              aria-hidden="true"
+              style={video.sources.poster.color ? { backgroundColor: video.sources.poster.color } : undefined}
+            >
+              <source src={sd.src} type="video/mp4" />
+            </video>
+            <LoopMark playing={wantPlay} />
+          </MediaFrame>
         </span>
         {caption}
       </button>

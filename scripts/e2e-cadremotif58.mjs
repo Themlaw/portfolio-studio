@@ -149,11 +149,12 @@ async function injectBoxes(pg, stretch = false) {
       for (const [k, [w, h]] of Object.entries(sizes)) {
         const fig = document.createElement("figure");
         fig.className = "block-image";
-        // Lot 62 : le cadre du thème n'est posé que sur le choix « Cadre du thème » (ou le réglage du site), ici le choix de la photo.
-        fig.dataset.frame = "theme";
         fig.style.margin = "0";
         const m = document.createElement("div");
-        m.className = "block-image-media";
+        // Lot 64 : la boîte du média (MediaFrame) porte le cadre. Lot 62 : le cadre du thème n'est posé que sur le choix « Cadre du thème » (ou le réglage du site), ici le choix de la photo.
+        m.className = "media-frame";
+        m.dataset.frame = "theme";
+        m.dataset.kind = "image";
         m.dataset.k = k;
         m.style.cssText = `width:${w}px;height:${h}px;background:#9aa7ad;display:block`;
         fig.appendChild(m);
@@ -163,7 +164,7 @@ async function injectBoxes(pg, stretch = false) {
       if (stretchOld) {
         const st = document.createElement("style");
         st.id = "e58-old";
-        st.textContent = "#e58 .block-image-media{border-image-repeat:stretch !important}";
+        st.textContent = "#e58 .media-frame{border-image-repeat:stretch !important}";
         document.head.appendChild(st);
       }
     },
@@ -306,7 +307,7 @@ if (run("CS"))
     })();
     ok("CS0 le thème porte un cadre du kit", kitOn, "lance CA avant CS");
     const read = (sel) => `[...document.querySelectorAll(${JSON.stringify(sel)})].map((el) => { const cs = getComputedStyle(el); return { src: cs.borderImageSource.slice(0, 12), w: parseFloat(cs.borderTopWidth), color: cs.borderTopColor }; })`;
-    const f = await pub.evaluate(`({ plain: ${read("figure.block-image:not([data-frame]) .block-image-media")}, none: ${read('figure.block-image[data-frame="none"] .block-image-media')}, chosen: ${read('figure.block-image[data-frame="band"] .block-image-media')}, theme: ${read('figure.block-image[data-frame="theme"] .block-image-media')} })`);
+    const f = await pub.evaluate(`({ plain: ${read("figure.block-image .media-frame:not([data-frame])")}, none: ${read('figure.block-image .media-frame[data-frame="none"]')}, chosen: ${read('figure.block-image .media-frame[data-frame="band"]')}, theme: ${read('figure.block-image .media-frame[data-frame="theme"]')} })`);
     info("CS public", f);
     ok("CS1 public : la photo SANS choix n'a pas le cadre du kit (lot 62 : plus posé d'office)", f.plain.length === 1 && f.plain[0].src === "none" && f.plain[0].w === 0, JSON.stringify(f.plain));
     ok("CS2 public : « Aucun » = aucun cadre (ni kit, ni bordure)", f.none.length === 1 && f.none[0].src === "none" && f.none[0].w === 0, JSON.stringify(f.none));
@@ -317,11 +318,11 @@ if (run("CS"))
     await page.goto(`${BASE}/admin/pages/${pageId}/editer`, { waitUntil: "domcontentloaded" });
     const fr = await canvas();
     await sleep(2000);
-    const c = await fr.evaluate(`({ plain: ${read("figure.block-image:not([data-frame]) .block-image-media")}, none: ${read('figure.block-image[data-frame="none"] .block-image-media')}, theme: ${read('figure.block-image[data-frame="theme"] .block-image-media')} })`);
+    const c = await fr.evaluate(`({ plain: ${read("figure.block-image .media-frame:not([data-frame])")}, none: ${read('figure.block-image .media-frame[data-frame="none"]')}, theme: ${read('figure.block-image .media-frame[data-frame="theme"]')} })`);
     info("CS toile", c);
     ok("CS4 toile : même rendu que le public (sans choix et Aucun : rien ; Cadre du thème : le kit)", c.plain.length === 1 && c.plain[0].src === "none" && c.none.length === 1 && c.none[0].src === "none" && c.none[0].w === 0 && c.theme.length === 1 && c.theme[0].src !== "none", JSON.stringify(c));
     // Le bouton Cadre propose les trois choix (clic sur la photo sans choix, puis Cadre).
-    await fr.locator('figure.block-image:not([data-frame]) .block-image-media').first().click();
+    await fr.locator('figure.block-image .media-frame:not([data-frame])').first().click();
     await sleep(600);
     await fr.locator('.pe-tools [data-testid="frame-button"]').click({ timeout: 15000 }).catch(() => {});
     const dlg = fr.getByRole("dialog", { name: "Cadre de la photo" });
@@ -330,7 +331,7 @@ if (run("CS"))
     if (menu) {
       await dlg.locator('[data-frame-kind="theme"]').click();
       await sleep(1500);
-      const after = await fr.evaluate(`document.querySelectorAll('figure.block-image[data-frame="theme"]').length`);
+      const after = await fr.evaluate(`document.querySelectorAll('figure.block-image .media-frame[data-frame="theme"]').length`);
       ok("CS5 « Cadre du thème » choisi : la photo reçoit le cadre du kit sur la toile", after === 2, String(after));
     }
     await page.screenshot({ path: path.join(SHOTS, "cs-menu.png") });

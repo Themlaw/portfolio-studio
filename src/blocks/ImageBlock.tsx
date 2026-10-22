@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { getTranslations } from "next-intl/server";
 import { z } from "zod";
 
+import MediaFrame from "@/components/MediaFrame";
 import Picture from "@/components/Picture";
 import { claimEager } from "@/lib/eager";
 import ViewerScope from "@/components/ViewerScope";
@@ -13,8 +14,6 @@ import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { ORIGINALS_PREFIX } from "@/lib/images/variants";
 import { getMedia, mediaUrl } from "@/lib/media";
 import { viewerAttrs } from "@/lib/viewer";
-
-import { frameStyle, imageBgAttrs } from "@/lib/look";
 
 import { AUTO_PANORAMA_RATIO } from "./grid-layouts";
 
@@ -126,10 +125,10 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
           ...(free && resolved ? { rect: resolved.rect } : {}),
         }
       : undefined;
-  // Cadre autour de la photo (lot 34, `look.frame`) : bordure DANS la boîte de l'image (look.css), jamais sur une place vide.
-  const frame = image ? frameStyle(ctx.look?.frame) : null;
-  // Fond derrière l'image (lot 41, `look.imageBg`) : remplit la boîte de l'image (look.css), même « Dans la case » ; aucun par défaut.
-  const imgBg = image ? imageBgAttrs(ctx.look?.imageBg) : null;
+  // Cadre (lot 34, `look.frame`) et fond (lot 41, `look.imageBg`) : habillage de la boîte de la PHOTO (MediaFrame), jamais d'une place vide ni de la figure.
+  const mediaLook = image ? { frame: ctx.look?.frame, bg: ctx.look?.imageBg } : undefined;
+  // Format de la boîte : celui de la zone gardée (cadrage libre), sinon le format imposé, sinon celui de l'image (cadrée ou entière).
+  const boxRatio = free ? frameRatio : (box ?? frameRatio);
   const body = (
     <figure
       className={`block-image ${ctx.cell ? "" : props.width === "text" ? "max-w-2xl" : ""}`}
@@ -139,14 +138,14 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       {...(!ctx.cell && ctx.look?.imageSize ? { "data-size": ctx.look.imageSize } : {})}
       {...(!ctx.cell && ctx.look?.imageAlign ? { "data-align": ctx.look.imageAlign } : {})}
       {...(canvas && forced ? { "data-edit-box": forced } : {})}
-      {...(free ? { "data-free": "" } : { ...ratioAttr, ...(box && !cover ? { "data-fit": "contain" } : {}) })}
-      {...(frame ? { ...frame.attrs, ...(legacy ? { "data-legacy": "" } : {}) } : {})}
-      {...(imgBg ? { "data-img-bg": "", ...(legacy ? { "data-legacy": "" } : {}) } : {})}
-      style={{ "--ir": shownRatio.toFixed(4), ...(frame?.style ?? {}), ...(imgBg?.style ?? {}) } as CSSProperties}
+      {...(free ? { "data-free": "" } : ratioAttr)}
+      style={{ "--ir": shownRatio.toFixed(4) } as CSSProperties}
     >
       {image ? (
-        <span
-          className={legacy ? "block-image-frame" : "block"}
+        <MediaFrame
+          look={mediaLook}
+          ratio={boxRatio}
+          fit={box && !cover ? "contain" : "cover"}
           data-edit-media={canvas ? "mediaId" : undefined}
           data-edit-media-kind={canvas ? "image" : undefined}
           {...editFull}
@@ -159,12 +158,12 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
             width={cropped ? cropped.width : (image.width ?? 1200)}
             height={cropped ? cropped.height : (image.height ?? 800)}
             sizes={scaleSizes(baseSizes, stretch)}
-            className="block-image-media h-auto w-full rounded-strip"
+            className="block-image-media"
             cropped={Boolean(cropped)}
             fallback={fallback}
             priority={eager}
           />
-        </span>
+        </MediaFrame>
       ) : ctx.edit ? (
         <span className="pe-media-empty" data-edit-media="mediaId" data-edit-media-kind="image" lang="fr">
           <span>Dépose une image ici</span>
