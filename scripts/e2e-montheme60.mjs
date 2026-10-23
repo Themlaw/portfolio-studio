@@ -446,8 +446,7 @@ try {
     await dialog().waitFor();
     ok("I4 version N+1 créée (nouveau thème : non), puis on propose de la publier (avant → après)", mine().version === v0 + 1 && JSON.parse(mine().data).name !== undefined && versions(M.id).at(-1).source === "model" && /Version \d+ de Mon thème créée/.test((await dialog().textContent()) ?? "") && (await dialog().getByTestId("activate-swap").count()) === 1, (await dialog().textContent()) ?? "");
     await dialog().getByRole("button", { name: "Annuler" }).click();
-    await page.waitForLoadState("load");
-    await banner.waitFor({ timeout: 120000 });
+    await page.locator('[data-testid="preparing-banner"][data-kind="mine"]').waitFor({ timeout: 120000 });
     ok("I5 « Plus tard » : la version reste un brouillon, l'éditeur prépare Mon thème (« Publier cette version »)", (await banner.getAttribute("data-kind")) === "mine" && (await banner.getByRole("button", { name: "Publier cette version" }).count()) === 1 && mine().published_version !== mine().version);
 
     // I6 Mon thème en brouillon : « Publier cette version » (avant → après), puis le site public suit
@@ -468,7 +467,7 @@ try {
     await dialog().waitFor();
     ok("I8 « En faire mon thème » : nouvelle version (adopt), ancien thème gardé, proposition de publier", versions(M.id).at(-1).source === "adopt" && Boolean(row("ancien-i")) && /mettre en ligne/.test((await dialog().textContent()) ?? ""));
     await dialog().getByRole("button", { name: "Annuler" }).click();
-    await page.waitForLoadState("load");
+    await page.locator('[data-testid="preparing-banner"][data-kind="mine"]').waitFor({ timeout: 120000 });
 
     // I9 menu Thème : Mon thème en premier (avec sa version), puis les modèles, puis les anciens thèmes
     await page.request.post(`${BASE}/admin/apercu/quitter`, { form: { retour: "/admin/themes" }, headers: { origin: BASE }, maxRedirects: 0 });
