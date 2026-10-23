@@ -24,7 +24,7 @@ import { sleep, sql } from "./lib/grille31d.mjs";
 import { login, q1, waitFor } from "./lib/medias-setup.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3740";
-const ONLY = process.env.ONLY ?? "";
+const ONLY = process.env.BATT_MONTHEME_ONLY ?? process.env.ONLY ?? "";
 const run = (s) => !ONLY || ONLY.split(",").includes(s);
 const SHOTS = process.env.SHOTS ?? path.join(tmpdir(), "e2e-montheme60");
 const DIR = path.join(tmpdir(), "e2e-montheme60-files");
