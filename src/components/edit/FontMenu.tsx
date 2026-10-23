@@ -7,6 +7,8 @@
  * (OFL) ; puis le catalogue Google Fonts embarqué (aucune requête vers
  * Google : les aperçus viennent de /admin/api/fonts/preview, téléchargés par
  * le serveur). Les polices déjà téléchargées pour le site sont marquées.
+ * Lot 70 : « Récentes » en tête (les 6 dernières polices choisies, mémorisées par le
+ * serveur) ; leurs aperçus se chargent comme ceux du catalogue, à la demande.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -14,6 +16,7 @@ import { fontLabel, fontStack, THEME_FONTS } from "@/lib/look";
 import { CATEGORY_LABELS, GOOGLE_FONTS, type GoogleCategory } from "@/themes/google-fonts";
 import { FONT_IDS } from "@/themes/schema";
 
+import { useRecentFonts } from "./recent-fonts";
 import { useDismiss } from "./useDismiss";
 
 const PAGE = 60;
@@ -36,7 +39,7 @@ function loadPreview(family: string): Promise<boolean> {
   return p;
 }
 
-function GoogleItem({ family, installed, current, onPick, eager }: { family: string; installed: boolean; current: boolean; onPick: () => void; eager: boolean }) {
+function GoogleItem({ family, installed, current, onPick, eager, recent }: { family: string; installed: boolean; current: boolean; onPick: () => void; eager: boolean; recent?: boolean }) {
   const ref = useRef<HTMLButtonElement>(null);
   const [ready, setReady] = useState(false);
   useEffect(() => {
@@ -60,7 +63,7 @@ function GoogleItem({ family, installed, current, onPick, eager }: { family: str
     return () => io.disconnect();
   }, [family, eager]);
   return (
-    <button ref={ref} type="button" role="option" aria-selected={current} className="fm-item" data-font={`g:${family}`} onClick={onPick}>
+    <button ref={ref} type="button" role="option" aria-selected={current} className="fm-item" {...(recent ? { "data-recent-font": `g:${family}` } : { "data-font": `g:${family}` })} onClick={onPick}>
       <span className="fm-name" style={ready ? { fontFamily: `"pv ${family}", system-ui` } : undefined}>
         {family}
       </span>
@@ -101,6 +104,16 @@ export default function FontMenu({
     ...FONT_IDS.map((id) => `embed:${id}`),
   ].filter((ref) => !q || fontLabel(ref).toLowerCase().includes(q) || (ref.startsWith("theme:") && themeNames?.[ref.slice(6) as "display"]?.toLowerCase().includes(q)));
   const installedSet = new Set(installed);
+  const { recent, remember } = useRecentFonts();
+  // Récentes : la plus récente d'abord, filtrées par la recherche (et la catégorie, pour le catalogue).
+  const recents = recent.filter((ref) => {
+    if (ref.startsWith("g:")) return google.some((f) => f.family === ref.slice(2));
+    return cat === "all" && local.includes(ref);
+  });
+  const choose = (ref: string | undefined) => {
+    if (ref) remember(ref);
+    onPick(ref);
+  };
 
   return (
     <div
@@ -149,11 +162,28 @@ export default function FontMenu({
         <button type="button" role="option" aria-selected={!value} className="fm-item fm-reset" onClick={() => onPick(undefined)}>
           <span className="fm-name">Police par défaut (style global)</span>
         </button>
+        {recents.length > 0 && (
+          <div className="fm-recent" role="group" aria-label="Polices récentes">
+            <p className="fm-group">Récentes</p>
+            {recents.map((ref) =>
+              ref.startsWith("g:") ? (
+                <GoogleItem key={ref} recent eager={false} family={ref.slice(2)} installed={installedSet.has(ref.slice(2))} current={value === ref} onPick={() => choose(ref)} />
+              ) : (
+                <button key={ref} type="button" role="option" aria-selected={value === ref} className="fm-item" data-recent-font={ref} onClick={() => choose(ref)}>
+                  <span className="fm-name" style={{ fontFamily: fontStack(ref) ?? undefined }}>
+                    {fontLabel(ref)}
+                    {ref.startsWith("theme:") && themeNames?.[ref.slice(6) as "display"] ? ` — ${themeNames[ref.slice(6) as "display"]}` : ""}
+                  </span>
+                </button>
+              ),
+            )}
+          </div>
+        )}
         {cat === "all" && local.length > 0 && (
           <>
             <p className="fm-group">Thème et polices du site</p>
             {local.map((ref) => (
-              <button key={ref} type="button" role="option" aria-selected={value === ref} className="fm-item" data-font={ref} onClick={() => onPick(ref)}>
+              <button key={ref} type="button" role="option" aria-selected={value === ref} className="fm-item" data-font={ref} onClick={() => choose(ref)}>
                 <span className="fm-name" style={{ fontFamily: fontStack(ref) ?? undefined }}>
                   {fontLabel(ref)}
                   {ref.startsWith("theme:") && themeNames?.[ref.slice(6) as "display"] ? ` — ${themeNames[ref.slice(6) as "display"]}` : ""}
@@ -164,7 +194,7 @@ export default function FontMenu({
         )}
         <p className="fm-group">Google Fonts · téléchargée par le site au premier choix</p>
         {google.slice(0, shown).map((f, i) => (
-          <GoogleItem key={f.family} eager={i < 10} family={f.family} installed={installedSet.has(f.family)} current={value === `g:${f.family}`} onPick={() => onPick(`g:${f.family}`)} />
+          <GoogleItem key={f.family} eager={i < 10} family={f.family} installed={installedSet.has(f.family)} current={value === `g:${f.family}`} onPick={() => choose(`g:${f.family}`)} />
         ))}
         {google.length === 0 && <p className="fm-empty">Aucune police ne correspond.</p>}
       </div>

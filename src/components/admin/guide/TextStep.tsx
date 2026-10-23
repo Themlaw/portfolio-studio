@@ -4,6 +4,7 @@
  * Étape 2 « Textes » (lot 61) : deux polices (titres, texte). La police des légendes et les sept styles par rôle sont dans
  * « Affiner (avancé) », avec le compteur de styles posés.
  */
+import { useRecentFonts } from "@/components/edit/recent-fonts";
 import { FONT_STACKS } from "@/themes/font-stacks";
 import { FONT_IDS, type FontId, type Theme } from "@/themes/schema";
 
@@ -12,11 +13,28 @@ import { AIR_LABELS, AIRS, type Air } from "@/themes/backdrop-air";
 import ThemeTypeEditor from "../ThemeTypeEditor";
 import { Advanced } from "./controls";
 
-function FontGrid({ role, label, help, value, onPick }: { role: "display" | "body" | "caption"; label: string; help: string; value: FontId; onPick: (f: FontId) => void }) {
+function FontGrid({ role, label, help, value, onPick: pick }: { role: "display" | "body" | "caption"; label: string; help: string; value: FontId; onPick: (f: FontId) => void }) {
+  // Lot 70 : « Récentes » (les polices choisies ces derniers temps, mémorisées par le serveur), celles qu'on peut poser ici en tête.
+  const { recent, remember } = useRecentFonts();
+  const recentIds = recent.flatMap((r) => (r.startsWith("embed:") && (FONT_IDS as readonly string[]).includes(r.slice(6)) ? [r.slice(6) as FontId] : []));
+  const onPick = (f: FontId) => {
+    remember(`embed:${f}`);
+    pick(f);
+  };
   return (
     <fieldset className="a-fieldset" data-font-role={role}>
       <legend>{label}</legend>
       <p className="a-help">{help}</p>
+      {recentIds.length > 0 && (
+        <div className="a-font-recent" role="group" aria-label="Polices récentes" data-testid={`font-recent-${role}`}>
+          <span className="a-font-recent-title">Récentes</span>
+          {recentIds.map((fid) => (
+            <button key={fid} type="button" className="a-font-recent-choice" aria-pressed={value === fid} data-font-recent={fid} style={{ fontFamily: FONT_STACKS[fid].stack }} onClick={() => onPick(fid)}>
+              {FONT_STACKS[fid].label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="a-font-grid">
         {FONT_IDS.map((fid: FontId) => (
           <label key={fid} className="a-font-choice">

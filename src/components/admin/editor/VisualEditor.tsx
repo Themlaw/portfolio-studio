@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import {
   addToMenuFromEditorAction,
   boardAction,
+  adoptSiteDraftAction,
   createDraftProjectAction,
   discardDraftAction,
   installFontAction,
@@ -51,7 +52,7 @@ import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
 import { convertItem as convertBoardItem } from "@/blocks/grid-strip";
 import { BOARD_ITEM_LABELS, parseRailKey, railKey, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
-import { cleanLook, cleanSiteStyles, googleOf, readLook, type Frame, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
+import { cleanLook, cleanSiteStyles, googleOf, readLook, rebaseSiteStyles, type Frame, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 import { readBackground, supportsFond, type Background } from "@/themes/fond";
 import { cleanSurface, readSurface, type Surface } from "@/themes/surface";
@@ -441,7 +442,11 @@ export default function VisualEditor({
   const siteRef = useRef<SiteSnap>(initialSite.snap);
   const [siteSnap, setSiteSnap] = useState<SiteSnap>(initialSite.snap);
   const [sitePending, setSitePending] = useState(initialSite.pending);
-  const siteLocked = initialSite.lockedBy;
+  // Page qui porte déjà des modifications en attente de l'en-tête : un réglage fait ici les reprend (adoptSiteDraftAction).
+  const [siteLocked, setSiteLocked] = useState(initialSite.lockedBy);
+  // État du site que l'artiste avait sous les yeux AVANT la reprise du brouillon d'une autre page : sert, pour ce seul réglage, à ne poser sur le
+  // brouillon repris que ce qu'il a changé (rebaseSiteStyles).
+  const adoptBase = useRef<SiteSnap | null>(null);
   // Défini plus bas (après runSave) ; appelé par l'historique.
   const writeSiteRef = useRef<(next: SiteSnap | SiteUpdate, record?: boolean) => Promise<boolean>>(async () => false);
 
@@ -498,12 +503,32 @@ export default function VisualEditor({
     (next: SiteSnap | SiteUpdate, record = true): Promise<boolean> =>
       withLock(async () => {
         if (blockedRef.current) return false;
-        if (siteLocked) {
-          toast(`L'en-tête est en cours de modification sur la page « ${siteLocked} » : publie-la ou abandonne-la d'abord.`, "error");
-          return false;
-        }
         if (dirty.current && !(await runSave())) return false;
+        // Lot 70 : les modifications de l'en-tête en attente sur une autre page sont reprises ici, intactes, au lieu de refuser le réglage
+        // (le style « Tous les Menu » marchait sur certaines pages seulement). Elles seront publiées avec cette page.
+        if (siteLocked) {
+          let adopted: Awaited<ReturnType<typeof adoptSiteDraftAction>>;
+          try {
+            adopted = await adoptSiteDraftAction(pageId, revRef.current);
+          } catch {
+            adopted = { ok: false, message: "connexion perdue" };
+          }
+          if (!adopted.ok) {
+            if ("code" in adopted) stop(adopted.code);
+            else toast(adopted.message, "error");
+            return false;
+          }
+          revRef.current = adopted.data.rev;
+          adoptBase.current = adopted.data.from ? siteRef.current : null;
+          siteRef.current = adopted.data.snap;
+          setSiteSnap(adopted.data.snap);
+          setSitePending(true);
+          setSiteLocked(null);
+          send({ kind: "site-lock", page: null });
+          if (adopted.data.from) toast(`Les modifications de l'en-tête commencées sur la page « ${adopted.data.from} » sont reprises ici : elles seront publiées avec cette page.`, "success", undefined, 9000);
+        }
         const snap = typeof next === "function" ? next(siteRef.current) : next;
+        adoptBase.current = null;
         if (!snap) return false;
         if ("error" in snap) {
           toast(snap.error, "error");
@@ -1431,7 +1456,9 @@ export default function VisualEditor({
       }
       // Calculé dans le verrou, sur le dernier état écrit : deux réglages rapprochés se cumulent.
       await writeSite((cur) => {
-        const clean = cleanSiteStyles(update(cur.styles));
+        // Brouillon repris d'une autre page : le réglage est calculé sur ce que l'artiste voyait, puis posé sur le brouillon repris.
+        const seen = adoptBase.current;
+        const clean = cleanSiteStyles(seen ? rebaseSiteStyles(seen.styles, update(seen.styles), cur.styles) : update(cur.styles));
         const { styles: _old, ...rest } = cur;
         void _old;
         return { ...rest, ...(clean ? { styles: clean } : {}) };
@@ -1467,7 +1494,9 @@ export default function VisualEditor({
       let unchanged = false;
       const ok = await writeSite((cur) => {
         const { styles: old, ...rest } = cur;
-        const clean = cleanSiteStyles({ ...(old ?? {}), palette: q.palette, logo: q.logo });
+        const seen = adoptBase.current;
+        const mine = { ...((seen ? seen.styles : old) ?? {}), palette: q.palette, logo: q.logo };
+        const clean = cleanSiteStyles(seen ? rebaseSiteStyles(seen.styles, mine, old) : mine);
         unchanged = JSON.stringify(clean ?? null) === JSON.stringify(old ?? null);
         return unchanged ? null : { ...rest, ...(clean ? { styles: clean } : {}) };
       });

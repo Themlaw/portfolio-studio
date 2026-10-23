@@ -113,9 +113,11 @@ export type PopoverProps = {
   onKeyDown?: (e: KeyboardEvent<HTMLDivElement>) => void;
   /** Entrée en premier : le premier champ ou choix prend le focus à l'ouverture. */
   focusFirst?: boolean;
+  /** Attributs `data-*` posés sur la fenêtre (repères de test). */
+  dataAttrs?: Record<string, string | undefined>;
 };
 
-export default function Popover({ anchor, label, onClose, children, className = "sm tc", role = "dialog", testId, align = "start", prefer = "below", avoid, obstacles, ignoreDismiss, style, onKeyDown, onPointerDown, focusFirst }: PopoverProps) {
+export default function Popover({ anchor, label, onClose, children, className = "sm tc", role = "dialog", testId, align = "start", prefer = "below", avoid, obstacles, ignoreDismiss, style, onKeyDown, onPointerDown, focusFirst, dataAttrs }: PopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
   const anchorRef = useRef(anchor);
   const alignRef = useRef(align);
@@ -222,7 +224,7 @@ export default function Popover({ anchor, label, onClose, children, className = 
   // la fenêtre comme faisant partie de l'éditeur, jamais comme du contenu du site.
   return createPortal(
     <div className="pe-layer pe-pop-layer">
-      <div ref={ref} className={`pe-pop ${className}`} role={role} aria-label={label} data-testid={testId} data-pe-pop="" style={{ right: "auto", ...style }} onKeyDown={onKeyDown} onPointerDown={onPointerDown}>
+      <div ref={ref} className={`pe-pop ${className}`} role={role} aria-label={label} data-testid={testId} data-pe-pop="" {...dataAttrs} style={{ right: "auto", ...style }} onKeyDown={onKeyDown} onPointerDown={onPointerDown}>
         {children}
       </div>
     </div>,

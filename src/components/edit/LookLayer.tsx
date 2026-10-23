@@ -279,6 +279,52 @@ function roleOf(el: HTMLElement): Role {
   return "body";
 }
 
+/** Barres d'outils de la toile (blocs, composants, liens du menu…) : la pastille « Aa » ne s'y pose pas non plus. */
+const TOOL_SEL = ".pe-layer :is(button, [role=toolbar], .pe-tools):not(.pe-focus)";
+const AA_W = 30;
+const AA_H = 22;
+
+/**
+ * Place de la pastille « Aa » d'un texte (lot 70). Elle se pose d'abord au-dessus de l'angle droit du texte survolé ; si elle y recouvrirait
+ * un AUTRE texte modifiable (ligne du dessus d'une légende, date posée sur la ligne suivante…) ou une barre d'outils, elle essaie
+ * ailleurs : au-dessus à gauche, hors du texte à droite puis à gauche, en dessous. Un texte passe toujours avant une barre. Dernier recours :
+ * dans le texte lui-même s'il est assez grand, sinon la place d'avant. Un clic sur la ligne 2 ne tombe donc jamais sur la pastille de la ligne 1.
+ */
+function aaPlace(own: HTMLElement, rect: Rect): { top: number; left: number } {
+  const minTop = window.scrollY + 2;
+  const minLeft = window.scrollX + 2;
+  const maxLeft = window.scrollX + document.documentElement.clientWidth - AA_W - 2;
+  const boxes = (sel: string) =>
+    [...document.querySelectorAll<HTMLElement>(sel)]
+      .filter((e) => e !== own && !own.contains(e) && !e.contains(own) && !e.closest(".lk-aa, .lk-bar, .lk-pos"))
+      .map(docRect)
+      .filter((r) => r.width > 0 && r.height > 0);
+  const texts = boxes(TEXT_SEL);
+  // Les cadres de focus et autres calques pleine largeur ne sont pas des barres : seules comptent les barres de taille de barre.
+  const tools = boxes(TOOL_SEL).filter((r) => r.width < 420 && r.height < 160);
+  const hits = (c: { top: number; left: number }, list: Rect[]) => list.some((r) => c.left < r.left + r.width && c.left + AA_W > r.left && c.top < r.top + r.height && c.top + AA_H > r.top);
+  const inside = (c: { top: number; left: number }) => c.left >= minLeft && c.left <= maxLeft && c.top >= minTop;
+  const right = rect.left + rect.width - AA_W;
+  const mid = rect.top + Math.max(0, (rect.height - AA_H) / 2);
+  const candidates = [
+    { top: Math.max(minTop, rect.top - 24), left: right },
+    { top: Math.max(minTop, rect.top - 24), left: rect.left },
+    { top: Math.max(minTop, rect.top - 24), left: rect.left - AA_W - 4 },
+    { top: Math.max(minTop, rect.top - 24), left: rect.left + rect.width + 4 },
+    { top: mid, left: rect.left + rect.width + 4 },
+    { top: mid, left: rect.left - AA_W - 4 },
+    { top: rect.top + rect.height + 2, left: right },
+    { top: rect.top + rect.height + 2, left: rect.left },
+  ].filter(inside);
+  // D'abord une place libre de tout texte ET de toute barre ; sinon libre de tout texte (la barre passe après) ; sinon, DANS le texte,
+  // sur son angle droit, s'il est assez grand pour rester cliquable à côté (jamais hors de lui, donc jamais sur un autre texte) ;
+  // sinon la place d'avant (au-dessus de l'angle droit) : un champ étroit ou bas (date vide…) resterait recouvert, donc incliquable.
+  const pick = candidates.find((c) => !hits(c, texts) && !hits(c, tools)) ?? candidates.find((c) => !hits(c, texts));
+  if (pick) return pick;
+  if (rect.width >= 4 * AA_W && rect.height >= AA_H) return { top: Math.max(minTop, mid), left: Math.max(minLeft, Math.min(maxLeft, right)) };
+  return { top: Math.max(minTop, rect.top - 24), left: Math.max(minLeft, Math.min(maxLeft, right)) };
+}
+
 /** Chemin stable d'un élément (le DOM est re-rendu au rafraîchissement). */
 function pathOf(el: Element): string {
   const parts: string[] = [];
@@ -469,7 +515,7 @@ function TextBar({
   };
   // Fenêtre ancrée au bouton « Aa » (lot 65) : au-dessus du texte si la place y est, jamais sur la barre d'outils du bloc ni loin du bouton.
   return (
-    <Popover anchor=".lk-aa" avoid={target.path} obstacles=".pe-tools" prefer="above" className="lk-bar" role="toolbar" label="Style du texte" onClose={onClose} ignoreDismiss={(t) => Boolean(document.querySelector(target.path)?.contains(t))} onPointerDown={(e) => e.stopPropagation()}>
+    <Popover anchor=".lk-aa" dataAttrs={{ "data-text-target": target.local?.key ?? target.role }} avoid={target.path} obstacles=".pe-tools" prefer="above" className="lk-bar" role="toolbar" label="Style du texte" onClose={onClose} ignoreDismiss={(t) => Boolean(document.querySelector(target.path)?.contains(t))} onPointerDown={(e) => e.stopPropagation()}>
       <div className="lk-bar-head">
         <span className="lk-seg" role="radiogroup" aria-label="Appliquer à">
           {target.local && (
@@ -946,7 +992,7 @@ export default function LookLayer({
         <button
           type="button"
           className="lk-aa"
-          style={{ top: Math.max(window.scrollY + 2, aaView.rect.top - 24), left: aaView.rect.left + aaView.rect.width - 30 }}
+          style={aaPlace((aaView as { anchor?: HTMLElement }).anchor ?? aaView.el, aaView.rect)}
           aria-label="Style du texte"
           aria-expanded={bar ? true : undefined}
           title="Police, taille, couleur… de ce texte"

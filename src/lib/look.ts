@@ -785,6 +785,40 @@ export function googleFamiliesOf(styles: (TextStyle | undefined)[]): string[] {
   return [...new Set(styles.map((s) => googleOf(s?.font)).filter((f): f is string => Boolean(f)))];
 }
 
+/**
+ * Rebase de styles du site (lot 70) : `mine` = ce que l'artiste vient de régler, calculé sur `base` (ce qu'il avait sous les yeux) ;
+ * `theirs` = le brouillon du site qu'une autre page portait et qui lui est confié. On garde `theirs` et on y pose seulement ce que
+ * `mine` change par rapport à `base`, champ par champ (un rôle de texte, l'arrondi, la palette, le logo) : un réglage en attente sur
+ * l'autre page n'est jamais écrasé par un réglage fait ici sur un autre champ.
+ */
+export function rebaseSiteStyles(base: SiteStyles | undefined, mine: SiteStyles | undefined, theirs: SiteStyles | undefined): SiteStyles | undefined {
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const out: Record<string, unknown> = { ...(theirs ?? {}) };
+  const rec = (s: SiteStyles | undefined) => (s ?? {}) as Record<string, unknown>;
+  for (const k of new Set([...Object.keys(rec(base)), ...Object.keys(rec(mine))])) {
+    if (k === "roles" || same(rec(base)[k], rec(mine)[k])) continue;
+    if (rec(mine)[k] === undefined) delete out[k];
+    else out[k] = rec(mine)[k];
+  }
+  const roles: Record<string, Record<string, unknown>> = { ...((theirs?.roles ?? {}) as Record<string, Record<string, unknown>>) };
+  const b = (base?.roles ?? {}) as Record<string, Record<string, unknown> | undefined>;
+  const m = (mine?.roles ?? {}) as Record<string, Record<string, unknown> | undefined>;
+  for (const r of new Set([...Object.keys(b), ...Object.keys(m)])) {
+    if (same(b[r], m[r])) continue;
+    const t = { ...(roles[r] ?? {}) };
+    for (const f of new Set([...Object.keys(b[r] ?? {}), ...Object.keys(m[r] ?? {})])) {
+      if (same(b[r]?.[f], m[r]?.[f])) continue;
+      if (m[r]?.[f] === undefined) delete t[f];
+      else t[f] = m[r]![f];
+    }
+    if (Object.keys(t).length) roles[r] = t;
+    else delete roles[r];
+  }
+  if (Object.keys(roles).length) out.roles = roles;
+  else delete out.roles;
+  return Object.keys(out).length ? (out as SiteStyles) : undefined;
+}
+
 /** Styles du site sans rôle vide ; undefined s'il ne reste rien (= thème seul). */
 export function cleanSiteStyles(styles: SiteStyles | undefined): SiteStyles | undefined {
   if (!styles) return undefined;
