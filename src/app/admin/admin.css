@@ -2664,6 +2664,26 @@ label.a-file-btn:focus-within {
   border-radius: 4px;
 }
 
+.a-slot-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.a-slot-search .a-input {
+  min-width: 16rem;
+}
+
+.a-slot[data-dim] {
+  opacity: 0.35;
+}
+
+.a-slot[data-found] {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 2px;
+}
+
 .a-slot[data-selected] {
   border-color: transparent;
   outline: 2px solid var(--admin-accent);

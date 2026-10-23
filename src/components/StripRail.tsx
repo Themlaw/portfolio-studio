@@ -144,6 +144,48 @@ export default function StripRail({
     if (!rail || !viewport) return;
 
     let frame = 0;
+    /**
+     * Hauteur de la bande suivant ce qui se voit (lot 67, PUB-03) : sans cela, la case la plus haute de TOUTE la bande
+     * (une image très haute, une légende longue) laisse un grand vide sous un panorama. On retient les cases vues sur au
+     * moins 24 px : `--strip-band` (hauteur des images, pour centrer un panorama réduit et les flèches) et `--strip-rail-h`
+     * (hauteur de la bande) ne sont posées que si le gain dépasse 24 px ; sinon la bande garde sa hauteur naturelle.
+     */
+    const fitHeight = (over: boolean) => {
+      const items: HTMLElement[] = [];
+      const collect = (parent: Element) => {
+        for (const child of parent.children) {
+          const el = child as HTMLElement;
+          if (!el.offsetWidth) collect(el);
+          else items.push(el);
+        }
+      };
+      collect(rail);
+      const view = rail.clientWidth;
+      const seen = items.filter((el) => {
+        const x = el.offsetLeft - rail.scrollLeft;
+        return Math.min(x + el.offsetWidth, view) - Math.max(x, 0) >= 24;
+      });
+      const setVar = (target: HTMLElement, name: string, value: string | null) => {
+        if (value === null) {
+          if (target.style.getPropertyValue(name)) target.style.removeProperty(name);
+        } else if (target.style.getPropertyValue(name) !== value) target.style.setProperty(name, value);
+      };
+      if (!over || seen.length === 0) {
+        setVar(viewport, "--strip-band", null);
+        setVar(rail, "--strip-rail-h", null);
+        return;
+      }
+      const media = (el: HTMLElement) => el.querySelector<HTMLElement>(".strip-media")?.offsetHeight ?? el.offsetHeight;
+      const full = Math.max(...items.map(media));
+      const band = Math.max(...seen.map(media));
+      setVar(viewport, "--strip-band", full - band > 24 ? `${band}px` : null);
+      // La marge haute d'un panorama réduit dépend de --strip-band : on mesure APRÈS l'avoir posée.
+      const pad = parseFloat(getComputedStyle(rail).paddingBottom) || 0;
+      const bottom = (list: HTMLElement[]) => Math.max(...list.map((el) => el.offsetTop + el.offsetHeight)) + pad;
+      const need = bottom(seen);
+      const natural = bottom(items);
+      setVar(rail, "--strip-rail-h", natural - need > 24 ? `${Math.ceil(need)}px` : null);
+    };
     const paint = () => {
       frame = 0;
       const slack = rail.scrollWidth - rail.clientWidth;
@@ -178,6 +220,7 @@ export default function StripRail({
         }
       };
       visit(rail);
+      fitHeight(over);
       // Largeur du fondu = partie visible de l'image coupée, plafonnée à --strip-fade ; « 0px » sans coupe.
       const fade = (name: string, px: number) => {
         const value = px > 0 ? `min(var(--strip-fade), ${px}px)` : "0px";

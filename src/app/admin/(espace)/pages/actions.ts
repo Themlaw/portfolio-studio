@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { assertAdmin } from "@/lib/auth/guard";
 import {
+  addToMenuFromEditor,
   createPage,
   deletePage,
   reorderMenu,
@@ -168,6 +169,16 @@ export async function setInMenuAction(id: unknown, inMenu: unknown): Promise<Act
     syncDraftFlags(pid, { inMenu });
     revalidateNav();
   }
+  return result;
+}
+
+/** « Ajouter au menu » de l'avertissement de publication (lot 67, CONC-02) : voir `addToMenuFromEditor`. */
+export async function addToMenuFromEditorAction(id: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Requête invalide.");
+  const result = addToMenuFromEditor(pid);
+  if (result.ok) revalidateNav();
   return result;
 }
 

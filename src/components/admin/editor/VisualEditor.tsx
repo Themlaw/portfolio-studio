@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import {
+  addToMenuFromEditorAction,
   boardAction,
   createDraftProjectAction,
   discardDraftAction,
@@ -2486,7 +2487,7 @@ export default function VisualEditor({
       setPublishErrors({});
       setPublishMessage(null);
       const warn = result.data.warnings;
-      setPublishWarn(warn && (warn.missingAlt.length > 0 || warn.untranslated > 0) ? warn : null);
+      setPublishWarn(warn && (warn.missingAlt.length > 0 || warn.untranslated > 0 || warn.notInMenu) ? warn : null);
       setHasDraft(false);
       if (result.data.wentLive) {
         // La page est maintenant en ligne : l'état de l'en-tête (et le brouillon enregistré ensuite) le disent aussi.
@@ -2502,6 +2503,22 @@ export default function VisualEditor({
     } finally {
       setPublishing(false);
     }
+  };
+
+  /** « Ajouter au menu » de l'avertissement de publication (lot 67, CONC-02) : la page entre au menu, le brouillon local suit. */
+  const addToMenu = async () => {
+    const result = await addToMenuFromEditorAction(pageId);
+    if (!result.ok) {
+      toast(result.message ?? "Impossible d'ajouter la page au menu.", "error");
+      return;
+    }
+    const inSync = JSON.stringify(draftRef.current) === savedJson.current;
+    draftRef.current = { ...draftRef.current, inMenu: true };
+    setDraftState(draftRef.current);
+    if (inSync) savedJson.current = JSON.stringify(draftRef.current);
+    setPublishWarn((w) => (w ? { ...w, notInMenu: false } : w));
+    toast("La page est dans le menu");
+    router.refresh();
   };
 
   const discard = async () => {
@@ -3219,8 +3236,18 @@ export default function VisualEditor({
           )}
           {publishWarn && mode === "edit" && (
             <div className="ve-alert ve-warnings" role="status" data-testid="publish-warnings">
-              <strong>C&apos;est publié. Deux choses à regarder, rien ne bloque :</strong>
+              <strong>
+                C&apos;est publié. {[publishWarn.missingAlt.length > 0, publishWarn.untranslated > 0, publishWarn.notInMenu].filter(Boolean).length > 1 ? "Quelques points à regarder" : "Une chose à regarder"}, rien ne bloque :
+              </strong>
               <ul className="ve-problems-list">
+                {publishWarn.notInMenu && (
+                  <li data-testid="warn-menu">
+                    Cette page est en ligne mais n&apos;apparaît dans aucun menu : les visiteurs ne la trouveront pas.{" "}
+                    <button type="button" className="a-btn a-btn-small" onClick={() => void addToMenu()}>
+                      Ajouter au menu
+                    </button>
+                  </li>
+                )}
                 {publishWarn.missingAlt.length > 0 && (
                   <li data-testid="warn-alt">
                     {publishWarn.missingAlt.length} image{publishWarn.missingAlt.length > 1 ? "s" : ""} sans description (pour les personnes malvoyantes et Google) :{" "}

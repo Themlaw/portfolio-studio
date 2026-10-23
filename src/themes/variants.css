@@ -26,10 +26,11 @@
 }
 
 /* ---- En-tête ------------------------------------------------------------ */
-/* centered : nom au-dessus, navigation centrée dessous (à partir de md). */
-@media (min-width: 48rem) {
+/* centered : nom au-dessus, navigation centrée dessous (à partir de 1024 px : en dessous, le menu compact). */
+@media (min-width: 64rem) {
   [data-header="centered"] .site-header-bar {
     flex-direction: column;
+    flex-wrap: nowrap;
     justify-content: center;
     gap: 0.35rem;
     padding-block: 0.9rem 0.7rem;

@@ -185,6 +185,7 @@ const ADMIN_ACTIONS = [
   "createDraftProjectAction",
   "setPublishedAction",
   "setInMenuAction",
+  "addToMenuFromEditorAction",
   "reorderMenuAction",
   "deletePageAction",
   "restorePageAction",

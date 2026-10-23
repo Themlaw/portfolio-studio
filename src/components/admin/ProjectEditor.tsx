@@ -67,7 +67,8 @@ export function suggestTitle(filename: string): string {
   const base = filename.replace(/\.[a-z0-9]{2,5}$/i, "").replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
   return base ? base.charAt(0).toLocaleUpperCase("fr-FR") + base.slice(1) : "";
 }
-const slotLabel = (slot: AdminSlot, index: number) => slot.title.fr.trim() || `Emplacement ${index + 1}`;
+/** Nom d'une image du projet (lot 67, CONC-13) : son titre, sinon le nom du fichier d'origine ; « Emplacement N » seulement pour une place vide. */
+const slotLabel = (slot: AdminSlot, index: number) => slot.title.fr.trim() || slot.media?.name?.trim() || `Emplacement ${index + 1}`;
 
 /* ---- Informations du projet ------------------------------------------------- */
 
@@ -139,12 +140,18 @@ function ProjectMeta({ project, legacyFeatured }: { project: AdminProjectEdit; l
 
 type DropHint = { index: number } | { fill: number } | null;
 
+/** Texte comparé sans accents ni majuscules (recherche par nom, lot 67). */
+const plain = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+/** À partir de ce nombre d'images, la bande propose une recherche par nom. */
+const SEARCH_FROM = 6;
+
 function SlotTile({
   slot,
   index,
   selected,
   preview,
   hint,
+  match,
   onOpen,
   onFiles,
   onLibrary,
@@ -155,6 +162,8 @@ function SlotTile({
   preview?: string;
   /** Glisser depuis la Bibliothèque : marque d'insertion avant / après, ou remplissage. */
   hint?: "before" | "after" | "fill";
+  /** Recherche par nom en cours : « found » = correspond, « dim » = ne correspond pas. */
+  match?: "found" | "dim";
   onOpen: () => void;
   onFiles: (files: File[]) => void;
   onLibrary: () => void;
@@ -180,7 +189,7 @@ function SlotTile({
   };
   if (!media) {
     return (
-      <div className="a-slot a-slot-empty" data-slot={slot.id} data-over={over || hint === "fill" || undefined} data-drop={hint} data-selected={selected || undefined} {...dropProps}>
+      <div className="a-slot a-slot-empty" data-slot={slot.id} data-found={match === "found" || undefined} data-dim={match === "dim" || undefined} data-over={over || hint === "fill" || undefined} data-drop={hint} data-selected={selected || undefined} {...dropProps}>
         <div className="a-slot-bar">
           <DragHandle />
           <button type="button" className="a-slot-open" onClick={onOpen} aria-label={`Modifier ${label} (vide)`}>
@@ -196,7 +205,7 @@ function SlotTile({
   }
   const src = media.thumb ?? preview;
   return (
-    <div className="a-slot" data-slot={slot.id} data-status={media.status} data-over={over || undefined} data-drop={hint} data-selected={selected || undefined} {...dropProps}>
+    <div className="a-slot" data-slot={slot.id} data-found={match === "found" || undefined} data-dim={match === "dim" || undefined} data-status={media.status} data-over={over || undefined} data-drop={hint} data-selected={selected || undefined} {...dropProps}>
       <button type="button" className="a-slot-image" onClick={onOpen} aria-label={`Modifier ${label}`} style={media.color ? { backgroundColor: media.color } : undefined}>
         {src && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -574,6 +583,16 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
     if (arriving > 0 && el) el.scrollTo({ left: el.scrollWidth, behavior: "smooth" });
   }, [arriving]);
   const selectedIndex = slots.findIndex((s) => s.id === selected);
+  // Recherche par nom dans les images du projet (lot 67, CONC-13) : repère les trouvées, estompe les autres, amène la première.
+  const [nameQuery, setNameQuery] = useState("");
+  const needle = plain(nameQuery.trim());
+  const matches = (s: AdminSlot, i: number) => !needle || plain(slotLabel(s, i)).includes(needle) || plain(s.media?.name ?? "").includes(needle);
+  const foundCount = needle ? slots.filter(matches).length : 0;
+  const firstFound = needle ? slots.find(matches)?.id : undefined;
+  useEffect(() => {
+    if (firstFound === undefined) return;
+    document.querySelector(`[data-slot="${firstFound}"]`)?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [firstFound]);
   // L'emplacement choisi reste visible : défilement de la bande (et, sous la
   // feuille du bas en mobile, de la page pour garder la bande au-dessus).
   useEffect(() => {
@@ -671,6 +690,19 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
             },
           }}
         >
+          {slots.length >= SEARCH_FROM && (
+            <div className="a-slot-search">
+              <label>
+                <span className="sr-only">Chercher une image du projet</span>
+                <input className="a-input" type="search" aria-label="Chercher une image du projet" placeholder="Chercher une image par son nom…" value={nameQuery} onChange={(e) => setNameQuery(e.target.value)} />
+              </label>
+              {needle && (
+                <span className="muted" role="status">
+                  {foundCount > 0 ? `${foundCount} image${foundCount > 1 ? "s" : ""} trouvée${foundCount > 1 ? "s" : ""}` : "Aucune image ne porte ce nom"}
+                </span>
+              )}
+            </div>
+          )}
           <p className="a-help a-panel-intro">
             Dépose des images ou des vidéos sur la bande pour les ajouter à la fin, ou sur un emplacement vide pour le remplir. Fais glisser par la poignée
             pour réordonner (clavier : Espace, flèches gauche et droite, Espace). Clique sur une image pour la modifier.
@@ -708,6 +740,7 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
                   selected={selected === s.id}
                   preview={s.media ? previews[s.media.id] : undefined}
                   hint={hintOf(s, i)}
+                  match={needle ? (matches(s, i) ? "found" : "dim") : undefined}
                   onOpen={() => setSelected(s.id)}
                   onFiles={(files) => void addFiles(files, s.id)}
                   onLibrary={() => setPicker({ slotId: s.id })}
