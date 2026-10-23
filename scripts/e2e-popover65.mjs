@@ -444,7 +444,11 @@ if (run("K"))
     const view = await iframeBox();
     ok("K Aa : la barre de style s'ouvre", Boolean(bb));
     if (bb && ab2) {
-      ok("K Aa : à ≤ 16 px du bouton « Aa »", gapBetween(bb, ab2) <= MAX_GAP, `écart ${Math.round(gapBetween(bb, ab2))} px`);
+      // Au bouton ; quand la barre d'outils du bloc occupe ce côté, de l'autre côté du texte (jamais sur la barre d'outils).
+      const nearText = gapBetween(bb, tb) <= MAX_GAP;
+      ok("K Aa : à ≤ 16 px du bouton « Aa » (ou collée au texte, côté libre)", gapBetween(bb, ab2) <= MAX_GAP || nearText, `écart ${Math.round(gapBetween(bb, ab2))} px du bouton, ${Math.round(gapBetween(bb, tb))} px du texte`);
+      const tools = await fr.locator(".pe-tools").first().boundingBox().catch(() => null);
+      if (tools) ok("K Aa : ne recouvre pas la barre d'outils du bloc", !(bb.x < tools.x + tools.width && bb.x + bb.width > tools.x && bb.y < tools.y + tools.height && bb.y + bb.height > tools.y));
       ok("K Aa : entièrement à l'écran", inside(bb, view), JSON.stringify(rd(bb)));
       ok("K Aa : ne cache pas le texte réglé", gapBetween(bb, tb) > 0 || bb.y + bb.height <= tb.y + 2 || bb.y >= tb.y + tb.height - 2);
     } else ok("K Aa : le bouton « Aa » reste visible quand sa barre est ouverte", false);
