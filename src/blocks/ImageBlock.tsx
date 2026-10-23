@@ -92,7 +92,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
         : "100vw";
   const caption = props.caption ? tr(props.caption, ctx.locale) : "";
   // Cliquer pour agrandir (lot 44) : public ET Aperçu (lot 64 : l'Aperçu est le rendu de la toile, sans `data-edit-canvas`) ; la toile en édition garde le clic pour éditer (ViewerScope n'ouvre rien tant que `data-edit-canvas` est posé).
-  const zoomable = Boolean(image) && !ctx.inlineEdit && props.zoom !== false && (!ctx.cell || ctx.cellViewer === true);
+  const zoomable = Boolean(image) && !canvas && !ctx.inlineEdit && props.zoom !== false && (!ctx.cell || ctx.cellViewer === true);
   const viewer =
     zoomable && image
       ? viewerAttrs(

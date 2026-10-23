@@ -123,7 +123,7 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
   const showTitle = props.title !== undefined && (ctx.edit || hasText(props.title));
   if (!cells.length && !canvas && !showTitle && !showEyebrow) return null;
   // Cliquer pour agrandir (lot 44) : la grille entière est la zone de la visionneuse (public et Aperçu seulement).
-  const zoom = props.zoom !== false && !ctx.inlineEdit;
+  const zoom = props.zoom !== false && !canvas && !ctx.inlineEdit;
   const Section = zoom ? ViewerScope : "section";
   return (
     // Espace en bas (v0.13.1) : la grille se referme sur son propre pas (l'écart entre

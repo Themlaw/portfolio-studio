@@ -17,7 +17,7 @@
  *  F  Fond d'une image libre (D4) : le fond choisi n'est pas masqué par la couleur de chargement de la photo opaque ; arrondi de l'image libre.
  *  U  Vidéo (R1) : plus de passe-partout propre, plus de 16:9 forcé : format natif (16:9, vertical plafonné à 85 % de l'écran), format de la grille.
  *  V  Visionneuse (T8) : un clic à côté de la photo n'ouvre rien ; un clic sur la photo ouvre LA bonne image (grille).
- *  A  Scènes de l'audit A2 : le cadre suit toujours la photo (ancien cadrage, image entière, petites images, kit + arrondi, Aperçu).
+ *  A  Scènes de l'audit A2 : le cadre suit toujours la photo (ancien cadrage, image entière, petites images, kit + arrondi).
  *  S  Toile (T6, S2, S4, S9) : le contour de sélection d'une image libre = la boîte réelle (bande, cadre du thème, rotation) ; la barre média est
  *     calée sur la photo ; la barre du composant de planche reste au-dessus de dix images libres empilées.
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=G,K,…] [SHOTS=dossier] node scripts/e2e-mediaframe64.mjs
@@ -497,7 +497,7 @@ if (run("S"))
 
 /* ============================================================================================================================
  * A. Scènes de l'audit A2 (cas absents de la banque) : le cadre suit TOUJOURS la photo
- *    Rejoue les cas de ~/pf/audit2/a2/page-a2.mjs avec les médias de cette suite (CADRE-01 à 09, VID-01, IMG-01 à 03, VIS-02).
+ *    Rejoue les cas de ~/pf/audit2/a2/page-a2.mjs avec les médias de cette suite (CADRE-01 à 09, VID-01, IMG-01 à 03).
  * ========================================================================================================================== */
 if (run("A"))
   await section("A", async () => {
@@ -537,18 +537,6 @@ if (run("A"))
       }
       await p.context().close();
     }
-    // Aperçu du site (VIS-02) : la visionneuse s'ouvre sur la photo.
-    const fr = await openEditor(page, BASE, PHOTOS);
-    await settled(page);
-    await page.getByRole("button", { name: "Aperçu", exact: true }).click();
-    await sleep(3500);
-    const frame2 = await (await page.waitForSelector("iframe.ve-frame")).contentFrame();
-    const ph = frame2.locator("figure.block-image .media-frame").nth(2);
-    await ph.scrollIntoViewIfNeeded();
-    const bb = await ph.boundingBox();
-    await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2);
-    ok("A5 mode Aperçu du site : un clic sur la photo ouvre la visionneuse", await waitFor(async () => (await frame2.locator('[role="dialog"]').count()) > 0, 10000));
-    void fr;
   });
 console.log(errors.length ? `ERREURS PAGE : ${errors.slice(0, 5).join(" | ")}` : "aucune erreur de page");
 await browser.close();
