@@ -8,13 +8,13 @@
  *   réglage que « Espace en haut » du panneau et que la poignée de la page), sans nouveau champ.
  * Chaque choix part aussitôt (`sendLook` : page, composant de planche ou case, annulable).
  */
-import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useState, type ReactNode } from "react";
 
 import { cleanLook, IMAGE_ALIGN_LABELS, IMAGE_ALIGNS, readLook, SPACE_LABELS, type ImageAlign, type Look, type Space } from "@/lib/look";
 
 import { lookOf, sendLook } from "./LookLayer";
 import { postIntent } from "./optimistic";
-import { useDismiss } from "./useDismiss";
+import Popover, { type PopoverAnchor } from "./Popover";
 
 import "@/app/admin/typo-controls.css";
 import "@/app/admin/surface-menu.css";
@@ -95,33 +95,10 @@ export function SpaceControls({ look, onChange }: { look: Look; onChange: (patch
   );
 }
 
-/**
- * Page : abscisse (dans le bloc positionné qui contient la fenêtre) qui pose la fenêtre sous le bouton `data-testid="<testId>"`, centrée
- * dessus sans sortir du cadre. Sans bouton trouvé (ou `enabled` faux) : undefined, la fenêtre garde sa place par défaut.
- */
-export function useAnchoredLeft(ref: RefObject<HTMLElement | null>, testId: string, enabled: boolean, dep?: string): number | undefined {
-  const [x, setX] = useState<number | undefined>(undefined);
-  useLayoutEffect(() => {
-    if (!enabled) return;
-    const menu = ref.current;
-    const parent = menu?.offsetParent;
-    const btn = parent?.querySelector<HTMLElement>(`[data-testid="${testId}"]`) ?? document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
-    if (!menu || !parent || !btn) return;
-    const p = parent.getBoundingClientRect();
-    const b = btn.getBoundingClientRect();
-    const v = b.left - p.left + b.width / 2 - menu.offsetWidth / 2;
-    setX(Math.max(6, Math.min(v, p.width - menu.offsetWidth - 6)));
-  }, [ref, testId, enabled, dep]);
-  return x;
-}
-
 export type QuickKind = "size" | "space";
 
-/** Fenêtre « Taille » ou « Espace » d'un bloc de la page ou d'un composant de la planche (`uid`). `left` : positionnement libre (planche). */
-export default function QuickMenu({ uid, kind, top, left, onClose, onChanged }: { uid: string; kind: QuickKind; top: number; left?: number; onClose: () => void; onChanged?: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
-  const pageLeft = useAnchoredLeft(ref, `${kind}-button`, left === undefined, uid);
+/** Fenêtre « Taille » ou « Espace » d'un bloc de la page ou d'un composant de la planche (`uid`), ancrée au bouton `anchor`. */
+export default function QuickMenu({ uid, kind, anchor, onClose, onChanged }: { uid: string; kind: QuickKind; anchor: PopoverAnchor; onClose: () => void; onChanged?: () => void }) {
   const [look, setLook] = useState<Look>(() => currentLook(uid));
   const change = (patch: Partial<Look>) => {
     const next = { ...look, ...patch };
@@ -132,9 +109,9 @@ export default function QuickMenu({ uid, kind, top, left, onClose, onChanged }: 
   };
   const body: ReactNode = kind === "size" ? <SizeControls look={look} onChange={change} /> : <SpaceControls look={look} onChange={change} />;
   return (
-    <div ref={ref} className="sm tc" role="dialog" aria-label={kind === "size" ? "Taille de l'image" : "Espace au-dessus"} data-testid={`${kind}-menu`} style={left !== undefined ? { top, left, right: "auto" } : pageLeft !== undefined ? { top, left: pageLeft, right: "auto" } : { top }}>
+    <Popover anchor={anchor} align="center" label={kind === "size" ? "Taille de l'image" : "Espace au-dessus"} testId={`${kind}-menu`} onClose={onClose}>
       {body}
-    </div>
+    </Popover>
   );
 }
 
@@ -144,7 +121,7 @@ export function QuickButton({ uid, kind, open, onToggle }: { uid: string; kind: 
   const set = kind === "size" ? Boolean(look.imageSize || look.imageAlign) : look.spaceTop !== undefined;
   return (
     <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid={`${kind}-button`} title={kind === "size" ? "Taille et place de l'image" : "Espace au-dessus de ce composant"} onClick={onToggle}>
-      <span className="sm-dot" data-on={set ? "" : undefined} style={set ? { background: "var(--pe-surface)" } : undefined} aria-hidden="true" />
+      <span className="sm-dot" data-on={set ? "" : undefined} aria-hidden="true" />
       {kind === "size" ? "Taille" : "Espace"}
     </button>
   );

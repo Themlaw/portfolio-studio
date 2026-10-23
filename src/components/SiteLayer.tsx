@@ -15,7 +15,7 @@
  *   « Autre lien ». Le réseau est reconnu d'après l'adresse collée.
  * Toute modification part vers l'éditeur (`site-op`), qui valide et enregistre.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { newFieldId } from "@/lib/contact-form";
@@ -23,7 +23,7 @@ import { acceptToCanvas, type FromCanvas } from "@/lib/edit/protocol";
 import { safeNavHref, socialKeyOf } from "@/lib/site-schema";
 
 import { listKeys, postIntent, previewList } from "./edit/optimistic";
-import { useDismiss } from "./edit/useDismiss";
+import Popover from "./edit/Popover";
 import SocialPicker from "./SocialPicker";
 
 type Rect = { top: number; left: number; width: number; height: number };
@@ -65,7 +65,7 @@ const fold = (s: string) =>
     .toLowerCase();
 
 type Hover = { kind: "nav" | "social"; index: number; list: Element } | null;
-type Popover = { kind: "nav-add"; anchor: Rect } | { kind: "social-add"; anchor: Rect } | { kind: "social-edit"; index: number; key: string | null; anchor: Rect; href: string } | null;
+type PopState = { kind: "nav-add"; anchor: Element } | { kind: "social-add"; anchor: Element } | { kind: "social-edit"; index: number; key: string | null; anchor: Element; href: string } | null;
 
 export default function SiteLayer({ mode, host, selected, announce }: { mode: "off" | "edit" | "preview"; host: HTMLElement | null; selected: string | null; announce: (t: string) => void }) {
   const [, setTick] = useState(0);
@@ -73,7 +73,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
   const [headerNear, setHeaderNear] = useState(false);
   const [pages, setPages] = useState<{ id: number; title: string }[]>([]);
   const [locked, setLocked] = useState<string | null>(null);
-  const [pop, setPop] = useState<Popover>(null);
+  const [pop, setPop] = useState<PopState>(null);
   const [drag, setDrag] = useState<{ kind: "nav" | "social"; from: number; to: number; marker: Rect } | null>(null);
   /** Glisser en cours : la barre d'outils qui porte la poignée reste montée (sinon la capture du pointeur est perdue). */
   const dragging = useRef(false);
@@ -217,7 +217,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
               type="button"
               aria-label="Modifier le lien"
               title="Modifier le lien"
-              onClick={() => setPop({ kind: "social-edit", index: rankOf("social", hovEl, hover.index).index, key: rankOf("social", hovEl, hover.index).key, anchor: hovBox, href: hovEl?.querySelector("a")?.getAttribute("href") ?? "" })}
+              onClick={(e) => setPop({ kind: "social-edit", index: rankOf("social", hovEl, hover.index).index, key: rankOf("social", hovEl, hover.index).key, anchor: e.currentTarget, href: hovEl?.querySelector("a")?.getAttribute("href") ?? "" })}
             >
               ✎
             </button>
@@ -253,7 +253,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
             top: addNavBox.top + addNavBox.height + 10,
             left: Math.min(Math.max(window.scrollX + 8, addNavBox.left + addNavBox.width - 130), window.scrollX + document.documentElement.clientWidth - 150),
           }}
-          onClick={(e) => setPop({ kind: "nav-add", anchor: rectOf(e.currentTarget) })}
+          onClick={(e) => setPop({ kind: "nav-add", anchor: e.currentTarget })}
         >
           + Ajouter un lien
         </button>
@@ -263,7 +263,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
         socialLists.map((list, i) => {
           const r = rectOf(list);
           return (
-            <button key={i} type="button" className="pe-add-chip" data-testid="social-add" aria-haspopup="menu" aria-expanded={pop?.kind === "social-add"} style={{ top: r.top + r.height + 6, left: r.left }} onClick={(e) => setPop({ kind: "social-add", anchor: rectOf(e.currentTarget) })}>
+            <button key={i} type="button" className="pe-add-chip" data-testid="social-add" aria-haspopup="menu" aria-expanded={pop?.kind === "social-add"} style={{ top: r.top + r.height + 6, left: r.left }} onClick={(e) => setPop({ kind: "social-add", anchor: e.currentTarget })}>
               + Réseau
             </button>
           );
@@ -277,63 +277,21 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
   );
 }
 
-/**
- * Panneau ancré sous le bouton qui l'ouvre (coordonnées de la page). S'il ne
- * tient pas sous lui dans la fenêtre, il s'ouvre au-dessus ; sinon il est
- * amené dans la vue. Le focus y entre (premier champ ou premier choix).
- */
-function Panel({ anchor, children, label, onClose }: { anchor: Rect; children: React.ReactNode; label: string; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const below = anchor.top + anchor.height + 8;
-  // Clic ailleurs (toile ou panneau), Échap : fermé comme tous les menus flottants.
-  useDismiss(ref, onClose);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const place = () => {
-      const h = el.offsetHeight;
-      const viewTop = window.scrollY + 8;
-      const viewBottom = window.scrollY + window.innerHeight - 8;
-      const next = below + h > viewBottom && anchor.top - 8 - h >= viewTop ? anchor.top - 8 - h : below;
-      // Directement sur l'élément : React ne réécrit `top` que si l'ancre change.
-      el.style.top = `${next}px`;
-      // Ni dessous ni dessus dans la fenêtre : la toile défile jusqu'au panneau.
-      if (next + h > viewBottom || next < viewTop) window.scrollTo({ top: Math.max(0, next - Math.max(8, (window.innerHeight - h) / 2)), behavior: "instant" });
-      if (!el.contains(document.activeElement)) el.querySelector<HTMLElement>("input, button, select, textarea")?.focus({ preventScroll: true });
-    };
-    place();
-    // Contenu qui change de taille (2e étape d'un choix) : replacé.
-    const ro = new ResizeObserver(place);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [anchor.top, anchor.height, below]);
-  const left = Math.max(window.scrollX + 8, Math.min(anchor.left, window.scrollX + document.documentElement.clientWidth - 340));
-  return (
-    <div
-      ref={ref}
-      className="pe-popover"
-      role="dialog"
-      aria-label={label}
-      style={{ top: below, left }}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        if (e.key === "Escape") onClose();
-      }}
-    >
-      {children}
-    </div>
-  );
-}
+/** Touches d'une fenêtre ancrée : elles ne remontent pas à l'éditeur (Suppr, flèches…), Échap ferme. */
+const panelKeys = (onClose: () => void) => (e: React.KeyboardEvent) => {
+  e.stopPropagation();
+  if (e.key === "Escape") onClose();
+};
 
 /** « + Ajouter un lien » : une page du site (recherche), ou un lien libre. */
-function NavAddPopover({ anchor, pages, onClose }: { anchor: Rect; pages: { id: number; title: string }[]; onClose: () => void }) {
+function NavAddPopover({ anchor, pages, onClose }: { anchor: Element; pages: { id: number; title: string }[]; onClose: () => void }) {
   const [q, setQ] = useState("");
   const [href, setHref] = useState("");
   const [label, setLabel] = useState("");
   const shown = useMemo(() => pages.filter((p) => !q || fold(p.title).includes(fold(q))).slice(0, 20), [pages, q]);
   const hrefOk = safeNavHref(href.trim());
   return (
-    <Panel anchor={anchor} label="Ajouter un lien au menu" onClose={onClose}>
+    <Popover className="pe-popover" focusFirst anchor={anchor} label="Ajouter un lien au menu" onClose={onClose} onKeyDown={panelKeys(onClose)}>
       <p className="pe-popover-title">Ajouter un lien au menu</p>
       <label className="pe-board-field">
         <span>Une page du site</span>
@@ -381,7 +339,7 @@ function NavAddPopover({ anchor, pages, onClose }: { anchor: Rect; pages: { id: 
           Ajouter ce lien
         </button>
       </form>
-    </Panel>
+    </Popover>
   );
 }
 
@@ -397,9 +355,9 @@ const PICKER_CLASSES = {
 };
 
 /** « + Réseau » (ou modifier un lien) : le choix de réseau partagé avec l'écran Réglages (SocialPicker). */
-function SocialPopover({ anchor, editIndex, editKey, initialHref = "", onClose }: { anchor: Rect; editIndex?: number; editKey?: string | null; initialHref?: string; onClose: () => void }) {
+function SocialPopover({ anchor, editIndex, editKey, initialHref = "", onClose }: { anchor: Element; editIndex?: number; editKey?: string | null; initialHref?: string; onClose: () => void }) {
   return (
-    <Panel anchor={anchor} label={editIndex !== undefined ? "Modifier le lien du réseau" : "Ajouter un réseau"} onClose={onClose}>
+    <Popover className="pe-popover" focusFirst anchor={anchor} label={editIndex !== undefined ? "Modifier le lien du réseau" : "Ajouter un réseau"} onClose={onClose} onKeyDown={panelKeys(onClose)}>
       <SocialPicker
         mode={editIndex !== undefined ? "edit" : "add"}
         initialHref={initialHref}
@@ -416,7 +374,7 @@ function SocialPopover({ anchor, editIndex, editKey, initialHref = "", onClose }
           onClose();
         }}
       />
-    </Panel>
+    </Popover>
   );
 }
 
@@ -433,7 +391,7 @@ const NEW_FIELD_LABELS = { text: ["Ton nom", "Your name"], email: ["Ton e-mail",
 export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; host: HTMLElement | null }) {
   const [, setTick] = useState(0);
   const [hover, setHover] = useState<{ uid: string; index: number } | null>(null);
-  const [menu, setMenu] = useState<{ uid: string; anchor: Rect } | null>(null);
+  const [menu, setMenu] = useState<{ uid: string; anchor: Element } | null>(null);
   const [drag, setDrag] = useState<Rect | null>(null);
   // Glisser en cours : la barre d'outils qui porte la poignée reste montée (sinon la capture du pointeur est perdue).
   const dragging = useRef(false);
@@ -584,14 +542,14 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
             // l'envoyait hors de la fenêtre, le menu semblait ne pas s'ouvrir).
             aria-haspopup="menu"
             aria-expanded={menu?.uid === uid}
-            onClick={(e) => setMenu({ uid, anchor: rectOf(e.currentTarget) })}
+            onClick={(e) => setMenu({ uid, anchor: e.currentTarget })}
           >
             + Ajouter un champ
           </button>
         );
       })}
       {menu && (
-        <Panel anchor={menu.anchor} label="Ajouter un champ" onClose={() => setMenu(null)}>
+        <Popover className="pe-popover" focusFirst anchor={menu.anchor} label="Ajouter un champ" onClose={() => setMenu(null)} onKeyDown={panelKeys(() => setMenu(null))}>
           <p className="pe-popover-title">Ajouter un champ</p>
           <ul className="pe-popover-list" role="menu" aria-label="Types de champ">
             {(
@@ -619,7 +577,7 @@ export function FormLayer({ mode, host }: { mode: "off" | "edit" | "preview"; ho
               </li>
             ))}
           </ul>
-        </Panel>
+        </Popover>
       )}
     </div>,
     host,

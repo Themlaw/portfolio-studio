@@ -6,20 +6,15 @@
  * ou « Couleur… » (pastilles de la palette du site + couleur libre, le sélecteur du lot 29 : `ColorPicker`).
  *
  * `ImageBgControls` est le contenu, partagé par le bouton « Fond image » de la barre d'une image seule / d'une case de grille
- * (`ImageBgPopup` : réglage `look.imageBg` du bloc), la barre d'une image de planche ou de carrousel (BoardLayer :
- * `look.slotBg` du bloc, par emplacement), celle d'un composant Image de la planche (`BoardImageBgMenu`) et le haut du panneau
- * de l'éditeur. Chaque choix part aussitôt (intention `look`, annulable). Les pastilles montrent les couleurs du thème par
- * leurs variables, jamais en dur.
+ * (réglage `look.imageBg` du bloc), la barre d'une image de planche ou de carrousel (BoardLayer : `look.slotBg` du bloc, par
+ * emplacement), celle d'un composant Image de la planche et le haut du panneau de l'éditeur ; la fenêtre est `ImageBgWindow`. Chaque choix part aussitôt
+ * (intention `look`, annulable). Les pastilles montrent les couleurs du thème par leurs variables, jamais en dur.
  */
-import { useRef, useState, type CSSProperties } from "react";
-
 import { imageBgCss } from "@/lib/look";
 
 import { ImageBgControls } from "./ImageBgControls";
-import { lookOf, sendLook } from "./LookLayer";
-import { postIntent } from "./optimistic";
-import { useAnchoredLeft } from "./QuickMenus";
-import { useDismiss } from "./useDismiss";
+import { lookOf } from "./LookLayer";
+import Popover, { type PopoverAnchor, useLocalValue } from "./Popover";
 
 import "@/app/admin/typo-controls.css";
 import "@/app/admin/surface-menu.css";
@@ -38,42 +33,21 @@ export function ImageBgButton({ uid, open, onToggle }: { uid: string; open: bool
 }
 
 /**
- * Fenêtre « Fond de l'image » d'une image seule ou d'une case de grille (réglage `look.imageBg` du bloc `uid`). `style` : position
- * (sous la barre de la rubrique, ou sous le bouton de la case).
+ * Fenêtre « Fond de l'image » (lot 65) : UNE seule, ancrée au bouton `anchor`, pour tous les conteneurs. Chaque appelant donne sa
+ * valeur et son écriture : image seule / case de grille (`look.imageBg`), composant Image de la planche (`item-imgbg`), image de
+ * carrousel (`look.slotBg[slug]`), image de Planche libre (`items[].bg`).
  */
-export function ImageBgPopup({ uid, style, onClose, onChanged }: { uid: string; style: CSSProperties; onClose: () => void; onChanged?: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
-  const [value, setValue] = useState<string | undefined>(() => lookOf(uid).imageBg);
-  // Sous le bouton cliqué (comme « Taille » et « Espace ») quand l'appelant ne donne pas de position horizontale.
-  const anchored = useAnchoredLeft(ref, "imgbg-button", style.left === undefined && style.right === undefined, uid);
-  const change = (next: string | undefined) => {
-    setValue(next);
-    sendLook(uid, { ...lookOf(uid), imageBg: next });
-    onChanged?.();
-  };
+export default function ImageBgWindow({ anchor, value, onChange, onClose, testId = "imgbg-menu" }: { anchor: PopoverAnchor; value: string | undefined; onChange: (next: string | undefined) => void; onClose: () => void; testId?: string }) {
+  const [cur, setCur] = useLocalValue(value);
   return (
-    <div ref={ref} className="sm tc" role="dialog" aria-label="Fond de l'image" data-testid="imgbg-menu" style={anchored !== undefined ? { ...style, left: anchored, right: "auto" } : style}>
-      <ImageBgControls value={value} onChange={change} />
-    </div>
-  );
-}
-
-/**
- * Fond d'un composant Image de la PLANCHE d'un projet (barre du composant, BoardLayer) : même fenêtre, mais le réglage est celui du
- * composant (`props.look.imageBg`), qui appartient au projet : écriture de planche `item-imgbg` (Annuler / Rétablir, version de page).
- */
-export function BoardImageBgMenu({ board, uid, initial, top, left, onClose }: { board: number; uid: string; initial: string | undefined; top: number; left: number; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
-  const [cur, setCur] = useState<string | undefined>(initial);
-  const change = (next: string | undefined) => {
-    setCur(next);
-    postIntent({ kind: "bitem-imgbg", board, uid, bg: next ?? null });
-  };
-  return (
-    <div ref={ref} className="sm tc" role="dialog" aria-label="Fond de l'image" data-testid="imgbg-menu" style={{ top, left, right: "auto" }}>
-      <ImageBgControls value={cur} onChange={change} />
-    </div>
+    <Popover anchor={anchor} label="Fond de l'image" testId={testId} onClose={onClose}>
+      <ImageBgControls
+        value={cur}
+        onChange={(next) => {
+          setCur(next);
+          onChange(next);
+        }}
+      />
+    </Popover>
   );
 }

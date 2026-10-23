@@ -17,7 +17,7 @@
  * Annuler / Rétablir passent par l'historique. Texte illisible sur la couleur : avertissement seulement. Composant de planche : seule la couche
  * « fond » existe (`bitem-fond`). À ne pas confondre avec « Fond du texte » (BackdropRow) ni « Fond derrière la photo » (ImageBgMenu).
  */
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useState } from "react";
 
 import { parseColor, rgbaToHex } from "@/lib/color";
 import { PALETTE } from "@/lib/look";
@@ -44,7 +44,7 @@ import ColorPicker from "./ColorPicker";
 import { canvasPalette, hasFondWrapper, postIntent, previewZone, wallpaperCatalog, zoneState } from "./optimistic";
 import { ratioTip, readabilityText } from "./readability";
 import { CornersRow, ExtentRow, SHAPE_STEPS } from "./ShapeChoices";
-import { useDismiss } from "./useDismiss";
+import Popover, { type PopoverAnchor } from "./Popover";
 import { WallpaperGrid, WallpaperPaintRows } from "./WallpaperChoices";
 
 import "@/app/admin/typo-controls.css";
@@ -118,7 +118,7 @@ export function FondButton({ uid, open, onToggle }: { uid: string; open: boolean
 }
 
 /** Fond d'un bloc de la page ou d'un conteneur : aperçu immédiat sur la toile (`previewZone`), puis intention `fond` (carte et fond ensemble). */
-export default function FondMenu({ uid, top, onClose, onChanged }: { uid: string; top: number; onClose: () => void; onChanged: () => void }) {
+export default function FondMenu({ uid, anchor, onClose, onChanged }: { uid: string; anchor: PopoverAnchor; onClose: () => void; onChanged: () => void }) {
   const init = zoneState(uid);
   const [stored, setStored] = useState<ZoneStored>({ surface: init.surface ?? undefined, background: init.background ?? undefined });
   // La carte n'existe qu'au premier niveau de la page ; le fond sur les grands composants (le bloc a alors une enveloppe de fond).
@@ -130,20 +130,20 @@ export default function FondMenu({ uid, top, onClose, onChanged }: { uid: string
     previewZone(uid, next.surface ?? null, next.background ?? null, seq);
     onChanged();
   };
-  return <FondPanel uid={uid} stored={stored} defaults={init.defaults} canCard={canCard} canFond={canFond} onChange={change} onClose={onClose} style={{ top }} />;
+  return <FondPanel uid={uid} stored={stored} defaults={init.defaults} canCard={canCard} canFond={canFond} onChange={change} onClose={onClose} anchor={anchor} />;
 }
 
 /**
  * Fond d'un composant de la PLANCHE d'un projet (barre du composant, BoardLayer) : même fenêtre, mais seule la couche « fond » existe et pas
  * d'aperçu local — la planche appartient au projet et se réécrit par `item-fond` (Annuler / Rétablir, version de page) ; la toile se recharge ensuite.
  */
-export function BoardFondMenu({ board, uid, initial, top, left, onClose }: { board: number; uid: string; initial: Background | null; top: number; left: number; onClose: () => void }) {
+export function BoardFondMenu({ board, uid, initial, anchor, onClose }: { board: number; uid: string; initial: Background | null; anchor: PopoverAnchor; onClose: () => void }) {
   const [stored, setStored] = useState<ZoneStored>({ background: initial ?? undefined });
   const change = (next: ZoneStored, continuous = false) => {
     setStored(next);
     postIntent({ kind: "bitem-fond", board, uid, background: next.background ?? null, ...(continuous ? { continuous: true } : {}) });
   };
-  return <FondPanel uid={`${board}:${uid}`} stored={stored} defaults={undefined} canCard={false} canFond onChange={change} onClose={onClose} style={{ top, left, right: "auto" }} />;
+  return <FondPanel uid={`${board}:${uid}`} stored={stored} defaults={undefined} canCard={false} canFond onChange={change} onClose={onClose} anchor={anchor} />;
 }
 
 /** Bordure de la carte (lot 32) : interrupteur, épaisseur Fin / Moyen / Épais, couleur (« Par défaut » = la couleur lisible du texte). */
@@ -208,7 +208,7 @@ function FondPanel({
   canFond,
   onChange,
   onClose,
-  style,
+  anchor,
 }: {
   uid: string;
   stored: ZoneStored;
@@ -217,10 +217,8 @@ function FondPanel({
   canFond: boolean;
   onChange: (next: ZoneStored, continuous?: boolean) => void;
   onClose: () => void;
-  style: CSSProperties;
+  anchor: PopoverAnchor;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
   const defaults = themeDefaults ?? resolveSurface({});
   const { zone: main, inner } = readZone(stored);
   // Un bloc qui portait une carte ET un fond dessus garde ses deux couches : on choisit celle qu'on règle.
@@ -250,11 +248,7 @@ function FondPanel({
   const site = sitePaper();
   const hasPageWallpaper = Boolean(document.querySelector(".page-wallpaper"));
 
-  // Le menu change de hauteur avec la nature du fond : on l'amène dans la vue de la toile.
-  useEffect(() => {
-    ref.current?.scrollIntoView({ block: "nearest" });
-  }, [view, z?.layer]);
-
+  // Le menu change de hauteur avec la nature du fond : le Popover le replace (retourné, ou défilant) quand il change de taille.
   const pickKind = (k: "none" | "color" | "wallpaper") => {
     if (k === "none") {
       setWantWallpaper(false);
@@ -447,7 +441,7 @@ function FondPanel({
   );
 
   return (
-    <div ref={ref} className="sm tc" role="dialog" aria-label="Fond du composant" data-testid="fond-menu" data-layer={z?.layer} style={style}>
+    <Popover anchor={anchor} label="Fond du composant" testId="fond-menu" onClose={onClose}>
       <div className="tc-row">
         <span className="sm-label">Fond</span>
         <span className="tc-seg" role="radiogroup" aria-label="Nature du fond">
@@ -533,6 +527,6 @@ function FondPanel({
           Retirer le fond posé sur la carte
         </button>
       )}
-    </div>
+    </Popover>
   );
 }

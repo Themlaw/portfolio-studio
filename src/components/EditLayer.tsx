@@ -31,7 +31,7 @@ import { MAX_NESTING } from "@/blocks/tree";
 import { acceptToCanvas, insertionIndex, moveTo, type BlockInfo, type FromCanvas } from "@/lib/edit/protocol";
 
 import BoardLayer from "./BoardLayer";
-import LookLayer from "./edit/LookLayer";
+import LookLayer, { lookOf, sendLook } from "./edit/LookLayer";
 import SiteLookLayer from "./edit/SiteLookLayer";
 import FreeLayer from "./edit/FreeLayer";
 import GridLayer from "./edit/GridLayer";
@@ -41,10 +41,10 @@ import { parseMarked } from "@/lib/marked";
 import { closeMarkedEditor, markedNodes, markState, markupOf, openMarkedEditor, selectionRange, selectRange, toggleMark, type MarkedEditor } from "./edit/marked-edit";
 import FondMenu, { FondButton } from "./edit/FondMenu";
 import { hasFondWrapper } from "./edit/optimistic";
-import FrameMenu, { FrameButton } from "./edit/FrameMenu";
+import FrameWindow, { FrameButton } from "./edit/FrameMenu";
 import QuickMenu, { QuickButton, type QuickKind } from "./edit/QuickMenus";
-import { ImageBgButton, ImageBgPopup } from "./edit/ImageBgMenu";
-import { useDismiss } from "./edit/useDismiss";
+import ImageBgWindow, { ImageBgButton } from "./edit/ImageBgMenu";
+import Popover from "./edit/Popover";
 import SiteLayer, { FormLayer } from "./SiteLayer";
 
 import "@/app/admin/edit-layer.css";
@@ -81,11 +81,9 @@ function previewMove(seq: number, uid: string, parent: string | null, to: number
 }
 
 /** Choix de la page de collection d'une nouvelle entrée (lot 22) : se ferme d'un clic ailleurs. */
-function TilePagePicker({ top, left, uid, items, onClose }: { top: number; left: number; uid: string; items: { pageId: number; title: string }[]; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
+function TilePagePicker({ anchor, uid, items, onClose }: { anchor: Element; uid: string; items: { pageId: number; title: string }[]; onClose: () => void }) {
   return (
-    <div ref={ref} className="pe-layouts pe-tile-pick" role="menu" aria-label="Page de la nouvelle entrée" style={{ top, left, right: "auto" }}>
+    <Popover anchor={anchor} className="pe-layouts pe-tile-pick" role="menu" label="Page de la nouvelle entrée" onClose={onClose}>
       {items.map((p) => (
         <button
           key={p.pageId}
@@ -99,17 +97,15 @@ function TilePagePicker({ top, left, uid, items, onClose }: { top: number; left:
           {p.title}
         </button>
       ))}
-    </div>
+    </Popover>
   );
 }
 
 /** Taille des images des entrées de collection (lot 22) : se ferme d'un clic ailleurs. */
-function TileSizePicker({ top, uid, onClose }: { top: number; uid: string; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useDismiss(ref, onClose);
+function TileSizePicker({ uid, onClose }: { uid: string; onClose: () => void }) {
   const [current, setCurrent] = useState(() => document.querySelector(`[data-edit-block="${CSS.escape(uid)}"] .tiles`)?.getAttribute("data-size") ?? "medium");
   return (
-    <div ref={ref} className="pe-layouts pe-sizes" role="radiogroup" aria-label="Taille des images" style={{ top }}>
+    <Popover anchor='.pe-tools [data-anchor="tile-size"]' className="pe-layouts pe-sizes" role="radiogroup" label="Taille des images" onClose={onClose}>
       {TILE_SIZES.map((s) => (
         <button
           key={s}
@@ -125,7 +121,7 @@ function TileSizePicker({ top, uid, onClose }: { top: number; uid: string; onClo
           {TILE_SIZE_LABELS[s]}
         </button>
       ))}
-    </div>
+    </Popover>
   );
 }
 
@@ -307,7 +303,7 @@ export default function EditLayer() {
   const [announcement, setAnnouncement] = useState("");
   /** Bloc grille dont le choix d'agencement est ouvert. */
   const [sizeFor, setSizeFor] = useState<string | null>(null);
-  const [tilePick, setTilePick] = useState<{ uid: string; top: number; left: number; items: { pageId: number; title: string }[] } | null>(null);
+  const [tilePick, setTilePick] = useState<{ uid: string; anchor: Element; items: { pageId: number; title: string }[] } | null>(null);
   const [projectPicker, setProjectPicker] = useState<string | null>(null);
   const [markBar, setMarkBar] = useState<MarkBar | null>(null);
   /** Bloc dont le menu « Carte » (carte de rubrique) est ouvert ; `bump` redessine après un choix (aperçu optimiste). */
@@ -961,12 +957,11 @@ export default function EditLayer() {
           const pageId = tileOp.dataset.pageId !== undefined ? Number(tileOp.dataset.pageId) : undefined;
           post({ kind: "tile-op", uid, op, ...(index !== undefined && Number.isInteger(index) ? { index } : {}), ...(pageId !== undefined && Number.isInteger(pageId) ? { pageId } : {}) });
         } else if (uid && tileAdd && !(tileAdd as HTMLButtonElement).disabled) {
-          const r = tileAdd.getBoundingClientRect();
           let items: { pageId: number; title: string }[] = [];
           try {
             items = JSON.parse(tileAdd.dataset.candidates ?? "[]");
           } catch {}
-          setTilePick({ uid, top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX, items });
+          setTilePick({ uid, anchor: tileAdd, items });
         }
         return;
       }
@@ -1370,7 +1365,7 @@ export default function EditLayer() {
               </button>
             )}
             {sel.type === "collection-tiles" && (
-              <button type="button" className="pe-tool-text" aria-expanded={sizeFor === sel.uid} onClick={() => setSizeFor((o) => (o === sel.uid ? null : sel.uid))}>
+              <button type="button" className="pe-tool-text" data-anchor="tile-size" aria-expanded={sizeFor === sel.uid} onClick={() => setSizeFor((o) => (o === sel.uid ? null : sel.uid))}>
                 Taille des images
               </button>
             )}
@@ -1435,18 +1430,21 @@ export default function EditLayer() {
           {fondFor === sel.uid && (!sel.parent || hasFondWrapper(sel.uid)) && (
             <FondMenu
               uid={sel.uid}
-              top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40}
+              anchor='.pe-tools [data-testid="fond-button"]'
               onClose={() => setFondFor(null)}
               onChanged={() => bump((n) => n + 1)}
             />
           )}
           {(sel.type === "image" || sel.type === "video-single") && frameFor === sel.uid && (
-            <FrameMenu
+            <FrameWindow
               what={sel.type === "image" ? "photo" : "vidéo"}
-              uid={sel.uid}
-              top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40}
+              anchor='.pe-tools [data-testid="frame-button"]'
+              value={lookOf(sel.uid).frame}
+              onChange={(frame) => {
+                sendLook(sel.uid, { ...lookOf(sel.uid), frame });
+                bump((n) => n + 1);
+              }}
               onClose={() => setFrameFor(null)}
-              onChanged={() => bump((n) => n + 1)}
             />
           )}
           {quickFor?.uid === sel.uid && (
@@ -1454,21 +1452,24 @@ export default function EditLayer() {
               key={quickFor.kind}
               uid={sel.uid}
               kind={quickFor.kind}
-              top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40}
+              anchor={`.pe-tools [data-testid="${quickFor.kind}-button"]`}
               onClose={() => setQuickFor(null)}
               onChanged={() => bump((n) => n + 1)}
             />
           )}
           {sel.type === "image" && imgBgFor === sel.uid && (
-            <ImageBgPopup
-              uid={sel.uid}
-              style={{ top: Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40 }}
+            <ImageBgWindow
+              anchor='.pe-tools [data-testid="imgbg-button"]'
+              value={lookOf(sel.uid).imageBg}
+              onChange={(imageBg) => {
+                sendLook(sel.uid, { ...lookOf(sel.uid), imageBg });
+                bump((n) => n + 1);
+              }}
               onClose={() => setImgBgFor(null)}
-              onChanged={() => bump((n) => n + 1)}
             />
           )}
           {sel.type === "collection-tiles" && sizeFor === sel.uid && (
-            <TileSizePicker uid={sel.uid} top={Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) + 40} onClose={() => setSizeFor(null)} />
+            <TileSizePicker uid={sel.uid} onClose={() => setSizeFor(null)} />
           )}
         </div>
       )}
