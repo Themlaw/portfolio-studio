@@ -133,6 +133,9 @@ export default function Popover({ anchor, label, onClose, children, className = 
       if (e.key !== "Escape" || openStack[openStack.length - 1] !== id) return;
       // Un menu plus récent ouvert DANS la fenêtre (liste de tailles, de polices…) se ferme d'abord : ce n'est pas à nous.
       if (topDismiss() !== ref.current) return;
+      // Saisie en place dans le texte du site (hors de la fenêtre) : Échap valide la saisie, c'est à elle de le recevoir.
+      const t = e.target;
+      if (t instanceof HTMLElement && !ref.current?.contains(t) && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
       e.preventDefault();
       e.stopImmediatePropagation();
       closeRef.current();
