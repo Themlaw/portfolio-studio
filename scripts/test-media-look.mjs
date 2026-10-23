@@ -119,8 +119,9 @@ test("T2 le cadre du kit : une seule règle, quatre épaisseurs, valable pour la
   const mf = read("src/app/media-frame.css").replace(/\/\*[\s\S]*?\*\//g, "");
   const base = mf.split("}").find((r) => /^\s*\.media-frame \{/.test(r)) ?? "";
   assert.match(base, /background-clip: padding-box/, "le fond (de l'artiste, de chargement) ne passe jamais sous le cadre");
-  assert.match(base, /box-sizing: border-box/);
-  assert.match(base, /aspect-ratio: var\(--box-r/, "le format est posé sur la boîte (non remplacée) : la taille extérieure ne dépend pas du cadre");
+  assert.match(base, /box-sizing: content-box/, "la zone intérieure garde le format du média : le cadre s'ajoute autour, il ne rogne jamais");
+  assert.match(base, /aspect-ratio: var\(--box-r/, "le format est posé sur la zone intérieure (non remplacée)");
+  assert.match(mf, /\.media-box \{[^}]*container-type: size/, "la case (taille indépendante du cadre) contient la boîte");
 });
 
 /* ---- T3. Source ---------------------------------------------------------------------------------------- */

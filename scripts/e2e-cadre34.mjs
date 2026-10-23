@@ -129,7 +129,8 @@ const readFrame = (fr, sel) =>
     const el = el0?.closest(".media-frame") ?? el0;
     if (!el) return null;
     const cs = getComputedStyle(el);
-    const r = el.getBoundingClientRect();
+    // Lot 64 : taille = celle de la CASE quand il y en a une (sa taille ne dépend jamais du cadre) ; sinon (image seule) la boîte, qui grandit.
+    const r = (el.closest(".media-box") ?? el).getBoundingClientRect();
     return { top: parseFloat(cs.borderTopWidth), right: parseFloat(cs.borderRightWidth), bottom: parseFloat(cs.borderBottomWidth), left: parseFloat(cs.borderLeftWidth), style: cs.borderTopStyle, color: cs.borderTopColor, w: r.width, h: r.height, box: cs.boxSizing, overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth };
   }, sel);
 /** Couleur calculée d'une valeur CSS (variable du thème comprise) dans le document `fr`. */
@@ -206,7 +207,7 @@ if (run("I"))
     const ink = await colorOf(f, "var(--t-color-ink)");
     let s;
     ok("I3 toile : bordure Moyen (3 à 6 px) dans la couleur par défaut = le texte du thème", await waitFor(async () => { s = await readFrame(f, SOLO); return s && s.top >= 3 && s.top <= 6.01 && uniform(s, s.top) && s.color === ink && s.style === "solid"; }, 30000), JSON.stringify(s) + ink);
-    ok("I3 la boîte de l'image garde sa largeur (border-box) et sa hauteur à 12 px près, sans rien rogner", s && s.box === "border-box" && near(s.w, base.solo.w, 0.6) && Math.abs(s.h - base.solo.h) <= 12, `${JSON.stringify(s)} / ${JSON.stringify(base.solo)}`);
+    ok("I3 la boîte de l'image garde sa largeur (zone intérieure au format de la photo, content-box) et sa hauteur à 12 px près, sans rien rogner", s && s.box === "content-box" && near(s.w, base.solo.w, 0.6) && Math.abs(s.h - base.solo.h) <= 12, `${JSON.stringify(s)} / ${JSON.stringify(base.solo)}`);
     await page.screenshot({ path: path.join(SHOTS, "i1-moyen.png") });
 
     await sizeBtn(dlg, "thick").click();
