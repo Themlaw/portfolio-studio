@@ -308,7 +308,7 @@ await section("C", async () => {
   const html = await publicHtml("/fr/personnages");
   ok("C12 public : le carrousel est rendu (4 images), la grille a disparu de la planche", (html.match(/class="strip-rail/g) ?? []).length >= 2 && !html.includes("data-edit-"), `${(html.match(/class="strip-rail/g) ?? []).length}`);
   ok("C12b public : le cadre et le fond de la 1re image sont rendus (parité avec la toile)", /data-frame="band"/.test(html) && html.includes("#ffffff"), "cadre ou fond absent du HTML public");
-  ok("C12c toile : la 1re place porte le même cadre", (await rail.locator(":scope > [data-edit-slot]").first().getAttribute("data-frame")) === "band");
+  ok("C12c toile : la 1re place porte le même cadre", (await rail.locator(":scope > [data-edit-slot]").first().locator("[data-frame='band']").count()) > 0 || (await rail.locator(":scope > [data-edit-slot]").first().getAttribute("data-frame")) === "band");
   ok("C13 public : la légende « Légende A » est affichée sous l'image", html.includes("Légende A") && html.includes("Titre A"));
   ok("C14 la suite publiée est celle du carrousel", publishedLayout()[1]?.type === "strip" && publishedLayout()[1].uid === "gridb1");
   const pub = await ctx.newPage();

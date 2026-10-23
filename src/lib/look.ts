@@ -749,7 +749,8 @@ export function logoCss(logo: Logo | undefined): string {
   if (l.mode === "shrink") rules.push(`${H}[data-scrolled]{--lh:var(--lh-min)}`);
   rules.push(
     // La barre ne descend jamais sous sa rangée naturelle ; le logo, lui, n'y compte que pour cette rangée (marge basse négative s'il est plus grand).
-    `${H} .site-header-bar{min-height:calc(var(--bh) + 2*var(--bp))}`,
+    // Lot 67 (filet de sécurité : la barre passe à la ligne) cède ici au lot 68 : avec un logo réglé, la barre garde sa hauteur, le nom en texte cède de la place.
+    `${H} .site-header-bar{min-height:calc(var(--bh) + 2*var(--bp));flex-wrap:nowrap}${H} nav{flex-wrap:nowrap}`,
     `${WIN} .site-brand{display:flex;align-items:center;height:var(--lh);margin-bottom:min(0px,calc(var(--bh) - var(--lh)));min-width:0;max-width:60vw;font-size:calc(var(--lh)*.5)}`,
     // Le menu ne passe jamais à la ligne (la barre ne grandirait pas pour autant, mais il se lirait mal) : c'est le nom en texte qui cède de la place.
     `${H} nav,${H} .site-header-bar>div{flex-shrink:0}${H} nav a,${H} button{white-space:nowrap}`,

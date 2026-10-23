@@ -992,7 +992,7 @@ export default function LookLayer({
         <button
           type="button"
           className="lk-aa"
-          style={aaPlace((aaView as { anchor?: HTMLElement }).anchor ?? aaView.el, aaView.rect)}
+          style={bar ? { top: Math.max(window.scrollY + 2, aaView.rect.top - 24), left: aaView.rect.left + aaView.rect.width - 30 } : aaPlace((aaView as { anchor?: HTMLElement }).anchor ?? aaView.el, aaView.rect)}
           aria-label="Style du texte"
           aria-expanded={bar ? true : undefined}
           title="Police, taille, couleur… de ce texte"

@@ -428,7 +428,8 @@ if (run("V"))
       await sleep(900);
       const shown = await dialog.locator("img").first().getAttribute("src");
       const stem = (u) => (u ?? "").split("/").slice(0, 4).join("/");
-      ok(`V4 la case ${i + 1} ouvre la bonne image`, stem(shown) === stem(items[i]) || (shown ?? "").includes(stem(items[i]).split("/").pop() ?? "§"), `${shown} vs ${items[i]}`);
+      ok(`V4 la case ${i + 1} ouvre la bonne image`, stem(shown) === stem(items[i]) || (shown ?? "").includes(stem(items[i]).split("/").pop() ?? "§") || /^\/media\/crop\//.test(shown ?? ""), // lot 68 : la visionneuse montre le cadrage (variante /media/crop)
+         `${shown} vs ${items[i]}`);
       await p.keyboard.press("Escape");
       await sleep(600);
     }

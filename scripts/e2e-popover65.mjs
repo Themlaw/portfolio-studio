@@ -236,7 +236,7 @@ async function cases() {
   await check("page-fond-image", pickSolo, () => tools('[data-testid="imgbg-button"]'), { pointerOutside: true });
   await check("page-taille", pickSolo, () => tools('[data-testid="size-button"]'));
   await check("page-espace", pickSolo, () => tools('[data-testid="space-button"]'));
-  await check("page-carte", pickSolo, () => fr.locator(".pe-tools button", { hasText: /^Carte$/ }));
+  // Lot 66 : le bouton « Carte » n'existe plus (un seul « Fond » : page-fond ci-dessous).
   await check("page-fond", pickSolo, () => tools('[data-testid="fond-button"]'));
 
   const cell = '[data-edit-block="ga"] img';
@@ -412,7 +412,7 @@ if (run("K"))
     await scrollTo(solo);
     await solo.click();
     await sleep(500);
-    for (const [name, sel] of [["Cadre", '.pe-tools [data-testid="frame-button"]'], ["Fond", '.pe-tools [data-testid="fond-button"]'], ["Carte", '.pe-tools [data-anchor="surface"]']]) {
+    for (const [name, sel] of [["Cadre", '.pe-tools [data-testid="frame-button"]'], ["Fond", '.pe-tools [data-testid="fond-button"]']]) {
       const b = await fr.locator(sel).first().boundingBox();
       await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
       await sleep(500);
