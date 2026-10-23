@@ -123,7 +123,7 @@ export default function BackdropRow({ value, set, palette, swatch, blocked, inhe
       )}
     </div>
     {airy && (
-      <div className="tc-row tc-bd tc-air">
+      <div className="tc-row tc-air">
         <span className="tc-bd-label">Aération du fond :</span>
         <span className="tc-seg" role="radiogroup" aria-label="Aération du fond">
           {AIRS.map((a) => (
