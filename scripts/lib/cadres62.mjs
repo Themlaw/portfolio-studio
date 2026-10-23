@@ -13,8 +13,8 @@ import { gotoThemesPage } from "./theme-live.mjs";
 const DIR = path.join(tmpdir(), "e2e-cadres62-kit");
 mkdirSync(DIR, { recursive: true });
 
-/** Met en ligne un thème Studio dont le cadre du kit est dessiné (cadre58a). Idempotent côté appelant : à n appeler qu une fois. */
-export async function installKitFrameTheme(page, base) {
+/** Met en ligne un thème Studio dont le cadre du kit est dessiné (cadre58a). Idempotent côté appelant : à n appeler qu une fois. `onDraft(id)` : retouche facultative de la copie brouillon avant la mise en ligne. */
+export async function installKitFrameTheme(page, base, onDraft) {
   const kitUrl = `${base}/admin/api/theme-kit/studio`;
   let ready = false;
   for (let i = 0; i < 90 && !ready; i++) {
@@ -35,6 +35,8 @@ export async function installKitFrameTheme(page, base) {
   // Lot 60 : le kit crée une version de Mon thème, qu on publie (« Publier cette version »).
   await Promise.all([page.waitForURL(/\/admin\/themes\?nouvelle=\d+&via=kit/, { timeout: 60000 }), page.getByRole("button", { name: /^Appliquer à mon thème/ }).click()]);
   const draftId = sql((db) => db.prepare("select id from themes where mine = 1").get())?.id;
+  // Lot 64 : un theme d essai peut retoucher la copie brouillon avant sa mise en ligne.
+  if (onDraft) await onDraft(draftId);
   await gotoThemesPage(page, base);
   await page.getByTestId("mine-publish").click();
   await page.locator("dialog[open]").getByRole("button", { name: "Publier", exact: true }).click();

@@ -7,11 +7,12 @@ import dynamic from "next/dynamic";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
 import type { LocalizedArtwork } from "@/lib/gallery";
-import { frameStyle, imageBgAttrs, type Frame } from "@/lib/look";
+import type { Frame } from "@/lib/look";
 import { RADIUS_VALUES } from "@/themes/css";
 
 import LoopFrame from "./LoopVideo";
 import MediaCaption, { type CaptionField } from "./MediaCaption";
+import MediaFrame from "./MediaFrame";
 import Picture from "./Picture";
 
 /* Visionneuses chargées à la première ouverture (lot 54). */
@@ -86,16 +87,11 @@ export default function StripRail({
     const r = slotRadius && Object.hasOwn(slotRadius, slug) ? slotRadius[slug] : undefined;
     return r && Object.hasOwn(RADIUS_VALUES, r) ? ({ "--media-radius": RADIUS_VALUES[r] } as CSSProperties) : undefined;
   };
-  /** Cadre d'une photo ou d'une vidéo réglée seule (lots 34 et 62) : attributs + couleur sur l'élément de la planche (frameStyle). */
-  const frameOf = (slug: string) => {
-    const f = slotFrame && Object.hasOwn(slotFrame, slug) ? frameStyle(slotFrame[slug]) : null;
-    return f ? { attrs: f.attrs, style: f.style as CSSProperties } : null;
-  };
-  /** Fond derrière une photo réglée seule (lot 41) : attribut + couleur sur l'image de la planche, jamais sur une vidéo. */
-  const bgOf = (slug: string) => {
-    const b = slotBg && Object.hasOwn(slotBg, slug) ? imageBgAttrs(slotBg[slug]) : null;
-    return b ? { "data-img-bg": b["data-img-bg"], style: b.style as CSSProperties } : null;
-  };
+  /** Habillage d'une photo ou d'une vidéo réglée seule (lots 34, 41, 62 et 64) : cadre et fond de SA place, via le composant commun (MediaFrame). Le fond n'existe que pour une photo. */
+  const lookOf = (slug: string, video: boolean) => ({
+    frame: slotFrame && Object.hasOwn(slotFrame, slug) ? slotFrame[slug] : undefined,
+    bg: !video && slotBg && Object.hasOwn(slotBg, slug) ? slotBg[slug] : undefined,
+  });
   /** Image entière dans la largeur visible (défaut) ou à faire défiler (lot 45) : `--ir` = ratio, repris par `--fit-h` (globals.css). */
   const panoOf = (a: LocalizedArtwork) => {
     const mode = slotPano && Object.hasOwn(slotPano, a.slug) ? slotPano[a.slug] : undefined;
@@ -297,10 +293,9 @@ export default function StripRail({
                 video={artwork.video}
                 width={artwork.width}
                 height={artwork.height}
-                mediaClassName="h-[var(--strip-h)] w-auto max-w-none rounded-strip"
                 label={artwork.alt || artwork.title}
                 caption={caption}
-                frame={frameOf(artwork.slug)}
+                mediaLook={lookOf(artwork.slug, true)}
                 texts={{ pause: tg("pauseLoop"), play: tg("playLoop") }}
               />
             );
@@ -333,44 +328,35 @@ export default function StripRail({
             aria-haspopup={artwork.video ? "dialog" : undefined}
             data-video-mode={artwork.video ? "player" : undefined}
             className="strip-frame group text-left"
-            style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : panoOf(artwork).style), ...frameOf(artwork.slug)?.style, ...(artwork.video ? {} : bgOf(artwork.slug)?.style) }}
+            style={{ ...radiusOf(artwork.slug), ...(artwork.video ? {} : panoOf(artwork).style) }}
             {...(!artwork.video ? { "data-pano": panoOf(artwork)["data-pano"] } : {})}
-            {...frameOf(artwork.slug)?.attrs}
-            {...(!artwork.video && bgOf(artwork.slug) ? { "data-img-bg": "" } : {})}
             {...(slot ? { "data-edit-slot": slot.key, "data-slot-pos": slot.pos, "data-slot-slug": artwork.slug } : {})}
             {...host}
           >
             <span className="strip-media">
-              {artwork.video ? (
-                <span className="relative block">
+              <MediaFrame look={lookOf(artwork.slug, Boolean(artwork.video))} ratio={artwork.width / Math.max(1, artwork.height)} kind={artwork.video ? "video" : "image"}>
+                {artwork.video ? (
+                  <>
+                    <Picture src={artwork.image} sources={artwork.sources} alt={artwork.alt} width={artwork.width} height={artwork.height} sizes={stripSizes(artwork.width, artwork.height)} />
+                    <span className="strip-duration absolute bottom-2 right-2 rounded-sm bg-scrim/75 px-2 py-0.5 text-xs text-on-scrim">
+                      <span aria-hidden="true">▶ </span>
+                      {artwork.video.durationLabel}
+                      <span className="sr-only"> — {tg("playVideo")}</span>
+                    </span>
+                  </>
+                ) : (
+                  // Image : la même balise qu'avant (parité visuelle).
                   <Picture
                     src={artwork.image}
                     sources={artwork.sources}
                     alt={artwork.alt}
                     width={artwork.width}
                     height={artwork.height}
-                    sizes={stripSizes(artwork.width, artwork.height)}
-                    className="h-[var(--strip-h)] w-auto max-w-none rounded-strip"
+                    sizes={artwork.sources ? stripSizes(artwork.width, artwork.height) : "(min-width: 1024px) 640px, 60vw"}
+                    priority={index >= 0 && index < eager}
                   />
-                  <span className="strip-duration absolute bottom-2 right-2 rounded-sm bg-scrim/75 px-2 py-0.5 text-xs text-on-scrim">
-                    <span aria-hidden="true">▶ </span>
-                    {artwork.video.durationLabel}
-                    <span className="sr-only"> — {tg("playVideo")}</span>
-                  </span>
-                </span>
-              ) : (
-                // Image : la même balise qu'avant (parité visuelle).
-                <Picture
-                  src={artwork.image}
-                  sources={artwork.sources}
-                  alt={artwork.alt}
-                  width={artwork.width}
-                  height={artwork.height}
-                  sizes={artwork.sources ? stripSizes(artwork.width, artwork.height) : "(min-width: 1024px) 640px, 60vw"}
-                  className="h-[var(--fit-h,var(--strip-h))] w-auto max-w-none rounded-strip"
-                  priority={index >= 0 && index < eager}
-                />
-              )}
+                )}
+              </MediaFrame>
             </span>
             {caption}
           </button>

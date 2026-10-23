@@ -3,13 +3,12 @@ import type { CSSProperties } from "react";
 import { getTranslations } from "next-intl/server";
 
 import { LoopClick } from "@/components/LoopVideo";
+import MediaFrame from "@/components/MediaFrame";
 import Picture from "@/components/Picture";
 import { claimEager } from "@/lib/eager";
 import ViewerScope from "@/components/ViewerScope";
-import { frameStyle, imageBgAttrs } from "@/lib/look";
 import { getMedia } from "@/lib/media";
 import { viewerAttrs } from "@/lib/viewer";
-import { RADIUS_VALUES } from "@/themes/css";
 
 import { BlockCaption, capHost, captionPart } from "./caption";
 import { freeBoardSchema, freeItems, itemHeight, readingOrder, zoneAspect } from "./free-board";
@@ -60,8 +59,6 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
         {ordered.map(({ it, m }) => {
           const ratio = (m.width ?? 1200) / Math.max(1, m.height ?? 800);
           const alt = m.alt ? tr(m.alt, ctx.locale) : "";
-          const frame = frameStyle(it.frame);
-          const bg = m.video ? null : imageBgAttrs(it.bg);
           const viewer =
             zoom && !m.video
               ? viewerAttrs({ id: `media-${it.media}-${it.id}`, image: m.url, sources: m.sources ?? undefined, alt, width: m.width ?? 1200, height: m.height ?? 800, title: "", description: "", plain: true }, [alt, openLabel].filter(Boolean).join(" — "))
@@ -72,28 +69,25 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
             "--w": it.w,
             "--rot": it.rot,
             zIndex: it.z + 1,
-            ...(it.radius && Object.hasOwn(RADIUS_VALUES, it.radius) ? { "--free-radius": RADIUS_VALUES[it.radius] } : {}),
-            ...(frame?.style ?? {}),
-            ...(bg?.style ?? {}),
           } as CSSProperties;
+          // Habillage de l'image : le même composant que partout (MediaFrame) ; pas de fond derrière une vidéo.
+          const mediaLook = { frame: it.frame, bg: m.video ? undefined : it.bg, radius: it.radius };
           const sizes = `${props.phone === "stack" ? "(max-width: 639px) 100vw, " : ""}(min-width: 1236px) ${Math.round((1200 * Math.min(100, it.w)) / 100)}px, ${Math.round(Math.min(100, it.w))}vw`;
           return (
             <figure
               key={it.id}
               className="free-item"
               style={style}
-              {...(frame ? frame.attrs : {})}
-              {...(bg ? { "data-img-bg": "" } : {})}
               {...viewer}
               {...(canvas ? { "data-free-item": it.id, "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}
             >
-              {m.video ? (
-                <div className="free-media free-video" style={{ aspectRatio: ratio }}>
+              <MediaFrame as="div" kind={m.video ? "video" : "image"} look={mediaLook} ratio={ratio}>
+                {m.video ? (
                   <LoopClick video={m.video} width={m.width ?? 1280} height={m.height ?? 720} className="h-full w-full object-cover" label={alt} edit={canvas} />
-                </div>
-              ) : (
-                <Picture src={m.url} sources={m.sources} alt={alt} width={m.width ?? 1200} height={m.height ?? 800} sizes={sizes} className="free-media" priority={shown.findIndex((s) => s.it.id === it.id) < eager} />
-              )}
+                ) : (
+                  <Picture src={m.url} sources={m.sources} alt={alt} width={m.width ?? 1200} height={m.height ?? 800} sizes={sizes} priority={shown.findIndex((s) => s.it.id === it.id) < eager} />
+                )}
+              </MediaFrame>
             </figure>
           );
         })}

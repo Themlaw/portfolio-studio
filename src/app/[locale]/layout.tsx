@@ -15,6 +15,7 @@ import { themeAttributes, themeToCss } from "@/themes/css";
 import { FONT_VARIABLE_CLASSES } from "@/themes/fonts";
 import "../globals.css";
 import "../look.css";
+import "../media-frame.css";
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));

@@ -398,14 +398,14 @@ try {
       await bar.getByTestId("free-radius").selectOption("medium");
       ok("S2 Arrondi « Moyen » : écrit sur cette image seulement", await waitFor(() => byId("a1").radius === "medium" && !byId("a2").radius), JSON.stringify(items()));
       await settled(page);
-      ok("S2b … et visible (coins arrondis sur l'image)", (await itemEl("a1").locator("img").evaluate((i) => getComputedStyle(i).borderRadius)) !== "0px");
+      ok("S2b … et visible (coins arrondis sur l'image)", (await itemEl("a1").locator(".media-frame").evaluate((i) => getComputedStyle(i).borderRadius)) !== "0px");
       await bar.getByTestId("free-frame-button").click();
       const win = f.getByTestId("free-frame");
       await win.waitFor();
       await win.locator('[data-frame-kind="band"]').click();
       ok("S3 Cadre : activé sur cette image", await waitFor(() => Boolean(byId("a1").frame)), JSON.stringify(byId("a1")));
       await settled(page);
-      ok("S3b … la bordure est visible", await itemEl("a1").locator("img").evaluate((i) => parseFloat(getComputedStyle(i).borderTopWidth) >= 2));
+      ok("S3b … la bordure est visible", await itemEl("a1").locator(".media-frame").evaluate((i) => parseFloat(getComputedStyle(i).borderTopWidth) >= 2));
       await page.keyboard.press("Escape");
       await sleep(300);
       // Remplacer : même place, autre média.
@@ -673,7 +673,7 @@ try {
       await win.getByText("Blanc", { exact: true }).click();
       ok("I2 Fond image « Blanc » : écrit sur cette image seulement", await waitFor(() => byId("a1").bg === "#ffffff" && !byId("a2").bg), JSON.stringify(items()));
       await settled(page);
-      ok("I2b … et visible derrière l'image", (await itemEl("a1").locator("img").evaluate((i) => getComputedStyle(i).backgroundColor)) === "rgb(255, 255, 255)");
+      ok("I2b … et visible derrière l'image", (await itemEl("a1").locator(".media-frame").evaluate((i) => getComputedStyle(i).backgroundColor)) === "rgb(255, 255, 255)");
       await shot(page, "I-toile-fond-image");
       await page.keyboard.press("Escape");
       ok("I3 Titre / Légende / Date présents sous la planche sur la toile", (await f.locator('.free-board-section [data-cap="title"], .free-board-section [data-cap="legend"], .free-board-section [data-cap="date"]').count()) === 3);
@@ -682,7 +682,7 @@ try {
       await p.locator(".free-board").evaluate((el) => el.scrollIntoView({ block: "center" }));
       const body = await p.locator(".free-board-section").innerText();
       ok("I5 public : Titre, Légende et Date sous la planche", body.includes("Titre de la planche") && body.includes("Légende de la planche") && body.includes("2026"), body);
-      ok("I5b public : une image a son fond (data-img-bg), l'autre non", (await p.locator(".free-item[data-img-bg]").count()) === 1);
+      ok("I5b public : une image a son fond (data-img-bg), l'autre non", (await p.locator(".free-item .media-frame[data-img-bg]").count()) === 1);
       ok("I6 public : chaque image est cliquable (visionneuse), aucune vidéo ici", (await p.locator(".free-item[data-viewer-item]").count()) === 2);
       await p.locator(".free-item[data-viewer-item]").first().click();
       await p.locator(".lightbox").waitFor();

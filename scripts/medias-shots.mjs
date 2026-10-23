@@ -67,10 +67,10 @@ try {
   // ---- Lecteur vidéo ----------------------------------------------------------------
   if (process.env.SKIP_VIDEO !== "1") {
     await page.reload({ waitUntil: "networkidle" });
-    const card = page.locator(".mat-hover", { hasText: VIDEO_TITLE }).first();
+    const card = page.locator('.group:has([data-kind="video"])', { hasText: VIDEO_TITLE }).first();
     await card.scrollIntoViewIfNeeded();
     await card.getByRole("button", { name: `Lire ${VIDEO_TITLE}` }).click();
-    const player = card.locator(".mat").first();
+    const player = card.locator(".media-frame").first();
     await page.waitForTimeout(1500);
     const box = await player.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

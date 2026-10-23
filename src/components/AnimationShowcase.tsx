@@ -1,5 +1,6 @@
 "use client";
 
+import MediaFrame from "./MediaFrame";
 import Picture from "./Picture";
 import VideoViewer from "./VideoViewer";
 import { useState } from "react";
@@ -7,6 +8,7 @@ import { useTranslations } from "next-intl";
 
 import Eyebrow from "@/components/Eyebrow";
 import type { LocalizedArtwork } from "@/lib/gallery";
+import type { MediaLook } from "@/lib/look";
 
 export function PlayBadge({ label }: { label: string }) {
   return (
@@ -27,7 +29,10 @@ export function Frame({
   onPlay,
   large = false,
   edit = false,
-  frame,
+  mediaLook,
+  ratio,
+  grow = true,
+  attrs,
 }: {
   item: LocalizedArtwork;
   playing: boolean;
@@ -35,16 +40,22 @@ export function Frame({
   large?: boolean;
   /** Toile de l'éditeur : la vidéo ne s'ouvre pas en grand (le clic sert à choisir le composant). */
   edit?: boolean;
-  /** Cadre de la vidéo (lot 62) : attributs + variables de `frameStyle` (src/app/look.css). */
-  frame?: { attrs: Record<string, string>; style: React.CSSProperties } | null;
+  /** Habillage de la vidéo (lots 62 et 64) : cadre, fond, arrondi : le même que celui d'une photo (MediaFrame). */
+  mediaLook?: MediaLook;
+  /** Format de la boîte (celui de la grille, sinon celui de la vidéo). */
+  ratio?: number;
+  /** Vidéo seule : la boîte grandit de l'épaisseur du cadre (sinon : dans une case de taille fixe). */
+  grow?: boolean;
+  /** Repères de la boîte (toile : `data-edit-media`, lecture : `data-video-mode`). */
+  attrs?: Record<string, string | undefined>;
 }) {
   const t = useTranslations("animation");
   // Vidéo hébergée (mode « Lecteur ») : elle s'ouvre en grand dans la visionneuse ; un plan YouTube joue sur place.
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="mat">
-      <div className="video-frame relative aspect-video w-full overflow-hidden rounded-[2px] bg-scrim" {...frame?.attrs} style={frame?.style}>
+    <>
+      <MediaFrame as="div" kind="video" look={mediaLook} ratio={ratio ?? item.width / Math.max(1, item.height)} grow={grow} {...attrs}>
         {playing && item.videoId && !item.video ? (
           <iframe
             className="absolute inset-0 h-full w-full"
@@ -100,9 +111,9 @@ export function Frame({
             )}
           </>
         )}
-      </div>
+      </MediaFrame>
       {open && item.video && <VideoViewer video={item.video} width={item.width} height={item.height} title={item.title || item.alt} onClose={() => setOpen(false)} />}
-    </div>
+    </>
   );
 }
 
@@ -157,7 +168,7 @@ export default function AnimationShowcase({
 
         <ul className="grid gap-[clamp(1.5rem,3vw,2.5rem)] md:grid-cols-2">
           {items.map((item) => (
-            <li key={item.id} className="group mat-hover">
+            <li key={item.id} className="group">
               <Frame
                 item={item}
                 playing={playing === item.id}
