@@ -38,6 +38,11 @@ export const gridSchema = z.object({
   captionDate: localizedText.optional(),
   /** Agrandir au clic (lot 44) : un clic sur une image ouvre la visionneuse, qui fait défiler toutes les images et vidéos de la grille en boucle. Absent = oui. */
   zoom: z.boolean().optional(),
+  /**
+   * Mémoire de « Afficher en : Images qui défilent » (lot 69, planche d'un projet) : les réglages de l'autre forme, gardés tels quels
+   * pour le retour (src/blocks/grid-strip.ts). Jamais rendue ; absente sur une grille qui n'a pas été carrousel.
+   */
+  converted: z.record(z.string().max(40), z.unknown()).optional(),
   children: z.array(childBlock).max(MAX_CHILDREN).default([]),
 });
 
