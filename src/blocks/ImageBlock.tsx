@@ -13,6 +13,7 @@ import { resolveCrop } from "@/lib/images/crop-view";
 import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { ORIGINALS_PREFIX } from "@/lib/images/variants";
 import { getMedia, mediaUrl } from "@/lib/media";
+import { mediaLookAttrs } from "@/lib/look";
 import { viewerAttrs } from "@/lib/viewer";
 
 import { AUTO_PANORAMA_RATIO } from "./grid-layouts";
@@ -90,8 +91,8 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
         ? "(min-width: 1236px) 1200px, 100vw"
         : "100vw";
   const caption = props.caption ? tr(props.caption, ctx.locale) : "";
-  // Cliquer pour agrandir (lot 44) : public et Aperçu seulement (la toile et la planche en édition gardent le clic pour éditer).
-  const zoomable = Boolean(image) && !canvas && !ctx.inlineEdit && props.zoom !== false && (!ctx.cell || ctx.cellViewer === true);
+  // Cliquer pour agrandir (lot 44) : public ET Aperçu (lot 64 : l'Aperçu est le rendu de la toile, sans `data-edit-canvas`) ; la toile en édition garde le clic pour éditer (ViewerScope n'ouvre rien tant que `data-edit-canvas` est posé).
+  const zoomable = Boolean(image) && !ctx.inlineEdit && props.zoom !== false && (!ctx.cell || ctx.cellViewer === true);
   const viewer =
     zoomable && image
       ? viewerAttrs(
@@ -128,7 +129,33 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
   // Cadre (lot 34, `look.frame`) et fond (lot 41, `look.imageBg`) : habillage de la boîte de la PHOTO (MediaFrame), jamais d'une place vide ni de la figure.
   const mediaLook = image ? { frame: ctx.look?.frame, bg: ctx.look?.imageBg } : undefined;
   // Format de la boîte : celui de la zone gardée (cadrage libre), sinon le format imposé, sinon celui de l'image (cadrée ou entière).
-  const boxRatio = free ? frameRatio : (box ?? frameRatio);
+  const contain = Boolean(image && box && !cover && !free);
+  const boxRatio = free || contain ? frameRatio : (box ?? frameRatio);
+  const boxLook = mediaLookAttrs({ bg: ctx.look?.imageBg });
+  const photo = image ? (
+    <MediaFrame
+      look={contain ? { frame: ctx.look?.frame } : mediaLook}
+      ratio={boxRatio}
+      fit={contain ? undefined : "cover"}
+      data-edit-media={canvas ? "mediaId" : undefined}
+      data-edit-media-kind={canvas ? "image" : undefined}
+      {...editFull}
+      {...(viewer ?? {})}
+    >
+      <Picture
+        src={image.url}
+        sources={cropped ? cropped.sources : image.sources}
+        alt={image.alt ? tr(image.alt, ctx.locale) : caption}
+        width={cropped ? cropped.width : (image.width ?? 1200)}
+        height={cropped ? cropped.height : (image.height ?? 800)}
+        sizes={scaleSizes(baseSizes, stretch)}
+        className="block-image-media"
+        cropped={Boolean(cropped)}
+        fallback={fallback}
+        priority={eager}
+      />
+    </MediaFrame>
+  ) : null;
   const body = (
     <figure
       className={`block-image ${ctx.cell ? "" : props.width === "text" ? "max-w-2xl" : ""}`}
@@ -142,28 +169,14 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       style={{ "--ir": shownRatio.toFixed(4) } as CSSProperties}
     >
       {image ? (
-        <MediaFrame
-          look={mediaLook}
-          ratio={boxRatio}
-          fit={box && !cover ? "contain" : "cover"}
-          data-edit-media={canvas ? "mediaId" : undefined}
-          data-edit-media-kind={canvas ? "image" : undefined}
-          {...editFull}
-          {...(viewer ?? {})}
-        >
-          <Picture
-            src={image.url}
-            sources={cropped ? cropped.sources : image.sources}
-            alt={image.alt ? tr(image.alt, ctx.locale) : caption}
-            width={cropped ? cropped.width : (image.width ?? 1200)}
-            height={cropped ? cropped.height : (image.height ?? 800)}
-            sizes={scaleSizes(baseSizes, stretch)}
-            className="block-image-media"
-            cropped={Boolean(cropped)}
-            fallback={fallback}
-            priority={eager}
-          />
-        </MediaFrame>
+        contain ? (
+          // « Image entière » dans un format imposé (lot 64) : la case garde son format (bandes vides, fond choisi) ; le cadre entoure la PHOTO.
+          <span className="media-box" {...boxLook.attrs} style={{ "--box-r": box!.toFixed(5), ...boxLook.style } as CSSProperties}>
+            {photo}
+          </span>
+        ) : (
+          photo
+        )
       ) : ctx.edit ? (
         <span className="pe-media-empty" data-edit-media="mediaId" data-edit-media-kind="image" lang="fr">
           <span>Dépose une image ici</span>

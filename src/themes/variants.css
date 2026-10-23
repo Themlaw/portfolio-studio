@@ -358,7 +358,12 @@
    Épaisseur réduite proportionnellement sur petit écran / petite photo (jamais plus de 4 % de la largeur de l'écran pour le haut :
    `--kit-k`) ; une tuile garde son épaisseur entière (`--kit-k` absent = 1px). */
 [data-kit-frame] .media-frame {
-  --kit-k: min(1px, 4vw / var(--t-kit-fwt));
+  /* Plafonnée aussi à 16 % de la largeur de la boîte (`--cap-w`) : sur une petite image on RÉDUIT l'épaisseur, le motif n'est jamais écrasé. */
+  --kit-k: min(1px, 4vw / var(--t-kit-fwt), calc(var(--cap-w, 100vw) * 0.16 / var(--t-kit-fwt)));
+}
+/* Les coins du dessin suivent l'arrondi choisi (le thème, le site ou la photo) ; sans arrondi (0), rien n'est rogné. */
+[data-kit-frame] :is(.media-frame[data-frame="theme"], [data-frame-all] .media-frame[data-kind="image"]:not([data-frame])) {
+  clip-path: inset(0 round var(--media-radius, 0px));
 }
 [data-kit-frame] :is(
   .media-frame[data-frame="theme"],

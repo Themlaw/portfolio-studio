@@ -99,7 +99,7 @@ test("T2 une règle de cadre ou de fond ne vise que `.media-frame` (aucune copie
     for (const rule of css.split("}")) {
       const sel = rule.split("{")[0];
       if (!/\[data-frame|\[data-img-bg|data-frame-all/.test(sel)) continue;
-      assert.ok(/\.media-frame/.test(sel), `${file} : « ${sel.trim().replace(/\s+/g, " ")} » vise autre chose que .media-frame`);
+      assert.ok(/\.media-frame|\.media-box/.test(sel), `${file} : « ${sel.trim().replace(/\s+/g, " ")} » vise autre chose que .media-frame`);
       assert.ok(file.endsWith("media-frame.css") || file.endsWith("themes/variants.css"), `${file} : règle de cadre hors des deux feuilles prévues`);
     }
   }

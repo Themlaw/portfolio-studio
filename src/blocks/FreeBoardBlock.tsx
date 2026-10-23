@@ -43,7 +43,7 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
   if (!shown.length && !canvas) return null;
   const zone = zoneAspect(props);
   // Cliquer pour agrandir (lot 44) : public et Aperçu seulement ; chaque image est un élément de la visionneuse, la planche en est la zone.
-  const zoom = !canvas && !ctx.inlineEdit && props.zoom !== false;
+  const zoom = !ctx.inlineEdit && props.zoom !== false;
   const openLabel = zoom ? (await getTranslations({ locale: ctx.locale, namespace: "gallery" }))("open") : "";
   const Section = zoom ? ViewerScope : "section";
   const ordered = readingOrder(shown.map((s) => ({ ...s, id: s.it.id, x: s.it.x, y: s.it.y })));

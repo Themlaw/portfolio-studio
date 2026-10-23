@@ -17,6 +17,7 @@
  *  F  Fond d'une image libre (D4) : le fond choisi n'est pas masqué par la couleur de chargement de la photo opaque ; arrondi de l'image libre.
  *  U  Vidéo (R1) : plus de passe-partout propre, plus de 16:9 forcé : format natif (16:9, vertical plafonné à 85 % de l'écran), format de la grille.
  *  V  Visionneuse (T8) : un clic à côté de la photo n'ouvre rien ; un clic sur la photo ouvre LA bonne image (grille).
+ *  A  Scènes de l'audit A2 : le cadre suit toujours la photo (ancien cadrage, image entière, petites images, kit + arrondi, Aperçu).
  *  S  Toile (T6, S2, S4, S9) : le contour de sélection d'une image libre = la boîte réelle (bande, cadre du thème, rotation) ; la barre média est
  *     calée sur la photo ; la barre du composant de planche reste au-dessus de dix images libres empilées.
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=G,K,…] [SHOTS=dossier] node scripts/e2e-mediaframe64.mjs
@@ -87,7 +88,14 @@ async function ensureExtra() {
     if (!(await waitFor(() => Boolean(row(vert)), 60000))) throw new Error("vidéo verticale non reçue");
   }
   for (const name of [flat, vert]) if (!(await waitFor(() => row(name)?.status === "ready", 240000))) throw new Error(`${name} : ${JSON.stringify(row(name))}`);
-  return { magenta: row(flat).id, vertical: row(vert).id };
+  const tall = "64-haut.png";
+  if (!row(tall)) {
+    const buffer = await sharp({ create: { width: 900, height: 5000, channels: 3, background: { r: 120, g: 160, b: 90 } } }).png().toBuffer();
+    const res = await page.request.post(`${BASE}/admin/api/upload`, { headers: { origin: BASE }, multipart: { file: { name: tall, mimeType: "image/png", buffer } }, timeout: 180000 });
+    if (res.status() >= 300) throw new Error(`envoi de ${tall} : ${res.status()}`);
+    if (!(await waitFor(() => row(tall)?.status === "ready", 240000))) throw new Error(`${tall} : ${JSON.stringify(row(tall))}`);
+  }
+  return { magenta: row(flat).id, vertical: row(vert).id, tall: row(tall).id };
 }
 const X = await ensureExtra();
 
@@ -486,6 +494,62 @@ if (run("S"))
     await shot(page, "s-barre-planche");
   });
 
+
+/* ============================================================================================================================
+ * A. Scènes de l'audit A2 (cas absents de la banque) : le cadre suit TOUJOURS la photo
+ *    Rejoue les cas de ~/pf/audit2/a2/page-a2.mjs avec les médias de cette suite (CADRE-01 à 09, VID-01, IMG-01 à 03, VIS-02).
+ * ========================================================================================================================== */
+if (run("A"))
+  await section("A", async () => {
+    const legacy = (x, y, zoom) => ({ mediaId: { x, y, zoom } });
+    const blocks = [
+      img("a1", X.tall, { look: { frame: KIT } }),
+      img("a3", X.tall, { look: { frame: KIT, crop: legacy(50, 30, 1.5) } }),
+      img("a4", M.portrait, { ratio: "1:1", look: { frame: KIT, crop: legacy(50, 20, 1) } }),
+      img("a10", M.panorama, { width: "full", ratio: "1:1", look: { frame: KIT } }),
+      img("a11", M.portrait, { ratio: "16:9", fit: "contain", look: { frame: BAND, imageBg: "#ffe0e0" } }),
+      img("a12", M.carre, { look: { frame: KIT, imageBg: "card", radius: "strong" } }),
+      grid("b1", [img("b11", M.paysage, withFrame(KIT)), img("b12", M.portrait), img("b13", M.carre, withFrame(BAND))], { layout: "3" }),
+      grid("b3", [vid("b31", V.short, withFrame(KIT)), img("b32", M.paysage, withFrame(KIT))], { layout: "2" }),
+      grid("b4", [vid("b41", X.vertical, { mode: "player", ...withFrame(KIT) }), img("b42", M.portrait, withFrame(KIT))], { layout: "2", ratio: "1:1" }),
+      free("c1", [fitem("a1", M.paysage, 2, 4, 30, { frame: KIT }), fitem("a2", M.portrait, 36, 4, 18, { frame: BAND }), fitem("a3", X.tall, 80, 30, 6, { frame: KIT }), fitem("a4", M.carre, 36, 55, 18, { frame: KIT, radius: "strong" })]),
+      vid("d1", X.vertical, withFrame(KIT)),
+    ];
+    ok("A0 page publiée", await publish(PHOTOS, blocks));
+    for (const [label, opts] of [["1440", {}], ["390", { viewport: { width: 390, height: 844 }, isMobile: true }]]) {
+      const p = await publicPage("/fr/decors", opts);
+      const r = await p.evaluate(() =>
+        [...document.querySelectorAll("main .media-frame")].map((f) => {
+          const m = f.querySelector("img, video");
+          const cs = getComputedStyle(f);
+          return { kind: f.dataset.kind, w: f.offsetWidth, h: f.offsetHeight, iw: m.offsetWidth, ih: m.offsetHeight, bl: parseFloat(cs.borderLeftWidth), bt: parseFloat(cs.borderTopWidth), free: Boolean(f.closest(".free-item")), clip: cs.clipPath, radius: cs.borderTopLeftRadius, viewer: f.hasAttribute("data-viewer-item") };
+        }),
+      );
+      const gap = r.filter((x) => Math.abs(x.w - 2 * x.bl - x.iw) > 1.5 || Math.abs(x.h - 2 * x.bt - x.ih) > 1.5);
+      ok(`A1 ${label} : le cadre entoure exactement la photo ou la vidéo (aucun vide entre le cadre et le média : ancien cadrage, image entière, hauteur très grande, grilles, vidéos)`, r.length >= 14 && gap.length === 0, JSON.stringify(gap.slice(0, 4)));
+      const small = r.filter((x) => x.free && x.iw < x.w * 0.5);
+      ok(`A2 ${label} : Planche libre, le cadre ne mange jamais une petite image (média ≥ moitié de la boîte)`, r.some((x) => x.free) && small.length === 0, JSON.stringify(small));
+      if (label === "1440") {
+        const rounded = r.filter((x) => x.radius === "20px" && x.kind === "image");
+        ok("A3 cadre du kit + arrondi fort : les coins du dessin suivent l'arrondi (clip-path)", rounded.length >= 2 && rounded.some((x) => /round/.test(x.clip)), JSON.stringify(rounded.map((x) => x.clip)));
+        const box = await p.evaluate(() => { const b = [...document.querySelectorAll("main .media-box")].at(-1); const f = b?.querySelector(".media-frame"); return b && f ? { bw: b.offsetWidth, bh: b.offsetHeight, fw: f.offsetWidth, fh: f.offsetHeight, bg: getComputedStyle(b).backgroundColor } : null; });
+        ok("A4 image entière au format 16:9 : la case garde son format et son fond, le cadre a le format de la PHOTO (3:4)", box && near(box.bw / box.bh, 16 / 9, 0.02) && near(box.fw / box.fh, 0.667, 0.03) && box.fh <= box.bh + 1 && box.bg === "rgb(255, 224, 224)", JSON.stringify(box));
+      }
+      await p.context().close();
+    }
+    // Aperçu du site (VIS-02) : la visionneuse s'ouvre sur la photo.
+    const fr = await openEditor(page, BASE, PHOTOS);
+    await settled(page);
+    await page.getByRole("button", { name: "Aperçu", exact: true }).click();
+    await sleep(3500);
+    const frame2 = await (await page.waitForSelector("iframe.ve-frame")).contentFrame();
+    const ph = frame2.locator("figure.block-image .media-frame").nth(2);
+    await ph.scrollIntoViewIfNeeded();
+    const bb = await ph.boundingBox();
+    await page.mouse.click(bb.x + bb.width / 2, bb.y + bb.height / 2);
+    ok("A5 mode Aperçu du site : un clic sur la photo ouvre la visionneuse", await waitFor(async () => (await frame2.locator('[role="dialog"]').count()) > 0, 10000));
+    void fr;
+  });
 console.log(errors.length ? `ERREURS PAGE : ${errors.slice(0, 5).join(" | ")}` : "aucune erreur de page");
 await browser.close();
 console.log(failures ? `\n${failures} échec(s)` : "\nTout est vert");

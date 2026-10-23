@@ -63,7 +63,8 @@
    « Aucun » (`data-frame="none"`) : aucune règle. « Cadre du thème » (`theme`) : variants.css. */
 .media-frame[data-frame="band"] {
   --frame-w: clamp(3px, 0.9vw, 6px);
-  border: var(--frame-w) solid var(--frame-color);
+  /* Plafonnée à 12 % de la largeur de la boîte (`--cap-w` : largeur maximale connue, posée par le conteneur) : une petite image n'est plus mangée par son cadre. */
+  border: min(var(--frame-w), calc(var(--cap-w, 100vw) * 0.12)) solid var(--frame-color);
 }
 .media-frame[data-frame="band"][data-frame-w="fin"] {
   --frame-w: 2px;
@@ -84,14 +85,14 @@
 .media-solo:has(.media-caption [data-cap]:not(:empty)) {
   --iw: min(100%, calc((85svh - 4.5rem) * var(--ir, 1000)));
 }
-.block-image[data-solo] > .media-frame,
+.block-image[data-solo] > :is(.media-frame, .media-box),
 .media-solo > .media-frame {
   width: var(--iw);
   margin-inline: auto; /* la boîte est un bloc : text-align ne la centre pas */
 }
 /* Taille et place d'une image seule (lot 40, `look.imageSize` / `look.imageAlign`). Grande : plafond levé, toute la largeur du cadre.
    Gauche / Centre / Droite : l'image ET sa légende (tout ce qui suit dans la figure) prennent la largeur de l'image et se posent du même côté. */
-.block-image[data-solo][data-size="large"] > .media-frame {
+.block-image[data-solo][data-size="large"] > :is(.media-frame, .media-box) {
   width: 100%;
 }
 .block-image[data-solo][data-align] > * {
@@ -117,11 +118,41 @@ figure.block-image[data-free] .media-frame :is(img, video) {
 }
 /* Cadrage ancien (point focal + zoom, look.css `.blk[data-crop]`) : le média est déplacé et agrandi DANS la boîte, qui le rogne. */
 
+/* Largeur maximale connue de la boîte (plafond du cadre) : image seule = plafond de hauteur × format ; image libre = sa propre largeur. */
+.block-image[data-solo] {
+  --cap-w: calc(85svh * var(--ir, 1000));
+}
+.free-item {
+  container-type: inline-size;
+}
+.free-item .media-frame {
+  --cap-w: 100cqw;
+}
+
+/* « Image entière » dans un format imposé : la case (`.media-box`) garde son format, ses bandes vides et son fond ; la boîte du média (cadre
+   compris) a le format de la PHOTO et se pose au centre, au plus grand de ce qui tient dans la case. */
+.media-box {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: var(--box-r, auto);
+  container-type: size;
+  overflow: clip;
+  border-radius: var(--media-radius, var(--radius-strip));
+}
+.media-box[data-img-bg] {
+  background-color: var(--img-bg);
+}
+.media-box > .media-frame {
+  width: min(100%, calc(100cqh * var(--box-r, 1)));
+}
+
 /* ---- Contextes -------------------------------------------------------------------------------------------------------------------- */
 /* Case d'une grille « sur mesure » / « automatique » avec un format imposé : une case large garde la hauteur de ses voisines d'une colonne
    (format x largeur). */
 @media (min-width: 48rem) {
-  .block-grid:is([data-layout="custom"], [data-layout="auto"]):not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) .media-frame {
+  .block-grid:is([data-layout="custom"], [data-layout="auto"]):not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) :is(.media-frame:not(.media-box > .media-frame), .media-box) {
     aspect-ratio: calc(var(--grid-r, 1.3333) * var(--w, 1));
   }
 }
@@ -140,8 +171,8 @@ figure.block-image[data-free] .media-frame :is(img, video) {
     flex-direction: column;
     min-height: 0;
   }
-  .block-grid-cell[data-span-h] .block-image > .media-frame,
-  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image > .media-frame {
+  .block-grid-cell[data-span-h] .block-image > :is(.media-frame, .media-box),
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image > :is(.media-frame, .media-box) {
     flex: 1 1 auto;
     min-height: 14rem;
     aspect-ratio: auto;
