@@ -234,6 +234,8 @@ if (run("A") || run("B") || run("C"))
     window.__pm = null;
     document.addEventListener("pointermove", (e) => (window.__pm = [Math.round(e.clientY), e.target.tagName, String(e.target.className).slice(0, 30)]), true);
   });
+  // La barre de style (fenêtre ancrée, lot 65) peut recouvrir le « + » : on la ferme comme le ferait l'artiste.
+  await f.evaluate(() => document.querySelector(".lk-bar .lk-close")?.click());
   await page.mouse.move(gx, edge - 60);
   await page.mouse.move(gx, edge, { steps: 6 });
   const gapBtn = f.locator(".pe-gap button");
