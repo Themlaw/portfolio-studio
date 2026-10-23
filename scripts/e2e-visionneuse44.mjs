@@ -234,7 +234,8 @@ try {
     setDraft(pageId, PAGE());
     const fr = await openEditor(page, BASE, pageId);
     await settled(page);
-    ok("C1 toile : aucun repère de visionneuse", (await fr.locator("[data-viewer-item]").count()) === 0);
+    // Lot 64 : le rendu de la toile porte les repères (l'Aperçu du site en a besoin) ; le clic ne les ouvre pas (C2).
+    ok("C1 toile : les repères de visionneuse sont posés (Aperçu), sans effet en édition", (await fr.locator("[data-viewer-item]").count()) > 0);
     const image = fr.locator('figure.block-image [data-edit-media="mediaId"]').first();
     await image.scrollIntoViewIfNeeded();
     await image.click();

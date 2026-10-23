@@ -109,7 +109,7 @@ function imgOf(uid) {
   const options = srcsetWebp.split(",").map((x) => x.trim().split(/\s+/)).filter((x) => x[0]).map(([u, w]) => ({ url: u.replaceAll("&amp;", "&"), w: Number(w.replace("w", "")) }));
   const fig = b.match(/<figure\b[^>]*>/)?.[0] ?? "";
   // Lot 64 : la boîte du média (MediaFrame) porte `data-fit` ; la figure garde le format imposé, le plafond et la taille.
-  const frame = b.match(/<span\b[^>]*class="media-frame[^>]*>/)?.[0] ?? "";
+  const frame = (b.match(/<span\b[^>]*class="media-box[^>]*>/)?.[0] ?? "") + (b.match(/<span\b[^>]*class="media-frame[^>]*>/)?.[0] ?? "");
   return { tag, fig, frame, w: Number(attr(tag, "width")), h: Number(attr(tag, "height")), cropped: / data-cropped/.test(tag), options, sizes: attr(tag, "sizes") };
 }
 ok("la page brouillon expose les blocs de l'éditeur", Boolean(blockOf("a-rouge")), `${html.length} octets`);
@@ -147,9 +147,9 @@ ok("L portrait : image entière, plafond de hauteur (data-solo, --ir = 0,5)", !p
 const pano = imgOf("b-pano-plein");
 ok("L panorama pleine largeur : entier, non recadré, rapport 4:1", !pano.cropped && pano.w / pano.h === 4 && !/data-ratio/.test(pano.fig), `${pano.w}×${pano.h} ${pano.fig}`);
 const p169 = imgOf("b-pano-169");
-ok("L pleine largeur + 16:9 : « Image entière » (data-fit=contain), non recadré", / data-fit="contain"/.test(p169.frame) && !p169.cropped, p169.frame);
+ok("L pleine largeur + 16:9 : « Image entière » (data-fit=contain), non recadré", /class="media-box/.test(p169.frame) && !p169.cropped, p169.frame);
 const c169 = imgOf("b-pano-169-cover");
-ok("L pleine largeur + 16:9 + « Remplir la case » : fenêtre extraite 16:9 de l'original", c169.cropped && near(c169.w / c169.h, 16 / 9, 0.01) && !/data-fit/.test(c169.frame), `${c169.w}×${c169.h} ${c169.frame}`);
+ok("L pleine largeur + 16:9 + « Remplir la case » : fenêtre extraite 16:9 de l'original", c169.cropped && near(c169.w / c169.h, 16 / 9, 0.01) && !/class="media-box/.test(c169.frame), `${c169.w}×${c169.h} ${c169.frame}`);
 for (const uid of ["d1", "d2"]) {
   const m = imgOf(uid);
   ok(`L décor ${uid} dans une case 4:5 : fenêtre extraite (nette) au rapport de la case`, m.cropped && near(m.w / m.h, 0.8, 0.02), `${m.w}×${m.h}`);

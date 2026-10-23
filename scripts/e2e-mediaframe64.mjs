@@ -522,10 +522,10 @@ if (run("A"))
         [...document.querySelectorAll("main .media-frame")].map((f) => {
           const m = f.querySelector("img, video");
           const cs = getComputedStyle(f);
-          return { kind: f.dataset.kind, w: f.offsetWidth, h: f.offsetHeight, iw: m.offsetWidth, ih: m.offsetHeight, bl: parseFloat(cs.borderLeftWidth), bt: parseFloat(cs.borderTopWidth), free: Boolean(f.closest(".free-item")), clip: cs.clipPath, radius: cs.borderTopLeftRadius, viewer: f.hasAttribute("data-viewer-item") };
+          return { kind: f.dataset.kind, w: f.offsetWidth, h: f.offsetHeight, iw: m.offsetWidth, ih: m.offsetHeight, bl: parseFloat(cs.borderLeftWidth), bt: parseFloat(cs.borderTopWidth), bb: parseFloat(cs.borderBottomWidth), free: Boolean(f.closest(".free-item")), clip: cs.clipPath, radius: cs.borderTopLeftRadius, viewer: f.hasAttribute("data-viewer-item") };
         }),
       );
-      const gap = r.filter((x) => Math.abs(x.w - 2 * x.bl - x.iw) > 1.5 || Math.abs(x.h - 2 * x.bt - x.ih) > 1.5);
+      const gap = r.filter((x) => Math.abs(x.w - 2 * x.bl - x.iw) > 1.5 || Math.abs(x.h - x.bt - x.bb - x.ih) > 1.5);
       ok(`A1 ${label} : le cadre entoure exactement la photo ou la vidéo (aucun vide entre le cadre et le média : ancien cadrage, image entière, hauteur très grande, grilles, vidéos)`, r.length >= 14 && gap.length === 0, JSON.stringify(gap.slice(0, 4)));
       const small = r.filter((x) => x.free && x.iw < x.w * 0.5);
       ok(`A2 ${label} : Planche libre, le cadre ne mange jamais une petite image (média ≥ moitié de la boîte)`, r.some((x) => x.free) && small.length === 0, JSON.stringify(small));
