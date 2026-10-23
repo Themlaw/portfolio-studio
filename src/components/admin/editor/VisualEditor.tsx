@@ -48,6 +48,7 @@ import { markedProblem } from "@/lib/marked";
 import { own } from "@/lib/own";
 import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
+import { convertItem as convertBoardItem } from "@/blocks/grid-strip";
 import { BOARD_ITEM_LABELS, parseRailKey, railKey, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
 import { cleanLook, cleanSiteStyles, googleOf, readLook, type Frame, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
@@ -2050,23 +2051,50 @@ export default function VisualEditor({
     }, 250);
   };
   /**
-   * Clic sur la carte « Images qui défilent » de la palette (lot 31c) : un carrousel s'ajoute sous le composant de planche
-   * choisi, sinon à la fin de la planche de la rubrique choisie ; ailleurs, un message dit où le poser.
+   * Un carrousel vit dans une « Planche d'un projet » : jamais sur la page seule. Quand il faut le poser sous une rubrique qui n'est
+   * pas une planche (une grille, un texte…), on ajoute une planche NEUVE à cet endroit exact, sélectionnée, et on dit quoi faire :
+   * choisir son projet, puis recliquer. Surtout pas dans une autre planche de la page (lot 69 : c'était la cause du carrousel
+   * qui atterrissait « dans la planche » au lieu de se placer sous la grille).
    */
-  const addCarousel = async () => {
+  const addBoardForCarousel = (place: Place) => {
+    insert("project-board", place);
+    toast("« Images qui défilent » se place dans une « Planche d'un projet » : j'en ai ajouté une ici. Choisis son projet, puis clique de nouveau sur « Images qui défilent ».", "success");
+  };
+  /**
+   * Clic sur la carte « Images qui défilent » de la palette (lot 31c) : un carrousel s'ajoute sous le composant de planche
+   * choisi, sinon à la fin de la planche de la rubrique choisie ; sous une autre rubrique, une planche neuve est posée juste dessous
+   * (lot 69) ; ailleurs, un message dit où le poser. `at` : l'endroit choisi dans « Ajouter une rubrique » (entre deux rubriques).
+   */
+  const addCarousel = async (at?: Place) => {
+    if (at) {
+      addBoardForCarousel(at);
+      return;
+    }
     if (itemSel) {
       await itemFlushRef.current();
       const r = await boardDo(itemSel.board, { op: "item-add", type: "strip", index: 0, after: itemSel.uid });
       if (r) toast("« Images qui défilent » ajouté sous le composant choisi", "success", { label: "Défaire", run: () => void undoRef.current() });
       return;
     }
-    const block = selected && !selected.startsWith("site-") ? findBlock(draftRef.current.blocks, selected) : null;
+    const list = draftRef.current.blocks;
+    const block = selected && !selected.startsWith("site-") ? findBlock(list, selected) : null;
     if (block?.type === "project-board") {
       send({ kind: "board-add", uid: block.uid, item: "strip" });
       return;
     }
-    // Hors d'un projet : un seul bloc « Projet » sur la page, c'est là que le carrousel va ; sinon on explique le geste.
-    const boardsHere = walkTree(draftRef.current.blocks).map((v) => v.block).filter((b) => b.type === "project-board" && typeof (b.props as { project?: unknown }).project === "string");
+    if (block) {
+      // Juste sous la rubrique choisie (dans son conteneur si celui-ci accepte une planche, sinon à la suite de la rubrique de premier niveau).
+      const here = locate(list, block.uid);
+      if (here && canPlace(list, { type: "project-board", props: {} }, here.parent)) addBoardForCarousel({ parent: here.parent, index: here.index + 1 });
+      else {
+        const top = here ? (walkTree(list).find((v) => v.block.uid === block.uid)?.ancestors[0]?.uid ?? block.uid) : block.uid;
+        const topAt = locate(list, top);
+        addBoardForCarousel({ parent: null, index: topAt ? topAt.index + 1 : list.length });
+      }
+      return;
+    }
+    // Rien de choisi : un seul bloc « Planche d'un projet » sur la page, c'est là que le carrousel va ; sinon on explique le geste.
+    const boardsHere = walkTree(list).map((v) => v.block).filter((b) => b.type === "project-board" && typeof (b.props as { project?: unknown }).project === "string");
     if (boardsHere.length === 1) {
       send({ kind: "board-add", uid: boardsHere[0].uid, item: "strip" });
       return;
@@ -2078,6 +2106,53 @@ export default function VisualEditor({
       "error",
     );
   };
+  /**
+   * « Afficher en : Grille / Images qui défilent » (lot 69) : le composant de la planche change de forme SUR PLACE (src/blocks/grid-strip.ts).
+   * Les réglages par image du carrousel (cadre, fond, arrondi, lecture) vivent dans la rubrique de la page qui montre la planche : ils sont
+   * mis à jour avec elle, en UN seul pas d'historique (« Défaire » rend l'état de départ d'un coup).
+   */
+  const convertItem = async (board: number, uid: string, to: "grid" | "strip") => {
+    await itemFlushRef.current();
+    // Dernier état écrit de la planche ; sinon (rien encore écrit dans cette séance) ce que la toile a lu et que le panneau montre.
+    const known = boards.current.get(board)?.layout.find((i) => i.uid === uid);
+    const item = known ?? (itemSel && itemSel.board === board && itemSel.uid === uid ? { uid, type: itemSel.type, props: itemSel.props, ...(itemSel.box ? { box: itemSel.box } : {}) } : undefined);
+    if (!item) {
+      toast("Ce composant n'est plus sur la planche : recharge l'éditeur.", "error");
+      return;
+    }
+    const slug = projectsList.find((p) => p.id === board)?.slug;
+    const list = draftRef.current.blocks;
+    const shows = walkTree(list).map((v) => v.block).filter((b) => b.type === "project-board" && (b.props as { project?: unknown }).project === slug);
+    const holder = shows.find((b) => b.uid === selected) ?? shows[0];
+    const kinds: Record<number, "image" | "video"> = {};
+    for (const m of context.media) if (m.kind === "image" || m.kind === "video") kinds[m.id] = m.kind;
+    const res = convertBoardItem(item, to, { kinds, newUid, look: holder?.props.look as Record<string, unknown> | undefined });
+    if ("error" in res) {
+      toast(res.error, "error");
+      return;
+    }
+    const done = await boardDo(board, { op: "item-convert", uid, to, props: res.item.props });
+    if (!done) return;
+    if (holder && JSON.stringify(res.look ?? null) !== JSON.stringify(holder.props.look ?? null)) {
+      const before = history.current.past.length;
+      setBlocks(
+        updateBlock(draftRef.current.blocks, holder.uid, (b) => {
+          const props = { ...b.props };
+          if (res.look) props.look = res.look;
+          else delete props.look;
+          return { ...b, props };
+        }),
+      );
+      // Un seul pas d'historique pour toute la conversion (planche + rubrique) : « Défaire » rend l'état de départ d'un coup.
+      const past = history.current.past;
+      const first = past.at(-2);
+      if (past.length === before + 1 && first?.board) {
+        history.current = { ...history.current, past: [...past.slice(0, -2), first] };
+        bumpHistory();
+      }
+    }
+    toast(to === "strip" ? "Affiché en « Images qui défilent » : tes images, légendes et cadres sont gardés" : "Affiché en grille : tes images, légendes et cadres sont gardés", "success", { label: "Défaire", run: () => void undoRef.current() });
+  };
   /** Déplacer un composant à un rang (glisser par la poignée). */
   const itemTo = async (board: number, uid: string, index: number) => {
     await itemFlushRef.current();
@@ -2085,9 +2160,9 @@ export default function VisualEditor({
   };
 
   const itemFlush = () => itemFlushRef.current();
-  const handlers = useRef({ itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode });
+  const handlers = useRef({ itemFlush, convertItem, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode });
   useEffect(() => {
-    handlers.current = { itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode };
+    handlers.current = { itemFlush, convertItem, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -2914,6 +2989,7 @@ export default function VisualEditor({
               box={itemSel.box}
               onChange={(props) => itemChange({ props })}
               onBox={(box) => itemChange({ box })}
+              onConvert={(to) => void convertItem(itemSel.board, itemSel.uid, to)}
               context={editorContext}
               editor={own(editors, itemSel.type)}
               head={
@@ -3401,7 +3477,7 @@ export default function VisualEditor({
           setAdding(null);
           if (!at) return;
           if (choice.kind === "starter") insertStarter(choice.starter, at);
-          else if (choice.kind === "carousel") void addCarousel();
+          else if (choice.kind === "carousel") void addCarousel(at);
           else insert(choice.key, at);
         }}
       />

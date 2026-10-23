@@ -39,6 +39,7 @@ import { z } from "zod";
 
 import { applyFreeOp, newFreeId } from "@/blocks/free-board";
 import { BOARD_ITEM_TYPES, BOX_MIN, MAX_BOARD_ITEMS, MAX_RAIL_MEDIA, defaultLayout, isProjectStrip, newBoardItem, parseCaptionPath, railIds, railList, readLayout, sameLayout, type BoardItem, type StripCaption } from "@/blocks/board-layout";
+import { convertTarget } from "@/blocks/grid-strip";
 import { isVideoMode } from "@/blocks/video-mode";
 import { getPageForEdit } from "@/lib/admin";
 import { LookSchema } from "@/lib/look";
@@ -127,6 +128,9 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("rail-retire"), uid: Uid, at: z.number().int().min(0).max(MAX_RAIL_MEDIA) }),
   z.strictObject({ op: z.literal("rail-move"), uid: Uid, at: z.number().int().min(0).max(MAX_RAIL_MEDIA), index: z.number().int().min(0).max(MAX_RAIL_MEDIA) }),
   z.strictObject({ op: z.literal("item-set"), uid: Uid, props: z.record(z.string(), z.unknown()).optional(), box: Box.nullable().optional() }),
+  // Lot 69 : « Afficher en : Grille / Images qui défilent » : le composant change de forme SUR PLACE (même uid, même rang, même largeur) ;
+  // les nouvelles données sont calculées par l'éditeur (src/blocks/grid-strip.ts) et contrôlées ici comme toute suite de planche.
+  z.strictObject({ op: z.literal("item-convert"), uid: Uid, to: z.enum(["grid", "strip"]), props: z.record(z.string(), z.unknown()) }),
 ]);
 export type BoardOp = z.infer<typeof BoardOpSchema>;
 
@@ -741,6 +745,17 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
           if (!b || (b.width === undefined && b.align === undefined)) delete item.box;
           else item.box = { ...(b.width !== undefined ? { width: b.width } : {}), ...(b.align !== undefined ? { align: b.align } : {}) };
         }
+        return snap;
+      }
+      case "item-convert": {
+        const item = snap.layout.find((i) => i.uid === op.uid);
+        if (!item) return "Ce composant n'est plus sur cette planche.";
+        const target = convertTarget(item);
+        if ("reason" in target) return target.reason;
+        if (target.to !== op.to) return op.to === "strip" ? "Ce composant est déjà en images qui défilent." : "Ce composant est déjà une grille.";
+        // Un carrousel qui devient grille ne peut pas en porter plus que la grille ; une grille garde ses cases.
+        item.type = op.to === "strip" ? "strip" : "grid";
+        item.props = op.props;
         return snap;
       }
       case "project": {

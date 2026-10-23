@@ -4,7 +4,9 @@
  *
  * - `auto` s'affiche « Libre » : le cadre garde le format de l'image, ou celui du cadrage libre posé dessus.
  * - 16:9 et 4:5 ne sont plus proposés, mais restent VALIDES et rendus (contenus déjà enregistrés) : aucune
- *   migration de données, les clés existantes ne changent pas.
+ *   migration de données, les clés existantes ne changent pas. Leur libellé est celui des autres formats (lot 69 :
+ *   jamais de mention « ancien format » à l'écran) ; ils n'apparaissent que sur un réglage qui les porte déjà.
+ * - Un réglage neuf n'en porte jamais : le format par défaut est « Libre » (`auto`), dans le panneau comme dans la fenêtre.
  */
 
 export const FORMAT_KEYS = ["auto", "1:1", "3:4", "2:3", "4:3", "3:2", "2:1", "21:9"] as const;
@@ -22,8 +24,8 @@ export const FORMAT_LABELS: Record<FormatKey, string> = {
   "3:2": "Paysage 3:2",
   "2:1": "Panoramique 2:1",
   "21:9": "Panoramique 21:9",
-  "16:9": "Paysage 16:9 (ancien format)",
-  "4:5": "Portrait 4:5 (ancien format)",
+  "16:9": "Paysage 16:9",
+  "4:5": "Portrait 4:5",
 };
 
 /** Options de la liste de formats ; un ancien format déjà choisi reste affiché tant qu'il est en place. */

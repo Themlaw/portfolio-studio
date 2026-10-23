@@ -224,7 +224,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
           short: "Avec 3 images",
           label: "Grille d'images",
           description: "Trois images côte à côte (l'agencement se change ensuite).",
-          defaults: { layout: "3", ratio: "4:5", children: images(GRID_PATTERN["3"]) },
+          defaults: { layout: "3", ratio: "auto", children: images(GRID_PATTERN["3"]) },
         },
       ],
     }),

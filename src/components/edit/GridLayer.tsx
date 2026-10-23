@@ -17,7 +17,7 @@
  */
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
-import { FORMAT_KEYS, FORMAT_LABELS } from "@/lib/images/formats";
+import { formatOptions } from "@/lib/images/formats";
 import { AUTO_HINT, GRID_LAYOUT_LABELS, GRID_LAYOUTS, JUSTIFY_HINT, keepsShape, KEEP_SHAPE_HINT, type GridLayout } from "@/blocks/grid-layouts";
 import type { GridCanvasOp } from "@/lib/edit/protocol";
 import { FrameControls } from "./FrameMenu";
@@ -171,9 +171,10 @@ function GridSettings({ grid, gref, top, left, onClose }: { grid: HTMLElement; g
           Format des cases
         </span>
         <div className="pe-gs-seg pe-gs-ratios" role="radiogroup" aria-labelledby="pe-gs-ratio" data-testid="gridbar-ratio">
-          {FORMAT_KEYS.map((k) => (
-            <button key={k} type="button" role="radio" aria-checked={ratio === k} data-ratio={k} className="pe-gm-ratio" onClick={() => set({ ratio: k })}>
-              {FORMAT_LABELS[k]}
+          {/* Les mêmes formats que le panneau ; un ancien format déjà choisi (4:5, 16:9) reste coché au lieu de ne rien montrer. */}
+          {formatOptions(ratio).map((o) => (
+            <button key={o.value} type="button" role="radio" aria-checked={ratio === o.value} data-ratio={o.value} className="pe-gm-ratio" onClick={() => set({ ratio: o.value as "auto" })}>
+              {o.label}
             </button>
           ))}
         </div>
