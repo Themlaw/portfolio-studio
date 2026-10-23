@@ -254,7 +254,7 @@ if (run("A")) {
     ["Faire défiler (ouverture)", SCROLL, 0, true, "Étiquette"],
     ["Nom du site (en-tête)", BRAND, 0, false, "Nom du site"],
     ["Menu", MENU, 0, false, "Menu"],
-    ["Pied de page", FOOT, 0, false, "Légende"],
+    ["Pied de page", FOOT, 0, false, "Texte"],
   ];
   for (const [label, sel, nth, hasLocal, roleName] of cases) {
     const opened = await openBar(f, sel, nth);

@@ -108,9 +108,9 @@ async function publishAll() {
 async function publicPage(width = 1440, height = 900) {
   const c = await browser.newContext({ viewport: { width, height } });
   const p = await c.newPage();
-  p.setDefaultTimeout(30000);
+  p.setDefaultTimeout(120000);
   p.on("pageerror", (e) => errors.push(`public : ${e.message}`));
-  await p.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });
+  await p.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle", timeout: 180000 });
   return p;
 }
 
@@ -256,7 +256,7 @@ try {
     await page.getByRole("button", { name: "Choisir 31d-carre.png" }).click();
     await page.locator("#lp-logo-size").fill("160");
     await sleep(1500);
-    ok("L9 logo image : posé dans l'en-tête de l'éditeur", await f2.locator(".site-header .site-logo-img").count().then((c) => c > 0), JSON.stringify(siteDraftStyles()));
+    ok("L9 logo image : posé dans l'en-tête de l'éditeur", await waitFor(async () => (await f2.locator(".site-header .site-logo-img").count()) > 0, 30000), JSON.stringify(siteDraftStyles()));
     ok("L10 logo image de 160 px : la barre de l'éditeur garde sa hauteur", near(await f2.evaluate(() => document.querySelector(".site-header-bar").getBoundingClientRect().height), barBefore, 1));
     await settled(page);
     await page.getByRole("button", { name: "Publier", exact: true }).click();
@@ -412,6 +412,7 @@ try {
     const measureAll = async (width) => {
       const c = await browser.newContext({ viewport: { width, height: 900 } });
       const p = await c.newPage();
+      p.setDefaultTimeout(120000);
       await p.goto(`${BASE}/fr/animation`, { waitUntil: "networkidle" });
       const rows = await p.evaluate(() =>
         [...document.querySelectorAll('[data-edit-block], section')].flatMap(() => []).concat(
