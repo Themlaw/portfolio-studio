@@ -4,7 +4,7 @@
  * base NEUVE (seed), une connexion, accès réseau du SERVEUR à Google Fonts.
  *
  *  A. Poignées d'espacement : glisser (aimanté aux crans), clavier ; rendu.
- *  B. Barre typographique : taille de CE texte ; italique de tous les « Titre 1 »
+ *  B. Barre typographique : taille de CE texte ; italique de tous les titres
  *     (styles du site).
  *  C. Police Google choisie dans le menu : téléchargée par le SERVEUR, servie
  *     par /fonts/, appliquée ; AUCUNE requête du navigateur vers Google.
@@ -190,11 +190,11 @@ if (run("B")) {
     await f.locator(h1).hover();
     await f.locator(".lk-aa").click();
   }
-  await f.locator(".lk-bar [role=radio]", { hasText: "Tous les « Titre 1 »" }).click();
+  await f.locator(".lk-bar [role=radio]", { hasText: "Tous les titres" }).click();
   await f.locator(".lk-bar .tc-italic").click();
   await settled();
-  ok("B5 italique de tous les « Titre 1 » : brouillon du site", (await waitFor(() => setting("siteDraft")?.snap?.styles?.roles?.h1?.italic === true, 20000)), JSON.stringify(setting("siteDraft")?.snap?.styles));
-  ok("B6 rendu : feuille des styles du site (italique)", await until(f, () => (document.getElementById("site-styles")?.textContent ?? "").includes("#contenu h1{font-style:italic}")));
+  ok("B5 italique de tous les titres : brouillon du site (rôle « Titres »)", (await waitFor(() => setting("siteDraft")?.snap?.styles?.roles?.h2?.italic === true, 20000)), JSON.stringify(setting("siteDraft")?.snap?.styles));
+  ok("B6 rendu : feuille des styles du site (italique)", await until(f, () => (document.getElementById("site-styles")?.textContent ?? "").includes("#contenu :is(h1, h2, h3){font-style:italic}")));
   ok("B7 le titre est en italique", await until(f, (s) => getComputedStyle(document.querySelector(s)).fontStyle === "italic", h1));
 }
 
@@ -418,7 +418,7 @@ if (run("H")) {
       ok(`H0 barre ouverte sur ${label}`, false);
       continue;
     }
-    await f.locator(".lk-bar [role=radio]", { hasText: new RegExp(`Tous les « ${role} »|Tous les « ${role.toLowerCase()} »`, "i") }).first().click();
+    await f.locator(".lk-bar [role=radio]", { hasText: role === "Titre 1" ? /Tous les titres/ : new RegExp(`Tous les « ${role} »|Tous les « ${role.toLowerCase()} »`, "i") }).first().click();
     const seen = [];
     for (const [key, css] of Object.entries(SIZE_CSS)) {
       await pickSize(key);

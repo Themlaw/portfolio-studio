@@ -114,8 +114,8 @@ export const PALETTE_DISPLAY: readonly PaletteColor[] = ["bg", "surface", "ink",
 export const ROLES = TEXT_ROLES;
 export type Role = (typeof ROLES)[number];
 export const ROLE_LABELS: Record<Role, string> = {
-  h1: "Titre 1",
-  h2: "Titre 2",
+  h1: "Titre de page",
+  h2: "Titres",
   eyebrow: "Étiquette",
   body: "Texte",
   caption: "Légende",
@@ -123,18 +123,44 @@ export const ROLE_LABELS: Record<Role, string> = {
   brand: "Nom du site",
 };
 /**
- * Éléments visés par chaque rôle (feuille globale). Le menu et le nom du
+ * Éléments visés par chaque rôle (feuille globale) : UN rôle par texte (lot 68). Le menu et le nom du
  * site passent avant les légendes : leurs liens portent aussi `.caption-text`.
+ * « Titres » (h2) est la base de TOUS les titres, titre de page compris ; « Titre de page » (h1) n'en est que l'exception
+ * (déclarée après : elle gagne). La taille de « Titres » ne vise que les titres de section (le titre de page garde la sienne).
  */
 export const ROLE_SELECTORS: Record<Role, string> = {
   h1: "#contenu h1",
-  h2: "#contenu :is(h2, h3)",
+  h2: "#contenu :is(h1, h2, h3)",
   eyebrow: ".eyebrow",
   body: "#contenu :is(p, li):not(.eyebrow, .caption-text, .strip-caption)",
   caption: ":is(.caption-text, figcaption, .strip-caption):not(.site-header *)",
-  menu: ".site-header nav :is(a, a > span)",
+  menu: ".site-header :is(nav a, nav a > span, .text-line, button)",
   brand: ".site-brand",
 };
+/** Rôles dont la TAILLE ne vise qu'une partie des éléments du rôle. */
+export const ROLE_SIZE_SELECTORS: Partial<Record<Role, string>> = { h2: "#contenu :is(h2, h3)" };
+/**
+ * Textes qui prennent la POLICE (graisse, italique, casse, espacement) d'un rôle mais pas sa taille ni sa couleur : boutons,
+ * adresse e-mail, champs du formulaire de contact (ils ont leur propre taille et leur propre fond).
+ */
+export const ROLE_FONT_ONLY_SELECTORS: Partial<Record<Role, string>> = { body: ".btn, .email-link, footer :is(p, a):not(.eyebrow), #contenu :is(a.link-underline, input, textarea, select)" };
+const FONT_PROPS = new Set(["font-family", "font-weight", "font-style", "text-transform", "letter-spacing"]);
+
+/** Règles CSS d'un rôle (déclarations déjà calculées) : éléments du rôle, taille à part, police seule des textes à part. */
+function roleRules(role: Role, decls: [string, string][], prefix: string): string[] {
+  if (!decls.length) return [];
+  const sizeSel = ROLE_SIZE_SELECTORS[role];
+  const own = sizeSel ? decls.filter(([k]) => k !== "font-size") : decls;
+  const size = sizeSel ? decls.filter(([k]) => k === "font-size") : [];
+  const fontOnly = ROLE_FONT_ONLY_SELECTORS[role];
+  const css = (list: [string, string][]) => list.map(([k, v]) => `${k}:${v}`).join(";");
+  const out: string[] = [];
+  if (own.length) out.push(`${prefix}${ROLE_SELECTORS[role]}{${css(own)}}`);
+  if (size.length && sizeSel) out.push(`${prefix}${sizeSel}{${css(size)}}`);
+  const font = fontOnly ? decls.filter(([k]) => FONT_PROPS.has(k)) : [];
+  if (font.length && fontOnly) out.push(`${prefix}${fontOnly}{${css(font)}}`);
+  return out;
+}
 
 export const BACKDROPS = ["none", "shadow", "band", "highlight"] as const;
 export type Backdrop = (typeof BACKDROPS)[number];
@@ -583,16 +609,20 @@ export const LOGO_SIZE_PRESETS = [
   { id: "medium", label: "Moyen", size: 56 },
   { id: "large", label: "Grand", size: 96 },
 ] as const;
-export const LOGO_MODES = ["fixed", "shrink", "overhang"] as const;
-export type LogoMode = (typeof LOGO_MODES)[number];
-export const LOGO_MODE_LABELS: Record<LogoMode, string> = {
+/**
+ * Comportements proposés. « Déborde sous le bandeau » (`overhang`, avant le lot 68) est devenu le comportement de base : la
+ * barre garde TOUJOURS sa hauteur et un logo plus grand qu'elle déborde dessous. L'ancienne valeur reste lisible (données déjà
+ * enregistrées) et se comporte comme « Fixe ».
+ */
+export const LOGO_MODES = ["fixed", "shrink"] as const;
+export type LogoMode = (typeof LOGO_MODES)[number] | "overhang";
+export const LOGO_MODE_LABELS: Record<(typeof LOGO_MODES)[number], string> = {
   fixed: "Fixe",
   shrink: "Grand en haut, réduit au défilement",
-  overhang: "Déborde sous le bandeau",
 };
 export const LogoSchema = z.strictObject({
   size: z.number().int().min(LOGO_SIZE_MIN).max(LOGO_SIZE_MAX).optional(),
-  mode: z.enum(LOGO_MODES).optional(),
+  mode: z.enum([...LOGO_MODES, "overhang"]).optional(),
   mediaId: z.number().int().positive().optional(),
 });
 export type Logo = z.infer<typeof LogoSchema>;
@@ -620,7 +650,7 @@ export function cleanLogo(l: Logo | undefined): Logo | undefined {
   if (!l) return undefined;
   const out: Logo = {};
   if (l.size !== undefined) out.size = l.size;
-  if (l.mode && l.mode !== "fixed") out.mode = l.mode;
+  if (l.mode === "shrink") out.mode = l.mode;
   if (l.mediaId !== undefined) out.mediaId = l.mediaId;
   return Object.keys(out).length ? out : undefined;
 }
@@ -647,7 +677,7 @@ export function siteStylesCss(styles: SiteStyles | undefined, palette?: CardPale
     const boxedTarget = role === "menu" ? ".site-header nav a" : role === "body" ? "#contenu p:not(.eyebrow, .caption-text, .strip-caption)" : null;
     const boxed = boxedTarget ? decls.filter(isBox) : [];
     const plain = boxedTarget ? decls.filter((d) => !isBox(d)) : decls;
-    if (plain.length) rules.push(`${WIN} ${ROLE_SELECTORS[role]}{${plain.map(([k, v]) => `${k}:${v}`).join(";")}}`);
+    rules.push(...roleRules(role, plain, `${WIN} `));
     if (boxed.length && boxedTarget) rules.push(`${WIN} ${boxedTarget}{${boxed.map(([k, v]) => `${k}:${v}`).join(";")}}`);
     if (chosen) rules.push(`${WIN} ${ROLE_SELECTORS[role]}{--user-ink:${chosen[1]}}`);
   }
@@ -656,11 +686,12 @@ export function siteStylesCss(styles: SiteStyles | undefined, palette?: CardPale
 }
 
 /**
- * Feuille du logo (lot 17f). Hauteur `--lh` : la taille réglée (mobile : ×0,75, entre 24 et 64 px).
- * « shrink » : au défilement (`data-scrolled` sur l'en-tête, posé par SiteHeader) elle passe à 60 %
- * (24 px au moins). La hauteur de la barre suit celle du logo et une marge basse égale à ce que la barre
- * a perdu garde le contenu en place : aucun décalage de mise en page pendant la transition.
- * « overhang » : barre à hauteur fixe, le logo (aligné en haut) dépasse sous elle.
+ * Feuille du logo (lot 17f, refaite au lot 68). Hauteur `--lh` : la taille réglée (mobile : ×0,75, entre 24 et 64 px).
+ * La hauteur de la BARRE ne dépend plus de celle du logo : elle garde la hauteur qu'elle avait sans réglage (`--bh`, la rangée
+ * naturelle : nom en texte, signature du kit ou image), quelle que soit la taille choisie. Un logo plus grand que cette rangée
+ * déborde SOUS la barre, par-dessus le contenu (sa place dans la mise en page est la rangée naturelle : marge basse négative) ;
+ * un logo plus petit est centré dans la rangée. Le contenu ne bouge jamais.
+ * « shrink » : au défilement (`data-scrolled` sur l'en-tête, posé par SiteHeader) le logo passe à 60 % (24 px au moins).
  * Les transitions n'existent que si l'utilisateur ne demande pas moins de mouvement.
  * Posée AVANT les styles de rôle : une taille réglée sur « Nom du site » passe devant celle du logo.
  * Aucun réglage = chaîne vide : le rendu est exactement celui du thème.
@@ -671,27 +702,25 @@ export function logoCss(logo: Logo | undefined): string {
   const l = cleanLogo(parsed.data);
   if (!l) return "";
   const size = l.size ?? LOGO_SIZE_DEFAULT;
-  const mode = l.mode ?? "fixed";
   const H = `${WIN} .site-header`;
-  const row = mode === "overhang" ? "var(--lb)" : "max(var(--lh),2rem)";
-  const rowTop = mode === "overhang" ? "var(--lb)" : "max(var(--lh-top),2rem)";
   const rules = [
-    // Variables sur :root (l'ouverture de la page en a besoin : --header-h = hauteur de l'en-tête au repos).
-    `${WIN}{--lg:${size};--bp:1rem;--lb:2.5rem;--lh-top:clamp(24px,calc(var(--lg)*.75px),64px);--lh-min:max(24px,calc(var(--lh-top)*.6));--header-h:calc(${rowTop} + 2*var(--bp))}`,
-    `@media (min-width:48rem){${WIN}{--bp:1.25rem;--lh-top:calc(var(--lg)*1px)}}`,
+    // --bh : rangée naturelle de l'en-tête sans réglage (nom en texte 1,125 / 1,25 rem ; signature du kit 2,25 / 2,6 rem).
+    `${WIN}{--lg:${size};--bp:1rem;--bh:1.125rem;--lh-top:clamp(24px,calc(var(--lg)*.75px),64px);--lh-min:max(24px,calc(var(--lh-top)*.6))}`,
+    `${WIN}[data-kit-signature]{--bh:2.25rem}`,
+    `@media (min-width:48rem){${WIN}{--bp:1.25rem;--bh:1.25rem;--lh-top:calc(var(--lg)*1px)}${WIN}[data-kit-signature]{--bh:2.6rem}}`,
     `${H}{--lh:var(--lh-top)}`,
   ];
-  if (mode === "shrink") rules.push(`${H}[data-scrolled]{--lh:var(--lh-min)}`);
+  if (l.mode === "shrink") rules.push(`${H}[data-scrolled]{--lh:var(--lh-min)}`);
   rules.push(
-    `${H}{margin-bottom:calc(${rowTop} - ${row})}`,
-    `${H} .site-header-bar{height:calc(${row} + 2*var(--bp))}`,
-    `${WIN} .site-brand{display:flex;align-items:center;height:var(--lh);min-width:0;max-width:60vw;font-size:calc(var(--lh)*.5)${mode === "overhang" ? ";align-self:flex-start" : ""}}`,
+    // La barre ne descend jamais sous sa rangée naturelle ; le logo, lui, n'y compte que pour cette rangée (marge basse négative s'il est plus grand).
+    `${H} .site-header-bar{min-height:calc(var(--bh) + 2*var(--bp))}`,
+    `${WIN} .site-brand{display:flex;align-items:center;height:var(--lh);margin-bottom:min(0px,calc(var(--bh) - var(--lh)));min-width:0;max-width:60vw;font-size:calc(var(--lh)*.5)}`,
+    // Le menu ne passe jamais à la ligne (la barre ne grandirait pas pour autant, mais il se lirait mal) : c'est le nom en texte qui cède de la place.
+    `${H} nav,${H} .site-header-bar>div{flex-shrink:0}${H} nav a,${H} button{white-space:nowrap}`,
     `${WIN} .site-brand-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`,
     `${WIN} .site-signature{height:var(--lh);max-width:100%}`,
     `${WIN} .site-logo-img{height:var(--lh);max-width:100%}`,
-    // En-tête centré (nom au-dessus, menu dessous) : la barre garde sa hauteur naturelle.
-    `@media (min-width:48rem){${WIN}[data-header="centered"]{--header-h:calc(var(--lh-top) + 3.2rem)}${WIN}[data-header="centered"] .site-header{margin-bottom:${mode === "overhang" ? "0" : "calc(var(--lh-top) - var(--lh))"}}${WIN}[data-header="centered"] .site-header-bar{height:auto}${WIN}[data-header="centered"] .site-brand{align-self:auto}}`,
-    `@media (prefers-reduced-motion:no-preference){${H}{transition-property:background-color,box-shadow,backdrop-filter,margin-bottom}${H} .site-header-bar,${WIN} .site-signature,${WIN} .site-logo-img{transition:height .5s var(--ease-soft)}${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft)}}`,
+    `@media (prefers-reduced-motion:no-preference){${WIN} .site-signature,${WIN} .site-logo-img{transition:height .5s var(--ease-soft)}${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft),margin-bottom .5s var(--ease-soft)}}`,
   );
   return rules.join("\n");
 }
@@ -708,8 +737,7 @@ export function themeTypeCss(theme: Pick<Theme, "tokens">): string {
   for (const role of ["body", "caption", "eyebrow", "h2", "h1", "menu", "brand"] as Role[]) {
     const t = type[role];
     if (!t) continue;
-    const decls = textStyleDecls({ ...t, font: t.font ? `theme:${t.font}` : undefined });
-    if (decls.length) rules.push(`${ROLE_SELECTORS[role]}{${decls.map(([k, v]) => `${k}:${v}`).join(";")}}`);
+    rules.push(...roleRules(role, textStyleDecls({ ...t, font: t.font ? `theme:${t.font}` : undefined }), ""));
   }
   return rules.join("\n").replace(/</g, "\\3c ");
 }

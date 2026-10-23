@@ -456,7 +456,15 @@ function TextBar({
   const oldBackdrop = target.local?.key === "site.role" ? look.roleBackdrop : undefined;
   const legacyBackdrop = oldBackdrop && oldBackdrop !== "highlight" ? oldBackdrop : undefined;
   const localStyle: TextStyle = target.local ? { ...(legacyBackdrop ? { backdrop: legacyBackdrop } : {}), ...(look.text?.[target.local.key] ?? {}) } : {};
-  const roleStyle = siteStyles().roles?.[target.role] ?? {};
+  // « Titres » : le titre de page et les titres de section partagent UN réglage (lot 68) ; le titre de page n'a son propre style que s'il en a posé un.
+  const role: Role = target.role === "h1" ? "h2" : target.role;
+  const roleStyle: TextStyle = (() => {
+    const roles = siteStyles().roles ?? {};
+    // Depuis un titre de page : le réglage commun des titres, avec la taille du titre de page.
+    if (target.role !== "h1") return roles[role] ?? {};
+    const out = { ...(roles.h2 ?? {}), ...(roles.h1?.size ? { size: roles.h1.size } : { size: undefined }), ...(roles.h1?.scale ? { scale: roles.h1.scale } : { scale: undefined }) };
+    return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined)) as TextStyle;
+  })();
   const value = scope === "local" ? localStyle : roleStyle;
   const change = (input: TextStyle | undefined) => {
     let next = input;
@@ -472,8 +480,29 @@ function TextBar({
       // Aperçu immédiat sur ce texte.
       previewTextStyle(target.local, next, seq);
     } else {
-      const seq = postIntent({ kind: "site-style", role: target.role, style: next ?? null });
-      previewRole(target.role, next, seq);
+      // « Titres » (lot 68) : police, graisse, couleur… sont UN réglage pour le titre de page et les titres de section ; seule la TAILLE
+      // reste propre à chacun (le titre de page est plus grand). Depuis un titre de page, la taille va donc à « Titre de page ».
+      const roles = siteStyles().roles ?? {};
+      const post = (r: Role, style: TextStyle | undefined) => {
+        const seq = postIntent({ kind: "site-style", role: r, style: style ?? null });
+        previewRole(r, style, seq);
+      };
+      const clean = (s: TextStyle): TextStyle | undefined => {
+        const out = Object.fromEntries(Object.entries(s).filter(([, v]) => v !== undefined)) as TextStyle;
+        return Object.keys(out).length ? out : undefined;
+      };
+      const SIZE_KEYS = ["size", "scale"];
+      const changed = (Object.keys({ ...roleStyle, ...(next ?? {}) }) as (keyof TextStyle)[]).filter((k) => !SIZE_KEYS.includes(k) && JSON.stringify(roleStyle[k]) !== JSON.stringify(next?.[k]));
+      const withoutChanged = (s: TextStyle | undefined) => Object.fromEntries(Object.entries(s ?? {}).filter(([k]) => !(changed as string[]).includes(k))) as TextStyle;
+      if (target.role === "h1") {
+        const { size, scale, ...shared } = next ?? {};
+        post("h2", clean({ ...shared, size: roles.h2?.size, scale: roles.h2?.scale }));
+        post("h1", clean({ ...withoutChanged(roles.h1), size, scale }));
+      } else {
+        post(role, next);
+        // Un style propre du titre de page ne doit pas empêcher « tous les titres » de changer : ce qu'on vient de régler lui est retiré.
+        if (role === "h2" && roles.h1 && changed.some((k) => k in roles.h1!)) post("h1", clean(withoutChanged(roles.h1)));
+      }
     }
   };
   const below = avoid ? avoid.below : r.top - window.scrollY < 150;
@@ -495,7 +524,7 @@ function TextBar({
             </button>
           )}
           <button type="button" role="radio" aria-checked={scope === "role"} onClick={() => setScope("role")} title="Styles du site : toutes les pages (publié avec la page)">
-            Tous les « {ROLE_LABELS[target.role]} »
+            {role === "h2" ? "Tous les titres" : `Tous les « ${ROLE_LABELS[role]} »`}
           </button>
         </span>
         <button type="button" className="lk-close" aria-label="Fermer la barre" onClick={onClose}>
@@ -511,7 +540,7 @@ function TextBar({
         compact
         resetLabel={scope === "local" ? "Revenir au style global" : "Revenir au thème"}
         palette={canvasPalette()}
-        backdropBlocked={BACKDROP_BLOCKED[target.role]}
+        backdropBlocked={BACKDROP_BLOCKED[role]}
         inheritedColor={scope === "local" ? roleStyle.color : undefined}
       />
     </div>

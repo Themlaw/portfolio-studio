@@ -247,8 +247,8 @@ for (const k of ["bg", "ink", "primary", "secondary", "tertiary", "on-primary"])
 if (run("A")) {
   const cases = [
     ["Étiquette (ouverture)", EYEBROW, 0, true, "Étiquette"],
-    ["Titre 1 / nom (ouverture)", NAME, 0, true, "Titre 1"],
-    ["Titre 2", H2, 0, true, "Titre 2"],
+    ["Titre 1 / nom (ouverture)", NAME, 0, true, "titres"],
+    ["Titre 2", H2, 0, true, "titres"],
     ["Paragraphe", INTRO, 0, true, "Texte"],
     ["Légende (métier)", ROLE, 0, true, "Légende"],
     ["Faire défiler (ouverture)", SCROLL, 0, true, "Étiquette"],

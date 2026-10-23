@@ -208,7 +208,13 @@ ok("styles du site : rôle inconnu refusé", !SiteStylesSchema.safeParse({ roles
 const css = siteStylesCss(styles);
 ok("feuille : arrondi du site", css.includes(":root{--media-radius:0px}"));
 ok("feuille : Titre 1", css.includes('#contenu h1{font-family:"Inter", ui-sans-serif, system-ui, sans-serif;font-weight:700}'), css);
-ok("feuille : menu après légendes (le dernier gagne)", css.indexOf(".site-header nav") > css.indexOf(".caption-text"));
+ok("feuille : menu après légendes (le dernier gagne)", css.indexOf(".site-header :is(nav a") > css.indexOf(".caption-text"));
+// Lot 68 : « Titres » = tous les titres (titre de page compris), taille des seuls titres de section ; police du texte jusqu'aux boutons.
+const roles68 = siteStylesCss({ roles: { h2: { font: "g:Inter", size: "l", weight: 700 }, body: { font: "g:Inter", size: "l", color: "ink" } } });
+ok("feuille : « Titres » vise le titre de page ET les titres de section", roles68.includes("#contenu :is(h1, h2, h3){font-family:"), roles68);
+ok("feuille : la taille de « Titres » ne vise que les titres de section", /#contenu :is\(h2, h3\)\{font-size:/.test(roles68) && !/#contenu :is\(h1, h2, h3\)\{[^}]*font-size/.test(roles68), roles68);
+ok("feuille : « Titre de page » passe après « Titres » (l'exception gagne)", siteStylesCss({ roles: { h1: { italic: true }, h2: { italic: false } } }).indexOf("#contenu h1{") > siteStylesCss({ roles: { h1: { italic: true }, h2: { italic: false } } }).indexOf(":is(h1, h2, h3)"));
+ok("feuille : boutons, e-mail et pied de page prennent la POLICE du texte, ni sa taille ni sa couleur", /\.btn, \.email-link[^{]*\{font-family:[^;}]*\}/.test(roles68), roles68);
 ok("feuille : styles invalides → vide", siteStylesCss({ roles: { h1: { color: "</style><script>" } } }) === "");
 ok("feuille : jamais de « < »", !siteStylesCss(styles).includes("<"));
 ok("nettoyage des styles : rôles vides retirés", JSON.stringify(cleanSiteStyles({ roles: { h1: {}, h2: { italic: true } } })) === '{"roles":{"h2":{"italic":true}}}');

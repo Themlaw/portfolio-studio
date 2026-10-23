@@ -42,7 +42,7 @@ ok("palette : « auto » refusé pour une base", !SitePaletteSchema.safeParse({ 
 ok("palette : les six bases acceptées", SitePaletteSchema.safeParse({ bg: "#000000", surface: "#000000", ink: "#000000", primary: "#000000", secondary: "#000000", tertiary: "#000000" }).success);
 ok("logo : bornes de taille", LogoSchema.safeParse({ size: LOGO_SIZE_MIN }).success && LogoSchema.safeParse({ size: LOGO_SIZE_MAX }).success && !LogoSchema.safeParse({ size: LOGO_SIZE_MIN - 1 }).success && !LogoSchema.safeParse({ size: LOGO_SIZE_MAX + 1 }).success);
 ok("logo : taille entière", !LogoSchema.safeParse({ size: 40.5 }).success && !LogoSchema.safeParse({ size: "40" }).success);
-ok("logo : trois comportements, aucun autre", LOGO_MODES.length === 3 && LOGO_MODES.every((m) => LogoSchema.safeParse({ mode: m }).success) && !LogoSchema.safeParse({ mode: "sticky" }).success);
+ok("logo : deux comportements proposés (+ l'ancien « overhang » encore lu), aucun autre", LOGO_MODES.length === 2 && [...LOGO_MODES, "overhang"].every((m) => LogoSchema.safeParse({ mode: m }).success) && !LogoSchema.safeParse({ mode: "sticky" }).success);
 ok("logo : clé inconnue refusée", !LogoSchema.safeParse({ size: 40, width: 3 }).success);
 ok("styles du site : palette et logo acceptés", SiteStylesSchema.safeParse({ palette: { bg: "#ffffff" }, logo: { size: 80, mode: "shrink" } }).success);
 ok("snapshot du site : porte la palette et le logo", SiteSnapSchema.safeParse({ identity: { name: { fr: "A", en: "" }, role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } }, nav: [], socials: [], styles: { palette: { ink: "#101010" }, logo: { size: 64 } } }).success);
@@ -50,7 +50,7 @@ ok("snapshot du site : porte la palette et le logo", SiteSnapSchema.safeParse({ 
 /* ---- Forme canonique (un brouillon identique au publié ne doit pas ressembler à une modification) ------ */
 ok("logo : « Fixe » seul = aucun réglage", cleanLogo({ mode: "fixed" }) === undefined && cleanLogo({}) === undefined);
 ok("logo : taille + Fixe → taille seule", JSON.stringify(cleanLogo({ size: 72, mode: "fixed" })) === JSON.stringify({ size: 72 }));
-ok("logo : comportement gardé", cleanLogo({ mode: "overhang" })?.mode === "overhang");
+ok("logo : « Réduit » gardé, l'ancien « overhang » devient « Fixe » (comportement de base depuis le lot 68)", cleanLogo({ mode: "shrink" })?.mode === "shrink" && cleanLogo({ mode: "overhang" }) === undefined && JSON.stringify(cleanLogo({ size: 90, mode: "overhang" })) === JSON.stringify({ size: 90 }));
 ok("palette vide = aucun réglage", cleanSitePalette({}) === undefined);
 ok("styles : palette et logo vides disparaissent", cleanSiteStyles({ palette: {}, logo: { mode: "fixed" } }) === undefined);
 ok("styles : palette et logo gardés", JSON.stringify(cleanSiteStyles({ palette: { bg: "#ffffff" }, logo: { size: 90 } })) === JSON.stringify({ palette: { bg: "#ffffff" }, logo: { size: 90 } }));
@@ -59,17 +59,18 @@ ok("styles : palette et logo gardés", JSON.stringify(cleanSiteStyles({ palette:
 ok("logo : aucun réglage → aucune règle (rendu du thème)", logoCss(undefined) === "" && logoCss({}) === "" && logoCss({ mode: "fixed" }) === "");
 const fixed = logoCss({ size: 80 });
 ok("logo fixe : taille posée sur l'en-tête", fixed.includes(":root:root:root{--lg:80") && fixed.includes(":root:root:root .site-header{--lh:var(--lh-top)}"));
-ok("logo fixe : hauteur du logo et de la barre", fixed.includes(".site-signature{height:var(--lh)") && fixed.includes(".site-header-bar{height:calc("));
+ok("logo fixe : hauteur du logo ; la barre garde sa rangée naturelle (min-height), jamais celle du logo", fixed.includes(".site-signature{height:var(--lh)") && fixed.includes(".site-header-bar{min-height:calc(var(--bh) + 2*var(--bp))}") && !fixed.includes(".site-header-bar{height:"));
 ok("logo : mobile proportionnel et plafonné (24–64 px)", fixed.includes("clamp(24px,calc(var(--lg)*.75px),64px)"));
 ok("logo fixe : pas de réduction au défilement", !fixed.includes("[data-scrolled]"));
 const shrink = logoCss({ size: 120, mode: "shrink" });
 const hang = logoCss({ size: 120, mode: "overhang" });
-ok("logo : --header-h suit la hauteur de l'en-tête au repos (ouverture de la page)", fixed.includes("--header-h:calc(max(var(--lh-top),2rem) + 2*var(--bp))") && hang.includes("--header-h:calc(var(--lb) + 2*var(--bp))"));
+ok("logo : la page ne bouge pas (--header-h du thème gardé), rangée naturelle du nom, de la signature du kit", !fixed.includes("--header-h") && fixed.includes("--bh:1.125rem") && fixed.includes("[data-kit-signature]{--bh:2.25rem}") && fixed.includes("[data-kit-signature]{--bh:2.6rem}"));
 ok("logo réduit : état défilé posé par l'en-tête", shrink.includes("[data-scrolled]{--lh:var(--lh-min)}") && shrink.includes("--lh-min:max(24px,calc(var(--lh-top)*.6))"));
-ok("logo réduit : marge basse compense la hauteur perdue (aucun décalage)", shrink.includes("margin-bottom:calc(max(var(--lh-top),2rem) - max(var(--lh),2rem))"));
-ok("logo débordant : barre à hauteur fixe, logo aligné en haut", hang.includes("align-self:flex-start") && hang.includes(".site-header-bar{height:calc(var(--lb) + 2*var(--bp))}") && !hang.includes("[data-scrolled]"));
+ok("logo plus grand que la barre : il déborde dessous (marge basse négative), la mise en page ne suit que la rangée naturelle", fixed.includes(".site-brand{display:flex;align-items:center;height:var(--lh);margin-bottom:min(0px,calc(var(--bh) - var(--lh)))") && shrink.includes("margin-bottom:min(0px,calc(var(--bh) - var(--lh)))"));
+ok("logo : l'ancien « overhang » donne la même feuille que « Fixe »", hang === logoCss({ size: 120 }) && !hang.includes("[data-scrolled]"));
+ok("logo : le menu ne passe pas à la ligne (la barre ne grandit pas)", fixed.includes("nav a,") && fixed.includes("white-space:nowrap"));
 ok("logo : transitions seulement sans demande de mouvement réduit", [fixed, shrink, hang].every((c) => { const at = c.indexOf("@media (prefers-reduced-motion:no-preference)"); return at > 0 && c.indexOf("transition") > at && !c.slice(0, at).includes("transition"); }));
-ok("logo : en-tête centré géré", shrink.includes('[data-header="centered"] .site-header-bar{height:auto}'));
+ok("logo : en-tête centré : même règle (la rangée naturelle, pas de hauteur forcée)", !shrink.includes("[data-header=\"centered\"]") && !shrink.includes(".site-header-bar{height:"));
 ok("logo : jamais de « < » ni de point-virgule libre", ![fixed, shrink, hang].some((c) => c.includes("<")));
 ok("logo : valeur invalide → feuille vide", logoCss({ size: 9999 }) === "" && logoCss({ mode: "x;}" }) === "");
 ok("styles de rôle inchangés : la feuille des rôles ne porte pas le logo", !siteStylesCss({ logo: { size: 90 }, palette: { bg: "#ffffff" } }).includes("--lg"));

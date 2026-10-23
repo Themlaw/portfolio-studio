@@ -8,7 +8,7 @@ import ViewerScope from "@/components/ViewerScope";
 import { RATIO_VALUES } from "@/lib/images/formats";
 import { cropSources } from "@/lib/images/crop";
 import { signCrop } from "@/lib/images/crop-cache";
-import { resolveCrop } from "@/lib/images/crop-view";
+import { resolveCrop, viewerRect } from "@/lib/images/crop-view";
 import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { ORIGINALS_PREFIX } from "@/lib/images/variants";
 import { getMedia, mediaUrl } from "@/lib/media";
@@ -92,6 +92,10 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
         : "100vw";
   const caption = props.caption ? tr(props.caption, ctx.locale) : "";
   // Cliquer pour agrandir (lot 44) : public et Aperçu seulement (la toile et la planche en édition gardent le clic pour éditer).
+  // Visionneuse (lot 68) : le cadrage de la page, en grand. Même variante que la page quand le cadrage est le sien, sinon (format imposé
+  // peu rogné) la fenêtre que la page affiche en CSS ; l'image entière quand rien n'est rogné.
+  const vRect = image && raster ? viewerRect(crop, natural, box, cover) : null;
+  const vCrop = image && vRect ? (cropped && resolved ? cropped : cropSources({ id: image.id, width: image.width!, height: image.height! }, vRect, signCrop, mediaUrl, image.sources?.color ?? null)) : null;
   const zoomable = Boolean(image) && !canvas && !ctx.inlineEdit && props.zoom !== false && (!ctx.cell || ctx.cellViewer === true);
   const viewer =
     zoomable && image
@@ -99,10 +103,11 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
           {
             id: `media-${image.id}`,
             image: image.url,
-            sources: image.sources ?? undefined,
+            sources: (vCrop ? vCrop.sources : image.sources) ?? undefined,
             alt: image.alt ? tr(image.alt, ctx.locale) : caption,
-            width: image.width ?? 1200,
-            height: image.height ?? 800,
+            width: vCrop ? vCrop.width : (image.width ?? 1200),
+            height: vCrop ? vCrop.height : (image.height ?? 800),
+            ...(vCrop && vRect && image.sources ? { fallback: { src: image.url, sources: image.sources, width: image.width ?? 1200, height: image.height ?? 800, rect: vRect } } : {}),
             title: props.captionTitle ? tr(props.captionTitle, ctx.locale) : "",
             description: caption,
             date: props.captionDate ? tr(props.captionDate, ctx.locale) : undefined,
