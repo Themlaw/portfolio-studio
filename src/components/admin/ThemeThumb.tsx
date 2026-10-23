@@ -11,7 +11,8 @@ import type { Theme } from "@/themes/schema";
  */
 export default function ThemeThumb({ theme, src }: { theme: Theme; src?: string | null }) {
   if (src) {
-    return <img className="a-theme-thumb" src={src} alt="" width={480} height={300} loading="lazy" decoding="async" />;
+    // Aplat du fond du thème tant que l'image n'est pas arrivée (jamais un rectangle blanc vide).
+    return <img className="a-theme-thumb" src={src} alt="" width={480} height={300} loading="lazy" decoding="async" style={{ background: theme.tokens.color.bg }} />;
   }
   const c = theme.tokens.color;
   const f = theme.tokens.font;

@@ -14,8 +14,10 @@ export default function PaperSettings({ theme, onChange }: { theme: Theme; onCha
   const paper = kit.paper;
   return (
     <section className="a-panel" aria-labelledby="t-papier">
-      <h2 id="t-papier">Papier dessiné</h2>
-      <label className="a-check">
+      <h3 id="t-papier" className="a-subhead">
+        Papier dessiné
+      </h3>
+      <label className="a-guide-check">
         <input
           type="checkbox"
           checked={paper.underHeader === true}
@@ -33,7 +35,7 @@ export default function PaperSettings({ theme, onChange }: { theme: Theme; onCha
         Décoché (par défaut) : le bandeau collant du haut est un aplat de la couleur de fond, la tuile couvre le reste du site. Coché : la tuile passe
         aussi derrière la navigation.
       </p>
-      <label className="a-check">
+      <label className="a-guide-check">
         <input
           type="checkbox"
           checked={paper.onCards === true}

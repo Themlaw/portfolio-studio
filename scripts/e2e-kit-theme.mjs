@@ -22,6 +22,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { gotoThemesPage } from "./lib/theme-live.mjs";
 import { chromium } from "playwright";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
@@ -48,6 +49,9 @@ const themeData = (id) =>
     tsx(`import { getDb, schema } from "./src/lib/db/index.ts"; import { eq } from "drizzle-orm";
      console.log(getDb().select().from(schema.themes).where(eq(schema.themes.id, ${JSON.stringify(id)})).get()?.data ?? "null");`),
   );
+
+const mineId = () => tsx(`import { getDb, schema } from "./src/lib/db/index.ts"; import { eq } from "drizzle-orm";
+     console.log(getDb().select().from(schema.themes).where(eq(schema.themes.mine, true)).get()?.id ?? "");`).trim().split("\n").pop();
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -102,14 +106,14 @@ ok("B1 revue : plus de section « Couleurs de la palette » (la palette sort du 
 
 // B2 : thème visé annoncé, Studio par défaut (thème d'origine du kit), pas Pro.
 const baseSel = page.locator('[data-testid="kit-base-select"]');
-ok("B2 revue : le thème visé est affiché et vaut Studio (thème d'origine du kit)", (await baseSel.count()) === 1 && (await baseSel.inputValue()) === "studio", `${await baseSel.count()}`);
+ok("B2 revue : la cible est annoncée (lot 60 : Mon thème, créé à partir de Studio, thème d'origine du kit)", (await page.locator('[data-testid="kit-base"]').count()) === 1 && /Studio/.test((await page.locator('[data-testid="kit-base"]').textContent()) ?? ""), (await page.locator('[data-testid="kit-base"]').textContent().catch(() => "")) ?? "");
 ok("B2 revue : kit d'origine reconnu malgré l'écran de Pro (élément inchangé)", cards.filter((c) => c.change === "unchanged").length >= 1, JSON.stringify(cards.map((c) => c.change)));
 
-await Promise.all([page.waitForURL(/\/admin\/themes\/[a-z0-9-]*-kit[a-z0-9-]*$/, { timeout: 60000 }), page.getByRole("button", { name: "Appliquer au thème" }).click()]);
-const draftId = page.url().split("/").pop();
+await Promise.all([page.waitForURL(/\/admin\/themes\?nouvelle=\d+&via=kit/, { timeout: 60000 }), page.getByRole("button", { name: /^Appliquer à mon thème/ }).click()]);
+const draftId = mineId();
 created.push(draftId);
 const data = themeData(draftId);
-ok("B2 copie : partie de Studio (nom, variantes gardées, pas de scotch)", /^Studio/.test(data?.name ?? "") && data.variants.strip === "edge" && !data.assets?.kit?.tape, JSON.stringify({ name: data?.name, v: data?.variants }));
+ok("B2 Mon thème : parti de Studio (variantes gardées, pas de scotch)", data.variants.strip === "edge" && !data.assets?.kit?.tape, JSON.stringify({ name: data?.name, v: data?.variants }));
 const studio = themeData("studio");
 ok("B1 copie : couleurs de Studio inchangées (le kit ne porte plus de palette)", JSON.stringify(data?.tokens?.color) === JSON.stringify(studio?.tokens?.color), JSON.stringify(data?.tokens?.color));
 ok("B1 copie : logo redessiné rangé (réduit de moitié : 1200 px de large au plus)", Boolean(data?.assets?.kit?.signature) && data.assets.kit.signature.w <= 1200 && data.assets.kit.signature.h <= 300, JSON.stringify(data?.assets?.kit?.signature));
@@ -117,7 +121,7 @@ ok("B5 copie : décor d'ouverture (calques du hero) = celui de Studio, aucun pla
 ok("B7 copie : papier présent (tuile réduite à 512 × 512), pas sous le bandeau (défaut)", Boolean(data?.assets?.kit?.paper) && !data.assets.kit.paper.underHeader && data.assets.kit.paper.image.w === 512, JSON.stringify(data?.assets?.kit?.paper));
 
 /* ---- Aperçu de l'accueil : bandeau, papier, logo -------------------------- */
-await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+await gotoThemesPage(page, BASE);
 await page.evaluate((id) => {
   const f = document.createElement("form");
   f.method = "post";
@@ -143,7 +147,7 @@ const bodyImg = await page.$eval("body", (b) => getComputedStyle(b).backgroundIm
 ok("B7 accueil : le papier couvre toujours le fond de la page", /url|image-set/.test(bodyImg), bodyImg);
 
 // Option « Papier sous le bandeau » (éditeur de thème) : la tuile revient.
-await page.goto(`${BASE}/admin/themes/${draftId}`, { waitUntil: "networkidle" });
+await page.goto(`${BASE}/admin/themes/${draftId}?etape=papier`, { waitUntil: "networkidle" });
 const toggle = page.locator('[data-testid="paper-under-header"]');
 ok("B7 éditeur : option « Papier sous le bandeau du haut », décochée par défaut", (await toggle.count()) === 1 && !(await toggle.isChecked()));
 if (await toggle.count()) {
@@ -175,7 +179,7 @@ if (await toggle.count()) {
 }
 
 // Liste des thèmes : lequel est en ligne saute aux yeux.
-await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+await gotoThemesPage(page, BASE);
 await page.screenshot({ path: `${SHOTS}/liste-themes-1440.png`, fullPage: true });
 ok("B2 liste : un seul thème « En ligne » (badge) et une phrase qui le nomme", (await page.locator('[data-testid="theme-live"]').count()) === 1 && /Thème en ligne : /.test((await page.locator('[data-testid="theme-live-banner"]').textContent().catch(() => "")) ?? ""));
 

@@ -23,6 +23,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 import { installKitFrameTheme } from "./lib/cadres62.mjs";
+import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 import { boardDraft, draftBlocks, login, makeMedia, pageIdOf, q1, setBoardDraft, setDraft, sleep, sql, waitFor } from "./lib/grille31d.mjs";
 import { ensureVideos } from "./lib/video36.mjs";
 
@@ -185,7 +186,7 @@ if (run("K"))
     const c = await shown(fr, PHOTO);
     ok("K4 toile : même rendu que le public (parité)", c.map((x) => x.kind).join() === s.map((x) => x.kind).join(), JSON.stringify(c.map((x) => x.kind)));
     // Écran Thèmes : le réglage, sur Non.
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    await gotoThemesPage(page, BASE);
     const panel = page.locator('[data-testid="frame-all-setting"]');
     ok("K5 écran Thèmes : « Cadre du thème sur toutes les photos » est proposé (le thème en ligne dessine un cadre)", await panel.isVisible() && /Cadre du thème sur toutes les photos/.test((await panel.textContent()) ?? ""));
     ok("K5b … sur « Non » (non par défaut, y compris pour un site existant)", (await panel.locator('[data-testid="frame-all-off"]').getAttribute("aria-checked")) === "true" && (await panel.locator('[data-testid="frame-all-on"]').getAttribute("aria-checked")) === "false");
@@ -276,7 +277,7 @@ if (run("E"))
  * S. Réglage du site
  * ========================================================================================================================== */
 async function setFrameAll(on) {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoThemesPage(page, BASE);
   const panel = page.locator('[data-testid="frame-all-setting"]');
   await panel.locator(`[data-testid="frame-all-${on ? "on" : "off"}"]`).click();
   await waitFor(() => Boolean(q1("select value from settings where key = 'themeFrameAll'")) === on, 20000);
@@ -602,14 +603,10 @@ if (run("B"))
  * ========================================================================================================================== */
 if (run("T"))
   await section("T", async () => {
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-    // Un thème livré (sans kit) en ligne : « Mettre en ligne » sur sa carte.
-    const card = page.locator('section[aria-labelledby="theme-studio"]');
-    await card.getByRole("button", { name: "Mettre en ligne" }).click();
-    await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
-    await page.locator("dialog[open]").waitFor({ state: "detached" });
+    // Un modèle (sans kit) en ligne (lot 60 : « Utiliser ce modèle » puis « Publier » : Mon thème).
+    await activateThemeUi(page, BASE, "studio");
     await sleep(2000);
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    await gotoThemesPage(page, BASE);
     ok("T1 thème sans cadre dessiné en ligne : le réglage « Cadre du thème sur toutes les photos » n'est pas proposé", (await page.locator('[data-testid="frame-all-setting"]').count()) === 0);
     const { done } = await publish(PHOTOS, photoBlocks());
     ok("T0 page publiée", done);

@@ -160,5 +160,5 @@ export const VARIANT_LABELS: Record<string, { title: string; help: string; optio
   caption: { title: "Légendes", help: "Le style du texte sous les images.", options: { "mono-split": "Technique", handwritten: "Manuscrite" } },
   lightbox: { title: "Visionneuse", help: "L'affichage d'une image agrandie.", options: { "passe-partout": "Passe-partout", "full-bleed": "Plein écran" } },
   button: { title: "Boutons", help: "La forme des boutons.", options: { pill: "Arrondis", square: "Droits" } },
-  texture: { title: "Texture du fond", help: "Un grain discret sur le fond, ou rien.", options: { none: "Aucune", "paper-dots": "Papier pointillé" } },
+  texture: { title: "Fond du site", help: "Un fond uni, ou un papier pointillé discret.", options: { none: "Fond uni", "paper-dots": "Papier pointillé" } },
 };

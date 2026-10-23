@@ -7082,3 +7082,170 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ---- Mon thème, modèles, versions (lot 60) ---- */
+.a-themes-section {
+  margin: 20px 0 28px;
+}
+
+.a-themes-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.a-olds > summary {
+  cursor: pointer;
+}
+
+.a-olds > summary .a-themes-title {
+  display: inline;
+}
+
+/* Vignette réelle : la vraie page d'accueil (cadre de 1280 × 800 réduit par transform, voir LiveThumb). */
+.a-live-thumb {
+  position: relative;
+  background: var(--admin-surface, #fff);
+}
+
+.a-live-thumb iframe {
+  position: absolute;
+  inset: 0 auto auto 0;
+  border: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+  background: #fff;
+  transition: opacity 0.2s;
+}
+
+/* Fond provisoire : la maquette du thème (aplats de ses couleurs) sous l'iframe, jamais un rectangle blanc pendant le chargement. */
+.a-live-thumb-sk {
+  position: absolute;
+  inset: 0;
+}
+
+.a-live-thumb-sk > .a-theme-thumb {
+  height: 100%;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.a-mine-card {
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
+  gap: 8px 20px;
+  align-items: start;
+}
+
+.a-mine-card > .a-live-thumb {
+  margin-top: 0;
+}
+
+.a-mine-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.a-mine-body .a-card-head {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.a-mine-body .a-card-head h2 {
+  margin: 0;
+}
+
+.a-mine-meta {
+  margin: 0;
+  color: var(--admin-ink-soft, inherit);
+  font-size: 14px;
+}
+
+.a-mine-state {
+  margin: 0;
+  font-weight: 600;
+}
+
+.a-mine-empty h3 {
+  margin: 0 0 6px;
+}
+
+.a-mine-empty p {
+  margin: 0 0 8px;
+}
+
+.a-mine-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--admin-line-strong);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.a-versions {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.a-version {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  gap: 8px 18px;
+  align-items: start;
+}
+
+.a-version > .a-live-thumb {
+  margin-top: 0;
+}
+
+.a-version[data-published] {
+  border-color: var(--admin-success);
+}
+
+.a-version-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.a-version-body h3 {
+  margin: 0;
+}
+
+.a-version-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.a-version-summary {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .a-mine-card,
+  .a-version {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.a-menu-item-danger [slot="label"] {
+  color: var(--admin-danger, #b3261e);
+}
+
+.ve-theme-kind {
+  color: var(--admin-ink-soft, inherit);
+  font-size: 12px;
+  font-weight: 400;
+}

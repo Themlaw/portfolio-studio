@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Menu « Thème : <nom> ▾ » de la barre de l'éditeur de page (lot 63) : liste déroulante avec recherche, le thème en ligne
- * puis les derniers thèmes utilisés. Choisir un autre thème met l'éditeur en préparation de CE thème (aperçu admin du
+ * Menu « Thème : <nom> ▾ » de la barre de l'éditeur de page (lot 63) : liste déroulante avec recherche. Mon thème d'abord (avec sa
+ * version), puis les modèles, puis les anciens thèmes (lot 60), chaque groupe du plus récemment utilisé au plus ancien. Choisir un autre thème met l'éditeur en préparation de CE thème (aperçu admin du
  * lot 55, bandeau « Tu prépares le thème… ») ; choisir le thème en ligne arrête l'aperçu. Le brouillon est enregistré
  * avant, la page éditée ne change pas (rechargement de la même adresse).
  */
@@ -22,7 +22,8 @@ export default function ThemePicker({ themes, preparing, flush }: { themes: Them
   const labelId = useId();
   const live = themes.find((t) => t.live);
   const currentId = preparing?.id ?? live?.id ?? "";
-  const currentName = preparing?.name ?? live?.name ?? "";
+  const current = themes.find((t) => t.id === currentId);
+  const currentName = (preparing?.name ?? live?.name ?? "") + (current?.version ? ` · v${current.version}` : "");
   // Ordre d'origine (en ligne, puis derniers utilisés) tant qu'on ne tape rien ; sinon le meilleur résultat d'abord.
   const shown = query.trim() ? matchSorter(themes, query.trim(), { keys: ["name"], baseSort: (a, b) => a.index - b.index }) : themes;
 
@@ -67,7 +68,11 @@ export default function ThemePicker({ themes, preparing, flush }: { themes: Them
             {(t) => (
               <ListBoxItem id={t.id} textValue={t.name} className="ve-theme-item" data-current={t.id === currentId || undefined} data-testid={`theme-choice-${t.id}`}>
                 <span className="ve-theme-check" aria-hidden="true">{t.id === currentId ? "✓" : ""}</span>
-                <span className="ve-theme-name">{t.name}</span>
+                <span className="ve-theme-name">
+                  {t.name}
+                  {t.kind === "mine" && t.version ? <span className="ve-theme-kind" data-testid="theme-choice-version"> · version {t.version}</span> : null}
+                  {t.kind === "old" ? <span className="ve-theme-kind"> · ancien thème</span> : null}
+                </span>
                 {t.live && <span className="a-badge ve-theme-live">En ligne</span>}
               </ListBoxItem>
             )}

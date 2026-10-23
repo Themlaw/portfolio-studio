@@ -14,7 +14,7 @@
  * toujours la page en cache, jamais un aperçu.
  */
 import { own } from "./own";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { cookies, draftMode } from "next/headers";
 import { cache } from "react";
 
@@ -50,21 +50,53 @@ async function previewThemeId(): Promise<string | null> {
   return id;
 }
 
-type ThemeState = { activeId: string; themes: Record<string, Theme> };
+/**
+ * `themes` : le rendu PUBLIC (la version publiée, lot 60) ; `drafts` : pour un thème dont la version en cours (brouillon) diffère de la
+ * publiée, la version en cours : c'est elle que montre l'aperçu admin.
+ */
+type ThemeState = { activeId: string; themes: Record<string, Theme>; drafts: Record<string, { theme: Theme; version: number }> };
 
 async function getThemeState(): Promise<ThemeState> {
   return cached(["theme-state"], [TAGS.theme], () => {
     const db = getDb();
     const themes: Record<string, Theme> = {};
+    const drafts: ThemeState["drafts"] = {};
     for (const row of db.select().from(schema.themes).all()) {
-      const parsed = ThemeSchema.safeParse(parseJson(row.data));
-      if (parsed.success) themes[row.id] = parsed.data;
-      else console.error(`[theme] thème « ${row.id} » invalide en base, ignoré`);
+      const current = ThemeSchema.safeParse(parseJson(row.data));
+      // Mon thème (lot 60) : la version publiée est dans `live_data` tant qu'elle diffère de la version en cours (`data`).
+      const live = row.liveData ? ThemeSchema.safeParse(parseJson(row.liveData)) : current;
+      if (live.success) themes[row.id] = live.data;
+      else if (current.success) {
+        console.error(`[theme] version publiée du thème « ${row.id} » invalide en base, version en cours utilisée`);
+        themes[row.id] = current.data;
+      } else console.error(`[theme] thème « ${row.id} » invalide en base, ignoré`);
+      if (row.liveData && current.success) drafts[row.id] = { theme: current.data, version: row.version };
     }
     const active = db.select().from(schema.settings).where(eq(schema.settings.key, "activeThemeId")).get();
     const activeId = parseJson(active?.value);
-    return { activeId: typeof activeId === "string" ? activeId : DEFAULT_THEME_ID, themes };
+    return { activeId: typeof activeId === "string" ? activeId : DEFAULT_THEME_ID, themes, drafts };
   });
+}
+
+/** Aperçu d'une version précise de Mon thème : identifiant `<thème>@<n>` (cookie d'aperçu). */
+const VERSION_PREVIEW = /^([a-z0-9-]{1,80})@(\d{1,6})$/;
+
+/**
+ * Thème montré par un aperçu admin : la version en cours (brouillon) du thème, ou une version précise (`id@n`), sinon null.
+ * Requête déjà dynamique (draft mode) : la lecture d'une version en base ne touche pas au cache des pages publiques.
+ */
+async function resolvePreview(id: string, state: ThemeState): Promise<{ theme: Theme; name: string; draft: boolean } | null> {
+  const m = VERSION_PREVIEW.exec(id);
+  if (m) {
+    if (!Object.hasOwn(state.themes, m[1])) return null;
+    const row = getDb().select().from(schema.themeVersions).where(and(eq(schema.themeVersions.themeId, m[1]), eq(schema.themeVersions.n, Number(m[2])))).get();
+    const parsed = row ? ThemeSchema.safeParse(parseJson(row.data)) : null;
+    return parsed?.success ? { theme: parsed.data, name: `${state.themes[m[1]].name} (version ${m[2]})`, draft: true } : null;
+  }
+  const draft = own(state.drafts, id);
+  if (draft) return { theme: draft.theme, name: `${draft.theme.name} (version ${draft.version}, brouillon)`, draft: true };
+  const theme = own(state.themes, id);
+  return theme ? { theme, name: theme.name, draft: false } : null;
 }
 
 /** Thèmes disponibles (base), ou presets pendant le build. */
@@ -73,9 +105,14 @@ export async function listThemes(): Promise<Record<string, Theme>> {
   return (await getThemeState()).themes;
 }
 
+/**
+ * Thème d'un identifiant : le rendu public, ou — pour un aperçu admin — la version en cours (brouillon) de Mon thème et ses versions
+ * (`id@n`), dont le nom dit de quoi il s'agit.
+ */
 export async function getTheme(id: string): Promise<Theme | undefined> {
-  const themes = await listThemes();
-  return Object.hasOwn(themes, id) ? themes[id] : undefined;
+  if (isBuildPhase()) return Object.hasOwn(PRESETS, id) ? PRESETS[id] : undefined;
+  const preview = await resolvePreview(id, await getThemeState());
+  return preview ? (preview.draft ? { ...preview.theme, name: preview.name } : preview.theme) : undefined;
 }
 
 /**
@@ -88,21 +125,24 @@ export async function getPreviewTheme(): Promise<Theme | null> {
   const id = await previewThemeId();
   if (!id) return null;
   if (isThemePreviewOpen() && (await cookies()).get(PREVIEW_BANNER_COOKIE)?.value === "off") return null;
-  const state = await getThemeState();
-  return Object.hasOwn(state.themes, id) ? state.themes[id] : null;
+  const preview = await resolvePreview(id, await getThemeState());
+  // Un brouillon ou une version de Mon thème : le bandeau dit laquelle (« Mon thème (version 2) »).
+  return preview ? (preview.draft ? { ...preview.theme, name: preview.name } : preview.theme) : null;
 }
 
 /**
- * Thème « en préparation » (lot 55) : prévisualisé par la requête courante ET différent du thème en ligne
- * (prévisualiser le thème déjà en ligne n'est pas préparer quoi que ce soit). Admin seulement (draft mode + droit d'aperçu).
+ * Thème « en préparation » (lot 55) : prévisualisé par la requête courante ET différent de ce que voient les visiteurs (un autre thème,
+ * une autre version de Mon thème, ou son brouillon). Admin seulement (draft mode + droit d'aperçu).
  */
 export async function getPreparingTheme(): Promise<{ id: string; name: string } | null> {
   if (isBuildPhase()) return null;
   const id = await previewThemeId();
   if (!id) return null;
   const state = await getThemeState();
-  if (id === state.activeId || !Object.hasOwn(state.themes, id)) return null;
-  return { id, name: state.themes[id].name };
+  const preview = await resolvePreview(id, state);
+  if (!preview) return null;
+  if (id === state.activeId && !preview.draft) return null;
+  return { id, name: preview.name };
 }
 
 export const getActiveTheme = cache(async (): Promise<Theme> => {
@@ -112,7 +152,8 @@ export const getActiveTheme = cache(async (): Promise<Theme> => {
   // draftMode().isEnabled ne rend pas la page dynamique ; cookies() et la
   // session ne sont lus que dans une requête en draft mode, déjà hors cache ISR.
   const previewId = await previewThemeId();
-  if (previewId && Object.hasOwn(state.themes, previewId)) return state.themes[previewId];
+  const preview = previewId ? await resolvePreview(previewId, state) : null;
+  if (preview) return preview.theme;
   const active = own(state.themes, state.activeId);
   if (!active) {
     console.error(`[theme] thème actif « ${state.activeId} » introuvable, repli sur ${DEFAULT_THEME_ID}`);

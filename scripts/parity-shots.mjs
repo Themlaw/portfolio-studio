@@ -18,7 +18,8 @@ const BASE = `http://localhost:${PORT}`;
 const LABEL = process.env.PARITY_LABEL ?? "courant";
 const OUT = new URL(`../screenshots/parity/${LABEL}/`, import.meta.url).pathname;
 
-const PRESETS = presetSlugs();
+// PARITY_THEMES=id,… : thèmes personnalisés (en base) ajoutés aux thèmes livrés.
+const PRESETS = [...presetSlugs(), ...(process.env.PARITY_THEMES ?? "").split(",").filter(Boolean)];
 const PAGES = [
   ["accueil", "/fr"],
   ["personnages", "/fr/personnages"],

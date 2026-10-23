@@ -5,11 +5,11 @@ import VisualEditor from "@/components/admin/editor/VisualEditor";
 import { getEditorContext, getSettingsForAdmin, listPagesForAdmin, overlayProjectSlugs } from "@/lib/admin";
 import { readDraft } from "@/lib/edit/drafts";
 import { readThemeUsage, sortThemeChoices } from "@/lib/edit/theme-usage";
-import { getThemeOverview } from "@/lib/admin";
 import { lookContextForEditor } from "@/lib/edit/look-context";
 import { siteForEditor } from "@/lib/edit/site";
 import { siteNameFor } from "@/lib/site-schema";
 import { getPreparingTheme, getTheme } from "@/lib/theme";
+import { getThemeLibrary } from "@/lib/themes/versions";
 
 export const metadata = { title: "Éditeur de page" };
 
@@ -28,9 +28,10 @@ export default async function VisualEditorPage({ params, searchParams }: { param
     .map((p) => ({ id: p.id, title: p.title || "Page sans titre", slug: p.slug }));
   // Thème en préparation (aperçu depuis Admin → Thèmes) : la toile le montre, le panneau Couleurs aussi.
   const preparingRef = await getPreparingTheme();
-  const preparing = preparingRef ? ((await getTheme(preparingRef.id)) ?? null) : null;
-  const overview = getThemeOverview();
-  const themeChoices = sortThemeChoices(overview.themes, overview.activeId, readThemeUsage());
+  // Lot 60 : l'aperçu d'une VERSION de Mon thème (`<thème>@<n>`) n'est pas un thème « en préparation » (« Mettre en ligne » publierait la version en cours).
+  const preparing = preparingRef && !preparingRef.id.includes("@") ? ((await getTheme(preparingRef.id)) ?? null) : null;
+  const library = getThemeLibrary();
+  const themeChoices = sortThemeChoices(library, library.activeId, readThemeUsage());
   const self = pages.find((p) => p.id === Number(id));
   return (
     <VisualEditor

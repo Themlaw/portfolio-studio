@@ -85,7 +85,18 @@ export function getOnboarding(): Onboarding {
   };
 }
 
+/** `themes` : la version EN COURS de chaque thème (brouillon de Mon thème : lot 60). Ce que voient les visiteurs : `getLiveTheme()`. */
 export type ThemeOverview = { activeId: string; themes: Theme[] };
+
+/** Thème en ligne tel que le voient les visiteurs : sa version publiée (`live_data` quand elle diffère du brouillon de Mon thème). */
+export function getLiveTheme(): Theme | null {
+  const db = getDb();
+  const active = parseJson(db.select().from(schema.settings).where(eq(schema.settings.key, "activeThemeId")).get()?.value);
+  const row = typeof active === "string" ? db.select().from(schema.themes).where(eq(schema.themes.id, active)).get() : undefined;
+  if (!row) return null;
+  const parsed = ThemeSchema.safeParse(parseJson(row.liveData ?? row.data));
+  return parsed.success ? parsed.data : null;
+}
 
 export function getThemeOverview(): ThemeOverview {
   const db = getDb();
@@ -619,8 +630,7 @@ export function getEditorContext(draftPageId?: number) {
 
 /** Forme d'ouverture du thème en ligne. */
 function activeHeroVariant(): Theme["variants"]["hero"] | null {
-  const { activeId, themes } = getThemeOverview();
-  return themes.find((t) => t.id === activeId)?.variants.hero ?? null;
+  return getLiveTheme()?.variants.hero ?? null;
 }
 
 /** Pages qui ont un accent propre (contrôle avant de mettre un thème en ligne). */
@@ -638,8 +648,7 @@ export function listPageAccents(): { id: number; title: string; accent: string }
 
 /** Couleurs du thème en ligne (contrôle de l'accent d'une page). */
 export function getActiveThemeColors(): Theme["tokens"]["color"] | null {
-  const { activeId, themes } = getThemeOverview();
-  return themes.find((t) => t.id === activeId)?.tokens.color ?? null;
+  return getLiveTheme()?.tokens.color ?? null;
 }
 
 /** Identifiant de la page d'accueil (adresses vides), ou null. */

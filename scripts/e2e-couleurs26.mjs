@@ -154,7 +154,7 @@ if (run("V")) {
   const H2 = 'h2[data-inline="title"]';
   ok("V2 barre d'un texte ouverte", await openBar(f, H2));
   const labels = await f.locator('.lk-bar .tc-swatches [role="radio"]').evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")));
-  ok("V2b pastilles du texte : les six rôles dans l'ordre, puis Texte secondaire et Étiquettes", JSON.stringify(labels) === JSON.stringify([...ROLES, "Texte secondaire", "Étiquettes"]), JSON.stringify(labels));
+  ok("V2b pastilles du texte : les six rôles dans l'ordre, puis Texte secondaire et Petits textes d'étiquette", JSON.stringify(labels) === JSON.stringify([...ROLES, "Texte secondaire", "Petits textes d'étiquette"]), JSON.stringify(labels));
   const titles = await f.locator('.lk-bar .tc-swatches [role="radio"]').evaluateAll((els) => els.map((e) => e.getAttribute("title")));
   ok("V2c chaque pastille a son nom en info-bulle", JSON.stringify(titles) === JSON.stringify(labels));
   ok("V2d aucune couleur choisie : pas de nom affiché", (await f.locator('[data-testid="text-color-name"]').count()) === 0);

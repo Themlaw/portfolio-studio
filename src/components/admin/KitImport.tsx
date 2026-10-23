@@ -3,8 +3,9 @@
 /**
  * Écran de revue d'un kit Photoshop (/admin/themes/<id>/kit), parties client :
  * envoi du PSD rempli, suivi de l'import (file lourde), palette et
- * « Appliquer au thème » (copie brouillon, puis éditeur avec aperçu en direct).
+ * « Appliquer à mon thème » (nouvelle version de Mon thème, lot 60).
  */
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -111,39 +112,18 @@ export function KitImportWatch({ themeId, importId }: { themeId: string; importI
 }
 
 /**
- * Thème sur lequel le kit sera posé : dit clairement lequel (celui dont le kit a été
- * exporté par défaut), et laisse en choisir un autre. Le choix passe dans l'adresse
- * (?base=) : la revue (contrastes, poids, avant / après) est recalculée sur ce thème.
+ * Le kit s'applique à Mon thème (lot 60) : plus de liste « Kit appliqué sur le thème » à une seule option, juste une phrase.
  */
-export function KitBasePicker({ themeId, importId, baseId, originId, themes }: { themeId: string; importId: string; baseId: string; originId?: string; themes: { id: string; name: string; live: boolean }[] }) {
-  const router = useRouter();
-  const base = themes.find((t) => t.id === baseId);
+export function KitTargetNote({ mineName, version, basedOn }: { mineName: string | null; version: number | null; basedOn: string }) {
   return (
-    <div className="a-kit-base" data-testid="kit-base">
-      <label htmlFor="kit-base-select">
-        <strong>Kit appliqué sur le thème</strong>
-      </label>
-      <select
-        id="kit-base-select"
-        className="a-select"
-        value={baseId}
-        data-testid="kit-base-select"
-        onChange={(e) => router.replace(`/admin/themes/${encodeURIComponent(themeId)}/kit?import=${importId}&base=${encodeURIComponent(e.target.value)}`)}
-      >
-        {themes.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.name}
-            {t.id === originId ? " — thème d'origine du kit" : ""}
-            {t.live ? " — en ligne" : ""}
-          </option>
-        ))}
-      </select>
-      <p className="a-help">
-        La copie brouillon reprend « {base?.name ?? baseId} » (couleurs, variantes, éléments non redessinés) et y pose ce qui a changé dans le kit.
-        {originId && originId !== baseId ? " Ce n'est pas le thème dont le kit a été exporté." : ""}
-        {base?.live ? " C'est le thème actuellement en ligne ; la copie, elle, ne l'est pas." : " Ce thème n'est pas celui qui est en ligne."}
-      </p>
-    </div>
+    <p className="a-kit-base" data-testid="kit-base">
+      <strong>Le kit s&apos;applique à : {mineName ? `${mineName} (version ${version})` : "Mon thème"}</strong>
+      <span className="a-help">
+        {mineName
+          ? "Seuls les éléments que tu as redessinés changent ; le reste de Mon thème est gardé tel quel. Rien n'est mis en ligne tant que tu ne publies pas."
+          : `Tu n'as pas encore de Mon thème : il est créé à partir de « ${basedOn} » (version 1), puis ton kit en fait la version 2.`}
+      </span>
+    </p>
   );
 }
 
@@ -152,7 +132,8 @@ export function KitApplyPanel({
   themeId,
   importId,
   themeName,
-  baseId,
+  nextVersion,
+  mineExists,
   tape = false,
   changed,
   applied,
@@ -166,12 +147,14 @@ export function KitApplyPanel({
   /** Une seule flèche redessinée : proposer son miroir pour l'autre. */
   mirror: { from: string; to: string; preview: string } | null;
   themeName: string;
-  /** Thème sur lequel la copie est faite (défaut : le thème dont le kit a été exporté). */
-  baseId: string;
-  /** Le scotch est redessiné : la copie active la variante « scotch » des planches. */
+  /** Numéro de la version que l'application va créer. */
+  nextVersion: number;
+  /** Mon thème existe déjà (sinon il est créé d'abord). */
+  mineExists: boolean;
+  /** Le scotch est redessiné : la nouvelle version active la variante « scotch » des planches. */
   tape?: boolean;
   changed: number;
-  applied: string | null;
+  applied: { id: string; version: number | null } | null;
 }) {
   const router = useRouter();
   const [useMirror, setUseMirror] = useState(true);
@@ -183,16 +166,16 @@ export function KitApplyPanel({
   const apply = async () => {
     setBusy(true);
     setError("");
-    const res = await applyKitImportAction(themeId, importId, { mirror: Boolean(mirror) && useMirror, colors: Boolean(colors?.count) && useColors, base: baseId });
+    const res = await applyKitImportAction(themeId, importId, { mirror: Boolean(mirror) && useMirror, colors: Boolean(colors?.count) && useColors });
     if (!res.ok) {
       setBusy(false);
       setError(res.message);
       return;
     }
-    // Le bouton reste bloqué jusqu'à l'ouverture de la copie : pas de second clic, pas de seconde copie.
+    // Le bouton reste bloqué jusqu'au retour à l'écran Thèmes : pas de second clic, pas de seconde version.
     setDone(true);
-    toast("Copie créée : ouverture de l'aperçu en direct");
-    router.push(`/admin/themes/${encodeURIComponent(res.data.id)}`);
+    toast(`Version ${res.data.version} de Mon thème créée : prévisualise-la, puis publie`);
+    router.push(`/admin/themes?nouvelle=${res.data.version}&via=kit`);
   };
 
   return (
@@ -221,29 +204,29 @@ export function KitApplyPanel({
           {colors.problem && <p className="a-help">⚠ {colors.problem}</p>}
         </div>
       )}
-      <h2 id="kit-apply-title">Appliquer au thème</h2>
+      <h2 id="kit-apply-title">Appliquer à mon thème</h2>
       <p className="a-help">
-        Crée une copie brouillon de « {themeName} » avec {changed > 1 ? `les ${changed} éléments redessinés` : changed === 1 ? "l'élément redessiné" : useColors && colors?.count ? "tes couleurs" : "les éléments redessinés"}
-        {useColors && colors?.count && changed > 0 ? " et tes couleurs" : ""}, puis ouvre son aperçu en direct. Le thème en ligne ne change pas tant que tu n&apos;actives pas la copie.
+        Ajoute à « {themeName} » une nouvelle version (la version {nextVersion}) avec {changed > 1 ? `les ${changed} éléments redessinés` : changed === 1 ? "l'élément redessiné" : useColors && colors?.count ? "tes couleurs" : "les éléments redessinés"}
+        {useColors && colors?.count && changed > 0 ? " et tes couleurs" : ""}. Le thème en ligne ne change pas tant que tu ne publies pas, et tu peux toujours revenir à la version d&apos;avant.{mineExists ? "" : " Mon thème est d'abord créé (version 1) à partir du thème dont le kit est issu."}
       </p>
       {colors?.problem && useColors && (
         <p className="a-notice" role="status" data-testid="kit-colors-skipped">
           Attention : {colors.problem}
         </p>
       )}
-      {tape && <p className="a-help">Le scotch est redessiné : la copie active la variante « scotch » des planches (à retirer dans l&apos;éditeur si tu n&apos;en veux pas).</p>}
+      {tape && <p className="a-help">Le scotch est redessiné : la nouvelle version active la variante « scotch » des planches (à retirer dans l&apos;éditeur si tu n&apos;en veux pas).</p>}
       {applied && (
         <p className="a-help">
-          Déjà appliqué : <a href={`/admin/themes/${encodeURIComponent(applied)}`}>ouvrir la copie</a>.
+          Déjà appliqué{applied.version ? ` (version ${applied.version})` : ""} : <Link href="/admin/themes">voir Mon thème</Link>.
         </p>
       )}
       <button type="button" className="a-btn a-btn-primary" onClick={apply} disabled={busy || (changed === 0 && !(useColors && colors?.count))} aria-busy={busy}>
-        {busy ? (done ? "Copie créée…" : "Création de la copie…") : "Appliquer au thème"}
+        {busy ? (done ? "Version créée…" : `Création de la version ${nextVersion}…`) : `Appliquer à mon thème (crée la version ${nextVersion})`}
       </button>
       {busy && (
         <p className="a-help a-kit-progress" role="status" data-testid="kit-apply-status">
           <span className="a-spinner" aria-hidden="true" />
-          {done ? "Copie créée : ouverture de l'aperçu en direct…" : "Création de la copie : quelques secondes, ne quitte pas la page."}
+          {done ? "Version créée : retour à l'écran Thèmes…" : `Création de la version ${nextVersion} : quelques secondes, ne quitte pas la page.`}
         </p>
       )}
       {error && (

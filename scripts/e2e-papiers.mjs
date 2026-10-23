@@ -27,6 +27,7 @@ import { chromium } from "playwright";
 
 import { installPaperTheme, PAPER_THEME_NAME } from "./lib/paper-theme.mjs";
 import { placeBoard } from "./lib/page-board.mjs";
+import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -130,7 +131,10 @@ async function settled() {
   await page.waitForFunction(() => !/Enregistrement/.test(document.querySelector(".ve-status")?.textContent ?? ""), null, { timeout: 120000 });
   await sleep(600);
 }
+// Lot 61 : la bibliothèque est dans l'éditeur de thème, dont l'aperçu pose le cookie d'aperçu du thème : on le quitte avant de regarder le site.
+const quitPreview = () => page.request.post(`${BASE}/admin/apercu/quitter`, { headers: { origin: BASE } }).catch(() => {});
 async function openEditor() {
+  await quitPreview();
   await page.goto(`${BASE}/admin/pages/${PAGE_ID}/editer`, { waitUntil: "domcontentloaded" });
   let fr = await canvas();
   if (await page.getByRole("button", { name: "Abandonner les modifications" }).count()) {
@@ -150,13 +154,8 @@ async function publish() {
   return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 async function activateTheme(name) {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const card = page.locator(".a-theme-card", { hasText: name }).first();
-  if ((await card.getAttribute("data-active")) === "true") return;
-  await card.getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").waitFor({ state: "detached" });
-  await sleep(800);
+  // Lot 60 : « Utiliser ce modèle » / « En faire mon thème », puis « Publier » (scripts/lib/theme-live.mjs).
+  await activateThemeUi(page, BASE, name);
 }
 async function section(name, fn) {
   try {
@@ -258,10 +257,10 @@ await section("P", async () => {
 
 await section("A", async () => {
   await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const link = page.locator('.a-nav a[href="/admin/papiers-peints"]');
-  ok("A0 « Papiers peints » est dans le menu, juste sous « Thèmes »", (await link.count()) === 1 && (await page.locator(".a-nav li").evaluateAll((els) => els.map((e) => e.textContent?.trim()).slice(1, 3))).join() === "Thèmes,Papiers peints");
-  await link.click();
-  await page.waitForURL(/\/admin\/papiers-peints/);
+  // Lot 61 : « Papiers peints » n'est plus une page du menu mais un onglet de l'étape « Papier et motifs » ; l'ancienne adresse y redirige.
+  ok("A0 « Papiers peints » n'est plus dans le menu", (await page.locator('.a-nav a[href="/admin/papiers-peints"]').count()) === 0);
+  await page.goto(`${BASE}/admin/papiers-peints`, { waitUntil: "networkidle" });
+  ok("A0b l'ancienne adresse redirige vers l'onglet « Mes papiers peints » de l'éditeur de thème", /\/admin\/themes\/[^/?]+\?etape=papier&onglet=papiers-peints$/.test(page.url()) && (await page.locator('[data-testid="paper-tab-wallpapers"]').getAttribute("aria-selected")) === "true", page.url());
   await page.locator('[data-testid="wallpaper-library"]').waitFor();
   ok("A1 bibliothèque vide : une phrase qui dit quoi faire", await page.locator('[data-testid="wallpaper-empty"]').isVisible());
   await page.screenshot({ path: path.join(SHOTS, "a-vide.png") });

@@ -77,14 +77,16 @@ export default function CursorSettings({ theme, onChange }: { theme: Theme; onCh
   ];
   return (
     <section className="a-panel" aria-labelledby="t-curseurs">
-      <h2 id="t-curseurs">Curseurs de la souris</h2>
+      <h3 id="t-curseurs" className="a-subhead">
+        Curseurs de la souris
+      </h3>
       {!has ? (
         <p className="a-help">
           Les curseurs du système. Pour les dessiner : groupe « 9 · Curseur » du kit Photoshop (normal, et au survol de ce qui se clique).
         </p>
       ) : (
         <>
-          <label className="a-check">
+          <label className="a-guide-check">
             <input
               type="checkbox"
               checked={!cursors?.off}

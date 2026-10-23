@@ -166,6 +166,13 @@ const ADMIN_ACTIONS = [
   "activateThemeAction",
   "deleteThemeAction",
   "resetSiteColorsAction",
+  "applyModelAction",
+  "revertVersionAction",
+  "keepVersionCopyAction",
+  "pinVersionAction",
+  "adoptOldThemeAction",
+  "closeEditSessionAction",
+  "importThemeLogoAction",
   "saveSettingsAction",
   "saveSeoAction",
   "markMessagesSeenAction",
@@ -540,16 +547,20 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   // Une action se résout depuis une page qui l'importe : on vise son écran.
   const screen =
     name === "applyKitImportAction" ? "/admin/themes/galerie-lumineuse/kit"
-    : name === "saveThemeAction" ? "/admin/themes/galerie-lumineuse"
+    : name === "saveThemeAction" || name === "importThemeLogoAction" ? "/admin/themes/galerie-lumineuse"
     : name === "savePageInfoAction" ? "/admin/pages/1"
     : name === "deleteFontAction" ? "/admin/reglages"
     : name === "resetSiteColorsAction" ? "/admin/themes"
+    : name === "closeEditSessionAction" || name === "duplicateThemeAction" ? "/admin/themes/galerie-lumineuse"
+    : /[vV]ersion/.test(name) ? "/admin/themes/mon-theme/versions"
+    : /Model|OldTheme/.test(name) ? "/admin/themes"
     : /Onboarding/.test(name) ? "/admin"
     : /Draft|[bB]oard|Font/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings|Seo/.test(name) ? "/admin/reglages"
     : /Message/.test(name) ? "/admin/messages"
-    : /[wW]allpaper/.test(name) ? "/admin/papiers-peints"
+    // Lot 61 : la bibliothèque des papiers peints est un onglet de l'éditeur de thème (l'ancienne adresse redirige).
+    : /[wW]allpaper/.test(name) ? "/admin/themes/galerie-lumineuse"
     : /^(create|delete|reorder|restore)Projects?Action$/.test(name) ? "/admin/projets"
     : /Project|Slot/.test(name) ? "/admin/projets/1"
     : /^media|Media|Uploads|Tag/.test(name) ? "/admin/medias"
@@ -1156,7 +1167,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   const stored = JSON.parse(query(dirA, "select data from themes where id = ?", copyId).data);
   ok("A12b la couleur est enregistrée telle quelle", stored.tokens.color.inkSoft === "#d0d0d0", stored.tokens.color.inkSoft);
   res = await callActionJson(jar, ids.saveThemeAction, ["galerie-lumineuse", theme], "/admin/themes");
-  ok("A12c un preset ne se modifie pas", res.text.includes("duplique-le"), res.text.slice(0, 200));
+  ok("A12c un preset ne se modifie pas", /Un modèle ne se modifie pas/.test(res.text), res.text.slice(0, 200));
   theme.tokens.color.inkSoft = "#5f636a";
   theme.tokens.color.bg = "#fff;}body{display:none";
   res = await callActionJson(jar, ids.saveThemeAction, [copyId, theme], `/admin/themes/${copyId}`);
@@ -2604,6 +2615,11 @@ ok(
 // Chemin de kit forgé dans un thème : refusé par le schéma.
 const forged = await callActionJson(kv.jar, ids.saveThemeAction, [copyId, { ...themeRow, assets: { ...themeRow.assets, kit: { signature: { svg: '/media/kit/0123456789abcdef.svg");background:url("//evil', w: 10, h: 10 } } } }], `/admin/themes/${copyId}`);
 ok("TK6 chemin de kit forgé (injection CSS) refusé à l'enregistrement", !forged.text.includes('"ok":true'), forged.text.slice(0, 120));
+// Logo importé depuis une image (lot 61) : identifiant invalide ou image absente refusés, jamais d'élément de kit inventé.
+for (const [label, arg] of [["texte", "x"], ["négatif", -1], ["inexistant", 99999999]]) {
+  const r = await callActionJson(kv.jar, ids.importThemeLogoAction, [arg], `/admin/themes/${copyId}`);
+  ok(`TK7 logo importé (${label}) : refusé avec un message, rien de créé`, !r.text.includes('"ok":true') && /"ok":false/.test(r.text), r.text.slice(0, 160));
+}
 
 // ---- Phase 6d : import du kit rempli (envoi PSD, revue, copie brouillon) -------------------
 console.log("\n== TI. kit Photoshop (import)");
@@ -2726,14 +2742,14 @@ ok("TI8 import d'un autre thème : écran, état, aperçu 404 ; application refu
 const activeBefore = query(dirK, "select value from settings where key = 'activeThemeId'")?.value;
 const sourceBefore = themeData("galerie-lumineuse");
 const applied = await callActionJson(kv.jar, ids.applyKitImportAction, ["galerie-lumineuse", importId, { mirror: true }], `/admin/themes/galerie-lumineuse/kit`);
-const draftId = /"id":"(galerie-lumineuse-kit[a-z0-9-]*)"/.exec(applied.text)?.[1];
+const draftId = /"id":"(mon-theme[a-z0-9-]*)"/.exec(applied.text)?.[1];
 const draft = draftId ? JSON.parse(themeData(draftId)) : null;
 const arrowUrl = draft?.assets?.kit?.icons?.arrowRight?.svg;
 const served = arrowUrl ? await fetch(`${BASE}${arrowUrl}`) : null;
 const leftUrl = draft?.assets?.kit?.icons?.arrowLeft?.svg;
 const leftSvg = leftUrl ? await (await fetch(`${BASE}${leftUrl}`)).text() : "";
 ok(
-  "TI7 application : copie brouillon (non active) avec la flèche de l'artiste et son miroir ; données du thème source et thème en ligne inchangés",
+  "TI7 application : nouvelle version de Mon thème (brouillon, non active) avec la flèche de l'artiste et son miroir ; données du thème source et thème en ligne inchangés",
   Boolean(draftId) && draft.preset === false && served?.status === 200 && /svg/.test(served.headers.get("content-type") ?? "") && leftUrl !== arrowUrl && /matrix\(-1 0 0 1 128 0\)/.test(leftSvg) && themeData("galerie-lumineuse") === sourceBefore && query(dirK, "select value from settings where key = 'activeThemeId'")?.value === activeBefore,
   `${applied.text.slice(0, 120)} ${arrowUrl}`,
 );
@@ -2819,8 +2835,8 @@ const st3 = await waitImport("pro", foreignUp.body.kitImport?.id);
 const rap3 = st3.status === "done" ? rapportOf(dirK, foreignUp.body.kitImport.id) : null;
 const foreignHtml = rap3 ? await (await fetch(`${BASE}/admin/themes/pro/kit?import=${foreignUp.body.kitImport.id}`, { headers: { cookie: kv.jar.header() } })).text() : "";
 ok(
-  "TI10 kit d'un autre thème : signalé (« Ce kit vient du thème … »), reconnu, appliqué à son thème d'origine (choix du thème visé affiché)",
-  rap3?.reference?.themeId === "galerie-lumineuse" && rap3?.foreign?.themeId === "galerie-lumineuse" && rap3.slots.filter((x) => x.change === "redrawn").length === 1 && /Ce kit vient du thème/.test(foreignHtml) && /data-testid="kit-base-select"/.test(foreignHtml),
+  "TI10 kit d'un autre thème : signalé (« Ce kit vient du thème … »), reconnu, appliqué à Mon thème (phrase « Le kit s'applique à : … » affichée, plus de choix du thème visé)",
+  rap3?.reference?.themeId === "galerie-lumineuse" && rap3?.foreign?.themeId === "galerie-lumineuse" && rap3.slots.filter((x) => x.change === "redrawn").length === 1 && /Ce kit vient du thème/.test(foreignHtml) && /data-testid="kit-base"/.test(foreignHtml) && !/data-testid="kit-base-select"/.test(foreignHtml),
   JSON.stringify({ st3, ref: rap3?.reference, foreign: rap3?.foreign }),
 );
 

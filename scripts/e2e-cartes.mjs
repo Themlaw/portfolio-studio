@@ -24,6 +24,7 @@ import { chromium } from "playwright";
 import sharp from "sharp";
 
 import { installPaperTheme, PAPER_THEME_ID, PAPER_THEME_NAME } from "./lib/paper-theme.mjs";
+import { activateThemeUi } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -120,13 +121,8 @@ async function publish() {
   return waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000);
 }
 async function activateTheme(name) {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const card = page.locator(".a-theme-card", { hasText: name }).first();
-  if ((await card.getAttribute("data-active")) === "true") return;
-  await card.getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").waitFor({ state: "detached" });
-  await sleep(800);
+  // Lot 60 : « Utiliser ce modèle » / « En faire mon thème », puis « Publier » (scripts/lib/theme-live.mjs).
+  await activateThemeUi(page, BASE, name);
 }
 /** Texte sélectionné dans la toile. */
 const selectedText = (f) => f.evaluate(() => window.getSelection()?.toString() ?? "");
@@ -590,8 +586,8 @@ if (run("C"))
 
 if (run("D"))
   await section("D", async () => {
-  await page.goto(`${BASE}/admin/themes/${PAPER_THEME_ID}`, { waitUntil: "networkidle" });
-  const section = page.locator("section", { has: page.getByRole("heading", { name: "Cartes des rubriques" }) });
+  await page.goto(`${BASE}/admin/themes/${PAPER_THEME_ID}?etape=cartes`, { waitUntil: "networkidle" });
+  const section = page.locator("section.a-panel", { has: page.getByRole("heading", { name: "Cartes des rubriques" }) });
   ok("D1 l'éditeur de thème a « Cartes des rubriques »", await section.waitFor({ timeout: 30000 }).then(() => true, () => false));
   await section.locator('[data-token="bgDeep"]').click();
   await section.getByRole("button", { name: "Pleine largeur" }).click();

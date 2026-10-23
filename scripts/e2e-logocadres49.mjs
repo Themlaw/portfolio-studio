@@ -21,6 +21,7 @@ import sharp from "sharp";
 
 import { paint } from "./lib/crop-fixtures.mjs";
 import { login, pageIdOf, q1, waitFor } from "./lib/medias-setup.mjs";
+import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3340";
 const ONLY = process.env.ONLY ?? "";
@@ -155,13 +156,8 @@ function installSignatureTheme() {
   });
 }
 async function activateTheme(name) {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-  const card = page.locator(".a-theme-card", { hasText: name }).first();
-  if ((await card.getAttribute("data-active")) === "true") return;
-  await card.getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
-  await page.locator("dialog[open]").waitFor({ state: "detached" });
-  await sleep(800);
+  // Lot 60 : « Utiliser ce modèle » / « En faire mon thème », puis « Publier » (scripts/lib/theme-live.mjs).
+  await activateThemeUi(page, BASE, name);
 }
 /** Couleurs rendues du logo dans un document : nom (texte), signature (fond du masque). */
 const readLogo = (fr) =>
@@ -405,8 +401,9 @@ if (run("KT"))
     ok("KT1 revue : le message dit que le logo garde ses couleurs", /garde ses couleurs/.test((sig?.msgs ?? []).join(" ")), JSON.stringify(sig?.msgs));
     ok("KT1 revue : plus de « elle prend la couleur du thème » pour ce logo", !/prend la couleur du thème/.test((sig?.msgs ?? []).join(" ")));
     ok("KT1 revue : le cadre redessiné est reconnu changé", cad?.change === "redrawn", JSON.stringify(cad));
-    await Promise.all([page.waitForURL(/\/admin\/themes\/[a-z0-9-]*-kit[a-z0-9-]*$/, { timeout: 60000 }), page.getByRole("button", { name: "Appliquer au thème" }).click()]);
-    const draftId = page.url().split("/").pop();
+    // Lot 60 : le kit crée une version de Mon thème (brouillon), publiée plus bas.
+    await Promise.all([page.waitForURL(/\/admin\/themes\?nouvelle=\d+&via=kit/, { timeout: 60000 }), page.getByRole("button", { name: /^Appliquer à mon thème/ }).click()]);
+    const draftId = sql((db) => db.prepare("select id from themes where mine = 1").get()).id;
     const data = JSON.parse(sql((db) => db.prepare("select data from themes where id = ?").get(draftId))?.data ?? "null");
     ok("KT2 thème : la signature est rangée « en couleurs » (colors), en SVG ou AVIF, pas en masque", data?.assets?.kit?.signature?.colors === true, JSON.stringify(data?.assets?.kit?.signature));
     ok("KT2 thème : le cadre est rangé", Boolean(data?.assets?.kit?.frame), JSON.stringify(data?.assets?.kit?.frame));
@@ -425,10 +422,9 @@ if (run("KT"))
     const done = await publishBlocks(page, BASE, pageId, () => blocks, () => q1("select count(*) n from blocks where page_id = ?", pageId).n === blocks.length, 300000);
     if (!done) info("KT3 état de l'éditeur", await page.evaluate(() => document.body.innerText.slice(0, 600)));
     ok("KT3 page publiée", done);
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
-    const card = page.locator(".a-theme-card", { hasText: data.name }).first();
-    await card.getByRole("button", { name: "Mettre en ligne" }).click();
-    await page.locator("dialog[open]").getByRole("button", { name: "Mettre en ligne" }).click();
+    await gotoThemesPage(page, BASE);
+    await page.getByTestId("mine-publish").click();
+    await page.locator("dialog[open]").getByRole("button", { name: "Publier", exact: true }).click();
     await page.locator("dialog[open]").waitFor({ state: "detached" });
     await sleep2(1500);
     // Lot 62 : le cadre dessiné n'est posé d'office sur aucune photo ; ici on active « Cadre du thème sur toutes les photos » (écran Thèmes)

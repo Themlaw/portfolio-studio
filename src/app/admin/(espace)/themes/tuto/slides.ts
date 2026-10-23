@@ -233,7 +233,7 @@ export const TUTO_SLIDES: TutoSlide[] = [
     bullets: [
       "Le même morceau est posé en haut de chaque image des planches. Case de 1200 × 480 px, réduite au tiers.",
       "Fond transparent ; la transparence partielle (scotch translucide) est gardée.",
-      "Redessiné, il active la variante « scotch » des planches dans ta copie.",
+      "Redessiné, il active la variante « scotch » des planches dans la nouvelle version.",
       KEEP,
     ],
     notes: [
@@ -290,11 +290,11 @@ export const TUTO_SLIDES: TutoSlide[] = [
     id: "appliquer",
     title: "Appliquer et mettre en ligne",
     image: "appliquer",
-    alt: "Le panneau « Appliquer au thème », avec la case du miroir de la flèche.",
+    alt: "Le panneau « Appliquer à mon thème », avec la case du miroir de la flèche.",
     bullets: [
-      "« Appliquer au thème » crée une copie brouillon avec tes dessins.",
-      "Tu la vois aussitôt en aperçu en direct, sur tes vraies pages.",
-      "Quand c'est bon : « Mettre en ligne » dans Thèmes.",
+      "« Appliquer à mon thème » ajoute une nouvelle version à Mon thème avec tes dessins (rien n'est copié : plus de « (kit 2) »).",
+      "Tu la vois en aperçu sur tes vraies pages, et tu peux toujours revenir à la version d'avant.",
+      "Quand c'est bon : « Publier cette version » dans Thèmes.",
       "Le site ne change jamais sans ta validation.",
     ],
     notes: [
