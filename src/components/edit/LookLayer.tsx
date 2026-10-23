@@ -19,7 +19,7 @@
  * jusqu'à ce que le serveur ait rendu une révision au moins aussi récente :
  * jamais d'affichage intermédiaire de l'ancienne valeur.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import FreeCropDialog from "@/components/edit/FreeCropDialog";
 import HeroContrast from "@/components/edit/HeroContrast";
@@ -54,7 +54,7 @@ import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 
 import { canvasPalette, overlayData, overlayList, postIntent, setOverlay } from "./optimistic";
 import TypoControls from "./TypoControls";
-import { useDismiss } from "./useDismiss";
+import Popover from "./Popover";
 
 import "@/app/admin/look-layer.css";
 
@@ -397,11 +397,7 @@ function TextBar({
   tick: number;
 }) {
   const [scope, setScope] = useState<"local" | "role">(target.local ? "local" : "role");
-  const barRef = useRef<HTMLDivElement>(null);
   const el = document.querySelector<HTMLElement>(target.path);
-  // Clic ailleurs : la barre se ferme (les réglages sont déjà appliqués). Le texte visé
-  // reste cliquable (déplacer le curseur pendant la saisie) sans la fermer.
-  useDismiss(barRef, onClose, { ignore: (t) => Boolean(document.querySelector(target.path)?.contains(t)) });
   void tick;
   // Le texte n'est plus là (la page s'est redessinée autrement, ex. le bloc a perdu son enveloppe) : la barre n'a plus de cible
   // et, sans cette fermeture, bloquerait le « Aa » des autres textes. Un redessin passager la retrouve avant le délai.
@@ -411,43 +407,7 @@ function TextBar({
     const t = setTimeout(onClose, 2000);
     return () => clearTimeout(t);
   }, [missing, onClose, tick]);
-  // La barre ne recouvre jamais la barre d'outils du bloc sélectionné (`.pe-tools` : Monter, Descendre, Supprimer…) : au-dessus du
-  // texte par défaut, sinon dessous, sinon décalée à gauche de cette barre d'outils. Calculé sur les tailles (pas sur la position
-  // actuelle), donc sans boucle ; refait à chaque rendu (la barre d'outils apparaît quand la saisie sélectionne le bloc).
-  const [avoid, setAvoid] = useState<{ below: boolean; left: number | null } | null>(null);
-  // Sans liste de dépendances (volontaire) : la barre d'outils apparaît et bouge sans que ce composant le sache ; le setState ne
-  // change rien (même objet) quand le placement est déjà bon, donc pas de boucle.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => {
-    const bar = barRef.current;
-    const text = document.querySelector<HTMLElement>(target.path);
-    let next: { below: boolean; left: number | null } | null = null;
-    if (bar && text) {
-      const tr = docRect(text);
-      const tools = [...document.querySelectorAll<HTMLElement>(".pe-tools")].map(docRect).filter((t) => t.width > 0);
-      const [w, h] = [bar.offsetWidth, bar.offsetHeight];
-      const gap = 6;
-      const left0 = Math.max(window.scrollX + 8, Math.min(tr.left, window.scrollX + document.documentElement.clientWidth - 560));
-      const hitTool = (below: boolean, left: number) => {
-        const top = below ? tr.top + tr.height + 8 : tr.top - 8 - h;
-        return tools.find((t) => left < t.left + t.width + gap && left + w > t.left - gap && top < t.top + t.height + gap && top + h > t.top - gap);
-      };
-      const hits = (below: boolean, left: number) => Boolean(hitTool(below, left));
-      const below0 = tr.top - window.scrollY < 150;
-      if (tools.length && hits(below0, left0)) {
-        const shifted = (below: boolean) => {
-          const t = hitTool(below, left0);
-          return t ? Math.max(window.scrollX + 8, t.left - gap - w) : left0;
-        };
-        if (!hits(!below0, left0)) next = { below: !below0, left: null };
-        else if (!hits(below0, shifted(below0))) next = { below: below0, left: shifted(below0) };
-        else if (!hits(!below0, shifted(!below0))) next = { below: !below0, left: shifted(!below0) };
-      }
-    }
-    setAvoid((prev) => (prev?.below === next?.below && prev?.left === next?.left ? prev : next));
-  });
   if (!el) return null;
-  const r = docRect(el);
   const look = target.local ? lookOf(target.local.uid) : {};
   // Fond du métier de l'ouverture réglé avant le lot 21 (`look.roleBackdrop`) : « Ombre douce » et « Bandeau » sont montrés comme
   // celui du texte et migrés dans son style dès qu'on le modifie (le rendu ne change pas). L'ancien « Surlignage » (aplat en
@@ -476,17 +436,9 @@ function TextBar({
       previewRole(target.role, next, seq);
     }
   };
-  const below = avoid ? avoid.below : r.top - window.scrollY < 150;
+  // Fenêtre ancrée au bouton « Aa » (lot 65) : au-dessus du texte si la place y est, jamais sur la barre d'outils du bloc ni loin du bouton.
   return (
-    <div
-      ref={barRef}
-      className="lk-bar"
-      role="toolbar"
-      aria-label="Style du texte"
-      data-below={below || undefined}
-      style={{ top: below ? r.top + r.height + 8 : r.top - 8, left: avoid?.left ?? Math.max(window.scrollX + 8, Math.min(r.left, window.scrollX + document.documentElement.clientWidth - 560)) }}
-      onPointerDown={(e) => e.stopPropagation()}
-    >
+    <Popover anchor=".lk-aa" prefer="above" className="lk-bar" role="toolbar" label="Style du texte" onClose={onClose} ignoreDismiss={(t) => Boolean(document.querySelector(target.path)?.contains(t))} onPointerDown={(e) => e.stopPropagation()}>
       <div className="lk-bar-head">
         <span className="lk-seg" role="radiogroup" aria-label="Appliquer à">
           {target.local && (
@@ -514,7 +466,7 @@ function TextBar({
         backdropBlocked={BACKDROP_BLOCKED[target.role]}
         inheritedColor={scope === "local" ? roleStyle.color : undefined}
       />
-    </div>
+    </Popover>
   );
 }
 
@@ -945,6 +897,8 @@ export default function LookLayer({
   const selLook = selected ? lookOf(selected.uid) : {};
   const selRect = selected ? (wrapperOf(selected.uid) ? rectOfWrapper(selected.uid) : null) : null;
   const hoverValid = hoverText && document.contains(hoverText.el) ? { ...hoverText, rect: docRect(hoverText.anchor ?? hoverText.el) } : null;
+  const barEl = bar ? document.querySelector<HTMLElement>(bar.path) : null;
+  const aaView = bar ? (barEl ? { el: barEl, rect: docRect(barEl) } : null) : hoverValid;
   const cropValid = cropHover && document.contains(cropHover.media) ? cropHover : null;
 
   return (
@@ -957,14 +911,15 @@ export default function LookLayer({
       )}
       {selected && selRect && TITLE_TYPES.has(selected.type) && <TitlePosition uid={selected.uid} type={selected.type} inCell={selected.parentType === "grid"} rect={selRect} />}
 
-      {hoverValid && !bar && (
+      {aaView && (
         <button
           type="button"
           className="lk-aa"
-          style={{ top: Math.max(window.scrollY + 2, hoverValid.rect.top - 24), left: hoverValid.rect.left + hoverValid.rect.width - 30 }}
+          style={{ top: Math.max(window.scrollY + 2, aaView.rect.top - 24), left: aaView.rect.left + aaView.rect.width - 30 }}
           aria-label="Style du texte"
+          aria-expanded={bar ? true : undefined}
           title="Police, taille, couleur… de ce texte"
-          onClick={() => setBar(targetOf(hoverValid.el))}
+          onClick={() => (bar ? setBar(null) : setBar(targetOf(aaView.el)))}
         >
           Aa
         </button>

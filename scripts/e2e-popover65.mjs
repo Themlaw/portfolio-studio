@@ -8,6 +8,9 @@
  *     Cadre, Fond image ; Planche libre : Cadre, Fond image) : la fenêtre est à moins de 16 px du bouton (de l'autre côté s'il le
  *     faut), entièrement dans la fenêtre du navigateur, à 1440 / 1024 / 390 px ; elle le reste après un défilement de la toile ;
  *     Échap la ferme ; un clic ailleurs la ferme.
+ *  B  Barres : jamais hors de l'écran (elles passent à la ligne), pour la barre d'une rubrique, des composants de planche et de la
+ *     Planche libre (images à gauche ET à droite), à 1440 / 1024 / 390 ; aucun bouton de barre masqué par une pastille (390).
+ *  K  Échap ferme la fenêtre ET RIEN D'AUTRE : le bloc reste choisi, sa barre reste là ; « Aa » : la barre de style s'ouvre au bouton, qui reste.
  *  D  Aucune barre sombre : la couleur de fond calculée de chaque barre / menu de la liste A5 §4.3 (sondes posées sur la toile,
  *     plus les barres réellement visibles) est claire, et le texte de ses boutons y reste lisible (contraste ≥ 4,5).
  * Captures : $SHOTS. Mode « rapport » (REPORT=1) : n'échoue pas, écrit seulement les mesures (captures « avant »).
@@ -260,6 +263,15 @@ async function cases() {
   for (const [n, o] of [["fond", "fond"], ["taille", "size"], ["espace", "space"], ["cadre", "frame"], ["fond-image", "imgbg"]]) await check(`planche-${n}`, hoverItem("bi"), op("bi", o), { write: WRITES[n] ?? null });
   await check("planche-reglages-grille", hoverItem("bg"), () => bitem("bg").locator(':scope > .pe-bitem-bar [data-grid-settings-button]'));
   const addBtn = () => fr.locator('.pe-bitem-add button').nth(1);
+  await check("planche-reglages-grille-bas", async () => {
+    await bitem("bg").evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await fr.evaluate(() => window.scrollBy(0, -(window.innerHeight * 0.7)));
+    await sleep(400);
+    const b = await bitem("bg").boundingBox();
+    await page.mouse.move(b.x + b.width / 2 - 8, b.y + 30);
+    await page.mouse.move(b.x + b.width / 2, b.y + 34, { steps: 3 });
+    await sleep(300);
+  }, () => bitem("bg").locator(':scope > .pe-bitem-bar [data-grid-settings-button]'));
   await check("planche-ajouter", async () => {
     await scrollTo(addBtn());
     await moveOn(addBtn());
@@ -298,6 +310,145 @@ async function cases() {
     }, () => fr.locator('.pe-tools button:has-text("Taille des images")'));
   }
 }
+
+/** Boutons visibles d'une barre : tous dans la fenêtre de la toile, aucun masqué par un autre élément. */
+async function barFits(name, sel) {
+  const view = await iframeBox();
+  const bars = fr.locator(sel);
+  const n = await bars.count();
+  if (!n) {
+    console.log("DBG", await fr.evaluate(() => JSON.stringify({ sel: document.querySelectorAll("[data-free-sel]").length, active: document.activeElement?.tagName, at: [...document.querySelectorAll(".free-item")].map((e) => JSON.stringify(e.getBoundingClientRect())) })));
+    await page.screenshot({ path: path.join(SHOTS, `${W}-absente.png`) }).catch(() => {});
+    return ok(`${W} ${name} : barre trouvée`, false, "absente");
+  }
+  const bar = bars.first();
+  const bb = await bar.boundingBox();
+  ok(`${W} ${name} : barre entièrement à l'écran`, inside(bb, view), `barre ${JSON.stringify(rd(bb))} / vue ${JSON.stringify(rd(view))}`);
+  const btns = bar.locator("button");
+  const bad = [];
+  for (let i = 0; i < (await btns.count()); i++) {
+    const b = btns.nth(i);
+    const r = await b.boundingBox();
+    if (!r || r.width === 0) continue;
+    if (!inside(r, view)) bad.push(`${(await b.innerText().catch(() => "")).trim() || i} hors écran`);
+    else {
+      const top = await b.evaluate((el, [x, y]) => {
+        const t = el.ownerDocument.elementsFromPoint(x, y)[0];
+        return t === el || el.contains(t) || t?.closest("button") === el;
+      }, [r.x + r.width / 2 - view.x, r.y + r.height / 2 - view.y]);
+      if (!top) bad.push(`${(await b.innerText().catch(() => "")).trim() || i} masqué`);
+    }
+  }
+  ok(`${W} ${name} : aucun bouton hors écran ni masqué`, bad.length === 0, bad.join(", "));
+}
+async function bars() {
+  const solo = fr.locator('[data-edit-block="solo"] img').first();
+  await scrollTo(solo);
+  await solo.click();
+  await sleep(500);
+  await barFits("barre de rubrique", ".pe-tools");
+  for (const uid of ["bi", "bg", "bs", "bc", "bfb"]) {
+    const it = fr.locator(`[data-edit-bitem="${uid}"]`).first();
+    await it.evaluate((el) => el.scrollIntoView({ block: "start" }));
+    await fr.evaluate(() => window.scrollBy(0, -70));
+    await sleep(400);
+    const b = await it.boundingBox();
+    const y = Math.max(b.y + 30, (await iframeBox()).y + 60);
+    await page.mouse.move(b.x + b.width / 2 - 8, y - 4);
+    await page.mouse.move(b.x + b.width / 2, y, { steps: 3 });
+    await sleep(300);
+    await barFits(`barre du composant ${uid}`, `[data-edit-bitem="${uid}"] > .pe-bitem-bar`);
+  }
+  // Planche libre de la page : image de gauche et image de droite.
+  for (const id of ["b", "a"]) {
+    if (await page.locator(".ve-scrim").count()) {
+      await page.locator(".ve-scrim").first().click({ position: { x: 370, y: 300 }, force: true }).catch(() => {});
+      await sleep(400);
+    }
+    const item = fr.locator(`[data-edit-block="free"] .free-item[data-free-item="${id}"]`).first();
+    await scrollTo(item);
+    const b = await item.boundingBox();
+    await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+    await sleep(500);
+    for (let t = 0; t < 3 && !(await fr.locator('[data-testid="free-bar"]').count()); t++) {
+      await sleep(1000);
+      await scrollTo(item);
+      const b2 = await item.boundingBox();
+      await page.mouse.move(b2.x + b2.width / 2 + 5, b2.y + b2.height / 2 + 5);
+      await page.mouse.click(b2.x + b2.width / 2, b2.y + b2.height / 2);
+      await sleep(600);
+    }
+    await barFits(`barre de l'image libre ${id}`, '[data-testid="free-bar"]');
+  }
+  // Téléphone : choisir un composant ouvre le tiroir de l'éditeur : sa feuille fermée n'a rien de focalisable hors écran.
+  const sheetClosed = await page.evaluate(() => {
+    const btn = [...document.querySelectorAll(".ve-sheet-head button")].find((b) => /Fermer/.test(b.textContent ?? ""));
+    return !btn || Boolean(btn.closest("[inert]")) || getComputedStyle(btn).visibility === "hidden";
+  });
+  ok(`${W} feuille « Composants » fermée : « Fermer » hors écran n'est pas focalisable`, sheetClosed || (await page.locator(".ve-scrim").count()) > 0);
+}
+if (run("B"))
+  for (const w of WIDTHS) {
+    W = w;
+    await section(`B${w}`, async () => {
+      await page.setViewportSize({ width: w, height: w === 390 ? 844 : w === 1024 ? 768 : 900 });
+      await open();
+      await bars();
+    });
+  }
+
+/* ---- K. Échap, « Aa » --------------------------------------------------------------------------------------------------- */
+if (run("K"))
+  await section("K", async () => {
+    W = 1440;
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await open();
+    const solo = fr.locator('[data-edit-block="solo"] img').first();
+    await scrollTo(solo);
+    await solo.click();
+    await sleep(500);
+    for (const [name, sel] of [["Cadre", '.pe-tools [data-testid="frame-button"]'], ["Fond", '.pe-tools [data-testid="fond-button"]'], ["Carte", '.pe-tools [data-anchor="surface"]']]) {
+      const b = await fr.locator(sel).first().boundingBox();
+      await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+      await sleep(500);
+      const opened = (await popup()) !== null;
+      await page.keyboard.press("Escape");
+      await sleep(400);
+      ok(`K ${name} : Échap ferme la fenêtre`, opened && (await popup()) === null);
+      ok(`K ${name} : …et le bloc reste choisi (sa barre est toujours là)`, (await fr.locator(".pe-tools").count()) === 1 && (await fr.locator(".pe-selected").count()) >= 1);
+    }
+    // « Aa » : barre de style au bouton, le bouton reste, Échap ne désélectionne pas.
+    const homeId = q1("select page_id id from blocks where type = 'hero' limit 1")?.id;
+    fr = await openEditor(page, BASE, homeId);
+    await settled(page);
+    const title = fr.locator('[data-edit-type="collection-tiles"] h2').first();
+    await scrollTo(title);
+    await title.click();
+    await sleep(500);
+    const tb = await title.boundingBox();
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2, { steps: 3 });
+    await sleep(500);
+    const aa = fr.locator(".lk-aa").first();
+    if (!(await aa.count())) return ok("K Aa : le bouton apparaît au survol du texte", false, "absent");
+    const ab = await aa.boundingBox();
+    await page.mouse.click(ab.x + ab.width / 2, ab.y + ab.height / 2);
+    await sleep(600);
+    const bar = fr.locator(".lk-bar").first();
+    const bb = await bar.boundingBox().catch(() => null);
+    const ab2 = await aa.boundingBox().catch(() => null);
+    const view = await iframeBox();
+    ok("K Aa : la barre de style s'ouvre", Boolean(bb));
+    if (bb && ab2) {
+      ok("K Aa : à ≤ 16 px du bouton « Aa »", gapBetween(bb, ab2) <= MAX_GAP, `écart ${Math.round(gapBetween(bb, ab2))} px`);
+      ok("K Aa : entièrement à l'écran", inside(bb, view), JSON.stringify(rd(bb)));
+      ok("K Aa : ne cache pas le texte réglé", gapBetween(bb, tb) > 0 || bb.y + bb.height <= tb.y + 2 || bb.y >= tb.y + tb.height - 2);
+    } else ok("K Aa : le bouton « Aa » reste visible quand sa barre est ouverte", false);
+    await page.screenshot({ path: path.join(SHOTS, "aa-ouvert.png") }).catch(() => {});
+    await page.keyboard.press("Escape");
+    await sleep(400);
+    ok("K Aa : Échap ferme la barre", (await fr.locator(".lk-bar").count()) === 0);
+    ok("K Aa : …et le bloc reste choisi", (await fr.locator(".pe-tools").count()) === 1);
+  });
 
 if (run("W")) {
   for (const w of WIDTHS) {

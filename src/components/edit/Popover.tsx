@@ -38,7 +38,7 @@ function resolveAnchor(a: PopoverAnchor, doc: Document): Element | null {
  * Place la fenêtre `el` près du rectangle `r` (coordonnées de la fenêtre du navigateur). Pur calcul sur le DOM : rend la position
  * en coordonnées du document, ou undefined si rien n'a changé depuis `last`.
  */
-export function placePopover(el: HTMLElement, r: { left: number; top: number; right: number; bottom: number }, align: "start" | "center" | "end") {
+export function placePopover(el: HTMLElement, r: { left: number; top: number; right: number; bottom: number }, align: "start" | "center" | "end", prefer: "below" | "above" = "below") {
   const doc = el.ownerDocument;
   const win = doc.defaultView ?? window;
   const vw = doc.documentElement.clientWidth;
@@ -53,7 +53,8 @@ export function placePopover(el: HTMLElement, r: { left: number; top: number; ri
   const below = vh - POPOVER_EDGE - (r.bottom + POPOVER_GAP);
   const above = r.top - POPOVER_GAP - POPOVER_EDGE;
   let top: number;
-  if (h <= below) top = r.bottom + POPOVER_GAP;
+  if (prefer === "above" && h <= above) top = r.top - POPOVER_GAP - h;
+  else if (h <= below) top = r.bottom + POPOVER_GAP;
   else if (h <= above) top = r.top - POPOVER_GAP - h;
   else {
     // Ni dessous ni dessus : la plus grande place (au moins un tiers de la fenêtre), le contenu défile.
@@ -68,6 +69,9 @@ export function placePopover(el: HTMLElement, r: { left: number; top: number; ri
   return { left: left + win.scrollX, top: top + win.scrollY };
 }
 
+/** Fenêtres ouvertes, la plus récente en dernier : Échap ferme la dernière, et elle seule. */
+const openStack: symbol[] = [];
+
 export type PopoverProps = {
   anchor: PopoverAnchor;
   /** Nom accessible de la fenêtre. */
@@ -76,7 +80,10 @@ export type PopoverProps = {
   children: ReactNode;
   /** Classes de contenu (`sm tc` : fenêtre blanche à réglages ; `pe-layouts` : menu de choix). */
   className?: string;
-  role?: "dialog" | "menu" | "radiogroup";
+  role?: "dialog" | "menu" | "radiogroup" | "toolbar";
+  /** Côté préféré : « above » met la fenêtre au-dessus du bouton quand la place y est (ne cache pas ce qui est dessous). */
+  prefer?: "below" | "above";
+  onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
   testId?: string;
   /** Côté du bouton sur lequel la fenêtre s'aligne (début par défaut). */
   align?: "start" | "center" | "end";
@@ -88,15 +95,40 @@ export type PopoverProps = {
   focusFirst?: boolean;
 };
 
-export default function Popover({ anchor, label, onClose, children, className = "sm tc", role = "dialog", testId, align = "start", ignoreDismiss, style, onKeyDown, focusFirst }: PopoverProps) {
+export default function Popover({ anchor, label, onClose, children, className = "sm tc", role = "dialog", testId, align = "start", prefer = "below", ignoreDismiss, style, onKeyDown, onPointerDown, focusFirst }: PopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
   const anchorRef = useRef(anchor);
   const alignRef = useRef(align);
+  const preferRef = useRef(prefer);
   useLayoutEffect(() => {
     anchorRef.current = anchor;
     alignRef.current = align;
+    preferRef.current = prefer;
   });
-  useDismiss(ref, onClose, { ...(ignoreDismiss ? { ignore: ignoreDismiss } : {}) });
+  useDismiss(ref, onClose, { ...(ignoreDismiss ? { ignore: ignoreDismiss } : {}), escape: false });
+  const closeRef = useRef(onClose);
+  useLayoutEffect(() => {
+    closeRef.current = onClose;
+  });
+  // Échap ferme la fenêtre ET RIEN D'AUTRE (le bloc reste choisi, sa barre reste là) : écouté en capture sur la fenêtre du navigateur,
+  // avant les couches de sélection ; seule la plus récente se ferme.
+  useLayoutEffect(() => {
+    const id = Symbol("popover");
+    openStack.push(id);
+    const win = (ref.current?.ownerDocument ?? document).defaultView ?? window;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape" || openStack[openStack.length - 1] !== id) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      closeRef.current();
+    };
+    win.addEventListener("keydown", onKey, true);
+    return () => {
+      win.removeEventListener("keydown", onKey, true);
+      const at = openStack.indexOf(id);
+      if (at >= 0) openStack.splice(at, 1);
+    };
+  }, []);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -124,7 +156,7 @@ export default function Popover({ anchor, label, onClose, children, className = 
       const key = `${Math.round(r.left)}|${Math.round(r.top)}|${Math.round(r.right)}|${Math.round(r.bottom)}|${doc.documentElement.clientWidth}|${win.innerHeight}|${el.offsetWidth}|${el.scrollHeight}`;
       if (key === seen) return;
       seen = key;
-      const p = placePopover(el, r, alignRef.current);
+      const p = placePopover(el, r, alignRef.current, preferRef.current);
       el.style.left = `${Math.round(p.left)}px`;
       el.style.top = `${Math.round(p.top)}px`;
     };
@@ -159,7 +191,7 @@ export default function Popover({ anchor, label, onClose, children, className = 
   // la fenêtre comme faisant partie de l'éditeur, jamais comme du contenu du site.
   return createPortal(
     <div className="pe-layer pe-pop-layer">
-      <div ref={ref} className={`pe-pop ${className}`} role={role} aria-label={label} data-testid={testId} data-pe-pop="" style={{ right: "auto", ...style }} onKeyDown={onKeyDown}>
+      <div ref={ref} className={`pe-pop ${className}`} role={role} aria-label={label} data-testid={testId} data-pe-pop="" style={{ right: "auto", ...style }} onKeyDown={onKeyDown} onPointerDown={onPointerDown}>
         {children}
       </div>
     </div>,

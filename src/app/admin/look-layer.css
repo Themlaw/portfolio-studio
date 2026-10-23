@@ -37,6 +37,12 @@
   font: 600 11px/1.3 var(--lk-font);
   white-space: nowrap;
 }
+/* Téléphone : la pastille de valeur (« Auto · 40 px ») ne masque pas les boutons de la barre du bloc ; la valeur reste dite par la poignée. */
+@media (max-width: 640px) {
+  .lk-space-value {
+    display: none;
+  }
+}
 .lk-space-handle {
   position: absolute;
   width: 44px;
@@ -94,7 +100,8 @@
   pointer-events: auto;
   translate: 0 -100%;
 }
-.lk-bar[data-below] {
+.lk-bar[data-below],
+.pe-pop.lk-bar {
   translate: 0 0;
 }
 .lk-bar-head {

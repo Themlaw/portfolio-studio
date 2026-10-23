@@ -96,12 +96,18 @@ type Gesture = {
   H0: number;
 };
 
-/** Garde la barre de l'image entièrement dans la fenêtre : calée à `left`, ramenée vers la gauche si elle déborde à droite. */
+/**
+ * Garde la barre de l'image entièrement dans la fenêtre : calée à `left`, elle passe à la ligne si la place à droite est assez large
+ * (300 px), sinon elle est ramenée vers la gauche.
+ */
 function keepInView(el: HTMLElement | null, left: number) {
   if (!el) return;
   const doc = el.ownerDocument;
   const win = doc.defaultView ?? window;
-  el.style.left = `${Math.max(win.scrollX + 6, Math.min(left, win.scrollX + doc.documentElement.clientWidth - 6 - el.offsetWidth))}px`;
+  const vw = doc.documentElement.clientWidth;
+  const room = win.scrollX + vw - 6 - left;
+  el.style.maxWidth = `min(760px, ${Math.max(300, room)}px, calc(100vw - 12px))`;
+  el.style.left = `${Math.max(win.scrollX + 6, Math.min(left, win.scrollX + vw - 6 - el.offsetWidth))}px`;
 }
 
 const norm = (deg: number) => {
@@ -444,7 +450,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
           />
         </div>
         {!gesturing && (
-          <div ref={(el) => keepInView(el, barLeft)} className="pe-slot-tools" role="toolbar" aria-label="Image de la planche libre" data-testid="free-bar" style={{ top: barTop, left: barLeft, width: "max-content", maxWidth: "min(760px, calc(100vw - 12px))" }}>
+          <div ref={(el) => keepInView(el, barLeft)} className="pe-slot-tools" role="toolbar" aria-label="Image de la planche libre" data-testid="free-bar" style={{ top: barTop, left: barLeft, width: "max-content" }}>
             <button type="button" data-testid="free-replace" onClick={() => send(ref, { op: "pick", id: sel.id })}>
               Remplacer
             </button>
