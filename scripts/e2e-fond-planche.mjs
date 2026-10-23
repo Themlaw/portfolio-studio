@@ -16,6 +16,7 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 
 import { pageIdOf, placeBoard } from "./lib/page-board.mjs";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -65,6 +66,7 @@ const boardHtml = (html) => {
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));

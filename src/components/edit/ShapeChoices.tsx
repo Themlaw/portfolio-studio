@@ -1,6 +1,6 @@
 /**
  * Étendue et coins d'un aplat (lots 43 et 47b) : les MÊMES boutons, avec leurs pictogrammes, dans la fenêtre « Fond » d'un composant
- * (FondMenu.tsx) et dans la fenêtre « Carte » d'une rubrique (SurfaceMenu.tsx). Présentation seule : l'appelant dit ce qui est coché et
+ * (FondMenu.tsx, lot 66 : la fenêtre « Carte » a été fusionnée au « Fond »). Présentation seule : l'appelant dit ce qui est coché et
  * ce qu'un clic enregistre. `attr` ajoute des attributs de repère (`data-width`, `data-corners`…) à chaque bouton.
  */
 import type { FondStep } from "@/themes/fond";
@@ -24,16 +24,16 @@ export function Mini({ inset, round }: { inset: boolean; round: number }) {
 }
 
 /** « Étendue » : Bord à bord / Avec marge. */
-export function ExtentRow({ inset, onPick, label, testid, attr }: { inset: boolean; onPick: (inset: boolean) => void; label: string; testid: string; attr?: (inset: boolean) => Attr }) {
+export function ExtentRow({ inset, onPick, label, testid, attr, fullLabel = "Bord à bord", insetLabel = "Avec marge" }: { inset: boolean; onPick: (inset: boolean) => void; label: string; testid: string; attr?: (inset: boolean) => Attr; fullLabel?: string; insetLabel?: string }) {
   return (
     <div className="tc-row">
       <span className="sm-label">Étendue</span>
       <span className="tc-seg" role="radiogroup" aria-label={label} data-testid={testid}>
         <button type="button" role="radio" aria-checked={!inset} data-extent="full" {...attr?.(false)} onClick={() => onPick(false)}>
-          <Mini inset={false} round={0} /> Bord à bord
+          <Mini inset={false} round={0} /> {fullLabel}
         </button>
         <button type="button" role="radio" aria-checked={inset} data-extent="margin" {...attr?.(true)} onClick={() => onPick(true)}>
-          <Mini inset round={0} /> Avec marge
+          <Mini inset round={0} /> {insetLabel}
         </button>
       </span>
     </div>

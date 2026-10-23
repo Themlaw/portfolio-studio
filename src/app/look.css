@@ -539,15 +539,15 @@
    la même règle que la carte : papier « sur la carte » (choisi par la carte, ou par le site sans que la carte dise « sous ») = la tuile est
    dessinée sur la couleur du fond, sous le texte. Un fond posé directement sur la page suit le réglage du site « papier visible sur les cartes ».
    Même tuile, même intensité (--card-paper-opacity de la carte, sinon celle du site) ; elle repart du coin de chaque enveloppe. */
-[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"] > .card-in > .fond-bloc[data-fond="on"],
-[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"],
-[data-kit-paper][data-kit-paper-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"] {
+[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"] > .card-in > .fond-bloc[data-fond="on"]:not([data-paper="under"]),
+[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-paper="under"]),
+[data-kit-paper][data-kit-paper-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-paper="under"]) {
   position: relative;
   isolation: isolate;
 }
-[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"] > .card-in > .fond-bloc[data-fond="on"]::before,
-[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]::before,
-[data-kit-paper][data-kit-paper-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]::before {
+[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"] > .card-in > .fond-bloc[data-fond="on"]:not([data-paper="under"])::before,
+[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-paper="under"])::before,
+[data-kit-paper][data-kit-paper-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-paper="under"])::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -665,15 +665,15 @@ main > :has(+ .surface-card[data-surface="on"]) {
   opacity: var(--card-paper-opacity, var(--card-wp-opacity, 1));
 }
 /* Un fond de couleur opaque dans la carte cacherait ce papier : il le redessine (comme le papier du kit), sauf s'il a son propre motif. */
-.surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]),
-.site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]),
-.site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]) {
+.surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"]),
+.site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"]),
+.site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"]) {
   position: relative;
   isolation: isolate;
 }
-:root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before,
-:root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before,
-:root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before {
+:root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before,
+:root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before,
+:root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -693,9 +693,9 @@ main > :has(+ .surface-card[data-surface="on"]) {
   }
   :root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"])::before,
   :root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"])::before,
-  :root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before,
-  :root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before,
-  :root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before {
+  :root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before,
+  :root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before,
+  :root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before {
     background-size: var(--card-wp-size-m) auto;
   }
 }

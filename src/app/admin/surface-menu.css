@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Carte d'une rubrique sur la toile (lot 17c ; « Fond » avant le lot 26) — src/components/edit/SurfaceMenu.tsx.
+   Fond d une rubrique sur la toile (lot 17c ; « Carte » puis fusionnée au « Fond » au lot 66) — src/components/edit/FondMenu.tsx.
    Couleurs de l'admin (--lk-* / --pe-* du calque), jamais celles du thème ;
    les pastilles montrent les couleurs du thème par leurs variables, jamais en dur.
    ========================================================================== */
@@ -225,4 +225,20 @@
 }
 .ibg-seg {
   flex-wrap: wrap;
+}
+
+/* Fond unique (lot 66) : réglages fins repliés (coins, marge, bordure, papier du site), pour que le menu reste court (retour R7). */
+.sm .fond-fine {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--lk-line);
+}
+.sm .fond-fine > summary {
+  padding: 4px 0;
+  color: var(--lk-ink-soft);
+  font: 500 11px/1.4 var(--lk-font);
+  cursor: pointer;
+}
+.sm .fond-fine[open] > summary {
+  margin-bottom: 4px;
 }

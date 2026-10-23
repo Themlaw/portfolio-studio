@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import type { RawBlock } from "@/lib/pages";
 
@@ -8,13 +8,12 @@ import { aloneFlags, cellShare, gridCells, isJustified, type GridShape } from ".
 import { getSiteView } from "@/lib/settings";
 import { getActiveTheme } from "@/lib/theme";
 import type { PaletteColors } from "@/themes/palette";
-import FondWrap from "@/components/FondWrap";
+import { CardWrap, FondWrap, type CardEnv } from "@/components/ZoneWrap";
 import { fondJoins, fondKey, readBackground, supportsFond, type Background, type FondJoin } from "@/themes/fond";
 import { pagePalette } from "@/themes/site-palette";
-import type { WallpaperLookup } from "@/themes/wallpaper";
 import { getWallpapers } from "@/lib/wallpapers";
 import WallpaperAlign from "@/components/WallpaperAlign";
-import { borderVars, cardBorderSignature, cardStyle, paperSignature, cardVars, paperAttributes, readSurface, resolveSurface, surfaceAttributes, type CardPalette, type ResolvedSurface, type Surface } from "@/themes/surface";
+import { cardBorderSignature, cardStyle, paperSignature, paperAttributes, readSurface, resolveSurface, type CardPalette, type Surface } from "@/themes/surface";
 import { BLOCKS } from "./registry";
 import { MAX_NESTING } from "./tree";
 import type { BlockContext } from "./types";
@@ -68,44 +67,16 @@ function withLook(node: ReactNode, look: Look | undefined, key: string): ReactNo
   );
 }
 
-/** Palette du thème et carte par défaut : lus une fois par page, seulement si une carte est rendue (ou en édition). */
-type CardEnv = { palette: CardPalette; defaults: ResolvedSurface; wallpapers?: WallpaperLookup };
-
 /**
- * Carte de rubrique (lot 17c) : un aplat de la couleur choisie derrière la rubrique, posé sur le papier du
- * site (src/app/look.css, `.surface-card`) ; largeur, coins et couleurs lisibles dans la carte viennent de
- * `props.surface` et du thème (src/themes/surface.ts). Sans carte, aucune enveloppe en public : DOM inchangé.
- * Vue brouillon : l'enveloppe est toujours là (sans carte : `display: contents`) pour que la toile puisse
- * montrer un choix tout de suite sans toucher aux nœuds de React.
+ * Carte de rubrique (lot 17c) : couche extérieure de la zone (lot 66, `CardWrap` dans src/components/ZoneWrap.tsx) ; largeur, coins et couleurs
+ * lisibles dans la carte viennent de `props.surface` et du thème (src/themes/surface.ts). Sans carte, aucune enveloppe en public : DOM inchangé.
  */
 function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv | null, edit: boolean | undefined, key: string, join?: FondJoin): ReactNode {
   if (!env) return node;
-  const defaults = edit ? { "data-card-default": JSON.stringify(env.defaults) } : {};
-  if (!surface) {
-    return edit ? (
-      <div key={`card-${key}`} className="surface-card" data-surface="off" {...defaults}>
-        <div className="card-in">{node}</div>
-      </div>
-    ) : (
-      node
-    );
-  }
-  const resolved = resolveSurface(surface, env.defaults);
-  const paper = paperAttributes(surface, env.wallpapers);
-  const style = cardStyle(resolved.color, env.palette);
   return (
-    <div
-      key={`card-${key}`}
-      className="surface-card"
-      {...surfaceAttributes(resolved)}
-      {...paper.attrs}
-      {...(join?.prev ? { "data-join-prev": "" } : {})}
-      {...(join?.next ? { "data-join-next": "" } : {})}
-      style={{ ...cardVars(style), ...borderVars(resolved, style, env.palette), ...paper.vars } as CSSProperties}
-      {...(edit ? { ...defaults, "data-edit-surface": JSON.stringify(surface) } : {})}
-    >
-      <div className="card-in">{node}</div>
-    </div>
+    <CardWrap key={`card-${key}`} surface={surface} env={env} edit={edit} join={join} id={key}>
+      {node}
+    </CardWrap>
   );
 }
 
@@ -132,6 +103,14 @@ export function withFond(node: ReactNode, type: string, background: Background |
       {node}
     </FondWrap>
   );
+}
+
+/**
+ * Fond unique (lot 66) : les deux couches d'une zone posées par UN seul appel, dans l'ordre documenté (src/themes/zone.ts) : la carte dehors,
+ * le fond dedans. Rendu de toute rubrique (page, conteneur) ; la planche d'un projet pose les mêmes enveloppes (`FondWrap`, ProjectStrip).
+ */
+function withZone(node: ReactNode, type: string, layers: { surface: Surface | undefined; background: Background | undefined }, join: FondJoin, ctx: BlockContext, key: string, card: CardEnv | null): ReactNode {
+  return withSurface(withFond(node, type, layers.background, join, ctx, key), layers.surface, card, ctx.edit, key, join);
 }
 
 function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?: { uid: string }, inherited?: Look, card: CardEnv | null = null, join: FondJoin = { prev: false, next: false }): ReactNode {
@@ -222,26 +201,20 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
           .map((c) => ({ uid: c.uid, type: c.type, ...(c.props.look ? { look: JSON.stringify(c.props.look) } : {}) }))
       : undefined;
   return wrap(
-    withSurface(
-      withFond(
-        withLook(
-          <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id, look, ...(cellInfo ? { cellInfo } : {}) }}>
-            {children}
-          </Component>,
-          shown,
-          `look-${key}`,
-        ),
-        block.type,
-        background,
-        join,
-        ctx,
-        String(key),
+    withZone(
+      withLook(
+        <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id, look, ...(cellInfo ? { cellInfo } : {}) }}>
+          {children}
+        </Component>,
+        shown,
+        `look-${key}`,
       ),
-      surface,
-      card,
-      ctx.edit,
-      String(key),
+      block.type,
+      { surface, background },
       join,
+      ctx,
+      String(key),
+      card,
     ),
   );
 }

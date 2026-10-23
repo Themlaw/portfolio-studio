@@ -23,6 +23,7 @@ import { chromium } from "playwright";
 
 import { installPaperTheme, PAPER_THEME_ID, PAPER_THEME_NAME } from "./lib/paper-theme.mjs";
 import { activateThemeUi } from "./lib/theme-live.mjs";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -85,6 +86,7 @@ seedPage();
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -219,10 +221,17 @@ async function openFond(word) {
   await f.locator('.pe-tools [data-testid="fond-button"]').click();
   const menu = f.locator('[data-testid="fond-menu"]');
   await menu.waitFor({ timeout: 20000 });
+  // Lot 66 : sur une carte qui porte déjà une bande de couleur (fond emboîté), on règle cette bande.
+  if (await menu.locator('[data-testid="fond-layer"]').count()) await menu.locator('[data-layer="inner"]').click();
   return menu;
+}
+/** Lot 66 : la bande de couleur sur une carte se pose avec « Ajouter une bande de couleur sur la carte » (le menu règle sinon la carte). */
+async function ensureInner(menu) {
+  if (await menu.locator('[data-testid="fond-inner-add"]').count()) await menu.locator('[data-testid="fond-inner-add"]').click();
 }
 async function setFond(word, token) {
   const menu = await openFond(word);
+  if (token !== null) await ensureInner(menu);
   if (token === null) await menu.locator('[data-kind="none"]').click();
   else {
     if ((await menu.locator('[data-kind="color"]').getAttribute("aria-checked")) !== "true") await menu.locator('[data-kind="color"]').click();
@@ -244,9 +253,9 @@ await section("A", async () => {
   ok("A0 sans fond : carte seule, aucune enveloppe de fond active", before.fond === null && before.card !== null);
   const menu = await openFond("Bravo");
   ok("A1 le bouton « Fond » est dans la barre du composant", true);
-  ok("A1 « Aucun » est coché au départ", (await menu.locator('[data-kind="none"]').getAttribute("aria-checked")) === "true");
-  await menu.locator('[data-kind="color"]').click();
-  ok("A2 « Couleur » pose le fond profond du thème par défaut", await waitFor(() => JSON.stringify(bgOfDraft("Bravo")) === '{"kind":"color","color":"bgDeep"}'), JSON.stringify(bgOfDraft("Bravo")));
+  ok("A1 pas de bande de couleur au départ : le menu propose d'en ajouter une sur la carte", (await menu.locator('[data-testid="fond-inner-add"]').count()) === 1);
+  await ensureInner(menu);
+  ok("A2 « Ajouter une bande de couleur » pose le fond profond du thème (le papier est celui de la carte)", await waitFor(() => JSON.stringify(bgOfDraft("Bravo")) === '{"kind":"color","color":"bgDeep"}'), JSON.stringify(bgOfDraft("Bravo")));
   await menu.locator('[data-testid="card-da-color"][data-token="primary"]').click();
   ok("A3 couleur de la palette : jeton enregistré (suit le thème)", await waitFor(() => JSON.stringify(bgOfDraft("Bravo")) === '{"kind":"color","color":"primary"}'), JSON.stringify(bgOfDraft("Bravo")));
   await page.keyboard.press("Escape");
@@ -353,8 +362,8 @@ async function openCard(word) {
   const host = f.locator('[data-edit-block][data-edit-type="rich-text"]', { hasText: word }).first();
   await host.scrollIntoViewIfNeeded();
   await host.locator("section").first().click({ position: { x: 40, y: 30 } });
-  await f.locator(".pe-tools .sm-button:not([data-testid])").click();
-  const menu = f.locator(".sm").first();
+  await f.locator('.pe-tools [data-testid="fond-button"]').click();
+  const menu = f.locator('[data-testid="fond-menu"]').first();
   await menu.waitFor({ timeout: 20000 });
   return menu;
 }
@@ -496,7 +505,7 @@ await section("E", async () => {
   const pc = await measure(pub2, "Charlie");
   const pd = await measure(pub2, "Delta");
   const pbb = await measure(pub2, "Bravo");
-  ok("E7 papier visible sur les cartes (site) : sur le fond d'une carte sans réglage ET sur un fond posé sur la page", /"/.test(String(pc.paper)) && /"/.test(String(pd.paper)), JSON.stringify([pc.paper, pd.paper]));
+  ok("E7 papier visible sur les cartes (site) : sur le fond d'une carte sans réglage ; un fond posé par « Couleur » (lot 66) cache le papier du site", /"/.test(String(pc.paper)) && !/"/.test(String(pd.paper)), JSON.stringify([pc.paper, pd.paper]));
   ok("E7 une carte qui dit « sous » garde son fond sans papier", pbb.paper === "none" || pbb.paper === "normal", String(pbb.paper));
   await pub2.screenshot({ path: path.join(SHOTS, "e-public-papier-site.png"), fullPage: true });
   await anon2.close();

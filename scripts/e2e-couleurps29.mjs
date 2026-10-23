@@ -20,6 +20,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import { activateThemeUi } from "./lib/theme-live.mjs";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -77,6 +78,7 @@ const hexHsv = (hex) => {
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -308,11 +310,11 @@ if (run("Q")) {
   const f = await openEditor(homeId);
   // Carte d'une rubrique.
   await f.locator('[data-edit-type="collection-tiles"] h2').first().click();
-  const button = f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]");
+  const button = f.locator(".pe-tools [data-testid=\"fond-button\"]");
   await button.waitFor({ timeout: 20000 });
   await button.click();
-  const menu = f.locator(".sm");
-  await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
+  const menu = f.locator('[data-testid="fond-menu"]');
+  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
   await menu.getByRole("button", { name: "Couleur personnalisée" }).click();
   ok("Q1 carte de rubrique : carré + bande de teinte", await f.locator(".cp .cp-sv").waitFor({ timeout: 20000 }).then(() => true, () => false) && (await f.locator(".cp .cp-hue").count()) === 1);
   const csv = await f.locator(".cp .cp-sv").boundingBox();
@@ -322,7 +324,7 @@ if (run("Q")) {
   ok("Q1b carte : un clic dans le carré change la couleur de la carte", (await f.locator('.cp input[aria-label="Code couleur"]').inputValue()) !== before);
   await page.screenshot({ path: `${SHOTS}/Q1-carte.png` });
   await page.keyboard.press("Escape");
-  await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click().catch(() => {});
+  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click().catch(() => {});
   await settled();
 
   // Panneau « Couleurs » de l'éditeur (éditeur rouvert : aucune rubrique sélectionnée).

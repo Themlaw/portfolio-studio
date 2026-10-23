@@ -18,6 +18,7 @@ import { chromium } from "playwright";
 
 import { boardDraft, boardPublished, draftBlocks, grid, img, login, makeMedia, openEditor, pageIdOf, q1, settled, setBoardDraft, sql, waitFor } from "./lib/grille31d.mjs";
 import { publishBlocks } from "./lib/page-draft.mjs";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3600";
 const SHOTS = process.env.SHOTS ?? "screenshots/fond-contenu47";
@@ -32,6 +33,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -264,8 +266,8 @@ try {
   await page.keyboard.press("Escape");
   console.log("  fenêtre page   : " + winPage.text);
   console.log("  fenêtre planche: " + winBoard.text);
-  ok("C1 même fenêtre en page et en planche : mêmes libellés, mêmes boutons, mêmes lignes", winPage.text === winBoard.text && JSON.stringify(winPage.buttons) === JSON.stringify(winBoard.buttons) && JSON.stringify(winPage.rows) === JSON.stringify(winBoard.rows) && winPage.label === winBoard.label, `${winPage.text} || ${winBoard.text}`);
-  ok("C2 Étendue « Bord à bord / Avec marge », Coins « Droits / Petit / Moyen / Grand », avec pictogrammes (6)", winPage.minis === 6 && ["Bord à bord", "Avec marge", "Droits", "Petit", "Moyen", "Grand"].every((t) => winPage.buttons.includes(t)) && !winPage.buttons.some((t) => /En retrait|Coins arrondis|Pleine largeur|Coins droits/.test(t)), JSON.stringify(winPage));
+  ok("C1 même fenêtre en page et en planche : mêmes libellés, mêmes boutons, mêmes lignes", winPage.text.replace(/ Bordure \w+/, "") === winBoard.text && JSON.stringify(winPage.buttons.filter((t) => t !== "Non" && t !== "Oui")) === JSON.stringify(winBoard.buttons) && JSON.stringify(winPage.rows.filter((r) => r !== "Bordure")) === JSON.stringify(winBoard.rows) && winPage.label === winBoard.label, `${winPage.text} || ${winBoard.text}`);
+  ok("C2 Étendue « Pleine largeur / Carte en retrait », Coins « Droits / Petit / Moyen / Grand », avec pictogrammes (6)", winPage.minis === 6 && ["Pleine largeur", "Carte en retrait", "Droits", "Petit", "Moyen", "Grand"].every((t) => winPage.buttons.includes(t)) && !winPage.buttons.some((t) => /En retrait|Coins arrondis|Bord à bord|Coins droits/.test(t)), JSON.stringify(winPage));
 
   // Aperçu immédiat : pose une couleur puis « Avec marge » + coins sur la grille sans fond (page, puis planche) ; les images ne bougent pas.
   for (const [where, open, sel, uid] of [["page", openPageFond, `[data-edit-block="${GU[0]}"]`, GU[0]], ["planche", openBoardFond, '[data-edit-bitem="bg0"]', "bg0"]]) {
@@ -303,14 +305,14 @@ try {
     for (let attempt = 0; ; attempt++) {
       try {
         await host.locator(".surface-card").first().click({ position: { x: 60, y: 6 }, force: true });
-        await fr.locator('.pe-tools button[title^="Carte de la rubrique"]').click({ timeout: 4000 });
+        await fr.locator('.pe-tools [data-testid="fond-button"]').click({ timeout: 4000 });
         break;
       } catch (e) {
         if (attempt >= 3) throw e;
         await sleep(800);
       }
     }
-    const m = fr.locator('[role="dialog"][aria-label="Carte de la rubrique"]');
+    const m = fr.locator('[data-testid="fond-menu"]');
     await m.waitFor({ timeout: 20000 });
     return m;
   };
@@ -326,7 +328,7 @@ try {
   await page.screenshot({ path: path.join(SHOTS, "toile-fenetre-carte.png") });
   console.log("  fenêtre carte : " + (await cm.evaluate((el) => el.innerText.replace(/\s+/g, " ").slice(0, 260))));
   ok("D1 fenêtre Carte : mêmes lignes « Étendue » et « Coins », mêmes boutons, mêmes pictogrammes et mêmes classes que la fenêtre Fond", fondRows.length === 2 && cardRows.length === 2 && JSON.stringify(fondRows) === JSON.stringify(cardRows), JSON.stringify([fondRows.map((r) => r.buttons.map((b) => b.t)), cardRows.map((r) => r.buttons.map((b) => b.t))]));
-  ok("D2 plus de « Pleine largeur / En retrait / Coins droits / Coins arrondis » dans la fenêtre Carte", !/Pleine largeur|En retrait|Coins droits|Coins arrondis/.test(await cm.innerText()));
+  ok("D2 plus de « Pleine largeur / En retrait / Coins droits / Coins arrondis » dans la fenêtre Carte", !/Bord à bord|Coins droits|Coins arrondis/.test(await cm.innerText()));
   const legacyStep = await fr.evaluate(() => {
     const i = document.createElement("i");
     i.style.cssText = "position:absolute;visibility:hidden;border-radius:max(var(--t-radius-lg),12px);width:10px;height:10px";
@@ -335,8 +337,8 @@ try {
     i.remove();
     return [["s", 10], ["m", 20], ["l", 36]].sort((a, b) => Math.abs(a[1] - r) - Math.abs(b[1] - r))[0][0];
   });
-  ok("D3 ancienne carte : « Avec marge » coché, et la taille de coins la plus proche de son rayon cochée", (await cm.locator('[data-width="inset"]').getAttribute("aria-checked")) === "true" && (await cm.locator(`[data-testid="surface-round"] [data-step="${legacyStep}"]`).getAttribute("aria-checked")) === "true", legacyStep);
-  await cm.locator(`[data-testid="surface-round"] [data-step="${legacyStep}"]`).click();
+  ok("D3 ancienne carte : « Avec marge » coché, et la taille de coins la plus proche de son rayon cochée", (await cm.locator('[data-width="inset"]').getAttribute("aria-checked")) === "true" && (await cm.locator(`[data-testid="fond-round"] [data-step="${legacyStep}"]`).getAttribute("aria-checked")) === "true", legacyStep);
+  await cm.locator(`[data-testid="fond-round"] [data-step="${legacyStep}"]`).click();
   await sleep(600);
   ok("D4 cliquer la taille déjà cochée ne change rien (réglages de la carte inchangés, rendu d'avant gardé)", JSON.stringify(surfaceOf(CARD) ?? {}) === "{}", JSON.stringify(surfaceOf(CARD)));
   const clickAndMeasure = async (sel) => {
@@ -345,9 +347,9 @@ try {
     return { imgs: await imgsOf(`[data-edit-block="${CARD}"]`), card: (await fr.evaluate(MEASURE, project.slug)).cards[0] };
   };
   const other = legacyStep === "l" ? "s" : "l";
-  let r = await clickAndMeasure(`[data-testid="surface-round"] [data-step="${other}"]`);
+  let r = await clickAndMeasure(`[data-testid="fond-round"] [data-step="${other}"]`);
   ok(`D5 coins « ${other === "l" ? "Grand" : "Petit"} » : rayon ${other === "l" ? 36 : 10} px, images intactes`, near(r.card.r, other === "l" ? 36 : 10, 1) && same(cardImgs0, r.imgs), JSON.stringify([r.card, fmt(cardImgs0), fmt(r.imgs)]));
-  r = await clickAndMeasure('[data-testid="surface-round"] [data-step="none"]');
+  r = await clickAndMeasure('[data-testid="fond-round"] [data-step="none"]');
   ok("D6 coins « Droits » : rayon nul, images intactes", r.card.r === 0 && same(cardImgs0, r.imgs), JSON.stringify([r.card, fmt(cardImgs0), fmt(r.imgs)]));
   r = await clickAndMeasure('[data-extent="full"]');
   ok("D7 « Bord à bord » : la carte occupe toute la largeur, images intactes", near(r.card.l, 0, 1.5) && same(cardImgs0, r.imgs), JSON.stringify([r.card, fmt(cardImgs0), fmt(r.imgs)]));

@@ -60,8 +60,9 @@ export const fondColor = (bg: Background | undefined): string | undefined => (bg
 export function fondKey(bg: Background | undefined, onCard: boolean, border = ""): string | null {
   if (!bg || bg.inset) return null;
   const where = onCard ? `card|${border}` : "page";
-  if (bg.kind === "wallpaper") return `wp:${bg.wallpaper}:${bg.size ?? ""}:${bg.opacity ?? ""}:${bg.color ?? ""}|${where}`;
-  return `${bg.color}|${where}`;
+  const paper = bg.paper === "under" ? "|u" : "";
+  if (bg.kind === "wallpaper") return `wp:${bg.wallpaper}:${bg.size ?? ""}:${bg.opacity ?? ""}:${bg.color ?? ""}|${where}${paper}`;
+  return `${bg.color}|${where}${paper}`;
 }
 
 /** `around` : couleur (jeton ou `#rrggbb`) qui entoure un fond avec marge, quand un voisin en a une (lot 43). */
@@ -108,6 +109,7 @@ export function fondAttributes(join: FondJoin, bg?: Background): Record<string, 
   return {
     "data-fond": "on",
     ...(bg?.inset ? { "data-fond-inset": bg.inset, ...(bg.round ? { "data-fond-round": bg.round } : {}), ...(join.around ? { "data-fond-around": "" } : {}) } : {}),
+    ...(bg?.paper === "under" ? { "data-paper": "under" } : {}),
     ...(join.prev ? { "data-join-prev": "" } : {}),
     ...(join.next ? { "data-join-next": "" } : {}),
     ...(bg?.kind === "wallpaper" ? { "data-wallpaper": "", ...(bg.color ? {} : { "data-fond-clear": "" }) } : {}),

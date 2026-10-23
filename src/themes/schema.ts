@@ -92,22 +92,27 @@ export const SurfaceBaseSchema = z.strictObject({
  */
 export const BACKGROUND_KINDS = ["color", "wallpaper"] as const;
 /**
- * Papier peint (lot 35) : largeur d'une tuile en px (24 à 1200) et opacité (5 à 100 %). Mêmes bornes pour le papier d'une page, d'une
+ * Papier peint (lot 35) : largeur d'une tuile en px (24 à 1200) et opacité (0 à 100 % : lot 66, R6, le curseur descend à 0). Mêmes bornes pour le papier d'une page, d'une
  * carte et d'un composant ; absent = le réglage du motif dans la bibliothèque.
  */
 export const WALLPAPER_SIZE_MIN = 24;
 export const WALLPAPER_SIZE_MAX = 1200;
-export const WALLPAPER_OPACITY_MIN = 0.05;
+export const WALLPAPER_OPACITY_MIN = 0;
 export const WallpaperIdSchema = z.number().int().positive();
 export const WallpaperSizeSchema = z.number().int().min(WALLPAPER_SIZE_MIN).max(WALLPAPER_SIZE_MAX);
 export const WallpaperOpacitySchema = z.number().min(WALLPAPER_OPACITY_MIN).max(1);
 /** Tailles S / M / L (lot 43) : marge autour du fond (`inset`) et arrondi de ses coins (`round`). Absent = comportement d'avant (bord à bord, coins droits). */
 export const FOND_STEPS = ["s", "m", "l"] as const;
 const FondStepSchema = z.enum(FOND_STEPS);
+/**
+ * Papier du site sur un fond (lot 66, R5) : `under` = le papier du site (papier du kit ou papier peint des cartes, que le site dessine sur
+ * les cartes et les fonds) n'est PAS redessiné sur ce fond ; absent = comme le site (rendu d'avant, au pixel).
+ */
+export const FondPaperSchema = z.literal("under");
 export const BackgroundSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("color"), color: SurfaceColorSchema, inset: FondStepSchema.optional(), round: FondStepSchema.optional() }),
+  z.strictObject({ kind: z.literal("color"), color: SurfaceColorSchema, inset: FondStepSchema.optional(), round: FondStepSchema.optional(), paper: FondPaperSchema.optional() }),
   // Un motif de la bibliothèque, une couleur facultative DESSOUS (même choix que « Couleur »), taille et opacité facultatives.
-  z.strictObject({ kind: z.literal("wallpaper"), wallpaper: WallpaperIdSchema, color: SurfaceColorSchema.optional(), size: WallpaperSizeSchema.optional(), opacity: WallpaperOpacitySchema.optional(), inset: FondStepSchema.optional(), round: FondStepSchema.optional() }),
+  z.strictObject({ kind: z.literal("wallpaper"), wallpaper: WallpaperIdSchema, color: SurfaceColorSchema.optional(), size: WallpaperSizeSchema.optional(), opacity: WallpaperOpacitySchema.optional(), inset: FondStepSchema.optional(), round: FondStepSchema.optional(), paper: FondPaperSchema.optional() }),
 ]);
 /** Papier peint d'UNE PAGE (lot 35) : absent = celui du site (rien ne change) ; `none` = aucun ; sinon un motif. */
 export const PagePaperSchema = z.discriminatedUnion("mode", [

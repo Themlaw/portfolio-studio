@@ -39,7 +39,7 @@ ok(
     !bg({ kind: "wallpaper", wallpaper: "3" }) &&
     !bg({ kind: "wallpaper", wallpaper: 3, size: 23 }) &&
     !bg({ kind: "wallpaper", wallpaper: 3, size: 1201 }) &&
-    !bg({ kind: "wallpaper", wallpaper: 3, opacity: 0.04 }) &&
+    !bg({ kind: "wallpaper", wallpaper: 3, opacity: -0.04 }) &&
     !bg({ kind: "wallpaper", wallpaper: 3, opacity: 1.01 }) &&
     !bg({ kind: "wallpaper", wallpaper: 3, url: "/x.png" }) &&
     !bg({ kind: "wallpaper", wallpaper: 3, color: "rouge" }),
