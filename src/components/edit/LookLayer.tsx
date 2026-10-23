@@ -273,7 +273,9 @@ function roleOf(el: HTMLElement): Role {
   if (el.closest(".eyebrow")) return "eyebrow";
   if (el.closest("h1")) return "h1";
   if (el.closest("h2, h3")) return "h2";
-  if (el.closest(".caption-text, figcaption, .strip-caption") || el.closest("footer")) return "caption";
+  if (el.closest(".caption-text, figcaption, .strip-caption")) return "caption";
+  // Pied de page : un texte courant (police du texte ; sa taille reste la sienne, voir ROLE_FONT_ONLY_SELECTORS).
+  if (el.closest("footer")) return "body";
   return "body";
 }
 

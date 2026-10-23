@@ -717,6 +717,8 @@ export function logoCss(logo: Logo | undefined): string {
     `${WIN} .site-brand{display:flex;align-items:center;height:var(--lh);margin-bottom:min(0px,calc(var(--bh) - var(--lh)));min-width:0;max-width:60vw;font-size:calc(var(--lh)*.5)}`,
     // Le menu ne passe jamais à la ligne (la barre ne grandirait pas pour autant, mais il se lirait mal) : c'est le nom en texte qui cède de la place.
     `${H} nav,${H} .site-header-bar>div{flex-shrink:0}${H} nav a,${H} button{white-space:nowrap}`,
+    // Menu téléphone ouvert : le logo reste visible au-dessus du panneau, dont les liens commencent sous lui.
+    `${WIN} .site-brand{position:relative;z-index:1}${H} #nav-mobile{padding-top:max(0px,calc(var(--lh) - var(--bh)))}`,
     `${WIN} .site-brand-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`,
     `${WIN} .site-signature{height:var(--lh);max-width:100%}`,
     `${WIN} .site-logo-img{height:var(--lh);max-width:100%}`,

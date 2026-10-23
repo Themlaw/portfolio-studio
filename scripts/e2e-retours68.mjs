@@ -236,9 +236,11 @@ try {
       const menu = await ph.evaluate(() => {
         const n = document.querySelector("#nav-mobile").getBoundingClientRect();
         const bar = document.querySelector(".site-header-bar").getBoundingClientRect();
-        return { top: n.top, barBottom: bar.bottom, barH: bar.height, shown: !document.querySelector("#nav-mobile").hidden };
+        const logo = document.querySelector(".site-header .site-brand").getBoundingClientRect();
+        const link = document.querySelector("#nav-mobile a").getBoundingClientRect();
+        return { top: n.top, barBottom: bar.bottom, barH: bar.height, shown: !document.querySelector("#nav-mobile").hidden, logoBottom: logo.bottom, linkTop: link.top };
       });
-      ok(`L8 ${tag} menu téléphone : ouvert sous la barre, barre inchangée`, menu.shown && menu.top >= menu.barBottom - 1 && near(menu.barH, ref[390].barH, 1), JSON.stringify(menu));
+      ok(`L8 ${tag} menu téléphone : ouvert sous la barre (barre inchangée), liens sous le logo`, menu.shown && menu.top >= menu.barBottom - 1 && near(menu.barH, ref[390].barH, 1) && menu.linkTop >= menu.logoBottom - 1, JSON.stringify(menu));
       await shot(ph, `L-${tag}-menu-390`);
       for (const w of WIDTHS) await cur[w].p.context().close();
     };
