@@ -55,12 +55,23 @@ export function placePopover(el: HTMLElement, r: { left: number; top: number; ri
   const below = vh - POPOVER_EDGE - (belowFrom + POPOVER_GAP);
   const above = r.top - POPOVER_GAP - POPOVER_EDGE;
   let top: number;
-  const hits = (t: number) => obstacles.some((o) => left < o.right + POPOVER_GAP && left + w > o.left - POPOVER_GAP && t < o.bottom + POPOVER_GAP && t + h > o.top - POPOVER_GAP);
-  // Les côtés qui tiennent, le préféré d'abord ; le premier qui ne recouvre aucun obstacle (barre d'outils du bloc…) gagne.
+  const hitAt = (l: number, t: number) => obstacles.find((o) => l < o.right + POPOVER_GAP && l + w > o.left - POPOVER_GAP && t < o.bottom + POPOVER_GAP && t + h > o.top - POPOVER_GAP);
+  // Les côtés qui tiennent, le préféré d'abord. Sur un côté, la fenêtre se décale à gauche de l'obstacle (barre d'outils du bloc…) s'il
+  // le faut ; le premier emplacement qui ne recouvre rien gagne, sinon le premier qui tient.
   const A: [boolean, number] = [h <= above, r.top - POPOVER_GAP - h];
   const B: [boolean, number] = [h <= below, belowFrom + POPOVER_GAP];
-  const fits = (prefer === "above" ? [A, B] : [B, A]).filter((x) => x[0]);
-  if (fits.length) top = (fits.find((x) => !hits(x[1])) ?? fits[0])[1];
+  const sides = (prefer === "above" ? [A, B] : [B, A]).filter((x) => x[0]);
+  const spots: [number, number][] = [];
+  for (const [, t] of sides) {
+    spots.push([left, t]);
+    const o = hitAt(left, t);
+    if (o && o.left - POPOVER_GAP - w >= POPOVER_EDGE) spots.push([o.left - POPOVER_GAP - w, t]);
+  }
+  const spot = spots.find(([l, t]) => !hitAt(l, t)) ?? spots[0];
+  if (spot) {
+    left = spot[0];
+    top = spot[1];
+  }
   else {
     // Ni dessous ni dessus : la plus grande place (au moins un tiers de la fenêtre), le contenu défile.
     const room = Math.max(below, above, Math.min(vh - 2 * POPOVER_EDGE, 160));
@@ -69,8 +80,8 @@ export function placePopover(el: HTMLElement, r: { left: number; top: number; ri
     el.style.overflowY = "auto";
     top = below >= above ? belowFrom + POPOVER_GAP : r.top - POPOVER_GAP - h;
   }
-  // Bouton hors de l'écran (défilé) : la fenêtre reste lisible, à la limite de la vue.
-  top = Math.max(POPOVER_EDGE, Math.min(top, vh - POPOVER_EDGE - h));
+  // Bouton hors de l'écran (défilé) : la fenêtre part avec lui (elle ne vient pas recouvrir autre chose) ; sinon elle reste dans la vue.
+  if (r.bottom > 0 && r.top < vh) top = Math.max(POPOVER_EDGE, Math.min(top, vh - POPOVER_EDGE - h));
   return { left: left + win.scrollX, top: top + win.scrollY };
 }
 

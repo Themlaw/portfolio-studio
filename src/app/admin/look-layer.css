@@ -104,6 +104,9 @@
 .pe-pop.lk-bar {
   translate: 0 0;
 }
+.pe-pop.lk-bar {
+  max-width: min(560px, calc(100vw - 16px));
+}
 .lk-bar-head {
   display: flex;
   flex-wrap: wrap;

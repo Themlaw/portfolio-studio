@@ -181,6 +181,8 @@ if (run("A") || run("B") || run("C"))
   await addEnd.scrollIntoViewIfNeeded();
   ok("A1 « + Ajouter une rubrique » toujours visible en bas de page", (await addEnd.isVisible()) && /Ajouter une rubrique/.test((await addEnd.textContent()) ?? ""));
   await page.screenshot({ path: path.join(SHOTS, "a1-bouton-bas.png") });
+  // La barre de style (fenêtre ancrée, lot 65) peut recouvrir « + Ajouter » : on la ferme comme le ferait l'artiste.
+  await f.evaluate(() => document.querySelector(".lk-bar .lk-close")?.click());
   await addEnd.click();
   const dlg = page.locator("dialog.ve-add");
   ok("A2 le choix illustré s'ouvre", await dlg.waitFor({ timeout: 20000 }).then(() => true, () => false));
@@ -251,6 +253,8 @@ if (run("A") || run("B") || run("C"))
 
   // Case vide d'une grille : « Texte ».
   await f.locator('[data-edit-add="end"]').scrollIntoViewIfNeeded();
+  // La barre de style (fenêtre ancrée, lot 65) peut recouvrir « + Ajouter » : on la ferme comme le ferait l'artiste.
+  await f.evaluate(() => document.querySelector(".lk-bar .lk-close")?.click());
   await f.locator('[data-edit-add="end"]').click();
   await dlg.waitFor({ timeout: 20000 });
   await dlg.locator('.ve-add-card[data-key="grid"]').click();
