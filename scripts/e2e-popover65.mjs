@@ -135,7 +135,7 @@ const closeAll = async () => {
 /**
  * Un bouton : `prep` pose la barre (sélection / survol), `btn()` rend son locator. Clic réel, mesure, défilement, Échap.
  */
-async function check(name, prep, btn, { scroll = 140, esc = true, pointerOutside = false, write = null } = {}) {
+async function check(name, prep, btn, { scroll = 140, esc = true, pointerOutside = false, write = null, noCover = null } = {}) {
   const tag = `${W} ${name}`;
   if (process.env.CASE && !process.env.CASE.split(",").some((c) => name.includes(c))) return;
   try {
@@ -170,6 +170,11 @@ async function check(name, prep, btn, { scroll = 140, esc = true, pointerOutside
     ok(`${tag} : fenêtre à ≤ ${MAX_GAP} px du bouton`, gap <= MAX_GAP, `écart ${Math.round(gap)} px (bouton ${JSON.stringify(rd(bb))}, fenêtre ${JSON.stringify(rd(pop))})`);
     ok(`${tag} : fenêtre entièrement à l'écran`, inside(pop, view), `fenêtre ${JSON.stringify(rd(pop))} / vue ${JSON.stringify(rd(view))}`);
     await page.screenshot({ path: path.join(SHOTS, `${W}-${name}.png`) }).catch(() => {});
+    // La fenêtre ne recouvre pas la barre qui l'a ouverte (ses autres boutons restent atteignables).
+    if (noCover) {
+      const barBox = await fr.locator(noCover).first().boundingBox().catch(() => null);
+      if (barBox) ok(`${tag} : ne recouvre pas la barre`, gapBetween(pop, barBox) > 0 && !(pop.x < barBox.x + barBox.width && pop.x + pop.width > barBox.x && pop.y < barBox.y + barBox.height && pop.y + pop.height > barBox.y), `fenêtre ${JSON.stringify(rd(pop))} / barre ${JSON.stringify(rd(barBox))}`);
+    }
     // Défilement de la toile : la fenêtre suit son bouton (s'il reste à l'écran).
     await fr.evaluate((d) => window.scrollBy(0, d), scroll);
     await sleep(600);
@@ -283,8 +288,8 @@ async function cases() {
     await scrollTo(fr.locator(slot).first());
     await moveOn(fr.locator(`${slot} .strip-media`).first());
   };
-  await check("carrousel-cadre", hoverSlot, () => fr.locator('.pe-slot-tools [data-testid="slot-frame-button"]'));
-  await check("carrousel-fond-image", hoverSlot, () => fr.locator('.pe-slot-tools [data-testid="slot-imgbg-button"]'));
+  await check("carrousel-cadre", hoverSlot, () => fr.locator('.pe-slot-tools [data-testid="slot-frame-button"]'), { noCover: ".pe-slot-tools" });
+  await check("carrousel-fond-image", hoverSlot, () => fr.locator('.pe-slot-tools [data-testid="slot-imgbg-button"]'), { noCover: ".pe-slot-tools" });
 
   const freeItem = (host) => fr.locator(`[data-edit-block="${host}"] .free-item[data-free-item="b"]`).first();
   const pickFree = (host) => async () => {

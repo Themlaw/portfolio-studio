@@ -438,7 +438,7 @@ function TextBar({
   };
   // Fenêtre ancrée au bouton « Aa » (lot 65) : au-dessus du texte si la place y est, jamais sur la barre d'outils du bloc ni loin du bouton.
   return (
-    <Popover anchor=".lk-aa" prefer="above" className="lk-bar" role="toolbar" label="Style du texte" onClose={onClose} ignoreDismiss={(t) => Boolean(document.querySelector(target.path)?.contains(t))} onPointerDown={(e) => e.stopPropagation()}>
+    <Popover anchor=".lk-aa" avoid={target.path} prefer="above" className="lk-bar" role="toolbar" label="Style du texte" onClose={onClose} ignoreDismiss={(t) => Boolean(document.querySelector(target.path)?.contains(t))} onPointerDown={(e) => e.stopPropagation()}>
       <div className="lk-bar-head">
         <span className="lk-seg" role="radiogroup" aria-label="Appliquer à">
           {target.local && (
