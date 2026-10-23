@@ -19,7 +19,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-import { useDismiss } from "./useDismiss";
+import { topDismiss, useDismiss } from "./useDismiss";
 
 /** Le bouton qui ouvre la fenêtre : l'élément, un sélecteur CSS (retrouvé à chaque calcul) ou une fonction. */
 export type PopoverAnchor = Element | string | (() => Element | null);
@@ -38,7 +38,7 @@ function resolveAnchor(a: PopoverAnchor, doc: Document): Element | null {
  * Place la fenêtre `el` près du rectangle `r` (coordonnées de la fenêtre du navigateur). Pur calcul sur le DOM : rend la position
  * en coordonnées du document, ou undefined si rien n'a changé depuis `last`.
  */
-export function placePopover(el: HTMLElement, r: { left: number; top: number; right: number; bottom: number }, align: "start" | "center" | "end", prefer: "below" | "above" = "below", clearBottom?: number) {
+export function placePopover(el: HTMLElement, r: { left: number; top: number; right: number; bottom: number }, align: "start" | "center" | "end", prefer: "below" | "above" = "below", clearBottom?: number, obstacles: { left: number; top: number; right: number; bottom: number }[] = []) {
   const doc = el.ownerDocument;
   const win = doc.defaultView ?? window;
   const vw = doc.documentElement.clientWidth;
@@ -55,9 +55,12 @@ export function placePopover(el: HTMLElement, r: { left: number; top: number; ri
   const below = vh - POPOVER_EDGE - (belowFrom + POPOVER_GAP);
   const above = r.top - POPOVER_GAP - POPOVER_EDGE;
   let top: number;
-  if (prefer === "above" && h <= above) top = r.top - POPOVER_GAP - h;
-  else if (h <= below) top = belowFrom + POPOVER_GAP;
-  else if (h <= above) top = r.top - POPOVER_GAP - h;
+  const hits = (t: number) => obstacles.some((o) => left < o.right + POPOVER_GAP && left + w > o.left - POPOVER_GAP && t < o.bottom + POPOVER_GAP && t + h > o.top - POPOVER_GAP);
+  // Les côtés qui tiennent, le préféré d'abord ; le premier qui ne recouvre aucun obstacle (barre d'outils du bloc…) gagne.
+  const A: [boolean, number] = [h <= above, r.top - POPOVER_GAP - h];
+  const B: [boolean, number] = [h <= below, belowFrom + POPOVER_GAP];
+  const fits = (prefer === "above" ? [A, B] : [B, A]).filter((x) => x[0]);
+  if (fits.length) top = (fits.find((x) => !hits(x[1])) ?? fits[0])[1];
   else {
     // Ni dessous ni dessus : la plus grande place (au moins un tiers de la fenêtre), le contenu défile.
     const room = Math.max(below, above, Math.min(vh - 2 * POPOVER_EDGE, 160));
@@ -85,6 +88,8 @@ export type PopoverProps = {
   role?: "dialog" | "menu" | "radiogroup" | "toolbar";
   /** Côté préféré : « above » met la fenêtre au-dessus du bouton quand la place y est (ne cache pas ce qui est dessous). */
   prefer?: "below" | "above";
+  /** Sélecteur des éléments (barres) que la fenêtre ne doit pas recouvrir : l'autre côté du bouton est choisi s'il le faut. */
+  obstacles?: string;
   /** Élément que la fenêtre ne doit pas recouvrir quand elle se pose dessous (le texte réglé par « Aa »). */
   avoid?: PopoverAnchor;
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
@@ -99,17 +104,19 @@ export type PopoverProps = {
   focusFirst?: boolean;
 };
 
-export default function Popover({ anchor, label, onClose, children, className = "sm tc", role = "dialog", testId, align = "start", prefer = "below", avoid, ignoreDismiss, style, onKeyDown, onPointerDown, focusFirst }: PopoverProps) {
+export default function Popover({ anchor, label, onClose, children, className = "sm tc", role = "dialog", testId, align = "start", prefer = "below", avoid, obstacles, ignoreDismiss, style, onKeyDown, onPointerDown, focusFirst }: PopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
   const anchorRef = useRef(anchor);
   const alignRef = useRef(align);
   const preferRef = useRef(prefer);
   const avoidRef = useRef(avoid);
+  const obstaclesRef = useRef(obstacles);
   useLayoutEffect(() => {
     anchorRef.current = anchor;
     alignRef.current = align;
     preferRef.current = prefer;
     avoidRef.current = avoid;
+    obstaclesRef.current = obstacles;
   });
   useDismiss(ref, onClose, { ...(ignoreDismiss ? { ignore: ignoreDismiss } : {}), escape: false });
   const closeRef = useRef(onClose);
@@ -124,6 +131,8 @@ export default function Popover({ anchor, label, onClose, children, className = 
     const win = (ref.current?.ownerDocument ?? document).defaultView ?? window;
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== "Escape" || openStack[openStack.length - 1] !== id) return;
+      // Un menu plus récent ouvert DANS la fenêtre (liste de tailles, de polices…) se ferme d'abord : ce n'est pas à nous.
+      if (topDismiss() !== ref.current) return;
       e.preventDefault();
       e.stopImmediatePropagation();
       closeRef.current();
@@ -159,11 +168,12 @@ export default function Popover({ anchor, label, onClose, children, className = 
       }
       if (!last) return;
       const r = { left: last.left - win.scrollX, top: last.top - win.scrollY, right: last.right - win.scrollX, bottom: last.bottom - win.scrollY };
-      const key = `${Math.round(avoidRef.current ? (resolveAnchor(avoidRef.current, doc)?.getBoundingClientRect().bottom ?? 0) : 0)}|${Math.round(r.left)}|${Math.round(r.top)}|${Math.round(r.right)}|${Math.round(r.bottom)}|${doc.documentElement.clientWidth}|${win.innerHeight}|${el.offsetWidth}|${el.scrollHeight}`;
+      const key = `${obstaclesRef.current ? [...doc.querySelectorAll(obstaclesRef.current)].map((o) => { const b = o.getBoundingClientRect(); return `${Math.round(b.left)},${Math.round(b.top)}`; }).join(";") : ""}|${Math.round(avoidRef.current ? (resolveAnchor(avoidRef.current, doc)?.getBoundingClientRect().bottom ?? 0) : 0)}|${Math.round(r.left)}|${Math.round(r.top)}|${Math.round(r.right)}|${Math.round(r.bottom)}|${doc.documentElement.clientWidth}|${win.innerHeight}|${el.offsetWidth}|${el.scrollHeight}`;
       if (key === seen) return;
       seen = key;
       const av = avoidRef.current ? resolveAnchor(avoidRef.current, doc)?.getBoundingClientRect().bottom : undefined;
-      const p = placePopover(el, r, alignRef.current, preferRef.current, av);
+      const obs = obstaclesRef.current ? [...doc.querySelectorAll(obstaclesRef.current)].filter((o) => !el.contains(o)).map((o) => o.getBoundingClientRect()).filter((b) => b.width > 0) : [];
+      const p = placePopover(el, r, alignRef.current, preferRef.current, av, obs);
       el.style.left = `${Math.round(p.left)}px`;
       el.style.top = `${Math.round(p.top)}px`;
     };
