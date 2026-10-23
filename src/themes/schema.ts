@@ -329,6 +329,8 @@ export const ThemeSchema = z
           mediaRadius: z.enum(["none", "soft", "medium", "strong"]),
           /** Fond derrière le métier dans l'ouverture (« Chara design · … »). */
           heroRoleBackdrop: z.enum(["none", "shadow", "band", "highlight"]),
+          /** Aération du fond de texte (lot 68, étape « Textes ») : défaut du site ; chaque rôle ou texte peut choisir la sienne. Absent = « Normal ». */
+          textAir: z.enum(["tight", "normal", "airy"]),
           /** Carte des rubriques (lot 17c) : réglages utilisés quand une rubrique active sa carte sans les préciser. */
           card: LenientSurfaceSchema,
         })

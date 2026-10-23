@@ -8,6 +8,7 @@
  * l'aperçu en direct.
  */
 import { FONT_STACKS as FONT_CATALOG } from "./font-stacks";
+import { airVariables } from "./backdrop-air";
 import { resolvePalette, type PaletteColors } from "./palette";
 import { applySitePalette, type SitePalette } from "./site-palette";
 import type { KitAssets, KitCursor, KitImage, Theme } from "./schema";
@@ -169,6 +170,7 @@ export function layoutVariables(theme: Theme): Record<string, string> {
     "--t-space-xl": l.spaceXL,
     "--t-page-top": l.pageTop,
     "--t-board-pad": l.stripPad,
+    ...airVariables(theme.tokens.layout?.textAir),
     ...(theme.tokens.layout?.mediaRadius ? { "--t-media-radius": RADIUS_VALUES[theme.tokens.layout.mediaRadius] } : {}),
   };
 }

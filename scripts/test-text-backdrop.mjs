@@ -40,7 +40,7 @@ ok("réglages d'un bloc : le fond d'un texte précis (look.text)", LookSchema.sa
 /* ---- « Auto » : rendu d'avant ---------------------------------------------------------------------------- */
 const auto = (b) => Object.fromEntries(backdropDecls(b, undefined));
 ok("Auto ombre douce : le halo du thème (--role-shadow)", auto("shadow")["text-shadow"] === "var(--role-shadow)" && auto("shadow").background === "none");
-ok("Auto bandeau : fond du thème à 86 %, boîte en ligne", auto("band").background === "color-mix(in srgb, var(--color-bg) 86%, transparent)" && auto("band").display === "inline-block" && auto("band").padding === "0.45em 0.8em");
+ok("Auto bandeau : fond du thème à 86 %, boîte en ligne", auto("band").background === "color-mix(in srgb, var(--color-bg) 86%, transparent)" && auto("band").display === "inline-block" && auto("band").padding === "var(--bd-pady, 0.55em) var(--bd-padx, 1em)");
 ok("Auto surlignage : trait de la couleur principale, texte sur-principal, boîte de l'élément gardée (ni display ni padding)", auto("highlight")["text-decoration-color"] === "var(--color-primary)" && auto("highlight")["text-decoration-line"] === "underline" && auto("highlight").color === "var(--user-ink, var(--color-on-primary))" && auto("highlight").display === undefined && auto("highlight").padding === undefined && auto("highlight").background === "none");
 ok("Auto ne lit pas la palette : même résultat avec et sans", JSON.stringify(backdropDecls("band", undefined, { palette })) === JSON.stringify(backdropDecls("band", undefined)));
 ok("Aucun : efface le fond du thème (rien d'autre)", JSON.stringify(auto("none")) === JSON.stringify({ background: "none", padding: "0", "text-shadow": "none", "text-decoration": "none" }));
@@ -89,7 +89,7 @@ ok("teintes du texte : « Encre douce » et « Étiquettes » reconnues", backdr
 /* ---- Feuille des styles du site : un seul mécanisme pour tous les rôles ----------------------------------------- */
 for (const role of ROLES) {
   const css = siteStylesCss({ roles: { [role]: { backdrop: "band", backdropColor: "primary12" } } }, palette);
-  ok(`rôle ${role} : bandeau coloré dans la feuille`, css.includes("color-mix(in oklab, var(--t-color-primary) 12%, var(--t-color-bg))") && (["menu", "brand"].includes(role) ? css.includes("display:inline-block") : css.includes("width:fit-content") && css.includes("outline:0.45em solid") && !css.includes("display:inline-block")));
+  ok(`rôle ${role} : bandeau coloré dans la feuille`, css.includes("color-mix(in oklab, var(--t-color-primary) 12%, var(--t-color-bg))") && (["menu", "brand"].includes(role) ? css.includes("display:inline-block") : css.includes("width:fit-content") && css.includes("outline:var(--bd-outline, 0.55em) solid") && !css.includes("display:inline-block")));
   const none = siteStylesCss({ roles: { [role]: { backdrop: "none" } } });
   ok(`rôle ${role} : « Aucun » dans la feuille`, none.includes("text-shadow:none") && none.includes("background:none"));
 }
@@ -106,6 +106,18 @@ ok("ancien fond du métier (look.roleBackdrop) : lu et rendu comme avant", readL
 ok("styles existants : mêmes déclarations qu'avant le lot", JSON.stringify(textStyleDecls({ size: "l", weight: 600, color: "ink", align: "center" })) === JSON.stringify([["font-size", "1.25rem"], ["font-weight", "600"], ["color", "var(--t-color-ink)"], ["text-align", "center"]]));
 ok("sans fond ni palette : la règle du rôle est celle d'avant (+ le choix de couleur publié à part)", siteStylesCss({ roles: { h1: { size: "3xl", color: "primary" } } }) === ":root:root:root #contenu h1{font-size:clamp(2.25rem, 5vw, 3.25rem);color:var(--t-color-primary)}\n:root:root:root #contenu h1{--user-ink:var(--t-color-primary)}" && siteStylesCss({ roles: { h1: { size: "3xl" } } }) === ":root:root:root #contenu h1{font-size:clamp(2.25rem, 5vw, 3.25rem)}");
 ok("aucun rôle ne bloque le fond aujourd'hui (la ligne reste active)", ROLES.every((r) => BACKDROP_BLOCKED[r] === undefined));
+
+
+/* ---- Aération du fond (lot 68) : crans Serré · Normal · Aéré ------------------------------------------------------ */
+import { AIR_VALUES, airVariables } from "../src/themes/backdrop-air.ts";
+const air = (b, a) => Object.fromEntries(backdropDecls(b, undefined, { air: a }));
+ok("air : « Serré » = le rendu d'avant le lot 68 (bandeau, bandeau de rôle, surlignage)", air("band", "tight").padding === "0.45em 0.8em" && Object.fromEntries(backdropDecls("band", undefined, { air: "tight", role: true })).outline === "0.45em solid color-mix(in srgb, var(--color-bg) 86%, transparent)" && air("highlight", "tight")["text-decoration-thickness"] === "1.15em" && air("highlight", "tight")["text-underline-offset"] === "-0.88em");
+ok("air : trois crans strictement croissants (marge, débord, épaisseur du trait)", ["padX", "padY", "outline", "thick"].every((k) => parseFloat(AIR_VALUES.tight[k]) < parseFloat(AIR_VALUES.normal[k]) && parseFloat(AIR_VALUES.normal[k]) < parseFloat(AIR_VALUES.airy[k])));
+ok("air : sans choix, le défaut du thème (variables), repli « Normal »", air("highlight", undefined)["text-decoration-thickness"] === "var(--bd-thick, 1.32em)" && air("highlight", undefined)["text-underline-offset"] === "var(--bd-offset, -0.97em)");
+ok("air : défaut du thème : rien pour « Normal », les valeurs du cran sinon", Object.keys(airVariables("normal")).length === 0 && Object.keys(airVariables(undefined)).length === 0 && airVariables("tight")["--bd-padx"] === "0.8em" && airVariables("airy")["--bd-thick"] === "1.5em");
+ok("air : une aération choisie passe devant le thème (valeurs écrites, pas de variable)", !JSON.stringify(air("band", "airy")).includes("var(--bd"));
+ok("air : ni ombre douce ni « Aucun » n'en dépendent", !JSON.stringify(air("shadow", "airy")).includes("em solid") && air("none", "airy").padding === "0");
+
 
 if (failures) {
   console.error(`test-text-backdrop : ÉCHEC (${failures}/${count})`);

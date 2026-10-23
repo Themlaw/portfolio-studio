@@ -8,6 +8,8 @@
  *  T  Typographie : « Tous les titres » change TOUS les titres (titre de page, rubriques, projets, tuiles), en direct sur la toile et
  *     en ligne ; chaque texte du site appartient à UN rôle (aucun texte sans rôle) ; un même rôle a la même police partout ;
  *     inventaire des polices réellement appliquées (trois thèmes).
+ *  B  Aération du fond de texte (Serré · Normal · Aéré) : écart mesuré entre le fond et les lettres (bandeau et surlignage, 1440 et 390 px),
+ *     « Serré » = rendu d'avant, réglage dans le menu de la toile, défaut du thème à l'étape Textes de l'éditeur guidé.
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=V,L,T] [SHOTS=dossier] node scripts/e2e-retours68.mjs
  */
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
@@ -386,6 +388,100 @@ try {
         ok(`T3 ${theme} : rôle « ${r} » = une seule police partout`, set.size === 1, JSON.stringify([...set]));
       }
     }
+  }
+
+
+  /* ======================================== B. Aération du fond de texte ======================================== */
+  if (run("B")) {
+    const bPage = pageIdOf("animation");
+    const LONG = "Un texte assez long pour passer sur trois lignes à 1440 px comme sur téléphone : il sert à voir le fond derrière chaque ligne, leurs marges et leurs coins, sans que les lignes se recouvrent. Encore quelques mots pour être sûr du compte de lignes, puis une dernière phrase.";
+    const AIRS = [["tight", "tight"], ["normal", undefined], ["airy", "airy"]];
+    const KINDS = ["band", "highlight"];
+    const blocks = [];
+    for (const kind of KINDS)
+      for (const [name, air] of AIRS) {
+        const st = { backdrop: kind, backdropColor: "primary", ...(air ? { air } : {}) };
+        blocks.push({ uid: `bd-${kind}-${name}`, type: "section-title", props: { eyebrow: T(`Étiquette ${kind} ${name}`), title: T(`Titre ${kind} ${name}`), intro: T(LONG), look: { text: { title: st, eyebrow: st, intro: st } } } });
+      }
+    setDraft(bPage, blocks);
+    await openEditor(page, BASE, bPage);
+    await settled(page);
+    await page.getByRole("button", { name: "Publier", exact: true }).click();
+    ok("B0 page de test publiée", await waitFor(() => sql((db) => db.prepare("select draft from pages where id = ?").get(bPage)).draft === null, 120000));
+    await sleep(3000);
+    const measureAll = async (width) => {
+      const c = await browser.newContext({ viewport: { width, height: 900 } });
+      const p = await c.newPage();
+      await p.goto(`${BASE}/fr/animation`, { waitUntil: "networkidle" });
+      const rows = await p.evaluate(() =>
+        [...document.querySelectorAll('[data-edit-block], section')].flatMap(() => []).concat(
+          [...document.querySelectorAll("h2, p.eyebrow, p")].filter((e) => /(Titre|Étiquette) (band|highlight) |^Un texte assez long/.test(e.textContent ?? "") && e.closest("section")).map((e) => {
+            const cs = getComputedStyle(e);
+            const fs = parseFloat(cs.fontSize);
+            const range = document.createRange();
+            range.selectNodeContents(e);
+            const tr = range.getBoundingClientRect();
+            const er = e.getBoundingClientRect();
+            const sec = e.closest("section");
+            const id = sec.querySelector("h2")?.textContent ?? "";
+            const lines = Math.round(range.getClientRects().length);
+            return { id, tag: e.tagName.toLowerCase() + (e.classList.contains("eyebrow") ? ".eyebrow" : ""), fs, padL: parseFloat(cs.paddingLeft) / fs, padT: parseFloat(cs.paddingTop) / fs, thick: parseFloat(cs.textDecorationThickness) / fs, offset: parseFloat(cs.textUnderlineOffset) / fs, gapL: (tr.left - er.left) / fs, lh: parseFloat(cs.lineHeight) / fs, deco: cs.textDecorationLine, lines, w: er.width };
+          }),
+        ),
+      );
+      await p.screenshot({ path: path.join(SHOTS, `B-${width}.png`), fullPage: true });
+      await c.close();
+      return rows;
+    };
+    const near2 = (a, b) => Math.abs(a - b) <= 0.03;
+    const VAL = { tight: { padL: 0.8, padT: 0.45, thick: 1.15, offset: -0.88 }, normal: { padL: 1, padT: 0.55, thick: 1.32, offset: -0.97 }, airy: { padL: 1.2, padT: 0.65, thick: 1.5, offset: -1.06 } };
+    for (const width of [1440, 390]) {
+      const rows = await measureAll(width);
+      ok(`B1 ${width} px : 6 blocs × (titre, étiquette, texte) trouvés`, rows.length === 18, String(rows.length));
+      for (const kind of KINDS)
+        for (const [name] of AIRS) {
+          const mine = rows.filter((r) => r.id.includes(`${kind} ${name}`));
+          const want = VAL[name];
+          const good = kind === "band" ? mine.every((r) => near2(r.padL, want.padL) && near2(r.padT, want.padT) && r.gapL >= want.padL - 0.03) : mine.every((r) => r.deco.includes("underline") && near2(r.thick, want.thick) && near2(r.offset, want.offset));
+          ok(`B2 ${width} px ${kind} « ${name} » : écart fond ↔ lettres ${kind === "band" ? `${want.padL} em de côté, ${want.padT} em en hauteur` : `trait de ${want.thick} em`} (titre, étiquette, texte de 3 lignes)`, mine.length === 3 && good, JSON.stringify(mine));
+        }
+      // Chaque cran donne plus d'air que le précédent, sur chacun des trois textes.
+      for (const kind of KINDS) {
+        const get = (name, tag) => rows.find((r) => r.id.includes(`${kind} ${name}`) && r.tag === tag);
+        for (const tag of ["h2", "p.eyebrow", "p"]) {
+          const [a, b, c] = ["tight", "normal", "airy"].map((n) => get(n, tag));
+          if (!a || !b || !c) continue;
+          const f = kind === "band" ? "padL" : "thick";
+          ok(`B3 ${width} px ${kind} ${tag} : Serré < Normal < Aéré`, a[f] < b[f] && b[f] < c[f], JSON.stringify([a[f], b[f], c[f]]));
+        }
+      }
+      if (width === 1440) {
+        const three = rows.filter((r) => r.id.includes("highlight normal") && r.tag === "p")[0];
+        ok("B4 le texte de 3 lignes a bien trois lignes (ou plus) à 1440 px", three && three.lines >= 3, JSON.stringify(three));
+      }
+    }
+    // Menu de la toile : « Aération du fond » à côté du choix du fond, enregistre l'aération du texte.
+    const f = await openEditor(page, BASE, bPage);
+    const title = f.locator('[data-inline="title"]').first();
+    await title.scrollIntoViewIfNeeded();
+    for (let essai = 0; essai < 5 && !(await f.locator(".lk-bar").count()); essai++) {
+      await page.mouse.move(700, 8);
+      await sleep(250);
+      await title.hover();
+      await f.locator(".lk-aa").click({ timeout: 4000 }).catch(() => {});
+      await sleep(400);
+    }
+    await f.locator(".lk-bar").waitFor();
+    ok("B5 barre de la toile : ligne « Aération du fond » Serré · Normal · Aéré", (await f.locator('.lk-bar .tc-air [role=radio]').allTextContents()).join("|") === "Serré|Normal|Aéré");
+    await f.locator('.lk-bar .tc-air [data-air="airy"]').click();
+    ok("B6 « Aéré » : enregistré sur ce texte (look.text.title.air) et visible tout de suite sur la toile", (await waitFor(() => JSON.stringify(sql((db) => db.prepare("select draft from pages where id = ?").get(bPage))?.draft ?? "").includes('air\\":\\"airy'), 20000)) && Math.abs(await title.evaluate((e) => parseFloat(getComputedStyle(e).paddingLeft) / parseFloat(getComputedStyle(e).fontSize)) - 1.2) < 0.05);
+    await shot(page, "B-barre-toile");
+    // Même rendu en Aperçu qu'en ligne (même feuille, mêmes règles).
+    await settled(page);
+    await page.getByRole("button", { name: "Aperçu", exact: true }).click();
+    await f.waitForFunction(() => !document.documentElement.hasAttribute("data-edit-canvas"), null, { timeout: 30000 });
+    await sleep(800);
+    ok("B7 Aperçu : même rendu (aération « Aéré » du titre)", Math.abs(await f.locator("h2").first().evaluate((e) => parseFloat(getComputedStyle(e).paddingLeft) / parseFloat(getComputedStyle(e).fontSize)) - 1.2) < 0.05);
   }
 
   ok("aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));

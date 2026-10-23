@@ -570,7 +570,7 @@ export default function ThemeEditor({
         )}
       </>
     ),
-    textes: preset ? locked : <TextStep theme={theme} onFont={(role, font) => setTokens("font", { [role]: font })} onType={(next) => setTheme((t) => {
+    textes: preset ? locked : <TextStep theme={theme} onAir={(air) => setTokens("layout", { textAir: air })} onFont={(role, font) => setTokens("font", { [role]: font })} onType={(next) => setTheme((t) => {
       const tokens = { ...t.tokens };
       if (next) tokens.type = next;
       else delete tokens.type;

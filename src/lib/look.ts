@@ -27,6 +27,7 @@ import { BASE_KEYS, NUANCE_KEYS, NUANCE_NAMES, ROLE_NAMES } from "../themes/pale
 import { FONT_STACKS } from "../themes/font-stacks";
 import { CATEGORY_FALLBACK, googleFamily, isGoogleFamily } from "../themes/google-fonts";
 import { FONT_IDS, SURFACE_TOKENS, TEXT_ROLES, type FontId, type Theme } from "../themes/schema";
+import { AIRS } from "../themes/backdrop-air";
 import { BACKDROP_PROPS, backdropDecls } from "../themes/text-backdrop";
 import type { CardPalette } from "../themes/surface";
 
@@ -243,6 +244,8 @@ export const TextStyleSchema = z.strictObject({
    * Absente (« Auto ») : la couleur du thème. Sans effet sans `backdrop`.
    */
   backdropColor: z.union([z.enum(SURFACE_TOKENS), CustomColorSchema]).optional(),
+  /** Aération du fond (lot 68) : Serré · Normal · Aéré. Absente : celle du thème (« Normal » par défaut). Sans effet sans fond Bandeau ou Surlignage. */
+  air: z.enum(AIRS).optional(),
 });
 export type TextStyle = z.infer<typeof TextStyleSchema>;
 
@@ -274,7 +277,7 @@ export function textStyleDecls(style: TextStyle | undefined, palette?: CardPalet
   if (s.case) out.push(["text-transform", s.case === "upper" ? "uppercase" : "none"]);
   if (s.tracking !== undefined) out.push(["letter-spacing", `${round(s.tracking)}em`]);
   // Fond avant la couleur : un texte de couleur choisie garde sa couleur (déclaration suivante).
-  out.push(...backdropDecls(s.backdrop, s.backdrop === "none" ? undefined : s.backdropColor, { palette, userColor: Boolean(s.color), role }));
+  out.push(...backdropDecls(s.backdrop, s.backdrop === "none" ? undefined : s.backdropColor, { palette, userColor: Boolean(s.color), role, air: s.air }));
   if (s.color) out.push(["color", (PALETTE as readonly string[]).includes(s.color) ? `var(--t-color-${s.color})` : s.color]);
   if (s.align) out.push(["text-align", s.align]);
   return out;
