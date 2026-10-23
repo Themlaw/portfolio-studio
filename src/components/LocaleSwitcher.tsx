@@ -18,7 +18,7 @@ export default function LocaleSwitcher({ alternates }: { alternates: Record<AppL
 
   return (
     <div
-      className="flex items-center gap-1 text-[0.7rem]"
+      className="flex items-center gap-1 whitespace-nowrap text-[0.7rem]"
       aria-label={t("label")}
     >
       {routing.locales.map((locale, i) => {

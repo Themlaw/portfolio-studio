@@ -364,6 +364,9 @@
     scrollbar-width: none;
     -ms-overflow-style: none;
     padding-block: var(--rail-room);
+    /* Hauteur suivant les cases vues (StripRail, lot 67, PUB-03) ; absente = hauteur naturelle. */
+    height: var(--strip-rail-h, auto);
+    transition: height var(--dur-fast) var(--ease-soft);
     /* Fondu : masque dégradé (alpha seul) — l'image se dissout dans ce qui
        est derrière la bande (fond, texture, papier du kit), sans coupe nette.
        Bords pilotés par deux propriétés (@property, medias.css) : chaque
@@ -422,7 +425,8 @@
      Réduite, elle est centrée dans la hauteur de la bande ; sa légende reste dessous, à sa largeur. « À faire défiler » : comme avant. */
   .strip-frame[data-pano="fit"] {
     --fit-h: min(var(--strip-h), calc(var(--strip-vis) / var(--ir, 1)));
-    margin-top: calc((var(--strip-h) - var(--fit-h)) / 2);
+    /* --strip-band (StripRail, lot 67) : hauteur des images VUES quand la bande se réduit à elles (panorama seul). */
+    margin-top: calc((var(--strip-band, var(--strip-h)) - var(--fit-h)) / 2);
   }
 
   .strip-media {
@@ -489,7 +493,8 @@
   /* Sous une image de bande : la légende suit la largeur de l'image, elle ne l'élargit pas (le texte long revient à la ligne). */
   .strip-frame > .media-caption {
     width: 0;
-    min-width: 100%;
+    /* Jamais plus étroite que 7,5 rem : sous une image très étroite, le texte ne s'écrit pas une lettre par ligne (lot 67, PUB-03). */
+    min-width: max(100%, 7.5rem);
   }
 
   /* Téléphone : la date passe sous la légende, alignée à gauche. */
@@ -715,7 +720,7 @@
   .strip-nav {
     position: absolute;
     z-index: 2;
-    top: calc(var(--rail-room) + var(--strip-h) / 2);
+    top: calc(var(--rail-room) + var(--strip-band, var(--strip-h)) / 2);
     display: inline-flex;
     align-items: center;
     justify-content: center;

@@ -141,11 +141,12 @@ export type CropRequest = { mediaId: number; units: RectUnits; sig: string; widt
 
 /** Analyse d'une clé `crop/…` ; null si la forme ou une borne n'est pas respectée (la signature se vérifie ailleurs). */
 export function parseCropKey(key: string): CropRequest | null {
-  const m = /^crop\/([1-9]\d{0,8})\/(x\d{1,5}y\d{1,5}w\d{1,5}h\d{1,5})-([0-9a-f]{20})\/(\d{3,4})\.(avif|webp)$/.exec(key);
+  const m = /^crop\/([1-9]\d{0,8})\/(x\d{1,5}y\d{1,5}w\d{1,5}h\d{1,5})-([0-9a-f]{20})\/(\d{1,4})\.(avif|webp)$/.exec(key);
   if (!m) return null;
   const units = parseRectKey(m[2]);
   const mediaId = Number(m[1]);
-  if (!units || mediaId < 1) return null;
+  // Largeur de 1 à 4 chiffres : un recadrage minuscule (80 px de large) donne une variante à sa taille réelle (lot 67, PUB-04).
+  if (!units || mediaId < 1 || Number(m[4]) < 1) return null;
   return { mediaId, units, sig: m[3], width: Number(m[4]), format: m[5] as VariantFormat };
 }
 
