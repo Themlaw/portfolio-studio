@@ -329,6 +329,26 @@ export default function BoardLayer({
   const [ghosts, setGhosts] = useState<Ghost[]>([]);
   const [projects, setProjects] = useState<ComboProject[]>([]);
   const [text, setText] = useState<TextEdit | null>(null);
+  // Le champ de saisie reste collé à SA ligne : la mise en page peut bouger après le clic (barres, légendes qui se rangent, images qui
+  // se chargent) ; la position mesurée au clic ne suffit pas (lot 65 : champ du Titre d'une place de carrousel 18 px trop bas).
+  const textEl = text?.el ?? null;
+  useEffect(() => {
+    if (!textEl) return;
+    let raf = 0;
+    const sync = () => {
+      raf = requestAnimationFrame(sync);
+      const r = textEl.isConnected ? boxOf(textEl) : null;
+      if (!r) return;
+      setText((t) => {
+        if (!t || t.el !== textEl) return t;
+        const w = Math.max(r.width, 160);
+        if (Math.abs(t.rect.top - r.top) < 0.5 && Math.abs(t.rect.left - r.left) < 0.5 && Math.abs(t.rect.width - w) < 0.5 && Math.abs(t.rect.height - r.height) < 0.5) return t;
+        return { ...t, rect: { ...r, width: w } };
+      });
+    };
+    raf = requestAnimationFrame(sync);
+    return () => cancelAnimationFrame(raf);
+  }, [textEl]);
   // Contenu de la planche (lot 31) : menu « + Ajouter » ouvert, composant choisi.
   const [addMenu, setAddMenu] = useState<{ board: number; index: number; hasStrip: boolean; count: number } | null>(null);
   const [itemSel, setItemSel] = useState<{ board: number; uid: string } | null>(null);
