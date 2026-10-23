@@ -200,7 +200,15 @@ if (run("G"))
     const blocks = [...copy("n", undefined), ...copy("b", BAND), ...copy("k", KIT)];
     ok("G0 page publiée", await publish(PHOTOS, blocks));
     const pub = await publicPage("/fr/decors");
-    const all = await frames(pub, "main .media-frame");
+    // Case (`.media-box`) quand elle existe (sa taille ne dépend jamais du cadre) ; image ou vidéo seule : la boîte grandit, sa zone intérieure garde le format.
+    const all = await pub.evaluate(() =>
+      [...document.querySelectorAll("main .media-frame")].map((f) => {
+        const box = f.parentElement?.classList.contains("media-box") ? f.parentElement : null;
+        const r = (box ?? f).getBoundingClientRect();
+        const m = f.querySelector("img, video");
+        return { x: r.left + scrollX, y: r.top + scrollY, w: r.width, h: r.height, solo: !box, cr: m.clientWidth / m.clientHeight };
+      }),
+    );
     const per = all.length / 3;
     info("G boîtes de média par copie", per);
     ok("G1 chaque copie a le même nombre de boîtes (photos ET vidéos : un seul porteur)", Number.isInteger(per) && per === 2 + 5 + 3 + 1 + 2, String(all.length));
@@ -210,9 +218,9 @@ if (run("G"))
       for (let i = 0; i < per; i++) {
         const a = all[i];
         const b = all[off + i];
-        if (!near(a.w, b.w, 0.6) || !near(a.h, b.h, 0.6)) bad.push(`${names[i] ?? i} : ${a.w.toFixed(1)}×${a.h.toFixed(1)} → ${b.w.toFixed(1)}×${b.h.toFixed(1)}`);
+        if (a.solo ? Math.abs(a.cr - b.cr) > 0.004 : !near(a.w, b.w, 0.6) || !near(a.h, b.h, 0.6)) bad.push(`${names[i] ?? i} : ${a.w.toFixed(1)}×${a.h.toFixed(1)} → ${b.w.toFixed(1)}×${b.h.toFixed(1)}`);
       }
-      ok(`G2 ${label} : la taille extérieure de chaque boîte est celle d'une boîte SANS cadre`, bad.length === 0, bad.join(" | "));
+      ok(`G2 ${label} : la taille de la case est celle d'une case SANS cadre (image ou vidéo seule : même format intérieur)`, bad.length === 0, bad.join(" | "));
     }
     // Rangées justifiées (grille « Automatique ») : toutes les cases d'une rangée ont la même hauteur, avec ou sans cadre.
     for (const [label, off] of [["sans cadre", 0], ["bande Épais", per], ["cadre du thème", 2 * per]]) {
@@ -223,8 +231,8 @@ if (run("G"))
       ok(`G3 grille « Automatique » ${label} : hauteurs égales dans chaque rangée`, spread.every((d) => d <= 1.2), JSON.stringify([...rows.values()]));
     }
     // Planche libre : la hauteur d'une image libre est celle de son format (largeur ÷ format), cadre compris.
-    const fb = await pub.evaluate(() => [...document.querySelectorAll(".free-item")].map((it) => ({ w: it.offsetWidth, h: it.offsetHeight, hf: it.querySelector(".media-frame").offsetHeight })));
-    ok("G4 Planche libre : la boîte remplit sa figure (même hauteur)", fb.every((x) => near(x.h, x.hf, 1.2)), JSON.stringify(fb));
+    const fb = await pub.evaluate(() => [...document.querySelectorAll(".free-item")].map((it) => ({ w: it.offsetWidth, h: it.offsetHeight, hf: it.querySelector(".media-box").offsetHeight })));
+    ok("G4 Planche libre : la case remplit sa figure (même hauteur)", fb.every((x) => near(x.h, x.hf, 1.2)), JSON.stringify(fb));
     await shot(pub, "g-public");
     await pub.context().close();
   });
@@ -429,6 +437,69 @@ if (run("V"))
   });
 
 /* ============================================================================================================================
+ * R. Le cadre ne rogne JAMAIS la photo : même partie visible de la source avec et sans cadre (bande, puis cadre du thème)
+ *    pour chaque conteneur : image seule, grille au format imposé et libre, planche (composants), carrousel, Planche libre, vidéo.
+ *    La mire a quatre carrés de coin : un recadrage les coupe.
+ * ========================================================================================================================== */
+if (run("R"))
+  await section("R", async () => {
+    const slots = [[undefined, "n"], [BAND, "b"], [KIT, "k"]];
+    const copy = (n, frame) => [
+      img(`${n}-s1`, M.paysage, withFrame(frame)),
+      img(`${n}-s2`, M.portrait, withFrame(frame)),
+      img(`${n}-s3`, M.panorama, { width: "full", ratio: "16:9", fit: "contain", ...withFrame(frame) }),
+      grid(`${n}-g1`, [img(`${n}-g11`, M.paysage, withFrame(frame)), img(`${n}-g12`, M.portrait, withFrame(frame)), vid(`${n}-g13`, V.short, withFrame(frame))], { layout: "3", ratio: "1:1" }),
+      grid(`${n}-g2`, [img(`${n}-g21`, M.portrait, withFrame(frame)), img(`${n}-g22`, M.paysage, withFrame(frame))], { layout: "2", ratio: "4:3" }),
+      grid(`${n}-g3`, [img(`${n}-g31`, M.paysage, withFrame(frame)), img(`${n}-g32`, M.portrait, withFrame(frame)), img(`${n}-g33`, M.carre, withFrame(frame)), img(`${n}-g34`, M.panorama, withFrame(frame))], { layout: "auto" }),
+      free(`${n}-f`, [fitem("a1", M.paysage, 5, 5, 40, frame ? { frame } : {}), fitem("a2", M.portrait, 55, 5, 25, frame ? { frame } : {})]),
+      vid(`${n}-v`, V.short, withFrame(frame)),
+    ];
+    const blocks = [...copy("n", undefined), ...copy("b", BAND), ...copy("k", KIT), { uid: "pbr", type: "project-board", props: { project: project.slug, look: { slotFrame: { "c1-p0": BAND, "c1-p1": BAND, "c2-p0": KIT, "c2-p1": KIT } } } }];
+    const board = [
+      { uid: "c0", type: "strip", props: { source: "own", media: [M.paysage, M.portrait] } },
+      { uid: "c1", type: "strip", props: { source: "own", media: [M.paysage, M.portrait] } },
+      { uid: "c2", type: "strip", props: { source: "own", media: [M.paysage, M.portrait] } },
+      img("bi-n", M.portrait), img("bi-b", M.portrait, withFrame(BAND)), img("bi-k", M.portrait, withFrame(KIT)),
+    ];
+    ok("R0 page publiée", await publish(PHOTOS, blocks, board));
+    // Partie visible de la source, en px de l'original (fractions × dimensions de l'original) ; vidéo : format de la zone intérieure.
+    const read = (doc) =>
+      doc.evaluate(() => {
+        const out = (frames) =>
+          frames.map((f) => {
+            const m = f.querySelector("img, video");
+            const w = m.clientWidth, h = m.clientHeight;
+            if (m.tagName === "VIDEO") return { v: true, r: w / h };
+            const nw = Number(m.getAttribute("width")), nh = Number(m.getAttribute("height"));
+            const fit = getComputedStyle(m).objectFit;
+            const s = fit === "contain" ? Math.min(w / nw, h / nh) : fit === "fill" ? 0 : Math.max(w / nw, h / nh);
+            const vw = fit === "fill" ? nw : w / s, vh = fit === "fill" ? nh : h / s;
+            return { x: (nw - vw) / 2, y: (nh - vh) / 2, w: vw, h: vh, nw, nh };
+          });
+        const main = [...document.querySelectorAll("main > section .media-frame, main > .blk .media-frame, main .block-grid .media-frame")];
+        const strips = [...document.querySelectorAll(".strip-rail")].map((r) => out([...r.querySelectorAll(".media-frame")]));
+        const boardImgs = [...document.querySelectorAll('section[aria-labelledby^="project-"] figure.block-image .media-frame')];
+        const free = [...document.querySelectorAll(".free-item .media-frame")];
+        return { all: out([...document.querySelectorAll("main .media-frame")].filter((f) => !f.closest(".strip-rail") && !f.closest('section[aria-labelledby^="project-"]'))), strips, board: out(boardImgs), free: free.length, main: main.length };
+      });
+    const pub = await publicPage("/fr/decors");
+    const d = await read(pub);
+    const per = d.all.length / 3;
+    ok("R1 trois copies de même taille", Number.isInteger(per) && per >= 14, String(d.all.length));
+    const same = (a, b) => (a.v ? Math.abs(a.r - b.r) < 0.004 : [a.x - b.x, a.y - b.y, a.w - b.w, a.h - b.h].every((e) => Math.abs(e) <= 1));
+    const labels = ["image paysage", "image portrait", "image entière 16:9", "grille 1:1 paysage", "grille 1:1 portrait", "grille 1:1 vidéo", "grille 4:3 portrait", "grille 4:3 paysage", "libre 1", "libre 2", "libre 3", "libre 4", "libre 5", "libre 6", "libre 7", "vidéo seule"];
+    for (const [lab, off] of [["bande", per], ["cadre du thème", 2 * per]]) {
+      const bad = [];
+      for (let i = 0; i < per; i++) if (!same(d.all[i], d.all[off + i])) bad.push(`${labels[i] ?? i} : ${JSON.stringify(d.all[i])} → ${JSON.stringify(d.all[off + i])}`);
+      ok(`R2 ${lab} : même partie visible de la photo (±1 px) pour l'image seule, les grilles (format imposé et libre), la Planche libre, la vidéo`, bad.length === 0, bad.slice(0, 3).join(" | "));
+    }
+    ok("R3 carrousel : trois bandes, même partie visible avec bande et avec cadre du thème", d.strips.length === 3 && [1, 2].every((k) => d.strips[0].length === d.strips[k].length && d.strips[0].every((a, i) => same(a, d.strips[k][i]))), JSON.stringify(d.strips));
+    ok("R4 planche (composants image) : même partie visible avec bande et avec cadre du thème", d.board.length === 3 && same(d.board[0], d.board[1]) && same(d.board[0], d.board[2]), JSON.stringify(d.board));
+    await shot(pub, "r-public");
+    await pub.context().close();
+  });
+
+/* ============================================================================================================================
  * S. Toile : contour de sélection, barre média, barre du composant de planche
  * ========================================================================================================================== */
 if (run("S"))
@@ -532,8 +603,8 @@ if (run("A"))
       if (label === "1440") {
         const rounded = r.filter((x) => x.radius === "20px" && x.kind === "image");
         ok("A3 cadre du kit + arrondi fort : les coins du dessin suivent l'arrondi (clip-path)", rounded.length >= 2 && rounded.some((x) => /round/.test(x.clip)), JSON.stringify(rounded.map((x) => x.clip)));
-        const box = await p.evaluate(() => { const b = [...document.querySelectorAll("main .media-box")].at(-1); const f = b?.querySelector(".media-frame"); return b && f ? { bw: b.offsetWidth, bh: b.offsetHeight, fw: f.offsetWidth, fh: f.offsetHeight, bg: getComputedStyle(b).backgroundColor } : null; });
-        ok("A4 image entière au format 16:9 : la case garde son format et son fond, le cadre a le format de la PHOTO (3:4)", box && near(box.bw / box.bh, 16 / 9, 0.02) && near(box.fw / box.fh, 0.667, 0.03) && box.fh <= box.bh + 1 && box.bg === "rgb(255, 224, 224)", JSON.stringify(box));
+        const box = await p.evaluate(() => { const b = document.querySelector("main .media-box[data-img-bg]"); const f = b?.querySelector(".media-frame"); return b && f ? { bw: b.offsetWidth, bh: b.offsetHeight, fw: f.offsetWidth, fh: f.offsetHeight, bg: getComputedStyle(b).backgroundColor } : null; });
+        ok("A4 image entière au format 16:9 : la case garde son format et son fond, le cadre a le format de la PHOTO (3:4)", box && near(box.bw / box.bh, 16 / 9, 0.02) && near(box.fw / box.fh, 0.667, 0.06) && box.fh <= box.bh + 1 && box.bg === "rgb(255, 224, 224)", JSON.stringify(box));
       }
       await p.context().close();
     }

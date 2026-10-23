@@ -13,7 +13,6 @@ import { resolveCrop } from "@/lib/images/crop-view";
 import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { ORIGINALS_PREFIX } from "@/lib/images/variants";
 import { getMedia, mediaUrl } from "@/lib/media";
-import { mediaLookAttrs } from "@/lib/look";
 import { viewerAttrs } from "@/lib/viewer";
 
 import { AUTO_PANORAMA_RATIO } from "./grid-layouts";
@@ -131,11 +130,13 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
   // Format de la boîte : celui de la zone gardée (cadrage libre), sinon le format imposé, sinon celui de l'image (cadrée ou entière).
   const contain = Boolean(image && box && !cover && !free);
   const boxRatio = free || contain ? frameRatio : (box ?? frameRatio);
-  const boxLook = mediaLookAttrs({ bg: ctx.look?.imageBg });
   const photo = image ? (
     <MediaFrame
-      look={contain ? { frame: ctx.look?.frame } : mediaLook}
+      look={mediaLook}
       ratio={boxRatio}
+      caseRatio={contain ? box! : undefined}
+      caseBg={contain}
+      grow={!ctx.cell && !contain}
       fit={contain ? undefined : "cover"}
       data-edit-media={canvas ? "mediaId" : undefined}
       data-edit-media-kind={canvas ? "image" : undefined}
@@ -169,14 +170,7 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
       style={{ "--ir": shownRatio.toFixed(4) } as CSSProperties}
     >
       {image ? (
-        contain ? (
-          // « Image entière » dans un format imposé (lot 64) : la case garde son format (bandes vides, fond choisi) ; le cadre entoure la PHOTO.
-          <span className="media-box" {...boxLook.attrs} style={{ "--box-r": box!.toFixed(5), ...boxLook.style } as CSSProperties}>
-            {photo}
-          </span>
-        ) : (
-          photo
-        )
+        photo
       ) : ctx.edit ? (
         <span className="pe-media-empty" data-edit-media="mediaId" data-edit-media-kind="image" lang="fr">
           <span>Dépose une image ici</span>

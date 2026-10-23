@@ -31,6 +31,7 @@ export function Frame({
   edit = false,
   mediaLook,
   ratio,
+  grow = true,
   attrs,
 }: {
   item: LocalizedArtwork;
@@ -43,6 +44,8 @@ export function Frame({
   mediaLook?: MediaLook;
   /** Format de la boîte (celui de la grille, sinon celui de la vidéo). */
   ratio?: number;
+  /** Vidéo seule : la boîte grandit de l'épaisseur du cadre (sinon : dans une case de taille fixe). */
+  grow?: boolean;
   /** Repères de la boîte (toile : `data-edit-media`, lecture : `data-video-mode`). */
   attrs?: Record<string, string | undefined>;
 }) {
@@ -52,7 +55,7 @@ export function Frame({
 
   return (
     <>
-      <MediaFrame as="div" kind="video" look={mediaLook} ratio={ratio ?? item.width / Math.max(1, item.height)} {...attrs}>
+      <MediaFrame as="div" kind="video" look={mediaLook} ratio={ratio ?? item.width / Math.max(1, item.height)} grow={grow} {...attrs}>
         {playing && item.videoId && !item.video ? (
           <iframe
             className="absolute inset-0 h-full w-full"

@@ -14,8 +14,10 @@
 .media-frame {
   display: block;
   position: relative;
-  box-sizing: border-box;
-  width: 100%;
+  /* `content-box` : le format (`--box-r`) est celui de la zone INTÉRIEURE ; le cadre s'ajoute autour (`--bx` / `--by` = épaisseurs cumulées).
+     Le média garde donc EXACTEMENT la même partie visible avec ou sans cadre : le cadre ne rogne jamais la photo. */
+  box-sizing: content-box;
+  width: calc(100% - var(--bx, 0px));
   aspect-ratio: var(--box-r, auto);
   /* `clip` après `hidden` (anciens navigateurs) : `hidden` fait mal rasteriser le dessin du cadre (bord bas manquant sur un élément à moitié hors écran). */
   overflow: hidden;
@@ -64,7 +66,10 @@
 .media-frame[data-frame="band"] {
   --frame-w: clamp(3px, 0.9vw, 6px);
   /* Plafonnée à 12 % de la largeur de la boîte (`--cap-w` : largeur maximale connue, posée par le conteneur) : une petite image n'est plus mangée par son cadre. */
-  border: min(var(--frame-w), calc(var(--cap-w, 100vw) * 0.12)) solid var(--frame-color);
+  --bw: min(var(--frame-w), calc(var(--cap-w, 100vw) * 0.12));
+  --bx: calc(2 * var(--bw));
+  --by: calc(2 * var(--bw));
+  border: var(--bw) solid var(--frame-color);
 }
 .media-frame[data-frame="band"][data-frame-w="fin"] {
   --frame-w: 2px;
@@ -87,12 +92,14 @@
 }
 .block-image[data-solo] > :is(.media-frame, .media-box),
 .media-solo > .media-frame {
-  width: var(--iw);
   margin-inline: auto; /* la boîte est un bloc : text-align ne la centre pas */
+}
+.block-image[data-solo] > .media-box {
+  width: var(--iw);
 }
 /* Taille et place d'une image seule (lot 40, `look.imageSize` / `look.imageAlign`). Grande : plafond levé, toute la largeur du cadre.
    Gauche / Centre / Droite : l'image ET sa légende (tout ce qui suit dans la figure) prennent la largeur de l'image et se posent du même côté. */
-.block-image[data-solo][data-size="large"] > :is(.media-frame, .media-box) {
+.block-image[data-solo][data-size="large"] > .media-box {
   width: 100%;
 }
 .block-image[data-solo][data-align] > * {
@@ -109,10 +116,18 @@
   width: 100%;
 }
 
-/* Cadrage libre (rectangle gardé) : la boîte suit le rapport de la zone gardée, quel que soit le format imposé par le bloc ou sa grille. */
-figure.block-image[data-free] > .media-frame.media-frame.media-frame {
-  aspect-ratio: var(--box-r, auto);
+/* Boîte qui grandit (sans case) : largeur EXTÉRIEURE = plafond ; la zone intérieure en est l'épaisseur du cadre de moins. */
+.block-image[data-solo] > .media-frame,
+.media-solo > .media-frame,
+.block-image[data-solo][data-align] > .media-frame {
+  width: calc(var(--iw) - var(--bx, 0px));
 }
+.block-image[data-solo][data-size="large"] > .media-frame,
+.block-image[data-solo][data-align][data-size="large"] > .media-frame {
+  width: calc(100% - var(--bx, 0px));
+}
+
+/* Cadrage libre (rectangle gardé) : la boîte suit le rapport de la zone gardée, quel que soit le format imposé par le bloc ou sa grille. */
 figure.block-image[data-free] .media-frame :is(img, video) {
   object-fit: fill;
 }
@@ -129,23 +144,23 @@ figure.block-image[data-free] .media-frame :is(img, video) {
   --cap-w: 100cqw;
 }
 
-/* « Image entière » dans un format imposé : la case (`.media-box`) garde son format, ses bandes vides et son fond ; la boîte du média (cadre
-   compris) a le format de la PHOTO et se pose au centre, au plus grand de ce qui tient dans la case. */
+/* La CASE (`.media-box`, posée par MediaFrame sauf image ou vidéo seule) : sa taille ne dépend JAMAIS du cadre (rangées justifiées alignées, hauteur du
+   carrousel, Planche libre). La boîte du média s'y pose au centre : zone intérieure au format du média, cadre compris au plus grand de ce qui tient.
+   « Image entière » : la case a le format imposé (bandes vides, fond choisi), la boîte celui de la photo. */
 .media-box {
   display: grid;
   place-items: center;
   box-sizing: border-box;
   width: 100%;
-  aspect-ratio: var(--box-r, auto);
+  aspect-ratio: var(--case-r, auto);
   container-type: size;
-  overflow: clip;
   border-radius: var(--media-radius, var(--radius-strip));
 }
 .media-box[data-img-bg] {
   background-color: var(--img-bg);
 }
 .media-box > .media-frame {
-  width: min(100%, calc(100cqh * var(--box-r, 1)));
+  width: min(calc(100cqw - var(--bx, 0px)), calc((100cqh - var(--by, 0px)) * var(--box-r, 1)));
 }
 
 /* ---- Contextes -------------------------------------------------------------------------------------------------------------------- */
@@ -153,7 +168,10 @@ figure.block-image[data-free] .media-frame :is(img, video) {
    (format x largeur). */
 @media (min-width: 48rem) {
   .block-grid:is([data-layout="custom"], [data-layout="auto"]):not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) :is(.media-frame:not(.media-box > .media-frame), .media-box) {
-    aspect-ratio: calc(var(--grid-r, 1.3333) * var(--w, 1));
+    --case-r: calc(var(--grid-r, 1.3333) * var(--w, 1));
+  }
+  .block-grid:is([data-layout="custom"], [data-layout="auto"]):not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) .media-box > .media-frame {
+    --box-r: calc(var(--grid-r, 1.3333) * var(--w, 1));
   }
 }
 /* Une case sur deux rangées (portrait) : la boîte remplit toute la hauteur que lui laissent ses voisines, rognée au besoin (ce sont les
@@ -177,20 +195,29 @@ figure.block-image[data-free] .media-frame :is(img, video) {
     min-height: 14rem;
     aspect-ratio: auto;
   }
-  .block-grid-cell[data-span-h] .block-image > .media-frame :is(img, video),
-  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image > .media-frame :is(img, video) {
+  .block-grid-cell[data-span-h] .block-image > .media-box > .media-frame,
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image > .media-box > .media-frame {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+  }
+  .block-grid-cell[data-span-h] .block-image .media-frame :is(img, video),
+  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image .media-frame :is(img, video) {
     position: absolute;
     inset: 0;
     object-fit: cover;
   }
 }
 
-/* Place d'un carrousel : la hauteur est celle de la bande (ou la hauteur réduite d'un panorama entier), la largeur en découle. */
-.strip-frame .media-frame {
+/* Place d'un carrousel : la case a la hauteur de la bande (ou la hauteur réduite d'un panorama entier), la largeur en découle ; le cadre est dedans. */
+.strip-frame .media-box {
   height: var(--fit-h, var(--strip-h));
-  width: calc(var(--fit-h, var(--strip-h)) * var(--box-r, 1));
+  width: calc(var(--fit-h, var(--strip-h)) * var(--case-r, 1));
   max-width: none;
   aspect-ratio: auto;
+}
+.strip-frame .media-frame {
   box-shadow: var(--strip-halo);
 }
 /* Image de la Planche libre : pas d'arrondi du site par défaut (un PNG détouré n'en a pas) ; celui de l'image (`radius`) passe en ligne. */

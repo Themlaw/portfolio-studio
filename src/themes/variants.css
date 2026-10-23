@@ -370,9 +370,10 @@
   [data-frame-all] .media-frame[data-kind="image"]:not([data-frame]),
   .tile-media
 ) {
-  box-sizing: border-box;
   border-style: solid;
   border-color: transparent;
+  --bx: calc((var(--t-kit-fwl) + var(--t-kit-fwr)) * var(--kit-k, 1px));
+  --by: calc((var(--t-kit-fwt) + var(--t-kit-fwb)) * var(--kit-k, 1px));
   border-width: calc(var(--t-kit-fwt) * var(--kit-k, 1px)) calc(var(--t-kit-fwr) * var(--kit-k, 1px)) calc(var(--t-kit-fwb) * var(--kit-k, 1px)) calc(var(--t-kit-fwl) * var(--kit-k, 1px));
   border-image-source: var(--t-kit-frame);
   border-image-slice: var(--t-kit-frame-slice);

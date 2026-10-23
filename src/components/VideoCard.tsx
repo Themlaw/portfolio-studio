@@ -75,11 +75,11 @@ export default function VideoCard({
     ...(item.video ? { "data-video-mode": loop ? "loop" : "player" } : {}),
   };
   const media = loop ? (
-    <MediaFrame as="div" kind="video" look={mediaLook} ratio={boxRatio} {...attrs}>
+    <MediaFrame as="div" kind="video" look={mediaLook} ratio={boxRatio} grow={solo} {...attrs}>
       <LoopClick video={item.video!} width={item.width} height={item.height} className="h-full w-full object-cover" label={texts.title} edit={edit} />
     </MediaFrame>
   ) : (
-    <Frame item={shown} large={look === "feature"} playing={playing} onPlay={() => setPlaying(true)} edit={edit} mediaLook={mediaLook} ratio={boxRatio} attrs={attrs} />
+    <Frame item={shown} large={look === "feature"} playing={playing} onPlay={() => setPlaying(true)} edit={edit} mediaLook={mediaLook} ratio={boxRatio} grow={solo} attrs={attrs} />
   );
   // Vidéo seule : le même plafond de hauteur qu'une image seule (src/app/media-frame.css, `--ir` = format affiché).
   const soloClass = solo ? " media-solo" : "";
