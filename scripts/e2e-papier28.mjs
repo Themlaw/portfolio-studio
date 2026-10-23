@@ -23,6 +23,7 @@ import sharp from "sharp";
 
 import { installPaperTheme } from "./lib/paper-theme.mjs";
 import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -67,6 +68,7 @@ const TILE = `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" v
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -223,8 +225,8 @@ async function selectBlock() {
 }
 async function openMenu() {
   await selectBlock();
-  await f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]").click();
-  const menu = f.locator(".sm");
+  await f.locator(".pe-tools [data-testid=\"fond-button\"]").click();
+  const menu = f.locator('[data-testid="fond-menu"]');
   await menu.waitFor({ timeout: 20000 });
   return menu;
 }
@@ -240,8 +242,8 @@ const surfaceOfDraft = () => inkBlocks().at(-1)?.props.surface;
 
 await section("A", async () => {
   let menu = await openMenu();
-  await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
-  ok("A1 carte posée (réglages du thème : `{}`)", await waitFor(() => JSON.stringify(surfaceOfDraft()) === "{}"), JSON.stringify(surfaceOfDraft()));
+  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
+  ok("A1 carte posée (étendue demandée, le reste vient du thème : `{ width: inset }`)", await waitFor(() => JSON.stringify(surfaceOfDraft()) === '{"width":"inset"}'), JSON.stringify(surfaceOfDraft()));
   ok("A2 le menu propose « Papier du site » (le thème a un papier)", await menu.locator('[data-testid="surface-paper"]').isVisible() && (await menu.locator('[data-testid="surface-paper-none"]').count()) === 0);
   const site = menu.locator('[data-paper="site"]');
   ok("A2 défaut : « Comme le site (sous) » coché, pas de curseur", (await site.getAttribute("aria-checked")) === "true" && /sous/.test((await site.textContent()) ?? "") && (await menu.locator('[data-testid="surface-paper-opacity"]').count()) === 0);
@@ -267,7 +269,7 @@ await section("B", async () => {
   await menu.locator('[data-paper="over"]').click();
   const c = await canvasCard();
   ok("B1 aperçu immédiat sur la toile : papier dessiné sur la carte (pseudo-élément, intensité 0,35 par défaut)", c.attr === "over" && c.content === '""' && Math.abs(Number(c.opacity) - 0.35) < 0.01, JSON.stringify(c));
-  ok("B1 brouillon : { paper: over }", await waitFor(() => JSON.stringify(surfaceOfDraft()) === '{"paper":"over"}'), JSON.stringify(surfaceOfDraft()));
+  ok("B1 brouillon : { paper: over }", await waitFor(() => JSON.stringify(surfaceOfDraft()) === '{"width":"inset","paper":"over"}'), JSON.stringify(surfaceOfDraft()));
   const slider = menu.locator('[data-testid="surface-paper-opacity"]');
   ok("B2 le curseur d'intensité apparaît (35 % par défaut, jusqu'à 60 %)", (await slider.waitFor({ timeout: 10000 }).then(() => true, () => false)) && (await slider.inputValue()) === "35" && (await slider.getAttribute("max")) === "60");
   await slider.fill("50");
@@ -279,7 +281,7 @@ await section("B", async () => {
   await page.keyboard.press("Escape");
   await settled();
   ok("B3 publication", await publish());
-  ok("B3 publié avec la carte", JSON.stringify(publishedSurface().at(-1)) === '{"paper":"over","paperOpacity":0.5}', JSON.stringify(publishedSurface()));
+  ok("B3 publié avec la carte", JSON.stringify(publishedSurface().at(-1)) === '{"width":"inset","paper":"over","paperOpacity":0.5}', JSON.stringify(publishedSurface()));
   const { pub, close } = await openPublic();
   const s = await cardState(pub);
   ok("B4 public : data-paper=over, pseudo-élément dessiné avec la tuile, intensité 0,5, empilement isolé, sans prise de clic, sous le contenu", s.attr === "over" && s.content === '""' && /kit\/.*\.svg/.test(s.image) && Math.abs(Number(s.opacity) - 0.5) < 0.01 && s.isolation === "isolate" && s.zIndex === "-1" && s.pointer === "none", JSON.stringify(s));
@@ -352,7 +354,7 @@ await section("C", async () => {
   const site = menu.locator('[data-paper="site"]');
   ok("C3 « Comme le site (sur) » dans le menu", /sur/.test((await site.textContent()) ?? ""));
   await site.click();
-  ok("C3 brouillon : la carte ne porte plus de réglage de papier", await waitFor(() => JSON.stringify(surfaceOfDraft()) === "{}"), JSON.stringify(surfaceOfDraft()));
+  ok("C3 brouillon : la carte ne porte plus de réglage de papier", await waitFor(() => JSON.stringify(surfaceOfDraft()) === '{"width":"inset"}'), JSON.stringify(surfaceOfDraft()));
   const c = await canvasCard();
   ok("C3 toile : le papier est sur la carte avec l'intensité du site (0,4)", c.attr === null && c.content === '""' && Math.abs(Number(c.opacity) - 0.4) < 0.01, JSON.stringify(c));
   const sl = menu.locator('[data-testid="surface-paper-opacity"]');
@@ -371,7 +373,7 @@ await section("C", async () => {
   f = await openEditor();
   const menu2 = await openMenu();
   await menu2.locator('[data-paper="under"]').click();
-  ok("C5 brouillon : { paper: under }", await waitFor(() => JSON.stringify(surfaceOfDraft()) === '{"paper":"under"}'), JSON.stringify(surfaceOfDraft()));
+  ok("C5 brouillon : { paper: under }", await waitFor(() => JSON.stringify(surfaceOfDraft()) === '{"width":"inset","paper":"under"}'), JSON.stringify(surfaceOfDraft()));
   ok("C5 toile : papier caché malgré le site", (await canvasCard()).content === "none");
   ok("C5 plus de curseur quand le papier est caché", (await menu2.locator('[data-testid="surface-paper-opacity"]').count()) === 0);
   await page.keyboard.press("Escape");

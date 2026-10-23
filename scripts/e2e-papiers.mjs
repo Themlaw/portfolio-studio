@@ -28,6 +28,7 @@ import { chromium } from "playwright";
 import { installPaperTheme, PAPER_THEME_NAME } from "./lib/paper-theme.mjs";
 import { placeBoard } from "./lib/page-board.mjs";
 import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -112,6 +113,7 @@ seedPage();
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -397,7 +399,9 @@ await section("C", async () => {
   let menu = await openFond("Delta");
   ok("C1 « Fond » propose Aucun / Couleur / Papier peint", (await menu.locator("[data-kind]").evaluateAll((els) => els.map((e) => e.getAttribute("data-kind")))).join() === "none,color,wallpaper");
   await menu.locator('[data-kind="wallpaper"]').click();
-  ok("C2 « Papier peint » pose le premier motif de la bibliothèque", await waitFor(() => bgOf("Delta")?.kind === "wallpaper" && bgOf("Delta")?.wallpaper === POIS_ID), JSON.stringify(bgOf("Delta")));
+  ok("C2 « Papier peint » ne choisit PAS de motif à la place de l'artiste (lot 66, R5) : la bibliothèque s'affiche, rien n'est écrit", (await menu.locator('[data-testid="wp-grid"]').count()) === 1 && bgOf("Delta") === undefined);
+  await menu.locator(`[data-wallpaper-id="${POIS_ID}"]`).click();
+  ok("C2 le motif cliqué est posé", await waitFor(() => bgOf("Delta")?.kind === "wallpaper" && bgOf("Delta")?.wallpaper === POIS_ID), JSON.stringify(bgOf("Delta")));
   await sleep(500);
   let d = await measure(f, "Delta");
   ok("C3 aperçu immédiat : bande pleine largeur avec le motif (image répétée, taille du motif, opacité du motif)", d.fond && near(d.fond.l, 0, 1.5) && near(d.fond.r, d.vw, 1.5) && d.fondAttrs.wallpaper && d.wp.img.includes("/media/img/") && d.wp.size.startsWith("200px") && Math.abs(d.wp.opacity - 0.8) < 0.01, JSON.stringify(d));
@@ -475,15 +479,16 @@ async function openCard(word) {
   const host = f.locator('[data-edit-block][data-edit-type="rich-text"]', { hasText: word }).first();
   await host.scrollIntoViewIfNeeded();
   await host.locator("section").first().click({ position: { x: 40, y: 30 } });
-  await f.locator(".pe-tools .sm-button:not([data-testid])").click();
-  const menu = f.locator(".sm").first();
+  await f.locator('.pe-tools [data-testid="fond-button"]').click();
+  const menu = f.locator('[data-testid="fond-menu"]').first();
   await menu.waitFor({ timeout: 20000 });
   return menu;
 }
 await section("D", async () => {
   f = await openEditor();
   let menu = await openCard("Bravo");
-  ok("D1 le menu « Carte » propose les motifs de la bibliothèque", (await menu.locator(`.wp-item[data-wallpaper-id]`).count()) === 2);
+  await menu.locator('[data-kind="wallpaper"]').click();
+  ok("D1 le menu « Fond » d'une carte propose les motifs de la bibliothèque", (await menu.locator(`.wp-item[data-wallpaper-id]`).count()) === 2);
   await menu.locator(`.wp-item[data-wallpaper-id="${STAR_ID}"]`).click();
   ok("D2 motif sur la carte : enregistré (`paperWallpaper`)", await waitFor(() => draftBlock("Bravo")?.props.surface?.paperWallpaper === STAR_ID), JSON.stringify(draftBlock("Bravo")?.props.surface));
   await page.keyboard.press("Escape");

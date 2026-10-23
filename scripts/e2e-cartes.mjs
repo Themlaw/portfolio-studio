@@ -25,6 +25,7 @@ import sharp from "sharp";
 
 import { installPaperTheme, PAPER_THEME_ID, PAPER_THEME_NAME } from "./lib/paper-theme.mjs";
 import { activateThemeUi } from "./lib/theme-live.mjs";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -82,6 +83,7 @@ const same = (a, b) => Boolean(a && b) && a.every((v, i) => Math.abs(v - b[i]) <
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -289,17 +291,17 @@ if (run("B") || run("C"))
   await f.locator(`[data-edit-block="${uidFirst}"]`).scrollIntoViewIfNeeded().catch(() => {});
   await f.locator(`.pe-focus[data-uid="${uidFirst}"]`).scrollIntoViewIfNeeded();
   await sectionOf(uidFirst).click({ position: { x: 40, y: 30 } });
-  const fond = f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]");
-  ok("B1 le bloc a un bouton « Carte » dans sa barre d'outils (lot 26 : plus « Fond »)", await fond.waitFor({ timeout: 30000 }).then(() => true, () => false) && /^Carte/.test((await fond.textContent()) ?? ""));
+  const fond = f.locator(".pe-tools [data-testid=\"fond-button\"]");
+  ok("B1 le bloc a UN bouton « Fond » dans sa barre d'outils (lot 66 : la « Carte » est fusionnée au « Fond »)", await fond.waitFor({ timeout: 30000 }).then(() => true, () => false) && /^Fond/.test((await fond.textContent()) ?? ""));
   ok("B1 pas de carte au départ (l'enveloppe est sans boîte)", (await cardInfo(f, uidFirst))?.on === "off");
   await fond.click();
-  const menu = f.locator(".sm");
-  ok("B1 le popover s'ouvre (interrupteur « Carte » éteint)", (await menu.waitFor({ timeout: 20000 }).then(() => true, () => false)) && (await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).getAttribute("aria-checked")) === "false");
-  await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
+  const menu = f.locator('[data-testid="fond-menu"]');
+  ok("B1 le popover s'ouvre (nature « Aucun » cochée : pas de carte)", (await menu.waitFor({ timeout: 20000 }).then(() => true, () => false)) && (await menu.locator("[data-kind][aria-checked=true]").getAttribute("data-kind")) === "none");
+  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
   // Aperçu immédiat : avant tout aller-retour avec le serveur.
   const info = await cardInfo(f, uidFirst);
   ok("B2 carte activée : aperçu immédiat (fond coloré, retrait, coins arrondis)", info.on === "on" && info.bg !== "rgba(0, 0, 0, 0)" && info.width === "inset" && info.corners === "round" && info.radius >= 12 && info.marginLeft > 0, JSON.stringify(info));
-  ok("B2 le brouillon reçoit la carte (réglages du thème : `{}`)", await waitFor(() => JSON.stringify(inkBlocks()[0]?.props.surface) === "{}"), JSON.stringify(inkBlocks()[0]?.props.surface));
+  ok("B2 le brouillon reçoit la carte (étendue demandée ; couleur, coins et papier : ceux du thème)", await waitFor(() => JSON.stringify(inkBlocks()[0]?.props.surface) === JSON.stringify({ width: "inset" })), JSON.stringify(inkBlocks()[0]?.props.surface));
   const themeRgb = await f.evaluate(() => {
     const cs = getComputedStyle(document.documentElement);
     const probe = (v) => {
@@ -366,7 +368,7 @@ if (run("B") || run("C"))
   await hex.waitFor({ timeout: 20000 });
   await hex.fill("#808080");
   await hex.press("Enter");
-  ok("B7 teinte moyenne : pastille d'alerte au bouton « Carte » et message dans le popover (jamais bloquant)", (await f.locator(".pe-tools .sm-alert").waitFor({ timeout: 20000 }).then(() => true, () => false)) && (await f.getByTestId("surface-warning").isVisible()), "");
+  ok("B7 teinte moyenne : pastille d'alerte au bouton « Carte » et message dans le popover (jamais bloquant)", (await f.locator(".pe-tools .sm-alert").waitFor({ timeout: 20000 }).then(() => true, () => false)) && (await f.getByTestId("fond-warning").isVisible()), "");
   await page.screenshot({ path: path.join(SHOTS, "b7-alerte-contraste.png") });
   ok("B7 l'enregistrement n'est pas bloqué", await waitFor(() => inkBlocks()[0]?.props.surface?.color === "#808080"));
   await hex.fill("#f6d6e4");
@@ -412,7 +414,7 @@ if (run("B") || run("C"))
   await f.locator(`.pe-focus[data-uid="${uidSecond}"]`).scrollIntoViewIfNeeded();
   await sectionOf(uidSecond).click({ position: { x: 40, y: 30 } });
   await fond.click();
-  await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
+  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
   await menu.locator('[data-token="ink"]').click();
   await menu.locator('[data-width="full"]').click();
   await menu.locator('[data-corners="square"]').click();
@@ -572,12 +574,12 @@ if (run("C"))
   ok("C6 persistance : l'éditeur rouvert montre les cartes publiées", again?.on === "on" && same(rgbOf(again.bg), hexRgb("#f6d6e4")) && again.corners === "m", JSON.stringify(again));
   await f.locator(`.pe-focus[data-uid="${uidFirst}"]`).scrollIntoViewIfNeeded();
   await f.locator(`[data-edit-block="${uidFirst}"] section`).first().click({ position: { x: 40, y: 10 } });
-  await f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]").click();
-  const menu = f.locator(".sm");
-  ok("C6 le popover relit la carte : interrupteur allumé, couleur perso, en retrait, coins arrondis", (await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).getAttribute("aria-checked")) === "true" && (await menu.locator('[data-width="inset"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-corners="m"]').getAttribute("aria-checked")) === "true");
+  await f.locator(".pe-tools [data-testid=\"fond-button\"]").click();
+  const menu = f.locator('[data-testid="fond-menu"]');
+  ok("C6 le popover relit la carte : interrupteur allumé, couleur perso, en retrait, coins arrondis", (await menu.locator("[data-kind][aria-checked=true]").getAttribute("data-kind")) !== "none" && (await menu.locator('[data-width="inset"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-corners="m"]').getAttribute("aria-checked")) === "true");
   await page.screenshot({ path: path.join(SHOTS, "c6-popover-relu.png") });
-  // Retirer la carte : interrupteur éteint.
-  await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
+  // Retirer la carte : « Aucun ».
+  await menu.locator('[data-kind="none"]').click();
   ok("C7 carte retirée : l'enveloppe redevient sans boîte, la clé disparaît du brouillon", (await cardInfo(f, uidFirst)).on === "off" && (await waitFor(() => inkBlocks()[0]?.props.surface === undefined)));
   await page.keyboard.press("Escape");
 });
@@ -600,11 +602,11 @@ if (run("D"))
   const uid = (await textUids(f))[0];
   await f.locator(`.pe-focus[data-uid="${uid}"]`).scrollIntoViewIfNeeded();
   await f.locator(`[data-edit-block="${uid}"] section`).first().click({ position: { x: 40, y: 10 } });
-  await f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]").click();
+  await f.locator(".pe-tools [data-testid=\"fond-button\"]").click();
   // La rubrique publiée a déjà sa carte : éteinte puis rallumée, elle repart des réglages du thème (`{}`).
-  const sw = f.locator(".sm").getByRole("switch", { name: "Une carte sous la rubrique" });
-  if ((await sw.getAttribute("aria-checked")) === "true") await sw.click();
-  await sw.click();
+  const dm = f.locator('[data-testid="fond-menu"]');
+  if ((await dm.locator("[data-kind][aria-checked=true]").getAttribute("data-kind")) !== "none") await dm.locator('[data-kind="none"]').click();
+  await dm.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
   const d = await cardInfo(f, uid);
   const bgDeep = await f.evaluate(() => {
     const p = document.createElement("i");
@@ -614,7 +616,7 @@ if (run("D"))
     p.remove();
     return c;
   });
-  ok("D4 une carte activée sans choix prend les réglages du thème (fond profond, bord à bord, coins droits)", d.width === "full" && d.corners === "square" && d.radius === 0 && same(rgbOf(d.bg), rgbOf(bgDeep)), JSON.stringify(d));
+  ok("D4 une carte posée sans choix prend couleur et coins du thème (fond profond, coins droits) ; l'étendue est celle demandée (Carte en retrait)", d.width === "inset" && d.corners === "square" && d.radius === 0 && same(rgbOf(d.bg), rgbOf(bgDeep)), JSON.stringify(d));
   await page.screenshot({ path: path.join(SHOTS, "d4-defaut-du-theme.png") });
 });
 

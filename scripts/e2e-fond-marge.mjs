@@ -22,6 +22,7 @@ import { chromium } from "playwright";
 
 import { pageIdOf, placeBoard } from "./lib/page-board.mjs";
 import { publishBlocks } from "./lib/page-draft.mjs";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -123,6 +124,7 @@ const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-proc
 const errors = [];
 
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 page.on("pageerror", (e) => errors.push(e.message));
 await page.goto(`${BASE}/admin/connexion`, { waitUntil: "networkidle" });

@@ -23,6 +23,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -94,6 +95,7 @@ const BAD_INK = "#eeeeee";
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 page.setDefaultTimeout(60000);
 page.setDefaultNavigationTimeout(180000);
@@ -452,11 +454,11 @@ if (run("F"))
     ok("F0 rubrique Texte ajoutée", Boolean(uid));
     await f.locator(`.pe-focus[data-uid="${uid}"]`).scrollIntoViewIfNeeded();
     await f.locator(`[data-edit-block="${uid}"] section`).first().click({ position: { x: 4, y: 30 } });
-    const fond = f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]");
+    const fond = f.locator(".pe-tools [data-testid=\"fond-button\"]");
     await fond.waitFor({ timeout: 30000 });
     await fond.click();
-    const menu = f.locator(".sm");
-    await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
+    const menu = f.locator('[data-testid="fond-menu"]');
+    await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
     const cc = menu.locator('[data-testid="card-colors"]');
     ok("F1 popover « Carte » : les six couleurs de la DA, nommées, en premier", JSON.stringify(await cc.locator('[data-testid="card-da-color"] .cc-name').allTextContents()) === JSON.stringify(["Fond de page", "Cartes et encadrés", "Texte", "Boutons et liens", "Accent", "Ornements"]));
     ok("F1b suivies d'une rangée de huit teintes douces", (await cc.locator('[data-testid="card-tint"]').count()) === 8);

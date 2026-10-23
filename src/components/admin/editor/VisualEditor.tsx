@@ -92,7 +92,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "bitem-text", "bitem-look", "cell-look", "free-op"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "fond", "bitem-text", "bitem-look", "cell-look", "free-op"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /**
@@ -1158,6 +1158,35 @@ export default function VisualEditor({
     return true;
   };
 
+  /**
+   * Fond unique (lot 66) : carte ET fond d'un bloc écrits ensemble (un seul pas d'historique). La carte n'existe qu'au premier niveau, le
+   * fond que sur les grands composants : une couche que le bloc ne sait pas porter refuse tout. false = refusé ou sans effet.
+   */
+  const applyFond = (uid: string, nextSurface: Surface | null, nextBackground: Background | null, continuous = false): boolean => {
+    const list = draftRef.current.blocks;
+    const at = locate(list, uid);
+    const block = findBlock(list, uid);
+    if (!at || !block) return false;
+    if (nextSurface && at.parent !== null) return false;
+    if (nextBackground && !supportsFond(block.type)) return false;
+    const cleanS = nextSurface ? cleanSurface(nextSurface) : null;
+    const sameS = JSON.stringify(readSurface(block.props.surface) ?? null) === JSON.stringify(cleanS);
+    const sameB = JSON.stringify(readBackground(block.props.background) ?? null) === JSON.stringify(nextBackground);
+    if (sameS && sameB) return false;
+    setBlocks(
+      updateBlock(list, uid, (b) => {
+        const props = { ...b.props };
+        if (cleanS) props.surface = cleanS;
+        else delete props.surface;
+        if (nextBackground) props.background = nextBackground;
+        else delete props.background;
+        return { ...b, props };
+      }),
+      continuous ? { key: `fond:${uid}` } : {},
+    );
+    return true;
+  };
+
   const op = (kind: "up" | "down" | "duplicate" | "delete" | "out" | "in", uid: string) => {
     const list = draftRef.current.blocks;
     const at = locate(list, uid);
@@ -2085,9 +2114,9 @@ export default function VisualEditor({
   };
 
   const itemFlush = () => itemFlushRef.current();
-  const handlers = useRef({ itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode });
+  const handlers = useRef({ itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode });
   useEffect(() => {
-    handlers.current = { itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode };
+    handlers.current = { itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -2271,6 +2300,16 @@ export default function VisualEditor({
           break;
         case "background":
           if (!h.applyBackground(msg.uid, msg.background, msg.continuous) && msg.seq) send({ kind: "revert", seq: msg.seq });
+          break;
+        case "fond":
+          if (!h.applyFond(msg.uid, msg.surface, msg.background, msg.continuous) && msg.seq) send({ kind: "revert", seq: msg.seq });
+          break;
+        case "page-settings":
+          // Lot 66 (R5) : le menu Fond renvoie au papier peint de la page (Réglages, aucun bloc choisi).
+          h.selectBlock(null);
+          setTab("reglages");
+          if (mobile) setSheet(true);
+          setTimeout(() => document.querySelector('[data-testid="page-wallpaper"]')?.scrollIntoView({ block: "center" }), 150);
           break;
         case "surface":
           // Refusé (composant d'un conteneur) ou sans effet : la toile retire son aperçu.

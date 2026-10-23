@@ -20,6 +20,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import sharp from "sharp";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -68,6 +69,7 @@ const ROLES = ["Fond de page", "Cartes et encadrés", "Texte", "Boutons et liens
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -170,18 +172,18 @@ if (run("V")) {
 
   // Carte d'une rubrique : bouton « Carte » (plus « Fond »), couleurs nommées comme le panneau.
   await f.locator('[data-edit-type="collection-tiles"] h2').first().click();
-  const button = f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]");
-  ok("V5 bouton « Carte » dans la barre de la rubrique", await button.waitFor({ timeout: 20000 }).then(() => true, () => false) && /^\s*Carte/.test((await button.textContent()) ?? "") && !/Fond/.test((await button.textContent()) ?? ""));
+  const button = f.locator(".pe-tools [data-testid=\"fond-button\"]");
+  ok("V5 bouton « Fond » dans la barre de la rubrique (lot 66 : la « Carte » est fusionnée au « Fond »)", await button.waitFor({ timeout: 20000 }).then(() => true, () => false) && /^\s*Fond/.test((await button.textContent()) ?? "") && !/Carte/.test((await button.textContent()) ?? ""));
   await button.click();
-  const menu = f.locator(".sm");
-  ok("V5b popover « Carte de la rubrique »", (await menu.getAttribute("aria-label")) === "Carte de la rubrique");
-  await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
+  const menu = f.locator('[data-testid="fond-menu"]');
+  ok("V5b popover « Fond du composant »", (await menu.getAttribute("aria-label")) === "Fond du composant");
+  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
   await menu.locator('[data-testid="card-da-color"]').first().waitFor({ timeout: 10000 });
   const cards = (await menu.locator('[data-testid="card-da-color"] .cc-name').allTextContents()).map((t) => t.trim());
   ok("V5c couleurs de la carte : les six rôles dans l'ordre (nom visible)", JSON.stringify(cards.slice(0, 6)) === JSON.stringify(ROLES), JSON.stringify(cards));
-  ok("V5d « Couleur de la carte » (jamais « Fond »)", /Couleur de la carte/.test((await menu.textContent()) ?? "") && !/\bFond\b(?! de page| profond)/.test((await menu.textContent()) ?? ""));
+  ok("V5d rangée « Couleur » (le menu s'appelle « Fond »)", /Couleur/.test((await menu.textContent()) ?? ""));
   await page.screenshot({ path: `${SHOTS}/V5-carte.png` });
-  await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
+  await menu.locator('[data-kind="none"]').click();
   await settled();
 
   // Liste des thèmes : mêmes six rôles.
