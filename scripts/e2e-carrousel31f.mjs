@@ -254,7 +254,7 @@ await section("C", async () => {
   await page.mouse.up();
   ok("C7 glisser pour réordonner : la première passe en deuxième", await waitFor(() => JSON.stringify(listOf(U1)) === JSON.stringify([before[1], before[0], before[2]]), 30000), `${JSON.stringify(before)} → ${JSON.stringify(listOf(U1))}`);
   await settled();
-  ok("C7b l'arrondi et le cadre suivent l'image déplacée (même slug, deuxième place)", await waitFor(async () => (await slots(f, U1).nth(1).getAttribute("data-slot-slug")) === slug && (await slots(f, U1).nth(1).evaluate((e) => e.style.getPropertyValue("--media-radius"))) !== "" && (await slots(f, U1).nth(1).getAttribute("data-frame")) !== null, 30000), `${await slots(f, U1).nth(1).getAttribute("data-slot-slug")} / ${slug}`);
+  ok("C7b l'arrondi et le cadre suivent l'image déplacée (même slug, deuxième place)", await waitFor(async () => (await slots(f, U1).nth(1).getAttribute("data-slot-slug")) === slug && (await slots(f, U1).nth(1).evaluate((e) => e.style.getPropertyValue("--media-radius"))) !== "" && (await slots(f, U1).nth(1).locator(".media-frame[data-frame]").count()) > 0, 30000), `${await slots(f, U1).nth(1).getAttribute("data-slot-slug")} / ${slug}`);
 
   // Supprimer : la place reste, vide.
   await hoverSlot(f, U1, 2);

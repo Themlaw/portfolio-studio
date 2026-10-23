@@ -398,7 +398,9 @@ export type Frame = z.infer<typeof FrameCoreSchema>;
 
 /** Couleur CSS d'une bande : teinte de la palette (suit le thème), couleur libre, ou la couleur par défaut. */
 export function frameColorCss(color: string | undefined): string {
-  if (color && (PALETTE as readonly string[]).includes(color)) return `var(--t-color-${color})`;
+  // `--color-x` (relais Tailwind du thème), pas `--t-color-x` : dans une carte ou sur un fond de couleur, la carte REMAPPE ces variables
+  // (texte lisible) ; « Texte » est donc la même couleur partout (lot 64, A5 D5).
+  if (color && (PALETTE as readonly string[]).includes(color)) return `var(--color-${color})`;
   if (color && CUSTOM_COLOR_RE.test(color)) return color;
   // `--color-ink` : le texte du thème, mais remappé en encre LISIBLE dans une carte ou sur un fond de couleur (lot 32) : un cadre
   // par défaut ne disparaît pas sur un fond sombre.
@@ -448,11 +450,15 @@ export const IMAGE_ALIGN_LABELS: Record<ImageAlign, string> = { left: "Gauche", 
 export const ImageBgSchema = z.union([z.literal(IMAGE_BG_CARD), z.enum(PALETTE), CustomColorSchema]);
 export type ImageBg = z.infer<typeof ImageBgSchema>;
 
-/** Couleur CSS d'un fond d'image, ou null (absent / invalide : aucun fond). */
+/**
+ * Couleur CSS d'un fond d'image, ou null (absent / invalide : aucun fond). « Couleur de la carte » = la carte RÉELLEMENT sous l'image
+ * (`--card-bg`, posée par la carte et par le fond de composant), sinon la couleur des cartes du thème ; une teinte de la palette passe par
+ * `--color-x`, remappé dans une carte (lot 64).
+ */
 export function imageBgCss(bg: string | undefined): string | null {
   if (bg === undefined) return null;
-  if (bg === IMAGE_BG_CARD) return "var(--t-color-surface)";
-  if ((PALETTE as readonly string[]).includes(bg)) return `var(--t-color-${bg})`;
+  if (bg === IMAGE_BG_CARD) return "var(--card-bg, var(--t-color-surface))";
+  if ((PALETTE as readonly string[]).includes(bg)) return `var(--color-${bg})`;
   if (CUSTOM_COLOR_RE.test(bg)) return bg;
   return null;
 }
@@ -461,6 +467,33 @@ export function imageBgCss(bg: string | undefined): string | null {
 export function imageBgAttrs(bg: string | undefined): { "data-img-bg": ""; style: Record<string, string> } | null {
   const css = imageBgCss(bg);
   return css ? { "data-img-bg": "", style: { "--img-bg": css } } : null;
+}
+
+/* ---- Habillage d'un média : UN module de données pour toutes les photos et vidéos (lot 64) ---------------------------------- */
+
+/**
+ * Habillage d'une photo ou d'une vidéo, quel que soit son conteneur (image seule, vidéo seule, case de grille, composant de planche,
+ * place d'un carrousel, image de la Planche libre) : cadre, fond derrière le média, arrondi propre. Chaque conteneur lit SES clés
+ * (`look.frame` / `look.imageBg`, `slotFrame[slug]` / `slotBg[slug]` / `slotRadius[slug]`, `items[].frame` / `.bg` / `.radius`) et les passe ici :
+ * le rendu est le même (composant MediaFrame).
+ */
+export type MediaLook = { frame?: unknown; bg?: string; radius?: Radius };
+export type MediaLookRender = {
+  /** Attributs de la boîte du média (`data-frame`, `data-frame-w`, `data-frame-id`, `data-img-bg`) : src/app/media-frame.css s'y accroche. */
+  attrs: Record<string, string>;
+  /** Variables CSS (`--frame-color`, `--img-bg`, `--media-radius`) à poser avec. */
+  style: Record<string, string>;
+};
+
+/** LE point de rendu de l'habillage d'un média (cadre + fond + arrondi propre) : jamais lu ailleurs que par MediaFrame. */
+export function mediaLookAttrs(look: MediaLook | undefined): MediaLookRender {
+  const f = frameStyle(look?.frame);
+  const b = imageBgAttrs(look?.bg);
+  const radius = look?.radius && Object.hasOwn(RADIUS_VALUES, look.radius) ? RADIUS_VALUES[look.radius] : undefined;
+  return {
+    attrs: { ...(f?.attrs ?? {}), ...(b ? { "data-img-bg": "" } : {}) },
+    style: { ...(f?.style ?? {}), ...(b?.style ?? {}), ...(radius ? { "--media-radius": radius } : {}) },
+  };
 }
 
 /* ---- Réglages d'un bloc (props.look) --------------------------------------------- */

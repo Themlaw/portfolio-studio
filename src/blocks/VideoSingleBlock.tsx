@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import VideoCard from "@/components/VideoCard";
 import { getArtwork, type LocalizedArtwork } from "@/lib/gallery";
-import { frameStyle } from "@/lib/look";
+import { parseRatio } from "@/lib/images/sizes";
 import { getMedia } from "@/lib/media";
 import { viewerAttrs } from "@/lib/viewer";
 
@@ -82,7 +82,10 @@ export default async function VideoSingleBlock({ props, ctx }: { props: z.infer<
       mode={props.mode}
       texts={texts}
       edit={ctx.edit}
-      frame={frameStyle(ctx.look?.frame)}
+      // Habillage : le même que celui d'une photo (cadre, fond, arrondi) ; format : celui de la grille de la case, sinon celui de la vidéo (lot 64).
+      mediaLook={{ frame: ctx.look?.frame, bg: ctx.look?.imageBg }}
+      ratio={ctx.cell ? (parseRatio(ctx.cellRatio) ?? undefined) : undefined}
+      solo={!ctx.cell}
       marks={Boolean(ctx.edit || ctx.inlineEdit)}
       prefix={ctx.inlinePrefix}
       styles={{ eyebrow: textStyle(ctx, "eyebrow").style, title: textStyle(ctx, "title").style, description: textStyle(ctx, "description").style, captionTitle: textStyle(ctx, "captionTitle").style, captionDate: textStyle(ctx, "captionDate").style }}

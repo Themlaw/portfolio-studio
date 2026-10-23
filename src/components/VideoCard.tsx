@@ -5,9 +5,11 @@ import { useId, useState, type CSSProperties } from "react";
 import Eyebrow from "@/components/Eyebrow";
 import MediaCaption from "@/components/MediaCaption";
 import type { LocalizedArtwork } from "@/lib/gallery";
+import type { MediaLook } from "@/lib/look";
 
 import { Frame } from "./AnimationShowcase";
 import { LoopClick } from "./LoopVideo";
+import MediaFrame from "./MediaFrame";
 
 /**
  * Une vidéo (bloc « Vidéo », v0.13) : vidéo hébergée (médiathèque) ou plan de
@@ -29,7 +31,9 @@ export default function VideoCard({
   styles,
   marks = edit,
   prefix = "",
-  frame: frameRender,
+  mediaLook,
+  ratio,
+  solo = false,
 }: {
   item: LocalizedArtwork;
   look: "feature" | "card" | "plain";
@@ -43,8 +47,12 @@ export default function VideoCard({
   marks?: boolean;
   /** Préfixe du chemin des textes (case d'une grille de planche, lot 39). */
   prefix?: string;
-  /** Cadre de la vidéo (lot 62) : le choix de l'artiste (`look.frame`), rendu par `frameStyle` ; absent = suit le réglage du site. */
-  frame?: { attrs: Record<string, string>; style: CSSProperties } | null;
+  /** Habillage de la vidéo (lots 62 et 64) : cadre, fond, arrondi (MediaFrame, comme une photo). Cadre absent : suit le réglage du site (jamais pour une vidéo). */
+  mediaLook?: MediaLook;
+  /** Format imposé (celui d'une grille) ; absent = le format de la vidéo. Même cadrage qu'une photo : la boîte est remplie, la vidéo rognée. */
+  ratio?: number;
+  /** Vidéo seule (hors case de grille) : plafond de hauteur de l'image seule (85 % de l'écran), la vidéo verticale ne déborde pas. */
+  solo?: boolean;
 }) {
   const [playing, setPlaying] = useState(false);
   const id = useId();
@@ -60,24 +68,22 @@ export default function VideoCard({
   const host = marks ? { "data-cap-host": "" } : {};
   const shown = { ...item, title: texts.title, alt: item.alt || texts.title };
   const loop = mode === "loop" && Boolean(item.video);
-  const frame = loop ? (
-    <div className="mat">
-      <div className="video-frame relative aspect-video w-full overflow-hidden rounded-[2px] bg-scrim" {...frameRender?.attrs} style={frameRender?.style}>
-        <LoopClick video={item.video!} width={item.width} height={item.height} className="absolute inset-0 h-full w-full object-cover" label={texts.title} edit={edit} />
-      </div>
-    </div>
+  const boxRatio = ratio ?? item.width / Math.max(1, item.height);
+  // Repères de la boîte de la vidéo : la toile (remplacer / retirer, lecture) et le mode de lecture.
+  const attrs = {
+    ...(edit ? { "data-edit-media": "mediaId", "data-edit-media-kind": "video" } : {}),
+    ...(item.video ? { "data-video-mode": loop ? "loop" : "player" } : {}),
+  };
+  const media = loop ? (
+    <MediaFrame as="div" kind="video" look={mediaLook} ratio={boxRatio} grow={solo} {...attrs}>
+      <LoopClick video={item.video!} width={item.width} height={item.height} className="h-full w-full object-cover" label={texts.title} edit={edit} />
+    </MediaFrame>
   ) : (
-    <Frame item={shown} large={look === "feature"} playing={playing} onPlay={() => setPlaying(true)} edit={edit} frame={frameRender} />
+    <Frame item={shown} large={look === "feature"} playing={playing} onPlay={() => setPlaying(true)} edit={edit} mediaLook={mediaLook} ratio={boxRatio} grow={solo} attrs={attrs} />
   );
-  const media = edit ? (
-    <div data-edit-media="mediaId" data-edit-media-kind="video" {...(item.video ? { "data-video-mode": loop ? "loop" : "player" } : {})}>
-      {frame}
-    </div>
-  ) : item.video ? (
-    <div data-video-mode={loop ? "loop" : "player"}>{frame}</div>
-  ) : (
-    frame
-  );
+  // Vidéo seule : le même plafond de hauteur qu'une image seule (src/app/media-frame.css, `--ir` = format affiché).
+  const soloClass = solo ? " media-solo" : "";
+  const soloStyle = solo ? ({ "--ir": boxRatio.toFixed(4) } as CSSProperties) : undefined;
 
   if (look === "feature") {
     return (
@@ -86,7 +92,9 @@ export default function VideoCard({
         <h2 id={`video-${id}`} className="mt-3 mb-8 font-display text-[clamp(2rem,5vw,3.5rem)] text-ink" {...mark("title", "Titre de la vidéo")}>
           {texts.title}
         </h2>
-        <div className="group">{media}</div>
+        <div className={`group${soloClass}`} style={soloStyle}>
+          {media}
+        </div>
         <div className="mt-5 flex flex-wrap items-baseline justify-between gap-4">
           <p className="max-w-xl text-sm leading-relaxed text-ink-soft" {...mark("description", "Légende")}>
             {texts.description}
@@ -105,7 +113,7 @@ export default function VideoCard({
   if (look === "card") {
     const meta = item.duration ?? (item.year || "");
     return (
-      <div className="group mat-hover" {...host}>
+      <div className={`group${soloClass}`} style={soloStyle} {...host}>
         {media}
         <div className="mt-4 flex items-baseline justify-between gap-4">
           <h3 className="font-display text-xl text-ink transition-colors group-hover:text-primary" {...mark("title", "Titre de la vidéo")}>
@@ -124,7 +132,7 @@ export default function VideoCard({
     );
   }
   return (
-    <figure className="group" {...host}>
+    <figure className={`group${soloClass}`} style={soloStyle} {...host}>
       {media}
       <MediaCaption
         as="figcaption"

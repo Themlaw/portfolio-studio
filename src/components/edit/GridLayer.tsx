@@ -443,7 +443,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
     const media = type === "image" || type === "video-single";
     // La barre s'accroche à l'image ou à la vidéo elle-même (pas à la case, qui peut être bien plus haute : une place vide voisine,
     // un portrait sur deux rangées…) : en haut à gauche de ce que l'on voit, dans la partie visible de l'écran.
-    const mediaEl = cell.querySelector<HTMLElement>(".block-image-media, [data-edit-media] img, video, img");
+    const mediaEl = cell.querySelector<HTMLElement>(".media-frame, [data-edit-media] img, video, img");
     const mr = mediaEl ? docRect(mediaEl) : null;
     const r = mr && mr.width > 0 && mr.height > 0 ? mr : docRect(cell);
     const w = Number(cell.dataset.cellW ?? 1);

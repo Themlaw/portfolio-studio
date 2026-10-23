@@ -63,22 +63,20 @@ test("rendu : frameStyle, un seul point, exactement le choix", () => {
   assert.deepEqual(frameStyle({ kind: "none" }), { attrs: { "data-frame": "none" }, style: {} });
   assert.deepEqual(frameStyle({ kind: "theme" }), { attrs: { "data-frame": "theme" }, style: {} });
   assert.deepEqual(frameStyle({ kind: "band" }), { attrs: { "data-frame": "band", "data-frame-w": "moyen" }, style: { "--frame-color": "var(--color-ink)" } });
-  assert.deepEqual(frameStyle({ kind: "band", width: "fin", color: "secondary" }), { attrs: { "data-frame": "band", "data-frame-w": "fin" }, style: { "--frame-color": "var(--t-color-secondary)" } });
+  assert.deepEqual(frameStyle({ kind: "band", width: "fin", color: "secondary" }), { attrs: { "data-frame": "band", "data-frame-w": "fin" }, style: { "--frame-color": "var(--color-secondary)" } });
   assert.deepEqual(frameStyle({ kind: "custom", id: "bois" }), { attrs: { "data-frame": "custom", "data-frame-id": "bois" }, style: {} });
   // Ancienne forme : même rendu qu'avant pour un choix explicite.
   assert.deepEqual(frameStyle({ size: "thick", color: "#000000" }), { attrs: { "data-frame": "band", "data-frame-w": "epais" }, style: { "--frame-color": "#000000" } });
   assert.equal(frameStyle({ size: "none" }).attrs["data-frame"], "none");
 });
 
-test("rendu : les feuilles de style couvrent photo ET vidéo, jamais d'« interrupteur » ancien", () => {
+test("rendu : une seule boîte (MediaFrame) porte le cadre de la photo ET de la vidéo, jamais d'« interrupteur » ancien", () => {
   const read = (p) => readFileSync(new URL(p, import.meta.url), "utf8");
-  const look = read("../src/app/look.css");
+  const mediaFrame = read("../src/app/media-frame.css");
   const variants = read("../src/themes/variants.css");
-  assert.match(look, /\.strip-frame\[data-frame="band"\] \.strip-media :is\(img, video\)/);
-  assert.match(look, /\.video-frame\[data-frame="band"\]/);
-  assert.match(look, /\.free-item\[data-frame="band"\] \.free-media \{/);
-  assert.match(variants, /\[data-kit-frame\] \.video-frame\[data-frame="theme"\]/);
-  assert.match(variants, /\[data-kit-frame\] \[data-frame-all\] figure\.block-image:not\(\[data-frame\]\)/);
+  assert.match(mediaFrame, /\.media-frame\[data-frame="band"\] \{/);
+  assert.match(variants, /\[data-kit-frame\] :is\(\s*\.media-frame\[data-frame="theme"\],/);
+  assert.match(variants, /\[data-frame-all\] \.media-frame\[data-kind="image"\]:not\(\[data-frame\]\)/);
   // Sans choix et sans réglage du site, aucune règle ne pose le cadre du thème (les règles « sans choix » passent toutes par [data-frame-all]).
   for (const rule of variants.split("}")) {
     if (/border-image-source: var\(--t-kit-frame\)/.test(rule) && /not\(\[data-frame\]\)/.test(rule)) {

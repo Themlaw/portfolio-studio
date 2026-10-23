@@ -223,7 +223,11 @@ if (run("L")) {
   await page.locator(blockImg("b-pano-169")).scrollIntoViewIfNeeded();
   m = await imgInfo(page, blockImg("b-pano-169"));
   if (BEFORE) ok("L (avant) pleine largeur + 16:9 : image rognée (cover)", m.fit === "cover" && Math.abs(m.w / m.h - 16 / 9) < 0.02, `${m.fit}`);
-  else ok("L pleine largeur + 16:9 : « Image entière » par défaut (object-fit: contain, cadre 16:9)", m.fit === "contain" && Math.abs(m.w / m.h - 16 / 9) < 0.02, `${m.fit} ${(m.w / m.h).toFixed(2)}`);
+  else {
+    // Lot 64 : la CASE (.media-box) a le format 16:9, la boîte du média (cadre compris) celui de la photo entière.
+    const bx = await page.locator('[data-edit-block="b-pano-169"] .media-box').first().evaluate((e) => e.getBoundingClientRect().width / e.getBoundingClientRect().height);
+    ok("L pleine largeur + 16:9 : « Image entière » par défaut (case 16:9, photo entière à son format)", Math.abs(bx - 16 / 9) < 0.02 && Math.abs(m.w / m.h - 4) < 0.05, `${bx.toFixed(2)} ${(m.w / m.h).toFixed(2)}`);
+  }
   const p169 = await pbox(page.locator('[data-edit-block="b-pano-169"] > *').first());
   await page.screenshot({ path: `${SHOTS}/L-pano-169-entier-${TAG}.png`, clip: { x: 0, y: Math.max(0, p169.y - 20), width: 1440, height: Math.min(900, p169.height + 40) }, fullPage: true });
   await page.locator(blockImg("b-pano-169-cover")).scrollIntoViewIfNeeded();

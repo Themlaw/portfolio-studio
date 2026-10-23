@@ -376,7 +376,7 @@ if (run("B"))
     ok("B2 bande du projet : look.slotBg[slug] = #ffffff", await waitFor(() => slotBg()?.[slug] === "#ffffff", 30000), JSON.stringify(lookOfDraft("board1")));
     let r = await isColor(f, SLOT0, WHITE, 3);
     ok("B2 …et le pixel transparent de l'image est blanc", r.good, JSON.stringify(r.m));
-    ok("B2 les autres images de la bande n'ont pas de fond", await f.locator('[data-edit-block="board1"] [data-edit-rail=""] > [data-edit-slot]').evaluateAll((l) => l.slice(1).every((e) => !e.hasAttribute("data-img-bg"))));
+    ok("B2 les autres images de la bande n'ont pas de fond", await f.locator('[data-edit-block="board1"] [data-edit-rail=""] > [data-edit-slot]').evaluateAll((l) => l.slice(1).every((e) => !e.hasAttribute("data-img-bg") && !e.querySelector("[data-img-bg]"))));
     await page.screenshot({ path: path.join(SHOTS, "06-bande-blanc-toile.png") });
     await page.keyboard.press("Escape");
     await sleep(300);

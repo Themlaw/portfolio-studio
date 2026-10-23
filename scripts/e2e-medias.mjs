@@ -293,7 +293,7 @@ if (run("C") && ENGINE === chromium) {
   const ranges = [];
   cpage.on("response", (r) => r.url().includes("/media/vid/") && ranges.push(r.status()));
   await cpage.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });
-  const card = cpage.locator(".mat-hover", { hasText: VIDEO_TITLE }).first();
+  const card = cpage.locator('.group:has([data-kind="video"])', { hasText: VIDEO_TITLE }).first();
   await card.scrollIntoViewIfNeeded();
   // Lot 36 : le Lecteur s'ouvre en grand dans la visionneuse (le lecteur maison est le même).
   await card.getByRole("button", { name: `Lire ${VIDEO_TITLE}` }).click();

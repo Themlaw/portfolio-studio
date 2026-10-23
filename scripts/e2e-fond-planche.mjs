@@ -235,8 +235,9 @@ try {
   const fm = () =>
     f.evaluate((id) => {
       const fr = document.querySelectorAll(`[data-edit-board="${id}"] [data-edit-bitem]`)[1];
-      const fig = fr?.querySelector("figure[data-frame]");
-      const media = fig?.querySelector(".block-image-media, .block-image-frame") ?? fig;
+      // Lot 64 : le cadre est posé sur la boîte du média (MediaFrame).
+      const fig = fr?.querySelector("figure .media-frame[data-frame]");
+      const media = fig;
       const wrap = fr?.querySelector(".fond-bloc");
       if (!fig || !media || !wrap) return null;
       const cs = getComputedStyle(media);
