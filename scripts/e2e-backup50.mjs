@@ -153,6 +153,8 @@ try {
     const baseB = `http://localhost:${portB}`;
     const up = await waitFor(async () => (await fetch(`${baseB}/fr`).catch(() => null))?.status === 200, 90000);
     ok("5. serveur sur les données restaurées démarré", up, second.log().slice(-600));
+    // Le site répond avant la fin du démarrage (la remise en file vient après le worker) : attendre la ligne du journal.
+    await waitFor(() => /\[backup\] restauration détectée/.test(second.log()), 60000);
     ok("5. restauration détectée au démarrage (journal)", /\[backup\] restauration détectée : \d+ média\(s\) remis en file/.test(second.log()), second.log().slice(-600));
     const all = await waitFor(() => q(dataB, "select count(*) n from media where status != 'ready'").n === 0 && q(dataB, "select count(*) n from jobs where kind = 'image' and status in ('queued','running')").n === 0, 120000);
     ok("5. variantes régénérées à partir des originaux", all, `${JSON.stringify(q(dataB, "select group_concat(id || ':' || status || ':' || coalesce(error,''), ' | ') s from media where status != 'ready'"))} ${JSON.stringify(q(dataB, "select group_concat(id || ':' || kind || ':' || status || ':' || attempts, ' | ') s from jobs"))} ${second.log().slice(-800)}`);

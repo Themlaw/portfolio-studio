@@ -479,7 +479,7 @@ if (run("F")) {
   await f.locator(".pe-crumbs .pe-crumb").first().click();
   await f.locator('.pe-tools button[aria-label="Supprimer"]').click();
   const dialog = page.getByRole("dialog");
-  ok("F1 confirmation : nombre de composants retirés", new RegExp(`${grid.props.children.length} composants seront retirés`).test((await dialog.textContent()) ?? ""), (await dialog.textContent())?.slice(0, 200));
+  ok("F1 confirmation : nombre de composants retirés", new RegExp(`${grid.props.children.length} (composants|blocs) seront retirés`).test((await dialog.textContent()) ?? ""), (await dialog.textContent())?.slice(0, 200));
   await page.screenshot({ path: `${SHOTS}/F-suppression-de-la-grille.png` });
   // Confirmée : la grille (et ses composants) disparaît du brouillon, le reste de la page est intact.
   await dialog.getByRole("button", { name: /Supprimer/ }).click();

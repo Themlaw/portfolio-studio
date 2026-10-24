@@ -807,7 +807,7 @@ if (run("C")) {
       return sidebarOpen();
     }, 20000),
   );
-  await mobile.locator("#contenu").click({ position: { x: 10, y: 400 }, force: true });
+  await mobile.mouse.click(380, 790);
   ok("C10 clic à l'extérieur : le menu mobile se ferme", await waitFor(async () => (await mobile.locator("#a-sidebar").getAttribute("data-open")) === "false", 5000));
   await mobile.close();
 
