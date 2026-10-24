@@ -490,6 +490,8 @@ if (run("E")) {
   await scopeButton(f, "Ce texte").click();
   const s0 = JSON.stringify(heroLook()?.text?.["site.name"] ?? null);
   await pick(f, "Surlignage");
+  // Deux réglages du même texte à moins de 1,2 s ne font qu'un pas d'historique (coalescence) : le second vient après, pour que Annuler n'en défasse qu'un.
+  await sleep(1400);
   await openDot(f);
   await popToken(f, "secondary25").click();
   await settled();
