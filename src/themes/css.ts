@@ -60,11 +60,20 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
     const [t, r, b, l] = kit.frame.slice;
     v["--t-kit-frame"] = kitImage(kit.frame.image);
     v["--t-kit-frame-slice"] = `${t} ${r} ${b} ${l}`;
-    // Épaisseurs RÉELLES des quatre côtés (px, sans unité : l'épaisseur se réduit proportionnellement sur petit écran, variants.css).
-    v["--t-kit-fwt"] = String(Math.round(t / 2));
-    v["--t-kit-fwr"] = String(Math.round(r / 2));
-    v["--t-kit-fwb"] = String(Math.round(b / 2));
-    v["--t-kit-fwl"] = String(Math.round(l / 2));
+    // Épaisseurs (px, sans unité : elles se réduisent proportionnellement sur petit écran, variants.css). `fw*` = ce que le dessin occupe vraiment
+    // (épaisseur pleine mesurée, lot 79, sinon la découpe) : c'est la bordure, donc la place que le cadre prend AUTOUR de la photo, au contact de
+    // son bord. `fs*` = la découpe entière : la largeur du dessin dans `border-image-width` (le transparent en trop passe sous la photo).
+    const ring = (kit.frame.ring ?? kit.frame.slice).map((n, i) => Math.min(n, kit.frame!.slice[i]));
+    const px = (n: number) => String(Math.round(n * 5) / 10);
+    v["--t-kit-fwt"] = px(ring[0]);
+    v["--t-kit-fwr"] = px(ring[1]);
+    v["--t-kit-fwb"] = px(ring[2]);
+    v["--t-kit-fwl"] = px(ring[3]);
+    v["--t-kit-fst"] = px(t);
+    v["--t-kit-fsr"] = px(r);
+    v["--t-kit-fsb"] = px(b);
+    v["--t-kit-fsl"] = px(l);
+    v["--t-kit-fmax"] = px(Math.max(...ring));
   }
   if (kit.stroke) v["--t-kit-stroke"] = kitMask(kit.stroke);
   for (const [key, name] of ICONS) {

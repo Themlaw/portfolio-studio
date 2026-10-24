@@ -8,16 +8,22 @@
    ========================================================================== */
 
 /* ---- La boîte --------------------------------------------------------------------------------------------------------------------
-   `--box-r` = largeur ÷ hauteur (posée par MediaFrame) : `aspect-ratio` d'un bloc sans contenu intrinsèque en `border-box`, donc la
-   taille EXTÉRIEURE est celle du format, avec ou sans cadre ; le média est réduit d'autant (jamais couvert). Elle rogne ce qui dépasse
-   (rayon, cadrage ancien, zoom) et porte l'arrondi : la bande, le fond et le cadre du thème suivent le même rayon. */
+   `--box-r` = largeur ÷ hauteur (posée par MediaFrame) : `aspect-ratio` d'un bloc sans contenu intrinsèque. Lot 79 : la zone INTÉRIEURE (le
+   média) a TOUJOURS la taille et la place qu'elle aurait sans cadre ; le cadre (bande ou dessin du thème) est une bordure qui DÉPASSE autour
+   d'elle, sans prendre de place : une marge négative de l'épaisseur du cadre sur chaque côté (`--fbt` haut, `--fbr` droite, `--fbb` bas, `--fbl`
+   gauche, posées par la bande ou par le cadre du thème ; absentes = 0). Le cadre colle au bord de la photo et peint dans l'espace libre autour
+   (écart entre cases, marge de la page) ; son épaisseur est plafonnée à ce que cet espace laisse (`--room`, voir plus bas), donc il ne
+   recouvre ni un voisin ni le bord de l'écran. Elle rogne ce qui dépasse (rayon, cadrage ancien, zoom) et porte l'arrondi. */
 .media-frame {
   display: block;
   position: relative;
-  /* `content-box` : le format (`--box-r`) est celui de la zone INTÉRIEURE ; le cadre s'ajoute autour (`--bx` / `--by` = épaisseurs cumulées).
-     Le média garde donc EXACTEMENT la même partie visible avec ou sans cadre : le cadre ne rogne jamais la photo. */
+  /* `content-box` : le format (`--box-r`) est celui de la zone INTÉRIEURE ; le cadre s'ajoute autour et dépasse (marges négatives). Le média
+     garde donc EXACTEMENT la même taille, la même place et la même partie visible avec ou sans cadre. */
   box-sizing: content-box;
-  width: calc(100% - var(--bx, 0px));
+  width: 100%;
+  margin: calc(-1 * var(--fbt, 0px)) calc(-1 * var(--fbr, 0px)) calc(-1 * var(--fbb, 0px)) calc(-1 * var(--fbl, 0px));
+  /* Place laissée au cadre autour de la photo (chaque côté) : le contexte la pose (`--frame-room` : demi-écart d'une grille, marge d'un carrousel…), sinon la marge de la page (au moins 24 px, l'épaisseur d'un cadre du kit). */
+  --room: var(--frame-room, max(var(--gutter, 1rem), 24px));
   aspect-ratio: var(--box-r, auto);
   /* `clip` après `hidden` (anciens navigateurs) : `hidden` fait mal rasteriser le dessin du cadre (bord bas manquant sur un élément à moitié hors écran). */
   overflow: hidden;
@@ -59,16 +65,18 @@
   background-color: transparent !important;
 }
 
-/* ---- Cadre « bande de couleur » (lots 34 et 62) ----------------------------------------------------------------------------------
-   Une bordure DANS la boîte : la taille extérieure ne change jamais. Épaisseurs (`data-frame-w`) : Fin 2 px, Moyen jusqu'à 6 px, Épais
-   jusqu'à 12 px (plus minces sur téléphone). Couleur : `--frame-color` (palette du thème ou couleur libre, remappée dans une carte).
-   « Aucun » (`data-frame="none"`) : aucune règle. « Cadre du thème » (`theme`) : variants.css. */
+/* ---- Cadre « bande de couleur » (lots 34, 62 et 79) -------------------------------------------------------------------------------
+   Une bordure AUTOUR de la photo (qui dépasse sans rien déplacer, voir plus haut). Épaisseurs (`data-frame-w`) : Fin 2 px, Moyen jusqu'à 6 px,
+   Épais jusqu'à 12 px (plus minces sur téléphone, et jamais plus que la place autour de la photo). Couleur : `--frame-color` (palette du
+   thème ou couleur libre, remappée dans une carte). « Aucun » (`data-frame="none"`) : aucune règle. « Cadre du thème » (`theme`) : variants.css. */
 .media-frame[data-frame="band"] {
   --frame-w: clamp(3px, 0.9vw, 6px);
   /* Plafonnée à 12 % de la largeur de la boîte (`--cap-w` : largeur maximale connue, posée par le conteneur) : une petite image n'est plus mangée par son cadre. */
-  --bw: min(var(--frame-w), calc(var(--cap-w, 100vw) * 0.12));
-  --bx: calc(2 * var(--bw));
-  --by: calc(2 * var(--bw));
+  --bw: round(min(var(--frame-w), calc(var(--cap-w, 100vw) * 0.12), var(--room)), 1px);
+  --fbt: var(--bw);
+  --fbr: var(--bw);
+  --fbb: var(--bw);
+  --fbl: var(--bw);
   border: var(--bw) solid var(--frame-color);
 }
 .media-frame[data-frame="band"][data-frame-w="fin"] {
@@ -90,9 +98,13 @@
 .media-solo:has(.media-caption [data-cap]:not(:empty)) {
   --iw: min(100%, calc((85svh - 4.5rem) * var(--ir, 1000)));
 }
-.block-image[data-solo] > :is(.media-frame, .media-box),
+.block-image[data-solo] > .media-box {
+  margin-inline: auto; /* la case est un bloc : text-align ne la centre pas */
+}
+/* La boîte du média (le dessin dépasse : marges négatives) : la zone intérieure est centrée comme sans cadre. */
+.block-image[data-solo] > .media-frame,
 .media-solo > .media-frame {
-  margin-inline: auto; /* la boîte est un bloc : text-align ne la centre pas */
+  margin-inline: calc((100% - var(--iw)) / 2 - var(--fbl, 0px)) calc((100% - var(--iw)) / 2 - var(--fbr, 0px));
 }
 .block-image[data-solo] > .media-box {
   width: var(--iw);
@@ -102,29 +114,44 @@
 .block-image[data-solo][data-size="large"] > .media-box {
   width: 100%;
 }
-.block-image[data-solo][data-align] > * {
+.block-image[data-solo][data-align] > :not(.media-frame) {
   width: var(--iw);
   margin-inline: auto;
 }
-.block-image[data-solo][data-align="left"] > * {
+.block-image[data-solo][data-align="left"] > :not(.media-frame) {
   margin-inline: 0 auto;
 }
-.block-image[data-solo][data-align="right"] > * {
+.block-image[data-solo][data-align="right"] > :not(.media-frame) {
   margin-inline: auto 0;
 }
-.block-image[data-solo][data-align][data-size="large"] > * {
+.block-image[data-solo][data-align][data-size="large"] > :not(.media-frame) {
   width: 100%;
 }
+.block-image[data-solo][data-align="left"] > .media-frame {
+  margin-inline: calc(-1 * var(--fbl, 0px)) auto;
+}
+.block-image[data-solo][data-align="right"] > .media-frame {
+  margin-inline: calc(100% - var(--iw) - var(--fbl, 0px)) calc(-1 * var(--fbr, 0px));
+}
+/* Grande : toute la largeur, quelle que soit la place. */
+.block-image[data-solo][data-size="large"] > .media-frame {
+  margin-inline: calc(-1 * var(--fbl, 0px)) calc(-1 * var(--fbr, 0px));
+}
+/* Une légende sous la photo ne passe pas sous le cadre : la bordure du bas prend sa place dans la page (la photo, elle, ne bouge pas). */
+.block-image[data-solo]:has(.media-caption) > .media-frame,
+.media-solo:has(.media-caption) > .media-frame {
+  margin-bottom: 0;
+}
 
-/* Boîte qui grandit (sans case) : largeur EXTÉRIEURE = plafond ; la zone intérieure en est l'épaisseur du cadre de moins. */
+/* Image ou vidéo seule (sans case) : la zone intérieure a la largeur plafonnée, cadre ou non. */
 .block-image[data-solo] > .media-frame,
 .media-solo > .media-frame,
 .block-image[data-solo][data-align] > .media-frame {
-  width: calc(var(--iw) - var(--bx, 0px));
+  width: var(--iw);
 }
 .block-image[data-solo][data-size="large"] > .media-frame,
 .block-image[data-solo][data-align][data-size="large"] > .media-frame {
-  width: calc(100% - var(--bx, 0px));
+  width: 100%;
 }
 
 /* Cadrage libre (rectangle gardé) : la boîte suit le rapport de la zone gardée, quel que soit le format imposé par le bloc ou sa grille. */
@@ -145,7 +172,7 @@ figure.block-image[data-free] .media-frame :is(img, video) {
 }
 
 /* La CASE (`.media-box`, posée par MediaFrame sauf image ou vidéo seule) : sa taille ne dépend JAMAIS du cadre (rangées justifiées alignées, hauteur du
-   carrousel, Planche libre). La boîte du média s'y pose au centre : zone intérieure au format du média, cadre compris au plus grand de ce qui tient.
+   carrousel, Planche libre). La boîte du média s'y pose au centre : zone intérieure au format du média, la plus grande qui tient dans la case (le cadre dépasse).
    « Image entière » : la case a le format imposé (bandes vides, fond choisi), la boîte celui de la photo. */
 .media-box {
   display: grid;
@@ -160,10 +187,14 @@ figure.block-image[data-free] .media-frame :is(img, video) {
   background-color: var(--img-bg);
 }
 .media-box > .media-frame {
-  width: min(calc(100cqw - var(--bx, 0px)), calc((100cqh - var(--by, 0px)) * var(--box-r, 1)));
+  width: min(100cqw, calc(100cqh * var(--box-r, 1)));
 }
 
 /* ---- Contextes -------------------------------------------------------------------------------------------------------------------- */
+/* Place laissée au cadre entre deux cases : la moitié de l'écart de la grille (deux cadres voisins ne se touchent jamais), au moins 6 px. */
+.block-grid {
+  --frame-room: max(calc(var(--grid-gap) / 2), 6px);
+}
 /* Case d'une grille « sur mesure » / « automatique » avec un format imposé : une case large garde la hauteur de ses voisines d'une colonne
    (format x largeur). */
 @media (min-width: 48rem) {
@@ -197,7 +228,6 @@ figure.block-image[data-free] .media-frame :is(img, video) {
   }
   .block-grid-cell[data-span-h] .block-image > .media-box > .media-frame,
   .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image > .media-box > .media-frame {
-    box-sizing: border-box;
     width: 100%;
     height: 100%;
     aspect-ratio: auto;
@@ -219,6 +249,10 @@ figure.block-image[data-free] .media-frame :is(img, video) {
 }
 .strip-frame .media-frame {
   box-shadow: var(--strip-halo);
+}
+/* Place laissée au cadre : le demi-écart entre deux places (au plus la marge du carrousel au-dessus et en dessous). */
+.strip-rail {
+  --frame-room: min(var(--rail-room, 1rem), calc(clamp(0.75rem, 1.8vw, 1.75rem) / 2));
 }
 /* Image de la Planche libre : pas d'arrondi du site par défaut (un PNG détouré n'en a pas) ; celui de l'image (`radius`) passe en ligne. */
 .free-item .media-frame {
