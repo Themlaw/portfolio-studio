@@ -42,11 +42,11 @@ import { BOARD_ITEM_TYPES, BOX_MIN, MAX_BOARD_ITEMS, MAX_RAIL_MEDIA, defaultLayo
 import { convertTarget } from "@/blocks/grid-strip";
 import { isVideoMode } from "@/blocks/video-mode";
 import { getPageForEdit } from "@/lib/admin";
-import { LookSchema } from "@/lib/look";
+import { LookSchema, readLook } from "@/lib/look";
 import { HELP_TEXT } from "@/blocks/help-text";
+import { applyMediaPatch, MediaPatchSchema } from "./media-look";
 import { setLocalizedAt } from "./protocol";
 import { getDb, schema } from "@/lib/db";
-import { FrameSchema, ImageBgSchema } from "@/lib/look";
 import { slugify } from "@/lib/slug";
 import { BackgroundSchema } from "@/themes/schema";
 
@@ -59,7 +59,7 @@ const sameL = (a: L | null | undefined, b: L | null | undefined) => (a?.fr ?? ""
 type SlotRow = typeof schema.slots.$inferSelect;
 
 /** Un PDF (bloc CV) ne se pose pas dans une planche. */
-const PDF_NOT_IN_BOARD = "Un PDF ne se place pas dans une planche : utilise la rubrique « CV ».";
+const PDF_NOT_IN_BOARD = "Un PDF ne se place pas dans un projet : utilise le bloc « CV ».";
 
 export const MAX_BOARD_SLOTS = 200;
 /** Projets créés au plus dans le brouillon d'une page. */
@@ -117,10 +117,9 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
   z.strictObject({ op: z.literal("item-remove"), uid: Uid }),
   // Lot 32 : fond de couleur du composant (`props.background`, null = aucun) ; vaut aussi pour la bande des images du projet.
   z.strictObject({ op: z.literal("item-fond"), uid: Uid, background: BackgroundSchema.nullable() }),
-  // Lots 34 et 62 : cadre autour de la photo d'un composant Image, ou de la vidéo d'un composant Vidéo (`props.look.frame`, null = pas de choix).
-  z.strictObject({ op: z.literal("item-frame"), uid: Uid, frame: FrameSchema.nullable() }),
-  // Lot 41 : fond derrière l'image d'un composant Image (`props.look.imageBg`, null = aucun fond).
-  z.strictObject({ op: z.literal("item-imgbg"), uid: Uid, bg: ImageBgSchema.nullable() }),
+  // Lot 75 (R4) : cadre, fond derrière l'image ou arrondi d'un composant Image ou Vidéo, par l'écriture commune `media-look`
+  // (`props.look.frame` / `imageBg` / `radius`, null = retiré). Remplace `item-frame` (lots 34 et 62) et `item-imgbg` (lot 41).
+  z.strictObject({ op: z.literal("item-media-look"), uid: Uid, patch: MediaPatchSchema }),
   // Lot 31f : les places d'un carrousel à liste propre (`at` : rang dans sa liste), mêmes gestes que les emplacements de la bande du projet.
   z.strictObject({ op: z.literal("rail-add"), uid: Uid, mediaId: z.number().int().positive(), index: z.number().int().min(0).max(MAX_RAIL_MEDIA) }),
   z.strictObject({ op: z.literal("rail-fill"), uid: Uid, at: z.number().int().min(0).max(MAX_RAIL_MEDIA), mediaId: z.number().int().positive() }),
@@ -165,7 +164,7 @@ function access(pageId: number, projectId: number): string | null {
   if (other?.page) return `Ce projet est en cours de modification sur la page ${pageName(other.page)} : publie-la ou abandonne-la d'abord.`;
   // La page doit afficher ce projet (bloc qui le cite, projets d'une
   // collection ou mis en avant) : une surcouche hors de la page ne se publierait pas.
-  if (!displayedProjects(draftBlocks(pageId)).includes(projectId)) return "Cette page n'affiche pas ce projet : ajoute d'abord sa planche à la page.";
+  if (!displayedProjects(draftBlocks(pageId)).includes(projectId)) return "Cette page n'affiche pas ce projet : ajoute d'abord son projet à la page.";
   return null;
 }
 
@@ -210,9 +209,9 @@ function layoutAccess(pageId: number, projectId: number): string | null {
     return `Ce projet est en cours de création sur la page ${pageName(project.draftPageId)} : publie-la ou abandonne-la d'abord.`;
   }
   if (project.layoutPage !== null && project.layoutPage !== pageId) {
-    return `Le contenu de cette planche est en cours de modification sur la page ${pageName(project.layoutPage)} : publie-la ou abandonne-la d'abord.`;
+    return `Le contenu de ce projet est en cours de modification sur la page ${pageName(project.layoutPage)} : publie-le ou abandonne-le d'abord.`;
   }
-  if (!displayedProjects(draftBlocks(pageId)).includes(projectId)) return "Cette page n'affiche pas ce projet : ajoute d'abord sa planche à la page.";
+  if (!displayedProjects(draftBlocks(pageId)).includes(projectId)) return "Cette page n'affiche pas ce projet : ajoute d'abord son projet à la page.";
   return null;
 }
 
@@ -292,7 +291,7 @@ function checkSnap(pageId: number, snap: BoardSnap, allowPending = false): strin
   const keys = new Set<string>();
   const db = getDb();
   for (const s of snap.slots) {
-    if (keys.has(s.key)) return "Planche invalide (emplacement en double) : recharge l'éditeur.";
+    if (keys.has(s.key)) return "Projet invalide (emplacement en double) : recharge l'éditeur.";
     keys.add(s.key);
     const row = byKey.get(s.key);
     if (s.key.startsWith("s") && !row) return "Un emplacement n'existe plus ou appartient à un autre projet : recharge l'éditeur.";
@@ -472,7 +471,7 @@ function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (
     const problem = next.project && projectTextProblem(next.project);
     if (problem) return fail(problem);
   }
-  if (next.slots.length > MAX_BOARD_SLOTS) return fail(`${MAX_BOARD_SLOTS} emplacements au plus par planche.`);
+  if (next.slots.length > MAX_BOARD_SLOTS) return fail(`${MAX_BOARD_SLOTS} emplacements au plus par projet.`);
   const problem = checkSnap(pageId, next, restoring);
   if (problem) return fail(problem);
   try {
@@ -532,7 +531,7 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       }
       case "move": {
         const from = at(op.key);
-        if (from < 0) return "Cet emplacement n'est pas sur cette planche.";
+        if (from < 0) return "Cet emplacement n'est pas sur ce projet.";
         if (op.index > snap.slots.length) return "Position invalide.";
         const [item] = snap.slots.splice(from, 1);
         snap.slots.splice(Math.min(op.index > from ? op.index - 1 : op.index, snap.slots.length), 0, item);
@@ -541,38 +540,38 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       case "remove":
       case "fill": {
         const i = at(op.key);
-        if (i < 0) return "Cet emplacement n'est pas sur cette planche.";
+        if (i < 0) return "Cet emplacement n'est pas sur ce projet.";
         snap.slots[i].mediaId = op.op === "fill" ? op.mediaId : null;
         return snap;
       }
       case "retire": {
         const i = at(op.key);
-        if (i < 0) return "Cet emplacement n'est pas sur cette planche.";
+        if (i < 0) return "Cet emplacement n'est pas sur ce projet.";
         snap.slots.splice(i, 1);
         return snap;
       }
       case "text": {
         const i = at(op.key);
-        if (i < 0) return "Cet emplacement n'est pas sur cette planche.";
+        if (i < 0) return "Cet emplacement n'est pas sur ce projet.";
         const max = op.field === "title" ? 120 : 2000;
         snap.slots[i][op.field] = { ...snap.slots[i][op.field], [op.locale]: op.value.slice(0, max) };
         return snap;
       }
       case "item-add": {
-        if (snap.layout.length >= MAX_BOARD_ITEMS) return `${MAX_BOARD_ITEMS} composants au plus par planche.`;
+        if (snap.layout.length >= MAX_BOARD_ITEMS) return `${MAX_BOARD_ITEMS} blocs au plus par projet.`;
         // `after` : sous ce composant (clic sur une carte de la palette), sinon à la position donnée.
         const at = op.after ? snap.layout.findIndex((i) => i.uid === op.after) + 1 : op.index;
-        if (op.after && at === 0) return "Ce composant n'est plus sur cette planche.";
+        if (op.after && at === 0) return "Ce bloc n'est plus sur ce projet.";
         if (at > snap.layout.length) return "Position invalide.";
-        if (op.type === "strip" && op.source === "project" && snap.layout.some(isProjectStrip)) return "Cette planche montre déjà les images du projet.";
+        if (op.type === "strip" && op.source === "project" && snap.layout.some(isProjectStrip)) return "Ce projet montre déjà ses images.";
         const uid = op.uid ?? newItemUid();
-        if (snap.layout.some((i) => i.uid === uid)) return "Composant en double.";
+        if (snap.layout.some((i) => i.uid === uid)) return "Bloc en double.";
         snap.layout.splice(at, 0, newBoardItem(op.type, uid, op.source));
         return snap;
       }
       case "item-move": {
         const from = snap.layout.findIndex((i) => i.uid === op.uid);
-        if (from < 0) return "Ce composant n'est plus sur cette planche.";
+        if (from < 0) return "Ce bloc n'est plus sur ce projet.";
         const to = from + (op.dir === "up" ? -1 : 1);
         if (to < 0 || to >= snap.layout.length) return snap;
         const [item] = snap.layout.splice(from, 1);
@@ -581,7 +580,7 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       }
       case "item-media": {
         const item = snap.layout.find((i) => i.uid === op.uid);
-        if (!item) return "Ce composant n'est plus sur cette planche.";
+        if (!item) return "Ce bloc n'est plus sur ce projet.";
         const media = getDb().select({ kind: schema.media.kind, width: schema.media.width, height: schema.media.height }).from(schema.media).where(eq(schema.media.id, op.mediaId)).get();
         if (!media) return "Ce média n'existe plus.";
         if (media.kind === "pdf") return PDF_NOT_IN_BOARD;
@@ -606,7 +605,7 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
           const list = railList(item.props);
           if (list.length >= MAX_RAIL_MEDIA) return `${MAX_RAIL_MEDIA} médias au plus par carrousel.`;
           item.props = { ...item.props, media: [...list, op.mediaId], ids: [...railIds(item.props), newPlaceId()] };
-        } else return item.type === "strip" ? "Cette bande montre les images du projet : dépose l'image sur la bande." : "Ce composant n'accepte pas d'image.";
+        } else return item.type === "strip" ? "Cette bande montre les images du projet : dépose l'image sur la bande." : "Ce bloc n'accepte pas d'image.";
         return snap;
       }
       case "rail-add":
@@ -615,7 +614,7 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       case "rail-retire":
       case "rail-move": {
         const item = snap.layout.find((i) => i.uid === op.uid);
-        if (!item || item.type !== "strip" || isProjectStrip(item)) return "Ce carrousel n'est plus sur cette planche.";
+        if (!item || item.type !== "strip" || isProjectStrip(item)) return "Ce carrousel n'est plus sur ce projet.";
         const list = railList(item.props);
         const ids = railIds(item.props);
         if (op.op === "rail-add") {
@@ -644,11 +643,11 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       }
       case "item-text": {
         const item = snap.layout.find((i) => i.uid === op.uid);
-        if (!item) return "Ce composant n'est plus sur cette planche.";
+        if (!item) return "Ce bloc n'est plus sur ce projet.";
         // Titre / Légende / Date sous les images d'une bande (lot 39) : `captions.<place>.<champ>`.
         if (item.type === "strip") {
           const cap = parseCaptionPath(op.path);
-          if (!cap) return "Ce composant n'a pas de texte à modifier ici.";
+          if (!cap) return "Ce bloc n'a pas de texte à modifier ici.";
           const prev = item.props.captions;
           const captions: Record<string, StripCaption> = typeof prev === "object" && prev !== null && !Array.isArray(prev) ? { ...(prev as Record<string, StripCaption>) } : {};
           const entry: StripCaption = { ...(Object.hasOwn(captions, cap.key) ? captions[cap.key] : {}) };
@@ -658,21 +657,21 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
           return snap;
         }
         // Une grille : ses textes (étiquette, titre, légende) et ceux de ses cases (légende d'une image, d'une vidéo).
-        if (item.type === "grid" && !GRID_TEXT_PATH.test(op.path)) return "Ce composant n'a pas de texte à modifier ici.";
+        if (item.type === "grid" && !GRID_TEXT_PATH.test(op.path)) return "Ce bloc n'a pas de texte à modifier ici.";
         if (item.type === "grid" && op.path.startsWith("children.")) {
           const rank = Number(op.path.split(".")[1]);
           if (!Array.isArray(item.props.children) || rank >= item.props.children.length) return "Cette case n'existe plus.";
         }
         // Planche libre : Titre / Légende / Date sous la zone (lot 39 branché par l'intégration v0.27).
-        if (item.type === "free-board" && !/^(captionTitle|caption|captionDate)$/.test(op.path)) return "Ce composant n'a pas de texte à modifier ici.";
+        if (item.type === "free-board" && !/^(captionTitle|caption|captionDate)$/.test(op.path)) return "Ce bloc n'a pas de texte à modifier ici.";
         item.props = item.type === "rich-text" ? settleHelp(setLocalizedAt(item.props, op.path, op.locale, op.value)) : setLocalizedAt(item.props, op.path, op.locale, op.value);
         return snap;
       }
       case "item-look": {
         const item = snap.layout.find((i) => i.uid === op.uid);
-        if (!item) return "Ce composant n'est plus sur cette planche.";
+        if (!item) return "Ce bloc n'est plus sur ce projet.";
         // La bande n'a qu'un réglage de mise en forme : l'espace au-dessus (lot 40).
-        if (item.type === "strip" && op.look && Object.keys(op.look).some((k) => k !== "spaceTop")) return "Ce composant n'a pas de mise en forme propre.";
+        if (item.type === "strip" && op.look && Object.keys(op.look).some((k) => k !== "spaceTop")) return "Ce bloc n'a pas de mise en forme propre.";
         const { look: _old, ...rest } = item.props;
         void _old;
         item.props = op.look && Object.keys(op.look).length ? { ...rest, look: op.look } : rest;
@@ -680,7 +679,7 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       }
       case "item-to": {
         const from = snap.layout.findIndex((i) => i.uid === op.uid);
-        if (from < 0) return "Ce composant n'est plus sur cette planche.";
+        if (from < 0) return "Ce bloc n'est plus sur ce projet.";
         if (op.index > snap.layout.length) return "Position invalide.";
         // Index compté dans la liste d'origine (avant le retrait), comme moveTo.
         const [item] = snap.layout.splice(from, 1);
@@ -689,48 +688,35 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       }
       case "item-remove": {
         const from = snap.layout.findIndex((i) => i.uid === op.uid);
-        if (from < 0) return "Ce composant n'est plus sur cette planche.";
+        if (from < 0) return "Ce bloc n'est plus sur ce projet.";
         snap.layout.splice(from, 1);
         return snap;
       }
       case "item-fond": {
         const item = snap.layout.find((i) => i.uid === op.uid);
-        if (!item) return "Ce composant n'est plus sur cette planche.";
+        if (!item) return "Ce bloc n'est plus sur ce projet.";
         const props = { ...item.props };
         if (op.background) props.background = op.background;
         else delete props.background;
         item.props = props;
         return snap;
       }
-      case "item-frame": {
+      case "item-media-look": {
         const item = snap.layout.find((i) => i.uid === op.uid);
-        if (!item) return "Ce composant n'est plus sur cette planche.";
-        if (item.type !== "image" && item.type !== "video-single") return "Le cadre ne concerne que les images et les vidéos.";
-        const look = { ...((item.props.look as Record<string, unknown> | undefined) ?? {}) };
-        if (op.frame) look.frame = op.frame;
-        else delete look.frame;
+        if (!item) return "Ce bloc n'est plus sur ce projet.";
+        if (item.type !== "image" && item.type !== "video-single") return "Le cadre, le fond et l'arrondi ne concernent que les images et les vidéos.";
+        if (op.patch.bg !== undefined && op.patch.bg !== null && item.type !== "image") return "Le fond ne concerne que les images.";
+        const res = applyMediaPatch(readLook(item.props.look), op.patch);
+        if ("error" in res) return res.error;
         const props = { ...item.props };
-        if (Object.keys(look).length) props.look = look;
-        else delete props.look;
-        item.props = props;
-        return snap;
-      }
-      case "item-imgbg": {
-        const item = snap.layout.find((i) => i.uid === op.uid);
-        if (!item) return "Ce composant n'est plus sur cette planche.";
-        if (item.type !== "image") return "Le fond ne concerne que les images.";
-        const look = { ...((item.props.look as Record<string, unknown> | undefined) ?? {}) };
-        if (op.bg) look.imageBg = op.bg;
-        else delete look.imageBg;
-        const props = { ...item.props };
-        if (Object.keys(look).length) props.look = look;
+        if (res.look) props.look = res.look;
         else delete props.look;
         item.props = props;
         return snap;
       }
       case "item-set": {
         const item = snap.layout.find((i) => i.uid === op.uid);
-        if (!item) return "Ce composant n'est plus sur cette planche.";
+        if (!item) return "Ce bloc n'est plus sur ce projet.";
         if (op.props !== undefined) {
           if (isProjectStrip(item)) {
             // Seul réglage de la bande du projet (lot 36) : la lecture de ses vidéos.
@@ -749,10 +735,10 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
       }
       case "item-convert": {
         const item = snap.layout.find((i) => i.uid === op.uid);
-        if (!item) return "Ce composant n'est plus sur cette planche.";
+        if (!item) return "Ce bloc n'est plus sur ce projet.";
         const target = convertTarget(item);
         if ("reason" in target) return target.reason;
-        if (target.to !== op.to) return op.to === "strip" ? "Ce composant est déjà en images qui défilent." : "Ce composant est déjà une grille.";
+        if (target.to !== op.to) return op.to === "strip" ? "Ce bloc est déjà en images qui défilent." : "Ce bloc est déjà une grille.";
         // Un carrousel qui devient grille ne peut pas en porter plus que la grille ; une grille garde ses cases.
         item.type = op.to === "strip" ? "strip" : "grid";
         item.props = op.props;
@@ -775,11 +761,11 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
 /** Annuler / Rétablir : réécrit un instantané (contrôlé). */
 export function restoreBoard(pageId: number, snapInput: unknown, rev: unknown, fromInput?: unknown): ActionResult<BoardResult> | DraftRefusal {
   const parsed = BoardSnapSchema.safeParse(snapInput);
-  if (!parsed.success) return fail("Planche invalide : recharge l'éditeur.");
+  if (!parsed.success) return fail("Projet invalide : recharge l'éditeur.");
   const snap = parsed.data;
   // `from` : la planche telle que l'éditeur la croit (celle que ce pas d'historique quitte).
   const from = fromInput === undefined || fromInput === null ? null : BoardSnapSchema.safeParse(fromInput);
-  if (from && !from.success) return fail("Planche invalide : recharge l'éditeur.");
+  if (from && !from.success) return fail("Projet invalide : recharge l'éditeur.");
   const known = from?.data.projectId === snap.projectId ? from.data.project : null;
   return mutate(
     pageId,

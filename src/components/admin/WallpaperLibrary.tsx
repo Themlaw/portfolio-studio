@@ -175,7 +175,7 @@ function CardDefault({ ready, value, onChanged }: { ready: AdminWallpaper[]; val
     <section className="a-panel" aria-labelledby="wp-cartes" data-testid="wallpaper-cards">
       <h2 id="wp-cartes">Papier peint des cartes</h2>
       <p className="a-help">
-        Les cartes des rubriques cachent le papier du site. Ici, tu peux y poser un de tes motifs, pour toutes les cartes du site. Une carte peut garder son propre choix (menu « Carte » sur la page).
+        Les cartes des blocs cachent le papier du site. Ici, tu peux y poser un de tes motifs, pour toutes les cartes du site. Une carte peut garder son propre choix (menu « Carte » sur la page).
       </p>
       <div className="a-seg" role="radiogroup" aria-label="Papier peint des cartes">
         <button type="button" role="radio" aria-checked={!cur} data-testid="wallpaper-cards-none" className="a-btn a-btn-small" onClick={() => save(null)}>

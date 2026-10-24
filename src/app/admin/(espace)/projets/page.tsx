@@ -12,7 +12,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
     <>
       <PageHeader
         title="Projets"
-        intro="Rassemble tes images par projet : chaque projet a sa planche. Un projet n'est visible sur le site que si une page l'affiche. Fais glisser les cartes pour choisir l'ordre des projets sur le site."
+        intro="Rassemble tes images par projet : chaque projet a sa mise en page. Un projet n'est visible sur le site que si une page l'affiche. Fais glisser les cartes pour choisir l'ordre des projets sur le site."
       />
       <TrashViews base="/admin/projets" label="Projets" view={view} trashCount={trashed.length} />
       <ProjectsManager projects={listProjectsForAdmin()} trashed={trashed} view={view} showFeatured={legacyFeaturedPages().length > 0} summary={getTrashSummary()} />

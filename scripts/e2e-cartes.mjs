@@ -4,7 +4,7 @@
  * (seed), une connexion. Thème « Papier de cœurs » (tuile de cœurs en fond, comme le kit de l'illustratrice)
  * posé par scripts/lib/paper-theme.mjs, page « À propos ».
  *
- *  A. Ajouter du texte : « + Ajouter une rubrique » en bas de page, « + » entre deux rubriques au survol,
+ *  A. Ajouter du texte : « + Ajouter un bloc » en bas de page, « + » entre deux rubriques au survol,
  *     case vide d'une grille ; « Texte » et « Titre + texte » en premier ; le texte d'aide est sélectionné
  *     en édition en place ; un texte d'aide resté tel quel refuse la publication.
  *  B. Carte d'une rubrique : interrupteur, couleur de la palette puis couleur perso, en retrait / pleine
@@ -177,7 +177,7 @@ if (run("A") || run("B") || run("C"))
   await section("A", async () => {
   const addEnd = f.locator('[data-edit-add="end"]');
   await addEnd.scrollIntoViewIfNeeded();
-  ok("A1 « + Ajouter une rubrique » toujours visible en bas de page", (await addEnd.isVisible()) && /Ajouter une rubrique/.test((await addEnd.textContent()) ?? ""));
+  ok("A1 « + Ajouter un bloc » toujours visible en bas de page", (await addEnd.isVisible()) && /Ajouter un bloc/.test((await addEnd.textContent()) ?? ""));
   await page.screenshot({ path: path.join(SHOTS, "a1-bouton-bas.png") });
   // La barre de style (fenêtre ancrée, lot 65) peut recouvrir « + Ajouter » : on la ferme comme le ferait l'artiste.
   await f.evaluate(() => document.querySelector(".lk-bar .lk-close")?.click());
@@ -190,13 +190,13 @@ if (run("A") || run("B") || run("C"))
   ok("A2 les autres composants suivent (avec leur vignette)", (await cards.count()) > 6 && (await dlg.locator(".ve-add-card .ve-thumb").count()) === (await cards.count()));
   await page.screenshot({ path: path.join(SHOTS, "a2-choix-illustre.png") });
   await cards.nth(2).click();
-  ok("A3 « Titre + texte » ajouté à la fin de la page", await waitFor(() => draftBlocks().length === baseCount + 1 && draftBlocks().at(-1).type === "rich-text" && draftBlocks().at(-1).props.title?.fr === "Titre de la rubrique"));
-  ok("A3 édition en place ouverte sur le titre, texte d'aide sélectionné", (await f.locator('[data-editing][data-inline="title"]').waitFor({ timeout: 60000 }).then(() => true, () => false)) && (await selectedText(f)) === "Titre de la rubrique", await selectedText(f));
+  ok("A3 « Titre + texte » ajouté à la fin de la page", await waitFor(() => draftBlocks().length === baseCount + 1 && draftBlocks().at(-1).type === "rich-text" && draftBlocks().at(-1).props.title?.fr === "Titre du bloc"));
+  ok("A3 édition en place ouverte sur le titre, texte d'aide sélectionné", (await f.locator('[data-editing][data-inline="title"]').waitFor({ timeout: 60000 }).then(() => true, () => false)) && (await selectedText(f)) === "Titre du bloc", await selectedText(f));
   await page.screenshot({ path: path.join(SHOTS, "a3-edition-en-place.png") });
   // Un texte d'aide resté tel quel : accepté dans le brouillon (enregistré, aucun bandeau d'erreur), refusé à la publication seulement.
   await page.keyboard.press("Escape");
   await settled();
-  ok("A3b texte d'aide laissé tel quel : brouillon enregistré (état « enregistré », pas de bandeau d'erreur)", (await waitFor(() => draftBlocks().at(-1)?.props.title?.fr === "Titre de la rubrique" && draftBlocks().at(-1)?.props.paragraphs?.[0]?.fr === "Écris ton texte ici.")) && /enregistré|Modifications non publiées/i.test((await page.locator(".ve-status").textContent()) ?? "") && (await page.locator(".ve-alert").count()) === 0, (await page.locator(".ve-status").textContent()) ?? "");
+  ok("A3b texte d'aide laissé tel quel : brouillon enregistré (état « enregistré », pas de bandeau d'erreur)", (await waitFor(() => draftBlocks().at(-1)?.props.title?.fr === "Titre du bloc" && draftBlocks().at(-1)?.props.paragraphs?.[0]?.fr === "Écris ton texte ici.")) && /enregistré|Modifications non publiées/i.test((await page.locator(".ve-status").textContent()) ?? "") && (await page.locator(".ve-alert").count()) === 0, (await page.locator(".ve-status").textContent()) ?? "");
   await page.getByRole("button", { name: "Publier", exact: true }).click();
   ok("A4 texte d'aide resté tel quel : publication refusée, message clair", await page.getByText(/Remplace le texte d'exemple/).first().waitFor({ timeout: 60000 }).then(() => true, () => false));
   ok("A4 le message de refus vient de la publication (bandeau), le brouillon reste enregistré", (await page.locator(".ve-alert").count()) === 1 && /enregistré|Modifications non publiées/i.test((await page.locator(".ve-status").textContent()) ?? ""));
@@ -242,7 +242,7 @@ if (run("A") || run("B") || run("C"))
   await page.screenshot({ path: path.join(SHOTS, "a6-entre-deux-rubriques.png") });
   await gapBtn.click();
   await dlg.waitFor({ timeout: 20000 });
-  ok("A6 le choix annonce l'endroit visé", /Entre deux rubriques/.test((await dlg.locator(".ve-add-where").textContent()) ?? ""));
+  ok("A6 le choix annonce l'endroit visé", /Entre deux blocs/.test((await dlg.locator(".ve-add-where").textContent()) ?? ""));
   await dlg.locator('[data-starter="text"]').click();
   ok("A6 « Texte » inséré entre les deux rubriques, sans titre", await waitFor(() => draftBlocks()[1]?.type === "rich-text" && draftBlocks()[1].props.title === undefined && draftBlocks()[1].props.paragraphs?.[0]?.fr === "Écris ton texte ici."));
   ok("A6 édition en place sur le paragraphe, texte d'aide sélectionné", (await f.locator('[data-editing][data-inline="paragraphs.0"]').waitFor({ timeout: 60000 }).then(() => true, () => false)) && (await selectedText(f)) === "Écris ton texte ici.");

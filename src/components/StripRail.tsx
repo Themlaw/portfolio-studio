@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
 import type { LocalizedArtwork } from "@/lib/gallery";
-import type { Frame } from "@/lib/look";
+import type { MediaLookData } from "@/lib/look";
 import { RADIUS_VALUES } from "@/themes/css";
 
 import LoopFrame from "./LoopVideo";
@@ -43,11 +43,7 @@ export default function StripRail({
   edit = false,
   editRail,
   captions = true,
-  slotRadius,
-  slotFrame,
-  slotVideo,
-  slotBg,
-  slotPano,
+  slotLook,
   videoMode,
   eager = 0,
 }: {
@@ -64,15 +60,8 @@ export default function StripRail({
   editRail?: string;
   /** Titre et année sous chaque image (images du projet) ; un carrousel à liste propre n'en a pas. */
   captions?: boolean;
-  slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
-  /** Cadre par image (réglage `look.slotFrame` du bloc, par slug d'emplacement ; lot 34). */
-  slotFrame?: Partial<Record<string, Frame>>;
-  /** Lecture par vidéo (réglage `look.slotVideo` du bloc, par slug d'emplacement ; lot 38) : passe avant `videoMode`. */
-  slotVideo?: Partial<Record<string, "loop" | "player">>;
-  /** Fond derrière chaque image (réglage `look.slotBg` du bloc, par slug d'emplacement ; lot 41). */
-  slotBg?: Partial<Record<string, string>>;
-  /** Panorama par image (réglage `look.slotPano` du bloc, par slug d'emplacement ; lot 45) : absent = entière. */
-  slotPano?: Partial<Record<string, "fit" | "scroll">>;
+  /** Habillage par image (réglage `look.slotLook` du bloc, par slug d'emplacement ; lots 34, 38, 41, 45 et 75) : cadre, fond, arrondi, panorama, lecture. */
+  slotLook?: Partial<Record<string, MediaLookData>>;
   /**
    * Lecture des vidéos de la bande (lot 36) : « loop » = Boucle (muette, un clic met en pause), « player » = Lecteur
    * (un clic ouvre la vidéo en grand). Absent : chaque vidéo suit sa nature (une animation courte et muette en boucle,
@@ -82,19 +71,21 @@ export default function StripRail({
 }) {
   const t = useTranslations("projects");
   const tg = useTranslations("gallery");
+  /** Habillage enregistré de la place `slug` (vide sans réglage). */
+  const mineOf = (slug: string): MediaLookData => (slotLook && Object.hasOwn(slotLook, slug) ? slotLook[slug] : undefined) ?? {};
   /** Variable d'arrondi d'une image réglée seule (sinon celle du bloc / du thème). */
   const radiusOf = (slug: string): CSSProperties | undefined => {
-    const r = slotRadius && Object.hasOwn(slotRadius, slug) ? slotRadius[slug] : undefined;
+    const r = mineOf(slug).radius;
     return r && Object.hasOwn(RADIUS_VALUES, r) ? ({ "--media-radius": RADIUS_VALUES[r] } as CSSProperties) : undefined;
   };
   /** Habillage d'une photo ou d'une vidéo réglée seule (lots 34, 41, 62 et 64) : cadre et fond de SA place, via le composant commun (MediaFrame). Le fond n'existe que pour une photo. */
   const lookOf = (slug: string, video: boolean) => ({
-    frame: slotFrame && Object.hasOwn(slotFrame, slug) ? slotFrame[slug] : undefined,
-    bg: !video && slotBg && Object.hasOwn(slotBg, slug) ? slotBg[slug] : undefined,
+    frame: mineOf(slug).frame,
+    bg: !video ? mineOf(slug).bg : undefined,
   });
   /** Image entière dans la largeur visible (défaut) ou à faire défiler (lot 45) : `--ir` = ratio, repris par `--fit-h` (globals.css). */
   const panoOf = (a: LocalizedArtwork) => {
-    const mode = slotPano && Object.hasOwn(slotPano, a.slug) ? slotPano[a.slug] : undefined;
+    const mode = mineOf(a.slug).pano;
     return { "data-pano": mode === "scroll" ? "scroll" : "fit", style: { "--ir": (a.width / Math.max(1, a.height)).toFixed(4) } as CSSProperties };
   };
   // Les places vides n'existent que sur la toile : ni compteur, ni visionneuse.
@@ -105,7 +96,7 @@ export default function StripRail({
   // Ordre : le choix de CETTE vidéo (lot 38), puis le réglage ancien de la bande (`videoMode`, plus proposé mais toujours lu : aucune page existante ne change), puis la nature de la vidéo.
   const modeOf = (a: LocalizedArtwork): "loop" | "player" | null => {
     if (!a.video) return null;
-    const own = slotVideo && Object.hasOwn(slotVideo, a.slug) ? slotVideo[a.slug] : undefined;
+    const own = mineOf(a.slug).video;
     return own ?? videoMode ?? (a.video.loop ? "loop" : "player");
   };
   const railId = `rail-${idKey}`;

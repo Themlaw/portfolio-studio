@@ -4,7 +4,7 @@
  *  I  Image seule : choix « Bande de couleur » (lot 62 : plus d'interrupteur), épaisseur Fin / Moyen / Épais, couleur par défaut, pastille de la
  *     palette, couleur libre ; rendu sur la toile (style calculé), enregistré dans `look.frame`.
  *  G  Case de grille : même réglage ; la case garde sa taille extérieure (celle de ses voisines), rien n'est rogné.
- *  B  Image d'une planche de projet : bouton « Cadre » de la barre de l'image, enregistré dans `look.slotFrame` (par emplacement).
+ *  B  Image d'une planche de projet : bouton « Cadre » de la barre de l'image, enregistré dans `look.slotLook[slug].frame` (par emplacement).
  *  U  Annuler retire le cadre ; « Aucun » aussi (plus de bordure).
  *  P  Publication : même rendu en public (style calculé), pas de cadre sur les autres photos ni dans la visionneuse,
  *     téléphone (390 px) : cadre plus mince, aucun débordement horizontal.
@@ -295,7 +295,7 @@ if (run("B"))
     let s;
     ok("B2 planche : bordure Épais dans la couleur « Boutons et liens »", await waitFor(async () => { s = await readFrame(f, SLOT0); return s && s.top > 6 && uniform(s, s.top) && s.color === primary; }, 30000), JSON.stringify(s));
     ok("B2 la hauteur de l'image de la bande ne change pas", near(s.h, base.slot.h, 0.6), `${s.h} / ${base.slot.h}`);
-    ok("B3 enregistré dans le bloc planche : look.slotFrame[slug]", await waitFor(() => isBand(lookOfDraft("board1")?.slotFrame?.[slug], "epais", "primary"), 30000), JSON.stringify(lookOfDraft("board1")));
+    ok("B3 enregistré dans le bloc planche : look.slotLook[slug].frame", await waitFor(() => isBand(lookOfDraft("board1")?.slotLook?.[slug]?.frame, "epais", "primary"), 30000), JSON.stringify(lookOfDraft("board1")));
     ok("B3 les autres images de la planche n'ont pas de cadre", (await f.locator('[data-edit-block="board1"] [data-edit-slot] .strip-media .media-frame').evaluateAll((l) => l.slice(1).every((i) => parseFloat(getComputedStyle(i).borderTopWidth) === 0))));
     ok("B4 la fenêtre reste ouverte et la barre de l'image avec elle", await dlg.isVisible() && (await bar.count()) === 1);
     await page.screenshot({ path: path.join(SHOTS, "b1-planche.png") });

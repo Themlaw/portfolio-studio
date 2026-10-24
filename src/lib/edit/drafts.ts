@@ -77,7 +77,7 @@ export const MAX_DRAFT_BYTES = 256 * 1024;
 export const MAX_DRAFT_DEPTH = 16;
 
 const CONFLICT_MESSAGE = "Cette page a été modifiée ailleurs (autre onglet, formulaire ou publication). Recharge pour reprendre la dernière version.";
-const CORRUPT_MESSAGE = "Ce brouillon ne peut plus être lu (un composant a changé) : repars d'abord de la version publiée.";
+const CORRUPT_MESSAGE = "Ce brouillon ne peut plus être lu (un bloc a changé) : repars d'abord de la version publiée.";
 
 const l = (max: number) => z.object({ fr: z.string().max(max), en: z.string().max(max) });
 const DraftSchema = z.object({
@@ -93,11 +93,11 @@ const DraftSchema = z.object({
     .array(
       z.object({
         uid: z.string().regex(/^[a-z0-9-]{1,32}$/),
-        type: z.string().max(60).refine((t) => Boolean(own(BLOCKS, t)), "Type de rubrique inconnu."),
+        type: z.string().max(60).refine((t) => Boolean(own(BLOCKS, t)), "Type de bloc inconnu."),
         props: z.record(z.string(), z.unknown()),
       }),
     )
-    .max(40, "40 rubriques au plus par page.")
+    .max(40, "40 blocs au plus par page.")
     // Conteneurs (v0.13) : composants acceptés, deux niveaux au plus, uid uniques.
     .superRefine((blocks, ctx) => {
       const problem = treeProblem(blocks, (t) => Boolean(own(BLOCKS, t)));
@@ -167,11 +167,11 @@ export function saveDraft(pageId: number, input: unknown, rev: unknown): DraftRe
     if (isCorrupt(row.draft)) return corruptRefusal(row.rev);
     if (depthExceeds(input, MAX_DRAFT_DEPTH)) return fail("Brouillon invalide (imbrication trop profonde) : recharge l'éditeur.");
     const json = JSON.stringify(input);
-    if (json === undefined || Buffer.byteLength(json) > MAX_DRAFT_BYTES) return fail("Ce brouillon est trop lourd : retire des rubriques ou raccourcis les textes.");
+    if (json === undefined || Buffer.byteLength(json) > MAX_DRAFT_BYTES) return fail("Ce brouillon est trop lourd : retire des blocs ou raccourcis les textes.");
     const parsed = DraftSchema.safeParse(input);
     if (!parsed.success) return fail("Brouillon invalide : recharge l'éditeur.", zodFieldErrors(parsed.error.issues));
     const uids = flatBlocks(parsed.data.blocks).map((b) => b.uid);
-    if (new Set(uids).size !== uids.length) return fail("Brouillon invalide (rubriques en double) : recharge l'éditeur.");
+    if (new Set(uids).size !== uids.length) return fail("Brouillon invalide (blocs en double) : recharge l'éditeur.");
     // Types retirés de la palette : on n'en crée plus (ceux déjà sur la page restent lisibles).
     const old = deprecatedProblem(pageId, parsed.data.blocks);
     if (old) return fail(old);
@@ -462,7 +462,7 @@ function emptyDraftBoards(pageId: number, blocks: { type: string; props: unknown
       .from(schema.slots)
       .where(and(eq(schema.slots.projectId, project.id), isNotNull(schema.slots.mediaId)))
       .all().length;
-    if (!withImage) errors[at] = `La planche « ${project.title.fr} » n'a encore aucune image : ajoute-en une, ou retire cette rubrique.`;
+    if (!withImage) errors[at] = `Le projet « ${project.title.fr} » n'a encore aucune image : ajoute-en une, ou retire ce bloc.`;
   });
   return Object.keys(errors).length ? errors : null;
 }

@@ -110,7 +110,7 @@ ok("papier : readSurface garde un papier valide, ignore un invalide", JSON.strin
   const plain = KitAssetsSchema.parse(paperKit({}));
   ok("css du thème : sans réglage, ni attribut ni variable (rendu d'avant)", !("data-kit-paper-cards" in kitAttributes(plain)) && !("--t-kit-paper-cards" in kitVariables(plain)));
   const css = readFileSync(new URL("../src/app/look.css", import.meta.url), "utf8");
-  ok("look.css : papier sur la carte en pseudo-élément sous le contenu, sans prise de clic", /\.surface-card\[data-surface="on"\]\[data-paper="over"\]::before[\s\S]*?z-index: -1;[\s\S]*?pointer-events: none;[\s\S]*?var\(--t-kit-paper\)/.test(css) && /isolation: isolate;/.test(css) && /\[data-kit-paper\]\[data-kit-paper-cards\] \.surface-card\[data-surface="on"\]:not\(\[data-paper="under"\]\)::before/.test(css));
+  ok("look.css : papier sur la carte en pseudo-élément sous le contenu, sans prise de clic (calque UNIQUE `.zone::before`, lot 75 ; la carte ne pose que ses variables)", /\.zone::before \{[\s\S]*?z-index: -1;[\s\S]*?pointer-events: none;[\s\S]*?background-image: var\(--zp-img\)/.test(css) && /\.surface-card\[data-surface="on"\]\[data-paper="over"\],[\s\S]*?isolation: isolate;[\s\S]*?--zp-img: var\(--t-kit-paper\)/.test(css) && /\[data-kit-paper\]\[data-kit-paper-cards\] \.surface-card\[data-surface="on"\]:not\(\[data-paper="under"\]\) \{/.test(css));
 }
 
 /* ---- Thème : carte par défaut ---------------------------------------------------------------------------------- */

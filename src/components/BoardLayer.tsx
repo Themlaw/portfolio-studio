@@ -35,13 +35,14 @@ import FrameWindow from "./edit/FrameMenu";
 import QuickMenu, { type QuickKind } from "./edit/QuickMenus";
 import { readBackground, type Background } from "@/themes/fond";
 
-import { FrameSchema, ImageBgSchema, RADII, RADIUS_LABELS, type Frame, type Radius } from "@/lib/look";
+import { FrameSchema, ImageBgSchema, RADII, RADIUS_LABELS, type Frame, type ImageBg, type Radius } from "@/lib/look";
+import { slotOf } from "@/lib/edit/media-look";
 import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS, isBoardItemType, parseRailKey, railKey, type BoardItemType } from "@/blocks/board-layout";
 
 import ImageBgWindow from "./edit/ImageBgMenu";
 import Popover from "./edit/Popover";
 import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
-import { lookOf, sendLook } from "./edit/LookLayer";
+import { lookOf, sendMediaLook, sendSlotLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
 import { freeRefOf } from "./edit/free-dom";
 import { cellIndex, cellsOf, gridRefOf } from "./edit/grid-dom";
@@ -396,7 +397,7 @@ export default function BoardLayer({
         const board = wrapper?.querySelector<HTMLElement>("[data-edit-board]");
         const id = Number(board?.dataset.editBoard);
         if (board && id) post({ kind: "bitem-add", board: id, item: msg.item, index: itemFrames(board).length });
-        else announce("Cette rubrique n'a pas de planche où ajouter ce composant.");
+        else announce("Ce bloc n'a pas de projet où ajouter un bloc.");
         return;
       }
       if (msg.kind === "ghosts") {
@@ -556,7 +557,7 @@ export default function BoardLayer({
     // Légendes d'une planche dont les images sont tenues par une autre page : l'écriture serait refusée.
     const imagesHeldBy = el.dataset.slotInline ? boardOf(el)?.dataset.editBoardHeld : undefined;
     if (imagesHeldBy) {
-      announce(`Cette planche est en cours de modification sur la page « ${imagesHeldBy} » : publie-la ou abandonne-la d'abord.`);
+      announce(`Ce projet est en cours de modification sur la page « ${imagesHeldBy} » : publie-le ou abandonne-le d'abord.`);
       return;
     }
     const slotEl = el.closest<HTMLElement>("[data-edit-slot]");
@@ -717,7 +718,7 @@ export default function BoardLayer({
           // Même place (avant ou après lui-même) : rien à faire.
           if (d.index !== d.from && d.index !== d.from + 1) {
             post({ kind: "bitem-to", board: d.board, uid: d.uid, index: d.index });
-            announce("Composant déplacé.");
+            announce("Bloc déplacé.");
           }
           // Le clic qui suit un glisser ne sélectionne rien.
           const swallow = (ev: MouseEvent) => {
@@ -840,7 +841,7 @@ export default function BoardLayer({
         else if (op === "up" || op === "down" || op === "remove") {
           setItemSel((cur) => (cur?.uid === uid && op === "remove" ? null : cur));
           post({ kind: "bitem-op", board, uid, op });
-          announce(op === "remove" ? "Composant supprimé. Annuler le rétablit." : op === "up" ? "Composant monté." : "Composant descendu.");
+          announce(op === "remove" ? "Bloc supprimé. Annuler le rétablit." : op === "up" ? "Bloc monté." : "Bloc descendu.");
         }
         return;
       }
@@ -989,7 +990,7 @@ export default function BoardLayer({
       lastTarget = null;
       const files = [...(e.dataTransfer?.files ?? [])].slice(0, 30);
       if (target && files.length) post({ kind: "files", target, files });
-      else if (files.length) announce("Dépose les fichiers sur une planche, entre deux images ou sur une place vide.");
+      else if (files.length) announce("Dépose les fichiers sur un projet, entre deux images ou sur une place vide.");
     };
     document.addEventListener("pointermove", onMove, { passive: true });
     document.addEventListener("pointerdown", onDown, true);
@@ -1100,15 +1101,15 @@ export default function BoardLayer({
           data-over={(marker?.kind === "new" && Math.abs(marker.rect.top - box.top) < 2) || undefined}
           style={{ top: box.top + 24, left: Math.max(16, box.left + 16), width: Math.min(560, box.width - 32), minHeight: box.height - 48 }}
         >
-          <p className="pe-board-new-title">Nouvelle planche</p>
+          <p className="pe-board-new-title">Nouveau projet</p>
           <ProjectCombobox
             prefix="pe"
-            label="Projet de la planche"
+            label="Projet du bloc"
             projects={projects}
             onPick={(slug) => post({ kind: "board-pick", uid, slug })}
             onCreate={(name) => post({ kind: "board-create", uid, name })}
           />
-          <small className="pe-board-help">Tape un nom : choisis un projet existant, ou « Créer » le nouveau. Contexte et année se règlent ensuite sur la planche.</small>
+          <small className="pe-board-help">Tape un nom : choisis un projet existant, ou « Créer » le nouveau. Contexte et année se règlent ensuite sur la page.</small>
           <div className="pe-board-drop" aria-hidden="true">
             Dépose tes images ici
           </div>
@@ -1138,7 +1139,7 @@ export default function BoardLayer({
             }}
           />
           <small className="pe-board-help">
-            Choisis le projet de cette rubrique : son titre, sa présentation et ses images viennent de lui (textes et images se modifient ensuite sur la page). Un projet créé ici devient public avec la page.
+            Choisis le projet de ce bloc : son titre, sa présentation et ses images viennent de lui (textes et images se modifient ensuite sur la page). Un projet créé ici devient public avec la page.
           </small>
           {change && (
             <button type="button" className="pe-link-btn" onClick={onPickerClose}>
@@ -1196,7 +1197,7 @@ export default function BoardLayer({
         <div
           className="pe-slot-tools"
           role="toolbar"
-          aria-label={active.empty ? "Place gardée" : "Image de la planche"}
+          aria-label={active.empty ? "Place gardée" : "Image du projet"}
           // Dans l'image, à gauche : jamais hors de l'écran, même sur une image étroite.
           style={{ top: activeBox.top + 8, left: Math.max(window.scrollX + 4, activeBox.left + 8), maxWidth: Math.max(160, activeBox.width - 16) }}
           onPointerEnter={() => setHover(active)}
@@ -1301,13 +1302,13 @@ export default function BoardLayer({
           <div className="pe-project-hint" role="status" style={{ top: box.top + box.height + 6, left: Math.max(window.scrollX + 8, box.left) }}>
             {projectHint.textHeld ? (
               <span>
-                {projectHint.slotHeld ? "Planche" : "Textes du projet"} {name} en cours de modification sur la page « {projectHint.textHeld} » : lecture seule ici.
+                {projectHint.slotHeld ? "Projet" : "Textes du projet"} {name} en cours de modification sur la page « {projectHint.textHeld} » : lecture seule ici.
               </span>
             ) : projectHint.draft ? (
-              <span>Texte du projet {name}, créé sur cette page : visible sur sa planche et partout où il apparaît.</span>
+              <span>Texte du projet {name}, créé sur cette page : visible partout où ce projet apparaît.</span>
             ) : (
               <>
-                <span>Texte du projet {name} — modifié aussi sur sa planche et sa page.</span>
+                <span>Texte du projet {name} — modifié aussi partout où ce projet est montré.</span>
                 <a href={`/admin/projets/${projectHint.board}`} target="_blank" rel="noreferrer">
                   Voir le projet
                 </a>
@@ -1364,7 +1365,7 @@ export default function BoardLayer({
           key={bgMenu.uid}
           anchor={opAnchor("imgbg", bgMenu.board, bgMenu.uid)}
           value={bgMenu.bg}
-          onChange={(bg) => postIntent({ kind: "bitem-imgbg", board: bgMenu.board, uid: bgMenu.uid, bg: bg ?? null })}
+          onChange={(bg) => sendMediaLook({ kind: "item", board: bgMenu.board, uid: bgMenu.uid }, { bg: (bg as ImageBg | undefined) ?? null })}
           onClose={() => setBgMenu(null)}
         />
       )}
@@ -1375,7 +1376,7 @@ export default function BoardLayer({
           testId="frame-menu"
           anchor={opAnchor("frame", frameMenu.board, frameMenu.uid)}
           value={frameMenu.frame}
-          onChange={(frame) => postIntent({ kind: "bitem-frame", board: frameMenu.board, uid: frameMenu.uid, frame: frame ?? null })}
+          onChange={(frame) => sendMediaLook({ kind: "item", board: frameMenu.board, uid: frameMenu.uid }, { frame: frame ?? null })}
           onClose={() => setFrameMenu(null)}
         />
       )}
@@ -1413,11 +1414,11 @@ function BoardAddMenu({ anchor, hasStrip, count, onPick, onClose }: { board: num
     items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length].focus();
   };
   return (
-    <Popover anchor={anchor} className="pe-layouts pe-bitem-menu" role="menu" label="Ajouter un composant à la planche" onClose={onClose} onKeyDown={onKeyDown} focusFirst>
+    <Popover anchor={anchor} className="pe-layouts pe-bitem-menu" role="menu" label="Ajouter un bloc au projet" onClose={onClose} onKeyDown={onKeyDown} focusFirst>
       {BOARD_ITEM_TYPES.map((type) => (
         <button key={type} type="button" role="menuitem" disabled={full} onClick={() => onPick(type)} data-bitem-type={type}>
           <strong>{BOARD_ITEM_LABELS[type]}</strong>
-          <small>{full ? `${MAX_BOARD_ITEMS} composants au plus.` : type === "strip" ? "Des images et des vidéos choisies dans ta médiathèque." : BOARD_ITEM_HINTS[type]}</small>
+          <small>{full ? `${MAX_BOARD_ITEMS} blocs au plus.` : type === "strip" ? "Des images et des vidéos choisies dans ta médiathèque." : BOARD_ITEM_HINTS[type]}</small>
         </button>
       ))}
       {/* La bande d'origine (les images du projet) : proposée si elle a été retirée. */}
@@ -1491,20 +1492,16 @@ function ghostContent(g: Ghost, state: string, pct: number | null): DocumentFrag
 
 /**
  * Arrondi de CETTE image de la planche (intégration lots 2 + 3) : réglage
- * `look.slotRadius` du bloc planche, par slug d'emplacement ; « Auto » =
+ * `look.slotLook[slug].radius` du bloc planche, par slug d'emplacement ; « Auto » =
  * l'arrondi du bloc, du site ou du thème.
  */
 function SlotRadius({ el }: { el: Element | null }) {
   const slug = el?.getAttribute("data-slot-slug") ?? "";
   const uid = el?.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
   if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
-  const look = lookOf(uid);
-  const current = look.slotRadius && Object.hasOwn(look.slotRadius, slug) ? look.slotRadius[slug] : undefined;
+  const current = slotOf(lookOf(uid), slug).radius;
   const change = (v: string) => {
-    const next = { ...(look.slotRadius ?? {}) };
-    if (v === "auto") delete next[slug];
-    else next[slug] = v as Radius;
-    sendLook(uid, { ...look, slotRadius: next });
+    sendSlotLook(uid, slug, { radius: v === "auto" ? null : (v as Radius) });
   };
   return (
     <label className="pe-slot-radius" title="Arrondi de cette image">
@@ -1522,7 +1519,7 @@ function SlotRadius({ el }: { el: Element | null }) {
 }
 
 /**
- * Lecture de CETTE vidéo d'un carrousel (lot 38) : Boucle ou Lecteur, réglage `look.slotVideo` du bloc planche, par slug d'emplacement.
+ * Lecture de CETTE vidéo d'un carrousel (lot 38) : Boucle ou Lecteur, réglage `look.slotLook[slug].video` du bloc planche, par slug d'emplacement.
  * Sans choix, la vidéo suit le réglage ancien de la bande ou sa nature (courte et muette : boucle) : le bouton montre ce que la page fait.
  */
 function SlotVideoMode({ el }: { el: Element }) {
@@ -1530,12 +1527,11 @@ function SlotVideoMode({ el }: { el: Element }) {
   const slug = el.getAttribute("data-slot-slug") ?? "";
   const uid = el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
   if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
-  const look = lookOf(uid);
-  const chosen = look.slotVideo && Object.hasOwn(look.slotVideo, slug) ? look.slotVideo[slug] : undefined;
+  const chosen = slotOf(lookOf(uid), slug).video;
   const shown = el.getAttribute("data-video-mode") ?? el.querySelector("[data-video-mode]")?.getAttribute("data-video-mode");
   const now = chosen ?? (shown === "loop" ? "loop" : "player");
   const change = (m: "loop" | "player") => {
-    sendLook(uid, { ...look, slotVideo: { ...(look.slotVideo ?? {}), [slug]: m } });
+    sendSlotLook(uid, slug, { video: m });
     bump((n) => n + 1);
   };
   return (
@@ -1553,7 +1549,7 @@ function SlotVideoMode({ el }: { el: Element }) {
 }
 
 /**
- * Panorama de CETTE image d'un carrousel (lot 45) : réglage `look.slotPano` du bloc planche, par slug d'emplacement.
+ * Panorama de CETTE image d'un carrousel (lot 45) : réglage `look.slotLook[slug].pano` du bloc planche, par slug d'emplacement.
  * « Entier » (défaut) : l'image ne dépasse pas la largeur visible du carrousel ; « À faire défiler » : sa largeur naturelle, comme avant.
  */
 function SlotPano({ el }: { el: Element }) {
@@ -1561,13 +1557,9 @@ function SlotPano({ el }: { el: Element }) {
   const slug = el.getAttribute("data-slot-slug") ?? "";
   const uid = el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
   if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
-  const look = lookOf(uid);
-  const now = look.slotPano && Object.hasOwn(look.slotPano, slug) ? look.slotPano[slug] : "fit";
+  const now = slotOf(lookOf(uid), slug).pano ?? "fit";
   const change = (m: "fit" | "scroll") => {
-    const all = { ...(look.slotPano ?? {}) };
-    if (m === "fit") delete all[slug];
-    else all[slug] = m;
-    sendLook(uid, { ...look, slotPano: all });
+    sendSlotLook(uid, slug, { pano: m === "fit" ? null : m });
     bump((n) => n + 1);
   };
   return (
@@ -1586,7 +1578,7 @@ function SlotPano({ el }: { el: Element }) {
 }
 
 /**
- * Fenêtre « Fond de l'image » (lot 41) ou « Cadre » (lot 34) de CETTE image de la planche : réglage `look.slotBg` / `look.slotFrame` du
+ * Fenêtre « Fond de l'image » (lot 41) ou « Cadre » (lot 34) de CETTE image de la planche : réglage `look.slotLook[slug]` (`bg`, `frame`) du
  * bloc planche, par slug d'emplacement ; mêmes réglages que pour une image seule. La fenêtre est celle de tous les conteneurs
  * (`ImageBgWindow`, `FrameWindow`), ancrée au bouton de la barre de l'image ; ici seulement l'écriture par emplacement.
  */
@@ -1594,26 +1586,17 @@ function SlotLookWindow({ el, kind, onClose }: { el: Element; kind: "frame" | "b
   const slug = el.getAttribute("data-slot-slug") ?? "";
   const uid = el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
   if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
-  const look = lookOf(uid);
+  const mine = slotOf(lookOf(uid), slug);
   if (kind === "bg") {
-    const current = look.slotBg && Object.hasOwn(look.slotBg, slug) ? look.slotBg[slug] : undefined;
     const change = (next: string | undefined) => {
-      const now = lookOf(uid);
-      const all = { ...(now.slotBg ?? {}) };
-      if (next) all[slug] = next;
-      else delete all[slug];
-      sendLook(uid, { ...now, slotBg: all });
+      sendSlotLook(uid, slug, { bg: (next as ImageBg | undefined) ?? null });
     };
-    return <ImageBgWindow anchor='.pe-slot-tools [data-testid="slot-imgbg-button"]' value={current} onChange={change} onClose={onClose} />;
+    return <ImageBgWindow anchor='.pe-slot-tools [data-testid="slot-imgbg-button"]' value={mine.bg} onChange={change} onClose={onClose} />;
   }
   const what = el.querySelector("video, .strip-duration") ? "vidéo" : "photo";
-  const current = look.slotFrame && Object.hasOwn(look.slotFrame, slug) ? look.slotFrame[slug] : undefined;
   const change = (next: Frame | undefined) => {
-    const now = lookOf(uid);
-    const all = { ...(now.slotFrame ?? {}) };
-    if (next) all[slug] = next;
-    else delete all[slug];
-    sendLook(uid, { ...now, slotFrame: all });
+    sendSlotLook(uid, slug, { frame: next ?? null });
   };
+  const current = mine.frame;
   return <FrameWindow anchor='.pe-slot-tools [data-testid="slot-frame-button"]' value={current} onChange={change} onClose={onClose} what={what} />;
 }

@@ -6,7 +6,7 @@
  * ou « Couleur… » (pastilles de la palette du site + couleur libre, le sélecteur du lot 29 : `ColorPicker`).
  *
  * `ImageBgControls` est le contenu, partagé par le bouton « Fond image » de la barre d'une image seule / d'une case de grille
- * (réglage `look.imageBg` du bloc), la barre d'une image de planche ou de carrousel (BoardLayer : `look.slotBg` du bloc, par
+ * (réglage `look.imageBg` du bloc), la barre d'une image de planche ou de carrousel (BoardLayer : `look.slotLook[slug].bg` du bloc, par
  * emplacement), celle d'un composant Image de la planche et le haut du panneau de l'éditeur ; la fenêtre est `ImageBgWindow`. Chaque choix part aussitôt
  * (intention `look`, annulable). Les pastilles montrent les couleurs du thème par leurs variables, jamais en dur.
  */
@@ -34,8 +34,8 @@ export function ImageBgButton({ uid, open, onToggle }: { uid: string; open: bool
 
 /**
  * Fenêtre « Fond de l'image » (lot 65) : UNE seule, ancrée au bouton `anchor`, pour tous les conteneurs. Chaque appelant donne sa
- * valeur et son écriture : image seule / case de grille (`look.imageBg`), composant Image de la planche (`item-imgbg`), image de
- * carrousel (`look.slotBg[slug]`), image de Planche libre (`items[].bg`).
+ * valeur et son écriture : image seule / case de grille (`look.imageBg`), composant Image de la planche (`item-media-look`), image de
+ * carrousel (`look.slotLook[slug].bg`), image de Planche libre (`items[].bg`).
  */
 export default function ImageBgWindow({ anchor, value, onChange, onClose, testId = "imgbg-menu" }: { anchor: PopoverAnchor; value: string | undefined; onChange: (next: string | undefined) => void; onClose: () => void; testId?: string }) {
   const [cur, setCur] = useLocalValue(value);

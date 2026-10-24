@@ -176,7 +176,7 @@ if (run("V")) {
   ok("V5 bouton « Fond » dans la barre de la rubrique (lot 66 : la « Carte » est fusionnée au « Fond »)", await button.waitFor({ timeout: 20000 }).then(() => true, () => false) && /^\s*Fond/.test((await button.textContent()) ?? "") && !/Carte/.test((await button.textContent()) ?? ""));
   await button.click();
   const menu = f.locator('[data-testid="fond-menu"]');
-  ok("V5b popover « Fond du composant »", (await menu.getAttribute("aria-label")) === "Fond du composant");
+  ok("V5b popover « Fond du bloc »", (await menu.getAttribute("aria-label")) === "Fond du bloc");
   await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
   await menu.locator('[data-testid="card-da-color"]').first().waitFor({ timeout: 10000 });
   const cards = (await menu.locator('[data-testid="card-da-color"] .cc-name').allTextContents()).map((t) => t.trim());

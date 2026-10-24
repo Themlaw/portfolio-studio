@@ -68,7 +68,7 @@ export function mediaKindProblem(type: string, props: unknown): string | null {
     if (!Number.isInteger(id)) continue;
     const row = getDb().select({ kind: schema.media.kind }).from(schema.media).where(eq(schema.media.id, id as number)).get();
     // Média disparu : signalé ailleurs (« n'existe plus »).
-    if (row && row.kind !== "image" && row.kind !== "video") return "Cette rubrique attend une image ou une vidéo (pas un PDF) : choisis-en une autre.";
+    if (row && row.kind !== "image" && row.kind !== "video") return "Ce bloc attend une image ou une vidéo (pas un PDF) : choisis-en une autre.";
   }
   return null;
 }
@@ -105,7 +105,7 @@ export function deprecatedProblem(pageId: number, blocks: { type: string }[]): s
     getDb().select({ type: schema.blocks.type }).from(schema.blocks).where(eq(schema.blocks.pageId, pageId)).all().map((b) => b.type),
   );
   const added = old.find((b) => !existing.has(b.type));
-  return added ? `« ${own(BLOCKS, added.type)?.label ?? added.type} » n'existe plus : compose avec des planches de projet, une grille ou une vidéo.` : null;
+  return added ? `« ${own(BLOCKS, added.type)?.label ?? added.type} » n'existe plus : compose avec des projets, une grille ou une vidéo.` : null;
 }
 
 type L = { fr: string; en: string };
@@ -199,7 +199,7 @@ const SavePageSchema = z.object({
   wallpaper: PagePaperSchema.nullable().optional(),
   /** Collection présentée par la page (lot 22) ; absent = inchangée. */
   collection: z.enum(["characters", "backgrounds", "animation"]).nullable().optional(),
-  blocks: z.array(z.object({ type: z.string().max(60), props: z.unknown() })).max(40, "40 rubriques au plus par page."),
+  blocks: z.array(z.object({ type: z.string().max(60), props: z.unknown() })).max(40, "40 blocs au plus par page."),
 });
 
 /** `themeOverrides` d'une page : couleur des boutons (`primary`) et papier peint (`wallpaper`) ; null s'il n'y a rien. */
@@ -251,7 +251,7 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
       const key = `${prefix}.${i}`;
       const def = own(BLOCKS, block.type);
       if (!def) {
-        errors[key] = `Type de rubrique inconnu « ${block.type} ».`;
+        errors[key] = `Type de bloc inconnu « ${block.type} ».`;
         return;
       }
       // Une rubrique « une seule fois par page » (l'Ouverture) : le panneau la grise, le serveur refuse aussi l'exemplaire en trop.
@@ -263,7 +263,7 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
         singles.add(block.type);
       }
       if (parent && !containerAccepts(parent, block.type)) {
-        errors[key] = "Cette rubrique n'accepte pas ce composant.";
+        errors[key] = "Ce bloc n'accepte pas ce type de bloc.";
         return;
       }
       const result = def.schema.safeParse(block.props);
@@ -282,15 +282,15 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
       }
       // Références du bloc lui-même (ses composants sont contrôlés un par un).
       const refs = extractRefs(block.type, props, 2);
-      if (refs.pages.some((p) => !pageIds.has(p))) errors[key] = "Cette rubrique pointe vers une page qui n'existe plus : choisis-en une autre.";
+      if (refs.pages.some((p) => !pageIds.has(p))) errors[key] = "Ce bloc pointe vers une page qui n'existe plus : choisis-en une autre.";
       // Projets cités : existants, publiés ou créés dans le brouillon de CETTE page.
       for (const slug of extractProjectRefs(block.type, props, 2)) {
-        if (!projectPages.has(slug)) errors[key] = "Cette rubrique cite un projet qui n'existe plus : choisis-en un autre.";
-        else if (![null, id].includes(projectPages.get(slug) ?? null)) errors[key] = "Cette rubrique cite un projet en cours de création dans une autre page.";
+        if (!projectPages.has(slug)) errors[key] = "Ce bloc cite un projet qui n'existe plus : choisis-en un autre.";
+        else if (![null, id].includes(projectPages.get(slug) ?? null)) errors[key] = "Ce bloc cite un projet en cours de création dans une autre page.";
       }
       const required = def.publishCheck?.(props, { project: inherited });
       if (required) errors[key] = required;
-      if (refs.media.some((m) => !mediaIds.has(m))) errors[key] = "Cette rubrique utilise un média qui n'existe plus : choisis-en un autre.";
+      if (refs.media.some((m) => !mediaIds.has(m))) errors[key] = "Ce bloc utilise un média qui n'existe plus : choisis-en un autre.";
       const wrongKind = mediaKindProblem(block.type, props);
       if (wrongKind) errors[key] = wrongKind;
       if (def.container) {
@@ -426,7 +426,7 @@ export function deletePage(id: number): ActionResult<{ title: string }> | { ok: 
   if (references.length > 0) {
     return {
       ok: false,
-      message: `Cette page est utilisée par ${references.length} rubrique${references.length > 1 ? "s" : ""} : retire ces liens avant de la supprimer.`,
+      message: `Cette page est utilisée par ${references.length} bloc${references.length > 1 ? "s" : ""} : retire ces liens avant de la supprimer.`,
       references,
     };
   }

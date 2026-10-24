@@ -11,8 +11,7 @@ import { isVideoMode, VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@
 import { BOARD_ITEM_LABELS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
 import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedArtwork, LocalizedProject } from "@/lib/gallery";
-import { RADIUS_VALUES } from "@/themes/css";
-import type { Frame, Space } from "@/lib/look";
+import type { MediaLookData, Space } from "@/lib/look";
 import type { Background, FondJoin } from "@/themes/fond";
 import type { CardPalette } from "@/themes/surface";
 import type { WallpaperEntry } from "@/themes/wallpaper";
@@ -63,11 +62,7 @@ export default function ProjectStrip({
   headingLevel = "h2",
   showHeader = true,
   collection,
-  slotRadius,
-  slotFrame,
-  slotVideo,
-  slotBg,
-  slotPano,
+  slotLook,
   parts,
   palette,
   wallpapers,
@@ -84,16 +79,8 @@ export default function ProjectStrip({
   showHeader?: boolean;
   /** Planche filtrée par métier (toile : les images ajoutées en prennent le métier). */
   collection?: string;
-  /** Arrondi par image (réglage `look.slotRadius` du bloc, par slug d'emplacement). */
-  slotRadius?: Partial<Record<string, keyof typeof RADIUS_VALUES>>;
-  /** Cadre par image (réglage `look.slotFrame` du bloc, par slug d'emplacement ; lot 34). */
-  slotFrame?: Partial<Record<string, Frame>>;
-  /** Lecture par vidéo (réglage `look.slotVideo` du bloc, par slug d'emplacement ; lot 38). */
-  slotVideo?: Partial<Record<string, "loop" | "player">>;
-  /** Fond derrière chaque image (réglage `look.slotBg` du bloc, par slug d'emplacement ; lot 41). */
-  slotBg?: Partial<Record<string, string>>;
-  /** Panorama par image (réglage `look.slotPano` du bloc, par slug d'emplacement ; lot 45). */
-  slotPano?: Partial<Record<string, "fit" | "scroll">>;
+  /** Habillage par image (réglage `look.slotLook` du bloc, par slug d'emplacement ; lot 75) : cadre, fond, arrondi, panorama, lecture. */
+  slotLook?: Partial<Record<string, MediaLookData>>;
   /** Suite de composants de la planche ; absente (anciens blocs de projets) : la bande d'images seule. */
   parts?: BoardPart[];
   /** Palette effective du site : le texte lisible sur un fond de couleur (seulement si un composant en a un). */
@@ -129,11 +116,11 @@ export default function ProjectStrip({
       part,
       part?.artworks ? (
         <BoardBox box={part.box}>
-          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} slotPano={slotPano} videoMode={part.videoMode} eager={eager} />
+          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotLook={slotLook} videoMode={part.videoMode} eager={eager} />
         </BoardBox>
       ) : (
         <BoardBox box={part?.box}>
-          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotRadius={slotRadius} slotFrame={slotFrame} slotVideo={slotVideo} slotBg={slotBg} slotPano={slotPano} videoMode={part?.videoMode} eager={eager} />
+          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotLook={slotLook} videoMode={part?.videoMode} eager={eager} />
         </BoardBox>
       ),
     );
@@ -255,8 +242,8 @@ function BoardAdd({ board, index, last = false, empty = false }: { board: number
     <EditOnly>
     <div className="pe-bitem-add" data-last={last || undefined} data-empty={empty || undefined} lang="fr">
       <button type="button" data-edit-bitem-add={index} data-board={board} aria-haspopup="menu">
-        <span aria-hidden="true">+</span> {empty ? "Ajouter un composant" : "Ajouter"}
-        <span className="sr-only"> {index === 0 ? "en tête de la planche" : last ? "en bas de la planche" : `après le composant ${index}`}</span>
+        <span aria-hidden="true">+</span> {empty ? "Ajouter un bloc" : "Ajouter"}
+        <span className="sr-only"> {index === 0 ? "en tête du projet" : last ? "en bas du projet" : `après le bloc ${index}`}</span>
       </button>
     </div>
     </EditOnly>
@@ -300,7 +287,7 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
       lang="fr"
     >
       <EditOnly>
-      <div className="pe-bitem-bar" role="group" aria-label={`${label}, composant ${index + 1} sur ${count}`}>
+      <div className="pe-bitem-bar" role="group" aria-label={`${label}, bloc ${index + 1} sur ${count}`}>
         {/* Poignée : glisser pour déplacer le composant (BoardLayer) ; les flèches font la même chose au clavier. */}
         <span className="pe-bitem-handle" data-edit-bitem-handle={part.uid} data-board={board} aria-hidden="true" title="Glisser pour déplacer">
           ⠿
@@ -324,7 +311,7 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
             Ajouter des images
           </button>
         )}
-        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title="Fond de couleur du composant, sur toute sa hauteur">
+        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title="Fond de couleur du bloc, sur toute sa hauteur">
           Fond
         </button>
         {part.type === "image" && !part.empty && (
@@ -332,7 +319,7 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
             Taille
           </button>
         )}
-        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="space" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-space-button" title="Espace au-dessus de ce composant">
+        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="space" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-space-button" title="Espace au-dessus de ce bloc">
           Espace
         </button>
         {videoKey && !part.empty && (

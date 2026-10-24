@@ -14,7 +14,8 @@ import { RATIO_VALUES } from "../images/formats";
 import { FIELD_OP_NAMES } from "../../blocks/optional-fields";
 import { BackgroundSchema } from "../../themes/schema";
 import { SurfaceSchema } from "../../themes/surface";
-import { FrameSchema, ImageBgSchema, LogoSchema, LookSchema, RADII, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
+import { LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
+import { MediaPatchSchema } from "./media-look";
 import { BASE_KEYS } from "../../themes/palette";
 
 export const EDIT_MSG = "portfolio:edit";
@@ -116,9 +117,21 @@ export const FreeCanvasOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("front"), id: FreeId }),
   z.object({ op: z.literal("back"), id: FreeId }),
   z.object({ op: z.literal("remove"), id: FreeId }),
-  z.object({ op: z.literal("style"), id: FreeId, radius: z.enum(RADII).nullable().optional(), frame: FrameSchema.nullable().optional(), bg: ImageBgSchema.nullable().optional() }),
 ]);
 export type FreeCanvasOp = z.infer<typeof FreeCanvasOpSchema>;
+/**
+ * Où s'écrit l'habillage d'un média (lot 75, intention `media-look`) : une rubrique ou une case de grille de la page (`block`), un composant
+ * de planche (`item`), la case d'une grille de planche (`cell` ; `props` = les réglages de la grille tels que la toile les a lus, repli),
+ * une place de carrousel (`slot` : `slug` de la place, écrit dans la rubrique de la page `uid`) ou une image de la Planche libre (`free`).
+ */
+export const MediaTargetSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("block"), uid: Uid }),
+  z.object({ kind: z.literal("item"), board: Board, uid: Uid }),
+  z.object({ kind: z.literal("cell"), board: Board, grid: Uid, uid: Uid, props: z.string().max(100_000).optional() }),
+  z.object({ kind: z.literal("slot"), uid: Uid, slug: z.string().max(80).regex(/^[a-z0-9-]+$/) }),
+  z.object({ kind: z.literal("free"), uid: Uid, board: Board.optional(), props: z.string().max(100_000).optional(), id: FreeId }),
+]);
+export type MediaTarget = z.infer<typeof MediaTargetSchema>;
 const FileValue = z.custom<File>((v) => typeof File !== "undefined" && v instanceof File, "Fichier attendu");
 
 /** Toile → éditeur. */
@@ -150,10 +163,6 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("bitem-op"), board: Board, uid: Uid, op: z.enum(["up", "down", "remove"]) }),
   // Lot 32 : fond de couleur d'un composant de la planche (null = aucun fond) ; `continuous` : roue de couleur en cours de glissé.
   z.object({ kind: z.literal("bitem-fond"), board: Board, uid: Uid, background: BackgroundSchema.nullable(), continuous: z.boolean().optional() }),
-  // Lot 34 : cadre autour de la photo d'un composant Image de la planche (null = aucun cadre).
-  z.object({ kind: z.literal("bitem-frame"), board: Board, uid: Uid, frame: FrameSchema.nullable() }),
-  // Lot 41 : fond derrière l'image d'un composant Image de la planche (null = aucun fond).
-  z.object({ kind: z.literal("bitem-imgbg"), board: Board, uid: Uid, bg: ImageBgSchema.nullable() }),
   // Un composant de la planche choisi sur la toile : l'éditeur montre ses réglages (props = JSON des réglages tels que la toile les a lus).
   z.object({ kind: z.literal("bitem-select"), board: Board, uid: Uid, item: BoardItemKind, props: z.string().max(100_000) }),
   z.object({ kind: z.literal("drop-target"), target: DropTarget.nullable() }),
@@ -173,6 +182,8 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("video-mode"), uid: Uid, board: Board.optional(), item: BoardItemKind.optional(), props: z.string().max(100_000).optional(), mode: z.enum(["loop", "player"]).nullable() }),
   // Lot 31d : mise en forme (cadre, recadrage) de la case d'une grille de PLANCHE (la case n'est pas un bloc de la page).
   z.object({ kind: z.literal("cell-look"), board: Board, grid: Uid, props: z.string().max(100_000).optional(), uid: Uid, look: LookSchema.nullable() }),
+  // Lot 75 (R4) : UNE écriture pour l'habillage d'un média (cadre, fond d'image, arrondi, panorama, lecture), tous conteneurs.
+  z.object({ kind: z.literal("media-look"), target: MediaTargetSchema, patch: MediaPatchSchema }),
   // Entrées des collections (lot 22) : entrées choisies à la main (ajouter une page de collection, retirer, ordre).
   z.object({ kind: z.literal("tile-op"), uid: Uid, op: z.enum(["add", "remove", "up", "down", "cover", "cover-clear"]), index: z.number().int().min(0).max(23).optional(), pageId: z.number().int().positive().optional() }),
   // Entrées des collections (lot 22) : taille des images, depuis la barre du bloc.

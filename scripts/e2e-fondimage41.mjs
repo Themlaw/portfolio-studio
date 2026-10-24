@@ -8,7 +8,7 @@
  *  I  Image seule : « Fond image » dans la barre ; Blanc, Couleur de la carte, pastille de la palette, couleur libre, Aucun ;
  *     enregistré dans `look.imageBg` ; Annuler.
  *  G  Case de grille : « Fond image » dans la barre de la case ; « Dans la case » : toute la case est colorée, la taille ne change pas.
- *  B  Image de la bande du projet et d'un carrousel : bouton de la barre de l'image, enregistré dans `look.slotBg` (par emplacement).
+ *  B  Image de la bande du projet et d'un carrousel : bouton de la barre de l'image, enregistré dans `look.slotLook[slug].bg` (par emplacement).
  *  K  Image d'une planche composée : bouton de la barre du composant, enregistré dans `props.look.imageBg`.
  *  N  Panneau : le fond se règle aussi en haut du panneau de l'image.
  *  U  Une seule fenêtre ouverte à la fois (Cadre / Fond image).
@@ -124,6 +124,11 @@ const find = (list, uid) => {
   return null;
 };
 const lookOfDraft = (uid) => find(draftBlocks(), uid)?.props.look;
+/** Lot 75 : un champ d'habillage des places (`look.slotLook[slug][champ]`) sous l'ancienne forme « carte par slug » (undefined sans réglage). */
+const slotMap = (look, field) => {
+  const m = Object.fromEntries(Object.entries(look?.slotLook ?? {}).filter(([, v]) => v[field] !== undefined).map(([k, v]) => [k, v[field]]));
+  return Object.keys(m).length ? m : undefined;
+};
 const layoutNow = () => {
   const r = sql((db) => db.prepare("select layout, draft_layout from projects where id = ?").get(PROJECT.id));
   return JSON.parse(r.draft_layout ?? r.layout);
@@ -366,14 +371,14 @@ async function slotBar(fr, railSel) {
   await dlg.waitFor({ timeout: 15000 });
   return { dlg, slug };
 }
-const slotBg = () => lookOfDraft("board1")?.slotBg;
+const slotBg = () => slotMap(lookOfDraft("board1"), "bg");
 if (run("B"))
   await section("B", async () => {
     await settled();
     let { dlg, slug } = await slotBar(f, '[data-edit-rail=""]');
     ok("B1 le bouton « Fond image » est dans la barre de l'image de la bande", true);
     await choose(dlg, "white");
-    ok("B2 bande du projet : look.slotBg[slug] = #ffffff", await waitFor(() => slotBg()?.[slug] === "#ffffff", 30000), JSON.stringify(lookOfDraft("board1")));
+    ok("B2 bande du projet : look.slotLook[slug].bg = #ffffff", await waitFor(() => slotBg()?.[slug] === "#ffffff", 30000), JSON.stringify(lookOfDraft("board1")));
     let r = await isColor(f, SLOT0, WHITE, 3);
     ok("B2 …et le pixel transparent de l'image est blanc", r.good, JSON.stringify(r.m));
     ok("B2 les autres images de la bande n'ont pas de fond", await f.locator('[data-edit-block="board1"] [data-edit-rail=""] > [data-edit-slot]').evaluateAll((l) => l.slice(1).every((e) => !e.hasAttribute("data-img-bg") && !e.querySelector("[data-img-bg]"))));
@@ -383,7 +388,7 @@ if (run("B"))
     ({ dlg, slug: slug } = await slotBar(f, '[data-edit-rail="kcar"]'));
     const carSlug = slug;
     await dlg.locator('[data-imgbg-color="secondary"]').click();
-    ok("B3 carrousel : look.slotBg[slug] = secondary, séparé de la bande", await waitFor(() => slotBg()?.[carSlug] === "secondary" && Object.keys(slotBg()).length === 2, 30000), JSON.stringify(slotBg()));
+    ok("B3 carrousel : look.slotLook[slug].bg = secondary, séparé de la bande", await waitFor(() => slotBg()?.[carSlug] === "secondary" && Object.keys(slotBg()).length === 2, 30000), JSON.stringify(slotBg()));
     r = await isColor(f, CAR0, "var(--t-color-secondary)");
     ok("B3 …et le pixel du carrousel a la couleur « Accent » du thème", r.good, JSON.stringify([r.m?.px, r.want]));
     await page.keyboard.press("Escape");

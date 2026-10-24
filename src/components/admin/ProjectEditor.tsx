@@ -97,8 +97,8 @@ function ProjectMeta({ project, legacyFeatured }: { project: AdminProjectEdit; l
           {/* Le réglage ne sert qu'à l'ancien bloc « Projets mis en avant » (sans projets choisis) : sans lui, il n'a plus d'effet. */}
           {legacyFeatured.length > 0 && (
             <Toggle
-              label="À la une de l'ancienne rubrique « Projets mis en avant »"
-              help={`Cette ancienne rubrique, encore présente sur ${legacyFeatured.map((p) => `« ${p.pageTitle} »`).join(", ")}, affiche en premier les projets cochés ici. Les rubriques « Planche d'un projet » n'en tiennent pas compte.`}
+              label="À la une de l'ancien bloc « Projets mis en avant »"
+              help={`Cet ancien bloc, encore présent sur ${legacyFeatured.map((p) => `« ${p.pageTitle} »`).join(", ")}, affiche en premier les projets cochés ici. Les blocs « Projet » n'en tiennent pas compte.`}
               checked={meta.featured}
               onChange={(v) => set("featured", v)}
             />
@@ -376,7 +376,7 @@ function SlotPanel({
       </div>
       <Toggle
         label={`Couverture de « ${COLLECTIONS.find((c) => c.value === form.collection)?.label ?? form.collection} »`}
-        help={`Cette image illustre la tuile « ${COLLECTIONS.find((c) => c.value === form.collection)?.label ?? form.collection} » de l'accueil (rubrique « Entrées des collections »). Si plusieurs images sont cochées, c'est la première de la collection qui sert ; aucune cochée : la première image de la collection.`}
+        help={`Cette image illustre la tuile « ${COLLECTIONS.find((c) => c.value === form.collection)?.label ?? form.collection} » de l'accueil (bloc « Entrées des collections »). Si plusieurs images sont cochées, c'est la première de la collection qui sert ; aucune cochée : la première image de la collection.`}
         checked={form.featured}
         onChange={(v) => set("featured", v)}
       />
@@ -457,7 +457,7 @@ function SlotPanel({
           })
         }
       >
-        <p className="muted">L&apos;emplacement reste sur la planche, vide (invisible sur le site). L&apos;image reste dans la médiathèque.</p>
+        <p className="muted">L&apos;emplacement reste sur le projet, vide (invisible sur le site). L&apos;image reste dans la médiathèque.</p>
       </ConfirmDialog>
       <ConfirmDialog
         open={confirm === "delete"}
@@ -558,7 +558,7 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
         toast(r.message, "error");
         return;
       }
-      toast("Ordre de la planche enregistré");
+      toast("Ordre des images enregistré");
       refresh();
     });
   };
@@ -651,7 +651,7 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
 
       <section className="a-panel a-planche-panel" aria-labelledby="pr-planche">
         <div className="a-panel-head">
-          <h2 id="pr-planche">Planche</h2>
+          <h2 id="pr-planche">Mise en page</h2>
           <span className="muted">
             {slots.length} emplacement{slots.length > 1 ? "s" : ""}
             {slots.some((s) => !s.media) && ` · ${slots.filter((s) => !s.media).length} vide${slots.filter((s) => !s.media).length > 1 ? "s" : ""} (masqué${slots.filter((s) => !s.media).length > 1 ? "s" : ""} sur le site)`}
@@ -802,7 +802,7 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
           setPicker(null);
           const r = target === "end" ? await addSlotsAction(project.id, [m.id]) : await setSlotMediaAction(target, m.id);
           if (!r.ok) return toast(r.message, "error");
-          toast(target === "end" ? "Image ajoutée à la planche" : "Image placée");
+          toast(target === "end" ? "Image ajoutée au projet" : "Image placée");
           refresh();
         }}
       />

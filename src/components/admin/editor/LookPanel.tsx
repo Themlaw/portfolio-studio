@@ -105,7 +105,7 @@ export function ImageSizeSection({ look, onChange }: { look: Look; onChange: (ne
         labels={{ normal: "Normale", large: "Grande" }}
         onChange={(v) => set({ imageSize: v === "large" ? "large" : undefined })}
         auto={null}
-        help="Normale : l'image ne dépasse pas la hauteur de l'écran. Grande : elle prend toute la largeur du cadre."
+        help="Normale : l'image ne dépasse pas la hauteur de l'écran. Grande : elle prend toute la largeur disponible."
       />
       <Segmented label="Alignement" value={look.imageAlign ?? "center"} options={IMAGE_ALIGNS} labels={IMAGE_ALIGN_LABELS} onChange={(v) => set({ imageAlign: v })} auto={null} help="La légende suit l'image." />
     </section>
@@ -117,7 +117,7 @@ export function SpaceTopSection({ look, onChange }: { look: Look; onChange: (nex
   return (
     <section className="lp" aria-label="Espace au-dessus" data-testid="space-top-section">
       <h3 className="lp-title">Mise en page</h3>
-      <Segmented label="Espace en haut" value={look.spaceTop} options={SPACES} labels={SPACE_LABELS} onChange={(v) => onChange({ ...look, spaceTop: v })} />
+      <Segmented label="Espace au-dessus" value={look.spaceTop} options={SPACES} labels={SPACE_LABELS} onChange={(v) => onChange({ ...look, spaceTop: v })} />
     </section>
   );
 }
@@ -133,11 +133,11 @@ export function BlockLookPanel({ type, look, inCell, onChange }: { type: string;
       <h3 id="lp-title" className="lp-title">
         Mise en page
       </h3>
-      <p className="lp-help">Aussi sur la page : poignées en haut et en bas de la rubrique choisie, « Aa » sur un texte, « Cadrer » sur une image.</p>
+      <p className="lp-help">Aussi sur la page : poignées en haut et en bas du bloc choisi, « Aa » sur un texte, « Cadrer » sur une image.</p>
       {type !== "hero" && (
         <>
-          <Segmented label="Espace en haut" value={look.spaceTop} options={SPACES} labels={SPACE_LABELS} onChange={(v) => set({ spaceTop: v })} />
-          <Segmented label="Espace en bas" value={look.spaceBottom} options={SPACES} labels={SPACE_LABELS} onChange={(v) => set({ spaceBottom: v })} />
+          <Segmented label="Espace au-dessus" value={look.spaceTop} options={SPACES} labels={SPACE_LABELS} onChange={(v) => set({ spaceTop: v })} />
+          <Segmented label="Espace en dessous" value={look.spaceBottom} options={SPACES} labels={SPACE_LABELS} onChange={(v) => set({ spaceBottom: v })} />
         </>
       )}
       {MEDIA_TYPES.has(type) && (

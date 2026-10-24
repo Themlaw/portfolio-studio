@@ -23,7 +23,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import FreeCropDialog from "@/components/edit/FreeCropDialog";
 import HeroContrast from "@/components/edit/HeroContrast";
-import { acceptToCanvas } from "@/lib/edit/protocol";
+import { applyMediaPatch, type MediaPatch } from "@/lib/edit/media-look";
+import { acceptToCanvas, type MediaTarget } from "@/lib/edit/protocol";
 import { type Rect as CropRect } from "@/lib/images/crop";
 import { parseRatio } from "@/lib/images/sizes";
 import {
@@ -120,6 +121,40 @@ export function sendLook(uid: string, look: Look): number {
   return seq;
 }
 
+/**
+ * Où s'écrit l'habillage (cadre, fond d'image, arrondi) du média `uid` d'après la toile : composant de planche, case d'une grille de planche
+ * ou rubrique / case de la page (même routage que `sendLook`).
+ */
+export function mediaTargetOf(uid: string): MediaTarget {
+  const frame = itemFrameOf(uid);
+  const board = Number(frame?.dataset.board);
+  if (frame && board) return { kind: "item", board, uid };
+  const cell = frame ? null : document.querySelector<HTMLElement>(`[data-edit-bitem] [data-edit-cell="${CSS.escape(uid)}"]`);
+  const grid = cell?.closest<HTMLElement>("[data-edit-bitem]");
+  if (grid?.dataset.editBitem && Number(grid.dataset.board)) {
+    return { kind: "cell", board: Number(grid.dataset.board), grid: grid.dataset.editBitem, ...(grid.dataset.editBitemProps ? { props: grid.dataset.editBitemProps.slice(0, 100_000) } : {}), uid };
+  }
+  return { kind: "block", uid };
+}
+
+/**
+ * UNE écriture pour l'habillage d'un média (lot 75, R4) : envoie l'intention `media-look` (cible + changement) et garde le résultat comme
+ * réglages en attente (comme `sendLook`) : deux gestes rapprochés partent de la bonne base. `target` d'une image de la Planche libre : aucun
+ * réglage de bloc à garder (la planche relit sa ligne). Renvoie le numéro de l'intention.
+ */
+export function sendMediaLook(target: MediaTarget, patch: MediaPatch): number {
+  const seq = postIntent({ kind: "media-look", target, patch });
+  if (target.kind !== "free") {
+    const res = applyMediaPatch(lookOf(target.uid), patch, target.kind === "slot" ? target.slug : undefined);
+    if (!("error" in res)) setOverlay(`look:${target.uid}`, seq, { data: res.look ?? {} });
+  }
+  return seq;
+}
+/** Habillage du média `uid` (rubrique, case ou composant de planche), routé d'après la toile. */
+export const sendOwnMediaLook = (uid: string, patch: MediaPatch): number => sendMediaLook(mediaTargetOf(uid), patch);
+/** Habillage d'une place de carrousel : `slug` de la place, écrit dans la rubrique `uid` de la page. */
+export const sendSlotLook = (uid: string, slug: string, patch: MediaPatch): number => sendMediaLook({ kind: "slot", uid, slug }, patch);
+
 /* ---- Espaces ---------------------------------------------------------------- */
 
 type Cran = { key: Space | "auto"; px: number };
@@ -195,7 +230,7 @@ function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top"
     }
     const seq = sendLook(uid, { ...look, [side === "top" ? "spaceTop" : "spaceBottom"]: c.key === "auto" ? undefined : c.key });
     keepPad(uid, prop, c.px, seq);
-    announce(`Espace ${side === "top" ? "haut" : "bas"} : ${cranLabel(c)}`);
+    announce(`Espace ${side === "top" ? "au-dessus" : "en dessous"} : ${cranLabel(c)}`);
   };
   const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (e.button !== 0) return;
@@ -254,8 +289,8 @@ function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top"
         // Sur le bord de la zone qui suit le curseur : en haut, le bord côté contenu ;
         // en bas, le bord extérieur (le bloc grandit vers le bas, son contenu ne bouge pas).
         style={{ top: side === "top" ? r.top + shown - 5 : r.top + r.height - 5, left: r.left + r.width / 2 - 22 }}
-        aria-label={`Espace ${side === "top" ? "haut" : "bas"} : ${current === "auto" ? "Auto" : SPACE_LABELS[current]}. Glisser, ou flèches haut et bas.`}
-        title={`Espace ${side === "top" ? "haut" : "bas"} (glisser : crans du thème)`}
+        aria-label={`Espace ${side === "top" ? "au-dessus" : "en dessous"} : ${current === "auto" ? "Auto" : SPACE_LABELS[current]}. Glisser, ou flèches haut et bas.`}
+        title={`Espace ${side === "top" ? "au-dessus" : "en dessous"} (glisser : crans du thème)`}
         onPointerDown={onDown}
         onKeyDown={onKey}
       />
@@ -687,8 +722,8 @@ function CropTabs({ mode, onMode }: { mode: "free" | "frame"; onMode: (m: "free"
       <button type="button" role="tab" aria-selected={mode === "free"} onClick={() => onMode("free")}>
         Libre
       </button>
-      <button type="button" role="tab" aria-selected={mode === "frame"} onClick={() => onMode("frame")} title="Point focal et zoom dans le format imposé à la rubrique">
-        Dans le cadre de la rubrique
+      <button type="button" role="tab" aria-selected={mode === "frame"} onClick={() => onMode("frame")} title="Point focal et zoom dans le format imposé au bloc">
+        Dans le cadre du bloc
       </button>
     </div>
   );

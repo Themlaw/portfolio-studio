@@ -173,6 +173,8 @@ export function layoutVariables(theme: Theme): Record<string, string> {
     "--t-space-xl": l.spaceXL,
     "--t-page-top": l.pageTop,
     "--t-board-pad": l.stripPad,
+    // Crans d'arrondi (lot 75, R5) : lus par `.blk[data-radius]` (src/app/look.css), qui ne recopie plus 4 / 10 / 20 px.
+    ...Object.fromEntries(Object.entries(RADIUS_VALUES).map(([k, v]) => [`--t-radius-${k}`, v])),
     ...airVariables(theme.tokens.layout?.textAir),
     ...(theme.tokens.layout?.mediaRadius ? { "--t-media-radius": RADIUS_VALUES[theme.tokens.layout.mediaRadius] } : {}),
   };

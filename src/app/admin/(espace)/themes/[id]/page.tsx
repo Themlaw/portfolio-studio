@@ -41,7 +41,7 @@ export default async function ThemeEditPage({ params, searchParams }: { params: 
         wallpapers={
           <>
             <p className="a-help a-step-intro">
-              Tes motifs dessinés, à répéter en fond : sur une page entière, derrière un grand composant, ou sur les cartes. Importe-en autant que tu veux (PNG ou WebP sur fond transparent).
+              Tes motifs dessinés, à répéter en fond : sur une page entière, derrière un grand bloc, ou sur les cartes. Importe-en autant que tu veux (PNG ou WebP sur fond transparent).
             </p>
             <WallpaperLibrary initial={listWallpapersForAdmin()} trashed={listWallpapersForAdmin(true)} counts={wallpaperUseCounts()} cards={getCardWallpaperSetting()} />
           </>

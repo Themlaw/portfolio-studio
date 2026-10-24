@@ -54,7 +54,7 @@ export default function AddSectionDialog({
     >
       {open && (
         <>
-          <h2 id="ve-add-title">Ajouter une rubrique</h2>
+          <h2 id="ve-add-title">Ajouter un bloc</h2>
           <p className="ve-add-where">{where}</p>
           {groups.map((g) => (
             <section key={g.id} className="ve-group" data-group={g.id} aria-label={g.label}>

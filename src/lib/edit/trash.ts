@@ -139,7 +139,7 @@ export async function purgeOne(kind: TrashKind, id: number): Promise<{ ok: true 
           : db.select({ d: schema.media.deletedAt }).from(schema.media).where(eq(schema.media.id, id)).get();
   if (!row?.d) return { ok: false, message: "Cet élément n'est pas dans la corbeille." };
   const done = kind === "page" ? purgePage(id) : kind === "project" ? purgeProject(id) : kind === "wallpaper" ? purgeWallpaper(id) : await purgeMedia(id);
-  return done ? { ok: true } : { ok: false, message: "Cet élément est encore utilisé (rubrique, planche ou brouillon) : il reste à la corbeille." };
+  return done ? { ok: true } : { ok: false, message: "Cet élément est encore utilisé (bloc, projet ou brouillon) : il reste à la corbeille." };
 }
 
 /**

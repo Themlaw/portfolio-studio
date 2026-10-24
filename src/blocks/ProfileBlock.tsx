@@ -1,10 +1,11 @@
+import type { CSSProperties } from "react";
 import Picture from "@/components/Picture";
 import { z } from "zod";
 
 import Eyebrow from "@/components/Eyebrow";
 import EmailText from "@/components/EmailText";
 import SocialIcon from "@/components/SocialIcon";
-import { RATIO_VALUES } from "@/lib/images/formats";
+import { RATIO_VALUES, ratioCss } from "@/lib/images/formats";
 import { getMedia } from "@/lib/media";
 import { getSiteView } from "@/lib/settings";
 import { socialKeys } from "@/lib/site-schema";
@@ -54,7 +55,7 @@ export default async function ProfileBlock({ props, ctx }: { props: z.infer<type
         <div className="md:col-span-5 lg:col-span-4">
           <div
             className="profile-portrait mat md:sticky md:top-28"
-            {...(props.portraitRatio && props.portraitRatio !== "auto" ? { "data-ratio": props.portraitRatio } : {})}
+            {...(props.portraitRatio && props.portraitRatio !== "auto" ? { "data-ratio": props.portraitRatio, style: { "--box-r": ratioCss(props.portraitRatio) } as CSSProperties } : {})}
             {...(ctx.edit ? { "data-edit-media": "portraitMediaId", "data-edit-media-kind": "image" } : {})}>
             {!portrait && ctx.edit && (
               <span className="pe-media-empty pe-media-portrait" lang="fr">

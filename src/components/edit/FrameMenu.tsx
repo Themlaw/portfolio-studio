@@ -10,7 +10,7 @@
  *
  * `FrameControls` est le contenu, partagé par le bouton « Cadre » de la barre d'une image ou d'une vidéo seule / d'une case de grille
  * (réglage `look.frame` du bloc), par la barre d'une image ou d'une vidéo de planche (BoardLayer :
- * `look.slotFrame` du bloc planche, par emplacement) et par celle de la Planche libre. La fenêtre est `FrameWindow` (un seul
+ * `look.slotLook[slug].frame` du bloc planche, par emplacement) et par celle de la Planche libre. La fenêtre est `FrameWindow` (un seul
  * `Popover` ancré au bouton). Chaque choix part aussitôt (intention `look`, annulable). Les pastilles montrent les couleurs du thème par leurs variables, jamais en dur.
  */
 import { useState } from "react";
@@ -153,7 +153,7 @@ export function FrameButton({ uid, open, onToggle, what = "photo" }: { uid: stri
 /**
  * Fenêtre « Cadre » (lot 65) : UNE seule, ancrée au bouton `anchor`, pour tous les conteneurs. Chaque appelant donne sa valeur et son
  * écriture : page (`look.frame` du bloc, `sendLook`), case de grille (même chose), composant de planche (`props.look.frame` du projet,
- * écriture `item-frame`), image de carrousel (`look.slotFrame[slug]`) et image de Planche libre (`items[].frame`).
+ * écriture `item-media-look`), image de carrousel (`look.slotLook[slug].frame`) et image de Planche libre (`items[].frame`).
  */
 export default function FrameWindow({ anchor, value, onChange, onClose, what = "photo", testId }: { anchor: PopoverAnchor; value: Frame | undefined; onChange: (next: Frame | undefined) => void; onClose: () => void; what?: "photo" | "vidéo"; testId?: string }) {
   const [cur, setCur] = useLocalValue(value);

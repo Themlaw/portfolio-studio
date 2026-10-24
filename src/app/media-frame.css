@@ -49,7 +49,7 @@
 }
 
 /* ---- Fond derrière le média (lot 41) ---------------------------------------------------------------------------------------------
-   `look.imageBg` / `slotBg` / `items[].bg` : la couleur (`--img-bg`) remplit la boîte du média : la zone affichée, recadrage compris, et
+   `look.imageBg` / `slotLook[].bg` / `items[].bg` : la couleur (`--img-bg`) remplit la boîte du média : la zone affichée, recadrage compris, et
    toute la boîte avec « Image entière ». Elle reste DANS le cadre (background-clip) et suit l'arrondi. Le fond de chargement du média
    (couleur dominante, posé en ligne par la balise image) ne passe jamais dessus ni dessous. */
 .media-frame[data-img-bg] {

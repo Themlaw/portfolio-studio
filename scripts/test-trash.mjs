@@ -342,13 +342,13 @@ await test("logo du site et couverture d'une tuile comptés comme usages : compt
 await test("confirmations de suppression définitive : zéro, un, plusieurs ; pas de « brouillon » s'il n'y en a pas", () => {
   assert.equal(lostWithPage(0, false), "elle est vide : rien d'autre ne disparaît.");
   assert.equal(lostWithPage(0, true), "son brouillon disparaît.");
-  assert.equal(lostWithPage(1, false), "sa rubrique disparaît.");
-  assert.equal(lostWithPage(1, true), "sa rubrique et son brouillon disparaissent.");
-  assert.equal(lostWithPage(3, false), "ses 3 rubriques disparaissent.");
-  assert.equal(lostWithPage(3, true), "ses 3 rubriques et son brouillon disparaissent.");
-  assert.match(lostWithProject(0), /^sa planche \(sans emplacement\) disparaît/);
-  assert.match(lostWithProject(1), /^sa planche et son emplacement disparaissent/);
-  assert.match(lostWithProject(4), /^sa planche et ses 4 emplacements disparaissent/);
+  assert.equal(lostWithPage(1, false), "son bloc disparaît.");
+  assert.equal(lostWithPage(1, true), "son bloc et son brouillon disparaissent.");
+  assert.equal(lostWithPage(3, false), "ses 3 blocs disparaissent.");
+  assert.equal(lostWithPage(3, true), "ses 3 blocs et son brouillon disparaissent.");
+  assert.match(lostWithProject(0), /^sa mise en page \(sans emplacement\) disparaît/);
+  assert.match(lostWithProject(1), /^sa mise en page et son emplacement disparaissent/);
+  assert.match(lostWithProject(4), /^sa mise en page et ses 4 emplacements disparaissent/);
   assert.deepEqual(emptyTrashParts({ pages: 1, projects: 0, media: 2, slots: 0 }), ["1 page", "2 médias"]);
   assert.deepEqual(emptyTrashParts({ pages: 2, projects: 1, media: 0, slots: 1 }), ["2 pages", "1 projet (avec 1 emplacement)"]);
   assert.deepEqual(emptyTrashParts({ pages: 0, projects: 2, media: 0, slots: 0 }), ["2 projets (sans emplacement)"]);

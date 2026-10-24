@@ -238,7 +238,7 @@ try {
 
   // Le formulaire : informations seulement, et un lien vers l'éditeur à la place de la liste des rubriques.
   await page.goto(`${BASE}/admin/pages/${pageId}`, { waitUntil: "networkidle" });
-  ok("B4a le formulaire n'a plus de liste de rubriques ni de « + Ajouter une rubrique »", (await page.getByRole("button", { name: "+ Ajouter une rubrique" }).count()) === 0 && (await page.locator(".a-block").count()) === 0);
+  ok("B4a le formulaire n'a plus de liste de rubriques ni de « + Ajouter un bloc »", (await page.getByRole("button", { name: "+ Ajouter un bloc" }).count()) === 0 && (await page.locator(".a-block").count()) === 0);
   const toEditor = page.getByRole("link", { name: "Modifier le contenu dans l'éditeur" });
   ok("B4b lien « Modifier le contenu dans l'éditeur » vers l'éditeur de la page", (await toEditor.getAttribute("href")) === `/admin/pages/${pageId}/editer` && /2 rubriques/.test(await page.locator("#pe-contenu").locator("..").innerText()));
   // Lot 51 : « Publier » dans l'éditeur a déjà mis la page en ligne (un seul geste) ; le formulaire le dit.

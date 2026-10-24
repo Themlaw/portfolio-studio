@@ -7,7 +7,7 @@
  *     ouvre ses réglages à gauche) ; « Réglages » reste sur la grille et ouvre la fenêtre blanche ; plus de « Lecture » sur la
  *     barre du carrousel.
  *  V  Lecture par vidéo : barre de CHAQUE vidéo du carrousel (Boucle / Lecteur, état = ce que la page fait), enregistré dans
- *     `look.slotVideo` du bloc planche, la toile suit, et la page publiée fait pareil (parité).
+ *     `look.slotLook[slug].video` du bloc planche, la toile suit, et la page publiée fait pareil (parité).
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=M,B,V] [SHOTS=dossier] node scripts/e2e-barres38.mjs
  */
 import { mkdirSync } from "node:fs";
@@ -163,14 +163,14 @@ try {
     ok("V1 barre de la vidéo de test : « Lecture » Boucle / Lecteur, « Lecteur » pressé (ce que fait la page)", (await seg.locator("button").count()) === 2 && (await seg.locator('button[aria-pressed="true"]').innerText()) === "Lecteur");
     await shot("V-barre-image-video");
     await seg.locator('[data-slot-video-set="loop"]').click();
-    ok("V2 « Boucle » : écrit dans look.slotVideo du bloc planche, au nom de CETTE vidéo", await waitFor(() => lookOf()?.slotVideo?.[slugSeed] === "loop", 30000), JSON.stringify(lookOf()));
+    ok("V2 « Boucle » : écrit dans look.slotLook[slug].video du bloc planche, au nom de CETTE vidéo", await waitFor(() => lookOf()?.slotLook?.[slugSeed]?.video === "loop", 30000), JSON.stringify(lookOf()));
     await settled(page);
     ok("V3 … la toile la montre en boucle, l'autre vidéo n'a pas bougé", await waitFor(async () => (await fr.locator('[data-edit-bitem="c1"] [data-edit-slot][data-video-mode="loop"], [data-edit-bitem="c1"] [data-video-mode="loop"]').count()) >= 2, 20000) && (lookOf()?.slotVideo?.[slugShort] === undefined));
     await hoverAt(fr.locator('[data-edit-bitem="c1"] [data-edit-slot]').nth(1).locator("video, .strip-frame").first());
     await fr.locator('[data-testid="slot-video-mode"]').waitFor({ timeout: 15000 });
     ok("V4 barre de l'animation courte : « Boucle » pressé", (await fr.locator('[data-testid="slot-video-mode"] button[aria-pressed="true"]').innerText()) === "Boucle");
     await fr.locator('[data-testid="slot-video-mode"] [data-slot-video-set="player"]').click();
-    ok("V5 « Lecteur » sur la courte : écrit à part", await waitFor(() => lookOf()?.slotVideo?.[slugShort] === "player" && lookOf()?.slotVideo?.[slugSeed] === "loop", 30000), JSON.stringify(lookOf()));
+    ok("V5 « Lecteur » sur la courte : écrit à part", await waitFor(() => lookOf()?.slotLook?.[slugShort]?.video === "player" && lookOf()?.slotLook?.[slugSeed]?.video === "loop", 30000), JSON.stringify(lookOf()));
     await settled(page);
     ok("V6 le brouillon du projet n'a pas reçu de `videoMode` (pas de réglage de bande)", boardDraft(project.id)?.find((i) => i.uid === "c1")?.props.videoMode === undefined);
     await shot("V-carrousel-apres-reglage");

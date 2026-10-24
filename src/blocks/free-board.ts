@@ -9,7 +9,8 @@
  */
 import { z } from "zod";
 
-import { FrameSchema, ImageBgSchema, RADII, type Frame, type ImageBg, type Radius } from "../lib/look";
+import { applyMediaPatchToFree, type MediaPatch } from "../lib/edit/media-look";
+import { FrameSchema, ImageBgSchema, RADII } from "../lib/look";
 
 import { localizedText } from "./types";
 
@@ -111,8 +112,7 @@ export type FreeModelOp =
   | { op: "front"; id: string }
   | { op: "back"; id: string }
   | { op: "remove"; id: string }
-  | { op: "replace"; id: string; media: number }
-  | { op: "style"; id: string; radius?: Radius | null; frame?: Frame | null; bg?: ImageBg | null };
+  | { op: "replace"; id: string; media: number };
 
 const GONE = "Cette image n'est plus dans la planche libre.";
 
@@ -184,25 +184,20 @@ export function applyFreeOp(props: Props, op: FreeModelOp): { props: Props } | {
       if (i < 0) return { error: GONE };
       return done(items.map((x, k) => (k === i ? { ...x, media: op.media } : x)));
     }
-    case "style": {
-      const i = at(op.id);
-      if (i < 0) return { error: GONE };
-      const cur = { ...items[i] };
-      if (op.radius !== undefined) {
-        if (op.radius === null) delete cur.radius;
-        else cur.radius = op.radius;
-      }
-      if (op.frame !== undefined) {
-        if (op.frame === null) delete cur.frame;
-        else cur.frame = op.frame;
-      }
-      if (op.bg !== undefined) {
-        if (op.bg === null) delete cur.bg;
-        else cur.bg = op.bg;
-      }
-      return done(items.map((x, k) => (k === i ? cur : x)));
-    }
   }
+}
+
+/**
+ * Habillage d'UNE image (cadre, fond derrière l'image, arrondi) : l'écriture commune `media-look` (lot 75, src/lib/edit/media-look.ts),
+ * posée sur la ligne de l'image. Remplace l'ancienne opération « style ». Les nouveaux réglages, ou un message d'erreur en français.
+ */
+export function applyFreeLook(props: Props, id: string, patch: MediaPatch): { props: Props } | { error: string } {
+  const items = freeItems(props);
+  const i = items.findIndex((x) => x.id === id);
+  if (i < 0) return { error: GONE };
+  const res = applyMediaPatchToFree(items[i], patch);
+  if ("error" in res) return res;
+  return { props: { ...props, items: items.map((x, k) => (k === i ? res.item : x)) } };
 }
 
 /* ---- Repères d'alignement magnétiques (déplacement) ----------------------------------------------------------------------- */

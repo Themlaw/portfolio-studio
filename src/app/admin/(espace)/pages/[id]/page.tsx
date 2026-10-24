@@ -45,7 +45,7 @@ export default async function PageEditPage({ params }: { params: Promise<{ id: s
       />
       {state?.corrupt && (
         <p className="a-notice a-notice-danger" role="alert">
-          Le brouillon de cette page ne peut plus être lu (un composant a changé). Ouvre l&apos;éditeur visuel pour repartir de la
+          Le brouillon de cette page ne peut plus être lu (un bloc a changé). Ouvre l&apos;éditeur visuel pour repartir de la
           version en ligne avant d&apos;enregistrer ici.
         </p>
       )}

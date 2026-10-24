@@ -9,7 +9,7 @@
  *     le champ ajouté s'édite aussitôt.
  *  C. États vides : un Contact sans rien dit quoi faire et propose les boutons ; CV, Image, Vidéo : « Choisir dans la
  *     médiathèque » ; rien côté public.
- *  D. Ouverture une seule fois (panneau et fenêtre « Ajouter une rubrique ») ; un Profil posé sur une page qui a une
+ *  D. Ouverture une seule fois (panneau et fenêtre « Ajouter un bloc ») ; un Profil posé sur une page qui a une
  *     Ouverture ne répète pas le nom.
  *  E. Migration 0023 : page v0.19 avec « Formulaire de contact » (publié + brouillon) migrée, rouverte, publiée ; le
  *     formulaire public répond toujours (même identifiant) ; aucun repère d'édition en public.
@@ -177,7 +177,7 @@ if (run("A"))
     homeBlocks.contact = c.uid;
     await settled();
 
-    // Fenêtre « Ajouter une rubrique » : mêmes règles.
+    // Fenêtre « Ajouter un bloc » : mêmes règles.
     const addEnd = f.locator('[data-edit-add="end"]');
     await addEnd.scrollIntoViewIfNeeded();
     await addEnd.click();
@@ -388,7 +388,7 @@ if (run("E"))
     await page.keyboard.press("Delete");
     await sleep(500);
     // Lot 24 : la suppression d'une rubrique demande confirmation.
-    if (await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).count()) await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).click();
+    if (await page.getByRole("dialog").getByRole("button", { name: "Supprimer le bloc" }).count()) await page.getByRole("dialog").getByRole("button", { name: "Supprimer le bloc" }).click();
     await settled();
     await page.getByRole("button", { name: "Publier", exact: true }).click();
     ok("E9 publication acceptée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000), await page.locator(".ve-status").textContent());

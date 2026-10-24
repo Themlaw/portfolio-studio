@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 
 import { BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, defaultLayout, itemEmpty, layoutMediaIds, layoutProblem, mediaCount, newBoardItem, readLayout } from "../src/blocks/board-layout.ts";
-import { applyFreeOp, FREE_DEFAULT_W, freeBoardSchema, freeItems, itemHeight, MAX_FREE_ITEMS, newFreeId, readingOrder, snapBox, zoneAspect } from "../src/blocks/free-board.ts";
+import { applyFreeLook, applyFreeOp, FREE_DEFAULT_W, freeBoardSchema, freeItems, itemHeight, MAX_FREE_ITEMS, newFreeId, readingOrder, snapBox, zoneAspect } from "../src/blocks/free-board.ts";
 import { extractRefs } from "../src/blocks/refs.ts";
 import { BLOCKS } from "../src/blocks/registry.ts";
 import { FromCanvasSchema } from "../src/lib/edit/protocol.ts";
@@ -113,26 +113,26 @@ test("2e devant / derrière : les rangs restent 0, 1, 2… sans trou", () => {
   assert.deepEqual(again.items.map((i) => i.z), [0, 1, 2]);
 });
 
-test("2g fond image (lot 41) : style bg pose / retire le fond de CETTE image, couleur invalide refusée, zoom et légendes acceptés", () => {
+test("2g fond image (lot 41) : media-look bg pose / retire le fond de CETTE image, couleur invalide refusée, zoom et légendes acceptés", () => {
   const p0 = freeBoardSchema.parse({ items: [{ id: "a", media: 1, x: 10, y: 10, w: 20 }, { id: "b", media: 2, x: 40, y: 10, w: 20 }] });
-  const s = ok(applyFreeOp(p0, { op: "style", id: "a", bg: "card" }));
+  const s = ok(applyFreeLook(p0, "a", { bg: "card" }));
   assert.equal(freeItems(s)[0].bg, "card");
   assert.equal(freeItems(s)[1].bg, undefined);
-  const t = ok(applyFreeOp(s, { op: "style", id: "a", bg: null }));
+  const t = ok(applyFreeLook(s, "a", { bg: null }));
   assert.equal(freeItems(t)[0].bg, undefined);
   assert.ok(!freeBoardSchema.safeParse({ items: [{ id: "a", media: 1, x: 1, y: 1, w: 20, bg: "red" }] }).success);
   assert.ok(freeBoardSchema.safeParse({ zoom: false, captionTitle: { fr: "a", en: "b" }, caption: { fr: "", en: "" } }).success);
 });
 
-test("2f retirer recompacte les rangs ; remplacer garde la place ; style : arrondi et cadre, null les retire", () => {
+test("2f retirer recompacte les rangs ; remplacer garde la place ; media-look : arrondi et cadre, null les retire", () => {
   const p0 = base([item("a", { z: 0 }), item("b", { z: 5 }), item("c", { z: 9 })]);
   const r = ok(applyFreeOp(p0, { op: "remove", id: "b" }));
   assert.deepEqual(r.items.map((i) => [i.id, i.z]), [["a", 0], ["c", 1]]);
   const rep = ok(applyFreeOp(p0, { op: "replace", id: "a", media: 99 }));
   assert.deepEqual([rep.items[0].media, rep.items[0].x, rep.items[0].w], [99, 10, 30]);
-  const s = ok(applyFreeOp(p0, { op: "style", id: "a", radius: "medium", frame: { size: "thin" } }));
+  const s = ok(applyFreeLook(p0, "a", { radius: "medium", frame: { size: "thin" } }));
   assert.deepEqual([s.items[0].radius, s.items[0].frame], ["medium", { size: "thin" }]);
-  const t = ok(applyFreeOp(s, { op: "style", id: "a", radius: null, frame: null }));
+  const t = ok(applyFreeLook(s, "a", { radius: null, frame: null }));
   assert.ok(!("radius" in t.items[0]) && !("frame" in t.items[0]));
   assert.match(applyFreeOp(p0, { op: "remove", id: "zz" }).error, /n'est plus/);
 });
@@ -243,7 +243,7 @@ test("5a free-op : opérations valides (page et planche) et refus des valeurs ho
   assert.ok(parse(msg({ op: "pick" })));
   assert.ok(parse(msg({ op: "pick", id: "a1" })));
   assert.ok(parse(msg({ op: "set", format: "free", aspect: 2 })));
-  assert.ok(parse(msg({ op: "style", id: "a1", radius: null, frame: { size: "medium" } })));
+  assert.equal(parse(msg({ op: "style", id: "a1", radius: null, frame: { size: "medium" } })), false, "l'opération « style » est remplacée par media-look");
   assert.equal(parse(msg({ op: "place", id: "a1", x: 999 })), false);
   assert.equal(parse(msg({ op: "place", id: "a1", rot: 400 })), false);
   assert.equal(parse(msg({ op: "place", id: "A 1" })), false);

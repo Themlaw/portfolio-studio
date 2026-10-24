@@ -43,8 +43,8 @@ export default function CardSettings({ theme, onChange, sitePalette }: { theme: 
         Cartes des rubriques
       </h3>
       <p className="a-help">
-        Une rubrique peut être posée sur une carte colorée (bouton « Carte » sur la page). Voici ce qu&apos;elle prend quand on active la carte sans
-        rien choisir de plus. Les rubriques sans carte ne changent pas.
+        Un bloc peut être posé sur une carte colorée (bouton « Fond » sur la page). Voici ce qu&apos;il prend quand on active la carte sans
+        rien choisir de plus. Les blocs sans carte ne changent pas.
       </p>
       <div className="a-field">
         <span className="a-label-text" id="t-carte-couleur">

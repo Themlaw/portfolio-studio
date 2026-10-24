@@ -442,7 +442,7 @@ if (run("V"))
     const slot = fr.locator('[data-edit-block="pbd"] [data-edit-slot][data-slot-slug="c1-p0"]').first();
     await slot.scrollIntoViewIfNeeded();
     await slot.hover();
-    const bar = fr.locator('.pe-slot-tools[aria-label="Image de la planche"]');
+    const bar = fr.locator('.pe-slot-tools[aria-label="Image du projet"]');
     await bar.waitFor({ timeout: 15000 });
     const sbtn = bar.locator('[data-testid="slot-frame-button"]');
     ok("V13 carrousel : la barre d'une VIDÉO a le bouton « Cadre »", (await sbtn.count()) === 1 && /vidéo/.test((await sbtn.getAttribute("title")) ?? ""));
@@ -451,7 +451,7 @@ if (run("V"))
     await sdlg.waitFor({ timeout: 15000 });
     ok("V13b … même menu, la bande déjà posée est cochée", (await sdlg.locator("[data-frame-kind]").count()) === 3 && (await checked(kindBtn(sdlg, "band"))));
     await kindBtn(sdlg, "theme").click();
-    ok("V13c … enregistré dans look.slotFrame[slug] du bloc planche", await waitFor(() => lookOf(VIDEOS, "pbd")?.slotFrame?.["c1-p0"]?.kind === "theme", 30000), JSON.stringify(lookOf(VIDEOS, "pbd")));
+    ok("V13c … enregistré dans look.slotLook[slug].frame du bloc planche", await waitFor(() => lookOf(VIDEOS, "pbd")?.slotLook?.["c1-p0"]?.frame?.kind === "theme", 30000), JSON.stringify(lookOf(VIDEOS, "pbd")));
     await page.keyboard.press("Escape");
 
     // 6. Composant de planche (suite du projet).

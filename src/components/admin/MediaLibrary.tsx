@@ -346,7 +346,7 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
             <dd>
               {formatDuration(media.duration) || "—"}
               {media.hasAudio === false && " · sans son"}
-              {isLoop(media) && " · jouée en boucle dans les planches"}
+              {isLoop(media) && " · jouée en boucle dans les projets"}
             </dd>
           </>
         )}
@@ -406,13 +406,13 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
           {uses.map((u, i) =>
             u.kind === "slot" ? (
               <li key={i}>
-                Planche <Link href={u.trashed ? "/admin/projets?vue=corbeille" : `/admin/projets/${u.projectId}`}>{u.projectTitle}</Link> · {u.slotTitle}
+                Projet <Link href={u.trashed ? "/admin/projets?vue=corbeille" : `/admin/projets/${u.projectId}`}>{u.projectTitle}</Link> · {u.slotTitle}
                 {u.draftPage && <span className="muted"> (brouillon non publié de la page « {u.draftPage} »)</span>}
                 {u.trashed && <span className="muted"> (projet à la corbeille)</span>}
               </li>
             ) : (
               <li key={i}>
-                {u.logo ? "Logo du site, réglé depuis la page" : <>Rubrique « {u.blockType} » de la page</>} <Link href={u.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${u.pageId}/editer`}>{u.pageTitle}</Link>
+                {u.logo ? "Logo du site, réglé depuis la page" : <>Bloc « {u.blockType} » de la page</>} <Link href={u.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${u.pageId}/editer`}>{u.pageTitle}</Link>
                 {u.trashed && <span className="muted"> (page à la corbeille)</span>}
               </li>
             ),
