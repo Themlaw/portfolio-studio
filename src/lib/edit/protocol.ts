@@ -231,6 +231,8 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("site-look"), palette: SitePaletteSchema, logo: LogoSchema }),
   // Ce que la toile a trouvé pour le rôle de couleur survolé (légende « utilisé par »).
   z.object({ kind: z.literal("highlight-info"), role: z.enum(BASE_KEYS).nullable(), count: z.number().int().min(0).max(100000), uses: z.array(z.string().max(40)).max(12) }),
+  // Lot 77 (MENU-11) : une fenêtre modale s'ouvre / se ferme dans la toile (« Cadrer l'image ») ; l'éditeur voile son panneau et sa barre.
+  z.object({ kind: z.literal("modal"), open: z.boolean() }),
 ]);
 
 /** Éditeur → toile. */

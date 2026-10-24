@@ -23,7 +23,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import FreeCropDialog from "@/components/edit/FreeCropDialog";
 import HeroContrast from "@/components/edit/HeroContrast";
-import { acceptToCanvas } from "@/lib/edit/protocol";
+import { acceptToCanvas, EDIT_MSG } from "@/lib/edit/protocol";
 import { type Rect as CropRect } from "@/lib/images/crop";
 import { parseRatio } from "@/lib/images/sizes";
 import {
@@ -699,6 +699,14 @@ function CropDialog({ target, onClose }: { target: CropTarget; onClose: () => vo
   const look = lookOf(target.uid);
   const existing = target.tile ? look.tileCrop?.[target.tile] : look.crop?.[target.field];
   const full = target.full;
+  // Lot 77 (MENU-11) : la fenêtre vit dans la toile ; l'éditeur (page parente) pose un voile sur son panneau et sa barre tant qu'elle est ouverte.
+  useEffect(() => {
+    const tell = (open: boolean) => {
+      if (window.parent !== window) window.parent.postMessage({ type: EDIT_MSG, kind: "modal", open }, window.location.origin);
+    };
+    tell(true);
+    return () => tell(false);
+  }, []);
   // Cadre au format imposé : l'ancien mode (point focal + zoom) reste possible, et reste ouvert s'il est déjà réglé.
   const frameOk = Boolean(full?.box) || Boolean(existing && !existing.rect);
   const [mode, setMode] = useState<"free" | "frame">(full && !(existing && !existing.rect && frameOk) ? "free" : "frame");

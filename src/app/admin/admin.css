@@ -4367,6 +4367,19 @@ label.a-file-btn:focus-within {
   background: var(--admin-bg);
 }
 
+/* Lot 77 (MENU-11) : « Cadrer l'image » est modale ; la fenêtre vit dans la toile, ce voile couvre le reste de l'éditeur. */
+.ve-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(31, 34, 38, 0.45);
+}
+
+.ve[data-modal] .ve-canvas {
+  position: relative;
+  z-index: 61;
+}
+
 .ve-top {
   display: flex;
   align-items: center;
