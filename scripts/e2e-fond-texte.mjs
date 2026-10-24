@@ -442,6 +442,7 @@ if (run("D")) {
   const fg2 = await inkOf(f, SCROLL);
   ok("D3 fond clair : le texte repasse sombre (lisible)", ratio(fg2, await bgOf(f, SCROLL)) >= 4.5 && lum(fg2) < lum(await bgOf(f, SCROLL)), `texte ${fg2}`);
   // Couleur de texte choisie : conservée, alerte.
+  await sleep(1000);
   await popToken(f, "ink").click();
   await settled();
   await f.locator('.lk-bar .tc-swatches [aria-label="Texte"]').click();

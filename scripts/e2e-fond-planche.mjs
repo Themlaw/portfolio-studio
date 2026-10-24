@@ -99,6 +99,8 @@ try {
   // Deux images dans la planche, sous la bande : strip, image, image.
   for (const index of [1, 2]) {
     await board.locator(`[data-edit-bitem-add="${index}"]`).click({ force: true });
+    // Le menu s'ancre au bouton (Popover, lot 65) : on lui laisse le temps de se poser avant de viser un choix.
+    await sleep(800);
     await f.locator('.pe-bitem-menu [data-bitem-type="image"]').click();
     ok(`0 image ajoutée au rang ${index + 1}`, await waitFor(() => draft().length === index + 1 && draft()[index]?.type === "image"), JSON.stringify(draft().map((i) => i.type)));
     await page.getByRole("button", { name: "Choisir une image" }).first().click();
