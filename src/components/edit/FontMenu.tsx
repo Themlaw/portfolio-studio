@@ -10,7 +10,7 @@
  * Lot 70 : « Récentes » en tête (les 6 dernières polices choisies, mémorisées par le
  * serveur) ; leurs aperçus se chargent comme ceux du catalogue, à la demande.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { fontLabel, fontStack, THEME_FONTS } from "@/lib/look";
 import { CATEGORY_LABELS, GOOGLE_FONTS, type GoogleCategory } from "@/themes/google-fonts";
@@ -91,7 +91,61 @@ export default function FontMenu({
   const [shown, setShown] = useState(PAGE);
   const input = useRef<HTMLInputElement>(null);
   const root = useRef<HTMLDivElement>(null);
-  useEffect(() => input.current?.focus(), []);
+  useEffect(() => input.current?.focus({ preventScroll: true }), []);
+  // Lot 65 (R3) : la liste s'ouvre sous la barre qui l'a ouverte, mais reste TOUJOURS entièrement dans la fenêtre du navigateur,
+  // recherche comprise, sans défiler la page : sous la barre si elle y tient, sinon au-dessus, sinon du côté le plus grand en
+  // réduisant sa hauteur (la liste défile en interne) ; décalée pour ne pas sortir à droite ni à gauche.
+  useLayoutEffect(() => {
+    const el = root.current;
+    const parent = el?.offsetParent;
+    if (!el || !parent) return;
+    const win = el.ownerDocument.defaultView ?? window;
+    const EDGE = 8;
+    const GAP = 6;
+    const place = () => {
+      el.style.top = "";
+      el.style.left = "";
+      el.style.height = "";
+      const vw = el.ownerDocument.documentElement.clientWidth;
+      const vh = win.innerHeight;
+      const p = parent.getBoundingClientRect();
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      const below = vh - EDGE - (p.bottom + GAP);
+      const above = p.top - GAP - EDGE;
+      let top = p.bottom + GAP;
+      let height = h;
+      if (h > below) {
+        if (h <= above) top = p.top - GAP - h;
+        else if (Math.max(below, above) >= 220) {
+          height = Math.max(below, above);
+          top = below >= above ? p.bottom + GAP : p.top - GAP - height;
+        } else {
+          // Aucune des deux places ne convient : la fenêtre se pose dans l'écran, par-dessus la barre.
+          height = Math.min(h, vh - 2 * EDGE);
+          top = Math.max(EDGE, Math.min(p.bottom + GAP, vh - EDGE - height));
+        }
+      }
+      let left = p.left;
+      left = Math.max(EDGE, Math.min(left, vw - EDGE - w));
+      if (height !== h) el.style.height = `${Math.round(height)}px`;
+      if (top !== p.bottom + GAP) el.style.top = `${Math.round(top - p.top)}px`;
+      if (left !== p.left) el.style.left = `${Math.round(left - p.left)}px`;
+    };
+    place();
+    win.addEventListener("resize", place);
+    const onScroll = (e: Event) => {
+      if (!(e.target instanceof Node) || !el.contains(e.target)) place();
+    };
+    win.addEventListener("scroll", onScroll, true);
+    const ro = new win.ResizeObserver(place);
+    ro.observe(parent);
+    return () => {
+      win.removeEventListener("resize", place);
+      win.removeEventListener("scroll", onScroll, true);
+      ro.disconnect();
+    };
+  }, []);
   // Clic ailleurs : le menu se ferme (la police déjà choisie reste appliquée).
   useDismiss(root, onClose);
   const q = query.trim().toLowerCase();

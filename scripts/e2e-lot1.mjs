@@ -211,7 +211,13 @@ if (run("B")) {
   const [tab2] = await Promise.all([ctx.waitForEvent("page"), card.getByRole("button").click()]);
   await tab2.locator(".preview-banner").waitFor({ timeout: 60000 });
   await tab2.waitForLoadState("networkidle");
-  await Promise.all([tab2.waitForURL((u) => u.pathname.startsWith("/admin"), { timeout: 60000 }), tab2.keyboard.press("Escape")]);
+  // Échap n'est écouté qu'une fois la page hydratée (networkidle ne le garantit pas) : on le presse jusqu'à ce que la page parte.
+  const left = tab2.waitForURL((u) => u.pathname.startsWith("/admin"), { timeout: 60000 });
+  for (let i = 0; i < 30; i++) {
+    await tab2.keyboard.press("Escape").catch(() => {});
+    if (await Promise.race([left.then(() => true), new Promise((r) => setTimeout(() => r(false), 1000))])) break;
+  }
+  await left;
   ok("B3 Échap quitte l'aperçu, retour à Admin → Thèmes", new URL(tab2.url()).pathname === "/admin/themes", tab2.url());
   ok("B4 plus d'aperçu ensuite (pas de bandeau sur le site)", !(await (await tab2.request.get(`${BASE}/fr`)).text()).includes("preview-banner"));
   await tab2.close();
