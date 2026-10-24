@@ -137,7 +137,7 @@ const cards = await page.$$eval(".a-kit-card", (els) => els.map((e) => ({ slot: 
 const cn = cards.find((c) => c.slot === "curseur/normal");
 const cc = cards.find((c) => c.slot === "curseur/clic");
 ok("revue : curseurs « redessinés », point chaud lu (3, 3) et (16, 3)", cn?.change === "redrawn" && cc?.change === "redrawn" && cn.text.includes("point chaud 3, 3") && cc.text.includes("point chaud 16, 3"), JSON.stringify([cn, cc]));
-ok("revue : les 14 autres éléments inchangés", cards.length === 16 && cards.filter((c) => !c.slot.startsWith("curseur/")).every((c) => c.change === "unchanged"), JSON.stringify(cards.filter((c) => c.change !== "unchanged").map((c) => c.slot)));
+ok("revue : les 15 autres éléments inchangés (17 avec la case Icône du lot 83)", cards.length === 17 && cards.filter((c) => !c.slot.startsWith("curseur/")).every((c) => c.change === "unchanged"), JSON.stringify(cards.filter((c) => c.change !== "unchanged").map((c) => c.slot)));
 await page.screenshot({ path: `${SHOTS}/revue-import.png`, fullPage: true });
 await page.locator('.a-kit-card[data-slot="curseur/normal"]').screenshot({ path: `${SHOTS}/revue-import-curseur.png` });
 await Promise.all([page.waitForURL(/\/admin\/themes\?nouvelle=\d+&via=kit/, { timeout: 60000 }), page.getByRole("button", { name: /^Appliquer à mon thème/ }).click()]);
