@@ -445,6 +445,9 @@ function TextBar({
   tick: number;
 }) {
   const [scope, setScope] = useState<"local" | "role">(target.local ? "local" : "role");
+  // Redessin à chaque réglage : l'aperçu ne change que des attributs (la page n'est pas observée pour cela). Sans lui, la barre garde
+  // l'ancienne valeur jusqu'au prochain redessin de la page, et un second réglage fait aussitôt après écraserait le premier.
+  const [, redraw] = useState(0);
   const el = document.querySelector<HTMLElement>(target.path);
   void tick;
   // Le texte n'est plus là (la page s'est redessinée autrement, ex. le bloc a perdu son enveloppe) : la barre n'a plus de cible
@@ -533,7 +536,10 @@ function TextBar({
       </div>
       <TypoControls
         value={value}
-        onChange={change}
+        onChange={(v) => {
+          change(v);
+          redraw((n) => n + 1);
+        }}
         installed={installed}
         swatch={swatch}
         themeNames={themeNames}

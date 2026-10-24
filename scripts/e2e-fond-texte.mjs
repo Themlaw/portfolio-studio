@@ -444,6 +444,8 @@ if (run("D")) {
   // Couleur de texte choisie : conservée, alerte.
   await sleep(1000);
   await popToken(f, "ink").click();
+  // La barre se redessine tout de suite avec le choix (sinon un réglage fait aussitôt après repartirait de l'ancienne valeur et l'écraserait).
+  ok("D3b la fenêtre montre aussitôt la couleur de fond choisie (Texte)", await popToken(f, "ink").and(f.locator('[aria-checked="true"]')).waitFor({ timeout: 400 }).then(() => true, () => false));
   await settled();
   await f.locator('.lk-bar .tc-swatches [aria-label="Texte"]').click();
   await settled();
