@@ -269,9 +269,9 @@ test("R5 formats : plus de tableau « format -> aspect-ratio » en CSS ; le comp
   assert.equal(ratioCss("auto"), undefined);
   assert.equal(ratioCss(undefined), undefined);
   assert.equal(ratioCss("inconnu"), undefined);
-  assert.equal(ratioCss("4:3"), "calc(4 / 3)");
-  assert.equal(ratioCss("1:1"), "calc(1 / 1)");
-  for (const k of RATIO_VALUES) if (k !== "auto") assert.match(ratioCss(k), /^calc\(\d+ \/ \d+\)$/, k);
+  assert.equal(ratioCss("4:3"), "4 / 3");
+  assert.equal(ratioCss("1:1"), "1 / 1");
+  for (const k of RATIO_VALUES) if (k !== "auto") assert.match(ratioCss(k), /^\d+ \/ \d+$/, k);
   assert.match(read("src/blocks/ProfileBlock.tsx"), /"--box-r": ratioCss\(/);
   assert.match(read("src/components/CollectionTiles.tsx"), /"--box-r": ratioCss\(/);
   const look = read("src/app/look.css");
