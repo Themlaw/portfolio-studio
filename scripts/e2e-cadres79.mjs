@@ -2,7 +2,7 @@
 /**
  * Lot 79 « Cadres : l'IMAGE ne bouge pas, le cadre colle à son bord » (chromium, serveur requis, base neuve, une connexion admin).
  * Hotfix de la v0.30.0 : avec « Cadre du thème », une bande vide séparait l'image du cadre (bord rose festonné), et l'image rétrécissait quand
- * on passait de « Cadre du thème » à « Bande de couleur ». Les suites 62/64 passaient : leur cadre synthétique était régulier (épaisseurs
+ * on passait de « Cadre du thème » à « Bordure ». Les suites 62/64 passaient : leur cadre synthétique était régulier (épaisseurs
  * égales, aucun feston) et elles mesuraient la boîte extérieure, pas l'image.
  *
  * Le cadre ici est REALISTE (simulate-multi cadre79, généré par ce lot, jamais le kit réel) : bord extérieur festonné avec du transparent

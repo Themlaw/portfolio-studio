@@ -341,7 +341,7 @@ export function needsCrop(imageRatio: number, boxRatio: number): boolean {
 
 /**
  * Un seul choix par photo ou vidéo (lot 62) : « Aucun » (`none`), « Cadre du thème » (`theme` : le cadre dessiné dans le kit),
- * « Bande de couleur » (`band` : un filet d'épaisseur et de couleur choisies) ou, plus tard, un cadre de la bibliothèque
+ * « Bordure » (`band` : un filet d'épaisseur et de couleur choisies) ou, plus tard, un cadre de la bibliothèque
  * (`custom`, `id` = son identifiant ; lot 74 : proposé dans le menu « Cadre » sous le nom « Cadre perso », rendu par src/themes/frame-library.ts).
  * Sans choix (réglage absent), la photo suit le réglage du site « Cadre du thème sur toutes les photos » (non par défaut).
  */
@@ -352,7 +352,7 @@ export const FRAME_WIDTHS = ["fin", "moyen", "epais"] as const;
 export type FrameWidth = (typeof FRAME_WIDTHS)[number];
 export const FRAME_WIDTH_LABELS: Record<FrameWidth, string> = { fin: "Fin", moyen: "Moyen", epais: "Épais" };
 export const FRAME_DEFAULT_WIDTH: FrameWidth = "moyen";
-export const FRAME_KIND_LABELS: Record<FrameKind, string> = { none: "Aucun", theme: "Cadre du thème", band: "Bande de couleur", custom: "Cadre perso" };
+export const FRAME_KIND_LABELS: Record<FrameKind, string> = { none: "Aucun", theme: "Cadre du thème", band: "Bordure", custom: "Cadre perso" };
 /**
  * Couleur de la bande quand rien n'est choisi (« Couleur par défaut ») : le texte du thème (`ink`). C'est la seule teinte
  * lisible sur le papier de tous les thèmes livrés (l'ornement `tertiary` est presque invisible sur le thème Studio : 1,7:1)
@@ -365,7 +365,7 @@ const LEGACY_FRAME_WIDTHS: Record<string, FrameWidth> = { thin: "fin", medium: "
 
 /**
  * Ancien réglage de cadre (avant le lot 62 : `{ size: "thin" | "medium" | "thick" | "none", color? }`) → nouvelle forme, sans changer le
- * rendu d'un choix explicite : « none » = Aucun, une épaisseur = Bande de couleur de cette épaisseur. Une valeur déjà à la nouvelle forme,
+ * rendu d'un choix explicite : « none » = Aucun, une épaisseur = Bordure de cette épaisseur. Une valeur déjà à la nouvelle forme,
  * ou qui n'est pas un ancien cadre, est rendue telle quelle. Idempotent. Sert à la migration des données ET à la lecture (sauvegarde ancienne,
  * brouillon non migré).
  */

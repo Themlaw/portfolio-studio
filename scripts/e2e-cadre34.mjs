@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Lot 34 « cadre autour des photos » (chromium, serveur requis, base neuve, une connexion admin).
- *  I  Image seule : choix « Bande de couleur » (lot 62 : plus d'interrupteur), épaisseur Fin / Moyen / Épais, couleur par défaut, pastille de la
+ *  I  Image seule : choix « Bordure » (lot 62 : plus d'interrupteur), épaisseur Fin / Moyen / Épais, couleur par défaut, pastille de la
  *     palette, couleur libre ; rendu sur la toile (style calculé), enregistré dans `look.frame`.
  *  G  Case de grille : même réglage ; la case garde sa taille extérieure (celle de ses voisines), rien n'est rogné.
  *  B  Image d'une planche de projet : bouton « Cadre » de la barre de l'image, enregistré dans `look.slotLook[slug].frame` (par emplacement).
@@ -178,7 +178,7 @@ async function openMenu(fr, uid) {
   await dlg.waitFor({ timeout: 15000 });
   return dlg;
 }
-// Lot 62 : plus d'interrupteurs : UN choix (Aucun · Cadre du thème · Bande de couleur). `sw` = le choix « Bande de couleur » (ce que l'interrupteur
+// Lot 62 : plus d'interrupteurs : UN choix (Aucun · Cadre du thème · Bordure). `sw` = le choix « Bordure » (ce que l'interrupteur
 // « Cadre » activait), `sizeBtn` = l'épaisseur (thin/medium/thick = Fin/Moyen/Épais).
 const sw = (dlg) => dlg.locator('[data-frame-kind="band"]');
 const WIDTH = { thin: "fin", medium: "moyen", thick: "epais" };
@@ -200,7 +200,7 @@ if (run("I"))
     ok("I0 aucun cadre par défaut : ni bordure, ni réglage", [base.solo, base.ga, base.gb, base.aa, base.slot].every((s) => s && s.top === 0 && s.left === 0) && !lookOfDraft("solo"), JSON.stringify(base.solo));
     const dlg = await openMenu(f, "solo");
     await page.screenshot({ path: path.join(SHOTS, "i0-menu-sans-cadre.png") });
-    ok("I1 le choix « Bande de couleur » n'est pas coché au départ : ni épaisseur ni couleur", (await sw(dlg).getAttribute("aria-checked")) === "false" && (await dlg.locator("[data-frame-width]").count()) === 0);
+    ok("I1 le choix « Bordure » n'est pas coché au départ : ni épaisseur ni couleur", (await sw(dlg).getAttribute("aria-checked")) === "false" && (await dlg.locator("[data-frame-width]").count()) === 0);
     await sw(dlg).click();
     ok("I2 allumé : épaisseur et couleur apparaissent, Moyen choisi", (await sw(dlg).getAttribute("aria-checked")) === "true" && (await sizeBtn(dlg, "medium").getAttribute("aria-checked")) === "true" && (await dlg.getByRole("radio", { name: "Couleur par défaut" }).getAttribute("aria-checked")) === "true");
     ok("I2 enregistré : look.frame = { kind: band, width: moyen }", await waitFor(() => isBand(lookOfDraft("solo")?.frame, "moyen"), 30000), JSON.stringify(lookOfDraft("solo")));

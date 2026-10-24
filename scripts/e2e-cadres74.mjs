@@ -7,7 +7,7 @@
  *     asymétrique, SVG) ; le bord est repéré (haut/droite/bas/gauche) ; renommer, épaisseur, persistance.
  *  A  Rendu : image seule, case de grille, vidéo, deux places d'un carrousel ; la taille ne change pas (la boîte extérieure, ou l'image
  *     elle-même, identique à « Aucun » à ±1 px) ; couleur aux coins ; le choix survit au rechargement et à la publication (public ET toile).
- *  M  Menu « Cadre » de la toile : Aucun · Cadre du thème · Bande de couleur · Cadre perso ; vignettes ; « + Importer un cadre » ; données
+ *  M  Menu « Cadre » de la toile : Aucun · Cadre du thème · Bordure · Cadre perso ; vignettes ; « + Importer un cadre » ; données
  *     `look.frame = { kind: "custom", id }`.
  *  D  Supprimer un cadre utilisé : « utilisé par N images », elles repassent à « Aucun » (publié ET brouillon), rien de cassé.
  *  Z  Après : la page de départ est identique au pixel.
@@ -309,7 +309,7 @@ if (run("M"))
     if (!(await dlg.isVisible().catch(() => false))) await fr.locator('.pe-tools [data-testid="frame-button"]').click();
     await dlg.waitFor({ timeout: 15000 });
     const labels = (await dlg.locator("[data-frame-kind]").allTextContents()).map((t) => t.trim()).join(" · ");
-    ok("M1 le menu : Aucun · Cadre du thème · Bande de couleur · Cadre perso", labels === "Aucun · Cadre du thème · Bande de couleur · Cadre perso", labels);
+    ok("M1 le menu : Aucun · Cadre du thème · Bordure · Cadre perso", labels === "Aucun · Cadre du thème · Bordure · Cadre perso", labels);
     await dlg.locator('[data-frame-kind="custom"]').click();
     const thumbs = dlg.locator(".fr-thumb");
     await thumbs.first().waitFor({ timeout: 15000 });

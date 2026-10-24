@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Cadre autour d'une photo ou d'une vidéo (lots 34 et 62) : UN seul choix, « Aucun · Cadre du thème · Bande de couleur » (boutons
+ * Cadre autour d'une photo ou d'une vidéo (lots 34 et 62) : UN seul choix, « Aucun · Cadre du thème · Bordure » (boutons
  * radio : ce qui s'affiche est exactement le choix coché). « Cadre du thème » (le cadre dessiné dans le kit) n'est proposé que si le thème
- * en dessine un. « Bande de couleur » montre l'épaisseur (Fin / Moyen / Épais) et la couleur : « Couleur par défaut » (la couleur du
+ * en dessine un. « Bordure » montre l'épaisseur (Fin / Moyen / Épais) et la couleur : « Couleur par défaut » (la couleur du
  * texte du thème : elle suit le thème), une pastille de la palette du site, ou une couleur libre (le sélecteur du lot 29, `ColorPicker`).
  * Sans choix, la photo suit le réglage du site « Cadre du thème sur toutes les photos » (Admin → Thèmes, non par défaut) : c'est ce que
  * le menu coche alors.

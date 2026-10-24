@@ -6,7 +6,7 @@
  *      captures avant (stretch) / après (round) sur un panorama et une vignette.
  *  CB  Option B (un coin + un côté) : la revue le dit, le cadre est fabriqué par rotation (coins et côtés aux 4 bords).
  *  CS  Lot 62 : le cadre du kit n'est posé que sur le choix « Cadre du thème » (public ET toile) ; une photo sans choix n'en a pas, « Aucun » non plus ;
- *      le bouton Cadre propose « Aucun · Cadre du thème · Bande de couleur ».
+ *      le bouton Cadre propose « Aucun · Cadre du thème · Bordure ».
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=CA,CB,CS] [SHOTS=dossier] node scripts/e2e-cadremotif58.mjs
  */
 import { execFileSync } from "node:child_process";
@@ -326,7 +326,7 @@ if (run("CS"))
     await fr.locator('.pe-tools [data-testid="frame-button"]').click({ timeout: 15000 }).catch(() => {});
     const dlg = fr.getByRole("dialog", { name: "Cadre de la photo" });
     const menu = (await dlg.locator("[data-frame-kind]").allTextContents().catch(() => [])).map((t) => t.trim()).join(" · ");
-    ok("CS5 le bouton Cadre propose « Aucun · Cadre du thème · Bande de couleur »", menu === "Aucun · Cadre du thème · Bande de couleur · Cadre perso", menu);
+    ok("CS5 le bouton Cadre propose « Aucun · Cadre du thème · Bordure »", menu === "Aucun · Cadre du thème · Bordure · Cadre perso", menu);
     if (menu) {
       await dlg.locator('[data-frame-kind="theme"]').click();
       await sleep(1500);

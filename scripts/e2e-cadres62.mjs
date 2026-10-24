@@ -5,7 +5,7 @@
  *
  *  K  Défaut : sans réglage, aucune photo n'a le cadre du thème (public ET toile), même avec un thème qui en dessine un ; l'écran Thèmes
  *     montre « Cadre du thème sur toutes les photos », sur Non.
- *  E  Menu « Cadre » d'une photo : UN choix (Aucun · Cadre du thème · Bande de couleur), plus d'interrupteurs ; ce qui est coché est ce qui
+ *  E  Menu « Cadre » d'une photo : UN choix (Aucun · Cadre du thème · Bordure), plus d'interrupteurs ; ce qui est coché est ce qui
  *     s'affiche (toile ET public) ; la bande montre Épaisseur et Couleur, pas les autres ; « Suivre le réglage du site » ; données `look.frame`.
  *  S  Réglage du site : Oui → les photos SANS choix ont le cadre du thème (toile, public) et le menu le coche ; un choix explicite passe avant ;
  *     Non → il disparaît partout.
@@ -222,7 +222,7 @@ if (run("E"))
     const E1 = '[data-edit-block="e1"] .media-frame';
     const dlg = await openMenu(fr, "e1");
     await shot(page, "e-menu-aucun");
-    ok("E1 le menu : trois boutons radio « Aucun · Cadre du thème · Bande de couleur » (le thème dessine un cadre)", (await dlg.locator("[data-frame-kind]").allTextContents()).map((t) => t.trim()).join(" · ") === "Aucun · Cadre du thème · Bande de couleur · Cadre perso");
+    ok("E1 le menu : trois boutons radio « Aucun · Cadre du thème · Bordure » (le thème dessine un cadre)", (await dlg.locator("[data-frame-kind]").allTextContents()).map((t) => t.trim()).join(" · ") === "Aucun · Cadre du thème · Bordure · Cadre perso");
     ok("E2 plus d'interrupteurs « Cadre » / « Sans cadre »", (await dlg.getByRole("switch").count()) === 0 && (await dlg.locator('[data-testid="frame-switch"], [data-testid="frame-none"]').count()) === 0 && !/Sans cadre/.test((await dlg.textContent()) ?? ""));
     ok("E3 sans choix et sans réglage du site : « Aucun » est coché, aucune épaisseur ni couleur", (await checked(kindBtn(dlg, "none"))) && !(await checked(kindBtn(dlg, "theme"))) && !(await checked(kindBtn(dlg, "band"))) && (await dlg.locator("[data-frame-width]").count()) === 0 && (await dlg.locator("[data-frame-color]").count()) === 0);
     ok("E3b … et la photo n'a aucun cadre", (await shown(fr, E1))[0].kind === "none");
@@ -234,10 +234,10 @@ if (run("E"))
     ok("E4c épaisseur et couleur n'apparaissent pas pour le cadre du thème", (await dlg.locator("[data-frame-width], [data-frame-color]").count()) === 0);
     await shot(page, "e-menu-theme");
 
-    // Bande de couleur : REMPLACE le cadre du thème (un seul à la fois).
+    // Bordure : REMPLACE le cadre du thème (un seul à la fois).
     await kindBtn(dlg, "band").click();
     let s;
-    ok("E5 « Bande de couleur » : coché ; le cadre du thème a DISPARU et un filet de couleur le remplace", await waitFor(async () => { s = (await shown(fr, E1))[0]; return s.kind === "band" && s.w > 2; }, 30000) && (await checked(kindBtn(dlg, "band"))) && !(await checked(kindBtn(dlg, "theme"))), JSON.stringify(s));
+    ok("E5 « Bordure » : coché ; le cadre du thème a DISPARU et un filet de couleur le remplace", await waitFor(async () => { s = (await shown(fr, E1))[0]; return s.kind === "band" && s.w > 2; }, 30000) && (await checked(kindBtn(dlg, "band"))) && !(await checked(kindBtn(dlg, "theme"))), JSON.stringify(s));
     ok("E5b Épaisseur (Fin / Moyen / Épais, Moyen coché) et Couleur apparaissent", (await dlg.locator("[data-frame-width]").allTextContents()).join() === "Fin,Moyen,Épais" && (await checked(widthBtn(dlg, "moyen"))) && (await dlg.locator("[data-frame-color]").count()) >= 5);
     ok("E5c enregistré : look.frame = { kind: band, width: moyen }", await waitFor(() => JSON.stringify(lookOf(PHOTOS, "e1")?.frame) === '{"kind":"band","width":"moyen"}', 30000), JSON.stringify(lookOf(PHOTOS, "e1")));
     await shot(page, "e-menu-bande");
@@ -339,7 +339,7 @@ if (run("M"))
     info("M toile", c);
     ok("M1 toile : « Sans cadre » ancien = aucun cadre ; Épais + couleur du thème = bande épaisse ; Fin = 2 px ; Moyen + couleur libre = rgb(18, 171, 52) ; sans réglage = aucun", c[0]?.kind === "none" && c[1]?.kind === "band" && c[1].w > 6 && c[2]?.kind === "band" && c[2].w === 2 && c[3]?.kind === "band" && c[3].color === "rgb(18, 171, 52)" && c[3].w > 2 && c[3].w < c[1].w && c[4]?.kind === "none", JSON.stringify(c));
     const dlg = await openMenu(fr, "m2");
-    ok("M2 le menu relit un ancien choix : « Bande de couleur », Épais, couleur « Boutons et liens »", (await checked(kindBtn(dlg, "band"))) && (await checked(widthBtn(dlg, "epais"))) && (await checked(dlg.locator('[data-frame-color="primary"]'))));
+    ok("M2 le menu relit un ancien choix : « Bordure », Épais, couleur « Boutons et liens »", (await checked(kindBtn(dlg, "band"))) && (await checked(widthBtn(dlg, "epais"))) && (await checked(dlg.locator('[data-frame-color="primary"]'))));
     await page.keyboard.press("Escape");
     await settled();
     await page.getByRole("button", { name: "Publier", exact: true }).click();
@@ -403,9 +403,9 @@ if (run("V"))
 
     // 2. Le menu de la vidéo seule : mêmes choix que la photo.
     const dlg = await openMenu(fr, "v3", "vidéo");
-    ok("V8 menu de la vidéo seule : « Aucun · Cadre du thème · Bande de couleur », Aucun coché", (await dlg.locator("[data-frame-kind]").allTextContents()).map((t) => t.trim()).join(" · ") === "Aucun · Cadre du thème · Bande de couleur · Cadre perso" && (await checked(kindBtn(dlg, "none"))));
+    ok("V8 menu de la vidéo seule : « Aucun · Cadre du thème · Bordure », Aucun coché", (await dlg.locator("[data-frame-kind]").allTextContents()).map((t) => t.trim()).join(" · ") === "Aucun · Cadre du thème · Bordure · Cadre perso" && (await checked(kindBtn(dlg, "none"))));
     await kindBtn(dlg, "band").click();
-    ok("V9 Bande de couleur sur la vidéo : enregistrée comme pour une photo { kind: band, width: moyen }, visible sur la toile", await waitFor(async () => JSON.stringify(lookOf(VIDEOS, "v3")?.frame) === '{"kind":"band","width":"moyen"}' && (await shown(fr, '[data-edit-block="v3"] .media-frame[data-kind="video"]'))[0].kind === "band", 30000), JSON.stringify(lookOf(VIDEOS, "v3")));
+    ok("V9 Bordure sur la vidéo : enregistrée comme pour une photo { kind: band, width: moyen }, visible sur la toile", await waitFor(async () => JSON.stringify(lookOf(VIDEOS, "v3")?.frame) === '{"kind":"band","width":"moyen"}' && (await shown(fr, '[data-edit-block="v3"] .media-frame[data-kind="video"]'))[0].kind === "band", 30000), JSON.stringify(lookOf(VIDEOS, "v3")));
     await widthBtn(dlg, "epais").click();
     await kindBtn(dlg, "theme").click();
     ok("V10 Cadre du thème sur la vidéo : le cadre dessiné remplace la bande", await waitFor(async () => (await shown(fr, '[data-edit-block="v3"] .media-frame[data-kind="video"]'))[0].kind === "theme" && lookOf(VIDEOS, "v3")?.frame?.kind === "theme", 30000));
@@ -612,7 +612,7 @@ if (run("T"))
     ok("T0 page publiée", done);
     const fr = await openEditor(PHOTOS);
     const dlg = await openMenu(fr, "p1");
-    ok("T2 le menu ne propose que « Aucun · Bande de couleur »", (await dlg.locator("[data-frame-kind]").allTextContents()).map((t) => t.trim()).join(" · ") === "Aucun · Bande de couleur · Cadre perso");
+    ok("T2 le menu ne propose que « Aucun · Bordure »", (await dlg.locator("[data-frame-kind]").allTextContents()).map((t) => t.trim()).join(" · ") === "Aucun · Bordure · Cadre perso");
     await page.keyboard.press("Escape");
     const d3 = await openMenu(fr, "p3");
     ok("T3 une photo qui avait choisi « Cadre du thème » le montre (coché, avec la phrase qui dit que le thème n'en dessine pas)", (await checked(kindBtn(d3, "theme"))) && /ne dessine pas de cadre/.test((await d3.textContent()) ?? ""));
