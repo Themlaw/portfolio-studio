@@ -331,7 +331,12 @@ if (run("B") || run("C"))
   ok("B3 brouillon : color = jeton « primary »", await waitFor(() => inkBlocks()[0]?.props.surface?.color === "primary"));
   const para = f.locator(`[data-edit-block="${uidFirst}"] [data-inline="paragraphs.0"]`);
   const colors = async (loc) => loc.evaluate((el) => ({ fg: getComputedStyle(el).color, bg: getComputedStyle(el.closest(".surface-card")).backgroundColor }));
-  const c1 = await colors(para);
+  let c1 = await colors(para);
+  // Couleur en cours de transition : le navigateur la rend parfois en `color(srgb …)` ; on attend une valeur rgb() stable.
+  for (let i = 0; i < 20 && (!rgbOf(c1.fg) || !rgbOf(c1.bg)); i++) {
+    await sleep(150);
+    c1 = await colors(para);
+  }
   ok("B3 texte lisible dans la carte « Action » (≥ 4,5:1)", ratio(rgbOf(c1.fg), rgbOf(c1.bg)) >= 4.5, `${c1.fg} sur ${c1.bg} = ${ratio(rgbOf(c1.fg), rgbOf(c1.bg)).toFixed(2)}`);
 
   // Couleur perso par « Autre couleur… ».
