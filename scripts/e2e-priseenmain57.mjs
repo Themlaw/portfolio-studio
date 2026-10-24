@@ -83,7 +83,7 @@ await section("P", async () => {
   if (!(await box.isVisible().catch(() => false))) return;
   const steps = await box.locator("li[data-step]").evaluateAll((l) => l.map((e) => ({ key: e.getAttribute("data-step"), done: e.hasAttribute("data-done"), href: e.querySelector("a")?.getAttribute("href"), text: (e.querySelector("p")?.textContent ?? "").trim() })));
   ok("P2 cinq étapes, chacune avec une phrase et un lien direct", steps.length === 5 && steps.every((s) => s.text.length > 20 && s.href?.startsWith("/admin/")), JSON.stringify(steps));
-  ok("P3 liens : thèmes, projets, pages, pages, réglages", JSON.stringify(steps.map((s) => s.href)) === JSON.stringify(["/admin/themes", "/admin/projets", "/admin/pages", "/admin/pages", "/admin/reglages"]), JSON.stringify(steps.map((s) => s.href)));
+  ok("P3 liens : thèmes, projets, pages, pages, réglages", JSON.stringify(steps.map((s) => s.href)) === JSON.stringify(["/admin/themes", "/admin/pages#projets", "/admin/pages", "/admin/pages", "/admin/reglages"]), JSON.stringify(steps.map((s) => s.href)));
   ok("P4 l'explication d'un projet dit qu'il faut une page", /visible que si une page l.affiche/.test(steps[2].text), steps[2].text);
   const state = () => box.locator("li[data-step]").evaluateAll((l) => l.map((e) => e.hasAttribute("data-done")));
   const before = await state();
@@ -134,7 +134,7 @@ await section("P", async () => {
 /* ---- U. Envoi depuis un projet -------------------------------------------------------------------------------------------- */
 let proj = null;
 await section("U", async () => {
-  await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Nouveau projet" }).click();
   await page.getByLabel("Titre en français").fill("Projet 57");
   await page.getByRole("button", { name: "Créer le projet" }).click();

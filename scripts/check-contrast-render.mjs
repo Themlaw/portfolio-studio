@@ -222,7 +222,7 @@ if (ADMIN_MODE) {
   }
   const login = await page.request.post(`${BASE}/api/auth/sign-in/email`, { data: { email, password }, headers: { origin: BASE } });
   if (!login.ok()) throw new Error(`connexion admin refusée (${login.status()})`);
-  for (const [label, path] of [["tableau", "/admin"], ["themes", "/admin/themes"], ["pages", "/admin/pages"], ["page-edit", "/admin/pages/1"], ["reglages", "/admin/reglages"], ["projets", "/admin/projets"], ["projet", "/admin/projets/1"], ["medias", "/admin/medias"]]) {
+  for (const [label, path] of [["tableau", "/admin"], ["themes", "/admin/themes"], ["pages", "/admin/pages"], ["page-edit", "/admin/pages/1"], ["reglages", "/admin/reglages"], ["sauvegardes", "/admin/sauvegardes"], ["projet", "/admin/projets/1"], ["medias", "/admin/medias"]]) {
     await prepare(page, `${BASE}${path}`);
     for (const g of ADMIN_GROUPS) {
       const r = await measureGroup(page, g);

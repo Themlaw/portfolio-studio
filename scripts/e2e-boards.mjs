@@ -410,7 +410,7 @@ await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubriqu
 await settled();
 await page.getByRole("button", { name: "Publier" }).click();
 await until(page.mainFrame(), () => /Publié : la page est en ligne/.test(document.body.innerText), null, 60000);
-await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
+await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
 const row = page.locator("tr, li, article").filter({ hasText: PROJECT }).first();
 await row.getByRole("button", { name: "Supprimer" }).click();
 await page.getByRole("dialog").getByRole("button", { name: "Supprimer le projet" }).click();

@@ -562,7 +562,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /Message/.test(name) ? "/admin/messages"
     // Lot 61 : la bibliothèque des papiers peints est un onglet de l'éditeur de thème (l'ancienne adresse redirige).
     : /[wW]allpaper/.test(name) ? "/admin/themes/galerie-lumineuse"
-    : /^(create|delete|reorder|restore)Projects?Action$/.test(name) ? "/admin/projets"
+    : /^(create|delete|reorder|restore)Projects?Action$/.test(name) ? "/admin/pages"
     : /Project|Slot/.test(name) ? "/admin/projets/1"
     : /^media|Media|Uploads|Tag/.test(name) ? "/admin/medias"
     : "/admin/pages";
@@ -710,7 +710,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   // Suppressions refusées : un brouillon utilise la page, le projet, le média.
   res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "Cible ED", en: "Target ED" }, slug: { fr: "cible-ed", en: "target-ed" } }], "/admin/pages");
   const targetPage = Number(/"ok":true,"data":\{"id":(\d+)\}/.exec(res.text)?.[1]);
-  res = await callActionJson(jar, ids.createProjectAction, [{ title: { fr: "Projet ED", en: "" } }], "/admin/projets");
+  res = await callActionJson(jar, ids.createProjectAction, [{ title: { fr: "Projet ED", en: "" } }], "/admin/pages");
   const targetProject = Number(/"ok":true,"data":\{"id":(\d+)\}/.exec(res.text)?.[1]);
   const projectSlug = query(dirA, "select slug from projects where id = ?", targetProject).slug;
   const png = await sharp({ create: { width: 32, height: 24, channels: 3, background: "#2e4e9e" } }).png().toBuffer();
@@ -730,7 +730,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("ED9 brouillon qui cite une page, un projet et un média neufs", isOk(res) && Boolean(targetPage && targetProject && targetMedia), line(res));
   res = await callActionJson(jar, ids.deletePageAction, [targetPage], "/admin/pages");
   ok("ED9b supprimer une page utilisée seulement par un brouillon → refusé", res.text.includes("references") && res.text.includes('"ok":false'), line(res));
-  res = await callActionJson(jar, ids.deleteProjectAction, [targetProject], "/admin/projets");
+  res = await callActionJson(jar, ids.deleteProjectAction, [targetProject], "/admin/pages");
   ok("ED9c supprimer un projet utilisé seulement par un brouillon → refusé", res.text.includes("references") && res.text.includes('"ok":false'), line(res));
   res = await callActionJson(jar, ids.deleteMediaAction, [targetMedia], "/admin/medias");
   ok("ED9d supprimer un média utilisé seulement par un brouillon → refusé", res.text.includes("references") && res.text.includes('"ok":false'), line(res));
@@ -842,7 +842,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("ED18 page supprimée (son brouillon part avec elle)", isOk(res), line(res));
   res = await publish(goneRev, targetPage);
   ok("ED18b publier le brouillon d'une page supprimée → refus propre", res.status === 200 && res.text.includes('"ok":false') && res.text.includes("n'existe plus"), `${res.status} ${line(res)}`);
-  await callActionJson(jar, ids.deleteProjectAction, [targetProject], "/admin/projets");
+  await callActionJson(jar, ids.deleteProjectAction, [targetProject], "/admin/pages");
 
   // Quitter l'aperçu arrête la vue brouillon.
   await save(draft, pageRev(homeId));
@@ -988,7 +988,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   r = await rscGet();
   const rsc = await r.text();
   ok("BD3f charge RSC anonyme (en-têtes de routeur complets, _rsc suivi) : rien du brouillon", r.status === 200 && (r.headers.get("content-type") ?? "").includes("text/x-component") && !rsc.includes(TITLE) && !rsc.includes(RENAMED) && !rsc.includes(variant(mC)), `${r.status} ${r.headers.get("content-type")}`);
-  r = await http("/admin/projets", { jar });
+  r = await http("/admin/pages", { jar });
   ok("BD3g écran Projets : projets en brouillon absents", !/Projet de planche BD|Projet A BD/.test(await r.text()));
 
   await cold("BD4");
@@ -1026,7 +1026,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("BD5g écran Projets : modifier un projet en brouillon → refusé", res.text.includes('"ok":false') && query(dirA, "select featured f from projects where id = ?", created.id).f === 0, line(res));
   res = await callActionJson(jar, ids.addSlotsAction, [created.id, [mX]], `/admin/projets/${Q.id}`);
   ok("BD5h écran Projets : ajouter à un projet en brouillon → refusé", res.text.includes('"ok":false'), line(res));
-  res = await callActionJson(jar, ids.deleteProjectAction, [created.id], "/admin/projets");
+  res = await callActionJson(jar, ids.deleteProjectAction, [created.id], "/admin/pages");
   ok("BD5i écran Projets : supprimer un projet en brouillon → refusé", res.text.includes('"ok":false') && Boolean(query(dirA, "select id from projects where id = ?", created.id)), line(res));
 
   // Bornes, formes, médias pas prêts, version.
@@ -1152,7 +1152,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   // Remise en état : planches retirées de l'accueil, projet supprimé.
   const homeRow = query(dirA, "select title, slug, meta, published, nav_order from pages where id = ?", homeId);
   res = await savePageForm(jar, homeId, { title: JSON.parse(homeRow.title), slug: JSON.parse(homeRow.slug), meta: homeRow.meta ? JSON.parse(homeRow.meta) : { title: { fr: "", en: "" }, description: { fr: "", en: "" } }, published: true, inMenu: homeRow.nav_order !== null, accent: null, blocks: homeBlocks }, pageRev(homeId), `/admin/pages/${homeId}`);
-  const del = await callActionJson(jar, ids.deleteProjectAction, [created.id], "/admin/projets");
+  const del = await callActionJson(jar, ids.deleteProjectAction, [created.id], "/admin/pages");
   ok("BD12 remise en état (planches retirées, projet supprimé → corbeille)", isOk(res) && isOk(del) && Boolean(query(dirA, "select deleted_at d from projects where id = ?", created.id)?.d), `${line(res)} ${line(del)}`);
 }
 {
@@ -1213,7 +1213,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   res = await callActionJson(jar, ids.deletePageAction, [homeId], "/admin/pages");
   ok("A15b l'accueil ne se supprime pas", res.text.includes("accueil ne se supprime pas"));
   // Corbeille (lot 23) : supprimer = mettre à la corbeille, restaurer ; identifiants invalides refusés (client forgé).
-  for (const [name, screen] of [["restorePageAction", "/admin/pages"], ["restoreProjectAction", "/admin/projets"], ["restoreMediaAction", "/admin/medias"], ["deletePageAction", "/admin/pages"], ["deleteProjectAction", "/admin/projets"], ["deleteMediaAction", "/admin/medias"]]) {
+  for (const [name, screen] of [["restorePageAction", "/admin/pages"], ["restoreProjectAction", "/admin/pages"], ["restoreMediaAction", "/admin/medias"], ["deletePageAction", "/admin/pages"], ["deleteProjectAction", "/admin/pages"], ["deleteMediaAction", "/admin/medias"]]) {
     const bad = [];
     for (const arg of ["x", -1, 0, 1.5, null, {}, [1], 1e21, 999999]) {
       const r = await callActionJson(jar, ids[name], [arg], screen);

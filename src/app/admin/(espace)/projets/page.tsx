@@ -1,21 +1,9 @@
-import PageHeader from "@/components/admin/PageHeader";
-import ProjectsManager from "@/components/admin/ProjectsManager";
-import TrashViews from "@/components/admin/TrashViews";
-import { getTrashSummary, legacyFeaturedPages, listProjectsForAdmin, listTrashedProjects } from "@/lib/admin";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Projets" };
-
+/**
+ * L'ancien onglet « Projets » (lot 76) n'existe plus : les projets se créent sur la toile, et la liste (ordre, suppression,
+ * corbeille) est dans Pages, section « Projets ». L'écran d'UN projet (/admin/projets/<id>) reste.
+ */
 export default async function ProjectsPage({ searchParams }: { searchParams: Promise<{ vue?: string }> }) {
-  const view = (await searchParams).vue === "corbeille" ? "corbeille" : "liste";
-  const trashed = listTrashedProjects();
-  return (
-    <>
-      <PageHeader
-        title="Projets"
-        intro="Rassemble tes images par projet : chaque projet a sa planche. Un projet n'est visible sur le site que si une page l'affiche. Fais glisser les cartes pour choisir l'ordre des projets sur le site."
-      />
-      <TrashViews base="/admin/projets" label="Projets" view={view} trashCount={trashed.length} />
-      <ProjectsManager projects={listProjectsForAdmin()} trashed={trashed} view={view} showFeatured={legacyFeaturedPages().length > 0} summary={getTrashSummary()} />
-    </>
-  );
+  redirect((await searchParams).vue === "corbeille" ? "/admin/pages?vue=corbeille" : "/admin/pages#projets");
 }

@@ -406,7 +406,7 @@ function MediaDetail({ media, onClose, onDeleted }: { media: AdminMediaRow; onCl
           {uses.map((u, i) =>
             u.kind === "slot" ? (
               <li key={i}>
-                Planche <Link href={u.trashed ? "/admin/projets?vue=corbeille" : `/admin/projets/${u.projectId}`}>{u.projectTitle}</Link> · {u.slotTitle}
+                Planche <Link href={u.trashed ? "/admin/pages?vue=corbeille" : `/admin/projets/${u.projectId}`}>{u.projectTitle}</Link> · {u.slotTitle}
                 {u.draftPage && <span className="muted"> (brouillon non publié de la page « {u.draftPage} »)</span>}
                 {u.trashed && <span className="muted"> (projet à la corbeille)</span>}
               </li>
