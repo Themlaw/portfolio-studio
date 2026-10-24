@@ -122,3 +122,44 @@ export function frameLibraryCss(list: readonly FrameEntry[]): string {
 /** Données d'une entrée pour la toile (menu « Cadre perso ») : léger, sérialisable. */
 export type FrameChoice = { id: string; name: string; thumb: string };
 export const frameChoiceOf = (e: FrameEntry): FrameChoice => ({ id: e.id, name: e.name, thumb: frameThumb(e) });
+
+/* ---- Où un cadre sert : parcours des JSON (blocs, brouillons, planches) -------------------------------------------------------- */
+
+type Json = Record<string, unknown>;
+const isObj = (v: unknown): v is Json => Boolean(v) && typeof v === "object" && !Array.isArray(v);
+const customId = (v: unknown): string | null => (isObj(v) && v.kind === "custom" && typeof v.id === "string" ? v.id : null);
+
+/**
+ * Parcourt un arbre JSON et visite chaque cadre perso (`frame` d'une image seule / case / composant / image de la Planche libre, et
+ * chaque valeur de `slotFrame`). `visit(id)` rend vrai pour retirer le cadre : il est remplacé EN PLACE par `{ kind: "none" }`
+ * (« Aucun »), l'image n'est jamais cassée. Rend le nombre de cadres visités et si quelque chose a changé.
+ */
+export function visitCustomFrames(node: unknown, visit: (id: string) => boolean): { found: number; changed: boolean } {
+  let found = 0;
+  let changed = false;
+  const walk = (n: unknown) => {
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (!isObj(n)) return;
+    for (const [key, value] of Object.entries(n)) {
+      if (key === "frame" && customId(value) !== null) {
+        found++;
+        if (visit(customId(value)!)) {
+          n[key] = { kind: "none" };
+          changed = true;
+        }
+      } else if (key === "slotFrame" && isObj(value)) {
+        for (const [slug, f] of Object.entries(value)) {
+          const id = customId(f);
+          if (id === null) continue;
+          found++;
+          if (visit(id)) {
+            value[slug] = { kind: "none" };
+            changed = true;
+          }
+        }
+      } else walk(value);
+    }
+  };
+  walk(node);
+  return { found, changed };
+}
