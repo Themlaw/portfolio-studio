@@ -14,7 +14,7 @@ const DIR = path.join(tmpdir(), "e2e-cadres62-kit");
 mkdirSync(DIR, { recursive: true });
 
 /** Met en ligne un thème Studio dont le cadre du kit est dessiné (cadre58a). Idempotent côté appelant : à n appeler qu une fois. `onDraft(id)` : retouche facultative de la copie brouillon avant la mise en ligne. */
-export async function installKitFrameTheme(page, base, onDraft) {
+export async function installKitFrameTheme(page, base, onDraft, cmd = "cadre58a") {
   const kitUrl = `${base}/admin/api/theme-kit/studio`;
   let ready = false;
   for (let i = 0; i < 90 && !ready; i++) {
@@ -25,8 +25,8 @@ export async function installKitFrameTheme(page, base, onDraft) {
   if (!ready) throw new Error("export du kit non prêt");
   const kitZip = path.join(DIR, "kit-studio.zip");
   writeFileSync(kitZip, await (await page.request.get(kitUrl)).body());
-  const edited = path.join(DIR, "retour-cadre58a.zip");
-  execFileSync(process.execPath, ["--import", "tsx", "scripts/kit-poc/simulate-multi.mts", "cadre58a", kitZip, edited], { stdio: "inherit" });
+  const edited = path.join(DIR, `retour-${cmd}.zip`);
+  execFileSync(process.execPath, ["--import", "tsx", "scripts/kit-poc/simulate-multi.mts", cmd, kitZip, edited], { stdio: "inherit" });
   await page.goto(`${base}/admin/themes/studio/kit`, { waitUntil: "networkidle" });
   await page.setInputFiles("[data-testid=\"kit-file\"]", edited);
   await page.waitForURL(/\/kit\?import=/, { timeout: 180000 });

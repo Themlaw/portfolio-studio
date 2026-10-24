@@ -93,18 +93,22 @@ const urlOf = (i: FrameEntry["image"]) => (i.svg ? `url("${i.svg}")` : `image-se
 /** Vignette : le fichier le plus simple à afficher (SVG, sinon WebP). */
 export const frameThumb = (e: Pick<FrameEntry, "image">): string => e.image.svg ?? e.image.webp ?? "";
 
-/** Règle CSS d'un cadre. Le sélecteur est plus précis que `.media-frame` : la bordure et les variables de cadre sont posées ici, nulle part ailleurs. */
+/**
+ * Règle CSS d'un cadre. Même mécanique que le cadre du kit depuis le lot 79 (src/themes/variants.css) : la photo garde sa taille et sa place,
+ * la bordure l'entoure en DÉPASSANT (marges négatives posées par `.media-frame` d'après `--fbt/--fbr/--fbb/--fbl`), plafonnée à la place
+ * laissée autour (`--room`). Épaisseurs entières (px) ; le sélecteur est plus précis que `.media-frame`.
+ */
 export function frameRule(e: FrameEntry): string {
-  const [t, r, b, l] = frameWidths(e);
+  const w = frameWidths(e);
   const [st, sr, sb, sl] = e.slice;
-  const top = t;
+  const max = Math.max(...w);
+  const side = (n: number) => `round(calc(${n} * var(--cf-k)),1px)`;
   return (
     `.media-frame[data-frame="custom"][data-frame-id="${e.id}"]{` +
-    // Réduit sur petit écran / petite photo (jamais plus de 4 % de la largeur pour le haut, 16 % de la boîte) : comme le cadre du kit.
-    `--cf-k:min(1px,calc(4vw / ${top}),calc(var(--cap-w,100vw) * 0.16 / ${top}));` +
-    `--bx:calc(${l + r} * var(--cf-k));--by:calc(${t + b} * var(--cf-k));` +
-    `border-style:solid;border-color:transparent;` +
-    `border-width:calc(${t} * var(--cf-k)) calc(${r} * var(--cf-k)) calc(${b} * var(--cf-k)) calc(${l} * var(--cf-k));` +
+    // Réduit sur petit écran / petite photo / peu de place autour : jamais plus de 4 % de la largeur, 16 % de la boîte, ni la place libre.
+    `--cf-k:min(1px,calc(4vw / ${max}),calc(var(--cap-w,100vw) * 0.16 / ${max}),calc(var(--room,24px) / ${max}));` +
+    `--fbt:${side(w[0])};--fbr:${side(w[1])};--fbb:${side(w[2])};--fbl:${side(w[3])};` +
+    `border-style:solid;border-color:transparent;border-width:var(--fbt) var(--fbr) var(--fbb) var(--fbl);` +
     `border-image-source:${urlOf(e.image)};border-image-slice:${st} ${sr} ${sb} ${sl};border-image-repeat:round;` +
     `clip-path:inset(0 round var(--media-radius,0px))}`
   );
@@ -118,44 +122,3 @@ export function frameLibraryCss(list: readonly FrameEntry[]): string {
 /** Données d'une entrée pour la toile (menu « Cadre perso ») : léger, sérialisable. */
 export type FrameChoice = { id: string; name: string; thumb: string };
 export const frameChoiceOf = (e: FrameEntry): FrameChoice => ({ id: e.id, name: e.name, thumb: frameThumb(e) });
-
-/* ---- Où un cadre sert : parcours des JSON (blocs, brouillons, planches) -------------------------------------------------------- */
-
-type Json = Record<string, unknown>;
-const isObj = (v: unknown): v is Json => Boolean(v) && typeof v === "object" && !Array.isArray(v);
-const customId = (v: unknown): string | null => (isObj(v) && v.kind === "custom" && typeof v.id === "string" ? v.id : null);
-
-/**
- * Parcourt un arbre JSON et visite chaque cadre perso (`frame` d'une image seule / case / composant / image de la Planche libre, et
- * chaque valeur de `slotFrame`). `visit(id)` rend vrai pour retirer le cadre : il est remplacé EN PLACE par `{ kind: "none" }`
- * (« Aucun »), l'image n'est jamais cassée. Rend le nombre de cadres visités et si quelque chose a changé.
- */
-export function visitCustomFrames(node: unknown, visit: (id: string) => boolean): { found: number; changed: boolean } {
-  let found = 0;
-  let changed = false;
-  const walk = (n: unknown) => {
-    if (Array.isArray(n)) return n.forEach(walk);
-    if (!isObj(n)) return;
-    for (const [key, value] of Object.entries(n)) {
-      if (key === "frame" && customId(value) !== null) {
-        found++;
-        if (visit(customId(value)!)) {
-          n[key] = { kind: "none" };
-          changed = true;
-        }
-      } else if (key === "slotFrame" && isObj(value)) {
-        for (const [slug, f] of Object.entries(value)) {
-          const id = customId(f);
-          if (id === null) continue;
-          found++;
-          if (visit(id)) {
-            value[slug] = { kind: "none" };
-            changed = true;
-          }
-        }
-      } else walk(value);
-    }
-  };
-  walk(node);
-  return { found, changed };
-}
