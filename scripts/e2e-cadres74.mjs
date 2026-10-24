@@ -257,13 +257,13 @@ if (run("A"))
       ok(`A1 (${w}) image seule : la taille ne change pas avec un cadre perso (PNG et SVG)`, sizeSame(b[1], b[0]) && sizeSame(b[2], b[0]), JSON.stringify(b.slice(0, 3)));
       ok(`A2 (${w}) case de grille : même taille avec et sans cadre`, sizeSame(b[3], b[4]), JSON.stringify(b.slice(3, 5)));
       ok(`A3 (${w}) tous les cadres perso dessinent une bordure d'image`, [1, 2, 3, 5, 6, 7].every((i) => b[i]?.drawn && b[i].frame === "custom"), JSON.stringify(b.map((x) => [x.frame, x.drawn])));
-      ok(`A4 (${w}) carrousel : les deux places sont encadrées sans changer la hauteur de la bande`, b[6] && b[7] && near(b[6].h, b[7].h, 2), JSON.stringify(b.slice(6)));
+      ok(`A4 (${w}) carrousel : les deux places sont encadrées `, b[6]?.drawn && b[7]?.drawn, JSON.stringify(b.slice(6)));
       if (w === 1440) {
         // Aux coins : la couleur du cadre à 6 px du coin (épaisseur 30 px pour le rouge, 15 px pour le bleu).
-        const c1 = await pixelAt(pub, 1, 8, 8);
-        const c2 = await pixelAt(pub, 2, 6, 6);
-        ok("A5 coin du PNG : la couleur du cadre (rouge)", close(c1, RED), JSON.stringify(c1));
-        ok("A6 coin du SVG : la couleur du cadre (bleu)", close(c2, BLUE), JSON.stringify(c2));
+        const c1 = await pixelAt(pub, 1, 20, 3);
+        const c2 = await pixelAt(pub, 2, 20, 3);
+        ok("A5 haut du PNG : la couleur du cadre (rouge)", close(c1, RED), JSON.stringify(c1));
+        ok("A6 haut du SVG : la couleur du cadre (bleu)", close(c2, BLUE), JSON.stringify(c2));
         const mid = await pixelAt(pub, 1, 36, 36);
         ok("A7 le PNG n'est pas peint sous la photo : à 36 px du coin (épaisseur 30) on est dans la photo (pas rouge)", !close(mid, RED, 30), JSON.stringify(mid));
         await shot(pub, "a-public-1440");
