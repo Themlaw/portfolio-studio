@@ -214,6 +214,11 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("surface"), uid: Uid, surface: SurfaceSchema.nullable(), continuous: z.boolean().optional() }),
   // Fond de couleur d'un composant (lot 32) : `background` de n'importe quel grand composant, de la page ou d'un conteneur (null = aucun fond).
   z.object({ kind: z.literal("background"), uid: Uid, background: BackgroundSchema.nullable(), continuous: z.boolean().optional() }),
+  // Fond unique (lot 66, « Surface » commune) : les deux couches d'un bloc (carte `surface`, fond `background`) écrites d'un seul pas d'historique.
+  // null = couche retirée ; un bloc qui ne sait pas porter une couche (carte : premier niveau seulement ; fond : grands composants) refuse tout.
+  z.object({ kind: z.literal("fond"), uid: Uid, surface: SurfaceSchema.nullable(), background: BackgroundSchema.nullable(), continuous: z.boolean().optional() }),
+  // Lot 66 (R5) : « Régler » le papier peint de la page, depuis le menu Fond de la toile : ouvre les Réglages de la page (aucun bloc choisi).
+  z.object({ kind: z.literal("page-settings"), focus: z.enum(["wallpaper"]).optional() }),
   // Ajout d'une rubrique depuis la toile (lot 17c) : `choose` ouvre le choix illustré de l'éditeur, les
   // autres ajoutent aussitôt un texte (bloc `rich-text` avec son texte d'aide) à cet endroit.
   z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title", "title-text"]) }),

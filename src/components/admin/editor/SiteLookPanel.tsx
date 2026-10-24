@@ -361,9 +361,8 @@ export function ColorsPanel({
 }
 
 const MODE_HELP: Record<(typeof LOGO_MODES)[number], string> = {
-  fixed: "Le logo garde la même taille.",
-  shrink: "Grand sur la page, il rétrécit quand on défile (visible dans « Aperçu exact »).",
-  overhang: "Le logo dépasse un peu sous la barre du haut.",
+  fixed: "Le logo garde la même taille. La barre du haut ne grandit pas : un grand logo dépasse dessous.",
+  shrink: "Grand sur la page, il rétrécit quand on défile (visible dans « Aperçu exact »). La barre garde sa hauteur.",
 };
 
 export function LogoPanel({
@@ -385,7 +384,7 @@ export function LogoPanel({
   onChooseImage?: () => void;
 }) {
   const size = value.size ?? LOGO_SIZE_DEFAULT;
-  const mode = value.mode ?? "fixed";
+  const mode = value.mode === "shrink" ? "shrink" : "fixed";
   const image = value.mediaId !== undefined ? (media.find((m) => m.id === value.mediaId) ?? null) : null;
   return (
     <section className="lp lp-logo" aria-labelledby="lp-logo-title" data-testid="logo-panel">

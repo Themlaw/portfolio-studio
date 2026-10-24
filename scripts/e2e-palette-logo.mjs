@@ -413,6 +413,9 @@ if (run("L")) {
   let m = await measure("fixe");
   ok("L4a Fixe : 120 px en haut et après défilement", near(m.top.h, 120) && near(m.scrolled.h, 120), JSON.stringify([m.top.h, m.scrolled.h]));
   ok("L4b Fixe : la page ne bouge pas (contenu au même endroit)", near(m.top.mainDocTop, m.scrolled.mainDocTop));
+  // Lot 68 : la barre garde sa hauteur quelle que soit la taille du logo ; un logo plus grand déborde dessous (ancien mode « Déborde »).
+  ok("L4m Fixe : le logo (120 px) dépasse sous la barre du haut (≥ 40 px), la barre ne grandit pas", m.top.bottom - m.top.barBottom >= 40 && m.top.barH < m.top.h && near(m.top.barH, initial.barH, 1), JSON.stringify([m.top.bottom, m.top.barBottom, m.top.barH, initial.barH]));
+  ok("L4o Fixe : le logo dépasse encore en défilant, en-tête collé, barre inchangée", m.scrolled.bottom - m.scrolled.barBottom >= 40 && near(m.scrolled.headTop, 0, 1) && near(m.scrolled.barH, m.top.barH, 1));
   await exitPreview();
 
   await mode("Grand en haut, réduit au défilement");
@@ -420,6 +423,7 @@ if (run("L")) {
   ok("L4c Réduit : 120 px en haut", near(m.top.h, 120), String(m.top.h));
   ok("L4d Réduit : 72 px (60 %) après défilement", near(m.scrolled.h, 72, 2), String(m.scrolled.h));
   ok("L4e Réduit : retour à 120 px en haut de page", near(m.back.h, 120, 2), String(m.back.h));
+  ok("L4n Réduit : la barre garde sa hauteur en haut comme défilé", near(m.top.barH, m.scrolled.barH, 1) && near(m.top.barH, initial.barH, 1), JSON.stringify([m.top.barH, m.scrolled.barH, initial.barH]));
   ok("L4f Réduit : aucun décalage de mise en page (contenu au même endroit)", near(m.top.mainDocTop, m.scrolled.mainDocTop, 1) && near(m.top.mainDocTop, m.back.mainDocTop, 1), JSON.stringify([m.top.mainDocTop, m.scrolled.mainDocTop, m.back.mainDocTop]));
   ok("L4g Réduit : CLS ≈ 0", m.cls < 0.02, String(m.cls));
   ok("L4h Réduit : l'en-tête reste collé en haut", near(m.scrolled.headTop, 0, 1), String(m.scrolled.headTop));
@@ -439,13 +443,6 @@ if (run("L")) {
   ok("L4l sur la toile d'édition (en-tête non collant) le logo garde sa taille réglée", near((await brandRect(f)).h, 120));
   await f.evaluate(() => window.scrollTo(0, 0));
 
-  await mode("Déborde sous le bandeau");
-  m = await measure("deborde");
-  ok("L4m Déborde : le logo dépasse sous la barre du haut (≥ 40 px)", m.top.bottom - m.top.barBottom >= 40, JSON.stringify([m.top.bottom, m.top.barBottom]));
-  ok("L4n Déborde : barre plus basse que le logo, en haut comme défilé", m.top.barH < m.top.h && near(m.top.barH, m.scrolled.barH, 1));
-  ok("L4o Déborde : le logo dépasse encore en défilant, en-tête collé", m.scrolled.bottom - m.scrolled.barBottom >= 40 && near(m.scrolled.headTop, 0, 1));
-  ok("L4p Déborde : aucun décalage de mise en page", near(m.top.mainDocTop, m.scrolled.mainDocTop, 1) && m.cls < 0.02, JSON.stringify([m.top.mainDocTop, m.scrolled.mainDocTop, m.cls]));
-  await exitPreview();
 
   /* L5. Publication : rendu public (réduit) et mobile 390 px */
   await mode("Grand en haut, réduit au défilement");

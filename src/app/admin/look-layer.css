@@ -37,6 +37,12 @@
   font: 600 11px/1.3 var(--lk-font);
   white-space: nowrap;
 }
+/* Téléphone : la pastille de valeur (« Auto · 40 px ») ne masque pas les boutons de la barre du bloc ; la valeur reste dite par la poignée. */
+@media (max-width: 640px) {
+  .lk-space-value {
+    display: none;
+  }
+}
 .lk-space-handle {
   position: absolute;
   width: 44px;
@@ -64,18 +70,19 @@
   height: 22px;
   margin: 0;
   padding: 0 6px;
-  border: 0;
+  border: 1px solid var(--pe-bar-line);
   border-radius: 5px;
-  background: var(--pe-ink);
-  color: var(--pe-surface);
-  font: 700 12px/22px Georgia, serif;
+  background: var(--pe-bar-bg);
+  color: var(--pe-bar-ink);
+  font: 700 12px/20px Georgia, serif;
   box-shadow: var(--lk-shadow);
   cursor: pointer;
   pointer-events: auto;
 }
 .lk-aa:hover,
 .lk-aa:focus-visible {
-  background: var(--pe-accent);
+  border-color: var(--pe-accent);
+  background: var(--pe-bar-hover);
   outline: none;
 }
 .lk-bar {
@@ -93,8 +100,12 @@
   pointer-events: auto;
   translate: 0 -100%;
 }
-.lk-bar[data-below] {
+.lk-bar[data-below],
+.pe-pop.lk-bar {
   translate: 0 0;
+}
+.pe-pop.lk-bar {
+  max-width: min(560px, calc(100vw - 16px));
 }
 .lk-bar-head {
   display: flex;
@@ -133,8 +144,9 @@
   align-items: center;
   gap: 2px;
   padding: 3px;
+  border: 1px solid var(--pe-bar-line);
   border-radius: 6px;
-  background: var(--pe-ink);
+  background: var(--pe-bar-bg);
   box-shadow: var(--lk-shadow);
   pointer-events: auto;
 }
@@ -148,20 +160,21 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: var(--pe-surface);
+  color: var(--pe-bar-ink);
   cursor: pointer;
 }
 .lk-pos button:hover {
-  background: color-mix(in srgb, var(--pe-surface) 16%, transparent);
+  background: var(--pe-bar-hover);
 }
 .lk-pos button[aria-pressed="true"] {
-  background: var(--pe-accent);
+  background: var(--pe-accent-soft);
+  color: var(--pe-accent);
 }
 .lk-sep {
   width: 1px;
   height: 18px;
   margin: 0 3px;
-  background: color-mix(in srgb, var(--pe-surface) 30%, transparent);
+  background: var(--pe-bar-line);
 }
 
 /* ---- Cadrage --------------------------------------------------------------- */
@@ -170,10 +183,10 @@
   min-height: 30px;
   margin: 0;
   padding: 0 12px;
-  border: 0;
+  border: 1px solid var(--pe-bar-line);
   border-radius: 6px;
-  background: var(--pe-ink);
-  color: var(--pe-surface);
+  background: var(--pe-bar-bg);
+  color: var(--pe-bar-ink);
   font: 600 12px/1 var(--lk-font);
   box-shadow: var(--lk-shadow);
   cursor: pointer;
@@ -181,7 +194,8 @@
 }
 .lk-crop-btn:hover,
 .lk-crop-btn:focus-visible {
-  background: var(--pe-accent);
+  border-color: var(--pe-accent);
+  background: var(--pe-bar-hover);
   outline: none;
 }
 .lk-crop-scrim {
@@ -385,9 +399,10 @@
   top: -4px;
   left: 24px;
   padding: 2px 7px;
+  border: 1px solid var(--pe-bar-line);
   border-radius: 999px;
-  background: var(--pe-ink);
-  color: var(--pe-surface);
+  background: var(--pe-bar-bg);
+  color: var(--pe-bar-ink);
   font: 600 11px/1.3 var(--lk-font);
   white-space: nowrap;
 }

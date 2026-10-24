@@ -16,6 +16,7 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 
 import { pageIdOf, placeBoard } from "./lib/page-board.mjs";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -65,6 +66,7 @@ const boardHtml = (html) => {
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -97,6 +99,8 @@ try {
   // Deux images dans la planche, sous la bande : strip, image, image.
   for (const index of [1, 2]) {
     await board.locator(`[data-edit-bitem-add="${index}"]`).click({ force: true });
+    // Le menu s'ancre au bouton (Popover, lot 65) : on lui laisse le temps de se poser avant de viser un choix.
+    await sleep(800);
     await f.locator('.pe-bitem-menu [data-bitem-type="image"]').click();
     ok(`0 image ajoutée au rang ${index + 1}`, await waitFor(() => draft().length === index + 1 && draft()[index]?.type === "image"), JSON.stringify(draft().map((i) => i.type)));
     await page.getByRole("button", { name: "Choisir une image" }).first().click();
@@ -235,8 +239,9 @@ try {
   const fm = () =>
     f.evaluate((id) => {
       const fr = document.querySelectorAll(`[data-edit-board="${id}"] [data-edit-bitem]`)[1];
-      const fig = fr?.querySelector("figure[data-frame]");
-      const media = fig?.querySelector(".block-image-media, .block-image-frame") ?? fig;
+      // Lot 64 : le cadre est posé sur la boîte du média (MediaFrame).
+      const fig = fr?.querySelector("figure .media-frame[data-frame]");
+      const media = fig;
       const wrap = fr?.querySelector(".fond-bloc");
       if (!fig || !media || !wrap) return null;
       const cs = getComputedStyle(media);

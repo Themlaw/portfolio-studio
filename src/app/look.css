@@ -66,16 +66,6 @@
 .blk[data-tv="bottom"] > :first-child { margin-top: auto; }
 
 /* ---- Cadrage (point focal + zoom) ---------------------------------------- */
-.block-image[data-ratio="16:9"] .block-image-media { aspect-ratio: 16 / 9; }
-.block-image[data-ratio="4:3"] .block-image-media { aspect-ratio: 4 / 3; }
-.block-image[data-ratio="1:1"] .block-image-media { aspect-ratio: 1; }
-.block-image[data-ratio="4:5"] .block-image-media { aspect-ratio: 4 / 5; }
-.block-image[data-ratio="3:4"] .block-image-media { aspect-ratio: 3 / 4; }
-.block-image[data-ratio="3:2"] .block-image-media { aspect-ratio: 3 / 2; }
-.block-image[data-ratio="2:3"] .block-image-media { aspect-ratio: 2 / 3; }
-.block-image[data-ratio="2:1"] .block-image-media { aspect-ratio: 2 / 1; }
-.block-image[data-ratio="21:9"] .block-image-media { aspect-ratio: 21 / 9; }
-.block-image[data-ratio]:not([data-ratio="auto"]) .block-image-media { height: auto; object-fit: cover; }
 .profile-portrait[data-ratio="4:5"] img { aspect-ratio: 4 / 5; }
 .profile-portrait[data-ratio="3:4"] img { aspect-ratio: 3 / 4; }
 .profile-portrait[data-ratio="1:1"] img { aspect-ratio: 1; }
@@ -86,7 +76,6 @@
 .profile-portrait[data-ratio="21:9"] img { aspect-ratio: 21 / 9; }
 .profile-portrait[data-ratio="16:9"] img { aspect-ratio: 16 / 9; }
 .profile-portrait[data-ratio]:not([data-ratio="auto"]) img { height: auto; object-fit: cover; }
-.block-image-frame,
 .profile-portrait-frame {
   display: block;
   overflow: hidden;
@@ -99,95 +88,7 @@
   transform-origin: var(--crop-pos, 50% 50%);
 }
 
-/* ---- Image seule (lot 17d) -----------------------------------------------
-   Plafond de hauteur : une image seule ne dépasse jamais 85 % de la hauteur de l'écran ; plus
-   haute, elle est réduite (largeur = 85 svh × son rapport) et centrée, sans rien rogner. `--ir` =
-   rapport de ce qui est affiché (posé par le bloc). Le centrage passe par text-align du <span>
-   (image en ligne : aucun changement de mise en page pour les images qui tiennent). */
-.block-image[data-solo] {
-  --iw: min(100%, calc(85svh * var(--ir, 1000)));
-}
-/* Lot 39 : le plafond compte la légende (sinon elle part sous le bas de l'écran) — seulement quand un champ est REMPLI : une image sans
-   légende garde son plafond d'avant (intégration v0.26 : la règle suivait la simple présence de l'enveloppe, vide et cachée en public,
-   et rapetissait toutes les images hautes ; sur la toile, les trois champs vides restent proposés sans changer la taille de l'image).
-   `--iw` = largeur plafonnée de l'image ; Taille et Alignement (lot 40) la reprennent pour l'image ET sa légende. */
-.block-image[data-solo]:has(.media-caption [data-cap]:not(:empty)) {
-  --iw: min(100%, calc((85svh - 4.5rem) * var(--ir, 1000)));
-}
-.block-image[data-solo] .block-image-media {
-  width: var(--iw);
-  margin-inline: auto; /* l'image est un bloc (préflight) : text-align ne la centre pas */
-}
-.block-image[data-solo] > span:first-child {
-  text-align: center;
-}
-/* Taille et place d'une image seule (lot 40, `look.imageSize` / `look.imageAlign`). Sans réglage, rien de ce qui suit ne s'applique.
-   Grande : plafond levé, l'image prend toute la largeur du cadre. Gauche / Centre / Droite : l'image ET sa légende (tout ce
-   qui suit dans la figure) prennent la largeur de l'image et se posent du même côté ; même bord gauche, largeur max = celle de l'image. */
-.block-image[data-solo][data-size="large"] .block-image-media {
-  width: 100%;
-}
-.block-image[data-solo][data-align] > * {
-  width: var(--iw);
-  margin-inline: auto;
-}
-.block-image[data-solo][data-align="left"] > * {
-  margin-inline: 0 auto;
-}
-.block-image[data-solo][data-align="right"] > * {
-  margin-inline: auto 0;
-}
-.block-image[data-solo][data-align][data-size="large"] > * {
-  width: 100%;
-}
-.block-image[data-solo][data-align] .block-image-media {
-  width: 100%;
-}
-/* Recadrage libre : le cadre suit le rapport de la zone gardée (celui des attributs width / height de l'image),
-   quel que soit le format imposé par le bloc ou par sa grille. */
-figure.block-image[data-free] .block-image-media.block-image-media {
-  aspect-ratio: auto;
-  height: auto;
-  object-fit: fill;
-}
-/* Image entière dans un cadre au format imposé : bandes vides à la place du rognage (le fond de chargement ne les teinte pas). */
-figure.block-image[data-fit="contain"] .block-image-media.block-image-media {
-  object-fit: contain;
-  background-color: transparent !important;
-}
-/* ---- Cadre autour d'une photo ou d'une vidéo (lots 34 et 62) ---------------------------------
-   `look.frame` (image seule, case de grille, vidéo seule), `look.slotFrame` (image ou vidéo d'une planche) et `frame` d'une image de la
-   Planche libre : UN choix par photo, posé par `frameStyle` (src/lib/look.ts) en `data-frame` = none | theme | band | custom.
-   Ici « Bande de couleur » (`band`) : une bordure DANS la boîte du média (box-sizing: border-box). La taille extérieure ne change
-   jamais : en grille, la case garde celle de ses voisines ; dans la bande d'une planche, le média garde la hauteur commune. La photo
-   est réduite d'autant (jamais couverte), le rayon du média arrondit aussi le cadre. Épaisseurs (`data-frame-w`) : Fin 2 px, Moyen
-   jusqu'à 6 px, Épais jusqu'à 12 px (plus minces sur téléphone). La couleur (`--frame-color`) vient de la palette du thème ou d'une
-   couleur libre, jamais d'ici. « Cadre du thème » (`theme`) : src/themes/variants.css. « Aucun » (`none`) : aucune règle.
-   Un cadrage ancien (point focal + zoom) déplace et agrandit l'image : le cadre est alors posé sur l'enveloppe qui la
-   rogne (.block-image-frame), pas sur l'image. La visionneuse n'a pas de cadre. */
-[data-frame="band"] { --frame-w: clamp(3px, 0.9vw, 6px); }
-[data-frame="band"][data-frame-w="fin"] { --frame-w: 2px; }
-[data-frame="band"][data-frame-w="epais"] { --frame-w: clamp(5px, 1.8vw, 12px); }
-figure.block-image[data-frame="band"]:not([data-legacy]) .block-image-media,
-figure.block-image[data-frame="band"] .block-image-frame,
-.strip-frame[data-frame="band"] .strip-media :is(img, video),
-.video-frame[data-frame="band"] {
-  box-sizing: border-box;
-  border: var(--frame-w) solid var(--frame-color);
-  background-clip: padding-box;
-}
-/* ---- Fond derrière une image (lot 41) ----------------------------------------
-   `look.imageBg` (image seule, case de grille, image de planche) et `look.slotBg` (image d'une planche ou d'un carrousel) :
-   la couleur (`--img-bg`, palette du thème ou couleur libre, jamais d'ici) remplit la boîte de l'image, c'est-à-dire la zone
-   affichée : recadrage compris, et toute la case avec « Image entière » (qui laissait des bandes transparentes). Elle suit
-   l'arrondi de l'image et reste DANS le cadre (background-clip). Un cadrage ancien rogne dans l'enveloppe .block-image-frame :
-   le fond est posé sur elle. Sans réglage, aucune règle ne s'applique : rien ne change pour l'existant. */
-figure.block-image[data-img-bg]:not([data-legacy]) .block-image-media.block-image-media.block-image-media,
-figure.block-image[data-img-bg] .block-image-frame,
-.strip-frame[data-img-bg] .strip-media img {
-  background-color: var(--img-bg) !important;
-  background-clip: padding-box;
-}
+/* Image seule, taille et place, cadre, fond derrière l'image : src/app/media-frame.css (une seule boîte pour toutes les photos et vidéos, lot 64). */
 
 /* Variante extraite de l'original (cadrage ancien converti en rectangle) : déjà à la bonne place, ni décalage ni zoom. */
 .blk[data-crop] .block-image-media[data-cropped] {
@@ -638,15 +539,15 @@ figure.block-image[data-img-bg] .block-image-frame,
    la même règle que la carte : papier « sur la carte » (choisi par la carte, ou par le site sans que la carte dise « sous ») = la tuile est
    dessinée sur la couleur du fond, sous le texte. Un fond posé directement sur la page suit le réglage du site « papier visible sur les cartes ».
    Même tuile, même intensité (--card-paper-opacity de la carte, sinon celle du site) ; elle repart du coin de chaque enveloppe. */
-[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"] > .card-in > .fond-bloc[data-fond="on"],
-[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"],
-[data-kit-paper][data-kit-paper-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"] {
+[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"] > .card-in > .fond-bloc[data-fond="on"]:not([data-paper="under"]),
+[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-paper="under"]),
+[data-kit-paper][data-kit-paper-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-paper="under"]) {
   position: relative;
   isolation: isolate;
 }
-[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"] > .card-in > .fond-bloc[data-fond="on"]::before,
-[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]::before,
-[data-kit-paper][data-kit-paper-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]::before {
+[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"] > .card-in > .fond-bloc[data-fond="on"]:not([data-paper="under"])::before,
+[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-paper="under"])::before,
+[data-kit-paper][data-kit-paper-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-paper="under"])::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -764,15 +665,15 @@ main > :has(+ .surface-card[data-surface="on"]) {
   opacity: var(--card-paper-opacity, var(--card-wp-opacity, 1));
 }
 /* Un fond de couleur opaque dans la carte cacherait ce papier : il le redessine (comme le papier du kit), sauf s'il a son propre motif. */
-.surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]),
-.site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]),
-.site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]) {
+.surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"]),
+.site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"]),
+.site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"]) {
   position: relative;
   isolation: isolate;
 }
-:root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before,
-:root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before,
-:root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before {
+:root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before,
+:root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before,
+:root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -792,9 +693,9 @@ main > :has(+ .surface-card[data-surface="on"]) {
   }
   :root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"])::before,
   :root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"])::before,
-  :root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before,
-  :root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before,
-  :root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear])::before {
+  :root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before,
+  :root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before,
+  :root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before {
     background-size: var(--card-wp-size-m) auto;
   }
 }
@@ -806,7 +707,8 @@ main > :has(+ .surface-card[data-surface="on"]) {
    L'empilement passe par `z-index` (posé par le bloc), l'ordre du DOM est l'ordre de lecture. Sous 640 px, au choix de l'artiste :
    composition à l'échelle (défaut) ou images empilées en colonne (`data-phone="stack"`) ; jamais sur la toile de l'éditeur. */
 .free-board-section { overflow-x: clip; }
-.free-board { position: relative; width: 100%; aspect-ratio: var(--fb-pr, var(--fb-r, 1.5)); }
+/* `isolation: isolate` : les `z-index` des images (jusqu'à 40) restent DANS la zone ; ils ne passent plus sur la barre du composant ni sur la rubrique voisine (lot 64). */
+.free-board { position: relative; isolation: isolate; width: 100%; aspect-ratio: var(--fb-pr, var(--fb-r, 1.5)); }
 .free-item {
   position: absolute;
   margin: 0;
@@ -815,15 +717,6 @@ main > :has(+ .surface-card[data-surface="on"]) {
   width: calc(var(--pw, var(--w)) * 1%);
   transform: rotate(calc(var(--prot, var(--rot, 0)) * 1deg));
   transform-origin: 50% 50%;
-}
-/* Fond derrière une image de la planche libre (lot 41 branché par l'intégration v0.27) : la couleur remplit la boîte de l'image. */
-.free-item[data-img-bg] .free-media:not(.free-video) { background-color: var(--img-bg); }
-.free-media { display: block; width: 100%; height: auto; border-radius: var(--free-radius, 0); }
-.free-video { position: relative; overflow: hidden; }
-.free-item[data-frame="band"] .free-media {
-  box-sizing: border-box;
-  border: var(--frame-w) solid var(--frame-color);
-  background-clip: padding-box;
 }
 @media (max-width: 639px) {
   :root:not([data-edit-canvas]) .free-board[data-phone="stack"] {

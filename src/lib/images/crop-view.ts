@@ -28,3 +28,16 @@ export function resolveCrop(crop: Crop | undefined, imageRatio: number, boxRatio
   const win = cropWindow({ x: 50, y: 50, zoom: 1 }, imageRatio, boxRatio);
   return { rect: { x: win.left, y: win.top, w: win.width, h: win.height }, free: false };
 }
+
+/**
+ * Rectangle de l'original que montre la VISIONNEUSE (lot 68) : exactement ce que la page montre. Le cadrage choisi (rectangle libre,
+ * ancien cadrage) ; sinon, dans un cadre au format imposé qui rogne l'image (« cover »), la fenêtre centrée que la page affiche,
+ * même peu rognée (`resolveCrop` ne la sert qu'à partir de STRETCH_MIN, pour la netteté de la page). Image entière : null.
+ */
+export function viewerRect(crop: Crop | undefined, imageRatio: number, boxRatio: number | null, cover: boolean): Rect | null {
+  const r = resolveCrop(crop, imageRatio, boxRatio, cover);
+  if (r) return r.rect;
+  if (!boxRatio || !cover || crop) return null;
+  const win = cropWindow({ x: 50, y: 50, zoom: 1 }, imageRatio, boxRatio);
+  return win.width < 0.995 || win.height < 0.995 ? { x: win.left, y: win.top, w: win.width, h: win.height } : null;
+}

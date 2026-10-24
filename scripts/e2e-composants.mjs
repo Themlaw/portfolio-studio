@@ -20,6 +20,7 @@ import path from "node:path";
 
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -69,6 +70,7 @@ const CONTENT = {
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -211,11 +213,11 @@ if (run("C"))
     await f.locator(`[data-edit-block="${target.uid}"] section`).first().scrollIntoViewIfNeeded();
     await f.locator(`[data-edit-block="${target.uid}"] section`).first().click({ position: { x: 40, y: 30 } });
     ok("C5 un ancien composant se choisit seul (pas de conteneur parent dans le fil d'Ariane)", await waitFor(async () => ((await f.locator(".pe-crumbs").textContent().catch(() => "")) ?? "").trim() === "Texte"), await f.locator(".pe-crumbs").textContent().catch(() => ""));
-    const fond = f.locator(".pe-tools button[title^=\"Carte de la rubrique\"]");
+    const fond = f.locator(".pe-tools [data-testid=\"fond-button\"]");
     ok("C5 bouton « Carte » disponible sur cet ancien composant", await fond.waitFor({ timeout: 30000 }).then(() => true, () => false));
     await fond.click();
-    const menu = f.locator(".sm");
-    await menu.getByRole("switch", { name: "Une carte sous la rubrique" }).click();
+    const menu = f.locator('[data-testid="fond-menu"]');
+    await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
     await menu.locator('[data-token="primary"]').click();
     ok("C6 carte de couleur appliquée : brouillon et toile", (await waitFor(() => draftOf(pageId).blocks.find((b) => b.uid === target.uid)?.props.surface?.color === "primary")) && (await f.locator(`[data-edit-block="${target.uid}"] .surface-card[data-surface="on"]`).count()) === 1, JSON.stringify(draftOf(pageId).blocks.find((b) => b.uid === target.uid)?.props.surface));
     await f.locator("body").click({ position: { x: 5, y: 5 } }).catch(() => {});

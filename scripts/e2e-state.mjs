@@ -652,7 +652,10 @@ if (run("C")) {
   ok("C4 saisie : la barre s'ouvre toute seule", await shown(".lk-bar"));
   const hbox = await f.locator(H1).boundingBox();
   const fbox = await (await page.waitForSelector("iframe.ve-frame")).boundingBox();
-  await page.mouse.click(fbox.x + hbox.x + 12, fbox.y + hbox.y + hbox.height / 2);
+  // `hbox` est déjà en coordonnées de la page (le cadre de la toile compris) : on clique DANS le titre. (Avant le lot 65, le clic tombait
+  // 322 px à droite et 78 px plus bas, donc sur la barre de style posée sous le titre ; elle est maintenant au bouton « Aa ».)
+  void fbox;
+  await page.mouse.click(hbox.x + 12, hbox.y + hbox.height / 2);
   await sleep(300);
   ok("C4 clic dans le texte en cours de saisie : la barre reste", await exists(".lk-bar"));
   await page.keyboard.press("Escape");

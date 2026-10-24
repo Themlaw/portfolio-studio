@@ -234,6 +234,9 @@ if (run("M"))
     await page.locator('button[aria-label="Rétablir"]').click();
     ok("M5 Rétablir : « À faire défiler » revient", await waitFor(() => lookOfDraft("board1")?.slotPano?.[first.slug] === "scroll", 30000));
     // Entier (retour) retire la clé ; on le refait sur la 1re image pour vérifier qu'« Entier » seul ne laisse rien.
+    // Rétablir recharge la toile (nouvel iframe) : on reprend la main sur le cadre courant.
+    await settled();
+    f = await canvas();
     const again = await slotTools(f, 0);
     await page.screenshot({ path: path.join(SHOTS, "barre-image-panorama.png") });
     await again.bar.locator('[data-slot-pano-set="scroll"]').click();

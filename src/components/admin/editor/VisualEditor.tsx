@@ -17,7 +17,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 import {
+  addToMenuFromEditorAction,
   boardAction,
+  adoptSiteDraftAction,
   createDraftProjectAction,
   discardDraftAction,
   installFontAction,
@@ -48,8 +50,9 @@ import { markedProblem } from "@/lib/marked";
 import { own } from "@/lib/own";
 import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
+import { convertItem as convertBoardItem } from "@/blocks/grid-strip";
 import { BOARD_ITEM_LABELS, parseRailKey, railKey, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
-import { cleanLook, cleanSiteStyles, googleOf, readLook, type Frame, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
+import { cleanLook, cleanSiteStyles, googleOf, readLook, rebaseSiteStyles, type Frame, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 import { readBackground, supportsFond, type Background } from "@/themes/fond";
 import { cleanSurface, readSurface, type Surface } from "@/themes/surface";
@@ -92,7 +95,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "bitem-text", "bitem-look", "cell-look", "free-op"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "fond", "bitem-text", "bitem-look", "cell-look", "free-op"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /**
@@ -439,7 +442,11 @@ export default function VisualEditor({
   const siteRef = useRef<SiteSnap>(initialSite.snap);
   const [siteSnap, setSiteSnap] = useState<SiteSnap>(initialSite.snap);
   const [sitePending, setSitePending] = useState(initialSite.pending);
-  const siteLocked = initialSite.lockedBy;
+  // Page qui porte déjà des modifications en attente de l'en-tête : un réglage fait ici les reprend (adoptSiteDraftAction).
+  const [siteLocked, setSiteLocked] = useState(initialSite.lockedBy);
+  // État du site que l'artiste avait sous les yeux AVANT la reprise du brouillon d'une autre page : sert, pour ce seul réglage, à ne poser sur le
+  // brouillon repris que ce qu'il a changé (rebaseSiteStyles).
+  const adoptBase = useRef<SiteSnap | null>(null);
   // Défini plus bas (après runSave) ; appelé par l'historique.
   const writeSiteRef = useRef<(next: SiteSnap | SiteUpdate, record?: boolean) => Promise<boolean>>(async () => false);
 
@@ -496,12 +503,32 @@ export default function VisualEditor({
     (next: SiteSnap | SiteUpdate, record = true): Promise<boolean> =>
       withLock(async () => {
         if (blockedRef.current) return false;
-        if (siteLocked) {
-          toast(`L'en-tête est en cours de modification sur la page « ${siteLocked} » : publie-la ou abandonne-la d'abord.`, "error");
-          return false;
-        }
         if (dirty.current && !(await runSave())) return false;
+        // Lot 70 : les modifications de l'en-tête en attente sur une autre page sont reprises ici, intactes, au lieu de refuser le réglage
+        // (le style « Tous les Menu » marchait sur certaines pages seulement). Elles seront publiées avec cette page.
+        if (siteLocked) {
+          let adopted: Awaited<ReturnType<typeof adoptSiteDraftAction>>;
+          try {
+            adopted = await adoptSiteDraftAction(pageId, revRef.current);
+          } catch {
+            adopted = { ok: false, message: "connexion perdue" };
+          }
+          if (!adopted.ok) {
+            if ("code" in adopted) stop(adopted.code);
+            else toast(adopted.message, "error");
+            return false;
+          }
+          revRef.current = adopted.data.rev;
+          adoptBase.current = adopted.data.from ? siteRef.current : null;
+          siteRef.current = adopted.data.snap;
+          setSiteSnap(adopted.data.snap);
+          setSitePending(true);
+          setSiteLocked(null);
+          send({ kind: "site-lock", page: null });
+          if (adopted.data.from) toast(`Les modifications de l'en-tête commencées sur la page « ${adopted.data.from} » sont reprises ici : elles seront publiées avec cette page.`, "success", undefined, 9000);
+        }
         const snap = typeof next === "function" ? next(siteRef.current) : next;
+        adoptBase.current = null;
         if (!snap) return false;
         if ("error" in snap) {
           toast(snap.error, "error");
@@ -1158,6 +1185,35 @@ export default function VisualEditor({
     return true;
   };
 
+  /**
+   * Fond unique (lot 66) : carte ET fond d'un bloc écrits ensemble (un seul pas d'historique). La carte n'existe qu'au premier niveau, le
+   * fond que sur les grands composants : une couche que le bloc ne sait pas porter refuse tout. false = refusé ou sans effet.
+   */
+  const applyFond = (uid: string, nextSurface: Surface | null, nextBackground: Background | null, continuous = false): boolean => {
+    const list = draftRef.current.blocks;
+    const at = locate(list, uid);
+    const block = findBlock(list, uid);
+    if (!at || !block) return false;
+    if (nextSurface && at.parent !== null) return false;
+    if (nextBackground && !supportsFond(block.type)) return false;
+    const cleanS = nextSurface ? cleanSurface(nextSurface) : null;
+    const sameS = JSON.stringify(readSurface(block.props.surface) ?? null) === JSON.stringify(cleanS);
+    const sameB = JSON.stringify(readBackground(block.props.background) ?? null) === JSON.stringify(nextBackground);
+    if (sameS && sameB) return false;
+    setBlocks(
+      updateBlock(list, uid, (b) => {
+        const props = { ...b.props };
+        if (cleanS) props.surface = cleanS;
+        else delete props.surface;
+        if (nextBackground) props.background = nextBackground;
+        else delete props.background;
+        return { ...b, props };
+      }),
+      continuous ? { key: `fond:${uid}` } : {},
+    );
+    return true;
+  };
+
   const op = (kind: "up" | "down" | "duplicate" | "delete" | "out" | "in", uid: string) => {
     const list = draftRef.current.blocks;
     const at = locate(list, uid);
@@ -1400,7 +1456,9 @@ export default function VisualEditor({
       }
       // Calculé dans le verrou, sur le dernier état écrit : deux réglages rapprochés se cumulent.
       await writeSite((cur) => {
-        const clean = cleanSiteStyles(update(cur.styles));
+        // Brouillon repris d'une autre page : le réglage est calculé sur ce que l'artiste voyait, puis posé sur le brouillon repris.
+        const seen = adoptBase.current;
+        const clean = cleanSiteStyles(seen ? rebaseSiteStyles(seen.styles, update(seen.styles), cur.styles) : update(cur.styles));
         const { styles: _old, ...rest } = cur;
         void _old;
         return { ...rest, ...(clean ? { styles: clean } : {}) };
@@ -1436,7 +1494,9 @@ export default function VisualEditor({
       let unchanged = false;
       const ok = await writeSite((cur) => {
         const { styles: old, ...rest } = cur;
-        const clean = cleanSiteStyles({ ...(old ?? {}), palette: q.palette, logo: q.logo });
+        const seen = adoptBase.current;
+        const mine = { ...((seen ? seen.styles : old) ?? {}), palette: q.palette, logo: q.logo };
+        const clean = cleanSiteStyles(seen ? rebaseSiteStyles(seen.styles, mine, old) : mine);
         unchanged = JSON.stringify(clean ?? null) === JSON.stringify(old ?? null);
         return unchanged ? null : { ...rest, ...(clean ? { styles: clean } : {}) };
       });
@@ -2050,23 +2110,50 @@ export default function VisualEditor({
     }, 250);
   };
   /**
-   * Clic sur la carte « Images qui défilent » de la palette (lot 31c) : un carrousel s'ajoute sous le composant de planche
-   * choisi, sinon à la fin de la planche de la rubrique choisie ; ailleurs, un message dit où le poser.
+   * Un carrousel vit dans une « Planche d'un projet » : jamais sur la page seule. Quand il faut le poser sous une rubrique qui n'est
+   * pas une planche (une grille, un texte…), on ajoute une planche NEUVE à cet endroit exact, sélectionnée, et on dit quoi faire :
+   * choisir son projet, puis recliquer. Surtout pas dans une autre planche de la page (lot 69 : c'était la cause du carrousel
+   * qui atterrissait « dans la planche » au lieu de se placer sous la grille).
    */
-  const addCarousel = async () => {
+  const addBoardForCarousel = (place: Place) => {
+    insert("project-board", place);
+    toast("« Images qui défilent » se place dans une « Planche d'un projet » : j'en ai ajouté une ici. Choisis son projet, puis clique de nouveau sur « Images qui défilent ».", "success");
+  };
+  /**
+   * Clic sur la carte « Images qui défilent » de la palette (lot 31c) : un carrousel s'ajoute sous le composant de planche
+   * choisi, sinon à la fin de la planche de la rubrique choisie ; sous une autre rubrique, une planche neuve est posée juste dessous
+   * (lot 69) ; ailleurs, un message dit où le poser. `at` : l'endroit choisi dans « Ajouter une rubrique » (entre deux rubriques).
+   */
+  const addCarousel = async (at?: Place) => {
+    if (at) {
+      addBoardForCarousel(at);
+      return;
+    }
     if (itemSel) {
       await itemFlushRef.current();
       const r = await boardDo(itemSel.board, { op: "item-add", type: "strip", index: 0, after: itemSel.uid });
       if (r) toast("« Images qui défilent » ajouté sous le composant choisi", "success", { label: "Défaire", run: () => void undoRef.current() });
       return;
     }
-    const block = selected && !selected.startsWith("site-") ? findBlock(draftRef.current.blocks, selected) : null;
+    const list = draftRef.current.blocks;
+    const block = selected && !selected.startsWith("site-") ? findBlock(list, selected) : null;
     if (block?.type === "project-board") {
       send({ kind: "board-add", uid: block.uid, item: "strip" });
       return;
     }
-    // Hors d'un projet : un seul bloc « Projet » sur la page, c'est là que le carrousel va ; sinon on explique le geste.
-    const boardsHere = walkTree(draftRef.current.blocks).map((v) => v.block).filter((b) => b.type === "project-board" && typeof (b.props as { project?: unknown }).project === "string");
+    if (block) {
+      // Juste sous la rubrique choisie (dans son conteneur si celui-ci accepte une planche, sinon à la suite de la rubrique de premier niveau).
+      const here = locate(list, block.uid);
+      if (here && canPlace(list, { type: "project-board", props: {} }, here.parent)) addBoardForCarousel({ parent: here.parent, index: here.index + 1 });
+      else {
+        const top = here ? (walkTree(list).find((v) => v.block.uid === block.uid)?.ancestors[0]?.uid ?? block.uid) : block.uid;
+        const topAt = locate(list, top);
+        addBoardForCarousel({ parent: null, index: topAt ? topAt.index + 1 : list.length });
+      }
+      return;
+    }
+    // Rien de choisi : un seul bloc « Planche d'un projet » sur la page, c'est là que le carrousel va ; sinon on explique le geste.
+    const boardsHere = walkTree(list).map((v) => v.block).filter((b) => b.type === "project-board" && typeof (b.props as { project?: unknown }).project === "string");
     if (boardsHere.length === 1) {
       send({ kind: "board-add", uid: boardsHere[0].uid, item: "strip" });
       return;
@@ -2078,6 +2165,53 @@ export default function VisualEditor({
       "error",
     );
   };
+  /**
+   * « Afficher en : Grille / Images qui défilent » (lot 69) : le composant de la planche change de forme SUR PLACE (src/blocks/grid-strip.ts).
+   * Les réglages par image du carrousel (cadre, fond, arrondi, lecture) vivent dans la rubrique de la page qui montre la planche : ils sont
+   * mis à jour avec elle, en UN seul pas d'historique (« Défaire » rend l'état de départ d'un coup).
+   */
+  const convertItem = async (board: number, uid: string, to: "grid" | "strip") => {
+    await itemFlushRef.current();
+    // Dernier état écrit de la planche ; sinon (rien encore écrit dans cette séance) ce que la toile a lu et que le panneau montre.
+    const known = boards.current.get(board)?.layout.find((i) => i.uid === uid);
+    const item = known ?? (itemSel && itemSel.board === board && itemSel.uid === uid ? { uid, type: itemSel.type, props: itemSel.props, ...(itemSel.box ? { box: itemSel.box } : {}) } : undefined);
+    if (!item) {
+      toast("Ce composant n'est plus sur la planche : recharge l'éditeur.", "error");
+      return;
+    }
+    const slug = projectsList.find((p) => p.id === board)?.slug;
+    const list = draftRef.current.blocks;
+    const shows = walkTree(list).map((v) => v.block).filter((b) => b.type === "project-board" && (b.props as { project?: unknown }).project === slug);
+    const holder = shows.find((b) => b.uid === selected) ?? shows[0];
+    const kinds: Record<number, "image" | "video"> = {};
+    for (const m of context.media) if (m.kind === "image" || m.kind === "video") kinds[m.id] = m.kind;
+    const res = convertBoardItem(item, to, { kinds, newUid, look: holder?.props.look as Record<string, unknown> | undefined });
+    if ("error" in res) {
+      toast(res.error, "error");
+      return;
+    }
+    const done = await boardDo(board, { op: "item-convert", uid, to, props: res.item.props });
+    if (!done) return;
+    if (holder && JSON.stringify(res.look ?? null) !== JSON.stringify(holder.props.look ?? null)) {
+      const before = history.current.past.length;
+      setBlocks(
+        updateBlock(draftRef.current.blocks, holder.uid, (b) => {
+          const props = { ...b.props };
+          if (res.look) props.look = res.look;
+          else delete props.look;
+          return { ...b, props };
+        }),
+      );
+      // Un seul pas d'historique pour toute la conversion (planche + rubrique) : « Défaire » rend l'état de départ d'un coup.
+      const past = history.current.past;
+      const first = past.at(-2);
+      if (past.length === before + 1 && first?.board) {
+        history.current = { ...history.current, past: [...past.slice(0, -2), first] };
+        bumpHistory();
+      }
+    }
+    toast(to === "strip" ? "Affiché en « Images qui défilent » : tes images, légendes et cadres sont gardés" : "Affiché en grille : tes images, légendes et cadres sont gardés", "success", { label: "Défaire", run: () => void undoRef.current() });
+  };
   /** Déplacer un composant à un rang (glisser par la poignée). */
   const itemTo = async (board: number, uid: string, index: number) => {
     await itemFlushRef.current();
@@ -2085,9 +2219,9 @@ export default function VisualEditor({
   };
 
   const itemFlush = () => itemFlushRef.current();
-  const handlers = useRef({ itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode });
+  const handlers = useRef({ itemFlush, convertItem, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode });
   useEffect(() => {
-    handlers.current = { itemFlush, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode };
+    handlers.current = { itemFlush, convertItem, itemAdd, itemOp, itemFond, itemFrame, itemImageBg, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -2271,6 +2405,16 @@ export default function VisualEditor({
           break;
         case "background":
           if (!h.applyBackground(msg.uid, msg.background, msg.continuous) && msg.seq) send({ kind: "revert", seq: msg.seq });
+          break;
+        case "fond":
+          if (!h.applyFond(msg.uid, msg.surface, msg.background, msg.continuous) && msg.seq) send({ kind: "revert", seq: msg.seq });
+          break;
+        case "page-settings":
+          // Lot 66 (R5) : le menu Fond renvoie au papier peint de la page (Réglages, aucun bloc choisi).
+          h.selectBlock(null);
+          setTab("reglages");
+          if (mobile) setSheet(true);
+          setTimeout(() => document.querySelector('[data-testid="page-wallpaper"]')?.scrollIntoView({ block: "center" }), 150);
           break;
         case "surface":
           // Refusé (composant d'un conteneur) ou sans effet : la toile retire son aperçu.
@@ -2486,7 +2630,7 @@ export default function VisualEditor({
       setPublishErrors({});
       setPublishMessage(null);
       const warn = result.data.warnings;
-      setPublishWarn(warn && (warn.missingAlt.length > 0 || warn.untranslated > 0) ? warn : null);
+      setPublishWarn(warn && (warn.missingAlt.length > 0 || warn.untranslated > 0 || warn.notInMenu) ? warn : null);
       setHasDraft(false);
       if (result.data.wentLive) {
         // La page est maintenant en ligne : l'état de l'en-tête (et le brouillon enregistré ensuite) le disent aussi.
@@ -2502,6 +2646,22 @@ export default function VisualEditor({
     } finally {
       setPublishing(false);
     }
+  };
+
+  /** « Ajouter au menu » de l'avertissement de publication (lot 67, CONC-02) : la page entre au menu, le brouillon local suit. */
+  const addToMenu = async () => {
+    const result = await addToMenuFromEditorAction(pageId);
+    if (!result.ok) {
+      toast(result.message ?? "Impossible d'ajouter la page au menu.", "error");
+      return;
+    }
+    const inSync = JSON.stringify(draftRef.current) === savedJson.current;
+    draftRef.current = { ...draftRef.current, inMenu: true };
+    setDraftState(draftRef.current);
+    if (inSync) savedJson.current = JSON.stringify(draftRef.current);
+    setPublishWarn((w) => (w ? { ...w, notInMenu: false } : w));
+    toast("La page est dans le menu");
+    router.refresh();
   };
 
   const discard = async () => {
@@ -2914,6 +3074,7 @@ export default function VisualEditor({
               box={itemSel.box}
               onChange={(props) => itemChange({ props })}
               onBox={(box) => itemChange({ box })}
+              onConvert={(to) => void convertItem(itemSel.board, itemSel.uid, to)}
               context={editorContext}
               editor={own(editors, itemSel.type)}
               head={
@@ -3219,8 +3380,18 @@ export default function VisualEditor({
           )}
           {publishWarn && mode === "edit" && (
             <div className="ve-alert ve-warnings" role="status" data-testid="publish-warnings">
-              <strong>C&apos;est publié. Deux choses à regarder, rien ne bloque :</strong>
+              <strong>
+                C&apos;est publié. {[publishWarn.missingAlt.length > 0, publishWarn.untranslated > 0, publishWarn.notInMenu].filter(Boolean).length > 1 ? "Quelques points à regarder" : "Une chose à regarder"}, rien ne bloque :
+              </strong>
               <ul className="ve-problems-list">
+                {publishWarn.notInMenu && (
+                  <li data-testid="warn-menu">
+                    Cette page est en ligne mais n&apos;apparaît dans aucun menu : les visiteurs ne la trouveront pas.{" "}
+                    <button type="button" className="a-btn a-btn-small" onClick={() => void addToMenu()}>
+                      Ajouter au menu
+                    </button>
+                  </li>
+                )}
                 {publishWarn.missingAlt.length > 0 && (
                   <li data-testid="warn-alt">
                     {publishWarn.missingAlt.length} image{publishWarn.missingAlt.length > 1 ? "s" : ""} sans description (pour les personnes malvoyantes et Google) :{" "}
@@ -3401,7 +3572,7 @@ export default function VisualEditor({
           setAdding(null);
           if (!at) return;
           if (choice.kind === "starter") insertStarter(choice.starter, at);
-          else if (choice.kind === "carousel") void addCarousel();
+          else if (choice.kind === "carousel") void addCarousel(at);
           else insert(choice.key, at);
         }}
       />

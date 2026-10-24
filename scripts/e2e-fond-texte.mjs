@@ -247,14 +247,14 @@ for (const k of ["bg", "ink", "primary", "secondary", "tertiary", "on-primary"])
 if (run("A")) {
   const cases = [
     ["Étiquette (ouverture)", EYEBROW, 0, true, "Étiquette"],
-    ["Titre 1 / nom (ouverture)", NAME, 0, true, "Titre 1"],
-    ["Titre 2", H2, 0, true, "Titre 2"],
+    ["Titre 1 / nom (ouverture)", NAME, 0, true, "titres"],
+    ["Titre 2", H2, 0, true, "titres"],
     ["Paragraphe", INTRO, 0, true, "Texte"],
     ["Légende (métier)", ROLE, 0, true, "Légende"],
     ["Faire défiler (ouverture)", SCROLL, 0, true, "Étiquette"],
     ["Nom du site (en-tête)", BRAND, 0, false, "Nom du site"],
     ["Menu", MENU, 0, false, "Menu"],
-    ["Pied de page", FOOT, 0, false, "Légende"],
+    ["Pied de page", FOOT, 0, false, "Texte"],
   ];
   for (const [label, sel, nth, hasLocal, roleName] of cases) {
     const opened = await openBar(f, sel, nth);
@@ -442,7 +442,10 @@ if (run("D")) {
   const fg2 = await inkOf(f, SCROLL);
   ok("D3 fond clair : le texte repasse sombre (lisible)", ratio(fg2, await bgOf(f, SCROLL)) >= 4.5 && lum(fg2) < lum(await bgOf(f, SCROLL)), `texte ${fg2}`);
   // Couleur de texte choisie : conservée, alerte.
+  await sleep(1000);
   await popToken(f, "ink").click();
+  // La barre se redessine tout de suite avec le choix (sinon un réglage fait aussitôt après repartirait de l'ancienne valeur et l'écraserait).
+  ok("D3b la fenêtre montre aussitôt la couleur de fond choisie (Texte)", await popToken(f, "ink").and(f.locator('[aria-checked="true"]')).waitFor({ timeout: 400 }).then(() => true, () => false));
   await settled();
   await f.locator('.lk-bar .tc-swatches [aria-label="Texte"]').click();
   await settled();
@@ -487,6 +490,8 @@ if (run("E")) {
   await scopeButton(f, "Ce texte").click();
   const s0 = JSON.stringify(heroLook()?.text?.["site.name"] ?? null);
   await pick(f, "Surlignage");
+  // Deux réglages du même texte à moins de 1,2 s ne font qu'un pas d'historique (coalescence) : le second vient après, pour que Annuler n'en défasse qu'un.
+  await sleep(1400);
   await openDot(f);
   await popToken(f, "secondary25").click();
   await settled();

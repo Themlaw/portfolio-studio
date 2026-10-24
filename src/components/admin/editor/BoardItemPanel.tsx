@@ -240,12 +240,38 @@ function RailContent({ props, onChange, context }: { props: Props; onChange: (ne
   );
 }
 
+/**
+ * « Afficher en : Grille / Images qui défilent » (lot 69) : la même suite d'images en grille ou en carrousel, sans rien recopier.
+ * Seule une grille, ou des images qui défilent à liste propre, peuvent changer de forme (la bande des images du projet, non).
+ */
+function ConvertField({ type, onConvert }: { type: BoardItemType; onConvert: (to: "grid" | "strip") => void }) {
+  return (
+    <section className="ve-box-field" aria-label="Afficher en" data-testid="convert-field">
+      <h3 className="a-subhead">Afficher en</h3>
+      <div className="ve-box-presets" role="radiogroup" aria-label="Afficher en">
+        {(
+          [
+            ["grid", "Grille"],
+            ["strip", "Images qui défilent"],
+          ] as const
+        ).map(([to, label]) => (
+          <button key={to} type="button" role="radio" aria-checked={type === to} data-convert={to} className="a-btn a-btn-small" onClick={() => type !== to && onConvert(to)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <p className="a-help">Les images, leur ordre, les légendes, les cadres et les fonds sont gardés. Ce qui n&apos;existe pas dans l&apos;autre forme (agencement, recadrage…) est mis de côté et revient si tu reviens ici.</p>
+    </section>
+  );
+}
+
 export default function BoardItemPanel({
   type,
   props,
   box,
   onChange,
   onBox,
+  onConvert,
   context,
   editor,
   uid,
@@ -256,6 +282,8 @@ export default function BoardItemPanel({
   box: BoardBox | undefined;
   onChange: (next: Props) => void;
   onBox: (next: BoardBox | null) => void;
+  /** Passe la grille en images qui défilent, ou l'inverse (la planche et la rubrique de la page sont mises à jour par l'éditeur). */
+  onConvert: (to: "grid" | "strip") => void;
   context: EditorContext;
   /** Formulaire du type (registre), le même que sur une page. */
   editor: ReactNode;
@@ -272,6 +300,7 @@ export default function BoardItemPanel({
       </header>
       <p className="ve-hint">Ce composant appartient au projet : il s&apos;affiche partout où la planche du projet est montrée.</p>
       {projectStrip && <p className="ve-hint">Cette bande montre les images du projet : ajoute-les, déplace-les et légende-les directement sur la planche.</p>}
+      {(type === "grid" || (type === "strip" && !projectStrip)) && <ConvertField type={type} onConvert={onConvert} />}
       {/* Grille : l'essentiel en haut (agencement, espace, format, nombre d'images), puis la liste des cases, puis les réglages avancés. */}
       {type === "grid" && (
         <BlockEditorContext.Provider value={{ value: props, onChange, errors: {}, context, idPrefix: `ve-bitem-${uid}` }}>

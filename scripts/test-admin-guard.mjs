@@ -96,6 +96,7 @@ const EXPECTED = [
   "savePageInfoAction",
   "setPublishedAction",
   "setInMenuAction",
+  "addToMenuFromEditorAction",
   "reorderMenuAction",
   "deletePageAction",
   "restorePageAction",

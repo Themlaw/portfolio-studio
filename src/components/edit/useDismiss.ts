@@ -39,6 +39,9 @@ type Options = {
 /** Menus ouverts, du plus ancien au plus récent (pour Échap et les sous-menus). */
 const open: { id: symbol; ref: RefObject<HTMLElement | null> }[] = [];
 
+/** Le menu ouvert le plus récent (celui qui doit réagir à Échap), ou null. */
+export const topDismiss = (): HTMLElement | null => open[open.length - 1]?.ref.current ?? null;
+
 export function useDismiss(ref: RefObject<HTMLElement | null>, onDismiss: () => void, { enabled = true, ignore, escape = true }: Options = {}) {
   const latest = useRef({ onDismiss, ignore });
   useEffect(() => {

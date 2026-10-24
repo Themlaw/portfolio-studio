@@ -8,6 +8,7 @@ import { z } from "zod";
 
 import { assertAdmin } from "@/lib/auth/guard";
 import {
+  addToMenuFromEditor,
   createPage,
   deletePage,
   reorderMenu,
@@ -19,7 +20,7 @@ import {
 import { publishWarnings } from "@/lib/edit/warnings";
 import { discardDraft, publishDraft, saveDraft, savePageInfo, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
 import { boardOp, createDraftProject, restoreBoard, type BoardResult } from "@/lib/edit/boards";
-import { saveSiteDraft, type SiteResult } from "@/lib/edit/site";
+import { adoptSiteDraft, saveSiteDraft, type AdoptResult, type SiteResult } from "@/lib/edit/site";
 import { collectFonts, installGoogleFont, type InstallResult } from "@/lib/fonts/library";
 import { fail, type ActionResult } from "@/lib/edit/result";
 import { enqueueCropWarm } from "@/lib/jobs/crop-warm";
@@ -136,6 +137,17 @@ export async function siteDraftAction(id: unknown, snap: unknown, rev: unknown):
   return saveSiteDraft(pid, snap, rev);
 }
 
+/**
+ * Brouillon du site en attente sur une autre page (lot 70) : confié à CETTE page, intact, avant un réglage (style du menu, des titres…).
+ * Il sera publié avec elle ; la page qui le portait n'a plus rien à publier de ce côté.
+ */
+export async function adoptSiteDraftAction(id: unknown, rev: unknown): Promise<DraftResult<AdoptResult>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Page inconnue.");
+  return adoptSiteDraft(pid, rev);
+}
+
 /** Planche neuve : projet créé dans le brouillon de la page (invisible ailleurs). */
 export async function createDraftProjectAction(id: unknown, title: unknown): Promise<ActionResult<{ id: number; slug: string; title: string }>> {
   await assertAdmin();
@@ -168,6 +180,16 @@ export async function setInMenuAction(id: unknown, inMenu: unknown): Promise<Act
     syncDraftFlags(pid, { inMenu });
     revalidateNav();
   }
+  return result;
+}
+
+/** « Ajouter au menu » de l'avertissement de publication (lot 67, CONC-02) : voir `addToMenuFromEditor`. */
+export async function addToMenuFromEditorAction(id: unknown): Promise<ActionResult<null>> {
+  await assertAdmin();
+  const pid = pageId(id);
+  if (!pid) return fail("Requête invalide.");
+  const result = addToMenuFromEditor(pid);
+  if (result.ok) revalidateNav();
   return result;
 }
 

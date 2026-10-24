@@ -15,8 +15,8 @@ type RoleStyle = NonNullable<TypeTokens[(typeof TEXT_ROLES)[number]]>;
 type Role = (typeof TEXT_ROLES)[number];
 
 const ROLE_LABELS: Record<Role, [string, string]> = {
-  h1: ["Titre de page", "Ton nom et le grand titre d'une page."],
-  h2: ["Titres de section", "Titres des sections et des collections."],
+  h1: ["Titre de page", "Seulement ce qui diffère des « Titres » pour le grand titre d'une page (laisse « Thème » pour qu'il suive les titres)."],
+  h2: ["Titres", "Tous les titres du site : titre de page, sections, projets, collections."],
   eyebrow: ["Petits textes d'étiquette", "Petits textes au-dessus des titres."],
   body: ["Texte courant", "Paragraphes."],
   caption: ["Légendes", "Légendes des œuvres, métier."],

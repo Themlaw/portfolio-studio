@@ -484,7 +484,7 @@ function settleDraftProjects(pageId: number, blocks: { type: string; props: unkn
 /* ---- Publier, abandonner -------------------------------------------------- */
 
 /** `site` : l'en-tête, le pied ou les réseaux (communs à toutes les pages) ont changé. */
-export type PublishResult = { projects: number[]; blocks: number; rev: number; site: boolean; /** La page vient d'être mise en ligne par ce geste (elle ne l'était pas). */ wentLive: boolean; /** Avertissements non bloquants (lot 52), ajoutés par l'action de publication. */ warnings?: { missingAlt: { id: number; name: string }[]; untranslated: number } };
+export type PublishResult = { projects: number[]; blocks: number; rev: number; site: boolean; /** La page vient d'être mise en ligne par ce geste (elle ne l'était pas). */ wentLive: boolean; /** Avertissements non bloquants (lot 52), ajoutés par l'action de publication. */ warnings?: { missingAlt: { id: number; name: string }[]; untranslated: number; notInMenu?: boolean } };
 
 /**
  * Publie le brouillon, en une transaction : validation et écriture de

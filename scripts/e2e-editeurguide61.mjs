@@ -395,6 +395,23 @@ if (run("G"))
     exec("update settings set value = ? where key = 'activeThemeId'", JSON.stringify(live));
   });
 
+
+/* ---- H. Aération du fond de texte : défaut du site, étape « Textes » (lot 68) ------------------------------------ */
+if (run("H"))
+  await section("H", async () => {
+    const id = duplicate("galerie-lumineuse");
+    created.push(id);
+    await open(id, "textes");
+    const seg = page.locator('[data-testid="text-air"] [role=radio]');
+    ok("H1 étape Textes : « Aération du fond de texte » Serré · Normal · Aéré", (await seg.allTextContents()).join("|") === "Serré|Normal|Aéré");
+    ok("H2 rien d'enregistré : « Normal » (le nouveau défaut)", (await page.locator('[data-testid="text-air"] [data-air="normal"]').getAttribute("aria-checked")) === "true" && !themeData(id).tokens.layout?.textAir);
+    await page.locator('[data-testid="text-air"] [data-air="airy"]').click();
+    ok("H3 « Aéré » : coché, thème modifié (bouton Enregistrer actif)", (await page.locator('[data-testid="text-air"] [data-air="airy"]').getAttribute("aria-checked")) === "true" && (await dirty()));
+    await saveNow("H4 enregistré");
+    ok("H5 le thème porte tokens.layout.textAir = airy", themeData(id).tokens.layout?.textAir === "airy", JSON.stringify(themeData(id).tokens.layout));
+    await page.screenshot({ path: `${SHOTS}/H-aeration-textes.png` });
+  });
+
 ok("aucune exception JavaScript", errors.length === 0, errors.slice(0, 3).join(" | "));
 await browser.close();
 

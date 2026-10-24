@@ -627,6 +627,20 @@ export function previewSurface(uid: string, surface: Surface | null, seq: number
   });
 }
 
+/* ---- Fond unique (lot 66) : carte + fond d'un bloc, un seul aperçu, un seul état ------------------------------------------- */
+
+/** Les deux couches du bloc telles qu'on doit les voir (aperçus en attente, sinon page rendue) et la carte par défaut du thème. */
+export function zoneState(uid: string): { surface: Surface | null; background: Background | null; defaults: ResolvedSurface } {
+  const { surface, defaults } = surfaceState(uid);
+  return { surface, background: fondState(uid), defaults };
+}
+
+/** Aperçu immédiat des deux couches (même numéro d'intention : l'acquittement du serveur les retire ensemble). */
+export function previewZone(uid: string, surface: Surface | null, background: Background | null, seq: number) {
+  previewSurface(uid, surface, seq);
+  previewFond(uid, background, seq);
+}
+
 /* ---- Papiers peints (lot 35) : la bibliothèque, telle que la page de la toile la porte (`data-edit-wallpapers`, layout du site) --------- */
 
 let catalogRaw = "";
@@ -664,7 +678,7 @@ export function fondState(uid: string): Background | null {
 }
 
 const fondOriginal = new WeakMap<Element, { attrs: Record<string, string | null>; style: string | null }>();
-const FOND_ATTRS = ["data-fond", "data-fond-inset", "data-fond-round", "data-fond-around", "data-join-prev", "data-join-next", "data-edit-background", "data-wallpaper", "data-fond-clear"];
+const FOND_ATTRS = ["data-fond", "data-fond-inset", "data-fond-round", "data-fond-around", "data-join-prev", "data-join-next", "data-edit-background", "data-wallpaper", "data-fond-clear", "data-paper"];
 
 /**
  * Fusion des voisins recalculée sur la page affichée (aperçu d'un fond ou d'une carte) : mêmes règles que le serveur

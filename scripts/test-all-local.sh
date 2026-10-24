@@ -8,7 +8,7 @@
 #
 # Usage (depuis le dépôt) :
 #   scripts/test-all-local.sh [suite…]      # vide = toutes
-#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 entrees48 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 backup50 vitesse54 publication51 kit53 partage52 priseenmain57 cadremotif58 cadres62 fonddeborde59 themes55 essayer63 montheme60 editeurguide61
+#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 entrees48 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 backup50 vitesse54 publication51 kit53 partage52 priseenmain57 cadremotif58 cadres62 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 mediaframe64 grille69 public67 surface66 popover65 textes70
 # Rapide (VM de 3 cœurs et plus, voir docs/ARCHITECTURE.md) :
 #   BATT_SERVER=start BATT_JOBS=2 scripts/test-all-local.sh
 # En fond détaché :
@@ -34,7 +34,7 @@ BATT_SERVER=${BATT_SERVER:-dev}
 BATT_JOBS=${BATT_JOBS:-1}
 export BATTERY_DIR=${BATTERY_DIR:-/root/battery-logs/$(date +%Y-%m-%d_%H%M)}
 # Suites qui exigent `next dev` (voir docs/ARCHITECTURE.md, « Mode start »). Elles passent par /api/theme-preview, fermée (404) en production.
-BATT_DEV_ONLY=${BATT_DEV_ONLY-v013 lot11 themes papier28 planche31}
+BATT_DEV_ONLY=${BATT_DEV_ONLY-v013 lot11 themes papier28 planche31 retours68}
 # Suites lourdes : toujours seules (RAM, ffmpeg, navigateurs multiples).
 HEAVY_IDS=" checks build auth medias medias-firefox "
 
@@ -128,6 +128,13 @@ E2E=(
   "essayer63|node scripts/e2e-essayer63.mjs|chromium|"
   "montheme60|node scripts/e2e-montheme60.mjs|chromium|"
   "editeurguide61|node scripts/e2e-editeurguide61.mjs|chromium|"
+  "retours68|node scripts/e2e-retours68.mjs|chromium|"
+  "mediaframe64|node scripts/e2e-mediaframe64.mjs|chromium|"
+  "grille69|node scripts/e2e-grille69.mjs|chromium|"
+  "public67|node scripts/e2e-public67.mjs|chromium|"
+  "surface66|node scripts/e2e-surface66.mjs|chromium|"
+  "popover65|node scripts/e2e-popover65.mjs|chromium|"
+  "textes70|node scripts/e2e-textes70.mjs|chromium|"
 )
 
 

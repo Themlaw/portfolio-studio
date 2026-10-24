@@ -19,7 +19,7 @@
  * jusqu'à ce que le serveur ait rendu une révision au moins aussi récente :
  * jamais d'affichage intermédiaire de l'ancienne valeur.
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import FreeCropDialog from "@/components/edit/FreeCropDialog";
 import HeroContrast from "@/components/edit/HeroContrast";
@@ -54,7 +54,7 @@ import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 
 import { canvasPalette, overlayData, overlayList, postIntent, setOverlay } from "./optimistic";
 import TypoControls from "./TypoControls";
-import { useDismiss } from "./useDismiss";
+import Popover from "./Popover";
 
 import "@/app/admin/look-layer.css";
 
@@ -273,8 +273,56 @@ function roleOf(el: HTMLElement): Role {
   if (el.closest(".eyebrow")) return "eyebrow";
   if (el.closest("h1")) return "h1";
   if (el.closest("h2, h3")) return "h2";
-  if (el.closest(".caption-text, figcaption, .strip-caption") || el.closest("footer")) return "caption";
+  if (el.closest(".caption-text, figcaption, .strip-caption")) return "caption";
+  // Pied de page : un texte courant (police du texte ; sa taille reste la sienne, voir ROLE_FONT_ONLY_SELECTORS).
+  if (el.closest("footer")) return "body";
   return "body";
+}
+
+/** Barres d'outils de la toile (blocs, composants, liens du menu…) : la pastille « Aa » ne s'y pose pas non plus. */
+const TOOL_SEL = ".pe-layer :is(button, [role=toolbar], .pe-tools):not(.pe-focus)";
+const AA_W = 30;
+const AA_H = 22;
+
+/**
+ * Place de la pastille « Aa » d'un texte (lot 70). Elle se pose d'abord au-dessus de l'angle droit du texte survolé ; si elle y recouvrirait
+ * un AUTRE texte modifiable (ligne du dessus d'une légende, date posée sur la ligne suivante…) ou une barre d'outils, elle essaie
+ * ailleurs : au-dessus à gauche, hors du texte à droite puis à gauche, en dessous. Un texte passe toujours avant une barre. Dernier recours :
+ * dans le texte lui-même s'il est assez grand, sinon la place d'avant. Un clic sur la ligne 2 ne tombe donc jamais sur la pastille de la ligne 1.
+ */
+function aaPlace(own: HTMLElement, rect: Rect): { top: number; left: number } {
+  const minTop = window.scrollY + 2;
+  const minLeft = window.scrollX + 2;
+  const maxLeft = window.scrollX + document.documentElement.clientWidth - AA_W - 2;
+  const boxes = (sel: string) =>
+    [...document.querySelectorAll<HTMLElement>(sel)]
+      .filter((e) => e !== own && !own.contains(e) && !e.contains(own) && !e.closest(".lk-aa, .lk-bar, .lk-pos"))
+      .map(docRect)
+      .filter((r) => r.width > 0 && r.height > 0);
+  const texts = boxes(TEXT_SEL);
+  // Les cadres de focus et autres calques pleine largeur ne sont pas des barres : seules comptent les barres de taille de barre.
+  const tools = boxes(TOOL_SEL).filter((r) => r.width < 420 && r.height < 160);
+  const hits = (c: { top: number; left: number }, list: Rect[]) => list.some((r) => c.left < r.left + r.width && c.left + AA_W > r.left && c.top < r.top + r.height && c.top + AA_H > r.top);
+  const inside = (c: { top: number; left: number }) => c.left >= minLeft && c.left <= maxLeft && c.top >= minTop;
+  const right = rect.left + rect.width - AA_W;
+  const mid = rect.top + Math.max(0, (rect.height - AA_H) / 2);
+  const candidates = [
+    { top: Math.max(minTop, rect.top - 24), left: right },
+    { top: Math.max(minTop, rect.top - 24), left: rect.left },
+    { top: Math.max(minTop, rect.top - 24), left: rect.left - AA_W - 4 },
+    { top: Math.max(minTop, rect.top - 24), left: rect.left + rect.width + 4 },
+    { top: mid, left: rect.left + rect.width + 4 },
+    { top: mid, left: rect.left - AA_W - 4 },
+    { top: rect.top + rect.height + 2, left: right },
+    { top: rect.top + rect.height + 2, left: rect.left },
+  ].filter(inside);
+  // D'abord une place libre de tout texte ET de toute barre ; sinon libre de tout texte (la barre passe après) ; sinon, DANS le texte,
+  // sur son angle droit, s'il est assez grand pour rester cliquable à côté (jamais hors de lui, donc jamais sur un autre texte) ;
+  // sinon la place d'avant (au-dessus de l'angle droit) : un champ étroit ou bas (date vide…) resterait recouvert, donc incliquable.
+  const pick = candidates.find((c) => !hits(c, texts) && !hits(c, tools)) ?? candidates.find((c) => !hits(c, texts));
+  if (pick) return pick;
+  if (rect.width >= 4 * AA_W && rect.height >= AA_H) return { top: Math.max(minTop, mid), left: Math.max(minLeft, Math.min(maxLeft, right)) };
+  return { top: Math.max(minTop, rect.top - 24), left: Math.max(minLeft, Math.min(maxLeft, right)) };
 }
 
 /** Chemin stable d'un élément (le DOM est re-rendu au rafraîchissement). */
@@ -397,11 +445,10 @@ function TextBar({
   tick: number;
 }) {
   const [scope, setScope] = useState<"local" | "role">(target.local ? "local" : "role");
-  const barRef = useRef<HTMLDivElement>(null);
+  // Redessin à chaque réglage : l'aperçu ne change que des attributs (la page n'est pas observée pour cela). Sans lui, la barre garde
+  // l'ancienne valeur jusqu'au prochain redessin de la page, et un second réglage fait aussitôt après écraserait le premier.
+  const [, redraw] = useState(0);
   const el = document.querySelector<HTMLElement>(target.path);
-  // Clic ailleurs : la barre se ferme (les réglages sont déjà appliqués). Le texte visé
-  // reste cliquable (déplacer le curseur pendant la saisie) sans la fermer.
-  useDismiss(barRef, onClose, { ignore: (t) => Boolean(document.querySelector(target.path)?.contains(t)) });
   void tick;
   // Le texte n'est plus là (la page s'est redessinée autrement, ex. le bloc a perdu son enveloppe) : la barre n'a plus de cible
   // et, sans cette fermeture, bloquerait le « Aa » des autres textes. Un redessin passager la retrouve avant le délai.
@@ -411,43 +458,7 @@ function TextBar({
     const t = setTimeout(onClose, 2000);
     return () => clearTimeout(t);
   }, [missing, onClose, tick]);
-  // La barre ne recouvre jamais la barre d'outils du bloc sélectionné (`.pe-tools` : Monter, Descendre, Supprimer…) : au-dessus du
-  // texte par défaut, sinon dessous, sinon décalée à gauche de cette barre d'outils. Calculé sur les tailles (pas sur la position
-  // actuelle), donc sans boucle ; refait à chaque rendu (la barre d'outils apparaît quand la saisie sélectionne le bloc).
-  const [avoid, setAvoid] = useState<{ below: boolean; left: number | null } | null>(null);
-  // Sans liste de dépendances (volontaire) : la barre d'outils apparaît et bouge sans que ce composant le sache ; le setState ne
-  // change rien (même objet) quand le placement est déjà bon, donc pas de boucle.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => {
-    const bar = barRef.current;
-    const text = document.querySelector<HTMLElement>(target.path);
-    let next: { below: boolean; left: number | null } | null = null;
-    if (bar && text) {
-      const tr = docRect(text);
-      const tools = [...document.querySelectorAll<HTMLElement>(".pe-tools")].map(docRect).filter((t) => t.width > 0);
-      const [w, h] = [bar.offsetWidth, bar.offsetHeight];
-      const gap = 6;
-      const left0 = Math.max(window.scrollX + 8, Math.min(tr.left, window.scrollX + document.documentElement.clientWidth - 560));
-      const hitTool = (below: boolean, left: number) => {
-        const top = below ? tr.top + tr.height + 8 : tr.top - 8 - h;
-        return tools.find((t) => left < t.left + t.width + gap && left + w > t.left - gap && top < t.top + t.height + gap && top + h > t.top - gap);
-      };
-      const hits = (below: boolean, left: number) => Boolean(hitTool(below, left));
-      const below0 = tr.top - window.scrollY < 150;
-      if (tools.length && hits(below0, left0)) {
-        const shifted = (below: boolean) => {
-          const t = hitTool(below, left0);
-          return t ? Math.max(window.scrollX + 8, t.left - gap - w) : left0;
-        };
-        if (!hits(!below0, left0)) next = { below: !below0, left: null };
-        else if (!hits(below0, shifted(below0))) next = { below: below0, left: shifted(below0) };
-        else if (!hits(!below0, shifted(!below0))) next = { below: !below0, left: shifted(!below0) };
-      }
-    }
-    setAvoid((prev) => (prev?.below === next?.below && prev?.left === next?.left ? prev : next));
-  });
   if (!el) return null;
-  const r = docRect(el);
   const look = target.local ? lookOf(target.local.uid) : {};
   // Fond du métier de l'ouverture réglé avant le lot 21 (`look.roleBackdrop`) : « Ombre douce » et « Bandeau » sont montrés comme
   // celui du texte et migrés dans son style dès qu'on le modifie (le rendu ne change pas). L'ancien « Surlignage » (aplat en
@@ -456,7 +467,15 @@ function TextBar({
   const oldBackdrop = target.local?.key === "site.role" ? look.roleBackdrop : undefined;
   const legacyBackdrop = oldBackdrop && oldBackdrop !== "highlight" ? oldBackdrop : undefined;
   const localStyle: TextStyle = target.local ? { ...(legacyBackdrop ? { backdrop: legacyBackdrop } : {}), ...(look.text?.[target.local.key] ?? {}) } : {};
-  const roleStyle = siteStyles().roles?.[target.role] ?? {};
+  // « Titres » : le titre de page et les titres de section partagent UN réglage (lot 68) ; le titre de page n'a son propre style que s'il en a posé un.
+  const role: Role = target.role === "h1" ? "h2" : target.role;
+  const roleStyle: TextStyle = (() => {
+    const roles = siteStyles().roles ?? {};
+    // Depuis un titre de page : le réglage commun des titres, avec la taille du titre de page.
+    if (target.role !== "h1") return roles[role] ?? {};
+    const out = { ...(roles.h2 ?? {}), ...(roles.h1?.size ? { size: roles.h1.size } : { size: undefined }), ...(roles.h1?.scale ? { scale: roles.h1.scale } : { scale: undefined }) };
+    return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined)) as TextStyle;
+  })();
   const value = scope === "local" ? localStyle : roleStyle;
   const change = (input: TextStyle | undefined) => {
     let next = input;
@@ -472,21 +491,34 @@ function TextBar({
       // Aperçu immédiat sur ce texte.
       previewTextStyle(target.local, next, seq);
     } else {
-      const seq = postIntent({ kind: "site-style", role: target.role, style: next ?? null });
-      previewRole(target.role, next, seq);
+      // « Titres » (lot 68) : police, graisse, couleur… sont UN réglage pour le titre de page et les titres de section ; seule la TAILLE
+      // reste propre à chacun (le titre de page est plus grand). Depuis un titre de page, la taille va donc à « Titre de page ».
+      const roles = siteStyles().roles ?? {};
+      const post = (r: Role, style: TextStyle | undefined) => {
+        const seq = postIntent({ kind: "site-style", role: r, style: style ?? null });
+        previewRole(r, style, seq);
+      };
+      const clean = (s: TextStyle): TextStyle | undefined => {
+        const out = Object.fromEntries(Object.entries(s).filter(([, v]) => v !== undefined)) as TextStyle;
+        return Object.keys(out).length ? out : undefined;
+      };
+      const SIZE_KEYS = ["size", "scale"];
+      const changed = (Object.keys({ ...roleStyle, ...(next ?? {}) }) as (keyof TextStyle)[]).filter((k) => !SIZE_KEYS.includes(k) && JSON.stringify(roleStyle[k]) !== JSON.stringify(next?.[k]));
+      const withoutChanged = (s: TextStyle | undefined) => Object.fromEntries(Object.entries(s ?? {}).filter(([k]) => !(changed as string[]).includes(k))) as TextStyle;
+      if (target.role === "h1") {
+        const { size, scale, ...shared } = next ?? {};
+        post("h2", clean({ ...shared, size: roles.h2?.size, scale: roles.h2?.scale }));
+        post("h1", clean({ ...withoutChanged(roles.h1), size, scale }));
+      } else {
+        post(role, next);
+        // Un style propre du titre de page ne doit pas empêcher « tous les titres » de changer : ce qu'on vient de régler lui est retiré.
+        if (role === "h2" && roles.h1 && changed.some((k) => k in roles.h1!)) post("h1", clean(withoutChanged(roles.h1)));
+      }
     }
   };
-  const below = avoid ? avoid.below : r.top - window.scrollY < 150;
+  // Fenêtre ancrée au bouton « Aa » (lot 65) : au-dessus du texte si la place y est, jamais sur la barre d'outils du bloc ni loin du bouton.
   return (
-    <div
-      ref={barRef}
-      className="lk-bar"
-      role="toolbar"
-      aria-label="Style du texte"
-      data-below={below || undefined}
-      style={{ top: below ? r.top + r.height + 8 : r.top - 8, left: avoid?.left ?? Math.max(window.scrollX + 8, Math.min(r.left, window.scrollX + document.documentElement.clientWidth - 560)) }}
-      onPointerDown={(e) => e.stopPropagation()}
-    >
+    <Popover anchor=".lk-aa" dataAttrs={{ "data-text-target": target.local?.key ?? target.role }} avoid={target.path} obstacles=".pe-tools" prefer="above" className="lk-bar" role="toolbar" label="Style du texte" onClose={onClose} ignoreDismiss={(t) => Boolean(document.querySelector(target.path)?.contains(t))} onPointerDown={(e) => e.stopPropagation()}>
       <div className="lk-bar-head">
         <span className="lk-seg" role="radiogroup" aria-label="Appliquer à">
           {target.local && (
@@ -495,7 +527,7 @@ function TextBar({
             </button>
           )}
           <button type="button" role="radio" aria-checked={scope === "role"} onClick={() => setScope("role")} title="Styles du site : toutes les pages (publié avec la page)">
-            Tous les « {ROLE_LABELS[target.role]} »
+            {role === "h2" ? "Tous les titres" : `Tous les « ${ROLE_LABELS[role]} »`}
           </button>
         </span>
         <button type="button" className="lk-close" aria-label="Fermer la barre" onClick={onClose}>
@@ -504,17 +536,20 @@ function TextBar({
       </div>
       <TypoControls
         value={value}
-        onChange={change}
+        onChange={(v) => {
+          change(v);
+          redraw((n) => n + 1);
+        }}
         installed={installed}
         swatch={swatch}
         themeNames={themeNames}
         compact
         resetLabel={scope === "local" ? "Revenir au style global" : "Revenir au thème"}
         palette={canvasPalette()}
-        backdropBlocked={BACKDROP_BLOCKED[target.role]}
+        backdropBlocked={BACKDROP_BLOCKED[role]}
         inheritedColor={scope === "local" ? roleStyle.color : undefined}
       />
-    </div>
+    </Popover>
   );
 }
 
@@ -945,6 +980,8 @@ export default function LookLayer({
   const selLook = selected ? lookOf(selected.uid) : {};
   const selRect = selected ? (wrapperOf(selected.uid) ? rectOfWrapper(selected.uid) : null) : null;
   const hoverValid = hoverText && document.contains(hoverText.el) ? { ...hoverText, rect: docRect(hoverText.anchor ?? hoverText.el) } : null;
+  const barEl = bar ? document.querySelector<HTMLElement>(bar.path) : null;
+  const aaView = bar ? (barEl ? { el: barEl, rect: docRect(barEl) } : null) : hoverValid;
   const cropValid = cropHover && document.contains(cropHover.media) ? cropHover : null;
 
   return (
@@ -957,14 +994,15 @@ export default function LookLayer({
       )}
       {selected && selRect && TITLE_TYPES.has(selected.type) && <TitlePosition uid={selected.uid} type={selected.type} inCell={selected.parentType === "grid"} rect={selRect} />}
 
-      {hoverValid && !bar && (
+      {aaView && (
         <button
           type="button"
           className="lk-aa"
-          style={{ top: Math.max(window.scrollY + 2, hoverValid.rect.top - 24), left: hoverValid.rect.left + hoverValid.rect.width - 30 }}
+          style={bar ? { top: Math.max(window.scrollY + 2, aaView.rect.top - 24), left: aaView.rect.left + aaView.rect.width - 30 } : aaPlace((aaView as { anchor?: HTMLElement }).anchor ?? aaView.el, aaView.rect)}
           aria-label="Style du texte"
+          aria-expanded={bar ? true : undefined}
           title="Police, taille, couleur… de ce texte"
-          onClick={() => setBar(targetOf(hoverValid.el))}
+          onClick={() => (bar ? setBar(null) : setBar(targetOf(aaView.el)))}
         >
           Aa
         </button>

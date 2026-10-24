@@ -364,6 +364,9 @@
     scrollbar-width: none;
     -ms-overflow-style: none;
     padding-block: var(--rail-room);
+    /* Hauteur suivant les cases vues (StripRail, lot 67, PUB-03) ; absente = hauteur naturelle. */
+    height: var(--strip-rail-h, auto);
+    transition: height var(--dur-fast) var(--ease-soft);
     /* Fondu : masque dégradé (alpha seul) — l'image se dissout dans ce qui
        est derrière la bande (fond, texture, papier du kit), sans coupe nette.
        Bords pilotés par deux propriétés (@property, medias.css) : chaque
@@ -422,16 +425,16 @@
      Réduite, elle est centrée dans la hauteur de la bande ; sa légende reste dessous, à sa largeur. « À faire défiler » : comme avant. */
   .strip-frame[data-pano="fit"] {
     --fit-h: min(var(--strip-h), calc(var(--strip-vis) / var(--ir, 1)));
-    margin-top: calc((var(--strip-h) - var(--fit-h)) / 2);
+    /* --strip-band (StripRail, lot 67) : hauteur des images VUES quand la bande se réduit à elles (panorama seul). */
+    margin-top: calc((var(--strip-band, var(--strip-h)) - var(--fit-h)) / 2);
   }
 
   .strip-media {
     display: block;
   }
 
-  /* Halo lumineux du thème, seulement s'il en a un. */
+  /* Halo lumineux du thème, seulement s'il en a un : posé sur la boîte du média (media-frame.css, `.strip-frame .media-frame`). */
   .strip-frame img {
-    box-shadow: var(--strip-halo);
     transition: opacity var(--dur-fast) var(--ease-soft);
   }
 
@@ -490,7 +493,8 @@
   /* Sous une image de bande : la légende suit la largeur de l'image, elle ne l'élargit pas (le texte long revient à la ligne). */
   .strip-frame > .media-caption {
     width: 0;
-    min-width: 100%;
+    /* Jamais plus étroite que 7,5 rem : sous une image très étroite, le texte ne s'écrit pas une lettre par ligne (lot 67, PUB-03). */
+    min-width: max(100%, 7.5rem);
   }
 
   /* Téléphone : la date passe sous la légende, alignée à gauche. */
@@ -716,7 +720,7 @@
   .strip-nav {
     position: absolute;
     z-index: 2;
-    top: calc(var(--rail-room) + var(--strip-h) / 2);
+    top: calc(var(--rail-room) + var(--strip-band, var(--strip-h)) / 2);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -932,38 +936,6 @@
     grid-column: 1 / -1;
   }
 }
-/* Ratio imposé aux images des cellules (les vidéos gardent leur cadre). */
-.block-grid[data-ratio="16:9"] .block-image-media {
-  aspect-ratio: 16 / 9;
-}
-.block-grid[data-ratio="1:1"] .block-image-media {
-  aspect-ratio: 1;
-}
-.block-grid[data-ratio="4:5"] .block-image-media {
-  aspect-ratio: 4 / 5;
-}
-.block-grid[data-ratio="3:4"] .block-image-media {
-  aspect-ratio: 3 / 4;
-}
-.block-grid[data-ratio="2:3"] .block-image-media {
-  aspect-ratio: 2 / 3;
-}
-.block-grid[data-ratio="4:3"] .block-image-media {
-  aspect-ratio: 4 / 3;
-}
-.block-grid[data-ratio="3:2"] .block-image-media {
-  aspect-ratio: 3 / 2;
-}
-.block-grid[data-ratio="2:1"] .block-image-media {
-  aspect-ratio: 2 / 1;
-}
-.block-grid[data-ratio="21:9"] .block-image-media {
-  aspect-ratio: 21 / 9;
-}
-.block-grid:not([data-ratio="auto"]) .block-image-media {
-  height: auto;
-  object-fit: cover;
-}
 /* Lot 31d : « Portrait + 2 » et « Sur mesure » (CSS grid, `grid-column` / `grid-row: span`). Le flux `dense` ne laisse aucun
    trou : une case plus petite remonte combler la place d'une plus grande (l'ordre de lecture suit alors les numéros de la
    toile). `data-mirror` inverse gauche et droite (direction rtl sur la grille, ltr dans les cases). Sous 48 rem (téléphone) :
@@ -1003,44 +975,7 @@
     direction: ltr;
   }
 }
-/* Une case sur deux rangées (portrait) : l'image remplit toute la hauteur que lui laissent ses voisines, rognée au besoin
-   (ce sont les cases d'une seule rangée qui donnent leur hauteur à la ligne : aucune ne se déforme). */
-@media (min-width: 48rem) {
-  .block-grid-cell[data-span-h],
-  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) {
-    display: flex;
-    flex-direction: column;
-  }
-  .block-grid-cell[data-span-h] .block-image,
-  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    min-height: 0;
-  }
-  .block-grid-cell[data-span-h] .block-image > span:first-child,
-  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image > span:first-child {
-    position: relative;
-    display: block;
-    flex: 1 1 auto;
-    min-height: 14rem;
-  }
-  .block-grid-cell[data-span-h] .block-image-media,
-  .block-grid[data-layout^="portrait"]:not([data-justify]) > .block-grid-cell:nth-child(3n + 1) .block-image-media {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    aspect-ratio: auto;
-    object-fit: cover;
-  }
-}
-/* « Sur mesure » avec un format imposé : une case large garde la hauteur de ses voisines d'une colonne (format x largeur). */
-@media (min-width: 48rem) {
-  .block-grid:is([data-layout="custom"], [data-layout="auto"]):not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) .block-image-media {
-    aspect-ratio: calc(var(--grid-r, 1.3333) * var(--w, 1));
-  }
-}
+/* Case sur deux rangées (portrait) et « sur mesure » avec un format imposé : la boîte du média (MediaFrame) s'en charge, src/app/media-frame.css. */
 /* Lot 37 : rangées justifiées (« Automatique » + format « Libre »). Chaque case a une largeur proportionnelle au format de son
    image (`--jr`), donc toutes les images d'une rangée ont la même hauteur, sans recadrage. `--jk` = largeur en colonnes
    (part de la rangée x nombre de cases) : la base de flex est calculée au pixel près, un peu en dessous (-0,1 px) pour que

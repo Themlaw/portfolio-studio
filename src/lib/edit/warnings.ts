@@ -17,6 +17,8 @@ export type PublishWarnings = {
   missingAlt: { id: number; name: string }[];
   /** Nombre de textes sans traduction anglaise (titre compris). */
   untranslated: number;
+  /** Page en ligne que ni le menu ni le pied de page ne montrent (lot 67, CONC-02) ; jamais l'accueil. */
+  notInMenu: boolean;
 };
 
 const MAX_LISTED = 40;
@@ -45,7 +47,7 @@ function pageMediaIds(blocks: { type: string; props: unknown }[]): number[] {
 
 export function publishWarnings(pageId: number): PublishWarnings {
   const page = getPageForEdit(pageId);
-  if (!page) return { missingAlt: [], untranslated: 0 };
+  if (!page) return { missingAlt: [], untranslated: 0, notInMenu: false };
   const ids = pageMediaIds(page.blocks);
   const rows = ids.length
     ? getDb()
@@ -58,5 +60,6 @@ export function publishWarnings(pageId: number): PublishWarnings {
   return {
     missingAlt: missing.slice(0, MAX_LISTED).map((m) => ({ id: m.id, name: m.name ?? m.key })),
     untranslated: untranslatedCount(page.title, page.blocks),
+    notInMenu: page.published && !page.isHome && !page.inMenu,
   };
 }

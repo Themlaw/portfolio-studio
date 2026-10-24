@@ -343,6 +343,25 @@ export function setPublished(id: number, published: boolean): ActionResult<null>
   return done(null);
 }
 
+/**
+ * « Ajouter au menu » depuis l'avertissement de publication de l'éditeur (lot 67, CONC-02) : la page entre au menu, et le
+ * brouillon en attente (s'il existe) le suit SANS augmenter sa version : l'éditeur ouvert ne reçoit pas « Modifiée ailleurs »
+ * et sa prochaine publication ne ressort pas la page du menu.
+ */
+export function addToMenuFromEditor(id: number): ActionResult<null> {
+  const db = getDb();
+  const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
+  if (!page || page.deletedAt) return fail("Cette page n'existe plus.");
+  db.transaction(() => {
+    setPageInNav(id, true, { skipRevOf: id });
+    const draft = page.draft;
+    if (draft && typeof draft === "object" && !Array.isArray(draft)) {
+      db.update(schema.pages).set({ draft: { ...(draft as Record<string, unknown>), inMenu: true } }).where(eq(schema.pages.id, id)).run();
+    }
+  });
+  return done(null);
+}
+
 export function setInMenu(id: number, inMenu: boolean): ActionResult<null> {
   const db = getDb();
   const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();

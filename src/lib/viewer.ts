@@ -1,3 +1,4 @@
+import type { CropFallback } from "@/components/Picture";
 import type { PictureSources } from "@/lib/images/variants";
 import type { VideoView } from "@/lib/media";
 
@@ -25,6 +26,11 @@ export type ViewerItem = {
   description: string;
   date?: string;
   video?: VideoView;
+  /**
+   * Image recadrée (lot 68) : `sources`, `width` et `height` sont ceux du RECADRAGE montré par la page (variante haute définition
+   * extraite de l'original) ; si elle n'est pas prête (générée à la demande), l'image entière cadrée en CSS, puis nouvel essai.
+   */
+  fallback?: CropFallback;
   /** Ne pas montrer le texte alternatif en titre quand il n y a pas de titre (images des blocs : la légende est facultative). */
   plain?: boolean;
 };

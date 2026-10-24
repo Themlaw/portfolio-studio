@@ -16,6 +16,7 @@ import { useRef, useState } from "react";
 
 import { parseColor, rgbaToHex } from "@/lib/color";
 import { BACKDROP_LABELS, BACKDROPS, PALETTE, type PaletteColor, type TextStyle } from "@/lib/look";
+import { AIR_LABELS, AIRS } from "@/themes/backdrop-air";
 import { backdropContrast, TEXT_PALETTE_KEYS } from "@/themes/text-backdrop";
 import { cardBackground, isSurfaceToken, type CardPalette } from "@/themes/surface";
 
@@ -65,7 +66,10 @@ export default function BackdropRow({ value, set, palette, swatch, blocked, inhe
   const chip = value.backdropColor ? cardBackground(value.backdropColor, palette) : value.backdrop === "highlight" ? palette.primary : palette.bg;
   const name = value.backdropColor ? "couleur choisie" : "Auto";
 
+  // Aération (lot 68) : seulement pour les fonds qui ont une marge (Bandeau, Surlignage). Absent = celle du thème (Normal par défaut).
+  const airy = (value.backdrop === "band" || value.backdrop === "highlight") && !blocked;
   return (
+    <>
     <div className="tc-row tc-bd" title={blocked}>
       <span className="tc-bd-label">
         Fond du texte :
@@ -118,5 +122,18 @@ export default function BackdropRow({ value, set, palette, swatch, blocked, inhe
         </span>
       )}
     </div>
+    {airy && (
+      <div className="tc-row tc-air">
+        <span className="tc-bd-label">Aération du fond :</span>
+        <span className="tc-seg" role="radiogroup" aria-label="Aération du fond">
+          {AIRS.map((a) => (
+            <button key={a} type="button" role="radio" aria-checked={(value.air ?? "normal") === a} data-air={a} onClick={() => set({ air: a === "normal" && value.air === undefined ? undefined : a })}>
+              {AIR_LABELS[a]}
+            </button>
+          ))}
+        </span>
+      </div>
+    )}
+    </>
   );
 }

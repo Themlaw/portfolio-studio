@@ -29,6 +29,7 @@ import sharp from "sharp";
 
 import { paint } from "./lib/crop-fixtures.mjs";
 import { boardDraft, boardPublished, draftBlocks, findIn, grid, img, login, makeMedia, openEditor, pageIdOf, q1, setBoardDraft, setDraft, settled, sleep, sql, waitFor } from "./lib/grille31d.mjs";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3460";
 const ONLY = process.env.ONLY ?? "";
@@ -47,6 +48,7 @@ const near = (a, b, tol = 3) => Math.abs(a - b) <= tol;
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));

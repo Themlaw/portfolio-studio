@@ -231,6 +231,7 @@ export default function PagesManager({ pages, trashed, view, summary }: { pages:
         const n = warn.missingAlt.length;
         toast(`${n} image${n > 1 ? "s" : ""} sans description (pour les personnes malvoyantes et Google). À compléter dans les médias.`, "success", undefined, 9000);
       }
+      if ((warn as { notInMenu?: boolean } | undefined)?.notInMenu) toast("Cette page est en ligne mais n'apparaît dans aucun menu : utilise « Ajouter au menu ».", "success", undefined, 9000);
       if (warn && warn.untranslated > 0) toast(`${untranslatedLabel(warn.untranslated)} : les visiteurs anglophones verront ces passages vides ou en français.`, "success", undefined, 9000);
       router.refresh();
     });
@@ -352,6 +353,11 @@ export default function PagesManager({ pages, trashed, view, summary }: { pages:
                     )}
                   </td>
                   <td data-label="Menu">
+                    {p.published && p.navOrder === null && !isHome(p) && (
+                      <p className="a-tag a-tag-warn" data-testid="not-in-menu">
+                        Cette page est en ligne mais n&apos;apparaît dans aucun menu
+                      </p>
+                    )}
                     <button
                       type="button"
                       className="a-btn a-btn-small a-btn-quiet"

@@ -22,6 +22,7 @@ import sharp from "sharp";
 
 import { login, q1, sleep, sql, waitFor } from "./lib/grille31d.mjs";
 import { publishBlocks } from "./lib/page-draft.mjs";
+import { autoOpenFine } from "./lib/zone66.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3600";
 const SHOTS = process.env.SHOTS ?? "screenshots/entrees48";
@@ -50,6 +51,7 @@ writeFileSync(WP_FILE, tile);
 
 const browser = await chromium.launch({ args: ["--disable-gpu", "--renderer-process-limit=2", "--disable-extensions", "--js-flags=--max-old-space-size=256"] });
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+await autoOpenFine(ctx);
 const page = await ctx.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));

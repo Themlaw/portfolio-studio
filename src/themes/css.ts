@@ -8,6 +8,7 @@
  * l'aperçu en direct.
  */
 import { FONT_STACKS as FONT_CATALOG } from "./font-stacks";
+import { airVariables } from "./backdrop-air";
 import { resolvePalette, type PaletteColors } from "./palette";
 import { applySitePalette, type SitePalette } from "./site-palette";
 import type { KitAssets, KitCursor, KitImage, Theme } from "./schema";
@@ -58,9 +59,12 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
   if (kit.frame) {
     const [t, r, b, l] = kit.frame.slice;
     v["--t-kit-frame"] = kitImage(kit.frame.image);
-    v["--t-kit-frame-w"] = `${Math.round(t / 2)}px`;
     v["--t-kit-frame-slice"] = `${t} ${r} ${b} ${l}`;
-    v["--t-kit-frame-width"] = `${Math.round(t / 2)}px ${Math.round(r / 2)}px ${Math.round(b / 2)}px ${Math.round(l / 2)}px`;
+    // Épaisseurs RÉELLES des quatre côtés (px, sans unité : l'épaisseur se réduit proportionnellement sur petit écran, variants.css).
+    v["--t-kit-fwt"] = String(Math.round(t / 2));
+    v["--t-kit-fwr"] = String(Math.round(r / 2));
+    v["--t-kit-fwb"] = String(Math.round(b / 2));
+    v["--t-kit-fwl"] = String(Math.round(l / 2));
   }
   if (kit.stroke) v["--t-kit-stroke"] = kitMask(kit.stroke);
   for (const [key, name] of ICONS) {
@@ -169,6 +173,7 @@ export function layoutVariables(theme: Theme): Record<string, string> {
     "--t-space-xl": l.spaceXL,
     "--t-page-top": l.pageTop,
     "--t-board-pad": l.stripPad,
+    ...airVariables(theme.tokens.layout?.textAir),
     ...(theme.tokens.layout?.mediaRadius ? { "--t-media-radius": RADIUS_VALUES[theme.tokens.layout.mediaRadius] } : {}),
   };
 }

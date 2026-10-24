@@ -26,6 +26,8 @@ export default function CroppedPicture({
   className,
   priority,
   fallback,
+  onLoad,
+  style,
 }: {
   sources: PictureSources;
   alt: string;
@@ -35,6 +37,9 @@ export default function CroppedPicture({
   className?: string;
   priority?: boolean;
   fallback: CropFallback;
+  /** Image affichée (variante recadrée, ou image entière de repli). */
+  onLoad?: () => void;
+  style?: CSSProperties;
 }) {
   const [failed, setFailed] = useState(false);
   const [tries, setTries] = useState(0);
@@ -66,7 +71,7 @@ export default function CroppedPicture({
   }, []);
 
   if (!failed) {
-    return <PictureMarkup sources={sources} alt={alt} width={width} height={height} sizes={sizes} className={className} priority={priority} cropped imgRef={mainRef} onError={() => setFailed(true)} />;
+    return <PictureMarkup sources={sources} alt={alt} width={width} height={height} sizes={sizes} className={className} priority={priority} cropped imgRef={mainRef} onError={() => setFailed(true)} onLoad={onLoad} style={style} />;
   }
 
   const probe = probing ? (
@@ -79,7 +84,7 @@ export default function CroppedPicture({
     // Ancien cadrage (ou fenêtre centrée d'un décor) : l'image entière avec les classes de la page, qui la cadrent en CSS.
     return (
       <>
-        <PictureMarkup sources={whole} alt={alt} width={fallback.width} height={fallback.height} sizes={fallback.sizes ?? sizes} className={className} priority={priority} />
+        <PictureMarkup sources={whole} alt={alt} width={fallback.width} height={fallback.height} sizes={fallback.sizes ?? sizes} className={className} priority={priority} onLoad={onLoad} style={style} />
         {probe}
       </>
     );
@@ -100,7 +105,7 @@ export default function CroppedPicture({
   return (
     <>
       <span className={className} style={frame} data-crop-fallback="">
-        <PictureMarkup sources={whole} alt={alt} width={fallback.width} height={fallback.height} sizes={fallback.sizes ?? sizes} priority={priority} style={inner} />
+        <PictureMarkup sources={whole} alt={alt} width={fallback.width} height={fallback.height} sizes={fallback.sizes ?? sizes} priority={priority} style={inner} onLoad={onLoad} />
       </span>
       {probe}
     </>

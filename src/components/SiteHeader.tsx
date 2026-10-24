@@ -64,10 +64,10 @@ export default function SiteHeader({
           : "bg-transparent"
       }`}
     >
-      <div className="site-header-bar shell flex items-center justify-between gap-6 py-4 md:py-5">
+      <div className="site-header-bar shell flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-4 lg:py-5">
         <Link
           href="/"
-          className="site-brand font-display text-lg md:text-xl leading-none text-ink hover:text-primary transition-colors"
+          className="site-brand font-display text-lg lg:text-xl leading-none text-ink hover:text-primary transition-colors"
           {...(logo ? { "data-logo-image": "" } : {})}
         >
           {/* Signature dessinée (kit) : affichée par variants.css quand le thème
@@ -81,12 +81,12 @@ export default function SiteHeader({
 
         <nav
           aria-label={t("label")}
-          className="hidden md:flex items-center gap-7"
+          className="hidden lg:flex flex-wrap items-center justify-end gap-x-7 gap-y-2"
         >
           {nav.map(({ id, href, label, external }, i) => {
             const mark = edit ? { "data-nav-item": i, "data-nav-key": keys[i] } : {};
             const active = pathname === href;
-            const className = `caption-text relative font-caption text-[0.7rem] tracking-[0.18em] uppercase transition-colors ${
+            const className = `caption-text relative whitespace-nowrap font-caption text-[0.7rem] tracking-[0.18em] uppercase transition-colors ${
               active ? "text-ink" : "text-ink-soft hover:text-primary"
             }`;
             // Édition : libellé repéré (double-clic), lien repéré (glisser, retirer).
@@ -127,7 +127,7 @@ export default function SiteHeader({
           <LocaleSwitcher alternates={alternates} />
         </nav>
 
-        <div className="flex items-center gap-4 md:hidden">
+        <div className="flex items-center gap-4 lg:hidden">
           <LocaleSwitcher alternates={alternates} />
           <button
             type="button"
@@ -145,7 +145,7 @@ export default function SiteHeader({
         id="nav-mobile"
         aria-label={t("label")}
         hidden={!open}
-        className="md:hidden bg-bg/95 backdrop-blur-xl border-t border-line"
+        className="lg:hidden bg-bg/95 backdrop-blur-xl border-t border-line"
       >
         <ul className="shell flex flex-col py-3">
           {nav.map(({ id, href, label, external }) => (

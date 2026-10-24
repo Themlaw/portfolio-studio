@@ -63,6 +63,8 @@ try {
     ok(`clé de rectangle refusée : « ${bad} »`, crop.parseRectKey(bad) === null);
   const sig = "0123456789abcdef0123";
   ok("URL de recadrage valide analysée", crop.parseCropKey(`crop/12/x0y0w10000h5000-${sig}/960.avif`)?.width === 960);
+  ok("URL d un recadrage minuscule (variante de 80 px) analysée (PUB-04)", crop.parseCropKey(`crop/12/x0y0w10000h5000-${sig}/80.avif`)?.width === 80);
+  ok("largeur 0 refusée", crop.parseCropKey(`crop/12/x0y0w10000h5000-${sig}/0.avif`) === null);
   for (const bad of [
     `crop/0/x0y0w10000h5000-${sig}/960.avif`,
     `crop/012/x0y0w10000h5000-${sig}/960.avif`,

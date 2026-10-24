@@ -169,6 +169,36 @@ export function saveSiteDraft(pageId: number, input: unknown, rev: unknown): Act
   return done({ before, after: snap, rev: (rev as number) + 1, pending: !same });
 }
 
+export type AdoptResult = { snap: SiteSnap; rev: number; from: string };
+
+/**
+ * Reprise du brouillon du site (lot 70) : l'en-tête, le menu, les réseaux et les styles du site ont des modifications en attente
+ * portées par UNE AUTRE page. Régler le style du menu (ou des titres…) depuis cette page-ci ne doit pas être refusé : le brouillon
+ * lui est confié tel quel (rien n'est perdu, rien n'est publié) et sera publié avec elle. `from` : la page qui le portait.
+ * Sans brouillon en attente, ou déjà porté par cette page : rien ne change (`from` vide).
+ */
+export function adoptSiteDraft(pageId: number, rev: unknown): ActionResult<AdoptResult> | DraftRefusal {
+  if (!Number.isInteger(rev) || (rev as number) < 0) return fail("Requête invalide (version manquante) : recharge l'éditeur.");
+  const current = pageRev(pageId);
+  if (current === null) return fail("Cette page n'existe plus.");
+  if (current !== rev) return conflict(current);
+  const draft = readSiteDraft();
+  if (!draft) return done({ snap: readPublishedSite(), rev: rev as number, from: "" });
+  if (draft.pageId === pageId) return done({ snap: draft.snap, rev: rev as number, from: "" });
+  const from = pageTitle(draft.pageId);
+  const db = getDb();
+  try {
+    db.transaction(() => {
+      if (!touchPage(pageId, rev as number)) throw new ConflictError();
+      writeSetting("siteDraft", { pageId, snap: draft.snap });
+    });
+  } catch (error) {
+    if (error instanceof ConflictError) return conflict(pageRev(pageId) ?? (rev as number));
+    throw error;
+  }
+  return done({ snap: draft.snap, rev: (rev as number) + 1, from });
+}
+
 /**
  * Publication de la page `pageId` : applique son brouillon du site (dans la
  * transaction de l'appelant). Renvoie true si le site a changé.

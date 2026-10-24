@@ -192,6 +192,7 @@ const ADMIN_ACTIONS = [
   "createDraftProjectAction",
   "setPublishedAction",
   "setInMenuAction",
+  "addToMenuFromEditorAction",
   "reorderMenuAction",
   "deletePageAction",
   "restorePageAction",
@@ -555,7 +556,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /[vV]ersion/.test(name) ? "/admin/themes/mon-theme/versions"
     : /Model|OldTheme/.test(name) ? "/admin/themes"
     : /Onboarding/.test(name) ? "/admin"
-    : /Draft|[bB]oard|Font/.test(name) ? "/admin/pages/1/editer"
+    : /Draft|[bB]oard|Font|FromEditor/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings|Seo/.test(name) ? "/admin/reglages"
     : /Message/.test(name) ? "/admin/messages"

@@ -1,5 +1,6 @@
 "use client";
 
+import CroppedPicture from "./CroppedPicture";
 import Picture from "./Picture";
 import PictureMarkup from "./PictureMarkup";
 import { useReducedMotion } from "./LoopVideo";
@@ -55,18 +56,23 @@ function LightboxImage({ item }: { item: ViewerItem }) {
         // eslint-disable-next-line @next/next/no-img-element
         <img src={preview} alt="" aria-hidden="true" width={item.width} height={item.height} className="lb-preview" />
       )}
-      <PictureMarkup
-        sources={item.sources}
-        alt={item.alt}
-        width={item.width}
-        height={item.height}
-        sizes={sizes}
-        className="lightbox-image lb-main"
-        priority
-        imgRef={ref}
-        onLoad={() => setLoaded(true)}
-        style={{ opacity: loaded ? 1 : 0 }}
-      />
+      {item.fallback ? (
+        // Recadrage (lot 68) : la variante haute définition du cadrage ; si elle n'est pas prête, l'image entière cadrée en CSS.
+        <CroppedPicture sources={item.sources} alt={item.alt} width={item.width} height={item.height} sizes={sizes} className="lightbox-image lb-main" priority fallback={item.fallback} onLoad={() => setLoaded(true)} style={{ opacity: loaded ? 1 : 0 }} />
+      ) : (
+        <PictureMarkup
+          sources={item.sources}
+          alt={item.alt}
+          width={item.width}
+          height={item.height}
+          sizes={sizes}
+          className="lightbox-image lb-main"
+          priority
+          imgRef={ref}
+          onLoad={() => setLoaded(true)}
+          style={{ opacity: loaded ? 1 : 0 }}
+        />
+      )}
       {!loaded && <span className="lb-spinner" aria-hidden="true" />}
     </div>
   );

@@ -15,6 +15,7 @@
  *
  * Module pur (palette + surface, aucun DOM) : lu par le serveur, la toile, le panneau et les tests.
  */
+import { airValue, type Air } from "./backdrop-air";
 import { contrastRatio, opaqueOn } from "./palette";
 import { cardStyle, isSurfaceTint, isSurfaceToken, tintParts, type CardPalette } from "./surface";
 
@@ -56,17 +57,16 @@ export type BackdropOptions = {
    * pas leur `display` (des `inline-block` les mettraient côte à côte) et n'ajoute pas de marge intérieure.
    */
   role?: boolean;
+  /** Aération du fond (lot 68) : crans Serré · Normal · Aéré ; absente = celle du thème (variables `--bd-*`, repli « Normal »). */
+  air?: Air;
 };
 
 /** Propriétés posées par un fond (le style d'un rôle les range à part pour le menu). */
 export const BACKDROP_PROPS = new Set(["display", "width", "outline", "padding", "background", "text-shadow", "text-decoration", "text-decoration-line", "text-decoration-color", "text-decoration-thickness", "text-decoration-skip-ink", "text-underline-offset"]);
 
-/** Épaisseur et décalage du trait du surlignage (en em du texte) : de la tête des capitales au bas des descendantes. */
-const HIGHLIGHT_THICKNESS = "1.15em";
-const HIGHLIGHT_OFFSET = "-0.88em";
 
 /** Déclarations CSS d'un fond de texte (kebab-case) ; vide sans fond choisi. */
-export function backdropDecls(backdrop: BackdropKind | undefined, color: string | undefined, { palette, userColor, role }: BackdropOptions = {}): [string, string][] {
+export function backdropDecls(backdrop: BackdropKind | undefined, color: string | undefined, { palette, userColor, role, air }: BackdropOptions = {}): [string, string][] {
   if (!backdrop) return [];
   const css = color ? backdropColorCss(color) : null;
   const ink = (auto: string | null): [string, string][] => {
@@ -84,9 +84,9 @@ export function backdropDecls(backdrop: BackdropKind | undefined, color: string 
       // contour de même couleur qui l'élargit, au ras du texte (largeur du contenu).
       if (role) {
         const c = css ?? "color-mix(in srgb, var(--color-bg) 86%, transparent)";
-        return [["width", "fit-content"], ["background", c], ["outline", `0.45em solid ${c}`], ["text-shadow", "none"], ["text-decoration", "none"], ...ink(null)];
+        return [["width", "fit-content"], ["background", c], ["outline", `${airValue("outline", air)} solid ${c}`], ["text-shadow", "none"], ["text-decoration", "none"], ...ink(null)];
       }
-      return [["display", "inline-block"], ["padding", "0.45em 0.8em"], ["background", css ?? "color-mix(in srgb, var(--color-bg) 86%, transparent)"], ["text-shadow", "none"], ["text-decoration", "none"], ...ink(null)];
+      return [["display", "inline-block"], ["padding", `${airValue("padY", air)} ${airValue("padX", air)}`], ["background", css ?? "color-mix(in srgb, var(--color-bg) 86%, transparent)"], ["text-shadow", "none"], ["text-decoration", "none"], ...ink(null)];
     case "highlight":
       // Surlignage : un gros trait de soulignement posé DERRIÈRE le texte, ligne par ligne. L'élément garde sa boîte
       // (display, marges, retours à la ligne) ; un `display: inline` la lui aurait fait perdre (marges verticales).
@@ -95,8 +95,8 @@ export function backdropDecls(backdrop: BackdropKind | undefined, color: string 
         ["text-shadow", "none"],
         ["text-decoration-line", "underline"],
         ["text-decoration-color", css ?? "var(--color-primary)"],
-        ["text-decoration-thickness", HIGHLIGHT_THICKNESS],
-        ["text-underline-offset", HIGHLIGHT_OFFSET],
+        ["text-decoration-thickness", airValue("thick", air)],
+        ["text-underline-offset", airValue("offset", air)],
         ["text-decoration-skip-ink", "none"],
         ...ink("var(--color-on-primary)"),
       ];

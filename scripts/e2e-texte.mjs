@@ -172,6 +172,8 @@ const dlg = page.locator("dialog.ve-add");
 async function openChoice() {
   const addEnd = f.locator('[data-edit-add="end"]');
   await addEnd.scrollIntoViewIfNeeded();
+  // La barre de style (fenêtre ancrée, lot 65) peut recouvrir « + Ajouter » : on la ferme comme le ferait l'artiste.
+  await f.evaluate(() => document.querySelector(".lk-bar .lk-close")?.click());
   await addEnd.click();
   await dlg.waitFor({ timeout: 20000 });
 }
