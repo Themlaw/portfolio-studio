@@ -352,7 +352,11 @@
    src/components/MediaFrame.tsx), avec les QUATRE épaisseurs réelles de la découpe (haut, droite, bas, gauche : un cadre « polaroid » au
    bord bas épais est juste). Même mécanique que la Bande du lot 34 : une bordure DANS la boîte (border-box), donc la taille extérieure ne
    change pas et rien n'est rogné ; la boîte du média peint son fond dans sa zone intérieure (`background-clip: padding-box`, media-frame.css) :
-   fond de l'artiste et fond de chargement ne passent jamais SOUS les parties transparentes du dessin (festons, bords déchirés). Il n'est posé que sur un choix de l'artiste (`data-frame="theme"`, photo
+   fond de l'artiste et fond de chargement ne passent jamais SOUS les parties transparentes du dessin (festons, bords déchirés). Lot 79 : la
+   bordure fait l'épaisseur PLEINE mesurée de chaque côté (`--t-kit-fw*`, src/lib/kit/frame-ring.ts), au contact de la photo ; le dessin, lui, est
+   étalé sur toute la découpe (`border-image-width` = `--t-kit-fs*`), le transparent en trop passe sous la photo : aucun vide entre le cadre et
+   l'image, quel que soit le dessin. Le cadre dépasse autour de la photo (marges négatives, media-frame.css) : la photo ne change ni de taille ni de
+   place. Il n'est posé que sur un choix de l'artiste (`data-frame="theme"`, photo
    ou vidéo) ou, pour une PHOTO sans choix, si le réglage du site « Cadre du thème sur toutes les photos » est actif (`data-frame-all`
    sur `.site-frame` ; NON par défaut). Une vidéo sans choix n'est jamais encadrée. « Aucun » (`data-frame="none"`) et « Bande de couleur »
    (src/app/media-frame.css) n'ont jamais le cadre du thème. Les tuiles sont toujours encadrées si le thème dessine un cadre.
@@ -360,7 +364,7 @@
    `--kit-k`) ; une tuile garde son épaisseur entière (`--kit-k` absent = 1px). */
 [data-kit-frame] .media-frame {
   /* Plafonnée aussi à 16 % de la largeur de la boîte (`--cap-w`) : sur une petite image on RÉDUIT l'épaisseur, le motif n'est jamais écrasé. */
-  --kit-k: min(1px, 4vw / var(--t-kit-fwt), calc(var(--cap-w, 100vw) * 0.16 / var(--t-kit-fwt)));
+  --kit-k: min(1px, 4vw / var(--t-kit-fmax), calc(var(--cap-w, 100vw) * 0.16 / var(--t-kit-fmax)), calc(var(--room) / var(--t-kit-fmax)));
 }
 /* Les coins du dessin suivent l'arrondi choisi (le thème, le site ou la photo) ; sans arrondi (0), rien n'est rogné. */
 [data-kit-frame] :is(.media-frame[data-frame="theme"], [data-frame-all] .media-frame[data-kind="image"]:not([data-frame])) {
@@ -373,9 +377,14 @@
 ) {
   border-style: solid;
   border-color: transparent;
-  --bx: calc((var(--t-kit-fwl) + var(--t-kit-fwr)) * var(--kit-k, 1px));
-  --by: calc((var(--t-kit-fwt) + var(--t-kit-fwb)) * var(--kit-k, 1px));
-  border-width: calc(var(--t-kit-fwt) * var(--kit-k, 1px)) calc(var(--t-kit-fwr) * var(--kit-k, 1px)) calc(var(--t-kit-fwb) * var(--kit-k, 1px)) calc(var(--t-kit-fwl) * var(--kit-k, 1px));
+  /* Épaisseurs entières (px) : le navigateur arrondit une bordure à l'entier, pas la marge négative qui la compense (media-frame.css) ; un écart
+     de 0,5 px par photo déplaçait tout ce qui suit. Le dessin est étalé pour que SON bord intérieur tombe pile sur le bord de la bordure. */
+  --fbt: round(calc(var(--t-kit-fwt) * var(--kit-k, 1px)), 1px);
+  --fbr: round(calc(var(--t-kit-fwr) * var(--kit-k, 1px)), 1px);
+  --fbb: round(calc(var(--t-kit-fwb) * var(--kit-k, 1px)), 1px);
+  --fbl: round(calc(var(--t-kit-fwl) * var(--kit-k, 1px)), 1px);
+  border-width: var(--fbt) var(--fbr) var(--fbb) var(--fbl);
+  border-image-width: calc(var(--fbt) * var(--t-kit-fst) / var(--t-kit-fwt)) calc(var(--fbr) * var(--t-kit-fsr) / var(--t-kit-fwr)) calc(var(--fbb) * var(--t-kit-fsb) / var(--t-kit-fwb)) calc(var(--fbl) * var(--t-kit-fsl) / var(--t-kit-fwl));
   border-image-source: var(--t-kit-frame);
   border-image-slice: var(--t-kit-frame-slice);
   border-image-repeat: round;

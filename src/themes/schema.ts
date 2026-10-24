@@ -233,6 +233,8 @@ export const KitAssetsSchema = z
         image: kitImage,
         /** Marges de découpe du 9-slice (px de l'image) : haut, droite, bas, gauche. */
         slice: z.tuple([z.number().int().min(1).max(200), z.number().int().min(1).max(200), z.number().int().min(1).max(200), z.number().int().min(1).max(200)]),
+        /** Lot 79 : épaisseur PLEINE du dessin sur chaque côté (px de l'image, au plus la découpe), mesurée sur le fichier (src/lib/kit/frame-ring.ts). Absente : la découpe entière. */
+        ring: z.tuple([z.number().int().min(1).max(200), z.number().int().min(1).max(200), z.number().int().min(1).max(200), z.number().int().min(1).max(200)]).optional(),
       })
       .strict()
       .optional(),

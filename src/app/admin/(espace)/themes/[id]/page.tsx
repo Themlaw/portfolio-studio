@@ -5,6 +5,7 @@ import WallpaperLibrary from "@/components/admin/WallpaperLibrary";
 import { getCardWallpaperSetting, getThemeOverview, listPagesForAdmin, wallpaperUseCounts } from "@/lib/admin";
 import { readPublishedSite } from "@/lib/edit/site";
 import { listWallpapersForAdmin } from "@/lib/wallpapers";
+import { withFrameRing } from "@/lib/kit/frame-ring";
 import { getMineState } from "@/lib/themes/versions";
 import { FONT_VARIABLE_CLASSES } from "@/themes/fonts";
 
@@ -28,7 +29,7 @@ export default async function ThemeEditPage({ params, searchParams }: { params: 
     <div className={FONT_VARIABLE_CLASSES}>
       {/* Couleurs du site choisies depuis l'éditeur visuel (lot 17f) : par-dessus le thème EN LIGNE. */}
       <ThemeEditor
-        initial={theme}
+        initial={await withFrameRing(theme)}
         isActive={active && !isMine}
         mine={isMine && mine ? { version: mine.version, publishedVersion: mine.publishedVersion, live: mine.live, published: mine.published } : null}
         activeName={themes.find((t) => t.id === activeId)?.name}
