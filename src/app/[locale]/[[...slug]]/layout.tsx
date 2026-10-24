@@ -8,12 +8,13 @@ import { resolvePage } from "@/lib/page-preview";
 import { alternatesFor, getNav } from "@/lib/pages";
 import { logoCss, siteStylesCss } from "@/lib/look";
 import { getMedia } from "@/lib/media";
-import { getCardWallpaper, getFontFacesCss, getSiteView, getThemeFrameAll } from "@/lib/settings";
+import { getCardWallpaper, getFontFacesCss, getFrameLibrary, getSiteView, getThemeFrameAll } from "@/lib/settings";
 import { getWallpapers } from "@/lib/wallpapers";
 import { getActiveTheme } from "@/lib/theme";
 import { sitePaletteCss } from "@/themes/css";
 import { pagePalette } from "@/themes/site-palette";
 import type { PaletteColors } from "@/themes/palette";
+import { frameChoiceOf, frameLibraryCss } from "@/themes/frame-library";
 import { readPagePaper, wallpaperVars } from "@/themes/wallpaper";
 
 /**
@@ -62,6 +63,8 @@ export default async function SiteLayout({
   const cardWp = await getCardWallpaper();
   // Cadre du thème sur toutes les photos (lot 62) : réglage du site, non par défaut ; src/themes/variants.css s'y accroche.
   const frameAll = await getThemeFrameAll();
+  // Cadres importés (lot 74) : une règle par cadre ; sans cadre importé, aucune balise (la page reste identique).
+  const frames = await getFrameLibrary();
   const library = (paper && paper.mode === "wallpaper") || cardWp || edit ? await getWallpapers() : null;
   const paperEntry = paper?.mode === "wallpaper" ? library?.get(paper.wallpaper) : undefined;
   const paperVars = paper?.mode === "wallpaper" ? wallpaperVars(paperEntry, { size: paper.size, opacity: paper.opacity }) : {};
@@ -74,6 +77,8 @@ export default async function SiteLayout({
     // de l'écran même sur une page courte (`.site-frame`, globals.css).
     <div className="site-frame" {...(frameAll ? { "data-frame-all": "" } : {})} {...(cardsOn ? { "data-wp-cards": "", style: cardVars as React.CSSProperties } : {})}>
       {paper && <div className="page-wallpaper" aria-hidden="true" data-mode={paper.mode} {...(Object.keys(paperVars).length ? { style: paperVars as React.CSSProperties } : {})} />}
+      {(frames.length > 0 || edit) && <style id="site-frames" dangerouslySetInnerHTML={{ __html: frameLibraryCss(frames) }} />}
+      {edit && <span hidden data-edit-frames={JSON.stringify(frames.map(frameChoiceOf))} />}
       {edit && library && <span hidden data-edit-wallpapers={JSON.stringify([...library.values()])} />}
       {(paletteCss || edit) && <style id="site-palette" dangerouslySetInnerHTML={{ __html: paletteCss }} {...(edit ? { "data-edit-theme": JSON.stringify({ color: theme.tokens.color, palette: theme.tokens.palette ?? null }) } : {})} />}
       {(logoRules || edit) && <style id="site-logo" dangerouslySetInnerHTML={{ __html: logoRules }} />}

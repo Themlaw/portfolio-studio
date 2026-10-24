@@ -342,7 +342,7 @@ export function needsCrop(imageRatio: number, boxRatio: number): boolean {
 /**
  * Un seul choix par photo ou vidéo (lot 62) : « Aucun » (`none`), « Cadre du thème » (`theme` : le cadre dessiné dans le kit),
  * « Bande de couleur » (`band` : un filet d'épaisseur et de couleur choisies) ou, plus tard, un cadre de la bibliothèque
- * (`custom`, `id` = son identifiant : prévu dans les types, la validation et le rendu, pas encore proposé dans l'interface).
+ * (`custom`, `id` = son identifiant ; lot 74 : proposé dans le menu « Cadre » sous le nom « Cadre perso », rendu par src/themes/frame-library.ts).
  * Sans choix (réglage absent), la photo suit le réglage du site « Cadre du thème sur toutes les photos » (non par défaut).
  */
 export const FRAME_KINDS = ["none", "theme", "band", "custom"] as const;
@@ -352,7 +352,7 @@ export const FRAME_WIDTHS = ["fin", "moyen", "epais"] as const;
 export type FrameWidth = (typeof FRAME_WIDTHS)[number];
 export const FRAME_WIDTH_LABELS: Record<FrameWidth, string> = { fin: "Fin", moyen: "Moyen", epais: "Épais" };
 export const FRAME_DEFAULT_WIDTH: FrameWidth = "moyen";
-export const FRAME_KIND_LABELS: Record<Exclude<FrameKind, "custom">, string> = { none: "Aucun", theme: "Cadre du thème", band: "Bande de couleur" };
+export const FRAME_KIND_LABELS: Record<FrameKind, string> = { none: "Aucun", theme: "Cadre du thème", band: "Bande de couleur", custom: "Cadre perso" };
 /**
  * Couleur de la bande quand rien n'est choisi (« Couleur par défaut ») : le texte du thème (`ink`). C'est la seule teinte
  * lisible sur le papier de tous les thèmes livrés (l'ornement `tertiary` est presque invisible sur le thème Studio : 1,7:1)

@@ -13,9 +13,11 @@
  * `look.slotFrame` du bloc planche, par emplacement) et par celle de la Planche libre. La fenêtre est `FrameWindow` (un seul
  * `Popover` ancré au bouton). Chaque choix part aussitôt (intention `look`, annulable). Les pastilles montrent les couleurs du thème par leurs variables, jamais en dur.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { FRAME_DEFAULT_COLOR, FRAME_DEFAULT_WIDTH, FRAME_KIND_LABELS, FRAME_WIDTH_LABELS, FRAME_WIDTHS, frameColorCss, PALETTE_DISPLAY, PALETTE_LABELS, type Frame, type PaletteColor } from "@/lib/look";
+
+import { frameChoiceOf, frameRule, type FrameChoice, type FrameEntry } from "@/themes/frame-library";
 
 import ColorPicker from "./ColorPicker";
 import { lookOf } from "./LookLayer";
@@ -32,14 +34,44 @@ const themeHasFrame = () => typeof document !== "undefined" && document.document
 /** Réglage du site « Cadre du thème sur toutes les photos » : posé sur `.site-frame` par le cadre du site. */
 const siteFramesAll = () => typeof document !== "undefined" && document.querySelector("[data-frame-all]") !== null;
 
-type Choice = "none" | "theme" | "band";
+type Choice = "none" | "theme" | "band" | "custom";
+
+/** Cadres de la bibliothèque (lot 74), lus dans la page de la toile (`data-edit-frames`, posé par le cadre du site en vue brouillon). */
+function frameCatalog(): FrameChoice[] {
+  if (typeof document === "undefined") return [];
+  try {
+    const raw = document.querySelector("[data-edit-frames]")?.getAttribute("data-edit-frames");
+    const list = raw ? (JSON.parse(raw) as FrameChoice[]) : [];
+    return Array.isArray(list) ? list.filter((e) => e && typeof e.id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Un cadre qui vient d'être importé depuis ce menu s'affiche tout de suite : sa règle est posée dans la page, le serveur la rendra de toute façon au prochain chargement. */
+function liveFrameRule(entry: FrameEntry) {
+  let el = document.getElementById("site-frames-live") as HTMLStyleElement | null;
+  if (!el) {
+    el = document.createElement("style");
+    el.id = "site-frames-live";
+    document.head.appendChild(el);
+  }
+  el.textContent = `${el.textContent ?? ""}\n${frameRule(entry)}`;
+}
+
+const FRAME_ACCEPT = "image/png,image/webp,image/avif,image/svg+xml,.png,.webp,.avif,.svg";
 
 /** Un seul choix + (bande) épaisseur et couleur. `value` absent = pas de choix (suit le site) ; `onChange(undefined)` y revient. */
 export function FrameControls({ value, onChange, what = "photo" }: { value: Frame | undefined; onChange: (next: Frame | undefined) => void; what?: "photo" | "vidéo" }) {
   const kit = themeHasFrame();
   // Sans choix, ce qui s'affiche est le réglage du site : une photo suit « sur toutes les photos », une vidéo n'a jamais de cadre.
   const implicit: Choice = what === "photo" && kit && siteFramesAll() ? "theme" : "none";
-  const shown: Choice = value ? (value.kind === "custom" ? "none" : value.kind) : implicit;
+  const shown: Choice = value ? value.kind : implicit;
+  const [imported, setImported] = useState<FrameChoice[]>([]);
+  const [importing, setImporting] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const library = [...frameCatalog(), ...imported.filter((i) => !frameCatalog().some((c) => c.id === i.id))];
   // Réglages de la bande gardés d'un choix à l'autre (Bande → Aucun → Bande retrouve l'épaisseur et la couleur).
   const [kept, setKept] = useState<{ width?: Frame["width"]; color?: string }>({ width: value?.width, color: value?.color });
   const base = value?.kind === "band" ? { width: value.width, color: value.color } : kept;
@@ -48,8 +80,30 @@ export function FrameControls({ value, onChange, what = "photo" }: { value: Fram
     if (b.color !== undefined) f.color = b.color;
     return f;
   };
+  const pickFile = async (file: File) => {
+    setProblem(null);
+    setImporting(file.name);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/admin/api/cadres", { method: "POST", body });
+      const json = (await res.json().catch(() => null)) as { ok?: boolean; message?: string; entry?: FrameEntry } | null;
+      if (!json?.ok || !json.entry) return setProblem(json?.message ?? "L'envoi a échoué. Réessaie avec un autre fichier.");
+      liveFrameRule(json.entry);
+      setImported((cur) => [...cur, frameChoiceOf(json.entry!)]);
+      onChange({ kind: "custom", id: json.entry.id });
+    } catch {
+      setProblem("L'envoi a échoué. Réessaie avec un autre fichier.");
+    } finally {
+      setImporting(null);
+    }
+  };
   const choose = (kind: Choice) => {
     if (kind === "band") return onChange(bandOf(base));
+    if (kind === "custom") {
+      setKept(base);
+      return library[0] ? onChange({ kind: "custom", id: library[0].id }) : fileInput.current?.click();
+    }
     setKept(base);
     onChange({ kind });
   };
@@ -59,7 +113,7 @@ export function FrameControls({ value, onChange, what = "photo" }: { value: Fram
     setKept({ width: next.width, color: next.color });
     onChange(next);
   };
-  const kinds: Choice[] = kit || value?.kind === "theme" ? ["none", "theme", "band"] : ["none", "band"];
+  const kinds: Choice[] = kit || value?.kind === "theme" ? ["none", "theme", "band", "custom"] : ["none", "band", "custom"];
   const bandOn = shown === "band" && value?.kind === "band";
   const custom = bandOn && value.color && !isPalette(value.color) ? value.color : undefined;
   const colorName = !bandOn ? "" : value.color === undefined ? "Couleur par défaut" : isPalette(value.color) ? PALETTE_LABELS[value.color] : "Couleur libre";
@@ -79,6 +133,43 @@ export function FrameControls({ value, onChange, what = "photo" }: { value: Fram
           {!value && " (Réglage du site : cadre du thème sur toutes les photos.)"}
         </p>
       )}
+      {shown === "custom" && (
+        <div className="fr-custom" data-testid="frame-custom">
+          {library.length > 0 ? (
+            <div className="fr-lib" role="radiogroup" aria-label="Cadres de la bibliothèque">
+              {library.map((c) => (
+                <button key={c.id} type="button" role="radio" aria-checked={value?.kind === "custom" && value.id === c.id} className="fr-thumb" data-frame-id={c.id} title={c.name} onClick={() => onChange({ kind: "custom", id: c.id })}>
+                  <span className="fr-thumb-img" aria-hidden="true" style={{ backgroundImage: `url("${c.thumb}")` }} />
+                  <span className="fr-thumb-name">{c.name}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="sm-hint">Ta bibliothèque de cadres est vide : importe un premier cadre.</p>
+          )}
+          {value?.kind === "custom" && !library.some((c) => c.id === value.id) && <p className="sm-hint" data-testid="frame-missing">Ce cadre n&apos;est plus dans la bibliothèque : choisis-en un autre.</p>}
+          <button type="button" className="sm-link" data-testid="frame-import" disabled={importing !== null} onClick={() => fileInput.current?.click()}>
+            {importing ? `Envoi de « ${importing} »…` : "+ Importer un cadre"}
+          </button>
+          {problem && (
+            <p className="sm-hint" role="alert" data-testid="frame-import-error">
+              {problem}
+            </p>
+          )}
+        </div>
+      )}
+      <input
+        ref={fileInput}
+        type="file"
+        accept={FRAME_ACCEPT}
+        hidden
+        data-testid="frame-file"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) void pickFile(f);
+        }}
+      />
       {bandOn && (
         <>
           <div className="tc-row">
