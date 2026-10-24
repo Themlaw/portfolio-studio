@@ -131,7 +131,7 @@ const customId = (v: unknown): string | null => (isObj(v) && v.kind === "custom"
 
 /**
  * Parcourt un arbre JSON et visite chaque cadre perso (`frame` d'une image seule / case / composant / image de la Planche libre, et
- * chaque valeur de `slotFrame`). `visit(id)` rend vrai pour retirer le cadre : il est remplacé EN PLACE par `{ kind: "none" }`
+ * la place d'un carrousel, `slotLook[slug].frame`, trouvee par le meme parcours). `visit(id)` rend vrai pour retirer le cadre : il est remplacé EN PLACE par `{ kind: "none" }`
  * (« Aucun »), l'image n'est jamais cassée. Rend le nombre de cadres visités et si quelque chose a changé.
  */
 export function visitCustomFrames(node: unknown, visit: (id: string) => boolean): { found: number; changed: boolean } {
@@ -146,16 +146,6 @@ export function visitCustomFrames(node: unknown, visit: (id: string) => boolean)
         if (visit(customId(value)!)) {
           n[key] = { kind: "none" };
           changed = true;
-        }
-      } else if (key === "slotFrame" && isObj(value)) {
-        for (const [slug, f] of Object.entries(value)) {
-          const id = customId(f);
-          if (id === null) continue;
-          found++;
-          if (visit(id)) {
-            value[slug] = { kind: "none" };
-            changed = true;
-          }
         }
       } else walk(value);
     }
