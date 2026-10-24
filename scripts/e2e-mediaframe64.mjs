@@ -114,6 +114,7 @@ let slice = null;
         // Bord bas plus épais (un cadre « polaroid ») ; la découpe tient dans l'image du cadre.
         f.slice = [a, b, Math.min(c * 2, Math.max(c, f.image.h - a - 4)), d];
         slice = f.slice;
+        f.ring = f.slice; // lot 79 : la bordure est l épaisseur PLEINE mesurée ; ici le dessin est imposé épais, on la fixe
         db.prepare("update themes set data = ? where id = ?").run(JSON.stringify(t), themeId);
       });
     });
@@ -251,7 +252,11 @@ if (run("K"))
     ok("K0 page publiée", await publish(PHOTOS, blocks));
     const pub = await publicPage("/fr/decors");
     const fs = await frames(pub, "main .media-frame");
-    const bad = fs.filter((f) => ![f.bt, f.br, f.bb, f.bl].every((v, i) => near(v, WANT[i], 0.6)));
+    // Lot 79 : l'épaisseur est plafonnée à la place autour de la photo (demi-écart d'une grille) : mêmes proportions, jamais plus que la découpe.
+    const bad = fs.filter((f) => {
+      const k = f.bt / WANT[0];
+      return !(k <= 1.02 && k > 0.4 && [f.bt, f.br, f.bb, f.bl].every((v, i) => near(v, WANT[i] * k, 1)));
+    });
     ok("K1 photo, vidéo, case de grille, image libre : bordure = la découpe réelle (haut, droite, bas, gauche)", fs.length === 5 && bad.length === 0, JSON.stringify({ want: WANT, got: fs.map((f) => [f.bt, f.br, f.bb, f.bl]) }));
     ok("K2 le bord bas est plus épais que le haut (cadre asymétrique respecté)", WANT[2] > WANT[0] && fs.every((f) => f.bb > f.bt));
     ok("K3 la boîte ne peint pas son fond sous le dessin (background-clip: padding-box)", fs.every((f) => f.clip === "padding-box"), JSON.stringify(fs.map((f) => f.clip)));
@@ -282,7 +287,7 @@ if (run("H"))
     const dom = (await box.locator("img").evaluate((i) => getComputedStyle(i).backgroundColor)).match(/\d+/g).slice(0, 3).map(Number);
     const buf = await box.screenshot();
     const { data, info: inf } = await sharp(buf).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-    const [t, r, b, l] = WANT;
+    const [t, r, b, l] = await box.evaluate((e) => { const cs = getComputedStyle(e); return [cs.borderTopWidth, cs.borderRightWidth, cs.borderBottomWidth, cs.borderLeftWidth].map(parseFloat); });
     // Le CSS donne des px CSS ; la capture est à l'échelle 1 (deviceScaleFactor 1).
     let ring = 0;
     let magenta = 0;
@@ -605,7 +610,7 @@ if (run("A"))
         const rounded = r.filter((x) => x.radius === "20px" && x.kind === "image");
         ok("A3 cadre du kit + arrondi fort : les coins du dessin suivent l'arrondi (clip-path)", rounded.length >= 2 && rounded.some((x) => /round/.test(x.clip)), JSON.stringify(rounded.map((x) => x.clip)));
         const box = await p.evaluate(() => { const b = document.querySelector("main .media-box[data-img-bg]"); const f = b?.querySelector(".media-frame"); return b && f ? { bw: b.offsetWidth, bh: b.offsetHeight, fw: f.offsetWidth, fh: f.offsetHeight, bg: getComputedStyle(b).backgroundColor } : null; });
-        ok("A4 image entière au format 16:9 : la case garde son format et son fond, le cadre a le format de la PHOTO (3:4)", box && near(box.bw / box.bh, 16 / 9, 0.02) && near(box.fw / box.fh, 0.667, 0.06) && box.fh <= box.bh + 1 && box.bg === "rgb(255, 224, 224)", JSON.stringify(box));
+        ok("A4 image entière au format 16:9 : la case garde son format et son fond, le cadre a le format de la PHOTO (3:4)", box && near(box.bw / box.bh, 16 / 9, 0.02) && near(box.fw / box.fh, 0.667, 0.06) && box.fh <= box.bh + 2 * WANT[2] + 1 && /* lot 79 : le cadre dépasse de la case, c est la photo qui tient */ box.bg === "rgb(255, 224, 224)", JSON.stringify(box));
       }
       await p.context().close();
     }

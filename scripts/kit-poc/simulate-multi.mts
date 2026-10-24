@@ -138,6 +138,41 @@ try {
       { name: KIT_FILES.icones.file, file: iconFile },
       { name: "LISEZ-MOI.txt", data: Buffer.from("kit retouché (lot 49)\n") },
     ]);
+  } else if (cmd === "cadre79") {
+    // Lot 79 : un cadre RÉALISTE (contrairement à cadre58a : bandes régulières, épaisseurs égales, aucun feston). Bord extérieur festonné
+    // (demi-disques séparés par du transparent), épaisseur pleine DIFFÉRENTE sur chaque côté (haut 36, droite 28, bas 60, gauche 20, en
+    // unités de la case de 300 : la découpe du kit est de 48), tout le reste de la case transparent. Rose uni : repérable sur une capture.
+    const iconPsd = readPsd(readFileSync(files.icones), READ);
+    const cadre = find(iconPsd.children, "Cadre");
+    if (!cadre) throw new Error("calque « Cadre » introuvable");
+    const cf = frameOf(SLOTS.find((x) => x.id === "cadre")!, "multi");
+    const k = cf.w / 300;
+    const PINK = "#e8789a";
+    const D = { top: 36, right: 28, bottom: 60, left: 20 };
+    const R = 7;
+    const rects = [
+      `<rect x="0" y="${R * k}" width="${300 * k}" height="${(D.top - R) * k}" fill="${PINK}"/>`,
+      `<rect x="${(300 - D.right) * k}" y="0" width="${(D.right - R) * k}" height="${300 * k}" fill="${PINK}"/>`,
+      `<rect x="0" y="${(300 - D.bottom) * k}" width="${300 * k}" height="${(D.bottom - R) * k}" fill="${PINK}"/>`,
+      `<rect x="${R * k}" y="0" width="${(D.left - R) * k}" height="${300 * k}" fill="${PINK}"/>`,
+    ];
+    const bumps: string[] = [];
+    for (let t = 24; t <= 276; t += 18) {
+      bumps.push(`<circle cx="${t * k}" cy="${R * k}" r="${R * k}" fill="${PINK}"/>`);
+      bumps.push(`<circle cx="${t * k}" cy="${(300 - R) * k}" r="${R * k}" fill="${PINK}"/>`);
+      bumps.push(`<circle cx="${R * k}" cy="${t * k}" r="${R * k}" fill="${PINK}"/>`);
+      bumps.push(`<circle cx="${(300 - R) * k}" cy="${t * k}" r="${R * k}" fill="${PINK}"/>`);
+    }
+    const frame = await raster(`<svg xmlns="http://www.w3.org/2000/svg" width="${cf.w}" height="${cf.h}">${rects.join("")}${bumps.join("")}</svg>`);
+    Object.assign(cadre, { left: cf.x, top: cf.y, right: cf.x + cf.w, bottom: cf.y + cf.h, imageData: frame });
+    const iconFile = path.join(work, "icones-retouche.psd");
+    write(iconPsd, iconFile);
+    await writeZipFile(out, [
+      { name: KIT_FILES.decor.file, file: files.decor },
+      { name: KIT_FILES.logo.file, file: files.logo },
+      { name: KIT_FILES.icones.file, file: iconFile },
+      { name: "LISEZ-MOI.txt", data: Buffer.from("kit retouché (lot 79)\n") },
+    ]);
   } else if (cmd === "cadre58a" || cmd === "cadre58b") {
     // Lot 58 : un cadre à motif (bandes bleu / jaune sur les côtés, coins rouges). a = cadre complet (option A) ; b = coin + côté du haut seuls (option B).
     const iconPsd = readPsd(readFileSync(files.icones), READ);

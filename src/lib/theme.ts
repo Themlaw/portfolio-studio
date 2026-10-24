@@ -18,6 +18,7 @@ import { and, eq } from "drizzle-orm";
 import { cookies, draftMode } from "next/headers";
 import { cache } from "react";
 
+import { withFrameRing } from "@/lib/kit/frame-ring";
 import { DEFAULT_THEME_ID, PRESETS } from "@/themes/presets";
 import { ThemeSchema, type Theme } from "@/themes/schema";
 
@@ -57,7 +58,7 @@ async function previewThemeId(): Promise<string | null> {
 type ThemeState = { activeId: string; themes: Record<string, Theme>; drafts: Record<string, { theme: Theme; version: number }> };
 
 async function getThemeState(): Promise<ThemeState> {
-  return cached(["theme-state"], [TAGS.theme], () => {
+  return cached(["theme-state"], [TAGS.theme], async () => {
     const db = getDb();
     const themes: Record<string, Theme> = {};
     const drafts: ThemeState["drafts"] = {};
@@ -65,12 +66,13 @@ async function getThemeState(): Promise<ThemeState> {
       const current = ThemeSchema.safeParse(parseJson(row.data));
       // Mon thème (lot 60) : la version publiée est dans `live_data` tant qu'elle diffère de la version en cours (`data`).
       const live = row.liveData ? ThemeSchema.safeParse(parseJson(row.liveData)) : current;
-      if (live.success) themes[row.id] = live.data;
+      // Lot 79 : l'épaisseur pleine du cadre du kit est mesurée sur son fichier (une fois), pas stockée.
+      if (live.success) themes[row.id] = await withFrameRing(live.data);
       else if (current.success) {
         console.error(`[theme] version publiée du thème « ${row.id} » invalide en base, version en cours utilisée`);
-        themes[row.id] = current.data;
+        themes[row.id] = await withFrameRing(current.data);
       } else console.error(`[theme] thème « ${row.id} » invalide en base, ignoré`);
-      if (row.liveData && current.success) drafts[row.id] = { theme: current.data, version: row.version };
+      if (row.liveData && current.success) drafts[row.id] = { theme: await withFrameRing(current.data), version: row.version };
     }
     const active = db.select().from(schema.settings).where(eq(schema.settings.key, "activeThemeId")).get();
     const activeId = parseJson(active?.value);
@@ -91,7 +93,7 @@ async function resolvePreview(id: string, state: ThemeState): Promise<{ theme: T
     if (!Object.hasOwn(state.themes, m[1])) return null;
     const row = getDb().select().from(schema.themeVersions).where(and(eq(schema.themeVersions.themeId, m[1]), eq(schema.themeVersions.n, Number(m[2])))).get();
     const parsed = row ? ThemeSchema.safeParse(parseJson(row.data)) : null;
-    return parsed?.success ? { theme: parsed.data, name: `${state.themes[m[1]].name} (version ${m[2]})`, draft: true } : null;
+    return parsed?.success ? { theme: await withFrameRing(parsed.data), name: `${state.themes[m[1]].name} (version ${m[2]})`, draft: true } : null;
   }
   const draft = own(state.drafts, id);
   if (draft) return { theme: draft.theme, name: `${draft.theme.name} (version ${draft.version}, brouillon)`, draft: true };

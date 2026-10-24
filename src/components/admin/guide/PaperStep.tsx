@@ -3,11 +3,12 @@
 /**
  * Étape 4 « Papier et motifs » (lot 61) : le fond du site (uni, papier pointillé, papier dessiné dans Photoshop, ou « Mon papier
  * peint »), les espacements en trois niveaux (Serré, Normal, Aéré) et, dans un second onglet, la bibliothèque des papiers peints
- * (l'ancienne page « Papiers peints », qui redirige ici).
+ * (la même que la page « Papiers peints » du menu, lot 78 : un lien y mène).
  *
  * Les espacements simplifiés ne remplacent rien à l'ouverture : les valeurs précises du thème sont gardées et le niveau le plus
  * proche est marqué ; seul un clic sur un niveau écrit ses valeurs (src/themes/guided.ts).
  */
+import Link from "next/link";
 import { useId, type ReactNode } from "react";
 
 import { applySpaceLevel, PAGE_MAX_STANDARD, px, SPACE_LEVELS, spaceLevelOf } from "@/themes/guided";
@@ -129,6 +130,11 @@ export default function PaperStep({
       </div>
 
       <div role="tabpanel" id={`${id}-wp-p`} aria-labelledby={`${id}-wp`} hidden={tab !== "papiers-peints"}>
+        <p>
+          <Link href="/admin/papiers-peints" className="a-link-btn" data-testid="manage-wallpapers">
+            Gérer la bibliothèque
+          </Link>
+        </p>
         {wallpapers}
       </div>
     </>
