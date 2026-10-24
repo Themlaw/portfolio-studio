@@ -326,7 +326,7 @@ if (run("CS"))
     await fr.locator('.pe-tools [data-testid="frame-button"]').click({ timeout: 15000 }).catch(() => {});
     const dlg = fr.getByRole("dialog", { name: "Cadre de la photo" });
     const menu = (await dlg.locator("[data-frame-kind]").allTextContents().catch(() => [])).map((t) => t.trim()).join(" · ");
-    ok("CS5 le bouton Cadre propose « Aucun · Cadre du thème · Bande de couleur »", menu === "Aucun · Cadre du thème · Bande de couleur", menu);
+    ok("CS5 le bouton Cadre propose « Aucun · Cadre du thème · Bande de couleur »", menu === "Aucun · Cadre du thème · Bande de couleur · Cadre perso", menu);
     if (menu) {
       await dlg.locator('[data-frame-kind="theme"]').click();
       await sleep(1500);

@@ -9,6 +9,7 @@ import { parseJson } from "./json";
 import { fontFaceCss, readLibrary } from "./fonts/faces";
 import { readThemeFrameAll, SiteStylesSchema, type SiteStyles } from "./look";
 import { readCardWallpaper, type CardWallpaper } from "@/themes/wallpaper";
+import { readFrameLibrary, type FrameEntry } from "@/themes/frame-library";
 import { readSeo, type SeoStored } from "./seo-schema";
 import { asSiteName, NavSchema, NETWORKS, safeSocialHref, siteNameFor, type NavItem } from "./site-schema";
 
@@ -84,6 +85,11 @@ export async function getCardWallpaper(): Promise<CardWallpaper | undefined> {
 /** « Cadre du thème sur toutes les photos » (lot 62, réglage `themeFrameAll`) : non par défaut, y compris pour les sites existants. */
 export async function getThemeFrameAll(): Promise<boolean> {
   return readThemeFrameAll((await getRawSettings()).themeFrameAll);
+}
+
+/** Bibliothèque de cadres importés (lot 74, réglage `frameLibrary`) : vide sans import. Lecture tolérante. */
+export async function getFrameLibrary(): Promise<FrameEntry[]> {
+  return readFrameLibrary((await getRawSettings()).frameLibrary);
 }
 
 /** Styles du site publiés (lot 2) : rôles de texte, arrondi ; absents = thème seul. */
