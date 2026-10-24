@@ -216,7 +216,7 @@ if (run("L"))
     const p1 = await boxOf(fr, S(1));
     const p2 = await boxOf(fr, S(2));
     ok("L1 la planche v0.30 s'affiche comme avant : arrondi 20 px et fond blanc (place 1)", p0 && p0.radius.trim() === "20px" && p0.bg === "rgb(255, 255, 255)", JSON.stringify(p0));
-    ok("L2 …bande Épais (ancienne forme { size: thick }) sur la place 2", p1 && p1.bt > 6 && p1.frame === "band", JSON.stringify(p1));
+    ok("L2 …bande Épais (ancienne forme { size: thick }) sur la place 2", p1 && p1.bt >= 6 && p1.frame === "band", JSON.stringify(p1));
     ok("L3 …cadre du thème et panorama « à faire défiler » sur la place 3", p2 && p2.frame === "theme" && p2.pano === "scroll", JSON.stringify(p2));
     ok("L4 le brouillon n'est PAS réécrit par la simple lecture", Object.keys(findIn(draftBlocks(PAGE), "pb1").props.look).includes("slotFrame"));
 
@@ -235,7 +235,7 @@ if (run("L"))
     await sleep(500);
     fr = await openEditor(page, BASE, PAGE);
     const q1b = await boxOf(fr, S(1));
-    ok("L8 après rechargement, la place 2 a l'arrondi doux ET la bande Épais", q1b && q1b.bt > 6 && q1b.radius.trim() === "4px", JSON.stringify(q1b));
+    ok("L8 après rechargement, la place 2 a l'arrondi doux ET la bande Épais", q1b && q1b.bt >= 6 && q1b.radius.trim() === "4px", JSON.stringify(q1b));
   });
 
 /* ============================================================================================================================

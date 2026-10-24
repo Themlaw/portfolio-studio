@@ -168,7 +168,7 @@ await section("K", async () => {
   const f = await openEditor(page, BASE, pageId);
   // Médias : projet sélectionné (Structure), un clic sur une vignette l'ajoute à sa bande.
   await page.getByRole("tab", { name: "Structure" }).click();
-  await page.locator(".ve-tree .ve-row-main", { hasText: "Planche d" }).first().click();
+  await page.locator(".ve-tree .ve-row-main", { hasText: "Projet" }).first().click();
   await mediaTab();
   const n0 = slotAll(p.id) + 0;
   const drafted = () => q1("select count(*) n from slots where project_id = ?", p.id).n;

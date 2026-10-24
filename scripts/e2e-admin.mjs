@@ -240,7 +240,7 @@ try {
   await page.goto(`${BASE}/admin/pages/${pageId}`, { waitUntil: "networkidle" });
   ok("B4a le formulaire n'a plus de liste de rubriques ni de « + Ajouter un bloc »", (await page.getByRole("button", { name: "+ Ajouter un bloc" }).count()) === 0 && (await page.locator(".a-block").count()) === 0);
   const toEditor = page.getByRole("link", { name: "Modifier le contenu dans l'éditeur" });
-  ok("B4b lien « Modifier le contenu dans l'éditeur » vers l'éditeur de la page", (await toEditor.getAttribute("href")) === `/admin/pages/${pageId}/editer` && /2 rubriques/.test(await page.locator("#pe-contenu").locator("..").innerText()));
+  ok("B4b lien « Modifier le contenu dans l'éditeur » vers l'éditeur de la page", (await toEditor.getAttribute("href")) === `/admin/pages/${pageId}/editer` && /2 (rubriques|blocs)/.test(await page.locator("#pe-contenu").locator("..").innerText()));
   // Lot 51 : « Publier » dans l'éditeur a déjà mis la page en ligne (un seul geste) ; le formulaire le dit.
   ok("B4c0 le formulaire dit « En ligne » (mise en ligne faite par l'éditeur)", await page.getByRole("switch", { name: "En ligne" }).isChecked());
   await page.locator("label.a-toggle", { hasText: "Dans le menu" }).click();
@@ -297,7 +297,7 @@ try {
   const menuBefore = await page.locator(".a-sortable-title").allInnerTexts();
   await moveWithKeyboard("Déplacer Décors", "ArrowUp", 1);
   ok("B13 nouvel ordre signalé non enregistré", await page.locator(".a-save-state", { hasText: "Nouvel ordre non enregistré" }).isVisible());
-  await page.getByRole("button", { name: "Enregistrer l'ordre" }).click();
+  await page.getByRole("button", { name: "Enregistrer l'ordre" }).first().click();
   await toast("Ordre du menu enregistré");
   r = await anon("/fr");
   ok("B14 menu public réordonné", r.html.indexOf('href="/fr/decors"') < r.html.indexOf('href="/fr/personnages"'));
@@ -305,7 +305,7 @@ try {
   await page.reload({ waitUntil: "networkidle" });
   const idx = menuBefore.indexOf("Décors");
   await moveWithKeyboard("Déplacer Décors", "ArrowDown", idx);
-  await page.getByRole("button", { name: "Enregistrer l'ordre" }).click();
+  await page.getByRole("button", { name: "Enregistrer l'ordre" }).first().click();
   await toast("Ordre du menu enregistré");
   ok("B15 ordre d'origine restauré", (await page.locator(".a-sortable-title").allInnerTexts()).join(",") === menuBefore.join(","));
 

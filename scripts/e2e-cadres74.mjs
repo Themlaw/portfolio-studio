@@ -193,7 +193,7 @@ if (run("L") || run("A") || run("M") || run("D") || run("Z"))
   await section("L", async () => {
     await page.goto(`${BASE}/admin/cadres`, { waitUntil: "networkidle" });
     const links = await page.locator(".a-nav a").evaluateAll((as) => as.map((a) => a.getAttribute("href")));
-    ok("L1 l'entrée « Cadres » est dans le menu, juste sous « Thèmes »", links.indexOf("/admin/cadres") === links.indexOf("/admin/themes") + 1, JSON.stringify(links));
+    ok("L1 l'entrée « Cadres » est dans le menu, sous « Thèmes » (après Papiers peints, lot 78)", links.indexOf("/admin/cadres") === links.indexOf("/admin/papiers-peints") + 1 && links.indexOf("/admin/papiers-peints") === links.indexOf("/admin/themes") + 1, JSON.stringify(links));
     ok("L2 la page « Cadres » s'affiche, bibliothèque vide d'import", (await page.getByRole("heading", { name: "Cadres", exact: true }).count()) === 1 && (await page.locator('[data-testid="frame"]').count()) === library().length);
     ok("L3 le cadre du kit apparaît comme « Cadre du thème »", await page.locator('[data-testid="frame-theme"]').isVisible() && /Cadre du thème/.test((await page.locator('[data-testid="frame-theme"]').textContent()) ?? ""));
     if (library().length < 2) {
