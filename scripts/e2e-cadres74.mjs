@@ -260,10 +260,19 @@ if (run("A"))
       ok(`A4 (${w}) carrousel : les deux places sont encadrées `, b[6]?.drawn && b[7]?.drawn, JSON.stringify(b.slice(6)));
       if (w === 1440) {
         // Aux coins : la couleur du cadre à 6 px du coin (épaisseur 30 px pour le rouge, 15 px pour le bleu).
-        const c1 = await pixelAt(pub, 1, 20, 3);
-        const c2 = await pixelAt(pub, 2, 20, 3);
-        ok("A5 haut du PNG : la couleur du cadre (rouge)", close(c1, RED), JSON.stringify(c1));
-        ok("A6 haut du SVG : la couleur du cadre (bleu)", close(c2, BLUE), JSON.stringify(c2));
+        // Le dessin se décode après le défilement : on relit quelques fois avant de conclure.
+        const settle = async (idx, ref) => {
+          let c = await pixelAt(pub, idx, 4, 20);
+          for (let k = 0; k < 8 && !close(c, ref); k++) {
+            await sleep(600);
+            c = await pixelAt(pub, idx, 4, 20);
+          }
+          return c;
+        };
+        const c1 = await settle(1, RED);
+        const c2 = await settle(2, BLUE);
+        ok("A5 bord gauche du PNG : la couleur du cadre (rouge)", close(c1, RED), JSON.stringify(c1));
+        ok("A6 bord gauche du SVG : la couleur du cadre (bleu)", close(c2, BLUE), JSON.stringify(c2));
         const mid = await pixelAt(pub, 1, 36, 36);
         ok("A7 le PNG n'est pas peint sous la photo : à 36 px du coin (épaisseur 30) on est dans la photo (pas rouge)", !close(mid, RED, 30), JSON.stringify(mid));
         await shot(pub, "a-public-1440");
