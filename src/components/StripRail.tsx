@@ -140,13 +140,15 @@ export default function StripRail({
     if (!rail || !viewport) return;
 
     let frame = 0;
+    let scrolling = false;
+    let idle: ReturnType<typeof setTimeout> | undefined;
     /**
      * Hauteur de la bande suivant ce qui se voit (lot 67, PUB-03) : sans cela, la case la plus haute de TOUTE la bande
      * (une image très haute, une légende longue) laisse un grand vide sous un panorama. On retient les cases vues sur au
      * moins 24 px : `--strip-band` (hauteur des images, pour centrer un panorama réduit et les flèches) et `--strip-rail-h`
      * (hauteur de la bande) ne sont posées que si le gain dépasse 24 px ; sinon la bande garde sa hauteur naturelle.
      */
-    const fitHeight = (over: boolean) => {
+    const fitHeight = (over: boolean, settled: boolean) => {
       const items: HTMLElement[] = [];
       const collect = (parent: Element) => {
         for (const child of parent.children) {
@@ -173,14 +175,18 @@ export default function StripRail({
       }
       const media = (el: HTMLElement) => el.querySelector<HTMLElement>(".strip-media")?.offsetHeight ?? el.offsetHeight;
       const full = Math.max(...items.map(media));
-      const band = Math.max(...seen.map(media));
+      // Lot 77 : pendant le défilement la hauteur ne fait que MONTER (jamais de va-et-vient de ce qui est dessous) ;
+      // elle se resserre sur les cases vues une fois le défilement posé, en douceur (transition de la bande).
+      const held = (target: HTMLElement, name: string): number => (settled ? 0 : parseFloat(target.style.getPropertyValue(name)) || 0);
+      const band = Math.max(...seen.map(media), held(viewport, "--strip-band"));
       setVar(viewport, "--strip-band", full - band > 24 ? `${band}px` : null);
       // La marge haute d'un panorama réduit dépend de --strip-band : on mesure APRÈS l'avoir posée.
       const pad = parseFloat(getComputedStyle(rail).paddingBottom) || 0;
       const bottom = (list: HTMLElement[]) => Math.max(...list.map((el) => el.offsetTop + el.offsetHeight)) + pad;
-      const need = bottom(seen);
+      const need = Math.max(bottom(seen), held(rail, "--strip-rail-h"));
       const natural = bottom(items);
-      setVar(rail, "--strip-rail-h", natural - need > 24 ? `${Math.ceil(need)}px` : null);
+      // Toujours une hauteur en px quand la bande défile (lot 77) : `auto` ne s'anime pas, la hauteur naturelle sauterait.
+      setVar(rail, "--strip-rail-h", `${Math.ceil(natural - need > 24 ? need : natural)}px`);
     };
     const paint = () => {
       frame = 0;
@@ -216,7 +222,7 @@ export default function StripRail({
         }
       };
       visit(rail);
-      fitHeight(over);
+      fitHeight(over, !scrolling);
       // Largeur du fondu = partie visible de l'image coupée, plafonnée à --strip-fade ; « 0px » sans coupe.
       const fade = (name: string, px: number) => {
         const value = px > 0 ? `min(var(--strip-fade), ${px}px)` : "0px";
@@ -241,14 +247,24 @@ export default function StripRail({
       if (!frame) frame = requestAnimationFrame(paint);
     };
 
+    const onScroll = () => {
+      scrolling = true;
+      clearTimeout(idle);
+      idle = setTimeout(() => {
+        scrolling = false;
+        schedule();
+      }, 160);
+      schedule();
+    };
     paint();
-    rail.addEventListener("scroll", schedule, { passive: true });
+    rail.addEventListener("scroll", onScroll, { passive: true });
     const observer = new ResizeObserver(schedule);
     observer.observe(rail);
     for (const child of rail.children) observer.observe(child);
 
     return () => {
-      rail.removeEventListener("scroll", schedule);
+      rail.removeEventListener("scroll", onScroll);
+      clearTimeout(idle);
       observer.disconnect();
       cancelAnimationFrame(frame);
     };

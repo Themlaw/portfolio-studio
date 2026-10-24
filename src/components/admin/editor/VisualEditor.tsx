@@ -309,6 +309,8 @@ export default function VisualEditor({
   const [canvasBlocks, setCanvasBlocks] = useState<BlockInfo[]>([]);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [dropRefused, setDropRefused] = useState(false);
+  /** Lot 77 (MENU-11) : une fenêtre modale est ouverte dans la toile (« Cadrer l'image ») : panneau et barre voilés. */
+  const [canvasModal, setCanvasModal] = useState(false);
   /** Endroit visé par un composant glissé de la palette : la page ou un conteneur. */
   const dropIndexRef = useRef<Place | null>(null);
 
@@ -2433,6 +2435,9 @@ export default function VisualEditor({
           lookEchoed.current++;
           h.queueLook(msg.palette, msg.logo, msg.seq);
           break;
+        case "modal":
+          setCanvasModal(msg.open);
+          break;
         case "highlight-info":
           setHlInfo({ role: msg.role, count: msg.count, uses: msg.uses });
           break;
@@ -2809,7 +2814,7 @@ export default function VisualEditor({
   const shownMedia = useMemo(() => filterMedia(media, mediaTags, mediaQuery), [media, mediaTags, mediaQuery]);
 
   const panel = (
-    <aside className="ve-panel" data-open={sheet || undefined} aria-label="Outils de l'éditeur" inert={mobile && !sheet ? true : undefined}>
+    <aside className="ve-panel" data-open={sheet || undefined} aria-label="Outils de l'éditeur" inert={(mobile && !sheet) || canvasModal ? true : undefined}>
       {mobile && (
         <div className="ve-sheet-head">
           <span className="ve-sheet-grab" aria-hidden="true" />
@@ -3235,10 +3240,11 @@ export default function VisualEditor({
   );
 
   return (
-    <div className="ve" data-mode={mode} data-mobile={mobile || undefined}>
+    <div className="ve" data-mode={mode} data-mobile={mobile || undefined} data-modal={canvasModal || undefined}>
+      {canvasModal && mode === "edit" && <div className="ve-veil" data-testid="ve-veil" aria-hidden="true" />}
       {mode === "edit" && lookContext.preparing && <PreparingBanner preparing={lookContext.preparing} flush={flush} />}
       {mode === "edit" && (
-        <header className="ve-top">
+        <header className="ve-top" inert={canvasModal || undefined}>
           <Link href="/admin/pages" className="ve-brand" title="Retour aux pages" onClick={(e) => void leaveTo(e, "/admin/pages")}>
             <span aria-hidden="true">←</span>
             <span className="ve-brand-text">

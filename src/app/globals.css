@@ -366,7 +366,8 @@
     padding-block: var(--rail-room);
     /* Hauteur suivant les cases vues (StripRail, lot 67, PUB-03) ; absente = hauteur naturelle. */
     height: var(--strip-rail-h, auto);
-    transition: height var(--dur-fast) var(--ease-soft);
+    /* Lot 77 : douce (0,4 s au moins) pour que ce qui suit la bande ne saute pas quand une image plus haute arrive. */
+    transition: height max(var(--dur-fast), 0.4s) var(--ease-soft);
     /* Fondu : masque dégradé (alpha seul) — l'image se dissout dans ce qui
        est derrière la bande (fond, texture, papier du kit), sans coupe nette.
        Bords pilotés par deux propriétés (@property, medias.css) : chaque

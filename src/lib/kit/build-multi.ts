@@ -331,6 +331,40 @@ async function guidesRaster(card: MultiCard): Promise<Raster> {
 
 type Asset = NonNullable<BuildOptions["assets"]>[string];
 
+/**
+ * SVG à motif (`<pattern>`) rendu en grand : librsvg y devient très lent (non linéaire, le motif sous un masque : 110 à 130 s pour un
+ * calque de 5760 × 3200 px du modèle « fanzine-riso », contre 1,5 s par quart). On le rend donc par TUILES carrées de 144 unités
+ * (520 px à 260 dpi : bords sur des pixels entiers, pas de couture), recopiées dans une image de la taille du rendu d'un seul tenant.
+ * Rend `null` quand le fichier ne s'y prête pas (pas de viewBox exploitable) : l'appelant rend alors d'un bloc.
+ */
+const TILE_UNITS = 144;
+async function renderSvgTiled(data: Buffer, density: number): Promise<{ data: Buffer; width: number; height: number } | null> {
+  const text = data.toString("utf8");
+  const root = /<svg\b[^>]*>/i.exec(text);
+  const vb = root && /viewBox="\s*([-\d.]+)[ ,]+([-\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)\s*"/.exec(root[0]);
+  if (!root || !vb) return null;
+  const [minX, minY, vw, vh] = vb.slice(1).map(Number);
+  if (!(vw > 0 && vh > 0)) return null;
+  const scale = density / 72;
+  const W = Math.round(vw * scale);
+  const H = Math.round(vh * scale);
+  const canvas = Buffer.alloc(W * H * 4);
+  const stripped = root[0].replace(/\s(?:width|height|viewBox|preserveAspectRatio)="[^"]*"/gi, "");
+  for (let y0 = 0; y0 < vh; y0 += TILE_UNITS) {
+    for (let x0 = 0; x0 < vw; x0 += TILE_UNITS) {
+      const tw = Math.min(TILE_UNITS, vw - x0);
+      const th = Math.min(TILE_UNITS, vh - y0);
+      const tag = stripped.replace(/<svg\b/i, `<svg width="${tw}" height="${th}" viewBox="${minX + x0} ${minY + y0} ${tw} ${th}"`);
+      const tile = await sharp(Buffer.from(text.replace(root[0], tag)), { density }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const px = Math.round(x0 * scale);
+      const py = Math.round(y0 * scale);
+      const cols = Math.min(tile.info.width, W - px);
+      for (let r = 0; r < tile.info.height && py + r < H; r++) tile.data.copy(canvas, ((py + r) * W + px) * 4, r * tile.info.width * 4, (r * tile.info.width + cols) * 4);
+    }
+  }
+  return { data: canvas, width: W, height: H };
+}
+
 /** Rend un fichier (SVG ou bitmap) à `w × h`, net : un SVG est rastérisé directement à la bonne résolution. */
 async function renderFile(file: string, w: number, h: number): Promise<Buffer> {
   const data = await readFile(file);
@@ -339,6 +373,11 @@ async function renderFile(file: string, w: number, h: number): Promise<Buffer> {
     const vb = head.match(/viewBox="\s*[-\d.]+[ ,]+[-\d.]+[ ,]+([\d.]+)[ ,]+([\d.]+)\s*"/);
     const width = vb ? Number(vb[1]) : Number(head.match(/\bwidth="([\d.]+)/)?.[1] ?? w);
     const density = Math.min(1200, Math.max(72, Math.ceil((72 * w) / (width || w))));
+    // Motif en grand format : par tuiles (voir renderSvgTiled).
+    if (process.env.KIT_SVG_TILES !== "0" && w * h > 4_000_000 && /<pattern\b/i.test(data.toString("utf8"))) {
+      const tiled = await renderSvgTiled(data, density);
+      if (tiled) return sharp(tiled.data, { raw: { width: tiled.width, height: tiled.height, channels: 4 } }).resize(w, h, { fit: "fill" }).ensureAlpha().raw().toBuffer();
+    }
     return sharp(data, { density }).resize(w, h, { fit: "fill" }).ensureAlpha().raw().toBuffer();
   }
   return sharp(data).resize(w, h, { fit: "fill", kernel: "lanczos3" }).ensureAlpha().raw().toBuffer();
