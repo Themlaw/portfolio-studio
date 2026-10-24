@@ -264,8 +264,8 @@ if (run("A"))
         const c2 = await pixelAt(pub, 2, 6, 6);
         ok("A5 coin du PNG : la couleur du cadre (rouge)", close(c1, RED), JSON.stringify(c1));
         ok("A6 coin du SVG : la couleur du cadre (bleu)", close(c2, BLUE), JSON.stringify(c2));
-        const mid = await pixelAt(pub, 1, 20, 20);
-        ok("A7 le PNG n'est pas peint sous la photo : à 20 px du coin on est dans la photo (pas rouge)", !close(mid, RED, 30) || b[1].w < 300, JSON.stringify(mid));
+        const mid = await pixelAt(pub, 1, 36, 36);
+        ok("A7 le PNG n'est pas peint sous la photo : à 36 px du coin (épaisseur 30) on est dans la photo (pas rouge)", !close(mid, RED, 30), JSON.stringify(mid));
         await shot(pub, "a-public-1440");
       }
       if (w === 390) await shot(pub, "a-public-390");
