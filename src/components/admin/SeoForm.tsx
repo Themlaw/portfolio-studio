@@ -7,15 +7,30 @@ import { errorAt, MediaPicker, TextareaI18n } from "@/app/admin/_fields";
 import { saveSeoAction } from "@/app/admin/(espace)/reglages/actions";
 import type { EditorContext } from "@/blocks/editor-types";
 import type { AdminMediaRow } from "@/lib/admin";
+import type { FaviconInput, MonoColorKey } from "@/lib/favicon-spec";
 import type { SeoInput } from "@/lib/seo-schema";
 
+import FaviconSetting from "./FaviconSetting";
 import { clone, SaveBar, same, toast, useUnsavedGuard } from "./editing";
 
 /**
  * « Partage et moteurs de recherche » (lot 52) : la description du site, l'image qui s'affiche quand on colle ton lien
  * (réseaux, messageries) et l'icône de l'onglet. Un enregistrement met en ligne aussitôt, comme le reste des réglages.
  */
-export default function SeoForm({ initial, media, siteName }: { initial: SeoInput; media: AdminMediaRow[]; siteName: string }) {
+export default function SeoForm({
+  initial,
+  media,
+  siteName,
+  favicon,
+  colors,
+}: {
+  initial: SeoInput;
+  media: AdminMediaRow[];
+  siteName: string;
+  /** Icône de l'onglet (lot 83) : le même réglage que dans l'étape « Logo » de l'éditeur de thème. */
+  favicon: FaviconInput;
+  colors: Record<MonoColorKey, string>;
+}) {
   const router = useRouter();
   const [saved, setSaved] = useState(initial);
   const [value, setValue] = useState(() => clone(initial));
@@ -43,6 +58,7 @@ export default function SeoForm({ initial, media, siteName }: { initial: SeoInpu
     });
 
   return (
+    <>
     <form
       className="a-form"
       data-testid="seo-form"
@@ -70,14 +86,6 @@ export default function SeoForm({ initial, media, siteName }: { initial: SeoInpu
             error={errors.shareImage}
             context={context}
           />
-          <MediaPicker
-            label="Icône de l'onglet"
-            help="La petite image à côté du nom du site dans l'onglet du navigateur. Une image carrée donne le meilleur résultat : elle est recadrée au centre et déclinée en plusieurs tailles."
-            value={value.favicon ?? undefined}
-            onChange={(v) => setValue((s) => ({ ...s, favicon: v ?? null }))}
-            error={errors.favicon}
-            context={context}
-          />
         </div>
         <div className="a-share-preview" aria-label="Aperçu d'un lien partagé" data-testid="share-preview">
           <p className="a-card-label">Voici comment ton lien apparaîtra</p>
@@ -95,5 +103,10 @@ export default function SeoForm({ initial, media, siteName }: { initial: SeoInpu
       </section>
       <SaveBar dirty={dirty} saving={saving} onSave={save} error={error} />
     </form>
+    <section className="a-panel" aria-labelledby="s-icone" data-testid="seo-icon">
+      <h2 id="s-icone">Icône de l&apos;onglet</h2>
+      <FaviconSetting initial={favicon} media={media} siteName={siteName} colors={colors} scope="reglages" />
+    </section>
+    </>
   );
 }

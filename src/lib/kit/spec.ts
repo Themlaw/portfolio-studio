@@ -39,7 +39,7 @@ const HERO_H = 1600;
 /** Zone du titre du hero, relative au plan (le décor y reste calme). */
 export const TITLE_ZONE = { x: 240, y: 420, w: 1260, h: 560 } as const;
 
-export type SlotKind = "plan" | "signature" | "tile" | "nine" | "stroke" | "icon" | "tape" | "swatch" | "cursor";
+export type SlotKind = "plan" | "signature" | "tile" | "nine" | "stroke" | "icon" | "tape" | "swatch" | "cursor" | "appicon";
 export type Frame = { x: number; y: number; w: number; h: number };
 export type Layout = "v1" | "v2" | "multi";
 
@@ -54,6 +54,9 @@ export type Layout = "v1" | "v2" | "multi";
  */
 export type KitRole = "decor" | "logo" | "icones";
 export const KIT_ROLES: KitRole[] = ["decor", "logo", "icones"];
+/** Hauteur du fichier « logo » : trait (jusqu'à 4600) + la carte de l'icône du site (4640 → 5440) + marge. */
+const ICON_CARD = { y: 4640, h: 800 } as const;
+const ICON_DOC_HEIGHT = ICON_CARD.y + ICON_CARD.h + 40;
 export const KIT_V4_VERSION = 4;
 /** Décor en grand format : 2 × le plan d'usage (2880 × 1600), sous une bande de consignes. */
 export const DECOR_SCALE = 2;
@@ -63,11 +66,16 @@ export const DECOR_CANVAS = { width: HERO_W * DECOR_SCALE, height: HERO_H * DECO
 export const MAX_DECOR_PLANS = 8;
 export const KIT_FILES: Record<KitRole, { file: string; label: string; doc: { width: number; height: number }; /** Nom court dans la revue. */ short: string }> = {
   decor: { file: "1-decor-accueil.psd", label: "1 · Décor d'accueil", short: "Décor d'accueil", doc: { width: DECOR_CANVAS.width, height: DECOR_HEAD + DECOR_CANVAS.height } },
-  logo: { file: "2-logo-papier.psd", label: "2 · Logo et papier", short: "Logo et papier", doc: { width: 3000, height: 4640 } },
+  // Lot 83 : + la carte « 4 · Icône du site » (document plus haut : 3000 × 5480).
+  logo: { file: "2-logo-papier.psd", label: "2 · Logo et papier", short: "Logo et papier", doc: { width: 3000, height: ICON_DOC_HEIGHT } },
   icones: { file: "3-icones-curseurs.psd", label: "3 · Icônes et curseurs", short: "Icônes et curseurs", doc: { width: 3400, height: 5770 } },
 };
+/** Fichier « logo » d'avant le lot 83 (sans la carte de l'icône du site) : toujours importé. */
+export const LEGACY_LOGO_DOC = { width: 3000, height: 4640 } as const;
+export const isLegacyLogoDoc = (width: number, height: number) => width === LEGACY_LOGO_DOC.width && height === LEGACY_LOGO_DOC.height;
 /** Rôle d'un document d'après sa taille (repli quand l'identifiant de rôle a été supprimé). */
-export const roleOfSize = (width: number, height: number): KitRole | null => KIT_ROLES.find((r) => KIT_FILES[r].doc.width === width && KIT_FILES[r].doc.height === height) ?? null;
+export const roleOfSize = (width: number, height: number): KitRole | null =>
+  KIT_ROLES.find((r) => KIT_FILES[r].doc.width === width && KIT_FILES[r].doc.height === height) ?? (isLegacyLogoDoc(width, height) ? "logo" : null);
 
 export interface SlotSpec {
   /** Identifiant stable (rapports, assets) : « hero/plan-1 », « icones/fermer »… */
@@ -109,9 +117,11 @@ export interface SlotSpec {
   at?: { role: KitRole; x: number; y: number };
   /** Plan du décor libre (kit v4) : le premier (le plus lointain) peut être opaque. */
   firstPlan?: boolean;
+  /** Lot 83 : emplacement du seul kit v4 (absent des kits v1 à v3, et du fichier « logo » d'avant le lot 83). */
+  multiOnly?: boolean;
 }
 
-export type ElementId = "paysage" | "signature" | "papier" | "cadre" | "trait" | "icones" | "scotch" | "palette" | "curseur";
+export type ElementId = "paysage" | "signature" | "papier" | "cadre" | "trait" | "icones" | "scotch" | "palette" | "curseur" | "siteicon";
 
 export interface ElementSpec {
   id: ElementId;
@@ -210,6 +220,16 @@ export const ELEMENTS: ElementSpec[] = [
     board: { x: 2128, y: 3412, w: 1500, h: 560 },
     where: "Ce que tu dessines ici tient les images des planches : le même morceau est posé en haut de chaque image.",
     rules: ["400 × 160 px, fond transparent ; la transparence partielle est gardée.", IGNORED_RULE, "Pas envie ? Laisse-le tel quel : le scotch actuel reste."],
+  },
+  {
+    // Lot 83 : kit v4 seulement (le plan de travail ci-dessous n'est jamais dessiné).
+    id: "siteicon",
+    group: "4 · Icône du site",
+    title: "4 · Icône du site — case de 512 × 512 px",
+    aliases: ["icone-du-site", "icone-de-l-onglet"],
+    board: { x: 0, y: 0, w: 1, h: 1 },
+    where: "L'icône de l'onglet du navigateur, des favoris et de l'écran d'accueil d'un téléphone.",
+    rules: ["512 × 512 px.", IGNORED_RULE, KEEP_RULE],
   },
   /* ---- Palette et curseurs (lot 4) ---- */
   {
@@ -311,6 +331,8 @@ export const SLOTS: SlotSpec[] = [
     crop: false,
   },
   { id: "trait", element: "trait", layer: "Trait", label: "Trait", aliases: ["trait"], kind: "stroke", size: { w: 1200, h: 80 }, v1: { x: 80, y: 2100 }, transparent: true, mono: true, crop: true },
+  // Lot 83 : l'icône de l'onglet. Carrée, en couleurs, gardée en bitmap ; la transparence (coins d'une icône ronde) est permise.
+  { id: "icone-site", element: "siteicon", layer: "Icône du site", label: "Icône du site", aliases: ["icone-du-site", "icone-site", "icone-de-l-onglet"], kind: "appicon", size: { w: 512, h: 512 }, v1: { x: 0, y: 0 }, transparent: true, mono: false, bitmapOnly: true, crop: false, multiOnly: true },
   icon("fleche-gauche", "Flèche gauche", [], { x: 2400, y: 1720 }),
   icon("fleche-droite", "Flèche droite", [], { x: 2560, y: 1720 }),
   icon("fermer", "Fermer", ["croix"], { x: 2400, y: 1880 }),
@@ -375,11 +397,12 @@ export const isNuanceSwatch = (s: SlotSpec) => Boolean(s.paletteKey && isNuance(
  * `scale` × la taille d'usage. Les cartes (consignes, vignettes) sont posées
  * par build-multi.ts autour de ces cases (MULTI_CARDS : leurs rectangles).
  */
-const SCALE: Record<string, number> = { signature: 2, papier: 2, trait: 2, cadre: 3, "accessoires/scotch": 3, curseur: 8, icone: 4 };
+const SCALE: Record<string, number> = { signature: 2, papier: 2, trait: 2, cadre: 3, "accessoires/scotch": 3, curseur: 8, icone: 4, "icone-site": 1 };
 const MULTI_AT: Record<string, { role: KitRole; x: number; y: number }> = {
   signature: { role: "logo", x: 60, y: 752 },
   papier: { role: "logo", x: 60, y: 1992 },
   trait: { role: "logo", x: 60, y: 3792 },
+  "icone-site": { role: "logo", x: 60, y: ICON_CARD.y + 92 },
   "icones/fleche-gauche": { role: "icones", x: 60, y: 752 },
   "icones/fleche-droite": { role: "icones", x: 620, y: 752 },
   "icones/fermer": { role: "icones", x: 1180, y: 752 },
@@ -463,6 +486,24 @@ export const MULTI_CARDS: MultiCard[] = [
     vignette: { x: 2460, y: 390, w: 480, h: 300 },
   },
   {
+    element: "siteicon",
+    role: "logo",
+    group: "4 · Icône du site",
+    board: { x: 0, y: ICON_CARD.y, w: 3000, h: ICON_CARD.h },
+    title: "4 · Icône du site — case de 512 × 512 px",
+    where: "Ce que tu dessines ici devient la petite icône de l'onglet du navigateur, des favoris et de l'écran d'accueil d'un téléphone.",
+    rules: [
+      "Dessine en carré, en couleurs, avec des formes simples et grosses : à 16 px dans l'onglet, un détail fin disparaît.",
+      "Garde le dessin dans la zone utile (pointillés) : sur Android, l'icône est parfois découpée en rond.",
+      "Un fond transparent est permis (une icône ronde). Les coins de la case sont réduits tels quels.",
+      IGN,
+      "Pas envie ? Laisse tel quel : l'icône actuelle (logo ou monogramme) reste.",
+    ],
+    panel: { x: 640, y: 92, w: 1700 },
+    vignette: { x: 2400, y: 92, w: 520, h: 300 },
+    margin: 51,
+  },
+  {
     element: "icones",
     role: "icones",
     group: "1 · Icônes",
@@ -532,6 +573,8 @@ export const drawScale = (s: SlotSpec) => (s.draw ? s.draw.w / s.size.w : 1);
 export const slotSpecOf = (id: string): SlotSpec | undefined => ALL_SLOTS.find((s) => s.id === id) ?? (/^decor\/\d+$/.test(id) ? decorSlot(Number(id.slice(6))) : undefined);
 /** Emplacements d'un fichier du kit v4. */
 export const slotsOfRole = (role: KitRole) => ALL_SLOTS.filter((s) => s.at?.role === role);
+/** Emplacements lisibles dans un document de cette taille : le fichier « logo » d'avant le lot 83 n'a pas la case de l'icône. */
+export const slotsOfFile = (role: KitRole, width: number, height: number) => slotsOfRole(role).filter((s) => !(s.multiOnly && role === "logo" && isLegacyLogoDoc(width, height)));
 
 /** Plan n (1 = le plus lointain) du décor libre : mêmes règles qu'un plan du kit v2, sans hauteur utile. */
 export function decorSlot(n: number): SlotSpec {

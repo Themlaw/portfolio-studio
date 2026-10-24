@@ -80,22 +80,6 @@ export async function pageShareImage(page: PageSummary, locale: AppLocale, seo: 
   return shareImageOfMedia(seo.shareImage);
 }
 
-/** Icônes déclarées dans <head> (l'adresse porte l'empreinte du dossier : un nouveau choix passe le cache). */
-export function iconLinks(seo: SeoStored): Metadata["icons"] | undefined {
-  if (!seo.favicon) return undefined;
-  const v = encodeURIComponent(seo.favicon.dir.replace(/^icons\//, ""));
-  const at = (size: number) => `/site-icon/${size}.png?v=${v}`;
-  return {
-    icon: [
-      { url: at(32), sizes: "32x32", type: "image/png" },
-      { url: at(48), sizes: "48x48", type: "image/png" },
-      { url: at(192), sizes: "192x192", type: "image/png" },
-      { url: at(512), sizes: "512x512", type: "image/png" },
-    ],
-    apple: [{ url: at(180), sizes: "180x180", type: "image/png" }],
-  };
-}
-
 const OG_LOCALE: Record<string, string> = { fr: "fr_FR", en: "en_US" };
 
 /** Titre, description, `og:*` et `twitter:card` d'une page publique. */

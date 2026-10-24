@@ -22,7 +22,7 @@ const kit = (f) => import(new URL(`../src/lib/kit/${f}`, import.meta.url));
 const { buildKitMulti } = await kit("build-multi.ts");
 const { importKit } = await kit("import.ts");
 const { loadManifests, exportIdOf } = await kit("manifest.ts");
-const { KIT_FILES, KIT_ROLES, KIT_V4_VERSION, DECOR_HEAD, DECOR_CANVAS, frameOf, ALL_SLOTS, MAX_DECOR_PLANS } = await kit("spec.ts");
+const { KIT_FILES, KIT_ROLES, KIT_V4_VERSION, DECOR_HEAD, DECOR_CANVAS, frameOf, ALL_SLOTS, MAX_DECOR_PLANS, roleOfSize, slotsOfFile, slotsOfRole, LEGACY_LOGO_DOC } = await kit("spec.ts");
 const { decorApplicable, isApplicable } = await kit("mirror.ts");
 const { writeZipFile, listZip, extractEntry, KitZipError } = await kit("zip-archive.ts");
 const { ensureAgPsd } = await kit("ag-psd-node.ts");
@@ -104,16 +104,16 @@ const shuffled = [
 ];
 const r0 = await importKit(shuffled, path.join(tmp, "out0"), { manifests, themeId: theme.id });
 const changed0 = r0.slots.filter((s) => s.change !== "unchanged");
-ok("réimport des 3 fichiers sans rien toucher : 0 élément modifié", r0.ok && r0.slots.length === 16 && changed0.length === 0 && r0.slots.every((s) => s.status === "ok"), changed0.map((s) => `${s.id}:${s.change}`).join(" ") || r0.problem);
+ok("réimport des 3 fichiers sans rien toucher : 0 élément modifié", r0.ok && r0.slots.length === 17 && changed0.length === 0 && r0.slots.every((s) => s.status === "ok"), changed0.map((s) => `${s.id}:${s.change}`).join(" ") || r0.problem);
 ok("kit d'origine reconnu par l'identifiant (mêmes fichiers renommés)", r0.reference?.how === "identifiant" && r0.reference.exportId === exportId, JSON.stringify(r0.reference));
-ok("revue : un bloc par fichier, dans l'ordre du kit, tous reçus", r0.files.map((f) => `${f.id}${f.received ? "" : "!"}`).join(",") === "decor,logo,icones" && r0.files.map((f) => f.slots).join(",") === "5,3,8", JSON.stringify(r0.files));
+ok("revue : un bloc par fichier, dans l'ordre du kit, tous reçus", r0.files.map((f) => `${f.id}${f.received ? "" : "!"}`).join(",") === "decor,logo,icones" && r0.files.map((f) => f.slots).join(",") === "5,4,8", JSON.stringify(r0.files));
 ok("décor : même composition que l'export", r0.decor?.structure === "unchanged" && r0.decor.count === 5 && !decorApplicable(r0));
 ok("aucun élément à appliquer", r0.slots.filter(isApplicable).length === 0);
 console.log(`      réimport : pic ${r0.peakMb} Mo`);
 
 /* ---- Fichiers manquants ----------------------------------------------------- */
 const rLogo = await importKit({ path: extracted[KIT_FILES.logo.file], name: "logo.psd" }, path.join(tmp, "out-logo"), { manifests, themeId: theme.id });
-ok("un seul fichier envoyé : les autres « pas envoyés » (inchangés), kit reconnu par son identifiant", rLogo.files.map((f) => `${f.id}:${f.received}`).join(",") === "decor:false,logo:true,icones:false" && rLogo.slots.length === 3 && rLogo.reference?.how === "identifiant" && rLogo.slots.every((s) => s.change === "unchanged"), JSON.stringify(rLogo.files));
+ok("un seul fichier envoyé : les autres « pas envoyés » (inchangés), kit reconnu par son identifiant", rLogo.files.map((f) => `${f.id}:${f.received}`).join(",") === "decor:false,logo:true,icones:false" && rLogo.slots.length === 4 && rLogo.reference?.how === "identifiant" && rLogo.slots.every((s) => s.change === "unchanged"), JSON.stringify(rLogo.files));
 const rTwo = await importKit([extracted[KIT_FILES.decor.file], extracted[KIT_FILES.icones.file]], path.join(tmp, "out-two"), { manifests, themeId: theme.id });
 ok("deux fichiers sur trois : le logo est « pas envoyé »", rTwo.files.find((f) => f.id === "logo")?.received === false && rTwo.slots.length === 13);
 const dup = await importKit([extracted[KIT_FILES.logo.file], extracted[KIT_FILES.logo.file]], path.join(tmp, "out-dup"), { manifests });
@@ -175,6 +175,30 @@ for (let i = 0; i < 128 * 128; i++) diff += Math.abs(ideal[i] - small.data[i * 4
 ok(`aperçu proche d'un disque idéal de 90 px (écart moyen ${(diff / 16384).toFixed(2)} niveau)`, diff / 16384 < 3, String(diff / 16384));
 // Teinte par le thème : le masque ne garde que la forme.
 ok("icône monochrome : servie en masque (teinte par le thème), pas la couleur dessinée", ic.chosen === "svg-mask" && !/fill="#142a5a"/i.test(svg));
+
+/* ---- Icône du site (lot 83) : case de 512 × 512 dans le fichier « logo » ------------------------------------------ */
+const iconSlot = ALL_SLOTS.find((s) => s.id === "icone-site");
+ok("icône du site : case 512 × 512 (échelle 1) dans le fichier « logo »", iconSlot?.at?.role === "logo" && iconSlot.draw.w === 512 && iconSlot.draw.h === 512 && iconSlot.multiOnly === true && iconSlot.kind === "appicon");
+ok("ancien fichier « logo » (3000 × 4640, d'avant le lot 83) : toujours reconnu, sans la case de l'icône", roleOfSize(LEGACY_LOGO_DOC.width, LEGACY_LOGO_DOC.height) === "logo" && !slotsOfFile("logo", LEGACY_LOGO_DOC.width, LEGACY_LOGO_DOC.height).some((s) => s.id === "icone-site") && slotsOfFile("logo", KIT_FILES.logo.doc.width, KIT_FILES.logo.doc.height).some((s) => s.id === "icone-site") && slotsOfRole("icones").every((s) => s.id !== "icone-site"));
+{
+  // Aucun calque touché : l'icône actuelle (gabarit, ici) est « inchangée » ; redessinée en couleurs, elle est redessinée et gardée en bitmap.
+  const f = frameOf(iconSlot, "multi");
+  const ico = disc(300, 300, (x, y) => (x - 150) ** 2 + (y - 150) ** 2 <= 150 ** 2);
+  for (let i = 0; i < ico.data.length; i += 4) if (ico.data[i + 3]) ico.data.set([200, 60, 40, 255], i);
+  const psdIcon = await mutate(
+    "logo",
+    (psd) => {
+      const l = find(psd.children, "Icône du site");
+      Object.assign(l, { left: f.x + 106, top: f.y + 106, right: f.x + 406, bottom: f.y + 406, imageData: ico });
+    },
+    "icone-site.psd",
+  );
+  const rIco = await importKit({ path: psdIcon, name: "l.psd" }, path.join(tmp, "out-icone-site"), { manifests, themeId: theme.id, keepCrops: true });
+  const sIco = rIco.slots.find((s) => s.id === "icone-site");
+  ok("icône du site redessinée : « redessinée », en bitmap (couleurs gardées), appliquée", rIco.ok && sIco?.change === "redrawn" && sIco.status !== "error" && /avif/.test(sIco.chosen ?? "") && isApplicable(sIco) && rIco.slots.filter((x) => x.change === "redrawn").length === 1, JSON.stringify({ c: sIco?.change, ch: sIco?.chosen, st: sIco?.status, m: sIco?.messages }));
+  const prev = sIco?.preview ? await sharp(path.join(tmp, "out-icone-site", sIco.preview)).metadata() : null;
+  ok("icône du site : aperçu « après » carré", Boolean(prev) && prev.width === prev.height, `${prev?.width}x${prev?.height}`);
+}
 
 /* ---- Logo en grand : réduit de moitié ------------------------------------------ */
 const sigSlot = ALL_SLOTS.find((s) => s.id === "signature");
@@ -320,7 +344,7 @@ const lying = await mutate(
 const rl = await importKit({ path: lying, name: "x.psd" }, path.join(tmp, "out-lie"), { manifests });
 ok("rôle de l'identifiant incohérent avec la taille du document : refusé, message clair", rl.ok === false && /se déclare « 2 · Logo et papier »/.test(rl.problem ?? ""), rl.problem);
 const wrong = await importKit([{ path: extracted[KIT_FILES.logo.file], name: "1-decor-accueil.psd" }], path.join(tmp, "out-nom"), { manifests });
-ok("un fichier nommé « 1-decor-accueil.psd » mais qui est le logo : reconnu comme le logo (le nom n'a aucune importance)", wrong.files.find((f) => f.received)?.id === "logo" && wrong.slots.length === 3);
+ok("un fichier nommé « 1-decor-accueil.psd » mais qui est le logo : reconnu comme le logo (le nom n'a aucune importance)", wrong.files.find((f) => f.received)?.id === "logo" && wrong.slots.length === 4);
 
 /* ---- Anciens kits mono-fichier ---------------------------------------------------------- */
 const legacy = await importKit(path.join(root, "tests/fixtures/kit-synthetique.psd"), path.join(tmp, "out-legacy"), { manifests: [JSON.parse(readFileSync(path.join(root, "tests/fixtures/kit-galerie-lumineuse-v1.manifest.json"), "utf8"))], themeId: "galerie-lumineuse" });

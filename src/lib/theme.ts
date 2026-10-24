@@ -147,6 +147,16 @@ export async function getPreparingTheme(): Promise<{ id: string; name: string } 
   return { id, name: preview.name };
 }
 
+/**
+ * Le thème que voient les VISITEURS (publié, jamais l'aperçu), pour ce qui ne suit pas l'aperçu d'un administrateur : l'icône de
+ * l'onglet et le manifeste (lot 83). Lecture en cache, étiquette « theme ».
+ */
+export async function getPublishedTheme(): Promise<Theme> {
+  if (isBuildPhase()) return PRESETS[DEFAULT_THEME_ID];
+  const state = await getThemeState();
+  return own(state.themes, state.activeId) ?? state.themes[DEFAULT_THEME_ID] ?? PRESETS[DEFAULT_THEME_ID];
+}
+
 export const getActiveTheme = cache(async (): Promise<Theme> => {
   if (isBuildPhase()) return PRESETS[DEFAULT_THEME_ID];
 

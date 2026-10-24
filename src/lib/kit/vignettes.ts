@@ -156,6 +156,15 @@ export function vignetteSvg(el: ElementId, c: Colors, w: number, h: number): str
     case "scotch":
       body = paperBackground(c, w, hh, h) + strip(c, w, hh + h * 0.1, { tape: true }) + header(c, w, h, 0);
       break;
+    case "siteicon":
+      // Lot 83 : un onglet de navigateur, l'icône surlignée à gauche du nom.
+      body =
+        `<rect width="${w}" height="${h}" fill="${c.bgDeep}"/>` +
+        `<rect x="${w * 0.04}" y="${h * 0.14}" width="${w * 0.5}" height="${h * 0.2}" rx="8" fill="${c.bg}"/>` +
+        hl(`<rect x="${w * 0.065}" y="${h * 0.19}" width="${h * 0.1}" height="${h * 0.1}" rx="4"/>`) +
+        `<rect x="${w * 0.065 + h * 0.14}" y="${h * 0.22}" width="${w * 0.24}" height="${Math.max(3, h * 0.035)}" rx="2" fill="${c.ink}"/>` +
+        `<rect y="${h * 0.34}" width="${w}" height="${h * 0.66}" fill="${c.bg}"/>`;
+      break;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><defs><clipPath id="v"><rect width="${w}" height="${h}" rx="10"/></clipPath></defs><g clip-path="url(#v)">${body}</g><rect x="1.5" y="1.5" width="${w - 3}" height="${h - 3}" rx="10" fill="none" stroke="#8a8f98" stroke-width="3"/></svg>`;
 }

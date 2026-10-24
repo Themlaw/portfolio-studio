@@ -8,6 +8,7 @@
  * rectangle normalisé {x, y, w, h} (src/lib/images/crop.ts), enregistré dans
  * `look.crop` du bloc par la couche (LookLayer) : jamais l'image elle-même.
  * Souris, tactile (touch-action: none) et clavier (flèches, + / −, Entrée, Échap).
+ * `square` (lot 83, icône de l'onglet) : le même outil, verrouillé sur un carré ; seul le format « Carré 1:1 » est proposé.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -88,6 +89,7 @@ export default function FreeCropDialog({
   px,
   initial,
   tabs,
+  square = false,
   onSave,
   onClose,
 }: {
@@ -97,15 +99,17 @@ export default function FreeCropDialog({
   px: { w: number; h: number };
   initial: Rect | null;
   tabs?: ReactNode;
+  /** Recadrage carré verrouillé (icône de l'onglet). */
+  square?: boolean;
   /** null : retirer le recadrage (image entière). */
   onSave: (rect: Rect | null) => void;
   onClose: () => void;
 }) {
   const ir = px.w / px.h;
-  const [rect, setRect] = useState<Rect>(initial ?? { x: 0, y: 0, w: 1, h: 1 });
+  const [rect, setRect] = useState<Rect>(initial ?? (square ? fitAspect({ x: 0, y: 0, w: 1, h: 1 }, 1 / ir) : { x: 0, y: 0, w: 1, h: 1 }));
   // Format verrouillé : rapport en pixels (l/h) ; null = libre.
-  const [lock, setLock] = useState<number | null>(null);
-  const [format, setFormat] = useState("libre");
+  const [lock, setLock] = useState<number | null>(square ? 1 : null);
+  const [format, setFormat] = useState(square ? "1:1" : "libre");
   const dialog = useRef<HTMLDivElement>(null);
   useEffect(() => dialog.current?.focus(), []);
   const [win, setWin] = useState({ w: typeof window === "undefined" ? 1200 : window.innerWidth, h: typeof window === "undefined" ? 800 : window.innerHeight });
@@ -174,7 +178,7 @@ export default function FreeCropDialog({
         className="lk-crop"
         role="dialog"
         aria-modal="true"
-        aria-label="Cadrer l'image"
+        aria-label={square ? "Cadrer l'icône" : "Cadrer l'image"}
         tabIndex={-1}
         onKeyDown={(e) => {
           const big = e.shiftKey ? 0.1 : 0.02;
@@ -196,13 +200,13 @@ export default function FreeCropDialog({
           }
         }}
       >
-        <p className="lk-crop-title">Cadrer l&apos;image</p>
+        <p className="lk-crop-title">{square ? "Cadrer l'icône" : "Cadrer l'image"}</p>
         {tabs}
         <p className="lk-crop-help">
-          Tire les poignées (coins et bords) pour choisir la partie à garder ; glisse le rectangle pour le déplacer. Le cadre de la page prend son format. L&apos;image d&apos;origine n&apos;est pas modifiée.
+          Tire les poignées (coins et bords) pour choisir la partie à garder ; glisse le rectangle pour le déplacer. {square ? "L'icône est carrée : " : "Le cadre de la page prend son format. "}L&apos;image d&apos;origine n&apos;est pas modifiée.
         </p>
         <div className="lk-crop-formats" role="group" aria-label="Format du recadrage">
-          {FORMATS.map((f) => (
+          {FORMATS.filter((f) => !square || f.id === "1:1").map((f) => (
             <button key={f.id} type="button" aria-pressed={format === f.id} data-format={f.id} onClick={() => choose(f)}>
               {f.label}
             </button>
@@ -228,12 +232,12 @@ export default function FreeCropDialog({
           <button
             type="button"
             onClick={() => {
-              setRect({ x: 0, y: 0, w: 1, h: 1 });
-              setLock(null);
-              setFormat("libre");
+              setRect(square ? fitAspect({ x: 0, y: 0, w: 1, h: 1 }, 1 / ir) : { x: 0, y: 0, w: 1, h: 1 });
+              setLock(square ? 1 : null);
+              setFormat(square ? "1:1" : "libre");
             }}
           >
-            Image entière
+            {square ? "Recentrer" : "Image entière"}
           </button>
           <span className="lk-spacer" />
           <button type="button" onClick={onClose}>

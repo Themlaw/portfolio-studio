@@ -30,21 +30,23 @@ test("tabTitle : pas de doublon, accueil = nom du site", () => {
   assert.equal(tabTitle("Perf", ""), "Perf");
 });
 test("readSeo : défaut, valeurs valides, champs corrompus ignorés", () => {
-  assert.deepEqual(readSeo(undefined), { description: { fr: "", en: "" }, shareImage: null, favicon: null });
+  // Lot 83 : `faviconMode` (mode, monogramme, recadrage) s'ajoute ; absent, il se déduit (image choisie → « image », sinon « automatique »).
+  const auto = { mode: "auto", mono: { letters: null, shape: "round", bg: "primary", ink: "onPrimary" }, crop: null };
+  assert.deepEqual(readSeo(undefined), { description: { fr: "", en: "" }, shareImage: null, favicon: null, faviconMode: auto });
   const ok = readSeo({ description: { fr: "a", en: "b" }, shareImage: 4, favicon: { mediaId: 7, dir: "icons/7-abcd1234" } });
-  assert.deepEqual(ok, { description: { fr: "a", en: "b" }, shareImage: 4, favicon: { mediaId: 7, dir: "icons/7-abcd1234" } });
+  assert.deepEqual(ok, { description: { fr: "a", en: "b" }, shareImage: 4, favicon: { mediaId: 7, dir: "icons/7-abcd1234" }, faviconMode: { ...auto, mode: "image" } });
   const bad = readSeo({ description: 3, shareImage: "x", favicon: { mediaId: 7, dir: "../../etc" } });
-  assert.deepEqual(bad, { description: { fr: "", en: "" }, shareImage: null, favicon: null });
+  assert.deepEqual(bad, { description: { fr: "", en: "" }, shareImage: null, favicon: null, faviconMode: auto });
 });
 test("SeoInputSchema : strict, bornes", () => {
-  const good = { description: { fr: "x", en: "" }, shareImage: null, favicon: 3 };
+  const good = { description: { fr: "x", en: "" }, shareImage: null };
   assert.equal(SeoInputSchema.safeParse(good).success, true);
   assert.equal(SeoInputSchema.safeParse({ ...good, extra: 1 }).success, false);
   assert.equal(SeoInputSchema.safeParse({ ...good, shareImage: -1 }).success, false);
   assert.equal(SeoInputSchema.safeParse({ ...good, description: { fr: "x".repeat(301), en: "" } }).success, false);
 });
 test("ICON_SIZES : onglet, iPhone, Android", () => {
-  for (const s of [32, 180, 192, 512]) assert.ok(ICON_SIZES.includes(s));
+  for (const s of [16, 32, 48, 180, 192, 512]) assert.ok(ICON_SIZES.includes(s));
 });
 test("untranslatedCount : titre et textes localisés, à tout niveau", () => {
   assert.equal(untranslatedCount({ fr: "A", en: "A" }, []), 0);

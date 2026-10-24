@@ -84,6 +84,9 @@ export function currentLookSvg(slot: SlotSpec, theme: Theme, scale = 1): string 
     }
     case "signature":
       return `${open}</svg>`;
+    case "appicon":
+      // Lot 83 : sans icône actuelle fournie, un carré arrondi de la couleur d'action.
+      return `${open}<rect width="${w}" height="${h}" rx="${Math.round(w * 0.22)}" fill="${c.primary}"/></svg>`;
     case "tile": {
       if (theme.variants.texture !== "paper-dots") return `${open}<rect width="${w}" height="${h}" fill="${c.bg}"/></svg>`;
       // Points de 1 px tous les 22 px CSS (tuile affichée à 50 % : ~44 px ici), encre à 3,5 %.
@@ -523,7 +526,7 @@ export async function buildKit(theme: Theme, publicDir: string, opts: BuildOptio
   if (opts.manifestDir) await (await import("node:fs/promises")).mkdir(opts.manifestDir, { recursive: true });
 
   // Ordre ag-psd : du bas vers le haut. Éléments 7 → 1, puis _guides, puis LISEZ-MOI.
-  const ordered = [...ELEMENTS].sort((a, b) => b.group.localeCompare(a.group, "fr", { numeric: true }));
+  const ordered = ELEMENTS.filter((e) => e.id !== "siteicon").sort((a, b) => b.group.localeCompare(a.group, "fr", { numeric: true }));
   const children: Layer[] = [];
   const guides: Layer[] = [];
   const hotspotImg = await hotspotRaster();

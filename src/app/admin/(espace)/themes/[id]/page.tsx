@@ -1,8 +1,12 @@
 import { notFound } from "next/navigation";
 
+import FaviconSetting from "@/components/admin/FaviconSetting";
 import ThemeEditor from "@/components/admin/ThemeEditor";
 import WallpaperLibrary from "@/components/admin/WallpaperLibrary";
-import { getCardWallpaperSetting, getThemeOverview, listPagesForAdmin, wallpaperUseCounts } from "@/lib/admin";
+import { getCardWallpaperSetting, getFaviconForAdmin, getThemeOverview, listMediaForAdmin, listPagesForAdmin, wallpaperUseCounts } from "@/lib/admin";
+import { monoColors } from "@/lib/favicon-plan";
+import { getSite } from "@/lib/settings";
+import { getPublishedTheme } from "@/lib/theme";
 import { readPublishedSite } from "@/lib/edit/site";
 import { listWallpapersForAdmin } from "@/lib/wallpapers";
 import { withFrameRing } from "@/lib/kit/frame-ring";
@@ -38,6 +42,17 @@ export default async function ThemeEditPage({ params, searchParams }: { params: 
         editorHref={home ? `/admin/pages/${home.id}/editer` : undefined}
         initialStep={etape}
         initialTab={onglet}
+        // Icône de l'onglet (lot 83) : un réglage de SITE (pas du thème en cours d'édition), montré avec le thème en ligne.
+        favicon={
+          <FaviconSetting
+            initial={getFaviconForAdmin()}
+            media={listMediaForAdmin().filter((m) => m.kind === "image")}
+            siteName={(await getSite("fr")).name}
+            colors={monoColors(await getPublishedTheme())}
+            scope="guide"
+            kitHref={`/admin/themes/${encodeURIComponent(theme.id)}/kit`}
+          />
+        }
         // L'ancienne page « Papiers peints » : un onglet de l'étape « Papier et motifs » (ne dépend pas du thème édité).
         wallpapers={
           <>

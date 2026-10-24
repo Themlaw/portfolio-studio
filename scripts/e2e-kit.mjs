@@ -126,12 +126,12 @@ await page.setInputFiles('[data-testid="kit-file"]', NOT_PSD);
 const refusal = await page.locator(".a-kit-drop [role=alert]").textContent({ timeout: 30000 });
 ok("fichier qui n'est pas un PSD : refusé, message clair", /pas un fichier Photoshop/.test(refusal ?? ""), refusal ?? "");
 
-// A1. L'archive entière (icônes retouchées dedans) : 16 éléments, un seul redessiné.
+// A1. L'archive entière (icônes retouchées dedans) : 17 éléments, un seul redessiné.
 const a = await sendAndReview(zipEdited, 16);
 const changedA = a.cards.filter((c) => c.change !== "unchanged");
 ok("archive : seule « Flèche droite » redessinée (dessin en grand, réduit par le site)", changedA.length === 1 && changedA[0].slot === "icones/fleche-droite" && /Flèche droite : redessinée/.test(changedA[0].title), JSON.stringify(changedA));
-ok("archive : 15 inchangés sur 16 (reconnus par l'identifiant d'export), curseurs compris", a.cards.length === 16 && a.cards.filter((c) => c.change === "unchanged").length === 15 && /identifiant du fichier/.test(await page.locator(".a-kit-summary").textContent()));
-ok("archive : revue groupée par fichier (décor 5, logo 3, icônes 8), tous reçus", a.sections.map((s) => `${s.file}:${s.received}:${s.cards}`).join(",") === "decor:true:5,logo:true:3,icones:true:8", JSON.stringify(a.sections));
+ok("archive : 16 inchangés sur 17 (reconnus par l'identifiant d'export), curseurs compris", a.cards.length === 17 && a.cards.filter((c) => c.change === "unchanged").length === 16 && /identifiant du fichier/.test(await page.locator(".a-kit-summary").textContent()));
+ok("archive : revue groupée par fichier (décor 5, logo 4, icônes 8), tous reçus", a.sections.map((s) => `${s.file}:${s.received}:${s.cards}`).join(",") === "decor:true:5,logo:true:4,icones:true:8", JSON.stringify(a.sections));
 ok("avant / après affichés pour la flèche", a.imgs.length === 2 && a.imgs.every((i) => i.w > 0), JSON.stringify(a.imgs));
 await page.screenshot({ path: `${SHOTS}/revue-archive-1440.png`, fullPage: true });
 

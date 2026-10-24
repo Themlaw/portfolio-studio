@@ -9,6 +9,7 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stri
 /** Éléments du kit, dans l'ordre où on les cite, avec leur nom d'utilisatrice (« Signature » est « Logo » partout : lot 60). */
 const KIT_PARTS: { label: string; of: (kit: NonNullable<Theme["assets"]["kit"]>) => unknown }[] = [
   { label: "logo", of: (k) => k.signature },
+  { label: "icône du site", of: (k) => k.icon },
   { label: "cadre", of: (k) => k.frame },
   { label: "papier", of: (k) => k.paper },
   { label: "décor", of: (k) => [k.plans, k.plansOnly] },

@@ -5,7 +5,7 @@
  *                           servi), calques LIBRES : chaque calque ou groupe de premier niveau
  *                           est un plan, du fond (en bas de la pile) vers l'avant ; le décor
  *                           actuel du thème y est découpé en ses plans existants
- *   2-logo-papier.psd       logo (2400 × 600), papier (tuile 1024 × 1024, aperçu 3 × 3), trait
+ *   2-logo-papier.psd       logo (2400 × 600), papier (tuile 1024 × 1024, aperçu 3 × 3), trait, icône du site (512 × 512, lot 83)
  *   3-icones-curseurs.psd   icônes (512 × 512), curseurs (512 × 512), cadre, scotch
  *
  * Les éléments se dessinent EN GRAND ; l'import les réduit à leur taille d'usage
@@ -127,7 +127,7 @@ export function archiveReadme(siteName: string): string {
     "",
     "Ce dossier contient trois fichiers Photoshop (.psd) :",
     `  ${KIT_FILES.decor.file}      le décor de l'accueil, en grand format. Calques libres : chaque calque devient un plan.`,
-    `  ${KIT_FILES.logo.file}       le logo, le papier (tuile répétée) et le trait.`,
+    `  ${KIT_FILES.logo.file}       le logo, le papier (tuile répétée), le trait et l'icône du site.`,
     `  ${KIT_FILES.icones.file}   les icônes, les curseurs de la souris, le cadre des images et le scotch.`,
     "",
     "Comment faire :",
@@ -258,7 +258,7 @@ async function cardRaster(card: MultiCard, theme: Theme, fontFile: string): Prom
   for (const s of slots) {
     const f = frameOf(s, "multi");
     const wrap = Math.max(f.w, 540) - 16;
-    const label = s.kind === "cursor" ? `${slotName(s)} — affiché 32 × 32 px` : `${slotName(s)} — affiché ${finalSize(s)} px`;
+    const label = s.kind === "cursor" ? `${slotName(s)} — affiché 32 × 32 px` : s.kind === "appicon" ? `${slotName(s)} — réduite à 16 px dans l'onglet` : `${slotName(s)} — affiché ${finalSize(s)} px`;
     const text = await textRaster(`<span foreground="${GREY}"><b>${esc(label.split(" — ")[0])}</b>\n${esc(label.split(" — ")[1] ?? "")}</span>`, fontFile, TEXT.label, wrap);
     const top = f.y - b.y + f.h + 14;
     if (top + text.height > b.h - 6) throw new Error(`légende hors de la carte : ${s.label}`);
