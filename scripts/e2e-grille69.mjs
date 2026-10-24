@@ -261,7 +261,9 @@ await section("I", async () => {
 /* ---- C. Grille <-> images qui défilent (CONC-01) ------------------------------------------------------------------------- */
 await section("C", async () => {
   setLayout(baseLayout());
-  const otherLook = { slotFrame: { "autre-x1": { kind: "band", color: "#112233", width: "fin" } }, spaceTop: "m" };
+  // Après la conversion, la rubrique est à la nouvelle forme (slotLook), sans rien perdre.
+const otherLookNew = { slotLook: { "autre-x1": { frame: { kind: "band", color: "#112233", width: "fin" } } }, spaceTop: "m" };
+const otherLook = { slotFrame: { "autre-x1": { kind: "band", color: "#112233", width: "fin" } }, spaceTop: "m" };
   setDraft([{ uid: "board1", type: "project-board", props: { project: project.slug, look: clone(otherLook) } }]);
   const startGrid = clone(boardGrid());
   const fr = await openEditor();
@@ -292,9 +294,9 @@ await section("C", async () => {
   const slug = (i) => `gridb1-${ids[i]}`;
   ok("C4 légendes : titre et légende de la 1re, date de la 2e, légende de la 4e", JSON.stringify(strip.props.captions?.[slug(0)]) === JSON.stringify({ title: L("Titre A"), caption: L("Légende A") }) && JSON.stringify(strip.props.captions?.[slug(1)]) === JSON.stringify({ date: L("2026") }) && JSON.stringify(strip.props.captions?.[slug(3)]) === JSON.stringify({ caption: L("Légende D") }), JSON.stringify(strip.props.captions));
   const lk = draftBlocks()[0].props.look;
-  ok("C5 cadre et fond d'image de la 1re : repris par la rubrique (réglages par image du carrousel)", JSON.stringify(lk?.slotFrame?.[slug(0)]) === JSON.stringify({ kind: "band", color: "#aa3322", width: "moyen" }) && lk?.slotBg?.[slug(0)] === "#ffffff", JSON.stringify(lk));
-  ok("C6 arrondi : celui de la 3e case, sinon celui de la grille", lk?.slotRadius?.[slug(2)] === "strong" && lk?.slotRadius?.[slug(0)] === "soft", JSON.stringify(lk?.slotRadius));
-  ok("C7 les réglages d'ailleurs sont intacts", lk?.slotFrame?.["autre-x1"]?.color === "#112233" && lk?.spaceTop === "m");
+  ok("C5 cadre et fond d'image de la 1re : repris par la rubrique (réglages par image du carrousel)", JSON.stringify(lk?.slotLook?.[slug(0)]?.frame) === JSON.stringify({ kind: "band", color: "#aa3322", width: "moyen" }) && lk?.slotLook?.[slug(0)]?.bg === "#ffffff", JSON.stringify(lk));
+  ok("C6 arrondi : celui de la 3e case, sinon celui de la grille", lk?.slotLook?.[slug(2)]?.radius === "strong" && lk?.slotLook?.[slug(0)]?.radius === "soft", JSON.stringify(lk?.slotLook));
+  ok("C7 les réglages d'ailleurs sont intacts", lk?.slotLook?.["autre-x1"]?.frame?.color === "#112233" && lk?.spaceTop === "m");
   ok("C8 la forme quittée est gardée (agencement, format, espace)", strip.props.converted?.kind === "grid" && strip.props.converted.props.layout === "3" && strip.props.converted.props.ratio === "3:2" && strip.props.converted.props.gap === "tight");
   ok("C9 le panneau suit : « Images qui défilent » est coché", await waitFor(async () => (await page.locator('[data-testid="convert-field"] [data-convert="strip"][aria-checked="true"]').count()) === 1, 20000));
   // La toile montre un carrousel de 4 places.
@@ -333,7 +335,7 @@ await section("C", async () => {
   await settled();
   ok("C16 ALLER-RETOUR SANS PERTE : la grille est exactement celle de départ", same(byUid("gridb1"), startGrid), JSON.stringify(byUid("gridb1")).slice(0, 600));
   const lk2 = draftBlocks()[0].props.look;
-  ok("C17 la rubrique de la page retrouve ses réglages d'avant (plus aucune trace des places)", same(lk2, otherLook), JSON.stringify(lk2));
+  ok("C17 la rubrique de la page retrouve ses réglages d'avant (plus aucune trace des places)", same(lk2, otherLookNew), JSON.stringify(lk2));
   await shot("c3-grille-retour");
 
   // Retouche pendant la forme carrousel : une légende changée est reprise au retour.
@@ -360,7 +362,7 @@ await section("C", async () => {
   await page.locator(".a-toasts").getByRole("button", { name: "Défaire" }).click();
   ok("C22 « Défaire » (un seul geste) : la grille d'origine est de retour", await waitFor(() => same(byUid("gridb1"), startGrid), 30000), JSON.stringify(byUid("gridb1")).slice(0, 300));
   await settled();
-  ok("C23 … et la rubrique de la page n'a gardé aucune trace des places", same(draftBlocks()[0].props.look, otherLook), JSON.stringify(draftBlocks()[0].props.look));
+  ok("C23 … et la rubrique de la page n'a gardé aucune trace des places", same(draftBlocks()[0].props.look, otherLookNew), JSON.stringify(draftBlocks()[0].props.look));
 });
 
 ok("aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));

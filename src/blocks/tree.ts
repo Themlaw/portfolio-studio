@@ -72,30 +72,30 @@ export function treeProblem(blocks: TreeBlock[], known: (type: string) => boolea
   const uidOk = (u: unknown) => typeof u === "string" && /^[a-z0-9-]{1,32}$/.test(u);
   const check = (list: unknown[], parent: string | null, depth: number): string | null => {
     for (const raw of list) {
-      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "Composant illisible.";
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "Bloc illisible.";
       const block = raw as { uid?: unknown; type?: unknown; props?: unknown };
-      if (typeof block.type !== "string" || !known(block.type)) return `Type de rubrique inconnu « ${String(block.type).slice(0, 60)} ».`;
+      if (typeof block.type !== "string" || !known(block.type)) return `Type de bloc inconnu « ${String(block.type).slice(0, 60)} ».`;
       if (parent !== null) {
-        if (!containerAccepts(parent, block.type)) return "Cette rubrique n'accepte pas ce composant.";
-        if (!uidOk(block.uid)) return "Identifiant de composant invalide.";
+        if (!containerAccepts(parent, block.type)) return "Ce bloc n'accepte pas ce type de bloc.";
+        if (!uidOk(block.uid)) return "Identifiant de bloc invalide.";
       }
       if (block.uid !== undefined) {
-        if (!uidOk(block.uid)) return "Identifiant de rubrique invalide.";
-        if (uids.has(block.uid as string)) return "Rubriques en double.";
+        if (!uidOk(block.uid)) return "Identifiant de bloc invalide.";
+        if (uids.has(block.uid as string)) return "Blocs en double.";
         uids.add(block.uid as string);
       }
       const props = block.props;
-      if (parent !== null && (!props || typeof props !== "object" || Array.isArray(props))) return "Réglages d'un composant illisibles.";
+      if (parent !== null && (!props || typeof props !== "object" || Array.isArray(props))) return "Réglages d'un bloc illisibles.";
       const hasChildren = Boolean(props) && typeof props === "object" && "children" in (props as object);
       if (!isContainer(block.type)) {
-        if (hasChildren) return "Seule une rubrique à composants (Grille…) en porte.";
+        if (hasChildren) return "Seul un bloc qui en contient d'autres (Grille…) en porte.";
         continue;
       }
-      if (depth >= MAX_NESTING) return "Trop de rubriques imbriquées.";
+      if (depth >= MAX_NESTING) return "Trop de blocs imbriqués.";
       if (!hasChildren) continue;
       const children = (props as { children: unknown }).children;
-      if (!Array.isArray(children)) return "Composants de la rubrique illisibles.";
-      if (children.length > MAX_CHILDREN) return `${MAX_CHILDREN} composants au plus par rubrique.`;
+      if (!Array.isArray(children)) return "Blocs du bloc illisibles.";
+      if (children.length > MAX_CHILDREN) return `${MAX_CHILDREN} blocs au plus dans un bloc.`;
       const problem = check(children, block.type, depth + 1);
       if (problem) return problem;
     }

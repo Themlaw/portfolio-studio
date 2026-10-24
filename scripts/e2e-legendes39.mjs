@@ -71,7 +71,7 @@ const LONG_NOSPACE = "A".repeat(160);
 
 /* ---- Souris réelle ---------------------------------------------------------------------------------------------------------- */
 const center = async (loc) => {
-  // Au centre de la fenêtre : le bas est recouvert par « + Ajouter une rubrique », le haut par l'en-tête.
+  // Au centre de la fenêtre : le bas est recouvert par « + Ajouter un bloc », le haut par l'en-tête.
   await loc.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "instant" }));
   await sleep(150);
   const b = await loc.boundingBox();

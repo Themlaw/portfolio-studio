@@ -20,14 +20,14 @@ const plural = (n: number, one: string, many: string) => (n > 1 ? many : one);
 
 /** Ce qui part avec une page supprimée pour de bon. */
 export function lostWithPage(blocks: number, hasDraft: boolean): string {
-  const items = [blocks > 0 ? (blocks === 1 ? "sa rubrique" : `ses ${blocks} rubriques`) : "", hasDraft ? "son brouillon" : ""].filter(Boolean);
+  const items = [blocks > 0 ? (blocks === 1 ? "son bloc" : `ses ${blocks} blocs`) : "", hasDraft ? "son brouillon" : ""].filter(Boolean);
   if (!items.length) return "elle est vide : rien d'autre ne disparaît.";
   return `${items.join(" et ")} ${items.length === 1 && blocks <= 1 ? "disparaît" : "disparaissent"}.`;
 }
 
 /** Ce qui part avec un projet supprimé pour de bon (ses images restent dans la médiathèque). */
 export function lostWithProject(slots: number): string {
-  const what = slots === 0 ? "sa planche (sans emplacement) disparaît" : slots === 1 ? "sa planche et son emplacement disparaissent" : `sa planche et ses ${slots} emplacements disparaissent`;
+  const what = slots === 0 ? "sa mise en page (sans emplacement) disparaît" : slots === 1 ? "sa mise en page et son emplacement disparaissent" : `sa mise en page et ses ${slots} emplacements disparaissent`;
   return `${what} ; ses images restent dans la médiathèque.`;
 }
 

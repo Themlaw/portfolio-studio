@@ -205,7 +205,7 @@ for (let i = 0; i < 6; i++) {
 let addBox = null;
 for (let i = 0; i < 8 && !addBox; i++) {
   try {
-    // La souris reste là où le glisser l'a laissée, au bord de deux rubriques : la puce « + Ajouter une rubrique » de cet interstice
+    // La souris reste là où le glisser l'a laissée, au bord de deux rubriques : la puce « + Ajouter un bloc » de cet interstice
     // (`data-edit-gap`) peut alors recouvrir le centre du paragraphe d'un Texte court et « intercepter » le survol, que Playwright
     // retente sans jamais bouger la souris (même flake sur la base v0.19, un peu moins fréquent). On l'écarte d'abord, puis on
     // survole le haut-gauche du paragraphe, loin de l'interstice.
@@ -263,7 +263,7 @@ await f.locator(".pe-tools").getByRole("button", { name: "Supprimer" }).click();
 const confirm = page.getByRole("dialog");
 const shown = () => confirm.waitFor({ state: "visible", timeout: 10000 }).then(() => true, () => false);
 ok("supprimer demande confirmation", await shown());
-await confirm.getByRole("button", { name: "Supprimer la rubrique" }).click();
+await confirm.getByRole("button", { name: "Supprimer le bloc" }).click();
 ok("supprimé", await countIs(f, published.length + 1));
 await settled();
 await page.keyboard.press("Control+z");
@@ -448,7 +448,7 @@ for (;;) {
   await f.locator(titleSel(extra.uid)).click();
   await until(f, () => Boolean(document.querySelector(".pe-tools")));
   await f.locator(".pe-tools").getByRole("button", { name: "Supprimer" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Supprimer le bloc" }).click();
   await countIs(f, list.length - 1);
   await settled();
 }

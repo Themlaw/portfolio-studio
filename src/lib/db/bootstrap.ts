@@ -22,6 +22,7 @@ import { mergeBlocks } from "./blocs";
 import { unwrapContainers } from "./unwrap";
 import { seedProjectLayouts } from "./project-layout";
 import { seedFrameChoices } from "./frame-choice";
+import { seedSlotLooks } from "./slot-look";
 import { seedVideoModes } from "./video-mode";
 import { migrateMonTheme } from "./mon-theme";
 
@@ -80,6 +81,10 @@ const DATA_MIGRATIONS: Record<string, () => void> = {
   "0029_mon_theme": () => {
     const r = migrateMonTheme(getSqlite());
     console.log(`[db] 0029 : Mon thème — ${r.reason}`);
+  },
+  "0030_slot_look": () => {
+    const r = seedSlotLooks(getSqlite());
+    console.log(`[db] 0030 : habillage des places de carrousel en une seule carte (slotLook) — ${r.published} bloc(s) publié(s), ${r.drafts} brouillon(s), ${r.layouts} planche(s) et ${r.draftLayouts} brouillon(s) de planche réécrits`);
   },
   // 0024_corbeille : SQL seul (colonnes deleted_at / trashed_in_menu), aucune migration de contenu.
   "0021_unwrap_containers": () => {

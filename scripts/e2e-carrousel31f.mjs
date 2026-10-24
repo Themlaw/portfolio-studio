@@ -88,6 +88,11 @@ function setDraft(blocks) {
 }
 const draftBlocks = () => JSON.parse(sql((db) => db.prepare("select draft from pages where id = ?").get(pageId)).draft).blocks;
 const lookOfDraft = (uid) => draftBlocks().find((b) => b.uid === uid)?.props.look;
+/** Lot 75 : un champ d'habillage des places (`look.slotLook[slug][champ]`) sous l'ancienne forme « carte par slug » (undefined sans réglage). */
+const slotMap = (look, field) => {
+  const m = Object.fromEntries(Object.entries(look?.slotLook ?? {}).filter(([, v]) => v[field] !== undefined).map(([k, v]) => [k, v[field]]));
+  return Object.keys(m).length ? m : undefined;
+};
 /** Suite de la planche telle que le brouillon la montre (surcouche de la page, sinon la publiée). */
 const layout = () => {
   const r = sql((db) => db.prepare("select layout, draft_layout from projects where id = ?").get(project.id));
@@ -228,7 +233,7 @@ await section("C", async () => {
   const val = await select.locator("option").nth(2).getAttribute("value");
   await select.selectOption(val);
   const slug = await slots(f, U1).nth(0).getAttribute("data-slot-slug");
-  ok("C5 Arrondi : enregistré dans look.slotRadius du bloc, au nom de ce carrousel", await waitFor(() => lookOfDraft("board1")?.slotRadius?.[slug] === val, 30000), `${slug} ${JSON.stringify(lookOfDraft("board1"))}`);
+  ok("C5 Arrondi : enregistré dans look.slotLook[slug].radius du bloc, au nom de ce carrousel", await waitFor(() => slotMap(lookOfDraft("board1"), "radius")?.[slug] === val, 30000), `${slug} ${JSON.stringify(lookOfDraft("board1"))}`);
   ok("C5b le slug est propre au carrousel", slug.startsWith(`${U1}-`), slug);
   // Cadre.
   await hoverSlot(f, U1, 0);
@@ -236,7 +241,7 @@ await section("C", async () => {
   const dlg = f.getByRole("dialog", { name: "Cadre de la photo" });
   await dlg.waitFor({ timeout: 15000 });
   await mClick(dlg.locator('[data-frame-kind="band"]'));
-  ok("C6 Cadre : enregistré dans look.slotFrame", await waitFor(() => Boolean(lookOfDraft("board1")?.slotFrame?.[slug]), 30000), JSON.stringify(lookOfDraft("board1")));
+  ok("C6 Cadre : enregistré dans look.slotLook[slug].frame", await waitFor(() => Boolean(slotMap(lookOfDraft("board1"), "frame")?.[slug]), 30000), JSON.stringify(lookOfDraft("board1")));
   await page.screenshot({ path: path.join(SHOTS, "c3-cadre.png") });
   await page.keyboard.press("Escape");
   await sleep(300);
@@ -315,7 +320,7 @@ await section("P", async () => {
   const select = bar(f).locator('select[aria-label="Arrondi de cette image"]');
   const val = await select.locator("option").nth(1).getAttribute("value");
   await select.selectOption(val);
-  ok("P2 Arrondi sur la bande du projet : look.slotRadius", await waitFor(() => lookOfDraft("board1")?.slotRadius?.[slug] === val, 30000), `${slug} ${val} ${JSON.stringify(lookOfDraft("board1"))} ${await page.locator(".a-toasts").innerText().catch(() => "?")}`);
+  ok("P2 Arrondi sur la bande du projet : look.slotLook[slug].radius", await waitFor(() => slotMap(lookOfDraft("board1"), "radius")?.[slug] === val, 30000), `${slug} ${val} ${JSON.stringify(lookOfDraft("board1"))} ${await page.locator(".a-toasts").innerText().catch(() => "?")}`);
   const empties = () => rail(f, "").locator(":scope > [data-edit-slot][data-empty]").count();
   const e0 = await empties();
   await hoverSlot(f, "", -1);
@@ -352,7 +357,7 @@ await section("M", async () => {
   const val = await select.locator("option").nth(3).getAttribute("value");
   await select.selectOption(val);
   const slug2 = await slots(f, U2).nth(0).getAttribute("data-slot-slug");
-  ok("M3 le réglage du 2e carrousel porte son propre slug", await waitFor(() => lookOfDraft("board1")?.slotRadius?.[slug2] === val, 30000) && slug2.startsWith(`${U2}-`), `${slug2} ${JSON.stringify(lookOfDraft("board1"))}`);
+  ok("M3 le réglage du 2e carrousel porte son propre slug", await waitFor(() => slotMap(lookOfDraft("board1"), "radius")?.[slug2] === val, 30000) && slug2.startsWith(`${U2}-`), `${slug2} ${JSON.stringify(lookOfDraft("board1"))}`);
   const radiusOf = (uid) => slots(f, uid).nth(0).evaluate((e) => e.style.getPropertyValue("--media-radius"));
   ok("M4 l'arrondi du 2e carrousel est posé sur la toile", await waitFor(async () => (await radiusOf(U2)) !== "", 30000));
   const r1 = await radiusOf(U1);

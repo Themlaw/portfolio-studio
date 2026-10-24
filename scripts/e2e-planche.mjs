@@ -147,7 +147,7 @@ try {
 
   // ---- Réordonner, retirer, remplir, supprimer --------------------------------
   await moveWithKeyboard("Déplacer E2e paysage", "ArrowLeft", 2);
-  await toast("Ordre de la planche enregistré");
+  await toast("Ordre des images enregistré");
   await page.waitForTimeout(800);
   ok("P4 réordonnée au clavier", (await titles()).join(",") === "E2e paysage,E2e grand,E2e transparent", (await titles()).join(","));
 

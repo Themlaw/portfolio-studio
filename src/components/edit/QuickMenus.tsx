@@ -68,7 +68,7 @@ export function SizeControls({ look, onChange }: { look: Look; onChange: (patch:
           ))}
         </span>
       </div>
-      <p className="sm-hint">{large ? "Grande : l'image prend toute la largeur du cadre. " : "Normale : l'image ne dépasse pas la hauteur de l'écran. "}La légende suit l&apos;image.</p>
+      <p className="sm-hint">{large ? "Grande : l'image prend toute la largeur disponible. " : "Normale : l'image ne dépasse pas la hauteur de l'écran. "}La légende suit l&apos;image.</p>
     </div>
   );
 }
@@ -78,7 +78,7 @@ export function SpaceControls({ look, onChange }: { look: Look; onChange: (patch
   return (
     <div data-testid="space-controls" className="tc" style={{ gap: 8 }}>
       <div className="tc-row">
-        <span className="sm-label">Au-dessus</span>
+        <span className="sm-label">Espace</span>
         <span className="tc-seg" role="radiogroup" aria-label="Espace au-dessus">
           {QUICK_SPACES.map((k) => (
             <button key={k} type="button" role="radio" aria-checked={current === k} data-space-top={k} onClick={() => onChange({ spaceTop: k })}>
@@ -90,7 +90,7 @@ export function SpaceControls({ look, onChange }: { look: Look; onChange: (patch
           </button>
         </span>
       </div>
-      <p className="sm-hint">Espace entre ce composant et celui du dessus. Auto : l&apos;espace du thème.</p>
+      <p className="sm-hint">Espace entre ce bloc et celui du dessus. Auto : l&apos;espace du thème.</p>
     </div>
   );
 }
@@ -120,7 +120,7 @@ export function QuickButton({ uid, kind, open, onToggle }: { uid: string; kind: 
   const look = lookOf(uid);
   const set = kind === "size" ? Boolean(look.imageSize || look.imageAlign) : look.spaceTop !== undefined;
   return (
-    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid={`${kind}-button`} title={kind === "size" ? "Taille et place de l'image" : "Espace au-dessus de ce composant"} onClick={onToggle}>
+    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid={`${kind}-button`} title={kind === "size" ? "Taille et place de l'image" : "Espace au-dessus de ce bloc"} onClick={onToggle}>
       <span className="sm-dot" data-on={set ? "" : undefined} aria-hidden="true" />
       {kind === "size" ? "Taille" : "Espace"}
     </button>

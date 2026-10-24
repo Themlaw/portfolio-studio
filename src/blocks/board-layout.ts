@@ -57,7 +57,7 @@ export function parseRailKey(key: string): { uid: string; at: number } | null {
 export const railList = (props: Record<string, unknown>): RailMedia => (Array.isArray(props.media) ? props.media : []).map((x) => (typeof x === "number" && Number.isInteger(x) && x > 0 ? x : null));
 /**
  * Identité de chaque place d'un carrousel à liste propre (`props.ids`, parallèle à `media`) : l'arrondi et le cadre d'une place
- * (`look.slotRadius` / `slotFrame` du bloc, par slug `<uid>-<identité>`) la suivent quand on la déplace, qu'on remplace son image
+ * (`look.slotLook` du bloc, par slug `<uid>-<identité>`) la suivent quand on la déplace, qu'on remplace son image
  * ou qu'on en retire une autre, comme ceux d'un emplacement du projet. Absentes ou illisibles (carrousel d'avant le lot 31f) : `p<rang>`,
  * puis écrites telles quelles au premier geste.
  */
@@ -152,21 +152,21 @@ const isObj = (v: unknown): v is Record<string, unknown> => Boolean(v) && typeof
  * ou null. Les réglages de chaque composant se valident ensuite par le schéma de son type (registre).
  */
 export function layoutProblem(raw: unknown): string | null {
-  if (!Array.isArray(raw)) return "Contenu de planche illisible.";
-  if (raw.length > MAX_BOARD_ITEMS) return `${MAX_BOARD_ITEMS} composants au plus par planche.`;
+  if (!Array.isArray(raw)) return "Contenu de projet illisible.";
+  if (raw.length > MAX_BOARD_ITEMS) return `${MAX_BOARD_ITEMS} blocs au plus par projet.`;
   const uids = new Set<string>();
   let strips = 0;
   for (const item of raw) {
-    if (!isObj(item) || !isBoardItemType(item.type)) return "Composant de planche inconnu.";
-    if (typeof item.uid !== "string" || !UID.test(item.uid)) return "Identifiant de composant invalide.";
-    if (uids.has(item.uid)) return "Composants de planche en double.";
+    if (!isObj(item) || !isBoardItemType(item.type)) return "Bloc de projet inconnu.";
+    if (typeof item.uid !== "string" || !UID.test(item.uid)) return "Identifiant de bloc invalide.";
+    if (uids.has(item.uid)) return "Blocs de projet en double.";
     uids.add(item.uid);
-    if (!isObj(item.props)) return "Réglages d'un composant illisibles.";
+    if (!isObj(item.props)) return "Réglages d'un bloc illisibles.";
     if (item.box !== undefined) {
       const b = item.box as Record<string, unknown>;
-      if (!isObj(b) || Object.keys(b).some((k) => k !== "width" && k !== "align")) return "Largeur du composant illisible.";
-      if (b.width !== undefined && !(typeof b.width === "number" && Number.isFinite(b.width) && b.width >= BOX_MIN && b.width <= 100)) return `Largeur du composant : entre ${BOX_MIN} et 100 %.`;
-      if (b.align !== undefined && !(BOX_ALIGNS as readonly unknown[]).includes(b.align)) return "Alignement du composant invalide.";
+      if (!isObj(b) || Object.keys(b).some((k) => k !== "width" && k !== "align")) return "Largeur du bloc illisible.";
+      if (b.width !== undefined && !(typeof b.width === "number" && Number.isFinite(b.width) && b.width >= BOX_MIN && b.width <= 100)) return `Largeur du bloc : entre ${BOX_MIN} et 100 %.`;
+      if (b.align !== undefined && !(BOX_ALIGNS as readonly unknown[]).includes(b.align)) return "Alignement du bloc invalide.";
     }
     if (item.type === "strip") {
       if (item.props.captions !== undefined) {
@@ -185,7 +185,7 @@ export function layoutProblem(raw: unknown): string | null {
         if (m !== undefined && (!Array.isArray(m) || m.length > MAX_RAIL_MEDIA || m.some((x) => x !== null && (!Number.isInteger(x) || (x as number) <= 0)))) return `Un carrousel garde ${MAX_RAIL_MEDIA} médias au plus.`;
       } else {
         strips++;
-        if (strips > 1) return "Une seule bande des images du projet par planche.";
+        if (strips > 1) return "Une seule bande des images du projet est possible.";
       }
     }
     const hasChildren = "children" in item.props;
@@ -196,18 +196,18 @@ export function layoutProblem(raw: unknown): string | null {
     const kids = item.props.children;
     if (kids === undefined) continue;
     if (!Array.isArray(kids)) return "Contenu de la grille illisible.";
-    if (kids.length > MAX_GRID_CHILDREN) return `${MAX_GRID_CHILDREN} composants au plus par grille.`;
+    if (kids.length > MAX_GRID_CHILDREN) return `${MAX_GRID_CHILDREN} blocs au plus par grille.`;
     for (const kid of kids) {
-      if (!isObj(kid) || typeof kid.type !== "string" || !(GRID_CHILD_TYPES as readonly string[]).includes(kid.type)) return "Une grille de planche n'accepte que des images et des vidéos.";
-      if (typeof kid.uid !== "string" || !UID.test(kid.uid) || uids.has(kid.uid)) return "Identifiant de composant invalide.";
+      if (!isObj(kid) || typeof kid.type !== "string" || !(GRID_CHILD_TYPES as readonly string[]).includes(kid.type)) return "Une grille de projet n'accepte que des images et des vidéos.";
+      if (typeof kid.uid !== "string" || !UID.test(kid.uid) || uids.has(kid.uid)) return "Identifiant de bloc invalide.";
       uids.add(kid.uid);
-      if (!isObj(kid.props) || "children" in kid.props) return "Réglages d'un composant illisibles.";
+      if (!isObj(kid.props) || "children" in kid.props) return "Réglages d'un bloc illisibles.";
     }
   }
   try {
-    if (JSON.stringify(raw).length > MAX_LAYOUT_BYTES) return "Le contenu de cette planche est trop lourd.";
+    if (JSON.stringify(raw).length > MAX_LAYOUT_BYTES) return "Le contenu de ce projet est trop lourd.";
   } catch {
-    return "Contenu de planche illisible.";
+    return "Contenu de projet illisible.";
   }
   return null;
 }

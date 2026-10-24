@@ -40,10 +40,10 @@ assert.deepEqual(
   ["blocks.0.props.title.fr", "blocks.1.props.children.0", "blocks.1.props.children.1.props.paragraphs.0.fr", "blocks.2", "collection", "accent"],
   "ordre de la page, puis page et site",
 );
-assert.equal(list[0].where, "Rubrique n° 1 « Titre »");
+assert.equal(list[0].where, "Bloc n° 1 « Titre »");
 assert.equal(list[0].field, "Titre (FR)");
 assert.equal(list[0].uid, "a");
-assert.equal(list[1].where, "Composant « Image » de la rubrique n° 2 « Grille »");
+assert.equal(list[1].where, "Bloc « Image » du bloc n° 2 « Grille »");
 assert.equal(list[1].uid, "c");
 assert.equal(list[2].field, "Paragraphe 1 (FR)");
 assert.equal(list[2].uid, "d");

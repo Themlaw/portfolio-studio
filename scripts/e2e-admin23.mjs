@@ -126,7 +126,7 @@ try {
   ok("A3 sans titre anglais : repli sur le français (titre et adresse)", JSON.parse(row0.title).en === "Carnets 23" && JSON.parse(row0.slug).en === "carnets-23" && row0.published === 0, JSON.stringify(row0));
 
   await goto(`/admin/pages/${pageId}`);
-  ok("A4 le formulaire n'a plus de liste de rubriques ni de bouton « + Ajouter une rubrique »", (await page.getByRole("button", { name: /^\+ Ajouter une? (rubrique|bloc)$/ }).count()) === 0 && (await page.locator(".a-block").count()) === 0);
+  ok("A4 le formulaire n'a plus de liste de rubriques ni de bouton « + Ajouter un bloc »", (await page.getByRole("button", { name: /^\+ Ajouter une? (rubrique|bloc)$/ }).count()) === 0 && (await page.locator(".a-block").count()) === 0);
   const link = page.getByRole("link", { name: "Modifier le contenu dans l'éditeur" });
   ok("A5 lien « Modifier le contenu dans l'éditeur » vers l'éditeur de la page", (await link.getAttribute("href")) === `/admin/pages/${pageId}/editer`);
   // Rien n'est perdu : tout ce que la liste des blocs offrait (ajouter, déplacer, supprimer, régler) est dans l'éditeur.

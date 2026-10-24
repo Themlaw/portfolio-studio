@@ -4,6 +4,7 @@ import type { PictureSources } from "@/lib/images/variants";
 
 import Picture, { type CropFallback } from "./Picture";
 
+import { ratioCss } from "@/lib/images/formats";
 import { coverFactor, parseRatio, scaleSizes } from "@/lib/images/sizes";
 import { MAX_TILES, TILE_GEOMETRY, type TileSize } from "@/blocks/collection-pages";
 
@@ -111,7 +112,7 @@ export default function CollectionTiles({
   const fixed = ratio && ratio !== "auto" ? ratio : undefined;
   const geo = TILE_GEOMETRY[size];
   return (
-    <div className="tiles flex flex-col gap-[var(--t-space-l)]" data-size={size} {...(fixed ? { "data-ratio": fixed } : {})}>
+    <div className="tiles flex flex-col gap-[var(--t-space-l)]" data-size={size} {...(fixed ? { "data-ratio": fixed, style: { "--box-r": ratioCss(fixed) } as CSSProperties } : {})}>
       {tiles.map((tile, tileIndex) =>
         tile.broken ? (
           <p key={tile.key} data-edit-invalid="" data-tile-broken="" className="pe-tile-broken">

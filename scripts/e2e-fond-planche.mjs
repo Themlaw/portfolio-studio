@@ -168,7 +168,7 @@ try {
   ok("C1 publié : fonds dans la suite du projet", await waitFor(() => [0, 1, 2].every((i) => bgOf(published(), i)?.color === "bgDeep") && project().draft_layout === null), JSON.stringify(project()));
   await sleep(1500);
   const html = boardHtml(await publicHtml("/fr"));
-  ok("C2 public : trois enveloppes de fond dans la planche, fusionnées, sans repère d'édition", (html.match(/class="fond-bloc"/g) ?? []).length === 3 && (html.match(/data-join-next/g) ?? []).length === 2 && (html.match(/data-join-prev/g) ?? []).length === 2 && !html.includes("data-edit-") && !html.includes("pe-bitem"), `${(html.match(/class="fond-bloc"/g) ?? []).length} enveloppes`);
+  ok("C2 public : trois enveloppes de fond dans la planche, fusionnées, sans repère d'édition", (html.match(/class="zone fond-bloc"/g) ?? []).length === 3 && (html.match(/data-join-next/g) ?? []).length === 2 && (html.match(/data-join-prev/g) ?? []).length === 2 && !html.includes("data-edit-") && !html.includes("pe-bitem"), `${(html.match(/class="zone fond-bloc"/g) ?? []).length} enveloppes`);
   const anon = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const ap = await anon.newPage();
   await ap.goto(`${BASE}/fr`, { waitUntil: "networkidle" });

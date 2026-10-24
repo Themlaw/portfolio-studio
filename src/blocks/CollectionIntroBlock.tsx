@@ -69,7 +69,7 @@ export default async function CollectionIntroBlock({
     <section className="page-top shell pb-[clamp(1rem,3vw,2rem)]">
       <header className="page-head max-w-2xl">
         {heading}
-        <p className="eyebrow mt-6" {...(ctx.edit ? { title: "Compté automatiquement depuis les planches de cette page", "data-edit-counter": "", "data-look-key": "counts" } : {})} {...textStyle(ctx, "counts")}>
+        <p className="eyebrow mt-6" {...(ctx.edit ? { title: "Compté automatiquement depuis les projets de cette page", "data-edit-counter": "", "data-look-key": "counts" } : {})} {...textStyle(ctx, "counts")}>
           {tg("count", { count: counts.works })} · {tp("count", { count: counts.projects })}
         </p>
       </header>

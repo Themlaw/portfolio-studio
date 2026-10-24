@@ -40,10 +40,11 @@
    --media-radius : thème (--t-media-radius), styles du site, puis l'emplacement
    (hérité par les composants d'un conteneur). Absent : rayon d'avant. */
 :root { --media-radius: var(--t-media-radius); }
-.blk[data-radius="none"] { --media-radius: 0px; }
-.blk[data-radius="soft"] { --media-radius: 4px; }
-.blk[data-radius="medium"] { --media-radius: 10px; }
-.blk[data-radius="strong"] { --media-radius: 20px; }
+/* Crans d'arrondi : variables `--t-radius-*` émises avec le thème (RADIUS_VALUES, src/themes/css.ts), plus de valeurs recopiées ici. */
+.blk[data-radius="none"] { --media-radius: var(--t-radius-none); }
+.blk[data-radius="soft"] { --media-radius: var(--t-radius-soft); }
+.blk[data-radius="medium"] { --media-radius: var(--t-radius-medium); }
+.blk[data-radius="strong"] { --media-radius: var(--t-radius-strong); }
 .rounded-strip { border-radius: var(--media-radius, var(--radius-strip)); }
 .rounded-\[2px\] { border-radius: var(--media-radius, 2px); }
 .mat { border-radius: var(--media-radius, var(--radius-sm)); }
@@ -66,16 +67,8 @@
 .blk[data-tv="bottom"] > :first-child { margin-top: auto; }
 
 /* ---- Cadrage (point focal + zoom) ---------------------------------------- */
-.profile-portrait[data-ratio="4:5"] img { aspect-ratio: 4 / 5; }
-.profile-portrait[data-ratio="3:4"] img { aspect-ratio: 3 / 4; }
-.profile-portrait[data-ratio="1:1"] img { aspect-ratio: 1; }
-.profile-portrait[data-ratio="3:2"] img { aspect-ratio: 3 / 2; }
-.profile-portrait[data-ratio="4:3"] img { aspect-ratio: 4 / 3; }
-.profile-portrait[data-ratio="2:3"] img { aspect-ratio: 2 / 3; }
-.profile-portrait[data-ratio="2:1"] img { aspect-ratio: 2 / 1; }
-.profile-portrait[data-ratio="21:9"] img { aspect-ratio: 21 / 9; }
-.profile-portrait[data-ratio="16:9"] img { aspect-ratio: 16 / 9; }
-.profile-portrait[data-ratio]:not([data-ratio="auto"]) img { height: auto; object-fit: cover; }
+/* Format imposé : `--box-r` (largeur ÷ hauteur) est posé par le composant (ratioCss, src/lib/images/formats.ts) : aucune table de formats ici. */
+.profile-portrait[data-ratio]:not([data-ratio="auto"]) img { aspect-ratio: var(--box-r); height: auto; object-fit: cover; }
 .profile-portrait-frame {
   display: block;
   overflow: hidden;
@@ -138,16 +131,7 @@
 .tile-frame[data-crop] {
   overflow: hidden;
 }
-.tiles[data-ratio] .tile-frame img { height: auto; object-fit: cover; }
-.tiles[data-ratio="16:9"] .tile-frame img { aspect-ratio: 16 / 9; }
-.tiles[data-ratio="3:2"] .tile-frame img { aspect-ratio: 3 / 2; }
-.tiles[data-ratio="4:3"] .tile-frame img { aspect-ratio: 4 / 3; }
-.tiles[data-ratio="1:1"] .tile-frame img { aspect-ratio: 1; }
-.tiles[data-ratio="4:5"] .tile-frame img { aspect-ratio: 4 / 5; }
-.tiles[data-ratio="3:4"] .tile-frame img { aspect-ratio: 3 / 4; }
-.tiles[data-ratio="2:3"] .tile-frame img { aspect-ratio: 2 / 3; }
-.tiles[data-ratio="2:1"] .tile-frame img { aspect-ratio: 2 / 1; }
-.tiles[data-ratio="21:9"] .tile-frame img { aspect-ratio: 21 / 9; }
+.tiles[data-ratio] .tile-frame img { aspect-ratio: var(--box-r); height: auto; object-fit: cover; }
 /* Recadrage libre d'une tuile : l'image EST la zone gardée, la tuile suit son rapport (aucun rognage ni format imposé). */
 .tiles[data-ratio] .tile-frame[data-free] img {
   aspect-ratio: auto;
@@ -222,10 +206,14 @@
    ligne sur l'enveloppe ; ici elles remplacent, DANS la carte seulement, les
    couleurs du thème que les composants lisent. Aucune couleur littérale.
    Vue brouillon sans carte : enveloppe sans boîte (display: contents). */
-.surface-card[data-surface="off"] {
-  display: contents;
-}
-.surface-card[data-surface="on"] {
+/* ==== Zone (lot 75) — la base commune de la carte et du fond =================================================
+   `.zone` est posée sur la carte (`.surface-card`) ET sur le fond d'un composant (`.fond-bloc`), par ZoneWrap / FondWrap. Tout ce que les deux
+   partagent est écrit ICI, une seule fois : la couleur de fond et du texte (variables `--card-*` posées en ligne), le remplacement des couleurs
+   du thème par les variantes LISIBLES dans la zone, la boîte, le conteneur de largeur, les rayons Petit / Moyen / Grand et le calque de papier.
+   `.surface-card` et `.fond-bloc` n'ajoutent que ce qui les distingue (marge et bordure de la carte, enveloppe pleine largeur du fond, marge
+   et coins du fond, jonctions). */
+.zone[data-surface="on"],
+.zone[data-fond="on"] {
   --color-ink: var(--card-ink);
   --color-ink-soft: var(--card-ink-soft);
   --color-line: var(--card-line);
@@ -239,19 +227,61 @@
   --strip-nav-fg: var(--card-ink);
   --strip-nav-line: var(--card-line);
   --strip-nav-bg: color-mix(in srgb, var(--card-bg) 88%, transparent);
+  box-sizing: border-box;
+  background-color: var(--card-bg);
+  color: var(--card-ink);
+  container-type: inline-size;
+}
+/* Rayons Petit / Moyen / Grand (lot 47b), communs à la carte (`data-corners`) et au fond (`data-fond-round`) : 10 / 20 / 36 px, 8 / 14 / 24 sous
+   768 px. Chacun les lit par sa propre variable (`--card-r`, `--fond-r`). */
+:root {
+  --zone-r-s: 10px;
+  --zone-r-m: 20px;
+  --zone-r-l: 36px;
+}
+@media (max-width: 767px) {
+  :root {
+    --zone-r-s: 8px;
+    --zone-r-m: 14px;
+    --zone-r-l: 24px;
+  }
+}
+/* Calque de papier (UN seul, lot 75) : le papier du kit (lot 28) ou le papier peint des cartes (lot 35) dessiné SUR la couleur de la zone, sous son
+   contenu (pseudo-élément à z-index -1 dans un contexte d'empilement propre : texte, images et boutons restent au-dessus, intacts et cliquables).
+   Les variantes plus bas (kit, papier peint, carte, fond) ne choisissent que QUAND il se voit et de quoi il est fait, par les variables `--zp-*`
+   (jamais héritées : chaque zone les remet à zéro ici) ; sans variante, `content: none` : aucun calque. */
+.zone {
+  --zp-content: none;
+  --zp-img: none;
+  --zp-size: auto;
+  --zp-opacity: 1;
+}
+.zone::before {
+  content: var(--zp-content);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: var(--zp-img);
+  background-size: var(--zp-size);
+  background-repeat: repeat;
+  opacity: var(--zp-opacity);
+}
+.surface-card[data-surface="off"] {
+  display: contents;
+}
+.surface-card[data-surface="on"] {
   /* Rayon des coins arrondis : « grands blocs » du thème, jamais moins de 12 px (un thème aux angles
      vifs garde un arrondi visible quand on le demande). */
   --card-radius: max(var(--t-radius-lg), 12px);
   position: relative;
-  box-sizing: border-box;
   /* Marge latérale : aucune (bord à bord) ou la gouttière du thème (le papier se voit autour). */
   margin-inline: 0;
   /* Espace de section du thème AVANT la carte (celui que l'on voit entre deux rubriques sans carte : le padding haut de la
      section, que la carte absorbe plus bas), rien après (la rubrique ou le pied de page suivant apporte le sien). */
   margin-block: var(--section-gap) 0;
   padding-block: var(--t-space-m);
-  background-color: var(--card-bg);
-  color: var(--card-ink);
   border-radius: 0;
 }
 .surface-card[data-surface="on"] {
@@ -281,10 +311,6 @@
 /* Largeur de la zone : en unités de CONTENEUR (`cqw`, la carte ou le fond), pas en `100vw` (qui compte la barre de défilement et ignore le conteneur
    réel : un fond dans une carte, un fond dans un fond). Cartes et fonds sont donc des conteneurs de largeur : leur largeur ne dépend pas de leur
    contenu, ils sont déjà des blocs pleine largeur. `2 * --edge` rend à la couche intérieure ce que la marge retire à la zone. */
-.surface-card[data-surface="on"],
-.fond-bloc[data-fond="on"] {
-  container-type: inline-size;
-}
 .surface-card[data-surface="on"] > .card-in,
 .fond-bloc[data-fond="on"] > .fond-in {
   --zone-pad: 16px;
@@ -383,14 +409,9 @@
   border-radius: var(--card-r);
   overflow: clip;
 }
-.surface-card[data-surface="on"][data-corners="s"] { --card-r: 10px; }
-.surface-card[data-surface="on"][data-corners="m"] { --card-r: 20px; }
-.surface-card[data-surface="on"][data-corners="l"] { --card-r: 36px; }
-@media (max-width: 767px) {
-  .surface-card[data-surface="on"][data-corners="s"] { --card-r: 8px; }
-  .surface-card[data-surface="on"][data-corners="m"] { --card-r: 14px; }
-  .surface-card[data-surface="on"][data-corners="l"] { --card-r: 24px; }
-}
+.surface-card[data-surface="on"][data-corners="s"] { --card-r: var(--zone-r-s); }
+.surface-card[data-surface="on"][data-corners="m"] { --card-r: var(--zone-r-m); }
+.surface-card[data-surface="on"][data-corners="l"] { --card-r: var(--zone-r-l); }
 /* ---- Papier du site SUR la carte (lot 28) ------------------------------------
    Par défaut la carte est un aplat opaque : le papier du site (tuile en fond de page) est caché dessous.
    « Sur la carte » : la même tuile, à la même taille, est dessinée par-dessus la couleur de la carte mais sous son
@@ -401,19 +422,10 @@
 [data-kit-paper] .surface-card[data-surface="on"][data-paper="over"],
 [data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) {
   isolation: isolate;
-}
-[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"]::before,
-[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"])::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  border-radius: inherit;
-  background-image: var(--t-kit-paper);
-  background-size: var(--t-kit-paper-size);
-  background-repeat: repeat;
-  opacity: var(--card-paper-opacity, var(--t-kit-paper-cards, 0.35));
+  --zp-content: "";
+  --zp-img: var(--t-kit-paper);
+  --zp-size: var(--t-kit-paper-size);
+  --zp-opacity: var(--card-paper-opacity, var(--t-kit-paper-cards, 0.35));
 }
 
 /* ---- Bordure de la carte (lot 32) ----------------------------------------------
@@ -454,25 +466,9 @@
   display: contents;
 }
 .fond-bloc[data-fond="on"] {
-  --color-ink: var(--card-ink);
-  --color-ink-soft: var(--card-ink-soft);
-  --color-line: var(--card-line);
-  --color-primary: var(--card-link);
-  --color-primary-hover: var(--card-link-hover);
-  --color-eyebrow: var(--card-eyebrow);
-  --color-secondary: var(--card-accent);
-  --btn-bg: var(--card-btn-bg);
-  --btn-fg: var(--card-btn-fg);
-  --btn-bg-hover: var(--card-btn-hover);
-  --strip-nav-fg: var(--card-ink);
-  --strip-nav-line: var(--card-line);
-  --strip-nav-bg: color-mix(in srgb, var(--card-bg) 88%, transparent);
   display: flow-root;
-  box-sizing: border-box;
   width: 100%;
   padding-bottom: var(--section-gap);
-  background-color: var(--card-bg);
-  color: var(--card-ink);
 }
 .fond-bloc[data-fond="on"][data-join-next] {
   padding-bottom: 0;
@@ -516,9 +512,9 @@
   box-shadow: 0 0 0 calc(2 * (var(--fond-gap) + var(--fond-r))) var(--fond-around, transparent);
   clip-path: inset(calc(-1 * var(--fond-gap)));
 }
-.fond-bloc[data-fond="on"][data-fond-round="s"] { --fond-r: 10px; }
-.fond-bloc[data-fond="on"][data-fond-round="m"] { --fond-r: 20px; }
-.fond-bloc[data-fond="on"][data-fond-round="l"] { --fond-r: 36px; }
+.fond-bloc[data-fond="on"][data-fond-round="s"] { --fond-r: var(--zone-r-s); }
+.fond-bloc[data-fond="on"][data-fond-round="m"] { --fond-r: var(--zone-r-m); }
+.fond-bloc[data-fond="on"][data-fond-round="l"] { --fond-r: var(--zone-r-l); }
 /* Sur une carte : la marge se compte depuis le bord de la carte (le rembourrage de la carte est repris en rembourrage du fond). */
 .surface-card[data-surface="on"] > .card-in > .fond-bloc[data-fond="on"][data-fond-inset] {
   margin-block: calc(var(--fond-gap) - var(--t-space-m));
@@ -531,9 +527,6 @@
   .fond-bloc[data-fond="on"][data-fond-inset] { --fond-gap: 14px; }
   .fond-bloc[data-fond="on"][data-fond-inset="s"] { --fond-gap: 8px; }
   .fond-bloc[data-fond="on"][data-fond-inset="l"] { --fond-gap: 24px; }
-  .fond-bloc[data-fond="on"][data-fond-round="s"] { --fond-r: 8px; }
-  .fond-bloc[data-fond="on"][data-fond-round="m"] { --fond-r: 14px; }
-  .fond-bloc[data-fond="on"][data-fond-round="l"] { --fond-r: 24px; }
 }
 /* Papier du site (lot 28) × fond de couleur : le fond est opaque, il cacherait le papier que la carte montre « sur elle ». Il suit donc
    la même règle que la carte : papier « sur la carte » (choisi par la carte, ou par le site sans que la carte dise « sous ») = la tuile est
@@ -544,19 +537,10 @@
 [data-kit-paper][data-kit-paper-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-paper="under"]) {
   position: relative;
   isolation: isolate;
-}
-[data-kit-paper] .surface-card[data-surface="on"][data-paper="over"] > .card-in > .fond-bloc[data-fond="on"]:not([data-paper="under"])::before,
-[data-kit-paper][data-kit-paper-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-paper="under"])::before,
-[data-kit-paper][data-kit-paper-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-paper="under"])::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image: var(--t-kit-paper);
-  background-size: var(--t-kit-paper-size);
-  background-repeat: repeat;
-  opacity: var(--card-paper-opacity, var(--t-kit-paper-cards, 0.35));
+  --zp-content: "";
+  --zp-img: var(--t-kit-paper);
+  --zp-size: var(--t-kit-paper-size);
+  --zp-opacity: var(--card-paper-opacity, var(--t-kit-paper-cards, 0.35));
 }
 /* Cartes de même fond qui se suivent : collées, coins et bordure du côté de la jonction supprimés (un seul bloc). */
 .surface-card[data-surface="on"][data-join-prev] {
@@ -601,7 +585,9 @@ main > :has(+ .surface-card[data-surface="on"]) {
   position: relative;
   isolation: isolate;
 }
-.page-wallpaper {
+/* Calque de papier peint : la même géométrie pour la page et pour le fond d'un composant (celui-ci y ajoute son contenu et le décalage de sa tuile). */
+.page-wallpaper,
+.fond-bloc[data-fond="on"][data-wallpaper]::after {
   position: absolute;
   inset: 0;
   z-index: -1;
@@ -634,15 +620,7 @@ main > :has(+ .surface-card[data-surface="on"]) {
 }
 .fond-bloc[data-fond="on"][data-wallpaper]::after {
   content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image: var(--wp-img, none);
-  background-size: var(--wp-size) auto;
-  background-repeat: repeat;
   background-position: 0 var(--wp-y, 0px);
-  opacity: var(--wp-opacity, 1);
 }
 
 /* -- Papier des cartes : le motif de la carte (data-paper-wp) ou celui du site (data-wp-cards sur le cadre), « dessus » sauf carte « sous ».
@@ -651,18 +629,12 @@ main > :has(+ .surface-card[data-surface="on"]) {
 .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) {
   isolation: isolate;
 }
-:root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"])::before,
-:root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"])::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  border-radius: inherit;
-  background-image: var(--card-wp-img, none);
-  background-size: var(--card-wp-size) auto;
-  background-repeat: repeat;
-  opacity: var(--card-paper-opacity, var(--card-wp-opacity, 1));
+:root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]),
+:root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) {
+  --zp-content: "";
+  --zp-img: var(--card-wp-img, none);
+  --zp-size: var(--card-wp-size) auto;
+  --zp-opacity: var(--card-paper-opacity, var(--card-wp-opacity, 1));
 }
 /* Un fond de couleur opaque dans la carte cacherait ce papier : il le redessine (comme le papier du kit), sauf s'il a son propre motif. */
 .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"]),
@@ -671,18 +643,13 @@ main > :has(+ .surface-card[data-surface="on"]) {
   position: relative;
   isolation: isolate;
 }
-:root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before,
-:root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before,
-:root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background-image: var(--card-wp-img, none);
-  background-size: var(--card-wp-size) auto;
-  background-repeat: repeat;
-  opacity: var(--card-paper-opacity, var(--card-wp-opacity, 1));
+:root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"]),
+:root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"]),
+:root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"]) {
+  --zp-content: "";
+  --zp-img: var(--card-wp-img, none);
+  --zp-size: var(--card-wp-size) auto;
+  --zp-opacity: var(--card-paper-opacity, var(--card-wp-opacity, 1));
 }
 
 /* -- Téléphone : tuiles réduites à 60 %. */
@@ -691,12 +658,12 @@ main > :has(+ .surface-card[data-surface="on"]) {
   .fond-bloc[data-fond="on"][data-wallpaper]::after {
     background-size: var(--wp-size-m) auto;
   }
-  :root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"])::before,
-  :root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"])::before,
-  :root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before,
-  :root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before,
-  :root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"])::before {
-    background-size: var(--card-wp-size-m) auto;
+  :root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]),
+  :root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]),
+  :root:root:root .surface-card[data-surface="on"][data-paper-wp]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"]),
+  :root:root:root .site-frame[data-wp-cards] .surface-card[data-surface="on"]:not([data-paper="under"]) > .card-in > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"]),
+  :root:root:root .site-frame[data-wp-cards] :not(.surface-card[data-surface="on"] > .card-in) > .fond-bloc[data-fond="on"]:not([data-wallpaper]):not([data-fond-clear]):not([data-paper="under"]) {
+    --zp-size: var(--card-wp-size-m) auto;
   }
 }
 

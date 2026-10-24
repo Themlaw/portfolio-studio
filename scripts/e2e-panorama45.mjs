@@ -4,7 +4,7 @@
  * géométrie (getBoundingClientRect), pas de pixels : un panorama 4:1 et deux images normales dans un carrousel.
  *  D  Défaut (toile, 1440 puis 1024) : le panorama tient dans la largeur visible du carrousel, ratio respecté (non recadré),
  *     centré dans la hauteur de la bande ; les images normales gardent leur taille de la v0.26 ; légende à la largeur de l'image.
- *  M  Menu de l'image : « Panorama : Entier / À faire défiler », enregistré dans `look.slotPano` (par emplacement), Entier = clé retirée.
+ *  M  Menu de l'image : « Panorama : Entier / À faire défiler », enregistré dans `look.slotLook[slug].pano` (par emplacement), Entier = clé retirée.
  *  F  Flèches et visionneuse : ← → arrivent sur le panorama entier, un clic ouvre la visionneuse.
  *  P  Publication (1440, 1024) : mêmes mesures qu'en toile ; « À faire défiler » = largeur naturelle (comme avant) ; aucun repère.
  *  T  Téléphone 390 px : même règle avec la largeur visible du téléphone, sans débordement de la page.
@@ -100,6 +100,11 @@ function setDraft(blocks) {
   });
 }
 const lookOfDraft = (uid) => JSON.parse(sql((db) => db.prepare("select draft from pages where id = ?").get(pageId)).draft).blocks.find((b) => b.uid === uid)?.props.look;
+/** Lot 75 : un champ d'habillage des places (`look.slotLook[slug][champ]`) sous l'ancienne forme « carte par slug » (undefined sans réglage). */
+const slotMap = (look, field) => {
+  const m = Object.fromEntries(Object.entries(look?.slotLook ?? {}).filter(([, v]) => v[field] !== undefined).map(([k, v]) => [k, v[field]]));
+  return Object.keys(m).length ? m : undefined;
+};
 setDraft([{ uid: "board1", type: "project-board", props: { project: PROJECT.slug } }]);
 
 async function canvas() {
@@ -184,7 +189,7 @@ if (run("D"))
     const m = await measure(f, CAR);
     ok("D0 quatre images dans le carrousel, panoramas en « Entier » par défaut", m.frames.length === 4 && m.frames[0].pano === "fit" && m.frames[3].pano === "fit", JSON.stringify(m.frames.map((x) => x.pano)));
     checkFit("D1 toile", m, [3]);
-    ok("D2 aucun réglage dans le brouillon (aucune migration)", !lookOfDraft("board1")?.slotPano);
+    ok("D2 aucun réglage dans le brouillon (aucune migration)", !slotMap(lookOfDraft("board1"), "pano"));
     await page.screenshot({ path: path.join(SHOTS, "apres-toile-1440.png") });
     // Avant : le comportement de la v0.26 (hauteur de la bande, largeur naturelle) posé par CSS.
     await f.addStyleTag({ content: '.strip-frame[data-pano] { --fit-h: var(--strip-h) !important; margin-top: 0 !important; }' }).then((h) => h.evaluate((s) => (s.id = "avant45")));
@@ -221,7 +226,7 @@ if (run("M"))
     const seg = first.bar.locator('[data-testid="slot-pano"]');
     ok("M1 la barre de l'image propose « Panorama : Entier / À faire défiler », « Entier » choisi", (await seg.count()) === 1 && (await seg.locator('[data-slot-pano-set="fit"]').getAttribute("aria-pressed")) === "true" && (await seg.locator("button").allTextContents()).join("|") === "Entier|À faire défiler");
     await seg.locator('[data-slot-pano-set="scroll"]').click();
-    ok("M2 « À faire défiler » : look.slotPano[slug] = scroll (cette image seulement)", await waitFor(() => { const s = lookOfDraft("board1")?.slotPano; return s?.[first.slug] === "scroll" && Object.keys(s).length === 1; }, 30000), JSON.stringify(lookOfDraft("board1")));
+    ok("M2 « À faire défiler » : look.slotLook[slug].pano = scroll (cette image seulement)", await waitFor(() => { const s = slotMap(lookOfDraft("board1"), "pano"); return s?.[first.slug] === "scroll" && Object.keys(s).length === 1; }, 30000), JSON.stringify(lookOfDraft("board1")));
     const m = await measure(f, CAR);
     const p2 = m.frames[3];
     ok("M3 …la toile rend l'ancien comportement : hauteur de la bande, largeur naturelle (dépasse)", near(p2.h, m.stripH) && near(p2.w, m.stripH * 4, 2) && p2.w > m.visible + 50 && p2.pano === "scroll", JSON.stringify(p2));
@@ -230,9 +235,9 @@ if (run("M"))
     // Annuler / Rétablir par l'historique.
     await settled();
     await page.locator('button[aria-label="Défaire"]').click();
-    ok("M5 Annuler : le réglage disparaît", await waitFor(() => !lookOfDraft("board1")?.slotPano?.[first.slug], 30000), JSON.stringify(lookOfDraft("board1")));
+    ok("M5 Annuler : le réglage disparaît", await waitFor(() => !slotMap(lookOfDraft("board1"), "pano")?.[first.slug], 30000), JSON.stringify(lookOfDraft("board1")));
     await page.locator('button[aria-label="Rétablir"]').click();
-    ok("M5 Rétablir : « À faire défiler » revient", await waitFor(() => lookOfDraft("board1")?.slotPano?.[first.slug] === "scroll", 30000));
+    ok("M5 Rétablir : « À faire défiler » revient", await waitFor(() => slotMap(lookOfDraft("board1"), "pano")?.[first.slug] === "scroll", 30000));
     // Entier (retour) retire la clé ; on le refait sur la 1re image pour vérifier qu'« Entier » seul ne laisse rien.
     // Rétablir recharge la toile (nouvel iframe) : on reprend la main sur le cadre courant.
     await settled();
@@ -240,9 +245,9 @@ if (run("M"))
     const again = await slotTools(f, 0);
     await page.screenshot({ path: path.join(SHOTS, "barre-image-panorama.png") });
     await again.bar.locator('[data-slot-pano-set="scroll"]').click();
-    await waitFor(() => Object.keys(lookOfDraft("board1")?.slotPano ?? {}).length === 2, 30000);
+    await waitFor(() => Object.keys(slotMap(lookOfDraft("board1"), "pano") ?? {}).length === 2, 30000);
     await again.bar.locator('[data-slot-pano-set="fit"]').click();
-    ok("M6 « Entier » retire la clé : une seule image reste réglée", await waitFor(() => Object.keys(lookOfDraft("board1")?.slotPano ?? {}).length === 1, 30000), JSON.stringify(lookOfDraft("board1")));
+    ok("M6 « Entier » retire la clé : une seule image reste réglée", await waitFor(() => Object.keys(slotMap(lookOfDraft("board1"), "pano") ?? {}).length === 1, 30000), JSON.stringify(lookOfDraft("board1")));
     await settled();
   });
 

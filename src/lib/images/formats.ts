@@ -28,6 +28,17 @@ export const FORMAT_LABELS: Record<FormatKey, string> = {
   "4:5": "Portrait 4:5",
 };
 
+/**
+ * Valeur CSS de `--box-r` (largeur ÷ hauteur) d'un format de la liste, ou `undefined` pour « Libre » / une clé inconnue. Le composant
+ * qui impose un format la pose (portrait du profil, tuiles de collection) et la feuille lit `aspect-ratio: var(--box-r)` : plus de
+ * table « format -> aspect-ratio » recopiée en CSS (lot 75, R5). `calc(w / h)` garde le quotient exact (aucun arrondi de plus qu'avant).
+ */
+export function ratioCss(key: string | undefined): string | undefined {
+  if (!key || key === "auto" || !(RATIO_VALUES as readonly string[]).includes(key)) return undefined;
+  const [w, h] = key.split(":");
+  return `calc(${w} / ${h})`;
+}
+
 /** Options de la liste de formats ; un ancien format déjà choisi reste affiché tant qu'il est en place. */
 export function formatOptions(current?: string): { value: string; label: string }[] {
   const list: { value: string; label: string }[] = FORMAT_KEYS.map((k) => ({ value: k, label: FORMAT_LABELS[k] }));

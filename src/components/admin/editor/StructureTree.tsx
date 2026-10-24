@@ -138,7 +138,7 @@ export default function StructureTree({
             data-dragging={drag?.uid === b.uid || undefined}
             style={{ paddingLeft: depth * 18 }}
           >
-            <button type="button" className="ve-tree-grip" aria-label={`Glisser « ${meta?.label ?? b.type} »`} title="Glisser (dans une rubrique : au milieu de sa ligne)" onPointerDown={(e) => onGrip(e, b.uid)}>
+            <button type="button" className="ve-tree-grip" aria-label={`Glisser « ${meta?.label ?? b.type} »`} title="Glisser (dans un bloc : au milieu de sa ligne)" onPointerDown={(e) => onGrip(e, b.uid)}>
               ⠿
             </button>
             {container ? (
@@ -181,7 +181,7 @@ export default function StructureTree({
                 ↓
               </button>
               {parent && (
-                <button type="button" className="a-icon-btn" aria-label={`Sortir « ${meta?.label ?? b.type} » de la rubrique`} title="Sortir de la rubrique" onClick={() => onOp("out", b.uid)}>
+                <button type="button" className="a-icon-btn" aria-label={`Sortir « ${meta?.label ?? b.type} » du bloc`} title="Sortir du bloc" onClick={() => onOp("out", b.uid)}>
                   ⇱
                 </button>
               )}
@@ -189,8 +189,8 @@ export default function StructureTree({
                 <button
                   type="button"
                   className="a-icon-btn"
-                  aria-label={`Entrer « ${meta?.label ?? b.type} » dans « ${own(byType, enterTarget(list, i)!.type)?.label ?? "la rubrique"} »`}
-                  title="Entrer dans la rubrique voisine"
+                  aria-label={`Entrer « ${meta?.label ?? b.type} » dans « ${own(byType, enterTarget(list, i)!.type)?.label ?? "le bloc"} »`}
+                  title="Entrer dans le bloc voisin"
                   onClick={() => onOp("in", b.uid)}
                 >
                   ⇲
@@ -200,7 +200,7 @@ export default function StructureTree({
           </div>
           {container && open && (
             <ul role="group" className="ve-tree-group">
-              {kids.length ? render(kids, depth + 1, b) : <li className="ve-tree-empty" style={{ paddingLeft: (depth + 1) * 18 + 30 }}>Vide : glisse un composant dedans.</li>}
+              {kids.length ? render(kids, depth + 1, b) : <li className="ve-tree-empty" style={{ paddingLeft: (depth + 1) * 18 + 30 }}>Vide : glisse un bloc dedans.</li>}
             </ul>
           )}
         </li>
@@ -213,7 +213,7 @@ export default function StructureTree({
         {render(blocks, 0, null)}
       </ul>
       <p className="ve-hint">
-        Glisse une ligne par sa poignée : entre deux lignes, ou au milieu d&apos;une rubrique pour l&apos;y ranger ({MAX_NESTING} niveaux de rubriques au plus).
+        Glisse une ligne par sa poignée : entre deux lignes, ou au milieu d&apos;un bloc pour l&apos;y ranger ({MAX_NESTING} niveaux de blocs au plus).
       </p>
     </>
   );

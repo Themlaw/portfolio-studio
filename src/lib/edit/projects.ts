@@ -168,7 +168,7 @@ export function deleteProject(id: number): ActionResult<{ title: string }> | { o
   if (references.length) {
     return {
       ok: false,
-      message: `Ce projet est affiché par ${references.length} rubrique${references.length > 1 ? "s" : ""} : retire-le de ces rubriques avant de le supprimer.`,
+      message: `Ce projet est affiché par ${references.length} bloc${references.length > 1 ? "s" : ""} : retire-le de ces blocs avant de le supprimer.`,
       references,
     };
   }
@@ -223,7 +223,7 @@ export function addSlots(projectId: number, input: unknown, atInput?: unknown): 
   // Média à la corbeille = absent : seul « Restaurer » le rend utilisable.
   const mediaRows = new Map(db.select().from(schema.media).where(isNull(schema.media.deletedAt)).all().map((m) => [m.id, m]));
   for (const mid of parsed.data) if (mid !== null && !mediaRows.has(mid)) return fail("Une image n'existe plus : recharge la page.");
-  if (parsed.data.some((mid) => mid !== null && mediaRows.get(mid)?.kind === "pdf")) return fail("Un PDF ne se place pas dans une planche : utilise la rubrique « CV ».");
+  if (parsed.data.some((mid) => mid !== null && mediaRows.get(mid)?.kind === "pdf")) return fail("Un PDF ne se place pas dans un projet : utilise le bloc « CV ».");
   if (parsed.data.some((mid) => mid !== null && mediaRows.get(mid)?.status === "failed")) {
     return fail("Ce média est en échec : relance-le depuis la médiathèque avant de le placer.");
   }
@@ -280,7 +280,7 @@ export function setSlotMedia(slotId: number, mediaId: unknown): ActionResult<{ p
   if (parsed.data !== null) {
     const target = db.select({ status: schema.media.status, kind: schema.media.kind, deletedAt: schema.media.deletedAt }).from(schema.media).where(eq(schema.media.id, parsed.data)).get();
     if (!target || target.deletedAt) return fail("Cette image n'existe plus : recharge la médiathèque.");
-    if (target.kind === "pdf") return fail("Un PDF ne se place pas dans une planche : utilise la rubrique « CV ».");
+    if (target.kind === "pdf") return fail("Un PDF ne se place pas dans un projet : utilise le bloc « CV ».");
     if (target.status === "failed") return fail("Ce média est en échec : relance-le depuis la médiathèque avant de le placer.");
   }
   // Retirer l'image garde le ratio de la place (aspect inchangé) ; une
@@ -325,7 +325,7 @@ export function reorderSlots(projectId: number, input: unknown): ActionResult<nu
     .all()
     .filter((s) => s.state !== "added")
     .map((s) => s.id);
-  if (!parsed.success || !isPermutation(parsed.data, existing)) return fail("La planche a changé entre-temps. Recharge la page et recommence.");
+  if (!parsed.success || !isPermutation(parsed.data, existing)) return fail("Le projet a changé entre-temps. Recharge la page et recommence.");
   db.transaction((tx) =>
     parsed.data.forEach((id, i) =>
       tx.update(schema.slots).set({ position: i }).where(and(eq(schema.slots.id, id), eq(schema.slots.projectId, projectId))).run(),

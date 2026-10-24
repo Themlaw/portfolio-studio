@@ -8,9 +8,9 @@
  * - image / vidéo ........ `mediaId` de la case <-> `media[i]` du carrousel (une case vide <-> une place vide) ;
  * - légendes ............. Titre / Légende / Date de la case (`captionTitle`, `caption` ou `description`, `captionDate`)
  *                          <-> `captions.<place>.title|caption|date` ;
- * - cadre, fond d'image .. `look.frame`, `look.imageBg` de la case <-> `slotFrame`, `slotBg` de la rubrique de la page ;
- * - arrondi .............. `look.radius` de la case (sinon celui de la grille) <-> `slotRadius` ;
- * - lecture d'une vidéo .. `mode` de la case <-> `slotVideo` (sinon la lecture de toute la bande, `videoMode`) ;
+ * - cadre, fond d'image .. `look.frame`, `look.imageBg` de la case <-> `slotLook[place].frame` / `.bg` de la rubrique de la page ;
+ * - arrondi .............. `look.radius` de la case (sinon celui de la grille) <-> `slotLook[place].radius` ;
+ * - lecture d'une vidéo .. `mode` de la case <-> `slotLook[place].video` (sinon la lecture de toute la bande, `videoMode`) ;
  * - fond, espace, carte .. `look` et `background` du composant : communs aux deux formes, jamais touchés.
  *
  * Tout ce qui n'a pas d'équivalent (agencement, colonnes, tailles de cases, espace entre les images, format des cases,
@@ -18,6 +18,8 @@
  * au retour. Un réglage qui a un équivalent n'est repris que s'il a été changé entre-temps (comparaison avec ce que la
  * conversion avait écrit) ; sinon la valeur d'origine revient exactement. Un aller-retour sans retouche rend donc l'état de départ.
  */
+
+import { upgradeLook } from "../lib/look";
 
 import { MAX_GRID_CHILDREN, MAX_RAIL_MEDIA, PLACE_ID, railIds, railList, type BoardItem } from "./board-layout";
 
@@ -32,8 +34,11 @@ const FIELD_KEYS = ["title", "caption", "date", "frame", "bg", "radius", "mode"]
 /** Mémoire de la forme quittée (`props.converted`). */
 type Stash = { kind: "grid" | "strip"; props: Json; pairs: [string, string][]; orig: Record<string, Fields>; gen: Record<string, Fields> };
 
-/** Cartes `look.slot*` de la rubrique de la page qui montre la planche (une entrée par place : `<uid du composant>-<place>`). */
-const SLOT_MAPS = { frame: "slotFrame", bg: "slotBg", radius: "slotRadius", mode: "slotVideo" } as const;
+/**
+ * Habillage par place (`look.slotLook`) de la rubrique de la page qui montre la planche (une entrée par place : `<uid du composant>-<place>`).
+ * Champ commun -> champ de l'entrée : la lecture d'une vidéo (`mode`) s'y appelle `video`.
+ */
+const SLOT_FIELDS = { frame: "frame", bg: "bg", radius: "radius", mode: "video" } as const;
 
 const isObj = (v: unknown): v is Json => Boolean(v) && typeof v === "object" && !Array.isArray(v);
 const isText = (v: unknown): v is Text => isObj(v) && typeof v.fr === "string" && typeof v.en === "string" && v.fr.length <= 2000 && v.en.length <= 2000;
@@ -119,17 +124,15 @@ function fieldsOfPlace(strip: Json, slug: string, blockLook: Json): Fields {
   if (isText(caps.title)) f.title = caps.title;
   if (isText(caps.caption)) f.caption = caps.caption;
   if (isText(caps.date)) f.date = caps.date;
-  for (const key of ["frame", "bg", "radius"] as const) {
-    const map = blockLook[SLOT_MAPS[key]];
-    if (isObj(map) && Object.hasOwn(map, slug)) f[key] = map[slug];
-  }
-  const modes = blockLook.slotVideo;
-  if (isObj(modes) && Object.hasOwn(modes, slug)) f.mode = modes[slug];
+  const slots = blockLook.slotLook;
+  const mine = isObj(slots) && Object.hasOwn(slots, slug) && isObj(slots[slug]) ? (slots[slug] as Json) : {};
+  for (const key of ["frame", "bg", "radius"] as const) if (mine[SLOT_FIELDS[key]] !== undefined) f[key] = mine[SLOT_FIELDS[key]];
+  if (mine.video !== undefined) f.mode = mine.video;
   else if (strip.videoMode === "loop" || strip.videoMode === "player") f.mode = strip.videoMode;
   return f;
 }
 
-/** Écrit les champs d'une place : `captions` (dans la bande) et les cartes `slot*` (dans `look` de la rubrique). */
+/** Écrit les champs d'une place : `captions` (dans la bande) et `slotLook[place]` (dans `look` de la rubrique). */
 function applyToPlace(captions: Record<string, Json>, look: Json, slug: string, f: Fields, kidIsVideo: boolean) {
   const entry: Json = {};
   if (f.title) entry.title = clone(f.title);
@@ -137,24 +140,29 @@ function applyToPlace(captions: Record<string, Json>, look: Json, slug: string, 
   if (f.date) entry.date = clone(f.date);
   if (Object.keys(entry).length) captions[slug] = entry;
   for (const key of ["frame", "bg", "radius", "mode"] as const) {
-    const name = SLOT_MAPS[key];
     const v = key === "mode" && !kidIsVideo ? undefined : f[key];
     if (v === undefined) continue;
-    const map: Json = isObj(look[name]) ? { ...(look[name] as Json) } : {};
-    map[slug] = clone(v);
-    look[name] = map;
+    const map: Json = isObj(look.slotLook) ? { ...(look.slotLook as Json) } : {};
+    const mine: Json = isObj(map[slug]) ? { ...(map[slug] as Json) } : {};
+    mine[SLOT_FIELDS[key]] = clone(v);
+    map[slug] = mine;
+    look.slotLook = map;
   }
 }
 
-/** Retire de la `look` de la rubrique les réglages des places `slugs` (cartes `slot*` dont la grille se charge ensuite). */
+/** Retire de la `look` de la rubrique les réglages des places `slugs` que la grille reprend (le panorama n'a pas d'équivalent en case : il reste). */
 function dropPlaces(look: Json, slugs: string[]) {
-  for (const name of Object.values(SLOT_MAPS)) {
-    if (!isObj(look[name])) continue;
-    const map: Json = { ...(look[name] as Json) };
-    for (const s of slugs) delete map[s];
-    if (Object.keys(map).length) look[name] = map;
-    else delete look[name];
+  if (!isObj(look.slotLook)) return;
+  const map: Json = { ...(look.slotLook as Json) };
+  for (const s of slugs) {
+    if (!isObj(map[s])) continue;
+    const mine: Json = { ...(map[s] as Json) };
+    for (const field of Object.values(SLOT_FIELDS)) delete mine[field];
+    if (Object.keys(mine).length) map[s] = mine;
+    else delete map[s];
   }
+  if (Object.keys(map).length) look.slotLook = map;
+  else delete look.slotLook;
 }
 
 /** `val = cur` si la valeur a été changée depuis la conversion (cur ≠ gen), sinon la valeur d'origine. */
@@ -198,8 +206,9 @@ const cleanLookObj = (look: Json): Json | undefined => {
 export function convertItem(item: BoardItem, to: "grid" | "strip", ctx: ConvertCtx): ConvertResult {
   const target = convertTarget(item);
   if ("reason" in target) return { error: target.reason };
-  if (target.to !== to) return { error: to === "strip" ? "Ce composant est déjà en images qui défilent." : "Ce composant est déjà une grille." };
-  const look: Json = isObj(ctx.look) ? clone(ctx.look) : {};
+  if (target.to !== to) return { error: to === "strip" ? "Ce bloc est déjà en images qui défilent." : "Ce bloc est déjà une grille." };
+  // Un `look` d'avant le lot 75 (cinq cartes par place) est relu à la nouvelle forme : la conversion écrit toujours `slotLook`.
+  const look: Json = isObj(ctx.look) ? (clone(upgradeLook(ctx.look)) as Json) : {};
   const out = to === "strip" ? toStrip(item, ctx, look) : toGrid(item, ctx, look);
   if ("error" in out) return out;
   return { item: { ...out.item, ...(item.box ? { box: item.box } : {}) }, look: cleanLookObj(look) };

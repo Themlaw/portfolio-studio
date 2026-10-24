@@ -59,7 +59,7 @@ test("regroupement : ordre Texte, Projets, Images et vidéos, Grilles, Autres ; 
   assert.deepEqual(groups.map((g) => g.label), ["Texte", "Projets", "Images et vidéos", "Grilles", "Autres"]);
   const names = (g) => [...g.starters, ...g.entries].map((e) => e.label);
   assert.deepEqual(names(groups[0]), ["Texte", "Titre", "Titre + texte"]);
-  assert.deepEqual(names(groups[1]), ["Planche d'un projet"]);
+  assert.deepEqual(names(groups[1]), ["Projet"]);
   assert.deepEqual(names(groups[2]), ["Image", "Vidéo", "Planche libre"]);
   // Lot 27 : « Grille » et « Contact » proposent leurs modèles sous leur carte (pas de cartes à part).
   assert.deepEqual(names(groups[3]), ["Grille"]);
@@ -78,7 +78,7 @@ test("regroupement : groupEntries ignore les entrées masquées", () => {
 });
 test("recherche : nom et description, sans accents ni casse, tous les mots", () => {
   const find = (q) => pickerGroups(catalog, STARTER_LIST, q).flatMap((g) => [...g.starters, ...g.entries].map((e) => e.label));
-  assert.deepEqual(find("planche"), ["Planche d'un projet", "Planche libre"], "nom ou description");
+  assert.deepEqual(find("planche"), ["Planche libre"], "nom ou description (le projet ne s'appelle plus planche)");
   assert.ok(find("VIDEO").includes("Vidéo") && find("vidéo").includes("Grille"), "un type correspond aussi par ses modèles");
   assert.ok(find("ecrire").includes("Contact"), "description : « écrire »");
   assert.deepEqual(find("grille image"), ["Grille"], "tous les mots, dans nom + description");

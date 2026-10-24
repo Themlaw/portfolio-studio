@@ -6,7 +6,7 @@
  *  A. Panneau « Ajouter » : aucun « Projet mis en avant » ; groupes à en-tête dans l'ordre (Texte, Projets, Images et
  *     vidéos, Grilles, Autres), contenu de chaque groupe ; les trois raccourcis Texte en tête ; recherche (nom et
  *     description, sans accents ni casse) ; un composant trouvé par la recherche s'ajoute.
- *  B. Fenêtre « Ajouter une rubrique » : mêmes groupes, mêmes en-têtes, rien en double, pas de « Projet mis en avant » ;
+ *  B. Fenêtre « Ajouter un bloc » : mêmes groupes, mêmes en-têtes, rien en double, pas de « Projet mis en avant » ;
  *     formulaire de la page (plus de liste de rubriques depuis le lot 23) : rien à proposer.
  *  C. Page v0.18 avec trois conteneurs (publiée + brouillon), migrée (fonction du démarrage) puis rouverte dans
  *     l'éditeur : blocs séparés (aucun parent), Titre lié au bon nom de projet, lien « voir plus » en bloc, carte de
@@ -61,7 +61,7 @@ const GROUPS = ["Texte", "Projets", "Images et vidéos", "Grilles", "Autres"];
 /** Contenu attendu de chaque groupe, dans l'ordre (libellés du registre). */
 const CONTENT = {
   Texte: ["Texte", "Titre", "Titre + texte"],
-  Projets: ["Planche d'un projet"],
+  Projets: ["Projet"],
   "Images et vidéos": ["Image", "Vidéo", "Planche libre", "Images qui défilent"] /* + la carte du carrousel de planche (lot 31c) ; Planche libre : lot 42 */,
   // Lot 27 : Grille et Contact proposent leurs modèles sous leur carte ; plus de « Formulaire de contact » à part.
   Grilles: ["Grille"],
@@ -137,8 +137,8 @@ if (run("A"))
     ok("A5 les trois raccourcis Texte sont en tête du panneau", firstButtons.join() === "text,title,title-text", firstButtons.join());
     ok("A5 la première carte du catalogue est la Planche d'un projet", (await page.locator(".ve-card").first().getAttribute("data-type")) === "project-board");
 
-    const search = page.getByRole("searchbox", { name: "Chercher un composant" });
-    ok("A6 champ « Chercher un composant » en tête du panneau", (await search.count()) === 1 && (await page.locator(".ve-pane > *").evaluateAll((els) => els.findIndex((e) => e.matches("input[type=search]")))) <= 1);
+    const search = page.getByRole("searchbox", { name: "Chercher un bloc" });
+    ok("A6 champ « Chercher un bloc » en tête du panneau", (await search.count()) === 1 && (await page.locator(".ve-pane > *").evaluateAll((els) => els.findIndex((e) => e.matches("input[type=search]")))) <= 1);
     const found = async (query) => {
       await search.fill(query);
       await sleep(200);
@@ -150,10 +150,10 @@ if (run("A"))
     await page.screenshot({ path: path.join(SHOTS, "a-recherche-video.png") });
     ok("A8 la recherche couvre la description (« ecrire » trouve Contact)", (await found("ecrire")).includes("Contact"));
     ok("A9 les groupes sans résultat disparaissent (« grille image » : seulement Grilles)", JSON.stringify((await panelGroups()).map((g) => g.title)) === JSON.stringify(["Grilles"]) || (await found("grille image")).length > 0 && (await panelGroups()).length === 1);
-    ok("A10 aucun résultat : message", (await found("zzzzz"), (await page.locator(".ve-pane .ve-empty").textContent())?.includes("Aucun composant")));
+    ok("A10 aucun résultat : message", (await found("zzzzz"), (await page.locator(".ve-pane .ve-empty").textContent())?.includes("Aucun bloc")));
     ok("A11 recherche effacée : les cinq groupes reviennent", ((await found("")), (await panelGroups()).length === 5));
     // Un résultat de recherche s'ajoute comme une carte ordinaire.
-    await found("planche");
+    await found("projet");
     const before = draftOf(1)?.blocks?.length ?? q("select count(*) n from blocks where page_id = 1")[0].n;
     await page.locator('.ve-card[data-type="project-board"]').click();
     ok("A12 composant trouvé par la recherche, ajouté à la page", await waitFor(() => (draftOf(1)?.blocks?.length ?? 0) === before + 1 && draftOf(1).blocks.some((b) => b.type === "project-board" && !b.props.project)));
@@ -161,7 +161,7 @@ if (run("A"))
     await search.fill("");
   });
 
-/* ---- B. Fenêtre « Ajouter une rubrique » et éditeur classique ----------------------------------------------- */
+/* ---- B. Fenêtre « Ajouter un bloc » et éditeur classique ----------------------------------------------- */
 
 if (run("B"))
   await section("B", async () => {
@@ -177,11 +177,11 @@ if (run("B"))
     ok("B3 fenêtre : aucun « Projet mis en avant »", !/mis en avant/i.test((await dlg.textContent()) ?? "") && (await dlg.locator('[data-type="featured-project"]').count()) === 0);
     await page.keyboard.press("Escape");
     await dlg.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
-    // Formulaire de la page (lot 23) : plus de liste de rubriques ni de « + Ajouter une rubrique » ; la fenêtre de l'éditeur visuel (B1 à B3) est la seule.
+    // Formulaire de la page (lot 23) : plus de liste de rubriques ni de « + Ajouter un bloc » ; la fenêtre de l'éditeur visuel (B1 à B3) est la seule.
     await page.goto(`${BASE}/admin/pages/1`, { waitUntil: "domcontentloaded" });
     const toEditor = page.getByRole("link", { name: "Modifier le contenu dans l'éditeur" });
     await toEditor.waitFor({ timeout: 60000 });
-    ok("B4 formulaire de la page : lien vers l'éditeur visuel, plus de « + Ajouter une rubrique »", (await page.getByRole("button", { name: /^\+ Ajouter une? (rubrique|bloc)$/ }).count()) === 0);
+    ok("B4 formulaire de la page : lien vers l'éditeur visuel, plus de « + Ajouter un bloc »", (await page.getByRole("button", { name: /^\+ Ajouter une? (rubrique|bloc)$/ }).count()) === 0);
   });
 
 /* ---- C. Page v0.18 avec conteneurs, migrée, rouverte dans l'éditeur ---------------------------------------- */

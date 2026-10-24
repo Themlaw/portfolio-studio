@@ -105,7 +105,7 @@ export function FondButton({ uid, open, onToggle }: { uid: string; open: boolean
   const st = zoneState(uid);
   const s = summary(readZone({ surface: st.surface ?? undefined, background: st.background ?? undefined }).zone, st.defaults);
   return (
-    <button type="button" className="pe-tool-text fond-btn" data-testid="fond-button" aria-haspopup="dialog" aria-expanded={open} title="Fond de la rubrique : couleur ou papier peint, pleine largeur ou en carte" onClick={onToggle}>
+    <button type="button" className="pe-tool-text fond-btn" data-testid="fond-button" aria-haspopup="dialog" aria-expanded={open} title="Fond du bloc : couleur ou papier peint, pleine largeur ou en carte" onClick={onToggle}>
       <span className="sm-dot" data-on={s ? "" : undefined} data-wallpaper={s && "wallpaperOnly" in s ? "" : undefined} style={s && !("wallpaperOnly" in s) ? { background: s.style.bg } : undefined} aria-hidden="true" />
       Fond
       {s && !s.style.ok && (
@@ -441,7 +441,7 @@ function FondPanel({
   );
 
   return (
-    <Popover anchor={anchor} label="Fond du composant" testId="fond-menu" onClose={onClose}>
+    <Popover anchor={anchor} label="Fond du bloc" testId="fond-menu" onClose={onClose}>
       <div className="tc-row">
         <span className="sm-label">Fond</span>
         <span className="tc-seg" role="radiogroup" aria-label="Nature du fond">
@@ -497,7 +497,7 @@ function FondPanel({
       ) : (
         <>
           {extentRow}
-          <p className="sm-hint">Colore la rubrique, pleine largeur ou en carte, ou pose un papier peint de ta bibliothèque. Le texte passe tout seul à la couleur la plus lisible.</p>
+          <p className="sm-hint">Colore le bloc, pleine largeur ou en carte, ou pose un papier peint de ta bibliothèque. Le texte passe tout seul à la couleur la plus lisible.</p>
           {notices}
         </>
       )}

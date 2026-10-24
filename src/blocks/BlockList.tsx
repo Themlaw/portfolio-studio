@@ -91,7 +91,7 @@ export function withFond(node: ReactNode, type: string, background: Background |
   if (!supportsFond(type) || ctx.cell) return node;
   if (!background || !ctx.palette) {
     return ctx.edit ? (
-      <div key={`fond-${key}`} className="fond-bloc" data-fond="off">
+      <div key={`fond-${key}`} className="zone fond-bloc" data-fond="off">
         <div className="fond-in">{node}</div>
       </div>
     ) : (
@@ -142,11 +142,11 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
     );
   if (block.corrupt) {
     console.error(`[blocks] page ${ctx.pageId}, bloc ${block.id} (${block.type}) : props JSON illisibles, ignoré`);
-    return ctx.edit ? wrap(<p data-edit-invalid="">Rubrique illisible : supprime-la.</p>) : null;
+    return ctx.edit ? wrap(<p data-edit-invalid="">Bloc illisible : supprime-le.</p>) : null;
   }
   if (!def) {
     console.error(`[blocks] page ${ctx.pageId}, bloc ${block.id} : type inconnu « ${block.type} », ignoré`);
-    return ctx.edit ? wrap(<p data-edit-invalid="">Type de rubrique inconnu : supprime-la.</p>) : null;
+    return ctx.edit ? wrap(<p data-edit-invalid="">Type de bloc inconnu : supprime-le.</p>) : null;
   }
   const parsed = def.schema.safeParse(block.props);
   if (!parsed.success) {
@@ -292,7 +292,7 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
         // Toile : « + Ajouter une rubrique » toujours visible en bas de page (EditLayer l'écoute ; absent en aperçu).
         <div className="pe-add-end" data-edit-add-end="" lang="fr">
           <button type="button" data-edit-add="end">
-            <span aria-hidden="true">+</span> Ajouter une rubrique
+            <span aria-hidden="true">+</span> Ajouter un bloc
           </button>
         </div>
       )}

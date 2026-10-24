@@ -170,7 +170,7 @@ function BoxField({ box, onChange }: { box: BoardBox | undefined; onChange: (nex
           </button>
         ))}
       </div>
-      <p className="a-help">{width >= 100 ? "Pleine largeur : l'alignement ne se voit que si tu réduis la largeur." : "Sur téléphone, le composant reprend toute la largeur."}</p>
+      <p className="a-help">{width >= 100 ? "Pleine largeur : l'alignement ne se voit que si tu réduis la largeur." : "Sur téléphone, le bloc reprend toute la largeur."}</p>
     </section>
   );
 }
@@ -298,8 +298,8 @@ export default function BoardItemPanel({
         <h2>{BOARD_ITEM_LABELS[type]}</h2>
         {head}
       </header>
-      <p className="ve-hint">Ce composant appartient au projet : il s&apos;affiche partout où la planche du projet est montrée.</p>
-      {projectStrip && <p className="ve-hint">Cette bande montre les images du projet : ajoute-les, déplace-les et légende-les directement sur la planche.</p>}
+      <p className="ve-hint">Ce bloc appartient au projet : il s&apos;affiche partout où ce projet est montré.</p>
+      {projectStrip && <p className="ve-hint">Cette bande montre les images du projet : ajoute-les, déplace-les et légende-les directement sur la page.</p>}
       {(type === "grid" || (type === "strip" && !projectStrip)) && <ConvertField type={type} onConvert={onConvert} />}
       {/* Grille : l'essentiel en haut (agencement, espace, format, nombre d'images), puis la liste des cases, puis les réglages avancés. */}
       {type === "grid" && (

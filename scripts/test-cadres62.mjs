@@ -6,7 +6,7 @@
  *  3. Migration 0028 (src/lib/db/frame-choice.ts) : `look.frame`, `look.slotFrame`, `items[].frame` de la Planche libre, cases de grille, planches
  *     (`layout` ET `draft_layout`), brouillons de page, publié ; le rendu des choix explicites ne change pas ; les photos sans cadre ne sont pas
  *     touchées ; `draft_rev` augmente ; idempotente. Journal, fichier SQL et bootstrap existent.
- *  4. Protocole : le message `bitem-frame` et l'opération de planche libre acceptent la nouvelle forme (et l'ancienne), refusent une valeur inconnue.
+ *  4. Protocole : le message `media-look` (ex-`bitem-frame` et opération de planche libre `style`) acceptent la nouvelle forme (et l'ancienne), refusent une valeur inconnue.
  *  5. Réglage du site « Cadre du thème sur toutes les photos » : non par défaut.
  * Usage : node --import tsx scripts/test-cadres62.mjs
  */
@@ -49,7 +49,7 @@ test("modèle : anciennes valeurs relues sans changer le rendu d'un choix explic
   assert.deepEqual(upgradeFrame(upgradeFrame({ size: "thick" })), { kind: "band", width: "epais" }, "idempotent");
   // Lues par les schémas (sauvegarde ancienne, brouillon non migré) : même résultat.
   assert.deepEqual(readLook({ frame: { size: "thin" } }), { frame: { kind: "band", width: "fin" } });
-  assert.deepEqual(readLook({ slotFrame: { a: { size: "none" }, b: { size: "thick", color: "tertiary" } } }), { slotFrame: { a: { kind: "none" }, b: { kind: "band", color: "tertiary", width: "epais" } } });
+  assert.deepEqual(readLook({ slotFrame: { a: { size: "none" }, b: { size: "thick", color: "tertiary" } } }), { slotLook: { a: { frame: { kind: "none" } }, b: { frame: { kind: "band", color: "tertiary", width: "epais" } } } });
   assert.ok(LookSchema.safeParse({ frame: { size: "medium" } }).success);
   assert.ok(!FrameSchema.safeParse({ size: "huge" }).success);
 });
@@ -180,12 +180,14 @@ test("migration 0028 sur une base : publié, brouillons de page, planches et bro
 
 /* ---- 4. Protocole --------------------------------------------------------------------------------------- */
 
-test("protocole : bitem-frame et style de la Planche libre acceptent la nouvelle forme (et l'ancienne), refusent une valeur inconnue", () => {
+test("protocole : media-look (cadre) accepte la nouvelle forme (et l'ancienne), refuse une valeur inconnue ; plus de bitem-frame", () => {
   const origin = "http://localhost";
   const parent = {};
   const send = (data) => acceptFromCanvas({ origin, source: parent, data: { type: EDIT_MSG, ...data } }, origin, parent);
-  for (const frame of [{ kind: "band", width: "fin" }, { kind: "theme" }, { kind: "none" }, { size: "thick" }, null]) assert.ok(send({ kind: "bitem-frame", board: 1, uid: "b1", frame }) !== null, JSON.stringify(frame));
-  for (const frame of [{ kind: "huge" }, { size: "huge" }, { kind: "custom" }, "band"]) assert.equal(send({ kind: "bitem-frame", board: 1, uid: "b1", frame }), null, JSON.stringify(frame));
+  const target = { kind: "item", board: 1, uid: "b1" };
+  for (const frame of [{ kind: "band", width: "fin" }, { kind: "theme" }, { kind: "none" }, { size: "thick" }, null]) assert.ok(send({ kind: "media-look", target, patch: { frame } }) !== null, JSON.stringify(frame));
+  for (const frame of [{ kind: "huge" }, { size: "huge" }, { kind: "custom" }, "band"]) assert.equal(send({ kind: "media-look", target, patch: { frame } }), null, JSON.stringify(frame));
+  assert.equal(send({ kind: "bitem-frame", board: 1, uid: "b1", frame: null }), null, "ancienne intention retirée");
 });
 
 /* ---- 5. Réglage du site -------------------------------------------------------------------------------- */

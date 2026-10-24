@@ -20,7 +20,7 @@ export function CardWrap({ surface, env, edit, join, id, children }: { surface: 
   const defaults = edit ? { "data-card-default": JSON.stringify(env.defaults) } : {};
   if (!surface) {
     return edit ? (
-      <div key={`card-${id}`} className="surface-card" data-surface="off" {...defaults}>
+      <div key={`card-${id}`} className="zone surface-card" data-surface="off" {...defaults}>
         <div className="card-in">{children}</div>
       </div>
     ) : (
@@ -33,7 +33,7 @@ export function CardWrap({ surface, env, edit, join, id, children }: { surface: 
   return (
     <div
       key={`card-${id}`}
-      className="surface-card"
+      className="zone surface-card"
       {...surfaceAttributes(resolved)}
       {...paper.attrs}
       {...(join?.prev ? { "data-join-prev": "" } : {})}

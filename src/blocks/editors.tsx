@@ -136,7 +136,7 @@ export function CollectionTilesEditor() {
   return (
     <>
       <TextI18n label="Étiquette" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v)} error={errorAt(errors, "eyebrow")} />
-      <TextI18n label="Titre de la rubrique" value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
+      <TextI18n label="Titre du bloc" value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
       <Select
         label="Taille des images"
         help="Une entrée ne dépasse jamais la hauteur de l'écran : un portrait est réduit, pas coupé."
@@ -271,7 +271,7 @@ export function CollectionProjectsEditor() {
       onChange={(v) => set("collection", v)}
       error={errorAt(errors, "collection")}
       exclude={["animation"]}
-      help="Affiche les planches de tous les projets qui ont des images dans cette collection."
+      help="Affiche tous les projets qui ont des images dans cette collection."
     />
   );
 }
@@ -397,12 +397,12 @@ export function ProjectBoardEditor() {
       error={errorAt(errors, "project")}
       help={
         current?.draft
-          ? "Projet créé sur cette page : son nom, son contexte et son année se modifient directement sur la planche (double-clic). Il devient public avec la page."
-          : "Les images se placent, se déplacent et se retirent directement sur la planche. Le nom et les textes du projet se modifient dans l'écran Projets."
+          ? "Projet créé sur cette page : son nom, son contexte et son année se modifient directement sur la page (double-clic). Il devient public avec la page."
+          : "Les images se placent, se déplacent et se retirent directement sur la page. Le nom et les textes du projet se modifient dans l'écran Projets."
       }
     >
       <select id={id} className="a-input" value={(value.project as string | undefined) ?? ""} onChange={(e) => set("project", e.target.value || undefined)}>
-        <option value="">— Projet de la rubrique (ou à choisir) —</option>
+        <option value="">— Projet du bloc (ou à choisir) —</option>
         {context.projects.map((p) => (
           <option key={p.slug} value={p.slug}>
             {p.title}
@@ -411,9 +411,9 @@ export function ProjectBoardEditor() {
         ))}
       </select>
     </Field>
-    <Toggle label="Nom et présentation du projet en tête de planche" checked={value.header !== false} onChange={(on) => set("header", on ? undefined : false)} />
-    <Toggle label="Fond plus soutenu (pour alterner deux planches)" checked={Boolean(value.deep)} onChange={(on) => set("deep", on || undefined)} />
-    {typeof value.collection === "string" && <p className="a-help">Planche limitée aux œuvres d&apos;un métier (reprise d&apos;une ancienne page de collection).</p>}
+    <Toggle label="Nom et présentation du projet, en tête" checked={value.header !== false} onChange={(on) => set("header", on ? undefined : false)} />
+    <Toggle label="Fond plus soutenu (pour alterner deux projets)" checked={Boolean(value.deep)} onChange={(on) => set("deep", on || undefined)} />
+    {typeof value.collection === "string" && <p className="a-help">Projet limité aux œuvres d&apos;un métier (reprise d&apos;une ancienne page de collection).</p>}
     </>
   );
 }
@@ -429,7 +429,7 @@ export function FeaturedProjectEditor() {
     <>
       <ProjectCombobox
         prefix="ve"
-        label="Projet affiché dans cette rubrique"
+        label="Projet affiché dans ce bloc"
         projects={context.projects}
         value={value.project as string | undefined}
         onPick={(slug) => set("project", slug)}
@@ -444,8 +444,8 @@ export function FeaturedProjectEditor() {
       />
       {errorAt(errors, "project") && <p className="a-field-error">{errorAt(errors, "project")}</p>}
       <p className="a-help">
-        Le titre, la présentation et les images viennent du projet : les modifier ici (sur la page) les change aussi sur sa planche et ailleurs, après
-        publication. {count} composant{count > 1 ? "s" : ""} dedans : glisse-en un de « Ajouter » DANS le cadre ; une planche ou un titre sans projet propre
+        Le titre, la présentation et les images viennent du projet : les modifier ici (sur la page) les change aussi dans l&apos;écran Projets et ailleurs, après
+        publication. {count} bloc{count > 1 ? "s" : ""} dedans : glisse-en un de « Ajouter » DANS le cadre ; un projet ou un titre sans projet propre
         prend celui-ci.
       </p>
       <Toggle label="Lien « voir plus » sous le projet" checked={Boolean(more)} onChange={(on) => set("more", on ? { label: EMPTY } : undefined)} />
@@ -572,7 +572,7 @@ export function GridAdvanced() {
           ]}
           onChange={(v) => set("align", v ?? "stretch")}
         />
-        <Toggle label="Espace au-dessus (comme entre deux rubriques)" checked={(value.top ?? "gap") === "gap"} onChange={(on) => set("top", on ? "gap" : "none")} />
+        <Toggle label="Espace au-dessus (comme entre deux blocs)" checked={(value.top ?? "gap") === "gap"} onChange={(on) => set("top", on ? "gap" : "none")} />
         <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", v.fr || v.en ? v : undefined)} error={errorAt(errors, "eyebrow")} />
         <TextI18n label="Titre (facultatif)" value={l(value.title)} onChange={(v) => set("title", v.fr || v.en ? v : undefined)} error={errorAt(errors, "title")} />
         <TextI18n label="Sous la grille : titre (facultatif)" value={l(value.captionTitle)} onChange={(v) => set("captionTitle", v.fr || v.en ? v : undefined)} error={errorAt(errors, "captionTitle")} />
@@ -670,7 +670,7 @@ export function SectionTitleEditor() {
     <>
       <Toggle
         label="Reprendre le nom et la présentation d'un projet"
-        help="Le titre et la présentation sont ceux du projet : tu les modifies sur la page ; ils changent aussi sur sa planche et sa page, après publication."
+        help="Le titre et la présentation sont ceux du projet : tu les modifies sur la page ; ils changent aussi dans l'écran Projets et sur la page, après publication."
         checked={linked}
         onChange={(on) => set("linked", on || undefined)}
       />
@@ -701,13 +701,13 @@ export function SectionTitleEditor() {
           <TextareaI18n label="Présentation" value={l(value.intro)} onChange={(v) => set("intro", v)} error={errorAt(errors, "intro")} />
           <Toggle
             label="Titre principal de la page (h1)"
-            help="Le grand titre de la page, en haut : un seul par page (l'ouverture de l'accueil en est déjà un). Un Titre inséré en haut d'une page sans titre principal l'est d'emblée ; les autres sont des titres de rubrique (h2)."
+            help="Le grand titre de la page, en haut : un seul par page (l'ouverture de l'accueil en est déjà un). Un Titre inséré en haut d'une page sans titre principal l'est d'emblée ; les autres sont des titres de bloc (h2)."
             checked={value.main === true}
             onChange={(on) => set("main", on ? true : undefined)}
           />
           <Toggle
             label="Compteurs « N œuvres · M projets »"
-            help="Calculés depuis les planches de la page, sous le titre."
+            help="Calculés depuis les projets de la page, sous le titre."
             checked={value.counts === true}
             onChange={(on) => set("counts", on ? true : undefined)}
           />
@@ -917,7 +917,7 @@ export function FreeBoardEditor() {
         onChange={(v) => apply({ op: "set", phone: (v as "scale" | "stack") ?? "scale" })}
       />
       <section className="ve-board-kids" aria-label="Images de la planche libre">
-        <h3 className="a-subhead">Images de la planche</h3>
+        <h3 className="a-subhead">Images du projet</h3>
         {items.length === 0 && <p className="ve-hint">Rien pour le moment : ajoute une image ci-dessous, ou glisse-la depuis l&apos;onglet Médias directement sur la zone.</p>}
         <ol className="ve-board-kid-list" data-testid="free-list">
           {ordered.map((it, i) => {

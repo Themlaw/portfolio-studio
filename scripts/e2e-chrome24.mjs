@@ -200,7 +200,7 @@ if (run("C")) {
   await page.screenshot({ path: path.join(SHOTS, "C-liste-problemes.png") });
   ok("C2 une ligne par rubrique inachevée", lines.length === 2, JSON.stringify(lines));
   const all = (await panel.textContent()) ?? "";
-  ok("C3 texte en français : rubrique nommée, aucune chaîne technique", /Rubrique n° \d+ « Texte »/.test(all) && /Rubrique n° \d+ « Image »/.test(all) && !/blocks\.|props\.|undefined|\[object/.test(all), all);
+  ok("C3 texte en français : rubrique nommée, aucune chaîne technique", /Bloc n° \d+ « Texte »/.test(all) && /Bloc n° \d+ « Image »/.test(all) && !/blocks\.|props\.|undefined|\[object/.test(all), all);
   ok("C4 le titre dit le nombre de points à corriger", /2 points à corriger/.test(all), all);
   // Défile jusqu'en haut de la page : la ligne de l'image doit ramener la rubrique dans la vue et la choisir.
   await f.evaluate(() => window.scrollTo(0, 0));
@@ -293,7 +293,8 @@ if (run("D")) {
 // Tout texte de l'interface de l'éditeur (texte, aria-label, title, placeholder), panneau et calque d'édition de la toile.
 // Lot 57 : « bloc « Projet » » est le mot validé pour désigner le bloc d'un projet (le renommage global est le lot 56).
 // Lot 61 : « Fond des blocs » est le nom validé du réglage du fond des rubriques alternées.
-const BANNED = /(?<!Fond des |fond d'un )\bbloc(?! « Projet »)|conteneur|\bsection(?!s? de la page)/i;
+// Vocabulaire du lot 75 : « bloc » (plus de rubrique ni de composant), « projet » (plus de planche, sauf « Planche libre »).
+const BANNED = /\brubriques?\b|\bcomposants?\b|\bplanches?\b(?! libre)|conteneur|\bsection(?!s? de la page)/i;
 async function uiWords(root) {
   return root.evaluate(() => {
     const out = new Set();
@@ -318,7 +319,7 @@ if (run("E")) {
     const words = [...(await uiWords(page)), ...(await uiWords(f))];
     const bad = words.filter((w) => BANNED.test(w));
     seen.push(...words);
-    ok(`E ${label} : ni « bloc », ni « conteneur », ni « section » dans l'interface`, bad.length === 0, JSON.stringify(bad));
+    ok(`E ${label} : ni « rubrique », ni « composant », ni « planche », ni « conteneur », ni « section » dans l'interface`, bad.length === 0, JSON.stringify(bad));
   };
   for (const name of ["Ajouter", "Médias", "Structure", "Réglages"]) {
     await tab(name).click();
@@ -332,24 +333,24 @@ if (run("E")) {
   await tab("Réglages").click();
   await sleep(400);
   await check("réglages d'une grille");
-  ok("E1 le panneau dit « Rubrique sélectionnée »", (await page.getByRole("group", { name: "Rubrique sélectionnée" }).count()) === 1);
+  ok("E1 le panneau dit « Bloc sélectionné »", (await page.getByRole("group", { name: "Bloc sélectionné" }).count()) === 1);
   await f.locator(".pe-tools").first().waitFor({ timeout: 20000 });
   await check("barre d'outils de la toile");
-  ok("E2 la barre de la toile est nommée « Rubrique Grille »", (await f.locator('.pe-tools[aria-label^="Rubrique"]').count()) === 1);
-  await page.getByRole("group", { name: "Rubrique sélectionnée" }).getByRole("button", { name: "Supprimer" }).click();
+  ok("E2 la barre de la toile est nommée « Bloc Grille »", (await f.locator('.pe-tools[aria-label^="Bloc"]').count()) === 1);
+  await page.getByRole("group", { name: "Bloc sélectionné" }).getByRole("button", { name: "Supprimer" }).click();
   const dlg = page.getByRole("dialog");
   await dlg.waitFor({ timeout: 10000 });
   const text = (await dlg.textContent()) ?? "";
-  ok("E3 confirmation : « Supprimer la rubrique « Grille » ? »", /Supprimer la rubrique « Grille »/.test(text), text);
+  ok("E3 confirmation : « Supprimer le bloc « Grille » ? »", /Supprimer le bloc « Grille »/.test(text), text);
   await check("confirmation de suppression");
-  await dlg.getByRole("button", { name: "Supprimer la rubrique" }).click();
-  const toastText = await page.locator(".a-toast", { hasText: /supprimée/ }).first().textContent({ timeout: 10000 }).catch(() => "");
-  ok("E4 toast : « Rubrique supprimée »", /Rubrique supprimée/.test(toastText ?? ""), toastText ?? "");
+  await dlg.getByRole("button", { name: "Supprimer le bloc" }).click();
+  const toastText = await page.locator(".a-toast", { hasText: /supprimé/ }).first().textContent({ timeout: 10000 }).catch(() => "");
+  ok("E4 toast : « Bloc supprimé »", /Bloc supprimé/.test(toastText ?? ""), toastText ?? "");
   await check("toast de suppression");
-  // « Ajouter une rubrique » (fenêtre) et sa fermeture.
+  // « Ajouter un bloc » (fenêtre) et sa fermeture.
   await f.locator("[data-edit-add]").first().click();
   await page.getByRole("dialog").waitFor({ timeout: 10000 });
-  await check("fenêtre « Ajouter une rubrique »");
+  await check("fenêtre « Ajouter un bloc »");
   await page.screenshot({ path: path.join(SHOTS, "E-ajouter-rubrique.png") });
   await page.keyboard.press("Escape");
   // Messages de refus : une rubrique d'un conteneur qui n'accepte pas ce composant (planche déposée dans une grille de texte).
@@ -368,12 +369,12 @@ if (run("F")) {
   ok("F1 le bouton d'historique s'appelle « Défaire » (et non « Annuler »)", (await undo.count()) === 1 && (await page.locator(".ve-history").getByRole("button", { name: "Annuler", exact: true }).count()) === 0);
   ok("F2 son info-bulle précise « dernière action »", /dernière action/.test((await undo.getAttribute("title")) ?? ""));
   await f.locator(".pe-tools").getByRole("button", { name: "Supprimer" }).first().click();
-  await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Supprimer le bloc" }).click();
   const action = page.locator(".a-toast-action");
   ok("F3 le toast de suppression propose « Défaire »", await action.first().waitFor({ timeout: 10000 }).then(() => true, () => false) && /Défaire/.test((await action.first().textContent()) ?? ""));
   await action.first().click();
   ok("F4 « Défaire » rend la rubrique supprimée", await until(f, () => document.querySelectorAll("[data-edit-block]:not([data-edit-parent])").length >= 8, null, 20000) || true);
-  // F5 : la fenêtre « Ajouter une rubrique » se ferme par « Fermer » (pas « Annuler »).
+  // F5 : la fenêtre « Ajouter un bloc » se ferme par « Fermer » (pas « Annuler »).
   await f.locator("[data-edit-add]").first().click();
   const dlg = page.getByRole("dialog");
   await dlg.waitFor({ timeout: 10000 });

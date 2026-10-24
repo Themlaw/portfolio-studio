@@ -204,7 +204,7 @@ await section("A0", async () => {
   const dlg = page.locator("dialog.ve-add");
   await dlg.waitFor({ timeout: 20000 });
   await dlg.locator(".ve-add-card").nth(2).click();
-  ok("A0 rubrique « Titre + texte » ajoutée", await waitFor(() => inkBlocks().length >= 1 && inkBlocks().at(-1).props.title?.fr === "Titre de la rubrique"));
+  ok("A0 rubrique « Titre + texte » ajoutée", await waitFor(() => inkBlocks().length >= 1 && inkBlocks().at(-1).props.title?.fr === "Titre du bloc"));
   await f.locator('[data-editing][data-inline="title"]').waitFor({ timeout: 60000 });
   // Le texte d'aide resté tel quel refuse la publication : on saisit un vrai titre et un vrai paragraphe.
   await page.keyboard.type("Mes carnets d'été");

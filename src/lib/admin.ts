@@ -391,7 +391,7 @@ export function getMediaUses(id: number): MediaUseRow[] {
           projectId: u.projectId,
           projectTitle: projects.get(u.projectId)?.title.fr ?? "",
           slotId: 0,
-          slotTitle: "Grille, image ou vidéo de la planche",
+          slotTitle: "Grille, image ou vidéo du projet",
           trashed: Boolean(projects.get(u.projectId)?.deletedAt),
           ...(u.draftPageId ? { draftPage: pages.get(u.draftPageId)?.title.fr || `page ${u.draftPageId}` } : {}),
         }

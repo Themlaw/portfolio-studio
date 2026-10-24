@@ -14,7 +14,7 @@ import type { CardPalette } from "@/themes/surface";
 export default function FondWrap({ background, join, palette, lookup, edit, children }: { background: Background; join: FondJoin; palette: CardPalette; lookup?: WallpaperLookup; edit?: boolean; children: ReactNode }) {
   const { vars } = fondStyle(background, palette, lookup, join.around);
   return (
-    <div className="fond-bloc" {...fondAttributes(join, background)} style={vars as CSSProperties} {...(edit ? { "data-edit-background": JSON.stringify(background) } : {})}>
+    <div className="zone fond-bloc" {...fondAttributes(join, background)} style={vars as CSSProperties} {...(edit ? { "data-edit-background": JSON.stringify(background) } : {})}>
       <div className="fond-in">{children}</div>
     </div>
   );

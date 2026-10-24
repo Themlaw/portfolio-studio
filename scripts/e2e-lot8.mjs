@@ -219,7 +219,7 @@ if (run("B")) {
   await f.locator(linkedSel).scrollIntoViewIfNeeded();
   // Indicateur au survol.
   await hover(f.locator(linkedSel), { x: 20, y: 10 });
-  ok("B2 survol : indicateur « Texte du projet … modifié aussi sur sa planche et sa page »", await until(f, () => /Texte du projet « Les hauts chemins » — modifié aussi sur sa planche et sa page/.test(document.querySelector(".pe-project-hint")?.textContent ?? "")));
+  ok("B2 survol : indicateur « Texte du projet … modifié aussi partout où ce projet est montré »", await until(f, () => /Texte du projet « Les hauts chemins » — modifié aussi partout où ce projet est montré/.test(document.querySelector(".pe-project-hint")?.textContent ?? "")));
   ok("B2b lien « Voir le projet » vers l'écran du projet", (await f.locator(".pe-project-hint a").getAttribute("href")) === `/admin/projets/${before.id}`);
   await page.screenshot({ path: `${SHOTS}/B-indicateur-projet.png` });
   // Édition.
