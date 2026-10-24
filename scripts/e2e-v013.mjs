@@ -398,11 +398,11 @@ if (run("D")) {
   await center(f, gridSel);
   // Cellule étroite : la barre d'outils du bloc (déjà choisi) couvre le paragraphe, le clic est forcé.
   await f.locator(`[data-edit-block="${textUid}"] p`).first().click({ force: true });
-  await f.locator('.pe-tools button[aria-label="Sortir de la rubrique"]').click();
+  await f.locator('.pe-tools button[aria-label="Sortir du bloc"]').click();
   await settled();
   const top = draftOf().blocks;
   const gi = top.findIndex((b) => b.uid === grid.uid);
-  ok("D5 « Sortir de la rubrique » : le Texte est sur la page, juste après la grille", top[gi + 1]?.uid === textUid, JSON.stringify(top.map((b) => b.type)));
+  ok("D5 « Sortir du bloc » : le Texte est sur la page, juste après la grille", top[gi + 1]?.uid === textUid, JSON.stringify(top.map((b) => b.type)));
   await center(f, `[data-edit-block="${textUid}"]`);
   await f.locator(`[data-edit-block="${textUid}"] p`).first().click({ force: true });
   await sleep(300);
@@ -479,7 +479,7 @@ if (run("F")) {
   await f.locator(".pe-crumbs .pe-crumb").first().click();
   await f.locator('.pe-tools button[aria-label="Supprimer"]').click();
   const dialog = page.getByRole("dialog");
-  ok("F1 confirmation : nombre de composants retirés", new RegExp(`${grid.props.children.length} composants seront retirés`).test((await dialog.textContent()) ?? ""), (await dialog.textContent())?.slice(0, 200));
+  ok("F1 confirmation : nombre de composants retirés", new RegExp(`${grid.props.children.length} (composants|blocs) seront retirés`).test((await dialog.textContent()) ?? ""), (await dialog.textContent())?.slice(0, 200));
   await page.screenshot({ path: `${SHOTS}/F-suppression-de-la-grille.png` });
   // Confirmée : la grille (et ses composants) disparaît du brouillon, le reste de la page est intact.
   await dialog.getByRole("button", { name: /Supprimer/ }).click();

@@ -50,7 +50,7 @@ export default function PaperSettings({ theme, onChange }: { theme: Theme; onCha
         Papier visible sur les cartes
       </label>
       <p className="a-help">
-        Décoché (par défaut) : les cartes de rubrique sont des aplats opaques qui cachent le papier. Coché : le papier est dessiné par-dessus la couleur
+        Décoché (par défaut) : les cartes des blocs sont des aplats opaques qui cachent le papier. Coché : le papier est dessiné par-dessus la couleur
         de chaque carte, sous son contenu. Chaque carte peut garder son choix (menu « Carte » de la toile : « Comme le site », « Sous la carte » ou « Sur la carte »).
       </p>
       {paper.onCards && (

@@ -62,7 +62,7 @@ try {
   await page.waitForURL(`${BASE}/admin`);
 
   // ---- Planche : une boucle et une vidéo longue --------------------------------------
-  await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Nouveau projet" }).click();
   await page.locator("dialog[open]").getByLabel("Titre en français").fill("Vidéos e2e");
   await page.locator("dialog[open]").getByRole("button", { name: "Créer le projet" }).click();
@@ -206,7 +206,7 @@ try {
     }
   }
   if (videoProjectId) await removeBoard(page, BASE, pageIdOf("personnages"), projectSlugOf(videoProjectId));
-  await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
   while (await page.locator(".a-project-card", { hasText: "Vidéos e2e" }).count()) {
     await page.locator(".a-project-card", { hasText: "Vidéos e2e" }).first().getByRole("button", { name: "Supprimer" }).click();
     await page.locator("dialog[open]").getByRole("button", { name: "Supprimer le projet" }).click();

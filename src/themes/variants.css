@@ -358,7 +358,7 @@
    l'image, quel que soit le dessin. Le cadre dépasse autour de la photo (marges négatives, media-frame.css) : la photo ne change ni de taille ni de
    place. Il n'est posé que sur un choix de l'artiste (`data-frame="theme"`, photo
    ou vidéo) ou, pour une PHOTO sans choix, si le réglage du site « Cadre du thème sur toutes les photos » est actif (`data-frame-all`
-   sur `.site-frame` ; NON par défaut). Une vidéo sans choix n'est jamais encadrée. « Aucun » (`data-frame="none"`) et « Bande de couleur »
+   sur `.site-frame` ; NON par défaut). Une vidéo sans choix n'est jamais encadrée. « Aucun » (`data-frame="none"`) et « Bordure »
    (src/app/media-frame.css) n'ont jamais le cadre du thème. Les tuiles sont toujours encadrées si le thème dessine un cadre.
    Épaisseur réduite proportionnellement sur petit écran / petite photo (jamais plus de 4 % de la largeur de l'écran pour le haut :
    `--kit-k`) ; une tuile garde son épaisseur entière (`--kit-k` absent = 1px). */

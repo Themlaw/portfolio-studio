@@ -10,7 +10,7 @@ import type { AdminProjectRow, TrashSummary } from "@/lib/admin";
 import { daysLeft, lostWithProject, TRASH_DAYS } from "@/lib/trash";
 
 import { ConfirmDialog, same, toast, undoToast } from "./editing";
-import { EmptyTrash, PurgeItem } from "./TrashControls";
+import { PurgeItem } from "./TrashControls";
 import { DragHandle, SortableList } from "./Sortable";
 
 /** Corbeille des projets : restauration en un clic, purge au bout de 30 jours. */
@@ -21,11 +21,10 @@ function TrashList({ projects, summary }: { projects: AdminProjectRow[]; summary
     <section className="a-panel" aria-labelledby="pr-corbeille">
       <h2 id="pr-corbeille">Projets supprimés</h2>
       <p className="a-help a-panel-intro">
-        Un projet supprimé n&apos;est plus sur le site. Il reste {TRASH_DAYS} jours ici avec sa planche : restaure-le en un clic, après quoi il est effacé pour de bon (ses images restent dans la médiathèque).
+        Un projet supprimé n&apos;est plus sur le site. Il reste {TRASH_DAYS} jours ici avec ses images : restaure-le en un clic, après quoi il est effacé pour de bon (ses images restent dans la médiathèque).
       </p>
-      <EmptyTrash summary={summary} />
       {projects.length === 0 ? (
-        <p className="muted" data-testid="corbeille-vide">La corbeille est vide.</p>
+        <p className="muted" data-testid="corbeille-projets-vide">La corbeille est vide.</p>
       ) : (
         <div className="a-table-wrap">
           <table className="a-table a-table-stack">
@@ -123,7 +122,7 @@ export default function ProjectsManager({
       {order.length === 0 ? (
         <div className="a-empty">
           <h2>Aucun projet pour l&apos;instant</h2>
-          <p>Un projet regroupe les images d&apos;un même travail (un film, une série, une commande) sur une planche.</p>
+          <p>Un projet regroupe les images d&apos;un même travail (un film, une série, une commande).</p>
         </div>
       ) : (
         <SortableList
@@ -150,7 +149,7 @@ export default function ProjectsManager({
                       {p.title}
                     </Link>
                   </h2>
-                  {showFeatured && p.featured && <span className="a-badge">À la une de l&apos;ancienne rubrique</span>}
+                  {showFeatured && p.featured && <span className="a-badge">À la une de l&apos;ancien bloc</span>}
                 </div>
                 <p className="muted">{[p.context, p.year].filter(Boolean).join(" · ")}</p>
                 <p className="a-help">
@@ -278,12 +277,12 @@ export default function ProjectsManager({
         {removing && removing.blockedBy.length > 0 ? (
           <div className="a-alert" role="alert" data-testid="suppression-bloquee">
             <p>
-              Ce projet est affiché par {removing.blockedBy.length} rubrique{removing.blockedBy.length > 1 ? "s" : ""} : retire-le de ces rubriques avant de le supprimer.
+              Ce projet est affiché par {removing.blockedBy.length} bloc{removing.blockedBy.length > 1 ? "s" : ""} : retire-le de ces blocs avant de le supprimer.
             </p>
             <ul className="a-refs">
               {removing.blockedBy.map((r, i) => (
                 <li key={i}>
-                  Rubrique « {r.blockType} » de la page <Link href={r.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${r.pageId}/editer`}>{r.pageTitle}</Link>
+                  Bloc « {r.blockType} » de la page <Link href={r.trashed ? "/admin/pages?vue=corbeille" : `/admin/pages/${r.pageId}/editer`}>{r.pageTitle}</Link>
                   {r.trashed && <span className="muted"> (à la corbeille)</span>}
                 </li>
               ))}
@@ -291,7 +290,7 @@ export default function ProjectsManager({
           </div>
         ) : (
           <p className="muted">
-            Il quitte le site, mais sa planche et ses {removing?.slots ?? 0} emplacements restent {TRASH_DAYS} jours dans la corbeille : tu peux le restaurer ou annuler juste après. Ses images restent dans la médiathèque.
+            Il quitte le site, mais ses images et ses {removing?.slots ?? 0} emplacements restent {TRASH_DAYS} jours dans la corbeille : tu peux le restaurer ou annuler juste après. Ses images restent dans la médiathèque.
           </p>
         )}
         {removeError && <p className="a-alert">{removeError}</p>}

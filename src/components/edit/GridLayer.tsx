@@ -24,7 +24,8 @@ import FrameWindow from "./FrameMenu";
 import ImageBgWindow from "./ImageBgMenu";
 import Popover, { type PopoverAnchor } from "./Popover";
 import GridLayoutIcon from "./GridLayoutIcon";
-import { lookOf, sendLook } from "./LookLayer";
+import { lookOf, sendOwnMediaLook } from "./LookLayer";
+import type { ImageBg } from "@/lib/look";
 import { postIntent } from "./optimistic";
 import { cellIndex, cellsOf, gridRefOf, type GridRef } from "./grid-dom";
 import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
@@ -176,7 +177,7 @@ function GridSettings({ grid, gref, anchor, onClose }: { grid: HTMLElement; gref
             </button>
           ))}
         </div>
-        <p className="sm-hint">Les vidéos gardent leur cadre 16:9.</p>
+        <p className="sm-hint">Les vidéos gardent leur format 16:9.</p>
       </div>
       {(custom || auto) && (
         <div className="tc-row pe-gs-row">
@@ -605,7 +606,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
           key={imgBgFor.uid}
           anchor={cellAnchor(imgBgFor.uid, "imgbg")}
           value={lookOf(imgBgFor.uid).imageBg}
-          onChange={(imageBg) => sendLook(imgBgFor.uid, { ...lookOf(imgBgFor.uid), imageBg })}
+          onChange={(imageBg) => sendOwnMediaLook(imgBgFor.uid, { bg: (imageBg as ImageBg | undefined) ?? null })}
           onClose={() => setImgBgFor(null)}
         />
       )}
@@ -616,7 +617,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
           what={document.querySelector<HTMLElement>(`[data-edit-cell="${CSS.escape(frameFor.uid)}"]`)?.dataset.cellType === "video-single" ? "vidéo" : "photo"}
           anchor={cellAnchor(frameFor.uid, "frame")}
           value={lookOf(frameFor.uid).frame}
-          onChange={(frame) => sendLook(frameFor.uid, { ...lookOf(frameFor.uid), frame })}
+          onChange={(frame) => sendOwnMediaLook(frameFor.uid, { frame: frame ?? null })}
           onClose={() => setFrameFor(null)}
         />
       )}

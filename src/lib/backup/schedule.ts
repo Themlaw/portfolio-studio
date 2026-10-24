@@ -31,7 +31,7 @@ export function rotationPlan(names: string[], keep: number): string[] {
   return sorted.slice(0, Math.max(0, sorted.length - n));
 }
 
-export type DueReason = "premier" | "calme" | "delai";
+export type DueReason = "premier" | "calme" | "delai" | "manuel";
 
 export type SchedState = {
   /** Des modifications n'ont pas encore été sauvegardées. */
@@ -54,7 +54,19 @@ export function dueReason(s: SchedState, now: number, c: Pick<BackupConfig, "qui
   return null;
 }
 
+/**
+ * Date (ms) de la prochaine sauvegarde prévue, ou null quand rien n'est prévu (aucune modification en attente).
+ * `immediate` : la première sauvegarde part dès la prochaine vérification.
+ */
+export function nextDueAt(s: SchedState, c: Pick<BackupConfig, "quietMs" | "maxMs">): number | null {
+  const floor = s.notBefore;
+  if (s.lastBackupAt === null) return floor;
+  if (!s.dirty) return null;
+  return Math.max(floor, Math.min(s.lastChangeAt + c.quietMs, s.lastBackupAt + c.maxMs));
+}
+
 export type SchedulerDeps = {
+  /** Lu à CHAQUE vérification : les réglages de l'admin changent en cours de route. */
   config: Pick<BackupConfig, "quietMs" | "maxMs">;
   now: () => number;
   /** Une écriture a-t-elle eu lieu depuis le dernier appel ? */
@@ -64,6 +76,8 @@ export type SchedulerDeps = {
   /** Mémorise l'état « modifications en attente » (survit à un redémarrage). */
   persist?: (s: { dirty: boolean; lastChangeAt: number }) => void;
   onError?: (error: unknown) => void;
+  /** Sauvegardes automatiques en marche ? Désactivées, les modifications sont quand même relevées (rien n'est oublié à la réactivation). */
+  enabled?: () => boolean;
 };
 
 /** Attente après un échec : au moins une minute, jamais plus que le délai maximal. */
@@ -95,9 +109,25 @@ export class Scheduler {
       // Écrit à chaque transition seulement (la date de calme se lit ensuite en mémoire).
       if (!wasDirty) deps.persist?.({ dirty: true, lastChangeAt: now });
     }
-    if (this.running) return null;
+    if (this.running || (deps.enabled && !deps.enabled())) return null;
     const reason = dueReason(this.state, now, deps.config);
     if (!reason) return null;
+    await this.execute(reason);
+    return reason;
+  }
+
+  /**
+   * Sauvegarde à la demande (bouton « Sauvegarder maintenant ») : sans attendre les délais, mais avec le même verrou.
+   * Retourne false si une sauvegarde est déjà en cours. L'échec est relevé par onError ET relancé à l'appelant.
+   */
+  async runNow(reason: DueReason = "manuel"): Promise<boolean> {
+    if (this.running) return false;
+    await this.execute(reason, true);
+    return true;
+  }
+
+  private async execute(reason: DueReason, rethrow = false): Promise<void> {
+    const { deps } = this;
     this.running = true;
     // Les modifications qui arrivent PENDANT la sauvegarde la rendront de nouveau « à faire ».
     const wasDirty = this.state.dirty;
@@ -113,9 +143,9 @@ export class Scheduler {
       this.state.notBefore = deps.now() + failureCooldownMs(deps.config);
       if (this.state.dirty) deps.persist?.({ dirty: true, lastChangeAt: this.state.lastChangeAt });
       deps.onError?.(error);
+      if (rethrow) throw error;
     } finally {
       this.running = false;
     }
-    return reason;
   }
 }

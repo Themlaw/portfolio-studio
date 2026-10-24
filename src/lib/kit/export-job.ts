@@ -10,7 +10,7 @@
  */
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { mkdir, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { and, desc, eq, inArray } from "drizzle-orm";
@@ -21,6 +21,10 @@ import { getStorage } from "@/lib/storage";
 import { siteNameFor } from "@/lib/site-schema";
 import { PRESETS } from "@/themes/presets";
 import { ThemeSchema, type Theme } from "@/themes/schema";
+
+import { readStoredSeo } from "@/lib/edit/seo";
+import { readIcon } from "@/lib/favicon";
+import { planIcon } from "@/lib/favicon-plan";
 
 import { exportIdOf, loadManifests } from "./manifest";
 import { KIT_V4_VERSION } from "./spec";
@@ -52,8 +56,11 @@ export function kitSiteName(): string {
   return siteNameFor(site?.name, "fr").trim() || "Portfolio";
 }
 
-/** Version du kit d'un thème : son état enregistré et le nom du site. */
-export const kitVersion = (theme: Theme) => themeVersion(theme, kitSiteName());
+/** Version du kit d'un thème : son état enregistré, le nom du site et l'icône actuelle du site (pré-remplie dans la case « Icône du site », lot 83). */
+export const kitVersion = (theme: Theme) => {
+  const siteName = kitSiteName();
+  return themeVersion(theme, `${siteName}\n${planIcon(readStoredSeo(), theme, siteName).fp}`);
+};
 
 /** Thème enregistré (base, sinon preset livré), jamais l'aperçu en cours d'édition. */
 export function loadSavedTheme(id: string): Theme | null {
@@ -247,7 +254,25 @@ export type KitAssetFile = { file: string; w: number; h: number; x?: number; y?:
 export async function kitAssetFiles(theme: Theme): Promise<Record<string, KitAssetFile>> {
   const kit = theme.assets.kit;
   const out: Record<string, KitAssetFile> = {};
-  if (!kit) return out;
+  if (kit) await addKitAssets(theme, kit, out);
+  // Lot 83 : la case « Icône du site » montre l'icône ACTUELLE du site (logo, monogramme ou image) tant que le calque n'est pas dessiné.
+  if (!out["icone-site"]) {
+    try {
+      const png = await readIcon(planIcon(readStoredSeo(), theme, kitSiteName()), "512.png");
+      if (png) {
+        await mkdir(kitDir(), { recursive: true });
+        const file = path.join(/* turbopackIgnore: true */ kitDir(), `icone-site-${theme.id.replace(/[^a-zA-Z0-9-]/g, "_")}.png`);
+        await writeFile(file, png);
+        out["icone-site"] = { file, w: 512, h: 512 };
+      }
+    } catch (error) {
+      console.error("[kit] icône actuelle du site indisponible, case laissée au gabarit", error);
+    }
+  }
+  return out;
+}
+
+async function addKitAssets(theme: Theme, kit: NonNullable<Theme["assets"]["kit"]>, out: Record<string, KitAssetFile>): Promise<void> {
   const storage = getStorage();
   const add = async (slotId: string, img: { svg?: string; webp?: string; w: number; h: number; x?: number; y?: number } | null | undefined) => {
     const url = img?.svg ?? img?.webp;
@@ -257,6 +282,7 @@ export async function kitAssetFiles(theme: Theme): Promise<Record<string, KitAss
   };
   for (let n = 0; n < 5; n++) await add(`hero/plan-${n + 1}`, kit.plans?.[n]);
   await add("signature", kit.signature);
+  await add("icone-site", kit.icon);
   await add("papier", kit.paper?.image);
   await add("cadre", kit.frame?.image);
   await add("trait", kit.stroke);
@@ -274,7 +300,6 @@ export async function kitAssetFiles(theme: Theme): Promise<Record<string, KitAss
     const file = await storage.localPath(c.png2x.slice("/media/".length));
     if (file) out[slotId] = { file, w: 64, h: 64, x: c.x, y: c.y };
   }
-  return out;
 }
 
 /** Job « kit » (file lourde) : génère le PSD de la version demandée. */
@@ -286,7 +311,7 @@ export async function runKitJob(job: { id: number; payload: Record<string, unkno
   const theme = loadSavedTheme(themeId);
   if (!theme) return void finish("failed", "Ce thème n'existe plus.");
   const siteName = kitSiteName();
-  const version = themeVersion(theme, siteName);
+  const version = kitVersion(theme);
   // Le thème a changé depuis la demande : la nouvelle version sera demandée à son tour.
   if (version !== job.payload?.version) return void finish("done");
   await mkdir(kitDir(), { recursive: true });

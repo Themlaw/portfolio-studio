@@ -124,7 +124,7 @@ const upZip = await upload(bytes(zipEdited), "kit-v4-modifie.zip", { type: "appl
 const idZip = upZip.body.kitImport?.id;
 const stZip = await waitImport("galerie-lumineuse", idZip);
 const rZip = stZip.status === "done" ? rapportOf(idZip) : null;
-ok("H2 archive entière : importée, 16 éléments (décor 5, logo 3, icônes 8), seule la flèche droite redessinée", upZip.status === 200 && rZip?.slots.length === 16 && rZip.slots.filter((s) => s.change === "redrawn").map((s) => s.id).join() === "icones/fleche-droite" && rZip.files.map((f) => `${f.id}:${f.slots}`).join() === "decor:5,logo:3,icones:8", JSON.stringify({ st: stZip, f: rZip?.files }));
+ok("H2 archive entière : importée, 17 éléments (décor 5, logo 4, icônes 8), seule la flèche droite redessinée", upZip.status === 200 && rZip?.slots.length === 17 && rZip.slots.filter((s) => s.change === "redrawn").map((s) => s.id).join() === "icones/fleche-droite" && rZip.files.map((f) => `${f.id}:${f.slots}`).join() === "decor:5,logo:4,icones:8", JSON.stringify({ st: stZip, f: rZip?.files }));
 ok("H2 archive : les PSD extraits sont supprimés après l'import", !readdirSync(path.join(DATA, "kit-imports", idZip)).some((n) => /\.psd$/.test(n)));
 const htmlZip = await (await get(`/admin/themes/galerie-lumineuse/kit?import=${idZip}`)).text();
 ok("H3 revue de l'archive : un bloc par fichier, tous reçus, flèche droite redessinée", ["decor", "logo", "icones"].every((f) => new RegExp(`data-file="${f}" data-received="true"`).test(htmlZip)) && htmlZip.includes("Flèche droite : redessinée"), htmlZip.slice(0, 0));
@@ -186,7 +186,7 @@ const again = await upload(draftZip, `kit-${draftId}.zip`, { themeId: draftId, t
 const stAgain = await waitImport(draftId, again.body.kitImport?.id);
 const rAgain = stAgain.status === "done" ? rapportOf(again.body.kitImport.id) : null;
 const modified = rAgain?.slots.filter((s) => s.change !== "unchanged") ?? [];
-ok(`H5 kit de la copie (décor de 4 plans + flèche de l'artiste) réimporté tel quel : ${rAgain?.slots.length} éléments, 0 modifié`, draftReady.ready && rAgain?.reference?.how === "identifiant" && rAgain.slots.length === 15 && modified.length === 0 && rAgain.decor?.structure === "unchanged" && rAgain.decor.count === 4, JSON.stringify({ n: rAgain?.slots.length, modified: modified.map((s) => `${s.id}:${s.change}`), decor: rAgain?.decor }));
+ok(`H5 kit de la copie (décor de 4 plans + flèche de l'artiste) réimporté tel quel : ${rAgain?.slots.length} éléments, 0 modifié`, draftReady.ready && rAgain?.reference?.how === "identifiant" && rAgain.slots.length === 16 && modified.length === 0 && rAgain.decor?.structure === "unchanged" && rAgain.decor.count === 4, JSON.stringify({ n: rAgain?.slots.length, modified: modified.map((s) => `${s.id}:${s.change}`), decor: rAgain?.decor }));
 
 /* ---- H6. Ancien kit mono-fichier (fichier réel de l'artiste) ---------------------------------------------- */
 const manifests = path.join(DATA, "cache/kits/manifests");

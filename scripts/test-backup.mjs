@@ -175,6 +175,60 @@ const { Scheduler, dueReason, rotationPlan, sortArchives, archiveName, failureCo
   ok("nom : portfolio-AAAAMMJJ-HHMMSS.tar.gz", archiveName(new Date(2026, 8, 5, 4, 3, 2)) === "portfolio-20260905-040302.tar.gz" && archiveName(new Date(2026, 8, 5, 4, 3, 2), 2) === "portfolio-20260905-040302-2.tar.gz");
 }
 
+/* ---- 3b. lot 76 : réglages de l'admin, origine des valeurs, prochaine date, sauvegarde à la demande, téléchargement ------- */
+{
+  const { sanitizeOverrides } = await import("../src/lib/backup/config.ts");
+  const { nextDueAt } = await import("../src/lib/backup/schedule.ts");
+  const { parseRange, isArchiveName } = await import("../src/lib/backup/download.ts");
+  const env = { WITH_BACKUP: "1", BACKUP_KEEP: "5", BACKUP_QUIET_SEC: "4" };
+  const base = readBackupConfig(env);
+  ok("admin76 origine : environnement et défauts dits", base.sources.enabled === "env" && base.sources.keep === "env" && base.sources.quietMin === "env" && base.sources.maxHours === "defaut" && base.sources.media === "defaut", JSON.stringify(base.sources));
+  const over = readBackupConfig(env, { keep: 2, quietMin: 20, media: false, enabled: false });
+  ok("admin76 un réglage de l'admin PRIME sur l'environnement", over.keep === 2 && over.quietMs === 1_200_000 && over.media === false && over.enabled === false, JSON.stringify(over));
+  ok("admin76 origine : « réglé ici » pour ces champs seulement", over.sources.keep === "reglage" && over.sources.quietMin === "reglage" && over.sources.media === "reglage" && over.sources.enabled === "reglage" && over.sources.maxHours === "defaut");
+  const only = readBackupConfig({}, { enabled: true });
+  ok("admin76 activé depuis l'admin sans WITH_BACKUP", only.enabled === true && only.sources.enabled === "reglage" && only.keep === 3);
+  ok("admin76 réglage retiré = retour à l'environnement", readBackupConfig(env, {}).keep === 5);
+  ok("admin76 valeur d'env invalide : source « défaut »", readBackupConfig({ BACKUP_KEEP: "abc" }).sources.keep === "defaut");
+  ok("admin76 données stockées abîmées ignorées", eq(sanitizeOverrides({ keep: -1, quietMin: "x", maxHours: 9999, enabled: "oui", media: true, intrus: 1 }), { media: true }) && eq(sanitizeOverrides(null), {}) && eq(sanitizeOverrides([1]), {}));
+  ok("admin76 données stockées valides conservées", eq(sanitizeOverrides({ keep: 4, quietMin: 15, maxHours: 2, enabled: true, media: false }), { enabled: true, media: false, keep: 4, quietMin: 15, maxHours: 2 }));
+
+  const c = { quietMs: 600_000, maxMs: 21_600_000 };
+  const st = (o) => ({ dirty: false, lastChangeAt: 0, lastBackupAt: 1_000_000, notBefore: 0, ...o });
+  ok("admin76 prochaine : aucune modification = rien de prévu", nextDueAt(st({}), c) === null);
+  ok("admin76 prochaine : calme (dernière modif + quiétude)", nextDueAt(st({ dirty: true, lastChangeAt: 2_000_000 }), c) === 2_600_000);
+  ok("admin76 prochaine : délai maximal si plus proche", nextDueAt(st({ dirty: true, lastChangeAt: 21_500_000, lastBackupAt: 1_000_000 }), c) === 22_600_000 || nextDueAt(st({ dirty: true, lastChangeAt: 21_500_000, lastBackupAt: 1_000_000 }), c) === 22_100_000);
+  ok("admin76 prochaine : première sauvegarde = tout de suite", nextDueAt(st({ lastBackupAt: null }), c) === 0);
+  ok("admin76 prochaine : après un échec, pas avant notBefore", nextDueAt(st({ dirty: true, lastChangeAt: 0, notBefore: 9_999_999 }), c) === 9_999_999);
+
+  // « Sauvegarder maintenant » : sans attendre, même verrou, échec relancé à l'appelant et noté.
+  let release;
+  const ran = [];
+  const errs = [];
+  const sched = new Scheduler({ config: c, now: () => 5_000_000, changed: () => false, run: (r) => { ran.push(r); return new Promise((res) => (release = res)); }, onError: (e) => errs.push(e.message) }, { dirty: false, lastChangeAt: 0, lastBackupAt: 4_000_000 });
+  const first = sched.runNow();
+  ok("admin76 à la demande : part sans modification ni délai", ran.length === 1 && ran[0] === "manuel" && sched.busy);
+  ok("admin76 à la demande : une seule à la fois (refusée pendant une sauvegarde)", (await sched.runNow()) === false && (await sched.tick()) === null && ran.length === 1);
+  release();
+  ok("admin76 à la demande : terminée, verrou libéré", (await first) === true && !sched.busy && sched.state.lastBackupAt === 5_000_000);
+  const bad = new Scheduler({ config: c, now: () => 5_000_000, changed: () => false, run: async () => { throw new Error("disque plein"); }, onError: (e) => errs.push(e.message) }, { dirty: true, lastChangeAt: 1, lastBackupAt: 1 });
+  let thrown = "";
+  await bad.runNow().catch((e) => (thrown = e.message));
+  ok("admin76 à la demande : échec noté ET relancé, modifications gardées en attente", thrown === "disque plein" && errs.includes("disque plein") && bad.state.dirty === true && !bad.busy);
+  let enabledFlag = false;
+  const ranOff = [];
+  const off = new Scheduler({ config: c, now: () => 99_999_999_999, changed: () => true, enabled: () => enabledFlag, run: async (r) => void ranOff.push(r) }, { dirty: false, lastChangeAt: 0, lastBackupAt: 1 });
+  await off.tick();
+  ok("admin76 désactivé : modifications relevées, aucune sauvegarde", ranOff.length === 0 && off.state.dirty === true);
+  enabledFlag = true;
+  await off.tick();
+  ok("admin76 réactivé : la sauvegarde en attente part", ranOff.length === 1);
+
+  ok("admin76 nom d'archive : forme stricte seulement", isArchiveName("portfolio-20261024-101500.tar.gz") && isArchiveName("portfolio-20261024-101500-2.tar.gz") && !isArchiveName("../portfolio.db") && !isArchiveName("portfolio-20261024-101500.tar.gz/../x") && !isArchiveName("portfolio-20261024-101500.tar.gz.tmp") && !isArchiveName("state.json"));
+  ok("admin76 Range : plage, fin ouverte, suffixe", eq(parseRange("bytes=0-99", 1000), { start: 0, end: 99 }) && eq(parseRange("bytes=900-", 1000), { start: 900, end: 999 }) && eq(parseRange("bytes=-100", 1000), { start: 900, end: 999 }) && eq(parseRange("bytes=10-5000", 1000), { start: 10, end: 999 }));
+  ok("admin76 Range : hors fichier = 416, plusieurs plages ou absent = réponse complète", parseRange("bytes=1000-", 1000) === "unsatisfiable" && parseRange("bytes=-0", 1000) === "unsatisfiable" && parseRange("bytes=0-1,5-6", 1000) === null && parseRange(null, 1000) === null && parseRange("bytes=-", 1000) === null);
+}
+
 /* ---- 4 et 5. archive sur une vraie base --------------------------------------------------------------------------- */
 const { runBackup, listArchives, mediaKeysToSave, BackupSkipped } = await import("../src/lib/backup/archive.ts");
 const { extractAll, readManifest, restore } = await import("./restore-backup.mjs");
@@ -347,6 +401,16 @@ try {
   process.env.WITH_BACKUP = "1";
   const sum = backupSummary(Date.now() + 2 * 3_600_000 + 60_000);
   ok("admin : « il y a 2 h (3 gardées) »", sum === "il y a 2 h (3 gardées)", String(sum));
+  /* lot 76 : le manifest se lit sans décompresser l'archive */
+  {
+    const { readArchiveManifest } = await import("../src/lib/backup/archive.ts");
+    const r = await runBackup({ dataDir: data, config: { media: true, keep: 10 }, reason: "manuel", reader, version: "7.7.7" });
+    const m = await readArchiveManifest(path.join(data, "backup", r.name));
+    ok("admin76 manifest lu sans tout décompresser : version, raison, contenu", m?.version === "7.7.7" && m.reason === "manuel" && m.includesMedia === true && typeof m.mediaCount === "number" && !Number.isNaN(Date.parse(m.createdAt)), JSON.stringify(m));
+    const r0 = await runBackup({ dataDir: data, config: { media: false, keep: 10 }, reason: "calme", reader });
+    ok("admin76 manifest : base seule reconnue", (await readArchiveManifest(path.join(data, "backup", r0.name)))?.includesMedia === false);
+    ok("admin76 manifest : fichier absent ou illisible = null", (await readArchiveManifest(path.join(data, "backup", "portfolio-19990101-000000.tar.gz"))) === null);
+  }
   reader.close();
   main.close();
 } finally {

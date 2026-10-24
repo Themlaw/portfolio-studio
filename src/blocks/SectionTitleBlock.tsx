@@ -112,7 +112,7 @@ export default async function SectionTitleBlock({ props, ctx }: { props: z.infer
         </p>
       )}
       {counts !== null && (
-        <p className="eyebrow mt-6" {...(ctx.edit ? { title: "Compté automatiquement depuis les planches de cette page", "data-edit-counter": "", "data-look-key": "counts" } : {})} {...textStyle(ctx, "counts")}>
+        <p className="eyebrow mt-6" {...(ctx.edit ? { title: "Compté automatiquement depuis les projets de cette page", "data-edit-counter": "", "data-look-key": "counts" } : {})} {...textStyle(ctx, "counts")}>
           {counts}
         </p>
       )}

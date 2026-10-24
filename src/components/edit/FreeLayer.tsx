@@ -21,11 +21,13 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 
 import { FREE_MAX_W, FREE_MIN_W, snapBox, type FreeBox, type FreeGuides } from "@/blocks/free-board";
 import { imageBgCss, RADII, RADIUS_LABELS, type Frame, type ImageBg, type Radius } from "@/lib/look";
+import type { MediaPatch } from "@/lib/edit/media-look";
 import type { FreeCanvasOp } from "@/lib/edit/protocol";
 
 import FrameWindow from "./FrameMenu";
 import ImageBgWindow from "./ImageBgMenu";
 import { clearAspect, clearItem, findItem, findZone, freeKey, freeRefOf, ITEM_SELECTOR, itemsOf, readItem, writeAspect, writeItem, type FreeGeom, type FreeRef } from "./free-dom";
+import { sendMediaLook } from "./LookLayer";
 import { postIntent, setOverlay } from "./optimistic";
 
 type Sel = { key: string; id: string };
@@ -34,6 +36,11 @@ type Place = Partial<Pick<FreeGeom, "x" | "y" | "w" | "rot">>;
 /** Envoie une opération à l'éditeur ; renvoie le numéro de l'intention. */
 function send(ref: FreeRef, op: FreeCanvasOp): number {
   return postIntent({ kind: "free-op", uid: ref.uid, ...(ref.board ? { board: ref.board, ...(ref.props ? { props: ref.props } : {}) } : {}), op });
+}
+
+/** Habillage d'une image (cadre, fond, arrondi) : l'écriture commune `media-look` (lot 75), cible = cette image de la planche libre. */
+function sendFreeLook(ref: FreeRef, id: string, patch: MediaPatch): number {
+  return sendMediaLook({ kind: "free", uid: ref.uid, ...(ref.board ? { board: ref.board, ...(ref.props ? { props: ref.props } : {}) } : {}), id }, patch);
 }
 
 /** Aperçu gardé jusqu'à l'acquittement : la valeur voulue reste à l'écran par-dessus la page rendue en retard ; refus = valeur d'origine. */
@@ -465,7 +472,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
             </button>
             <label className="pe-slot-radius" title="Arrondi de cette image">
               <span>Arrondi</span>
-              <select aria-label="Arrondi de cette image" data-testid="free-radius" value={style.radius ?? "none"} onChange={(e) => send(ref, { op: "style", id: sel.id, radius: e.target.value === "none" ? null : (e.target.value as Radius) })}>
+              <select aria-label="Arrondi de cette image" data-testid="free-radius" value={style.radius ?? "none"} onChange={(e) => sendFreeLook(ref, sel.id, { radius: e.target.value === "none" ? null : (e.target.value as Radius) })}>
                 {RADII.map((r) => (
                   <option key={r} value={r}>
                     {r === "none" ? "Aucun" : RADIUS_LABELS[r]}
@@ -507,10 +514,10 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
           </div>
         )}
         {bgOpen && !gesturing && (
-          <ImageBgWindow testId="free-imgbg" anchor='[data-testid="free-imgbg-button"]' value={style.bg} onClose={() => setBgOpen(false)} onChange={(bg) => send(ref, { op: "style", id: sel.id, bg: (bg as ImageBg | undefined) ?? null })} />
+          <ImageBgWindow testId="free-imgbg" anchor='[data-testid="free-imgbg-button"]' value={style.bg} onClose={() => setBgOpen(false)} onChange={(bg) => sendFreeLook(ref, sel.id, { bg: (bg as ImageBg | undefined) ?? null })} />
         )}
         {frameOpen && !gesturing && (
-          <FrameWindow testId="free-frame" what={isVideo ? "vidéo" : "photo"} anchor='[data-testid="free-frame-button"]' value={style.frame} onClose={() => setFrameOpen(false)} onChange={(frame) => send(ref, { op: "style", id: sel.id, frame: frame ?? null })} />
+          <FrameWindow testId="free-frame" what={isVideo ? "vidéo" : "photo"} anchor='[data-testid="free-frame-button"]' value={style.frame} onClose={() => setFrameOpen(false)} onChange={(frame) => sendFreeLook(ref, sel.id, { frame: frame ?? null })} />
         )}
       </Fragment>
     );

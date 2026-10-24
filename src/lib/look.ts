@@ -341,8 +341,8 @@ export function needsCrop(imageRatio: number, boxRatio: number): boolean {
 
 /**
  * Un seul choix par photo ou vidéo (lot 62) : « Aucun » (`none`), « Cadre du thème » (`theme` : le cadre dessiné dans le kit),
- * « Bande de couleur » (`band` : un filet d'épaisseur et de couleur choisies) ou, plus tard, un cadre de la bibliothèque
- * (`custom`, `id` = son identifiant : prévu dans les types, la validation et le rendu, pas encore proposé dans l'interface).
+ * « Bordure » (`band` : un filet d'épaisseur et de couleur choisies) ou, plus tard, un cadre de la bibliothèque
+ * (`custom`, `id` = son identifiant ; lot 74 : proposé dans le menu « Cadre » sous le nom « Cadre perso », rendu par src/themes/frame-library.ts).
  * Sans choix (réglage absent), la photo suit le réglage du site « Cadre du thème sur toutes les photos » (non par défaut).
  */
 export const FRAME_KINDS = ["none", "theme", "band", "custom"] as const;
@@ -352,7 +352,7 @@ export const FRAME_WIDTHS = ["fin", "moyen", "epais"] as const;
 export type FrameWidth = (typeof FRAME_WIDTHS)[number];
 export const FRAME_WIDTH_LABELS: Record<FrameWidth, string> = { fin: "Fin", moyen: "Moyen", epais: "Épais" };
 export const FRAME_DEFAULT_WIDTH: FrameWidth = "moyen";
-export const FRAME_KIND_LABELS: Record<Exclude<FrameKind, "custom">, string> = { none: "Aucun", theme: "Cadre du thème", band: "Bande de couleur" };
+export const FRAME_KIND_LABELS: Record<FrameKind, string> = { none: "Aucun", theme: "Cadre du thème", band: "Bordure", custom: "Cadre perso" };
 /**
  * Couleur de la bande quand rien n'est choisi (« Couleur par défaut ») : le texte du thème (`ink`). C'est la seule teinte
  * lisible sur le papier de tous les thèmes livrés (l'ornement `tertiary` est presque invisible sur le thème Studio : 1,7:1)
@@ -365,7 +365,7 @@ const LEGACY_FRAME_WIDTHS: Record<string, FrameWidth> = { thin: "fin", medium: "
 
 /**
  * Ancien réglage de cadre (avant le lot 62 : `{ size: "thin" | "medium" | "thick" | "none", color? }`) → nouvelle forme, sans changer le
- * rendu d'un choix explicite : « none » = Aucun, une épaisseur = Bande de couleur de cette épaisseur. Une valeur déjà à la nouvelle forme,
+ * rendu d'un choix explicite : « none » = Aucun, une épaisseur = Bordure de cette épaisseur. Une valeur déjà à la nouvelle forme,
  * ou qui n'est pas un ancien cadre, est rendue telle quelle. Idempotent. Sert à la migration des données ET à la lecture (sauvegarde ancienne,
  * brouillon non migré).
  */
@@ -474,7 +474,7 @@ export function imageBgAttrs(bg: string | undefined): { "data-img-bg": ""; style
 /**
  * Habillage d'une photo ou d'une vidéo, quel que soit son conteneur (image seule, vidéo seule, case de grille, composant de planche,
  * place d'un carrousel, image de la Planche libre) : cadre, fond derrière le média, arrondi propre. Chaque conteneur lit SES clés
- * (`look.frame` / `look.imageBg`, `slotFrame[slug]` / `slotBg[slug]` / `slotRadius[slug]`, `items[].frame` / `.bg` / `.radius`) et les passe ici :
+ * (`look.frame` / `look.imageBg`, `slotLook[slug]`, `items[].frame` / `.bg` / `.radius`) et les passe ici :
  * le rendu est le même (composant MediaFrame).
  */
 export type MediaLook = { frame?: unknown; bg?: string; radius?: Radius };
@@ -496,6 +496,66 @@ export function mediaLookAttrs(look: MediaLook | undefined): MediaLookRender {
   };
 }
 
+/* ---- Habillage ENREGISTRÉ d'un média (lot 75, R4) ------------------------------------------------------------------------- */
+
+/** Lecture d'une vidéo (Boucle / Lecteur) et mise en page d'un panorama (entier / à faire défiler) d'une place de carrousel. */
+export const SLOT_VIDEO_MODES = ["loop", "player"] as const;
+export const SLOT_PANO_MODES = ["fit", "scroll"] as const;
+export type SlotVideoMode = (typeof SLOT_VIDEO_MODES)[number];
+export type SlotPanoMode = (typeof SLOT_PANO_MODES)[number];
+
+/**
+ * Tout ce que l'artiste règle pour UN média, sous une seule forme (lot 75) : cadre, fond derrière l'image, arrondi, panorama et lecture
+ * de la vidéo. Une place de carrousel le garde dans `look.slotLook[slug]` (elle remplace les cinq cartes `slotFrame`, `slotBg`,
+ * `slotRadius`, `slotPano` et `slotVideo`), une image de la Planche libre dans `frame` / `bg` / `radius` de sa ligne.
+ */
+export const MediaLookDataSchema = z.strictObject({
+  frame: FrameSchema.optional(),
+  bg: ImageBgSchema.optional(),
+  radius: z.enum(RADII).optional(),
+  pano: z.enum(SLOT_PANO_MODES).optional(),
+  video: z.enum(SLOT_VIDEO_MODES).optional(),
+});
+export type MediaLookData = z.infer<typeof MediaLookDataSchema>;
+export const MEDIA_LOOK_FIELDS = ["frame", "bg", "radius", "pano", "video"] as const;
+export type MediaLookField = (typeof MEDIA_LOOK_FIELDS)[number];
+
+/** Anciennes cartes par place (avant le lot 75) → champ de `slotLook[slug]`. */
+const LEGACY_SLOT_MAPS = { slotFrame: "frame", slotBg: "bg", slotRadius: "radius", slotPano: "pano", slotVideo: "video" } as const;
+
+/**
+ * Ancien `look` (cinq cartes par place : `slotFrame`, `slotBg`, `slotRadius`, `slotPano`, `slotVideo`) → nouvelle forme (`slotLook`), sans
+ * changer ce qui s'affiche. Une valeur déjà posée dans `slotLook` prime. Idempotent ; une valeur qui n'est pas un `look` à l'ancienne
+ * forme est rendue telle quelle (même objet). Sert à la migration des données ET à la lecture (sauvegarde ancienne, brouillon non migré).
+ */
+export function upgradeLook(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const o = raw as Record<string, unknown>;
+  if (!Object.keys(LEGACY_SLOT_MAPS).some((k) => k in o)) return raw;
+  const out: Record<string, unknown> = {};
+  const slots: Record<string, Record<string, unknown>> = {};
+  const own = o.slotLook;
+  if (own && typeof own === "object" && !Array.isArray(own)) {
+    for (const [slug, v] of Object.entries(own)) if (v && typeof v === "object" && !Array.isArray(v)) slots[slug] = { ...(v as Record<string, unknown>) };
+  }
+  for (const [key, value] of Object.entries(o)) {
+    if (!Object.hasOwn(LEGACY_SLOT_MAPS, key)) {
+      out[key] = value;
+      continue;
+    }
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const field = LEGACY_SLOT_MAPS[key as keyof typeof LEGACY_SLOT_MAPS];
+    for (const [slug, v] of Object.entries(value)) {
+      if (v === undefined) continue;
+      const entry = (slots[slug] ??= {});
+      if (entry[field] === undefined) entry[field] = v;
+    }
+  }
+  if (Object.keys(slots).length) out.slotLook = slots;
+  else delete out.slotLook;
+  return out;
+}
+
 /* ---- Réglages d'un bloc (props.look) --------------------------------------------- */
 
 /** Chemin d'un texte du bloc (comme `inline` au registre) ; `site.name` / `site.role` : textes du site posés dans le bloc. */
@@ -503,7 +563,7 @@ const TextPath = z.string().max(80).regex(/^[a-zA-Z]+(\.(\d{1,2}|[a-zA-Z]+))*$/)
 const bounded = <T extends z.ZodType>(rec: T, max: number, label: string) =>
   rec.refine((v) => Object.keys(v as object).length <= max, `${max} ${label} au plus.`);
 
-export const LookSchema = z.strictObject({
+const LookCoreSchema = z.strictObject({
   spaceTop: z.enum(SPACES).optional(),
   spaceBottom: z.enum(SPACES).optional(),
   radius: z.enum(RADII).optional(),
@@ -519,36 +579,51 @@ export const LookSchema = z.strictObject({
    * Arrondi d'une image précise d'une planche (intégration lots 2 + 3), par
    * emplacement (slug de l'emplacement) : surcharge l'arrondi du bloc.
    */
-  slotRadius: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), z.enum(RADII)), 200, "arrondis d'images").optional(),
   /** Cadre autour de la photo d'un bloc Image (page, case de grille) : lot 34. */
   frame: FrameSchema.optional(),
-  /** Cadre d'une image précise d'une planche, par emplacement (slug) : lot 34. */
-  slotFrame: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), FrameSchema), 200, "cadres d'images").optional(),
-  /** Lecture d'une vidéo précise d'un carrousel (Boucle / Lecteur), par emplacement (slug) : lot 38. Absent : le réglage ancien de la bande, sinon la nature de la vidéo. */
-  slotVideo: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), z.enum(["loop", "player"])), 200, "lectures de vidéos").optional(),
   /** Image seule (page ou planche, lot 40) : « large » lève le plafond de hauteur ; absent = Normale (comme avant). */
   imageSize: z.enum(["large"]).optional(),
   /** Image seule (lot 40) : place de l'image (et de sa légende) dans le cadre ; absent = comme avant (centrée, légende pleine largeur). */
   imageAlign: z.enum(IMAGE_ALIGNS).optional(),
   /** Fond derrière l'image d'un bloc Image (page, case de grille, image de planche) : lot 41. */
   imageBg: ImageBgSchema.optional(),
-  /** Fond derrière une image précise d'une planche ou d'un carrousel, par emplacement (slug) : lot 41. */
-  slotBg: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), ImageBgSchema), 200, "fonds d'images").optional(),
-  /** Panorama d'une image précise d'un carrousel, par emplacement (slug) : lot 45. Absent = « fit » (entière, jamais plus large que le carrousel) ; « scroll » = à faire défiler (comme avant). */
-  slotPano: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), z.enum(["fit", "scroll"])), 200, "panoramas d'images").optional(),
+  /**
+   * Habillage de chaque place d'un carrousel (lot 75, R4), par emplacement (slug) : cadre, fond d'image, arrondi, panorama et lecture de
+   * la vidéo, en UNE carte (avant : `slotFrame`, `slotBg`, `slotRadius`, `slotPano`, `slotVideo`, relues par `upgradeLook`). Il suit la place
+   * (déplacée, image remplacée). Propriétaire : la rubrique de la page qui montre la planche (voir le rapport du lot 75).
+   */
+  slotLook: bounded(z.record(z.string().max(80).regex(/^[a-z0-9-]+$/), MediaLookDataSchema), 500, "habillages d'images").optional(),
 });
+export const LookSchema = z.preprocess(upgradeLook, LookCoreSchema);
 export type Look = z.infer<typeof LookSchema>;
 
-/** Lecture tolérante : un réglage invalide est ignoré, jamais fatal. */
+/** Lecture tolérante : un réglage invalide est ignoré, jamais fatal. L'ancienne forme des places de carrousel est relue en `slotLook`. */
 export function readLook(raw: unknown): Look | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const parsed = LookSchema.safeParse(raw);
   if (parsed.success) return isEmptyLook(parsed.data) ? undefined : parsed.data;
-  // Garde ce qui passe, clé par clé.
+  // Garde ce qui passe, clé par clé (les places d'un carrousel : place par place, champ par champ).
+  const up = upgradeLook(raw) as Record<string, unknown>;
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(raw)) {
+  for (const [k, v] of Object.entries(up)) {
     const one = LookSchema.safeParse({ [k]: v });
     if (one.success) Object.assign(out, one.data);
+    else if (k === "slotLook" && v && typeof v === "object" && !Array.isArray(v)) {
+      const slots: Record<string, unknown> = {};
+      for (const [slug, entry] of Object.entries(v)) {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+        const keep: Record<string, unknown> = {};
+        for (const [f, x] of Object.entries(entry)) {
+          const ok = LookSchema.safeParse({ slotLook: { [slug]: { [f]: x } } });
+          if (ok.success) Object.assign(keep, (ok.data as Look).slotLook?.[slug]);
+        }
+        if (Object.keys(keep).length) slots[slug] = keep;
+      }
+      if (Object.keys(slots).length) {
+        const ok = LookSchema.safeParse({ slotLook: slots });
+        if (ok.success) Object.assign(out, ok.data);
+      }
+    }
   }
   return isEmptyLook(out as Look) ? undefined : (out as Look);
 }
@@ -558,12 +633,19 @@ export function isEmptyLook(look: Look | undefined): boolean {
   return Object.values(look).every((v) => v === undefined || (typeof v === "object" && v !== null && Object.keys(v).length === 0));
 }
 
-/** Retire les clés vides (un « Auto » remis efface le réglage). */
+/** Retire les clés vides (un « Auto » remis efface le réglage). Les habillages de places (`slotLook`) sont nettoyés champ par champ. */
 export function cleanLook(look: Look): Look | undefined {
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(look)) {
+  for (const [k, v] of Object.entries(upgradeLook(look) as Look)) {
     if (v === undefined) continue;
-    if (v && typeof v === "object") {
+    if (k === "slotLook" && v && typeof v === "object") {
+      const slots: Record<string, unknown> = {};
+      for (const [slug, entry] of Object.entries(v as Record<string, Record<string, unknown>>)) {
+        const inner = Object.fromEntries(Object.entries(entry ?? {}).filter(([, x]) => x !== undefined));
+        if (Object.keys(inner).length) slots[slug] = inner;
+      }
+      if (Object.keys(slots).length) out[k] = slots;
+    } else if (v && typeof v === "object") {
       const inner = Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined && !(x && typeof x === "object" && Object.keys(x).length === 0)));
       if (Object.keys(inner).length) out[k] = inner;
     } else out[k] = v;

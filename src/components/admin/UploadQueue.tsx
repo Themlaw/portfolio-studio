@@ -175,7 +175,7 @@ export function UploadQueueProvider({ children }: { children: React.ReactNode })
       });
       if (media.tagWarning) toast(media.tagWarning, "error");
       const placeError = await place(item, media.id);
-      if (placeError) patch(key, { message: `Ajouté à la bibliothèque, mais pas à la planche : ${placeError}` });
+      if (placeError) patch(key, { message: `Ajouté à la bibliothèque, mais pas au projet : ${placeError}` });
       files.current.delete(key);
       refreshTags();
       const done = itemsRef.current.find((i) => i.key === key) ?? item;

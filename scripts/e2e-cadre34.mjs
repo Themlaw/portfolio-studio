@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
  * Lot 34 « cadre autour des photos » (chromium, serveur requis, base neuve, une connexion admin).
- *  I  Image seule : choix « Bande de couleur » (lot 62 : plus d'interrupteur), épaisseur Fin / Moyen / Épais, couleur par défaut, pastille de la
+ *  I  Image seule : choix « Bordure » (lot 62 : plus d'interrupteur), épaisseur Fin / Moyen / Épais, couleur par défaut, pastille de la
  *     palette, couleur libre ; rendu sur la toile (style calculé), enregistré dans `look.frame`.
  *  G  Case de grille : même réglage ; la case garde sa taille extérieure (celle de ses voisines), rien n'est rogné.
- *  B  Image d'une planche de projet : bouton « Cadre » de la barre de l'image, enregistré dans `look.slotFrame` (par emplacement).
+ *  B  Image d'une planche de projet : bouton « Cadre » de la barre de l'image, enregistré dans `look.slotLook[slug].frame` (par emplacement).
  *  U  Annuler retire le cadre ; « Aucun » aussi (plus de bordure).
  *  P  Publication : même rendu en public (style calculé), pas de cadre sur les autres photos ni dans la visionneuse,
  *     téléphone (390 px) : cadre plus mince, aucun débordement horizontal.
@@ -178,7 +178,7 @@ async function openMenu(fr, uid) {
   await dlg.waitFor({ timeout: 15000 });
   return dlg;
 }
-// Lot 62 : plus d'interrupteurs : UN choix (Aucun · Cadre du thème · Bande de couleur). `sw` = le choix « Bande de couleur » (ce que l'interrupteur
+// Lot 62 : plus d'interrupteurs : UN choix (Aucun · Cadre du thème · Bordure). `sw` = le choix « Bordure » (ce que l'interrupteur
 // « Cadre » activait), `sizeBtn` = l'épaisseur (thin/medium/thick = Fin/Moyen/Épais).
 const sw = (dlg) => dlg.locator('[data-frame-kind="band"]');
 const WIDTH = { thin: "fin", medium: "moyen", thick: "epais" };
@@ -200,7 +200,7 @@ if (run("I"))
     ok("I0 aucun cadre par défaut : ni bordure, ni réglage", [base.solo, base.ga, base.gb, base.aa, base.slot].every((s) => s && s.top === 0 && s.left === 0) && !lookOfDraft("solo"), JSON.stringify(base.solo));
     const dlg = await openMenu(f, "solo");
     await page.screenshot({ path: path.join(SHOTS, "i0-menu-sans-cadre.png") });
-    ok("I1 le choix « Bande de couleur » n'est pas coché au départ : ni épaisseur ni couleur", (await sw(dlg).getAttribute("aria-checked")) === "false" && (await dlg.locator("[data-frame-width]").count()) === 0);
+    ok("I1 le choix « Bordure » n'est pas coché au départ : ni épaisseur ni couleur", (await sw(dlg).getAttribute("aria-checked")) === "false" && (await dlg.locator("[data-frame-width]").count()) === 0);
     await sw(dlg).click();
     ok("I2 allumé : épaisseur et couleur apparaissent, Moyen choisi", (await sw(dlg).getAttribute("aria-checked")) === "true" && (await sizeBtn(dlg, "medium").getAttribute("aria-checked")) === "true" && (await dlg.getByRole("radio", { name: "Couleur par défaut" }).getAttribute("aria-checked")) === "true");
     ok("I2 enregistré : look.frame = { kind: band, width: moyen }", await waitFor(() => isBand(lookOfDraft("solo")?.frame, "moyen"), 30000), JSON.stringify(lookOfDraft("solo")));
@@ -296,7 +296,7 @@ if (run("B"))
     let s;
     ok("B2 planche : bordure Épais dans la couleur « Boutons et liens »", await waitFor(async () => { s = await readFrame(f, SLOT0); return s && s.top >= 6 && uniform(s, s.top) && s.color === primary; }, 30000), JSON.stringify(s)); // lot 79 : plafonné à la place entre deux places de la planche (6 px)
     ok("B2 la hauteur de l'image de la bande ne change pas", near(s.h, base.slot.h, 0.6), `${s.h} / ${base.slot.h}`);
-    ok("B3 enregistré dans le bloc planche : look.slotFrame[slug]", await waitFor(() => isBand(lookOfDraft("board1")?.slotFrame?.[slug], "epais", "primary"), 30000), JSON.stringify(lookOfDraft("board1")));
+    ok("B3 enregistré dans le bloc planche : look.slotLook[slug].frame", await waitFor(() => isBand(lookOfDraft("board1")?.slotLook?.[slug]?.frame, "epais", "primary"), 30000), JSON.stringify(lookOfDraft("board1")));
     ok("B3 les autres images de la planche n'ont pas de cadre", (await f.locator('[data-edit-block="board1"] [data-edit-slot] .strip-media .media-frame').evaluateAll((l) => l.slice(1).every((i) => parseFloat(getComputedStyle(i).borderTopWidth) === 0))));
     ok("B4 la fenêtre reste ouverte et la barre de l'image avec elle", await dlg.isVisible() && (await bar.count()) === 1);
     await page.screenshot({ path: path.join(SHOTS, "b1-planche.png") });

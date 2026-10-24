@@ -8,9 +8,9 @@ import PreviewBanner from "@/components/PreviewBanner";
 import { routing, type AppLocale } from "@/i18n/routing";
 import { isBuildPhase } from "@/lib/cache";
 import { themeTypeCss } from "@/lib/look";
-import { iconLinks } from "@/lib/seo";
-import { getSeoSettings } from "@/lib/settings";
-import { getActiveTheme } from "@/lib/theme";
+import { iconLinks, manifestUrl, planIcon } from "@/lib/favicon-plan";
+import { getSeoSettings, getSite } from "@/lib/settings";
+import { getActiveTheme, getPublishedTheme } from "@/lib/theme";
 import { themeAttributes, themeToCss } from "@/themes/css";
 import { FONT_VARIABLE_CLASSES } from "@/themes/fonts";
 import "../globals.css";
@@ -31,9 +31,12 @@ export async function generateMetadata(): Promise<Metadata> {
   } catch {
     base = new URL(DEFAULT_BASE_URL);
   }
-  // Icône de l'onglet choisie dans les réglages (lot 52) ; sans choix, /favicon.ico (public/).
-  const seo = isBuildPhase() ? null : await getSeoSettings();
-  return { metadataBase: base, ...(seo ? { icons: iconLinks(seo) } : {}) };
+  // Icône de l'onglet (lots 52 et 83) : l'image choisie, sinon le logo ou le monogramme du thème EN LIGNE ; jamais une icône d'origine.
+  // Le plan ne décode rien (empreinte seulement) ; les fichiers sont produits à la première requête (route /site-icon).
+  if (isBuildPhase()) return { metadataBase: base };
+  const [seo, theme, site] = await Promise.all([getSeoSettings(), getPublishedTheme(), getSite("fr")]);
+  const plan = planIcon(seo, theme, site.name);
+  return { metadataBase: base, icons: iconLinks(plan), manifest: manifestUrl(plan) };
 }
 
 export default async function LocaleLayout({

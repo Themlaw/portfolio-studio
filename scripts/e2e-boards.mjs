@@ -385,7 +385,7 @@ const pUid = await f.$eval(boardSel(PROJECT), (el) => el.closest("[data-edit-blo
 await f.locator(`[data-edit-block="${pUid}"] header h2`).click();
 await until(f, () => Boolean(document.querySelector(".pe-tools")));
 await f.locator(".pe-tools").getByRole("button", { name: "Supprimer" }).click();
-await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).click();
+await page.getByRole("dialog").getByRole("button", { name: "Supprimer le bloc" }).click();
 const i1 = page.locator(".a-toast", { hasText: "ne seront pas publiés" });
 ok("bloc planche supprimé : « Les changements d'images de cette planche ne seront pas publiés »", await i1.waitFor({ state: "visible", timeout: 15000 }).then(() => true, () => false));
 await sleep(300);
@@ -406,11 +406,11 @@ const blockUid = await f.$eval(boardSel(PROJECT), (el) => el.closest("[data-edit
 await f.locator(`[data-edit-block="${blockUid}"] header h2`).click();
 await until(f, () => Boolean(document.querySelector(".pe-tools")));
 await f.locator(".pe-tools").getByRole("button", { name: "Supprimer" }).click();
-await page.getByRole("dialog").getByRole("button", { name: "Supprimer la rubrique" }).click();
+await page.getByRole("dialog").getByRole("button", { name: "Supprimer le bloc" }).click();
 await settled();
 await page.getByRole("button", { name: "Publier" }).click();
 await until(page.mainFrame(), () => /Publié : la page est en ligne/.test(document.body.innerText), null, 60000);
-await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
+await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
 const row = page.locator("tr, li, article").filter({ hasText: PROJECT }).first();
 await row.getByRole("button", { name: "Supprimer" }).click();
 await page.getByRole("dialog").getByRole("button", { name: "Supprimer le projet" }).click();

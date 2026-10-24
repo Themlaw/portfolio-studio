@@ -105,7 +105,7 @@ try {
   await page.waitForURL(`${BASE}/admin`);
 
   // ---- Projet et envoi --------------------------------------------------------
-  await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
   if (await page.locator(".a-project-card", { hasText: "Planche e2e" }).count()) throw new Error("un projet « Planche e2e » existe déjà : supprime-le d'abord");
   await page.getByRole("button", { name: "Nouveau projet" }).click();
   await page.locator("dialog[open]").getByLabel("Titre en français").fill("Planche e2e");
@@ -147,7 +147,7 @@ try {
 
   // ---- Réordonner, retirer, remplir, supprimer --------------------------------
   await moveWithKeyboard("Déplacer E2e paysage", "ArrowLeft", 2);
-  await toast("Ordre de la planche enregistré");
+  await toast("Ordre des images enregistré");
   await page.waitForTimeout(800);
   ok("P4 réordonnée au clavier", (await titles()).join(",") === "E2e paysage,E2e grand,E2e transparent", (await titles()).join(","));
 
@@ -243,10 +243,10 @@ try {
 
 // ---- Restauration : projet et images de test supprimés ------------------------------
 try {
-  await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
   // v0.13 : un projet cité par une page ne se supprime pas ; sa planche part d'abord.
   for (const slug of [projectId && projectSlugOf(projectId)].filter(Boolean)) await removeBoard(page, BASE, pageIdOf("personnages"), slug);
-  await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
   while (await page.locator(".a-project-card", { hasText: "Planche e2e" }).count()) {
     await page.locator(".a-project-card", { hasText: "Planche e2e" }).first().getByRole("button", { name: "Supprimer" }).click();
     await page.locator("dialog[open]").getByRole("button", { name: "Supprimer le projet" }).click();

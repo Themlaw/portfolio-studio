@@ -199,7 +199,7 @@ const CONTROLS = () => {
     return (cls || attr) && visible(el);
   });
   const text = document.body.innerText;
-  const words = ["Changer la couverture", "Couverture automatique", "Ajouter une rubrique", "Ajouter une entrée", "Monter l'entrée", "Retirer l'entrée"].filter((w) => text.includes(w));
+  const words = ["Changer la couverture", "Couverture automatique", "Ajouter un bloc", "Ajouter une entrée", "Monter l'entrée", "Retirer l'entrée"].filter((w) => text.includes(w));
   return { marked: marked.map((e) => `${e.tagName.toLowerCase()}.${[...e.classList].join(".")}`), words, inDom: document.querySelectorAll(".pe-tile-cover, .pe-tile-tools, .pe-tile-add-row").length };
 };
 {

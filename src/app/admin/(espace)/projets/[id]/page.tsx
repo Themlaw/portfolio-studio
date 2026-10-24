@@ -20,8 +20,8 @@ export default async function ProjectEditPage({ params }: { params: Promise<{ id
         title={project.title.fr}
         intro={[project.context.fr, project.year].filter(Boolean).join(" · ") || undefined}
         action={
-          <Link className="a-btn" href="/admin/projets">
-            ← Tous les projets
+          <Link className="a-btn" href="/admin/pages#projets">
+            ← Pages et projets
           </Link>
         }
       />

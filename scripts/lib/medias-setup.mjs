@@ -161,7 +161,7 @@ export async function ensureLongStrip(page, base) {
   if (proj && placed) return proj.slug;
   let id = proj?.id;
   if (!id) {
-    await page.goto(`${base}/admin/projets`, { waitUntil: "networkidle" });
+    await page.goto(`${base}/admin/pages#projets`, { waitUntil: "networkidle" });
     await page.getByRole("button", { name: "Nouveau projet" }).click();
     await page.locator("dialog[open]").getByLabel("Titre en français").fill(STRIP_TITLE);
     await page.locator("dialog[open]").getByRole("button", { name: "Créer le projet" }).click();

@@ -55,7 +55,7 @@ function Thumb({ media, onAddEnd }: { media: AdminMediaRow; onAddEnd: (m: AdminM
         {media.kind === "video" && <span className="a-libthumb-kind" aria-hidden="true">▶</span>}
         {state && <span className="a-libthumb-state">{state}</span>}
       </div>
-      <button type="button" className="a-libthumb-add" disabled={failed} onClick={() => onAddEnd(media)} aria-label={`Ajouter ${media.name} à la fin de la planche`}>
+      <button type="button" className="a-libthumb-add" disabled={failed} onClick={() => onAddEnd(media)} aria-label={`Ajouter ${media.name} à la fin du projet`}>
         +
       </button>
     </li>

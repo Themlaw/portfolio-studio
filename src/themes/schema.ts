@@ -214,6 +214,8 @@ export const KitAssetsSchema = z
     /** Décor libre du kit v4 : les plans ci-dessus sont TOUT le décor (les calques SVG du thème ne s'y ajoutent pas). */
     plansOnly: z.boolean().optional(),
     signature: kitImage.optional(),
+    /** Lot 83 : calque « Icône » du kit (carré, 512 px) : l'icône de l'onglet et de l'écran d'accueil. */
+    icon: kitImage.optional(),
     paper: z
       .object({
         image: kitImage,

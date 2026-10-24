@@ -28,7 +28,7 @@ import { emptyFrameHash, findReference, frameHash, writePreview, type KitManifes
 import { flattenSlot, freeRaw, layoutOf, resolveDecor, resolveSlots, SlotRefusal, treeProblem, treeStats, type TreeStats } from "./resolve";
 import { DEFAULT_LIMITS } from "./limits";
 import { compareSwatches, cursorWarning, encodeCursor, hotspotCss, readHotspot, readSwatchSlot, type ColorReport, type SwatchRead } from "./extras";
-import { ALL_SLOTS, CURSOR_DEFAULT_HOTSPOT, CURSOR_SLOTS, decorSlot, drawScale, frameOf, HERO, KIT_FILES, KIT_ROLES, MAX_DECOR_PLANS, roleOfSize, SLOTS, slotsOfRole, SWATCH_SLOTS, type KitRole, type Layout, type SlotSpec } from "./spec";
+import { ALL_SLOTS, CURSOR_DEFAULT_HOTSPOT, CURSOR_SLOTS, decorSlot, drawScale, frameOf, HERO, KIT_FILES, KIT_ROLES, MAX_DECOR_PLANS, roleOfSize, SLOTS, slotsOfFile, slotsOfRole, SWATCH_SLOTS, type KitRole, type Layout, type SlotSpec } from "./spec";
 
 /**
  * Fidélité exigée d'un tracé (mesurée sur kit-A, phase 6c) : écart moyen du
@@ -359,7 +359,8 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
       exportId ??= id;
       if (marked && role && marked !== role) return { ok: false, preflight: pre, problem: `« ${file.name} » se déclare « ${KIT_FILES[marked].label} » mais a la taille du fichier « ${KIT_FILES[role].label} » : ne redimensionne pas le document.`, slots: [], ignoredLayers: [] };
       ignoredLayers.push(...ignored);
-      const inFile = new Set(role ? slotsOfRole(role).map((s) => s.id) : ALL_SLOTS.map((s) => s.id));
+      // Lot 83 : la case « Icône du site » n'existe que dans le kit v4 (et pas dans le fichier « logo » d'avant).
+      const inFile = new Set(role ? slotsOfFile(role, pre.width, pre.height).map((s) => s.id) : ALL_SLOTS.filter((s) => !s.multiOnly).map((s) => s.id));
 
       for (const slot of SLOTS.filter((s) => inFile.has(s.id))) {
         const start = performance.now();
@@ -552,7 +553,7 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
     const files: string[] = [];
     if (opts.keepCrops) await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 4 } }).png().toFile(path.join(outDir, `${base}.source.png`));
 
-    const { avif, webp } = await encodeBitmap(img, slot.kind === "signature" || slot.kind === "tile" || slot.kind === "stroke" || slot.kind === "nine");
+    const { avif, webp } = await encodeBitmap(img, slot.kind === "signature" || slot.kind === "tile" || slot.kind === "stroke" || slot.kind === "nine" || slot.kind === "appicon");
     report.candidates = { avif: avif.length, webp: webp.length };
     const tex = textureStats(img);
     report.textured = { coverage8: Math.round(tex.coverage8 * 1000) / 1000, distinct: tex.distinct };

@@ -37,3 +37,5 @@ export const revalidateProjects = (o?: Options) => expire([TAGS.projects], o);
 export const revalidateMedia = (o?: Options) => expire([TAGS.media], o);
 /** Papiers peints (lot 35) : bibliothèque, réglage d'un motif, papier des cartes du site. Les pages qui les montrent héritent de l'étiquette. */
 export const revalidateWallpapers = (o?: Options) => expire([TAGS.wallpapers, TAGS.media, TAGS.settings], o);
+/** Bibliothèque de cadres (lot 74) : réglage `frameLibrary`, fichiers. Les pages qui montrent un cadre perso héritent de l'étiquette des réglages. */
+export const revalidateFrames = (o?: Options) => expire([TAGS.settings, TAGS.media], o);

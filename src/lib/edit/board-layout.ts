@@ -24,14 +24,14 @@ function parseItem(item: BoardItem): { item: BoardItem } | { error: string } {
   const keep = (out: BoardItem): BoardItem => (item.box ? { ...out, box: item.box } : out);
   if (item.type === "strip") return { item: keep(item) };
   const def = own(BLOCKS, item.type);
-  if (!def) return { error: "Composant de planche inconnu." };
+  if (!def) return { error: "Bloc de projet inconnu." };
   const result = def.schema.safeParse(item.props);
-  if (!result.success) return { error: `Réglages invalides pour « ${BOARD_ITEM_LABELS[item.type]} » : ${result.error.issues[0]?.message ?? "vérifie ce composant"}.` };
+  if (!result.success) return { error: `Réglages invalides pour « ${BOARD_ITEM_LABELS[item.type]} » : ${result.error.issues[0]?.message ?? "vérifie ce bloc"}.` };
   const props = { ...(result.data as Json) } as Json;
   if (item.type === "grid") {
     const kids: BoardItem[] = [];
     for (const raw of (props.children as { uid: string; type: string; props: Json }[]) ?? []) {
-      if (!(GRID_CHILD_TYPES as readonly string[]).includes(raw.type)) return { error: "Une grille de planche n'accepte que des images et des vidéos." };
+      if (!(GRID_CHILD_TYPES as readonly string[]).includes(raw.type)) return { error: "Une grille de projet n'accepte que des images et des vidéos." };
       const childDef = own(BLOCKS, raw.type);
       const parsed = childDef?.schema.safeParse(raw.props);
       if (!childDef || !parsed?.success) return { error: "Un élément de la grille a des réglages invalides." };
@@ -81,11 +81,11 @@ export function checkLayout(input: unknown, opts: { complete?: boolean; allowPen
     const byId = new Map(rows.map((r) => [r.id, r]));
     for (const w of wanted) {
       const m = byId.get(w.id);
-      if (!m || m.deletedAt) return { error: "Un média de cette planche n'existe plus : choisis-en un autre." };
-      if (m.kind === "pdf") return { error: "Un PDF ne se place pas dans une planche : utilise la rubrique « CV »." };
+      if (!m || m.deletedAt) return { error: "Un média de ce projet n'existe plus : choisis-en un autre." };
+      if (m.kind === "pdf") return { error: "Un PDF ne se place pas dans un projet : utilise le bloc « CV »." };
       if (w.kind === "any" && m.kind !== "image" && m.kind !== "video") return { error: "Un carrousel n'accepte que des images et des vidéos." };
-      if (w.kind === "image" && m.kind !== "image") return { error: "Ce composant attend une image, pas une vidéo." };
-      if (w.kind === "video" && m.kind !== "video") return { error: "Ce composant attend une vidéo, pas une image." };
+      if (w.kind === "image" && m.kind !== "image") return { error: "Ce bloc attend une image, pas une vidéo." };
+      if (w.kind === "video" && m.kind !== "video") return { error: "Ce bloc attend une vidéo, pas une image." };
       if (m.status === "failed") return { error: "Ce média est en échec : relance-le depuis la médiathèque avant de le placer." };
       if (m.status !== "ready" && !(opts.allowPending && m.status === "processing")) return { error: "Ce média est encore en conversion : attends qu'il soit prêt pour le placer." };
     }
@@ -93,7 +93,7 @@ export function checkLayout(input: unknown, opts: { complete?: boolean; allowPen
   if (opts.complete) {
     for (const item of out) {
       const label = BOARD_ITEM_LABELS[item.type];
-      if (itemEmpty(item)) return { error: `Le composant « ${label} » est encore vide : remplis-le, ou supprime-le.` };
+      if (itemEmpty(item)) return { error: `Le bloc « ${label} » est encore vide : remplis-le, ou supprime-le.` };
       const def = own(BLOCKS, item.type);
       const required = def?.publishCheck?.(item.props, {});
       if (required) return { error: `${label} : ${required.charAt(0).toLowerCase()}${required.slice(1)}` };
@@ -112,13 +112,13 @@ export function incompleteLayouts(pageId: number, cited: Set<number>): string | 
   for (const p of rows) {
     if (!p.draftLayout || !cited.has(p.id)) continue;
     const r = checkLayout(p.draftLayout, { complete: true });
-    if ("error" in r) return `Publication impossible : planche « ${p.title.fr || p.slug} » — ${r.error.charAt(0).toLowerCase()}${r.error.slice(1)}`;
+    if ("error" in r) return `Publication impossible : projet « ${p.title.fr || p.slug} » — ${r.error.charAt(0).toLowerCase()}${r.error.slice(1)}`;
   }
   // Projet créé dans ce brouillon : sa suite est sur sa ligne.
   for (const p of getDb().select().from(schema.projects).where(eq(schema.projects.draftPageId, pageId)).all()) {
     if (!p.layout || !cited.has(p.id)) continue;
     const r = checkLayout(p.layout, { complete: true });
-    if ("error" in r) return `Publication impossible : planche « ${p.title.fr || p.slug} » — ${r.error.charAt(0).toLowerCase()}${r.error.slice(1)}`;
+    if ("error" in r) return `Publication impossible : projet « ${p.title.fr || p.slug} » — ${r.error.charAt(0).toLowerCase()}${r.error.slice(1)}`;
   }
   return null;
 }

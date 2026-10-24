@@ -5,7 +5,7 @@
  *                           servi), calques LIBRES : chaque calque ou groupe de premier niveau
  *                           est un plan, du fond (en bas de la pile) vers l'avant ; le décor
  *                           actuel du thème y est découpé en ses plans existants
- *   2-logo-papier.psd       logo (2400 × 600), papier (tuile 1024 × 1024, aperçu 3 × 3), trait
+ *   2-logo-papier.psd       logo (2400 × 600), papier (tuile 1024 × 1024, aperçu 3 × 3), trait, icône du site (512 × 512, lot 83)
  *   3-icones-curseurs.psd   icônes (512 × 512), curseurs (512 × 512), cadre, scotch
  *
  * Les éléments se dessinent EN GRAND ; l'import les réduit à leur taille d'usage
@@ -127,7 +127,7 @@ export function archiveReadme(siteName: string): string {
     "",
     "Ce dossier contient trois fichiers Photoshop (.psd) :",
     `  ${KIT_FILES.decor.file}      le décor de l'accueil, en grand format. Calques libres : chaque calque devient un plan.`,
-    `  ${KIT_FILES.logo.file}       le logo, le papier (tuile répétée) et le trait.`,
+    `  ${KIT_FILES.logo.file}       le logo, le papier (tuile répétée), le trait et l'icône du site.`,
     `  ${KIT_FILES.icones.file}   les icônes, les curseurs de la souris, le cadre des images et le scotch.`,
     "",
     "Comment faire :",
@@ -258,7 +258,7 @@ async function cardRaster(card: MultiCard, theme: Theme, fontFile: string): Prom
   for (const s of slots) {
     const f = frameOf(s, "multi");
     const wrap = Math.max(f.w, 540) - 16;
-    const label = s.kind === "cursor" ? `${slotName(s)} — affiché 32 × 32 px` : `${slotName(s)} — affiché ${finalSize(s)} px`;
+    const label = s.kind === "cursor" ? `${slotName(s)} — affiché 32 × 32 px` : s.kind === "appicon" ? `${slotName(s)} — réduite à 16 px dans l'onglet` : `${slotName(s)} — affiché ${finalSize(s)} px`;
     const text = await textRaster(`<span foreground="${GREY}"><b>${esc(label.split(" — ")[0])}</b>\n${esc(label.split(" — ")[1] ?? "")}</span>`, fontFile, TEXT.label, wrap);
     const top = f.y - b.y + f.h + 14;
     if (top + text.height > b.h - 6) throw new Error(`légende hors de la carte : ${s.label}`);
@@ -331,6 +331,40 @@ async function guidesRaster(card: MultiCard): Promise<Raster> {
 
 type Asset = NonNullable<BuildOptions["assets"]>[string];
 
+/**
+ * SVG à motif (`<pattern>`) rendu en grand : librsvg y devient très lent (non linéaire, le motif sous un masque : 110 à 130 s pour un
+ * calque de 5760 × 3200 px du modèle « fanzine-riso », contre 1,5 s par quart). On le rend donc par TUILES carrées de 144 unités
+ * (520 px à 260 dpi : bords sur des pixels entiers, pas de couture), recopiées dans une image de la taille du rendu d'un seul tenant.
+ * Rend `null` quand le fichier ne s'y prête pas (pas de viewBox exploitable) : l'appelant rend alors d'un bloc.
+ */
+const TILE_UNITS = 144;
+async function renderSvgTiled(data: Buffer, density: number): Promise<{ data: Buffer; width: number; height: number } | null> {
+  const text = data.toString("utf8");
+  const root = /<svg\b[^>]*>/i.exec(text);
+  const vb = root && /viewBox="\s*([-\d.]+)[ ,]+([-\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)\s*"/.exec(root[0]);
+  if (!root || !vb) return null;
+  const [minX, minY, vw, vh] = vb.slice(1).map(Number);
+  if (!(vw > 0 && vh > 0)) return null;
+  const scale = density / 72;
+  const W = Math.round(vw * scale);
+  const H = Math.round(vh * scale);
+  const canvas = Buffer.alloc(W * H * 4);
+  const stripped = root[0].replace(/\s(?:width|height|viewBox|preserveAspectRatio)="[^"]*"/gi, "");
+  for (let y0 = 0; y0 < vh; y0 += TILE_UNITS) {
+    for (let x0 = 0; x0 < vw; x0 += TILE_UNITS) {
+      const tw = Math.min(TILE_UNITS, vw - x0);
+      const th = Math.min(TILE_UNITS, vh - y0);
+      const tag = stripped.replace(/<svg\b/i, `<svg width="${tw}" height="${th}" viewBox="${minX + x0} ${minY + y0} ${tw} ${th}"`);
+      const tile = await sharp(Buffer.from(text.replace(root[0], tag)), { density }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const px = Math.round(x0 * scale);
+      const py = Math.round(y0 * scale);
+      const cols = Math.min(tile.info.width, W - px);
+      for (let r = 0; r < tile.info.height && py + r < H; r++) tile.data.copy(canvas, ((py + r) * W + px) * 4, r * tile.info.width * 4, (r * tile.info.width + cols) * 4);
+    }
+  }
+  return { data: canvas, width: W, height: H };
+}
+
 /** Rend un fichier (SVG ou bitmap) à `w × h`, net : un SVG est rastérisé directement à la bonne résolution. */
 async function renderFile(file: string, w: number, h: number): Promise<Buffer> {
   const data = await readFile(file);
@@ -339,6 +373,11 @@ async function renderFile(file: string, w: number, h: number): Promise<Buffer> {
     const vb = head.match(/viewBox="\s*[-\d.]+[ ,]+[-\d.]+[ ,]+([\d.]+)[ ,]+([\d.]+)\s*"/);
     const width = vb ? Number(vb[1]) : Number(head.match(/\bwidth="([\d.]+)/)?.[1] ?? w);
     const density = Math.min(1200, Math.max(72, Math.ceil((72 * w) / (width || w))));
+    // Motif en grand format : par tuiles (voir renderSvgTiled).
+    if (process.env.KIT_SVG_TILES !== "0" && w * h > 4_000_000 && /<pattern\b/i.test(data.toString("utf8"))) {
+      const tiled = await renderSvgTiled(data, density);
+      if (tiled) return sharp(tiled.data, { raw: { width: tiled.width, height: tiled.height, channels: 4 } }).resize(w, h, { fit: "fill" }).ensureAlpha().raw().toBuffer();
+    }
     return sharp(data, { density }).resize(w, h, { fit: "fill" }).ensureAlpha().raw().toBuffer();
   }
   return sharp(data).resize(w, h, { fit: "fill", kernel: "lanczos3" }).ensureAlpha().raw().toBuffer();

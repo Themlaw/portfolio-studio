@@ -31,7 +31,8 @@ import { MAX_NESTING } from "@/blocks/tree";
 import { acceptToCanvas, insertionIndex, moveTo, type BlockInfo, type FromCanvas } from "@/lib/edit/protocol";
 
 import BoardLayer from "./BoardLayer";
-import LookLayer, { lookOf, sendLook } from "./edit/LookLayer";
+import LookLayer, { lookOf, sendOwnMediaLook } from "./edit/LookLayer";
+import type { ImageBg } from "@/lib/look";
 import SiteLookLayer from "./edit/SiteLookLayer";
 import FreeLayer from "./edit/FreeLayer";
 import GridLayer from "./edit/GridLayer";
@@ -1265,13 +1266,13 @@ export default function EditLayer() {
       {/* Cibles clavier : Tab parcourt les blocs (composants compris), Entrée en choisit un. */}
       {boxes.map((b) => {
         const sibs = siblingsOf(b);
-        const where = b.parent ? ` dans « ${boxes.find((x) => x.uid === b.parent)?.label ?? "rubrique"} »` : "";
+        const where = b.parent ? ` dans « ${boxes.find((x) => x.uid === b.parent)?.label ?? "bloc"} »` : "";
         return (
           <button
             key={`f-${b.uid}`}
             type="button"
             className="pe-focus"
-            aria-label={`${b.parent ? "Composant" : "Rubrique"} ${sibs.indexOf(b) + 1} sur ${sibs.length}${where} : ${b.label}${b.uid === selected ? " (sélectionné)" : ""}`}
+            aria-label={`Bloc ${sibs.indexOf(b) + 1} sur ${sibs.length}${where} : ${b.label}${b.uid === selected ? " (sélectionné)" : ""}`}
             aria-pressed={b.uid === selected}
             style={{ top: b.top, left: b.left, width: b.width, height: Math.max(b.height, 8) }}
             onFocus={() => setHover(b.uid)}
@@ -1304,7 +1305,7 @@ export default function EditLayer() {
           style={{ top: z.rect.top + 8, left: z.rect.left + 24, width: Math.max(120, z.rect.width - 48), height: Math.max(80, z.rect.height - 16) }}
           aria-hidden="true"
         >
-          Glisse un composant ici
+          Glisse un bloc ici
         </div>
       ))}
 
@@ -1334,7 +1335,7 @@ export default function EditLayer() {
           style={{ top: sel.top, left: sel.left, width: sel.width, height: sel.height }}
         >
           {/* Fil d'Ariane : remonter au conteneur parent (comme Elementor). */}
-          <nav className="pe-tag pe-crumbs" aria-label="Emplacement de la rubrique">
+          <nav className="pe-tag pe-crumbs" aria-label="Emplacement du bloc">
             {chain(sel).map((c) => (
               <span key={c.uid}>
                 <button type="button" className="pe-crumb" onClick={() => select(c.uid, true, true)} title={`Sélectionner « ${c.label} »`}>
@@ -1350,11 +1351,11 @@ export default function EditLayer() {
           <div
             className="pe-tools"
             role="toolbar"
-            aria-label={`Rubrique ${sel.label}`}
+            aria-label={`Bloc ${sel.label}`}
             // Reste visible quand le haut du bloc sort de l'écran.
             style={{ top: Math.min(Math.max(0, viewTop + 8 - sel.top), Math.max(0, sel.height - 34)) }}
           >
-            <button type="button" className="pe-grip" aria-label="Glisser pour déplacer" title="Glisser pour déplacer (dans une rubrique, ou hors d'elle)" onPointerDown={(e) => onGripDown(e, sel)}>
+            <button type="button" className="pe-grip" aria-label="Glisser pour déplacer" title="Glisser pour déplacer (dans un bloc, ou hors de lui)" onPointerDown={(e) => onGripDown(e, sel)}>
               <svg width="10" height="16" viewBox="0 0 10 16" aria-hidden="true">
                 {[3, 8, 13].flatMap((y) => [2.5, 7.5].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.4" fill="currentColor" />))}
               </svg>
@@ -1405,7 +1406,7 @@ export default function EditLayer() {
               ↓
             </button>
             {sel.parent && (
-              <button type="button" aria-label="Sortir de la rubrique" title="Sortir de la rubrique (placé juste après elle)" onClick={() => post({ kind: "op", op: "out", uid: sel.uid })}>
+              <button type="button" aria-label="Sortir du bloc" title="Sortir du bloc (placé juste après lui)" onClick={() => post({ kind: "op", op: "out", uid: sel.uid })}>
                 ⇱
               </button>
             )}
@@ -1441,7 +1442,7 @@ export default function EditLayer() {
               anchor='.pe-tools [data-testid="frame-button"]'
               value={lookOf(sel.uid).frame}
               onChange={(frame) => {
-                sendLook(sel.uid, { ...lookOf(sel.uid), frame });
+                sendOwnMediaLook(sel.uid, { frame: frame ?? null });
                 bump((n) => n + 1);
               }}
               onClose={() => setFrameFor(null)}
@@ -1462,7 +1463,7 @@ export default function EditLayer() {
               anchor='.pe-tools [data-testid="imgbg-button"]'
               value={lookOf(sel.uid).imageBg}
               onChange={(imageBg) => {
-                sendLook(sel.uid, { ...lookOf(sel.uid), imageBg });
+                sendOwnMediaLook(sel.uid, { bg: (imageBg as ImageBg | undefined) ?? null });
                 bump((n) => n + 1);
               }}
               onClose={() => setImgBgFor(null)}
@@ -1478,14 +1479,14 @@ export default function EditLayer() {
 
       {topCount === 0 && (
         <div className="pe-empty" style={{ top: markerY(boxes, 0) }} data-over={drop !== null || undefined}>
-          Page vide : glisse un composant ici depuis « Ajouter », ou clique sur l&apos;un d&apos;eux.
+          Page vide : glisse un bloc ici depuis « Ajouter », ou clique sur l&apos;un d&apos;eux.
         </div>
       )}
 
       {gap && !drag && !fondFor && !frameFor && !quickFor && !sizeFor && !projectPicker && (
         <div className="pe-gap" style={{ top: gap.top }}>
           <button type="button" data-edit-gap={gap.index} onClick={() => post({ kind: "insert", parent: null, index: gap.index, what: "choose" })}>
-            <span aria-hidden="true">+</span> Ajouter une rubrique
+            <span aria-hidden="true">+</span> Ajouter un bloc
           </button>
         </div>
       )}
@@ -1497,7 +1498,7 @@ export default function EditLayer() {
           style={{ top: dropContainer.top, left: dropContainer.left, width: dropContainer.width, height: dropContainer.height }}
           aria-hidden="true"
         >
-          <span>{drop?.refused ? `« ${dropContainer.label} » n'accepte pas ce composant` : `Dans « ${dropContainer.label} »`}</span>
+          <span>{drop?.refused ? `« ${dropContainer.label} » n'accepte pas ce bloc` : `Dans « ${dropContainer.label} »`}</span>
         </div>
       )}
       {innerMarker?.kind === "h" && <div className="pe-marker-inner" style={{ top: innerMarker.top, left: innerMarker.left, width: innerMarker.width }} aria-hidden="true" />}
@@ -1560,8 +1561,8 @@ export default function EditLayer() {
       <p className="pe-live" role="status" aria-live="polite">
         {drag && drop
           ? drop.refused
-            ? "Cette rubrique n'accepte pas ce composant."
-            : `${drop.parent ? `Dans « ${dropContainer?.label ?? "la rubrique"} », p` : "P"}osition ${drop.index + 1}`
+            ? "Ce bloc n'accepte pas ce type de bloc."
+            : `${drop.parent ? `Dans « ${dropContainer?.label ?? "le bloc"} », p` : "P"}osition ${drop.index + 1}`
           : announcement}
       </p>
     </div>,

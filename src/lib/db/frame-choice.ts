@@ -4,7 +4,7 @@
  * passe de l'ancienne forme `{ size: "thin" | "medium" | "thick" | "none", color? }` à UN choix `{ kind, color?, width? }` :
  *
  * - `size: "none"` (« Sans cadre ») → `{ kind: "none" }` ;
- * - `size: "thin" | "medium" | "thick"` (+ couleur) → `{ kind: "band", width: "fin" | "moyen" | "epais", color? }`, la Bande de couleur de
+ * - `size: "thin" | "medium" | "thick"` (+ couleur) → `{ kind: "band", width: "fin" | "moyen" | "epais", color? }`, la Bordure de
  *   la même épaisseur et de la même couleur : le rendu d'un choix explicite ne change pas.
  *
  * Les photos SANS réglage de cadre ne sont pas touchées : elles suivent désormais le réglage du site « Cadre du thème sur toutes les

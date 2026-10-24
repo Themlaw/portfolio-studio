@@ -74,8 +74,8 @@ test("forme : composants bornés, uid obligatoires, uniques, bien formés", () =
   assert.match(treeProblem([{ uid: "g", type: "grid", props: { children: [kid("a", "inconnu")] } }], known), /inconnu/);
 });
 test("forme : un bloc simple ne porte pas de composants (même vide)", () => {
-  assert.match(treeProblem([{ uid: "r", type: "rich-text", props: { children: [] } }], known), /Seule une rubrique/);
-  assert.match(treeProblem([{ uid: "g", type: "grid", props: { children: [kid("i", "image", { children: [] })] } }], known), /Seule une rubrique/);
+  assert.match(treeProblem([{ uid: "r", type: "rich-text", props: { children: [] } }], known), /Seul un bloc/);
+  assert.match(treeProblem([{ uid: "g", type: "grid", props: { children: [kid("i", "image", { children: [] })] } }], known), /Seul un bloc/);
 });
 test("opérations : insérer dans, refuser, déplacer entre page et conteneur, sortir", () => {
   let blocks = [{ uid: "a", type: "rich-text", props: {} }, { uid: "c", type: "featured-project", props: { children: [] } }, { uid: "h", type: "hero", props: {} }];

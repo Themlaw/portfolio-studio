@@ -2,7 +2,7 @@
 /**
  * Lot 79 « Cadres : l'IMAGE ne bouge pas, le cadre colle à son bord » (chromium, serveur requis, base neuve, une connexion admin).
  * Hotfix de la v0.30.0 : avec « Cadre du thème », une bande vide séparait l'image du cadre (bord rose festonné), et l'image rétrécissait quand
- * on passait de « Cadre du thème » à « Bande de couleur ». Les suites 62/64 passaient : leur cadre synthétique était régulier (épaisseurs
+ * on passait de « Cadre du thème » à « Bordure ». Les suites 62/64 passaient : leur cadre synthétique était régulier (épaisseurs
  * égales, aucun feston) et elles mesuraient la boîte extérieure, pas l'image.
  *
  * Le cadre ici est REALISTE (simulate-multi cadre79, généré par ce lot, jamais le kit réel) : bord extérieur festonné avec du transparent
@@ -67,6 +67,18 @@ const kitSlice = (() => {
 })();
 info("découpe du cadre dessiné (haut, droite, bas, gauche)", kitSlice);
 const PINK = [232, 120, 154];
+// Lot 74 : un cadre de la bibliotheque (PNG synthetique, bord plein asymetrique : haut 40, droite 40, bas 60, gauche 40) suit la meme regle.
+const CUSTOM_RGB = [200, 30, 30];
+const customFrameId = await (async () => {
+  const W = 300;
+  const raw = Buffer.alloc(W * W * 4);
+  for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) if (y < 40 || x < 40 || x >= W - 40 || y >= W - 60) raw.set([...CUSTOM_RGB, 255], (y * W + x) * 4);
+  const buffer = await sharp(raw, { raw: { width: W, height: W, channels: 4 } }).png().toBuffer();
+  const res = await page.request.post(`${BASE}/admin/api/cadres`, { headers: { origin: BASE }, multipart: { file: { name: "cadre79.png", mimeType: "image/png", buffer } } });
+  const json = await res.json();
+  if (!json.ok) throw new Error(`import du cadre perso : ${json.message}`);
+  return json.entry.id;
+})();
 
 const PHOTOS = pageIdOf("decors");
 const project = q1("select id, slug from projects order by id limit 1");
@@ -111,6 +123,7 @@ const CHOICES = [
   ["bande fine", { kind: "band", width: "fin", color: "primary" }],
   ["bande épaisse", { kind: "band", width: "epais", color: "primary" }],
   ["cadre du thème", { kind: "theme" }],
+  ["cadre perso", { kind: "custom", id: customFrameId }],
 ];
 const look = (frame) => ({ look: { frame } });
 /** Une copie de chaque conteneur ; `frame` = le choix de l'artiste, appliqué partout (page ET planche). */
@@ -235,7 +248,7 @@ if (run("R") || run("P")) {
         for (let i = 0; i < px.length; i++) {
           if (!px[i]) continue;
           checked++;
-          const want = name === "cadre du thème" ? PINK : parse(b[i].band);
+          const want = name === "cadre du thème" ? PINK : name === "cadre perso" ? CUSTOM_RGB : parse(b[i].band);
           for (const side of ["haut", "bas", "gauche", "droite"])
             if (dist(px[i][side], want) > 70) {
               bad.push(`#${i} ${b[i].where} ${side} ${px[i][side].join(",")} (y ${px[i].rect.t.toFixed(2)} h ${px[i].rect.h.toFixed(2)} x ${px[i].rect.l.toFixed(2)})`);

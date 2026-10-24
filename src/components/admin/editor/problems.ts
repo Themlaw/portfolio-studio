@@ -40,7 +40,7 @@ const FIELD_LABELS: Record<string, string> = {
   mediaId: "Média",
   pageId: "Page de destination",
   project: "Projet",
-  children: "Composant",
+  children: "Bloc",
   more: "Lien",
   href: "Adresse",
   url: "Adresse",
@@ -99,8 +99,8 @@ export function describeProblems(blocks: TreeBlock[], errors: Record<string, str
       const parent = blocks[top];
       const where =
         idx.length === 0
-          ? `Rubrique n° ${top + 1} « ${labelOf(block.type)} »`
-          : `Composant « ${labelOf(block.type)} » de la rubrique n° ${top + 1} « ${labelOf(parent.type)} »`;
+          ? `Bloc n° ${top + 1} « ${labelOf(block.type)} »`
+          : `Bloc « ${labelOf(block.type)} » du bloc n° ${top + 1} « ${labelOf(parent.type)} »`;
       const uid = typeof (block as { uid?: unknown }).uid === "string" ? ((block as { uid: string }).uid) : null;
       out.push({ key, uid, where, field: m[3] ? fieldLabel(m[3]) : null, message, kind: "block", order: [top, ...idx] });
       continue;

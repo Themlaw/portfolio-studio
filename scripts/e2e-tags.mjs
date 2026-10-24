@@ -74,10 +74,10 @@ let projectId = null;
 async function restore() {
   await page.unroute(/\/admin\/api\/upload/).catch(() => {});
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
   // v0.13 : un projet cité par une page ne se supprime pas ; sa planche part d'abord.
   for (const slug of [projectId && projectSlugOf(projectId)].filter(Boolean)) await removeBoard(page, BASE, pageIdOf("personnages"), slug);
-  await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
   while (await page.locator(".a-project-card", { hasText: "Tags e2e" }).count()) {
     await page.locator(".a-project-card", { hasText: "Tags e2e" }).first().getByRole("button", { name: "Supprimer" }).click();
     await page.locator("dialog[open]").getByRole("button", { name: "Supprimer le projet" }).click();
@@ -173,7 +173,7 @@ try {
   ok("T0 tags créés depuis le détail d'un média (Entrée), usages comptés", tagRows.some((t) => /personnage\s+2/.test(t)) && tagRows.length >= 4, tagRows.join(" | "));
 
   // ---- Planche ------------------------------------------------------------------------
-  await page.goto(`${BASE}/admin/projets`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Nouveau projet" }).click();
   await page.locator("dialog[open]").getByLabel("Titre en français").fill("Tags e2e");
   await page.locator("dialog[open]").getByRole("button", { name: "Créer le projet" }).click();

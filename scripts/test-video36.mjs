@@ -185,13 +185,15 @@ test("planche : une bande accepte « videoMode » (Boucle / Lecteur), pas une va
 
 /* ---- 5. Lot 38 : lecture par vidéo, vidéo de test du seed ------------------------------------------- */
 
-test("look.slotVideo : Boucle / Lecteur par emplacement ; slug, mode ou nombre d'entrées invalides refusés ; lecture tolérante", () => {
+test("look.slotLook.video : Boucle / Lecteur par emplacement ; slug, mode ou nombre d'entrées invalides refusés ; lecture tolérante (ancienne carte slotVideo relue)", () => {
+  assert.ok(LookSchema.safeParse({ slotLook: { "c1-ab12": { video: "loop" }, "vallee-suspendue": { video: "player" } } }).success);
   assert.ok(LookSchema.safeParse({ slotVideo: { "c1-ab12": "loop", "vallee-suspendue": "player" } }).success);
-  assert.ok(!LookSchema.safeParse({ slotVideo: { "../x": "loop" } }).success);
-  assert.ok(!LookSchema.safeParse({ slotVideo: { a: "auto" } }).success);
-  assert.ok(!LookSchema.safeParse({ slotVideo: Object.fromEntries(Array.from({ length: 201 }, (_, i) => [`s-${i}`, "loop"])) }).success);
+  assert.ok(!LookSchema.safeParse({ slotLook: { "../x": { video: "loop" } } }).success);
+  assert.ok(!LookSchema.safeParse({ slotLook: { a: { video: "auto" } } }).success);
+  assert.ok(!LookSchema.safeParse({ slotLook: Object.fromEntries(Array.from({ length: 501 }, (_, i) => [`s-${i}`, { video: "loop" }])) }).success);
   assert.deepEqual(readLook({ spaceTop: "m", slotVideo: { "<x>": "loop" } }), { spaceTop: "m" });
-  assert.deepEqual(readLook({ slotVideo: { a1: "player" } }), { slotVideo: { a1: "player" } });
+  assert.deepEqual(readLook({ slotVideo: { a1: "player" } }), { slotLook: { a1: { video: "player" } } });
+  assert.deepEqual(readLook({ slotLook: { a1: { video: "player" } } }), { slotLook: { a1: { video: "player" } } });
 });
 
 test("vidéo de test du seed : un vrai MP4 H.264 de moins de 1 Mo et son image d'attente", () => {

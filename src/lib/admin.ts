@@ -22,6 +22,7 @@ import { allBlocks, findMediaUsages, findWallpaperUsages, LOGO_USAGE_TYPE, media
 import { listWallpaperChoices } from "./wallpapers";
 import { readCardWallpaper, readPagePaper, type CardWallpaper, type PagePaper } from "@/themes/wallpaper";
 import { tagsByMedia, type MediaTag } from "./tags";
+import type { FaviconInput } from "./favicon-spec";
 import { readSeo, type SeoInput } from "./seo-schema";
 import { untranslatedCount } from "./translation-gaps";
 
@@ -391,7 +392,7 @@ export function getMediaUses(id: number): MediaUseRow[] {
           projectId: u.projectId,
           projectTitle: projects.get(u.projectId)?.title.fr ?? "",
           slotId: 0,
-          slotTitle: "Grille, image ou vidéo de la planche",
+          slotTitle: "Grille, image ou vidéo du projet",
           trashed: Boolean(projects.get(u.projectId)?.deletedAt),
           ...(u.draftPageId ? { draftPage: pages.get(u.draftPageId)?.title.fr || `page ${u.draftPageId}` } : {}),
         }
@@ -490,7 +491,14 @@ const asL = (v: unknown): L => {
 export function getSeoForAdmin(): SeoInput {
   const row = getDb().select().from(schema.settings).where(eq(schema.settings.key, "seo")).get();
   const seo = readSeo(row ? parseJson(row.value) : undefined);
-  return { description: seo.description, shareImage: seo.shareImage, favicon: seo.favicon?.mediaId ?? null };
+  return { description: seo.description, shareImage: seo.shareImage };
+}
+
+/** Icône de l'onglet telle que les deux écrans (Réglages, étape « Logo » du thème) la montrent : un seul réglage de site (lot 83). */
+export function getFaviconForAdmin(): FaviconInput {
+  const row = getDb().select().from(schema.settings).where(eq(schema.settings.key, "seo")).get();
+  const seo = readSeo(row ? parseJson(row.value) : undefined);
+  return { mode: seo.faviconMode.mode, mediaId: seo.favicon?.mediaId ?? null, mono: seo.faviconMode.mono, crop: seo.faviconMode.crop };
 }
 
 export function getSettingsForAdmin(): AdminSettings {

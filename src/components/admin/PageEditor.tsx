@@ -177,12 +177,12 @@ export default function PageEditor({
       <section className="a-panel" aria-labelledby="pe-contenu">
         <h2 id="pe-contenu">Contenu</h2>
         <p className="a-help a-panel-intro">
-          {state.blocks.length === 0 ? "Cette page est vide." : `${state.blocks.length} rubrique${state.blocks.length > 1 ? "s" : ""} composent cette page.`} Le contenu se compose dans l&apos;éditeur visuel : tu y
-          ajoutes, déplaces et supprimes les rubriques, et tu règles chacun directement sur la page.
+          {state.blocks.length === 0 ? "Cette page est vide." : `${state.blocks.length} bloc${state.blocks.length > 1 ? "s" : ""} composent cette page.`} Le contenu se compose dans l&apos;éditeur visuel : tu y
+          ajoutes, déplaces et supprimes les blocs, et tu règles chacun directement sur la page.
         </p>
         {blockProblems.length > 0 && (
           <div className="a-alert" role="alert">
-            <p>Une rubrique empêche l&apos;enregistrement : corrige-la dans l&apos;éditeur.</p>
+            <p>Un bloc empêche l&apos;enregistrement : corrige-le dans l&apos;éditeur.</p>
             <ul className="a-refs">
               {blockProblems.map(([k, m]) => (
                 <li key={k}>{m}</li>

@@ -15,11 +15,12 @@ const NAV: { href: string; label: string; sub?: boolean }[] = [
   { href: "/admin", label: "Tableau de bord" },
   { href: "/admin/themes", label: "Thèmes" },
   { href: "/admin/papiers-peints", label: "Papiers peints", sub: true },
+  { href: "/admin/cadres", label: "Cadres", sub: true },
   { href: "/admin/pages", label: "Pages" },
-  { href: "/admin/projets", label: "Projets" },
   { href: "/admin/medias", label: "Médiathèque" },
   { href: "/admin/messages", label: "Messages" },
   { href: "/admin/reglages", label: "Réglages" },
+  { href: "/admin/sauvegardes", label: "Sauvegardes", sub: true },
 ];
 
 function isCurrent(pathname: string, href: string) {

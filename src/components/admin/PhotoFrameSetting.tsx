@@ -3,7 +3,7 @@
 /**
  * Réglage « Cadre du thème sur toutes les photos » (lot 62, Admin → Thèmes, quand le thème en ligne dessine un cadre). Non par défaut :
  * le cadre du kit n'est posé que sur les photos qui le choisissent (menu « Cadre » de la barre d'une image) ; en le mettant sur Oui,
- * toutes les photos SANS choix l'ont aussi. Un choix explicite (Aucun, Bande de couleur) passe toujours avant.
+ * toutes les photos SANS choix l'ont aussi. Un choix explicite (Aucun, Bordure) passe toujours avant.
  */
 import { useState } from "react";
 

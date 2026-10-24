@@ -4,7 +4,7 @@
  * une connexion, page « À propos », thème du seed.
  *
  *  A. Choix d'insertion : « Texte » (un paragraphe seul), « Titre » (un titre seul), « Titre + texte » ; dans la
- *     fenêtre « Ajouter une rubrique », le panneau « Ajouter » et la case vide d'une grille. Un champ absent n'existe
+ *     fenêtre « Ajouter un bloc », le panneau « Ajouter » et la case vide d'une grille. Un champ absent n'existe
  *     pas : ni clé dans le brouillon, ni place, ni texte gris sur la toile.
  *  B. Hauteurs et rythme : un Texte seul n'a que l'espace de section au-dessus de son paragraphe (le rythme des autres
  *     rubriques), sur la toile ET en public ; un titre ajouté puis retiré rend exactement la hauteur d'origine.
@@ -193,7 +193,7 @@ if (run("A") || run("B") || run("C") || run("D"))
 
     // « Titre » : un titre seul. Ni présentation, ni texte d'aide pour elle.
     await dlg.locator('[data-starter="title"]').click();
-    ok("A2 « Titre » : bloc Titre avec son seul texte d'aide, sans présentation", await waitFor(() => { const b = draftBlocks().at(-1); return draftBlocks().length === baseCount + 1 && b.type === "section-title" && b.props.title?.fr === "Titre de la rubrique" && b.props.intro === undefined && !b.props.linked; }), JSON.stringify(draftBlocks().at(-1)?.props));
+    ok("A2 « Titre » : bloc Titre avec son seul texte d'aide, sans présentation", await waitFor(() => { const b = draftBlocks().at(-1); return draftBlocks().length === baseCount + 1 && b.type === "section-title" && b.props.title?.fr === "Titre du bloc" && b.props.intro === undefined && !b.props.linked; }), JSON.stringify(draftBlocks().at(-1)?.props));
     uids.title = draftBlocks().at(-1).uid;
     ok("A2 aucun texte d'aide « Présentation » sur la toile", (await f.locator(`[data-edit-block="${uids.title}"] [data-inline="intro"]`).count()) === 0);
     await page.screenshot({ path: path.join(SHOTS, "a2-titre-edition.png") });
@@ -222,7 +222,7 @@ if (run("A") || run("B") || run("C") || run("D"))
     await page.keyboard.press("Escape");
     await settled();
     await tryPublish();
-    ok("D2 « Texte » resté tel quel : publication refusée", await page.getByText(/Remplace le texte d'exemple de cette rubrique Texte/).first().waitFor({ timeout: 60000 }).then(() => true, () => false));
+    ok("D2 « Texte » resté tel quel : publication refusée", await page.getByText(/Remplace le texte d'exemple de ce bloc Texte/).first().waitFor({ timeout: 60000 }).then(() => true, () => false));
     await f.locator(`[data-edit-block="${uids.text}"] [data-inline="paragraphs.0"]`).dblclick();
     await page.keyboard.press("Control+a");
     await page.keyboard.type(SAME);
@@ -233,9 +233,9 @@ if (run("A") || run("B") || run("C") || run("D"))
     // « Titre + texte ».
     await openChoice();
     await dlg.locator('[data-starter="title-text"]').click();
-    ok("A4 « Titre + texte » : titre et paragraphe d'aide", await waitFor(() => { const b = draftBlocks().at(-1); return draftBlocks().length === baseCount + 3 && b.type === "rich-text" && b.props.title?.fr === "Titre de la rubrique" && b.props.paragraphs?.[0]?.fr === "Écris ton texte ici."; }), JSON.stringify(draftBlocks().at(-1)?.props));
+    ok("A4 « Titre + texte » : titre et paragraphe d'aide", await waitFor(() => { const b = draftBlocks().at(-1); return draftBlocks().length === baseCount + 3 && b.type === "rich-text" && b.props.title?.fr === "Titre du bloc" && b.props.paragraphs?.[0]?.fr === "Écris ton texte ici."; }), JSON.stringify(draftBlocks().at(-1)?.props));
     uids.both = draftBlocks().at(-1).uid;
-    await typeOver(f, "title", "Un titre et son texte", "Titre de la rubrique");
+    await typeOver(f, "title", "Un titre et son texte", "Titre du bloc");
     ok("A4 titre saisi", await waitFor(() => draftBlocks().at(-1)?.props.title?.fr === "Un titre et son texte"));
     await f.locator(`[data-edit-block="${uids.both}"] [data-inline="paragraphs.0"]`).dblclick();
     await page.keyboard.press("Control+a");
@@ -349,8 +349,8 @@ if (run("C"))
     await page.screenshot({ path: path.join(SHOTS, "c1-ajouter-un-titre.png") });
     ok("C1 aucun bouton « Retirer le titre » tant qu'il n'y a pas de titre", (await f.locator(`[data-edit-block="${uids.text}"] [data-edit-field-op="remove-title"]`).count()) === 0);
     await add.click();
-    ok("C2 le titre est créé (texte d'aide) dans le brouillon", await waitFor(() => draftBlocks().find((b) => b.uid === uids.text)?.props.title?.fr === "Titre de la rubrique"), JSON.stringify(draftBlocks().find((b) => b.uid === uids.text)?.props));
-    ok("C2 édition en place ouverte sur le titre, texte d'aide sélectionné", (await f.locator('[data-editing][data-inline="title"]').waitFor({ timeout: 60000 }).then(() => true, () => false)) && (await selectedText(f)) === "Titre de la rubrique", await selectedText(f));
+    ok("C2 le titre est créé (texte d'aide) dans le brouillon", await waitFor(() => draftBlocks().find((b) => b.uid === uids.text)?.props.title?.fr === "Titre du bloc"), JSON.stringify(draftBlocks().find((b) => b.uid === uids.text)?.props));
+    ok("C2 édition en place ouverte sur le titre, texte d'aide sélectionné", (await f.locator('[data-editing][data-inline="title"]').waitFor({ timeout: 60000 }).then(() => true, () => false)) && (await selectedText(f)) === "Titre du bloc", await selectedText(f));
     await page.keyboard.type("Titre ajouté");
     await page.keyboard.press("Enter");
     ok("C2 titre saisi", await waitFor(() => draftBlocks().find((b) => b.uid === uids.text)?.props.title?.fr === "Titre ajouté"));
@@ -426,7 +426,7 @@ if (run("E"))
     const pub = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
     await pub.goto(`${BASE}/fr/a-propos`, { waitUntil: "networkidle" });
     const leaks = await pub.evaluate(() => [...document.querySelectorAll("[data-placeholder], [data-edit-block], [data-inline], .pe-field-op")].length);
-    ok("E1 public : aucun repère d'édition, aucun bouton de titre, aucun texte d'aide dans le DOM", leaks === 0 && !/Écris ton texte|Titre de la rubrique/.test(await pub.evaluate(() => document.body.innerText)), String(leaks));
+    ok("E1 public : aucun repère d'édition, aucun bouton de titre, aucun texte d'aide dans le DOM", leaks === 0 && !/Écris ton texte|Titre du bloc/.test(await pub.evaluate(() => document.body.innerText)), String(leaks));
     const measure = (needle) => pub.evaluate(
       ({ needle, src }) => {
         const m = new Function("root", `return (${src})(root)`);

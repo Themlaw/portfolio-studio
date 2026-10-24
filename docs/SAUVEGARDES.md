@@ -16,6 +16,27 @@ Le site peut se sauvegarder tout seul dans son propre volume (`/data/backup`). E
 
 Une valeur invalide est remplacée par le défaut, avec un avertissement dans le journal.
 
+## Écran Admin > Sauvegardes (lot 76)
+
+Menu de l'admin, sous Réglages. On y voit : la liste des sauvegardes (date, taille, base seule ou avec médias, version du site et
+raison, lues dans `manifest.json` sans décompresser l'archive), l'état (nombre, prochaine sauvegarde prévue ou « aucune modification
+en attente », dernière erreur, espace libre du volume), les réglages, « Sauvegarder maintenant » (avec l'avancement) et
+« Télécharger » pour chaque archive.
+
+- **Réglages en base.** Ligne `backup` de la table `settings` (JSON `{ enabled, keep, quietMin, maxHours, media }`, chaque champ
+  facultatif). Un champ présent PRIME sur l'environnement, qui reste la valeur par défaut ; l'écran dit pour chaque valeur « Réglé
+  ici », « Valeur du serveur (VARIABLE) » ou « Valeur d'origine », et « Revenir à la valeur d'origine » retire le champ. Pris en
+  compte sans redémarrage. Pas de migration. Même l'activation peut venir de l'admin (sans `WITH_BACKUP`).
+- **Sauvegarder maintenant.** Même verrou que les sauvegardes automatiques (une seule à la fois), part tout de suite, fonctionne aussi
+  quand les sauvegardes automatiques sont désactivées (le dossier `backup/` est alors créé à ce moment-là). Raison « manuel ».
+- **Télécharger.** `GET /api/admin/sauvegardes/<nom>` : session admin vérifiée en base (401 sinon), nom strict
+  `portfolio-AAAAMMJJ-HHMMSS[-n].tar.gz` (404 sinon), lecture en flux par blocs de 256 Ko (rien en mémoire), pièce jointe,
+  `Range` (206 / 416) et `If-Range` pour reprendre un téléchargement. Pour l'artiste : « Garde une copie sur ton ordinateur de
+  temps en temps ».
+- Code : `settings.ts` (lecture / écriture des réglages), `download.ts` (nom et Range), `service.ts` (`getBackupStatus`,
+  `startBackupNow`, `applyBackupSettings`), `archive.ts` (`readArchiveManifest`), `src/app/admin/(espace)/sauvegardes/`,
+  `src/components/admin/BackupPanel.tsx`. Test : suite `admin76`.
+
 ## Quand une sauvegarde part
 
 Une sauvegarde part s'il y a eu des modifications **et** que l'un de ces délais est atteint : `BACKUP_QUIET_MIN` minutes sans

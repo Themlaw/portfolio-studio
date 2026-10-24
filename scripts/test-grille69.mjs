@@ -57,7 +57,9 @@ const grid = () => ({
     ],
   },
 });
-const blockLook = () => ({ spaceTop: "l", slotFrame: { "autre-x1": { size: 2, color: "ink" } }, slotPano: { "grille1-ka1": "scroll" } });
+const blockLook = () => ({ spaceTop: "l", slotLook: { "autre-x1": { frame: { size: 2, color: "ink" } }, "grille1-ka1": { pano: "scroll" } } });
+// Même rubrique à la forme d'AVANT le lot 75 (cinq cartes par place) : relue, puis écrite à la nouvelle forme.
+const legacyBlockLook = () => ({ spaceTop: "l", slotFrame: { "autre-x1": { size: 2, color: "ink" } }, slotPano: { "grille1-ka1": "scroll" } });
 
 test("69a aller-retour grille -> carrousel -> grille : état de départ exact, réglages de la rubrique intacts", () => {
   const g = grid();
@@ -71,6 +73,17 @@ test("69a aller-retour grille -> carrousel -> grille : état de départ exact, r
   assert.ok(!("error" in b), JSON.stringify(b));
   assert.deepEqual(b.item, g, "la grille revient exactement");
   assert.deepEqual(b.look, look0, "la rubrique de la page retrouve ses réglages (aucune trace des places)");
+});
+
+test("69a-bis une rubrique à l'ancienne forme (cinq cartes par place) est relue, la conversion écrit slotLook", () => {
+  const g = grid();
+  const a = convertItem(clone(g), "strip", ctx(clone(legacyBlockLook())));
+  assert.ok(!("error" in a), JSON.stringify(a));
+  assert.equal(Object.keys(a.look).some((k) => /^slot(Frame|Bg|Radius|Pano|Video)$/.test(k)), false);
+  assert.deepEqual(a.look.slotLook["autre-x1"], { frame: { size: 2, color: "ink" } });
+  const b = convertItem(clone(a.item), "grid", ctx(clone(a.look)));
+  assert.deepEqual(b.item, g, "la grille revient exactement");
+  assert.deepEqual(b.look, blockLook(), "la rubrique revient à la nouvelle forme, sans rien perdre");
 });
 
 test("69b la forme carrousel garde images, ordre, légendes, cadres, fonds, arrondis, lectures", () => {
@@ -87,15 +100,16 @@ test("69b la forme carrousel garde images, ordre, légendes, cadres, fonds, arro
   assert.deepEqual(p.captions[slug(2)], { caption: T("Une vidéo") }, "la légende d'une vidéo");
   assert.equal(p.captions[slug(1)], undefined);
   const lk = a.look;
-  assert.deepEqual(lk.slotFrame[slug(0)], { size: 6, color: "ink" });
-  assert.deepEqual(lk.slotFrame[slug(2)], { size: 4, color: "accent" });
-  assert.equal(lk.slotFrame["autre-x1"].size, 2, "un réglage d'une autre place reste");
-  assert.equal(lk.slotBg[slug(0)], "#ffffff");
-  assert.equal(lk.slotRadius[slug(1)], "strong", "arrondi propre à la case");
-  assert.equal(lk.slotRadius[slug(0)], "soft", "sinon celui de la grille");
-  assert.equal(lk.slotVideo[slug(2)], "loop");
-  assert.equal(lk.slotVideo[slug(0)], undefined, "une image n'a pas de lecture");
-  assert.equal(lk.slotPano[slug(0)], "scroll", "ce que la conversion ne gère pas reste");
+  assert.deepEqual(lk.slotLook[slug(0)].frame, { size: 6, color: "ink" });
+  assert.deepEqual(lk.slotLook[slug(2)].frame, { size: 4, color: "accent" });
+  assert.equal(lk.slotLook["autre-x1"].frame.size, 2, "un réglage d'une autre place reste");
+  assert.equal(lk.slotLook[slug(0)].bg, "#ffffff");
+  assert.equal(lk.slotLook[slug(1)].radius, "strong", "arrondi propre à la case");
+  assert.equal(lk.slotLook[slug(0)].radius, "soft", "sinon celui de la grille");
+  assert.equal(lk.slotLook[slug(2)].video, "loop");
+  assert.equal(lk.slotLook[slug(0)].video, undefined, "une image n'a pas de lecture");
+  assert.equal(lk.slotLook[slug(0)].pano, "scroll", "ce que la conversion ne gère pas reste");
+  assert.equal(Object.keys(lk).some((k) => /^slot(Frame|Bg|Radius|Pano|Video)$/.test(k)), false, "plus d'ancienne carte");
   assert.deepEqual(p.look, g.props.look, "espace, arrondi du composant : communs");
   assert.deepEqual(p.background, g.props.background, "fond du composant : commun");
   assert.equal(layoutProblem([a.item]), null, "le carrousel passe le contrôle de forme de la planche");
@@ -117,8 +131,8 @@ test("69c retouches faites dans le carrousel : reprises dans la grille (ordre, l
   const newIds = [...order.map((i) => ids[i]), "nouv1", "nouv2"];
   props.ids = newIds;
   props.captions[`grille1-${ids[0]}`].caption = T("Première, modifiée");
-  delete look.slotFrame[`grille1-${ids[2]}`];
-  look.slotBg[`grille1-${ids[1]}`] = "card";
+  delete look.slotLook[`grille1-${ids[2]}`].frame;
+  look.slotLook[`grille1-${ids[1]}`] = { ...(look.slotLook[`grille1-${ids[1]}`] ?? {}), bg: "card" };
   const b = convertItem({ ...a.item, props }, "grid", ctx(look, { 15: "image", 16: "video" }));
   assert.ok(!("error" in b), JSON.stringify(b));
   const kids = b.item.props.children;
@@ -136,8 +150,8 @@ test("69c retouches faites dans le carrousel : reprises dans la grille (ordre, l
   assert.equal(kids[4].props.mode, "player");
   assert.equal(b.item.props.layout, "custom", "agencement d'origine gardé");
   assert.equal(b.item.props.ratio, "4:5");
-  assert.equal(b.look.slotFrame["autre-x1"].size, 2);
-  assert.equal(Object.keys(b.look.slotFrame).some((k) => k.startsWith("grille1-")), false, "plus de trace des places dans la rubrique");
+  assert.equal(b.look.slotLook["autre-x1"].frame.size, 2);
+  assert.equal(Object.entries(b.look.slotLook).some(([k, v]) => k.startsWith("grille1-") && v.frame !== undefined), false, "plus de trace des cadres des places dans la rubrique");
   assert.ok(gridSchema.safeParse(b.item.props).success, "la grille obtenue passe le schéma");
 });
 
@@ -148,7 +162,7 @@ test("69d carrousel d'origine -> grille -> carrousel : retour exact (lectures, p
     box: { width: 50 },
     props: { source: "own", media: [11, null, 13], ids: ["aa1", "bb2", "cc3"], videoMode: "loop", look: { spaceTop: "s" }, captions: { "rail1-aa1": { caption: T("Une"), date: T("2026") }, "rail1-cc3": { title: T("Clip") } } },
   };
-  const look0 = { slotFrame: { "rail1-aa1": { size: 8, color: "ink" } }, slotRadius: { "rail1-bb2": "none" }, slotPano: { "rail1-aa1": "scroll" }, slotVideo: { "rail1-cc3": "player" } };
+  const look0 = { slotLook: { "rail1-aa1": { frame: { size: 8, color: "ink" }, pano: "scroll" }, "rail1-bb2": { radius: "none" }, "rail1-cc3": { video: "player" } } };
   const a = convertItem(clone(strip), "grid", ctx(clone(look0)));
   assert.ok(!("error" in a), JSON.stringify(a));
   assert.equal(a.item.type, "grid");
@@ -159,7 +173,8 @@ test("69d carrousel d'origine -> grille -> carrousel : retour exact (lectures, p
   assert.deepEqual(a.item.props.children[0].props.look.frame, { size: 8, color: "ink" });
   assert.equal(a.item.props.children[1].props.look.radius, "none");
   assert.equal(a.item.props.children[2].props.mode, "player");
-  assert.equal(a.look.slotPano["rail1-aa1"], "scroll", "le panorama (sans équivalent) reste dans la rubrique");
+  assert.equal(a.look.slotLook["rail1-aa1"].pano, "scroll", "le panorama (sans équivalent) reste dans la rubrique");
+  assert.equal(a.look.slotLook["rail1-aa1"].frame, undefined, "ce que la case reprend quitte la rubrique");
   assert.equal(gridSchema.safeParse(a.item.props).success, true);
   const b = convertItem(clone(a.item), "strip", ctx(clone(a.look)));
   assert.ok(!("error" in b), JSON.stringify(b));
