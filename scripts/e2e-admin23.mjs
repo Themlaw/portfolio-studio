@@ -204,7 +204,7 @@ try {
   await d.getByRole("button", { name: "Annuler" }).click();
 
   /* ======================= B. Projets ======================= */
-  await goto("/admin/projets");
+  await goto("/admin/pages#projets");
   await page.getByRole("button", { name: "Nouveau projet" }).click();
   d = page.locator("dialog[open]");
   await d.getByLabel("Titre en français").fill("Projet 23");
@@ -212,7 +212,7 @@ try {
   await page.waitForURL(/\/admin\/projets\/\d+$/);
   const projectId = Number(page.url().split("/").pop());
   created.projects.push(projectId);
-  await goto("/admin/projets");
+  await goto("/admin/pages#projets");
   const card = () => page.locator(".a-project-card", { hasText: "Projet 23" });
   await confirmDelete(card(), "Supprimer le projet");
   await toast("Supprimé");
@@ -223,11 +223,11 @@ try {
   ok("B3b il est de retour dans la liste", (await card().count()) === 1);
   await confirmDelete(card(), "Supprimer le projet");
   await toast("Supprimé");
-  await goto("/admin/projets?vue=corbeille");
+  await goto("/admin/pages?vue=corbeille");
   ok("B4 vue Corbeille des projets", (await page.locator('[data-testid="corbeille-ligne"]', { hasText: "Projet 23" }).count()) === 1);
   await page.locator('[data-testid="corbeille-ligne"]', { hasText: "Projet 23" }).getByRole("button", { name: "Restaurer" }).click();
   await toast("restauré");
-  await goto("/admin/projets");
+  await goto("/admin/pages#projets");
   ok("B5 Restaurer : de retour dans la liste", (await card().count()) === 1);
   await confirmDelete(card(), "Supprimer le projet");
   await toast("Supprimé");
@@ -237,7 +237,7 @@ try {
 
   // Projet cité : refus annoncé d'avance.
   const cited = dbq("select p.id, json_extract(p.title,'$.fr') t from projects p where exists (select 1 from blocks b where b.props like '%\"project\":\"' || p.slug || '\"%') limit 1")[0];
-  await goto("/admin/projets");
+  await goto("/admin/pages#projets");
   await page.locator(".a-project-card", { hasText: cited.t }).first().getByRole("button", { name: "Supprimer" }).click();
   d = page.locator("dialog[open]");
   ok("B7 projet cité : blocs listés, bouton « Supprimer le projet » inactif", (await d.locator(".a-refs li").count()) > 0 && (await d.getByRole("button", { name: "Supprimer le projet" }).isDisabled()));
@@ -417,7 +417,7 @@ try {
   ok("G0 média de test traité", await waitFor(() => dbq("select status s from media where original_name = 'bloque-23.png'")[0]?.s === "ready", 60000));
   const bmid = dbq("select id from media where original_name = 'bloque-23.png'")[0].id;
   created.media.push(bmid);
-  await goto("/admin/projets");
+  await goto("/admin/pages#projets");
   await page.getByRole("button", { name: "Nouveau projet" }).click();
   await page.locator("dialog[open]").getByLabel("Titre en français").fill("Bloqueur 23");
   await page.locator("dialog[open]").getByRole("button", { name: "Créer le projet" }).click();
@@ -433,12 +433,12 @@ try {
   };
   await openMedia();
   ok("G1 média utilisé par un projet : suppression bloquée", await panel.getByRole("button", { name: "Supprimer l'image" }).isDisabled());
-  await goto("/admin/projets");
+  await goto("/admin/pages#projets");
   await confirmDelete(page.locator(".a-project-card", { hasText: "Bloqueur 23" }), "Supprimer le projet");
   await toast("Supprimé");
   await openMedia();
   ok("G2 projet à la corbeille : le média reste bloqué, et le dit", (await panel.getByRole("button", { name: "Supprimer l'image" }).isDisabled()) && /projet à la corbeille/.test(await panel.innerText()));
-  await goto("/admin/projets?vue=corbeille");
+  await goto("/admin/pages?vue=corbeille");
   const prow = page.locator('[data-testid="corbeille-ligne"]', { hasText: "Bloqueur 23" });
   await prow.getByRole("button", { name: "Supprimer définitivement" }).click();
   const conf = page.locator('[data-testid="confirmation-definitive"]');

@@ -14,7 +14,7 @@ import { toast } from "./editing";
 
 const TEXTS: Record<OnboardingStep["key"], { title: string; text: string; href: string; cta: string }> = {
   theme: { title: "Choisir un thème", text: "Le thème donne les couleurs, les polices et l'ambiance de tout ton site.", href: "/admin/themes", cta: "Choisir un thème" },
-  project: { title: "Créer un projet et y mettre des images", text: "Un projet rassemble tes images. Celles que tu envoies depuis un projet y sont ajoutées directement.", href: "/admin/projets", cta: "Ouvrir les projets" },
+  project: { title: "Créer un projet et y mettre des images", text: "Un projet rassemble tes images. Celles que tu envoies depuis un projet y sont ajoutées directement.", href: "/admin/pages#projets", cta: "Ouvrir les projets" },
   page: { title: "L'afficher sur une page", text: "Un projet n'est visible que si une page l'affiche : ajoute un bloc « Projet » à une page.", href: "/admin/pages", cta: "Choisir une page" },
   publish: { title: "Publier", text: "Tant qu'une page n'est pas publiée, personne ne la voit sur ton site.", href: "/admin/pages", cta: "Publier une page" },
   about: { title: "Remplir « À propos » et le contact", text: "Ton nom, ta présentation et ton adresse e-mail, pour qu'on puisse te contacter.", href: "/admin/reglages", cta: "Remplir mes informations" },

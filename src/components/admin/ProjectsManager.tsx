@@ -10,7 +10,7 @@ import type { AdminProjectRow, TrashSummary } from "@/lib/admin";
 import { daysLeft, lostWithProject, TRASH_DAYS } from "@/lib/trash";
 
 import { ConfirmDialog, same, toast, undoToast } from "./editing";
-import { EmptyTrash, PurgeItem } from "./TrashControls";
+import { PurgeItem } from "./TrashControls";
 import { DragHandle, SortableList } from "./Sortable";
 
 /** Corbeille des projets : restauration en un clic, purge au bout de 30 jours. */
@@ -23,9 +23,8 @@ function TrashList({ projects, summary }: { projects: AdminProjectRow[]; summary
       <p className="a-help a-panel-intro">
         Un projet supprimé n&apos;est plus sur le site. Il reste {TRASH_DAYS} jours ici avec sa planche : restaure-le en un clic, après quoi il est effacé pour de bon (ses images restent dans la médiathèque).
       </p>
-      <EmptyTrash summary={summary} />
       {projects.length === 0 ? (
-        <p className="muted" data-testid="corbeille-vide">La corbeille est vide.</p>
+        <p className="muted" data-testid="corbeille-projets-vide">La corbeille est vide.</p>
       ) : (
         <div className="a-table-wrap">
           <table className="a-table a-table-stack">

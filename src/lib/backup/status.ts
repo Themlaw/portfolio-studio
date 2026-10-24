@@ -8,7 +8,7 @@ import path from "node:path";
 import { dataDir } from "@/lib/db";
 
 import { BACKUP_DIRNAME } from "./archive";
-import { readBackupConfig } from "./config";
+import { effectiveBackupConfig } from "./settings";
 import { ARCHIVE_RE, sortArchives } from "./schedule";
 
 /** « il y a 5 min », « il y a 2 h », « il y a 3 jours ». */
@@ -22,7 +22,7 @@ export function ageLabel(ms: number): string {
 }
 
 export function backupSummary(now = Date.now()): string | null {
-  if (!readBackupConfig().enabled) return null;
+  if (!effectiveBackupConfig().enabled) return null;
   const dir = path.join(/* turbopackIgnore: true */ dataDir(), BACKUP_DIRNAME);
   let names: string[] = [];
   try {

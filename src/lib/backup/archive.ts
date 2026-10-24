@@ -18,7 +18,7 @@ import { mkdir, open, readdir, rename, rm, stat, statfs } from "node:fs/promises
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { createGzip } from "node:zlib";
+import { constants as zc, createGzip, gunzipSync } from "node:zlib";
 
 import Database from "better-sqlite3";
 
@@ -107,6 +107,54 @@ async function fontFiles(dataDir: string): Promise<{ key: string; file: string; 
   return out;
 }
 
+export type BackupProgress = { phase: "preparation" | "ecriture"; done: number; total: number };
+
+/** Ce que l'archive dit d'elle-même (manifest.json, premier fichier de l'archive). */
+export type ArchiveManifest = { version?: string; createdAt?: string; reason?: string; includesMedia?: boolean; mediaCount?: number; bytes?: number };
+
+const manifestCache = new Map<string, ArchiveManifest | null>();
+
+/**
+ * Lit le manifest.json d'une archive SANS la décompresser en entier : c'est la première entrée du tar, donc dans les
+ * premiers Ko du flux gzip. Null si illisible (archive d'une autre origine, tronquée…). Mémorisé par nom + date + taille.
+ */
+export async function readArchiveManifest(file: string): Promise<ArchiveManifest | null> {
+  const info = await stat(file).catch(() => null);
+  if (!info?.isFile()) return null;
+  const cacheKey = `${file}|${info.mtimeMs}|${info.size}`;
+  if (manifestCache.has(cacheKey)) return manifestCache.get(cacheKey) ?? null;
+  let result: ArchiveManifest | null = null;
+  const fh = await open(/* turbopackIgnore: true */ file, "r").catch(() => null);
+  if (fh) {
+    try {
+      const head = Buffer.alloc(Math.min(65536, info.size));
+      const { bytesRead } = await fh.read(head, 0, head.length, 0);
+      // finishFlush : on ne veut que le début du flux, la fin manque forcément.
+      const tar = gunzipSync(head.subarray(0, bytesRead), { finishFlush: zc.Z_SYNC_FLUSH });
+      const name = tar.toString("utf8", 0, 100).replace(/\0[^]*$/, "");
+      const size = parseInt(tar.toString("ascii", 124, 136).replace(/\0[^]*$/, "").trim(), 8);
+      if (name === "manifest.json" && Number.isFinite(size) && size > 0 && size < 16384 && tar.length >= 512 + size) {
+        const m = JSON.parse(tar.subarray(512, 512 + size).toString("utf8")) as Record<string, unknown>;
+        result = {
+          version: typeof m.version === "string" ? m.version : undefined,
+          createdAt: typeof m.createdAt === "string" ? m.createdAt : undefined,
+          reason: typeof m.reason === "string" ? m.reason : undefined,
+          includesMedia: typeof m.includesMedia === "boolean" ? m.includesMedia : undefined,
+          mediaCount: typeof m.mediaCount === "number" ? m.mediaCount : undefined,
+          bytes: typeof m.bytes === "number" ? m.bytes : undefined,
+        };
+      }
+    } catch {
+      result = null;
+    } finally {
+      await fh.close();
+    }
+  }
+  if (manifestCache.size > 200) manifestCache.clear();
+  manifestCache.set(cacheKey, result);
+  return result;
+}
+
 export type RunOptions = {
   dataDir: string;
   config: Pick<BackupConfig, "media" | "keep">;
@@ -115,10 +163,13 @@ export type RunOptions = {
   reader: Database.Database;
   version?: string;
   now?: () => Date;
+  /** Avancement (écran Sauvegardes) : préparation, puis un appel par fichier écrit. */
+  onProgress?: (p: BackupProgress) => void;
 };
 
 export async function runBackup(opts: RunOptions): Promise<BackupResult> {
   const started = Date.now();
+  opts.onProgress?.({ phase: "preparation", done: 0, total: 0 });
   const dir = backupDir(opts.dataDir);
   await mkdir(dir, { recursive: true, mode: 0o750 });
   // Restes d'une écriture interrompue (arrêt brutal) : jamais une sauvegarde valable.
@@ -187,7 +238,13 @@ export async function runBackup(opts: RunOptions): Promise<BackupResult> {
     for (let i = 1; (await stat(path.join(/* turbopackIgnore: true */ dir, name)).catch(() => null)) !== null; i++) name = archiveName(stamp, i);
     tmpArchive = path.join(/* turbopackIgnore: true */ dir, `${name}.${process.pid}.tmp`);
     const report: TarReport = { shortfall: 0 };
-    await pipeline(Readable.from(tarChunks(entries, report)), createGzip({ level: 3 }), createWriteStream(tmpArchive, { mode: 0o640 }));
+    const tracked = function* () {
+      for (let i = 0; i < entries.length; i++) {
+        opts.onProgress?.({ phase: "ecriture", done: i, total: entries.length });
+        yield entries[i];
+      }
+    };
+    await pipeline(Readable.from(tarChunks(tracked(), report)), createGzip({ level: 3 }), createWriteStream(tmpArchive, { mode: 0o640 }));
     const fh = await open(/* turbopackIgnore: true */ tmpArchive, "r+");
     try {
       await fh.sync();
