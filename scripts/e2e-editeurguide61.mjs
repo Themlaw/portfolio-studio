@@ -267,8 +267,8 @@ if (run("D"))
     ok("D3 onglet « Mes papiers peints » : la bibliothèque est là", await page.locator('[data-testid="wallpaper-library"]').waitFor({ timeout: 20000 }).then(() => true, () => false) && new URL(page.url()).searchParams.get("onglet") === "papiers-peints");
     await page.screenshot({ path: `${SHOTS}/D-papiers-peints-1440.png` });
     await page.goto(`${BASE}/admin/papiers-peints`, { waitUntil: "networkidle" });
-    ok("D4 l'ancienne adresse redirige vers l'onglet", /\/admin\/themes\/[^/?]+\?etape=papier&onglet=papiers-peints$/.test(page.url()) && (await page.locator('[data-testid="wallpaper-library"]').isVisible()), page.url());
-    ok("D5 « Papiers peints » n'est plus une entrée du menu", (await page.locator('.a-nav a[href="/admin/papiers-peints"]').count()) === 0);
+    ok("D4 l'adresse /admin/papiers-peints est une vraie page (lot 78) avec la bibliothèque", new URL(page.url()).pathname === "/admin/papiers-peints" && (await page.locator('[data-testid="wallpaper-library"]').isVisible()), page.url());
+    ok("D5 « Papiers peints » est une entrée du menu (lot 78)", (await page.locator('.a-nav a[href="/admin/papiers-peints"]').count()) === 1);
   });
 
 /* ---- E. Logo -------------------------------------------------------------------------------------------- */
