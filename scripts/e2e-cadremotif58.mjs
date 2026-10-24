@@ -144,7 +144,7 @@ async function injectBoxes(pg, stretch = false) {
       document.getElementById("e58")?.remove();
       const root = document.createElement("div");
       root.id = "e58";
-      root.style.cssText = "position:absolute;left:0;top:0;z-index:99999;background:#f5f1e8;padding:16px;display:flex;flex-direction:column;gap:16px;align-items:flex-start";
+      root.style.cssText = "position:absolute;left:0;top:0;z-index:99999;background:#f5f1e8;padding:40px;display:flex;flex-direction:column;gap:56px;align-items:flex-start";
       for (const [k, [w, h]] of Object.entries(sizes)) {
         const fig = document.createElement("figure");
         fig.className = "block-image";

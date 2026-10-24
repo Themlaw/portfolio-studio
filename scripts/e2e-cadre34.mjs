@@ -207,7 +207,8 @@ if (run("I"))
     const ink = await colorOf(f, "var(--t-color-ink)");
     let s;
     ok("I3 toile : bordure Moyen (3 à 6 px) dans la couleur par défaut = le texte du thème", await waitFor(async () => { s = await readFrame(f, SOLO); return s && s.top >= 3 && s.top <= 6.01 && uniform(s, s.top) && s.color === ink && s.style === "solid"; }, 30000), JSON.stringify(s) + ink);
-    ok("I3 la boîte de l'image garde sa largeur (zone intérieure au format de la photo, content-box) et sa hauteur à 12 px près, sans rien rogner", s && s.box === "content-box" && near(s.w, base.solo.w, 0.6) && Math.abs(s.h - base.solo.h) <= 12, `${JSON.stringify(s)} / ${JSON.stringify(base.solo)}`);
+    // Lot 79 : le cadre DÉPASSE autour de la photo. La zone intérieure (boîte moins la bordure) garde la taille de « Aucun » ; la boîte mesurée grandit de la bordure.
+    ok("I3 la zone intérieure de l'image garde sa taille de « Aucun » (content-box, cadre qui dépasse), sans rien rogner", s && s.box === "content-box" && near(s.w - s.left - s.right, base.solo.w, 1) && near(s.h - s.top - s.bottom, base.solo.h, 1), `${JSON.stringify(s)} / ${JSON.stringify(base.solo)}`);
     await page.screenshot({ path: path.join(SHOTS, "i1-moyen.png") });
 
     await sizeBtn(dlg, "thick").click();
@@ -293,7 +294,7 @@ if (run("B"))
     await dlg.locator('[data-frame-color="primary"]').click();
     const primary = await colorOf(f, "var(--t-color-primary)");
     let s;
-    ok("B2 planche : bordure Épais dans la couleur « Boutons et liens »", await waitFor(async () => { s = await readFrame(f, SLOT0); return s && s.top > 6 && uniform(s, s.top) && s.color === primary; }, 30000), JSON.stringify(s));
+    ok("B2 planche : bordure Épais dans la couleur « Boutons et liens »", await waitFor(async () => { s = await readFrame(f, SLOT0); return s && s.top >= 6 && uniform(s, s.top) && s.color === primary; }, 30000), JSON.stringify(s)); // lot 79 : plafonné à la place entre deux places de la planche (6 px)
     ok("B2 la hauteur de l'image de la bande ne change pas", near(s.h, base.slot.h, 0.6), `${s.h} / ${base.slot.h}`);
     ok("B3 enregistré dans le bloc planche : look.slotFrame[slug]", await waitFor(() => isBand(lookOfDraft("board1")?.slotFrame?.[slug], "epais", "primary"), 30000), JSON.stringify(lookOfDraft("board1")));
     ok("B3 les autres images de la planche n'ont pas de cadre", (await f.locator('[data-edit-block="board1"] [data-edit-slot] .strip-media .media-frame').evaluateAll((l) => l.slice(1).every((i) => parseFloat(getComputedStyle(i).borderTopWidth) === 0))));
@@ -345,7 +346,7 @@ if (run("P"))
     const secondary = await colorOf(pp, "var(--t-color-secondary)");
     ok("P1 public : l'image seule a le cadre épais, couleur « Boutons et liens »", pub.solo && pub.solo.top > 6 && uniform(pub.solo, pub.solo.top) && pub.solo.color === primary && pub.solo.style === "solid", JSON.stringify(pub.solo));
     ok("P2 public : la case de grille a le cadre épais « Accent », ses voisines n'en ont pas", frames.filter((x) => x.w > 0).length === 3 && frames.filter((x) => x.c === secondary && x.w > 6).length === 1, JSON.stringify(frames));
-    ok("P3 public : l'image de la planche a le cadre épais « Boutons et liens »", pub.slot && pub.slot.top > 6 && pub.slot.color === primary, JSON.stringify(pub.slot));
+    ok("P3 public : l'image de la planche a le cadre épais « Boutons et liens »", pub.slot && pub.slot.top >= 6 && pub.slot.color === primary, JSON.stringify(pub.slot));
     ok("P4 parité éditeur / public : mêmes épaisseurs et couleurs (image seule, planche)", edit.solo.top > 0 && edit.slot.top > 0 && pub.slot.color === edit.slot.color && pub.solo.color === edit.solo.color, `${edit.solo.top}/${pub.solo.top} ${edit.slot.top}/${pub.slot.top}`);
     await pp.locator(".block-grid").first().scrollIntoViewIfNeeded();
     await pp.screenshot({ path: path.join(SHOTS, "p1-public-grille.png") });
