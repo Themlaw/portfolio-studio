@@ -2796,7 +2796,7 @@ const st2 = await waitImport(draftId, again2.body.kitImport?.id);
 const rap2 = st2.status === "done" ? rapportOf(dirK, again2.body.kitImport.id) : null;
 ok(
   `TI9 kit (v4) de la copie : case « Flèche droite » = flèche de l'artiste dessinée en 512 × 512 (IoU ${iou.toFixed(3)}) ; archive réimportée telle quelle → ${rap2?.slots.length} éléments inchangés dans ${rap2?.files?.length} fichiers`,
-  draftReady.ready && iou > 0.85 && rap2?.reference?.how === "identifiant" && rap2.slots.length === 16 && rap2.slots.every((x) => x.change === "unchanged") && rap2.files?.every((f) => f.received),
+  draftReady.ready && iou > 0.85 && rap2?.reference?.how === "identifiant" && rap2.slots.length === 17 && rap2.slots.every((x) => x.change === "unchanged") && rap2.files?.every((f) => f.received),
   `${JSON.stringify(draftReady)} ${rap2 && rap2.slots.filter((x) => x.change !== "unchanged").map((x) => x.id)}`,
 );
 

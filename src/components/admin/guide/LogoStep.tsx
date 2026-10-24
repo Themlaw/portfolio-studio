@@ -53,10 +53,13 @@ export default function LogoStep({
   themeId,
   onKit,
   locked,
+  favicon,
 }: {
   theme: Theme;
   themeId: string;
   onKit: (kit: KitAssets) => void;
+  /** Icône de l'onglet (lot 83) : le MÊME composant et le même réglage de site que Réglages → Référencement, rendu par le serveur. */
+  favicon?: ReactNode;
   /** Thème livré : lecture seule (message et copie proposés par l'éditeur). */
   locked: ReactNode | null;
 }) {
@@ -178,6 +181,11 @@ export default function LogoStep({
             </fieldset>
           )}
         </>
+      )}
+      {favicon && (
+        <section className="a-guide-block a-fav-block" data-testid="logo-favicon" aria-label="Icône de l'onglet">
+          {favicon}
+        </section>
       )}
       {!locked && (
         <Advanced id="logo" count={kit.cursors?.off ? 1 : 0} hint="Le curseur de la souris se dessine, lui aussi, dans le kit Photoshop.">

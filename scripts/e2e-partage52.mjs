@@ -125,7 +125,8 @@ if (run("PT") || run("SM")) await section("PT", async () => {
   const home = await html("/fr");
   ok("PT1 l'accueil s'intitule du seul nom du site (pas de doublon)", titleOf(home.text) === site || titleOf(home.text).startsWith(site), titleOf(home.text));
   const fav = await fetch(`${BASE}/favicon.ico`);
-  ok("PT1 pas d'icône choisie : aucune balise /site-icon, /favicon.ico répond", !/<link[^>]*site-icon/.test(before.text) && fav.status === 200, `${fav.status} ${before.text.match(/<link[^>]*icon[^>]*>/g)?.join(" ") ?? "aucune balise"}`);
+  // Lot 83 : sans choix, l'icône est celle du thème (monogramme) : balises présentes, /favicon.ico est un ICO généré (suite favicon83 pour le détail).
+  ok("PT1 pas d'icône choisie : icône du thème (balises /site-icon), /favicon.ico répond en ICO", /<link[^>]*site-icon/.test(before.text) && fav.status === 200 && /image\/x-icon/.test(fav.headers.get("content-type") ?? ""), `${fav.status} ${before.text.match(/<link[^>]*icon[^>]*>/g)?.join(" ") ?? "aucune balise"}`);
 
   shareId = await upload(SHARE_NAME, await png(1200, 630, { r: 200, g: 80, b: 60 }));
   iconId = await upload(ICON_NAME, await png(600, 600, { r: 30, g: 120, b: 220 }));
@@ -137,14 +138,20 @@ if (run("PT") || run("SM")) await section("PT", async () => {
   ok("PT2 section « Partage et moteurs de recherche » dans les réglages", await form.getByRole("heading", { name: "Partage et moteurs de recherche" }).isVisible());
   await form.getByRole("textbox", { name: "Description du site" }).fill("Illustratrice et character designer : projets, décors et animation.");
   await pickImage(form, 0, SHARE_NAME);
-  await pickImage(form, 1, ICON_NAME);
   ok("PT2 l'aperçu du lien partagé montre l'image choisie", (await form.getByTestId("share-preview").locator("img").count()) === 1);
-  await page.screenshot({ path: path.join(SHOTS, "pt-reglages.png"), fullPage: true });
   await form.getByRole("button", { name: "Enregistrer" }).click();
   await saved(form);
+  await sleep(800);
+  // Icône de l'onglet (lot 83) : section à part, son propre enregistrement ; « Une de mes images ».
+  const favSetting = page.locator("[data-testid=favicon-setting][data-scope=reglages]");
+  await favSetting.getByTestId("fav-mode-image").check();
+  await pickImage(favSetting, 0, ICON_NAME);
+  await favSetting.getByTestId("fav-save").click();
+  await saved(favSetting);
+  await page.screenshot({ path: path.join(SHOTS, "pt-reglages.png"), fullPage: true });
   await sleep(1200);
   const stored = JSON.parse(sql((db) => db.prepare("select value from settings where key = 'seo'").get())?.value ?? "{}");
-  ok("PT2 réglage enregistré (image, icône, description)", stored.shareImage === shareId && stored.favicon?.mediaId === iconId && /Illustratrice/.test(stored.description?.fr ?? ""), JSON.stringify(stored));
+  ok("PT2 réglage enregistré (image, icône, description)", stored.shareImage === shareId && stored.favicon?.mediaId === iconId && stored.faviconMode?.mode === "image" && /Illustratrice/.test(stored.description?.fr ?? ""), JSON.stringify(stored));
 
   // Public : la page sans image à elle prend la première image de son contenu, sinon celle du site ; description du site à défaut.
   await page.goto(`${BASE}/admin/pages/${pageIdOf("a-propos")}`, { waitUntil: "networkidle" });

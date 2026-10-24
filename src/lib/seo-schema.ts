@@ -5,25 +5,35 @@
  */
 import { z } from "zod";
 
+import { defaultFaviconConfig, readFaviconConfig, type FaviconConfig } from "./favicon-spec";
+
 type L = { fr: string; en: string };
 
 const Loc = (max: number) => z.strictObject({ fr: z.string().trim().max(max), en: z.string().trim().max(max) });
 
-/** Ce que l'écran des réglages envoie. */
+/** Ce que l'écran des réglages envoie (l'icône de l'onglet a son propre enregistrement : saveFavicon, lot 83). */
 export const SeoInputSchema = z.strictObject({
   description: Loc(300),
   shareImage: z.number().int().positive().nullable(),
-  favicon: z.number().int().positive().nullable(),
 });
 export type SeoInput = z.infer<typeof SeoInputSchema>;
 
 /** Ce qui est gardé : l'icône est déjà déclinée en tailles, `dir` est son dossier dans le stockage. */
-export type SeoStored = { description: L; shareImage: number | null; favicon: { mediaId: number; dir: string } | null };
+export type SeoStored = {
+  description: L;
+  shareImage: number | null;
+  /** Image choisie (mode « image ») : déclinée à l'enregistrement dans `dir`. */
+  favicon: { mediaId: number; dir: string } | null;
+  /** Lot 83 : comment l'icône est choisie (automatique, une de mes images, kit) et les options du monogramme. */
+  faviconMode: FaviconConfig;
+};
 
-export const EMPTY_SEO: SeoStored = { description: { fr: "", en: "" }, shareImage: null, favicon: null };
+export const EMPTY_SEO: SeoStored = { description: { fr: "", en: "" }, shareImage: null, favicon: null, faviconMode: defaultFaviconConfig("auto") };
 
-/** Tailles de l'icône produites (en pixels) : onglet, favicon large, iPhone, Android, grand format. */
-export const ICON_SIZES = [32, 48, 180, 192, 512] as const;
+/** Tailles de l'icône produites (en pixels) : onglet (16, 32), favicon large, iPhone (180), Android (192, 512). */
+export const ICON_SIZES = [16, 32, 48, 180, 192, 512] as const;
+/** Icône « maskable » d'Android : le dessin tient dans les 60 % du milieu (marge de sécurité de 20 % de chaque côté). */
+export const MASKABLE_FILE = "maskable-512.png";
 
 const posInt = (v: unknown): number | null => (Number.isInteger(v) && (v as number) > 0 ? (v as number) : null);
 const asL = (v: unknown): L => {
@@ -38,7 +48,7 @@ export function readSeo(raw: unknown): SeoStored {
   const f = o.favicon as { mediaId?: unknown; dir?: unknown } | null | undefined;
   const mediaId = posInt(f?.mediaId);
   const favicon = mediaId && typeof f?.dir === "string" && /^icons\/[A-Za-z0-9_-]{1,40}$/.test(f.dir) ? { mediaId, dir: f.dir } : null;
-  return { description: asL(o.description), shareImage: posInt(o.shareImage), favicon };
+  return { description: asL(o.description), shareImage: posInt(o.shareImage), favicon, faviconMode: readFaviconConfig(o.faviconMode, Boolean(favicon)) };
 }
 
 /**

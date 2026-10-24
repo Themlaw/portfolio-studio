@@ -230,6 +230,7 @@ export default function ThemeEditor({
   initialStep,
   initialTab,
   wallpapers,
+  favicon,
   mine = null,
 }: {
   initial: Theme;
@@ -245,6 +246,8 @@ export default function ThemeEditor({
   initialTab?: string;
   /** Bibliothèque des papiers peints (page « Papiers peints » d'avant, rendue par le serveur : onglet de l'étape 4). */
   wallpapers?: ReactNode;
+  /** Icône de l'onglet (lot 83), rendue par le serveur : le même composant que dans Réglages → Référencement (un seul réglage de site). */
+  favicon?: ReactNode;
   /**
    * Mon thème (lot 60) : « Enregistrer » crée ou met à jour la version en cours (un brouillon), jamais le site public ; « Publier cette version »
    * (en-tête et dernière étape) met la version en ligne. `isActive` vaut alors false (aucune confirmation « en ligne » à l'enregistrement).
@@ -578,7 +581,7 @@ export default function ThemeEditor({
     })} />,
     cartes: preset ? locked : <ShapesStep theme={theme} sitePalette={sitePalette} setTheme={setTheme} setTokens={setTokens} />,
     papier: <PaperStep theme={theme} locked={locked} setTheme={setTheme} setTokens={setTokens} tab={paperTab} onTab={changePaperTab} wallpapers={wallpapers} />,
-    logo: <LogoStep theme={theme} themeId={initial.id} onKit={setKit} locked={locked} />,
+    logo: <LogoStep theme={theme} themeId={initial.id} onKit={setKit} locked={locked} favicon={favicon} />,
   };
 
   const status = preset
