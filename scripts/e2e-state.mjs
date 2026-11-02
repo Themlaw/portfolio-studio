@@ -1068,7 +1068,8 @@ if (run("E")) {
     const socNow = () => listSnap(f, SOC, "data-social-key", false);
     const hoverSoc = async (i) => {
       await f.locator(`${SOC} [data-social-index]`).nth(i).scrollIntoViewIfNeeded();
-      await f.locator(`${SOC} [data-social-index]`).nth(i).hover();
+      // Sur le texte du réseau, à son bord gauche (lot 86 : la barre d'outils se colle au texte, elle recouvre le milieu de la ligne).
+      await f.locator(`${SOC} [data-social-index]`).nth(i).locator("a").hover({ position: { x: 4, y: 4 } });
       await f.locator('.pe-item-tools[data-kind="social"]').waitFor({ timeout: 8000 });
     };
     const socBefore = await socNow();
