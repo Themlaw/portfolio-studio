@@ -4,6 +4,7 @@ import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { setRequestLocale } from "next-intl/server";
 
 import EditThisPage from "@/components/EditThisPage";
+import LangScrollRestore from "@/components/LangScrollRestore";
 import PreviewBanner from "@/components/PreviewBanner";
 import { routing, type AppLocale } from "@/i18n/routing";
 import { isBuildPhase } from "@/lib/cache";
@@ -72,6 +73,8 @@ export default async function LocaleLayout({
               (ils dépendent de la page courante, lue en base). */}
           {children}
           <PreviewBanner />
+          {/* Client seulement : remet la page à sa place après un changement de langue (lot 87). */}
+          <LangScrollRestore />
           {/* Client seulement : rien dans le HTML en cache (voir le composant). */}
           <EditThisPage />
         </NextIntlClientProvider>

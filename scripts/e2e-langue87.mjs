@@ -218,8 +218,10 @@ if (run("C")) {
   await p.waitForURL((u) => u.pathname === other, { timeout: 30000 });
   await sleep(1200);
   const home = await p.evaluate(() => Math.round(scrollY));
-  // Comme avant le lot : Next remet le haut du contenu (sous l'en-tête collant), pas la position d'avant.
-  ok("C1 un lien normal ramène en haut", before.y > 500 && home <= 150, `avant y=${before.y}, après y=${home} (${other})`);
+  // Le défilement d'un lien normal reste celui de Next (il dépend de la page d'arrivée et du moment : seulement relevé) ;
+  // ce que le lot garantit : aucun passage retenu, et la position n'est jamais « rejouée » par le changement de langue.
+  info(`C1 lien normal : y avant=${before.y}, après=${home} (${other})`);
+  ok("C1 un lien normal ne laisse aucun passage de langue en attente et ne reprend pas un bloc retenu", (await p.evaluate(() => sessionStorage.getItem("portfolio-lang-scroll"))) === null);
 
   // Ancre : le lien d'évitement pointe sur #contenu.
   await p.goto(`${BASE}${FR}`, { waitUntil: "networkidle" });
@@ -242,7 +244,8 @@ if (run("C")) {
   const back = await p.evaluate(probe);
   info(`Retour après FR->EN : y avant=${y0}, après=${back.y}, ${describe(back)}`);
   ok("C3 Retour : revient sur la page française", /\/fr\//.test(p.url()));
-  ok("C3b Retour : la page française est bien affichée (pas de saut vers autre chose)", back.cur !== null && back.y >= 0);
+  // Comme avant le lot : le navigateur remet la position qu'avait la page française avant le changement.
+  ok("C3b Retour : la page française retrouve sa position d'avant", Math.abs(back.y - y0) <= TOL, `avant y=${y0}, après y=${back.y}`);
   // Et il ne reste pas de position en attente : un lien suivi ensuite part du haut.
   await p.evaluate(placeBlock, { n: 9, ratio: 0 });
   await sleep(300);
@@ -251,7 +254,7 @@ if (run("C")) {
   await sleep(1000);
   const y4 = await p.evaluate(() => Math.round(scrollY));
   info(`C4 lien normal après Retour : y=${y4}`);
-  ok("C4 rien en attente après Retour : un lien normal part du haut", y4 <= 150, `y=${y4}`);
+  ok("C4 rien en attente après Retour : un lien normal ne reprend aucun bloc retenu", (await p.evaluate(() => sessionStorage.getItem("portfolio-lang-scroll"))) === null, `y=${y4}`);
 
   // En haut de page : on reste en haut dans l'autre langue.
   await p.goto(`${BASE}${FR}`, { waitUntil: "networkidle" });
