@@ -30,6 +30,8 @@ services:
     environment:
       # Défaut si .env ne la définit pas : canonical, hreflang, origine de confiance, retour OIDC.
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://portfolio.example.org}
+      # Ancien(s) domaine(s) renvoyé(s) vers PUBLIC_BASE_URL (liste séparée par des virgules ; vide = aucune redirection). docs/DOMAINE.md.
+      REDIRECT_FROM: ${REDIRECT_FROM:-}
       # Obligatoire : sans lui (ou < 32 caractères) le conteneur refuse de démarrer.
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?définir BETTER_AUTH_SECRET dans .env (openssl rand -base64 48)}
     # Volume NOMMÉ : vide, Docker l'initialise avec /data de l'image (1000:1000).
