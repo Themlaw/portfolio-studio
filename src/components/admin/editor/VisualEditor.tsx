@@ -45,6 +45,7 @@ import type { BoardOp, BoardResult, BoardSnap } from "@/lib/edit/boards";
 import type { DraftBlock, PageDraft, PublishResult } from "@/lib/edit/drafts";
 import { mediaStatusAction, retryMediaAction } from "@/app/admin/(espace)/medias/actions";
 import type { AdminMediaRow } from "@/lib/admin";
+import { settleSnap, takeSnap, type LangSnap } from "@/lib/lang-scroll";
 import { acceptFromCanvas, EDIT_MSG, inlineAllowed, setLocalizedAt, type BlockInfo, type DropTargetInfo, type FromCanvas, type Ghost, type ToCanvas } from "@/lib/edit/protocol";
 import { markedProblem } from "@/lib/marked";
 import { own } from "@/lib/own";
@@ -305,6 +306,20 @@ export default function VisualEditor({
   const [discardBusy, setDiscardBusy] = useState(false);
 
   const frameRef = useRef<HTMLIFrameElement>(null);
+  // Bascule FR / EN (lot 87) : où l'on était dans la toile, remis en place quand la nouvelle langue est affichée (src/lib/lang-scroll.ts).
+  const langSnap = useRef<LangSnap | null>(null);
+  const langSettle = useRef<(() => void) | null>(null);
+  const restoreLangScroll = useCallback(() => {
+    const win = frameRef.current?.contentWindow;
+    const snap = langSnap.current;
+    if (!win || !snap) return;
+    langSettle.current?.();
+    try {
+      langSettle.current = settleSnap(win, snap);
+    } catch {
+      // Toile pas encore prête : le message « ready » réessaie.
+    }
+  }, []);
   const [frameReady, setFrameReady] = useState(false);
   const [foreign, setForeign] = useState(false);
   const [canvasBlocks, setCanvasBlocks] = useState<BlockInfo[]>([]);
@@ -2309,6 +2324,9 @@ export default function VisualEditor({
           const own = path.replace(/\/$/, "") === paths[locale] || (path === `/${locale}/` && paths[locale] === `/${locale}`);
           setForeign(!own);
           setFrameReady(true);
+          // Changement de langue : la toile est prête, la page reprend sa place ; une page étrangère (lien suivi en aperçu) repart d'en haut.
+          if (own) restoreLangScroll();
+          langSnap.current = null;
           setCanvasBlocks(msg.blocks);
           // Une autre page (lien suivi en aperçu) : jamais éditable ici.
           send({ kind: "mode", mode: own ? mode : "preview" });
@@ -2508,7 +2526,7 @@ export default function VisualEditor({
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [send, mode, locale, paths, selected, mobile, projectsList]);
+  }, [send, mode, locale, paths, selected, mobile, projectsList, restoreLangScroll]);
 
   useEffect(() => {
     if (frameReady && !foreign) send({ kind: "mode", mode });
@@ -3322,6 +3340,13 @@ export default function VisualEditor({
                 lang={l}
                 onClick={() => {
                   if (l === locale) return;
+                  // Retient le bloc visible dans la toile (ou rien : la toile est ouverte sur une page sans équivalent).
+                  try {
+                    const win = frameRef.current?.contentWindow;
+                    langSnap.current = win ? takeSnap(win) : null;
+                  } catch {
+                    langSnap.current = null;
+                  }
                   setFrameReady(false);
                   setLocale(l);
                 }}
@@ -3532,6 +3557,7 @@ export default function VisualEditor({
               key={locale}
               ref={frameRef}
               className="ve-frame"
+              onLoad={restoreLangScroll}
               style={wide ? { position: "absolute", top: 0, left: 0, width: WIDE_PX, height: Math.round(box.h / zoom), transform: `scale(${zoom})`, transformOrigin: "0 0" } : undefined}
               src={frameSrc}
               title={mode === "preview" ? "Aperçu de la page" : "Page en cours d'édition"}
