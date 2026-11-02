@@ -260,11 +260,12 @@ if want auth; then
   cooldown
 fi
 
-# domaine88 (lot 88) : comme auth, ses propres serveurs standalone (ports 3940 à 3944), hôtes simulés par les en-têtes.
+# domaine88 (lot 88) : comme auth, ses propres serveurs standalone (ports 3940 à 3944, ou BATT_DOMAINE_PORT à +4), hôtes simulés par les en-têtes.
 if want domaine88; then
   if [ $BUILD_OK = 1 ]; then
-    for p in 3940 3941 3942 3943 3944; do free_port "$p"; done
-    run_suite domaine88 "DOMAINE88_TMP=${BATT_PREFIX:-/root/pf-batt}-domaine88 node scripts/e2e-domaine88.mjs"
+    DOM_P=${BATT_DOMAINE_PORT:-3940}
+    for p in $DOM_P $((DOM_P + 1)) $((DOM_P + 2)) $((DOM_P + 3)) $((DOM_P + 4)); do free_port "$p"; done
+    run_suite domaine88 "DOMAINE88_PORT=$DOM_P DOMAINE88_TMP=${BATT_PREFIX:-/root/pf-batt}-domaine88 node scripts/e2e-domaine88.mjs"
   else
     echo "FAIL domaine88 : build absent ou en échec" >"$BATTERY_DIR/domaine88.log"
     record domaine88 1 "$(date +%s)"
