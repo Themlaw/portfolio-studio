@@ -14,6 +14,7 @@ import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 import { FORM_BLOCK_TYPES, isFormBlock } from "@/lib/contact-form";
 import { findPageReferences } from "@/lib/references";
+import { isSpecialPage, LOCKED_TYPES, NOT_FOUND_TITLE, scopeProblem } from "@/lib/special-pages";
 
 import { isPageInNav, readNav, reorderNavPages, setPageInNav } from "./nav";
 import { PagePaperSchema } from "@/themes/schema";
@@ -106,6 +107,33 @@ export function deprecatedProblem(pageId: number, blocks: { type: string }[]): s
   );
   const added = old.find((b) => !existing.has(b.type));
   return added ? `« ${own(BLOCKS, added.type)?.label ?? added.type} » n'existe plus : compose avec des projets, une grille ou une vidéo.` : null;
+}
+
+/**
+ * Page spéciale « Page introuvable » (lot 89) : ce que le serveur refuse, quelle que soit l'interface (éditeur, formulaire, requête
+ * forgée). Elle ne se renomme pas, ne change pas d'adresse, n'entre pas au menu, ne présente aucune collection, ne reçoit que les blocs qui
+ * lui conviennent (ni Contact ; « Sortie » et « Une œuvre au hasard » seulement ici) et garde son bloc « Sortie ». Message et champ, ou null.
+ * `data` : la page telle que l'éditeur ou le formulaire veut l'enregistrer. `strict` : exige aussi le bloc « Sortie » (publication) ; un
+ * brouillon peut le perdre en route, la page publiée non.
+ */
+export function specialPageProblem(
+  page: { slug: L; title: L },
+  data: { slug: L; title: L; inMenu?: boolean; collection?: string | null; blocks: { type: string; props?: unknown }[] },
+  { strict }: { strict: boolean },
+): { field: string; message: string } | null {
+  const same = (a: L, b: L) => a.fr === b.fr && a.en === b.en;
+  if (!same(data.slug, page.slug)) return { field: "slug.fr", message: `L'adresse de la page « ${NOT_FOUND_TITLE.fr} » ne change pas.` };
+  if (!same(data.title, page.title)) return { field: "title.fr", message: `La page « ${NOT_FOUND_TITLE.fr} » ne se renomme pas.` };
+  if (data.inMenu) return { field: "inMenu", message: `La page « ${NOT_FOUND_TITLE.fr} » ne va pas dans le menu.` };
+  if (data.collection) return { field: "collection", message: `La page « ${NOT_FOUND_TITLE.fr} » ne présente aucune collection.` };
+  const types = flatBlocks(data.blocks).map((b) => b.type);
+  const scope = scopeProblem(true, types, (t) => own(BLOCKS, t)?.label ?? t);
+  if (scope) return { field: "blocks", message: scope };
+  if (strict) {
+    const missing = LOCKED_TYPES.find((t) => !data.blocks.some((b) => b.type === t));
+    if (missing) return { field: "blocks", message: `La page « ${NOT_FOUND_TITLE.fr} » garde son bloc « ${own(BLOCKS, missing)?.label ?? missing} » : ajoute-le depuis « Ajouter ».` };
+  }
+  return null;
 }
 
 type L = { fr: string; en: string };
@@ -218,10 +246,20 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
   if (!parsed.success) return fail("Corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
   const data = parsed.data;
   const home = isHome(page.slug);
+  const special = isSpecialPage(page);
   const errors: Record<string, string> = {};
 
-  const slug = home ? { fr: "", en: "" } : data.slug;
-  if (!home) Object.assign(errors, slugErrors(slug, id));
+  // Page spéciale (lot 89) : adresse et titre sont les siens (jamais validés comme une adresse ordinaire, « _ » en tête), le reste est
+  // contrôlé par specialPageProblem. Une page ordinaire n'accueille pas les blocs réservés à la page spéciale.
+  const slug = home ? { fr: "", en: "" } : special ? page.slug : data.slug;
+  if (special) {
+    const problem = specialPageProblem(page, data, { strict: true });
+    if (problem) errors[problem.field] = problem.message;
+  } else {
+    if (!home) Object.assign(errors, slugErrors(slug, id));
+    const scope = scopeProblem(false, flatBlocks(data.blocks).map((b) => b.type), (t) => own(BLOCKS, t)?.label ?? t);
+    if (scope) errors.blocks = scope;
+  }
   if (home && !data.published) errors.published = "La page d'accueil reste toujours publiée.";
 
   // Une collection n'a qu'une page.
@@ -314,7 +352,7 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
     tx.update(schema.pages)
       .set({
         slug,
-        title: data.title,
+        title: special ? page.title : data.title,
         meta: data.meta,
         published: home ? true : data.published,
         themeOverrides: overridesOf(data.accent, wallpaper),
@@ -352,6 +390,7 @@ export function addToMenuFromEditor(id: number): ActionResult<null> {
   const db = getDb();
   const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
   if (!page || page.deletedAt) return fail("Cette page n'existe plus.");
+  if (isSpecialPage(page)) return fail(`La page « ${NOT_FOUND_TITLE.fr} » ne va pas dans le menu.`);
   db.transaction(() => {
     setPageInNav(id, true, { skipRevOf: id });
     const draft = page.draft;
@@ -366,6 +405,7 @@ export function setInMenu(id: number, inMenu: boolean): ActionResult<null> {
   const db = getDb();
   const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
   if (!page || page.deletedAt) return fail("Cette page n'existe plus.");
+  if (inMenu && isSpecialPage(page)) return fail(`La page « ${NOT_FOUND_TITLE.fr} » ne va pas dans le menu.`);
   db.transaction(() => setPageInNav(id, inMenu));
   return done(null);
 }
@@ -422,6 +462,7 @@ export function deletePage(id: number): ActionResult<{ title: string }> | { ok: 
   const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
   if (!page || page.deletedAt) return fail("Cette page n'existe plus.");
   if (isHome(page.slug)) return fail("La page d'accueil ne se supprime pas.");
+  if (isSpecialPage(page)) return fail(`La page « ${NOT_FOUND_TITLE.fr} » ne se supprime pas : si tu ne veux plus la modifier, retire-la du site, la page d'erreur d'origine revient.`);
   const references = pageBlockReferences(id);
   if (references.length > 0) {
     return {

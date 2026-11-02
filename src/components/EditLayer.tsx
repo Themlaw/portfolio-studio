@@ -1423,9 +1423,15 @@ export default function EditLayer() {
             <button type="button" aria-label="Dupliquer" title="Dupliquer" onClick={() => post({ kind: "op", op: "duplicate", uid: sel.uid })}>
               ⧉
             </button>
-            <button type="button" className="pe-danger" aria-label="Supprimer" title="Supprimer (Suppr)" onClick={() => post({ kind: "op", op: "delete", uid: sel.uid })}>
-              ✕
-            </button>
+            {/* Bloc verrouillé (lot 89, « Sortie ») : le bouton reste, désactivé, et dit pourquoi ; le clic est refusé par l'éditeur avec la même explication. */}
+            {(() => {
+              const locked = document.querySelector(`[data-edit-block="${CSS.escape(sel.uid)}"]`)?.getAttribute("data-edit-locked") ?? null;
+              return (
+                <button type="button" className="pe-danger" aria-label="Supprimer" aria-disabled={locked ? true : undefined} data-locked={locked ? "" : undefined} title={locked ?? "Supprimer (Suppr)"} style={locked ? { opacity: 0.45, cursor: "not-allowed" } : undefined} onClick={() => post({ kind: "op", op: "delete", uid: sel.uid })}>
+                  ✕
+                </button>
+              );
+            })()}
           </div>
           )}
           {fondFor === sel.uid && (!sel.parent || hasFondWrapper(sel.uid)) && (

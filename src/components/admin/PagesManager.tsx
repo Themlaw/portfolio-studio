@@ -14,6 +14,7 @@ import {
   setPublishedAction,
 } from "@/app/admin/(espace)/pages/actions";
 import type { AdminPageRow, TrashSummary } from "@/lib/admin";
+import { NOT_FOUND_HELP } from "@/lib/special-pages";
 import { untranslatedLabel } from "@/lib/translation-gaps";
 import { slugify } from "@/lib/slug";
 import { daysLeft, lostWithPage, restoredMessage, TRASH_DAYS } from "@/lib/trash";
@@ -202,8 +203,11 @@ function TrashList({ pages, summary }: { pages: AdminPageRow[]; summary: TrashSu
 
 type Pending = { kind: "delete"; page: AdminPageRow } | null;
 
-export default function PagesManager({ pages, trashed, view, summary }: { pages: AdminPageRow[]; trashed: AdminPageRow[]; view: "liste" | "corbeille"; summary: TrashSummary }) {
+export default function PagesManager({ pages: allPages, trashed, view, summary }: { pages: AdminPageRow[]; trashed: AdminPageRow[]; view: "liste" | "corbeille"; summary: TrashSummary }) {
   const router = useRouter();
+  // Pages spéciales (lot 89, « Page introuvable ») : rangées à part, à la fin ; ni menu, ni renommage, ni suppression.
+  const pages = allPages.filter((p) => !p.special);
+  const specials = allPages.filter((p) => p.special);
   const menuSaved = pages.filter((p) => p.navOrder !== null).sort((a, b) => (a.navOrder ?? 0) - (b.navOrder ?? 0));
   const [menu, setMenu] = useState(menuSaved);
   const [menuKey, setMenuKey] = useState(JSON.stringify(menuSaved.map((p) => p.id)));
@@ -399,6 +403,70 @@ export default function PagesManager({ pages, trashed, view, summary }: { pages:
           </table>
         </div>
       </section>
+
+      {specials.length > 0 && (
+        <section className="a-panel" aria-labelledby="p-speciales" data-testid="pages-speciales">
+          <h2 id="p-speciales">Pages spéciales</h2>
+          <p className="a-help a-panel-intro">Le site les affiche lui-même : tu en composes le contenu comme celui d&apos;une page, mais elles n&apos;ont ni menu, ni adresse à partager.</p>
+          <div className="a-table-wrap">
+            <table className="a-table a-table-stack">
+              <thead>
+                <tr>
+                  <th scope="col">Page</th>
+                  <th scope="col">État</th>
+                  <th scope="col">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {specials.map((p) => (
+                  <tr key={p.id} data-testid="page-speciale">
+                    <td data-label="Page">
+                      <Link href={`/admin/pages/${p.id}/editer`} className="a-strong-link">
+                        {p.title}
+                      </Link>{" "}
+                      <span className="a-badge" data-testid="badge-speciale">
+                        Page spéciale
+                      </span>
+                      <span className="muted"> · {p.blocks} bloc{p.blocks > 1 ? "s" : ""}</span>
+                      {p.hasDraft && (
+                        <>
+                          {" "}
+                          <span className="a-tag a-tag-draft" title="Des modifications de l'éditeur ne sont pas encore publiées.">
+                            Modifications non publiées
+                          </span>
+                        </>
+                      )}
+                      <span className="a-sub" data-testid="aide-speciale">
+                        {NOT_FOUND_HELP}
+                      </span>
+                    </td>
+                    <td data-label="État">
+                      {p.published ? <span className="a-badge">En ligne</span> : <span className="a-tag">Pas encore en ligne</span>}
+                      <button
+                        type="button"
+                        className="a-btn a-btn-small a-btn-quiet"
+                        disabled={busy}
+                        title={p.published ? "Le site reprend la page d'erreur d'origine." : undefined}
+                        onClick={() => act(() => setPublishedAction(p.id, !p.published), p.published ? `« ${p.title} » retirée du site : la page d'erreur d'origine revient` : `« ${p.title} » en ligne`)}
+                      >
+                        {p.published ? "Retirer du site" : "Mettre en ligne"}
+                      </button>
+                    </td>
+                    <td className="a-row-actions">
+                      <Link className="a-btn a-btn-small" href={`/admin/pages/${p.id}/editer`}>
+                        Modifier
+                      </Link>
+                      <PreviewPage id={p.id} small />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <CreatePage open={creating} onClose={() => setCreating(false)} />
 

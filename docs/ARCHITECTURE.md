@@ -143,7 +143,9 @@ parlent jamais à Drizzle directement. Le seed initial reprend `projects.json`/`
   les réponses `/media`. En phase 4, l'upload aura une **liste blanche de types MIME**
   (vérifiés sur le contenu, pas sur l'extension) : aucun HTML ni script accepté.
 - **404** : servie par `src/proxy.ts` (page réservée rendue normalement, statut 404,
-  `no-store`), `notFound()` produisant ici une coquille d'erreur rendue côté client.
+  `no-store`, `noindex`), `notFound()` produisant ici une coquille d'erreur rendue côté client.
+  Depuis le lot 89 la page réservée `_404` est une VRAIE page éditable (voir « Page introuvable » plus bas) ;
+  le proxy ne change pas : statut, `noindex` et `no-store` valent quel que soit le contenu.
 - **Cache** : modèle « unstable_cache + étiquettes » plutôt que `use cache` : ce dernier
   exige `cacheComponents`, qui change tout le modèle de rendu (Suspense obligatoire
   autour des accès dynamiques comme le cookie d'aperçu, prérendu au build qui toucherait
@@ -1777,3 +1779,24 @@ téléphone : composition à l'échelle (défaut) ou colonne (`phone: "stack"`).
 (protocol.ts : `FreeCanvasOpSchema`). `VisualEditor.freeOp` applique `applyFreeOp` au brouillon de la page (`setBlocks`) ou à la planche (`item-set`) : Annuler / Rétablir comme tout
 le reste. Cible de dépôt `free` (BoardLayer.dropTargetAt) pour les médias glissés et les fichiers ; `item-media` (clic sur une vignette quand le composant est choisi) pose au centre.
 Le panneau (`FreeBoardEditor`) donne les mêmes réglages au clavier : format, téléphone, liste des images (devant / derrière, largeur, rotation, remplacer, retirer).
+
+## Page introuvable (lot 89)
+**Page spéciale** = page dont l'adresse commence par `_` (`src/lib/special-pages.ts`, sans colonne ni SQL). `_404` est créée au démarrage par
+`seedNotFoundPage` (`src/lib/db/seed-404.ts`, idempotente, corbeille comprise, appelée par `bootstrap` sur base neuve comme sur base existante ou
+restaurée) : un bloc « Sortie » portant les textes de `messages/*.json` (clé `notFound`), donc un rendu identique à `NotFoundView`.
+Interdits côté serveur (`specialPageProblem`, `savePage`, `saveDraft`, `deletePage`, `setInMenu`, `addToMenuFromEditor`) : renommer, changer l'adresse,
+supprimer, mettre au menu, présenter une collection, poser Contact ; la publication exige le bloc « Sortie ». « Sortie » et « Une œuvre au hasard » sont
+refusés sur toute page ordinaire (`scopeProblem`, registre : `onlyOnSpecial`, `notOnSpecial`, `locked`). Exclue du plan du site, du menu, des pages à lier,
+de `alternatesFor` (le sélecteur de langue mène à l'accueil) ; `admin.ts` la marque `special` (Admin → Pages : rangée « Pages spéciales » à la fin).
+
+**Rendu public** (`[[...slug]]/page.tsx`) : page absente, non publiée, sans bloc lisible (vide, corrompu, props invalides) → `NotFoundView` (jamais de page
+blanche) ; sans bloc « Sortie » lisible → section `data-exit-fallback` « Retour à l'accueil » après les blocs. Métadonnées de la 404 d'origine. Le proxy
+garde 404 / `noindex` / `no-store`. La toile de l'éditeur charge `/fr/_404` normalement (la couche d'édition s'y active : `paths` de l'éditeur est calculé
+sur la liste non filtrée).
+
+**Bloc « Sortie »** (`ExitBlock`) : titre, étiquette, 1 à 12 messages, bouton (libellé, page ; accueil par défaut). Texte vide = texte par défaut de la langue.
+Plusieurs messages : `RandomPick` (client) tire à l'hydratation, car la page est en cache ; le HTML contient tous les messages (sans JavaScript, le premier).
+Verrou : `data-edit-locked` sur la toile, ✕ / Suppr / Supprimer / Dupliquer refusés avec l'explication du registre.
+**Bloc « Une œuvre au hasard »** (`RandomWorkBlock`, `src/lib/random-works.ts`) : source tout / catégorie / sélection ; `readPoolWorks` ne retient que
+l'œuvre publiée (pas d'emplacement `added`, média prêt hors corbeille, projet hors corbeille et montré par une page publiée ou par la page de sa collection).
+Source vide = aucun HTML. Sans risque ailleurs : le bloc ne lit que la lecture publiée et se tire côté client, mais il n'est proposé que sur `_404`.

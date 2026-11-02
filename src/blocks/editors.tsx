@@ -728,6 +728,100 @@ export function PageLinkEditor() {
   );
 }
 
+/* ---- Page introuvable (lot 89) -------------------------------------------- */
+
+export function ExitEditor() {
+  const { value, onChange, errors, context } = useBlockEditor();
+  const set = useSet(value, onChange);
+  return (
+    <>
+      <TextI18n
+        label="Étiquette (facultative)"
+        help="Vide dans les deux langues : pas d'étiquette. Vide dans une seule langue : le texte par défaut de cette langue."
+        value={l(value.eyebrow)}
+        onChange={(v) => set("eyebrow", optional(v))}
+        error={errorAt(errors, "eyebrow")}
+      />
+      <TextI18n label="Titre" help="Vide : le titre par défaut de la langue (« Page introuvable »)." value={l(value.title)} onChange={(v) => set("title", v)} error={errorAt(errors, "title")} />
+      <ListField<L>
+        label="Messages"
+        help="Un seul message : il s'affiche toujours. Plusieurs : un message est tiré au hasard à chaque visite. Un message vide dans une langue reprend le texte par défaut de cette langue."
+        items={(value.messages as L[]) ?? [EMPTY]}
+        onChange={(v) => set("messages", v)}
+        make={() => EMPTY}
+        min={1}
+        addLabel="Ajouter un message"
+        itemLabel={(i) => `Message ${i + 1}`}
+        error={errorAt(errors, "messages")}
+        render={(m, update, i) => <TextareaI18n label="Texte" value={m} onChange={update} error={errorAt(errors, `messages.${i}`)} rows={3} />}
+      />
+      <TextI18n label="Texte du bouton" help="Vide : « Retour à l'accueil »." value={l(value.label)} onChange={(v) => set("label", v)} error={errorAt(errors, "label")} />
+      <PagePicker label="Destination du bouton" optional="L'accueil" value={value.pageId as number | undefined} onChange={(v) => set("pageId", v)} error={errorAt(errors, "pageId")} context={context} />
+    </>
+  );
+}
+
+const WORK_SOURCES: { value: "all" | "collection" | "manual"; label: string }[] = [
+  { value: "all", label: "Tout le portfolio" },
+  { value: "collection", label: "Une catégorie" },
+  { value: "manual", label: "Une sélection d'œuvres" },
+];
+
+export function RandomWorkEditor() {
+  const { value, onChange, errors, context } = useBlockEditor();
+  const set = useSet(value, onChange);
+  const source = (value.source as "all" | "collection" | "manual" | undefined) ?? "all";
+  const chosen = new Set((value.works as string[] | undefined) ?? []);
+  const works = context.works ?? [];
+  return (
+    <>
+      <Select
+        label="D'où vient l'œuvre"
+        help="Une œuvre publiée est tirée au hasard à chaque visite. Jamais un brouillon, ni une œuvre à la corbeille, ni un projet qu'aucune page n'affiche."
+        value={source}
+        options={WORK_SOURCES}
+        onChange={(v) => onChange({ ...value, source: v ?? "all", ...(v === "collection" ? {} : { collection: undefined }), ...(v === "manual" ? {} : { works: undefined }) })}
+        error={errorAt(errors, "source")}
+      />
+      {source === "collection" && <CollectionPicker label="Catégorie" value={value.collection as string | undefined} onChange={(v) => set("collection", v)} error={errorAt(errors, "collection")} />}
+      {source === "manual" && (
+        <Field label="Œuvres de la sélection" help={works.length ? `${chosen.size} choisie${chosen.size > 1 ? "s" : ""} sur ${works.length}.` : "Aucune œuvre publiée pour le moment."} error={errorAt(errors, "works")}>
+          <ul className="a-checklist" data-testid="random-work-picker">
+            {works.map((w) => (
+              <li key={w.slug}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={chosen.has(w.slug)}
+                    onChange={(e) => {
+                      const next = new Set(chosen);
+                      if (e.target.checked) next.add(w.slug);
+                      else next.delete(w.slug);
+                      set("works", next.size ? [...next] : undefined);
+                    }}
+                  />{" "}
+                  {w.title} <span className="muted">· {w.project}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </Field>
+      )}
+      <TextI18n label="Étiquette (facultative)" value={l(value.eyebrow)} onChange={(v) => set("eyebrow", optional(v))} error={errorAt(errors, "eyebrow")} />
+      <Select
+        label="Largeur"
+        value={(value.width as "text" | "wide" | undefined) ?? "text"}
+        options={[
+          { value: "text", label: "Colonne de texte" },
+          { value: "wide", label: "Large" },
+        ]}
+        onChange={(v) => set("width", v)}
+        error={errorAt(errors, "width")}
+      />
+    </>
+  );
+}
+
 export function VideoSingleEditor() {
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);

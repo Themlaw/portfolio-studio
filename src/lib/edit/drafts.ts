@@ -43,7 +43,8 @@ import { getDb, schema } from "@/lib/db";
 import { own } from "@/lib/own";
 
 import { checkLayout, incompleteLayouts } from "./board-layout";
-import { deprecatedProblem, formIdProblem, mediaKindProblem, savePage } from "./pages";
+import { isSpecialPage, scopeProblem } from "@/lib/special-pages";
+import { deprecatedProblem, formIdProblem, mediaKindProblem, savePage, specialPageProblem } from "./pages";
 import { PagePaperSchema } from "@/themes/schema";
 import type { PagePaper } from "@/themes/wallpaper";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
@@ -177,6 +178,18 @@ export function saveDraft(pageId: number, input: unknown, rev: unknown): DraftRe
     if (old) return fail(old);
     const dupForm = formIdProblem(pageId, parsed.data.blocks);
     if (dupForm) return fail(dupForm.message, { [dupForm.path]: dupForm.message });
+    // Lot 89 : la page « Page introuvable » ne se renomme pas, n'entre pas au menu et n'accueille que ses blocs ; les autres pages n'ont pas les siens.
+    const target = getDb().select({ slug: schema.pages.slug, title: schema.pages.title }).from(schema.pages).where(eq(schema.pages.id, pageId)).get();
+    if (target) {
+      const special = isSpecialPage(target);
+      const problem = special
+        ? specialPageProblem(target, parsed.data, { strict: false })
+        : (() => {
+            const message = scopeProblem(false, flatBlocks(parsed.data.blocks).map((b) => b.type), (t) => own(BLOCKS, t)?.label ?? t);
+            return message ? { field: "blocks", message } : null;
+          })();
+      if (problem) return fail(problem.message, { [problem.field]: problem.message });
+    }
     for (const b of flatBlocks(parsed.data.blocks)) {
       const wrongKind = mediaKindProblem(b.type, b.props);
       if (wrongKind) return fail(wrongKind, { [errorPath(parsed.data.blocks, b) ?? "blocks"]: wrongKind });

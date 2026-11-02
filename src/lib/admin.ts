@@ -18,6 +18,7 @@ import { asSiteName, NavSchema, NETWORKS, type Network } from "./site-schema";
 import { ORIGINALS_PREFIX, parseVariants } from "./images/variants";
 import { mediaUrl } from "./media";
 import { own } from "./own";
+import { isSpecialPage, isSpecialSlug } from "./special-pages";
 import { allBlocks, findMediaUsages, findWallpaperUsages, LOGO_USAGE_TYPE, mediaUsagesByMedia, wallpaperUsages } from "./references";
 import { listWallpaperChoices } from "./wallpapers";
 import { readCardWallpaper, readPagePaper, type CardWallpaper, type PagePaper } from "@/themes/wallpaper";
@@ -33,7 +34,8 @@ export type AdminCounts = { pages: number; projects: number; media: number };
 export function getAdminCounts(): AdminCounts {
   const db = getDb();
   // Hors corbeille.
-  const pages = db.select({ n: count() }).from(schema.pages).where(isNull(schema.pages.deletedAt)).get()?.n ?? 0;
+  // Hors pages spéciales (« Page introuvable », lot 89) : ce n'est pas une page du site au sens de l'artiste.
+  const pages = db.select({ slug: schema.pages.slug }).from(schema.pages).where(isNull(schema.pages.deletedAt)).all().filter((p) => !isSpecialPage({ slug: p.slug })).length;
   const projects = db.select({ n: count() }).from(schema.projects).where(isNull(schema.projects.deletedAt)).get()?.n ?? 0;
   const media = db.select({ n: count() }).from(schema.media).where(and(isNull(schema.media.deletedAt), sql`${schema.media.id} not in (select media_id from wallpapers)`)).get()?.n ?? 0;
   return { pages, projects, media };
@@ -154,6 +156,8 @@ export type AdminPageRow = {
   blockedBy: BlockUse[];
   /** Mise à la corbeille (ms), ou null. */
   deletedAt: number | null;
+  /** Page spéciale (lot 89, « Page introuvable ») : rangée à part, ni renommable, ni supprimable, ni au menu. */
+  special: boolean;
 };
 
 function pageRows(trashed: boolean): AdminPageRow[] {
@@ -182,6 +186,7 @@ function pageRows(trashed: boolean): AdminPageRow[] {
       untranslated: trashed ? 0 : untranslatedCount(p.title, all.filter((b) => b.pageId === p.id && !b.draft)),
       blockedBy: trashed ? [] : blockUses(pageReferences(p.id, all), p.id),
       deletedAt: p.deletedAt ? p.deletedAt.getTime() : null,
+      special: isSpecialPage(p),
     }));
 }
 
@@ -611,8 +616,12 @@ export function getEditorContext(draftPageId?: number) {
     livePages.map((p) => ({ id: p.id, title: p.title, collection: p.collection, blocks: blockRows.filter((b) => b.pageId === p.id).map((b) => ({ type: b.type, props: parseJson(b.props) })) })),
     menu,
   );
+  // Page « Page introuvable » (lot 89) : les œuvres publiées, pour la sélection manuelle du bloc « Une œuvre au hasard ».
+  const editedPage = draftPageId === undefined ? undefined : db.select({ slug: schema.pages.slug }).from(schema.pages).where(eq(schema.pages.id, draftPageId)).get();
+  const works = editedPage && isSpecialSlug(editedPage.slug.fr) ? listWorksForAdmin() : undefined;
   return {
     collectionPages,
+    ...(works ? { works } : {}),
     pages: db
       .select()
       .from(schema.pages)
@@ -634,6 +643,24 @@ export function getEditorContext(draftPageId?: number) {
     wallpapers: listWallpaperChoices(),
     heroBackdrop: activeHeroVariant() !== "type-only",
   };
+}
+
+/** Œuvres publiées (emplacement d'un projet publié, avec une image) : sélection du bloc « Une œuvre au hasard ». */
+function listWorksForAdmin(): { slug: string; title: string; project: string; collection: string }[] {
+  const db = getDb();
+  const projects = new Map(db.select({ id: schema.projects.id, title: schema.projects.title, draft: schema.projects.draftPageId, deletedAt: schema.projects.deletedAt }).from(schema.projects).all().map((p) => [p.id, p]));
+  return db
+    .select({ slot: schema.slots, media: schema.media.status })
+    .from(schema.slots)
+    .innerJoin(schema.media, eq(schema.slots.mediaId, schema.media.id))
+    .where(and(eq(schema.media.status, "ready"), isNull(schema.media.deletedAt)))
+    .orderBy(asc(schema.slots.id))
+    .all()
+    .flatMap(({ slot }) => {
+      const project = projects.get(slot.projectId);
+      if (!project || project.draft !== null || project.deletedAt || slot.draftState === "added") return [];
+      return [{ slug: slot.slug, title: slot.title.fr || slot.slug, project: project.title.fr, collection: slot.collection }];
+    });
 }
 
 /** Forme d'ouverture du thème en ligne. */

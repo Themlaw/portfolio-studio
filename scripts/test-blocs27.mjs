@@ -101,7 +101,8 @@ test("panneau Ajouter : « Grille » porte ses modèles (images, vidéos), plus 
 });
 test("Ouverture : une seule fois par page (raison dans le catalogue) ; aucun autre type n'est limité", () => {
   assert.match(catalog.find((c) => c.type === "hero").single, /déjà une Ouverture/);
-  assert.deepEqual(catalog.filter((c) => c.single).map((c) => c.type), ["hero"]);
+  // Hors types réservés à la page spéciale (« Sortie », lot 89), jamais proposés sur une page ordinaire.
+  assert.deepEqual(catalog.filter((c) => c.single && !c.hidden).map((c) => c.type), ["hero"]);
 });
 test("types anciens (« ancien », deprecated) : jamais dans le panneau, jamais créables, libellés marqués", () => {
   const old = Object.values(BLOCKS).filter((b) => b.deprecated);
