@@ -158,13 +158,11 @@ export default function SiteEditor({
   which,
   snap,
   pages,
-  locked,
   onChange,
 }: {
   which: "header" | "footer";
   snap: SiteSnap;
   pages: Page[];
-  locked: string | null;
   /** La modification est appliquée par l'éditeur au dernier état écrit (pas à `snap`, peut-être en retard). */
   onChange: (change: (s: SiteSnap) => void) => void;
 }) {
@@ -177,11 +175,10 @@ export default function SiteEditor({
         <h2>{which === "header" ? "En-tête" : "Pied de page"}</h2>
       </header>
       <p className="ve-site-note">
-        <strong>Commun à toutes les pages.</strong> Ces changements restent en brouillon avec cette page et s&apos;appliquent à tout le site quand tu
-        la publies.
+        <strong>Commun à toutes les pages.</strong> Ces changements restent en brouillon, partagé par toutes les pages, et s&apos;appliquent à tout le site quand tu
+        publies n&apos;importe quelle page.
       </p>
-      {locked && <p className="a-field-error">En cours de modification sur la page « {locked} » : publie-la ou abandonne-la d&apos;abord.</p>}
-      <fieldset disabled={Boolean(locked)} className="ve-site-fields">
+      <fieldset className="ve-site-fields">
         <Text label="Nom du site (FR)" value={snap.identity.name.fr} onCommit={(v) => v.trim() && set((s) => void (s.identity.name.fr = v.trim()))} help="Logo de l'en-tête, ouverture, profil, pied de page, titre des pages." />
         <Text label="Nom du site (EN)" value={snap.identity.name.en} placeholder={snap.identity.name.fr} onCommit={(v) => set((s) => void (s.identity.name.en = v.trim()))} help="Vide : le nom français est repris." />
         <Text label="Métier (FR)" value={snap.identity.role.fr} onCommit={(v) => set((s) => void (s.identity.role.fr = v))} />
@@ -257,7 +254,7 @@ export default function SiteEditor({
             }
           />
         )}
-        <SocialsEditor items={snap.socials} onChange={(socials) => set((s) => void (s.socials = socials))} disabled={Boolean(locked)} />
+        <SocialsEditor items={snap.socials} onChange={(socials) => set((s) => void (s.socials = socials))} />
         <p className="ve-hint">Sur la page : survole un lien ou un réseau pour le retirer ou le déplacer, « + Ajouter un lien » et « + Réseau » pour en ajouter.</p>
       </fieldset>
     </div>

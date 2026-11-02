@@ -6,7 +6,7 @@ import { SiteNameSchema, SocialsSchema } from "@/lib/site-schema";
 
 import { markOnboarding } from "./onboarding";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
-import { readSiteDraft } from "./site";
+import { syncSiteDraftWithPublished } from "./site";
 
 const localized = z.object({ fr: z.string().trim().max(160), en: z.string().trim().max(160) });
 
@@ -44,12 +44,6 @@ export function saveSettings(input: unknown): ActionResult<null> {
   if (!parsed.success) {
     return fail("Certains champs sont invalides : corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
   }
-  // En-tête / réseaux en cours de modification sur une page : un seul état à la fois.
-  const pending = readSiteDraft();
-  if (pending) {
-    const title = pageName(pending.pageId);
-    return fail(`L'en-tête et les réseaux sont en cours de modification sur la page ${title} : publie-la ou abandonne ses modifications d'abord.`);
-  }
   const db = getDb();
   db.transaction((tx) => {
     for (const [key, value] of [
@@ -61,12 +55,9 @@ export function saveSettings(input: unknown): ActionResult<null> {
         .onConflictDoUpdate({ target: schema.settings.key, set: { value: JSON.stringify(value) } })
         .run();
     }
+    // Brouillon commun du site (lot 96) : il reprend ces valeurs pour ne pas les ré-écraser à la publication d'une page.
+    syncSiteDraftWithPublished(parsed.data.site, parsed.data.socials);
   });
   markOnboarding("identity");
   return done(null);
-}
-
-function pageName(id: number): string {
-  const rows = getDb().select({ id: schema.pages.id, title: schema.pages.title }).from(schema.pages).all();
-  return rows.find((r) => r.id === id)?.title.fr || `n° ${id}`;
 }

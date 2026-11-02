@@ -944,10 +944,12 @@ if (run("E")) {
   const navNow = () => listSnap(f, NAV, "data-nav-key", true);
   const labels = (l) => l.map((x) => x.text).join("|");
   const foreignSite = () => {
-    // Brouillon du site tenu par une AUTRE page : le serveur refusera toute écriture de l'en-tête.
+    // Brouillon du site écrit AILLEURS (autre onglet, autre page) depuis le chargement de la toile (lot 96) : sa version avance, le serveur
+    // refuse l'écriture de l'en-tête (« modifié ailleurs »). Plus de page détentrice ni de verrou.
     const site = setting("site") ?? {};
     const snap = { identity: { name: site.name, role: site.role, email: site.email ?? "", credit: site.credit }, nav: setting("nav") ?? [], socials: [] };
     write("insert into settings (key, value) values ('siteDraft', ?) on conflict(key) do update set value = excluded.value", JSON.stringify({ pageId: otherId, snap }));
+    write("insert into settings (key, value) values ('siteDraftRev', ?) on conflict(key) do update set value = excluded.value", JSON.stringify((setting("siteDraftRev") ?? 0) + 1));
   };
   const dropForeign = () => write("delete from settings where key = 'siteDraft'");
   const hoverNav = async (i) => {
@@ -1022,11 +1024,11 @@ if (run("E")) {
   await waitFor(async () => (await navNow()).length === before.length, 20000);
   await settled();
 
-  /* E4. Refus du serveur (en-tête tenu par une autre page depuis le chargement) : retrait et ajout sont annulés, sans rechargement. */
+  /* E4. Refus du serveur (en-tête modifié ailleurs depuis le chargement : version du brouillon du site périmée) : retrait et ajout sont annulés, sans rechargement. */
   foreignSite();
   await hoverNav(1);
   await f.locator(".pe-item-tools .pe-danger").click();
-  ok("E4 refus : message du serveur", await waitFor(async () => /en cours de modification sur la page/.test((await page.locator("body").textContent()) ?? ""), 15000));
+  ok("E4 refus : message du serveur (« Modifié ailleurs »)", await waitFor(async () => /Modifié ailleurs/.test((await page.locator("body").textContent()) ?? ""), 15000));
   ok("E4 refus : le lien retiré revient", await waitFor(async () => labels(await navNow()) === labels(before), 8000), labels(await navNow()));
   await f.locator(`${NAV} [data-nav-item]`).first().hover();
   await f.locator('[data-testid="nav-add"]').click();
@@ -1112,7 +1114,7 @@ if (run("E")) {
     slow = false;
     await settled();
     ok("E5b plus d'aperçu à l'écran à l'acquittement", await waitFor(async () => (await f.locator(`${SOC} [data-pv], ${SOC} [data-pv-ghost], ${SOC} [data-pending]`).count()) === 0, 20000));
-    // Refus : le brouillon du site est pris par une autre page.
+    // Refus : le brouillon du site a été modifié ailleurs.
     foreignSite();
     await hoverSoc(0);
     const countBefore = (await socNow()).length;

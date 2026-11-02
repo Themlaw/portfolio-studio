@@ -289,7 +289,6 @@ export const ToCanvasSchema = z.discriminatedUnion("kind", [
   /** Formulaire de contact : montrer le formulaire, ou son message de confirmation / d'erreur. */
   z.object({ kind: z.literal("form-preview"), uid: Uid, pane: z.enum(["form", "success", "error"]) }),
   /** En-tête du site tenu par une autre page (son nom), ou null. */
-  z.object({ kind: z.literal("site-lock"), page: z.string().max(200).nullable() }),
   z.object({
     kind: z.literal("ghosts"),
     items: z

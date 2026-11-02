@@ -13,13 +13,13 @@ export const metadata = { title: "Réglages" };
 
 export default async function SettingsPage() {
   const fonts = fontLibraryRows();
-  const settings = getSettingsForAdmin();
+  const settings = getSettingsForAdmin(true);
   const images = listMediaForAdmin().filter((m) => m.kind === "image");
   return (
     <>
       <PageHeader
         title="Réglages"
-        intro="L'identité de ton site : ton nom, ton métier, l'adresse où l'on peut t'écrire et tes réseaux. Ici, une modification est en ligne dès que tu enregistres ; dans l'éditeur d'une page, les mêmes champs sont publiés avec la page."
+        intro="L'identité de ton site : ton nom, ton métier, l'adresse où l'on peut t'écrire et tes réseaux. Ici, une modification est en ligne dès que tu enregistres ; dans l'éditeur, les mêmes champs sont publiés avec la page que tu publies."
       />
       <SettingsForm initial={settings} pending={siteDraftHolder()} />
       <SeoForm initial={getSeoForAdmin()} media={images} siteName={siteNameFor(settings.site.name, "fr")} favicon={getFaviconForAdmin()} colors={monoColors(await getPublishedTheme())} />

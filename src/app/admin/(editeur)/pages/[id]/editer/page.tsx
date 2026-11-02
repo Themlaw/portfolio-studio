@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { blockCatalog, blockEditors } from "@/blocks/registry";
 import VisualEditor from "@/components/admin/editor/VisualEditor";
-import { getEditorContext, getSettingsForAdmin, listPagesForAdmin, overlayProjectSlugs } from "@/lib/admin";
+import { getEditorContext, listPagesForAdmin, overlayProjectSlugs } from "@/lib/admin";
 import { readDraft } from "@/lib/edit/drafts";
 import { readThemeUsage, sortThemeChoices } from "@/lib/edit/theme-usage";
 import { lookContextForEditor } from "@/lib/edit/look-context";
@@ -22,6 +22,7 @@ export default async function VisualEditorPage({ params, searchParams }: { param
   const { id } = await params;
   const { langue } = await searchParams;
   const state = /^\d+$/.test(id) ? readDraft(Number(id)) : null;
+  const site = siteForEditor();
   if (!state) notFound();
   const pages = listPagesForAdmin()
     .filter((p) => !p.slug.fr.startsWith("_"))
@@ -47,9 +48,9 @@ export default async function VisualEditorPage({ params, searchParams }: { param
       catalog={blockCatalog()}
       editors={blockEditors()}
       context={getEditorContext(Number(id))}
-      siteName={siteNameFor(getSettingsForAdmin().site.name, "fr") || "Portfolio"}
+      siteName={siteNameFor(site.snap.identity.name, "fr") || "Portfolio"}
       initialLocale={langue === "en" ? "en" : "fr"}
-      site={siteForEditor(Number(id))}
+      site={site}
       look={lookContextForEditor(preparing)}
       themeChoices={themeChoices}
     />

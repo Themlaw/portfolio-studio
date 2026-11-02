@@ -55,7 +55,6 @@ export function ColorsPanel({
   onChange,
   onHighlight,
   info,
-  locked,
   mode = "site",
   baseline,
   preparing = false,
@@ -80,7 +79,6 @@ export function ColorsPanel({
   /** Rôle à surligner sur la toile (null : rien). */
   onHighlight: (role: BaseKey | null) => void;
   info: HighlightInfo | null;
-  locked: string | null;
 }) {
   const [open, setOpen] = useState<BaseKey | null>(null);
   // Nuance dont le sélecteur est ouvert (une seule fenêtre ouverte à la fois, rôle ou nuance).
@@ -219,7 +217,6 @@ export function ColorsPanel({
           <strong>Couleurs personnalisées du site</strong> : {modifiedCount} {modifiedCount > 1 ? "couleurs remplacent" : "couleur remplace"} celles du thème, sur toutes les pages.
         </p>
       )}
-      {locked && <p className="a-field-error">Les couleurs du site sont en cours de modification sur la page « {locked} ».</p>}
       {ignored && (
         <div className="a-notice lc-ignored" role="status" data-testid="palette-ignored">
           <p>
@@ -368,14 +365,12 @@ const MODE_HELP: Record<(typeof LOGO_MODES)[number], string> = {
 export function LogoPanel({
   value,
   onChange,
-  locked,
   media = [],
   signature = false,
   onChooseImage,
 }: {
   value: Logo;
   onChange: (next: Logo) => void;
-  locked: string | null;
   /** Médiathèque (nom et vignette de l'image choisie). */
   media?: AdminMediaRow[];
   /** Le thème actif dessine sa propre signature : retirer l'image y revient (sinon : le nom du site en texte). */
@@ -394,7 +389,6 @@ export function LogoPanel({
       <p className="lp-help">
         La signature de l&apos;en-tête, ou le nom du site quand le thème n&apos;en a pas. Tu peux aussi le régler sur la page : poignée sous le logo.
       </p>
-      {locked && <p className="a-field-error">Le logo est en cours de modification sur la page « {locked} ».</p>}
       {onChooseImage && (
         <div className="lp-field lc-logo-image" data-testid="logo-image">
           <span className="lp-label">Image du logo</span>

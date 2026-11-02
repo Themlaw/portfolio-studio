@@ -381,7 +381,7 @@ try {
   await adv.locator("summary").click();
   ok("E1b ouvert : le diagnostic apparaît", await page.locator("#diagnostic").isVisible());
   ok("E2 sans brouillon du site : aucun avis", (await page.locator('[data-testid="site-draft-notice"]').count()) === 0);
-  // Brouillon du site porté par la page d'accueil (écrit comme le fait l'éditeur) : nom changé, en attente.
+  // Brouillon du site (écrit comme le fait l'éditeur, dernière page = l'accueil) : nom changé, en attente.
   const home = dbq("select id from pages where json_extract(slug,'$.fr') = ''")[0].id;
   const snap = JSON.parse(tsx(`import { readPublishedSite } from "./src/lib/edit/site.ts"; console.log(JSON.stringify(readPublishedSite()));`).trim().split("\n").at(-1));
   snap.identity.name = { fr: "Nom en attente", en: "" };
@@ -389,7 +389,7 @@ try {
   siteDraftWritten = true;
   await page.reload({ waitUntil: "networkidle" });
   const notice = page.locator('[data-testid="site-draft-notice"]');
-  ok("E3 brouillon du site : « Modifications en attente dans l'éditeur de la page « Accueil » »", /Modifications en attente dans l'éditeur de la page « Accueil »/.test(await notice.innerText()));
+  ok("E3 brouillon du site (commun, lot 96) : « Des modifications du site sont en attente dans l'éditeur », publiées avec n'importe quelle page", /Des modifications du site sont en attente dans l'éditeur/.test(await notice.innerText()) && /n'importe quelle page/.test(await notice.innerText()));
   ok("E3b avec un lien vers l'éditeur de cette page", (await notice.getByRole("link").getAttribute("href")) === `/admin/pages/${home}/editer`);
   ok("E3c l'écran dit que les deux mécanismes sont distincts (en ligne ici, publié avec la page dans l'éditeur)", /publiés avec la page/.test(await page.locator(".a-page-header p").innerText()));
   await shot("e3-reglages-brouillon");
