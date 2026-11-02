@@ -38,11 +38,11 @@ import { and, asc, eq, max } from "drizzle-orm";
 import { z } from "zod";
 
 import { applyFreeOp, newFreeId } from "@/blocks/free-board";
-import { BOARD_ITEM_TYPES, BOX_MIN, MAX_BOARD_ITEMS, MAX_RAIL_MEDIA, defaultLayout, isProjectStrip, newBoardItem, parseCaptionPath, railIds, railList, readLayout, sameLayout, type BoardItem, type StripCaption } from "@/blocks/board-layout";
+import { BOARD_ITEM_TYPES, BOX_MIN, CAPTION_STYLE_FIELDS, projectCaptionStyle, MAX_BOARD_ITEMS, MAX_RAIL_MEDIA, defaultLayout, isProjectStrip, newBoardItem, parseCaptionPath, railIds, railList, readLayout, sameLayout, type BoardItem, type StripCaption } from "@/blocks/board-layout";
 import { convertTarget } from "@/blocks/grid-strip";
 import { isVideoMode } from "@/blocks/video-mode";
 import { getPageForEdit } from "@/lib/admin";
-import { LookSchema, readLook } from "@/lib/look";
+import { LookSchema, readLook, TextStyleSchema } from "@/lib/look";
 import { HELP_TEXT } from "@/blocks/help-text";
 import { applyMediaPatch, MediaPatchSchema } from "./media-look";
 import { setLocalizedAt } from "./protocol";
@@ -85,7 +85,7 @@ export const ItemTextPath = z.string().regex(/^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z0-9
 /** Un composant de la suite de la planche : la forme ici, les réglages par le registre (`checkLayout`). */
 /** Largeur (20 à 100 %) et alignement communs à tous les composants (lot 31b). */
 const Box = z.strictObject({ width: z.number().min(BOX_MIN).max(100).optional(), align: z.enum(["left", "center", "right"]).optional() });
-const LayoutItem = z.strictObject({ uid: Uid, type: z.enum(BOARD_ITEM_TYPES as [BoardItem["type"], ...BoardItem["type"][]]), props: z.record(z.string(), z.unknown()), box: Box.optional() });
+const LayoutItem = z.strictObject({ uid: Uid, type: z.enum(BOARD_ITEM_TYPES as [BoardItem["type"], ...BoardItem["type"][]]), props: z.record(z.string(), z.unknown()), box: Box.optional(), captionStyle: z.strictObject({ title: TextStyleSchema.optional(), legend: TextStyleSchema.optional(), date: TextStyleSchema.optional() }).optional() });
 /** Textes d'une grille de planche modifiables en place : les siens, et ceux de ses cases (lot 39). */
 const GRID_TEXT_PATH = /^((eyebrow|title|captionTitle|caption|captionDate)|children\.\d{1,2}\.props\.(eyebrow|title|description|captionTitle|caption|captionDate))$/;
 export const BoardSnapSchema = z.strictObject({
@@ -110,6 +110,8 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
   // Lot 31c : texte modifié en place sur la toile (chemin « title », « paragraphs.0 »…), et mise en forme (« Aa ») d'un composant.
   z.strictObject({ op: z.literal("item-text"), uid: Uid, path: ItemTextPath, locale: z.enum(["fr", "en"]), value: z.string().max(2000) }),
   z.strictObject({ op: z.literal("item-look"), uid: Uid, look: LookSchema.nullable() }),
+  // Lot 98 : style des légendes du PROJET (un style par champ ; null = aucun), porté par la suite et publié avec elle.
+  z.strictObject({ op: z.literal("captions-style"), style: z.strictObject({ title: TextStyleSchema.optional(), legend: TextStyleSchema.optional(), date: TextStyleSchema.optional() }).nullable() }),
   // Lot 31b : un média de la médiathèque posé sur un composant (Image / Vidéo : remplace ; Grille, carrousel : ajoute).
   z.strictObject({ op: z.literal("item-media"), uid: Uid, mediaId: z.number().int().positive() }),
   z.strictObject({ op: z.literal("item-to"), uid: Uid, index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
@@ -514,12 +516,23 @@ const newPlaceId = () => `n${randomBytes(4).toString("hex")}`;
 const newItemUid = () => `c${randomBytes(6).toString("hex")}`;
 const EMPTY: L = { fr: "", en: "" };
 
+/**
+ * Le style des légendes du projet (lot 98) suit toute opération de la suite : retirer ou déplacer le composant qui le portait ne le perd
+ * pas (il est remis sur le premier composant). Seule `captions-style` le change.
+ */
+const keepCaptionStyle = (opName: string, change: (snap: BoardSnap) => BoardSnap | string) => (snap: BoardSnap): BoardSnap | string => {
+  const keep = projectCaptionStyle(snap.layout);
+  const next = change(snap);
+  if (typeof next !== "string" && opName !== "captions-style" && keep && !projectCaptionStyle(next.layout) && next.layout.length) next.layout[0] = { ...next.layout[0], captionStyle: keep };
+  return next;
+};
+
 /** Une opération sur la planche (toile : ajouter, déplacer, retirer, remplacer, textes). */
 export function boardOp(pageId: number, projectId: unknown, opInput: unknown, rev: unknown): ActionResult<BoardResult> | DraftRefusal {
   const parsed = BoardOpSchema.safeParse(opInput);
   if (!parsed.success) return fail("Opération invalide : recharge l'éditeur.");
   const op = parsed.data;
-  return mutate(pageId, projectId, rev, (snap) => {
+  return mutate(pageId, projectId, rev, keepCaptionStyle(op.op, (snap) => {
     const at = (key: string) => snap.slots.findIndex((s) => s.key === key);
     switch (op.op) {
       case "add": {
@@ -677,6 +690,16 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         item.props = op.look && Object.keys(op.look).length ? { ...rest, look: op.look } : rest;
         return snap;
       }
+      case "captions-style": {
+        if (!snap.layout.length) return "Ce projet n'a pas de contenu.";
+        const style = op.style ? Object.fromEntries(CAPTION_STYLE_FIELDS.flatMap((f) => (op.style![f] && Object.keys(op.style![f]!).length ? [[f, op.style![f]]] : []))) : {};
+        snap.layout = snap.layout.map((item, i) => {
+          const { captionStyle: _old, ...rest } = item;
+          void _old;
+          return i === 0 && Object.keys(style).length ? { ...rest, captionStyle: style } : rest;
+        });
+        return snap;
+      }
       case "item-to": {
         const from = snap.layout.findIndex((i) => i.uid === op.uid);
         if (from < 0) return "Ce bloc n'est plus sur ce projet.";
@@ -755,7 +778,7 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         return snap;
       }
     }
-  }, false, op.op === "project", op.op.startsWith("item-") || op.op.startsWith("rail-"));
+  }), false, op.op === "project", op.op.startsWith("item-") || op.op.startsWith("rail-") || op.op === "captions-style");
 }
 
 /** Annuler / Rétablir : réécrit un instantané (contrôlé). */

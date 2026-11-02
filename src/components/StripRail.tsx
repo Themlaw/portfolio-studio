@@ -45,8 +45,14 @@ export default function StripRail({
   captions = true,
   slotLook,
   videoMode,
+  capBase,
+  capOwn,
   eager = 0,
 }: {
+  /** Style des légendes du PROJET, par champ (lot 98) : sous le style propre d'une légende, au-dessus de celui du site. */
+  capBase?: Partial<Record<CaptionField, CSSProperties>>;
+  /** Style propre de chaque légende (« Ce texte »), par slug de place ; déjà fondu avec celui du projet. */
+  capOwn?: Record<string, Partial<Record<CaptionField, CSSProperties>>>;
   /** Nombre des premières images chargées tout de suite, sans « lazy » (lot 54). */
   eager?: number;
   artworks: LocalizedArtwork[];
@@ -71,6 +77,7 @@ export default function StripRail({
 }) {
   const t = useTranslations("projects");
   const tg = useTranslations("gallery");
+  const styleOf = (slug: string, field: CaptionField): CSSProperties | undefined => (capOwn && Object.hasOwn(capOwn, slug) ? capOwn[slug][field] : undefined) ?? capBase?.[field];
   /** Habillage enregistré de la place `slug` (vide sans réglage). */
   const mineOf = (slug: string): MediaLookData => (slotLook && Object.hasOwn(slotLook, slug) ? slotLook[slug] : undefined) ?? {};
   /** Variable d'arrondi d'une image réglée seule (sinon celle du bloc / du thème). */
@@ -298,15 +305,18 @@ export default function StripRail({
           const marks = (field: CaptionField): Record<string, string> | undefined => {
             if (!slot) return undefined;
             const path = (f: string) => `captions.${artwork.slug}.${f}`;
-            if (editRail === "") return field === "title" ? { "data-slot-inline": "title" } : field === "legend" ? { "data-slot-inline": "description" } : { "data-inline": path("date") };
-            return { "data-inline": path(field === "legend" ? "caption" : field) };
+            const lk: Record<string, string> = capOwn && Object.hasOwn(capOwn, artwork.slug) && capOwn[artwork.slug][field] ? { "data-cap-local": "" } : {};
+            // Lot 98 : Titre et Légende de la bande du projet restent ceux de l'emplacement (`data-slot-inline`), mais leur style propre
+            // (« Ce texte ») s'écrit, comme celui de la Date, dans les réglages du bloc : `data-look-key` = `captions.<place>.<champ>`.
+            if (editRail === "") return field === "title" ? { "data-slot-inline": "title", "data-look-key": path("title"), ...lk } : field === "legend" ? { "data-slot-inline": "description", "data-look-key": path("caption"), ...lk } : { "data-inline": path("date"), ...lk };
+            return { "data-inline": path(field === "legend" ? "caption" : field), ...lk };
           };
           const caption = !captions ? null : (
             <MediaCaption
               edit={Boolean(slot)}
-              title={{ text: artwork.title, attrs: marks("title"), className: "transition-colors group-hover:text-ink" }}
-              legend={{ text: artwork.description, attrs: marks("legend") }}
-              date={{ text: artwork.date ?? (artwork.year > 0 ? String(artwork.year) : ""), attrs: marks("date") }}
+              title={{ text: artwork.title, attrs: marks("title"), style: styleOf(artwork.slug, "title"), className: "transition-colors group-hover:text-ink" }}
+              legend={{ text: artwork.description, attrs: marks("legend"), style: styleOf(artwork.slug, "legend") }}
+              date={{ text: artwork.date ?? (artwork.year > 0 ? String(artwork.year) : ""), attrs: marks("date"), style: styleOf(artwork.slug, "date") }}
             />
           );
           const host = slot ? { "data-cap-host": "" } : {};

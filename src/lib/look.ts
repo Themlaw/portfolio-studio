@@ -559,7 +559,10 @@ export function upgradeLook(raw: unknown): unknown {
 /* ---- Réglages d'un bloc (props.look) --------------------------------------------- */
 
 /** Chemin d'un texte du bloc (comme `inline` au registre) ; `site.name` / `site.role` : textes du site posés dans le bloc. */
-const TextPath = z.string().max(80).regex(/^[a-zA-Z]+(\.(\d{1,2}|[a-zA-Z]+))*$/);
+export const TEXT_PATH_RE = /^([a-zA-Z]+(\.(\d{1,2}|[a-zA-Z]+))*|captions\.[a-z0-9-]{1,60}\.(title|caption|date))$/;
+const TextPath = z.string().max(80).regex(TEXT_PATH_RE);
+/** Plafond des styles de texte d'un bloc (lot 98 : 40 faisait perdre TOUS les réglages d'un gros carrousel). */
+export const MAX_TEXT_STYLES = 600;
 const bounded = <T extends z.ZodType>(rec: T, max: number, label: string) =>
   rec.refine((v) => Object.keys(v as object).length <= max, `${max} ${label} au plus.`);
 
@@ -569,7 +572,7 @@ const LookCoreSchema = z.strictObject({
   radius: z.enum(RADII).optional(),
   titleV: z.enum(["top", "middle", "bottom"]).optional(),
   titleH: z.enum(["left", "center", "right"]).optional(),
-  text: bounded(z.record(TextPath, TextStyleSchema), 40, "styles de texte").optional(),
+  text: bounded(z.record(TextPath, TextStyleSchema), MAX_TEXT_STYLES, "styles de texte").optional(),
   crop: z.partialRecord(z.enum(CROP_FIELDS), CropSchema).optional(),
   /** Cadrage de l'image de chaque tuile d'un bloc « tuiles de collection », par collection. */
   tileCrop: z.partialRecord(z.enum(TILE_KEYS), CropSchema).optional(),
@@ -608,7 +611,16 @@ export function readLook(raw: unknown): Look | undefined {
   for (const [k, v] of Object.entries(up)) {
     const one = LookSchema.safeParse({ [k]: v });
     if (one.success) Object.assign(out, one.data);
-    else if (k === "slotLook" && v && typeof v === "object" && !Array.isArray(v)) {
+    else if (k === "text" && v && typeof v === "object" && !Array.isArray(v)) {
+      // Lot 98 : un style illisible (ou en trop) ne fait jamais perdre les autres textes du bloc.
+      const texts: Record<string, unknown> = {};
+      for (const [path, style] of Object.entries(v)) {
+        if (Object.keys(texts).length >= MAX_TEXT_STYLES) break;
+        const ok = LookSchema.safeParse({ text: { [path]: style } });
+        if (ok.success) Object.assign(texts, (ok.data as Look).text);
+      }
+      if (Object.keys(texts).length) Object.assign(out, { text: texts });
+    } else if (k === "slotLook" && v && typeof v === "object" && !Array.isArray(v)) {
       const slots: Record<string, unknown> = {};
       for (const [slug, entry] of Object.entries(v)) {
         if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;

@@ -96,7 +96,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "fond", "bitem-text", "bitem-look", "cell-look", "free-op", "media-look"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "fond", "bitem-text", "bitem-look", "board-captions", "cell-look", "free-op", "media-look"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /**
@@ -2343,6 +2343,13 @@ export default function VisualEditor({
           const seq = msg.seq;
           const op: BoardOp = msg.kind === "bitem-text" ? { op: "item-text", uid: msg.uid, path: msg.path, locale: msg.locale, value: msg.value } : { op: "item-look", uid: msg.uid, look: msg.look };
           void h.itemFlush().then(() => h.boardDo(msg.board, op)).then((r) => {
+            if (!r && seq) send({ kind: "revert", seq });
+          });
+          break;
+        }
+        case "board-captions": {
+          const seq = msg.seq;
+          void h.itemFlush().then(() => h.boardDo(msg.board, { op: "captions-style", style: msg.style })).then((r) => {
             if (!r && seq) send({ kind: "revert", seq });
           });
           break;
