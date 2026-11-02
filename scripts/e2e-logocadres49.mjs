@@ -213,13 +213,14 @@ if (run("LG"))
     ok("LG0 le thème a une signature (toile : data-kit-signature, signature affichée)", before.kit && before.sigDisplay === "block", JSON.stringify(before));
     ok("LG0 sans réglage : la signature a l'encre du thème", before.sigBg === before.ink, `${before.sigBg} / ${before.ink}`);
 
-    // Survol du logo dessiné : la barre « Aa » du nom du site doit s'offrir (le nom en texte est masqué derrière la signature).
+    // Survol du logo dessiné (lot 84) : une signature est une image, pas du texte : plus de bouton « Aa ». Le nom du site se règle autrement
+    // (ici : la même intention que celle de la barre « Aa », envoyée par la toile).
     await page.mouse.move(700, 8);
     await sleep(200);
     await f.locator(".site-header .site-signature").hover();
     await sleep(800);
     info("LG hover signature : Aa", await f.locator(".lk-aa").count());
-    ok("LG1 survol de la signature : le bouton « Aa » (style du nom du site) s'offre", (await f.locator(".lk-aa").count()) === 1);
+    ok("LG1 survol de la signature dessinée : plus de bouton « Aa » (lot 84)", (await f.locator(".lk-aa").count()) === 0);
     // Le CSS : la couleur du nom du site teinte la signature (le pointeur quitte le logo : le survol met le texte en « primary »).
     await page.mouse.move(900, 400);
     await sleep(400);
@@ -232,14 +233,7 @@ if (run("LG"))
       return s;
     }, GREEN);
     ok("LG1b la couleur du nom du site teinte aussi la signature (toile)", probe === GREEN_RGB, probe);
-    const opened = await openBar(f, ".site-header .site-signature");
-    ok("LG1c barre « Aa » du nom du site ouverte depuis la signature", opened);
-    await f.locator(".lk-bar [role=radio]", { hasText: "Tous les" }).first().click();
-    await f.locator('.lk-bar [aria-label="Couleur personnalisée"]').click();
-    const hex = f.locator('.cp input[aria-label="Code couleur"]');
-    await hex.waitFor({ timeout: 20000 });
-    await hex.fill(GREEN);
-    await hex.press("Enter");
+    await f.evaluate((c) => window.parent.postMessage({ type: "portfolio:edit", kind: "site-style", role: "brand", style: { color: c }, seq: 90001 }, window.location.origin), GREEN);
     await settled();
     await page.keyboard.press("Escape");
     ok("LG1 la couleur est enregistrée dans les styles du site (rôle « brand »)", await waitFor(() => JSON.stringify(sql((db) => db.prepare("select value from settings where key = 'siteDraft'").get())?.value ?? "").includes(GREEN), 30000));

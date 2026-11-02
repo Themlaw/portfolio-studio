@@ -23,7 +23,7 @@ import { useEffect, useState } from "react";
 import { SolidColorPicker } from "@/components/edit/ColorPicker";
 import { pairsReadability, ratioTip } from "@/components/edit/readability";
 import type { AdminMediaRow } from "@/lib/admin";
-import { LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, LOGO_SIZE_PRESETS, type Logo, type PaletteColor, type SitePalette } from "@/lib/look";
+import { LOGO_ALIGN_LABELS, LOGO_ALIGNS, LOGO_ANCHOR_LABELS, LOGO_ANCHORS, LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, LOGO_SIZE_PRESETS, LOGO_X_MAX, LOGO_X_MIN, type Logo, type LogoAlign, type PaletteColor, type SitePalette } from "@/lib/look";
 import { NUANCE_KEYS, PALETTE_GROUPS, type BaseKey, type NuanceKey, type PaletteColors, type PaletteState } from "@/themes/palette";
 import { autoAdjustBase, CONTRAST_BASES, effectiveSitePalette, nuanceOrigin, nuancesUnder, rolePairs, SITE_NUANCES, SITE_ROLES, sitePaletteIssues, sitePalettePairs, themeFixesNuance } from "@/themes/site-palette";
 
@@ -361,8 +361,14 @@ export function ColorsPanel({
 }
 
 const MODE_HELP: Record<(typeof LOGO_MODES)[number], string> = {
-  fixed: "Le logo garde la même taille. La barre du haut ne grandit pas : un grand logo dépasse dessous.",
+  fixed: "Le logo garde la même taille.",
   shrink: "Grand sur la page, il rétrécit quand on défile (visible dans « Aperçu exact »). La barre garde sa hauteur.",
+};
+
+const ALIGN_HELP: Record<LogoAlign, string> = {
+  top: "Le logo part du haut de la barre. S'il est grand, il dépasse dessous, sur ce qui suit.",
+  center: "Le logo est au milieu de la hauteur de la barre. S'il est trop grand, il est coupé en haut et en bas : il ne mord jamais sur ce qui suit.",
+  grow: "La barre du haut devient aussi haute que le logo (avec la même marge qu'avant) et le logo y est au milieu. Le reste de la page descend d'autant.",
 };
 
 export function LogoPanel({
@@ -385,6 +391,9 @@ export function LogoPanel({
 }) {
   const size = value.size ?? LOGO_SIZE_DEFAULT;
   const mode = value.mode === "shrink" ? "shrink" : "fixed";
+  const align = value.align ?? "top";
+  const anchor = value.anchor ?? "left";
+  const x = value.x ?? 0;
   const image = value.mediaId !== undefined ? (media.find((m) => m.id === value.mediaId) ?? null) : null;
   return (
     <section className="lp lp-logo" aria-labelledby="lp-logo-title" data-testid="logo-panel">
@@ -455,6 +464,54 @@ export function LogoPanel({
         {value.size !== undefined && (
           <button type="button" className="a-btn a-btn-small a-btn-quiet" onClick={() => onChange({ ...value, size: undefined })}>
             Revenir à la taille du thème
+          </button>
+        )}
+      </div>
+      <fieldset className="lp-field lc-modes" data-testid="logo-align">
+        <legend className="lp-label">Place dans la barre du haut</legend>
+        {LOGO_ALIGNS.map((a) => (
+          <label key={a} className="lc-mode">
+            <input type="radio" name="logo-align" value={a} checked={align === a} data-testid={`logo-align-${a}`} onChange={() => onChange({ ...value, align: a === "top" ? undefined : a })} />
+            <span>
+              <strong>{LOGO_ALIGN_LABELS[a]}</strong>
+              <small>{ALIGN_HELP[a]}</small>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      <div className="lp-field" data-testid="logo-position">
+        <span className="lp-label" id="lp-logo-pos-label">
+          Position du logo, de gauche à droite
+        </span>
+        <div className="lc-modes-row" role="group" aria-labelledby="lp-logo-pos-label">
+          {LOGO_ANCHORS.map((a) => (
+            <button key={a} type="button" className="a-btn a-btn-small" aria-pressed={anchor === a} data-testid={`logo-anchor-${a}`} onClick={() => onChange({ ...value, anchor: a === "left" ? undefined : a })}>
+              {LOGO_ANCHOR_LABELS[a]}
+            </button>
+          ))}
+        </div>
+        <label className="lp-label" htmlFor="lp-logo-x">
+          Décalage fin
+        </label>
+        <div className="lc-size">
+          <input
+            id="lp-logo-x"
+            type="range"
+            min={LOGO_X_MIN}
+            max={LOGO_X_MAX}
+            step={1}
+            value={x}
+            aria-valuetext={`${x} pixels`}
+            onChange={(e) => onChange({ ...value, x: Number(e.target.value) })}
+          />
+          <output htmlFor="lp-logo-x" data-testid="logo-x-out">
+            {x === 0 ? "0 px" : `${x > 0 ? "+" : ""}${x} px`}
+          </output>
+        </div>
+        <small className="lp-hint">Le logo s&apos;arrête avant le menu et avant le bord de l&apos;écran. Sur téléphone, le décalage est réduit. Tu peux aussi le glisser sur la page.</small>
+        {(value.x !== undefined || value.anchor !== undefined) && (
+          <button type="button" className="a-btn a-btn-small a-btn-quiet" data-testid="logo-pos-reset" onClick={() => onChange({ ...value, x: undefined, anchor: undefined })}>
+            Remettre le logo à gauche
           </button>
         )}
       </div>
