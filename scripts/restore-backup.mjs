@@ -10,7 +10,9 @@
  * avant que quoi que ce soit change) ; l'ancienne base (portfolio.db, -wal, -shm : un -wal oublié fausserait la base
  * restaurée) est RANGÉE dans <données>/restore-previous-<date>/, jamais effacée ; la base et les fichiers de l'archive sont
  * mis en place ; manifest.json est posé à la racine : au démarrage, le site remet en file la régénération des variantes d'images
- * (l'archive ne contient que les originaux). Les fichiers prennent le propriétaire du dossier de données (exécution en root).
+ * (l'archive ne contient que les originaux et ce qui n'est pas régénérable : kit/, icons/…, voir src/lib/backup/archive.ts). Les fichiers
+ * prennent le propriétaire du dossier de données (exécution en root). Une archive d'avant le lot 85 (manifest sans `storage`) est
+ * restaurée aussi, avec un AVERTISSEMENT : elle n'a ni kit, ni cadres importés, ni icônes.
  */
 import { createReadStream, createWriteStream } from "node:fs";
 import { chown, mkdir, readFile, readdir, rename, rm, stat } from "node:fs/promises";
@@ -18,7 +20,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createGunzip } from "node:zlib";
 
-const TOP = /^(?:manifest\.json|portfolio\.db|media\/.+|fonts\/.+)$/;
+// media/ (tout le stockage non régénérable), fonts/, et les fiches des kits exportés (lot 85) : seuls endroits où l'archive écrit.
+const TOP = /^(?:manifest\.json|portfolio\.db|media\/.+|fonts\/.+|cache\/kits\/manifests\/.+)$/;
+/** Dossiers de premier niveau de <données> créés par la restauration : rendus au propriétaire des données. */
+const OWNED_DIRS = ["media", "fonts", "cache"];
 
 /** Lecteur d'octets exacts sur un flux asynchrone. */
 class Reader {
@@ -148,6 +153,44 @@ export async function readManifest(archive) {
   return manifest;
 }
 
+/** Avertissements à montrer à celui qui restaure (liste vide : rien à signaler). */
+export function archiveWarnings(m) {
+  const out = [];
+  if (m && m.includesMedia !== false && !m.storage) {
+    out.push(
+      "AVERTISSEMENT : cette sauvegarde date d'avant le lot 85. Elle ne contient pas les dessins du kit appliqués aux thèmes, les cadres importés, le logo du thème, les fichiers d'un thème importé ni l'icône du site en image : ces images seront cassées après la restauration, jusqu'à ce qu'elles soient renvoyées (kit Photoshop, cadres, logo, icône).",
+    );
+  }
+  if (m?.missingRefs?.count > 0) {
+    out.push(`AVERTISSEMENT : lors de cette sauvegarde, ${m.missingRefs.count} fichier(s) cité(s) par le site n'étaient déjà plus là (ex. ${(m.missingRefs.samples ?? []).slice(0, 3).join(", ")}) : à renvoyer.`);
+  }
+  return out;
+}
+
+const versionParts = (v) => (/^\d+(\.\d+)*$/.test(String(v ?? "")) ? String(v).split(".").map(Number) : null);
+/** Vrai si la version `a` est strictement plus récente que `b` (inconnues ou non numériques : faux). */
+export function isNewer(a, b) {
+  const x = versionParts(a);
+  const y = versionParts(b);
+  if (!x || !y) return false;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+  return false;
+}
+/** Version de l'application qui exécute le script : PORTFOLIO_VERSION, sinon package.json à côté du script. */
+export async function appVersion() {
+  if (process.env.PORTFOLIO_VERSION) return process.env.PORTFOLIO_VERSION;
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  for (const f of [path.join(here, "package.json"), path.join(here, "..", "package.json")]) {
+    try {
+      const v = JSON.parse(await readFile(f, "utf8")).version;
+      if (typeof v === "string") return v;
+    } catch {
+      // pas là
+    }
+  }
+  return null;
+}
+
 /** Extrait toute l'archive sous `dest` (dossier vide). Retourne les chemins relatifs des fichiers. */
 export async function extractAll(archive, dest, owner) {
   const files = [];
@@ -214,7 +257,9 @@ export async function restore(archive, dataDir) {
       await rename(path.join(work, name), to);
     }
     // Dossiers créés en root : rendus au propriétaire des données.
-    if (owner) for (const d of ["media", "fonts"]) for (const p of [path.join(dataDir, d), ...(await walkDirs(path.join(dataDir, d)))]) await chown(p, owner.uid, owner.gid).catch(() => {});
+    // Cache des recadrages : indexé par IDENTIFIANT de média, que la base restaurée a pu réattribuer à d'autres images : on le vide.
+    await rm(path.join(dataDir, "cache", "crops"), { recursive: true, force: true });
+    if (owner) for (const d of OWNED_DIRS) for (const p of [path.join(dataDir, d), ...(await walkDirs(path.join(dataDir, d)))]) await chown(p, owner.uid, owner.gid).catch(() => {});
     return { files: files.length, previous: moved ? previous : null };
   } finally {
     await rm(work, { recursive: true, force: true });
@@ -224,10 +269,11 @@ export async function restore(archive, dataDir) {
 async function main() {
   const args = process.argv.slice(2);
   const list = args[0] === "--list";
-  const rest = list ? args.slice(1) : args;
+  const force = args.includes("--force");
+  const rest = (list ? args.slice(1) : args).filter((a) => a !== "--force");
   const [archive, dataArg] = rest;
   if (!archive || rest.some((a) => a.startsWith("--"))) {
-    console.error("Usage : node restore-backup.mjs <archive.tar.gz> [dossier-de-données]\n        node restore-backup.mjs --list <archive.tar.gz>");
+    console.error("Usage : node restore-backup.mjs [--force] <archive.tar.gz> [dossier-de-données]\n        node restore-backup.mjs --list <archive.tar.gz>");
     process.exit(2);
   }
   if (list) {
@@ -237,6 +283,12 @@ async function main() {
   const dataDir = path.resolve(dataArg ?? process.env.DATA_DIR ?? "/data");
   const m = await readManifest(archive);
   console.log(`Archive du ${m.createdAt} (version ${m.version}, ${m.mediaCount} média(s), ${m.includesMedia ? "médias inclus" : "base seule"}).`);
+  const current = await appVersion();
+  if (!force && isNewer(m.version, current)) {
+    console.error(`Refusé : cette sauvegarde vient de la version ${m.version}, plus récente que ce site (${current}). Une base plus récente peut ne pas tourner sur une image plus ancienne : utilise une image de la version ${m.version} ou plus, ou ajoute --force à tes risques.`);
+    process.exit(1);
+  }
+  for (const w of archiveWarnings(m)) console.warn(w);
   const out = await restore(archive, dataDir);
   console.log(`Restauré : ${out.files} fichier(s) dans ${dataDir}.`);
   if (out.previous) console.log(`Ancienne base rangée dans ${out.previous} (à supprimer une fois la restauration vérifiée).`);

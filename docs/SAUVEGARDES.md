@@ -58,13 +58,55 @@ du conteneur juste après une session de travail n'oublie rien.
 - `manifest.json` : version de l'application, date, raison du déclenchement, nombre de médias, taille.
 - `portfolio.db` : instantané COHÉRENT, pris pendant que le site tourne par l'API de sauvegarde de SQLite (jamais une copie du
   fichier en écriture), sans bloquer les écritures.
-- `media/originals/…` : les ORIGINAUX envoyés. Les variantes (`img/`, `vid/`, `doc/`) ne sont pas sauvegardées : le worker les
-  régénère à partir des originaux (c'est ce que fait « Réessayer » dans la médiathèque). Le cache des recadrages et des kits se
-  refait à la demande.
-- Exceptions non régénérables, sauvegardées telles quelles : une vidéo dont l'original a été supprimé après conversion
-  (`VIDEO_KEEP_ORIGINALS` absent) garde ses fichiers servis ; un média du seed (SVG, clé hors `originals/`) est copié.
+- `media/…` : **tout le stockage, SAUF ce qui est prouvé régénérable** (lot 85, archive par exclusion : un futur dossier que personne
+  n'a prévu est sauvegardé par défaut). Y entrent :
+  - `originals/` : les ORIGINAUX envoyés ;
+  - `kit/` : dessins du kit appliqués aux thèmes (et leurs versions), logo du thème, cadres importés, fichiers d'une archive de thème importée ;
+  - `icons/` : icône du site choisie dans la médiathèque (rien ne la recrée après une restauration) ;
+  - les variantes d'un média SANS original (vidéo dont l'original est supprimé après conversion, `KEEP_VIDEO_ORIGINALS` absent) et les médias du seed.
+- `cache/kits/manifests/` : fiches et aperçus « avant » des kits exportés. Seule exception à l'exclusion de `cache/` : sans elles, un PSD
+  exporté avant le déménagement n'est plus reconnu au réimport.
 - `fonts/…` : polices installées (quelques centaines de Ko).
-- Jamais : `tmp/` (envois en cours), `cache/`, `kit-imports/`, `backup/` lui-même.
+- `manifest.json` (premier fichier) : `complete`, `storage` (fichiers et octets par catégorie), `regenerable` (ce qui n'est pas dans
+  l'archive parce qu'il se refait), `missingRefs` (voir « Garde-fou »). Un manifest SANS `storage` = archive d'avant le lot 85.
+- **Jamais** : `tmp/`, `kit-imports/`, `backup/`, `cache/` (sauf les fiches), les `*.tmp`, et les régénérables :
+  - variantes `img/`, `vid/`, `doc/` d'un média dont l'original est présent (le worker les refait) ;
+  - `icons-auto/` (icônes automatiques, refaites à la première requête, **à condition que `kit/` soit restauré**).
+- `BACKUP_MEDIA=0` : base, polices, `kit/`, `icons/` et fiches de kit seulement (petits et non renvoyables).
+
+### Inventaire de ce que le site écrit dans `/data`
+
+| Où | Écrit par | Catégorie |
+| --- | --- | --- |
+| `portfolio.db` (+ `-wal`, `-shm`) | tout le site | (a) instantané `.backup` de SQLite |
+| `media/originals/` | envois (images, vidéos, PDF) | (a) table `media` |
+| `media/img/`, `vid/`, `doc/` | worker | (b) régénérable si l'original est là ; sinon sauvegardé |
+| `media/<racine>` (seed) | `db/seed.ts` | (a) |
+| `media/kit/` | `kit/apply.ts`, `kit/logo.ts`, `edit/frames.ts`, `themes/transfer.ts` | (c) sauvegardé |
+| `media/icons/` | `favicon.ts` (image choisie) | (c) sauvegardé |
+| `media/icons-auto/` | `favicon.ts` (auto) | (b) |
+| `fonts/` | `fonts/library.ts` | (c) sauvegardé |
+| `cache/kits/manifests/` | `kit/manifest.ts`, `kit/build*.ts` | (c) sauvegardé (exception) |
+| `cache/crops/`, `cache/kits/*.zip` | recadrages, export du kit | (b) ; `cache/crops` vidé à la restauration |
+| `tmp/`, `kit-imports/`, `backup/` | envois, imports de kit, sauvegardes | hors archive |
+
+Le test `scripts/test-storage-writers85.mjs` (dans `npm test`) échoue si un nouveau fichier de `src/` écrit dans `/data` sans être classé
+dans cette table.
+
+## Garde-fou : références que l'archive ne contient pas
+
+À chaque sauvegarde, le site cherche dans TOUTE la base (colonnes texte de toutes les tables, thèmes et versions, réglages, pages,
+brouillons, blocs, projets, `frameLibrary`…) les adresses `/media/…`, plus les formes qui ne s'écrivent pas ainsi : le dossier de l'icône du
+site (`seo.favicon.dir`), les polices de `fontLibrary` et chaque média prêt (original ou variantes). Toute référence dont le fichier n'est
+NI dans l'archive NI régénérable est signalée : au journal (`[backup] AVERTISSEMENT : N fichier(s) cité(s)…`), dans `manifest.json`
+(`missingRefs`) et en tête de l'écran Sauvegardes. Elle ne bloque jamais la sauvegarde. Le même contrôle se refait au premier démarrage
+après une restauration.
+
+## Cohérence base / fichiers
+
+La base est figée d'abord, les fichiers sont lus ensuite. Deux accidents sont refusés (la sauvegarde est reportée et réessayée,
+l'ancienne archive reste) : un fichier qui rétrécit ou disparaît pendant la copie (jamais une archive complétée de zéros qui a l'air bonne),
+et une conversion de vidéo à cheval sur l'instantané dont l'original a été supprimé depuis (la vidéo serait perdue).
 
 Un seul fichier à la fois, écrit en flux (rien n'est chargé en mémoire) dans un `.tmp` puis renommé d'un coup ; les plus anciennes
 sauvegardes ne sont supprimées qu'APRÈS l'écriture complète de la nouvelle.
@@ -81,7 +123,9 @@ sauvegardes ne sont supprimées qu'APRÈS l'écriture complète de la nouvelle.
 
 ## Poids et `BACKUP_MEDIA=0`
 
-Avec les médias, chaque sauvegarde pèse à peu près la somme des originaux (déjà compressés : gzip n'y gagne presque rien) ; trois
+Mesure du lot 85 (données synthétiques, kit complet de 28 fichiers environ, trois jeux, un cadre PNG et un SVG, une icône en image) : l'archive passe de
+5,3 Mo à 9,2 Mo, soit +3,9 Mo, dont 2,7 Mo pour 83 fichiers de `kit/` (environ 0,9 Mo par kit complet) et 1,2 Mo pour l'icône en image. Un kit
+réel peut peser plus : compter quelques Mo par kit gardé dans les versions de Mon thème. Avec les médias, chaque sauvegarde pèse à peu près la somme des originaux (déjà compressés : gzip n'y gagne presque rien) ; trois
 sauvegardes gardées = environ trois fois cette somme dans le volume. Si la médiathèque est grosse, `BACKUP_MEDIA=0` ne sauvegarde que
 la base (quelques Mo) : les médias restent protégés seulement par le volume lui-même. La sauvegarde de la base seule se restaure
 de la même façon ; les originaux manquants devront être renvoyés.
@@ -110,15 +154,38 @@ docker compose up -d portfolio
 (`--list <archive>` affiche seulement le manifest.) Le script : extrait d'abord TOUTE l'archive dans un dossier de travail (une archive
 tronquée ou abîmée est refusée avant que quoi que ce soit change), RANGE l'ancienne base (`portfolio.db`, `-wal`, `-shm`) dans
 `/data/restore-previous-<date>/` (à supprimer une fois la restauration vérifiée), met la base, les originaux et les polices en place, et
-pose `manifest.json` à la racine de `/data`.
+pose `manifest.json` à la racine de `/data`. Il VIDE `cache/crops` (indexé par identifiant de média : une base plus ancienne pourrait
+resservir le recadrage d'une autre image), refuse une archive plus RÉCENTE que le site (`--force` pour passer outre, à tes risques),
+et avertit si l'archive date d'avant le lot 85 (restaurée quand même : ni kit, ni cadres importés, ni icônes) ou cite des fichiers absents.
 
 Au démarrage suivant, le site voit ce `manifest.json`, remet en file la régénération des variantes d'images, de vidéos et de PDF
 dont les fichiers manquent, puis le renomme `manifest.restored.json` (journal : `[backup] restauration détectée : N média(s) remis
 en file…`). Les images s'affichent de nouveau au fur et à mesure du traitement.
 
 **À la main, sans le script** (volume visible depuis l'hôte, site arrêté) : SUPPRIMER `portfolio.db-wal` et `portfolio.db-shm`
-(un ancien `-wal` fausserait la base restaurée), puis `tar xzf portfolio-….tar.gz -C <dossier du volume>`, puis
-`chown -R 1000:1000` sur ce dossier. Le démarrage fait le reste (même `manifest.json`).
+(un ancien `-wal` fausserait la base restaurée), puis `tar xzf portfolio-….tar.gz -C <dossier du volume>` (qui remet `media/kit`, `media/icons` et `cache/kits/manifests`), supprimer `cache/crops`,
+puis `chown -R 1000:1000` sur ce dossier. Le démarrage fait le reste (même `manifest.json`).
+
+## Déménager le site (autre hébergeur)
+
+1. Sur le NOUVEL hôte : image de la même version que la sauvegarde **ou plus récente**, volume NEUF, restauration AVANT le premier démarrage
+   (sinon le seed crée des médias de démonstration orphelins).
+2. À recopier à la main, car hors archive (volontairement) :
+   - **`PUBLIC_BASE_URL`** : OBLIGATOIRE. Son défaut est l'ancien domaine : sans elle, l'origine de connexion de l'admin est refusée, et canonical, hreflang et sitemap pointent vers l'ancien site ;
+   - **`BETTER_AUTH_SECRET`** (voir ci-dessous) ;
+   - `AUTH_OIDC_*`, `AUTH_ADMIN_GROUP/SUBS`, `ADMIN_EMAILS`, `AUTH_PASSWORD_DISABLED` : si l'admin ne se connecte que par Authentik, le nouvel hôte doit pouvoir le joindre, sinon on est enfermé dehors ; `AUTH_TRUSTED_PROXY_HOPS` (nombre de proxys, pour la limitation de débit) ;
+   - **`KEEP_VIDEO_ORIGINALS`** : décide si les vidéos se régénèrent ; sans original gardé, leurs fichiers servis sont dans l'archive ;
+   - `MEDIA_MAX_TOTAL_GB` (une médiathèque restaurée au-dessus du quota bloque les envois suivants) et les bornes du worker (`MAX_IMAGE_MB`, `IMAGE_HEAVY_MPX`, `IMAGE_DECODE_BUDGET_MB`, `MEMORY_GATE`, `JOB_MAX_DURATION_S`, `KIT_*`) : des bornes plus basses font échouer la régénération d'images acceptées autrefois ;
+   - `WITH_BACKUP` et `BACKUP_*` (le réglage de l'admin, en base, prime), `TZ` (affichage seulement) ;
+   - `ADMIN_EMAIL` / `ADMIN_PASSWORD` sont inutiles : ignorés dès qu'un utilisateur existe.
+3. Copier aussi `/data/backup` ailleurs : il est dans le même volume.
+4. **Si `BETTER_AUTH_SECRET` change** : toutes les sessions tombent (se reconnecter), les jetons de réinitialisation et d'état OAuth en cours sont
+   invalides, et toute URL de recadrage déjà diffusée (`/media/crop/…`, signée avec ce secret : HTML en cache, image de partage sur un
+   réseau social) répond 404 jusqu'à sa remise en cache. Le site re-signe tout seul ses propres pages. Rien d'autre (mots de passe, jetons
+   OAuth et empreintes des messages n'en dépendent pas).
+5. Limites : après la restauration, les images n'apparaissent qu'à mesure que le worker refait leurs variantes (durée selon l'hôte) ; une
+   image qui échoue sous des bornes plus basses reste invisible. Les octets des variantes peuvent différer si la version de `sharp` change.
+   Perdus : envois par morceaux en cours, imports de kit analysés mais pas appliqués (`kit-imports/` : renvoyer le PSD, ses fiches sont gardées).
 
 ## Pour le code
 
@@ -127,5 +194,7 @@ en file…`). Les images s'affichent de nouveau au fur et à mesure du traitemen
   `data_version`, état), `restore.ts` (variantes à régénérer après restauration). Démarré par `src/lib/db/start.ts` après le worker,
   jamais fatal.
 - Tests : `scripts/test-backup.mjs` (`npm test`), `scripts/e2e-backup50.mjs` (suite `backup50`, vrai serveur, restauration de bout en bout).
-- Tout nouveau fichier lu à l'exécution hors traçage de Next doit rester dans l'archive (ou être régénérable) : si un nouveau dossier de
-  `/data` porte des données NON régénérables, l'ajouter à `src/lib/backup/archive.ts`.
+- `refs.ts` (garde-fou), `archive.ts` (`storageToSave` : exclusion, jamais liste). Un nouveau dossier sous `media/` est sauvegardé tout seul ;
+  un nouveau dossier de `/data` HORS `media/` et `fonts/` qui porte des données non régénérables doit être ajouté à `archive.ts` ET au motif
+  `TOP` de `scripts/restore-backup.mjs`, puis classé dans `scripts/test-storage-writers85.mjs`.
+- Tests : `scripts/e2e-backup85.mjs` (suite `backup85`, aller-retour complet sur volume neuf, archive d'avant le lot).

@@ -230,8 +230,8 @@ const { Scheduler, dueReason, rotationPlan, sortArchives, archiveName, failureCo
 }
 
 /* ---- 4 et 5. archive sur une vraie base --------------------------------------------------------------------------- */
-const { runBackup, listArchives, mediaKeysToSave, BackupSkipped } = await import("../src/lib/backup/archive.ts");
-const { extractAll, readManifest, restore } = await import("./restore-backup.mjs");
+const { runBackup, listArchives, storageToSave, BackupSkipped } = await import("../src/lib/backup/archive.ts");
+const { extractAll, readManifest, restore, archiveWarnings, isNewer } = await import("./restore-backup.mjs");
 const tmp = mkdtempSync(path.join(process.env.TEST_TMP ?? tmpdir(), "pf-test-backup-"));
 try {
   const data = path.join(tmp, "data");
@@ -250,11 +250,19 @@ try {
   w("media/seed-logo.svg", "<svg/>");
   w(`media/${longName}`, "<svg id='long'/>");
   w("fonts/Inter-400.woff2", "police");
+  // lot 85 : ce qui n'a pas de ligne dans la table media
+  for (const d of ["media/kit", "media/icons/1-abcd1234", "media/icons-auto/fp1", "media/inconnu/sous-dossier", "cache/kits/manifests"]) mkdirSync(path.join(data, d), { recursive: true });
+  w("media/kit/0123456789abcdef.svg", "<svg id='kit'/>");
+  w("media/icons/1-abcd1234/512.png", "icone-image");
+  w("media/icons-auto/fp1/32.png", "icone-auto");
+  w("media/inconnu/sous-dossier/piece.bin", "dossier-imprevu");
+  w("media/originals/reste.tmp", "ecriture-interrompue");
+  w("cache/kits/manifests/export1.json", "{}");
   w("cache/crops/x.webp", "cache");
   w("tmp/envoi.part", "partiel");
   const main = new Database(path.join(data, "portfolio.db"));
   main.pragma("journal_mode = WAL");
-  main.exec("create table media(id integer primary key, key text, variants text); create table notes(v text);");
+  main.exec("create table media(id integer primary key, key text, variants text, status text); create table notes(v text);");
   const addMedia = (key, variants) => main.prepare("insert into media(key, variants) values (?, ?)").run(key, variants ? JSON.stringify(variants) : null);
   addMedia("originals/orig1.png", { v: 1, files: [{ key: "img/aaaaaaaaaaaaaaaa/800.webp", size: 20 }] });
   addMedia("originals/gone.mp4", { v: 1, originalRemoved: true, files: [{ key: "vid/bbbbbbbbbbbbbbbb/720.mp4", size: 29 }] });
@@ -285,12 +293,14 @@ try {
   mkdirSync(out);
   const files = await extractAll(path.join(dir, r1.name), out);
   const sorted = [...files].sort();
-  ok("archive : manifest, base, originaux, original-orphelin et seed, police ; ni variantes régénérables ni cache ni tmp", eq(sorted, ["fonts/Inter-400.woff2", "manifest.json", `media/${longName}`, "media/originals/orig1.png", "media/seed-logo.svg", "media/vid/bbbbbbbbbbbbbbbb/720.mp4", "portfolio.db"].sort()), sorted.join(","));
+  ok("archive : manifest, base, originaux, original-orphelin et seed, police ; ni variantes régénérables ni cache ni tmp", eq(sorted, ["cache/kits/manifests/export1.json", "fonts/Inter-400.woff2", "manifest.json", `media/${longName}`, "media/icons/1-abcd1234/512.png", "media/inconnu/sous-dossier/piece.bin", "media/kit/0123456789abcdef.svg", "media/originals/orig1.png", "media/originals/orig2.mp4", "media/seed-logo.svg", "media/vid/bbbbbbbbbbbbbbbb/720.mp4", "portfolio.db"].sort()), sorted.join(","));
+  ok("lot 85 archive par exclusion : kit/, icons/, dossier imprévu et fiches de kit y sont ; ni variantes d'un original présent, ni icons-auto/, cache/, tmp/, *.tmp", !sorted.some((f) => /^media\/(img|icons-auto)\//.test(f) || f.endsWith(".tmp") || f.startsWith("tmp/") || f.startsWith("cache/crops")));
   const snap = new Database(path.join(out, "portfolio.db"), { readonly: true });
   ok("archive : la base s'ouvre, intègre, avec les modifications faites avant la copie", snap.pragma("integrity_check", { simple: true }) === "ok" && snap.prepare("select count(*) n from notes").get().n === 2 && snap.prepare("select count(*) n from media").get().n === 4);
   snap.close();
   ok("archive : original octet pour octet (flux)", readFileSync(path.join(out, "media/originals/orig1.png")).equals(Buffer.alloc(300_000, 1)));
   const man = await readManifest(path.join(dir, r1.name));
+  ok("lot 85 manifest : catégories comptées, archive complète, rien de manquant", man.complete === true && man.storage?.kit?.files === 1 && man.storage?.icons?.files === 1 && man.storage?.kitManifests?.files === 1 && man.storage?.originals?.files === 2 && man.missingRefs?.count === 0 && man.regenerable?.variants?.files === 1 && man.regenerable?.iconsAuto?.files === 1, JSON.stringify(man));
   ok("manifest : version, date, nombre de médias, taille", man.version === "9.9.9" && man.createdAt === stamp.toISOString() && man.mediaCount === 4 && man.bytes > 300_000 && man.includesMedia === true, JSON.stringify(man));
   ok("archive : fichier vivant modifié pendant la copie impossible (originaux immuables) : aucun octet manquant", r1.shortfall === 0);
 
@@ -314,7 +324,7 @@ try {
   const outDb = path.join(tmp, "out2");
   mkdirSync(outDb);
   const dbFiles = (await extractAll(path.join(dir, rd.name), outDb)).sort();
-  ok("BACKUP_MEDIA=0 : base, manifest et polices seulement", eq(dbFiles, ["fonts/Inter-400.woff2", "manifest.json", "portfolio.db"]) && (await readManifest(path.join(dir, rd.name))).includesMedia === false, dbFiles.join(","));
+  ok("BACKUP_MEDIA=0 : base, manifest, polices, et (lot 85) kit/, icons/ et fiches de kit", eq(dbFiles, ["cache/kits/manifests/export1.json", "fonts/Inter-400.woff2", "manifest.json", "media/icons/1-abcd1234/512.png", "media/kit/0123456789abcdef.svg", "portfolio.db"]) && (await readManifest(path.join(dir, rd.name))).includesMedia === false, dbFiles.join(","));
 
   // échec : les archives existantes restent intactes
   const before = (await listArchives(dir)).map((a) => `${a.name}:${a.size}`);
@@ -329,8 +339,8 @@ try {
   }
   ok("échec : exception, archives existantes intactes, aucun .tmp", threw && eq((await listArchives(dir)).map((a) => `${a.name}:${a.size}`), before) && readdirSync(dir).every((n) => !n.endsWith(".tmp")));
   ok("échec : renoncement volontaire = classe BackupSkipped", new BackupSkipped("x") instanceof Error);
-  const keys = await mediaKeysToSave([{ key: "originals/orig1.png", variants: "pas du json" }, { key: "originals/absent.png", variants: null }], path.join(data, "media"));
-  ok("médias : variantes illisibles ou original absent = ignorés sans erreur", eq(keys.map((k) => k.key), ["originals/orig1.png"]));
+  const plan = await storageToSave([{ key: "originals/orig1.png", variants: "pas du json" }, { key: "originals/absent.png", variants: null }], path.join(data, "media"));
+  ok("médias : variantes illisibles = dossier non prouvé régénérable, donc sauvegardé ; original absent sans erreur", plan.files.some((f) => f.key === "originals/orig1.png") && plan.files.some((f) => f.key === "img/aaaaaaaaaaaaaaaa/800.webp"));
 
   /* ---- 6. restauration ------------------------------------------------------------------------------------------ */
   const target = path.join(tmp, "restored");
@@ -411,6 +421,58 @@ try {
     ok("admin76 manifest : base seule reconnue", (await readArchiveManifest(path.join(data, "backup", r0.name)))?.includesMedia === false);
     ok("admin76 manifest : fichier absent ou illisible = null", (await readArchiveManifest(path.join(data, "backup", "portfolio-19990101-000000.tar.gz"))) === null);
   }
+  // lot 85 : garde-fou et BACKUP_MEDIA=0
+  {
+    const { mediaRefsInDb, otherCitedNames, isRegenerableKey } = await import("../src/lib/backup/refs.ts");
+    main.exec("create table themes(id text, data text); create table settings(key text primary key, value text);");
+    main.prepare("insert into themes values ('t', ?)").run(JSON.stringify({ a: { svg: "/media/kit/0123456789abcdef.svg", b: "/media/kit/ffffffffffffffff.svg" }, ext: "https://exemple.test/media/pas-a-nous.png" }));
+    main.prepare("insert into settings values ('seo', ?), ('fontLibrary', ?)").run(JSON.stringify({ favicon: { dir: "icons/1-abcd1234" } }), JSON.stringify({ f: "0123456789abcdef.woff2", g: "aaaaaaaaaaaaaaaa.woff2" }));
+    const refs = mediaRefsInDb(main);
+    ok("lot 85 garde-fou : adresses /media/… trouvées dans toute la base (pas les liens externes)", eq([...refs].sort(), ["kit/0123456789abcdef.svg", "kit/ffffffffffffffff.svg"]), [...refs].join(","));
+    ok("lot 85 garde-fou : icône du site et polices citées", eq([...otherCitedNames(main)].sort(), ["fonts/0123456789abcdef.woff2", "fonts/aaaaaaaaaaaaaaaa.woff2", "media/icons/1-abcd1234/512.png"]));
+    ok("lot 85 régénérable : variante d'un original présent oui, kit/ et icons/ non", isRegenerableKey("img/aaaaaaaaaaaaaaaa/800.webp", new Set(["img/aaaaaaaaaaaaaaaa"])) && !isRegenerableKey("kit/x.svg", new Set()) && !isRegenerableKey("icons/1/512.png", new Set()) && isRegenerableKey("icons-auto/x/32.png", new Set()));
+    stamp = new Date(2026, 8, 5, 13, 0, 0);
+    const rm = await run();
+    const mm = await readManifest(path.join(dir, rm.name));
+    ok("lot 85 : références manquantes (kit absent, deux polices absentes) signalées sans bloquer la sauvegarde", rm.missingRefs.length === 3 && rm.missingRefs.includes("kit/ffffffffffffffff.svg") && rm.missingRefs.includes("fonts/aaaaaaaaaaaaaaaa.woff2") && mm.missingRefs.count === 3, JSON.stringify(rm.missingRefs));
+    stamp = new Date(2026, 8, 5, 13, 5, 0);
+    const rb = await run({ media: false });
+    const outB = path.join(tmp, "out3");
+    mkdirSync(outB);
+    const bFiles = (await extractAll(path.join(dir, rb.name), outB)).sort();
+    ok("lot 85 BACKUP_MEDIA=0 : garde quand même kit/, icons/, fiches de kit et polices", eq(bFiles, ["cache/kits/manifests/export1.json", "fonts/Inter-400.woff2", "manifest.json", "media/icons/1-abcd1234/512.png", "media/kit/0123456789abcdef.svg", "portfolio.db"]), bFiles.join(","));
+    // fichier qui rétrécit pendant la copie : la sauvegarde ÉCHOUE (jamais une archive de zéros qui a l'air bonne)
+    const big = path.join(data, "media/originals/rapetisse.bin");
+    writeFileSync(big, Buffer.alloc(3_000_000, 7));
+    main.prepare("insert into media(key, variants) values ('originals/rapetisse.bin', null)").run();
+    const { truncateSync } = await import("node:fs");
+    stamp = new Date(2026, 8, 5, 14, 0, 0);
+    let shrank = null;
+    try {
+      // le fichier rétrécit entre l'écriture de la liste et sa lecture : on le tronque au moment où l'archive arrive à lui
+      await runBackup({ dataDir: data, config: cfg, reason: "calme", reader, now: () => stamp, onProgress: (p) => { if (p.phase === "ecriture" && p.done >= 1) try { truncateSync(big, 10); } catch {} } });
+    } catch (e) {
+      shrank = e;
+    }
+    ok("lot 85 : fichier raccourci pendant la copie = sauvegarde refusée (BackupSkipped), aucune archive de zéros, aucun .tmp", shrank instanceof BackupSkipped && readdirSync(dir).every((n) => !n.endsWith(".tmp")), String(shrank));
+    rmSync(big, { force: true });
+    main.prepare("delete from media where key = 'originals/rapetisse.bin'").run();
+    // conversion vidéo à cheval : l'instantané la voit « processing », son original a été supprimé depuis
+    main.prepare("insert into media(key, variants, status) values ('originals/video-en-cours.mp4', null, 'processing')").run();
+    stamp = new Date(2026, 8, 5, 15, 0, 0);
+    let raced = null;
+    try {
+      await run();
+    } catch (e) {
+      raced = e;
+    }
+    ok("lot 85 : conversion à cheval sur l'instantané (original disparu) = sauvegarde reportée, pas de vidéo perdue", raced instanceof BackupSkipped && /conversion/.test(String(raced.message)), String(raced));
+    main.prepare("delete from media where key = 'originals/video-en-cours.mp4'").run();
+    // isNewer / avertissements du script de restauration
+    ok("lot 85 restauration : archive plus récente que l'image reconnue", isNewer("0.32.0", "0.31.1") && !isNewer("0.31.0", "0.31.0") && !isNewer("0.30.9", "0.31.0") && !isNewer("inconnue", "0.31.0") && isNewer("0.31.10", "0.31.9"));
+    ok("lot 85 restauration : archive d'avant le lot = avertissement kit + cadres ; archive complète sans manque = rien", archiveWarnings({ includesMedia: true }).some((w) => /kit/.test(w) && /cadres/.test(w)) && archiveWarnings({ includesMedia: true, storage: {}, missingRefs: { count: 0, samples: [] } }).length === 0 && archiveWarnings({ includesMedia: true, storage: {}, missingRefs: { count: 2, samples: ["a"] } }).length === 1);
+  }
+
   reader.close();
   main.close();
 } finally {

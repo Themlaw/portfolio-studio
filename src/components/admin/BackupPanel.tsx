@@ -122,6 +122,8 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
   };
 
   const busy = status.running || launching;
+  // Garde-fou du lot 85 : la dernière sauvegarde ne contient pas tout ce que la base cite.
+  const latestMissing = status.archives[0]?.missing && status.archives[0].missing.count > 0 ? status.archives[0].missing : null;
   const p = status.progress;
   const nextText =
     status.next.kind === "desactivee"
@@ -204,6 +206,13 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
         {status.archives.length === 0 ? (
           <p className="muted" data-testid="sauvegardes-vide">Aucune sauvegarde pour l&apos;instant.</p>
         ) : (
+          <>
+          {latestMissing && (
+            <p className="a-notice a-notice-danger" role="alert" data-testid="avertissement-sauvegarde">
+              Attention : {latestMissing.count} fichier{latestMissing.count > 1 ? "s" : ""} utilisé{latestMissing.count > 1 ? "s" : ""} par ton site {latestMissing.count > 1 ? "ne sont" : "n'est"} pas dans la dernière sauvegarde et ne {latestMissing.count > 1 ? "peuvent" : "peut"} pas être refait{latestMissing.count > 1 ? "s" : ""} (par exemple{" "}
+              <span className="mono">{latestMissing.samples.slice(0, 3).join(", ")}</span>). Renvoie ces images (ou retire-les du site) ; sinon elles seront cassées après une restauration.
+            </p>
+          )}
           <div className="a-table-wrap">
             <table className="a-table a-table-stack" data-testid="liste-sauvegardes">
               <thead>
@@ -223,7 +232,15 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
                   <tr key={a.name} data-testid="ligne-sauvegarde" data-name={a.name}>
                     <td data-label="Date">{fmtDate(a.at)}</td>
                     <td data-label="Taille">{fmtSize(a.size)}</td>
-                    <td data-label="Contenu">{a.withMedia === null ? "?" : a.withMedia ? "Base et médias" : "Base seule"}</td>
+                    <td data-label="Contenu">
+                      {a.withMedia === null ? "?" : a.withMedia ? "Base et médias" : "Base seule"}
+                      {a.old && (
+                        <span className="a-help" data-testid="sauvegarde-ancienne">
+                          {" "}
+                          Ancienne : sans les dessins du kit, les cadres importés ni les icônes.
+                        </span>
+                      )}
+                    </td>
                     <td data-label="Version du site">{a.version ?? "?"}</td>
                     <td data-label="Pourquoi">{a.reason ? (REASONS[a.reason] ?? a.reason) : "?"}</td>
                     <td className="a-row-actions">
@@ -236,6 +253,7 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 

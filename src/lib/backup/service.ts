@@ -128,6 +128,16 @@ function ensureService(): Promise<Svc | null> {
               console.log(
                 `[backup] ${r.name} : ${mo(r.bytes)} en ${(r.ms / 1000).toFixed(1).replace(".", ",")} s (${reason} ; ${r.mediaCount} média(s), ${r.files} fichier(s)) ; ${r.kept} sauvegarde(s) gardée(s)${r.removed ? `, ${r.removed} ancienne(s) supprimée(s)` : ""}${r.shortfall ? ` ; ATTENTION : ${r.shortfall} octet(s) manquants (fichier modifié pendant la copie)` : ""}`,
               );
+              const sv = r.storage.saved;
+              console.log(
+                `[backup] ${r.name} : contenu — originaux ${sv.originals.files}, kit ${sv.kit.files}, icônes ${sv.icons.files}, variantes sans original ${sv.variants.files}, autres ${sv.seed.files + sv.other.files} ; non sauvegardés car refaits : ${r.storage.regenerable.variants.files} variante(s), ${r.storage.regenerable.iconsAuto.files} icône(s) auto`,
+              );
+              if (r.missingRefs.length) {
+                const shown = r.missingRefs.slice(0, 20).join(", ");
+                console.warn(
+                  `[backup] AVERTISSEMENT : ${r.missingRefs.length} fichier(s) cité(s) dans la base ne sont NI dans la sauvegarde NI régénérables (perdus ou à renvoyer) : ${shown}${r.missingRefs.length > 20 ? ", …" : ""}`,
+                );
+              }
             } finally {
               s.progress = null;
               s.startedAt = null;
@@ -216,6 +226,10 @@ export type ArchiveRow = {
   /** true : base et médias ; false : base seule ; null : inconnu. */
   withMedia: boolean | null;
   mediaCount: number | null;
+  /** Lot 85 : sauvegarde faite avant le lot (ni kit, ni cadres, ni icônes dans l'archive) ; null : inconnu. */
+  old: boolean | null;
+  /** Références /media/… de la base absentes de l'archive et non régénérables (nombre et exemples) ; null : inconnu. */
+  missing: { count: number; samples: string[] } | null;
 };
 
 export type BackupStatus = {
@@ -246,7 +260,7 @@ export async function getBackupStatus(): Promise<BackupStatus> {
   const archives: ArchiveRow[] = [];
   for (const a of [...list].reverse()) {
     const m = await readArchiveManifest(path.join(/* turbopackIgnore: true */ dir, a.name));
-    archives.push({ name: a.name, size: a.size, at: a.mtimeMs, version: m?.version ?? null, reason: m?.reason ?? null, withMedia: m?.includesMedia ?? null, mediaCount: m?.mediaCount ?? null });
+    archives.push({ name: a.name, size: a.size, at: a.mtimeMs, version: m?.version ?? null, reason: m?.reason ?? null, withMedia: m?.includesMedia ?? null, mediaCount: m?.mediaCount ?? null, old: m ? (m.includesMedia === false ? false : !m.storage) : null, missing: m?.missingRefs ?? null });
   }
   const now = Date.now();
   let next: BackupStatus["next"] = { kind: "desactivee", at: null };
