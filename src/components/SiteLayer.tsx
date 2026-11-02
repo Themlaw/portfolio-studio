@@ -26,6 +26,9 @@ import { listKeys, postIntent, previewList } from "./edit/optimistic";
 import Popover from "./edit/Popover";
 import SocialPicker from "./SocialPicker";
 
+/** Largeur approchée de la barre d'outils d'un réseau (poignée, modifier, retirer) : la garde dans la fenêtre. */
+const SOCIAL_TOOLS_W = 84;
+
 type Rect = { top: number; left: number; width: number; height: number };
 
 /** Envoie une intention (numérotée : voir edit/optimistic.ts) ; renvoie son numéro. */
@@ -77,7 +80,15 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
   const [drag, setDrag] = useState<{ kind: "nav" | "social"; from: number; to: number; marker: Rect } | null>(null);
   /** Glisser en cours : la barre d'outils qui porte la poignée reste montée (sinon la capture du pointeur est perdue). */
   const dragging = useRef(false);
+  /** Délai de grâce avant de retirer les outils d'un élément : le temps d'aller du texte à la poignée (lot 86). */
+  const leaveTimer = useRef<number | null>(null);
+  const cancelLeave = () => {
+    if (leaveTimer.current !== null) window.clearTimeout(leaveTimer.current);
+    leaveTimer.current = null;
+  };
   const edit = mode === "edit";
+
+  useEffect(() => cancelLeave, []);
 
   useEffect(() => {
     if (window.parent === window) return;
@@ -99,7 +110,11 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
     };
     const onMove = (e: PointerEvent) => {
       if (dragging.current) return;
-      if (e.target instanceof Element && e.target.closest(".pe-layer")) return;
+      // Sur la barre d'outils (ou une autre pièce de la couche) : elle reste, le délai de grâce s'arrête.
+      if (e.target instanceof Element && e.target.closest(".pe-layer")) {
+        cancelLeave();
+        return;
+      }
       const t = e.target instanceof Element ? e.target : null;
       const nav = t?.closest<HTMLElement>("[data-edit-global='header'] [data-nav-item]");
       const social = t?.closest<HTMLElement>("[data-social-index]");
@@ -107,11 +122,50 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
       // la pastille) ou en-tête choisi ; sinon il chevauchait le bloc suivant.
       const head = document.querySelector("[data-edit-global='header']")?.getBoundingClientRect();
       setHeaderNear(Boolean(head && e.clientY >= head.top && e.clientY <= head.bottom + 48 && e.clientX >= head.left && e.clientX <= head.right));
+      if (nav || social) {
+        cancelLeave();
+        if (nav) setHover({ kind: "nav", index: Number(nav.dataset.navItem), list: nav.parentElement! });
+        else setHover({ kind: "social", index: Number(social!.dataset.socialIndex), list: social!.parentElement! });
+      } else if (leaveTimer.current === null) {
+        // Pas de retrait immédiat : la poignée est à quelques pixels du texte, le pointeur doit pouvoir l'atteindre.
+        leaveTimer.current = window.setTimeout(() => {
+          leaveTimer.current = null;
+          setHover(null);
+        }, 450);
+      }
+    };
+    // Clavier (focus sur un lien) et toucher (un appui, sans survol) : mêmes outils que le survol.
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target instanceof Element ? e.target : null;
+      if (!t || t.closest(".pe-layer")) return;
+      const nav = t.closest<HTMLElement>("[data-edit-global='header'] [data-nav-item]");
+      const social = t.closest<HTMLElement>("[data-social-index]");
+      cancelLeave();
       if (nav) setHover({ kind: "nav", index: Number(nav.dataset.navItem), list: nav.parentElement! });
       else if (social) setHover({ kind: "social", index: Number(social.dataset.socialIndex), list: social.parentElement! });
-      else setHover(null);
+    };
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== "touch") return;
+      onMove(e);
+    };
+    // Alt + flèche sur un lien du menu (gauche, droite) ou un réseau (haut, bas) : le déplace d'un cran.
+    const onKeyMove = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || !(e.target instanceof Element)) return;
+      const nav = e.target.closest<HTMLElement>("[data-edit-global='header'] [data-nav-item]");
+      const social = e.target.closest<HTMLElement>("[data-social-index]");
+      const el = nav ?? social;
+      if (!el || !el.parentElement) return;
+      const kind = nav ? "nav" : "social";
+      const delta = e.key === (nav ? "ArrowLeft" : "ArrowUp") ? -1 : e.key === (nav ? "ArrowRight" : "ArrowDown") ? 1 : 0;
+      if (!delta) return;
+      e.preventDefault();
+      e.stopPropagation();
+      moveBy(kind, el, delta);
     };
     document.addEventListener("pointermove", onMove, { passive: true });
+    document.addEventListener("pointerdown", onDown, { passive: true });
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("keydown", onKeyMove, true);
     window.addEventListener("scroll", redraw, { passive: true });
     window.addEventListener("resize", redraw);
     const mo = new MutationObserver(redraw);
@@ -119,16 +173,35 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
     return () => {
       cancelAnimationFrame(frame);
       document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("keydown", onKeyMove, true);
       window.removeEventListener("scroll", redraw);
       window.removeEventListener("resize", redraw);
       mo.disconnect();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- moveBy ne dépend que de refs et de fonctions stables
   }, [edit]);
 
   const header = typeof document !== "undefined" ? document.querySelector("[data-edit-global='header']") : null;
   const navItems = header ? visual([...header.querySelectorAll<HTMLElement>("nav [data-nav-item], nav [data-pv-ghost]")]) : [];
   const navBox = header?.querySelector("nav") ?? null;
   const socialLists = typeof document !== "undefined" ? [...document.querySelectorAll<HTMLElement>("[data-edit-socials]")] : [];
+
+  /** Déplace un lien du menu ou un réseau d'un cran (clavier : Alt + flèche, ou flèches sur la poignée). */
+  function moveBy(kind: "nav" | "social", el: HTMLElement, delta: -1 | 1) {
+    const list = el.parentElement;
+    if (!list) return;
+    const items = itemsIn(list, kind === "nav" ? "[data-nav-item]" : "[data-social-index]");
+    const at = items.indexOf(el);
+    const target = at + delta;
+    if (at < 0 || target < 0 || target >= items.length) return;
+    const fallback = Number(kind === "nav" ? el.dataset.navItem : el.dataset.socialIndex);
+    const { key, index } = rankOf(kind, el, Number.isFinite(fallback) ? fallback : at);
+    const seq = post({ kind: "site-op", op: kind === "nav" ? "nav-move" : "social-move", index, ...(key ? { key } : {}), to: target });
+    if (key) previewList(kind, { t: "move", key, to: target }, seq);
+    announce(`${kind === "nav" ? "Lien" : "Réseau"} déplacé en position ${target + 1}.`);
+  }
 
   /** Glisser un lien du menu ou un réseau pour le réordonner. */
   const startDrag = (e: React.PointerEvent, kind: "nav" | "social", from: number, list: Element) => {
@@ -187,7 +260,8 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
   if (!edit || !host) return null;
 
   const hovEl = hover ? hover.list.querySelectorAll<HTMLElement>(hover.kind === "nav" ? "[data-nav-item]" : "[data-social-index]")[hover.index] : null;
-  const hovBox = hovEl ? rectOf(hovEl) : null;
+  // Réseaux : la barre se colle au TEXTE de la ligne (le lien), pas au bord de la colonne (la ligne est large comme elle).
+  const hovBox = hovEl ? rectOf(hover?.kind === "social" ? (hovEl.querySelector("a") ?? hovEl) : hovEl) : null;
   const addNavBox = navItems.length ? rectOf(navItems[navItems.length - 1]) : navBox ? rectOf(navBox) : null;
   const headerSelected = selected === "site-header";
 
@@ -204,12 +278,30 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
           className="pe-item-tools"
           data-kind={hover.kind}
           // Caché, pas démonté, pendant le glisser : la poignée garde la capture du pointeur.
-          style={{ ...(hover.kind === "nav" ? { top: hovBox.top - 26, left: hovBox.left + hovBox.width / 2 - 34 } : { top: hovBox.top, left: hovBox.left + hovBox.width + 6 }), ...(drag ? { visibility: "hidden" as const } : {}) }}
-          onPointerEnter={() => setHover(hover)}
+          style={{ ...(hover.kind === "nav" ? { top: hovBox.top - 26, left: hovBox.left + hovBox.width / 2 - 34 } : { top: hovBox.top - 2, left: Math.max(window.scrollX + 4, Math.min(hovBox.left + hovBox.width + 4, window.scrollX + document.documentElement.clientWidth - SOCIAL_TOOLS_W - 4)) }), ...(drag ? { visibility: "hidden" as const } : {}) }}
+          onPointerEnter={() => {
+            cancelLeave();
+            setHover(hover);
+          }}
           role="toolbar"
           aria-label={hover.kind === "nav" ? "Lien du menu" : "Réseau"}
         >
-          <button type="button" className="pe-grip-sm" aria-label="Glisser pour déplacer" title="Glisser pour déplacer" onPointerDown={(e) => startDrag(e, hover.kind, rankOf(hover.kind, hovEl, hover.index).index, hover.list)}>
+          <button
+            type="button"
+            className="pe-grip-sm"
+            aria-label="Glisser pour déplacer (ou flèches)"
+            title="Glisser pour déplacer"
+            onPointerDown={(e) => startDrag(e, hover.kind, rankOf(hover.kind, hovEl, hover.index).index, hover.list)}
+            onKeyDown={(e) => {
+              const back = hover.kind === "nav" ? "ArrowLeft" : "ArrowUp";
+              const fwd = hover.kind === "nav" ? "ArrowRight" : "ArrowDown";
+              if (hovEl && (e.key === back || e.key === fwd)) {
+                e.preventDefault();
+                e.stopPropagation();
+                moveBy(hover.kind, hovEl, e.key === back ? -1 : 1);
+              }
+            }}
+          >
             ⠿
           </button>
           {hover.kind === "social" && (
