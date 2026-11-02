@@ -25,6 +25,7 @@ import { collectFonts, installGoogleFont, type InstallResult } from "@/lib/fonts
 import { fail, type ActionResult } from "@/lib/edit/result";
 import { enqueueCropWarm } from "@/lib/jobs/crop-warm";
 import { revalidateNav, revalidatePage, revalidateProject, revalidateSettings } from "@/lib/revalidate";
+import { audited } from "@/lib/journal/audit";
 
 const Id = z.number().int().positive();
 
@@ -33,18 +34,18 @@ function pageId(id: unknown): number | null {
   return parsed.success ? parsed.data : null;
 }
 
-export async function createPageAction(input: unknown): Promise<ActionResult<{ id: number }>> {
+export const createPageAction = audited("createPageAction", async function createPageAction(input: unknown): Promise<ActionResult<{ id: number }>> {
   await assertAdmin();
   const result = createPage(input);
   if (result.ok) revalidateNav();
   return result;
-}
+});
 
 /**
  * Formulaire d'infos de la page (lot 51) : enregistre SEULEMENT les infos (titre, adresses, menu, mise en ligne…).
  * Le brouillon de contenu de l'éditeur n'est jamais publié ici. `keepOldAddress` : ancienne adresse gardée en redirection.
  */
-export async function savePageInfoAction(id: unknown, input: unknown, rev: unknown, keepOldAddress?: unknown): Promise<DraftResult<{ rev: number; redirected: number }>> {
+export const savePageInfoAction = audited("savePageInfoAction", async function savePageInfoAction(id: unknown, input: unknown, rev: unknown, keepOldAddress?: unknown): Promise<DraftResult<{ rev: number; redirected: number }>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
@@ -53,22 +54,22 @@ export async function savePageInfoAction(id: unknown, input: unknown, rev: unkno
   revalidatePage(pid, { structure: true });
   enqueueCropWarm(pid);
   return result;
-}
+});
 
 /**
  * Éditeur visuel : enregistrement automatique du brouillon. Rien n'est
  * revalidé : un brouillon n'est jamais dans le cache public, la vue brouillon
  * de l'admin le relit sans cache.
  */
-export async function saveDraftAction(id: unknown, draft: unknown, rev: unknown): Promise<DraftResult<{ savedAt: number; rev: number }>> {
+export const saveDraftAction = audited("saveDraftAction", async function saveDraftAction(id: unknown, draft: unknown, rev: unknown): Promise<DraftResult<{ savedAt: number; rev: number }>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   return saveDraft(pid, draft, rev);
-}
+});
 
 /** Publier : validation complète (comme un enregistrement), page et projets touchés revalidés. */
-export async function publishDraftAction(id: unknown, rev: unknown, live?: unknown): Promise<DraftResult<PublishResult>> {
+export const publishDraftAction = audited("publishDraftAction", async function publishDraftAction(id: unknown, rev: unknown, live?: unknown): Promise<DraftResult<PublishResult>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
@@ -86,10 +87,10 @@ export async function publishDraftAction(id: unknown, rev: unknown, live?: unkno
   if (fonts?.removed.length) revalidateSettings();
   // Avertissements non bloquants (lot 52) : images sans description, textes sans traduction anglaise.
   return { ...result, data: { ...result.data, warnings: publishWarnings(pid) } };
-}
+});
 
 /** Abandonner les modifications : brouillon et surcouche de la page effacés. */
-export async function discardDraftAction(id: unknown, rev: unknown): Promise<DraftResult<{ projects: number[]; rev: number }>> {
+export const discardDraftAction = audited("discardDraftAction", async function discardDraftAction(id: unknown, rev: unknown): Promise<DraftResult<{ projects: number[]; rev: number }>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
@@ -99,64 +100,64 @@ export async function discardDraftAction(id: unknown, rev: unknown): Promise<Dra
   // par prudence du cache des projets touchés.
   for (const project of result.data.projects) revalidateProject(project, { structure: true });
   return result;
-}
+});
 
 /**
  * Planche sur la toile (ajouter à une position, déplacer, retirer l'image ou
  * la place, remplacer, textes) : surcouche d'emplacements de CETTE page,
  * jamais publique avant « Publier ». Rien n'est revalidé.
  */
-export async function boardAction(id: unknown, projectId: unknown, op: unknown, rev: unknown): Promise<DraftResult<BoardResult>> {
+export const boardAction = audited("boardAction", async function boardAction(id: unknown, projectId: unknown, op: unknown, rev: unknown): Promise<DraftResult<BoardResult>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   return boardOp(pid, projectId, op, rev);
-}
+});
 
 /**
  * Annuler / Rétablir sur une planche : réécrit l'instantané d'avant ou d'après.
  * `from` : la planche telle que l'éditeur la croit ; les textes du projet qui n'en
  * diffèrent pas dans l'instantané gardent leur valeur d'aujourd'hui.
  */
-export async function restoreBoardAction(id: unknown, snap: unknown, rev: unknown, from?: unknown): Promise<DraftResult<BoardResult>> {
+export const restoreBoardAction = audited("restoreBoardAction", async function restoreBoardAction(id: unknown, snap: unknown, rev: unknown, from?: unknown): Promise<DraftResult<BoardResult>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   return restoreBoard(pid, snap, rev, from);
-}
+});
 
 /**
  * En-tête, pied de page et réseaux (communs au site) modifiés sur la toile :
  * brouillon du site porté par CETTE page (version de la page contrôlée et
  * incrémentée), jamais public avant « Publier ». Rien n'est revalidé.
  */
-export async function siteDraftAction(id: unknown, snap: unknown, rev: unknown): Promise<DraftResult<SiteResult>> {
+export const siteDraftAction = audited("siteDraftAction", async function siteDraftAction(id: unknown, snap: unknown, rev: unknown): Promise<DraftResult<SiteResult>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   return saveSiteDraft(pid, snap, rev);
-}
+});
 
 /**
  * Brouillon du site en attente sur une autre page (lot 70) : confié à CETTE page, intact, avant un réglage (style du menu, des titres…).
  * Il sera publié avec elle ; la page qui le portait n'a plus rien à publier de ce côté.
  */
-export async function adoptSiteDraftAction(id: unknown, rev: unknown): Promise<DraftResult<AdoptResult>> {
+export const adoptSiteDraftAction = audited("adoptSiteDraftAction", async function adoptSiteDraftAction(id: unknown, rev: unknown): Promise<DraftResult<AdoptResult>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   return adoptSiteDraft(pid, rev);
-}
+});
 
 /** Planche neuve : projet créé dans le brouillon de la page (invisible ailleurs). */
-export async function createDraftProjectAction(id: unknown, title: unknown): Promise<ActionResult<{ id: number; slug: string; title: string }>> {
+export const createDraftProjectAction = audited("createDraftProjectAction", async function createDraftProjectAction(id: unknown, title: unknown): Promise<ActionResult<{ id: number; slug: string; title: string }>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
   return createDraftProject(pid, title);
-}
+});
 
-export async function setPublishedAction(id: unknown, published: unknown): Promise<ActionResult<{ warnings?: ReturnType<typeof publishWarnings> } | null>> {
+export const setPublishedAction = audited("setPublishedAction", async function setPublishedAction(id: unknown, published: unknown): Promise<ActionResult<{ warnings?: ReturnType<typeof publishWarnings> } | null>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid || typeof published !== "boolean") return fail("Requête invalide.");
@@ -169,9 +170,9 @@ export async function setPublishedAction(id: unknown, published: unknown): Promi
     if (published) return { ...result, data: { warnings: publishWarnings(pid) } };
   }
   return result;
-}
+});
 
-export async function setInMenuAction(id: unknown, inMenu: unknown): Promise<ActionResult<null>> {
+export const setInMenuAction = audited("setInMenuAction", async function setInMenuAction(id: unknown, inMenu: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid || typeof inMenu !== "boolean") return fail("Requête invalide.");
@@ -181,27 +182,27 @@ export async function setInMenuAction(id: unknown, inMenu: unknown): Promise<Act
     revalidateNav();
   }
   return result;
-}
+});
 
 /** « Ajouter au menu » de l'avertissement de publication (lot 67, CONC-02) : voir `addToMenuFromEditor`. */
-export async function addToMenuFromEditorAction(id: unknown): Promise<ActionResult<null>> {
+export const addToMenuFromEditorAction = audited("addToMenuFromEditorAction", async function addToMenuFromEditorAction(id: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Requête invalide.");
   const result = addToMenuFromEditor(pid);
   if (result.ok) revalidateNav();
   return result;
-}
+});
 
-export async function reorderMenuAction(ids: unknown): Promise<ActionResult<null>> {
+export const reorderMenuAction = audited("reorderMenuAction", async function reorderMenuAction(ids: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const result = reorderMenu(ids);
   if (result.ok) revalidateNav();
   return result;
-}
+});
 
 /** Supprimer = mettre à la corbeille (restaurable 30 jours : `restorePageAction`). */
-export async function deletePageAction(
+export const deletePageAction = audited("deletePageAction", async function deletePageAction(
   id: unknown,
 ): Promise<ActionResult<{ title: string }> | { ok: false; message: string; references: PageReference[] }> {
   await assertAdmin();
@@ -210,10 +211,10 @@ export async function deletePageAction(
   const result = deletePage(pid);
   if (result.ok) revalidatePage(pid, { structure: true });
   return result;
-}
+});
 
 /** Restaure une page de la corbeille (l'adresse reprise entre-temps est remplacée par une variante libre). */
-export async function restorePageAction(id: unknown): Promise<ActionResult<{ title: string; slugChanged: boolean; collectionDropped: boolean }>> {
+export const restorePageAction = audited("restorePageAction", async function restorePageAction(id: unknown): Promise<ActionResult<{ title: string; slugChanged: boolean; collectionDropped: boolean }>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
@@ -224,17 +225,17 @@ export async function restorePageAction(id: unknown): Promise<ActionResult<{ tit
     enqueueCropWarm(pid);
   }
   return result;
-}
+});
 
 /**
  * Police Google choisie dans l'éditeur (lot 2) : le serveur télécharge le
  * style demandé (s'il manque) puis le sert lui-même. En cas d'échec, message
  * clair et rien n'est appliqué (l'éditeur n'enregistre le style qu'après).
  */
-export async function installFontAction(family: unknown, weight: unknown, italic: unknown): Promise<ActionResult<InstallResult>> {
+export const installFontAction = audited("installFontAction", async function installFontAction(family: unknown, weight: unknown, italic: unknown): Promise<ActionResult<InstallResult>> {
   await assertAdmin();
   const result = await installGoogleFont(family, weight, italic);
   // Nouvelle face : la feuille @font-face (réglages) change sur toutes les pages.
   if (result.ok && result.data.installed) revalidateSettings();
   return result;
-}
+});

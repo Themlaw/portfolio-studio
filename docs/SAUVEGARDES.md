@@ -135,6 +135,8 @@ mise à jour ratée, pas de la perte du disque. Copier de temps en temps `/data/
 
 ## Journal
 
+> Lot 97 : le journal d'ÉDITION (qui a modifié quoi, `edit-log.db`) est un autre fichier, hors archive ; une restauration ne le touche pas. Voir `docs/JOURNAL.md`.
+
 Au démarrage : `[backup] sauvegardes activées : après 10 min sans modification ou au plus 6 h après la précédente, 3 gardée(s),
 médias inclus, dossier /data/backup`. Par sauvegarde : `[backup] portfolio-… .tar.gz : 12,3 Mo en 4,1 s (calme ; 34 média(s),
 37 fichier(s)) ; 3 sauvegarde(s) gardée(s), 1 ancienne(s) supprimée(s)`. Un échec s'affiche en `[backup] ÉCHEC…` et n'arrête

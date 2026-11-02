@@ -11,13 +11,14 @@ import { uploadTmpDir } from "@/lib/jobs/worker";
 import { isSameOrigin } from "@/lib/preview";
 import { revalidateFrames } from "@/lib/revalidate";
 import { receiveOneFile, UploadError } from "@/lib/upload/receive";
+import { auditedRoute } from "@/lib/journal/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 
-export async function POST(request: Request) {
+export const POST = auditedRoute("cadre-import", async function POST(request: Request) {
   await assertAdmin();
   if (!isSameOrigin(request)) return json(403, { ok: false, message: "Origine refusée." });
   let tmp: string | undefined;
@@ -35,4 +36,4 @@ export async function POST(request: Request) {
   } finally {
     if (tmp) await rm(tmp, { force: true });
   }
-}
+});

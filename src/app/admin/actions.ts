@@ -12,12 +12,13 @@ import { redirect } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import { assertAdmin, LOGIN_PATH } from "@/lib/auth/guard";
 import { PREVIEW_COOKIE } from "@/lib/theme";
+import { audited } from "@/lib/journal/audit";
 
-export async function signOutAction(): Promise<void> {
+export const signOutAction = audited("signOutAction", async function signOutAction(): Promise<void> {
   await assertAdmin();
   await getAuth().api.signOut({ headers: await headers() });
   // Fin de l'aperçu de thème avec la session.
   (await draftMode()).disable();
   (await cookies()).delete(PREVIEW_COOKIE);
   redirect(LOGIN_PATH);
-}
+});

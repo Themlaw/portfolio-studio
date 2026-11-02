@@ -4,8 +4,9 @@
 import { assertAdmin } from "@/lib/auth/guard";
 import { setOnboardingHidden } from "@/lib/edit/onboarding";
 import type { ActionResult } from "@/lib/edit/result";
+import { audited } from "@/lib/journal/audit";
 
-export async function setOnboardingHiddenAction(hidden: unknown): Promise<ActionResult<null>> {
+export const setOnboardingHiddenAction = audited("setOnboardingHiddenAction", async function setOnboardingHiddenAction(hidden: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   return setOnboardingHidden(hidden);
-}
+});
