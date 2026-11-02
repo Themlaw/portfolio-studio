@@ -376,11 +376,11 @@ await section("R6", async () => {
   const m = await measure("Delta");
   ok("R6 … et le motif est invisible (opacité calculée 0)", m.fondOpacity === "0", String(m.fondOpacity));
   await page.screenshot({ path: path.join(SHOTS, "r6-opacite-0.png") });
-  // Sur une carte (Foxtrot, ancienne carte à motif) : même curseur, plafond 60 %.
+  // Sur une carte (Foxtrot, ancienne carte à motif) : même curseur, de 0 à 100 % (lot 90 : plus de plafond à 60 %).
   await page.keyboard.press("Escape");
   const mf = await openFond("Foxtrot");
   await mf.locator('[data-kind="wallpaper"][aria-checked="true"]').waitFor();
-  ok("R6 carte à motif : le curseur descend aussi à 0 (plafond 60 %)", (await mf.locator('[data-testid="wp-opacity"]').getAttribute("min")) === "0" && (await mf.locator('[data-testid="wp-opacity"]').getAttribute("max")) === "60");
+  ok("R6 carte à motif : le curseur va aussi de 0 à 100 % (lot 90)", (await mf.locator('[data-testid="wp-opacity"]').getAttribute("min")) === "0" && (await mf.locator('[data-testid="wp-opacity"]').getAttribute("max")) === "100");
   await mf.locator('[data-testid="wp-opacity"]').fill("0");
   ok("R6 … opacité 0 sur la carte enregistrée", await waitFor(() => props("Foxtrot").surface?.paperOpacity === 0), JSON.stringify(props("Foxtrot").surface));
   await page.keyboard.press("Escape");

@@ -228,15 +228,24 @@ export function FrameControls({ value, onChange, what = "photo" }: { value: Fram
   );
 }
 
-/** Bouton « Cadre » de la barre d'outils d'une image : pastille de la couleur du cadre (vide : pas de cadre). */
+/** Valeur courte du cadre posé sur le bloc (lot 90) ; rien tant que le bloc suit le thème. */
+export function frameValue(frame: Frame | undefined): string | undefined {
+  if (!frame) return undefined;
+  return { none: "aucun", theme: "thème", band: "bordure", custom: "perso" }[frame.kind];
+}
+
+/** Bouton « Cadre » de la barre d'outils d'une image : le libellé, puis la valeur posée en texte gris (rien : le bloc suit le thème). */
 export function FrameButton({ uid, open, onToggle, what = "photo" }: { uid: string; open: boolean; onToggle: () => void; what?: "photo" | "vidéo" }) {
   const frame = lookOf(uid).frame;
-  // Pastille pleine dès qu'un cadre est choisi (la couleur de la bande, sinon la teinte d'accent du menu).
-  const shown = frame && frame.kind !== "none" ? frame : undefined;
+  const value = frameValue(frame);
   return (
     <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid="frame-button" title={what === "vidéo" ? "Cadre autour de la vidéo" : "Cadre autour de la photo"} onClick={onToggle}>
-      <span className="sm-dot" data-on={shown ? "" : undefined} style={shown?.kind === "band" ? { background: frameColorCss(shown.color) } : undefined} aria-hidden="true" />
-      Cadre
+      Cadre{" "}
+      {value && (
+        <span className="sm-value" data-testid="frame-value" title={`Cadre : ${value}`}>
+          · {value}
+        </span>
+      )}
     </button>
   );
 }

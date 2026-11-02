@@ -22,6 +22,7 @@ import { useState } from "react";
 import { parseColor, rgbaToHex } from "@/lib/color";
 import { PALETTE } from "@/lib/look";
 import type { Background } from "@/themes/fond";
+import { PAPER_READABLE_MAX, PAPER_READABLE_WARNING } from "@/themes/schema";
 import {
   cardStyle,
   CORNER_STEP_RADII,
@@ -76,10 +77,16 @@ function sitePaper() {
   const frame = document.querySelector<HTMLElement>(".site-frame[data-wp-cards]");
   if (frame) {
     const wp = Number.parseFloat(getComputedStyle(frame).getPropertyValue("--card-wp-opacity"));
-    return { has: true, onCards: true, opacity: Math.min(0.6, Number.isFinite(wp) ? wp : PAPER_ON_CARDS_DEFAULT) };
+    return { has: true, onCards: true, opacity: Number.isFinite(wp) ? wp : PAPER_ON_CARDS_DEFAULT };
   }
   const raw = Number.parseFloat(getComputedStyle(root).getPropertyValue("--t-kit-paper-cards"));
   return { has: root.hasAttribute("data-kit-paper"), onCards: root.hasAttribute("data-kit-paper-cards"), opacity: Number.isFinite(raw) ? raw : PAPER_ON_CARDS_DEFAULT };
+}
+
+/** Du texte est posé sur ce bloc (la toile le montre) : l'avertissement de lisibilité du papier n'a de sens que dans ce cas. */
+function blockHasText(uid: string): boolean {
+  const el = document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(uid)}"]`);
+  return Boolean(el?.textContent?.trim());
 }
 
 /** Rayon de l'ancien « Coins arrondis » : « grands blocs » du thème, jamais moins de 12 px (même formule que look.css, `--card-radius`). */
@@ -100,13 +107,13 @@ function summary(z: Zone | null, defaults: ResolvedSurface) {
   return { color: undefined, style: cardStyle("bg", canvasPalette()), wallpaperOnly: true as const };
 }
 
-/** Bouton « Fond » de la barre d'outils : pastille de la couleur de la zone (vide : aucun fond). */
+/** Bouton « Fond » de la barre d'outils : petit échantillon carré de la couleur de la zone (rien : aucun fond ; damier : papier peint sans couleur). */
 export function FondButton({ uid, open, onToggle }: { uid: string; open: boolean; onToggle: () => void }) {
   const st = zoneState(uid);
   const s = summary(readZone({ surface: st.surface ?? undefined, background: st.background ?? undefined }).zone, st.defaults);
   return (
     <button type="button" className="pe-tool-text fond-btn" data-testid="fond-button" aria-haspopup="dialog" aria-expanded={open} title="Fond du bloc : couleur ou papier peint, pleine largeur ou en carte" onClick={onToggle}>
-      <span className="sm-dot" data-on={s ? "" : undefined} data-wallpaper={s && "wallpaperOnly" in s ? "" : undefined} style={s && !("wallpaperOnly" in s) ? { background: s.style.bg } : undefined} aria-hidden="true" />
+      {s && <span className="sm-swatch" data-testid="fond-swatch" data-wallpaper={"wallpaperOnly" in s ? "" : undefined} style={!("wallpaperOnly" in s) ? { background: s.style.bg } : undefined} aria-hidden="true" />}
       Fond
       {s && !s.style.ok && (
         <span className="sm-alert" data-testid="fond-alert" title="Texte peu lisible sur cette couleur" aria-label="Texte peu lisible sur cette couleur">
@@ -401,9 +408,17 @@ function FondPanel({
       {z.layer === "card" && kind === "color" && cardPaper?.over && (
         <div className="tc-row">
           <span className="sm-label">Intensité</span>
-          <input type="range" className="sm-range" min={0} max={60} step={1} value={Math.round(cardPaper.opacity * 100)} aria-label="Intensité du papier sur la carte" data-testid="surface-paper-opacity" onChange={(e) => set({ paperOpacity: Number(e.target.value) / 100 }, true)} />
+          <input type="range" className="sm-range" min={0} max={100} step={1} value={Math.round(cardPaper.opacity * 100)} aria-label="Intensité du papier sur la carte" data-testid="surface-paper-opacity" onChange={(e) => set({ paperOpacity: Number(e.target.value) / 100 }, true)} />
           <span className="sm-hint">{Math.round(cardPaper.opacity * 100)} %</span>
         </div>
+      )}
+      {z.layer === "card" && kind === "color" && cardPaper?.over && cardPaper.opacity > PAPER_READABLE_MAX && blockHasText(uid) && (
+        <p className="sm-warn" role="status" data-testid="surface-paper-opacity-warning">
+          <span className="sm-alert" aria-hidden="true">
+            !
+          </span>
+          {PAPER_READABLE_WARNING}
+        </p>
       )}
     </details>
   );
@@ -483,7 +498,7 @@ function FondPanel({
                 entry={wallpaperEntry}
                 size={z.size}
                 opacity={z.opacity}
-                maxOpacity={z.layer === "card" ? 0.6 : 1}
+                textOver={blockHasText(uid)}
                 onChange={(p, continuous) => set({ ...("size" in p ? { size: p.size ?? undefined } : {}), ...("opacity" in p ? { opacity: p.opacity ?? undefined } : {}) }, continuous)}
               />
               {colorRows("Couleur dessous", z.layer === "fond" ? { label: "Aucune couleur sous le motif", onPick: () => setColor(undefined) } : undefined)}

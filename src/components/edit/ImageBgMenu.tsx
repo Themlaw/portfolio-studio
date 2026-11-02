@@ -21,12 +21,12 @@ import "@/app/admin/surface-menu.css";
 
 export { ImageBgControls, imageBgName } from "./ImageBgControls";
 
-/** Bouton « Fond image » de la barre d'outils d'une image : pastille de la couleur du fond (vide : aucun fond). */
+/** Bouton « Fond image » de la barre d'outils d'une image : petit échantillon carré de la couleur du fond (rien : aucun fond). */
 export function ImageBgButton({ uid, open, onToggle }: { uid: string; open: boolean; onToggle: () => void }) {
   const bg = imageBgCss(lookOf(uid).imageBg);
   return (
     <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid="imgbg-button" title="Fond derrière l'image (utile pour un PNG détouré)" onClick={onToggle}>
-      <span className="sm-dot" data-on={bg ? "" : undefined} style={bg ? { background: bg } : undefined} aria-hidden="true" />
+      {bg && <span className="sm-swatch" data-testid="imgbg-swatch" style={{ background: bg }} aria-hidden="true" />}
       Fond image
     </button>
   );

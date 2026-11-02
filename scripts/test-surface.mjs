@@ -90,8 +90,8 @@ ok("bordure : valeur par défaut du thème acceptée, valeur inconnue ignorée s
 
 /* ---- Papier sur la carte (lot 28) ----------------------------------------------------------------------------- */
 
-ok("papier : under / over, intensité 0 à 0,6 valides", parses({ paper: "under" }) && parses({ paper: "over", paperOpacity: 0.35 }) && parses({ paperOpacity: 0 }) && parses({ paperOpacity: 0.6 }));
-ok("papier : valeurs hors bornes, inconnues ou mal typées refusées", !parses({ paper: "site" }) && !parses({ paper: "above" }) && !parses({ paperOpacity: 0.61 }) && !parses({ paperOpacity: -0.1 }) && !parses({ paperOpacity: "0.3" }) && !parses({ paperOpacity: null }) && !parses({ paperOpacity: Number.NaN }));
+ok("papier : under / over, intensité 0 à 1 valides (lot 90 : plus de plafond à 0,6)", parses({ paper: "under" }) && parses({ paper: "over", paperOpacity: 0.35 }) && parses({ paperOpacity: 0 }) && parses({ paperOpacity: 0.6 }) && parses({ paperOpacity: 0.61 }) && parses({ paperOpacity: 1 }));
+ok("papier : valeurs hors bornes, inconnues ou mal typées refusées", !parses({ paper: "site" }) && !parses({ paper: "above" }) && !parses({ paperOpacity: 1.01 }) && !parses({ paperOpacity: -0.1 }) && !parses({ paperOpacity: "0.3" }) && !parses({ paperOpacity: null }) && !parses({ paperOpacity: Number.NaN }));
 ok("papier : sans réglage, le site décide ; la carte surcharge", (() => {
   const off = { onCards: false, opacity: 0.35 };
   const on = { onCards: true, opacity: 0.5 };
@@ -103,7 +103,7 @@ ok("papier : readSurface garde un papier valide, ignore un invalide", JSON.strin
 {
   const paperKit = (extra) => ({ paper: { image: { svg: "/media/kit/0123456789abcdef.svg", w: 160, h: 160 }, ...extra } });
   const kit = KitAssetsSchema.safeParse(paperKit({ onCards: true, onCardsOpacity: 0.4 }));
-  ok("kit : onCards / onCardsOpacity acceptés, bornés (0 à 0,6)", kit.success && !KitAssetsSchema.safeParse(paperKit({ onCardsOpacity: 0.7 })).success && !KitAssetsSchema.safeParse(paperKit({ onCards: "oui" })).success && !KitAssetsSchema.safeParse(paperKit({ onCardsOpacity: -1 })).success && !KitAssetsSchema.safeParse(paperKit({ surprise: 1 })).success);
+  ok("kit : onCards / onCardsOpacity acceptés, bornés (0 à 0,6 : garde-fou de retour arrière, la v0.31 refuse le thème entier au-delà)", kit.success && !KitAssetsSchema.safeParse(paperKit({ onCardsOpacity: 0.7 })).success && !KitAssetsSchema.safeParse(paperKit({ onCards: "oui" })).success && !KitAssetsSchema.safeParse(paperKit({ onCardsOpacity: -1 })).success && !KitAssetsSchema.safeParse(paperKit({ surprise: 1 })).success);
   const v = kitVariables(kit.data);
   const a = kitAttributes(kit.data);
   ok("css du thème : attribut et intensité du papier sur les cartes", "data-kit-paper-cards" in a && v["--t-kit-paper-cards"] === "0.4");
@@ -204,7 +204,7 @@ const from = (data) => acceptFromCanvas(msg(data), ORIGIN, frame);
 ok("protocole : intention `surface` acceptée (carte, `{}`, retrait)", from({ kind: "surface", uid: "b1", surface: { color: "#aabbcc", width: "full" } })?.kind === "surface" && from({ kind: "surface", uid: "b1", surface: {} })?.kind === "surface" && from({ kind: "surface", uid: "b1", surface: null })?.kind === "surface");
 ok("protocole : `surface` invalide refusée (couleur, clé, uid)", ["rose", "#ABC", 3].every((c) => from({ kind: "surface", uid: "b1", surface: { color: c } }) === null) && from({ kind: "surface", uid: "b1", surface: { x: 1 } }) === null && from({ kind: "surface", uid: "B 1", surface: {} }) === null && from({ kind: "surface", uid: "b1" }) === null);
 ok("protocole : seq conservé sur `surface`", acceptFromCanvas({ origin: ORIGIN, source: frame, data: { type: EDIT_MSG, kind: "surface", uid: "b1", surface: {}, seq: 7 } }, ORIGIN, frame)?.seq === 7);
-ok("protocole : papier de la carte accepté, hors bornes refusé", from({ kind: "surface", uid: "b1", surface: { paper: "over", paperOpacity: 0.4 } })?.kind === "surface" && from({ kind: "surface", uid: "b1", surface: { paper: "over", paperOpacity: 2 } }) === null && from({ kind: "surface", uid: "b1", surface: { paper: "x" } }) === null);
+ok("protocole : papier de la carte accepté, hors bornes refusé", from({ kind: "surface", uid: "b1", surface: { paper: "over", paperOpacity: 0.4 } })?.kind === "surface" && from({ kind: "surface", uid: "b1", surface: { paper: "over", paperOpacity: 2 } }) === null && from({ kind: "surface", uid: "b1", surface: { paper: "over", paperOpacity: 1 } })?.kind === "surface" && from({ kind: "surface", uid: "b1", surface: { paper: "x" } }) === null);
 ok("protocole : `insert` (choix, texte, titre, titre + texte) accepté", ["choose", "text", "title", "title-text"].every((what) => from({ kind: "insert", parent: null, index: 3, what })?.kind === "insert") && from({ kind: "insert", parent: "g1", index: 0, what: "text" })?.parent === "g1");
 ok("protocole : `insert` invalide refusé", from({ kind: "insert", parent: null, index: -1, what: "text" }) === null && from({ kind: "insert", parent: null, index: 1, what: "image" }) === null && from({ kind: "insert", parent: "x y", index: 1, what: "text" }) === null && from({ kind: "insert", index: 1, what: "text" }) === null);
 ok("protocole : `field-op` (titre / étiquette ajoutés ou retirés) accepté", ["add-title", "remove-title", "add-eyebrow", "remove-eyebrow"].every((op) => from({ kind: "field-op", uid: "b1", op })?.kind === "field-op"));
