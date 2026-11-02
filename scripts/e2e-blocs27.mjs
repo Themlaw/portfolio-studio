@@ -381,6 +381,9 @@ if (run("E"))
     ok("E7d « Retirer l'aide » : la clé disparaît", await waitFor(() => helpOf() === undefined));
     const emptyContact = tops[4];
     ok("E8 le Contact entièrement vide du brouillon affiche l'état vide utile", await f.locator(`[data-edit-block="${emptyContact.uid}"] .pe-empty-block`).count() === 1);
+    // Intégration v0.32 : la toile se redessine après le retrait de l aide ; on attend qu elle soit posée avant de viser le bloc (scrollIntoViewIfNeeded ne réessaie pas si l élément est remplacé).
+    await settled();
+    await sleep(1500);
     await f.locator(`[data-edit-block="${tops[1].uid}"]`).scrollIntoViewIfNeeded();
     await page.screenshot({ path: path.join(SHOTS, "e-formulaire-migre-editeur.png") });
     // Le brouillon garde un Contact vide (travail en cours) : le retirer avant de publier.

@@ -7,6 +7,8 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   if (process.env.NEXT_PHASE === "phase-production-build") return;
+  // Ancien domaine (lot 88) : avertissements de REDIRECT_FROM dans le journal dès le démarrage.
+  (await import("./lib/domain")).readRedirectConfig();
   const { start } = await import("./lib/db/start");
   await start();
 }

@@ -37,8 +37,9 @@ const SA = path.join(ROOT, ".next/standalone");
 // Données de test : sur disque si TEST_AUTH_TMP le dit (le /tmp de la VM est un tmpfs : les
 // mesures vidéo y manquent de place, ENOSPC → 500 sur la 4K).
 const TMP = process.env.TEST_AUTH_TMP ?? "/tmp/portfolio-test-auth";
-const PORT = 3200;
-const MOCK_PORT = 3290;
+// Ports réglables (BATT_AUTH_PORT) : plusieurs batteries peuvent lancer la suite sur la même machine (défaut 3200 et 3290).
+const PORT = Number(process.env.BATT_AUTH_PORT ?? 3200);
+const MOCK_PORT = PORT + 90;
 const BASE = `http://127.0.0.1:${PORT}`;
 const SECRET = "test-secret-0123456789abcdef-0123456789abcdef";
 const ADMIN = { email: "artiste@example.test", password: "mot-de-passe-du-test-42" };
@@ -2824,7 +2825,7 @@ const stBatch = await waitImport("galerie-lumineuse", bid);
 const rapBatch = stBatch.status === "done" ? rapportOf(dirK, bid) : null;
 ok(
   "TI13 envoi groupé de deux PSD : le premier ne lance rien, le dernier lance UN import (décor et logo reçus, icônes « pas envoyé »)",
-  bOne.status === 200 && noJobYet && bTwo.status === 200 && rapBatch?.files?.map((f) => `${f.id}:${f.received}`).join(",") === "decor:true,logo:true,icones:false" && rapBatch.slots.length === 8 && importJobs().length === jobsBeforeBatch + 1,
+  bOne.status === 200 && noJobYet && bTwo.status === 200 && rapBatch?.files?.map((f) => `${f.id}:${f.received}`).join(",") === "decor:true,logo:true,icones:false" && rapBatch.slots.length === 9 && importJobs().length === jobsBeforeBatch + 1,
   `${bOne.status} ${bTwo.status} ${JSON.stringify(rapBatch?.files)}`,
 );
 const closed = await sendBatch(kitFiles["3-icones-curseurs.psd"], "icones.psd", true);

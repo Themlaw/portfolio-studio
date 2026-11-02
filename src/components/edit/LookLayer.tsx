@@ -992,11 +992,10 @@ export default function LookLayer({
       }
       const t = e.target instanceof Element ? e.target.closest<HTMLElement>(TEXT_SEL) : null;
       clearTimeout(hideTimer.current);
-      // Logo dessiné (signature du kit) : le nom écrit est masqué derrière lui ; « Aa » se pose sur le logo et règle le style du nom du site
-      // (sa couleur teinte la signature d'une seule couleur ; un logo en couleurs ou une image garde les siennes).
+      // Logo image (médiathèque ou signature dessinée du kit, lot 84) : ce n'est pas du texte, pas de « Aa ». Sa taille, sa place et sa position
+      // se règlent par les poignées de l'en-tête et le panneau « Logo ». Le nom écrit (logo texte) garde son « Aa ».
       const logo = !t && e.target instanceof Element ? e.target.closest<HTMLElement>(".site-header .site-signature, .site-header .site-logo-img") : null;
-      const brandText = logo?.parentElement?.querySelector<HTMLElement>(".site-brand-text") ?? null;
-      if (logo && brandText) setHoverText((h) => (h?.el === brandText && h.anchor === logo ? h : { el: brandText, rect: docRect(logo), anchor: logo }));
+      if (logo) setHoverText(null);
       else if (t) setHoverText((h) => (h?.el === t && !h.anchor ? h : { el: t, rect: docRect(t) }));
       else hideTimer.current = setTimeout(() => setHoverText(null), 500);
       // Case d'une grille : sa barre (GridLayer) propose « Cadrer ».

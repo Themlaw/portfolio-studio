@@ -8,7 +8,7 @@
 #
 # Usage (depuis le dépôt) :
 #   scripts/test-all-local.sh [suite…]      # vide = toutes
-#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 entrees48 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 backup50 vitesse54 publication51 kit53 partage52 priseenmain57 cadremotif58 cadres62 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 mediaframe64 cadres79 grille69 public67 surface66 popover65 textes70 papiers78 admin76 restes77 cadres74 unif75 favicon83 backup85
+#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 entrees48 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 backup50 vitesse54 publication51 publication101 kit53 partage52 priseenmain57 cadremotif58 cadres62 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 mediaframe64 cadres79 grille69 public67 surface66 popover65 textes70 papiers78 admin76 restes77 cadres74 unif75 favicon83 backup85 domaine88 langue87 pied86 logo84
 # Rapide (VM de 3 cœurs et plus, voir docs/ARCHITECTURE.md) :
 #   BATT_SERVER=start BATT_JOBS=2 scripts/test-all-local.sh
 # En fond détaché :
@@ -117,6 +117,7 @@ E2E=(
   "planchelibre42|node scripts/e2e-planchelibre42.mjs|chromium|"
   "logocadres49|node scripts/e2e-logocadres49.mjs|chromium|"
   "publication51|node scripts/e2e-publication51.mjs|chromium|"
+  "publication101|node scripts/e2e-publication101.mjs|chromium|"
   "backup50|node scripts/e2e-backup50.mjs|chromium||WITH_BACKUP=1 BACKUP_QUIET_SEC=4 BACKUP_KEEP=3 BACKUP_MAX_HOURS=6"
   "vitesse54|node scripts/e2e-vitesse54.mjs|chromium|"
   "kit53|node scripts/e2e-kit53.mjs|chromium|"
@@ -143,6 +144,9 @@ E2E=(
   "unif75|node scripts/e2e-unif75.mjs|chromium|"
   "favicon83|node scripts/e2e-favicon83.mjs|chromium|"
   "backup85|node scripts/e2e-backup85.mjs|chromium|"
+  "langue87|node scripts/e2e-langue87.mjs|chromium|"
+  "pied86|node scripts/e2e-pied86.mjs|chromium|"
+  "logo84|node scripts/e2e-logo84.mjs|chromium|"
 )
 
 
@@ -155,7 +159,7 @@ want() {
 }
 in_list() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
 
-ALL_IDS=(checks build auth pdf)
+ALL_IDS=(checks build auth domaine88 pdf)
 for e in "${E2E[@]}"; do ALL_IDS+=("${e%%|*}"); done
 T0=$(date +%s)
 
@@ -220,6 +224,7 @@ for e in "${E2E[@]}"; do want "${e%%|*}" && need_e2e=1; done
 NEED_BUILD=0
 want build && NEED_BUILD=1
 want auth && NEED_BUILD=1
+want domaine88 && NEED_BUILD=1
 [ "$BATT_SERVER" = start ] && [ $need_e2e = 1 ] && NEED_BUILD=1
 BUILD_OK=0
 if [ $NEED_BUILD = 1 ]; then
@@ -246,11 +251,25 @@ if [ $BUILD_OK = 1 ]; then
 fi
 if want auth; then
   if [ $BUILD_OK = 1 ]; then
-    free_port 3200
+    free_port "${BATT_AUTH_PORT:-3200}"
+    free_port "$((${BATT_AUTH_PORT:-3200} + 90))"
     run_suite auth "mkdir -p ${BATT_PREFIX:-/root/pf-batt}-auth && TEST_AUTH_TMP=${BATT_PREFIX:-/root/pf-batt}-auth npm run test:auth"
   else
     echo "FAIL auth : build absent ou en échec" >"$BATTERY_DIR/auth.log"
     record auth 1 "$(date +%s)"
+  fi
+  cooldown
+fi
+
+# domaine88 (lot 88) : comme auth, ses propres serveurs standalone (ports 3940 à 3944, ou BATT_DOMAINE_PORT à +4), hôtes simulés par les en-têtes.
+if want domaine88; then
+  if [ $BUILD_OK = 1 ]; then
+    DOM_P=${BATT_DOMAINE_PORT:-3940}
+    for p in $DOM_P $((DOM_P + 1)) $((DOM_P + 2)) $((DOM_P + 3)) $((DOM_P + 4)); do free_port "$p"; done
+    run_suite domaine88 "DOMAINE88_PORT=$DOM_P DOMAINE88_TMP=${BATT_PREFIX:-/root/pf-batt}-domaine88 node scripts/e2e-domaine88.mjs"
+  else
+    echo "FAIL domaine88 : build absent ou en échec" >"$BATTERY_DIR/domaine88.log"
+    record domaine88 1 "$(date +%s)"
   fi
   cooldown
 fi

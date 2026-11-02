@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import LocaleSwitcher from "@/components/LocaleSwitcher";
@@ -46,6 +46,7 @@ export default function SiteHeader({
   const open = openOn === pathname;
   // Vue brouillon : clé stable de chaque lien (aperçu instantané des ajouts, retraits et déplacements).
   const keys = uniqueKeys(nav.map(navKeyOf));
+  const headerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -54,8 +55,61 @@ export default function SiteHeader({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Position horizontale du logo (lot 84) : le logo ne passe jamais sous le menu ni hors de l'écran. Les marges de manoeuvre sont mesurées ici
+  // (mise en page SANS le décalage : offsetLeft ignore les transformations) et posées en variables que la feuille du logo lit (logoCss).
+  // Sans réglage de position (`--lx` absent), rien n'est mesuré ni écrit : le rendu reste celui d'avant.
+  useEffect(() => {
+    const header = headerRef.current;
+    const brand = header?.querySelector<HTMLElement>(".site-brand");
+    if (!header || !brand) return;
+    const measure = () => {
+      // Éditeur : toujours mesuré (les poignées de position ont besoin des bornes même quand rien n'est encore décalé).
+      if (!edit && !getComputedStyle(brand).getPropertyValue("--lx").trim()) {
+        if (header.hasAttribute("style")) for (const k of ["--lx-lo", "--lx-mid", "--lx-hi"]) header.style.removeProperty(k);
+        return;
+      }
+      const base = header.getBoundingClientRect();
+      const left = base.left + brand.offsetLeft;
+      const width = brand.offsetWidth;
+      // Voisin de droite affiché : le menu (grand écran) ou le bouton « Menu » (téléphone).
+      const next = Array.from(brand.parentElement?.children ?? []).find((el) => el !== brand && (el as HTMLElement).offsetParent !== null) as HTMLElement | undefined;
+      const stop = next ? next.getBoundingClientRect().left : base.right;
+      const lo = -Math.max(0, left - 8);
+      const hi = Math.max(0, stop - 16 - (left + width));
+      const mid = base.left + base.width / 2 - (left + width / 2);
+      header.style.setProperty("--lx-lo", `${Math.round(lo)}px`);
+      header.style.setProperty("--lx-hi", `${Math.round(hi)}px`);
+      header.style.setProperty("--lx-mid", `${Math.round(Math.min(hi, Math.max(lo, mid)))}px`);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(header);
+    ro.observe(brand);
+    brand.parentElement?.childNodes.forEach((n) => n instanceof HTMLElement && ro.observe(n));
+    // L'aperçu du logo dans l'éditeur (SiteLookLayer) change la feuille du logo : il prévient, on remesure.
+    window.addEventListener("pe:logo-style", measure);
+    void document.fonts?.ready.then(measure);
+    // Éditeur : la feuille du logo est remplacée par le serveur (Défaire, Rétablir, rechargement des réglages) : on remesure alors aussi.
+    let frame = 0;
+    const mo = edit
+      ? new MutationObserver((list) => {
+          if (!list.some((m) => m.target.nodeName === "STYLE" || m.target.parentElement?.nodeName === "STYLE" || [...m.addedNodes].some((n) => n.nodeName === "STYLE"))) return;
+          cancelAnimationFrame(frame);
+          frame = requestAnimationFrame(measure);
+        })
+      : null;
+    mo?.observe(document.documentElement, { subtree: true, childList: true, characterData: true });
+    return () => {
+      ro.disconnect();
+      mo?.disconnect();
+      cancelAnimationFrame(frame);
+      window.removeEventListener("pe:logo-style", measure);
+    };
+  }, [edit]);
+
   return (
     <header
+      ref={headerRef}
       {...(edit ? { "data-edit-global": "header", "data-edit-label": "En-tête · commun à toutes les pages" } : {})}
       data-scrolled={scrolled || undefined}
       className={`site-header sticky top-0 z-50 transition-[background-color,box-shadow,backdrop-filter] duration-500 ease-soft ${

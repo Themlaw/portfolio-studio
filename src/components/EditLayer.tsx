@@ -887,6 +887,10 @@ export default function EditLayer() {
     }
     if (mode !== "edit") return;
     const inLayer = (t: EventTarget | null) => t instanceof Element && Boolean(t.closest(".pe-layer"));
+    /** Annule l'action par défaut d'un lien (navigation, mailto:, tel:, nouvel onglet) ; le clic continue son chemin. */
+    const neutralizeLink = (e: Event) => {
+      if (e.target instanceof Element && !e.target.closest(NATIVE_SCROLL) && e.target.closest("a[href], area[href]")) e.preventDefault();
+    };
     /** Bloc (le plus profond) ou en-tête / pied sous la cible. */
     const targetOf = (t: EventTarget | null): string | null => {
       if (!(t instanceof Element)) return null;
@@ -910,6 +914,9 @@ export default function EditLayer() {
     };
     const onClick = (e: MouseEvent) => {
       if (inLayer(e.target)) return;
+      // Un lien du site n'ouvre JAMAIS rien en édition (mailto:, tel:, réseau, page) — y compris quand le clic tombe dans un texte
+      // en cours de modification (l'adresse e-mail du pied est dans un lien) : plus bas, ce cas sort sans rien bloquer (lot 86).
+      neutralizeLink(e);
       // Place libre d'une grille, « + Image » / « + Vidéo » (page ou planche, lot 31d) : le choix du média pour cette case.
       const freeMedia = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-edit-cell-media]") : null;
       const freeGrid = freeMedia ? gridRefOf(freeMedia) : null;
@@ -1009,8 +1016,12 @@ export default function EditLayer() {
       finishEdit(true);
       select(targetOf(e.target), true, true);
     };
+    const onAuxClick = (e: MouseEvent) => {
+      if (!inLayer(e.target)) neutralizeLink(e);
+    };
     const onDblClick = (e: MouseEvent) => {
       if (inLayer(e.target)) return;
+      neutralizeLink(e);
       const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-inline], [data-site-inline]") : null;
       e.preventDefault();
       e.stopPropagation();
@@ -1078,6 +1089,7 @@ export default function EditLayer() {
     document.addEventListener("pointermove", onMove, { passive: true });
     document.documentElement.addEventListener("pointerleave", onLeave);
     document.addEventListener("click", onClick, true);
+    document.addEventListener("auxclick", onAuxClick, true);
     document.addEventListener("dblclick", onDblClick, true);
     document.addEventListener("submit", onSubmit, true);
     document.addEventListener("keydown", onKey);
@@ -1095,6 +1107,7 @@ export default function EditLayer() {
       document.removeEventListener("pointermove", onMove);
       document.documentElement.removeEventListener("pointerleave", onLeave);
       document.removeEventListener("click", onClick, true);
+      document.removeEventListener("auxclick", onAuxClick, true);
       document.removeEventListener("dblclick", onDblClick, true);
       document.removeEventListener("submit", onSubmit, true);
       document.removeEventListener("keydown", onKey);

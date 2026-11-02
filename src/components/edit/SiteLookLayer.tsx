@@ -12,7 +12,10 @@
  *   `highlight`) : contour et halo, couleurs de l'interface d'édition (jamais du thème), halo animé
  *   seulement si l'utilisateur n'a pas demandé moins de mouvement ; la légende « utilisé par » repart
  *   vers le panneau (`highlight-info`) ;
- * - poignée de taille du logo, sous le nom ou la signature de l'en-tête : glisser, ou flèches.
+ * - poignée de taille du logo, sous le nom ou la signature de l'en-tête : glisser, ou flèches ;
+ * - poignée de position du logo (lot 84), au milieu de son bord gauche : glisser, ou flèches gauche et droite. On peut aussi glisser le
+ *   logo lui-même (image ou signature). Le plafond (menu, bord de l'écran) est celui que SiteHeader mesure : la poignée ne va pas plus loin
+ *   que le logo.
  */
 import { useEffect, useRef, useState } from "react";
 
@@ -23,6 +26,9 @@ import {
   cleanSitePalette,
   logoCss,
   LOGO_SIZE_DEFAULT,
+  LOGO_X_MAX,
+  LOGO_X_MIN,
+  LOGO_X_MOBILE_CAP,
   LOGO_SIZE_MAX,
   LOGO_SIZE_MIN,
   SiteStylesSchema,
@@ -82,12 +88,15 @@ function applyPreview(look: SiteLook) {
     const sheet = document.getElementById(id);
     if (sheet && sheet.getAttribute("media") !== "not all") sheet.setAttribute("media", "not all");
   }
+  // L'en-tête remesure la marge de manoeuvre du logo (SiteHeader).
+  window.dispatchEvent(new Event("pe:logo-style"));
 }
 
 function clearPreview() {
   document.getElementById("pe-sitelook-preview")?.remove();
   for (const id of SERVER_SHEETS) document.getElementById(id)?.removeAttribute("media");
   refreshCards();
+  window.dispatchEvent(new Event("pe:logo-style"));
 }
 
 /** Montre `next` tout de suite et l'envoie à l'éditeur ; renvoie le numéro de l'intention. */
@@ -102,11 +111,85 @@ export function emitSiteLook(next: SiteLook): number {
 
 const clampSize = (n: number) => Math.max(LOGO_SIZE_MIN, Math.min(LOGO_SIZE_MAX, Math.round(n)));
 
+/** Échelle du décalage : ×0,75 sur téléphone (comme la taille), plafonné à LOGO_X_MOBILE_CAP (logoCss). */
+const xScale = () => (window.matchMedia("(min-width: 48rem)").matches ? 1 : 0.75);
+const px = (name: string) => Number.parseFloat(document.querySelector<HTMLElement>(".site-header")?.style.getPropertyValue(name) || "0") || 0;
+
+/** Bornes du décalage `x` (dans l'unité enregistrée) pour que le logo reste entre le bord de l'écran et le menu. */
+export function xBounds(logo: Logo): { min: number; max: number } {
+  const k = xScale();
+  const base = logo.anchor === "center" ? px("--lx-mid") : logo.anchor === "right" ? px("--lx-hi") : 0;
+  const cap = k === 1 ? Infinity : LOGO_X_MOBILE_CAP / k;
+  return {
+    min: Math.max(LOGO_X_MIN, -cap, Math.ceil((px("--lx-lo") - base) / k)),
+    max: Math.min(LOGO_X_MAX, cap, Math.floor((px("--lx-hi") - base) / k)),
+  };
+}
+
+/** Pose le décalage du logo (borné par la marge de manoeuvre mesurée). */
+function setLogoX(next: number) {
+  const cur = currentSiteLook();
+  const b = xBounds(cur.logo);
+  emitSiteLook({ palette: cur.palette, logo: { ...cur.logo, x: Math.max(b.min, Math.min(b.max, Math.round(next))) } });
+}
+
 export default function SiteLookLayer({ headerSelected, dragging }: { headerSelected: boolean; dragging: boolean }) {
   const [role, setRole] = useState<BaseKey | null>(null);
   const [overHeader, setOverHeader] = useState(false);
   const [dragSize, setDragSize] = useState<number | null>(null);
   const drag = useRef<{ y: number; size: number } | null>(null);
+  const [dragX, setDragX] = useState<number | null>(null);
+  const dragXRef = useRef<{ from: number; x: number; moved: boolean; armed: boolean } | null>(null);
+
+
+  // Glisser le logo lui-même (image ou signature dessinée ; le nom écrit se modifie au double-clic) : un déplacement de plus de 4 px
+  // horizontal le déplace et avale le clic qui suit (pas de navigation).
+  useEffect(() => {
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 0 || !(e.target instanceof Element) || !e.target.closest(".site-header .site-logo-img, .site-header .site-signature")) return;
+      dragXRef.current = { from: e.clientX, x: currentSiteLook().logo.x ?? 0, moved: false, armed: true };
+    };
+    const onMove = (e: PointerEvent) => {
+      const d = dragXRef.current;
+      if (!d?.armed) return;
+      if (!d.moved && Math.abs(e.clientX - d.from) < 5) return;
+      d.moved = true;
+      const next = d.x + (e.clientX - d.from) / xScale();
+      const b = xBounds(currentSiteLook().logo);
+      const v = Math.max(b.min, Math.min(b.max, Math.round(next)));
+      setDragX(v);
+      setLogoX(v);
+    };
+    const onUp = () => {
+      const d = dragXRef.current;
+      if (d) d.armed = false;
+      setDragX(null);
+    };
+    const onClick = (e: MouseEvent) => {
+      if (dragXRef.current?.moved) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      dragXRef.current = null;
+    };
+    // Une image se « glisse-dépose » d'elle-même (le navigateur annulerait alors le geste) : on l'en empêche pour le logo.
+    const onDragStart = (e: DragEvent) => {
+      if (e.target instanceof Element && e.target.closest(".site-header .site-logo-img, .site-header .site-signature")) e.preventDefault();
+    };
+    document.addEventListener("dragstart", onDragStart, true);
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("pointermove", onMove, { capture: true, passive: true });
+    document.addEventListener("pointerup", onUp, true);
+    document.addEventListener("click", onClick, true);
+    return () => {
+      document.removeEventListener("dragstart", onDragStart, true);
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("pointermove", onMove, true);
+      document.removeEventListener("pointerup", onUp, true);
+      document.removeEventListener("click", onClick, true);
+    };
+  }, []);
+  const xDrag = useRef<{ x0: number; x: number } | null>(null);
 
   // Messages de l'éditeur : aperçu de la palette / du logo, rôle à surligner.
   useEffect(() => {
@@ -125,7 +208,7 @@ export default function SiteLookLayer({ headerSelected, dragging }: { headerSele
   // En-tête survolé : la poignée du logo apparaît.
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
-      const over = e.target instanceof Element && Boolean(e.target.closest('[data-edit-global="header"], .sl-logo-handle'));
+      const over = e.target instanceof Element && Boolean(e.target.closest('[data-edit-global="header"], .sl-logo-handle, .sl-logo-xhandle'));
       setOverHeader((prev) => (prev === over ? prev : over));
     };
     document.addEventListener("pointermove", onMove, { passive: true });
@@ -138,7 +221,14 @@ export default function SiteLookLayer({ headerSelected, dragging }: { headerSele
   const look = currentSiteLook();
   const size = dragSize ?? look.logo.size ?? LOGO_SIZE_DEFAULT;
   const brandRect = brand?.getBoundingClientRect();
-  const showHandle = Boolean(brand && brandRect && (headerSelected || overHeader || dragSize !== null));
+  const headerRect = document.querySelector<HTMLElement>(".site-header")?.getBoundingClientRect();
+  const showHandle = Boolean(brand && brandRect && (headerSelected || overHeader || dragSize !== null || dragX !== null));
+  // « Centré » : ce qui sort de la barre est coupé, les poignées restent dans la barre.
+  const clipped = look.logo.align === "center" && headerRect;
+  const visTop = clipped && brandRect ? Math.max(brandRect.top, headerRect.top) : (brandRect?.top ?? 0);
+  const visBottom = clipped && brandRect ? Math.min(brandRect.bottom, headerRect.bottom) : (brandRect?.bottom ?? 0);
+  const xNow = dragX ?? look.logo.x ?? 0;
+  const xb = xBounds(look.logo);
 
   const setSize = (next: number) => {
     const cur = currentSiteLook();
@@ -161,7 +251,7 @@ export default function SiteLookLayer({ headerSelected, dragging }: { headerSele
           aria-valuenow={size}
           aria-valuetext={`${size} pixels`}
           title="Taille du logo : glisse vers le bas pour l'agrandir"
-          style={{ top: brandRect.bottom + window.scrollY - 9, left: brandRect.right + window.scrollX - 9 }}
+          style={{ top: visBottom + window.scrollY - 9, left: brandRect.right + window.scrollX - 9 }}
           onPointerDown={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -193,6 +283,54 @@ export default function SiteLookLayer({ headerSelected, dragging }: { headerSele
           }}
         >
           {dragSize !== null && <span className="sl-logo-value">{dragSize} px</span>}
+        </button>
+      )}
+      {showHandle && brandRect && (
+        <button
+          type="button"
+          role="slider"
+          className="sl-logo-xhandle"
+          data-testid="logo-xhandle"
+          aria-label="Position du logo : flèches gauche et droite, glisser de côté pour le déplacer"
+          aria-orientation="horizontal"
+          aria-valuemin={xb.min}
+          aria-valuemax={xb.max}
+          aria-valuenow={xNow}
+          aria-valuetext={`${xNow} pixels`}
+          title="Position du logo : glisse de côté pour le déplacer"
+          style={{ top: (visTop + visBottom) / 2 + window.scrollY - 9, left: brandRect.left + window.scrollX - 9 }}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+            xDrag.current = { x0: e.clientX, x: xNow };
+            setDragX(xNow);
+          }}
+          onPointerMove={(e) => {
+            if (!xDrag.current) return;
+            const b = xBounds(currentSiteLook().logo);
+            const next = Math.max(b.min, Math.min(b.max, Math.round(xDrag.current.x + (e.clientX - xDrag.current.x0) / xScale())));
+            setDragX(next);
+            setLogoX(next);
+          }}
+          onPointerUp={() => {
+            xDrag.current = null;
+            setDragX(null);
+          }}
+          onPointerCancel={() => {
+            xDrag.current = null;
+            setDragX(null);
+          }}
+          onKeyDown={(e) => {
+            const step = e.shiftKey ? 10 : 2;
+            const next = e.key === "ArrowLeft" ? xNow - step : e.key === "ArrowRight" ? xNow + step : e.key === "Home" ? 0 : null;
+            if (next === null) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setLogoX(next);
+          }}
+        >
+          {dragX !== null && <span className="sl-logo-value">{dragX} px</span>}
         </button>
       )}
     </div>

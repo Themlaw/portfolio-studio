@@ -13,6 +13,11 @@
  * s'il est inconnu, sert la page réservée /<langue>/<NOT_FOUND_SLUG> — rendue
  * normalement (thème, en-tête, pied, en cache ISR) — avec le statut 404 et
  * `Cache-Control: no-store`.
+ *
+ * Ancien domaine (lot 88) : si REDIRECT_FROM est défini, une requête dont l'hôte y figure est renvoyée vers PUBLIC_BASE_URL
+ * (même chemin, même requête) AVANT tout le reste, quelle que soit la route. Pour que /api, /media et les fichiers à extension
+ * (favicon, sitemap…) passent aussi par le proxy, le `matcher` ne les exclut plus ; ils ressortent aussitôt (`LEGACY_SKIP`)
+ * quand l'hôte n'est pas redirigé : leur traitement est celui d'avant. /admin/api reste hors du proxy (corps tronqué à 10 Mo).
  */
 import { getSessionCookie } from "better-auth/cookies";
 import createMiddleware from "next-intl/middleware";
@@ -23,6 +28,7 @@ import path from "node:path";
 
 import { routing } from "./i18n/routing";
 import { isAdminRequest } from "./lib/auth/guard";
+import { readRedirectConfig, redirectionFor } from "./lib/domain";
 import { NOT_FOUND_SLUG, publishedSlugExists, redirectedSlug } from "./lib/pages-index";
 
 const intl = createMiddleware(routing);
@@ -162,8 +168,29 @@ function adminGate(request: NextRequest): NextResponse {
   return response;
 }
 
+/** Routes que le `matcher` d'avant le lot 88 excluait : api, médias, fichiers à extension (favicon.ico, sitemap.xml…). */
+const LEGACY_SKIP = /^\/(?:(?:api|admin\/api|media|_next|_vercel)|.*\..*)/;
+
+/** Redirection de l'ancien domaine (REDIRECT_FROM), ou null : la requête est servie normalement. */
+function domainRedirect(request: NextRequest): NextResponse | null {
+  const config = readRedirectConfig();
+  if (config.hosts.length === 0) return null;
+  const target = redirectionFor(config, {
+    host: request.headers.get("host"),
+    forwardedHost: request.headers.get("x-forwarded-host"),
+    method: request.method,
+    pathAndQuery: request.nextUrl.pathname + request.nextUrl.search,
+  });
+  if (!target) return null;
+  // Un an de cache pour un 301 muet : impossible de revenir en arrière. Une heure laisse le retour possible.
+  return new NextResponse(null, { status: target.status, headers: { Location: target.location, "Cache-Control": "public, max-age=3600" } });
+}
+
 export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const moved = domainRedirect(request);
+  if (moved) return moved;
+  if (LEGACY_SKIP.test(pathname)) return NextResponse.next();
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return adminGate(request);
   if (request.headers.get(INTERNAL_HEADER) === INTERNAL_SECRET) return intl(request);
 
@@ -203,10 +230,11 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Toutes les routes sauf l'API, les médias, les fichiers statiques Next
-  // et les assets.
+  // Toutes les routes sauf les fichiers statiques Next. L'API, les médias et les
+  // fichiers à extension ne sont lus ici que pour la redirection de l'ancien
+  // domaine (lot 88) : voir LEGACY_SKIP.
   // /admin/api (envoi de fichiers) est exclu : le proxy met le corps de la
   // requête en mémoire et le tronque à 10 Mo ; la route se garde elle-même
   // (assertAdmin + même origine) et lit le corps en flux.
-  matcher: ["/((?!api|admin/api|media|_next|_vercel|.*\\..*).*)"],
+  matcher: ["/((?!admin/api|_next|_vercel).*)"],
 };

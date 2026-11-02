@@ -35,6 +35,7 @@
 import { and, asc, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 
+import { layoutMediaIds, readLayout } from "@/blocks/board-layout";
 import { BLOCKS } from "@/blocks/registry";
 import { extractProjectRefs } from "@/blocks/refs";
 import { boardRefs, errorPath, flatBlocks, treeProblem } from "@/blocks/tree";
@@ -445,24 +446,34 @@ export function discardSlotDrafts(pageId: number): number[] {
 }
 
 /**
- * Planche d'un projet créé dans ce brouillon et encore sans image : on ne
- * publie pas un projet vide. Erreurs par bloc, ou null.
+ * Planche d'un projet créé dans ce brouillon et encore sans rien à montrer : on ne publie pas un projet vide.
+ * « Rien » = ni image ni vidéo dans un emplacement (surcouche de ce brouillon comprise : média du brouillon, place
+ * retirée ou supprimée écartées), ni dans un composant de la planche (grille, image, vidéo, carrousel à liste
+ * propre ; suite du brouillon si elle en porte une, sinon suite du projet). Erreurs par bloc, ou null.
  */
 function emptyDraftBoards(pageId: number, blocks: { type: string; props: unknown }[]): Record<string, string> | null {
   const db = getDb();
   const errors: Record<string, string> = {};
+  // Médias présents et hors corbeille parmi ceux-là.
+  const alive = (ids: (number | null)[]): boolean => {
+    const wanted = [...new Set(ids.filter((id): id is number => id !== null))];
+    return wanted.length > 0 && db.select({ id: schema.media.id }).from(schema.media).where(and(inArray(schema.media.id, wanted), isNull(schema.media.deletedAt))).all().length > 0;
+  };
   // Planches de la page, composants des conteneurs compris (projet hérité du conteneur).
   boardRefs(blocks).forEach(({ slug, block }) => {
     const at = errorPath(blocks, block);
     if (!at) return;
     const project = db.select().from(schema.projects).where(eq(schema.projects.slug, slug)).get();
     if (!project || project.draftPageId !== pageId) return;
-    const withImage = db
-      .select({ id: schema.slots.id })
-      .from(schema.slots)
-      .where(and(eq(schema.slots.projectId, project.id), isNotNull(schema.slots.mediaId)))
-      .all().length;
-    if (!withImage) errors[at] = `Le projet « ${project.title.fr} » n'a encore aucune image : ajoute-en une, ou retire ce bloc.`;
+    const slots = db.select().from(schema.slots).where(eq(schema.slots.projectId, project.id)).all();
+    // Même règle que la vue brouillon : la surcouche de CE brouillon l'emporte sur le média publié.
+    const inSlots = slots.map((s) => {
+      if (s.draftPageId !== pageId) return s.draftState === "added" ? null : s.mediaId;
+      if (s.draftState === "retired" || s.draftState === "removed") return null;
+      return s.draftMediaId ?? s.mediaId;
+    });
+    const layout = project.draftLayout && project.draftLayoutPageId === pageId ? project.draftLayout : project.layout;
+    if (!alive([...inSlots, ...layoutMediaIds(readLayout(layout))])) errors[at] = `Le projet « ${project.title.fr} » n'a encore aucune image : ajoute-en une, ou retire ce bloc.`;
   });
   return Object.keys(errors).length ? errors : null;
 }

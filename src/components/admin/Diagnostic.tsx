@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { clientIpFromForwarded, UNKNOWN_IP } from "@/lib/auth/client-ip";
 import { readAuthConfig } from "@/lib/auth/config";
 import { backupSummary } from "@/lib/backup/status";
+import { readRedirectConfig } from "@/lib/domain";
 
 /**
  * Diagnostic réseau (admins) : IP vue par l'app et en-têtes X-Forwarded-*
@@ -23,6 +24,10 @@ export default async function Diagnostic() {
     ["Host", h.get("host")],
     ["URL publique (PUBLIC_BASE_URL)", config.baseURL],
   ];
+  // Anciens domaines (REDIRECT_FROM, lot 88) : ceux qui renvoient vers l'adresse principale, et ce qui a été corrigé ou ignoré.
+  const redirects = readRedirectConfig();
+  rows.push(["Domaines redirigés vers l'adresse principale (REDIRECT_FROM)", redirects.hosts.length ? redirects.hosts.join(", ") : "aucun"]);
+  for (const problem of [...redirects.errors, ...redirects.warnings]) rows.push(["Domaine : à corriger", problem]);
   const backup = backupSummary();
   if (backup) rows.push(["Dernière sauvegarde", backup]);
   return (

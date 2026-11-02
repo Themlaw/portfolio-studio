@@ -5,7 +5,13 @@
  * sur les presets (parité).
  * Usage : node --import tsx scripts/test-site-look.mjs   (inclus dans npm test)
  */
+import { readFileSync } from "node:fs";
+
 import {
+  LOGO_ALIGNS,
+  LOGO_ANCHORS,
+  LOGO_X_MAX,
+  LOGO_X_MIN,
   cleanLogo,
   cleanSitePalette,
   cleanSiteStyles,
@@ -74,6 +80,36 @@ ok("logo : en-tête centré : même règle (la rangée naturelle, pas de hauteur
 ok("logo : jamais de « < » ni de point-virgule libre", ![fixed, shrink, hang].some((c) => c.includes("<")));
 ok("logo : valeur invalide → feuille vide", logoCss({ size: 9999 }) === "" && logoCss({ mode: "x;}" }) === "");
 ok("styles de rôle inchangés : la feuille des rôles ne porte pas le logo", !siteStylesCss({ logo: { size: 90 }, palette: { bg: "#ffffff" } }).includes("--lg"));
+
+
+/* ---- Lot 84 : place verticale et position horizontale du logo ------------------------------------------- */
+{
+  // Parité avec la v0.31.0 : sans align, x ni anchor, la feuille est identique OCTET pour OCTET à celle publiée (fixture générée par le code de rel/v0310).
+  const legacy = JSON.parse(readFileSync(new URL("./lib/logo-css-v031.json", import.meta.url), "utf8"));
+  ok("lot 84 : fixture v0.31 lue (15 réglages)", legacy.length === 15);
+  for (const { logo, css } of legacy) ok(`lot 84 : parité v0.31 de ${JSON.stringify(logo)} (feuille identique)`, logoCss(logo) === css);
+  ok("lot 84 : les valeurs par défaut explicites (top, 0, gauche) sont la v0.31 aussi", logoCss({ size: 120, align: "top", x: 0, anchor: "left" }) === logoCss({ size: 120 }) && cleanLogo({ align: "top", x: 0, anchor: "left" }) === undefined);
+  ok("lot 84 : trois places verticales, trois ancrages", LOGO_ALIGNS.join() === "top,center,grow" && LOGO_ANCHORS.join() === "left,center,right");
+  ok("lot 84 : schéma — valeurs inconnues et hors bornes refusées", !LogoSchema.safeParse({ align: "bottom" }).success && !LogoSchema.safeParse({ anchor: "middle" }).success && !LogoSchema.safeParse({ x: LOGO_X_MAX + 1 }).success && !LogoSchema.safeParse({ x: LOGO_X_MIN - 1 }).success && !LogoSchema.safeParse({ x: 1.5 }).success && LogoSchema.safeParse({ x: LOGO_X_MIN, anchor: "right", align: "grow" }).success);
+  ok("lot 84 : forme canonique — top / 0 / left jamais écrits, le reste gardé", JSON.stringify(cleanLogo({ size: 80, align: "center", x: 30, anchor: "right" })) === JSON.stringify({ size: 80, align: "center", x: 30, anchor: "right" }) && JSON.stringify(cleanLogo({ align: "grow" })) === JSON.stringify({ align: "grow" }) && JSON.stringify(cleanLogo({ x: -12 })) === JSON.stringify({ x: -12 }));
+  const base = logoCss({ size: 120 });
+  const center = logoCss({ size: 120, align: "center" });
+  const grow = logoCss({ size: 120, align: "grow" });
+  ok("lot 84 centré : la feuille v0.31 est gardée, les règles s'y ajoutent", center.startsWith(base.slice(0, base.indexOf("@media (prefers-reduced-motion"))) && center.length > base.length);
+  ok("lot 84 centré : marges haute et basse égales (boîte = la rangée), logo coupé aux limites de la barre (clip-path), menu téléphone sans réserve", center.includes("margin-block:min(0px,calc((var(--bh) - var(--lh))/2))") && center.includes("clip-path:inset(max(0px,calc((var(--lh) - var(--bh))/2 - var(--bp)))") && center.includes("#nav-mobile{padding-top:0}"));
+  ok("lot 84 centré : la barre garde sa rangée naturelle (la bande dessous ne bouge pas)", center.includes(".site-header-bar{min-height:calc(var(--bh) + 2*var(--bp))}") && !center.includes("--lh-top)) + 2*var(--bp))"));
+  ok("lot 84 « La barre s'agrandit » : barre = logo (réglé, pas défilé) + la marge du thème ; plus de débordement", grow.includes(".site-header-bar{min-height:calc(max(var(--bh),var(--lh-top)) + 2*var(--bp))}") && grow.includes(".site-brand{margin-block:0}") && !grow.includes("clip-path:inset"));
+  const shrinkGrow = logoCss({ size: 120, mode: "shrink", align: "grow" });
+  ok("lot 84 « La barre s'agrandit » + réduit au défilement : la barre suit la taille du haut (la page ne saute pas)", shrinkGrow.includes("[data-scrolled]{--lh:var(--lh-min)}") && shrinkGrow.includes("max(var(--bh),var(--lh-top))"));
+  const moved = logoCss({ size: 60, x: 40 });
+  ok("lot 84 position : décalage ×0,75 et 120 px au plus sur téléphone, entier en px sur grand écran, plafond mesuré lu", moved.includes("--lx:40") && moved.includes("clamp(-120px,calc(var(--lx)*.75px),120px)") && moved.includes("@media (min-width:48rem){:root:root:root{--lxs:calc(var(--lx)*1px)}}") && moved.includes("translate:clamp(var(--lx-lo,-1rem),calc(0px + var(--lxs)),var(--lx-hi,"));
+  ok("lot 84 position : ancrage centre et droite lisent les marges mesurées", logoCss({ anchor: "center" }).includes("calc(var(--lx-mid,0px) + var(--lxs))") && logoCss({ anchor: "right", x: -10 }).includes("calc(var(--lx-hi,0px) + var(--lxs))") && logoCss({ anchor: "right", x: -10 }).includes("--lx:-10"));
+  ok("lot 84 : transitions du décalage et de la place seulement sans demande de mouvement réduit", [center, grow, moved].every((c) => { const at = c.lastIndexOf("@media (prefers-reduced-motion:no-preference)"); return at > 0 && c.indexOf("translate .5s") > at; }));
+  ok("lot 84 : jamais de « < » ni de valeur libre", ![center, grow, moved].some((c) => c.includes("<")) && logoCss({ align: "x;}", x: 1 }) === "" && logoCss({ x: 99999 }) === "");
+  ok("lot 84 : protocole — site-look porte align, x et anchor ; valeurs hors schéma refusées", FromCanvasSchema.safeParse({ kind: "site-look", palette: {}, logo: { align: "center", x: 30, anchor: "center" } }).success && ToCanvasSchema.safeParse({ kind: "site-look", palette: {}, logo: { align: "grow" } }).success && !FromCanvasSchema.safeParse({ kind: "site-look", palette: {}, logo: { x: 5000 } }).success && !FromCanvasSchema.safeParse({ kind: "site-look", palette: {}, logo: { align: "autre" } }).success);
+  ok("lot 84 : snapshot du site porte les nouveaux champs", SiteSnapSchema.safeParse({ identity: { name: { fr: "A", en: "" }, role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } }, nav: [], socials: [], styles: { logo: { size: 90, align: "center", x: 12 } } }).success);
+  // Retour à la v0.31.0 : sa LogoSchema est stricte, elle refuserait ces champs (voir le rapport).
+}
 
 /* ---- Palette du site sur les presets --------------------------------------------------------------- */
 const ids = Object.keys(PRESETS);

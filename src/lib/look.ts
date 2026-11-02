@@ -738,10 +738,38 @@ export const LOGO_MODE_LABELS: Record<(typeof LOGO_MODES)[number], string> = {
   fixed: "Fixe",
   shrink: "Grand en haut, réduit au défilement",
 };
+/**
+ * Place du logo dans la hauteur de la barre (lot 84). « top » (jamais écrit) = le rendu d'avant : le logo part du haut de la rangée et
+ * un grand logo déborde sous la barre. « center » : le logo est centré sur la hauteur de la barre ; trop grand, il dépasse autant en
+ * haut qu'en bas et ce qui sort de la barre est COUPÉ : la bande d'images dessous ne bouge pas. « grow » : la barre prend la hauteur
+ * du logo (plus la même marge qu'au thème) et le logo y est centré.
+ */
+export const LOGO_ALIGNS = ["top", "center", "grow"] as const;
+export type LogoAlign = (typeof LOGO_ALIGNS)[number];
+export const LOGO_ALIGN_LABELS: Record<LogoAlign, string> = {
+  top: "En haut, déborde dessous",
+  center: "Centré dans la barre",
+  grow: "La barre s'agrandit",
+};
+/**
+ * Position horizontale (lot 84) : `anchor` = d'où l'on part (bord gauche = le rendu d'avant, centre de la page, bord droit libre avant
+ * le menu), `x` = décalage en px à partir de là (grand écran ; téléphone : ×0,75, au plus 120 px). Le logo ne passe jamais sous le menu
+ * ni hors de l'écran : le plafond est mesuré dans la page (SiteHeader) et posé en variables --lx-lo / --lx-mid / --lx-hi.
+ */
+export const LOGO_ANCHORS = ["left", "center", "right"] as const;
+export type LogoAnchor = (typeof LOGO_ANCHORS)[number];
+export const LOGO_ANCHOR_LABELS: Record<LogoAnchor, string> = { left: "Gauche", center: "Centre", right: "Droite" };
+export const LOGO_X_MIN = -200;
+export const LOGO_X_MAX = 600;
+/** Plafond du décalage sur téléphone (px, après le ×0,75). */
+export const LOGO_X_MOBILE_CAP = 120;
 export const LogoSchema = z.strictObject({
   size: z.number().int().min(LOGO_SIZE_MIN).max(LOGO_SIZE_MAX).optional(),
   mode: z.enum([...LOGO_MODES, "overhang"]).optional(),
   mediaId: z.number().int().positive().optional(),
+  align: z.enum(LOGO_ALIGNS).optional(),
+  x: z.number().int().min(LOGO_X_MIN).max(LOGO_X_MAX).optional(),
+  anchor: z.enum(LOGO_ANCHORS).optional(),
 });
 export type Logo = z.infer<typeof LogoSchema>;
 
@@ -770,6 +798,9 @@ export function cleanLogo(l: Logo | undefined): Logo | undefined {
   if (l.size !== undefined) out.size = l.size;
   if (l.mode === "shrink") out.mode = l.mode;
   if (l.mediaId !== undefined) out.mediaId = l.mediaId;
+  if (l.align === "center" || l.align === "grow") out.align = l.align;
+  if (l.x !== undefined && l.x !== 0) out.x = l.x;
+  if (l.anchor === "center" || l.anchor === "right") out.anchor = l.anchor;
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -844,6 +875,39 @@ export function logoCss(logo: Logo | undefined): string {
     `${WIN} .site-logo-img{height:var(--lh);max-width:100%}`,
     `@media (prefers-reduced-motion:no-preference){${WIN} .site-signature,${WIN} .site-logo-img{transition:height .5s var(--ease-soft)}${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft),margin-bottom .5s var(--ease-soft)}}`,
   );
+  // Lot 84 : place verticale et position horizontale. Rien de tout cela sans `align` ni `x` ni `anchor` : le rendu reste celui de la v0.31.
+  const align = l.align ?? "top";
+  const placed = align !== "top" || l.x !== undefined || l.anchor !== undefined;
+  if (align === "center") {
+    // Marges haute ET basse négatives : la boîte du logo ne pèse que la rangée (--bh) dans la barre, centrée sur elle, et le logo dépasse
+    // autant en haut qu'en bas. Ce qui sort de la barre (marge --bp de chaque côté de la rangée) est coupé, la bande dessous ne bouge pas.
+    rules.push(
+      `${WIN} .site-brand{margin-block:min(0px,calc((var(--bh) - var(--lh))/2));clip-path:inset(max(0px,calc((var(--lh) - var(--bh))/2 - var(--bp))) -4px)}`,
+      // Rien ne dépasse sous la barre : le menu téléphone n'a plus à lui laisser de place.
+      `${H} #nav-mobile{padding-top:0}`,
+    );
+  } else if (align === "grow") {
+    // La barre prend la hauteur du logo GRAND (réglée, pas celle du défilement : « shrink » ne fait donc pas sauter la page) plus la marge du thème.
+    rules.push(
+      `${H} .site-header-bar{min-height:calc(max(var(--bh),var(--lh-top)) + 2*var(--bp))}`,
+      `${WIN} .site-brand{margin-block:0}`,
+      `${H} #nav-mobile{padding-top:0}`,
+    );
+  }
+  if (l.x !== undefined || l.anchor !== undefined) {
+    const base = l.anchor === "center" ? "var(--lx-mid,0px)" : l.anchor === "right" ? "var(--lx-hi,0px)" : "0px";
+    rules.push(
+      // Décalage : ×0,75 et au plus 120 px sur téléphone (comme la taille). Le plafond (menu, bord de l'écran) vient des variables mesurées par SiteHeader.
+      `${WIN}{--lx:${l.x ?? 0};--lxs:clamp(-${LOGO_X_MOBILE_CAP}px,calc(var(--lx)*.75px),${LOGO_X_MOBILE_CAP}px)}`,
+      `@media (min-width:48rem){${WIN}{--lxs:calc(var(--lx)*1px)}}`,
+      `${WIN} .site-brand{translate:clamp(var(--lx-lo,-1rem),calc(${base} + var(--lxs)),var(--lx-hi,max(0px,min(var(--lxs),10vw)))) 0}`,
+    );
+  }
+  if (placed) {
+    rules.push(
+      `@media (prefers-reduced-motion:no-preference){${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft),margin .5s var(--ease-soft),clip-path .5s var(--ease-soft),translate .5s var(--ease-soft)}${H} .site-header-bar{transition:min-height .5s var(--ease-soft)}}`,
+    );
+  }
   return rules.join("\n");
 }
 
