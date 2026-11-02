@@ -3,8 +3,8 @@
  * Lot 77 « restes de la v0.30 » (chromium, serveur requis, base neuve, une connexion admin). Images de test générées.
  *  M  MENU-11 : « Cadrer l'image » est modale : un voile couvre le panneau et la barre de l'éditeur (page parente) tant que la fenêtre
  *     de la toile est ouverte ; Échap et Annuler la ferment et lèvent le voile.
- *  C  Carrousel : en défilant vers une image plus haute, ce qui suit la bande ne saute pas (mouvement étalé dans le temps) et la hauteur
- *     finale suit toujours les images vues (règle du lot 67).
+ *  C  Carrousel : en défilant vers une image plus haute, ce qui suit la bande ne bouge pas (lot 99 : la hauteur de la bande est constante ;
+ *     avant le lot 99 elle suivait les images vues, règle du lot 67).
  *  K  Export du kit PSD (modèle fanzine-riso, le plus lent) : durée mesurée, sous 60 s.
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=M,C,K] [SHOTS=dossier] node scripts/e2e-restes77.mjs
  */
@@ -195,8 +195,9 @@ if (run("C")) {
     });
     info(`carrousel ${w} px : ${JSON.stringify(res)}`);
     // Un saut franc fait tout le déplacement en un pas ; étalé dans le temps, le pas reste une petite fraction du total.
+    // Lot 99 : la hauteur de la bande est CONSTANTE (plus de resserrement sur les cases vues : lots 67 et 77 remplacés) ; le bloc suivant ne bouge donc pas du tout.
     ok(`C1 ${w} px : le bloc suivant ne saute pas (pas max ${res.maxStep.toFixed(1)} px pour ${res.total.toFixed(0)} px au total)`, res.total < 4 || res.maxStep <= Math.max(2, res.total * 0.15), JSON.stringify(res));
-    ok(`C2 ${w} px : la hauteur finale suit les images vues (pas de vide de plus de 24 px)`, res.gap <= 24, JSON.stringify(res));
+    ok(`C2 ${w} px : lot 99 : la hauteur de la bande ne change pas du tout en défilant (le bloc suivant reste à ${res.before.toFixed(0)} px)`, res.total < 0.5 && res.maxStep < 0.5, JSON.stringify(res));
     await p.context().close();
   }
 }

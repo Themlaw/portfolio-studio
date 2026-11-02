@@ -190,6 +190,10 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
       out.avif = await put(s.files!.find((f) => f.endsWith(".avif"))!);
       out.webp = await put(s.files!.find((f) => f.endsWith(".webp"))!);
     }
+    // Lot 99 : trait et flèches gardent aussi le dessin en couleurs d'origine (barre de défilement et flèches non teintées).
+    const colorAvif = s.colorFiles?.find((f) => f.endsWith(".avif"));
+    const colorWebp = s.colorFiles?.find((f) => f.endsWith(".webp"));
+    if (colorAvif && colorWebp) out.color = { avif: await put(colorAvif), webp: await put(colorWebp) };
     return out;
   };
   const get = (id: string) => changed.find((s) => s.id === id);
@@ -247,6 +251,15 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
       if (!(await storage.stat(key))) await storage.put(key, Readable.from(data));
       return `/media/${key}`;
     };
+    // Lot 99 : le dessin en couleurs d'origine est retourné lui aussi.
+    const colorAvif = pair.from.colorFiles?.find((f) => f.endsWith(".avif"));
+    const colorWebp = pair.from.colorFiles?.find((f) => f.endsWith(".webp"));
+    if (colorAvif && colorWebp) {
+      flipped.color = {
+        avif: await store(await mirrorBitmap(await readFile(path.join(/* turbopackIgnore: true */ outDir, path.basename(colorAvif))), "avif"), "avif"),
+        webp: await store(await mirrorBitmap(await readFile(path.join(/* turbopackIgnore: true */ outDir, path.basename(colorWebp))), "webp"), "webp"),
+      };
+    }
     if (src.svg) flipped.svg = await store(Buffer.from(mirrorSvg(await readFile(path.join(/* turbopackIgnore: true */ outDir, path.basename(pair.from.files!.find((f) => f.endsWith(".svg"))!)), "utf8"))), "svg");
     else {
       flipped.avif = await store(await mirrorBitmap(await readFile(path.join(/* turbopackIgnore: true */ outDir, path.basename(pair.from.files!.find((f) => f.endsWith(".avif"))!))), "avif"), "avif");

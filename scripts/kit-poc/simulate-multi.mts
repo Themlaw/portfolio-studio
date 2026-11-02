@@ -9,6 +9,7 @@
  *   decor     <kit.zip> <sortie.psd>          : décor libre : plans 1, 3 et 5 gardés, un nouveau calque « nuages »
  *                                               inséré avant le dernier : 4 plans, dont un redessiné
  *   zip       <kit.zip> <icone.psd> <sortie>  : l'archive avec le fichier d'icônes remplacé par la version retouchée
+ *   defil99   <kit.zip> <sortie.zip>          : lot 99 : barre de défilement (« Trait ») et flèches en dégradés de couleurs (synthétiques)
  *   studio    <kit.zip> <sortie.psd> [--opaque-logo] : fichier « logo et papier » retouché (lot 17a) : tuile de
  *                                               cœurs 1024 × 1024 et logo 2400 × 600
  */
@@ -20,6 +21,7 @@ import { readPsd, writePsdBuffer, type Layer } from "ag-psd";
 import sharp from "sharp";
 
 import { ensureAgPsd } from "@/lib/kit/ag-psd-node";
+import { arrowSvg, barSvg } from "../lib/defil99.mjs";
 import { ALL_SLOTS, CURSOR_DRAWING_LAYER, DECOR_HEAD, drawScale, frameOf, HOTSPOT_LAYER, KIT_FILES, KIT_ROLES, SLOTS, type KitRole } from "@/lib/kit/spec";
 import { extractEntry, listZip, writeZipFile } from "@/lib/kit/zip-archive";
 
@@ -137,6 +139,36 @@ try {
       { name: KIT_FILES.logo.file, file: logoFile },
       { name: KIT_FILES.icones.file, file: iconFile },
       { name: "LISEZ-MOI.txt", data: Buffer.from("kit retouché (lot 49)\n") },
+    ]);
+  } else if (cmd === "defil99") {
+    // Lot 99 : barre de défilement (calque « Trait ») et flèches gauche / droite (calques « Flèche … ») SYNTHÉTIQUES, en couleurs : dégradé
+    // rouge → orange → vert → bleu, éclaircie (saturation plus faible) en haut, assombrie en bas ; flèches en dégradés de deux teintes.
+    // Jamais le kit réel de l'artiste. Archive complète des trois fichiers.
+    const logoPsd = readPsd(readFileSync(files.logo), READ);
+    const trait = find(logoPsd.children, "Trait");
+    if (!trait) throw new Error("calque « Trait » introuvable");
+    const tf = frameOf(SLOTS.find((x) => x.id === "trait")!, "multi");
+    const bar = await raster(barSvg(tf.w, tf.h));
+    Object.assign(trait, { left: tf.x, top: tf.y, right: tf.x + bar.width, bottom: tf.y + bar.height, imageData: bar });
+    const logoFile = path.join(work, "logo-retouche.psd");
+    write(logoPsd, logoFile);
+    const iconPsd = readPsd(readFileSync(files.icones), READ);
+    const arrow = async (name: string, id: string, which: "left" | "right") => {
+      const layer = find(iconPsd.children, name);
+      if (!layer) throw new Error(`calque « ${name} » introuvable`);
+      const img = await raster(arrowSvg(which));
+      const box = frameOf(SLOTS.find((x) => x.id === id)!, "multi");
+      Object.assign(layer, { left: box.x + 72, top: box.y + 88, right: box.x + 72 + img.width, bottom: box.y + 88 + img.height, imageData: img });
+    };
+    await arrow("Flèche gauche", "icones/fleche-gauche", "left");
+    await arrow("Flèche droite", "icones/fleche-droite", "right");
+    const iconFile = path.join(work, "icones-retouche.psd");
+    write(iconPsd, iconFile);
+    await writeZipFile(out, [
+      { name: KIT_FILES.decor.file, file: files.decor },
+      { name: KIT_FILES.logo.file, file: logoFile },
+      { name: KIT_FILES.icones.file, file: iconFile },
+      { name: "LISEZ-MOI.txt", data: Buffer.from("kit retouché (lot 99)\n") },
     ]);
   } else if (cmd === "cadre79") {
     // Lot 79 : un cadre RÉALISTE (contrairement à cadre58a : bandes régulières, épaisseurs égales, aucun feston). Bord extérieur festonné

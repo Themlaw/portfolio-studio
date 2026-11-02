@@ -453,6 +453,51 @@
   height: 18px;
 }
 
+/* Lot 99 : barre de défilement EN COULEURS (trait redessiné, fichier en couleurs d'origine, `data-kit-stroke-color`) : le dessin tel quel,
+   sans masque ni teinte ni aplat (le masque ne gardait que la forme, d'où une barre blanchâtre). Découpée en trois : les bouts gardent leur
+   forme (moitié de la hauteur), le milieu s'étire à la longueur de la poignée. La piste est le même dessin, éclairci par l'opacité seule
+   (pas de couleur appliquée par-dessus). Survol : aucun changement de teinte, seulement l'épaisseur. */
+[data-kit-stroke-color] .rail-bar-track::before,
+[data-kit-stroke-color] .rail-bar-thumb,
+[data-kit-stroke-color] .rail-bar:hover .rail-bar-thumb,
+[data-kit-stroke-color] .rail-bar[data-dragging="true"] .rail-bar-thumb,
+[data-kit-stroke-color] .rail-bar:focus-visible .rail-bar-thumb {
+  background: none;
+  -webkit-mask: none;
+  mask: none;
+  box-sizing: border-box;
+  border-style: solid;
+  border-width: 0 calc(var(--bar-h) / 2);
+  border-image-source: var(--t-kit-stroke-color);
+  border-image-slice: 0 var(--t-kit-stroke-cap) 0 var(--t-kit-stroke-cap) fill;
+  border-image-width: 0 calc(var(--bar-h) / 2) 0 calc(var(--bar-h) / 2);
+  border-image-repeat: stretch;
+}
+
+[data-kit-stroke-color] .rail-bar-track {
+  --bar-h: 10px;
+}
+
+[data-kit-stroke-color] .rail-bar-track::before {
+  opacity: 0.32;
+}
+
+[data-kit-stroke-color] .rail-bar-thumb {
+  --bar-h: 16px;
+}
+
+[data-kit-stroke-color] .rail-bar:hover .rail-bar-track,
+[data-kit-stroke-color] .rail-bar[data-dragging="true"] .rail-bar-track,
+[data-kit-stroke-color] .rail-bar:focus-visible .rail-bar-track {
+  --bar-h: 12px;
+}
+
+[data-kit-stroke-color] .rail-bar:hover .rail-bar-thumb,
+[data-kit-stroke-color] .rail-bar[data-dragging="true"] .rail-bar-thumb,
+[data-kit-stroke-color] .rail-bar:focus-visible .rail-bar-thumb {
+  --bar-h: 18px;
+}
+
 /* ---- Icônes : la forme dessinée, teinte du texte (currentColor) ---------- */
 [data-kit-icon-arrow-left] [data-icon="arrow-left"],
 [data-kit-icon-arrow-right] [data-icon="arrow-right"],
@@ -485,6 +530,41 @@
 [data-kit-icon-close] [data-icon="close"] {
   -webkit-mask-image: var(--t-kit-icon-close);
   mask-image: var(--t-kit-icon-close);
+}
+
+/* Lot 99 : flèches des bandes EN COULEURS (`data-kit-icon-arrow-*-color`) : le dessin du kit à la taille prévue (la moitié de sa case, posée
+   par le thème en --t-kit-icon-arrow-*-w / -h), tel quel : ni carré, ni bordure, ni fond, ni ombre, ni teinte. Les flèches de la
+   visionneuse gardent la forme teintée. Position verticale : celle de globals.css (centre de la hauteur constante de la bande). */
+[data-kit-icon-arrow-left-color] .strip-nav-prev,
+[data-kit-icon-arrow-right-color] .strip-nav-next {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 100%;
+  box-shadow: none;
+  color: transparent;
+}
+
+[data-kit-icon-arrow-left-color] .strip-nav-prev {
+  --strip-nav-size: var(--t-kit-icon-arrow-left-w);
+  width: var(--t-kit-icon-arrow-left-w);
+  height: var(--t-kit-icon-arrow-left-h);
+  background-image: var(--t-kit-icon-arrow-left-color);
+}
+
+[data-kit-icon-arrow-right-color] .strip-nav-next {
+  --strip-nav-size: var(--t-kit-icon-arrow-right-w);
+  width: var(--t-kit-icon-arrow-right-w);
+  height: var(--t-kit-icon-arrow-right-h);
+  background-image: var(--t-kit-icon-arrow-right-color);
+}
+
+[data-kit-icon-arrow-left-color] .strip-nav-prev [data-icon],
+[data-kit-icon-arrow-right-color] .strip-nav-next [data-icon] {
+  display: none;
 }
 
 /* Icône SVG en ligne (lecture) : la boîte reste, le dessin d'origine s'efface. */
