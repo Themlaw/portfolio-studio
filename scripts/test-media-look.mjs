@@ -44,7 +44,7 @@ test("T1 mediaLookAttrs : rien par défaut ; cadre, fond et arrondi propres, exa
   assert.deepEqual(mediaLookAttrs({ frame: { kind: "none" } }), { attrs: { "data-frame": "none" }, style: {} });
   assert.deepEqual(mediaLookAttrs({ frame: { kind: "band", width: "epais", color: "primary" }, bg: "#ffcc00", radius: "strong" }), {
     attrs: { "data-frame": "band", "data-frame-w": "epais", "data-img-bg": "" },
-    style: { "--frame-color": "var(--color-primary)", "--img-bg": "#ffcc00", "--media-radius": "20px" },
+    style: { "--frame-color": "var(--t-color-primary)", "--img-bg": "#ffcc00", "--media-radius": "20px" },
   });
   // Valeurs invalides : ignorées, jamais d'injection.
   assert.deepEqual(mediaLookAttrs({ frame: { kind: "huge" }, bg: "red; background:url(x)", radius: "gigantic" }), { attrs: {}, style: {} });
@@ -73,12 +73,13 @@ test("T1 couleurs : « carte » = la carte réellement dessous ; la palette pass
   assert.equal(mediaLookAttrs({ bg: "card" }).style["--img-bg"], "var(--card-bg, var(--t-color-surface))");
   for (const c of PALETTE) {
     assert.equal(imageBgCss(c), `var(--color-${c})`, `fond ${c}`);
-    assert.equal(frameColorCss(c), `var(--color-${c})`, `bande ${c}`);
+    // Lot 95 : la bande choisie est la couleur de la pastille (celle du thème), jamais la variante lisible qu'une carte met à la place.
+    assert.equal(frameColorCss(c), c === "ink" ? "var(--color-ink)" : `var(--t-color-${c})`, `bande ${c}`);
   }
-  // La bande par défaut et la bande « Texte » donnent la même couleur (même variable).
+  // Sans choix, la bande suit le texte de l'endroit (remappé dans une carte) : c'est le seul cas qui s'adapte.
   assert.equal(frameColorCss(undefined), frameColorCss("ink"));
-  // Aucune variable de thème brute (--t-color-*) hors le repli de « carte ».
-  for (const c of PALETTE) assert.ok(!/--t-color/.test(imageBgCss(c)) && !/--t-color/.test(frameColorCss(c)));
+  // Aucune variable de thème brute (--t-color-*) pour le fond d'image hors le repli de « carte ».
+  for (const c of PALETTE) assert.ok(!/--t-color/.test(imageBgCss(c)));
 });
 
 test("T1 cadre du kit : les QUATRE épaisseurs réelles (haut, droite, bas, gauche) sont émises", () => {

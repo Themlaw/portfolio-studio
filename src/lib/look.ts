@@ -396,14 +396,21 @@ const FrameCoreSchema = z
 export const FrameSchema = z.preprocess(upgradeFrame, FrameCoreSchema);
 export type Frame = z.infer<typeof FrameCoreSchema>;
 
-/** Couleur CSS d'une bande : teinte de la palette (suit le thème), couleur libre, ou la couleur par défaut. */
+/**
+ * Couleur CSS d'une bande : teinte de la palette (suit le thème), couleur libre, ou la couleur par défaut.
+ *
+ * Lot 95 : une teinte CHOISIE passe par `--t-color-x` (la couleur du thème, celle de la pastille du menu), jamais par `--color-x`. Dans une
+ * carte ou sur un fond de couleur, la zone REMAPPE `--color-ink`, `--color-ink-soft`, `--color-primary`, `--color-secondary` et `--color-eyebrow`
+ * (variante lisible pour du TEXTE, src/app/look.css) : le cadre prenait alors une autre couleur que sa pastille (lot 64 croyait le contraire).
+ * `--t-color-x` n'est jamais remappée ; le thème la pose sur `:root` (et l'accent de page, qui pose les deux).
+ */
 export function frameColorCss(color: string | undefined): string {
-  // `--color-x` (relais Tailwind du thème), pas `--t-color-x` : dans une carte ou sur un fond de couleur, la carte REMAPPE ces variables
-  // (texte lisible) ; « Texte » est donc la même couleur partout (lot 64, A5 D5).
-  if (color && (PALETTE as readonly string[]).includes(color)) return `var(--color-${color})`;
+  // « Texte » = la couleur par défaut (même variable, adaptée à la zone) : en `--t-color-ink`, le cadre se confondrait avec une carte sombre.
+  if (color === FRAME_DEFAULT_COLOR) return `var(--color-${FRAME_DEFAULT_COLOR})`;
+  if (color && (PALETTE as readonly string[]).includes(color)) return `var(--t-color-${color})`;
   if (color && CUSTOM_COLOR_RE.test(color)) return color;
-  // `--color-ink` : le texte du thème, mais remappé en encre LISIBLE dans une carte ou sur un fond de couleur (lot 32) : un cadre
-  // par défaut ne disparaît pas sur un fond sombre.
+  // Sans choix : `--color-ink`, le texte du thème, mais remappé en encre LISIBLE dans une carte ou sur un fond de couleur (lot 32) : un cadre
+  // par défaut ne disparaît pas sur un fond sombre. C'est la seule couleur qui s'adapte à l'endroit où se trouve la photo.
   return `var(--color-${FRAME_DEFAULT_COLOR})`;
 }
 
