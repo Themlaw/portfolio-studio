@@ -60,6 +60,9 @@ Tout le contenu vient d'une base SQLite, sans admin pour l'instant : le seed fai
   404 et `Cache-Control: no-store`.
 - `PUBLIC_BASE_URL` (défaut `https://portfolio.example.org`) : base des URL
   absolues (canonical, hreflang).
+- `REDIRECT_FROM` (défaut vide) : ancien(s) domaine(s), séparés par des virgules,
+  renvoyés vers `PUBLIC_BASE_URL` (même chemin, même requête ; 301 en GET/HEAD,
+  308 sinon). Mode d'emploi : `docs/DOMAINE.md`.
 - Médias : `GET /media/<clé>` (Range 206/416, ETag 304 en comparaison faible,
   cache immuable, `nosniff`, CSP `default-src 'none'; style-src 'unsafe-inline';
   sandbox` sur tous les médias). Stockage : liens symboliques et non-fichiers refusés.
