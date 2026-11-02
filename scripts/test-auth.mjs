@@ -2825,7 +2825,7 @@ const stBatch = await waitImport("galerie-lumineuse", bid);
 const rapBatch = stBatch.status === "done" ? rapportOf(dirK, bid) : null;
 ok(
   "TI13 envoi groupé de deux PSD : le premier ne lance rien, le dernier lance UN import (décor et logo reçus, icônes « pas envoyé »)",
-  bOne.status === 200 && noJobYet && bTwo.status === 200 && rapBatch?.files?.map((f) => `${f.id}:${f.received}`).join(",") === "decor:true,logo:true,icones:false" && rapBatch.slots.length === 8 && importJobs().length === jobsBeforeBatch + 1,
+  bOne.status === 200 && noJobYet && bTwo.status === 200 && rapBatch?.files?.map((f) => `${f.id}:${f.received}`).join(",") === "decor:true,logo:true,icones:false" && rapBatch.slots.length === 9 && importJobs().length === jobsBeforeBatch + 1,
   `${bOne.status} ${bTwo.status} ${JSON.stringify(rapBatch?.files)}`,
 );
 const closed = await sendBatch(kitFiles["3-icones-curseurs.psd"], "icones.psd", true);
