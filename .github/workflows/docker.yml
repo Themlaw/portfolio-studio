@@ -1,6 +1,6 @@
 # Image de production : construction MANUELLE seulement (lot 103).
 #
-# Pourquoi : l'image de production est construite sur la VM de build (vm-dev), pas sur GitHub.
+# Pourquoi : l'image de production est construite sur la VM de build, pas sur GitHub.
 # Ce workflow ne se lance donc plus sur push ni sur tag. Lancé à la main, il construit l'image
 # et vérifie son contexte ; il ne la POUSSE sur GHCR que si on coche « publier ».
 #

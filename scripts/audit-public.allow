@@ -1,0 +1,27 @@
+# Résultats de scripts/audit-public.mjs relus un par un et acceptés (lot 103).
+# Format : « classe chemin-ou-motif » ou « classe blob:<sha> » ; commentaire après « # ».
+# Une nouvelle entrée doit être justifiée dans la demande de tirage.
+
+# Secret de DÉVELOPPEMENT seulement : src/lib/auth/config.ts le refuse en production (BETTER_AUTH_SECRET
+# absent ou < 32 caractères => erreur de configuration), il ne protège aucune instance réelle.
+secret src/lib/auth/config.ts
+
+# PSD synthétique des tests, produit par scripts/make-fixture-psd.mts (vérifier : npm run fixture:psd -- --check).
+forbidden blob:08c13a676d42073564310d42911cd4df49fd8401
+media tests/fixtures/kit-synthetique.psd
+
+# Polices libres (licence OFL) : binaires tiers, noms et e-mails des fondeurs dans les textes de licence.
+media public/kit/**
+media src/themes/fonts/*
+infra public/kit/**
+email public/kit/**
+
+# Vignettes de thèmes et vidéo de démonstration : produites par les scripts du dépôt (theme-thumbs, seed de test).
+media public/themes/*/thumb.webp
+media seed/media/*
+media public/favicon.ico
+
+# Valeurs de TEST dans des jeux d'essai (adresses IP privées inventées, identifiants de réseaux sociaux fictifs).
+infra scripts/test-auth.mjs
+infra scripts/test-publish.mjs
+infra scripts/test-containers.mjs

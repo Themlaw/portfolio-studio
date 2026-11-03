@@ -22,8 +22,8 @@
  *                          « re:… » pour une expression). Ce fichier ne doit JAMAIS être
  *                          commité ni affiché ; la sortie dit « motif n° k », jamais son texte.
  *   --forbidden <fichier>  fichiers interdits : un chemin, un motif (* et **) ou « blob:<sha> » par ligne
- *   --allow <fichier>      faux positifs relus : « classe<espace>motif-de-chemin » par ligne
- *                          (classes : secret, infra, email, media, author)
+ *   --allow <fichier>      faux positifs relus : « classe<espace>motif-de-chemin » ou « classe<espace>blob:<sha> »
+ *                          par ligne, commentaire après « # » (classes : secret, forbidden, infra, email, media, author)
  *   --hosts <fichier>      noms de machines privées à chercher, un par ligne (fichier non commité)
  *   --tree                 n'audite que l'arbre de HEAD (pas l'historique, les messages ni les auteurs)
  *   --strict               les résultats « à revoir » comptent aussi dans le code de sortie
@@ -79,10 +79,11 @@ const forbiddenLines = opt("--forbidden") ? readLines(opt("--forbidden")) : [];
 const forbiddenBlobs = new Set(forbiddenLines.filter((l) => l.startsWith("blob:")).map((l) => l.slice(5).trim()));
 const forbiddenPaths = forbiddenLines.filter((l) => !l.startsWith("blob:")).map((l) => (l.endsWith("/") ? globRe(l + "**") : globRe(l)));
 const allow = (opt("--allow") ? readLines(opt("--allow")) : []).map((l) => {
-  const [cls, ...rest] = l.split(/\s+/);
-  return { cls, re: globRe(rest.join(" ")) };
+  const [cls, ...rest] = l.split(/\s+#|\s+/).length ? l.replace(/\s+#.*$/, "").split(/\s+/) : [];
+  const target = rest.join(" ");
+  return target.startsWith("blob:") ? { cls, blob: target.slice(5) } : { cls, re: globRe(target) };
 });
-const allowed = (cls, file) => allow.some((a) => a.cls === cls && a.re.test(file));
+const allowed = (cls, file, sha) => allow.some((a) => a.cls === cls && (a.blob ? a.blob === sha : a.re.test(file)));
 
 /* ------------------------------------------------------------------ règles */
 const PLACEHOLDER = /(example|exemple|test|dummy|fake|factice|changeme|change-me|placeholder|xxxx|0123456789|abcdef|your[_-]|<[^>]+>|\$\{|\$\(|process\.env|env\.|secret-ci|ci-secret|redacted|\.\.\.|not-a-real|synthet|mem-secret|local-dev|dev-secret|aaaa|1234)/i;
@@ -115,6 +116,7 @@ const FORBIDDEN_NAME = [
   ["env-file", /(^|\/)\.env(\.[^/]+)?$/, (p) => /\.(example|sample|template|dist)$/.test(p)],
   ["private-key-file", /(^|\/)(id_(rsa|dsa|ecdsa|ed25519)|[^/]+\.(pem|key|p12|pfx|jks|kdbx|ppk))$/, (p) => /(\.pub|-public\.pem)$/.test(p)],
   ["database-file", /\.(sqlite3?|db|db-wal|db-shm)$/, () => false],
+  ["fichier-de-travail-d-artiste", /\.(psd|psb|xcf|kra|ai|clip|procreate)$/i, () => false],
   ["credentials-file", /(^|\/)(\.npmrc|\.netrc|\.pgpass|kubeconfig|credentials\.json|service-account[^/]*\.json|wg[0-9]*\.conf|\.htpasswd)$/, () => false],
   ["infra-config", /(^|\/)(terraform\.tfstate[^/]*|[^/]+\.tfvars|ansible-vault[^/]*|komodo[^/]*\.toml|\.docker\/config\.json)$/, () => false],
 ];
@@ -207,7 +209,7 @@ if (TREE_ONLY) for (const [sha] of blobs) if (!inTree.has(sha)) blobs.delete(sha
 const findings = [];
 const seen = new Set();
 function add(f) {
-  if (f.file && allowed(f.cls, f.file)) return;
+  if (f.file && allowed(f.cls, f.file, f.sha)) return;
   const key = `${f.cls}|${f.rule}|${f.sha ?? ""}|${f.file ?? ""}|${f.value ?? ""}`;
   if (seen.has(key)) return;
   seen.add(key);

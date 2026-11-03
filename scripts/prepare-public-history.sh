@@ -87,8 +87,11 @@ if [ "$LISTE" != - ]; then
 fi
 # 4c. git fsck
 if git -C "$OUT" fsck --strict --no-dangling >"$OUT.fsck" 2>&1; then echo "PASS  git fsck --strict propre"; else echo "FAIL  git fsck :"; head -20 "$OUT.fsck"; rc=1; fi
-# 4d. audit à zéro
+# 4d. audit : 0 secret, 0 fichier interdit, 0 motif confidentiel (bloquants) ; le reste est un état des lieux
 # shellcheck disable=SC2086
-if node "$AUDIT_SCRIPT" --repo "$OUT" --strict ${AUDIT_ARGS:-} >"$OUT.audit.txt" 2>&1; then echo "PASS  audit : 0 résultat (--strict)"; else echo "FAIL  audit :"; tail -n 25 "$OUT.audit.txt"; rc=1; fi
+if node "$AUDIT_SCRIPT" --repo "$OUT" ${AUDIT_ARGS:-} >"$OUT.audit.txt" 2>&1; then echo "PASS  audit : 0 bloquant (secret, fichier interdit, motif confidentiel)"; else echo "FAIL  audit :"; grep -E '^## |^  - ' "$OUT.audit.txt" | head -n 40; rc=1; fi
+# shellcheck disable=SC2086
+node "$AUDIT_SCRIPT" --repo "$OUT" --strict ${AUDIT_ARGS:-} >"$OUT.audit-strict.txt" 2>&1 || true
+echo "INFO  audit --strict (à revoir : infrastructure, e-mails, médias, auteurs) : $(grep '^bilan' "$OUT.audit-strict.txt") ; détail : $OUT.audit-strict.txt"
 echo "== taille : $(du -sh "$OUT" | cut -f1) ; commits : $(git -C "$OUT" rev-list --all --count) ; branches : $(git -C "$OUT" for-each-ref refs/heads | wc -l) ; tags : $(wc -l <"$OUT.tags-apres")"
 exit $rc
