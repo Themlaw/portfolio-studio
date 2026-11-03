@@ -58,7 +58,7 @@ if [ "$LISTE" != - ]; then
       blob:*) echo "${l#blob:}" | awk '{print $1}' >>"$OUT.blobs" ;;
       old-versions:*)
         p=${l#old-versions:}; p=${p%% *}
-        git -C "$OUT" log --all --no-renames --raw -r --format= -- "$p" | awk '{print $4}' | grep -Ev '^0+$' | sort -u >"$OUT.hist"
+        git -C "$OUT" log --all --no-renames --no-abbrev --raw -r --format= -- "$p" | awk '{print $4}' | grep -Ev '^0+$' | sort -u >"$OUT.hist"
         git -C "$OUT" ls-tree -r refs/heads/main -- "$p" | awk '{print $3}' | sort -u >"$OUT.keep"
         comm -23 "$OUT.hist" "$OUT.keep" >>"$OUT.blobs"
         echo "      $p : $(wc -l <"$OUT.hist") versions dans l'historique, $(wc -l <"$OUT.keep") gardées (tête de main), $(comm -23 "$OUT.hist" "$OUT.keep" | wc -l) retirées"
