@@ -158,7 +158,9 @@ for (const dir of DIRS) {
       // Toute fonction exportée d'un fichier "use server" est une server action.
       const exportFn = /export\s+(?:default\s+)?async\s+function\s+(\w+)\s*\(/g;
       const exportArrow = /export\s+const\s+(\w+)\s*=\s*async\s*\(/g;
-      for (const re of [exportFn, exportArrow]) {
+      // Lot 97 : `export const nom = audited("nom", async function nom(…) { await assertAdmin(); … })` (journal d'édition).
+      const exportAudited = /export\s+const\s+(\w+)\s*=\s*audited\(\s*"\1"\s*,\s*async\s+function\s+\1\s*\(/g;
+      for (const re of [exportFn, exportArrow, exportAudited]) {
         for (const m of src.matchAll(re)) {
           checked++;
           found.add(m[1]);
@@ -167,20 +169,21 @@ for (const dir of DIRS) {
           if (!GUARD.test(body)) failures.push(`${rel} : action « ${m[1]} » sans \`await assertAdmin()\` en première instruction`);
         }
       }
-      if (/export\s+(?:const|let)\s+\w+\s*=(?!\s*async\b)/.test(src)) {
+      if (/export\s+(?:const|let)\s+\w+\s*=(?!\s*async\b)(?!\s*audited\(\s*"\w+"\s*,\s*async\s+function\b)/.test(src)) {
         failures.push(`${rel} : un fichier "use server" ne doit exporter que des fonctions async gardées`);
       }
     }
 
     // Routes mutantes de l'admin.
     if (/\/route\.tsx?$/.test(rel)) {
-      for (const m of src.matchAll(/export\s+async\s+function\s+(POST|PUT|PATCH|DELETE)\s*\(/g)) {
+      // Lot 97 : `export const POST = auditedRoute("nom", async function POST(…) { await assertAdmin(); … })` est un gestionnaire async comme les autres.
+      for (const m of src.matchAll(/export\s+(?:async\s+function\s+|const\s+)(POST|PUT|PATCH|DELETE)\s*(?:=\s*auditedRoute\(\s*"[\w-]+"\s*,\s*async\s+function\s+\1\s*)?\(/g)) {
         checked++;
         const open = bodyOpen(src, m.index + m[0].length - 1);
         const body = open < 0 ? "" : bodyAfter(src, open);
         if (!GUARD.test(body)) failures.push(`${rel} : route ${m[1]} sans \`await assertAdmin()\` en première instruction`);
       }
-      if (/export\s+(?:const|function)\s+(POST|PUT|PATCH|DELETE)\b(?![\s\S]*?async)/.test(src)) {
+      if (/export\s+(?:const|function)\s+(POST|PUT|PATCH|DELETE)\b(?![\s\S]*?async)/.test(src) || /export\s+const\s+(POST|PUT|PATCH|DELETE)\s*=(?!\s*auditedRoute\()/.test(src)) {
         failures.push(`${rel} : gestionnaire mutant non async (garde impossible à vérifier)`);
       }
     }

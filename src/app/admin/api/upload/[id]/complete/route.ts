@@ -3,6 +3,7 @@ import { assertAdmin } from "@/lib/auth/guard";
 import { completeUpload } from "@/lib/upload/chunks";
 import { uploadStep } from "@/lib/upload/http";
 import { UploadError } from "@/lib/upload/receive";
+import { auditedRoute } from "@/lib/journal/audit";
 
 /** Corps facultatif { tags } (tags courants du client), 16 Ko au plus. */
 async function readTags(request: Request): Promise<unknown> {
@@ -20,9 +21,9 @@ async function readTags(request: Request): Promise<unknown> {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export const POST = auditedRoute("upload-complete", async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { user } = await assertAdmin();
   const { id } = await params;
   // Média : { media } ; kit de thème : { kitImport } (import mis en file).
   return uploadStep(request, async () => completeUpload(id, user.id, await readTags(request)), { revalidate: true });
-}
+});

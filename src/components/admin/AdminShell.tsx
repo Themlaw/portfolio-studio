@@ -21,6 +21,7 @@ const NAV: { href: string; label: string; sub?: boolean }[] = [
   { href: "/admin/messages", label: "Messages" },
   { href: "/admin/reglages", label: "Réglages" },
   { href: "/admin/sauvegardes", label: "Sauvegardes", sub: true },
+  { href: "/admin/journal", label: "Journal", sub: true },
 ];
 
 function isCurrent(pathname: string, href: string) {

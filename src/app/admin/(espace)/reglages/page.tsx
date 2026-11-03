@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import Diagnostic from "@/components/admin/Diagnostic";
 import PageHeader from "@/components/admin/PageHeader";
 import FontLibraryPanel from "@/components/admin/FontLibraryPanel";
@@ -24,6 +26,9 @@ export default async function SettingsPage() {
       <SettingsForm initial={settings} pending={siteDraftHolder()} />
       <SeoForm initial={getSeoForAdmin()} media={images} siteName={siteNameFor(settings.site.name, "fr")} favicon={getFaviconForAdmin()} colors={monoColors(await getPublishedTheme())} />
       <FontLibraryPanel rows={fonts.rows} total={fonts.total} limits={{ families: fonts.limits.families, totalBytes: fonts.limits.totalBytes }} />
+      <p className="a-section" data-testid="journal-link">
+        Besoin de savoir ce qui a été modifié, quand et depuis quelle page ? <Link href="/admin/journal">Ouvrir le journal</Link>.
+      </p>
       <details className="a-advanced a-section">
         <summary>Avancé</summary>
         <Diagnostic />

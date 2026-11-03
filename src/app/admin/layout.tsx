@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import JournalReporter from "@/components/admin/JournalReporter";
 import { FONT_VARIABLE_CLASSES } from "@/themes/fonts";
 
 import "./admin.css";
@@ -24,7 +25,10 @@ const FONTS = FONT_VARIABLE_CLASSES;
 export default function AdminRootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className={FONTS}>
-      <body className="admin">{children}</body>
+      <body className="admin">
+        <JournalReporter />
+        {children}
+      </body>
     </html>
   );
 }

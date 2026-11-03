@@ -17,6 +17,7 @@ import { sniffPdf } from "@/lib/upload/sniff";
 import { quotaProblem } from "@/lib/upload/quota";
 import { receiveOneFile, UploadError } from "@/lib/upload/receive";
 import { attachUploadTags, parseTagLabels, tagCapacityProblem } from "@/lib/tags";
+import { auditedRoute } from "@/lib/journal/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic";
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 
-export async function POST(request: Request) {
+export const POST = auditedRoute("upload", async function POST(request: Request) {
   await assertAdmin();
   if (!isSameOrigin(request)) return json(403, { ok: false, message: "Origine refusée." });
   rememberPort(new URL(request.url).port);
@@ -56,4 +57,4 @@ export async function POST(request: Request) {
     console.error("[upload] échec", error);
     return json(500, { ok: false, message: "L'envoi a échoué. Réessaie ; si ça recommence, vérifie l'espace disque du serveur." });
   }
-}
+});

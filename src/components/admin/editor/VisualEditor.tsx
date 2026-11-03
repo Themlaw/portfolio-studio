@@ -47,6 +47,7 @@ import { mediaStatusAction, retryMediaAction } from "@/app/admin/(espace)/medias
 import type { AdminMediaRow } from "@/lib/admin";
 import { settleSnap, takeSnap, type LangSnap } from "@/lib/lang-scroll";
 import { acceptFromCanvas, EDIT_MSG, inlineAllowed, setLocalizedAt, type BlockInfo, type DropTargetInfo, type FromCanvas, type Ghost, type ToCanvas } from "@/lib/edit/protocol";
+import { reportToJournal } from "@/lib/journal/browser";
 import { markedProblem } from "@/lib/marked";
 import { own } from "@/lib/own";
 import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
@@ -84,6 +85,18 @@ import { untranslatedLabel } from "@/lib/translation-gaps";
 import { describeProblems, type Problem } from "./problems";
 import TopMore from "./TopMore";
 import BlockThumb from "./thumbs";
+
+/** Journal d'édition (lot 97) : connexion perdue pendant une écriture (le navigateur n'a pas eu de réponse). Renvoie le refus que l'éditeur affiche. */
+const LOST = "connexion perdue";
+function lostConnection(action: string): { ok: false; message: string } {
+  reportToJournal({ kind: "save", reason: "reseau", action, message: LOST });
+  return { ok: false, message: LOST };
+}
+/** Journal d'édition : refus ou conflit vu par l'artiste (la connexion perdue est déjà signalée par lostConnection). */
+function reportSaveFailure(action: string, result: { message: string; code?: string }): void {
+  if (result.message === LOST) return;
+  reportToJournal({ kind: "save", reason: result.code === "conflict" ? "conflit" : "refus", action, message: result.message });
+}
 
 type Locale = "fr" | "en";
 type Device = "desktop" | "wide" | "tablet" | "phone";
@@ -397,11 +410,12 @@ export default function VisualEditor({
       try {
         result = await saveDraftAction(pageId, snapshot, revRef.current);
       } catch {
-        result = { ok: false, message: "connexion perdue" };
+        result = lostConnection("saveDraftAction");
       } finally {
         inFlight.current = false;
       }
       if (!result.ok) {
+        reportSaveFailure("saveDraftAction", result);
         ok = false;
         dirty.current = true;
         if ("code" in result) stop(result.code);
@@ -483,9 +497,10 @@ export default function VisualEditor({
           try {
             result = await call(revRef.current);
           } catch {
-            result = { ok: false, message: "connexion perdue" };
+            result = lostConnection("boardAction");
           }
           if (!result.ok) {
+            reportSaveFailure("boardAction", result);
             if ("code" in result) stop(result.code);
             else {
               setSaveState("idle");
@@ -532,9 +547,10 @@ export default function VisualEditor({
         try {
           result = await siteDraftAction(pageId, snap, siteRevRef.current, revRef.current);
         } catch {
-          result = { ok: false, message: "connexion perdue" };
+          result = lostConnection("siteDraftAction");
         }
         if (!result.ok) {
+          reportSaveFailure("siteDraftAction", result);
           if ("code" in result) stop(result.code);
           else {
             setSaveState("idle");
@@ -2657,6 +2673,7 @@ export default function VisualEditor({
         toast("Le brouillon n'est pas enregistré : réessaie.", "error");
         return;
       }
+      if (!result.ok) reportSaveFailure("publishDraftAction", result);
       if (!result.ok && "code" in result) {
         blockedRef.current = result.code;
         setBlocked(result.code);
@@ -2727,6 +2744,7 @@ export default function VisualEditor({
     dirty.current = false;
     const result = await withLock(() => discardDraftAction(pageId, revRef.current));
     if (!result.ok) {
+      reportSaveFailure("discardDraftAction", result);
       setDiscardBusy(false);
       setDiscarding(false);
       setResetting(false);

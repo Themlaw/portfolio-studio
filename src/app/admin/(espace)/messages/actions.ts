@@ -8,9 +8,10 @@ import { getDb, schema } from "@/lib/db";
 import { done, fail, type ActionResult } from "@/lib/edit/result";
 import { lastSeenMessageId } from "@/lib/admin";
 import { desc, eq } from "drizzle-orm";
+import { audited } from "@/lib/journal/audit";
 
 /** Arrivée sur la page Messages : tout ce qui est arrivé jusque-là est vu (pastille du menu, tableau de bord). Ne recule jamais. */
-export async function markMessagesSeenAction(upTo: unknown): Promise<ActionResult<null>> {
+export const markMessagesSeenAction = audited("markMessagesSeenAction", async function markMessagesSeenAction(upTo: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const parsed = z.number().int().positive().safeParse(upTo);
   if (!parsed.success) return fail("Message inconnu.");
@@ -22,19 +23,19 @@ export async function markMessagesSeenAction(upTo: unknown): Promise<ActionResul
     db.insert(schema.settings).values({ key: "messagesSeen", value }).onConflictDoUpdate({ target: schema.settings.key, set: { value } }).run();
   }
   return done(null);
-}
+});
 
-export async function deleteMessageAction(id: unknown): Promise<ActionResult<null>> {
+export const deleteMessageAction = audited("deleteMessageAction", async function deleteMessageAction(id: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const parsed = z.number().int().positive().safeParse(id);
   if (!parsed.success) return fail("Message inconnu.");
   getDb().delete(schema.messages).where(eq(schema.messages.id, parsed.data)).run();
   return done(null);
-}
+});
 
-export async function deleteAllMessagesAction(confirm: unknown): Promise<ActionResult<{ deleted: number }>> {
+export const deleteAllMessagesAction = audited("deleteAllMessagesAction", async function deleteAllMessagesAction(confirm: unknown): Promise<ActionResult<{ deleted: number }>> {
   await assertAdmin();
   if (confirm !== "tout") return fail("Confirmation manquante.");
   const res = getDb().delete(schema.messages).run();
   return done({ deleted: res.changes });
-}
+});

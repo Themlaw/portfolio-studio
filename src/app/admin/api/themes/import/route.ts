@@ -14,6 +14,7 @@ import { isSameOrigin } from "@/lib/preview";
 import { revalidateTheme } from "@/lib/revalidate";
 import { IMPORT_LIMITS, importThemePackage, ThemeImportError } from "@/lib/themes/transfer";
 import { receiveOneFile, UploadError } from "@/lib/upload/receive";
+import { auditedRoute } from "@/lib/journal/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 
-export async function POST(request: Request) {
+export const POST = auditedRoute("theme-import", async function POST(request: Request) {
   await assertAdmin();
   if (!isSameOrigin(request)) return json(403, { ok: false, message: "Origine refusée." });
   let tmpPath: string | null = null;
@@ -40,4 +41,4 @@ export async function POST(request: Request) {
   } finally {
     if (tmpPath) await rm(tmpPath, { force: true });
   }
-}
+});

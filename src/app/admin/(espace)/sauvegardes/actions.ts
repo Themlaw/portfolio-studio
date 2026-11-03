@@ -11,6 +11,7 @@ import { LIMITS } from "@/lib/backup/config";
 import { applyBackupSettings, getBackupStatus, startBackupNow, type BackupStatus } from "@/lib/backup/service";
 import { writeBackupOverrides } from "@/lib/backup/settings";
 import { done, fail, zodFieldErrors, type ActionResult } from "@/lib/edit/result";
+import { audited } from "@/lib/journal/audit";
 
 const Input = z.object({
   enabled: z.boolean().nullable(),
@@ -20,7 +21,7 @@ const Input = z.object({
   maxHours: z.number().min(LIMITS.maxHours.min, `Au moins ${LIMITS.maxHours.min} heure.`).max(LIMITS.maxHours.max, `Au plus ${LIMITS.maxHours.max} heures.`).nullable(),
 });
 
-export async function saveBackupSettingsAction(input: unknown): Promise<ActionResult<BackupStatus>> {
+export const saveBackupSettingsAction = audited("saveBackupSettingsAction", async function saveBackupSettingsAction(input: unknown): Promise<ActionResult<BackupStatus>> {
   await assertAdmin();
   const parsed = Input.safeParse(input);
   if (!parsed.success) return fail("Vérifie les réglages.", zodFieldErrors(parsed.error.issues));
@@ -29,14 +30,14 @@ export async function saveBackupSettingsAction(input: unknown): Promise<ActionRe
   writeBackupOverrides(overrides);
   await applyBackupSettings();
   return done(await getBackupStatus());
-}
+});
 
 /** Lance une sauvegarde en fond et rend la main ; l'écran suit l'avancement avec `backupStatusAction`. */
-export async function backupNowAction(): Promise<ActionResult<null>> {
+export const backupNowAction = audited("backupNowAction", async function backupNowAction(): Promise<ActionResult<null>> {
   await assertAdmin();
   const r = await startBackupNow();
   return r.ok ? done(null) : fail(r.message);
-}
+});
 
 export async function backupStatusAction(): Promise<ActionResult<BackupStatus>> {
   await assertAdmin();

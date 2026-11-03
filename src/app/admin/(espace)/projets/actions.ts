@@ -23,6 +23,7 @@ import {
 } from "@/lib/edit/projects";
 import { fail, type ActionResult } from "@/lib/edit/result";
 import { revalidateMedia, revalidateProject, revalidateProjects } from "@/lib/revalidate";
+import { audited } from "@/lib/journal/audit";
 
 const Id = z.number().int().positive();
 const id = (v: unknown) => {
@@ -30,31 +31,31 @@ const id = (v: unknown) => {
   return parsed.success ? parsed.data : null;
 };
 
-export async function createProjectAction(input: unknown): Promise<ActionResult<{ id: number }>> {
+export const createProjectAction = audited("createProjectAction", async function createProjectAction(input: unknown): Promise<ActionResult<{ id: number }>> {
   await assertAdmin();
   const result = createProject(input);
   if (result.ok) revalidateProject(result.data.id, { structure: true });
   return result;
-}
+});
 
-export async function saveProjectAction(projectId: unknown, input: unknown): Promise<ActionResult<{ textsHeld: string | null }>> {
+export const saveProjectAction = audited("saveProjectAction", async function saveProjectAction(projectId: unknown, input: unknown): Promise<ActionResult<{ textsHeld: string | null }>> {
   await assertAdmin();
   const pid = id(projectId);
   if (!pid) return fail("Projet inconnu.");
   const result = saveProject(pid, input);
   if (result.ok) revalidateProject(pid, { structure: true });
   return result;
-}
+});
 
-export async function reorderProjectsAction(ids: unknown): Promise<ActionResult<null>> {
+export const reorderProjectsAction = audited("reorderProjectsAction", async function reorderProjectsAction(ids: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const result = reorderProjects(ids);
   if (result.ok) revalidateProjects();
   return result;
-}
+});
 
 /** Supprimer = mettre à la corbeille (restaurable 30 jours : `restoreProjectAction`). */
-export async function deleteProjectAction(
+export const deleteProjectAction = audited("deleteProjectAction", async function deleteProjectAction(
   projectId: unknown,
 ): Promise<ActionResult<{ title: string }> | { ok: false; message: string; references: ProjectReference[] }> {
   await assertAdmin();
@@ -63,37 +64,37 @@ export async function deleteProjectAction(
   const result = deleteProject(pid);
   if (result.ok) revalidateProject(pid, { structure: true });
   return result;
-}
+});
 
 /** Restaure un projet de la corbeille. */
-export async function restoreProjectAction(projectId: unknown): Promise<ActionResult<{ title: string }>> {
+export const restoreProjectAction = audited("restoreProjectAction", async function restoreProjectAction(projectId: unknown): Promise<ActionResult<{ title: string }>> {
   await assertAdmin();
   const pid = id(projectId);
   if (!pid) return fail("Projet inconnu.");
   const result = restoreProject(pid);
   if (result.ok) revalidateProject(pid, { structure: true });
   return result;
-}
+});
 
-export async function addSlotsAction(projectId: unknown, mediaIds: unknown, at?: unknown): Promise<ActionResult<{ ids: number[] }>> {
+export const addSlotsAction = audited("addSlotsAction", async function addSlotsAction(projectId: unknown, mediaIds: unknown, at?: unknown): Promise<ActionResult<{ ids: number[] }>> {
   await assertAdmin();
   const pid = id(projectId);
   if (!pid) return fail("Projet inconnu.");
   const result = addSlots(pid, mediaIds, at);
   if (result.ok) revalidateProject(pid);
   return result;
-}
+});
 
-export async function saveSlotAction(slotId: unknown, input: unknown): Promise<ActionResult<{ projectId: number }>> {
+export const saveSlotAction = audited("saveSlotAction", async function saveSlotAction(slotId: unknown, input: unknown): Promise<ActionResult<{ projectId: number }>> {
   await assertAdmin();
   const sid = id(slotId);
   if (!sid) return fail("Emplacement inconnu.");
   const result = saveSlot(sid, input);
   if (result.ok) revalidateProject(result.data.projectId);
   return result;
-}
+});
 
-export async function setSlotMediaAction(slotId: unknown, mediaId: unknown): Promise<ActionResult<{ projectId: number }>> {
+export const setSlotMediaAction = audited("setSlotMediaAction", async function setSlotMediaAction(slotId: unknown, mediaId: unknown): Promise<ActionResult<{ projectId: number }>> {
   await assertAdmin();
   const sid = id(slotId);
   if (!sid) return fail("Emplacement inconnu.");
@@ -103,22 +104,22 @@ export async function setSlotMediaAction(slotId: unknown, mediaId: unknown): Pro
     revalidateMedia();
   }
   return result;
-}
+});
 
-export async function deleteSlotAction(slotId: unknown): Promise<ActionResult<{ projectId: number }>> {
+export const deleteSlotAction = audited("deleteSlotAction", async function deleteSlotAction(slotId: unknown): Promise<ActionResult<{ projectId: number }>> {
   await assertAdmin();
   const sid = id(slotId);
   if (!sid) return fail("Emplacement inconnu.");
   const result = deleteSlot(sid);
   if (result.ok) revalidateProject(result.data.projectId);
   return result;
-}
+});
 
-export async function reorderSlotsAction(projectId: unknown, ids: unknown): Promise<ActionResult<null>> {
+export const reorderSlotsAction = audited("reorderSlotsAction", async function reorderSlotsAction(projectId: unknown, ids: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const pid = id(projectId);
   if (!pid) return fail("Projet inconnu.");
   const result = reorderSlots(pid, ids);
   if (result.ok) revalidateProject(pid);
   return result;
-}
+});
