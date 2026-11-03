@@ -63,7 +63,7 @@ const stored = (w) => ({ ...(w.surface ? { surface: w.surface } : {}), ...(w.bac
   const cd = writeFondCarte({ fond: freshZone("fond", CARD_ONLY), carte: null }, CARD_ONLY);
   ok("une seule couche (carte seule) : le Fond est une carte pleine largeur", cd.surface?.width === "full" && cd.background === null, JSON.stringify(cd));
   const ex = setSlot({ fond: { layer: "fond", extent: "full", color: "#112233" }, carte: null }, "carte", { layer: "fond", extent: "inset", margin: "m", color: "#445566" }, BG_ONLY);
-  ok("une seule couche : choisir la Carte vide le Fond (le menu le dit)", ex.fond === null && ex.carte !== null);
+  ok("composant sans carte de page (planche, case, imbriqué) : choisir la Carte GARDE le Fond (lot 105 : Fond et Carte partout)", ex.fond !== null && ex.carte !== null);
   const ex2 = setSlot({ fond: { layer: "card", extent: "full" }, carte: { layer: "fond", extent: "inset" } }, "carte", null, PAIR);
   ok("deux couches : vider la Carte garde le Fond (R9b)", ex2.fond !== null && ex2.carte === null);
   const ex3 = setSlot({ fond: { layer: "card", extent: "full" }, carte: { layer: "fond", extent: "inset" } }, "fond", null, PAIR);
@@ -97,7 +97,7 @@ const stored = (w) => ({ ...(w.surface ? { surface: w.surface } : {}), ...(w.bac
         const w = writeFondCarte(fc, caps);
         const s = stored(w);
         const back = readFondCarte(s, D);
-        const wantF = isPair(caps) ? fk : ck ? null : fk;
+        const wantF = caps.canFond ? fk : ck ? null : fk;
         const wantC = isPair(caps) ? ck : ck;
         const schemaOk = (!w.surface || readSurface(w.surface)) && (!w.background || readBackground(w.background));
         const kindOf = (z) => (z ? zoneKind(z) : null);

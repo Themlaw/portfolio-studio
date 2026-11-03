@@ -21,21 +21,29 @@
  */
 import type { z } from "zod";
 
-import { BackgroundSchema, FOND_STEPS } from "./schema";
-import { cardStyle, cardVars, type CardPalette, type CardStyle } from "./surface";
+import { BackgroundSchema, FOND_STEPS, type FondCardSchema } from "./schema";
+import { borderColor, cardStyle, cardVars, DEFAULT_BORDER_WIDTH, type CardPalette, type CardStyle } from "./surface";
 import { wallpaperVars, type WallpaperLookup } from "./wallpaper";
 
 export { BackgroundSchema };
 export type Background = z.infer<typeof BackgroundSchema>;
 export type FondStep = (typeof FOND_STEPS)[number];
+/** La carte intérieure d'un fond (lot 105). */
+export type FondCard = z.infer<typeof FondCardSchema>;
+/** Le fond sans sa carte intérieure (la carte est elle-même un fond de ce genre). */
+export const withoutCard = (bg: Background): FondCard => {
+  const { card: _c, ...rest } = bg;
+  void _c;
+  return rest as FondCard;
+};
 
 /** Marge autour du fond (undefined = bord à bord) et arrondi des coins (sans effet visible sans marge, donc ignoré). */
 export const fondInset = (bg: Background | undefined): FondStep | undefined => bg?.inset;
-export const fondRound = (bg: Background | undefined): FondStep | undefined => (bg?.inset ? bg.round : undefined);
+export const fondRound = (bg: Background | undefined): FondStep | undefined => bg?.round;
 
 /**
- * Grands composants qui reçoivent un fond. Pas l'Ouverture (elle a son propre fond, image ou vidéo), pas les anciens types
- * retirés de la palette, pas les cellules d'une grille (trop petites, la grille elle-même peut recevoir le fond).
+ * Composants qui reçoivent un fond (lot 105 : tous, y compris l'Ouverture et les anciens types encore rendus ; les cellules d'une grille aussi,
+ * le fond habille alors la case).
  */
 export const FOND_TYPES: readonly string[] = ["project-board", "video-single", "grid", "image", "free-board", "cv", "section-title", "collection-tiles", "rich-text", "contact", "page-link", "profile", "exit", "random-work"];
 export const supportsFond = (type: string): boolean => FOND_TYPES.includes(type);
@@ -60,13 +68,13 @@ export const fondColor = (bg: Background | undefined): string | undefined => (bg
 export function fondKey(bg: Background | undefined, onCard: boolean, border = ""): string | null {
   if (!bg || bg.inset) return null;
   const where = onCard ? `card|${border}` : "page";
-  const paper = bg.paper === "under" ? "|u" : "";
+  const paper = (bg.paper === "under" ? "|u" : "") + (bg.border ? `|b${bg.border.width ?? ""}${bg.border.color ?? ""}` : "") + (bg.round ? `|r${bg.round}` : "") + (bg.card ? `|c${JSON.stringify(bg.card)}` : "");
   if (bg.kind === "wallpaper") return `wp:${bg.wallpaper}:${bg.size ?? ""}:${bg.opacity ?? ""}:${bg.color ?? ""}|${where}${paper}`;
   return `${bg.color}|${where}${paper}`;
 }
 
 /** `around` : couleur (jeton ou `#rrggbb`) qui entoure un fond avec marge, quand un voisin en a une (lot 43). */
-export type FondJoin = { prev: boolean; next: boolean; around?: string };
+export type FondJoin = { prev: boolean; next: boolean; around?: string; touchPrev?: boolean; touchNext?: boolean };
 
 /**
  * Couleur qui entoure le fond avec marge n° `i` : celle du voisin d'avant, sinon d'après, s'il a un fond de couleur bord à bord
@@ -83,9 +91,18 @@ export function fondAround(bgs: readonly (Background | undefined)[], i: number):
  * `around` aux composants à marge.
  */
 export function fondJoins(keys: readonly (string | null)[], bgs?: readonly (Background | undefined)[]): FondJoin[] {
+  // Intégration v0.33.1 (lots 102 + 105) : deux fonds bord à bord de la page qui se suivent se TOUCHENT (même fusionnés ou de teintes différentes) ;
+  // le bord commun n'a pas de coin arrondi (voir look.css, `data-touch-*`). Un fond sur une carte n'en touche aucun.
+  const onPage = (k: string | null | undefined): k is string => typeof k === "string" && !k.includes("|card|");
   return keys.map((k, i) => {
     const around = bgs ? fondAround(bgs, i) : undefined;
-    return { prev: k !== null && keys[i - 1] === k, next: k !== null && keys[i + 1] === k, ...(around ? { around } : {}) };
+    return {
+      prev: k !== null && keys[i - 1] === k,
+      next: k !== null && keys[i + 1] === k,
+      ...(around ? { around } : {}),
+      ...(onPage(k) && onPage(keys[i - 1]) ? { touchPrev: true } : {}),
+      ...(onPage(k) && onPage(keys[i + 1]) ? { touchNext: true } : {}),
+    };
   });
 }
 
@@ -101,6 +118,7 @@ export function fondStyle(bg: Background, palette: CardPalette, lookup?: Wallpap
   const vars = cardVars(style);
   if (bg.kind === "wallpaper") Object.assign(vars, wallpaperVars(lookup?.(bg.wallpaper), { size: bg.size, opacity: bg.opacity }));
   if (bg.inset && around) vars["--fond-around"] = cardStyle(around, palette).bg;
+  if (bg.border) vars["--fond-bc"] = borderColor({ width: bg.border.width ?? DEFAULT_BORDER_WIDTH, ...(bg.border.color ? { color: bg.border.color } : {}) }, style, palette);
   return { style, vars };
 }
 
@@ -108,10 +126,15 @@ export function fondStyle(bg: Background, palette: CardPalette, lookup?: Wallpap
 export function fondAttributes(join: FondJoin, bg?: Background): Record<string, string> {
   return {
     "data-fond": "on",
-    ...(bg?.inset ? { "data-fond-inset": bg.inset, ...(bg.round ? { "data-fond-round": bg.round } : {}), ...(join.around ? { "data-fond-around": "" } : {}) } : {}),
+    ...(bg?.inset ? { "data-fond-inset": bg.inset, ...(join.around ? { "data-fond-around": "" } : {}) } : {}),
+    // Lot 105 : les coins se voient aussi sur un fond bord à bord ; le contour (épaisseur) vit sur le fond lui-même.
+    ...(bg?.round ? { "data-fond-round": bg.round } : {}),
+    ...(bg?.border ? { "data-fond-border": bg.border.width ?? DEFAULT_BORDER_WIDTH } : {}),
     ...(bg?.paper === "under" ? { "data-paper": "under" } : {}),
     ...(join.prev ? { "data-join-prev": "" } : {}),
     ...(join.next ? { "data-join-next": "" } : {}),
+    ...(join.touchPrev ? { "data-touch-prev": "" } : {}),
+    ...(join.touchNext ? { "data-touch-next": "" } : {}),
     ...(bg?.kind === "wallpaper" ? { "data-wallpaper": "", ...(bg.color ? {} : { "data-fond-clear": "" }) } : {}),
   };
 }

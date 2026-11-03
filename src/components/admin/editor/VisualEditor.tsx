@@ -32,7 +32,7 @@ import { PageCollectionField } from "@/app/admin/_fields";
 import PageButtonsColorField from "@/app/admin/_fields/PageButtonsColorField";
 import PageWallpaperField from "@/app/admin/_fields/PageWallpaperField";
 import { BlockEditorContext } from "@/blocks/editor-context";
-import { MAX_TILES } from "@/blocks/collection-pages";
+import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, MAX_TILES, sameL, tilesMode, type TileEdit, type TileItem } from "@/blocks/collection-pages";
 import { pickerGroups } from "@/blocks/groups";
 import { HELP_TEXT, STARTER_LIST, TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
@@ -830,9 +830,28 @@ export default function VisualEditor({
    * Entrées des collections choisies à la main, depuis la toile : ajoute une page de collection qui n'a pas encore
    * d'entrée (textes de son Titre), retire, monte ou descend une entrée. false = refusé ou sans effet.
    */
-  const tileOp = (msg: { uid: string; op: "add" | "remove" | "up" | "down" | "cover" | "cover-clear"; index?: number; pageId?: number }): boolean => {
+  const tileOp = (msg: { uid: string; op: "add" | "remove" | "up" | "down" | "cover" | "cover-clear" | "mode-manual" | "mode-auto"; index?: number; pageId?: number }): boolean => {
     const list = draftRef.current.blocks;
     const block = findBlock(list, msg.uid);
+    // Lot 105 : passer des entrées automatiques à la liste choisie à la main (réordonner, retirer) et inversement, depuis la barre du bloc (comme dans les Réglages).
+    if (block?.type === "collection-tiles" && (msg.op === "mode-manual" || msg.op === "mode-auto")) {
+      const found = context.collectionPages ?? [];
+      const props = { ...block.props } as Record<string, unknown>;
+      if (msg.op === "mode-manual") {
+        if (tilesMode(props) === "manual") return false;
+        delete props.edits;
+        props.mode = "manual";
+        props.items = itemsFromEntries(autoEntries(found, (block.props.edits as TileEdit[] | undefined) ?? []));
+      } else {
+        if (tilesMode(props) === "auto") return false;
+        const kept = editsFromItems(((block.props.items as TileItem[] | undefined) ?? []).filter((i) => i.pageId !== undefined && (COLLECTION_KEYS as readonly string[]).includes(i.collection)), found);
+        delete props.items;
+        props.mode = "auto";
+        if (kept.length) props.edits = kept;
+      }
+      setBlocks(updateBlock(list, msg.uid, (b) => ({ ...b, props })), { structural: true });
+      return true;
+    }
     if (block?.type === "collection-tiles" && msg.op === "cover") {
       // Couverture de l'entrée (lot 26) : choix d'une image de la médiathèque ou envoi, dans les deux modes.
       setTileCover({ uid: msg.uid, ...(msg.index !== undefined ? { index: msg.index } : {}), ...(msg.pageId !== undefined ? { pageId: msg.pageId } : {}) });
@@ -1361,6 +1380,29 @@ export default function VisualEditor({
     const list = draftRef.current.blocks;
     const block = findBlock(list, uid);
     const def = block && own(byType, block.type);
+    // Lot 105 : texte d'une entrée des collections en mode automatique (`tile.<page>.<champ>`) : écrit dans les modifications de tuile, attaché à la page.
+    const tilePath = block?.type === "collection-tiles" && tilesMode(block.props) === "auto" ? /^tile\.(\d{1,9})\.(eyebrow|title|intro)$/.exec(path) : null;
+    if (block && tilePath && (textLocale === "fr" || textLocale === "en")) {
+      const pageId = Number(tilePath[1]);
+      const field = tilePath[2] as "eyebrow" | "title" | "intro";
+      const page = (context.collectionPages ?? []).find((p) => p.pageId === pageId);
+      if (!page) return false;
+      const edits = [...((block.props.edits as TileEdit[] | undefined) ?? [])];
+      const at = edits.findIndex((e) => e.pageId === pageId);
+      const current: TileEdit = at >= 0 ? edits[at] : { pageId };
+      const base = current[field] ?? page[field];
+      const next = { ...base, [textLocale]: value.slice(0, 2000) };
+      const merged: TileEdit = { ...current, [field]: next };
+      if (sameL(next, page[field])) delete merged[field];
+      if (at >= 0) edits.splice(at, 1);
+      if (Object.keys(merged).length > 1) edits.push(merged);
+      const props = { ...block.props } as Record<string, unknown>;
+      if (edits.length) props.edits = edits;
+      else delete props.edits;
+      const blockedTile = Boolean(blockedRef.current);
+      setBlocks(updateBlock(list, uid, (b) => ({ ...b, props })), { structural: true });
+      return !blockedTile;
+    }
     if (!block || !def || !inlineAllowed(def.inline, path) || (textLocale !== "fr" && textLocale !== "en")) return false;
     // Accroche de l'ouverture : seul le balisage <mark>…</mark> bien formé entre dans le brouillon.
     const problem = block.type === "hero" && path === "statement" ? markedProblem(value) : null;

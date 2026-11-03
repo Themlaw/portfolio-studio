@@ -371,9 +371,9 @@ if (run("B") || run("C"))
   const pageMaxPx = await f.evaluate(() => { const p = document.createElement("i"); p.style.cssText = "display:block;position:absolute;width:var(--t-space-page-max)"; document.body.append(p); const w = p.getBoundingClientRect().width; p.remove(); return w; });
   const expectedMx = Math.min(gutterPx, gutterPx / 2 + Math.max(0, (inset.vw - pageMaxPx) / 2));
   ok("B5 « En retrait » : marge latérale = gouttière du thème (rapprochée du bord sur un écran étroit, lot 47b)", inset.width === "inset" && Math.abs(inset.marginLeft - expectedMx) < 9, `${JSON.stringify(inset)} gouttière ${gutterPx}`);
-  await menu.locator('[data-corners="square"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-corners="square"]').click();
   ok("B6 « Coins droits » : rayon nul", (await cardInfo(f, uidFirst)).radius === 0);
-  await menu.locator('[data-corners="m"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-corners="m"]').click();
   const round = await cardInfo(f, uidFirst);
   ok("B6 Coins « Moyen » : rayon de 20 px (≥ 12 px)", round.radius >= 12, String(round.radius));
   ok("B6 brouillon : width = inset, corners = m", await waitFor(() => inkBlocks()[0]?.props.surface?.width === "inset" && inkBlocks()[0].props.surface.corners === "m"), JSON.stringify(inkBlocks()[0]?.props.surface));
@@ -433,7 +433,7 @@ if (run("B") || run("C"))
   await menu.locator('[data-token="ink"]').click();
   await menu.locator('[data-testid="fond-section-fond"] [data-kind="color"]').click();
   await menu.locator('[data-testid="fond-section-fond"] [data-token="ink"]').click();
-  await menu.locator('[data-corners="square"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-corners="square"]').click();
   const inkInfo = await cardInfo(f, uidSecond);
   ok("B9 deuxième rubrique : carte sombre, pleine largeur (lot 100 : coins du thème)", same(rgbOf(inkInfo.bg), rgbOf(themeRgb.ink)) && inkInfo.width === "full", JSON.stringify(inkInfo));
   const c2 = await colors(f.locator(`[data-edit-block="${uidSecond}"] [data-inline="paragraphs.0"]`));
@@ -592,7 +592,7 @@ if (run("C"))
   await f.locator(`[data-edit-block="${uidFirst}"] section`).first().click({ position: { x: 40, y: 10 } });
   await f.locator(".pe-tools [data-testid=\"fond-button\"]").click();
   const menu = f.locator('[data-testid="fond-menu"]');
-  ok("C6 le popover relit la carte : interrupteur allumé, couleur perso, en retrait, coins arrondis", (await menu.locator('[data-testid="fond-section-carte"] [data-kind][aria-checked=true]').getAttribute("data-kind")) !== "none" && (await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-corners="m"]').getAttribute("aria-checked")) === "true");
+  ok("C6 le popover relit la carte : interrupteur allumé, couleur perso, en retrait, coins arrondis", (await menu.locator('[data-testid="fond-section-carte"] [data-kind][aria-checked=true]').getAttribute("data-kind")) !== "none" && (await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-testid="fond-section-carte"] [data-corners="m"]').getAttribute("aria-checked")) === "true");
   await page.screenshot({ path: path.join(SHOTS, "c6-popover-relu.png") });
   // Retirer la carte : « Aucun ».
   await menu.locator('[data-testid="fond-section-carte"] [data-kind="none"]').click();

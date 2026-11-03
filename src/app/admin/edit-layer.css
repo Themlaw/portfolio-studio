@@ -2488,6 +2488,17 @@ html[data-edit-mode] .pe-bitem-bar .pe-seg button { height: 28px; border-radius:
 html[data-edit-mode] .pe-bitem:has(.media-caption) {
   padding-bottom: 18px;
 }
+/* Lot 102 : un composant à FOND (couleur ou papier peint) garde cette place DANS son fond. Dehors, elle ouvrait une bande de 18 px de fond de page
+   entre deux fonds qui se touchent (sous la zone des légendes), qu'on ne voit pas en public, et coupait la trame d'une chaîne de fonds fusionnés. */
+html[data-edit-mode] .pe-bitem:has(.media-caption):has(> .fond-bloc[data-fond="on"]) {
+  padding-bottom: 0;
+}
+html[data-edit-mode] .pe-bitem:has(.media-caption) > .fond-bloc[data-fond="on"] {
+  padding-bottom: calc(var(--section-gap) + 18px);
+}
+html[data-edit-mode] .pe-bitem:has(.media-caption) > .fond-bloc[data-fond="on"][data-join-next] {
+  padding-bottom: 18px;
+}
 
 /* ---- Planche libre (lot 42) : zone, repères, poignées ---------------------------------------------------------------------- */
 [data-edit-mode] .free-board[data-edit-free] {

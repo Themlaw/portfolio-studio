@@ -678,7 +678,7 @@ export function fondState(uid: string): Background | null {
 }
 
 const fondOriginal = new WeakMap<Element, { attrs: Record<string, string | null>; style: string | null }>();
-const FOND_ATTRS = ["data-fond", "data-fond-inset", "data-fond-round", "data-fond-around", "data-join-prev", "data-join-next", "data-edit-background", "data-wallpaper", "data-fond-clear", "data-paper"];
+const FOND_ATTRS = ["data-fond", "data-fond-inset", "data-fond-round", "data-fond-border", "data-fond-around", "data-join-prev", "data-join-next", "data-touch-prev", "data-touch-next", "data-edit-background", "data-wallpaper", "data-fond-clear", "data-paper"];
 
 /**
  * Fusion des voisins recalculée sur la page affichée (aperçu d'un fond ou d'une carte) : mêmes règles que le serveur
@@ -709,9 +709,11 @@ export function refreshFondJoins(uid: string) {
     p.wrap?.removeAttribute("data-fond-around");
     for (const el of [p.wrap, p.card]) {
       if (!el) continue;
-      for (const a of ["data-join-prev", "data-join-next"]) el.removeAttribute(a);
+      for (const a of ["data-join-prev", "data-join-next", "data-touch-prev", "data-touch-next"]) el.removeAttribute(a);
       if (joins[i].prev) el.setAttribute("data-join-prev", "");
       if (joins[i].next) el.setAttribute("data-join-next", "");
+      if (el === p.wrap && joins[i].touchPrev) el.setAttribute("data-touch-prev", "");
+      if (el === p.wrap && joins[i].touchNext) el.setAttribute("data-touch-next", "");
     }
   });
 }
@@ -720,12 +722,37 @@ export function refreshFondJoins(uid: string) {
  * Fond posé (ou retiré) depuis la toile : montré tout de suite (attributs et variables de l'enveloppe, fusion des voisins),
  * gardé jusqu'à l'acquittement, rétabli si l'écriture est refusée — même principe que `previewSurface`.
  */
+/** Le panneau intérieur (la Carte d'un composant, lot 105) de l'enveloppe du fond : toujours là sur la toile, éteint sans carte. */
+const fondPanel = (el: HTMLElement): HTMLElement | null => el.querySelector<HTMLElement>(":scope > .fond-in > .fond-bloc[data-fond-panel]");
+function paintPanel(panel: HTMLElement, card: Background["card"] | undefined) {
+  if (!fondOriginal.has(panel)) fondOriginal.set(panel, { attrs: Object.fromEntries(FOND_ATTRS.map((a) => [a, panel.getAttribute(a)])), style: panel.getAttribute("style") });
+  for (const a of FOND_ATTRS) panel.removeAttribute(a);
+  panel.removeAttribute("style");
+  if (!card) return panel.setAttribute("data-fond", "off");
+  const bg = { ...card, inset: card.inset ?? "m" } as Background;
+  for (const [k, v] of Object.entries(fondAttributes({ prev: false, next: false }, bg))) panel.setAttribute(k, v);
+  for (const [k, v] of Object.entries(fondStyle(bg, canvasPalette(), wallpaperLookup).vars)) panel.style.setProperty(k, v);
+}
+function restorePanel(panel: HTMLElement | null) {
+  const before = panel && fondOriginal.get(panel);
+  if (!panel || !before) return;
+  fondOriginal.delete(panel);
+  for (const [a, v] of Object.entries(before.attrs)) {
+    if (v === null) panel.removeAttribute(a);
+    else panel.setAttribute(a, v);
+  }
+  if (before.style === null) panel.removeAttribute("style");
+  else panel.setAttribute("style", before.style);
+}
+
 export function previewFond(uid: string, background: Background | null, seq: number) {
   setOverlay(`fond:${uid}`, seq, {
     data: { background },
     apply: () => {
       const el = fondWrapper(uid);
       if (!el) return;
+      const panel = fondPanel(el);
+      if (panel) paintPanel(panel, background?.card);
       if (!fondOriginal.has(el)) fondOriginal.set(el, { attrs: Object.fromEntries(FOND_ATTRS.map((a) => [a, el.getAttribute(a)])), style: el.getAttribute("style") });
       for (const a of FOND_ATTRS) el.removeAttribute(a);
       el.removeAttribute("style");
@@ -739,6 +766,7 @@ export function previewFond(uid: string, background: Background | null, seq: num
     },
     clear: () => {
       const el = fondWrapper(uid);
+      if (el) restorePanel(fondPanel(el));
       const before = el && fondOriginal.get(el);
       if (!el || !before) return;
       fondOriginal.delete(el);
