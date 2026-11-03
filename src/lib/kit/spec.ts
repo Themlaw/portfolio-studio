@@ -305,6 +305,12 @@ const icon = (key: string, layer: string, aliases: string[], v1: { x: number; y:
   crop: false,
 });
 
+/**
+ * Lot 99 : le trait (barre de défilement des planches) et les flèches des bandes sont affichés EXACTEMENT comme dessinés (couleurs,
+ * dégradés, saturation), pas en masque teinté. Le fichier en couleurs est gardé à côté du masque (soulignement et filets du site).
+ */
+export const keepsDrawnColors = (slot: Pick<SlotSpec, "id" | "kind">): boolean => slot.kind === "stroke" || slot.id === "icones/fleche-gauche" || slot.id === "icones/fleche-droite";
+
 export const SLOTS: SlotSpec[] = [
   planSlot(1, 1600, false),
   planSlot(2, 900, true),

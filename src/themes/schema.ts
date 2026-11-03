@@ -171,6 +171,12 @@ const kitImage = z
     thumbhash: z.string().regex(/^[A-Za-z0-9+/]{8,64}={0,2}$/).optional(),
     /** Signature en couleurs (lot 49) : affichée telle quelle, jamais en masque teinté par le thème. */
     colors: z.literal(true).optional(),
+    /**
+     * Lot 99 : le dessin en COULEURS D'ORIGINE (AVIF + WebP), gardé à côté du masque pour le trait (barre de défilement) et les flèches :
+     * le masque teinté (svg / bitmap) ne garde que la forme, donc la barre était aplatie en une couleur et les flèches enfermées dans
+     * un carré. Absent (kit importé avant le lot 99) : le masque teinté, comme avant.
+     */
+    color: z.object({ avif: kitPath("avif"), webp: kitPath("webp") }).strict().optional(),
   })
   .strict()
   .refine((v) => Boolean(v.svg || (v.avif && v.webp)), "SVG, ou AVIF et WebP");

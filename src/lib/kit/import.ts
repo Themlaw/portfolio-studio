@@ -28,7 +28,7 @@ import { emptyFrameHash, findReference, frameHash, writePreview, type KitManifes
 import { flattenSlot, freeRaw, layoutOf, resolveDecor, resolveSlots, SlotRefusal, treeProblem, treeStats, type TreeStats } from "./resolve";
 import { DEFAULT_LIMITS } from "./limits";
 import { compareSwatches, cursorWarning, encodeCursor, hotspotCss, readHotspot, readSwatchSlot, type ColorReport, type SwatchRead } from "./extras";
-import { ALL_SLOTS, CURSOR_DEFAULT_HOTSPOT, CURSOR_SLOTS, decorSlot, drawScale, frameOf, HERO, KIT_FILES, KIT_ROLES, MAX_DECOR_PLANS, roleOfSize, SLOTS, slotsOfFile, slotsOfRole, SWATCH_SLOTS, type KitRole, type Layout, type SlotSpec } from "./spec";
+import { ALL_SLOTS, CURSOR_DEFAULT_HOTSPOT, CURSOR_SLOTS, decorSlot, drawScale, frameOf, HERO, keepsDrawnColors, KIT_FILES, KIT_ROLES, MAX_DECOR_PLANS, roleOfSize, SLOTS, slotsOfFile, slotsOfRole, SWATCH_SLOTS, type KitRole, type Layout, type SlotSpec } from "./spec";
 
 /**
  * Fidélité exigée d'un tracé (mesurée sur kit-A, phase 6c) : écart moyen du
@@ -92,6 +92,8 @@ export type SlotReport = {
   /** Poids servi (format retenu ; AVIF : sans le repli WebP). */
   bytes?: number;
   files?: string[];
+  /** Lot 99 : trait (barre de défilement) et flèches : le dessin en COULEURS D'ORIGINE (AVIF + WebP), en plus du masque teinté de `files`. */
+  colorFiles?: string[];
   thumbhash?: string;
   /** Aperçu « après » (PNG réduit, dans le dossier de sortie). */
   preview?: string;
@@ -553,7 +555,9 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
     const files: string[] = [];
     if (opts.keepCrops) await sharp(img.data, { raw: { width: img.width, height: img.height, channels: 4 } }).png().toFile(path.join(outDir, `${base}.source.png`));
 
-    const { avif, webp } = await encodeBitmap(img, slot.kind === "signature" || slot.kind === "tile" || slot.kind === "stroke" || slot.kind === "nine" || slot.kind === "appicon");
+    // Lot 99 : le trait (barre de défilement) et les flèches gardent AUSSI leurs couleurs : un masque teinté ne garde que la forme.
+    const keepsColors = keepsDrawnColors(slot);
+    const { avif, webp } = await encodeBitmap(img, slot.kind === "signature" || slot.kind === "tile" || slot.kind === "stroke" || slot.kind === "nine" || slot.kind === "appicon" || keepsColors);
     report.candidates = { avif: avif.length, webp: webp.length };
     const tex = textureStats(img);
     report.textured = { coverage8: Math.round(tex.coverage8 * 1000) / 1000, distinct: tex.distinct };
@@ -582,7 +586,13 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
     }
     if (slot.mono && !colored) {
       const m = monoInfo!;
-      if (!m.mono) warn("Plusieurs couleurs : seule la forme est gardée (elle prend la couleur du thème).");
+      if (keepsColors) {
+        report.messages.push(
+          slot.kind === "stroke"
+            ? "La barre de défilement des planches garde tes couleurs d'origine, exactement comme dessinées. Le soulignement et les filets du site ne gardent que la forme (teinte du thème)."
+            : "La flèche garde ses couleurs d'origine, à la taille dessinée, sans carré ajouté autour.",
+        );
+      } else if (!m.mono) warn("Plusieurs couleurs : seule la forme est gardée (elle prend la couleur du thème).");
       const v = await vectorizeLayer(img, "mask", undefined, FINE, FULL);
       report.candidates.svg = Buffer.byteLength(v.svg);
       report.candidates.svgPaths = v.paths;
@@ -625,6 +635,9 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
     await writeFile(path.join(outDir, `${base}.webp`), webp);
     if (report.chosen === "avif" || report.chosen === "avif-mask") files.push(`${base}.avif`, `${base}.webp`);
     report.files = files;
+    if (keepsColors) {
+      report.colorFiles = [`${base}.avif`, `${base}.webp`];
+    }
 
     if (slot.kind === "plan") report.thumbhash = await thumbHashOf(img);
     done();

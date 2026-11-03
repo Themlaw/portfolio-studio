@@ -391,7 +391,7 @@ async function drawnRaster(slot: SlotSpec, asset: Asset, theme: Theme): Promise<
   const w = whole ? W : Math.min(W, Math.round(asset.w * k));
   const h = whole ? H : Math.min(H, Math.round(asset.h * k));
   let piece = await renderFile(asset.file, w, h);
-  if (slot.mono) {
+  if (slot.mono && !asset.colored) {
     const alpha = Buffer.alloc(w * h);
     for (let i = 0; i < alpha.length; i++) alpha[i] = piece[i * 4 + 3];
     const hex = slot.kind === "stroke" ? theme.tokens.color.primary : theme.tokens.color.ink;

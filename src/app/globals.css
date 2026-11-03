@@ -364,10 +364,8 @@
     scrollbar-width: none;
     -ms-overflow-style: none;
     padding-block: var(--rail-room);
-    /* Hauteur suivant les cases vues (StripRail, lot 67, PUB-03) ; absente = hauteur naturelle. */
-    height: var(--strip-rail-h, auto);
-    /* Lot 77 : douce (0,4 s au moins) pour que ce qui suit la bande ne saute pas quand une image plus haute arrive. */
-    transition: height max(var(--dur-fast), 0.4s) var(--ease-soft);
+    /* Lot 99 : hauteur CONSTANTE (la plus haute case, légende comprise : celle de la plus haute des légendes est réservée), jamais
+       recalculée au défilement : plus de saut de ce qui suit la bande, ni des flèches (lots 67 et 77 la resserraient sur les cases vues). */
     /* Fondu : masque dégradé (alpha seul) — l'image se dissout dans ce qui
        est derrière la bande (fond, texture, papier du kit), sans coupe nette.
        Bords pilotés par deux propriétés (@property, medias.css) : chaque
@@ -426,7 +424,7 @@
      Réduite, elle est centrée dans la hauteur de la bande ; sa légende reste dessous, à sa largeur. « À faire défiler » : comme avant. */
   .strip-frame[data-pano="fit"] {
     --fit-h: min(var(--strip-h), calc(var(--strip-vis) / var(--ir, 1)));
-    /* --strip-band (StripRail, lot 67) : hauteur des images VUES quand la bande se réduit à elles (panorama seul). */
+    /* --strip-band (StripRail, lot 99) : hauteur de la plus haute image de la bande (constante) ; un panorama réduit y est centré. */
     margin-top: calc((var(--strip-band, var(--strip-h)) - var(--fit-h)) / 2);
   }
 
@@ -725,8 +723,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: var(--strip-nav-size);
-    height: var(--strip-nav-size);
+    /* Lot 99 : jamais sous 32 px à la souris, 40 px au doigt (flèche du thème). */
+    width: max(var(--strip-nav-size), 32px);
+    height: max(var(--strip-nav-size), 32px);
     border: 1px solid var(--strip-nav-line);
     border-radius: var(--strip-nav-radius);
     background: var(--strip-nav-bg);
@@ -773,6 +772,13 @@
   .strip-nav:focus-visible {
     outline: 2px solid var(--color-primary);
     outline-offset: 3px;
+  }
+
+  @media (pointer: coarse) {
+    .strip-nav {
+      width: max(var(--strip-nav-size), 40px);
+      height: max(var(--strip-nav-size), 40px);
+    }
   }
 
   @media (hover: none) {
