@@ -45,11 +45,11 @@ export default function SettingsForm({ initial, pending }: { initial: AdminSetti
     {pending && (
       <div className="a-notice" role="status" data-testid="site-draft-notice">
         <p>
-          <strong>Modifications en attente dans l&apos;éditeur de la page « {pending.pageTitle} ».</strong> Le nom, le métier, les réseaux, l&apos;en-tête ou le pied de page y ont été
-          changés mais ne sont pas encore en ligne : ils le seront quand tu publieras cette page. Tant qu&apos;elles existent, enregistrer ici est refusé.
+          <strong>Des modifications du site sont en attente dans l&apos;éditeur.</strong> Le menu, l&apos;en-tête, le pied de page ou les styles y ont été changés mais ne sont pas
+          encore en ligne : ils le seront quand tu publieras n&apos;importe quelle page. Les champs ci-dessous montrent déjà ce qui est en attente pour le nom, le métier, l&apos;e-mail, la mention et les réseaux : les enregistrer ici les met en ligne tout de suite. Le reste des modifications en attente (menu, styles, logo) ne change pas.
         </p>
         <Link className="a-btn a-btn-small" href={`/admin/pages/${pending.pageId}/editer`}>
-          Ouvrir l&apos;éditeur de cette page
+          Ouvrir l&apos;éditeur
         </Link>
       </div>
     )}

@@ -25,7 +25,7 @@
  *   supprimer, réglages), composant choisi d'un clic ; tout passe par des messages à l'éditeur.
  */
 import { NATIVE_SCROLL } from "@/components/rail-step";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { acceptToCanvas, EDIT_MSG, type DropTargetInfo, type FromCanvas, type Ghost } from "@/lib/edit/protocol";
@@ -317,6 +317,13 @@ export default function BoardLayer({
   onPickerClose: () => void;
 }) {
   const [tick, setTick] = useState(0);
+  // Largeur de la barre de l'image survolée (mesurée : elle dépend de ses boutons), pour qu'elle ne passe jamais sous la barre du composant.
+  const slotToolsRef = useRef<HTMLDivElement>(null);
+  const [slotToolsW, setSlotToolsW] = useState(0);
+  useLayoutEffect(() => {
+    const w = slotToolsRef.current?.offsetWidth ?? 0;
+    if (Math.abs(w - slotToolsW) > 1) setSlotToolsW(w);
+  });
   const [hover, setHover] = useState<SlotRef | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<SlotRef | null>(null);
   /** Image dont la fenêtre « Cadre » (lot 34) est ouverte : la barre de cette image reste affichée tant qu'elle l'est. */
@@ -577,6 +584,16 @@ export default function BoardLayer({
     const original = el.textContent ?? "";
     setText({ el, kind, board, key: slotEl?.dataset.editSlot, field, original, value: original, rect: { ...rect, width: Math.max(rect.width, 160) }, style });
   }, [announce]);
+
+  // Saisie d'un texte de la planche : la barre « Aa » s'ouvre d'elle-même et se ferme avec elle (LookLayer).
+  const typing = text?.el;
+  useEffect(() => {
+    if (!typing) return;
+    window.dispatchEvent(new CustomEvent("pe:text-edit", { detail: { el: typing } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent("pe:text-end", { detail: { el: typing } }));
+    };
+  }, [typing]);
 
   const finishText = useCallback((commit: boolean, value?: string) => {
     const t = textRef.current;
@@ -1054,6 +1071,14 @@ export default function BoardLayer({
   const active = frameSlot ?? bgSlot ?? hover ?? focusSlot ?? selectedSlot;
   const activeEl = active ? findSlot(active) : null;
   const activeBox = activeEl ? boxOf(activeEl.querySelector(".strip-media, .pe-empty-box") ?? activeEl) : null;
+  // Composant de planche : la barre du composant (poignée, « Fond & carte », flèches) occupe le haut, à droite, et s'allonge avec ses boutons.
+  // La barre de l'image ne doit JAMAIS passer dessous : elle recouvrait la poignée dès que la barre du composant s'allongeait, et on ne
+  // pouvait plus glisser le composant. Elle ne bouge que si elles se chevauchent : elle s'ouvre alors juste sous la barre du composant.
+  const itemBar = activeEl?.closest(".pe-bitem")?.querySelector<HTMLElement>(":scope > .pe-bitem-bar");
+  const itemBarBox = itemBar ? boxOf(itemBar) : null;
+  const slotToolsLeft = activeBox ? Math.max(window.scrollX + 4, activeBox.left + 8) : 0;
+  const slotToolsOnBar = Boolean(activeBox && itemBarBox && slotToolsLeft + slotToolsW > itemBarBox.left - 4 && activeBox.top + 8 < itemBarBox.top + itemBarBox.height + 4);
+  const slotToolsTop = activeBox ? (slotToolsOnBar && itemBarBox ? itemBarBox.top + itemBarBox.height + 6 : activeBox.top + 8) : 0;
   const fillGhosts = ghosts.filter((g) => g.slot && g.phase !== "done");
   const newBoards = [...document.querySelectorAll<HTMLElement>("[data-edit-board-new]")]
     .map((el) => ({ uid: el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "", box: boxOf(el) }))
@@ -1195,11 +1220,12 @@ export default function BoardLayer({
 
       {activeBox && active && !marker && !dragActive && (
         <div
+          ref={slotToolsRef}
           className="pe-slot-tools"
           role="toolbar"
           aria-label={active.empty ? "Place gardée" : "Image du projet"}
           // Dans l'image, à gauche : jamais hors de l'écran, même sur une image étroite.
-          style={{ top: activeBox.top + 8, left: Math.max(window.scrollX + 4, activeBox.left + 8), maxWidth: Math.max(160, activeBox.width - 16) }}
+          style={{ top: slotToolsTop, left: slotToolsLeft, maxWidth: Math.max(160, activeBox.width - 16) }}
           onPointerEnter={() => setHover(active)}
         >
           <button type="button" onClick={() => post({ kind: "slot-op", board: active.board, key: active.key, op: "replace" })}>

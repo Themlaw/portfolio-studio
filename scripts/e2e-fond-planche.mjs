@@ -125,8 +125,8 @@ try {
   }
   for (const i of [1, 2, 0]) {
     const menu = await setFond(i);
-    await menu.locator('[data-kind="color"]').click();
-    ok(`A2 composant ${i + 1} : fond enregistré dans le brouillon du projet`, await waitFor(() => bgOf(draft(), i)?.kind === "color" && bgOf(draft(), i)?.color === "bgDeep"), JSON.stringify(draft()[i]?.props));
+    await menu.locator('[data-testid="fond-section-fond"] [data-kind="color"]').click();
+    ok(`A2 composant ${i + 1} : fond enregistré (lot 100 : couleur « Cartes et encadrés », plus le fond profond jaune) dans le brouillon du projet`, await waitFor(() => bgOf(draft(), i)?.kind === "color" && bgOf(draft(), i)?.color === "surface"), JSON.stringify(draft()[i]?.props));
     await page.keyboard.press("Escape");
     await settled();
   }
@@ -165,7 +165,7 @@ try {
 
   /* ---- C. Publication, retrait, Annuler ---- */
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  ok("C1 publié : fonds dans la suite du projet", await waitFor(() => [0, 1, 2].every((i) => bgOf(published(), i)?.color === "bgDeep") && project().draft_layout === null), JSON.stringify(project()));
+  ok("C1 publié : fonds dans la suite du projet", await waitFor(() => [0, 1, 2].every((i) => bgOf(published(), i)?.color === "surface") && project().draft_layout === null), JSON.stringify(project()));
   await sleep(1500);
   const html = boardHtml(await publicHtml("/fr"));
   ok("C2 public : trois enveloppes de fond dans la planche, fusionnées, sans repère d'édition", (html.match(/class="zone fond-bloc"/g) ?? []).length === 3 && (html.match(/data-join-next/g) ?? []).length === 2 && (html.match(/data-join-prev/g) ?? []).length === 2 && !html.includes("data-edit-") && !html.includes("pe-bitem"), `${(html.match(/class="zone fond-bloc"/g) ?? []).length} enveloppes`);
@@ -193,8 +193,8 @@ try {
   await fr1.locator('[data-edit-bitem-op="fond"]').click();
   const menu = f.locator('[data-testid="fond-menu"]');
   await menu.waitFor({ timeout: 20000 });
-  ok("C4 la fenêtre montre la couleur actuelle (nature « Couleur » cochée)", (await menu.locator('[data-kind="color"]').getAttribute("aria-checked")) === "true");
-  await menu.locator('[data-kind="none"]').click();
+  ok("C4 la fenêtre montre la couleur actuelle (nature « Couleur » cochée)", (await menu.locator('[data-testid="fond-section-fond"] [data-kind="color"]').getAttribute("aria-checked")) === "true");
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').click();
   ok("C5 « Aucun » : `background` retiré du brouillon", await waitFor(() => draft().length === 3 && bgOf(draft(), 1) === undefined && bgOf(draft(), 0) !== undefined), JSON.stringify(draft().map((i) => i.props?.background)));
   await page.keyboard.press("Escape");
   await settled();
@@ -203,7 +203,7 @@ try {
   await page.keyboard.press("Control+z");
   // Revenu à la suite publiée, le brouillon du projet n'a plus de raison d'être (surcouche vidée) : on lit la suite effective.
   const effective = () => json(project().draft_layout) ?? published();
-  ok("C7 Annuler : le fond revient (Annuler / Rétablir de la planche)", await waitFor(() => bgOf(effective(), 1)?.color === "bgDeep"), JSON.stringify(effective().map((i) => i.props?.background)));
+  ok("C7 Annuler : le fond revient (Annuler / Rétablir de la planche)", await waitFor(() => bgOf(effective(), 1)?.color === "surface"), JSON.stringify(effective().map((i) => i.props?.background)));
   await settled();
   // Capture : une couleur bien visible sur la bande et le premier composant (fusionnés), le troisième garde le fond du thème.
   for (const i of [0, 1]) {

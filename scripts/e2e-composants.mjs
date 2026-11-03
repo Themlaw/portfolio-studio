@@ -217,7 +217,7 @@ if (run("C"))
     ok("C5 bouton « Carte » disponible sur cet ancien composant", await fond.waitFor({ timeout: 30000 }).then(() => true, () => false));
     await fond.click();
     const menu = f.locator('[data-testid="fond-menu"]');
-    await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
+    await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
     await menu.locator('[data-token="primary"]').click();
     ok("C6 carte de couleur appliquée : brouillon et toile", (await waitFor(() => draftOf(pageId).blocks.find((b) => b.uid === target.uid)?.props.surface?.color === "primary")) && (await f.locator(`[data-edit-block="${target.uid}"] .surface-card[data-surface="on"]`).count()) === 1, JSON.stringify(draftOf(pageId).blocks.find((b) => b.uid === target.uid)?.props.surface));
     await f.locator("body").click({ position: { x: 5, y: 5 } }).catch(() => {});

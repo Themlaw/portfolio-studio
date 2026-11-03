@@ -63,7 +63,7 @@ test("rendu : frameStyle, un seul point, exactement le choix", () => {
   assert.deepEqual(frameStyle({ kind: "none" }), { attrs: { "data-frame": "none" }, style: {} });
   assert.deepEqual(frameStyle({ kind: "theme" }), { attrs: { "data-frame": "theme" }, style: {} });
   assert.deepEqual(frameStyle({ kind: "band" }), { attrs: { "data-frame": "band", "data-frame-w": "moyen" }, style: { "--frame-color": "var(--color-ink)" } });
-  assert.deepEqual(frameStyle({ kind: "band", width: "fin", color: "secondary" }), { attrs: { "data-frame": "band", "data-frame-w": "fin" }, style: { "--frame-color": "var(--color-secondary)" } });
+  assert.deepEqual(frameStyle({ kind: "band", width: "fin", color: "secondary" }), { attrs: { "data-frame": "band", "data-frame-w": "fin" }, style: { "--frame-color": "var(--t-color-secondary)" } });
   assert.deepEqual(frameStyle({ kind: "custom", id: "bois" }), { attrs: { "data-frame": "custom", "data-frame-id": "bois" }, style: {} });
   // Ancienne forme : même rendu qu'avant pour un choix explicite.
   assert.deepEqual(frameStyle({ size: "thick", color: "#000000" }), { attrs: { "data-frame": "band", "data-frame-w": "epais" }, style: { "--frame-color": "#000000" } });

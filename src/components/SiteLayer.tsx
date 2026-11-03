@@ -75,7 +75,6 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
   const [hover, setHover] = useState<Hover>(null);
   const [headerNear, setHeaderNear] = useState(false);
   const [pages, setPages] = useState<{ id: number; title: string }[]>([]);
-  const [locked, setLocked] = useState<string | null>(null);
   const [pop, setPop] = useState<PopState>(null);
   const [drag, setDrag] = useState<{ kind: "nav" | "social"; from: number; to: number; marker: Rect } | null>(null);
   /** Glisser en cours : la barre d'outils qui porte la poignée reste montée (sinon la capture du pointeur est perdue). */
@@ -95,7 +94,6 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
     const onMessage = (event: MessageEvent) => {
       const msg = acceptToCanvas(event, window.location.origin, window.parent);
       if (msg?.kind === "pages") setPages(msg.list);
-      else if (msg?.kind === "site-lock") setLocked(msg.page);
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
@@ -267,13 +265,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
 
   return createPortal(
     <div className="pe-layer pe-site-layer" lang="fr">
-      {locked && (headerSelected || selected === "site-footer") && (
-        <p className="pe-site-locked" style={{ top: (header ? rectOf(header).top : 0) + 4, left: 16 }}>
-          En-tête en cours de modification sur la page « {locked} » : publie-la ou abandonne-la d&apos;abord.
-        </p>
-      )}
-
-      {hover && hovBox && !locked && (
+      {hover && hovBox && (
         <div
           className="pe-item-tools"
           data-kind={hover.kind}
@@ -333,7 +325,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
 
       {drag && <div className="pe-drop pe-drop-cursor" style={drag.marker} aria-hidden="true" />}
 
-      {addNavBox && !locked && (headerSelected || headerNear || pop?.kind === "nav-add") && (
+      {addNavBox && (headerSelected || headerNear || pop?.kind === "nav-add") && (
         <button
           type="button"
           className="pe-add-chip"
@@ -351,8 +343,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
         </button>
       )}
 
-      {!locked &&
-        socialLists.map((list, i) => {
+      {socialLists.map((list, i) => {
           const r = rectOf(list);
           return (
             <button key={i} type="button" className="pe-add-chip" data-testid="social-add" aria-haspopup="menu" aria-expanded={pop?.kind === "social-add"} style={{ top: r.top + r.height + 6, left: r.left }} onClick={(e) => setPop({ kind: "social-add", anchor: e.currentTarget })}>

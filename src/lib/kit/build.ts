@@ -371,7 +371,7 @@ export type BuildOptions = {
   siteName: string;
   manifestDir?: string;
   compositeFile?: string;
-  assets?: Record<string, { file: string; w: number; h: number; x?: number; y?: number }>;
+  assets?: Record<string, { file: string; w: number; h: number; x?: number; y?: number; colored?: true }>;
 };
 
 /**
@@ -386,7 +386,7 @@ async function kitAssetRaster(slot: SlotSpec, asset: NonNullable<BuildOptions["a
   const w = whole ? W : Math.min(W, asset.w);
   const h = whole ? H : Math.min(H, asset.h);
   let img = sharp(await readFile(asset.file), { density: 144 }).resize(w, h, { fit: "fill" }).ensureAlpha();
-  if (slot.mono) {
+  if (slot.mono && !asset.colored) {
     const alpha = await img.extractChannel(3).raw().toBuffer();
     const hex = slot.kind === "stroke" ? theme.tokens.color.primary : theme.tokens.color.ink;
     img = sharp({ create: { width: w, height: h, channels: 3, background: hex } }).joinChannel(alpha, { raw: { width: w, height: h, channels: 1 } });

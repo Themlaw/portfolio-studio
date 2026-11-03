@@ -2,15 +2,16 @@
 import { assertAdmin } from "@/lib/auth/guard";
 import { cancelUpload } from "@/lib/upload/chunks";
 import { uploadStep } from "@/lib/upload/http";
+import { auditedRoute } from "@/lib/journal/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export const DELETE = auditedRoute("upload-cancel", async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { user } = await assertAdmin();
   const { id } = await params;
   return uploadStep(request, async () => {
     await cancelUpload(id, user.id);
     return {};
   });
-}
+});

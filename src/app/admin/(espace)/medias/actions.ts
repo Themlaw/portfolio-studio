@@ -11,20 +11,21 @@ import { listPendingUploads, type UploadStatus } from "@/lib/upload/chunks";
 import { fail, type ActionResult } from "@/lib/edit/result";
 import { revalidateMedia, revalidateProjects } from "@/lib/revalidate";
 import { addTagsToMedia, deleteTag, deleteUnusedTags, listTags, mergeTags, removeTagsFromMedia, renameTag, setMediaTags, type TagRow } from "@/lib/tags";
+import { audited } from "@/lib/journal/audit";
 
 const Id = z.number().int().positive();
 
-export async function saveMediaAltAction(mediaId: unknown, alt: unknown): Promise<ActionResult<null>> {
+export const saveMediaAltAction = audited("saveMediaAltAction", async function saveMediaAltAction(mediaId: unknown, alt: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const parsed = Id.safeParse(mediaId);
   if (!parsed.success) return fail("Image inconnue.");
   const result = saveMediaAlt(parsed.data, alt);
   if (result.ok) revalidateMedia();
   return result;
-}
+});
 
 /** Supprimer = mettre à la corbeille (restaurable 30 jours : `restoreMediaAction`) ; refusé si le média sert. */
-export async function deleteMediaAction(
+export const deleteMediaAction = audited("deleteMediaAction", async function deleteMediaAction(
   mediaId: unknown,
 ): Promise<ActionResult<{ name: string }> | { ok: false; message: string; references: MediaUseRef[] }> {
   await assertAdmin();
@@ -36,10 +37,10 @@ export async function deleteMediaAction(
     revalidateProjects();
   }
   return result;
-}
+});
 
 /** Restaure un média de la corbeille. */
-export async function restoreMediaAction(mediaId: unknown): Promise<ActionResult<{ name: string }>> {
+export const restoreMediaAction = audited("restoreMediaAction", async function restoreMediaAction(mediaId: unknown): Promise<ActionResult<{ name: string }>> {
   await assertAdmin();
   const parsed = Id.safeParse(mediaId);
   if (!parsed.success) return fail("Image inconnue.");
@@ -49,7 +50,7 @@ export async function restoreMediaAction(mediaId: unknown): Promise<ActionResult
     revalidateProjects();
   }
   return result;
-}
+});
 
 /** État des médias suivis par l'interface (traitement en cours → prêt / échec). */
 export async function mediaStatusAction(ids: unknown): Promise<ActionResult<AdminMediaRow[]>> {
@@ -69,7 +70,7 @@ export async function mediaUsesAction(mediaId: unknown): Promise<ActionResult<Me
 }
 
 /** Relance la conversion ou le traitement d'un média en échec. */
-export async function retryMediaAction(mediaId: unknown): Promise<ActionResult<null>> {
+export const retryMediaAction = audited("retryMediaAction", async function retryMediaAction(mediaId: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const parsed = Id.safeParse(mediaId);
   if (!parsed.success) return fail("Média inconnu.");
@@ -79,7 +80,7 @@ export async function retryMediaAction(mediaId: unknown): Promise<ActionResult<n
     revalidateMedia();
   }
   return result;
-}
+});
 
 /** Envois par morceaux interrompus (à reprendre ou annuler). */
 export async function pendingUploadsAction(): Promise<ActionResult<UploadStatus[]>> {
@@ -98,67 +99,67 @@ export async function listTagsAction(): Promise<ActionResult<TagRow[]>> {
 }
 
 /** Remplace les tags d'un média (panneau de détail). */
-export async function setMediaTagsAction(mediaId: unknown, labels: unknown): Promise<ActionResult<null>> {
+export const setMediaTagsAction = audited("setMediaTagsAction", async function setMediaTagsAction(mediaId: unknown, labels: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const parsed = Id.safeParse(mediaId);
   if (!parsed.success) return fail("Média inconnu.");
   const result = setMediaTags(parsed.data, labels);
   if (result.ok) revalidateMedia();
   return result;
-}
+});
 
 /** Ajoute des tags à un ou plusieurs médias (envoi, sélection multiple). */
-export async function addMediaTagsAction(mediaIds: unknown, labels: unknown): Promise<ActionResult<null>> {
+export const addMediaTagsAction = audited("addMediaTagsAction", async function addMediaTagsAction(mediaIds: unknown, labels: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const parsed = Ids.safeParse(mediaIds);
   if (!parsed.success) return fail("Requête invalide.");
   const result = addTagsToMedia(parsed.data, labels);
   if (result.ok) revalidateMedia();
   return result;
-}
+});
 
 /** Retire des tags (par libellé) d'un ou plusieurs médias. */
-export async function removeMediaTagsAction(mediaIds: unknown, labels: unknown): Promise<ActionResult<null>> {
+export const removeMediaTagsAction = audited("removeMediaTagsAction", async function removeMediaTagsAction(mediaIds: unknown, labels: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const parsed = Ids.safeParse(mediaIds);
   if (!parsed.success) return fail("Requête invalide.");
   const result = removeTagsFromMedia(parsed.data, labels);
   if (result.ok) revalidateMedia();
   return result;
-}
+});
 
-export async function renameTagAction(tagId: unknown, label: unknown): Promise<ActionResult<null>> {
+export const renameTagAction = audited("renameTagAction", async function renameTagAction(tagId: unknown, label: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const parsed = Id.safeParse(tagId);
   if (!parsed.success) return fail("Tag inconnu.");
   const result = renameTag(parsed.data, label);
   if (result.ok) revalidateMedia();
   return result;
-}
+});
 
 /** Fusionne le tag `fromId` dans `intoId`. */
-export async function mergeTagsAction(fromId: unknown, intoId: unknown): Promise<ActionResult<{ moved: number }>> {
+export const mergeTagsAction = audited("mergeTagsAction", async function mergeTagsAction(fromId: unknown, intoId: unknown): Promise<ActionResult<{ moved: number }>> {
   await assertAdmin();
   const parsed = z.tuple([Id, Id]).safeParse([fromId, intoId]);
   if (!parsed.success) return fail("Tag inconnu.");
   const result = mergeTags(parsed.data[0], parsed.data[1]);
   if (result.ok) revalidateMedia();
   return result;
-}
+});
 
 /** Supprime les tags posés sur aucun média (bouton de l'onglet Tags). */
-export async function deleteUnusedTagsAction(): Promise<ActionResult<{ deleted: number }>> {
+export const deleteUnusedTagsAction = audited("deleteUnusedTagsAction", async function deleteUnusedTagsAction(): Promise<ActionResult<{ deleted: number }>> {
   await assertAdmin();
   const result = deleteUnusedTags();
   if (result.ok) revalidateMedia();
   return result;
-}
+});
 
-export async function deleteTagAction(tagId: unknown): Promise<ActionResult<{ media: number }>> {
+export const deleteTagAction = audited("deleteTagAction", async function deleteTagAction(tagId: unknown): Promise<ActionResult<{ media: number }>> {
   await assertAdmin();
   const parsed = Id.safeParse(tagId);
   if (!parsed.success) return fail("Tag inconnu.");
   const result = deleteTag(parsed.data);
   if (result.ok) revalidateMedia();
   return result;
-}
+});

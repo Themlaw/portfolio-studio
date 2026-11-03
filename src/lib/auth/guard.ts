@@ -15,6 +15,7 @@ import { forbidden, redirect } from "next/navigation";
 import { cache } from "react";
 
 import { getDb, schema } from "@/lib/db";
+import { noteAuditUser } from "@/lib/journal/context";
 
 import { checkUserAccess } from "./identity";
 import { getAuth } from "./index";
@@ -56,5 +57,7 @@ export async function requireAdmin(): Promise<AdminSession> {
 export async function assertAdmin(): Promise<AdminSession> {
   const session = await getAdminSession();
   if (!session) forbidden();
+  // Journal d'édition (lot 97) : l'écriture auditée en cours sait qui agit (identifiant interne, jamais l'e-mail).
+  noteAuditUser(session.user.id);
   return session;
 }

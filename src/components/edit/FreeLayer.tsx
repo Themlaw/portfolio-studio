@@ -505,7 +505,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
                   window.dispatchEvent(new CustomEvent("pe:popups-close", { detail: { except: "free-bg" } }));
                 }}
               >
-                <span className="sm-dot" data-on={imageBgCss(style.bg) ? "" : undefined} style={imageBgCss(style.bg) ? { background: imageBgCss(style.bg) ?? undefined } : undefined} aria-hidden="true" />
+                {imageBgCss(style.bg) && <span className="sm-swatch" data-testid="free-imgbg-swatch" style={{ background: imageBgCss(style.bg) ?? undefined }} aria-hidden="true" />}
                 Fond image
               </button>
             )}

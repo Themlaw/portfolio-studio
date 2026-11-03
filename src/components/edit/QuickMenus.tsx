@@ -4,7 +4,7 @@
  * Réglages rapides de la barre d'un composant (lot 40), deux fenêtres blanches au style de « Cadre » :
  * - « Taille » d'une image seule (page ou planche) : Normale (le plafond de hauteur d'avant, valeur par défaut) ou Grande
  *   (plafond levé, toute la largeur du cadre), et Gauche / Centre / Droite. La légende suit l'image. `look.imageSize` / `look.imageAlign`.
- * - « Espace » au-dessus d'un bloc ou d'un composant de planche : Aucun / S / M / Auto. C'est `look.spaceTop` (le même
+ * - « Espacement » au-dessus d'un bloc ou d'un composant de planche : Aucun / S / M / Auto. C'est `look.spaceTop` (le même
  *   réglage que « Espace en haut » du panneau et que la poignée de la page), sans nouveau champ.
  * Chaque choix part aussitôt (`sendLook` : page, composant de planche ou case, annulable).
  */
@@ -40,6 +40,15 @@ function writeLook(uid: string, look: Look) {
   const strip = stripFrame(uid);
   if (strip) postIntent({ kind: "bitem-look", board: Number(strip.dataset.board), uid, look: cleanLook(look) ?? null });
   else sendLook(uid, look);
+}
+
+/** Valeur courte affichée à côté du libellé de la barre (lot 90), seulement quand le bloc a son propre réglage ; sinon rien (le thème décide). */
+export function spaceValue(look: Look): string | undefined {
+  return look.spaceTop === undefined ? undefined : look.spaceTop === "none" ? "aucun" : SPACE_LABELS[look.spaceTop];
+}
+export function sizeValue(look: Look): string | undefined {
+  const parts = [look.imageSize === "large" ? "grande" : undefined, look.imageAlign && look.imageAlign !== "center" ? IMAGE_ALIGN_LABELS[look.imageAlign].toLowerCase() : undefined].filter(Boolean);
+  return parts.length ? parts.join(", ") : undefined;
 }
 
 export function SizeControls({ look, onChange }: { look: Look; onChange: (patch: Partial<Look>) => void }) {
@@ -78,8 +87,8 @@ export function SpaceControls({ look, onChange }: { look: Look; onChange: (patch
   return (
     <div data-testid="space-controls" className="tc" style={{ gap: 8 }}>
       <div className="tc-row">
-        <span className="sm-label">Espace</span>
-        <span className="tc-seg" role="radiogroup" aria-label="Espace au-dessus">
+        <span className="sm-label">Espacement</span>
+        <span className="tc-seg" role="radiogroup" aria-label="Espacement au-dessus">
           {QUICK_SPACES.map((k) => (
             <button key={k} type="button" role="radio" aria-checked={current === k} data-space-top={k} onClick={() => onChange({ spaceTop: k })}>
               {SPACE_LABELS[k]}
@@ -97,7 +106,7 @@ export function SpaceControls({ look, onChange }: { look: Look; onChange: (patch
 
 export type QuickKind = "size" | "space";
 
-/** Fenêtre « Taille » ou « Espace » d'un bloc de la page ou d'un composant de la planche (`uid`), ancrée au bouton `anchor`. */
+/** Fenêtre « Taille » ou « Espacement » d'un bloc de la page ou d'un composant de la planche (`uid`), ancrée au bouton `anchor`. */
 export default function QuickMenu({ uid, kind, anchor, onClose, onChanged }: { uid: string; kind: QuickKind; anchor: PopoverAnchor; onClose: () => void; onChanged?: () => void }) {
   const [look, setLook] = useState<Look>(() => currentLook(uid));
   const change = (patch: Partial<Look>) => {
@@ -109,20 +118,25 @@ export default function QuickMenu({ uid, kind, anchor, onClose, onChanged }: { u
   };
   const body: ReactNode = kind === "size" ? <SizeControls look={look} onChange={change} /> : <SpaceControls look={look} onChange={change} />;
   return (
-    <Popover anchor={anchor} align="center" label={kind === "size" ? "Taille de l'image" : "Espace au-dessus"} testId={`${kind}-menu`} onClose={onClose}>
+    <Popover anchor={anchor} align="center" label={kind === "size" ? "Taille de l'image" : "Espacement"} testId={`${kind}-menu`} onClose={onClose}>
       {body}
     </Popover>
   );
 }
 
-/** Bouton « Taille » / « Espace » de la barre d'un bloc de la page. */
+/** Bouton « Taille » / « Espacement » de la barre : le libellé, puis la valeur posée (texte gris court, rien si le thème décide) d'un bloc de la page. */
 export function QuickButton({ uid, kind, open, onToggle }: { uid: string; kind: QuickKind; open: boolean; onToggle: () => void }) {
   const look = lookOf(uid);
-  const set = kind === "size" ? Boolean(look.imageSize || look.imageAlign) : look.spaceTop !== undefined;
+  const value = kind === "size" ? sizeValue(look) : spaceValue(look);
+  const label = kind === "size" ? "Taille" : "Espacement";
   return (
     <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid={`${kind}-button`} title={kind === "size" ? "Taille et place de l'image" : "Espace au-dessus de ce bloc"} onClick={onToggle}>
-      <span className="sm-dot" data-on={set ? "" : undefined} aria-hidden="true" />
-      {kind === "size" ? "Taille" : "Espace"}
+      {label}{" "}
+      {value && (
+        <span className="sm-value" data-testid={`${kind}-value`} title={`${label} : ${value}`}>
+          · {value}
+        </span>
+      )}
     </button>
   );
 }

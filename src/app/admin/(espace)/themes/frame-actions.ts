@@ -8,10 +8,11 @@ import { assertAdmin } from "@/lib/auth/guard";
 import { saveThemeFrameAll } from "@/lib/edit/frame-all";
 import type { ActionResult } from "@/lib/edit/result";
 import { revalidateSettings } from "@/lib/revalidate";
+import { audited } from "@/lib/journal/audit";
 
-export async function saveThemeFrameAllAction(input: unknown): Promise<ActionResult<null>> {
+export const saveThemeFrameAllAction = audited("saveThemeFrameAllAction", async function saveThemeFrameAllAction(input: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const result = saveThemeFrameAll(input);
   if (result.ok) revalidateSettings();
   return result;
-}
+});

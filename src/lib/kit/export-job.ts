@@ -244,7 +244,15 @@ export function runKitChild(input: object, timeoutMs = EXPORT_TIMEOUT_MS): Promi
 }
 
 /** Asset du kit d'un thème pour le pré-remplissage : fichier local, taille servie, position (plans). */
-export type KitAssetFile = { file: string; w: number; h: number; x?: number; y?: number };
+export type KitAssetFile = {
+  file: string;
+  w: number;
+  h: number;
+  x?: number;
+  y?: number;
+  /** Lot 99 : le fichier est le dessin en COULEURS D'ORIGINE (trait, flèches) : replacé tel quel dans le calque, jamais teinté. */
+  colored?: true;
+};
 
 /**
  * Fichiers des éléments dessinés déjà appliqués au thème (`theme.assets.kit`),
@@ -274,11 +282,13 @@ export async function kitAssetFiles(theme: Theme): Promise<Record<string, KitAss
 
 async function addKitAssets(theme: Theme, kit: NonNullable<Theme["assets"]["kit"]>, out: Record<string, KitAssetFile>): Promise<void> {
   const storage = getStorage();
-  const add = async (slotId: string, img: { svg?: string; webp?: string; w: number; h: number; x?: number; y?: number } | null | undefined) => {
-    const url = img?.svg ?? img?.webp;
+  const add = async (slotId: string, img: { svg?: string; webp?: string; color?: { webp: string }; w: number; h: number; x?: number; y?: number } | null | undefined) => {
+    // Lot 99 : le dessin en couleurs d'origine d'abord (l'aller-retour garde la barre et les flèches telles que dessinées).
+    const colorUrl = img?.color?.webp;
+    const url = colorUrl ?? img?.svg ?? img?.webp;
     if (!img || !url?.startsWith("/media/")) return;
     const file = await storage.localPath(url.slice("/media/".length));
-    if (file) out[slotId] = { file, w: img.w, h: img.h, ...(img.x !== undefined ? { x: img.x, y: img.y } : {}) };
+    if (file) out[slotId] = { file, w: img.w, h: img.h, ...(img.x !== undefined ? { x: img.x, y: img.y } : {}), ...(colorUrl ? { colored: true as const } : {}) };
   };
   for (let n = 0; n < 5; n++) await add(`hero/plan-${n + 1}`, kit.plans?.[n]);
   await add("signature", kit.signature);

@@ -58,6 +58,13 @@ export async function start(): Promise<void> {
     // Worker des traitements (images) : un job à la fois, reprise des orphelins.
     const { startWorker } = await import("../jobs/worker");
     await startWorker();
+    // Journal d'édition (lot 97) : base à part (edit-log.db), ouverte et purgée ici ; jamais fatal.
+    try {
+      const { warmLog } = await import("../journal/store");
+      console.log(`[journal] edit-log.db : ${warmLog()} entrée(s) (30 jours ou 20 000 lignes au plus)`);
+    } catch (error) {
+      console.error("[journal] initialisation en échec (le site démarre quand même) :", error);
+    }
     // Sauvegardes (lot 50) : restauration détectée, puis sauvegardes automatiques si WITH_BACKUP=1. Jamais fatal.
     try {
       const { healRestoredMedia } = await import("../backup/restore");

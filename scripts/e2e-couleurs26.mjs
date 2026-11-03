@@ -173,17 +173,17 @@ if (run("V")) {
   // Carte d'une rubrique : bouton « Carte » (plus « Fond »), couleurs nommées comme le panneau.
   await f.locator('[data-edit-type="collection-tiles"] h2').first().click();
   const button = f.locator(".pe-tools [data-testid=\"fond-button\"]");
-  ok("V5 bouton « Fond » dans la barre de la rubrique (lot 66 : la « Carte » est fusionnée au « Fond »)", await button.waitFor({ timeout: 20000 }).then(() => true, () => false) && /^\s*Fond/.test((await button.textContent()) ?? "") && !/Carte/.test((await button.textContent()) ?? ""));
+  ok("V5 bouton « Fond » dans la barre de la rubrique (lot 100 : « Fond & carte »)", await button.waitFor({ timeout: 20000 }).then(() => true, () => false) && /^\s*Fond\s*&\s*carte/.test((await button.textContent()) ?? ""));
   await button.click();
   const menu = f.locator('[data-testid="fond-menu"]');
-  ok("V5b popover « Fond du bloc »", (await menu.getAttribute("aria-label")) === "Fond du bloc");
-  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
+  ok("V5b popover « Fond du bloc »", (await menu.getAttribute("aria-label")) === "Fond et carte du bloc");
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
   await menu.locator('[data-testid="card-da-color"]').first().waitFor({ timeout: 10000 });
   const cards = (await menu.locator('[data-testid="card-da-color"] .cc-name').allTextContents()).map((t) => t.trim());
   ok("V5c couleurs de la carte : les six rôles dans l'ordre (nom visible)", JSON.stringify(cards.slice(0, 6)) === JSON.stringify(ROLES), JSON.stringify(cards));
   ok("V5d rangée « Couleur » (le menu s'appelle « Fond »)", /Couleur/.test((await menu.textContent()) ?? ""));
   await page.screenshot({ path: `${SHOTS}/V5-carte.png` });
-  await menu.locator('[data-kind="none"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="none"]').click();
   await settled();
 
   // Liste des thèmes : mêmes six rôles.

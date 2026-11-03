@@ -21,6 +21,12 @@ function kitImage(k: KitImage): string {
 function kitMask(k: KitImage): string {
   return `url("${k.svg ?? k.webp}")`;
 }
+/** Lot 99 : le dessin en couleurs d'origine (barre, flèches) : AVIF + WebP en image-set, jamais en masque. */
+function kitColorImage(k: KitImage): string | null {
+  return k.color ? `image-set(url("${k.color.avif}") type("image/avif"), url("${k.color.webp}") type("image/webp"))` : null;
+}
+/** Lot 99 : affichage des flèches du kit = la moitié de la case du kit (dessinée en 2×, comme la tuile du papier), en px CSS. */
+export const KIT_ARROW_SCALE = 0.5;
 const ICONS = [
   ["arrowLeft", "arrow-left"],
   ["arrowRight", "arrow-right"],
@@ -75,10 +81,26 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
     v["--t-kit-fsl"] = px(l);
     v["--t-kit-fmax"] = px(Math.max(...ring));
   }
-  if (kit.stroke) v["--t-kit-stroke"] = kitMask(kit.stroke);
+  if (kit.stroke) {
+    v["--t-kit-stroke"] = kitMask(kit.stroke);
+    const color = kitColorImage(kit.stroke);
+    if (color) {
+      v["--t-kit-stroke-color"] = color;
+      // Bouts de la barre : la moitié de la hauteur du dessin (en % de sa largeur, donc quelle que soit la finesse du fichier), pour qu'ils
+      // gardent leur forme quand la barre s'allonge ; le milieu s'étire (variants.css).
+      v["--t-kit-stroke-cap"] = `${Math.min(49, (50 * kit.stroke.h) / kit.stroke.w).toFixed(3)}%`;
+    }
+  }
   for (const [key, name] of ICONS) {
     const icon = kit.icons?.[key];
-    if (icon) v[`--t-kit-icon-${name}`] = kitMask(icon);
+    if (!icon) continue;
+    v[`--t-kit-icon-${name}`] = kitMask(icon);
+    const color = kitColorImage(icon);
+    if (color && (key === "arrowLeft" || key === "arrowRight")) {
+      v[`--t-kit-icon-${name}-color`] = color;
+      v[`--t-kit-icon-${name}-w`] = `${Math.round(icon.w * KIT_ARROW_SCALE)}px`;
+      v[`--t-kit-icon-${name}-h`] = `${Math.round(icon.h * KIT_ARROW_SCALE)}px`;
+    }
   }
   if (kit.tape) {
     v["--t-kit-tape"] = kitImage(kit.tape);
@@ -107,7 +129,12 @@ export function kitAttributes(kit: KitAssets | undefined): Record<`data-${string
   if (kit.paper?.onCards) a["data-kit-paper-cards"] = "";
   if (kit.frame) a["data-kit-frame"] = "";
   if (kit.stroke) a["data-kit-stroke"] = "";
-  for (const [key, name] of ICONS) if (kit.icons?.[key]) a[`data-kit-icon-${name}`] = "";
+  if (kit.stroke?.color) a["data-kit-stroke-color"] = "";
+  for (const [key, name] of ICONS) {
+    if (!kit.icons?.[key]) continue;
+    a[`data-kit-icon-${name}`] = "";
+    if (kit.icons[key]!.color && (key === "arrowLeft" || key === "arrowRight")) a[`data-kit-icon-${name}-color`] = "";
+  }
   if (kit.tape) a["data-kit-tape"] = "";
   const cursors = activeCursors(kit);
   if (cursors.default) a["data-kit-cursor"] = "";

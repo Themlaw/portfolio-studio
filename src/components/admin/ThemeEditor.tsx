@@ -542,7 +542,6 @@ export default function ThemeEditor({
           onChange={patchBases}
           onHighlight={setHl}
           info={legend}
-          locked={null}
         />
         <Readability colors={colors} palette={theme.tokens.palette} />
         {!preset && (

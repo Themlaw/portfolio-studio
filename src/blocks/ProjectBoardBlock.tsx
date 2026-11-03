@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { z } from "zod";
 
 import BoardBox from "@/components/BoardBox";
@@ -12,6 +13,7 @@ import { getWallpapers } from "@/lib/wallpapers";
 import type { WallpaperEntry } from "@/themes/wallpaper";
 import { effectivePalette, renderBoardItem } from "./BlockList";
 import { fondJoins, fondKey, readBackground } from "@/themes/fond";
+import { captionCss, captionStylesOf } from "./caption-style";
 import { isProjectStrip, itemEmpty, railIds, railKey, railList, stripCaptions } from "./board-layout";
 import { collection, projectSlug, textStyle, tr, type BlockContext } from "./types";
 
@@ -125,7 +127,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     // pas à la page : la planche est la même partout où elle est affichée.
     // Fond de couleur des composants (lot 32) : mêmes règles que sur une page (fusion des voisins de même fond, bord à bord de la planche).
     const fonds = project.layout.map((item) => readBackground(item.props.background));
-    const joins = fondJoins(fonds.map((bg) => fondKey(bg, false)), fonds);
+    const joins = fondJoins(fonds.map((bg) => fondKey(bg, false)));
     const palette = fonds.some(Boolean) ? await effectivePalette(ctx) : undefined;
     // Papiers peints (lot 35) : les motifs utilisés par les fonds de la planche (bibliothèque lue seulement s'il y en a), passés au client.
     const wallpaperIds = [...new Set(fonds.flatMap((bg) => (bg?.kind === "wallpaper" ? [bg.wallpaper] : [])))];
@@ -133,6 +135,17 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     if (wallpaperIds.length) {
       const all = ctx.wallpapers ?? (await getWallpapers());
       wallpapers = Object.fromEntries(wallpaperIds.flatMap((id) => (all.get(id) ? [[id, all.get(id)!] as const] : [])));
+    }
+    // Style des légendes du projet (lot 98) et style propre des légendes de la bande (« Ce texte », `look.text["captions.<place>.<champ>"]`),
+    // fondus ici : le propre passe devant celui du projet, qui passe devant celui du site.
+    const capStyles = captionStylesOf(project.layout);
+    const capOwn: Record<string, Partial<Record<"title" | "legend" | "date", CSSProperties>>> = {};
+    for (const [key, style] of Object.entries(ctx.look?.text ?? {})) {
+      const m = /^captions\.([a-z0-9-]+)\.(title|caption|date)$/.exec(key);
+      if (!m) continue;
+      const field = m[2] === "caption" ? "legend" : (m[2] as "title" | "date");
+      const css = captionCss(capStyles?.[field], style, palette ?? ctx.palette);
+      if (css) (capOwn[m[1]] ??= {})[field] = css;
     }
     const parts: BoardPart[] = await Promise.all(
       project.layout.map(async (item, i): Promise<BoardPart> => ({
@@ -152,7 +165,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
               // Largeur réduite : une image « pleine largeur » reste dans la colonne choisie (cadre du site).
               node: (
                 <BoardBox box={item.box}>
-                  {renderBoardItem(item, { ...ctx, project: slug })}
+                  {renderBoardItem(item, { ...ctx, project: slug, ...(capStyles ? { captionStyle: capStyles } : {}) })}
                 </BoardBox>
               ),
             }),
@@ -163,7 +176,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     );
     return (
       <>
-        <ProjectStrip project={project} eager={eager} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotLook={ctx.look?.slotLook} styles={headerStyles(ctx)} parts={parts} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
+        <ProjectStrip project={project} eager={eager} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotLook={ctx.look?.slotLook} styles={headerStyles(ctx)} parts={parts} capOwn={capOwn} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
         {wallpapers && <WallpaperAlign />}
       </>
     );

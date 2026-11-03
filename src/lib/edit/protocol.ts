@@ -158,6 +158,8 @@ export const FromCanvasSchema = z.union([
   // Lot 31c : texte d'un composant modifié en place (chemin du champ), mise en forme (« Aa ») d'un composant.
   z.object({ kind: z.literal("bitem-text"), board: Board, uid: Uid, path: z.string().regex(/^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z0-9-]{1,80}){0,3}$/).max(120), locale: Locale, value: z.string().max(2000) }),
   z.object({ kind: z.literal("bitem-look"), board: Board, uid: Uid, look: LookSchema.nullable() }),
+  // Lot 98 : style des légendes d'un PROJET (portée « Les légendes de ce projet » de la barre « Aa »), un style par champ ; null = aucun.
+  z.object({ kind: z.literal("board-captions"), board: Board, style: z.strictObject({ title: TextStyleSchema.optional(), legend: TextStyleSchema.optional(), date: TextStyleSchema.optional() }).nullable() }),
   z.object({ kind: z.literal("bitem-drop"), board: Board.nullable(), index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
   z.object({ kind: z.literal("bitem-to"), board: Board, uid: Uid, index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
   z.object({ kind: z.literal("bitem-op"), board: Board, uid: Uid, op: z.enum(["up", "down", "remove"]) }),
@@ -289,7 +291,6 @@ export const ToCanvasSchema = z.discriminatedUnion("kind", [
   /** Formulaire de contact : montrer le formulaire, ou son message de confirmation / d'erreur. */
   z.object({ kind: z.literal("form-preview"), uid: Uid, pane: z.enum(["form", "success", "error"]) }),
   /** En-tête du site tenu par une autre page (son nom), ou null. */
-  z.object({ kind: z.literal("site-lock"), page: z.string().max(200).nullable() }),
   z.object({
     kind: z.literal("ghosts"),
     items: z

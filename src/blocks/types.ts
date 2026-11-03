@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { CSSProperties } from "react";
 
 import type { AppLocale } from "@/i18n/routing";
-import { textStyleObject, type Look } from "@/lib/look";
+import { textStyleObject, type Look, type TextStyle } from "@/lib/look";
 import type { CardPalette } from "@/themes/surface";
 import type { WallpaperEntry } from "@/themes/wallpaper";
 
@@ -71,6 +71,8 @@ export type BlockContext = {
   blockId?: number;
   /** Réglages de mise en page du bloc (props.look, lot 2) : styles de ses textes. */
   look?: Look;
+  /** Style des légendes du projet que la planche affiche (lot 98) : par champ (titre, légende, date) ; passe derrière le style propre d'une légende. */
+  captionStyle?: Partial<Record<"title" | "legend" | "date", TextStyle>>;
   /** Palette effective du thème : choisit le texte lisible sur un fond de texte coloré (lot 21). Absente = non lue. */
   palette?: CardPalette;
   /** Papiers peints de la bibliothèque (lot 35), lus seulement si la page en montre un (ou en vue brouillon). */

@@ -5,7 +5,7 @@
  *  M  Page en ligne mais dans aucun menu (CONC-02) : avertissement à la publication ET dans la liste des pages, avec « Ajouter au menu ».
  *  H  En-tête (PUB-01) : aucun défilement horizontal de 320 à 2560 px (dont 768, 800, 820, 830), « EN » entier, liens sur une ligne ;
  *     même chose dans la toile de l'éditeur en mode Tablette.
- *  C  Carrousel « Images qui défilent » à 390 px avec un panorama et une image très haute (PUB-03) : pas de vide, légendes lisibles.
+ *  C  Carrousel « Images qui défilent » à 390 px avec un panorama et une image très haute (PUB-03) : légendes lisibles, hauteur constante (lot 99).
  *  R  Image recadrée minuscule (PUB-04) : aucune réponse 404 sur la page, toutes les variantes recadrées se lisent.
  *  D  Définition des images à DPR 2 (PUB-09) : variante servie >= 2 fois la taille affichée, dans la limite de l'original (page et visionneuse).
  *  N  Noms des images d'un projet (CONC-13) : titre, sinon nom du fichier d'origine, + recherche par nom quand la liste est longue.
@@ -254,7 +254,8 @@ if (run("C")) {
   const a = await p.evaluate(railProbe);
   info(`carrousel au départ : ${JSON.stringify(a)}`);
   await shot(p, "C-390-depart");
-  ok("C1 panorama visible : pas de vide de plus de 24 px sous la case", a !== null && a.gap <= 24, JSON.stringify(a));
+  // Lot 99 : la hauteur du rail est CONSTANTE (le vide sous un panorama est voulu, il est centré dans la hauteur de la bande).
+  ok("C1 panorama visible dans le rail", a !== null && a.visible >= 1 && a.frames >= 2, JSON.stringify(a));
   ok("C2 légendes lisibles : ni en colonne étroite ni démesurées", a !== null && a.caps.length >= 2 && a.caps.every((c) => c.w >= 80 && c.h <= 110), JSON.stringify(a?.caps));
   // Amener l'image très haute : même exigence.
   await p.evaluate(() => {
@@ -266,7 +267,7 @@ if (run("C")) {
   const b = await p.evaluate(railProbe);
   info(`carrousel sur l'image haute : ${JSON.stringify(b)}`);
   await shot(p, "C-390-haute");
-  ok("C3 image très haute visible : pas de vide, légendes lisibles", b !== null && b.gap <= 24 && b.caps.every((c) => c.w >= 80 && c.h <= 110), JSON.stringify(b));
+  ok("C3 image très haute visible : légendes lisibles, et le rail a la même hauteur que sur le panorama (lot 99)", b !== null && b.railH === a.railH && b.caps.every((c) => c.w >= 80 && c.h <= 110), JSON.stringify(b));
   const pageW = await p.evaluate(() => [document.documentElement.scrollWidth, innerWidth]);
   ok("C4 la page ne défile pas de côté", pageW[0] <= pageW[1], pageW.join(" > "));
   await p.context().close();

@@ -9,6 +9,7 @@
 import { createElement, type ComponentType, type ReactNode } from "react";
 import { z } from "zod";
 
+import { initialExitProps } from "@/lib/db/seed-404";
 import { LookSchema } from "@/lib/look";
 import { markedProblem } from "@/lib/marked";
 import { BackgroundSchema } from "@/themes/fond";
@@ -22,6 +23,8 @@ import ContactBlock, { contactSchema } from "./ContactBlock";
 import ContactFormBlock, { contactFormSchema } from "./ContactFormBlock";
 import CvBlock, { cvSchema } from "./CvBlock";
 import { ContactFormSchema, defaultContactForm } from "@/lib/contact-form";
+import ExitBlock, { exitSchema } from "./ExitBlock";
+import RandomWorkBlock, { randomWorkSchema } from "./RandomWorkBlock";
 import {
   CollectionIntroEditor,
   CollectionProjectsEditor,
@@ -29,6 +32,7 @@ import {
   ContactEditor,
   ContactFormEditor,
   CvEditor,
+  ExitEditor,
   FeaturedProjectEditor,
   FeaturedProjectsEditor,
   FreeBoardEditor,
@@ -38,6 +42,7 @@ import {
   PageLinkEditor,
   ProfileEditor,
   ProjectBoardEditor,
+  RandomWorkEditor,
   RichTextEditor,
   SectionTitleEditor,
   VideoEditor,
@@ -116,6 +121,12 @@ export type BlockDefinition<S extends z.ZodType = z.ZodType> = {
   presets?: { key: string; label: string; /** Nom court du modèle (puce de la carte du type, panneau « Ajouter »). */ short: string; description: string; defaults: Record<string, unknown>; order: number }[];
   /** Une seule fois par page (l'Ouverture) : le panneau grise l'ajout s'il y en a déjà un, avec l'explication. */
   single?: { reason: string };
+  /** Page spéciale « Page introuvable » (lot 89, src/lib/special-pages.ts) : type proposé et accepté SEULEMENT sur cette page. */
+  onlyOnSpecial?: boolean;
+  /** Type refusé sur une page spéciale (effets de bord : Contact). */
+  notOnSpecial?: boolean;
+  /** Bloc non supprimable : la raison, affichée à la place du bouton Supprimer (infobulle) et dans le refus. */
+  locked?: string;
 };
 
 function define<S extends z.ZodType>(def: Omit<BlockDefinition<S>, "refs" | "container">): BlockDefinition {
@@ -357,6 +368,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       schema: contactSchema,
       Component: ContactBlock,
       Editor: ContactEditor,
+      notOnSpecial: true,
       label: "Contact",
       description: "Une invitation à t'écrire : un bouton vers ton adresse e-mail, ou un formulaire (les messages arrivent dans Admin → Messages).",
       // Les champs n'existent que s'ils ont été demandés (« + Ajouter … » sur la toile, lot 27).
@@ -409,6 +421,42 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       summary: "{label}",
       inline: ["label"],
       publishCheck: (props) => (props.pageId ? null : "Choisis la page de destination de ce lien."),
+    }),
+    // Page introuvable (lot 89) : la Sortie (non supprimable) et l'œuvre au hasard, proposées seulement sur cette page.
+    define({
+      type: "exit",
+      group: "other",
+      order: 90,
+      onlyOnSpecial: true,
+      locked: "Ce bloc ne peut pas être supprimé : c'est lui qui ramène le visiteur sur le site. Tu peux le déplacer et le mettre en forme.",
+      single: { reason: "Il y a déjà un bloc Sortie sur cette page : une page n'en porte qu'un." },
+      schema: exitSchema,
+      Component: ExitBlock,
+      Editor: ExitEditor,
+      label: "Sortie",
+      description: "Le titre, le message et le bouton qui ramènent le visiteur sur le site ; avec plusieurs messages, un est tiré au hasard à chaque visite.",
+      defaults: initialExitProps(),
+      summary: "{title}",
+      inline: ["eyebrow", "title", "messages.*", "label"],
+    }),
+    define({
+      type: "random-work",
+      group: "other",
+      order: 95,
+      onlyOnSpecial: true,
+      schema: randomWorkSchema,
+      Component: RandomWorkBlock,
+      Editor: RandomWorkEditor,
+      label: "Une œuvre au hasard",
+      description: "Une œuvre publiée tirée au hasard à chaque visite, avec son image, son titre et un lien vers sa page.",
+      defaults: { source: "all", width: "text" },
+      summary: "Une œuvre au hasard",
+      inline: ["eyebrow"],
+      publishCheck: (props) => {
+        if (props.source === "collection" && !props.collection) return "Choisis la catégorie d'où tirer l'œuvre.";
+        if (props.source === "manual" && !(Array.isArray(props.works) && props.works.length > 0)) return "Choisis au moins une œuvre dans la sélection.";
+        return null;
+      },
     }),
     define({
       type: "profile",
@@ -471,8 +519,11 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
  * Les types anciens sont décrits (libellé, résumé) mais marqués `hidden` :
  * jamais proposés dans la palette. Les raccourcis (`presets`) suivent leur type.
  */
-export function blockCatalog(): BlockCatalogEntry[] {
+export function blockCatalog(special = false): BlockCatalogEntry[] {
   return Object.values(BLOCKS).flatMap((b) => {
+    // Lot 89 : « Sortie » et « Une œuvre au hasard » ne se proposent que sur la page spéciale ; Contact n'y est pas proposé. Les entrées
+    // restent décrites (libellé, résumé) mais cachées : un bloc déjà posé garde son nom dans l'éditeur.
+    const hiddenHere = Boolean(b.deprecated) || (special ? Boolean(b.notOnSpecial) : Boolean(b.onlyOnSpecial));
     const base = {
       key: b.type,
       type: b.type,
@@ -484,7 +535,8 @@ export function blockCatalog(): BlockCatalogEntry[] {
       ...(b.container ? { container: b.container } : {}),
       ...(b.mediaFields ? { mediaFields: b.mediaFields } : {}),
       ...(b.single ? { single: b.single.reason } : {}),
-      ...(b.deprecated ? { hidden: true } : { group: b.group, order: b.order }),
+      ...(b.locked ? { locked: b.locked } : {}),
+      ...(hiddenHere ? { hidden: true } : { group: b.group, order: b.order }),
     };
     return [base, ...(b.presets ?? []).map((p) => ({ ...base, key: p.key, label: p.label, short: p.short, description: p.description, defaults: p.defaults, order: p.order, preset: true }))];
   });

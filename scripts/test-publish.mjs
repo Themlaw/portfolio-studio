@@ -31,7 +31,8 @@ const { getDb, schema } = await import("../src/lib/db/index.ts");
 const { eq } = await import("drizzle-orm");
 const { readDraft, saveDraft, publishDraft, discardDraft } = await import("../src/lib/edit/drafts.ts");
 const { createPage, deletePage, setInMenu, reorderMenu } = await import("../src/lib/edit/pages.ts");
-const { saveSiteDraft, readPublishedSite, readSiteDraft, siteForEditor } = await import("../src/lib/edit/site.ts");
+const { saveSiteDraft, discardSiteDraft, readPublishedSite, readSiteDraft, siteForEditor } = await import("../src/lib/edit/site.ts");
+const { readSiteRev } = await import("../src/lib/edit/site-rev.ts");
 const { boardOp, restoreBoard, readBoard } = await import("../src/lib/edit/boards.ts");
 const { saveProject } = await import("../src/lib/edit/projects.ts");
 const { POST } = await import("../src/app/api/contact/route.ts");
@@ -330,7 +331,7 @@ const C = newPage("t-nav-c");
 const about = db.select().from(schema.pages).all().find((p) => p.slug.fr === "a-propos").id;
 await test("D4–D5 page mise au menu depuis la liste pendant un brouillon d'en-tête : reportée dans le brouillon", () => {
   const pub = readPublishedSite();
-  assert.equal(saveSiteDraft(A, { ...pub, identity: { ...pub.identity, name: { fr: "Nom brouillon", en: "Brouillon name" } } }, rev(A)).ok, true);
+  assert.equal(saveSiteDraft(A, { ...pub, identity: { ...pub.identity, name: { fr: "Nom brouillon", en: "Brouillon name" } } }, readSiteRev()).ok, true);
   assert.equal(setInMenu(B, true).ok, true);
   assert.ok(navIds().includes(B), "menu publié");
   assert.ok(readSiteDraft().snap.nav.some((i) => i.kind === "page" && i.pageId === B), "brouillon de l'en-tête");
@@ -349,15 +350,15 @@ await test("D7–D10 publier l'en-tête : la page supprimée ne revient pas, la 
 });
 await test("D11–D12 l'éditeur n'est jamais bloqué : une page disparue est retirée en silence", () => {
   const pub = readPublishedSite();
-  const res = saveSiteDraft(A, { ...pub, nav: [...pub.nav, { kind: "page", pageId: 99999 }], identity: { ...pub.identity, name: { fr: "Encore", en: "" } } }, rev(A));
+  const res = saveSiteDraft(A, { ...pub, nav: [...pub.nav, { kind: "page", pageId: 99999 }], identity: { ...pub.identity, name: { fr: "Encore", en: "" } } }, readSiteRev());
   assert.equal(res.ok, true);
   assert.ok(!readSiteDraft().snap.nav.some((i) => i.kind === "page" && i.pageId === 99999));
   assert.ok(siteForEditor(A).snap.nav.every((i) => i.kind !== "page" || i.pageId !== 99999));
-  discardDraft(A, rev(A));
+  assert.equal(discardSiteDraft(readSiteRev()).ok, true);
 });
 await test("ordre du menu changé depuis la liste pendant un brouillon d'en-tête : reporté", () => {
   const pub = readPublishedSite();
-  saveSiteDraft(C, { ...pub, identity: { ...pub.identity, name: { fr: "C", en: "" } } }, rev(C));
+  saveSiteDraft(C, { ...pub, identity: { ...pub.identity, name: { fr: "C", en: "" } } }, readSiteRev());
   const pages = navIds();
   const reversed = [...pages].reverse();
   assert.equal(reorderMenu(reversed).ok, true);
@@ -368,7 +369,7 @@ await test("ordre du menu changé depuis la liste pendant un brouillon d'en-têt
 await test("E1–E2 case « dans le menu » cochée dans le brouillon de la page + en-tête modifié : la page entre au menu", () => {
   const pub = readPublishedSite();
   saveDraft(A, { ...base(A), published: true, inMenu: true, blocks: [] }, rev(A));
-  saveSiteDraft(A, { ...pub, identity: { ...pub.identity, name: { fr: "X", en: "" } } }, rev(A));
+  saveSiteDraft(A, { ...pub, identity: { ...pub.identity, name: { fr: "X", en: "" } } }, readSiteRev());
   assert.equal(publishDraft(A, rev(A)).ok, true);
   assert.ok(navIds().includes(A));
 });
@@ -376,7 +377,7 @@ await test("retirer une page par l'en-tête n'est pas défait à la publication 
   saveDraft(B, { ...base(B), blocks: [] }, rev(B));
   assert.equal(base(B).inMenu, true);
   const pub = readPublishedSite();
-  saveSiteDraft(C, { ...pub, nav: pub.nav.filter((i) => !(i.kind === "page" && i.pageId === B)) }, rev(C));
+  saveSiteDraft(C, { ...pub, nav: pub.nav.filter((i) => !(i.kind === "page" && i.pageId === B)) }, readSiteRev());
   publishDraft(C, rev(C));
   assert.ok(!navIds().includes(B));
   assert.equal(base(B).inMenu, false, "le brouillon de B a suivi");
@@ -390,12 +391,12 @@ await test("G1–G8 éditeur resté ouvert : un changement du menu fait ailleurs
   saveDraft(GB, { ...base(GB), published: true, blocks: [] }, rev(GB));
   publishDraft(GB, rev(GB));
   const snap = siteForEditor(GA).snap;
-  const r1 = saveSiteDraft(GA, { ...snap, identity: { ...snap.identity, name: { fr: "N1", en: "" } } }, rev(GA));
+  const r1 = saveSiteDraft(GA, { ...snap, identity: { ...snap.identity, name: { fr: "N1", en: "" } } }, readSiteRev());
   assert.equal(r1.ok, true);
   const { after, rev: revA } = r1.data;
   assert.equal(setInMenu(GB, true).ok, true);
   assert.ok(readSiteDraft().snap.nav.some((i) => i.kind === "page" && i.pageId === GB), "reporté dans le brouillon");
-  assert.equal(rev(GA), revA + 1, "version de la page porteuse incrémentée");
+  assert.equal(readSiteRev(), revA + 1, "version du brouillon du site incrémentée (lot 96 : plus celle d'une page)");
   const stale = saveSiteDraft(GA, { ...after, identity: { ...after.identity, name: { fr: "N2", en: "" } } }, revA);
   assert.equal(stale.ok, false);
   assert.equal(stale.code, "conflict", "l'éditeur périmé reçoit « Modifié ailleurs »");
@@ -418,7 +419,7 @@ await test("17f (lot 29) : palette peu lisible → enregistrée, publiée et app
   const pub = readPublishedSite();
   saveDraft(page, { ...base(page), blocks: [k("b", "section-title", { title: L("Titre") })] }, rev(page));
   // Fond = couleur du texte : la saisie est acceptée…
-  const saved = saveSiteDraft(page, { ...pub, styles: { palette: { bg: theme.tokens.color.ink } } }, rev(page));
+  const saved = saveSiteDraft(page, { ...pub, styles: { palette: { bg: theme.tokens.color.ink } } }, readSiteRev());
   assert.equal(saved.ok, true, "enregistrement du brouillon jamais bloqué");
   // …la mise en ligne aussi (lot 29), et la couleur est bien celle qui est publiée.
   const published = publishDraft(page, rev(page));
@@ -428,7 +429,7 @@ await test("17f (lot 29) : palette peu lisible → enregistrée, publiée et app
   const viaForm = savePageFromForm(page, { ...base(page), blocks: [] }, rev(page));
   assert.equal(viaForm.ok, true);
   // Nettoyage : retour à la palette du thème, publié.
-  assert.equal(saveSiteDraft(page, { ...pub, styles: {} }, rev(page)).ok, true);
+  assert.equal(saveSiteDraft(page, { ...pub, styles: {} }, readSiteRev()).ok, true);
   assert.equal(publishDraft(page, rev(page)).ok, true);
   assert.equal(settingOf("styles")?.palette, undefined, "palette retirée");
 });
@@ -437,7 +438,7 @@ await test("17f : palette lisible → publiée avec la page, thème intact ; Ann
   const themeBefore = JSON.stringify(activeThemeForEdit());
   const pub = readPublishedSite();
   saveDraft(page, { ...base(page), blocks: [k("b", "section-title", { title: L("Titre") })] }, rev(page));
-  assert.equal(saveSiteDraft(page, { ...pub, styles: { palette: { primary: "#7a1f10" }, logo: { size: 96, mode: "shrink" } } }, rev(page)).ok, true);
+  assert.equal(saveSiteDraft(page, { ...pub, styles: { palette: { primary: "#7a1f10" }, logo: { size: 96, mode: "shrink" } } }, readSiteRev()).ok, true);
   assert.deepEqual(readSiteDraft().snap.styles, { palette: { primary: "#7a1f10" }, logo: { size: 96, mode: "shrink" } });
   assert.equal(settingOf("styles")?.palette, undefined, "brouillon : rien en ligne avant Publier");
   const done = publishDraft(page, rev(page));
@@ -448,7 +449,7 @@ await test("17f : palette lisible → publiée avec la page, thème intact ; Ann
   const after = readPublishedSite();
   assert.deepEqual(after.styles?.palette, { primary: "#7a1f10" });
   saveDraft(page, { ...base(page), blocks: [k("b", "section-title", { title: L("Titre") })] }, rev(page));
-  assert.equal(saveSiteDraft(page, { ...after, styles: { palette: {}, logo: { mode: "fixed" } } }, rev(page)).ok, true);
+  assert.equal(saveSiteDraft(page, { ...after, styles: { palette: {}, logo: { mode: "fixed" } } }, readSiteRev()).ok, true);
   assert.equal(readSiteDraft().snap.styles, undefined, "palette / logo vides = pas de styles");
   assert.equal(publishDraft(page, rev(page)).ok, true);
   assert.equal(settingOf("styles"), undefined);

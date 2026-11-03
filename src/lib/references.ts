@@ -84,7 +84,8 @@ function logoUsages(): Map<number, Usage> {
   for (const r of db.select().from(schema.settings).where(inArray(schema.settings.key, ["styles", "siteDraft"])).all()) {
     const v = parseJson(r.value) as { logo?: { mediaId?: unknown }; pageId?: unknown; snap?: { styles?: { logo?: { mediaId?: unknown } } } } | null;
     const mediaId = r.key === "styles" ? v?.logo?.mediaId : v?.snap?.styles?.logo?.mediaId;
-    const pageId = r.key === "styles" ? home : typeof v?.pageId === "number" ? v.pageId : home;
+    // Brouillon du site commun à toutes les pages (lot 96) : l'usage est rattaché à l'accueil dans les deux cas.
+    const pageId = home;
     if (typeof mediaId === "number" && pageId !== undefined && !out.has(mediaId)) {
       out.set(mediaId, { kind: "block", blockId: -1, pageId, type: LOGO_USAGE_TYPE, path: "media" });
     }

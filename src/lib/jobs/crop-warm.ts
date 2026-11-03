@@ -18,6 +18,7 @@ import { CROP_PREFIX, parseCropKey, type CropRequest } from "@/lib/images/crop";
 import { CropBusy, CropRejected, ensureCrop, verifyCrop } from "@/lib/images/crop-cache";
 import { rectKey } from "@/lib/images/crop";
 import { findCropSource } from "@/lib/media";
+import { isSpecialSlug } from "@/lib/special-pages";
 
 /** Largeurs servies le plus souvent (écran 1× à 2×) d'abord : ce que les visiteurs demandent en premier. */
 const WIDTH_RANK = [960, 1600, 2400, 480, 3600, 4800];
@@ -92,7 +93,8 @@ export async function runCropWarm(payload: WarmPayload, shouldYield: () => boole
   if (!row || !row.published || row.deletedAt) return { done: true, made: 0 };
   const slug = row.slug.fr ?? "";
   const res = await fetch(`${origin()}/fr${slug ? `/${slug}` : ""}`, { headers: { "user-agent": "portfolio-crop-warm" }, signal: AbortSignal.timeout(60_000) });
-  if (!res.ok) throw new Error(`page publique : réponse ${res.status}`);
+  // La page « Page introuvable » (lot 89) répond 404 par construction : son contenu est celui qu'on veut préchauffer.
+  if (!res.ok && !(isSpecialSlug(slug) && res.status === 404)) throw new Error(`page publique : réponse ${res.status}`);
   const keys = cropKeysIn(await res.text());
   let made = 0;
   for (let i = payload.offset ?? 0; i < keys.length; i++) {

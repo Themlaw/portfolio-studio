@@ -459,6 +459,8 @@ export default function EditLayer() {
     editing.current = null;
     current.ac?.abort();
     const { el, original, target, marked } = current;
+    // Fin de la saisie : la barre « Aa » de ce texte se ferme (LookLayer).
+    queueMicrotask(() => window.dispatchEvent(new CustomEvent("pe:text-end", { detail: { el } })));
     if (marked) {
       // Accroche : le texte est lu dans NOTRE champ (nœuds texte et passages surlignés), jamais du HTML.
       const markup = markupOf(marked.editor);
@@ -642,6 +644,8 @@ export default function EditLayer() {
       if (opts.selectAll) window.getSelection()?.selectAllChildren(el);
       else placeCaretAtEnd(el);
       bindPlain(el, id);
+      // Saisie commencée : la barre « Aa » du texte s'ouvre d'elle-même (LookLayer), sans prendre le focus.
+      window.dispatchEvent(new CustomEvent("pe:text-edit", { detail: { el } }));
     },
     [finishEdit, select, refreshMarkBar, bindMarked, bindPlain],
   );
@@ -1436,9 +1440,15 @@ export default function EditLayer() {
             <button type="button" aria-label="Dupliquer" title="Dupliquer" onClick={() => post({ kind: "op", op: "duplicate", uid: sel.uid })}>
               ⧉
             </button>
-            <button type="button" className="pe-danger" aria-label="Supprimer" title="Supprimer (Suppr)" onClick={() => post({ kind: "op", op: "delete", uid: sel.uid })}>
-              ✕
-            </button>
+            {/* Bloc verrouillé (lot 89, « Sortie ») : le bouton reste, désactivé, et dit pourquoi ; le clic est refusé par l'éditeur avec la même explication. */}
+            {(() => {
+              const locked = document.querySelector(`[data-edit-block="${CSS.escape(sel.uid)}"]`)?.getAttribute("data-edit-locked") ?? null;
+              return (
+                <button type="button" className="pe-danger" aria-label="Supprimer" aria-disabled={locked ? true : undefined} data-locked={locked ? "" : undefined} title={locked ?? "Supprimer (Suppr)"} style={locked ? { opacity: 0.45, cursor: "not-allowed" } : undefined} onClick={() => post({ kind: "op", op: "delete", uid: sel.uid })}>
+                  ✕
+                </button>
+              );
+            })()}
           </div>
           )}
           {fondFor === sel.uid && (!sel.parent || hasFondWrapper(sel.uid)) && (

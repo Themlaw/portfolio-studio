@@ -23,6 +23,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import FreeCropDialog from "@/components/edit/FreeCropDialog";
 import HeroContrast from "@/components/edit/HeroContrast";
+import { type CaptionStyleField, type ProjectCaptionStyle } from "@/blocks/board-layout";
 import { applyMediaPatch, type MediaPatch } from "@/lib/edit/media-look";
 import { acceptToCanvas, EDIT_MSG, type MediaTarget } from "@/lib/edit/protocol";
 import { type Rect as CropRect } from "@/lib/images/crop";
@@ -35,9 +36,11 @@ import {
   googleOf,
   needsCrop,
   readLook,
+  resolveTextStyle,
   ROLE_LABELS,
   SPACE_LABELS,
   textStyleDecls,
+  TEXT_PATH_RE,
   siteStylesCss,
   SiteStylesSchema,
   type Crop,
@@ -374,11 +377,26 @@ function pathOf(el: Element): string {
 }
 
 type TextTarget = {
+  /** Sélecteur STABLE du texte (attributs d'identité) ; à défaut, son chemin dans le DOM (`pathOf`). */
   path: string;
   role: Role;
   /** Texte d'un bloc : style local possible (chemin dans look.text). */
   local: { uid: string; key: string } | null;
+  /** Légende d'une planche de projet (lot 98) : champ (titre, légende, date) et projet, pour la portée « Les légendes de ce projet ». */
+  cap: { field: CaptionStyleField; board: number } | null;
+  /** L'élément lui-même au moment du choix (le DOM est re-rendu : `elementOf` le retrouve par `path` s'il a été remplacé). */
+  el?: HTMLElement;
 };
+
+/** L'élément d'un texte : celui qu'on a choisi s'il est encore là, sinon celui que son sélecteur désigne. */
+function elementOf(target: Pick<TextTarget, "path" | "el">): HTMLElement | null {
+  if (target.el?.isConnected) return target.el;
+  try {
+    return document.querySelector<HTMLElement>(target.path);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Blocs dont des textes sont rendus par un composant client : seuls les chemins
@@ -387,9 +405,39 @@ type TextTarget = {
  */
 const LOCAL_ONLY: Record<string, Set<string>> = { "video-single": new Set(["eyebrow", "title", "description"]) };
 
-/** Bloc de la page, ou composant d'une planche (lot 31c), qui porte ce texte : le plus proche des deux. */
+/** Bloc de la page, ou composant d'une planche (lot 31c : un Texte…), qui porte ce texte : le plus proche des deux. */
 const OWNER_SEL = "[data-edit-bitem]:not([data-edit-bitem-rail]), [data-edit-block]";
 const ownerUid = (b: HTMLElement) => b.dataset.editBlock ?? b.dataset.editBitem;
+/** Case d'une grille de PLANCHE : son style s'écrit dans les réglages de la case (`cell-look`), pas dans ceux de la grille. */
+const BOARD_CELL_SEL = ".block-grid-cell[data-edit-cell]";
+
+/**
+ * Sélecteur stable d'un texte, d'après ses attributs d'identité (jamais son rang dans le DOM : une planche re-rendue change les rangs
+ * et la barre « Aa » perdait son texte). Le premier sélecteur qui désigne CE texte et lui seul ; sinon null.
+ */
+function stableSelector(el: HTMLElement): string | null {
+  const q = (name: string, v: string | undefined) => (v === undefined ? "" : `[${name}="${CSS.escape(v)}"]`);
+  const own = q("data-inline", el.dataset.inline) + q("data-look-key", el.dataset.lookKey) + q("data-site-inline", el.dataset.siteInline) + q("data-slot-inline", el.dataset.slotInline) + q("data-project-inline", el.dataset.projectInline);
+  if (!own) return null;
+  const cap = q("data-cap", el.dataset.cap);
+  const slot = el.closest<HTMLElement>("[data-slot-slug]");
+  const owner = el.closest<HTMLElement>(`${BOARD_CELL_SEL}, ${OWNER_SEL}`);
+  const ownerSel = owner ? (owner.matches(BOARD_CELL_SEL) ? q("data-edit-cell", owner.dataset.editCell) : owner.dataset.editBlock !== undefined ? q("data-edit-block", owner.dataset.editBlock) : q("data-edit-bitem", owner.dataset.editBitem)) : "";
+  const board = el.closest<HTMLElement>("[data-edit-board]");
+  const candidates = [
+    `${ownerSel} ${slot ? q("data-slot-slug", slot.dataset.slotSlug) + " " : ""}${own}${cap}`.trim(),
+    `${board ? q("data-edit-board", board.dataset.editBoard) + " " : ""}${ownerSel} ${slot ? q("data-slot-slug", slot.dataset.slotSlug) + " " : ""}${own}${cap}`.trim(),
+  ];
+  for (const sel of candidates) {
+    try {
+      const all = document.querySelectorAll(sel);
+      if (all.length === 1 && all[0] === el) return sel;
+    } catch {
+      /* sélecteur refusé : on passe au suivant */
+    }
+  }
+  return null;
+}
 
 function targetOf(el: HTMLElement): TextTarget {
   const found = el.closest<HTMLElement>(OWNER_SEL);
@@ -400,9 +448,16 @@ function targetOf(el: HTMLElement): TextTarget {
   const site = el.dataset.siteInline;
   let local: TextTarget["local"] = null;
   const uid = block ? ownerUid(block) : undefined;
-  if (uid && inline && el.closest(OWNER_SEL) === block) local = { uid, key: inline };
+  // Case d'une grille de planche : son texte (`children.<rang>.props.<champ>`) se règle dans la case, sous le nom du champ.
+  const cell = block?.dataset.editBitem && inline?.startsWith("children.") ? el.closest<HTMLElement>(BOARD_CELL_SEL) : null;
+  if (cell?.dataset.editCell && block && block.contains(cell)) local = { uid: cell.dataset.editCell, key: inline!.replace(/^children\.\d+\.props\./, "") };
+  else if (uid && inline && el.closest(OWNER_SEL) === block) local = { uid, key: inline };
   else if (uid && (site === "name" || site === "role")) local = { uid, key: `site.${site}` };
-  return { path: pathOf(el), role: roleOf(el), local };
+  // Une clé que le schéma des réglages refuserait serait perdue en silence (le message est écarté) : pas de « Ce texte » pour elle.
+  if (local && !local.key.startsWith("site.") && !TEXT_PATH_RE.test(local.key)) local = null;
+  const board = Number(el.closest<HTMLElement>("[data-edit-board]")?.dataset.editBoard);
+  const field = el.dataset.cap === "title" || el.dataset.cap === "legend" || el.dataset.cap === "date" ? el.dataset.cap : null;
+  return { path: stableSelector(el) ?? pathOf(el), role: roleOf(el), local, cap: board && field ? { field, board } : null, el };
 }
 
 /** Styles du site tels que le serveur les a rendus (feuille `#site-styles`). */
@@ -452,19 +507,63 @@ function previewRole(role: Role, style: TextStyle | undefined, seq: number) {
 function localTexts(local: { uid: string; key: string }): HTMLElement[] {
   const block = wrapperOf(local.uid);
   if (!block) return [];
-  const sel = local.key.startsWith("site.") ? `[data-site-inline="${CSS.escape(local.key.slice(5))}"]` : `[data-inline="${CSS.escape(local.key)}"], [data-look-key="${CSS.escape(local.key)}"]`;
-  return [...block.querySelectorAll<HTMLElement>(sel)].filter((e) => e.closest(OWNER_SEL) === block);
+  const cell = block.matches(BOARD_CELL_SEL);
+  // Case d'une grille de planche : ses textes portent le préfixe de la grille (`children.<rang>.props.`).
+  const sel = local.key.startsWith("site.")
+    ? `[data-site-inline="${CSS.escape(local.key.slice(5))}"]`
+    : `[data-inline="${CSS.escape(local.key)}"], [data-look-key="${CSS.escape(local.key)}"]${cell ? `, [data-inline$=".props.${CSS.escape(local.key)}"]` : ""}`;
+  return [...block.querySelectorAll<HTMLElement>(sel)].filter((e) => (cell ? block.contains(e) : e.closest(OWNER_SEL) === block));
+}
+
+/** Style en ligne d'un aperçu : celui du texte, en gardant le masquage d'un texte en cours de saisie sur la planche (l'original reste caché derrière le champ). */
+function setPreviewStyle(el: HTMLElement, css: string) {
+  const hidden = el.style.visibility === "hidden";
+  const next = hidden ? `${css};visibility:hidden` : css;
+  if (el.getAttribute("style") !== next) el.setAttribute("style", next);
 }
 
 /** Aperçu immédiat du style de CE texte, gardé jusqu'à ce que le serveur le rende. */
-function previewTextStyle(local: { uid: string; key: string }, style: TextStyle | undefined, seq: number) {
+function previewTextStyle(local: { uid: string; key: string }, style: TextStyle | undefined, seq: number, own = Boolean(style)) {
   const css = textStyleDecls(style, canvasPalette()).map(([k, v]) => `${k}:${v}`).join(";");
   setOverlay(`tstyle:${local.uid}:${local.key}`, seq, {
     apply: () => {
-      for (const el of localTexts(local)) if (el.getAttribute("style") !== css) el.setAttribute("style", css);
+      for (const el of localTexts(local)) {
+        setPreviewStyle(el, css);
+        // Une légende réglée seule ne suit plus le style du projet (aperçu du projet : voir `previewCaptions`).
+        if (el.hasAttribute("data-cap")) {
+          if (own) el.setAttribute("data-cap-local", "");
+          else el.removeAttribute("data-cap-local");
+        }
+      }
     },
   });
 }
+
+/** Style des légendes d'un projet tel que le serveur l'a rendu (`data-edit-capstyle` de la planche), ou celui qu'on vient d'envoyer. */
+function captionStyles(board: number): ProjectCaptionStyle {
+  const pending = overlayData<{ style: ProjectCaptionStyle }>(`capstyle:${board}`);
+  if (pending) return pending.style;
+  try {
+    return JSON.parse(document.querySelector<HTMLElement>(`[data-edit-board="${board}"]`)?.dataset.editCapstyle ?? "{}") as ProjectCaptionStyle;
+  } catch {
+    return {};
+  }
+}
+
+/** Aperçu immédiat du style des légendes d'un projet : toutes ses légendes qui n'ont pas de style propre, jusqu'à ce que le serveur le rende. */
+function previewCaptions(board: number, style: ProjectCaptionStyle, seq: number) {
+  setOverlay(`capstyle:${board}`, seq, {
+    data: { style },
+    apply: () => {
+      for (const f of ["title", "legend", "date"] as const) {
+        const css = textStyleDecls(style[f] as TextStyle | undefined, canvasPalette()).map(([k, v]) => `${k}:${v}`).join(";");
+        for (const el of document.querySelectorAll<HTMLElement>(`[data-edit-board="${board}"] [data-cap="${f}"]:not([data-cap-local])`)) setPreviewStyle(el, css);
+      }
+    },
+  });
+}
+
+type Scope = "local" | "project" | "role";
 
 function TextBar({
   target,
@@ -479,20 +578,24 @@ function TextBar({
   onClose: () => void;
   tick: number;
 }) {
-  const [scope, setScope] = useState<"local" | "role">(target.local ? "local" : "role");
+  const [scope, setScope] = useState<Scope>(target.local ? "local" : target.cap ? "project" : "role");
   // Redessin à chaque réglage : l'aperçu ne change que des attributs (la page n'est pas observée pour cela). Sans lui, la barre garde
   // l'ancienne valeur jusqu'au prochain redessin de la page, et un second réglage fait aussitôt après écraserait le premier.
   const [, redraw] = useState(0);
-  const el = document.querySelector<HTMLElement>(target.path);
+  const el = elementOf(target);
   void tick;
-  // Le texte n'est plus là (la page s'est redessinée autrement, ex. le bloc a perdu son enveloppe) : la barre n'a plus de cible
-  // et, sans cette fermeture, bloquerait le « Aa » des autres textes. Un redessin passager la retrouve avant le délai.
+  // Le texte n'est plus là (la page s'est redessinée autrement) : la barre n'a plus de cible et, sans cette fermeture, bloquerait le
+  // « Aa » des autres textes. Un redessin passager la retrouve avant le délai ; le délai n'est PAS relancé par chaque redessin.
   const missing = !el;
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
   useEffect(() => {
     if (!missing) return;
-    const t = setTimeout(onClose, 2000);
+    const t = setTimeout(() => closeRef.current(), 2000);
     return () => clearTimeout(t);
-  }, [missing, onClose, tick]);
+  }, [missing]);
   if (!el) return null;
   const look = target.local ? lookOf(target.local.uid) : {};
   // Fond du métier de l'ouverture réglé avant le lot 21 (`look.roleBackdrop`) : « Ombre douce » et « Bandeau » sont montrés comme
@@ -502,6 +605,9 @@ function TextBar({
   const oldBackdrop = target.local?.key === "site.role" ? look.roleBackdrop : undefined;
   const legacyBackdrop = oldBackdrop && oldBackdrop !== "highlight" ? oldBackdrop : undefined;
   const localStyle: TextStyle = target.local ? { ...(legacyBackdrop ? { backdrop: legacyBackdrop } : {}), ...(look.text?.[target.local.key] ?? {}) } : {};
+  // Style des légendes du projet (lot 98) pour le champ de ce texte.
+  const projectAll = target.cap ? captionStyles(target.cap.board) : {};
+  const projectStyle: TextStyle = target.cap ? ((projectAll[target.cap.field] as TextStyle | undefined) ?? {}) : {};
   // « Titres » : le titre de page et les titres de section partagent UN réglage (lot 68) ; le titre de page n'a son propre style que s'il en a posé un.
   const role: Role = target.role === "h1" ? "h2" : target.role;
   const roleStyle: TextStyle = (() => {
@@ -511,20 +617,29 @@ function TextBar({
     const out = { ...(roles.h2 ?? {}), ...(roles.h1?.size ? { size: roles.h1.size } : { size: undefined }), ...(roles.h1?.scale ? { scale: roles.h1.scale } : { scale: undefined }) };
     return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined)) as TextStyle;
   })();
-  const value = scope === "local" ? localStyle : roleStyle;
+  const level: Scope = scope === "local" && !target.local ? (target.cap ? "project" : "role") : scope === "project" && !target.cap ? "role" : scope;
+  const value = level === "local" ? localStyle : level === "project" ? projectStyle : roleStyle;
   const change = (input: TextStyle | undefined) => {
     let next = input;
     // Police Google choisie sans graisse : celle du texte affiché (le serveur
     // télécharge exactement ce style).
     const fam = googleOf(next?.font) ? googleFamily(googleOf(next?.font)!) : undefined;
     if (next && fam && !next.weight) next = { ...next, weight: nearestWeight(fam, parseInt(getComputedStyle(el).fontWeight, 10) || 400, Boolean(next.italic)) };
-    if (scope === "local" && target.local) {
+    if (level === "local" && target.local) {
       const text = { ...(look.text ?? {}) };
       if (next) text[target.local.key] = next;
       else delete text[target.local.key];
       const seq = sendLook(target.local.uid, { ...look, text, ...(oldBackdrop && (legacyBackdrop || next === undefined || next.backdrop !== undefined) ? { roleBackdrop: undefined } : {}) });
-      // Aperçu immédiat sur ce texte.
-      previewTextStyle(target.local, next, seq);
+      // Aperçu immédiat sur ce texte : son style propre par-dessus celui du projet (« Ce texte » passe devant), ou celui du projet s'il est retiré.
+      const shown = target.cap && Object.keys(projectStyle).length ? resolveTextStyle(projectStyle, next) : next;
+      previewTextStyle(target.local, shown, seq, Boolean(next));
+    } else if (level === "project" && target.cap) {
+      const style: ProjectCaptionStyle = { ...projectAll };
+      const clean = next ? (Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined)) as TextStyle) : undefined;
+      if (clean && Object.keys(clean).length) style[target.cap.field] = clean;
+      else delete style[target.cap.field];
+      const seq = postIntent({ kind: "board-captions", board: target.cap.board, style: Object.keys(style).length ? (style as never) : null });
+      previewCaptions(target.cap.board, style, seq);
     } else {
       // « Titres » (lot 68) : police, graisse, couleur… sont UN réglage pour le titre de page et les titres de section ; seule la TAILLE
       // reste propre à chacun (le titre de page est plus grand). Depuis un titre de page, la taille va donc à « Titre de page ».
@@ -551,18 +666,24 @@ function TextBar({
       }
     }
   };
+  const board = Boolean(target.cap);
   // Fenêtre ancrée au bouton « Aa » (lot 65) : au-dessus du texte si la place y est, jamais sur la barre d'outils du bloc ni loin du bouton.
   return (
-    <Popover anchor=".lk-aa" dataAttrs={{ "data-text-target": target.local?.key ?? target.role }} avoid={target.path} obstacles=".pe-tools" prefer="above" className="lk-bar" role="toolbar" label="Style du texte" onClose={onClose} ignoreDismiss={(t) => Boolean(document.querySelector(target.path)?.contains(t))} onPointerDown={(e) => e.stopPropagation()}>
+    <Popover anchor=".lk-aa" dataAttrs={{ "data-text-target": target.local?.key ?? target.role }} avoid={target.path} obstacles=".pe-tools" prefer="above" className="lk-bar" role="toolbar" label="Style du texte" onClose={onClose} ignoreDismiss={(t) => Boolean(elementOf(target)?.contains(t)) || (t instanceof Element && Boolean(t.closest(".pe-text-editor")))} onPointerDown={(e) => e.stopPropagation()}>
       <div className="lk-bar-head">
         <span className="lk-seg" role="radiogroup" aria-label="Appliquer à">
           {target.local && (
-            <button type="button" role="radio" aria-checked={scope === "local"} onClick={() => setScope("local")}>
+            <button type="button" role="radio" aria-checked={level === "local"} onClick={() => setScope("local")}>
               Ce texte
             </button>
           )}
-          <button type="button" role="radio" aria-checked={scope === "role"} onClick={() => setScope("role")} title="Styles du site : toutes les pages (publié avec la page)">
-            {role === "h2" ? "Tous les titres" : `Tous les « ${ROLE_LABELS[role]} »`}
+          {target.cap && (
+            <button type="button" role="radio" aria-checked={level === "project"} onClick={() => setScope("project")} title="Toutes les légendes de ce champ, sous les images de ce projet : partout où le projet est montré">
+              Les légendes de ce projet
+            </button>
+          )}
+          <button type="button" role="radio" aria-checked={level === "role"} onClick={() => setScope("role")} title="Styles du site : toutes les pages (publié avec la page)">
+            {board ? "Tout le site" : role === "h2" ? "Tous les titres" : `Tous les « ${ROLE_LABELS[role]} »`}
           </button>
         </span>
         <button type="button" className="lk-close" aria-label="Fermer la barre" onClick={onClose}>
@@ -579,10 +700,10 @@ function TextBar({
         swatch={swatch}
         themeNames={themeNames}
         compact
-        resetLabel={scope === "local" ? "Revenir au style global" : "Revenir au thème"}
+        resetLabel={level === "local" ? (board ? "Revenir au style du projet" : "Revenir au style global") : level === "project" ? "Revenir au style du site" : "Revenir au thème"}
         palette={canvasPalette()}
         backdropBlocked={BACKDROP_BLOCKED[role]}
-        inheritedColor={scope === "local" ? roleStyle.color : undefined}
+        inheritedColor={level === "local" ? (projectStyle.color ?? roleStyle.color) : level === "project" ? roleStyle.color : undefined}
       />
     </Popover>
   );
@@ -924,6 +1045,12 @@ export default function LookLayer({
 }) {
   const [hoverText, setHoverText] = useState<{ el: HTMLElement; rect: Rect; anchor?: HTMLElement } | null>(null);
   const [bar, setBar] = useState<TextTarget | null>(null);
+  // Texte en cours de saisie (lot 98) : la pastille « Aa » reste sur lui, quelle que soit la souris, jusqu'à la fin de la saisie.
+  const [active, setActive] = useState<TextTarget | null>(null);
+  const activeRef = useRef<TextTarget | null>(null);
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
   const [cropHover, setCropHover] = useState<CropTarget | null>(null);
   const [cropOpen, setCropOpen] = useState<CropTarget | null>(null);
   const [installed, setInstalled] = useState<string[]>([]);
@@ -975,6 +1102,44 @@ export default function LookLayer({
     return () => window.removeEventListener("pe:crop", onCrop);
   }, [announce]);
 
+  // Saisie d'un texte (page : EditLayer ; planche : BoardLayer) : sa barre s'ouvre d'elle-même, sans prendre le focus ; elle se ferme avec la saisie
+  // (Entrée, Échap, clic ailleurs). Un clic DANS la barre ne doit ni ôter le focus au texte ni fermer la saisie (la souris ne le « prend » pas).
+  useEffect(() => {
+    let downInBar = 0;
+    const onEdit = (e: Event) => {
+      const el = (e as CustomEvent<{ el?: HTMLElement }>).detail?.el;
+      if (!el || !el.isConnected) return;
+      const t = targetOf(el);
+      setActive(t);
+      setBar((b) => (b && b.path === t.path ? b : t));
+    };
+    const onEnd = (e: Event) => {
+      const el = (e as CustomEvent<{ el?: HTMLElement }>).detail?.el;
+      const cur = activeRef.current;
+      // Un autre texte que celui de la barre (et encore là) : rien à fermer. Un élément remplacé par un rendu du serveur est le même texte.
+      if (!cur || (el && el.isConnected && cur.el !== el && cur.path !== targetOf(el).path)) return;
+      setActive(null);
+      // Fin de saisie causée par un geste dans la barre elle-même (champ de la barre) : elle reste ouverte, comme ouverte par « Aa ».
+      if (Date.now() - downInBar < 600) return;
+      setBar((b) => (b && b.path === cur.path ? null : b));
+    };
+    const onDown = (e: MouseEvent) => {
+      const t = e.target instanceof Element ? e.target : null;
+      if (!t?.closest(".lk-bar, .lk-aa")) return;
+      // Sauf dans un champ à saisir, un bouton de la barre ne prend pas le focus : le texte en cours de saisie le garde.
+      if (!t.closest("input, textarea, select, [contenteditable=true], [contenteditable=plaintext-only]")) e.preventDefault();
+      else downInBar = Date.now();
+    };
+    window.addEventListener("pe:text-edit", onEdit);
+    window.addEventListener("pe:text-end", onEnd);
+    document.addEventListener("mousedown", onDown, true);
+    return () => {
+      window.removeEventListener("pe:text-edit", onEdit);
+      window.removeEventListener("pe:text-end", onEnd);
+      document.removeEventListener("mousedown", onDown, true);
+    };
+  }, []);
+
   // Une seule fenêtre à la fois (lot 31e) : la fenêtre « Réglages » d'une grille ferme la barre « Aa ».
   useEffect(() => {
     const closeBar = () => setBar(null);
@@ -1005,7 +1170,11 @@ export default function LookLayer({
     // Saisie d'un texte : sa barre s'ouvre d'elle-même.
     const onFocus = (e: FocusEvent) => {
       const el = e.target instanceof HTMLElement && e.target.hasAttribute("data-editing") ? e.target : null;
-      if (el) setBar(targetOf(el));
+      if (el) {
+        const t = targetOf(el);
+        setActive(t);
+        setBar((b) => (b && b.path === t.path ? b : t));
+      }
     };
     document.addEventListener("pointermove", onMove, { passive: true });
     document.addEventListener("focusin", onFocus);
@@ -1022,8 +1191,10 @@ export default function LookLayer({
   const selLook = selected ? lookOf(selected.uid) : {};
   const selRect = selected ? (wrapperOf(selected.uid) ? rectOfWrapper(selected.uid) : null) : null;
   const hoverValid = hoverText && document.contains(hoverText.el) ? { ...hoverText, rect: docRect(hoverText.anchor ?? hoverText.el) } : null;
-  const barEl = bar ? document.querySelector<HTMLElement>(bar.path) : null;
-  const aaView = bar ? (barEl ? { el: barEl, rect: docRect(barEl) } : null) : hoverValid;
+  const barEl = bar ? elementOf(bar) : null;
+  const activeEl = active ? elementOf(active) : null;
+  // « Aa » : sur la barre ouverte, sinon sur le texte en cours de saisie (il ne bouge pas avec la souris), sinon sur le texte survolé.
+  const aaView = bar ? (barEl ? { el: barEl, rect: docRect(barEl) } : null) : activeEl ? { el: activeEl, rect: docRect(activeEl) } : hoverValid;
   const cropValid = cropHover && document.contains(cropHover.media) ? cropHover : null;
 
   return (
@@ -1040,11 +1211,12 @@ export default function LookLayer({
         <button
           type="button"
           className="lk-aa"
-          style={bar ? { top: Math.max(window.scrollY + 2, aaView.rect.top - 24), left: aaView.rect.left + aaView.rect.width - 30 } : aaPlace((aaView as { anchor?: HTMLElement }).anchor ?? aaView.el, aaView.rect)}
+          style={bar || active ? { top: Math.max(window.scrollY + 2, aaView.rect.top - 24), left: aaView.rect.left + aaView.rect.width - 30 } : aaPlace((aaView as { anchor?: HTMLElement }).anchor ?? aaView.el, aaView.rect)}
           aria-label="Style du texte"
           aria-expanded={bar ? true : undefined}
+          data-pinned={bar || active ? "" : undefined}
           title="Police, taille, couleur… de ce texte"
-          onClick={() => (bar ? setBar(null) : setBar(targetOf(aaView.el)))}
+          onClick={() => (bar ? setBar(null) : setBar(active ?? targetOf(aaView.el)))}
         >
           Aa
         </button>

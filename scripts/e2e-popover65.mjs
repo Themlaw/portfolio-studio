@@ -286,7 +286,7 @@ async function cases() {
     await sleep(300);
   };
   const op = (uid, name) => () => bitem(uid).locator(`:scope > .pe-bitem-bar [data-edit-bitem-op="${name}"]`);
-  const WRITES = { fond: '[data-testid="fond-menu"] [data-kind="color"]', cadre: '[data-testid="frame-menu"] [data-frame-kind="band"]' };
+  const WRITES = { fond: '[data-testid="fond-menu"] [data-testid="fond-section-fond"] [data-kind="color"]', cadre: '[data-testid="frame-menu"] [data-frame-kind="band"]' };
   for (const [n, o] of [["fond", "fond"], ["taille", "size"], ["espace", "space"], ["cadre", "frame"], ["fond-image", "imgbg"]]) await check(`planche-${n}`, hoverItem("bi"), op("bi", o), { write: WRITES[n] ?? null });
   await check("planche-reglages-grille", hoverItem("bg"), () => bitem("bg").locator(':scope > .pe-bitem-bar [data-grid-settings-button]'));
   const addBtn = () => fr.locator('.pe-bitem-add button').nth(1);

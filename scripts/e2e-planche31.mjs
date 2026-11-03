@@ -291,28 +291,104 @@ try {
   await li(2).click();
   ok("G1 clic sur une vignette Médias : ajoutée au carrousel choisi", await waitFor(() => JSON.stringify(byUid(rail1)?.props?.media) === JSON.stringify([A, C])), JSON.stringify(byUid(rail1)?.props));
   await settled();
-  // H : réordonner par la poignée (le carrousel du bas remonte d'un cran, la toile défile près du bord haut).
-  await center(frame(4));
-  await frame(4).hover();
-  const handle = frame(4).locator("[data-edit-bitem-handle]");
-  const hb = await handle.boundingBox();
-  const x0 = hb.x + hb.width / 2;
-  await page.mouse.move(x0, hb.y + hb.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(x0 + 10, hb.y + hb.height / 2 - 10, { steps: 3 });
-  for (let i = 0; i < 50; i++) {
-    await page.mouse.move(x0 + (i % 2), 120 - Math.min(i, 90), { steps: 1 });
-    await sleep(15);
+  // H : réordonner par la poignée, comme l'artiste : survol du composant, poignée visible ET non recouverte, puis glisser vers le haut
+  // et vers le bas (la toile défile près des bords). Une barre qui en recouvre une autre (par exemple celle de l'image du carrousel
+  // survolé, ouverte sous le pointeur, qui passait sur la poignée quand la barre du composant s'allongeait) rend la poignée inatteignable.
+  const order = () => layout().map((i) => i.uid);
+  const handleOk = (s) => s.visible && s.opaque && s.hits.every(Boolean);
+  /** Survole le composant `i`, laisse la toile dessiner ses barres, pose le pointeur sur la poignée et dit qui la reçoit (centre et quatre coins intérieurs). */
+  async function onHandle(i) {
+    await center(frame(i));
+    await frame(i).hover();
+    await sleep(900);
+    const handle = frame(i).locator("[data-edit-bitem-handle]");
+    let hb = await handle.boundingBox();
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+    await sleep(500);
+    // La barre se dessine en fondu : on laisse jusqu'à 4 s à la toile, mais l'état jugé est celui d'un instant précis (jamais « au moins une fois »).
+    const read = () => handle.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const bar = el.closest(".pe-bitem-bar");
+      const pts = [[0.5, 0.5], [0.15, 0.15], [0.85, 0.15], [0.15, 0.85], [0.85, 0.85]];
+      const hits = pts.map(([fx, fy]) => {
+        const hit = document.elementFromPoint(r.x + r.width * fx, r.y + r.height * fy);
+        return hit === el || Boolean(hit && el.contains(hit));
+      });
+      const centre = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return {
+        size: [Math.round(r.width), Math.round(r.height)],
+        visible: r.width > 4 && r.height > 4 && r.x >= 0 && r.right <= innerWidth && r.y >= 0 && r.bottom <= innerHeight,
+        opaque: Number(getComputedStyle(bar).opacity) > 0.99,
+        centreIsHandle: hits[0],
+        hits,
+        centre: centre ? String(centre.className?.baseVal ?? centre.className ?? centre.tagName).slice(0, 40) : "rien",
+        bar: [Math.round(bar.getBoundingClientRect().x), Math.round(bar.getBoundingClientRect().width), innerWidth],
+      };
+    });
+    let state = await read();
+    for (let k = 0; k < 8 && !handleOk(state); k++) {
+      await sleep(500);
+      hb = await handle.boundingBox();
+      await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+      state = await read();
+    }
+    return { handle, hb, state, x0: hb.x + hb.width / 2, y0: hb.y + hb.height / 2 };
   }
-  await sleep(300);
-  const t3 = await frame(3).boundingBox();
-  await page.mouse.move(x0, Math.max(150, t3.y + 30), { steps: 6 });
-  await sleep(400);
-  await page.mouse.up();
-  await sleep(800);
-  ok("H1 réordonner par la poignée : le carrousel du bas passe avant l'autre", await waitFor(() => layout()[3]?.uid === rail2 && layout()[4]?.uid === rail1), JSON.stringify(layout().map((i) => i.uid)));
+  const ifr = async () => page.locator("iframe.ve-frame").boundingBox();
+  /** Glisse la poignée du composant `i` vers le haut (avant `i - 1`) ou vers le bas (après `i + 1`) : appui, départ, bord de la toile (défilement), cible remesurée, lâcher. */
+  async function reorder(i, dir, grabbed) {
+    const { x0, y0 } = grabbed;
+    const box = await ifr();
+    await page.mouse.down();
+    await page.mouse.move(x0 + 10, y0 + (dir === "up" ? -10 : 10), { steps: 3 });
+    for (let k = 0; k < 50; k++) {
+      const y = dir === "up" ? box.y + 60 - Math.min(k, 55) : box.y + box.height - 40 + Math.min(k, 30);
+      await page.mouse.move(x0 + (k % 2), Math.max(1, Math.min(y, box.y + box.height - 2)), { steps: 1 });
+      await sleep(15);
+    }
+    await sleep(300);
+    const t = await frame(dir === "up" ? i - 1 : i + 1).boundingBox();
+    await page.mouse.move(x0, dir === "up" ? Math.max(box.y + 100, t.y + 30) : Math.min(t.y + t.height * 0.75, box.y + box.height - 60), { steps: 6 });
+    await sleep(400);
+    await page.mouse.up();
+    await sleep(800);
+  }
+  await center(frame(4));
+  const g4 = await onHandle(4);
+  ok("H0 poignée du carrousel du bas : visible, opaque, et c'est elle (pas une autre barre) qui reçoit le pointeur en son centre et ses coins", handleOk(g4.state), JSON.stringify(g4.state));
+  await reorder(4, "up", g4);
+  ok("H1 réordonner par la poignée : le carrousel du bas passe avant l'autre", await waitFor(() => layout()[3]?.uid === rail2 && layout()[4]?.uid === rail1), JSON.stringify(order()));
   await settled();
   await shot("6-glisser-deposer");
+  // Dans l'autre sens : le carrousel du haut redescend sous l'autre.
+  const g3 = await onHandle(3);
+  ok("H2 poignée du carrousel du haut : visible, opaque, non recouverte", handleOk(g3.state), JSON.stringify(g3.state));
+  await reorder(3, "down", g3);
+  ok("H3 réordonner par la poignée vers le bas : le carrousel du haut passe après l'autre", await waitFor(() => layout()[3]?.uid === rail1 && layout()[4]?.uid === rail2), JSON.stringify(order()));
+  await settled();
+  // Remis dans l'ordre attendu par la suite (carrousel du bas avant l'autre), encore à la poignée.
+  const g4b = await onHandle(4);
+  ok("H4 poignée non recouverte (retour)", handleOk(g4b.state), JSON.stringify(g4b.state));
+  await reorder(4, "up", g4b);
+  ok("H5 et de nouveau vers le haut", await waitFor(() => layout()[3]?.uid === rail2 && layout()[4]?.uid === rail1), JSON.stringify(order()));
+  await settled();
+  // Fenêtre de téléphone (390 px) : la même poignée reste atteignable et déplace le composant (haut puis bas).
+  await page.setViewportSize({ width: 390, height: 844 });
+  await sleep(1500);
+  {
+    const small = await onHandle(4);
+    ok("H6 390 px : poignée du carrousel du bas visible, opaque, non recouverte", handleOk(small.state), JSON.stringify(small.state));
+    await reorder(4, "up", small);
+    ok("H7 390 px : glisser vers le haut", await waitFor(() => layout()[3]?.uid === rail1 && layout()[4]?.uid === rail2), JSON.stringify(order()));
+    await settled();
+    const small2 = await onHandle(3);
+    ok("H8 390 px : poignée du carrousel du haut non recouverte", handleOk(small2.state), JSON.stringify(small2.state));
+    await reorder(3, "down", small2);
+    ok("H9 390 px : glisser vers le bas", await waitFor(() => layout()[3]?.uid === rail2 && layout()[4]?.uid === rail1), JSON.stringify(order()));
+    await settled();
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await sleep(1500);
   // I : largeur et alignement (Grille, Image, carrousel, Vidéo).
   const setBox = async (uid, preset, align) => {
     const i = layout().findIndex((x) => x.uid === uid);
@@ -633,12 +709,19 @@ try {
   }
   console.log("  (diag P1)", JSON.stringify(await pub2.evaluate((s) => ({ big: document.querySelectorAll(`${s} .vp-big`).length, vids: [...document.querySelectorAll(`${s} video`)].map((v) => ({ p: v.paused, t: v.currentTime, rs: v.readyState, src: (v.currentSrc || v.querySelector("source")?.src || "").slice(-40), err: v.error?.code })), html: (document.querySelector(`${s} .vp-big`)?.closest("figure, section, div")?.outerHTML ?? "").slice(0, 300) }), section)));
   ok("P1 vidéo réelle d'un composant Vidéo : lue en public (le temps avance)", played && Boolean(vitem?.props?.mediaId));
-  const railVideo = await pub2.evaluate(async (s) => {
-    const vids = [...document.querySelectorAll(`${s} .strip-rail video`)];
-    await new Promise((r) => setTimeout(r, 2500));
-    return vids.some((v) => v.currentTime > 0 || v.readyState >= 2);
-  }, section);
-  ok("P2 vidéo réelle d'un carrousel : présente et chargée en public", railVideo);
+  // Indépendant du composant Vidéo ci-dessus et de l'ordre des carrousels (avant, P2 ne passait que si le « Lire » cliqué pour P1 tombait sur le
+  // carrousel : une boucle ne démarre jamais seule, lot 62). On prend la vidéo du carrousel, on l'amène à l'écran et on la lance par son propre bouton.
+  // La visionneuse ouverte par le « Lire » de P1 recouvre la page : on la ferme comme l'artiste, à Échap.
+  await pub2.keyboard.press("Escape");
+  await sleep(500);
+  const railVid = pub2.locator(`${section} .strip-rail video`).first();
+  let railVideo = false;
+  if ((await railVid.count()) > 0) {
+    await railVid.scrollIntoViewIfNeeded();
+    await railVid.locator("xpath=ancestor::button[1]").click();
+    railVideo = await waitFor(() => railVid.evaluate((v) => v.currentTime > 0.2 || v.readyState >= 2), 10000);
+  }
+  ok("P2 vidéo réelle d'un carrousel : présente, lancée par son bouton et chargée en public", railVideo);
   await pub2.addStyleTag({ content: ".site-header{visibility:hidden !important}" });
   await pub2.locator(section).screenshot({ path: path.join(SHOTS, "11-public-videos.png") }).catch(() => {});
   await pubCtx2.close();
@@ -715,10 +798,20 @@ try {
   // La palette compte une carte de plus (lot 42) : la carte visée est amenée à l'écran avant les mesures.
   await tp.locator('.ve-card[data-key="grid"]').scrollIntoViewIfNeeded();
   await TF(iA).evaluate((el) => el.scrollIntoView({ block: "center" }));
-  await sleep(500);
+  // La toile se met en page encore un instant (images, vidéos) : on attend que le composant visé ne bouge plus avant de viser son bas.
+  let tgt = await TF(iA).boundingBox();
+  for (let k = 0; k < 20; k++) {
+    await sleep(300);
+    const again = await TF(iA).boundingBox();
+    const still = Math.abs(again.y - tgt.y) < 1 && Math.abs(again.height - tgt.height) < 1;
+    tgt = again;
+    if (still && k >= 2) break;
+  }
+  console.log("  (diag R2 scroll)", JSON.stringify(await tf.evaluate(() => ({ y: Math.round(scrollY), h: document.documentElement.scrollHeight, ih: innerHeight, smooth: getComputedStyle(document.documentElement).scrollBehavior }))));
   const card = await tp.locator('.ve-card[data-key="grid"]').boundingBox();
-  const tgt = await TF(iA).boundingBox();
-  await touchDrag({ x: card.x + card.width / 2, y: card.y + card.height / 2 }, { x: tgt.x + tgt.width / 2, y: tgt.y + tgt.height - 6 }, 600);
+  const hitAt = await tp.evaluate(([x, y]) => { const e = document.elementFromPoint(x, y); return e ? String(e.className || e.tagName).slice(0, 40) : "rien"; }, [tgt.x + tgt.width / 2, Math.min(tgt.y + tgt.height - 6, fbox.y + fbox.height - 30)]);
+  console.log("  (diag R2)", JSON.stringify({ card, tgt, fbox: await tp.locator("iframe.ve-frame").boundingBox(), vp: tp.viewportSize(), hitAt, kinds0, iA, types: (json(project().draft_layout) ?? []).map((i) => i.type) }));
+  await touchDrag({ x: card.x + card.width / 2, y: card.y + card.height / 2 }, { x: tgt.x + tgt.width / 2, y: Math.min(tgt.y + tgt.height - 6, fbox.y + fbox.height - 30) }, 600);
   ok("R2 au doigt : appui long sur une carte, glisser dans la planche", await waitFor(() => (json(project().draft_layout) ?? []).length === kinds0 + 1), `${(json(project().draft_layout) ?? []).length} / ${kinds0}`);
   await tctx.close();
   ok("D aucune erreur de page", errors.length === 0, errors.slice(0, 3).join(" | "));

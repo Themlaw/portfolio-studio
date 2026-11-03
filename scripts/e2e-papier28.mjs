@@ -242,7 +242,10 @@ const surfaceOfDraft = () => inkBlocks().at(-1)?.props.surface;
 
 await section("A", async () => {
   let menu = await openMenu();
-  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
+  // Lot 100 : « Couleur » pose la carte avec le papier du site caché (R5) ; ce test part du réglage « Comme le site » (carte par défaut du lot 28).
+  await menu.locator('[data-testid="fond-fine"]:not([open]) summary').click({ timeout: 8000 }).catch(() => {});
+  await menu.locator('[data-paper="site"]').click();
   ok("A1 carte posée (étendue demandée, le reste vient du thème : `{ width: inset }`)", await waitFor(() => JSON.stringify(surfaceOfDraft()) === '{"width":"inset"}'), JSON.stringify(surfaceOfDraft()));
   ok("A2 le menu propose « Papier du site » (le thème a un papier)", await menu.locator('[data-testid="surface-paper"]').isVisible() && (await menu.locator('[data-testid="surface-paper-none"]').count()) === 0);
   const site = menu.locator('[data-paper="site"]');
@@ -271,7 +274,7 @@ await section("B", async () => {
   ok("B1 aperçu immédiat sur la toile : papier dessiné sur la carte (pseudo-élément, intensité 0,35 par défaut)", c.attr === "over" && c.content === '""' && Math.abs(Number(c.opacity) - 0.35) < 0.01, JSON.stringify(c));
   ok("B1 brouillon : { paper: over }", await waitFor(() => JSON.stringify(surfaceOfDraft()) === '{"width":"inset","paper":"over"}'), JSON.stringify(surfaceOfDraft()));
   const slider = menu.locator('[data-testid="surface-paper-opacity"]');
-  ok("B2 le curseur d'intensité apparaît (35 % par défaut, jusqu'à 60 %)", (await slider.waitFor({ timeout: 10000 }).then(() => true, () => false)) && (await slider.inputValue()) === "35" && (await slider.getAttribute("max")) === "60");
+  ok("B2 le curseur d'intensité apparaît (35 % par défaut, jusqu'à 100 % : lot 90)", (await slider.waitFor({ timeout: 10000 }).then(() => true, () => false)) && (await slider.inputValue()) === "35" && (await slider.getAttribute("max")) === "100");
   await slider.fill("50");
   const c2 = await canvasCard();
   ok("B2 curseur : intensité 0,5 immédiate sur la toile", Math.abs(Number(c2.opacity) - 0.5) < 0.01, JSON.stringify(c2));

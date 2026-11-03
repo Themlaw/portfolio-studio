@@ -12,24 +12,25 @@ import { FaviconInputSchema } from "@/lib/favicon-spec";
 import { getSite } from "@/lib/settings";
 import { getPublishedTheme } from "@/lib/theme";
 import { revalidateSettings, revalidateTheme } from "@/lib/revalidate";
+import { audited } from "@/lib/journal/audit";
 
-export async function saveSettingsAction(input: unknown): Promise<ActionResult<null>> {
+export const saveSettingsAction = audited("saveSettingsAction", async function saveSettingsAction(input: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const result = saveSettings(input);
   if (result.ok) revalidateSettings();
   return result;
-}
+});
 
 /** Partage et moteurs de recherche (lot 52) : description du site, image de partage, icône de l'onglet. */
-export async function saveSeoAction(input: unknown): Promise<ActionResult<null>> {
+export const saveSeoAction = audited("saveSeoAction", async function saveSeoAction(input: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const result = await saveSeo(input);
   if (result.ok) revalidateSettings();
   return result;
-}
+});
 
 /** Icône de l'onglet (lot 83) : un seul réglage de site, enregistré depuis Réglages ET depuis l'étape « Logo » de l'éditeur de thème. */
-export async function saveFaviconAction(input: unknown): Promise<ActionResult<null>> {
+export const saveFaviconAction = audited("saveFaviconAction", async function saveFaviconAction(input: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const result = await saveFavicon(input);
   if (result.ok) {
@@ -37,7 +38,7 @@ export async function saveFaviconAction(input: unknown): Promise<ActionResult<nu
     revalidateTheme();
   }
   return result;
-}
+});
 
 /** Aperçu de l'icône pour un réglage pas encore enregistré (thème en ligne) : onglet clair et sombre, écran d'accueil, avertissements. */
 export async function previewFaviconAction(input: unknown): Promise<ActionResult<FaviconPreview>> {
@@ -60,10 +61,10 @@ export async function previewFaviconAction(input: unknown): Promise<ActionResult
 }
 
 /** Supprime une police téléchargée inutilisée (Réglages → Polices téléchargées). */
-export async function deleteFontAction(family: unknown): Promise<ActionResult<null>> {
+export const deleteFontAction = audited("deleteFontAction", async function deleteFontAction(family: unknown): Promise<ActionResult<null>> {
   await assertAdmin();
   const result = await deleteFont(family);
   if (!result.ok) return result;
   revalidateSettings();
   return { ok: true, data: null };
-}
+});

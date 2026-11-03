@@ -119,21 +119,23 @@
   align-items: center;
   gap: 6px;
 }
-.sm-dot {
+/* Échantillon de couleur (Fond, Fond image) : petit carré arrondi, jamais un rond (ça ressemblait à un bouton radio). Rien sans fond. */
+.sm-swatch {
   display: inline-block;
+  flex: 0 0 auto;
   width: 12px;
   height: 12px;
-  border: 1.5px solid var(--lk-ink-soft);
-  border-radius: 50%;
+  border: 1px solid var(--lk-ink-soft);
+  border-radius: 3px;
   box-sizing: border-box;
 }
-/* Réglage posé : pastille pleine (accent) sauf si le bouton donne la couleur choisie en ligne. */
-.sm-dot[data-on] {
-  background: var(--pe-accent);
-}
-.sm-dot:not([data-on]) {
-  background: transparent;
-  border-style: dashed;
+/* Valeur posée sur Espacement, Taille, Cadre : texte gris court, tronqué avec infobulle complète (title). */
+.sm-value {
+  max-width: 11ch;
+  overflow: hidden;
+  color: var(--lk-ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pe-tools .sm-button .sm-alert,
 .pe-tools .fond-btn .sm-alert {
@@ -202,9 +204,9 @@
   font: 500 11px/1.3 var(--lk-font) !important;
   text-decoration: underline;
 }
-/* Pastille « Fond » d'un papier peint sans couleur dessous : damier discret (couleurs de la barre d'outils). */
-.sm-dot[data-wallpaper] {
-  background: repeating-conic-gradient(var(--pe-surface) 0% 25%, transparent 0% 50%) 50% / 6px 6px;
+/* Échantillon « Fond » d'un papier peint sans couleur dessous : petite trame de points (un damier ressemblerait à une case à cocher). */
+.sm-swatch[data-wallpaper] {
+  background: radial-gradient(circle, var(--lk-ink-soft) 0 1px, transparent 1.4px) 50% 50% / 4px 4px var(--pe-surface);
 }
 
 /* Fond avec marge et coins (lot 43) : mini-schémas dans les boutons, rangée de coins qui peut passer à la ligne. */
@@ -231,19 +233,61 @@
 }
 
 /* Fond unique (lot 66) : réglages fins repliés (coins, marge, bordure, papier du site), pour que le menu reste court (retour R7). */
+/* Repli « Papier du site » (lot 100) : un vrai bouton de section sur toute la largeur du menu, du même style que les boutons segmentés (rayon 5px, trait fin,
+   fond de surface), police plus grande que les libellés, chevron qui pivote à l'ouverture ; trait et fond renforcés au survol et au focus clavier. */
 .sm .fond-fine {
-  margin-top: 6px;
-  padding-top: 4px;
-  border-top: 1px solid var(--lk-line);
+  margin-top: 8px;
 }
 .sm .fond-fine > summary {
-  padding: 4px 0;
-  color: var(--lk-ink-soft);
-  font: 500 11px/1.4 var(--lk-font);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  list-style: none;
+  border: 1px solid var(--lk-line);
+  border-radius: 5px;
+  background: var(--lk-surface);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--lk-ink) 10%, transparent);
+  color: var(--lk-ink);
+  font: 500 13px/1.2 var(--lk-font);
   cursor: pointer;
 }
+.sm .fond-fine > summary::-webkit-details-marker {
+  display: none;
+}
+.sm .fond-fine > summary:hover {
+  border-color: var(--lk-accent);
+  background: var(--lk-accent-soft);
+}
+.sm .fond-fine > summary:focus-visible {
+  outline: 2px solid var(--lk-accent);
+  outline-offset: 1px;
+  border-color: var(--lk-accent);
+  background: var(--lk-accent-soft);
+}
+.sm .fond-fine-chev {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+.sm .fond-fine[open] > summary .fond-fine-chev {
+  transform: rotate(45deg);
+}
 .sm .fond-fine[open] > summary {
-  margin-bottom: 4px;
+  margin-bottom: 6px;
+  border-color: var(--lk-accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sm .fond-fine-chev {
+    transition: none;
+  }
 }
 
 /* Cadre perso (lot 74) — FrameMenu.tsx : vignettes de la bibliothèque de cadres + « Importer un cadre ». */
@@ -284,4 +328,57 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* « Fond & carte » (lot 100) : deux sections toujours visibles, l'une sous l'autre, avec un titre et un petit schéma. */
+.fc-section {
+  display: grid;
+  gap: 6px;
+  padding: 8px 0 6px;
+  border-top: 1px solid var(--lk-line);
+}
+.fc-section:first-of-type {
+  border-top: 0;
+  padding-top: 2px;
+}
+.fc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.fc-head-text {
+  min-width: 0;
+}
+.fc-title {
+  margin: 0;
+  color: var(--lk-ink);
+  font: 700 12.5px/1.2 var(--lk-font);
+}
+.fc-lead {
+  margin: 1px 0 0;
+}
+.fc-schema {
+  flex: 0 0 auto;
+}
+.fc-schema .fc-out {
+  fill: var(--lk-line);
+  stroke: var(--lk-ink-soft);
+  stroke-width: 1;
+}
+.fc-schema .fc-in {
+  fill: var(--lk-surface);
+  stroke: var(--lk-ink-soft);
+  stroke-width: 1;
+}
+.fc-schema[data-slot="fond"] .fc-out {
+  fill: var(--lk-ink-soft);
+  fill-opacity: 0.35;
+}
+.fc-schema[data-slot="carte"] .fc-in {
+  stroke: var(--lk-accent);
+  stroke-width: 2;
+}
+.fc-schema[data-slot="fond"][data-filled] .fc-out {
+  stroke: var(--lk-accent);
+  stroke-width: 2;
 }

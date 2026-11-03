@@ -186,6 +186,7 @@ const ADMIN_ACTIONS = [
   "boardAction",
   "restoreBoardAction",
   "siteDraftAction",
+  "discardSiteDraftAction",
   "installFontAction",
   "deleteFontAction",
   "deleteMessageAction",
@@ -1113,41 +1114,58 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   res = await callActionJson(jar, ids.discardDraftAction, [aboutId, pageRev(aboutId)], `/admin/pages/${aboutId}/editer`);
   ok("BD11 abandonner → projet créé en brouillon supprimé, emplacement ajouté supprimé", isOk(res) && !query(dirA, "select id from projects where id = ?", otherDraft.id) && !query(dirA, "select id from slots where draft_key = ?", aboutKey), line(res));
 
-  // En-tête, pied, réseaux (v0.13) : brouillon du site porté par UNE page, versionné, validé.
+  // En-tête, pied, réseaux (v0.13) : brouillon COMMUN du site (lot 96), versionné par `siteDraftRev` (pas par une page), validé.
   {
     const siteRow = () => query(dirA, "select value from settings where key = 'siteDraft'")?.value ?? null;
+    const siteRev = () => Number(query(dirA, "select value from settings where key = 'siteDraftRev'")?.value ?? 0);
     const publishedSite = query(dirA, "select value from settings where key = 'site'").value;
+    const publishedSocials = query(dirA, "select value from settings where key = 'socials'")?.value ?? "[]";
     const snap = (over = {}) => ({
       identity: { name: { fr: "Nom de brouillon SD", en: "" }, role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } },
       nav: [],
       socials: [],
       ...over,
     });
-    const siteDraft = (page, value, rev = pageRev(page)) => callActionJson(jar, ids.siteDraftAction, [page, value, rev], editor);
+    const siteDraft = (page, value, rev = siteRev(), prev = pageRev(page)) => callActionJson(jar, ids.siteDraftAction, [page, value, rev, prev], editor);
     res = await siteDraft(aboutId, snap({ socials: [{ label: "X", href: "javascript:alert(1)" }] }));
     ok("SD1 réseau javascript: → refusé, rien d'écrit", res.text.includes('"ok":false') && siteRow() === null, line(res));
     res = await siteDraft(aboutId, snap({ nav: [{ kind: "link", href: "//evil.example", label: { fr: "x", en: "x" } }] }));
     ok("SD1b lien de menu « //hôte » → refusé", res.text.includes('"ok":false') && siteRow() === null, line(res));
     res = await siteDraft(aboutId, { ...snap(), admin: true });
     ok("SD1c champ arbitraire → refusé", res.text.includes('"ok":false') && siteRow() === null, line(res));
-    res = await siteDraft(aboutId, snap(), pageRev(aboutId) - 1);
-    ok("SD2 version périmée → conflit", code(res) === "conflict" && siteRow() === null, line(res));
+    res = await siteDraft(aboutId, snap(), siteRev() + 5);
+    ok("SD2 version du brouillon du site périmée → conflit", code(res) === "conflict" && siteRow() === null, line(res));
     res = await callActionJson(jar, ids.siteDraftAction, [aboutId, snap()], editor);
     ok("SD3 sans version → refusé", res.text.includes('"ok":false') && siteRow() === null, line(res));
-    const revBefore = pageRev(aboutId);
+    res = await callActionJson(jar, ids.siteDraftAction, [aboutId, snap(), siteRev()], editor);
+    ok("SD3b sans version de la page → refusé", res.text.includes('"ok":false') && siteRow() === null, line(res));
+    res = await siteDraft(aboutId, snap(), siteRev(), pageRev(aboutId) + 3);
+    ok("SD3c version de la page périmée → conflit, rien d'écrit", code(res) === "conflict" && siteRow() === null, line(res));
+    const revBefore = siteRev();
+    const pageRevBefore = pageRev(aboutId);
     res = await siteDraft(aboutId, snap({ socials: [{ label: "Behance", href: "https://www.behance.net/x", kind: "behance" }] }));
-    ok("SD4 instantané valide → brouillon du site porté par la page, version incrémentée", res.text.includes('"ok":true') && JSON.parse(siteRow()).pageId === aboutId && pageRev(aboutId) === revBefore + 1, line(res));
+    ok("SD4 instantané valide → brouillon du site écrit (page = la dernière qui l'a modifié), version du SITE incrémentée, celle de la page aussi (rendu de la toile), sans brouillon de page créé", res.text.includes('"ok":true') && JSON.parse(siteRow()).pageId === aboutId && siteRev() === revBefore + 1 && pageRev(aboutId) === pageRevBefore + 1 && query(dirA, "select draft from pages where id = ?", aboutId)?.draft === null, line(res));
     ok("SD4b rien de public : réglages publiés inchangés", query(dirA, "select value from settings where key = 'site'").value === publishedSite);
-    res = await siteDraft(homeId, snap());
-    ok("SD5 une autre page ne peut pas le modifier (la page qui le tient est nommée)", res.text.includes('"ok":false') && res.text.includes("en cours de modification"), line(res));
-    res = await callActionJson(jar, ids.saveSettingsAction, [{ site: { name: "X", role: { fr: "", en: "" }, email: "x@example.test", credit: { fr: "", en: "" } }, socials: [] }], "/admin/reglages");
-    ok("SD6 écran Réglages refusé pendant ce temps", res.text.includes('"ok":false') && res.text.includes("en cours de modification"), line(res));
+    res = await siteDraft(homeId, snap({ socials: [{ label: "Behance", href: "https://www.behance.net/y", kind: "behance" }] }));
+    ok("SD5 une AUTRE page le modifie aussi (plus de verrou), pageId suit", res.text.includes('"ok":true') && JSON.parse(siteRow()).pageId === homeId && JSON.parse(siteRow()).snap.socials[0].href.endsWith("/y"), line(res));
+    res = await siteDraft(aboutId, snap(), revBefore + 1);
+    ok("SD5b l'ancienne version (avant l'écriture de l'autre page) → conflit, rien d'écrasé", code(res) === "conflict" && JSON.parse(siteRow()).pageId === homeId, line(res));
+    const settingsInput = { site: JSON.parse(publishedSite), socials: JSON.parse(publishedSocials) };
+    const revSettings = siteRev();
+    res = await callActionJson(jar, ids.saveSettingsAction, [{ ...settingsInput, site: { ...settingsInput.site, email: "sd6@example.test" } }], "/admin/reglages");
+    ok("SD6 écran Réglages : enregistre malgré le brouillon (publie), le reporte dans le brouillon, la version change", res.text.includes('"ok":true') && JSON.parse(query(dirA, "select value from settings where key = 'site'").value).email === "sd6@example.test" && JSON.parse(siteRow()).snap.identity.email === "sd6@example.test" && siteRev() > revSettings, line(res));
     res = await callActionJson(jar, ids.discardDraftAction, [aboutId, pageRev(aboutId)], editor);
-    ok("SD7 abandonner la page efface le brouillon du site", res.text.includes('"ok":true') && siteRow() === null, line(res));
+    ok("SD7 abandonner la page n'efface PAS le brouillon du site", res.text.includes('"ok":true') && siteRow() !== null, line(res));
+    res = await callActionJson(jar, ids.discardSiteDraftAction, [siteRev() - 1], editor);
+    ok("SD7b « Annuler ces changements du site » avec une version périmée → conflit", code(res) === "conflict" && siteRow() !== null, line(res));
+    res = await callActionJson(jar, ids.discardSiteDraftAction, [siteRev()], editor);
+    ok("SD7c « Annuler ces changements du site » → brouillon effacé, version incrémentée", res.text.includes('"ok":true') && siteRow() === null, line(res));
     // Audit I-3 : une page disparue dans le menu est retirée en silence (jamais un éditeur bloqué).
     res = await siteDraft(aboutId, snap({ nav: [{ kind: "page", pageId: 99999 }] }));
     ok("SD8 page inexistante dans le menu → retirée (autonettoyage), enregistré", res.text.includes('"ok":true') && !siteRow()?.includes("99999"), line(res));
-    await callActionJson(jar, ids.discardDraftAction, [aboutId, pageRev(aboutId)], editor);
+    await callActionJson(jar, ids.discardSiteDraftAction, [siteRev()], editor);
+    // Remise en état des réglages publiés (SD6).
+    await callActionJson(jar, ids.saveSettingsAction, [settingsInput], "/admin/reglages");
   }
 
   // Remise en état : planches retirées de l'accueil, projet supprimé.

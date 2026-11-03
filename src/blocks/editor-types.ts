@@ -24,6 +24,8 @@ export type EditorContext = {
   collectionPages?: CollectionPage[];
   /** Papiers peints de la bibliothèque, prêts (lot 35) : choix du papier d'une page. */
   wallpapers?: { id: number; name: string; thumb: string | null; size: number; opacity: number }[];
+  /** Page « Page introuvable » seulement (lot 89) : œuvres publiées, pour la sélection manuelle du bloc « Une œuvre au hasard ». */
+  works?: { slug: string; title: string; project: string; collection: string }[];
   /** Médiathèque (sans les échecs de traitement). */
   media: AdminMediaRow[];
   /** Éditeur visuel : crée un projet dans le brouillon de la page (son slug, ou null si refusé). */
@@ -67,4 +69,6 @@ export type BlockCatalogEntry = {
   short?: string;
   /** Une seule fois par page : raison affichée quand l'ajout est grisé (déjà présent sur la page). */
   single?: string;
+  /** Bloc non supprimable (lot 89, « Sortie ») : la raison, affichée en infobulle à la place du bouton Supprimer. */
+  locked?: string;
 };

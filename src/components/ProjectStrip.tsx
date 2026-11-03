@@ -8,7 +8,8 @@ import EditOnly from "@/components/EditOnly";
 import FondWrap from "@/components/FondWrap";
 import StripRail from "@/components/StripRail";
 import { isVideoMode, VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
-import { BOARD_ITEM_LABELS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
+import { BOARD_ITEM_LABELS, CAPTION_STYLE_FIELDS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
+import { captionCss, captionStylesOf } from "@/blocks/caption-style";
 import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedArtwork, LocalizedProject } from "@/lib/gallery";
 import type { MediaLookData, Space } from "@/lib/look";
@@ -67,8 +68,11 @@ export default function ProjectStrip({
   palette,
   wallpapers,
   styles,
+  capOwn,
   eager = 0,
 }: {
+  /** Style propre de chaque légende de la planche (« Ce texte », lot 98), par slug de place, déjà fondu avec celui du projet. */
+  capOwn?: Record<string, Partial<Record<"title" | "legend" | "date", CSSProperties>>>;
   /** Nombre d'images de la bande chargées tout de suite (lot 54). */
   eager?: number;
   project: LocalizedProject;
@@ -109,6 +113,9 @@ export default function ProjectStrip({
     ...(styles?.[key] ? { style: styles[key] } : {}),
   });
 
+  // Style des légendes du projet (lot 98) : le même partout où le projet est affiché (page de projet, accueil, métier).
+  const capStyles = captionStylesOf(project.layout);
+  const capBase = capStyles ? Object.fromEntries(CAPTION_STYLE_FIELDS.flatMap((f) => (capStyles[f] ? [[f, captionCss(capStyles[f], undefined, palette)]] : []))) : undefined;
   const tProject = project.title;
   /** Une bande : celle des images du projet (légendes, emplacements) ou un carrousel à liste propre. */
   const rail = (part?: BoardPart) =>
@@ -116,11 +123,11 @@ export default function ProjectStrip({
       part,
       part?.artworks ? (
         <BoardBox box={part.box}>
-          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotLook={slotLook} videoMode={part.videoMode} eager={eager} />
+          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotLook={slotLook} videoMode={part.videoMode} capBase={capBase} capOwn={capOwn} eager={eager} />
         </BoardBox>
       ) : (
         <BoardBox box={part?.box}>
-          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotLook={slotLook} videoMode={part?.videoMode} eager={eager} />
+          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotLook={slotLook} videoMode={part?.videoMode} capBase={capBase} capOwn={capOwn} eager={eager} />
         </BoardBox>
       ),
     );
@@ -161,7 +168,7 @@ export default function ProjectStrip({
     <section
       className={`strip py-[clamp(3rem,7vw,5.5rem)] ${deep ? "strip-deep bg-bg-deep" : ""}`}
       aria-labelledby={`project-${project.slug}`}
-      {...(edit ? { ...boardMarks(edit), "data-edit-board-label": project.title, ...(collection ? { "data-edit-board-collection": collection } : {}) } : {})}
+      {...(edit ? { ...boardMarks(edit), ...(capStyles ? { "data-edit-capstyle": JSON.stringify(capStyles) } : {}), "data-edit-board-label": project.title, ...(collection ? { "data-edit-board-collection": collection } : {}) } : {})}
     >
       <header className="shell flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
         {showHeader && (
@@ -311,8 +318,8 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
             Ajouter des images
           </button>
         )}
-        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title="Fond de couleur du bloc, sur toute sa hauteur">
-          Fond
+        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title="Fond et carte du composant : le fond de couleur ou papier peint, ou une carte en retrait (un seul des deux ici)">
+          Fond &amp; carte
         </button>
         {part.type === "image" && !part.empty && (
           <button type="button" className="pe-bitem-btn" data-edit-bitem-op="size" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-size-button" title="Taille et place de l'image (la légende suit)">

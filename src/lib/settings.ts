@@ -110,11 +110,12 @@ export type SiteView = { site: SiteIdentity; socials: Social[]; nav: NavItem[] |
 
 /**
  * Identité, réseaux et menu tels que la page `pageId` les montre : la version
- * publiée, ou — vue brouillon de l'éditeur, page qui tient le brouillon de
- * l'en-tête — ce brouillon (src/lib/edit/site.ts).
+ * publiée, ou — vue brouillon de l'éditeur, sur TOUTES les pages — le brouillon commun du
+ * site (src/lib/edit/site.ts, lot 96). `pageId` n'intervient plus, gardé pour les appelants.
  */
-export async function getSiteView(locale: AppLocale, pageId: number | null | undefined): Promise<SiteView> {
-  const draft = pageId ? await getDraftSite(pageId) : null;
+export async function getSiteView(locale: AppLocale, _pageId?: number | null): Promise<SiteView> {
+  void _pageId;
+  const draft = await getDraftSite();
   if (draft) {
     const i = draft.identity;
     return {

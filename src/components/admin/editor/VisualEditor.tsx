@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as R
 import {
   addToMenuFromEditorAction,
   boardAction,
-  adoptSiteDraftAction,
+  discardSiteDraftAction,
   createDraftProjectAction,
   discardDraftAction,
   installFontAction,
@@ -47,13 +47,14 @@ import { mediaStatusAction, retryMediaAction } from "@/app/admin/(espace)/medias
 import type { AdminMediaRow } from "@/lib/admin";
 import { settleSnap, takeSnap, type LangSnap } from "@/lib/lang-scroll";
 import { acceptFromCanvas, EDIT_MSG, inlineAllowed, setLocalizedAt, type BlockInfo, type DropTargetInfo, type FromCanvas, type Ghost, type ToCanvas } from "@/lib/edit/protocol";
+import { reportToJournal } from "@/lib/journal/browser";
 import { markedProblem } from "@/lib/marked";
 import { own } from "@/lib/own";
 import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
 import { convertItem as convertBoardItem } from "@/blocks/grid-strip";
 import { BOARD_ITEM_LABELS, parseRailKey, railKey, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
-import { cleanLook, cleanSiteStyles, googleOf, readLook, rebaseSiteStyles, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
+import { cleanLook, cleanSiteStyles, googleOf, readLook, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 import { readBackground, supportsFond, type Background } from "@/themes/fond";
 import { cleanSurface, readSurface, type Surface } from "@/themes/surface";
@@ -85,6 +86,18 @@ import { describeProblems, type Problem } from "./problems";
 import TopMore from "./TopMore";
 import BlockThumb from "./thumbs";
 
+/** Journal d'édition (lot 97) : connexion perdue pendant une écriture (le navigateur n'a pas eu de réponse). Renvoie le refus que l'éditeur affiche. */
+const LOST = "connexion perdue";
+function lostConnection(action: string): { ok: false; message: string } {
+  reportToJournal({ kind: "save", reason: "reseau", action, message: LOST });
+  return { ok: false, message: LOST };
+}
+/** Journal d'édition : refus ou conflit vu par l'artiste (la connexion perdue est déjà signalée par lostConnection). */
+function reportSaveFailure(action: string, result: { message: string; code?: string }): void {
+  if (result.message === LOST) return;
+  reportToJournal({ kind: "save", reason: result.code === "conflict" ? "conflit" : "refus", action, message: result.message });
+}
+
 type Locale = "fr" | "en";
 type Device = "desktop" | "wide" | "tablet" | "phone";
 type Tab = "ajouter" | "medias" | "structure" | "reglages";
@@ -97,7 +110,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "fond", "bitem-text", "bitem-look", "cell-look", "free-op", "media-look"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "fond", "bitem-text", "bitem-look", "board-captions", "cell-look", "free-op", "media-look"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /**
@@ -248,7 +261,7 @@ export default function VisualEditor({
   /** Projets dont la page a déjà modifié les images (surcouche en attente). */
   overlaySlugs: string[];
   /** En-tête, pied et réseaux (communs au site) : état vu depuis cette page. */
-  site: { snap: SiteSnap; pending: boolean; lockedBy: string | null };
+  site: { snap: SiteSnap; pending: boolean; rev: number };
   /** Mise en page (lot 2) : palette du thème, polices déjà téléchargées. */
   look: LookContext;
   /** Thèmes du menu « Thème » (lot 63) : en ligne d'abord, puis derniers utilisés. */
@@ -397,11 +410,12 @@ export default function VisualEditor({
       try {
         result = await saveDraftAction(pageId, snapshot, revRef.current);
       } catch {
-        result = { ok: false, message: "connexion perdue" };
+        result = lostConnection("saveDraftAction");
       } finally {
         inFlight.current = false;
       }
       if (!result.ok) {
+        reportSaveFailure("saveDraftAction", result);
         ok = false;
         dirty.current = true;
         if ("code" in result) stop(result.code);
@@ -460,11 +474,10 @@ export default function VisualEditor({
   const siteRef = useRef<SiteSnap>(initialSite.snap);
   const [siteSnap, setSiteSnap] = useState<SiteSnap>(initialSite.snap);
   const [sitePending, setSitePending] = useState(initialSite.pending);
-  // Page qui porte déjà des modifications en attente de l'en-tête : un réglage fait ici les reprend (adoptSiteDraftAction).
-  const [siteLocked, setSiteLocked] = useState(initialSite.lockedBy);
-  // État du site que l'artiste avait sous les yeux AVANT la reprise du brouillon d'une autre page : sert, pour ce seul réglage, à ne poser sur le
-  // brouillon repris que ce qu'il a changé (rebaseSiteStyles).
-  const adoptBase = useRef<SiteSnap | null>(null);
+  // Version du brouillon COMMUN du site (lot 96) : indépendante de celle de la page.
+  const siteRevRef = useRef(initialSite.rev);
+  const [discardingSite, setDiscardingSite] = useState(false);
+  const [discardSiteBusy, setDiscardSiteBusy] = useState(false);
   // Défini plus bas (après runSave) ; appelé par l'historique.
   const writeSiteRef = useRef<(next: SiteSnap | SiteUpdate, record?: boolean) => Promise<boolean>>(async () => false);
 
@@ -484,9 +497,10 @@ export default function VisualEditor({
           try {
             result = await call(revRef.current);
           } catch {
-            result = { ok: false, message: "connexion perdue" };
+            result = lostConnection("boardAction");
           }
           if (!result.ok) {
+            reportSaveFailure("boardAction", result);
             if ("code" in result) stop(result.code);
             else {
               setSaveState("idle");
@@ -511,8 +525,8 @@ export default function VisualEditor({
   );
 
   /**
-   * Écrit le brouillon du site (en-tête, pied, réseaux) après le brouillon en
-   * attente, avec la version de la page. `record` : inscrit dans l'historique.
+   * Écrit le brouillon COMMUN du site (en-tête, pied, réseaux, menu, styles) après le brouillon en
+   * attente, avec la version du brouillon du site. `record` : inscrit dans l'historique.
    * `next` peut être une fonction : elle est appelée DANS le verrou, sur le dernier état
    * écrit (jamais sur un état antérieur à une écriture encore en vol) ; elle renvoie le
    * nouvel état, `{ error }` (message affiché, rien n'est écrit) ou null (rien à écrire).
@@ -522,31 +536,7 @@ export default function VisualEditor({
       withLock(async () => {
         if (blockedRef.current) return false;
         if (dirty.current && !(await runSave())) return false;
-        // Lot 70 : les modifications de l'en-tête en attente sur une autre page sont reprises ici, intactes, au lieu de refuser le réglage
-        // (le style « Tous les Menu » marchait sur certaines pages seulement). Elles seront publiées avec cette page.
-        if (siteLocked) {
-          let adopted: Awaited<ReturnType<typeof adoptSiteDraftAction>>;
-          try {
-            adopted = await adoptSiteDraftAction(pageId, revRef.current);
-          } catch {
-            adopted = { ok: false, message: "connexion perdue" };
-          }
-          if (!adopted.ok) {
-            if ("code" in adopted) stop(adopted.code);
-            else toast(adopted.message, "error");
-            return false;
-          }
-          revRef.current = adopted.data.rev;
-          adoptBase.current = adopted.data.from ? siteRef.current : null;
-          siteRef.current = adopted.data.snap;
-          setSiteSnap(adopted.data.snap);
-          setSitePending(true);
-          setSiteLocked(null);
-          send({ kind: "site-lock", page: null });
-          if (adopted.data.from) toast(`Les modifications de l'en-tête commencées sur la page « ${adopted.data.from} » sont reprises ici : elles seront publiées avec cette page.`, "success", undefined, 9000);
-        }
         const snap = typeof next === "function" ? next(siteRef.current) : next;
-        adoptBase.current = null;
         if (!snap) return false;
         if ("error" in snap) {
           toast(snap.error, "error");
@@ -555,11 +545,12 @@ export default function VisualEditor({
         setSaveState("saving");
         let result: Awaited<ReturnType<typeof siteDraftAction>>;
         try {
-          result = await siteDraftAction(pageId, snap, revRef.current);
+          result = await siteDraftAction(pageId, snap, siteRevRef.current, revRef.current);
         } catch {
-          result = { ok: false, message: "connexion perdue" };
+          result = lostConnection("siteDraftAction");
         }
         if (!result.ok) {
+          reportSaveFailure("siteDraftAction", result);
           if ("code" in result) stop(result.code);
           else {
             setSaveState("idle");
@@ -567,7 +558,8 @@ export default function VisualEditor({
           }
           return false;
         }
-        revRef.current = result.data.rev;
+        siteRevRef.current = result.data.rev;
+        if (typeof result.data.pageRev === "number") revRef.current = result.data.pageRev;
         if (record) {
           history.current = { past: [...history.current.past, { draft: draftRef.current, site: result.data.before }].slice(-HISTORY_MAX), future: [] };
           coalesce.current = null;
@@ -576,13 +568,12 @@ export default function VisualEditor({
         siteRef.current = snap;
         setSiteSnap(snap);
         setSitePending(result.data.pending);
-        setHasDraft(true);
         setSaveState("idle");
         setSaveError(null);
         send(refreshMsg(true));
         return true;
       }),
-    [pageId, refreshMsg, runSave, send, siteLocked, stop, withLock],
+    [pageId, refreshMsg, runSave, send, stop, withLock],
   );
   useEffect(() => {
     writeSiteRef.current = writeSite;
@@ -1296,6 +1287,12 @@ export default function VisualEditor({
       setBlocks(next);
       if (done) toast(done);
     };
+    // Bloc verrouillé (lot 89, « Sortie ») : ni supprimé ni dupliqué ; on dit pourquoi au lieu de ne rien faire.
+    const locked = own(byType, at ? (siblings[at.index]?.type ?? "") : "")?.locked;
+    if (locked && (kind === "delete" || kind === "duplicate")) {
+      toast(kind === "delete" ? locked : "Ce bloc existe une seule fois sur la page : tu peux le déplacer et le mettre en forme, pas le dupliquer.", "error");
+      return;
+    }
     if (kind === "delete") {
       setDeletingLost(overlayLost(uid));
       setDeleting(uid);
@@ -1523,9 +1520,7 @@ export default function VisualEditor({
       }
       // Calculé dans le verrou, sur le dernier état écrit : deux réglages rapprochés se cumulent.
       await writeSite((cur) => {
-        // Brouillon repris d'une autre page : le réglage est calculé sur ce que l'artiste voyait, puis posé sur le brouillon repris.
-        const seen = adoptBase.current;
-        const clean = cleanSiteStyles(seen ? rebaseSiteStyles(seen.styles, update(seen.styles), cur.styles) : update(cur.styles));
+        const clean = cleanSiteStyles(update(cur.styles));
         const { styles: _old, ...rest } = cur;
         void _old;
         return { ...rest, ...(clean ? { styles: clean } : {}) };
@@ -1561,9 +1556,7 @@ export default function VisualEditor({
       let unchanged = false;
       const ok = await writeSite((cur) => {
         const { styles: old, ...rest } = cur;
-        const seen = adoptBase.current;
-        const mine = { ...((seen ? seen.styles : old) ?? {}), palette: q.palette, logo: q.logo };
-        const clean = cleanSiteStyles(seen ? rebaseSiteStyles(seen.styles, mine, old) : mine);
+        const clean = cleanSiteStyles({ ...(old ?? {}), palette: q.palette, logo: q.logo });
         unchanged = JSON.stringify(clean ?? null) === JSON.stringify(old ?? null);
         return unchanged ? null : { ...rest, ...(clean ? { styles: clean } : {}) };
       });
@@ -2336,7 +2329,6 @@ export default function VisualEditor({
             list: projectsList.map((p) => ({ slug: p.slug, title: p.title.slice(0, 200), ...(p.draft ? { draft: true } : {}), ...("onPage" in p ? { onPage: Boolean(p.onPage) } : {}) })),
           });
           send({ kind: "ghosts", items: ghostsRef.current.map(toWire) });
-          send({ kind: "site-lock", page: siteLocked });
           send({ kind: "pages", list: navPagesRef.current });
           break;
         }
@@ -2361,6 +2353,13 @@ export default function VisualEditor({
           const seq = msg.seq;
           const op: BoardOp = msg.kind === "bitem-text" ? { op: "item-text", uid: msg.uid, path: msg.path, locale: msg.locale, value: msg.value } : { op: "item-look", uid: msg.uid, look: msg.look };
           void h.itemFlush().then(() => h.boardDo(msg.board, op)).then((r) => {
+            if (!r && seq) send({ kind: "revert", seq });
+          });
+          break;
+        }
+        case "board-captions": {
+          const seq = msg.seq;
+          void h.itemFlush().then(() => h.boardDo(msg.board, { op: "captions-style", style: msg.style })).then((r) => {
             if (!r && seq) send({ kind: "revert", seq });
           });
           break;
@@ -2674,6 +2673,7 @@ export default function VisualEditor({
         toast("Le brouillon n'est pas enregistré : réessaie.", "error");
         return;
       }
+      if (!result.ok) reportSaveFailure("publishDraftAction", result);
       if (!result.ok && "code" in result) {
         blockedRef.current = result.code;
         setBlocked(result.code);
@@ -2714,6 +2714,7 @@ export default function VisualEditor({
       }
       toast(result.data.site ? "Publié : la page est en ligne, l'en-tête et le pied de page sont à jour sur toutes les pages" : "Publié : la page est en ligne");
       setSitePending(false);
+      if (typeof result.data.siteRev === "number") siteRevRef.current = result.data.siteRev;
       send(refreshMsg(false));
       router.refresh();
     } finally {
@@ -2743,6 +2744,7 @@ export default function VisualEditor({
     dirty.current = false;
     const result = await withLock(() => discardDraftAction(pageId, revRef.current));
     if (!result.ok) {
+      reportSaveFailure("discardDraftAction", result);
       setDiscardBusy(false);
       setDiscarding(false);
       setResetting(false);
@@ -2755,6 +2757,34 @@ export default function VisualEditor({
     // Repart de la version publiée (état, historique, toile).
     leaving.current = true;
     window.location.reload();
+  };
+
+  /** « Annuler ces changements du site » : le brouillon commun disparaît (les brouillons de pages restent). */
+  const discardSite = async () => {
+    setDiscardSiteBusy(true);
+    let result: Awaited<ReturnType<typeof discardSiteDraftAction>>;
+    try {
+      result = await withLock(() => discardSiteDraftAction(siteRevRef.current));
+    } catch {
+      result = { ok: false, message: "connexion perdue" };
+    }
+    setDiscardSiteBusy(false);
+    setDiscardingSite(false);
+    if (!result.ok) {
+      if ("code" in result) stop(result.code);
+      else toast(result.message, "error");
+      return;
+    }
+    siteRevRef.current = result.data.rev;
+    siteRef.current = result.data.snap;
+    setSiteSnap(result.data.snap);
+    setSitePending(false);
+    // Les pas d'historique qui portent le site n'ont plus de sens.
+    history.current = { past: history.current.past.filter((e) => !e.site), future: history.current.future.filter((e) => !e.site) };
+    bumpHistory();
+    send(refreshMsg(false));
+    router.refresh();
+    toast("Les changements du site sont annulés : le site en ligne est repris", "success");
   };
 
   const copyTexts = async () => {
@@ -2839,7 +2869,7 @@ export default function VisualEditor({
             ? { tone: "busy", text: "Enregistrement…" }
             : !draft.published
               ? { tone: "idle", text: "Pas encore en ligne" }
-              : hasDraft
+              : hasDraft || sitePending
                 ? { tone: "draft", text: "Modifications non publiées" }
                 : { tone: "ok", text: "En ligne" };
 
@@ -3179,7 +3209,7 @@ export default function VisualEditor({
               which={selected === "site-header" ? "header" : "footer"}
               snap={siteSnap}
               pages={pages}
-              locked={siteLocked}
+             
               onChange={(change) =>
                 void writeSite((cur) => {
                   const next = JSON.parse(JSON.stringify(cur)) as SiteSnap;
@@ -3188,7 +3218,7 @@ export default function VisualEditor({
                 })
               }
             />
-            {selected === "site-header" && <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />}
+            {selected === "site-header" && <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />}
             </>
           ) : selBlock && selDef ? (
             <div className="ve-settings">
@@ -3219,10 +3249,10 @@ export default function VisualEditor({
                       ⇱
                     </button>
                   )}
-                  <button type="button" className="a-icon-btn" aria-label="Dupliquer" onClick={() => op("duplicate", selBlock.uid)}>
+                  <button type="button" className="a-icon-btn" aria-label="Dupliquer" disabled={Boolean(selDef.locked)} title={selDef.locked ? "Ce bloc existe une seule fois sur la page." : undefined} onClick={() => op("duplicate", selBlock.uid)}>
                     ⧉
                   </button>
-                  <button type="button" className="a-icon-btn a-danger-text" aria-label="Supprimer" onClick={() => op("delete", selBlock.uid)}>
+                  <button type="button" className="a-icon-btn a-danger-text" aria-label="Supprimer" disabled={Boolean(selDef.locked)} title={selDef.locked} data-locked={selDef.locked ? "" : undefined} onClick={() => op("delete", selBlock.uid)}>
                     ✕
                   </button>
                 </div>
@@ -3298,9 +3328,9 @@ export default function VisualEditor({
                 />
                 <PageWallpaperField value={draft.wallpaper ?? null} onChange={(v) => apply({ ...draftRef.current, wallpaper: v }, { structural: true })} choices={context.wallpapers ?? []} />
               </div>
-              <ColorsPanel theme={lookContext.theme} preparing={lookContext.preparing !== null} value={liveLook.palette} onChange={(p) => requestLook(p, liveLook.logo)} onHighlight={highlightRole} info={hlInfo} locked={siteLocked} />
-              <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} locked={siteLocked} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />
-              <SiteStylesPanel styles={siteSnap.styles} onChange={(s) => void applySiteStyles(() => s, Object.values(cleanSiteStyles(s)?.roles ?? {}))} palette={swatches} cardPalette={effective} installed={fontFamilies} locked={siteLocked} />
+              <ColorsPanel theme={lookContext.theme} preparing={lookContext.preparing !== null} value={liveLook.palette} onChange={(p) => requestLook(p, liveLook.logo)} onHighlight={highlightRole} info={hlInfo} />
+              <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />
+              <SiteStylesPanel styles={siteSnap.styles} onChange={(s) => void applySiteStyles(() => s, Object.values(cleanSiteStyles(s)?.roles ?? {}))} palette={swatches} cardPalette={effective} installed={fontFamilies} />
             </div>
           ))}
       </div>
@@ -3420,7 +3450,7 @@ export default function VisualEditor({
             className="a-btn a-btn-primary"
             onClick={() => (draft.published ? void publish() : setAskLive(true))}
             disabled={publishing || Boolean(blocked) || (!hasDraft && !sitePending && saveState === "idle" && draft.published)}
-            title={!draft.published ? "Met le contenu et la page en ligne" : !hasDraft && saveState === "idle" ? "Aucune modification à publier" : undefined}
+            title={!draft.published ? "Met le contenu et la page en ligne" : !hasDraft && !sitePending && saveState === "idle" ? "Aucune modification à publier" : undefined}
           >
             {publishing ? "Publication…" : "Publier"}
           </button>
@@ -3498,7 +3528,7 @@ export default function VisualEditor({
           {blocked === "conflict" && mode === "edit" && (
             <div className="ve-alert ve-alert-strong" role="alert" data-testid="conflict">
               <p>
-                <strong>Cette page a été modifiée ailleurs</strong> (autre onglet, formulaire ou publication). Tes dernières modifications
+                <strong>Cette page a été modifiée ailleurs</strong> (autre onglet, formulaire ou publication ; même chose si ce sont les changements du site, communs à toutes les pages). Tes dernières modifications
                 ne sont pas enregistrées : rien n&apos;a été écrasé.
               </p>
               <div className="ve-alert-actions">
@@ -3530,7 +3560,10 @@ export default function VisualEditor({
           )}
           {sitePending && mode === "edit" && (
             <div className="ve-site-chip" role="note">
-              <strong>En-tête modifié</strong> (nom, menu, pied de page ou réseaux) : à la publication de cette page, il change sur <strong>toutes les pages</strong>.
+              <strong>En-tête modifié</strong> (nom, menu, pied de page ou réseaux) : à la publication de cette page, il change sur <strong>toutes les pages</strong>.{" "}
+              <button type="button" className="a-btn a-btn-small" data-testid="site-discard" onClick={() => setDiscardingSite(true)}>
+                Annuler ces changements du site
+              </button>
             </div>
           )}
           {foreign && mode === "edit" && (
@@ -3758,6 +3791,20 @@ export default function VisualEditor({
         onConfirm={() => void publish(true)}
       >
         <p className="muted">Elle sera visible par tous. Tu pourras la retirer du site à tout moment, depuis la liste des pages.</p>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={discardingSite}
+        title="Annuler les changements du site ?"
+        confirmLabel="Annuler ces changements du site"
+        danger
+        busy={discardSiteBusy}
+        onClose={() => setDiscardingSite(false)}
+        onConfirm={() => void discardSite()}
+      >
+        <p className="muted">
+          Le nom, le menu, le pied de page, les réseaux, les styles et le logo reviennent à ce qui est en ligne, sur toutes les pages. Les modifications des pages ne changent pas. Cette action ne s&apos;annule pas.
+        </p>
       </ConfirmDialog>
 
       <ConfirmDialog
