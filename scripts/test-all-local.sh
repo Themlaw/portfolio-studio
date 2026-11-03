@@ -373,7 +373,12 @@ run_e2e() {
   if [ "${BATT_SLEEP_PROBE:-}" = 1 ]; then cmd=${cmd/#node /node --import $PWD/scripts/lib/sleep-probe.mjs }; fi
   # extra : variables propres à la suite (ex. MALLOC_* de 17b, CROP_* de crop17g), transmises au serveur et à la suite.
   # shellcheck disable=SC2086
-  env ${extra:-} TMPDIR="$rt/tmp" RUNNER_TEMP="$rt" BROWSER="$browser" ONLY="$only" PORT="$port" PUBLIC_BASE_URL="http://localhost:$port" \
+  # Priorité : les suites `next dev` (compilation à la demande, délais de navigation de 30 s) passent avant les suites en
+  # production quand la machine est chargée (BATT_NICE, 8 par défaut ; 0 = désactivé) : elles dépassaient leurs délais.
+  local nicecmd=""
+  [ "$BATT_JOBS" -gt 1 ] && [ "$mode" = start ] && [ "${BATT_NICE:-8}" != 0 ] && nicecmd="nice -n ${BATT_NICE:-8}"
+  # shellcheck disable=SC2086
+  $nicecmd env ${extra:-} TMPDIR="$rt/tmp" RUNNER_TEMP="$rt" BROWSER="$browser" ONLY="$only" PORT="$port" PUBLIC_BASE_URL="http://localhost:$port" \
     BATT_SLEEP_FILE="$BATTERY_DIR/$id.sleep" BATT_SERVER="$mode" bash -c "bash .github/scripts/e2e.sh $id $cmd" >"$BATTERY_DIR/$id.log" 2>&1
   st=$?
   record "$id" "$st" "$t"
