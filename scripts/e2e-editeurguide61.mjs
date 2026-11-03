@@ -248,7 +248,20 @@ if (run("C"))
     await saveNow("C7 « Aéré » enregistré");
     const s2 = themeData(id).tokens.space;
     ok("C7b « Aéré » : valeurs du cran", s2.sectionGap === "clamp(4.5rem, 10vw, 9rem)" && s2.gutter === "clamp(1.25rem, 5vw, 3.5rem)" && s2.pageMax === maxBefore, JSON.stringify(s2));
-    ok("C8 aperçu en direct : les variables suivent (--t-space-section-gap)", (await page.frameLocator("iframe.a-preview-frame").locator("html").evaluate((el) => getComputedStyle(el).getPropertyValue("--t-space-section-gap").trim())) === s2.sectionGap);
+    // L'aperçu se recharge quand le thème change : une lecture faite pendant le rechargement perd son contexte. On relit jusqu'à
+    // obtenir la valeur ATTENDUE (même égalité qu'avant, échec si elle n'arrive pas en 20 s).
+    ok(
+      "C8 aperçu en direct : les variables suivent (--t-space-section-gap)",
+      await waitFor(
+        async () =>
+          (await page
+            .frameLocator("iframe.a-preview-frame")
+            .locator("html")
+            .evaluate((el) => getComputedStyle(el).getPropertyValue("--t-space-section-gap").trim())
+            .catch(() => null)) === s2.sectionGap,
+        20000,
+      ),
+    );
     await page.screenshot({ path: `${SHOTS}/C-espacements-1440.png` });
     // Cartes : largeur, coins, bordure (réglages d'avant, étape 3).
     await stepTab("cartes").click();
