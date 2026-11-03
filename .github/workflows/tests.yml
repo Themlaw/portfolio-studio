@@ -1,6 +1,9 @@
 # Intégration continue (lot 103) : dépôt PUBLIC, runners standard gratuits.
 #
-#  plan     liste des suites e2e (source unique : scripts/test-all-local.sh) répartie en shards
+#  plan     liste des suites e2e (source unique : scripts/test-all-local.sh) répartie en shards :
+#           le découpage est celui de `test-all-local.sh --shards N --shard k` (lot 104, durées de
+#           .github/ci-weights.json), appelé par .github/scripts/ci-plan.mjs ; repli local si le script
+#           n'a pas encore cette option
 #  checks   tsc, eslint, tokens, contraste, thèmes, npm test
 #  hygiene  audit « rien de privé dans le dépôt ni son historique » (scripts/audit-public.mjs)
 #  build    build de production (standalone), partagé avec les shards sous forme d'artefact
@@ -49,6 +52,12 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      # Le script génère le PSD de test (tsx) avant tout découpage : il lui faut les dépendances.
+      - run: npm ci --no-audit --no-fund --ignore-scripts
       - id: manual
         env:
           SUITES: ${{ github.event.inputs.suites }}
