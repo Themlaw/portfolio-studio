@@ -35,8 +35,8 @@ BATT_JOBS=${BATT_JOBS:-1}
 export BATTERY_DIR=${BATTERY_DIR:-/root/battery-logs/$(date +%Y-%m-%d_%H%M)}
 # Suites qui exigent `next dev` (voir docs/ARCHITECTURE.md, « Mode start »). Elles passent par /api/theme-preview, fermée (404) en production.
 BATT_DEV_ONLY=${BATT_DEV_ONLY-v013 lot11 themes papier28 planche31 retours68}
-# Suites lourdes : toujours seules (RAM, ffmpeg, navigateurs multiples).
-HEAVY_IDS=" checks build auth medias medias-firefox "
+# Suites lourdes : toujours seules (RAM, ffmpeg, navigateurs multiples ; backup85 ouvre ses propres serveurs sur PORT+1 à PORT+4).
+HEAVY_IDS=" checks build auth medias medias-firefox backup85 "
 
 case "$BATT_SERVER" in dev | start) ;; *) echo "BATT_SERVER doit valoir dev ou start" >&2; exit 2 ;; esac
 case "$BATT_JOBS" in '' | *[!0-9]* | 0) echo "BATT_JOBS doit être un entier >= 1" >&2; exit 2 ;; esac
