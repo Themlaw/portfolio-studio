@@ -49,3 +49,8 @@ next-env.d.ts
 *.log
 nohup.out
 /e2e-echec.png
+
+# lot 103 : fichiers de réécriture d'historique avec les VRAIES valeurs (jamais commités)
+/scripts/public-history/*.private*
+/scripts/public-history/patterns*.txt
+/.audit/

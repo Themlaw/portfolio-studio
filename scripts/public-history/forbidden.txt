@@ -1,0 +1,11 @@
+# Fichiers retirés de TOUT l'historique du dépôt public (lu par scripts/prepare-public-history.sh
+# et par scripts/audit-public.mjs --forbidden). Une ligne : un chemin, un motif (* et **),
+# un dossier (terminé par /) ou « blob:<sha> » (une version précise d'un fichier).
+#
+# Ancien PSD RÉEL de l'artiste. On retire CE blob seulement : au même chemin, le PSD synthétique
+# (scripts/make-fixture-psd.mts) reste, puisque c'est un autre blob.
+blob:5d0848bf983b4703d828f2e13d759a2a66bafc01
+#
+# A décider par la coordinatrice (médias de l'historique, voir le rapport du lot 103) :
+# e2e-echec.png
+# public/admin/tuto/revue.*

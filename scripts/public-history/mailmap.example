@@ -1,0 +1,4 @@
+# MODELE de .mailmap pour `git filter-repo --mailmap` : réécrit auteur, committer et tagger.
+# Format : Nom propre <adresse propre> <ancienne adresse>
+# (adresse noreply GitHub : <identifiant numérique>+<login>@users.noreply.github.com)
+Prenom Nom <12345678+login@users.noreply.github.com> <ancienne.adresse@exemple.invalid>
