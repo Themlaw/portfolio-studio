@@ -13,8 +13,10 @@
  * `look.slotLook[slug].frame` du bloc planche, par emplacement) et par celle de la Planche libre. La fenêtre est `FrameWindow` (un seul
  * `Popover` ancré au bouton). Chaque choix part aussitôt (intention `look`, annulable). Les pastilles montrent les couleurs du thème par leurs variables, jamais en dur.
  */
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
+import { parseColor } from "@/lib/color";
+import { planFrameSwatches, type Rgb, type SwatchPlan } from "@/lib/frame-swatches";
 import { FRAME_DEFAULT_COLOR, FRAME_DEFAULT_WIDTH, FRAME_KIND_LABELS, FRAME_WIDTH_LABELS, FRAME_WIDTHS, frameColorCss, PALETTE_DISPLAY, PALETTE_LABELS, type Frame, type PaletteColor } from "@/lib/look";
 
 import { frameChoiceOf, frameRule, type FrameChoice, type FrameEntry } from "@/themes/frame-library";
@@ -26,7 +28,8 @@ import Popover, { type PopoverAnchor, useLocalValue } from "./Popover";
 import "@/app/admin/typo-controls.css";
 import "@/app/admin/surface-menu.css";
 
-const swatch = (c: PaletteColor) => `var(--t-color-${c})`;
+/** Couleur d'une pastille = EXACTEMENT celle du cadre (`frameColorCss`, une seule définition : rendu public, toile et menu ne peuvent plus diverger). */
+const swatch = (c: PaletteColor) => frameColorCss(c);
 const isPalette = (v: string | undefined): v is PaletteColor => (PALETTE_DISPLAY as readonly string[]).includes(v ?? "");
 
 /** Le thème en ligne dessine-t-il un cadre (kit) ? La toile porte `data-kit-frame` sur `<html>` comme le site. */
@@ -35,6 +38,30 @@ const themeHasFrame = () => typeof document !== "undefined" && document.document
 const siteFramesAll = () => typeof document !== "undefined" && document.querySelector("[data-frame-all]") !== null;
 
 type Choice = "none" | "theme" | "band" | "custom";
+
+/** Couleur calculée d'une valeur CSS (variable du thème comprise) dans le document de la toile. */
+function computedRgb(css: string): Rgb | undefined {
+  const probe = document.createElement("span");
+  probe.style.color = css;
+  document.body.appendChild(probe);
+  const c = parseColor(getComputedStyle(probe).color);
+  probe.remove();
+  return c && c.a === 1 ? { r: c.r, g: c.g, b: c.b } : undefined;
+}
+
+/**
+ * Pastilles à montrer (lot 95) : on lit les couleurs du thème actif et on retire les doublons (même couleur) et les teintes confondues avec le
+ * fond de la page (cadre invisible) : src/lib/frame-swatches.ts. Hors navigateur, ou si une couleur est illisible : tout est montré.
+ */
+function readSwatchTokens(): { colors: Partial<Record<PaletteColor, Rgb>>; def?: Rgb; page?: Rgb } {
+  if (typeof document === "undefined" || !document.body) return { colors: {} };
+  const colors: Partial<Record<PaletteColor, Rgb>> = {};
+  for (const c of PALETTE_DISPLAY) {
+    const rgb = computedRgb(swatch(c));
+    if (rgb) colors[c] = rgb;
+  }
+  return { colors, def: computedRgb(frameColorCss(undefined)), page: computedRgb("var(--t-color-bg)") };
+}
 
 /** Cadres de la bibliothèque (lot 74), lus dans la page de la toile (`data-edit-frames`, posé par le cadre du site en vue brouillon). */
 function frameCatalog(): FrameChoice[] {
@@ -116,6 +143,11 @@ export function FrameControls({ value, onChange, what = "photo" }: { value: Fram
   const kinds: Choice[] = kit || value?.kind === "theme" ? ["none", "theme", "band", "custom"] : ["none", "band", "custom"];
   const bandOn = shown === "band" && value?.kind === "band";
   const custom = bandOn && value.color && !isPalette(value.color) ? value.color : undefined;
+  const tokens = useMemo(() => readSwatchTokens(), []);
+  const plan: SwatchPlan<PaletteColor> = planFrameSwatches(PALETTE_DISPLAY, tokens.colors, tokens.def, tokens.page, value?.color);
+  // Un jeton masqué comme doublon est remplacé par sa jumelle, qui s'affiche cochée : la valeur enregistrée n'est jamais touchée.
+  const storedColor = value?.color;
+  const twinOfStored = isPalette(storedColor) ? plan.twin[storedColor] : undefined;
   const colorName = !bandOn ? "" : value.color === undefined ? "Couleur par défaut" : isPalette(value.color) ? PALETTE_LABELS[value.color] : "Couleur libre";
   return (
     <div className="fr" data-testid="frame-controls">
@@ -188,20 +220,20 @@ export function FrameControls({ value, onChange, what = "photo" }: { value: Fram
               <button
                 type="button"
                 role="radio"
-                aria-checked={value.color === undefined}
+                aria-checked={value.color === undefined || twinOfStored === "default"}
                 aria-label="Couleur par défaut"
-                title="Couleur par défaut : celle du texte du thème"
+                title="Couleur par défaut : celle du texte du thème (dans une carte ou sur un fond de couleur : celle du texte de la carte)"
                 className="tc-swatch"
                 data-frame-color="default"
                 style={{ background: frameColorCss(undefined) }}
                 onClick={() => patch({ color: undefined })}
               />
-              {PALETTE_DISPLAY.map((c) => (
+              {plan.shown.map((c) => (
                 <button
                   key={c}
                   type="button"
                   role="radio"
-                  aria-checked={value.color === c}
+                  aria-checked={value.color === c || twinOfStored === c}
                   aria-label={PALETTE_LABELS[c]}
                   title={PALETTE_LABELS[c]}
                   className="tc-swatch"
