@@ -258,3 +258,49 @@ figure.block-image[data-free] .media-frame :is(img, video) {
 .free-item .media-frame {
   --media-radius: 0px;
 }
+
+/* ---- Le fond englobe TOUT le contenu, cadres compris (lot 102) ---------------------------------------------------------------------
+   Le cadre dépasse autour du média (marges négatives, plus haut). Avec un fond de couleur ou de papier peint (`.fond-bloc`) et un espace du haut
+   réduit (« Aucun », ou un cran plus petit que le cadre), le haut des cadres sortait du fond d'autant (6 px pour un cadre moyen) : le fond
+   « commençait un peu sous le haut des images » et le cadre mordait sur le bloc du dessus. L'espace haut d'une grille ou d'une image seule
+   reste donc AU MOINS l'épaisseur du cadre le plus épais de son contenu (`--over`) : `max(espace choisi, --over)`. Sans fond, ou avec un espace
+   déjà plus grand que le cadre (le cas ordinaire), rien ne change. Les épaisseurs sont celles des règles de cadre ci-dessus (bande : Fin 2 px,
+   Moyen / Épais en `clamp`, cadre du thème : `--kit-k`, cadre perso : au plus 4 % de la largeur), plafonnées à la place laissée autour. */
+:is(.block-grid, .block-image[data-solo]) {
+  --or: var(--frame-room, max(var(--gutter, 1rem), 24px));
+  --over: max(var(--o-fin, 0px), var(--o-mid, 0px), var(--o-thick, 0px), var(--o-kit, 0px), var(--o-lib, 0px));
+}
+:is(.block-grid, .block-image[data-solo]):has(.media-frame[data-frame="band"][data-frame-w="fin"]) {
+  --o-fin: round(min(2px, var(--or)), 1px);
+}
+:is(.block-grid, .block-image[data-solo]):has(.media-frame[data-frame="band"]:not([data-frame-w="fin"]):not([data-frame-w="epais"])) {
+  --o-mid: round(min(clamp(3px, 0.9vw, 6px), var(--or)), 1px);
+}
+:is(.block-grid, .block-image[data-solo]):has(.media-frame[data-frame="band"][data-frame-w="epais"]) {
+  --o-thick: round(min(clamp(5px, 1.8vw, 12px), var(--or)), 1px);
+}
+:is(.block-grid, .block-image[data-solo]):has(.media-frame[data-frame="theme"]),
+[data-frame-all] :is(.block-grid, .block-image[data-solo]):has(.media-frame[data-kind="image"]:not([data-frame])) {
+  --o-kit: round(calc(var(--t-kit-fwt) * min(1px, 4vw / var(--t-kit-fmax), var(--or) / var(--t-kit-fmax))), 1px);
+}
+:is(.block-grid, .block-image[data-solo]):has(.media-frame[data-frame="custom"]) {
+  --o-lib: round(min(4vw, var(--or), 24px), 1px);
+}
+.fond-bloc[data-fond="on"] .block-grid-section.grid-top-none .block-grid {
+  padding-top: var(--over);
+}
+.fond-bloc[data-fond="on"] .blk[data-pt="none"] :is(.block-grid, .block-image[data-solo]) {
+  padding-top: var(--over);
+}
+.fond-bloc[data-fond="on"] .blk[data-pt="s"] :is(.block-grid, .block-image[data-solo]) {
+  padding-top: max(0px, calc(var(--over) - var(--t-space-s)));
+}
+.fond-bloc[data-fond="on"] .blk[data-pt="m"] :is(.block-grid, .block-image[data-solo]) {
+  padding-top: max(0px, calc(var(--over) - var(--t-space-m)));
+}
+.fond-bloc[data-fond="on"] .blk[data-pt="l"] :is(.block-grid, .block-image[data-solo]) {
+  padding-top: max(0px, calc(var(--over) - var(--t-space-l)));
+}
+.fond-bloc[data-fond="on"] .blk[data-pt="xl"] :is(.block-grid, .block-image[data-solo]) {
+  padding-top: max(0px, calc(var(--over) - var(--t-space-xl)));
+}
