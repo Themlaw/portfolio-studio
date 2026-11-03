@@ -273,7 +273,7 @@ figure.block-image[data-free] .media-frame :is(img, video) {
 :is(.block-grid, .block-image[data-solo]):has(.media-frame[data-frame="band"][data-frame-w="fin"]) {
   --o-fin: round(min(2px, var(--or)), 1px);
 }
-:is(.block-grid, .block-image[data-solo]):has(.media-frame[data-frame="band"]:not([data-frame-w="fin"], [data-frame-w="epais"])) {
+:is(.block-grid, .block-image[data-solo]):has(.media-frame[data-frame="band"]:not([data-frame-w="fin"]):not([data-frame-w="epais"])) {
   --o-mid: round(min(clamp(3px, 0.9vw, 6px), var(--or)), 1px);
 }
 :is(.block-grid, .block-image[data-solo]):has(.media-frame[data-frame="band"][data-frame-w="epais"]) {
