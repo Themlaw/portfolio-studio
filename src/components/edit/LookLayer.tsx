@@ -100,8 +100,9 @@ function rootOf(uid: string): HTMLElement | null {
   if (el?.classList.contains("surface-card")) el = el.firstElementChild as HTMLElement | null;
   if (el?.classList.contains("card-in")) el = el.firstElementChild as HTMLElement | null;
   // Fond de couleur du composant (lot 32) : même chose.
-  if (el?.classList.contains("fond-bloc")) el = el.firstElementChild as HTMLElement | null;
-  if (el?.classList.contains("fond-in")) el = el.firstElementChild as HTMLElement | null;
+  // Lot 105 : le Fond porte un panneau intérieur (`.fond-bloc[data-fond-panel] > .fond-in`) : on traverse autant de niveaux qu'il y en a
+  // (sinon la poignée d'espace et l'aperçu de remplissage visaient l'enveloppe du panneau et non le bloc : état v0.33.1, intégration 105 + 102).
+  while (el?.classList.contains("fond-bloc") || el?.classList.contains("fond-in")) el = el.firstElementChild as HTMLElement | null;
   if (el?.classList.contains("blk")) el = el.firstElementChild as HTMLElement | null;
   if (!el || el.hasAttribute("data-edit-block")) return null;
   return el;
