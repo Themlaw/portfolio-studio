@@ -117,14 +117,14 @@ function summary(z: Zone | null, defaults: ResolvedSurface) {
 }
 
 /** Bouton « Fond & carte » de la barre d'outils (le MÊME partout, lot 100) : petit échantillon carré de la couleur de la carte (sinon du fond ; rien : aucun ; trame : papier peint sans couleur). */
-export function FondButton({ uid, open, onToggle }: { uid: string; open: boolean; onToggle: () => void }) {
+export function FondButton({ uid, open, onToggle, compact = false }: { uid: string; open: boolean; onToggle: () => void; compact?: boolean }) {
   const st = zoneState(uid);
   const fc = readFondCarte({ surface: st.surface ?? undefined, background: st.background ?? undefined }, st.defaults);
   const s = summary(fc.carte ?? fc.fond, st.defaults);
   return (
-    <button type="button" className="pe-tool-text fond-btn" data-testid="fond-button" aria-haspopup="dialog" aria-expanded={open} title="Fond et carte du bloc : le fond autour (pleine largeur) et la carte en retrait qui porte le contenu" onClick={onToggle}>
+    <button type="button" className="pe-tool-text fond-btn" data-testid="fond-button" aria-haspopup="dialog" aria-expanded={open} {...(compact ? { "aria-label": "Fond & carte" } : {})} title="Fond et carte du bloc : le fond autour (pleine largeur) et la carte en retrait qui porte le contenu" onClick={onToggle}>
       {s && <span className="sm-swatch" data-testid="fond-swatch" data-wallpaper={"wallpaperOnly" in s ? "" : undefined} style={!("wallpaperOnly" in s) ? { background: s.style.bg } : undefined} aria-hidden="true" />}
-      Fond &amp; carte
+      {compact ? <span aria-hidden="true">▣</span> : "Fond & carte"}
       {s && !s.style.ok && (
         <span className="sm-alert" data-testid="fond-alert" title="Texte peu lisible sur cette couleur" aria-label="Texte peu lisible sur cette couleur">
           !

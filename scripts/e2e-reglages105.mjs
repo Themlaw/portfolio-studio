@@ -697,6 +697,9 @@ if (run("P")) {
       console.log(`PARITY105 ${w}px ${fp.length} éléments ${sha}`);
       await ap.screenshot({ path: path.join(SHOTS, `parite-${w}.png`), fullPage: true }).catch(() => {});
       ok(`P1 [${w}px] empreinte géométrique relevée (${fp.length} éléments)`, fp.length > 20);
+      // Empreintes relevées sur v0.33.0 (f569ecf) avec ces mêmes données : le rendu public des anciennes données ne bouge pas, au pixel.
+      const V033 = { 1440: "1839af06398d3dc0107ad6a5755464970404487041b8a2db67b4aebefdcf6bd0", 768: "ae0ed43402e902baddaa135e928b4bfbae03cac3d887a7adbe5211daf23cfe1c", 390: "41dd64364f10da50fdeb8b1642d982c4c8a388c23dd97d69065a9b50a9b5428e" };
+      ok(`P2 [${w}px] identique à v0.33.0 (11 formes de données anciennes : carte pleine / en retrait, coins, bordure, fond, marge, papier peint, les deux emboîtés)`, sha === V033[w], `${sha} ≠ ${V033[w]}`);
     }
     await anon.close();
   });

@@ -544,6 +544,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
         {hasFondWrapper(uid) && (
           <span className="pe-cb-fond" data-cb="fond">
             <FondButton
+              compact
               uid={uid}
               open={fondFor === uid}
               onToggle={() => {

@@ -373,8 +373,8 @@ await section("D", async () => {
   // Lot 100 : le contour vit sur la couche extérieure ; il est verrouillé tant qu'un Fond est posé. On retire donc le Fond de Bravo.
   await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').click();
   await sleep(1200);
-  ok("D1 lot 100 : « Contour : Aucun » coché au départ (la ligne est visible sans rien déplier)", (await menu.locator('[data-contour="none"]').getAttribute("aria-checked")) === "true");
-  await menu.locator('[data-contour="medium"]').click();
+  ok("D1 lot 100 : « Contour : Aucun » coché au départ (la ligne est visible sans rien déplier)", (await menu.locator('[data-testid="fond-section-carte"] [data-contour="none"]').getAttribute("aria-checked")) === "true");
+  await menu.locator('[data-testid="fond-section-carte"] [data-contour="medium"]').click();
   ok("D2 contour posé : Moyen, couleur par défaut", await waitFor(() => JSON.stringify(borderOf("Bravo")) === '{"width":"medium"}'), JSON.stringify(borderOf("Bravo")));
   let m = await measure(f, "Bravo");
   ok("D3 aperçu : bordure Moyenne de 6 px, pleine", m.border.attr === "medium" && near(m.border.t, 6, 0.6) && near(m.border.l, 6, 0.6) && m.border.style === "solid", JSON.stringify(m.border));
@@ -422,7 +422,7 @@ await section("D", async () => {
 
   f = await openEditor();
   menu = await openCard("Bravo");
-  await menu.locator('[data-contour="none"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-contour="none"]').click();
   ok("D12 interrupteur éteint : `border: false`", await waitFor(() => borderOf("Bravo") === false), JSON.stringify(borderOf("Bravo")));
   m = await measure(f, "Bravo");
   ok("D12 plus de bordure sur la toile", m.border.attr === null && near(m.border.t, 0) && near((m.fond ?? m.card).l, m.card.l));
@@ -436,7 +436,7 @@ await section("D", async () => {
   // D13b : deux cartes de même fond ET de même bordure = un seul groupe, le trait entoure tout le groupe (aucun trait au raccord).
   f = await openEditor();
   menu = await openCard("Bravo");
-  await menu.locator('[data-contour="medium"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-contour="medium"]').click();
   ok("D13b bordure sur Bravo seule", await waitFor(() => JSON.stringify(borderOf("Bravo")) === '{"width":"medium"}'), JSON.stringify(borderOf("Bravo")));
   await page.keyboard.press("Escape");
   m = await measure(f, "Bravo");
@@ -444,7 +444,7 @@ await section("D", async () => {
   menu = await openCard("Charlie");
   await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').click();
   await sleep(1200);
-  await menu.locator('[data-contour="medium"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-contour="medium"]').click();
   ok("D13b même bordure sur Charlie", await waitFor(() => JSON.stringify(borderOf("Charlie")) === '{"width":"medium"}'), JSON.stringify(borderOf("Charlie")));
   await page.keyboard.press("Escape");
   m = await measure(f, "Bravo");
