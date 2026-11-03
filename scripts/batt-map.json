@@ -1,0 +1,3865 @@
+{
+ "base": [
+  "checks",
+  "state",
+  "editor",
+  "public67",
+  "integ33"
+ ],
+ "rules": [
+  {
+   "match": "^(drizzle/|package(-lock)?\\.json$|next\\.config\\.ts$|src/proxy\\.ts$|src/instrumentation\\.ts$|src/lib/db/|Dockerfile$)",
+   "suites": [
+    "*"
+   ]
+  },
+  {
+   "match": "^(scripts/test-all-local\\.sh|\\.github/scripts/e2e\\.sh|scripts/lib/port-alloc\\.mjs|scripts/batt-)",
+   "suites": [
+    "checks"
+   ]
+  },
+  {
+   "match": "^src/lib/backup/",
+   "suites": [
+    "backup50",
+    "backup85",
+    "admin76",
+    "auth"
+   ]
+  },
+  {
+   "match": "^src/lib/(storage|jobs)/",
+   "suites": [
+    "backup85",
+    "medias",
+    "images25",
+    "crop17d",
+    "auth"
+   ]
+  },
+  {
+   "match": "^src/lib/(images|upload|video)/",
+   "suites": [
+    "medias",
+    "images25",
+    "crop17d",
+    "crop17d-http",
+    "crop17g",
+    "17b",
+    "video36",
+    "vitesse54"
+   ]
+  },
+  {
+   "match": "^src/lib/pdf/",
+   "suites": [
+    "pdf",
+    "medias"
+   ]
+  },
+  {
+   "match": "^src/lib/kit/",
+   "suites": [
+    "kit",
+    "kit17a",
+    "kithttp",
+    "kit53",
+    "auth"
+   ]
+  },
+  {
+   "match": "^src/lib/(auth|domain)",
+   "suites": [
+    "auth",
+    "domaine88",
+    "admin",
+    "admin23"
+   ]
+  },
+  {
+   "match": "^src/lib/journal/",
+   "suites": [
+    "journal97",
+    "admin",
+    "auth"
+   ]
+  },
+  {
+   "match": "^src/lib/(themes|theme)",
+   "suites": [
+    "themes",
+    "themes55",
+    "montheme60",
+    "essayer63",
+    "kit17a",
+    "palette"
+   ]
+  },
+  {
+   "match": "^src/themes/",
+   "suites": [
+    "themes",
+    "themes55",
+    "montheme60",
+    "palette",
+    "look",
+    "fond32"
+   ]
+  },
+  {
+   "match": "^src/lib/(favicon|site-schema)",
+   "suites": [
+    "favicon83",
+    "logo84"
+   ]
+  },
+  {
+   "match": "^src/(lib/special-pages\\.ts|components/NotFoundView\\.tsx)",
+   "suites": [
+    "introuvable89"
+   ]
+  },
+  {
+   "match": "^messages/",
+   "suites": [
+    "langue87",
+    "public67",
+    "admin23",
+    "editeurguide61"
+   ]
+  },
+  {
+   "match": "^src/app/admin/",
+   "suites": [
+    "admin",
+    "admin23",
+    "admin76"
+   ]
+  },
+  {
+   "match": "^src/(blocks|components/edit)/",
+   "suites": [
+    "boards",
+    "composants20",
+    "blocs27",
+    "collections22"
+   ]
+  },
+  {
+   "match": "^src/app/(globals|look|media-frame|medias)\\.css$|^src/app/media-frame\\.css$",
+   "suites": [
+    "look",
+    "mediaframe64",
+    "public67",
+    "surface66"
+   ]
+  }
+ ],
+ "wide": [
+  "lot1",
+  "lot8",
+  "admin",
+  "admin23",
+  "medias",
+  "public67",
+  "editor",
+  "state",
+  "boards",
+  "kit",
+  "publication51",
+  "integ17",
+  "look",
+  "composants20",
+  "couleurs26"
+ ],
+ "index": {
+  "src/app/[locale]/[[...slug]]/layout.tsx": [
+   "chrome24",
+   "couleurps29",
+   "crop17d",
+   "crop17g",
+   "integ17",
+   "logo84",
+   "look",
+   "lot1",
+   "palogo17f",
+   "papiers35",
+   "retour30",
+   "retours68",
+   "surface66"
+  ],
+  "src/app/[locale]/[[...slug]]/page.tsx": [
+   "admin",
+   "cadre34",
+   "cartes17c",
+   "chrome24",
+   "couleurps29",
+   "couleurs19b",
+   "crop17d",
+   "crop17g",
+   "fond100",
+   "fondimage41",
+   "fondtexte21",
+   "introuvable89",
+   "palogo17f",
+   "retour30",
+   "retours68",
+   "state",
+   "texte19a",
+   "v013"
+  ],
+  "src/app/[locale]/layout.tsx": [
+   "backup85",
+   "favicon83",
+   "partage52"
+  ],
+  "src/app/admin/(espace)/journal/page.tsx": [
+   "integ33",
+   "journal97",
+   "kit53",
+   "priseenmain57"
+  ],
+  "src/app/admin/(espace)/medias/page.tsx": [
+   "partage52"
+  ],
+  "src/app/admin/(espace)/messages/actions.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/app/admin/(espace)/messages/page.tsx": [
+   "admin",
+   "partage52",
+   "retours68"
+  ],
+  "src/app/admin/(espace)/page.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "journal97",
+   "kit53",
+   "partage52",
+   "priseenmain57",
+   "retours68"
+  ],
+  "src/app/admin/(espace)/pages/[id]/page.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "kit53",
+   "priseenmain57",
+   "retours68"
+  ],
+  "src/app/admin/(espace)/pages/actions.ts": [
+   "journal97",
+   "look",
+   "state"
+  ],
+  "src/app/admin/(espace)/projets/[id]/page.tsx": [
+   "priseenmain57"
+  ],
+  "src/app/admin/(espace)/projets/page.tsx": [
+   "admin23",
+   "admin76",
+   "journal97",
+   "lot8",
+   "public67"
+  ],
+  "src/app/admin/(espace)/reglages/page.tsx": [
+   "admin23",
+   "integ33",
+   "journal97"
+  ],
+  "src/app/admin/(espace)/themes/[id]/kit/page.tsx": [
+   "admin",
+   "cadremotif58",
+   "chrome24",
+   "couleurs26",
+   "crop17d",
+   "crop17g",
+   "defilement99",
+   "defilement99-firefox",
+   "favicon83",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "palogo17f",
+   "parite99",
+   "retours68",
+   "themes55"
+  ],
+  "src/app/admin/(espace)/themes/[id]/page.tsx": [
+   "defilement99",
+   "defilement99-firefox",
+   "palogo17f",
+   "parite99",
+   "themes55"
+  ],
+  "src/app/admin/(espace)/themes/actions.ts": [
+   "defilement99",
+   "defilement99-firefox",
+   "palogo17f",
+   "parite99",
+   "themes55"
+  ],
+  "src/app/admin/(espace)/themes/frame-actions.ts": [
+   "cadres62"
+  ],
+  "src/app/admin/(espace)/themes/page.tsx": [
+   "cadres62",
+   "themes55"
+  ],
+  "src/app/admin/(espace)/themes/tuto/slides.ts": [
+   "mediaframe64",
+   "medias",
+   "medias-firefox"
+  ],
+  "src/app/admin/_fields/PageButtonsColorField.tsx": [
+   "admin",
+   "chrome24",
+   "couleurps29",
+   "couleurs26",
+   "crop17d",
+   "crop17g",
+   "look",
+   "lot11",
+   "palette",
+   "retours68",
+   "v013"
+  ],
+  "src/app/admin/_fields/PageWallpaperField.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editor",
+   "fond100",
+   "papiers35",
+   "retours68",
+   "surface66"
+  ],
+  "src/app/admin/_fields/TagInput.tsx": [
+   "admin",
+   "boards",
+   "chrome24",
+   "collections22",
+   "crop17d",
+   "crop17g",
+   "papiers35",
+   "retours68",
+   "surface66"
+  ],
+  "src/app/admin/_fields/index.tsx": [
+   "17b",
+   "admin",
+   "barres38",
+   "cartes17c",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editor",
+   "fond32",
+   "fondtexte21",
+   "lot11",
+   "papiers35",
+   "papiers78",
+   "priseenmain57",
+   "retours68",
+   "surface66"
+  ],
+  "src/app/admin/admin.css": [
+   "17b",
+   "admin",
+   "admin23",
+   "admin76",
+   "blocs27",
+   "cartes17c",
+   "chrome24",
+   "couleurps29",
+   "couleurs26",
+   "editeurguide61",
+   "editor",
+   "essayer63",
+   "images25",
+   "logo84",
+   "look",
+   "lot11",
+   "medias",
+   "medias-firefox",
+   "montheme60",
+   "palette",
+   "palogo17f",
+   "papiers35",
+   "priseenmain57",
+   "texte19a"
+  ],
+  "src/app/admin/apercu/route.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/app/admin/api/editeur/session/route.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/app/admin/api/editeur/toile/route.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/app/admin/card-colors.css": [
+   "17b",
+   "cadre95",
+   "cadremotif58",
+   "couleurps29",
+   "fleches33",
+   "fondcontenu47",
+   "logo84",
+   "look",
+   "lot11"
+  ],
+  "src/app/admin/edit-layer.css": [
+   "17b",
+   "blocs27",
+   "boards",
+   "cadremotif58",
+   "carrousel31f",
+   "chrome24",
+   "editor",
+   "entrees48",
+   "fonddeborde59",
+   "grille31d",
+   "grille37",
+   "images25",
+   "legendes39",
+   "logo84",
+   "lot8",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "pied86",
+   "planche31",
+   "popover65",
+   "state",
+   "textes70",
+   "v013"
+  ],
+  "src/app/admin/forbidden.tsx": [
+   "kit53",
+   "priseenmain57"
+  ],
+  "src/app/admin/highlight.css": [
+   "couleurs19b",
+   "defilement99",
+   "defilement99-firefox",
+   "editor",
+   "fondcontenu47",
+   "medias",
+   "medias-firefox",
+   "montheme60",
+   "palogo17f",
+   "parite99",
+   "popover65"
+  ],
+  "src/app/admin/look-layer.css": [
+   "17b",
+   "admin23",
+   "barres38",
+   "cadre95",
+   "cadremotif58",
+   "chrome24",
+   "couleurps29",
+   "crop17d",
+   "crop17g",
+   "editor",
+   "essayer63",
+   "favicon83",
+   "fondcontenu47",
+   "logo84",
+   "look",
+   "lot11",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "palogo17f",
+   "papier28",
+   "papiers78",
+   "popover65",
+   "state"
+  ],
+  "src/app/admin/look-panel.css": [
+   "17b",
+   "cadre95",
+   "cadremotif58",
+   "couleurps29",
+   "editor",
+   "fondcontenu47",
+   "images25",
+   "logo84",
+   "lot11",
+   "palogo17f",
+   "panorama45",
+   "popover65",
+   "retour30",
+   "site96",
+   "state"
+  ],
+  "src/app/admin/preview-banner.css": [
+   "admin",
+   "cadremotif58",
+   "couleurps29",
+   "couleurs19b",
+   "entrees48",
+   "fondcontenu47",
+   "fonddeborde59",
+   "logo84",
+   "lot1",
+   "lot11",
+   "montheme60",
+   "retours68"
+  ],
+  "src/app/admin/surface-menu.css": [
+   "17b",
+   "backup85",
+   "cadre95",
+   "cadremotif58",
+   "cartes17c",
+   "couleurps29",
+   "editeurguide61",
+   "editor",
+   "fond100",
+   "fond32",
+   "fondcontenu47",
+   "fondimage41",
+   "fondmarge43",
+   "fondtexte21",
+   "kit",
+   "kithttp",
+   "logo84",
+   "lot11",
+   "medias",
+   "medias-firefox",
+   "opacite90",
+   "palette",
+   "panorama45",
+   "papiers35"
+  ],
+  "src/app/admin/theme-guide.css": [
+   "17b",
+   "cadre95",
+   "cadremotif58",
+   "couleurps29",
+   "couleurs19b",
+   "editeurguide61",
+   "favicon83",
+   "fleches33",
+   "fondcontenu47",
+   "logo84",
+   "lot11",
+   "medias",
+   "medias-firefox",
+   "panorama45",
+   "publication51",
+   "textes70",
+   "themes55"
+  ],
+  "src/app/admin/typo-controls.css": [
+   "17b",
+   "admin23",
+   "barres38",
+   "cadre95",
+   "cadremotif58",
+   "chrome24",
+   "couleurps29",
+   "couleurs26",
+   "editor",
+   "essayer63",
+   "fleches33",
+   "fondcontenu47",
+   "fondtexte21",
+   "integ33",
+   "introuvable89",
+   "legendes98",
+   "logo84",
+   "look",
+   "lot11",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "popover65",
+   "state"
+  ],
+  "src/app/api/admin/sauvegardes/[name]/route.ts": [
+   "admin76",
+   "backup85",
+   "journal97"
+  ],
+  "src/app/api/auth/[...all]/route.ts": [
+   "admin76",
+   "blocs27"
+  ],
+  "src/app/api/contact/route.ts": [
+   "admin76",
+   "blocs27",
+   "crop17d-http",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "popover65"
+  ],
+  "src/app/api/log/route.ts": [
+   "admin76",
+   "crop17d-http",
+   "kithttp"
+  ],
+  "src/app/fonts/[file]/route.ts": [
+   "crop17d-http"
+  ],
+  "src/app/globals.css": [
+   "17b",
+   "blocs27",
+   "cadre34",
+   "cartes17c",
+   "couleurps29",
+   "couleurs19b",
+   "defilement99",
+   "defilement99-firefox",
+   "editeurguide61",
+   "fondimage41",
+   "grille31d",
+   "grille37",
+   "kit",
+   "legendes39",
+   "logo84",
+   "lot1",
+   "lot11",
+   "medias",
+   "medias-firefox",
+   "palogo17f",
+   "parite99",
+   "retours68",
+   "visionneuse44",
+   "vitesse54"
+  ],
+  "src/app/look.css": [
+   "cadremotif58",
+   "cartes17c",
+   "collections22",
+   "crop17d-http",
+   "editeurguide61",
+   "fond100",
+   "fond32",
+   "fondcontenu47",
+   "fonddeborde59",
+   "fondmarge43",
+   "fondplanche24",
+   "fondtexte21",
+   "image40",
+   "logo84",
+   "logocadres49",
+   "look",
+   "lot11",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "montheme60",
+   "papier28",
+   "papiers35",
+   "unif75"
+  ],
+  "src/app/media-frame.css": [
+   "17b",
+   "boards",
+   "cadre34",
+   "cadre95",
+   "cadremotif58",
+   "cadres62",
+   "cadres74",
+   "cadres79",
+   "carrousel31f",
+   "collections22",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "defilement99",
+   "fondimage41",
+   "grille31d",
+   "grille37",
+   "grille69",
+   "legendes39",
+   "logocadres49",
+   "mediaframe64",
+   "planchelibre42",
+   "unif75",
+   "visionneuse44"
+  ],
+  "src/app/media/[...key]/route.ts": [
+   "blocs27",
+   "crop17d",
+   "crop17d-http",
+   "crop17g"
+  ],
+  "src/app/medias.css": [
+   "17b",
+   "barres38",
+   "cadremotif58",
+   "cadres62",
+   "carrousel31f",
+   "couleurps29",
+   "editeurguide61",
+   "editor",
+   "fleches33",
+   "fondcontenu47",
+   "images25",
+   "logo84",
+   "look",
+   "lot11",
+   "medias",
+   "medias-firefox",
+   "popover65",
+   "unif75",
+   "video36"
+  ],
+  "src/app/site-icon/[file]/route.ts": [
+   "backup85",
+   "favicon83",
+   "partage52"
+  ],
+  "src/blocks/BlockList.tsx": [
+   "cartes17c",
+   "chrome24",
+   "composants20",
+   "couleurps29",
+   "crop17d",
+   "crop17g",
+   "integ17",
+   "introuvable89",
+   "palogo17f",
+   "retour30",
+   "retours68"
+  ],
+  "src/blocks/CollectionIntroBlock.tsx": [
+   "fleches33",
+   "lot1",
+   "textes70",
+   "v013"
+  ],
+  "src/blocks/CollectionTilesBlock.tsx": [
+   "lot1",
+   "texte19a"
+  ],
+  "src/blocks/ContactBlock.tsx": [
+   "blocs27",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "entrees48",
+   "legendes39",
+   "lot1",
+   "retours68",
+   "texte19a"
+  ],
+  "src/blocks/ContactFormBlock.tsx": [
+   "blocs27",
+   "entrees48",
+   "legendes39",
+   "lot1",
+   "texte19a"
+  ],
+  "src/blocks/CvBlock.tsx": [
+   "blocs27",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "entrees48",
+   "fonddeborde59",
+   "images25",
+   "legendes39",
+   "lot1",
+   "retours68",
+   "texte19a",
+   "v013"
+  ],
+  "src/blocks/ExitBlock.tsx": [
+   "blocs27",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "legendes39",
+   "lot1",
+   "retours68",
+   "texte19a"
+  ],
+  "src/blocks/FeaturedProjectBlock.tsx": [
+   "blocs27",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "legendes39",
+   "retours68",
+   "texte19a"
+  ],
+  "src/blocks/FeaturedProjectsBlock.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "lot1",
+   "retours68",
+   "texte19a"
+  ],
+  "src/blocks/FieldOps.tsx": [
+   "blocs27",
+   "editor",
+   "entrees48",
+   "fonddeborde59",
+   "grille31d",
+   "grille37",
+   "texte19a"
+  ],
+  "src/blocks/FreeBoardBlock.tsx": [
+   "17b",
+   "blocs27",
+   "cadres62",
+   "cadres79",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "fonddeborde59",
+   "logocadres49",
+   "mediaframe64",
+   "planchelibre42",
+   "popover65",
+   "retours68",
+   "texte19a",
+   "unif75"
+  ],
+  "src/blocks/GridBlock.tsx": [
+   "17b",
+   "blocs27",
+   "cartes17c",
+   "chrome24",
+   "composants20",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "entrees48",
+   "grille31d",
+   "grille37",
+   "grille69",
+   "images25",
+   "legendes39",
+   "legendes98",
+   "lot1",
+   "papiers35",
+   "planche31",
+   "retours68",
+   "state",
+   "texte19a",
+   "unif75",
+   "v013",
+   "vitesse54"
+  ],
+  "src/blocks/ImageBlock.tsx": [
+   "17b",
+   "blocs27",
+   "cadre34",
+   "cartes17c",
+   "collections22",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "fonddeborde59",
+   "fondimage41",
+   "grille31d",
+   "grille69",
+   "image40",
+   "images25",
+   "mediaframe64",
+   "planche31",
+   "texte19a",
+   "unif75",
+   "v013"
+  ],
+  "src/blocks/PageLinkBlock.tsx": [
+   "blocs27",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "legendes39",
+   "retours68",
+   "texte19a"
+  ],
+  "src/blocks/ProfileBlock.tsx": [
+   "17b",
+   "blocs27",
+   "chrome24",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "entrees48",
+   "fonddeborde59",
+   "fondtexte21",
+   "grille31d",
+   "grille69",
+   "images25",
+   "integ33",
+   "journal97",
+   "legendes39",
+   "look",
+   "lot1",
+   "pied86",
+   "retours68",
+   "site96",
+   "state",
+   "textes70",
+   "unif75",
+   "v013"
+  ],
+  "src/blocks/ProjectBoardBlock.tsx": [
+   "lot1",
+   "state"
+  ],
+  "src/blocks/RandomPick.tsx": [
+   "introuvable89"
+  ],
+  "src/blocks/RandomWorkBlock.tsx": [
+   "17b",
+   "blocs27",
+   "cadre34",
+   "cartes17c",
+   "crop17d-http",
+   "fondimage41",
+   "image40",
+   "introuvable89",
+   "legendes39",
+   "mediaframe64",
+   "texte19a"
+  ],
+  "src/blocks/RichTextBlock.tsx": [
+   "blocs27",
+   "editor",
+   "entrees48",
+   "fonddeborde59",
+   "grille31d",
+   "grille37",
+   "legendes39",
+   "lot1",
+   "texte19a"
+  ],
+  "src/blocks/SectionTitleBlock.tsx": [
+   "blocs27",
+   "boards",
+   "composants20",
+   "editor",
+   "entrees48",
+   "fleches33",
+   "fonddeborde59",
+   "grille31d",
+   "grille37",
+   "legendes39",
+   "legendes98",
+   "lot1",
+   "lot8",
+   "state",
+   "texte19a",
+   "textes70",
+   "v013"
+  ],
+  "src/blocks/VideoSingleBlock.tsx": [
+   "blocs27",
+   "fonddeborde59",
+   "grille31d",
+   "images25",
+   "texte19a",
+   "v013"
+  ],
+  "src/blocks/board-layout.ts": [
+   "video36"
+  ],
+  "src/blocks/caption-style.ts": [
+   "defilement99",
+   "defilement99-firefox",
+   "palogo17f",
+   "parite99",
+   "themes55"
+  ],
+  "src/blocks/caption.tsx": [
+   "legendes39"
+  ],
+  "src/blocks/collection-pages.ts": [
+   "17b"
+  ],
+  "src/blocks/editor-types.ts": [
+   "blocs27",
+   "v013"
+  ],
+  "src/blocks/editors.tsx": [
+   "17b",
+   "admin",
+   "blocs27",
+   "cartes17c",
+   "collections22",
+   "fond32",
+   "fondtexte21",
+   "grille31d",
+   "grille37",
+   "journal97",
+   "lot8",
+   "papiers35",
+   "pied86",
+   "planchelibre42",
+   "popover65",
+   "priseenmain57",
+   "retours68",
+   "state",
+   "surface66",
+   "textes70",
+   "v013",
+   "video36"
+  ],
+  "src/blocks/free-board.ts": [
+   "unif75"
+  ],
+  "src/blocks/grid-layouts.ts": [
+   "grille31d",
+   "grille37",
+   "papiers35",
+   "video36"
+  ],
+  "src/blocks/grid-strip.ts": [
+   "cartes17c",
+   "grille69",
+   "introuvable89",
+   "journal97",
+   "palette",
+   "state"
+  ],
+  "src/blocks/help-text.ts": [
+   "cartes17c",
+   "composants20",
+   "texte19a",
+   "v013"
+  ],
+  "src/blocks/refs.ts": [
+   "blocs27",
+   "boards",
+   "composants20",
+   "fleches33",
+   "introuvable89",
+   "retours68"
+  ],
+  "src/blocks/registry.ts": [
+   "blocs27",
+   "boards",
+   "composants20",
+   "fleches33",
+   "grille69",
+   "introuvable89",
+   "lot1",
+   "retours68",
+   "state",
+   "v013"
+  ],
+  "src/blocks/tree.ts": [
+   "blocs27",
+   "composants20"
+  ],
+  "src/components/AnimationShowcase.tsx": [
+   "17b",
+   "barres38",
+   "cadres62",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "defilement99",
+   "defilement99-firefox",
+   "kit",
+   "lot1",
+   "parite99",
+   "retours68",
+   "texte19a",
+   "video36",
+   "visionneuse44"
+  ],
+  "src/components/BoardBox.tsx": [
+   "grille31d",
+   "planche31"
+  ],
+  "src/components/BoardLayer.tsx": [
+   "barres38",
+   "boards",
+   "cadres62",
+   "carrousel31f",
+   "fonddeborde59",
+   "fondplanche24",
+   "grille31d",
+   "grille37",
+   "grille69",
+   "images25",
+   "legendes39",
+   "legendes98",
+   "lot8",
+   "panorama45",
+   "papiers35",
+   "planche31",
+   "planchelibre42",
+   "popover65",
+   "priseenmain57",
+   "state",
+   "textes70",
+   "unif75",
+   "v013",
+   "video36"
+  ],
+  "src/components/CollectionTiles.tsx": [
+   "admin23",
+   "chrome24",
+   "collections22",
+   "couleurs26",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "entrees48",
+   "fleches33",
+   "grille31d",
+   "grille69",
+   "logocadres49",
+   "lot1",
+   "lot11",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "popover65",
+   "retours68",
+   "state",
+   "textes70",
+   "unif75"
+  ],
+  "src/components/ContactForm.tsx": [
+   "blocs27",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "fondtexte21",
+   "legendes39",
+   "lot1",
+   "retours68",
+   "site96",
+   "state",
+   "texte19a",
+   "textes70",
+   "v013"
+  ],
+  "src/components/CroppedPicture.tsx": [
+   "crop17d",
+   "crop17g",
+   "look"
+  ],
+  "src/components/CvPages.tsx": [
+   "17b",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "retours68"
+  ],
+  "src/components/EditLayer.tsx": [
+   "barres38",
+   "blocs27",
+   "boards",
+   "cartes17c",
+   "chrome24",
+   "collections22",
+   "composants20",
+   "editor",
+   "grille31d",
+   "grille37",
+   "integ33",
+   "introuvable89",
+   "journal97",
+   "palogo17f",
+   "papiers35",
+   "pied86",
+   "planche31",
+   "popover65",
+   "retours68",
+   "site96",
+   "state",
+   "texte19a",
+   "textes70",
+   "v013"
+  ],
+  "src/components/EditOnly.tsx": [
+   "logo84",
+   "palogo17f",
+   "retours68",
+   "v013"
+  ],
+  "src/components/EditThisPage.tsx": [
+   "blocs27",
+   "chrome24",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "logo84",
+   "montheme60",
+   "retours68"
+  ],
+  "src/components/EmailText.tsx": [
+   "lot1"
+  ],
+  "src/components/Hero.tsx": [
+   "themes"
+  ],
+  "src/components/Lightbox.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "defilement99",
+   "defilement99-firefox",
+   "kit",
+   "lot1",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "papiers78",
+   "parite99",
+   "planchelibre42",
+   "public67",
+   "retours68",
+   "textes70",
+   "video36",
+   "visionneuse44",
+   "vitesse54"
+  ],
+  "src/components/LocaleSwitcher.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "fondtexte21",
+   "papiers78",
+   "retours68",
+   "site96",
+   "textes70"
+  ],
+  "src/components/LoopVideo.tsx": [
+   "barres38",
+   "cadres62",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "defilement99",
+   "defilement99-firefox",
+   "kit",
+   "medias",
+   "medias-firefox",
+   "parite99",
+   "retours68",
+   "video36",
+   "visionneuse44"
+  ],
+  "src/components/MediaCaption.tsx": [
+   "blocs27",
+   "boards",
+   "defilement99",
+   "defilement99-firefox",
+   "fondtexte21",
+   "legendes39",
+   "legendes98",
+   "panorama45",
+   "parite99",
+   "public67",
+   "state",
+   "texte19a",
+   "textes70"
+  ],
+  "src/components/MediaFrame.tsx": [
+   "cadre34",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "fond100",
+   "fondimage41",
+   "images25",
+   "mediaframe64",
+   "planchelibre42",
+   "public67",
+   "retours68",
+   "unif75",
+   "visionneuse44",
+   "vitesse54"
+  ],
+  "src/components/NotFoundView.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "lot1",
+   "retours68"
+  ],
+  "src/components/PictureMarkup.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "integ17",
+   "public67",
+   "retours68"
+  ],
+  "src/components/PreviewBanner.tsx": [
+   "admin",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "entrees48",
+   "fonddeborde59",
+   "lot1",
+   "montheme60",
+   "retours68"
+  ],
+  "src/components/PreviewBridge.tsx": [
+   "couleurps29",
+   "couleurs19b",
+   "defilement99",
+   "defilement99-firefox",
+   "integ17",
+   "montheme60",
+   "palogo17f",
+   "parite99",
+   "retour30",
+   "themes55"
+  ],
+  "src/components/PreviewBridgeLoader.tsx": [
+   "themes"
+  ],
+  "src/components/PreviewExit.tsx": [
+   "video36"
+  ],
+  "src/components/ProjectStrip.tsx": [
+   "barres38",
+   "blocs27",
+   "boards",
+   "cadres62",
+   "carrousel31f",
+   "chrome24",
+   "fleches33",
+   "grille69",
+   "image40",
+   "legendes39",
+   "legendes98",
+   "lot1",
+   "lot8",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "papiers35",
+   "planche31",
+   "popover65",
+   "priseenmain57",
+   "state",
+   "textes70",
+   "unif75",
+   "video36"
+  ],
+  "src/components/RailScrollbar.tsx": [
+   "couleurps29",
+   "defilement99",
+   "defilement99-firefox",
+   "fleches33",
+   "langue87",
+   "logo84",
+   "look",
+   "lot1",
+   "medias",
+   "medias-firefox",
+   "palogo17f",
+   "parite99",
+   "textes70"
+  ],
+  "src/components/SiteFooter.tsx": [
+   "blocs27",
+   "entrees48",
+   "fondtexte21",
+   "integ17",
+   "integ33",
+   "journal97",
+   "legendes39",
+   "lot1",
+   "palogo17f",
+   "pied86",
+   "site96",
+   "state",
+   "texte19a",
+   "textes70",
+   "v013"
+  ],
+  "src/components/SiteHeader.tsx": [
+   "blocs27",
+   "chrome24",
+   "couleurs26",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "entrees48",
+   "fondtexte21",
+   "integ17",
+   "integ33",
+   "journal97",
+   "langue87",
+   "legendes39",
+   "logo84",
+   "logocadres49",
+   "lot1",
+   "lot8",
+   "palogo17f",
+   "pied86",
+   "retours68",
+   "site96",
+   "state",
+   "textes70",
+   "v013"
+  ],
+  "src/components/SiteLayer.tsx": [
+   "17b",
+   "barres38",
+   "blocs27",
+   "boards",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "editor",
+   "entrees48",
+   "fondtexte21",
+   "integ17",
+   "integ33",
+   "journal97",
+   "lot1",
+   "lot8",
+   "palogo17f",
+   "papiers78",
+   "pied86",
+   "popover65",
+   "site96",
+   "state",
+   "textes70",
+   "v013"
+  ],
+  "src/components/SocialIcon.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "retours68"
+  ],
+  "src/components/StripRail.tsx": [
+   "17b",
+   "barres38",
+   "boards",
+   "cadres62",
+   "carrousel31f",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "defilement99",
+   "defilement99-firefox",
+   "fleches33",
+   "integ33",
+   "kit",
+   "langue87",
+   "legendes39",
+   "lot1",
+   "medias",
+   "medias-firefox",
+   "panorama45",
+   "parite99",
+   "retours68",
+   "textes70",
+   "unif75",
+   "visionneuse44"
+  ],
+  "src/components/Video.tsx": [
+   "17b"
+  ],
+  "src/components/VideoCard.tsx": [
+   "barres38",
+   "blocs27",
+   "cadres62",
+   "legendes39",
+   "lot1",
+   "texte19a",
+   "video36"
+  ],
+  "src/components/VideoPlayer.tsx": [
+   "17b",
+   "chrome24",
+   "couleurps29",
+   "crop17d",
+   "crop17g",
+   "defilement99",
+   "defilement99-firefox",
+   "kit",
+   "logo84",
+   "look",
+   "medias",
+   "medias-firefox",
+   "palogo17f",
+   "parite99",
+   "retours68",
+   "video36",
+   "visionneuse44"
+  ],
+  "src/components/VideoViewer.tsx": [
+   "cadres62",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "defilement99",
+   "defilement99-firefox",
+   "kit",
+   "medias",
+   "medias-firefox",
+   "parite99",
+   "retours68",
+   "video36",
+   "visionneuse44"
+  ],
+  "src/components/ViewerScope.tsx": [
+   "logo84",
+   "mediaframe64",
+   "palogo17f",
+   "planchelibre42",
+   "public67",
+   "retours68",
+   "v013",
+   "visionneuse44",
+   "vitesse54"
+  ],
+  "src/components/WallpaperAlign.tsx": [
+   "fond32",
+   "fondmarge43",
+   "fondplanche24",
+   "opacite90",
+   "papiers35"
+  ],
+  "src/components/ZoneWrap.tsx": [
+   "cartes17c",
+   "fond32",
+   "fondmarge43",
+   "fondplanche24",
+   "integ17",
+   "papiers35"
+  ],
+  "src/components/admin/AdminColorPicker.tsx": [
+   "editeurguide61",
+   "langue87",
+   "lot1",
+   "textes70"
+  ],
+  "src/components/admin/AdminShell.tsx": [
+   "admin76",
+   "backup85",
+   "cadres74",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "integ33",
+   "journal97",
+   "langue87",
+   "lot1",
+   "papiers78",
+   "partage52",
+   "retours68",
+   "state",
+   "textes70"
+  ],
+  "src/components/admin/AltMissing.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "retours68"
+  ],
+  "src/components/admin/BackupPanel.tsx": [
+   "admin",
+   "admin76",
+   "backup85",
+   "boards",
+   "editor",
+   "journal97",
+   "kit53",
+   "priseenmain57",
+   "retours68"
+  ],
+  "src/components/admin/CardSettings.tsx": [
+   "couleurps29",
+   "editeurguide61",
+   "fond32",
+   "integ17",
+   "palogo17f",
+   "retour30"
+  ],
+  "src/components/admin/CursorSettings.tsx": [
+   "admin",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "palette",
+   "retours68"
+  ],
+  "src/components/admin/Diagnostic.tsx": [
+   "blocs27"
+  ],
+  "src/components/admin/FaviconSetting.tsx": [
+   "boards",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editor",
+   "favicon83",
+   "kit53",
+   "papiers35",
+   "partage52",
+   "priseenmain57",
+   "retours68"
+  ],
+  "src/components/admin/FirstSteps.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "fondcontenu47",
+   "fondmarge43",
+   "priseenmain57",
+   "retours68"
+  ],
+  "src/components/admin/FontLibraryPanel.tsx": [
+   "admin",
+   "fleches33",
+   "look",
+   "montheme60",
+   "retours68",
+   "textes70"
+  ],
+  "src/components/admin/FrameLibrary.tsx": [
+   "backup85",
+   "cadres74",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editor",
+   "papiers35",
+   "planche31",
+   "retours68"
+  ],
+  "src/components/admin/KitDownloadButton.tsx": [
+   "blocs27",
+   "boards",
+   "chrome24",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "editeurguide61",
+   "kit53",
+   "retours68"
+  ],
+  "src/components/admin/KitImport.tsx": [
+   "admin",
+   "blocs27",
+   "boards",
+   "chrome24",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "kit",
+   "kit53",
+   "priseenmain57",
+   "retours68"
+  ],
+  "src/components/admin/KitTutorial.tsx": [
+   "boards",
+   "chrome24",
+   "couleurps29",
+   "crop17d",
+   "crop17g",
+   "defilement99",
+   "defilement99-firefox",
+   "kit",
+   "kit53",
+   "logo84",
+   "look",
+   "palogo17f",
+   "papiers78",
+   "parite99",
+   "priseenmain57",
+   "retours68",
+   "textes70",
+   "themes55",
+   "video36"
+  ],
+  "src/components/admin/LibraryStrip.tsx": [
+   "17b",
+   "backup85",
+   "boards",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "grille31d",
+   "images25",
+   "medias",
+   "medias-firefox",
+   "planche31",
+   "planchelibre42",
+   "priseenmain57",
+   "retours68",
+   "v013"
+  ],
+  "src/components/admin/LiveThumb.tsx": [
+   "blocs27",
+   "chrome24",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "kit",
+   "montheme60",
+   "retours68",
+   "themes"
+  ],
+  "src/components/admin/LoginForm.tsx": [
+   "boards",
+   "kit53",
+   "priseenmain57"
+  ],
+  "src/components/admin/MediaLibrary.tsx": [
+   "17b",
+   "admin",
+   "admin23",
+   "admin76",
+   "barres38",
+   "boards",
+   "carrousel31f",
+   "cartes17c",
+   "chrome24",
+   "couleurps29",
+   "couleurs26",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "editor",
+   "favicon83",
+   "fond32",
+   "fondplanche24",
+   "fondtexte21",
+   "journal97",
+   "papiers35",
+   "partage52",
+   "priseenmain57",
+   "retours68"
+  ],
+  "src/components/admin/PageEditor.tsx": [
+   "admin",
+   "kit53",
+   "popover65",
+   "priseenmain57"
+  ],
+  "src/components/admin/PageHeader.tsx": [
+   "admin23"
+  ],
+  "src/components/admin/PagesManager.tsx": [
+   "admin",
+   "admin23",
+   "admin76",
+   "boards",
+   "chrome24",
+   "couleurps29",
+   "couleurs19b",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "editor",
+   "favicon83",
+   "introuvable89",
+   "kit53",
+   "palette",
+   "priseenmain57",
+   "publication51",
+   "retours68"
+  ],
+  "src/components/admin/PaletteEditor.tsx": [
+   "admin",
+   "blocs27",
+   "chrome24",
+   "couleurps29",
+   "couleurs26",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "integ17",
+   "look",
+   "lot11",
+   "palette",
+   "palogo17f",
+   "retour30",
+   "retours68",
+   "v013"
+  ],
+  "src/components/admin/PaperSettings.tsx": [
+   "defilement99",
+   "defilement99-firefox",
+   "kit17a",
+   "palogo17f",
+   "papier28",
+   "parite99",
+   "themes55"
+  ],
+  "src/components/admin/PhotoFrameSetting.tsx": [
+   "cadres62",
+   "logocadres49"
+  ],
+  "src/components/admin/ProjectEditor.tsx": [
+   "admin",
+   "admin23",
+   "boards",
+   "cadremotif58",
+   "cartes17c",
+   "chrome24",
+   "couleurps29",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "favicon83",
+   "fond32",
+   "fondplanche24",
+   "fondtexte21",
+   "grille31d",
+   "image40",
+   "journal97",
+   "kit",
+   "kit53",
+   "kithttp",
+   "palette",
+   "papiers35",
+   "priseenmain57",
+   "public67"
+  ],
+  "src/components/admin/ProjectsManager.tsx": [
+   "admin",
+   "admin23",
+   "admin76",
+   "boards",
+   "chrome24",
+   "couleurps29",
+   "couleurs19b",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "editor",
+   "favicon83",
+   "journal97",
+   "kit53",
+   "lot8",
+   "palette",
+   "priseenmain57",
+   "public67",
+   "publication51",
+   "retours68"
+  ],
+  "src/components/admin/SeoForm.tsx": [
+   "partage52"
+  ],
+  "src/components/admin/SettingsForm.tsx": [
+   "admin23",
+   "popover65",
+   "site96"
+  ],
+  "src/components/admin/SocialsEditor.tsx": [
+   "admin",
+   "cartes17c",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "fond32",
+   "fondtexte21",
+   "kit53",
+   "lot1",
+   "papiers35",
+   "pied86",
+   "priseenmain57",
+   "retours68",
+   "state",
+   "surface66",
+   "v013"
+  ],
+  "src/components/admin/Sortable.tsx": [
+   "boards",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "medias",
+   "medias-firefox",
+   "retours68"
+  ],
+  "src/components/admin/ThemeEditor.tsx": [
+   "17b",
+   "admin",
+   "barres38",
+   "chrome24",
+   "couleurps29",
+   "couleurs19b",
+   "crop17d",
+   "crop17g",
+   "defilement99",
+   "defilement99-firefox",
+   "editeurguide61",
+   "editor",
+   "favicon83",
+   "fondcontenu47",
+   "fondmarge43",
+   "integ17",
+   "kit53",
+   "langue87",
+   "montheme60",
+   "palogo17f",
+   "priseenmain57",
+   "retours68",
+   "textes70",
+   "themes55"
+  ],
+  "src/components/admin/ThemeImportButton.tsx": [
+   "blocs27",
+   "crop17d-http",
+   "montheme60",
+   "themes"
+  ],
+  "src/components/admin/ThemeList.tsx": [
+   "admin",
+   "admin23",
+   "blocs27",
+   "boards",
+   "chrome24",
+   "couleurps29",
+   "couleurs19b",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "defilement99",
+   "defilement99-firefox",
+   "essayer63",
+   "integ17",
+   "kit",
+   "kit17a",
+   "kit53",
+   "lot11",
+   "montheme60",
+   "palogo17f",
+   "papier28",
+   "parite99",
+   "popover65",
+   "themes55"
+  ],
+  "src/components/admin/ThemeSwatches.tsx": [
+   "couleurs26"
+  ],
+  "src/components/admin/ThemeThumb.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "medias",
+   "medias-firefox",
+   "montheme60",
+   "retours68",
+   "themes"
+  ],
+  "src/components/admin/ThemeTypeEditor.tsx": [
+   "admin",
+   "couleurps29",
+   "couleurs19b",
+   "defilement99",
+   "defilement99-firefox",
+   "editeurguide61",
+   "lot11",
+   "montheme60",
+   "palette",
+   "palogo17f",
+   "parite99",
+   "retour30",
+   "themes55"
+  ],
+  "src/components/admin/ThemeVersions.tsx": [
+   "admin",
+   "admin23",
+   "essayer63",
+   "kit53",
+   "montheme60",
+   "priseenmain57"
+  ],
+  "src/components/admin/TrashControls.tsx": [
+   "admin23",
+   "montheme60"
+  ],
+  "src/components/admin/TrashViews.tsx": [
+   "papiers78",
+   "textes70"
+  ],
+  "src/components/admin/UploadQueue.tsx": [
+   "admin23",
+   "cartes17c",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "essayer63",
+   "fond32",
+   "fondtexte21",
+   "langue87",
+   "lot1",
+   "papier28",
+   "papiers35",
+   "popover65",
+   "retours68",
+   "surface66",
+   "textes70"
+  ],
+  "src/components/admin/Uploader.tsx": [
+   "boards",
+   "cartes17c",
+   "chrome24",
+   "couleurps29",
+   "crop17d",
+   "crop17g",
+   "fond32",
+   "fondtexte21",
+   "logo84",
+   "look",
+   "medias",
+   "medias-firefox",
+   "palogo17f",
+   "papiers35",
+   "priseenmain57",
+   "retours68",
+   "surface66"
+  ],
+  "src/components/admin/VariantThumb.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "retours68",
+   "themes"
+  ],
+  "src/components/admin/WallpaperLibrary.tsx": [
+   "backup85",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "editor",
+   "entrees48",
+   "fond100",
+   "fonddeborde59",
+   "integ33",
+   "opacite90",
+   "papiers35",
+   "papiers78",
+   "planche31",
+   "retours68",
+   "surface66"
+  ],
+  "src/components/admin/editing.tsx": [
+   "admin",
+   "admin23",
+   "boards",
+   "chrome24",
+   "couleurps29",
+   "couleurs19b",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "favicon83",
+   "kit53",
+   "montheme60",
+   "palette",
+   "priseenmain57",
+   "publication51",
+   "retours68"
+  ],
+  "src/components/admin/editor/AddSectionDialog.tsx": [
+   "blocs27",
+   "cartes17c",
+   "chrome24",
+   "composants20",
+   "couleurs19b",
+   "editor",
+   "grille69",
+   "papier28",
+   "planche31",
+   "priseenmain57",
+   "texte19a",
+   "v013"
+  ],
+  "src/components/admin/editor/BoardItemPanel.tsx": [
+   "carrousel31f",
+   "cartes17c",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editor",
+   "fond32",
+   "fondplanche24",
+   "fondtexte21",
+   "grille31d",
+   "grille69",
+   "image40",
+   "papiers35",
+   "planche31",
+   "priseenmain57",
+   "retours68",
+   "surface66",
+   "video36"
+  ],
+  "src/components/admin/editor/LookPanel.tsx": [
+   "boards",
+   "composants20",
+   "editeurguide61",
+   "image40",
+   "site96",
+   "state"
+  ],
+  "src/components/admin/editor/MediaPickerDialog.tsx": [
+   "17b",
+   "admin23",
+   "carrousel31f",
+   "couleurs26",
+   "images25",
+   "planchelibre42",
+   "state"
+  ],
+  "src/components/admin/editor/MediaPreviewDialog.tsx": [
+   "images25",
+   "priseenmain57"
+  ],
+  "src/components/admin/editor/PreparingBanner.tsx": [
+   "blocs27",
+   "chrome24",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "essayer63",
+   "kit53",
+   "montheme60",
+   "priseenmain57",
+   "retours68",
+   "themes55"
+  ],
+  "src/components/admin/editor/SiteEditor.tsx": [
+   "cartes17c",
+   "chrome24",
+   "editor",
+   "fond32",
+   "fondtexte21",
+   "image40",
+   "lot1",
+   "papiers35",
+   "pied86",
+   "state",
+   "surface66",
+   "v013"
+  ],
+  "src/components/admin/editor/SiteLookPanel.tsx": [
+   "admin",
+   "chrome24",
+   "couleurps29",
+   "couleurs19b",
+   "couleurs26",
+   "crop17d",
+   "crop17g",
+   "defilement99",
+   "defilement99-firefox",
+   "editeurguide61",
+   "integ17",
+   "langue87",
+   "logo84",
+   "look",
+   "lot1",
+   "lot11",
+   "medias",
+   "medias-firefox",
+   "montheme60",
+   "palette",
+   "palogo17f",
+   "retour30",
+   "retours68",
+   "themes55"
+  ],
+  "src/components/admin/editor/StructureTree.tsx": [
+   "17b",
+   "barres38",
+   "cartes17c",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "editor",
+   "fond32",
+   "fondtexte21",
+   "grille69",
+   "medias",
+   "medias-firefox",
+   "palogo17f",
+   "papiers35",
+   "papiers78",
+   "priseenmain57",
+   "retours68",
+   "surface66",
+   "textes70",
+   "v013"
+  ],
+  "src/components/admin/editor/ThemePicker.tsx": [
+   "admin76",
+   "blocs27",
+   "chrome24",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "essayer63",
+   "montheme60",
+   "retours68"
+  ],
+  "src/components/admin/editor/TopMore.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "retours68"
+  ],
+  "src/components/admin/editor/VisualEditor.tsx": [
+   "17b",
+   "blocs27",
+   "boards",
+   "cartes17c",
+   "chrome24",
+   "composants20",
+   "editor",
+   "grille31d",
+   "image40",
+   "images25",
+   "journal97",
+   "logo84",
+   "palogo17f",
+   "papiers35",
+   "papiers78",
+   "partage52",
+   "planche31",
+   "popover65",
+   "priseenmain57",
+   "retours68",
+   "surface66",
+   "texte19a",
+   "textes70",
+   "v013"
+  ],
+  "src/components/admin/editor/thumbs.tsx": [
+   "blocs27",
+   "boards",
+   "cartes17c",
+   "chrome24",
+   "composants20",
+   "crop17d",
+   "crop17g",
+   "fleches33",
+   "introuvable89",
+   "retours68",
+   "texte19a",
+   "v013"
+  ],
+  "src/components/admin/guide/LogoStep.tsx": [
+   "editeurguide61",
+   "editor",
+   "favicon83",
+   "papiers35"
+  ],
+  "src/components/admin/guide/PaperStep.tsx": [
+   "17b",
+   "admin",
+   "barres38",
+   "chrome24",
+   "editeurguide61",
+   "editor",
+   "langue87",
+   "lot1",
+   "papiers78",
+   "popover65",
+   "priseenmain57",
+   "textes70"
+  ],
+  "src/components/admin/guide/ShapesStep.tsx": [
+   "admin",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "popover65",
+   "retours68",
+   "themes"
+  ],
+  "src/components/admin/guide/TextStep.tsx": [
+   "textes70"
+  ],
+  "src/components/admin/guide/controls.tsx": [
+   "editeurguide61"
+  ],
+  "src/components/admin/uploads.ts": [
+   "blocs27",
+   "crop17d-http",
+   "kithttp",
+   "planche31"
+  ],
+  "src/components/edit/BackdropRow.tsx": [
+   "chrome24",
+   "couleurs26",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "fondtexte21",
+   "integ33",
+   "legendes98",
+   "look",
+   "palette",
+   "retours68"
+  ],
+  "src/components/edit/CardColorChoices.tsx": [
+   "boards",
+   "cadre34",
+   "cartes17c",
+   "chrome24",
+   "couleurps29",
+   "couleurs19b",
+   "couleurs26",
+   "crop17d",
+   "crop17g",
+   "fond100",
+   "fond32",
+   "fondmarge43",
+   "fondtexte21",
+   "palogo17f",
+   "papiers35",
+   "retours68",
+   "surface66"
+  ],
+  "src/components/edit/ColorPicker.tsx": [
+   "chrome24",
+   "couleurps29",
+   "editeurguide61",
+   "langue87",
+   "logo84",
+   "look",
+   "lot1",
+   "palogo17f",
+   "retour30",
+   "state",
+   "textes70",
+   "themes55"
+  ],
+  "src/components/edit/ColorPlane.tsx": [
+   "couleurps29",
+   "logo84",
+   "look",
+   "medias",
+   "medias-firefox",
+   "palogo17f",
+   "video36"
+  ],
+  "src/components/edit/FondMenu.tsx": [
+   "cadre34",
+   "cadre95",
+   "cadremotif58",
+   "cartes17c",
+   "chrome24",
+   "couleurps29",
+   "couleurs19b",
+   "couleurs26",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "fond100",
+   "fond32",
+   "fondcontenu47",
+   "fondimage41",
+   "fondmarge43",
+   "fondplanche24",
+   "fondtexte21",
+   "integ33",
+   "opacite90",
+   "palogo17f",
+   "papier28",
+   "papiers35",
+   "surface66"
+  ],
+  "src/components/edit/FontMenu.tsx": [
+   "17b",
+   "admin",
+   "barres38",
+   "chrome24",
+   "defilement99",
+   "defilement99-firefox",
+   "editor",
+   "fleches33",
+   "look",
+   "palogo17f",
+   "papiers78",
+   "parite99",
+   "popover65",
+   "priseenmain57",
+   "retours68",
+   "textes70",
+   "themes55"
+  ],
+  "src/components/edit/FrameMenu.tsx": [
+   "cadre34",
+   "cadre95",
+   "cadremotif58",
+   "cadres62",
+   "cadres74",
+   "cartes17c",
+   "chrome24",
+   "couleurps29",
+   "couleurs19b",
+   "couleurs26",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "fondimage41",
+   "fondplanche24",
+   "fondtexte21",
+   "integ33",
+   "legendes98",
+   "look",
+   "lot1",
+   "montheme60",
+   "palogo17f",
+   "papiers35",
+   "unif75"
+  ],
+  "src/components/edit/FreeCropDialog.tsx": [
+   "boards",
+   "couleurps29",
+   "crop17d",
+   "crop17g",
+   "favicon83",
+   "look",
+   "lot11",
+   "video36"
+  ],
+  "src/components/edit/FreeLayer.tsx": [
+   "cadres62",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "defilement99",
+   "defilement99-firefox",
+   "editeurguide61",
+   "fondimage41",
+   "fondplanche24",
+   "grille31d",
+   "image40",
+   "opacite90",
+   "palogo17f",
+   "parite99",
+   "planchelibre42",
+   "popover65",
+   "retours68",
+   "state",
+   "themes55",
+   "unif75"
+  ],
+  "src/components/edit/GridLayer.tsx": [
+   "17b",
+   "barres38",
+   "cadres62",
+   "carrousel31f",
+   "chrome24",
+   "crop17d",
+   "crop17d-http",
+   "crop17g",
+   "editeurguide61",
+   "fondplanche24",
+   "grille31d",
+   "grille37",
+   "grille69",
+   "image40",
+   "images25",
+   "legendes98",
+   "mediaframe64",
+   "papiers35",
+   "planche31",
+   "popover65",
+   "retours68",
+   "state",
+   "v013",
+   "video36"
+  ],
+  "src/components/edit/GridLayoutIcon.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "grille31d",
+   "grille37",
+   "papiers35",
+   "retours68"
+  ],
+  "src/components/edit/HeroContrast.tsx": [
+   "fondtexte21",
+   "look",
+   "lot11",
+   "v013"
+  ],
+  "src/components/edit/ImageBgControls.tsx": [
+   "couleurs26",
+   "fondimage41",
+   "fondtexte21",
+   "integ33",
+   "legendes98",
+   "look",
+   "opacite90",
+   "unif75"
+  ],
+  "src/components/edit/ImageBgMenu.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "fondimage41",
+   "opacite90",
+   "popover65",
+   "retours68",
+   "unif75"
+  ],
+  "src/components/edit/LookLayer.tsx": [
+   "17b",
+   "boards",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "editor",
+   "fondtexte21",
+   "legendes39",
+   "legendes98",
+   "logo84",
+   "logocadres49",
+   "look",
+   "lot11",
+   "lot8",
+   "palogo17f",
+   "planche31",
+   "popover65",
+   "retours68",
+   "site96",
+   "state",
+   "textes70",
+   "unif75",
+   "v013"
+  ],
+  "src/components/edit/MenuSelect.tsx": [
+   "17b",
+   "admin23",
+   "barres38",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "editor",
+   "essayer63",
+   "introuvable89",
+   "langue87",
+   "look",
+   "lot1",
+   "papier28",
+   "papiers78",
+   "priseenmain57",
+   "retours68",
+   "state",
+   "textes70"
+  ],
+  "src/components/edit/Popover.tsx": [
+   "fondplanche24",
+   "grille31d",
+   "image40",
+   "logo84",
+   "mediaframe64",
+   "popover65"
+  ],
+  "src/components/edit/ProjectCombobox.tsx": [
+   "17b",
+   "barres38",
+   "chrome24",
+   "editeurguide61",
+   "editor",
+   "langue87",
+   "lot1",
+   "papiers78",
+   "priseenmain57",
+   "textes70"
+  ],
+  "src/components/edit/QuickMenus.tsx": [
+   "editeurguide61",
+   "image40",
+   "opacite90"
+  ],
+  "src/components/edit/ShapeChoices.tsx": [
+   "cartes17c",
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "fondcontenu47",
+   "fondmarge43",
+   "priseenmain57",
+   "retours68"
+  ],
+  "src/components/edit/SiteLookLayer.tsx": [
+   "17b",
+   "couleurps29",
+   "couleurs26",
+   "editeurguide61",
+   "entrees48",
+   "integ17",
+   "integ33",
+   "journal97",
+   "logo84",
+   "logocadres49",
+   "look",
+   "lot1",
+   "lot8",
+   "medias",
+   "medias-firefox",
+   "palogo17f",
+   "pied86",
+   "retour30",
+   "retours68",
+   "site96",
+   "state",
+   "textes70",
+   "v013",
+   "video36"
+  ],
+  "src/components/edit/TypoControls.tsx": [
+   "boards",
+   "chrome24",
+   "couleurs26",
+   "crop17d",
+   "crop17g",
+   "editeurguide61",
+   "fondtexte21",
+   "integ33",
+   "legendes98",
+   "look",
+   "lot11",
+   "planche31",
+   "retours68",
+   "textes70",
+   "v013"
+  ],
+  "src/components/edit/WallpaperChoices.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "editor",
+   "fond100",
+   "integ33",
+   "opacite90",
+   "papiers35",
+   "retours68",
+   "surface66"
+  ],
+  "src/components/edit/free-dom.ts": [
+   "cadres62",
+   "cadres79",
+   "fonddeborde59",
+   "logocadres49",
+   "mediaframe64",
+   "planchelibre42",
+   "popover65",
+   "unif75"
+  ],
+  "src/components/edit/grid-dom.ts": [
+   "grille31d",
+   "grille37",
+   "grille69",
+   "images25",
+   "legendes98",
+   "v013",
+   "vitesse54"
+  ],
+  "src/components/edit/highlight.tsx": [
+   "admin",
+   "cadre34",
+   "cadre95",
+   "cartes17c",
+   "chrome24",
+   "couleurps29",
+   "couleurs19b",
+   "crop17d",
+   "crop17g",
+   "fond100",
+   "fondimage41",
+   "fondtexte21",
+   "lot1",
+   "montheme60",
+   "palogo17f",
+   "papiers35",
+   "retours68",
+   "site96",
+   "textes70"
+  ],
+  "src/components/edit/marked-edit.ts": [
+   "v013"
+  ],
+  "src/components/edit/optimistic.ts": [
+   "17b",
+   "admin",
+   "boards",
+   "cadre34",
+   "cadre95",
+   "cartes17c",
+   "chrome24",
+   "collections22",
+   "couleurps29",
+   "couleurs19b",
+   "fond100",
+   "fond32",
+   "fondimage41",
+   "fondmarge43",
+   "fondplanche24",
+   "fondtexte21",
+   "integ17",
+   "journal97",
+   "palogo17f",
+   "papier28",
+   "papiers35",
+   "state",
+   "textes70",
+   "v013"
+  ],
+  "src/components/edit/readability.ts": [
+   "chrome24",
+   "couleurs26",
+   "look",
+   "lot11",
+   "v013"
+  ],
+  "src/components/edit/recent-fonts.ts": [
+   "blocs27",
+   "crop17d-http"
+  ],
+  "src/components/edit/useDismiss.ts": [
+   "editeurguide61"
+  ],
+  "src/components/hero/HeroBackdrop.tsx": [
+   "lot11",
+   "v013"
+  ],
+  "src/components/hero/HeroParallax.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "fondtexte21",
+   "kit",
+   "lot1",
+   "lot11",
+   "retours68",
+   "site96",
+   "textes70",
+   "themes",
+   "v013"
+  ],
+  "src/components/hero/HeroSpotlight.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "fondtexte21",
+   "lot1",
+   "lot11",
+   "retours68",
+   "site96",
+   "textes70",
+   "v013"
+  ],
+  "src/components/hero/HeroTypeOnly.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "fondtexte21",
+   "lot1",
+   "retours68",
+   "site96",
+   "textes70",
+   "v013"
+  ],
+  "src/components/hero/Marked.tsx": [
+   "blocs27",
+   "legendes39",
+   "texte19a",
+   "v013"
+  ],
+  "src/components/hero/ScrollHint.tsx": [
+   "chrome24",
+   "crop17d",
+   "crop17g",
+   "fondtexte21",
+   "lot8",
+   "pied86",
+   "retours68"
+  ],
+  "src/components/hero/types.ts": [
+   "blocs27",
+   "fondtexte21",
+   "integ33",
+   "journal97",
+   "legendes39",
+   "look",
+   "pied86",
+   "site96",
+   "state",
+   "texte19a",
+   "textes70",
+   "v013"
+  ],
+  "src/components/rail-step.ts": [
+   "defilement99",
+   "defilement99-firefox",
+   "kit",
+   "parite99"
+  ],
+  "src/lib/admin.ts": [
+   "blocs27",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/auth/client.ts": [
+   "admin76"
+  ],
+  "src/lib/auth/guard.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/auth/identity.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/auth/index.ts": [
+   "admin76"
+  ],
+  "src/lib/auth/seed-admin.ts": [
+   "admin76",
+   "journal97",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "state"
+  ],
+  "src/lib/auth/throttle.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/backup/archive.ts": [
+   "backup85",
+   "kit",
+   "kit17a",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/backup/refs.ts": [
+   "backup85"
+  ],
+  "src/lib/backup/restore.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/backup/settings.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/backup/tar.ts": [
+   "backup50",
+   "backup85",
+   "popover65"
+  ],
+  "src/lib/board-marks.ts": [
+   "lot1",
+   "state"
+  ],
+  "src/lib/color.ts": [
+   "couleurps29",
+   "look",
+   "medias",
+   "medias-firefox"
+  ],
+  "src/lib/contact-form.ts": [
+   "blocs27"
+  ],
+  "src/lib/db/blocs.ts": [
+   "blocs27",
+   "boards",
+   "composants20"
+  ],
+  "src/lib/db/bootstrap.ts": [
+   "admin",
+   "admin23",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "video36"
+  ],
+  "src/lib/db/index.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/db/schema.ts": [
+   "blocs27",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/db/seed.ts": [
+   "barres38",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/db/slot-look.ts": [
+   "unif75"
+  ],
+  "src/lib/db/unwrap.ts": [
+   "composants20",
+   "fleches33",
+   "retours68"
+  ],
+  "src/lib/db/upgrade.ts": [
+   "boards",
+   "composants20"
+  ],
+  "src/lib/db/video-mode.ts": [
+   "video36"
+  ],
+  "src/lib/draft-view.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/board-layout.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/boards.ts": [
+   "fondplanche24",
+   "journal97",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "planche31",
+   "state",
+   "unif75",
+   "video36"
+  ],
+  "src/lib/edit/draft-cleanup.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/drafts.ts": [
+   "boards",
+   "journal97",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "state"
+  ],
+  "src/lib/edit/frame-all.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/frames.ts": [
+   "cadres62",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/look-context.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/media-look.ts": [
+   "defilement99",
+   "defilement99-firefox",
+   "palogo17f",
+   "parite99",
+   "themes55",
+   "unif75"
+  ],
+  "src/lib/edit/media.ts": [
+   "journal97",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "state"
+  ],
+  "src/lib/edit/nav.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/onboarding.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/pages.ts": [
+   "admin",
+   "admin23",
+   "blocs27",
+   "journal97",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "state"
+  ],
+  "src/lib/edit/projects.ts": [
+   "journal97",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "state"
+  ],
+  "src/lib/edit/protocol.ts": [
+   "cartes17c",
+   "composants20",
+   "integ17",
+   "logocadres49",
+   "lot1",
+   "palogo17f",
+   "pied86",
+   "state",
+   "texte19a",
+   "unif75",
+   "v013",
+   "video36"
+  ],
+  "src/lib/edit/redirects.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/seo.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/site-rev.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/site.ts": [
+   "defilement99",
+   "defilement99-firefox",
+   "fondtexte21",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "palogo17f",
+   "parite99",
+   "state",
+   "themes55",
+   "v013"
+  ],
+  "src/lib/edit/theme-usage.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/themes.ts": [
+   "defilement99",
+   "defilement99-firefox",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "palogo17f",
+   "parite99",
+   "themes55"
+  ],
+  "src/lib/edit/trash.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/wallpapers.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/edit/warnings.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/favicon-plan.ts": [
+   "backup85",
+   "favicon83",
+   "partage52"
+  ],
+  "src/lib/favicon-serve.ts": [
+   "backup85",
+   "favicon83",
+   "kithttp",
+   "partage52"
+  ],
+  "src/lib/favicon.ts": [
+   "backup85",
+   "favicon83",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "partage52"
+  ],
+  "src/lib/fonts/faces.ts": [
+   "admin",
+   "fleches33",
+   "logo84",
+   "look",
+   "lot1",
+   "lot11"
+  ],
+  "src/lib/fonts/library.ts": [
+   "admin",
+   "admin23",
+   "admin76",
+   "crop17d-http",
+   "favicon83",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "look",
+   "palette",
+   "partage52"
+  ],
+  "src/lib/fonts/recent.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/gallery.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/jobs/crop-warm.ts": [
+   "favicon83",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "partage52"
+  ],
+  "src/lib/jobs/memory-gate.ts": [
+   "defilement99",
+   "defilement99-firefox",
+   "palogo17f",
+   "parite99",
+   "themes55"
+  ],
+  "src/lib/jobs/notify.ts": [
+   "popover65"
+  ],
+  "src/lib/jobs/worker.ts": [
+   "journal97",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "state"
+  ],
+  "src/lib/journal/audit.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/journal/browser.ts": [
+   "blocs27",
+   "crop17d-http"
+  ],
+  "src/lib/journal/catalog.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/journal/human.ts": [
+   "blocs27",
+   "boards",
+   "composants20",
+   "fleches33",
+   "retours68"
+  ],
+  "src/lib/kit/apply.ts": [
+   "kit",
+   "kithttp"
+  ],
+  "src/lib/kit/build-multi.ts": [
+   "backup85",
+   "cadre95",
+   "cadres74",
+   "cartes17c",
+   "editeurguide61",
+   "fond100",
+   "fond32",
+   "kit",
+   "kit53",
+   "kithttp",
+   "logo84",
+   "mediaframe64",
+   "montheme60",
+   "palette",
+   "papier28",
+   "papiers35",
+   "planche31",
+   "planchelibre42",
+   "restes77",
+   "retours68",
+   "surface66",
+   "themes"
+  ],
+  "src/lib/kit/build.ts": [
+   "backup85",
+   "cadre95",
+   "cadres74",
+   "cartes17c",
+   "editeurguide61",
+   "fond100",
+   "fond32",
+   "kit",
+   "kithttp",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "papier28",
+   "papiers35",
+   "planchelibre42",
+   "restes77",
+   "surface66",
+   "themes"
+  ],
+  "src/lib/kit/child.ts": [
+   "kithttp"
+  ],
+  "src/lib/kit/export-job.ts": [
+   "cartes17c",
+   "grille69",
+   "introuvable89",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "restes77"
+  ],
+  "src/lib/kit/fonts.ts": [
+   "retours68",
+   "textes70"
+  ],
+  "src/lib/kit/formats.ts": [
+   "kithttp"
+  ],
+  "src/lib/kit/frame9.ts": [
+   "cadremotif58",
+   "cadres62",
+   "cadres74",
+   "defilement99",
+   "defilement99-firefox",
+   "editor",
+   "parite99"
+  ],
+  "src/lib/kit/import-job.ts": [
+   "backup85",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/kit/import.ts": [
+   "kithttp"
+  ],
+  "src/lib/kit/logo.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/kit/mirror.ts": [
+   "kit",
+   "kithttp"
+  ],
+  "src/lib/kit/resolve.ts": [
+   "kithttp"
+  ],
+  "src/lib/kit/spec.ts": [
+   "cadremotif58",
+   "cadres74",
+   "cartes17c",
+   "editor",
+   "grille69",
+   "introuvable89",
+   "kit",
+   "kit53",
+   "kithttp",
+   "palette",
+   "popover65"
+  ],
+  "src/lib/kit/vignettes.ts": [
+   "backup85",
+   "cadre95",
+   "cadres74",
+   "cartes17c",
+   "editeurguide61",
+   "fond100",
+   "fond32",
+   "grille31d",
+   "logo84",
+   "mediaframe64",
+   "papier28",
+   "papiers35",
+   "planchelibre42",
+   "surface66",
+   "themes"
+  ],
+  "src/lib/lang-scroll.ts": [
+   "cadres79",
+   "cartes17c",
+   "langue87"
+  ],
+  "src/lib/look.ts": [
+   "cadre95",
+   "cadremotif58",
+   "cadres74",
+   "carrousel31f",
+   "cartes17c",
+   "couleurps29",
+   "couleurs26",
+   "crop17d-http",
+   "defilement99",
+   "defilement99-firefox",
+   "editeurguide61",
+   "fond100",
+   "fondimage41",
+   "fondtexte21",
+   "logo84",
+   "logocadres49",
+   "look",
+   "lot1",
+   "lot11",
+   "mediaframe64",
+   "palogo17f",
+   "parite99",
+   "retours68",
+   "site96"
+  ],
+  "src/lib/media.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/page-preview.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/pages-index.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/pages.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/pdf/ingest.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/preview.ts": [
+   "blocs27",
+   "crop17d-http"
+  ],
+  "src/lib/random-works.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/references.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/seo-schema.ts": [
+   "favicon83"
+  ],
+  "src/lib/settings.ts": [
+   "look"
+  ],
+  "src/lib/special-pages.ts": [
+   "blocs27",
+   "introuvable89"
+  ],
+  "src/lib/tags.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/theme.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/themes/transfer.ts": [
+   "backup85",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette",
+   "themes"
+  ],
+  "src/lib/themes/versions.ts": [
+   "admin",
+   "admin23",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/upload/chunks.ts": [
+   "admin76",
+   "crop17d-http",
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/upload/ingest.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/upload/receive.ts": [
+   "admin76",
+   "crop17d-http",
+   "kithttp"
+  ],
+  "src/lib/upload/revive.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/video/ingest.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/lib/viewer.ts": [
+   "mediaframe64",
+   "planchelibre42",
+   "public67",
+   "retours68",
+   "visionneuse44",
+   "vitesse54"
+  ],
+  "src/lib/wallpapers.ts": [
+   "kit",
+   "kit17a",
+   "kit53",
+   "kithttp",
+   "palette"
+  ],
+  "src/proxy.ts": [
+   "admin76",
+   "crop17d",
+   "crop17d-http",
+   "crop17g"
+  ],
+  "src/themes/css.ts": [
+   "admin",
+   "cadre34",
+   "cadre95",
+   "cadremotif58",
+   "cadres62",
+   "cartes17c",
+   "couleurps29",
+   "couleurs19b",
+   "defilement99",
+   "defilement99-firefox",
+   "editeurguide61",
+   "fond100",
+   "fondcontenu47",
+   "fondimage41",
+   "kit",
+   "logo84",
+   "logocadres49",
+   "medias",
+   "medias-firefox",
+   "palette",
+   "palogo17f",
+   "papier28",
+   "parite99",
+   "retour30"
+  ],
+  "src/themes/fond.ts": [
+   "composants20",
+   "fleches33",
+   "fond100",
+   "fond32",
+   "fondmarge43",
+   "fondplanche24",
+   "introuvable89",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "opacite90",
+   "papier28",
+   "papiers35",
+   "retours68"
+  ],
+  "src/themes/fondcarte.ts": [
+   "backup85",
+   "planche31"
+  ],
+  "src/themes/font-stacks.ts": [
+   "logo84",
+   "retours68",
+   "textes70"
+  ],
+  "src/themes/fonts.ts": [
+   "admin",
+   "look",
+   "retours68",
+   "textes70"
+  ],
+  "src/themes/frame-library.ts": [
+   "cadre95",
+   "cadremotif58",
+   "cadres62",
+   "cadres74",
+   "carrousel31f",
+   "fondplanche24",
+   "grille69",
+   "kit17a",
+   "logo84",
+   "logocadres49",
+   "mediaframe64",
+   "palette",
+   "unif75"
+  ],
+  "src/themes/google-fonts.ts": [
+   "logo84"
+  ],
+  "src/themes/guided.ts": [
+   "defilement99",
+   "defilement99-firefox",
+   "editeurguide61",
+   "palogo17f",
+   "parite99",
+   "themes55"
+  ],
+  "src/themes/hero-plans.ts": [
+   "kithttp",
+   "themes"
+  ],
+  "src/themes/image-bg.ts": [
+   "cartes17c",
+   "fond100",
+   "fondimage41"
+  ],
+  "src/themes/presets/carnet-d-atelier/theme.ts": [
+   "editeurguide61",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "retours68"
+  ],
+  "src/themes/presets/fanzine-riso/theme.ts": [
+   "editeurguide61",
+   "fond100",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "montheme60",
+   "planche31",
+   "restes77",
+   "retours68",
+   "textes70",
+   "themes"
+  ],
+  "src/themes/presets/galerie-lumineuse/theme.ts": [
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "themes"
+  ],
+  "src/themes/presets/planche-de-story/theme.ts": [
+   "editeurguide61",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "montheme60",
+   "textes70",
+   "themes"
+  ],
+  "src/themes/presets/pro/theme.ts": [
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "themes"
+  ],
+  "src/themes/presets/registry.generated.ts": [
+   "editeurguide61",
+   "fond100",
+   "medias",
+   "medias-firefox",
+   "montheme60",
+   "planche31",
+   "restes77",
+   "retours68"
+  ],
+  "src/themes/presets/salle-de-montage/theme.ts": [
+   "textes70"
+  ],
+  "src/themes/presets/salle-de-projection/theme.ts": [
+   "editeurguide61",
+   "medias",
+   "medias-firefox",
+   "planche31"
+  ],
+  "src/themes/presets/studio/theme.ts": [
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "textes70",
+   "themes"
+  ],
+  "src/themes/schema.ts": [
+   "backup85",
+   "defilement99",
+   "defilement99-firefox",
+   "editeurguide61",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "palogo17f",
+   "parite99",
+   "planche31",
+   "retours68",
+   "textes70",
+   "themes",
+   "themes55"
+  ],
+  "src/themes/site-palette.ts": [
+   "defilement99",
+   "defilement99-firefox",
+   "palogo17f",
+   "parite99",
+   "themes55"
+  ],
+  "src/themes/surface.ts": [
+   "cartes17c",
+   "defilement99",
+   "defilement99-firefox",
+   "fond100",
+   "fond32",
+   "palogo17f",
+   "papier28",
+   "papiers35",
+   "parite99",
+   "themes55"
+  ],
+  "src/themes/text-backdrop.ts": [
+   "admin",
+   "cadre34",
+   "cadre95",
+   "cartes17c",
+   "couleurps29",
+   "couleurs19b",
+   "fond100",
+   "fondimage41",
+   "fondtexte21",
+   "medias",
+   "medias-firefox",
+   "montheme60",
+   "palogo17f",
+   "pied86"
+  ],
+  "src/themes/variants.css": [
+   "cadre95",
+   "cadremotif58",
+   "carrousel31f",
+   "defilement99",
+   "defilement99-firefox",
+   "editeurguide61",
+   "fleches33",
+   "fondtexte21",
+   "kit",
+   "legendes39",
+   "legendes98",
+   "logo84",
+   "logocadres49",
+   "look",
+   "lot1",
+   "lot11",
+   "mediaframe64",
+   "medias",
+   "medias-firefox",
+   "palette",
+   "palogo17f",
+   "panorama45",
+   "parite99",
+   "retours68"
+  ],
+  "src/themes/zone.ts": [
+   "fond100",
+   "fondimage41",
+   "mediaframe64",
+   "papiers35",
+   "planchelibre42",
+   "surface66"
+  ]
+ }
+}

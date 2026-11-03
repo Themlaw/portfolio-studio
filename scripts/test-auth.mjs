@@ -39,7 +39,7 @@ const SA = path.join(ROOT, ".next/standalone");
 const TMP = process.env.TEST_AUTH_TMP ?? "/tmp/portfolio-test-auth";
 // Ports réglables (BATT_AUTH_PORT) : plusieurs batteries peuvent lancer la suite sur la même machine (défaut 3200 et 3290).
 const PORT = Number(process.env.BATT_AUTH_PORT ?? 3200);
-const MOCK_PORT = PORT + 90;
+const MOCK_PORT = Number(process.env.BATT_AUTH_MOCK_PORT ?? PORT + 90);
 const BASE = `http://127.0.0.1:${PORT}`;
 const SECRET = "test-secret-0123456789abcdef-0123456789abcdef";
 const ADMIN = { email: "artiste@example.test", password: "mot-de-passe-du-test-42" };
