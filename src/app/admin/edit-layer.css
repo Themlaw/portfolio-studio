@@ -1413,16 +1413,6 @@ html:not([data-edit-mode]) .pe-media-empty {
   cursor: default;
 }
 
-.pe-site-locked {
-  position: absolute;
-  margin: 0;
-  padding: 6px 10px;
-  border-radius: 6px;
-  background: #fbf3e2;
-  color: #8a5a00;
-  font-size: 13px;
-}
-
 .pe-popover .social-icon {
   width: 16px;
   height: 16px;

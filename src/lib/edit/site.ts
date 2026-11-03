@@ -1,16 +1,17 @@
 /**
- * En-tête, pied de page et réseaux édités sur la toile (v0.13) : un
- * brouillon GLOBAL du site, porté par le brouillon d'UNE page (comme la
- * surcouche des planches) : réglage `siteDraft` = { pageId, snap }.
+ * En-tête, pied de page, réseaux, menu et styles du site édités sur la toile : UN SEUL brouillon du site, partagé
+ * par toutes les pages (lot 96) : réglage `siteDraft` = { pageId, snap }.
  *
- * - Rien n'est public avant « Publier » de cette page : la publication
- *   applique l'identité, le menu et les réseaux dans la même transaction que
- *   la page (applySiteDraft) ; « Abandonner » l'efface.
- * - Une autre page ne peut pas le modifier tant qu'il existe (la page qui le
- *   tient est nommée) ; l'écran Réglages refuse d'enregistrer pendant ce temps.
- * - Chaque écriture porte la version de la page (`draft_rev`) et l'incrémente.
+ * - Toutes les pages l'affichent dans l'éditeur ; `pageId` n'est plus qu'une information (la dernière page qui l'a
+ *   modifié), écrite pour qu'un retour en v0.31.x retrouve un brouillon lisible. Plus de page détentrice, plus de verrou.
+ * - Rien n'est public avant « Publier » : « Publier » de N'IMPORTE quelle page applique le brouillon du site dans la
+ *   même transaction (applySiteDraft). « Abandonner » une page ne l'efface pas ; seul discardSiteDraft() le fait.
+ * - Version propre au brouillon : réglage `siteDraftRev` (site-rev.ts), jamais remis à zéro ; chaque écriture, publication
+ *   ou abandon l'incrémente, un onglet resté sur l'ancien état reçoit « modifié ailleurs ».
+ * - L'éditeur envoie aussi la version de SA page (`pageRev`) : elle est contrôlée et incrémentée (sans créer de brouillon de page) pour que la
+ *   toile sache quand son rendu a rattrapé l'écriture (`data-edit-rev`, edit/optimistic.ts) et qu'un onglet en retard sur la page soit refusé.
  */
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
@@ -18,10 +19,10 @@ import { cleanSiteStyles, SiteStylesSchema } from "@/lib/look";
 import { asSiteName, canonicalSnap, SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
 
 
-import { touchPage } from "./boards";
 import type { DraftRefusal } from "./drafts";
 import { cleanNav, readNav, writeNav } from "./nav";
 import { done, fail, type ActionResult } from "./result";
+import { bumpSiteRev, readSiteRev } from "./site-rev";
 
 const L0 = { fr: "", en: "" };
 const asL = (v: unknown) => {
@@ -87,7 +88,7 @@ export function publishedSitePalette(): NonNullable<NonNullable<SiteSnap["styles
  */
 export function resetPublishedSitePalette(): ActionResult<null> {
   const draft = readSiteDraft();
-  if (draft) return fail(`Des changements du site sont en cours dans l'éditeur de la page « ${pageTitle(draft.pageId)} » : publie-les ou abandonne-les d'abord.`);
+  if (draft) return fail("Des changements du site sont en attente dans l'éditeur : publie une page (elle les publie) ou utilise « Annuler ces changements du site » d'abord.");
   const styles = (setting("styles") ?? {}) as Record<string, unknown>;
   if (!styles || typeof styles !== "object" || !("palette" in styles)) return done(null);
   const { palette: _palette, ...rest } = styles;
@@ -96,7 +97,7 @@ export function resetPublishedSitePalette(): ActionResult<null> {
   return done(null);
 }
 
-export type SiteDraft = { pageId: number; snap: SiteSnap };
+export type SiteDraft = { pageId: number; snap: SiteSnap; rev: number };
 
 /** Brouillon du site en attente (lisible), ou null. */
 export function readSiteDraft(): SiteDraft | null {
@@ -104,41 +105,39 @@ export function readSiteDraft(): SiteDraft | null {
   if (!raw || typeof raw !== "object") return null;
   const snap = SiteSnapSchema.safeParse(raw.snap);
   // Menu nettoyé à la lecture : une page supprimée depuis ne bloque jamais l'éditeur.
-  return Number.isInteger(raw.pageId) && snap.success ? { pageId: raw.pageId as number, snap: { ...snap.data, nav: cleanNav(snap.data.nav) } } : null;
+  // `pageId` (ancien brouillon rattaché à une page) n'est plus qu'indicatif : un brouillon sans lui reste lisible.
+  return snap.success ? { pageId: Number.isInteger(raw.pageId) ? (raw.pageId as number) : 0, snap: { ...snap.data, nav: cleanNav(snap.data.nav) }, rev: readSiteRev() } : null;
 }
 
-function pageTitle(id: number): string {
-  return getDb().select({ title: schema.pages.title }).from(schema.pages).where(eq(schema.pages.id, id)).get()?.title.fr || `n° ${id}`;
-}
-
-/** Message de refus si une autre page tient le brouillon du site. */
-export function siteLockedBy(pageId: number): string | null {
-  const draft = readSiteDraft();
-  return draft && draft.pageId !== pageId ? pageTitle(draft.pageId) : null;
-}
-
-const conflict = (rev: number): DraftRefusal => ({
+const conflict = (rev: number, page = false): DraftRefusal => ({
   ok: false,
-  message: "Cette page a été modifiée ailleurs (autre onglet, formulaire ou publication). Recharge pour reprendre la dernière version.",
+  message: page
+    ? "Cette page a été modifiée ailleurs (autre onglet, formulaire ou publication). Recharge pour reprendre la dernière version."
+    : "Les changements du site ont été modifiés ailleurs (autre onglet, autre page, Réglages ou publication). Recharge pour reprendre la dernière version.",
   code: "conflict",
   rev,
 });
 class ConflictError extends Error {}
-const pageRev = (id: number) => getDb().select({ rev: schema.pages.draftRev }).from(schema.pages).where(eq(schema.pages.id, id)).get()?.rev ?? null;
+class PageConflictError extends Error {}
+const pageRevOf = (id: number) => getDb().select({ rev: schema.pages.draftRev }).from(schema.pages).where(eq(schema.pages.id, id)).get()?.rev ?? null;
 
-export type SiteResult = { before: SiteSnap; after: SiteSnap; rev: number; pending: boolean };
+export type SiteResult = { before: SiteSnap; after: SiteSnap; rev: number; pending: boolean; /** Nouvelle version de la page d'où vient l'écriture (si `pageRev` donnée). */ pageRev?: number };
 
 /**
- * Enregistre l'instantané du site comme brouillon de la page `pageId`
- * (version optimiste de la page). Identique à la version publiée : le
- * brouillon disparaît (rien à publier).
+ * Enregistre l'instantané du site comme brouillon COMMUN (version optimiste `rev` = celle du brouillon du site, pas
+ * celle d'une page). `pageId` : la page d'où vient la modification (indicatif). `pageRev` (l'éditeur la donne toujours) : version de la
+ * page d'où vient l'écriture, contrôlée et incrémentée dans la même transaction, sans créer de brouillon de page. Identique à la version
+ * publiée : le brouillon disparaît (rien à publier).
  */
-export function saveSiteDraft(pageId: number, input: unknown, rev: unknown): ActionResult<SiteResult> | DraftRefusal {
+export function saveSiteDraft(pageId: number, input: unknown, rev: unknown, pageRev?: unknown): ActionResult<SiteResult> | DraftRefusal {
   if (!Number.isInteger(rev) || (rev as number) < 0) return fail("Requête invalide (version manquante) : recharge l'éditeur.");
   const parsed = SiteSnapSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "En-tête invalide : recharge l'éditeur.");
-  const current = pageRev(pageId);
-  if (current === null) return fail("Cette page n'existe plus.");
+  if (pageRev !== undefined && (!Number.isInteger(pageRev) || (pageRev as number) < 0)) return fail("Requête invalide (version de la page manquante) : recharge l'éditeur.");
+  const pageNow = pageRevOf(pageId);
+  if (pageNow === null) return fail("Cette page n'existe plus.");
+  if (pageRev !== undefined && pageNow !== pageRev) return conflict(pageNow, true);
+  const current = readSiteRev();
   if (current !== rev) return conflict(current);
   // Image du logo (lot 26) : une image de la médiathèque, qui existe encore.
   const logoMediaId = parsed.data.styles?.logo?.mediaId;
@@ -146,8 +145,6 @@ export function saveSiteDraft(pageId: number, input: unknown, rev: unknown): Act
     const media = getDb().select({ kind: schema.media.kind, deletedAt: schema.media.deletedAt }).from(schema.media).where(eq(schema.media.id, logoMediaId)).get();
     if (media?.kind !== "image" || media.deletedAt) return fail("L'image du logo n'existe plus ou n'est pas une image : choisis-en une autre dans la médiathèque.");
   }
-  const locked = siteLockedBy(pageId);
-  if (locked) return fail(`L'en-tête est en cours de modification sur la page ${locked} : publie-la ou abandonne-la d'abord.`);
   // Autonettoyage : pages disparues (ou réservées) et doublons retirés, jamais de refus bloquant.
   const styles = cleanSiteStyles(parsed.data.styles);
   const { styles: _drop, ...rest } = parsed.data;
@@ -156,56 +153,54 @@ export function saveSiteDraft(pageId: number, input: unknown, rev: unknown): Act
   const db = getDb();
   const before = readSiteDraft()?.snap ?? readPublishedSite();
   const same = JSON.stringify(snap) === JSON.stringify(canonicalSnap(readPublishedSite()));
+  let next = current;
   try {
     db.transaction(() => {
-      if (!touchPage(pageId, rev as number)) throw new ConflictError();
+      if (readSiteRev() !== current) throw new ConflictError();
+      if (pageRev !== undefined) {
+        const bumped = db.update(schema.pages).set({ draftRev: (pageRev as number) + 1 }).where(and(eq(schema.pages.id, pageId), eq(schema.pages.draftRev, pageRev as number))).run();
+        if (bumped.changes !== 1) throw new PageConflictError();
+      }
       if (same) db.delete(schema.settings).where(eq(schema.settings.key, "siteDraft")).run();
       else writeSetting("siteDraft", { pageId, snap });
+      next = bumpSiteRev();
     });
   } catch (error) {
-    if (error instanceof ConflictError) return conflict(pageRev(pageId) ?? (rev as number));
+    if (error instanceof PageConflictError) return conflict(pageRevOf(pageId) ?? 0, true);
+    if (error instanceof ConflictError) return conflict(readSiteRev());
     throw error;
   }
-  return done({ before, after: snap, rev: (rev as number) + 1, pending: !same });
+  return done({ before, after: snap, rev: next, pending: !same, ...(pageRev !== undefined ? { pageRev: (pageRev as number) + 1 } : {}) });
 }
 
-export type AdoptResult = { snap: SiteSnap; rev: number; from: string };
-
 /**
- * Reprise du brouillon du site (lot 70) : l'en-tête, le menu, les réseaux et les styles du site ont des modifications en attente
- * portées par UNE AUTRE page. Régler le style du menu (ou des titres…) depuis cette page-ci ne doit pas être refusé : le brouillon
- * lui est confié tel quel (rien n'est perdu, rien n'est publié) et sera publié avec elle. `from` : la page qui le portait.
- * Sans brouillon en attente, ou déjà porté par cette page : rien ne change (`from` vide).
+ * Écran Réglages (lot 96) : il PUBLIE directement le nom, le métier, l'e-mail, le crédit et les réseaux. Pour que le brouillon commun ne les
+ * ré-écrase pas à la prochaine publication, ces valeurs y sont reportées (menu, en-tête, styles et logo du brouillon sont gardés) ; devenu
+ * identique au publié, le brouillon disparaît. À appeler dans la transaction de l'appelant, après l'écriture publiée.
  */
-export function adoptSiteDraft(pageId: number, rev: unknown): ActionResult<AdoptResult> | DraftRefusal {
-  if (!Number.isInteger(rev) || (rev as number) < 0) return fail("Requête invalide (version manquante) : recharge l'éditeur.");
-  const current = pageRev(pageId);
-  if (current === null) return fail("Cette page n'existe plus.");
-  if (current !== rev) return conflict(current);
+export function syncSiteDraftWithPublished(identity: Partial<SiteSnap["identity"]>, socials: SiteSnap["socials"]): void {
   const draft = readSiteDraft();
-  if (!draft) return done({ snap: readPublishedSite(), rev: rev as number, from: "" });
-  if (draft.pageId === pageId) return done({ snap: draft.snap, rev: rev as number, from: "" });
-  const from = pageTitle(draft.pageId);
+  if (!draft) return;
+  const snap = canonicalSnap({ ...draft.snap, identity: { ...draft.snap.identity, ...identity }, socials });
   const db = getDb();
-  try {
-    db.transaction(() => {
-      if (!touchPage(pageId, rev as number)) throw new ConflictError();
-      writeSetting("siteDraft", { pageId, snap: draft.snap });
-    });
-  } catch (error) {
-    if (error instanceof ConflictError) return conflict(pageRev(pageId) ?? (rev as number));
-    throw error;
-  }
-  return done({ snap: draft.snap, rev: (rev as number) + 1, from });
+  if (JSON.stringify(snap) === JSON.stringify(canonicalSnap(readPublishedSite()))) db.delete(schema.settings).where(eq(schema.settings.key, "siteDraft")).run();
+  else writeSetting("siteDraft", { pageId: draft.pageId, snap });
+  bumpSiteRev();
+}
+
+/** Rien à reprendre : le brouillon est commun (lot 96). Gardée pour les appelants qui existeraient encore : ne change rien. */
+export function adoptSiteDraft(_pageId: number, _rev: unknown): ActionResult<{ snap: SiteSnap; rev: unknown; from: string }> {
+  void _pageId;
+  return done({ snap: readSiteDraft()?.snap ?? readPublishedSite(), rev: _rev, from: "" });
 }
 
 /**
- * Publication de la page `pageId` : applique son brouillon du site (dans la
+ * Publication de la page `pageId` (n'importe laquelle) : applique le brouillon commun du site (dans la
  * transaction de l'appelant). Renvoie true si le site a changé.
  */
 export function applySiteDraft(pageId: number): boolean {
   const draft = readSiteDraft();
-  if (!draft || draft.pageId !== pageId) return false;
+  if (!draft) return false;
   const site = (setting("site") ?? {}) as Record<string, unknown>;
   writeSetting("site", { ...site, ...draft.snap.identity });
   writeSetting("socials", draft.snap.socials);
@@ -229,18 +224,47 @@ export function applySiteDraft(pageId: number): boolean {
       .run();
   }
   getDb().delete(schema.settings).where(eq(schema.settings.key, "siteDraft")).run();
+  bumpSiteRev();
   return true;
 }
 
-/** Abandon (ou suppression) de la page `pageId` : son brouillon du site est effacé. */
-export function discardSiteDraft(pageId: number): void {
-  const raw = setting("siteDraft") as { pageId?: unknown } | undefined;
-  if (raw && typeof raw === "object" && raw.pageId === pageId) getDb().delete(schema.settings).where(eq(schema.settings.key, "siteDraft")).run();
+/**
+ * Page supprimée (corbeille) : le brouillon du site, commun, n'est pas touché, mais son `pageId` (indicatif) ne doit pas désigner une page
+ * à la corbeille : une v0.31.x relancée verrouillerait alors TOUTES les pages sur une page introuvable. Il passe à la première page encore
+ * en ligne dans l'éditeur (à appeler APRÈS la mise à la corbeille, dans la transaction de l'appelant). Ni version, ni contenu changés.
+ */
+export function rehomeSiteDraft(deletedPageId: number): void {
+  const raw = setting("siteDraft") as { pageId?: unknown; snap?: unknown } | undefined;
+  if (!raw || typeof raw !== "object" || raw.pageId !== deletedPageId) return;
+  const next = getDb().select({ id: schema.pages.id }).from(schema.pages).where(and(isNull(schema.pages.deletedAt), ne(schema.pages.id, deletedPageId))).orderBy(schema.pages.id).get()?.id;
+  if (next !== undefined) writeSetting("siteDraft", { ...raw, pageId: next });
 }
 
-/** Pour l'éditeur : l'état du site vu depuis cette page. */
-export function siteForEditor(pageId: number): { snap: SiteSnap; pending: boolean; lockedBy: string | null } {
+/**
+ * « Annuler ces changements du site » : efface le brouillon commun (version contrôlée). Abandonner ou supprimer une
+ * page ne le fait PAS.
+ */
+export function discardSiteDraft(rev: unknown): ActionResult<{ rev: number; snap: SiteSnap }> | DraftRefusal {
+  if (!Number.isInteger(rev) || (rev as number) < 0) return fail("Requête invalide (version manquante) : recharge l'éditeur.");
+  const current = readSiteRev();
+  if (current !== rev) return conflict(current);
+  const db = getDb();
+  let next = current;
+  try {
+    db.transaction(() => {
+      if (readSiteRev() !== current) throw new ConflictError();
+      db.delete(schema.settings).where(eq(schema.settings.key, "siteDraft")).run();
+      next = bumpSiteRev();
+    });
+  } catch (error) {
+    if (error instanceof ConflictError) return conflict(readSiteRev());
+    throw error;
+  }
+  return done({ rev: next, snap: readPublishedSite() });
+}
+
+/** Pour l'éditeur : l'état du site (le même sur toutes les pages), sa version, et s'il a des changements en attente. */
+export function siteForEditor(): { snap: SiteSnap; pending: boolean; rev: number } {
   const draft = readSiteDraft();
-  if (draft && draft.pageId === pageId) return { snap: draft.snap, pending: true, lockedBy: null };
-  return { snap: readPublishedSite(), pending: false, lockedBy: draft ? pageTitle(draft.pageId) : null };
+  return { snap: draft?.snap ?? readPublishedSite(), pending: Boolean(draft), rev: readSiteRev() };
 }

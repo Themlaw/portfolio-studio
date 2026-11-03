@@ -212,7 +212,6 @@ export function SiteStylesPanel({
   onChange,
   palette,
   installed,
-  locked,
   cardPalette,
 }: {
   styles: SiteStyles | undefined;
@@ -221,7 +220,6 @@ export function SiteStylesPanel({
   /** Palette effective du site : couleurs du fond de texte et lisibilité. */
   cardPalette: CardPalette;
   installed: string[];
-  locked: string | null;
 }) {
   const [open, setOpen] = useState<Role | null>(null);
   const roles = styles?.roles ?? {};
@@ -237,9 +235,8 @@ export function SiteStylesPanel({
         Styles du site
       </h3>
       <p className="lp-help">
-        Pour toutes les pages, publiés avec cette page (comme l&apos;en-tête). Un réglage posé sur un texte de la page passe devant.
+        Pour toutes les pages, publiés avec n&apos;importe quelle page (comme l&apos;en-tête). Un réglage posé sur un texte de la page passe devant.
       </p>
-      {locked && <p className="a-field-error">Les styles du site sont en cours de modification sur la page « {locked} ».</p>}
       <Segmented label="Coins des images et cartes" value={styles?.radius} options={RADII} labels={RADIUS_LABELS} onChange={(v) => onChange({ ...styles, radius: v })} auto="Thème" />
       <ul className="lp-roles">
         {ROLES.map((role) => {

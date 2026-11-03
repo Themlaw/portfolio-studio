@@ -13,8 +13,9 @@ import { ThemeSchema, type Theme } from "@/themes/schema";
 import { getDb, schema } from "./db";
 import { boardRefs } from "@/blocks/tree";
 import { readOnboarding } from "./edit/onboarding";
+import { readSiteDraft } from "./edit/site";
 import { parseJson } from "./json";
-import { asSiteName, NavSchema, NETWORKS, type Network } from "./site-schema";
+import { asSiteName, NavSchema, NETWORKS, SiteSnapSchema, type Network } from "./site-schema";
 import { ORIGINALS_PREFIX, parseVariants } from "./images/variants";
 import { mediaUrl } from "./media";
 import { own } from "./own";
@@ -506,7 +507,20 @@ export function getFaviconForAdmin(): FaviconInput {
   return { mode: seo.faviconMode.mode, mediaId: seo.favicon?.mediaId ?? null, mono: seo.faviconMode.mono, crop: seo.faviconMode.crop };
 }
 
-export function getSettingsForAdmin(): AdminSettings {
+/**
+ * `withDraft` (écran Réglages, lot 96) : les champs qu'il enregistre (nom, métier, e-mail, mention, réseaux) montrent les valeurs EN ATTENTE du
+ * brouillon du site quand il y en a, pas seulement les publiées : enregistrer ici ne peut ainsi jamais ré-écraser, à l'insu de l'artiste, un
+ * nom modifié dans l'éditeur.
+ */
+export function getSettingsForAdmin(withDraft = false): AdminSettings {
+  const pending = withDraft ? readSiteDraft() : null;
+  if (pending) {
+    const i = pending.snap.identity;
+    return {
+      site: { name: i.name, role: i.role, email: i.email, credit: i.credit, headerSocials: i.headerSocials === true },
+      socials: pending.snap.socials.map((s) => ({ label: s.label, href: s.href, ...((NETWORKS as readonly unknown[]).includes(s.kind) ? { kind: s.kind as Network } : {}) })),
+    };
+  }
   const rows = getDb().select().from(schema.settings).all();
   const values = Object.fromEntries(rows.map((r) => [r.key, parseJson(r.value)]));
   const site = (values.site ?? {}) as Record<string, unknown>;
@@ -531,16 +545,19 @@ export function getSettingsForAdmin(): AdminSettings {
 }
 
 /**
- * Brouillon du site (nom, métier, réseaux, en-tête, pied… édités sur la toile) en attente dans l'éditeur d'une
- * page : publié avec elle, jamais en ligne avant. Les Réglages écrivent en direct, un AUTRE mécanisme : ils
- * affichent ce brouillon pour qu'on sache que l'éditeur a des modifications que l'écran ne montre pas.
+ * Brouillon COMMUN du site (nom, métier, réseaux, en-tête, pied, menu, styles… édités sur la toile) en attente (lot 96) :
+ * publié avec n'importe quelle page. Les Réglages publient en direct et reportent leurs valeurs dans ce brouillon ; ils
+ * l'affichent pour qu'on sache que l'éditeur a d'autres modifications (menu, styles…). `pageId` : une page où l'ouvrir
+ * (la dernière qui l'a modifié si elle existe encore, sinon l'accueil), ou null s'il n'y a pas de page.
  */
 export function siteDraftHolder(): { pageId: number; pageTitle: string } | null {
   const db = getDb();
-  const raw = parseJson(db.select().from(schema.settings).where(eq(schema.settings.key, "siteDraft")).get()?.value) as { pageId?: unknown } | undefined;
-  if (!raw || !Number.isInteger(raw.pageId)) return null;
-  const page = db.select({ title: schema.pages.title, deletedAt: schema.pages.deletedAt }).from(schema.pages).where(eq(schema.pages.id, raw.pageId as number)).get();
-  return page && !page.deletedAt ? { pageId: raw.pageId as number, pageTitle: page.title.fr || `n° ${raw.pageId}` } : null;
+  const raw = parseJson(db.select().from(schema.settings).where(eq(schema.settings.key, "siteDraft")).get()?.value) as { pageId?: unknown; snap?: unknown } | undefined;
+  if (!raw || typeof raw !== "object" || !SiteSnapSchema.safeParse(raw.snap).success) return null;
+  const alive = (id: number) => db.select({ id: schema.pages.id, title: schema.pages.title, deletedAt: schema.pages.deletedAt }).from(schema.pages).where(eq(schema.pages.id, id)).get();
+  let page = Number.isInteger(raw.pageId) ? alive(raw.pageId as number) : undefined;
+  if (!page || page.deletedAt) page = db.select({ id: schema.pages.id, title: schema.pages.title, deletedAt: schema.pages.deletedAt }).from(schema.pages).where(isNull(schema.pages.deletedAt)).orderBy(schema.pages.id).get();
+  return page ? { pageId: page.id, pageTitle: page.title.fr || `n° ${page.id}` } : null;
 }
 
 /* ---- Éditeur de page ---------------------------------------------------- */

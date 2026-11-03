@@ -20,7 +20,9 @@ import {
 import { publishWarnings } from "@/lib/edit/warnings";
 import { discardDraft, publishDraft, saveDraft, savePageInfo, syncDraftFlags, type DraftResult, type PublishResult } from "@/lib/edit/drafts";
 import { boardOp, createDraftProject, restoreBoard, type BoardResult } from "@/lib/edit/boards";
-import { adoptSiteDraft, saveSiteDraft, type AdoptResult, type SiteResult } from "@/lib/edit/site";
+import { discardSiteDraft, saveSiteDraft, type SiteResult } from "@/lib/edit/site";
+import { readSiteRev } from "@/lib/edit/site-rev";
+import type { SiteSnap } from "@/lib/site-schema";
 import { collectFonts, installGoogleFont, type InstallResult } from "@/lib/fonts/library";
 import { fail, type ActionResult } from "@/lib/edit/result";
 import { enqueueCropWarm } from "@/lib/jobs/crop-warm";
@@ -85,7 +87,7 @@ export async function publishDraftAction(id: unknown, rev: unknown, live?: unkno
   const fonts = await collectFonts().catch(() => null);
   if (fonts?.removed.length) revalidateSettings();
   // Avertissements non bloquants (lot 52) : images sans description, textes sans traduction anglaise.
-  return { ...result, data: { ...result.data, warnings: publishWarnings(pid) } };
+  return { ...result, data: { ...result.data, siteRev: readSiteRev(), warnings: publishWarnings(pid) } };
 }
 
 /** Abandonner les modifications : brouillon et surcouche de la page effacés. */
@@ -127,25 +129,22 @@ export async function restoreBoardAction(id: unknown, snap: unknown, rev: unknow
 
 /**
  * En-tête, pied de page et réseaux (communs au site) modifiés sur la toile :
- * brouillon du site porté par CETTE page (version de la page contrôlée et
- * incrémentée), jamais public avant « Publier ». Rien n'est revalidé.
+ * brouillon COMMUN du site (lot 96 ; `id` = la page d'où vient le geste), version du
+ * brouillon du site contrôlée et incrémentée, jamais public avant « Publier » d'une page. Rien n'est revalidé.
  */
-export async function siteDraftAction(id: unknown, snap: unknown, rev: unknown): Promise<DraftResult<SiteResult>> {
+export async function siteDraftAction(id: unknown, snap: unknown, rev: unknown, pageRev: unknown): Promise<DraftResult<SiteResult>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");
-  return saveSiteDraft(pid, snap, rev);
+  // `pageRev` : obligatoire pour l'éditeur (la toile s'en sert pour savoir quand son rendu a rattrapé l'écriture).
+  if (pageRev === undefined) return fail("Requête invalide (version de la page manquante) : recharge l'éditeur.");
+  return saveSiteDraft(pid, snap, rev, pageRev);
 }
 
-/**
- * Brouillon du site en attente sur une autre page (lot 70) : confié à CETTE page, intact, avant un réglage (style du menu, des titres…).
- * Il sera publié avec elle ; la page qui le portait n'a plus rien à publier de ce côté.
- */
-export async function adoptSiteDraftAction(id: unknown, rev: unknown): Promise<DraftResult<AdoptResult>> {
+/** « Annuler ces changements du site » : efface le brouillon commun du site (les pages gardent les leurs). */
+export async function discardSiteDraftAction(rev: unknown): Promise<DraftResult<{ rev: number; snap: SiteSnap }>> {
   await assertAdmin();
-  const pid = pageId(id);
-  if (!pid) return fail("Page inconnue.");
-  return adoptSiteDraft(pid, rev);
+  return discardSiteDraft(rev);
 }
 
 /** Planche neuve : projet créé dans le brouillon de la page (invisible ailleurs). */

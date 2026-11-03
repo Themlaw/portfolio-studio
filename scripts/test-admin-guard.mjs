@@ -105,6 +105,7 @@ const EXPECTED = [
   "deleteMessageAction",
   "deleteAllMessagesAction",
   "siteDraftAction",
+  "discardSiteDraftAction",
   "installFontAction",
   "deleteFontAction",
   "createProjectAction",

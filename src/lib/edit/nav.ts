@@ -16,6 +16,7 @@ import { asc, eq, isNotNull, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 import { NavSchema, SiteSnapSchema, type NavItem } from "@/lib/site-schema";
+import { bumpSiteRev } from "./site-rev";
 
 /** Pages qui peuvent figurer au menu (existantes, pas réservées). */
 function livePages(): Set<number> {
@@ -71,33 +72,31 @@ export function writeNav(input: NavItem[]): void {
 }
 
 /** Le brouillon de l'en-tête en attente (brut), s'il y en a un lisible. */
-function draftRow(): { pageId: number; snap: ReturnType<typeof SiteSnapSchema.parse> } | null {
+function draftRow(): { pageId: number | undefined; snap: ReturnType<typeof SiteSnapSchema.parse> } | null {
   const raw = parseJson(getDb().select().from(schema.settings).where(eq(schema.settings.key, "siteDraft")).get()?.value) as
     | { pageId?: unknown; snap?: unknown }
     | undefined;
   const snap = SiteSnapSchema.safeParse(raw?.snap);
-  return raw && Number.isInteger(raw.pageId) && snap.success ? { pageId: raw.pageId as number, snap: snap.data } : null;
+  return raw && snap.success ? { pageId: Number.isInteger(raw.pageId) ? (raw.pageId as number) : undefined, snap: snap.data } : null;
 }
 
 /**
  * Reporte un changement du menu dans le brouillon de l'en-tête, s'il existe,
- * et incrémente la version (`draft_rev`) de la page qui le porte, dans la
+ * et incrémente la version du brouillon du site (lot 96, site-rev.ts), dans la
  * transaction de l'appelant : un éditeur resté ouvert sur l'ancien
  * instantané reçoit « Modifié ailleurs » au lieu de défaire ce changement.
- * `skipRevOf` : page dont l'appelant gère lui-même la version (publication).
+ * `skipRevOf` : conservé pour les appelants (la version du site ne dépend plus d'une page).
  */
-function updateDraftNav(fn: (items: NavItem[]) => NavItem[], skipRevOf?: number): void {
+function updateDraftNav(fn: (items: NavItem[]) => NavItem[], _skipRevOf?: number): void {
+  void _skipRevOf;
   const draft = draftRow();
   if (!draft) return;
   const nav = cleanNav(fn(draft.snap.nav));
   if (JSON.stringify(nav) === JSON.stringify(draft.snap.nav)) return;
   const db = getDb();
-  const value = JSON.stringify({ pageId: draft.pageId, snap: { ...draft.snap, nav } });
+  const value = JSON.stringify({ ...(draft.pageId !== undefined ? { pageId: draft.pageId } : {}), snap: { ...draft.snap, nav } });
   db.update(schema.settings).set({ value }).where(eq(schema.settings.key, "siteDraft")).run();
-  if (draft.pageId !== skipRevOf) {
-    const row = db.select({ rev: schema.pages.draftRev }).from(schema.pages).where(eq(schema.pages.id, draft.pageId)).get();
-    if (row) db.update(schema.pages).set({ draftRev: row.rev + 1 }).where(eq(schema.pages.id, draft.pageId)).run();
-  }
+  bumpSiteRev();
 }
 
 const hasPage = (items: NavItem[], pageId: number) => items.some((i) => i.kind === "page" && i.pageId === pageId);

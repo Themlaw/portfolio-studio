@@ -50,7 +50,7 @@ import { PagePaperSchema } from "@/themes/schema";
 import type { PagePaper } from "@/themes/wallpaper";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
 import { rememberOldAddresses } from "./redirects";
-import { applySiteDraft, discardSiteDraft } from "./site";
+import { applySiteDraft, readSiteDraft } from "./site";
 
 type L = { fr: string; en: string };
 
@@ -508,7 +508,7 @@ function settleDraftProjects(pageId: number, blocks: { type: string; props: unkn
 /* ---- Publier, abandonner -------------------------------------------------- */
 
 /** `site` : l'en-tête, le pied ou les réseaux (communs à toutes les pages) ont changé. */
-export type PublishResult = { projects: number[]; blocks: number; rev: number; site: boolean; /** La page vient d'être mise en ligne par ce geste (elle ne l'était pas). */ wentLive: boolean; /** Avertissements non bloquants (lot 52), ajoutés par l'action de publication. */ warnings?: { missingAlt: { id: number; name: string }[]; untranslated: number; notInMenu?: boolean } };
+export type PublishResult = { projects: number[]; blocks: number; rev: number; site: boolean; /** La page vient d'être mise en ligne par ce geste (elle ne l'était pas). */ wentLive: boolean; /** Avertissements non bloquants (lot 52), ajoutés par l'action de publication. */ siteRev?: number; warnings?: { missingAlt: { id: number; name: string }[]; untranslated: number; notInMenu?: boolean } };
 
 /**
  * Publie le brouillon, en une transaction : validation et écriture de
@@ -524,11 +524,24 @@ export function publishDraft(pageId: number, rev: unknown, opts: { live?: boolea
   if (state.rev !== rev) return conflict(state.rev);
   if (state.corrupt) return corruptRefusal(state.rev);
   if (!state.hasDraft) {
-    // Page jamais mise en ligne, rien de modifié : « Publier » la met simplement en ligne (contenu déjà validé à l'enregistrement).
-    if (opts.live === true && !state.draft.published) {
-      const flipped = getDb().update(schema.pages).set({ published: true, updatedAt: new Date() }).where(and(eq(schema.pages.id, pageId), isNull(schema.pages.deletedAt))).run();
-      if (flipped.changes !== 1) return fail("Cette page n'existe plus.");
-      return done({ projects: referencedProjects(state.draft.blocks), blocks: state.draft.blocks.length, rev: state.rev, site: false, wentLive: true });
+    // Page rien de modifié : « Publier » la met en ligne si elle ne l'est pas (contenu déjà validé à l'enregistrement) et/ou publie
+    // le brouillon du site, commun à toutes les pages (lot 96).
+    const goLive = opts.live === true && !state.draft.published;
+    if (goLive || readSiteDraft()) {
+      let site = false;
+      let gone = false;
+      getDb().transaction(() => {
+        if (goLive) {
+          const flipped = getDb().update(schema.pages).set({ published: true, updatedAt: new Date() }).where(and(eq(schema.pages.id, pageId), isNull(schema.pages.deletedAt))).run();
+          if (flipped.changes !== 1) {
+            gone = true;
+            return;
+          }
+        }
+        site = applySiteDraft(pageId);
+      });
+      if (gone) return fail("Cette page n'existe plus.");
+      return done({ projects: referencedProjects(state.draft.blocks), blocks: state.draft.blocks.length, rev: state.rev, site, wentLive: goLive });
     }
     return fail("Aucune modification à publier.");
   }
@@ -592,7 +605,7 @@ export function discardDraft(pageId: number, rev: unknown): DraftResult<{ projec
   try {
     db.transaction((tx) => {
       projects = discardSlotDrafts(pageId);
-      discardSiteDraft(pageId);
+      // Le brouillon du site, commun, reste (lot 96) : « Annuler ces changements du site » est un geste à part.
       const cleared = tx
         .update(schema.pages)
         .set({ draft: null, draftUpdatedAt: null, draftRev: rev + 1 })

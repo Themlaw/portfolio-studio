@@ -89,14 +89,14 @@ export function getDraftPageInfo(pageId: number): { title: L; meta: { title: L; 
 }
 
 /**
- * Brouillon de l'en-tête, du pied et des réseaux (communs au site) porté par
- * CETTE page, en vue brouillon seulement (src/lib/edit/site.ts) ; sinon null.
+ * Brouillon COMMUN du site (nom, en-tête, pied, menu, réseaux, styles, logo), le même sur toutes les pages
+ * (lot 96), en vue brouillon seulement (src/lib/edit/site.ts) ; sinon null.
  */
-export async function getDraftSite(pageId: number): Promise<SiteSnap | null> {
+export async function getDraftSite(): Promise<SiteSnap | null> {
   if (!(await isDraftView())) return null;
   const row = getDb().select().from(schema.settings).where(eq(schema.settings.key, "siteDraft")).get();
-  const raw = parseJson(row?.value) as { pageId?: unknown; snap?: unknown } | undefined;
-  if (!raw || raw.pageId !== pageId) return null;
+  const raw = parseJson(row?.value) as { snap?: unknown } | undefined;
+  if (!raw || typeof raw !== "object") return null;
   const snap = SiteSnapSchema.safeParse(raw.snap);
   return snap.success ? snap.data : null;
 }

@@ -827,12 +827,11 @@ en phase par `writeNav`), réseaux (`socials`, réseau reconnu d'après
 l'adresse, icônes simple-icons CC0 embarquées : `social-icons.ts`).
 Modifiés sur la toile (nom, liens et mention en double-clic, ×, glisser,
 « + Ajouter un lien », « + Réseau ») ou dans le panneau : réglage
-`siteDraft = { pageId, snap }` porté par le brouillon d'UNE page (version
-`draft_rev` contrôlée et incrémentée, comme les planches) ; une autre page
-ne peut pas y toucher (la page qui le tient est nommée), l'écran Réglages
-refuse d'enregistrer pendant ce temps. Publier la page l'applique dans la
-même transaction (`applySiteDraft`) et revalide les réglages ; Abandonner ou
-supprimer la page l'efface. Bandeau dans l'éditeur : « s'appliquera à toutes
+`siteDraft = { pageId, snap }` : UN brouillon COMMUN à toutes les pages (lot 96 ; `pageId` = dernière page qui l'a modifié, indicatif),
+version propre `siteDraftRev` (compteur jamais remis à zéro, `site-rev.ts`) contrôlée à chaque écriture ; toutes les pages l'affichent
+et le modifient, l'écran Réglages publie ses champs et les reporte dans le brouillon. Publier N'IMPORTE quelle page l'applique dans la
+même transaction (`applySiteDraft`) et revalide les réglages ; Abandonner ou supprimer une page ne l'efface pas, « Annuler ces changements
+du site » le fait. Bandeau dans l'éditeur : « s'appliquera à toutes
 les pages ». Les gestes faits AILLEURS sur le menu pendant ce temps (page
 mise au menu ou retirée depuis la liste, ordre, page supprimée, case « dans
 le menu » d'une page — appliquée seulement si elle a changé) sont reportés

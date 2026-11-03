@@ -17,10 +17,10 @@ import { findPageReferences } from "@/lib/references";
 import { isSpecialPage, LOCKED_TYPES, NOT_FOUND_TITLE, scopeProblem } from "@/lib/special-pages";
 
 import { isPageInNav, readNav, reorderNavPages, setPageInNav } from "./nav";
+import { rehomeSiteDraft } from "./site";
 import { PagePaperSchema } from "@/themes/schema";
 import { readPagePaper, type PagePaper } from "@/themes/wallpaper";
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
-import { discardSiteDraft } from "./site";
 
 /**
  * Identifiant public d'un formulaire de contact (`formId`) en double : sur la
@@ -479,11 +479,11 @@ export function deletePage(id: number): ActionResult<{ title: string }> | { ok: 
       .run();
     tx.update(schema.projects).set({ draftText: null, draftTextPageId: null }).where(eq(schema.projects.draftTextPageId, id)).run();
     tx.update(schema.projects).set({ draftLayout: null, draftLayoutPageId: null }).where(eq(schema.projects.draftLayoutPageId, id)).run();
-    // Menu et brouillon de l'en-tête portés par cette page.
+    // Menu (publié ET brouillon du site). Le brouillon du site, commun, n'est pas touché (lot 96).
     const inMenu = isPageInNav(id);
     setPageInNav(id, false);
-    discardSiteDraft(id);
     tx.update(schema.pages).set({ deletedAt: new Date(), trashedInMenu: inMenu }).where(eq(schema.pages.id, id)).run();
+    rehomeSiteDraft(id);
   });
   return done({ title: page.title.fr });
 }
