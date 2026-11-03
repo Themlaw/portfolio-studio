@@ -42,6 +42,8 @@ export type Tile = {
   broken?: boolean;
   /** Page de collection de l'entrée (couverture choisie sur la tuile, lot 26). */
   pageId?: number;
+  /** Lot 105, vue brouillon : chemin d'écriture de chaque texte de la tuile (manuel : `items.N.champ` ; automatique : `tile.<page>.champ`), pour les modifier en place. */
+  paths?: { eyebrow: string; title: string; intro: string };
   /** La couverture a été choisie sur la tuile (sinon : celle de la collection) : « Couverture automatique » la retire. */
   ownCover?: boolean;
   /** Vue brouillon : la collection n'a aucune œuvre publiée (avis dans la tuile, rien en public). */
@@ -85,10 +87,16 @@ export default function CollectionTiles({
 }) {
   const tools = Boolean(edit && manual);
   /** Texte d'une entrée : style local, et clé de style de la barre typographique (toile seulement). */
-  const mark = (key: "tileEyebrow" | "tileTitle" | "tileIntro" | "tileCta" | "tileCount") => ({
-    ...(edit && styles ? { "data-look-key": key } : {}),
-    ...(styles?.[key] ? { style: styles[key] } : {}),
-  });
+  const mark = (key: "tileEyebrow" | "tileTitle" | "tileIntro" | "tileCta" | "tileCount", tile?: Tile) => {
+    const field = key === "tileEyebrow" ? "eyebrow" : key === "tileTitle" ? "title" : key === "tileIntro" ? "intro" : null;
+    const path = edit && tile && field ? tile.paths?.[field] : undefined;
+    return {
+      ...(edit && styles ? { "data-look-key": key } : {}),
+      // Lot 105 : étiquette, titre et présentation d'une entrée se modifient en place, comme les textes des autres blocs.
+      ...(path ? { "data-inline": path, "data-placeholder": field === "eyebrow" ? "Étiquette" : field === "title" ? "Titre" : "Présentation" } : {}),
+      ...(styles?.[key] ? { style: styles[key] } : {}),
+    };
+  };
   const toolbar = (i: number) => (
     <span className="pe-tile-tools" role="group" aria-label="Entrée">
       <button type="button" data-edit-tile-op="up" data-index={i} disabled={i === 0} aria-label="Monter l'entrée" title="Monter l'entrée">↑</button>
@@ -112,7 +120,7 @@ export default function CollectionTiles({
   const fixed = ratio && ratio !== "auto" ? ratio : undefined;
   const geo = TILE_GEOMETRY[size];
   return (
-    <div className="tiles flex flex-col gap-[var(--t-space-l)]" data-size={size} {...(fixed ? { "data-ratio": fixed, style: { "--box-r": ratioCss(fixed) } as CSSProperties } : {})}>
+    <div className="tiles flex flex-col gap-[var(--t-space-l)]" data-size={size} {...(edit ? { "data-tiles-mode": manual ? "manual" : "auto" } : {})} {...(fixed ? { "data-ratio": fixed, style: { "--box-r": ratioCss(fixed) } as CSSProperties } : {})}>
       {tiles.map((tile, tileIndex) =>
         tile.broken ? (
           <p key={tile.key} data-edit-invalid="" data-tile-broken="" className="pe-tile-broken">
@@ -164,11 +172,11 @@ export default function CollectionTiles({
           </div>
 
           <div className="tile-txt">
-            <Eyebrow {...mark("tileEyebrow")}>{tile.eyebrow}</Eyebrow>
-            <h3 className="mt-3 font-display text-[clamp(2rem,4.9cqw,3.25rem)] text-ink transition-colors group-hover:text-primary" {...mark("tileTitle")}>
+            <Eyebrow {...mark("tileEyebrow", tile)}>{tile.eyebrow}</Eyebrow>
+            <h3 className="mt-3 font-display text-[clamp(2rem,4.9cqw,3.25rem)] text-ink transition-colors group-hover:text-primary" {...mark("tileTitle", tile)}>
               {tile.title}
             </h3>
-            <p className="mt-4 text-sm leading-relaxed text-ink-soft" {...mark("tileIntro")}>
+            <p className="mt-4 text-sm leading-relaxed text-ink-soft" {...mark("tileIntro", tile)}>
               {tile.intro}
             </p>
             <p className="eyebrow mt-6 flex items-center gap-2" {...mark("tileCta")}>

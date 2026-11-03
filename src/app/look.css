@@ -54,13 +54,23 @@
 .blk[data-th="center"] :is(.page-head, .strip > header > div, .title-head) { margin-inline: auto; text-align: center; }
 .blk[data-th="right"] :is(.page-head, .strip > header > div, .title-head) { margin-left: auto; text-align: right; }
 .blk[data-th="center"] .strip > header { justify-content: center; }
-.blk[data-th="center"] .hero > .shell:first-of-type { text-align: center; }
-.blk[data-th="center"] .hero > .shell:first-of-type > * { margin-inline: auto; }
-.blk[data-th="right"] .hero > .shell:first-of-type { text-align: right; }
-.blk[data-th="right"] .hero > .shell:first-of-type > * { margin-left: auto; }
-.blk[data-tv="top"] .hero { justify-content: flex-start; }
-.blk[data-tv="middle"] .hero { justify-content: center; }
-.blk[data-tv="bottom"] .hero { justify-content: flex-end; }
+/* Position du TEXTE de l'ouverture (lot 105). Les trois formes d'ouverture portent `.hero-text` sur la boîte du texte (avant : `.shell:first-of-type`, qui
+   n'existait jamais, un calque de fond précédant le texte : la position ne changeait rien). Départ de chaque forme : à gauche et en bas, sauf le
+   projecteur (centré, au milieu). Horizontal : alignement du texte et des boîtes bornées ; vertical : l'espace libre de la hauteur de la fenêtre. */
+.blk[data-th="left"] .hero .hero-text { text-align: left; }
+.blk[data-th="left"] .hero .hero-text > * { margin-left: 0; margin-right: auto; }
+.blk[data-th="center"] .hero .hero-text { text-align: center; }
+.blk[data-th="center"] .hero .hero-text > * { margin-inline: auto; }
+.blk[data-th="right"] .hero .hero-text { text-align: right; }
+.blk[data-th="right"] .hero .hero-text > * { margin-left: auto; margin-right: 0; }
+.blk[data-th="left"] .hero-spotlight .hero-text { align-items: flex-start; }
+.blk[data-th="center"] .hero-spotlight .hero-text { align-items: center; }
+.blk[data-th="right"] .hero-spotlight .hero-text { align-items: flex-end; }
+.blk[data-tv="top"] .hero:not(.hero-spotlight) .hero-text { margin-bottom: auto; }
+.blk[data-tv="middle"] .hero:not(.hero-spotlight) .hero-text { margin-block: auto; }
+.blk[data-tv="top"] .hero-spotlight .hero-text { justify-content: flex-start; }
+.blk[data-tv="middle"] .hero-spotlight .hero-text { justify-content: center; }
+.blk[data-tv="bottom"] .hero-spotlight .hero-text { justify-content: flex-end; }
 /* Dans une cellule de grille : le titre se place dans la hauteur de la rangée. */
 .block-grid-cell:has(.blk[data-tv]) { display: flex; flex-direction: column; }
 .blk[data-tv="middle"] > :first-child { margin-block: auto; }
@@ -320,10 +330,15 @@
 }
 .fond-bloc[data-fond="on"] {
   --g: 0px;
+  --fond-bw: 0px;
   --edge: calc(var(--edge-in, var(--card-ex, 0px)) + var(--g));
 }
+/* Lot 105 : le contour du fond (et de sa carte) retire sa largeur au contenu, comme la marge. */
+.fond-bloc[data-fond="on"][data-fond-border] {
+  --g: var(--fond-bw);
+}
 .fond-bloc[data-fond="on"][data-fond-inset] {
-  --g: var(--fond-gap);
+  --g: calc(var(--fond-gap) + var(--fond-bw));
 }
 .fond-bloc[data-fond="on"] > .fond-in {
   --edge-in: var(--edge);
@@ -364,14 +379,14 @@
 }
 .surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in > .fond-bloc[data-fond="on"] > .fond-in {
   display: flow-root;
-  margin-inline: calc(-1 * var(--card-ex));
+  margin-inline: calc(-1 * (var(--card-ex) + var(--fond-bw)));
   padding-inline: var(--zone-in);
 }
 .surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in > .fond-bloc[data-fond="on"][data-fond-inset] {
   margin-inline: calc(var(--card-ex) + var(--fond-gap));
 }
 .surface-card[data-surface="on"]:is([data-width="inset"], [data-border]) > .card-in > .fond-bloc[data-fond="on"][data-fond-inset] > .fond-in {
-  margin-inline: calc(-1 * (var(--card-ex) + var(--fond-gap)));
+  margin-inline: calc(-1 * (var(--card-ex) + var(--fond-gap) + var(--fond-bw)));
 }
 /* Un fond posé plus bas qu'un enfant direct de la carte (composant d'une planche de projet : `.card-in > section.strip > .fond-bloc`) reprend
    la même règle que les fonds de la carte : il suit la carte (pas la fenêtre), et sa couche intérieure rend au contenu la place qu'il a sans carte
@@ -496,15 +511,50 @@
 .fond-bloc > .fond-in {
   display: contents;
 }
+.fond-bloc[data-fond="on"][data-fond-border] > .fond-in {
+  display: flow-root;
+  margin-inline: calc(-1 * var(--fond-bw));
+  padding-inline: var(--zone-in);
+}
 .fond-bloc[data-fond="on"][data-fond-inset] > .fond-in {
   display: flow-root;
-  margin-inline: calc(-1 * var(--fond-gap));
+  margin-inline: calc(-1 * (var(--fond-gap) + var(--fond-bw)));
   padding-inline: var(--zone-in);
 }
 .fond-bloc[data-fond="on"][data-fond-inset="s"] { --fond-gap: 12px; }
 .fond-bloc[data-fond="on"][data-fond-inset="l"] { --fond-gap: 48px; }
 .fond-bloc[data-fond="on"][data-fond-round] {
   overflow: clip;
+  /* Lot 105 : des coins arrondis aussi sur un fond bord à bord (le bord de la page se voit dans les coins). */
+  border-radius: var(--fond-r, 0px);
+}
+/* Contour du fond (lot 105) : une vraie bordure, mêmes épaisseurs que celle de la carte (Fin / Moyen / Épais) ; elle suit les coins. */
+.fond-bloc[data-fond="on"][data-fond-border] {
+  --fond-bw: 6px;
+  border: var(--fond-bw) solid var(--fond-bc, currentColor);
+}
+.fond-bloc[data-fond="on"][data-fond-border="thin"] { --fond-bw: 2px; }
+.fond-bloc[data-fond="on"][data-fond-border="thick"] { --fond-bw: 12px; }
+@media (max-width: 767px) {
+  .fond-bloc[data-fond="on"][data-fond-border] { --fond-bw: 4px; }
+  .fond-bloc[data-fond="on"][data-fond-border="thin"] { --fond-bw: 1.5px; }
+  .fond-bloc[data-fond="on"][data-fond-border="thick"] { --fond-bw: 8px; }
+}
+/* La Carte d'un composant (lot 105, `background.card`) : un fond en retrait DANS le fond ; le fond extérieur ne rajoute pas son espace du bas. */
+.fond-bloc[data-fond="on"]:has(> .fond-in > .fond-bloc[data-fond-panel][data-fond="on"]) {
+  padding-bottom: 0;
+}
+.fond-bloc[data-fond="on"][data-fond-panel][data-fond-inset] {
+  margin-block: var(--fond-gap);
+}
+/* Case de grille (lot 105) : le fond habille la case, sans l'espace de section du bas ; il la remplit. */
+.block-grid-cell .fond-bloc[data-fond="on"] {
+  padding-bottom: 0;
+}
+.block-grid-cell > .fond-bloc[data-fond="on"],
+.block-grid-cell > [data-edit-block] > .fond-bloc[data-fond="on"] {
+  height: 100%;
+  box-sizing: border-box;
 }
 /* Coins arrondis ET couleur autour : l'ombre pleine suit l'arrondi et laisserait des encoches dans les coins de la marge. Elle est donc
    plus épaisse que la marge et rognée au rectangle de la marge (le cadre autour est un rectangle, seul le fond est arrondi). */

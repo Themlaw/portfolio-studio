@@ -11,9 +11,9 @@
  * Lecture : la section d'une zone se déduit de sa largeur AFFICHÉE (pleine = Fond, en retrait = Carte) ; si les deux couches existent, la couche
  * extérieure dit sa section et l'intérieure prend l'autre. Écriture : normalisée (ci-dessus), `readFondCarte(writeFondCarte(x)) = x`.
  */
-import { zoneExtent, zoneInLayer, zoneToBackground, zoneToSurface, readZone, type Zone, type ZoneStored } from "./zone";
+import { zoneExtent, zoneInLayer, zoneOfBackground, zoneToBackground, zoneToSurface, readZone, type Zone, type ZoneStored } from "./zone";
 import { FALLBACK_CARD, type ResolvedSurface, type Surface } from "./surface";
-import type { Background } from "./fond";
+import { readBackground, withoutCard, type Background } from "./fond";
 
 export type Slot = "fond" | "carte";
 /** Ce que le bloc sait porter : une carte (premier niveau de page) et / ou une enveloppe de fond (grands composants). */
@@ -24,6 +24,12 @@ export type FondCarte = { fond: Zone | null; carte: Zone | null };
 /** Couleur d'une carte posée par un contour seul sur une page à papier peint : transparente (blanc à 0 %), sinon la carte cacherait le papier de la page. */
 export const CONTOUR_ONLY_CLEAR = "#ffffff00";
 export const isPair = (c: Caps): boolean => c.canCard && c.canFond;
+/**
+ * Lot 105 : Fond ET Carte sont possibles partout où le bloc peut porter un fond. Avec une carte de rubrique (premier niveau de page) la Carte est la
+ * couche `surface`/`background` du lot 100 ; sans (composant de planche, composant imbriqué, case de grille), la Carte est le panneau `background.card`,
+ * posé DANS le fond. Seul un hôte sans enveloppe de fond reste exclusif (plus aucun type de bloc dans ce cas).
+ */
+export const isDouble = (c: Caps): boolean => c.canFond;
 
 /** Zone neuve d'une section : Fond = pleine largeur, Carte = en retrait (marge M quand elle vit dans la couche « fond »). */
 export function freshZone(slot: Slot, caps: Caps): Zone {
@@ -33,7 +39,14 @@ export function freshZone(slot: Slot, caps: Caps): Zone {
 
 /** Les deux sections d'un bloc, lues dans ses deux couches. */
 export function readFondCarte(stored: ZoneStored, defaults: ResolvedSurface = FALLBACK_CARD): FondCarte {
-  const { zone: main, inner } = readZone(stored);
+  const read = readZone(stored);
+  const { zone: main } = read;
+  let inner = read.inner;
+  // Lot 105 : le panneau intérieur d'un fond (`background.card`) est la Carte d'un composant qui n'a pas de carte de rubrique.
+  if (main && !inner && main.layer === "fond" && !stored.surface) {
+    const card = readBackground(stored.background)?.card;
+    if (card) inner = zoneOfBackground(card);
+  }
   const out: FondCarte = { fond: null, carte: null };
   if (!main) return out;
   const mainSlot: Slot = zoneExtent(main, defaults) === "inset" ? "carte" : "fond";
@@ -73,6 +86,12 @@ export function writeFondCarte(fc: FondCarte, caps: Caps, normalize = true): { s
     // Une seule section : elle garde sa couche ; une zone neuve prend celle de freshZone.
     return put(shaped(z, slot, z.layer), z.layer);
   }
+  if (caps.canFond && fond && carte) {
+    // Composant sans carte de rubrique : la Carte est le panneau `card` DANS le fond (le fond reste la boîte extérieure du composant).
+    const outer = zoneToBackground(shaped(fond, "fond", "fond"));
+    const panel = zoneToBackground(shaped(carte, "carte", "fond"));
+    return { surface: null, background: outer && panel ? ({ ...outer, card: withoutCard(panel) } as Background) : outer };
+  }
   const layer: Zone["layer"] = caps.canFond ? "fond" : "card";
   const slot: Slot = fond ? "fond" : "carte";
   return put(shaped((fond ?? carte)!, slot, layer), layer);
@@ -84,7 +103,7 @@ export function writeFondCarte(fc: FondCarte, caps: Caps, normalize = true): { s
  */
 export function setSlot(fc: FondCarte, slot: Slot, next: Zone | null, caps: Caps): FondCarte {
   const other: Slot = slot === "fond" ? "carte" : "fond";
-  return { ...fc, [slot]: next, ...(!isPair(caps) && next ? { [other]: null } : {}) } as FondCarte;
+  return { ...fc, [slot]: next, ...(!isDouble(caps) && next ? { [other]: null } : {}) } as FondCarte;
 }
 
 /** La couleur qui se voit réellement AUTOUR de la carte : celle de la section Fond, sinon `undefined` (c'est le fond de la page). */

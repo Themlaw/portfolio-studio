@@ -101,6 +101,9 @@ export default async function CollectionTilesBlock({
     tiles.push({
       key: row.collection,
       pageId: row.pageId,
+      ...(ctx.edit
+        ? { paths: row.index !== undefined ? { eyebrow: `items.${row.index}.eyebrow`, title: `items.${row.index}.title`, intro: `items.${row.index}.intro` } : { eyebrow: `tile.${row.pageId}.eyebrow`, title: `tile.${row.pageId}.title`, intro: `tile.${row.pageId}.intro` } }
+        : {}),
       ...(own ? { ownCover: true } : {}),
       ...(row.index !== undefined ? { itemIndex: row.index } : {}),
       ...(crop && !crop.rect ? { cropStyle: cropVars(crop) } : {}),

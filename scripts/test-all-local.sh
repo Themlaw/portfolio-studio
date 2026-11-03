@@ -153,6 +153,7 @@ E2E=(
   "logo84|node scripts/e2e-logo84.mjs|chromium|"
   "opacite90|node scripts/e2e-opacite90.mjs|chromium|"
   "fond100|node scripts/e2e-fond100.mjs|chromium|"
+  "reglages105|node scripts/e2e-reglages105.mjs|chromium|"
   "defilement99|node scripts/e2e-defilement99.mjs|chromium|"
   "defilement99-firefox|node scripts/e2e-defilement99.mjs|firefox|K"
   "parite99|node scripts/e2e-defilement99.mjs|chromium|P"

@@ -331,7 +331,8 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       description: "Une grande image par collection (Personnages, Décors…), qui mène à sa page.",
       defaults: { eyebrow: L, title: L, mode: "auto", size: "medium" },
       summary: "{title} · {items} entrées",
-      inline: ["eyebrow", "title"],
+      // Lot 105 : les textes de chaque entrée aussi (liste choisie à la main : `items.N.…` ; automatique : `tile.<page>.…`, écrit dans les modifications de tuile).
+      inline: ["eyebrow", "title", "items.*.eyebrow", "items.*.title", "items.*.intro"],
     }),
     define({
       type: "collection-intro",

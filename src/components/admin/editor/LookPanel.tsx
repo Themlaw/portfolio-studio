@@ -143,7 +143,10 @@ export function BlockLookPanel({ type, look, inCell, onChange }: { type: string;
       {MEDIA_TYPES.has(type) && (
         <Segmented label="Coins des images" value={look.radius} options={RADII} labels={RADIUS_LABELS} onChange={(v) => set({ radius: v })} help="Auto : le réglage du site (Styles du site) ou du thème." />
       )}
-      {TITLE_TYPES.has(type) && (
+      {TITLE_TYPES.has(type) && type === "hero" && (
+        <p className="lp-help" data-testid="hero-position-hint">Position du texte de l&apos;ouverture : la barre « Position du texte » est sur la page, en haut du bloc choisi (chaque forme d&apos;ouverture part de sa propre place).</p>
+      )}
+      {TITLE_TYPES.has(type) && type !== "hero" && (
         <>
           <Segmented
             label="Titre : alignement"

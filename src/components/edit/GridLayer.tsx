@@ -26,7 +26,8 @@ import Popover, { type PopoverAnchor } from "./Popover";
 import GridLayoutIcon from "./GridLayoutIcon";
 import { lookOf, sendOwnMediaLook } from "./LookLayer";
 import type { ImageBg } from "@/lib/look";
-import { postIntent } from "./optimistic";
+import { hasFondWrapper, postIntent } from "./optimistic";
+import FondMenu, { FondButton } from "./FondMenu";
 import { cellIndex, cellsOf, gridRefOf, type GridRef } from "./grid-dom";
 import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 
@@ -231,6 +232,7 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
   const [hover, setHover] = useState<HTMLElement | null>(null);
   const [frameFor, setFrameFor] = useState<{ uid: string } | null>(null);
   const [imgBgFor, setImgBgFor] = useState<{ uid: string } | null>(null);
+  const [fondFor, setFondFor] = useState<string | null>(null);
   const [drag, setDrag] = useState<CellDrag | null>(null);
   const [sizeMenu, setSizeMenu] = useState<{ uid: string } | null>(null);
   const [settings, setSettings] = useState<SettingsFor | null>(null);
@@ -539,6 +541,21 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
             </button>
           </>
         )}
+        {hasFondWrapper(uid) && (
+          <span className="pe-cb-fond" data-cb="fond">
+            <FondButton
+              uid={uid}
+              open={fondFor === uid}
+              onToggle={() => {
+                window.dispatchEvent(new CustomEvent("pe:popups-close"));
+                setFrameFor(null);
+                setImgBgFor(null);
+                setSizeMenu(null);
+                setFondFor((o) => (o === uid ? null : uid));
+              }}
+            />
+          </span>
+        )}
         <button
           type="button"
           className="pe-cb-btn"
@@ -608,6 +625,15 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
           value={lookOf(imgBgFor.uid).imageBg}
           onChange={(imageBg) => sendOwnMediaLook(imgBgFor.uid, { bg: (imageBg as ImageBg | undefined) ?? null })}
           onClose={() => setImgBgFor(null)}
+        />
+      )}
+      {fondFor && (
+        <FondMenu
+          key={fondFor}
+          uid={fondFor}
+          anchor={cellAnchor(fondFor, "fond") + ' [data-testid="fond-button"]'}
+          onClose={() => setFondFor(null)}
+          onChanged={() => {}}
         />
       )}
       {frameFor && (

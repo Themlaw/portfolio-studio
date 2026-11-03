@@ -724,37 +724,46 @@ function PosIcon({ axis, v }: { axis: "h" | "v"; v: string }) {
   );
 }
 
+/**
+ * Position du titre (ou, sur l'ouverture, du TEXTE : étiquette, nom, accroche). Lot 105 : sur l'ouverture, qui fait la hauteur de la fenêtre, la barre se
+ * pose DANS le bloc, au-dessus du texte qu'elle déplace (et non sous le bloc, hors de l'écran), avec son nom visible ; chaque forme d'ouverture dit sa
+ * position de départ (le projecteur est centré, les autres sont à gauche et en bas) : le bouton coché est celui qu'on voit.
+ */
 function TitlePosition({ uid, type, inCell, rect }: { uid: string; type: string; inCell: boolean; rect: Rect }) {
   const look = lookOf(uid);
-  const vertical = type === "hero" || inCell;
+  const hero = type === "hero";
+  const vertical = hero || inCell;
+  const wrapper = wrapperOf(uid);
+  const spot = hero && Boolean(wrapper?.querySelector(".hero-spotlight"));
+  const defH = spot ? "center" : "left";
+  const defV = hero ? (spot ? "middle" : "bottom") : "top";
+  const what = hero ? "Texte" : "Titre";
   const H = [
-    ["left", "Titre à gauche"],
-    ["center", "Titre centré"],
-    ["right", "Titre à droite"],
+    ["left", `${what} à gauche`],
+    ["center", `${what} centré`],
+    ["right", `${what} à droite`],
   ] as const;
   const V = [
-    ["top", "Titre en haut"],
-    ["middle", "Titre au milieu"],
-    ["bottom", "Titre en bas"],
+    ["top", `${what} en haut`],
+    ["middle", `${what} au milieu`],
+    ["bottom", `${what} en bas`],
   ] as const;
+  // Ouverture : au-dessus du texte déplacé (sa boîte est dans l'écran) ; sinon sous le bloc, comme avant.
+  const anchor = hero ? wrapper?.querySelector<HTMLElement>(".hero-text") : null;
+  const place = anchor ? { top: docRect(anchor).top + 12, left: docRect(anchor).left + 12 } : { top: rect.top + rect.height + 4, left: rect.left + 8 };
+  const label = hero ? "Position du texte" : "Position du titre";
   return (
-    <div className="lk-pos" role="toolbar" aria-label="Position du titre" style={{ top: rect.top + rect.height + 4, left: rect.left + 8 }}>
-      {H.map(([v, label]) => (
-        <button key={v} type="button" aria-pressed={(look.titleH ?? "left") === v} aria-label={label} title={label} onClick={() => sendLook(uid, { ...look, titleH: v === "left" ? undefined : v })}>
+    <div className="lk-pos" role="toolbar" aria-label={label} data-testid="title-position" data-what={hero ? "text" : "title"} title={hero ? "Où se place le texte de l'ouverture (étiquette, nom, accroche)" : "Où se place le titre"} style={place}>
+      {hero && <span className="lk-pos-label">{label}</span>}
+      {H.map(([v, text]) => (
+        <button key={v} type="button" aria-pressed={(look.titleH ?? defH) === v} aria-label={text} title={text} onClick={() => sendLook(uid, { ...look, titleH: v === defH ? undefined : v })}>
           <PosIcon axis="h" v={v} />
         </button>
       ))}
       {vertical && <span className="lk-sep" aria-hidden="true" />}
       {vertical &&
-        V.map(([v, label]) => (
-          <button
-            key={v}
-            type="button"
-            aria-pressed={(look.titleV ?? (type === "hero" ? "bottom" : "top")) === v}
-            aria-label={label}
-            title={label}
-            onClick={() => sendLook(uid, { ...look, titleV: v === (type === "hero" ? "bottom" : "top") ? undefined : v })}
-          >
+        V.map(([v, text]) => (
+          <button key={v} type="button" aria-pressed={(look.titleV ?? defV) === v} aria-label={text} title={text} onClick={() => sendLook(uid, { ...look, titleV: v === defV ? undefined : v })}>
             <PosIcon axis="v" v={v} />
           </button>
         ))}

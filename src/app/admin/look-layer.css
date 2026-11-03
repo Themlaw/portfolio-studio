@@ -170,6 +170,13 @@
   background: var(--pe-accent-soft);
   color: var(--pe-accent);
 }
+.lk-pos-label {
+  padding: 0 6px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pe-bar-ink);
+  white-space: nowrap;
+}
 .lk-sep {
   width: 1px;
   height: 18px;

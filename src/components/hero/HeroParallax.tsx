@@ -194,7 +194,7 @@ export default function HeroParallax({ layers, plans = [], content }: { layers: 
 
       {/* hero-halo : halo typographique serré (token heroHalo) sur les petits
           textes qui traversent le décor. Le titre, en très grand corps, tient seul. */}
-      <div className="shell relative pb-20 pt-40 md:pb-28">
+      <div className="shell hero-text relative pb-20 pt-40 md:pb-28">
         <Eyebrow className={`text-ink${bg ? " hero-halo" : ""}`} {...marks.eyebrow}>
           {content.eyebrow}
         </Eyebrow>
