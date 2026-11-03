@@ -41,7 +41,7 @@ for l in "${M[@]}"; do
   case "$got" in "$COMMIT"*) ;; *) echo "$name : worktree à $got, attendu $COMMIT : amène le commit (bundle) d'abord" >&2; exit 3 ;; esac
   rd="~/pf/multi-$TAG"
   extra=""; [ -n "$CHANGED" ] && extra="--changed $CHANGED"
-  ssh -n "$host" "mkdir -p $rd; cd $wt && setsid nohup env LOCK= NODE_OPTIONS=--max-old-space-size=4096 BATT_SERVER=start BATT_JOBS=$jobs PORT=$pmin BATT_PORT_MAX=$pmax BATT_PORT_DIR=\$HOME/pf/.ports BATT_PREFIX=$rd/data BATT_REUSE_BUILD= BATTERY_DIR=$rd/logs $launcher bash scripts/test-all-local.sh --shards $N --shard $k --capacity $CAPS $extra ${SUITES[*]:-} > $rd/run.out 2>&1 </dev/null &" 
+  ssh -n "$host" "mkdir -p $rd; cd $wt && setsid nohup env LOCK= NODE_OPTIONS=--max-old-space-size=4096 BATT_SERVER=start BATT_JOBS=$jobs PORT=$pmin BATT_PORT_MAX=$pmax BATT_PORT_DIR=\$HOME/pf/.ports BATT_PREFIX=\$HOME/pf/multi-$TAG/data BATT_REUSE_BUILD= BATTERY_DIR=\$HOME/pf/multi-$TAG/logs $launcher bash scripts/test-all-local.sh --shards $N --shard $k --capacity $CAPS $extra ${SUITES[*]:-} > $rd/run.out 2>&1 </dev/null &" 
   echo "  shard $k/$N lancé sur $name ($host, $jobs créneaux, ports $pmin-$pmax)"
 done
 
@@ -77,5 +77,5 @@ for l in "${M[@]}"; do
 done
 sort -o "$DEST/recap.txt" "$DEST/recap.txt"
 echo "##### $N machine(s) : $(wc -l <"$DEST/recap.txt") suites, $tp PASS, $tf FAIL, durée (machine la plus lente) ${slow} s, mur $(( $(date +%s) - T0 )) s" | tee -a "$DEST/recap.txt"
-awk -F'\t' '$2!="PASS"{print "ECHEC : "$1" ("$6")"}' "$DEST/recap.txt"
+awk -F"\t" '$1 !~ /^#/ && $2!="PASS"{print "ECHEC : "$1" ("$6")"}' "$DEST/recap.txt"
 exit $rc
