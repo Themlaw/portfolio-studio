@@ -25,3 +25,7 @@ media public/favicon.ico
 infra scripts/test-auth.mjs
 infra scripts/test-publish.mjs
 infra scripts/test-containers.mjs
+
+# Modèles de réécriture d'historique : valeurs d'EXEMPLE (example.org, adresses .invalid), pas de vraies données.
+infra scripts/public-history/*
+email scripts/public-history/*
