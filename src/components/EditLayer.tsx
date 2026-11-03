@@ -963,7 +963,7 @@ export default function EditLayer() {
         const host = (tileOp ?? tileAdd)!;
         const uid = host.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
         if (uid && tileOp) {
-          const op = tileOp.dataset.editTileOp as "remove" | "up" | "down" | "cover" | "cover-clear";
+          const op = tileOp.dataset.editTileOp as "remove" | "up" | "down" | "cover" | "cover-clear" | "mode-manual" | "mode-auto";
           // Couverture (lot 26) : l'entrée se désigne par son rang (liste manuelle) ou par sa page (automatique).
           const index = tileOp.dataset.index !== undefined ? Number(tileOp.dataset.index) : undefined;
           const pageId = tileOp.dataset.pageId !== undefined ? Number(tileOp.dataset.pageId) : undefined;
@@ -1385,6 +1385,17 @@ export default function EditLayer() {
             {sel.type === "collection-tiles" && (
               <button type="button" className="pe-tool-text" data-anchor="tile-size" aria-expanded={sizeFor === sel.uid} onClick={() => setSizeFor((o) => (o === sel.uid ? null : sel.uid))}>
                 Taille des images
+              </button>
+            )}
+            {sel.type === "collection-tiles" && (
+              <button
+                type="button"
+                className="pe-tool-text"
+                data-testid="tiles-mode-button"
+                onClick={() => post({ kind: "tile-op", uid: sel.uid, op: document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(sel.uid)}"] .tiles`)?.dataset.tilesMode === "manual" ? "mode-auto" : "mode-manual" })}
+                title="Automatiques : une entrée par page de collection, dans l'ordre du menu. À la main : tu choisis les entrées, leur ordre, et tu peux en retirer."
+              >
+                {document.querySelector<HTMLElement>(`[data-edit-block="${CSS.escape(sel.uid)}"] .tiles`)?.dataset.tilesMode === "manual" ? "Entrées : à la main · passer en automatique" : "Entrées : automatiques · les choisir à la main"}
               </button>
             )}
             {sel.type === "grid" && (

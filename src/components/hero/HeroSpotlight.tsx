@@ -27,7 +27,7 @@ export default function HeroSpotlight({ content }: { content: HeroContent }) {
           <HeroBackdropMedia bg={bg} />
         </div>
       ) : null}
-      <div className="shell flex flex-1 flex-col items-center justify-center pb-10 pt-24 text-center">
+      <div className="shell hero-text flex flex-1 flex-col items-center justify-center pb-10 pt-24 text-center">
         <Eyebrow className={halo.trim()} {...marks.eyebrow}>{content.eyebrow}</Eyebrow>
         <h1 className="mt-6 font-display text-[clamp(3.25rem,12vw,10rem)] leading-[0.9] text-ink" {...marks.name}>
           {content.name}

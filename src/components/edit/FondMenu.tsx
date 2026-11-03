@@ -46,7 +46,7 @@ import {
   type ResolvedSurface,
   type Surface,
 } from "@/themes/surface";
-import { CONTOUR_ONLY_CLEAR, freshZone, isPair, readFondCarte, setSlot, writeFondCarte, type Caps, type Slot } from "@/themes/fondcarte";
+import { CONTOUR_ONLY_CLEAR, freshZone, readFondCarte, setSlot, writeFondCarte, type Caps, type Slot } from "@/themes/fondcarte";
 import { isCustomColor, zoneColor, zoneExtent, zoneInLayer, zoneKind, zoneToSurface, zoneWithKind, type Zone, type ZoneMemo, type ZoneStored } from "@/themes/zone";
 
 import CardColorChoices from "./CardColorChoices";
@@ -117,14 +117,14 @@ function summary(z: Zone | null, defaults: ResolvedSurface) {
 }
 
 /** Bouton « Fond & carte » de la barre d'outils (le MÊME partout, lot 100) : petit échantillon carré de la couleur de la carte (sinon du fond ; rien : aucun ; trame : papier peint sans couleur). */
-export function FondButton({ uid, open, onToggle }: { uid: string; open: boolean; onToggle: () => void }) {
+export function FondButton({ uid, open, onToggle, compact = false }: { uid: string; open: boolean; onToggle: () => void; compact?: boolean }) {
   const st = zoneState(uid);
   const fc = readFondCarte({ surface: st.surface ?? undefined, background: st.background ?? undefined }, st.defaults);
   const s = summary(fc.carte ?? fc.fond, st.defaults);
   return (
-    <button type="button" className="pe-tool-text fond-btn" data-testid="fond-button" aria-haspopup="dialog" aria-expanded={open} title="Fond et carte du bloc : le fond autour (pleine largeur) et la carte en retrait qui porte le contenu" onClick={onToggle}>
+    <button type="button" className="pe-tool-text fond-btn" data-testid="fond-button" aria-haspopup="dialog" aria-expanded={open} {...(compact ? { "aria-label": "Fond & carte" } : {})} title="Fond et carte du bloc : le fond autour (pleine largeur) et la carte en retrait qui porte le contenu" onClick={onToggle}>
       {s && <span className="sm-swatch" data-testid="fond-swatch" data-wallpaper={"wallpaperOnly" in s ? "" : undefined} style={!("wallpaperOnly" in s) ? { background: s.style.bg } : undefined} aria-hidden="true" />}
-      Fond &amp; carte
+      {compact ? <span aria-hidden="true">▣</span> : "Fond & carte"}
       {s && !s.style.ok && (
         <span className="sm-alert" data-testid="fond-alert" title="Texte peu lisible sur cette couleur" aria-label="Texte peu lisible sur cette couleur">
           !
@@ -138,7 +138,8 @@ export function FondButton({ uid, open, onToggle }: { uid: string; open: boolean
 export default function FondMenu({ uid, anchor, onClose, onChanged }: { uid: string; anchor: PopoverAnchor; onClose: () => void; onChanged: () => void }) {
   const init = zoneState(uid);
   const [stored, setStored] = useState<ZoneStored>({ surface: init.surface ?? undefined, background: init.background ?? undefined });
-  // La carte n'existe qu'au premier niveau de la page ; le fond sur les grands composants (le bloc a alors une enveloppe de fond).
+  // Lot 105 : Fond et Carte existent PARTOUT. `canCard` ne dit plus que OÙ la Carte est rangée : carte de rubrique (premier niveau de la page) ou
+  // panneau intérieur du fond (composant de planche, composant imbriqué, case de grille) ; le fond, sur tout bloc qui a une enveloppe de fond.
   const canCard = !document.querySelector(`[data-edit-block="${CSS.escape(uid)}"]`)?.hasAttribute("data-edit-parent");
   const canFond = hasFondWrapper(uid);
   const change = (next: ZoneStored, continuous = false) => {
@@ -193,18 +194,18 @@ function ContourRows({
   border,
   fromTheme,
   themeBorder,
-  state,
+  slot,
   onChange,
 }: {
   uid: string;
   border: ResolvedBorder | null;
   fromTheme: boolean;
   themeBorder: ResolvedBorder | null;
-  /** `ok` : réglable ; `nocard` : (inutilisé) ; `locked` : un Fond est posé ; `board` : composant de planche (le contour est celui de la carte du projet). */
-  state: "ok" | "nocard" | "locked" | "board";
+  /** La section réglée : le contour est celui de SA section (Fond ou Carte), jamais verrouillé (lot 105). */
+  slot: Slot;
   onChange: (b: Surface["border"], continuous?: boolean) => void;
 }) {
-  const enabled = state === "ok";
+  const enabled = true;
   const customColor = border?.color && !isSurfaceToken(border.color) ? border.color : undefined;
   const width = border?.width ?? DEFAULT_BORDER_WIDTH;
   const set = (p: { width?: (typeof SURFACE_BORDER_WIDTHS)[number]; color?: string | undefined }, continuous = false) =>
@@ -219,10 +220,10 @@ function ContourRows({
   };
   const hidden = enabled && border ? contourHidden(border, uid) : undefined;
   return (
-    <div className="fc-contour" data-testid="fond-contour-row" data-state={state} data-from-theme={fromTheme ? "" : undefined}>
+    <div className="fc-contour" data-testid="fond-contour-row" data-slot={slot} data-state="ok" data-from-theme={fromTheme ? "" : undefined}>
       <div className="tc-row">
         <span className="sm-label">Contour</span>
-        <span className="tc-seg" role="radiogroup" aria-label="Contour de la carte" data-testid="fond-contour">
+        <span className="tc-seg" role="radiogroup" aria-label={slot === "fond" ? "Contour du fond" : "Contour de la carte"} data-testid="fond-contour">
           <button type="button" role="radio" aria-checked={border === null} data-contour="none" disabled={!enabled} onClick={() => onChange(false)}>
             Aucun
           </button>
@@ -246,18 +247,11 @@ function ContourRows({
           </button>
         </p>
       )}
-      {state === "nocard" && <p className="sm-hint" data-testid="fond-contour-nocard">Pas de carte : choisis une couleur ou un papier peint dans « Carte » pour lui donner un contour.</p>}
-      {state === "locked" && (
-        <p className="sm-hint" data-testid="fond-border-locked">
-          Contour : disponible quand le Fond est sur « Aucun » (il se pose sur la couche extérieure de la carte).
-        </p>
-      )}
-      {state === "board" && <p className="sm-hint" data-testid="fond-contour-board">Le contour des cartes se règle sur la carte du projet, pas sur chaque composant.</p>}
       {enabled && border && (
         <>
           <div className="tc-row">
             <span className="sm-label">Couleur du contour</span>
-            <CardColorChoices palette={canvasPalette()} value={border.color ?? ""} onPick={(t) => set({ color: t })} label="Couleur du contour" hidden={hidden} auto={{ label: "Par défaut : la couleur du texte de la carte", onPick: () => set({ color: undefined }) }} />
+            <CardColorChoices palette={canvasPalette()} value={border.color ?? ""} onPick={(t) => set({ color: t })} label={slot === "fond" ? "Couleur du contour du fond" : "Couleur du contour"} hidden={hidden} auto={{ label: "Par défaut : la couleur du texte de la carte", onPick: () => set({ color: undefined }) }} />
           </div>
           <div className="tc-row">
             <span className="sm-label" aria-hidden="true" />
@@ -274,11 +268,11 @@ function ContourRows({
 
 /** Carte posée par un contour seul (lot 100) : « Fond de page » (jeton du thème) ; sur un papier peint de page, transparente (sinon la carte le cacherait). */
 const CONTOUR_ONLY_COLOR = "bg";
-const isContourOnly = (z: Zone): boolean => z.layer === "card" && zoneKind(z) === "color" && (z.color === CONTOUR_ONLY_COLOR || z.color === CONTOUR_ONLY_CLEAR) && z.paper === "under" && z.corners === undefined;
+const isContourOnly = (z: Zone): boolean => zoneKind(z) === "color" && (z.color === CONTOUR_ONLY_COLOR || z.color === CONTOUR_ONLY_CLEAR) && z.paper === "under" && z.corners === undefined;
 
 const SLOT_TEXT: Record<Slot, { title: string; none: string; lead: string; empty: string; radio: string; kindLabel: string }> = {
-  fond: { title: "Fond", none: "Aucun", kindLabel: "Fond", radio: "Nature du fond", lead: "La zone autour, d'un bord à l'autre de la page.", empty: "Aucun fond : on voit le fond de la page autour de la carte." },
-  carte: { title: "Carte", none: "Aucune", kindLabel: "Carte", radio: "Nature de la carte", lead: "Le cadre en retrait qui porte le contenu.", empty: "Pas de carte : le contenu est posé directement sur le fond." },
+  fond: { title: "Fond", none: "Aucun", kindLabel: "Fond", radio: "Nature du fond", lead: "La boîte extérieure : la bande pleine largeur autour d'un bloc, ou toute la surface d'un composant.", empty: "Aucun fond : on voit le fond de la page autour." },
+  carte: { title: "Carte", none: "Aucune", kindLabel: "Carte", radio: "Nature de la carte", lead: "Le panneau en retrait, avec sa marge, qui porte le contenu.", empty: "Pas de carte : le contenu est posé directement sur le fond." },
 };
 
 /** Petit schéma d'une section (lot 100) : la page (fond) et la carte dedans ; la zone réglée est mise en avant. Aucune couleur en dur : tout vient de la feuille de style. */
@@ -306,7 +300,7 @@ function ZoneSection({
   z: Zone | null;
   defaults: ResolvedSurface;
   caps: Caps;
-  /** Le fond (section Fond) est rempli : la bordure de la carte n'est plus possible (elle vit dans la couche extérieure). */
+  /** Le fond (section Fond) est rempli. */
   fondActive: boolean;
   onSet: (next: Zone | null, continuous?: boolean) => void;
 }) {
@@ -404,37 +398,43 @@ function ZoneSection({
     </>
   );
 
-  /* ---- Réglages fins de la CARTE (section repliée) : coins, marge, bordure, papier du site ---- */
+  /* ---- Coins, marge et contour de LA section (lot 105 : les mêmes dans Fond et dans Carte, jamais verrouillés) ---- */
   const corners = z?.layer === "card" ? resolveSurface(zoneToSurface(z), defaults).corners : (z?.corners ?? "none");
   const cornersChoice: "none" | keyof typeof CORNER_STEP_RADII = corners === "none" || corners === "square" ? "none" : corners === "round" ? nearestCornerStep(themeCardRadius()) : corners;
-  const border = z?.layer === "card" ? (resolveSurface(zoneToSurface(z), defaults).border ?? null) : null;
+  // Contour : une carte de rubrique lit celui du thème par défaut ; un fond (ou un panneau) n'a que le sien.
+  const border: ResolvedBorder | null =
+    z?.layer === "card" ? (resolveSurface(zoneToSurface(z), defaults).border ?? null) : z?.border && typeof z.border === "object" ? { width: z.border.width ?? DEFAULT_BORDER_WIDTH, ...(z.border.color ? { color: z.border.color } : {}) } : null;
+  const shape = z ? (
+    <>
+      <CornersRow
+        value={cornersChoice}
+        label={slot === "fond" ? "Coins du fond" : "Coins de la carte"}
+        testid="fond-round"
+        attr={(v) => ({ "data-corners": v === "none" ? "square" : v })}
+        onPick={(v) => {
+          // Un ancien « Coins arrondis » (rayon du thème) s'affiche sur la taille la plus proche : la choisir ne change rien (rendu d'avant gardé).
+          if (z.layer === "card" && z.corners === "round" && v === cornersChoice) return;
+          if (z.layer === "card") return set({ corners: v === "none" ? "square" : v });
+          set({ corners: v === "none" ? undefined : v });
+        }}
+      />
+      {z.layer === "fond" && zoneExtent(z, defaults) === "inset" && (
+        <div className="tc-row">
+          <span className="sm-label">Marge</span>
+          <span className="tc-seg" role="radiogroup" aria-label="Taille de la marge" data-testid="fond-inset">
+            {SHAPE_STEPS.map((st) => (
+              <button key={st.step} type="button" role="radio" aria-checked={(z.margin ?? "m") === st.step} data-step={st.step} onClick={() => set({ margin: st.step })}>
+                {st.label}
+              </button>
+            ))}
+          </span>
+        </div>
+      )}
+    </>
+  ) : null;
   const fine =
     z && slot === "carte" ? (
       <>
-        <CornersRow
-          value={cornersChoice}
-          label="Coins de la carte"
-          testid="fond-round"
-          attr={(v) => ({ "data-corners": v === "none" ? "square" : v })}
-          onPick={(v) => {
-            // Un ancien « Coins arrondis » (rayon du thème) s'affiche sur la taille la plus proche : la choisir ne change rien (rendu d'avant gardé).
-            if (z.layer === "card" && z.corners === "round" && v === cornersChoice) return;
-            if (z.layer === "card") return set({ corners: v === "none" ? "square" : v });
-            set({ corners: v === "none" ? undefined : v });
-          }}
-        />
-        {z.layer === "fond" && (
-          <div className="tc-row">
-            <span className="sm-label">Marge</span>
-            <span className="tc-seg" role="radiogroup" aria-label="Taille de la marge" data-testid="fond-inset">
-              {SHAPE_STEPS.map((st) => (
-                <button key={st.step} type="button" role="radio" aria-checked={(z.margin ?? "m") === st.step} data-step={st.step} onClick={() => set({ margin: st.step })}>
-                  {st.label}
-                </button>
-              ))}
-            </span>
-          </div>
-        )}
         {!site.has && kind === "color" && (
           <p className="sm-hint" data-testid="surface-paper-none">
             Le thème actif n&apos;a pas de papier dessiné : rien à montrer sur le fond.
@@ -446,7 +446,6 @@ function ZoneSection({
             <span className="fond-fine-chev" aria-hidden="true" />
             Papier du site : montré ou caché{z.layer === "card" ? ", intensité" : ""}
           </summary>
-        {site.has && kind === "color" && (
           <div className="tc-row">
             <span className="sm-label">Papier du site</span>
             <span className="tc-seg" role="radiogroup" aria-label="Papier du site sur le fond" data-testid="surface-paper">
@@ -463,51 +462,51 @@ function ZoneSection({
               )}
             </span>
           </div>
-        )}
-        {z.layer === "card" && kind === "color" && cardPaper?.over && (
-          <div className="tc-row">
-            <span className="sm-label">Intensité</span>
-            <input type="range" className="sm-range" min={0} max={100} step={1} value={Math.round(cardPaper.opacity * 100)} aria-label="Intensité du papier sur la carte" data-testid="surface-paper-opacity" onChange={(e) => set({ paperOpacity: Number(e.target.value) / 100 }, true)} />
-            <span className="sm-hint">{Math.round(cardPaper.opacity * 100)} %</span>
-          </div>
-        )}
-        {z.layer === "card" && kind === "color" && cardPaper?.over && cardPaper.opacity > PAPER_READABLE_MAX && blockHasText(uid) && (
-          <p className="sm-warn" role="status" data-testid="surface-paper-opacity-warning">
-            <span className="sm-alert" aria-hidden="true">
-              !
-            </span>
-            {PAPER_READABLE_WARNING}
-          </p>
-        )}
+          {z.layer === "card" && kind === "color" && cardPaper?.over && (
+            <div className="tc-row">
+              <span className="sm-label">Intensité</span>
+              <input type="range" className="sm-range" min={0} max={100} step={1} value={Math.round(cardPaper.opacity * 100)} aria-label="Intensité du papier sur la carte" data-testid="surface-paper-opacity" onChange={(e) => set({ paperOpacity: Number(e.target.value) / 100 }, true)} />
+              <span className="sm-hint">{Math.round(cardPaper.opacity * 100)} %</span>
+            </div>
+          )}
+          {z.layer === "card" && kind === "color" && cardPaper?.over && cardPaper.opacity > PAPER_READABLE_MAX && blockHasText(uid) && (
+            <p className="sm-warn" role="status" data-testid="surface-paper-opacity-warning">
+              <span className="sm-alert" aria-hidden="true">
+                !
+              </span>
+              {PAPER_READABLE_WARNING}
+            </p>
+          )}
         </details>
         )}
       </>
     ) : null;
 
-  /* ---- Contour de la carte : toujours visible dans la section Carte ---- */
-  const themeBorder = defaults.border;
-  const contour =
-    slot === "carte" ? (
-      <ContourRows
-        uid={uid}
-        border={border}
-        fromTheme={Boolean(z?.layer === "card" && z.border === undefined && themeBorder)}
-        themeBorder={themeBorder}
-        state={!caps.canCard ? "board" : !z ? (fondActive ? "locked" : "ok") : z.layer === "card" || !fondActive ? "ok" : "locked"}
-        onChange={(b, continuous) => {
-          if (!z) {
-            // Depuis « Aucune » : une épaisseur pose une carte « Fond de page » (jeton du thème ; transparente sur un papier peint de page) avec ce contour ; rien d'autre ne change.
-            if (b === false || b === undefined) return;
-            return commit({ ...zoneWithKind(freshZone("carte", caps), "color", {}), color: hasPageWallpaper ? CONTOUR_ONLY_CLEAR : CONTOUR_ONLY_COLOR, paper: "under", border: b } as Zone);
-          }
-          // Contour retiré d'une carte qui n'existait que pour lui : le bloc revient exactement à « Aucune » (aucun fond résiduel).
-          if (b === false && isContourOnly(z)) return commit(null);
-          // Un contour est un réglage de la couche « carte » : sur une carte rangée dans la couche « fond » (sans fond autour), le poser la déplace (couleur, motif, coins gardés).
-          if (z.layer === "fond") return commit({ ...zoneInLayer(z, "card"), border: b }, continuous);
-          set({ border: b }, continuous);
-        }}
-      />
-    ) : null;
+  /* ---- Contour de la section : toujours visible, Fond comme Carte ---- */
+  const themeBorder = z?.layer === "card" ? defaults.border : null;
+  const contour = (
+    <ContourRows
+      uid={uid}
+      slot={slot}
+      border={border}
+      fromTheme={Boolean(z?.layer === "card" && z.border === undefined && themeBorder)}
+      themeBorder={themeBorder}
+      onChange={(b, continuous) => {
+        if (!z) {
+          // Depuis « Aucun » : une épaisseur pose une zone « Fond de page » (jeton du thème ; transparente sur un papier peint de page) avec ce contour ; rien d'autre ne change.
+          if (b === false || b === undefined) return;
+          return commit({ ...zoneWithKind(freshZone(slot, caps), "color", {}), color: hasPageWallpaper ? CONTOUR_ONLY_CLEAR : CONTOUR_ONLY_COLOR, paper: "under", border: b } as Zone);
+        }
+        // Contour retiré d'une zone qui n'existait que pour lui : le bloc revient exactement à « Aucun » (aucun fond résiduel).
+        if (b === false && isContourOnly(z)) return commit(null);
+        // Une Carte rangée dans la couche « fond » (ancien rendu emboîté, sans Fond autour) qui reçoit un contour redevient une carte de rubrique (comme avant, v0.33) :
+        // couleur, motif, marge et coins gardés. Avec un Fond autour, ou sans carte de rubrique (planche, case, composant imbriqué), le contour reste dans la couche de la zone.
+        if (slot === "carte" && z.layer === "fond" && caps.canCard && !fondActive && b !== false && b !== undefined) return commit({ ...zoneInLayer(z, "card"), border: b }, continuous);
+        // Sinon le contour se range dans la couche de la zone (carte : `surface`, fond : `background`) : rien ne bouge d'une couche à l'autre.
+        set({ border: z.layer === "fond" && (b === false || b === undefined) ? undefined : b }, continuous);
+      }}
+    />
+  );
 
   const warning = s && !s.style.ok && (
     <p className="sm-warn" role="status" data-testid="fond-warning" title={ratioTip(s.style.ratio)}>
@@ -539,11 +538,12 @@ function ZoneSection({
           ))}
         </span>
       </div>
-      {contour}
       {view === "color" && z && color && s ? (
         <>
           {colorRows("Couleur")}
           {notices}
+          {shape}
+          {contour}
           {fine}
           {warning}
         </>
@@ -561,11 +561,18 @@ function ZoneSection({
               />
               {colorRows("Couleur dessous", z.layer === "fond" || slot === "fond" ? { label: "Aucune couleur sous le motif", onPick: () => setColor(undefined) } : undefined)}
               {notices}
+              {shape}
+              {contour}
               {fine}
               {warning}
             </>
           )}
-          {(!z || kind !== "wallpaper") && notices}
+          {(!z || kind !== "wallpaper") && (
+            <>
+              {notices}
+              {contour}
+            </>
+          )}
         </>
       ) : (
         <>
@@ -573,6 +580,7 @@ function ZoneSection({
             {text.empty}
           </p>
           {notices}
+          {contour}
         </>
       )}
     </section>
@@ -607,11 +615,6 @@ function FondPanel({
   };
   return (
     <Popover anchor={anchor} label="Fond et carte du bloc" testId="fond-menu" onClose={onClose}>
-      {!isPair(caps) && (
-        <p className="sm-hint" data-testid="fond-exclusive">
-          Ici, le fond et la carte ne se superposent pas : choisir l&apos;un remplace l&apos;autre.
-        </p>
-      )}
       <ZoneSection uid={uid} slot="fond" z={fc.fond} defaults={defaults} caps={caps} fondActive={fc.fond !== null} onSet={onSet("fond")} />
       <ZoneSection uid={uid} slot="carte" z={fc.carte} defaults={defaults} caps={caps} fondActive={fc.fond !== null} onSet={onSet("carte")} />
     </Popover>

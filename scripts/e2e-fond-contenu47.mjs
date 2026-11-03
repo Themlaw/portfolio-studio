@@ -222,7 +222,7 @@ const openPageFond = async (uid) => {
   await host.scrollIntoViewIfNeeded();
   for (let attempt = 0; ; attempt++) {
     try {
-      await host.locator(".fond-in > *").first().click({ position: { x: 3, y: 3 }, force: true });
+      await host.locator(".fond-in > :not([data-fond-panel]), .fond-in > [data-fond-panel] > .fond-in > *").first().click({ position: { x: 3, y: 3 }, force: true });
       await fr.locator('.pe-tools [data-testid="fond-button"]').click({ timeout: 4000 });
       break;
     } catch (e) {
@@ -281,8 +281,8 @@ try {
     const b1 = await imgsOf(sel);
     await sleep(500);
     const b2 = await imgsOf(sel);
-    await mn.locator('[data-testid="fond-inset"] [data-step="l"]').click();
-    await mn.locator('[data-testid="fond-round"] [data-step="m"]').click();
+    await mn.locator('[data-testid="fond-section-carte"] [data-testid="fond-inset"] [data-step="l"]').click();
+    await mn.locator('[data-testid="fond-section-carte"] [data-testid="fond-round"] [data-step="m"]').click();
     await sleep(500);
     const b3 = await imgsOf(sel);
     await page.screenshot({ path: path.join(SHOTS, `toile-apercu-${where}.png`) });
@@ -292,7 +292,9 @@ try {
     const b4 = await imgsOf(sel);
     ok(`B3 enregistré (${where}) : toujours les mêmes images après le rechargement de la toile`, same(b0, b4), `${fmt(b0)} / ${fmt(b4)}`);
     const saved = where === "page" ? draftBlocks(pageId).find((b) => b.uid === uid)?.props.background : boardDraft(project.id)?.find((i) => i.uid === uid)?.props.background;
-    ok(`B4 enregistré (${where}) : { couleur, inset l, round m }`, saved?.kind === "color" && saved.inset === "l" && saved.round === "m", JSON.stringify(saved));
+    // Lot 105 : en planche (pas de carte de rubrique), Fond + Carte = le fond, avec la Carte en panneau `card` dedans ; en page, deux couches.
+    const zsaved = where === "planche" ? saved?.card : saved;
+    ok(`B4 enregistré (${where}) : { couleur, inset l, round m }`, zsaved?.kind === "color" && zsaved.inset === "l" && zsaved.round === "m", JSON.stringify(saved));
     // Lot 100 : on remet la grille sans Fond ni Carte pour les mesures suivantes (la fenêtre D vise la première carte de la planche).
     const rm = await open(uid);
     await rm.locator('[data-testid="fond-section-carte"] [data-kind="none"]').click();
@@ -347,8 +349,8 @@ try {
     i.remove();
     return [["s", 10], ["m", 20], ["l", 36]].sort((a, b) => Math.abs(a[1] - r) - Math.abs(b[1] - r))[0][0];
   });
-  ok("D3 ancienne carte : « Avec marge » coché, et la taille de coins la plus proche de son rayon cochée", (await cm.locator('[data-testid="fond-section-fond"] [data-kind="none"]').getAttribute("aria-checked")) === "true" && (await cm.locator(`[data-testid="fond-round"] [data-step="${legacyStep}"]`).getAttribute("aria-checked")) === "true", legacyStep);
-  await cm.locator(`[data-testid="fond-round"] [data-step="${legacyStep}"]`).click();
+  ok("D3 ancienne carte : « Avec marge » coché, et la taille de coins la plus proche de son rayon cochée", (await cm.locator('[data-testid="fond-section-fond"] [data-kind="none"]').getAttribute("aria-checked")) === "true" && (await cm.locator(`[data-testid="fond-section-carte"] [data-testid="fond-round"] [data-step="${legacyStep}"]`).getAttribute("aria-checked")) === "true", legacyStep);
+  await cm.locator(`[data-testid="fond-section-carte"] [data-testid="fond-round"] [data-step="${legacyStep}"]`).click();
   await sleep(600);
   ok("D4 cliquer la taille déjà cochée ne change rien (réglages de la carte inchangés, rendu d'avant gardé)", JSON.stringify(surfaceOf(CARD) ?? {}) === "{}", JSON.stringify(surfaceOf(CARD)));
   const clickAndMeasure = async (sel) => {
@@ -357,9 +359,9 @@ try {
     return { imgs: await imgsOf(`[data-edit-block="${CARD}"]`), card: (await fr.evaluate(MEASURE, project.slug)).cards[0] };
   };
   const other = legacyStep === "l" ? "s" : "l";
-  let r = await clickAndMeasure(`[data-testid="fond-round"] [data-step="${other}"]`);
+  let r = await clickAndMeasure(`[data-testid="fond-section-carte"] [data-testid="fond-round"] [data-step="${other}"]`);
   ok(`D5 coins « ${other === "l" ? "Grand" : "Petit"} » : rayon ${other === "l" ? 36 : 10} px, images intactes`, near(r.card.r, other === "l" ? 36 : 10, 1) && same(cardImgs0, r.imgs), JSON.stringify([r.card, fmt(cardImgs0), fmt(r.imgs)]));
-  r = await clickAndMeasure('[data-testid="fond-round"] [data-step="none"]');
+  r = await clickAndMeasure('[data-testid="fond-section-carte"] [data-testid="fond-round"] [data-step="none"]');
   ok("D6 coins « Droits » : rayon nul, images intactes", r.card.r === 0 && same(cardImgs0, r.imgs), JSON.stringify([r.card, fmt(cardImgs0), fmt(r.imgs)]));
   r = await clickAndMeasure('[data-testid="fond-section-fond"] [data-kind="color"]');
   ok("D7 « Bord à bord » : la carte occupe toute la largeur, images intactes", near(r.card.l, 0, 1.5) && same(cardImgs0, r.imgs), JSON.stringify([r.card, fmt(cardImgs0), fmt(r.imgs)]));

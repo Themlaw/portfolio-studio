@@ -83,16 +83,20 @@ function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv
 /**
  * Fond de couleur d'un composant (lot 32, src/themes/fond.ts) : une enveloppe pleine largeur de son conteneur (la carte, ou la
  * page) qui peint la couleur sur toute la hauteur du composant ; `join` = fusion avec le voisin de même fond (aucun espace).
- * Les composants des cellules d'une grille n'en ont pas. Sans fond, aucune enveloppe en public ; vue brouillon : toujours là
+ * Lot 105 : les cases d'une grille en ont aussi (le fond habille la case). Sans fond, aucune enveloppe en public ; vue brouillon : toujours là
  * (`data-fond="off"` = `display: contents`) pour que la toile montre un choix tout de suite sans toucher aux nœuds de React.
  * Réutilisable par un conteneur qui rend lui-même sa suite de composants (planche composée).
  */
 export function withFond(node: ReactNode, type: string, background: Background | undefined, join: FondJoin, ctx: BlockContext, key: string): ReactNode {
-  if (!supportsFond(type) || ctx.cell) return node;
+  if (!supportsFond(type)) return node;
   if (!background || !ctx.palette) {
     return ctx.edit ? (
       <div key={`fond-${key}`} className="zone fond-bloc" data-fond="off">
-        <div className="fond-in">{node}</div>
+        <div className="fond-in">
+          <div className="zone fond-bloc" data-fond-panel="" data-fond="off">
+            <div className="fond-in">{node}</div>
+          </div>
+        </div>
       </div>
     ) : (
       node

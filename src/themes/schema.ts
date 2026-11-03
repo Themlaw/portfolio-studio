@@ -109,10 +109,21 @@ const FondStepSchema = z.enum(FOND_STEPS);
  * les cartes et les fonds) n'est PAS redessiné sur ce fond ; absent = comme le site (rendu d'avant, au pixel).
  */
 export const FondPaperSchema = z.literal("under");
+/**
+ * Contour d'un fond ou de sa carte intérieure (lot 105) : épaisseur et couleur (absente = la couleur lisible du texte de la zone). Pas de « false » :
+ * clé absente = pas de contour (un fond n'hérite jamais du contour des cartes du thème).
+ */
+export const FondBorderSchema = z.strictObject({ width: z.enum(SURFACE_BORDER_WIDTHS).optional(), color: SurfaceColorSchema.optional() });
+/** Champs communs d'un fond (lot 105 : `border`, le contour). */
+const fondCommon = { inset: FondStepSchema.optional(), round: FondStepSchema.optional(), paper: FondPaperSchema.optional(), border: FondBorderSchema.optional() };
+const colorFond = { kind: z.literal("color"), color: SurfaceColorSchema, ...fondCommon };
+// Un motif de la bibliothèque, une couleur facultative DESSOUS (même choix que « Couleur »), taille et opacité facultatives.
+const wallpaperFond = { kind: z.literal("wallpaper"), wallpaper: WallpaperIdSchema, color: SurfaceColorSchema.optional(), size: WallpaperSizeSchema.optional(), opacity: WallpaperOpacitySchema.optional(), ...fondCommon };
+/** La carte INTÉRIEURE d'un fond (lot 105) : un panneau en retrait qui porte le contenu, avec sa couleur ou son papier peint, sa marge, ses coins et son contour. */
+export const FondCardSchema = z.discriminatedUnion("kind", [z.strictObject(colorFond), z.strictObject(wallpaperFond)]);
 export const BackgroundSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("color"), color: SurfaceColorSchema, inset: FondStepSchema.optional(), round: FondStepSchema.optional(), paper: FondPaperSchema.optional() }),
-  // Un motif de la bibliothèque, une couleur facultative DESSOUS (même choix que « Couleur »), taille et opacité facultatives.
-  z.strictObject({ kind: z.literal("wallpaper"), wallpaper: WallpaperIdSchema, color: SurfaceColorSchema.optional(), size: WallpaperSizeSchema.optional(), opacity: WallpaperOpacitySchema.optional(), inset: FondStepSchema.optional(), round: FondStepSchema.optional(), paper: FondPaperSchema.optional() }),
+  z.strictObject({ ...colorFond, card: FondCardSchema.optional() }),
+  z.strictObject({ ...wallpaperFond, card: FondCardSchema.optional() }),
 ]);
 /** Papier peint d'UNE PAGE (lot 35) : absent = celui du site (rien ne change) ; `none` = aucun ; sinon un motif. */
 export const PagePaperSchema = z.discriminatedUnion("mode", [

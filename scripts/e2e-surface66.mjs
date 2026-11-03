@@ -435,11 +435,12 @@ await section("E", async () => {
   menu = await openFond("Delta");
   await sec(menu, "carte").locator('[data-kind="color"]').click();
   await waitFor(() => props("Delta").background?.inset === "m");
-  ok("E10 avec un Fond, la bordure est dite indisponible (elle vit sur la couche extérieure)", (await menu.locator('[data-testid="fond-border-locked"]').count()) === 1);
+  // Lot 105 (changement de spécification voulu) : le contour n'est PLUS verrouillé quand un Fond est posé. Fond et Carte ont chacun le leur.
+  ok("E10 avec un Fond, plus aucun verrou : le contour se règle dans la section Fond ET dans la section Carte", (await menu.locator('[data-testid="fond-border-locked"]').count()) === 0 && (await sec(menu, "fond").locator('[data-testid="fond-contour-row"] [data-contour="medium"]').isEnabled()) && (await sec(menu, "carte").locator('[data-testid="fond-contour-row"] [data-contour="medium"]').isEnabled()));
   await sec(menu, "fond").locator('[data-kind="none"]').click();
   await waitFor(() => props("Delta").surface === undefined);
   await sleep(500);
-  await menu.locator('[data-contour="medium"]').click();
+  await sec(menu, "carte").locator('[data-contour="medium"]').click();
   ok("E10 bordure sur une carte sans Fond : la carte garde sa couleur, avec bordure", await waitFor(() => props("Delta").surface?.border !== undefined && props("Delta").surface?.border !== false && props("Delta").background === undefined && typeof props("Delta").surface?.color === "string"), JSON.stringify(props("Delta")));
   await page.keyboard.press("Escape");
   ok("E11 publication", await publish());

@@ -744,7 +744,7 @@ try {
     await selectGrid(G);
     await fr.locator('[data-testid="grid-settings-button"]').click();
     await gsWin().waitFor({ timeout: 10000 });
-    await fr.locator('[data-testid="fond-button"]').click();
+    await fr.locator('.pe-tools [data-testid="fond-button"]').click();
     await fr.locator('[data-testid="fond-menu"]').waitFor({ timeout: 10000 });
     ok("H7 ouvrir Fond ferme Réglages", (await gsWin().count()) === 0 && (await fr.locator('[data-testid="fond-menu"]').count()) === 1);
     await fr.locator('[data-testid="grid-settings-button"]').click();

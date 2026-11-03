@@ -87,6 +87,7 @@ export function zoneOfBackground(b: Background): Zone {
     extent: (b.inset ? "inset" : "full") as ZoneExtent,
     margin: b.inset,
     corners: b.round,
+    border: b.border,
     paper: b.paper,
   }) as Zone;
 }
@@ -108,7 +109,9 @@ export function zoneToSurface(z: Zone): Surface {
 export function zoneToBackground(z: Zone): Background | null {
   const inset = z.extent === "inset" ? (z.margin ?? "m") : z.margin;
   const round = z.corners && (FOND_STEPS as readonly string[]).includes(z.corners) ? (z.corners as FondStep) : z.corners === "round" ? "m" : undefined;
-  const common = { ...(inset ? { inset } : {}), ...(round ? { round } : {}), ...(z.paper === "under" ? { paper: "under" as const } : {}) };
+  // Lot 105 : un fond a lui aussi un contour (épaisseur, couleur) ; « false » (carte sans contour) n'est pas écrit.
+  const border = z.border && typeof z.border === "object" ? { border: { ...(z.border.width ? { width: z.border.width } : {}), ...(z.border.color ? { color: z.border.color } : {}) } } : {};
+  const common = { ...(inset ? { inset } : {}), ...(round ? { round } : {}), ...(z.paper === "under" ? { paper: "under" as const } : {}), ...border };
   if (z.wallpaper !== undefined) {
     return readBackground({ kind: "wallpaper", wallpaper: z.wallpaper, ...(z.color !== undefined ? { color: z.color } : {}), ...(z.size !== undefined ? { size: z.size } : {}), ...(z.opacity !== undefined ? { opacity: z.opacity } : {}), ...common }) ?? null;
   }
@@ -174,8 +177,7 @@ export function zoneInLayer(z: Zone, layer: ZoneLayer): Zone {
     void _m;
     return { ...rest, layer: "card", extent: z.extent ?? "full" };
   }
-  const { border: _b, paperOpacity: _p, ...rest } = z;
-  void _b;
+  const { paperOpacity: _p, ...rest } = z;
   void _p;
   return { ...rest, layer: "fond", extent: z.extent ?? "full", ...(z.paper === "over" ? { paper: undefined } : {}) } as Zone;
 }

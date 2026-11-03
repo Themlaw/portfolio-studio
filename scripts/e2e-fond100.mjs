@@ -529,7 +529,7 @@ async function contourCase(p, T, pub, { wall = false } = {}) {
     const shot0 = await markerShot(fr);
     const r0 = await markerRect(fr);
     let menu = await openMenu(fr, CTRL);
-    const row = menu.locator('[data-testid="fond-contour-row"]');
+    const row = sec(menu, "carte").locator('[data-testid="fond-contour-row"]');
     ok(`C1 [${label}] la ligne « Contour » est dans la section Carte, visible, jamais repliée, même sans carte`, (await sec(menu, "carte").locator('[data-testid="fond-contour-row"]').isVisible()) && (await row.evaluate((e) => !e.closest("details"))));
     ok(`C1 [${label}] Aucun / Fin / Moyen / Épais, « Aucun » coché au départ`, (await row.locator('[data-testid="fond-contour"] [role="radio"]').allTextContents()).map((t) => t.trim()).join("|") === "Aucun|Fin|Moyen|Épais" && (await row.locator('[data-contour="none"]').getAttribute("aria-checked")) === "true", (await row.innerText()).replace(/\s+/g, " "));
     await row.locator('[data-contour="medium"]').click();
@@ -586,7 +586,7 @@ async function contourCase(p, T, pub, { wall = false } = {}) {
     stats.contour = (stats.contour ?? 0) + 1;
     // Couleur : la pastille est la couleur du contour.
     menu = await openMenu(fr, CTRL);
-    const tok = menu.locator('[data-testid="fond-contour-row"] [data-testid="card-da-color"][data-token="primary"]');
+    const tok = sec(menu, "carte").locator('[data-testid="fond-contour-row"] [data-testid="card-da-color"][data-token="primary"]');
     const tokN = await tok.count();
     if (tokN) {
       const chip = await tok.locator(".cc-chip").evaluate((el) => getComputedStyle(el).backgroundColor);
@@ -596,7 +596,7 @@ async function contourCase(p, T, pub, { wall = false } = {}) {
       const pc = await fr.evaluate(CARD_PROBE);
       ok(`C5 [${label}] la pastille « Texte/Primaire » est EXACTEMENT la couleur du contour (${chip})`, same(pc?.bc ?? "", chip), `${pc?.bc} / ${chip}`);
     } else ok(`C5 [${label}] pastille primaire masquée (doublon ou confondue avec le fond de page) : le choix reste possible par « Par défaut »`, true);
-    const dups = await openMenu(fr, CTRL).then((m) => m.locator('[data-testid="fond-contour-row"] [data-testid="card-da-color"]').evaluateAll((els) => els.map((e) => getComputedStyle(e.querySelector(".cc-chip")).backgroundColor)));
+    const dups = await openMenu(fr, CTRL).then((m) => sec(m, "carte").locator('[data-testid="fond-contour-row"] [data-testid="card-da-color"]').evaluateAll((els) => els.map((e) => getComputedStyle(e.querySelector(".cc-chip")).backgroundColor)));
     ok(`C6 [${label}] aucune pastille en double ni invisible dans la ligne Contour`, new Set(dups).size === dups.length && dups.every((c) => !same(c, pageBg)), JSON.stringify([dups, pageBg]));
     // Public.
     ok(`C7 [${label}] publication`, await publishCurrent(p.id));
@@ -613,7 +613,7 @@ async function contourCase(p, T, pub, { wall = false } = {}) {
     // Retour à Aucun : plus rien.
     await openEditor(p.id);
     menu = await openMenu(await canvasFrame(), CTRL);
-    await menu.locator('[data-testid="fond-contour-row"] [data-contour="none"]').click();
+    await sec(menu, "carte").locator('[data-testid="fond-contour-row"] [data-contour="none"]').click();
     const back = await waitFor(() => { const pr = draftBlock(p.id, CTRL)?.props; return pr && pr.surface === undefined && pr.background === undefined; }, 30000);
     const fr2 = await canvasFrame();
     await page.keyboard.press("Escape");
@@ -829,12 +829,12 @@ if (run("C")) {
     const toile = await fr.evaluate(CARD_PROBE);
     ok("Cth2 toile = public pour le contour du thème", toile?.attr === "thin" && same(toile.bc, prim) && Math.abs(toile.bw - pp.bw) < 0.6, JSON.stringify([toile, pp]));
     let menu = await openMenu(fr, CTRL);
-    ok("Cth3 le menu dit « Contour du thème » et coche son épaisseur (Fin)", (await menu.locator('[data-testid="fond-contour-theme"]').isVisible()) && (await menu.locator('[data-contour="thin"]').getAttribute("aria-checked")) === "true", (await menu.locator('[data-testid="fond-contour-row"]').innerText()).replace(/\s+/g, " "));
-    await menu.locator('[data-contour="none"]').click();
+    ok("Cth3 le menu dit « Contour du thème » et coche son épaisseur (Fin)", (await sec(menu, "carte").locator('[data-testid="fond-contour-theme"]').isVisible()) && (await sec(menu, "carte").locator('[data-contour="thin"]').getAttribute("aria-checked")) === "true", (await sec(menu, "carte").locator('[data-testid="fond-contour-row"]').innerText()).replace(/\s+/g, " "));
+    await sec(menu, "carte").locator('[data-contour="none"]').click();
     ok("Cth4 « Aucun » retire le contour du thème pour CE bloc (border: false)", await waitFor(() => draftBlock(p.id, CTRL)?.props?.surface?.border === false, 30000));
     await sleep(900);
     ok("Cth4 … la toile n'a plus de contour", (await fr.evaluate(CARD_PROBE))?.bw === 0);
-    await menu.locator('[data-contour="thick"]').click();
+    await sec(menu, "carte").locator('[data-contour="thick"]').click();
     ok("Cth5 une épaisseur le REMPLACE (Épais)", await waitFor(() => draftBlock(p.id, CTRL)?.props?.surface?.border?.width === "thick", 30000));
     await menu.locator('[data-testid="fond-contour-theme-use"]').click();
     ok("Cth6 « Reprendre celui du thème » : plus de réglage propre, le contour du thème revient", (await waitFor(() => draftBlock(p.id, CTRL)?.props?.surface?.border === undefined, 30000)) && (await sleep(900), (await fr.evaluate(CARD_PROBE))?.attr === "thin"));

@@ -187,7 +187,7 @@ export const FromCanvasSchema = z.union([
   // Lot 75 (R4) : UNE écriture pour l'habillage d'un média (cadre, fond d'image, arrondi, panorama, lecture), tous conteneurs.
   z.object({ kind: z.literal("media-look"), target: MediaTargetSchema, patch: MediaPatchSchema }),
   // Entrées des collections (lot 22) : entrées choisies à la main (ajouter une page de collection, retirer, ordre).
-  z.object({ kind: z.literal("tile-op"), uid: Uid, op: z.enum(["add", "remove", "up", "down", "cover", "cover-clear"]), index: z.number().int().min(0).max(23).optional(), pageId: z.number().int().positive().optional() }),
+  z.object({ kind: z.literal("tile-op"), uid: Uid, op: z.enum(["add", "remove", "up", "down", "cover", "cover-clear", "mode-manual", "mode-auto"]), index: z.number().int().min(0).max(23).optional(), pageId: z.number().int().positive().optional() }),
   // Entrées des collections (lot 22) : taille des images, depuis la barre du bloc.
   z.object({ kind: z.literal("tile-size"), uid: Uid, size: z.enum(["small", "medium", "large"]) }),
   // Formulaire de contact : champs retirés, déplacés, ajoutés sur la toile.

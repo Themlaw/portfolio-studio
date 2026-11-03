@@ -222,17 +222,17 @@ try {
 
   // Vrais clics sur Charlie (témoin) : « Avec marge », tailles, coins, retour « Bord à bord ».
   let menu = await openFond("Charlie");
-  ok("C3 lot 100 : la fenêtre a deux sections ; la Carte est sur « Aucune », pas de ligne Marge", (await menu.locator('[data-testid="fond-section-carte"] [data-kind="none"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-testid="fond-inset"]').count()) === 0);
+  ok("C3 lot 100 : la fenêtre a deux sections ; la Carte est sur « Aucune », pas de ligne Marge", (await menu.locator('[data-testid="fond-section-carte"] [data-kind="none"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-testid="fond-section-carte"] [data-testid="fond-inset"]').count()) === 0);
   await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
   ok("C4 « Avec marge » : `inset: m` enregistré, rien d'autre ne change", await waitFor(() => JSON.stringify(bgOfDraft("Charlie")) === '{"kind":"color","color":"surface","inset":"m","paper":"under"}'), JSON.stringify(bgOfDraft("Charlie")));
   let m = await f.evaluate(MEASURE, "Charlie");
   ok("C5 aperçu immédiat : marge M de 24 px", near(m.marginL, 24) && m.attrs.inset === "m", JSON.stringify([m.marginL, m.attrs]));
-  await menu.locator('[data-testid="fond-inset"] [data-step="l"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-testid="fond-inset"] [data-step="l"]').click();
   ok("C6 « Grand » : `inset: l`, marge 48 px", (await waitFor(() => bgOfDraft("Charlie")?.inset === "l")) && near((await f.evaluate(MEASURE, "Charlie")).marginL, 48), JSON.stringify(bgOfDraft("Charlie")));
-  await menu.locator('[data-testid="fond-round"] [data-step="m"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-testid="fond-round"] [data-step="m"]').click();
   ok("C7 Coins « Moyen » : `round: m`, rayon 20 px", (await waitFor(() => bgOfDraft("Charlie")?.round === "m")) && near((await f.evaluate(MEASURE, "Charlie")).radius, 20), JSON.stringify(bgOfDraft("Charlie")));
   await page.screenshot({ path: path.join(SHOTS, "toile-fenetre-fond.png") });
-  await menu.locator('[data-testid="fond-round"] [data-step="none"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-testid="fond-round"] [data-step="none"]').click();
   ok("C8 Coins « Droits » : `round` retiré", (await waitFor(() => bgOfDraft("Charlie") && !("round" in bgOfDraft("Charlie")))) && (await f.evaluate(MEASURE, "Charlie")).radius === 0, JSON.stringify(bgOfDraft("Charlie")));
   await menu.locator('[data-testid="fond-section-fond"] [data-kind="color"]').click();
   ok("C9 lot 100 : poser un Fond (zone autour) ne touche pas la marge de la Carte", bgOfDraft("Charlie")?.inset === "l", JSON.stringify(bgOfDraft("Charlie")));
@@ -312,10 +312,10 @@ try {
   await bmenu.waitFor({ timeout: 20000 });
   await bmenu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
   const effective = () => (q("select draft_layout from projects where id = ?", PROJECT.id)[0].draft_layout ? JSON.parse(q("select draft_layout from projects where id = ?", PROJECT.id)[0].draft_layout) : layout);
-  ok("D5 planche : « Avec marge » enregistré dans le brouillon du projet", await waitFor(() => effective()[2]?.props?.background?.inset === "m"), JSON.stringify(effective()[2]?.props?.background));
-  await bmenu.locator('[data-testid="fond-inset"] [data-step="s"]').click();
-  await bmenu.locator('[data-testid="fond-round"] [data-step="l"]').click();
-  ok("D6 planche : Petit et coins Grand enregistrés", await waitFor(() => { const b = effective()[2]?.props?.background; return b?.inset === "s" && b?.round === "l"; }), JSON.stringify(effective()[2]?.props?.background));
+  ok("D5 planche : « Avec marge » enregistré dans le brouillon du projet", await waitFor(() => (effective()[2]?.props?.background?.card ?? effective()[2]?.props?.background)?.inset === "m"), JSON.stringify(effective()[2]?.props?.background));
+  await bmenu.locator('[data-testid="fond-section-carte"] [data-testid="fond-inset"] [data-step="s"]').click();
+  await bmenu.locator('[data-testid="fond-section-carte"] [data-testid="fond-round"] [data-step="l"]').click();
+  ok("D6 planche : Petit et coins Grand enregistrés", await waitFor(() => { const b0 = effective()[2]?.props?.background; const b = b0?.card ?? b0; return b?.inset === "s" && b?.round === "l"; }), JSON.stringify(effective()[2]?.props?.background));
   await page.keyboard.press("Escape");
   await settled();
   const gc2 = await f.evaluate((id) => {
@@ -323,7 +323,8 @@ try {
     const s = sect.getBoundingClientRect();
     return [...sect.querySelectorAll(".fond-bloc")].map((w) => ({ l: w.getBoundingClientRect().left - s.left, radius: parseFloat(getComputedStyle(w).borderTopLeftRadius) || 0 }));
   }, PROJECT.id);
-  ok("D7 toile, planche : le composant garde sa marge S (12 px) et ses coins L (36 px) après rechargement", near(gc2[2]?.l, 12) && near(gc2[2]?.radius, 36), JSON.stringify(gc2));
+  /* lot 105 : le témoin a un Fond ET une Carte : deux enveloppes (la Carte est le panneau `card` dans le Fond), la Carte est la dernière. */
+  ok("D7 toile, planche : le composant garde sa marge S (12 px) et ses coins L (36 px) après rechargement", near(gc2[gc2.length - 1]?.l, 12) && near(gc2[gc2.length - 1]?.radius, 36), JSON.stringify(gc2));
   await board.evaluate((el) => el.scrollIntoView({ block: "start" }));
   await sleep(500);
   await page.screenshot({ path: path.join(SHOTS, "toile-planche.png") });
