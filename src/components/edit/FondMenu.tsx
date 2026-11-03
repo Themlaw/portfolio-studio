@@ -47,7 +47,7 @@ import {
   type Surface,
 } from "@/themes/surface";
 import { CONTOUR_ONLY_CLEAR, freshZone, readFondCarte, setSlot, writeFondCarte, type Caps, type Slot } from "@/themes/fondcarte";
-import { isCustomColor, zoneColor, zoneExtent, zoneInLayer, zoneKind, zoneToSurface, zoneWithKind, type Zone, type ZoneMemo, type ZoneStored } from "@/themes/zone";
+import { isCustomColor, zoneColor, zoneExtent, zoneKind, zoneToSurface, zoneWithKind, type Zone, type ZoneMemo, type ZoneStored } from "@/themes/zone";
 
 import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";

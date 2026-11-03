@@ -610,7 +610,10 @@
 .surface-card[data-surface="on"] > .card-in > [class*="pt-[var(--section-gap)]"],
 .surface-card[data-surface="on"] > .card-in > .blk:not([data-pt]) > [class*="pt-[var(--section-gap)]"],
 .surface-card[data-surface="on"] > .card-in > .fond-bloc > .fond-in > [class*="pt-[var(--section-gap)]"],
-.surface-card[data-surface="on"] > .card-in > .fond-bloc > .fond-in > .blk:not([data-pt]) > [class*="pt-[var(--section-gap)]"] {
+.surface-card[data-surface="on"] > .card-in > .fond-bloc > .fond-in > .blk:not([data-pt]) > [class*="pt-[var(--section-gap)]"],
+/* Lot 105 : sur la toile, un fond éteint porte aussi son panneau intérieur (la Carte d'un composant, éteinte) : un niveau de plus, même règle. */
+.surface-card[data-surface="on"] > .card-in > .fond-bloc > .fond-in > .fond-bloc[data-fond-panel] > .fond-in > [class*="pt-[var(--section-gap)]"],
+.surface-card[data-surface="on"] > .card-in > .fond-bloc > .fond-in > .fond-bloc[data-fond-panel] > .fond-in > .blk:not([data-pt]) > [class*="pt-[var(--section-gap)]"] {
   padding-top: 0;
 }
 /* … et le premier élément de la section n'ajoute pas sa propre marge haute (titre, paragraphe) : rien ne s'ajoute au padding. */
