@@ -221,12 +221,10 @@ export default function SiteLookLayer({ headerSelected, dragging }: { headerSele
   const look = currentSiteLook();
   const size = dragSize ?? look.logo.size ?? LOGO_SIZE_DEFAULT;
   const brandRect = brand?.getBoundingClientRect();
-  const headerRect = document.querySelector<HTMLElement>(".site-header")?.getBoundingClientRect();
   const showHandle = Boolean(brand && brandRect && (headerSelected || overHeader || dragSize !== null || dragX !== null));
-  // « Centré » : ce qui sort de la barre est coupé, les poignées restent dans la barre.
-  const clipped = look.logo.align === "center" && headerRect;
-  const visTop = clipped && brandRect ? Math.max(brandRect.top, headerRect.top) : (brandRect?.top ?? 0);
-  const visBottom = clipped && brandRect ? Math.min(brandRect.bottom, headerRect.bottom) : (brandRect?.bottom ?? 0);
+  // Lot 106 : le logo tient toujours dans la barre (jamais coupé) : les poignées suivent sa boîte.
+  const visTop = brandRect?.top ?? 0;
+  const visBottom = brandRect?.bottom ?? 0;
   const xNow = dragX ?? look.logo.x ?? 0;
   const xb = xBounds(look.logo);
 

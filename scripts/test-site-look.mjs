@@ -10,6 +10,9 @@ import { readFileSync } from "node:fs";
 import {
   LOGO_ALIGNS,
   LOGO_ANCHORS,
+  LOGO_FITS,
+  LOGO_MARGINS,
+  LOGO_MOBILES,
   LOGO_X_MAX,
   LOGO_X_MIN,
   cleanLogo,
@@ -64,15 +67,15 @@ ok("styles : palette et logo gardés", JSON.stringify(cleanSiteStyles({ palette:
 /* ---- Feuille du logo --------------------------------------------------------------------------- */
 ok("logo : aucun réglage → aucune règle (rendu du thème)", logoCss(undefined) === "" && logoCss({}) === "" && logoCss({ mode: "fixed" }) === "");
 const fixed = logoCss({ size: 80 });
-ok("logo fixe : taille posée sur l'en-tête", fixed.includes(":root:root:root{--lg:80") && fixed.includes(":root:root:root .site-header{--lh:var(--lh-top)}"));
-ok("logo fixe : hauteur du logo ; la barre garde sa rangée naturelle (min-height), jamais celle du logo", fixed.includes(".site-signature{height:var(--lh)") && fixed.includes(".site-header-bar{min-height:calc(var(--bh) + 2*var(--bp))}") && !fixed.includes(".site-header-bar{height:"));
+ok("logo fixe : taille posée sur l'en-tête", fixed.includes(":root:root:root{--lg:80") && fixed.includes(":root:root:root .site-header{--lh:var(--lh-top);--bar:calc(var(--bh) + 2*var(--bp));--lm:0.25rem}"));
+ok("logo fixe (lot 106) : hauteur affichée plafonnée à la barre moins les marges ; la barre garde sa rangée naturelle (min-height = --bar), jamais celle du logo", fixed.includes(".site-header{--lhe:max(0px,min(var(--lh),calc(var(--bar) - 2*var(--lm))))}") && fixed.includes(".site-signature{height:var(--lhe)") && fixed.includes(".site-logo-img{height:var(--lhe);max-width:100%;object-fit:contain}") && fixed.includes(".site-header-bar{min-height:var(--bar)}") && !fixed.includes(".site-header-bar{height:"));
 ok("logo : mobile proportionnel et plafonné (24–64 px)", fixed.includes("clamp(24px,calc(var(--lg)*.75px),64px)"));
 ok("logo fixe : pas de réduction au défilement", !fixed.includes("[data-scrolled]"));
 const shrink = logoCss({ size: 120, mode: "shrink" });
 const hang = logoCss({ size: 120, mode: "overhang" });
 ok("logo : la page ne bouge pas (--header-h du thème gardé), rangée naturelle du nom, de la signature du kit", !fixed.includes("--header-h") && fixed.includes("--bh:1.125rem") && fixed.includes("[data-kit-signature]{--bh:2.25rem}") && fixed.includes("[data-kit-signature]{--bh:2.6rem}"));
 ok("logo réduit : état défilé posé par l'en-tête", shrink.includes("[data-scrolled]{--lh:var(--lh-min)}") && shrink.includes("--lh-min:max(24px,calc(var(--lh-top)*.6))"));
-ok("logo plus grand que la barre : il déborde dessous (marge basse négative), la mise en page ne suit que la rangée naturelle", fixed.includes(".site-brand{display:flex;align-items:center;height:var(--lh);margin-bottom:min(0px,calc(var(--bh) - var(--lh)))") && shrink.includes("margin-bottom:min(0px,calc(var(--bh) - var(--lh)))"));
+ok("logo plus grand que la barre (lot 106) : il ne déborde plus ni ne se coupe ; sa boîte ne pèse que la rangée naturelle (marges haute et basse égales), pas de clip-path", fixed.includes(".site-brand{display:flex;align-items:center;height:var(--lhe);margin-block:calc((var(--bh) - var(--lhe))/2)") && !fixed.includes("clip-path:inset") && !fixed.includes("margin-bottom:min(0px") && shrink.includes("margin-block:calc((var(--bh) - var(--lhe))/2)"));
 ok("logo : l'ancien « overhang » donne la même feuille que « Fixe »", hang === logoCss({ size: 120 }) && !hang.includes("[data-scrolled]"));
 ok("logo : le menu ne passe pas à la ligne (la barre ne grandit pas)", fixed.includes("nav a,") && fixed.includes("white-space:nowrap"));
 ok("logo : transitions seulement sans demande de mouvement réduit", [fixed, shrink, hang].every((c) => { const at = c.indexOf("@media (prefers-reduced-motion:no-preference)"); return at > 0 && c.indexOf("transition") > at && !c.slice(0, at).includes("transition"); }));
@@ -82,33 +85,49 @@ ok("logo : valeur invalide → feuille vide", logoCss({ size: 9999 }) === "" && 
 ok("styles de rôle inchangés : la feuille des rôles ne porte pas le logo", !siteStylesCss({ logo: { size: 90 }, palette: { bg: "#ffffff" } }).includes("--lg"));
 
 
-/* ---- Lot 84 : place verticale et position horizontale du logo ------------------------------------------- */
+/* ---- Lots 84 et 106 : place verticale, position horizontale, ajustement, marges, mobile ----------------------- */
 {
-  // Parité avec la v0.31.0 : sans align, x ni anchor, la feuille est identique OCTET pour OCTET à celle publiée (fixture générée par le code de rel/v0310).
+  // Rétrocompatibilité (lot 106) : la feuille v0.31.0 (fixture générée par le code de rel/v0310) n'est plus reproduite octet pour octet (le logo est
+  // maintenant centré et jamais coupé), mais : sans réglage elle reste VIDE ; les variables de taille (prologue : --lg, --bp, --bh, --lh-top, --lh-min,
+  // kit, grand écran, réduction au défilement) restent identiques à l'octet ; toute ancienne donnée est lue sans erreur.
   const legacy = JSON.parse(readFileSync(new URL("./lib/logo-css-v031.json", import.meta.url), "utf8"));
-  ok("lot 84 : fixture v0.31 lue (15 réglages)", legacy.length === 15);
-  for (const { logo, css } of legacy) ok(`lot 84 : parité v0.31 de ${JSON.stringify(logo)} (feuille identique)`, logoCss(logo) === css);
-  ok("lot 84 : les valeurs par défaut explicites (top, 0, gauche) sont la v0.31 aussi", logoCss({ size: 120, align: "top", x: 0, anchor: "left" }) === logoCss({ size: 120 }) && cleanLogo({ align: "top", x: 0, anchor: "left" }) === undefined);
-  ok("lot 84 : trois places verticales, trois ancrages", LOGO_ALIGNS.join() === "top,center,grow" && LOGO_ANCHORS.join() === "left,center,right");
-  ok("lot 84 : schéma — valeurs inconnues et hors bornes refusées", !LogoSchema.safeParse({ align: "bottom" }).success && !LogoSchema.safeParse({ anchor: "middle" }).success && !LogoSchema.safeParse({ x: LOGO_X_MAX + 1 }).success && !LogoSchema.safeParse({ x: LOGO_X_MIN - 1 }).success && !LogoSchema.safeParse({ x: 1.5 }).success && LogoSchema.safeParse({ x: LOGO_X_MIN, anchor: "right", align: "grow" }).success);
-  ok("lot 84 : forme canonique — top / 0 / left jamais écrits, le reste gardé", JSON.stringify(cleanLogo({ size: 80, align: "center", x: 30, anchor: "right" })) === JSON.stringify({ size: 80, align: "center", x: 30, anchor: "right" }) && JSON.stringify(cleanLogo({ align: "grow" })) === JSON.stringify({ align: "grow" }) && JSON.stringify(cleanLogo({ x: -12 })) === JSON.stringify({ x: -12 }));
+  ok("lot 106 : fixture v0.31 lue (15 réglages)", legacy.length === 15);
+  const prologue = (css) => css.split("\n").slice(0, 3).join("\n");
+  const shrinkRule = (css) => css.split("\n").filter((r) => r.includes("[data-scrolled]{--lh:var(--lh-min)}"));
+  for (const { logo, css } of legacy) {
+    const now = logoCss(logo);
+    ok(`lot 106 : ancienne donnée ${JSON.stringify(logo)} lue sans erreur (schéma, forme canonique)`, LogoSchema.safeParse(logo).success && (cleanLogo(logo) === undefined) === (css === ""));
+    ok(`lot 106 : ancienne donnée ${JSON.stringify(logo)} : sans réglage la feuille reste vide, sinon tailles v0.31 identiques à l'octet (prologue, réduction au défilement)`, css === "" ? now === "" : prologue(now) === prologue(css) && JSON.stringify(shrinkRule(now)) === JSON.stringify(shrinkRule(css)));
+    ok(`lot 106 : ancienne donnée ${JSON.stringify(logo)} : plus de débordement ni de coupe`, css === "" || (now.includes("--lhe") && !now.includes("clip-path") && !now.includes("margin-bottom:min(0px")));
+  }
+  ok("lot 106 : les valeurs par défaut explicites (center, 0, gauche, contain, small, reduced) sont le rendu de base", logoCss({ size: 120, align: "center", x: 0, anchor: "left", fit: "contain", margin: "small", mobile: "reduced" }) === logoCss({ size: 120 }) && cleanLogo({ align: "center", x: 0, anchor: "left", fit: "contain", margin: "small", mobile: "reduced" }) === undefined);
+  ok("lot 106 : places verticales, ancrages, ajustements, marges, mobiles", LOGO_ALIGNS.join() === "center,top,bottom,grow" && LOGO_ANCHORS.join() === "left,center,right" && LOGO_FITS.join() === "contain,cover" && LOGO_MARGINS.join() === "none,small,normal" && LOGO_MOBILES.join() === "reduced,same");
+  ok("lot 106 : schéma — valeurs inconnues et hors bornes refusées", !LogoSchema.safeParse({ align: "middle" }).success && !LogoSchema.safeParse({ fit: "fill" }).success && !LogoSchema.safeParse({ margin: "huge" }).success && !LogoSchema.safeParse({ mobile: "none" }).success && !LogoSchema.safeParse({ anchor: "middle" }).success && !LogoSchema.safeParse({ x: LOGO_X_MAX + 1 }).success && !LogoSchema.safeParse({ x: LOGO_X_MIN - 1 }).success && !LogoSchema.safeParse({ x: 1.5 }).success && LogoSchema.safeParse({ x: LOGO_X_MIN, anchor: "right", align: "bottom", fit: "cover", margin: "none", mobile: "same" }).success);
+  ok("lot 106 : forme canonique — center / 0 / left / contain / small / reduced jamais écrits, le reste gardé", JSON.stringify(cleanLogo({ size: 80, align: "top", x: 30, anchor: "right" })) === JSON.stringify({ size: 80, align: "top", x: 30, anchor: "right" }) && JSON.stringify(cleanLogo({ align: "grow" })) === JSON.stringify({ align: "grow" }) && JSON.stringify(cleanLogo({ x: -12 })) === JSON.stringify({ x: -12 }) && JSON.stringify(cleanLogo({ fit: "cover", margin: "none", mobile: "same", align: "bottom" })) === JSON.stringify({ align: "bottom", fit: "cover", margin: "none", mobile: "same" }) && JSON.stringify(cleanLogo({ margin: "normal" })) === JSON.stringify({ margin: "normal" }));
   const base = logoCss({ size: 120 });
   const center = logoCss({ size: 120, align: "center" });
+  const top = logoCss({ size: 120, align: "top" });
+  const bottom = logoCss({ size: 120, align: "bottom" });
   const grow = logoCss({ size: 120, align: "grow" });
-  ok("lot 84 centré : la feuille v0.31 est gardée, les règles s'y ajoutent", center.startsWith(base.slice(0, base.indexOf("@media (prefers-reduced-motion"))) && center.length > base.length);
-  ok("lot 84 centré : marges haute et basse égales (boîte = la rangée), logo coupé aux limites de la barre (clip-path), menu téléphone sans réserve", center.includes("margin-block:min(0px,calc((var(--bh) - var(--lh))/2))") && center.includes("clip-path:inset(max(0px,calc((var(--lh) - var(--bh))/2 - var(--bp)))") && center.includes("#nav-mobile{padding-top:0}"));
-  ok("lot 84 centré : la barre garde sa rangée naturelle (la bande dessous ne bouge pas)", center.includes(".site-header-bar{min-height:calc(var(--bh) + 2*var(--bp))}") && !center.includes("--lh-top)) + 2*var(--bp))"));
-  ok("lot 84 « La barre s'agrandit » : barre = logo (réglé, pas défilé) + la marge du thème ; plus de débordement", grow.includes(".site-header-bar{min-height:calc(max(var(--bh),var(--lh-top)) + 2*var(--bp))}") && grow.includes(".site-brand{margin-block:0}") && !grow.includes("clip-path:inset"));
+  ok("lot 106 centré (anciennes données « center » comprises) = rendu de base : centré, entier, sans coupe", center === base && !center.includes("--ly") && !center.includes("clip-path"));
+  ok("lot 106 haut / bas : même boîte, décalée (--ly) jusqu'au bord de la barre à la marge près ; aucune coupe", top.includes("--ly:calc(1*(var(--lm) + var(--lhe)/2 - var(--bar)/2))") && bottom.includes("--ly:calc(-1*(var(--lm) + var(--lhe)/2 - var(--bar)/2))") && top.includes(".site-brand{translate:0 var(--ly,0px)}") && !top.includes("clip-path") && !bottom.includes("clip-path"));
+  ok("lot 106 : la barre garde sa rangée naturelle (la bande dessous ne bouge pas) en centré, haut et bas", [center, top, bottom].every((c) => c.includes(".site-header-bar{min-height:var(--bar)}")));
+  ok("lot 84 « La barre s'agrandit » (lot 106 : marges) : barre = logo (réglé, pas défilé) + 2 marges (celles du thème par défaut) ; plus de débordement ; logo non plafonné", grow.includes(".site-header-bar{min-height:calc(max(var(--bh),var(--lh-top)) + 2*var(--lm))}") && grow.includes("margin-block:calc(var(--lm) - var(--bp))") && grow.includes("--lm:var(--bp)") && grow.includes("{--lhe:var(--lh)}") && !grow.includes("clip-path:inset"));
   const shrinkGrow = logoCss({ size: 120, mode: "shrink", align: "grow" });
   ok("lot 84 « La barre s'agrandit » + réduit au défilement : la barre suit la taille du haut (la page ne saute pas)", shrinkGrow.includes("[data-scrolled]{--lh:var(--lh-min)}") && shrinkGrow.includes("max(var(--bh),var(--lh-top))"));
+  const cover = logoCss({ size: 60, fit: "cover" });
+  ok("lot 106 : « Remplir la hauteur » : toute la hauteur de la barre, object-fit: cover, le défaut reste contain", cover.includes("{--lhe:var(--bar)}") && cover.includes("object-fit:cover") && base.includes("object-fit:contain") && !base.includes("object-fit:cover"));
+  ok("lot 106 : marges — aucune, petite (défaut), normale", logoCss({ margin: "none" }).includes("--lm:0px") && base.includes("--lm:0.25rem") && logoCss({ margin: "normal" }).includes("--lm:0.75rem"));
+  ok("lot 106 : mobile « Même logo » : la taille du grand écran aussi sur téléphone ; par défaut ×0,75", logoCss({ size: 60, mobile: "same" }).split("\n").some((r) => r === ":root:root:root{--lh-top:calc(var(--lg)*1px)}") && !logoCss({ size: 60 }).split("\n").some((r) => r === ":root:root:root{--lh-top:calc(var(--lg)*1px)}"));
   const moved = logoCss({ size: 60, x: 40 });
   ok("lot 84 position : décalage ×0,75 et 120 px au plus sur téléphone, entier en px sur grand écran, plafond mesuré lu", moved.includes("--lx:40") && moved.includes("clamp(-120px,calc(var(--lx)*.75px),120px)") && moved.includes("@media (min-width:48rem){:root:root:root{--lxs:calc(var(--lx)*1px)}}") && moved.includes("translate:clamp(var(--lx-lo,-1rem),calc(0px + var(--lxs)),var(--lx-hi,"));
+  ok("lot 106 : position + haut : le décalage vertical s'ajoute au décalage horizontal (un seul `translate`)", logoCss({ size: 60, x: 40, align: "bottom" }).includes(") var(--ly,0px)}"));
   ok("lot 84 position : ancrage centre et droite lisent les marges mesurées", logoCss({ anchor: "center" }).includes("calc(var(--lx-mid,0px) + var(--lxs))") && logoCss({ anchor: "right", x: -10 }).includes("calc(var(--lx-hi,0px) + var(--lxs))") && logoCss({ anchor: "right", x: -10 }).includes("--lx:-10"));
-  ok("lot 84 : transitions du décalage et de la place seulement sans demande de mouvement réduit", [center, grow, moved].every((c) => { const at = c.lastIndexOf("@media (prefers-reduced-motion:no-preference)"); return at > 0 && c.indexOf("translate .5s") > at; }));
-  ok("lot 84 : jamais de « < » ni de valeur libre", ![center, grow, moved].some((c) => c.includes("<")) && logoCss({ align: "x;}", x: 1 }) === "" && logoCss({ x: 99999 }) === "");
-  ok("lot 84 : protocole — site-look porte align, x et anchor ; valeurs hors schéma refusées", FromCanvasSchema.safeParse({ kind: "site-look", palette: {}, logo: { align: "center", x: 30, anchor: "center" } }).success && ToCanvasSchema.safeParse({ kind: "site-look", palette: {}, logo: { align: "grow" } }).success && !FromCanvasSchema.safeParse({ kind: "site-look", palette: {}, logo: { x: 5000 } }).success && !FromCanvasSchema.safeParse({ kind: "site-look", palette: {}, logo: { align: "autre" } }).success);
-  ok("lot 84 : snapshot du site porte les nouveaux champs", SiteSnapSchema.safeParse({ identity: { name: { fr: "A", en: "" }, role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } }, nav: [], socials: [], styles: { logo: { size: 90, align: "center", x: 12 } } }).success);
-  // Retour à la v0.31.0 : sa LogoSchema est stricte, elle refuserait ces champs (voir le rapport).
+  ok("lot 84 : transitions du décalage et de la place seulement sans demande de mouvement réduit", [top, bottom, moved].every((c) => { const at = c.lastIndexOf("@media (prefers-reduced-motion:no-preference)"); return at > 0 && c.indexOf("translate .5s") > at; }) && [grow, center].every((c) => c.indexOf("transition") > c.indexOf("@media (prefers-reduced-motion:no-preference)")));
+  ok("lot 84 : jamais de « < » ni de valeur libre", ![center, top, grow, moved, cover].some((c) => c.includes("<")) && logoCss({ align: "x;}", x: 1 }) === "" && logoCss({ x: 99999 }) === "" && logoCss({ margin: "1px;}" }) === "");
+  ok("lot 84 : protocole — site-look porte align, x, anchor, fit, margin, mobile ; valeurs hors schéma refusées", FromCanvasSchema.safeParse({ kind: "site-look", palette: {}, logo: { align: "bottom", x: 30, anchor: "center", fit: "cover", margin: "none", mobile: "same" } }).success && ToCanvasSchema.safeParse({ kind: "site-look", palette: {}, logo: { align: "grow" } }).success && !FromCanvasSchema.safeParse({ kind: "site-look", palette: {}, logo: { x: 5000 } }).success && !FromCanvasSchema.safeParse({ kind: "site-look", palette: {}, logo: { align: "autre" } }).success && !FromCanvasSchema.safeParse({ kind: "site-look", palette: {}, logo: { fit: "autre" } }).success);
+  ok("lot 84 : snapshot du site porte les nouveaux champs", SiteSnapSchema.safeParse({ identity: { name: { fr: "A", en: "" }, role: { fr: "", en: "" }, email: "", credit: { fr: "", en: "" } }, nav: [], socials: [], styles: { logo: { size: 90, align: "center", x: 12, fit: "cover", margin: "normal", mobile: "same" } } }).success);
+  // Retour à la v0.33.0 : sa LogoSchema est stricte, elle refuserait fit, margin, mobile et align « bottom » (voir le rapport).
 }
 
 /* ---- Palette du site sur les presets --------------------------------------------------------------- */

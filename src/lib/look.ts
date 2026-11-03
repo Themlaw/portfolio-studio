@@ -760,18 +760,34 @@ export const LOGO_MODE_LABELS: Record<(typeof LOGO_MODES)[number], string> = {
   shrink: "Grand en haut, réduit au défilement",
 };
 /**
- * Place du logo dans la hauteur de la barre (lot 84). « top » (jamais écrit) = le rendu d'avant : le logo part du haut de la rangée et
- * un grand logo déborde sous la barre. « center » : le logo est centré sur la hauteur de la barre ; trop grand, il dépasse autant en
- * haut qu'en bas et ce qui sort de la barre est COUPÉ : la bande d'images dessous ne bouge pas. « grow » : la barre prend la hauteur
- * du logo (plus la même marge qu'au thème) et le logo y est centré.
+ * Place du logo dans la hauteur de la barre (lots 84 puis 106). Le logo tient TOUJOURS dans la barre, entier : sa hauteur est
+ * plafonnée à celle de la barre moins ses marges (`margin`), sans jamais être coupé ni déborder sur ce qui suit.
+ * « center » (défaut, jamais écrit) : centré sur la hauteur de la barre. « top » / « bottom » : collé en haut / en bas de la barre
+ * (à la marge près). « grow » : la barre prend la hauteur du logo (plus ses marges, ou celles du thème sans réglage) et le logo y est centré.
+ * Avant le lot 106, « top » était le défaut : le logo partait du haut de la rangée et débordait sous la barre ; « center » le coupait
+ * aux limites de la barre. Les anciennes données restent lues : une valeur absente ou « center » donne le logo centré.
  */
-export const LOGO_ALIGNS = ["top", "center", "grow"] as const;
+export const LOGO_ALIGNS = ["center", "top", "bottom", "grow"] as const;
 export type LogoAlign = (typeof LOGO_ALIGNS)[number];
 export const LOGO_ALIGN_LABELS: Record<LogoAlign, string> = {
-  top: "En haut, déborde dessous",
   center: "Centré dans la barre",
+  top: "En haut de la barre",
+  bottom: "En bas de la barre",
   grow: "La barre s'agrandit",
 };
+/** Ajustement dans sa boîte (lot 106) : « contain » (défaut, jamais écrit) = le logo entier ; « cover » = remplit toute la hauteur de la barre (marges ignorées), rogné sur les côtés s'il est très large. */
+export const LOGO_FITS = ["contain", "cover"] as const;
+export type LogoFit = (typeof LOGO_FITS)[number];
+export const LOGO_FIT_LABELS: Record<LogoFit, string> = { contain: "Logo entier", cover: "Remplir la hauteur" };
+/** Marges verticales autour du logo (lot 106) : « small » (défaut, jamais écrit) = 0,25 rem ; « none » = aucune ; « normal » = 0,75 rem. */
+export const LOGO_MARGINS = ["none", "small", "normal"] as const;
+export type LogoMargin = (typeof LOGO_MARGINS)[number];
+export const LOGO_MARGIN_LABELS: Record<LogoMargin, string> = { none: "Aucune", small: "Petites", normal: "Normales" };
+export const LOGO_MARGIN_CSS: Record<LogoMargin, string> = { none: "0px", small: "0.25rem", normal: "0.75rem" };
+/** Sur téléphone (lot 106) : « reduced » (défaut, jamais écrit) = la taille ×0,75 d'avant ; « same » = la même taille qu'au grand écran (toujours dans la barre). */
+export const LOGO_MOBILES = ["reduced", "same"] as const;
+export type LogoMobile = (typeof LOGO_MOBILES)[number];
+export const LOGO_MOBILE_LABELS: Record<LogoMobile, string> = { reduced: "Logo réduit", same: "Même logo" };
 /**
  * Position horizontale (lot 84) : `anchor` = d'où l'on part (bord gauche = le rendu d'avant, centre de la page, bord droit libre avant
  * le menu), `x` = décalage en px à partir de là (grand écran ; téléphone : ×0,75, au plus 120 px). Le logo ne passe jamais sous le menu
@@ -791,6 +807,9 @@ export const LogoSchema = z.strictObject({
   align: z.enum(LOGO_ALIGNS).optional(),
   x: z.number().int().min(LOGO_X_MIN).max(LOGO_X_MAX).optional(),
   anchor: z.enum(LOGO_ANCHORS).optional(),
+  fit: z.enum(LOGO_FITS).optional(),
+  margin: z.enum(LOGO_MARGINS).optional(),
+  mobile: z.enum(LOGO_MOBILES).optional(),
 });
 export type Logo = z.infer<typeof LogoSchema>;
 
@@ -819,9 +838,12 @@ export function cleanLogo(l: Logo | undefined): Logo | undefined {
   if (l.size !== undefined) out.size = l.size;
   if (l.mode === "shrink") out.mode = l.mode;
   if (l.mediaId !== undefined) out.mediaId = l.mediaId;
-  if (l.align === "center" || l.align === "grow") out.align = l.align;
+  if (l.align === "top" || l.align === "bottom" || l.align === "grow") out.align = l.align;
   if (l.x !== undefined && l.x !== 0) out.x = l.x;
   if (l.anchor === "center" || l.anchor === "right") out.anchor = l.anchor;
+  if (l.fit === "cover") out.fit = l.fit;
+  if (l.margin === "none" || l.margin === "normal") out.margin = l.margin;
+  if (l.mobile === "same") out.mobile = l.mobile;
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -856,11 +878,12 @@ export function siteStylesCss(styles: SiteStyles | undefined, palette?: CardPale
 }
 
 /**
- * Feuille du logo (lot 17f, refaite au lot 68). Hauteur `--lh` : la taille réglée (mobile : ×0,75, entre 24 et 64 px).
- * La hauteur de la BARRE ne dépend plus de celle du logo : elle garde la hauteur qu'elle avait sans réglage (`--bh`, la rangée
- * naturelle : nom en texte, signature du kit ou image), quelle que soit la taille choisie. Un logo plus grand que cette rangée
- * déborde SOUS la barre, par-dessus le contenu (sa place dans la mise en page est la rangée naturelle : marge basse négative) ;
- * un logo plus petit est centré dans la rangée. Le contenu ne bouge jamais.
+ * Feuille du logo (lot 17f, refaite aux lots 68 et 106). Taille réglée `--lh` (mobile : ×0,75 entre 24 et 64 px, sauf « Même logo »).
+ * Lot 106 : le logo est TOUJOURS entier dans la barre. Sa hauteur affichée `--lhe` = min(taille réglée, hauteur de la barre `--bar`
+ * moins deux marges `--lm`) : jamais coupé, jamais de débordement sur le contenu, proportions gardées (`object-fit: contain`).
+ * La barre garde sa hauteur naturelle (`--bar` = rangée du thème `--bh` + deux marges `--bp`) ; la boîte du logo ne pèse que la rangée dans la mise en page
+ * (marges haute ET basse égales, négatives si le logo est plus grand) : centrée sur la barre, le contenu ne bouge pas. « top » / « bottom » la
+ * décalent (`--ly`) jusqu'au bord de la barre. « grow » : la barre prend la hauteur du logo (`--lh-top`) plus ses marges.
  * « shrink » : au défilement (`data-scrolled` sur l'en-tête, posé par SiteHeader) le logo passe à 60 % (24 px au moins).
  * Les transitions n'existent que si l'utilisateur ne demande pas moins de mouvement.
  * Posée AVANT les styles de rôle : une taille réglée sur « Nom du site » passe devant celle du logo.
@@ -872,62 +895,59 @@ export function logoCss(logo: Logo | undefined): string {
   const l = cleanLogo(parsed.data);
   if (!l) return "";
   const size = l.size ?? LOGO_SIZE_DEFAULT;
+  const align = l.align ?? "center";
+  const grow = align === "grow";
+  const cover = l.fit === "cover";
   const H = `${WIN} .site-header`;
+  // Marge : réglée, sinon 0,25 rem (barre fixe) ou celle du thème (« La barre s'agrandit », comme avant).
+  const lm = l.margin ? LOGO_MARGIN_CSS[l.margin] : grow ? "var(--bp)" : LOGO_MARGIN_CSS.small;
   const rules = [
     // --bh : rangée naturelle de l'en-tête sans réglage (nom en texte 1,125 / 1,25 rem ; signature du kit 2,25 / 2,6 rem).
     `${WIN}{--lg:${size};--bp:1rem;--bh:1.125rem;--lh-top:clamp(24px,calc(var(--lg)*.75px),64px);--lh-min:max(24px,calc(var(--lh-top)*.6))}`,
     `${WIN}[data-kit-signature]{--bh:2.25rem}`,
     `@media (min-width:48rem){${WIN}{--bp:1.25rem;--bh:1.25rem;--lh-top:calc(var(--lg)*1px)}${WIN}[data-kit-signature]{--bh:2.6rem}}`,
-    `${H}{--lh:var(--lh-top)}`,
   ];
+  // « Même logo » sur téléphone : la taille du grand écran (la barre la plafonne).
+  if (l.mobile === "same") rules.push(`${WIN}{--lh-top:calc(var(--lg)*1px)}`);
+  rules.push(`${H}{--lh:var(--lh-top);--bar:calc(var(--bh) + 2*var(--bp));--lm:${lm}}`);
   if (l.mode === "shrink") rules.push(`${H}[data-scrolled]{--lh:var(--lh-min)}`);
+  // Hauteur affichée : plafonnée à la barre (« Remplir » : toute la hauteur de la barre) ; « grow » : la taille réglée, la barre s'adapte.
+  const lhe = grow ? "var(--lh)" : cover ? "var(--bar)" : "max(0px,min(var(--lh),calc(var(--bar) - 2*var(--lm))))";
   rules.push(
-    // La barre ne descend jamais sous sa rangée naturelle ; le logo, lui, n'y compte que pour cette rangée (marge basse négative s'il est plus grand).
-    // Lot 67 (filet de sécurité : la barre passe à la ligne) cède ici au lot 68 : avec un logo réglé, la barre garde sa hauteur, le nom en texte cède de la place.
-    `${H} .site-header-bar{min-height:calc(var(--bh) + 2*var(--bp))}`,
+    `${H}{--lhe:${lhe}}`,
+    // La barre ne descend jamais sous sa rangée naturelle ; « grow » la fait monter à la hauteur du logo (réglée, pas celle du défilement : la page ne saute pas).
+    `${H} .site-header-bar{min-height:${grow ? "calc(max(var(--bh),var(--lh-top)) + 2*var(--lm))" : "var(--bar)"}}`,
     `${H} .site-header-bar,${H} nav{flex-wrap:nowrap}`,
-    `${WIN} .site-brand{display:flex;align-items:center;height:var(--lh);margin-bottom:min(0px,calc(var(--bh) - var(--lh)));min-width:0;max-width:60vw;font-size:calc(var(--lh)*.5)}`,
+    // Boîte du logo : ne pèse que la rangée naturelle dans la mise en page (marges égales, négatives si elle est plus haute), « grow » : sa vraie hauteur.
+    `${WIN} .site-brand{display:flex;align-items:center;height:var(--lhe);margin-block:${grow ? "calc(var(--lm) - var(--bp))" : "calc((var(--bh) - var(--lhe))/2)"};min-width:0;max-width:60vw;font-size:calc(var(--lhe)*.5)}`,
     // Le menu ne passe jamais à la ligne (la barre ne grandirait pas pour autant, mais il se lirait mal) : c'est le nom en texte qui cède de la place.
     `${H} nav,${H} .site-header-bar>div{flex-shrink:0}${H} nav a,${H} button{white-space:nowrap}`,
-    // Menu téléphone ouvert : le logo reste visible au-dessus du panneau, dont les liens commencent sous lui.
-    `${WIN} .site-brand{position:relative;z-index:1}${H} #nav-mobile{padding-top:max(0px,calc(var(--lh) - var(--bh)))}`,
+    `${WIN} .site-brand{position:relative;z-index:1}`,
     `${WIN} .site-brand-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`,
-    `${WIN} .site-signature{height:var(--lh);max-width:100%}`,
-    `${WIN} .site-logo-img{height:var(--lh);max-width:100%}`,
-    `@media (prefers-reduced-motion:no-preference){${WIN} .site-signature,${WIN} .site-logo-img{transition:height .5s var(--ease-soft)}${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft),margin-bottom .5s var(--ease-soft)}}`,
+    `${WIN} .site-signature{height:var(--lhe);max-width:100%}`,
+    `${WIN} .site-logo-img{height:var(--lhe);max-width:100%;object-fit:${cover ? "cover" : "contain"}}`,
+    `@media (prefers-reduced-motion:no-preference){${WIN} .site-signature,${WIN} .site-logo-img{transition:height .5s var(--ease-soft)}${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft),margin .5s var(--ease-soft)}${H} .site-header-bar{transition:min-height .5s var(--ease-soft)}}`,
   );
-  // Lot 84 : place verticale et position horizontale. Rien de tout cela sans `align` ni `x` ni `anchor` : le rendu reste celui de la v0.31.
-  const align = l.align ?? "top";
-  const placed = align !== "top" || l.x !== undefined || l.anchor !== undefined;
-  if (align === "center") {
-    // Marges haute ET basse négatives : la boîte du logo ne pèse que la rangée (--bh) dans la barre, centrée sur elle, et le logo dépasse
-    // autant en haut qu'en bas. Ce qui sort de la barre (marge --bp de chaque côté de la rangée) est coupé, la bande dessous ne bouge pas.
-    rules.push(
-      `${WIN} .site-brand{margin-block:min(0px,calc((var(--bh) - var(--lh))/2));clip-path:inset(max(0px,calc((var(--lh) - var(--bh))/2 - var(--bp))) -4px)}`,
-      // Rien ne dépasse sous la barre : le menu téléphone n'a plus à lui laisser de place.
-      `${H} #nav-mobile{padding-top:0}`,
-    );
-  } else if (align === "grow") {
-    // La barre prend la hauteur du logo GRAND (réglée, pas celle du défilement : « shrink » ne fait donc pas sauter la page) plus la marge du thème.
-    rules.push(
-      `${H} .site-header-bar{min-height:calc(max(var(--bh),var(--lh-top)) + 2*var(--bp))}`,
-      `${WIN} .site-brand{margin-block:0}`,
-      `${H} #nav-mobile{padding-top:0}`,
-    );
+  // Décalage vertical vers le bord de la barre (« top » / « bottom » ; la boîte est centrée sur la barre sans lui).
+  const vertical = align === "top" || align === "bottom";
+  if (vertical) {
+    const sign = align === "top" ? "" : "-";
+    rules.push(`${H}{--ly:calc(${sign}1*(var(--lm) + var(--lhe)/2 - var(--bar)/2))}`);
   }
-  if (l.x !== undefined || l.anchor !== undefined) {
+  const moved = l.x !== undefined || l.anchor !== undefined;
+  if (moved) {
     const base = l.anchor === "center" ? "var(--lx-mid,0px)" : l.anchor === "right" ? "var(--lx-hi,0px)" : "0px";
     rules.push(
       // Décalage : ×0,75 et au plus 120 px sur téléphone (comme la taille). Le plafond (menu, bord de l'écran) vient des variables mesurées par SiteHeader.
       `${WIN}{--lx:${l.x ?? 0};--lxs:clamp(-${LOGO_X_MOBILE_CAP}px,calc(var(--lx)*.75px),${LOGO_X_MOBILE_CAP}px)}`,
       `@media (min-width:48rem){${WIN}{--lxs:calc(var(--lx)*1px)}}`,
-      `${WIN} .site-brand{translate:clamp(var(--lx-lo,-1rem),calc(${base} + var(--lxs)),var(--lx-hi,max(0px,min(var(--lxs),10vw)))) 0}`,
+      `${WIN} .site-brand{translate:clamp(var(--lx-lo,-1rem),calc(${base} + var(--lxs)),var(--lx-hi,max(0px,min(var(--lxs),10vw)))) ${vertical ? "var(--ly,0px)" : "0"}}`,
     );
+  } else if (vertical) {
+    rules.push(`${WIN} .site-brand{translate:0 var(--ly,0px)}`);
   }
-  if (placed) {
-    rules.push(
-      `@media (prefers-reduced-motion:no-preference){${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft),margin .5s var(--ease-soft),clip-path .5s var(--ease-soft),translate .5s var(--ease-soft)}${H} .site-header-bar{transition:min-height .5s var(--ease-soft)}}`,
-    );
+  if (moved || vertical) {
+    rules.push(`@media (prefers-reduced-motion:no-preference){${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft),margin .5s var(--ease-soft),translate .5s var(--ease-soft)}}`);
   }
   return rules.join("\n");
 }
