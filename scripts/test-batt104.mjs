@@ -26,7 +26,8 @@ const ok = (label, cond, detail = "") => {
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const tmp = mkdtempSync(path.join(os.tmpdir(), "pf-test-batt104-"));
-const BASE_PORT = 47000 + Math.floor(Math.random() * 1500);
+// Hors de la plage éphémère du noyau (32768-60999) : un port sortant en cours d usage ferait sauter un bloc.
+const BASE_PORT = 20000 + Math.floor(Math.random() * 9000);
 
 /* ---- A. allocateur ---- */
 {
@@ -83,6 +84,20 @@ const BASE_PORT = 47000 + Math.floor(Math.random() * 1500);
   ok("A12 13e allocation → code 1 (plage épuisée)", extra.code === 1);
   for (const p of ports) release(p, 8, dir4);
   ok("A13 CLI release → plus de verrou", list(dir4).length === 0);
+
+  // Sur-souscription : 60 processus simultanés pour 12 blocs → exactement 12 réussites, tous distincts (régression : un verrou
+  // lu vide pendant sa création était jugé mort et volé, deux jobs recevaient le même bloc).
+  const dir5 = path.join(tmp, "ports5");
+  const runCli5 = () =>
+    new Promise((resolve) => {
+      const p = spawn(process.execPath, [cli, "alloc", "--min", String(BASE_PORT + 400), "--max", String(BASE_PORT + 400 + 8 * 12 - 1), "--size", "8", "--dir", dir5, "--owner", String(process.pid)]);
+      let out = "";
+      p.stdout.on("data", (x) => (out += x));
+      p.on("close", (code) => resolve({ code, port: Number(out.trim()) }));
+    });
+  const res5 = await Promise.all(Array.from({ length: 60 }, runCli5));
+  const won = res5.filter((r) => r.code === 0).map((r) => r.port);
+  ok("A14 60 allocations simultanées pour 12 blocs → exactement 12 blocs distincts", won.length === 12 && new Set(won).size === 12, `${won.length} réussites, ${new Set(won).size} distincts [${BASE_PORT}] ${won.sort().join(",")}`);
 }
 
 /* ---- S. sélection ---- */

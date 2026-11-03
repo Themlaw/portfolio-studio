@@ -17,7 +17,7 @@
  *   node scripts/lib/port-alloc.mjs list [--dir D]
  * Environnement : BATT_PORT_MIN, BATT_PORT_MAX, BATT_PORT_BLOCK, BATT_PORT_DIR.
  */
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, statSync, writeSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -70,9 +70,15 @@ function takeLock(dir, port, owner) {
   const f = lockFile(dir, port);
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const fd = openSync(f, "wx");
-      writeSync(fd, `${os.hostname()} ${owner}`);
-      closeSync(fd);
+      // Création ATOMIQUE avec contenu : fichier temporaire complet puis link() (échoue en EEXIST si le verrou existe).
+      // Avec « wx » puis écriture, un concurrent lisait un fichier encore vide, le jugeait mort et le volait.
+      const tmp = `${f}.${process.pid}.${owner}.tmp`;
+      writeFileSync(tmp, `${os.hostname()} ${owner}`);
+      try {
+        linkSync(tmp, f);
+      } finally {
+        rmSync(tmp, { force: true });
+      }
       return true;
     } catch (e) {
       if (e.code !== "EEXIST") throw e;
