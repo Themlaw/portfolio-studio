@@ -29,6 +29,7 @@ import { installPaperTheme, PAPER_THEME_NAME } from "./lib/paper-theme.mjs";
 import { placeBoard } from "./lib/page-board.mjs";
 import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 import { autoOpenFine } from "./lib/zone66.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -258,7 +259,7 @@ await section("P", async () => {
 /* ---- A. Bibliothèque -------------------------------------------------------------------------------------------------------- */
 
 await section("A", async () => {
-  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes`);
   // Lot 78 : « Papiers peints » est de nouveau une page du menu (la bibliothèque ne dépend d'aucun thème) ; l'onglet du thème reste.
   ok("A0 « Papiers peints » est dans le menu", (await page.locator('.a-nav a[href="/admin/papiers-peints"]').count()) === 1);
   await page.goto(`${BASE}/admin/papiers-peints`, { waitUntil: "networkidle" });

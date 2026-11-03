@@ -21,6 +21,7 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import { activateThemeUi } from "./lib/theme-live.mjs";
 import { autoOpenFine } from "./lib/zone66.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -166,14 +167,14 @@ const colorVar = (f, name) =>
 /** Copie modifiable du thème livré (créée une fois), ouverte sur sa page. */
 async function ensureCopy() {
   if (!themeData("galerie-lumineuse-copie")) {
-    await page.goto(`${BASE}/admin/themes/galerie-lumineuse`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes/galerie-lumineuse`);
     const ink = page.locator('.a-da .lc-role-item[data-role="ink"]');
     await ink.locator(".lc-role").click();
     await ink.locator(".cp-hex").fill("#eeeeee");
     await ink.locator(".cp-hex").press("Enter");
     await page.locator('[data-testid="da-copy"]').click();
     await page.waitForURL(/\/admin\/themes\/galerie-lumineuse-copie$/, { timeout: 60000 });
-  } else await page.goto(`${BASE}/admin/themes/galerie-lumineuse-copie`, { waitUntil: "networkidle" });
+  } else await gotoIdle(page, `${BASE}/admin/themes/galerie-lumineuse-copie`);
   await page.locator('[data-testid="da-section"]').waitFor();
 }
 
@@ -342,7 +343,7 @@ if (run("Q")) {
   await settled();
 
   // Couleurs de la DA (page d'un thème) et palette du thème (administration).
-  await page.goto(`${BASE}/admin/themes/galerie-lumineuse`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes/galerie-lumineuse`);
   const inkItem = page.locator('.a-da .lc-role-item[data-role="ink"]');
   await inkItem.locator(".lc-role").click();
   ok("Q3 couleurs de la DA (page du thème) : carré + bande de teinte", (await inkItem.locator(".cp-sv").count()) === 1 && (await inkItem.locator(".cp-hue").count()) === 1);

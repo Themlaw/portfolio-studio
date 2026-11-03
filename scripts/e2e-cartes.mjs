@@ -26,6 +26,7 @@ import sharp from "sharp";
 import { installPaperTheme, PAPER_THEME_ID, PAPER_THEME_NAME } from "./lib/paper-theme.mjs";
 import { activateThemeUi } from "./lib/theme-live.mjs";
 import { autoOpenFine } from "./lib/zone66.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -604,7 +605,7 @@ if (run("C"))
 
 if (run("D"))
   await section("D", async () => {
-  await page.goto(`${BASE}/admin/themes/${PAPER_THEME_ID}?etape=cartes`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes/${PAPER_THEME_ID}?etape=cartes`);
   const section = page.locator("section.a-panel", { has: page.getByRole("heading", { name: "Cartes des rubriques" }) });
   ok("D1 l'éditeur de thème a « Cartes des rubriques »", await section.waitFor({ timeout: 30000 }).then(() => true, () => false));
   await section.locator('[data-token="bgDeep"]').click();

@@ -25,6 +25,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 import sharp from "sharp";
 import { gotoThemesPage } from "./lib/theme-live.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -66,7 +67,7 @@ await Promise.all([page.waitForURL((u) => !u.pathname.startsWith("/admin/connexi
 
 /** Envoi de fichiers (PSD, archive ou plusieurs PSD choisis ensemble) sur l'écran du kit, puis revue complète (`count` cartes). */
 async function sendAndReview(files, count) {
-  await page.goto(`${BASE}/admin/themes/galerie-lumineuse/kit`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes/galerie-lumineuse/kit`);
   await page.setInputFiles('[data-testid="kit-file"]', files);
   await page.waitForURL(/\/kit\?import=/, { timeout: 180000 });
   await page.locator(".a-kit-card").nth(count - 1).waitFor({ timeout: 240000 });
@@ -121,7 +122,7 @@ sim("decor", kitFile, decorPsd);
 sim("zip", kitFile, zipEdited, iconPsd);
 ok("trois PSD dans l'archive, sous leurs noms d'export", ["1-decor-accueil.psd", "2-logo-papier.psd", "3-icones-curseurs.psd"].every((n) => existsSync(path.join(parts, n))));
 
-await page.goto(`${BASE}/admin/themes/galerie-lumineuse/kit`, { waitUntil: "networkidle" });
+await gotoIdle(page, `${BASE}/admin/themes/galerie-lumineuse/kit`);
 await page.setInputFiles('[data-testid="kit-file"]', NOT_PSD);
 const refusal = await page.locator(".a-kit-drop [role=alert]").textContent({ timeout: 30000 });
 ok("fichier qui n'est pas un PSD : refusé, message clair", /pas un fichier Photoshop/.test(refusal ?? ""), refusal ?? "");

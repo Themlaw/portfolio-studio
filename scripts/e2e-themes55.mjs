@@ -22,6 +22,7 @@ import { chromium } from "playwright";
 import { canvas, openEditor, pageIdOf, q1, settled, sleep, sql, waitFor } from "./lib/grille31d.mjs";
 import { login } from "./lib/medias-setup.mjs";
 import { gotoThemesPage } from "./lib/theme-live.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3680";
 const ONLY = process.env.ONLY ?? "";
@@ -207,7 +208,7 @@ try {
     }
     const copyId = q1("select id from themes where mine = 1").id;
     const copyName = themeRow(copyId).name;
-    await page.goto(`${BASE}/admin/themes/${copyId}`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes/${copyId}`);
 
     if (run("J")) {
       await page.locator('[data-testid="da-section"]').waitFor();

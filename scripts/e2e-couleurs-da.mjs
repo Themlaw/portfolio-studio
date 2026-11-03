@@ -24,6 +24,7 @@ import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 import { autoOpenFine } from "./lib/zone66.mjs";
+import { gotoIdle, reloadIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -299,7 +300,7 @@ if (run("A"))
 
 if (run("B"))
   await section("B", async () => {
-    await page.goto(`${BASE}/admin/themes/${COPY}`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes/${COPY}`);
     await page.locator('[data-testid="da-section"]').waitFor();
     const fr = await previewFrame();
     // La copie ouverte à neuf (sans brouillon repris) : couleur d'origine.
@@ -311,7 +312,7 @@ if (run("B"))
     ok("B3 copie hors ligne : enregistrement direct, sans confirmation", (await page.locator("dialog[open]").count()) === 0 && (await waitFor(() => colorsOf(COPY).secondary === NEW_ACCENT)), JSON.stringify(colorsOf(COPY).secondary));
     ok("B3c le site public n'a pas changé (copie hors ligne)", setting("activeThemeId") === PRESET && (await publicVar("/fr", "--t-color-secondary")) === original.secondary.toLowerCase());
     ok("B4 état « enregistrées » et rôle plus « modifiée »", await waitFor(async () => /celles du thème enregistré/.test((await page.locator('[data-testid="da-state"]').textContent()) ?? "")));
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadIdle(page);
     ok("B5 rechargement : la couleur est celle de la copie", same(rgbOf(await frameVar(await previewFrame(), "--t-color-secondary")), hexRgb(NEW_ACCENT)));
     // Une autre page au choix dans l'aperçu, avec CE thème.
     await page.getByLabel("Page montrée dans l'aperçu").selectOption({ label: "Personnages" }).catch(async () => page.getByLabel("Page montrée dans l'aperçu").selectOption({ index: 1 }));
@@ -326,12 +327,12 @@ if (run("B"))
 if (run("D"))
   await section("D", async () => {
     await activateTheme("Galerie lumineuse (copie)");
-    await page.goto(`${BASE}/admin/themes/${MINE()}`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes/${MINE()}`);
     ok("D0 sans surcharge du site : pas d'avertissement", (await page.locator('[data-testid="da-site-override"]').count()) === 0);
     // Deux couleurs remplacées par le site depuis l'éditeur de page (17f) : écrites comme le fait la publication.
     const prev = q("select value from settings where key = 'styles'")[0]?.value;
     exec("insert into settings (key, value) values ('styles', ?) on conflict(key) do update set value = excluded.value", JSON.stringify({ palette: { primary: "#1d4d7a", secondary: "#8a3b12" } }));
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadIdle(page);
     const note = page.locator('[data-testid="da-site-override"]');
     ok("D1 surcharge active : « Couleurs personnalisées du site : 2 de ces couleurs sont remplacées »", await note.waitFor({ timeout: 20000 }).then(() => true, () => false) && /Couleurs personnalisées du site : 2 de ces couleurs sont remplacées depuis l'éditeur de page/.test((await note.textContent()) ?? ""), (await note.textContent().catch(() => "")) ?? "");
     ok("D2 l'avertissement nomme les couleurs remplacées", /boutons et liens/.test((await note.textContent()) ?? "") && /accent/.test((await note.textContent()) ?? ""));
@@ -343,7 +344,7 @@ if (run("D"))
     await sectionShot("5-da-surcharge-site-1440.png");
     if (prev) exec("update settings set value = ? where key = 'styles'", prev);
     else exec("delete from settings where key = 'styles'");
-    await page.reload({ waitUntil: "networkidle" });
+    await reloadIdle(page);
     ok("D6 surcharge retirée : l'avertissement disparaît", (await page.locator('[data-testid="da-site-override"]').count()) === 0);
   });
 
@@ -353,7 +354,7 @@ if (run("C"))
   await section("C", async () => {
     await activateTheme("Galerie lumineuse (copie)");
     ok("C0 Mon thème (fait depuis la copie) est en ligne", setting("activeThemeId") === MINE());
-    await page.goto(`${BASE}/admin/themes/${MINE()}`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes/${MINE()}`);
     await page.locator('[data-testid="da-section"]').waitFor();
     await previewFrame();
     ok("C1 état annoncé : « En ligne : v… » (en-tête de l'éditeur)", /En ligne : v\d+/.test((await page.locator('[data-testid="guide-status"]').textContent()) ?? ""));
@@ -387,7 +388,7 @@ if (run("C"))
 if (run("E"))
   await section("E", async () => {
     if (setting("activeThemeId") !== MINE()) await activateTheme("Galerie lumineuse (copie)");
-    await page.goto(`${BASE}/admin/themes/${MINE()}`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes/${MINE()}`);
     await page.locator('[data-testid="step-tab-cartes"]').click();
     const cartes = page.locator("section.a-panel", { has: page.locator("#t-cartes") });
     await cartes.waitFor();
@@ -484,7 +485,7 @@ if (run("F"))
     ok("F5b public = aperçu de l'éditeur", same(hexRgb(publicBefore), rgbOf(chip), 2), `${publicBefore} vs ${chip}`);
 
     // Changement de palette du thème en ligne : la carte suit.
-    await page.goto(`${BASE}/admin/themes/${MINE()}`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes/${MINE()}`);
     await page.locator('[data-testid="da-section"]').waitFor();
     await previewFrame();
     await typeHex("secondary", "#2f6b4f");

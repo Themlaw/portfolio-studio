@@ -24,6 +24,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import sharp from "sharp";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -100,7 +101,7 @@ async function section(name, fn) {
   }
 }
 const open = async (id, etape = "") => {
-  await page.goto(`${BASE}/admin/themes/${encodeURIComponent(id)}${etape ? `?etape=${etape}` : ""}`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes/${encodeURIComponent(id)}${etape ? `?etape=${etape}` : ""}`);
   await page.locator(".a-guide-head").waitFor();
 };
 const stepTab = (id) => page.locator(`[data-testid="step-tab-${id}"]`);
@@ -171,7 +172,7 @@ if (run("A"))
     // Mobile : en-tête, étapes, onglets Réglages / Aperçu.
     const m = await ctx.newPage();
     await m.setViewportSize({ width: 390, height: 844 });
-    await m.goto(`${BASE}/admin/themes/${COPY}`, { waitUntil: "networkidle" });
+    await gotoIdle(m, `${BASE}/admin/themes/${COPY}`);
     await m.locator(".a-guide-head").waitFor();
     const overflow = await m.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     ok("A16 téléphone : pas de défilement horizontal", overflow <= 1, String(overflow));
