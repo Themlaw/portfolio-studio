@@ -458,7 +458,7 @@ if (run("F"))
     await fond.waitFor({ timeout: 30000 });
     await fond.click();
     const menu = f.locator('[data-testid="fond-menu"]');
-    await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
+    await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
     const cc = menu.locator('[data-testid="card-colors"]');
     ok("F1 popover « Carte » : les six couleurs de la DA, nommées, en premier", JSON.stringify(await cc.locator('[data-testid="card-da-color"] .cc-name').allTextContents()) === JSON.stringify(["Fond de page", "Cartes et encadrés", "Texte", "Boutons et liens", "Accent", "Ornements"]));
     ok("F1b suivies d'une rangée de huit teintes douces", (await cc.locator('[data-testid="card-tint"]').count()) === 8);

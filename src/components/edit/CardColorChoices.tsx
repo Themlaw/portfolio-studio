@@ -33,6 +33,7 @@ export default function CardColorChoices({
   onPick,
   label = "Couleur de la carte",
   auto,
+  hidden,
 }: {
   palette: CardPalette;
   value: string;
@@ -40,6 +41,8 @@ export default function CardColorChoices({
   label?: string;
   /** Choix « par défaut » proposé en premier (la bordure : couleur du texte de la carte) : `value` vide = ce choix. */
   auto?: { label: string; onPick: () => void };
+  /** Jetons masqués (doublons, confondus avec le fond : `hiddenContourSwatches`, lot 100). Le choix enregistré n'est jamais passé ici. */
+  hidden?: ReadonlySet<string>;
 }) {
   const current = !value ? (auto?.label ?? "Auto : couleur du thème") : ((SURFACE_TOKEN_LABELS as Record<string, string>)[value] ?? `Couleur libre ${value}`);
   return (
@@ -51,7 +54,7 @@ export default function CardColorChoices({
             <span className="cc-name">Par défaut</span>
           </button>
         )}
-        {SURFACE_DA_TOKENS.map((t) => (
+        {SURFACE_DA_TOKENS.filter((t) => !hidden?.has(t)).map((t) => (
           <button
             key={t}
             type="button"
@@ -67,7 +70,7 @@ export default function CardColorChoices({
             <span className="cc-name">{SURFACE_DA_NAMES[t]}</span>
           </button>
         ))}
-        <button
+        {!hidden?.has("bgDeep") && <button
           type="button"
           role="radio"
           aria-checked={value === "bgDeep"}
@@ -78,13 +81,13 @@ export default function CardColorChoices({
         >
           <span className="cc-chip" style={{ background: cardBackground("bgDeep", palette) }} aria-hidden="true" />
           <span className="cc-name">{SURFACE_TOKEN_LABELS.bgDeep}</span>
-        </button>
+        </button>}
       </div>
       <p className="cc-sub" id="cc-tints-label">
         Teintes douces
       </p>
       <div className="cc-tints" role="radiogroup" aria-labelledby="cc-tints-label" data-testid="card-tints">
-        {TINTS.map((t) => (
+        {TINTS.filter((t) => !hidden?.has(t)).map((t) => (
           <button
             key={t}
             type="button"

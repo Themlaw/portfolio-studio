@@ -380,7 +380,7 @@ async function openFond(word) {
 }
 async function setWallpaper(word, id) {
   const menu = await openFond(word);
-  if ((await menu.locator('[data-kind="wallpaper"]').getAttribute("aria-checked")) !== "true") await menu.locator('[data-kind="wallpaper"]').click();
+  if ((await menu.locator('[data-testid="fond-section-fond"] [data-kind="wallpaper"]').getAttribute("aria-checked")) !== "true") await menu.locator('[data-testid="fond-section-fond"] [data-kind="wallpaper"]').click();
   if (id) await menu.locator(`[data-wallpaper-id="${id}"]`).click();
   return menu;
 }
@@ -397,8 +397,8 @@ await section("C", async () => {
   await sleep(1000);
 
   let menu = await openFond("Delta");
-  ok("C1 « Fond » propose Aucun / Couleur / Papier peint", (await menu.locator("[data-kind]").evaluateAll((els) => els.map((e) => e.getAttribute("data-kind")))).join() === "none,color,wallpaper");
-  await menu.locator('[data-kind="wallpaper"]').click();
+  ok("C1 « Fond » propose Aucun / Couleur / Papier peint", (await menu.locator('[data-testid="fond-section-fond"] [data-kind]').evaluateAll((els) => els.map((e) => e.getAttribute("data-kind")))).join() === "none,color,wallpaper");
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="wallpaper"]').click();
   ok("C2 « Papier peint » ne choisit PAS de motif à la place de l'artiste (lot 66, R5) : la bibliothèque s'affiche, rien n'est écrit", (await menu.locator('[data-testid="wp-grid"]').count()) === 1 && bgOf("Delta") === undefined);
   await menu.locator(`[data-wallpaper-id="${POIS_ID}"]`).click();
   ok("C2 le motif cliqué est posé", await waitFor(() => bgOf("Delta")?.kind === "wallpaper" && bgOf("Delta")?.wallpaper === POIS_ID), JSON.stringify(bgOf("Delta")));
@@ -460,14 +460,14 @@ await section("C", async () => {
 
   // Foxtrot : couleur simple voisine d'un papier peint = pas de fusion.
   menu = await openFond("Foxtrot");
-  await menu.locator('[data-kind="color"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="color"]').click();
   await waitFor(() => bgOf("Foxtrot")?.kind === "color");
   await page.keyboard.press("Escape");
   await sleep(500);
   e = await measure(f, "Echo");
   ok("C13 une couleur voisine d'un papier peint ne fusionne pas avec lui", !e.fondAttrs.next);
   menu = await openFond("Foxtrot");
-  await menu.locator('[data-kind="none"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').click();
   await waitFor(() => bgOf("Foxtrot") === undefined);
   await page.keyboard.press("Escape");
   ok("C14 publication", await publish());
@@ -487,7 +487,7 @@ async function openCard(word) {
 await section("D", async () => {
   f = await openEditor();
   let menu = await openCard("Bravo");
-  await menu.locator('[data-kind="wallpaper"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="wallpaper"]').click();
   ok("D1 le menu « Fond » d'une carte propose les motifs de la bibliothèque", (await menu.locator(`.wp-item[data-wallpaper-id]`).count()) === 2);
   await menu.locator(`.wp-item[data-wallpaper-id="${STAR_ID}"]`).click();
   ok("D2 motif sur la carte : enregistré (`paperWallpaper`)", await waitFor(() => draftBlock("Bravo")?.props.surface?.paperWallpaper === STAR_ID), JSON.stringify(draftBlock("Bravo")?.props.surface));
@@ -646,8 +646,8 @@ await section("G", async () => {
     await fr.locator('[data-edit-bitem-op="fond"]').click();
     const menu = f.locator('[data-testid="fond-menu"]');
     await menu.waitFor({ timeout: 20000 });
-    if (i === 0) ok("G2 la fenêtre « Fond » d'un composant de planche propose Aucun / Couleur / Papier peint", (await menu.locator("[data-kind]").evaluateAll((els) => els.map((e) => e.getAttribute("data-kind")))).join() === "none,color,wallpaper");
-    await menu.locator('[data-kind="wallpaper"]').click();
+    if (i === 0) ok("G2 la fenêtre « Fond » d'un composant de planche propose Aucun / Couleur / Papier peint", (await menu.locator('[data-testid="fond-section-fond"] [data-kind]').evaluateAll((els) => els.map((e) => e.getAttribute("data-kind")))).join() === "none,color,wallpaper");
+    await menu.locator('[data-testid="fond-section-fond"] [data-kind="wallpaper"]').click();
     await menu.locator(`[data-wallpaper-id="${POIS_ID}"]`).click();
     ok(`G3 composant ${i + 1} : papier peint enregistré dans la suite du projet`, await waitFor(() => layout()[i]?.props?.background?.kind === "wallpaper" && layout()[i].props.background.wallpaper === POIS_ID), JSON.stringify(layout()[i]?.props));
     await page.keyboard.press("Escape");
@@ -712,7 +712,7 @@ await section("I", async () => {
   await frame.locator('[data-edit-bitem-op="fond"]').click();
   const menu = f.locator('[data-testid="fond-menu"]');
   await menu.waitFor({ timeout: 20000 });
-  await menu.locator('[data-kind="wallpaper"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="wallpaper"]').click();
   await menu.locator(`[data-wallpaper-id="${POIS_ID}"]`).click();
   ok("I3 la grille de planche reçoit un papier peint", await waitFor(() => gridItem()?.props.background?.kind === "wallpaper"), JSON.stringify(gridItem()?.props.background));
   await menu.locator('[data-testid="card-da-color"]').first().click();
@@ -743,7 +743,7 @@ await section("H", async () => {
   await f.locator('.pe-tools [data-testid="fond-button"]').click();
   const menu = f.locator('[data-testid="fond-menu"]');
   await menu.waitFor({ timeout: 20000 });
-  await menu.locator('[data-kind="wallpaper"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="wallpaper"]').click();
   await menu.locator(`[data-wallpaper-id="${POIS_ID}"]`).click();
   const gridBg = () => draftOf()?.blocks?.find((b) => b.type === "grid")?.props.background;
   ok("H2 grille de page : papier peint enregistré", await waitFor(() => gridBg()?.kind === "wallpaper" && gridBg().wallpaper === POIS_ID), JSON.stringify(gridBg()));

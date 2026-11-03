@@ -30,8 +30,8 @@ export type ZoneExtent = "full" | "inset";
 export type ZoneCorners = "square" | "round" | FondStep;
 export type ZonePaper = (typeof SURFACE_PAPERS)[number];
 
-/** Couleur posée au premier choix « Couleur » (le fond profond du thème, comme avant). */
-export const FIRST_COLOR = "bgDeep";
+/** Couleur posée au premier choix « Couleur » d une zone sans couleur (lot 100 : la couleur de carte du thème, jamais « bgDeep » : sur certains thèmes c est un jaune vif imposé). Toujours réglable. */
+export const FIRST_COLOR = "surface";
 
 /**
  * Zone, vue unique des deux couches (tous les champs sont facultatifs : absent = « comme avant » ou « comme le thème »).

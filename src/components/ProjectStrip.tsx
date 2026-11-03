@@ -311,8 +311,8 @@ function BoardItemFrame({ board, part, index, count, children }: { board: number
             Ajouter des images
           </button>
         )}
-        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title="Fond de couleur du bloc, sur toute sa hauteur">
-          Fond
+        <button type="button" className="pe-bitem-btn" data-edit-bitem-op="fond" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-fond-button" title="Fond et carte du composant : le fond de couleur ou papier peint, ou une carte en retrait (un seul des deux ici)">
+          Fond &amp; carte
         </button>
         {part.type === "image" && !part.empty && (
           <button type="button" className="pe-bitem-btn" data-edit-bitem-op="size" data-uid={part.uid} data-board={board} aria-haspopup="dialog" data-testid="bitem-size-button" title="Taille et place de l'image (la légende suit)">

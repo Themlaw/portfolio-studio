@@ -148,7 +148,7 @@ primary = await themeColor(pub, "primary");
   ok("A2 Bravo : marge M de 24 px à gauche et à droite", near(b.fond.l, 24) && near(b.fond.r, b.vw - 24), JSON.stringify(b.fond));
   ok("A3 Bravo : 24 px d'écart au-dessus (entre le fond d'Alpha et le sien)", near(b.fond.t - a.fond.b, 24, 2), `${b.fond.t - a.fond.b}`);
   ok("A4 Bravo : coins arrondis M (20 px)", near(b.radius, 20) && near(b.radiusBR, 20), JSON.stringify([b.radius, b.radiusBR]));
-  ok("A5 Bravo : sa couleur (fond profond) et, autour, la couleur d'Alpha (ombre pleine, rognée au cadre de la marge : pas d'encoche dans les coins)", !sameRgb(rgb(b.bg), primary) && rgb(b.bg).length === 3 && b.shadow.includes(`rgb(${primary[0]}, ${primary[1]}, ${primary[2]})`) && b.clip !== "none", JSON.stringify([b.bg, b.shadow, b.clip]));
+  ok("A5 Bravo : sa couleur (fond profond) et, autour, la couleur d'Alpha (lot 100 : plus de couleur du voisin autour, le fond de la page se voit)", !sameRgb(rgb(b.bg), primary) && rgb(b.bg).length === 3 && !b.shadow.includes(`rgb(${primary[0]}, ${primary[1]}, ${primary[2]})`) && b.clip === "none", JSON.stringify([b.bg, b.shadow, b.clip]));
   ok("A6 un fond avec marge ne fusionne pas (ni Alpha ni lui n'ont de jonction)", !a.attrs.next && !b.attrs.prev && !b.attrs.next && b.attrs.inset === "m" && b.attrs.round === "m", JSON.stringify([a.attrs, b.attrs]));
   ok("A7 témoin sans réglage (Charlie) : bord à bord, coins droits, ni marge, ni ombre, aucun attribut", near(c.fond.l, 0) && near(c.fond.r, c.vw) && c.radius === 0 && c.marginL === 0 && c.shadow === "none" && c.attrs.inset === null && c.attrs.round === null, JSON.stringify([c.fond, c.radius, c.shadow, c.attrs]));
   ok("A8 sur une carte (Delta, marge S) : 12 px depuis le bord de la carte, jamais à l'extérieur", d.card && near(d.fond.l - d.card.l, 12) && near(d.card.r - d.fond.r, 12) && d.fond.t >= d.card.t + 11, JSON.stringify([d.fond, d.card]));
@@ -213,7 +213,7 @@ async function openFond(word) {
 try {
   {
     const [a, b, c] = [await f.evaluate(MEASURE, "Alpha"), await f.evaluate(MEASURE, "Bravo"), await f.evaluate(MEASURE, "Charlie")];
-    ok("C1 toile : même rendu que le public (Bravo à 24 px des bords, coins 20 px, ombre de la couleur d'Alpha)", near(b.fond.l - a.fond.l, 24) && near(a.fond.r - b.fond.r, 24) && near(b.radius, 20) && b.shadow.includes(`rgb(${primary[0]}, ${primary[1]}, ${primary[2]})`), JSON.stringify([a.fond, b.fond, b.radius, b.shadow]));
+    ok("C1 toile : même rendu que le public (Bravo à 24 px des bords, coins 20 px, ombre de la couleur d'Alpha)", near(b.fond.l - a.fond.l, 24) && near(a.fond.r - b.fond.r, 24) && near(b.radius, 20) && !b.shadow.includes(`rgb(${primary[0]}, ${primary[1]}, ${primary[2]})`), JSON.stringify([a.fond, b.fond, b.radius, b.shadow]));
     ok("C2 toile : le témoin reste bord à bord, coins droits", near(c.fond.l, a.fond.l) && near(c.fond.r, a.fond.r) && c.radius === 0, JSON.stringify([c.fond, c.radius]));
     await f.evaluate(() => [...document.querySelectorAll("p")].find((e) => e.textContent.includes("Alpha"))?.scrollIntoView({ block: "start" }));
     await sleep(500);
@@ -222,9 +222,9 @@ try {
 
   // Vrais clics sur Charlie (témoin) : « Avec marge », tailles, coins, retour « Bord à bord ».
   let menu = await openFond("Charlie");
-  ok("C3 la fenêtre propose Étendue et Coins sous la couleur ; « Bord à bord » coché, pas de ligne Marge", (await menu.locator('[data-extent="full"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-testid="fond-inset"]').count()) === 0 && (await menu.locator('[data-testid="fond-round"]').count()) === 1);
-  await menu.locator('[data-extent="margin"]').click();
-  ok("C4 « Avec marge » : `inset: m` enregistré, rien d'autre ne change", await waitFor(() => JSON.stringify(bgOfDraft("Charlie")) === '{"kind":"color","color":"surface","inset":"m"}'), JSON.stringify(bgOfDraft("Charlie")));
+  ok("C3 lot 100 : la fenêtre a deux sections ; la Carte est sur « Aucune », pas de ligne Marge", (await menu.locator('[data-testid="fond-section-carte"] [data-kind="none"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-testid="fond-inset"]').count()) === 0);
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
+  ok("C4 « Avec marge » : `inset: m` enregistré, rien d'autre ne change", await waitFor(() => JSON.stringify(bgOfDraft("Charlie")) === '{"kind":"color","color":"surface","inset":"m","paper":"under"}'), JSON.stringify(bgOfDraft("Charlie")));
   let m = await f.evaluate(MEASURE, "Charlie");
   ok("C5 aperçu immédiat : marge M de 24 px", near(m.marginL, 24) && m.attrs.inset === "m", JSON.stringify([m.marginL, m.attrs]));
   await menu.locator('[data-testid="fond-inset"] [data-step="l"]').click();
@@ -234,23 +234,23 @@ try {
   await page.screenshot({ path: path.join(SHOTS, "toile-fenetre-fond.png") });
   await menu.locator('[data-testid="fond-round"] [data-step="none"]').click();
   ok("C8 Coins « Droits » : `round` retiré", (await waitFor(() => bgOfDraft("Charlie") && !("round" in bgOfDraft("Charlie")))) && (await f.evaluate(MEASURE, "Charlie")).radius === 0, JSON.stringify(bgOfDraft("Charlie")));
-  await menu.locator('[data-extent="full"]').click();
-  ok("C9 « Bord à bord » : plus de champ `inset`, bord à bord comme avant", (await waitFor(() => JSON.stringify(bgOfDraft("Charlie")) === '{"kind":"color","color":"surface"}')) && near((await f.evaluate(MEASURE, "Charlie")).marginL, 0), JSON.stringify(bgOfDraft("Charlie")));
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="color"]').click();
+  ok("C9 lot 100 : poser un Fond (zone autour) ne touche pas la marge de la Carte", bgOfDraft("Charlie")?.inset === "l", JSON.stringify(bgOfDraft("Charlie")));
   // Changer de couleur garde la marge choisie.
-  await menu.locator('[data-extent="margin"]').click();
-  await menu.locator('[data-testid="card-da-color"][data-token="primary"]').click();
-  ok("C10 changer la couleur garde la marge", await waitFor(() => JSON.stringify(bgOfDraft("Charlie")) === '{"kind":"color","color":"primary","inset":"m"}'), JSON.stringify(bgOfDraft("Charlie")));
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-testid="card-da-color"][data-token="primary"]').click();
+  ok("C10 changer la couleur garde la marge", await waitFor(() => JSON.stringify(bgOfDraft("Charlie")) === '{"kind":"color","color":"primary","inset":"l","paper":"under"}'), JSON.stringify(bgOfDraft("Charlie")));
   await page.keyboard.press("Escape");
   await settled();
 
   // Foxtrot (sans fond) : marge posée à la main, la couleur de Golf (voisin d'après) l'entoure aussitôt.
   menu = await openFond("Foxtrot");
-  await menu.locator('[data-kind="color"]').click();
-  await menu.locator('[data-extent="margin"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="color"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
   ok("C11 Foxtrot : fond + marge enregistrés", await waitFor(() => bgOfDraft("Foxtrot")?.inset === "m" && bgOfDraft("Foxtrot")?.kind === "color"), JSON.stringify(bgOfDraft("Foxtrot")));
   await sleep(500);
   m = await f.evaluate(MEASURE, "Foxtrot");
-  ok("C12 aperçu : la couleur du voisin d'après (Golf) entoure le fond, posée à l'instant", m.shadow.includes(`rgb(${primary[0]}, ${primary[1]}, ${primary[2]})`), m.shadow);
+  ok("C12 aperçu : lot 100 : la couleur du voisin d'après (Golf) n'entoure plus le fond (ce qui entoure est le fond de la page)", !m.shadow.includes(`rgb(${primary[0]}, ${primary[1]}, ${primary[2]})`), m.shadow);
   await page.keyboard.press("Escape");
   await settled();
   await f.evaluate(() => [...document.querySelectorAll("p")].find((e) => e.textContent.includes("Foxtrot"))?.scrollIntoView({ block: "center" }));
@@ -285,7 +285,7 @@ try {
   const ap = await anon2.newPage();
   await ap.goto(`${BASE}/fr`, { waitUntil: "networkidle" });
   const g = await geo(ap);
-  ok("D1 public, planche : 3 enveloppes ; la bande bord à bord, le texte avec marge (24 px, coins 20 px, couleur de la bande autour), le témoin bord à bord", g.length === 3 && near(g[0].l, 0) && near(g[1].l, 24) && near(g[1].r, 24) && near(g[1].radius, 20) && g[1].shadow.includes(`rgb(${primary[0]}, ${primary[1]}, ${primary[2]})`) && near(g[2].l, 0) && g[2].radius === 0 && g[2].shadow === "none", JSON.stringify(g));
+  ok("D1 public, planche : 3 enveloppes ; la bande bord à bord, le texte avec marge (24 px, coins 20 px, couleur de la bande autour), le témoin bord à bord", g.length === 3 && near(g[0].l, 0) && near(g[1].l, 24) && near(g[1].r, 24) && near(g[1].radius, 20) && !g[1].shadow.includes(`rgb(${primary[0]}, ${primary[1]}, ${primary[2]})`) && near(g[2].l, 0) && g[2].radius === 0 && g[2].shadow === "none", JSON.stringify(g));
   ok("D2 public, planche : le fond avec marge ne fusionne pas avec la bande", !g[0].next && !g[1].prev && !g[1].next && !g[2].prev, JSON.stringify(g.map((x) => [x.prev, x.next])));
   await ap.locator(`[aria-labelledby="project-${PROJECT.slug}"]`).screenshot({ path: path.join(SHOTS, "public-planche.png") }).catch(() => {});
   await anon2.close();
@@ -310,7 +310,7 @@ try {
   await fr3.locator('[data-edit-bitem-op="fond"]').click();
   const bmenu = f.locator('[data-testid="fond-menu"]');
   await bmenu.waitFor({ timeout: 20000 });
-  await bmenu.locator('[data-extent="margin"]').click();
+  await bmenu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
   const effective = () => (q("select draft_layout from projects where id = ?", PROJECT.id)[0].draft_layout ? JSON.parse(q("select draft_layout from projects where id = ?", PROJECT.id)[0].draft_layout) : layout);
   ok("D5 planche : « Avec marge » enregistré dans le brouillon du projet", await waitFor(() => effective()[2]?.props?.background?.inset === "m"), JSON.stringify(effective()[2]?.props?.background));
   await bmenu.locator('[data-testid="fond-inset"] [data-step="s"]').click();

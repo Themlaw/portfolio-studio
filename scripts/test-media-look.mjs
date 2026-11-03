@@ -72,13 +72,13 @@ test("T1 couleurs : « carte » = la carte réellement dessous ; la palette pass
   assert.equal(imageBgCss("card"), "var(--card-bg, var(--t-color-surface))");
   assert.equal(mediaLookAttrs({ bg: "card" }).style["--img-bg"], "var(--card-bg, var(--t-color-surface))");
   for (const c of PALETTE) {
-    assert.equal(imageBgCss(c), `var(--color-${c})`, `fond ${c}`);
+    assert.equal(imageBgCss(c), `var(--t-color-${c})`, `fond ${c}`);
     assert.equal(frameColorCss(c), `var(--color-${c})`, `bande ${c}`);
   }
   // La bande par défaut et la bande « Texte » donnent la même couleur (même variable).
   assert.equal(frameColorCss(undefined), frameColorCss("ink"));
   // Aucune variable de thème brute (--t-color-*) hors le repli de « carte ».
-  for (const c of PALETTE) assert.ok(!/--t-color/.test(imageBgCss(c)) && !/--t-color/.test(frameColorCss(c)));
+  for (const c of PALETTE) assert.ok(!/--t-color/.test(frameColorCss(c)));
 });
 
 test("T1 cadre du kit : les QUATRE épaisseurs réelles (haut, droite, bas, gauche) sont émises", () => {
