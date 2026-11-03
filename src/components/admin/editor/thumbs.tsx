@@ -158,6 +158,22 @@ const THUMBS: Record<string, React.ReactNode> = {
       <path d="M68 28 L74 28 M71.5 25.5 L74.5 28 L71.5 30.5" fill="none" stroke={ACCENT} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </>
   ),
+  // Page introuvable (lot 89) : un grand titre, un message, un bouton ; une image encadrée avec sa légende.
+  exit: (
+    <>
+      <rect x="10" y="9" width="12" height="2.5" rx="1.2" fill={ACCENT} />
+      <rect x="10" y="15" width="50" height="8" rx="2" fill={INK} />
+      <Lines x={10} y={30} w={60} n={2} />
+      <rect x="10" y="43" width="26" height="8" rx="4" fill={ACCENT} />
+    </>
+  ),
+  "random-work": (
+    <>
+      <rect x="22" y="6" width="52" height="38" rx="2" fill={SOFT} />
+      <path d="M30 38 L42 24 L50 32 L56 26 L68 38 Z" fill="var(--admin-bg)" opacity="0.8" />
+      <rect x="22" y="48" width="28" height="3" rx="1.5" fill={INK} />
+    </>
+  ),
   profile: (
     <>
       <rect x="10" y="8" width="28" height="40" rx="2" fill={SOFT} />

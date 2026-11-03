@@ -25,6 +25,7 @@ import { seedFrameChoices } from "./frame-choice";
 import { seedSlotLooks } from "./slot-look";
 import { seedVideoModes } from "./video-mode";
 import { migrateMonTheme } from "./mon-theme";
+import { seedNotFoundPage } from "./seed-404";
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 
@@ -147,13 +148,16 @@ export async function bootstrap(): Promise<void> {
       // un thème personnel au même identifiant n'est jamais écrasé).
       if (isSeeded(db)) {
         const [added, updated] = syncPresets(db);
-        return { applied, seeded: false, presetsAdded: added, presetsUpdated: updated };
+        // Lot 89 : la page spéciale « Page introuvable » (idempotent : jamais recréée ni écrasée si elle existe, corbeille comprise).
+        const notFound = seedNotFoundPage(sqlite);
+        return { applied, seeded: false, presetsAdded: added, presetsUpdated: updated, notFound };
       }
       if (!files) throw new Error("seed requis mais fichiers non préparés");
       seedRows(db, files);
       // Lot 31 : les projets du seed reçoivent leur suite de composants (la bande d'images), comme ceux que migre 0025.
       seedProjectLayouts(sqlite);
-      return { applied, seeded: true, presetsAdded: 0, presetsUpdated: 0 };
+      const notFound = seedNotFoundPage(sqlite);
+      return { applied, seeded: true, presetsAdded: 0, presetsUpdated: 0, notFound };
     })
     .immediate();
 
@@ -161,6 +165,7 @@ export async function bootstrap(): Promise<void> {
     `[db] ${path.join(/* turbopackIgnore: true */ dataDir(), "portfolio.db")} : ${outcome.applied} migration(s) appliquée(s), ` +
       (outcome.seeded ? `seed initial effectué` : "déjà seedée : seed ignoré") +
       (outcome.presetsAdded || outcome.presetsUpdated ? `, thèmes livrés : ${outcome.presetsAdded} ajouté(s), ${outcome.presetsUpdated} mis à jour` : "") +
+      (outcome.notFound.created ? `, page spéciale « Page introuvable » créée` : "") +
       ` (${Date.now() - started} ms)`,
   );
 }

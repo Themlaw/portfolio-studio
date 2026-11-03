@@ -11,6 +11,7 @@ import { cached, TAGS } from "./cache";
 import { getDb, schema } from "./db";
 import { parseJson } from "./json";
 import { getNavSetting } from "./settings";
+import { isSpecialPage } from "./special-pages";
 import type { NavItem as SiteNavItem } from "./site-schema";
 
 type L = { fr: string; en: string };
@@ -132,8 +133,10 @@ export async function getNav(locale: AppLocale, items?: SiteNavItem[] | null): P
 
 /** Chemins de la même page dans chaque langue (sélecteur de langue, hreflang). */
 export function alternatesFor(page: PageSummary | null): Record<AppLocale, string> {
+  // Page spéciale (« Page introuvable », lot 89) : pas d'équivalent dans l'autre langue, comme la 404 d'avant (le sélecteur mène à l'accueil).
+  const real = page && !isSpecialPage(page) ? page : null;
   return Object.fromEntries(
-    routing.locales.map((l) => [l, page ? pagePath(page, l) : "/"]),
+    routing.locales.map((l) => [l, real ? pagePath(real, l) : "/"]),
   ) as Record<AppLocale, string>;
 }
 

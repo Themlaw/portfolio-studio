@@ -23,16 +23,16 @@ export default async function VisualEditorPage({ params, searchParams }: { param
   const { langue } = await searchParams;
   const state = /^\d+$/.test(id) ? readDraft(Number(id)) : null;
   if (!state) notFound();
-  const pages = listPagesForAdmin()
-    .filter((p) => !p.slug.fr.startsWith("_"))
-    .map((p) => ({ id: p.id, title: p.title || "Page sans titre", slug: p.slug }));
+  const everyPage = listPagesForAdmin();
+  // Pages proposées aux liens : jamais une page spéciale (« Page introuvable », lot 89).
+  const pages = everyPage.filter((p) => !p.special).map((p) => ({ id: p.id, title: p.title || "Page sans titre", slug: p.slug }));
+  const self = everyPage.find((p) => p.id === Number(id));
   // Thème en préparation (aperçu depuis Admin → Thèmes) : la toile le montre, le panneau Couleurs aussi.
   const preparingRef = await getPreparingTheme();
   // Lot 60 : l'aperçu d'une VERSION de Mon thème (`<thème>@<n>`) n'est pas un thème « en préparation » (« Mettre en ligne » publierait la version en cours).
   const preparing = preparingRef && !preparingRef.id.includes("@") ? ((await getTheme(preparingRef.id)) ?? null) : null;
   const library = getThemeLibrary();
   const themeChoices = sortThemeChoices(library, library.activeId, readThemeUsage());
-  const self = pages.find((p) => p.id === Number(id));
   return (
     <VisualEditor
       key={id}
@@ -44,7 +44,7 @@ export default async function VisualEditorPage({ params, searchParams }: { param
       overlaySlugs={overlayProjectSlugs(Number(id))}
       paths={{ fr: self ? pathOf("fr", self.slug.fr) : "/fr", en: self ? pathOf("en", self.slug.en) : "/en" }}
       pages={pages.map(({ id, title }) => ({ id, title }))}
-      catalog={blockCatalog()}
+      catalog={blockCatalog(Boolean(self?.special))}
       editors={blockEditors()}
       context={getEditorContext(Number(id))}
       siteName={siteNameFor(getSettingsForAdmin().site.name, "fr") || "Portfolio"}

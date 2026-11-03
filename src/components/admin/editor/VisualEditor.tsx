@@ -1296,6 +1296,12 @@ export default function VisualEditor({
       setBlocks(next);
       if (done) toast(done);
     };
+    // Bloc verrouillé (lot 89, « Sortie ») : ni supprimé ni dupliqué ; on dit pourquoi au lieu de ne rien faire.
+    const locked = own(byType, at ? (siblings[at.index]?.type ?? "") : "")?.locked;
+    if (locked && (kind === "delete" || kind === "duplicate")) {
+      toast(kind === "delete" ? locked : "Ce bloc existe une seule fois sur la page : tu peux le déplacer et le mettre en forme, pas le dupliquer.", "error");
+      return;
+    }
     if (kind === "delete") {
       setDeletingLost(overlayLost(uid));
       setDeleting(uid);
@@ -3219,10 +3225,10 @@ export default function VisualEditor({
                       ⇱
                     </button>
                   )}
-                  <button type="button" className="a-icon-btn" aria-label="Dupliquer" onClick={() => op("duplicate", selBlock.uid)}>
+                  <button type="button" className="a-icon-btn" aria-label="Dupliquer" disabled={Boolean(selDef.locked)} title={selDef.locked ? "Ce bloc existe une seule fois sur la page." : undefined} onClick={() => op("duplicate", selBlock.uid)}>
                     ⧉
                   </button>
-                  <button type="button" className="a-icon-btn a-danger-text" aria-label="Supprimer" onClick={() => op("delete", selBlock.uid)}>
+                  <button type="button" className="a-icon-btn a-danger-text" aria-label="Supprimer" disabled={Boolean(selDef.locked)} title={selDef.locked} data-locked={selDef.locked ? "" : undefined} onClick={() => op("delete", selBlock.uid)}>
                     ✕
                   </button>
                 </div>

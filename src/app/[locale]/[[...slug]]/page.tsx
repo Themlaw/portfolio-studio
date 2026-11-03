@@ -4,7 +4,11 @@ import { setRequestLocale } from "next-intl/server";
 import { getTranslations } from "next-intl/server";
 
 import BlockList from "@/blocks/BlockList";
+import { BLOCKS } from "@/blocks/registry";
 import NotFoundView from "@/components/NotFoundView";
+import { Link } from "@/i18n/navigation";
+import { own } from "@/lib/own";
+import { isSpecialPage } from "@/lib/special-pages";
 import type { AppLocale } from "@/i18n/routing";
 import { getDraftBlocks, getDraftPageInfo, getDraftRev, isDraftView, setDraftViewPage } from "@/lib/draft-view";
 import { resolvePage } from "@/lib/page-preview";
@@ -35,7 +39,8 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const { locale: raw, slug } = await params;
   const locale = raw as AppLocale;
   const page = await resolvePage(locale, slug);
-  if (!page) {
+  // Page « Page introuvable » (lot 89) : mêmes métadonnées que la 404 d'avant (titre fixe, noindex, ni adresse canonique ni balises de partage).
+  if (!page || isSpecialPage(page)) {
     // Page 404 (servie par le proxy avec le statut 404).
     const [t, site] = await Promise.all([getTranslations({ locale, namespace: "notFound" }), getSite(locale)]);
     return { title: `${t("title")} — ${site.name}`, robots: { index: false, follow: true } };
@@ -76,12 +81,28 @@ export default async function Page({ params }: { params: Params }) {
   const blocks = draftView
     ? ((await getDraftBlocks(page.id)) ?? (await getPageBlocks(page.id)).map((b, i) => ({ ...b, uid: `b${i}` })))
     : await getPageBlocks(page.id);
+  // Page « Page introuvable » (lot 89) : le proxy en garde le statut 404, noindex et no-store. Si elle n'a rien à montrer (aucun bloc lisible : page
+  // vide, blocs corrompus ou invalides), la 404 d'origine s'affiche : jamais de page blanche. Sur la toile de l'éditeur, la page vide reste éditable.
+  const special = isSpecialPage(page);
+  const renderable = blocks.filter((b) => !b.corrupt && own(BLOCKS, b.type)?.schema.safeParse(b.props).success);
+  if (special && !draftView && renderable.length === 0) return <NotFoundView />;
+  // Filet : sans bloc « Sortie » lisible (données anciennes, restauration), un bouton « Retour à l'accueil » est ajouté après les blocs.
+  const needsExit = special && !draftView && !renderable.some((b) => b.type === "exit");
+  const back = needsExit ? await getTranslations({ locale, namespace: "notFound" }) : null;
   // Vue brouillon : repère de la révision rendue (invisible), lu par la couche d'édition de la toile.
   const rev = draftView ? getDraftRev(page.id) : null;
   const list = (
     <>
       <BlockList blocks={blocks} ctx={{ locale, pageId: page.id, edit: draftView }} />
       {rev !== null && <span hidden data-edit-rev={rev} />}
+      {back && (
+        <section className="shell pt-[var(--section-gap)]" data-exit-fallback="">
+          <Link href="/" className="btn">
+            {back("back")}
+            <span aria-hidden="true">→</span>
+          </Link>
+        </section>
+      )}
     </>
   );
   const draftInfo = draftView ? getDraftPageInfo(page.id) : null;

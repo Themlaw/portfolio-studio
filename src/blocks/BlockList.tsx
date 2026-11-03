@@ -133,6 +133,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
         data-edit-label={def?.label ?? block.type}
         {...(parent ? { "data-edit-parent": parent.uid } : {})}
         {...(def?.container ? { "data-edit-container": def.container.accepts.join(" ") } : {})}
+        {...(def?.locked ? { "data-edit-locked": def.locked } : {})}
         {...(editLook ? { "data-edit-look": editLook } : {})}
       >
         {node}

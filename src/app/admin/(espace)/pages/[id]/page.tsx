@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import PageEditor from "@/components/admin/PageEditor";
 import PageHeader from "@/components/admin/PageHeader";
 import { getActiveThemeColors, getEditorContext, getPageForEdit } from "@/lib/admin";
 import { readDraft } from "@/lib/edit/drafts";
+import { isSpecialPage } from "@/lib/special-pages";
 
 export const metadata = { title: "Modifier une page" };
 
@@ -12,6 +13,8 @@ export default async function PageEditPage({ params }: { params: Promise<{ id: s
   const { id } = await params;
   const published = /^\d+$/.test(id) ? getPageForEdit(Number(id)) : null;
   if (!published) notFound();
+  // Page spéciale (lot 89, « Page introuvable ») : ni titre, ni adresse, ni menu à régler ici ; tout se passe dans l'éditeur.
+  if (isSpecialPage(published)) redirect(`/admin/pages/${published.id}/editer`);
   // Le formulaire ne montre et n'enregistre que les infos de la page (lot 51) : le brouillon de contenu de l'éditeur
   // n'y est pas repris et n'est jamais publié d'ici. Les infos du brouillon (titre, adresses…) suivent déjà celles du formulaire.
   const state = readDraft(published.id);

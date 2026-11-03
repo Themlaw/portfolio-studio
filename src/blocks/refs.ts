@@ -30,6 +30,9 @@ export const BLOCK_REFS: Record<string, BlockRefs> = {
   "project-board": { projects: ["project"] },
   "section-title": { projects: ["project"] },
   "page-link": { pages: ["pageId"] },
+  // Page introuvable (lot 89) : le bouton de la Sortie mène à une page (l'accueil si absente) ; l'œuvre au hasard cite des emplacements, pas des médias.
+  exit: { pages: ["pageId"] },
+  "random-work": {},
   image: { media: ["mediaId"] },
   "video-single": { media: ["mediaId", "posterMediaId"] },
   cv: { media: ["mediaId"] },
