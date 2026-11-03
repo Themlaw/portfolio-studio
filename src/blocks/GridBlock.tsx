@@ -133,7 +133,7 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
   return (
     // Espace en bas (v0.13.1) : la grille se referme sur son propre pas (l'écart entre
     // cellules), comme une planche sur sa marge ; le bloc suivant ne colle plus.
-    <Section {...(zoom ? { as: "section" as const } : {})} className={`block-grid-section shell ${props.top === "gap" ? "pt-[var(--section-gap)]" : ""}${ctx.edit ? " pe-field-host" : ""}`} {...capHost(ctx)}>
+    <Section {...(zoom ? { as: "section" as const } : {})} className={`block-grid-section shell ${props.top === "gap" ? "pt-[var(--section-gap)]" : " grid-top-none"}${ctx.edit ? " pe-field-host" : ""}`} {...capHost(ctx)}>
       {ctx.edit && (
         <div className="relative">
           <FieldOps ctx={ctx} type="grid" props={props} />

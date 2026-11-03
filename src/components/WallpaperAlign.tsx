@@ -6,7 +6,7 @@
  * (les hauteurs ne se connaissent pas avant), chaque composant d'une chaîne reçoit `--wp-y` = hauteur de ce qui précède modulo la
  * hauteur d'une tuile (`chainOffsets`, pur). Recalculé quand une taille change (images, polices, largeur de fenêtre) ou que la toile
  * déplace une jonction. Avant l'hydratation (ou sans JavaScript) la trame repart simplement au coin de chaque composant.
- * Ne rend rien ; absent des pages sans papier peint de composant.
+ * Lot 102 : deux fonds voisins qui se touchent avec le même motif à la même taille poursuivent aussi la trame. Ne rend rien ; absent des pages sans papier peint de composant.
  */
 import { useEffect } from "react";
 
@@ -19,12 +19,27 @@ export function alignWallpapers(root: ParentNode = document): void {
   const els = [...root.querySelectorAll<HTMLElement>(SELECTOR)];
   if (!els.length) return;
   const phone = window.matchMedia("(max-width: 767px)").matches;
-  const items = els.map((el) => {
+  const rects = els.map((el) => el.getBoundingClientRect());
+  const paint = (el: HTMLElement) => {
+    const cs = getComputedStyle(el);
+    return `${cs.getPropertyValue("--wp-img").trim()}|${cs.getPropertyValue(phone ? "--wp-size-m" : "--wp-size").trim()}`;
+  };
+  const paints = els.map(paint);
+  const items = els.map((el, i) => {
     const cs = getComputedStyle(el);
     const size = Number.parseFloat(cs.getPropertyValue(phone ? "--wp-size-m" : "--wp-size"));
     const ratio = Number.parseFloat(cs.getPropertyValue("--wp-ratio"));
-    return { joinPrev: el.hasAttribute("data-join-prev"), joinNext: el.hasAttribute("data-join-next"), height: el.getBoundingClientRect().height, tile: Number.isFinite(size) && Number.isFinite(ratio) ? size * ratio : 0 };
+    return { joinPrev: el.hasAttribute("data-join-prev"), joinNext: el.hasAttribute("data-join-next"), height: rects[i].height, tile: Number.isFinite(size) && Number.isFinite(ratio) ? size * ratio : 0 };
   });
+  // Lot 102 : deux fonds qui se TOUCHENT et montrent le même motif à la même taille poursuivent la trame, même si leur teinte ou leur opacité
+  // diffèrent (ils ne fusionnent pas, mais le papier est le même : une trame qui repart à la jonction se voit).
+  for (let i = 1; i < els.length; i++) {
+    const touching = Math.abs(rects[i].top - rects[i - 1].bottom) < 1 && rects[i].height > 0 && rects[i - 1].height > 0;
+    if (touching && paints[i] === paints[i - 1] && !paints[i].startsWith("|") && !els[i - 1].contains(els[i]) && !els[i].contains(els[i - 1])) {
+      items[i].joinPrev = true;
+      items[i - 1].joinNext = true;
+    }
+  }
   chainOffsets(items).forEach((y, i) => {
     if (y === 0) els[i].style.removeProperty("--wp-y");
     else els[i].style.setProperty("--wp-y", `${y}px`);
