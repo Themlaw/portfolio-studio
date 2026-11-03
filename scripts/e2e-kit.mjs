@@ -10,7 +10,7 @@
  *    (les autres fichiers « pas envoyé : inchangé »), puis de deux PSD choisis
  *    ensemble → revue groupée par fichier → « Appliquer à mon thème » : nouvelle
  *    version de Mon thème (lot 60 ; décor libre de 4 plans), aperçu du brouillon.
- * B. Fichier réel de l'artiste (tests/fixtures/kit-synthetique.psd, kit
+ * B. Fichier de test synthétique (kit v1 réenregistré) (tests/fixtures/kit-synthetique.psd, kit
  *    v1) : revue, application, puis la flèche de l'artiste rendue dans le
  *    rail des planches et dans la visionneuse (aperçu du brouillon).
  * Captures : screenshots/phase6d. Mon thème créé par le parcours et les imports
@@ -42,7 +42,7 @@ function ok(label, cond, detail = "") {
   console.log(`${cond ? "PASS" : "FAIL"} ${label}${!cond && detail ? ` — ${detail}` : ""}`);
 }
 
-// Manifeste du kit v1 d'origine (empreintes) : le fichier de l'artiste y est reconnu.
+// Manifeste du kit v1 d'origine (empreintes) : le fichier de test y est reconnu.
 const manifests = path.join(DATA, "cache/kits/manifests");
 mkdirSync(manifests, { recursive: true });
 if (!existsSync(path.join(manifests, "legacy-galerie-lumineuse-v1.json"))) copyFileSync("tests/fixtures/kit-galerie-lumineuse-v1.manifest.json", path.join(manifests, "legacy-galerie-lumineuse-v1.json"));
@@ -177,12 +177,12 @@ ok("accueil du brouillon : exactement 4 plans dans le hero (les calques SVG du t
 await page.screenshot({ path: `${SHOTS}/accueil-decor-libre-1440.png` });
 await page.request.post(`${BASE}/admin/apercu/quitter`, { headers: { origin: BASE } }).catch(() => {});
 
-/* ---- B. Fichier réel de l'artiste -------------------------------------- */
+/* ---- B. Fichier de test synthétique (kit v1 réenregistré) -------------------------------------- */
 const b = await sendAndReview(path.resolve("tests/fixtures/kit-synthetique.psd"), 14);
 ok("ancien kit v1 (un seul fichier) : lu comme avant, 14 cartes, sans titre de fichier", b.cards.length === 14 && b.sections.length === 0, JSON.stringify(b.sections));
 const changedB = b.cards.filter((c) => c.change !== "unchanged");
-ok("fichier de l'artiste : seule « Flèche droite » redessinée", changedB.length === 1 && changedB[0].slot === "icones/fleche-droite", JSON.stringify(changedB));
-ok("fichier de l'artiste : « Plan 3 : inchangé »", b.cards.some((c) => c.slot === "hero/plan-3" && /Plan 3 : inchangé/.test(c.title)));
+ok("fichier de test : seule « Flèche droite » redessinée", changedB.length === 1 && changedB[0].slot === "icones/fleche-droite", JSON.stringify(changedB));
+ok("fichier de test : « Plan 3 : inchangé »", b.cards.some((c) => c.slot === "hero/plan-3" && /Plan 3 : inchangé/.test(c.title)));
 await page.screenshot({ path: `${SHOTS}/revue-fichier-artiste-1440.png`, fullPage: true });
 const draftB = await apply();
 

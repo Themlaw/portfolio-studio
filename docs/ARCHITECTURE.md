@@ -7,8 +7,8 @@ chaque phase s'y réfère. Toute déviation se discute et met ce fichier à jour
 
 | Sujet | Décision |
 |---|---|
-| Build & distribution | GitHub (repo privé `Themlaw/portfolio`) → Actions → `ghcr.io/themlaw/portfolio` (privé) |
-| Prod | hote-de-prod, stack Komodo (`/home/user/docker/portfolio/compose.yaml`, image `latest`), `pull_policy: always`, réseau `traefik` partagé avec Newt, aucun port publié |
+| Build & distribution | GitHub (dépôt `Themlaw/portfolio`) → Actions → `ghcr.io/themlaw/portfolio` (visibilité réglée sur GitHub) |
+| Prod | hôte de prod, stack Komodo (`<dossier de la stack>/compose.yaml`, image `latest`), `pull_policy: always`, réseau `traefik` partagé avec Newt, aucun port publié |
 | Dev | vm-dev, `npm run dev -- -p 3001` ; hôte Proxmox en surallocation RAM → une charge lourde à la fois, pas de build d'image en local |
 | Contenu | SQLite (better-sqlite3 + Drizzle ORM, WAL), fichier `/data/portfolio.db` |
 | Médias | Volume local `/data/media`, derrière une interface `MediaStorage` (bascule Garage/S3 possible sans toucher aux composants) |
@@ -492,7 +492,7 @@ Spécification, mesures et décisions : `docs/THEME-KIT.md`. En bref : module
 migration 0010), en-tête contrôlé sans décodage, job « kit-import » de la même
 file lourde dans l'enfant, manifeste d'export pour reconnaître les éléments
 inchangés, écran de revue `/admin/themes/<id>/kit`, application en copie
-brouillon (`apply.ts`). Jeu de test réel : `tests/fixtures/kit-synthetique.psd`.
+brouillon (`apply.ts`). Jeu de test synthétique : `tests/fixtures/kit-synthetique.psd`, généré par `scripts/make-fixture-psd.mts`.
 Lot 17e : le kit exporté est une archive de trois PSD (décor à calques libres, logo et
 papier, icônes et curseurs ; cases en grand, réduites à l'import), l'import accepte le .zip,
 un PSD ou plusieurs PSD choisis ensemble (`docs/THEME-KIT.md` §9).
@@ -1422,7 +1422,7 @@ Chaque phase suit le même cycle : build → vérification
 indépendante (GO / NO-GO mesuré) → validation visuelle → commit squashé sur `main` + tag
 `v0.N` → CI → déploiement Komodo.
 
-0. **Infra** (v0.1.0) : Dockerfile standalone, workflow GHCR, compose hote-prod.
+0. **Infra** (v0.1.0) : Dockerfile standalone, workflow GHCR, compose de l'hôte de prod.
 1. **Moteur de thèmes** : tokens → variables à l'exécution, variantes `data-*`, catalogue de
    polices, presets Galerie lumineuse + Pro + direction sombre (test d'acceptation). Choix du
    thème par variable d'env en attendant l'admin.

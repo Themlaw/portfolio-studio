@@ -277,9 +277,9 @@ Retour réel de l'artiste sur le kit v1 (Photoshop, Windows) : « Non je compren
 pas ». Calques isolés hors des groupes, LISEZ-MOI rangé n'importe où, « pourquoi
 seulement le scotch dans les accessoires », tout tassé sur une toile 2880 × 2560
 sous le paysage, libellés illisibles à 25 %, rien ne dit où chaque élément
-apparaît sur le site. Son fichier réenregistré par Photoshop (flèche droite
-redessinée) est le jeu de test réel : `tests/fixtures/kit-synthetique.psd`
-(5,8 Mo ; 1,5 Mo une fois compressé par git : gardé dans le dépôt).
+apparaît sur le site. Un fichier réenregistré par Photoshop (flèche droite
+redessinée) est le jeu de test : `tests/fixtures/kit-synthetique.psd`, SYNTHÉTIQUE depuis le lot 103
+(généré par `scripts/make-fixture-psd.mts`, 2,4 Mo, aucune donnée de l'artiste ; gardé dans le dépôt).
 
 ### Groupes plutôt que plans de travail
 
@@ -289,7 +289,7 @@ sur une zone de toile dédiée et espacée** (une « carte »). Raisons : la rel
 d'un document à plans de travail réenregistré par Photoshop n'est pas vérifiable
 sur la VM, et Photoshop agrandit et décale la toile d'un tel document
 (coordonnées déplacées) ; l'aller-retour des groupes est, lui, **prouvé sur le
-fichier de l'artiste** : chaque emplacement relu identique au bit près (une fois
+fichier de test** : chaque emplacement relu identique au bit près (une fois
 replacé dans sa case). L'import tolère malgré tout un plan de travail : ses cases
 sont alors relatives au rectangle du plan.
 
@@ -386,7 +386,7 @@ et vue d'ensemble : `screenshots/phase6d/kit-v2-*.png`.
   `KIT_IMPORT_MAX_DURATION_S`) → job en échec lisible, PSD supprimé, sortie
   tronquée à 64 Ko ; un enfant précédent encore vivant est tué avant d'en
   lancer un autre. Mesuré en production sous ce plafond : export 346 Mo,
-  import du fichier réel 181 Mo. `mem_limit: 1g` commenté dans le compose.
+  import du fichier de test 181 Mo. `mem_limit: 1g` commenté dans le compose.
 - **Lecture ag-psd bornée** : `totalMemoryLimit` de 64 Mo (`PSD_READ_OPTIONS`) : ce
   qu'ag-psd décode lui-même pendant la lecture (motifs `Patt`/`Pat2`/`Pat3`,
   composite) ne dépasse pas 64 Mo (2 Go par défaut). **Canaux ZIP refusés**
@@ -430,7 +430,7 @@ copie brouillon « … (kit) » (jamais le thème en ligne), avec les nouveaux a
 | Opération | Durée | Pic mémoire | Sortie |
 |---|---|---|---|
 | Export v2 de galerie-lumineuse (enfant esbuild) | 3,1 s | **345 Mo** (sans rognage ni composite en flux : 445 Mo) | PSD 9,6 Mo, 30 calques |
-| Import du fichier réel de l’artiste (enfant, production) | 0,9 s | 150 Mo | 1 masque SVG de 463 o |
+| Import du fichier de test de l’artiste (enfant, production) | 0,9 s | 150 Mo | 1 masque SVG de 463 o |
 | Import d'un kit v2 non modifié | 0,7 s | 226 Mo | rien à convertir |
 
 Export sous 400 Mo : calques rognés à leur contenu (comme Photoshop), cache
@@ -708,7 +708,7 @@ l'enfant (§ « Défenses ») s'appliquent tels quels.
 Les anciens kits restent lus : `layout` `v1` / `v2` (cases d'usage, groupe « 8 · Palette » avec la lecture
 des gestes naturels du lot 17a, curseurs 64 × 64) ; `buildKit` (export v3) n'est plus appelé par
 l'application, il sert aux tests de compatibilité (`test-kit-import.mjs`) et au script du tuto. Le
-fichier réel `tests/fixtures/kit-synthetique.psd` est toujours lu à l'identique.
+fichier de test `tests/fixtures/kit-synthetique.psd` est toujours lu à l'identique.
 
 Tests : `scripts/test-kit-multi.mjs` (dans `npm test` : export → archive → réimport sans changement,
 icône à 512, logo, curseur, décor libre, archive défensive, anciens kits), `test-kit-import.mjs`,

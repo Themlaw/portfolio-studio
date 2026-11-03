@@ -2699,7 +2699,7 @@ const bigPsd = Buffer.from(writePsdBuffer({ width: 6000, height: 6000, children:
 const big = await kitUpload(bigPsd, "trop-grand.psd");
 ok("TI4 PSD de 6000 × 6000 : refusé avant décodage (422, dimensions), aucun job", big.status === 422 && /6000 × 6000/.test(big.body.message ?? "") && importJobs().length === jobs0, `${big.status} ${big.body.message}`);
 
-// Fichier réel de l'artiste : import dans le processus enfant (bundle), manifeste du kit v1 d'origine.
+// Fichier de test synthétique (kit v1 réenregistré) : import dans le processus enfant (bundle), manifeste du kit v1 d'origine.
 mkdirSync(path.join(dirK, "cache", "kits", "manifests"), { recursive: true });
 cpSync(path.join(ROOT, "tests/fixtures/kit-galerie-lumineuse-v1.manifest.json"), path.join(dirK, "cache", "kits", "manifests", "legacy-galerie-lumineuse-v1.json"));
 const real = await kitUpload(fixturePsd, "kit-synthetique.psd");
@@ -2710,7 +2710,7 @@ const redrawn = rapport?.slots.filter((x) => x.change === "redrawn").map((x) => 
 const importLine = serverLog(kv.server, /\[kit\] import [^\n]+/g).pop() ?? "";
 console.log(`      processus enfant (bundle kit-child.cjs) : ${importLine}`);
 ok(
-  "TI5 fichier réel de l'artiste : importé (file lourde, enfant), seule la flèche droite redessinée, PSD supprimé",
+  "TI5 fichier de test synthétique : importé (file lourde, enfant), seule la flèche droite redessinée, PSD supprimé",
   real.status === 200 && st.status === "done" && redrawn.length === 1 && redrawn[0] === "icones/fleche-droite" && !readdirSync(path.join(dirK, "kit-imports", importId)).some((n) => /^source.*\.psd$/.test(n)),
   `${real.status} ${JSON.stringify(st)} ${redrawn.join(",")}`,
 );
@@ -2927,7 +2927,7 @@ await stop(kv.server);
 {
 console.log("\n== TM. kit : plafond mémoire, redémarrage");
 const dirM = `${TMP}/vkitmem`;
-// Plafond abaissé à 60 Mo : l'import du fichier réel (≈ 150 Mo) le dépasse.
+// Plafond abaissé à 60 Mo : l'import du fichier de test (≈ 150 Mo) le dépasse.
 const km = await freshAdmin(dirM, { KIT_CHILD_MAX_RSS_MB: "60" });
 const HM = { cookie: km.jar.header(), origin: BASE };
 const data = readFileSync(path.join(ROOT, "tests/fixtures/kit-synthetique.psd"));
