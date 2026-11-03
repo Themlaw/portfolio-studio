@@ -123,10 +123,10 @@ export const PagePaperSchema = z.discriminatedUnion("mode", [
 export const CardWallpaperSchema = z.strictObject({ wallpaper: WallpaperIdSchema, size: WallpaperSizeSchema.optional(), opacity: WallpaperOpacitySchema.optional() });
 /** Papier du site sur une carte (lot 28) : `under` = caché sous la carte (rendu d'avant), `over` = dessiné sur sa couleur, sous le contenu ; absent = comme le site. */
 export const SURFACE_PAPERS = ["under", "over"] as const;
-/** Une carte de rubrique : réglages de base + papier. `paperOpacity` : 0 à 0,6 (PAPER_OVER_HERO_MAX ; au-delà le texte se lit mal) ; absente = intensité du site. */
+/** Une carte de rubrique : réglages de base + papier. `paperOpacity` : 0 à 1 (lot 90 : plus de plafond à 0,6, un avertissement de lisibilité à la place, PAPER_READABLE_MAX ; la v0.31.x refuse > 0,6) ; absente = intensité du site. */
 export const SurfaceSchema = SurfaceBaseSchema.extend({
   paper: z.enum(SURFACE_PAPERS).optional(),
-  paperOpacity: z.number().min(0).max(0.6).optional(),
+  paperOpacity: z.number().min(0).max(1).optional(),
   /** Lot 35 : un motif de la bibliothèque à la place du papier du kit (la carte le montre « dessus » ; `paper: under` le cache). */
   paperWallpaper: WallpaperIdSchema.optional(),
   paperSize: WallpaperSizeSchema.optional(),
@@ -193,7 +193,15 @@ const kitPlan = z
  * sentir sans voiler le paysage. Plafond : au-delà, la tuile se lit en motif.
  */
 export const PAPER_OVER_HERO_DEFAULT = 0.35;
+/**
+ * Plafond du papier DU THÈME (kit : `overHero`, `onCardsOpacity`), gardé à 0,6 en v0.33 (lot 90, garde-fou de retour arrière) : la v0.31.x refuse
+ * tout le thème (donc le site retombe sur le thème par défaut) si l'une de ces valeurs dépasse 0,6 ; ce plafond-là ne bouge pas.
+ * Le papier d une carte (`Surface.paperOpacity`) et le papier peint vont, eux, jusqu'à 100 %.
+ */
 export const PAPER_OVER_HERO_MAX = 0.6;
+/** Au-delà de cette opacité, un texte posé sur le papier peut devenir moins lisible : avertissement non bloquant des curseurs (ce n'est plus un plafond). */
+export const PAPER_READABLE_MAX = 0.6;
+export const PAPER_READABLE_WARNING = "Au-delà de 60 %, le texte peut devenir moins lisible";
 /** Intensité du papier sur les cartes quand ni le site ni la carte ne la précisent : comme sur le hero. */
 export const PAPER_ON_CARDS_DEFAULT = PAPER_OVER_HERO_DEFAULT;
 

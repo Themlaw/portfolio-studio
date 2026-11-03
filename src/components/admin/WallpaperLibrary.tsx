@@ -22,7 +22,7 @@ import {
 import type { WallpaperUseRow } from "@/lib/admin";
 import { daysLeft } from "@/lib/trash";
 import type { AdminWallpaper } from "@/lib/wallpapers";
-import { WALLPAPER_OPACITY_MIN, WALLPAPER_SIZE_MAX, WALLPAPER_SIZE_MIN } from "@/themes/schema";
+import { PAPER_READABLE_MAX, PAPER_READABLE_WARNING, WALLPAPER_OPACITY_MIN, WALLPAPER_SIZE_MAX, WALLPAPER_SIZE_MIN } from "@/themes/schema";
 import type { CardWallpaper } from "@/themes/wallpaper";
 
 import { ConfirmDialog, toast, undoToast } from "./editing";
@@ -32,7 +32,6 @@ import { useUploadQueue } from "./UploadQueue";
 const ORIGIN = "papiers-peints";
 const ACCEPTED = /\.(png|webp|avif)$/i;
 /** Plafond d'opacité d'un papier sur une carte (comme le papier du kit : au-delà le texte se lit mal). */
-const CARD_MAX_OPACITY = 0.6;
 
 const plural = (n: number, one: string, many: string) => (n > 1 ? many : one);
 
@@ -170,7 +169,7 @@ function CardDefault({ ready, value, onChanged }: { ready: AdminWallpaper[]; val
     }, delay);
   };
   const size = cur?.size ?? entry?.size ?? 300;
-  const opacity = Math.min(CARD_MAX_OPACITY, cur?.opacity ?? entry?.opacity ?? 1);
+  const opacity = cur?.opacity ?? entry?.opacity ?? 1;
   return (
     <section className="a-panel" aria-labelledby="wp-cartes" data-testid="wallpaper-cards">
       <h2 id="wp-cartes">Papier peint des cartes</h2>
@@ -205,12 +204,17 @@ function CardDefault({ ready, value, onChanged }: { ready: AdminWallpaper[]; val
             <input
               type="range"
               min={Math.round(WALLPAPER_OPACITY_MIN * 100)}
-              max={Math.round(CARD_MAX_OPACITY * 100)}
+              max={100}
               step={1}
               value={Math.round(opacity * 100)}
               data-testid="wallpaper-cards-opacity"
               onChange={(e) => save({ ...cur, opacity: Number(e.target.value) / 100 }, 350)}
             />
+            {opacity > PAPER_READABLE_MAX && (
+              <span className="a-help" role="status" data-testid="wallpaper-cards-warning">
+                {PAPER_READABLE_WARNING}
+              </span>
+            )}
           </label>
         </>
       )}

@@ -306,7 +306,7 @@ if (run("I"))
     await page.keyboard.press("Escape");
     await sleep(300);
     await page.screenshot({ path: path.join(SHOTS, "04-couleur-libre-toile.png") });
-    ok("I6 la pastille du bouton « Fond image » montre la couleur choisie", await f.locator('.pe-tools [data-testid="imgbg-button"] .sm-dot').evaluate((d) => d.hasAttribute("data-on") && getComputedStyle(d).backgroundColor === "rgb(51, 102, 153)"));
+    ok("I6 l'échantillon carré du bouton « Fond image » montre la couleur choisie (lot 90 : plus de pastille ronde)", await f.locator('.pe-tools [data-testid="imgbg-button"] .sm-swatch').evaluate((d) => getComputedStyle(d).backgroundColor === "rgb(51, 102, 153)" && parseFloat(getComputedStyle(d).borderTopLeftRadius) < 6));
     await settled();
     // Annuler : le dernier réglage est défait (les réglages d'un même bloc rapprochés peuvent former un seul pas d'historique).
     await page.locator('button[aria-label="Défaire"]').click();

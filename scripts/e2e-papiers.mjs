@@ -500,7 +500,7 @@ await section("D", async () => {
   await menu.locator('[data-testid="wp-opacity"]').fill("30");
   await waitFor(() => Math.abs((draftBlock("Bravo")?.props.surface?.paperOpacity ?? 0) - 0.3) < 0.001);
   await menu.locator('[data-testid="wp-size"]').fill("80");
-  ok("D4 taille et intensité propres à la carte (plafond 60 %)", await waitFor(() => draftBlock("Bravo")?.props.surface?.paperSize === 80), JSON.stringify(draftBlock("Bravo")?.props.surface));
+  ok("D4 taille et intensité propres à la carte", await waitFor(() => draftBlock("Bravo")?.props.surface?.paperSize === 80), JSON.stringify(draftBlock("Bravo")?.props.surface));
   await page.keyboard.press("Escape");
   await sleep(500);
   b = await measure(f, "Bravo");
