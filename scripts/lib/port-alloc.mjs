@@ -17,7 +17,7 @@
  *   node scripts/lib/port-alloc.mjs list [--dir D]
  * Environnement : BATT_PORT_MIN, BATT_PORT_MAX, BATT_PORT_BLOCK, BATT_PORT_DIR.
  */
-import { existsSync, linkSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, statSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -47,15 +47,25 @@ export function portFree(port) {
 }
 
 /**
- * Contenu d'un verrou : « hôte pid ». Un verrou posé depuis un autre hôte (autre conteneur : les pid ne sont pas
- * comparables) est considéré vivant tant qu'il a moins de STALE_H heures ; le sondage du port reste l'arbitre final.
+ * Contenu d'un verrou : « hôte pid espace-de-noms-pid ». Le pid n'a de sens que dans le MÊME espace de noms de pid :
+ * deux conteneurs (réseau hôte, même nom d'hôte) partagent le dossier de verrous mais pas leurs pid (le pid 60 d'un
+ * conteneur mort peut être un job vivant d'un autre). Verrou du même espace de noms : on teste le pid. Verrou d'un autre
+ * espace (ou d'un autre hôte) : on ne peut pas juger, il est vivant tant qu'il a moins de FOREIGN_MIN minutes (le temps que
+ * son serveur ouvre le port) ; ensuite le sondage du port est l'arbitre (un serveur vivant occupe son port : le bloc est sauté).
  */
-const STALE_H = Number(process.env.BATT_PORT_STALE_H ?? 12);
+const FOREIGN_MIN = Number(process.env.BATT_PORT_FOREIGN_MIN ?? 10);
+export function pidNs() {
+  try {
+    return readlinkSync("/proc/self/ns/pid");
+  } catch {
+    return "";
+  }
+}
 function lockAlive(file) {
   try {
-    const [host, pid] = readFileSync(file, "utf8").trim().split(/\s+/);
-    if (host === os.hostname()) return pidAlive(Number(pid));
-    return Date.now() - statSync(file).mtimeMs < STALE_H * 3600e3;
+    const [host, pid, ns = ""] = readFileSync(file, "utf8").trim().split(/\s+/);
+    if (host === os.hostname() && ns === pidNs()) return pidAlive(Number(pid));
+    return Date.now() - statSync(file).mtimeMs < FOREIGN_MIN * 60e3;
   } catch {
     return false;
   }
@@ -73,7 +83,7 @@ function takeLock(dir, port, owner) {
       // Création ATOMIQUE avec contenu : fichier temporaire complet puis link() (échoue en EEXIST si le verrou existe).
       // Avec « wx » puis écriture, un concurrent lisait un fichier encore vide, le jugeait mort et le volait.
       const tmp = `${f}.${process.pid}.${owner}.tmp`;
-      writeFileSync(tmp, `${os.hostname()} ${owner}`);
+      writeFileSync(tmp, `${os.hostname()} ${owner} ${pidNs()}`);
       try {
         linkSync(tmp, f);
       } finally {

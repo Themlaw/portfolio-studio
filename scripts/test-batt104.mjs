@@ -9,7 +9,7 @@
  *  D  durées : toutes les suites du script ont une durée et un poids.
  */
 import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -73,6 +73,19 @@ for (let t = 0; t < 20; t++) {
   const i = await alloc({ min: BASE_PORT + 100, max: BASE_PORT + 107, size: 8, dir: dir3 });
   ok("A10 verrou d'un pid mort → bloc repris par un vivant", i && i.port === BASE_PORT + 100 && list(dir3).every((l) => l.pid === process.pid && l.alive));
   i.release();
+
+  // Verrou posé depuis un autre espace de noms de pid (autre conteneur, mêmes pid possibles) : récent = vivant même si le pid
+  // « existe » ici, ancien = repris (le sondage du port arbitre).
+  const dir3b = path.join(tmp, "ports3b");
+  mkdirSync(dir3b, { recursive: true });
+  for (let p = BASE_PORT + 150; p < BASE_PORT + 158; p++) writeFileSync(path.join(dir3b, `${p}.lock`), `${os.hostname()} ${process.pid} pid:[0]`);
+  const j = await alloc({ min: BASE_PORT + 150, max: BASE_PORT + 157, size: 8, dir: dir3b });
+  ok("A10b verrou récent d'un autre espace de pid (même pid que le nôtre) → respecté", j === null);
+  const vieux = new Date(Date.now() - 3600e3);
+  for (let p = BASE_PORT + 150; p < BASE_PORT + 158; p++) utimesSync(path.join(dir3b, `${p}.lock`), vieux, vieux);
+  const j2 = await alloc({ min: BASE_PORT + 150, max: BASE_PORT + 157, size: 8, dir: dir3b });
+  ok("A10c verrou ancien d'un autre espace de pid → repris", j2 && j2.port === BASE_PORT + 150);
+  j2?.release();
 
   // Accès concurrents : 12 processus, aucun doublon de port.
   const dir4 = path.join(tmp, "ports4");

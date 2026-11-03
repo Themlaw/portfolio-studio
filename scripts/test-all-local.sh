@@ -8,7 +8,7 @@
 #
 # Usage (depuis le dépôt) :
 #   scripts/test-all-local.sh [options] [suite…]      # vide = toutes
-#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 entrees48 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 backup50 vitesse54 publication51 publication101 kit53 partage52 priseenmain57 cadremotif58 cadres62 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 mediaframe64 cadres79 grille69 public67 surface66 popover65 textes70 papiers78 admin76 restes77 cadres74 unif75 favicon83 backup85 domaine88 langue87 pied86 logo84 introuvable89 cadre95 opacite90 fond100 site96 legendes98 defilement99 defilement99-firefox parite99 journal97 integ33
+#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 entrees48 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 backup50 vitesse54 publication51 publication101 kit53 partage52 priseenmain57 cadremotif58 cadres62 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 mediaframe64 cadres79 grille69 public67 surface66 popover65-1440 popover65-1024 popover65-390 popover65-autres textes70 papiers78 admin76 restes77 cadres74 unif75 favicon83 backup85 domaine88 langue87 pied86 logo84 introuvable89 cadre95 opacite90 fond100 site96 legendes98 defilement99 defilement99-firefox parite99 journal97 integ33
 # Options (lot 104) :
 #   --changed <base>    MODE CIBLÉ : ne lance que les suites liées aux fichiers modifiés depuis <base>
 #                       (git diff <base>, plus l'arbre de travail), plus le socle fixe checks, state,
@@ -207,7 +207,10 @@ E2E=(
   "grille69|node scripts/e2e-grille69.mjs|chromium|"
   "public67|node scripts/e2e-public67.mjs|chromium|"
   "surface66|node scripts/e2e-surface66.mjs|chromium|"
-  "popover65|node scripts/e2e-popover65.mjs|chromium|"
+  "popover65-1440|node scripts/e2e-popover65.mjs|chromium|B,W,R|WIDTHS=1440"
+  "popover65-1024|node scripts/e2e-popover65.mjs|chromium|B,W,R|WIDTHS=1024"
+  "popover65-390|node scripts/e2e-popover65.mjs|chromium|B,W,R|WIDTHS=390"
+  "popover65-autres|node scripts/e2e-popover65.mjs|chromium|K,O,D|"
   "textes70|node scripts/e2e-textes70.mjs|chromium|"
   "admin76|node scripts/e2e-admin76.mjs|chromium||WITH_BACKUP=1 BACKUP_QUIET_SEC=4 BACKUP_KEEP=3 BACKUP_MAX_HOURS=6"
   "restes77|node scripts/e2e-restes77.mjs|chromium|"
