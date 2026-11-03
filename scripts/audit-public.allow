@@ -6,10 +6,6 @@
 # absent ou < 32 caractères => erreur de configuration), il ne protège aucune instance réelle.
 secret src/lib/auth/config.ts
 
-# PSD synthétique des tests, produit par scripts/make-fixture-psd.mts (vérifier : npm run fixture:psd -- --check).
-forbidden blob:08c13a676d42073564310d42911cd4df49fd8401
-media tests/fixtures/kit-synthetique.psd
-
 # Polices libres (licence OFL) : binaires tiers, noms et e-mails des fondeurs dans les textes de licence.
 media public/kit/**
 media src/themes/fonts/*

@@ -279,7 +279,7 @@ seulement le scotch dans les accessoires », tout tassé sur une toile 2880 × 2
 sous le paysage, libellés illisibles à 25 %, rien ne dit où chaque élément
 apparaît sur le site. Un fichier réenregistré par Photoshop (flèche droite
 redessinée) est le jeu de test : `tests/fixtures/kit-synthetique.psd`, SYNTHÉTIQUE depuis le lot 103
-(généré par `scripts/make-fixture-psd.mts`, 2,4 Mo, aucune donnée de l'artiste ; gardé dans le dépôt).
+(généré par `scripts/make-fixture-psd.mts`, 2,4 Mo, aucune donnée de l'artiste ; NON commité : `npm test` et `scripts/test-all-local.sh` le génèrent s'il manque).
 
 ### Groupes plutôt que plans de travail
 

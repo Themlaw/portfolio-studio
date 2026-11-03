@@ -77,7 +77,7 @@ const patterns = (opt("--patterns") ? readLines(opt("--patterns")) : []).map((li
 const globRe = (g) => new RegExp("^" + g.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*/g, "\u0000").replace(/\*/g, "[^/]*").replace(/\u0000/g, ".*") + "$");
 const forbiddenLines = opt("--forbidden") ? readLines(opt("--forbidden")) : [];
 const forbiddenBlobs = new Set(forbiddenLines.filter((l) => l.startsWith("blob:")).map((l) => l.slice(5).trim()));
-const forbiddenPaths = forbiddenLines.filter((l) => !l.startsWith("blob:")).map((l) => (l.endsWith("/") ? globRe(l + "**") : globRe(l)));
+const forbiddenPaths = forbiddenLines.filter((l) => !l.startsWith("blob:") && !l.startsWith("old-versions:")).map((l) => (l.endsWith("/") ? globRe(l + "**") : globRe(l)));
 const allow = (opt("--allow") ? readLines(opt("--allow")) : []).map((l) => {
   const [cls, ...rest] = l.split(/\s+#|\s+/).length ? l.replace(/\s+#.*$/, "").split(/\s+/) : [];
   const target = rest.join(" ");

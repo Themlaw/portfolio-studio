@@ -50,6 +50,9 @@ if [ -n "$LOCK" ] && [ -z "${BATT_LOCKED:-}" ]; then
   exec flock -w "$LOCK_WAIT" "$LOCK" env BATT_LOCKED=1 bash "$0" "$@"
 fi
 
+# Jeu de test PSD synthétique (non commité) : généré une fois, avant toute suite.
+node --import tsx scripts/make-fixture-psd.mts --if-missing || { echo "génération du PSD de test impossible" >&2; exit 2; }
+
 export NODE_OPTIONS=${NODE_OPTIONS:---max-old-space-size=1024}
 export NEXT_TELEMETRY_DISABLED=1
 mkdir -p "$BATTERY_DIR/.res"
@@ -139,7 +142,9 @@ E2E=(
   "grille69|node scripts/e2e-grille69.mjs|chromium|"
   "public67|node scripts/e2e-public67.mjs|chromium|"
   "surface66|node scripts/e2e-surface66.mjs|chromium|"
-  "popover65|node scripts/e2e-popover65.mjs|chromium|"
+  "popover65a|node scripts/e2e-popover65.mjs|chromium|B,K,W,R"
+  "popover65b|node scripts/e2e-popover65.mjs|chromium|O"
+  "popover65c|node scripts/e2e-popover65.mjs|chromium|D"
   "textes70|node scripts/e2e-textes70.mjs|chromium|"
   "admin76|node scripts/e2e-admin76.mjs|chromium||WITH_BACKUP=1 BACKUP_QUIET_SEC=4 BACKUP_KEEP=3 BACKUP_MAX_HOURS=6"
   "restes77|node scripts/e2e-restes77.mjs|chromium|"

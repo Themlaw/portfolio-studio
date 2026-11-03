@@ -16,13 +16,14 @@ npm run dev -- -p 3001          # http://localhost:3001 ; /admin pour l'administ
 
 ## Tests
 
+- Le PSD de test (synthétique) est généré à la demande par `npm test` et `scripts/test-all-local.sh` ; pour lancer un script seul : `npm run fixture:psd -- --if-missing`.
 - Rapides : `npx tsc --noEmit`, `npm run lint`, `npm test` (suites unitaires, quelques minutes).
 - Complets : `scripts/test-all-local.sh [suite…]` (e2e Playwright, une base et un serveur neufs par suite) ;
   `BATT_SERVER=start BATT_JOBS=2 scripts/test-all-local.sh` va plus vite. La CI GitHub (`.github/workflows/tests.yml`)
   répartit ces mêmes suites en shards ; une suite seule se lance à la main (`gh workflow run tests.yml -f suites=kit53`).
 - Hygiène du dépôt : `npm run audit:public` (aucun secret, fichier interdit ni donnée privée, historique compris).
 
-Contribuer, signaler une faille : voir `SECURITY.md`. Détails techniques : `docs/ARCHITECTURE.md`, `docs/ARCHITECTURE.md`.
+Licence : GNU AGPL-3.0 (`LICENSE`). Contribuer, signaler une faille : voir `SECURITY.md`. Détails techniques : `docs/ARCHITECTURE.md`, `docs/ARCHITECTURE.md`.
 
 ## Pile technique
 

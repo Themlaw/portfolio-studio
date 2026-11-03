@@ -12,8 +12,9 @@
  *    (mode le plus faible, voir README).
  */
 
+import { devSecret } from "./dev-secret";
+
 export const OIDC_PROVIDER_ID = "authentik";
-const DEV_SECRET = "secret-de-dev-supprime";
 /** Repli neutre : en production PUBLIC_BASE_URL est obligatoire (avertissement sinon). */
 const DEFAULT_PUBLIC_URL = "http://localhost:3001";
 
@@ -108,7 +109,7 @@ export function readAuthConfig(): AuthConfig {
   return {
     baseURL,
     trustedOrigins,
-    secret: rawSecret && !secretError ? rawSecret : DEV_SECRET,
+    secret: rawSecret && !secretError ? rawSecret : devSecret("better-auth"),
     secretError: isProd ? secretError : null,
     oidc,
     passwordEnabled,

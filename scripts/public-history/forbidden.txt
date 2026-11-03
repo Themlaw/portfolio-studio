@@ -2,10 +2,14 @@
 # et par scripts/audit-public.mjs --forbidden). Une ligne : un chemin, un motif (* et **),
 # un dossier (terminé par /) ou « blob:<sha> » (une version précise d'un fichier).
 #
-# Ancien PSD RÉEL de l'artiste. On retire CE blob seulement : au même chemin, le PSD synthétique
-# (scripts/make-fixture-psd.mts) reste, puisque c'est un autre blob.
+# Ancien PSD RÉEL de l'artiste et son manifeste d'empreintes (ancienne version). Le PSD de test actuel est
+# synthétique, GÉNÉRÉ à l'exécution et non commité : plus aucun .psd dans le dépôt.
 blob:5d0848bf983b4703d828f2e13d759a2a66bafc01
-#
-# A décider par la coordinatrice (médias de l'historique, voir le rapport du lot 103) :
-# e2e-echec.png
-# public/admin/tuto/revue.*
+blob:4662d80166e350877505f2c9457186a982b9b8fb
+tests/fixtures/kit-synthetique.psd
+# Captures de l'échec d'un e2e (non versionnées : .gitignore).
+e2e-echec.png
+# Images du tutoriel admin : TOUTES leurs anciennes versions (produites à partir du PSD réel) sont retirées de
+# l'historique ; seules les versions présentes à la tête de la branche principale sont gardées (régénérées sur
+# le PSD synthétique). Directive de scripts/prepare-public-history.sh :
+old-versions:public/admin/tuto/

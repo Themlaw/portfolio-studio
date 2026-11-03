@@ -9,11 +9,13 @@
  * sa case de 128 × 128). Les 13 autres emplacements sont identiques au kit d origine,
  * dont les empreintes sont écrites dans le manifeste.
  *
- * Usage : node --import tsx scripts/make-fixture-psd.mts [--out tests/fixtures] [--check]
+ * Les deux fichiers ne sont PAS commités (.gitignore) : `npm test` et `scripts/test-all-local.sh` les génèrent
+ * s'ils manquent (--if-missing). Les empreintes du manifeste dépendent des pixels rendus sur CETTE machine.
+ * Usage : node --import tsx scripts/make-fixture-psd.mts [--out tests/fixtures] [--check] [--if-missing]
  *   --check : régénère en mémoire et échoue si les fichiers du dépôt diffèrent.
  */
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -25,6 +27,7 @@ import { DOC_V1 as DOC, frameOf, SLOTS, type SlotSpec } from "@/lib/kit/spec";
 
 const args = process.argv.slice(2);
 const check = args.includes("--check");
+const ifMissing = args.includes("--if-missing");
 const outIdx = args.indexOf("--out");
 const outDir = path.resolve(outIdx >= 0 ? args[outIdx + 1] : "tests/fixtures");
 
@@ -188,6 +191,7 @@ async function buildKit(redrawn: boolean): Promise<Buffer> {
   return writePsdBuffer({ width: DOC.width, height: DOC.height, children }, { noBackground: true });
 }
 
+if (ifMissing && existsSync(path.join(outDir, "kit-synthetique.psd")) && existsSync(path.join(outDir, "kit-galerie-lumineuse-v1.manifest.json"))) process.exit(0);
 const { ensureAgPsd } = await import("@/lib/kit/ag-psd-node");
 ensureAgPsd();
 const tmp = mkdtempSync(path.join(os.tmpdir(), "make-fixture-psd-"));
