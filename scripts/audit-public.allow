@@ -2,10 +2,6 @@
 # Format : « classe chemin-ou-motif » ou « classe blob:<sha> » ; commentaire après « # ».
 # Une nouvelle entrée doit être justifiée dans la demande de tirage.
 
-# Secret de DÉVELOPPEMENT seulement : src/lib/auth/config.ts le refuse en production (BETTER_AUTH_SECRET
-# absent ou < 32 caractères => erreur de configuration), il ne protège aucune instance réelle.
-secret src/lib/auth/config.ts
-
 # Polices libres (licence OFL) : binaires tiers, noms et e-mails des fondeurs dans les textes de licence.
 media public/kit/**
 media src/themes/fonts/*
