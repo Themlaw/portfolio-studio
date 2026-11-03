@@ -27,7 +27,14 @@ const ok = (label, cond, detail = "") => {
 const ROOT = new URL("..", import.meta.url).pathname;
 const tmp = mkdtempSync(path.join(os.tmpdir(), "pf-test-batt104-"));
 // Hors de la plage éphémère du noyau (32768-60999) : un port sortant en cours d usage ferait sauter un bloc.
-const BASE_PORT = 20000 + Math.floor(Math.random() * 9000);
+let BASE_PORT = 20000 + Math.floor(Math.random() * 9000);
+// Plage de test entièrement libre (sinon le test mesurerait la machine, pas l allocateur).
+for (let t = 0; t < 20; t++) {
+  let libre = true;
+  for (let p = BASE_PORT; p < BASE_PORT + 520 && libre; p++) libre = await portFree(p);
+  if (libre) break;
+  BASE_PORT = 20000 + Math.floor(Math.random() * 9000);
+}
 
 /* ---- A. allocateur ---- */
 {
