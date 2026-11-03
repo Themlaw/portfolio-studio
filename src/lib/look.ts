@@ -36,6 +36,15 @@ import type { CardPalette } from "../themes/surface";
 export const SPACES = ["none", "s", "m", "l", "xl"] as const;
 export type Space = (typeof SPACES)[number];
 export const SPACE_LABELS: Record<Space, string> = { none: "Aucun", s: "S", m: "M", l: "L", xl: "XL" };
+/**
+ * Largeur d'un bloc de la page (lot 107) : le composant (son contenu et le fond et la carte posés dedans) ne prend pas toute la largeur, il est décollé
+ * des bords, centré. Absent = pleine largeur (comme avant). `look.width`, mêmes écritures que les autres réglages de mise en page (intention `look`).
+ */
+export const BLOCK_WIDTHS = ["wide", "medium", "narrow"] as const;
+export const SIDE_SPACES = ["s", "m", "l"] as const;
+export type SideSpace = (typeof SIDE_SPACES)[number];
+export type BlockWidth = (typeof BLOCK_WIDTHS)[number];
+export const BLOCK_WIDTH_LABELS: Record<BlockWidth | "full", string> = { full: "Pleine", wide: "Large", medium: "Moyenne", narrow: "Étroite" };
 /** Valeur CSS d'un cran (tokens du thème, src/themes/css.ts). */
 export const SPACE_VALUES: Record<Space, string> = {
   none: "0px",
@@ -578,6 +587,14 @@ const bounded = <T extends z.ZodType>(rec: T, max: number, label: string) =>
 const LookCoreSchema = z.strictObject({
   spaceTop: z.enum(SPACES).optional(),
   spaceBottom: z.enum(SPACES).optional(),
+  /**
+   * Lot 107, DEHORS (la page se voit, jamais le papier du fond ni de la carte) : largeur du bloc (côtés, absent = pleine) et marge extérieure haut / bas.
+   * DEDANS (couverts par le fond et la carte) : `spaceTop` / `spaceBottom` (depuis toujours, en padding) et `spaceSides` (côtés).
+   */
+  width: z.enum(BLOCK_WIDTHS).optional(),
+  marginTop: z.enum(SPACES).optional(),
+  marginBottom: z.enum(SPACES).optional(),
+  spaceSides: z.enum(SIDE_SPACES).optional(),
   radius: z.enum(RADII).optional(),
   titleV: z.enum(["top", "middle", "bottom"]).optional(),
   titleH: z.enum(["left", "center", "right"]).optional(),
@@ -683,6 +700,7 @@ export function lookAttributes(look: Look | undefined): Record<string, string> |
   const a: Record<string, string> = {};
   if (look.spaceTop) a["data-pt"] = look.spaceTop;
   if (look.spaceBottom) a["data-pb"] = look.spaceBottom;
+  if (look.spaceSides) a["data-ps"] = look.spaceSides;
   if (look.radius) a["data-radius"] = look.radius;
   if (look.titleV) a["data-tv"] = look.titleV;
   if (look.titleH) a["data-th"] = look.titleH;

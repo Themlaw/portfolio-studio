@@ -766,3 +766,41 @@ main > :has(+ .surface-card[data-surface="on"]) {
     transform: none;
   }
 }
+
+/* Dehors du bloc (lot 107, `look.width`, `look.marginTop`, `look.marginBottom`) : enveloppe SANS fond posée autour de la carte et du fond. Sa largeur
+   décolle le composant (avec son fond et sa carte) des bords, centré ; ses marges haut / bas sont des rembourrages de cette enveloppe : de la page
+   toute nue, que ni le papier peint ni la couleur du fond ou de la carte ne couvrent (la marge propre de la carte s'ajoute, elle ne s'y confond pas).
+   Dedans : `data-pt` / `data-pb` (espacement intérieur, depuis toujours : ils REMPLACENT l'espace propre du bloc) et `data-ps` (côtés, s'AJOUTE : l'enveloppe `.blk` devient une boîte avec ce rembourrage), sur le contenu, donc couverts par le fond. Sans réglage : rien. */
+.blk-out {
+  box-sizing: border-box;
+  width: 100%;
+  margin-inline: auto;
+}
+.blk-out[data-w="wide"] { max-width: 88%; }
+.blk-out[data-w="medium"] { max-width: 72%; }
+.blk-out[data-w="narrow"] { max-width: 56%; }
+/* Sans fond ni carte, la marge du haut est la distance TOTALE au bloc d'avant (le bloc a déjà l'espace de section du thème en haut) : même résultat que
+   l'espacement intérieur du haut ; avec un fond ou une carte elle s'ajoute, hors de la zone. */
+.blk-out[data-mt="none"] { padding-top: 0px; }
+.blk-out[data-mt="s"] { padding-top: var(--t-space-s); }
+.blk-out[data-mt="m"] { padding-top: var(--t-space-m); }
+.blk-out[data-mt="l"] { padding-top: var(--t-space-l); }
+.blk-out[data-mt="xl"] { padding-top: var(--t-space-xl); }
+.blk-out[data-mt="none"]:not(:has(.zone[data-surface="on"], .zone[data-fond="on"])) { padding-top: max(0px, calc(0px - var(--section-gap))); margin-top: min(0px, calc(0px - var(--section-gap))); }
+.blk-out[data-mt="s"]:not(:has(.zone[data-surface="on"], .zone[data-fond="on"])) { padding-top: max(0px, calc(var(--t-space-s) - var(--section-gap))); margin-top: min(0px, calc(var(--t-space-s) - var(--section-gap))); }
+.blk-out[data-mt="m"]:not(:has(.zone[data-surface="on"], .zone[data-fond="on"])) { padding-top: max(0px, calc(var(--t-space-m) - var(--section-gap))); margin-top: min(0px, calc(var(--t-space-m) - var(--section-gap))); }
+.blk-out[data-mt="l"]:not(:has(.zone[data-surface="on"], .zone[data-fond="on"])) { padding-top: max(0px, calc(var(--t-space-l) - var(--section-gap))); margin-top: min(0px, calc(var(--t-space-l) - var(--section-gap))); }
+.blk-out[data-mt="xl"]:not(:has(.zone[data-surface="on"], .zone[data-fond="on"])) { padding-top: max(0px, calc(var(--t-space-xl) - var(--section-gap))); margin-top: min(0px, calc(var(--t-space-xl) - var(--section-gap))); }
+.blk-out[data-mb="none"] { padding-bottom: 0; }
+.blk-out[data-mb="s"] { padding-bottom: var(--t-space-s); }
+.blk-out[data-mb="m"] { padding-bottom: var(--t-space-m); }
+.blk-out[data-mb="l"] { padding-bottom: var(--t-space-l); }
+.blk-out[data-mb="xl"] { padding-bottom: var(--t-space-xl); }
+.blk[data-ps="s"] { display: block !important; padding-inline: var(--t-space-s); }
+.blk[data-ps="m"] { display: block !important; padding-inline: var(--t-space-m); }
+.blk[data-ps="l"] { display: block !important; padding-inline: var(--t-space-l); }
+@media (max-width: 40rem) {
+  .blk-out[data-w="wide"] { max-width: 96%; }
+  .blk-out[data-w="medium"] { max-width: 92%; }
+  .blk-out[data-w="narrow"] { max-width: 88%; }
+}

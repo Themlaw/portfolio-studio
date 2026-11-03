@@ -154,6 +154,7 @@ E2E=(
   "opacite90|node scripts/e2e-opacite90.mjs|chromium|"
   "fond100|node scripts/e2e-fond100.mjs|chromium|"
   "reglages105|node scripts/e2e-reglages105.mjs|chromium|"
+  "couches107|node scripts/e2e-couches107.mjs|chromium|"
   "defilement99|node scripts/e2e-defilement99.mjs|chromium|"
   "defilement99-firefox|node scripts/e2e-defilement99.mjs|firefox|K"
   "parite99|node scripts/e2e-defilement99.mjs|chromium|P"

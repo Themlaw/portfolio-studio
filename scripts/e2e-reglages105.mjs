@@ -115,6 +115,62 @@ if (run("M") || run("K") || run("P")) {
   await waitFor(async () => (await page.locator('[data-testid="wallpaper"][data-status="ready"]').count()) >= 1, 120000);
 }
 
+/* Lot 107 : P est jouée AVANT H, M, K, T. Ces sections changent le thème et la largeur de page du site ; l'empreinte de parité se relève sur le site tel qu'il est
+   à la création de la base (c'est ce que mesurait ONLY=P), donc la suite complète et la suite isolée donnent la même empreinte (aucune assertion changée). */
+/* ============================== P : parité — le rendu PUBLIC des anciennes données ne bouge pas ============================== */
+if (run("P")) {
+  await section("P", async () => {
+    const wp = q1("select id from wallpapers order by id limit 1")?.id;
+    const para = (m) => ({ paragraphs: [{ fr: `${m} : un texte inventé, assez long pour que les cartes et les fonds aient du contenu à entourer et à habiller.`, en: m }] });
+    const grid = (m) => ({ layout: "2", gap: "normal", align: "stretch", ratio: "auto", top: "gap", title: L(m), children: [{ uid: `${m}a`, type: "image", props: { mediaId: IMG, width: "wide" } }, { uid: `${m}b`, type: "image", props: { mediaId: IMG, width: "wide" } }] });
+    // Réglages possibles en v0.33.0 : carte pleine / en retrait (+ coins, bordure, papier), fond bord à bord / à marge (+ coins), papier peint, les deux emboîtés.
+    const OLD = [
+      ["carte-retrait", { surface: { color: "primary12", width: "inset" } }],
+      ["carte-pleine", { surface: { color: "ink", width: "full" } }],
+      ["carte-coins", { surface: { color: "surface", width: "inset", corners: "l" } }],
+      ["carte-bordure", { surface: { color: "surface", width: "inset", border: { width: "medium" } } }],
+      ["fond-plein", { background: { kind: "color", color: "primary" } }],
+      ["fond-marge", { background: { kind: "color", color: "primary", inset: "m", round: "m" } }],
+      ["fond-papier", { background: { kind: "wallpaper", wallpaper: wp, inset: "l", round: "l" } }],
+      ["fond-papier-plein", { background: { kind: "wallpaper", wallpaper: wp } }],
+      ["pair", { surface: { color: "surface", width: "full" }, background: { kind: "color", color: "bgDeep", inset: "m", round: "s" } }],
+      ["echo", { surface: { color: "surface", width: "inset", corners: "m" }, background: { kind: "color", color: "bgDeep" } }],
+      ["rien", {}],
+    ];
+    const blocks = OLD.flatMap(([name, look], i) => [
+      { uid: `p${i}t`, type: "rich-text", props: { ...para(`P${name}`), ...look } },
+      ...(i % 3 === 0 ? [{ uid: `p${i}g`, type: "grid", props: { ...grid(`pg${i}`), ...look } }] : []),
+    ]);
+    const pid = PAGES.animation;
+    ok("P0 page d'anciennes données posée", await publishWith(pid, blocks));
+    const anon = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const ap = await anon.newPage();
+    for (const w of [1440, 768, 390]) {
+      await ap.setViewportSize({ width: w, height: 900 });
+      await ap.goto(urlOf("animation"), { waitUntil: "domcontentloaded" });
+      await ap.waitForFunction((n) => document.querySelectorAll("main p").length >= n, OLD.length, { timeout: 60000 });
+      await ap.evaluate(() => document.fonts.ready);
+      const fp = await ap.evaluate(() => {
+        const out = [];
+        for (const e of document.querySelectorAll("main .zone, main [data-fond], main [data-surface], main h1, main h2, main p")) {
+          const b = e.getBoundingClientRect();
+          const cs = getComputedStyle(e);
+          out.push([e.tagName, e.className.toString().slice(0, 60), Math.round(b.left), Math.round(b.top + scrollY), Math.round(b.width), Math.round(b.height), cs.backgroundColor, cs.borderTopWidth, cs.borderTopLeftRadius, cs.paddingTop, cs.paddingLeft, cs.marginTop, cs.marginLeft]);
+        }
+        return out;
+      });
+      const sha = createHash("sha256").update(JSON.stringify(fp)).digest("hex");
+      console.log(`PARITY105 ${w}px ${fp.length} éléments ${sha}`);
+      await ap.screenshot({ path: path.join(SHOTS, `parite-${w}.png`), fullPage: true }).catch(() => {});
+      ok(`P1 [${w}px] empreinte géométrique relevée (${fp.length} éléments)`, fp.length > 20);
+      // Empreintes relevées sur v0.33.0 (f569ecf) avec ces mêmes données : le rendu public des anciennes données ne bouge pas, au pixel.
+      const V033 = { 1440: "1839af06398d3dc0107ad6a5755464970404487041b8a2db67b4aebefdcf6bd0", 768: "ae0ed43402e902baddaa135e928b4bfbae03cac3d887a7adbe5211daf23cfe1c", 390: "41dd64364f10da50fdeb8b1642d982c4c8a388c23dd97d69065a9b50a9b5428e" };
+      ok(`P2 [${w}px] identique à v0.33.0 (11 formes de données anciennes : carte pleine / en retrait, coins, bordure, fond, marge, papier peint, les deux emboîtés)`, sha === V033[w], `${sha} ≠ ${V033[w]}`);
+    }
+    await anon.close();
+  });
+}
+
 /* ============================== H : l'ouverture ============================== */
 const HERO_THEMES = [
   { key: "texte-seul", name: "Carnet d'atelier", variant: "type-only" },
@@ -650,60 +706,6 @@ if (run("T")) {
   });
 }
 
-
-/* ============================== P : parité — le rendu PUBLIC des anciennes données ne bouge pas ============================== */
-if (run("P")) {
-  await section("P", async () => {
-    const wp = q1("select id from wallpapers order by id limit 1")?.id;
-    const para = (m) => ({ paragraphs: [{ fr: `${m} : un texte inventé, assez long pour que les cartes et les fonds aient du contenu à entourer et à habiller.`, en: m }] });
-    const grid = (m) => ({ layout: "2", gap: "normal", align: "stretch", ratio: "auto", top: "gap", title: L(m), children: [{ uid: `${m}a`, type: "image", props: { mediaId: IMG, width: "wide" } }, { uid: `${m}b`, type: "image", props: { mediaId: IMG, width: "wide" } }] });
-    // Réglages possibles en v0.33.0 : carte pleine / en retrait (+ coins, bordure, papier), fond bord à bord / à marge (+ coins), papier peint, les deux emboîtés.
-    const OLD = [
-      ["carte-retrait", { surface: { color: "primary12", width: "inset" } }],
-      ["carte-pleine", { surface: { color: "ink", width: "full" } }],
-      ["carte-coins", { surface: { color: "surface", width: "inset", corners: "l" } }],
-      ["carte-bordure", { surface: { color: "surface", width: "inset", border: { width: "medium" } } }],
-      ["fond-plein", { background: { kind: "color", color: "primary" } }],
-      ["fond-marge", { background: { kind: "color", color: "primary", inset: "m", round: "m" } }],
-      ["fond-papier", { background: { kind: "wallpaper", wallpaper: wp, inset: "l", round: "l" } }],
-      ["fond-papier-plein", { background: { kind: "wallpaper", wallpaper: wp } }],
-      ["pair", { surface: { color: "surface", width: "full" }, background: { kind: "color", color: "bgDeep", inset: "m", round: "s" } }],
-      ["echo", { surface: { color: "surface", width: "inset", corners: "m" }, background: { kind: "color", color: "bgDeep" } }],
-      ["rien", {}],
-    ];
-    const blocks = OLD.flatMap(([name, look], i) => [
-      { uid: `p${i}t`, type: "rich-text", props: { ...para(`P${name}`), ...look } },
-      ...(i % 3 === 0 ? [{ uid: `p${i}g`, type: "grid", props: { ...grid(`pg${i}`), ...look } }] : []),
-    ]);
-    const pid = PAGES.animation;
-    ok("P0 page d'anciennes données posée", await publishWith(pid, blocks));
-    const anon = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    const ap = await anon.newPage();
-    for (const w of [1440, 768, 390]) {
-      await ap.setViewportSize({ width: w, height: 900 });
-      await ap.goto(urlOf("animation"), { waitUntil: "domcontentloaded" });
-      await ap.waitForFunction((n) => document.querySelectorAll("main p").length >= n, OLD.length, { timeout: 60000 });
-      await ap.evaluate(() => document.fonts.ready);
-      const fp = await ap.evaluate(() => {
-        const out = [];
-        for (const e of document.querySelectorAll("main .zone, main [data-fond], main [data-surface], main h1, main h2, main p")) {
-          const b = e.getBoundingClientRect();
-          const cs = getComputedStyle(e);
-          out.push([e.tagName, e.className.toString().slice(0, 60), Math.round(b.left), Math.round(b.top + scrollY), Math.round(b.width), Math.round(b.height), cs.backgroundColor, cs.borderTopWidth, cs.borderTopLeftRadius, cs.paddingTop, cs.paddingLeft, cs.marginTop, cs.marginLeft]);
-        }
-        return out;
-      });
-      const sha = createHash("sha256").update(JSON.stringify(fp)).digest("hex");
-      console.log(`PARITY105 ${w}px ${fp.length} éléments ${sha}`);
-      await ap.screenshot({ path: path.join(SHOTS, `parite-${w}.png`), fullPage: true }).catch(() => {});
-      ok(`P1 [${w}px] empreinte géométrique relevée (${fp.length} éléments)`, fp.length > 20);
-      // Empreintes relevées sur v0.33.0 (f569ecf) avec ces mêmes données : le rendu public des anciennes données ne bouge pas, au pixel.
-      const V033 = { 1440: "1839af06398d3dc0107ad6a5755464970404487041b8a2db67b4aebefdcf6bd0", 768: "ae0ed43402e902baddaa135e928b4bfbae03cac3d887a7adbe5211daf23cfe1c", 390: "41dd64364f10da50fdeb8b1642d982c4c8a388c23dd97d69065a9b50a9b5428e" };
-      ok(`P2 [${w}px] identique à v0.33.0 (11 formes de données anciennes : carte pleine / en retrait, coins, bordure, fond, marge, papier peint, les deux emboîtés)`, sha === V033[w], `${sha} ≠ ${V033[w]}`);
-    }
-    await anon.close();
-  });
-}
 
 console.log(failures ? `ÉCHECS : ${failures}` : "TOUT VERT");
 await browser.close();

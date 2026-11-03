@@ -10,7 +10,7 @@
  */
 import { useState, type ReactNode } from "react";
 
-import { cleanLook, IMAGE_ALIGN_LABELS, IMAGE_ALIGNS, readLook, SPACE_LABELS, type ImageAlign, type Look, type Space } from "@/lib/look";
+import { BLOCK_WIDTH_LABELS, BLOCK_WIDTHS, cleanLook, IMAGE_ALIGN_LABELS, IMAGE_ALIGNS, readLook, SIDE_SPACES, SPACE_LABELS, SPACES, type ImageAlign, type Look, type Space } from "@/lib/look";
 
 import { lookOf, sendLook } from "./LookLayer";
 import { postIntent } from "./optimistic";
@@ -99,12 +99,66 @@ export function SpaceControls({ look, onChange }: { look: Look; onChange: (patch
           </button>
         </span>
       </div>
-      <p className="sm-hint">Espace entre ce bloc et celui du dessus. Auto : l&apos;espace du thème.</p>
+      <div className="tc-row">
+        <span className="sm-label">Côtés</span>
+        <span className="tc-seg" role="radiogroup" aria-label="Espacement intérieur sur les côtés">
+          {SIDE_SPACES.map((k) => (
+            <button key={k} type="button" role="radio" aria-checked={look.spaceSides === k} data-space-sides={k} onClick={() => onChange({ spaceSides: k })}>
+              {SPACE_LABELS[k]}
+            </button>
+          ))}
+          <button type="button" role="radio" aria-checked={look.spaceSides === undefined} data-space-sides="auto" onClick={() => onChange({ spaceSides: undefined })}>
+            Auto
+          </button>
+        </span>
+      </div>
+      <p className="sm-hint">Espacement intérieur : la distance DANS le fond et la carte, que leur couleur et leur papier peint couvrent. Auto : l&apos;espace du thème. La distance à l&apos;extérieur est dans « Marge ».</p>
     </div>
   );
 }
 
-export type QuickKind = "size" | "space";
+/** Largeur du bloc (lot 107) : Pleine (rien d'écrit) / Large / Moyenne / Étroite. Le fond et la carte du bloc suivent ; ils ne se règlent pas ici. */
+export function widthValue(look: Look): string | undefined {
+  const parts = [look.width ? BLOCK_WIDTH_LABELS[look.width].toLowerCase() : undefined, look.marginTop ? `haut ${SPACE_LABELS[look.marginTop]}` : undefined, look.marginBottom ? `bas ${SPACE_LABELS[look.marginBottom]}` : undefined].filter(Boolean);
+  return parts.length ? parts.join(", ") : undefined;
+}
+export function WidthControls({ look, onChange }: { look: Look; onChange: (patch: Partial<Look>) => void }) {
+  return (
+    <div data-testid="width-controls" className="tc" style={{ gap: 8 }}>
+      <div className="tc-row">
+        <span className="sm-label">Largeur</span>
+        <span className="tc-seg" role="radiogroup" aria-label="Largeur du bloc">
+          <button type="button" role="radio" aria-checked={look.width === undefined} data-block-width="full" onClick={() => onChange({ width: undefined })}>
+            {BLOCK_WIDTH_LABELS.full}
+          </button>
+          {BLOCK_WIDTHS.map((w) => (
+            <button key={w} type="button" role="radio" aria-checked={look.width === w} data-block-width={w} onClick={() => onChange({ width: w })}>
+              {BLOCK_WIDTH_LABELS[w]}
+            </button>
+          ))}
+        </span>
+      </div>
+      {(["marginTop", "marginBottom"] as const).map((k) => (
+        <div className="tc-row" key={k}>
+          <span className="sm-label">{k === "marginTop" ? "Haut" : "Bas"}</span>
+          <span className="tc-seg" role="radiogroup" aria-label={k === "marginTop" ? "Marge extérieure en haut" : "Marge extérieure en bas"}>
+            {SPACES.map((sp) => (
+              <button key={sp} type="button" role="radio" aria-checked={look[k] === sp} data-margin={`${k === "marginTop" ? "top" : "bottom"}-${sp}`} onClick={() => onChange({ [k]: sp })}>
+                {SPACE_LABELS[sp]}
+              </button>
+            ))}
+            <button type="button" role="radio" aria-checked={look[k] === undefined} data-margin={`${k === "marginTop" ? "top" : "bottom"}-auto`} onClick={() => onChange({ [k]: undefined })}>
+              Auto
+            </button>
+          </span>
+        </div>
+      ))}
+      <p className="sm-hint">Marge extérieure : la distance HORS du fond et de la carte, on y voit la page (jamais le papier peint). Largeur pleine : le bloc prend toute la largeur ; sinon il est centré, décollé des bords, avec son fond et sa carte. L&apos;espace à l&apos;intérieur se règle dans « Espacement ».</p>
+    </div>
+  );
+}
+
+export type QuickKind = "size" | "space" | "width";
 
 /** Fenêtre « Taille » ou « Espacement » d'un bloc de la page ou d'un composant de la planche (`uid`), ancrée au bouton `anchor`. */
 export default function QuickMenu({ uid, kind, anchor, onClose, onChanged }: { uid: string; kind: QuickKind; anchor: PopoverAnchor; onClose: () => void; onChanged?: () => void }) {
@@ -116,9 +170,9 @@ export default function QuickMenu({ uid, kind, anchor, onClose, onChanged }: { u
     writeLook(uid, next);
     onChanged?.();
   };
-  const body: ReactNode = kind === "size" ? <SizeControls look={look} onChange={change} /> : <SpaceControls look={look} onChange={change} />;
+  const body: ReactNode = kind === "size" ? <SizeControls look={look} onChange={change} /> : kind === "width" ? <WidthControls look={look} onChange={change} /> : <SpaceControls look={look} onChange={change} />;
   return (
-    <Popover anchor={anchor} align="center" label={kind === "size" ? "Taille de l'image" : "Espacement"} testId={`${kind}-menu`} onClose={onClose}>
+    <Popover anchor={anchor} align="center" label={kind === "size" ? "Taille de l'image" : kind === "width" ? "Marge extérieure du bloc" : "Espacement intérieur"} testId={`${kind}-menu`} onClose={onClose}>
       {body}
     </Popover>
   );
@@ -127,10 +181,10 @@ export default function QuickMenu({ uid, kind, anchor, onClose, onChanged }: { u
 /** Bouton « Taille » / « Espacement » de la barre : le libellé, puis la valeur posée (texte gris court, rien si le thème décide) d'un bloc de la page. */
 export function QuickButton({ uid, kind, open, onToggle }: { uid: string; kind: QuickKind; open: boolean; onToggle: () => void }) {
   const look = lookOf(uid);
-  const value = kind === "size" ? sizeValue(look) : spaceValue(look);
-  const label = kind === "size" ? "Taille" : "Espacement";
+  const value = kind === "size" ? sizeValue(look) : kind === "width" ? widthValue(look) : spaceValue(look);
+  const label = kind === "size" ? "Taille" : kind === "width" ? "Marge" : "Espacement";
   return (
-    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid={`${kind}-button`} title={kind === "size" ? "Taille et place de l'image" : "Espace au-dessus de ce bloc"} onClick={onToggle}>
+    <button type="button" className="pe-tool-text sm-button" aria-haspopup="dialog" aria-expanded={open} data-testid={`${kind}-button`} title={kind === "size" ? "Taille et place de l'image" : kind === "width" ? "Marge extérieure : largeur du bloc et distance hors du fond et de la carte" : "Espacement intérieur : distance dans le fond et la carte"} onClick={onToggle}>
       {label}{" "}
       {value && (
         <span className="sm-value" data-testid={`${kind}-value`} title={`${label} : ${value}`}>

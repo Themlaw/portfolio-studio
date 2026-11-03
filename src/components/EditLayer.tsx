@@ -1426,6 +1426,7 @@ export default function EditLayer() {
             )}
             {sel.type === "image" && !sel.parent && <QuickButton uid={sel.uid} kind="size" open={quickFor?.uid === sel.uid && quickFor.kind === "size"} onToggle={() => toggleQuick(sel.uid, "size")} />}
             {!sel.parent && sel.type !== "hero" && <QuickButton uid={sel.uid} kind="space" open={quickFor?.uid === sel.uid && quickFor.kind === "space"} onToggle={() => toggleQuick(sel.uid, "space")} />}
+            {!sel.parent && sel.type !== "hero" && <QuickButton uid={sel.uid} kind="width" open={quickFor?.uid === sel.uid && quickFor.kind === "width"} onToggle={() => toggleQuick(sel.uid, "width")} />}
             {(!sel.parent || hasFondWrapper(sel.uid)) && <FondButton uid={sel.uid} open={fondFor === sel.uid} onToggle={() => { setFrameFor(null); setImgBgFor(null); setQuickFor(null); setFondFor((o) => (o === sel.uid ? null : sel.uid)); }} />}
             <button type="button" aria-label="Monter" title="Monter" disabled={siblingsOf(sel)[0]?.uid === sel.uid} onClick={() => orderOp("up", sel)}>
               ↑

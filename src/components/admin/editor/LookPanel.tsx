@@ -14,6 +14,9 @@ import { useState } from "react";
 import TypoControls from "@/components/edit/TypoControls";
 import {
   BACKDROP_BLOCKED,
+  BLOCK_WIDTH_LABELS,
+  BLOCK_WIDTHS,
+  SIDE_SPACES,
   IMAGE_ALIGN_LABELS,
   IMAGE_ALIGNS,
   RADII,
@@ -134,10 +137,19 @@ export function BlockLookPanel({ type, look, inCell, onChange }: { type: string;
         Mise en page
       </h3>
       <p className="lp-help">Aussi sur la page : poignées en haut et en bas du bloc choisi, « Aa » sur un texte, « Cadrer » sur une image.</p>
+      {type !== "hero" && !inCell && (
+        <div data-testid="outer-margin-section">
+          <p className="lp-help">Marge extérieure : hors du fond et de la carte (on y voit la page). Espacement intérieur : dans le fond et la carte (leur papier peint le couvre).</p>
+          <Segmented label="Largeur du bloc" value={look.width} options={BLOCK_WIDTHS} labels={BLOCK_WIDTH_LABELS as Record<(typeof BLOCK_WIDTHS)[number], string>} onChange={(v) => set({ width: v })} auto="Pleine" help="Marge extérieure sur les côtés : le bloc est centré, décollé des bords." />
+          <Segmented label="Marge extérieure en haut" value={look.marginTop} options={SPACES} labels={SPACE_LABELS} onChange={(v) => set({ marginTop: v })} />
+          <Segmented label="Marge extérieure en bas" value={look.marginBottom} options={SPACES} labels={SPACE_LABELS} onChange={(v) => set({ marginBottom: v })} />
+        </div>
+      )}
       {type !== "hero" && (
         <>
           <Segmented label="Espace au-dessus" value={look.spaceTop} options={SPACES} labels={SPACE_LABELS} onChange={(v) => set({ spaceTop: v })} />
           <Segmented label="Espace en dessous" value={look.spaceBottom} options={SPACES} labels={SPACE_LABELS} onChange={(v) => set({ spaceBottom: v })} />
+          <Segmented label="Espacement intérieur sur les côtés" value={look.spaceSides} options={SIDE_SPACES} labels={SPACE_LABELS} onChange={(v) => set({ spaceSides: v })} />
         </>
       )}
       {MEDIA_TYPES.has(type) && (

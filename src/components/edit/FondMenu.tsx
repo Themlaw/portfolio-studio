@@ -46,7 +46,7 @@ import {
   type ResolvedSurface,
   type Surface,
 } from "@/themes/surface";
-import { CONTOUR_ONLY_CLEAR, freshZone, readFondCarte, setSlot, writeFondCarte, type Caps, type Slot } from "@/themes/fondcarte";
+import { CONTOUR_ONLY_CLEAR, freshZone, readFondCarte, readLayout, setSlot, writeFondCarte, type Caps, type Slot } from "@/themes/fondcarte";
 import { isCustomColor, zoneColor, zoneExtent, zoneInLayer, zoneKind, zoneToSurface, zoneWithKind, type Zone, type ZoneMemo, type ZoneStored } from "@/themes/zone";
 
 import CardColorChoices from "./CardColorChoices";
@@ -518,7 +518,7 @@ function ZoneSection({
   );
 
   return (
-    <section className="fc-section" data-testid={`fond-section-${slot}`} data-slot={slot} data-kind-now={view} aria-label={text.title}>
+    <section className="fc-section" data-testid={`fond-section-${slot}`} data-slot={slot} data-layer={z?.layer} data-kind-now={view} aria-label={text.title}>
       <div className="fc-head">
         <SlotSchema slot={slot} filled={view !== "none"} />
         <div className="fc-head-text">
@@ -606,11 +606,12 @@ function FondPanel({
   anchor: PopoverAnchor;
 }) {
   const defaults = themeDefaults ?? resolveSurface({});
-  const fc = readFondCarte(stored, defaults);
+  const { fc, outer } = readLayout(stored, defaults);
   const onSet = (slot: Slot) => (next: Zone | null, continuous = false) => {
-    // Une section AJOUTÉE (l'autre existait) range les deux dans l'ordre normal ; régler une section déjà là ne déplace rien (même l'ancien rendu emboîté).
+    // Une section AJOUTÉE (l'autre existait) range les deux dans l'ordre normal ; régler une section déjà là ne déplace rien et n'écrit que sa couche (lot 107 :
+    // l'ordre lu est gardé, y compris une carte dehors autour d'un fond en retrait).
     const added = next !== null && fc[slot] === null;
-    const w = writeFondCarte(setSlot(fc, slot, next, caps), caps, added);
+    const w = writeFondCarte(setSlot(fc, slot, next, caps), caps, added, outer ?? undefined);
     onChange({ ...(w.surface ? { surface: w.surface } : {}), ...(w.background ? { background: w.background } : {}) }, continuous);
   };
   return (
