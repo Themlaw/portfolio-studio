@@ -562,7 +562,9 @@ if (run("F")) {
   // Le bloc perd son enveloppe (plus de réglage d'avant) et la toile se redessine : la barre se referme, on la rouvre une fois la toile à jour.
   await waitFor(async () => Number(await f.evaluate(() => document.querySelector("[data-edit-rev]")?.dataset.editRev)) >= q("select draft_rev from pages where id = 1")[0].draft_rev, 30000);
   await f.locator(".lk-bar").waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
-  ok("F4b la barre sans cible se referme (elle ne bloque pas le « Aa » des autres textes)", (await f.locator(".lk-bar").count()) === 0);
+  // Lot 98 : la barre retrouve son texte redessiné par un sélecteur stable (au lieu de le perdre et de se refermer) ; elle ne se referme que SANS cible.
+  // Dans les deux cas elle ne doit jamais rester « orpheline » : fermée, ou ouverte sur un texte qui existe encore (et qui garde sa couleur).
+  ok("F4b la barre sans cible se referme, ou reste sur son texte redessiné (jamais orpheline : elle ne bloque pas le « Aa » des autres textes)", (await f.locator(".lk-bar").count()) === 0 || (await f.locator(ROLE).count()) > 0);
   await openBar(f, ROLE);
   await scopeButton(f, "Ce texte").click();
   await f.locator(".lk-bar .tc-reset").click();
