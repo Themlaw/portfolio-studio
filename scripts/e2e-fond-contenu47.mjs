@@ -292,7 +292,9 @@ try {
     const b4 = await imgsOf(sel);
     ok(`B3 enregistré (${where}) : toujours les mêmes images après le rechargement de la toile`, same(b0, b4), `${fmt(b0)} / ${fmt(b4)}`);
     const saved = where === "page" ? draftBlocks(pageId).find((b) => b.uid === uid)?.props.background : boardDraft(project.id)?.find((i) => i.uid === uid)?.props.background;
-    ok(`B4 enregistré (${where}) : { couleur, inset l, round m }`, saved?.kind === "color" && saved.inset === "l" && saved.round === "m", JSON.stringify(saved));
+    // Lot 105 : en planche (pas de carte de rubrique), Fond + Carte = le fond, avec la Carte en panneau `card` dedans ; en page, deux couches.
+    const zsaved = where === "planche" ? saved?.card : saved;
+    ok(`B4 enregistré (${where}) : { couleur, inset l, round m }`, zsaved?.kind === "color" && zsaved.inset === "l" && zsaved.round === "m", JSON.stringify(saved));
     // Lot 100 : on remet la grille sans Fond ni Carte pour les mesures suivantes (la fenêtre D vise la première carte de la planche).
     const rm = await open(uid);
     await rm.locator('[data-testid="fond-section-carte"] [data-kind="none"]').click();

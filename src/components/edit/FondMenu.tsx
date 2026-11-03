@@ -47,7 +47,7 @@ import {
   type Surface,
 } from "@/themes/surface";
 import { CONTOUR_ONLY_CLEAR, freshZone, readFondCarte, setSlot, writeFondCarte, type Caps, type Slot } from "@/themes/fondcarte";
-import { isCustomColor, zoneColor, zoneExtent, zoneKind, zoneToSurface, zoneWithKind, type Zone, type ZoneMemo, type ZoneStored } from "@/themes/zone";
+import { isCustomColor, zoneColor, zoneExtent, zoneInLayer, zoneKind, zoneToSurface, zoneWithKind, type Zone, type ZoneMemo, type ZoneStored } from "@/themes/zone";
 
 import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";
@@ -499,7 +499,10 @@ function ZoneSection({
         }
         // Contour retiré d'une zone qui n'existait que pour lui : le bloc revient exactement à « Aucun » (aucun fond résiduel).
         if (b === false && isContourOnly(z)) return commit(null);
-        // Le contour se range dans la couche de la zone (carte : `surface`, fond : `background`) : rien ne bouge d'une couche à l'autre.
+        // Une Carte rangée dans la couche « fond » (ancien rendu emboîté, sans Fond autour) qui reçoit un contour redevient une carte de rubrique (comme avant, v0.33) :
+        // couleur, motif, marge et coins gardés. Avec un Fond autour, ou sans carte de rubrique (planche, case, composant imbriqué), le contour reste dans la couche de la zone.
+        if (slot === "carte" && z.layer === "fond" && caps.canCard && !fondActive && b !== false && b !== undefined) return commit({ ...zoneInLayer(z, "card"), border: b }, continuous);
+        // Sinon le contour se range dans la couche de la zone (carte : `surface`, fond : `background`) : rien ne bouge d'une couche à l'autre.
         set({ border: z.layer === "fond" && (b === false || b === undefined) ? undefined : b }, continuous);
       }}
     />

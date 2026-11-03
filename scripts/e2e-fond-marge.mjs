@@ -312,10 +312,10 @@ try {
   await bmenu.waitFor({ timeout: 20000 });
   await bmenu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
   const effective = () => (q("select draft_layout from projects where id = ?", PROJECT.id)[0].draft_layout ? JSON.parse(q("select draft_layout from projects where id = ?", PROJECT.id)[0].draft_layout) : layout);
-  ok("D5 planche : « Avec marge » enregistré dans le brouillon du projet", await waitFor(() => effective()[2]?.props?.background?.inset === "m"), JSON.stringify(effective()[2]?.props?.background));
+  ok("D5 planche : « Avec marge » enregistré dans le brouillon du projet", await waitFor(() => (effective()[2]?.props?.background?.card ?? effective()[2]?.props?.background)?.inset === "m"), JSON.stringify(effective()[2]?.props?.background));
   await bmenu.locator('[data-testid="fond-section-carte"] [data-testid="fond-inset"] [data-step="s"]').click();
   await bmenu.locator('[data-testid="fond-section-carte"] [data-testid="fond-round"] [data-step="l"]').click();
-  ok("D6 planche : Petit et coins Grand enregistrés", await waitFor(() => { const b = effective()[2]?.props?.background; return b?.inset === "s" && b?.round === "l"; }), JSON.stringify(effective()[2]?.props?.background));
+  ok("D6 planche : Petit et coins Grand enregistrés", await waitFor(() => { const b0 = effective()[2]?.props?.background; const b = b0?.card ?? b0; return b?.inset === "s" && b?.round === "l"; }), JSON.stringify(effective()[2]?.props?.background));
   await page.keyboard.press("Escape");
   await settled();
   const gc2 = await f.evaluate((id) => {
@@ -323,7 +323,8 @@ try {
     const s = sect.getBoundingClientRect();
     return [...sect.querySelectorAll(".fond-bloc")].map((w) => ({ l: w.getBoundingClientRect().left - s.left, radius: parseFloat(getComputedStyle(w).borderTopLeftRadius) || 0 }));
   }, PROJECT.id);
-  ok("D7 toile, planche : le composant garde sa marge S (12 px) et ses coins L (36 px) après rechargement", near(gc2[2]?.l, 12) && near(gc2[2]?.radius, 36), JSON.stringify(gc2));
+  /* lot 105 : le témoin a un Fond ET une Carte : deux enveloppes (la Carte est le panneau `card` dans le Fond), la Carte est la dernière. */
+  ok("D7 toile, planche : le composant garde sa marge S (12 px) et ses coins L (36 px) après rechargement", near(gc2[gc2.length - 1]?.l, 12) && near(gc2[gc2.length - 1]?.radius, 36), JSON.stringify(gc2));
   await board.evaluate((el) => el.scrollIntoView({ block: "start" }));
   await sleep(500);
   await page.screenshot({ path: path.join(SHOTS, "toile-planche.png") });
