@@ -158,7 +158,8 @@ try {
   ok("B1 les trois composants ont leur fond (enveloppe `.fond-bloc`)", ready && g.length === 3, JSON.stringify(g));
   ok("B2 fond bord à bord de la planche (aucune marge latérale)", g.every((x) => x.left < 1.5 && x.right < 1.5), JSON.stringify(g.map((x) => [x.left, x.right])));
   ok("B3 même couleur : fusion de proche en proche (premier : suivant ; milieu : les deux ; dernier : précédent)", !g[0].prev && g[0].next && g[1].prev && g[1].next && g[2].prev && !g[2].next, JSON.stringify(g.map((x) => [x.prev, x.next])));
-  ok("B4 composants fusionnés : pas d'espace de fond sous les deux premiers", g[0].pb === 0 && g[1].pb === 0 && g[2].pb > 0, JSON.stringify(g.map((x) => x.pb)));
+  // v0.33.1 (lot 102) : sur la toile, un composant fusionné qui a des légendes garde la place du « + Ajouter » (18 px) DANS son fond. Pas d'espace de fond (le pas de section) sous les deux premiers : au plus 18 px ; le dernier garde le sien.
+  ok("B4 composants fusionnés : pas d'espace de fond sous les deux premiers (au plus la place du « + Ajouter », 18 px)", g[0].pb <= 18 && g[1].pb <= 18 && g[2].pb > g[0].pb, JSON.stringify(g.map((x) => x.pb)));
   ok("B5 même couleur de fond sur les trois", g[0].bg === g[1].bg && g[1].bg === g[2].bg && g[0].bg !== "rgba(0, 0, 0, 0)", JSON.stringify(g.map((x) => x.bg)));
   await board.scrollIntoViewIfNeeded();
   await shot("1-toile-fond-planche");

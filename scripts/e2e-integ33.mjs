@@ -309,7 +309,7 @@ try {
       await setKind("carte", "color");
       const hCarte = await railHeights(f, "X2b éditeur (Carte couleur)");
       let menu = await openMenu(f, "pbd");
-      await menu.locator('[data-testid="fond-contour-row"] [data-contour="medium"]').click();
+      await menu.locator('[data-testid="fond-section-carte"] [data-testid="fond-contour-row"] [data-contour="medium"]').click();
       ok("X2c contour moyen enregistré", await waitFor(() => JSON.stringify(draftBlock("pbd")?.props ?? {}).includes('"medium"'), 30000), JSON.stringify(draftBlock("pbd")?.props));
       await page.keyboard.press("Escape");
       await settled(page);
