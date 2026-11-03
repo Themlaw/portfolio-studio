@@ -9,7 +9,7 @@
  *   sans --require (npm test) : ignoré s'il n'y a pas de build ;
  *   avec --require (CI, après next build) : échoue sans standalone.
  */
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 // STANDALONE_DIR : autre dossier à contrôler (test du contrôle lui-même).
@@ -36,8 +36,18 @@ const FORBIDDEN_FILE = [
 ];
 
 const problems = [];
+// .batt-stamp : empreinte des sources écrite par la batterie de tests (lot 104, `test-all-local.sh build`) pour réutiliser le build ;
+// 40 caractères hexadécimaux, jamais autre chose (un fichier de ce nom au contenu différent reste refusé).
+const stampOk = (name) => {
+  if (name !== ".batt-stamp") return false;
+  try {
+    return /^[0-9a-f]{40}\s*$/.test(readFileSync(path.join(ROOT, name), "utf8"));
+  } catch {
+    return false;
+  }
+};
 for (const name of readdirSync(ROOT)) {
-  if (!ALLOWED_TOP.has(name)) problems.push(`${name} (entrée non autorisée à la racine)`);
+  if (!ALLOWED_TOP.has(name) && !stampOk(name)) problems.push(`${name} (entrée non autorisée à la racine)`);
 }
 // Fichiers interdits n'importe où hors node_modules (dépendances : leur affaire).
 function walk(dir, rel = "") {
