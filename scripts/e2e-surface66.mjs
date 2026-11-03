@@ -243,8 +243,9 @@ async function openFond(word) {
   return menu;
 }
 const measure = (word) => f.evaluate(MEASURE, word);
-const kinds = (menu) => menu.locator("[data-kind]").evaluateAll((els) => els.map((e) => e.getAttribute("data-kind")));
-const checkedKind = (menu) => menu.locator("[data-kind][aria-checked=true]").getAttribute("data-kind");
+const sec = (menu, slot) => menu.locator(`[data-testid="fond-section-${slot}"]`);
+const kinds = (menu, slot = "fond") => sec(menu, slot).locator("[data-kind]").evaluateAll((els) => els.map((e) => e.getAttribute("data-kind")));
+const checkedKind = (menu, slot = "carte") => sec(menu, slot).locator("[data-kind][aria-checked=true]").getAttribute("data-kind");
 const bgOf = (word) => props(word).background;
 
 /* ---- R7. Un seul bouton, un menu court ------------------------------------------------------------------------------------------- */
@@ -254,22 +255,21 @@ await section("R7", async () => {
   await host.scrollIntoViewIfNeeded();
   await host.locator("section").first().click({ position: { x: 40, y: 30 } });
   const labels = await f.locator(".pe-tools button").evaluateAll((els) => els.map((e) => e.textContent.trim()));
-  ok("R7 un seul bouton « Fond » dans la barre de la rubrique : plus de bouton « Carte »", labels.includes("Fond") && !labels.some((l) => /^Carte/.test(l)), JSON.stringify(labels));
+  ok("R7 un seul bouton « Fond & carte » dans la barre de la rubrique (lot 100)", labels.includes("Fond & carte") && !labels.some((l) => /^Carte/.test(l)), JSON.stringify(labels));
   await f.locator('.pe-tools [data-testid="fond-button"]').click();
   const menu = f.locator('[data-testid="fond-menu"]');
   await menu.waitFor();
-  ok("R7 le menu propose Aucun / Couleur / Papier peint", (await kinds(menu)).join() === "none,color,wallpaper");
+  ok("R7 chaque section (Fond, Carte) propose Aucun / Couleur / Papier peint, toutes deux toujours affichées", (await kinds(menu, "fond")).join() === "none,color,wallpaper" && (await kinds(menu, "carte")).join() === "none,color,wallpaper" && (await sec(menu, "fond").isVisible()) && (await sec(menu, "carte").isVisible()));
   ok("R7 rien n'est écrit par l'ouverture du menu (le bloc est intact)", draftBlock("Delta") === undefined || JSON.stringify(props("Delta")) === JSON.stringify(JSON.parse(q("select props from blocks where page_id = ? and position = 3", PAGE_ID)[0].props)));
   const h0 = await menu.evaluate((e) => e.getBoundingClientRect().height);
-  await menu.locator('[data-kind="color"]').click();
+  await sec(menu, "fond").locator('[data-kind="color"]').click();
   await waitFor(() => bgOf("Delta")?.kind === "color");
   await sleep(500);
   const h1 = await menu.evaluate((e) => e.getBoundingClientRect().height);
-  ok("R7 menu COURT en Couleur : tient dans la fenêtre sans défilement (hauteur ≤ 560 px, réglages fins repliés)", h1 <= 560 && (await menu.locator('[data-testid="fond-fine"]').evaluate((d) => !d.open)), String(h1));
-  ok("R7 les réglages fins (coins, marge, bordure, papier du site) sont dans une section repliée", (await menu.locator('[data-testid="fond-fine"] [data-testid="fond-round"]').count()) === 1 && (await menu.locator('[data-testid="fond-fine"] [data-testid="surface-border-switch"]').count()) === 1);
-  ok("R7 Étendue en haut, avant les couleurs : Pleine largeur / Carte en retrait", (await menu.locator('[data-testid="fond-extent"] button').allTextContents()).map((t) => t.trim()).join() === "Pleine largeur,Carte en retrait", h0 + "/" + h1);
+  ok("R7 menu COURT : tient dans la fenêtre (hauteur ≤ 640 px avec les deux sections)", h1 <= 640, String(h1));
+  ok("R7 les réglages fins (coins, marge, bordure, papier du site) sont dans la section Carte, repliée", (await menu.locator('[data-testid="fond-fine"]').count()) === 0 || (await menu.locator('[data-testid="fond-fine"]').evaluate((d) => !d.open)), h0 + "/" + h1);
   await page.screenshot({ path: path.join(SHOTS, "r7-menu-court.png") });
-  await menu.locator('[data-kind="none"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').click();
   await waitFor(() => bgOf("Delta") === undefined);
   await page.keyboard.press("Escape");
 });
@@ -281,11 +281,11 @@ await section("R5", async () => {
   let m = await measure("Delta");
   ok("R5 départ : Delta sans fond, le papier peint de la PAGE (étoiles) est dessous", !m.fond && m.pagePaper?.includes("/media/img/"), JSON.stringify(m));
   let menu = await openFond("Delta");
-  ok("R5 « Aucun » : le menu DIT que le papier peint vient de la page, avec un lien pour le régler", (await menu.locator('[data-testid="fond-page-paper"]').textContent())?.includes("Papier peint de la page") && (await menu.locator('[data-testid="fond-page-paper-link"]').count()) === 1);
+  ok("R5 « Aucun » : le menu DIT que le papier peint vient de la page, avec un lien pour le régler", (await menu.locator('[data-testid="fond-page-paper"]').first().textContent())?.includes("Papier peint de la page") && (await menu.locator('[data-testid="fond-page-paper-link"]').count()) === 1);
   await page.screenshot({ path: path.join(SHOTS, "r5-1-aucun-papier-de-la-page.png") });
 
   // 1. « Couleur » : plus aucun papier dans la zone (ni celui du site, ni un autre).
-  await menu.locator('[data-kind="color"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="color"]').click();
   ok("R5 « Couleur » : enregistré avec le papier du site caché", await waitFor(() => bgOf("Delta")?.kind === "color" && bgOf("Delta")?.paper === "under"), JSON.stringify(bgOf("Delta")));
   await sleep(700);
   m = await measure("Delta");
@@ -293,11 +293,11 @@ await section("R5", async () => {
   await page.screenshot({ path: path.join(SHOTS, "r5-2-couleur-sans-papier.png") });
 
   // 2. « Papier peint » sans motif choisi avant : on choisit PAS à la place de l'artiste.
-  await menu.locator('[data-kind="wallpaper"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="wallpaper"]').click();
   await sleep(600);
   ok("R5 « Papier peint » sans motif choisi avant : aucun motif n'est posé à sa place (le fond reste une couleur)", bgOf("Delta")?.kind === "color" && (await menu.locator('[data-testid="wp-grid"] [aria-checked=true]').count()) === 0, JSON.stringify(bgOf("Delta")));
   await menu.locator(`[data-wallpaper-id="${STARS}"]`).click();
-  ok("R5 le motif cliqué est posé (ici le DEUXIÈME de la bibliothèque), la couleur reste dessous", await waitFor(() => bgOf("Delta")?.kind === "wallpaper" && bgOf("Delta")?.wallpaper === STARS && bgOf("Delta")?.color === "bgDeep"), JSON.stringify(bgOf("Delta")));
+  ok("R5 le motif cliqué est posé (ici le DEUXIÈME de la bibliothèque), la couleur reste dessous", await waitFor(() => bgOf("Delta")?.kind === "wallpaper" && bgOf("Delta")?.wallpaper === STARS && bgOf("Delta")?.color === "surface"), JSON.stringify(bgOf("Delta")));
   await menu.locator('[data-testid="wp-opacity"]').fill("40");
   await menu.locator('[data-testid="wp-size"]').fill("90");
   await waitFor(() => Math.abs((bgOf("Delta")?.opacity ?? 0) - 0.4) < 0.001 && bgOf("Delta")?.size === 90);
@@ -305,22 +305,22 @@ await section("R5", async () => {
   await page.screenshot({ path: path.join(SHOTS, "r5-3-papier-choisi.png") });
 
   // 3. Couleur puis retour : le MÊME motif, avec sa taille et son opacité.
-  await menu.locator('[data-kind="color"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="color"]').click();
   await waitFor(() => bgOf("Delta")?.kind === "color");
   await sleep(500);
   m = await measure("Delta");
   ok("R5 retour sur « Couleur » : plus aucun papier dans la zone", m.fondPapers.length === 0, JSON.stringify(m.fondPapers));
-  await menu.locator('[data-kind="wallpaper"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="wallpaper"]').click();
   ok("R5 retour sur « Papier peint » : le MÊME motif (pas le premier de la bibliothèque), avec sa taille et son opacité", await waitFor(() => bgOf("Delta")?.kind === "wallpaper" && bgOf("Delta")?.wallpaper === STARS && bgOf("Delta")?.size === 90 && Math.abs((bgOf("Delta")?.opacity ?? 0) - 0.4) < 0.001), JSON.stringify(bgOf("Delta")));
   // 4. Fermer et rouvrir le menu : la mémoire tient (même session).
   await page.keyboard.press("Escape");
   menu = await openFond("Delta");
-  await menu.locator('[data-kind="color"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="color"]').click();
   await waitFor(() => bgOf("Delta")?.kind === "color");
-  await menu.locator('[data-kind="wallpaper"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="wallpaper"]').click();
   ok("R5 … même après fermeture du menu", await waitFor(() => bgOf("Delta")?.wallpaper === STARS), JSON.stringify(bgOf("Delta")));
   // 5. « Aucun » : tout part, y compris dans le brouillon.
-  await menu.locator('[data-kind="none"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').click();
   ok("R5 « Aucun » : la zone est retirée du brouillon (ni fond ni carte)", await waitFor(() => bgOf("Delta") === undefined && props("Delta").surface === undefined), JSON.stringify(props("Delta")));
   await sleep(600);
   m = await measure("Delta");
@@ -335,7 +335,7 @@ await section("R5", async () => {
 await section("R5b", async () => {
   f = await openEditor();
   let menu = await openFond("Delta");
-  await menu.locator('[data-kind="none"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').click();
   await waitFor(() => bgOf("Delta") === undefined);
   await menu.locator('[data-testid="fond-page-paper-link"]').click();
   const field = page.locator('[data-testid="page-wallpaper"]');
@@ -365,7 +365,7 @@ await section("R5b", async () => {
 await section("R6", async () => {
   f = await openEditor();
   const menu = await openFond("Delta");
-  await menu.locator('[data-kind="wallpaper"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="wallpaper"]').click();
   await menu.locator(`[data-wallpaper-id="${POIS}"]`).click();
   await waitFor(() => bgOf("Delta")?.wallpaper === POIS);
   const min = await menu.locator('[data-testid="wp-opacity"]').getAttribute("min");
@@ -379,63 +379,68 @@ await section("R6", async () => {
   // Sur une carte (Foxtrot, ancienne carte à motif) : même curseur, de 0 à 100 % (lot 90 : plus de plafond à 60 %).
   await page.keyboard.press("Escape");
   const mf = await openFond("Foxtrot");
-  await mf.locator('[data-kind="wallpaper"][aria-checked="true"]').waitFor();
+  await mf.locator('[data-testid="fond-section-carte"] [data-kind="wallpaper"][aria-checked="true"]').waitFor();
   ok("R6 carte à motif : le curseur va aussi de 0 à 100 % (lot 90)", (await mf.locator('[data-testid="wp-opacity"]').getAttribute("min")) === "0" && (await mf.locator('[data-testid="wp-opacity"]').getAttribute("max")) === "100");
   await mf.locator('[data-testid="wp-opacity"]').fill("0");
   ok("R6 … opacité 0 sur la carte enregistrée", await waitFor(() => props("Foxtrot").surface?.paperOpacity === 0), JSON.stringify(props("Foxtrot").surface));
   await page.keyboard.press("Escape");
 });
 
-/* ---- E. Étendue, anciennes cartes, carte + fond emboîté ---------------------------------------------------------------------------------- */
+/* ---- E. Fond & carte (lot 100) : deux sections, anciennes cartes, carte + fond emboîtés ------------------------------------------------ */
 
 await section("E", async () => {
   f = await openEditor();
-  // Delta : Pleine largeur → Carte en retrait → Pleine largeur.
+  // Delta : Fond (couleur) → + Carte → Carte retirée.
   let menu = await openFond("Delta");
-  await menu.locator('[data-kind="color"]').click();
+  await sec(menu, "fond").locator('[data-kind="color"]').click();
   await waitFor(() => bgOf("Delta")?.kind === "color");
   await sleep(500);
   let m = await measure("Delta");
-  ok("E1 Pleine largeur : le fond va d'un bord à l'autre de la page", m.fondBox && Math.abs(m.fondBox.l) < 1.5 && Math.abs(m.fondBox.r - m.vw) < 1.5, JSON.stringify(m.fondBox));
-  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
-  ok("E2 Carte en retrait : enregistrée (marge Moyenne)", await waitFor(() => bgOf("Delta")?.inset === "m"), JSON.stringify(bgOf("Delta")));
-  await sleep(500);
+  ok("E1 Fond : la couleur va d'un bord à l'autre de la page", m.fondBox && Math.abs(m.fondBox.l) < 1.5 && Math.abs(m.fondBox.r - m.vw) < 1.5, JSON.stringify(m.fondBox));
+  await sec(menu, "carte").locator('[data-kind="color"]').click();
+  ok("E2 + Carte : le Fond passe dehors (`surface` pleine largeur), la Carte dedans (`background` avec marge M)", await waitFor(() => props("Delta").surface?.width === "full" && props("Delta").background?.inset === "m"), JSON.stringify(props("Delta")));
+  await sleep(600);
   m = await measure("Delta");
-  ok("E2 … le fond est en retrait des bords de la page", m.fondBox.l > 10 && m.fondBox.r < m.vw - 10, JSON.stringify(m.fondBox));
-  ok("E2 … le papier peint de la page se voit autour : le menu le dit", (await menu.locator('[data-testid="fond-page-paper"]').count()) === 1);
-  await page.screenshot({ path: path.join(SHOTS, "e-carte-en-retrait.png") });
-  await menu.locator('[data-testid="fond-extent"] [data-extent="full"]').click();
-  ok("E3 Pleine largeur de nouveau : la marge est retirée", await waitFor(() => bgOf("Delta")?.inset === undefined), JSON.stringify(bgOf("Delta")));
+  ok("E2 … la carte est en retrait des bords du fond (le Fond va d'un bord à l'autre)", m.fondBox && m.cardBox && m.fondBox.l > m.cardBox.l + 10 && m.fondBox.r < m.cardBox.r - 10 && Math.abs(m.cardBox.l) < 1.5, JSON.stringify([m.fondBox, m.cardBox]));
+  await page.screenshot({ path: path.join(SHOTS, "e-fond-et-carte.png") });
+  await sec(menu, "carte").locator('[data-kind="none"]').click();
+  ok("E3 Carte retirée : le Fond reste (R9b : régler la carte ne fait jamais perdre le fond autour)", await waitFor(() => props("Delta").surface?.width === "full" && props("Delta").background === undefined), JSON.stringify(props("Delta")));
   await page.keyboard.press("Escape");
 
-  // Bravo : ancienne carte. Le menu « Fond » la règle (couleur, étendue), sans rien perdre.
+  // Bravo : ancienne carte en retrait = section Carte, Fond vide ; le menu la règle sans rien perdre.
   menu = await openFond("Bravo");
-  ok("E4 ancienne carte (Bravo) : le menu « Fond » la montre en Couleur, Carte en retrait", (await checkedKind(menu)) === "color" && (await menu.locator('[data-testid="fond-extent"] [aria-checked=true]').getAttribute("data-extent")) === "margin");
+  ok("E4 ancienne carte (Bravo) : section Carte en Couleur, section Fond sur Aucun", (await checkedKind(menu, "carte")) === "color" && (await checkedKind(menu, "fond")) === "none");
   ok("E4 … ouvrir le menu n'a rien écrit", draftBlock("Bravo") === undefined || JSON.stringify(props("Bravo").surface) === JSON.stringify(LEGACY.Bravo.surface));
-  await menu.locator('[data-testid="card-da-color"][data-token="ink"]').click();
+  await sec(menu, "carte").locator('[data-testid="card-da-color"][data-token="ink"]').click();
   ok("E5 changer la couleur d'une ancienne carte : la carte garde ses coins et sa largeur", await waitFor(() => props("Bravo").surface?.color === "ink" && props("Bravo").surface?.corners === "m" && props("Bravo").surface?.width === "inset"), JSON.stringify(props("Bravo").surface));
-  await menu.locator('[data-testid="fond-extent"] [data-extent="full"]').click();
-  ok("E6 « Pleine largeur » sur une carte : `width: full`, la carte reste une carte (couche d'avant)", await waitFor(() => props("Bravo").surface?.width === "full" && props("Bravo").background === undefined), JSON.stringify(props("Bravo")));
+  await sec(menu, "fond").locator('[data-kind="color"]').click();
+  ok("E6 + Fond sur une ancienne carte : le Fond passe dehors, la carte dedans (couleur et coins gardés)", await waitFor(() => props("Bravo").surface?.width === "full" && props("Bravo").background?.inset === "m" && props("Bravo").background?.color === "ink" && props("Bravo").background?.round === "m"), JSON.stringify(props("Bravo")));
   await page.keyboard.press("Escape");
 
-  // Echo : carte ET fond emboîté d'avant : les deux couches sont gardées, réglables chacune.
+  // Echo : carte ET fond emboîté d'avant : les deux sections sont remplies, chacune réglable.
   menu = await openFond("Echo");
-  ok("E7 carte + fond emboîté (Echo) : le menu propose de choisir la couche à régler", (await menu.locator('[data-testid="fond-layer"] button').count()) === 2);
-  await menu.locator('[data-testid="fond-layer"] [data-layer="inner"]').click();
-  await menu.locator('[data-testid="card-da-color"][data-token="primary"]').click();
-  ok("E8 régler le fond emboîté ne touche pas la carte", await waitFor(() => props("Echo").background?.color === "primary" && props("Echo").surface?.color === "surface"), JSON.stringify(props("Echo")));
-  await menu.locator('[data-testid="fond-layer"] [data-layer="main"]').click();
-  await menu.locator('[data-kind="none"]').click();
-  ok("E9 « Aucun » (sur la carte) retire les DEUX couches", await waitFor(() => props("Echo").surface === undefined && props("Echo").background === undefined), JSON.stringify(props("Echo")));
+  ok("E7 carte + fond emboîté (Echo) : les sections Fond ET Carte sont en Couleur", (await checkedKind(menu, "fond")) === "color" && (await checkedKind(menu, "carte")) === "color");
+  ok("E7 … plus de choix « Régler : La carte / Le fond sur la carte »", (await menu.locator('[data-testid="fond-layer"], [data-testid="fond-inner-add"]').count()) === 0);
+  await sec(menu, "fond").locator('[data-testid="card-da-color"][data-token="primary"]').click();
+  ok("E8 régler le Fond ne touche pas la Carte (chacune garde sa couche d'avant : rien n'est déplacé)", await waitFor(() => props("Echo").background?.color === "primary" && props("Echo").surface?.color === "surface" && props("Echo").surface?.width === "inset"), JSON.stringify(props("Echo")));
+  await sec(menu, "fond").locator('[data-kind="none"]').click();
+  ok("E9 Fond « Aucun » : seule la Carte reste", await waitFor(() => props("Echo").background === undefined && props("Echo").surface?.color === "surface"), JSON.stringify(props("Echo")));
+  await sec(menu, "carte").locator('[data-kind="none"]').click();
+  ok("E9 Carte « Aucune » : plus rien", await waitFor(() => props("Echo").surface === undefined && props("Echo").background === undefined), JSON.stringify(props("Echo")));
   await undo().click();
-  ok("E9 Défaire : les deux couches reviennent d'un seul pas", await waitFor(() => props("Echo").surface?.color === "surface" && props("Echo").background?.color === "primary"), JSON.stringify(props("Echo")));
+  ok("E9 Défaire : la Carte revient d'un seul pas", await waitFor(() => props("Echo").surface?.color === "surface"), JSON.stringify(props("Echo")));
   await page.keyboard.press("Escape");
 
-  // Bordure : un réglage de carte, posé depuis les réglages fins ; sur un fond il le transforme en carte.
+  // Bordure : un réglage de la carte, posé depuis les réglages fins quand le Fond est sur « Aucun ».
   menu = await openFond("Delta");
-  await menu.locator('[data-testid="fond-fine"] summary').click();
-  await menu.locator('[data-testid="surface-border-switch"]').click();
-  ok("E10 bordure sur un fond : le fond devient une carte (couleur gardée) avec bordure", await waitFor(() => props("Delta").surface?.border !== undefined && props("Delta").surface?.border !== false && props("Delta").background === undefined && typeof props("Delta").surface?.color === "string"), JSON.stringify(props("Delta")));
+  await sec(menu, "carte").locator('[data-kind="color"]').click();
+  await waitFor(() => props("Delta").background?.inset === "m");
+  ok("E10 avec un Fond, la bordure est dite indisponible (elle vit sur la couche extérieure)", (await menu.locator('[data-testid="fond-border-locked"]').count()) === 1);
+  await sec(menu, "fond").locator('[data-kind="none"]').click();
+  await waitFor(() => props("Delta").surface === undefined);
+  await sleep(500);
+  await menu.locator('[data-contour="medium"]').click();
+  ok("E10 bordure sur une carte sans Fond : la carte garde sa couleur, avec bordure", await waitFor(() => props("Delta").surface?.border !== undefined && props("Delta").surface?.border !== false && props("Delta").background === undefined && typeof props("Delta").surface?.color === "string"), JSON.stringify(props("Delta")));
   await page.keyboard.press("Escape");
   ok("E11 publication", await publish());
 });

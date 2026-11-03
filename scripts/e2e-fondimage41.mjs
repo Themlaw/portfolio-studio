@@ -200,7 +200,7 @@ async function clearView(loc, frameEl) {
 /** Deux pixels de l'élément, mesurés dans une capture, près des coins BAS de la boîte de l'image (transparents dans le PNG ; à 24 px du bord pour rester dans l'arrondi). */
 async function pixel(frame, selector) {
   const loc = frame.locator(selector).first();
-  await loc.scrollIntoViewIfNeeded();
+  for (let k = 0; k < 4; k++) { try { await loc.scrollIntoViewIfNeeded({ timeout: 8000 }); break; } catch { await sleep(1200); } }
   await loc.evaluate((i) => (i.decode ? i.decode().catch(() => {}) : null));
   await sleep(250);
   const restore = await clearView(loc, frame === f ? await page.$("iframe.ve-frame") : null);
@@ -242,7 +242,7 @@ const section = async (name, fn) => {
 };
 async function pick(fr, uid) {
   const el = fr.locator(`[data-edit-block="${uid}"] img`).first();
-  await el.scrollIntoViewIfNeeded();
+  for (let k = 0; k < 4; k++) { try { await el.scrollIntoViewIfNeeded({ timeout: 8000 }); break; } catch { await sleep(1200); } }
   await el.click();
   await sleep(500);
 }

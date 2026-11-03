@@ -72,14 +72,14 @@ test("T1 couleurs : « carte » = la carte réellement dessous ; la palette pass
   assert.equal(imageBgCss("card"), "var(--card-bg, var(--t-color-surface))");
   assert.equal(mediaLookAttrs({ bg: "card" }).style["--img-bg"], "var(--card-bg, var(--t-color-surface))");
   for (const c of PALETTE) {
-    assert.equal(imageBgCss(c), `var(--color-${c})`, `fond ${c}`);
-    // Lot 95 : la bande choisie est la couleur de la pastille (celle du thème), jamais la variante lisible qu'une carte met à la place.
+    assert.equal(imageBgCss(c), `var(--t-color-${c})`, `fond ${c}`);
+    // Lots 95 et 100 : la bande ou le fond choisi est la couleur de la pastille (celle du thème), jamais la variante lisible qu'une carte met à la place.
     assert.equal(frameColorCss(c), c === "ink" ? "var(--color-ink)" : `var(--t-color-${c})`, `bande ${c}`);
   }
   // Sans choix, la bande suit le texte de l'endroit (remappé dans une carte) : c'est le seul cas qui s'adapte.
   assert.equal(frameColorCss(undefined), frameColorCss("ink"));
-  // Aucune variable de thème brute (--t-color-*) pour le fond d'image hors le repli de « carte ».
-  for (const c of PALETTE) assert.ok(!/--t-color/.test(imageBgCss(c)));
+  // Lots 95 et 100 : une teinte choisie passe par la variable du thème (--t-color-*), jamais par la variante remappée ; seul « Texte » reste adapté à la zone.
+  for (const c of PALETTE) assert.ok(/--t-color/.test(imageBgCss(c)));
 });
 
 test("T1 cadre du kit : les QUATRE épaisseurs réelles (haut, droite, bas, gauche) sont émises", () => {

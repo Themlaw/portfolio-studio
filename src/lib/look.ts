@@ -460,12 +460,14 @@ export type ImageBg = z.infer<typeof ImageBgSchema>;
 /**
  * Couleur CSS d'un fond d'image, ou null (absent / invalide : aucun fond). « Couleur de la carte » = la carte RÉELLEMENT sous l'image
  * (`--card-bg`, posée par la carte et par le fond de composant), sinon la couleur des cartes du thème ; une teinte de la palette passe par
- * `--color-x`, remappé dans une carte (lot 64).
+ * `--t-color-x` (lot 100 ; `--color-x` est remappé dans une carte).
  */
 export function imageBgCss(bg: string | undefined): string | null {
   if (bg === undefined) return null;
   if (bg === IMAGE_BG_CARD) return "var(--card-bg, var(--t-color-surface))";
-  if ((PALETTE as readonly string[]).includes(bg)) return `var(--color-${bg})`;
+  // Lot 100 (même règle que le cadre, lot 95) : une teinte CHOISIE est la couleur du thème (`--t-color-x`, celle de la pastille), jamais `--color-x` : dans une carte ou sur un fond
+  // de couleur, la zone remappe `--color-ink`, `--color-primary`… en variante lisible pour du texte, et le fond prenait une autre couleur que sa pastille.
+  if ((PALETTE as readonly string[]).includes(bg)) return `var(--t-color-${bg})`;
   if (CUSTOM_COLOR_RE.test(bg)) return bg;
   return null;
 }

@@ -97,7 +97,7 @@ ok("… puis Couleur → Papier peint : le MÊME motif revient avec sa taille et
 const none = zoneWithKind(toColor, "wallpaper", {});
 ok("Papier peint sans motif choisi avant : rien n'est choisi à la place de l'artiste (zone inchangée)", same(none, toColor));
 const fresh = zoneWithKind({ layer: "fond", extent: "full" }, "color", {});
-ok("Couleur sur une zone neuve : le fond profond du thème, papier du site caché", fresh.color === "bgDeep" && fresh.paper === "under" && same(zoneToBackground(fresh), { kind: "color", color: "bgDeep", paper: "under" }));
+ok("Couleur sur une zone neuve : la couleur de carte du thème (lot 100 : plus « bgDeep »), papier du site caché", fresh.color === "surface" && fresh.paper === "under" && same(zoneToBackground(fresh), { kind: "color", color: "surface", paper: "under" }));
 const cardWp = zoneWithKind({ layer: "card", extent: "inset", paper: "under" }, "wallpaper", {}, 4);
 ok("Papier peint sur une carte : le papier « sous la carte » (qui cacherait le motif) est retiré", cardWp.wallpaper === 4 && cardWp.paper === undefined && zoneToSurface(cardWp).paperWallpaper === 4);
 const sw = readSurface({ color: "surface" });

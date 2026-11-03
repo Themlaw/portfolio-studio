@@ -242,7 +242,10 @@ const surfaceOfDraft = () => inkBlocks().at(-1)?.props.surface;
 
 await section("A", async () => {
   let menu = await openMenu();
-  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
+  // Lot 100 : « Couleur » pose la carte avec le papier du site caché (R5) ; ce test part du réglage « Comme le site » (carte par défaut du lot 28).
+  await menu.locator('[data-testid="fond-fine"]:not([open]) summary').click({ timeout: 8000 }).catch(() => {});
+  await menu.locator('[data-paper="site"]').click();
   ok("A1 carte posée (étendue demandée, le reste vient du thème : `{ width: inset }`)", await waitFor(() => JSON.stringify(surfaceOfDraft()) === '{"width":"inset"}'), JSON.stringify(surfaceOfDraft()));
   ok("A2 le menu propose « Papier du site » (le thème a un papier)", await menu.locator('[data-testid="surface-paper"]').isVisible() && (await menu.locator('[data-testid="surface-paper-none"]').count()) === 0);
   const site = menu.locator('[data-paper="site"]');

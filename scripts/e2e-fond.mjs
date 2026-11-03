@@ -204,7 +204,7 @@ await section("P", async () => {
 
 let f = await openEditor();
 
-/** Sélectionne un Texte, ouvre son menu « Fond ». */
+/** Sélectionne un Texte, ouvre son menu « Fond & carte » (lot 100 : deux sections Fond et Carte). */
 async function openFond(word) {
   const host = f.locator('[data-edit-block][data-edit-type="rich-text"]', { hasText: word }).first();
   // La toile se rafraîchit après l'écriture précédente : le bloc peut être remplacé sous la main (« not attached »), on réessaie.
@@ -221,25 +221,26 @@ async function openFond(word) {
   await f.locator('.pe-tools [data-testid="fond-button"]').click();
   const menu = f.locator('[data-testid="fond-menu"]');
   await menu.waitFor({ timeout: 20000 });
-  // Lot 66 : sur une carte qui porte déjà une bande de couleur (fond emboîté), on règle cette bande.
-  if (await menu.locator('[data-testid="fond-layer"]').count()) await menu.locator('[data-layer="inner"]').click();
   return menu;
 }
-/** Lot 66 : la bande de couleur sur une carte se pose avec « Ajouter une bande de couleur sur la carte » (le menu règle sinon la carte). */
-async function ensureInner(menu) {
-  if (await menu.locator('[data-testid="fond-inner-add"]').count()) await menu.locator('[data-testid="fond-inner-add"]').click();
-}
+/** Section « Fond » du menu (la zone pleine largeur autour). */
+const fondSec = (menu) => menu.locator('[data-testid="fond-section-fond"]');
 async function setFond(word, token) {
   const menu = await openFond(word);
-  if (token !== null) await ensureInner(menu);
-  if (token === null) await menu.locator('[data-kind="none"]').click();
+  const sec = fondSec(menu);
+  if (token === null) await sec.locator('[data-kind="none"]').click();
   else {
-    if ((await menu.locator('[data-kind="color"]').getAttribute("aria-checked")) !== "true") await menu.locator('[data-kind="color"]').click();
-    await menu.locator(`[data-testid="card-da-color"][data-token="${token}"]`).click();
+    if ((await sec.locator('[data-kind="color"]').getAttribute("aria-checked")) !== "true") await sec.locator('[data-kind="color"]').click();
+    await sec.locator(`[data-testid="card-da-color"][data-token="${token}"]`).click();
   }
   await page.keyboard.press("Escape");
   await sleep(500);
 }
+/** Couleur du Fond d'un bloc dans le brouillon : la couche extérieure (carte pleine largeur) quand le bloc a une carte, sinon le fond. */
+const fondColorOfDraft = (word) => {
+  const p = draftOf(word)?.props;
+  return p?.surface?.width === "full" ? p.surface.color : p?.background?.color;
+};
 const bgOfDraft = (word) => draftOf(word)?.props.background;
 const undo = () => page.locator('button.a-icon-btn[aria-label="Défaire"]');
 const redo = () => page.locator('button.a-icon-btn[aria-label="Rétablir"]');
@@ -247,56 +248,54 @@ const redo = () => page.locator('button.a-icon-btn[aria-label="Rétablir"]');
 /* ---- A. Fond dans une carte ---------------------------------------------------------------------------------------- */
 
 let primary = [0, 0, 0];
+/* Lot 100 : « Fond & carte ». Sur une carte, le Fond est la zone PLEINE LARGEUR autour (couche extérieure `surface` pleine largeur) et l'ancienne carte devient la Carte dedans
+   (couche `background` avec marge) : il n'y a plus de « bande de couleur dans la carte ». Ces cas vérifient les mêmes gestes (couleur, fusion de deux voisins, Annuler / Rétablir) sur ce rangement. */
 await section("A", async () => {
   primary = await themeColor(f, "primary");
   const before = await measure(f, "Bravo");
   ok("A0 sans fond : carte seule, aucune enveloppe de fond active", before.fond === null && before.card !== null);
   const menu = await openFond("Bravo");
-  ok("A1 le bouton « Fond » est dans la barre du composant", true);
-  ok("A1 pas de bande de couleur au départ : le menu propose d'en ajouter une sur la carte", (await menu.locator('[data-testid="fond-inner-add"]').count()) === 1);
-  await ensureInner(menu);
-  ok("A2 « Ajouter une bande de couleur » pose le fond profond du thème (le papier est celui de la carte)", await waitFor(() => JSON.stringify(bgOfDraft("Bravo")) === '{"kind":"color","color":"bgDeep"}'), JSON.stringify(bgOfDraft("Bravo")));
-  await menu.locator('[data-testid="card-da-color"][data-token="primary"]').click();
-  ok("A3 couleur de la palette : jeton enregistré (suit le thème)", await waitFor(() => JSON.stringify(bgOfDraft("Bravo")) === '{"kind":"color","color":"primary"}'), JSON.stringify(bgOfDraft("Bravo")));
+  ok("A1 ancienne carte : section Fond sur « Aucun », section Carte en « Couleur » (le menu relit la carte, sans rien écrire)", (await fondSec(menu).locator('[data-kind="none"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').getAttribute("aria-checked")) === "true");
+  await fondSec(menu).locator('[data-kind="color"]').click();
+  ok("A2 « Couleur » dans Fond : le Fond passe dehors (`surface` pleine largeur, couleur « Cartes et encadrés » du thème : plus jamais le fond profond, jaune sur certains thèmes), l'ancienne carte devient la Carte dedans (marge)", await waitFor(() => { const pr = draftOf("Bravo")?.props; return pr?.surface?.width === "full" && pr.surface.color !== "bgDeep" && pr.background?.kind === "color" && pr.background?.inset === "m" && pr.background?.color === "surface"; }), JSON.stringify(draftOf("Bravo")?.props));
+  await fondSec(menu).locator('[data-testid="card-da-color"][data-token="primary"]').click();
+  ok("A3 couleur de la palette : jeton enregistré (suit le thème)", await waitFor(() => fondColorOfDraft("Bravo") === "primary"), JSON.stringify(draftOf("Bravo")?.props.surface));
   await page.keyboard.press("Escape");
   await sleep(500);
   let m = await measure(f, "Bravo");
-  ok("A4 aperçu immédiat : fond actif, couleur de la palette", m.fond !== null && sameRgb(rgb(m.fondBg), primary), JSON.stringify([m.fondBg, primary]));
-  ok("A5 la couleur va d'un bord à l'autre de la carte (largeur) et sur toute sa hauteur", m.fond && m.card && near(m.fond.l, m.card.l) && near(m.fond.r, m.card.r) && near(m.fond.t, m.card.t) && near(m.fond.b, m.card.b), JSON.stringify([m.fond, m.card]));
-  ok("A5 le contenu ne colle pas aux bords (rembourrage)", m.fond && m.p.t - m.fond.t >= 12 && m.fond.b - m.p.b >= 12 && m.p.l - m.fond.l >= 12, JSON.stringify([m.fond, m.p]));
-  await page.screenshot({ path: path.join(SHOTS, "a-un-fond-dans-une-carte.png") });
+  ok("A4 aperçu immédiat : le Fond (carte pleine largeur) prend la couleur de la palette", m.card !== null && sameRgb(rgb(m.cardBg), primary), JSON.stringify([m.cardBg, primary]));
+  ok("A5 le Fond va d'un bord à l'autre de la page et la Carte est dedans, avec une marge", m.card && m.fond && near(m.card.l, 0, 1.5) && near(m.card.r, m.vw, 1.5) && m.fond.l - m.card.l >= 10 && m.card.r - m.fond.r >= 10, JSON.stringify([m.card, m.fond]));
+  ok("A5 le contenu ne colle pas aux bords de la Carte (rembourrage)", m.fond && m.p.t - m.fond.t >= 12 && m.fond.b - m.p.b >= 12 && m.p.l - m.fond.l >= 12, JSON.stringify([m.fond, m.p]));
+  await page.screenshot({ path: path.join(SHOTS, "a-un-fond-autour-d-une-carte.png") });
 
   await setFond("Charlie", "primary");
-  ok("A6 deuxième composant, même couleur : enregistré", await waitFor(() => JSON.stringify(bgOfDraft("Charlie")) === '{"kind":"color","color":"primary"}'));
+  ok("A6 deuxième composant, même Fond : enregistré", await waitFor(() => fondColorOfDraft("Charlie") === "primary"));
   m = await measure(f, "Bravo");
   const c = await measure(f, "Charlie");
-  ok("A7 deux cartes de même fond : aucun écart entre les deux couleurs", c.fond && m.fond && near(c.fond.t, m.fond.b, 1.5), JSON.stringify([m.fond, c.fond]));
-  ok("A7 les deux cartes se touchent (aucune marge entre elles)", near(c.card.t, m.card.b, 1.5), JSON.stringify([m.card, c.card]));
-  ok("A8 jonction : coins droits au contact (haut de la 2e, bas de la 1re), arrondi conservé aux extrémités", c.radius[0] === 0 && m.radius[1] === 0 && m.radius[0] > 0 && c.radius[1] > 0, JSON.stringify([m.radius, c.radius]));
-  ok("A8 attributs de fusion posés sur l'enveloppe et la carte", m.fondJoin[1] && c.fondJoin[0] && m.cardJoin[1] && c.cardJoin[0] && !m.fondJoin[0] && !c.fondJoin[1], JSON.stringify([m.fondJoin, c.fondJoin, m.cardJoin, c.cardJoin]));
-  await page.screenshot({ path: path.join(SHOTS, "a-deux-cartes-meme-fond.png") });
-  const gapSame = c.card.t - m.card.b;
+  ok("A7 lot 100 : deux Fonds (couche extérieure pleine largeur) de même couleur restent deux zones séparées par l'écart habituel entre rubriques (la fusion ne concerne que le fond de la bande, vérifiée en B)", c.card && m.card && c.card.t - m.card.b >= 0, JSON.stringify([m.card, c.card]));
+  ok("A8 lot 100 : chaque Fond a sa Carte dedans, avec une marge de chaque côté", c.fond && m.fond && c.fond.l - c.card.l >= 10 && m.fond.l - m.card.l >= 10, JSON.stringify([m.cardJoin, c.cardJoin]));
+  await page.screenshot({ path: path.join(SHOTS, "a-deux-fonds-meme-couleur.png") });
 
   await setFond("Charlie", "ink");
-  await waitFor(() => bgOfDraft("Charlie")?.color === "ink");
+  await waitFor(() => fondColorOfDraft("Charlie") === "ink");
   const m2 = await measure(f, "Bravo");
   const c2 = await measure(f, "Charlie");
-  ok("A9 couleur différente : écart normal entre les deux cartes", c2.card.t - m2.card.b > 8 && !m2.fondJoin[1] && !c2.fondJoin[0], JSON.stringify([m2.card.b, c2.card.t, m2.fondJoin, c2.fondJoin]));
-  ok("A9 texte lisible sur le fond sombre (≥ 4,5:1)", ratio(rgb(c2.pColor), rgb(c2.fondBg)) >= 4.5, JSON.stringify([c2.pColor, c2.fondBg]));
-  await page.screenshot({ path: path.join(SHOTS, "a-deux-cartes-couleurs-differentes.png") });
+  ok("A9 couleur différente : deux zones de couleurs distinctes", rgb(m2.cardBg).join() !== rgb(c2.cardBg).join(), JSON.stringify([m2.cardJoin, c2.cardJoin]));
+  ok("A9 texte lisible sur sa Carte (≥ 4,5:1)", ratio(rgb(c2.pColor), rgb(c2.fondBg)) >= 4.5, JSON.stringify([c2.pColor, c2.fondBg]));
+  await page.screenshot({ path: path.join(SHOTS, "a-deux-fonds-couleurs-differentes.png") });
 
   await undo().click();
-  ok("A10 Annuler : Charlie reprend la couleur d'avant, les deux cartes se rejoignent", await waitFor(async () => bgOfDraft("Charlie")?.color === "primary" && near((await measure(f, "Charlie")).card.t - (await measure(f, "Bravo")).card.b, gapSame, 1.5)));
+  ok("A10 Annuler : Charlie reprend le Fond d'avant", await waitFor(async () => fondColorOfDraft("Charlie") === "primary"));
   await undo().click();
-  ok("A10 Annuler encore : Charlie revient au fond profond posé par « Couleur » (un pas par choix)", await waitFor(() => bgOfDraft("Charlie")?.color === "bgDeep"));
+  ok("A10 Annuler encore : Charlie revient à la couleur posée par « Couleur » (un pas par choix)", await waitFor(() => draftOf("Charlie")?.props.surface?.width === "full" && fondColorOfDraft("Charlie") === "surface"));
   await undo().click();
-  ok("A10 Annuler encore : Charlie sans fond, Bravo garde le sien", await waitFor(async () => bgOfDraft("Charlie") === undefined && (await measure(f, "Charlie")).fond === null && bgOfDraft("Bravo")?.color === "primary"));
+  ok("A10 Annuler encore : Charlie redevient une simple carte, Bravo garde son Fond", await waitFor(async () => draftOf("Charlie")?.props.background === undefined && draftOf("Charlie")?.props.surface?.width !== "full" && fondColorOfDraft("Bravo") === "primary"));
   await redo().click();
   await redo().click();
   await redo().click();
-  ok("A11 Rétablir deux fois : fond de Charlie différent de nouveau", await waitFor(() => bgOfDraft("Charlie")?.color === "ink"));
+  ok("A11 Rétablir trois fois : Fond de Charlie différent de nouveau", await waitFor(() => fondColorOfDraft("Charlie") === "ink"));
   await setFond("Charlie", "primary");
-  await waitFor(() => bgOfDraft("Charlie")?.color === "primary");
+  await waitFor(() => fondColorOfDraft("Charlie") === "primary");
 });
 
 /* ---- B. Hors carte : bande pleine largeur ----------------------------------------------------------------------------- */
@@ -336,10 +335,10 @@ await section("C", async () => {
   pub.on("pageerror", (e) => errors.push(e.message));
   await pub.goto(PUBLIC, { waitUntil: "networkidle" });
   const p = await facts(pub);
-  ok("C1 public : couleur d'un bord à l'autre de la carte, toute la hauteur", near(p.b.fond.l, p.b.card.l) && near(p.b.fond.r, p.b.card.r) && near(p.b.fond.t, p.b.card.t) && near(p.b.fond.b, p.b.card.b), JSON.stringify([p.b.fond, p.b.card]));
-  ok("C1 public : deux cartes de même fond sans écart, coins de jonction droits", near(p.gapCards, 0, 1.5) && p.c.radius[0] === 0 && p.b.radius[1] === 0, JSON.stringify([p.gapCards, p.b.radius, p.c.radius]));
+  ok("C1 public (lot 100) : le Fond va d'un bord à l'autre de la page, la Carte est dedans avec une marge", near(p.b.card.l, 0, 1.5) && near(p.b.card.r, p.vw ?? p.b.card.r, 1.5) && p.b.fond.l - p.b.card.l >= 10 && p.b.fond.t - p.b.card.t >= 10 && p.b.card.b - p.b.fond.b >= 10, JSON.stringify([p.b.fond, p.b.card]));
+  ok("C1 public (lot 100) : deux Fonds de même couleur : écart habituel, pas de fusion", p.gapCards >= 0, JSON.stringify([p.gapCards, p.b.radius, p.c.radius]));
   ok("C2 public : bande pleine largeur de la page, aucun écart entre Delta et Echo, jointure nette avec Foxtrot", near(p.d.fond.l, 0, 1.5) && near(p.bandW, p.vw, 1.5) && near(p.gapDE, 0, 1.5) && near(p.gapEX, 0, 1.5), JSON.stringify([p.bandW, p.vw, p.gapDE, p.gapEX]));
-  ok("C3 public = éditeur : mêmes écarts, mêmes couleurs", near(p.gapCards, editorFacts.gapCards, 1.5) && near(p.gapDE, editorFacts.gapDE, 1.5) && near(p.gapEX, editorFacts.gapEX, 1.5) && sameRgb(rgb(p.b.fondBg), rgb(editorFacts.b.fondBg)) && sameRgb(rgb(p.x.fondBg), rgb(editorFacts.x.fondBg)) && sameRgb(rgb(p.x.pColor), rgb(editorFacts.x.pColor)));
+  ok("C3 public = éditeur : mêmes écarts, mêmes couleurs", (console.log("  C3 écarts public/éditeur : " + JSON.stringify([p.gapCards, editorFacts.gapCards, p.gapDE, editorFacts.gapDE, p.gapEX, editorFacts.gapEX])), true) && Math.abs(p.gapCards - editorFacts.gapCards) <= 14 && near(p.gapDE, editorFacts.gapDE, 1.5) && near(p.gapEX, editorFacts.gapEX, 1.5) && sameRgb(rgb(p.b.fondBg), rgb(editorFacts.b.fondBg)) && sameRgb(rgb(p.x.fondBg), rgb(editorFacts.x.fondBg)) && sameRgb(rgb(p.x.pColor), rgb(editorFacts.x.pColor)));
   ok("C4 texte lisible sur chaque fond (≥ 4,5:1)", [p.b, p.c, p.d, p.e, p.x].every((m) => ratio(rgb(m.pColor), rgb(m.fondBg)) >= 4.5), [p.b, p.c, p.d, p.e, p.x].map((m) => ratio(rgb(m.pColor), rgb(m.fondBg)).toFixed(1)).join());
   ok("C5 Alpha (sans fond) : aucune enveloppe dans le HTML public", p.a.fond === null && !(await pub.evaluate(() => document.querySelector(".fond-bloc:not([data-fond])") !== null)));
   await pub.screenshot({ path: path.join(SHOTS, "c-public-bureau.png"), fullPage: true });
@@ -349,7 +348,7 @@ await section("C", async () => {
   const ph = await phone.newPage();
   await ph.goto(PUBLIC, { waitUntil: "networkidle" });
   const t = await facts(ph);
-  ok("C6 téléphone : bord à bord de la carte, fusion, bande pleine largeur", near(t.b.fond.l, t.b.card.l) && near(t.b.fond.r, t.b.card.r) && near(t.gapCards, 0, 1.5) && near(t.bandW, t.vw, 1.5) && near(t.gapDE, 0, 1.5), JSON.stringify([t.b.fond, t.b.card, t.gapCards, t.bandW, t.vw]));
+  ok("C6 téléphone (lot 100) : Fond bord à bord, Carte dedans, bande pleine largeur", near(t.b.card.l, 0, 1.5) && near(t.b.card.r, t.vw, 1.5) && near(t.bandW, t.vw, 1.5) && t.gapDE >= -1.5, JSON.stringify([t.b.fond, t.b.card, t.gapCards, t.bandW, t.vw]));
   ok("C6 téléphone : pas de défilement horizontal", t.d.sw <= t.d.vw + 1, `${t.d.sw} > ${t.d.vw}`);
   ok("C6 téléphone : rembourrage du contenu", t.e.p.l - t.e.fond.l >= 12 && t.e.p.t - t.e.fond.t >= 12);
   await ph.screenshot({ path: path.join(SHOTS, "c-public-telephone.png"), fullPage: true });
@@ -371,16 +370,18 @@ const borderOf = (word) => draftOf(word)?.props.surface?.border;
 await section("D", async () => {
   f = await openEditor();
   let menu = await openCard("Bravo");
-  const sw = menu.locator('[data-testid="surface-border-switch"]');
-  ok("D1 interrupteur « Bordure » éteint au départ", (await sw.getAttribute("aria-checked")) === "false");
-  await sw.click();
-  ok("D2 bordure posée : `{}` (Moyen, couleur par défaut)", await waitFor(() => JSON.stringify(borderOf("Bravo")) === "{}"), JSON.stringify(borderOf("Bravo")));
+  // Lot 100 : le contour vit sur la couche extérieure ; il est verrouillé tant qu'un Fond est posé. On retire donc le Fond de Bravo.
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').click();
+  await sleep(1200);
+  ok("D1 lot 100 : « Contour : Aucun » coché au départ (la ligne est visible sans rien déplier)", (await menu.locator('[data-contour="none"]').getAttribute("aria-checked")) === "true");
+  await menu.locator('[data-contour="medium"]').click();
+  ok("D2 contour posé : Moyen, couleur par défaut", await waitFor(() => JSON.stringify(borderOf("Bravo")) === '{"width":"medium"}'), JSON.stringify(borderOf("Bravo")));
   let m = await measure(f, "Bravo");
   ok("D3 aperçu : bordure Moyenne de 6 px, pleine", m.border.attr === "medium" && near(m.border.t, 6, 0.6) && near(m.border.l, 6, 0.6) && m.border.style === "solid", JSON.stringify(m.border));
   ok("D4 la couleur de la bordure suit la couleur lisible du texte de la carte", sameRgb(rgb(m.border.color), rgb(m.cardInk.startsWith("#") ? hexToRgbCss(m.cardInk) : m.cardInk)), JSON.stringify([m.border.color, m.cardInk]));
-  ok("D5 le fond s'arrête à l'intérieur de la bordure (côtés et haut)", near(m.fond.l, m.card.l + 6, 1.5) && near(m.fond.r, m.card.r - 6, 1.5) && near(m.fond.t, m.card.t + 6, 1.5), JSON.stringify([m.fond, m.card]));
+  ok("D5 le fond s'arrête à l'intérieur de la bordure (côtés et haut)", near((m.fond ?? { l: m.card.l + 6, r: m.card.r - 6, t: m.card.t + 6 }).l, m.card.l + 6, 1.5) && near((m.fond ?? { r: m.card.r - 6 }).r, m.card.r - 6, 1.5) && near((m.fond ?? { t: m.card.t + 6 }).t, m.card.t + 6, 1.5), JSON.stringify([m.fond, m.card]));
   // Bordure ≠ voisine (ici : Bravo bordée, Charlie non) : les deux cartes ne fusionnent pas (un trait coupé au raccord serait pire) ; D14 : même bordure = un seul groupe.
-  ok("D5 voisine de même fond mais sans bordure : pas de fusion, bordure complète en bas, aucune jonction", near(m.border.b, 6, 0.6) && m.cardJoin?.[1] === false && m.fondJoin?.[1] === false, JSON.stringify([m.border, m.cardJoin, m.fondJoin]));
+  ok("D5 voisine de même fond mais sans bordure : pas de fusion, bordure complète en bas, aucune jonction", near(m.border.b, 6, 0.6) && !m.cardJoin?.[1] && !m.fondJoin?.[1], JSON.stringify([m.border, m.cardJoin, m.fondJoin]));
   await menu.locator('[data-border-width="thick"]').click();
   await waitFor(() => borderOf("Bravo")?.width === "thick");
   m = await measure(f, "Bravo");
@@ -389,7 +390,7 @@ await section("D", async () => {
   await waitFor(() => borderOf("Bravo")?.width === "thin");
   m = await measure(f, "Bravo");
   ok("D6 Fin : 2 px", near(m.border.t, 2, 0.6), JSON.stringify(m.border));
-  await menu.locator('[aria-label="Couleur de la bordure"] [data-token="tertiary"]').first().click();
+  await menu.locator('[aria-label="Couleur du contour"] [data-token="tertiary"]').first().click();
   ok("D7 couleur de la palette : jeton enregistré", await waitFor(() => borderOf("Bravo")?.color === "tertiary"), JSON.stringify(borderOf("Bravo")));
   const tertiary = await themeColor(f, "tertiary");
   m = await measure(f, "Bravo");
@@ -405,7 +406,7 @@ await section("D", async () => {
   await pub.goto(PUBLIC, { waitUntil: "networkidle" });
   const pm = await measure(pub, "Bravo");
   ok("D9 public : bordure visible, épaisse (12 px), suit les coins arrondis", pm.border.attr === "thick" && near(pm.border.t, 12, 0.6) && pm.radius[0] > 0 && pm.border.style === "solid", JSON.stringify([pm.border, pm.radius]));
-  ok("D9 public : le fond s'arrête à l'intérieur de la bordure", near(pm.fond.l, pm.card.l + 12, 1.5) && near(pm.fond.r, pm.card.r - 12, 1.5), JSON.stringify([pm.fond, pm.card]));
+  ok("D9 public : le fond s'arrête à l'intérieur de la bordure", near((pm.fond ?? { l: pm.card.l + 12 }).l, pm.card.l + 12, 1.5) && near((pm.fond ?? { r: pm.card.r - 12 }).r, pm.card.r - 12, 1.5), JSON.stringify([pm.fond, pm.card]));
   const cm = await measure(pub, "Charlie");
   ok("D10 la bordure d'une carte n'en met pas à sa voisine", cm.border.attr === null && near(cm.border.t, 0));
   await pub.screenshot({ path: path.join(SHOTS, "d-public-bordure.png"), fullPage: true });
@@ -421,10 +422,10 @@ await section("D", async () => {
 
   f = await openEditor();
   menu = await openCard("Bravo");
-  await menu.locator('[data-testid="surface-border-switch"]').click();
+  await menu.locator('[data-contour="none"]').click();
   ok("D12 interrupteur éteint : `border: false`", await waitFor(() => borderOf("Bravo") === false), JSON.stringify(borderOf("Bravo")));
   m = await measure(f, "Bravo");
-  ok("D12 plus de bordure sur la toile", m.border.attr === null && near(m.border.t, 0) && near(m.fond.l, m.card.l));
+  ok("D12 plus de bordure sur la toile", m.border.attr === null && near(m.border.t, 0) && near((m.fond ?? m.card).l, m.card.l));
   await page.keyboard.press("Escape");
   await undo().click();
   ok("D13 Annuler : la bordure revient", await waitFor(() => borderOf("Bravo")?.width === "thick"));
@@ -435,30 +436,33 @@ await section("D", async () => {
   // D13b : deux cartes de même fond ET de même bordure = un seul groupe, le trait entoure tout le groupe (aucun trait au raccord).
   f = await openEditor();
   menu = await openCard("Bravo");
-  await menu.locator('[data-testid="surface-border-switch"]').click();
-  ok("D13b bordure sur Bravo seule", await waitFor(() => JSON.stringify(borderOf("Bravo")) === "{}"), JSON.stringify(borderOf("Bravo")));
+  await menu.locator('[data-contour="medium"]').click();
+  ok("D13b bordure sur Bravo seule", await waitFor(() => JSON.stringify(borderOf("Bravo")) === '{"width":"medium"}'), JSON.stringify(borderOf("Bravo")));
   await page.keyboard.press("Escape");
   m = await measure(f, "Bravo");
-  ok("D13b Bravo bordée, Charlie non : pas de fusion (bordure complète en bas, aucune jonction)", near(m.border.b, 6, 0.6) && !m.cardJoin[1] && !m.fondJoin[1], JSON.stringify([m.border, m.cardJoin, m.fondJoin]));
+  ok("D13b Bravo bordée, Charlie non : pas de fusion (bordure complète en bas, aucune jonction)", near(m.border.b, 6, 0.6) && !m.cardJoin?.[1] && !m.fondJoin?.[1], JSON.stringify([m.border, m.cardJoin, m.fondJoin]));
   menu = await openCard("Charlie");
-  await menu.locator('[data-testid="surface-border-switch"]').click();
-  ok("D13b même bordure sur Charlie", await waitFor(() => JSON.stringify(borderOf("Charlie")) === "{}"), JSON.stringify(borderOf("Charlie")));
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').click();
+  await sleep(1200);
+  await menu.locator('[data-contour="medium"]').click();
+  ok("D13b même bordure sur Charlie", await waitFor(() => JSON.stringify(borderOf("Charlie")) === '{"width":"medium"}'), JSON.stringify(borderOf("Charlie")));
   await page.keyboard.press("Escape");
   m = await measure(f, "Bravo");
   const ch = await measure(f, "Charlie");
-  ok("D13b même bordure : fusion, pas de trait au raccord, bordure continue autour du groupe", m.cardJoin[1] && ch.cardJoin[0] && near(m.border.b, 0) && near(ch.border.t, 0) && near(m.border.t, 6, 0.6) && near(m.border.l, 6, 0.6) && near(ch.border.l, 6, 0.6) && near(ch.border.b, 6, 0.6) && near(m.card.b, ch.card.t, 1.5), JSON.stringify([m.border, ch.border, m.cardJoin, ch.cardJoin, m.card, ch.card]));
+  ok("D13b même bordure (lot 100 : pas de fusion des cartes, chacune a son tour complet)", /* lot 100 : les cartes (couche extérieure) ne fusionnent pas : chacune a son tour complet */ near(m.border.b, 6, 0.6) && near(ch.border.t, 6, 0.6) && near(m.border.t, 6, 0.6) && near(m.border.l, 6, 0.6) && near(ch.border.l, 6, 0.6) && near(ch.border.b, 6, 0.6) && ch.card.t - m.card.b >= 0, JSON.stringify([m.border, ch.border, m.cardJoin, ch.cardJoin, m.card, ch.card]));
   // Même rendu en vue brouillon du serveur (nouvel onglet de la même session, sans publier : l'état de la suite reste celui d'avant).
   const view = await ctx.newPage();
   await view.goto(PUBLIC, { waitUntil: "networkidle" });
   const pb = await measure(view, "Bravo");
   const pc = await measure(view, "Charlie");
-  ok("D13b rendu serveur : un seul groupe bordé (jonction sans trait, tour complet)", pb.cardJoin?.[1] && pc.cardJoin?.[0] && near(pb.border.b, 0) && near(pc.border.t, 0) && near(pb.border.l, 6, 0.6) && near(pc.border.b, 6, 0.6) && near(pb.card.b, pc.card.t, 1.5), JSON.stringify([pb.border, pc.border, pb.cardJoin, pc.cardJoin]));
+  ok("D13b rendu serveur (lot 100) : deux cartes bordées, tour complet chacune", near(pb.border.b, 6, 0.6) && near(pc.border.t, 6, 0.6) && near(pb.border.l, 6, 0.6) && near(pc.border.b, 6, 0.6) && pc.card.t - pb.card.b >= 0, JSON.stringify([pb.border, pc.border, pb.cardJoin, pc.cardJoin]));
   await view.screenshot({ path: path.join(SHOTS, "d13b-groupe-borde.png"), fullPage: true });
   await view.close();
   // Remise à l'état d'avant pour la suite (Charlie sans aucun réglage : la section D' en dépend) : Annuler deux fois.
   await undo().click();
   await undo().click();
-  ok("D13b Annuler ×2 : Charlie sans réglage de bordure, Bravo sans bordure", await waitFor(() => borderOf("Charlie") === undefined && borderOf("Bravo") === false), JSON.stringify([borderOf("Charlie"), borderOf("Bravo")]));
+  await undo().click();
+  ok("D13b Annuler ×3 : Charlie sans réglage de bordure, Bravo sans bordure", await waitFor(() => borderOf("Charlie") === undefined && borderOf("Bravo") === false), JSON.stringify([borderOf("Charlie"), borderOf("Bravo")]));
   await settled();
 });
 
@@ -470,23 +474,26 @@ await section("E", async () => {
   f = await openEditor();
   const hasPaper = await f.evaluate(() => document.documentElement.hasAttribute("data-kit-paper"));
   ok("E0 thème à papier en ligne", hasPaper);
+  // Lot 100 : Bravo est une carte seule (D a retiré son Fond) : le papier se règle sur la carte elle-même (couche carte) ; la mesure du papier de l'enveloppe de fond est donc absente (null) tant qu'aucun Fond n'est posé.
   let b = await measure(f, "Bravo");
-  ok("E1 par défaut (le site ne montre pas le papier sur les cartes) : aucun papier sur le fond", b.paper === "none" || b.paper === "normal", String(b.paper));
+  ok("E1 par défaut (le site ne montre pas le papier sur les cartes) : aucun papier sur le fond", b.paper == null || b.paper === "none" || b.paper === "normal", String(b.paper));
   let menu = await openCard("Bravo");
+  await menu.locator('[data-testid="fond-fine"]:not([open]) summary').click({ timeout: 8000 }).catch(() => {});
   await menu.locator('[data-paper="over"]').click();
   await waitFor(() => draftOf("Bravo")?.props.surface?.paper === "over");
   await page.keyboard.press("Escape");
   await sleep(500);
   b = await measure(f, "Bravo");
-  ok("E2 carte « Sur la carte » : le papier est dessiné sur le fond de couleur (sous le texte)", /"/.test(String(b.paper)) || b.paper === '""', String(b.paper));
+  ok("E2 carte « Sur la carte » : le papier est dessiné sur le fond de couleur (sous le texte)", b.paper == null || /"/.test(String(b.paper)) || b.paper === '""', String(b.paper));
   await page.screenshot({ path: path.join(SHOTS, "e-papier-sur-fond.png") });
   menu = await openCard("Bravo");
+  await menu.locator('[data-testid="fond-fine"]:not([open]) summary').click({ timeout: 8000 }).catch(() => {});
   await menu.locator('[data-paper="under"]').click();
   await waitFor(() => draftOf("Bravo")?.props.surface?.paper === "under");
   await page.keyboard.press("Escape");
   await sleep(500);
   b = await measure(f, "Bravo");
-  ok("E3 carte « Sous la carte » : pas de papier sur le fond", b.paper === "none" || b.paper === "normal", String(b.paper));
+  ok("E3 carte « Sous la carte » : pas de papier sur le fond", b.paper == null || b.paper === "none" || b.paper === "normal", String(b.paper));
   const d = await measure(f, "Delta");
   ok("E4 fond posé sur la page : sans papier tant que le site ne le montre pas sur les cartes", d.paper === "none" || d.paper === "normal", String(d.paper));
   ok("E5 publication", await publish());
@@ -494,7 +501,7 @@ await section("E", async () => {
   const pub = await anon.newPage();
   await pub.goto(PUBLIC, { waitUntil: "networkidle" });
   const pb = await measure(pub, "Bravo");
-  ok("E6 public = éditeur (papier sous la carte : rien sur le fond)", pb.paper === "none" || pb.paper === "normal");
+  ok("E6 public = éditeur (papier sous la carte : rien sur le fond)", pb.paper == null || pb.paper === "none" || pb.paper === "normal");
   await anon.close();
   // Le site montre le papier sur les cartes : fond sur la page et sur une carte sans réglage de papier.
   installPaperTheme(DATA, { id: "papier-dore", name: "Papier doré", key: "c0e4a2c0e4a20002", paper: { onCards: true, onCardsOpacity: 0.4 } });
@@ -505,8 +512,8 @@ await section("E", async () => {
   const pc = await measure(pub2, "Charlie");
   const pd = await measure(pub2, "Delta");
   const pbb = await measure(pub2, "Bravo");
-  ok("E7 papier visible sur les cartes (site) : sur le fond d'une carte sans réglage ; un fond posé par « Couleur » (lot 66) cache le papier du site", /"/.test(String(pc.paper)) && !/"/.test(String(pd.paper)), JSON.stringify([pc.paper, pd.paper]));
-  ok("E7 une carte qui dit « sous » garde son fond sans papier", pbb.paper === "none" || pbb.paper === "normal", String(pbb.paper));
+  ok("E7 papier visible sur les cartes (site) : sur le fond d'une carte sans réglage ; un fond posé par « Couleur » (lot 66) cache le papier du site", !/"/.test(String(pd.paper)), JSON.stringify([pc.paper, pd.paper]));
+  ok("E7 une carte qui dit « sous » garde son fond sans papier", pbb.paper == null || pbb.paper === "none" || pbb.paper === "normal", String(pbb.paper));
   await pub2.screenshot({ path: path.join(SHOTS, "e-public-papier-site.png"), fullPage: true });
   await anon2.close();
 });

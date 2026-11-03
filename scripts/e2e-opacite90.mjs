@@ -166,7 +166,7 @@ async function openFond(fr, uid) {
   await fr.locator('.pe-tools [data-testid="fond-button"]').click();
   const menu = fr.locator('[data-testid="fond-menu"]').first();
   await menu.waitFor({ timeout: 20000 });
-  if (!(await menu.locator('[data-testid="wp-opacity"]').count())) await menu.locator('[data-kind="wallpaper"]').click();
+  if (!(await menu.locator('[data-testid="wp-opacity"]').count())) await menu.locator('[data-testid="fond-section-fond"] [data-kind="wallpaper"]').click();
   await menu.locator('[data-testid="wp-opacity"]').waitFor({ timeout: 20000 });
   return menu;
 }
@@ -321,7 +321,7 @@ if (run("B"))
     await pickText(f, "tplain");
     ok("B1 texte sans fond : plus aucun rond dans la barre", (await f.locator(".pe-tools .sm-dot").count()) === 0);
     ok("B2 le bouton s'appelle « Espacement » (plus « Espace »), sans valeur tant que le thème décide", (await label(f, "space-button")) === "Espacement", await label(f, "space-button"));
-    ok("B3 « Fond » sans fond : aucun échantillon", (await label(f, "fond-button")) === "Fond" && (await f.locator('.pe-tools [data-testid="fond-button"] .sm-swatch').count()) === 0);
+    ok("B3 « Fond » sans fond : aucun échantillon", (await label(f, "fond-button")) === "Fond & carte" && (await f.locator('.pe-tools [data-testid="fond-button"] .sm-swatch').count()) === 0);
     ok("B4 l'infobulle d'Espacement reste « Espace au-dessus de ce bloc »", (await btn(f, "space-button").getAttribute("title")) === "Espace au-dessus de ce bloc");
     await btn(f, "space-button").click();
     const dlg = f.getByRole("dialog", { name: "Espacement" });

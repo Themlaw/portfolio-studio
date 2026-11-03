@@ -314,7 +314,7 @@ if (run("Q")) {
   await button.waitFor({ timeout: 20000 });
   await button.click();
   const menu = f.locator('[data-testid="fond-menu"]');
-  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
   await menu.getByRole("button", { name: "Couleur personnalisée" }).click();
   ok("Q1 carte de rubrique : carré + bande de teinte", await f.locator(".cp .cp-sv").waitFor({ timeout: 20000 }).then(() => true, () => false) && (await f.locator(".cp .cp-hue").count()) === 1);
   const csv = await f.locator(".cp .cp-sv").boundingBox();
@@ -324,7 +324,7 @@ if (run("Q")) {
   ok("Q1b carte : un clic dans le carré change la couleur de la carte", (await f.locator('.cp input[aria-label="Code couleur"]').inputValue()) !== before);
   await page.screenshot({ path: `${SHOTS}/Q1-carte.png` });
   await page.keyboard.press("Escape");
-  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click().catch(() => {});
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click().catch(() => {});
   await settled();
 
   // Panneau « Couleurs » de l'éditeur (éditeur rouvert : aucune rubrique sélectionnée).

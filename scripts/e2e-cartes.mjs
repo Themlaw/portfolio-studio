@@ -302,12 +302,12 @@ if (run("B") || run("C"))
   ok("B1 pas de carte au départ (l'enveloppe est sans boîte)", (await cardInfo(f, uidFirst))?.on === "off");
   await fond.click();
   const menu = f.locator('[data-testid="fond-menu"]');
-  ok("B1 le popover s'ouvre (nature « Aucun » cochée : pas de carte)", (await menu.waitFor({ timeout: 20000 }).then(() => true, () => false)) && (await menu.locator("[data-kind][aria-checked=true]").getAttribute("data-kind")) === "none");
-  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
+  ok("B1 le popover s'ouvre (nature « Aucun » cochée : pas de carte)", (await menu.waitFor({ timeout: 20000 }).then(() => true, () => false)) && (await menu.locator('[data-testid="fond-section-carte"] [data-kind][aria-checked=true]').getAttribute("data-kind")) === "none");
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
   // Aperçu immédiat : avant tout aller-retour avec le serveur.
   const info = await cardInfo(f, uidFirst);
   ok("B2 carte activée : aperçu immédiat (fond coloré, retrait, coins arrondis)", info.on === "on" && info.bg !== "rgba(0, 0, 0, 0)" && info.width === "inset" && info.corners === "round" && info.radius >= 12 && info.marginLeft > 0, JSON.stringify(info));
-  ok("B2 le brouillon reçoit la carte (étendue demandée ; couleur, coins et papier : ceux du thème)", await waitFor(() => JSON.stringify(inkBlocks()[0]?.props.surface) === JSON.stringify({ width: "inset" })), JSON.stringify(inkBlocks()[0]?.props.surface));
+  ok("B2 le brouillon reçoit la carte (lot 100 : étendue et papier « sous » ; couleur et coins : ceux du thème)", await waitFor(() => JSON.stringify(inkBlocks()[0]?.props.surface) === JSON.stringify({ width: "inset", paper: "under" })), JSON.stringify(inkBlocks()[0]?.props.surface));
   const themeRgb = await f.evaluate(() => {
     const cs = getComputedStyle(document.documentElement);
     const probe = (v) => {
@@ -351,10 +351,14 @@ if (run("B") || run("C"))
   await menu.waitFor();
 
   // Largeur et coins.
-  await menu.locator('[data-width="full"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="color"]').click();
   const full = await cardInfo(f, uidFirst);
   ok("B5 « Pleine largeur » : bord à bord", full.width === "full" && full.marginLeft === 0 && Math.abs(full.left) < 1 && Math.abs(full.rectW - full.vw) < 2, JSON.stringify(full));
-  await menu.locator('[data-width="inset"]').click();
+  // Lot 100 : on revient à la carte seule (en retrait) en retirant le Fond, puis la Carte, puis en la reposant : forme canonique d'une carte seule.
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="none"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
+  await sleep(600);
   const inset = await cardInfo(f, uidFirst);
   const gutterPx = await f.evaluate(() => {
     const p = document.createElement("i");
@@ -396,11 +400,11 @@ if (run("B") || run("C"))
   await waitFor(() => inkBlocks()[0]?.props.surface?.color === "#f6d6e4");
   const s0 = surfaceNow();
   const s1 = { ...s0, color: "primary" };
-  const s2 = { ...s1, width: "full" };
+  const s2 = { ...s1, color: "secondary" }; // lot 100 : la largeur n'est plus un réglage de la carte (elle vient du Fond) ; le second réglage enchaîné est la taille des coins
   if (!(await menu.isVisible())) await fond.click();
   await menu.waitFor();
   await menu.locator('[data-token="primary"]').click();
-  await menu.locator('[data-width="full"]').click();
+  await menu.locator('[data-token="secondary"]').click();
   ok("B8 deux réglages enchaînés : le brouillon porte les deux", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s2)), JSON.stringify(surfaceNow()));
   await settled();
   await page.keyboard.press("Escape");
@@ -408,13 +412,13 @@ if (run("B") || run("C"))
   const undo = page.locator('button.a-icon-btn[aria-label="Défaire"]');
   const redo = page.locator('button.a-icon-btn[aria-label="Rétablir"]');
   await undo.click();
-  ok("B8 Annuler (1er pas) : seule la largeur est défaite, la couleur reste", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s1)), JSON.stringify(surfaceNow()));
+  ok("B8 Annuler (1er pas) : seul le second réglage (couleur) est défait, la première couleur reste", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s1)), JSON.stringify(surfaceNow()));
   await undo.click();
   ok("B8 Annuler (2e pas) : la couleur d'avant revient", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s0)), JSON.stringify(surfaceNow()));
   await redo.click();
-  ok("B8 Rétablir (1er pas) : la couleur revient, pas la largeur", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s1)), JSON.stringify(surfaceNow()));
+  ok("B8 Rétablir (1er pas) : la première couleur revient", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s1)), JSON.stringify(surfaceNow()));
   await redo.click();
-  ok("B8 Rétablir (2e pas) : la largeur revient", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s2)), JSON.stringify(surfaceNow()));
+  ok("B8 Rétablir (2e pas) : le second réglage revient", await waitFor(() => JSON.stringify(surfaceNow()) === JSON.stringify(s2)), JSON.stringify(surfaceNow()));
   // Retour à l'état d'avant le test pour la suite (deux pas, un par réglage).
   await undo.click();
   await undo.click();
@@ -425,16 +429,17 @@ if (run("B") || run("C"))
   await f.locator(`.pe-focus[data-uid="${uidSecond}"]`).scrollIntoViewIfNeeded();
   await sectionOf(uidSecond).click({ position: { x: 40, y: 30 } });
   await fond.click();
-  await menu.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
   await menu.locator('[data-token="ink"]').click();
-  await menu.locator('[data-width="full"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-kind="color"]').click();
+  await menu.locator('[data-testid="fond-section-fond"] [data-token="ink"]').click();
   await menu.locator('[data-corners="square"]').click();
   const inkInfo = await cardInfo(f, uidSecond);
-  ok("B9 deuxième rubrique : carte sombre, pleine largeur, coins droits", same(rgbOf(inkInfo.bg), rgbOf(themeRgb.ink)) && inkInfo.width === "full" && inkInfo.radius === 0, JSON.stringify(inkInfo));
+  ok("B9 deuxième rubrique : carte sombre, pleine largeur (lot 100 : coins du thème)", same(rgbOf(inkInfo.bg), rgbOf(themeRgb.ink)) && inkInfo.width === "full", JSON.stringify(inkInfo));
   const c2 = await colors(f.locator(`[data-edit-block="${uidSecond}"] [data-inline="paragraphs.0"]`));
   const c2t = await colors(f.locator(`[data-edit-block="${uidSecond}"] [data-inline="title"]`));
   ok("B9 texte inversé automatiquement sur la carte sombre (titre = fond du thème, paragraphe ≥ 4,5:1)", ratio(rgbOf(c2.fg), rgbOf(c2.bg)) >= 4.5 && same(rgbOf(c2t.fg), rgbOf(themeRgb.bg)), `${c2.fg} / ${c2t.fg} sur ${c2.bg}`);
-  ok("B9 brouillon de la deuxième carte", await waitFor(() => JSON.stringify(inkBlocks()[1]?.props.surface) === JSON.stringify({ color: "ink", width: "full", corners: "square" }), 30000), JSON.stringify(inkBlocks()[1]?.props.surface));
+  ok("B9 brouillon de la deuxième carte", await waitFor(() => inkBlocks()[1]?.props.surface?.color === "ink" && inkBlocks()[1]?.props.surface?.width === "full", 30000), JSON.stringify(inkBlocks()[1]?.props.surface));
   await page.keyboard.press("Escape");
   await f.locator("body").click({ position: { x: 5, y: 5 } }).catch(() => {});
   await settled();
@@ -448,7 +453,7 @@ if (run("C"))
   await section("C", async () => {
   ok("C0 publication", await publish(), `${await page.locator(".ve-status").textContent()} | ${(await page.locator('[role="alert"], .ve-banner, .a-alert').allTextContents()).join(" / ").slice(0, 300)}`);
   const published = publishedBlocks().filter((b) => b.type === "rich-text");
-  ok("C0 les cartes sont publiées avec le bloc", published.length === 2 && JSON.stringify(published[0].props.surface) === JSON.stringify({ color: "#f6d6e4", width: "inset", corners: "m" }) && published[1].props.surface?.color === "ink", JSON.stringify(published.map((p) => p.props.surface)));
+  ok("C0 les cartes sont publiées avec le bloc", published.length === 2 && JSON.stringify(published[0].props.surface) === JSON.stringify({ color: "#f6d6e4", width: "inset", corners: "m", paper: "under" }) && published[1].props.surface?.color === "ink", JSON.stringify(published.map((p) => p.props.surface)));
   const anon = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const pub = await anon.newPage();
   await pub.goto(`${BASE}/fr/a-propos`, { waitUntil: "networkidle" });
@@ -469,7 +474,7 @@ if (run("C"))
   ok("C1 public : deux cartes", cards.length === 2, String(cards.length));
   const [c1, c2] = cards;
   ok("C2 carte 1 : couleur calculée #f6d6e4, en retrait, coins arrondis", same(rgbOf(c1.bg), hexRgb("#f6d6e4")) && c1.left > 20 && c1.width < c1.vw - 40 && c1.radius >= 12, JSON.stringify(c1));
-  ok("C2 carte 2 : couleur du texte du thème, bord à bord, coins droits", c2.left < 1 && Math.abs(c2.width - c2.vw) < 2 && c2.radius === 0 && c2.bg !== c1.bg, JSON.stringify(c2));
+  ok("C2 carte 2 : couleur du texte du thème, bord à bord, coins du thème", c2.left < 1 && Math.abs(c2.width - c2.vw) < 2 && c2.bg !== c1.bg, JSON.stringify(c2));
   ok("C2b carte 1 : padding symétrique (rien ne s'ajoute en haut, pas de titre vide)", Math.abs(c1.gapTop - c1.gapBottom) <= 8 && c1.gapTop < 80, `haut ${c1.gapTop.toFixed(1)} px, bas ${c1.gapBottom.toFixed(1)} px`);
   ok("C2b carte 2 : padding symétrique", Math.abs(c2.gapTop - c2.gapBottom) <= 12, `haut ${c2.gapTop.toFixed(1)} px, bas ${c2.gapBottom.toFixed(1)} px`);
   ok("C3 texte lisible dans chaque carte (≥ 4,5:1)", cards.every((c) => ratio(rgbOf(c.fg), rgbOf(c.bg)) >= 4.5), cards.map((c) => `${c.fg}/${c.bg}`).join(" | "));
@@ -587,10 +592,10 @@ if (run("C"))
   await f.locator(`[data-edit-block="${uidFirst}"] section`).first().click({ position: { x: 40, y: 10 } });
   await f.locator(".pe-tools [data-testid=\"fond-button\"]").click();
   const menu = f.locator('[data-testid="fond-menu"]');
-  ok("C6 le popover relit la carte : interrupteur allumé, couleur perso, en retrait, coins arrondis", (await menu.locator("[data-kind][aria-checked=true]").getAttribute("data-kind")) !== "none" && (await menu.locator('[data-width="inset"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-corners="m"]').getAttribute("aria-checked")) === "true");
+  ok("C6 le popover relit la carte : interrupteur allumé, couleur perso, en retrait, coins arrondis", (await menu.locator('[data-testid="fond-section-carte"] [data-kind][aria-checked=true]').getAttribute("data-kind")) !== "none" && (await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').getAttribute("aria-checked")) === "true" && (await menu.locator('[data-corners="m"]').getAttribute("aria-checked")) === "true");
   await page.screenshot({ path: path.join(SHOTS, "c6-popover-relu.png") });
   // Retirer la carte : « Aucun ».
-  await menu.locator('[data-kind="none"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-kind="none"]').click();
   ok("C7 carte retirée : l'enveloppe redevient sans boîte, la clé disparaît du brouillon", (await cardInfo(f, uidFirst)).on === "off" && (await waitFor(() => inkBlocks()[0]?.props.surface === undefined)));
   await page.keyboard.press("Escape");
 });
@@ -616,8 +621,8 @@ if (run("D"))
   await f.locator(".pe-tools [data-testid=\"fond-button\"]").click();
   // La rubrique publiée a déjà sa carte : éteinte puis rallumée, elle repart des réglages du thème (`{}`).
   const dm = f.locator('[data-testid="fond-menu"]');
-  if ((await dm.locator("[data-kind][aria-checked=true]").getAttribute("data-kind")) !== "none") await dm.locator('[data-kind="none"]').click();
-  await dm.locator('[data-testid="fond-extent"] [data-extent="margin"]').click();
+  if ((await dm.locator('[data-testid="fond-section-carte"] [data-kind][aria-checked=true]').getAttribute("data-kind")) !== "none") await dm.locator('[data-testid="fond-section-carte"] [data-kind="none"]').click();
+  await dm.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
   const d = await cardInfo(f, uid);
   const bgDeep = await f.evaluate(() => {
     const p = document.createElement("i");
@@ -627,7 +632,7 @@ if (run("D"))
     p.remove();
     return c;
   });
-  ok("D4 une carte posée sans choix prend couleur et coins du thème (fond profond, coins droits) ; l'étendue est celle demandée (Carte en retrait)", d.width === "inset" && d.corners === "square" && d.radius === 0 && same(rgbOf(d.bg), rgbOf(bgDeep)), JSON.stringify(d));
+  ok("D4 une carte posée sans choix prend couleur et coins du thème (lot 100 : plus jamais le fond profond imposé, coins droits) ; l'étendue est celle demandée (Carte en retrait)", d.width === "inset" && d.corners === "square" && d.radius === 0 && !same(rgbOf(d.bg), rgbOf(bgDeep)), JSON.stringify(d));
   await page.screenshot({ path: path.join(SHOTS, "d4-defaut-du-theme.png") });
 });
 
