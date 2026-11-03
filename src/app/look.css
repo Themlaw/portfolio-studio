@@ -528,6 +528,18 @@
   /* Lot 105 : des coins arrondis aussi sur un fond bord à bord (le bord de la page se voit dans les coins). */
   border-radius: var(--fond-r, 0px);
 }
+/* Intégration v0.33.1 (lots 102 + 105) : deux fonds bord à bord qui se touchent n'ont pas de coin arrondi au raccord. Avec des coins sur un fond bord à bord
+   (105), le bas arrondi du fond du dessus laissait voir la page dans ses coins, juste au-dessus du fond d'en dessous : la « couleur étrangère » de la
+   jonction que le lot 102 supprime. `data-touch-prev` / `data-touch-next` (fondJoins) : le voisin d'avant / d'après de la page a aussi un fond bord à bord.
+   Les coins du côté du voisin sont droits ; les coins extérieurs gardent leur arrondi. */
+.fond-bloc[data-fond="on"][data-fond-round][data-touch-next]:not([data-fond-inset]) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.fond-bloc[data-fond="on"][data-fond-round][data-touch-prev]:not([data-fond-inset]) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
 /* Contour du fond (lot 105) : une vraie bordure, mêmes épaisseurs que celle de la carte (Fin / Moyen / Épais) ; elle suit les coins. */
 .fond-bloc[data-fond="on"][data-fond-border] {
   --fond-bw: 6px;

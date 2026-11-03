@@ -74,7 +74,7 @@ export function fondKey(bg: Background | undefined, onCard: boolean, border = ""
 }
 
 /** `around` : couleur (jeton ou `#rrggbb`) qui entoure un fond avec marge, quand un voisin en a une (lot 43). */
-export type FondJoin = { prev: boolean; next: boolean; around?: string };
+export type FondJoin = { prev: boolean; next: boolean; around?: string; touchPrev?: boolean; touchNext?: boolean };
 
 /**
  * Couleur qui entoure le fond avec marge n° `i` : celle du voisin d'avant, sinon d'après, s'il a un fond de couleur bord à bord
@@ -91,9 +91,18 @@ export function fondAround(bgs: readonly (Background | undefined)[], i: number):
  * `around` aux composants à marge.
  */
 export function fondJoins(keys: readonly (string | null)[], bgs?: readonly (Background | undefined)[]): FondJoin[] {
+  // Intégration v0.33.1 (lots 102 + 105) : deux fonds bord à bord de la page qui se suivent se TOUCHENT (même fusionnés ou de teintes différentes) ;
+  // le bord commun n'a pas de coin arrondi (voir look.css, `data-touch-*`). Un fond sur une carte n'en touche aucun.
+  const onPage = (k: string | null | undefined): k is string => typeof k === "string" && !k.includes("|card|");
   return keys.map((k, i) => {
     const around = bgs ? fondAround(bgs, i) : undefined;
-    return { prev: k !== null && keys[i - 1] === k, next: k !== null && keys[i + 1] === k, ...(around ? { around } : {}) };
+    return {
+      prev: k !== null && keys[i - 1] === k,
+      next: k !== null && keys[i + 1] === k,
+      ...(around ? { around } : {}),
+      ...(onPage(k) && onPage(keys[i - 1]) ? { touchPrev: true } : {}),
+      ...(onPage(k) && onPage(keys[i + 1]) ? { touchNext: true } : {}),
+    };
   });
 }
 
@@ -124,6 +133,8 @@ export function fondAttributes(join: FondJoin, bg?: Background): Record<string, 
     ...(bg?.paper === "under" ? { "data-paper": "under" } : {}),
     ...(join.prev ? { "data-join-prev": "" } : {}),
     ...(join.next ? { "data-join-next": "" } : {}),
+    ...(join.touchPrev ? { "data-touch-prev": "" } : {}),
+    ...(join.touchNext ? { "data-touch-next": "" } : {}),
     ...(bg?.kind === "wallpaper" ? { "data-wallpaper": "", ...(bg.color ? {} : { "data-fond-clear": "" }) } : {}),
   };
 }

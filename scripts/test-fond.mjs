@@ -116,5 +116,15 @@ ok("attributs et variables : data-fond-inset posé seulement avec marge, data-fo
   return !("data-fond-inset" in none) && roundOnly["data-fond-round"] === "m" && !("data-fond-inset" in roundOnly) && both["data-fond-inset"] === "l" && both["data-fond-round"] === "s" && typeof withAround["--fond-around"] === "string" && withAround["--fond-around"] === cardStyle("primary", p).bg && !("--fond-around" in noInset);
 })());
 
+// Intégration v0.33.1 : deux fonds bord à bord de la page qui se suivent se touchent (coins droits au raccord), même de teintes différentes ; jamais sur une carte.
+ok("fondJoins : `touchPrev` / `touchNext` entre deux fonds bord à bord de la page (teintes différentes comprises), pas avec un voisin sans fond, pas sur une carte", (() => {
+  const a = fondKey({ kind: "color", color: "#aa0000", round: "m" }, false);
+  const b = fondKey({ kind: "color", color: "#0000aa" }, false);
+  const c = fondKey({ kind: "color", color: "#aa0000" }, true, "x");
+  const j = fondJoins([a, b, null, b, c, c]);
+  const at = fondAttributes(j[0], { kind: "color", color: "#aa0000", round: "m" });
+  return j[0].touchNext === true && !j[0].touchPrev && j[1].touchPrev === true && !j[1].touchNext && !j[2].touchPrev && !j[3].touchPrev && !j[3].touchNext && !j[4].touchPrev && !j[5].touchPrev && "data-touch-next" in at && !("data-touch-prev" in at);
+})());
+
 console.log(failures ? `\n${failures} échec(s)` : "\nTout passe");
 process.exit(failures ? 1 : 0);

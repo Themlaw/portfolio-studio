@@ -678,7 +678,7 @@ export function fondState(uid: string): Background | null {
 }
 
 const fondOriginal = new WeakMap<Element, { attrs: Record<string, string | null>; style: string | null }>();
-const FOND_ATTRS = ["data-fond", "data-fond-inset", "data-fond-round", "data-fond-border", "data-fond-around", "data-join-prev", "data-join-next", "data-edit-background", "data-wallpaper", "data-fond-clear", "data-paper"];
+const FOND_ATTRS = ["data-fond", "data-fond-inset", "data-fond-round", "data-fond-border", "data-fond-around", "data-join-prev", "data-join-next", "data-touch-prev", "data-touch-next", "data-edit-background", "data-wallpaper", "data-fond-clear", "data-paper"];
 
 /**
  * Fusion des voisins recalculée sur la page affichée (aperçu d'un fond ou d'une carte) : mêmes règles que le serveur
@@ -709,9 +709,11 @@ export function refreshFondJoins(uid: string) {
     p.wrap?.removeAttribute("data-fond-around");
     for (const el of [p.wrap, p.card]) {
       if (!el) continue;
-      for (const a of ["data-join-prev", "data-join-next"]) el.removeAttribute(a);
+      for (const a of ["data-join-prev", "data-join-next", "data-touch-prev", "data-touch-next"]) el.removeAttribute(a);
       if (joins[i].prev) el.setAttribute("data-join-prev", "");
       if (joins[i].next) el.setAttribute("data-join-next", "");
+      if (el === p.wrap && joins[i].touchPrev) el.setAttribute("data-touch-prev", "");
+      if (el === p.wrap && joins[i].touchNext) el.setAttribute("data-touch-next", "");
     }
   });
 }
