@@ -382,11 +382,11 @@ await section("D", async () => {
   ok("D5 le fond s'arrête à l'intérieur de la bordure (côtés et haut)", near((m.fond ?? { l: m.card.l + 6, r: m.card.r - 6, t: m.card.t + 6 }).l, m.card.l + 6, 1.5) && near((m.fond ?? { r: m.card.r - 6 }).r, m.card.r - 6, 1.5) && near((m.fond ?? { t: m.card.t + 6 }).t, m.card.t + 6, 1.5), JSON.stringify([m.fond, m.card]));
   // Bordure ≠ voisine (ici : Bravo bordée, Charlie non) : les deux cartes ne fusionnent pas (un trait coupé au raccord serait pire) ; D14 : même bordure = un seul groupe.
   ok("D5 voisine de même fond mais sans bordure : pas de fusion, bordure complète en bas, aucune jonction", near(m.border.b, 6, 0.6) && !m.cardJoin?.[1] && !m.fondJoin?.[1], JSON.stringify([m.border, m.cardJoin, m.fondJoin]));
-  await menu.locator('[data-border-width="thick"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-border-width="thick"]').click();
   await waitFor(() => borderOf("Bravo")?.width === "thick");
   m = await measure(f, "Bravo");
   ok("D6 Épais : 12 px", near(m.border.t, 12, 0.6), JSON.stringify(m.border));
-  await menu.locator('[data-border-width="thin"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-border-width="thin"]').click();
   await waitFor(() => borderOf("Bravo")?.width === "thin");
   m = await measure(f, "Bravo");
   ok("D6 Fin : 2 px", near(m.border.t, 2, 0.6), JSON.stringify(m.border));
@@ -395,7 +395,7 @@ await section("D", async () => {
   const tertiary = await themeColor(f, "tertiary");
   m = await measure(f, "Bravo");
   ok("D7 la bordure prend la couleur de la palette (suit le thème)", sameRgb(rgb(m.border.color), tertiary) || tertiary.every((v) => v === 0), JSON.stringify([m.border.color, tertiary]));
-  await menu.locator('[data-border-width="thick"]').click();
+  await menu.locator('[data-testid="fond-section-carte"] [data-border-width="thick"]').click();
   await waitFor(() => borderOf("Bravo")?.width === "thick");
   await page.keyboard.press("Escape");
   await page.screenshot({ path: path.join(SHOTS, "d-bordure-epaisse.png") });

@@ -441,7 +441,7 @@ await section("E", async () => {
   await waitFor(() => props("Delta").surface === undefined);
   await sleep(500);
   await sec(menu, "carte").locator('[data-contour="medium"]').click();
-  ok("E10 bordure sur une carte sans Fond : la carte garde sa couleur, avec bordure (lot 105 : écrite dans SA couche, elle ne change plus de couche)", await waitFor(() => (props("Delta").background?.border ?? props("Delta").surface?.border) !== undefined && props("Delta").surface?.border !== false && props("Delta").background?.color === "surface"), JSON.stringify(props("Delta")));
+  ok("E10 bordure sur une carte sans Fond : la carte garde sa couleur, avec bordure", await waitFor(() => props("Delta").surface?.border !== undefined && props("Delta").surface?.border !== false && props("Delta").background === undefined && typeof props("Delta").surface?.color === "string"), JSON.stringify(props("Delta")));
   await page.keyboard.press("Escape");
   ok("E11 publication", await publish());
 });
