@@ -459,6 +459,8 @@ export default function EditLayer() {
     editing.current = null;
     current.ac?.abort();
     const { el, original, target, marked } = current;
+    // Fin de la saisie : la barre « Aa » de ce texte se ferme (LookLayer).
+    queueMicrotask(() => window.dispatchEvent(new CustomEvent("pe:text-end", { detail: { el } })));
     if (marked) {
       // Accroche : le texte est lu dans NOTRE champ (nœuds texte et passages surlignés), jamais du HTML.
       const markup = markupOf(marked.editor);
@@ -642,6 +644,8 @@ export default function EditLayer() {
       if (opts.selectAll) window.getSelection()?.selectAllChildren(el);
       else placeCaretAtEnd(el);
       bindPlain(el, id);
+      // Saisie commencée : la barre « Aa » du texte s'ouvre d'elle-même (LookLayer), sans prendre le focus.
+      window.dispatchEvent(new CustomEvent("pe:text-edit", { detail: { el } }));
     },
     [finishEdit, select, refreshMarkBar, bindMarked, bindPlain],
   );

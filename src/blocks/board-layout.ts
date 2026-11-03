@@ -24,7 +24,25 @@ export type BoardItemType = "strip" | "grid" | "image" | "video-single" | "free-
  * Largeur en % de la largeur du cadre du site (20 à 100).
  */
 export type BoardBox = { width?: number; align?: "left" | "center" | "right" };
-export type BoardItem = { uid: string; type: BoardItemType; props: Record<string, unknown>; box?: BoardBox };
+export type BoardItem = { uid: string; type: BoardItemType; props: Record<string, unknown>; box?: BoardBox; captionStyle?: ProjectCaptionStyle };
+
+/**
+ * Style des légendes d'un PROJET (lot 98) : un style par champ (titre, légende, date), pour toutes les légendes des images du
+ * projet, partout où il est affiché. Réglage commun à la suite (comme `box`, hors des props) : il vit sur le PREMIER composant de la
+ * suite (`projectCaptionStyle` le retrouve où qu'il soit, `checkLayout` le remet en tête) et se publie avec la suite.
+ * Les styles sont des `TextStyle` (src/lib/look.ts), validés par le serveur (`checkLayout`).
+ */
+export const CAPTION_STYLE_FIELDS = ["title", "legend", "date"] as const;
+export type CaptionStyleField = (typeof CAPTION_STYLE_FIELDS)[number];
+export type ProjectCaptionStyle = Partial<Record<CaptionStyleField, Record<string, unknown>>>;
+/** Champ de style d'une légende d'après le chemin de son texte (`captionTitle`, `caption`, `description`, `captionDate`, `captions.<place>.<champ>`). */
+export function captionFieldOf(path: string): CaptionStyleField | null {
+  const last = path.split(".").pop() ?? "";
+  if (last === "captionTitle" || (last === "title" && path.startsWith("captions."))) return "title";
+  if (last === "caption" || last === "description") return "legend";
+  if (last === "captionDate" || (last === "date" && path.startsWith("captions."))) return "date";
+  return null;
+}
 
 /** Préréglages de largeur (Petite ~1/3, Moyenne ~1/2, Grande ~2/3, Pleine largeur). */
 export const BOX_PRESETS: { id: string; label: string; width: number }[] = [
@@ -147,6 +165,12 @@ export function defaultLayout(): BoardItem[] {
 
 const isObj = (v: unknown): v is Record<string, unknown> => Boolean(v) && typeof v === "object" && !Array.isArray(v);
 
+/** Le style des légendes du projet porté par la suite (le premier composant qui en a un), ou undefined. */
+export function projectCaptionStyle(layout: readonly { captionStyle?: unknown }[] | undefined): ProjectCaptionStyle | undefined {
+  for (const item of layout ?? []) if (isObj(item?.captionStyle) && Object.keys(item.captionStyle).length) return item.captionStyle as ProjectCaptionStyle;
+  return undefined;
+}
+
 /**
  * Premier problème de forme d'une suite (types permis, uid bien formés et uniques, une seule bande, bornes),
  * ou null. Les réglages de chaque composant se valident ensuite par le schéma de son type (registre).
@@ -167,6 +191,10 @@ export function layoutProblem(raw: unknown): string | null {
       if (!isObj(b) || Object.keys(b).some((k) => k !== "width" && k !== "align")) return "Largeur du bloc illisible.";
       if (b.width !== undefined && !(typeof b.width === "number" && Number.isFinite(b.width) && b.width >= BOX_MIN && b.width <= 100)) return `Largeur du bloc : entre ${BOX_MIN} et 100 %.`;
       if (b.align !== undefined && !(BOX_ALIGNS as readonly unknown[]).includes(b.align)) return "Alignement du bloc invalide.";
+    }
+    if (item.captionStyle !== undefined) {
+      const c = item.captionStyle;
+      if (!isObj(c) || Object.keys(c).some((k) => !(CAPTION_STYLE_FIELDS as readonly string[]).includes(k) || !isObj(c[k]))) return "Style des légendes du projet illisible.";
     }
     if (item.type === "strip") {
       if (item.props.captions !== undefined) {

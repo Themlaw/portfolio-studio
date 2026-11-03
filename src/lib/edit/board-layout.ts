@@ -9,7 +9,8 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { BLOCKS } from "@/blocks/registry";
-import { GRID_CHILD_TYPES, itemEmpty, layoutProblem, type BoardItem, BOARD_ITEM_LABELS } from "@/blocks/board-layout";
+import { CAPTION_STYLE_FIELDS, GRID_CHILD_TYPES, itemEmpty, layoutProblem, projectCaptionStyle, type BoardItem, type ProjectCaptionStyle, BOARD_ITEM_LABELS } from "@/blocks/board-layout";
+import { TextStyleSchema } from "@/lib/look";
 import { getDb, schema } from "@/lib/db";
 import { own } from "@/lib/own";
 
@@ -70,6 +71,18 @@ export function checkLayout(input: unknown, opts: { complete?: boolean; allowPen
     const parsed = parseItem(raw);
     if ("error" in parsed) return parsed;
     out.push(parsed.item);
+  }
+  // Style des légendes du projet (lot 98) : validé champ par champ, puis remis sur le PREMIER composant (où qu'il ait été porté).
+  const hosted = projectCaptionStyle(input as BoardItem[]);
+  if (hosted && out.length) {
+    const style: ProjectCaptionStyle = {};
+    for (const f of CAPTION_STYLE_FIELDS) {
+      if (!hosted[f]) continue;
+      const one = TextStyleSchema.safeParse(hosted[f]);
+      if (!one.success) return { error: "Style des légendes du projet invalide." };
+      if (Object.keys(one.data).length) style[f] = one.data;
+    }
+    if (Object.keys(style).length) out[0] = { ...out[0], captionStyle: style };
   }
   const wanted = out.flatMap((i) => mediaWanted(i));
   if (wanted.length) {

@@ -179,7 +179,7 @@ for (const [label, bad] of [
   ["point focal > 100 %", { crop: { mediaId: { x: 150, y: 50, zoom: 1 } } }],
   ["cadrage d'un champ inconnu", { crop: { evil: { x: 50, y: 50, zoom: 1 } } }],
   ["chemin de texte invalide", { text: { "__proto__.x;": { italic: true } } }],
-  ["trop de styles de texte", { text: Object.fromEntries(Array.from({ length: 41 }, (_, i) => [`t${String.fromCharCode(97 + (i % 26))}x${"a".repeat(Math.floor(i / 26) + 1)}`, { italic: true }])) }],
+  ["trop de styles de texte (plafond relevé au lot 98)", { text: Object.fromEntries(Array.from({ length: 601 }, (_, i) => [`t${String.fromCharCode(97 + (i % 26))}x${"a".repeat(Math.floor(i / 26) + 1)}`, { italic: true }])) }],
   ["clé inconnue", { margin: "10px" }],
 ]) ok(`look refusé : ${label}`, !LookSchema.safeParse(bad).success);
 const tolerant = readLook({ spaceTop: "m", radius: "pill", bogus: 1 });

@@ -578,6 +578,16 @@ export default function BoardLayer({
     setText({ el, kind, board, key: slotEl?.dataset.editSlot, field, original, value: original, rect: { ...rect, width: Math.max(rect.width, 160) }, style });
   }, [announce]);
 
+  // Saisie d'un texte de la planche : la barre « Aa » s'ouvre d'elle-même et se ferme avec elle (LookLayer).
+  const typing = text?.el;
+  useEffect(() => {
+    if (!typing) return;
+    window.dispatchEvent(new CustomEvent("pe:text-edit", { detail: { el: typing } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent("pe:text-end", { detail: { el: typing } }));
+    };
+  }, [typing]);
+
   const finishText = useCallback((commit: boolean, value?: string) => {
     const t = textRef.current;
     if (!t) return;
