@@ -1,33 +1,43 @@
-# Construit l'image de prod et la pousse sur GHCR (privé).
-# Komodo (hote-de-prod) la tire ensuite : ghcr.io/themlaw/portfolio.
+# Image de production : construction MANUELLE seulement (lot 103).
+#
+# Pourquoi : l'image de production est construite sur la VM de build (vm-dev), pas sur GitHub.
+# Ce workflow ne se lance donc plus sur push ni sur tag. Lancé à la main, il construit l'image
+# et vérifie son contexte ; il ne la POUSSE sur GHCR que si on coche « publier ».
+#
+#   gh workflow run docker.yml --ref <branche-ou-tag>              # construit seulement (test)
+#   gh workflow run docker.yml --ref <tag> -f publier=true         # construit et pousse sur GHCR
+#
+# Le dépôt est public ; un paquet GHCR garde sa propre visibilité (réglage du paquet sur GitHub).
 name: docker
 
 on:
-  push:
-    branches: [main]
-    tags: ["v*", "da/*"]
   workflow_dispatch:
+    inputs:
+      publier:
+        description: "Pousser l'image sur GHCR (sinon : construction seule, rien n'est publié)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: docker-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  IMAGE: ghcr.io/themlaw/portfolio   # minuscules obligatoires sur GHCR
+  cancel-in-progress: false
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       NEXT_TELEMETRY_DISABLED: "1"
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: npm
@@ -35,62 +45,57 @@ jobs:
       - run: npm ci --no-audit --no-fund --ignore-scripts
       - run: npx tsc --noEmit
       - run: npm run lint
-      # Garde-fous du moteur de thèmes : aucune couleur en dur hors
-      # src/themes/, et contraste AA de chaque preset.
+      # Garde-fous du moteur de thèmes : aucune couleur en dur hors src/themes/, contraste AA.
       - run: npm run check:tokens
       - run: npm run check:contrast
       - run: npm test
-      # Contexte Docker : chaque fichier dont `npm run build` a besoin n'est
-      # pas exclu par .dockerignore (v0.9.0 : build de l'image cassé alors
-      # que le build hors Docker passait).
+      # Contexte Docker : chaque fichier dont `npm run build` a besoin n'est pas exclu par .dockerignore.
       - run: node scripts/check-docker-context.mjs
-      # Le standalone (ce qui part dans l'image) ne doit contenir ni sources, ni
-      # données, ni configuration : build puis contrôle.
+      # Le standalone (ce qui part dans l'image) ne contient ni sources, ni données, ni configuration.
       - run: npm run build
       - run: node scripts/check-standalone.mjs --require
 
   image:
     needs: check
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write          # seul ce job peut écrire un paquet
     steps:
-      - uses: actions/checkout@v5
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Nom de l'image
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        if: ${{ inputs.publier }}
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
         with:
           images: ${{ env.IMAGE }}
-          # latest sur main ; sha-<court> partout ; nom du tag git
-          # (les « / » sont remplacés par « - » : da/pro → da-pro).
+          # latest seulement sur la branche par défaut ; sha-<court> partout ; nom du tag git
+          # (les « / » deviennent « - » : da/pro → da-pro).
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
             type=ref,event=tag
-      # Couches reproductibles : à contenu égal, même digest d'un build à
-      # l'autre (COPY --link + dates ramenées à SOURCE_DATE_EPOCH). Un
-      # changement de code ne fait re-tirer que .next/static et le code
-      # serveur (~4 Mo sur ~170 Mo), même après une perte du cache gha.
-      # SOURCE_DATE_EPOCH est une constante, pas la date du commit : sinon les
-      # fichiers créés au build (dossiers, enregistrements dpkg) changeraient
-      # de date, donc de digest, à chaque commit.
-      - uses: docker/build-push-action@v6
+      # Couches reproductibles : à contenu égal, même digest d'un build à l'autre.
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         env:
           SOURCE_DATE_EPOCH: "0"
         with:
           context: .
           platforms: linux/amd64
-          # Pousse (push=true) avec réécriture des dates dans les couches ; les
-          # noms viennent de « tags ». Remplace « push: true ».
-          outputs: type=image,push=true,rewrite-timestamp=true
-          # Attestation de provenance minimale (n'entre pas dans les couches).
+          outputs: type=image,push=${{ inputs.publier }},rewrite-timestamp=true
           provenance: mode=min
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Le runner GitHub a 16 Go : plafond du tas plus large qu'en local.
           build-args: |
             NODE_MAX_OLD_SPACE=4096
           cache-from: type=gha

@@ -13,7 +13,8 @@ import { getPageBlocks, localizedPath, type PageSummary } from "./pages";
 import { isBuildPhase } from "./cache";
 import { tabTitle, type SeoStored } from "./seo-schema";
 
-const DEFAULT_BASE_URL = "https://portfolio.example.org";
+/** Valeur de repli neutre : en production PUBLIC_BASE_URL doit être définie. */
+const DEFAULT_BASE_URL = "http://localhost:3001";
 
 /** Adresse publique du site (PUBLIC_BASE_URL), sans barre finale. */
 export function publicBase(): string {

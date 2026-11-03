@@ -14,7 +14,8 @@
 
 export const OIDC_PROVIDER_ID = "authentik";
 const DEV_SECRET = "secret-de-dev-supprime";
-const DEFAULT_PUBLIC_URL = "https://portfolio.example.org";
+/** Repli neutre : en production PUBLIC_BASE_URL est obligatoire (avertissement sinon). */
+const DEFAULT_PUBLIC_URL = "http://localhost:3001";
 
 export type AuthConfig = {
   baseURL: string;
@@ -50,7 +51,7 @@ export function readAuthConfig(): AuthConfig {
     );
   }
   const trustedOrigins = [new URL(baseURL).origin];
-  if (!isProd) trustedOrigins.push("http://localhost:3001", "http://127.0.0.1:3001", "http://192.0.2.10:3001");
+  if (!isProd) trustedOrigins.push("http://localhost:3001", "http://127.0.0.1:3001", ...(env("DEV_TRUSTED_ORIGINS") ?? "").split(",").map((s) => s.trim()).filter(Boolean));
 
   const rawSecret = env("BETTER_AUTH_SECRET");
   let secretError: string | null = null;
