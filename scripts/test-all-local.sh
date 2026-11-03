@@ -374,10 +374,11 @@ run_e2e() {
 
 # run_task <id> : tâche complète d'une suite (ports, exécution, libération). Exécutée en sous-shell.
 run_task() {
-  local id=$1 port="" entry e
+  local id=$1 port="" entry e me
   case "$id" in
     checks | pdf) ;;
-    *) port=$(alloc_ports "$BASHPID") || { echo "FAIL $id : aucun bloc de ports libre" >"$BATTERY_DIR/$id.log"; record "$id" 1 "$(date +%s)"; return 0; } ;;
+    # Le propriétaire du verrou est CE sous-shell (BASHPID évalué ici, pas dans la substitution de commande, dont le pid meurt aussitôt).
+    *) me=$BASHPID; port=$(alloc_ports "$me") || { echo "FAIL $id : aucun bloc de ports libre" >"$BATTERY_DIR/$id.log"; record "$id" 1 "$(date +%s)"; return 0; } ;;
   esac
   # shellcheck disable=SC2064
   [ -n "$port" ] && trap "free_ports $port" EXIT
