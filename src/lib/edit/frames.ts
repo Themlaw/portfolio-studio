@@ -18,6 +18,7 @@ import { optimize } from "svgo/browser";
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 import { getStorage } from "@/lib/storage";
+import { svgProblem } from "@/lib/themes/svg-check";
 import { sniffImage } from "@/lib/upload/sniff";
 import {
   defaultThickness,
@@ -99,21 +100,25 @@ const fallbackSlice = (w: number, h: number): [number, number, number, number] =
 
 /* ---- SVG ------------------------------------------------------------------------------------------------------------------------ */
 
-/** Refus lisibles : un cadre SVG est une image, jamais un programme ni une page qui charge autre chose. */
-function svgProblem(svg: string): string | null {
-  const bare = svg.replace(/xmlns(:\w+)?="[^"]*"/g, "");
-  if (/<script|<foreignObject|<iframe|<embed|<object/i.test(bare)) return "Ce SVG contient du code ou du contenu extérieur : il n'est pas accepté. Exporte-le comme simple dessin (sans script).";
-  if (/\son[a-z]+\s*=/i.test(bare)) return "Ce SVG contient des actions (onclick…) : il n'est pas accepté.";
-  if (/@import|(?:href|src)\s*=\s*"(?:https?:|\/\/|file:|javascript:)|url\(\s*["']?(?:https?:|\/\/|javascript:)/i.test(bare)) return "Ce SVG charge des éléments extérieurs : exporte-le avec tout son contenu à l'intérieur.";
-  return null;
+/**
+ * Refus lisibles : un cadre SVG est une image, jamais un programme ni une page qui charge autre chose. Même liste blanche que les
+ * éléments dessinés d'un thème importé (`svgProblem` de src/lib/themes/svg-check.ts : éléments de dessin seulement ; DOCTYPE et entités,
+ * <style>, <set> / <animate>, gestionnaires, liens et url() externes refusés), appliquée AVANT svgo (le fichier reçu, tel quel) et APRÈS
+ * (ce qui sera servi) : svgo ne fait que réduire, il ne sert jamais de filtre.
+ */
+function frameSvgProblem(data: Uint8Array): string | null {
+  const reason = svgProblem(data);
+  if (!reason) return null;
+  return `Ce SVG n'est pas accepté (${reason}). Exporte-le comme simple dessin : sans script, sans feuille de style, sans animation ni contenu extérieur (Illustrator : « Styles : attributs de présentation » ; Inkscape : « SVG simple »).`;
 }
 
 type Processed = { image: FrameEntry["image"]; files: { ext: string; data: Buffer }[]; slice: [number, number, number, number]; detected: boolean };
 
-async function processSvg(buf: Buffer): Promise<Processed | string> {
-  const text = buf.toString("utf8");
-  const bad = svgProblem(text);
+/** Exportée pour les tests (scripts/test-cadres62.mjs). */
+export async function processSvg(buf: Buffer): Promise<Processed | string> {
+  const bad = frameSvgProblem(buf);
   if (bad) return bad;
+  const text = buf.toString("utf8");
   let optimized: string;
   try {
     optimized = optimize(text, { multipass: true, floatPrecision: 2, plugins: ["preset-default", "removeScripts"] as never[] }).data;
@@ -134,6 +139,8 @@ async function processSvg(buf: Buffer): Promise<Processed | string> {
   if (!vb) rootFixed = rootFixed.replace(/<svg\b/i, `<svg viewBox="0 0 ${w} ${h}"`);
   rootFixed = rootFixed.replace(/<svg\b/i, `<svg width="${w}" height="${h}"`);
   svg = svg.replace(root, rootFixed);
+  const after = frameSvgProblem(Buffer.from(svg));
+  if (after) return after;
   // Analyse du bord sur un rendu (≤ 1200 px).
   const scale = Math.min(1, 1200 / Math.max(w, h));
   const raw = await sharp(Buffer.from(svg), { density: 96 * 2 })
@@ -178,7 +185,39 @@ function nameOf(original: string | null | undefined, fallback: string): string {
   return base || fallback;
 }
 
-const looksSvg = (buf: Buffer) => /^\s*(?:<\?xml[^>]*\?>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!DOCTYPE[^>]*>\s*)?<svg[\s>]/i.test(buf.subarray(0, 2048).toString("utf8"));
+/**
+ * Le début du fichier ressemble-t-il à un SVG (prologue XML, commentaires, DOCTYPE, puis <svg) ? Lecture pas à pas par `indexOf`, en
+ * temps linéaire : l'ancienne expression régulière `(?:<!--[\s\S]*?-->\s*)*` revenait en arrière de façon exponentielle
+ * (`"<!---->".repeat(290)` bloquait le processus, donc tout le site). Un DOCTYPE est reconnu ici pour être REFUSÉ ensuite, avec un
+ * message lisible, par `frameSvgProblem`.
+ */
+export function looksSvg(buf: Uint8Array): boolean {
+  const s = Buffer.from(buf.subarray(0, 2048)).toString("utf8");
+  let i = s.charCodeAt(0) === 0xfeff ? 1 : 0;
+  const skipSpace = () => {
+    while (i < s.length && /\s/.test(s[i])) i++;
+  };
+  skipSpace();
+  if (s.startsWith("<?xml", i)) {
+    const end = s.indexOf("?>", i);
+    if (end < 0) return false;
+    i = end + 2;
+    skipSpace();
+  }
+  while (s.startsWith("<!--", i)) {
+    const end = s.indexOf("-->", i + 4);
+    if (end < 0) return false;
+    i = end + 3;
+    skipSpace();
+  }
+  if (s.slice(i, i + 9).toUpperCase() === "<!DOCTYPE") {
+    const end = s.indexOf(">", i);
+    if (end < 0) return false;
+    i = end + 1;
+    skipSpace();
+  }
+  return /^<svg[\s>]/i.test(s.slice(i, i + 5));
+}
 
 /**
  * Ajoute un cadre à la bibliothèque d'après un fichier reçu (chemin temporaire : l'appelant le supprime). Même contenu déjà présent :
