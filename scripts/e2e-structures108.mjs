@@ -767,6 +767,94 @@ if (run("P")) {
   });
 }
 
+/* ============================== Q : coins arrondis d'une zone à contour (lot 107b) ============================== */
+// Du rose (la couleur de la zone, sous le papier peint) apparaissait dans chaque coin arrondi, entre le contour et le papier : le calque de papier reprenait le rayon
+// extérieur au lieu du rayon intérieur du contour. On échantillonne, dans l'angle de CHAQUE zone à papier, un pixel juste à l'intérieur du contour (au milieu du croissant
+// fautif) : il doit avoir la couleur du papier (calque intérieur), jamais celle de la zone dessous. Public ; l'éditeur partage la feuille de style.
+if (run("Q")) {
+  await section("Q", async () => {
+    const PINK = "#ff2d95", PAPER = "#3a6fd8", INK = "#101010";
+    const svg = path.join(FIX, "opaque108.png");
+    await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="${PAPER}"/></svg>`)).png().toFile(svg);
+    const before = sql((db) => db.prepare("select id from wallpapers").all()).length;
+    await page.goto(`${BASE}/admin/papiers-peints`, { waitUntil: "domcontentloaded" });
+    await page.locator('[data-testid="wallpaper-input"]').setInputFiles([svg]);
+    await waitFor(async () => (await page.locator('[data-testid="wallpaper"][data-status="ready"]').count()) >= before + 1, 180000);
+    const OP = sql((db) => db.prepare("select id from wallpapers order by id").all()).map((r) => r.id).at(-1);
+    const bord = { width: "medium", color: INK };
+    const txt = (n) => ({ paragraphs: [L(`S108q${n}x`)] });
+    const make = (layout, c, border, n) => {
+      const props = txt(n);
+      const bg = (extra = {}) => ({ kind: "wallpaper", wallpaper: OP, color: PINK, ...(border ? { border: bord } : {}), ...extra });
+      const sf = (extra = {}) => ({ color: PINK, paperWallpaper: OP, corners: c, ...(border ? { border: bord } : {}), ...extra });
+      if (layout === "fond") props.background = bg({ round: c });
+      if (layout === "carte") props.surface = sf({ width: "inset" });
+      if (layout === "fond-dans-carte") { props.surface = sf({ width: "inset" }); props.background = bg({ round: c, inset: "m" }); }
+      if (layout === "carte-dans-fond") { props.surface = { color: PINK, paperWallpaper: OP, width: "full", ...(border ? { border: bord } : {}) }; props.background = bg({ round: c, inset: "m" }); }
+      return { uid: `q108${n}`, type: "rich-text", props };
+    };
+    const CASES = [];
+    for (const layout of ["fond", "carte", "fond-dans-carte", "carte-dans-fond"]) for (const c of ["s", "m", "l"]) CASES.push([layout, c, true]);
+    for (const layout of ["fond", "carte"]) CASES.push([layout, "m", false]);
+    const blocks = CASES.map(([a, b, d], n) => make(a, b, d, n));
+    const half = Math.ceil(blocks.length / 2);
+    const SAMPLE = async (el, shots) => {
+      // Mesures du bord et des rayons de la zone, puis échantillons aux 4 angles, au milieu du croissant (diagonale, entre 0,293·r et 0,293·R).
+      const info = await el.evaluate((z) => {
+        const cs = getComputedStyle(z);
+        const b = getComputedStyle(z, "::before");
+        return { w: z.getBoundingClientRect().width, h: z.getBoundingClientRect().height, bw: parseFloat(cs.borderTopWidth) || 0, R: ["TopLeft", "TopRight", "BottomRight", "BottomLeft"].map((k) => parseFloat(cs[`border${k}Radius`]) || 0), paper: (b.content !== "none" && b.backgroundImage !== "none") || (() => { const a = getComputedStyle(z, "::after"); return a.content !== "none" && a.backgroundImage !== "none"; })(), beforeR: ["TopLeft", "TopRight", "BottomRight", "BottomLeft"].map((k) => parseFloat(b[`border${k}Radius`]) || 0) };
+      });
+      if (!info.paper) return null;
+      const png = await el.screenshot({ type: "png" });
+      const { data, info: im } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
+      const px = (x, y) => [0, 1, 2].map((k) => data[(Math.round(y) * im.width + Math.round(x)) * im.channels + k]);
+      const S = im.width / info.w;
+      const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+      const want = [0x3a, 0x6f, 0xd8], pink = [0xff, 0x2d, 0x95];
+      const out = [];
+      info.R.forEach((R, k) => {
+        if (R < 1 || info.bw < 1) return; // sans contour il n'y a pas de croissant à contrôler
+        const r = Math.max(0, R - info.bw);
+        const t = 0.293 * (r + info.bw / 2) + info.bw;
+        const [cx, cy] = [[t, t], [info.w - t, t], [info.w - t, info.h - t], [t, info.h - t]][k];
+        const c = px(cx * S, cy * S);
+        out.push({ corner: k, R, bw: info.bw, rgb: c, nearPaper: dist(c, want) < dist(c, pink), nearPink: false });
+      });
+      return { out, beforeR: info.beforeR };
+    };
+    const check = async (url, idx, label, ctx2) => {
+      const p2 = await ctx2.newPage();
+      await p2.goto(url, { waitUntil: "domcontentloaded" });
+      for (const n of idx) {
+        const [layout, c, withBorder] = CASES[n];
+        await p2.waitForFunction((t) => document.body.textContent.includes(t), `S108q${n}x`, { timeout: 60000 });
+        const blk = p2.locator(`xpath=//*[contains(text(),"S108q${n}x")]`).first();
+        const zones = await blk.evaluateHandle((e) => [...document.querySelectorAll(".zone")].filter((z) => z.contains(e)));
+        const count = await zones.evaluate((zs) => zs.length);
+        let bad = [], seen = 0;
+        for (let i = 0; i < count; i++) {
+          const h = await zones.evaluateHandle((zs, k) => zs[k], i);
+          const el = h.asElement();
+          const r = await SAMPLE(el, null);
+          if (!r) continue;
+          seen++;
+          for (const o of r.out) if (!o.nearPaper || o.nearPink) bad.push({ zone: i, beforeR: r.beforeR, ...o });
+          if (process.env.DEBUGQ && r.out.some((o) => !o.nearPaper)) await el.screenshot({ path: path.join(SHOTS, `Q-${n}-${i}.png`) });
+        }
+        ok(`Q ${label} [${layout} · coins ${c}${withBorder ? " · contour" : " · sans contour"}] : le coin garde la couleur du papier, jamais celle de la zone dessous (${seen} zone(s) à papier)`, (seen > 0 && bad.length === 0) || (!withBorder && bad.length === 0), JSON.stringify(bad).slice(0, 300));
+      }
+      await p2.close();
+    };
+    const ctx2 = await browser.newContext({ viewport: { width: 1100, height: 900 }, deviceScaleFactor: 3 });
+    if (!(await publishWith(PAGES.decors, [SEP(0), ...blocks.slice(0, half), SEP(1)]))) throw new Error("page Q1");
+    await check(urlOf(SLUG.decors), CASES.slice(0, half).map((_, n) => n), "page A", ctx2);
+    if (!(await publishWith(PAGES.animation, [SEP(0), ...blocks.slice(half), SEP(1)]))) throw new Error("page Q2");
+    await check(urlOf(SLUG.animation), CASES.slice(half).map((_, n) => n + half), "page B", ctx2);
+    await ctx2.close();
+  });
+}
+
 await browser.close();
 console.log(`\n# RESULTATS ${JSON.stringify(results)}`);
 console.log(failures ? `\n${failures} ÉCHEC(S)` : "\nTout passe");

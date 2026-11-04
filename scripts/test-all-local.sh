@@ -160,6 +160,7 @@ E2E=(
   "structures108b|node --import tsx scripts/e2e-structures108.mjs|chromium|B"
   "structures108c|node --import tsx scripts/e2e-structures108.mjs|chromium|C"
   "structures108p|node --import tsx scripts/e2e-structures108.mjs|chromium|P"
+  "structures108q|node --import tsx scripts/e2e-structures108.mjs|chromium|Q"
   "defilement99|node scripts/e2e-defilement99.mjs|chromium|"
   "defilement99-firefox|node scripts/e2e-defilement99.mjs|firefox|K"
   "parite99|node scripts/e2e-defilement99.mjs|chromium|P"
