@@ -378,7 +378,10 @@ avec un message qui donne la commande exacte, nom du volume compris :
 ```
 
 Le service `fix-permissions` (profil `setup`, jamais lancé par défaut) fait ce
-`chown -R 1000:1000 /data` en root avec la seule capacité `CHOWN`, sans réseau.
+`chown -R 1000:1000 /data` en root avec les seules capacités `CHOWN` et
+`DAC_READ_SEARCH` (sans elle, un dossier `0700` d'un autre propriétaire n'est pas
+traversé et le `chown -R` reste partiel), sans réseau, image `alpine` épinglée par
+digest. Le `chown -R` de busybox ne suit pas les liens symboliques.
 Sur l'hôte, dans le dossier de la stack : `docker compose --profile setup run
 --rm fix-permissions`, puis redéployer. Pour un bind mount :
 `sudo chown -R 1000:1000 <dossier>`.
