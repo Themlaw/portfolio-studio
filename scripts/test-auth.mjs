@@ -443,6 +443,29 @@ let r = await http("/admin");
 ok("A2 /admin sans session → /admin/connexion", r.status === 307 && r.headers.get("location")?.endsWith("/admin/connexion"), `${r.status} ${r.headers.get("location")}`);
 r = await http("/admin/themes");
 ok("A2b /admin/themes sans session → redirection", r.status === 307, String(r.status));
+// docs/SECURITE.md N1 : le proxy mettait en mémoire jusqu'à 10 Mo de chaque POST (même refusé), et la route d'auth lisait tout le
+// corps sans borne avant la limite par IP. Corps du proxy borné à 1 Mo ; route d'auth : lecture en flux bornée à 16 Ko → 413.
+{
+  const big = Buffer.alloc(5 * 1024 * 1024, 0x61);
+  const before = procMem(s.child.pid).rss;
+  const sized = await Promise.all(
+    Array.from({ length: 10 }, (_, i) =>
+      http("/api/auth/sign-in/email", { method: "POST", raw: big, headers: { "content-type": "application/json", origin: BASE, "x-forwarded-for": `203.0.113.${200 + i}` } }).then(async (res) => (await res.text(), res.status)),
+    ),
+  );
+  const grown = procMem(s.child.pid).rss - before;
+  ok("A2m 10 POST de 5 Mo vers /api/auth/sign-in/email → 413, mémoire du serveur contenue", sized.every((x) => x === 413) && grown < 60, `${sized.join(",")} ; +${grown} Mo`);
+  // Sans Content-Length (flux découpé) : la route s'arrête à 16 Ko.
+  const chunks = (async function* () {
+    for (let i = 0; i < 64; i++) yield new Uint8Array(32 * 1024).fill(0x61);
+  })();
+  const res = await fetch(`${BASE}/api/auth/sign-in/email`, { method: "POST", body: chunks, duplex: "half", headers: { "content-type": "application/json", origin: BASE, "x-forwarded-for": "203.0.113.230" } });
+  ok("A2n corps de 2 Mo sans Content-Length → 413", res.status === 413, String(res.status));
+  // Limite du proxy lui-même : Next le dit dans son journal (« Request body exceeded 1MB »).
+  await http("/api/contact", { method: "POST", raw: Buffer.alloc(2 * 1024 * 1024, 0x61), headers: { "content-type": "application/json", origin: BASE } }).then((x) => x.text());
+  await sleep(200);
+  ok("A2o corps lu par le proxy plafonné à 1 Mo (proxyClientMaxBodySize)", /Request body exceeded 1MB/.test(s.text()) && !/Request body exceeded 10MB/.test(s.text()), (/Request body exceeded [^.]*/.exec(s.text()) ?? [""])[0]);
+}
 r = await http("/admin/connexion");
 const loginHtml = await r.text();
 ok("A2c connexion : formulaire, noindex, pas d'Authentik", r.status === 200 && loginHtml.includes("Adresse e-mail") && loginHtml.includes("noindex") && !loginHtml.includes("Authentik"));

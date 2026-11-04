@@ -13,8 +13,34 @@ export const dynamic = "force-dynamic";
  *  - l'IP client calculée selon AUTH_TRUSTED_PROXY_HOPS (en-tête interne,
  *    toute valeur venue de l'extérieur est écrasée) ;
  *  - sur /sign-in/email : limite par IP (toutes tentatives comptées), PUIS
- *    délai progressif par couple (e-mail, IP) — voir src/lib/auth/throttle.ts.
+ *    délai progressif par couple (e-mail, IP) — voir src/lib/auth/throttle.ts ;
+ *  - un corps lu en flux et borné (MAX_BODY), APRÈS la limite par IP : un corps
+ *    géant n'est jamais mis en mémoire en entier (docs/SECURITE.md N1).
  */
+
+/** Plus grand corps accepté : les requêtes de Better Auth (e-mail, mot de passe, fournisseur) tiennent en quelques centaines d'octets. */
+const MAX_BODY = 16 * 1024;
+
+/** Corps en texte, lu en flux et abandonné dès qu'il dépasse `max` octets (null = trop gros). */
+async function readBoundedText(request: Request, max: number): Promise<string | null> {
+  const declared = Number(request.headers.get("content-length") ?? "0");
+  if (!Number.isFinite(declared) || declared > max) return null;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
 
 function tooMany(code: string, message: string, wait: number): Response {
   return Response.json(
@@ -28,19 +54,28 @@ async function handle(request: Request, method: "GET" | "POST"): Promise<Respons
   const ip = clientIpFromForwarded(headers.get("x-forwarded-for"), config.trustedProxyHops) ?? UNKNOWN_IP;
   headers.set(CLIENT_IP_HEADER, ip);
 
-  const body = method === "POST" ? await request.text() : undefined;
+  const signIn = method === "POST" && new URL(request.url).pathname.endsWith("/sign-in/email");
+
+  // 1. Limite par IP, avant tout (même avant de lire le corps) : chaque tentative compte, refus compris.
+  if (signIn) {
+    const ipWait = ipAttempt(ip);
+    if (ipWait > 0) {
+      return tooMany("IP_RATE_LIMITED", `Trop de tentatives depuis cette adresse : réessaie dans ${ipWait} s.`, ipWait);
+    }
+  }
+
+  let body: string | undefined;
+  if (method === "POST") {
+    const text = await readBoundedText(request, MAX_BODY);
+    if (text === null) {
+      return Response.json({ code: "BODY_TOO_LARGE", message: "Requête trop volumineuse." }, { status: 413, headers: { "Cache-Control": "no-store" } });
+    }
+    body = text;
+  }
   const forward = new Request(request.url, { method, headers, body });
   const handler = toNextJsHandler(getAuth());
 
-  if (method !== "POST" || !new URL(request.url).pathname.endsWith("/sign-in/email")) {
-    return handler[method](forward);
-  }
-
-  // 1. Limite par IP, avant tout : chaque tentative compte, refus compris.
-  const ipWait = ipAttempt(ip);
-  if (ipWait > 0) {
-    return tooMany("IP_RATE_LIMITED", `Trop de tentatives depuis cette adresse : réessaie dans ${ipWait} s.`, ipWait);
-  }
+  if (!signIn) return handler[method](forward);
 
   let email: string | null = null;
   try {

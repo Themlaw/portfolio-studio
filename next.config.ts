@@ -90,6 +90,9 @@ const nextConfig: NextConfig = {
     isrFlushToDisk: false,
     // forbidden() (403) pour les server actions et routes de l'admin sans session.
     authInterrupts: true,
+    // Corps mis en mémoire par le proxy avant toute route (défaut de Next : 10 Mo par requête, même refusée) : 1 Mo, comme la
+    // limite des server actions (docs/SECURITE.md N1). Les envois de fichiers (/admin/api) sont hors du proxy et lus en flux.
+    proxyClientMaxBodySize: "1mb",
     ...(LOW_MEM ? { cpus: 1, workerThreads: false } : {}),
   },
   images: {
