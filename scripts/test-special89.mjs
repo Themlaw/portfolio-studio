@@ -7,12 +7,18 @@
  *     « Sortie » obligatoire à la publication ; « Sortie » et « Une œuvre au hasard » refusés sur une page ordinaire.
  *  3. Le brouillon d'une page spéciale ou ordinaire refuse les mêmes choses (requête forgée).
  *  4. Exclusions : la page spéciale n'est pas au menu public ni dans les pages à lier.
+ *  6. « Une œuvre au hasard » : la lecture en cache porte l'étiquette `project:<id>` de chaque projet publié (docs/SECURITE.md N16).
  * Usage : node --import tsx scripts/test-special89.mjs
  */
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync } from "node:fs";
+import { registerHooks } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+// Lectures de la galerie (`cached`) hors de Next : `next/cache` remplacé par un appel direct.
+const NEXT_CACHE_STUB = new URL("./lib/next-cache-stub.cjs", import.meta.url).href;
+registerHooks({ resolve: (spec, ctx, next) => (spec === "next/cache" ? { url: NEXT_CACHE_STUB, format: "commonjs", shortCircuit: true } : next(spec, ctx)) });
 
 const dir = mkdtempSync(path.join(tmpdir(), "pf-test-special89-"));
 process.env.DATA_DIR = dir;
@@ -147,8 +153,22 @@ test("la page spéciale n'est pas une page à lier ni au menu public", () => {
 
 /* ---- Une œuvre au hasard : ce qui peut être tiré ---- */
 
-const { readPoolWorks, selectWorks } = await import("../src/lib/random-works.ts");
+const { readPoolWorks, selectWorks, getPoolWorks } = await import("../src/lib/random-works.ts");
 const pool = readPoolWorks();
+
+{
+  globalThis.__nextCacheCalls = [];
+  const cachedPool = await getPoolWorks();
+  const call = globalThis.__nextCacheCalls.find((c) => c.key[0] === "random-works");
+  const live = db.select().from(schema.projects).all().filter((p) => !p.deletedAt && p.draftPageId === null);
+  test("N16 « Une œuvre au hasard » : la lecture en cache dépend de chaque projet publié (project:<id>)", () => {
+    assert.ok(call, "lecture en cache");
+    assert.ok(live.length >= 2);
+    for (const p of live) assert.ok(call.tags.includes(`project:${p.id}`), `project:${p.id} dans ${call.tags.join(" ")}`);
+    for (const t of ["projects", "media", "nav"]) assert.ok(call.tags.includes(t), t);
+    assert.deepEqual(cachedPool.map((w) => w.slug), pool.map((w) => w.slug), "même contenu que la lecture directe");
+  });
+}
 const slugs = () => readPoolWorks().map((w) => w.slug);
 
 test("le tirage porte sur les œuvres publiées du portfolio (seed) ; chaque œuvre a son image, son titre et sa page", () => {
