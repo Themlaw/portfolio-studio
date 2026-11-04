@@ -78,7 +78,7 @@ function shaped(z: Zone, slot: Slot, layer: Zone["layer"]): Zone {
  * `normalize` : une section vient d'être AJOUTÉE (l'autre existait déjà) : les deux se rangent dans l'ordre normal (Fond dehors, Carte dedans). Sinon (on règle
  * une section déjà là), chacune garde sa couche, y compris le rendu emboîté d'avant (carte dehors, fond dedans) : un réglage ne déplace jamais rien tout seul.
  */
-export function writeFondCarte(fc: FondCarte, caps: Caps, normalize = true, outer?: Slot, first?: Slot): { surface: Surface | null; background: Background | null } {
+export function writeFondCarte(fc: FondCarte, caps: Caps, normalize = true, outer?: Slot): { surface: Surface | null; background: Background | null } {
   const { fond, carte } = fc;
   if (!fond && !carte) return { surface: null, background: null };
   const put = (z: Zone, layer: Zone["layer"]) => (layer === "card" ? { surface: zoneToSurface(z), background: null } : { surface: null, background: zoneToBackground(z) });
@@ -90,11 +90,6 @@ export function writeFondCarte(fc: FondCarte, caps: Caps, normalize = true, oute
     const outerBg = zoneToBackground(zoneInLayer(o, "fond"));
     const panel = zoneToBackground(zoneInLayer(i, "fond"));
     return { surface: null, background: outerBg && panel ? ({ ...outerBg, card: withoutCard(panel) } as Background) : outerBg };
-  }
-  // Lot 108 : l'ordre est celui de la pose. Un Fond ajouté à une Carte de rubrique déjà là se pose DEDANS, en retrait (marge M, réglable) : c'est la structure de la prod
-  // (carte dehors, fond en retrait dedans), jusque-là impossible à obtenir au menu. Un Fond posé d'abord, puis une Carte : la Carte reste dedans (ordre du lot 100).
-  if (isPair(caps) && normalize && first === "carte" && fond && carte && carte.layer === "card") {
-    return { surface: zoneToSurface(carte), background: zoneToBackground(shaped(fond, "carte", "fond")) };
   }
   if (isPair(caps)) {
     if (fond && carte && !normalize && fond.layer !== carte.layer) {
@@ -130,3 +125,16 @@ export function setSlot(fc: FondCarte, slot: Slot, next: Zone | null, caps: Caps
 
 /** La couleur qui se voit réellement AUTOUR de la carte : celle de la section Fond, sinon `undefined` (c'est le fond de la page). */
 export const aroundColor = (fc: FondCarte): string | undefined => fc.fond?.color;
+
+/**
+ * Lot 107b : une MARGE donnée au Fond alors qu'une Carte existe range le Fond DANS la Carte (la Carte dehors telle quelle, `surface` ; le Fond en retrait dedans,
+ * `background.inset`) : c'est la structure que les versions d'avant le lot 100 écrivaient en décollant le fond. Écriture seulement : ni bouton ni libellé de plus.
+ * Retirer la marge (`writeFondCarte(fc, caps)`) ramène à la forme du lot 100 (Fond dehors pleine largeur, Carte dedans), sans perte de réglage.
+ */
+export function nestFond(fc: FondCarte, step: "s" | "m" | "l", caps: Caps): { surface: Surface | null; background: Background | null } {
+  const { fond, carte } = fc;
+  if (!fond || !carte || !isPair(caps)) return writeFondCarte(fc, caps, true);
+  const outer = { ...zoneInLayer(carte, "card"), extent: "inset" } as Zone;
+  const inner = { ...zoneInLayer(fond, "fond"), extent: "inset", margin: step } as Zone;
+  return { surface: zoneToSurface(outer), background: zoneToBackground(inner) };
+}

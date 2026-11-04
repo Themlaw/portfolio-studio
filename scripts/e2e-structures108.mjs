@@ -451,6 +451,7 @@ if (run("B")) {
         await page.keyboard.press("Escape");
         const sameState = ["fond", "carte"].every((s) => !twinState[s] || twinState[s].kind === "none" ? !blankState[s] || blankState[s].kind === "none" : ORDER.every((k) => eqv(blankState[s]?.[k], twinState[s][k])));
         const sameLook = canonJ(layerLook(lookOf(pid, 3))) === canonJ(twinLook);
+        if (process.env.DEBUGB && !sameState) console.log("# states", i, JSON.stringify({ twinState, blankState }));
         let sig = await zonesOf(fr, 2);
         await until(async () => { sig = await zonesOf(fr, 2); return sameZones(sig[0].zones, sig[1].zones); }, 12000);
         if (process.env.DEBUGB) await page.screenshot({ path: path.join(SHOTS, `B-${i}.png`), fullPage: true });
@@ -460,12 +461,26 @@ if (run("B")) {
         const dT = propsAt(1), dB = propsAt(3);
         const sameData = canonJ({ s: dT?.surface, b: dT?.background }) === canonJ({ s: dB?.surface, b: dB?.background });
         const good = lacks.length === 0 && sameState && sameLook && sameRender;
-        // Carte dehors + Fond dedans : lisible, rendue et modifiable sans perte (A et C), mais le menu pose un Fond ajouté à une Carte DEHORS (convention du lot 100, testée par fond32/surface66/cartes17c) : non atteignable par les gestes, justifié au rapport.
-        const NEST = "carte dehors + fond en retrait dedans : ordre non atteignable depuis un bloc vierge (le lot 100 pose un Fond ajouté à une Carte dehors)";
-        const JUSTIFIED = { 18: NEST, 21: NEST, 22: NEST, 19: "Fond seul rangé dans `surface` pleine largeur (le menu l'écrit dans `background`) : mêmes coins, couleurs, bord ; bloc 9 px plus haut" };
+                const NOMARGIN = "Fond SANS marge dans la Carte : la règle du lot 107b (marge retirée = forme du lot 100) ne le crée pas ; il reste lisible, rendu et modifiable sans perte";
+        const JUSTIFIED = { 21: NOMARGIN, 22: NOMARGIN, 19: "Fond seul rangé dans `surface` pleine largeur (le menu l'écrit dans `background`) : mêmes coins, couleurs, bord ; bloc 9 px plus haut" };
         ok(`${label} : recréée par les gestes (menu, rendu${hasLayers ? "" : ", sans couche"})${sameData ? "" : " [données différentes]"}${!good && JUSTIFIED[i] ? " [JUSTIFIÉ : " + JUSTIFIED[i] + "]" : ""}`, good || Boolean(JUSTIFIED[i]), `manque ${lacks.join(",")} ; menu=${sameState} look=${sameLook} rendu=${sameRender} ${JSON.stringify({ twinState: [twinState.fond?.kind, twinState.carte?.kind], blankState: [blankState.fond?.kind, blankState.carte?.kind], z: [sig[0].zones.length, sig[1].zones.length] })}`);
         note(i, "B", good ? (sameData ? "ok" : "ok (données différentes, rendu égal)") : `écart: ${lacks.join(",") || (sameRender ? "état" : "rendu")}`);
         note(i, "Bd", { other, sameData, twin: { s: dT?.surface, b: dT?.background, look: twinLook }, blank: { s: dB?.surface, b: dB?.background, look: layerLook(dB?.look) } });
+        if (i === 18 && good) {
+          // Lot 107b : retirer la marge du Fond ramène à la forme du lot 100 (Fond dehors, Carte dedans), sans perte de réglage ; la remettre range de nouveau le Fond dans la Carte.
+          const row = '[data-testid="fond-section-fond"] [data-testid="fond-inset"]';
+          const nested = propsAt(3);
+          await openFond(fr, 3);
+          await fr.locator(`${row} [data-step="none"]`).click();
+          await until(async () => propsAt(3)?.surface?.width === "full", 12000);
+          const flat = propsAt(3);
+          await fr.locator(`${row} [data-step="l"]`).click();
+          await until(async () => propsAt(3)?.surface?.width === "inset" && propsAt(3)?.background?.inset === "l", 12000);
+          const again = propsAt(3);
+          await page.keyboard.press("Escape");
+          ok("B+ [18] marge retirée : forme du lot 100 (Fond dehors pleine largeur, Carte dedans), papier peint et contour gardés", flat?.surface?.width === "full" && flat?.surface?.paperWallpaper === nested?.background?.wallpaper && flat?.surface?.color === nested?.background?.color && flat?.background?.border?.width === nested?.surface?.border?.width && flat?.background?.color === nested?.surface?.color, JSON.stringify({ flat: [flat?.surface, flat?.background] }).slice(0, 400));
+          ok("B+ [18] marge remise : de nouveau la Carte dehors et le Fond dedans, mêmes réglages qu'avant", canonJ({ s: again?.surface, b: again?.background }) === canonJ({ s: nested?.surface, b: nested?.background }), JSON.stringify({ again: [again?.surface, again?.background], nested: [nested?.surface, nested?.background] }).slice(0, 500));
+        }
       } catch (e) {
         ok(`${label} : exception`, false, String(e.message).split("\n").slice(0, 3).join(" "));
         note(i, "B", `exception: ${String(e.message).slice(0, 100)}`);
@@ -718,6 +733,34 @@ if (run("P")) {
       } catch (e) {
         ok(`${label} : exception`, false, String(e.message).split("\n").slice(0, 3).join(" "));
         note(i, "B", `exception: ${String(e.message).slice(0, 100)}`);
+      }
+    }
+    // P4 : composants SANS fond. Aucun fond à recréer ; chaque réglage qu'ils portent (espacement, largeur de boîte, cadre, recadrage, légendes, colonnes…) doit survivre à la pose puis au retrait d'un fond par le menu
+    // (rien d'autre ne bouge, les données reviennent à l'identique).
+    for (const i of process.env.NOP4 ? [] : BSEL.filter((j) => !BOARD_LAYER_BG(j))) {
+      const label = `P4 [${i}] ${FIXTURE[i].node.type} sans fond`;
+      try {
+        const slug = ["herbier-des-nuits", "sel-et-silence", "carnets-personnels", "les-hauts-chemins", "la-petite-fabrique"][i % 5];
+        const item = boardItem(i);
+        setLayout(slug, [item]);
+        const fr = await boardPage(slug);
+        await fr.waitForFunction(() => document.querySelectorAll("[data-edit-bitem]").length >= 1, null, { timeout: 60000 });
+        const before = canonJ(layoutNow(slug)[0]?.props);
+        await openItemFond(fr, 0);
+        const menu = fr.locator('[data-testid="fond-menu"]');
+        await menu.locator('[data-testid="fond-section-fond"] [data-kind="color"]').click();
+        await until(async () => Boolean(layoutNow(slug)[0]?.props?.background), 12000);
+        const withFond = layoutNow(slug)[0]?.props ?? {};
+        const { background: _bg, ...rest } = withFond;
+        const lostWhileOn = canonJ(rest) !== before;
+        await menu.locator('[data-testid="fond-section-fond"] [data-kind="none"]').click();
+        await until(async () => !layoutNow(slug)[0]?.props?.background, 12000);
+        await page.keyboard.press("Escape");
+        const after = canonJ(layoutNow(slug)[0]?.props);
+        ok(`${label} : un fond posé puis retiré, les autres réglages intacts (${Object.keys(item.props).length} clés)`, !lostWhileOn && after === before, JSON.stringify({ lostWhileOn, same: after === before }));
+        note(i, "C", !lostWhileOn && after === before ? "ok (fond posé/retiré)" : "perte");
+      } catch (e) {
+        ok(`${label} : exception`, false, String(e.message).split("\n").slice(0, 3).join(" "));
       }
     }
   });
