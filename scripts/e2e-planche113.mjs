@@ -296,6 +296,7 @@ if (run("H"))
       ok(`H3 poignée « ${h} » : rien ne la recouvre`, topmost);
     }
     ok("H4 « n » au milieu du bord haut, « se » au coin bas droit", near(spots.n.x + spots.n.width / 2, g.frame.x + g.frame.width / 2, 3) && near(spots.n.y + spots.n.height / 2, g.frame.y, 4) && near(spots.se.x + spots.se.width / 2, g.frame.x + g.frame.width, 4) && near(spots.se.y + spots.se.height / 2, g.frame.y + g.frame.height, 4), JSON.stringify([spots.n, spots.se, g.frame]));
+    await page.screenshot({ path: path.join(SHOTS, "H-poignees.png") }).catch(() => {});
     ok("H5 l'ancienne poignée « hauteur » n'existe plus (remplacée par le bord bas)", (await f.getByTestId("free-height").count()) === 0);
     await page.keyboard.press("Escape");
   });
@@ -623,6 +624,7 @@ if (run("G"))
     const after = await info();
     const fb1 = await fb();
     ok("G4 bord bas dans la cellule : la planche est plus basse de 60 px (±3), images immobiles", near(fb0.h - fb1.h, 60, 3) && fb1.items.every((m, k) => near(m.x, fb0.items[k].x, 1) && near(m.y, fb0.items[k].y, 1)), JSON.stringify([fb0, fb1]));
+    await page.screenshot({ path: path.join(SHOTS, "G-cellule-recadree.png") }).catch(() => {});
     ok("G5 la hauteur de la rangée suit (la grille est plus basse) sans toucher aux autres cellules (largeurs identiques)", after.gh < before.gh - 20 && near(after.cells[0].w, before.cells[0].w, 1) && near(after.cells[2].w, before.cells[2].w, 1), JSON.stringify([before, after]));
     ok("G5b après recadrage : formes des images intactes, cadre = 3:2 recadré", fbShapes(fb1), JSON.stringify([fb1, propsOf("cf").crop]));
     ok("G6 crop écrit sur la planche seule ; spans et ratio de la grille intacts", propsOf("cf").crop?.b > 5 && JSON.stringify(propsOf("gr").spans) === JSON.stringify(GRID().props.spans) && propsOf("gr").ratio === "4:3");
