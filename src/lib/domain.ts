@@ -26,9 +26,22 @@ export type RedirectConfig = {
 
 const HOSTNAME = /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/;
 
+/** Plus long nom d'hôte DNS (RFC 1035) : au-delà, l'en-tête est ignoré sans être analysé. */
+const MAX_HOST = 253;
+
+/**
+ * Retire les points finaux par une boucle : la regex `/\.+$/` était quadratique sur un en-tête fait de milliers de points
+ * (212 ms par requête avec 16 000 points, docs/SECURITE.md N12).
+ */
+function trimDots(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 46) end--;
+  return value.slice(0, end);
+}
+
 /** « Portfolio.Example.FR. » → « portfolio.example.fr » ; null si ce n'est pas un nom d'hôte. */
 function cleanHost(value: string): string | null {
-  const host = value.toLowerCase().replace(/\.+$/, "");
+  const host = trimDots(value.toLowerCase());
   return HOSTNAME.test(host) ? host : null;
 }
 
@@ -36,10 +49,12 @@ function cleanHost(value: string): string | null {
 export function hostOfHeader(value: string | null | undefined): string | null {
   if (!value) return null;
   let host = value.split(",")[0].trim().toLowerCase();
-  if (!host) return null;
+  // Nom d'hôte + port au plus : un en-tête plus long n'est pas un hôte (et n'est pas analysé).
+  if (!host || host.length > MAX_HOST + 6) return null;
   if (host.startsWith("[")) host = host.slice(0, host.indexOf("]") + 1); // IPv6 : [::1]:3000
   else host = host.replace(/:\d*$/, "");
-  return host.replace(/\.+$/, "") || null;
+  host = trimDots(host);
+  return host && host.length <= MAX_HOST ? host : null;
 }
 
 export function parseRedirectFrom(rawValue: string | undefined | null, publicBaseUrl: string | undefined | null): RedirectConfig {
@@ -52,7 +67,7 @@ export function parseRedirectFrom(rawValue: string | undefined | null, publicBas
     const url = new URL(baseInput);
     if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("schéma");
     config.base = url.toString().replace(/\/+$/, "");
-    config.baseHost = url.hostname.toLowerCase().replace(/\.+$/, "");
+    config.baseHost = trimDots(url.hostname.toLowerCase());
   } catch {
     config.errors.push(
       baseInput

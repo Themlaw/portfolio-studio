@@ -66,5 +66,18 @@ eq("pas d'hôte : null", r({ host: null }), null);
 eq("sous-domaine d'un hôte listé : null", r({ host: "x.old.example.test" }), null);
 eq("sans configuration : null", redirectionFor(parseRedirectFrom("", BASE), { method: "GET", pathAndQuery: "/", host: "old.example.test" }), null);
 
+// docs/SECURITE.md N12 : X-Forwarded-Host fait de milliers de points (la regex /\.+$/ était quadratique), longueur bornée à 253.
+{
+  const t0 = performance.now();
+  for (const v of ["a" + ".".repeat(16000) + "x", ".".repeat(16000), "old.example.test" + ".".repeat(16000), ".".repeat(16000) + ":1"]) hostOfHeader(v);
+  parseRedirectFrom("old.example.test" + ".".repeat(16000), BASE);
+  const ms = performance.now() - t0;
+  ok("N12 en-têtes de 16 000 points : moins de 50 ms en tout", ms < 50, `${ms.toFixed(1)} ms`);
+  eq("N12 points finaux toujours retirés", hostOfHeader("old.example.test..."), "old.example.test");
+  eq("N12 hôte de plus de 253 caractères → null", hostOfHeader("a".repeat(254)), null);
+  eq("N12 hôte de 253 caractères (avec port) → gardé", hostOfHeader("a".repeat(253) + ":443"), "a".repeat(253));
+  eq("N12 en-tête géant → null", hostOfHeader("a".repeat(100_000)), null);
+}
+
 console.log(failures ? `\n${failures} test(s) en échec` : "\nTous les tests passent");
 process.exit(failures ? 1 : 0);

@@ -23,6 +23,7 @@ import { getSessionCookie } from "better-auth/cookies";
 import createMiddleware from "next-intl/middleware";
 import { NextRequest, NextResponse } from "next/server";
 
+import { timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -36,16 +37,54 @@ const intl = createMiddleware(routing);
 /** Marque les requêtes internes du proxy (secret propre au processus). */
 const INTERNAL_HEADER = "x-portfolio-internal";
 const INTERNAL_SECRET = crypto.randomUUID();
+const INTERNAL_SECRET_BYTES = Buffer.from(INTERNAL_SECRET);
+
+/** Requête interne (page 404) : secret comparé en temps constant (docs/SECURITE.md P7). */
+function isInternalRequest(request: NextRequest): boolean {
+  const value = request.headers.get(INTERNAL_HEADER);
+  if (value === null) return false;
+  const given = Buffer.from(value);
+  return given.length === INTERNAL_SECRET_BYTES.length && timingSafeEqual(given, INTERNAL_SECRET_BYTES);
+}
+
+/**
+ * En-têtes du client recopiés sur la requête interne de la page 404 : LISTE BLANCHE (docs/SECURITE.md P7, N20). Recopier tout
+ * renvoyait au rendu interne n'importe quel en-tête du client (dont un faux `x-portfolio-internal`), et `Expect: 100-continue`
+ * faisait échouer la requête interne. Ce qui reste : ce qui change le rendu (cookies d'aperçu, langue, navigation RSC, hôte public).
+ */
+const NOT_FOUND_HEADERS = [
+  // Hôte public (liens hreflang de next-intl) : il ne choisit plus le port, fixé par internalPort().
+  "host",
+  "accept",
+  "accept-language",
+  "cookie",
+  "user-agent",
+  "rsc",
+  "next-router-state-tree",
+  "next-router-prefetch",
+  "next-router-segment-prefetch",
+  "next-url",
+  "x-forwarded-for",
+  "x-forwarded-host",
+  "x-forwarded-proto",
+];
+
+/** Port du serveur, fixé au démarrage (Next le pose dans process.env.PORT) : jamais lu dans l'URL ni dans `Host` (SSRF, §2.12). */
+function internalPort(): string {
+  const port = process.env.PORT ?? "";
+  return /^\d{1,5}$/.test(port) ? port : "3000";
+}
 
 const LOCALE_PATH = new RegExp(`^/(${routing.locales.join("|")})(?:/(.*))?$`);
 
 async function notFoundResponse(request: NextRequest, locale: string): Promise<Response> {
-  const port = process.env.PORT || request.nextUrl.port || "3000";
-  const headers = new Headers(request.headers);
+  const headers = new Headers();
+  for (const name of NOT_FOUND_HEADERS) {
+    const value = request.headers.get(name);
+    if (value !== null) headers.set(name, value);
+  }
   headers.set(INTERNAL_HEADER, INTERNAL_SECRET);
-  headers.delete("if-none-match");
-  headers.delete("if-modified-since");
-  const upstream = await fetch(`http://127.0.0.1:${port}/${locale}/${NOT_FOUND_SLUG}`, { headers, redirect: "manual" });
+  const upstream = await fetch(`http://127.0.0.1:${internalPort()}/${locale}/${NOT_FOUND_SLUG}`, { headers, redirect: "manual" });
   const out = new Headers();
   for (const name of ["content-type", "vary", "link"]) {
     const value = upstream.headers.get(name);
@@ -182,8 +221,9 @@ function domainRedirect(request: NextRequest): NextResponse | null {
     pathAndQuery: request.nextUrl.pathname + request.nextUrl.search,
   });
   if (!target) return null;
-  // Un an de cache pour un 301 muet : impossible de revenir en arrière. Une heure laisse le retour possible.
-  return new NextResponse(null, { status: target.status, headers: { Location: target.location, "Cache-Control": "public, max-age=3600" } });
+  // Un an de cache pour un 301 muet : impossible de revenir en arrière. Une heure laisse le retour possible. `private` : la cible
+  // dépend de X-Forwarded-Host, qu'un cache partagé placé devant ne distinguerait pas (empoisonnement, §2.12).
+  return new NextResponse(null, { status: target.status, headers: { Location: target.location, "Cache-Control": "private, max-age=3600" } });
 }
 
 export default async function proxy(request: NextRequest) {
@@ -192,7 +232,7 @@ export default async function proxy(request: NextRequest) {
   if (moved) return moved;
   if (LEGACY_SKIP.test(pathname)) return NextResponse.next();
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return adminGate(request);
-  if (request.headers.get(INTERNAL_HEADER) === INTERNAL_SECRET) return intl(request);
+  if (isInternalRequest(request)) return intl(request);
 
   const match = LOCALE_PATH.exec(request.nextUrl.pathname);
   if (!match) return intl(request); // « / », langue absente : next-intl redirige

@@ -246,7 +246,7 @@ mkdirSync(TMP, { recursive: true });
     ok(`B3b POST ${path_} sur l'ancien hôte : 308`, r.status === 308 && location(r) === `${NEW}${expected}`, `${r.status} ${location(r)}`);
   }
   const redirect = await get(s, "/fr", { host: OLD });
-  ok("B4 la redirection se garde une heure au plus (revenir en arrière reste possible)", /^public, max-age=3600$/.test(redirect.headers["cache-control"] ?? ""), `cache-control ${redirect.headers["cache-control"]}`);
+  ok("B4 la redirection se garde une heure au plus (revenir en arrière reste possible)", /^private, max-age=3600$/.test(redirect.headers["cache-control"] ?? ""), `cache-control ${redirect.headers["cache-control"]}`);
   const withCookie = await get(s, "/admin", { host: OLD, headers: { cookie: "better-auth.session_token=x" } });
   ok("B5 un cookie de session ne change rien à la redirection", withCookie.status === 301 && location(withCookie) === `${NEW}/admin`, `${withCookie.status} ${location(withCookie)}`);
 
