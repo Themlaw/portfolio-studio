@@ -511,6 +511,28 @@ ok("A2b /admin/themes sans session → redirection", r.status === 307, String(r.
   await sleep(200);
   ok("A2o corps lu par le proxy plafonné à 1 Mo (proxyClientMaxBodySize)", /Request body exceeded 1MB/.test(s.text()) && !/Request body exceeded 10MB/.test(s.text()), (/Request body exceeded [^.]*/.exec(s.text()) ?? [""])[0]);
 }
+// docs/SECURITE.md §2.12, P7, N20 : page 404 servie par une requête interne (port fixé, en-têtes en liste blanche, secret comparé en
+// temps constant) : ni `Expect: 100-continue`, ni un port dans `Host`, ni un faux en-tête interne ne la détournent.
+{
+  const notFoundOk = async (headers) => {
+    const res = await new Promise((resolve) => {
+      const req = httpRequest({ host: "127.0.0.1", port: PORT, path: "/fr/page-qui-n-existe-pas", method: "GET", headers }, (out) => {
+        let text = "";
+        out.on("data", (d) => (text += d));
+        out.on("end", () => resolve({ status: out.statusCode, text, cache: out.headers["cache-control"] }));
+      });
+      req.on("error", (e) => resolve({ status: -1, text: String(e) }));
+      req.end();
+    });
+    return { pass: res.status === 404 && res.text.length > 500 && /no-store/.test(res.cache ?? ""), detail: `${res.status} ${res.text.length} o` };
+  };
+  let res = await notFoundOk({ expect: "100-continue" });
+  ok("A2p page inconnue avec « Expect: 100-continue » → vraie page 404 (requête interne saine)", res.pass, res.detail);
+  res = await notFoundOk({ host: "127.0.0.1:9" });
+  ok("A2q port de l'en-tête Host ignoré pour la requête interne → vraie page 404", res.pass, res.detail);
+  res = await notFoundOk({ "x-portfolio-internal": "00000000-0000-4000-8000-000000000000" });
+  ok("A2r faux en-tête interne → traité comme une requête publique (404)", res.pass, res.detail);
+}
 r = await http("/admin/connexion");
 const loginHtml = await r.text();
 ok("A2c connexion : formulaire, noindex, pas d'Authentik", r.status === 200 && loginHtml.includes("Adresse e-mail") && loginHtml.includes("noindex") && !loginHtml.includes("Authentik"));
