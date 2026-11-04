@@ -10,7 +10,7 @@ import { cached, TAGS } from "./cache";
 import { getDb, schema } from "./db";
 import { parseVariants } from "./images/variants";
 import { mediaUrl } from "./media";
-import type { WallpaperEntry } from "@/themes/wallpaper";
+import type { WallpaperCatalogEntry, WallpaperEntry } from "@/themes/wallpaper";
 
 /** Motifs utilisables par le rendu : dans la bibliothèque (pas à la corbeille), fichier prêt. Sérialisable (cache). */
 export async function getWallpaperList(): Promise<WallpaperEntry[]> {
@@ -29,11 +29,26 @@ export async function getWallpaperList(): Promise<WallpaperEntry[]> {
 type WallpaperRow = typeof schema.wallpapers.$inferSelect;
 type MediaRow = typeof schema.media.$inferSelect;
 
-/** Entrée de rendu d'un motif (variantes WebP du média), ou null si le fichier n'a pas encore de variante. */
+/** Entrée de rendu d'un motif (variantes WebP du média), ou null si le fichier n'a pas encore de variante. Sans nom (N9). */
 export function entryOf(w: WallpaperRow, m: MediaRow): WallpaperEntry | null {
   const files = (parseVariants(m.variants)?.files ?? []).filter((f) => f.format === "webp").sort((a, b) => a.w - b.w).map((f) => ({ w: f.w, url: mediaUrl(f.key) }));
   if (!files.length || !m.width || !m.height) return null;
-  return { id: w.id, name: w.name, w: m.width, h: m.height, size: w.size, opacity: w.opacity, files };
+  return { id: w.id, w: m.width, h: m.height, size: w.size, opacity: w.opacity, files };
+}
+
+/** Bibliothèque de la toile de l'éditeur (vue brouillon seulement : `data-edit-wallpapers`), noms compris. Lecture directe, sans cache. */
+export function listWallpaperCatalog(): WallpaperCatalogEntry[] {
+  return getDb()
+    .select({ w: schema.wallpapers, m: schema.media })
+    .from(schema.wallpapers)
+    .innerJoin(schema.media, eq(schema.media.id, schema.wallpapers.mediaId))
+    .where(and(isNull(schema.wallpapers.deletedAt), isNull(schema.media.deletedAt), eq(schema.media.status, "ready")))
+    .orderBy(schema.wallpapers.id)
+    .all()
+    .flatMap(({ w, m }) => {
+      const e = entryOf(w, m);
+      return e ? [{ ...e, name: w.name }] : [];
+    });
 }
 
 /** La bibliothèque, indexée par identifiant (une lecture par page rendue). */
