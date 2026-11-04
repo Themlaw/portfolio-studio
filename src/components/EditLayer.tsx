@@ -884,7 +884,8 @@ export default function EditLayer() {
   useEffect(() => {
     if (mode === "preview") {
       const onKey = (e: KeyboardEvent) => {
-        if (e.key === "Escape") post({ kind: "key", key: "escape" });
+        // Le lecteur vidéo ouvert (Aperçu) garde l'Échap : il se ferme, l'Aperçu reste (lot 116).
+        if (e.key === "Escape" && !document.querySelector(".video-viewer")) post({ kind: "key", key: "escape" });
       };
       document.addEventListener("keydown", onKey);
       return () => document.removeEventListener("keydown", onKey);

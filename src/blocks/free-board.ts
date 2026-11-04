@@ -10,7 +10,7 @@
 import { z } from "zod";
 
 import { applyMediaPatchToFree, type MediaPatch } from "../lib/edit/media-look";
-import { FrameSchema, ImageBgSchema, RADII } from "../lib/look";
+import { FrameSchema, ImageBgSchema, RADII, SLOT_VIDEO_MODES } from "../lib/look";
 
 import { localizedText } from "./types";
 
@@ -46,6 +46,10 @@ export const FreeItemSchema = z.object({
   frame: FrameSchema.optional(),
   /** Fond derrière cette image (lot 41 : utile derrière un PNG détouré) : `card`, teinte de la palette ou couleur libre. */
   bg: ImageBgSchema.optional(),
+  /** Lecture d'une VIDÉO (lot 116) : « loop » = Boucle (muette, un clic lance / met en pause), « player » = Lecteur (image d'attente + ▶, s'ouvre en grand). Absent = Boucle (le comportement d'avant : aucune ancienne planche ne change). */
+  video: z.enum(SLOT_VIDEO_MODES).optional(),
+  /** Image d'attente choisie pour une vidéo (identifiant de la médiathèque) ; absent = celle de la vidéo. */
+  poster: z.number().int().positive().optional(),
 });
 export type FreeItem = z.infer<typeof FreeItemSchema>;
 
@@ -112,7 +116,9 @@ export type FreeModelOp =
   | { op: "front"; id: string }
   | { op: "back"; id: string }
   | { op: "remove"; id: string }
-  | { op: "replace"; id: string; media: number };
+  | { op: "replace"; id: string; media: number }
+  /** Image d'attente d'une vidéo (lot 116) ; `null` la retire (retour à celle de la vidéo). */
+  | { op: "poster"; id: string; media: number | null };
 
 const GONE = "Cette image n'est plus dans la planche libre.";
 
@@ -183,6 +189,18 @@ export function applyFreeOp(props: Props, op: FreeModelOp): { props: Props } | {
       const i = at(op.id);
       if (i < 0) return { error: GONE };
       return done(items.map((x, k) => (k === i ? { ...x, media: op.media } : x)));
+    }
+    case "poster": {
+      const i = at(op.id);
+      if (i < 0) return { error: GONE };
+      return done(
+        items.map((x, k) => {
+          if (k !== i) return x;
+          const { poster: _p, ...rest } = x;
+          void _p;
+          return op.media === null ? rest : { ...rest, poster: op.media };
+        }),
+      );
     }
   }
 }

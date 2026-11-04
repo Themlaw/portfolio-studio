@@ -33,7 +33,7 @@ import { withContactForm, FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, type
 import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, sameL, TILE_SIZE_LABELS, TILE_SIZES, tilesMode, tileSize, type CollectionPage, type TextField as TileTextField, type TileEdit, type TileItem } from "./collection-pages";
 import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
 import { useBlockEditor } from "./editor-context";
-import { applyFreeOp, FREE_FORMAT_LABELS, FREE_FORMATS, FREE_PHONE_LABELS, FREE_PHONE_MODES, freeItems, MAX_FREE_ITEMS, newFreeId, type FreeFormat, type FreeModelOp } from "./free-board";
+import { applyFreeLook, applyFreeOp, FREE_FORMAT_LABELS, FREE_FORMATS, FREE_PHONE_LABELS, FREE_PHONE_MODES, freeItems, MAX_FREE_ITEMS, newFreeId, type FreeFormat, type FreeModelOp } from "./free-board";
 import FormatSelect from "./FormatSelect";
 import type { L } from "./editor-types";
 import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "./video-mode";
@@ -984,7 +984,7 @@ export function ContactFormEditor() {
  */
 export function FreeBoardEditor() {
   const { value, onChange, context } = useBlockEditor();
-  const [picking, setPicking] = useState<{ id?: string } | null>(null);
+  const [picking, setPicking] = useState<{ id?: string; poster?: boolean } | null>(null);
   const items = freeItems(value);
   const apply = (op: FreeModelOp) => {
     const res = applyFreeOp(value, op);
@@ -1041,6 +1041,34 @@ export function FreeBoardEditor() {
                     ✕
                   </button>
                 </div>
+                {m?.kind === "video" && (
+                  <>
+                    {/* Réglages propres à la vidéo (lot 116) : les mêmes que dans un composant Vidéo ou une case de grille. */}
+                    <Select
+                      label="Lecture"
+                      help={VIDEO_MODE_HINTS[it.video ?? "loop"]}
+                      value={it.video ?? "loop"}
+                      options={VIDEO_MODE_OPTIONS}
+                      onChange={(v) => {
+                        const res = applyFreeLook(value, it.id, { video: v === "player" ? "player" : "loop" });
+                        if (!("error" in res)) onChange(res.props);
+                      }}
+                    />
+                    <div className="ve-board-kid-tools" role="group" aria-label="Affiche de la vidéo">
+                      <button type="button" className="a-btn a-btn-small" data-testid={`free-poster-${i}`} onClick={() => setPicking({ id: it.id, poster: true })}>
+                        {it.poster ? "Changer l'affiche" : "Choisir une affiche"}
+                      </button>
+                      {it.poster && (
+                        <button type="button" className="a-btn a-btn-small" onClick={() => apply({ op: "poster", id: it.id, media: null })}>
+                          Sans affiche
+                        </button>
+                      )}
+                    </div>
+                    <p className="ve-hint" data-testid={`free-sound-${i}`}>
+                      {m.hasAudio === false ? "Vidéo sans son : pas de bouton son." : "Cette vidéo a du son : un bouton son s'affiche, la lecture démarre muette."}
+                    </p>
+                  </>
+                )}
                 <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
                   <span>Largeur (%)</span>
                   <input type="number" min={4} max={150} step={1} value={Math.round(it.w)} data-testid={`free-w-${i}`} onChange={(e) => Number.isFinite(e.target.valueAsNumber) && apply({ op: "place", id: it.id, w: e.target.valueAsNumber })} />
@@ -1060,13 +1088,14 @@ export function FreeBoardEditor() {
         </div>
         <MediaPickerDialog
           open={picking !== null}
-          media={context.media.filter((m) => m.kind === "image" || m.kind === "video")}
-          title={picking?.id ? "Remplacer l'image" : "Ajouter une image"}
+          media={context.media.filter((m) => m.kind === "image" || (m.kind === "video" && !picking?.poster))}
+          title={picking?.poster ? "Affiche de la vidéo" : picking?.id ? "Remplacer l'image" : "Ajouter une image"}
           onClose={() => setPicking(null)}
           onPick={(m) => {
             const at = picking;
             setPicking(null);
             if (!at) return;
+            if (at.id && at.poster) return apply({ op: "poster", id: at.id, media: m.id });
             if (at.id) return apply({ op: "replace", id: at.id, media: m.id });
             const n = items.length;
             apply({ op: "put", id: newFreeId(), media: m.id, x: 30 + ((n * 13) % 45), y: 38 + ((n * 17) % 30), ratio: m.width && m.height ? m.width / m.height : 1.5 });

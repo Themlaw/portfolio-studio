@@ -1040,7 +1040,7 @@ export default function VisualEditor({
    * Planche libre (lot 42), page ou planche de projet : les images se posent et se règlent par `applyFreeOp` (src/blocks/free-board.ts),
    * le même modèle pour la toile, le panneau et les tests. Un geste = une écriture = un pas d'historique (Annuler / Rétablir).
    */
-  const [freePick, setFreePick] = useState<{ uid: string; board?: number; props?: string; id?: string } | null>(null);
+  const [freePick, setFreePick] = useState<{ uid: string; board?: number; props?: string; id?: string; poster?: boolean } | null>(null);
   const freeBase = (uid: string, board?: number, fallback?: string): Record<string, unknown> | null => {
     if (!board) {
       const b = findBlock(draftRef.current.blocks, uid);
@@ -1084,6 +1084,21 @@ export default function VisualEditor({
   const freeChoose = async (p: NonNullable<typeof freePick>, mediaId: number, hint?: string): Promise<boolean> => {
     const base = freeBase(p.uid, p.board, p.props);
     if (!base) return false;
+    // Image d'attente d'une vidéo (lot 116) : une image de la médiathèque, écrite sur la ligne de la vidéo.
+    if (p.poster && p.id) {
+      if (blockedRef.current) return false;
+      if (p.board) await itemFlushRef.current();
+      if (mediaKindOf(mediaId, hint) !== "image") {
+        toast("L'affiche d'une vidéo est une image.", "error");
+        return false;
+      }
+      const res = applyFreeOp(base, { op: "poster", id: p.id, media: mediaId });
+      if ("error" in res) {
+        toast(res.error, "error");
+        return false;
+      }
+      return gridWrite(p.uid, p.board, res.props);
+    }
     if (!p.id) {
       const n = Array.isArray(base.items) ? base.items.length : 0;
       return freePut(p.uid, p.board, n === 0 ? 50 : 35 + ((n * 13) % 40), n === 0 ? 50 : 40 + ((n * 17) % 25), mediaId, hint, p.props);
@@ -1111,7 +1126,7 @@ export default function VisualEditor({
     }
     const op = msg.op;
     if (op.op === "pick") {
-      setFreePick({ uid: msg.uid, ...(msg.board ? { board: msg.board, ...(msg.props ? { props: msg.props } : {}) } : {}), ...(op.id ? { id: op.id } : {}) });
+      setFreePick({ uid: msg.uid, ...(msg.board ? { board: msg.board, ...(msg.props ? { props: msg.props } : {}) } : {}), ...(op.id ? { id: op.id } : {}), ...(op.poster ? { poster: true } : {}) });
       return true;
     }
     const res = applyFreeOp(base, op as FreeModelOp);
@@ -3758,7 +3773,7 @@ export default function VisualEditor({
 
       <MediaPickerDialog
         open={freePick !== null}
-        media={context.media.filter((m) => m.kind === "image" || m.kind === "video")}
+        media={context.media.filter((m) => m.kind === "image" || (m.kind === "video" && !freePick?.poster))}
         onClose={() => setFreePick(null)}
         onPick={(mediaId) => {
           const p = freePick;

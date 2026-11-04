@@ -22,6 +22,7 @@ import { dataDir } from "@/lib/db";
 import type { VariantFile } from "@/lib/images/variants";
 import { getStorage } from "@/lib/storage";
 
+import { pickAudioTrack } from "./audio";
 import { decoderFor, isAllowedAudio, isAllowedVideo, videoLimits } from "./limits";
 import { runProbe } from "./probe";
 
@@ -116,7 +117,10 @@ export async function transcodeVideo(
   onProgress: (percent: number) => void,
 ): Promise<{ result: TranscodeResult; stats: FfmpegStats }> {
   const limits = videoLimits();
-  const probe = await runProbe(input.file, input.container);
+  const found = await runProbe(input.file, input.container);
+  // Piste son (lot 116) : la première piste AUDIBLE ; aucune = sans son. hasAudio et audioCodec ne parlent plus que de cette piste.
+  const track = await pickAudioTrack(input.file, input.container, found.audioStreams);
+  const probe = { ...found, hasAudio: track !== null, audioCodec: track === null ? null : (found.audioStreams[track] ?? null) };
   if (!isAllowedVideo(probe.videoCodec) || (probe.audioCodec && !isAllowedAudio(probe.audioCodec))) {
     throw new Error(`codec non pris en charge (${probe.videoCodec}/${probe.audioCodec})`);
   }
@@ -144,7 +148,7 @@ export async function transcodeVideo(
         ...decoderArgs(probe),
         "-protocol_whitelist", "file", "-f", input.container, "-i", "file:" + input.file,
         "-filter_threads", "1",
-        "-map", "0:v:0", ...(probe.hasAudio ? ["-map", "0:a:0"] : []),
+        "-map", "0:v:0", ...(track !== null ? ["-map", `0:a:${track}`] : []),
         "-vf", scale(o.t, landscape),
         "-threads", "2",
         "-x264-params", "rc-lookahead=10:sync-lookahead=0:lookahead-threads=1",

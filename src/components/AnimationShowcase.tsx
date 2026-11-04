@@ -2,7 +2,9 @@
 
 import MediaFrame from "./MediaFrame";
 import Picture from "./Picture";
+import VideoBadge from "./VideoBadge";
 import VideoViewer from "./VideoViewer";
+import { useEditCanvas } from "./video-playback";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 
@@ -52,6 +54,8 @@ export function Frame({
   const t = useTranslations("animation");
   // Vidéo hébergée (mode « Lecteur ») : elle s'ouvre en grand dans la visionneuse ; un plan YouTube joue sur place.
   const [open, setOpen] = useState(false);
+  // Aperçu de l'éditeur = comme un visiteur : seule la toile en mode édition garde le clic pour choisir (lot 116).
+  const canvas = useEditCanvas(edit);
 
   return (
     <>
@@ -100,13 +104,13 @@ export function Frame({
                 type="button"
                 onClick={() => {
                   if (!item.video) onPlay();
-                  else if (!edit) setOpen(true);
+                  else if (!canvas) setOpen(true);
                 }}
                 aria-haspopup={item.video ? "dialog" : undefined}
                 aria-label={t("playAria", { title: item.title })}
-                className="video-play group absolute inset-0 flex items-end p-5 md:p-7"
+                className="video-play group absolute inset-0"
               >
-                <PlayBadge label={t("play")} />
+                <VideoBadge kind="player" duration={item.video?.durationLabel ?? item.duration} label={t("play")} />
               </button>
             )}
           </>

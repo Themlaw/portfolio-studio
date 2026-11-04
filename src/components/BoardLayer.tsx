@@ -42,6 +42,7 @@ import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS,
 import ImageBgWindow from "./edit/ImageBgMenu";
 import Popover from "./edit/Popover";
 import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
+import VideoModeSeg from "./edit/VideoModeSeg";
 import { lookOf, sendMediaLook, sendSlotLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
 import { freeRefOf } from "./edit/free-dom";
@@ -1563,18 +1564,7 @@ function SlotVideoMode({ el }: { el: Element }) {
     sendSlotLook(uid, slug, { video: m });
     bump((n) => n + 1);
   };
-  return (
-    <span className="pe-seg" role="group" aria-label="Lecture de la vidéo" data-testid="slot-video-mode">
-      <span className="pe-seg-label" aria-hidden="true">
-        Lecture
-      </span>
-      {VIDEO_MODES.map((m) => (
-        <button key={m} type="button" aria-pressed={now === m} title={VIDEO_MODE_HINTS[m]} data-slot-video-set={m} onClick={() => change(m)}>
-          {VIDEO_MODE_LABELS[m]}
-        </button>
-      ))}
-    </span>
-  );
+  return <VideoModeSeg now={now} onChange={change} testId="slot-video-mode" attr="data-slot-video-set" />;
 }
 
 /**

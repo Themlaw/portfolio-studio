@@ -38,7 +38,7 @@ export const BLOCK_REFS: Record<string, BlockRefs> = {
   cv: { media: ["mediaId"] },
   grid: {},
   // Planche libre (lot 42) : chaque image posée cite un média.
-  "free-board": { media: ["items[].media"] },
+  "free-board": { media: ["items[].media", "items[].poster"] },
   "contact-form": {},
   // Ancien bloc (avant v0.13), encore lu.
   "featured-projects": { pages: ["more.pageId"], projects: ["projects[]"] },
