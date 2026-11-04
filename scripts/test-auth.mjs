@@ -435,7 +435,8 @@ console.log("\n== A. mot de passe");
 const dirA = `${TMP}/a`;
 let s = startServer(dirA, baseEnv);
 ok("A0 démarrage", await s.ready);
-ok("A1 premier admin amorcé", s.text().includes(`premier administrateur créé : ${ADMIN.email}`));
+ok("A1 premier admin amorcé (e-mail masqué dans le journal, N20)", s.text().includes("premier administrateur créé : a***@example.test"));
+ok("A1b aucune ligne [auth] du journal ne contient l'adresse en clair (N20)", !s.text().split("\n").some((l) => l.includes("[auth]") && l.includes(ADMIN.email)));
 ok("A1b mot de passe absent des journaux", !s.text().includes(ADMIN.password));
 ok("A1c avertissement : PUBLIC_BASE_URL en http en production", s.text().includes("PUBLIC_BASE_URL est en http"));
 
@@ -1695,6 +1696,14 @@ ok(
   JSON.stringify(attack.byCode),
 );
 
+// N20 : 20 échecs sur un même compte (IP différentes) déclenchent l'alerte par compte, adresse masquée.
+{
+  for (let i = 0; i < 20; i++) await signIn(new Jar(), "cible.n20@example.test", "faux", `198.18.20.${i + 1}`);
+  await sleep(300);
+  const lines = s.text().split("\n");
+  ok("A99 N20 alerte « échecs sur le compte » journalisée avec l'adresse masquée", lines.some((l) => l.includes("[auth] ALERTE") && l.includes("c***@example.test") && !l.includes("cible.n20")), lines.filter((l) => l.includes("ALERTE")).slice(0, 1).join(""));
+  ok("A99b N20 aucune ligne [auth] ne contient une adresse en clair", !lines.some((l) => l.includes("[auth]") && /[^\s*]@example\.test/.test(l)), lines.filter((l) => l.includes("[auth]") && /[^\s*]@example\.test/.test(l)).slice(0, 2).join(" | "));
+}
 await stop(s);
 
 console.log("\n== B. amorçage idempotent");

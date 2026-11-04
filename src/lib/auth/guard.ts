@@ -19,6 +19,7 @@ import { noteAuditUser } from "@/lib/journal/context";
 
 import { checkUserAccess } from "./identity";
 import { getAuth } from "./index";
+import { maskEmail } from "./mask";
 
 export const LOGIN_PATH = "/admin/connexion";
 
@@ -28,7 +29,7 @@ export const getAdminSession = cache(async () => {
   const verdict = checkUserAccess(session.user.id);
   if (!verdict.allowed) {
     getDb().delete(schema.session).where(eq(schema.session.token, session.session.token)).run();
-    console.warn(`[auth] session révoquée pour ${session.user.email} : ${verdict.reason}`);
+    console.warn(`[auth] session révoquée pour ${maskEmail(session.user.email)} : ${verdict.reason}`);
     return null;
   }
   return session;

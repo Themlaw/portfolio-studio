@@ -11,6 +11,7 @@ import { hashPassword } from "better-auth/crypto";
 import { count } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { maskEmail } from "./mask";
 
 export async function ensureFirstAdmin(): Promise<void> {
   const db = getDb();
@@ -57,7 +58,7 @@ export async function ensureFirstAdmin(): Promise<void> {
         })
         .run();
     });
-    console.log(`[auth] premier administrateur créé : ${email}`);
+    console.log(`[auth] premier administrateur créé : ${maskEmail(email)}`);
   } catch (error) {
     // Démarrage concurrent : un autre processus l'a créé entre-temps.
     if (String(error).includes("UNIQUE")) return;

@@ -186,6 +186,32 @@ const stale = Object.keys(SPECS).filter((n) => !wrapped.has(n) && !routes.has(n)
 ok("le catalogue ne cite aucune action disparue", stale.length === 0, stale.join(", "));
 ok("lecture : aucune lecture n'est enveloppée", [...READS].every((n) => !wrapped.has(n)));
 
+/* ---- N20 (docs/SECURITE.md) : jamais une adresse e-mail entière dans stdout ---- */
+{
+  const { maskEmail } = await import("../src/lib/auth/mask.ts");
+  ok("N20 maskEmail : k***@x.fr", maskEmail("kate@x.fr") === "k***@x.fr", maskEmail("kate@x.fr"));
+  ok("N20 maskEmail : domaine gardé, local masqué", maskEmail("artiste@example.test") === "a***@example.test");
+  ok("N20 maskEmail : saisie qui n'est pas une adresse", maskEmail("pas-une-adresse") === "p***" && maskEmail("@x.fr") === "@***" && maskEmail("") === "?" && maskEmail(null) === "?");
+  ok("N20 maskEmail : caractère hors BMP, contrôles retirés du domaine", maskEmail("\u{1F600}x@a\u202E.fr") === "\u{1F600}***@a.fr", maskEmail("\u{1F600}x@a\u202E.fr"));
+  ok("N20 maskEmail : domaine borné", maskEmail(`a@${"b".repeat(500)}`).length <= 86);
+  // Aucun console.* du serveur n'interpole une adresse sans la masquer.
+  const offenders = [];
+  const walk = (dir) => {
+    for (const name of readdirSync(dir)) {
+      const full = path.join(dir, name);
+      if (statSync(full).isDirectory()) walk(full);
+      else if (/\.(ts|tsx)$/.test(name))
+        readFileSync(full, "utf8")
+          .split("\n")
+          .forEach((line, i) => {
+            if (/console\.(log|warn|error|info)\(/.test(line) && /\$\{[^}]*\bemail\b[^}]*\}/i.test(line) && !/maskEmail\(/.test(line)) offenders.push(`${path.relative(ROOT, full)}:${i + 1}`);
+          });
+    }
+  };
+  walk(path.join(ROOT, "src"));
+  ok("N20 aucun journal du serveur n'écrit d'e-mail en clair", offenders.length === 0, offenders.join(" "));
+}
+
 store.closeLog();
 rmSync(tmp, { recursive: true, force: true });
 console.log(failures ? `${failures} échec(s)` : "Tout est vert");

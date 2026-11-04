@@ -17,6 +17,7 @@
 import { eq, lt } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
+import { maskEmail } from "./mask";
 
 const IP_WINDOW_MS = 60 * 1000;
 export const IP_MAX = 5;
@@ -70,7 +71,7 @@ function alertOnAccount(email: string, now: number) {
   hour.push(now);
   accountFailures.set(email, hour);
   if (hour.length === ACCOUNT_ALERT_PER_HOUR || (hour.length > ACCOUNT_ALERT_PER_HOUR && hour.length % 100 === 0)) {
-    console.warn(`[auth] ALERTE : ${hour.length} échecs de connexion en une heure sur le compte ${email} (toutes IP)`);
+    console.warn(`[auth] ALERTE : ${hour.length} échecs de connexion en une heure sur le compte ${maskEmail(email)} (toutes IP)`);
   }
 }
 
