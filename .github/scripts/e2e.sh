@@ -31,7 +31,8 @@ mkdir -p "$DATA_DIR"
 
 # Groupe de processus à part (setsid) : npx, next dev et ses workers arrêtés ensemble.
 start_dev() {
-  setsid npx next dev -p "$PORT" >>"$LOGS/$ID-server.log" 2>&1 &
+  # PORTFOLIO_DEV=1 : mode développement explicite (aperçu de thème ouvert, secret de dev ; src/lib/dev-mode.ts).
+  PORTFOLIO_DEV=1 setsid npx next dev -p "$PORT" >>"$LOGS/$ID-server.log" 2>&1 &
   DEV=$!
 }
 # Serveur de production : standalone + ressources que l'image Docker y copie

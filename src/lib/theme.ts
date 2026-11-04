@@ -23,6 +23,7 @@ import { DEFAULT_THEME_ID, PRESETS } from "@/themes/presets";
 import { ThemeSchema, type Theme } from "@/themes/schema";
 
 import { getAdminSession } from "./auth/guard";
+import { isDevMode } from "./dev-mode";
 
 import { cached, isBuildPhase, TAGS } from "./cache";
 import { getDb, schema } from "./db";
@@ -37,9 +38,9 @@ export async function isPreviewBannerHidden(): Promise<boolean> {
   return isThemePreviewOpen() && (await cookies()).get(PREVIEW_BANNER_COOKIE)?.value === "off";
 }
 
-/** Aperçu ouvert sans session ? (développement uniquement : scripts de test) */
+/** Aperçu ouvert sans session ? (développement EXPLICITE uniquement, PORTFOLIO_DEV=1 : scripts de test) */
 export function isThemePreviewOpen(): boolean {
-  return process.env.NODE_ENV !== "production";
+  return isDevMode();
 }
 
 /** Thème prévisualisable par la requête courante (draft mode + droit), sinon null. */

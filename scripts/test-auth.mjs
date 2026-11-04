@@ -1956,6 +1956,19 @@ s = startServer(`${TMP}/e1`, { ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.p
 ok("E1 sans BETTER_AUTH_SECRET → arrêt (code 1)", (await s.exited) === 1 && s.text().includes("BETTER_AUTH_SECRET est absent"), s.text().match(/\[auth\] ÉCHEC[^\n]*/)?.[0]?.slice(0, 80) ?? "");
 s = startServer(`${TMP}/e2`, { BETTER_AUTH_SECRET: "trop-court" });
 ok("E2 secret trop court → arrêt (code 1)", (await s.exited) === 1 && s.text().includes("trop court"));
+// docs/SECURITE.md §2.5 : les facilités du développement ne dépendent plus de NODE_ENV seul, mais de PORTFOLIO_DEV=1 (hors production).
+s = startServer(`${TMP}/e3`, { NODE_ENV: "development", ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password });
+ok("E3 NODE_ENV ≠ production SANS PORTFOLIO_DEV, sans secret → arrêt (aucun secret de dev)", (await s.exited) === 1 && s.text().includes("BETTER_AUTH_SECRET est absent"), s.text().match(/\[auth\][^\n]*/)?.[0]?.slice(0, 100) ?? "");
+s = startServer(`${TMP}/e4`, { PORTFOLIO_DEV: "1", ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password });
+ok("E4 PORTFOLIO_DEV=1 mais NODE_ENV=production, sans secret → arrêt (le drapeau seul ne suffit pas)", (await s.exited) === 1 && s.text().includes("BETTER_AUTH_SECRET est absent"));
+s = startServer(`${TMP}/e5`, { ...baseEnv, NODE_ENV: "development" });
+if (await s.ready) {
+  r = await http("/api/theme-preview?id=pro&redirect=/fr");
+  ok("E5 NODE_ENV ≠ production sans PORTFOLIO_DEV : aperçu de thème fermé aux anonymes (404)", r.status === 404, String(r.status));
+  r = await http("/admin/connexion");
+  ok("E5b … et CSP de l'admin sans unsafe-eval ni ws:", !/unsafe-eval|ws:/.test(r.headers.get("content-security-policy") ?? ""), r.headers.get("content-security-policy")?.slice(0, 80));
+} else ok("E5 serveur NODE_ENV=development démarré", false, s.text().slice(-300));
+await stop(s);
 
 console.log("\n== F. mémoire du traitement d'images (VmHWM du serveur, un serveur neuf par image)");
 const baseEnvF = { ...baseEnv, AUTH_TRUSTED_PROXY_HOPS: "1" };

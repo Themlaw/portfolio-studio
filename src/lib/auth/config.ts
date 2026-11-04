@@ -6,11 +6,15 @@
  *    _CLIENT_SECRET sont TOUS présents ;
  *  - AUTH_PASSWORD_DISABLED=true coupe le mot de passe SEULEMENT si l'OIDC est
  *    actif, sinon il est ignoré (avertissement) : on ne s'enferme jamais dehors ;
- *  - BETTER_AUTH_SECRET obligatoire (≥ 32 caractères) en production ;
+ *  - BETTER_AUTH_SECRET obligatoire (≥ 32 caractères), sauf en mode développement
+ *    EXPLICITE (PORTFOLIO_DEV=1 hors production, src/lib/dev-mode.ts) : sans lui,
+ *    le démarrage est refusé quel que soit NODE_ENV ;
  *  - autorisation Authentik : groupe (AUTH_ADMIN_GROUP) et/ou `sub` explicites
  *    (AUTH_ADMIN_SUBS) ; ADMIN_EMAILS seulement si email_verified === true
  *    (mode le plus faible, voir README).
  */
+
+import { isDevMode } from "../dev-mode";
 
 export const OIDC_PROVIDER_ID = "authentik";
 /** Longueur minimale d'un NOUVEAU mot de passe (Better Auth, amorçage du premier admin) ; jamais vérifiée à la connexion. */
@@ -43,6 +47,7 @@ function env(name: string): string | undefined {
 
 export function readAuthConfig(): AuthConfig {
   const isProd = process.env.NODE_ENV === "production";
+  const dev = isDevMode();
   const warnings: string[] = [];
 
   const baseURL = (env("PUBLIC_BASE_URL") ?? (isProd ? DEFAULT_PUBLIC_URL : "http://localhost:3001")).replace(/\/+$/, "");
@@ -52,13 +57,13 @@ export function readAuthConfig(): AuthConfig {
     );
   }
   const trustedOrigins = [new URL(baseURL).origin];
-  if (!isProd) trustedOrigins.push("http://localhost:3001", "http://127.0.0.1:3001", "http://192.0.2.10:3001");
+  if (dev) trustedOrigins.push("http://localhost:3001", "http://127.0.0.1:3001", "http://192.0.2.10:3001");
 
   const rawSecret = env("BETTER_AUTH_SECRET");
   let secretError: string | null = null;
   if (!rawSecret) secretError = "BETTER_AUTH_SECRET est absent";
   else if (rawSecret.length < 32) secretError = `BETTER_AUTH_SECRET est trop court (${rawSecret.length} caractères, 32 minimum)`;
-  if (secretError && !isProd) warnings.push(`${secretError} : secret de développement utilisé (interdit en production).`);
+  if (secretError && dev) warnings.push(`${secretError} : secret de développement utilisé (PORTFOLIO_DEV=1, interdit en production).`);
 
   const issuer = env("AUTH_OIDC_ISSUER");
   const clientId = env("AUTH_OIDC_CLIENT_ID");
@@ -110,7 +115,8 @@ export function readAuthConfig(): AuthConfig {
     baseURL,
     trustedOrigins,
     secret: rawSecret && !secretError ? rawSecret : DEV_SECRET,
-    secretError: isProd ? secretError : null,
+    // Sans PORTFOLIO_DEV=1, un secret absent ou trop court refuse le démarrage, même si NODE_ENV n'est pas « production ».
+    secretError: dev ? null : secretError,
     oidc,
     passwordEnabled,
     adminEmails,
