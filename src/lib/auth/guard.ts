@@ -18,6 +18,7 @@ import { getDb, schema } from "@/lib/db";
 import { noteAuditUser } from "@/lib/journal/context";
 
 import { checkUserAccess } from "./identity";
+import { sessionTooOld } from "./sessions";
 import { getAuth } from "./index";
 
 export const LOGIN_PATH = "/admin/connexion";
@@ -25,6 +26,12 @@ export const LOGIN_PATH = "/admin/connexion";
 export const getAdminSession = cache(async () => {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) return null;
+  // Audit de sécurité P3 : durée absolue (7 jours après la connexion), même pour une session utilisée chaque jour.
+  if (sessionTooOld(session.session.createdAt)) {
+    getDb().delete(schema.session).where(eq(schema.session.token, session.session.token)).run();
+    console.warn(`[auth] session expirée (plus de 7 jours depuis la connexion) pour ${session.user.email} : reconnexion demandée`);
+    return null;
+  }
   const verdict = checkUserAccess(session.user.id);
   if (!verdict.allowed) {
     getDb().delete(schema.session).where(eq(schema.session.token, session.session.token)).run();
@@ -43,7 +50,7 @@ export type AdminSession = NonNullable<Awaited<ReturnType<typeof getAdminSession
  */
 export async function isAdminRequest(requestHeaders: Headers): Promise<boolean> {
   const session = await getAuth().api.getSession({ headers: requestHeaders });
-  return Boolean(session && checkUserAccess(session.user.id).allowed);
+  return Boolean(session && !sessionTooOld(session.session.createdAt) && checkUserAccess(session.user.id).allowed);
 }
 
 /** Pages de l'admin : redirige vers la connexion sans session valide. */

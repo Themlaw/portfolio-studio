@@ -13,6 +13,7 @@ import { getDb, schema } from "@/lib/db";
 import { CLIENT_IP_HEADER } from "./client-ip";
 import { identityFromProfile, isOidcIdentityAllowed, OIDC_PROVIDER_ID, readAuthConfig } from "./config";
 import { forgetIdentity, rememberIdentity } from "./identity";
+import { SESSION_IDLE_S, SESSION_UPDATE_AGE_S } from "./sessions";
 
 export const ADMIN_NOT_ALLOWED = "admin_not_allowed";
 
@@ -74,6 +75,12 @@ function createAuth() {
         };
       },
     },
+    session: {
+      // Audit de sécurité P3 : durées explicites. Expiration après 3 jours sans utilisation (prolongée au plus une fois par
+      // heure quand la session sert) ; la durée ABSOLUE (7 jours après la connexion) est vérifiée par la garde (guard.ts).
+      expiresIn: SESSION_IDLE_S,
+      updateAge: SESSION_UPDATE_AGE_S,
+    },
     account: {
       // Aucune liaison automatique par e-mail : une identité Authentik qui
       // porte l'e-mail d'un compte existant est refusée (account_not_linked),
@@ -108,6 +115,11 @@ function createAuth() {
             code: "PASSWORD_DISABLED",
             message: "La connexion par mot de passe est désactivée sur ce site.",
           });
+        }
+        // Audit de sécurité P3 : changer le mot de passe déconnecte TOUJOURS les autres sessions, quoi que demande le client
+        // (un cookie volé ne survit pas au changement de mot de passe, même fait par un appel direct à l'API).
+        if (ctx.path === "/change-password" && ctx.body && typeof ctx.body === "object") {
+          return { context: { body: { ...(ctx.body as Record<string, unknown>), revokeOtherSessions: true } } };
         }
       }),
     },

@@ -17,7 +17,7 @@ const root = path.resolve(new URL("..", import.meta.url).pathname);
 const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 
 /** Fichiers lus à l'exécution, hors traçage de Next (kit-child.cjs, visuels statiques du tuto). */
-const RUNTIME = ["public/kit/fonts.conf", "public/kit/pdf-fonts.conf", "public/kit/Figtree.ttf", "public/kit/fonts", "public/admin/tuto", "drizzle", "seed", "src/lib/kit/child.ts", "scripts/restore-backup.mjs"];
+const RUNTIME = ["public/kit/fonts.conf", "public/kit/pdf-fonts.conf", "public/kit/Figtree.ttf", "public/kit/fonts", "public/admin/tuto", "drizzle", "seed", "src/lib/kit/child.ts", "scripts/restore-backup.mjs", "scripts/reset-password.mjs"];
 
 const referenced = new Set(RUNTIME);
 for (const name of ["build", "build:local"]) {

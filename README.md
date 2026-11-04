@@ -321,6 +321,18 @@ aussi ses sessions en cours.
   l'admin) reste fixé en bas du site tant que l'aperçu dure ; il n'existe que dans
   les requêtes en draft mode, jamais dans le HTML en cache public. Fin de l'aperçu
   à la déconnexion. `/api/theme-preview` n'existe qu'en développement.
+- Sessions (audit de sécurité P3) : expiration après **3 jours sans utilisation**, et au plus tard **7 jours après la
+  connexion** (vérifié par la garde de l'admin, même pour une session utilisée chaque jour). Admin → Réglages →
+  **Sécurité du compte** (`/admin/compte`) : changer le mot de passe (déconnecte TOUJOURS les autres appareils, forcé
+  côté serveur, même par un appel direct à `/api/auth/change-password`), liste des appareils connectés (navigateur, IP,
+  dates), « Déconnecter les autres sessions ».
+- Mot de passe perdu ou intrusion : `reset-password.mjs` est dans l'image (ni shell ni sqlite3) ; il pose un nouveau mot
+  de passe (lu sur l'entrée standard, ou tiré au hasard et affiché une fois) et **coupe toutes les sessions** :
+  ```sh
+  docker compose run --rm --no-deps -T --entrypoint /nodejs/bin/node portfolio reset-password.mjs moi@exemple.fr < /dev/null
+  printf '%s\n' 'nouvelle phrase de passe' | docker compose run --rm --no-deps -T --entrypoint /nodejs/bin/node portfolio reset-password.mjs moi@exemple.fr
+  ```
+  Changer aussi `BETTER_AUTH_SECRET` invalide d'un coup toutes les sessions (voir docs/SAUVEGARDES.md, « Déménager »).
 
 Tests : `npm test` (statique, inclut la garde des server actions) ;
 `npm run build:local && npm run test:auth` (intégration sur le build standalone, faux
