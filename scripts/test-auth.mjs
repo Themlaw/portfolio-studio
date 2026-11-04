@@ -436,7 +436,7 @@ const dirA = `${TMP}/a`;
 let s = startServer(dirA, baseEnv);
 ok("A0 démarrage", await s.ready);
 ok("A1 premier admin amorcé (e-mail masqué dans le journal, N20)", s.text().includes("premier administrateur créé : a***@example.test"));
-ok("A1b aucune ligne [auth] du journal ne contient l'adresse en clair (N20)", !s.text().split("\n").some((l) => l.includes("[auth]") && l.includes(ADMIN.email)));
+ok("A1e aucune ligne [auth] du journal ne contient l'adresse en clair (N20)", !s.text().split("\n").some((l) => l.includes("[auth]") && l.includes(ADMIN.email)));
 ok("A1b mot de passe absent des journaux", !s.text().includes(ADMIN.password));
 ok("A1c avertissement : PUBLIC_BASE_URL en http en production", s.text().includes("PUBLIC_BASE_URL est en http"));
 
