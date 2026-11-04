@@ -18,6 +18,38 @@ PORT=3001 node verify.mjs   # harnais de régression Playwright (serveur dev lan
 
 Les scripts Playwright ponctuels (captures, contrôles) sont dans `scripts/`.
 
+### Scripts d'installation des paquets désactivés (`.npmrc`)
+
+Le `.npmrc` du dépôt pose `ignore-scripts=true` : `npm ci` / `npm install` n'exécutent
+**aucun** script `preinstall` / `install` / `postinstall` des paquets (un paquet compromis
+ne tourne pas en root sur la VM au moment de l'installation). Comme en CI et dans l'image.
+
+Vérifié par un `npm ci` complet sous ce `.npmrc` (dossier vide) : **rien à reconstruire**.
+Les paquets qui déclarent un script fonctionnent sans lui :
+
+| Paquet | Pourquoi ça marche sans script |
+|---|---|
+| `better-sqlite3` | binaires N-API précompilés dans `prebuilds/` (le script ne ferait qu'un `node-gyp rebuild`) |
+| `esbuild` (direct, `tsx`, `drizzle-kit`) | `bin/esbuild` reste le lanceur JS, qui appelle le binaire du paquet optionnel `@esbuild/linux-x64` (le script ne fait que le recopier, pour gagner quelques ms au démarrage) |
+| `@swc/core` (via `next-intl`), `@parcel/watcher`, `unrs-resolver` | binaire du paquet optionnel de la plateforme (`@swc/core-linux-x64-gnu`…), chargé directement |
+| `fsevents` | macOS seulement |
+
+`sharp`, `lightningcss`, `@tailwindcss/oxide`, `@next/swc-*`, `@neplex/vectorizer` n'ont pas
+de script (paquets optionnels par plateforme).
+
+Si un paquet en a vraiment besoin un jour, le reconstruire **explicitement**, en levant le
+drapeau pour cette seule commande (sans lui, `npm rebuild` ne fait que relier les binaires
+et n'exécute rien) :
+
+```bash
+npm rebuild <paquet> --ignore-scripts=false     # ex. npm rebuild esbuild --ignore-scripts=false
+```
+
+et ajouter l'étape équivalente au Dockerfile (`RUN npm rebuild <paquet>`, l'image passe
+`--ignore-scripts`) et à la CI. `npm run <script>` n'est pas concerné (les scripts du
+projet tournent) ; seuls les scripts `pre…` / `post…` du projet seraient ignorés (il n'y en a
+aucun : ne pas en ajouter).
+
 ## Thèmes
 
 Le rendu est piloté par un thème (tokens + variantes + assets), voir
