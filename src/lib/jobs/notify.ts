@@ -11,10 +11,15 @@ import { TAGS } from "@/lib/cache";
 
 export const INTERNAL_TOKEN_HEADER = "x-portfolio-internal-token";
 
-/** Jeton partagé par toutes les copies du module dans ce processus. */
+const G = globalThis as typeof globalThis & { __portfolioInternalToken?: string };
+
+/**
+ * Jeton partagé par toutes les copies du module dans ce processus (worker et route, bundles distincts) : rangé sur `globalThis`,
+ * JAMAIS dans `process.env`, que tout processus enfant hériterait (ffmpeg et ffprobe lisent des fichiers envoyés).
+ */
 export function internalToken(): string {
-  process.env.PORTFOLIO_INTERNAL_TOKEN ||= randomBytes(24).toString("hex");
-  return process.env.PORTFOLIO_INTERNAL_TOKEN;
+  G.__portfolioInternalToken ||= randomBytes(24).toString("hex");
+  return G.__portfolioInternalToken;
 }
 
 /** Port local du serveur (mémorisé à la première requête d'admin). */
