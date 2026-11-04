@@ -620,7 +620,7 @@ function FondPanel({
     // Une section AJOUTÉE (l'autre existait) range les deux dans l'ordre normal ; régler une section déjà là ne déplace rien et n'écrit que sa couche (lot 107 :
     // l'ordre lu est gardé, y compris une carte dehors autour d'un fond en retrait).
     const added = next !== null && fc[slot] === null;
-    const w = writeFondCarte(setSlot(fc, slot, next, caps), caps, added, outer ?? undefined, added ? (slot === "fond" ? "carte" : "fond") : undefined);
+    const w = writeFondCarte(setSlot(fc, slot, next, caps), caps, added, outer ?? undefined);
     onChange({ ...(w.surface ? { surface: w.surface } : {}), ...(w.background ? { background: w.background } : {}) }, continuous);
   };
   return (

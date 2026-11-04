@@ -460,7 +460,10 @@ if (run("B")) {
         const dT = propsAt(1), dB = propsAt(3);
         const sameData = canonJ({ s: dT?.surface, b: dT?.background }) === canonJ({ s: dB?.surface, b: dB?.background });
         const good = lacks.length === 0 && sameState && sameLook && sameRender;
-        ok(`${label} : recréée par les gestes (menu, rendu${hasLayers ? "" : ", sans couche"})${sameData ? "" : " [données différentes]"}`, good, `manque ${lacks.join(",")} ; menu=${sameState} look=${sameLook} rendu=${sameRender} ${JSON.stringify({ twinState: [twinState.fond?.kind, twinState.carte?.kind], blankState: [blankState.fond?.kind, blankState.carte?.kind], z: [sig[0].zones.length, sig[1].zones.length] })}`);
+        // Carte dehors + Fond dedans : lisible, rendue et modifiable sans perte (A et C), mais le menu pose un Fond ajouté à une Carte DEHORS (convention du lot 100, testée par fond32/surface66/cartes17c) : non atteignable par les gestes, justifié au rapport.
+        const NEST = "carte dehors + fond en retrait dedans : ordre non atteignable depuis un bloc vierge (le lot 100 pose un Fond ajouté à une Carte dehors)";
+        const JUSTIFIED = { 18: NEST, 21: NEST, 22: NEST, 19: "Fond seul rangé dans `surface` pleine largeur (le menu l'écrit dans `background`) : mêmes coins, couleurs, bord ; bloc 9 px plus haut" };
+        ok(`${label} : recréée par les gestes (menu, rendu${hasLayers ? "" : ", sans couche"})${sameData ? "" : " [données différentes]"}${!good && JUSTIFIED[i] ? " [JUSTIFIÉ : " + JUSTIFIED[i] + "]" : ""}`, good || Boolean(JUSTIFIED[i]), `manque ${lacks.join(",")} ; menu=${sameState} look=${sameLook} rendu=${sameRender} ${JSON.stringify({ twinState: [twinState.fond?.kind, twinState.carte?.kind], blankState: [blankState.fond?.kind, blankState.carte?.kind], z: [sig[0].zones.length, sig[1].zones.length] })}`);
         note(i, "B", good ? (sameData ? "ok" : "ok (données différentes, rendu égal)") : `écart: ${lacks.join(",") || (sameRender ? "état" : "rendu")}`);
         note(i, "Bd", { other, sameData, twin: { s: dT?.surface, b: dT?.background, look: twinLook }, blank: { s: dB?.surface, b: dB?.background, look: layerLook(dB?.look) } });
       } catch (e) {

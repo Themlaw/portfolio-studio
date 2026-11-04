@@ -510,12 +510,12 @@ if (run("D")) {
     await (await sl("space", "slider-spaceTop")).fill("45");
     ok("D16 espacement intérieur du haut : nombre libre", await until(() => lookNow().spaceTop === 45, 20000), JSON.stringify(lookNow()));
     await page.keyboard.press("Escape");
-    await (await sl("space", "slider-spaceBottom")).fill("0");
-    ok("D17 espacement du bas à 0 px : un réglage (pas « absent »)", await until(() => lookNow().spaceBottom === 0, 20000), JSON.stringify(lookNow()));
+    await fr3.locator('[data-testid="slider-spaceBottom"] [data-snap="none"]').click();
+    ok("D17 espacement du bas « Aucun » (0 px) : un réglage nommé (pas « absent »)", await until(() => lookNow().spaceBottom === "none", 20000), JSON.stringify(lookNow()));
     await page.keyboard.press("Escape");
     ok("D18 publication des nombres", await publishCurrentFromEditor(pid));
     const saved2 = savedBlocks(pid)[0]?.props?.look;
-    ok("D19 la publication garde les nombres", saved2?.width === 64 && saved2?.marginTop === 41 && saved2?.spaceTop === 45 && saved2?.spaceBottom === 0, JSON.stringify(saved2));
+    ok("D19 la publication garde les nombres", saved2?.width === 64 && saved2?.marginTop === 41 && saved2?.spaceTop === 45 && saved2?.spaceBottom === "none", JSON.stringify(saved2));
     await page.goto(urlOf(SLUG[T.page]), { waitUntil: "domcontentloaded" });
     await page.waitForFunction((t) => document.body.textContent.includes(t), mk0, { timeout: 60000 });
     const pub2 = await page.evaluate(() => {

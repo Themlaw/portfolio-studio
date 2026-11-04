@@ -57,12 +57,15 @@ export default function SnapSlider<V extends string | number>({
     setLive(posOf(value));
   }
   const near = (n: number) => stops.reduce<SnapStop<V> | undefined>((best, s) => (Math.abs(s.at - n) <= snap && (!best || Math.abs(s.at - n) < Math.abs(best.at - n)) ? s : best), undefined);
+  // Clavier : une flèche avance d'un pas et ne colle pas aux crans voisins (sinon on ne quitterait jamais un cran) ; seul un cran atteint pile s'écrit par son nom.
+  const [keys, setKeys] = useState(false);
+  const nearK = (n: number) => (keys ? stops.find((s) => s.at === n) : near(n));
   const resolve = (n: number): V | undefined => {
-    const s = near(n);
+    const s = nearK(n);
     if (s) return s.value;
     return maxIsAuto && n >= max ? undefined : (Math.round(n) as V);
   };
-  const onInput = (n: number) => setLive(near(n)?.at ?? n);
+  const onInput = (n: number) => setLive(nearK(n)?.at ?? n);
   const commit = (n: number) => onCommit(resolve(n));
   const current = value === undefined ? undefined : (stopOf(value)?.label ?? `${value} ${unit}`);
   const shown = value === undefined && live === posOf(undefined) ? autoLabel : (near(live)?.label ?? (maxIsAuto && live >= max ? autoLabel : `${Math.round(live)} ${unit}`));
@@ -87,6 +90,9 @@ export default function SnapSlider<V extends string | number>({
         value={Math.round(live)}
         aria-label={label}
         aria-valuetext={shown}
+        onKeyDown={() => setKeys(true)}
+        onBlur={() => setKeys(false)}
+        onPointerDown={() => setKeys(false)}
         onChange={(e) => {
           const n = Number(e.currentTarget.value);
           onInput(n);
