@@ -30,7 +30,11 @@ en attente », dernière erreur, espace libre du volume), les réglages, « Sauv
   compte sans redémarrage. Pas de migration. Même l'activation peut venir de l'admin (sans `WITH_BACKUP`).
 - **Sauvegarder maintenant.** Même verrou que les sauvegardes automatiques (une seule à la fois), part tout de suite, fonctionne aussi
   quand les sauvegardes automatiques sont désactivées (le dossier `backup/` est alors créé à ce moment-là). Raison « manuel ».
-- **Télécharger.** `GET /api/admin/sauvegardes/<nom>` : session admin vérifiée en base (401 sinon), nom strict
+- **Télécharger.** `GET /api/admin/sauvegardes/<nom>` : session admin vérifiée en base (401 sinon) ET confirmation récente (403 sinon,
+  audit de sécurité P2) : connexion de moins de 10 minutes, ou mot de passe retapé dans la fenêtre « Confirmer ton mot de passe »
+  (`unlockBackupDownloadAction`, même frein que la connexion, journalisée) qui pose pour 10 minutes un cookie `pf-backup-unlock` lié à
+  CETTE session, signé par `BETTER_AUTH_SECRET`, limité au chemin `/api/admin/sauvegardes` (`src/lib/backup/unlock.ts`). Connexion par
+  Authentik seulement : se reconnecter. Nom strict
   `portfolio-AAAAMMJJ-HHMMSS[-n].tar.gz` (404 sinon), lecture en flux par blocs de 256 Ko (rien en mémoire), pièce jointe,
   `Range` (206 / 416) et `If-Range` pour reprendre un téléchargement. Pour l'artiste : « Garde une copie sur ton ordinateur de
   temps en temps ».
@@ -58,7 +62,10 @@ du conteneur juste après une session de travail n'oublie rien.
 
 - `manifest.json` : version de l'application, date, raison du déclenchement, nombre de médias, taille.
 - `portfolio.db` : instantané COHÉRENT, pris pendant que le site tourne par l'API de sauvegarde de SQLite (jamais une copie du
-  fichier en écriture), sans bloquer les écritures.
+  fichier en écriture), sans bloquer les écritures. **Sans secrets d'authentification** (audit de sécurité P2, `scrub.ts`, appliqué à la
+  copie seulement) : tables `session`, `verification` et `rate_limit` vidées, jetons OAuth de `account` (`access_token`, `refresh_token`,
+  `id_token` et leurs dates) effacés, puis `VACUUM` (rien ne reste dans les pages libres). Les comptes et l'empreinte du mot de passe
+  restent : après une restauration, il suffit de se reconnecter (mot de passe ou Authentik, qui réécrit ses jetons).
 - `media/…` : **tout le stockage, SAUF ce qui est prouvé régénérable** (lot 85, archive par exclusion : un futur dossier que personne
   n'a prévu est sauvegardé par défaut). Y entrent :
   - `originals/` : les ORIGINAUX envoyés ;
@@ -239,8 +246,9 @@ puis `chown -R 1000:1000` sur ce dossier. Le démarrage fait le reste (même `ma
 3. Copier aussi `/data/backup` ailleurs : il est dans le même volume.
 4. **Si `BETTER_AUTH_SECRET` change** : toutes les sessions tombent (se reconnecter), les jetons de réinitialisation et d'état OAuth en cours sont
    invalides, et toute URL de recadrage déjà diffusée (`/media/crop/…`, signée avec ce secret : HTML en cache, image de partage sur un
-   réseau social) répond 404 jusqu'à sa remise en cache. Le site re-signe tout seul ses propres pages. Rien d'autre (mots de passe, jetons
-   OAuth et empreintes des messages n'en dépendent pas).
+   réseau social) répond 404 jusqu'à sa remise en cache. Le site re-signe tout seul ses propres pages. Les jetons OAuth d'Authentik sont
+   chiffrés avec ce secret (`encryptOAuthTokens`) mais le site ne les relit jamais, et la sauvegarde ne les contient pas : la prochaine
+   connexion les réécrit. Rien d'autre (mots de passe et empreintes des messages n'en dépendent pas).
 5. Limites : après la restauration, les images n'apparaissent qu'à mesure que le worker refait leurs variantes (durée selon l'hôte) ; une
    image qui échoue sous des bornes plus basses reste invisible. Les octets des variantes peuvent différer si la version de `sharp` change.
    Perdus : envois par morceaux en cours, imports de kit analysés mais pas appliqués (`kit-imports/` : renvoyer le PSD, ses fiches sont gardées).
