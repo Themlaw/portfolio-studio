@@ -2646,3 +2646,9 @@ html[data-free-dragging] * {
 [data-inline] {
   touch-action: manipulation;
 }
+
+/* Integration lots 106 + 109 : le menu en ligne reste visible a toute largeur de toile dans l editeur (lot 109) et ne retrecit jamais
+   (flex-shrink:0, feuille du logo) ; le logo image, lui, pouvait tomber a 0 px de large en apercu telephone (390 px). Il garde sa largeur. */
+html[data-edit-mode] .site-header .site-brand[data-logo-image] {
+  flex-shrink: 0;
+}

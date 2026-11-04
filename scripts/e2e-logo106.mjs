@@ -154,7 +154,7 @@ async function geo(fr) {
 const whole = (g, fmt) =>
   g.img && g.img.t >= g.bar.t - 0.5 && g.img.b <= g.bar.b + 0.5 && g.brand.t >= g.bar.t - 0.5 && g.brand.b <= g.bar.b + 0.5 && g.clip === "none" && g.fit === "contain" && near(g.img.w / g.img.h, fmt.w / fmt.h, 0.03 * (fmt.w / fmt.h));
 const centered = (g) => near(g.img.cy, g.bar.cy, 1);
-const det = (g) => JSON.stringify({ img: g.img && [g.img.t, g.img.b, g.img.h], bar: [g.bar.t, g.bar.b, g.bar.h], fit: g.fit, clip: g.clip });
+const det = (g) => JSON.stringify({ img: g.img && [g.img.t, g.img.b, g.img.h, g.img.w], brand: g.brand && [g.brand.t, g.brand.b], mainTop: g.mainTop, bar: [g.bar.t, g.bar.b, g.bar.h], fit: g.fit, clip: g.clip });
 const shot = async (name, target = page) => target.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 
 /** Page publique à une largeur donnée. */
