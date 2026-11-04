@@ -170,8 +170,12 @@ async function adminGate(request: NextRequest): Promise<NextResponse> {
   return response;
 }
 
-/** Routes que le `matcher` d'avant le lot 88 excluait : api, médias, fichiers à extension (favicon.ico, sitemap.xml…). */
-const LEGACY_SKIP = /^\/(?:(?:api|admin\/api|media|_next|_vercel)|.*\..*)/;
+/**
+ * Routes que le `matcher` d'avant le lot 88 excluait : api, médias, polices, icône, fichiers de `public/` et fichiers à la racine.
+ * Liste FERMÉE (docs/SECURITE.md N5) : l'ancienne règle « tout chemin qui contient un point » laissait sortir /fr/a.b (rendu en
+ * 200 et gardé un an dans le cache ISR) et, testée avant /admin, tout futur /admin/….x de la garde de l'admin.
+ */
+const LEGACY_SKIP = /^\/(?:(?:api|media|fonts|site-icon|kit|themes|_next|_vercel)(?:\/|$)|(?:favicon\.ico|robots\.txt|sitemap\.xml|manifest\.webmanifest)$)/;
 
 /** Redirection de l'ancien domaine (REDIRECT_FROM), ou null : la requête est servie normalement. */
 function domainRedirect(request: NextRequest): NextResponse | null {
@@ -192,8 +196,9 @@ export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const moved = domainRedirect(request);
   if (moved) return moved;
-  if (LEGACY_SKIP.test(pathname)) return NextResponse.next();
+  // /admin AVANT LEGACY_SKIP : aucun chemin de l'admin (même avec un point) n'échappe à sa garde.
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return adminGate(request);
+  if (LEGACY_SKIP.test(pathname)) return NextResponse.next();
   if (request.headers.get(INTERNAL_HEADER) === INTERNAL_SECRET) return intl(request);
 
   const match = LOCALE_PATH.exec(request.nextUrl.pathname);
