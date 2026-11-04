@@ -402,7 +402,10 @@ if (run("E"))
     const leak = await pubPage.evaluate(() => [...document.querySelectorAll("[data-placeholder], [data-edit-block], [data-inline], [class*='pe-empty'], .pe-field-op, [data-edit-field-op]")].map((e) => e.outerHTML.slice(0, 120)));
     ok("E11 public : aucun repère d'édition, aucun texte d'aide, aucun état vide", leak.length === 0 && !/data-edit-(?!media)/.test(html.replace(/self\.__next_f[\s\S]*?<\/script>/g, "")), leak.slice(0, 2).join(" ⟂ "));
     await pubPage.screenshot({ path: path.join(SHOTS, "e-public-contact-migre.png"), fullPage: true });
-    const res = await fetch(`${BASE}/api/contact`, { method: "POST", headers: { "content-type": "application/json", "sec-fetch-site": "same-origin", "x-forwarded-for": "198.51.100.77" }, body: JSON.stringify({ form: FORM, locale: "fr", values: { femail: "lou@example.test", fmessage: "Bonjour depuis le test" } }) });
+    // Jeton signé + délai minimal avant l'envoi (docs/SECURITE.md §2.3).
+    const { token } = await (await fetch(`${BASE}/api/contact/token?form=${FORM}`)).json();
+    await new Promise((r) => setTimeout(r, 3200));
+    const res = await fetch(`${BASE}/api/contact`, { method: "POST", headers: { "content-type": "application/json", "sec-fetch-site": "same-origin", "x-forwarded-for": "198.51.100.77" }, body: JSON.stringify({ form: FORM, locale: "fr", values: { femail: "lou@example.test", fmessage: "Bonjour depuis le test" }, token }) });
     ok("E12 le formulaire migré répond toujours (même identifiant, POST /api/contact)", res.status === 200, String(res.status));
     ok("E13 le message est rangé avec l'objet du formulaire", q("select count(*) n from messages where subject = 'Message du test'")[0].n >= 1);
     const voidSections = await pubPage.evaluate(() => [...document.querySelectorAll("h2:empty, .eyebrow:empty, p:empty")].length);

@@ -11,7 +11,9 @@
  *     la publication de l'en-tête ; jamais de blocage de l'éditeur.
  *  3. POST /api/contact : IP calculée derrière les proxys de confiance (XFF
  *     inventé ignoré), corps lu en flux et coupé (RSS stable), formulaire
- *     désigné par un identifiant stable entre deux publications.
+ *     désigné par un identifiant stable entre deux publications ; jeton signé,
+ *     délai minimal, plafond par préfixe /24 /64, empreinte HMAC, valeurs nettoyées,
+ *     ménage après les limites (docs/SECURITE.md §2.3, §2.12).
  * Usage : node --import tsx scripts/test-publish.mjs
  */
 import assert from "node:assert/strict";
@@ -38,6 +40,8 @@ const { saveProject } = await import("../src/lib/edit/projects.ts");
 const { POST } = await import("../src/app/api/contact/route.ts");
 const { withFreshUids } = await import("../src/blocks/tree.ts");
 const { defaultContactForm } = await import("../src/lib/contact-form.ts");
+const { issueContactToken, resetContactGuard, ipPrefix, MIN_DELAY_MS } = await import("../src/lib/contact-guard.ts");
+const { GET: GET_TOKEN } = await import("../src/app/api/contact/token/route.ts");
 
 let passed = 0;
 const test = async (name, fn) => {
@@ -462,9 +466,13 @@ const form = withFreshUids({ uid: "", type: "contact", props: { ...defaultContac
 saveDraft(F, { ...base(F), published: true, blocks: [{ ...form, uid: "f1" }] }, rev(F));
 assert.equal(publishDraft(F, rev(F)).ok, true);
 const formId = form.props.formId;
+// Jeton délivré il y a 10 s (délai minimal passé) : `token: null` = envoi sans jeton.
+const tokenFor = (id, ageMs = 10_000) => issueContactToken(id, Date.now() - ageMs);
+const sendRaw = async (body, headers = {}) =>
+  POST(new Request("http://localhost/api/contact", { method: "POST", headers: { "content-type": "application/json", "sec-fetch-site": "same-origin", ...headers }, body: typeof body === "string" ? body : JSON.stringify(body) }));
 const send = async (body, headers = {}) => {
-  const res = await POST(new Request("http://localhost/api/contact", { method: "POST", headers: { "content-type": "application/json", "sec-fetch-site": "same-origin", ...headers }, body: typeof body === "string" ? body : JSON.stringify(body) }));
-  return res.status;
+  const withToken = typeof body === "string" || "token" in body ? body : { ...body, token: tokenFor(body.form) };
+  return (await sendRaw(withToken, headers)).status;
 };
 const ok = { form: formId, locale: "fr", values: { fname: "Lou", femail: "a@b.fr", fmessage: "salut" } };
 await test("contact : XFF dont la partie gauche tourne = même client réel → 429 au 6e (AUTH_TRUSTED_PROXY_HOPS=1)", async () => {
@@ -547,6 +555,87 @@ await test("contact : Content-Length trop grand → 413 sans lecture ; corps én
   assert.equal(res.status, 413);
   assert.ok(sent < 5, `lecture coupée tôt (${sent} morceaux lus)`);
   assert.ok(process.memoryUsage().rss - rss0 < 20e6, "RSS stable");
+});
+
+await test("contact : jeton exigé (absent, falsifié, autre formulaire, réutilisé → 403 code token ; trop tôt → 429 code early)", async () => {
+  resetContactGuard();
+  const xff = { "x-forwarded-for": "192.0.2.10" };
+  const code = async (body) => {
+    const res = await sendRaw(body, xff);
+    return `${res.status}:${(await res.json()).code ?? ""}`;
+  };
+  assert.equal(await code({ ...ok, token: undefined }), "403:token", "sans jeton");
+  assert.equal(await code({ ...ok, token: "x" }), "403:token", "jeton illisible");
+  const t = tokenFor(formId);
+  assert.equal(await code({ ...ok, token: t.slice(0, -1) + (t.endsWith("A") ? "B" : "A") }), "403:token", "signature falsifiée");
+  assert.equal(await code({ ...ok, token: tokenFor("autreform1") }), "403:token", "jeton d'un autre formulaire");
+  assert.equal(await code({ ...ok, token: tokenFor(formId, 3 * 3600_000) }), "403:token", "jeton expiré");
+  const early = await sendRaw({ ...ok, token: tokenFor(formId, 500) }, xff);
+  const earlyBody = await early.json();
+  assert.equal(early.status, 429, "envoi 0,5 s après l'affichage");
+  assert.equal(earlyBody.code, "early");
+  assert.ok(earlyBody.waitMs > 0 && earlyBody.waitMs <= MIN_DELAY_MS, String(earlyBody.waitMs));
+  assert.equal(await code({ ...ok, token: t }), "200:", "jeton valable");
+  assert.equal(await code({ ...ok, token: t }), "403:token", "le même jeton ne sert qu'une fois");
+  // Un envoi refusé (champ invalide) ne consomme pas le jeton : la personne corrige et renvoie.
+  const t2 = tokenFor(formId);
+  assert.equal(await code({ ...ok, values: { ...ok.values, femail: "pas-une-adresse" }, token: t2 }), "400:");
+  assert.equal(await code({ ...ok, token: t2 }), "200:");
+  // Route GET : réponse jamais mise en cache, jeton accepté après le délai.
+  const res = GET_TOKEN(new Request(`http://localhost/api/contact/token?form=${formId}`));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("cache-control"), "no-store");
+  const { token } = await res.json();
+  assert.equal(await code({ ...ok, token }), "429:early", "jeton tout juste délivré : trop tôt");
+  assert.equal(GET_TOKEN(new Request("http://localhost/api/contact/token?form=../x")).status, 400);
+});
+await test("contact : plafond par préfixe /24 et /64 (adresses voisines = même réseau)", async () => {
+  resetContactGuard();
+  assert.equal(ipPrefix("203.0.113.77"), "203.0.113.0/24");
+  assert.equal(ipPrefix("::ffff:203.0.113.9"), "203.0.113.0/24");
+  assert.equal(ipPrefix("2001:db8:0:12::1"), "2001:db8:0:12::/64");
+  assert.equal(ipPrefix("2001:0db8:0000:0012:ffff:1:2:3"), "2001:db8:0:12::/64");
+  assert.equal(ipPrefix("pas une ip"), null);
+  const codes = [];
+  for (let i = 1; i <= 12; i++) codes.push(await send(ok, { "x-forwarded-for": `203.0.113.${i}` }));
+  assert.deepEqual(codes, [...Array(10).fill(200), 429, 429], "10 adresses différentes du même /24, puis refus");
+  assert.equal(await send(ok, { "x-forwarded-for": "203.0.114.1" }), 200, "le /24 voisin n'est pas bloqué");
+  const v6 = [];
+  for (let i = 1; i <= 11; i++) v6.push(await send(ok, { "x-forwarded-for": `2001:db8:0:12::${i.toString(16)}` }));
+  assert.deepEqual(v6, [...Array(10).fill(200), 429], "même /64");
+  assert.equal(await send(ok, { "x-forwarded-for": "2001:db8:0:13::1" }), 200, "autre /64");
+  db.delete(schema.messages).run();
+});
+await test("contact : empreinte d'IP = HMAC avec secret (pas sha256(\"contact:\"+ip)), valeurs sans \\p{Cf}, e-mail ASCII", async () => {
+  resetContactGuard();
+  const { createHash } = await import("node:crypto");
+  assert.equal(await send({ ...ok, values: { fname: "Lou\u202Eevil\u200B", femail: "a@b.fr", fmessage: "sa\u2066lut" } }, { "x-forwarded-for": "192.0.2.55" }), 200);
+  const row = db.select().from(schema.messages).all().at(-1);
+  assert.notEqual(row.ipHash, createHash("sha256").update("contact:192.0.2.55").digest("hex").slice(0, 32), "empreinte sans secret : réversible");
+  assert.match(row.ipHash, /^[0-9a-f]{32}$/);
+  const values = JSON.parse(row.fields).map((f) => f.value);
+  assert.deepEqual(values, ["Louevil", "a@b.fr", "salut"], "caractères de format retirés");
+  assert.ok(!/\p{Cf}/u.test(row.fields));
+  for (const bad of ["k\u0430te@exemple.fr", "kate@ex\u0435mple.fr", "\u212Aate@exemple.fr", "caf\u00e9@exemple.fr"])
+    assert.equal(await send({ ...ok, values: { ...ok.values, femail: bad } }, { "x-forwarded-for": "192.0.2.56" }), 400, bad);
+  db.delete(schema.messages).run();
+});
+await test("contact : ménage APRÈS les limites et au plus une fois par heure", async () => {
+  resetContactGuard();
+  const old = new Date(Date.now() - 400 * 86400_000);
+  const plant = () => db.insert(schema.messages).values({ pageId: F, subject: "vieux", fields: "[]", ipHash: "x".repeat(32), createdAt: old }).run();
+  const olds = () => db.select().from(schema.messages).all().filter((m) => m.subject === "vieux").length;
+  plant();
+  // Envois refusés (sans jeton, client au plafond) : aucune écriture, le vieux message reste.
+  await sendRaw({ ...ok }, { "x-forwarded-for": "192.0.2.70" });
+  for (let i = 0; i < 5; i++) assert.equal(await send(ok, { "x-forwarded-for": "192.0.2.71" }), 200);
+  // Le ménage a eu lieu au 1er envoi accepté (vieux message parti), pas aux suivants.
+  assert.equal(olds(), 0, "ménage fait au premier envoi accepté");
+  plant();
+  assert.equal(await send(ok, { "x-forwarded-for": "192.0.2.71" }), 429, "client au plafond");
+  assert.equal(await send(ok, { "x-forwarded-for": "192.0.2.72" }), 200);
+  assert.equal(olds(), 1, "moins d'une heure après le précédent : pas de nouveau ménage");
+  db.delete(schema.messages).run();
 });
 
 console.log(`\n${passed} test(s) OK`);

@@ -1627,12 +1627,28 @@ ok("A10c l'admin légitime (autre IP) se connecte pendant l'attaque", r.status =
   const home = query(dirA, `select id from pages where json_extract(slug,'$.fr')=''`).id;
   writeDb(dirA, "insert into blocks (page_id, position, type, props) values (?, 99, 'contact', ?)", home, JSON.stringify(form));
   const values = { femail: "a@b.fr", fmessage: "bonjour" };
-  const post = (body, xff, headers = {}) => http("/api/contact", { method: "POST", body, headers: { "sec-fetch-site": "same-origin", "x-forwarded-for": xff, ...headers } });
+  // Jeton signé (GET /api/contact/token, no-store) et délai minimal avant l'envoi (docs/SECURITE.md §2.3) :
+  // les jetons sont demandés d'avance, puis on attend une seule fois la fin du délai.
+  const tokenRes = await http("/api/contact/token?form=ftestauth01");
+  ok("C0 jeton du formulaire : 200 no-store", tokenRes.status === 200 && tokenRes.headers.get("cache-control") === "no-store", `${tokenRes.status} ${tokenRes.headers.get("cache-control")}`);
+  const tokens = [(await tokenRes.json()).token];
+  for (let i = 0; i < 12; i++) tokens.push((await (await http("/api/contact/token?form=ftestauth01")).json()).token);
+  const fresh = (await (await http("/api/contact/token?form=ftestauth01")).json()).token;
+  r = await http("/api/contact", { method: "POST", body: { form: "ftestauth01", locale: "fr", values, token: fresh }, headers: { "sec-fetch-site": "same-origin", "x-forwarded-for": "198.51.100.45" } });
+  const early = await r.json().catch(() => ({}));
+  ok("C6 envoi juste après l'affichage (jeton tout neuf) → 429 code early", r.status === 429 && early.code === "early", `${r.status} ${early.code}`);
+  await sleep(3300);
+  const post = (body, xff, headers = {}) => http("/api/contact", { method: "POST", body: body.token === null ? { ...body, token: undefined } : { token: tokens.shift(), ...body }, headers: { "sec-fetch-site": "same-origin", "x-forwarded-for": xff, ...headers } });
+  r = await post({ form: "ftestauth01", locale: "fr", values, token: null }, "198.51.100.46");
+  ok("C7 envoi sans jeton → 403", r.status === 403, String(r.status));
   const codesC = [];
   for (let i = 0; i < 7; i++) codesC.push((await post({ form: "ftestauth01", locale: "fr", values }, `10.8.${i}.1, 198.51.100.40`)).status);
   ok("C1 contact : partie gauche de XFF tournée, même client réel → 429 au 6e", codesC.slice(0, 5).every((c) => c === 200) && codesC[5] === 429, codesC.join(","));
   r = await post({ form: "ftestauth01", locale: "fr", values }, "10.8.9.9, 198.51.100.41");
   ok("C1b un autre client n'est pas bloqué", r.status === 200, String(r.status));
+  r = await post({ form: "ftestauth01", locale: "fr", values, token: fresh }, "198.51.100.47");
+  const reuse = await post({ form: "ftestauth01", locale: "fr", values, token: fresh }, "198.51.100.48");
+  ok("C8 jeton refusé trop tôt puis valable une seule fois (200, puis 403)", r.status === 200 && reuse.status === 403, `${r.status} ${reuse.status}`);
   r = await post({ form: "ftestauth01", locale: "fr", values: { ...values, admin: "1" } }, "198.51.100.42");
   ok("C2 champ inconnu → 400", r.status === 400, String(r.status));
   r = await post({ form: "ftestauth01", locale: "fr", values }, "198.51.100.43", { "sec-fetch-site": "cross-site" });
