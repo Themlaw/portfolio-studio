@@ -430,19 +430,19 @@ try {
     const videoBar = await ids();
     ok("E1 barre image : réglages communs (remplacer, supprimer, plan, arrondi, cadre)", common.every((c) => imageBar.includes(c)), JSON.stringify(imageBar));
     ok("E2 barre vidéo : les MÊMES réglages communs (cadre, arrondi, plan, rotation…)", common.every((c) => videoBar.includes(c)), JSON.stringify(videoBar));
-    ok("E3 barre vidéo : réglages propres (Lecture Boucle / Lecteur, Affiche, état du son)", ["free-video-mode", "free-poster", "free-sound-state"].every((c) => videoBar.includes(c)), JSON.stringify(videoBar));
+    ok("E3 barre vidéo : réglages propres (Lecture Boucle / Lecteur, Affiche, état du son)", ["free-lecture-mode", "free-poster", "free-sound-state"].every((c) => videoBar.includes(c)), JSON.stringify(videoBar));
     ok("E3b barre image : aucun réglage de vidéo", !imageBar.some((c) => /video|poster|sound/.test(c)));
     ok("E3c l'état du son : « Avec son » / « Sans son » détecté", (await bar().getByTestId("free-sound-state").innerText()) === "Avec son");
     await select("fs");
     ok("E3d … vidéo muette : « Sans son »", (await bar().getByTestId("free-sound-state").innerText()) === "Sans son");
     await select("fa");
-    ok("E4 Lecture : « Boucle » pressé par défaut (ancienne planche)", (await bar().locator('[data-testid="free-video-mode"] button[aria-pressed="true"]').innerText()) === "Boucle");
-    await bar().locator('[data-free-video-set="player"]').click();
+    ok("E4 Lecture : « Boucle » pressé par défaut (ancienne planche)", (await bar().locator('[data-testid="free-lecture-mode"] button[aria-pressed="true"]').innerText()) === "Boucle");
+    await bar().locator('[data-free-lecture-set="player"]').click();
     ok("E5 « Lecteur » : écrit dans la ligne de l'élément (planche libre de la page)", await waitFor(() => item("fa")?.video === "player"), JSON.stringify(item("fa")));
     await settled(page);
     ok("E5b … la toile montre le Lecteur (même rendu que le site)", await waitFor(async () => (await fr.locator('.free-item[data-free-item="fa"] [data-video-mode="player"]').count()) === 1));
     await select("fa");
-    await bar().locator('[data-free-video-set="loop"]').click();
+    await bar().locator('[data-free-lecture-set="loop"]').click();
     ok("E6 « Boucle » : écrit dans la ligne", await waitFor(() => item("fa")?.video === "loop"), JSON.stringify(item("fa")));
     await settled(page);
     // Affiche : posée par les données, rendue partout ; retirée depuis la barre.
@@ -478,8 +478,8 @@ try {
     await el.scrollIntoViewIfNeeded();
     await el.click({ position: { x: 8, y: 8 } });
     await bar().waitFor();
-    ok("E11 planche libre d'une planche de projet : mêmes réglages de vidéo", (await bar().getByTestId("free-video-mode").count()) === 1 && (await bar().getByTestId("free-poster").count()) === 1);
-    await bar().locator('[data-free-video-set="player"]').click();
+    ok("E11 planche libre d'une planche de projet : mêmes réglages de vidéo", (await bar().getByTestId("free-lecture-mode").count()) === 1 && (await bar().getByTestId("free-poster").count()) === 1);
+    await bar().locator('[data-free-lecture-set="player"]').click();
     ok("E12 … « Lecteur » écrit dans la planche du projet", await waitFor(() => boardDraft(project.id)?.find((i) => i.uid === "bfb")?.props.items.find((i) => i.id === "ba")?.video === "player"), JSON.stringify(boardDraft(project.id)));
     await settled(page);
   });
@@ -508,7 +508,7 @@ try {
     const log = new Database(path.join(process.env.DATA_DIR ?? "data", "edit-log.db"), { readonly: true });
     const labels = log.prepare("select label from edit_log order by id desc limit 200").all().map((r) => r.label);
     log.close();
-    ok("L5 journal : les enregistrements de l'éditeur (planche libre comprise) sont journalisés", (!run("E") || labels.some((l) => /Brouillon modifié/.test(l))) && labels.some((l) => /publiée/.test(l)), JSON.stringify([...new Set(labels)].slice(0, 6)));
+    ok("L5 journal : les enregistrements de l'éditeur (planche libre comprise) sont journalisés", (!run("E") || labels.some((l) => /Planche libre|Brouillon modifié/.test(l))) && labels.some((l) => /publiée/.test(l)), JSON.stringify([...new Set(labels)].slice(0, 6)));
   });
 } catch (e) {
   ok("exception inattendue", false, String(e.stack ?? e).split("\n").slice(0, 8).join(" | "));

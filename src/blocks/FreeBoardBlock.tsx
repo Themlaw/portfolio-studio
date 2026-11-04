@@ -85,7 +85,7 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
               className="free-item"
               style={style}
               {...viewer}
-              {...(canvas ? { "data-free-item": it.id, ...(m.video ? { "data-free-video": modeOf(it), "data-free-audio": m.video.hasAudio ? "1" : "0", "data-free-poster": String(it.poster ?? "") } : {}), "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}
+              {...(canvas ? { "data-free-item": it.id, ...(m.video ? { "data-free-lecture": modeOf(it), "data-free-audio": m.video.hasAudio ? "1" : "0", "data-free-poster": String(it.poster ?? "") } : {}), "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}
             >
               {m.video && modeOf(it) === "player" ? (
                 <PlayerFrame

@@ -422,8 +422,8 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
       style = JSON.parse(itemEl.dataset.freeStyle ?? "{}") as typeof style;
     } catch {}
     // Une vidéo (lot 116) : repère posé par le rendu (en mode Lecteur il n'y a pas de <video> dans la boîte).
-    const isVideo = itemEl.dataset.freeVideo !== undefined;
-    const videoNow = isVideoMode(itemEl.dataset.freeVideo) ? itemEl.dataset.freeVideo : "loop";
+    const isVideo = itemEl.dataset.freeLecture !== undefined;
+    const videoNow = isVideoMode(itemEl.dataset.freeLecture) ? itemEl.dataset.freeLecture : "loop";
     const hasPoster = Boolean(itemEl.dataset.freePoster);
     const hasAudio = itemEl.dataset.freeAudio === "1";
     // Sous l'image (la poignée de rotation est au-dessus) ; au-dessus seulement si le bas de l'écran est trop proche.
@@ -515,7 +515,7 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
                 Fond image
               </button>
             )}
-            {isVideo && <VideoModeSeg now={videoNow} onChange={(m) => sendFreeLook(ref, sel.id, { video: m })} testId="free-video-mode" attr="data-free-video-set" />}
+            {isVideo && <VideoModeSeg now={videoNow} onChange={(m) => sendFreeLook(ref, sel.id, { video: m })} testId="free-lecture-mode" attr="data-free-lecture-set" />}
             {isVideo && (
               <>
                 <button type="button" data-testid="free-poster" title="Image d'attente de la vidéo (sinon une image de la vidéo)" onClick={() => send(ref, { op: "pick", id: sel.id, poster: true })}>
