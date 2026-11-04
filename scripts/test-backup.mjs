@@ -9,6 +9,8 @@
  *  4. Détection par data_version (connexion lecture seule) : écriture vue, silence sans écriture.
  *  5. Archive : base cohérente et ouvrable, originaux seulement (variantes exclues), exceptions (original supprimé, seed),
  *     polices, BACKUP_MEDIA=0, noms longs (PAX), lecture par `tar`, aucun .tmp restant, rotation après écriture.
+ *  5b. Audit de sécurité P2 : l'instantané n'a ni sessions, ni jetons de vérification, ni compteurs, ni jetons OAuth (la base du
+ *     site, elle, les garde) ; cookie de déverrouillage du téléchargement (lié à la session, expiré, falsifié).
  *  6. Restauration (script) : base remplacée, ancien -wal rangé, archive tronquée refusée sans rien changer,
  *     puis variantes manquantes remises en file au démarrage (healRestoredMedia).
  * Usage : node --import tsx scripts/test-backup.mjs
@@ -269,6 +271,17 @@ try {
   addMedia("seed-logo.svg", null);
   addMedia(longName, null);
   main.prepare("insert into notes values (?)").run("avant");
+  // Audit P2 : tables de Better Auth avec des secrets reconnaissables (mêmes colonnes que src/lib/db/schema.ts).
+  main.exec(`create table user(id text primary key, email text);
+    create table session(id text primary key, token text, user_id text, created_at integer);
+    create table account(id text primary key, user_id text, provider_id text, access_token text, refresh_token text, id_token text, access_token_expires_at integer, refresh_token_expires_at integer, password text);
+    create table verification(id text primary key, identifier text, value text);
+    create table rate_limit(id text primary key, key text, count integer, last_request integer);`);
+  main.prepare("insert into user values ('u1', 'artiste@example.test')").run();
+  main.prepare("insert into session values ('s1', 'JETON-DE-SESSION-SECRET-P2', 'u1', 1)").run();
+  main.prepare("insert into account values ('a1', 'u1', 'authentik', 'ACCES-OAUTH-SECRET-P2', 'RAFRAICHI-OAUTH-SECRET-P2', 'ID-OAUTH-SECRET-P2', 5, 6, null), ('a2', 'u1', 'credential', null, null, null, null, null, 'sel:empreinte-scrypt')").run();
+  main.prepare("insert into verification values ('v1', 'reset', 'JETON-DE-VERIFICATION-SECRET-P2')").run();
+  main.prepare("insert into rate_limit values ('r1', '203.0.113.9/sign-in', 3, 1)").run();
 
   // 4. data_version
   const reader = new Database(path.join(data, "portfolio.db"), { readonly: true, fileMustExist: true });
@@ -297,7 +310,14 @@ try {
   ok("lot 85 archive par exclusion : kit/, icons/, dossier imprévu et fiches de kit y sont ; ni variantes d'un original présent, ni icons-auto/, cache/, tmp/, *.tmp", !sorted.some((f) => /^media\/(img|icons-auto)\//.test(f) || f.endsWith(".tmp") || f.startsWith("tmp/") || f.startsWith("cache/crops")));
   const snap = new Database(path.join(out, "portfolio.db"), { readonly: true });
   ok("archive : la base s'ouvre, intègre, avec les modifications faites avant la copie", snap.pragma("integrity_check", { simple: true }) === "ok" && snap.prepare("select count(*) n from notes").get().n === 2 && snap.prepare("select count(*) n from media").get().n === 4);
+  ok("P2 instantané : sessions, vérifications et compteurs vidés", ["session", "verification", "rate_limit"].every((t) => snap.prepare(`select count(*) n from ${t}`).get().n === 0));
+  const acc = snap.prepare("select * from account order by id").all();
+  ok("P2 instantané : jetons OAuth effacés, empreinte du mot de passe et comptes gardés (restauration : on se reconnecte)", acc.length === 2 && acc.every((a) => a.access_token === null && a.refresh_token === null && a.id_token === null && a.access_token_expires_at === null && a.refresh_token_expires_at === null) && acc[1].password === "sel:empreinte-scrypt" && snap.prepare("select count(*) n from user").get().n === 1);
   snap.close();
+  const rawDb = readFileSync(path.join(out, "portfolio.db"));
+  ok("P2 instantané : aucun octet des secrets dans le fichier (VACUUM, secure_delete)", !/SECRET-P2/.test(rawDb.toString("latin1")));
+  ok("P2 : la base du SITE garde ses sessions et jetons (seule la copie est nettoyée)", main.prepare("select count(*) n from session").get().n === 1 && main.prepare("select access_token t from account where id = 'a1'").get().t === "ACCES-OAUTH-SECRET-P2");
+  ok("P2 : ni -wal ni -journal de l'instantané laissés dans backup/", readdirSync(dir).every((n) => !/snapshot/.test(n)), readdirSync(dir).join(","));
   ok("archive : original octet pour octet (flux)", readFileSync(path.join(out, "media/originals/orig1.png")).equals(Buffer.alloc(300_000, 1)));
   const man = await readManifest(path.join(dir, r1.name));
   ok("lot 85 manifest : catégories comptées, archive complète, rien de manquant", man.complete === true && man.storage?.kit?.files === 1 && man.storage?.icons?.files === 1 && man.storage?.kitManifests?.files === 1 && man.storage?.originals?.files === 2 && man.missingRefs?.count === 0 && man.regenerable?.variants?.files === 1 && man.regenerable?.iconsAuto?.files === 1, JSON.stringify(man));
@@ -341,6 +361,18 @@ try {
   ok("échec : renoncement volontaire = classe BackupSkipped", new BackupSkipped("x") instanceof Error);
   const plan = await storageToSave([{ key: "originals/orig1.png", variants: "pas du json" }, { key: "originals/absent.png", variants: null }], path.join(data, "media"));
   ok("médias : variantes illisibles = dossier non prouvé régénérable, donc sauvegardé ; original absent sans erreur", plan.files.some((f) => f.key === "originals/orig1.png") && plan.files.some((f) => f.key === "img/aaaaaaaaaaaaaaaa/800.webp"));
+
+  /* ---- 5b. cookie de déverrouillage du téléchargement (audit P2) ---- */
+  {
+    const { unlockValue, isUnlocked, isFreshSession, readCookie, UNLOCK_TTL_MS } = await import("../src/lib/backup/unlock.ts");
+    const S = "secret-de-test-0123456789abcdef-0123456789";
+    const t = 1_800_000_000_000;
+    const v = unlockValue(S, "sess-1", t);
+    ok("P2 déverrouillage : valable pour sa session, pendant 10 min", isUnlocked(S, "sess-1", v, t + 1000) && isUnlocked(S, "sess-1", v, t + UNLOCK_TTL_MS - 1));
+    ok("P2 déverrouillage : expiré, autre session, autre secret, signature ou date falsifiée = refusé", !isUnlocked(S, "sess-1", v, t + UNLOCK_TTL_MS + 1) && !isUnlocked(S, "sess-2", v, t + 1000) && !isUnlocked("autre-secret-0123456789abcdef-0123456789", "sess-1", v, t + 1000) && !isUnlocked(S, "sess-1", `${v.slice(0, -2)}AA`, t + 1000) && !isUnlocked(S, "sess-1", `${t + 9e9}.${v.split(".")[1]}`, t + 1000) && !isUnlocked(S, "sess-1", null) && !isUnlocked(S, "sess-1", "x".repeat(500)));
+    ok("P2 connexion récente : moins de 10 min oui, plus non, date future non", isFreshSession(t - 60_000, t) && !isFreshSession(t - 11 * 60_000, t) && !isFreshSession(t + 60_000, t) && !isFreshSession("pas une date", t));
+    ok("P2 lecture du cookie dans l'en-tête brut", readCookie("a=1; pf-backup-unlock=abc.def; b=2", "pf-backup-unlock") === "abc.def" && readCookie("x-pf-backup-unlock=1", "pf-backup-unlock") === null && readCookie(null, "x") === null);
+  }
 
   /* ---- 6. restauration ------------------------------------------------------------------------------------------ */
   const target = path.join(tmp, "restored");

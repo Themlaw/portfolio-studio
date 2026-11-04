@@ -77,7 +77,7 @@ try {
   await page.fill("#password", process.env.ADMIN_PASSWORD);
   await page.click("button[type=submit]");
   await page.waitForURL(`${BASE}/admin`);
-  const cookie = (await ctx.cookies()).map((c) => `${c.name}=${c.value}`).join("; ");
+  let cookie = (await ctx.cookies()).map((c) => `${c.name}=${c.value}`).join("; ");
 
   /* ---------------- A. liste ---------------- */
   ok("A0 première sauvegarde faite au démarrage", await waitFor(() => archives().length >= 1));
@@ -143,6 +143,30 @@ try {
   const target = archives().at(-1);
   const url = `${BASE}/api/admin/sauvegardes/${target}`;
   const file = path.join(BACKUP_DIR, target);
+  // Audit P2 : une session de plus de 10 min sans mot de passe retapé ne télécharge rien. On vieillit la session en base.
+  {
+    const db = new Database(path.join(DATA, "portfolio.db"));
+    db.prepare("update session set created_at = ?").run(Date.now() - 3_600_000);
+    db.close();
+  }
+  ok("D0 session de plus de 10 min, sans confirmation : 403", (await fetch(url, { headers: { cookie } })).status === 403);
+  const dl = page.waitForEvent("download", { timeout: 20000 });
+  await goto("/admin/sauvegardes");
+  await rows().first().locator('[data-testid="telecharger"]').click();
+  const pw = page.locator('[data-testid="mot-de-passe-telechargement"]');
+  await pw.waitFor({ timeout: 15000 });
+  await pw.fill("pas-le-bon-mot-de-passe");
+  await page.keyboard.press("Enter");
+  ok("D0b mauvais mot de passe : refusé, message affiché", await waitFor(async () => /incorrect/i.test(await page.locator('[data-testid="erreur-mot-de-passe"]').innerText().catch(() => "")), 15000));
+  await pw.fill(process.env.ADMIN_PASSWORD);
+  await page.keyboard.press("Enter");
+  const download = await dl;
+  ok("D9 le bouton « Télécharger » (mot de passe retapé) déclenche le téléchargement du bon fichier", download.suggestedFilename() === (await rows().first().getAttribute("data-name")));
+  // Cookie de déverrouillage posé par la confirmation : les essais suivants le portent.
+  const unlocked = (await ctx.cookies()).map((c) => `${c.name}=${c.value}`).join("; ");
+  ok("D0c cookie de déverrouillage httpOnly, limité au chemin des téléchargements", (await ctx.cookies()).some((c) => c.name === "pf-backup-unlock" && c.httpOnly && c.path === "/api/admin/sauvegardes"));
+  ok("D0d le cookie de déverrouillage seul (sans session) ne sert à rien : 401", (await fetch(url, { headers: { cookie: unlocked.split("; ").filter((c) => c.startsWith("pf-backup-unlock=")).join("; ") } })).status === 401);
+  cookie = unlocked;
   const res = await fetch(url, { headers: { cookie } });
   const buf = Buffer.from(await res.arrayBuffer());
   ok("D1 téléchargement : 200, pièce jointe gzip", res.status === 200 && /attachment/.test(res.headers.get("content-disposition") ?? "") && res.headers.get("content-type") === "application/gzip", `${res.status}`);
@@ -157,11 +181,6 @@ try {
   ok("D6 Range hors fichier : 416", r3.status === 416);
   ok("D7 sans session : 401, rien n'est servi", (await fetch(url)).status === 401 && (await fetch(url, { headers: { cookie: "better-auth.session_token=faux" } })).status === 401);
   ok("D8 nom invalide ou chemin : 404", (await fetch(`${BASE}/api/admin/sauvegardes/..%2Fportfolio.db`, { headers: { cookie } })).status === 404 && (await fetch(`${BASE}/api/admin/sauvegardes/portfolio-20200101-000000.tar.gz`, { headers: { cookie } })).status === 404);
-  const dl = page.waitForEvent("download", { timeout: 20000 });
-  await goto("/admin/sauvegardes");
-  await rows().first().locator('[data-testid="telecharger"]').click();
-  const download = await dl;
-  ok("D9 le bouton « Télécharger » déclenche le téléchargement du bon fichier", download.suggestedFilename() === (await rows().first().getAttribute("data-name")));
 
   /* ---------------- E. onglet Projets ---------------- */
   await goto("/admin");

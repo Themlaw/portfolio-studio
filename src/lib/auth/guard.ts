@@ -42,8 +42,13 @@ export type AdminSession = NonNullable<Awaited<ReturnType<typeof getAdminSession
  * bord (la révocation reste dans getAdminSession).
  */
 export async function isAdminRequest(requestHeaders: Headers): Promise<boolean> {
+  return Boolean(await adminSessionFor(requestHeaders));
+}
+
+/** Comme isAdminRequest, mais rend la session (route qui doit connaître son âge ou son identifiant). */
+export async function adminSessionFor(requestHeaders: Headers): Promise<AdminSession | null> {
   const session = await getAuth().api.getSession({ headers: requestHeaders });
-  return Boolean(session && checkUserAccess(session.user.id).allowed);
+  return session && checkUserAccess(session.user.id).allowed ? session : null;
 }
 
 /** Pages de l'admin : redirige vers la connexion sans session valide. */

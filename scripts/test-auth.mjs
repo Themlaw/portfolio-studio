@@ -234,6 +234,7 @@ const ADMIN_ACTIONS = [
   "saveCardWallpaperAction",
   "saveThemeFrameAllAction",
   "listWallpapersAction",
+  "unlockBackupDownloadAction",
 ];
 
 /** Identifiants des server actions, lus dans le manifeste du build. */
@@ -558,6 +559,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /[vV]ersion/.test(name) ? "/admin/themes/mon-theme/versions"
     : /Model|OldTheme/.test(name) ? "/admin/themes"
     : /Onboarding/.test(name) ? "/admin"
+    : /Backup/.test(name) ? "/admin/sauvegardes"
     : /Draft|[bB]oard|Font|FromEditor/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings|Seo/.test(name) ? "/admin/reglages"
@@ -570,6 +572,38 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : "/admin/pages";
   const res = await callActionJson(forged, ids[name], ["x", {}], screen);
   ok(`A10 ${name} avec un cookie forgé → 403`, res.status === 403, `${res.status} ${res.text.slice(0, 120)}`);
+}
+// Audit de sécurité P2 : télécharger une sauvegarde exige une confirmation récente (connexion < 10 min ou mot de passe retapé).
+{
+  const name = "portfolio-20260101-000000.tar.gz";
+  mkdirSync(path.join(dirA, "backup"), { recursive: true });
+  writeFileSync(path.join(dirA, "backup", name), "archive-de-test-P2");
+  const url = `/api/admin/sauvegardes/${name}`;
+  let r = await http(url, { jar });
+  ok("A10p téléchargement, connexion de moins de 10 min : 200", r.status === 200, `${r.status}`);
+  writeDb(dirA, "update session set created_at = ?", Date.now() - 3_600_000);
+  r = await http(url, { jar });
+  ok("A10p session de plus de 10 min (cookie volé), sans confirmation : 403, rien n'est servi", r.status === 403 && !(await r.text()).includes("archive-de-test-P2"), `${r.status}`);
+  ok("A10p sans session : 401", (await http(url)).status === 401);
+  const unlock = (args, j = jar) => callActionJson(j, ids.unlockBackupDownloadAction, [args], "/admin/sauvegardes");
+  ok("A10p déverrouillage sans session (cookie forgé) : 403", (await unlock({ password: ADMIN.password }, forged)).status === 403);
+  let a = await unlock({});
+  ok("A10p déverrouillage sans mot de passe : demandé", a.text.includes('"reauth":"password"') && !jar.cookies.has("pf-backup-unlock"), a.text.slice(0, 160));
+  a = await unlock({ password: "pas-le-bon-mot-de-passe" });
+  ok("A10p mauvais mot de passe : refusé, aucun cookie", a.text.includes('"reauth":"wrong"') && !jar.cookies.has("pf-backup-unlock"), a.text.slice(0, 160));
+  a = await unlock({ password: ADMIN.password });
+  ok("A10p bon mot de passe : cookie de déverrouillage posé", a.text.includes('"ok":true') && jar.cookies.has("pf-backup-unlock"), a.text.slice(0, 160));
+  r = await http(url, { jar });
+  ok("A10p après confirmation : 200, archive servie", r.status === 200 && (await r.text()) === "archive-de-test-P2", `${r.status}`);
+  const [exp] = (jar.cookies.get("pf-backup-unlock") ?? "").split(".");
+  const fake = jar.copy();
+  fake.cookies.set("pf-backup-unlock", `${exp}.${"A".repeat(43)}`);
+  ok("A10p cookie de déverrouillage falsifié : 403", (await http(url, { jar: fake })).status === 403);
+  // Oracle du mot de passe : même frein que la connexion (5 essais par minute et par IP).
+  let throttled = false;
+  for (let i = 0; i < 6 && !throttled; i++) throttled = (await unlock({ password: `faux-${i}` }, jar.copy((k) => k !== "pf-backup-unlock"))).text.includes('"reauth":"throttled"');
+  ok("A10p mots de passe faux en boucle : freinés (« Trop d'essais »)", throttled);
+  writeDb(dirA, "update session set created_at = ?", Date.now());
 }
 // Brouillons de l'éditeur visuel (phase 7a) — série ED : jamais publics ni en
 // cache (vérifié sur cache FROID : serveur redémarré, le cache ISR est en

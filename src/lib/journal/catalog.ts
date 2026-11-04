@@ -144,6 +144,8 @@ export const SPECS: Record<string, Spec> = {
   // Sauvegardes, compte, premiers pas
   saveBackupSettingsAction: { label: "Réglages des sauvegardes modifiés", type: "reglage" },
   backupNowAction: { label: "Sauvegarde lancée à la main", type: "creation" },
+  // Audit P2 : trace du déverrouillage des téléchargements (le mot de passe n'est jamais résumé : aucun argument).
+  unlockBackupDownloadAction: { label: "Téléchargement des sauvegardes déverrouillé", type: "compte", values: [] },
   setOnboardingHiddenAction: { label: "Premiers pas masqués ou affichés", type: "modification" },
   signOutAction: { label: "Déconnexion", type: "compte" },
   // Routes d'écriture

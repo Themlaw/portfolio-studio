@@ -79,6 +79,11 @@ function createAuth() {
       // porte l'e-mail d'un compte existant est refusée (account_not_linked),
       // jamais fusionnée en silence avec lui.
       accountLinking: { disableImplicitLinking: true },
+      // Audit de sécurité P2 : jetons Authentik chiffrés en base (clé = BETTER_AUTH_SECRET, absente de la base et des
+      // sauvegardes). Sans risque pour les comptes existants : le site ne relit JAMAIS ces jetons (l'accès est revérifié par
+      // oidc_identity) ; seuls /get-access-token, /refresh-token et /account-info les déchiffrent, et Better Auth y rend tel quel
+      // un ancien jeton en clair (JWT : pas de l'hexadécimal). Chaque nouvelle connexion réécrit les jetons, chiffrés.
+      encryptOAuthTokens: true,
     },
     rateLimit: {
       enabled: true,

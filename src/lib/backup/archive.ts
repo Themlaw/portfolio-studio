@@ -4,7 +4,8 @@
  *
  * Ce qui entre dans l'archive (lot 85 : PAR EXCLUSION, pas par liste) :
  *  - portfolio.db : copie par l'API de sauvegarde de SQLite (better-sqlite3 `.backup`), jamais une copie du fichier en
- *    écriture ; prise pendant que le site tourne, sans verrou d'écriture.
+ *    écriture ; prise pendant que le site tourne, sans verrou d'écriture. Copie SANS secrets d'authentification (sessions,
+ *    jetons de vérification, compteurs, jetons OAuth : scrub.ts) ; après une restauration, on se reconnecte.
  *  - media/ : TOUT le stockage, SAUF ce qui est prouvé régénérable :
  *      · les variantes img/, vid/ et doc/ d'un média dont l'original est présent (le worker les refait : restore.ts) ;
  *      · icons-auto/ (icônes « automatiques », refaites à la première requête) ;
@@ -30,6 +31,7 @@ import Database from "better-sqlite3";
 import type { BackupConfig } from "./config";
 import { isRegenerableKey, mediaRefsInDb, otherCitedNames, regenerableDirs, variantKeys } from "./refs";
 import { archiveName, rotationPlan, sortArchives, type DueReason } from "./schedule";
+import { scrubSecrets } from "./scrub";
 import { isSafeEntryName, tarChunks, type TarEntry, type TarReport } from "./tar";
 
 export const BACKUP_DIRNAME = "backup";
@@ -243,7 +245,7 @@ export async function runBackup(opts: RunOptions): Promise<BackupResult> {
   const dir = backupDir(opts.dataDir);
   await mkdir(dir, { recursive: true, mode: 0o750 });
   // Restes d'une écriture interrompue (arrêt brutal) : jamais une sauvegarde valable.
-  for (const n of await readdir(dir)) if (n.endsWith(".tmp")) await rm(path.join(/* turbopackIgnore: true */ dir, n), { force: true });
+  for (const n of await readdir(dir)) if (/\.tmp(-wal|-shm|-journal)?$/.test(n)) await rm(path.join(/* turbopackIgnore: true */ dir, n), { force: true });
 
   const stamp = (opts.now ?? (() => new Date()))();
   const snapshot = path.join(/* turbopackIgnore: true */ dir, `snapshot-${process.pid}.db.tmp`);
@@ -251,6 +253,8 @@ export async function runBackup(opts: RunOptions): Promise<BackupResult> {
   try {
     // 1. Instantané cohérent : l'API de sauvegarde lit par pages pendant que le site écrit (WAL), sans le bloquer.
     await opts.reader.backup(snapshot);
+    // 1b. Sans secrets d'authentification (audit de sécurité P2) : sur la COPIE seulement.
+    scrubSecrets(snapshot);
     const snapInfo = await stat(snapshot);
     const snap = new Database(snapshot, { readonly: true });
     let rows: MediaRow[];
@@ -370,7 +374,7 @@ export async function runBackup(opts: RunOptions): Promise<BackupResult> {
     for (const n of doomed) await rm(path.join(/* turbopackIgnore: true */ dir, n), { force: true });
     return { name, bytes, ms: Date.now() - started, files: entries.length, mediaCount: rows.length, kept: all.length - doomed.length, removed: doomed.length, shortfall: report.shortfall, storage: { saved, regenerable: plan.counts.regenerable }, missingRefs };
   } finally {
-    await rm(snapshot, { force: true });
+    for (const f of [snapshot, `${snapshot}-wal`, `${snapshot}-shm`, `${snapshot}-journal`]) await rm(f, { force: true });
     if (tmpArchive) await rm(tmpArchive, { force: true });
   }
 }

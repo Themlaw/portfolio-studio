@@ -1,7 +1,8 @@
 /**
  * GET/HEAD /api/admin/sauvegardes/<nom> — télécharge une sauvegarde (lot 76), pour qu'elle sorte du volume du site.
  *
- * - Réservé à l'admin : session vérifiée en base (401 sans session). Les mêmes cookies que l'admin : un simple lien suffit.
+ * - Réservé à l'admin : session vérifiée en base (401 sans session). Les mêmes cookies que l'admin, PLUS une confirmation
+ *   récente (403 sinon) : connexion de moins de 10 min ou mot de passe retapé (src/lib/backup/unlock.ts, audit P2).
  * - Nom strict (portfolio-AAAAMMJJ-HHMMSS.tar.gz) : aucun chemin ne peut être construit.
  * - Flux : le fichier est lu par blocs de 256 Ko, rien n'est chargé en mémoire (conteneur limité). Une plage
  *   (Range, une seule) donne un 206, ce qui permet de reprendre un téléchargement interrompu ; If-Range respecté.
@@ -12,10 +13,12 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
-import { isAdminRequest } from "@/lib/auth/guard";
+import { readAuthConfig } from "@/lib/auth/config";
+import { adminSessionFor } from "@/lib/auth/guard";
 import { dataDir } from "@/lib/db";
 import { backupDir } from "@/lib/backup/archive";
 import { isArchiveName, parseRange } from "@/lib/backup/download";
+import { isFreshSession, isUnlocked, readCookie, UNLOCK_COOKIE } from "@/lib/backup/unlock";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +29,12 @@ const text = (status: number, body: string, extra: Record<string, string> = {}) 
   new Response(body, { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...extra } });
 
 async function serve(request: Request, { params }: Params, head: boolean) {
-  if (!(await isAdminRequest(request.headers))) return text(401, "Connexion requise");
+  const session = await adminSessionFor(request.headers);
+  if (!session) return text(401, "Connexion requise");
+  // Audit de sécurité P2 : un cookie de session volé ne suffit pas. Connexion de moins de 10 min, ou mot de passe retapé
+  // (cookie de déverrouillage lié à cette session, posé par unlockBackupDownloadAction).
+  const unlocked = isFreshSession(session.session.createdAt) || isUnlocked(readAuthConfig().secret, session.session.id, readCookie(request.headers.get("cookie"), UNLOCK_COOKIE));
+  if (!unlocked) return text(403, "Confirme ton mot de passe sur l'écran Sauvegardes avant de télécharger.");
   const { name } = await params;
   if (!isArchiveName(name)) return text(404, "Not found");
   const file = path.join(/* turbopackIgnore: true */ backupDir(dataDir()), name);
