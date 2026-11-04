@@ -455,8 +455,12 @@ ok("A2b /admin/themes sans session → redirection", r.status === 307, String(r.
   ];
   const leaks = [];
   for (const page of ADMIN_PAGES) {
-    for (const url of [`${page}?_rsc=abcde`, page]) {
-      const res = await http(url, { headers: { cookie: fakeCookie, RSC: "1", "Next-Router-State-Tree": tree, "Next-Url": "/admin/pages" } });
+    for (const url of [`${page}?_rsc`, page]) {
+      const rscHeaders = { cookie: fakeCookie, RSC: "1", "Next-Router-State-Tree": tree, "Next-Url": "/admin/pages" };
+      let res = await http(url, { headers: rscHeaders });
+      // Next renvoie d'abord vers l'empreinte `_rsc` attendue : on la suit, comme un vrai client.
+      const loc = res.headers.get("location");
+      if (res.status === 307 && loc?.includes("_rsc=")) res = await http(loc, { headers: rscHeaders });
       const body = await res.text();
       if (res.status !== 307 || !res.headers.get("location")?.endsWith("/admin/connexion") || body.length > 200) leaks.push(`${url} ${res.status} ${body.length} o`);
     }
