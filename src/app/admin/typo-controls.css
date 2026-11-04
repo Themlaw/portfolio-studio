@@ -595,3 +595,15 @@
 .bd-pop .bd-auto {
   justify-self: start;
 }
+
+/* Lot 107b : au doigt, les pastilles et la roue de couleur libre sont assez grandes pour être touchées (22 px se confondaient avec la voisine), et sans zoom au double toucher. */
+@media (pointer: coarse) {
+  .tc .tc-swatch {
+    width: 32px;
+    min-height: 32px;
+    height: 32px;
+  }
+  .tc button {
+    touch-action: manipulation;
+  }
+}

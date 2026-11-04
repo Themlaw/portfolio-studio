@@ -155,6 +155,7 @@ E2E=(
   "fond100|node scripts/e2e-fond100.mjs|chromium|"
   "reglages105|node scripts/e2e-reglages105.mjs|chromium|"
   "couches107|node scripts/e2e-couches107.mjs|chromium|"
+  "couleur107|node scripts/e2e-couleur107.mjs|chromium|"
   "structures108a|node --import tsx scripts/e2e-structures108.mjs|chromium|A"
   "structures108b|node --import tsx scripts/e2e-structures108.mjs|chromium|B"
   "structures108c|node --import tsx scripts/e2e-structures108.mjs|chromium|C"
