@@ -66,6 +66,9 @@ function createAuth() {
         // Un `sub` déjà connu qui n'est plus autorisé (retiré du groupe dans
         // Authentik…) perd ses sessions en cours, pas seulement la suivante.
         const revoked = identity ? forgetIdentity(identity.sub) : 0;
+        void import("@/lib/journal/audit").then((j) =>
+          j.recordEvent({ action: "auth:sign-in-oidc", type: "compte", user: null, result: "refus", label: "Connexion Authentik refusée (compte non autorisé)" }),
+        );
         console.warn(
           `[auth] connexion Authentik refusée (sub « ${identity?.sub ?? "?"} », e-mail ${identity?.emailVerified ? "vérifié" : "non vérifié"})` +
             (revoked ? ` : ${revoked} session(s) révoquée(s)` : ""),
@@ -108,6 +111,14 @@ function createAuth() {
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", secure: isProd },
     },
     hooks: {
+      // Journal (docs/SECURITE.md P5) : connexion Authentik réussie (retour du fournisseur avec une nouvelle session). La connexion
+      // par mot de passe est journalisée par le gestionnaire /api/auth (succès et échecs).
+      after: createAuthMiddleware(async (ctx) => {
+        const user = ctx.context.newSession?.user.id;
+        if (user && /^\/(?:oauth2\/)?callback\//.test(ctx.path)) {
+          void import("@/lib/journal/audit").then((j) => j.recordEvent({ action: "auth:sign-in-oidc", type: "compte", user, result: "ok", label: "Connexion (Authentik)" }));
+        }
+      }),
       before: createAuthMiddleware(async (ctx) => {
         if (!config.passwordEnabled && PASSWORD_PATHS.has(ctx.path)) {
           throw new APIError("FORBIDDEN", {

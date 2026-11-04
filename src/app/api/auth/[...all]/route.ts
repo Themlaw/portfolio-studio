@@ -4,6 +4,7 @@ import { getAuth } from "@/lib/auth";
 import { CLIENT_IP_HEADER, clientIpFromForwarded, ipBucket, UNKNOWN_IP } from "@/lib/auth/client-ip";
 import { readAuthConfig } from "@/lib/auth/config";
 import { accountWaitSeconds, authEndpoint, ipAttempt, recordFailure, recordSuccess, waitSeconds } from "@/lib/auth/throttle";
+import { recordEvent } from "@/lib/journal/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,16 @@ async function readBoundedText(request: Request, max: number): Promise<string | 
     chunks.push(value);
   }
   return Buffer.concat(chunks).toString("utf8");
+}
+
+/** Identifiant interne de l'utilisateur connecté par la réponse de Better Auth (`{ user: { id } }`), jamais l'e-mail. */
+async function signedInUser(response: Response): Promise<string | null> {
+  try {
+    const data = (await response.clone().json()) as { user?: { id?: unknown } };
+    return typeof data?.user?.id === "string" ? data.user.id : null;
+  } catch {
+    return null;
+  }
 }
 
 function tooMany(code: string, message: string, wait: number): Response {
@@ -95,6 +106,7 @@ async function handle(request: Request, method: "GET" | "POST"): Promise<Respons
   if (!guarded) return handler[method](forward);
 
   let email: string | null = null;
+  let sessionUser: string | null = null;
   if (endpoint === "/sign-in/email") {
     try {
       const parsed = JSON.parse(body ?? "{}") as { email?: unknown };
@@ -106,6 +118,7 @@ async function handle(request: Request, method: "GET" | "POST"): Promise<Respons
     // Changement de mot de passe : le compte est celui de la session (sans session, Better Auth répond 401).
     const session = await getAuth().api.getSession({ headers }).catch(() => null);
     email = session?.user.email.trim().toLowerCase() ?? null;
+    sessionUser = session?.user.id ?? null;
   }
   if (email) {
     // 2. Délai progressif propre à ce compte DEPUIS cette IP.
@@ -126,6 +139,22 @@ async function handle(request: Request, method: "GET" | "POST"): Promise<Respons
       endpoint === "/sign-in/email" ? response.status === 401 : response.status === 400 && (await errorCode(response)) === "INVALID_PASSWORD";
     if (failed) recordFailure(email, bucket);
     else if (response.ok) recordSuccess(email, bucket);
+  }
+  if (endpoint === "/change-password") {
+    // Changement de mot de passe : journalisé (docs/SECURITE.md P5), réussite comme échec, avec le compte de la session.
+    recordEvent({
+      action: "auth:change-password",
+      type: "compte",
+      user: sessionUser,
+      result: response.ok ? "ok" : "refus",
+      label: response.ok ? "Mot de passe changé" : "Changement de mot de passe refusé",
+      reason: response.ok ? null : `HTTP ${response.status}`,
+    });
+  } else if (response.ok) {
+    // Journal (P5) : connexion réussie (compte interne) ou échec (anonyme, débit borné) ; ni l'e-mail tenté ni l'IP.
+    recordEvent({ action: "auth:sign-in", type: "compte", user: await signedInUser(response), result: "ok", label: "Connexion (mot de passe)" });
+  } else if (response.status === 401) {
+    recordEvent({ action: "auth:sign-in", type: "compte", user: null, result: "refus", label: "Connexion refusée (mot de passe)", reason: "identifiants invalides" });
   }
   return response;
 }

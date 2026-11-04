@@ -4,6 +4,7 @@
  * plus tard (Admin → Thèmes → Importer). Admin connecté ; aucune écriture.
  */
 import { assertAdmin } from "@/lib/auth/guard";
+import { recordEvent } from "@/lib/journal/audit";
 import { loadSavedTheme } from "@/lib/kit/export-job";
 import { exportThemePackage } from "@/lib/themes/transfer";
 
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: Params) {
-  await assertAdmin();
+  const session = await assertAdmin();
   const { id } = await params;
   const theme = /^[a-z0-9-]{1,80}$/.test(id) ? loadSavedTheme(id) : null;
   if (!theme) {
@@ -23,6 +24,7 @@ export async function GET(_request: Request, { params }: Params) {
     });
   }
   const zip = await exportThemePackage(theme);
+  recordEvent({ action: "download:theme-export", type: "telechargement", user: session.user.id, result: "ok", label: "Thème exporté (archive)", target: theme.id });
   return new Response(new Uint8Array(zip), {
     headers: {
       "Content-Type": "application/zip",

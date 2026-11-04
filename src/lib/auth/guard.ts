@@ -46,8 +46,13 @@ export type AdminSession = NonNullable<Awaited<ReturnType<typeof getAdminSession
  * bord (la révocation reste dans getAdminSession).
  */
 export async function isAdminRequest(requestHeaders: Headers): Promise<boolean> {
+  return (await adminUserId(requestHeaders)) !== null;
+}
+
+/** Identifiant interne de l'admin de ces en-têtes (session vérifiée en base, accès revérifié), ou null. */
+export async function adminUserId(requestHeaders: Headers): Promise<string | null> {
   const session = await getAuth().api.getSession({ headers: requestHeaders });
-  return Boolean(session && checkUserAccess(session.user.id).allowed);
+  return session && checkUserAccess(session.user.id).allowed ? session.user.id : null;
 }
 
 /**

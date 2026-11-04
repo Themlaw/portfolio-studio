@@ -157,6 +157,16 @@ function query(dataDir, sql, ...params) {
   return row;
 }
 const userCount = (dataDir) => query(dataDir, "select count(*) n from user").n;
+/** Lignes du journal d'édition (base à part, edit-log.db). */
+function logRows(dataDir, where = "1 = 1", ...params) {
+  const file = path.join(dataDir, "edit-log.db");
+  if (!existsSync(file)) return [];
+  const db = new Database(file, { readonly: true });
+  db.pragma("busy_timeout = 2000");
+  const rows = db.prepare(`select action, type, user, result, label, target from edit_log where ${where} order by id`).all(...params);
+  db.close();
+  return rows;
+}
 
 /** Server actions de l'admin (même liste que scripts/test-admin-guard.mjs). */
 const ADMIN_ACTIONS = [
@@ -623,6 +633,16 @@ ok("A5c Cross-Origin-Opener-Policy: same-origin sur l'admin", r.headers.get("cro
   await fromOutside.text();
   ok("A5d URL profonde de l'admin ouverte depuis un autre site → /admin (même site, barre d'adresse, accueil de l'admin : servis)", deep.length === 0, deep.join(" ; "));
 }
+// docs/SECURITE.md P5 : connexion réussie et échec journalisés (compte interne pour la réussite ; ni e-mail, ni IP, ni mot de passe).
+{
+  const auth = logRows(dirA, "action = 'auth:sign-in'");
+  const dump = JSON.stringify(auth);
+  ok(
+    "A5e journal : connexion réussie (compte interne) et échec (anonyme), sans e-mail ni IP",
+    auth.some((x) => x.result === "ok" && x.user && x.type === "compte") && auth.some((x) => x.result === "refus" && x.user === null) && !dump.includes(ADMIN.email) && !dump.includes("203.0.113") && !dump.includes(ADMIN.password),
+    dump.slice(0, 300),
+  );
+}
 
 ok("A6a identifiant de la server action de déconnexion trouvé", Boolean(ids.signOutAction), Object.keys(ids).join(","));
 const forged = new Jar();
@@ -704,6 +724,12 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   const res = await callActionJson(forged, ids[name], ["x", {}], screen);
   // Cookie forgé : arrêté par le proxy (session vérifiée en base, §2.2) avant même l'action ; rien n'est exécuté ni rendu.
   ok(`A10 ${name} avec un cookie forgé → refusée (307 du proxy)`, res.status === 307 && !res.text.includes('"ok":'), `${res.status} ${res.text.slice(0, 120)}`);
+}
+// docs/SECURITE.md §2.7 : ces dizaines de refus SANS session n'ont rien écrit dans le journal (stdout seulement, agrégé).
+await sleep(500);
+{
+  const anon = logRows(dirA, "user is null and result = 'refus' and action not like 'auth:%'");
+  ok("A10b refus sans session : aucune ligne dans le journal d'édition (stdout agrégé « edit-anon »)", anon.length === 0 && /"t":"edit-anon"/.test(s.text()), `${anon.length} lignes`);
 }
 // Brouillons de l'éditeur visuel (phase 7a) — série ED : jamais publics ni en
 // cache (vérifié sur cache FROID : serveur redémarré, le cache ISR est en
@@ -2813,6 +2839,7 @@ ok(
   first.ready && dl.status === 200 && zipKit.subarray(0, 2).toString("latin1") === "PK" && /attachment; filename="kit-galerie-lumineuse\.zip"/.test(dl.headers.get("content-disposition") ?? "") && ["1-decor-accueil.psd", "2-logo-papier.psd", "3-icones-curseurs.psd"].every((n) => kitFiles[n]?.subarray(0, 4).toString("latin1") === "8BPS") && Boolean(kitFiles["LISEZ-MOI.txt"]),
   JSON.stringify(first),
 );
+ok("TK3c téléchargement du kit journalisé (cible, compte interne)", !first.ready || logRows(dirK, "action = 'download:kit' and target = 'galerie-lumineuse' and user is not null").length >= 1);
 const line = serverLog(kv.server, /\[kit\] thème galerie-lumineuse : kit [^\n]+/g).pop() ?? "";
 console.log(`      processus enfant (bundle kit-child.cjs) : ${line}`);
 ok("TK3b processus enfant (kit v4, décor 5760 × 3200) : pic mémoire sous 600 Mo, priorité OOM maximale (1000)", Number(/pic (\d+) Mo/.exec(line)?.[1] ?? 9999) < 600 && /oom 1000/.test(line), line);
@@ -3204,6 +3231,7 @@ const before = themeCount();
 const exp = await fetch(`${BASE}/admin/api/themes/galerie-lumineuse/export`, { headers: { cookie: tv.jar.header() } });
 const expBody = Buffer.from(await exp.arrayBuffer());
 const badIds = await Promise.all(["inconnu", "..%2F..%2Fetc", "A_MAJ"].map(async (id) => (await fetch(`${BASE}/admin/api/themes/${id}/export`, { headers: { cookie: tv.jar.header() } })).status));
+ok("TH2b export de thème journalisé (téléchargement, cible)", logRows(dirT, "action = 'download:theme-export' and target = 'galerie-lumineuse' and user is not null").length >= 1);
 ok("TH2 export : ZIP (theme.json) en pièce jointe ; identifiant inconnu ou invalide → 404", exp.status === 200 && expBody.subarray(0, 4).toString("hex") === "504b0304" && expBody.includes("theme.json") && /attachment; filename="theme-galerie-lumineuse\.zip"/.test(exp.headers.get("content-disposition") ?? "") && badIds.every((s) => s === 404), `${exp.status} ${badIds}`);
 
 // Ré-import de l'export brut : copie « (importé) », non livrée, non active.

@@ -12,10 +12,11 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 
-import { isAdminRequest } from "@/lib/auth/guard";
+import { adminUserId } from "@/lib/auth/guard";
 import { dataDir } from "@/lib/db";
 import { backupDir } from "@/lib/backup/archive";
 import { isArchiveName, parseRange } from "@/lib/backup/download";
+import { recordEvent } from "@/lib/journal/audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +27,8 @@ const text = (status: number, body: string, extra: Record<string, string> = {}) 
   new Response(body, { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", ...extra } });
 
 async function serve(request: Request, { params }: Params, head: boolean) {
-  if (!(await isAdminRequest(request.headers))) return text(401, "Connexion requise");
+  const user = await adminUserId(request.headers);
+  if (!user) return text(401, "Connexion requise");
   const { name } = await params;
   if (!isArchiveName(name)) return text(404, "Not found");
   const file = path.join(/* turbopackIgnore: true */ backupDir(dataDir()), name);
@@ -57,6 +59,8 @@ async function serve(request: Request, { params }: Params, head: boolean) {
   if (range) headers.set("Content-Range", `bytes ${start}-${end}/${info.size}`);
   const status = range ? 206 : 200;
   if (head || length === 0) return new Response(null, { status, headers });
+  // Journal (P5) : une archive contient toute la base. Une reprise (Range au-delà du début) n'ajoute pas d'entrée.
+  if (start === 0) recordEvent({ action: "download:backup", type: "telechargement", user, result: "ok", label: "Sauvegarde téléchargée", target: name });
   const stream = createReadStream(file, { start, end, highWaterMark: 256 * 1024 });
   return new Response(Readable.toWeb(stream) as ReadableStream, { status, headers });
 }
