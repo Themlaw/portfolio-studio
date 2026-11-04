@@ -443,6 +443,26 @@ let r = await http("/admin");
 ok("A2 /admin sans session → /admin/connexion", r.status === 307 && r.headers.get("location")?.endsWith("/admin/connexion"), `${r.status} ${r.headers.get("location")}`);
 r = await http("/admin/themes");
 ok("A2b /admin/themes sans session → redirection", r.status === 307, String(r.status));
+// docs/SECURITE.md §2.2 / §5.1 : un cookie de session INVENTÉ + une requête RSC (navigation simulée, layout supposé déjà affiché)
+// lisait toute l'admin (messages, réglages, journal, brouillons). Le proxy vérifie maintenant la session en base : 307, aucun contenu.
+{
+  const fakeCookie = "__Secure-better-auth.session_token=totally.made.up.AAAA; better-auth.session_token=totally.made.up.AAAA";
+  const tree = encodeURIComponent(JSON.stringify(["", { children: ["admin", { children: ["(espace)", { children: ["pages", { children: ["__PAGE__", {}] }] }] }] }, null, null, true]));
+  const ADMIN_PAGES = [
+    "/admin", "/admin/messages", "/admin/reglages", "/admin/journal", "/admin/sauvegardes", "/admin/pages", "/admin/pages/1",
+    "/admin/pages/1/editer", "/admin/projets", "/admin/projets/1", "/admin/medias", "/admin/themes", "/admin/themes/galerie-lumineuse",
+    "/admin/themes/galerie-lumineuse/kit", "/admin/themes/galerie-lumineuse/versions", "/admin/cadres", "/admin/papiers-peints",
+  ];
+  const leaks = [];
+  for (const page of ADMIN_PAGES) {
+    for (const url of [`${page}?_rsc=abcde`, page]) {
+      const res = await http(url, { headers: { cookie: fakeCookie, RSC: "1", "Next-Router-State-Tree": tree, "Next-Url": "/admin/pages" } });
+      const body = await res.text();
+      if (res.status !== 307 || !res.headers.get("location")?.endsWith("/admin/connexion") || body.length > 200) leaks.push(`${url} ${res.status} ${body.length} o`);
+    }
+  }
+  ok("A2i faux cookie + RSC: 1 (+ ?_rsc) sur chaque page de l'admin → 307 vers la connexion, aucun contenu", leaks.length === 0, leaks.join(" ; ").slice(0, 300));
+}
 r = await http("/admin/connexion");
 const loginHtml = await r.text();
 ok("A2c connexion : formulaire, noindex, pas d'Authentik", r.status === 200 && loginHtml.includes("Adresse e-mail") && loginHtml.includes("noindex") && !loginHtml.includes("Authentik"));
@@ -498,7 +518,9 @@ const forged = new Jar();
 forged.cookies.set("__Secure-better-auth.session_token", "jeton-forge.signature");
 const actionHeaders = { "next-action": ids.signOutAction, "content-type": "text/plain;charset=UTF-8", origin: BASE };
 r = await http("/admin", { jar: forged, method: "POST", headers: actionHeaders, raw: "[]" });
-ok("A6 server action avec un cookie forgé (proxy franchi) → 403", r.status === 403, String(r.status));
+// Depuis docs/SECURITE.md §2.2 le proxy vérifie la session EN BASE : un cookie forgé ne le franchit plus (assertAdmin() en tête de
+// chaque action reste vérifié statiquement par test-admin-guard).
+ok("A6 server action avec un cookie forgé → redirigée par le proxy (session vérifiée en base)", r.status === 307, String(r.status));
 r = await http("/admin", { method: "POST", headers: actionHeaders, raw: "[]" });
 ok("A6b server action sans cookie → redirigée par le proxy", r.status === 307, String(r.status));
 
@@ -569,7 +591,8 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /^media|Media|Uploads|Tag/.test(name) ? "/admin/medias"
     : "/admin/pages";
   const res = await callActionJson(forged, ids[name], ["x", {}], screen);
-  ok(`A10 ${name} avec un cookie forgé → 403`, res.status === 403, `${res.status} ${res.text.slice(0, 120)}`);
+  // Cookie forgé : arrêté par le proxy (session vérifiée en base, §2.2) avant même l'action ; rien n'est exécuté ni rendu.
+  ok(`A10 ${name} avec un cookie forgé → refusée (307 du proxy)`, res.status === 307 && !res.text.includes('"ok":'), `${res.status} ${res.text.slice(0, 120)}`);
 }
 // Brouillons de l'éditeur visuel (phase 7a) — série ED : jamais publics ni en
 // cache (vérifié sur cache FROID : serveur redémarré, le cache ISR est en

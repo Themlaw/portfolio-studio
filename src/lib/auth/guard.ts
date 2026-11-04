@@ -1,7 +1,8 @@
 /**
  * Garde de l'admin. Défense en profondeur :
- *  1. src/proxy.ts redirige tout /admin/* sans cookie de session (test rapide) ;
- *  2. le layout de l'admin appelle requireAdmin() (session vérifiée en base) ;
+ *  1. src/proxy.ts redirige tout /admin/* sans session valide (vérifiée en base par isAdminRequest) ;
+ *  2. le layout de l'admin ET chaque page appellent requireAdmin() (session vérifiée en base ; une navigation RSC
+ *     ne rend que les segments qui changent : la garde du layout seule ne suffit pas, docs/SECURITE.md §2.2) ;
  *  3. chaque server action / route mutante commence par `await assertAdmin()`
  *     (vérifié par scripts/test-admin-guard.mjs).
  *

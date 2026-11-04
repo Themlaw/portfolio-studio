@@ -2,9 +2,10 @@
  * Proxy (Next 16, runtime Node.js) : garde de l'admin, i18n (next-intl) et
  * pages inconnues.
  *
- * Admin : tout /admin/* sans cookie de session est redirigé vers
- * /admin/connexion. Test rapide (présence du cookie) : la session elle-même est
- * vérifiée en base par le layout de l'admin et par assertAdmin().
+ * Admin : tout /admin/* sans session VALIDE (vérifiée en base, `isAdminRequest`) est redirigé vers /admin/connexion. La seule
+ * présence d'un cookie ne suffit pas : avec un cookie inventé et `RSC: 1`, Next rendait la charge RSC des pages sans repasser
+ * par le layout qui portait la garde (docs/SECURITE.md §2.2, §5.1). Le layout, chaque page (requireAdmin) et assertAdmin()
+ * revérifient ensuite.
  *
  * Un slug inconnu ne passe pas par notFound() : dans ce projet (layout racine
  * sous [locale], rendu ISR), Next répond alors une coquille d'erreur que seul
@@ -148,9 +149,10 @@ function adminCsp(nonce: string): string {
   ].join("; ");
 }
 
-function adminGate(request: NextRequest): NextResponse {
+async function adminGate(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
-  if (pathname !== ADMIN_LOGIN && !getSessionCookie(request)) {
+  // Cookie absent : redirection sans requête en base ; cookie présent : session vérifiée en base (un cookie inventé ne suffit pas).
+  if (pathname !== ADMIN_LOGIN && (!getSessionCookie(request) || !(await isAdminRequest(request.headers)))) {
     return NextResponse.redirect(new URL(ADMIN_LOGIN, request.url));
   }
   const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64");

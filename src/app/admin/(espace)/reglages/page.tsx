@@ -10,10 +10,12 @@ import { monoColors } from "@/lib/favicon-plan";
 import { siteNameFor } from "@/lib/site-schema";
 import { getPublishedTheme } from "@/lib/theme";
 import { fontLibraryRows } from "@/lib/fonts/library";
+import { requireAdmin } from "@/lib/auth/guard";
 
 export const metadata = { title: "Réglages" };
 
 export default async function SettingsPage() {
+  await requireAdmin();
   const fonts = fontLibraryRows();
   const settings = getSettingsForAdmin(true);
   const images = listMediaForAdmin().filter((m) => m.kind === "image");

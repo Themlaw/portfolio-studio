@@ -1,11 +1,13 @@
 import FrameLibrary from "@/components/admin/FrameLibrary";
 import PageHeader from "@/components/admin/PageHeader";
 import { listFramesForAdmin, themeFrameInfo } from "@/lib/frames";
+import { requireAdmin } from "@/lib/auth/guard";
 
 export const metadata = { title: "Cadres" };
 
 /** Bibliothèque de cadres (lot 74), sœur de « Papiers peints » : mêmes composants, mêmes gestes. */
-export default function FramesPage() {
+export default async function FramesPage() {
+  await requireAdmin();
   return (
     <>
       <PageHeader
