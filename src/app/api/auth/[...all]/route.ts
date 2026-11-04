@@ -3,7 +3,7 @@ import { toNextJsHandler } from "better-auth/next-js";
 import { getAuth } from "@/lib/auth";
 import { CLIENT_IP_HEADER, clientIpFromForwarded, ipBucket, UNKNOWN_IP } from "@/lib/auth/client-ip";
 import { readAuthConfig } from "@/lib/auth/config";
-import { accountWaitSeconds, authEndpoint, ipAttempt, recordFailure, recordSuccess, waitSeconds } from "@/lib/auth/throttle";
+import { accountWaitSeconds, authEndpoint, ipAttempt, noteThrottledAttempt, recordFailure, recordSuccess, waitSeconds } from "@/lib/auth/throttle";
 import { recordEvent } from "@/lib/journal/audit";
 
 export const dynamic = "force-dynamic";
@@ -124,11 +124,13 @@ async function handle(request: Request, method: "GET" | "POST"): Promise<Respons
     // 2. Délai progressif propre à ce compte DEPUIS cette IP.
     const wait = waitSeconds(email, bucket);
     if (wait > 0) {
+      noteThrottledAttempt(email);
       return tooMany("ACCOUNT_THROTTLED", `Trop d'échecs pour ce compte : réessaie dans ${wait} s.`, wait);
     }
     // 3. Délai du compte, toutes IP confondues (borné ; une IP qui a déjà réussi n'y est pas soumise).
     const accountWait = accountWaitSeconds(email, bucket);
     if (accountWait > 0) {
+      noteThrottledAttempt(email);
       return tooMany("ACCOUNT_THROTTLED", `Trop d'échecs pour ce compte : réessaie dans ${accountWait} s.`, accountWait);
     }
   }

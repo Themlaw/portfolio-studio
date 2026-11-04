@@ -145,6 +145,19 @@ export function noteAccountFailure(email: string, now = Date.now()): void {
   state.failures = state.failures.filter((t) => t > now - ACCOUNT_WINDOW_MS);
   state.failures.push(now);
   if (state.failures.length > MAX_FAILURES_KEPT) state.failures.splice(0, state.failures.length - MAX_FAILURES_KEPT);
+  alertTick(state, email, now);
+}
+
+/**
+ * Essai refusé par un délai (429 ACCOUNT_THROTTLED) : il ne prolonge pas le délai, mais compte pour l'ALERTE. Sans cela,
+ * une fois le délai du compte enclenché (10 échecs), presque tous les essais suivants étaient freinés sans être comptés,
+ * et l'alerte « 20 échecs en une heure » n'arrivait qu'au bout de plusieurs minutes d'attaque.
+ */
+export function noteThrottledAttempt(email: string, now = Date.now()): void {
+  alertTick(accountState(email, now), email, now);
+}
+
+function alertTick(state: AccountState, email: string, now: number): void {
   if (now - state.alertFrom > 3600_000) {
     state.alertFrom = now;
     state.alertCount = 0;

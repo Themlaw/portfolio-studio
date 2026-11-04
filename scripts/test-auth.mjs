@@ -735,7 +735,9 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   // Cookie forgé : arrêté par le proxy (session vérifiée en base, §2.2) avant même l'action ; rien n'est exécuté ni rendu.
   ok(`A10 ${name} avec un cookie forgé → refusée (307 du proxy)`, res.status === 307 && !res.text.includes('"ok":'), `${res.status} ${res.text.slice(0, 120)}`);
 }
-// docs/SECURITE.md §2.7 : ces dizaines de refus SANS session n'ont rien écrit dans le journal (stdout seulement, agrégé).
+// docs/SECURITE.md §2.7 : un refus SANS session n'écrit rien dans le journal (stdout seulement, agrégé). Sous /admin, le cookie forgé
+// est arrêté par le proxy avant l'action (§2.2) ; une server action reste appelable depuis une page publique : on y envoie les mêmes appels.
+for (const name of ["savePageAction", "saveSettingsAction", "addMediaTagsAction"].filter((n) => ids[n])) await callActionJson(forged, ids[name], ["x", {}], "/fr");
 await sleep(500);
 {
   const anon = logRows(dirA, "user is null and result = 'refus' and action not like 'auth:%'");
@@ -754,7 +756,9 @@ await sleep(500);
   ok("A10p session de plus de 10 min (cookie volé), sans confirmation : 403, rien n'est servi", r.status === 403 && !(await r.text()).includes("archive-de-test-P2"), `${r.status}`);
   ok("A10p sans session : 401", (await http(url)).status === 401);
   const unlock = (args, j = jar) => callActionJson(j, ids.unlockBackupDownloadAction, [args], "/admin/sauvegardes");
-  ok("A10p déverrouillage sans session (cookie forgé) : 403", (await unlock({ password: ADMIN.password }, forged)).status === 403);
+  // Cookie forgé : arrêté par le proxy (307, §2.2) avant même l'action ; 403 si l'action est atteinte.
+  const forgedUnlock = await unlock({ password: ADMIN.password }, forged);
+  ok("A10p déverrouillage sans session (cookie forgé) : refusé", [307, 403].includes(forgedUnlock.status) && !forged.cookies.has("pf-backup-unlock"), String(forgedUnlock.status));
   let a = await unlock({});
   ok("A10p déverrouillage sans mot de passe : demandé", a.text.includes('"reauth":"password"') && !jar.cookies.has("pf-backup-unlock"), a.text.slice(0, 160));
   a = await unlock({ password: "pas-le-bon-mot-de-passe" });
