@@ -32,7 +32,7 @@ import { lastUserActivityAt } from "./activity";
 import { backupDir, BackupSkipped, listArchives, readArchiveManifest, runBackup, type BackupProgress } from "./archive";
 import { describeConfig, type BackupConfig, type BackupSources } from "./config";
 import { effectiveBackupConfig, envBackupConfig } from "./settings";
-import { nextDueAt, Scheduler, type DueReason } from "./schedule";
+import { nextDueAt, retentionPlan, Scheduler, type DueReason } from "./schedule";
 
 type Svc = {
   timer?: NodeJS.Timeout;
@@ -315,15 +315,17 @@ export type ArchiveRow = {
   mediaCount: number | null;
   /** Lot 85 : sauvegarde faite avant le lot (ni kit, ni cadres, ni icônes dans l'archive) ; null : inconnu. */
   old: boolean | null;
+  /** Lot 118 : « recente » (parmi les dernières) ou « jour » (la dernière de sa journée, heure de Paris) ; null : sera supprimée. */
+  retention: { kind: "recente" | "jour"; day: string } | null;
   /** Références /media/… de la base absentes de l'archive et non régénérables (nombre et exemples) ; null : inconnu. */
   missing: { count: number; samples: string[] } | null;
 };
 
 export type BackupStatus = {
   /** Réglages en vigueur et d'où vient chaque valeur. */
-  settings: { enabled: boolean; keep: number; quietMin: number; maxHours: number; media: boolean; sources: BackupSources };
+  settings: { enabled: boolean; keep: number; keepDays: number; quietMin: number; maxHours: number; media: boolean; sources: BackupSources };
   /** Valeurs sans les réglages de l'admin (environnement, sinon défauts) : pour « revenir à l'origine ». */
-  base: { enabled: boolean; keep: number; quietMin: number; maxHours: number; media: boolean };
+  base: { enabled: boolean; keep: number; keepDays: number; quietMin: number; maxHours: number; media: boolean };
   running: boolean;
   progress: BackupProgress | null;
   startedAt: number | null;
@@ -340,7 +342,7 @@ export type BackupStatus = {
   now: number;
 };
 
-const view = (c: BackupConfig) => ({ enabled: c.enabled, keep: c.keep, quietMin: c.quietMs / 60_000, maxHours: c.maxMs / 3_600_000, media: c.media });
+const view = (c: BackupConfig) => ({ enabled: c.enabled, keep: c.keep, keepDays: c.keepDays, quietMin: c.quietMs / 60_000, maxHours: c.maxMs / 3_600_000, media: c.media });
 
 export async function getBackupStatus(): Promise<BackupStatus> {
   const s = svc();
@@ -349,9 +351,11 @@ export async function getBackupStatus(): Promise<BackupStatus> {
   const dir = backupDir(root);
   const list = await listArchives(dir);
   const archives: ArchiveRow[] = [];
+  const plan = retentionPlan(list.map((a) => a.name), config.keep, config.keepDays);
+  const kindOf = new Map(plan.kept.map((k) => [k.name, k]));
   for (const a of [...list].reverse()) {
     const m = await readArchiveManifest(path.join(/* turbopackIgnore: true */ dir, a.name));
-    archives.push({ name: a.name, size: a.size, at: a.mtimeMs, version: m?.version ?? null, reason: m?.reason ?? null, withMedia: m?.includesMedia ?? null, mediaCount: m?.mediaCount ?? null, old: m ? (m.includesMedia === false ? false : !m.storage) : null, missing: m?.missingRefs ?? null });
+    archives.push({ name: a.name, size: a.size, at: a.mtimeMs, version: m?.version ?? null, reason: m?.reason ?? null, withMedia: m?.includesMedia ?? null, mediaCount: m?.mediaCount ?? null, old: m ? (m.includesMedia === false ? false : !m.storage) : null, missing: m?.missingRefs ?? null, retention: kindOf.has(a.name) ? { kind: kindOf.get(a.name)!.kind, day: kindOf.get(a.name)!.day } : null });
   }
   const now = Date.now();
   let next: BackupStatus["next"] = { kind: "desactivee", at: null };

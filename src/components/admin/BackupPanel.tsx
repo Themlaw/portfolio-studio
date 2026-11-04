@@ -10,8 +10,7 @@ import { SaveBar, toast } from "./editing";
 const REASONS: Record<string, string> = {
   premier: "Première sauvegarde",
   calme: "Après une session de travail",
-  delai: "Délai maximal atteint",
-  bruit: "Après une session de travail (le site écrivait encore en fond)",
+  delai: "Modifications en attente depuis trop longtemps (tu travaillais encore)",
   manuel: "À ta demande",
 };
 const SOURCES = { reglage: "Réglé ici", env: "Valeur du serveur", defaut: "Valeur d'origine" } as const;
@@ -184,6 +183,12 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
         <div className="a-table-wrap">
           <dl className="a-dl">
             {row("Sauvegardes gardées", String(status.archives.length), "etat-nombre")}
+            {row(
+              "Règle de conservation",
+              `Les ${status.settings.keep} dernières, plus la dernière de chacun des ${status.settings.keepDays} derniers jours (heure de Paris). Le reste est supprimé à la sauvegarde suivante.`,
+              "etat-conservation",
+            )}
+            {row("Sauvegarde même si tu travailles", `Toutes les ${String(status.settings.maxHours).replace(".", ",")} h au plus, quand des modifications attendent (sinon ${String(status.settings.quietMin).replace(".", ",")} min sans modification).`, "etat-delai")}
             {row("Prochaine sauvegarde", nextText, "etat-prochaine")}
             {row(
               "Dernière erreur",
@@ -244,7 +249,15 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
               <tbody>
                 {status.archives.map((a: ArchiveRow) => (
                   <tr key={a.name} data-testid="ligne-sauvegarde" data-name={a.name}>
-                    <td data-label="Date">{fmtDate(a.at)}</td>
+                    <td data-label="Date">
+                      {fmtDate(a.at)}
+                      {a.retention && (
+                        <span className={`a-badge${a.retention.kind === "recente" ? "" : " a-badge-muted"}`} data-testid="conservation" data-kind={a.retention.kind} data-day={a.retention.day}>
+                          {" "}
+                          {a.retention.kind === "recente" ? "Récente" : "Du jour"}
+                        </span>
+                      )}
+                    </td>
                     <td data-label="Taille">{fmtSize(a.size)}</td>
                     <td data-label="Contenu">
                       {a.withMedia === null ? "?" : a.withMedia ? "Base et médias" : "Base seule"}
@@ -290,7 +303,9 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
           <div className="a-field">
             <label htmlFor="sv-keep">Nombre de sauvegardes gardées</label>
             <input id="sv-keep" className="a-input" type="number" min={1} max={30} step={1} value={form.keep} onChange={(e) => set("keep", e.target.value)} data-testid="reglage-garder" />
-            <span className="a-help">Les plus anciennes sont supprimées à la sauvegarde suivante.</span>
+            <span className="a-help">
+              Les dernières sauvegardes (« récentes »). S&apos;y ajoute la dernière de chacun des {status.settings.keepDays} derniers jours (« du jour », réglage du serveur BACKUP_KEEP_DAYS). Le reste est supprimé à la sauvegarde suivante.
+            </span>
             {errors.keep && <span className="a-field-error">{errors.keep}</span>}
             {src("keep")}
           </div>
@@ -301,7 +316,7 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
             {src("quietMin")}
           </div>
           <div className="a-field">
-            <label htmlFor="sv-max">Heures au plus entre deux sauvegardes, même si tu travailles</label>
+            <label htmlFor="sv-max">Heures au plus avant de sauvegarder tes modifications, même si tu travailles encore</label>
             <input id="sv-max" className="a-input" type="number" min={1} max={720} step={1} value={form.maxHours} onChange={(e) => set("maxHours", e.target.value)} data-testid="reglage-delai" />
             {errors.maxHours && <span className="a-field-error">{errors.maxHours}</span>}
             {src("maxHours")}

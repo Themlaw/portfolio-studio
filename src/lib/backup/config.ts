@@ -4,8 +4,9 @@
  *  WITH_BACKUP        1 / true pour activer (absent, 0, false : rien ne change, aucun fichier créé)
  *  BACKUP_QUIET_MIN   minutes sans nouvelle modification avant de sauvegarder (10)
  *  BACKUP_QUIET_SEC   idem en secondes (tests ; prioritaire sur BACKUP_QUIET_MIN)
- *  BACKUP_MAX_HOURS   au plus N heures entre deux sauvegardes tant qu'il y a des modifications (6)
- *  BACKUP_KEEP        nombre de sauvegardes gardées (3)
+ *  BACKUP_MAX_HOURS   les modifications de l'artiste en attente depuis N heures sont sauvegardées même si elle continue (1)
+ *  BACKUP_KEEP        nombre de dernières sauvegardes gardées (3)
+ *  BACKUP_KEEP_DAYS   et la dernière de chaque jour (heure de Paris) sur N jours (7)
  *  BACKUP_MEDIA       0 / false : base seule, sans les médias (1)
  *
  * Lot 76 : l'admin peut surcharger ces réglages (ligne `backup` de la table settings, voir settings.ts). Un réglage de l'admin
@@ -23,6 +24,8 @@ export type BackupConfig = {
   quietMs: number;
   maxMs: number;
   keep: number;
+  /** Lot 118 : jours (Paris) dont on garde la dernière sauvegarde, en plus des `keep` dernières. */
+  keepDays: number;
   media: boolean;
   /** Intervalle de la minuterie (ms) : fin par rapport au délai de quiétude le plus court. */
   pollMs: number;
@@ -31,7 +34,7 @@ export type BackupConfig = {
   sources: BackupSources;
 };
 
-export const DEFAULTS = { quietMin: 10, maxHours: 6, keep: 3 } as const;
+export const DEFAULTS = { quietMin: 10, maxHours: 1, keep: 3, keepDays: 7 } as const;
 
 const on = (v: string | undefined) => v !== undefined && ["1", "true", "yes", "oui", "on"].includes(v.trim().toLowerCase());
 const off = (v: string | undefined) => v !== undefined && ["0", "false", "no", "non", "off"].includes(v.trim().toLowerCase());
@@ -73,6 +76,7 @@ export function readBackupConfig(env: Record<string, string | undefined> = proce
   const envQuietMs = quietSec > 0 ? quietSec * 1000 : positive("BACKUP_QUIET_MIN", env.BACKUP_QUIET_MIN, DEFAULTS.quietMin, warnings) * 60_000;
   const envMaxMs = positive("BACKUP_MAX_HOURS", env.BACKUP_MAX_HOURS, DEFAULTS.maxHours, warnings) * 3_600_000;
   const envKeep = positive("BACKUP_KEEP", env.BACKUP_KEEP, DEFAULTS.keep, warnings, true);
+  const keepDays = positive("BACKUP_KEEP_DAYS", env.BACKUP_KEEP_DAYS, DEFAULTS.keepDays, warnings, true);
   const envMedia = !off(env.BACKUP_MEDIA);
 
   const given = (v: string | undefined) => v !== undefined && v.trim() !== "";
@@ -95,11 +99,11 @@ export function readBackupConfig(env: Record<string, string | undefined> = proce
   const media = overrides.media ?? envMedia;
   // Une vérification par quart du délai de quiétude, entre 0,5 s et 30 s : une lecture de PRAGMA, quasi gratuite.
   const pollMs = Math.min(30_000, Math.max(500, Math.floor(Math.min(quietMs, maxMs) / 4)));
-  return { enabled, quietMs, maxMs, keep, media, pollMs, warnings, sources };
+  return { enabled, quietMs, maxMs, keep, keepDays, media, pollMs, warnings, sources };
 }
 
 export function describeConfig(c: BackupConfig, dir: string): string {
   const quiet = c.quietMs % 60_000 === 0 ? `${c.quietMs / 60_000} min` : `${c.quietMs / 1000} s`;
   const max = c.maxMs % 3_600_000 === 0 ? `${c.maxMs / 3_600_000} h` : `${Math.round(c.maxMs / 60_000)} min`;
-  return `sauvegardes activées : après ${quiet} sans modification ou au plus ${max} après la précédente, ${c.keep} gardée(s), ${c.media ? "médias inclus" : "base seule (BACKUP_MEDIA=0)"}, dossier ${dir}`;
+  return `sauvegardes activées : après ${quiet} sans modification ou au plus ${max} de modifications en attente, ${c.keep} dernière(s) gardée(s) + la dernière de chacun des ${c.keepDays} derniers jours, ${c.media ? "médias inclus" : "base seule (BACKUP_MEDIA=0)"}, dossier ${dir}`;
 }

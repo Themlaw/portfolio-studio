@@ -24,14 +24,64 @@ export function sortArchives(names: string[]): string[] {
   return names.filter((n) => ARCHIVE_RE.test(n)).sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
 }
 
-/** Archives à supprimer pour n'en garder que `keep` (les plus récentes). N'efface jamais tout : keep >= 1. */
-export function rotationPlan(names: string[], keep: number): string[] {
-  const sorted = sortArchives(names);
-  const n = Math.max(1, Math.floor(keep));
-  return sorted.slice(0, Math.max(0, sorted.length - n));
+/** Instant (ms) d'une archive d'après son nom (heure locale du processus, comme `archiveName`), null si le nom n'est pas valide. */
+export function archiveInstant(name: string): number | null {
+  const m = ARCHIVE_RE.exec(name);
+  if (!m) return null;
+  const d = m[1];
+  const t = m[2];
+  return new Date(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6)).getTime();
 }
 
-export type DueReason = "premier" | "calme" | "delai" | "bruit" | "manuel";
+const parisFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" });
+/** Jour civil à Paris (AAAA-MM-JJ) d'un instant. */
+export const parisDay = (ms: number): string => parisFmt.format(new Date(ms));
+
+/** Les `days` derniers jours civils à Paris, aujourd'hui compris. */
+export function lastParisDays(now: number, days: number): string[] {
+  const [y, m, d] = parisDay(now).split("-").map(Number);
+  const out: string[] = [];
+  for (let i = 0; i < days; i++) out.push(new Date(Date.UTC(y, m - 1, d - i, 12)).toISOString().slice(0, 10));
+  return out;
+}
+
+export type Retention = { name: string; kind: "recente" | "jour"; day: string };
+
+/**
+ * Lot 118 : conservation. On garde (1) les `keep` dernières sauvegardes, (2) la DERNIÈRE de chacun des `days` derniers jours civils
+ * à Paris (aujourd'hui compris). Tout le reste est à supprimer. Une sauvegarde manuelle compte comme les autres. N'efface jamais
+ * tout : keep >= 1. `days` = 0 : seulement les `keep` dernières (comportement d'avant).
+ */
+export function retentionPlan(names: string[], keep: number, days = 0, now = Date.now()): { kept: Retention[]; doomed: string[] } {
+  const sorted = sortArchives(names);
+  const n = Math.max(1, Math.floor(keep));
+  const recent = new Set(sorted.slice(Math.max(0, sorted.length - n)));
+  const window = new Set(days > 0 ? lastParisDays(now, Math.floor(days)) : []);
+  const lastOfDay = new Map<string, string>();
+  for (const name of sorted) {
+    const at = archiveInstant(name);
+    if (at === null) continue;
+    const day = parisDay(at);
+    if (window.has(day)) lastOfDay.set(day, name);
+  }
+  const daily = new Set(lastOfDay.values());
+  const kept: Retention[] = [];
+  const doomed: string[] = [];
+  for (const name of sorted) {
+    const day = parisDay(archiveInstant(name) ?? 0);
+    if (recent.has(name)) kept.push({ name, kind: "recente", day });
+    else if (daily.has(name)) kept.push({ name, kind: "jour", day });
+    else doomed.push(name);
+  }
+  return { kept, doomed };
+}
+
+/** Archives à supprimer (voir `retentionPlan`). */
+export function rotationPlan(names: string[], keep: number, days = 0, now = Date.now()): string[] {
+  return retentionPlan(names, keep, days, now).doomed;
+}
+
+export type DueReason = "premier" | "calme" | "delai" | "manuel";
 
 export type SchedState = {
   /** Des modifications n'ont pas encore été sauvegardées. */
@@ -44,13 +94,15 @@ export type SchedState = {
   notBefore: number;
   /** Date (ms) du dernier geste d'édition de l'artiste (activity.ts) ; 0 = aucun depuis le démarrage. */
   lastUserAt?: number;
+  /** Date (ms) à laquelle les modifications en attente ont commencé (lot 118) ; absente = lastChangeAt. */
+  dirtySince?: number;
 };
 
 /**
- * Lot 118 : écart minimal entre deux sauvegardes « bruit » (la base change sans cesse SANS geste de l'artiste : traitements de
- * fond, progressions). 15 min au plus ; 3 fois la quiétude pour les réglages courts (tests).
+ * Un geste de l'artiste accompagne les modifications en attente. Marge : la vérification suit le geste de quelques secondes
+ * (au plus une minute, au plus la moitié de la quiétude : des écritures de fond bien après un geste ne comptent pas).
  */
-export const noiseGapMs = (c: Pick<BackupConfig, "quietMs">) => Math.min(900_000, Math.max(3 * c.quietMs, 10_000));
+const userPending = (s: SchedState, c: Pick<BackupConfig, "quietMs">) => (s.lastUserAt ?? 0) > 0 && (s.lastUserAt ?? 0) >= (s.dirtySince ?? s.lastChangeAt) - Math.min(60_000, c.quietMs / 2);
 
 /** Faut-il sauvegarder maintenant ? Aucune modification = aucune sauvegarde, sauf la toute première. */
 export function dueReason(s: SchedState, now: number, c: Pick<BackupConfig, "quietMs" | "maxMs">): DueReason | null {
@@ -58,10 +110,9 @@ export function dueReason(s: SchedState, now: number, c: Pick<BackupConfig, "qui
   if (s.lastBackupAt === null) return "premier";
   if (!s.dirty) return null;
   if (now - s.lastChangeAt >= c.quietMs) return "calme";
-  if (now - s.lastBackupAt >= c.maxMs) return "delai";
-  // Lot 118 : l'artiste ne touche plus à rien depuis la quiétude, mais la base continue de changer (écritures de fond) : la « calme »
-  // ne viendrait jamais. On sauvegarde quand même, au plus une fois par `noiseGapMs`.
-  if (s.lastUserAt !== undefined && now - s.lastUserAt >= c.quietMs && now - s.lastBackupAt >= noiseGapMs(c)) return "bruit";
+  // Lot 118 : l'artiste travaille sans pause de `quietMs` : ses modifications en attente depuis `maxMs` (1 h) partent quand même.
+  // Sans geste de l'artiste (écritures de fond seules), pas de sauvegarde « délai » : la règle de calme reste la seule.
+  if (userPending(s, c) && now - (s.dirtySince ?? s.lastChangeAt) >= c.maxMs) return "delai";
   return null;
 }
 
@@ -73,8 +124,8 @@ export function nextDueAt(s: SchedState, c: Pick<BackupConfig, "quietMs" | "maxM
   const floor = s.notBefore;
   if (s.lastBackupAt === null) return floor;
   if (!s.dirty) return null;
-  const noise = s.lastUserAt === undefined ? Infinity : Math.max(s.lastUserAt + c.quietMs, s.lastBackupAt + noiseGapMs(c));
-  return Math.max(floor, Math.min(s.lastChangeAt + c.quietMs, s.lastBackupAt + c.maxMs, noise));
+  const delai = userPending(s, c) ? (s.dirtySince ?? s.lastChangeAt) + c.maxMs : Infinity;
+  return Math.max(floor, Math.min(s.lastChangeAt + c.quietMs, delai));
 }
 
 export type SchedulerDeps = {
@@ -118,7 +169,7 @@ export class Scheduler {
     private readonly deps: SchedulerDeps,
     initial: { dirty: boolean; lastChangeAt: number; lastBackupAt: number | null },
   ) {
-    this.state = { ...initial, notBefore: 0, lastUserAt: 0 };
+    this.state = { ...initial, notBefore: 0, lastUserAt: 0, dirtySince: initial.dirty ? initial.lastChangeAt : undefined };
   }
 
   get busy() {
@@ -140,6 +191,7 @@ export class Scheduler {
       this.state.lastChangeAt = now;
       this.changesSince++;
       if (!wasDirty || !this.dirtySince) this.dirtySince = now;
+      if (!wasDirty) this.state.dirtySince = now;
       // Écrit à chaque transition seulement (la date de calme se lit ensuite en mémoire).
       if (!wasDirty) deps.persist?.({ dirty: true, lastChangeAt: now });
     }
@@ -166,7 +218,9 @@ export class Scheduler {
     this.runStartedAt = deps.now();
     // Les modifications qui arrivent PENDANT la sauvegarde la rendront de nouveau « à faire ».
     const wasDirty = this.state.dirty;
+    const pendingSince = this.state.dirtySince;
     this.state.dirty = false;
+    this.state.dirtySince = undefined;
     if (wasDirty) deps.persist?.({ dirty: false, lastChangeAt: this.state.lastChangeAt });
     try {
       await this.withTimeout(deps.run(reason));
@@ -177,6 +231,7 @@ export class Scheduler {
     } catch (error) {
       // Échec : on réessaiera plus tard, sans rien perdre de ce qui était en attente.
       this.state.dirty = this.state.dirty || wasDirty;
+      if (wasDirty && pendingSince !== undefined) this.state.dirtySince = Math.min(pendingSince, this.state.dirtySince ?? pendingSince);
       this.state.notBefore = deps.now() + failureCooldownMs(deps.config);
       if (this.state.dirty) deps.persist?.({ dirty: true, lastChangeAt: this.state.lastChangeAt });
       deps.onError?.(error);

@@ -1,19 +1,20 @@
 #!/usr/bin/env node
 /**
  * Lot 118 (urgent) : sauvegardes automatiques, bout en bout sur un VRAI serveur de production (lancé par ce script, base neuve).
- * Réglages : BACKUP_QUIET_SEC=6, BACKUP_ALERT_GRACE_SEC=8.
+ * Réglages : BACKUP_QUIET_SEC=6, BACKUP_MAX_HOURS=0.005 (18 s), BACKUP_KEEP=3, BACKUP_KEEP_DAYS=7, BACKUP_ALERT_GRACE_SEC=8.
  *  1. Première sauvegarde au démarrage ; aucun reste d'instantané (`snapshot-*`) ensuite.
  *  2. Un geste de l'artiste par l'envoi d'une image (route d'écriture enveloppée par le journal) : l'écran Sauvegardes voit l'activité,
  *     une sauvegarde « calme » suit la quiétude.
- *  3. Le bruit : la base change toutes les 0,8 s SANS geste de l'artiste pendant 55 s (autre connexion, comme les traitements de fond) :
- *     des sauvegardes « bruit » partent (au plus une par 18 s), aucune « calme » ; le bruit cesse : une « calme » ferme la marche.
+ *  3. Écritures de fond (toutes les 0,8 s, 40 s, SANS geste) : aucune sauvegarde ; elles cessent : une « calme ». Édition continue de 50 s
+ *     (plafond 18 s) : des sauvegardes « delai », aucune « calme » avant la pause. Conservation : 3 dernières + une par jour sur 7 jours
+ *     (archives des jours passés posées dans le dossier), marques « récente » / « du jour » dans l'admin.
  *  4. Une sauvegarde due qui ne peut pas se faire (dossier en lecture seule) : l'écran Sauvegardes l'affiche en rouge, le journal porte
  *     « [backup] ALERTE (retard) » avec les tables qui ont bougé ; le dossier redevient inscriptible : la sauvegarde part, l'alerte disparaît.
  *  5. Aucun reste d'instantané à la fin.
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… PORT=… [STANDALONE_DIR=…] node scripts/e2e-backup118.mjs
  */
 import { spawn } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -41,9 +42,12 @@ const DATA = path.join(tmpRoot, "data");
 const BACKUP_DIR = path.join(DATA, "backup");
 const archives = () => (existsSync(BACKUP_DIR) ? readdirSync(BACKUP_DIR).filter((n) => /^portfolio-\d{8}-\d{6}(-\d+)?\.tar\.gz$/.test(n)).sort() : []);
 const reasonOf = async (name) => (await readManifest(path.join(BACKUP_DIR, name)))?.reason ?? null;
-const reasons = async (from = 0) => {
+// La rotation supprime les plus anciennes : on compare des ENSEMBLES de noms, pas des effectifs.
+const snap = () => new Set(archives());
+const fresh = (before) => archives().filter((n) => !before.has(n));
+const reasons = async (before) => {
   const out = [];
-  for (const n of archives().slice(from)) out.push(await reasonOf(n));
+  for (const n of fresh(before)) out.push(await reasonOf(n));
   return out;
 };
 
@@ -58,7 +62,9 @@ function startServer() {
     PUBLIC_BASE_URL: BASE,
     WITH_BACKUP: "1",
     BACKUP_QUIET_SEC: "6",
-    BACKUP_KEEP: "30",
+    BACKUP_KEEP: "3",
+    BACKUP_KEEP_DAYS: "7",
+    BACKUP_MAX_HOURS: "0.005",
     BACKUP_ALERT_GRACE_SEC: "8",
   };
   const out = [];
@@ -114,31 +120,84 @@ try {
   ok("2. une sauvegarde « calme » suit la quiétude", await waitFor(() => archives().length > before, 45000));
   ok("2. raison « calme »", (await reasonOf(archives().at(-1))) === "calme", String(await reasonOf(archives().at(-1))));
 
-  /* 3 : bruit */
-  await sleep(9000); // plus de geste depuis plus que la quiétude
-  const n3 = archives().length;
+  /* 3 : écritures de fond sans geste de l'artiste : AUCUNE sauvegarde tant qu'elles durent (pas de « bruit »), puis une « calme » */
+  await sleep(12000); // plus de geste, plus de traitement de l'image envoyée
+  const n3 = snap();
   noise = new Database(path.join(DATA, "portfolio.db"));
   noise.pragma("busy_timeout = 5000");
   const write = noise.prepare("insert or replace into settings (key, value) values ('bruit118', ?)");
-  const noiseEnd = Date.now() + 55000;
+  const noiseEnd = Date.now() + 40000;
   while (Date.now() < noiseEnd) {
     write.run(String(Date.now()));
     await sleep(800);
   }
   const during = await reasons(n3);
-  info("3. sauvegardes pendant le bruit", during);
-  ok("3. des sauvegardes « bruit » partent pendant le bruit (au plus une par 18 s : 2 à 4 en 55 s)", during.filter((r) => r === "bruit").length >= 2 && during.filter((r) => r === "bruit").length <= 4, JSON.stringify(during));
-  ok("3. aucune « calme » tant que le bruit dure", !during.includes("calme"), JSON.stringify(during));
-  const n3b = archives().length;
-  ok("3. le bruit cesse : une dernière sauvegarde ferme la marche", await waitFor(() => archives().length > n3b, 30000));
-  ok("3. raison « calme » une fois le bruit fini", (await reasonOf(archives().at(-1))) === "calme", String(await reasonOf(archives().at(-1))));
+  ok("3. 40 s d'écritures de fond sans geste de l'artiste (plafond 18 s, quiétude 6 s) : aucune sauvegarde", during.length === 0, JSON.stringify(during));
   noise.close();
+  noise = null;
+  ok("3. le fond s'arrête : une « calme » part", await waitFor(() => fresh(n3).length > 0, 30000));
+  ok("3. raison « calme »", (await reasonOf(archives().at(-1))) === "calme", String(await reasonOf(archives().at(-1))));
+
+  /* 3b : modification continue de l'artiste, plus longue que le plafond : sauvegarde « delai » sans attendre la pause */
+  await sleep(10000);
+  const n3b = snap();
+  const burstEnd = Date.now() + 50000;
+  while (Date.now() < burstEnd) {
+    await upload(cookie); // un geste toutes les ~3 s : jamais 6 s de calme
+    await sleep(2500);
+  }
+  const burst = await reasons(n3b);
+  info("3b. sauvegardes pendant l'édition continue", burst);
+  ok("3b. édition continue de 50 s (plafond 18 s) : au moins deux sauvegardes « delai », aucune « calme » avant la pause", burst.filter((r) => r === "delai").length >= 2 && !burst.includes("calme"), JSON.stringify(burst));
+  const n3c = snap();
+  ok("3b. la pause venue, une « calme » ferme la marche", await waitFor(() => fresh(n3c).length > 0, 45000));
+  await sleep(4000);
+  ok("3b. le tableau Sauvegardes affiche le plafond réglé", /data-testid="reglage-delai"/.test(await (await fetch(`${BASE}/admin/sauvegardes`, { headers: { cookie } })).text()));
+
+  /* 3c : conservation : les 3 dernières + la dernière de chaque jour (Paris) sur 7 jours */
+  await sleep(10000);
+  const dayOf = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms));
+  const instantOf = (n) => {
+    const m = /^portfolio-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/.exec(n);
+    return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+  };
+  const nameAt = (ms) => {
+    const d = new Date(ms);
+    const p2 = (n) => String(n).padStart(2, "0");
+    return `portfolio-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}.tar.gz`;
+  };
+  const DAY = 86_400_000;
+  const base = path.join(BACKUP_DIR, archives().at(-1));
+  const seeded = [Date.now() - 12 * DAY, Date.now() - 5 * DAY - 3 * 3_600_000, Date.now() - 5 * DAY, Date.now() - 2 * DAY, Date.now() - DAY - 2 * 3_600_000, Date.now() - DAY].map(nameAt);
+  for (const n of seeded) copyFileSync(base, path.join(BACKUP_DIR, n));
+  await sleep(1500);
+  await upload(cookie); // un geste : une « calme » suit, qui range le dossier
+  const beforeRot = new Set(archives());
+  ok("3c. une sauvegarde suit le geste (la rotation passe)", await waitFor(() => archives().some((n) => !beforeRot.has(n)), 45000));
+  await sleep(1500);
+  const all = new Set([...beforeRot, ...archives()]);
+  const sortedAll = [...all].sort();
+  const expected = new Set(sortedAll.slice(-3));
+  const lastOf = new Map();
+  for (const n of sortedAll) lastOf.set(dayOf(instantOf(n)), n);
+  const today = dayOf(Date.now());
+  for (let i = 0; i < 7; i++) {
+    const [y, m, d] = today.split("-").map(Number);
+    const day = new Date(Date.UTC(y, m - 1, d - i, 12)).toISOString().slice(0, 10);
+    if (lastOf.has(day)) expected.add(lastOf.get(day));
+  }
+  const got = archives();
+  ok("3c. dossier = les 3 dernières + la dernière de chaque jour sur 7 jours (celle de il y a 12 jours est supprimée)", got.length === expected.size && got.every((n) => expected.has(n)) && !got.includes(seeded[0]), `reste ${got.join(", ")} ; attendu ${[...expected].join(", ")}`);
+  const html = await (await fetch(`${BASE}/admin/sauvegardes`, { headers: { cookie } })).text();
+  const badges = [...html.matchAll(/data-testid="conservation" data-kind="(\w+)" data-day="([\d-]+)"/g)].map((m) => m[1]);
+  ok("3c. l'admin marque chaque archive : 3 « récentes », les autres « du jour »", badges.length === got.length && badges.filter((k) => k === "recente").length === 3 && badges.filter((k) => k === "jour").length === got.length - 3, JSON.stringify(badges));
+  ok("3c. l'admin dit la règle de conservation", /Les 3 dernières, plus la dernière de chacun des 7 derniers jours/.test(html.replace(/<!-- -->/g, "")));
   noise = null;
   await sleep(2000);
   ok("3. plus aucune alerte quand tout va bien", (await screen(cookie)).alert === null);
 
   /* 4 : sauvegarde due qui ne peut pas se faire */
-  const n4 = archives().length;
+  const n4 = snap();
   chmodSync(BACKUP_DIR, 0o500);
   noise = new Database(path.join(DATA, "portfolio.db"));
   noise.prepare("insert or replace into settings (key, value) values ('bruit118', ?)").run("alerte");
@@ -147,9 +206,9 @@ try {
   ok("4. l'écran Sauvegardes affiche l'alerte rouge (retard)", await waitFor(async () => (await screen(cookie)).alert === "retard", 60000, 1000), JSON.stringify(await screen(cookie)));
   const alertLogged = await waitFor(() => /\[backup\] ALERTE \(retard\)[^\n]*tables qui ont bougé : [^\n]*settings/.test(server.log()), 20000, 500);
   ok("4. le journal porte « [backup] ALERTE (retard) » avec le détail des tables", alertLogged, server.log().split("\n").filter((l) => l.includes("ALERTE")).join(" | "));
-  ok("4. aucune sauvegarde n'a été faite entre-temps", archives().length === n4);
+  ok("4. aucune sauvegarde n'a été faite entre-temps", fresh(n4).length === 0);
   chmodSync(BACKUP_DIR, 0o700);
-  ok("4. le dossier redevient inscriptible : la sauvegarde part (reprise après échec)", await waitFor(() => archives().length > n4, 100000, 1000));
+  ok("4. le dossier redevient inscriptible : la sauvegarde part (reprise après échec)", await waitFor(() => fresh(n4).length > 0, 100000, 1000));
   ok("4. et l'alerte disparaît", await waitFor(async () => (await screen(cookie)).alert === null, 30000, 1000));
 
   /* 5 */

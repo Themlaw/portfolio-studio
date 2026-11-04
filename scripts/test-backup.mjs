@@ -35,19 +35,19 @@ const { Scheduler, dueReason, rotationPlan, sortArchives, archiveName, failureCo
   const d = readBackupConfig({});
   ok("réglages : absent = désactivé", d.enabled === false);
   const on = readBackupConfig({ WITH_BACKUP: "1" });
-  ok("réglages : défauts (10 min, 6 h, 3 gardées, médias inclus)", on.enabled && on.quietMs === 600_000 && on.maxMs === 21_600_000 && on.keep === 3 && on.media === true && on.warnings.length === 0);
+  ok("réglages : défauts (10 min, 1 h, 3 gardées + 7 jours, médias inclus)", on.enabled && on.quietMs === 600_000 && on.maxMs === 3_600_000 && on.keep === 3 && on.keepDays === 7 && on.media === true && on.warnings.length === 0);
   ok("réglages : true accepté, 0 / false désactivent", readBackupConfig({ WITH_BACKUP: "true" }).enabled && !readBackupConfig({ WITH_BACKUP: "0" }).enabled && !readBackupConfig({ WITH_BACKUP: "false" }).enabled);
   const t = readBackupConfig({ WITH_BACKUP: "1", BACKUP_QUIET_SEC: "3", BACKUP_QUIET_MIN: "99", BACKUP_KEEP: "5", BACKUP_MAX_HOURS: "1.5", BACKUP_MEDIA: "0" });
   ok("réglages : secondes prioritaires, KEEP, heures décimales, BACKUP_MEDIA=0", t.quietMs === 3000 && t.keep === 5 && t.maxMs === 5_400_000 && t.media === false);
   const bad = readBackupConfig({ WITH_BACKUP: "1", BACKUP_KEEP: "0", BACKUP_QUIET_MIN: "abc", BACKUP_MAX_HOURS: "-2" });
-  ok("réglages : valeurs invalides = défauts + avertissements", bad.keep === 3 && bad.quietMs === 600_000 && bad.maxMs === 21_600_000 && bad.warnings.length === 3, JSON.stringify(bad.warnings));
+  ok("réglages : valeurs invalides = défauts + avertissements", bad.keep === 3 && bad.quietMs === 600_000 && bad.maxMs === 3_600_000 && bad.warnings.length === 3, JSON.stringify(bad.warnings));
   ok("réglages : WITH_BACKUP incompris = désactivé + avertissement", readBackupConfig({ WITH_BACKUP: "peut-être" }).warnings.length === 1);
-  ok("réglages : description lisible", describeConfig(on, "/data/backup").includes("10 min") && describeConfig(on, "/data/backup").includes("6 h"));
+  ok("réglages : description lisible", describeConfig(on, "/data/backup").includes("10 min") && describeConfig(on, "/data/backup").includes("1 h"));
 }
 
 /* ---- 2. déclenchement, horloge simulée ------------------------------------------------------------------------------- */
 {
-  const cfg = { quietMs: 10 * 60_000, maxMs: 6 * 3_600_000 };
+  const cfg = { quietMs: 10 * 60_000, maxMs: 1 * 3_600_000 };
   const MIN = 60_000;
   const make = (init, extra = {}) => {
     const clock = { t: 1_000_000_000 };
@@ -99,12 +99,12 @@ const { Scheduler, dueReason, rotationPlan, sortArchives, archiveName, failureCo
   // activité continue : une modification toutes les 5 min, jamais 10 min de calme (l'artiste travaille : gestes à chaque fois, lot 118)
   s = make({}, { user: (clock) => clock.t });
   let ticks = 0;
-  for (; s.clock.t < 1_000_000_000 + 7 * 3_600_000 && !s.ran.length; ticks++) {
+  for (; s.clock.t < 1_000_000_000 + 2 * 3_600_000 && !s.ran.length; ticks++) {
     s.clock.t += 5 * MIN;
     s.touch();
     await s.sched.tick();
   }
-  ok("déclenchement : activité continue, sauvegarde au plus 6 h après la précédente (délai)", s.ran.length === 1 && s.ran[0].reason === "delai" && s.ran[0].at - 1_000_000_000 >= 6 * 3_600_000 && s.ran[0].at - 1_000_000_000 < 6 * 3_600_000 + 6 * MIN, JSON.stringify(s.ran));
+  ok("déclenchement : activité continue, sauvegarde quand les modifications attendent depuis 1 h (délai)", s.ran.length === 1 && s.ran[0].reason === "delai" && s.ran[0].at - 1_000_000_000 >= 3_600_000 && s.ran[0].at - 1_000_000_000 < 3_600_000 + 6 * MIN, JSON.stringify(s.ran));
 
   // première sauvegarde
   s = make({ lastBackupAt: null });
@@ -218,10 +218,14 @@ const { Scheduler, dueReason, rotationPlan, sortArchives, archiveName, failureCo
   ok("admin76 à la demande : échec noté ET relancé, modifications gardées en attente", thrown === "disque plein" && errs.includes("disque plein") && bad.state.dirty === true && !bad.busy);
   let enabledFlag = false;
   const ranOff = [];
-  const off = new Scheduler({ config: c, now: () => 99_999_999_999, changed: () => true, enabled: () => enabledFlag, run: async (r) => void ranOff.push(r) }, { dirty: false, lastChangeAt: 0, lastBackupAt: 1 });
+  let offNow = 99_999_999_999;
+  let offChanged = true;
+  const off = new Scheduler({ config: c, now: () => offNow, changed: () => offChanged, enabled: () => enabledFlag, run: async (r) => void ranOff.push(r) }, { dirty: false, lastChangeAt: 0, lastBackupAt: 1 });
   await off.tick();
   ok("admin76 désactivé : modifications relevées, aucune sauvegarde", ranOff.length === 0 && off.state.dirty === true);
   enabledFlag = true;
+  offChanged = false; // le travail s alimente de lui-même : les modifications cessent, la quiétude s écoule
+  offNow += c.quietMs;
   await off.tick();
   ok("admin76 réactivé : la sauvegarde en attente part", ranOff.length === 1);
 
