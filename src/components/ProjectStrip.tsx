@@ -9,7 +9,7 @@ import FondWrap from "@/components/FondWrap";
 import StripRail from "@/components/StripRail";
 import { isVideoMode, VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 import { BOARD_ITEM_LABELS, CAPTION_STYLE_FIELDS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
-import { captionCss, captionStylesOf } from "@/blocks/caption-style";
+import { captionCss, captionStylesOf, type CaptionStyles } from "@/blocks/caption-style";
 import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedArtwork, LocalizedProject } from "@/lib/gallery";
 import type { MediaLookData, Space } from "@/lib/look";
@@ -69,10 +69,16 @@ export default function ProjectStrip({
   wallpapers,
   styles,
   capOwn,
+  captionStyles,
+  scope,
   eager = 0,
 }: {
   /** Style propre de chaque légende de la planche (« Ce texte », lot 98), par slug de place, déjà fondu avec celui du projet. */
   capOwn?: Record<string, Partial<Record<"title" | "legend" | "date", CSSProperties>>>;
+  /** Style des légendes du projet tel que la planche le montre (lot 120 : portée « Tout le projet » du bloc par-dessus l'ancien style de la suite). Absent : celui de la suite du projet. */
+  captionStyles?: CaptionStyles;
+  /** Repère de la planche (`data-pscope`, lot 120) : accroche de la feuille « Tout le projet » et de son aperçu sur la toile. */
+  scope?: string;
   /** Nombre d'images de la bande chargées tout de suite (lot 54). */
   eager?: number;
   project: LocalizedProject;
@@ -114,7 +120,8 @@ export default function ProjectStrip({
   });
 
   // Style des légendes du projet (lot 98) : le même partout où le projet est affiché (page de projet, accueil, métier).
-  const capStyles = captionStylesOf(project.layout);
+  const legacyCapStyles = captionStylesOf(project.layout);
+  const capStyles = captionStyles ?? legacyCapStyles;
   const capBase = capStyles ? Object.fromEntries(CAPTION_STYLE_FIELDS.flatMap((f) => (capStyles[f] ? [[f, captionCss(capStyles[f], undefined, palette)]] : []))) : undefined;
   const tProject = project.title;
   /** Une bande : celle des images du projet (légendes, emplacements) ou un carrousel à liste propre. */
@@ -168,7 +175,8 @@ export default function ProjectStrip({
     <section
       className={`strip py-[clamp(3rem,7vw,5.5rem)] ${deep ? "strip-deep bg-bg-deep" : ""}`}
       aria-labelledby={`project-${project.slug}`}
-      {...(edit ? { ...boardMarks(edit), ...(capStyles ? { "data-edit-capstyle": JSON.stringify(capStyles) } : {}), "data-edit-board-label": project.title, ...(collection ? { "data-edit-board-collection": collection } : {}) } : {})}
+      {...(scope ? { "data-pscope": scope } : {})}
+      {...(edit ? { ...boardMarks(edit), ...(legacyCapStyles ? { "data-edit-capstyle": JSON.stringify(legacyCapStyles) } : {}), "data-edit-board-label": project.title, ...(collection ? { "data-edit-board-collection": collection } : {}) } : {})}
     >
       <header className="shell flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
         {showHeader && (

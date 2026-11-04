@@ -588,6 +588,16 @@ export function upgradeLook(raw: unknown): unknown {
 
 /* ---- Réglages d'un bloc (props.look) --------------------------------------------- */
 
+/**
+ * Lot 120 : portée « Tout le projet » d'une planche de projet. Une clé par TYPE de texte (titres, étiquettes, textes, et les trois champs d'une légende) ;
+ * la valeur est un style de texte. Elle se range dans les réglages (`props.look.projectText`) du bloc « planche de projet » qui montre le projet,
+ * donc propre à CETTE page (comme le contenu de la planche, lot 111), jamais dans la table des projets.
+ */
+export const PROJECT_TEXT_KEYS = ["h2", "eyebrow", "body", "cap.title", "cap.legend", "cap.date"] as const;
+export type ProjectTextKey = (typeof PROJECT_TEXT_KEYS)[number];
+/** Légendes : le style du projet est posé en ligne sur chaque légende (avec celui de la légende seule) ; les autres types passent par une feuille. */
+export const PROJECT_CAPTION_KEYS: Record<"title" | "legend" | "date", ProjectTextKey> = { title: "cap.title", legend: "cap.legend", date: "cap.date" };
+
 /** Chemin d'un texte du bloc (comme `inline` au registre) ; `site.name` / `site.role` : textes du site posés dans le bloc. */
 export const TEXT_PATH_RE = /^([a-zA-Z]+(\.(\d{1,2}|[a-zA-Z]+))*|captions\.[a-z0-9-]{1,60}\.(title|caption|date))$/;
 const TextPath = z.string().max(80).regex(TEXT_PATH_RE);
@@ -612,6 +622,8 @@ const LookCoreSchema = z.strictObject({
   titleV: z.enum(["top", "middle", "bottom"]).optional(),
   titleH: z.enum(["left", "center", "right"]).optional(),
   text: bounded(z.record(TextPath, TextStyleSchema), MAX_TEXT_STYLES, "styles de texte").optional(),
+  /** Lot 120 : style de TOUS les textes d'un type dans cette planche de projet (voir `PROJECT_TEXT_KEYS`). */
+  projectText: z.partialRecord(z.enum(PROJECT_TEXT_KEYS), TextStyleSchema).optional(),
   crop: z.partialRecord(z.enum(CROP_FIELDS), CropSchema).optional(),
   /** Cadrage de l'image de chaque tuile d'un bloc « tuiles de collection », par collection. */
   tileCrop: z.partialRecord(z.enum(TILE_KEYS), CropSchema).optional(),
@@ -1070,4 +1082,44 @@ export function cleanSiteStyles(styles: SiteStyles | undefined): SiteStyles | un
   const logo = cleanLogo(styles.logo);
   const out: SiteStyles = { ...(roles && Object.keys(roles).length ? { roles } : {}), ...(styles.radius ? { radius: styles.radius } : {}), ...(palette ? { palette } : {}), ...(logo ? { logo } : {}) };
   return Object.keys(out).length ? out : undefined;
+}
+
+/** Repère d'une planche de projet dans le DOM (`data-pscope`) : l'identifiant de son bloc, réduit aux caractères sûrs d'un sélecteur. */
+export const pscopeId = (uid: string): string => uid.replace(/[^a-zA-Z0-9_-]/g, "");
+
+/**
+ * Feuille de la portée « Tout le projet » (lot 120) : les styles de titres, d'étiquettes et de textes d'UNE planche de projet, limités à elle
+ * (`[data-pscope]`). Même fabrication que les styles de rôle du site (`textStyleDecls`, mêmes éléments visés, même cas des fonds et de la
+ * couleur choisie) ; elle passe devant le site (un cran de spécificité de plus) et derrière le style propre d'un texte (en ligne).
+ * Les légendes ne passent pas par ici : leur style de projet est posé en ligne sur chaque légende (`captionCss`).
+ */
+export function projectStylesCss(scope: string, texts: Look["projectText"] | undefined, palette?: CardPalette): string {
+  const id = pscopeId(scope);
+  if (!id || !texts) return "";
+  const at = `${WIN} #contenu [data-pscope="${id}"]`;
+  const rules: string[] = [];
+  const css = (list: [string, string][]) => list.map(([k, v]) => `${k}:${v}`).join(";");
+  const targets: Record<"h2" | "eyebrow" | "body", string> = {
+    h2: ":is(h1, h2, h3)",
+    eyebrow: ".eyebrow",
+    body: ":is(p, li):not(.eyebrow, .caption-text, .strip-caption)",
+  };
+  for (const key of ["body", "eyebrow", "h2"] as const) {
+    const parsed = texts[key] ? TextStyleSchema.safeParse(texts[key]) : null;
+    if (!parsed?.success) continue;
+    const decls = textStyleDecls(parsed.data, palette, true);
+    if (!decls.length) continue;
+    const isBox = ([k, v]: [string, string]) => BACKDROP_PROPS.has(k) || (key === "body" && k === "color" && v.startsWith("var(--user-ink,"));
+    // Corps : le fond se pose sur les paragraphes seuls (comme pour le site) ; titres : la taille ne vise que les titres de section.
+    const boxed = key === "body" ? decls.filter(isBox) : [];
+    const plain = key === "body" ? decls.filter((d) => !isBox(d)) : decls;
+    const own = key === "h2" ? plain.filter(([k]) => k !== "font-size") : plain;
+    const size = key === "h2" ? plain.filter(([k]) => k === "font-size") : [];
+    if (own.length) rules.push(`${at} ${targets[key]}{${css(own)}}`);
+    if (size.length) rules.push(`${at} :is(h2, h3){${css(size)}}`);
+    if (boxed.length) rules.push(`${at} p:not(.eyebrow, .caption-text, .strip-caption){${css(boxed)}}`);
+    const chosen = parsed.data.color ? decls.find(([k]) => k === "color") : undefined;
+    if (chosen) rules.push(`${at} ${targets[key]}{--user-ink:${chosen[1]}}`);
+  }
+  return rules.join("\n").replace(/</g, "\\3c ");
 }

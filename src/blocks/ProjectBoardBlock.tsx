@@ -5,7 +5,7 @@ import BoardBox from "@/components/BoardBox";
 import ProjectStrip, { type BoardPart } from "@/components/ProjectStrip";
 import { getProjectBoard, type LocalizedArtwork } from "@/lib/gallery";
 import { claimEager } from "@/lib/eager";
-import { readLook } from "@/lib/look";
+import { projectStylesCss, pscopeId, readLook } from "@/lib/look";
 import { getMedia } from "@/lib/media";
 
 import WallpaperAlign from "@/components/WallpaperAlign";
@@ -13,7 +13,7 @@ import { getWallpapers } from "@/lib/wallpapers";
 import type { WallpaperEntry } from "@/themes/wallpaper";
 import { effectivePalette, renderBoardItem } from "./BlockList";
 import { fondJoins, fondKey, readBackground } from "@/themes/fond";
-import { captionCss, captionStylesOf } from "./caption-style";
+import { captionCss, projectCaptionStyles } from "./caption-style";
 import { isProjectStrip, itemEmpty, railIds, railKey, railList, stripCaptions } from "./board-layout";
 import { collection, projectSlug, textStyle, tr, type BlockContext } from "./types";
 
@@ -139,7 +139,11 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     }
     // Style des légendes du projet (lot 98) et style propre des légendes de la bande (« Ce texte », `look.text["captions.<place>.<champ>"]`),
     // fondus ici : le propre passe devant celui du projet, qui passe devant celui du site.
-    const capStyles = captionStylesOf(project.layout);
+    const capStyles = projectCaptionStyles(project.layout, ctx.look?.projectText);
+    // Portée « Tout le projet » (lot 120) des titres, étiquettes et textes : une feuille limitée à cette planche (`data-pscope`). Sur la toile le repère
+    // est toujours là (l'aperçu des réglages s'y accroche) ; en public, seulement s'il y a un style (sinon le HTML reste celui d'avant).
+    const ptext = projectStylesCss(ctx.blockUid ?? "", ctx.look?.projectText, palette ?? ctx.palette);
+    const pscope = ctx.blockUid && (ptext || ctx.edit) ? pscopeId(ctx.blockUid) : undefined;
     const capOwn: Record<string, Partial<Record<"title" | "legend" | "date", CSSProperties>>> = {};
     for (const [key, style] of Object.entries(ctx.look?.text ?? {})) {
       const m = /^captions\.([a-z0-9-]+)\.(title|caption|date)$/.exec(key);
@@ -177,7 +181,8 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     );
     return (
       <>
-        <ProjectStrip project={project} eager={eager} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotLook={ctx.look?.slotLook} styles={headerStyles(ctx)} parts={parts} capOwn={capOwn} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
+        {ptext && <style dangerouslySetInnerHTML={{ __html: ptext }} />}
+        <ProjectStrip project={project} eager={eager} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotLook={ctx.look?.slotLook} styles={headerStyles(ctx)} parts={parts} capOwn={capOwn} captionStyles={capStyles} scope={pscope} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
         {wallpapers && <WallpaperAlign />}
       </>
     );

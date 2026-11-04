@@ -1529,7 +1529,7 @@ export default function VisualEditor({
     const clean = next ? cleanLook(next) : undefined;
     working.current++;
     try {
-      if (!(await ensureFonts(Object.values(clean?.text ?? {})))) {
+      if (!(await ensureFonts([...Object.values(clean?.text ?? {}), ...Object.values(clean?.projectText ?? {})]))) {
         send({ kind: "refresh", rev: revRef.current, upTo: -1 });
         return;
       }
