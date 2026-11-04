@@ -1960,7 +1960,7 @@ const oidcEnv = {
   AUTH_OIDC_ISSUER: issuer,
   AUTH_OIDC_CLIENT_ID: "portfolio",
   AUTH_OIDC_CLIENT_SECRET: "secret-du-client",
-  ADMIN_EMAILS: "autorise@example.test,nouveau@example.test",
+  ADMIN_EMAILS: "autorise@example.test,nouveau@example.test,kate@example.test",
   AUTH_ADMIN_GROUP: "admins-portfolio",
   AUTH_ADMIN_SUBS: "u-sub-autorise",
 };
@@ -2023,6 +2023,16 @@ ok(
   /Ce compte Authentik n(&#x27;|')est pas autorisé à administrer le site/.test(takeoverHtml) && !takeoverHtml.includes("mot de passe :"),
 );
 
+// N15 (docs/SECURITE.md) : « \u212Aate@… » (signe Kelvin U+212A, pas un K) devient « kate@… » après toLowerCase().
+// Une identité distincte, e-mail « vérifié » par le fournisseur, ne doit pas passer pour l'adresse listée.
+before = userCount(dirD);
+const kelvin = await oidcFlow({ sub: "u-kelvin", email: "\u212Aate@example.test", email_verified: true });
+ok("D6d e-mail non ASCII (« K » Kelvin pour « kate@ » listée), vérifié → refusé, aucun compte", kelvin.final.includes("error=admin_not_allowed") && userCount(dirD) === before, kelvin.final.split("?")[1]?.slice(0, 40));
+const homoglyph = await oidcFlow({ sub: "u-cyrillique", email: "\u0430utorise@example.test", email_verified: true });
+ok("D6e e-mail avec un homoglyphe cyrillique (« а ») → refusé", homoglyph.final.includes("error=admin_not_allowed") && userCount(dirD) === before, homoglyph.final.split("?")[1]?.slice(0, 40));
+const kate = await oidcFlow({ sub: "u-kate", email: "Kate@Example.test", email_verified: true });
+ok("D6f la vraie adresse listée (ASCII, casse différente) → session admin", kate.final.endsWith("/admin"), kate.final);
+
 const byGroup = await oidcFlow({ sub: "u-groupe", email: "membre@example.test", email_verified: false, groups: ["admins-portfolio"] });
 ok("D7 groupe autorisé → session admin", byGroup.final.endsWith("/admin"), byGroup.final);
 const bySub = await oidcFlow({ sub: "u-sub-autorise", email: "sub@example.test", email_verified: false });
@@ -2049,14 +2059,14 @@ r = await http("/api/auth/set-password", { jar: byGroup.jar, method: "POST", bod
 ok("D10b /set-password fermé (403) ou inexistant (404)", r.status === 403 || r.status === 404, String(r.status));
 
 // Sessions : l'accès est revérifié à chaque requête (I3)
-for (const [label, flow] of [["groupe", byGroup], ["e-mail", byEmail], ["sub", bySub]]) {
+for (const [label, flow] of [["groupe", byGroup], ["e-mail", byEmail], ["sub", bySub], ["e-mail ASCII (N15)", kate]]) {
   r = await http("/admin", { jar: flow.jar });
   ok(`D11 session ${label} valide avant le retrait`, r.status === 200, String(r.status));
 }
 await stop(s);
 s = startServer(dirD, { ...oidcEnv, AUTH_ADMIN_GROUP: "autre-groupe", ADMIN_EMAILS: "quelquun@example.test", AUTH_ADMIN_SUBS: "" });
 await s.ready;
-for (const [label, flow] of [["groupe", byGroup], ["e-mail", byEmail], ["sub", bySub]]) {
+for (const [label, flow] of [["groupe", byGroup], ["e-mail", byEmail], ["sub", bySub], ["e-mail ASCII (N15)", kate]]) {
   r = await http("/admin", { jar: flow.jar });
   ok(`D12 accès ${label} retiré + redémarrage → ancienne session refusée`, r.status === 307, String(r.status));
 }
