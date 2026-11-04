@@ -825,7 +825,7 @@ toutes les pages : identité (nom, métier, e-mail, mention), menu (réglage
 `nav` : pages du site ou liens libres, source unique ; `pages.nav_order` tenu
 en phase par `writeNav`), réseaux (`socials`, réseau reconnu d'après
 l'adresse, icônes simple-icons CC0 embarquées : `social-icons.ts`).
-Modifiés sur la toile (nom, liens et mention en double-clic, ×, glisser,
+Modifiés sur la toile (nom, liens et mention en double-clic ou double-tap, lien du menu aussi par le crayon « Renommer », ×, glisser,
 « + Ajouter un lien », « + Réseau ») ou dans le panneau : réglage
 `siteDraft = { pageId, snap }` : UN brouillon COMMUN à toutes les pages (lot 96 ; `pageId` = dernière page qui l'a modifié, indicatif),
 version propre `siteDraftRev` (compteur jamais remis à zéro, `site-rev.ts`) contrôlée à chaque écriture ; toutes les pages l'affichent
