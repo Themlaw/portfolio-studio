@@ -112,6 +112,61 @@ for (const [label, bad] of [
   ok(`SVG refusé : ${label}`, svgProblem(Buffer.from(bad)) !== null);
 }
 
+// SVG : bornes, encodage et temps linéaire (docs/SECURITE.md N3).
+ok("SVG de plus de 512 Ko refusé", /512 Ko/.test(svgProblem(Buffer.from(good.replace("</svg>", `<desc>${"a".repeat(512 * 1024)}</desc></svg>`))) ?? ""));
+ok("SVG avec un octet NUL refusé", svgProblem(Buffer.from(good.replace("<path", "<path\0"))) !== null);
+for (const enc of ["ISO-8859-1", "UTF-16", "windows-1252", "utf-7"]) {
+  ok(`SVG déclaré en ${enc} refusé`, /encodage/.test(svgProblem(Buffer.from(`<?xml version="1.0" encoding="${enc}"?>${good.slice(good.indexOf("<svg"))}`)) ?? ""));
+}
+for (const enc of ["UTF-8", "utf-8", "utf8"]) {
+  ok(`SVG déclaré en ${enc} accepté`, svgProblem(Buffer.from(`<?xml version="1.0" encoding='${enc}' standalone="no"?>\n<!-- Generator: x -->\n${good.slice(good.indexOf("<svg"))}`)) === null);
+}
+ok("SVG en UTF-16 (avec BOM) refusé", svgProblem(Buffer.from(`﻿${good}`, "utf16le")) !== null);
+ok("prologue XML sans fin refusé", svgProblem(Buffer.from(`<?xml version="1.0"${" ".repeat(400)}`)) !== null);
+ok("<svg/> et < svg> refusés (racine illisible), <svg> accepté", svgProblem(Buffer.from("<svg/>")) !== null && svgProblem(Buffer.from("< svg></svg>")) !== null && svgProblem(Buffer.from("<svg></svg>")) === null);
+ok("commentaire non fermé refusé", svgProblem(Buffer.from(`${good.replace("</svg>", "<!-- </svg>")}`)) !== null);
+ok("SVG suivi de texte avec & ordinaire accepté", svgProblem(Buffer.from(good.replace("</svg>", "<title>Noir & blanc, A&B</title></svg>"))) === null);
+{
+  const fill = (unit) => unit.repeat(Math.floor((500 * 1024) / unit.length));
+  const head = '<svg xmlns="http://www.w3.org/2000/svg">';
+  const traps = {
+    "commentaires ouverts": fill("<!--"),
+    "commentaires ouverts après la racine": head + fill("<!--"),
+    "nom d'attribut sans fin": `${head.slice(0, -1)} ${fill("a")}>`,
+    "valeurs sans « = »": `${head.slice(0, -1)} ${fill("a ")}>`,
+    "url( sans fin": `${head}<desc>${fill("url(")}</desc></svg>`,
+    "url(# sans fin": `${head}<path fill="${fill("url(#a")}"/></svg>`,
+    "& sans « ; »": `${head}<desc>${fill("&")}</desc></svg>`,
+    "balises vides": head + fill("<g>"),
+    "« on » sans « = »": `${head}<desc>${fill(" on")}</desc></svg>`,
+    "chevrons ouvrants": head + fill("<"),
+  };
+  for (const [label, s] of Object.entries(traps)) {
+    const t = performance.now();
+    svgProblem(Buffer.from(s));
+    const ms = performance.now() - t;
+    ok(`SVG piégé de 500 Ko (${label}) analysé en ${ms.toFixed(0)} ms (< 300 ms)`, ms < 300, `${ms.toFixed(0)} ms`);
+  }
+}
+{
+  // Les SVG du dépôt (seed, calques des thèmes livrés) restent acceptés.
+  const { readdirSync, readFileSync } = await import("node:fs");
+  const path = await import("node:path");
+  const root = new URL("..", import.meta.url).pathname;
+  const files = [];
+  const walk = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (p.endsWith(".svg")) files.push(p);
+    }
+  };
+  walk(path.join(root, "seed"));
+  walk(path.join(root, "public/themes"));
+  const refused = files.filter((f) => svgProblem(readFileSync(f)) !== null).map((f) => `${path.relative(root, f)} : ${svgProblem(readFileSync(f))}`);
+  ok(`les ${files.length} SVG du seed et des thèmes livrés sont acceptés`, files.length >= 20 && !refused.length, refused.join(" ; "));
+}
+
 // Clés inconnues.
 ok("clés inconnues détectées (imbriquées)", unknownKeys({ a: { b: 1, css: "x" }, c: [{ d: 1, e: 2 }] }, { a: { b: 1 }, c: [{ d: 1 }] }).join() === "a.css,c[0].e");
 
