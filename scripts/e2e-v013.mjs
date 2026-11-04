@@ -698,7 +698,13 @@ if (run("L")) {
   ok("L8 envoi public validé : message de confirmation", await until(pp, () => /Merci/.test(document.querySelector("[role=status]")?.textContent ?? ""), null, 30000));
   const msg = q("select fields, reply_to r from messages order by id desc limit 1")[0];
   ok("L9 message rangé avec le nouveau champ et l'adresse de réponse", msg && JSON.parse(msg.fields).some((x) => x.label === "Ton studio" && x.value === "Studio Brume") && msg.r === "lou@exemple.fr", JSON.stringify(msg));
-  const post = (data) => pp.evaluate(async (d) => (await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(d) })).status, data);
+  // Jeton signé + délai minimal avant l'envoi (docs/SECURITE.md §2.3) : comme le formulaire, demandé puis attendu.
+  const post = (data) =>
+    pp.evaluate(async (d) => {
+      const { token } = await (await fetch(`/api/contact/token?form=${d.form}`, { cache: "no-store" })).json();
+      await new Promise((r) => setTimeout(r, 3200));
+      return (await fetch("/api/contact", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...d, token }) })).status;
+    }, data);
   const values = { [fields[1].id]: "a@b.fr", [fields[2].id]: "x" };
   ok("L10 champ inconnu rejeté (400)", (await post({ form: formId, locale: "fr", values: { ...values, admin: "1" } })) === 400);
   ok("L11 formulaire inconnu rejeté (404)", (await post({ form: "fpasunformulaire", locale: "fr", values })) === 404);
