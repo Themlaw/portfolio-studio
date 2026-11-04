@@ -1828,14 +1828,14 @@ r = await http("/api/auth/set-password", { jar: byGroup.jar, method: "POST", bod
 ok("D10b /set-password fermé (403) ou inexistant (404)", r.status === 403 || r.status === 404, String(r.status));
 
 // Sessions : l'accès est revérifié à chaque requête (I3)
-for (const [label, flow] of [["groupe", byGroup], ["e-mail", byEmail], ["sub", bySub]]) {
+for (const [label, flow] of [["groupe", byGroup], ["e-mail", byEmail], ["sub", bySub], ["e-mail ASCII (N15)", kate]]) {
   r = await http("/admin", { jar: flow.jar });
   ok(`D11 session ${label} valide avant le retrait`, r.status === 200, String(r.status));
 }
 await stop(s);
 s = startServer(dirD, { ...oidcEnv, AUTH_ADMIN_GROUP: "autre-groupe", ADMIN_EMAILS: "quelquun@example.test", AUTH_ADMIN_SUBS: "" });
 await s.ready;
-for (const [label, flow] of [["groupe", byGroup], ["e-mail", byEmail], ["sub", bySub]]) {
+for (const [label, flow] of [["groupe", byGroup], ["e-mail", byEmail], ["sub", bySub], ["e-mail ASCII (N15)", kate]]) {
   r = await http("/admin", { jar: flow.jar });
   ok(`D12 accès ${label} retiré + redémarrage → ancienne session refusée`, r.status === 307, String(r.status));
 }
