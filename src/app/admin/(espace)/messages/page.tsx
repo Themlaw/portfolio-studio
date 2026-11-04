@@ -2,6 +2,7 @@ import { DeleteAllMessages, DeleteMessage } from "@/components/admin/MessageActi
 import PageHeader from "@/components/admin/PageHeader";
 import MarkMessagesSeen from "@/components/admin/MarkMessagesSeen";
 import { countMessages, lastSeenMessageId, listMessages, messagesEmailConfigured, MESSAGES_CAP } from "@/lib/admin";
+import { requireAdmin } from "@/lib/auth/guard";
 
 export const metadata = { title: "Messages" };
 export const dynamic = "force-dynamic";
@@ -10,7 +11,8 @@ export const dynamic = "force-dynamic";
  * Messages reçus par les formulaires de contact des pages. Aucun serveur
  * d'envoi d'e-mail n'est configuré : c'est ici qu'ils arrivent (lecture seule).
  */
-export default function MessagesPage() {
+export default async function MessagesPage() {
+  await requireAdmin();
   const messages = listMessages();
   // Repère « Nouveau » : lu AVANT que la visite ne marque les messages comme vus (MarkMessagesSeen).
   const seen = lastSeenMessageId();

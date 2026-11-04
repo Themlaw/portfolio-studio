@@ -5,10 +5,12 @@ import PageHeader from "@/components/admin/PageHeader";
 import ProjectEditor from "@/components/admin/ProjectEditor";
 import { getProjectForEdit, legacyFeaturedPages, listMediaForAdmin } from "@/lib/admin";
 import { findProjectReferences } from "@/lib/references";
+import { requireAdmin } from "@/lib/auth/guard";
 
 export const metadata = { title: "Modifier un projet" };
 
 export default async function ProjectEditPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdmin();
   const { id } = await params;
   const project = /^\d+$/.test(id) ? getProjectForEdit(Number(id)) : null;
   if (!project) notFound();

@@ -2,10 +2,12 @@ import PageHeader from "@/components/admin/PageHeader";
 import WallpaperLibrary from "@/components/admin/WallpaperLibrary";
 import { getCardWallpaperSetting, wallpaperUseCounts } from "@/lib/admin";
 import { listWallpapersForAdmin } from "@/lib/wallpapers";
+import { requireAdmin } from "@/lib/auth/guard";
 
 export const metadata = { title: "Papiers peints" };
 
-export default function WallpapersPage() {
+export default async function WallpapersPage() {
+  await requireAdmin();
   return (
     <>
       <PageHeader

@@ -6,10 +6,12 @@ import PageHeader from "@/components/admin/PageHeader";
 import { getActiveThemeColors, getEditorContext, getPageForEdit } from "@/lib/admin";
 import { readDraft } from "@/lib/edit/drafts";
 import { isSpecialPage } from "@/lib/special-pages";
+import { requireAdmin } from "@/lib/auth/guard";
 
 export const metadata = { title: "Modifier une page" };
 
 export default async function PageEditPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdmin();
   const { id } = await params;
   const published = /^\d+$/.test(id) ? getPageForEdit(Number(id)) : null;
   if (!published) notFound();

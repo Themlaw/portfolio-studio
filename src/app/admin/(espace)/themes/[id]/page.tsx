@@ -12,10 +12,12 @@ import { listWallpapersForAdmin } from "@/lib/wallpapers";
 import { withFrameRing } from "@/lib/kit/frame-ring";
 import { getMineState } from "@/lib/themes/versions";
 import { FONT_VARIABLE_CLASSES } from "@/themes/fonts";
+import { requireAdmin } from "@/lib/auth/guard";
 
 export const metadata = { title: "Modifier un thème" };
 
 export default async function ThemeEditPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ etape?: string; onglet?: string }> }) {
+  await requireAdmin();
   const { id } = await params;
   const { etape, onglet } = await searchParams;
   const { activeId, themes } = getThemeOverview();

@@ -10,6 +10,7 @@ import { siteForEditor } from "@/lib/edit/site";
 import { siteNameFor } from "@/lib/site-schema";
 import { getPreparingTheme, getTheme } from "@/lib/theme";
 import { getThemeLibrary } from "@/lib/themes/versions";
+import { requireAdmin } from "@/lib/auth/guard";
 
 export const metadata = { title: "Éditeur de page" };
 
@@ -19,6 +20,7 @@ export const metadata = { title: "Éditeur de page" };
  * pour mettre en ligne. Le formulaire /admin/pages/<id> reste disponible.
  */
 export default async function VisualEditorPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ langue?: string }> }) {
+  await requireAdmin();
   const { id } = await params;
   const { langue } = await searchParams;
   const state = /^\d+$/.test(id) ? readDraft(Number(id)) : null;

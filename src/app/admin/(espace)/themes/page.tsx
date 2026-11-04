@@ -13,10 +13,12 @@ import { publishedSitePalette } from "@/lib/edit/site";
 import { getPreparingTheme } from "@/lib/theme";
 import { getThemeLibrary } from "@/lib/themes/versions";
 import { presetThumb } from "@/themes/presets";
+import { requireAdmin } from "@/lib/auth/guard";
 
 export const metadata = { title: "Thèmes" };
 
 export default async function ThemesPage({ searchParams }: { searchParams: Promise<{ nouvelle?: string; via?: string }> }) {
+  await requireAdmin();
   const library = getThemeLibrary();
   const preparing = await getPreparingTheme();
   const previewOn = (await draftMode()).isEnabled;
