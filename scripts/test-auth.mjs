@@ -458,7 +458,7 @@ r = await http("/fr");
 ok(
   "A2e en-têtes publics (XFO, frame-ancestors, Referrer, nosniff, Permissions, sans X-Powered-By)",
   r.headers.get("x-frame-options") === "DENY" &&
-    r.headers.get("content-security-policy") === "frame-ancestors 'none'" &&
+    r.headers.get("content-security-policy") === "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'" &&
     r.headers.get("referrer-policy") === "strict-origin-when-cross-origin" &&
     r.headers.get("x-content-type-options") === "nosniff" &&
     (r.headers.get("permissions-policy") ?? "").includes("camera=()") &&
@@ -467,6 +467,30 @@ ok(
 const mediaKey = (await (await http("/fr/personnages")).text()).match(/\/media\/[a-z0-9-]+\.svg/)?.[0];
 r = await http(mediaKey);
 ok("A2f /media garde sa CSP (sandbox) et XFO", (r.headers.get("content-security-policy") ?? "").includes("sandbox") && r.headers.get("x-frame-options") === "DENY");
+// docs/SECURITE.md §2.8, §2.12 : HSTS partout, CSP minimale du site public (compatible ISR), icône de l'onglet en CSP sandbox.
+{
+  const pub = await http("/fr/personnages");
+  await pub.text();
+  const adm = await http("/admin/connexion");
+  await adm.text();
+  ok(
+    "A2s HSTS (un an, sous-domaines) sur le site public et l'admin",
+    [pub, adm].every((x) => x.headers.get("strict-transport-security") === "max-age=31536000; includeSubDomains"),
+    `${pub.headers.get("strict-transport-security")} / ${adm.headers.get("strict-transport-security")}`,
+  );
+  ok("A2t page publique toujours en cache malgré la CSP (ISR)", /s-maxage/.test(pub.headers.get("cache-control") ?? ""), pub.headers.get("cache-control") ?? "");
+  const icons = [];
+  for (const u of ["/site-icon/icon.svg", "/site-icon/32.png", "/site-icon/192.png", "/favicon.ico"]) {
+    const res = await http(u);
+    await res.arrayBuffer();
+    if (res.status === 200) icons.push([u, res.headers.get("content-security-policy") ?? ""]);
+  }
+  ok(
+    "A2u icône de l'onglet (/site-icon, /favicon.ico) : CSP sandbox, sans la CSP du site",
+    icons.length > 0 && icons.every(([, c]) => c === "default-src 'none'; style-src 'unsafe-inline'; sandbox"),
+    icons.map(([u, c]) => `${u} « ${c} »`).join(" ; ") || "aucune icône servie",
+  );
+}
 
 // Erreurs de connexion : table de codes, aucun texte venu de l'URL (M4)
 r = await http("/admin/connexion?error=%3Cscript%3Ealert(1)%3C%2Fscript%3E&error_description=PIRATE");
@@ -681,6 +705,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("ED5 vue brouillon d'abord, cache froid : le brouillon et ses repères d'édition", html.includes(SECRET_TITLE) && html.includes('data-edit-block="n1"') && html.includes('data-inline="title"'));
   ok("ED5a vue brouillon : méta-titre du brouillon, surcouche appliquée", html.includes(`<title>${SECRET_META}`) && !html.includes(slot.key) && html.includes(ADDED_TITLE), (/<title>[^<]*/.exec(html) ?? [""])[0]);
   ok("ED5b vue brouillon : frame-ancestors 'self', jamais mise en cache (no-store)", (r.headers.get("content-security-policy") ?? "").includes("frame-ancestors 'self'") && /(^|[ ,])no-store([ ,]|$)/.test(r.headers.get("cache-control") ?? ""), `${r.headers.get("content-security-policy")} · ${r.headers.get("cache-control")}`);
+  ok("ED5c vue brouillon (toile) : même CSP minimale que le site public", (r.headers.get("content-security-policy") ?? "") === "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'", r.headers.get("content-security-policy") ?? "");
   r = await http("/fr");
   html = await r.text();
   ok("ED5c … puis le visiteur : MISS propre (la vue brouillon n'a rien mis en cache)", r.headers.get("x-nextjs-cache") === "MISS" && !html.includes(SECRET_TITLE) && !html.includes(ADDED_TITLE) && html.includes(slot.key), r.headers.get("x-nextjs-cache") ?? "");
