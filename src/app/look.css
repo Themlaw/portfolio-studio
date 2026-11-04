@@ -813,3 +813,29 @@ main > :has(+ .surface-card[data-surface="on"]) {
   .blk-out[data-w="narrow"] { max-width: 88%; }
   .blk-out[data-w="n"] { max-width: max(var(--kn-w), 88%); }
 }
+
+/* ---- Coins d'une zone à contour (lot 107b) ------------------------------------------------------------------------------------------------
+   Le calque de papier (`.zone::before`, `inset: 0` dans la boîte de remplissage) reprenait le rayon EXTÉRIEUR de la zone (`inherit`), alors que le bord intérieur
+   du contour est arrondi de (rayon - épaisseur) : dans chaque coin, un croissant de la couleur de la zone (sous le papier) restait visible entre le contour et le papier.
+   Avec un contour, le calque prend le rayon intérieur, coin par coin ; sans contour rien ne change (`inherit`). */
+.surface-card[data-surface="on"][data-corners="round"] { --zr: var(--card-radius); }
+.surface-card[data-surface="on"][data-corners="s"],
+.surface-card[data-surface="on"][data-corners="m"],
+.surface-card[data-surface="on"][data-corners="l"] { --zr: var(--card-r); }
+.surface-card[data-surface="on"][data-border]::before,
+.fond-bloc[data-fond="on"][data-fond-border]::before,
+.fond-bloc[data-fond="on"][data-fond-border][data-fond-inset]::after {
+  border-radius: max(0px, calc(var(--zr, 0px) - var(--zbw, 0px)));
+}
+.surface-card[data-surface="on"][data-border] { --zbw: var(--card-bw); }
+.fond-bloc[data-fond="on"][data-fond-border] { --zbw: var(--fond-bw); }
+.fond-bloc[data-fond="on"][data-fond-round] { --zr: var(--fond-r, 0px); }
+/* Les coins que la jonction avec le voisin redresse restent droits aussi sur le calque. */
+.fond-bloc[data-fond="on"][data-fond-border][data-fond-round][data-touch-next]:not([data-fond-inset])::before {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.fond-bloc[data-fond="on"][data-fond-border][data-fond-round][data-touch-prev]:not([data-fond-inset])::before {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}

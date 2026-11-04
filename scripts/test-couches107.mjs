@@ -10,7 +10,7 @@
  */
 import { readLook, lookAttributes, cleanLook, LookSchema, spaceStyle, outerStyle } from "../src/lib/look.ts";
 import { FALLBACK_CARD, resolveSurface } from "../src/themes/surface.ts";
-import { freshZone, readLayout, setSlot, writeFondCarte } from "../src/themes/fondcarte.ts";
+import { freshZone, nestFond, readLayout, setSlot, writeFondCarte } from "../src/themes/fondcarte.ts";
 
 let failures = 0;
 const ok = (label, cond, detail = "") => {
@@ -115,19 +115,20 @@ for (const inset of ["s", "m", "l"]) for (const bg of [{ kind: "color", color: "
   const st = spaceStyle(readLook({ spaceTop: 45, spaceSides: 33 })), os = outerStyle(readLook({ width: 64, marginTop: 20 }));
   ok("108 : variables CSS des nombres (dedans / dehors)", st["--kn-pt"] === "45px" && st["--kn-ps"] === "33px" && !("--kn-pb" in st) && os["--kn-w"] === "64%" && os["--kn-mt"] === "20px");
   ok("108 : aucun style pour des noms seuls", spaceStyle(readLook({ spaceTop: "m" })) === undefined && outerStyle(readLook({ width: "wide" })) === undefined);
-  // Lot 108 : l'ordre est celui de la pose. Carte d'abord puis Fond : la Carte reste dehors, le Fond se pose dedans en retrait ; Fond d'abord puis Carte : ordre du lot 100.
+  // Lot 107b : une marge donnée au Fond alors qu'une Carte existe range le Fond DANS la Carte ; « Aucune » ramène à la forme du lot 100.
   {
     const card = { surface: { color: "secondary", corners: "m", border: { width: "medium", color: "primary" }, paper: "under" } };
     const { fc } = readLayout(card, INSET);
-    const added = setSlot(fc, "fond", freshZone("fond", PAIR), PAIR);
-    const w = writeFondCarte(added, PAIR, true, undefined, "carte");
-    ok("108 : un Fond ajouté à une Carte se pose DEDANS, la Carte reste dehors telle quelle", same(w.surface, card.surface) && w.background?.inset === "m", JSON.stringify(w));
-    const fondOnly = { background: { kind: "color", color: "primary12" } };
-    const r2 = readLayout(fondOnly, INSET);
-    const w2 = writeFondCarte(setSlot(r2.fc, "carte", freshZone("carte", PAIR), PAIR), PAIR, true, undefined, "fond");
-    ok("108 : une Carte ajoutée à un Fond reste dedans (ordre du lot 100 inchangé)", w2.surface?.width === "full" && w2.background?.inset === "m", JSON.stringify(w2));
-    const again = readLayout({ ...(w.surface ? { surface: w.surface } : {}), ...(w.background ? { background: w.background } : {}) }, INSET);
-    ok("108 : relue, la structure a deux sections, la Carte dehors", again.outer === "carte" && again.fc.fond && again.fc.carte);
+    const std = writeFondCarte(setSlot(fc, "fond", freshZone("fond", PAIR), PAIR), PAIR, true);
+    ok("107b : sans marge, un Fond ajouté à une Carte reste dehors (lot 100)", std.surface?.width === "full" && std.background?.inset === "m", JSON.stringify(std));
+    const both = readLayout({ ...(std.surface ? { surface: std.surface } : {}), ...(std.background ? { background: std.background } : {}) }, INSET).fc;
+    const n = nestFond(both, "l", PAIR);
+    ok("107b : avec une marge, le Fond va DANS la Carte (surface en retrait, background.inset l)", n.surface?.width === "inset" && n.background?.inset === "l", JSON.stringify(n));
+    const again = readLayout({ ...(n.surface ? { surface: n.surface } : {}), ...(n.background ? { background: n.background } : {}) }, INSET);
+    ok("107b : relue, la Carte est dehors et le Fond dedans, mêmes couleurs", again.outer === "carte" && (again.fc.fond?.color ?? "surface") === (both.fond?.color ?? "surface") && again.fc.carte?.color === both.carte?.color);
+    const back = writeFondCarte(again.fc, PAIR, true);
+    ok("107b : « Aucune » ramène à la forme du lot 100, sans perte de couleur", (back.surface?.color ?? "surface") === (std.surface?.color ?? "surface") && back.background?.color === std.background?.color && back.surface?.width === "full" && back.background?.inset !== undefined, JSON.stringify(back));
+    ok("107b : sans Carte, nestFond n'a aucun effet de rangement", nestFond({ fond: both.fond, carte: null }, "m", PAIR).surface?.width === "full" || nestFond({ fond: both.fond, carte: null }, "m", PAIR).surface === null);
   }
 }
 
