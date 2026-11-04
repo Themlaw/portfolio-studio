@@ -8,6 +8,9 @@
  * .dockerignore (motifs Docker : ordre, négation « ! », « * », « ** ») et que
  * chacun existe. Échoue sinon : un `docker build` cassé est vu dès `check`
  * (v0.9.0 : scripts/copy-kit-native.mjs exclu, `npm run build` en échec).
+ * Inversement (S6, S7), ce qui ne doit JAMAIS partir dans le contexte (ni donc dans le cache BuildKit exporté par la CI) :
+ * documentation (dont le rapport d'audit), secrets (.npmrc, clés), bases SQLite, dossier .local/ (worktrees, notes) ; et le
+ * cache de la CI reste en `mode=min` (seules les couches de l'image finale, jamais celle du `COPY . .`).
  * Usage : node scripts/check-docker-context.mjs   (npm test, CI job check)
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -36,10 +39,15 @@ const rules = readFileSync(path.join(root, ".dockerignore"), "utf8")
   .map((l) => {
     const neg = l.startsWith("!");
     const pat = (neg ? l.slice(1) : l).replace(/^\/+/, "").replace(/\/+$/, "");
-    const re = pat
-      .split("/")
-      .map((seg) => (seg === "**" ? ".*" : seg.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]")))
-      .join("/");
+    // « ** » : zéro ou plusieurs dossiers (« **/*.key » vise aussi la racine, comme Docker).
+    const segs = pat.split("/");
+    const re = segs
+      .map((seg, i) => {
+        const last = i === segs.length - 1;
+        if (seg === "**") return last ? ".*" : "(?:.*/)?";
+        return seg.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]") + (last ? "" : "/");
+      })
+      .join("");
     return { neg, re: new RegExp(`^${re}$`), pat: l };
   });
 
@@ -68,6 +76,30 @@ for (const file of [...referenced].sort()) {
   const by = excluded(file);
   if (by) problems.push(`${file} : exclu du contexte Docker par « ${by} » (ajoute « !${file} » à .dockerignore)`);
 }
+// Ce qui ne doit jamais entrer dans le contexte (S6, S7) : exemples de chemins qui DOIVENT être exclus.
+const MUST_EXCLUDE = [
+  "docs/SECURITE.md",
+  "docs/ARCHITECTURE.md",
+  ".npmrc",
+  "scripts/.npmrc",
+  "deploy.key",
+  "src/certs/serveur.key",
+  "cert.p12",
+  "id_ed25519",
+  "id_rsa.pub",
+  "portfolio.db",
+  "tests/base-de-test.db",
+  "anciennes/donnees.sqlite",
+  ".local/worktrees/tmp/portfolio.db",
+  ".local/settings.local.json",
+];
+for (const file of MUST_EXCLUDE) if (!excluded(file)) problems.push(`${file} : doit être exclu du contexte Docker (.dockerignore)`);
+// Cache BuildKit de la CI : `mode=max` exporterait la couche du `COPY . .` (tout le contexte) dans le cache GitHub Actions.
+const dockerWorkflow = readFileSync(path.join(root, ".github/workflows/docker.yml"), "utf8");
+for (const m of dockerWorkflow.matchAll(/cache-to:\s*(\S+)/g)) {
+  if (!/(^|,)mode=min(,|$)/.test(m[1])) problems.push(`.github/workflows/docker.yml : « cache-to: ${m[1]} » doit être en mode=min (mode=max exporte la couche COPY . . et tout le contexte)`);
+}
+
 // Commandes externes lancées par l'application (spawn, nice -n 10 <outil>,
 // runPoppler) : chacune doit être copiée dans l'image (stage « ffmpeg » du
 // Dockerfile, binaire + fermeture ldd) — l'image distroless n'a rien d'autre.
