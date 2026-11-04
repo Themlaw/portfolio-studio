@@ -199,4 +199,85 @@ test("réglage « Cadre du thème sur toutes les photos » : non par défaut", (
   assert.equal(readThemeFrameAll(true), true);
 });
 
+/* ---- 6. Sécurité : SVG d'un cadre importé (docs/SECURITE.md §2.11, N2) ------------------------------------------- */
+
+{
+  // frames.ts importe « svgo/browser » (export ESM seul) : tsx le charge en CommonJS, on lui indique le fichier.
+  const { registerHooks } = await import("node:module");
+  const svgoBrowser = new URL("../node_modules/svgo/dist/svgo.browser.js", import.meta.url).href;
+  registerHooks({ resolve: (spec, ctx, next) => (spec === "svgo/browser" ? { url: svgoBrowser, format: "module", shortCircuit: true } : next(spec, ctx)) });
+  const { looksSvg, processSvg } = await import("../src/lib/edit/frames.ts");
+  const B = (s) => Buffer.from(s);
+  const t0 = performance.now();
+  const r = looksSvg(B("<!---->".repeat(290)));
+  const ms = performance.now() - t0;
+  assert.equal(r, false);
+  assert.ok(ms < 50, `looksSvg sur 290 commentaires vides : ${ms.toFixed(1)} ms (50 ms au plus)`);
+  passed++;
+  console.log(`PASS  looksSvg en temps linéaire : 290 commentaires vides en ${ms.toFixed(1)} ms`);
+
+  const t1 = performance.now();
+  for (const s of ["<!---->".repeat(290), "<!--".repeat(512), "<!-- -->\n".repeat(204), "<?xml " + " ".repeat(2040)]) looksSvg(B(s));
+  assert.ok(performance.now() - t1 < 50, "variantes (commentaires ouverts, prologue sans fin) en moins de 50 ms");
+  passed++;
+  console.log("PASS  looksSvg : commentaires non fermés et prologue sans fin, en temps linéaire");
+
+  test("looksSvg reconnaît les débuts de SVG habituels", () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"/>';
+    for (const s of [svg, `﻿${svg}`, `  \n${svg}`, `<?xml version="1.0" encoding="UTF-8"?>\n${svg}`, `<?xml version="1.0"?><!-- Generator: Adobe Illustrator -->\n<!-- 2 -->${svg}`, `<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "x.dtd">${svg}`, `<SVG>`]) {
+      assert.equal(looksSvg(B(s)), true, s);
+    }
+    for (const s of ["<html><svg>", "<!-- jamais fermé <svg>", "<svgx>", "texte", "<?xml version='1.0'"]) assert.equal(looksSvg(B(s)), false, s);
+  });
+
+  const frame = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"><path fill-rule="evenodd" fill="rgb(30,60,200)" d="M0 0H300V300H0Z M30 30V270H270V30Z"/></svg>';
+  const good = await processSvg(B(frame));
+  assert.equal(typeof good, "object", String(good));
+  assert.ok(good.files[0].data.toString().includes("<svg") && good.detected, "cadre SVG simple accepté, bord détecté");
+  passed++;
+  console.log("PASS  cadre SVG simple (celui de l'e2e lot 74) accepté, bord détecté");
+
+  const hostile = {
+    "DOCTYPE et entité": `<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY x "y">]>${frame.replace("</svg>", "<text>&x;</text></svg>")}`,
+    "<set> (animation qui réécrit un attribut)": frame.replace("</svg>", '<a><set attributeName="href" to="javascript:alert(1)"/></a></svg>'),
+    "<animate>": frame.replace("</svg>", '<animate attributeName="fill" values="red;blue" dur="1s"/></svg>'),
+    "href='javascript:…' entre apostrophes": frame.replace("<path", "<a href='javascript:alert(1)'><path").replace("</svg>", "</a></svg>"),
+    "xlink:href='javascript:…'": frame.replace("<svg ", '<svg xmlns:xlink="http://www.w3.org/1999/xlink" ').replace("</svg>", "<use xlink:href='javascript:alert(1)'/></svg>"),
+    "<style>": frame.replace("</svg>", "<style>path{fill:url(https://x.test/a)}</style></svg>"),
+    "<script>": frame.replace("</svg>", "<script>alert(1)</script></svg>"),
+    "gestionnaire onload": frame.replace("<svg ", '<svg onload="alert(1)" '),
+    "<foreignObject>": frame.replace("</svg>", "<foreignObject><div/></foreignObject></svg>"),
+    "<image> externe": frame.replace("</svg>", '<image href="https://x.test/a.png"/></svg>'),
+  };
+  for (const [label, svg] of Object.entries(hostile)) {
+    const out = await processSvg(B(svg));
+    assert.equal(typeof out, "string", `${label} : doit être refusé`);
+    assert.ok(out.startsWith("Ce SVG n'est pas accepté"), `${label} : ${out}`);
+    passed++;
+    console.log(`PASS  SVG de cadre refusé : ${label}`);
+  }
+
+  // SVG livrés (calques des thèmes) et du seed : ils passent tous la liste blanche, avant et après svgo.
+  const { readdirSync: ls } = await import("node:fs");
+  const path = await import("node:path");
+  const root = new URL("..", import.meta.url).pathname;
+  const files = [];
+  const walk = (d) => {
+    for (const e of ls(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (p.endsWith(".svg")) files.push(p);
+    }
+  };
+  walk(path.join(root, "seed"));
+  walk(path.join(root, "public/themes"));
+  assert.ok(files.length >= 20, `SVG du dépôt trouvés : ${files.length}`);
+  for (const f of files) {
+    const out = await processSvg(readFileSync(f));
+    assert.equal(typeof out, "object", `${path.relative(root, f)} : ${out}`);
+  }
+  passed++;
+  console.log(`PASS  les ${files.length} SVG du seed et des thèmes livrés s'importent toujours comme cadres`);
+}
+
 console.log(`\n${passed} test(s) réussi(s)`);
