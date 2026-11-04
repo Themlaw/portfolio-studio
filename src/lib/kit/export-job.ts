@@ -22,7 +22,7 @@ import { siteNameFor } from "@/lib/site-schema";
 import { PRESETS } from "@/themes/presets";
 import { ThemeSchema, type Theme } from "@/themes/schema";
 
-import { readStoredSeo } from "@/lib/edit/seo";
+import { readLiveSeo } from "@/lib/edit/seo";
 import { readIcon } from "@/lib/favicon";
 import { planIcon } from "@/lib/favicon-plan";
 
@@ -59,7 +59,7 @@ export function kitSiteName(): string {
 /** Version du kit d'un thème : son état enregistré, le nom du site et l'icône actuelle du site (pré-remplie dans la case « Icône du site », lot 83). */
 export const kitVersion = (theme: Theme) => {
   const siteName = kitSiteName();
-  return themeVersion(theme, `${siteName}\n${planIcon(readStoredSeo(), theme, siteName).fp}`);
+  return themeVersion(theme, `${siteName}\n${planIcon(readLiveSeo(), theme, siteName).fp}`);
 };
 
 /** Thème enregistré (base, sinon preset livré), jamais l'aperçu en cours d'édition. */
@@ -266,7 +266,7 @@ export async function kitAssetFiles(theme: Theme): Promise<Record<string, KitAss
   // Lot 83 : la case « Icône du site » montre l'icône ACTUELLE du site (logo, monogramme ou image) tant que le calque n'est pas dessiné.
   if (!out["icone-site"]) {
     try {
-      const png = await readIcon(planIcon(readStoredSeo(), theme, kitSiteName()), "512.png");
+      const png = await readIcon(planIcon(readLiveSeo(), theme, kitSiteName()), "512.png");
       if (png) {
         await mkdir(kitDir(), { recursive: true });
         const file = path.join(/* turbopackIgnore: true */ kitDir(), `icone-site-${theme.id.replace(/[^a-zA-Z0-9-]/g, "_")}.png`);

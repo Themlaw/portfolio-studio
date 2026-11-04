@@ -174,4 +174,91 @@ if (existsSync(dbFile)) {
   console.log("(pas de base de dev : tests sur le seed réel ignorés)");
 }
 
+/* ---- Partage et référencement (docs/SECURITE.md N7) : icône, image de partage du site, image de partage d'une page -------- */
+// Sur une VRAIE base jetable (seed), sans serveur : mediaUsagesByMedia (src/lib/references.ts, la source unique), refus de la
+// corbeille et de la purge, puis dossiers icons/<média>-* supprimés avec le média.
+{
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  // Script lancé sans tsx (npm test) : on l'enregistre ici, pour ESM et CommonJS (alias « @/ » du tsconfig compris).
+  (await import("tsx/esm/api")).register();
+  (await import("tsx/cjs/api")).register();
+  const dir = mkdtempSync(path.join(tmpdir(), "pf-test-references-"));
+  process.env.DATA_DIR = dir;
+  const log = console.log;
+  console.log = () => {};
+  const { bootstrap } = await import("../src/lib/db/bootstrap.ts");
+  await bootstrap();
+  const { getDb, schema } = await import("../src/lib/db/index.ts");
+  const { eq } = await import("drizzle-orm");
+  const { mediaUsagesByMedia, FAVICON_USAGE_TYPE, SHARE_USAGE_TYPE, PAGE_SHARE_USAGE_TYPE } = await import("../src/lib/references.ts");
+  const { deleteMedia } = await import("../src/lib/edit/media.ts");
+  const { purgeMedia } = await import("../src/lib/edit/trash.ts");
+  console.log = log;
+  const db = getDb();
+  const L = (s) => ({ fr: s, en: s });
+  const addMedia = (sha) => {
+    const key = `img/${sha}/960.webp`;
+    mkdirSync(path.join(dir, "media", path.dirname(key)), { recursive: true });
+    writeFileSync(path.join(dir, "media", key), "x");
+    return db
+      .insert(schema.media)
+      .values({ key: `originals/${sha}.png`, sha256: sha.padEnd(64, "0"), kind: "image", mime: "image/png", originalName: "x.png", size: 1, width: 10, height: 10, variants: { v: 1, files: [{ key, format: "webp", w: 960, h: 960 }] }, status: "ready", alt: L("") })
+      .returning({ id: schema.media.id })
+      .get().id;
+  };
+  const setSeo = (v) => db.insert(schema.settings).values({ key: "seo", value: JSON.stringify(v) }).onConflictDoUpdate({ target: schema.settings.key, set: { value: JSON.stringify(v) } }).run();
+  const home = db.select({ id: schema.pages.id }).from(schema.pages).orderBy(schema.pages.id).get().id;
+  const other = db.select({ id: schema.pages.id }).from(schema.pages).orderBy(schema.pages.id).all()[1].id;
+  const uses = (id) => (mediaUsagesByMedia().get(id) ?? []).map((u) => [u.type, u.pageId]);
+
+  const icon = addMedia("5e05e05e05e05e01");
+  const share = addMedia("5e05e05e05e05e02");
+  const pageImg = addMedia("5e05e05e05e05e03");
+  const draftImg = addMedia("5e05e05e05e05e04");
+  setSeo({ description: L(""), shareImage: share, favicon: { mediaId: icon, dir: `icons/${icon}-5e05e05e` } });
+  const page = db.select().from(schema.pages).where(eq(schema.pages.id, other)).get();
+  db.update(schema.pages).set({ meta: { ...(page.meta ?? { title: L(""), description: L("") }), image: pageImg } }).where(eq(schema.pages.id, other)).run();
+  db.update(schema.pages).set({ draft: { ...(page.draft ?? {}), meta: { title: L(""), description: L(""), image: draftImg } } }).where(eq(schema.pages.id, other)).run();
+
+  test("N7 icône de l'onglet (seo.favicon.mediaId) : un usage, rattaché à l'accueil", () => assert.deepEqual(uses(icon), [[FAVICON_USAGE_TYPE, home]]));
+  test("N7 image de partage du site (seo.shareImage) : un usage", () => assert.deepEqual(uses(share), [[SHARE_USAGE_TYPE, home]]));
+  test("N7 image de partage d'une page : publiée (pages.meta.image) et brouillon (draft.meta.image)", () => {
+    assert.deepEqual(uses(pageImg), [[PAGE_SHARE_USAGE_TYPE, other]]);
+    assert.deepEqual(uses(draftImg), [[PAGE_SHARE_USAGE_TYPE, other]]);
+  });
+  // Même image publiée ET en brouillon sur la même page : une seule place.
+  db.update(schema.pages).set({ draft: { ...(page.draft ?? {}), meta: { title: L(""), description: L(""), image: pageImg } } }).where(eq(schema.pages.id, other)).run();
+  test("N7 même image de partage publiée et en brouillon : comptée une fois", () => assert.equal(uses(pageImg).length, 1));
+
+  for (const [label, id] of [["icône", icon], ["image de partage du site", share], ["image de partage de la page", pageImg]]) {
+    const r = await deleteMedia(id);
+    test(`N7 ${label} : mise à la corbeille refusée, endroit nommé`, () => {
+      assert.equal(r.ok, false);
+      assert.equal(r.references?.length, 1);
+      assert.equal(db.select().from(schema.media).where(eq(schema.media.id, id)).get().deletedAt, null);
+    });
+  }
+  // Purge : une icône encore citée (média passé à la corbeille par une ancienne version) n'est pas purgée ; libérée, ses dossiers partent.
+  const iconDir = path.join(dir, "media", "icons", `${icon}-5e05e05e`);
+  const iconCrop = path.join(dir, "media", "icons", `${icon}-5e05e05e-cabcdef`);
+  const neighbour = path.join(dir, "media", "icons", `${icon}0-5e05e05e`);
+  for (const d of [iconDir, iconCrop, neighbour]) {
+    mkdirSync(d, { recursive: true });
+    writeFileSync(path.join(d, "32.png"), "x");
+  }
+  db.update(schema.media).set({ deletedAt: new Date(Date.now() - 40 * 86400_000) }).where(eq(schema.media.id, icon)).run();
+  const kept = await purgeMedia(icon);
+  test("N7 purge refusée tant que l'icône est réglée", () => assert.equal(kept, false));
+  setSeo({ description: L(""), shareImage: share, favicon: null });
+  const purged = await purgeMedia(icon);
+  test("N7 purge d'un média libre : ses dossiers icons/<id>-* supprimés, pas ceux d'un autre média", () => {
+    assert.equal(purged, true);
+    assert.equal(existsSync(iconDir), false);
+    assert.equal(existsSync(iconCrop), false);
+    assert.equal(existsSync(neighbour), true, `icons/${icon}0-… appartient à un autre média`);
+  });
+}
+
 console.log(`\n${passed} test(s) OK`);
