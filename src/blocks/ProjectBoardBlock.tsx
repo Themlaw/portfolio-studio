@@ -39,6 +39,7 @@ function headerStyles(ctx: BlockContext) {
     context: textStyle(ctx, "context").style,
     year: textStyle(ctx, "year").style,
     description: textStyle(ctx, "description").style,
+    count: textStyle(ctx, "count").style,
   };
 }
 

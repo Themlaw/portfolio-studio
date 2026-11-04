@@ -456,6 +456,8 @@ function targetOf(el: HTMLElement): TextTarget {
   if (cell?.dataset.editCell && block && block.contains(cell)) local = { uid: cell.dataset.editCell, key: inline!.replace(/^children\.\d+\.props\./, "") };
   else if (uid && inline && el.closest(OWNER_SEL) === block) local = { uid, key: inline };
   else if (uid && (site === "name" || site === "role")) local = { uid, key: `site.${site}` };
+  // Profil : ses textes communs au site (e-mail, réseaux…) portent leur style propre dans le bloc (`site.<champ>`, rendu par le bloc).
+  else if (uid && site && block?.dataset.editType === "profile") local = { uid, key: `site.${site}` };
   // Une clé que le schéma des réglages refuserait serait perdue en silence (le message est écarté) : pas de « Ce texte » pour elle.
   if (local && !local.key.startsWith("site.") && !TEXT_PATH_RE.test(local.key)) local = null;
   const board = Number(el.closest<HTMLElement>("[data-edit-board]")?.dataset.editBoard);
@@ -568,6 +570,17 @@ function previewCaptions(board: number, style: ProjectCaptionStyle, seq: number)
 
 type Scope = "local" | "project" | "role";
 
+/** Nom de la portée « cet élément » selon le type du texte (lot 119) : « Cette étiquette », « Ce titre », « Cette légende », « Ce texte ». */
+function localWord(role: Role, field: CaptionStyleField | undefined): string {
+  if (field === "title") return "Ce titre";
+  if (field === "legend") return "Cette légende";
+  if (field === "date") return "Cette date";
+  if (role === "h1" || role === "h2") return "Ce titre";
+  if (role === "eyebrow") return "Cette étiquette";
+  if (role === "caption") return "Cette légende";
+  return "Ce texte";
+}
+
 function TextBar({
   target,
   installed,
@@ -677,7 +690,7 @@ function TextBar({
         <span className="lk-seg" role="radiogroup" aria-label="Appliquer à">
           {target.local && (
             <button type="button" role="radio" aria-checked={level === "local"} onClick={() => setScope("local")}>
-              Ce texte
+              {localWord(role, target.cap?.field)}
             </button>
           )}
           {target.cap && (

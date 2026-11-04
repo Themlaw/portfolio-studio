@@ -95,7 +95,7 @@ export default function ProjectStrip({
    * Styles locaux des textes de l'en-tête (`look.text` du bloc : « Ce texte uniquement »). Fourni par la planche d'un projet
    * seulement (un bloc = un projet) ; absent ailleurs, où les textes n'ont que le style global de leur rôle.
    */
-  styles?: Partial<Record<"title" | "context" | "year" | "description", CSSProperties>>;
+  styles?: Partial<Record<"title" | "context" | "year" | "description" | "count", CSSProperties>>;
 }) {
   // Vue brouillon de l'éditeur : repères de la planche (jamais dans le HTML public).
   const edit = project.edit;
@@ -108,7 +108,7 @@ export default function ProjectStrip({
   // La bande d'images est un composant facultatif de la planche : sans elle, ni compteur ni « Ajouter des images ».
   const hasStrip = !parts || parts.some((p) => p.type === "strip" && !p.artworks);
   /** Texte de l'en-tête : style local, et clé de style de la barre typographique (toile seulement). */
-  const head = (key: "title" | "context" | "year" | "description") => ({
+  const head = (key: "title" | "context" | "year" | "description" | "count") => ({
     ...(editable && styles ? { "data-look-key": key } : {}),
     ...(styles?.[key] ? { style: styles[key] } : {}),
   });
@@ -221,7 +221,7 @@ export default function ProjectStrip({
         )}
 
         {(hasStrip || project.count > 0) && (
-        <span className="eyebrow strip-count">
+        <span className="eyebrow strip-count" {...head("count")}>
           {tg("count", { count: parts ? project.count : shownArtworks.length })}
         </span>
         )}
