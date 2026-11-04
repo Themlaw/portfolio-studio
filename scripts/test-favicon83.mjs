@@ -19,7 +19,7 @@ process.env.DATA_DIR = mkdtempSync(path.join(tmpdir(), "favicon83-"));
 import sharp from "sharp";
 
 const { initialsOf, readFaviconConfig, defaultFaviconConfig, FaviconInputSchema } = await import("../src/lib/favicon-spec.ts");
-const { readSeo, EMPTY_SEO, ICON_SIZES, MASKABLE_FILE, SeoInputSchema } = await import("../src/lib/seo-schema.ts");
+const { readSeo, EMPTY_SEO, ICON_SIZES, MASKABLE_FILE, SeoInputSchema, withLiveFavicon } = await import("../src/lib/seo-schema.ts");
 const { planIcon, iconLinks, manifestOf, darkPair, monoColors } = await import("../src/lib/favicon-plan.ts");
 const { renderSet, readIcon, measureDetail, warningsOf, icoOf } = await import("../src/lib/favicon.ts");
 const { getStorage } = await import("../src/lib/storage/index.ts");
@@ -61,6 +61,16 @@ ok("calque « Icône » du kit : prioritaire sur le logo", planIcon(seoOf(), wit
 ok("mode « kit » sans calque : monogramme (le logo n'est pas pris)", planIcon(seoOf({ faviconMode: defaultFaviconConfig("kit") }), withLogo(logo(600, 300)), NAME).source === "mono");
 ok("mode « image » sans image enregistrée : comme l'automatique", planIcon(seoOf({ faviconMode: defaultFaviconConfig("image") }), galerie, NAME).source === "mono");
 ok("mode « image » avec image : source image, dossier gardé", planIcon(seoOf({ favicon: { mediaId: 3, dir: "icons/3-abcdef12" }, faviconMode: defaultFaviconConfig("image") }), galerie, NAME).dir === "icons/3-abcdef12");
+// Média de l'icône disparu (purgé, à la corbeille : docs/SECURITE.md N7) : le réglage lu l'oublie, le plan retombe sur le monogramme.
+{
+  const withImage = seoOf({ favicon: { mediaId: 3, dir: "icons/3-abcdef12" }, faviconMode: defaultFaviconConfig("image") });
+  const gone = withLiveFavicon(withImage, () => false);
+  const kept = withLiveFavicon(withImage, (id) => id === 3);
+  const planGone = planIcon(gone, galerie, NAME);
+  ok("icône dont le média a disparu : monogramme, plus aucun dossier icons/ visé", gone.favicon === null && planGone.source === "mono" && planGone.dir === null && planGone.letters === "CR", JSON.stringify([planGone.source, planGone.dir]));
+  ok("icône dont le média existe : inchangée (même plan, même empreinte)", kept === withImage && planIcon(kept, galerie, NAME).fp === planIcon(withImage, galerie, NAME).fp);
+  ok("média disparu avec un logo de thème : l'ordre automatique reprend (logo)", planIcon(withLiveFavicon({ ...withImage }, () => false), withLogo(logo(600, 300)), NAME).source === "logo");
+}
 const dk = darkPair({ bg: "#202124", ink: "#ffffff" }, "round", ["#ffffff", "#202124"]);
 ok("variante sombre : un rond presque noir devient clair, lettres lisibles", dk.bg === "#ffffff" && dk.ink === "#202124", JSON.stringify(dk));
 ok("variante sombre : un fond qui se lit déjà ne change pas", darkPair({ bg: "#c0392b", ink: "#ffffff" }, "round", ["#ffffff", "#000000"]).bg === "#c0392b");
