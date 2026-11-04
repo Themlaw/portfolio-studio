@@ -627,7 +627,9 @@ function FondPanel({
   };
   // Lot 107b : la marge du Fond, quand une Carte existe, range le Fond DANS la Carte (donnée seulement) ; « Aucune » ramène à la forme du lot 100.
   const onMargin = (step: "s" | "m" | "l" | null) => {
-    const w = step ? nestFond(fc, step, caps) : writeFondCarte(fc, caps, true);
+    // Déjà rangé dans la Carte : seul le retrait change (une couche, une clé). Sinon la marge range le Fond dans la Carte ; « Aucune » ramène à la forme du lot 100.
+    const nested = fc.fond?.layer === "fond" && fc.carte?.layer === "card";
+    const w = step ? (nested ? writeFondCarte({ ...fc, fond: { ...fc.fond!, extent: "inset", margin: step } }, caps, false, outer ?? undefined) : nestFond(fc, step, caps)) : writeFondCarte(fc, caps, true);
     onChange({ ...(w.surface ? { surface: w.surface } : {}), ...(w.background ? { background: w.background } : {}) });
   };
   return (

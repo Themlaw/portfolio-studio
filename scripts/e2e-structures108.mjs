@@ -513,7 +513,8 @@ if (run("C")) {
         for (const slot of ["fond", "carte"]) {
           const st = S0[slot];
           if (!st || st.kind === "none") continue;
-          for (const key of ORDER.filter((k) => k !== "kind" && k !== "wp" && st[k] !== null && st[k] !== undefined)) {
+          // Fond sans marge dans la Carte : « Aucune » ramène à la forme du lot 100 (règle 107b), donc ce réglage-là n'est pas rejoué.
+          for (const key of ORDER.filter((k) => k !== "kind" && k !== "wp" && st[k] !== null && st[k] !== undefined && !(k === "inset" && slot === "fond" && S0.fond?.layer === "fond" && S0.carte?.layer === "card" && S0.fond.inset === "none"))) {
             const alt = (ALT[key] ?? []).find((v) => !eqv(v, st[key]));
             if (alt === undefined) continue;
             await openFond(fr, 1);
