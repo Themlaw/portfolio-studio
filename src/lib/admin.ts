@@ -4,7 +4,7 @@
  */
 import { and, asc, count, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
-import { orderCollectionPages } from "@/blocks/collection-pages";
+import { orderCollectionPages, orderEntryPages } from "@/blocks/collection-pages";
 import { pageReferences, projectReferences, type Usage } from "@/blocks/refs";
 import { BLOCKS } from "@/blocks/registry";
 
@@ -633,11 +633,16 @@ export function getEditorContext(draftPageId?: number) {
     livePages.map((p) => ({ id: p.id, title: p.title, collection: p.collection, blocks: blockRows.filter((b) => b.pageId === p.id).map((b) => ({ type: b.type, props: parseJson(b.props) })) })),
     menu,
   );
+  const entryPages = orderEntryPages(
+    livePages.map((p) => ({ id: p.id, slug: p.slug, title: p.title, collection: p.collection, blocks: blockRows.filter((b) => b.pageId === p.id).map((b) => ({ type: b.type, props: parseJson(b.props) })) })),
+    menu,
+  );
   // Page « Page introuvable » (lot 89) : les œuvres publiées, pour la sélection manuelle du bloc « Une œuvre au hasard ».
   const editedPage = draftPageId === undefined ? undefined : db.select({ slug: schema.pages.slug }).from(schema.pages).where(eq(schema.pages.id, draftPageId)).get();
   const works = editedPage && isSpecialSlug(editedPage.slug.fr) ? listWorksForAdmin() : undefined;
   return {
     collectionPages,
+    entryPages,
     ...(works ? { works } : {}),
     pages: db
       .select()

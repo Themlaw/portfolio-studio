@@ -46,6 +46,10 @@ export type Tile = {
   paths?: { eyebrow: string; title: string; intro: string };
   /** La couverture a été choisie sur la tuile (sinon : celle de la collection) : « Couverture automatique » la retire. */
   ownCover?: boolean;
+  /** Lot 117 : entrée vers une page simple (sans collection) : pas de compteur, pas de cadrage libre. */
+  plain?: boolean;
+  /** Lot 117, vue brouillon : entrée vers une page simple sans image choisie (masquée en public). */
+  noImage?: boolean;
   /** Vue brouillon : la collection n'a aucune œuvre publiée (avis dans la tuile, rien en public). */
   empty?: boolean;
   /** Nom de la collection dans l'avis « vide » (Personnages, Décors, Animation). */
@@ -77,7 +81,7 @@ export default function CollectionTiles({
   /** Vue brouillon, entrées choisies à la main : retirer, monter, descendre, ajouter depuis la toile (lot 22). */
   manual?: boolean;
   itemCount?: number;
-  /** Pages de collection sans entrée (proposées par « + Ajouter une entrée »). */
+  /** Pages publiées sans entrée (lot 117 : toutes, pas seulement les collections ; proposées par « + Ajouter une entrée »). */
   candidates?: { pageId: number; title: string }[];
   /**
    * Styles locaux des textes des entrées (`look.text` du bloc, « Ce texte uniquement ») : un seul style par champ pour
@@ -127,6 +131,12 @@ export default function CollectionTiles({
             Cette entrée mène à une page supprimée ou non publiée : elle est masquée sur le site. Choisis une autre page, ou retire-la.
             {tools && tile.itemIndex !== undefined && <EditOnly>{toolbar(tile.itemIndex)}</EditOnly>}
           </p>
+        ) : tile.noImage ? (
+          <p key={tile.key} data-edit-invalid="" data-tile-noimage="" className="pe-tile-broken">
+            L&apos;entrée « {tile.title || `Page ${tile.pageId}`} » n&apos;a pas d&apos;image : elle n&apos;apparaît pas sur le site tant que tu n&apos;en as pas choisi une.
+            {edit && <EditOnly>{coverTools(tile)}</EditOnly>}
+            {tools && tile.itemIndex !== undefined && <EditOnly>{toolbar(tile.itemIndex)}</EditOnly>}
+          </p>
         ) : tile.empty ? (
           <p key={tile.key} data-edit-invalid="" data-tile-empty="" className="pe-tile-broken">
             Cette collection n&apos;a encore aucune œuvre publiée.{" "}
@@ -151,7 +161,7 @@ export default function CollectionTiles({
                 style={tile.cropStyle}
                 {...(tile.cropStyle ? { "data-crop": "" } : {})}
                 {...(tile.free ? { "data-free": "" } : {})}
-                {...(edit && (fixed || tile.full) ? { "data-edit-tile": tile.key } : {})}
+                {...(edit && !tile.plain && (fixed || tile.full) ? { "data-edit-tile": tile.key } : {})}
                 {...(edit && tile.full ? { "data-full-src": tile.full.src, "data-full-ratio": tile.full.ratio.toFixed(5), "data-full-px": `${tile.full.w}x${tile.full.h}` } : {})}
               >
                 <Picture
@@ -188,7 +198,7 @@ export default function CollectionTiles({
                 →
               </span>
             </p>
-            <p className="eyebrow mt-2" {...mark("tileCount")}>{tile.count}</p>
+            {tile.count && <p className="eyebrow mt-2" {...mark("tileCount")}>{tile.count}</p>}
           </div>
         </Link>
         ),
@@ -199,7 +209,7 @@ export default function CollectionTiles({
             <button type="button" className="pe-tile-add" data-edit-tile-add="" data-candidates={JSON.stringify(candidates)} disabled={itemCount >= MAX_TILES || candidates.length === 0}>
               + Ajouter une entrée
             </button>
-            {candidates.length === 0 && itemCount < MAX_TILES && <span className="pe-tile-add-note">Toutes les pages de collection ont déjà une entrée.</span>}
+            {candidates.length === 0 && itemCount < MAX_TILES && <span className="pe-tile-add-note">Toutes les pages publiées ont déjà une entrée.</span>}
           </div>
         </EditOnly>
       )}

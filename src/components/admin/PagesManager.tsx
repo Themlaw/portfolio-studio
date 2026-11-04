@@ -262,13 +262,13 @@ export default function PagesManager({ pages: allPages, trashed, view, summary }
           <SortableList
             items={menu}
             getId={(p) => String(p.id)}
-            getLabel={(p) => p.title}
+            getLabel={(p) => p.title || "Page sans titre"}
             onReorder={setMenu}
             render={(p, i) => (
               <div className="a-sortable-row">
                 <DragHandle />
                 <span className="a-sortable-pos mono">{i + 1}</span>
-                <span className="a-sortable-title">{p.title}</span>
+                <span className="a-sortable-title">{p.title || <span className="muted">Page sans titre</span>}</span>
                 {!p.published && <span className="a-tag">Pas encore en ligne</span>}
               </div>
             )}

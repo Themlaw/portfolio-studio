@@ -844,7 +844,7 @@ export default function VisualEditor({
         props.items = itemsFromEntries(autoEntries(found, (block.props.edits as TileEdit[] | undefined) ?? []));
       } else {
         if (tilesMode(props) === "auto") return false;
-        const kept = editsFromItems(((block.props.items as TileItem[] | undefined) ?? []).filter((i) => i.pageId !== undefined && (COLLECTION_KEYS as readonly string[]).includes(i.collection)), found);
+        const kept = editsFromItems(((block.props.items as TileItem[] | undefined) ?? []).filter((i) => i.pageId !== undefined && i.collection !== undefined && (COLLECTION_KEYS as readonly string[]).includes(i.collection)), found);
         delete props.items;
         props.mode = "auto";
         if (kept.length) props.edits = kept;
@@ -861,9 +861,9 @@ export default function VisualEditor({
     if (!block || block.type !== "collection-tiles" || block.props.mode === "auto" || msg.op === "cover" || msg.op === "cover-clear") return false;
     const items = [...((block.props.items as { pageId?: number }[] | undefined) ?? [])];
     if (msg.op === "add") {
-      const page = context.collectionPages?.find((p) => p.pageId === msg.pageId);
+      const page = (context.entryPages ?? context.collectionPages)?.find((p) => p.pageId === msg.pageId);
       if (!page || items.length >= MAX_TILES || items.some((i) => i.pageId === page.pageId)) return false;
-      items.push({ collection: page.collection, pageId: page.pageId, eyebrow: page.eyebrow, title: page.title, intro: page.intro } as (typeof items)[number]);
+      items.push({ ...(page.collection ? { collection: page.collection } : {}), pageId: page.pageId, eyebrow: page.eyebrow, title: page.title, intro: page.intro } as (typeof items)[number]);
     } else {
       const i = msg.index;
       if (i === undefined || i >= items.length) return false;

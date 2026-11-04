@@ -14,10 +14,10 @@ import { getMedia, mediaUrl } from "@/lib/media";
 import { getNav, getPageBlocks, getPageIndex, hrefForPage } from "@/lib/pages";
 import { getSiteView } from "@/lib/settings";
 
-import { autoEntries, COLLECTION_NAMES, manualEntries, MAX_TILES, orderCollectionPages, tilesMode, TILE_GEOMETRY, tileSize, tileVisibility, type CollectionPage, type TileItem } from "./collection-pages";
+import { autoEntries, COLLECTION_NAMES, manualEntries, MAX_TILES, orderCollectionPages, orderEntryPages, tilesMode, TILE_GEOMETRY, tileSize, tileVisibility, type CollectionPage, type EntryPage, type TileItem } from "./collection-pages";
 import { collection, inline, localized, mediaRef, pageRef, textStyle, tr, type BlockContext, localizedText } from "./types";
 
-const itemSchema = z.object({ collection, pageId: pageRef, eyebrow: localized, title: localized, intro: localizedText, mediaId: mediaRef.optional() });
+const itemSchema = z.object({ collection: collection.optional(), pageId: pageRef, eyebrow: localized, title: localized, intro: localizedText, mediaId: mediaRef.optional() });
 
 export const collectionTilesSchema = z.object({
   eyebrow: localized,
@@ -42,11 +42,11 @@ export const collectionTilesSchema = z.object({
 });
 
 /** Pages de collection publiées, dans l'ordre du menu (lues dans le cache : l'accueil hérite de leurs étiquettes). */
-async function findCollectionPages(ctx: BlockContext): Promise<{ found: CollectionPage[]; published: Set<number> }> {
+async function findCollectionPages(ctx: BlockContext): Promise<{ found: CollectionPage[]; entryPages: EntryPage[]; published: Set<number> }> {
   const [index, view] = await Promise.all([getPageIndex(), getSiteView(ctx.locale, ctx.pageId)]);
   const menu = (await getNav(ctx.locale, view.nav)).flatMap((n) => (n.pageId !== undefined ? [n.pageId] : []));
-  const pages = await Promise.all(index.map(async (p) => ({ id: p.id, title: p.title, collection: p.collection, blocks: (await getPageBlocks(p.id)).filter((b) => !b.corrupt) })));
-  return { found: orderCollectionPages(pages, menu), published: new Set(index.map((p) => p.id)) };
+  const pages = await Promise.all(index.map(async (p) => ({ id: p.id, slug: p.slug, title: p.title, collection: p.collection, blocks: (await getPageBlocks(p.id)).filter((b) => !b.corrupt) })));
+  return { found: orderCollectionPages(pages, menu), entryPages: orderEntryPages(pages, menu), published: new Set(index.map((p) => p.id)) };
 }
 
 export default async function CollectionTilesBlock({
@@ -62,8 +62,8 @@ export default async function CollectionTilesBlock({
   const size = tileSize(props.size);
   const geo = TILE_GEOMETRY[size];
 
-  const { found, published } = await findCollectionPages(ctx);
-  type Row = { key: string; pageId: number; collection: TileItem["collection"]; eyebrow: { fr: string; en: string }; title: { fr: string; en: string }; intro: { fr: string; en: string }; broken?: true; index?: number; mediaId?: number };
+  const { found, entryPages, published } = await findCollectionPages(ctx);
+  type Row = { key: string; pageId: number; collection?: TileItem["collection"]; eyebrow: { fr: string; en: string }; title: { fr: string; en: string }; intro: { fr: string; en: string }; broken?: true; index?: number; mediaId?: number };
   let rows: Row[];
   if (tilesMode(props) === "auto") {
     rows = autoEntries(found, props.edits).map((e) => ({ key: String(e.pageId), pageId: e.pageId, collection: e.collection, eyebrow: e.eyebrow, title: e.title, intro: e.intro, ...(e.mediaId !== undefined ? { mediaId: e.mediaId } : {}) }));
@@ -77,6 +77,36 @@ export default async function CollectionTilesBlock({
     // Page supprimée ou dépubliée (liste manuelle) : masquée en ligne, signalée sur la toile.
     if (row.broken) {
       if (ctx.edit) tiles.push({ key: row.key, broken: true, itemIndex: row.index, href: "#", eyebrow: "", title: tr(row.title, ctx.locale), intro: "", count: "", image: "", imageAlt: "", width: 1, height: 1, shownRatio: 1 });
+      continue;
+    }
+    // Entrée vers une page simple (lot 117) : sans collection, donc sans compteur d'œuvres ni couverture de repli. L'image choisie est
+    // obligatoire : sans elle (ou si elle a disparu), rien en public, un avis sur la toile.
+    if (row.collection === undefined) {
+      const pick = row.mediaId !== undefined ? await getMedia(row.mediaId) : null;
+      const img = pick && !pick.video && !pick.pdf && pick.width && pick.height ? pick : null;
+      if (!img) {
+        if (ctx.edit) tiles.push({ key: row.key, noImage: true, pageId: row.pageId, itemIndex: row.index, href: "#", eyebrow: "", title: tr(row.title, ctx.locale), intro: "", count: "", image: "", imageAlt: "", width: 1, height: 1, shownRatio: 1 });
+        continue;
+      }
+      tiles.push({
+        key: row.key,
+        plain: true,
+        pageId: row.pageId,
+        ...(ctx.edit ? { paths: { eyebrow: `items.${row.index}.eyebrow`, title: `items.${row.index}.title`, intro: `items.${row.index}.intro` } } : {}),
+        ownCover: true,
+        itemIndex: row.index,
+        href: await hrefForPage(row.pageId, ctx.locale),
+        eyebrow: tr(row.eyebrow, ctx.locale),
+        title: tr(row.title, ctx.locale),
+        intro: tr(row.intro, ctx.locale),
+        count: "",
+        image: img.url,
+        sources: img.sources ?? undefined,
+        imageAlt: (img.alt ? tr(img.alt, ctx.locale) : "") || tr(row.title, ctx.locale),
+        width: img.width!,
+        height: img.height!,
+        shownRatio: parseRatio(fixed) ?? img.width! / Math.max(1, img.height!),
+      });
       continue;
     }
     // Collection sans œuvre publiée : rien en public ; sur la toile, un avis dans la tuile (lot 26).
@@ -151,7 +181,7 @@ export default async function CollectionTilesBlock({
         }}
         manual={tilesMode(props) === "manual"}
         itemCount={props.items?.length ?? 0}
-        candidates={found.filter((p) => !(props.items ?? []).some((it) => it.pageId === p.pageId)).map((p) => ({ pageId: p.pageId, title: tr(p.title, ctx.locale) || `Page ${p.pageId}` }))}
+        candidates={entryPages.filter((p) => !(props.items ?? []).some((it) => it.pageId === p.pageId)).map((p) => ({ pageId: p.pageId, title: tr(p.title, ctx.locale) || `Page ${p.pageId}` }))}
       />
     </section>
   );
