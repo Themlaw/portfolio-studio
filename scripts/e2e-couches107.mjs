@@ -510,6 +510,7 @@ if (run("D")) {
     await (await sl("space", "slider-spaceTop")).fill("45");
     ok("D16 espacement intérieur du haut : nombre libre", await until(() => lookNow().spaceTop === 45, 20000), JSON.stringify(lookNow()));
     await page.keyboard.press("Escape");
+    await (await sl("space", "slider-spaceBottom")).waitFor({ timeout: 15000 });
     await fr3.locator('[data-testid="slider-spaceBottom"] [data-snap="none"]').click();
     ok("D17 espacement du bas « Aucun » (0 px) : un réglage nommé (pas « absent »)", await until(() => lookNow().spaceBottom === "none", 20000), JSON.stringify(lookNow()));
     await page.keyboard.press("Escape");
