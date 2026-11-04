@@ -14,6 +14,7 @@ import type { WallpaperEntry } from "@/themes/wallpaper";
 import { effectivePalette, renderBoardItem } from "./BlockList";
 import { fondJoins, fondKey, readBackground } from "@/themes/fond";
 import { captionCss, captionStylesOf } from "./caption-style";
+import { stripProject } from "./strip-project";
 import { isProjectStrip, itemEmpty, railIds, railKey, railList, stripCaptions } from "./board-layout";
 import { collection, projectSlug, textStyle, tr, type BlockContext } from "./types";
 
@@ -176,7 +177,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     );
     return (
       <>
-        <ProjectStrip project={project} eager={eager} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotLook={ctx.look?.slotLook} styles={headerStyles(ctx)} parts={parts} capOwn={capOwn} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
+        <ProjectStrip project={stripProject(project, props.header !== false)} eager={eager} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotLook={ctx.look?.slotLook} styles={headerStyles(ctx)} parts={parts} capOwn={capOwn} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
         {wallpapers && <WallpaperAlign />}
       </>
     );

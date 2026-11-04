@@ -5,6 +5,8 @@
  *   sur une légende de carrousel, ou de la bande du projet, était écarté en silence puis perdu au rechargement).
  * - Un style de texte illisible, ou en trop, ne fait jamais perdre les autres (lecture entrée par entrée) ; plafond relevé.
  * - Style des légendes d'un projet : forme dans la suite, lecture, fusion (« Ce texte » > projet), champ d'une légende.
+ * - Planche publique (docs/SECURITE.md N8) : `ProjectStrip` ne reçoit ni la suite de composants brute (`layout`), ni l'en-tête
+ *   masqué ; seul le style des légendes du projet en est extrait.
  * Usage : node --import tsx scripts/test-legendes98.mjs   (inclus dans npm test)
  */
 import { captionFieldOf, layoutProblem, projectCaptionStyle } from "../src/blocks/board-layout.ts";
@@ -12,6 +14,8 @@ import { captionCss, captionStylesOf } from "../src/blocks/caption-style.ts";
 import { LookSchema, MAX_TEXT_STYLES, readLook, TEXT_PATH_RE } from "../src/lib/look.ts";
 import { FromCanvasSchema } from "../src/lib/edit/protocol.ts";
 import { BoardOpSchema } from "../src/lib/edit/boards.ts";
+import { stripProject } from "../src/blocks/strip-project.ts";
+import { readFileSync } from "node:fs";
 
 let failures = 0;
 let count = 0;
@@ -81,6 +85,43 @@ ok("…style invalide refusé", !FromCanvasSchema.safeParse({ kind: "board-capti
 ok("opération captions-style valide", BoardOpSchema.safeParse({ op: "captions-style", style: { legend: { size: "l" } } }).success);
 ok("…nulle", BoardOpSchema.safeParse({ op: "captions-style", style: null }).success);
 ok("l'intention look accepte la clé d'une légende de bande", FromCanvasSchema.safeParse({ kind: "look", uid: "abc", look: { text: { "captions.car-a1.title": { color: "primary" } } } }).success);
+
+/* ---- N8 : la planche ne transporte que ce qu'elle affiche ---------------------------- */
+{
+  const L = (s) => s;
+  const project = {
+    slug: "secret",
+    year: "2026",
+    featured: true,
+    title: L("Nom affiché"),
+    context: L("Client sous NDA"),
+    description: L("Présentation cachée"),
+    count: 3,
+    artworks: [],
+    layout: [
+      { uid: "s1", type: "strip", props: {}, captionStyle: { title: { color: "secondary" } } },
+      { uid: "g1", type: "grid", props: { title: { fr: "brouillon FR", en: "draft EN" }, converted: { type: "strip", props: { items: [{ mediaId: 999 }] } }, children: [{ type: "image", props: { mediaId: 4242 } }] } },
+    ],
+  };
+  const out = stripProject(project, false);
+  const json = JSON.stringify(out);
+  ok("N8 aucune suite de composants transmise (`layout` absent)", !("layout" in out), Object.keys(out).join(","));
+  ok("N8 ni l'ancienne forme `converted`, ni les réglages bruts, ni les médias retirés", !/converted|brouillon FR|draft EN|4242|999/.test(json), json);
+  ok("N8 en-tête masqué : contexte, année et présentation absents", !/NDA|Présentation cachée|2026/.test(json) && out.context === "" && out.description === "" && out.year === "", json);
+  ok("N8 le nom reste (étiquettes de la bande pour les lecteurs d'écran)", out.title === "Nom affiché");
+  ok("N8 le style des légendes du projet est extrait", out.captionStyles?.title?.color === "secondary", JSON.stringify(out.captionStyles));
+  ok("N8 champs inutiles retirés (`featured`)", !("featured" in out));
+  const shown = stripProject(project, true);
+  ok("N8 en-tête affiché : contexte, année et présentation présents", shown.context === "Client sous NDA" && shown.year === "2026" && shown.description === "Présentation cachée");
+  const edit = stripProject({ ...project, edit: { id: 1, draft: false } }, false);
+  ok("N8 toile de l'éditeur : l'en-tête reste (modifiable en place)", edit.context === "Client sous NDA" && edit.edit?.id === 1);
+  const src = readFileSync(new URL("../src/components/ProjectStrip.tsx", import.meta.url), "utf8");
+  ok("N8 ProjectStrip ne lit plus `project.layout`", !/project\.layout/.test(src));
+  for (const f of ["ProjectBoardBlock", "FeaturedProjectsBlock", "CollectionProjectsBlock"]) {
+    const block = readFileSync(new URL(`../src/blocks/${f}.tsx`, import.meta.url), "utf8");
+    ok(`N8 ${f} passe un projet réduit à ProjectStrip`, /<ProjectStrip[^>]*project=\{stripProject\(/.test(block));
+  }
+}
 
 console.log(failures ? `ECHEC : ${failures} sur ${count}` : `OK : ${count} vérifications`);
 process.exit(failures ? 1 : 0);

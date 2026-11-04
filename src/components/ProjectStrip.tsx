@@ -9,9 +9,10 @@ import FondWrap from "@/components/FondWrap";
 import StripRail from "@/components/StripRail";
 import { isVideoMode, VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 import { BOARD_ITEM_LABELS, CAPTION_STYLE_FIELDS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
-import { captionCss, captionStylesOf } from "@/blocks/caption-style";
+import { captionCss } from "@/blocks/caption-style";
+import type { StripProject } from "@/blocks/strip-project";
 import { boardMarks } from "@/lib/board-marks";
-import type { LocalizedArtwork, LocalizedProject } from "@/lib/gallery";
+import type { LocalizedArtwork } from "@/lib/gallery";
 import type { MediaLookData, Space } from "@/lib/look";
 import type { Background, FondJoin } from "@/themes/fond";
 import type { CardPalette } from "@/themes/surface";
@@ -75,7 +76,8 @@ export default function ProjectStrip({
   capOwn?: Record<string, Partial<Record<"title" | "legend" | "date", CSSProperties>>>;
   /** Nombre d'images de la bande chargées tout de suite (lot 54). */
   eager?: number;
-  project: LocalizedProject;
+  /** Projet réduit à ce que la planche affiche (`stripProject` : ni la suite de composants brute, ni l'en-tête masqué ; N8). */
+  project: StripProject;
   /** Fond papier profond, pour séparer deux projets sans boîte ni bordure. */
   deep?: boolean;
   headingLevel?: "h2" | "h3";
@@ -114,7 +116,7 @@ export default function ProjectStrip({
   });
 
   // Style des légendes du projet (lot 98) : le même partout où le projet est affiché (page de projet, accueil, métier).
-  const capStyles = captionStylesOf(project.layout);
+  const capStyles = project.captionStyles;
   const capBase = capStyles ? Object.fromEntries(CAPTION_STYLE_FIELDS.flatMap((f) => (capStyles[f] ? [[f, captionCss(capStyles[f], undefined, palette)]] : []))) : undefined;
   const tProject = project.title;
   /** Une bande : celle des images du projet (légendes, emplacements) ou un carrousel à liste propre. */
