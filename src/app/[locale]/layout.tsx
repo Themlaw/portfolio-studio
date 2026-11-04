@@ -57,7 +57,10 @@ export default async function LocaleLayout({
     // --t-font-* sont declares sur :root et doivent pouvoir resoudre
     // var(--font-young-serif) au meme niveau. Les data-* portent les
     // variantes de forme du theme (src/themes/variants.css).
-    <html lang={locale} className={FONT_VARIABLE_CLASSES} {...themeAttributes(theme)}>
+    // data-scroll-behavior="smooth" (lot 123) : globals.css pose `html { scroll-behavior: smooth }` ; sans cet attribut, Next ne
+    // coupe pas le défilement doux pendant une navigation et la nouvelle page GLISSE vers le haut (lentement, ou pas du tout si
+    // elle est interrompue) au lieu d y arriver en haut. Avec lui, Next force `auto` le temps de sa remise en haut.
+    <html lang={locale} className={FONT_VARIABLE_CLASSES} data-scroll-behavior="smooth" {...themeAttributes(theme)}>
       <head>
         <style id="theme" dangerouslySetInnerHTML={{ __html: [themeToCss(theme), themeTypeCss(theme)].filter(Boolean).join("\n") }} />
       </head>
