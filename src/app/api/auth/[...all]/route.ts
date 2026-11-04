@@ -1,9 +1,9 @@
 import { toNextJsHandler } from "better-auth/next-js";
 
 import { getAuth } from "@/lib/auth";
-import { CLIENT_IP_HEADER, clientIpFromForwarded, UNKNOWN_IP } from "@/lib/auth/client-ip";
+import { CLIENT_IP_HEADER, clientIpFromForwarded, ipBucket, UNKNOWN_IP } from "@/lib/auth/client-ip";
 import { readAuthConfig } from "@/lib/auth/config";
-import { ipAttempt, recordFailure, recordSuccess, waitSeconds } from "@/lib/auth/throttle";
+import { accountWaitSeconds, authEndpoint, ipAttempt, recordFailure, recordSuccess, waitSeconds } from "@/lib/auth/throttle";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +12,12 @@ export const dynamic = "force-dynamic";
  * /callback/authentik, /sign-out, /get-session…), précédées de :
  *  - l'IP client calculée selon AUTH_TRUSTED_PROXY_HOPS (en-tête interne,
  *    toute valeur venue de l'extérieur est écrasée) ;
- *  - sur /sign-in/email : limite par IP (toutes tentatives comptées), PUIS
- *    délai progressif par couple (e-mail, IP) — voir src/lib/auth/throttle.ts ;
+ *  - sur /sign-in/email ET /change-password (qui vérifie le mot de passe
+ *    actuel : même oracle, docs/SECURITE.md P4) : limite par IP (toutes
+ *    tentatives comptées, IPv6 par /64), PUIS délai progressif par couple
+ *    (e-mail, IP), PUIS délai borné par compte (toutes IP) — voir
+ *    src/lib/auth/throttle.ts. Le chemin est normalisé avant le test
+ *    (barres en trop, encodage) : aucune variante n'échappe au frein.
  *  - un corps lu en flux et borné (MAX_BODY), APRÈS la limite par IP : un corps
  *    géant n'est jamais mis en mémoire en entier (docs/SECURITE.md N1).
  */
@@ -48,17 +52,30 @@ function tooMany(code: string, message: string, wait: number): Response {
     { status: 429, headers: { "Retry-After": String(wait), "Cache-Control": "no-store" } },
   );
 }
+
+/** Code d'erreur Better Auth d'une réponse JSON (copie : le corps reste lisible par le client). */
+async function errorCode(response: Response): Promise<string | null> {
+  try {
+    const data = (await response.clone().json()) as { code?: unknown };
+    return typeof data?.code === "string" ? data.code : null;
+  } catch {
+    return null;
+  }
+}
+
 async function handle(request: Request, method: "GET" | "POST"): Promise<Response> {
   const config = readAuthConfig();
   const headers = new Headers(request.headers);
   const ip = clientIpFromForwarded(headers.get("x-forwarded-for"), config.trustedProxyHops) ?? UNKNOWN_IP;
   headers.set(CLIENT_IP_HEADER, ip);
 
-  const signIn = method === "POST" && new URL(request.url).pathname.endsWith("/sign-in/email");
+  const endpoint = method === "POST" ? authEndpoint(new URL(request.url).pathname) : null;
+  const guarded = endpoint === "/sign-in/email" || endpoint === "/change-password";
+  const bucket = ipBucket(ip);
 
   // 1. Limite par IP, avant tout (même avant de lire le corps) : chaque tentative compte, refus compris.
-  if (signIn) {
-    const ipWait = ipAttempt(ip);
+  if (guarded) {
+    const ipWait = ipAttempt(bucket);
     if (ipWait > 0) {
       return tooMany("IP_RATE_LIMITED", `Trop de tentatives depuis cette adresse : réessaie dans ${ipWait} s.`, ipWait);
     }
@@ -75,27 +92,40 @@ async function handle(request: Request, method: "GET" | "POST"): Promise<Respons
   const forward = new Request(request.url, { method, headers, body });
   const handler = toNextJsHandler(getAuth());
 
-  if (!signIn) return handler[method](forward);
+  if (!guarded) return handler[method](forward);
 
   let email: string | null = null;
-  try {
-    const parsed = JSON.parse(body ?? "{}") as { email?: unknown };
-    email = typeof parsed.email === "string" ? parsed.email.trim().toLowerCase() : null;
-  } catch {
-    email = null;
+  if (endpoint === "/sign-in/email") {
+    try {
+      const parsed = JSON.parse(body ?? "{}") as { email?: unknown };
+      email = typeof parsed.email === "string" ? parsed.email.trim().toLowerCase() : null;
+    } catch {
+      email = null;
+    }
+  } else {
+    // Changement de mot de passe : le compte est celui de la session (sans session, Better Auth répond 401).
+    const session = await getAuth().api.getSession({ headers }).catch(() => null);
+    email = session?.user.email.trim().toLowerCase() ?? null;
   }
-  // 2. Délai progressif propre à ce compte DEPUIS cette IP.
   if (email) {
-    const wait = waitSeconds(email, ip);
+    // 2. Délai progressif propre à ce compte DEPUIS cette IP.
+    const wait = waitSeconds(email, bucket);
     if (wait > 0) {
       return tooMany("ACCOUNT_THROTTLED", `Trop d'échecs pour ce compte : réessaie dans ${wait} s.`, wait);
+    }
+    // 3. Délai du compte, toutes IP confondues (borné ; une IP qui a déjà réussi n'y est pas soumise).
+    const accountWait = accountWaitSeconds(email, bucket);
+    if (accountWait > 0) {
+      return tooMany("ACCOUNT_THROTTLED", `Trop d'échecs pour ce compte : réessaie dans ${accountWait} s.`, accountWait);
     }
   }
 
   const response = await handler.POST(forward);
   if (email) {
-    if (response.status === 401) recordFailure(email, ip);
-    else if (response.ok) recordSuccess(email, ip);
+    const failed =
+      endpoint === "/sign-in/email" ? response.status === 401 : response.status === 400 && (await errorCode(response)) === "INVALID_PASSWORD";
+    if (failed) recordFailure(email, bucket);
+    else if (response.ok) recordSuccess(email, bucket);
   }
   return response;
 }

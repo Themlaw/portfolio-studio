@@ -13,6 +13,8 @@
  */
 
 export const OIDC_PROVIDER_ID = "authentik";
+/** Longueur minimale d'un NOUVEAU mot de passe (Better Auth, amorçage du premier admin) ; jamais vérifiée à la connexion. */
+export const MIN_PASSWORD_LENGTH = 12;
 const DEV_SECRET = "secret-de-dev-supprime";
 const DEFAULT_PUBLIC_URL = "https://portfolio.example.org";
 

@@ -1766,6 +1766,51 @@ ok(
   JSON.stringify(attack.byCode),
 );
 
+// docs/SECURITE.md §2.4, P4 : IPv6 par /64, frein de /change-password, délai par compte (toutes IP, borné), 12 caractères.
+{
+  // Compteurs en mémoire remis à zéro (redémarrage) : les échecs de l'attaque I2b ne comptent pas ici.
+  await stop(s);
+  s = startServer(dirA, baseEnv);
+  ok("A13a redémarrage (compteurs en mémoire vides)", await s.ready);
+  const v6 = [];
+  for (let i = 1; i <= 6; i++) {
+    const res = await signIn(new Jar(), ADMIN.email, "mauvais", `2001:db8:77:1::${i.toString(16)}`);
+    v6.push(res.status === 429 ? (await res.json().catch(() => ({}))).code : String(res.status));
+  }
+  ok("A13 IPv6 : 6 adresses du même /64 → 429 au 6e essai (compté par /64)", v6.slice(0, 5).every((c) => c === "401") && v6[5] === "IP_RATE_LIMITED", v6.join(","));
+  r = await signIn(new Jar(), ADMIN.email, ADMIN.password, "2001:db8:77:2::1");
+  ok("A13b un autre /64 n'est pas bloqué", r.status === 200, String(r.status));
+
+  const cpJar = new Jar();
+  await signIn(cpJar, ADMIN.email, ADMIN.password, "203.0.113.10");
+  const changePassword = (currentPassword, newPassword, xff) =>
+    http("/api/auth/change-password", { jar: cpJar, method: "POST", body: { currentPassword, newPassword }, headers: { "x-forwarded-for": xff } });
+  const cp = [];
+  for (let i = 0; i < 6; i++) cp.push((await changePassword(`essai-${i}`, "nouveau-mot-de-passe-solide", "198.51.100.150")).status);
+  ok("A14 /change-password avec un mauvais mot de passe actuel → 429 au 6e essai (même frein que la connexion)", cp.slice(0, 5).every((c) => c === 400) && cp[5] === 429, cp.join(","));
+  ok("A14b échecs de /change-password comptés pour le compte (délai par couple en base)", query(dirA, "select failures n from auth_throttle where email = ?", `${ADMIN.email}|198.51.100.150`)?.n === 5);
+  r = await changePassword(ADMIN.password, "court-11car", "203.0.113.10");
+  const short = await r.json().catch(() => ({}));
+  ok("A14c nouveau mot de passe de 11 caractères → refusé (12 au moins)", r.status === 400 && short.code === "PASSWORD_TOO_SHORT", `${r.status} ${short.code}`);
+
+  // Botnet : un échec par IP, aucune limite par IP ni par couple ne joue ; le compte, lui, est freiné (borne 30 s).
+  for (let i = 0; i < 12; i++) await signIn(new Jar(), ADMIN.email, "mauvais", `198.51.100.${160 + i}`);
+  r = await signIn(new Jar(), ADMIN.email, ADMIN.password, "198.51.100.190");
+  const acc = await r.json().catch(() => ({}));
+  ok("A15 échecs depuis 12 IP différentes → une IP inconnue attend (429 ACCOUNT_THROTTLED, ≤ 30 s)", r.status === 429 && acc.code === "ACCOUNT_THROTTLED" && acc.retryAfter <= 30, `${r.status} ${acc.code} ${acc.retryAfter}`);
+  r = await signIn(new Jar(), ADMIN.email, ADMIN.password, "203.0.113.10");
+  ok("A15b pendant ce temps, l'IP habituelle de l'artiste se connecte (jamais enfermée dehors)", r.status === 200, String(r.status));
+
+  // Compte existant au mot de passe court (créé avant la règle des 12 caractères) : la connexion marche toujours.
+  const { hashPassword } = await import("better-auth/crypto");
+  const userId = query(dirA, "select id from user where email = ?", ADMIN.email).id;
+  const previous = query(dirA, "select password from account where user_id = ? and provider_id = 'credential'", userId).password;
+  writeDb(dirA, "update account set password = ? where user_id = ? and provider_id = 'credential'", await hashPassword("court-8c"), userId);
+  r = await signIn(new Jar(), ADMIN.email, "court-8c", "203.0.113.10");
+  ok("A16 compte existant au mot de passe de 8 caractères : connexion toujours acceptée", r.status === 200, String(r.status));
+  writeDb(dirA, "update account set password = ? where user_id = ? and provider_id = 'credential'", previous, userId);
+}
+
 await stop(s);
 
 console.log("\n== B. amorçage idempotent");

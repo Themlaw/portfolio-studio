@@ -12,6 +12,8 @@ import { count } from "drizzle-orm";
 
 import { getDb, schema } from "@/lib/db";
 
+import { MIN_PASSWORD_LENGTH } from "./config";
+
 export async function ensureFirstAdmin(): Promise<void> {
   const db = getDb();
   const [{ n }] = db.select({ n: count() }).from(schema.user).all();
@@ -32,8 +34,9 @@ export async function ensureFirstAdmin(): Promise<void> {
     );
     return;
   }
-  if (password.length < 8) {
-    console.error("[auth] ADMIN_PASSWORD trop court (8 caractères minimum) : administrateur non créé.");
+  // Nouveau mot de passe : même minimum que Better Auth (un compte déjà créé n'est jamais concerné).
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    console.error(`[auth] ADMIN_PASSWORD trop court (${MIN_PASSWORD_LENGTH} caractères minimum) : administrateur non créé.`);
     return;
   }
 
