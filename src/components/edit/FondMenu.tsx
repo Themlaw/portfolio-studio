@@ -51,7 +51,7 @@ import { isCustomColor, zoneColor, zoneExtent, zoneInLayer, zoneKind, zoneToSurf
 
 import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";
-import { canvasPalette, hasFondWrapper, postIntent, previewZone, wallpaperCatalog, zoneState } from "./optimistic";
+import { boardFondKey, canvasPalette, hasFondWrapper, postIntent, previewZone, setOverlay, wallpaperCatalog, zoneState } from "./optimistic";
 import { ratioTip, readabilityText } from "./readability";
 import { CornersRow, SHAPE_STEPS } from "./ShapeChoices";
 import Popover, { type PopoverAnchor } from "./Popover";
@@ -162,7 +162,8 @@ export function BoardFondMenu({ board, uid, initial, anchor, onClose }: { board:
   const change = (next: ZoneStored, continuous = false) => {
     if (JSON.stringify(next) === JSON.stringify(stored)) return;
     setStored(next);
-    postIntent({ kind: "bitem-fond", board, uid, background: next.background ?? null, ...(continuous ? { continuous: true } : {}) });
+    const seq = postIntent({ kind: "bitem-fond", board, uid, background: next.background ?? null, ...(continuous ? { continuous: true } : {}) });
+    setOverlay(boardFondKey(board, uid), seq, { data: next.background ?? null });
   };
   return <FondPanel uid={`${board}:${uid}`} stored={stored} defaults={undefined} caps={{ canCard: false, canFond: true }} onChange={change} onClose={onClose} anchor={anchor} />;
 }

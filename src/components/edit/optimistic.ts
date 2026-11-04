@@ -64,6 +64,16 @@ export function postIntent(msg: FromCanvas): number {
   return seq;
 }
 
+/**
+ * Fond & carte d'un composant de PLANCHE (v0.33.3) : le dernier fond demandé reste la référence tant que la page rendue ne l'a pas rejoint.
+ * Rouvrir le menu juste après un geste relisait sinon les réglages de la page encore périmée, et le geste suivant (qui réécrit tout le fond)
+ * écrasait le précédent. null = « sans fond » demandé ; undefined = rien en attente.
+ */
+export const boardFondKey = (board: number, uid: string) => `bfond:${board}:${uid}`;
+export function boardFondPending(board: number, uid: string): Background | null | undefined {
+  return overlayData<Background | null>(boardFondKey(board, uid));
+}
+
 /** Inscrit (ou remplace) l'aperçu d'une cible et l'applique aussitôt. */
 export function setOverlay(key: string, seq: number, spec: Spec = {}) {
   entries.set(key, { seq, apply: spec.apply ?? (() => {}), clear: spec.clear, data: spec.data });

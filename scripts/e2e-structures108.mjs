@@ -767,6 +767,60 @@ if (run("P")) {
   });
 }
 
+/* ============================== P5 : deux gestes enchaînés vite sur le menu « Fond & carte » d'un composant de planche (v0.33.3) ============================== */
+// Régression : rouvrir le menu juste après un geste relisait le fond de la page encore périmée ; le geste suivant, qui réécrit tout le fond, écrasait le précédent
+// (réglages de la Carte qui ne reviennent pas, structures différentes à chaque passage, pire sous charge). Ici l'enregistrement est RALENTI (actions serveur retenues
+// 1,5 s) pour que la réouverture arrive toujours avant le rendu : la dernière demande doit faire foi dans le menu, et les deux réglages doivent finir enregistrés.
+if (run("P")) {
+  await section("P5", async () => {
+    const cands = BSEL.filter(BOARD_LAYER_BG);
+    let done = false;
+    for (const i of cands) {
+      if (done) break;
+      const slug = "carnets-personnels";
+      setLayout(slug, [boardItem(i)]);
+      const fr = await boardPage(slug);
+      await fr.waitForFunction(() => document.querySelectorAll("[data-edit-bitem]").length >= 1, null, { timeout: 60000 });
+      await openItemFond(fr, 0);
+      const S0 = await readBoth(fr);
+      const slot = ["carte", "fond"].find((s) => S0[s] && S0[s].kind !== "none" && S0[s].corners && S0[s].inset);
+      if (!slot) {
+        await page.keyboard.press("Escape");
+        continue;
+      }
+      done = true;
+      const c1 = ALT.corners.find((v) => v !== S0[slot].corners), i1 = ALT.inset.find((v) => v !== S0[slot].inset);
+      const slow = async (route) => {
+        if (route.request().method() === "POST" && route.request().headers()["next-action"]) await new Promise((r) => setTimeout(r, 1500));
+        await route.continue().catch(() => {});
+      };
+      await page.route("**/*", slow);
+      let reopened, final, dbBg;
+      try {
+        await gesture(fr, slot, "corners", c1);
+        await page.keyboard.press("Escape");
+        await openItemFond(fr, 0);
+        reopened = await readSlot(fr, slot);
+        await gesture(fr, slot, "inset", i1);
+        await page.keyboard.press("Escape");
+        await until(async () => {
+          dbBg = layoutNow(slug)[0]?.props?.background;
+          return dbBg && dbBg.round === c1 && dbBg.inset === i1;
+        }, 30000);
+        await openItemFond(fr, 0);
+        final = await readSlot(fr, slot);
+        await page.keyboard.press("Escape");
+      } finally {
+        await page.unroute("**/*", slow);
+      }
+      ok(`P5 [${i}] ${slot} : le menu rouvert aussitôt montre le réglage qui vient d'être fait (écriture en vol)`, reopened?.corners === c1, JSON.stringify({ attendu: c1, lu: reopened?.corners }));
+      ok(`P5 [${i}] ${slot} : les deux réglages enchaînés vite sont enregistrés (coins ${c1}, retrait ${i1})`, Boolean(dbBg) && dbBg.round === c1 && dbBg.inset === i1, JSON.stringify(dbBg));
+      ok(`P5 [${i}] ${slot} : le menu, une fois tout enregistré, montre les deux réglages`, final?.corners === c1 && final?.inset === i1, JSON.stringify(final));
+    }
+    ok("P5 : un composant à fond avec coins et retrait a été trouvé", done);
+  });
+}
+
 /* ============================== Q : coins arrondis d'une zone à contour (lot 107b) ============================== */
 // Du rose (la couleur de la zone, sous le papier peint) apparaissait dans chaque coin arrondi, entre le contour et le papier : le calque de papier reprenait le rayon
 // extérieur au lieu du rayon intérieur du contour. On échantillonne, dans l'angle de CHAQUE zone à papier, un pixel juste à l'intérieur du contour (au milieu du croissant
