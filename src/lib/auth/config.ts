@@ -86,10 +86,14 @@ export function readAuthConfig(): AuthConfig {
       );
   }
 
-  const adminEmails = (env("ADMIN_EMAILS") ?? "")
+  const listedEmails = (env("ADMIN_EMAILS") ?? "")
     .split(",")
-    .map((e) => e.trim().toLowerCase())
+    .map((e) => e.trim())
     .filter(Boolean);
+  // Adresses en ASCII seulement (comme celles reçues d'Authentik, voir `asciiEmail`) : une entrée non ASCII ne peut
+  // jamais correspondre, elle est écartée et signalée.
+  const adminEmails = listedEmails.flatMap((e) => asciiEmail(e) ?? []);
+  if (adminEmails.length !== listedEmails.length) warnings.push("ADMIN_EMAILS : une adresse contient des caractères non ASCII, elle est ignorée.");
   const adminGroup = env("AUTH_ADMIN_GROUP") ?? null;
   const adminSubs = (env("AUTH_ADMIN_SUBS") ?? "")
     .split(",")
@@ -119,13 +123,24 @@ export function readAuthConfig(): AuthConfig {
   };
 }
 
+/**
+ * Adresse e-mail comparable : ASCII imprimable seulement, puis en minuscules. Toute autre adresse vaut « pas d'e-mail »
+ * (docs/SECURITE.md N15) : `toLowerCase()` replie des caractères Unicode sur des lettres ASCII — le signe Kelvin « K »
+ * (U+212A) devient « k » —, si bien qu'une identité Authentik distincte « Kate@… » (Kelvin) serait prise pour « kate@… ».
+ * Les adresses internationalisées (IDN, accents) ne sont donc jamais acceptées pour l'accès : `sub` ou groupe à la place.
+ */
+export function asciiEmail(raw: string): string | null {
+  return /^[\x21-\x7e]{3,254}$/.test(raw) && raw.includes("@") ? raw.toLowerCase() : null;
+}
+
 /** Extrait l'identité utile d'un profil OIDC brut (id_token ou userinfo). */
 export function identityFromProfile(profile: Record<string, unknown> | undefined): OidcIdentity | null {
   const sub = profile?.sub;
   if (typeof sub !== "string" && typeof sub !== "number") return null;
   const raw = profile?.groups;
   const groups = Array.isArray(raw) ? raw.map(String) : typeof raw === "string" ? raw.split(/[\s,]+/).filter(Boolean) : [];
-  const email = typeof profile?.email === "string" ? profile.email.toLowerCase() : null;
+  // Refusée AVANT la comparaison avec ADMIN_EMAILS : une adresse non ASCII ne donne aucun accès par e-mail.
+  const email = typeof profile?.email === "string" ? asciiEmail(profile.email) : null;
   return { sub: String(sub), email, emailVerified: profile?.email_verified === true, groups };
 }
 

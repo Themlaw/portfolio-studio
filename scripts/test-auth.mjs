@@ -1729,7 +1729,7 @@ const oidcEnv = {
   AUTH_OIDC_ISSUER: issuer,
   AUTH_OIDC_CLIENT_ID: "portfolio",
   AUTH_OIDC_CLIENT_SECRET: "secret-du-client",
-  ADMIN_EMAILS: "autorise@example.test,nouveau@example.test",
+  ADMIN_EMAILS: "autorise@example.test,nouveau@example.test,kate@example.test",
   AUTH_ADMIN_GROUP: "admins-portfolio",
   AUTH_ADMIN_SUBS: "u-sub-autorise",
 };
@@ -1791,6 +1791,16 @@ ok(
   "D6c même message que admin_not_allowed (aucune énumération du compte admin)",
   /Ce compte Authentik n(&#x27;|')est pas autorisé à administrer le site/.test(takeoverHtml) && !takeoverHtml.includes("mot de passe :"),
 );
+
+// N15 (docs/SECURITE.md) : « \u212Aate@… » (signe Kelvin U+212A, pas un K) devient « kate@… » après toLowerCase().
+// Une identité distincte, e-mail « vérifié » par le fournisseur, ne doit pas passer pour l'adresse listée.
+before = userCount(dirD);
+const kelvin = await oidcFlow({ sub: "u-kelvin", email: "\u212Aate@example.test", email_verified: true });
+ok("D6d e-mail non ASCII (« K » Kelvin pour « kate@ » listée), vérifié → refusé, aucun compte", kelvin.final.includes("error=admin_not_allowed") && userCount(dirD) === before, kelvin.final.split("?")[1]?.slice(0, 40));
+const homoglyph = await oidcFlow({ sub: "u-cyrillique", email: "\u0430utorise@example.test", email_verified: true });
+ok("D6e e-mail avec un homoglyphe cyrillique (« а ») → refusé", homoglyph.final.includes("error=admin_not_allowed") && userCount(dirD) === before, homoglyph.final.split("?")[1]?.slice(0, 40));
+const kate = await oidcFlow({ sub: "u-kate", email: "Kate@Example.test", email_verified: true });
+ok("D6f la vraie adresse listée (ASCII, casse différente) → session admin", kate.final.endsWith("/admin"), kate.final);
 
 const byGroup = await oidcFlow({ sub: "u-groupe", email: "membre@example.test", email_verified: false, groups: ["admins-portfolio"] });
 ok("D7 groupe autorisé → session admin", byGroup.final.endsWith("/admin"), byGroup.final);
