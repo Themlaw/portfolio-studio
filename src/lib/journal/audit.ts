@@ -10,6 +10,11 @@
  *   le résumé, le titre de la page et l'écriture SQLite se font APRÈS la réponse (`after` de Next) : l'artiste ne les attend pas.
  *   Champs stdout `aud` (ms sur le chemin de la requête) et `bg` (ms en différé).
  * - Tout est dans des try/catch : le journal ne casse JAMAIS l'action.
+ * - Sécurité (docs/SECURITE.md §2.7, P5) : un refus SANS session (un anonyme qui appelle une action) n'écrit RIEN en base (une ligne
+ *   stdout agrégée par minute) : il ne fait plus tourner le journal. Par utilisateur, les entrées détaillées sont limitées en débit
+ *   (USER_BURST, puis USER_PER_MINUTE) ; au-delà, l'action s'exécute normalement, stdout garde la ligne et une entrée de synthèse
+ *   dit combien d'écritures n'ont pas été détaillées. `recordEvent` journalise ce qui n'est pas une server action : connexions,
+ *   échecs, changement de mot de passe, téléchargements.
  */
 import { eq } from "drizzle-orm";
 import { after } from "next/server";
@@ -19,7 +24,7 @@ import { getDb, schema } from "@/lib/db";
 import { SPECS, type Spec } from "./catalog";
 import { auditStore, type AuditCtx } from "./context";
 import { describeChanges, sentence } from "./human";
-import { writeEntry, type EntryResult, type NewEntry } from "./store";
+import { writeEntry, type EntryResult, type EntryType, type NewEntry } from "./store";
 import { diffPaths, flattenValues, safeMessage, type Change } from "./summary";
 
 export const appVersion = () => process.env.PORTFOLIO_VERSION ?? "inconnue";
@@ -174,10 +179,129 @@ export async function flushAudit(): Promise<void> {
   while (pending.size) await Promise.all([...pending]);
 }
 
+/* ---- débit ------------------------------------------------------------------------------------------------------------------ */
+
+/** Rafale d'entrées détaillées permise à un utilisateur, puis débit soutenu (par minute). */
+export const USER_BURST = 300;
+export const USER_PER_MINUTE = 60;
+/** Entrées anonymes (échecs de connexion) détaillées par heure ; au-delà, une synthèse. */
+export const ANON_PER_HOUR = 20;
+
+type Bucket = { tokens: number; at: number; skipped: number };
+const buckets = new Map<string, Bucket>();
+let anon = { from: 0, written: 0, skipped: 0 };
+let anonRefusals = { from: 0, n: 0, actions: new Set<string>() };
+
+/** Jeton d'écriture pour cet utilisateur (seau qui se remplit de USER_PER_MINUTE par minute, plafonné à USER_BURST). */
+function takeToken(user: string, now: number): Bucket & { ok: boolean } {
+  const b = buckets.get(user) ?? { tokens: USER_BURST, at: now, skipped: 0 };
+  b.tokens = Math.min(USER_BURST, b.tokens + ((now - b.at) * USER_PER_MINUTE) / 60_000);
+  b.at = now;
+  buckets.delete(user);
+  buckets.set(user, b);
+  if (buckets.size > 1000) buckets.delete(buckets.keys().next().value as string);
+  if (b.tokens < 1) return { ...b, ok: false };
+  b.tokens -= 1;
+  return { ...b, ok: true };
+}
+
+/** Tests : remet les compteurs de débit à zéro. */
+export function resetAuditLimits(): void {
+  buckets.clear();
+  anon = { from: 0, written: 0, skipped: 0 };
+  anonRefusals = { from: 0, n: 0, actions: new Set() };
+}
+
+/** `what` : [singulier, pluriel], accord compris (« écriture non détaillée », « échecs de connexion non détaillés »). */
+function synthesis(user: string | null, n: number, what: [string, string]): NewEntry {
+  return {
+    kind: "action",
+    action: "journal:debit",
+    type: "erreur",
+    user,
+    pageId: null,
+    page: null,
+    target: null,
+    revFrom: null,
+    revTo: null,
+    result: "refus",
+    ms: null,
+    version: appVersion(),
+    label: `${n} ${n > 1 ? what[1] : what[0]} dans le journal (débit dépassé ; voir stdout)`,
+    summary: { changes: [{ p: "non détaillées", b: String(n) }], total: 1 },
+  };
+}
+
+/**
+ * Refus SANS session (`forbidden()` / 401 avant `assertAdmin` réussi) : aucune ligne en base. stdout : la première ligne de chaque
+ * minute, puis une ligne de synthèse `{"t":"edit-anon","n":…}` à la minute suivante.
+ */
+function anonRefusal(action: string, now = Date.now()) {
+  if (now - anonRefusals.from > 60_000) {
+    if (anonRefusals.n > 1) console.log(JSON.stringify({ t: "edit-anon", at: new Date(now).toISOString(), n: anonRefusals.n, a: [...anonRefusals.actions].slice(0, 10) }));
+    anonRefusals = { from: now, n: 0, actions: new Set() };
+    console.log(JSON.stringify({ t: "edit-anon", at: new Date(now).toISOString(), n: 1, a: [action] }));
+  }
+  anonRefusals.n++;
+  if (anonRefusals.actions.size < 50) anonRefusals.actions.add(action);
+}
+
 /** Écrit l'entrée et la ligne stdout. `aud` : ms pris sur le chemin de la requête ; `bg` : ms pris en différé. */
-function record(e: NewEntry, aud: number, bgStart: number) {
-  const id = writeEntry(e);
+function record(e: NewEntry, aud: number, bgStart: number, now = Date.now()) {
+  let id: number | null = null;
+  if (e.user) {
+    const t = takeToken(e.user, now);
+    if (t.ok) {
+      if (t.skipped > 0) {
+        writeEntry(synthesis(e.user, t.skipped, ["écriture non détaillée", "écritures non détaillées"]), now);
+        buckets.get(e.user)!.skipped = 0;
+      }
+      id = writeEntry(e, now);
+    } else buckets.get(e.user)!.skipped++;
+  } else if (e.kind === "action" && e.result === "refus" && e.action.startsWith("auth:")) {
+    // Échec de connexion (anonyme par nature) : ANON_PER_HOUR entrées détaillées par heure, puis une synthèse.
+    if (now - anon.from > 3600_000) {
+      if (anon.skipped > 0) writeEntry(synthesis(null, anon.skipped, ["échec de connexion non détaillé", "échecs de connexion non détaillés"]), now);
+      anon = { from: now, written: 0, skipped: 0 };
+    }
+    if (anon.written < ANON_PER_HOUR) {
+      anon.written++;
+      id = writeEntry(e, now);
+    } else anon.skipped++;
+  } else id = writeEntry(e, now);
   stdout(e, id, aud, performance.now() - bgStart);
+}
+
+/** Refus sans session : `assertAdmin()` n'a inscrit personne et l'action a été arrêtée (403 / 401). */
+const anonymousRefusal = (ctx: AuditCtx, out: Outcome, status: number | null) =>
+  ctx.user === null && out.result === "refus" && (status === 401 || status === 403 || out.reason === "accès refusé" || out.reason === "session absente");
+
+/**
+ * Événement hors server action (connexion, échec, changement de mot de passe, téléchargement) : même entrée, même ligne stdout,
+ * mêmes limites de débit. Jamais d'exception ; jamais d'e-mail ni de secret (le libellé est écrit par l'appelant, l'IP n'y entre pas).
+ */
+export function recordEvent(ev: { action: string; type: EntryType; user: string | null; result: EntryResult; label: string; target?: string | null; reason?: string | null }): void {
+  try {
+    const e: NewEntry = {
+      kind: "action",
+      action: ev.action,
+      type: ev.type,
+      user: ev.user,
+      pageId: null,
+      page: null,
+      target: ev.target ?? null,
+      revFrom: null,
+      revTo: null,
+      result: ev.result,
+      ms: null,
+      version: appVersion(),
+      label: ev.label,
+      summary: { changes: [], total: 0, ...(ev.reason ? { reason: safeMessage(ev.reason, 120) } : {}) },
+    };
+    record(e, 0, performance.now());
+  } catch (error) {
+    console.error("[journal] événement non écrit :", (error as Error).message);
+  }
 }
 
 /** Enveloppe une server action d'écriture. Le type de la fonction est conservé tel quel. */
@@ -224,6 +348,7 @@ export function audited<F extends Fn>(name: string, fn: F): F {
           before = undefined;
         }
       }
+      if (anonymousRefusal(ctx, out, null)) return anonRefusal(name);
       record(buildEntry(name, spec, args, ctx, out, ms, before), audMs, b0);
     });
     audMs = capMs + (performance.now() - a0);
@@ -274,6 +399,7 @@ export function auditedRoute<F extends (request: Request, ...rest: never[]) => P
         }
         out = { result: status < 400 ? "ok" : status === 409 ? "conflit" : status >= 500 ? "erreur" : "refus", reason: message ?? (status >= 400 ? `HTTP ${status}` : null), revTo: null, data: null };
       }
+      if (anonymousRefusal(ctx, out, status)) return anonRefusal(key);
       const e = buildEntry(key, spec, [], ctx, out, ms, undefined);
       e.summary = { changes: [{ p: "route", b: `${request.method} ${path}` }, ...(status ? [{ p: "statut", b: String(status) }] : [])], total: 1, ...(out.reason ? { reason: out.reason } : {}) };
       record(e, audMs, b0);

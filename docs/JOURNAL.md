@@ -39,6 +39,21 @@ modifiés et valeurs COURTES (80 caractères au plus). Jamais de contenu de méd
   de la page et l'écriture SQLite se font APRÈS la réponse (`after` de Next) : médiane 2 ms en différé, que l'artiste n'attend pas. Tout est dans des `try/catch` :
   le journal ne casse jamais une action. Mesures : `lot97-rapport.md`.
 
+## Sécurité (docs/SECURITE.md §2.7, P5)
+
+- **Refus sans session** (un anonyme qui appelle une action ou une route d'écriture : `forbidden()` / 401 avant toute session) : **rien en
+  base**, une ligne stdout `{"t":"edit-anon","n":…}` par minute. Les identifiants d'action se lisent dans le JavaScript public : sans cette
+  règle, des milliers de POST anonymes faisaient tourner le journal et effaçaient les traces d'une intrusion.
+- **Débit par utilisateur** dans `audited()` / `auditedRoute()` : 300 entrées détaillées d'affilée, puis 60 par minute (`USER_BURST`,
+  `USER_PER_MINUTE`). Au-delà, l'action s'exécute normalement, stdout garde sa ligne, et une entrée de synthèse (« N écritures non détaillées »)
+  est écrite à la reprise.
+- **Hors server actions** (`recordEvent`) : connexion réussie (mot de passe, Authentik), échec de connexion (anonyme : 20 entrées détaillées
+  par heure, puis une synthèse), changement de mot de passe (réussi ou refusé), téléchargements (sauvegarde, kit Photoshop, export de thème).
+  Jamais d'e-mail, d'IP ni de mot de passe.
+- **Rétention** : jamais une entrée de moins de **7 jours** (`MIN_KEEP_DAYS`), ni par l'ancienneté ni par le nombre de lignes. Plafond dur
+  de 200 000 lignes (`HARD_MAX_ROWS`, `EDIT_LOG_HARD_MAX` pour les tests) : au-delà, les NOUVELLES entrées ne sont plus écrites (stdout seulement),
+  les anciennes restent.
+
 ## Écran Admin > Journal
 
 Réglages → « Ouvrir le journal » (et sous-entrée du menu, sous Sauvegardes). Liste filtrable (page, type, résultat, dates), plus récente

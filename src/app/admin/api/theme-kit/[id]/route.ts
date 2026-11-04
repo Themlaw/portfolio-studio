@@ -9,6 +9,7 @@ import { stat } from "node:fs/promises";
 import { Readable } from "node:stream";
 
 import { assertAdmin } from "@/lib/auth/guard";
+import { recordEvent } from "@/lib/journal/audit";
 import { wakeWorker } from "@/lib/jobs/worker";
 import { kitFile, lastKitFailure, loadSavedTheme, kitVersion, requestKitExport } from "@/lib/kit/export-job";
 import { isSameOrigin } from "@/lib/preview";
@@ -35,13 +36,14 @@ export async function POST(request: Request, { params }: Params) {
 }
 
 export async function GET(_request: Request, { params }: Params) {
-  await assertAdmin();
+  const session = await assertAdmin();
   const { id } = await params;
   const theme = validId(id) ? loadSavedTheme(id) : null;
   if (!theme) return json(404, { ok: false, message: "Ce thème n'existe plus." });
   const file = kitFile(theme.id, kitVersion(theme));
   const info = await stat(file).catch(() => null);
   if (!info) return json(404, { ok: false, ready: false, message: "Le kit n'est pas encore prêt." });
+  recordEvent({ action: "download:kit", type: "telechargement", user: session.user.id, result: "ok", label: "Kit Photoshop téléchargé", target: theme.id });
   return new Response(Readable.toWeb(createReadStream(file)) as ReadableStream, {
     headers: {
       "Content-Type": "application/zip",
