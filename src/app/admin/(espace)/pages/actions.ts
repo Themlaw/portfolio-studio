@@ -213,7 +213,7 @@ export const deletePageAction = audited("deletePageAction", async function delet
 });
 
 /** Restaure une page de la corbeille (l'adresse reprise entre-temps est remplacée par une variante libre). */
-export const restorePageAction = audited("restorePageAction", async function restorePageAction(id: unknown): Promise<ActionResult<{ title: string; slugChanged: boolean; collectionDropped: boolean }>> {
+export const restorePageAction = audited("restorePageAction", async function restorePageAction(id: unknown): Promise<ActionResult<{ title: string; slugChanged: boolean; collectionDropped: boolean; unpublished?: string }>> {
   await assertAdmin();
   const pid = pageId(id);
   if (!pid) return fail("Page inconnue.");

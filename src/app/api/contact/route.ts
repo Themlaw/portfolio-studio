@@ -79,7 +79,11 @@ async function readBody(req: Request): Promise<string | null> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-/** Formulaire publié désigné par son identifiant stable. */
+/**
+ * Formulaire publié désigné par son identifiant stable. Plusieurs formulaires publiés avec le même identifiant (ne doit
+ * pas arriver : refusé à la publication, à la remise en ligne et à la restauration) : « ambiguous », l'envoi est refusé
+ * et signalé dans le journal du serveur plutôt que rangé sur une page au hasard (docs/SECURITE.md N11).
+ */
 function findForm(formId: string) {
   const rows = getDb()
     .select({ id: schema.blocks.id, props: schema.blocks.props, pageId: schema.blocks.pageId, type: schema.blocks.type })
@@ -87,14 +91,19 @@ function findForm(formId: string) {
     .innerJoin(schema.pages, eq(schema.blocks.pageId, schema.pages.id))
     .where(and(inArray(schema.blocks.type, [...FORM_BLOCK_TYPES]), eq(schema.pages.published, true), isNull(schema.pages.deletedAt)))
     .all();
+  const found = [];
   for (const row of rows) {
     const props = parseJson(row.props);
     // « Contact » sans l'option formulaire : aucun formulaire à désigner (même si des champs traînent dans ses réglages).
     if (!isFormBlock(row.type, props)) continue;
     const form = ContactFormSchema.safeParse(props);
-    if (form.success && form.data.formId === formId) return { ...row, form: form.data };
+    if (form.success && form.data.formId === formId) found.push({ ...row, form: form.data });
   }
-  return null;
+  if (found.length > 1) {
+    console.error(`[contact] formulaire ${formId} publié ${found.length} fois (pages ${found.map((f) => f.pageId).join(", ")}) : envoi refusé`);
+    return "ambiguous" as const;
+  }
+  return found[0] ?? null;
 }
 
 export async function POST(req: Request): Promise<Response> {
@@ -111,6 +120,7 @@ export async function POST(req: Request): Promise<Response> {
 
   const found = findForm(body.form);
   if (!found) return json(404, { ok: false, error: "Formulaire introuvable." });
+  if (found === "ambiguous") return json(409, { ok: false, error: "Ce formulaire est en double sur le site : l'envoi est refusé." });
 
   // Piège à robots : réponse normale, rien d'enregistré.
   if (typeof body.website === "string" && body.website.trim()) return json(200, { ok: true });

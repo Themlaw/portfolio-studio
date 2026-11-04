@@ -4,7 +4,7 @@
  * références existantes), accent de page (contraste AA contre le thème actif).
  */
 import { own } from "@/lib/own";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { BLOCKS } from "@/blocks/registry";
@@ -373,10 +373,34 @@ export function savePage(id: number, input: unknown): ActionResult<null> {
   return done(null);
 }
 
+/** Blocs PUBLIÉS d'une page (table `blocks`), tels que la publication les a gardés. */
+function publishedBlocks(pageId: number): { type: string; props: unknown }[] {
+  return getDb()
+    .select({ type: schema.blocks.type, props: schema.blocks.props })
+    .from(schema.blocks)
+    .where(eq(schema.blocks.pageId, pageId))
+    .orderBy(asc(schema.blocks.position))
+    .all()
+    .map((b) => ({ type: b.type, props: parseJson(b.props) }));
+}
+
+/**
+ * Remettre en ligne une page déjà enregistrée (liste des pages, restauration) rejoue les contrôles de publication qui
+ * dépendent des AUTRES pages (docs/SECURITE.md N11) : un formulaire dont l'identifiant est déjà porté par un formulaire
+ * publié ailleurs ferait arriver les messages sur la mauvaise page. Message, ou null.
+ */
+function republishProblem(pageId: number): string | null {
+  return formIdProblem(pageId, publishedBlocks(pageId))?.message ?? null;
+}
+
 export function setPublished(id: number, published: boolean): ActionResult<null> {
   const page = getDb().select().from(schema.pages).where(eq(schema.pages.id, id)).get();
   if (!page || page.deletedAt) return fail("Cette page n'existe plus.");
   if (isHome(page.slug) && !published) return fail("La page d'accueil reste toujours publiée.");
+  if (published && !page.published) {
+    const problem = republishProblem(id);
+    if (problem) return fail(`Publication impossible : ${problem}`);
+  }
   getDb().update(schema.pages).set({ published, updatedAt: new Date() }).where(eq(schema.pages.id, id)).run();
   return done(null);
 }
@@ -492,9 +516,11 @@ export function deletePage(id: number): ActionResult<{ title: string }> | { ok: 
  * Restaure une page de la corbeille. Son adresse a pu être reprise entre-temps : elle reçoit alors une
  * variante libre (`-2`…), vérifiée pour CHAQUE langue (adresse valide, non réservée, non prise) puis revalidée
  * par `slugErrors` ; `slugChanged` le dit. Sa collection a pu être reprise par une autre page : elle la perd
- * (`collectionDropped`). Elle revient au menu si elle y était.
+ * (`collectionDropped`). Elle revient au menu si elle y était. Une page publiée le reste seulement si elle passe encore les
+ * contrôles de publication qui dépendent des autres pages (`republishProblem`, N11) ; sinon elle revient HORS LIGNE
+ * (`unpublished` : la raison, dite à l'artiste).
  */
-export function restorePage(id: number): ActionResult<{ title: string; slugChanged: boolean; collectionDropped: boolean }> {
+export function restorePage(id: number): ActionResult<{ title: string; slugChanged: boolean; collectionDropped: boolean; unpublished?: string }> {
   const db = getDb();
   const page = db.select().from(schema.pages).where(eq(schema.pages.id, id)).get();
   if (!page || !page.deletedAt) return fail("Cette page n'est pas dans la corbeille.");
@@ -515,12 +541,14 @@ export function restorePage(id: number): ActionResult<{ title: string; slugChang
   }
   const wanted = page.collection;
   const collectionDropped = wanted !== null && Boolean(db.select({ id: schema.pages.id }).from(schema.pages).where(and(eq(schema.pages.collection, wanted), isNull(schema.pages.deletedAt))).get());
+  // L'accueil reste toujours publié (il ne va d'ailleurs jamais à la corbeille).
+  const unpublished = page.published && !isHome(page.slug) ? republishProblem(id) : null;
   db.transaction((tx) => {
     tx.update(schema.pages)
-      .set({ deletedAt: null, trashedInMenu: false, slug, updatedAt: new Date(), ...(collectionDropped ? { collection: null } : {}) })
+      .set({ deletedAt: null, trashedInMenu: false, slug, updatedAt: new Date(), ...(collectionDropped ? { collection: null } : {}), ...(unpublished ? { published: false } : {}) })
       .where(eq(schema.pages.id, id))
       .run();
     if (page.trashedInMenu) setPageInNav(id, true);
   });
-  return done({ title: page.title.fr, slugChanged, collectionDropped });
+  return done({ title: page.title.fr, slugChanged, collectionDropped, ...(unpublished ? { unpublished } : {}) });
 }
