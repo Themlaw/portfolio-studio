@@ -14,6 +14,7 @@
 import { eq } from "drizzle-orm";
 import { after } from "next/server";
 
+import { noteUserActivity } from "@/lib/backup/activity";
 import { getDb, schema } from "@/lib/db";
 
 import { SPECS, type Spec } from "./catalog";
@@ -187,6 +188,8 @@ export function audited<F extends Fn>(name: string, fn: F): F {
     const spec = SPECS[name];
     const ctx: AuditCtx = { user: null };
     const t0 = performance.now();
+    // Lot 118 : un geste d édition (début et fin : une action longue compte jusqu à son terme) repousse la sauvegarde « calme ».
+    noteUserActivity();
     let captured: unknown;
     if (spec?.diff) {
       try {
@@ -205,6 +208,7 @@ export function audited<F extends Fn>(name: string, fn: F): F {
       threw = true;
       thrown = error;
     }
+    noteUserActivity();
     const a0 = performance.now();
     const ms = a0 - t0 - capMs;
     // `audMs` : part du journal sur le chemin de la requête (capture d'avant + mise en file) ; complété juste après `defer`, lu en différé.
@@ -240,6 +244,7 @@ export function auditedRoute<F extends (request: Request, ...rest: never[]) => P
     const spec = SPECS[key];
     const ctx: AuditCtx = { user: null };
     const t0 = performance.now();
+    noteUserActivity();
     let res: Response | undefined;
     let thrown: unknown;
     let threw = false;
@@ -249,6 +254,7 @@ export function auditedRoute<F extends (request: Request, ...rest: never[]) => P
       threw = true;
       thrown = error;
     }
+    noteUserActivity();
     const a0 = performance.now();
     const ms = a0 - t0;
     // Copie du corps d'erreur JSON prise tout de suite (le flux de la réponse part vers le navigateur) ; lue en différé.

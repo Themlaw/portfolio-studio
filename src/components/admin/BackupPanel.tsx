@@ -10,7 +10,7 @@ import { SaveBar, toast } from "./editing";
 const REASONS: Record<string, string> = {
   premier: "Première sauvegarde",
   calme: "Après une session de travail",
-  delai: "Délai maximal atteint",
+  delai: "Modifications en attente depuis trop longtemps (tu travaillais encore)",
   manuel: "À ta demande",
 };
 const SOURCES = { reglage: "Réglé ici", env: "Valeur du serveur", defaut: "Valeur d'origine" } as const;
@@ -50,6 +50,13 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
     if (r.ok) setStatus(r.data);
     return r.ok ? r.data : null;
   };
+
+  // Lot 118 : l'état se rafraîchit aussi au repos (30 s), pour que l'alerte rouge apparaisse sans recharger la page.
+  useEffect(() => {
+    const t = setInterval(() => void refresh(), 30_000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Suivi de la sauvegarde en cours : une lecture toutes les 1,5 s, tant qu'elle dure.
   useEffect(() => {
@@ -165,11 +172,23 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
         Garde une copie sur ton ordinateur de temps en temps : les sauvegardes sont rangées au même endroit que ton site. Elles te protègent d&apos;une fausse manœuvre, pas de la perte du disque. Télécharge la dernière une fois de temps en temps.
       </p>
 
+      <span hidden data-testid="activite-sauvegarde" data-last-change={status.activity?.lastChangeAt ?? ""} data-last-user={status.activity?.lastUserAt ?? ""} data-changes={status.activity?.changes ?? ""} />
+      {status.alert && (
+        <p className="a-notice a-notice-danger" role="alert" data-testid="alerte-sauvegarde" data-kind={status.alert.kind}>
+          Attention : {status.alert.message} Elle devait avoir lieu {fmtDate(status.alert.since)}. Fais une sauvegarde à la main (bouton ci-dessous) et préviens la personne qui s&apos;occupe du site : le journal du site contient une ligne « [backup] ALERTE » avec le détail.
+        </p>
+      )}
       <section className="a-section" aria-labelledby="sv-etat">
         <h2 id="sv-etat">État</h2>
         <div className="a-table-wrap">
           <dl className="a-dl">
             {row("Sauvegardes gardées", String(status.archives.length), "etat-nombre")}
+            {row(
+              "Règle de conservation",
+              `Les ${status.settings.keep} dernières, plus la dernière de chacun des ${status.settings.keepDays} derniers jours (heure de Paris). Le reste est supprimé à la sauvegarde suivante.`,
+              "etat-conservation",
+            )}
+            {row("Sauvegarde même si tu travailles", `Toutes les ${String(status.settings.maxHours).replace(".", ",")} h au plus, quand des modifications attendent (sinon ${String(status.settings.quietMin).replace(".", ",")} min sans modification).`, "etat-delai")}
             {row("Prochaine sauvegarde", nextText, "etat-prochaine")}
             {row(
               "Dernière erreur",
@@ -230,7 +249,15 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
               <tbody>
                 {status.archives.map((a: ArchiveRow) => (
                   <tr key={a.name} data-testid="ligne-sauvegarde" data-name={a.name}>
-                    <td data-label="Date">{fmtDate(a.at)}</td>
+                    <td data-label="Date">
+                      {fmtDate(a.at)}
+                      {a.retention && (
+                        <span className={`a-badge${a.retention.kind === "recente" ? "" : " a-badge-muted"}`} data-testid="conservation" data-kind={a.retention.kind} data-day={a.retention.day}>
+                          {" "}
+                          {a.retention.kind === "recente" ? "Récente" : "Du jour"}
+                        </span>
+                      )}
+                    </td>
                     <td data-label="Taille">{fmtSize(a.size)}</td>
                     <td data-label="Contenu">
                       {a.withMedia === null ? "?" : a.withMedia ? "Base et médias" : "Base seule"}
@@ -276,7 +303,9 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
           <div className="a-field">
             <label htmlFor="sv-keep">Nombre de sauvegardes gardées</label>
             <input id="sv-keep" className="a-input" type="number" min={1} max={30} step={1} value={form.keep} onChange={(e) => set("keep", e.target.value)} data-testid="reglage-garder" />
-            <span className="a-help">Les plus anciennes sont supprimées à la sauvegarde suivante.</span>
+            <span className="a-help">
+              Les dernières sauvegardes (« récentes »). S&apos;y ajoute la dernière de chacun des {status.settings.keepDays} derniers jours (« du jour », réglage du serveur BACKUP_KEEP_DAYS). Le reste est supprimé à la sauvegarde suivante.
+            </span>
             {errors.keep && <span className="a-field-error">{errors.keep}</span>}
             {src("keep")}
           </div>
@@ -287,7 +316,7 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
             {src("quietMin")}
           </div>
           <div className="a-field">
-            <label htmlFor="sv-max">Heures au plus entre deux sauvegardes, même si tu travailles</label>
+            <label htmlFor="sv-max">Heures au plus avant de sauvegarder tes modifications, même si tu travailles encore</label>
             <input id="sv-max" className="a-input" type="number" min={1} max={720} step={1} value={form.maxHours} onChange={(e) => set("maxHours", e.target.value)} data-testid="reglage-delai" />
             {errors.maxHours && <span className="a-field-error">{errors.maxHours}</span>}
             {src("maxHours")}

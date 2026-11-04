@@ -227,7 +227,7 @@ export async function readArchiveManifest(file: string): Promise<ArchiveManifest
 
 export type RunOptions = {
   dataDir: string;
-  config: Pick<BackupConfig, "media" | "keep">;
+  config: Pick<BackupConfig, "media" | "keep"> & { keepDays?: number };
   reason: DueReason;
   /** Connexion en LECTURE SEULE distincte de celle du site (jamais la connexion qui écrit). */
   reader: Database.Database;
@@ -237,13 +237,16 @@ export type RunOptions = {
   onProgress?: (p: BackupProgress) => void;
 };
 
+/** Restes d'un instantané (`snapshot-<pid>.db.tmp-shm`, `-wal`, `-journal`) : jamais une sauvegarde valable. */
+export const SNAPSHOT_LEFTOVER_RE = /^snapshot-.*\.tmp-(?:shm|wal|journal)$/;
+
 export async function runBackup(opts: RunOptions): Promise<BackupResult> {
   const started = Date.now();
   opts.onProgress?.({ phase: "preparation", done: 0, total: 0 });
   const dir = backupDir(opts.dataDir);
   await mkdir(dir, { recursive: true, mode: 0o750 });
   // Restes d'une écriture interrompue (arrêt brutal) : jamais une sauvegarde valable.
-  for (const n of await readdir(dir)) if (n.endsWith(".tmp")) await rm(path.join(/* turbopackIgnore: true */ dir, n), { force: true });
+  for (const n of await readdir(dir)) if (n.endsWith(".tmp") || SNAPSHOT_LEFTOVER_RE.test(n)) await rm(path.join(/* turbopackIgnore: true */ dir, n), { force: true });
 
   const stamp = (opts.now ?? (() => new Date()))();
   const snapshot = path.join(/* turbopackIgnore: true */ dir, `snapshot-${process.pid}.db.tmp`);
@@ -366,11 +369,12 @@ export async function runBackup(opts: RunOptions): Promise<BackupResult> {
 
     // 5. Rotation : seulement maintenant que la nouvelle est complète.
     const all = (await listArchives(dir)).map((a) => a.name);
-    const doomed = rotationPlan(all, opts.config.keep).filter((n) => n !== name);
+    const doomed = rotationPlan(all, opts.config.keep, opts.config.keepDays ?? 0, (opts.now?.() ?? new Date()).getTime()).filter((n) => n !== name);
     for (const n of doomed) await rm(path.join(/* turbopackIgnore: true */ dir, n), { force: true });
     return { name, bytes, ms: Date.now() - started, files: entries.length, mediaCount: rows.length, kept: all.length - doomed.length, removed: doomed.length, shortfall: report.shortfall, storage: { saved, regenerable: plan.counts.regenerable }, missingRefs };
   } finally {
-    await rm(snapshot, { force: true });
+    // Lot 118 : l'instantané est ouvert en lecture seule (mode WAL hérité de la base) : SQLite laisse `-shm` et `-wal` à côté.
+    for (const suffix of ["", "-shm", "-wal", "-journal"]) await rm(snapshot + suffix, { force: true });
     if (tmpArchive) await rm(tmpArchive, { force: true });
   }
 }

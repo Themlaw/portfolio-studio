@@ -1799,3 +1799,15 @@ Verrou : `data-edit-locked` sur la toile, ✕ / Suppr / Supprimer / Dupliquer re
 **Bloc « Une œuvre au hasard »** (`RandomWorkBlock`, `src/lib/random-works.ts`) : source tout / catégorie / sélection ; `readPoolWorks` ne retient que
 l'œuvre publiée (pas d'emplacement `added`, média prêt hors corbeille, projet hors corbeille et montré par une page publiée ou par la page de sa collection).
 Source vide = aucun HTML. Sans risque ailleurs : le bloc ne lit que la lecture publiée et se tire côté client, mais il n'est proposé que sur `_404`.
+
+
+## Lot 118 : aperçu à jour après « Publié » et sauvegardes qui ne s'arrêtent pas
+
+**Pages du site (cache).** Next annonce les pages en cache ISR `s-maxage=31536000` et `x-nextjs-stale-time: 300`. Un cache partagé placé devant
+le site (Pangolin, Traefik, CDN) ne reçoit pas les invalidations (`revalidateTag`) : il gardait la page d'avant la publication. `next.config.ts` pose
+donc `Cache-Control: public, max-age=0, must-revalidate` sur `/fr/*` et `/en/*` (hors draft mode, où Next met `private, no-store`) : le navigateur et
+tout cache partagé revalident à chaque fois (ETag, réponse 304 du cache ISR) ; `experimental.staleTimes` est à 0 (le cache du routeur client ne garde plus
+5 min les pages visitées ou préchargées). L'éditeur envoie un signal `portfolio-publish` (BroadcastChannel, `src/lib/publish-signal.ts`) après « Publié » : les
+onglets du site ouverts par l'artiste connectée (`EditThisPage`) se relisent (`router.refresh()`). Test : `scripts/e2e-apercu118.mjs` (avec un cache partagé simulé).
+
+**Sauvegardes (planificateur).** `src/lib/backup/activity.ts` note le dernier geste d'édition de l'artiste (début et fin de chaque `audited` / `auditedRoute`, routes d'envoi par morceaux). Règles : « calme » après 10 min sans modification ; « délai » quand des modifications ACCOMPAGNÉES d'un geste de l'artiste attendent depuis 1 h (`BACKUP_MAX_HOURS`, défaut 1), même si elle continue d'éditer ; des écritures de fond seules ne déclenchent rien d'autre que la règle de calme (pas de sauvegarde « bruit »). Conservation (`retentionPlan`) : les 3 dernières (`BACKUP_KEEP`) + la dernière de chacun des 7 derniers jours civils à Paris (`BACKUP_KEEP_DAYS`), le reste est supprimé ; Admin > Sauvegardes marque chaque archive « Récente » ou « Du jour ». Une sauvegarde qui ne se termine pas en 30 min libère le verrou. Une surveillance (toutes les minutes) journalise `[backup] ALERTE (retard | minuterie | bloquee)` avec les tables qui ont bougé, relance la minuterie arrêtée, et l'écran affiche une alerte rouge (`BACKUP_ALERT_GRACE_SEC`, 120 s par défaut). Les restes d'instantané (`snapshot-N.db.tmp-shm/-wal`) sont supprimés. Tests : `scripts/test-backup118.mjs` (npm test), `scripts/e2e-backup118.mjs`.

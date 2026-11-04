@@ -28,13 +28,20 @@ import Database from "better-sqlite3";
 
 import { dataDir } from "@/lib/db";
 
+import { lastUserActivityAt } from "./activity";
 import { backupDir, BackupSkipped, listArchives, readArchiveManifest, runBackup, type BackupProgress } from "./archive";
 import { describeConfig, type BackupConfig, type BackupSources } from "./config";
 import { effectiveBackupConfig, envBackupConfig } from "./settings";
-import { nextDueAt, Scheduler, type DueReason } from "./schedule";
+import { nextDueAt, retentionPlan, Scheduler, type DueReason } from "./schedule";
 
 type Svc = {
   timer?: NodeJS.Timeout;
+  watchdog?: NodeJS.Timeout;
+  /** Dernière alerte journalisée (ms) et son type : une ligne par quart d'heure au plus. */
+  alertLoggedAt?: number;
+  alertKind?: string;
+  /** Empreinte des tables à la dernière sauvegarde : diagnostic « quelle table change sans cesse ». */
+  fingerprint?: Record<string, string>;
   scheduler?: Scheduler;
   reader?: Database.Database;
   config?: BackupConfig;
@@ -78,6 +85,78 @@ function current(): BackupConfig {
   return (s.config ??= effectiveBackupConfig());
 }
 
+/** Surveillance : toutes les minutes. */
+const WATCH_MS = Number(process.env.BACKUP_ALERT_GRACE_SEC) > 0 ? Math.min(60_000, Math.max(1000, Number(process.env.BACKUP_ALERT_GRACE_SEC) * 500)) : 60_000;
+/** Retard toléré avant l'alerte : deux vérifications de la minuterie, au moins 2 min. */
+const graceMs = (c: BackupConfig) => {
+  // BACKUP_ALERT_GRACE_SEC : tests (réglage d'origine : deux minutes, ou deux vérifications de la minuterie).
+  const env = Number(process.env.BACKUP_ALERT_GRACE_SEC);
+  return Number.isFinite(env) && env > 0 ? env * 1000 : Math.max(120_000, 2 * c.pollMs);
+};
+
+/**
+ * Empreinte légère de chaque table (nombre de lignes et plus grand rowid) : sert UNIQUEMENT à dire, dans l'alerte, quelles tables
+ * ont bougé depuis la dernière sauvegarde (une mise à jour sur place ne change pas l'empreinte : indice, pas preuve).
+ */
+function tableFingerprint(db: Database.Database): Record<string, string> {
+  const out: Record<string, string> = {};
+  try {
+    const tables = db.prepare("select name from sqlite_master where type = 'table' and name not like 'sqlite_%'").all() as { name: string }[];
+    for (const { name } of tables) {
+      try {
+        const r = db.prepare(`select count(*) c, coalesce(max(rowid), 0) m from "${name.replace(/"/g, '""')}"`).get() as { c: number; m: number };
+        out[name] = `${r.c}/${r.m}`;
+      } catch {
+        // table sans rowid, vue… : ignorée
+      }
+    }
+  } catch {
+    // diagnostic seulement
+  }
+  return out;
+}
+
+function changedTables(before: Record<string, string> | undefined, now: Record<string, string>): string[] {
+  if (!before) return [];
+  return Object.keys(now).filter((t) => before[t] !== now[t]);
+}
+
+/** Ce que la surveillance dit en ce moment (null = tout va bien). Partagé par le journal et l'écran Sauvegardes. */
+function currentHealth(s: Svc) {
+  if (!s.scheduler) return null;
+  const config = current();
+  if (!config.enabled) return null;
+  return s.scheduler.health(Date.now(), graceMs(config));
+}
+
+function watch(s: Svc, loop: (first?: boolean) => void) {
+  try {
+    const h = currentHealth(s);
+    if (!h) {
+      s.alertKind = undefined;
+      return;
+    }
+    const now = Date.now();
+    // Minuterie arrêtée : on la relance (jamais deux : loop() annule la précédente).
+    if (h.kind === "minuterie") loop();
+    if (s.alertKind === h.kind && s.alertLoggedAt && now - s.alertLoggedAt < 15 * 60_000) return;
+    s.alertKind = h.kind;
+    s.alertLoggedAt = now;
+    const sched = s.scheduler!;
+    const since = new Date(h.since).toISOString();
+    let detail = `${sched.changesSince} modification(s) vue(s) depuis la dernière sauvegarde`;
+    if (sched.state.lastChangeAt) detail += `, la dernière à ${new Date(sched.state.lastChangeAt).toISOString()}`;
+    if (sched.state.lastUserAt) detail += `, dernier geste de l'artiste à ${new Date(sched.state.lastUserAt).toISOString()}`;
+    if (s.reader) {
+      const tables = changedTables(s.fingerprint, tableFingerprint(s.reader));
+      if (tables.length) detail += ` ; tables qui ont bougé : ${tables.join(", ")}`;
+    }
+    console.error(`[backup] ALERTE (${h.kind}) : ${h.message} Depuis ${since}. ${detail}`);
+  } catch (error) {
+    console.error("[backup] surveillance en échec :", error);
+  }
+}
+
 /** Prépare la connexion de lecture et le déclencheur (idempotent). Crée backup/ : à n'appeler que si on sauvegarde pour de bon. */
 function ensureService(): Promise<Svc | null> {
   const s = svc();
@@ -111,6 +190,7 @@ function ensureService(): Promise<Svc | null> {
           },
           enabled: () => current().enabled,
           now: () => Date.now(),
+          userActivity: () => lastUserActivityAt(),
           changed: () => {
             const v = reader.pragma("data_version", { simple: true }) as number;
             const changed = v !== seen;
@@ -125,6 +205,7 @@ function ensureService(): Promise<Svc | null> {
               const r = await runBackup({ dataDir: root, config, reason, reader, version: process.env.PORTFOLIO_VERSION, onProgress: (p) => (s.progress = p) });
               s.lastError = null;
               s.lastRun = { name: r.name, bytes: r.bytes, ms: r.ms, reason, at: Date.now() };
+              s.fingerprint = tableFingerprint(reader);
               console.log(
                 `[backup] ${r.name} : ${mo(r.bytes)} en ${(r.ms / 1000).toFixed(1).replace(".", ",")} s (${reason} ; ${r.mediaCount} média(s), ${r.files} fichier(s)) ; ${r.kept} sauvegarde(s) gardée(s)${r.removed ? `, ${r.removed} ancienne(s) supprimée(s)` : ""}${r.shortfall ? ` ; ATTENTION : ${r.shortfall} octet(s) manquants (fichier modifié pendant la copie)` : ""}`,
               );
@@ -154,7 +235,9 @@ function ensureService(): Promise<Svc | null> {
         { dirty: saved.dirty, lastChangeAt: saved.lastChangeAt, lastBackupAt },
       );
 
+      s.fingerprint = tableFingerprint(reader);
       const loop = (first = false) => {
+        clearTimeout(s.timer);
         s.timer = setTimeout(
           async () => {
             try {
@@ -170,6 +253,10 @@ function ensureService(): Promise<Svc | null> {
         s.timer.unref();
       };
       loop(true);
+      // Lot 118 : surveillance indépendante de la minuterie. Une minute : elle relève une sauvegarde due qui ne part pas, une
+      // sauvegarde bloquée, une minuterie arrêtée (qu'elle relance), et l'écrit dans le journal.
+      s.watchdog = setInterval(() => watch(s, loop), WATCH_MS);
+      s.watchdog.unref();
       return s;
     } catch (error) {
       console.error("[backup] sauvegardes NON démarrées :", error);
@@ -228,20 +315,26 @@ export type ArchiveRow = {
   mediaCount: number | null;
   /** Lot 85 : sauvegarde faite avant le lot (ni kit, ni cadres, ni icônes dans l'archive) ; null : inconnu. */
   old: boolean | null;
+  /** Lot 118 : « recente » (parmi les dernières) ou « jour » (la dernière de sa journée, heure de Paris) ; null : sera supprimée. */
+  retention: { kind: "recente" | "jour"; day: string } | null;
   /** Références /media/… de la base absentes de l'archive et non régénérables (nombre et exemples) ; null : inconnu. */
   missing: { count: number; samples: string[] } | null;
 };
 
 export type BackupStatus = {
   /** Réglages en vigueur et d'où vient chaque valeur. */
-  settings: { enabled: boolean; keep: number; quietMin: number; maxHours: number; media: boolean; sources: BackupSources };
+  settings: { enabled: boolean; keep: number; keepDays: number; quietMin: number; maxHours: number; media: boolean; sources: BackupSources };
   /** Valeurs sans les réglages de l'admin (environnement, sinon défauts) : pour « revenir à l'origine ». */
-  base: { enabled: boolean; keep: number; quietMin: number; maxHours: number; media: boolean };
+  base: { enabled: boolean; keep: number; keepDays: number; quietMin: number; maxHours: number; media: boolean };
   running: boolean;
   progress: BackupProgress | null;
   startedAt: number | null;
   lastError: { message: string; at: number; skipped: boolean } | null;
   lastRun: { name: string; bytes: number; ms: number; reason: string; at: number } | null;
+  /** Lot 118 : une sauvegarde due n'a pas eu lieu (ou la minuterie / la sauvegarde est bloquée) ; affiché en rouge. */
+  alert: { kind: "retard" | "minuterie" | "bloquee"; message: string; since: number } | null;
+  /** Lot 118 : dernière modification vue et modifications vues depuis la dernière sauvegarde (diagnostic). */
+  activity: { lastChangeAt: number | null; lastUserAt: number | null; changes: number } | null;
   archives: ArchiveRow[];
   /** prevue : `at` ; immediate : bientôt (première ou en retard) ; aucune : rien en attente ; desactivee. */
   next: { kind: "prevue" | "immediate" | "aucune" | "desactivee"; at: number | null };
@@ -249,7 +342,7 @@ export type BackupStatus = {
   now: number;
 };
 
-const view = (c: BackupConfig) => ({ enabled: c.enabled, keep: c.keep, quietMin: c.quietMs / 60_000, maxHours: c.maxMs / 3_600_000, media: c.media });
+const view = (c: BackupConfig) => ({ enabled: c.enabled, keep: c.keep, keepDays: c.keepDays, quietMin: c.quietMs / 60_000, maxHours: c.maxMs / 3_600_000, media: c.media });
 
 export async function getBackupStatus(): Promise<BackupStatus> {
   const s = svc();
@@ -258,9 +351,11 @@ export async function getBackupStatus(): Promise<BackupStatus> {
   const dir = backupDir(root);
   const list = await listArchives(dir);
   const archives: ArchiveRow[] = [];
+  const plan = retentionPlan(list.map((a) => a.name), config.keep, config.keepDays);
+  const kindOf = new Map(plan.kept.map((k) => [k.name, k]));
   for (const a of [...list].reverse()) {
     const m = await readArchiveManifest(path.join(/* turbopackIgnore: true */ dir, a.name));
-    archives.push({ name: a.name, size: a.size, at: a.mtimeMs, version: m?.version ?? null, reason: m?.reason ?? null, withMedia: m?.includesMedia ?? null, mediaCount: m?.mediaCount ?? null, old: m ? (m.includesMedia === false ? false : !m.storage) : null, missing: m?.missingRefs ?? null });
+    archives.push({ name: a.name, size: a.size, at: a.mtimeMs, version: m?.version ?? null, reason: m?.reason ?? null, withMedia: m?.includesMedia ?? null, mediaCount: m?.mediaCount ?? null, old: m ? (m.includesMedia === false ? false : !m.storage) : null, missing: m?.missingRefs ?? null, retention: kindOf.has(a.name) ? { kind: kindOf.get(a.name)!.kind, day: kindOf.get(a.name)!.day } : null });
   }
   const now = Date.now();
   let next: BackupStatus["next"] = { kind: "desactivee", at: null };
@@ -283,6 +378,8 @@ export async function getBackupStatus(): Promise<BackupStatus> {
     startedAt: s.startedAt ?? null,
     lastError: s.lastError ?? null,
     lastRun: s.lastRun ?? null,
+    alert: currentHealth(s),
+    activity: s.scheduler ? { lastChangeAt: s.scheduler.state.lastChangeAt || null, lastUserAt: Math.max(s.scheduler.state.lastUserAt ?? 0, lastUserActivityAt()) || null, changes: s.scheduler.changesSince } : null,
     archives,
     next,
     free,

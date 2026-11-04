@@ -8,12 +8,22 @@
  * est vérifiée côté serveur avant d'afficher le bouton. Jamais dans un cadre
  * (toile de l'éditeur, aperçu de thème).
  */
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+
+import { onPublished } from "@/lib/publish-signal";
 
 export const ADMIN_HINT_COOKIE = "portfolio-admin";
 
 export default function EditThisPage() {
   const [href, setHref] = useState<string | null>(null);
+  const router = useRouter();
+  // Lot 118 : après « Publier » dans l'éditeur (autre onglet), cette page abandonne le cache de navigation de Next et se relit.
+  useEffect(() => {
+    if (window.parent !== window) return;
+    if (!document.cookie.split("; ").some((c) => c.startsWith(`${ADMIN_HINT_COOKIE}=`))) return;
+    return onPublished(() => router.refresh());
+  }, [router]);
   useEffect(() => {
     if (window.parent !== window) return;
     if (!document.cookie.split("; ").some((c) => c.startsWith(`${ADMIN_HINT_COOKIE}=`))) return;
