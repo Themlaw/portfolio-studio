@@ -93,5 +93,8 @@ jobs:
           # Le runner GitHub a 16 Go : plafond du tas plus large qu'en local.
           build-args: |
             NODE_MAX_OLD_SPACE=4096
+          # mode=min : seules les couches de l'image finale vont dans le cache GitHub Actions. mode=max y exporterait
+          # aussi les étapes intermédiaires, dont la couche du `COPY . .` du stage builder (tout le contexte : sources,
+          # seed…). Prix : les étapes intermédiaires (npm ci, next build) se refont quand le cache d'image ne suffit pas.
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
