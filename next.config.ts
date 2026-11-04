@@ -46,6 +46,15 @@ const nextConfig: NextConfig = {
         source: "/:path((?!admin(?:/|$)|media/).*)",
         headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'none'" }],
       },
+      // Lot 118 : pages du site (HTML et RSC) toujours REVALIDÉES par le navigateur et par tout cache partagé placé devant (Pangolin,
+      // Traefik, CDN). Next les annonce `s-maxage=31536000` (un an) parce qu'il compte sur la revalidation à la demande, que ces
+      // caches ne reçoivent pas : une page publiée y restait périmée. Là, ils redemandent à chaque fois (réponse 304 du cache ISR).
+      {
+        source: "/:locale(fr|en)/:rest*",
+        // Jamais en draft mode (aperçu admin) : Next y pose lui-même `private, no-store`.
+        missing: [{ type: "cookie", key: "__prerender_bypass" }],
+        headers: [{ key: "Cache-Control", value: "public, max-age=0, must-revalidate" }],
+      },
       // Aperçu en direct de l'éditeur de thème : en draft mode seulement (cookie
       // posé par /admin/apercu pour un admin connecté), le site public peut
       // s'afficher dans un cadre DE LA MÊME ORIGINE. Les visiteurs (sans ce
@@ -83,6 +92,10 @@ const nextConfig: NextConfig = {
     instrumentation: ["./data/**", "./src/**", "./docs/**"],
   },
   experimental: {
+    // Lot 118 : cache du routeur client à zéro. Par défaut Next garde 5 min (`x-nextjs-stale-time: 300`) les pages visitées ou
+    // préchargées : après « Publier », la navigation entre pages d'un aperçu montrait l'état d'avant, et un rechargement n'y changeait
+    // rien tant que l'onglet restait ouvert. Le serveur répond depuis son cache de pages (quelques ms) : le coût est négligeable.
+    staleTimes: { dynamic: 0, static: 0 },
     // Cache ISR en mémoire seulement : sur disque, Next écrirait les pages
     // dans .next/server/app, en lecture seule dans le conteneur (--read-only).
     // Le cache est perdu au redémarrage : les pages sont re-rendues à la

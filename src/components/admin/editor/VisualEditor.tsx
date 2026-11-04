@@ -39,6 +39,7 @@ import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
 import { blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
 import { fieldOpDef, hasOptionalField, withOptionalField } from "@/blocks/optional-fields";
 import { applyGridOp, type GridChild, type GridModelOp } from "@/blocks/grid-layouts";
+import { announcePublished } from "@/lib/publish-signal";
 import { isFormBlock, makeField, MAX_FIELDS, type FormField } from "@/lib/contact-form";
 import { SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
 import type { BoardOp, BoardResult, BoardSnap } from "@/lib/edit/boards";
@@ -2759,6 +2760,8 @@ export default function VisualEditor({
       if (typeof result.data.siteRev === "number") siteRevRef.current = result.data.siteRev;
       send(refreshMsg(false));
       router.refresh();
+      // Lot 118 : les autres onglets de l'artiste (aperçu, site) abandonnent leur cache de navigation et se rafraîchissent.
+      announcePublished();
     } finally {
       setPublishing(false);
     }
