@@ -28,7 +28,8 @@
  *         BROWSER=firefox ONLY=J node scripts/e2e-v013.mjs   (sélection seulement)
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import Database from "better-sqlite3";
@@ -447,9 +448,12 @@ if (run("E")) {
   await center(f, gridSel);
   await page.screenshot({ path: `${SHOTS}/E-grille-avec-cellule-vide.png` });
   // Vidéo (fichier) déposée sur la 2e cellule précisément.
-  const mp4 = "/tmp/e2e-v013.mp4";
+  // Vidéo de test dans un dossier au nom imprévisible (mkdtemp), supprimé aussitôt lue : pas de chemin /tmp fixe.
+  const mp4Dir = mkdtempSync(path.join(tmpdir(), "e2e-v013-"));
+  const mp4 = path.join(mp4Dir, "plan.mp4");
   execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=12:duration=2", "-pix_fmt", "yuv420p", "-c:v", "libx264", mp4]);
   const bytes = [...readFileSync(mp4)];
+  rmSync(mp4Dir, { recursive: true, force: true });
   const second = f.locator(`${gridSel} .pe-media-video`).nth(1);
   const sb = await second.boundingBox();
   const vdt = await f.evaluateHandle((b) => {

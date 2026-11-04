@@ -16,13 +16,16 @@
  */
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import http from "node:http";
 import path from "node:path";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const SA = path.join(ROOT, ".next/standalone");
-const TMP = process.env.DOMAINE88_TMP ?? "/tmp/portfolio-domaine88";
+// Sans DOMAINE88_TMP : dossier au nom imprévisible (mkdtemp, 0700), jamais un chemin /tmp fixe.
+const TMP_GIVEN = Boolean(process.env.DOMAINE88_TMP);
+const TMP = process.env.DOMAINE88_TMP ?? mkdtempSync(path.join(tmpdir(), "portfolio-domaine88-"));
 const PORT0 = Number(process.env.DOMAINE88_PORT ?? 3940);
 const SECRET = "test-secret-0123456789abcdef-0123456789abcdef";
 const ADMIN = { email: "artiste@example.test", password: "mot-de-passe-du-test-42" };
@@ -130,8 +133,10 @@ const PROBES = [
 ];
 
 prepareStandalone();
-rmSync(TMP, { recursive: true, force: true });
-mkdirSync(TMP, { recursive: true });
+if (TMP_GIVEN) {
+  rmSync(TMP, { recursive: true, force: true });
+  mkdirSync(TMP, { recursive: true });
+}
 
 /* ===================== A. Sans variable ===================== */
 {
@@ -378,5 +383,7 @@ mkdirSync(TMP, { recursive: true });
   await stop(alone);
 }
 
+// Dossier mkdtemp (aucun DOMAINE88_TMP) : supprimé en fin de suite ; un dossier donné est laissé pour l'examen.
+if (!TMP_GIVEN) rmSync(TMP, { recursive: true, force: true });
 console.log(failures ? `\n${failures} test(s) en échec` : "\nTous les tests passent");
 process.exit(failures ? 1 : 0);
