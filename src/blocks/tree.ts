@@ -133,16 +133,25 @@ export function boardRefs(blocks: TreeBlock[]): BoardRef[] {
 }
 
 /**
+ * Clé d'une planche pour ses compteurs : projet et métier ; un bloc qui porte son propre contenu (lot 111, `props.layout`)
+ * se compte à part (même projet, autre contenu). Module pur : la lecture est volontairement légère (le contrôle de forme est à l'affichage).
+ */
+export function countKey(slug: string, collection: string | undefined, block: TreeBlock): string {
+  const own = Array.isArray((block.props as { layout?: unknown } | undefined)?.layout);
+  return `${slug}|${collection ?? ""}${own ? `|${block.uid ?? ""}` : ""}`;
+}
+
+/**
  * Compteurs d'une page (« N œuvres · M projets ») : M = planches de projet
  * présentes, N = images et vidéos qu'elles affichent (places vides exclues).
  * `shown(slug, collection)` : nombre d'œuvres affichées par la planche
  * (0 si le projet n'existe pas : la planche n'est alors pas comptée).
  */
-export function pageCounts(blocks: TreeBlock[], shown: (slug: string, collection?: string) => number | null): { works: number; projects: number } {
+export function pageCounts(blocks: TreeBlock[], shown: (slug: string, collection: string | undefined, block: TreeBlock) => number | null): { works: number; projects: number } {
   let projects = 0;
   let works = 0;
   for (const b of boardRefs(blocks)) {
-    const n = shown(b.slug, b.collection);
+    const n = shown(b.slug, b.collection, b.block);
     if (n === null) continue;
     projects++;
     works += Math.max(0, n);

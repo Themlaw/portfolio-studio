@@ -31,7 +31,7 @@ const id = (v: unknown) => {
   return parsed.success ? parsed.data : null;
 };
 
-export const createProjectAction = audited("createProjectAction", async function createProjectAction(input: unknown): Promise<ActionResult<{ id: number }>> {
+export const createProjectAction = audited("createProjectAction", async function createProjectAction(input?: unknown): Promise<ActionResult<{ id: number; slug: string }>> {
   await assertAdmin();
   const result = createProject(input);
   if (result.ok) revalidateProject(result.data.id, { structure: true });

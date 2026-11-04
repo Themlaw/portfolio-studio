@@ -146,7 +146,8 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("drag-index"), index: Index, parent: Parent.optional(), refused: z.boolean().optional() }),
   z.object({ kind: z.literal("key"), key: z.enum(["undo", "redo", "escape"]) }),
   // Planches (phase 7b).
-  z.object({ kind: z.literal("board-create"), uid: Uid, name: z.string().trim().min(1).max(120) }),
+  // Lot 111 : plus de nom à la création (slug aléatoire, titre par défaut, modifiable en place) ; `name` ne sert plus qu'aux anciens appels.
+  z.object({ kind: z.literal("board-create"), uid: Uid, name: z.string().trim().max(120).optional() }),
   z.object({ kind: z.literal("board-pick"), uid: Uid, slug: Slug }),
   z.object({ kind: z.literal("slot-op"), board: Board, key: SlotKey, op: z.enum(["remove", "retire", "replace"]) }),
   z.object({ kind: z.literal("slot-move"), board: Board, key: SlotKey, index: SlotIndex }),
@@ -163,6 +164,8 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("bitem-drop"), board: Board.nullable(), index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
   z.object({ kind: z.literal("bitem-to"), board: Board, uid: Uid, index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
   z.object({ kind: z.literal("bitem-op"), board: Board, uid: Uid, op: z.enum(["up", "down", "remove"]) }),
+  // Lot 111 : contenu propre à la page. « own » : copier le contenu que la page voit dans le bloc (« Garder ce contenu pour cette page seulement » / « Contenu propre à cette page ») ;
+  // « shared » : demander à revenir au contenu partagé du projet (l'éditeur confirme dans la page avant d'écrire).
   // Lot 32 : fond de couleur d'un composant de la planche (null = aucun fond) ; `continuous` : roue de couleur en cours de glissé.
   z.object({ kind: z.literal("bitem-fond"), board: Board, uid: Uid, background: BackgroundSchema.nullable(), continuous: z.boolean().optional() }),
   // Un composant de la planche choisi sur la toile : l'éditeur montre ses réglages (props = JSON des réglages tels que la toile les a lus).

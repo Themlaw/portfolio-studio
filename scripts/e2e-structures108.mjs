@@ -19,6 +19,7 @@ import { paint } from "./lib/crop-fixtures.mjs";
 import { login, q1, waitFor } from "./lib/medias-setup.mjs";
 import { publishBlocks } from "./lib/page-draft.mjs";
 import { FIXTURE, kindOf, L, synth } from "./lib/structures108.mjs";
+import { boardDraft, boardPublished, clearOwnLayouts } from "./lib/grille31d.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:4600";
 const ONLY = process.env.ONLY ?? "";
@@ -576,11 +577,18 @@ if (run("C")) {
 const BOARD_IDX = FIXTURE.map((e, i) => i).filter((i) => kindOf(FIXTURE[i]) === "planche");
 const BSEL = (IDX ?? BOARD_IDX).filter((i) => BOARD_IDX.includes(i));
 const projectRow = (slug) => q1("select id, slug from projects where slug = ?", slug);
-const setLayout = (slug, items) =>
+// Lot 111 : la planche modifiee depuis une page vit dans la copie propre du bloc Projet (brouillon, puis publiee), a defaut dans le projet.
+const projectIdOf = (slug) => q1("select id from projects where slug = ?", slug).id;
+const setLayout = (slug, items) => {
+  clearOwnLayouts(projectIdOf(slug));
   sql((db) => {
     db.prepare("update projects set layout = ?, draft_layout = NULL, draft_layout_page_id = NULL where slug = ?").run(JSON.stringify(items), slug);
   });
+};
 const layoutNow = (slug) => {
+  const id = projectIdOf(slug);
+  const own = boardDraft(id) ?? boardPublished(id);
+  if (own) return own;
   const r = q1("select layout, draft_layout from projects where slug = ?", slug);
   return JSON.parse(r.draft_layout ?? r.layout ?? "[]");
 };

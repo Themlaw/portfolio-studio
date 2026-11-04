@@ -25,6 +25,7 @@ import sharp from "sharp";
 
 import { paint } from "./lib/crop-fixtures.mjs";
 import { login, pageIdOf, q1, waitFor } from "./lib/medias-setup.mjs";
+import { boardDraft, boardPublished } from "./lib/grille31d.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3550";
 const ONLY = process.env.ONLY ?? "";
@@ -130,8 +131,8 @@ const slotMap = (look, field) => {
   return Object.keys(m).length ? m : undefined;
 };
 const layoutNow = () => {
-  const r = sql((db) => db.prepare("select layout, draft_layout from projects where id = ?").get(PROJECT.id));
-  return JSON.parse(r.draft_layout ?? r.layout);
+  // Lot 111 : copie propre du bloc (brouillon de la page, sinon publiée), plus une surcouche du projet.
+  return boardDraft(PROJECT.id) ?? boardPublished(PROJECT.id) ?? [];
 };
 
 setDraft([

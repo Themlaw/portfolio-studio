@@ -31,6 +31,13 @@
  * même historique, une surcouche à part (`projects.draft_layout` + `draft_layout_page_id`) tenue par une seule
  * page à la fois ; publiée avec la page qui la tient, abandonnée avec elle. Un projet créé dans CE brouillon
  * garde sa suite sur sa ligne (invisible ailleurs).
+ *
+ * Contenu et textes PROPRES au bloc (lot 111) : un bloc Projet porte sa copie de la suite (`props.layout`) et des textes du projet
+ * (`props.text`), dans le brouillon puis la version de la page, comme le reste du bloc. Ils sont lus à la place de ceux du projet
+ * (`BoardSnap.own`, `BoardSnap.ownText`). Copie à l'écriture : la première modification faite depuis une page copie ce que la page
+ * voit (son brouillon du projet s'il le tient, sinon le contenu publié) dans SON bloc ; aucune autre page n'est touchée et aucun
+ * verrou n'existe plus entre pages. Aucune migration : un bloc sans copie se rend comme avant. Un projet créé dans CE brouillon
+ * garde tout sur sa ligne (invisible ailleurs).
  */
 import { randomBytes } from "node:crypto";
 
@@ -38,8 +45,9 @@ import { and, asc, eq, max } from "drizzle-orm";
 import { z } from "zod";
 
 import { applyFreeOp, newFreeId } from "@/blocks/free-board";
-import { BOARD_ITEM_TYPES, BOX_MIN, CAPTION_STYLE_FIELDS, projectCaptionStyle, MAX_BOARD_ITEMS, MAX_RAIL_MEDIA, defaultLayout, isProjectStrip, newBoardItem, parseCaptionPath, railIds, railList, readLayout, sameLayout, type BoardItem, type StripCaption } from "@/blocks/board-layout";
+import { BOARD_ITEM_TYPES, BOX_MIN, ownLayoutOf, ownTextOf, type OwnText, CAPTION_STYLE_FIELDS, projectCaptionStyle, MAX_BOARD_ITEMS, MAX_RAIL_MEDIA, defaultLayout, isProjectStrip, newBoardItem, parseCaptionPath, railIds, railList, readLayout, sameLayout, type BoardItem, type StripCaption } from "@/blocks/board-layout";
 import { convertTarget } from "@/blocks/grid-strip";
+import { boardRefs, updateBlock, type TreeBlock } from "@/blocks/tree";
 import { isVideoMode } from "@/blocks/video-mode";
 import { getPageForEdit } from "@/lib/admin";
 import { LookSchema, readLook, TextStyleSchema } from "@/lib/look";
@@ -47,7 +55,7 @@ import { HELP_TEXT } from "@/blocks/help-text";
 import { applyMediaPatch, MediaPatchSchema } from "./media-look";
 import { setLocalizedAt } from "./protocol";
 import { getDb, schema } from "@/lib/db";
-import { slugify } from "@/lib/slug";
+import { newProjectSlug, startTitle } from "./project-id";
 import { BackgroundSchema } from "@/themes/schema";
 
 import { checkLayout } from "./board-layout";
@@ -55,6 +63,7 @@ import { displayedProjects, projectTextProblem, referencedProjects, type DraftRe
 import { done, fail, type ActionResult } from "./result";
 
 type L = { fr: string; en: string };
+const textDiffers = (a: { title: L; context: L; description: L; year: string }, b: { title: L; context: L; description: L; year: string }) => !(sameL(a.title, b.title) && sameL(a.context, b.context) && sameL(a.description, b.description) && a.year === b.year);
 const sameL = (a: L | null | undefined, b: L | null | undefined) => (a?.fr ?? "") === (b?.fr ?? "") && (a?.en ?? "") === (b?.en ?? "");
 type SlotRow = typeof schema.slots.$inferSelect;
 
@@ -94,6 +103,10 @@ export const BoardSnapSchema = z.strictObject({
   slots: z.array(SnapSlot).max(MAX_BOARD_SLOTS),
   /** Suite de composants de la planche (lot 31). */
   layout: z.array(LayoutItem).max(MAX_BOARD_ITEMS),
+  /** Vrai : `layout` est le contenu propre du bloc Projet de la page (lot 111) ; absent : le contenu partagé du projet. */
+  own: z.literal(true).optional(),
+  /** Vrai : `project` (textes) est la copie propre du bloc Projet de la page (lot 111) ; absent : textes du projet. */
+  ownText: z.literal(true).optional(),
 });
 export type BoardSnap = z.infer<typeof BoardSnapSchema>;
 
@@ -136,7 +149,15 @@ export const BoardOpSchema = z.discriminatedUnion("op", [
 export type BoardOp = z.infer<typeof BoardOpSchema>;
 
 /** `slug` : projet de la planche (l'éditeur reconnaît son bloc). */
-export type BoardResult = { before: BoardSnap; after: BoardSnap; rev: number; slug: string };
+export type OwnBlock = { uid: string; layout: BoardItem[] | null; text: OwnText | null };
+export type BoardResult = {
+  before: BoardSnap;
+  after: BoardSnap;
+  rev: number;
+  slug: string;
+  /** Lot 111 : blocs du brouillon dont le serveur a écrit la copie propre (`layout`, `text` null : absent) ; l'éditeur recopie ces changements dans son brouillon. */
+  blocks?: OwnBlock[];
+};
 
 const keyOf = (s: SlotRow) => s.draftKey ?? `s${s.id}`;
 const validRev = (rev: unknown): rev is number => Number.isInteger(rev) && (rev as number) >= 0;
@@ -224,6 +245,51 @@ function draftBlocks(pageId: number): { type: string; props: unknown }[] {
   return getPageForEdit(pageId)?.blocks ?? [];
 }
 
+/** Blocs Projet de la page (brouillon, sinon version publiée) qui affichent ce projet, dans l'ordre de lecture. */
+function boardBlocks(pageId: number, slug: string): TreeBlock[] {
+  return boardRefs(draftBlocks(pageId) as TreeBlock[]).filter((b) => b.slug === slug).map((b) => b.block);
+}
+
+/** Contenu propre de la page pour ce projet (lot 111) : celui du premier bloc Projet qui en porte un, sinon null (contenu partagé). */
+function ownLayout(pageId: number, slug: string): BoardItem[] | null {
+  for (const b of boardBlocks(pageId, slug)) {
+    const own = ownLayoutOf(b.props);
+    if (own) return own;
+  }
+  return null;
+}
+
+/** Textes propres de la page pour ce projet (lot 111) : ceux du premier bloc Projet qui en porte, sinon null. */
+function ownTextOfPage(pageId: number, slug: string): OwnText | null {
+  for (const b of boardBlocks(pageId, slug)) {
+    const own = ownTextOf(b.props);
+    if (own) return own;
+  }
+  return null;
+}
+
+/**
+ * Le contenu propre de la page s'écrit-il ? Le projet n'est pas en cours de création sur une autre page, et la page a un bloc Projet pour lui
+ * (c'est ce bloc qui porte le contenu). Aucun verrou de projet : le brouillon d'une autre page ne gêne pas.
+ */
+function ownAccess(pageId: number, projectId: number): string | null {
+  const db = getDb();
+  const project = db.select({ slug: schema.projects.slug, draftPageId: schema.projects.draftPageId }).from(schema.projects).where(eq(schema.projects.id, projectId)).get();
+  if (!project) return "Ce projet n'existe plus : recharge l'éditeur.";
+  if (project.draftPageId !== null && project.draftPageId !== pageId) {
+    const name = db.select({ title: schema.pages.title }).from(schema.pages).where(eq(schema.pages.id, project.draftPageId)).get()?.title.fr || `n° ${project.draftPageId}`;
+    return `Ce projet est en cours de création sur la page ${name} : publie-la ou abandonne-la d'abord.`;
+  }
+  if (!boardBlocks(pageId, project.slug).length) return "Cette page n'a pas de bloc Projet pour ce projet : ajoute-le d'abord à la page.";
+  return null;
+}
+
+/** Le contenu PARTAGÉ du projet tel que le brouillon de cette page le voit (son brouillon du projet s'il le tient, sinon le contenu publié). */
+function sharedLayout(pageId: number, projectId: number): BoardItem[] {
+  const project = getDb().select().from(schema.projects).where(eq(schema.projects.id, projectId)).get();
+  return project ? projectLayout(project, pageId) : defaultLayout();
+}
+
 function rowsOf(projectId: number): SlotRow[] {
   return getDb().select().from(schema.slots).where(eq(schema.slots.projectId, projectId)).orderBy(asc(schema.slots.position), asc(schema.slots.id)).all();
 }
@@ -254,10 +320,14 @@ export function readBoard(pageId: number, projectId: number): BoardSnap {
     })
     .filter(({ row, mine }) => (mine ? row.draftState !== "retired" : row.draftState !== "added"))
     .sort((a, b) => a.order - b.order || a.row.id - b.row.id);
+  const own = project ? ownLayout(pageId, project.slug) : null;
+  const ownText = project ? ownTextOfPage(pageId, project.slug) : null;
   return {
     projectId,
-    project: project ? projectText(project, pageId) : null,
-    layout: project ? projectLayout(project, pageId) : defaultLayout(),
+    project: ownText ?? (project ? projectText(project, pageId) : null),
+    ...(ownText ? { ownText: true as const } : {}),
+    layout: own ?? (project ? projectLayout(project, pageId) : defaultLayout()),
+    ...(own ? { own: true as const } : {}),
     slots: rows.map(({ row, mine }) => ({
       key: keyOf(row),
       mediaId: mine ? (row.draftState === "removed" ? null : (row.draftMediaId ?? row.mediaId)) : row.mediaId,
@@ -311,7 +381,43 @@ function checkSnap(pageId: number, snap: BoardSnap, allowPending = false): strin
 }
 
 /** Écrit l'instantané comme surcouche de la page (dans une transaction de l'appelant). */
-function writeBoard(pageId: number, snap: BoardSnap, only: { slots: boolean; text: boolean; layout: boolean }): void {
+/**
+ * Écrit (ou retire, `layout` null) le contenu propre dans le brouillon de la page : `props.layout` du bloc Projet de ce projet.
+ * Poser : le bloc qui en porte déjà un, sinon le premier. Retirer : tous les blocs du projet (un seul contenu propre à la fois).
+ * Renvoie l'uid du bloc touché (pour l'éditeur). Dans la transaction de l'appelant, après `touchPage` (brouillon garanti).
+ */
+function writeOwn(pageId: number, slug: string, patch: { layout?: BoardItem[] | null; text?: OwnText | null }): OwnBlock[] {
+  const db = getDb();
+  const row = db.select({ draft: schema.pages.draft }).from(schema.pages).where(eq(schema.pages.id, pageId)).get();
+  const draft = row?.draft as { blocks?: TreeBlock[] } | null | undefined;
+  if (!draft || !Array.isArray(draft.blocks)) return [];
+  const refs = boardRefs(draft.blocks).filter((b) => b.slug === slug && b.block.uid);
+  let blocks = draft.blocks;
+  const touched = new Set<string>();
+  for (const key of ["layout", "text"] as const) {
+    const value = patch[key];
+    if (value === undefined) continue;
+    const has = (b: TreeBlock) => (b.props as Record<string, unknown> | undefined)?.[key] !== undefined;
+    const targets = value === null ? refs.filter((b) => has(b.block)) : [refs.find((b) => has(b.block)) ?? refs[0]].filter(Boolean);
+    for (const t of targets) {
+      blocks = updateBlock(blocks, t.block.uid!, (b) => {
+        const props = { ...((b.props as Record<string, unknown> | undefined) ?? {}) };
+        if (value) props[key] = value;
+        else delete props[key];
+        return { ...b, props };
+      });
+      touched.add(t.block.uid!);
+    }
+  }
+  if (!touched.size) return [];
+  db.update(schema.pages).set({ draft: { ...draft, blocks } as never }).where(eq(schema.pages.id, pageId)).run();
+  return boardRefs(blocks)
+    .filter((b) => b.block.uid && touched.has(b.block.uid))
+    .map((b) => ({ uid: b.block.uid!, layout: ownLayoutOf(b.block.props), text: ownTextOf(b.block.props) }));
+}
+
+function writeBoard(pageId: number, snap: BoardSnap, only: { slots: boolean; text: boolean; layout: boolean }): OwnBlock[] {
+  const touchedBlock: OwnBlock[] = [];
   const db = getDb();
   const project = db.select().from(schema.projects).where(eq(schema.projects.id, snap.projectId)).get();
   if (!project) throw new Error("projet disparu");
@@ -320,29 +426,45 @@ function writeBoard(pageId: number, snap: BoardSnap, only: { slots: boolean; tex
     if (project.draftPageId === pageId) {
       // Projet créé dans ce brouillon : ses textes sont sur sa ligne (invisible ailleurs).
       db.update(schema.projects).set({ title: t.title, context: t.context, description: t.description, year: t.year }).where(eq(schema.projects.id, project.id)).run();
+    } else if (snap.ownText) {
+      // Textes propres au bloc (lot 111) : dans le bloc, jamais dans le projet. Le brouillon de textes que CETTE page tenait lui est devenu
+      // inutile (copié dans le bloc) ; celui d'une autre page n'est pas touché.
+      touchedBlock.push(...writeOwn(pageId, project.slug, { text: t }));
+      if (project.draftTextPageId === pageId) db.update(schema.projects).set({ draftText: null, draftTextPageId: null }).where(eq(schema.projects.id, project.id)).run();
     } else {
-      // Projet publié : surcouche de la page ; revenir aux textes publiés l'efface.
+      touchedBlock.push(...writeOwn(pageId, project.slug, { text: null }));
+      // Projet publié, sans bloc Projet pour porter une copie : surcouche de la page ; revenir aux textes publiés l'efface.
       const same = sameL(t.title, project.title) && sameL(t.context, project.context) && sameL(t.description, project.description) && t.year === project.year;
-      db.update(schema.projects)
-        .set(same ? { draftText: null, draftTextPageId: null } : { draftText: t, draftTextPageId: pageId })
-        .where(eq(schema.projects.id, project.id))
-        .run();
+      if (project.draftTextPageId === null || project.draftTextPageId === pageId) {
+        db.update(schema.projects)
+          .set(same ? { draftText: null, draftTextPageId: null } : { draftText: t, draftTextPageId: pageId })
+          .where(eq(schema.projects.id, project.id))
+          .run();
+      }
     }
   }
   if (only.layout) {
-    if (project.draftPageId === pageId) {
-      // Projet créé dans ce brouillon : sa suite est sur sa ligne (invisible ailleurs).
-      db.update(schema.projects).set({ layout: snap.layout }).where(eq(schema.projects.id, project.id)).run();
+    if (snap.own) {
+      // Contenu propre à la page (lot 111) : dans le bloc, jamais dans le projet. Le brouillon du projet que CETTE page tenait lui est
+      // devenu inutile (son contenu est dans le bloc) ; celui d'une autre page n'est pas touché.
+      touchedBlock.push(...writeOwn(pageId, project.slug, { layout: snap.layout }));
+      if (project.draftLayoutPageId === pageId) db.update(schema.projects).set({ draftLayout: null, draftLayoutPageId: null }).where(eq(schema.projects.id, project.id)).run();
     } else {
-      // Projet publié : surcouche de la page ; revenir à la suite publiée l'efface.
-      const same = sameLayout(snap.layout, readLayout(project.layout));
-      db.update(schema.projects)
-        .set(same ? { draftLayout: null, draftLayoutPageId: null } : { draftLayout: snap.layout, draftLayoutPageId: pageId })
-        .where(eq(schema.projects.id, project.id))
-        .run();
+      touchedBlock.push(...writeOwn(pageId, project.slug, { layout: null }));
+      if (project.draftPageId === pageId) {
+        // Projet créé dans ce brouillon : sa suite est sur sa ligne (invisible ailleurs).
+        db.update(schema.projects).set({ layout: snap.layout }).where(eq(schema.projects.id, project.id)).run();
+      } else if (project.draftLayoutPageId === null || project.draftLayoutPageId === pageId) {
+        // Projet publié : surcouche de la page ; revenir à la suite publiée l'efface. Le brouillon d'une AUTRE page n'est jamais effacé ici.
+        const same = sameLayout(snap.layout, readLayout(project.layout));
+        db.update(schema.projects)
+          .set(same ? { draftLayout: null, draftLayoutPageId: null } : { draftLayout: snap.layout, draftLayoutPageId: pageId })
+          .where(eq(schema.projects.id, project.id))
+          .run();
+      }
     }
   }
-  if (!only.slots) return;
+  if (!only.slots) return touchedBlock;
   const rows = rowsOf(snap.projectId);
   const byKey = new Map(rows.map((r) => [keyOf(r), r]));
   const wanted = new Set(snap.slots.map((s) => s.key));
@@ -407,6 +529,7 @@ function writeBoard(pageId: number, snap: BoardSnap, only: { slots: boolean; tex
       .where(eq(schema.slots.id, row.id))
       .run();
   });
+  return touchedBlock;
 }
 
 /** Brouillon de la page garanti (copie de la version publiée) et version incrémentée. */
@@ -448,8 +571,20 @@ function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (
   // Images (surcouche d'emplacements) et textes du projet (surcouche de textes) :
   // deux écritures, deux gardes. Un texte seul ne touche pas aux emplacements.
   const slotsChanged = JSON.stringify(before.slots) !== JSON.stringify(next.slots);
-  const textChanged = JSON.stringify(before.project) !== JSON.stringify(next.project);
-  const layoutChanged = !sameLayout(before.layout, next.layout);
+  const textChangedRaw = JSON.stringify(before.project) !== JSON.stringify(next.project);
+  // Copie à l'écriture (lot 111) : toute modification du contenu ou des textes, depuis une page qui a un bloc Projet pour ce projet, s'écrit
+  // dans CE bloc (copie de ce que la page voit) ; jamais dans le projet, jamais chez une autre page. Projet créé dans ce brouillon : sa ligne.
+  const proj = getDb().select({ slug: schema.projects.slug, draftPageId: schema.projects.draftPageId }).from(schema.projects).where(eq(schema.projects.id, projectId.data)).get();
+  const local = proj?.draftPageId === pageId;
+  const hasBlock = Boolean(proj) && boardBlocks(pageId, proj!.slug).length > 0;
+  if (proj && !local && hasBlock) {
+    if (!next.own && !sameLayout(next.layout, sharedLayout(pageId, projectId.data))) next.own = true;
+    if (!next.ownText && next.project && textDiffers(next.project, projectText(getDb().select().from(schema.projects).where(eq(schema.projects.id, projectId.data)).get()!, pageId))) next.ownText = true;
+  }
+  const ownChanged = Boolean(before.own) !== Boolean(next.own);
+  const ownTextChanged = Boolean(before.ownText) !== Boolean(next.ownText);
+  const textChanged = textChangedRaw || ownTextChanged;
+  const layoutChanged = !sameLayout(before.layout, next.layout) || ownChanged;
   // Un texte « modifié » à l'identique : rien à écrire, rien à garder (pas de faux refus d'accès à la planche).
   if (textOp && !textChanged) return done({ before, after: before, rev: current, slug: slugOf(projectId.data) });
   // Un composant déjà tout en haut / en bas, des réglages identiques : rien à écrire non plus.
@@ -459,7 +594,8 @@ function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (
     if (denied) return fail(denied);
   }
   if (layoutChanged) {
-    const denied = layoutAccess(pageId, projectId.data);
+    // Contenu propre au bloc (lot 111) : seul le bloc de la page est écrit, aucun verrou de projet. Projet créé dans ce brouillon : sa ligne.
+    const denied = local ? layoutAccess(pageId, projectId.data) : ownAccess(pageId, projectId.data);
     if (denied) return fail(denied);
     // Forme, réglages (schémas du registre) et médias de la suite ; un composant inachevé reste un brouillon.
     const checked = checkLayout(next.layout, { allowPending: restoring });
@@ -467,7 +603,7 @@ function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (
     next.layout = checked.layout;
   }
   if (textChanged) {
-    const denied = textAccess(pageId, projectId.data);
+    const denied = !local && hasBlock ? ownAccess(pageId, projectId.data) : textAccess(pageId, projectId.data);
     if (denied) return fail(denied);
     // Même exigence que l'écran Projets : un titre (fr) et une année jamais vides.
     const problem = next.project && projectTextProblem(next.project);
@@ -476,16 +612,17 @@ function mutate(pageId: number, projectIdInput: unknown, rev: unknown, change: (
   if (next.slots.length > MAX_BOARD_SLOTS) return fail(`${MAX_BOARD_SLOTS} emplacements au plus par projet.`);
   const problem = checkSnap(pageId, next, restoring);
   if (problem) return fail(problem);
+  let block: OwnBlock[] = [];
   try {
     getDb().transaction(() => {
       if (!touchPage(pageId, rev)) throw new ConflictError();
-      writeBoard(pageId, next, { slots: slotsChanged || (!textChanged && !layoutChanged), text: textChanged, layout: layoutChanged });
+      block = writeBoard(pageId, next, { slots: slotsChanged || (!textChanged && !layoutChanged), text: textChanged, layout: layoutChanged });
     });
   } catch (error) {
     if (error instanceof ConflictError) return conflict(pageRev(pageId) ?? rev);
     throw error;
   }
-  return done({ before, after: readBoard(pageId, projectId.data), rev: rev + 1, slug: slugOf(projectId.data) });
+  return done({ before, after: readBoard(pageId, projectId.data), rev: rev + 1, slug: slugOf(projectId.data), ...(block.length ? { blocks: block } : {}) });
 }
 
 const slugOf = (projectId: number) => getDb().select({ slug: schema.projects.slug }).from(schema.projects).where(eq(schema.projects.id, projectId)).get()?.slug ?? "";
@@ -822,22 +959,22 @@ export function restoreBoard(pageId: number, snapInput: unknown, rev: unknown, f
  * Projet créé depuis la toile (planche neuve) : en brouillon de la page,
  * invisible ailleurs jusqu'à sa publication.
  */
-export function createDraftProject(pageId: number, titleInput: unknown): ActionResult<{ id: number; slug: string; title: string }> {
-  const title = z.string().trim().min(1, "Donne un nom au projet.").max(120).safeParse(titleInput);
-  if (!title.success) return fail(title.error.issues[0]?.message ?? "Nom invalide.");
+export function createDraftProject(pageId: number, titleInput?: unknown): ActionResult<{ id: number; slug: string; title: string }> {
+  // Lot 111 : aucun nom demandé ; slug = id aléatoire unique, titre par défaut (un titre donné par un appel d'API est gardé, jamais utilisé pour le slug).
+  const given = z.string().trim().max(120).optional().safeParse(titleInput ?? undefined);
+  if (!given.success) return fail("Nom invalide.");
+  const title = { success: true as const, data: startTitle(given.data) };
   const db = getDb();
   if (!db.select({ id: schema.pages.id }).from(schema.pages).where(eq(schema.pages.id, pageId)).get()) return fail("Cette page n'existe plus.");
   const pending = db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.draftPageId, pageId)).all().length;
   if (pending >= MAX_DRAFT_PROJECTS) return fail(`${MAX_DRAFT_PROJECTS} projets au plus créés dans un même brouillon : publie ou abandonne d'abord.`);
-  const root = slugify(title.data) || "projet";
-  let slug = root;
-  for (let n = 2; db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.slug, slug)).get(); n++) slug = `${root}-${n}`;
+  const slug = newProjectSlug((s) => Boolean(db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.slug, s)).get()));
   const [{ m }] = db.select({ m: max(schema.projects.position) }).from(schema.projects).all();
   const row = db
     .insert(schema.projects)
     .values({
       slug,
-      title: { fr: title.data, en: title.data },
+      title: title.data,
       context: { fr: "", en: "" },
       description: { fr: "", en: "" },
       year: String(new Date().getFullYear()),
@@ -847,6 +984,6 @@ export function createDraftProject(pageId: number, titleInput: unknown): ActionR
     })
     .returning({ id: schema.projects.id })
     .get();
-  return done({ id: row.id, slug, title: title.data });
+  return done({ id: row.id, slug, title: title.data.fr });
 }
 

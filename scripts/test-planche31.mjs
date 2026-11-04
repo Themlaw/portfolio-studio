@@ -86,7 +86,9 @@ await test("brouillon : ajouter une grille, retirer la bande, réordonner → su
   r = boardOp(page, P.id, { op: "item-remove", uid: "strip" }, rev(page));
   assert.deepEqual(r.data.after.layout.map((i) => i.uid), ["i1", "g1"]);
   const p = row(P.id);
-  assert.equal(p.draftLayoutPageId, page);
+  // Lot 111 : la suite modifiée est la copie propre du bloc de la page, plus une surcouche du projet.
+  assert.equal(p.draftLayoutPageId, null);
+  assert.deepEqual(readDraft(page).draft.blocks[0].props.layout.map((i) => i.uid), ["i1", "g1"]);
   assert.deepEqual(p.layout, defaultLayout().length ? p.layout : null);
   assert.ok(!JSON.stringify(p.layout ?? "").includes("g1"), "version publiée intacte");
   // Bande des images du projet : une seule (les carrousels à liste propre, eux, se multiplient : voir plus bas).
@@ -110,7 +112,10 @@ await test("publication : refus d'un composant vide, puis suite appliquée au pr
   const ok = publishDraft(page, rev(page));
   assert.equal(ok.ok, true, JSON.stringify(ok));
   const p = row(P.id);
-  assert.deepEqual(p.layout.map((i) => i.uid), ["strip", "im"]);
+  // Lot 111 : la suite est publiée DANS le bloc de la page ; le projet (et donc les autres pages) ne change pas.
+  const published = JSON.parse(getSqlite().prepare("select props from blocks where page_id = ?").get(page).props);
+  assert.deepEqual(published.layout.map((i) => i.uid), ["strip", "im"]);
+  assert.equal(p.layout?.some?.((i) => i.uid === "im") ?? false, false);
   assert.equal(p.draftLayout, null);
   assert.equal(p.draftLayoutPageId, null);
 });
@@ -120,12 +125,13 @@ await test("une autre page affiche la même suite publiée ; tenue par une page,
   const b = newPage("t31d");
   withBoard(a, P);
   withBoard(b, P);
-  assert.deepEqual(readBoard(b, P.id).layout.map((i) => i.uid), ["strip", "im"], "publiée visible ailleurs");
-  assert.equal(boardOp(a, P.id, { op: "item-move", uid: "im", dir: "up" }, rev(a)).ok, true);
-  const refused = boardOp(b, P.id, { op: "item-move", uid: "strip", dir: "down" }, rev(b));
-  assert.equal(refused.ok, false);
-  assert.match(refused.message, /t31c/);
-  assert.deepEqual(readBoard(b, P.id).layout.map((i) => i.uid), ["strip", "im"], "brouillon de A invisible pour B");
+  assert.deepEqual(readBoard(b, P.id).layout.map((i) => i.uid), ["strip"], "contenu du projet visible ailleurs (la suite de la page précédente est la sienne)");
+  // Lot 111 : plus de verrou. A ne peut déplacer qu'un composant qui existe dans sa suite (copie du contenu du projet).
+  assert.equal(boardOp(a, P.id, { op: "item-add", type: "rich-text", index: 1, uid: "ta" }, rev(a)).ok, true);
+  const free = boardOp(b, P.id, { op: "item-add", type: "rich-text", index: 1, uid: "tb" }, rev(b));
+  assert.equal(free.ok, true, "B n'est plus refusée");
+  assert.deepEqual(readBoard(a, P.id).layout.map((i) => i.uid), ["strip", "ta"]);
+  assert.deepEqual(readBoard(b, P.id).layout.map((i) => i.uid), ["strip", "tb"], "chacune sa suite");
 });
 
 await test("Annuler / Rétablir : instantané réécrit", () => {
@@ -151,13 +157,11 @@ await test("références : un média posé dans une grille de planche est « uti
   const setr = boardOp(page, Q.id, { op: "item-set", uid: "gr", props: grid }, rev(page));
   assert.equal(setr.ok, true, JSON.stringify(setr));
   assert.deepEqual(layoutMediaIds(readBoard(page, Q.id).layout), [m]);
-  const uses = (mediaUsagesByMedia().get(m) ?? []).filter((u) => u.kind === "layout");
-  assert.equal(uses.length, 1);
-  assert.equal(uses[0].draftPageId, page);
+  // Lot 111 : le contenu modifié est la copie propre du bloc de la page : le média est utilisé par le bloc (brouillon puis publié).
+  const mine = (list) => list.filter((u) => u.pageId === page || u.draftPageId === page);
+  assert.equal(mine(mediaUsagesByMedia().get(m) ?? []).length, 1, JSON.stringify(mediaUsagesByMedia().get(m)));
   assert.equal(publishDraft(page, rev(page)).ok, true);
-  const after = (mediaUsagesByMedia().get(m) ?? []).filter((u) => u.kind === "layout");
-  assert.equal(after.length, 1);
-  assert.equal(after[0].draftPageId, undefined);
+  assert.equal(mine(mediaUsagesByMedia().get(m) ?? []).length, 1, JSON.stringify(mediaUsagesByMedia().get(m)));
 });
 
 /* ---- Lot 31b : carrousels à liste propre, largeur / alignement, médias déposés, réordonnancement ---- */
@@ -214,8 +218,8 @@ await test("31b : deux carrousels aux images différentes, média déposé (Imag
   boardOp(page, Q.id, { op: "item-set", uid: "gd", box: null }, rev(page));
   assert.equal(readBoard(page, Q.id).layout.find((i) => i.uid === "gd").box, undefined, "réglage effacé : rendu d'avant");
   // Références : médias des carrousels comptés.
-  const uses = (mediaUsagesByMedia().get(m1) ?? []).filter((u) => u.kind === "layout" && u.projectId === Q.id);
-  assert.equal(uses.length, 1);
+  const uses = (mediaUsagesByMedia().get(m1) ?? []).filter((u) => u.pageId === page || u.draftPageId === page);
+  assert.ok(uses.length >= 1, "médias des carrousels comptés (copie propre du bloc, lot 111)");
   // Publication : un carrousel vide est refusé, rempli il est publié avec sa largeur.
   boardOp(page, Q.id, { op: "item-add", type: "strip", index: 0, uid: "vide" }, rev(page));
   assert.equal(publishDraft(page, rev(page)).ok, false, "carrousel vide");
@@ -226,7 +230,7 @@ await test("31b : deux carrousels aux images différentes, média déposé (Imag
   snap = readBoard(page, Q.id);
   assert.deepEqual(snap.layout.find((i) => i.uid === "r2").props.media, [m2, m1]);
   assert.deepEqual(snap.layout.find((i) => i.uid === "tx").box, { width: 50, align: "right" });
-  assert.deepEqual(row(Q.id).layout.find((i) => i.uid === "strip"), { uid: "strip", type: "strip", props: {}, box: { width: 50, align: "right" } }, "la bande d'origine reste celle du projet (props vides)");
+  assert.equal(JSON.stringify(row(Q.id).layout ?? null).includes("right"), false, "le contenu du projet n'a pas bougé (lot 111 : la suite est celle du bloc)");
 });
 
 /* ---- Lot 31c : texte en place, mise en forme, ajout sous un composant ---- */

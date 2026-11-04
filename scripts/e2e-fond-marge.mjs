@@ -23,6 +23,7 @@ import { chromium } from "playwright";
 import { pageIdOf, placeBoard } from "./lib/page-board.mjs";
 import { publishBlocks } from "./lib/page-draft.mjs";
 import { autoOpenFine } from "./lib/zone66.mjs";
+import { boardDraft } from "./lib/grille31d.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -270,7 +271,7 @@ try {
     { uid: "bm3", type: "rich-text", props: { paragraphs: [{ fr: "Planche : un texte témoin.", en: "y" }], background: { kind: "color", color: "surface" } } },
   ];
   exec("update projects set draft_layout = ?, draft_layout_page_id = ? where id = ?", JSON.stringify(layout), HOME, PROJECT.id);
-  ok("D0b suite du projet publiée par l'éditeur", await publishBlocks(page, BASE, HOME, (b) => b, () => { const r = q("select layout, draft_layout from projects where id = ?", PROJECT.id)[0]; return r.draft_layout === null && String(r.layout).includes('"inset":"m"'); }));
+  ok("D0b suite du projet publiée par l'éditeur", await publishBlocks(page, BASE, HOME, (b) => b, () => { const r = q("select layout, draft_layout from projects where id = ?", PROJECT.id)[0]; return r.draft_layout === null && (String(r.layout).includes('"inset":"m"') || q("select props from blocks where props like '%\"inset\":\"m\"%' limit 1").length > 0); }));
   const geo = (where) =>
     where.evaluate((slug) => {
       const sect = document.querySelector(`[aria-labelledby="project-${slug}"]`) ?? document.querySelector("[data-edit-board]");
@@ -311,7 +312,7 @@ try {
   const bmenu = f.locator('[data-testid="fond-menu"]');
   await bmenu.waitFor({ timeout: 20000 });
   await bmenu.locator('[data-testid="fond-section-carte"] [data-kind="color"]').click();
-  const effective = () => (q("select draft_layout from projects where id = ?", PROJECT.id)[0].draft_layout ? JSON.parse(q("select draft_layout from projects where id = ?", PROJECT.id)[0].draft_layout) : layout);
+  const effective = () => boardDraft(PROJECT.id) ?? layout;
   ok("D5 planche : « Avec marge » enregistré dans le brouillon du projet", await waitFor(() => (effective()[2]?.props?.background?.card ?? effective()[2]?.props?.background)?.inset === "m"), JSON.stringify(effective()[2]?.props?.background));
   await bmenu.locator('[data-testid="fond-section-carte"] [data-testid="fond-inset"] [data-step="s"]').click();
   await bmenu.locator('[data-testid="fond-section-carte"] [data-testid="fond-round"] [data-step="l"]').click();

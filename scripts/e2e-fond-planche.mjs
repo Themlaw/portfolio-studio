@@ -17,6 +17,7 @@ import { chromium } from "playwright";
 
 import { pageIdOf, placeBoard } from "./lib/page-board.mjs";
 import { autoOpenFine } from "./lib/zone66.mjs";
+import { boardDraft, boardPublished } from "./lib/grille31d.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -53,8 +54,9 @@ const HOME = pageIdOf("");
 const PROJECT = q("select id, slug from projects order by position limit 1")[0];
 const project = () => q("select layout, draft_layout, draft_layout_page_id from projects where id = ?", PROJECT.id)[0];
 const json = (s) => (s ? JSON.parse(s) : null);
-const draft = () => json(project().draft_layout) ?? [];
-const published = () => json(project().layout) ?? [];
+// Lot 111 : la suite est la copie propre du bloc (brouillon de la page, puis publié), plus une surcouche du projet.
+const draft = () => boardDraft(PROJECT.id) ?? [];
+const published = () => boardPublished(PROJECT.id) ?? [];
 const bgOf = (items, i) => items[i]?.props?.background;
 const publicHtml = async (p) => (await fetch(`${BASE}${p}`)).text();
 const boardHtml = (html) => {
@@ -203,7 +205,7 @@ try {
   ok("C6 plus de fusion autour du composant sans fond", g2[0].on === "on" && !g2[0].next && g2[2].on === "on" && !g2[2].prev, JSON.stringify(g2.map((x) => [x.on, x.prev, x.next])));
   await page.keyboard.press("Control+z");
   // Revenu à la suite publiée, le brouillon du projet n'a plus de raison d'être (surcouche vidée) : on lit la suite effective.
-  const effective = () => json(project().draft_layout) ?? published();
+  const effective = () => boardDraft(PROJECT.id) ?? published();
   ok("C7 Annuler : le fond revient (Annuler / Rétablir de la planche)", await waitFor(() => bgOf(effective(), 1)?.color === "surface"), JSON.stringify(effective().map((i) => i.props?.background)));
   await settled();
   // Capture : une couleur bien visible sur la bande et le premier composant (fusionnés), le troisième garde le fond du thème.

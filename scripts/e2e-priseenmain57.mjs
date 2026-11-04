@@ -23,6 +23,7 @@ import sharp from "sharp";
 import { paint } from "./lib/crop-fixtures.mjs";
 import { boardDraft, draftBlocks, login, openEditor, pageIdOf, q1, setBoardDraft, setDraft, settled, sleep, sql, waitFor } from "./lib/grille31d.mjs";
 import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
+import { createProjectUi } from "./lib/projet111.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3700";
 const ONLY = process.env.ONLY ?? "";
@@ -135,10 +136,7 @@ await section("P", async () => {
 let proj = null;
 await section("U", async () => {
   await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Nouveau projet" }).click();
-  await page.getByLabel("Titre en français").fill("Projet 57");
-  await page.getByRole("button", { name: "Créer le projet" }).click();
-  await page.waitForURL(/\/admin\/projets\/\d+$/, { timeout: 60000 });
+  await createProjectUi(page, "Projet 57");
   const id = Number(page.url().split("/").pop());
   proj = { id, slug: q1("select slug from projects where id = ?", id).slug };
   ok("U0 projet créé, sans emplacement", slotAll(id) === 0);

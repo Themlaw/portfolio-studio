@@ -119,7 +119,7 @@ await test("planche : textes d'une image, d'une grille, d'une case, d'un carrous
   // Publication : tout arrive en base.
   const pub = publishDraft(page, rev(page));
   assert.equal(pub.ok, true, JSON.stringify(pub));
-  const stored = db.select().from(schema.projects).all().find((p) => p.id === P.id).layout;
+  const stored = JSON.parse(db.$client.prepare("select props from blocks where page_id = ? and type = 'project-board'").get(page).props).layout; // lot 111 : publié dans le bloc de la page
   assert.equal(stored.find((i) => i.uid === "img").props.captionTitle.fr, "Mon titre");
   assert.equal(stored.find((i) => i.uid === "gr").props.children[1].props.captionTitle.fr, "Case 2");
   assert.equal(stored.find((i) => i.uid === "car").props.captions[key].title.fr, "Vue 1");

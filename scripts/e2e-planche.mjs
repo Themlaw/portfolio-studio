@@ -46,6 +46,7 @@ const FILES = {
 };
 const FIXTURES = `
 import sharp from "sharp";
+import { createProjectUi } from "./lib/projet111.mjs";
 const FILES = ${JSON.stringify(FILES)};
 const big = '<svg xmlns="http://www.w3.org/2000/svg" width="6000" height="4000"><rect width="100%" height="100%" fill="#c0503a"/><rect x="200" y="200" width="1800" height="900" fill="#f2d16b"/></svg>';
 await sharp(Buffer.from(big))
@@ -107,10 +108,7 @@ try {
   // ---- Projet et envoi --------------------------------------------------------
   await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
   if (await page.locator(".a-project-card", { hasText: "Planche e2e" }).count()) throw new Error("un projet « Planche e2e » existe déjà : supprime-le d'abord");
-  await page.getByRole("button", { name: "Nouveau projet" }).click();
-  await page.locator("dialog[open]").getByLabel("Titre en français").fill("Planche e2e");
-  await page.locator("dialog[open]").getByRole("button", { name: "Créer le projet" }).click();
-  await page.waitForURL(/\/admin\/projets\/\d+$/);
+  await createProjectUi(page, "Planche e2e");
   projectId = Number(page.url().split("/").pop());
   ok("P1 projet créé → éditeur de planche", projectId > 0);
   // v0.13 : la planche se pose sur la page Personnages (plus d'apparition automatique).

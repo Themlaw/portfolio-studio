@@ -29,6 +29,19 @@ import { installPaperTheme, PAPER_THEME_NAME } from "./lib/paper-theme.mjs";
 import { placeBoard } from "./lib/page-board.mjs";
 import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 import { autoOpenFine } from "./lib/zone66.mjs";
+import { boardDraft, boardPublished } from "./lib/grille31d.mjs";
+// Lot 111 : la toile se rafraichit quand la 1re modification copie le contenu dans le bloc ; on retente si l'element est remplace.
+async function scrollRetry(loc) {
+  for (let k = 0; k < 6; k++) {
+    try {
+      await loc.scrollIntoViewIfNeeded({ timeout: 5000 });
+      return;
+    } catch {
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+  await loc.scrollIntoViewIfNeeded();
+}
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -637,11 +650,11 @@ await section("G", async () => {
   await page.getByRole("button", { name: "Choisir une image" }).first().click();
   await page.locator(".a-picker-scroll button").first().click();
   await settled();
-  const layout = () => JSON.parse(q("select draft_layout, layout from projects where id = ?", project.id).map((r) => r.draft_layout ?? r.layout)[0] ?? "[]");
+  const layout = () => boardDraft(project.id) ?? boardPublished(project.id) ?? []; // lot 111 : copie propre du bloc, sinon projet
   ok("G1 deux composants dans la planche", await waitFor(() => layout().length === 2), JSON.stringify(layout().map((i) => i.type)));
   for (const i of [0, 1]) {
     const fr = board.locator("[data-edit-bitem]").nth(i);
-    await fr.scrollIntoViewIfNeeded();
+    await scrollRetry(fr);
     await fr.hover();
     await fr.locator('[data-edit-bitem-op="fond"]').click();
     const menu = f.locator('[data-testid="fond-menu"]');
@@ -676,7 +689,7 @@ await section("G", async () => {
 
 await section("I", async () => {
   const project = q("select id, slug from projects order by position limit 1")[0];
-  const items = () => JSON.parse(q("select draft_layout, layout from projects where id = ?", project.id).map((r) => r.draft_layout ?? r.layout)[0] ?? "[]");
+  const items = () => boardDraft(project.id) ?? boardPublished(project.id) ?? []; // lot 111 : copie propre du bloc, sinon projet
   f = await openEditor();
   const board = f.locator(`[data-edit-board="${project.id}"]`).first();
   await board.scrollIntoViewIfNeeded();
@@ -698,7 +711,7 @@ await section("I", async () => {
   ok("I1 grille de planche : trois images", await waitFor(() => (gridItem()?.props.children?.length ?? 0) === 3), JSON.stringify(gridItem()?.props));
   const frame = board.locator('[data-edit-bitem-type="grid"]');
   const cell = frame.locator(".block-grid-cell").first();
-  await cell.scrollIntoViewIfNeeded();
+  await scrollRetry(cell);
   const b = await cell.boundingBox();
   await page.mouse.click(b.x + b.width / 2, b.y + Math.min(b.height / 2, 120));
   // Lot 31e : « Réglages » du composant grille ouvre la fenêtre blanche sur la toile (plus de barre de grille ouverte d'elle-même).
@@ -719,7 +732,7 @@ await section("I", async () => {
   ok("I4 … et une couleur dessous", await waitFor(() => typeof gridItem()?.props.background?.color === "string"), JSON.stringify(gridItem()?.props.background));
   await page.keyboard.press("Escape");
   await settled();
-  await frame.scrollIntoViewIfNeeded();
+  await scrollRetry(frame);
   await sleep(600);
   await page.screenshot({ path: path.join(SHOTS, "i-portrait-gauche-papier-peint.png") });
 });

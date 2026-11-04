@@ -1486,34 +1486,7 @@ html:not([data-edit-mode]) .pe-media-empty {
 }
 
 /* Texte d'un projet survolé sur la toile : à qui appartient ce texte (v0.15). */
-.pe-project-hint {
-  position: absolute;
-  z-index: 5;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
-  width: max-content;
-  max-width: min(520px, calc(100vw - 24px));
-  padding: 6px 10px;
-  border: 1px solid var(--pe-bar-line);
-  border-radius: 6px;
-  background: var(--pe-bar-bg);
-  color: var(--pe-bar-ink);
-  box-shadow: var(--pe-bar-shadow);
-  font: 500 12px/1.35 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: 0;
-  text-transform: none;
-  pointer-events: auto;
-}
 
-.pe-project-hint a {
-  color: var(--pe-accent);
-  font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  white-space: nowrap;
-}
 
 /* Accroche de l'ouverture : champ de saisie à côté de l'enveloppe de React, barre « Surligner ». */
 [data-edit-mode] [data-marked-edit] {
@@ -1962,13 +1935,16 @@ html:not([data-edit-mode]) .pe-empty-action {
 
 /* Contenu de la planche (lot 31) : « + Ajouter », barre d'un composant. Vue brouillon seulement. */
 html[data-edit-mode] .pe-bitems { position: relative; }
-html[data-edit-mode] .pe-bitem-add { position: relative; height: 0; z-index: 4; display: flex; justify-content: center; }
+/* Lot 111 : « + Ajouter » (rangée de hauteur nulle : la composition n'est pas décalée) est posé JUSTE SOUS le composant précédent (dans l'espace entre composants),
+   entièrement visible, jamais à cheval sur son bord ni son contour (épaisseur, coins, Fond). Planche vide : posé en flux. */
+html[data-edit-mode] .pe-bitem-add { position: relative; height: 0; z-index: 30; display: flex; justify-content: center; }
 html[data-edit-mode] .pe-bitem-add button {
-  position: absolute; top: -14px; padding: 4px 12px; border-radius: 999px; border: 1px dashed #8a8f98;
+  position: absolute; top: 2px; padding: 4px 12px; border-radius: 999px; border: 1px dashed #8a8f98;
   background: #fff; color: var(--pe-bar-ink); font: 500 12px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
   opacity: 0; transition: opacity 0.12s; cursor: pointer;
 }
-html[data-edit-mode] .pe-bitem-add[data-empty] button, html[data-edit-mode] .pe-bitem-add[data-last] button { top: 6px; }
+html[data-edit-mode] .pe-bitem-add[data-empty] button, html[data-edit-mode] .pe-bitem-add[data-first] button { top: 6px; }
+html[data-edit-mode] .pe-bitem-add[data-first] { z-index: 4; }
 html[data-edit-mode] .pe-bitem-add[data-empty] button { opacity: 1; }
 html[data-edit-mode] .strip:hover .pe-bitem-add button { opacity: 0.55; }
 html[data-edit-mode] .pe-bitem-add:hover button, html[data-edit-mode] .pe-bitem-add button:focus-visible { opacity: 1; }

@@ -21,6 +21,7 @@ import sharp from "sharp";
 
 import { paint } from "./lib/crop-fixtures.mjs";
 import { login, pageIdOf, q1, waitFor } from "./lib/medias-setup.mjs";
+import { boardDraft, boardPublished, clearOwnLayouts } from "./lib/grille31d.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3840";
 const ONLY = process.env.ONLY ?? "";
@@ -102,12 +103,15 @@ function setDraft(blocks) {
 const draftBlocks = () => JSON.parse(sql((db) => db.prepare("select draft from pages where id = ?").get(pageId)).draft).blocks;
 const blockTypes = () => draftBlocks().map((b) => `${b.type}:${b.uid}`);
 /** Suite de la planche telle que le brouillon la montre (surcouche de la page, sinon la publiée). */
+// Lot 111 : la suite est la copie propre du bloc Projet (brouillon, puis publiée), à défaut celle du projet.
 const layout = () => {
-  const r = sql((db) => db.prepare("select layout, draft_layout from projects where id = ?").get(project.id));
-  return JSON.parse(r.draft_layout ?? r.layout ?? "[]");
+  return boardDraft(project.id) ?? boardPublished(project.id) ?? [];
 };
-const publishedLayout = () => JSON.parse(sql((db) => db.prepare("select layout from projects where id = ?").get(project.id)).layout ?? "[]");
-const setLayout = (items) => sql((db) => db.prepare("update projects set layout = ?, draft_layout = null, draft_layout_page_id = null where id = ?").run(JSON.stringify(items), project.id));
+const publishedLayout = () => boardPublished(project.id) ?? [];
+const setLayout = (items) => {
+  clearOwnLayouts(project.id);
+  sql((db) => db.prepare("update projects set layout = ?, draft_layout = null, draft_layout_page_id = null where id = ?").run(JSON.stringify(items), project.id));
+};
 const byUid = (uid) => layout().find((i) => i.uid === uid);
 
 /** Une grille de planche normalisée (toutes les valeurs par défaut écrites : le serveur n'ajoute rien à l'aller-retour). */

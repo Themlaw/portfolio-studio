@@ -249,6 +249,33 @@ export function readLayout(raw: unknown): BoardItem[] {
   return layoutProblem(raw) === null ? (raw as BoardItem[]) : defaultLayout();
 }
 
+/**
+ * Contenu PROPRE au bloc Projet d'une page (lot 111) : `props.layout` du bloc, une suite de composants du même format que
+ * `projects.layout`, stockée avec le bloc (brouillon et version de la page). Absent (ou illisible) : le bloc montre le contenu
+ * partagé du projet. Les emplacements de la bande « images du projet » restent ceux du projet.
+ */
+export function ownLayoutOf(props: unknown): BoardItem[] | null {
+  const raw = isObj(props) ? props.layout : undefined;
+  if (raw === undefined || raw === null) return null;
+  return layoutProblem(raw) === null ? (raw as BoardItem[]) : null;
+}
+
+/**
+ * Textes PROPRES au bloc Projet d'une page (lot 111) : `props.text` = { title, context, description, year } (localisés), lus à la place
+ * de ceux du projet. Absent ou illisible : textes du projet.
+ */
+export type OwnText = { title: { fr: string; en: string }; context: { fr: string; en: string }; description: { fr: string; en: string }; year: string };
+export function ownTextOf(props: unknown): OwnText | null {
+  const raw = isObj(props) ? props.text : undefined;
+  if (!isObj(raw)) return null;
+  const loc = (v: unknown) => (isObj(v) && typeof v.fr === "string" && typeof v.en === "string" ? { fr: v.fr, en: v.en } : null);
+  const title = loc(raw.title);
+  const context = loc(raw.context);
+  const description = loc(raw.description);
+  if (!title || !context || !description || typeof raw.year !== "string") return null;
+  return { title, context, description, year: raw.year };
+}
+
 /** Identifiants de médias cités par une suite (images, vidéos, images d'attente, cellules de grille). */
 export function layoutMediaIds(items: BoardItem[]): number[] {
   const out: number[] = [];

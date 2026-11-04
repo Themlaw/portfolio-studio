@@ -373,8 +373,6 @@ export default function BoardLayer({
   const [quickMenu, setQuickMenu] = useState<{ board: number; uid: string; kind: QuickKind } | null>(null);
   const [fondMenu, setFondMenu] = useState<{ board: number; uid: string; background: Background | null } | null>(null);
   // Texte (ou image) d'un projet survolé : indicateur « modifié aussi sur sa planche et sa page ».
-  const [projectHint, setProjectHint] = useState<{ el: HTMLElement; board: number; label: string; draft: boolean; textHeld: string | null; slotHeld?: boolean } | null>(null);
-  const hintTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [hoverMedia, setHoverMedia] = useState<MediaRef | null>(null);
   const ghostsRef = useRef<Ghost[]>([]);
   const lastItemDrop = useRef("");
@@ -653,33 +651,7 @@ export default function BoardLayer({
         }
         return;
       }
-      if (inLayer(e.target)) {
-        // Sur l'indicateur lui-même : il reste (le lien « Voir le projet » est cliquable).
-        if (e.target instanceof Element && e.target.closest(".pe-project-hint")) clearTimeout(hintTimer.current);
-        return;
-      }
-      let field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-project-inline]") : null;
-      // Légende d'une planche tenue par une autre page : indication « lecture seule » (sinon aucune).
-      const slotField = !field && e.target instanceof Element ? e.target.closest<HTMLElement>("[data-slot-inline]") : null;
-      if (slotField && boardOf(slotField)?.dataset.editBoardHeld) field = slotField;
-      const owner = field ? boardOf(field) : null;
-      clearTimeout(hintTimer.current);
-      if (field && owner) {
-        setProjectHint((h) =>
-          h?.el === field
-            ? h
-            : {
-                el: field,
-                board: Number(owner.dataset.editBoard),
-                label: owner.dataset.editBoardLabel ?? "",
-                draft: owner.hasAttribute("data-edit-board-draft"),
-                textHeld: field.dataset.slotInline ? (owner.dataset.editBoardHeld ?? null) : (owner.dataset.editBoardTextHeld ?? null),
-                ...(field.dataset.slotInline ? { slotHeld: true } : {}),
-              },
-        );
-      } else {
-        hintTimer.current = setTimeout(() => setProjectHint(null), 700);
-      }
+      if (inLayer(e.target)) return;
       if (pressed && !dragging && Math.hypot(e.clientX - pressed.x, e.clientY - pressed.y) > 6) {
         const rail = pressed.el.closest("[data-edit-rail]");
         if (rail) {
@@ -1137,7 +1109,7 @@ export default function BoardLayer({
             onPick={(slug) => post({ kind: "board-pick", uid, slug })}
             onCreate={(name) => post({ kind: "board-create", uid, name })}
           />
-          <small className="pe-board-help">Tape un nom : choisis un projet existant, ou « Créer » le nouveau. Contexte et année se règlent ensuite sur la page.</small>
+          <small className="pe-board-help">Choisis un projet existant, ou crée un « Nouveau projet » : son nom, son contexte et son année se règlent ensuite sur la page.</small>
           <div className="pe-board-drop" aria-hidden="true">
             Dépose tes images ici
           </div>
@@ -1322,30 +1294,6 @@ export default function BoardLayer({
           {marker.label && <span className="pe-drop-label">{marker.label}</span>}
         </div>
       )}
-
-      {projectHint && !text && projectHint.el.isConnected && (() => {
-        const box = boxOf(projectHint.el);
-        if (!box) return null;
-        const name = projectHint.label ? `« ${projectHint.label} »` : "";
-        return (
-          <div className="pe-project-hint" role="status" style={{ top: box.top + box.height + 6, left: Math.max(window.scrollX + 8, box.left) }}>
-            {projectHint.textHeld ? (
-              <span>
-                {projectHint.slotHeld ? "Projet" : "Textes du projet"} {name} en cours de modification sur la page « {projectHint.textHeld} » : lecture seule ici.
-              </span>
-            ) : projectHint.draft ? (
-              <span>Texte du projet {name}, créé sur cette page : visible partout où ce projet apparaît.</span>
-            ) : (
-              <>
-                <span>Texte du projet {name} — modifié aussi partout où ce projet est montré.</span>
-                <a href={`/admin/projets/${projectHint.board}`} target="_blank" rel="noreferrer">
-                  Voir le projet
-                </a>
-              </>
-            )}
-          </div>
-        );
-      })()}
 
       {text && (
         <div

@@ -53,7 +53,7 @@ import { own } from "@/lib/own";
 import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
 import { convertItem as convertBoardItem } from "@/blocks/grid-strip";
-import { BOARD_ITEM_LABELS, parseRailKey, railKey, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
+import { BOARD_ITEM_LABELS, parseRailKey, railKey, type BoardBox as BoardBoxProps, type BoardItem, type BoardItemType } from "@/blocks/board-layout";
 import { cleanLook, cleanSiteStyles, googleOf, readLook, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 import { readBackground, supportsFond, type Background } from "@/themes/fond";
@@ -485,6 +485,28 @@ export default function VisualEditor({
    * Écrit sur une planche (opération ou instantané), après le brouillon en
    * attente. Renvoie le résultat, ou null si refusé (message affiché).
    */
+  /** Le serveur a écrit le contenu propre dans un bloc du brouillon : le brouillon de l'éditeur reçoit la même écriture (sinon son prochain enregistrement l'effacerait). */
+  const syncOwnBlock = useCallback((list: { uid: string; layout: BoardItem[] | null; text: unknown }[]) => {
+    const prev = draftRef.current;
+    const inSync = JSON.stringify(prev) === savedJson.current;
+    let blocks = prev.blocks;
+    for (const b of list) {
+      blocks = updateBlock(blocks, b.uid, (x) => {
+        const props = { ...x.props };
+        if (b.layout) props.layout = b.layout;
+        else delete props.layout;
+        if (b.text) props.text = b.text;
+        else delete props.text;
+        return { ...x, props };
+      });
+    }
+    if (blocks === prev.blocks) return;
+    const next = { ...prev, blocks };
+    draftRef.current = next;
+    setDraftState(next);
+    if (inSync) savedJson.current = JSON.stringify(next);
+  }, []);
+
   const writeBoard = useCallback(
     (call: (rev: number) => ReturnType<typeof boardAction>): Promise<BoardResult | null> =>
       withLock(async () => {
@@ -509,6 +531,7 @@ export default function VisualEditor({
             return null;
           }
           revRef.current = result.data.rev;
+          if (result.data.blocks?.length) syncOwnBlock(result.data.blocks);
           boards.current.set(result.data.after.projectId, result.data.after);
           syncItemRef.current(result.data.after);
           if (result.data.slug) overlaySlugs.current.add(result.data.slug);
@@ -521,7 +544,7 @@ export default function VisualEditor({
           setBoardBusy((n) => n - 1);
         }
       }),
-    [refreshMsg, runSave, send, stop, withLock],
+    [refreshMsg, runSave, send, stop, syncOwnBlock, withLock],
   );
 
   /**
@@ -616,11 +639,13 @@ export default function VisualEditor({
   const boardDo = useCallback(
     async (projectId: number, op: BoardOp): Promise<BoardResult | null> => {
       if (blockedRef.current) return null;
+      const draftBefore = draftRef.current;
       const result = await writeBoard((rev) => boardAction(pageId, projectId, op, rev));
       if (!result) return null;
       // Rien n'a changé (texte identique) : pas de pas d'historique.
       if (JSON.stringify(result.before) === JSON.stringify(result.after)) return result;
-      history.current = { past: [...history.current.past, { draft: draftRef.current, board: { projectId, snap: result.before } }].slice(-HISTORY_MAX), future: [] };
+      // Contenu propre à la page (lot 111) : le brouillon d'AVANT l'écriture (le bloc porte l'ancien contenu), sinon Annuler le réécrirait.
+      history.current = { past: [...history.current.past, { draft: result.blocks?.length ? draftBefore : draftRef.current, board: { projectId, snap: result.before } }].slice(-HISTORY_MAX), future: [] };
       coalesce.current = null;
       bumpHistory();
       return result;
@@ -1684,6 +1709,8 @@ export default function VisualEditor({
     send({ kind: "ghosts", items: ghosts.map(toWire) });
   }, [ghosts, send]);
   const [picker, setPicker] = useState<{ board: number; key: string } | null>(null);
+  /** Ajout d'images proposé à la création d'un projet (lot 111). */
+  const [addPicker, setAddPicker] = useState<{ board: number } | null>(null);
   const dropTargetRef = useRef<DropTargetInfo | null>(null);
 
   /** Bloc « Planche d'un projet » ou conteneur « Projet mis en avant » : projet choisi ou créé. */
@@ -1698,7 +1725,7 @@ export default function VisualEditor({
   );
 
   const createProject = useCallback(
-    async (uid: string, name: string): Promise<{ id: number; slug: string } | null> => {
+    async (uid: string, name: string, propose = false): Promise<{ id: number; slug: string } | null> => {
       if (blockedRef.current) return null;
       const result = await createDraftProjectAction(pageId, name);
       if (!result.ok) {
@@ -1708,12 +1735,14 @@ export default function VisualEditor({
       setExtraProjects((list) => [...list, { id: result.data.id, slug: result.data.slug, title: result.data.title, draft: true }]);
       if (uid) setBoardProject(uid, result.data.slug);
       toast(`Projet « ${result.data.title} » créé : il devient public avec la page`);
+      // Lot 111 : un projet créé sans nom propose tout de suite d'y ajouter des images.
+      if (propose) setAddPicker({ board: result.data.id });
       return { id: result.data.id, slug: result.data.slug };
     },
     [pageId, setBoardProject],
   );
   useEffect(() => {
-    panelCreate.current = async (name) => (await createProject("", name))?.slug ?? null;
+    panelCreate.current = async (name) => (await createProject("", name, true))?.slug ?? null;
   }, [createProject]);
 
   /* ---- Médias des blocs (image, vidéo, fond de l'ouverture, portrait) ---- */
@@ -2378,7 +2407,7 @@ export default function VisualEditor({
           setCanvasBlocks(msg.blocks);
           break;
         case "board-create":
-          void h.createProject(msg.uid, msg.name);
+          void h.createProject(msg.uid, msg.name ?? "", true);
           break;
         case "board-pick":
           h.setBoardProject(msg.uid, msg.slug);
@@ -3673,6 +3702,22 @@ export default function VisualEditor({
           const p = picker;
           setPicker(null);
           if (p) void uploadFiles({ kind: "slot", board: p.board, key: p.key }, [file]);
+        }}
+      />
+
+      <MediaPickerDialog
+        open={addPicker !== null}
+        media={context.media.filter((m) => m.kind !== "pdf")}
+        onClose={() => setAddPicker(null)}
+        onPick={(mediaId) => {
+          const p = addPicker;
+          setAddPicker(null);
+          if (p) void boardDo(p.board, { op: "add", mediaId, index: 0, end: true });
+        }}
+        onFile={(file) => {
+          const p = addPicker;
+          setAddPicker(null);
+          if (p) void uploadFiles({ kind: "board", board: p.board, index: 0 }, [file]);
         }}
       />
 

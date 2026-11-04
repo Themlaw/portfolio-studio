@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { TextField } from "@/app/admin/_fields";
 import { createProjectAction, deleteProjectAction, reorderProjectsAction, restoreProjectAction } from "@/app/admin/(espace)/projets/actions";
 import type { AdminProjectRow, TrashSummary } from "@/lib/admin";
 import { daysLeft, lostWithProject, TRASH_DAYS } from "@/lib/trash";
@@ -103,8 +102,6 @@ export default function ProjectsManager({
   }
   const dirty = !same(order.map((p) => p.id), projects.map((p) => p.id));
   const [creating, setCreating] = useState(false);
-  const [title, setTitle] = useState({ fr: "", en: "" });
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<AdminProjectRow | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [busy, start] = useTransition();
@@ -220,28 +217,26 @@ export default function ProjectsManager({
         title="Nouveau projet"
         confirmLabel="Créer le projet"
         busy={busy}
-        onClose={() => {
-          setCreating(false);
-          setErrors({});
-        }}
+        onClose={() => setCreating(false)}
         onConfirm={() =>
           start(async () => {
-            const r = await createProjectAction({ title });
+            // Lot 111 : aucun nom demandé (identifiant aléatoire, titre par défaut à changer ensuite) ; l'ajout d'images est proposé tout de suite.
+            const r = await createProjectAction();
             if (!r.ok) {
-              setErrors(r.fieldErrors ?? {});
+              toast(r.message, "error");
               return;
             }
             toast("Projet créé");
-            setTitle({ fr: "", en: "" });
+            try {
+              sessionStorage.setItem(`pf-add-images-${r.data.id}`, "1");
+            } catch {
+              // Stockage refusé : l'écran du projet s'ouvre sans proposer l'ajout.
+            }
             router.push(`/admin/projets/${r.data.id}`);
           })
         }
       >
-        <p className="muted">Tu pourras ensuite y déposer tes images et compléter ses informations.</p>
-        <div className="a-form-grid a-section-tight">
-          <TextField label="Titre en français" value={title.fr} onChange={(v) => setTitle((t) => ({ ...t, fr: v }))} error={errors["title.fr"]} />
-          <TextField label="Titre en anglais" help="Facultatif : le titre français sinon." value={title.en} onChange={(v) => setTitle((t) => ({ ...t, en: v }))} error={errors["title.en"]} />
-        </div>
+        <p className="muted">Le projet est créé sans nom : tu le nommeras ensuite, et l&apos;ajout de ses images t’est proposé tout de suite.</p>
       </ConfirmDialog>
 
       <ConfirmDialog

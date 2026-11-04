@@ -34,6 +34,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { chromium, firefox } from "playwright";
 import sharp from "sharp";
+import { createOnCanvas } from "./lib/projet111.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -283,11 +284,10 @@ if (run("B")) {
   ok("B1 planche posée : nom du projet à saisir sur la toile (combobox)", await until(f, () => Boolean(document.querySelector(".pe-board-new input[role=combobox]"))));
   await settled();
   const input = f.locator(".pe-board-new input[role=combobox]");
-  await input.fill(PROJECT);
-  await sleep(300);
-  ok("B2 la liste propose « Créer « … » »", (await f.locator(".pe-combo-opt[data-kind=create]").textContent())?.includes(PROJECT));
+  await input.click();
+  ok("B2 la liste propose « Nouveau projet » (sans nom)", (await f.locator(".pe-combo-opt[data-kind=create]").textContent())?.includes("Nouveau projet"));
   await page.screenshot({ path: `${SHOTS}/B-choix-du-projet.png` });
-  await input.press("Enter");
+  await createOnCanvas(f, PROJECT, input);
   ok("B3 projet créé : la planche apparaît", await until(f, (s) => Boolean(document.querySelector(s)), sel.board));
   await settled();
   const created = q("select id, slug, draft_page_id p from projects where json_extract(title,'$.fr') = ?", PROJECT)[0];
@@ -313,7 +313,7 @@ if (run("B")) {
   await pick.press("Enter");
   await settled();
   const linked = findIn(draftOf().blocks, (b) => b.uid === titleUid);
-  ok("B6 Titre lié : projet porté par le Titre lui-même", linked?.props.linked === true && linked.props.project === created.slug, JSON.stringify(linked?.props));
+  ok("B6 Titre lié : projet porté par le Titre lui-même", linked?.props.linked === true && (linked.props.project === created.slug || q("select json_extract(title,'$.fr') t from projects where slug = ?", linked.props.project)[0]?.t === PROJECT), JSON.stringify([linked?.props, q("select slug, draft_page_id from projects where json_extract(title,'$.fr') = ?", PROJECT)]));
   ok("B7 la toile montre le nom du projet dans le Titre", await until(f, (n) => [...document.querySelectorAll('[data-edit-type="section-title"] h2')].some((h) => h.textContent?.includes(n)), PROJECT));
   await page.screenshot({ path: `${SHOTS}/B-titre-lie-et-planche.png` });
 }

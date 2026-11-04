@@ -14,7 +14,7 @@ import type { WallpaperEntry } from "@/themes/wallpaper";
 import { effectivePalette, renderBoardItem } from "./BlockList";
 import { fondJoins, fondKey, readBackground } from "@/themes/fond";
 import { captionCss, captionStylesOf } from "./caption-style";
-import { isProjectStrip, itemEmpty, railIds, railKey, railList, stripCaptions } from "./board-layout";
+import { isProjectStrip, itemEmpty, MAX_BOARD_ITEMS, ownLayoutOf, ownTextOf, railIds, railKey, railList, stripCaptions } from "./board-layout";
 import { collection, projectSlug, textStyle, tr, type BlockContext } from "./types";
 
 export const projectBoardSchema = z.object({
@@ -30,6 +30,14 @@ export const projectBoardSchema = z.object({
   collection: collection.optional(),
   /** Nom, contexte et présentation du projet en tête de planche (masquable sous un titre lié). */
   header: z.boolean().optional(),
+  /**
+   * Contenu propre à cette page (lot 111) : la suite de composants du projet que CE bloc affiche, à la place du contenu partagé
+   * du projet (`projects.layout`). Absent : contenu partagé. Même format que la suite d'un projet ; contrôlée par le serveur
+   * (`checkLayout`, src/lib/edit/board-layout.ts) à l'écriture et à la publication.
+   */
+  layout: z.array(z.unknown()).max(MAX_BOARD_ITEMS).optional(),
+  /** Textes propres à cette page (lot 111) : nom, contexte, présentation, année du projet que CE bloc affiche, à la place de ceux du projet. */
+  text: z.unknown().optional(),
 });
 
 /** Styles locaux de l'en-tête (« Ce texte uniquement ») : nom, contexte, année, présentation. */
@@ -119,12 +127,12 @@ function stripDates(props: Record<string, unknown>, locale: BlockContext["locale
 export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer<typeof projectBoardSchema>; ctx: BlockContext }) {
   const eager = claimEager(2);
   const slug = props.project ?? ctx.project;
-  const project = slug ? await getProjectBoard(slug, ctx.locale, props.collection) : null;
+  const project = slug ? await getProjectBoard(slug, ctx.locale, props.collection, ownLayoutOf(props), ownTextOf(props)) : null;
   if (project) {
     // Toile : si les images du projet sont en cours de modification sur une autre page, la planche
     // porte `data-edit-board-held` (ProjectStrip) et la couche d'édition l'indique au survol.
-    // Les composants autres que la bande sont rendus ici (mêmes blocs qu'une page) ; ils appartiennent au projet,
-    // pas à la page : la planche est la même partout où elle est affichée.
+    // Les composants autres que la bande sont rendus ici (mêmes blocs qu'une page) ; ils appartiennent au projet, la planche est
+    // la même partout où elle est affichée, SAUF si le bloc porte son propre contenu (lot 111, `props.layout`).
     // Fond de couleur des composants (lot 32) : mêmes règles que sur une page (fusion des voisins de même fond, bord à bord de la planche).
     const fonds = project.layout.map((item) => readBackground(item.props.background));
     const joins = fondJoins(fonds.map((bg) => fondKey(bg, false)));

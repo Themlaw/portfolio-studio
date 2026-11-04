@@ -462,8 +462,9 @@ if (run("A")) {
     await sleep(2500);
     log = await stopProbe(f);
     noRollback("A8 texte de projet (deux modifications rapprochées)", log, "title", "Projet Deux", [titleBefore, "Projet Un", "Projet Deux"]);
-    const overlay = q("select draft_text from projects where id = ?", board)[0]?.draft_text ?? "";
-    ok("A8 surcouche du projet : « Projet Deux »", overlay.includes("Projet Deux"), overlay);
+    // Lot 111 : le texte est la copie propre du bloc (brouillon de la page), plus une surcouche du projet.
+    const overlay = q("select draft from pages where id = ?", homeId)[0]?.draft ?? "";
+    ok("A8 copie propre du bloc : « Projet Deux »", overlay.includes("Projet Deux") && !(q("select draft_text d from projects where id = ?", board)[0].d ?? "").includes("Projet Deux"), overlay.slice(0, 300));
 
     /* A9. Couleur personnalisée du libellé de défilement : deux choix de suite. */
     ok("A9 « Aa » au survol du libellé, barre ouverte", await openTextBar(SCROLL));
@@ -860,21 +861,17 @@ if (run("D")) {
   slow = false;
   const original = await titleNow();
 
-  /* D1. Refus du serveur : une autre page tient les textes depuis le chargement de la toile
-     (la toile ne le sait pas). Le texte posé doit disparaître au refus, sans rechargement. */
+  /* D1. Plus de verrou entre pages (lot 111) : un brouillon de textes tenu par une autre page (données antérieures) ne bloque plus ;
+     la modification s'écrit dans le bloc de CETTE page et le brouillon de l'autre page n'est pas touché. */
   const row = q("select title, context, description, year from projects where id = ?", board)[0];
   const foreign = JSON.stringify({ title: JSON.parse(row.title), context: JSON.parse(row.context), description: JSON.parse(row.description), year: row.year });
   write("update projects set draft_text = ?, draft_text_page_id = ? where id = ?", foreign, otherId, board);
-  await edit(PTITLE, "Texte refusé");
-  ok("D1 refus : message du serveur affiché", await bodyHas(/en cours de modification sur la page/));
-  ok("D1 refus : le texte d'origine revient sur la toile (sans rechargement)", await until(f, ([sel, t]) => document.querySelector(sel)?.textContent?.trim() === t, [PTITLE, original], 8000), `affiché : ${await titleNow()}`);
-  ok("D1 refus : rien n'a été écrit", q("select draft_text_page_id p from projects where id = ?", board)[0].p === otherId);
-  releaseText();
-  // Un nouvel essai, texte accepté cette fois, n'est pas gêné par l'ancien aperçu.
   await edit(PTITLE, "Texte accepté");
   await settled();
-  ok("D1 reprise : le texte accepté s'affiche", (await titleNow()) === "Texte accepté", await titleNow());
-  ok("D1 reprise : surcouche écrite", (q("select draft_text d from projects where id = ?", board)[0].d ?? "").includes("Texte accepté"));
+  ok("D1 aucun refus : le texte s'affiche", (await titleNow()) === "Texte accepté", await titleNow());
+  ok("D1 aucun message de blocage", !(await bodyHas(/en cours de modification sur la page/)));
+  ok("D1 le brouillon de l'autre page n'est pas touché", q("select draft_text_page_id p from projects where id = ?", board)[0].p === otherId);
+  ok("D1 copie propre écrite dans la page", (q("select draft from pages where id = ?", homeId)[0].draft ?? "").includes("Texte accepté"));
   releaseText();
 
   /* D2. Échec réseau : « connexion perdue », le texte d'origine revient. */
