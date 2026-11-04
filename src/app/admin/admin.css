@@ -3434,7 +3434,8 @@ label.a-file-btn:focus-within {
   border-radius: 4px;
   background: var(--admin-bg);
   cursor: grab;
-  touch-action: none;
+  /* Lot 112 : balayage horizontal = défilement de la rangée ; glisser vers le haut ou le bas = déplacer la vignette. */
+  touch-action: pan-x;
 }
 
 .a-libthumb-drag img {
@@ -5319,7 +5320,8 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
 /* ---- Éditeur visuel : médias glissables, choix d'une image (phase 7b) ---- */
 .ve-media li {
   cursor: grab;
-  touch-action: none;
+  /* Lot 112 : au doigt, le glisser n'existe pas (clic pour poser) : la liste doit pouvoir défiler en partant d'une vignette. */
+  touch-action: manipulation;
 }
 
 .ve-media li[data-status="failed"] {
@@ -7561,4 +7563,53 @@ body:has(.ve[data-mode="preview"]) .a-toasts {
   .a-journal-details {
     grid-template-columns: 1fr;
   }
+}
+
+/* ---- Tri, défilement progressif et fichier retrouvé de l'onglet Médias (lot 112) ---------------------------------------- */
+.a-sortmenu {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.a-sortmenu-label {
+  color: var(--admin-ink-soft);
+  white-space: nowrap;
+}
+.a-sortmenu .a-input {
+  width: auto;
+  min-width: 0;
+}
+.ve-media-sort {
+  display: flex;
+  margin-bottom: 8px;
+}
+.ve-media-sort .a-input {
+  flex: 1;
+}
+.ve-media-more {
+  height: 24px;
+}
+.a-libstrip-more {
+  flex: 0 0 24px;
+  height: 72px;
+}
+.ve-media-nodate {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 1px 3px;
+  background: var(--admin-surface);
+  color: var(--admin-ink-soft);
+  font-size: 10.5px;
+  text-align: center;
+}
+/* Fichier renvoyé qui existait déjà : cerclé quelques secondes. */
+.ve-media li[data-flash] .ve-media-thumb,
+.a-libthumb[data-flash] .a-libthumb-drag {
+  outline: 3px solid var(--admin-accent);
+  outline-offset: 1px;
+}
+.a-libstrip-row:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 2px;
 }

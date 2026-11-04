@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { getMediaUses, listMediaForAdmin, type AdminMediaRow, type MediaUseRow } from "@/lib/admin";
 import { assertAdmin } from "@/lib/auth/guard";
+import { backfillTaken, type TakenFill } from "@/lib/edit/media-taken";
 import { deleteMedia, restoreMedia, retryMedia, saveMediaAlt, type MediaUseRef } from "@/lib/edit/media";
 import { wakeWorker } from "@/lib/jobs/worker";
 import { listPendingUploads, type UploadStatus } from "@/lib/upload/chunks";
@@ -59,6 +60,12 @@ export async function mediaStatusAction(ids: unknown): Promise<ActionResult<Admi
   if (!parsed.success) return fail("Requête invalide.");
   const wanted = new Set(parsed.data);
   return { ok: true, data: listMediaForAdmin().filter((m) => wanted.has(m.id)) };
+}
+
+/** Lot 112 : lit la date de création d'un lot de médias anciens (métadonnées seulement), pour le tri « Date de création ». */
+export async function backfillTakenAction(): Promise<ActionResult<{ done: TakenFill[]; remaining: number }>> {
+  await assertAdmin();
+  return { ok: true, data: await backfillTaken(20) };
 }
 
 /** « Utilisé dans… » d'un média. */
