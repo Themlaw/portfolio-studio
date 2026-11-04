@@ -1137,15 +1137,23 @@ export default function LookLayer({
     };
     const onDown = (e: MouseEvent) => {
       const t = e.target instanceof Element ? e.target : null;
-      if (!t?.closest(".lk-bar, .lk-aa")) return;
+      if (!t?.closest(".pe-pop, .lk-aa")) return;
       // Sauf dans un champ à saisir, un bouton de la barre ne prend pas le focus : le texte en cours de saisie le garde.
       if (!t.closest("input, textarea, select, [contenteditable=true], [contenteditable=plaintext-only]")) e.preventDefault();
       else downInBar = Date.now();
     };
     window.addEventListener("pe:text-edit", onEdit);
     window.addEventListener("pe:text-end", onEnd);
+    // Tactile : le geste n'a pas toujours de `mousedown` annulable avant le focus ; la barre et ses fenêtres ne le prennent jamais au texte.
+    const onTouch = (e: PointerEvent) => {
+      const t = e.target instanceof Element ? e.target : null;
+      if (!t?.closest(".pe-pop, .lk-aa")) return;
+      if (t.closest(".lk-bar, .pe-pop")) downInBar = Date.now();
+    };
+    document.addEventListener("pointerdown", onTouch, true);
     document.addEventListener("mousedown", onDown, true);
     return () => {
+      document.removeEventListener("pointerdown", onTouch, true);
       window.removeEventListener("pe:text-edit", onEdit);
       window.removeEventListener("pe:text-end", onEnd);
       document.removeEventListener("mousedown", onDown, true);

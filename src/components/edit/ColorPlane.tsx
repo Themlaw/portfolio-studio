@@ -16,6 +16,16 @@ import { hueStripGradient, planeToSv, saturationPlane, stripToHue } from "@/lib/
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
+/**
+ * Lot 110 : un texte est en cours de saisie (contenteditable avec le focus) et la barre « Aa » ouvre cette roue. Lui prendre le focus
+ * (carré, bande, ouverture) terminait la saisie et refermait la barre avec la roue : on le lui laisse. La souris et le doigt
+ * n'ont pas besoin du focus pour glisser (capture du pointeur) ; seul le clavier du carré attend un clic hors de la saisie.
+ */
+export function textHoldsFocus(doc: Document): boolean {
+  const a = doc.activeElement;
+  return a instanceof HTMLElement && a !== doc.body && (a.isContentEditable || a.hasAttribute("data-editing"));
+}
+
 /** Glisser dans un élément : rappel en fractions (0-1) depuis le coin haut gauche, bornées. */
 function useDrag(onPoint: (fx: number, fy: number) => void) {
   const dragging = useRef(false);
@@ -27,7 +37,7 @@ function useDrag(onPoint: (fx: number, fy: number) => void) {
     onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
       if (e.pointerType === "mouse" && e.button !== 0) return;
       e.preventDefault(); // pas de sélection de texte ni de focus à la souris : on le donne nous-mêmes
-      e.currentTarget.focus({ preventScroll: true });
+      if (!textHoldsFocus(e.currentTarget.ownerDocument)) e.currentTarget.focus({ preventScroll: true });
       e.currentTarget.setPointerCapture(e.pointerId);
       dragging.current = true;
       at(e);
