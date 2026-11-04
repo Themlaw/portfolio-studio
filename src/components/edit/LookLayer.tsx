@@ -48,7 +48,9 @@ import {
   type PaletteColor,
   type Role,
   type SiteStyles,
+  spaceLabel,
   type Space,
+  type SpaceVal,
   type TextStyle,
   type TileKey,
   TILE_KEYS,
@@ -224,7 +226,7 @@ function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top"
   const r = docRect(root);
   const cs = getComputedStyle(root);
   const pad = parseFloat(side === "top" ? cs.paddingTop : cs.paddingBottom) || 0;
-  const current: Space | "auto" = (side === "top" ? look.spaceTop : look.spaceBottom) ?? "auto";
+  const current: SpaceVal | "auto" = (side === "top" ? look.spaceTop : look.spaceBottom) ?? "auto";
   const prop = side === "top" ? "paddingTop" : "paddingBottom";
   const commit = (c: Cran) => {
     if (c.key === current) {
@@ -284,7 +286,7 @@ function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top"
   return (
     <>
       <div className="lk-space-zone" data-side={side} data-active={drag ? "" : undefined} style={{ top: zoneTop, left: r.left, width: r.width, height: Math.max(2, shown) }} aria-hidden="true">
-        {(drag || shown > 14) && <span className="lk-space-value">{drag ? `${cranLabel(drag.cran)} · ${Math.round(drag.cran.px)} px` : `${current === "auto" ? "Auto" : SPACE_LABELS[current]} · ${Math.round(shown)} px`}</span>}
+        {(drag || shown > 14) && <span className="lk-space-value">{drag ? `${cranLabel(drag.cran)} · ${Math.round(drag.cran.px)} px` : `${current === "auto" ? "Auto" : spaceLabel(current)} · ${Math.round(shown)} px`}</span>}
       </div>
       <button
         type="button"
@@ -293,7 +295,7 @@ function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top"
         // Sur le bord de la zone qui suit le curseur : en haut, le bord côté contenu ;
         // en bas, le bord extérieur (le bloc grandit vers le bas, son contenu ne bouge pas).
         style={{ top: side === "top" ? r.top + shown - 5 : r.top + r.height - 5, left: r.left + r.width / 2 - 22 }}
-        aria-label={`Espace ${side === "top" ? "au-dessus" : "en dessous"} : ${current === "auto" ? "Auto" : SPACE_LABELS[current]}. Glisser, ou flèches haut et bas.`}
+        aria-label={`Espace ${side === "top" ? "au-dessus" : "en dessous"} : ${current === "auto" ? "Auto" : spaceLabel(current)}. Glisser, ou flèches haut et bas.`}
         title={`Espace ${side === "top" ? "au-dessus" : "en dessous"} (glisser : crans du thème)`}
         onPointerDown={onDown}
         onKeyDown={onKey}

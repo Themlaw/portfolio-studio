@@ -108,8 +108,8 @@ export function expandContainer(container: Raw, opts: Options, inheritedProject?
   const out = flat.map((k, i) => {
     if (project) pinProject(k, project);
     const base: Look = { ...rest };
-    if (i === 0 && look?.spaceTop) base.spaceTop = look.spaceTop;
-    if (i === flat.length - 1 && look?.spaceBottom) base.spaceBottom = look.spaceBottom;
+    if (i === 0 && look?.spaceTop !== undefined) base.spaceTop = look.spaceTop;
+    if (i === flat.length - 1 && look?.spaceBottom !== undefined) base.spaceBottom = look.spaceBottom;
     const merged = mergeLook(base, readLook(k.props.look));
     if (merged) k.props.look = merged;
     else delete k.props.look;

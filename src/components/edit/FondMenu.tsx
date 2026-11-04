@@ -293,6 +293,7 @@ function ZoneSection({
   defaults,
   caps,
   fondActive,
+  innerOfCard,
   onSet,
 }: {
   uid: string;
@@ -302,6 +303,8 @@ function ZoneSection({
   caps: Caps;
   /** Le fond (section Fond) est rempli. */
   fondActive: boolean;
+  /** Cette section est un Fond posé DANS une Carte de rubrique (carte dehors) : sa marge peut être « Aucune ». */
+  innerOfCard: boolean;
   onSet: (next: Zone | null, continuous?: boolean) => void;
 }) {
   const text = SLOT_TEXT[slot];
@@ -418,12 +421,18 @@ function ZoneSection({
           set({ corners: v === "none" ? undefined : v });
         }}
       />
-      {z.layer === "fond" && zoneExtent(z, defaults) === "inset" && (
+      {z.layer === "fond" && (zoneExtent(z, defaults) === "inset" || innerOfCard) && (
         <div className="tc-row">
           <span className="sm-label">Marge</span>
           <span className="tc-seg" role="radiogroup" aria-label="Taille de la marge" data-testid="fond-inset">
+            {/* Lot 108 : un Fond posé DANS une Carte peut n'avoir aucune marge (rempli jusqu'à la carte) ou un retrait S / M / L. */}
+            {innerOfCard && (
+              <button type="button" role="radio" aria-checked={zoneExtent(z, defaults) !== "inset"} data-step="none" onClick={() => set({ extent: "full", margin: undefined })}>
+                Aucune
+              </button>
+            )}
             {SHAPE_STEPS.map((st) => (
-              <button key={st.step} type="button" role="radio" aria-checked={(z.margin ?? "m") === st.step} data-step={st.step} onClick={() => set({ margin: st.step })}>
+              <button key={st.step} type="button" role="radio" aria-checked={zoneExtent(z, defaults) === "inset" && (z.margin ?? "m") === st.step} data-step={st.step} onClick={() => set(innerOfCard ? { extent: "inset", margin: st.step } : { margin: st.step })}>
                 {st.label}
               </button>
             ))}
@@ -611,13 +620,13 @@ function FondPanel({
     // Une section AJOUTÉE (l'autre existait) range les deux dans l'ordre normal ; régler une section déjà là ne déplace rien et n'écrit que sa couche (lot 107 :
     // l'ordre lu est gardé, y compris une carte dehors autour d'un fond en retrait).
     const added = next !== null && fc[slot] === null;
-    const w = writeFondCarte(setSlot(fc, slot, next, caps), caps, added, outer ?? undefined);
+    const w = writeFondCarte(setSlot(fc, slot, next, caps), caps, added, outer ?? undefined, added ? (slot === "fond" ? "carte" : "fond") : undefined);
     onChange({ ...(w.surface ? { surface: w.surface } : {}), ...(w.background ? { background: w.background } : {}) }, continuous);
   };
   return (
     <Popover anchor={anchor} label="Fond et carte du bloc" testId="fond-menu" onClose={onClose}>
-      <ZoneSection uid={uid} slot="fond" z={fc.fond} defaults={defaults} caps={caps} fondActive={fc.fond !== null} onSet={onSet("fond")} />
-      <ZoneSection uid={uid} slot="carte" z={fc.carte} defaults={defaults} caps={caps} fondActive={fc.fond !== null} onSet={onSet("carte")} />
+      <ZoneSection uid={uid} slot="fond" z={fc.fond} defaults={defaults} caps={caps} fondActive={fc.fond !== null} innerOfCard={fc.fond?.layer === "fond" && fc.carte?.layer === "card"} onSet={onSet("fond")} />
+      <ZoneSection uid={uid} slot="carte" z={fc.carte} defaults={defaults} caps={caps} fondActive={fc.fond !== null} innerOfCard={false} onSet={onSet("carte")} />
     </Popover>
   );
 }

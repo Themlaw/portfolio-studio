@@ -154,7 +154,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
         ...(item.box ? { box: item.box } : {}),
         // Bande des images du projet (lot 39) : la date posée sous chaque image (sans date posée, l'année de l'emplacement).
         ...(isProjectStrip(item) ? { dates: stripDates(item.props, ctx.locale) } : {}),
-        ...(item.type === "strip" && readLook(item.props.look)?.spaceTop ? { spaceTop: readLook(item.props.look)!.spaceTop } : {}),
+        ...(item.type === "strip" && readLook(item.props.look)?.spaceTop !== undefined ? { spaceTop: readLook(item.props.look)!.spaceTop } : {}),
         ...(item.type === "strip" && (item.props.videoMode === "loop" || item.props.videoMode === "player") ? { videoMode: item.props.videoMode } : {}),
         ...(fonds[i] ? { fond: { background: fonds[i]!, join: joins[i] } } : {}),
         ...(item.type === "strip"

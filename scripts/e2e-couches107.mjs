@@ -474,6 +474,58 @@ if (run("D")) {
     await page.waitForFunction((t) => document.body.textContent.includes(t), mk0, { timeout: 60000 });
     const pubOut = await page.evaluate(() => { const e = document.querySelector(".blk-out"); return e ? { w: e.dataset.w, mt: e.dataset.mt, width: e.getBoundingClientRect().width, vw: document.documentElement.clientWidth } : null; });
     ok("D9 public : enveloppe de marge extérieure, 72 % de la largeur", pubOut && pubOut.w === "medium" && pubOut.mt === "l" && near(pubOut.width / pubOut.vw, 0.72, 0.03), JSON.stringify(pubOut));
+
+    /* ---- Lot 108 : curseurs aimantés (valeurs nommées relues, nombres libres, clavier, Auto), puis publication ---- */
+    const fr3 = await openEditor(pid);
+    const sl = async (kind, id) => {
+      const m = await openBarMenu(fr3, mk0, kind);
+      return m.locator(`[data-testid="${id}"] input[type=range]`);
+    };
+    let range = await sl("width", "slider-width");
+    ok("D10 largeur « moyenne » écrite avant : le curseur se place sur 72 et le cran est coché", (await range.inputValue()) === "72" && (await fr3.locator('[data-block-width="medium"][aria-checked="true"]').count()) === 1);
+    await range.fill("64");
+    ok("D11 un nombre libre (64 %) est écrit tel quel", await until(() => lookNow().width === 64, 20000), JSON.stringify(lookNow()));
+    await page.keyboard.press("Escape");
+    range = await sl("width", "slider-width");
+    ok("D11b relu : le curseur est sur 64, aucun cran coché", (await range.inputValue()) === "64" && (await fr3.locator('[data-testid="slider-width"] [aria-checked="true"]').count()) === 0);
+    await range.fill("73");
+    ok("D12 près d'un cran (73), la valeur colle au cran nommé « moyenne »", await until(() => lookNow().width === "medium", 20000), JSON.stringify(lookNow()));
+    await page.keyboard.press("Escape");
+    range = await sl("width", "slider-width");
+    await range.focus();
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowLeft");
+    ok("D13 clavier : trois flèches depuis 72 donnent 69", await until(() => lookNow().width === 69, 20000), JSON.stringify(lookNow()));
+    await page.keyboard.press("Escape");
+    await (await openBarMenu(fr3, mk0, "width")).locator('[data-block-width="full"]').click();
+    ok("D14 « Pleine » retire la largeur", await until(() => lookNow().width === undefined, 20000), JSON.stringify(lookNow()));
+    await page.keyboard.press("Escape");
+    await (await sl("width", "slider-width")).fill("64");
+    await until(() => lookNow().width === 64, 20000);
+    await page.keyboard.press("Escape");
+    await (await sl("width", "slider-marginTop")).fill("41");
+    ok("D15 marge extérieure du haut : nombre libre", await until(() => lookNow().marginTop === 41, 20000), JSON.stringify(lookNow()));
+    await page.keyboard.press("Escape");
+    await (await sl("space", "slider-spaceTop")).fill("45");
+    ok("D16 espacement intérieur du haut : nombre libre", await until(() => lookNow().spaceTop === 45, 20000), JSON.stringify(lookNow()));
+    await page.keyboard.press("Escape");
+    await (await sl("space", "slider-spaceBottom")).fill("0");
+    ok("D17 espacement du bas à 0 px : un réglage (pas « absent »)", await until(() => lookNow().spaceBottom === 0, 20000), JSON.stringify(lookNow()));
+    await page.keyboard.press("Escape");
+    ok("D18 publication des nombres", await publishCurrentFromEditor(pid));
+    const saved2 = savedBlocks(pid)[0]?.props?.look;
+    ok("D19 la publication garde les nombres", saved2?.width === 64 && saved2?.marginTop === 41 && saved2?.spaceTop === 45 && saved2?.spaceBottom === 0, JSON.stringify(saved2));
+    await page.goto(urlOf(SLUG[T.page]), { waitUntil: "domcontentloaded" });
+    await page.waitForFunction((t) => document.body.textContent.includes(t), mk0, { timeout: 60000 });
+    const pub2 = await page.evaluate(() => {
+      const e = document.querySelector(".blk-out");
+      const z = e?.querySelector(".zone");
+      const blk = e?.querySelector(".blk");
+      const first = blk?.firstElementChild;
+      return e ? { w: e.dataset.w, ratio: e.getBoundingClientRect().width / document.documentElement.clientWidth, mt: parseFloat(getComputedStyle(e).paddingTop), pt: first ? parseFloat(getComputedStyle(first).paddingTop) : null, pb: first ? parseFloat(getComputedStyle(blk.lastElementChild).paddingBottom) : null, hasZone: Boolean(z) } : null;
+    });
+    ok("D20 public : largeur 64 %, marge extérieure 41 px, espacement intérieur 45 px haut et 0 bas", pub2 && pub2.w === "n" && near(pub2.ratio, 0.64, 0.03) && near(pub2.mt, 41, 1.5) && near(pub2.pt, 45, 1.5) && near(pub2.pb, 0, 1.5), JSON.stringify(pub2));
   });
 }
 

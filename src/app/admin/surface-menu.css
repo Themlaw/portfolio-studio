@@ -382,3 +382,13 @@
   stroke: var(--lk-accent);
   stroke-width: 2;
 }
+
+/* Curseur à crans aimantés (lot 108) — src/components/edit/SnapSlider.tsx */
+.snap { display: grid; gap: 4px; }
+.snap-head { display: flex; align-items: center; gap: 8px; }
+.snap-label { flex: 1 1 auto !important; }
+.snap-range { width: 100%; margin: 2px 0; accent-color: var(--lk-ink); }
+.snap-stops { display: flex; flex-wrap: wrap; gap: 4px; }
+.snap-tick, .snap-auto { min-width: 30px; padding: 2px 7px; border: 1px solid var(--lk-line); border-radius: 5px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.snap-tick[aria-checked="true"], .snap-auto[aria-checked="true"] { background: var(--lk-ink); color: var(--lk-surface); }
+.snap-value { min-width: 46px; text-align: right; font-variant-numeric: tabular-nums; color: var(--lk-ink-soft); }

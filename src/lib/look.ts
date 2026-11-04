@@ -35,6 +35,15 @@ import type { CardPalette } from "../themes/surface";
 
 export const SPACES = ["none", "s", "m", "l", "xl"] as const;
 export type Space = (typeof SPACES)[number];
+/** Lot 108 : un espace est un cran nommé (lu à l'identique depuis toujours) OU un nombre de pixels (curseur aimanté). */
+export type SpaceVal = Space | number;
+export const SPACE_MAX = 240;
+export const SIDE_MAX = 160;
+export const WIDTH_MIN = 30;
+/** Valeur de repère (px, thème par défaut) de chaque cran nommé : place du cran sur le curseur. */
+export const SPACE_REF: Record<Space, number> = { none: 0, s: 12, m: 32, l: 56, xl: 88 };
+export const WIDTH_REF: Record<"wide" | "medium" | "narrow", number> = { wide: 88, medium: 72, narrow: 56 };
+export const spaceRef = (v: SpaceVal): number => (typeof v === "number" ? v : SPACE_REF[v]);
 export const SPACE_LABELS: Record<Space, string> = { none: "Aucun", s: "S", m: "M", l: "L", xl: "XL" };
 /**
  * Largeur d'un bloc de la page (lot 107) : le composant (son contenu et le fond et la carte posés dedans) ne prend pas toute la largeur, il est décollé
@@ -44,7 +53,10 @@ export const BLOCK_WIDTHS = ["wide", "medium", "narrow"] as const;
 export const SIDE_SPACES = ["s", "m", "l"] as const;
 export type SideSpace = (typeof SIDE_SPACES)[number];
 export type BlockWidth = (typeof BLOCK_WIDTHS)[number];
+export type BlockWidthVal = BlockWidth | number;
 export const BLOCK_WIDTH_LABELS: Record<BlockWidth | "full", string> = { full: "Pleine", wide: "Large", medium: "Moyenne", narrow: "Étroite" };
+export const spaceLabel = (v: SpaceVal): string => (typeof v === "number" ? `${v} px` : SPACE_LABELS[v]);
+export const widthLabel = (v: BlockWidthVal): string => (typeof v === "number" ? `${v} %` : BLOCK_WIDTH_LABELS[v]);
 /** Valeur CSS d'un cran (tokens du thème, src/themes/css.ts). */
 export const SPACE_VALUES: Record<Space, string> = {
   none: "0px",
@@ -584,17 +596,18 @@ export const MAX_TEXT_STYLES = 600;
 const bounded = <T extends z.ZodType>(rec: T, max: number, label: string) =>
   rec.refine((v) => Object.keys(v as object).length <= max, `${max} ${label} au plus.`);
 
+const SpaceSchema = z.union([z.enum(SPACES), z.number().int().min(0).max(SPACE_MAX)]);
 const LookCoreSchema = z.strictObject({
-  spaceTop: z.enum(SPACES).optional(),
-  spaceBottom: z.enum(SPACES).optional(),
+  spaceTop: SpaceSchema.optional(),
+  spaceBottom: SpaceSchema.optional(),
   /**
    * Lot 107, DEHORS (la page se voit, jamais le papier du fond ni de la carte) : largeur du bloc (côtés, absent = pleine) et marge extérieure haut / bas.
    * DEDANS (couverts par le fond et la carte) : `spaceTop` / `spaceBottom` (depuis toujours, en padding) et `spaceSides` (côtés).
    */
-  width: z.enum(BLOCK_WIDTHS).optional(),
-  marginTop: z.enum(SPACES).optional(),
-  marginBottom: z.enum(SPACES).optional(),
-  spaceSides: z.enum(SIDE_SPACES).optional(),
+  width: z.union([z.enum(BLOCK_WIDTHS), z.number().int().min(WIDTH_MIN).max(99)]).optional(),
+  marginTop: SpaceSchema.optional(),
+  marginBottom: SpaceSchema.optional(),
+  spaceSides: z.union([z.enum(SIDE_SPACES), z.number().int().min(0).max(SIDE_MAX)]).optional(),
   radius: z.enum(RADII).optional(),
   titleV: z.enum(["top", "middle", "bottom"]).optional(),
   titleH: z.enum(["left", "center", "right"]).optional(),
@@ -698,9 +711,9 @@ export function cleanLook(look: Look): Look | undefined {
 export function lookAttributes(look: Look | undefined): Record<string, string> | null {
   if (!look) return null;
   const a: Record<string, string> = {};
-  if (look.spaceTop) a["data-pt"] = look.spaceTop;
-  if (look.spaceBottom) a["data-pb"] = look.spaceBottom;
-  if (look.spaceSides) a["data-ps"] = look.spaceSides;
+  if (look.spaceTop !== undefined) a["data-pt"] = typeof look.spaceTop === "number" ? "n" : look.spaceTop;
+  if (look.spaceBottom !== undefined) a["data-pb"] = typeof look.spaceBottom === "number" ? "n" : look.spaceBottom;
+  if (look.spaceSides !== undefined) a["data-ps"] = typeof look.spaceSides === "number" ? "n" : look.spaceSides;
   if (look.radius) a["data-radius"] = look.radius;
   if (look.titleV) a["data-tv"] = look.titleV;
   if (look.titleH) a["data-th"] = look.titleH;
@@ -709,6 +722,25 @@ export function lookAttributes(look: Look | undefined): Record<string, string> |
   // Recadrage libre : l'image affichée EST la zone gardée (variante extraite), rien à décaler ni à zoomer en CSS.
   if (crop && !crop.rect) a["data-crop"] = "";
   return Object.keys(a).length ? a : null;
+}
+
+/** Valeurs numériques (lot 108) des espaces intérieurs, en variables CSS de l'enveloppe `.blk` ; absent si tout est nommé. */
+export function spaceStyle(look: Look | undefined): Record<string, string> | undefined {
+  if (!look) return undefined;
+  const o: Record<string, string> = {};
+  if (typeof look.spaceTop === "number") o["--kn-pt"] = `${look.spaceTop}px`;
+  if (typeof look.spaceBottom === "number") o["--kn-pb"] = `${look.spaceBottom}px`;
+  if (typeof look.spaceSides === "number") o["--kn-ps"] = `${look.spaceSides}px`;
+  return Object.keys(o).length ? o : undefined;
+}
+/** Idem pour l'enveloppe extérieure `.blk-out` (largeur en %, marges en px). */
+export function outerStyle(look: Look | undefined): Record<string, string> | undefined {
+  if (!look) return undefined;
+  const o: Record<string, string> = {};
+  if (typeof look.width === "number") o["--kn-w"] = `${look.width}%`;
+  if (typeof look.marginTop === "number") o["--kn-mt"] = `${look.marginTop}px`;
+  if (typeof look.marginBottom === "number") o["--kn-mb"] = `${look.marginBottom}px`;
+  return Object.keys(o).length ? o : undefined;
 }
 
 /** Variables de cadrage posées sur l'enveloppe (un seul média recadrable par bloc). */

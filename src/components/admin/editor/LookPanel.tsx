@@ -9,6 +9,7 @@
  *   images), brouillon du site publié avec la page comme l'en-tête.
  * Mêmes crans que la toile (src/lib/look.ts).
  */
+import { SidesSlider, SpaceSlider, WidthSlider } from "@/components/edit/LookSliders";
 import { useState } from "react";
 
 import TypoControls from "@/components/edit/TypoControls";
@@ -120,7 +121,7 @@ export function SpaceTopSection({ look, onChange }: { look: Look; onChange: (nex
   return (
     <section className="lp" aria-label="Espace au-dessus" data-testid="space-top-section">
       <h3 className="lp-title">Mise en page</h3>
-      <Segmented label="Espace au-dessus" value={look.spaceTop} options={SPACES} labels={SPACE_LABELS} onChange={(v) => onChange({ ...look, spaceTop: v })} />
+      <SpaceSlider label="Espace au-dessus" testId="lp-spaceTop" value={look.spaceTop} onChange={(v) => onChange({ ...look, spaceTop: v })} />
     </section>
   );
 }
@@ -140,16 +141,16 @@ export function BlockLookPanel({ type, look, inCell, onChange }: { type: string;
       {type !== "hero" && !inCell && (
         <div data-testid="outer-margin-section">
           <p className="lp-help">Marge extérieure : hors du fond et de la carte (on y voit la page). Espacement intérieur : dans le fond et la carte (leur papier peint le couvre).</p>
-          <Segmented label="Largeur du bloc" value={look.width} options={BLOCK_WIDTHS} labels={BLOCK_WIDTH_LABELS as Record<(typeof BLOCK_WIDTHS)[number], string>} onChange={(v) => set({ width: v })} auto="Pleine" help="Marge extérieure sur les côtés : le bloc est centré, décollé des bords." />
-          <Segmented label="Marge extérieure en haut" value={look.marginTop} options={SPACES} labels={SPACE_LABELS} onChange={(v) => set({ marginTop: v })} />
-          <Segmented label="Marge extérieure en bas" value={look.marginBottom} options={SPACES} labels={SPACE_LABELS} onChange={(v) => set({ marginBottom: v })} />
+          <WidthSlider label="Largeur du bloc" testId="lp-width" value={look.width} onChange={(v) => set({ width: v })} />
+          <SpaceSlider label="Marge extérieure en haut" testId="lp-marginTop" value={look.marginTop} onChange={(v) => set({ marginTop: v })} />
+          <SpaceSlider label="Marge extérieure en bas" testId="lp-marginBottom" value={look.marginBottom} onChange={(v) => set({ marginBottom: v })} />
         </div>
       )}
       {type !== "hero" && (
         <>
-          <Segmented label="Espace au-dessus" value={look.spaceTop} options={SPACES} labels={SPACE_LABELS} onChange={(v) => set({ spaceTop: v })} />
-          <Segmented label="Espace en dessous" value={look.spaceBottom} options={SPACES} labels={SPACE_LABELS} onChange={(v) => set({ spaceBottom: v })} />
-          <Segmented label="Espacement intérieur sur les côtés" value={look.spaceSides} options={SIDE_SPACES} labels={SPACE_LABELS} onChange={(v) => set({ spaceSides: v })} />
+          <SpaceSlider label="Espace au-dessus" testId="lp-spaceTop" value={look.spaceTop} onChange={(v) => set({ spaceTop: v })} />
+          <SpaceSlider label="Espace en dessous" testId="lp-spaceBottom" value={look.spaceBottom} onChange={(v) => set({ spaceBottom: v })} />
+          <SidesSlider label="Espacement intérieur sur les côtés" testId="lp-spaceSides" value={look.spaceSides} onChange={(v) => set({ spaceSides: v })} />
         </>
       )}
       {MEDIA_TYPES.has(type) && (

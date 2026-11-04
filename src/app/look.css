@@ -17,6 +17,7 @@
 .strip-spaced[data-strip-pt="s"] .strip-viewport { margin-top: calc(var(--t-space-s) - var(--rail-room)); }
 .strip-spaced[data-strip-pt="m"] .strip-viewport { margin-top: calc(var(--t-space-m) - var(--rail-room)); }
 .strip-spaced[data-strip-pt="l"] .strip-viewport { margin-top: calc(var(--t-space-l) - var(--rail-room)); }
+.strip-spaced[data-strip-pt="n"] .strip-viewport { margin-top: calc(var(--kn-pt) - var(--rail-room)); }
 .strip-spaced[data-strip-pt="xl"] .strip-viewport { margin-top: calc(var(--t-space-xl) - var(--rail-room)); }
 .page-top {
   padding-top: var(--t-page-top);
@@ -28,6 +29,8 @@
 .blk[data-pt="m"] > :first-child { padding-top: var(--t-space-m); }
 .blk[data-pt="l"] > :first-child { padding-top: var(--t-space-l); }
 .blk[data-pt="xl"] > :first-child { padding-top: var(--t-space-xl); }
+.blk[data-pt="n"] > :first-child { padding-top: var(--kn-pt); }
+.blk[data-pb="n"] > :last-child { padding-bottom: var(--kn-pb); }
 .blk[data-pb="none"] > :last-child { padding-bottom: 0; }
 .blk[data-pb="s"] > :last-child { padding-bottom: var(--t-space-s); }
 .blk[data-pb="m"] > :last-child { padding-bottom: var(--t-space-m); }
@@ -779,6 +782,10 @@ main > :has(+ .surface-card[data-surface="on"]) {
 .blk-out[data-w="wide"] { max-width: 88%; }
 .blk-out[data-w="medium"] { max-width: 72%; }
 .blk-out[data-w="narrow"] { max-width: 56%; }
+.blk-out[data-w="n"] { max-width: var(--kn-w); }
+.blk-out[data-mt="n"] { padding-top: var(--kn-mt); }
+.blk-out[data-mb="n"] { padding-bottom: var(--kn-mb); }
+.blk-out[data-mt="n"]:not(:has(.zone[data-surface="on"], .zone[data-fond="on"])) { padding-top: max(0px, calc(var(--kn-mt) - var(--section-gap))); margin-top: min(0px, calc(var(--kn-mt) - var(--section-gap))); }
 /* Sans fond ni carte, la marge du haut est la distance TOTALE au bloc d'avant (le bloc a déjà l'espace de section du thème en haut) : même résultat que
    l'espacement intérieur du haut ; avec un fond ou une carte elle s'ajoute, hors de la zone. */
 .blk-out[data-mt="none"] { padding-top: 0px; }
@@ -799,8 +806,10 @@ main > :has(+ .surface-card[data-surface="on"]) {
 .blk[data-ps="s"] { display: block !important; padding-inline: var(--t-space-s); }
 .blk[data-ps="m"] { display: block !important; padding-inline: var(--t-space-m); }
 .blk[data-ps="l"] { display: block !important; padding-inline: var(--t-space-l); }
+.blk[data-ps="n"] { display: block !important; padding-inline: var(--kn-ps); }
 @media (max-width: 40rem) {
   .blk-out[data-w="wide"] { max-width: 96%; }
   .blk-out[data-w="medium"] { max-width: 92%; }
   .blk-out[data-w="narrow"] { max-width: 88%; }
+  .blk-out[data-w="n"] { max-width: max(var(--kn-w), 88%); }
 }

@@ -10,9 +10,10 @@
  */
 import { useState, type ReactNode } from "react";
 
-import { BLOCK_WIDTH_LABELS, BLOCK_WIDTHS, cleanLook, IMAGE_ALIGN_LABELS, IMAGE_ALIGNS, readLook, SIDE_SPACES, SPACE_LABELS, SPACES, type ImageAlign, type Look, type Space } from "@/lib/look";
+import { cleanLook, IMAGE_ALIGN_LABELS, IMAGE_ALIGNS, readLook, spaceLabel, widthLabel, type ImageAlign, type Look, type Space } from "@/lib/look";
 
 import { lookOf, sendLook } from "./LookLayer";
+import { SidesSlider, SpaceSlider, WidthSlider } from "./LookSliders";
 import { postIntent } from "./optimistic";
 import Popover, { type PopoverAnchor } from "./Popover";
 
@@ -44,7 +45,7 @@ function writeLook(uid: string, look: Look) {
 
 /** Valeur courte affichée à côté du libellé de la barre (lot 90), seulement quand le bloc a son propre réglage ; sinon rien (le thème décide). */
 export function spaceValue(look: Look): string | undefined {
-  return look.spaceTop === undefined ? undefined : look.spaceTop === "none" ? "aucun" : SPACE_LABELS[look.spaceTop];
+  return look.spaceTop === undefined ? undefined : look.spaceTop === "none" ? "aucun" : spaceLabel(look.spaceTop);
 }
 export function sizeValue(look: Look): string | undefined {
   const parts = [look.imageSize === "large" ? "grande" : undefined, look.imageAlign && look.imageAlign !== "center" ? IMAGE_ALIGN_LABELS[look.imageAlign].toLowerCase() : undefined].filter(Boolean);
@@ -82,36 +83,13 @@ export function SizeControls({ look, onChange }: { look: Look; onChange: (patch:
   );
 }
 
-export function SpaceControls({ look, onChange }: { look: Look; onChange: (patch: Partial<Look>) => void }) {
-  const current = look.spaceTop;
+/** `topOnly` : la bande d'images d'une planche n'a que l'espace au-dessus (l'écriture de planche refuse le reste). */
+export function SpaceControls({ look, onChange, topOnly = false }: { look: Look; onChange: (patch: Partial<Look>) => void; topOnly?: boolean }) {
   return (
     <div data-testid="space-controls" className="tc" style={{ gap: 8 }}>
-      <div className="tc-row">
-        <span className="sm-label">Espacement</span>
-        <span className="tc-seg" role="radiogroup" aria-label="Espacement au-dessus">
-          {QUICK_SPACES.map((k) => (
-            <button key={k} type="button" role="radio" aria-checked={current === k} data-space-top={k} onClick={() => onChange({ spaceTop: k })}>
-              {SPACE_LABELS[k]}
-            </button>
-          ))}
-          <button type="button" role="radio" aria-checked={current === undefined || !(QUICK_SPACES as readonly string[]).includes(current)} data-space-top="auto" onClick={() => onChange({ spaceTop: undefined })} title="Espace du thème">
-            Auto
-          </button>
-        </span>
-      </div>
-      <div className="tc-row">
-        <span className="sm-label">Côtés</span>
-        <span className="tc-seg" role="radiogroup" aria-label="Espacement intérieur sur les côtés">
-          {SIDE_SPACES.map((k) => (
-            <button key={k} type="button" role="radio" aria-checked={look.spaceSides === k} data-space-sides={k} onClick={() => onChange({ spaceSides: k })}>
-              {SPACE_LABELS[k]}
-            </button>
-          ))}
-          <button type="button" role="radio" aria-checked={look.spaceSides === undefined} data-space-sides="auto" onClick={() => onChange({ spaceSides: undefined })}>
-            Auto
-          </button>
-        </span>
-      </div>
+      <SpaceSlider label="Haut" testId="slider-spaceTop" attr="data-space-top" value={look.spaceTop} onChange={(v) => onChange({ spaceTop: v })} />
+      {!topOnly && <SpaceSlider label="Bas" testId="slider-spaceBottom" attr="data-space-bottom" value={look.spaceBottom} onChange={(v) => onChange({ spaceBottom: v })} />}
+      {!topOnly && <SidesSlider label="Côtés" testId="slider-spaceSides" attr="data-space-sides" value={look.spaceSides} onChange={(v) => onChange({ spaceSides: v })} />}
       <p className="sm-hint">Espacement intérieur : la distance DANS le fond et la carte, que leur couleur et leur papier peint couvrent. Auto : l&apos;espace du thème. La distance à l&apos;extérieur est dans « Marge ».</p>
     </div>
   );
@@ -119,40 +97,15 @@ export function SpaceControls({ look, onChange }: { look: Look; onChange: (patch
 
 /** Largeur du bloc (lot 107) : Pleine (rien d'écrit) / Large / Moyenne / Étroite. Le fond et la carte du bloc suivent ; ils ne se règlent pas ici. */
 export function widthValue(look: Look): string | undefined {
-  const parts = [look.width ? BLOCK_WIDTH_LABELS[look.width].toLowerCase() : undefined, look.marginTop ? `haut ${SPACE_LABELS[look.marginTop]}` : undefined, look.marginBottom ? `bas ${SPACE_LABELS[look.marginBottom]}` : undefined].filter(Boolean);
+  const parts = [look.width !== undefined ? widthLabel(look.width).toLowerCase() : undefined, look.marginTop !== undefined ? `haut ${spaceLabel(look.marginTop)}` : undefined, look.marginBottom !== undefined ? `bas ${spaceLabel(look.marginBottom)}` : undefined].filter(Boolean);
   return parts.length ? parts.join(", ") : undefined;
 }
 export function WidthControls({ look, onChange }: { look: Look; onChange: (patch: Partial<Look>) => void }) {
   return (
     <div data-testid="width-controls" className="tc" style={{ gap: 8 }}>
-      <div className="tc-row">
-        <span className="sm-label">Largeur</span>
-        <span className="tc-seg" role="radiogroup" aria-label="Largeur du bloc">
-          <button type="button" role="radio" aria-checked={look.width === undefined} data-block-width="full" onClick={() => onChange({ width: undefined })}>
-            {BLOCK_WIDTH_LABELS.full}
-          </button>
-          {BLOCK_WIDTHS.map((w) => (
-            <button key={w} type="button" role="radio" aria-checked={look.width === w} data-block-width={w} onClick={() => onChange({ width: w })}>
-              {BLOCK_WIDTH_LABELS[w]}
-            </button>
-          ))}
-        </span>
-      </div>
-      {(["marginTop", "marginBottom"] as const).map((k) => (
-        <div className="tc-row" key={k}>
-          <span className="sm-label">{k === "marginTop" ? "Haut" : "Bas"}</span>
-          <span className="tc-seg" role="radiogroup" aria-label={k === "marginTop" ? "Marge extérieure en haut" : "Marge extérieure en bas"}>
-            {SPACES.map((sp) => (
-              <button key={sp} type="button" role="radio" aria-checked={look[k] === sp} data-margin={`${k === "marginTop" ? "top" : "bottom"}-${sp}`} onClick={() => onChange({ [k]: sp })}>
-                {SPACE_LABELS[sp]}
-              </button>
-            ))}
-            <button type="button" role="radio" aria-checked={look[k] === undefined} data-margin={`${k === "marginTop" ? "top" : "bottom"}-auto`} onClick={() => onChange({ [k]: undefined })}>
-              Auto
-            </button>
-          </span>
-        </div>
-      ))}
+      <WidthSlider label="Largeur" testId="slider-width" attr="data-block-width" value={look.width} onChange={(v) => onChange({ width: v })} />
+      <SpaceSlider label="Haut" testId="slider-marginTop" attr="data-margin" prefix="top-" value={look.marginTop} onChange={(v) => onChange({ marginTop: v })} />
+      <SpaceSlider label="Bas" testId="slider-marginBottom" attr="data-margin" prefix="bottom-" value={look.marginBottom} onChange={(v) => onChange({ marginBottom: v })} />
       <p className="sm-hint">Marge extérieure : la distance HORS du fond et de la carte, on y voit la page (jamais le papier peint). Largeur pleine : le bloc prend toute la largeur ; sinon il est centré, décollé des bords, avec son fond et sa carte. L&apos;espace à l&apos;intérieur se règle dans « Espacement ».</p>
     </div>
   );
@@ -170,7 +123,7 @@ export default function QuickMenu({ uid, kind, anchor, onClose, onChanged }: { u
     writeLook(uid, next);
     onChanged?.();
   };
-  const body: ReactNode = kind === "size" ? <SizeControls look={look} onChange={change} /> : kind === "width" ? <WidthControls look={look} onChange={change} /> : <SpaceControls look={look} onChange={change} />;
+  const body: ReactNode = kind === "size" ? <SizeControls look={look} onChange={change} /> : kind === "width" ? <WidthControls look={look} onChange={change} /> : <SpaceControls look={look} onChange={change} topOnly={Boolean(stripFrame(uid))} />;
   return (
     <Popover anchor={anchor} align="center" label={kind === "size" ? "Taille de l'image" : kind === "width" ? "Marge extérieure du bloc" : "Espacement intérieur"} testId={`${kind}-menu`} onClose={onClose}>
       {body}
