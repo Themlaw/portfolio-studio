@@ -518,11 +518,38 @@ function localTexts(local: { uid: string; key: string }): HTMLElement[] {
   return [...block.querySelectorAll<HTMLElement>(sel)].filter((e) => (cell ? block.contains(e) : e.closest(OWNER_SEL) === block));
 }
 
+/**
+ * Style en ligne posé par un aperçu, avec ce qu'il y avait avant (lot 115) : l'aperçu écrit l'attribut `style` d'un nœud que React gère, sans que
+ * React le sache. Si l'écriture est refusée (page modifiée ailleurs, bloc inconnu…), la page rendue ne portera jamais cette couleur : sans retour
+ * à l'origine l'aperçu restait affiché (couleur différente de celle d'après rechargement).
+ */
+const previewedStyle = new WeakMap<HTMLElement, { original: string | null; capLocal: boolean; wrote: string }>();
+
 /** Style en ligne d'un aperçu : celui du texte, en gardant le masquage d'un texte en cours de saisie sur la planche (l'original reste caché derrière le champ). */
 function setPreviewStyle(el: HTMLElement, css: string) {
   const hidden = el.style.visibility === "hidden";
   const next = hidden ? `${css};visibility:hidden` : css;
-  if (el.getAttribute("style") !== next) el.setAttribute("style", next);
+  const now = el.getAttribute("style");
+  if (now === next) return;
+  const mark = previewedStyle.get(el);
+  // L'origine n'est retenue qu'à la première pose (ou si React a réécrit le style depuis notre dernière écriture : c'est lui la nouvelle origine).
+  if (!mark || now !== mark.wrote) previewedStyle.set(el, { original: now, capLocal: el.hasAttribute("data-cap-local"), wrote: next });
+  else mark.wrote = next;
+  el.setAttribute("style", next);
+}
+
+/** Rétablit le style d'avant l'aperçu, sauf si React a réécrit le nœud depuis : la page rendue fait alors foi. */
+function revertPreviewStyle(el: HTMLElement) {
+  const mark = previewedStyle.get(el);
+  previewedStyle.delete(el);
+  if (!mark) return;
+  if (el.hasAttribute("data-cap")) {
+    if (mark.capLocal) el.setAttribute("data-cap-local", "");
+    else el.removeAttribute("data-cap-local");
+  }
+  if (el.getAttribute("style") !== mark.wrote) return;
+  if (mark.original === null) el.removeAttribute("style");
+  else el.setAttribute("style", mark.original);
 }
 
 /** Aperçu immédiat du style de CE texte, gardé jusqu'à ce que le serveur le rende. */
@@ -538,6 +565,9 @@ function previewTextStyle(local: { uid: string; key: string }, style: TextStyle 
           else el.removeAttribute("data-cap-local");
         }
       }
+    },
+    revert: () => {
+      for (const el of localTexts(local)) revertPreviewStyle(el);
     },
   });
 }
@@ -562,6 +592,9 @@ function previewCaptions(board: number, style: ProjectCaptionStyle, seq: number)
         const css = textStyleDecls(style[f] as TextStyle | undefined, canvasPalette()).map(([k, v]) => `${k}:${v}`).join(";");
         for (const el of document.querySelectorAll<HTMLElement>(`[data-edit-board="${board}"] [data-cap="${f}"]:not([data-cap-local])`)) setPreviewStyle(el, css);
       }
+    },
+    revert: () => {
+      for (const el of document.querySelectorAll<HTMLElement>(`[data-edit-board="${board}"] [data-cap]`)) revertPreviewStyle(el);
     },
   });
 }

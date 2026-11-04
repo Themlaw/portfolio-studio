@@ -1525,18 +1525,20 @@ export default function VisualEditor({
   }, []);
 
   /** Réglages d'un bloc venus de la toile ou du panneau (null : tout revient au thème). */
-  const applyLook = async (uid: string, next: Look | null) => {
+  const applyLook = async (uid: string, next: Look | null): Promise<boolean> => {
     const clean = next ? cleanLook(next) : undefined;
     working.current++;
     try {
       if (!(await ensureFonts(Object.values(clean?.text ?? {})))) {
         send({ kind: "refresh", rev: revRef.current, upTo: -1 });
-        return;
+        return false;
       }
       const list = draftRef.current.blocks;
       const block = findBlock(list, uid);
-      if (!block) return;
-      if (JSON.stringify(readLook(block.props.look) ?? null) === JSON.stringify(clean ?? null)) return;
+      // Bloc inconnu de l'éditeur (la toile et l'éditeur ne nomment plus les blocs pareil) : refusé, la toile retire son aperçu (lot 115).
+      if (!block) return false;
+      if (JSON.stringify(readLook(block.props.look) ?? null) === JSON.stringify(clean ?? null)) return true;
+      const before = draftRef.current;
       setBlocks(
         updateBlock(list, uid, (b) => {
           const props = { ...b.props };
@@ -1546,6 +1548,8 @@ export default function VisualEditor({
         }),
         { key: `look:${uid}` },
       );
+      // Page bloquée (modifiée ailleurs, brouillon illisible) : rien n'est écrit, l'aperçu de la toile ne doit pas rester affiché.
+      return draftRef.current !== before;
     } finally {
       working.current--;
       settleIfQuiet();
@@ -2508,9 +2512,13 @@ export default function VisualEditor({
         case "text":
           if (!h.editText(msg.uid, msg.path, msg.locale, msg.value) && msg.seq) send({ kind: "revert", seq: msg.seq });
           break;
-        case "look":
-          void h.applyLook(msg.uid, msg.look);
+        case "look": {
+          const seq = msg.seq;
+          void h.applyLook(msg.uid, msg.look).then((ok) => {
+            if (!ok && seq) send({ kind: "revert", seq });
+          });
           break;
+        }
         case "site-style":
           h.applySiteStyle(msg.role, msg.style);
           break;
@@ -2747,12 +2755,19 @@ export default function VisualEditor({
       const warn = result.data.warnings;
       setPublishWarn(warn && (warn.missingAlt.length > 0 || warn.untranslated > 0 || warn.notInMenu) ? warn : null);
       setHasDraft(false);
-      if (result.data.wentLive) {
+      // Lot 115 : une page publiée n'a plus de repères de blocs (`b<rang>`, voir readDraft) : la toile se redessine d'après elle, alors que
+      // l'éditeur gardait les siens (blocs ajoutés `n…`, blocs déplacés ou retirés). Sans ce raccord, un réglage fait sur la toile (couleur de
+      // texte…) visait un bloc inconnu (perdu au rechargement) ou un AUTRE bloc de l'éditeur (ses réglages remplacés par ceux du bloc voisin).
+      const ranked = draftRef.current.blocks.map((b, i) => (b.uid === `b${i}` ? b : { ...b, uid: `b${i}` }));
+      const renamed = ranked.some((b, i) => b !== draftRef.current.blocks[i]);
+      if (renamed || result.data.wentLive) {
         // La page est maintenant en ligne : l'état de l'en-tête (et le brouillon enregistré ensuite) le disent aussi.
         const inSync = JSON.stringify(draftRef.current) === savedJson.current;
-        draftRef.current = { ...draftRef.current, published: true };
+        draftRef.current = { ...draftRef.current, blocks: ranked, ...(result.data.wentLive ? { published: true } : {}) };
         setDraftState(draftRef.current);
         if (inSync) savedJson.current = JSON.stringify(draftRef.current);
+        // Le bloc choisi a changé de nom (ou de voisin) : plus de sélection plutôt qu'un autre bloc choisi.
+        if (renamed && selected && !selected.startsWith("site-")) selectBlock(null);
       }
       toast(result.data.site ? "Publié : la page est en ligne, l'en-tête et le pied de page sont à jour sur toutes les pages" : "Publié : la page est en ligne");
       setSitePending(false);
