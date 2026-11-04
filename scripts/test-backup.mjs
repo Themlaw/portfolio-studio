@@ -14,11 +14,12 @@
  *  5b. Audit de sécurité P2 : l'instantané n'a ni sessions, ni jetons de vérification, ni compteurs, ni jetons OAuth (la base du
  *     site, elle, les garde) ; cookie de déverrouillage du téléchargement (lié à la session, expiré, falsifié).
  *  6. Restauration (script) : base remplacée, ancien -wal rangé, archive tronquée refusée sans rien changer,
+ *     liens symboliques sous le dossier de données refusés sans rien écrire dehors (S3),
  *     puis variantes manquantes remises en file au démarrage (healRestoredMedia).
  * Usage : node --import tsx scripts/test-backup.mjs
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -431,6 +432,65 @@ try {
   back.close();
   ok("restauration : ancienne base rangée (pas effacée)", res.previous && existsSync(path.join(res.previous, "portfolio.db")) && existsSync(path.join(res.previous, "portfolio.db-wal")));
   ok("restauration : originaux, polices et manifest posés ; dossier de travail supprimé", existsSync(path.join(target, "media/originals/orig1.png")) && existsSync(path.join(target, "fonts/Inter-400.woff2")) && existsSync(path.join(target, "manifest.json")) && readdirSync(target).every((n) => !n.startsWith("restore-tmp")));
+
+  /* liens symboliques dans le dossier de données (S3) : un site compromis remplace un dossier par un lien vers l'extérieur
+     (ex. fonts → /etc) et attend une restauration en root. Refus net, rien d'écrit dans la cible du lien, ancienne base en place. */
+  {
+    const { assertNoSymlink } = await import("./restore-backup.mjs");
+    const cases = [
+      ["fonts", "fonts → dossier extérieur"],
+      ["media/originals", "media/originals → dossier extérieur (lien sous un vrai dossier)"],
+      ["cache", "cache → dossier extérieur (vidé de crops, puis chown)"],
+      ["portfolio.db", "portfolio.db → fichier extérieur"],
+    ];
+    for (const [rel, label] of cases) {
+      const dir = path.join(tmp, `lien-${rel.replace(/\W/g, "-")}`);
+      const outside = path.join(tmp, `dehors-${rel.replace(/\W/g, "-")}`);
+      mkdirSync(path.join(dir, "media"), { recursive: true });
+      mkdirSync(path.join(outside, "crops"), { recursive: true });
+      writeFileSync(path.join(outside, "crops", "temoin.txt"), "ne pas toucher");
+      const db0 = new Database(path.join(dir, "portfolio.db"));
+      db0.exec("create table notes(v text); insert into notes values ('base-avant-lien');");
+      db0.close();
+      if (rel === "portfolio.db") {
+        renameSync(path.join(dir, "portfolio.db"), path.join(outside, "victime.db"));
+        symlinkSync(path.join(outside, "victime.db"), path.join(dir, rel));
+      } else {
+        mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+        symlinkSync(outside, path.join(dir, rel), "dir");
+      }
+      const before = readdirSync(outside).sort().join(",");
+      const ownerBefore = statSync(outside).uid;
+      let err = null;
+      try {
+        await restore(arch, dir);
+      } catch (e) {
+        err = e;
+      }
+      const left = readdirSync(dir);
+      const dbStill = rel === "portfolio.db" ? existsSync(path.join(outside, "victime.db")) : new Database(path.join(dir, "portfolio.db"), { readonly: true }).prepare("select v from notes").get()?.v === "base-avant-lien";
+      ok(
+        `restauration S3 : lien symbolique ${label} refusé ; rien d'écrit dehors, ancienne base en place, aucun dossier de travail`,
+        /lien symbolique/.test(err?.message ?? "") && readdirSync(outside).sort().join(",") === before && existsSync(path.join(outside, "crops", "temoin.txt")) && statSync(outside).uid === ownerBefore && dbStill && lstatSync(path.join(dir, rel)).isSymbolicLink() && left.every((n) => !n.startsWith("restore-tmp") && !n.startsWith("restore-previous")),
+        `${err?.message} | dehors : ${readdirSync(outside).join(",")} | données : ${left.join(",")}`,
+      );
+    }
+    // Le dossier de données lui-même peut être un lien (choix de celui qui restaure) : accepté, restauré dans sa cible réelle.
+    const real = path.join(tmp, "donnees-reelles");
+    mkdirSync(real, { recursive: true });
+    const viaLink = path.join(tmp, "donnees-lien");
+    symlinkSync(real, viaLink, "dir");
+    const viaRes = await restore(arch, viaLink).then(
+      () => true,
+      (e) => e.message,
+    );
+    ok("restauration S3 : dossier de données donné par un lien accepté (restauré dans la cible réelle)", viaRes === true && existsSync(path.join(real, "portfolio.db")) && existsSync(path.join(real, "fonts/Inter-400.woff2")), String(viaRes));
+    // assertNoSymlink : chemins sans lien ou pas encore créés acceptés ; lien en fin de chemin refusé.
+    const plain = await assertNoSymlink(target, "media/originals/orig1.png").then(() => true, () => false);
+    const absent = await assertNoSymlink(target, "nouveau/dossier/fichier").then(() => true, () => false);
+    const lastIsLink = await assertNoSymlink(tmp, "donnees-lien").then(() => true, () => false);
+    ok("restauration S3 : assertNoSymlink accepte un chemin réel ou à créer, refuse un lien même en dernier composant", plain && absent && !lastIsLink);
+  }
 
   /* variantes manquantes → remises en file au démarrage (vraie base migrée) */
   const heal = path.join(tmp, "heal");

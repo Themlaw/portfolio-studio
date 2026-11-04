@@ -44,14 +44,17 @@ services:
   # Réparation ponctuelle des propriétaires de /data, désactivée par défaut :
   #   docker compose --profile setup run --rm fix-permissions
   # (Komodo : lancer cette commande sur l'hôte, dans le dossier de la stack.)
-  # Root avec la seule capacité CHOWN, sans réseau ni écriture hors du volume.
+  # Root avec les seules capacités CHOWN et DAC_READ_SEARCH (traverser un dossier 0700 d'un autre
+  # propriétaire : sans elle, le chown -R s'arrête aux dossiers illisibles), sans réseau ni écriture
+  # hors du volume. Image épinglée par digest (alpine 3.24 : une étiquette flottante peut changer de
+  # contenu) ; pour la monter : docker buildx imagetools inspect alpine:3 (ligne Digest).
   fix-permissions:
-    image: alpine:3
+    image: alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
     profiles: [setup]
     user: "0:0"
     command: ["chown", "-R", "1000:1000", "/data"]
     cap_drop: [ALL]
-    cap_add: [CHOWN]
+    cap_add: [CHOWN, DAC_READ_SEARCH]
     security_opt: [no-new-privileges:true]
     read_only: true
     network_mode: none

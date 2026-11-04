@@ -216,6 +216,11 @@ docker compose run --rm --no-deps --entrypoint /nodejs/bin/node portfolio \
 docker compose up -d portfolio
 ```
 
+Ainsi lancé, le script tourne en 1000:1000 (l'utilisateur du service) : ne pas le lancer en root sans nécessité. Dans tous les cas il
+ne suit JAMAIS un lien symbolique sous le dossier de données : un lien (ex. `fonts/` ou `media/originals/` remplacé par un lien vers
+`/etc`, ce qu'un site compromis pourrait préparer) fait refuser la restauration avant toute modification ; les propriétaires sont
+posés par `lchown`. Remplacer le lien par un vrai dossier, puis relancer. Le dossier de données donné en argument peut, lui, être un lien.
+
 (`--list <archive>` affiche seulement le manifest.) Le script : extrait d'abord TOUTE l'archive dans un dossier de travail (une archive
 tronquée ou abîmée est refusée avant que quoi que ce soit change), RANGE l'ancienne base (`portfolio.db`, `-wal`, `-shm`) dans
 `/data/restore-previous-<date>/` (à supprimer une fois la restauration vérifiée), met la base, les originaux et les polices en place, et
