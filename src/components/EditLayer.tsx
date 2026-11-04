@@ -504,6 +504,7 @@ export default function EditLayer() {
   const resumeRef = useRef<(cur: Editing) => void>(() => {});
   const editSeq = useRef(0);
   /** Perte du focus : fin de la saisie, sauf si l'élément a seulement été remplacé par un rendu du serveur. */
+  const onEditBlurRef = useRef<(id: number, ev?: FocusEvent) => void>(() => {});
   const onEditBlur = useCallback((id: number, ev?: FocusEvent) => {
     const cur = editing.current;
     if (!cur || cur.id !== id) return;
@@ -518,7 +519,7 @@ export default function EditLayer() {
           field,
           range,
           (commit) => editing.current === cur && finishEdit(commit),
-          () => field.addEventListener("blur", (e) => onEditBlur(id, e), { once: true }),
+          () => field.addEventListener("blur", (e) => onEditBlurRef.current(id, e), { once: true }),
         );
         return;
       }
@@ -526,6 +527,9 @@ export default function EditLayer() {
       else if (!cur.composing) resumeRef.current(cur);
     });
   }, [finishEdit]);
+  useEffect(() => {
+    onEditBlurRef.current = onEditBlur;
+  });
   const bindMarked = useCallback(
     (marked: MarkedEditor, id: number) => {
       marked.editor.addEventListener("blur", (e) => onEditBlur(id, e), { once: true });
