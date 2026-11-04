@@ -443,6 +443,27 @@ let r = await http("/admin");
 ok("A2 /admin sans session → /admin/connexion", r.status === 307 && r.headers.get("location")?.endsWith("/admin/connexion"), `${r.status} ${r.headers.get("location")}`);
 r = await http("/admin/themes");
 ok("A2b /admin/themes sans session → redirection", r.status === 307, String(r.status));
+// docs/SECURITE.md N5 : un chemin à point ne sort plus du proxy (liste fermée), et /admin passe AVANT : /admin/x.y est gardé,
+// /fr/a.b est un vrai 404 jamais mis en cache ; les fichiers de la racine et de public/ restent servis tels quels.
+{
+  r = await http("/admin/x.y");
+  ok("A2j /admin/x.y sans session → redirigé par la garde de l'admin", r.status === 307 && r.headers.get("location")?.endsWith("/admin/connexion"), `${r.status} ${r.headers.get("location")}`);
+  const dotted = [];
+  for (const u of ["/fr/a.b", "/fr/x.1", "/en/a.b", "/wp-login.php"]) {
+    let res = await http(u);
+    if (res.status === 307 || res.status === 308) res = await http(res.headers.get("location") ?? "/");
+    await res.text();
+    if (res.status !== 404 || !/no-store/.test(res.headers.get("cache-control") ?? "") || res.headers.get("x-nextjs-cache")) dotted.push(`${u} ${res.status} ${res.headers.get("cache-control")} ${res.headers.get("x-nextjs-cache")}`);
+  }
+  ok("A2k chemins à point (/fr/a.b, /wp-login.php…) → 404 no-store, jamais en cache ISR", dotted.length === 0, dotted.join(" ; "));
+  const files = [];
+  for (const u of ["/favicon.ico", "/robots.txt", "/sitemap.xml", "/manifest.webmanifest", "/kit/Figtree.ttf"]) {
+    const res = await http(u);
+    await res.arrayBuffer();
+    if (res.status !== 200) files.push(`${u} ${res.status}`);
+  }
+  ok("A2l fichiers de la racine et de public/ toujours servis (favicon, robots, sitemap, manifeste, /kit)", files.length === 0, files.join(" ; "));
+}
 r = await http("/admin/connexion");
 const loginHtml = await r.text();
 ok("A2c connexion : formulaire, noindex, pas d'Authentik", r.status === 200 && loginHtml.includes("Adresse e-mail") && loginHtml.includes("noindex") && !loginHtml.includes("Authentik"));
