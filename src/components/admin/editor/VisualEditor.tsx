@@ -74,6 +74,7 @@ import ThemePicker from "./ThemePicker";
 import type { ThemeChoice } from "@/lib/edit/theme-usage";
 import { ColorsPanel, LogoPanel, type HighlightInfo } from "./SiteLookPanel";
 import BoardItemPanel from "./BoardItemPanel";
+import { StrokeField } from "./StrokeField";
 import MediaPickerDialog from "./MediaPickerDialog";
 import { applyFreeLook, applyFreeOp, newFreeId, type FreeModelOp } from "@/blocks/free-board";
 import { applyMediaPatch, type MediaPatch } from "@/lib/edit/media-look";
@@ -3260,6 +3261,15 @@ export default function VisualEditor({
                 })
               }
             />
+            {selected === "site-header" && (
+              <StrokeField
+                title="Couleur du soulignement"
+                help="Le trait sous le lien de la page courante et au survol. Sans réglage : la couleur du site pour le trait, sinon celle du thème."
+                value={siteSnap.styles?.stroke?.header}
+                testid="header-stroke"
+                onChange={(t) => void applySiteStyles((cur) => ({ ...(cur ?? {}), stroke: { ...(cur?.stroke ?? {}), header: t } }), [])}
+              />
+            )}
             {selected === "site-header" && <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />}
             </>
           ) : selBlock && selDef ? (
@@ -3372,6 +3382,13 @@ export default function VisualEditor({
               </div>
               <ColorsPanel theme={lookContext.theme} preparing={lookContext.preparing !== null} value={liveLook.palette} onChange={(p) => requestLook(p, liveLook.logo)} onHighlight={highlightRole} info={hlInfo} />
               <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />
+              <StrokeField
+                title="Couleur du trait (tout le site)"
+                help="Le trait dessiné du thème : barre de défilement des images qui défilent, filets, soulignement du menu. Une couleur et une opacité se mélangent au dessin d'origine. Chaque rangée d'images et l'en-tête peuvent avoir la leur."
+                value={siteSnap.styles?.stroke?.all}
+                testid="site-stroke"
+                onChange={(t) => void applySiteStyles((cur) => ({ ...(cur ?? {}), stroke: { ...(cur?.stroke ?? {}), all: t } }), [])}
+              />
               <SiteStylesPanel styles={siteSnap.styles} onChange={(s) => void applySiteStyles(() => s, Object.values(cleanSiteStyles(s)?.roles ?? {}))} palette={swatches} cardPalette={effective} installed={fontFamilies} />
             </div>
           ))}

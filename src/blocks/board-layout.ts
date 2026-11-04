@@ -15,6 +15,8 @@
  */
 
 import { HELP_TEXT } from "./help-text";
+import { StrokeTintSchema } from "@/lib/look";
+
 import { isVideoMode } from "./video-mode";
 
 export type BoardItemType = "strip" | "grid" | "image" | "video-single" | "free-board" | "rich-text";
@@ -205,6 +207,7 @@ export function layoutProblem(raw: unknown): string | null {
         }
       }
       if (item.props.videoMode !== undefined && !isVideoMode(item.props.videoMode)) return "Lecture des vidéos de la bande illisible.";
+      if (item.props.stroke !== undefined && !StrokeTintSchema.safeParse(item.props.stroke).success) return "Couleur du trait de la bande illisible.";
       const own = item.props.source === "own";
       if (own) {
         const m = item.props.media;

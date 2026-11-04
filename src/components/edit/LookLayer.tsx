@@ -1144,8 +1144,14 @@ export default function LookLayer({
     };
     window.addEventListener("pe:text-edit", onEdit);
     window.addEventListener("pe:text-end", onEnd);
+    // Lot 110 : la roue des couleurs annule `pointerdown` (la souris ne produit alors plus de `mousedown`) : le geste dans la barre se compte aussi ici.
+    const onPtr = (e: PointerEvent) => {
+      if (e.target instanceof Element && e.target.closest(".lk-bar")) downInBar = Date.now();
+    };
+    document.addEventListener("pointerdown", onPtr, true);
     document.addEventListener("mousedown", onDown, true);
     return () => {
+      document.removeEventListener("pointerdown", onPtr, true);
       window.removeEventListener("pe:text-edit", onEdit);
       window.removeEventListener("pe:text-end", onEnd);
       document.removeEventListener("mousedown", onDown, true);

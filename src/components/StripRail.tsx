@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
 import type { LocalizedArtwork } from "@/lib/gallery";
-import type { MediaLookData } from "@/lib/look";
+import { tintVars, type MediaLookData, type StrokeTint } from "@/lib/look";
 import { RADIUS_VALUES } from "@/themes/css";
 
 import LoopFrame from "./LoopVideo";
@@ -48,7 +48,10 @@ export default function StripRail({
   capBase,
   capOwn,
   eager = 0,
+  stroke,
 }: {
+  /** Lot 110 : couleur posée par-dessus la barre de défilement de CETTE rangée (sinon celle du site, sinon le dessin du thème). */
+  stroke?: StrokeTint;
   /** Style des légendes du PROJET, par champ (lot 98) : sous le style propre d'une légende, au-dessus de celui du site. */
   capBase?: Partial<Record<CaptionField, CSSProperties>>;
   /** Style propre de chaque légende (« Ce texte »), par slug de place ; déjà fondu avec celui du projet. */
@@ -412,7 +415,7 @@ export default function StripRail({
       </div>
 
       {overflows && (
-        <div className="shell mt-[clamp(0.75rem,1.5vw,1.25rem)]">
+        <div className="shell mt-[clamp(0.75rem,1.5vw,1.25rem)]" {...(stroke ? { "data-stroke-tint": "", style: tintVars(stroke) as CSSProperties } : {})}>
           <RailScrollbar
             railRef={railRef}
             railId={railId}
