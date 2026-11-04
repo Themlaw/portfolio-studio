@@ -13,6 +13,16 @@ export const videoLimits = () => ({
 });
 
 /**
+ * Environnement de ffmpeg et ffprobe : MINIMAL, comme poppler et l'enfant du kit. Jamais `process.env` hérité : il porte les secrets
+ * (BETTER_AUTH_SECRET, secret OIDC, ADMIN_PASSWORD s'il est resté) et ces outils analysent des fichiers envoyés. Liste blanche : rien
+ * d'autre n'est transmis, quelle que soit la configuration du serveur.
+ */
+export const FFMPEG_ENV_KEYS = ["PATH", "NODE_ENV", "LANG", "HOME", "XDG_CACHE_HOME", "TMPDIR"] as const;
+export function ffmpegEnv(): NodeJS.ProcessEnv {
+  return { PATH: process.env.PATH ?? "/usr/bin:/bin", NODE_ENV: process.env.NODE_ENV ?? "production", LANG: "C.UTF-8", HOME: "/tmp", XDG_CACHE_HOME: "/tmp", TMPDIR: "/tmp" };
+}
+
+/**
  * Codecs acceptés à l'entrée (le décodeur est forcé à la conversion : aucun
  * autre décodeur de ffmpeg n'est atteignable depuis un fichier envoyé).
  */
