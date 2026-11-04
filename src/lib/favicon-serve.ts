@@ -21,6 +21,8 @@ export async function iconResponse(file: string, version: string | null): Promis
       // Adresse à l'empreinte courante : immuable. Sans empreinte (ou ancienne) : courte durée, l'icône peut avoir changé.
       "Cache-Control": version === plan.fp ? "public, max-age=31536000, immutable" : "public, max-age=3600",
       "X-Content-Type-Options": "nosniff",
+      // Comme /media : un icon.svg ouvert directement ne peut rien exécuter (docs/SECURITE.md §2.12).
+      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
     },
   });
 }

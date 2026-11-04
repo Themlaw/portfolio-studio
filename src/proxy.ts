@@ -285,7 +285,8 @@ export default async function proxy(request: NextRequest) {
       // Cadre de l'écran Thèmes (même origine) : les en-têtes « cadre » de next.config se décident sur le cookie d'aperçu du NAVIGATEUR,
       // que cette requête n'a pas ; on les pose ici, pour cette réponse seulement. Jamais en cache.
       response.headers.set("X-Frame-Options", "SAMEORIGIN");
-      response.headers.set("Content-Security-Policy", "frame-ancestors 'self'");
+      // Même CSP minimale que le site public (PUBLIC_CSP de next.config.ts).
+      response.headers.set("Content-Security-Policy", "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'");
       response.headers.set("Cache-Control", "no-store");
       return response;
     }
