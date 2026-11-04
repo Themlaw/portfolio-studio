@@ -10,7 +10,8 @@ Le site peut se sauvegarder tout seul dans son propre volume (`/data/backup`). E
 | `WITH_BACKUP` | absent (désactivé) | `1` ou `true` pour activer. Absent, `0` ou `false` : aucune sauvegarde, aucun fichier. |
 | `BACKUP_QUIET_MIN` | `10` | Minutes sans nouvelle modification avant de sauvegarder (fin d'une session de travail). |
 | `BACKUP_MAX_HOURS` | `6` | Au plus N heures entre deux sauvegardes tant qu'il y a des modifications, même si le travail continue. |
-| `BACKUP_KEEP` | `3` | Nombre de sauvegardes gardées (les plus récentes). |
+| `BACKUP_KEEP` | `3` | Nombre de sauvegardes AUTOMATIQUES gardées (les plus récentes). Voir « Rotation » : d'autres restent en plus. |
+| `BACKUP_MAX_DISK_PCT` | `30` | Place totale des sauvegardes, en % de la taille du volume (5 à 90). Environnement seul, jamais réglable depuis l'admin. |
 | `BACKUP_MEDIA` | `1` | `0` ou `false` : sauvegarde la base seule (voir « Poids »). |
 | `BACKUP_QUIET_SEC` | absent | Quiétude en secondes (tests ; prioritaire sur `BACKUP_QUIET_MIN`). |
 
@@ -102,6 +103,61 @@ NI dans l'archive NI régénérable est signalée : au journal (`[backup] AVERTI
 (`missingRefs`) et en tête de l'écran Sauvegardes. Elle ne bloque jamais la sauvegarde. Le même contrôle se refait au premier démarrage
 après une restauration.
 
+## Rotation (audit de sécurité, P1 et P6)
+
+Après chaque sauvegarde réussie (jamais avant), `retentionPlan` (`schedule.ts`, pur) décide ce qui reste :
+
+- les `BACKUP_KEEP` (ou « Nombre de sauvegardes gardées ») sauvegardes **automatiques** les plus récentes ;
+- les **3 dernières sauvegardes manuelles** (« Sauvegarder maintenant », raison `manuel` du `manifest.json`), comptées À PART : une
+  sauvegarde manuelle ne pousse jamais dehors une sauvegarde automatique. Une archive dont le manifest est illisible compte comme automatique ;
+- **toujours**, quel que soit le réglage : la plus récente de toutes, et la plus récente de celles qui ont **plus de 48 heures** (date lue
+  dans le nom de l'archive) ;
+- **plafond de place** : si le total dépasse `BACKUP_MAX_DISK_PCT` % de la taille du volume, les plus anciennes non protégées partent
+  d'abord. Les deux archives protégées restent même si elles dépassent à elles seules (avertissement `[backup] AVERTISSEMENT : les
+  sauvegardes gardées dépassent…`).
+
+Pourquoi : avec une session admin volée, il suffisait de régler « garder 1 » puis de cliquer sur « Sauvegarder maintenant » pour effacer
+toutes les sauvegardes d'avant l'intrusion. Désormais l'archive de l'avant-veille survit, et le plafond n'est pas réglable depuis l'admin.
+Limite : un attaquant qui garde l'accès plus de 48 h finit par faire tourner aussi cette archive ; seule une copie HORS du serveur
+(ci-dessous) protège de ce cas, et de la perte du disque.
+
+## Copie hors du serveur, tirée par l'hôte (chiffrée avec `age`)
+
+Les sauvegardes sont dans le MÊME volume que le site : une application compromise peut les lire et les supprimer. La copie de sécurité
+doit donc être **tirée par l'hôte** (ou mieux, par une autre machine), jamais poussée par l'application : le conteneur n'a ni clé ni accès
+à la destination. Elle est **chiffrée** (l'archive contient la base) avec [`age`](https://age-encryption.org), vers une clé publique ;
+la clé privée n'est PAS sur le serveur (gestionnaire de mots de passe, clé USB).
+
+Une fois, sur un poste de confiance : `age-keygen -o portfolio-backup.key` (garder ce fichier hors du serveur) ; noter la ligne
+`Public key: age1…`. Sur l'hôte (hote-de-prod) : `apt install age`, puis un script lancé par cron, par exemple `/usr/local/sbin/portfolio-offsite.sh` :
+
+```sh
+#!/bin/sh
+# Copie chiffrée des sauvegardes du portfolio vers un autre disque. Lancé par l'hôte, jamais par le conteneur.
+set -eu
+SRC=/var/lib/docker/volumes/portfolio_portfolio-data/_data/backup   # adapter au nom du volume (docker volume ls)
+DST=/mnt/sauvegardes/portfolio                                      # autre disque, ou point de montage distant
+RECIPIENT=age1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+umask 077
+mkdir -p "$DST"
+for f in "$SRC"/portfolio-*.tar.gz; do
+  [ -f "$f" ] || continue
+  out="$DST/$(basename "$f").age"
+  [ -e "$out" ] && continue                     # déjà copiée : une archive ne change plus une fois renommée
+  age -r "$RECIPIENT" -o "$out.part" "$f" && mv "$out.part" "$out"
+done
+# Rétention de la copie : 60 jours, indépendante de celle du site (qu'un attaquant peut régler).
+find "$DST" -name 'portfolio-*.tar.gz.age' -mtime +60 -delete
+```
+
+Crontab de root : `17 3 * * * /usr/local/sbin/portfolio-offsite.sh`. Seuls les `portfolio-*.tar.gz` sont lus (jamais les `.tmp` en
+cours d'écriture, qui ont un autre nom). Mieux encore : une AUTRE machine qui vient chercher les fichiers (`rsync` par une clé SSH en
+lecture seule sur `$SRC`), puis chiffre chez elle : un serveur compromis ne peut alors ni effacer ni modifier les copies. Un stockage
+distant (`rclone`, S3…) doit être en ajout seul (pas de droit de suppression pour la clé de l'hôte).
+
+Restaurer depuis la copie : `age -d -i portfolio-backup.key -o portfolio-….tar.gz portfolio-….tar.gz.age`, puis « Restaurer » ci-dessous.
+Vérifier de temps en temps qu'une copie se déchiffre et que `restore-backup.mjs --list` la lit.
+
 ## Cohérence base / fichiers
 
 La base est figée d'abord, les fichiers sont lus ensuite. Deux accidents sont refusés (la sauvegarde est reportée et réessayée,
@@ -131,7 +187,7 @@ la base (quelques Mo) : les médias restent protégés seulement par le volume l
 de la même façon ; les originaux manquants devront être renvoyés.
 
 **Limite à connaître :** les sauvegardes sont dans le MÊME volume que les données. Elles protègent d'une fausse manœuvre ou d'une
-mise à jour ratée, pas de la perte du disque. Copier de temps en temps `/data/backup` ailleurs.
+mise à jour ratée, pas de la perte du disque ni d'une intrusion longue : voir « Copie hors du serveur, tirée par l'hôte ».
 
 ## Journal
 

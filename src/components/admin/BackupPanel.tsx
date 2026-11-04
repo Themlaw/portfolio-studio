@@ -276,7 +276,7 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
           <div className="a-field">
             <label htmlFor="sv-keep">Nombre de sauvegardes gardées</label>
             <input id="sv-keep" className="a-input" type="number" min={1} max={30} step={1} value={form.keep} onChange={(e) => set("keep", e.target.value)} data-testid="reglage-garder" />
-            <span className="a-help">Les plus anciennes sont supprimées à la sauvegarde suivante.</span>
+            <span className="a-help">Les plus anciennes sont supprimées à la sauvegarde suivante. Restent toujours, en plus : la plus récente de plus de 48 heures et les 3 dernières faites avec « Sauvegarder maintenant » (comptées à part).</span>
             {errors.keep && <span className="a-field-error">{errors.keep}</span>}
             {src("keep")}
           </div>
