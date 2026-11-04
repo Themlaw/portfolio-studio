@@ -8,7 +8,7 @@
  * porter son propre style (ex. sa graisse réelle) et être grisée. Habillage :
  * classes `ms-*` de src/app/admin/typo-controls.css.
  */
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 import { useDismiss } from "./useDismiss";
 
@@ -71,6 +71,36 @@ export default function MenuSelect({
   useEffect(() => {
     if (open && active >= 0) list.current?.children[active]?.scrollIntoView({ block: "nearest" });
   }, [open, active]);
+
+  // Hotfix v0.33.4 : la liste reste toute dans l'écran (décalée à gauche si elle sort à droite, au-dessus du bouton s'il n'y a pas la place dessous).
+  useLayoutEffect(() => {
+    const el = list.current;
+    const b = button.current;
+    if (!open || !el || !b) return;
+    const win = el.ownerDocument.defaultView ?? window;
+    const place = () => {
+      el.style.left = "";
+      el.style.top = "";
+      el.style.maxHeight = "";
+      const vw = el.ownerDocument.documentElement.clientWidth;
+      const a = b.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      const below = win.innerHeight - 8 - a.bottom - 4;
+      const above = a.top - 8 - 4;
+      let top = 0;
+      if (r.height > below && above > below) {
+        const h = Math.min(r.height, above);
+        el.style.maxHeight = `${Math.round(h)}px`;
+        top = -4 - h - a.height;
+      } else if (r.height > below) el.style.maxHeight = `${Math.max(120, Math.round(below))}px`;
+      const left = Math.min(0, vw - 8 - (a.left + r.width)) + Math.max(0, 8 - a.left);
+      if (left) el.style.left = `${Math.round(left)}px`;
+      if (top) el.style.top = `${Math.round(top + a.height)}px`;
+    };
+    place();
+    win.addEventListener("resize", place);
+    return () => win.removeEventListener("resize", place);
+  }, [open]);
 
   const move = (from: number, dir: 1 | -1) => {
     for (let i = from + dir; i >= 0 && i < all.length; i += dir) if (!all[i].disabled) return i;

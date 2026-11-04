@@ -42,6 +42,7 @@ import { BOARD_ITEM_HINTS, BOARD_ITEM_LABELS, BOARD_ITEM_TYPES, MAX_BOARD_ITEMS,
 import ImageBgWindow from "./edit/ImageBgMenu";
 import Popover from "./edit/Popover";
 import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
+import { holdForAa, inAaUi, savedRange } from "./edit/aa-focus";
 import { lookOf, sendMediaLook, sendSlotLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
 import { freeRefOf } from "./edit/free-dom";
@@ -1384,7 +1385,15 @@ export default function BoardLayer({
               else finishText(false);
             }
           }}
-          onBlur={(e) => finishText(true, e.currentTarget.textContent ?? "")}
+          onBlur={(e) => {
+            const field = e.currentTarget;
+            // Focus passé à la barre « Aa » : la saisie est tenue (edit/aa-focus.ts), pas finie.
+            const end = (ev: FocusEvent | React.FocusEvent) => {
+              if (!inAaUi(ev.relatedTarget)) return finishText(true, field.textContent ?? "");
+              holdForAa(field, savedRange(field), (c) => finishText(c, field.textContent ?? ""), () => field.addEventListener("blur", end, { once: true }));
+            };
+            end(e);
+          }}
         />
       )}
 
