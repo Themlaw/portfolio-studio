@@ -3,8 +3,10 @@
  *   init → identifiant ; chunk(offset) écrit exactement à l'offset attendu ;
  *   status → offset courant (reprise) ; complete → détection et job ; cancel.
  * Fichier partiel : ${DATA_DIR}/tmp/uploads/<id>.part. Quota vérifié à init
- * (taille annoncée réservée) et à chaque morceau. Un envoi sans nouvelle
- * depuis 24 h est purgé par le worker.
+ * (taille annoncée réservée, dans la MÊME transaction que le contrôle : deux
+ * init simultanés ne passent pas tous deux) et à chaque morceau ; espace libre
+ * du disque (statfs) aussi ; MAX_OPEN_UPLOADS envois ouverts au plus par
+ * administrateur. Un envoi sans nouvelle depuis 24 h est purgé par le worker.
  */
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
@@ -13,7 +15,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { dataDir, getDb, schema } from "@/lib/db";
@@ -30,7 +32,7 @@ import { DAMAGED_FILE, preflightProblem, preflightPsd, PsdPreflightError } from 
 import { extractEntry, KitZipError, listZip } from "@/lib/kit/zip-archive";
 
 import { ingestImage, type IngestedMedia } from "./ingest";
-import { quotaProblem } from "./quota";
+import { diskProblem, quotaProblem } from "./quota";
 import { cleanFilename, sniffImage, sniffPdf, sniffVideo, SNIFF_BYTES, VIDEO_REJECTED_MESSAGE } from "./sniff";
 import { ingestPdf } from "@/lib/pdf/ingest";
 import { pdfLimits } from "@/lib/pdf/limits";
@@ -57,6 +59,45 @@ const InitSchema = z.strictObject({
 });
 
 const Id = z.string().uuid();
+
+/** Envois ouverts (en cours ou interrompus, pas encore purgés) au plus par administrateur : la file de l'admin en tient un à la fois. */
+export const MAX_OPEN_UPLOADS = 10;
+
+/** Ce que les envois ouverts doivent encore écrire sur le disque (réservé pour le contrôle de l'espace libre). */
+function pendingBytes(): number {
+  return getDb().select({ n: sql<number>`coalesce(sum(${schema.uploads.size} - ${schema.uploads.offset}), 0)` }).from(schema.uploads).get()?.n ?? 0;
+}
+
+/**
+ * Réserve un envoi : nombre d'envois ouverts, quota et insertion dans UNE transaction synchrone (BEGIN IMMEDIATE) : rien ne s'intercale
+ * entre le contrôle et la réservation, même avec plusieurs requêtes ou processus. Refus = UploadError, rien d'écrit.
+ */
+function reserveUpload(values: typeof schema.uploads.$inferInsert & { userId: string }): void {
+  const db = getDb();
+  db.transaction(
+    () => {
+      const open = db.select({ n: sql<number>`count(*)` }).from(schema.uploads).where(eq(schema.uploads.userId, values.userId)).get()?.n ?? 0;
+      if (open >= MAX_OPEN_UPLOADS) {
+        throw new UploadError(429, `Tu as déjà ${open} envois en cours ou interrompus : reprends-les ou annule-les dans la médiathèque avant d'en commencer un autre (un envoi abandonné est effacé au bout de 24 h).`);
+      }
+      const full = quotaProblem(values.size);
+      if (full) throw new UploadError(507, full);
+      db.insert(schema.uploads).values(values).run();
+    },
+    { behavior: "immediate" },
+  );
+}
+
+/** Après la réservation : fichier partiel vide (s'il ne peut pas être créé, la réservation est rendue). */
+async function createPart(id: string): Promise<void> {
+  try {
+    await mkdir(partDir(), { recursive: true });
+    await (await open(partPath(id), "wx")).close();
+  } catch (error) {
+    getDb().delete(schema.uploads).where(eq(schema.uploads.id, id)).run();
+    throw error;
+  }
+}
 
 /** Un morceau à la fois par envoi (deux PUT simultanés : le second attend son tour… et échoue sur l'offset). */
 const G = globalThis as typeof globalThis & { __portfolioUploadLocks?: Set<string> };
@@ -104,12 +145,11 @@ export async function initUpload(input: unknown, userId: string): Promise<Upload
   if (purpose) {
     const problem = kitProblem(name, size, purpose.themeId);
     if (problem) throw problem;
-    const full = quotaProblem(size);
-    if (full) throw new UploadError(507, full);
+    const disk = await diskProblem(size, pendingBytes());
+    if (disk) throw new UploadError(507, disk);
     const id = randomUUID();
-    await mkdir(partDir(), { recursive: true });
-    await (await open(partPath(id), "wx")).close();
-    getDb().insert(schema.uploads).values({ id, name, size, declaredType: type.slice(0, 100), kind: "kit", target: kitTarget(purpose.themeId, purpose.batch), offset: 0, userId, tags: [] }).run();
+    reserveUpload({ id, name, size, declaredType: type.slice(0, 100), kind: "kit", target: kitTarget(purpose.themeId, purpose.batch), offset: 0, userId, tags: [] });
+    await createPart(id);
     return { id, name, size, offset: 0, kind: "kit", chunkSize: CHUNK_BYTES };
   }
   const tags = parseTagLabels(parsed.data.tags ?? []);
@@ -130,12 +170,11 @@ export async function initUpload(input: unknown, userId: string): Promise<Upload
           : `Ce fichier dépasse ${Math.round(max / 1024 / 1024)} Mo : réduis-le avant de l'envoyer.`,
     );
   }
-  const full = quotaProblem(size);
-  if (full) throw new UploadError(507, full);
+  const disk = await diskProblem(size, pendingBytes());
+  if (disk) throw new UploadError(507, disk);
   const id = randomUUID();
-  await mkdir(partDir(), { recursive: true });
-  await (await open(partPath(id), "wx")).close();
-  getDb().insert(schema.uploads).values({ id, name, size, declaredType: type.slice(0, 100), kind, offset: 0, userId, tags: tags.labels }).run();
+  reserveUpload({ id, name, size, declaredType: type.slice(0, 100), kind, offset: 0, userId, tags: tags.labels });
+  await createPart(id);
   return { id, name, size, offset: 0, kind, chunkSize: CHUNK_BYTES };
 }
 
@@ -159,6 +198,9 @@ export async function writeChunk(id: unknown, offsetParam: string | null, reques
   // pu remplir l'espace depuis.
   const full = quotaProblem(0);
   if (full) throw new UploadError(507, full);
+  // Disque : ce morceau doit tenir en laissant la marge libre (un autre envoi, une conversion ou une sauvegarde a pu la consommer).
+  const disk = await diskProblem(length);
+  if (disk) throw new UploadError(507, disk);
   if (locks().has(r.id)) throw new UploadError(409, `Un morceau est déjà en cours d'écriture : l'envoi reprend à l'octet ${r.offset}.`);
   locks().add(r.id);
   try {

@@ -158,7 +158,8 @@ dev **redémarré puis pré-chauffé**, une connexion) et `npm run shots:editors
 | Variable | Rôle |
 |---|---|
 | `MAX_IMAGE_MB` | Taille maximale d'une image envoyée (défaut 200). La lecture s'arrête dès le dépassement. |
-| `MEDIA_MAX_TOTAL_GB` | Quota facultatif de stockage des médias (originaux + variantes). Au-delà, envoi refusé (« Ton espace de stockage est plein… ») ; l'occupation s'affiche dans la médiathèque. |
+| `MEDIA_MAX_TOTAL_GB` | Quota facultatif de stockage des médias (originaux + variantes). Au-delà, envoi refusé (« Ton espace de stockage est plein… ») ; l'occupation s'affiche dans la médiathèque. Absent = sans limite (comportement d'avant). **Recommandé en production** : sans lui, un compte admin compromis ou un script qui boucle remplit `/data` (base, sauvegardes, journal). Le régler en laissant la place des sauvegardes. |
+| `UPLOAD_MIN_FREE_MB` | Espace laissé libre sur le disque des données (défaut 512 Mo, `0` = aucune garde) : un envoi, ou un morceau d'envoi, qui le consommerait est refusé (507 « Le disque du serveur est presque plein… »), avec ou sans quota. Un administrateur a au plus 10 envois par morceaux ouverts à la fois. |
 | `UPLOAD_IDLE_TIMEOUT_S` | Abandon d'un envoi qui ne reçoit plus rien (défaut 30 s), fichier temporaire supprimé. |
 | `UPLOAD_MAX_DURATION_S` | Durée totale maximale d'un envoi (défaut 600 s). |
 | `JOB_MAX_DURATION_S` | Durée maximale d'un traitement d'image (défaut 120 s) ; au-delà, l'image passe en échec. |
