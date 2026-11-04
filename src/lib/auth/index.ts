@@ -11,7 +11,7 @@ import { genericOAuth } from "better-auth/plugins";
 import { getDb, schema } from "@/lib/db";
 
 import { CLIENT_IP_HEADER } from "./client-ip";
-import { identityFromProfile, isOidcIdentityAllowed, OIDC_PROVIDER_ID, readAuthConfig } from "./config";
+import { identityFromProfile, isOidcIdentityAllowed, MIN_PASSWORD_LENGTH, OIDC_PROVIDER_ID, readAuthConfig } from "./config";
 import { forgetIdentity, rememberIdentity } from "./identity";
 
 export const ADMIN_NOT_ALLOWED = "admin_not_allowed";
@@ -43,7 +43,9 @@ function createAuth() {
       enabled: config.passwordEnabled,
       // Pas d'inscription publique : le premier admin est amorcé au démarrage.
       disableSignUp: true,
-      minPasswordLength: 8,
+      // 12 caractères pour tout NOUVEAU mot de passe (changement, réinitialisation). La connexion ne vérifie pas la
+      // longueur : un compte existant au mot de passe plus court reste accessible (docs/SECURITE.md §2.4).
+      minPasswordLength: MIN_PASSWORD_LENGTH,
     },
     user: {
       /**
