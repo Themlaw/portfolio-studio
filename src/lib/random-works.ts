@@ -7,7 +7,8 @@
  * est « masqué » (il n'est pas sur le site), l'œuvre n'est donc pas tirée. La page est celle qui montre le projet (bloc Projet, Titre lié…),
  * à défaut la page de la collection de l'œuvre.
  *
- * Lecture étiquetée (projets, médias, menu et chaque page) : la 404 qui les montre se rafraîchit quand l'une d'elles change.
+ * Lecture étiquetée (projets, médias, menu, chaque page et chaque projet publié) : la 404 qui les montre se rafraîchit quand l'une d'elles
+ * change — y compris quand une œuvre est retirée d'un projet ou change d'image (étiquette `project:<id>` seule, docs/SECURITE.md N16).
  */
 import { and, asc, eq, isNull } from "drizzle-orm";
 
@@ -108,9 +109,25 @@ export function readPoolWorks(): PoolWork[] {
   }
 }
 
+/** Projets publiés (ni créés dans un brouillon de page, ni à la corbeille) : une étiquette `project:<id>` chacun. */
+function liveProjectIds(): number[] {
+  return getDb()
+    .select({ id: schema.projects.id })
+    .from(schema.projects)
+    .where(and(isNull(schema.projects.draftPageId), isNull(schema.projects.deletedAt)))
+    .orderBy(asc(schema.projects.id))
+    .all()
+    .map((p) => p.id);
+}
+
 export async function getPoolWorks(): Promise<PoolWork[]> {
   const pages = livePages();
-  return cached(["random-works", pages.map((p) => p.id).join(",")], [TAGS.projects, TAGS.media, TAGS.nav, ...pages.map((p) => TAGS.page(p.id))], readPoolWorks);
+  const projects = liveProjectIds();
+  return cached(
+    ["random-works", pages.map((p) => p.id).join(","), projects.join(",")],
+    [TAGS.projects, TAGS.media, TAGS.nav, ...pages.map((p) => TAGS.page(p.id)), ...projects.map(TAGS.project)],
+    readPoolWorks,
+  );
 }
 
 /** Source choisie dans le bloc : tout le portfolio, une catégorie (collection) ou une sélection d'œuvres (identifiants d'emplacement). */

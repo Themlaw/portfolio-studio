@@ -10,6 +10,7 @@
  *  5. Projet masqué (docs/SECURITE.md N4) : un projet qu'aucune page n'affiche n'entre ni dans la couverture d'une
  *     collection, ni dans ses compteurs, ni dans la demoreel, ni dans les planches d'une collection, ni dans le
  *     repli des projets mis en avant ; il y entre dès qu'une page publiée (ou le brouillon vu) l'affiche.
+ *  6. « Une œuvre au hasard » : la lecture en cache porte l'étiquette `project:<id>` de chaque projet publié (docs/SECURITE.md N16).
  * Usage : node --import tsx scripts/test-special89.mjs
  */
 import assert from "node:assert/strict";
@@ -249,8 +250,22 @@ test("la page spéciale n'est pas une page à lier ni au menu public", () => {
 
 /* ---- Une œuvre au hasard : ce qui peut être tiré ---- */
 
-const { readPoolWorks, selectWorks } = await import("../src/lib/random-works.ts");
+const { readPoolWorks, selectWorks, getPoolWorks } = await import("../src/lib/random-works.ts");
 const pool = readPoolWorks();
+
+{
+  globalThis.__nextCacheCalls = [];
+  const cachedPool = await getPoolWorks();
+  const call = globalThis.__nextCacheCalls.find((c) => c.key[0] === "random-works");
+  const live = db.select().from(schema.projects).all().filter((p) => !p.deletedAt && p.draftPageId === null);
+  test("N16 « Une œuvre au hasard » : la lecture en cache dépend de chaque projet publié (project:<id>)", () => {
+    assert.ok(call, "lecture en cache");
+    assert.ok(live.length >= 2);
+    for (const p of live) assert.ok(call.tags.includes(`project:${p.id}`), `project:${p.id} dans ${call.tags.join(" ")}`);
+    for (const t of ["projects", "media", "nav"]) assert.ok(call.tags.includes(t), t);
+    assert.deepEqual(cachedPool.map((w) => w.slug), pool.map((w) => w.slug), "même contenu que la lecture directe");
+  });
+}
 const slugs = () => readPoolWorks().map((w) => w.slug);
 
 test("le tirage porte sur les œuvres publiées du portfolio (seed) ; chaque œuvre a son image, son titre et sa page", () => {
