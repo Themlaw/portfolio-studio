@@ -94,6 +94,10 @@ function createAuth() {
         // Auth ne se remet à zéro qu'après 60 s SANS requête : un admin qui se
         // connecte toutes les 12 s serait bloqué au 6e essai.
         "/sign-in/email": { window: 60, max: 30 },
+        // Même logique pour /change-password : sans cette règle, Better Auth applique sa règle par
+        // défaut des chemins sensibles (3 / 10 s), qui répond 429 avant que le frein maison
+        // (route.ts : 5/min par IP + délai par compte) n'ait compté l'échec.
+        "/change-password": { window: 60, max: 30 },
         "/sign-in/social": { window: 60, max: 10 },
       },
     },
