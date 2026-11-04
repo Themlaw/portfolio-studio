@@ -582,6 +582,23 @@ ok("A4b cookie Secure, HttpOnly, SameSite=Lax", /Secure/i.test(cookieAttrs) && /
 r = await http("/admin", { jar });
 ok("A5 tableau de bord avec session", r.status === 200 && (await r.text()).includes("Tableau de bord"), String(r.status));
 ok("A5b admin non mise en cache", !r.headers.get("x-nextjs-cache") && /no-store|private/i.test(r.headers.get("cache-control") ?? ""));
+// docs/SECURITE.md N6 : l'admin s'isole des fenêtres ouvertes par un autre site (COOP), et une URL profonde ouverte depuis un autre
+// site (lien, window.open) revient à l'accueil de l'admin sans rendu ni effet (messages marqués lus, aperçu de thème…).
+ok("A5c Cross-Origin-Opener-Policy: same-origin sur l'admin", r.headers.get("cross-origin-opener-policy") === "same-origin", r.headers.get("cross-origin-opener-policy") ?? "absent");
+{
+  const deep = [];
+  for (const [site, expect] of [["cross-site", 307], ["same-site", 307], ["same-origin", 200], ["none", 200], [null, 200]]) {
+    const headers = site ? { "sec-fetch-site": site, "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" } : {};
+    const res = await http("/admin/messages", { jar, headers });
+    await res.text();
+    const good = res.status === expect && (expect !== 307 || (res.headers.get("location")?.endsWith("/admin") && res.headers.get("cross-origin-opener-policy") === "same-origin"));
+    if (!good) deep.push(`${site} → ${res.status} ${res.headers.get("location") ?? ""}`);
+  }
+  const fromOutside = await http("/admin", { jar, headers: { "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate" } });
+  if (fromOutside.status !== 200) deep.push(`/admin cross-site → ${fromOutside.status}`);
+  await fromOutside.text();
+  ok("A5d URL profonde de l'admin ouverte depuis un autre site → /admin (même site, barre d'adresse, accueil de l'admin : servis)", deep.length === 0, deep.join(" ; "));
+}
 
 ok("A6a identifiant de la server action de déconnexion trouvé", Boolean(ids.signOutAction), Object.keys(ids).join(","));
 const forged = new Jar();
@@ -1688,6 +1705,10 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   ok("U13 côté de plus de 32 768 px → refusé dès l'en-tête", up.status === 422 && /32\u202f?768|32 768|32768/.test(up.json?.message ?? ""), `${up.status} ${up.text.slice(0, 140)}`);
 }
 await postForm(jar, "/admin/apercu", { id: "pro" }); // pour vérifier la fin d'aperçu à la déconnexion
+// Cookies de l'app posés pendant la séance (vue brouillon, écran de retour de l'aperçu) : la déconnexion doit tous les effacer (N19).
+jar.cookies.set("page-draft", "1");
+jar.cookies.set("preview-from", "/admin/themes");
+const hintBefore = jar.cookies.has("portfolio-admin");
 
 // Déconnexion par la server action : fin de session ET d'aperçu
 const sessionCookies = jar.copy();
@@ -1696,6 +1717,11 @@ ok(
   "A9 déconnexion → /admin/connexion, draft mode et cookie d'aperçu effacés",
   r.status === 303 && r.headers.get("location")?.endsWith("/admin/connexion") && !jar.cookies.has("__prerender_bypass") && !jar.cookies.has("theme-preview"),
   `${r.status} ${r.headers.get("location")}`,
+);
+ok(
+  "A9c déconnexion : portfolio-admin, page-draft et preview-from effacés aussi",
+  hintBefore && !jar.cookies.has("portfolio-admin") && !jar.cookies.has("page-draft") && !jar.cookies.has("preview-from"),
+  [...jar.cookies.keys()].join(","),
 );
 r = await http("/admin", { jar: sessionCookies });
 ok("A9b ancien cookie révoqué : /admin redirige de nouveau", r.status === 307, String(r.status));

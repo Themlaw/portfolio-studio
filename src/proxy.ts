@@ -189,11 +189,41 @@ function adminCsp(nonce: string): string {
   ].join("; ");
 }
 
+/**
+ * Isolement de l'admin (docs/SECURITE.md N6). `Cross-Origin-Opener-Policy: same-origin` : une fenêtre ouverte par un autre site
+ * (`window.open`) ne garde aucune prise sur l'admin (plus de `w.length` pour savoir si le visiteur est l'artiste).
+ */
+const ADMIN_COOP = "same-origin";
+
+/**
+ * URL profonde de l'admin ouverte depuis un AUTRE site (lien, `window.open`) : renvoyée vers l'accueil de l'admin, sans rendu.
+ * Une simple navigation suffisait à marquer les messages comme lus (/admin/messages) ou à ouvrir l'aperçu d'un thème. `none`
+ * (barre d'adresse, favori) et `same-origin` passent ; un navigateur sans `Sec-Fetch-Site` aussi.
+ */
+function foreignDeepLink(request: NextRequest): boolean {
+  const site = request.headers.get("sec-fetch-site");
+  const { pathname } = request.nextUrl;
+  return (
+    (request.method === "GET" || request.method === "HEAD") &&
+    site !== null &&
+    site !== "same-origin" &&
+    site !== "none" &&
+    pathname !== "/admin" &&
+    pathname !== ADMIN_LOGIN
+  );
+}
+
 async function adminGate(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
   // Cookie absent : redirection sans requête en base ; cookie présent : session vérifiée en base (un cookie inventé ne suffit pas).
   if (pathname !== ADMIN_LOGIN && (!getSessionCookie(request) || !(await adminGateAllows(request.headers)))) {
     return NextResponse.redirect(new URL(ADMIN_LOGIN, request.url));
+  }
+  if (foreignDeepLink(request)) {
+    const away = NextResponse.redirect(new URL("/admin", request.url));
+    away.headers.set("Cross-Origin-Opener-Policy", ADMIN_COOP);
+    away.headers.set("Cache-Control", "no-store");
+    return away;
   }
   const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64");
   const csp = adminCsp(nonce);
@@ -202,9 +232,11 @@ async function adminGate(request: NextRequest): Promise<NextResponse> {
   requestHeaders.set("Content-Security-Policy", csp);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
+  response.headers.set("Cross-Origin-Opener-Policy", ADMIN_COOP);
   // Indicateur (pas une preuve) pour le bouton « Modifier cette page » du site :
   // seuls les navigateurs qui l'ont vérifient leur session (route dédiée).
-  if (pathname !== ADMIN_LOGIN && !request.cookies.has(ADMIN_HINT_COOKIE)) {
+  // Pas sur un POST (server action) : la déconnexion efface ce cookie dans la même réponse.
+  if (request.method === "GET" && pathname !== ADMIN_LOGIN && !request.cookies.has(ADMIN_HINT_COOKIE)) {
     response.cookies.set(ADMIN_HINT_COOKIE, "1", { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 30, secure: process.env.NODE_ENV === "production" });
   }
   return response;
