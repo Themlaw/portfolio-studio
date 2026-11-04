@@ -2,7 +2,7 @@
  * Proxy (Next 16, runtime Node.js) : garde de l'admin, i18n (next-intl) et
  * pages inconnues.
  *
- * Admin : tout /admin/* sans session VALIDE (vérifiée en base, `isAdminRequest`) est redirigé vers /admin/connexion. La seule
+ * Admin : tout /admin/* sans session VALIDE (vérifiée en base, `adminGateAllows`) est redirigé vers /admin/connexion. La seule
  * présence d'un cookie ne suffit pas : avec un cookie inventé et `RSC: 1`, Next rendait la charge RSC des pages sans repasser
  * par le layout qui portait la garde (docs/SECURITE.md §2.2, §5.1). Le layout, chaque page (requireAdmin) et assertAdmin()
  * revérifient ensuite.
@@ -28,7 +28,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { routing } from "./i18n/routing";
-import { isAdminRequest } from "./lib/auth/guard";
+import { adminGateAllows, isAdminRequest } from "./lib/auth/guard";
 import { readRedirectConfig, redirectionFor } from "./lib/domain";
 import { NOT_FOUND_SLUG, publishedSlugExists, redirectedSlug } from "./lib/pages-index";
 
@@ -152,7 +152,7 @@ function adminCsp(nonce: string): string {
 async function adminGate(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
   // Cookie absent : redirection sans requête en base ; cookie présent : session vérifiée en base (un cookie inventé ne suffit pas).
-  if (pathname !== ADMIN_LOGIN && (!getSessionCookie(request) || !(await isAdminRequest(request.headers)))) {
+  if (pathname !== ADMIN_LOGIN && (!getSessionCookie(request) || !(await adminGateAllows(request.headers)))) {
     return NextResponse.redirect(new URL(ADMIN_LOGIN, request.url));
   }
   const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString("base64");

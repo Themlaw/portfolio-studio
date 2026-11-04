@@ -23,8 +23,9 @@ import { getAuth } from "./index";
 
 export const LOGIN_PATH = "/admin/connexion";
 
-export const getAdminSession = cache(async () => {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+/** Session de ces en-têtes, vérifiée en base ; une session dont l'accès a été retiré est RÉVOQUÉE (supprimée) et vaut null. */
+async function verifiedSession(requestHeaders: Headers) {
+  const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (!session) return null;
   const verdict = checkUserAccess(session.user.id);
   if (!verdict.allowed) {
@@ -33,7 +34,9 @@ export const getAdminSession = cache(async () => {
     return null;
   }
   return session;
-});
+}
+
+export const getAdminSession = cache(async () => verifiedSession(await headers()));
 
 export type AdminSession = NonNullable<Awaited<ReturnType<typeof getAdminSession>>>;
 
@@ -45,6 +48,14 @@ export type AdminSession = NonNullable<Awaited<ReturnType<typeof getAdminSession
 export async function isAdminRequest(requestHeaders: Headers): Promise<boolean> {
   const session = await getAuth().api.getSession({ headers: requestHeaders });
   return Boolean(session && checkUserAccess(session.user.id).allowed);
+}
+
+/**
+ * Garde de l'admin dans le proxy (docs/SECURITE.md §2.2) : session vérifiée en base, accès revérifié, et, comme pour
+ * getAdminSession, révocation d'une session dont l'accès a été retiré (le layout n'est plus atteint pour le faire).
+ */
+export async function adminGateAllows(requestHeaders: Headers): Promise<boolean> {
+  return (await verifiedSession(requestHeaders)) !== null;
 }
 
 /** Pages de l'admin : redirige vers la connexion sans session valide. */
