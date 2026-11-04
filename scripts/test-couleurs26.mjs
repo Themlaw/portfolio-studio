@@ -98,7 +98,7 @@ test("logo : l'image survit au nettoyage ; seule, elle compte comme un réglage"
 
 test("logo : la feuille de style règle aussi l'image (hauteur du logo, transition)", () => {
   const css = logoCss({ mediaId: 5 });
-  assert.match(css, /\.site-logo-img\{height:var\(--lh\);max-width:100%\}/);
+  assert.match(css, /\.site-logo-img\{height:var\(--lhe\);max-width:100%;object-fit:contain\}/);
   assert.match(css, /\.site-logo-img\{transition:height/);
   assert.equal(logoCss({}), "", "sans réglage : le rendu du thème");
 });

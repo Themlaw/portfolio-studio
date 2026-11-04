@@ -183,6 +183,13 @@ const THEMES = ["galerie-lumineuse", "pro"];
 const WIDTHS = [1440, 1024, 390];
 const legacyFixture = JSON.parse(readFileSync(new URL("./lib/logo-css-v031.json", import.meta.url), "utf8"));
 const LEGACY_CSS = legacyFixture.find((e) => e.logo.size === 120 && e.logo.mode === "shrink" && !e.logo.mediaId).css;
+// Lot 106 : la feuille n'est plus celle de la v0.31.0 à l'octet (le logo est centré et jamais coupé), mais les variables de taille (3 premières règles)
+// et la réduction au défilement restent identiques à l'octet, et rien ne coupe ni ne déborde plus.
+const legacyOk = (sheet) => {
+  const pro = (c) => c.split("\n").slice(0, 3).join("\n");
+  const shr = (c) => c.split("\n").filter((r) => r.includes("[data-scrolled]{--lh:var(--lh-min)}")).join("\n");
+  return pro(sheet) === pro(LEGACY_CSS) && shr(sheet) === shr(LEGACY_CSS) && sheet.includes("--lhe") && !sheet.includes("clip-path") && !sheet.includes("margin-bottom:min(0px");
+};
 const parityShots = {};
 /** Accueil public (2 thèmes × 3 largeurs) : capture du haut de page, octet pour octet. */
 async function captureParity(label) {
@@ -221,7 +228,7 @@ await section("P", async () => {
   ok("P2b publié : seulement taille, comportement, image", JSON.stringify(publishedLogo()) === JSON.stringify({ size: 120, mode: "shrink", mediaId: MEDIA_ID }), JSON.stringify(publishedLogo()));
   const html = await (await fetch(`${BASE}/fr`)).text();
   const sheet = /<style id="site-logo">([\s\S]*?)<\/style>/.exec(html)?.[1] ?? "";
-  ok("P3 feuille du logo publiée = celle de la v0.31.0, octet pour octet (fixture)", sheet.replaceAll("&gt;", ">") === LEGACY_CSS, sheet.slice(0, 200));
+  ok("P3 feuille du logo publiée : tailles de la v0.31.0 identiques à l'octet (fixture), plus de coupe ni de débordement", legacyOk(sheet.replaceAll("&gt;", ">")), sheet.slice(0, 200));
   const vctx = await browser.newContext();
   const pg = await vctx.newPage();
   await pg.goto(`${BASE}/fr`, { waitUntil: "networkidle" });
@@ -234,7 +241,7 @@ await section("P", async () => {
 });
 
 /* ======================================== A. Centré ======================================== */
-let base; // mesures « En haut, déborde dessous », taille 120, fixe
+let base; // mesures par défaut (centré), taille 120 (plafonnée à la barre), fixe
 await section("A", async () => {
   f = await openEditor(2);
   await sleep(1500);
@@ -243,21 +250,21 @@ await section("A", async () => {
   await settled();
   base = await geo(f);
   info("avant", { bar: base.bar, brand: base.brand, mainTop: base.mainTop });
-  ok("A0 départ : le logo (120 px) déborde sous la barre", base.brand.b - base.bar.b > 30, JSON.stringify([base.brand.b, base.bar.b]));
+  ok("A0 départ (lot 106) : le logo réglé à 120 px est plafonné à la barre (52 px), entier, ne déborde plus sous la barre", near(base.brand.h, 52, 1) && base.brand.b <= base.bar.b + 0.5 && base.brand.t >= base.bar.t - 0.5, JSON.stringify([base.brand.h, base.brand.b, base.bar.b]));
   const names = (await page.locator("[data-testid=logo-align] strong").allTextContents()).map((s) => s.trim());
-  ok("A1 trois places, libellés exacts", JSON.stringify(names) === JSON.stringify(["En haut, déborde dessous", "Centré dans la barre", "La barre s'agrandit"]), JSON.stringify(names));
-  ok("A1b « En haut, déborde dessous » coché au départ", await page.getByTestId("logo-align-top").isChecked());
+  ok("A1 quatre places, libellés exacts", JSON.stringify(names) === JSON.stringify(["Centré dans la barre", "En haut de la barre", "En bas de la barre", "La barre s'agrandit"]), JSON.stringify(names));
+  ok("A1b « Centré dans la barre » coché au départ (défaut)", await page.getByTestId("logo-align-center").isChecked());
   await shot("A-avant-haut-1440");
   await page.getByRole("radio", { name: "Centré dans la barre" }).check();
   await settled();
-  ok("A2 brouillon : align = center", await draftHas((l) => l.align === "center"), JSON.stringify(siteDraftLogo()));
+  ok("A2 brouillon : centré = défaut, align jamais écrit", await draftHas((l) => !("align" in l)), JSON.stringify(siteDraftLogo()));
   const g = await geo(f);
   info("centré", { bar: g.bar, brand: g.brand, clip: g.clip });
   ok("A3 le logo est centré dans la barre (±1 px)", near(g.brand.cy, g.bar.cy, 1), `${g.brand.cy} / ${g.bar.cy}`);
   ok("A4 la barre garde sa hauteur (0 px)", near(g.bar.h, base.bar.h, 0.01), `${g.bar.h} / ${base.bar.h}`);
   ok("A5 la bande sous la barre ne bouge pas (0 px)", near(g.mainTop, base.mainTop, 0.01), `${g.mainTop} / ${base.mainTop}`);
-  ok("A6 le logo garde sa taille (120 px)", near(g.brand.h, 120, 1));
-  ok("A7 coupé aux limites de la barre (clip-path)", /inset/.test(g.clip), g.clip);
+  ok("A6 le logo garde la taille plafonnée (52 px)", near(g.brand.h, 52, 1));
+  ok("A7 jamais coupé (aucun clip-path), tout dans la barre", g.clip === "none" && g.brand.t >= g.bar.t - 0.5 && g.brand.b <= g.bar.b + 0.5, g.clip);
   const hit = await f.evaluate(({ x, y1, y2 }) => ({ below: document.elementsFromPoint(x, y1).some((e) => e.closest(".site-brand")), inside: document.elementsFromPoint(x, y2).some((e) => e.closest(".site-brand")) }), { x: g.brand.l + 60, y1: g.bar.b + 6, y2: g.bar.b - 6 });
   ok("A8 rien du logo n'est visible sous la barre (ni touchable) ; il l'est dans la barre", !hit.below && hit.inside, JSON.stringify(hit));
   const above = await f.evaluate(({ x, y }) => document.elementsFromPoint(x, y).some((e) => e.closest(".site-brand")), { x: g.brand.l + 60, y: g.bar.t - 6 });
@@ -266,6 +273,7 @@ await section("A", async () => {
 
   // Réduit au défilement + centré : « Aperçu exact », en-tête collant.
   await page.getByRole("radio", { name: "Grand en haut, réduit au défilement" }).check();
+  await page.locator("#lp-logo-size").fill("48"); // sous le plafond de la barre : la réduction se voit
   await settled();
   await page.getByRole("button", { name: "Aperçu", exact: true }).click();
   await f.waitForFunction(() => !document.documentElement.hasAttribute("data-edit-canvas"), null, { timeout: 30000 });
@@ -276,7 +284,7 @@ await section("A", async () => {
   await f.evaluate(() => window.scrollTo(0, 500));
   await sleep(1300);
   const sc = await geo(f);
-  ok("A9 réduit + centré : 120 px en haut, 72 px défilé", near(top.brand.h, 120, 1.5) && near(sc.brand.h, 72, 2), JSON.stringify([top.brand.h, sc.brand.h]));
+  ok("A9 réduit + centré : 48 px en haut, 29 px défilé (60 %)", near(top.brand.h, 48, 1.5) && near(sc.brand.h, 28.8, 2), JSON.stringify([top.brand.h, sc.brand.h]));
   ok("A10 réduit + centré : toujours centré dans la barre, en haut comme défilé (±1,5 px)", near(top.brand.cy, top.bar.cy, 1.5) && near(sc.brand.cy, sc.bar.cy, 1.5), JSON.stringify([top.brand.cy - top.bar.cy, sc.brand.cy - sc.bar.cy]));
   ok("A11 réduit + centré : la barre et la page ne bougent pas au défilement", near(top.bar.h, sc.bar.h, 0.5) && near(top.mainTop, sc.mainTop, 0.5), JSON.stringify([top.bar.h, sc.bar.h, top.mainTop, sc.mainTop]));
   await shot("A-defile-1440");
@@ -284,6 +292,7 @@ await section("A", async () => {
   await page.locator(".ve-exit-preview").click();
   await f.waitForFunction(() => document.documentElement.hasAttribute("data-edit-canvas"), null, { timeout: 30000 });
   await page.getByRole("radio", { name: "Fixe" }).check();
+  await page.locator("#lp-logo-size").fill("120");
   await settled();
 });
 
@@ -475,13 +484,13 @@ await section("F", async () => {
   await page.getByRole("radio", { name: "Centré dans la barre" }).check();
   await page.locator("#lp-logo-x").fill("80");
   await settled();
-  ok("F1 brouillon : taille, centré, x = 80, image", await draftHas((l) => l.size === 120 && l.align === "center" && l.x === 80 && l.mediaId === MEDIA_ID), JSON.stringify(siteDraftLogo()));
+  ok("F1 brouillon : taille, centré (défaut), x = 80, image", await draftHas((l) => l.size === 120 && !("align" in l) && l.x === 80 && l.mediaId === MEDIA_ID), JSON.stringify(siteDraftLogo()));
   await sleep(1000);
   chosen = await geo(f);
   ok("F1b le logo est décalé de 80 px", near(chosen.brand.l - left0.brand.l, 80, 1.5), String(chosen.brand.l - left0.brand.l));
   await page.locator(".ve-history").getByRole("button", { name: "Défaire" }).click();
   await settled();
-  ok("F4 Défaire : le décalage revient en arrière (x ≠ 80)", await draftHas((l) => l.x !== 80 && l.align === "center"), JSON.stringify(siteDraftLogo()));
+  ok("F4 Défaire : le décalage revient en arrière (x ≠ 80)", await draftHas((l) => l.x !== 80 && !("align" in l)), JSON.stringify(siteDraftLogo()));
   ok("F4b Défaire : le panneau suit", !/\+80 px/.test((await page.getByTestId("logo-x-out").textContent()) ?? ""));
   const undone = await geo(f);
   ok("F4c Défaire : le logo a quitté la position à +80", !near(undone.brand.l, chosen.brand.l, 1), `${undone.brand.l} / ${chosen.brand.l}`);
@@ -496,13 +505,13 @@ await section("F", async () => {
   await settled();
   await page.locator(".ve-history").getByRole("button", { name: "Défaire" }).click();
   await settled();
-  ok("F6 Défaire la place : « Centré dans la barre » revient (panneau et brouillon)", (await draftHas((l) => l.align === "center")) && (await page.getByTestId("logo-align-center").isChecked()));
+  ok("F6 Défaire la place : « Centré dans la barre » revient (panneau et brouillon)", (await draftHas((l) => !("align" in l))) && (await page.getByTestId("logo-align-center").isChecked()));
   await page.locator(".ve-history").getByRole("button", { name: "Rétablir" }).click();
   await settled();
   ok("F7 Rétablir la place : « La barre s'agrandit »", (await draftHas((l) => l.align === "grow")) && (await page.getByTestId("logo-align-grow").isChecked()));
   await page.getByRole("radio", { name: "Centré dans la barre" }).check();
   await settled();
-  ok("F8 retour au centrage avant publication", await draftHas((l) => l.align === "center" && l.x === 80), JSON.stringify(siteDraftLogo()));
+  ok("F8 retour au centrage avant publication", await draftHas((l) => !("align" in l) && l.x === 80), JSON.stringify(siteDraftLogo()));
   chosen = await geo(f);
   await page.reload({ waitUntil: "domcontentloaded" });
   f = await canvas();
@@ -519,7 +528,7 @@ await section("G", async () => {
   await page.getByRole("radio", { name: "Fixe" }).check();
   await settled();
   ok("G0 publication : taille 120, centré, x = 300", await publish());
-  ok("G0b publié : taille, image, centré, x = 300", publishedLogo()?.align === "center" && publishedLogo()?.x === 300 && publishedLogo()?.size === 120 && publishedLogo()?.mediaId === MEDIA_ID, JSON.stringify(publishedLogo()));
+  ok("G0b publié : taille, image, centré (défaut, non écrit), x = 300", !("align" in (publishedLogo() ?? {})) && publishedLogo()?.x === 300 && publishedLogo()?.size === 120 && publishedLogo()?.mediaId === MEDIA_ID, JSON.stringify(publishedLogo()));
   const geoPub = async (w, css) => {
     const c = await browser.newContext({ viewport: { width: w, height: 900 } });
     const pg = await c.newPage();
@@ -572,12 +581,12 @@ await section("G", async () => {
   }
   // Réduit au défilement + centré, rendu public.
   {
-    const css = cssFor({ size: 120, mode: "shrink", mediaId: MEDIA_ID, align: "center", x: 100 });
+    const css = cssFor({ size: 48, mode: "shrink", mediaId: MEDIA_ID, x: 100 });
     const { pg, c } = await geoPub(1440, css);
     await pg.evaluate(() => window.scrollTo(0, 600));
     await sleep(1400);
     const g = await geo(pg);
-    ok("G9 public : réduit au défilement (72 px), toujours centré (±1,5 px)", near(g.brand.h, 72, 2) && near(g.brand.cy, g.bar.cy, 1.5), JSON.stringify([g.brand.h, g.brand.cy - g.bar.cy]));
+    ok("G9 public : réduit au défilement (29 px), toujours centré (±1,5 px)", near(g.brand.h, 28.8, 2) && near(g.brand.cy, g.bar.cy, 1.5), JSON.stringify([g.brand.h, g.brand.cy - g.bar.cy]));
     await pg.screenshot({ path: path.join(SHOTS, "G-public-defile-1440.png"), clip: { x: 0, y: 0, width: 1440, height: 200 } });
     await c.close();
   }
@@ -597,7 +606,7 @@ await section("R", async () => {
   f = await openEditor(2);
   await sleep(1500);
   await page.getByRole("tab", { name: "Réglages" }).click();
-  await page.getByRole("radio", { name: "En haut, déborde dessous" }).check();
+  await page.getByRole("radio", { name: "Centré dans la barre" }).check();
   await page.getByRole("radio", { name: "Grand en haut, réduit au défilement" }).check();
   await page.getByTestId("logo-pos-reset").click();
   await settled();
@@ -606,7 +615,7 @@ await section("R", async () => {
   ok("R2b publié = réglages d'avant", JSON.stringify(publishedLogo()) === JSON.stringify({ size: 120, mode: "shrink", mediaId: MEDIA_ID }), JSON.stringify(publishedLogo()));
   const html = await (await fetch(`${BASE}/fr`)).text();
   const sheet = /<style id="site-logo">([\s\S]*?)<\/style>/.exec(html)?.[1] ?? "";
-  ok("R3 feuille du logo = celle de la v0.31.0 (fixture)", sheet.replaceAll("&gt;", ">") === LEGACY_CSS);
+  ok("R3 feuille du logo : tailles de la v0.31.0 identiques à l'octet (fixture), plus de coupe ni de débordement", legacyOk(sheet.replaceAll("&gt;", ">")));
   const apres = await captureParity("apres");
   for (const key of Object.keys(parityShots)) {
     const same = Object.hasOwn(apres, key) && parityShots[key].equals(apres[key]);
