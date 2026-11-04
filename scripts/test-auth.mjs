@@ -2164,6 +2164,65 @@ const qcb = await qc.json();
 ok("V15 quota dépassé en cours d'envoi → morceau refusé (507), rien d'écrit", qi.status === 200 && qc.status === 507 && /espace de stockage est plein/.test(qcb.message ?? "") && query(dirQ, "select offset from uploads where id = ?", qid)?.offset === 0, `${qi.status} ${qc.status}`);
 await stop(q.server);
 
+{
+  // ---- Quota réservé sans course, envois ouverts bornés, disque presque plein (docs/SECURITE.md §2.9, N14) -------------
+  // Occupation telle que la compte storageUsage (quota.ts) : originaux, variantes, envois ouverts.
+  const usageOf = (dir) =>
+    query(
+      dir,
+      `select coalesce((select sum(case when json_valid(variants) and json_extract(variants, '$.originalRemoved') = 1 then 0 else size end) from media), 0)
+        + coalesce((select sum(json_extract(f.value, '$.size')) from media m, json_each(m.variants, '$.files') f where json_valid(m.variants)), 0)
+        + coalesce((select sum(size) from uploads), 0) n`,
+    ).n;
+  const dirR = `${TMP}/v-quota-n14`; // dossier propre (vr sert à P20)
+  let rq = await freshAdmin(dirR);
+  await stop(rq.server);
+  const MB = 1024 * 1024;
+  const usedR = usageOf(dirR);
+  rq = await freshAdmin(dirR, { MEDIA_MAX_TOTAL_GB: String((usedR + 5.5 * MB) / 1024 ** 3) });
+  const initR = (size, name, jar = rq.jar) =>
+    fetch(`${BASE}/admin/api/upload/init`, { method: "POST", headers: { cookie: jar.header(), origin: BASE, "content-type": "application/json" }, body: JSON.stringify({ name, size, type: "video/mp4" }) });
+  const parallel = await Promise.all(Array.from({ length: 10 }, (_, i) => initR(MB, `course-${i}.mp4`)));
+  const accepted = parallel.filter((r) => r.status === 200).length;
+  const openR = query(dirR, "select count(*) n from uploads").n;
+  ok(
+    "V16 10 init simultanés de 1 Mo pour 5,5 Mo de place → 5 acceptés, les autres 507 (contrôle et réservation dans la même transaction)",
+    accepted === 5 && openR === 5 && parallel.every((r) => r.status === 200 || r.status === 507),
+    `${parallel.map((r) => r.status).join(",")} ; ${openR} envois ouverts`,
+  );
+  await stop(rq.server);
+  // Envois ouverts : 10 au plus par administrateur (sans quota).
+  rq = { server: startServer(dirR, baseEnvF), jar: rq.jar };
+  await rq.server.ready;
+  const more = [];
+  for (let i = 0; i < 6; i++) more.push((await initR(1000, `ouvert-${i}.mp4`)).status);
+  const over = await initR(1000, "de-trop.mp4");
+  const overBody = await over.json();
+  ok("V17 11ᵉ envoi ouvert du même administrateur → 429, message clair, rien de réservé", more.slice(0, 5).every((s) => s === 200) && more[5] === 429 && over.status === 429 && /envois en cours ou interrompus/.test(overBody.message ?? "") && query(dirR, "select count(*) n from uploads").n === 10, `${more.join(",")} ${over.status} ${overBody.message}`);
+  const oneId = query(dirR, "select id from uploads order by created_at limit 1").id;
+  const cancelled = await fetch(`${BASE}/admin/api/upload/${oneId}`, { method: "DELETE", headers: { cookie: rq.jar.header(), origin: BASE } });
+  const after = await initR(1000, "apres-annulation.mp4");
+  ok("V18 un envoi annulé libère sa place", cancelled.status === 200 && after.status === 200, `${cancelled.status} ${after.status}`);
+  const lastId = (await after.json()).upload?.id;
+  await stop(rq.server);
+  // Disque presque plein (statfs) : marge libre demandée plus grande que le disque → init, morceau et envoi direct refusés.
+  rq = { server: startServer(dirR, { ...baseEnvF, UPLOAD_MIN_FREE_MB: String(1024 * 1024 * 1024) }), jar: rq.jar };
+  await rq.server.ready;
+  const openBefore = query(dirR, "select count(*) n from uploads").n;
+  const diskInit = await initR(1000, "disque.mp4");
+  const diskInitBody = await diskInit.json();
+  const diskChunk = await fetch(`${BASE}/admin/api/upload/${lastId}/chunk?offset=0`, { method: "PUT", headers: { cookie: rq.jar.header(), origin: BASE, "content-length": "1000" }, body: Buffer.alloc(1000) });
+  const fdDisk = new FormData();
+  fdDisk.append("file", new Blob([await pngOf(64, 64, 8, 2)], { type: "image/png" }), "petit.png");
+  const diskDirect = await fetch(`${BASE}/admin/api/upload`, { method: "POST", headers: { cookie: rq.jar.header(), origin: BASE }, body: fdDisk });
+  ok(
+    "V19 disque presque plein (UPLOAD_MIN_FREE_MB) → init, morceau et envoi direct refusés (507, « disque »), rien d'écrit",
+    diskInit.status === 507 && /disque du serveur est presque plein/.test(diskInitBody.message ?? "") && diskChunk.status === 507 && diskDirect.status === 507 && query(dirR, "select count(*) n from uploads").n === openBefore && query(dirR, "select offset from uploads where id = ?", lastId)?.offset === 0,
+    `${diskInit.status} ${diskChunk.status} ${diskDirect.status}`,
+  );
+  await stop(rq.server);
+}
+
 // ---- Passe 5b : protocole d'envoi, propriété, codecs, conversion -------------------------
 ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=25", "-t", "3", "-c:v", "mjpeg", "-f", "mov", src("mjpeg.mov")]);
 ff(["-f", "lavfi", "-i", "testsrc2=size=640x360:rate=25", "-t", "3", "-c:v", "ffv1", src("ffv1.mkv")]);
