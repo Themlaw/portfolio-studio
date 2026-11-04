@@ -6,6 +6,8 @@
  *  2. Déclenchement, horloge simulée : rien sans modification, calme, délai maximal malgré l'activité, première sauvegarde,
  *     modification PENDANT une sauvegarde, échec (attente), état conservé d'un redémarrage à l'autre.
  *  3. Rotation : on garde les N plus récentes, tri par date, jamais tout supprimé.
+ *  3c. Rétention (audit de sécurité P1/P6) : la plus récente de plus de 48 h toujours gardée, sauvegardes manuelles comptées à part,
+ *     plafond de place ; et de bout en bout : « garder 1 » + deux « Sauvegarder maintenant » n'effacent pas l'archive d'avant.
  *  4. Détection par data_version (connexion lecture seule) : écriture vue, silence sans écriture.
  *  5. Archive : base cohérente et ouvrable, originaux seulement (variantes exclues), exceptions (original supprimé, seed),
  *     polices, BACKUP_MEDIA=0, noms longs (PAX), lecture par `tar`, aucun .tmp restant, rotation après écriture.
@@ -28,7 +30,7 @@ const ok = (label, pass, detail = "") => {
 const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 const { readBackupConfig, describeConfig } = await import("../src/lib/backup/config.ts");
-const { Scheduler, dueReason, rotationPlan, sortArchives, archiveName, failureCooldownMs } = await import("../src/lib/backup/schedule.ts");
+const { Scheduler, dueReason, rotationPlan, retentionPlan, archiveDate, RETENTION, sortArchives, archiveName, failureCooldownMs } = await import("../src/lib/backup/schedule.ts");
 
 /* ---- 1. réglages ---------------------------------------------------------------------------------------------------- */
 {
@@ -173,6 +175,33 @@ const { Scheduler, dueReason, rotationPlan, sortArchives, archiveName, failureCo
   ok("rotation : jamais tout supprimer (keep 0 = 1)", rotationPlan(names, 0).length === 3);
   ok("rotation : moins d'archives que gardées = rien à supprimer", rotationPlan(names.slice(0, 2), 3).length === 0);
   ok("nom : portfolio-AAAAMMJJ-HHMMSS.tar.gz", archiveName(new Date(2026, 8, 5, 4, 3, 2)) === "portfolio-20260905-040302.tar.gz" && archiveName(new Date(2026, 8, 5, 4, 3, 2), 2) === "portfolio-20260905-040302-2.tar.gz");
+}
+
+/* ---- 3c. rétention : une session volée ne vide pas les sauvegardes (P1), place plafonnée (P6) ------------------------- */
+{
+  const H = 3_600_000;
+  const at = (d) => archiveName(d);
+  const t0 = new Date(2026, 8, 1, 10, 0, 0);
+  const plus = (h) => new Date(t0.getTime() + h * H);
+  const A = (h, manual = false, size = 100) => ({ name: at(plus(h)), size, manual });
+  ok("rétention : date relue dans le nom (heure locale)", archiveDate(at(t0))?.getTime() === t0.getTime() && archiveDate(`${at(t0).slice(0, -7)}-2.tar.gz`)?.getTime() === t0.getTime() && archiveDate("autre.tar.gz") === null);
+  ok("rétention : config par défaut 30 % du disque, valeur hors bornes refusée", readBackupConfig({}).maxDiskPct === 30 && readBackupConfig({ BACKUP_MAX_DISK_PCT: "200" }).maxDiskPct === 30 && readBackupConfig({ BACKUP_MAX_DISK_PCT: "200" }).warnings.length === 1 && readBackupConfig({ BACKUP_MAX_DISK_PCT: "50" }).maxDiskPct === 50);
+  // scénario de l'audit : archive de la veille de l'intrusion, puis « garder 1 » et deux sauvegardes manuelles
+  const list = [A(0), A(72), A(73, true), A(73.1, true)];
+  const now = plus(73.2).getTime();
+  ok("rétention : avant le correctif, keep 1 ne gardait que la dernière (référence)", rotationPlan(list.map((a) => a.name), 1).length === 3);
+  const doomed = retentionPlan(list, { keep: 1, now });
+  ok("rétention : keep 1 + deux manuelles : l'archive de plus de 48 h ET l'automatique restent", doomed.length === 0, JSON.stringify(doomed));
+  ok("rétention : seule la PLUS RÉCENTE de plus de 48 h est protégée", eq(retentionPlan([A(0), A(10), A(72)], { keep: 1, now }), [at(plus(0))]));
+  const spam = [A(0), A(72), ...[1, 2, 3, 4, 5].map((i) => A(72 + i / 10, true))];
+  const sd = retentionPlan(spam, { keep: 1, now });
+  ok(`rétention : « Sauvegarder maintenant » en boucle ne fait tourner que la réserve manuelle (${RETENTION.manualKeep})`, eq(sd, [at(plus(72.1)), at(plus(72.2))]), JSON.stringify(sd));
+  ok("rétention : les manuelles ne poussent jamais dehors une automatique", eq(retentionPlan([A(70), A(71), A(72), A(72.5, true), A(72.6, true)], { keep: 3, now }), []));
+  ok("rétention : sans archive de plus de 48 h, keep s'applique comme avant", eq(retentionPlan([A(60), A(61), A(62)], { keep: 2, now }), [at(plus(60))]));
+  // plafond de place : les plus anciennes NON protégées partent d'abord, la dernière et la protégée jamais
+  const big = [A(0, false, 400), A(50, false, 400), A(60, false, 400), A(70, false, 400)];
+  ok("rétention : plafond de place, retire les plus anciennes non protégées", eq(retentionPlan(big, { keep: 30, now, maxBytes: 1000 }), [at(plus(50)), at(plus(60))]));
+  ok("rétention : plafond trop bas, la dernière et la plus récente de plus de 48 h restent", eq(retentionPlan(big, { keep: 30, now, maxBytes: 1 }), [at(plus(50)), at(plus(60))]));
 }
 
 /* ---- 3b. lot 76 : réglages de l'admin, origine des valeurs, prochaine date, sauvegarde à la demande, téléchargement ------- */
@@ -420,6 +449,25 @@ try {
     const r0 = await runBackup({ dataDir: data, config: { media: false, keep: 10 }, reason: "calme", reader });
     ok("admin76 manifest : base seule reconnue", (await readArchiveManifest(path.join(data, "backup", r0.name)))?.includesMedia === false);
     ok("admin76 manifest : fichier absent ou illisible = null", (await readArchiveManifest(path.join(data, "backup", "portfolio-19990101-000000.tar.gz"))) === null);
+  }
+  // audit de sécurité P1 : de bout en bout, sur un dossier à part (session volée : « garder 1 » puis « Sauvegarder maintenant » x2)
+  {
+    const d2 = path.join(tmp, "data-retention");
+    mkdirSync(path.join(d2, "media/originals"), { recursive: true });
+    const m2 = new Database(path.join(d2, "portfolio.db"));
+    m2.pragma("journal_mode = WAL");
+    m2.exec("create table media(id integer primary key, key text, variants text, status text); create table notes(v text);");
+    const r2 = new Database(path.join(d2, "portfolio.db"), { readonly: true, fileMustExist: true });
+    const go = (when, reason, keep) => runBackup({ dataDir: d2, config: { media: true, keep }, reason, reader: r2, now: () => when });
+    const before = await go(new Date(2026, 8, 1, 10, 0, 0), "calme", 3);
+    const recent = await go(new Date(2026, 8, 4, 9, 0, 0), "calme", 3);
+    await go(new Date(2026, 8, 4, 10, 0, 0), "manuel", 1);
+    const last = await go(new Date(2026, 8, 4, 10, 1, 0), "manuel", 1);
+    const names = (await listArchives(path.join(d2, "backup"))).map((a) => a.name);
+    ok("P1 : keep=1 + deux sauvegardes manuelles : l'archive de plus de 48 h est conservée", names.includes(before.name), names.join(","));
+    ok("P1 : l'automatique la plus récente reste aussi (les manuelles ne comptent pas)", names.includes(recent.name) && names.includes(last.name) && names.length === 4 && last.kept === 4 && last.removed === 0, names.join(","));
+    r2.close();
+    m2.close();
   }
   // lot 85 : garde-fou et BACKUP_MEDIA=0
   {

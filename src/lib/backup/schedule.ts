@@ -31,6 +31,65 @@ export function rotationPlan(names: string[], keep: number): string[] {
   return sorted.slice(0, Math.max(0, sorted.length - n));
 }
 
+/** Date d'une archive lue dans son nom (heure locale du processus, comme `archiveName`) ; null si le nom n'en est pas une. */
+export function archiveDate(name: string): Date | null {
+  const m = ARCHIVE_RE.exec(name);
+  if (!m) return null;
+  const [d, t] = [m[1], m[2]];
+  const date = new Date(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8), +t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * Rétention (P1/P6 de l'audit de sécurité) : une session admin volée ne doit pas pouvoir effacer toutes les sauvegardes d'avant
+ * l'intrusion (régler « garder 1 » puis lancer « Sauvegarder maintenant »), ni remplir le disque.
+ */
+export const RETENTION = {
+  /** Âge au-delà duquel la plus récente archive est protégée de toute rotation, quel que soit `keep`. */
+  protectAgeMs: 48 * 3_600_000,
+  /** Sauvegardes manuelles gardées (réserve à part : elles ne poussent jamais dehors une sauvegarde automatique). */
+  manualKeep: 3,
+} as const;
+
+export type ArchiveInfo = { name: string; size: number; manual: boolean };
+
+/**
+ * Archives à supprimer. Règles, dans cet ordre :
+ *  - sauvegardes automatiques (et d'origine inconnue) : les `keep` plus récentes ;
+ *  - sauvegardes manuelles : les `RETENTION.manualKeep` plus récentes, comptées À PART (« Sauvegarder maintenant » en boucle ne
+ *    fait tourner que cette réserve) ;
+ *  - toujours gardées, quoi qu'il arrive : la plus récente de toutes, et la plus récente de celles qui ont plus de 48 h ;
+ *  - plafond de place (`maxBytes`) : au-delà, on retire les plus anciennes NON protégées jusqu'à repasser dessous (les deux
+ *    archives protégées restent, même si elles dépassent à elles seules : le journal le signale).
+ */
+export function retentionPlan(archives: ArchiveInfo[], opts: { keep: number; now: number; maxBytes?: number; manualKeep?: number; protectAgeMs?: number }): string[] {
+  const byName = new Map(archives.filter((a) => ARCHIVE_RE.test(a.name)).map((a) => [a.name, a]));
+  const sorted = sortArchives([...byName.keys()]).map((n) => byName.get(n)!);
+  if (!sorted.length) return [];
+  const keepAuto = Math.max(1, Math.floor(opts.keep));
+  const keepManual = Math.max(1, Math.floor(opts.manualKeep ?? RETENTION.manualKeep));
+  const age = opts.protectAgeMs ?? RETENTION.protectAgeMs;
+  const protectedNames = new Set<string>([sorted[sorted.length - 1].name]);
+  const old = sorted.filter((a) => {
+    const d = archiveDate(a.name);
+    return d !== null && opts.now - d.getTime() >= age;
+  });
+  if (old.length) protectedNames.add(old[old.length - 1].name);
+  const kept = new Set(protectedNames);
+  for (const a of sorted.filter((x) => !x.manual).slice(-keepAuto)) kept.add(a.name);
+  for (const a of sorted.filter((x) => x.manual).slice(-keepManual)) kept.add(a.name);
+  if (opts.maxBytes !== undefined && Number.isFinite(opts.maxBytes)) {
+    let total = sorted.filter((a) => kept.has(a.name)).reduce((n, a) => n + a.size, 0);
+    for (const a of sorted) {
+      if (total <= opts.maxBytes) break;
+      if (!kept.has(a.name) || protectedNames.has(a.name)) continue;
+      kept.delete(a.name);
+      total -= a.size;
+    }
+  }
+  return sorted.filter((a) => !kept.has(a.name)).map((a) => a.name);
+}
+
 export type DueReason = "premier" | "calme" | "delai" | "manuel";
 
 export type SchedState = {

@@ -132,6 +132,7 @@ function ensureService(): Promise<Svc | null> {
               console.log(
                 `[backup] ${r.name} : contenu — originaux ${sv.originals.files}, kit ${sv.kit.files}, icônes ${sv.icons.files}, variantes sans original ${sv.variants.files}, autres ${sv.seed.files + sv.other.files} ; non sauvegardés car refaits : ${r.storage.regenerable.variants.files} variante(s), ${r.storage.regenerable.iconsAuto.files} icône(s) auto`,
               );
+              if (r.overCap) console.warn(`[backup] AVERTISSEMENT : les sauvegardes gardées dépassent ${config.maxDiskPct} % du disque (BACKUP_MAX_DISK_PCT) ; seules les sauvegardes protégées restent (la dernière, la plus récente de plus de 48 h)`);
               if (r.missingRefs.length) {
                 const shown = r.missingRefs.slice(0, 20).join(", ");
                 console.warn(
