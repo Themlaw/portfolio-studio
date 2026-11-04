@@ -26,7 +26,7 @@ import { hsvToRgb, isCustomColor, over, parseColor, rgbaToHex, rgbToHsv, wheelGr
 import { PALETTE, type PaletteColor } from "@/lib/look";
 import { AA, ratio } from "@/themes/contrast";
 
-import { HueStrip, SaturationPlane } from "./ColorPlane";
+import { HueStrip, SaturationPlane, textHoldsFocus } from "./ColorPlane";
 import { ratioTip, readabilityText } from "./readability";
 
 import { useDismiss } from "./useDismiss";
@@ -330,7 +330,8 @@ export function Popover({
 
   // Focus sur le carré à l'ouverture.
   useEffect(() => {
-    if (ready) box.current?.querySelector<HTMLElement>(".cp-sv")?.focus({ preventScroll: true });
+    // Lot 110 : pas pendant la saisie d'un texte (la barre « Aa » ouvre cette roue) : le focus reste au texte, la barre ne se referme pas.
+    if (ready && box.current && !textHoldsFocus(box.current.ownerDocument)) box.current.querySelector<HTMLElement>(".cp-sv")?.focus({ preventScroll: true });
   }, [ready]);
 
   if (!state) return <div className="cp" ref={(el) => void (box.current = el)} />;

@@ -78,6 +78,7 @@ export default function FontMenu({
   themeNames,
   onPick,
   onClose,
+  anchor,
 }: {
   value: string | undefined;
   installed: string[];
@@ -85,7 +86,13 @@ export default function FontMenu({
   themeNames?: Partial<Record<(typeof THEME_FONTS)[number], string>>;
   onPick: (ref: string | undefined) => void;
   onClose: () => void;
+  /** Le bouton qui ouvre la liste : elle se pose sous lui (ou au-dessus). */
+  anchor?: () => HTMLElement | null;
 }) {
+  const anchorRef = useRef(anchor);
+  useEffect(() => {
+    anchorRef.current = anchor;
+  });
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<GoogleCategory | "all">("all");
   const [shown, setShown] = useState(PAGE);
@@ -109,28 +116,29 @@ export default function FontMenu({
       const vw = el.ownerDocument.documentElement.clientWidth;
       const vh = win.innerHeight;
       const p = parent.getBoundingClientRect();
+      // Hotfix v0.33.4 : la liste s'ancre au BOUTON de la police (et non à tout le panneau) ; `p` ne sert qu'à convertir en coordonnées du parent.
+      const a = anchorRef.current?.()?.getBoundingClientRect() ?? p;
       const w = el.offsetWidth;
       const h = el.offsetHeight;
-      const below = vh - EDGE - (p.bottom + GAP);
-      const above = p.top - GAP - EDGE;
-      let top = p.bottom + GAP;
+      const below = vh - EDGE - (a.bottom + GAP);
+      const above = a.top - GAP - EDGE;
+      let top = a.bottom + GAP;
       let height = h;
       if (h > below) {
-        if (h <= above) top = p.top - GAP - h;
+        if (h <= above) top = a.top - GAP - h;
         else if (Math.max(below, above) >= 220) {
           height = Math.max(below, above);
-          top = below >= above ? p.bottom + GAP : p.top - GAP - height;
+          top = below >= above ? a.bottom + GAP : a.top - GAP - height;
         } else {
           // Aucune des deux places ne convient : la fenêtre se pose dans l'écran, par-dessus la barre.
           height = Math.min(h, vh - 2 * EDGE);
-          top = Math.max(EDGE, Math.min(p.bottom + GAP, vh - EDGE - height));
+          top = Math.max(EDGE, Math.min(a.bottom + GAP, vh - EDGE - height));
         }
       }
-      let left = p.left;
-      left = Math.max(EDGE, Math.min(left, vw - EDGE - w));
+      const left = Math.max(EDGE, Math.min(a.left, vw - EDGE - w));
       if (height !== h) el.style.height = `${Math.round(height)}px`;
-      if (top !== p.bottom + GAP) el.style.top = `${Math.round(top - p.top)}px`;
-      if (left !== p.left) el.style.left = `${Math.round(left - p.left)}px`;
+      el.style.top = `${Math.round(top - p.top)}px`;
+      el.style.left = `${Math.round(left - p.left)}px`;
     };
     place();
     win.addEventListener("resize", place);

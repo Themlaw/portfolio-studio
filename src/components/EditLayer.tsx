@@ -45,6 +45,7 @@ import { hasFondWrapper } from "./edit/optimistic";
 import FrameWindow, { FrameButton } from "./edit/FrameMenu";
 import QuickMenu, { QuickButton, type QuickKind } from "./edit/QuickMenus";
 import ImageBgWindow, { ImageBgButton } from "./edit/ImageBgMenu";
+import { holdForAa, inAaUi, savedRange } from "./edit/aa-focus";
 import Popover from "./edit/Popover";
 import SiteLayer, { FormLayer } from "./SiteLayer";
 
@@ -276,6 +277,8 @@ type Editing = {
   typing?: boolean;
   /** Composition (IME, touche morte) en cours : le texte du champ contient une saisie non validée, on n'y touche pas. */
   composing?: boolean;
+  /** Focus passé à la barre « Aa » (liste native, champ de la barre) : la saisie est tenue, pas finie (edit/aa-focus.ts). */
+  hold?: AbortController;
   /** Écouteurs de la saisie (champ sans passage surligné) : retirés d'un coup à la fin de la saisie. */
   ac?: AbortController;
 };
@@ -458,6 +461,7 @@ export default function EditLayer() {
     if (!current) return;
     editing.current = null;
     current.ac?.abort();
+    current.hold?.abort();
     const { el, original, target, marked } = current;
     // Fin de la saisie : la barre « Aa » de ce texte se ferme (LookLayer).
     queueMicrotask(() => window.dispatchEvent(new CustomEvent("pe:text-end", { detail: { el } })));
@@ -500,18 +504,31 @@ export default function EditLayer() {
   const resumeRef = useRef<(cur: Editing) => void>(() => {});
   const editSeq = useRef(0);
   /** Perte du focus : fin de la saisie, sauf si l'élément a seulement été remplacé par un rendu du serveur. */
-  const onEditBlur = useCallback((id: number) => {
+  const onEditBlur = useCallback((id: number, ev?: FocusEvent) => {
     const cur = editing.current;
     if (!cur || cur.id !== id) return;
+    const field = cur.marked?.editor ?? cur.el;
+    const range = savedRange(field);
     queueMicrotask(() => {
       if (editing.current !== cur) return;
+      // Le focus est passé à la barre « Aa » ou à l'une de ses fenêtres : la saisie continue (hotfix v0.33.4).
+      if (cur.el.isConnected && (inAaUi(ev?.relatedTarget) || inAaUi(cur.el.ownerDocument.activeElement))) {
+        cur.hold?.abort();
+        cur.hold = holdForAa(
+          field,
+          range,
+          (commit) => editing.current === cur && finishEdit(commit),
+          () => field.addEventListener("blur", (e) => onEditBlur(id, e), { once: true }),
+        );
+        return;
+      }
       if (cur.el.isConnected) finishEdit(true);
       else if (!cur.composing) resumeRef.current(cur);
     });
   }, [finishEdit]);
   const bindMarked = useCallback(
     (marked: MarkedEditor, id: number) => {
-      marked.editor.addEventListener("blur", () => onEditBlur(id), { once: true });
+      marked.editor.addEventListener("blur", (e) => onEditBlur(id, e), { once: true });
       marked.editor.addEventListener("input", () => {
         // Sélection relevée à chaque frappe (l'événement `selectionchange` arrive après coup).
         if (editing.current?.marked?.editor === marked.editor) editing.current.sel = selectionRange(marked.editor);
@@ -538,7 +555,7 @@ export default function EditLayer() {
       const ac = new AbortController();
       cur.ac = ac;
       const { signal } = ac;
-      el.addEventListener("blur", () => onEditBlur(id), { once: true, signal });
+      el.addEventListener("blur", (e) => onEditBlur(id, e), { once: true, signal });
       el.addEventListener(
         "beforeinput",
         () => {

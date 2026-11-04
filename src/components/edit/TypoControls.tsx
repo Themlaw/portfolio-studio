@@ -9,7 +9,7 @@
  * des crans bornés (src/lib/look.ts). Classes neutres `tc-*` : la toile
  * (look-layer.css) et le panneau (look-panel.css) les habillent.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { fontLabel, fontStack, googleOf, PALETTE_DISPLAY, PALETTE_LABELS, SIZE_LABELS, SIZES, WEIGHTS, type PaletteColor, type TextStyle } from "@/lib/look";
 import { googleFamily } from "@/themes/google-fonts";
@@ -48,6 +48,7 @@ export type TypoProps = {
 
 export default function TypoControls({ value, onChange, installed, swatch, themeNames, resetLabel = "Réinitialiser", compact, palette, backdropBlocked, inheritedColor }: TypoProps) {
   const [menu, setMenu] = useState(false);
+  const fontButton = useRef<HTMLButtonElement>(null);
   const set = (patch: Partial<TextStyle>) => {
     const next: TextStyle = { ...value, ...patch };
     for (const k of Object.keys(next) as (keyof TextStyle)[]) if (next[k] === undefined) delete next[k];
@@ -62,7 +63,7 @@ export default function TypoControls({ value, onChange, installed, swatch, theme
   return (
     <div className="tc" data-compact={compact || undefined}>
       <div className="tc-row">
-        <button type="button" className="tc-font" aria-haspopup="dialog" aria-expanded={menu} onClick={() => setMenu((m) => !m)} title="Police">
+        <button ref={fontButton} type="button" className="tc-font" aria-haspopup="dialog" aria-expanded={menu} onClick={() => setMenu((m) => !m)} title="Police">
           <span className="tc-font-name">{value.font ? fontLabel(value.font) : "Police du style"}</span>
           <span aria-hidden="true">▾</span>
         </button>
@@ -158,6 +159,7 @@ export default function TypoControls({ value, onChange, installed, swatch, theme
           value={value.font}
           installed={installed}
           themeNames={themeNames}
+          anchor={() => fontButton.current}
           onClose={() => setMenu(false)}
           onPick={(ref) => {
             setMenu(false);
