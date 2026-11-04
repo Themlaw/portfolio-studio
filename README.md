@@ -370,6 +370,29 @@ compose), modèle commenté : `.env.example`. Seul `BETTER_AUTH_SECRET` est
 obligatoire (`openssl rand -base64 48`) ; `PORTFOLIO_TAG` épingle une version
 (`sha-1a2b3c4`, `v0.8.0`, `da-pro`… ; défaut `latest`).
 
+#### Épingler l'image de prod (recommandé)
+
+`latest` + `pull_policy: always` déploie **n'importe quelle** image poussée sous
+ce nom : si un jour une image piégée arrivait sur GHCR (jeton de CI volé,
+dépendance compromise), le redeploy suivant la mettrait en ligne. Mieux vaut
+déployer une image précise, choisie à la main :
+
+- par étiquette de commit : `PORTFOLIO_TAG=sha-1a2b3c4` (les 7 premiers caractères
+  du commit de `main`, visibles dans l'onglet *Actions* ou par `git rev-parse --short
+  HEAD`). La CI ne repousse jamais une étiquette `sha-…` vers un autre contenu ;
+- encore plus strict, par **digest** (immuable : l'image ne peut pas changer sous
+  ce nom) : `PORTFOLIO_TAG=sha-1a2b3c4@sha256:<digest>`. Le digest se lit dans le
+  journal du job `image` (étape *Build and push*, ligne `digest:`), sur la page du
+  paquet GHCR, ou par `docker buildx imagetools inspect
+  ghcr.io/themlaw/portfolio:sha-1a2b3c4` (ligne `Digest:`). Docker vérifie alors le
+  contenu tiré contre ce digest.
+
+Mise à jour : changer `PORTFOLIO_TAG` dans l'onglet *Environment* de la stack puis
+redéployer ; revenir en arrière = remettre l'ancienne valeur. Les actions GitHub
+des workflows sont, elles aussi, épinglées par SHA de commit (version en
+commentaire) : pour en monter une, `git ls-remote --tags
+https://github.com/<propriétaire>/<action>` donne le SHA de la nouvelle version.
+
 ### Premier démarrage
 
 Le volume nommé `portfolio-data` (nom réel `<projet>_portfolio-data`, voir
