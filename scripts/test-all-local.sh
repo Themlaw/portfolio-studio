@@ -28,6 +28,8 @@
 # Variables :
 #   BATT_SERVER  dev (défaut : `next dev` par suite, comme la CI) | start (un seul build, puis
 #                `node .next/standalone/server.js` par suite ; les suites de BATT_DEV_ONLY restent en dev)
+#   BATT_DEV_JOBS  suites `next dev` (BATT_DEV_ONLY) simultanées (défaut 1). > 1 : chacune a son dossier (NEXT_DIST_DIR=.next/d-<suite>), plus de
+#                chaîne unique des suites dev ; compter ~1,5 Go de mémoire par serveur dev.
 #   BATT_JOBS    nombre de « créneaux » simultanés (défaut 1). > 1 exige BATT_SERVER=start : deux
 #                `next dev` ne peuvent pas partager le dossier .next, donc les suites dev passent une à
 #                une, en parallèle des autres. Les suites lourdes (poids 2 dans batt-durations.tsv) prennent 2 créneaux.
@@ -59,7 +61,10 @@ BATT_PORT_BLOCK=${BATT_PORT_BLOCK:-8}
 export BATTERY_DIR=${BATTERY_DIR:-/root/battery-logs/$(date +%Y-%m-%d_%H%M)}
 DURATIONS=${BATT_DURATIONS:-scripts/batt-durations.tsv}
 # Suites qui exigent `next dev` (voir docs/ARCHITECTURE.md, « Mode start »). Elles passent par /api/theme-preview, fermée (404) en production.
-BATT_DEV_ONLY=${BATT_DEV_ONLY-v013 lot11 themes papier28 planche31 retours68}
+BATT_DEV_ONLY=${BATT_DEV_ONLY-v013a v013b v013c lot11 themes papier28 planche31 retours68}
+# Serveurs `next dev` simultanés (défaut 1 : un seul dossier .next). Plus de 1 : chaque suite dev reçoit son dossier (NEXT_DIST_DIR=.next/d-<suite>).
+BATT_DEV_JOBS=${BATT_DEV_JOBS:-1}
+case "$BATT_DEV_JOBS" in '' | *[!0-9]* | 0) echo "BATT_DEV_JOBS doit être un entier >= 1" >&2; exit 2 ;; esac
 
 ORIG_ARGS=("$@")
 # Options (avant les ids de suites).
@@ -130,11 +135,14 @@ fi
 # id|commande|navigateur|ONLY|variables d'environnement du serveur et de la suite (même liste que le job « plan » du workflow)
 # 17b : allocateur glibc réglé comme le conteneur (Dockerfile) : la mémoire anonyme mesurée est celle de la prod.
 E2E=(
-  "v013|node scripts/e2e-v013.mjs|chromium|"
+  "v013a|node scripts/e2e-v013.mjs|chromium|A,B,C,D,E,F,G,H,I"
+  "v013b|node scripts/e2e-v013.mjs|chromium|K,L,M,N,P|PREP_QUIET=1"
+  "v013c|node scripts/e2e-v013.mjs|chromium|Q,R|PREP_QUIET=1"
   "lot1|node scripts/e2e-lot1.mjs|chromium|"
   "lot8|node scripts/e2e-lot8.mjs|chromium|"
   "lot11|node scripts/e2e-lot11.mjs|chromium|"
-  "state|node scripts/e2e-state.mjs|chromium|"
+  "stateA|node scripts/e2e-state.mjs|chromium|A,B,C"
+  "stateB|node scripts/e2e-state.mjs|chromium|D,E,F"
   "palette|node scripts/e2e-palette.mjs|chromium|"
   "look|node scripts/e2e-look.mjs|chromium|"
   "themes|node scripts/e2e-themes.mjs|chromium|"
@@ -207,16 +215,23 @@ E2E=(
   "retours68|node scripts/e2e-retours68.mjs|chromium|"
   "mediaframe64|node scripts/e2e-mediaframe64.mjs|chromium|"
   "cadres79|node scripts/e2e-cadres79.mjs|chromium|"
-  "cadre95|node scripts/e2e-cadre95.mjs|chromium|"
+  "cadre95a|node scripts/e2e-cadre95.mjs|chromium||THEMES=galerie-lumineuse,carnet-d-atelier"
+  "cadre95b|node scripts/e2e-cadre95.mjs|chromium||THEMES=papier-coeurs,studio-kit-cadre PREP_QUIET=1"
   "grille69|node scripts/e2e-grille69.mjs|chromium|"
   "public67|node scripts/e2e-public67.mjs|chromium|"
   "surface66|node scripts/e2e-surface66.mjs|chromium|"
   "popover65a|node scripts/e2e-popover65.mjs|chromium|B,K,R"
-  "popover65w1440|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1440"
-  "popover65w1024|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1024"
-  "popover65w390|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=390"
-  "popover65b|node scripts/e2e-popover65.mjs|chromium|O"
-  "popover65c|node scripts/e2e-popover65.mjs|chromium|D"
+  "popover65w1440a|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1440 CASES=page-cadre,page-fond-image,page-taille,page-espace,page-fond,case-cadre,case-fond-image,case-taille PREP_QUIET=1"
+  "popover65w1440b|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1440 CASES=planche-fond,planche-taille,planche-espace,planche-cadre,planche-fond-image,planche-reglages-grille,planche-reglages-grille-bas PREP_QUIET=1"
+  "popover65w1440c|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1440 CASES=planche-ajouter,planche-fond-bande,planche-fond-video,planche-cadre-video,carrousel-cadre,carrousel-fond-image,libre-cadre,libre-fond-image,tuiles-taille PREP_QUIET=1"
+  "popover65w1024a|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1024 CASES=page-cadre,page-fond-image,page-taille,page-espace,page-fond,case-cadre,case-fond-image,case-taille PREP_QUIET=1"
+  "popover65w1024b|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1024 CASES=planche-fond,planche-taille,planche-espace,planche-cadre,planche-fond-image,planche-reglages-grille,planche-reglages-grille-bas PREP_QUIET=1"
+  "popover65w1024c|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=1024 CASES=planche-ajouter,planche-fond-bande,planche-fond-video,planche-cadre-video,carrousel-cadre,carrousel-fond-image,libre-cadre,libre-fond-image,tuiles-taille PREP_QUIET=1"
+  "popover65w390a|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=390 CASES=page-cadre,page-fond-image,page-taille,page-espace,page-fond,case-cadre,case-fond-image,case-taille PREP_QUIET=1"
+  "popover65w390b|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=390 CASES=planche-fond,planche-taille,planche-espace,planche-cadre,planche-fond-image,planche-reglages-grille,planche-reglages-grille-bas PREP_QUIET=1"
+  "popover65w390c|node scripts/e2e-popover65.mjs|chromium|W|WIDTHS=390 CASES=planche-ajouter,planche-fond-bande,planche-fond-video,planche-cadre-video,carrousel-cadre,carrousel-fond-image,libre-cadre,libre-fond-image,tuiles-taille PREP_QUIET=1"
+  "popover65b|node scripts/e2e-popover65.mjs|chromium|O|PREP_QUIET=1"
+  "popover65c|node scripts/e2e-popover65.mjs|chromium|D|PREP_QUIET=1"
   "textes70|node scripts/e2e-textes70.mjs|chromium|"
   "admin76|node scripts/e2e-admin76.mjs|chromium||WITH_BACKUP=1 BACKUP_QUIET_SEC=4 BACKUP_KEEP=3 BACKUP_MAX_HOURS=6"
   "restes77|node scripts/e2e-restes77.mjs|chromium|"
@@ -229,7 +244,11 @@ E2E=(
   "pied86|node scripts/e2e-pied86.mjs|chromium|"
   "logo84|node scripts/e2e-logo84.mjs|chromium|"
   "opacite90|node scripts/e2e-opacite90.mjs|chromium|"
-  "fond100|node scripts/e2e-fond100.mjs|chromium|"
+  "fond100a|node scripts/e2e-fond100.mjs|chromium|M,E,U,C,I,Y|THEMES_ONLY=carnet"
+  "fond100b|node scripts/e2e-fond100.mjs|chromium|M,E,U|THEMES_ONLY=fanzine PREP_QUIET=1"
+  "fond100c|node scripts/e2e-fond100.mjs|chromium|C|THEMES_ONLY=fanzine PREP_QUIET=1"
+  "fond100d|node scripts/e2e-fond100.mjs|chromium|I,Y,Cth,P|THEMES_ONLY=fanzine PREP_QUIET=1"
+  "fond100e|node scripts/e2e-fond100.mjs|chromium|M,E,U,C,I,Y|THEMES_ONLY=papier PREP_QUIET=1"
   "defilement99|node scripts/e2e-defilement99.mjs|chromium|"
   "defilement99-firefox|node scripts/e2e-defilement99.mjs|firefox|K"
   "parite99|node scripts/e2e-defilement99.mjs|chromium|P"
@@ -237,15 +256,51 @@ E2E=(
   "integ33|node scripts/e2e-integ33.mjs|chromium|"
 )
 
+# Parties de test-auth.mjs (lot 104b) : id|sections (AUTH_ONLY). Chaque partie a son dossier de données, son bloc de ports et ses serveurs.
+# Somme des PASS des parties = PASS de la suite entière (voir le rapport du lot 104b).
+AUTHS=(
+  "authA|A"
+  "authF|F,G,H"
+  "authV|V"
+  "authK|TK"
+  "authT|TAG,TM,TH,PDF,VM2"
+  "authM1|VM1"
+)
+# Suites découpées en parties (lot 104b) : suite d'origine: parties. Citer la suite d'origine (`test-all-local.sh auth`, règles de
+# batt-map.json) sélectionne toutes ses parties ; les ids des parties restent utilisables seuls.
+PARTS_OF=(
+  "auth: authA authF authV authK authT authM1"
+  "v013: v013a v013b v013c"
+  "state: stateA stateB"
+  "fond100: fond100a fond100b fond100c fond100d fond100e"
+  "cadre95: cadre95a cadre95b"
+  "popover65: popover65a popover65b popover65c popover65w1440a popover65w1440b popover65w1440c popover65w1024a popover65w1024b popover65w1024c popover65w390a popover65w390b popover65w390c"
+)
+group_of() { # suite d'origine d'une partie (vide si l'id n'est pas une partie)
+  local l
+  for l in "${PARTS_OF[@]}"; do
+    case " ${l#*: } " in *" $1 "*) echo "${l%%:*}"; return ;; esac
+  done
+}
+auth_only_of() { # sections de test-auth.mjs d'une partie authX (vide sinon)
+  local l
+  for l in "${AUTHS[@]}"; do [ "${l%%|*}" = "$1" ] && echo "${l#*|}" && return; done
+}
+
 want() {
   [ ${#WANT[@]} -eq 0 ] && return 0
-  local s
-  for s in "${WANT[@]}"; do [ "$s" = "$1" ] && return 0; done
+  local s g
+  g=$(group_of "$1")
+  for s in "${WANT[@]}"; do
+    [ "$s" = "$1" ] && return 0
+    [ -n "$g" ] && [ "$s" = "$g" ] && return 0
+  done
   return 1
 }
 in_list() { case " $1 " in *" $2 "*) return 0 ;; esac; return 1; }
 
-ALL_IDS=(checks build auth domaine88 pdf)
+ALL_IDS=(checks build domaine88 pdf)
+for l in "${AUTHS[@]}"; do ALL_IDS+=("${l%%|*}"); done
 for e in "${E2E[@]}"; do ALL_IDS+=("${e%%|*}"); done
 T0=$(date +%s)
 
@@ -304,7 +359,7 @@ need_e2e=0
 for e in "${E2E[@]}"; do want "${e%%|*}" && need_e2e=1; done
 NEED_BUILD=0
 want build && NEED_BUILD=1
-want auth && NEED_BUILD=1
+for l in "${AUTHS[@]}"; do want "${l%%|*}" && NEED_BUILD=1; done
 want domaine88 && NEED_BUILD=1
 [ "$BATT_SERVER" = start ] && [ $need_e2e = 1 ] && NEED_BUILD=1
 BUILD_OK=0
@@ -361,6 +416,9 @@ run_e2e() {
   mode=$BATT_SERVER
   in_list "$BATT_DEV_ONLY" "$id" && mode=dev
   rt="${BATT_PREFIX:-/root/pf-batt}-$id"
+  # Plusieurs serveurs `next dev` en parallèle (BATT_DEV_JOBS > 1) : un dossier de build par suite (next.config.ts lit NEXT_DIST_DIR).
+  local distenv=""
+  if [ "$mode" = dev ] && [ "$BATT_DEV_JOBS" -gt 1 ]; then distenv="NEXT_DIST_DIR=.next/d-$id"; rm -rf ".next/d-$id"; fi
   rm -rf "$rt"
   mkdir -p "$rt/tmp"
   t=$(date +%s)
@@ -371,6 +429,8 @@ run_e2e() {
     return 0
   fi
   if [ "${BATT_SLEEP_PROBE:-}" = 1 ]; then cmd=${cmd/#node /node --import $PWD/scripts/lib/sleep-probe.mjs }; fi
+  # BATT_TIMES=1 : horodatage des lignes PASS/FAIL dans $BATTERY_DIR/<suite>.times (durée par section, voir scripts/lib/line-times.mjs).
+  if [ "${BATT_TIMES:-}" = 1 ]; then cmd=${cmd/#node /env BATT_TIMES_FILE=$BATTERY_DIR/$id.times node --import $PWD/scripts/lib/line-times.mjs }; fi
   # extra : variables propres à la suite (ex. MALLOC_* de 17b, CROP_* de crop17g), transmises au serveur et à la suite.
   # shellcheck disable=SC2086
   # Priorité : les suites `next dev` (compilation à la demande, délais de navigation de 30 s) passent avant les suites en
@@ -378,12 +438,14 @@ run_e2e() {
   local nicecmd=""
   [ "$BATT_JOBS" -gt 1 ] && [ "$mode" = start ] && [ "${BATT_NICE:-8}" != 0 ] && nicecmd="nice -n ${BATT_NICE:-8}"
   # shellcheck disable=SC2086
-  $nicecmd env ${extra:-} TMPDIR="$rt/tmp" RUNNER_TEMP="$rt" BROWSER="$browser" ONLY="$only" PORT="$port" PUBLIC_BASE_URL="http://localhost:$port" \
+  $nicecmd env ${extra:-} $distenv TMPDIR="$rt/tmp" RUNNER_TEMP="$rt" BROWSER="$browser" ONLY="$only" PORT="$port" PUBLIC_BASE_URL="http://localhost:$port" \
     BATT_SLEEP_FILE="$BATTERY_DIR/$id.sleep" BATT_SERVER="$mode" bash -c "bash .github/scripts/e2e.sh $id $cmd" >"$BATTERY_DIR/$id.log" 2>&1
   st=$?
   record "$id" "$st" "$t"
   [ -f "$rt/logs/$id-server.log" ] && cp "$rt/logs/$id-server.log" "$BATTERY_DIR/$id-server.log"
   rm -rf "$rt/data-$id"
+  # Un worker de dev peut encore écrire une seconde après l'arrêt du serveur : on retente la suppression (best effort).
+  if [ -n "$distenv" ]; then for _ in 1 2 3 4 5; do rm -rf ".next/d-$id" 2>/dev/null && break; sleep 1; done; fi
 }
 
 # run_task <id> : tâche complète d'une suite (ports, exécution, libération). Exécutée en sous-shell.
@@ -399,12 +461,14 @@ run_task() {
   case "$id" in
     checks) run_suite checks "$CHECKS_CMD" ;;
     pdf) run_suite pdf "node --import tsx scripts/test-pdf.mjs" ;;
-    auth)
+    auth*)
+      # lot 104b : une partie de test-auth.mjs (AUTH_ONLY = ses sections), dossier de données propre à la partie.
       if [ $BUILD_OK = 1 ]; then
-        run_suite auth "mkdir -p ${BATT_PREFIX:-/root/pf-batt}-auth && TEST_AUTH_TMP=${BATT_PREFIX:-/root/pf-batt}-auth BATT_AUTH_PORT=$port BATT_AUTH_MOCK_PORT=$((port + 5)) npm run test:auth"
+        local ad="${BATT_PREFIX:-/root/pf-batt}-$id"
+        run_suite "$id" "mkdir -p $ad && AUTH_ONLY=$(auth_only_of "$id") TEST_AUTH_TMP=$ad BATT_AUTH_PORT=$port BATT_AUTH_MOCK_PORT=$((port + 5)) $([ "${BATT_TIMES:-}" = 1 ] && echo "BATT_TIMES_FILE=$BATTERY_DIR/$id.times node --import $PWD/scripts/lib/line-times.mjs scripts/test-auth.mjs" || echo "npm run test:auth")"
       else
-        echo "FAIL auth : build absent ou en échec" >"$BATTERY_DIR/auth.log"
-        record auth 1 "$(date +%s)"
+        echo "FAIL $id : build absent ou en échec" >"$BATTERY_DIR/$id.log"
+        record "$id" 1 "$(date +%s)"
       fi
       ;;
     domaine88)
@@ -434,7 +498,7 @@ if [ "$BATT_JOBS" -gt 1 ] && [ ${#TASKS[@]} -gt 1 ]; then
 fi
 if [ "$DRY_RUN" = 1 ]; then
   echo "=== ordre de départ (BATT_JOBS=$BATT_JOBS, serveur $BATT_SERVER, ports $BATT_PORT_MIN-$BATT_PORT_MAX par blocs de $BATT_PORT_BLOCK)"
-  for id in "${TASKS[@]}"; do printf '%-22s %6s s  poids %s%s\n' "$id" "$(dur_of "$id")" "$(weight_of "$id")" "$(in_list "$BATT_DEV_ONLY" "$id" && [ "$BATT_SERVER" = start ] && echo '  (next dev, une à la fois)')"; done
+  for id in "${TASKS[@]}"; do printf '%-22s %6s s  poids %s%s\n' "$id" "$(dur_of "$id")" "$(weight_of "$id")" "$(in_list "$BATT_DEV_ONLY" "$id" && [ "$BATT_SERVER" = start ] && echo '  (next dev, $BATT_DEV_JOBS à la fois)')"; done
   echo "build : $([ $NEED_BUILD = 1 ] && echo oui || echo non)"
   exit 0
 fi
@@ -466,7 +530,7 @@ reap() {
     if ! kill -0 "${RUN_PID[$id]}" 2>/dev/null; then
       wait "${RUN_PID[$id]}" 2>/dev/null
       USED=$((USED - ${RUN_W[$id]}))
-      if [ "$BATT_SERVER" = start ] && in_list "$BATT_DEV_ONLY" "$id"; then DEV_RUNNING=0; fi
+      if [ "$BATT_SERVER" = start ] && in_list "$BATT_DEV_ONLY" "$id"; then DEV_RUNNING=$((DEV_RUNNING - 1)); fi
       unset 'RUN_PID[$id]' 'RUN_W[$id]'
     fi
   done
@@ -494,13 +558,13 @@ while [ ${#PENDING[@]} -gt 0 ]; do
     can=1
     needs_build "$id" && [ $BUILD_PENDING = 1 ] && can=0
     [ $USED -gt 0 ] && [ $((USED + w)) -gt "$BATT_JOBS" ] && can=0
-    if [ "$BATT_SERVER" = start ] && in_list "$BATT_DEV_ONLY" "$id" && [ $DEV_RUNNING = 1 ]; then can=0; fi
+    if [ "$BATT_SERVER" = start ] && in_list "$BATT_DEV_ONLY" "$id" && [ "$DEV_RUNNING" -ge "$BATT_DEV_JOBS" ]; then can=0; fi
     if [ $can = 1 ]; then
       (run_task "$id") &
       RUN_PID[$id]=$!
       RUN_W[$id]=$w
       USED=$((USED + w))
-      if [ "$BATT_SERVER" = start ] && in_list "$BATT_DEV_ONLY" "$id"; then DEV_RUNNING=1; fi
+      if [ "$BATT_SERVER" = start ] && in_list "$BATT_DEV_ONLY" "$id"; then DEV_RUNNING=$((DEV_RUNNING + 1)); fi
       launched=1
     else
       REST+=("$id")

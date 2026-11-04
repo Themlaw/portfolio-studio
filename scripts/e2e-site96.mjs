@@ -104,7 +104,8 @@ const publicBrand = async (url = "/fr") => {
 /** « Publier » : attend la fin réelle (toast « Publié »), pas seulement l'état « En ligne » déjà affiché avant le clic. */
 const publish = async () => {
   await page.getByRole("button", { name: "Publier", exact: true }).click();
-  await page.getByText(/^Publié/).first().waitFor({ timeout: 120000 }).catch(() => {});
+  // Le toast est « ✓ Publié : la page est en ligne » (la coche précède le texte : /^Publié/ ne le trouvait jamais, et l'attente de 120 s était avalée par le catch).
+  await page.getByText(/Publié : la page est en ligne/).first().waitFor({ timeout: 120000 });
   await sleep(1200);
 };
 

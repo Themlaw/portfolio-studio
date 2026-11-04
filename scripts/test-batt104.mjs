@@ -15,7 +15,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { alloc, list, portFree, release } from "./lib/port-alloc.mjs";
-import { BASE_SUITES, buildContext, parseDurations, parseScript, selectChanged, shardIds, suitesForFile, tokensOf } from "./batt-select.mjs";
+import { BASE_SUITES, buildContext, expandGroups, logicalOf, parseDurations, parseScript, selectChanged, shardIds, suitesForFile, tokensOf } from "./batt-select.mjs";
 import { splitSteps } from "./test-parallel.mjs";
 
 let failures = 0;
@@ -126,7 +126,7 @@ const parsed = parseScript(scriptText);
 const durText = readFileSync(path.join(ROOT, "scripts/batt-durations.tsv"), "utf8");
 const durations = parseDurations(durText);
 {
-  ok("S1 le script déclare des suites e2e et les ids fixes", parsed.e2e.length >= 90 && ["checks", "build", "auth", "domaine88", "pdf"].every((i) => parsed.ids.includes(i)), String(parsed.e2e.length));
+  ok("S1 le script déclare des suites e2e et les ids fixes", parsed.e2e.length >= 90 && ["checks", "build", "domaine88", "pdf", "authA", "authK"].every((i) => parsed.ids.includes(i)) && parsed.groups.has("auth"), String(parsed.e2e.length));
   ok("S2 aucun id en double", new Set(parsed.ids).size === parsed.ids.length);
   const missing = parsed.ids.filter((i) => !durations.has(i));
   ok("D1 chaque suite du script a une durée et un poids dans batt-durations.tsv", missing.length === 0, missing.join(" "));
@@ -156,25 +156,44 @@ const durations = parseDurations(durText);
   }
   ok("S8 shard hors bornes refusé", threw);
 
+  // Suites découpées en parties (lot 104b).
+  const groups = parsed.groups;
+  const allParts = [...groups.values()].flat();
+  ok("G1 chaque partie est un id du script, dans un seul groupe", allParts.every((p) => parsed.ids.includes(p)) && new Set(allParts).size === allParts.length, allParts.filter((p) => !parsed.ids.includes(p)).join(" "));
+  ok("G2 le nom d'une suite d'origine n'est plus un id (pas d'ambiguïté)", [...groups.keys()].every((g) => !parsed.ids.includes(g)), [...groups.keys()].filter((g) => parsed.ids.includes(g)).join(" "));
+  ok("G3 chaque groupe a au moins deux parties", [...groups.values()].every((p) => p.length >= 2));
+  ok("G4 expandGroups : une suite d'origine donne ses parties, un id simple reste, sans doublon", JSON.stringify(expandGroups(["cadre95", "lot1", "cadre95a"], groups)) === JSON.stringify([...groups.get("cadre95"), "lot1"]) && logicalOf("cadre95b", groups) === "cadre95" && logicalOf("lot1", groups) === "lot1");
+  // Les parties de test-auth.mjs couvrent EXACTEMENT les sections que le script déclare (aucune section perdue ni jouée deux fois).
+  const authText = readFileSync(path.join(ROOT, "scripts/test-auth.mjs"), "utf8");
+  const authKeys = [...new Set([...authText.matchAll(/\brun\("([A-Za-z0-9]+)"\)/g)].map((m) => m[1]))].sort();
+  const authRows = [...scriptText.matchAll(/^\s+"(auth\w+)\|([^"|]*)"$/gm)].map((m) => ({ id: m[1], keys: m[2].split(",") }));
+  const covered = authRows.flatMap((r) => r.keys).sort();
+  ok("G5 les parties authX couvrent chaque section de test-auth.mjs, une seule fois", JSON.stringify(covered) === JSON.stringify(authKeys), `${covered.join(",")} / ${authKeys.join(",")}`);
+
   // Mode ciblé.
   const ctx = buildContext(ROOT, scriptText);
   const map = JSON.parse(readFileSync(path.join(ROOT, "scripts/batt-map.json"), "utf8"));
   const ids = parsed.ids.filter((i) => i !== "build");
   const sel = (files) => selectChanged(files, map, ctx, ids).ids;
   const none = sel([]);
-  ok("T1 aucun fichier modifié → le socle fixe seul", JSON.stringify(none) === JSON.stringify(ids.filter((i) => BASE_SUITES.includes(i))) && BASE_SUITES.every((i) => none.includes(i)), none.join(" "));
+  const baseIds = expandGroups(BASE_SUITES, groups);
+  ok("T1 aucun fichier modifié → le socle fixe seul", JSON.stringify(none) === JSON.stringify(ids.filter((i) => baseIds.includes(i))) && baseIds.every((i) => none.includes(i)), none.join(" "));
   const own = sel(["scripts/e2e-planche31.mjs"]);
-  ok("T2 un script de suite modifié → cette suite + le socle", own.includes("planche31") && BASE_SUITES.every((i) => own.includes(i)) && own.length === BASE_SUITES.length + 1, own.join(" "));
+  ok("T2 un script de suite modifié → cette suite + le socle", own.includes("planche31") && baseIds.every((i) => own.includes(i)) && own.length === baseIds.length + 1, own.join(" "));
   const shared = sel(["scripts/e2e-medias.mjs"]);
   ok("T3 un script partagé (medias / medias-firefox) → les deux suites", shared.includes("medias") && shared.includes("medias-firefox"));
   const lib = sel(["scripts/lib/defil99.mjs"]);
-  ok("T4 une bibliothèque de tests → les suites qui l'importent", lib.includes("defilement99") && lib.length > BASE_SUITES.length, lib.join(" "));
+  ok("T4 une bibliothèque de tests → les suites qui l'importent", lib.includes("defilement99") && lib.length > baseIds.length, lib.join(" "));
   const b85 = sel(["src/lib/backup/manifest.ts"]);
   ok("T5 un fichier du domaine sauvegarde → backup85 (règle)", b85.includes("backup85") || b85.includes("backup50"), b85.join(" "));
   const unk = suitesForFile("src/lib/zzz-inconnu.ts", map, ctx);
   ok("T6 un fichier src/ inconnu → le repli large", unk.suites.size >= 5 && unk.why.startsWith("repli"), unk.why);
+  const authSel = sel(["scripts/test-auth.mjs"]);
+  ok("T6b test-auth.mjs modifié → toutes les parties de auth", groups.get("auth").every((p) => authSel.includes(p)), authSel.join(" "));
+  const fondSel = sel(["scripts/e2e-fond100.mjs"]);
+  ok("T6c e2e-fond100.mjs modifié → toutes les parties de fond100", groups.get("fond100").every((p) => fondSel.includes(p)), fondSel.join(" "));
   const doc = sel(["docs/notes.md", "README.md"]);
-  ok("T7 documentation seule → le socle seul", doc.length === BASE_SUITES.length, doc.join(" "));
+  ok("T7 documentation seule → le socle seul", doc.length === baseIds.length, doc.join(" "));
   const mig = sel(["drizzle/0030_x.sql"]);
   ok("T8 une migration → toute la batterie", mig.length === ids.length, `${mig.length}/${ids.length}`);
   const idx = Object.keys(map.index ?? {});
@@ -182,7 +201,7 @@ const durations = parseDurations(durText);
   const bl = sel(["src/components/BoardLayer.tsx"]);
   ok("T10 BoardLayer.tsx → planche31 et boards (index des jetons)", bl.includes("planche31") && bl.includes("boards"), bl.join(" "));
   ok("T11 jetons : classes kebab-case et routes, pas les mots courts", tokensOf('a "pe-slot-tools" x-y /admin/medias ab-cd').size === 2);
-  for (const s of map.base ?? []) ok(`T12 socle ${s} existe`, parsed.ids.includes(s));
+  for (const s of map.base ?? []) ok(`T12 socle ${s} existe`, parsed.ids.includes(s) || groups.has(s));
   ok("T13 le socle du script = le socle de la carte", JSON.stringify([...BASE_SUITES].sort()) === JSON.stringify([...(map.base ?? [])].sort()));
 }
 

@@ -25,13 +25,34 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const BASE_SUITES = ["checks", "state", "editor", "public67", "integ33"];
-const FIXED = ["checks", "build", "auth", "domaine88", "pdf"];
+const FIXED = ["checks", "build", "domaine88", "pdf"];
 
-/** Ids de suites : ids fixes puis tableau E2E du script, avec la commande (pour relier les fichiers aux suites). */
+/**
+ * Ids de suites : ids fixes, parties de test-auth.mjs (tableau AUTHS), puis tableau E2E du script, avec la commande (pour relier les
+ * fichiers aux suites). `groups` : suite d'origine → parties (tableau PARTS_OF, lot 104b : « auth » = authA authF… ; citer la suite
+ * d'origine, dans une règle de la carte ou sur la ligne de commande, sélectionne toutes ses parties).
+ */
 export function parseScript(text) {
   const e2e = [];
   for (const m of text.matchAll(/^\s+"([^"|]+)\|([^"|]*)\|([^"|]*)\|/gm)) e2e.push({ id: m[1], cmd: m[2].trim() });
-  return { fixed: FIXED, e2e, ids: [...FIXED, ...e2e.map((e) => e.id)] };
+  const auths = [...text.matchAll(/^\s+"(auth\w+)\|[^"|]*"$/gm)].map((m) => m[1]);
+  const groups = new Map();
+  for (const m of text.matchAll(/^\s+"(\w+): ([^"]+)"$/gm)) groups.set(m[1], m[2].trim().split(/\s+/));
+  const fixed = [...FIXED, ...auths];
+  return { fixed, e2e, groups, ids: [...fixed, ...e2e.map((e) => e.id)] };
+}
+
+/** Développe les suites d'origine d'une liste d'ids en leurs parties (les autres ids sont gardés). */
+export function expandGroups(list, groups) {
+  const out = [];
+  for (const id of list) for (const p of groups?.get(id) ?? [id]) if (!out.includes(p)) out.push(p);
+  return out;
+}
+
+/** Suite d'origine d'une partie (ou l'id lui-même). */
+export function logicalOf(id, groups) {
+  for (const [name, parts] of groups ?? []) if (parts.includes(id)) return name;
+  return id;
 }
 
 /** Durées : id \t secondes \t poids. */
@@ -89,7 +110,8 @@ export function suitesForFile(file, map, ctx) {
 }
 
 export function selectChanged(files, map, ctx, ids) {
-  const sel = new Set(BASE_SUITES);
+  const groups = ctx.groups;
+  const sel = new Set(expandGroups(BASE_SUITES, groups));
   const explain = [];
   for (const f of files) {
     const { suites, why } = suitesForFile(f, map, ctx);
@@ -98,7 +120,7 @@ export function selectChanged(files, map, ctx, ids) {
       explain.push(`${f} → toute la batterie (${why})`);
       continue;
     }
-    for (const s of suites) if (ids.includes(s)) sel.add(s);
+    for (const s of expandGroups([...suites], groups)) if (ids.includes(s)) sel.add(s);
     if (suites.size) explain.push(`${f} → ${[...suites].join(" ")} (${why})`);
   }
   // Une suite e2e a besoin du build (ajouté seulement si une suite le demande, voir le script) ; `build` n'est pas un id utile ici.
@@ -133,11 +155,12 @@ export function tokensOf(text) {
 }
 
 export function buildContext(root, scriptText) {
-  const { e2e } = parseScript(scriptText);
-  const scriptSuites = new Map(); // fichier de script → suites
+  const { e2e, groups } = parseScript(scriptText);
+  const scriptSuites = new Map(); // fichier de script → suites (d'origine : les parties sont développées à la sélection)
   const libUsers = new Map(); // fichier de lib → suites
   const suiteTokens = new Map(); // suite → jetons
-  for (const { id, cmd } of e2e) {
+  for (const { id: partId, cmd } of e2e) {
+    const id = logicalOf(partId, groups);
     const m = cmd.match(/(scripts\/[\w.-]+\.mjs)/);
     if (!m) continue;
     const files = [m[1]];
@@ -152,8 +175,8 @@ export function buildContext(root, scriptText) {
       files.push(...importsOf(f, t));
     }
     for (const f of seen) {
-      if (f === m[1]) scriptSuites.set(f, [...(scriptSuites.get(f) ?? []), id]);
-      else libUsers.set(f, [...(libUsers.get(f) ?? []), id]);
+      const prev = f === m[1] ? scriptSuites : libUsers;
+      if (!(prev.get(f) ?? []).includes(id)) prev.set(f, [...(prev.get(f) ?? []), id]);
     }
     suiteTokens.set(id, tokensOf(text));
   }
@@ -161,7 +184,7 @@ export function buildContext(root, scriptText) {
   scriptSuites.set("scripts/test-auth.mjs", ["auth"]);
   scriptSuites.set("scripts/e2e-domaine88.mjs", ["domaine88"]);
   scriptSuites.set("scripts/test-pdf.mjs", ["pdf", "checks"]);
-  return { scriptSuites, libUsers, suiteTokens, e2e };
+  return { scriptSuites, libUsers, suiteTokens, e2e, groups };
 }
 
 export function regenIndex(root, scriptText, { maxSuitesPerToken = 8, maxPerFile = 24 } = {}) {
@@ -218,8 +241,9 @@ async function main() {
   }
   let ids = arg(argv, "ids", "").split(/\s+/).filter(Boolean);
   const explicit = ids.length > 0;
-  const bad = ids.filter((i) => !parsed.ids.includes(i));
+  const bad = ids.filter((i) => !parsed.ids.includes(i) && !parsed.groups.has(i));
   if (bad.length) throw new Error(`suite inconnue : ${bad.join(" ")}`);
+  ids = expandGroups(ids, parsed.groups);
   const changed = arg(argv, "changed", "");
   let explain = [];
   if (changed) {
