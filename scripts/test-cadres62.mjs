@@ -280,4 +280,76 @@ test("réglage « Cadre du thème sur toutes les photos » : non par défaut", (
   console.log(`PASS  les ${files.length} SVG du seed et des thèmes livrés s'importent toujours comme cadres`);
 }
 
+/* ---- 7. Sécurité : sharp dans la requête d'import (docs/SECURITE.md §2.6) ------------------------------------------ */
+
+{
+  // frames.ts importe « svgo/browser » (export ESM seul) : tsx le charge en CommonJS, on lui indique le fichier.
+  const { registerHooks } = await import("node:module");
+  const svgoBrowser = new URL("../node_modules/svgo/dist/svgo.browser.js", import.meta.url).href;
+  registerHooks({ resolve: (spec, ctx, next) => (spec === "svgo/browser" ? { url: svgoBrowser, format: "module", shortCircuit: true } : next(spec, ctx)) });
+  const { processSvg, processBitmap } = await import("../src/lib/edit/frames.ts");
+  const { default: sharp } = await import("sharp");
+  const src = readFileSync(new URL("../src/lib/edit/frames.ts", import.meta.url), "utf8");
+
+  test("rendu d'un SVG : taille fixe (≤ 1200 px, sans suréchantillonnage), borne de pixels et délai explicites", () => {
+    assert.ok(!/density:\s*96\s*\*\s*2/.test(src), "plus de density × 2");
+    assert.match(src, /density:\s*72\s*\*\s*scale,\s*limitInputPixels:\s*RASTER_MAX_PIXELS/);
+    assert.match(src, /const RASTER_SIDE = 1200;/);
+    assert.equal((src.match(/\.timeout\(\{ seconds: SHARP_TIMEOUT_S \}\)/g) ?? []).length, 3, "délai sur le rendu SVG, le décodage et les encodeurs");
+    assert.match(src, /decodeProblem\(\{ \.\.\.meta/);
+  });
+
+  // Bord déduit : identique à l'ancien rendu (vérifié sur 35 cadres de 37 à 4096 px) ; ici quelques cas exacts.
+  const ring = (w, h, t) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><path fill-rule="evenodd" fill="#123" d="M0 0H${w}V${h}H0Z M${t} ${t}V${h - t}H${w - t}V${t}Z"/></svg>`);
+  for (const [w, h, t] of [[300, 300, 30], [4096, 4096, 300], [2400, 1600, 120], [120, 80, 12]]) {
+    const r = await processSvg(ring(w, h, t));
+    assert.equal(typeof r, "object", String(r));
+    assert.ok(r.detected && r.slice.every((s) => Math.abs(s - t) <= 1), `${w}×${h} bord ${t} : ${JSON.stringify(r.slice)}`);
+    passed++;
+    console.log(`PASS  SVG ${w}×${h} : bord ${t} px retrouvé (${JSON.stringify(r.slice)})`);
+  }
+
+  // Bitmap au-delà de 40 Mpx : refusé sur l'en-tête, sans décodage (PNG tronqué : en-tête IHDR et quelques octets de données).
+  const { crc32, deflateSync } = await import("node:zlib");
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(td) >>> 0);
+    return Buffer.concat([len, td, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(10000, 0);
+  ihdr.writeUInt32BE(5000, 4);
+  ihdr.set([8, 6, 0, 0, 0], 8);
+  const huge = Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(Buffer.alloc(64))), chunk("IEND", Buffer.alloc(0))]);
+  const big = await processBitmap(huge);
+  assert.ok(typeof big === "string" && /trop grande/.test(big), String(big));
+  passed++;
+  console.log("PASS  bitmap de 50 Mpx refusé sur l'en-tête (aucun décodage)");
+
+  // Budget de décodage : un WebP (décodé d'un bloc) au-delà du budget est refusé avant d'ouvrir.
+  const rgba = Buffer.alloc(4000 * 4000 * 4, 0);
+  const webp = await sharp(rgba, { raw: { width: 4000, height: 4000, channels: 4 } }).webp({ lossless: true }).toBuffer();
+  const before = process.env.IMAGE_DECODE_BUDGET_MB;
+  process.env.IMAGE_DECODE_BUDGET_MB = "50";
+  const refused = await processBitmap(webp);
+  if (before === undefined) delete process.env.IMAGE_DECODE_BUDGET_MB;
+  else process.env.IMAGE_DECODE_BUDGET_MB = before;
+  assert.ok(typeof refused === "string" && /trop lourde à ouvrir/.test(refused), String(refused));
+  passed++;
+  console.log("PASS  bitmap au-delà du budget de décodage refusé (decodeProblem)");
+
+  // Cadre PNG ordinaire : toujours accepté, bord trouvé.
+  const w = 400;
+  const px = Buffer.alloc(w * w * 4);
+  for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) if (x < 40 || y < 40 || x >= w - 40 || y >= w - 40) px.set([200, 30, 30, 255], (y * w + x) * 4);
+  const okPng = await processBitmap(await sharp(px, { raw: { width: w, height: w, channels: 4 } }).png().toBuffer());
+  assert.ok(typeof okPng === "object" && okPng.detected && okPng.slice.every((s) => s === 40), JSON.stringify(okPng.slice ?? okPng));
+  passed++;
+  console.log("PASS  cadre PNG ordinaire accepté, bord de 40 px retrouvé");
+}
+
+
 console.log(`\n${passed} test(s) réussi(s)`);
