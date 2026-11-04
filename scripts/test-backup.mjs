@@ -69,6 +69,7 @@ const { Scheduler, dueReason, rotationPlan, sortArchives, archiveName, failureCo
         },
         persist: (s) => persisted.push(s),
         onError: () => {},
+        userActivity: extra.user ? () => extra.user(clock) : undefined,
       },
       { dirty: false, lastChangeAt: 0, lastBackupAt: clock.t, ...init },
     );
@@ -95,8 +96,8 @@ const { Scheduler, dueReason, rotationPlan, sortArchives, archiveName, failureCo
   await s.sched.tick();
   ok("déclenchement : une fois sauvegardé, plus rien tant que rien ne change", s.ran.length === 1);
 
-  // activité continue : une modification toutes les 5 min, jamais 10 min de calme
-  s = make({});
+  // activité continue : une modification toutes les 5 min, jamais 10 min de calme (l'artiste travaille : gestes à chaque fois, lot 118)
+  s = make({}, { user: (clock) => clock.t });
   let ticks = 0;
   for (; s.clock.t < 1_000_000_000 + 7 * 3_600_000 && !s.ran.length; ticks++) {
     s.clock.t += 5 * MIN;

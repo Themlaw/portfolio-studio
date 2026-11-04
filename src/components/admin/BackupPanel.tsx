@@ -11,6 +11,7 @@ const REASONS: Record<string, string> = {
   premier: "Première sauvegarde",
   calme: "Après une session de travail",
   delai: "Délai maximal atteint",
+  bruit: "Après une session de travail (le site écrivait encore en fond)",
   manuel: "À ta demande",
 };
 const SOURCES = { reglage: "Réglé ici", env: "Valeur du serveur", defaut: "Valeur d'origine" } as const;
@@ -50,6 +51,13 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
     if (r.ok) setStatus(r.data);
     return r.ok ? r.data : null;
   };
+
+  // Lot 118 : l'état se rafraîchit aussi au repos (30 s), pour que l'alerte rouge apparaisse sans recharger la page.
+  useEffect(() => {
+    const t = setInterval(() => void refresh(), 30_000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Suivi de la sauvegarde en cours : une lecture toutes les 1,5 s, tant qu'elle dure.
   useEffect(() => {
@@ -165,6 +173,12 @@ export default function BackupPanel({ initial }: { initial: BackupStatus }) {
         Garde une copie sur ton ordinateur de temps en temps : les sauvegardes sont rangées au même endroit que ton site. Elles te protègent d&apos;une fausse manœuvre, pas de la perte du disque. Télécharge la dernière une fois de temps en temps.
       </p>
 
+      <span hidden data-testid="activite-sauvegarde" data-last-change={status.activity?.lastChangeAt ?? ""} data-last-user={status.activity?.lastUserAt ?? ""} data-changes={status.activity?.changes ?? ""} />
+      {status.alert && (
+        <p className="a-notice a-notice-danger" role="alert" data-testid="alerte-sauvegarde" data-kind={status.alert.kind}>
+          Attention : {status.alert.message} Elle devait avoir lieu {fmtDate(status.alert.since)}. Fais une sauvegarde à la main (bouton ci-dessous) et préviens la personne qui s&apos;occupe du site : le journal du site contient une ligne « [backup] ALERTE » avec le détail.
+        </p>
+      )}
       <section className="a-section" aria-labelledby="sv-etat">
         <h2 id="sv-etat">État</h2>
         <div className="a-table-wrap">
