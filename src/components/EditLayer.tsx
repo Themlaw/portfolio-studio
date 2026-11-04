@@ -16,7 +16,7 @@
  * en évidence ; cadre rouge si le conteneur refuse ce composant). En-tête et
  * pied de page (`data-edit-global`) : contour et étiquette « commun à toutes
  * les pages ». Textes déclarés `inline` (data-inline) et textes du site
- * (data-site-inline) : double-clic, ou Entrée sur le bloc choisi. Toute
+ * (data-site-inline) : double-clic, double-tap (toucher), ou Entrée sur le bloc choisi. Toute
  * modification part vers l'éditeur, qui tient le brouillon, l'enregistre
  * puis demande un rafraîchissement.
  */
@@ -1044,8 +1044,10 @@ export default function EditLayer() {
           finishEdit(true);
         } else if (e.key === "Escape") {
           // Échap VALIDE la saisie (comme cliquer ailleurs) : ce qui est tapé n'est jamais perdu. Pour revenir en arrière : Annuler / Ctrl+Z.
+          // Exception (lot 109) : le libellé d'un lien du menu, renommé en place, revient à son texte d'avant.
           e.preventDefault();
-          finishEdit(true);
+          const cur = editing.current;
+          finishEdit(!(cur.target.kind === "site" && cur.target.field === "nav"));
         }
         return;
       }
@@ -1095,6 +1097,41 @@ export default function EditLayer() {
     document.addEventListener("click", onClick, true);
     document.addEventListener("auxclick", onAuxClick, true);
     document.addEventListener("dblclick", onDblClick, true);
+    // Toucher : le double-tap (deux appuis rapprochés sur le même texte, sans glisser) ouvre la saisie comme le double-clic.
+    let down: { x: number; y: number } | null = null;
+    let lastTap: { t: number; field: HTMLElement } | null = null;
+    const onPtrDown = (e: PointerEvent) => {
+      if (e.pointerType === "touch") down = { x: e.clientX, y: e.clientY };
+    };
+    const onPtrCancel = () => {
+      down = null;
+      lastTap = null;
+    };
+    const onPtrUp = (e: PointerEvent) => {
+      if (e.pointerType !== "touch" || inLayer(e.target)) return;
+      const moved = down ? Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10 : false;
+      down = null;
+      const field = e.target instanceof Element ? e.target.closest<HTMLElement>("[data-inline], [data-site-inline]") : null;
+      if (moved || !field) {
+        lastTap = null;
+        return;
+      }
+      if (lastTap && lastTap.field === field && e.timeStamp - lastTap.t < 350) {
+        lastTap = null;
+        setTimeout(() => {
+          if (field.isConnected && editing.current?.el !== field) startEdit(field);
+        }, 0);
+      } else lastTap = { t: e.timeStamp, field };
+    };
+    // Bouton « Renommer » du menu (SiteLayer) : même saisie en place que le double-clic.
+    const onRename = (e: Event) => {
+      const el = (e as CustomEvent<{ el?: HTMLElement }>).detail?.el;
+      if (el && el.isConnected) startEdit(el, { selectAll: true });
+    };
+    document.addEventListener("pointerdown", onPtrDown, { passive: true });
+    document.addEventListener("pointerup", onPtrUp, { passive: true });
+    document.addEventListener("pointercancel", onPtrCancel, { passive: true });
+    document.addEventListener("pe:rename", onRename);
     document.addEventListener("submit", onSubmit, true);
     document.addEventListener("keydown", onKey);
     // Sélection modifiée dans l'accroche : l'état du bouton « Surligner » suit.
@@ -1113,6 +1150,10 @@ export default function EditLayer() {
       document.removeEventListener("click", onClick, true);
       document.removeEventListener("auxclick", onAuxClick, true);
       document.removeEventListener("dblclick", onDblClick, true);
+      document.removeEventListener("pointerdown", onPtrDown);
+      document.removeEventListener("pointerup", onPtrUp);
+      document.removeEventListener("pointercancel", onPtrCancel);
+      document.removeEventListener("pe:rename", onRename);
       document.removeEventListener("submit", onSubmit, true);
       document.removeEventListener("keydown", onKey);
       finishEdit(true);

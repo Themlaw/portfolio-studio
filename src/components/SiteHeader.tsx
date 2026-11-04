@@ -135,7 +135,9 @@ export default function SiteHeader({
 
         <nav
           aria-label={t("label")}
-          className="hidden lg:flex flex-wrap items-center justify-end gap-x-7 gap-y-2"
+          // Édition (lot 109) : le menu en ligne reste visible à toute largeur de toile (le panneau de l'éditeur la rétrécit sous 1024 px) :
+          // sans lui, ni le renommage ni le déplacement des liens ne seraient atteignables.
+          className={`${edit ? "flex" : "hidden lg:flex"} flex-wrap items-center justify-end gap-x-7 gap-y-2`}
         >
           {nav.map(({ id, href, label, external }, i) => {
             const mark = edit ? { "data-nav-item": i, "data-nav-key": keys[i] } : {};
@@ -181,7 +183,7 @@ export default function SiteHeader({
           <LocaleSwitcher alternates={alternates} />
         </nav>
 
-        <div className="flex items-center gap-4 lg:hidden">
+        <div className={`items-center gap-4 lg:hidden ${edit ? "hidden" : "flex"}`}>
           <LocaleSwitcher alternates={alternates} />
           <button
             type="button"
@@ -198,7 +200,7 @@ export default function SiteHeader({
       <nav
         id="nav-mobile"
         aria-label={t("label")}
-        hidden={!open}
+        hidden={!open || edit}
         className="lg:hidden bg-bg/95 backdrop-blur-xl border-t border-line"
       >
         <ul className="shell flex flex-col py-3">

@@ -52,7 +52,7 @@ export function HeroEditor() {
   const set = useSet(value, onChange);
   return (
     <>
-      <p className="a-help">Ton nom et ton métier sont communs à tout le site (en-tête, profil…) : double-clic dessus sur la page pour les modifier.</p>
+      <p className="a-help">Ton nom et ton métier sont communs à tout le site (en-tête, profil…) : double-clic (ou double-tap) dessus sur la page pour les modifier. Un lien du menu se renomme avec le crayon « Renommer » qui apparaît sur lui.</p>
       {context.heroBackdrop !== false && (
         <MediaPicker
           label="Image de fond (facultative)"
