@@ -16,7 +16,7 @@ import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { chromium } from "playwright";
+import { chromium, firefox } from "playwright";
 import sharp from "sharp";
 
 import { paint } from "./lib/crop-fixtures.mjs";
@@ -588,6 +588,133 @@ if (run("C")) {
     }
   } catch (e) {
     ok("C : exception inattendue", false, String(e.stack ?? e.message).split("\n").slice(0, 8).join(" | "));
+  }
+}
+
+
+/* ================================================ C2 : liseré du coin, sur un papier peint ============================================ */
+/* Cas de l'utilisateur : un Fond papier peint (motif contrasté, couleur dessous jaune pâle) autour d'une Carte lilas clair au contour rose épais, coins
+   arrondis (« Fond autour d'une Carte », et « Carte dans un Fond en retrait »), plus la Carte à papier peint `paper: under`. Zoom 1×, 2× et 3×. Sur l'anneau de
+   2 px autour de l'arc EXTÉRIEUR du contour de la Carte, chaque pixel est un mélange contour / papier peint voisin : aucune autre couleur (lilas de la carte,
+   jaune dessous, blanc). Mesure : distance du pixel au segment [couleur du contour, pixel du papier peint juste à côté]. */
+if (run("C") || run("C2")) {
+  try {
+    const PINK = "#ff2d95", LILAC = "#d9c8f5", YELLOW = "#fff3a8";
+    const tile = path.join(tmpdir(), "tartan110.png");
+    await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="#f4e27a"/><rect x="0" y="6" width="48" height="10" fill="#2d6a4f"/><rect x="6" y="0" width="10" height="48" fill="#1d3557"/><rect x="0" y="30" width="48" height="4" fill="#d62828"/></svg>`)).png().toFile(tile);
+    const before = sql((db) => db.prepare("select id from wallpapers").all()).length;
+    await setup.goto(`${BASE}/admin/papiers-peints`, { waitUntil: "domcontentloaded" });
+    await setup.locator('[data-testid="wallpaper-input"]').setInputFiles([tile]);
+    await waitFor(async () => (await setup.locator('[data-testid="wallpaper"][data-status="ready"]').count()) >= before + 1, 180000);
+    const WP = sql((db) => db.prepare("select id from wallpapers order by id").all()).map((r) => r.id).at(-1);
+    const bord = { width: "thick", color: PINK };
+    const CASES2 = [];
+    for (const c of ["s", "m", "l"]) {
+      CASES2.push({ name: `fond autour d'une carte · coins ${c}`, props: { background: { kind: "wallpaper", wallpaper: WP, color: YELLOW, round: c, inset: "m", card: { kind: "color", color: LILAC, round: c, border: bord } } } });
+      CASES2.push({ name: `carte dans un fond en retrait · coins ${c}`, ext: "page", props: { surface: { color: LILAC, corners: c, width: "full", border: bord }, background: { kind: "wallpaper", wallpaper: WP, color: YELLOW, round: c, inset: "m" } } });
+      CASES2.push({ name: `carte à papier dessous · coins ${c}`, ext: "page", props: { surface: { color: LILAC, corners: c, width: "inset", border: bord, paperWallpaper: WP, paper: "under" } } });
+    }
+    setDraft(pageId, CASES2.map((k, n) => ({ uid: `d110${n}`, type: "rich-text", props: { paragraphs: [T(`D110x${n}x texte`)], ...k.props } })));
+    const { ctx, page } = await authed({ viewport: { width: 1440, height: 900 } });
+    await page.goto(`${BASE}/admin/pages/${pageId}/editer`, { waitUntil: "domcontentloaded" });
+    await canvas(page);
+    await sleep(2000);
+    ok("C2-0 publication des cas à papier peint", await publishNow(page));
+    await ctx.close();
+    const LILAC_RGB = [0xd9, 0xc8, 0xf5];
+    /** Part de couleur de la carte (lilas) dans un pixel : pixel ≈ a·contour + b·lilas + (1−a−b)·papier, moindres carrés pour chaque couleur de papier possible ; on garde le meilleur ajustement. */
+    const leakOf = (pt, ink, wps) => {
+      let best = { res: 1e9, b: 0 };
+      for (const w of wps) {
+        const y = pt.map((v, i) => v - w[i]), u = ink.map((v, i) => v - w[i]), v2 = LILAC_RGB.map((v, i) => v - w[i]);
+        const dot = (p1, p2) => p1.reduce((t, x, i) => t + x * p2[i], 0);
+        const uu = dot(u, u), vv = dot(v2, v2), uv = dot(u, v2), yu = dot(y, u), yv = dot(y, v2);
+        const det = uu * vv - uv * uv;
+        if (Math.abs(det) < 1e-6) continue;
+        const a = Math.max(0, Math.min(1, (yu * vv - yv * uv) / det));
+        const b = Math.max(0, Math.min(1, (yv * uu - yu * uv) / det));
+        const res = Math.hypot(...y.map((x, i) => x - a * u[i] - b * v2[i]));
+        if (res < best.res) best = { res, b };
+      }
+      return best.b;
+    };
+    const PINK_RGB = [0xff, 0x2d, 0x95];
+    const PAL = [[0xf4, 0xe2, 0x7a], [0x2d, 0x6a, 0x4f], [0xd6, 0x28, 0x28], [0x1d, 0x35, 0x57]];
+    const dist2seg = (p, a, b) => {
+      const ab = b.map((v, i) => v - a[i]);
+      const ap = p.map((v, i) => v - a[i]);
+      const t = Math.max(0, Math.min(1, ap.reduce((s2, v, i) => s2 + v * ab[i], 0) / Math.max(1e-9, ab.reduce((s2, v) => s2 + v * v, 0))));
+      return Math.hypot(...p.map((v, i) => v - (a[i] + t * ab[i])));
+    };
+    const sane = Math.min(...[[0xd9, 0xc8, 0xf5], [0xff, 0xf3, 0xa8], [255, 255, 255]].map((f) => Math.min(...[PINK_RGB, ...PAL].flatMap((u, x) => [PINK_RGB, ...PAL].slice(x).map((v) => dist2seg(f, u, v))))));
+    ok(`C2-1 les couleurs interdites (carte, dessous, blanc) sont loin de tout mélange contour / motif (${sane.toFixed(0)} > 40)`, sane > 40);
+    for (const dsf of [1, 2, 3]) {
+      const eng = process.env.BATT_C2_ENGINE === "firefox" ? await firefox.launch() : null;
+      const c2 = await (eng ?? browser).newContext({ viewport: { width: 1200, height: 900 }, deviceScaleFactor: dsf });
+      const p2 = await c2.newPage();
+      p2.setDefaultTimeout(60000);
+      await p2.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });
+      // A/B : BATT_C2_OLD=1 rend l'ancien dessin (couleur de la zone sous le contour) pour mesurer ce que le correctif change.
+      if (process.env.BATT_C2_OLD) await p2.addStyleTag({ content: ".surface-card[data-border], .fond-bloc[data-fond-border] { background-image: none !important; background-clip: border-box !important; background-color: var(--card-bg) !important; }" });
+      for (const [n, k] of CASES2.entries()) {
+        const zones = await p2.evaluateHandle((t) => {
+          const e = [...document.querySelectorAll("p")].find((x) => x.textContent.includes(t));
+          return [...document.querySelectorAll(".zone")].filter((z) => z.contains(e) && parseFloat(getComputedStyle(z).borderTopWidth) >= 4 && parseFloat(getComputedStyle(z).borderTopLeftRadius) > 0);
+        }, `D110x${n}x`);
+        const count = await zones.evaluate((zs) => zs.length);
+        let worst = 0, where = "", measured = 0, leak = 0, leakAt = "";
+        for (let i = 0; i < count; i++) {
+          const el = (await zones.evaluateHandle((zs, j) => zs[j], i)).asElement();
+          await el.scrollIntoViewIfNeeded();
+          const info = await el.evaluate((z) => {
+            const cs = getComputedStyle(z);
+            const r = z.getBoundingClientRect();
+            return { w: r.width, h: r.height, bw: parseFloat(cs.borderTopWidth), R: ["TopLeft", "TopRight", "BottomRight", "BottomLeft"].map((q) => parseFloat(cs[`border${q}Radius`])), bc: cs.borderTopColor };
+          });
+          const shot = async () => {
+            const buf = await el.screenshot({ type: "png" });
+            const { data, info: im } = await sharp(buf).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+            return { data, im };
+          };
+          const A = await shot();
+          // Référence : la même zone dont la couleur de carte est remplacée par celle du contour (aucun lilas nulle part) ; tout écart avec le rendu réel sur l'anneau est de la couleur de la carte.
+          await el.evaluate((z, c) => z.style.setProperty("--card-bg", c, "important"), info.bc);
+          const B = await shot();
+          await el.evaluate((z) => z.style.removeProperty("--card-bg"));
+          const S = A.im.width / info.w;
+          const mk = (sh) => (x, y) => [0, 1, 2].map((q) => sh.data[(Math.min(sh.im.height - 1, Math.max(0, Math.round(y))) * sh.im.width + Math.min(sh.im.width - 1, Math.max(0, Math.round(x)))) * 3 + q]);
+          const atA = mk(A), atB = mk(B);
+          const INK = rgbOf(info.bc);
+          for (let corner = 0; corner < 4; corner++) {
+            const R = Math.min(info.R[corner], info.w / 2, info.h / 2) * S;
+            if (R < 6 * S) continue;
+            const sx = corner === 0 || corner === 3 ? 1 : -1;
+            const sy = corner === 0 || corner === 1 ? 1 : -1;
+            const px = (at, x, y) => at(sx > 0 ? x : A.im.width - 1 - x, sy > 0 ? y : A.im.height - 1 - y);
+            measured++;
+            for (let a = 15; a <= 75; a += 3) {
+              const rad = (a * Math.PI) / 180;
+              const at2 = (at, rr) => px(at, R - Math.cos(rad) * rr, R - Math.sin(rad) * rr);
+              for (const d of [-1.5, -1, -0.5, 0, 0.5, 1, 1.5]) {
+                const pt = at2(atA, R + d * S);
+                const ends = k.ext === "page" ? [INK, at2(atA, R + 4 * S)] : [INK, ...PAL];
+                const dev = Math.min(...ends.flatMap((u, x) => ends.slice(x).map((v) => dist2seg(pt, u, v))));
+                if (dev > worst) [worst, where] = [dev, `zone ${i} coin ${corner} angle ${a}° d ${d}px : ${pt} (contour ${INK.map(Math.round)})`];
+                const diff = Math.hypot(...pt.map((v, q) => v - at2(atB, R + d * S)[q]));
+                if (diff > leak) [leak, leakAt] = [diff, `zone ${i} coin ${corner} angle ${a}° d ${d}px : réel ${pt} / sans lilas ${at2(atB, R + d * S)}`];
+              }
+            }
+          }
+          if (process.env.BATT_SHOT && worst > 40) await el.screenshot({ path: path.join(SHOTS, `C2-${dsf}x-${n}-${i}.png`) });
+        }
+        ok(`C2 ${dsf}× · ${k.name} : l'anneau extérieur du contour ne porte que le contour et le papier peint (écart max ${worst.toFixed(0)}, ${measured} coins)`, measured > 0 && worst <= 40, where);
+        ok(`C2 ${dsf}× · ${k.name} : aucune couleur de la carte (lilas) au bord extérieur du contour (écart max avec le rendu sans lilas : ${leak.toFixed(0)}/441)`, measured > 0 && leak <= 12, leakAt);
+      }
+      await c2.close();
+      await eng?.close();
+    }
+  } catch (e) {
+    ok("C2 : exception inattendue", false, String(e.stack ?? e.message).split("\n").slice(0, 8).join(" | "));
   }
 }
 
