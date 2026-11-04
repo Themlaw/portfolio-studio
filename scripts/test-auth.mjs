@@ -21,7 +21,8 @@
  * Usage : npm run test:auth   (exit 1 si un test échoue)
  */
 import { spawn, spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import Database from "better-sqlite3";
@@ -35,8 +36,10 @@ import { initializeCanvas, readPsd, writePsdBuffer } from "ag-psd";
 const ROOT = new URL("..", import.meta.url).pathname;
 const SA = path.join(ROOT, ".next/standalone");
 // Données de test : sur disque si TEST_AUTH_TMP le dit (le /tmp de la VM est un tmpfs : les
-// mesures vidéo y manquent de place, ENOSPC → 500 sur la 4K).
-const TMP = process.env.TEST_AUTH_TMP ?? "/tmp/portfolio-test-auth";
+// mesures vidéo y manquent de place, ENOSPC → 500 sur la 4K). Sinon un dossier au nom imprévisible (mkdtemp, 0700) :
+// un chemin /tmp fixe pourrait être préparé d'avance par un autre utilisateur (lien symbolique) ou relu (cookies, base).
+const TMP_GIVEN = Boolean(process.env.TEST_AUTH_TMP);
+const TMP = process.env.TEST_AUTH_TMP ?? mkdtempSync(path.join(tmpdir(), "portfolio-test-auth-"));
 // Ports réglables (BATT_AUTH_PORT) : plusieurs batteries peuvent lancer la suite sur la même machine (défaut 3200 et 3290).
 const PORT = Number(process.env.BATT_AUTH_PORT ?? 3200);
 const MOCK_PORT = PORT + 90;
@@ -427,7 +430,8 @@ async function pngOf(W, H, depth, colorType, orientation = 0) {
 /* ----------------------------------------------------------------- tests -- */
 
 prepareStandalone();
-rmSync(TMP, { recursive: true, force: true });
+// Dossier donné par TEST_AUTH_TMP : vidé comme avant. Dossier mkdtemp : neuf, gardé tel quel (0700).
+if (TMP_GIVEN) rmSync(TMP, { recursive: true, force: true });
 const baseEnv = { BETTER_AUTH_SECRET: SECRET, ADMIN_EMAIL: ADMIN.email, ADMIN_PASSWORD: ADMIN.password };
 const ids = actionIds();
 
