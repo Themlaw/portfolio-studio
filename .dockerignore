@@ -36,6 +36,8 @@ scripts
 !scripts/copy-kit-native.mjs
 # Restauration d'une sauvegarde, copiée dans l'image (docs/SAUVEGARDES.md).
 !scripts/restore-backup.mjs
+# Réinitialisation du mot de passe, copiée dans l'image (audit de sécurité P3).
+!scripts/reset-password.mjs
 # Jeux de test (PSD de l'artiste…) : jamais utiles au build.
 tests
 test-results

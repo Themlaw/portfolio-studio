@@ -148,6 +148,9 @@ export const SPECS: Record<string, Spec> = {
   unlockBackupDownloadAction: { label: "Téléchargement des sauvegardes déverrouillé", type: "compte", values: [] },
   setOnboardingHiddenAction: { label: "Premiers pas masqués ou affichés", type: "modification" },
   signOutAction: { label: "Déconnexion", type: "compte" },
+  // Audit P3 : jamais de résumé des arguments (mots de passe).
+  changePasswordAction: { label: "Mot de passe changé (autres sessions déconnectées)", type: "compte", values: [] },
+  revokeOtherSessionsAction: { label: "Autres sessions déconnectées", type: "compte", values: [] },
   // Routes d'écriture
   "route:upload": { label: "Fichier envoyé", type: "import", values: [] },
   "route:upload-complete": { label: "Envoi par morceaux terminé", type: "import", values: [] },

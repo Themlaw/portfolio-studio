@@ -245,6 +245,8 @@ const ADMIN_ACTIONS = [
   "saveThemeFrameAllAction",
   "listWallpapersAction",
   "unlockBackupDownloadAction",
+  "changePasswordAction",
+  "revokeOtherSessionsAction",
 ];
 
 /** Identifiants des server actions, lus dans le manifeste du build. */
@@ -714,6 +716,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
     : /Model|OldTheme/.test(name) ? "/admin/themes"
     : /Onboarding/.test(name) ? "/admin"
     : /Backup/.test(name) ? "/admin/sauvegardes"
+    : /Password|Sessions/.test(name) ? "/admin/compte"
     : /Draft|[bB]oard|Font|FromEditor/.test(name) ? "/admin/pages/1/editer"
     : /Theme/.test(name) ? "/admin/themes"
     : /Settings|Seo/.test(name) ? "/admin/reglages"
@@ -765,6 +768,46 @@ await sleep(500);
   for (let i = 0; i < 6 && !throttled; i++) throttled = (await unlock({ password: `faux-${i}` }, jar.copy((k) => k !== "pf-backup-unlock"))).text.includes('"reauth":"throttled"');
   ok("A10p mots de passe faux en boucle : freinés (« Trop d'essais »)", throttled);
   writeDb(dirA, "update session set created_at = ?", Date.now());
+}
+// Audit de sécurité P3 : sessions et mot de passe (écran « Sécurité du compte », API Better Auth, durée absolue).
+{
+  const xff = "203.0.113.77";
+  const tokenOf = (j) => decodeURIComponent([...j.cookies].find(([k]) => k.includes("session_token"))?.[1] ?? "").split(".")[0];
+  const other = new Jar();
+  ok("A19s un second appareil se connecte", (await signIn(other, ADMIN.email, ADMIN.password, xff)).ok);
+  const compte = await http("/admin/compte", { jar });
+  const html = await compte.text();
+  ok("A19s écran « Sécurité du compte » : 200, sessions listées, pas de jeton de session dans la page", compte.status === 200 && html.includes("Appareils connectés") && !html.includes(tokenOf(other) || "§"), `${compte.status}`);
+  ok("A19s sans session : redirection vers la connexion", [302, 303, 307].includes((await http("/admin/compte")).status));
+  const change = (j, args) => callActionJson(j, ids.changePasswordAction, [args], "/admin/compte");
+  let r = await change(jar, { currentPassword: "pas-le-bon", newPassword: "nouveau-mot-de-passe-A19", confirm: "nouveau-mot-de-passe-A19" });
+  ok("A19s mauvais mot de passe actuel : refusé, l'autre appareil reste connecté", r.text.includes("Mot de passe actuel incorrect") && (await http("/admin", { jar: other })).status === 200, r.text.slice(0, 160));
+  r = await change(jar, { currentPassword: ADMIN.password, newPassword: "nouveau-mot-de-passe-A19", confirm: "pas-pareil" });
+  ok("A19s confirmation différente : refusée côté serveur", r.text.includes("identiques"), r.text.slice(0, 160));
+  r = await change(jar, { currentPassword: ADMIN.password, newPassword: "nouveau-mot-de-passe-A19", confirm: "nouveau-mot-de-passe-A19" });
+  ok("A19s mot de passe changé par l'écran", r.text.includes('"ok":true'), r.text.slice(0, 160));
+  ok("A19s l'autre appareil est DÉCONNECTÉ (ancien cookie → connexion)", (await http("/admin", { jar: other })).status !== 200 && (await http("/api/auth/get-session", { jar: other }).then((x) => x.text())) === "null");
+  ok("A19s la session en cours reste ouverte (nouveau cookie posé)", (await http("/admin", { jar })).status === 200);
+  // Appel DIRECT de l'API Better Auth en demandant de garder les autres sessions : forcé à les couper (crochet before).
+  const third = new Jar();
+  ok("A19s un troisième appareil se connecte avec le nouveau mot de passe", (await signIn(third, ADMIN.email, "nouveau-mot-de-passe-A19", "203.0.113.78")).ok);
+  const api = await http("/api/auth/change-password", { jar, method: "POST", body: { currentPassword: "nouveau-mot-de-passe-A19", newPassword: ADMIN.password, revokeOtherSessions: false } });
+  ok("A19s /api/auth/change-password avec revokeOtherSessions: false : autres sessions coupées quand même", api.ok && (await http("/api/auth/get-session", { jar: third }).then((x) => x.text())) === "null" && (await http("/admin", { jar })).status === 200, `${api.status}`);
+  // Déconnecter les autres sessions.
+  const fourth = new Jar();
+  await signIn(fourth, ADMIN.email, ADMIN.password, "203.0.113.79");
+  r = await callActionJson(jar, ids.revokeOtherSessionsAction, [], "/admin/compte");
+  ok("A19s « Déconnecter les autres sessions » : l'autre coupé, celle-ci gardée", r.text.includes('"revoked":1') && (await http("/api/auth/get-session", { jar: fourth }).then((x) => x.text())) === "null" && (await http("/admin", { jar })).status === 200, r.text.slice(0, 160));
+  // Durée absolue : une session de plus de 7 jours est refusée et supprimée, même encore « valable » pour Better Auth.
+  const old = new Jar();
+  await signIn(old, ADMIN.email, ADMIN.password, "203.0.113.80");
+  const oldToken = tokenOf(old);
+  writeDb(dirA, "update session set created_at = ? where token = ?", Date.now() - 8 * 86_400_000, oldToken);
+  ok("A19s session de plus de 7 jours : refusée (connexion) puis supprimée en base", (await http("/admin", { jar: old })).status !== 200 && !query(dirA, "select 1 x from session where token = ?", oldToken));
+  ok("A19s durée d'inactivité explicite : expiration à environ 3 jours", (() => {
+    const row = query(dirA, "select expires_at e, created_at c from session order by created_at desc limit 1");
+    return row && Math.abs(row.e - row.c - 3 * 86_400_000) < 120_000;
+  })());
 }
 // Brouillons de l'éditeur visuel (phase 7a) — série ED : jamais publics ni en
 // cache (vérifié sur cache FROID : serveur redémarré, le cache ISR est en

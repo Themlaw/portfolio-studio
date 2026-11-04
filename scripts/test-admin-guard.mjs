@@ -143,6 +143,8 @@ const EXPECTED = [
   "saveThemeFrameAllAction",
   "listWallpapersAction",
   "unlockBackupDownloadAction",
+  "changePasswordAction",
+  "revokeOtherSessionsAction",
 ];
 const found = new Set();
 

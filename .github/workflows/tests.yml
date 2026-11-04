@@ -70,6 +70,7 @@ jobs:
             { id: "medias-firefox", cmd: "node scripts/e2e-medias.mjs", browser: "firefox", only: "AB" },
             { id: "17b", cmd: "node scripts/e2e-17b.mjs", browser: "chromium" },
             { id: "crop17d", cmd: "node scripts/e2e-crop.mjs", browser: "chromium" },
+            { id: "compte", cmd: "node scripts/e2e-compte.mjs", browser: "chromium" },
           ];
           const want = (process.env.SUITES ?? "").split(/[\s,]+/).filter(Boolean);
           const on = (id) => !want.length || want.includes(id);

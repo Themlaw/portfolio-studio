@@ -19,6 +19,7 @@ import { getDb, schema } from "@/lib/db";
 import { noteAuditUser } from "@/lib/journal/context";
 
 import { checkUserAccess } from "./identity";
+import { sessionTooOld } from "./sessions";
 import { getAuth } from "./index";
 import { maskEmail } from "./mask";
 
@@ -28,6 +29,12 @@ export const LOGIN_PATH = "/admin/connexion";
 async function verifiedSession(requestHeaders: Headers) {
   const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (!session) return null;
+  // Audit de sécurité P3 : durée absolue (7 jours après la connexion), même pour une session utilisée chaque jour.
+  if (sessionTooOld(session.session.createdAt)) {
+    getDb().delete(schema.session).where(eq(schema.session.token, session.session.token)).run();
+    console.warn(`[auth] session expirée (plus de 7 jours depuis la connexion) pour ${maskEmail(session.user.email)} : reconnexion demandée`);
+    return null;
+  }
   const verdict = checkUserAccess(session.user.id);
   if (!verdict.allowed) {
     getDb().delete(schema.session).where(eq(schema.session.token, session.session.token)).run();
@@ -53,7 +60,7 @@ export async function isAdminRequest(requestHeaders: Headers): Promise<boolean> 
 /** Comme isAdminRequest, mais rend la session (route qui doit connaître son âge ou son identifiant). */
 export async function adminSessionFor(requestHeaders: Headers): Promise<AdminSession | null> {
   const session = await getAuth().api.getSession({ headers: requestHeaders });
-  return session && checkUserAccess(session.user.id).allowed ? session : null;
+  return session && !sessionTooOld(session.session.createdAt) && checkUserAccess(session.user.id).allowed ? session : null;
 }
 
 /** Identifiant interne de l'admin de ces en-têtes (session vérifiée en base, accès revérifié), ou null. */
