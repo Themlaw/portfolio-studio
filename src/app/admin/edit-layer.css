@@ -2549,6 +2549,7 @@ html[data-free-dragging] * {
 /* Cadre de l'image choisie : suit sa position, sa taille et son angle (le calque le pose en pixels). */
 .pe-free-sel {
   position: absolute;
+  z-index: 2;
   box-sizing: border-box;
   border: 1.5px solid #2e4e9e;
   pointer-events: none;
@@ -2585,30 +2586,57 @@ html[data-free-dragging] * {
   border-left: 1.5px solid #2e4e9e;
   transform: translateX(-50%);
 }
-/* Poignée du bas de la zone : la hauteur libre. */
-.pe-free-height {
+/* Poignées de recadrage du cadre (lot 113) : quatre bords et quatre coins, centrées sur le bord du cadre. Zone d'appui 28 px à la souris, 44 px au doigt ;
+   la marque visible reste petite (::before). Sous les poignées de l'image choisie (placées avant dans le calque). */
+.pe-free-crop {
   position: absolute;
-  z-index: 8;
-  width: 56px;
-  height: 14px;
-  margin-left: -28px;
-  box-sizing: border-box;
-  border: 1.5px solid #2e4e9e;
-  border-radius: 7px;
-  background: #ffffff;
-  cursor: ns-resize;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
   pointer-events: auto;
   touch-action: none;
 }
-.pe-free-height::after {
+@media (pointer: coarse), (hover: none) {
+  .pe-free-crop { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
+}
+.pe-free-crop::before {
   content: "";
   position: absolute;
-  left: 14px;
-  right: 14px;
-  top: 4px;
-  height: 3px;
-  border-top: 1.5px solid #2e4e9e;
-  border-bottom: 1.5px solid #2e4e9e;
+  left: 50%;
+  top: 50%;
+  box-sizing: border-box;
+  background: #2e4e9e;
+  border: 2px solid #ffffff;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(46, 78, 158, 0.55);
+  transform: translate(-50%, -50%);
+}
+.pe-free-crop[data-c="n"]::before, .pe-free-crop[data-c="s"]::before { width: 34px; height: 9px; }
+.pe-free-crop[data-c="e"]::before, .pe-free-crop[data-c="w"]::before { width: 9px; height: 34px; }
+.pe-free-crop[data-c="ne"]::before, .pe-free-crop[data-c="nw"]::before, .pe-free-crop[data-c="se"]::before, .pe-free-crop[data-c="sw"]::before { width: 15px; height: 15px; }
+.pe-free-crop[data-c="n"], .pe-free-crop[data-c="s"] { cursor: ns-resize; }
+.pe-free-crop[data-c="e"], .pe-free-crop[data-c="w"] { cursor: ew-resize; }
+.pe-free-crop[data-c="nw"], .pe-free-crop[data-c="se"] { cursor: nwse-resize; }
+.pe-free-crop[data-c="ne"], .pe-free-crop[data-c="sw"] { cursor: nesw-resize; }
+/* Contour du cadre pendant un recadrage, et badge (taille, repère touché). */
+.pe-free-frame {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1.5px dashed #2e4e9e;
+  pointer-events: none;
+}
+.pe-free-badge {
+  position: absolute;
+  z-index: 9;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #1f2f5c;
+  color: #ffffff;
+  font: 12px/1.5 system-ui, sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, 0);
 }
 .pe-free-guide {
   position: absolute;

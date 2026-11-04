@@ -66,9 +66,33 @@ export function clearItem(el: HTMLElement) {
   for (const k of ["x", "y", "w", "rot"]) el.style.removeProperty(`--p${k}`);
 }
 
-/** Aperçu du format libre (poignée du bas) : `--fb-pr` prime sur `--fb-r`. */
-export const writeAspect = (zone: HTMLElement, aspect: number) => zone.style.setProperty("--fb-pr", aspect.toFixed(4));
-export const clearAspect = (zone: HTMLElement) => zone.style.removeProperty("--fb-pr");
+/** Le cadre dans le plan (lot 113) : coin (l, t) et taille (w, h) en % du plan ; l'aperçu d'un geste (`--pfb-*`) prime sur la valeur rendue (`--fb-*`). Sans recadrage : le plan entier. */
+export type FrameBox = { l: number; t: number; w: number; h: number };
+export function frameBoxOf(zone: HTMLElement): FrameBox {
+  const read = (n: string, d: number) => {
+    const live = zone.style.getPropertyValue(`--pfb-${n}`);
+    const own = zone.style.getPropertyValue(`--fb-${n}`);
+    const v = Number(live !== "" ? live : own);
+    return (live !== "" || own !== "") && Number.isFinite(v) ? v : d;
+  };
+  return { l: read("cl", 0), t: read("ct", 0), w: read("cw", 100), h: read("ch", 100) };
+}
+/** Aperçu d'un recadrage : marges (en % du plan) et format du plan. */
+export function writeCrop(zone: HTMLElement, c: { t: number; r: number; b: number; l: number }, canvasAspect: number) {
+  const w = 100 - c.l - c.r;
+  const h = 100 - c.t - c.b;
+  zone.setAttribute("data-crop", "");
+  zone.style.setProperty("--pfb-cl", String(c.l));
+  zone.style.setProperty("--pfb-ct", String(c.t));
+  zone.style.setProperty("--pfb-cw", String(w));
+  zone.style.setProperty("--pfb-ch", String(h));
+  zone.style.setProperty("--pfb-fa", ((canvasAspect * w) / h).toFixed(5));
+}
+export function clearCrop(zone: HTMLElement) {
+  for (const n of ["cl", "ct", "cw", "ch", "fa"]) zone.style.removeProperty(`--pfb-${n}`);
+  // Le rendu de l'éditeur pose `--fb-cw` (et `data-crop`) s'il y a un recadrage ; sans lui, l'aperçu a posé `data-crop` seul.
+  if (zone.style.getPropertyValue("--fb-cw") === "") zone.removeAttribute("data-crop");
+}
 
 /** Zone de cette clé (page ou planche), après un nouveau rendu de la page. */
 export function findZone(key: string): HTMLElement | null {

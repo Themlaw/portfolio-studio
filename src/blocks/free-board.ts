@@ -49,8 +49,28 @@ export const FreeItemSchema = z.object({
 });
 export type FreeItem = z.infer<typeof FreeItemSchema>;
 
+/**
+ * Recadrage du cadre (lot 113) : le « plan » est la zone telle que `format` / `aspect` la décrivent (les images y sont posées en % comme
+ * toujours) ; le cadre est la fenêtre visible dans ce plan, définie par quatre marges en % du plan (haut, droite, bas, gauche). Rien
+ * n'est réécrit dans les images : recadrer puis ré-agrandir rend exactement l'état d'avant. Absent = pas de recadrage (rendu d'avant).
+ * Gauche, droite et haut restent dans le plan (>= 0) ; le bas peut descendre sous le plan (négatif jusqu'à -150).
+ */
+export const FREE_CROP_MIN = 10;
+export const FREE_CROP_B_MIN = -150;
+export const FREE_FRAME_ASPECT_MIN = 0.25;
+export const FREE_FRAME_ASPECT_MAX = 8;
+export const FreeCropSchema = z.object({
+  t: z.number().min(0).max(90).optional(),
+  r: z.number().min(0).max(90).optional(),
+  b: z.number().min(FREE_CROP_B_MIN).max(90).optional(),
+  l: z.number().min(0).max(90).optional(),
+});
+export type FreeCrop = { t: number; r: number; b: number; l: number };
+
 export const freeBoardSchema = z.object({
   format: z.enum(FREE_FORMATS).default("3:2"),
+  /** Recadrage du cadre (lot 113), absent = le plan entier. */
+  crop: FreeCropSchema.optional(),
   /** Largeur ÷ hauteur de la zone en « Hauteur libre ». */
   aspect: z.number().min(FREE_ASPECT_MIN).max(FREE_ASPECT_MAX).optional(),
   /** Sous 640 px : la composition reste à l'échelle, ou les images s'empilent dans l'ordre de lecture. */
@@ -74,6 +94,51 @@ export function zoneAspect(props: { format?: unknown; aspect?: unknown }): numbe
   const f = props.format as FreeFormat | undefined;
   if (f && f !== "free" && Object.hasOwn(FREE_RATIOS, f)) return FREE_RATIOS[f];
   return typeof props.aspect === "number" && Number.isFinite(props.aspect) ? clamp(props.aspect, FREE_ASPECT_MIN, FREE_ASPECT_MAX) : FREE_RATIOS["3:2"];
+}
+
+const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+/** Le recadrage lu tolérant (valeurs hors bornes ramenées), ou null s'il n'y en a pas (absent, nul, illisible). */
+export function cropOf(props: { crop?: unknown }): FreeCrop | null {
+  const c = props.crop;
+  if (!c || typeof c !== "object" || Array.isArray(c)) return null;
+  const o = c as Record<string, unknown>;
+  const crop = { t: clamp(num(o.t), 0, 90), r: clamp(num(o.r), 0, 90), b: clamp(num(o.b), FREE_CROP_B_MIN, 90), l: clamp(num(o.l), 0, 90) };
+  return crop.t === 0 && crop.r === 0 && crop.b === 0 && crop.l === 0 ? null : crop;
+}
+
+/** Marges ramenées dans les bornes : cadre d'au moins 10 % du plan dans chaque sens, format du cadre entre 0,25 et 8. */
+export function clampCrop(c: FreeCrop, zone: number): FreeCrop {
+  const t = clamp(c.t, 0, 90);
+  let r = clamp(c.r, 0, 90);
+  let b = clamp(c.b, FREE_CROP_B_MIN, 90);
+  let l = clamp(c.l, 0, 90);
+  if (100 - l - r < FREE_CROP_MIN) r = Math.max(0, 100 - l - FREE_CROP_MIN);
+  if (100 - l - r < FREE_CROP_MIN) l = 100 - r - FREE_CROP_MIN;
+  if (100 - t - b < FREE_CROP_MIN) b = 100 - t - FREE_CROP_MIN;
+  const w = 100 - l - r;
+  const hMin = (zone * w) / FREE_FRAME_ASPECT_MAX;
+  const hMax = (zone * w) / FREE_FRAME_ASPECT_MIN;
+  if (100 - t - b < hMin) b = 100 - t - hMin;
+  if (100 - t - b > hMax) b = 100 - t - hMax;
+  const q = (n: number) => Math.round(n * 100) / 100;
+  return { t: q(t), r: q(r), b: q(b), l: q(l) };
+}
+
+/** Largeur ÷ hauteur du CADRE (la fenêtre visible), recadrage compris. */
+export function frameAspect(props: { format?: unknown; aspect?: unknown; crop?: unknown }): number {
+  const zone = zoneAspect(props);
+  const c = cropOf(props);
+  return c ? (zone * (100 - c.l - c.r)) / (100 - c.t - c.b) : zone;
+}
+
+/**
+ * Variables CSS du cadre recadré (`--fb-cl` / `--fb-ct` : coin haut gauche du cadre dans le plan, `--fb-cw` / `--fb-ch` : sa taille, en % du
+ * plan ; `--fb-fa` : son format), ou null sans recadrage : le rendu d'avant reste strictement celui d'avant.
+ */
+export function cropStyle(props: { format?: unknown; aspect?: unknown; crop?: unknown }): Record<string, number> | null {
+  const c = cropOf(props);
+  if (!c) return null;
+  return { "--fb-cl": c.l, "--fb-ct": c.t, "--fb-cw": 100 - c.l - c.r, "--fb-ch": 100 - c.t - c.b, "--fb-fa": (zoneAspect(props) * (100 - c.l - c.r)) / (100 - c.t - c.b) };
 }
 
 /** Hauteur d'une image en % de la hauteur de la zone. */
@@ -105,6 +170,8 @@ function compactZ(items: FreeItem[]): FreeItem[] {
 /** Opérations sur les réglages (le modèle partagé par la toile, le panneau et les tests). */
 export type FreeModelOp =
   | { op: "set"; format?: FreeFormat; aspect?: number; phone?: "scale" | "stack" }
+  /** Recadre le cadre (lot 113) : marges absolues en % du plan (celles qui manquent sont gardées) ; `reset` : plan entier. */
+  | { op: "crop"; t?: number; r?: number; b?: number; l?: number; reset?: boolean }
   /** Pose une image neuve : (x, y) = son CENTRE en % de la zone ; `ratio` = largeur ÷ hauteur du média. */
   | { op: "put"; id: string; media: number; x: number; y: number; ratio: number; w?: number }
   /** Déplace, redimensionne ou fait pivoter UNE image (un geste = une opération). */
@@ -129,16 +196,32 @@ export function applyFreeOp(props: Props, op: FreeModelOp): { props: Props } | {
     case "set": {
       const next: Props = { ...props };
       if (op.format) {
+        // Un format choisi dans le panneau redonne le plan entier : le recadrage s'efface.
+        delete next.crop;
         next.format = op.format;
         // Un format fixe fait oublier la hauteur libre ; « Hauteur libre » garde le format actuel comme point de départ.
         if (op.format !== "free") delete next.aspect;
         else if (op.aspect === undefined && next.aspect === undefined) next.aspect = round(zone);
       }
       if (op.aspect !== undefined) {
+        delete next.crop;
         next.format = "free";
         next.aspect = round(clamp(op.aspect, FREE_ASPECT_MIN, FREE_ASPECT_MAX), 3);
       }
       if (op.phone) next.phone = op.phone;
+      return { props: next };
+    }
+    case "crop": {
+      const next: Props = { ...props };
+      if (op.reset) {
+        delete next.crop;
+        return { props: next };
+      }
+      const cur = cropOf(props) ?? { t: 0, r: 0, b: 0, l: 0 };
+      const want = { t: op.t ?? cur.t, r: op.r ?? cur.r, b: op.b ?? cur.b, l: op.l ?? cur.l };
+      const c = clampCrop(want, zone);
+      if (c.t === 0 && c.r === 0 && c.b === 0 && c.l === 0) delete next.crop;
+      else next.crop = c;
       return { props: next };
     }
     case "put": {
@@ -232,6 +315,71 @@ export function snapBox(box: FreeBox, others: FreeBox[], tolX: number, tolY: num
       h: hit([out.y, out.y + out.h / 2, out.y + out.h], linesY),
     },
   };
+}
+
+/* ---- Magnétisme du recadrage (lot 113) ------------------------------------------------------------------------------------- */
+
+export const FREE_SNAP_RATIOS: [string, number][] = [["3:2", 3 / 2], ["4:3", 4 / 3], ["1:1", 1], ["16:9", 16 / 9]];
+export type FreeContent = { x0: number; y0: number; x1: number; y1: number };
+
+/** Boîte englobante des images en % du plan (rotation comprise) ; `ratios` : largeur ÷ hauteur de chaque média, par id d'image. Null sans image. */
+export function contentBounds(items: FreeItem[], zone: number, ratios: Record<string, number>): FreeContent | null {
+  let box: FreeContent | null = null;
+  for (const it of items) {
+    const h = itemHeight(it.w, zone, ratios[it.id] ?? 1);
+    const cx = it.x + it.w / 2;
+    const cy = it.y + h / 2;
+    // Largeur en % de la largeur du plan, hauteur en % de sa hauteur : la rotation se calcule en unités égales (largeur du plan = 1).
+    const hu = h / zone;
+    const th = (it.rot * Math.PI) / 180;
+    const ex = (Math.abs(it.w * Math.cos(th)) + Math.abs(hu * Math.sin(th))) / 2;
+    const ey = ((Math.abs(it.w * Math.sin(th)) + Math.abs(hu * Math.cos(th))) / 2) * zone;
+    const b = { x0: cx - ex, x1: cx + ex, y0: cy - ey, y1: cy + ey };
+    box = box ? { x0: Math.min(box.x0, b.x0), x1: Math.max(box.x1, b.x1), y0: Math.min(box.y0, b.y0), y1: Math.max(box.y1, b.y1) } : b;
+  }
+  return box;
+}
+
+/**
+ * Magnétisme d'un geste de recadrage : `moved` = bords déplacés. D'abord les bords du contenu (priorité : le bord déplacé colle à l'image la
+ * plus proche, à `tolPct` % du plan près), sinon le format du cadre colle à un repère (3:2, 4:3, 1:1, 16:9) à `tol` près (relatif) en
+ * ajustant le bord vertical déplacé (bas de préférence), sinon l'horizontal. `tol` = 0 : aucun magnétisme (Alt).
+ */
+export function snapCrop(crop: FreeCrop, moved: ("t" | "r" | "b" | "l")[], o: { zone: number; tol: number; content: FreeContent | null; tolPct?: number }): { crop: FreeCrop; snap?: string } {
+  const out = { ...crop };
+  const tolPct = o.tolPct ?? 0;
+  if (o.content && tolPct > 0) {
+    const c = o.content;
+    const want: Record<"t" | "r" | "b" | "l", number> = { t: c.y0, b: 100 - c.y1, l: c.x0, r: 100 - c.x1 };
+    let hit = false;
+    for (const k of moved) {
+      if (Math.abs(out[k] - want[k]) <= tolPct && (k === "b" || want[k] >= 0)) {
+        out[k] = Math.round(want[k] * 100) / 100;
+        hit = true;
+      }
+    }
+    if (hit) return { crop: out, snap: "contenu" };
+  }
+  if (o.tol > 0) {
+    const w = 100 - out.l - out.r;
+    const h = 100 - out.t - out.b;
+    const fa = (o.zone * w) / h;
+    let best: [string, number] | null = null;
+    for (const r of FREE_SNAP_RATIOS) if (Math.abs(fa - r[1]) / r[1] <= o.tol && (!best || Math.abs(fa - r[1]) < Math.abs(fa - best[1]))) best = r;
+    if (best) {
+      if (moved.includes("b") || moved.includes("t")) {
+        const nh = (o.zone * w) / best[1];
+        if (moved.includes("b")) out.b = Math.round((100 - out.t - nh) * 100) / 100;
+        else out.t = Math.round((100 - out.b - nh) * 100) / 100;
+      } else {
+        const nw = (best[1] * h) / o.zone;
+        if (moved.includes("r")) out.r = Math.round((100 - out.l - nw) * 100) / 100;
+        else out.l = Math.round((100 - out.r - nw) * 100) / 100;
+      }
+      return { crop: out, snap: best[0] };
+    }
+  }
+  return { crop };
 }
 
 /** Identité d'une image neuve (lettres minuscules et chiffres, 12 caractères au plus). */

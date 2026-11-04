@@ -445,7 +445,7 @@ if (run("E"))
     ok("E12b publication du mode « empilées »", await publish((b) => b.map((x) => (x.type === "free-board" ? { ...x, props: { ...x.props, phone: "stack" } } : x))));
     ok("E12c le mode empilé est publié (phone: stack, crop gardé)", savedProps("free-board")[0]?.phone === "stack" && Boolean(savedProps("free-board")[0]?.crop), JSON.stringify(savedProps("free-board")[0]));
     const st = await publicPage(390, 844, { isMobile: true, hasTouch: true });
-    const stk = await st.evaluate(() => { const z = document.querySelector(".free-board"); const r = z.getBoundingClientRect(); const col = z.parentElement.getBoundingClientRect(); return { phone: z.dataset.phone, vw: innerWidth, w: r.width, col: col.width, flex: getComputedStyle(z).display, over: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1 }; });
+    const stk = await st.evaluate(() => { const z = document.querySelector(".free-board"); const r = z.getBoundingClientRect(); const pcs = getComputedStyle(z.parentElement); return { phone: z.dataset.phone, vw: innerWidth, w: r.width, col: z.parentElement.clientWidth - parseFloat(pcs.paddingLeft) - parseFloat(pcs.paddingRight), flex: getComputedStyle(z).display, over: document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1 }; });
     ok("E13 téléphone « empilées » : colonne pleine largeur malgré le recadrage, sans débordement", stk.flex === "flex" && near(stk.w, stk.col, 1) && stk.over, JSON.stringify(stk));
     await st.context().close();
   });
@@ -664,15 +664,18 @@ if (run("G"))
     await cropDrag("s", 0, -50, { alt: true });
     await settled(page);
     ok("G9a le recadrage de la planche en cellule est écrit avant la publication", propsOf("cf").crop?.b > 3, JSON.stringify(propsOf("cf")));
-    console.log(`# G9 crop=${JSON.stringify(propsOf("cf").crop)} editeur=${JSON.stringify(await info())}`);
+    const parts = (root) => root.evaluate(() => { const z = document.querySelector(".block-grid-cell .free-board"); const chain = []; for (let e = z; e && !e.classList.contains("block-grid"); e = e.parentElement) chain.push(`${e.tagName.toLowerCase()}.${[...e.classList].join(".")}:${Math.round(e.getBoundingClientRect().height * 10) / 10}`); return chain; });
+    console.log(`# G9 crop=${JSON.stringify(propsOf("cf").crop)} chaine editeur=${JSON.stringify(await parts(f))}`);
     const edNorm = await NORM(f);
     const edInfo = await info();
     ok("G9 publication", await publish((b) => b));
     const p = await publicPage(1440, 900);
     const pubNorm = await NORM(p);
+    console.log(`# G9 chaine public=${JSON.stringify(await parts(p))}`);
     const pubInfo = await p.evaluate(() => { const cells = [...document.querySelectorAll(".block-grid .block-grid-cell")]; const g = document.querySelector(".block-grid").getBoundingClientRect(); return { gw: g.width, gh: g.height, ws: cells.map((c) => c.getBoundingClientRect().width / g.width) }; });
     ok("G9b site = éditeur : composition de la planche (cadre et images, ±1 %)", sameNorm(edNorm, pubNorm), JSON.stringify([edNorm, pubNorm]));
-    ok("G9c site = éditeur : proportions des cellules (±1 %) et rapport hauteur/largeur de la grille (±3 %)", pubInfo.ws.every((w, k) => near(w, edInfo.cells[k].w / edInfo.gw, 0.01)) && near(pubInfo.gh / pubInfo.gw, edInfo.gh / edInfo.gw, 0.03), JSON.stringify([pubInfo, edInfo]));
+    // La toile ajoute sous chaque case les champs de légende (absents du site) : on compare les largeurs des cases, pas la hauteur de la grille.
+    ok("G9c site = éditeur : proportions des cellules (±1 %)", pubInfo.ws.every((w, k) => near(w, edInfo.cells[k].w / edInfo.gw, 0.01)), JSON.stringify([pubInfo, edInfo]));
     ok("G9d public : pas de section de planche imbriquée ni de repères d'édition", await p.evaluate(() => !document.querySelector(".block-grid .free-board-section.shell") && !document.querySelector("[data-edit-free]")));
     await p.context().close();
     const ph = await publicPage(390, 844, { isMobile: true, hasTouch: true });

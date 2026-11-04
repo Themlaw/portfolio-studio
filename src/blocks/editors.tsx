@@ -33,7 +33,7 @@ import { withContactForm, FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, type
 import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, sameL, TILE_SIZE_LABELS, TILE_SIZES, tilesMode, tileSize, type CollectionPage, type TextField as TileTextField, type TileEdit, type TileItem } from "./collection-pages";
 import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
 import { useBlockEditor } from "./editor-context";
-import { applyFreeOp, FREE_FORMAT_LABELS, FREE_FORMATS, FREE_PHONE_LABELS, FREE_PHONE_MODES, freeItems, MAX_FREE_ITEMS, newFreeId, type FreeFormat, type FreeModelOp } from "./free-board";
+import { applyFreeOp, cropOf, FREE_FORMAT_LABELS, FREE_FORMATS, FREE_PHONE_LABELS, FREE_PHONE_MODES, freeItems, MAX_FREE_ITEMS, newFreeId, type FreeFormat, type FreeModelOp } from "./free-board";
 import FormatSelect from "./FormatSelect";
 import type { L } from "./editor-types";
 import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "./video-mode";
@@ -990,7 +990,9 @@ export function FreeBoardEditor() {
     const res = applyFreeOp(value, op);
     if (!("error" in res)) onChange(res.props);
   };
-  const format = (value.format as FreeFormat | undefined) ?? "3:2";
+  // Un cadre recadré (lot 113) est « libre » : sa hauteur et sa largeur viennent des poignées ; un cran de format redonne le plan entier.
+  const cropped = cropOf(value) !== null;
+  const format = cropped ? "free" : ((value.format as FreeFormat | undefined) ?? "3:2");
   const phone = (value.phone as "scale" | "stack" | undefined) ?? "scale";
   const ordered = items.slice().sort((a, b) => b.z - a.z);
   return (
@@ -998,10 +1000,13 @@ export function FreeBoardEditor() {
       <Toggle label="Agrandir au clic" checked={value.zoom !== false} onChange={(v) => onChange(v ? (({ zoom: _z, ...rest }) => (void _z, rest))(value) : { ...value, zoom: false })} />
       <Select
         label="Format de la zone"
-        help="La hauteur de la zone suit sa largeur. « Hauteur libre » : tire la poignée sous la zone, sur la page."
+        help="La hauteur de la zone suit sa largeur. Pour la raccourcir ou la recadrer librement, tire les poignées des bords et des coins de la zone, sur la page : les images ne bougent pas. Choisir un format redonne la zone entière."
         value={format}
-        options={FREE_FORMATS.map((f) => ({ value: f, label: FREE_FORMAT_LABELS[f] }))}
-        onChange={(v) => apply({ op: "set", format: (v as FreeFormat) ?? "3:2" })}
+        options={FREE_FORMATS.map((f) => ({ value: f, label: cropped && f === "free" ? "Libre (recadrée)" : FREE_FORMAT_LABELS[f] }))}
+        onChange={(v) => {
+          if (cropped && v === "free") return;
+          apply({ op: "set", format: (v as FreeFormat) ?? "3:2" });
+        }}
       />
       <Select
         label="Sur téléphone (moins de 640 px)"

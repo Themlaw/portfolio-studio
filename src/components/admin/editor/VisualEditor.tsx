@@ -932,8 +932,9 @@ export default function VisualEditor({
   const [tileCover, setTileCover] = useState<{ uid: string; index?: number; pageId?: number } | null>(null);
 
   /** Demande de la toile : choix illustré, ou texte tout de suite, à cet endroit. */
-  const requestInsert = (parent: string | null, index: number, what: "choose" | TextStarter) => {
+  const requestInsert = (parent: string | null, index: number, what: "choose" | "free" | TextStarter) => {
     if (what === "choose") setAdding({ parent, index });
+    else if (what === "free") insert("free-board", { parent, index });
     else insertStarter(what, { parent, index });
   };
 

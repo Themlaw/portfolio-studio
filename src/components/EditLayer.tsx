@@ -1001,7 +1001,7 @@ export default function EditLayer() {
         if (addEnd) post({ kind: "insert", parent: null, index: boxesRef.current.filter((b) => !b.parent).length, what: "choose" });
         else {
           const grid = cellText!.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock;
-          if (grid) post({ kind: "insert", parent: grid, index: boxesRef.current.filter((b) => b.parent === grid).length, what: (cellText!.dataset.editCellText as "text" | "title" | "title-text") || "text" });
+          if (grid) post({ kind: "insert", parent: grid, index: boxesRef.current.filter((b) => b.parent === grid).length, what: (cellText!.dataset.editCellText as "text" | "title" | "title-text" | "free") || "text" });
         }
         return;
       }

@@ -198,10 +198,10 @@ figure.block-image[data-free] .media-frame :is(img, video) {
 /* Case d'une grille « sur mesure » / « automatique » avec un format imposé : une case large garde la hauteur de ses voisines d'une colonne
    (format x largeur). */
 @media (min-width: 48rem) {
-  .block-grid:is([data-layout="custom"], [data-layout="auto"]):not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) :is(.media-frame:not(.media-box > .media-frame), .media-box) {
+  .block-grid:is([data-layout="custom"], [data-layout="auto"]):not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) :is(.media-frame:not(.media-box > .media-frame), .media-box):not(.free-board *) {
     --case-r: calc(var(--grid-r, 1.3333) * var(--w, 1));
   }
-  .block-grid:is([data-layout="custom"], [data-layout="auto"]):not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) .media-box > .media-frame {
+  .block-grid:is([data-layout="custom"], [data-layout="auto"]):not([data-ratio="auto"]) > .block-grid-cell:not([data-span-h]) .media-box > .media-frame:not(.free-board *) {
     --box-r: calc(var(--grid-r, 1.3333) * var(--w, 1));
   }
 }

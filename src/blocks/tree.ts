@@ -27,7 +27,8 @@ const SIMPLE = ["section-title", "project-board", "image", "rich-text", "video-s
  */
 export const CONTAINERS: Record<string, { accepts: string[] }> = {
   "featured-project": { accepts: [...SIMPLE, "grid"] },
-  grid: { accepts: SIMPLE },
+  // Lot 113 : une planche libre peut se poser dans une cellule de grille (page).
+  grid: { accepts: [...SIMPLE, "free-board"] },
 };
 
 const own = <T>(dict: Record<string, T>, key: string): T | undefined => (Object.hasOwn(dict, key) ? dict[key] : undefined);
