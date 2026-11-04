@@ -8,13 +8,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import KitDownloadButton from "@/components/admin/KitDownloadButton";
+import KitDownloadButton, { KitPartsDownload } from "@/components/admin/KitDownloadButton";
 import KitTutorial from "@/components/admin/KitTutorial";
 import { KitApplyPanel, KitImportUpload, KitImportWatch, KitTargetNote } from "@/components/admin/KitImport";
 import PageHeader from "@/components/admin/PageHeader";
 import { assertAdmin } from "@/lib/auth/guard";
 import { arrowMirror, decorApplicable, firstViewTotal, isApplicable, kitColorFailures, kitTarget, withKitColors } from "@/lib/kit/apply";
-import { loadSavedTheme } from "@/lib/kit/export-job";
+import { kitFile, kitVersion, loadSavedTheme } from "@/lib/kit/export-job";
+import { kitParts, readKitMeta } from "@/lib/kit/parts";
 import type { SlotReport } from "@/lib/kit/import";
 import { beforePreviews, getKitImport, isImportId, listKitImports } from "@/lib/kit/import-job";
 import { ALL_SLOTS, slotSpecOf } from "@/lib/kit/spec";
@@ -52,6 +53,9 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
   const theme = /^[a-z0-9-]{1,80}$/.test(id) ? loadSavedTheme(id) : null;
   if (!theme) notFound();
   const imports = await listKitImports(theme.id);
+  // Lot 122 : les parties du kit (poids connus seulement si le kit de l'état enregistré est déjà généré).
+  const zip = kitFile(theme.id, kitVersion(theme));
+  const [parts, kitMeta] = await Promise.all([kitParts(zip), readKitMeta(zip)]);
   const wanted = (await searchParams).import;
   // ?neuf=1 : un nouvel envoi commence (ou vient d'échouer) : l'ancienne revue disparaît, elle ne concerne plus ce fichier.
   const currentId = (await searchParams).neuf ? undefined : isImportId(wanted) ? wanted : imports[0]?.id;
@@ -133,6 +137,7 @@ export default async function ThemeKitPage({ params, searchParams }: { params: P
       />
       <div className="a-section a-kit-export" style={{ borderTop: 0, marginTop: 0, paddingTop: 0 }}>
         <KitDownloadButton themeId={theme.id} />
+        <KitPartsDownload themeId={theme.id} parts={parts} ms={kitMeta?.ms ?? null} />
         <p className="a-help">Le kit reprend l&apos;état enregistré de ce thème : un groupe par élément, avec où il apparaît sur le site et les consignes.</p>
         <KitTutorial themeId={theme.id} fromTheme quiet label="Tuto du kit : comment ça marche" />
       </div>
