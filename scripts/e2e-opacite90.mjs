@@ -322,11 +322,11 @@ if (run("B"))
     ok("B1 texte sans fond : plus aucun rond dans la barre", (await f.locator(".pe-tools .sm-dot").count()) === 0);
     ok("B2 le bouton s'appelle « Espacement » (plus « Espace »), sans valeur tant que le thème décide", (await label(f, "space-button")) === "Espacement", await label(f, "space-button"));
     ok("B3 « Fond » sans fond : aucun échantillon", (await label(f, "fond-button")) === "Fond & carte" && (await f.locator('.pe-tools [data-testid="fond-button"] .sm-swatch').count()) === 0);
-    ok("B4 l'infobulle d'Espacement reste « Espace au-dessus de ce bloc »", (await btn(f, "space-button").getAttribute("title")) === "Espace au-dessus de ce bloc");
+    ok("B4 l'infobulle d'Espacement dit « Espacement intérieur » (lot 107)", (await btn(f, "space-button").getAttribute("title")) === "Espacement intérieur : distance dans le fond et la carte", await btn(f, "space-button").getAttribute("title"));
     await btn(f, "space-button").click();
-    const dlg = f.getByRole("dialog", { name: "Espacement" });
+    const dlg = f.getByRole("dialog", { name: "Espacement intérieur" });
     await dlg.waitFor({ timeout: 15000 });
-    ok("B5 la fenêtre s'appelle « Espacement » et sa rangée aussi", (await dlg.locator(".sm-label").first().textContent()) === "Espacement");
+    ok("B5 la fenêtre s'appelle « Espacement intérieur » et porte le curseur Haut", (await dlg.locator('[data-testid="slider-spaceTop"]').count()) === 1);
     await dlg.locator('[data-space-top="none"]').click();
     ok("B6 « Aucun » est un choix comme un autre : « Espacement · aucun »", await waitFor(async () => (await label(f, "space-button")) === "Espacement · aucun", 15000), await label(f, "space-button"));
     await dlg.locator('[data-space-top="m"]').click();

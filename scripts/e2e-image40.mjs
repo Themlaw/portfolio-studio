@@ -260,7 +260,7 @@ if (run("G"))
     ok("G0 sans réglage : un espace du thème entre le texte et l'image (> 20 px)", auto > 20, String(auto));
     const dlg = await openQuick(f, "spaced", "space");
     await page.screenshot({ path: path.join(SHOTS, "g0-menu-espace.png") });
-    ok("G1 la fenêtre propose Aucun / S / M / Auto, Auto choisi", (await dlg.locator("[data-space-top]").count()) === 4 && (await dlg.locator('[data-space-top="auto"]').getAttribute("aria-checked")) === "true");
+    ok("G1 la fenêtre propose crans Aucun à XL + Auto, Auto choisi", (await dlg.locator("[data-space-top]").count()) === 6 && (await dlg.locator('[data-space-top="auto"]').getAttribute("aria-checked")) === "true");
     await dlg.locator('[data-space-top="none"]').click();
     let g;
     ok("G2 Aucun : 0 px entre le texte et l'image", await waitFor(async () => { g = await gapBetween(f, T2, FIG("spaced")); return g !== null && Math.abs(g) <= 1; }, 30000), String(g));

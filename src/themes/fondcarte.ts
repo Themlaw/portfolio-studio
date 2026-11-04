@@ -37,8 +37,12 @@ export function freshZone(slot: Slot, caps: Caps): Zone {
   return caps.canCard ? { layer: "card", extent: "inset" } : { layer: "fond", extent: "inset", margin: "m" };
 }
 
-/** Les deux sections d'un bloc, lues dans ses deux couches. */
-export function readFondCarte(stored: ZoneStored, defaults: ResolvedSurface = FALLBACK_CARD): FondCarte {
+/**
+ * Les deux sections d'un bloc, lues dans ses deux couches, et laquelle est DEHORS (`outer`, null s'il y a moins de deux sections).
+ * Lot 107 : l'ordre des couches est celui du rendu (la couche `surface` est dehors, `background` dedans ; panneau `card` dedans) ; le nom d'une section
+ * (Fond / Carte) ne vient que de sa largeur affichée. Une Carte peut donc être dehors (carte autour d'un fond en retrait) ou dedans.
+ */
+export function readLayout(stored: ZoneStored, defaults: ResolvedSurface = FALLBACK_CARD): { fc: FondCarte; outer: Slot | null } {
   const read = readZone(stored);
   const { zone: main } = read;
   let inner = read.inner;
@@ -48,12 +52,15 @@ export function readFondCarte(stored: ZoneStored, defaults: ResolvedSurface = FA
     if (card) inner = zoneOfBackground(card);
   }
   const out: FondCarte = { fond: null, carte: null };
-  if (!main) return out;
+  if (!main) return { fc: out, outer: null };
   const mainSlot: Slot = zoneExtent(main, defaults) === "inset" ? "carte" : "fond";
   out[mainSlot] = main;
   if (inner) out[mainSlot === "fond" ? "carte" : "fond"] = inner;
-  return out;
+  return { fc: out, outer: inner ? mainSlot : null };
 }
+
+/** Les deux sections d'un bloc, lues dans ses deux couches. */
+export const readFondCarte = (stored: ZoneStored, defaults: ResolvedSurface = FALLBACK_CARD): FondCarte => readLayout(stored, defaults).fc;
 
 /** Zone rangée dans la couche voulue, avec la largeur de sa section (pleine : pas de marge ; en retrait : marge M par défaut dans la couche « fond »). */
 function shaped(z: Zone, slot: Slot, layer: Zone["layer"]): Zone {
@@ -71,10 +78,24 @@ function shaped(z: Zone, slot: Slot, layer: Zone["layer"]): Zone {
  * `normalize` : une section vient d'être AJOUTÉE (l'autre existait déjà) : les deux se rangent dans l'ordre normal (Fond dehors, Carte dedans). Sinon (on règle
  * une section déjà là), chacune garde sa couche, y compris le rendu emboîté d'avant (carte dehors, fond dedans) : un réglage ne déplace jamais rien tout seul.
  */
-export function writeFondCarte(fc: FondCarte, caps: Caps, normalize = true): { surface: Surface | null; background: Background | null } {
+export function writeFondCarte(fc: FondCarte, caps: Caps, normalize = true, outer?: Slot, first?: Slot): { surface: Surface | null; background: Background | null } {
   const { fond, carte } = fc;
   if (!fond && !carte) return { surface: null, background: null };
   const put = (z: Zone, layer: Zone["layer"]) => (layer === "card" ? { surface: zoneToSurface(z), background: null } : { surface: null, background: zoneToBackground(z) });
+  // Lot 107 : régler une section déjà là (`normalize` faux) avec `outer` (l'ordre lu) écrit chaque couche TELLE QUELLE : ni marge retirée, ni largeur imposée,
+  // ni couches inversées. `shaped` ne sert qu'à ranger une section neuve ou qui change de couche.
+  if (!normalize && outer && fond && carte) {
+    const [o, i] = outer === "fond" ? [fond, carte] : [carte, fond];
+    if (isPair(caps)) return { surface: zoneToSurface(zoneInLayer(o, "card")), background: zoneToBackground(zoneInLayer(i, "fond")) };
+    const outerBg = zoneToBackground(zoneInLayer(o, "fond"));
+    const panel = zoneToBackground(zoneInLayer(i, "fond"));
+    return { surface: null, background: outerBg && panel ? ({ ...outerBg, card: withoutCard(panel) } as Background) : outerBg };
+  }
+  // Lot 108 : l'ordre est celui de la pose. Un Fond ajouté à une Carte de rubrique déjà là se pose DEDANS, en retrait (marge M, réglable) : c'est la structure de la prod
+  // (carte dehors, fond en retrait dedans), jusque-là impossible à obtenir au menu. Un Fond posé d'abord, puis une Carte : la Carte reste dedans (ordre du lot 100).
+  if (isPair(caps) && normalize && first === "carte" && fond && carte && carte.layer === "card") {
+    return { surface: zoneToSurface(carte), background: zoneToBackground(shaped(fond, "carte", "fond")) };
+  }
   if (isPair(caps)) {
     if (fond && carte && !normalize && fond.layer !== carte.layer) {
       const [s, b] = fond.layer === "card" ? [shaped(fond, "fond", "card"), shaped(carte, "carte", "fond")] : [shaped(carte, "carte", "card"), shaped(fond, "fond", "fond")];
@@ -83,8 +104,8 @@ export function writeFondCarte(fc: FondCarte, caps: Caps, normalize = true): { s
     if (fond && carte) return { surface: zoneToSurface(shaped(fond, "fond", "card")), background: zoneToBackground(shaped(carte, "carte", "fond")) };
     const z = (fond ?? carte)!;
     const slot: Slot = fond ? "fond" : "carte";
-    // Une seule section : elle garde sa couche ; une zone neuve prend celle de freshZone.
-    return put(shaped(z, slot, z.layer), z.layer);
+    // Une seule section : elle garde sa couche ; une zone neuve prend celle de freshZone. Une zone déjà là (réglage) reste telle quelle (lot 107).
+    return put(normalize ? shaped(z, slot, z.layer) : z, z.layer);
   }
   if (caps.canFond && fond && carte) {
     // Composant sans carte de rubrique : la Carte est le panneau `card` DANS le fond (le fond reste la boîte extérieure du composant).
@@ -94,7 +115,8 @@ export function writeFondCarte(fc: FondCarte, caps: Caps, normalize = true): { s
   }
   const layer: Zone["layer"] = caps.canFond ? "fond" : "card";
   const slot: Slot = fond ? "fond" : "carte";
-  return put(shaped((fond ?? carte)!, slot, layer), layer);
+  const only = (fond ?? carte)!;
+  return put(!normalize && only.layer === layer ? only : shaped(only, slot, layer), layer);
 }
 
 /**

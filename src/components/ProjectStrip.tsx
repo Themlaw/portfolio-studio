@@ -52,7 +52,7 @@ export type BoardPart = {
   /** Lecture des vidéos de la bande (lot 36) : Boucle ou Lecteur ; absent : chaque vidéo suit sa nature. */
   videoMode?: "loop" | "player";
   /** Espace au-dessus de la bande (lot 40, `look.spaceTop` : la bande n'a pas d'enveloppe de bloc) ; absent : l'espace du thème. */
-  spaceTop?: Space;
+  spaceTop?: Space | number;
   /** Fond de couleur du composant (lot 32) et fusion avec ses voisins de même fond ; posé ici, autour de la colonne réglée par `box`. */
   fond?: { background: Background; join: FondJoin };
 };
@@ -132,7 +132,7 @@ export default function ProjectStrip({
       ),
     );
   /** Espace au-dessus choisi (lot 40) : enveloppe sans boîte qui règle la marge du cadre de la bande (look.css) ; sans choix, rien n'est ajouté. */
-  const spaced = (part: BoardPart | undefined, node: ReactNode) => (part?.spaceTop ? <div className="strip-spaced" data-strip-pt={part.spaceTop}>{node}</div> : node);
+  const spaced = (part: BoardPart | undefined, node: ReactNode) => (part?.spaceTop !== undefined ? <div className="strip-spaced" data-strip-pt={typeof part.spaceTop === "number" ? "n" : part.spaceTop} style={typeof part.spaceTop === "number" ? ({ "--kn-pt": `${part.spaceTop}px` } as CSSProperties) : undefined}>{node}</div> : node);
 
   /** Fond de couleur du composant, bord à bord de la planche (lot 32) ; sans fond : le composant tel quel. */
   const fonded = (part: BoardPart, node: ReactNode) =>

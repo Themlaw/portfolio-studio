@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import type { RawBlock } from "@/lib/pages";
 
-import { cropStyle, lookAttributes, readLook, type Look } from "@/lib/look";
+import { cropStyle, lookAttributes, outerStyle, readLook, spaceStyle, type Look } from "@/lib/look";
 import { own } from "@/lib/own";
 import { aloneFlags, cellShare, gridCells, isJustified, type GridShape } from "./grid-layouts";
 import { getSiteView } from "@/lib/settings";
@@ -61,7 +61,7 @@ function withLook(node: ReactNode, look: Look | undefined, key: string): ReactNo
   const attrs = lookAttributes(look);
   if (!attrs) return node;
   return (
-    <div key={key} className="blk" style={{ display: "contents", ...cropStyle(look) }} {...attrs}>
+    <div key={key} className="blk" style={{ display: "contents", ...cropStyle(look), ...spaceStyle(look) }} {...attrs}>
       {node}
     </div>
   );
@@ -127,11 +127,15 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
   const ownLook = readLook((block.props as { look?: unknown } | null)?.look);
   const look = inherited ? { ...inherited, ...ownLook } : ownLook;
   const editLook = ctx.edit && ownLook ? JSON.stringify(ownLook) : null;
+  // Largeur du bloc (lot 107) : seulement les blocs de premier niveau. En édition, l'enveloppe d'édition elle-même porte la largeur (les repères d'édition la
+  // retrouvent donc comme avant) ; en public, une enveloppe n'existe que si le bloc a une largeur réglée (sinon DOM inchangé).
+  const outer = ownLook && !parent && (ownLook.width !== undefined || ownLook?.marginTop !== undefined || ownLook?.marginBottom !== undefined) ? { "data-w": typeof ownLook.width === "number" ? "n" : ownLook.width, "data-mt": typeof ownLook.marginTop === "number" ? "n" : ownLook.marginTop, "data-mb": typeof ownLook.marginBottom === "number" ? "n" : ownLook.marginBottom } : null;
   const wrap = (node: ReactNode) =>
     ctx.edit ? (
       <div
         key={key}
-        style={{ display: "contents" }}
+        style={{ display: outer ? "block" : "contents", ...outerStyle(ownLook) }}
+        {...(outer ? { className: "blk-out", ...outer } : {})}
         data-edit-block={block.uid ?? String(block.id)}
         data-edit-type={block.type}
         data-edit-label={def?.label ?? block.type}
@@ -140,6 +144,10 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
         {...(def?.locked ? { "data-edit-locked": def.locked } : {})}
         {...(editLook ? { "data-edit-look": editLook } : {})}
       >
+        {node}
+      </div>
+    ) : outer ? (
+      <div key={key} className="blk-out" style={outerStyle(ownLook)} {...outer}>
         {node}
       </div>
     ) : (
@@ -177,8 +185,8 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
     const kidJoins = fondJoins(kidFonds.map((bg) => fondKey(bg, false)));
     children = kids.map((c, i) => {
       const pass: Look = {};
-      if (boxless && i === 0 && look?.spaceTop) pass.spaceTop = look.spaceTop;
-      if (boxless && i === kids.length - 1 && look?.spaceBottom) pass.spaceBottom = look.spaceBottom;
+      if (boxless && i === 0 && look?.spaceTop !== undefined) pass.spaceTop = look.spaceTop;
+      if (boxless && i === kids.length - 1 && look?.spaceBottom !== undefined) pass.spaceBottom = look.spaceBottom;
       const cellCtx: BlockContext =
         block.type === "grid" && data.layout
           ? {
@@ -271,7 +279,12 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
   const joins = fondJoins(
     blocks.map((b) => {
       if (b.corrupt || !supportsFond(b.type)) return null;
-      const props = b.props as { background?: unknown; surface?: unknown } | null;
+      const props = b.props as { background?: unknown; surface?: unknown; look?: unknown } | null;
+      // Un bloc de largeur réglée (lot 107) est décollé des bords : jamais fusionné avec un voisin.
+      {
+        const lk = readLook(props?.look);
+        if (lk?.width !== undefined || lk?.marginTop !== undefined || lk?.marginBottom !== undefined) return null;
+      }
       const surface = card ? readSurface(props?.surface) : undefined;
       // Une carte compte avec sa bordure : deux cartes de bordures différentes ne se fondent pas (voir `fondKey`).
       const resolved = surface && card ? resolveSurface(surface, card.defaults) : undefined;
