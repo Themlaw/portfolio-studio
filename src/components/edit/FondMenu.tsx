@@ -46,12 +46,12 @@ import {
   type ResolvedSurface,
   type Surface,
 } from "@/themes/surface";
-import { CONTOUR_ONLY_CLEAR, freshZone, readFondCarte, readLayout, setSlot, writeFondCarte, type Caps, type Slot } from "@/themes/fondcarte";
+import { CONTOUR_ONLY_CLEAR, freshZone, isPair, nestFond, readFondCarte, readLayout, setSlot, writeFondCarte, type Caps, type Slot } from "@/themes/fondcarte";
 import { isCustomColor, zoneColor, zoneExtent, zoneInLayer, zoneKind, zoneToSurface, zoneWithKind, type Zone, type ZoneMemo, type ZoneStored } from "@/themes/zone";
 
 import CardColorChoices from "./CardColorChoices";
 import ColorPicker from "./ColorPicker";
-import { canvasPalette, hasFondWrapper, postIntent, previewZone, wallpaperCatalog, zoneState } from "./optimistic";
+import { boardFondKey, canvasPalette, hasFondWrapper, postIntent, previewZone, setOverlay, wallpaperCatalog, zoneState } from "./optimistic";
 import { ratioTip, readabilityText } from "./readability";
 import { CornersRow, SHAPE_STEPS } from "./ShapeChoices";
 import Popover, { type PopoverAnchor } from "./Popover";
@@ -162,7 +162,8 @@ export function BoardFondMenu({ board, uid, initial, anchor, onClose }: { board:
   const change = (next: ZoneStored, continuous = false) => {
     if (JSON.stringify(next) === JSON.stringify(stored)) return;
     setStored(next);
-    postIntent({ kind: "bitem-fond", board, uid, background: next.background ?? null, ...(continuous ? { continuous: true } : {}) });
+    const seq = postIntent({ kind: "bitem-fond", board, uid, background: next.background ?? null, ...(continuous ? { continuous: true } : {}) });
+    setOverlay(boardFondKey(board, uid), seq, { data: next.background ?? null });
   };
   return <FondPanel uid={`${board}:${uid}`} stored={stored} defaults={undefined} caps={{ canCard: false, canFond: true }} onChange={change} onClose={onClose} anchor={anchor} />;
 }
@@ -294,6 +295,7 @@ function ZoneSection({
   caps,
   fondActive,
   innerOfCard,
+  onMargin,
   onSet,
 }: {
   uid: string;
@@ -305,6 +307,7 @@ function ZoneSection({
   fondActive: boolean;
   /** Cette section est un Fond posé DANS une Carte de rubrique (carte dehors) : sa marge peut être « Aucune ». */
   innerOfCard: boolean;
+  onMargin?: (step: "s" | "m" | "l" | null) => void;
   onSet: (next: Zone | null, continuous?: boolean) => void;
 }) {
   const text = SLOT_TEXT[slot];
@@ -421,18 +424,18 @@ function ZoneSection({
           set({ corners: v === "none" ? undefined : v });
         }}
       />
-      {z.layer === "fond" && (zoneExtent(z, defaults) === "inset" || innerOfCard) && (
+      {(innerOfCard || (z.layer === "fond" && zoneExtent(z, defaults) === "inset")) && (
         <div className="tc-row">
           <span className="sm-label">Marge</span>
           <span className="tc-seg" role="radiogroup" aria-label="Taille de la marge" data-testid="fond-inset">
             {/* Lot 108 : un Fond posé DANS une Carte peut n'avoir aucune marge (rempli jusqu'à la carte) ou un retrait S / M / L. */}
             {innerOfCard && (
-              <button type="button" role="radio" aria-checked={zoneExtent(z, defaults) !== "inset"} data-step="none" onClick={() => set({ extent: "full", margin: undefined })}>
+              <button type="button" role="radio" aria-checked={zoneExtent(z, defaults) !== "inset"} data-step="none" onClick={() => (onMargin ? onMargin(null) : set({ extent: "full", margin: undefined }))}>
                 Aucune
               </button>
             )}
             {SHAPE_STEPS.map((st) => (
-              <button key={st.step} type="button" role="radio" aria-checked={zoneExtent(z, defaults) === "inset" && (z.margin ?? "m") === st.step} data-step={st.step} onClick={() => set(innerOfCard ? { extent: "inset", margin: st.step } : { margin: st.step })}>
+              <button key={st.step} type="button" role="radio" aria-checked={zoneExtent(z, defaults) === "inset" && (z.margin ?? "m") === st.step} data-step={st.step} onClick={() => (innerOfCard && onMargin ? onMargin(st.step) : set({ margin: st.step }))}>
                 {st.label}
               </button>
             ))}
@@ -623,9 +626,16 @@ function FondPanel({
     const w = writeFondCarte(setSlot(fc, slot, next, caps), caps, added, outer ?? undefined);
     onChange({ ...(w.surface ? { surface: w.surface } : {}), ...(w.background ? { background: w.background } : {}) }, continuous);
   };
+  // Lot 107b : la marge du Fond, quand une Carte existe, range le Fond DANS la Carte (donnée seulement) ; « Aucune » ramène à la forme du lot 100.
+  const onMargin = (step: "s" | "m" | "l" | null) => {
+    // Déjà rangé dans la Carte : seul le retrait change (une couche, une clé). Sinon la marge range le Fond dans la Carte ; « Aucune » ramène à la forme du lot 100.
+    const nested = fc.fond?.layer === "fond" && fc.carte?.layer === "card";
+    const w = step ? (nested ? writeFondCarte({ ...fc, fond: { ...fc.fond!, extent: "inset", margin: step } }, caps, false, outer ?? undefined) : nestFond(fc, step, caps)) : writeFondCarte(fc, caps, true);
+    onChange({ ...(w.surface ? { surface: w.surface } : {}), ...(w.background ? { background: w.background } : {}) });
+  };
   return (
     <Popover anchor={anchor} label="Fond et carte du bloc" testId="fond-menu" onClose={onClose}>
-      <ZoneSection uid={uid} slot="fond" z={fc.fond} defaults={defaults} caps={caps} fondActive={fc.fond !== null} innerOfCard={fc.fond?.layer === "fond" && fc.carte?.layer === "card"} onSet={onSet("fond")} />
+      <ZoneSection uid={uid} slot="fond" z={fc.fond} defaults={defaults} caps={caps} fondActive={fc.fond !== null} innerOfCard={isPair(caps) && fc.fond !== null && fc.carte !== null} onMargin={onMargin} onSet={onSet("fond")} />
       <ZoneSection uid={uid} slot="carte" z={fc.carte} defaults={defaults} caps={caps} fondActive={fc.fond !== null} innerOfCard={false} onSet={onSet("carte")} />
     </Popover>
   );

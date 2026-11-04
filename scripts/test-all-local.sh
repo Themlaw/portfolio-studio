@@ -8,7 +8,7 @@
 #
 # Usage (depuis le dépôt) :
 #   scripts/test-all-local.sh [suite…]      # vide = toutes
-#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 entrees48 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 backup50 vitesse54 publication51 publication101 kit53 partage52 priseenmain57 cadremotif58 cadres62 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 mediaframe64 cadres79 grille69 public67 surface66 popover65 textes70 papiers78 admin76 restes77 cadres74 unif75 favicon83 backup85 domaine88 langue87 pied86 logo84 introuvable89 cadre95 opacite90 fond100 site96 legendes98 defilement99 defilement99-firefox parite99 journal97 integ33 raccord102
+#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 entrees48 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 backup50 vitesse54 publication51 publication101 kit53 partage52 priseenmain57 cadremotif58 cadres62 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 mediaframe64 cadres79 grille69 public67 surface66 popover65 textes70 papiers78 admin76 restes77 cadres74 unif75 favicon83 backup85 domaine88 langue87 pied86 logo84 introuvable89 cadre95 opacite90 fond100 site96 legendes98 defilement99 defilement99-firefox parite99 journal97 integ33 raccord102 menu109
 # Rapide (VM de 3 cœurs et plus, voir docs/ARCHITECTURE.md) :
 #   BATT_SERVER=start BATT_JOBS=2 scripts/test-all-local.sh
 # En fond détaché :
@@ -155,16 +155,21 @@ E2E=(
   "fond100|node scripts/e2e-fond100.mjs|chromium|"
   "reglages105|node scripts/e2e-reglages105.mjs|chromium|"
   "couches107|node scripts/e2e-couches107.mjs|chromium|"
+  "couches107c|node scripts/e2e-couches107.mjs|chromium|C"
+  "couches107d|node scripts/e2e-couches107.mjs|chromium|D"
+  "couleur107|node scripts/e2e-couleur107.mjs|chromium|"
   "structures108a|node --import tsx scripts/e2e-structures108.mjs|chromium|A"
   "structures108b|node --import tsx scripts/e2e-structures108.mjs|chromium|B"
   "structures108c|node --import tsx scripts/e2e-structures108.mjs|chromium|C"
   "structures108p|node --import tsx scripts/e2e-structures108.mjs|chromium|P"
+  "structures108q|node --import tsx scripts/e2e-structures108.mjs|chromium|Q"
   "defilement99|node scripts/e2e-defilement99.mjs|chromium|"
   "defilement99-firefox|node scripts/e2e-defilement99.mjs|firefox|K"
   "parite99|node scripts/e2e-defilement99.mjs|chromium|P"
   "journal97|node scripts/e2e-journal97.mjs|chromium|"
   "integ33|node scripts/e2e-integ33.mjs|chromium|"
   "raccord102|node scripts/e2e-raccord102.mjs|chromium|"
+  "menu109|node scripts/e2e-menu109.mjs|chromium|"
 )
 
 

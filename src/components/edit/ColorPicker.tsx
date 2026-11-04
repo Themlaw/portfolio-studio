@@ -95,6 +95,27 @@ export default function ColorPicker({ value, onChange, swatch }: ColorPickerProp
   // un curseur glissé hors de la fenêtre garde sa capture de pointeur : aucun pointerdown extérieur.
   useDismiss(pop, () => setOpen(false), { enabled: open });
 
+  // Lot 107b : la fenêtre s'ouvre sous le bouton ; sur un écran bas (téléphone, menu long) elle dépassait le bas de l'écran et rien ne semblait s'ouvrir.
+  // Au toucher, rien ne la fait défiler : on l'amène à l'écran à l'ouverture (sans animation, la mesure et le doigt la trouvent tout de suite).
+  useEffect(() => {
+    if (!open) return;
+    // Après la pose du menu qui la porte (sa position se calcule à l'ouverture), puis une seconde fois quand la mise en page est stable.
+    const go = () => {
+      const el = pop.current;
+      if (!el) return;
+      el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
+      // Le menu qui la porte peut défiler lui-même et s'étendre sous l'écran : si la fenêtre dépasse encore, on fait défiler le document.
+      const over = el.getBoundingClientRect().bottom - (el.ownerDocument.defaultView?.innerHeight ?? 0);
+      if (over > 0) el.ownerDocument.defaultView?.scrollBy({ top: over + 8, behavior: "instant" });
+    };
+    const r = requestAnimationFrame(() => requestAnimationFrame(go));
+    const t = setTimeout(go, 200);
+    return () => {
+      cancelAnimationFrame(r);
+      clearTimeout(t);
+    };
+  }, [open]);
+
   return (
     <>
       <button

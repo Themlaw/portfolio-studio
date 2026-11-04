@@ -29,7 +29,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 
 import { acceptToCanvas, EDIT_MSG, type DropTargetInfo, type FromCanvas, type Ghost } from "@/lib/edit/protocol";
-import { postIntent, previewBoardText, previewItemText } from "./edit/optimistic";
+import { boardFondPending, postIntent, previewBoardText, previewItemText } from "./edit/optimistic";
 import { BoardFondMenu } from "./edit/FondMenu";
 import FrameWindow from "./edit/FrameMenu";
 import QuickMenu, { type QuickKind } from "./edit/QuickMenus";
@@ -840,6 +840,9 @@ export default function BoardLayer({
           try {
             background = readBackground((JSON.parse(frame?.dataset.editBitemProps ?? "{}") as { props?: { background?: unknown } }).props?.background) ?? null;
           } catch {}
+          // Un geste récent, pas encore rendu par la page, fait foi (sinon le menu rouvert relit un fond périmé).
+          const pending = boardFondPending(board, uid);
+          if (pending !== undefined) background = pending;
           setFondMenu((cur) => (cur?.uid === uid ? null : { board, uid, background }));
         } else if (op === "add-images") {
           const input = addInput.current;

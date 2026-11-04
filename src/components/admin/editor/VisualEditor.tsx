@@ -3300,7 +3300,7 @@ export default function VisualEditor({
                 </div>
               </header>
               <p className="ve-hint">{selDef.description}</p>
-              {selDef.inline.length > 0 && <p className="ve-hint">Les textes se modifient aussi directement sur la page : double-clic dessus.</p>}
+              {selDef.inline.length > 0 && <p className="ve-hint">Les textes se modifient aussi directement sur la page : double-clic (ou double-tap) dessus.</p>}
               {selPath && publishErrors[selPath] && <p className="a-field-error">{publishErrors[selPath]}</p>}
               {selBlock.type === "image" && !(selAt?.parent && findBlock(blocks, selAt.parent)?.type === "grid") && (
                 <ImageSizeSection key={`size-${selBlock.uid}`} look={readLook(selBlock.props.look) ?? {}} onChange={(next) => void applyLook(selBlock.uid, next)} />
@@ -3336,7 +3336,7 @@ export default function VisualEditor({
               ) : (
                 <p className="ve-empty">
                   {selDef.inline.length > 0
-                    ? "Ce bloc n'a pas de réglage à part : ses textes se modifient directement sur la page (double-clic dessus). Sa mise en page se règle ci-dessous."
+                    ? "Ce bloc n'a pas de réglage à part : ses textes se modifient directement sur la page (double-clic ou double-tap dessus). Sa mise en page se règle ci-dessous."
                     : "Ce bloc n'a pas de réglage à part : il s'affiche tel quel. Sa mise en page (espaces) se règle ci-dessous ; tu peux aussi le déplacer, le dupliquer ou le supprimer avec les boutons ci-dessus."}
                 </p>
               )}

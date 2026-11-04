@@ -364,10 +364,16 @@ async function measureBoth(T, pid, slug, ids) {
   }
   await page.goto(urlOf(slug), { waitUntil: "domcontentloaded" });
   const pub = {};
+  /* La page publique se met en page en plusieurs temps (polices web, images) : mesurer le premier bloc des que son texte
+     apparait donnait une hauteur de repli (une ligne de plus) que les blocs suivants, mesures plus tard, n'avaient plus.
+     On attend donc polices et images, puis deux mesures identiques de suite (valeurs stabilisees, seuils inchanges). */
+  await page.evaluate(async () => { await document.fonts.ready; await Promise.all([...document.images].map((i) => (i.complete ? null : new Promise((r) => { i.onload = i.onerror = r; setTimeout(r, 15000); })))); }).catch(() => {});
   for (const id of ids) {
     const mk = mark(T, id);
     await page.waitForFunction((t) => document.body.textContent.includes(t), mk, { timeout: 60000 });
-    pub[id] = await page.evaluate(METRICS, { mk, prev: `SEP107x${id}px`, next: `SEP107x${id}nx` });
+    let last = null, cur = null;
+    await until(async () => { cur = await page.evaluate(METRICS, { mk, prev: `SEP107x${id}px`, next: `SEP107x${id}nx` }); const same = last !== null && cur !== null && JSON.stringify(cur) === JSON.stringify(last); last = cur; if (!same) await new Promise((r) => setTimeout(r, 250)); return same; }, 15000);
+    pub[id] = cur;
   }
   return { ed, pub };
 }

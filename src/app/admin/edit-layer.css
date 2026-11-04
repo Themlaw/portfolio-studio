@@ -2640,3 +2640,9 @@ html[data-free-dragging] * {
   z-index: 30;
   max-width: calc(100vw - 16px);
 }
+
+/* Lot 109 : le double-tap sur un texte modifiable ouvre la saisie (pas de zoom au double appui). */
+[data-site-inline],
+[data-inline] {
+  touch-action: manipulation;
+}

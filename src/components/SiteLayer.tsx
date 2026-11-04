@@ -8,8 +8,9 @@
  * - Liens du menu (`data-nav-item`) : au survol, × pour retirer et poignée
  *   pour réordonner (glisser) ; « + Ajouter un lien » sous le menu (au survol de
  *   l'en-tête ou en-tête choisi) : une
- *   page du site (recherche) ou un lien libre. Renommer : double-clic
- *   (EditLayer, `data-site-inline="nav"`).
+ *   page du site (recherche) ou un lien libre. Renommer : bouton
+ *   « Renommer » de la barre (crayon, survol ou toucher), double-clic ou double-tap
+ *   (EditLayer, `data-site-inline="nav"` ; l'événement `pe:rename` lui passe le libellé).
  * - Réseaux (`data-edit-socials` / `data-social-index`) : au survol, modifier
  *   le lien, × retirer, poignée ; « + Réseau » : réseaux classiques, ou
  *   « Autre lien ». Le réseau est reconnu d'après l'adresse collée.
@@ -270,7 +271,7 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
           className="pe-item-tools"
           data-kind={hover.kind}
           // Caché, pas démonté, pendant le glisser : la poignée garde la capture du pointeur.
-          style={{ ...(hover.kind === "nav" ? { top: hovBox.top - 26, left: hovBox.left + hovBox.width / 2 - 34 } : { top: hovBox.top - 2, left: Math.max(window.scrollX + 4, Math.min(hovBox.left + hovBox.width + 4, window.scrollX + document.documentElement.clientWidth - SOCIAL_TOOLS_W - 4)) }), ...(drag ? { visibility: "hidden" as const } : {}) }}
+          style={{ ...(hover.kind === "nav" ? { top: hovBox.top - 26, left: hovBox.left + hovBox.width / 2 - 46 } : { top: hovBox.top - 2, left: Math.max(window.scrollX + 4, Math.min(hovBox.left + hovBox.width + 4, window.scrollX + document.documentElement.clientWidth - SOCIAL_TOOLS_W - 4)) }), ...(drag ? { visibility: "hidden" as const } : {}) }}
           onPointerEnter={() => {
             cancelLeave();
             setHover(hover);
@@ -302,6 +303,21 @@ export default function SiteLayer({ mode, host, selected, announce }: { mode: "o
               aria-label="Modifier le lien"
               title="Modifier le lien"
               onClick={(e) => setPop({ kind: "social-edit", index: rankOf("social", hovEl, hover.index).index, key: rankOf("social", hovEl, hover.index).key, anchor: e.currentTarget, href: hovEl?.querySelector("a")?.getAttribute("href") ?? "" })}
+            >
+              ✎
+            </button>
+          )}
+          {hover.kind === "nav" && (
+            <button
+              type="button"
+              data-testid="nav-rename"
+              aria-label="Renommer ce lien du menu"
+              title="Renommer (ou double-clic sur le lien)"
+              onClick={() => {
+                const field = hovEl?.querySelector<HTMLElement>('[data-site-inline="nav"]');
+                setHover(null);
+                if (field) document.dispatchEvent(new CustomEvent("pe:rename", { detail: { el: field } }));
+              }}
             >
               ✎
             </button>
