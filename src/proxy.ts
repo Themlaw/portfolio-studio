@@ -28,6 +28,7 @@ import path from "node:path";
 
 import { routing } from "./i18n/routing";
 import { isAdminRequest } from "./lib/auth/guard";
+import { isDevMode } from "./lib/dev-mode";
 import { readRedirectConfig, redirectionFor } from "./lib/domain";
 import { NOT_FOUND_SLUG, publishedSlugExists, redirectedSlug } from "./lib/pages-index";
 
@@ -129,11 +130,11 @@ async function vignetteRequest(request: NextRequest): Promise<NextRequest | null
 /**
  * CSP complète de l'admin, avec nonce par requête : Next l'applique à ses
  * propres scripts (il lit le nonce dans l'en-tête CSP de la requête). Pas
- * d'unsafe-eval en production ; en développement, Turbopack et le HMR en ont
- * besoin (eval, WebSocket).
+ * d'unsafe-eval hors du développement EXPLICITE (PORTFOLIO_DEV=1) ; en
+ * développement, Turbopack et le HMR en ont besoin (eval, WebSocket).
  */
 function adminCsp(nonce: string): string {
-  const dev = process.env.NODE_ENV !== "production";
+  const dev = isDevMode();
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,

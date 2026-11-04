@@ -14,7 +14,7 @@ function isBusy(error: unknown): boolean {
 
 export async function start(): Promise<void> {
   // Configuration de l'authentification : avertissements, puis refus net de
-  // démarrer en production sans secret valable.
+  // démarrer sans secret valable (hors du mode développement explicite PORTFOLIO_DEV=1, src/lib/dev-mode.ts).
   const { readAuthConfig } = await import("../auth/config");
   const authConfig = readAuthConfig();
   for (const warning of authConfig.warnings) console.warn(`[auth] ${warning}`);
