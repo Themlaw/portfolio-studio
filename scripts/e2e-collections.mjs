@@ -247,7 +247,7 @@ console.log("== D. Entrées choisies à la main");
   ok("D3c plus aucune page de collection sans entrée : elles ne sont plus proposées (lot 117 : les autres pages le sont)", await f.evaluate(() => {
     const b = document.querySelector("[data-edit-tile-add]");
     const titles = JSON.parse(b.dataset.candidates).map((c) => c.title);
-    return !["Personnages", "Décors", "Animation"].some((t) => titles.includes(t)) && b.disabled === (titles.length === 0);
+    return !["Personnages", "Décors", "Carnets d'été"].some((t) => titles.includes(t)) && b.disabled === (titles.length === 0);
   }));
 
   // Retrait depuis la toile (au survol), puis ajout par le choix de page.
