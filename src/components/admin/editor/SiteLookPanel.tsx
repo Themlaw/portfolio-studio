@@ -23,7 +23,7 @@ import { useEffect, useState } from "react";
 import { SolidColorPicker } from "@/components/edit/ColorPicker";
 import { pairsReadability, ratioTip } from "@/components/edit/readability";
 import type { AdminMediaRow } from "@/lib/admin";
-import { LOGO_ALIGN_LABELS, LOGO_ALIGNS, LOGO_ANCHOR_LABELS, LOGO_ANCHORS, LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, LOGO_SIZE_PRESETS, LOGO_X_MAX, LOGO_X_MIN, type Logo, type LogoAlign, type PaletteColor, type SitePalette } from "@/lib/look";
+import { LOGO_ALIGN_LABELS, LOGO_ALIGNS, LOGO_ANCHOR_LABELS, LOGO_ANCHORS, LOGO_FIT_LABELS, LOGO_FITS, LOGO_MARGIN_LABELS, LOGO_MARGINS, LOGO_MOBILE_LABELS, LOGO_MOBILES, LOGO_MODE_LABELS, LOGO_MODES, LOGO_SIZE_DEFAULT, LOGO_SIZE_MAX, LOGO_SIZE_MIN, LOGO_SIZE_PRESETS, LOGO_X_MAX, LOGO_X_MIN, type Logo, type LogoAlign, type PaletteColor, type SitePalette } from "@/lib/look";
 import { NUANCE_KEYS, PALETTE_GROUPS, type BaseKey, type NuanceKey, type PaletteColors, type PaletteState } from "@/themes/palette";
 import { autoAdjustBase, CONTRAST_BASES, effectiveSitePalette, nuanceOrigin, nuancesUnder, rolePairs, SITE_NUANCES, SITE_ROLES, sitePaletteIssues, sitePalettePairs, themeFixesNuance } from "@/themes/site-palette";
 
@@ -363,9 +363,15 @@ const MODE_HELP: Record<(typeof LOGO_MODES)[number], string> = {
 };
 
 const ALIGN_HELP: Record<LogoAlign, string> = {
-  top: "Le logo part du haut de la barre. S'il est grand, il dépasse dessous, sur ce qui suit.",
-  center: "Le logo est au milieu de la hauteur de la barre. S'il est trop grand, il est coupé en haut et en bas : il ne mord jamais sur ce qui suit.",
-  grow: "La barre du haut devient aussi haute que le logo (avec la même marge qu'avant) et le logo y est au milieu. Le reste de la page descend d'autant.",
+  center: "Le logo est au milieu de la hauteur de la barre, entier : il n'est jamais coupé.",
+  top: "Le logo est collé en haut de la barre (à la marge près), entier.",
+  bottom: "Le logo est collé en bas de la barre (à la marge près), entier.",
+  grow: "La barre du haut devient aussi haute que le logo (avec ses marges) et le logo y est au milieu. Le reste de la page descend d'autant.",
+};
+
+const FIT_HELP: Record<(typeof LOGO_FITS)[number], string> = {
+  contain: "Tout le logo est visible, avec ses proportions.",
+  cover: "Le logo prend toute la hauteur de la barre (sans marge). Un logo très large est rogné sur les côtés.",
 };
 
 export function LogoPanel({
@@ -386,7 +392,10 @@ export function LogoPanel({
 }) {
   const size = value.size ?? LOGO_SIZE_DEFAULT;
   const mode = value.mode === "shrink" ? "shrink" : "fixed";
-  const align = value.align ?? "top";
+  const align = value.align ?? "center";
+  const fit = value.fit ?? "contain";
+  const margin = value.margin ?? "small";
+  const mobile = value.mobile ?? "reduced";
   const anchor = value.anchor ?? "left";
   const x = value.x ?? 0;
   const image = value.mediaId !== undefined ? (media.find((m) => m.id === value.mediaId) ?? null) : null;
@@ -465,7 +474,7 @@ export function LogoPanel({
         <legend className="lp-label">Place dans la barre du haut</legend>
         {LOGO_ALIGNS.map((a) => (
           <label key={a} className="lc-mode">
-            <input type="radio" name="logo-align" value={a} checked={align === a} data-testid={`logo-align-${a}`} onChange={() => onChange({ ...value, align: a === "top" ? undefined : a })} />
+            <input type="radio" name="logo-align" value={a} checked={align === a} data-testid={`logo-align-${a}`} onChange={() => onChange({ ...value, align: a === "center" ? undefined : a })} />
             <span>
               <strong>{LOGO_ALIGN_LABELS[a]}</strong>
               <small>{ALIGN_HELP[a]}</small>
@@ -473,6 +482,45 @@ export function LogoPanel({
           </label>
         ))}
       </fieldset>
+      <div className="lp-field" data-testid="logo-fit">
+        <span className="lp-label" id="lp-logo-fit-label">
+          Ajustement dans la barre
+        </span>
+        <div className="lc-modes-row" role="group" aria-labelledby="lp-logo-fit-label">
+          {LOGO_FITS.map((f) => (
+            <button key={f} type="button" className="a-btn a-btn-small" aria-pressed={fit === f} data-testid={`logo-fit-${f}`} onClick={() => onChange({ ...value, fit: f === "contain" ? undefined : f })}>
+              {LOGO_FIT_LABELS[f]}
+            </button>
+          ))}
+        </div>
+        <small className="lp-hint">{FIT_HELP[fit]}</small>
+      </div>
+      <div className="lp-field" data-testid="logo-margin">
+        <span className="lp-label" id="lp-logo-margin-label">
+          Marges autour du logo
+        </span>
+        <div className="lc-modes-row" role="group" aria-labelledby="lp-logo-margin-label">
+          {LOGO_MARGINS.map((m) => (
+            <button key={m} type="button" className="a-btn a-btn-small" aria-pressed={margin === m} data-testid={`logo-margin-${m}`} onClick={() => onChange({ ...value, margin: m === "small" ? undefined : m })}>
+              {LOGO_MARGIN_LABELS[m]}
+            </button>
+          ))}
+        </div>
+        <small className="lp-hint">Le logo ne dépasse jamais la hauteur de la barre moins ces marges ; pour un logo plus grand, choisis « La barre s&apos;agrandit ».</small>
+      </div>
+      <div className="lp-field" data-testid="logo-mobile">
+        <span className="lp-label" id="lp-logo-mobile-label">
+          Sur téléphone
+        </span>
+        <div className="lc-modes-row" role="group" aria-labelledby="lp-logo-mobile-label">
+          {LOGO_MOBILES.map((m) => (
+            <button key={m} type="button" className="a-btn a-btn-small" aria-pressed={mobile === m} data-testid={`logo-mobile-${m}`} onClick={() => onChange({ ...value, mobile: m === "reduced" ? undefined : m })}>
+              {LOGO_MOBILE_LABELS[m]}
+            </button>
+          ))}
+        </div>
+        <small className="lp-hint">« Logo réduit » : taille ×0,75 sur téléphone. « Même logo » : la même taille qu&apos;au grand écran, dans la limite de la barre.</small>
+      </div>
       <div className="lp-field" data-testid="logo-position">
         <span className="lp-label" id="lp-logo-pos-label">
           Position du logo, de gauche à droite
