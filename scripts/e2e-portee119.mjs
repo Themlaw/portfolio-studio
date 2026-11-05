@@ -99,6 +99,8 @@ const pageBlock = (uid) => findIn(draftBlocks(pageId), uid);
 const boardItem = (uid) => (boardDraft(BOARD_ID) ?? []).find((i) => i.uid === uid);
 
 async function reopen() {
+  // Jamais de rechargement pendant une écriture en vol ou en attente (la garde de l'éditeur ouvrirait une boîte « quitter la page »).
+  await settled(page).catch(() => {});
   const f = await openEditor(page, BASE, pageId);
   await settled(page);
   await f.locator(`${bitem("brt")}`).first().waitFor({ state: "attached", timeout: 60000 }).catch(() => {});
@@ -444,6 +446,10 @@ if (run("R")) {
       await scopeBtn(f, s.t.proj).click();
       wanted[s.t.id] = await swatchColor(f, s.sw);
       await swatchBtn(f, s.sw).click();
+      // `settled` ne voit « Enregistrement… » qu'une fois l'intention arrivée à l'éditeur, et l'écriture part 800 ms après (DEBOUNCE_MS) : sous charge,
+      // il rend la main AVANT, et le rechargement qui suit coupe l'écriture en vol (réponse perdue, révision de l'éditeur en retard : « Publier » refusé
+      // en conflit, public sans le réglage ; vu 1 fois sur 5, v0.33.6). On attend donc la valeur EN BASE, puis l'acquittement, avant de recharger.
+      ok(`R1 ${s.t.id} : écrit en base`, await waitFor(() => Boolean(pageBlock("pbd")?.props.look?.projectText?.[s.t.store]?.color), 30000), JSON.stringify(pageBlock("pbd")?.props.look));
       await settled(page);
       await closeBar(f);
     }
