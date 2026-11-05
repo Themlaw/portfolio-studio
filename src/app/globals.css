@@ -1032,7 +1032,8 @@
   height: 1px;
   overflow: hidden;
 }
-.contact-form .contact-input:focus-visible {
+.contact-form .contact-input:focus-visible,
+.contact-dialog .contact-input:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
@@ -1096,4 +1097,61 @@
 /* Cliquer pour agrandir (lot 44, src/lib/viewer.ts) : public et Aperçu seulement (la toile n émet pas l attribut). */
 [data-viewer-item][role="button"] {
   cursor: zoom-in;
+}
+
+/* « Me contacter » : fenêtre du formulaire de contact (lot 125). <dialog> natif ouvert en modal ; plein écran sous 640 px. */
+.contact-dialog {
+  box-sizing: border-box;
+  width: min(40rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg, 0.75rem);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  text-align: start;
+  box-shadow: var(--shadow-card-hover);
+}
+.contact-dialog::backdrop {
+  background: color-mix(in srgb, var(--color-ink) 45%, transparent);
+}
+.contact-dialog-panel {
+  padding: clamp(1.25rem, 4vw, 2.25rem);
+}
+.contact-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.contact-dialog-close {
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.contact-dialog-close:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+@media (max-width: 639px) {
+  .contact-dialog {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
 }

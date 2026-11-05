@@ -4,6 +4,7 @@ import { ContactFormSchema } from "@/lib/contact-form";
 
 import { FieldOps } from "./FieldOps";
 import { hasText } from "./optional-fields";
+import { formAnchor } from "./contact-target";
 import { inline, textStyle, tr, type BlockContext } from "./types";
 
 export const contactFormSchema = ContactFormSchema;
@@ -21,7 +22,7 @@ export default function ContactFormBlock({ props, ctx }: { props: ReturnType<typ
   const shown = (v: { fr: string; en: string } | undefined) => v !== undefined && (ctx.edit ? true : hasText(v));
   const hasHead = shown(props.eyebrow) || shown(props.title) || shown(props.intro);
   return (
-    <section className={ctx.edit ? "shell pt-[var(--section-gap)] pe-field-host" : "shell pt-[var(--section-gap)]"}>
+    <section id={props.formId ? formAnchor(props.formId) : undefined} className={ctx.edit ? "shell pt-[var(--section-gap)] pe-field-host" : "shell pt-[var(--section-gap)]"}>
       <div
         className={
           ctx.edit

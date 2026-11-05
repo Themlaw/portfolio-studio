@@ -23,7 +23,7 @@ import { and, count, eq, gt, inArray, isNull, lt } from "drizzle-orm";
 
 import { readAuthConfig } from "@/lib/auth/config";
 import { clientIpFromForwarded, UNKNOWN_IP } from "@/lib/auth/client-ip";
-import { ContactFormSchema, FORM_BLOCK_TYPES, isFormBlock, MESSAGES_CAP, validateSubmission } from "@/lib/contact-form";
+import { builtinContactForm, ContactFormSchema, DEFAULT_FORM_ID, FORM_BLOCK_TYPES, isFormBlock, MESSAGES_CAP, validateSubmission } from "@/lib/contact-form";
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 
@@ -80,7 +80,12 @@ async function readBody(req: Request): Promise<string | null> {
 }
 
 /** Formulaire publié désigné par son identifiant stable. */
-function findForm(formId: string) {
+function findForm(formId: string, page: number | null) {
+  // Formulaire intégré (lot 125) : site sans formulaire publié ; le message est rangé avec la page d'où il part (si elle est publiée).
+  if (formId === DEFAULT_FORM_ID) {
+    const row = page === null ? undefined : getDb().select({ id: schema.pages.id }).from(schema.pages).where(and(eq(schema.pages.id, page), eq(schema.pages.published, true), isNull(schema.pages.deletedAt))).get();
+    return { id: null as number | null, pageId: row?.id ?? null, form: builtinContactForm() };
+  }
   const rows = getDb()
     .select({ id: schema.blocks.id, props: schema.blocks.props, pageId: schema.blocks.pageId, type: schema.blocks.type })
     .from(schema.blocks)
@@ -92,7 +97,7 @@ function findForm(formId: string) {
     // « Contact » sans l'option formulaire : aucun formulaire à désigner (même si des champs traînent dans ses réglages).
     if (!isFormBlock(row.type, props)) continue;
     const form = ContactFormSchema.safeParse(props);
-    if (form.success && form.data.formId === formId) return { ...row, form: form.data };
+    if (form.success && form.data.formId === formId) return { id: row.id as number | null, pageId: row.pageId as number | null, form: form.data };
   }
   return null;
 }
@@ -102,14 +107,15 @@ export async function POST(req: Request): Promise<Response> {
   if (!(req.headers.get("content-type") ?? "").startsWith("application/json")) return json(415, { ok: false, error: "JSON attendu." });
   const text = await readBody(req);
   if (text === null) return json(413, { ok: false, error: "Envoi trop lourd." });
-  const body = parseJson(text) as { form?: unknown; locale?: unknown; values?: unknown; website?: unknown } | undefined;
+  const body = parseJson(text) as { form?: unknown; locale?: unknown; values?: unknown; website?: unknown; page?: unknown } | undefined;
   if (!body || typeof body !== "object" || Array.isArray(body) || typeof body.form !== "string" || !/^[a-z0-9]{6,32}$/.test(body.form))
     return json(400, { ok: false, error: "Envoi invalide." });
-  const extra = Object.keys(body).filter((k) => !["form", "locale", "values", "website"].includes(k));
+  const extra = Object.keys(body).filter((k) => !["form", "locale", "values", "website", "page"].includes(k));
   if (extra.length) return json(400, { ok: false, error: "Envoi invalide." });
   const locale = body.locale === "en" ? "en" : "fr";
 
-  const found = findForm(body.form);
+  const page = typeof body.page === "number" && Number.isInteger(body.page) && body.page > 0 ? body.page : null;
+  const found = findForm(body.form, page);
   if (!found) return json(404, { ok: false, error: "Formulaire introuvable." });
 
   // Piège à robots : réponse normale, rien d'enregistré.

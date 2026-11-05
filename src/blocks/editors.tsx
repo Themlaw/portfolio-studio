@@ -29,7 +29,7 @@ import Link from "next/link";
 
 import GridLayoutIcon, { LAYOUT_LABELS } from "@/components/edit/GridLayoutIcon";
 import ProjectCombobox from "@/components/edit/ProjectCombobox";
-import { withContactForm, FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, type FieldType, type FormField } from "@/lib/contact-form";
+import { withContactForm, CONTACT_ACTIONS, CONTACT_ACTION_LABELS, contactActionOf, FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, type FieldType, type FormField } from "@/lib/contact-form";
 
 import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, sameL, TILE_SIZE_LABELS, TILE_SIZES, tilesMode, tileSize, type CollectionPage, type TextField as TileTextField, type TileEdit, type TileItem } from "./collection-pages";
 import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
@@ -342,8 +342,26 @@ export function RichTextEditor() {
 /** Texte facultatif : vide, la clé disparaît (le champ n'occupe plus de place ; « + Ajouter … » le recrée sur la page). */
 const optional = (v: L): L | undefined => (v.fr || v.en ? v : undefined);
 
+/** Au clic sur un bouton « Me contacter » (lot 125) : formulaire de contact (défaut) ou ancien e-mail. */
+function ContactActionSelect({ idPrefix, prop }: { idPrefix: string; prop: "ctaAction" | "contactAction" }) {
+  const { value, onChange } = useBlockEditor();
+  const set = useSet(value, onChange);
+  const id = `${idPrefix}-${prop}`;
+  return (
+    <Field label="Au clic" htmlFor={id} help="Le formulaire s'ouvre dans une fenêtre (ou la page défile jusqu'au formulaire qu'elle contient) ; les messages arrivent dans Admin → Messages. « Ouvrir l'e-mail » lance la messagerie du visiteur.">
+      <select id={id} className="a-input" value={contactActionOf(value[prop])} onChange={(e) => set(prop, e.target.value === "mail" ? "mail" : undefined)}>
+        {CONTACT_ACTIONS.map((a) => (
+          <option key={a} value={a}>
+            {CONTACT_ACTION_LABELS[a]}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
 export function ContactEditor() {
-  const { value, onChange, errors } = useBlockEditor();
+  const { value, onChange, errors, idPrefix } = useBlockEditor();
   const set = useSet(value, onChange);
   const form = value.form === true;
   // Option formulaire : active, le bloc porte les réglages de l'ancien « Formulaire de contact » (champs, messages, envoi).
@@ -363,14 +381,17 @@ export function ContactEditor() {
       {form ? (
         <ContactFormEditor />
       ) : (
-        <TextI18n label="Texte du bouton (facultatif)" help="Le bouton ouvre un e-mail vers l'adresse des réglages. Vide : pas de bouton." value={l(value.cta)} onChange={(v) => set("cta", optional(v))} error={errorAt(errors, "cta")} />
+        <>
+          <TextI18n label="Texte du bouton (facultatif)" help="Vide : pas de bouton." value={l(value.cta)} onChange={(v) => set("cta", optional(v))} error={errorAt(errors, "cta")} />
+          <ContactActionSelect idPrefix={idPrefix} prop="ctaAction" />
+        </>
       )}
     </>
   );
 }
 
 export function ProfileEditor() {
-  const { value, onChange, errors, context } = useBlockEditor();
+  const { value, onChange, errors, context, idPrefix } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
     <>
@@ -391,7 +412,8 @@ export function ProfileEditor() {
         first="Le premier paragraphe est mis en avant."
       />
       <TextI18n label="Étiquette du contact (facultative)" value={l(value.contactEyebrow)} onChange={(v) => set("contactEyebrow", optional(v))} error={errorAt(errors, "contactEyebrow")} />
-      <TextI18n label="Texte du bouton de contact (facultatif)" help="Vide : pas de bouton (l'adresse e-mail reste affichée)." value={l(value.contactLabel)} onChange={(v) => set("contactLabel", optional(v))} error={errorAt(errors, "contactLabel")} />
+      <TextI18n label="Texte du bouton de contact (facultatif)" help="Vide : pas de bouton (l'adresse e-mail reste affichée, en lien e-mail)." value={l(value.contactLabel)} onChange={(v) => set("contactLabel", optional(v))} error={errorAt(errors, "contactLabel")} />
+      <ContactActionSelect idPrefix={idPrefix} prop="contactAction" />
       <TextI18n label="Étiquette des réseaux (facultative)" value={l(value.socialEyebrow)} onChange={(v) => set("socialEyebrow", optional(v))} error={errorAt(errors, "socialEyebrow")} />
     </>
   );

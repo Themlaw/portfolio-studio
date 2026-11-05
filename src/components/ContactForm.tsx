@@ -30,6 +30,8 @@ export default function ContactForm({
   texts,
   edit,
   styles,
+  dryRun = false,
+  pageId = null,
 }: {
   /** Identifiant stable du formulaire publié (null sur la toile). */
   formId: string | null;
@@ -39,6 +41,10 @@ export default function ContactForm({
   edit: boolean;
   /** Styles locaux des textes (barre typographique, lot 2), par chemin : `fields.0.label`, `submit`… */
   styles?: Record<string, CSSProperties>;
+  /** Aperçu de l'éditeur (lot 125) : le formulaire de la fenêtre se remplit et « s'envoie » sans rien écrire. */
+  dryRun?: boolean;
+  /** Page d'où part l'envoi (formulaire intégré de la fenêtre « Me contacter », lot 125). */
+  pageId?: number | null;
 }) {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
   const mark = (path: string, placeholder: string) => ({ ...(edit ? { "data-inline": path, "data-placeholder": placeholder } : {}), ...(styles && Object.hasOwn(styles, path) ? { style: styles[path] } : {}) });
@@ -53,11 +59,15 @@ export default function ContactForm({
       if (typeof v === "string" && v.trim()) values[f.id] = v;
     }
     setState("sending");
+    if (dryRun) {
+      setState("sent");
+      return;
+    }
     try {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ form: formId, locale, values, website: String(data.get("website") ?? "") }),
+        body: JSON.stringify({ form: formId, locale, values, website: String(data.get("website") ?? ""), ...(pageId !== null ? { page: pageId } : {}) }),
       });
       setState(res.ok ? "sent" : "failed");
     } catch {
