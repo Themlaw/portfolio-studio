@@ -5,7 +5,7 @@ import BoardBox from "@/components/BoardBox";
 import ProjectStrip, { type BoardPart } from "@/components/ProjectStrip";
 import { getProjectBoard, type LocalizedArtwork } from "@/lib/gallery";
 import { claimEager } from "@/lib/eager";
-import { readLook } from "@/lib/look";
+import { readLook, readTint } from "@/lib/look";
 import { getMedia } from "@/lib/media";
 
 import WallpaperAlign from "@/components/WallpaperAlign";
@@ -155,6 +155,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
         // Bande des images du projet (lot 39) : la date posée sous chaque image (sans date posée, l'année de l'emplacement).
         ...(isProjectStrip(item) ? { dates: stripDates(item.props, ctx.locale) } : {}),
         ...(item.type === "strip" && readLook(item.props.look)?.spaceTop !== undefined ? { spaceTop: readLook(item.props.look)!.spaceTop } : {}),
+        ...(item.type === "strip" && readTint(item.props.stroke) ? { stroke: readTint(item.props.stroke) } : {}),
         ...(item.type === "strip" && (item.props.videoMode === "loop" || item.props.videoMode === "player") ? { videoMode: item.props.videoMode } : {}),
         ...(fonds[i] ? { fond: { background: fonds[i]!, join: joins[i] } } : {}),
         ...(item.type === "strip"

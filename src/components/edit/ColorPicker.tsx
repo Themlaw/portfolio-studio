@@ -272,13 +272,29 @@ export function Popover({
       ];
       const pick = tries.find((c) => (c.side === "right" ? view - gap - c.edge >= width : c.edge - gap >= width));
       const side = pick?.side ?? null;
-      if (!side) {
-        // Dernier recours : sous le déclencheur, comme avant, sans déborder.
+      if (!side && inline) {
+        // Sélecteur posé dans le flux du panneau : comme avant, décalé pour ne pas déborder.
         el.style.translate = "0 0";
         const r = el.getBoundingClientRect();
         const shift = Math.min(0, view - gap - r.right) + Math.max(0, gap - (r.left + Math.min(0, view - gap - r.right)));
         if (shift) el.style.translate = `${shift}px 0`;
         el.scrollIntoView({ block: "nearest", behavior: "instant" });
+        return;
+      }
+      if (!side) {
+        // Dernier recours (écran étroit : tactile 390 px) : la fenêtre ne tient à côté de rien. Lot 110 : elle reste TOUTE dans l'écran, centrée en largeur,
+        // sous le déclencheur si la place y est, sinon remontée, avec une hauteur maximale (elle défile en elle-même au-delà).
+        el.dataset.side = "below";
+        el.style.position = "fixed";
+        el.style.width = `${width}px`;
+        el.style.maxHeight = `${high - 2 * gap}px`;
+        el.style.left = "0px";
+        el.style.top = "0px";
+        const base = el.getBoundingClientRect();
+        const height = Math.min(base.height, high - 2 * gap);
+        const wantTop = Math.max(gap, Math.min(t.bottom + gap, high - gap - height));
+        el.style.left = `${Math.max(gap, (view - width) / 2) - base.left}px`;
+        el.style.top = `${wantTop - base.top}px`;
         return;
       }
       el.dataset.side = side;

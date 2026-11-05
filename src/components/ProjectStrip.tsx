@@ -12,7 +12,7 @@ import { BOARD_ITEM_LABELS, CAPTION_STYLE_FIELDS, type BoardBox as BoardBoxProps
 import { captionCss, captionStylesOf } from "@/blocks/caption-style";
 import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedArtwork, LocalizedProject } from "@/lib/gallery";
-import type { MediaLookData, Space } from "@/lib/look";
+import type { MediaLookData, Space, StrokeTint } from "@/lib/look";
 import type { Background, FondJoin } from "@/themes/fond";
 import type { CardPalette } from "@/themes/surface";
 import type { WallpaperEntry } from "@/themes/wallpaper";
@@ -51,6 +51,8 @@ export type BoardPart = {
   dates?: Record<string, string>;
   /** Lecture des vidéos de la bande (lot 36) : Boucle ou Lecteur ; absent : chaque vidéo suit sa nature. */
   videoMode?: "loop" | "player";
+  /** Couleur posée sur la barre de défilement de cette bande (lot 110). */
+  stroke?: StrokeTint;
   /** Espace au-dessus de la bande (lot 40, `look.spaceTop` : la bande n'a pas d'enveloppe de bloc) ; absent : l'espace du thème. */
   spaceTop?: Space | number;
   /** Fond de couleur du composant (lot 32) et fusion avec ses voisins de même fond ; posé ici, autour de la colonne réglée par `box`. */
@@ -123,11 +125,11 @@ export default function ProjectStrip({
       part,
       part?.artworks ? (
         <BoardBox box={part.box}>
-          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotLook={slotLook} videoMode={part.videoMode} capBase={capBase} capOwn={capOwn} eager={eager} />
+          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotLook={slotLook} videoMode={part.videoMode} stroke={part.stroke} capBase={capBase} capOwn={capOwn} eager={eager} />
         </BoardBox>
       ) : (
         <BoardBox box={part?.box}>
-          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotLook={slotLook} videoMode={part?.videoMode} capBase={capBase} capOwn={capOwn} eager={eager} />
+          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotLook={slotLook} videoMode={part?.videoMode} stroke={part?.stroke} capBase={capBase} capOwn={capOwn} eager={eager} />
         </BoardBox>
       ),
     );

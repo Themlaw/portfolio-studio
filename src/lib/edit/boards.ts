@@ -42,7 +42,7 @@ import { BOARD_ITEM_TYPES, BOX_MIN, CAPTION_STYLE_FIELDS, projectCaptionStyle, M
 import { convertTarget } from "@/blocks/grid-strip";
 import { isVideoMode } from "@/blocks/video-mode";
 import { getPageForEdit } from "@/lib/admin";
-import { LookSchema, readLook, TextStyleSchema } from "@/lib/look";
+import { LookSchema, readLook, StrokeTintSchema, TextStyleSchema } from "@/lib/look";
 import { HELP_TEXT } from "@/blocks/help-text";
 import { applyMediaPatch, MediaPatchSchema } from "./media-look";
 import { setLocalizedAt } from "./protocol";
@@ -742,10 +742,11 @@ export function boardOp(pageId: number, projectId: unknown, opInput: unknown, re
         if (!item) return "Ce bloc n'est plus sur ce projet.";
         if (op.props !== undefined) {
           if (isProjectStrip(item)) {
-            // Seul réglage de la bande du projet (lot 36) : la lecture de ses vidéos.
-            if (Object.keys(op.props).some((k) => k !== "videoMode")) return "Cette bande montre les images du projet : elle n'a pas de réglage de contenu.";
+            // Réglages de la bande du projet : la lecture de ses vidéos (lot 36), son espace (lot 40) et la couleur de son trait (lot 110).
+            if (Object.keys(op.props).some((k) => k !== "videoMode" && k !== "look" && k !== "stroke")) return "Cette bande montre les images du projet : elle n'a pas de réglage de contenu.";
             if (op.props.videoMode !== undefined && !isVideoMode(op.props.videoMode)) return "Lecture de vidéo inconnue.";
           } else if (item.type === "strip" && op.props.videoMode !== undefined && !isVideoMode(op.props.videoMode)) return "Lecture de vidéo inconnue.";
+          if (item.type === "strip" && op.props.stroke !== undefined && !StrokeTintSchema.safeParse(op.props.stroke).success) return "Couleur du trait illisible.";
           item.props = item.type === "rich-text" ? settleHelp(op.props) : op.props;
         }
         if (op.box !== undefined) {

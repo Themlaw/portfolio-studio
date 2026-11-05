@@ -863,12 +863,44 @@ export const LogoSchema = z.strictObject({
 });
 export type Logo = z.infer<typeof LogoSchema>;
 
+/**
+ * Couleur posée par-dessus le TRAIT dessiné du kit (lot 110) : la teinte (#rrggbb) et son opacité (1 à 100 %), mélangées au dessin
+ * d'origine (teinte du thème, ou couleurs d'origine du fichier). Absente = le rendu du thème, strictement.
+ */
+export const StrokeTintSchema = z.strictObject({
+  color: z.string().regex(/^#[0-9a-f]{6}$/),
+  opacity: z.number().int().min(1).max(100),
+});
+export type StrokeTint = z.infer<typeof StrokeTintSchema>;
+/** Réglages du site : `all` = valeur par défaut (barres des rangées d'images, filets, soulignement), `header` = soulignement de l'en-tête seul. */
+export const SiteStrokeSchema = z.strictObject({ all: StrokeTintSchema.optional(), header: StrokeTintSchema.optional() });
+export type SiteStroke = z.infer<typeof SiteStrokeSchema>;
+/** Teinte lisible ou undefined (donnée illisible = pas de teinte, jamais d'erreur au rendu). */
+export function readTint(v: unknown): StrokeTint | undefined {
+  const p = StrokeTintSchema.safeParse(v);
+  return p.success ? p.data : undefined;
+}
+/** Variables de la teinte (`--stroke-c`, `--stroke-a`, `--stroke-ao`) ; `prefix` "nav-" pour l'en-tête. */
+export function tintVars(t: StrokeTint, prefix = ""): Record<string, string> {
+  return prefix
+    ? { [`--stroke-${prefix}c`]: t.color, [`--stroke-${prefix}a`]: `${t.opacity}%` }
+    : { "--stroke-c": t.color, "--stroke-a": `${t.opacity}%`, "--stroke-ao": String(t.opacity / 100) };
+}
+export function cleanSiteStroke(s: SiteStroke | undefined): SiteStroke | undefined {
+  const all = readTint(s?.all);
+  const header = readTint(s?.header);
+  return all || header ? { ...(all ? { all } : {}), ...(header ? { header } : {}) } : undefined;
+}
+const declsOf = (v: Record<string, string>) => Object.entries(v).map(([k, x]) => `${k}:${x}`).join(";");
+
 export const SiteStylesSchema = z.strictObject({
   roles: z.partialRecord(z.enum(ROLES), TextStyleSchema).optional(),
   /** Arrondi des images et cartes du site (surcharge le thème). */
   radius: z.enum(RADII).optional(),
   palette: SitePaletteSchema.optional(),
   logo: LogoSchema.optional(),
+  /** Couleur du trait dessiné du kit (lot 110). */
+  stroke: SiteStrokeSchema.optional(),
 });
 export type SiteStyles = z.infer<typeof SiteStylesSchema>;
 
@@ -906,6 +938,10 @@ export function siteStylesCss(styles: SiteStyles | undefined, palette?: CardPale
   const s = parsed.data;
   const rules: string[] = [];
   if (s.radius) rules.push(`:root{--media-radius:${RADIUS_VALUES[s.radius]}}`);
+  // Lot 110 : couleur du trait du kit. Rien d'écrit sans réglage : les règles de variants.css retombent sur le dessin du thème.
+  const stroke = cleanSiteStroke(s.stroke);
+  if (stroke?.all) rules.push(`${WIN}{${declsOf(tintVars(stroke.all))}}`);
+  if (stroke?.header) rules.push(`${WIN} .site-header{${declsOf(tintVars(stroke.header, "nav-"))}}`);
   // Ordre : légendes avant menu et nom du site (à spécificité égale, le dernier gagne).
   for (const role of ["body", "caption", "eyebrow", "h2", "h1", "menu", "brand"] as Role[]) {
     // Menu et nom du site : de petits éléments en ligne (le bandeau y est `inline-block`) ; les autres rôles visent aussi des blocs.
@@ -1068,6 +1104,7 @@ export function cleanSiteStyles(styles: SiteStyles | undefined): SiteStyles | un
   ) as SiteStyles["roles"];
   const palette = cleanSitePalette(styles.palette);
   const logo = cleanLogo(styles.logo);
-  const out: SiteStyles = { ...(roles && Object.keys(roles).length ? { roles } : {}), ...(styles.radius ? { radius: styles.radius } : {}), ...(palette ? { palette } : {}), ...(logo ? { logo } : {}) };
+  const stroke = cleanSiteStroke(styles.stroke);
+  const out: SiteStyles = { ...(roles && Object.keys(roles).length ? { roles } : {}), ...(styles.radius ? { radius: styles.radius } : {}), ...(palette ? { palette } : {}), ...(logo ? { logo } : {}), ...(stroke ? { stroke } : {}) };
   return Object.keys(out).length ? out : undefined;
 }

@@ -50,6 +50,7 @@ const RULES: [RegExp, (m: RegExpExecArray) => Subject][] = [
   [/^nav/, () => ({ label: "Menu" })],
   [/^socials/, () => ({ label: "Réseaux" })],
   [/^styles\.logo/, () => ({ label: "Logo" })],
+  [/^styles\.stroke/, () => ({ label: "Couleur du trait" })],
   [/^styles/, () => ({ label: "Style du site" })],
 ];
 
