@@ -3767,6 +3767,43 @@ label.a-file-btn:focus-within {
   border-top: 1px solid var(--admin-line);
 }
 
+/* Kit Photoshop : téléchargement par partie (lot 122). */
+.a-kit-parts {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  max-inline-size: 760px;
+}
+.a-kit-parts-title {
+  margin: 0;
+  font-size: 15px;
+}
+.a-kit-parts-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.a-kit-parts-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+}
+.a-kit-parts-list small {
+  color: var(--admin-muted, inherit);
+}
+@media (max-width: 640px) {
+  .a-kit-parts-list li {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 /* Indicateur d'attente du kit (export, « Appliquer au thème ») : pastille qui tourne + phrase. */
 .a-kit-progress {
   display: inline-flex;

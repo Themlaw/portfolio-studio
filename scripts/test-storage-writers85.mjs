@@ -35,6 +35,7 @@ const TABLE = {
   "src/lib/kit/import.ts": ["t", "kit-imports/<id>/out"],
   "src/lib/kit/logo.ts": ["c", "media/kit/ (logo depuis la médiathèque) : sauvegardé par défaut"],
   "src/lib/kit/manifest.ts": ["c", "cache/kits/manifests (fiches de kit : sauvegardées, exception à cache/)"],
+  "src/lib/kit/parts.ts": ["b", "cache/kits (durée de génération .meta à côté de l'archive)"],
   "src/lib/kit/zip-archive.ts": ["b", "cache/kits (zip d'export)"],
   "src/lib/pdf/ingest.ts": ["a", "media/originals/"],
   "src/lib/pdf/poppler.ts": ["t", "tmp/pdf-*"],

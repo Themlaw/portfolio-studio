@@ -27,6 +27,7 @@ import { readIcon } from "@/lib/favicon";
 import { planIcon } from "@/lib/favicon-plan";
 
 import { exportIdOf, loadManifests } from "./manifest";
+import { kitMetaFile, writeKitMeta } from "./parts";
 import { KIT_V4_VERSION } from "./spec";
 import { themeVersion } from "./version";
 
@@ -75,12 +76,12 @@ export function loadSavedTheme(id: string): Theme | null {
 /** Supprime les kits en cache d'un thème (sauf, éventuellement, une version). */
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Kit en cache de CE thème : `<id>-<hex12>-v<n>.zip` (ou `.psd` des anciens formats) exactement (un thème « a-b » n'est pas « a »). */
-const kitFileRe = (themeId: string) => new RegExp(`^${escapeRe(themeId)}-[0-9a-f]{12}-v\\d+\\.(?:zip|psd)(\\.tmp|\\.parts)?$`);
+const kitFileRe = (themeId: string) => new RegExp(`^${escapeRe(themeId)}-[0-9a-f]{12}-v\\d+\\.(?:zip|psd)(\\.tmp|\\.parts|\\.meta)?$`);
 
 export async function purgeKits(themeId: string, keep?: string): Promise<void> {
   const re = kitFileRe(themeId);
   for (const name of await readdir(kitDir()).catch(() => [] as string[])) {
-    if (re.test(name) && (!keep || name !== path.basename(kitFile(themeId, keep)))) {
+    if (re.test(name) && (!keep || (name !== path.basename(kitFile(themeId, keep)) && name !== path.basename(kitMetaFile(kitFile(themeId, keep)))))) {
       await rm(path.join(/* turbopackIgnore: true */ kitDir(), name), { force: true, recursive: true });
     }
   }
@@ -97,7 +98,10 @@ export async function capKitCache(max = MAX_CACHED_KITS): Promise<number> {
     if (info) files.push({ name, mtime: info.mtimeMs });
   }
   files.sort((a, b) => b.mtime - a.mtime);
-  for (const f of files.slice(max)) await rm(path.join(/* turbopackIgnore: true */ dir, f.name), { force: true });
+  for (const f of files.slice(max)) {
+    await rm(path.join(/* turbopackIgnore: true */ dir, f.name), { force: true });
+    await rm(kitMetaFile(path.join(/* turbopackIgnore: true */ dir, f.name)), { force: true });
+  }
   return Math.max(0, files.length - max);
 }
 
@@ -346,6 +350,8 @@ export async function runKitJob(job: { id: number; payload: Record<string, unkno
         : "La génération du kit a échoué. Réessaie ; si ça recommence, vérifie l'espace disque du serveur.",
     );
   }
+  // Lot 122 : durée de génération, affichée à côté des parties du kit.
+  await writeKitMeta(kitFile(themeId, version), { ms: result.ms ?? 0, bytes: result.bytes ?? 0 }).catch(() => undefined);
   await purgeKits(themeId, version);
   await capKitCache();
   console.log(`[kit] thème ${themeId} : kit ${version} généré (${Math.round((result.bytes ?? 0) / 1024)} Ko, ${result.ms} ms, pic ${result.peakMb} Mo, oom ${result.oom})`);
