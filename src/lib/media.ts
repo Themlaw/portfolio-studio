@@ -39,7 +39,8 @@ export function mediaSources(row: { variants: unknown; dominantColor: string | n
   return pictureSources(variants, mediaUrl, row.dominantColor);
 }
 
-export type VideoView = { sources: VideoSources; duration: number; durationLabel: string; loop: boolean };
+/** `hasAudio` : la vidéo a une piste son audible (inconnu = oui : le bouton son reste proposé). */
+export type VideoView = { sources: VideoSources; duration: number; durationLabel: string; loop: boolean; hasAudio: boolean };
 
 /** Lecture d'une vidéo convertie (sources MP4, poster, durée, boucle ?), ou null. */
 export function videoView(row: { kind: string; variants: unknown; dominantColor: string | null; duration: number | null; hasAudio: boolean | null }): VideoView | null {
@@ -47,7 +48,7 @@ export function videoView(row: { kind: string; variants: unknown; dominantColor:
   const variants = parseVariants(row.variants);
   const sources = variants ? videoSources(variants, mediaUrl, row.dominantColor) : null;
   if (!sources) return null;
-  return { sources, duration: row.duration ?? 0, durationLabel: formatDuration(row.duration), loop: isLoop(row) };
+  return { sources, duration: row.duration ?? 0, durationLabel: formatDuration(row.duration), loop: isLoop(row), hasAudio: row.hasAudio !== false };
 }
 
 /** Aperçu d'un PDF traité (pages, fichier), ou null. */

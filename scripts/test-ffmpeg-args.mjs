@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 const transcode = read("src/lib/video/transcode.ts");
 const probe = read("src/lib/video/probe.ts");
+const audio = read("src/lib/video/audio.ts");
 const limits = await import(new URL("../src/lib/video/limits.ts", import.meta.url));
 
 let failures = 0;
@@ -18,7 +19,7 @@ const ok = (label, cond, detail = "") => {
 };
 
 // Chaque lancement passe par nice 10, arguments en tableau, jamais de shell.
-for (const [name, src] of [["transcode.ts", transcode], ["probe.ts", probe]]) {
+for (const [name, src] of [["transcode.ts", transcode], ["probe.ts", probe], ["audio.ts", audio]]) {
   const spawns = [...src.matchAll(/spawn\(([^,]+),\s*\[([^\]]*)/g)];
   ok(`${name} : au moins un lancement`, spawns.length > 0);
   for (const m of spawns) {

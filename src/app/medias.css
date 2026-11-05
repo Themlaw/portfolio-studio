@@ -329,20 +329,47 @@
     outline-offset: 3px;
   }
 
-  .loop-mark {
+  /* ---- Badge vidéo UNIQUE (lot 116) : boucle (icône boucle + état), lecteur (▶ + durée), même coin, même style thémable. */
+  .vid-badge {
     position: absolute;
     right: 0.6rem;
     bottom: 0.6rem;
+    z-index: 1;
     display: inline-flex;
-    width: 2rem;
-    height: 2rem;
+    min-height: 2rem;
     align-items: center;
     justify-content: center;
+    gap: 0.4rem;
+    padding: 0 0.6rem;
     border-radius: var(--btn-radius);
     background: color-mix(in srgb, var(--color-surface) 82%, transparent);
     color: var(--color-primary);
-    opacity: 0.55;
+    font-size: 0.75rem;
+    line-height: 1;
     pointer-events: none;
+  }
+
+  .vid-badge-time {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .vid-sound {
+    top: 0.6rem;
+    bottom: auto;
+    width: 2rem;
+    padding: 0;
+    border: 0;
+    pointer-events: auto;
+    cursor: var(--t-cursor-pointer, pointer);
+  }
+
+  .vid-sound:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  .loop-mark {
+    opacity: 0.55;
     transition: opacity var(--dur-fast) var(--ease-soft);
   }
 

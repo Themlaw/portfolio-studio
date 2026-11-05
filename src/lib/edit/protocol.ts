@@ -105,7 +105,7 @@ const FreeId = z.string().regex(/^[a-z0-9]{1,12}$/);
  */
 export const FreeCanvasOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("set"), format: z.enum(FREE_FORMATS).optional(), aspect: z.number().finite().min(0.4).max(4).optional(), phone: z.enum(["scale", "stack"]).optional() }),
-  z.object({ op: z.literal("pick"), id: FreeId.optional() }),
+  z.object({ op: z.literal("pick"), id: FreeId.optional(), poster: z.boolean().optional() }),
   /** Recadrage du cadre (lot 113) : marges absolues en % du plan, ou `reset` (plan entier). */
   z.object({
     op: z.literal("crop"),
@@ -115,6 +115,8 @@ export const FreeCanvasOpSchema = z.discriminatedUnion("op", [
     l: z.number().finite().min(0).max(90).optional(),
     reset: z.boolean().optional(),
   }),
+  /** Image d'attente d'une vidéo (lot 116) ; `media` null la retire. */
+  z.object({ op: z.literal("poster"), id: FreeId, media: z.number().int().positive().nullable() }),
   z.object({
     op: z.literal("place"),
     id: FreeId,

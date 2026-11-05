@@ -99,11 +99,10 @@ export default function VideoCard({
           <p className="max-w-xl text-sm leading-relaxed text-ink-soft" {...mark("description", "Légende")}>
             {texts.description}
           </p>
-          {(item.duration || date) && (
+          {(date || (!item.video && item.duration)) && (
             <p className="eyebrow">
               {date}
-              {texts.date && item.duration ? " · " : null}
-              {item.duration}
+              {!item.video && item.duration ? <span data-cap="duration">{item.duration}</span> : null}
             </p>
           )}
         </div>
@@ -111,7 +110,8 @@ export default function VideoCard({
     );
   }
   if (look === "card") {
-    const meta = item.duration ?? (item.year || "");
+    // Lot 116 : la durée d'une vidéo hébergée est dans son badge (▶ 1:29), plus collée à la date dans la légende.
+    const meta = item.video ? "" : (item.duration ?? (item.year || ""));
     return (
       <div className={`group${soloClass}`} style={soloStyle} {...host}>
         {media}

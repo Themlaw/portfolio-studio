@@ -131,7 +131,7 @@ try {
     const click = box.locator(".loop-click");
     await click.click();
     ok("A1a un clic la lance (muette, en boucle)", (await playing(box)) && (await vstate(box)).muted && (await vstate(box)).loop);
-    ok("A1b le repère pause est affiché, discret (petit, translucide)", await click.locator('.loop-mark[data-mark="pause"]').isVisible() && (await click.locator(".loop-mark").evaluate((m) => ({ w: m.getBoundingClientRect().width, o: Number(getComputedStyle(m).opacity) }))).w <= 40);
+    ok("A1b le repère pause est affiché, discret (petit, translucide)", await click.locator('.loop-mark[data-mark="pause"]').isVisible() && (await click.locator(".loop-mark").evaluate((m) => ({ w: m.getBoundingClientRect().width, o: Number(getComputedStyle(m).opacity) }))).w <= 56);
     ok("A1c le cadre est un bouton : nom lisible, focusable", /Mettre la vidéo en pause/.test((await click.getAttribute("aria-label")) ?? "") && (await click.getAttribute("role")) === "button" && (await click.getAttribute("tabindex")) === "0");
     await shot(p, "A-boucle-lecture");
     await click.click();

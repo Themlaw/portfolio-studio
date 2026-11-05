@@ -28,6 +28,8 @@ import FrameWindow from "./FrameMenu";
 import ImageBgWindow from "./ImageBgMenu";
 import { clearCrop, clearItem, findItem, findZone, frameBoxOf, freeKey, freeRefOf, ITEM_SELECTOR, itemsOf, readItem, writeCrop, writeItem, zoneAspectOf, type FreeGeom, type FreeRef } from "./free-dom";
 import { sendMediaLook } from "./LookLayer";
+import VideoModeSeg from "./VideoModeSeg";
+import { isVideoMode } from "@/blocks/video-mode";
 import { postIntent, setOverlay } from "./optimistic";
 
 type Sel = { key: string; id: string };
@@ -519,7 +521,11 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
     try {
       style = JSON.parse(itemEl.dataset.freeStyle ?? "{}") as typeof style;
     } catch {}
-    const isVideo = Boolean(itemEl.querySelector("video"));
+    // Une vidéo (lot 116) : repère posé par le rendu (en mode Lecteur il n'y a pas de <video> dans la boîte).
+    const isVideo = itemEl.dataset.freeLecture !== undefined;
+    const videoNow = isVideoMode(itemEl.dataset.freeLecture) ? itemEl.dataset.freeLecture : "loop";
+    const hasPoster = Boolean(itemEl.dataset.freePoster);
+    const hasAudio = itemEl.dataset.freeAudio === "1";
     // Sous l'image (la poignée de rotation est au-dessus) ; au-dessus seulement si le bas de l'écran est trop proche.
     const below = bb.top + bb.height + 14;
     const barTop = below + 44 > window.scrollY + window.innerHeight ? Math.max(window.scrollY + 8, bb.top - 64) : below;
@@ -608,6 +614,22 @@ export default function FreeLayer({ selected, dragging, announce }: { selected: 
                 {imageBgCss(style.bg) && <span className="sm-swatch" data-testid="free-imgbg-swatch" style={{ background: imageBgCss(style.bg) ?? undefined }} aria-hidden="true" />}
                 Fond image
               </button>
+            )}
+            {isVideo && <VideoModeSeg now={videoNow} onChange={(m) => sendFreeLook(ref, sel.id, { video: m })} testId="free-lecture-mode" attr="data-free-lecture-set" />}
+            {isVideo && (
+              <>
+                <button type="button" data-testid="free-poster" title="Image d'attente de la vidéo (sinon une image de la vidéo)" onClick={() => send(ref, { op: "pick", id: sel.id, poster: true })}>
+                  Affiche
+                </button>
+                {hasPoster && (
+                  <button type="button" data-testid="free-poster-clear" title="Revenir à l'image de la vidéo" onClick={() => send(ref, { op: "poster", id: sel.id, media: null })}>
+                    Sans affiche
+                  </button>
+                )}
+                <span className="pe-free-sound" data-testid="free-sound-state" title={hasAudio ? "Cette vidéo a du son : un bouton son s'affiche sur le site" : "Cette vidéo est muette : pas de bouton son"}>
+                  {hasAudio ? "Avec son" : "Sans son"}
+                </span>
+              </>
             )}
             <RotationField key={`${sel.id}-${g.rot}`} value={g.rot} onCommit={(rot) => commitPlace(ref, sel.id, { rot })} />
             <span data-free-bar-extra="" />
