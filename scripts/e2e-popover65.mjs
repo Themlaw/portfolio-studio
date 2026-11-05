@@ -844,7 +844,6 @@ const BARS = [
   [".pe-tile-tools", ""],
   [".pe-tile-cover", ""],
   [".pe-markbar", ""],
-  [".pe-project-hint", ""],
   [".pe-bitem-bar", ""],
   [".lk-pos", ""],
   [".lk-aa", ""],

@@ -19,6 +19,7 @@ import sharp from "sharp";
 
 import { paint } from "./lib/crop-fixtures.mjs";
 import { login, pageIdOf, q1, waitFor } from "./lib/medias-setup.mjs";
+import { boardDraft, boardPublished } from "./lib/grille31d.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3540";
 const ONLY = process.env.ONLY ?? "";
@@ -88,7 +89,8 @@ function setDraft(blocks) {
 }
 const draftBlocks = () => JSON.parse(sql((db) => db.prepare("select draft from pages where id = ?").get(pageId)).draft).blocks;
 const lookOfDraft = (uid) => draftBlocks().find((b) => b.uid === uid)?.props.look;
-const draftLayout = () => JSON.parse(sql((db) => db.prepare("select coalesce(draft_layout, layout) d from projects where id = ?").get(PROJECT.id)).d ?? "[]");
+// Lot 111 : la suite modifiée est la copie propre du bloc (brouillon de la page, sinon publiée), plus une surcouche du projet.
+const draftLayout = () => boardDraft(PROJECT.id) ?? boardPublished(PROJECT.id) ?? [];
 const lookOfItem = (uid) => draftLayout().find((i) => i.uid === uid)?.props?.look;
 
 const CAPTION = "Légende de l'image de test";

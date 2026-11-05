@@ -237,10 +237,13 @@ if (run("C"))
     await sleep(700);
     await settled();
     const proj = () => q("select title, draft_text, draft_text_page_id from projects order by id limit 1")[0];
-    ok("C10 surcouche enregistrée : texte au projet (draft_text, page courante), ligne du projet inchangée, rien copié dans le bloc", await waitFor(() => {
+    // Lot 111 : le texte est la copie propre du bloc Projet de la page (brouillon de la page) ; sans bloc Projet, l'ancienne surcouche (draft_text).
+    ok("C10 texte enregistré : copie propre du bloc (ou surcouche sans bloc), ligne du projet inchangée", await waitFor(() => {
       const r = proj();
-      return JSON.parse(r.draft_text ?? "null")?.title?.fr === NEW_TITLE && r.draft_text_page_id === pageId && JSON.parse(r.title).fr === titleFr;
-    }) && !JSON.stringify(draftOf(pageId)).includes(NEW_TITLE));
+      const overlay = JSON.parse(r.draft_text ?? "null")?.title?.fr === NEW_TITLE && r.draft_text_page_id === pageId;
+      const own = /"text":\{"title":\{"fr":"/.test(JSON.stringify(draftOf(pageId))) && JSON.stringify(draftOf(pageId)).includes(NEW_TITLE);
+      return (overlay || own) && JSON.parse(r.title).fr === titleFr;
+    }));
     ok("C10 la planche du même projet montre aussi le nouveau titre", await waitFor(async () => (await f.locator(`[data-edit-board] h2[data-project-inline="title"]`).filter({ hasText: NEW_TITLE }).count()) >= 1));
     await page.getByRole("button", { name: "Publier", exact: true }).click();
     ok("C7 publication acceptée", await waitFor(async () => /En ligne/.test((await page.locator(".ve-status").textContent()) ?? ""), 120000), await page.locator(".ve-status").textContent());
@@ -253,7 +256,7 @@ if (run("C"))
     await pub.screenshot({ path: path.join(SHOTS, "c-public-apres-publication.png"), fullPage: true });
     await pub.context().close();
     const pubTypes = q("select type from blocks where page_id = ? order by position", pageId).map((r) => r.type);
-    ok("C9b publication : le projet a reçu le nouveau titre, surcouche vidée", JSON.parse(proj().title).fr === NEW_TITLE && proj().draft_text === null && proj().draft_text_page_id === null);
+    ok("C9b publication : le titre est publié (dans le bloc de la page, ou dans le projet sans bloc), plus de surcouche", (JSON.parse(proj().title).fr === NEW_TITLE || q("select props from blocks where page_id = ?", pageId).some((r) => r.props.includes(NEW_TITLE))) && proj().draft_text === null && proj().draft_text_page_id === null);
     ok("C9 version publiée : blocs à plat, sans conteneur", pubTypes.length === 11 && !pubTypes.includes("featured-project"), pubTypes.join());
   });
 

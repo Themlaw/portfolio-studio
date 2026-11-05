@@ -531,6 +531,20 @@ export default function ProjectEditor({ project, library, legacyFeatured }: { pr
   }
   const [selected, setSelected] = useState<number | null>(null);
   const [picker, setPicker] = useState<{ slotId: number | "end" } | null>(null);
+  // Projet tout juste créé (lot 111) : l'ajout d'images est proposé tout de suite (une seule fois).
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const key = `pf-add-images-${project.id}`;
+      if (sessionStorage.getItem(key)) {
+        sessionStorage.removeItem(key);
+        timer = setTimeout(() => setPicker({ slotId: "end" }), 0);
+      }
+    } catch {
+      // Stockage refusé : rien n'est proposé.
+    }
+    return () => clearTimeout(timer);
+  }, [project.id]);
   const [over, setOver] = useState(false);
   const [hint, setHint] = useState<DropHint>(null);
   const [dragging, setDragging] = useState<AdminMediaRow | null>(null);

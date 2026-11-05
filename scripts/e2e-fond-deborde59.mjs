@@ -20,6 +20,7 @@ import sharp from "sharp";
 import { img, login, makeMedia, pageIdOf, q1, setBoardDraft, sleep, sql, waitFor } from "./lib/grille31d.mjs";
 import { publishBlocks } from "./lib/page-draft.mjs";
 import { autoOpenFine } from "./lib/zone66.mjs";
+import { boardPublished } from "./lib/grille31d.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3600";
 const SHOTS = process.env.SHOTS ?? "screenshots/fond-deborde59";
@@ -126,7 +127,7 @@ async function publish(pageId, blocks, check) {
 sql((db) => db.prepare("update pages set draft = NULL, draft_rev = 0 where id in (?, 1)").run(personnages));
 sql((db) => db.prepare("update projects set draft_layout = NULL, draft_layout_page_id = NULL where id = ?").run(project.id));
 setBoardDraft(project.id, personnages, boardItems);
-ok("0a personnages publiée (planche + 7 réglages)", await publish(personnages, page1Blocks, () => q1("select count(*) n from blocks where page_id = ?", personnages).n === page1Blocks.length && q1("select layout from projects where id = ?", project.id)?.layout?.includes('"i0"')));
+ok("0a personnages publiée (planche + 7 réglages)", await publish(personnages, page1Blocks, () => q1("select count(*) n from blocks where page_id = ?", personnages).n === page1Blocks.length && JSON.stringify(boardPublished(project.id) ?? []).includes('"i0"')));
 ok("0b accueil publié", await publish(1, page2Blocks, () => q1("select count(*) n from blocks where page_id = 1").n === page2Blocks.length));
 
 /** Mesure (dans le document ou le cadre de la toile) : contenu des zones colorées, fonds dans leur carte, défilement horizontal. */

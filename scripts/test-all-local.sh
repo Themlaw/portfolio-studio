@@ -8,7 +8,7 @@
 #
 # Usage (depuis le dépôt) :
 #   scripts/test-all-local.sh [suite…]      # vide = toutes
-#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 entrees48 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 backup50 vitesse54 publication51 publication101 kit53 partage52 priseenmain57 cadremotif58 cadres62 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 mediaframe64 cadres79 grille69 public67 surface66 popover65 textes70 papiers78 admin76 restes77 cadres74 unif75 favicon83 backup85 backup118 apercu118 domaine88 langue87 pied86 logo84 introuvable89 cadre95 opacite90 fond100 site96 legendes98 defilement99 defilement99-firefox parite99 journal97 integ33 raccord102 menu109 barreaa114 scroll123 logo106 couleur110 medias112 entrees117 planche113
+#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 entrees48 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 backup50 vitesse54 publication51 publication101 kit53 partage52 priseenmain57 cadremotif58 cadres62 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 mediaframe64 cadres79 grille69 public67 surface66 popover65 textes70 papiers78 admin76 restes77 cadres74 unif75 favicon83 backup85 backup118 apercu118 domaine88 langue87 pied86 logo84 introuvable89 cadre95 opacite90 fond100 site96 legendes98 defilement99 defilement99-firefox parite99 journal97 integ33 raccord102 menu109 barreaa114 scroll123 logo106 couleur110 medias112 entrees117 planche113 tags contenu111
 # Rapide (VM de 3 cœurs et plus, voir docs/ARCHITECTURE.md) :
 #   BATT_SERVER=start BATT_JOBS=2 scripts/test-all-local.sh
 # En fond détaché :
@@ -133,6 +133,7 @@ E2E=(
   "montheme60|node scripts/e2e-montheme60.mjs|chromium|"
   "editeurguide61|node scripts/e2e-editeurguide61.mjs|chromium|"
   "retours68|node scripts/e2e-retours68.mjs|chromium|"
+  "tags|node scripts/e2e-tags.mjs|chromium|"
   "mediaframe64|node scripts/e2e-mediaframe64.mjs|chromium|"
   "cadres79|node scripts/e2e-cadres79.mjs|chromium|"
   "cadre95|node scripts/e2e-cadre95.mjs|chromium|"
@@ -181,6 +182,7 @@ E2E=(
   "couleur110a|node scripts/e2e-couleur110.mjs|chromium|A"
   "couleur110b|node scripts/e2e-couleur110.mjs|chromium|B"
   "entrees117|node scripts/e2e-entrees117.mjs|chromium|"
+  "contenu111|node scripts/e2e-contenu111.mjs|chromium|"
 )
 
 

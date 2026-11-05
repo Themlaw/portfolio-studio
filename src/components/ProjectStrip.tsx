@@ -154,7 +154,7 @@ export default function ProjectStrip({
     <div className="pe-bitems" data-edit-bitems="">
       {parts.map((part, i) => (
         <Fragment key={part.uid}>
-          <BoardAdd board={edit.id} index={i} />
+          <BoardAdd board={edit.id} index={i} first={i === 0} />
           <BoardItemFrame board={edit.id} part={part} index={i} count={parts.length}>
             {body(part)}
           </BoardItemFrame>
@@ -246,10 +246,10 @@ export default function ProjectStrip({
  * de la planche ou au focus ; BoardLayer ouvre le menu des composants permis). Posé en flux sans hauteur : il ne
  * décale rien. Jamais en public.
  */
-function BoardAdd({ board, index, last = false, empty = false }: { board: number; index: number; last?: boolean; empty?: boolean }) {
+function BoardAdd({ board, index, last = false, empty = false, first = false }: { board: number; index: number; last?: boolean; empty?: boolean; first?: boolean }) {
   return (
     <EditOnly>
-    <div className="pe-bitem-add" data-last={last || undefined} data-empty={empty || undefined} lang="fr">
+    <div className="pe-bitem-add" data-last={last || undefined} data-empty={empty || undefined} data-first={first || undefined} lang="fr">
       <button type="button" data-edit-bitem-add={index} data-board={board} aria-haspopup="menu">
         <span aria-hidden="true">+</span> {empty ? "Ajouter un bloc" : "Ajouter"}
         <span className="sr-only"> {index === 0 ? "en tête du projet" : last ? "en bas du projet" : `après le bloc ${index}`}</span>

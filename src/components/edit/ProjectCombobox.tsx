@@ -2,7 +2,7 @@
 
 /**
  * Choix d'un projet (panneau de l'éditeur ET toile) : champ qui cherche dans
- * les projets existants, « Créer “<texte exact>” » en dernier choix. Motif
+ * les projets existants, « Nouveau projet » en dernier choix (lot 111 : sans nom, le slug est un id aléatoire et le titre se change en place). Motif
  * combobox ARIA (liste, option active, ↑ ↓ Entrée Échap). Les projets « pas
  * encore sur une page » viennent en premier, signalés. Sans feuille de style
  * propre : classes préfixées (`ve-` dans l'admin, `pe-` sur la toile).
@@ -26,7 +26,7 @@ export default function ProjectCombobox({
   onCreate,
   label,
   prefix,
-  placeholder = "Nom d'un projet existant, ou d'un nouveau projet",
+  placeholder = "Chercher un projet existant, ou créer un nouveau projet",
   autoFocus = false,
 }: {
   projects: ComboProject[];
@@ -55,9 +55,9 @@ export default function ProjectCombobox({
       ...fresh.map((project) => ({ kind: "project" as const, project, fresh: true })),
       ...rest.map((project) => ({ kind: "project" as const, project, fresh: false })),
     ].slice(0, 40);
-    if (onCreate && query.trim()) list.push({ kind: "create", name: query.trim().slice(0, 120) });
+    if (onCreate) list.push({ kind: "create", name: "" });
     return list;
-  }, [projects, q, query, onCreate]);
+  }, [projects, q, onCreate]);
 
   const choose = (i: number) => {
     const o = options[i];
@@ -111,11 +111,13 @@ export default function ProjectCombobox({
             setActive((a) => Math.max(-1, a - 1));
           } else if (e.key === "Enter") {
             e.preventDefault();
-            // Sans option active : le texte tapé crée le projet (ou choisit le seul trouvé).
+            // Sans option active : le projet dont le nom est exactement celui tapé, ou le seul trouvé (créer un projet se fait en le choisissant).
             if (active >= 0) choose(active);
             else {
-              const exact = options.findIndex((o) => o.kind === "project" && fold(o.project.title) === q);
-              choose(exact >= 0 ? exact : options.findIndex((o) => o.kind === "create"));
+              const found = options.map((o, i) => (o.kind === "project" ? i : -1)).filter((i) => i >= 0);
+              const exact = found.find((i) => fold((options[i] as { project: ComboProject }).project.title) === q);
+              if (exact !== undefined) choose(exact);
+              else if (found.length === 1 && q) choose(found[0]);
             }
           } else if (e.key === "Escape") {
             setOpen(false);
@@ -142,7 +144,7 @@ export default function ProjectCombobox({
               {i === firstRest && firstFresh >= 0 && <span className={`${prefix}-combo-group`}>Déjà sur une page</span>}
               {o.kind === "create" ? (
                 <>
-                  Créer « <strong>{o.name}</strong> »
+                  <strong>Nouveau projet</strong> <small>(sans nom : tu le nommeras ensuite)</small>
                 </>
               ) : (
                 <>

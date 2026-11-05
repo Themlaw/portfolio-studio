@@ -23,6 +23,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 import { pageIdOf, placeBoard, projectSlugOf, removeBoard } from "./lib/page-board.mjs";
+import { createProjectUi } from "./lib/projet111.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -63,10 +64,7 @@ try {
 
   // ---- Planche : une boucle et une vidéo longue --------------------------------------
   await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "Nouveau projet" }).click();
-  await page.locator("dialog[open]").getByLabel("Titre en français").fill("Vidéos e2e");
-  await page.locator("dialog[open]").getByRole("button", { name: "Créer le projet" }).click();
-  await page.waitForURL(/\/admin\/projets\/\d+$/);
+  await createProjectUi(page, "Vidéos e2e");
   ok("E0 projet créé", /\/admin\/projets\/\d+$/.test(page.url()));
   videoProjectId = Number(page.url().split("/").pop());
   // v0.13 : la planche se pose sur la page Personnages (plus d'apparition automatique).

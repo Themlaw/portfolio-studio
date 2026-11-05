@@ -501,7 +501,7 @@ try {
         ok("D2 …et après l'acquittement du serveur", (await titles()).every((c) => c === col));
         const host = (boardDraft(BOARD_ID) ?? []).find((i) => i.captionStyle);
         ok("D2 le style est enregistré avec le projet (suite du projet, brouillon)", host?.captionStyle?.title?.color === "secondary" && !host.captionStyle.legend && !host.captionStyle.date, JSON.stringify(host?.captionStyle));
-        ok("D2 …pas dans la page", !JSON.stringify(draftBlocks(pageId)).includes('"captionStyle"'));
+        ok("D2 …dans le bloc Projet de la page (lot 111), pas dans les autres blocs", !JSON.stringify(draftBlocks(pageId).filter((b) => b.type !== "project-board")).includes('"captionStyle"'));
         await closeBar(f);
         // D3 « Ce texte » passe devant le projet.
         ok("D3 barre d'un titre", await openByAa(f, `${car} [data-slot-slug="car-b2"] [data-cap="title"]`));
@@ -557,7 +557,7 @@ try {
         const fb = await (async () => { const h = await page.waitForSelector("iframe.ve-frame", { timeout: 120000 }); const fr = await h.contentFrame(); await fr.waitForSelector("html[data-edit-mode]", { timeout: 180000 }); await sleep(2500); return fr; })();
         const tb = await fb.evaluate((b) => [...document.querySelectorAll(`${b} [data-cap="title"]`)].map((e) => getComputedStyle(e).color), board);
         const to = await fb.evaluate((b) => [...document.querySelectorAll(`${b} [data-cap="title"]`)].map((e) => getComputedStyle(e).color), otherBoard);
-        ok("D6 sur la seconde page (éditeur) : mêmes titres colorés", tb.length >= 4 && new Set(tb).size === 1 && tb[0] === col, JSON.stringify({ tb, col }));
+        ok("D6 sur la seconde page (éditeur) : le style reste celui de la première page (lot 111 : plus rien n'est partagé)", tb.length >= 4 && tb.every((c) => c !== col), JSON.stringify({ tb, col }));
         ok("D6 …et le projet voisin n'est pas coloré", to.length >= 1 && to.every((c) => c !== col), JSON.stringify({ to, col }));
         await shot(page, "D6-seconde-page");
         await pub.close();

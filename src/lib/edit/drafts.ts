@@ -35,15 +35,15 @@
 import { and, asc, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 
-import { layoutMediaIds, readLayout } from "@/blocks/board-layout";
+import { layoutMediaIds, ownLayoutOf, ownTextOf, readLayout } from "@/blocks/board-layout";
 import { BLOCKS } from "@/blocks/registry";
 import { extractProjectRefs } from "@/blocks/refs";
-import { boardRefs, errorPath, flatBlocks, treeProblem } from "@/blocks/tree";
+import { boardRefs, errorPath, flatBlocks, treeProblem, updateBlock, type TreeBlock } from "@/blocks/tree";
 import { getPageForEdit } from "@/lib/admin";
 import { getDb, schema } from "@/lib/db";
 import { own } from "@/lib/own";
 
-import { checkLayout, incompleteLayouts } from "./board-layout";
+import { checkLayout, incompleteLayouts, incompleteOwnLayouts } from "./board-layout";
 import { isSpecialPage, scopeProblem } from "@/lib/special-pages";
 import { deprecatedProblem, formIdProblem, mediaKindProblem, savePage, specialPageProblem } from "./pages";
 import { PagePaperSchema } from "@/themes/schema";
@@ -384,13 +384,13 @@ function invalidProjectTexts(pageId: number, cited: Set<number>): string | null 
  * surcouche d'un autre projet est effacée sans être appliquée. Renvoie les
  * projets touchés (revalidation).
  */
-export function applyProjectTextDrafts(pageId: number, cited: Set<number>): number[] {
+export function applyProjectTextDrafts(pageId: number, cited: Set<number>, folded: Set<number> = new Set()): number[] {
   const db = getDb();
   const rows = db.select().from(schema.projects).where(eq(schema.projects.draftTextPageId, pageId)).all();
   const touched: number[] = [];
   for (const p of rows) {
     // Dernier garde-fou : un texte invalide (titre ou année vide) n'est jamais publié, la ligne publiée reste.
-    if (p.draftText && cited.has(p.id) && !projectTextProblem(p.draftText)) {
+    if (p.draftText && cited.has(p.id) && !folded.has(p.id) && !projectTextProblem(p.draftText)) {
       db.update(schema.projects)
         .set({ title: p.draftText.title, context: p.draftText.context, description: p.draftText.description, year: p.draftText.year, updatedAt: new Date(), ...CLEAR_TEXT })
         .where(eq(schema.projects.id, p.id))
@@ -403,6 +403,41 @@ export function applyProjectTextDrafts(pageId: number, cited: Set<number>): numb
   return touched;
 }
 
+/**
+ * Brouillons de projet tenus par cette page (lot 111) : à la publication ils deviennent la copie propre du (des) bloc(s) Projet de la
+ * page (sans copie propre encore), au lieu de remplacer le contenu du projet que d'autres pages montrent. Renvoie les blocs convertis et
+ * les projets concernés (leur brouillon est alors simplement effacé). Sans brouillon tenu : les mêmes blocs, rien d'écrit.
+ */
+function foldHeldDrafts<B extends { type: string; props: unknown }>(pageId: number, blocks: B[]): { blocks: B[]; text: Set<number>; layout: Set<number> } {
+  const db = getDb();
+  const rows = db
+    .select()
+    .from(schema.projects)
+    .where(or(eq(schema.projects.draftLayoutPageId, pageId), eq(schema.projects.draftTextPageId, pageId)))
+    .all();
+  const out = { blocks, text: new Set<number>(), layout: new Set<number>() };
+  if (!rows.length) return out;
+  let tree = blocks as unknown as TreeBlock[];
+  const refs = boardRefs(tree);
+  for (const p of rows) {
+    for (const r of refs.filter((x) => x.slug === p.slug && x.block.uid)) {
+      const wantLayout = p.draftLayoutPageId === pageId && p.draftLayout && !ownLayoutOf(r.block.props);
+      const wantText = p.draftTextPageId === pageId && p.draftText && !ownTextOf(r.block.props) && !projectTextProblem(p.draftText);
+      if (!wantLayout && !wantText) continue;
+      tree = updateBlock(tree, r.block.uid!, (b) => ({ ...b, props: { ...((b.props as Record<string, unknown>) ?? {}), ...(wantLayout ? { layout: p.draftLayout } : {}), ...(wantText ? { text: p.draftText } : {}) } }));
+      if (wantLayout) out.layout.add(p.id);
+      if (wantText) out.text.add(p.id);
+    }
+    // Un bloc qui avait déjà sa copie propre : le brouillon du projet n'a plus d'objet.
+    if (refs.some((x) => x.slug === p.slug)) {
+      if (p.draftLayoutPageId === pageId) out.layout.add(p.id);
+      if (p.draftTextPageId === pageId) out.text.add(p.id);
+    }
+  }
+  out.blocks = tree as unknown as B[];
+  return out;
+}
+
 const CLEAR_LAYOUT = { draftLayout: null, draftLayoutPageId: null } as const;
 
 /**
@@ -410,12 +445,12 @@ const CLEAR_LAYOUT = { draftLayout: null, draftLayoutPageId: null } as const;
  * publiée affiche la planche ; la surcouche d'un autre projet est effacée sans être appliquée, comme celle d'une
  * suite devenue invalide (dernier garde-fou). Renvoie les projets touchés (revalidation).
  */
-export function applyProjectLayoutDrafts(pageId: number, shown: Set<number>): number[] {
+export function applyProjectLayoutDrafts(pageId: number, shown: Set<number>, folded: Set<number> = new Set()): number[] {
   const db = getDb();
   const rows = db.select().from(schema.projects).where(eq(schema.projects.draftLayoutPageId, pageId)).all();
   const touched: number[] = [];
   for (const p of rows) {
-    const checked = p.draftLayout && shown.has(p.id) ? checkLayout(p.draftLayout, { complete: true }) : null;
+    const checked = p.draftLayout && shown.has(p.id) && !folded.has(p.id) ? checkLayout(p.draftLayout, { complete: true }) : null;
     if (checked && "layout" in checked) {
       db.update(schema.projects).set({ layout: checked.layout, updatedAt: new Date(), ...CLEAR_LAYOUT }).where(eq(schema.projects.id, p.id)).run();
     } else {
@@ -486,7 +521,8 @@ function emptyDraftBoards(pageId: number, blocks: { type: string; props: unknown
       return s.draftMediaId ?? s.mediaId;
     });
     const layout = project.draftLayout && project.draftLayoutPageId === pageId ? project.draftLayout : project.layout;
-    if (!alive([...inSlots, ...layoutMediaIds(readLayout(layout))])) errors[at] = `Le projet « ${project.title.fr} » n'a encore aucune image : ajoute-en une, ou retire ce bloc.`;
+    // Contenu propre au bloc (lot 111) : sa suite remplace celle du projet.
+    if (!alive([...inSlots, ...layoutMediaIds(ownLayoutOf(block.props) ?? readLayout(layout))])) errors[at] = `Le projet « ${project.title.fr} » n'a encore aucune image : ajoute-en une, ou retire ce bloc.`;
   });
   return Object.keys(errors).length ? errors : null;
 }
@@ -545,11 +581,14 @@ export function publishDraft(pageId: number, rev: unknown, opts: { live?: boolea
     }
     return fail("Aucune modification à publier.");
   }
+  // Lot 111 : le brouillon de contenu / de textes que cette page tient devient la copie propre de son bloc (le projet n'est pas touché).
+  const fold = foldHeldDrafts(pageId, state.draft.blocks);
+  state.draft = { ...state.draft, blocks: fold.blocks };
   const empty = emptyDraftBoards(pageId, state.draft.blocks);
   if (empty) return fail("Publication impossible : corrige ce qui est signalé.", empty);
   const invalidText = invalidProjectTexts(pageId, new Set(referencedProjects(state.draft.blocks)));
   if (invalidText) return fail(invalidText);
-  const invalidLayout = incompleteLayouts(pageId, new Set(displayedProjects(state.draft.blocks)));
+  const invalidLayout = incompleteLayouts(pageId, new Set(displayedProjects(state.draft.blocks))) ?? incompleteOwnLayouts(state.draft.blocks);
   if (invalidLayout) return fail(invalidLayout);
   // Version publiée lue AVANT l'écriture : les projets retirés du brouillon
   // sont revalidés eux aussi.
@@ -570,8 +609,8 @@ export function publishDraft(pageId: number, rev: unknown, opts: { live?: boolea
       wentLive = goLive;
       const touched = [
         ...applySlotDrafts(pageId, new Set(displayedProjects(draft.blocks))),
-        ...applyProjectTextDrafts(pageId, new Set(referencedProjects(draft.blocks))),
-        ...applyProjectLayoutDrafts(pageId, new Set(displayedProjects(draft.blocks))),
+        ...applyProjectTextDrafts(pageId, new Set(referencedProjects(draft.blocks)), fold.text),
+        ...applyProjectLayoutDrafts(pageId, new Set(displayedProjects(draft.blocks)), fold.layout),
       ];
       settleDraftProjects(pageId, draft.blocks);
       const site = applySiteDraft(pageId);
@@ -638,9 +677,14 @@ export function savePageFromForm(pageId: number, input: unknown, rev: unknown): 
   if (!row) return fail("Cette page n'existe plus. Recharge la liste des pages.");
   if (row.rev !== rev) return conflict(row.rev);
   if (isCorrupt(row.draft)) return corruptRefusal(row.rev);
+  // Lot 111 : les brouillons de projet tenus par cette page deviennent la copie propre de ses blocs (voir foldHeldDrafts).
+  const rawBlocks = (input as { blocks?: unknown })?.blocks;
+  const fold = Array.isArray(rawBlocks) ? foldHeldDrafts(pageId, rawBlocks as { type: string; props: unknown }[]) : null;
+  if (fold) input = { ...(input as object), blocks: fold.blocks };
   const invalidText = invalidProjectTexts(pageId, new Set(referencedProjects((input as { blocks?: { type: string; props: unknown }[] })?.blocks ?? [])));
   if (invalidText) return fail(invalidText);
-  const invalidLayout = incompleteLayouts(pageId, new Set(displayedProjects((input as { blocks?: { type: string; props: unknown }[] })?.blocks ?? [])));
+  const invalidLayout =
+    incompleteLayouts(pageId, new Set(displayedProjects((input as { blocks?: { type: string; props: unknown }[] })?.blocks ?? []))) ?? incompleteOwnLayouts((input as { blocks?: { type: string; props: unknown }[] })?.blocks ?? []);
   if (invalidLayout) return fail(invalidLayout);
   const before = getPageForEdit(pageId);
   const draftBlocks = (DraftSchema.safeParse(row.draft).data?.blocks ?? []) as DraftBlock[];
@@ -656,8 +700,8 @@ export function savePageFromForm(pageId: number, input: unknown, rev: unknown): 
       const formBlocks = (input as { blocks?: { type: string; props: unknown }[] })?.blocks ?? [];
       const touched = [
         ...applySlotDrafts(pageId, new Set(displayedProjects(formBlocks))),
-        ...applyProjectTextDrafts(pageId, new Set(referencedProjects(formBlocks))),
-        ...applyProjectLayoutDrafts(pageId, new Set(displayedProjects(formBlocks))),
+        ...applyProjectTextDrafts(pageId, new Set(referencedProjects(formBlocks)), fold?.text),
+        ...applyProjectLayoutDrafts(pageId, new Set(displayedProjects(formBlocks)), fold?.layout),
       ];
       settleDraftProjects(pageId, formBlocks);
       const site = applySiteDraft(pageId);

@@ -10,7 +10,7 @@ import { BLOCKS } from "@/blocks/registry";
 import { getDb, schema } from "@/lib/db";
 import { own } from "@/lib/own";
 import { findProjectReferences } from "@/lib/references";
-import { slugify } from "@/lib/slug";
+import { newProjectSlug, startTitle } from "./project-id";
 
 import { done, fail, zodFieldErrors, type ActionResult } from "./result";
 
@@ -36,16 +36,6 @@ export const SlotSchema = z.strictObject({
 });
 
 const Ids = z.array(z.number().int().positive()).max(500);
-
-function uniqueProjectSlug(base: string): string {
-  const db = getDb();
-  const root = slugify(base) || "projet";
-  let slug = root;
-  for (let n = 2; db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.slug, slug)).get(); n++) {
-    slug = `${root}-${n}`;
-  }
-  return slug;
-}
 
 function uniqueSlotSlug(projectSlug: string): string {
   const db = getDb();
@@ -83,16 +73,21 @@ function isPermutation(ids: number[], existing: number[]): boolean {
   return ids.length === existing.length && new Set(ids).size === ids.length && ids.every((id) => existing.includes(id));
 }
 
-export function createProject(input: unknown): ActionResult<{ id: number }> {
-  const parsed = z.strictObject({ title: short("un titre") }).safeParse(input);
+/**
+ * Projet neuf (lot 111) : aucun nom demandé. Slug = id aléatoire unique, titre par défaut (modifiable ensuite sans toucher au slug) ; un titre
+ * donné par un appel d'API est gardé tel quel (jamais utilisé pour le slug). `input` absent ou vide : tout par défaut.
+ */
+export function createProject(input?: unknown): ActionResult<{ id: number; slug: string }> {
+  const parsed = z.strictObject({ title: z.strictObject({ fr: z.string().trim().max(120), en: z.string().trim().max(120) }).optional() }).safeParse(input ?? {});
   if (!parsed.success) return fail("Corrige les champs signalés.", zodFieldErrors(parsed.error.issues));
   const db = getDb();
   const [{ m }] = db.select({ m: max(schema.projects.position) }).from(schema.projects).all();
-  const title = { fr: parsed.data.title.fr, en: parsed.data.title.en || parsed.data.title.fr };
+  const title = startTitle(parsed.data.title?.fr, parsed.data.title?.en);
+  const slug = newProjectSlug((s) => Boolean(db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.slug, s)).get()));
   const row = db
     .insert(schema.projects)
     .values({
-      slug: uniqueProjectSlug(title.fr),
+      slug,
       title,
       context: { fr: "", en: "" },
       description: { fr: "", en: "" },
@@ -102,7 +97,7 @@ export function createProject(input: unknown): ActionResult<{ id: number }> {
     })
     .returning({ id: schema.projects.id })
     .get();
-  return done({ id: row.id });
+  return done({ id: row.id, slug });
 }
 
 /**

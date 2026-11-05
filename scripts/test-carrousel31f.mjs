@@ -117,7 +117,7 @@ await test("gestes sur un carrousel : remplir, vider, retirer la place, déplace
   boardOp(page, P.id, { op: "rail-fill", uid: "car", at: 2, mediaId: m1 }, rev(page));
   const pub = publishDraft(page, rev(page));
   assert.equal(pub.ok, true, JSON.stringify(pub));
-  const stored = db.select().from(schema.projects).all().find((p) => p.id === P.id).layout.find((i) => i.uid === "car");
+  const stored = JSON.parse(db.$client.prepare("select props from blocks where page_id = ? and type = 'project-board'").get(page).props).layout.find((i) => i.uid === "car"); // lot 111 : publié dans le bloc de la page
   assert.deepEqual(stored.props.media, [null, null, m1], "publié avec ses places vides (masquées en public)");
   discardDraft(page, rev(page));
 });

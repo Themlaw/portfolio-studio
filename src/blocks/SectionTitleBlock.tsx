@@ -5,7 +5,8 @@ import Eyebrow from "@/components/Eyebrow";
 import { boardMarks } from "@/lib/board-marks";
 import { boardWorkCount, getProjectBoard } from "@/lib/gallery";
 
-import { boardRefs, pageCounts } from "./tree";
+import { ownLayoutOf, ownTextOf } from "./board-layout";
+import { boardRefs, countKey, pageCounts, type TreeBlock } from "./tree";
 import { inline, localized, localizedText, projectSlug, textStyle, tr, type BlockContext } from "./types";
 
 export const sectionTitleSchema = z.object({
@@ -40,7 +41,9 @@ export const sectionTitleSchema = z.object({
  */
 export default async function SectionTitleBlock({ props, ctx }: { props: z.infer<typeof sectionTitleSchema>; ctx: BlockContext }) {
   const slug = props.project ?? ctx.project;
-  const project = props.linked && slug ? await getProjectBoard(slug, ctx.locale) : null;
+  // Lot 111 : le titre lié montre les textes que le bloc Projet de la MÊME page porte pour ce projet (copie propre), sinon ceux du projet.
+  const ownText = props.linked && slug ? (boardRefs((ctx.pageBlocks ?? []) as TreeBlock[]).map((r) => (r.slug === slug ? ownTextOf(r.block.props) : null)).find(Boolean) ?? null) : null;
+  const project = props.linked && slug ? await getProjectBoard(slug, ctx.locale, undefined, null, ownText) : null;
   if (props.linked && !project && !ctx.edit) return null;
   const ph = (text: string) => (ctx.edit ? { "data-placeholder": text } : {});
   const main = props.main === true && !props.linked && !ctx.cell;
@@ -62,12 +65,12 @@ export default async function SectionTitleBlock({ props, ctx }: { props: z.infer
     const known = new Map<string, number | null>();
     await Promise.all(
       boardRefs(blocks).map(async (b) => {
-        const key = `${b.slug}|${b.collection ?? ""}`;
+        const key = countKey(b.slug, b.collection, b.block);
         if (!known.has(key)) known.set(key, null);
-        known.set(key, await boardWorkCount(b.slug, b.collection));
+        known.set(key, await boardWorkCount(b.slug, b.collection, ownLayoutOf(b.block.props)));
       }),
     );
-    const total = pageCounts(blocks, (slug, c) => known.get(`${slug}|${c ?? ""}`) ?? null);
+    const total = pageCounts(blocks, (slug, c, block) => known.get(countKey(slug, c, block)) ?? null);
     counts = `${tg("count", { count: total.works })} · ${tp("count", { count: total.projects })}`;
   }
 

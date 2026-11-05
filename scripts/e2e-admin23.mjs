@@ -27,6 +27,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import sharp from "sharp";
+import { createProjectUi } from "./lib/projet111.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -205,11 +206,7 @@ try {
 
   /* ======================= B. Projets ======================= */
   await goto("/admin/pages#projets");
-  await page.getByRole("button", { name: "Nouveau projet" }).click();
-  d = page.locator("dialog[open]");
-  await d.getByLabel("Titre en français").fill("Projet 23");
-  await d.getByRole("button", { name: "Créer le projet" }).click();
-  await page.waitForURL(/\/admin\/projets\/\d+$/);
+  await createProjectUi(page, "Projet 23");
   const projectId = Number(page.url().split("/").pop());
   created.projects.push(projectId);
   await goto("/admin/pages#projets");
@@ -418,10 +415,7 @@ try {
   const bmid = dbq("select id from media where original_name = 'bloque-23.png'")[0].id;
   created.media.push(bmid);
   await goto("/admin/pages#projets");
-  await page.getByRole("button", { name: "Nouveau projet" }).click();
-  await page.locator("dialog[open]").getByLabel("Titre en français").fill("Bloqueur 23");
-  await page.locator("dialog[open]").getByRole("button", { name: "Créer le projet" }).click();
-  await page.waitForURL(/\/admin\/projets\/\d+$/);
+  await createProjectUi(page, "Bloqueur 23");
   const bpid = Number(page.url().split("/").pop());
   created.projects.push(bpid);
   dbrun("insert into slots (project_id, position, media_id, slug, collection, title, description, year) values (?, 0, ?, 'bloqueur-23-1', 'characters', '{\"fr\":\"\",\"en\":\"\"}', '{\"fr\":\"\",\"en\":\"\"}', 2026)", bpid, bmid);

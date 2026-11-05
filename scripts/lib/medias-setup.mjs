@@ -12,6 +12,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 
 import { publishBlocks } from "./page-draft.mjs";
+import { createProjectUi } from "./projet111.mjs";
 
 const DB = path.join(process.env.DATA_DIR ?? "data", "portfolio.db");
 export const q1 = (sql, ...args) => {
@@ -162,10 +163,7 @@ export async function ensureLongStrip(page, base) {
   let id = proj?.id;
   if (!id) {
     await page.goto(`${base}/admin/pages#projets`, { waitUntil: "networkidle" });
-    await page.getByRole("button", { name: "Nouveau projet" }).click();
-    await page.locator("dialog[open]").getByLabel("Titre en français").fill(STRIP_TITLE);
-    await page.locator("dialog[open]").getByRole("button", { name: "Créer le projet" }).click();
-    await page.waitForURL(/\/admin\/projets\/\d+$/);
+    await createProjectUi(page, STRIP_TITLE);
     id = Number(page.url().split("/").pop());
     await page.locator(".a-strip-end input[type=file]").setInputFiles(makeImages(8));
     await page.waitForFunction(() => document.querySelectorAll(".a-strip .a-slot").length === 8 && !document.querySelector('.a-strip .a-slot[data-status="processing"]'), null, { timeout: 240000 });

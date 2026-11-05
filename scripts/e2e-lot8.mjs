@@ -59,6 +59,20 @@ async function eventually(fn, timeout = 20000) {
 }
 const draftOf = (id) => JSON.parse(q("select draft from pages where id = ?", id)[0]?.draft ?? "null");
 const project = (slug) => q("select * from projects where slug = ?", slug)[0];
+/** Lot 111 : les textes modifiés sont la copie propre du bloc Projet de la page (`props.text`) : brouillon de la page, ou version publiée. */
+const walkText = (node) => {
+  if (Array.isArray(node)) return node.map(walkText).find(Boolean) ?? null;
+  if (node && typeof node === "object") {
+    if (node.type === "project-board" && node.props?.project === HAUTS && node.props.text) return node.props.text;
+    return Object.values(node).map(walkText).find(Boolean) ?? null;
+  }
+  return null;
+};
+const ownText = (pageId) => walkText(draftOf(pageId)?.blocks ?? []);
+const publishedText = (pageId) => {
+  const row = q("select props from blocks where page_id = ? and type = 'project-board' and json_extract(props, '$.project') = ? and json_extract(props, '$.text') is not null limit 1", pageId, HAUTS)[0];
+  return row ? JSON.parse(row.props).text : null;
+};
 const parse = (s) => (s ? JSON.parse(s) : null);
 
 const HAUTS = "les-hauts-chemins";
@@ -219,38 +233,39 @@ if (run("B")) {
   await f.locator(linkedSel).scrollIntoViewIfNeeded();
   // Indicateur au survol.
   await hover(f.locator(linkedSel), { x: 20, y: 10 });
-  ok("B2 survol : indicateur « Texte du projet … modifié aussi partout où ce projet est montré »", await until(f, () => /Texte du projet « Les hauts chemins » — modifié aussi partout où ce projet est montré/.test(document.querySelector(".pe-project-hint")?.textContent ?? "")));
-  ok("B2b lien « Voir le projet » vers l'écran du projet", (await f.locator(".pe-project-hint a").getAttribute("href")) === `/admin/projets/${before.id}`);
+  // Lot 111 : plus d'infobulle au survol (« modifié aussi partout… » devenue fausse : rien n'est partagé entre pages).
+  await sleep(800);
+  ok("B2 survol : aucune infobulle de projet", (await f.locator(".pe-project-hint").count()) === 0);
   await page.screenshot({ path: `${SHOTS}/B-indicateur-projet.png` });
   // Édition.
   await typeInPlace(page, f, linkedSel, NEW_TITLE);
-  ok("B3 surcouche enregistrée, ligne du projet (donc le site) inchangée", await eventually(() => {
+  ok("B3 copie propre du bloc enregistrée, ligne du projet (donc le site) inchangée", await eventually(() => {
     const after = project(HAUTS);
-    return parse(after.draft_text)?.title?.fr === NEW_TITLE && after.draft_text_page_id === homeId && parse(after.title).fr === "Les hauts chemins";
+    return ownText(homeId)?.title?.fr === NEW_TITLE && after.draft_text_page_id === null && parse(after.title).fr === "Les hauts chemins";
   }));
   ok("B3b les deux occurrences (titre lié + planche) montrent le nouveau titre", await until(f, (t) => [...document.querySelectorAll('[data-project-inline="title"]')].filter((e) => e.textContent === t).length >= 2, NEW_TITLE));
-  ok("B3c le brouillon de la page n'a pas copié le texte (une seule source)", !JSON.stringify(draftOf(homeId)).includes(NEW_TITLE));
+  ok("B3c le texte est dans le bloc Projet de la page, pas dans le projet ni dans le Titre lié", JSON.stringify(draftOf(homeId).blocks.find((b) => b.type === "section-title" && b.props.linked)?.props).includes(NEW_TITLE) === false && project(HAUTS).draft_text === null);
   // Présentation depuis la planche.
   await typeInPlace(page, f, `[data-edit-board="${before.id}"][data-edit-board-label] header [data-project-inline="description"]`, NEW_DESC);
-  ok("B4 présentation modifiée en place (planche) : surcouche", await eventually(() => parse(project(HAUTS).draft_text)?.description?.fr === NEW_DESC));
+  ok("B4 présentation modifiée en place (planche) : copie propre du bloc", await eventually(() => ownText(homeId)?.description?.fr === NEW_DESC));
   // Mise en forme locale du bloc.
   await hover(f.locator(linkedSel), { x: 20, y: 10 });
   await f.locator(".lk-aa").click();
   await f.locator('.lk-bar button[title="Italique"]').click();
   await settled(page);
   const titleBlock = () => draftOf(homeId).blocks.find((b) => b.type === "section-title" && b.props.linked);
-  ok("B5 « Aa » sur le titre lié : mise en forme dans le bloc (look.text.title), contenu toujours au projet", (await eventually(() => titleBlock()?.props?.look?.text?.title?.italic === true)) && !JSON.stringify(draftOf(homeId)).includes(NEW_TITLE), JSON.stringify(titleBlock()?.props));
+  ok("B5 « Aa » sur le titre lié : mise en forme dans le bloc (look.text.title), contenu toujours au projet", (await eventually(() => titleBlock()?.props?.look?.text?.title?.italic === true)) && !JSON.stringify(titleBlock()?.props).includes(NEW_TITLE), JSON.stringify(titleBlock()?.props));
   ok("B5b la planche du même projet garde sa propre mise en forme", await f.evaluate((id) => getComputedStyle(document.querySelector(`[data-edit-board="${id}"][data-edit-board-label] header h2`)).fontStyle !== "italic", before.id));
   // Rien en ligne avant Publier.
   const anonBefore = await get("/fr");
   ok("B6 avant « Publier » : le site ne montre pas le nouveau titre", !anonBefore.includes(NEW_TITLE) && anonBefore.includes("Les hauts chemins"));
   ok("B7 publication", await publish());
   const row = project(HAUTS);
-  ok("B7b projet mis à jour, surcouche vidée", parse(row.title).fr === NEW_TITLE && parse(row.description).fr === NEW_DESC && row.draft_text === null && row.draft_text_page_id === null);
+  ok("B7b publié dans le bloc de la page ; le projet n'a pas changé", publishedText(homeId)?.title?.fr === NEW_TITLE && publishedText(homeId)?.description?.fr === NEW_DESC && parse(row.title).fr === "Les hauts chemins" && row.draft_text === null && row.draft_text_page_id === null);
   const fr = await get("/fr");
   ok("B8 accueil public : nouveau titre et présentation", fr.includes(NEW_TITLE) && fr.includes(NEW_DESC));
   const others = (await Promise.all(["/fr/personnages", "/fr/decors", "/fr/animation"].map(get))).join("\n");
-  ok("B9 sa planche (page projet) montre aussi le nouveau titre", others.includes(NEW_TITLE));
+  ok("B9 les autres pages gardent le titre du projet (plus rien n'est partagé)", !others.includes(NEW_TITLE) && others.includes("Les hauts chemins"));
   await page.screenshot({ path: `${SHOTS}/B-apres-publication.png` });
 }
 
@@ -263,9 +278,9 @@ if (run("C") && otherPage) {
   const mine = (await f.locator(sel).evaluateAll((els) => els.map((e) => e.textContent))).findIndex((t) => /hauts chemins|Chemins élevés/i.test(t ?? ""));
   ok("C1 la planche de l'autre page expose le titre du projet à l'édition", mine >= 0);
   await typeInPlace(page, f, `${sel} >> nth=${mine}`, BACK);
-  ok("C2 surcouche tenue par CETTE page", project(HAUTS).draft_text_page_id === otherPage && parse(project(HAUTS).draft_text).title.fr === BACK);
+  ok("C2 copie propre du bloc de CETTE page", ownText(otherPage)?.title?.fr === BACK && project(HAUTS).draft_text_page_id === null);
   ok("C3 publication", await publish());
-  ok("C4 accueil public : le titre suit", (await get("/fr")).includes(BACK));
+  ok("C4 accueil public : garde son propre titre, pas celui de l'autre page", (await get("/fr")).includes(NEW_TITLE) && !(await get("/fr")).includes(BACK));
   ok("C5 page projet public : le titre suit", (await get(`/fr${q("select json_extract(slug,'$.fr') s from pages where id = ?", otherPage)[0].s ? "/" + q("select json_extract(slug,'$.fr') s from pages where id = ?", otherPage)[0].s : ""}`)).includes(BACK));
 }
 
@@ -279,9 +294,9 @@ if (run("D")) {
   const of = await openEditor(homeId, other);
   const titleSel = `[data-edit-board][data-edit-board-label] [data-project-inline="title"]`;
   await typeInPlace(other, of, `${titleSel} >> nth=0`, "Depuis l'onglet 2");
-  ok("D1 onglet 2 : texte du projet enregistré", parse(project(HAUTS).draft_text)?.title?.fr === "Depuis l'onglet 2");
+  ok("D1 onglet 2 : texte enregistré dans le bloc", ownText(homeId)?.title?.fr === "Depuis l'onglet 2");
   await typeInPlace(page, f, `${titleSel} >> nth=0`, "Depuis l'onglet 1 (périmé)").catch(() => {});
-  ok("D2 onglet en retard : « modifié ailleurs », rien d'écrasé", await page.getByTestId("conflict").waitFor({ state: "visible", timeout: 30000 }).then(() => true, () => false) && parse(project(HAUTS).draft_text)?.title?.fr === "Depuis l'onglet 2");
+  ok("D2 onglet en retard : « modifié ailleurs », rien d'écrasé", await page.getByTestId("conflict").waitFor({ state: "visible", timeout: 30000 }).then(() => true, () => false) && ownText(homeId)?.title?.fr === "Depuis l'onglet 2");
   await page.screenshot({ path: `${SHOTS}/D-conflit-onglets.png` });
   await other.close();
   // D3 : la page qui tient les textes est nommée sur l'autre page.
@@ -290,11 +305,13 @@ if (run("D")) {
     const sel = `[data-edit-board][data-edit-board-label] [data-project-inline="title"]`;
     await g.locator(sel).first().scrollIntoViewIfNeeded();
     await hover(g.locator(sel).first(), { x: 20, y: 10 });
-    ok("D3 autre page : indicateur « en cours de modification sur la page … : lecture seule »", await until(g, () => /en cours de modification sur la page .* lecture seule/.test(document.querySelector(".pe-project-hint")?.textContent ?? "")));
+    await sleep(800);
+    ok("D3 autre page : aucune infobulle de projet (lot 111)", (await g.locator(".pe-project-hint").count()) === 0);
     await page.screenshot({ path: `${SHOTS}/D-lecture-seule.png` });
     await g.locator(sel).first().dblclick({ position: { x: 12, y: 6 } });
     await sleep(500);
-    ok("D4 double-clic : pas d'éditeur ouvert (annonce de la page qui tient les textes)", (await g.locator(".pe-text-editor").count()) === 0);
+    ok("D4 double-clic : l'éditeur s'ouvre (plus de verrou entre pages)", (await g.locator(".pe-text-editor").count()) === 1);
+    await page.keyboard.press("Escape");
     // Abandon de l'accueil : la surcouche part, l'autre page peut modifier.
     await openEditor(homeId);
     ok("D5 accueil abandonné : surcouche effacée", project(HAUTS).draft_text_page_id === null && project(HAUTS).draft_text === null);

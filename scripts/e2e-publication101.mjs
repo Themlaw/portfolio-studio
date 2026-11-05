@@ -159,7 +159,7 @@ console.log("== A. Images seulement dans les composants de la planche");
   const a2 = project({ title: "Projet A2 surcouche", layout: null, draftLayout: [stripOfProject, grid("g2", [M2, M3])] });
   const r2 = await publish(PAGE, [counts, board("b2", a2)]);
   ok("A2 suite portée par le brouillon de la page (draft_layout) : publiable", r2.published, why(r2));
-  ok("A2 la suite du brouillon est devenue la suite publiée", /g2/.test(projectRow(a2.id).layout ?? "") && projectRow(a2.id).draft_layout === null);
+  ok("A2 la suite du brouillon est devenue la suite publiée DU BLOC de la page (lot 111) ; le projet n'est pas touché", Boolean(q1("select 1 x from blocks where props like '%\"g2\"%' limit 1")) && projectRow(a2.id).draft_layout === null);
   const s2 = await publicState("a-propos", a2);
   ok("A2 public : 200, « 2 œuvres », images chargées", s2.status === 200 && /2 œuvres · 1 projet/i.test(s2.pageText) && (s2.info?.imgs ?? 0) >= 2 && s2.info?.broken === 0, `${s2.pageText.slice(0, 120)} ${JSON.stringify(s2.info)}`);
 
