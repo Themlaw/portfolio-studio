@@ -5,13 +5,14 @@ import { getTranslations } from "next-intl/server";
 import { LoopClick } from "@/components/LoopVideo";
 import MediaFrame from "@/components/MediaFrame";
 import Picture from "@/components/Picture";
+import PlayerFrame from "@/components/PlayerFrame";
 import { claimEager } from "@/lib/eager";
 import ViewerScope from "@/components/ViewerScope";
 import { getMedia } from "@/lib/media";
 import { viewerAttrs } from "@/lib/viewer";
 
 import { BlockCaption, capHost, captionPart } from "./caption";
-import { freeBoardSchema, freeItems, itemHeight, readingOrder, zoneAspect } from "./free-board";
+import { cropStyle, freeBoardSchema, freeItems, itemHeight, readingOrder, zoneAspect } from "./free-board";
 import { tr, type BlockContext } from "./types";
 
 export { freeBoardSchema };
@@ -35,28 +36,37 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
   const canvas = Boolean(ctx.edit || ctx.freeCanvas);
   const list = freeItems(props);
   const rows = await Promise.all(list.map((it) => getMedia(it.media)));
+  // Images d'attente choisies pour des vidéos (lot 116).
+  const posters = await Promise.all(list.map((it) => (it.poster ? getMedia(it.poster) : null)));
   // Un média supprimé, à la corbeille ou pas encore prêt n'est pas servi : l'image disparaît, sans trou ni erreur.
   const shown = list.flatMap((it, i) => {
     const m = rows[i];
-    return m && !m.pdf && (m.video || m.sources || m.width) ? [{ it, m }] : [];
+    const pm = posters[i];
+    return m && !m.pdf && (m.video || m.sources || m.width) ? [{ it, m, poster: pm && !pm.video && !pm.pdf ? pm : null }] : [];
   });
   if (!shown.length && !canvas) return null;
   const zone = zoneAspect(props);
   // Cliquer pour agrandir (lot 44) : public et Aperçu seulement ; chaque image est un élément de la visionneuse, la planche en est la zone.
-  const zoom = !canvas && !ctx.inlineEdit && props.zoom !== false;
+  // Dans une cellule de grille (lot 113) : pas d'enveloppe de section (la grille a la sienne) ; la visionneuse est celle de la grille.
+  const inCell = Boolean(ctx.cell);
+  const zoom = !canvas && !ctx.inlineEdit && props.zoom !== false && (!inCell || ctx.cellViewer === true);
+  const crop = cropStyle(props);
   const openLabel = zoom ? (await getTranslations({ locale: ctx.locale, namespace: "gallery" }))("open") : "";
-  const Section = zoom ? ViewerScope : "section";
+  const Section = zoom && !inCell ? ViewerScope : inCell ? "div" : "section";
   const ordered = readingOrder(shown.map((s) => ({ ...s, id: s.it.id, x: s.it.x, y: s.it.y })));
+  // Lecture d'une vidéo (lot 116) : le choix de sa ligne ; sans choix, la Boucle (le comportement d'avant).
+  const modeOf = (it: { video?: "loop" | "player" }) => it.video ?? "loop";
   return (
-    <Section {...(zoom ? { as: "section" as const } : {})} className="free-board-section shell pt-[var(--section-gap)]" {...capHost(ctx)}>
+    <Section {...(zoom && !inCell ? { as: "section" as const } : {})} className={inCell ? "free-board-section" : "free-board-section shell pt-[var(--section-gap)]"} {...capHost(ctx)}>
       <div
         className="free-board"
         data-format={props.format}
         data-phone={props.phone}
-        style={{ "--fb-r": zone.toFixed(4) } as CSSProperties}
+        {...(crop ? { "data-crop": "" } : {})}
+        style={{ "--fb-r": zone.toFixed(4), ...(crop ?? {}) } as CSSProperties}
         {...(canvas ? { "data-edit-free": "", "data-free-aspect": zone.toFixed(5) } : {})}
       >
-        {ordered.map(({ it, m }) => {
+        {ordered.map(({ it, m, poster }) => {
           const ratio = (m.width ?? 1200) / Math.max(1, m.height ?? 800);
           const alt = m.alt ? tr(m.alt, ctx.locale) : "";
           const viewer =
@@ -79,15 +89,40 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
               className="free-item"
               style={style}
               {...viewer}
-              {...(canvas ? { "data-free-item": it.id, "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}
+              {...(canvas ? { "data-free-item": it.id, ...(m.video ? { "data-free-lecture": modeOf(it), "data-free-audio": m.video.hasAudio ? "1" : "0", "data-free-poster": String(it.poster ?? "") } : {}), "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}
             >
-              <MediaFrame as="div" kind={m.video ? "video" : "image"} look={mediaLook} ratio={ratio}>
-                {m.video ? (
-                  <LoopClick video={m.video} width={m.width ?? 1280} height={m.height ?? 720} className="h-full w-full object-cover" label={alt} edit={canvas} />
-                ) : (
-                  <Picture src={m.url} sources={m.sources} alt={alt} width={m.width ?? 1200} height={m.height ?? 800} sizes={sizes} priority={shown.findIndex((s) => s.it.id === it.id) < eager} />
-                )}
-              </MediaFrame>
+              {m.video && modeOf(it) === "player" ? (
+                <PlayerFrame
+                  item={{
+                    id: `media-${m.id}-${it.id}`,
+                    slug: `media-${m.id}`,
+                    collection: "animation",
+                    title: alt,
+                    alt,
+                    description: "",
+                    image: poster?.url ?? m.url,
+                    sources: poster?.sources ?? m.sources ?? undefined,
+                    video: m.video,
+                    width: m.width ?? 1280,
+                    height: m.height ?? 720,
+                    year: 0,
+                    featured: false,
+                    duration: m.video.durationLabel,
+                  }}
+                  mediaLook={mediaLook}
+                  ratio={ratio}
+                  edit={canvas}
+                  attrs={{ "data-video-mode": "player" }}
+                />
+              ) : (
+                <MediaFrame as="div" kind={m.video ? "video" : "image"} look={mediaLook} ratio={ratio} {...(m.video ? { "data-video-mode": "loop" } : {})}>
+                  {m.video ? (
+                    <LoopClick video={m.video} width={m.width ?? 1280} height={m.height ?? 720} className="h-full w-full object-cover" label={alt} edit={canvas} poster={poster?.url} />
+                  ) : (
+                    <Picture src={m.url} sources={m.sources} alt={alt} width={m.width ?? 1200} height={m.height ?? 800} sizes={sizes} priority={shown.findIndex((s) => s.it.id === it.id) < eager} />
+                  )}
+                </MediaFrame>
+              )}
             </figure>
           );
         })}

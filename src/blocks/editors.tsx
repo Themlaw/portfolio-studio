@@ -8,6 +8,7 @@
  * renvoie les erreurs par champ.
  */
 import {
+  COLLECTION_OPTIONS,
   CollectionPicker,
   errorAt,
   Field,
@@ -28,12 +29,12 @@ import Link from "next/link";
 
 import GridLayoutIcon, { LAYOUT_LABELS } from "@/components/edit/GridLayoutIcon";
 import ProjectCombobox from "@/components/edit/ProjectCombobox";
-import { withContactForm, FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, type FieldType, type FormField } from "@/lib/contact-form";
+import { withContactForm, CONTACT_ACTIONS, CONTACT_ACTION_LABELS, contactActionOf, FIELD_LABELS, FIELD_TYPES, makeField, MAX_FIELDS, type FieldType, type FormField } from "@/lib/contact-form";
 
 import { autoEntries, COLLECTION_KEYS, editsFromItems, itemsFromEntries, sameL, TILE_SIZE_LABELS, TILE_SIZES, tilesMode, tileSize, type CollectionPage, type TextField as TileTextField, type TileEdit, type TileItem } from "./collection-pages";
 import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
 import { useBlockEditor } from "./editor-context";
-import { applyFreeOp, FREE_FORMAT_LABELS, FREE_FORMATS, FREE_PHONE_LABELS, FREE_PHONE_MODES, freeItems, MAX_FREE_ITEMS, newFreeId, type FreeFormat, type FreeModelOp } from "./free-board";
+import { applyFreeLook, applyFreeOp, cropOf, FREE_FORMAT_LABELS, FREE_FORMATS, FREE_PHONE_LABELS, FREE_PHONE_MODES, freeItems, MAX_FREE_ITEMS, newFreeId, type FreeFormat, type FreeModelOp } from "./free-board";
 import FormatSelect from "./FormatSelect";
 import type { L } from "./editor-types";
 import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "./video-mode";
@@ -102,7 +103,7 @@ export function HeroEditor() {
 export function CollectionTilesEditor() {
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
-  type Item = { collection: string; pageId?: number; eyebrow: L; title: L; intro: L };
+  type Item = { collection?: string; pageId?: number; eyebrow: L; title: L; intro: L };
   const items = (value.items as Item[]) ?? [];
   const found = context.collectionPages ?? [];
   const edits = (value.edits as TileEdit[] | undefined) ?? [];
@@ -119,7 +120,7 @@ export function CollectionTilesEditor() {
       // Les textes de la liste qui diffèrent de l'en-tête de leur page deviennent des modifications de tuile.
       const { items: _i, ...rest } = value;
       void _i;
-      const kept = editsFromItems(items.filter((i): i is TileItem => i.pageId !== undefined && (COLLECTION_KEYS as readonly string[]).includes(i.collection)), found);
+      const kept = editsFromItems(items.filter((i): i is TileItem => i.pageId !== undefined && i.collection !== undefined && (COLLECTION_KEYS as readonly string[]).includes(i.collection)), found);
       onChange({ ...rest, mode: "auto", ...(kept.length ? { edits: kept } : {}) });
     }
   };
@@ -190,7 +191,19 @@ export function CollectionTilesEditor() {
           error={errorAt(errors, "items")}
           render={(item, update, i) => (
             <>
-              <CollectionPicker value={item.collection} onChange={(v) => update({ ...item, collection: v })} error={errorAt(errors, `items.${i}.collection`)} />
+              <Select
+                label="Collection"
+                help="Une entrée de collection montre le nombre d'œuvres publiées et, sans image choisie, la couverture de la collection. « Aucune » : une page simple, avec l'image que tu choisis sur la page (obligatoire)."
+                value={item.collection as "characters" | "backgrounds" | "animation" | undefined}
+                options={COLLECTION_OPTIONS}
+                allowEmpty="Aucune (page simple)"
+                onChange={(v) => {
+                  const { collection: _c, ...rest } = item;
+                  void _c;
+                  update(v ? { ...rest, collection: v } : rest);
+                }}
+                error={errorAt(errors, `items.${i}.collection`)}
+              />
               <PagePicker label="Page de destination" value={item.pageId} onChange={(v) => update({ ...item, pageId: v })} error={errorAt(errors, `items.${i}.pageId`)} context={context} />
               <TextI18n label="Étiquette" value={item.eyebrow} onChange={(v) => update({ ...item, eyebrow: v })} error={errorAt(errors, `items.${i}.eyebrow`)} />
               <TextI18n label="Titre" value={item.title} onChange={(v) => update({ ...item, title: v })} error={errorAt(errors, `items.${i}.title`)} />
@@ -329,8 +342,26 @@ export function RichTextEditor() {
 /** Texte facultatif : vide, la clé disparaît (le champ n'occupe plus de place ; « + Ajouter … » le recrée sur la page). */
 const optional = (v: L): L | undefined => (v.fr || v.en ? v : undefined);
 
+/** Au clic sur un bouton « Me contacter » (lot 125) : formulaire de contact (défaut) ou ancien e-mail. */
+function ContactActionSelect({ idPrefix, prop }: { idPrefix: string; prop: "ctaAction" | "contactAction" }) {
+  const { value, onChange } = useBlockEditor();
+  const set = useSet(value, onChange);
+  const id = `${idPrefix}-${prop}`;
+  return (
+    <Field label="Au clic" htmlFor={id} help="Le formulaire s'ouvre dans une fenêtre (ou la page défile jusqu'au formulaire qu'elle contient) ; les messages arrivent dans Admin → Messages. « Ouvrir l'e-mail » lance la messagerie du visiteur.">
+      <select id={id} className="a-input" value={contactActionOf(value[prop])} onChange={(e) => set(prop, e.target.value === "mail" ? "mail" : undefined)}>
+        {CONTACT_ACTIONS.map((a) => (
+          <option key={a} value={a}>
+            {CONTACT_ACTION_LABELS[a]}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
 export function ContactEditor() {
-  const { value, onChange, errors } = useBlockEditor();
+  const { value, onChange, errors, idPrefix } = useBlockEditor();
   const set = useSet(value, onChange);
   const form = value.form === true;
   // Option formulaire : active, le bloc porte les réglages de l'ancien « Formulaire de contact » (champs, messages, envoi).
@@ -350,14 +381,17 @@ export function ContactEditor() {
       {form ? (
         <ContactFormEditor />
       ) : (
-        <TextI18n label="Texte du bouton (facultatif)" help="Le bouton ouvre un e-mail vers l'adresse des réglages. Vide : pas de bouton." value={l(value.cta)} onChange={(v) => set("cta", optional(v))} error={errorAt(errors, "cta")} />
+        <>
+          <TextI18n label="Texte du bouton (facultatif)" help="Vide : pas de bouton." value={l(value.cta)} onChange={(v) => set("cta", optional(v))} error={errorAt(errors, "cta")} />
+          <ContactActionSelect idPrefix={idPrefix} prop="ctaAction" />
+        </>
       )}
     </>
   );
 }
 
 export function ProfileEditor() {
-  const { value, onChange, errors, context } = useBlockEditor();
+  const { value, onChange, errors, context, idPrefix } = useBlockEditor();
   const set = useSet(value, onChange);
   return (
     <>
@@ -378,7 +412,8 @@ export function ProfileEditor() {
         first="Le premier paragraphe est mis en avant."
       />
       <TextI18n label="Étiquette du contact (facultative)" value={l(value.contactEyebrow)} onChange={(v) => set("contactEyebrow", optional(v))} error={errorAt(errors, "contactEyebrow")} />
-      <TextI18n label="Texte du bouton de contact (facultatif)" help="Vide : pas de bouton (l'adresse e-mail reste affichée)." value={l(value.contactLabel)} onChange={(v) => set("contactLabel", optional(v))} error={errorAt(errors, "contactLabel")} />
+      <TextI18n label="Texte du bouton de contact (facultatif)" help="Vide : pas de bouton (l'adresse e-mail reste affichée, en lien e-mail)." value={l(value.contactLabel)} onChange={(v) => set("contactLabel", optional(v))} error={errorAt(errors, "contactLabel")} />
+      <ContactActionSelect idPrefix={idPrefix} prop="contactAction" />
       <TextI18n label="Étiquette des réseaux (facultative)" value={l(value.socialEyebrow)} onChange={(v) => set("socialEyebrow", optional(v))} error={errorAt(errors, "socialEyebrow")} />
     </>
   );
@@ -984,13 +1019,15 @@ export function ContactFormEditor() {
  */
 export function FreeBoardEditor() {
   const { value, onChange, context } = useBlockEditor();
-  const [picking, setPicking] = useState<{ id?: string } | null>(null);
+  const [picking, setPicking] = useState<{ id?: string; poster?: boolean } | null>(null);
   const items = freeItems(value);
   const apply = (op: FreeModelOp) => {
     const res = applyFreeOp(value, op);
     if (!("error" in res)) onChange(res.props);
   };
-  const format = (value.format as FreeFormat | undefined) ?? "3:2";
+  // Un cadre recadré (lot 113) est « libre » : sa hauteur et sa largeur viennent des poignées ; un cran de format redonne le plan entier.
+  const cropped = cropOf(value) !== null;
+  const format = cropped ? "free" : ((value.format as FreeFormat | undefined) ?? "3:2");
   const phone = (value.phone as "scale" | "stack" | undefined) ?? "scale";
   const ordered = items.slice().sort((a, b) => b.z - a.z);
   return (
@@ -998,10 +1035,13 @@ export function FreeBoardEditor() {
       <Toggle label="Agrandir au clic" checked={value.zoom !== false} onChange={(v) => onChange(v ? (({ zoom: _z, ...rest }) => (void _z, rest))(value) : { ...value, zoom: false })} />
       <Select
         label="Format de la zone"
-        help="La hauteur de la zone suit sa largeur. « Hauteur libre » : tire la poignée sous la zone, sur la page."
+        help="La hauteur de la zone suit sa largeur. Pour la raccourcir ou la recadrer librement, tire les poignées des bords et des coins de la zone, sur la page : les images ne bougent pas. Choisir un format redonne la zone entière."
         value={format}
-        options={FREE_FORMATS.map((f) => ({ value: f, label: FREE_FORMAT_LABELS[f] }))}
-        onChange={(v) => apply({ op: "set", format: (v as FreeFormat) ?? "3:2" })}
+        options={FREE_FORMATS.map((f) => ({ value: f, label: cropped && f === "free" ? "Libre (recadrée)" : FREE_FORMAT_LABELS[f] }))}
+        onChange={(v) => {
+          if (cropped && v === "free") return;
+          apply({ op: "set", format: (v as FreeFormat) ?? "3:2" });
+        }}
       />
       <Select
         label="Sur téléphone (moins de 640 px)"
@@ -1041,6 +1081,34 @@ export function FreeBoardEditor() {
                     ✕
                   </button>
                 </div>
+                {m?.kind === "video" && (
+                  <>
+                    {/* Réglages propres à la vidéo (lot 116) : les mêmes que dans un composant Vidéo ou une case de grille. */}
+                    <Select
+                      label="Lecture"
+                      help={VIDEO_MODE_HINTS[it.video ?? "loop"]}
+                      value={it.video ?? "loop"}
+                      options={VIDEO_MODE_OPTIONS}
+                      onChange={(v) => {
+                        const res = applyFreeLook(value, it.id, { video: v === "player" ? "player" : "loop" });
+                        if (!("error" in res)) onChange(res.props);
+                      }}
+                    />
+                    <div className="ve-board-kid-tools" role="group" aria-label="Affiche de la vidéo">
+                      <button type="button" className="a-btn a-btn-small" data-testid={`free-poster-${i}`} onClick={() => setPicking({ id: it.id, poster: true })}>
+                        {it.poster ? "Changer l'affiche" : "Choisir une affiche"}
+                      </button>
+                      {it.poster && (
+                        <button type="button" className="a-btn a-btn-small" onClick={() => apply({ op: "poster", id: it.id, media: null })}>
+                          Sans affiche
+                        </button>
+                      )}
+                    </div>
+                    <p className="ve-hint" data-testid={`free-sound-${i}`}>
+                      {m.hasAudio === false ? "Vidéo sans son : pas de bouton son." : "Cette vidéo a du son : un bouton son s'affiche, la lecture démarre muette."}
+                    </p>
+                  </>
+                )}
                 <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
                   <span>Largeur (%)</span>
                   <input type="number" min={4} max={150} step={1} value={Math.round(it.w)} data-testid={`free-w-${i}`} onChange={(e) => Number.isFinite(e.target.valueAsNumber) && apply({ op: "place", id: it.id, w: e.target.valueAsNumber })} />
@@ -1060,13 +1128,14 @@ export function FreeBoardEditor() {
         </div>
         <MediaPickerDialog
           open={picking !== null}
-          media={context.media.filter((m) => m.kind === "image" || m.kind === "video")}
-          title={picking?.id ? "Remplacer l'image" : "Ajouter une image"}
+          media={context.media.filter((m) => m.kind === "image" || (m.kind === "video" && !picking?.poster))}
+          title={picking?.poster ? "Affiche de la vidéo" : picking?.id ? "Remplacer l'image" : "Ajouter une image"}
           onClose={() => setPicking(null)}
           onPick={(m) => {
             const at = picking;
             setPicking(null);
             if (!at) return;
+            if (at.id && at.poster) return apply({ op: "poster", id: at.id, media: m.id });
             if (at.id) return apply({ op: "replace", id: at.id, media: m.id });
             const n = items.length;
             apply({ op: "put", id: newFreeId(), media: m.id, x: 30 + ((n * 13) % 45), y: 38 + ((n * 17) % 30), ratio: m.width && m.height ? m.width / m.height : 1.5 });

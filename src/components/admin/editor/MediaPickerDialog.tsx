@@ -12,6 +12,7 @@ import type { AdminMediaRow } from "@/lib/admin";
 import AltMissing from "../AltMissing";
 import { ZoomButton } from "../MediaLibrary";
 import { filterMedia } from "../LibraryStrip";
+import { loadMoreOnFocus, useProgressive } from "../media-sort";
 import MediaPreviewDialog from "./MediaPreviewDialog";
 import { ACCEPT } from "../uploads";
 
@@ -51,7 +52,9 @@ export default function MediaPickerDialog({
     for (const m of media) for (const t of m.tags) seen.set(t.label.toLowerCase(), t.label);
     return [...seen.values()].sort((a, b) => a.localeCompare(b, "fr"));
   }, [media]);
+  // Ordre du serveur (dernier envoi d'abord) ; lot 112 : plus de plafond à 200, la suite se charge au défilement.
   const list = useMemo(() => filterMedia(media, tags, query).filter((m) => m.status !== "failed"), [media, tags, query]);
+  const [page, sentinelRef] = useProgressive(list.length, `${tags.join(",")}|${query}`);
   return (
     <>
     <dialog
@@ -105,8 +108,8 @@ export default function MediaPickerDialog({
             {list.length === 0 ? (
               <p className="ve-empty">Aucun média ne correspond.</p>
             ) : (
-              <ul className="ve-picker-grid" aria-label="Bibliothèque">
-                {list.slice(0, 200).map((m) => (
+              <ul className="ve-picker-grid" aria-label="Bibliothèque" onFocus={(e) => loadMoreOnFocus(e, page.count, page.more, page.ensure)}>
+                {list.slice(0, page.count).map((m) => (
                   <li key={m.id}>
                     <button type="button" onClick={() => onPick(m.id)} aria-label={`Choisir ${m.name}`} title={m.name}>
                       <span className="ve-picker-thumb">
@@ -124,6 +127,7 @@ export default function MediaPickerDialog({
                 ))}
               </ul>
             )}
+            {page.more && <div ref={sentinelRef} className="ve-media-more" aria-hidden="true" />}
           </div>
           <div className="a-dialog-actions">
             <button type="button" className="a-btn" onClick={onClose}>

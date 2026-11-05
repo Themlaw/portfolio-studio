@@ -205,7 +205,7 @@ export function sendFile(file: File, onProgress: (sent: number, total: number) =
   return uploadFile(file, (ratio) => onProgress(Math.round(ratio * file.size), file.size), tags);
 }
 
-export type UploadedMedia = { id: number; status: string; width: number | null; height: number | null; name: string; reused: boolean; tagWarning?: string };
+export type UploadedMedia = { id: number; status: string; width: number | null; height: number | null; name: string; reused: boolean; /** ms du dernier envoi (renvoi d'un contenu déjà présent). */ importedAt?: number; tagWarning?: string };
 /**
  * Échec : `definitive` = refus du serveur (quota plein, taille, type, droits)
  * qu'un nouvel essai ne changerait pas ; `uploadId` = envoi par morceaux à

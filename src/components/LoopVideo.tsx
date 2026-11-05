@@ -7,6 +7,8 @@ import type { MediaLook } from "@/lib/look";
 import type { VideoView } from "@/lib/media";
 
 import MediaFrame from "./MediaFrame";
+import VideoBadge from "./VideoBadge";
+import { MANAGED_ATTR, useEditCanvas, useSoloPlayback } from "./video-playback";
 
 /** Préférence « réduire les animations », lue sans état intermédiaire. */
 export function useReducedMotion(): boolean {
@@ -21,21 +23,47 @@ export function useReducedMotion(): boolean {
   );
 }
 
-/** Repère pause / lecture d'une boucle : discret, dans l'arbre d'accessibilité par le bouton qui le porte (jamais seul). */
+/** Repère d'une boucle : le badge commun (icône boucle + état lecture / pause), voir VideoBadge. */
 export function LoopMark({ playing }: { playing: boolean }) {
+  return <VideoBadge kind="loop" playing={playing} />;
+}
+
+/**
+ * Bouton son d'une boucle qui a du son (lot 116) : la boucle démarre muette (règle du site) ; ce bouton remet le son et lance la
+ * lecture si elle était à l'arrêt. Absent pour une boucle sans son, et sur la toile en mode édition (le clic y sert à choisir).
+ */
+export function LoopSound({ videoRef, onUnmute }: { videoRef: React.RefObject<HTMLVideoElement | null>; onUnmute: () => void }) {
+  const t = useTranslations("player");
+  const [muted, setMuted] = useState(true);
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const sync = () => setMuted(v.muted);
+    v.addEventListener("volumechange", sync);
+    sync();
+    return () => v.removeEventListener("volumechange", sync);
+  }, [videoRef]);
   return (
-    <span className="loop-mark" aria-hidden="true" data-mark={playing ? "pause" : "play"}>
-      {playing ? (
-        <svg width="12" height="14" viewBox="0 0 12 14">
-          <rect x="1" y="1" width="3.5" height="12" fill="currentColor" />
-          <rect x="7.5" y="1" width="3.5" height="12" fill="currentColor" />
-        </svg>
-      ) : (
-        <svg width="14" height="16" viewBox="0 0 16 18" data-icon="play">
-          <path d="M2 1.5 14.5 9 2 16.5Z" fill="currentColor" />
-        </svg>
-      )}
-    </span>
+    <button
+      type="button"
+      className="vid-badge vid-sound"
+      data-testid="loop-sound"
+      data-muted={muted ? "true" : "false"}
+      aria-pressed={!muted}
+      aria-label={muted ? t("unmute") : t("mute")}
+      onClick={(event) => {
+        event.stopPropagation();
+        const v = videoRef.current;
+        if (!v) return;
+        v.muted = !v.muted;
+        if (!v.muted) onUnmute();
+      }}
+    >
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <path d="M4 9h4l5-4v14l-5-4H4Z" fill="currentColor" />
+        {muted ? <path d="m16 9 5 6m0-6-5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" /> : <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />}
+      </svg>
+    </button>
   );
 }
 
@@ -47,6 +75,9 @@ export function LoopMark({ playing }: { playing: boolean }) {
 export function useLoopPlayback(ref: React.RefObject<HTMLVideoElement | null>) {
   const [wantPlay, setWantPlay] = useState(false);
   const [visible, setVisible] = useState(false);
+
+  // Une autre vidéo de la page démarre (lot 116) : cette boucle renonce, elle ne repart pas en revenant à l'écran.
+  useSoloPlayback(ref, () => setWantPlay(false));
 
   useEffect(() => {
     const el = ref.current;
@@ -66,7 +97,7 @@ export function useLoopPlayback(ref: React.RefObject<HTMLVideoElement | null>) {
     else el.pause();
   }, [ref, wantPlay, visible]);
 
-  return { wantPlay, toggle: () => setWantPlay((p) => !p) };
+  return { wantPlay, toggle: () => setWantPlay((p) => !p), play: () => setWantPlay(true) };
 }
 
 /**
@@ -82,6 +113,7 @@ export function LoopClick({
   className,
   label,
   edit = false,
+  poster,
 }: {
   video: VideoView;
   width: number;
@@ -89,14 +121,18 @@ export function LoopClick({
   className?: string;
   label?: string;
   edit?: boolean;
+  /** Image d'attente choisie (sinon celle de la vidéo). */
+  poster?: string;
 }) {
   const t = useTranslations("player");
   const ref = useRef<HTMLVideoElement>(null);
-  const { wantPlay, toggle } = useLoopPlayback(ref);
+  const { wantPlay, toggle, play } = useLoopPlayback(ref);
+  const canvas = useEditCanvas(edit);
   const sd = video.sources.mp4.at(-1)!;
   const action = wantPlay ? t("loopPause") : t("loopPlay");
 
   return (
+    <>
     <div
       className="loop-click absolute inset-0"
       data-loop={wantPlay ? "playing" : "paused"}
@@ -104,18 +140,19 @@ export function LoopClick({
       tabIndex={0}
       aria-label={label ? `${action} — ${label}` : action}
       onClick={() => {
-        if (!edit) toggle();
+        if (!canvas) toggle();
       }}
       onKeyDown={(event) => {
         if (event.key === " " || event.key === "Enter") {
           event.preventDefault();
-          if (!edit) toggle();
+          if (!canvas) toggle();
         }
       }}
     >
       <video
         ref={ref}
-        poster={video.sources.poster.largest.webp}
+        {...{ [MANAGED_ATTR]: "" }}
+        poster={poster ?? video.sources.poster.largest.webp}
         preload={wantPlay ? "metadata" : "none"}
         muted
         loop
@@ -131,6 +168,8 @@ export function LoopClick({
       </video>
       <LoopMark playing={wantPlay} />
     </div>
+    {video.hasAudio && !canvas && <LoopSound videoRef={ref} onUnmute={play} />}
+    </>
   );
 }
 
@@ -158,7 +197,7 @@ export default function LoopFrame({
   mediaLook?: MediaLook;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
-  const { wantPlay, toggle } = useLoopPlayback(ref);
+  const { wantPlay, toggle, play } = useLoopPlayback(ref);
   const sd = video.sources.mp4.at(-1)!;
   const action = wantPlay ? texts.pause : texts.play;
 
@@ -169,6 +208,7 @@ export default function LoopFrame({
           <MediaFrame kind="video" look={mediaLook} ratio={width / Math.max(1, height)}>
             <video
               ref={ref}
+              {...{ [MANAGED_ATTR]: "" }}
               poster={video.sources.poster.largest.webp}
               preload={wantPlay ? "metadata" : "none"}
               muted
@@ -187,6 +227,7 @@ export default function LoopFrame({
         </span>
         {caption}
       </button>
+      {video.hasAudio && <LoopSound videoRef={ref} onUnmute={play} />}
     </div>
   );
 }

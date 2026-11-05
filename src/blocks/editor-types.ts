@@ -3,7 +3,7 @@
 import type { AdminMediaRow } from "@/lib/admin";
 
 import type { BlockGroup } from "./groups";
-import type { CollectionPage } from "./collection-pages";
+import type { CollectionPage, EntryPage } from "./collection-pages";
 
 export type L = { fr: string; en: string };
 
@@ -22,6 +22,8 @@ export type EditorContext = {
   heroBackdrop?: boolean;
   /** Pages de collection publiées, dans l'ordre du menu (entrées automatiques des collections, lot 22). */
   collectionPages?: CollectionPage[];
+  /** Lot 117 : toutes les pages publiées proposées aux entrées choisies à la main (hors accueil et pages spéciales). */
+  entryPages?: EntryPage[];
   /** Papiers peints de la bibliothèque, prêts (lot 35) : choix du papier d'une page. */
   wallpapers?: { id: number; name: string; thumb: string | null; size: number; opacity: number }[];
   /** Page « Page introuvable » seulement (lot 89) : œuvres publiées, pour la sélection manuelle du bloc « Une œuvre au hasard ». */

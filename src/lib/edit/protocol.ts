@@ -14,7 +14,7 @@ import { RATIO_VALUES } from "../images/formats";
 import { FIELD_OP_NAMES } from "../../blocks/optional-fields";
 import { BackgroundSchema } from "../../themes/schema";
 import { SurfaceSchema } from "../../themes/surface";
-import { LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
+import { HZ_ZONES, LogoSchema, LookSchema, ROLES, SitePaletteSchema, SiteTextKeySchema, TextStyleSchema } from "../look";
 import { MediaPatchSchema } from "./media-look";
 import { BASE_KEYS } from "../../themes/palette";
 
@@ -105,7 +105,18 @@ const FreeId = z.string().regex(/^[a-z0-9]{1,12}$/);
  */
 export const FreeCanvasOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("set"), format: z.enum(FREE_FORMATS).optional(), aspect: z.number().finite().min(0.4).max(4).optional(), phone: z.enum(["scale", "stack"]).optional() }),
-  z.object({ op: z.literal("pick"), id: FreeId.optional() }),
+  z.object({ op: z.literal("pick"), id: FreeId.optional(), poster: z.boolean().optional() }),
+  /** Recadrage du cadre (lot 113) : marges absolues en % du plan, ou `reset` (plan entier). */
+  z.object({
+    op: z.literal("crop"),
+    t: z.number().finite().min(0).max(90).optional(),
+    r: z.number().finite().min(0).max(90).optional(),
+    b: z.number().finite().min(-150).max(90).optional(),
+    l: z.number().finite().min(0).max(90).optional(),
+    reset: z.boolean().optional(),
+  }),
+  /** Image d'attente d'une vidéo (lot 116) ; `media` null la retire. */
+  z.object({ op: z.literal("poster"), id: FreeId, media: z.number().int().positive().nullable() }),
   z.object({
     op: z.literal("place"),
     id: FreeId,
@@ -146,7 +157,8 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("drag-index"), index: Index, parent: Parent.optional(), refused: z.boolean().optional() }),
   z.object({ kind: z.literal("key"), key: z.enum(["undo", "redo", "escape"]) }),
   // Planches (phase 7b).
-  z.object({ kind: z.literal("board-create"), uid: Uid, name: z.string().trim().min(1).max(120) }),
+  // Lot 111 : plus de nom à la création (slug aléatoire, titre par défaut, modifiable en place) ; `name` ne sert plus qu'aux anciens appels.
+  z.object({ kind: z.literal("board-create"), uid: Uid, name: z.string().trim().max(120).optional() }),
   z.object({ kind: z.literal("board-pick"), uid: Uid, slug: Slug }),
   z.object({ kind: z.literal("slot-op"), board: Board, key: SlotKey, op: z.enum(["remove", "retire", "replace"]) }),
   z.object({ kind: z.literal("slot-move"), board: Board, key: SlotKey, index: SlotIndex }),
@@ -163,6 +175,8 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("bitem-drop"), board: Board.nullable(), index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
   z.object({ kind: z.literal("bitem-to"), board: Board, uid: Uid, index: z.number().int().min(0).max(MAX_BOARD_ITEMS) }),
   z.object({ kind: z.literal("bitem-op"), board: Board, uid: Uid, op: z.enum(["up", "down", "remove"]) }),
+  // Lot 111 : contenu propre à la page. « own » : copier le contenu que la page voit dans le bloc (« Garder ce contenu pour cette page seulement » / « Contenu propre à cette page ») ;
+  // « shared » : demander à revenir au contenu partagé du projet (l'éditeur confirme dans la page avant d'écrire).
   // Lot 32 : fond de couleur d'un composant de la planche (null = aucun fond) ; `continuous` : roue de couleur en cours de glissé.
   z.object({ kind: z.literal("bitem-fond"), board: Board, uid: Uid, background: BackgroundSchema.nullable(), continuous: z.boolean().optional() }),
   // Un composant de la planche choisi sur la toile : l'éditeur montre ses réglages (props = JSON des réglages tels que la toile les a lus).
@@ -222,6 +236,9 @@ export const FromCanvasSchema = z.union([
   // style global d'un rôle de texte (null = réinitialiser).
   z.object({ kind: z.literal("look"), uid: Uid, look: LookSchema.nullable() }),
   z.object({ kind: z.literal("site-style"), role: z.enum(ROLES), style: TextStyleSchema.nullable() }),
+  // Lot 124 : réglage d'UN texte de l'en-tête ou du pied de page (clé `data-site-text`), et de toute une zone (« Tout le menu », « Tout le pied de page »).
+  z.object({ kind: z.literal("site-text-style"), key: SiteTextKeySchema, style: TextStyleSchema.nullable() }),
+  z.object({ kind: z.literal("site-zone-style"), zone: z.enum(HZ_ZONES), style: TextStyleSchema.nullable() }),
   // Carte de rubrique (lot 17c) : fond d'un bloc de premier niveau (null = pas de carte).
   // `continuous` : glissement de la roue ou d'un curseur (fusionné dans l'historique pendant 1,2 s) ; un clic est un pas à lui seul.
   z.object({ kind: z.literal("surface"), uid: Uid, surface: SurfaceSchema.nullable(), continuous: z.boolean().optional() }),
@@ -234,7 +251,7 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("page-settings"), focus: z.enum(["wallpaper"]).optional() }),
   // Ajout d'une rubrique depuis la toile (lot 17c) : `choose` ouvre le choix illustré de l'éditeur, les
   // autres ajoutent aussitôt un texte (bloc `rich-text` avec son texte d'aide) à cet endroit.
-  z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title", "title-text"]) }),
+  z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title", "title-text", "free"]) }),
   // Case vide de grille, « Image » / « Vidéo » (lot 25) : l'éditeur ouvre le choix du média, posé dans une nouvelle case de la grille `uid`.
   z.object({ kind: z.literal("cell-media"), uid: Uid, media: z.enum(["image", "video"]) }),
   // Champ facultatif d'un bloc Texte, ajouté ou retiré depuis la toile (lot 19a) : « + Ajouter un titre » / « Retirer le titre » (Texte), « + Ajouter une étiquette » / « Retirer l'étiquette » (Titre).

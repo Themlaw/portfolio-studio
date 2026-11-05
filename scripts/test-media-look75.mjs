@@ -428,8 +428,8 @@ test("M migration 0030 : parcours d'un arbre, idempotent, journal et bootstrap",
   assert.ok(readdirSync(dir).includes("0030_slot_look.sql"));
   assert.doesNotMatch(readFileSync(dir + "0030_slot_look.sql", "utf8").replace(/--.*$/gm, ""), /\b(create|alter|drop|insert|update|delete)\b/i, "aucun SQL de schéma ni de données : migration de contenu seulement");
   const journal = JSON.parse(readFileSync(dir + "meta/_journal.json", "utf8"));
-  const last = journal.entries.at(-1);
-  assert.equal(last.tag, "0030_slot_look");
+  const last = journal.entries.find((e) => e.tag === "0030_slot_look"); // lot 112 : 0031 la suit, 0030 n'est plus la dernière
+  assert.ok(last, "0030 est au journal");
   assert.ok(last.when > 1792102152374, "le `when` suit celui de 0029");
   const when = journal.entries.map((e) => e.when);
   assert.deepEqual([...when].sort((a, b) => a - b), when, "journal chronologique");

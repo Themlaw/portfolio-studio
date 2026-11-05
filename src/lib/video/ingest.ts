@@ -20,6 +20,7 @@ import { quotaProblem } from "@/lib/upload/quota";
 import { UploadError, type Received } from "@/lib/upload/receive";
 import { sniffVideo, VIDEO_REJECTED_MESSAGE } from "@/lib/upload/sniff";
 
+import { probeTakenAt } from "@/lib/media-taken";
 import { formatDuration, isAllowedAudio, isAllowedVideo, videoLimits } from "./limits";
 import { runProbe, type Probe } from "./probe";
 
@@ -70,7 +71,7 @@ export async function ingestVideo(file: Received): Promise<IngestedMedia> {
     const db = getDb();
     const known = db.select().from(schema.media).where(eq(schema.media.sha256, file.sha256)).get();
     if (known) {
-      reviveIfTrashed(known);
+      const importedAt = reviveIfTrashed(known);
       if (known.status === "failed") {
         db.transaction((tx) => {
           tx.update(schema.media).set({ status: "processing", error: null }).where(eq(schema.media.id, known.id)).run();
@@ -78,9 +79,9 @@ export async function ingestVideo(file: Received): Promise<IngestedMedia> {
           tx.insert(schema.jobs).values({ kind: "video", mediaId: known.id }).run();
         });
         wakeWorker();
-        return { id: known.id, status: "processing", width: known.width, height: known.height, name: known.originalName ?? "vidéo", reused: true };
+        return { id: known.id, status: "processing", width: known.width, height: known.height, name: known.originalName ?? "vidéo", reused: true, importedAt };
       }
-      return { id: known.id, status: known.status, width: known.width, height: known.height, name: known.originalName ?? "vidéo", reused: true };
+      return { id: known.id, status: known.status, width: known.width, height: known.height, name: known.originalName ?? "vidéo", reused: true, importedAt };
     }
     const full = quotaProblem(file.size);
     if (full) throw new UploadError(507, full);
@@ -105,6 +106,9 @@ export async function ingestVideo(file: Received): Promise<IngestedMedia> {
             hasAudio: probe.hasAudio,
             status: "processing",
             alt: { fr: "", en: "" },
+            lastImportAt: Date.now(),
+            takenAt: probeTakenAt(probe),
+            takenChecked: 1,
           })
           .returning({ id: schema.media.id })
           .get();

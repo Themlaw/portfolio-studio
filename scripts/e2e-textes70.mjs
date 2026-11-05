@@ -4,7 +4,7 @@
  *  S  (R1) Textes empilés : chaque texte se sélectionne seul. Un clic sur la ligne 2 d'une légende (ou sur la date) ouvre la saisie
  *     de CETTE ligne, même quand la pastille « Aa » d'une autre ligne vient d'apparaître ; la pastille ne recouvre jamais un autre
  *     texte modifiable (toile : légende de planche sur deux lignes + date, titre / étiquette / introduction, page et planche).
- *  M  (R2) Le style « Tous les « Menu » » marche sur toutes les pages : accueil, chaque page, page en brouillon, lien actif et inactif,
+ *  M  (R2) Le style « Tout le site » du menu (lot 124 : la barre propose aussi « Ce lien » et « Tout le menu ») marche sur toutes les pages : accueil, chaque page, page en brouillon, lien actif et inactif,
  *     et quand l'en-tête est déjà modifié depuis une autre page ; tous les liens du menu changent, et le réglage reste (autre page, en ligne).
  *  F  (R4) Polices récentes : choisir deux polices, les revoir dans « Récentes » (dernière choisie en tête, sans doublon, 6 au plus),
  *     après rechargement, côté serveur (réglage du site), partout où l'on choisit une police.
@@ -280,8 +280,8 @@ try {
         await away();
         await openBar(f, target);
         const radio = (await f.locator(".lk-bar .lk-seg").textContent()) ?? "";
-        ok(`M1 ${label} : la barre propose « Tous les « Menu » »`, /Menu/.test(radio), radio);
-        await f.locator(".lk-bar [role=radio]", { hasText: /^Tous les/ }).click();
+        ok(`M1 ${label} : la barre propose « Ce lien · Tout le menu · Tout le site »`, /^Ce lien\s*Tout le menu\s*Tout le site$/.test(radio.trim()), radio);
+        await f.locator(".lk-bar [role=radio]", { hasText: /^Tout le site$/ }).click();
         await f.locator(".lk-bar .tc-italic").click();
         await sleep(2500);
         const after = await menuLinks(f);
@@ -324,7 +324,7 @@ try {
       const target = f.locator(".site-header nav:not(#nav-mobile) a.caption-text [data-site-inline=nav]").nth(Math.max(0, idx));
       await target.scrollIntoViewIfNeeded();
       await openBar(f, target);
-      await f.locator(".lk-bar [role=radio]", { hasText: /^Tous les/ }).click();
+      await f.locator(".lk-bar [role=radio]", { hasText: /^Tout le site$/ }).click();
       await f.locator(".lk-bar .tc-caps").click();
       await sleep(3000);
       const links3 = await f.evaluate(() => [...document.querySelectorAll(".site-header nav:not(#nav-mobile) a.caption-text")].map((a) => `${getComputedStyle(a).textTransform}/${getComputedStyle(a).fontStyle}`));

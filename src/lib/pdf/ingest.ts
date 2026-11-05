@@ -48,8 +48,8 @@ export async function ingestPdf(file: Received): Promise<IngestedMedia> {
 
     const db = getDb();
     const known = db.select().from(schema.media).where(eq(schema.media.sha256, file.sha256)).get();
-    if (known) reviveIfTrashed(known);
-    if (known && known.status !== "failed") return asIngested(known, true);
+    const importedAt = known ? reviveIfTrashed(known) : undefined;
+    if (known && known.status !== "failed") return { ...asIngested(known, true), importedAt };
 
     // Structure (pdfinfo : aucun rendu) : lisible, sans mot de passe, pages bornées.
     let info: Awaited<ReturnType<typeof pdfInfo>>;
@@ -74,7 +74,7 @@ export async function ingestPdf(file: Received): Promise<IngestedMedia> {
         tx.insert(schema.jobs).values({ kind: "pdf", mediaId: known.id }).run();
       });
       wakeWorker();
-      return { ...asIngested(known, true), status: "processing" };
+      return { ...asIngested(known, true), status: "processing", importedAt };
     }
 
     const full = quotaProblem(file.size * 2);
@@ -87,7 +87,7 @@ export async function ingestPdf(file: Received): Promise<IngestedMedia> {
       const id = db.transaction((tx) => {
         const row = tx
           .insert(schema.media)
-          .values({ key, sha256: file.sha256, kind: "pdf", mime: "application/pdf", originalName: file.filename, size: file.size, width, height, status: "processing", alt: { fr: "", en: "" } })
+          .values({ key, sha256: file.sha256, kind: "pdf", mime: "application/pdf", originalName: file.filename, size: file.size, width, height, status: "processing", alt: { fr: "", en: "" }, lastImportAt: Date.now(), takenChecked: 1 })
           .returning({ id: schema.media.id })
           .get();
         tx.insert(schema.jobs).values({ kind: "pdf", mediaId: row.id }).run();

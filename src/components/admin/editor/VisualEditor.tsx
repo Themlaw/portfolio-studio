@@ -54,8 +54,8 @@ import { own } from "@/lib/own";
 import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
 import { convertItem as convertBoardItem } from "@/blocks/grid-strip";
-import { BOARD_ITEM_LABELS, parseRailKey, railKey, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
-import { cleanLook, cleanSiteStyles, googleOf, readLook, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
+import { BOARD_ITEM_LABELS, parseRailKey, railKey, type BoardBox as BoardBoxProps, type BoardItem, type BoardItemType } from "@/blocks/board-layout";
+import { cleanLook, cleanSiteStyles, googleOf, readLook, type HzZone, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 import { readBackground, supportsFond, type Background } from "@/themes/fond";
 import { cleanSurface, readSurface, type Surface } from "@/themes/surface";
@@ -63,6 +63,7 @@ import { effectiveSitePalette } from "@/themes/site-palette";
 
 import { clone, ConfirmDialog, toast, useUnsavedGuard } from "../editing";
 import { filterMedia } from "../LibraryStrip";
+import { MediaSortMenu, loadMoreOnFocus, noDate, sortMedia, useMediaSort, useProgressive, useReimportReveal, useTakenDates } from "../media-sort";
 import Uploader from "../Uploader";
 import { isUploaded, useUploadQueue } from "../UploadQueue";
 import { isPdfFile, readRatio, sendFile, useMediaWatch } from "../uploads";
@@ -75,6 +76,7 @@ import ThemePicker from "./ThemePicker";
 import type { ThemeChoice } from "@/lib/edit/theme-usage";
 import { ColorsPanel, LogoPanel, type HighlightInfo } from "./SiteLookPanel";
 import BoardItemPanel from "./BoardItemPanel";
+import { StrokeField } from "./StrokeField";
 import MediaPickerDialog from "./MediaPickerDialog";
 import { applyFreeLook, applyFreeOp, newFreeId, type FreeModelOp } from "@/blocks/free-board";
 import { applyMediaPatch, type MediaPatch } from "@/lib/edit/media-look";
@@ -111,7 +113,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "fond", "bitem-text", "bitem-look", "board-captions", "cell-look", "free-op", "media-look"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-text-style", "site-zone-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "fond", "bitem-text", "bitem-look", "board-captions", "cell-look", "free-op", "media-look"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /**
@@ -486,6 +488,28 @@ export default function VisualEditor({
    * Écrit sur une planche (opération ou instantané), après le brouillon en
    * attente. Renvoie le résultat, ou null si refusé (message affiché).
    */
+  /** Le serveur a écrit le contenu propre dans un bloc du brouillon : le brouillon de l'éditeur reçoit la même écriture (sinon son prochain enregistrement l'effacerait). */
+  const syncOwnBlock = useCallback((list: { uid: string; layout: BoardItem[] | null; text: unknown }[]) => {
+    const prev = draftRef.current;
+    const inSync = JSON.stringify(prev) === savedJson.current;
+    let blocks = prev.blocks;
+    for (const b of list) {
+      blocks = updateBlock(blocks, b.uid, (x) => {
+        const props = { ...x.props };
+        if (b.layout) props.layout = b.layout;
+        else delete props.layout;
+        if (b.text) props.text = b.text;
+        else delete props.text;
+        return { ...x, props };
+      });
+    }
+    if (blocks === prev.blocks) return;
+    const next = { ...prev, blocks };
+    draftRef.current = next;
+    setDraftState(next);
+    if (inSync) savedJson.current = JSON.stringify(next);
+  }, []);
+
   const writeBoard = useCallback(
     (call: (rev: number) => ReturnType<typeof boardAction>): Promise<BoardResult | null> =>
       withLock(async () => {
@@ -510,6 +534,7 @@ export default function VisualEditor({
             return null;
           }
           revRef.current = result.data.rev;
+          if (result.data.blocks?.length) syncOwnBlock(result.data.blocks);
           boards.current.set(result.data.after.projectId, result.data.after);
           syncItemRef.current(result.data.after);
           if (result.data.slug) overlaySlugs.current.add(result.data.slug);
@@ -522,7 +547,7 @@ export default function VisualEditor({
           setBoardBusy((n) => n - 1);
         }
       }),
-    [refreshMsg, runSave, send, stop, withLock],
+    [refreshMsg, runSave, send, stop, syncOwnBlock, withLock],
   );
 
   /**
@@ -617,11 +642,13 @@ export default function VisualEditor({
   const boardDo = useCallback(
     async (projectId: number, op: BoardOp): Promise<BoardResult | null> => {
       if (blockedRef.current) return null;
+      const draftBefore = draftRef.current;
       const result = await writeBoard((rev) => boardAction(pageId, projectId, op, rev));
       if (!result) return null;
       // Rien n'a changé (texte identique) : pas de pas d'historique.
       if (JSON.stringify(result.before) === JSON.stringify(result.after)) return result;
-      history.current = { past: [...history.current.past, { draft: draftRef.current, board: { projectId, snap: result.before } }].slice(-HISTORY_MAX), future: [] };
+      // Contenu propre à la page (lot 111) : le brouillon d'AVANT l'écriture (le bloc porte l'ancien contenu), sinon Annuler le réécrirait.
+      history.current = { past: [...history.current.past, { draft: result.blocks?.length ? draftBefore : draftRef.current, board: { projectId, snap: result.before } }].slice(-HISTORY_MAX), future: [] };
       coalesce.current = null;
       bumpHistory();
       return result;
@@ -845,7 +872,7 @@ export default function VisualEditor({
         props.items = itemsFromEntries(autoEntries(found, (block.props.edits as TileEdit[] | undefined) ?? []));
       } else {
         if (tilesMode(props) === "auto") return false;
-        const kept = editsFromItems(((block.props.items as TileItem[] | undefined) ?? []).filter((i) => i.pageId !== undefined && (COLLECTION_KEYS as readonly string[]).includes(i.collection)), found);
+        const kept = editsFromItems(((block.props.items as TileItem[] | undefined) ?? []).filter((i) => i.pageId !== undefined && i.collection !== undefined && (COLLECTION_KEYS as readonly string[]).includes(i.collection)), found);
         delete props.items;
         props.mode = "auto";
         if (kept.length) props.edits = kept;
@@ -862,9 +889,9 @@ export default function VisualEditor({
     if (!block || block.type !== "collection-tiles" || block.props.mode === "auto" || msg.op === "cover" || msg.op === "cover-clear") return false;
     const items = [...((block.props.items as { pageId?: number }[] | undefined) ?? [])];
     if (msg.op === "add") {
-      const page = context.collectionPages?.find((p) => p.pageId === msg.pageId);
+      const page = (context.entryPages ?? context.collectionPages)?.find((p) => p.pageId === msg.pageId);
       if (!page || items.length >= MAX_TILES || items.some((i) => i.pageId === page.pageId)) return false;
-      items.push({ collection: page.collection, pageId: page.pageId, eyebrow: page.eyebrow, title: page.title, intro: page.intro } as (typeof items)[number]);
+      items.push({ ...(page.collection ? { collection: page.collection } : {}), pageId: page.pageId, eyebrow: page.eyebrow, title: page.title, intro: page.intro } as (typeof items)[number]);
     } else {
       const i = msg.index;
       if (i === undefined || i >= items.length) return false;
@@ -933,8 +960,9 @@ export default function VisualEditor({
   const [tileCover, setTileCover] = useState<{ uid: string; index?: number; pageId?: number } | null>(null);
 
   /** Demande de la toile : choix illustré, ou texte tout de suite, à cet endroit. */
-  const requestInsert = (parent: string | null, index: number, what: "choose" | TextStarter) => {
+  const requestInsert = (parent: string | null, index: number, what: "choose" | "free" | TextStarter) => {
     if (what === "choose") setAdding({ parent, index });
+    else if (what === "free") insert("free-board", { parent, index });
     else insertStarter(what, { parent, index });
   };
 
@@ -1041,7 +1069,7 @@ export default function VisualEditor({
    * Planche libre (lot 42), page ou planche de projet : les images se posent et se règlent par `applyFreeOp` (src/blocks/free-board.ts),
    * le même modèle pour la toile, le panneau et les tests. Un geste = une écriture = un pas d'historique (Annuler / Rétablir).
    */
-  const [freePick, setFreePick] = useState<{ uid: string; board?: number; props?: string; id?: string } | null>(null);
+  const [freePick, setFreePick] = useState<{ uid: string; board?: number; props?: string; id?: string; poster?: boolean } | null>(null);
   const freeBase = (uid: string, board?: number, fallback?: string): Record<string, unknown> | null => {
     if (!board) {
       const b = findBlock(draftRef.current.blocks, uid);
@@ -1085,6 +1113,21 @@ export default function VisualEditor({
   const freeChoose = async (p: NonNullable<typeof freePick>, mediaId: number, hint?: string): Promise<boolean> => {
     const base = freeBase(p.uid, p.board, p.props);
     if (!base) return false;
+    // Image d'attente d'une vidéo (lot 116) : une image de la médiathèque, écrite sur la ligne de la vidéo.
+    if (p.poster && p.id) {
+      if (blockedRef.current) return false;
+      if (p.board) await itemFlushRef.current();
+      if (mediaKindOf(mediaId, hint) !== "image") {
+        toast("L'affiche d'une vidéo est une image.", "error");
+        return false;
+      }
+      const res = applyFreeOp(base, { op: "poster", id: p.id, media: mediaId });
+      if ("error" in res) {
+        toast(res.error, "error");
+        return false;
+      }
+      return gridWrite(p.uid, p.board, res.props);
+    }
     if (!p.id) {
       const n = Array.isArray(base.items) ? base.items.length : 0;
       return freePut(p.uid, p.board, n === 0 ? 50 : 35 + ((n * 13) % 40), n === 0 ? 50 : 40 + ((n * 17) % 25), mediaId, hint, p.props);
@@ -1112,7 +1155,7 @@ export default function VisualEditor({
     }
     const op = msg.op;
     if (op.op === "pick") {
-      setFreePick({ uid: msg.uid, ...(msg.board ? { board: msg.board, ...(msg.props ? { props: msg.props } : {}) } : {}), ...(op.id ? { id: op.id } : {}) });
+      setFreePick({ uid: msg.uid, ...(msg.board ? { board: msg.board, ...(msg.props ? { props: msg.props } : {}) } : {}), ...(op.id ? { id: op.id } : {}), ...(op.poster ? { poster: true } : {}) });
       return true;
     }
     const res = applyFreeOp(base, op as FreeModelOp);
@@ -1526,18 +1569,20 @@ export default function VisualEditor({
   }, []);
 
   /** Réglages d'un bloc venus de la toile ou du panneau (null : tout revient au thème). */
-  const applyLook = async (uid: string, next: Look | null) => {
+  const applyLook = async (uid: string, next: Look | null): Promise<boolean> => {
     const clean = next ? cleanLook(next) : undefined;
     working.current++;
     try {
-      if (!(await ensureFonts(Object.values(clean?.text ?? {})))) {
+      if (!(await ensureFonts([...Object.values(clean?.text ?? {}), ...Object.values(clean?.projectText ?? {})]))) {
         send({ kind: "refresh", rev: revRef.current, upTo: -1 });
-        return;
+        return false;
       }
       const list = draftRef.current.blocks;
       const block = findBlock(list, uid);
-      if (!block) return;
-      if (JSON.stringify(readLook(block.props.look) ?? null) === JSON.stringify(clean ?? null)) return;
+      // Bloc inconnu de l'éditeur (la toile et l'éditeur ne nomment plus les blocs pareil) : refusé, la toile retire son aperçu (lot 115).
+      if (!block) return false;
+      if (JSON.stringify(readLook(block.props.look) ?? null) === JSON.stringify(clean ?? null)) return true;
+      const before = draftRef.current;
       setBlocks(
         updateBlock(list, uid, (b) => {
           const props = { ...b.props };
@@ -1547,6 +1592,8 @@ export default function VisualEditor({
         }),
         { key: `look:${uid}` },
       );
+      // Page bloquée (modifiée ailleurs, brouillon illisible) : rien n'est écrit, l'aperçu de la toile ne doit pas rester affiché.
+      return draftRef.current !== before;
     } finally {
       working.current--;
       settleIfQuiet();
@@ -1580,6 +1627,24 @@ export default function VisualEditor({
       if (style) roles[role] = style;
       else delete roles[role];
       return { ...current, roles };
+    }, [style ?? undefined]);
+
+  /** Lot 124 : réglage d'UN texte de l'en-tête ou du pied de page (`styles.texts`), et d'une zone (`styles.zones`) : mêmes écriture et même historique que les styles de rôle. */
+  const applySiteTextStyle = (key: string, style: TextStyle | null) =>
+    void applySiteStyles((cur) => {
+      const current = cur ?? {};
+      const texts = { ...(current.texts ?? {}) };
+      if (style) texts[key] = style;
+      else delete texts[key];
+      return { ...current, texts };
+    }, [style ?? undefined]);
+  const applySiteZoneStyle = (zone: HzZone, style: TextStyle | null) =>
+    void applySiteStyles((cur) => {
+      const current = cur ?? {};
+      const zones = { ...(current.zones ?? {}) };
+      if (style) zones[zone] = style;
+      else delete zones[zone];
+      return { ...current, zones };
     }, [style ?? undefined]);
 
   /* ---- Palette et logo du site (lot 17f) ----------------------------------
@@ -1685,6 +1750,8 @@ export default function VisualEditor({
     send({ kind: "ghosts", items: ghosts.map(toWire) });
   }, [ghosts, send]);
   const [picker, setPicker] = useState<{ board: number; key: string } | null>(null);
+  /** Ajout d'images proposé à la création d'un projet (lot 111). */
+  const [addPicker, setAddPicker] = useState<{ board: number } | null>(null);
   const dropTargetRef = useRef<DropTargetInfo | null>(null);
 
   /** Bloc « Planche d'un projet » ou conteneur « Projet mis en avant » : projet choisi ou créé. */
@@ -1699,7 +1766,7 @@ export default function VisualEditor({
   );
 
   const createProject = useCallback(
-    async (uid: string, name: string): Promise<{ id: number; slug: string } | null> => {
+    async (uid: string, name: string, propose = false): Promise<{ id: number; slug: string } | null> => {
       if (blockedRef.current) return null;
       const result = await createDraftProjectAction(pageId, name);
       if (!result.ok) {
@@ -1709,12 +1776,14 @@ export default function VisualEditor({
       setExtraProjects((list) => [...list, { id: result.data.id, slug: result.data.slug, title: result.data.title, draft: true }]);
       if (uid) setBoardProject(uid, result.data.slug);
       toast(`Projet « ${result.data.title} » créé : il devient public avec la page`);
+      // Lot 111 : un projet créé sans nom propose tout de suite d'y ajouter des images.
+      if (propose) setAddPicker({ board: result.data.id });
       return { id: result.data.id, slug: result.data.slug };
     },
     [pageId, setBoardProject],
   );
   useEffect(() => {
-    panelCreate.current = async (name) => (await createProject("", name))?.slug ?? null;
+    panelCreate.current = async (name) => (await createProject("", name, true))?.slug ?? null;
   }, [createProject]);
 
   /* ---- Médias des blocs (image, vidéo, fond de l'ouverture, portrait) ---- */
@@ -2322,9 +2391,9 @@ export default function VisualEditor({
   };
 
   const itemFlush = () => itemFlushRef.current();
-  const handlers = useRef({ itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode });
+  const handlers = useRef({ itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySiteTextStyle, applySiteZoneStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode });
   useEffect(() => {
-    handlers.current = { itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode };
+    handlers.current = { itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySiteTextStyle, applySiteZoneStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -2379,7 +2448,7 @@ export default function VisualEditor({
           setCanvasBlocks(msg.blocks);
           break;
         case "board-create":
-          void h.createProject(msg.uid, msg.name);
+          void h.createProject(msg.uid, msg.name ?? "", true);
           break;
         case "board-pick":
           h.setBoardProject(msg.uid, msg.slug);
@@ -2509,11 +2578,21 @@ export default function VisualEditor({
         case "text":
           if (!h.editText(msg.uid, msg.path, msg.locale, msg.value) && msg.seq) send({ kind: "revert", seq: msg.seq });
           break;
-        case "look":
-          void h.applyLook(msg.uid, msg.look);
+        case "look": {
+          const seq = msg.seq;
+          void h.applyLook(msg.uid, msg.look).then((ok) => {
+            if (!ok && seq) send({ kind: "revert", seq });
+          });
           break;
+        }
         case "site-style":
           h.applySiteStyle(msg.role, msg.style);
+          break;
+        case "site-text-style":
+          h.applySiteTextStyle(msg.key, msg.style);
+          break;
+        case "site-zone-style":
+          h.applySiteZoneStyle(msg.zone, msg.style);
           break;
         case "background":
           if (!h.applyBackground(msg.uid, msg.background, msg.continuous) && msg.seq) send({ kind: "revert", seq: msg.seq });
@@ -2739,6 +2818,9 @@ export default function VisualEditor({
         return;
       }
       revRef.current = result.data.rev;
+      // v0.33.6 : la publication a rangé un brouillon de projet tenu dans la copie propre du bloc Projet : l éditeur la reprend AVANT le renommage des blocs (repères du brouillon),
+      // sinon son prochain enregistrement (une couleur…) effacerait la copie du brouillon, et la publication suivante celle de la page.
+      if (result.data.foldedOwn?.length) syncOwnBlock(result.data.foldedOwn as { uid: string; layout: BoardItem[] | null; text: unknown }[]);
       // Publié : les instantanés de planche d'avant ne sont plus des brouillons.
       history.current = { past: [], future: [] };
       boards.current.clear();
@@ -2748,12 +2830,19 @@ export default function VisualEditor({
       const warn = result.data.warnings;
       setPublishWarn(warn && (warn.missingAlt.length > 0 || warn.untranslated > 0 || warn.notInMenu) ? warn : null);
       setHasDraft(false);
-      if (result.data.wentLive) {
+      // Lot 115 : une page publiée n'a plus de repères de blocs (`b<rang>`, voir readDraft) : la toile se redessine d'après elle, alors que
+      // l'éditeur gardait les siens (blocs ajoutés `n…`, blocs déplacés ou retirés). Sans ce raccord, un réglage fait sur la toile (couleur de
+      // texte…) visait un bloc inconnu (perdu au rechargement) ou un AUTRE bloc de l'éditeur (ses réglages remplacés par ceux du bloc voisin).
+      const ranked = draftRef.current.blocks.map((b, i) => (b.uid === `b${i}` ? b : { ...b, uid: `b${i}` }));
+      const renamed = ranked.some((b, i) => b !== draftRef.current.blocks[i]);
+      if (renamed || result.data.wentLive) {
         // La page est maintenant en ligne : l'état de l'en-tête (et le brouillon enregistré ensuite) le disent aussi.
         const inSync = JSON.stringify(draftRef.current) === savedJson.current;
-        draftRef.current = { ...draftRef.current, published: true };
+        draftRef.current = { ...draftRef.current, blocks: ranked, ...(result.data.wentLive ? { published: true } : {}) };
         setDraftState(draftRef.current);
         if (inSync) savedJson.current = JSON.stringify(draftRef.current);
+        // Le bloc choisi a changé de nom (ou de voisin) : plus de sélection plutôt qu'un autre bloc choisi.
+        if (renamed && selected && !selected.startsWith("site-")) selectBlock(null);
       }
       toast(result.data.site ? "Publié : la page est en ligne, l'en-tête et le pied de page sont à jour sur toutes les pages" : "Publié : la page est en ligne");
       setSitePending(false);
@@ -2954,7 +3043,33 @@ export default function VisualEditor({
     for (const m of media) for (const t of m.tags) seen.set(t.label.toLowerCase(), t.label);
     return [...seen.values()].sort((a, b) => a.localeCompare(b, "fr"));
   }, [media]);
-  const shownMedia = useMemo(() => filterMedia(media, mediaTags, mediaQuery), [media, mediaTags, mediaQuery]);
+  // Lot 112 : tri (préférence mémorisée), dates de création lues en tâche de fond, chargement progressif, fichier renvoyé retrouvé.
+  const [mediaSort, setMediaSort] = useMediaSort();
+  const mediaDated = useTakenDates(media);
+  const shownMedia = useMemo(() => sortMedia(filterMedia(mediaDated, mediaTags, mediaQuery), mediaSort), [mediaDated, mediaTags, mediaQuery, mediaSort]);
+  const [mediaPage, mediaSentinel] = useProgressive(shownMedia.length, `${mediaSort}|${mediaTags.join(",")}|${mediaQuery}`);
+  const [mediaScrollTo, setMediaScrollTo] = useState<number | null>(null);
+  const mediaFlash = useReimportReveal(
+    media,
+    shownMedia,
+    () => {
+      setMediaTags([]);
+      setMediaQuery("");
+      setTab("medias");
+      if (mobile) setSheet(true);
+    },
+    (id, index) => {
+      mediaPage.ensure(index + 1);
+      setMediaScrollTo(id);
+    },
+  );
+  useEffect(() => {
+    if (mediaScrollTo === null || tab !== "medias") return;
+    const el = document.querySelector<HTMLElement>(`.ve-media [data-media="${mediaScrollTo}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "center" });
+    setMediaScrollTo(null);
+  }, [mediaScrollTo, mediaPage.count, tab]);
 
   const panel = (
     <aside className="ve-panel" data-open={sheet || undefined} aria-label="Outils de l'éditeur" inert={(mobile && !sheet) || canvasModal ? true : undefined}>
@@ -3130,6 +3245,14 @@ export default function VisualEditor({
               <span className="sr-only">Rechercher par nom ou tag</span>
               <input className="a-input" type="search" placeholder="Rechercher par nom ou tag…" value={mediaQuery} onChange={(e) => setMediaQuery(e.target.value)} />
             </label>
+            <MediaSortMenu
+              className="ve-media-sort"
+              value={mediaSort}
+              onChange={(s) => {
+                setMediaSort(s);
+                document.getElementById("ve-pane-medias")?.scrollTo({ top: 0 });
+              }}
+            />
             {tagOptions.length > 0 && (
               <div className="ve-chips" role="group" aria-label="Filtrer par tags">
                 {tagOptions.map((t) => {
@@ -3145,10 +3268,11 @@ export default function VisualEditor({
             {shownMedia.length === 0 ? (
               <p className="ve-empty">{media.length ? "Aucun média ne correspond." : "Ta médiathèque est vide : dépose des fichiers ci-dessus."}</p>
             ) : (
-              <ul className="ve-media" aria-label="Médias">
-                {shownMedia.slice(0, 120).map((m) => (
+              <ul className="ve-media" aria-label="Médias" onFocus={(e) => loadMoreOnFocus(e, mediaPage.count, mediaPage.more, mediaPage.ensure)}>
+                {shownMedia.slice(0, mediaPage.count).map((m) => (
                   <li
                     key={m.id}
+                    data-flash={mediaFlash === m.id || undefined}
                     title={`${m.name} : clique pour la poser, glisse-la sur un projet`}
                     data-media={m.id}
                     data-status={m.status}
@@ -3170,6 +3294,7 @@ export default function VisualEditor({
                       <img src={m.thumb} alt="" loading="lazy" draggable={false} />
                     )}
                     {m.kind === "video" && <span className="ve-media-kind" aria-hidden="true">▶</span>}
+                    {noDate(m, mediaSort) && <span className="ve-media-nodate" data-testid="media-nodate">Date inconnue</span>}
                     {m.status === "processing" && <span className="ve-media-state">{m.kind === "video" ? "Conversion…" : "Traitement…"}</span>}
                     {m.status === "failed" && (
                       <span className="ve-media-state" data-failed="" title={m.error ?? undefined}>
@@ -3191,6 +3316,7 @@ export default function VisualEditor({
                 ))}
               </ul>
             )}
+            {mediaPage.more && <div ref={mediaSentinel} className="ve-media-more" aria-hidden="true" data-testid="ve-media-more" />}
             <p className="ve-hint">
               Clique une vignette pour la poser dans l&apos;image, la vidéo ou la grille sélectionnée (la petite loupe l&apos;agrandit sans la poser), ou glisse-la sur un
               projet de la page : entre deux images, ou sur une place vide. Tu peux aussi déposer des fichiers de ton ordinateur directement sur le projet.
@@ -3263,6 +3389,15 @@ export default function VisualEditor({
                 })
               }
             />
+            {selected === "site-header" && (
+              <StrokeField
+                title="Couleur du soulignement"
+                help="Le trait sous le lien de la page courante et au survol. Sans réglage : la couleur du site pour le trait, sinon celle du thème."
+                value={siteSnap.styles?.stroke?.header}
+                testid="header-stroke"
+                onChange={(t) => void applySiteStyles((cur) => ({ ...(cur ?? {}), stroke: { ...(cur?.stroke ?? {}), header: t } }), [])}
+              />
+            )}
             {selected === "site-header" && <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />}
             </>
           ) : selBlock && selDef ? (
@@ -3375,6 +3510,13 @@ export default function VisualEditor({
               </div>
               <ColorsPanel theme={lookContext.theme} preparing={lookContext.preparing !== null} value={liveLook.palette} onChange={(p) => requestLook(p, liveLook.logo)} onHighlight={highlightRole} info={hlInfo} />
               <LogoPanel value={liveLook.logo} onChange={(l) => requestLook(liveLook.palette, l)} media={context.media} signature={lookContext.signature} onChooseImage={() => setLogoPick(true)} />
+              <StrokeField
+                title="Couleur du trait (tout le site)"
+                help="Le trait dessiné du thème : barre de défilement des images qui défilent, filets, soulignement du menu. Une couleur et une opacité se mélangent au dessin d'origine. Chaque rangée d'images et l'en-tête peuvent avoir la leur."
+                value={siteSnap.styles?.stroke?.all}
+                testid="site-stroke"
+                onChange={(t) => void applySiteStyles((cur) => ({ ...(cur ?? {}), stroke: { ...(cur?.stroke ?? {}), all: t } }), [])}
+              />
               <SiteStylesPanel styles={siteSnap.styles} onChange={(s) => void applySiteStyles(() => s, Object.values(cleanSiteStyles(s)?.roles ?? {}))} palette={swatches} cardPalette={effective} installed={fontFamilies} />
             </div>
           ))}
@@ -3679,6 +3821,22 @@ export default function VisualEditor({
         }}
       />
 
+      <MediaPickerDialog
+        open={addPicker !== null}
+        media={context.media.filter((m) => m.kind !== "pdf")}
+        onClose={() => setAddPicker(null)}
+        onPick={(mediaId) => {
+          const p = addPicker;
+          setAddPicker(null);
+          if (p) void boardDo(p.board, { op: "add", mediaId, index: 0, end: true });
+        }}
+        onFile={(file) => {
+          const p = addPicker;
+          setAddPicker(null);
+          if (p) void uploadFiles({ kind: "board", board: p.board, index: 0 }, [file]);
+        }}
+      />
+
       {mode === "preview" && (
         <button type="button" className="ve-exit-preview" onClick={() => setMode("edit")}>
           Quitter l&apos;aperçu <kbd>Échap</kbd>
@@ -3761,7 +3919,7 @@ export default function VisualEditor({
 
       <MediaPickerDialog
         open={freePick !== null}
-        media={context.media.filter((m) => m.kind === "image" || m.kind === "video")}
+        media={context.media.filter((m) => m.kind === "image" || (m.kind === "video" && !freePick?.poster))}
         onClose={() => setFreePick(null)}
         onPick={(mediaId) => {
           const p = freePick;

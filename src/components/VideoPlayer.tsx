@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import type { VideoView } from "@/lib/media";
 
 import { useReducedMotion } from "./LoopVideo";
+import { MANAGED_ATTR, useSoloPlayback } from "./video-playback";
 
 /** Délai sans geste avant de masquer les commandes pendant la lecture. */
 const IDLE_MS = 2500;
@@ -77,6 +78,9 @@ export default function VideoPlayer({
   const [duration, setDuration] = useState(video.duration || 0);
   const [fullscreen, setFullscreen] = useState(false);
   const [idle, setIdle] = useState(false);
+  // Une autre vidéo démarre (lot 116) : celle-ci est mise en pause par le gestionnaire commun ; son état suit l'événement « pause ».
+  useSoloPlayback(videoRef);
+  const hasAudio = video.hasAudio;
 
   const hd = video.sources.mp4.find((s) => Math.min(s.w, s.h) >= 1080);
   const sd = video.sources.mp4.find((s) => s !== hd) ?? video.sources.mp4[0];
@@ -324,6 +328,7 @@ export default function VideoPlayer({
     >
       <video
         ref={videoRef}
+        {...{ [MANAGED_ATTR]: "" }}
         poster={video.sources.poster.largest.webp}
         preload="metadata"
         playsInline
@@ -418,6 +423,8 @@ export default function VideoPlayer({
           <div className="vp-seek-thumb" />
         </div>
 
+        {hasAudio && (
+          <>
         <button type="button" className="vp-btn" onClick={toggleMute} aria-label={muted ? t("unmute") : t("mute")} aria-pressed={muted} data-vp="mute">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
             <path d="M4 9h4l5-4v14l-5-4H4Z" fill="currentColor" />
@@ -446,6 +453,8 @@ export default function VideoPlayer({
             v.muted = next === 0;
           }}
         />
+          </>
+        )}
 
         <button type="button" className="vp-btn" onClick={toggleFullscreen} aria-label={fullscreen ? t("exitFullscreen") : t("fullscreen")} data-vp="fullscreen">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">

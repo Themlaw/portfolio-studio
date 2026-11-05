@@ -5,7 +5,7 @@ import BoardBox from "@/components/BoardBox";
 import ProjectStrip, { type BoardPart } from "@/components/ProjectStrip";
 import { getProjectBoard, type LocalizedArtwork } from "@/lib/gallery";
 import { claimEager } from "@/lib/eager";
-import { readLook } from "@/lib/look";
+import { projectStylesCss, pscopeId, readLook, readTint } from "@/lib/look";
 import { getMedia } from "@/lib/media";
 
 import WallpaperAlign from "@/components/WallpaperAlign";
@@ -13,8 +13,8 @@ import { getWallpapers } from "@/lib/wallpapers";
 import type { WallpaperEntry } from "@/themes/wallpaper";
 import { effectivePalette, renderBoardItem } from "./BlockList";
 import { fondJoins, fondKey, readBackground } from "@/themes/fond";
-import { captionCss, captionStylesOf } from "./caption-style";
-import { isProjectStrip, itemEmpty, railIds, railKey, railList, stripCaptions } from "./board-layout";
+import { captionCss, projectCaptionStyles } from "./caption-style";
+import { isProjectStrip, itemEmpty, MAX_BOARD_ITEMS, ownLayoutOf, ownTextOf, railIds, railKey, railList, stripCaptions } from "./board-layout";
 import { collection, projectSlug, textStyle, tr, type BlockContext } from "./types";
 
 export const projectBoardSchema = z.object({
@@ -30,6 +30,14 @@ export const projectBoardSchema = z.object({
   collection: collection.optional(),
   /** Nom, contexte et présentation du projet en tête de planche (masquable sous un titre lié). */
   header: z.boolean().optional(),
+  /**
+   * Contenu propre à cette page (lot 111) : la suite de composants du projet que CE bloc affiche, à la place du contenu partagé
+   * du projet (`projects.layout`). Absent : contenu partagé. Même format que la suite d'un projet ; contrôlée par le serveur
+   * (`checkLayout`, src/lib/edit/board-layout.ts) à l'écriture et à la publication.
+   */
+  layout: z.array(z.unknown()).max(MAX_BOARD_ITEMS).optional(),
+  /** Textes propres à cette page (lot 111) : nom, contexte, présentation, année du projet que CE bloc affiche, à la place de ceux du projet. */
+  text: z.unknown().optional(),
 });
 
 /** Styles locaux de l'en-tête (« Ce texte uniquement ») : nom, contexte, année, présentation. */
@@ -39,6 +47,7 @@ function headerStyles(ctx: BlockContext) {
     context: textStyle(ctx, "context").style,
     year: textStyle(ctx, "year").style,
     description: textStyle(ctx, "description").style,
+    count: textStyle(ctx, "count").style,
   };
 }
 
@@ -119,12 +128,12 @@ function stripDates(props: Record<string, unknown>, locale: BlockContext["locale
 export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer<typeof projectBoardSchema>; ctx: BlockContext }) {
   const eager = claimEager(2);
   const slug = props.project ?? ctx.project;
-  const project = slug ? await getProjectBoard(slug, ctx.locale, props.collection) : null;
+  const project = slug ? await getProjectBoard(slug, ctx.locale, props.collection, ownLayoutOf(props), ownTextOf(props)) : null;
   if (project) {
     // Toile : si les images du projet sont en cours de modification sur une autre page, la planche
     // porte `data-edit-board-held` (ProjectStrip) et la couche d'édition l'indique au survol.
-    // Les composants autres que la bande sont rendus ici (mêmes blocs qu'une page) ; ils appartiennent au projet,
-    // pas à la page : la planche est la même partout où elle est affichée.
+    // Les composants autres que la bande sont rendus ici (mêmes blocs qu'une page) ; ils appartiennent au projet, la planche est
+    // la même partout où elle est affichée, SAUF si le bloc porte son propre contenu (lot 111, `props.layout`).
     // Fond de couleur des composants (lot 32) : mêmes règles que sur une page (fusion des voisins de même fond, bord à bord de la planche).
     const fonds = project.layout.map((item) => readBackground(item.props.background));
     const joins = fondJoins(fonds.map((bg) => fondKey(bg, false)));
@@ -138,7 +147,11 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     }
     // Style des légendes du projet (lot 98) et style propre des légendes de la bande (« Ce texte », `look.text["captions.<place>.<champ>"]`),
     // fondus ici : le propre passe devant celui du projet, qui passe devant celui du site.
-    const capStyles = captionStylesOf(project.layout);
+    const capStyles = projectCaptionStyles(project.layout, ctx.look?.projectText);
+    // Portée « Tout le projet » (lot 120) des titres, étiquettes et textes : une feuille limitée à cette planche (`data-pscope`). Sur la toile le repère
+    // est toujours là (l'aperçu des réglages s'y accroche) ; en public, seulement s'il y a un style (sinon le HTML reste celui d'avant).
+    const ptext = projectStylesCss(ctx.blockUid ?? "", ctx.look?.projectText, palette ?? ctx.palette);
+    const pscope = ctx.blockUid && (ptext || ctx.edit) ? pscopeId(ctx.blockUid) : undefined;
     const capOwn: Record<string, Partial<Record<"title" | "legend" | "date", CSSProperties>>> = {};
     for (const [key, style] of Object.entries(ctx.look?.text ?? {})) {
       const m = /^captions\.([a-z0-9-]+)\.(title|caption|date)$/.exec(key);
@@ -155,6 +168,7 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
         // Bande des images du projet (lot 39) : la date posée sous chaque image (sans date posée, l'année de l'emplacement).
         ...(isProjectStrip(item) ? { dates: stripDates(item.props, ctx.locale) } : {}),
         ...(item.type === "strip" && readLook(item.props.look)?.spaceTop !== undefined ? { spaceTop: readLook(item.props.look)!.spaceTop } : {}),
+        ...(item.type === "strip" && readTint(item.props.stroke) ? { stroke: readTint(item.props.stroke) } : {}),
         ...(item.type === "strip" && (item.props.videoMode === "loop" || item.props.videoMode === "player") ? { videoMode: item.props.videoMode } : {}),
         ...(fonds[i] ? { fond: { background: fonds[i]!, join: joins[i] } } : {}),
         ...(item.type === "strip"
@@ -176,7 +190,8 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
     );
     return (
       <>
-        <ProjectStrip project={project} eager={eager} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotLook={ctx.look?.slotLook} styles={headerStyles(ctx)} parts={parts} capOwn={capOwn} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
+        {ptext && <style dangerouslySetInnerHTML={{ __html: ptext }} />}
+        <ProjectStrip project={project} eager={eager} deep={props.deep} showHeader={props.header !== false} collection={props.collection} slotLook={ctx.look?.slotLook} styles={headerStyles(ctx)} parts={parts} capOwn={capOwn} captionStyles={capStyles} scope={pscope} {...(palette ? { palette } : {})} {...(wallpapers ? { wallpapers } : {})} />
         {wallpapers && <WallpaperAlign />}
       </>
     );

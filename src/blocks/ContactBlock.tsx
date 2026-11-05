@@ -1,9 +1,9 @@
 import { z } from "zod";
 
 import Eyebrow from "@/components/Eyebrow";
-import { ContactFormSchema } from "@/lib/contact-form";
-import { getSiteView } from "@/lib/settings";
+import { ContactActionSchema, ContactFormSchema } from "@/lib/contact-form";
 
+import ContactCta from "./ContactCta";
 import ContactFormBlock from "./ContactFormBlock";
 import { EmptyHint, FieldOps } from "./FieldOps";
 import { hasText } from "./optional-fields";
@@ -23,6 +23,8 @@ export const contactSchema = z.object({
   intro: localizedText.optional(),
   /** Texte du bouton e-mail (absent : pas de bouton). Sans objet avec le formulaire. */
   cta: localized.optional(),
+  /** Au clic sur le bouton (lot 125) : "form" (défaut, absent compris) ouvre le formulaire de contact, "mail" ouvre l'e-mail. */
+  ctaAction: ContactActionSchema.optional(),
   /** Option formulaire. */
   form: z.boolean().optional(),
   formId: F.formId,
@@ -42,7 +44,6 @@ export default async function ContactBlock({ props, ctx }: { props: z.infer<type
     }
     return <ContactFormBlock props={form.data} ctx={ctx} />;
   }
-  const { site } = await getSiteView(ctx.locale, ctx.pageId);
   // Un champ vide n'occupe aucune place en public ; sur la toile, un champ présent reste saisissable.
   const shown = (v: { fr: string; en: string } | undefined) => v !== undefined && (ctx.edit ? true : hasText(v));
   const eyebrow = shown(props.eyebrow);
@@ -77,11 +78,11 @@ export default async function ContactBlock({ props, ctx }: { props: z.infer<type
           </p>
         )}
         {cta && (
-          <a className="btn mt-8" href={`mailto:${site.email}`}>
+          <ContactCta ctx={ctx} action={props.ctaAction} className="btn mt-8">
             {/* Enveloppé en édition, et en public seulement si le texte a son propre style : sans style, le HTML public ne change pas. */}
             {ctx.edit || textStyle(ctx, "cta").style ? <span {...inline(ctx, "cta")} {...ph("Texte du bouton")}>{tr(props.cta!, ctx.locale)}</span> : tr(props.cta!, ctx.locale)}
             <span aria-hidden="true">→</span>
-          </a>
+          </ContactCta>
         )}
       </div>
     </section>

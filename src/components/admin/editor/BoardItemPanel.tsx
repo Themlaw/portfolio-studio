@@ -17,6 +17,7 @@ import { BOARD_ITEM_LABELS, BOX_ALIGNS, BOX_MIN, BOX_PRESETS, MAX_GRID_CHILDREN,
 import { cleanLook, readLook } from "@/lib/look";
 
 import { BlockLookPanel, ImageSizeSection, SpaceTopSection } from "./LookPanel";
+import { StrokeField } from "./StrokeField";
 import { MediaPickerDialog } from "@/components/admin/MediaLibrary";
 import { modeOf, VIDEO_MODE_HINTS, VIDEO_MODE_OPTIONS } from "@/blocks/video-mode";
 
@@ -331,6 +332,19 @@ export default function BoardItemPanel({
             const { look: _old, ...rest } = props;
             void _old;
             onChange(clean ? { ...rest, look: clean } : rest);
+          }}
+        />
+      )}
+      {type === "strip" && (
+        <StrokeField
+          title="Couleur du trait"
+          help="Pose une couleur par-dessus le trait de la barre de défilement de ces images, avec l'opacité de ton choix : elle se mélange au dessin d'origine. Sans réglage, c'est la couleur du site, sinon celle du thème."
+          value={props.stroke}
+          testid="rail-stroke"
+          onChange={(t) => {
+            const { stroke: _old, ...rest } = props;
+            void _old;
+            onChange(t ? { ...rest, stroke: t } : rest);
           }}
         />
       )}

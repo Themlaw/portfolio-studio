@@ -62,7 +62,7 @@ export function KitImportUpload({ themeId }: { themeId: string }) {
       }}
     >
       <p>
-        <strong>Envoie le kit rempli</strong> : l&apos;archive .zip, ou un ou plusieurs fichiers .psd choisis ensemble (enregistrés depuis Photoshop, tels quels). Tu peux n&apos;envoyer que les fichiers que tu as modifiés : le reste ne change pas.
+        <strong>Envoie le kit rempli</strong> : l&apos;archive .zip, ou un ou plusieurs fichiers .psd choisis ensemble (enregistrés depuis Photoshop, tels quels). Tu peux n&apos;envoyer qu&apos;une partie (le fichier téléchargé « partie seulement ») ou que les fichiers que tu as modifiés : le reste du kit ne change pas.
       </p>
       <label className="a-btn">
         Choisir le .zip ou les .psd

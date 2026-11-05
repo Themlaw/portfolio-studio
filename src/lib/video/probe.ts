@@ -16,6 +16,8 @@ export type Probe = {
   videoCodec: string;
   /** Codec de la première piste audio, ou null. */
   audioCodec: string | null;
+  /** Codec de chaque piste audio, dans l ordre du fichier (lot 116). */
+  audioStreams: string[];
   tags: { format: Record<string, string>; streams: Record<string, string>[] };
   sideData: string[];
 };
@@ -73,6 +75,7 @@ export function runProbe(file: string, container: "mov" | "matroska" | "mp4", ti
           hasAudio: streams.some((s) => s.codec_type === "audio"),
           videoCodec: video.codec_name ?? "",
           audioCodec: streams.find((s) => s.codec_type === "audio")?.codec_name ?? null,
+          audioStreams: streams.filter((s) => s.codec_type === "audio").map((s) => s.codec_name ?? ""),
           tags: { format: json.format?.tags ?? {}, streams: streams.map((s) => s.tags ?? {}) },
           sideData: streams.flatMap((s) => (s.side_data_list ?? []).map((d) => d.side_data_type ?? "")),
         });

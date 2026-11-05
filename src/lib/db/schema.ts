@@ -90,6 +90,12 @@ export const media = sqliteTable("media", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().default(sql`(unixepoch())`),
   /** Corbeille (lot 23) : date de mise à la corbeille ; null = dans la médiathèque. Purgé 30 jours après. */
   deletedAt: integer("deleted_at", { mode: "timestamp" }),
+  /** Lot 112 : dernier envoi du contenu (ms) ; null = jamais renvoyé (created_at fait foi). Voir drizzle/0031. */
+  lastImportAt: integer("last_import_at"),
+  /** Lot 112 : date de création du fichier d'origine (ms UTC : EXIF, PNG, vidéo) ; null = inconnue. */
+  takenAt: integer("taken_at"),
+  /** Lot 112 : 1 = l'original a été lu pour cette date (lecture paresseuse des anciens médias) ; null = pas encore. */
+  takenChecked: integer("taken_checked"),
 });
 
 /**

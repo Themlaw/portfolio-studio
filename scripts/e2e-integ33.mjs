@@ -145,7 +145,8 @@ async function openByAa(f, sel) {
 }
 const scopeBtn = (f, re) => f.locator(".lk-bar .lk-seg [role=radio]").filter({ hasText: re }).first();
 const colorOf = (f, sel, nth = 0) => f.locator(sel).nth(nth).evaluate((el) => getComputedStyle(el).color);
-const PROJ = /légendes de ce projet/i;
+// Lot 120 : la portée intermédiaire nomme le type (« Tous les titres de légende du projet »…).
+const PROJ = /du projet$/i;
 
 /* ---- Menu Fond & carte (comme le lot 100) ----------------------------------------------------------------------------------------- */
 const sec = (menu, slot) => menu.locator(`[data-testid="fond-section-${slot}"]`);
@@ -239,7 +240,7 @@ try {
       await settled(page);
       ok("X1a le nom est dans le brouillon commun du site", await waitFor(() => setting("siteDraft")?.snap?.name?.fr === NEWNAME || JSON.stringify(setting("siteDraft") ?? {}).includes(NEWNAME), 30000), JSON.stringify(setting("siteDraft")).slice(0, 200));
       ok("X1a …le public garde l'ancien nom", (await publicBrand()) === ORIGINAL);
-      // 2. la page de la planche : le brouillon du site s'y voit, puis style « Les légendes de ce projet »
+      // 2. la page de la planche : le brouillon du site s'y voit, puis style « Tous les titres de légende du projet »
       f = await reopen(pageId);
       const names = await f.evaluate(() => [...document.querySelectorAll('[data-site-inline="name"]')].map((e) => e.textContent.trim()));
       ok("X1b sur la page de la planche, l'en-tête montre le nouveau nom (brouillon commun)", names.length > 0 && names.every((n) => n === NEWNAME), JSON.stringify(names));
@@ -253,8 +254,10 @@ try {
       const titles = () => f.evaluate((b) => [...document.querySelectorAll(`${b} [data-cap="title"]`)].map((e) => getComputedStyle(e).color), board);
       ok("X1c les titres du projet prennent la couleur choisie", (await titles()).length >= 3 && (await titles()).every((c) => c === col), JSON.stringify(await titles()));
       await closeBar(f);
-      const host = (boardDraft(BOARD_ID) ?? []).find((i) => i.captionStyle);
-      ok("X1c le style est écrit avec le projet (brouillon)", host?.captionStyle?.title?.color === "secondary", JSON.stringify(host?.captionStyle));
+      // Lot 120 : le style du projet est rangé dans les props du bloc « planche de projet » de la page (pas dans la table des projets).
+      const host = draftBlock("pbd")?.props?.look?.projectText;
+      ok("X1c le style est écrit dans le bloc de la page (brouillon)", host?.["cap.title"]?.color === "secondary", JSON.stringify(host));
+      ok("X1c …pas dans la suite du projet", !(boardDraft(BOARD_ID) ?? []).some((i) => i.captionStyle));
       ok("X1d …et le nom du site est TOUJOURS dans le brouillon du site", JSON.stringify(setting("siteDraft") ?? {}).includes(NEWNAME), JSON.stringify(setting("siteDraft")).slice(0, 200));
       const names2 = await f.evaluate(() => [...document.querySelectorAll('[data-site-inline="name"]')].map((e) => e.textContent.trim()));
       ok("X1d …et l'en-tête de la toile le montre toujours", names2.length > 0 && names2.every((n) => n === NEWNAME), JSON.stringify(names2));
@@ -264,14 +267,14 @@ try {
       ok("X1e publier une AUTRE page publie le nom du site", await waitFor(() => publishedName().fr === NEWNAME, 60000), JSON.stringify(publishedName()));
       ok("X1e …le public montre le nouveau nom", (await publicBrand()) === NEWNAME, await publicBrand());
       ok("X1e …le brouillon du site a disparu", setting("siteDraft") == null);
-      ok("X1e …le style du projet est toujours en attente avec sa page", Boolean((boardDraft(BOARD_ID) ?? []).find((i) => i.captionStyle)) && !(boardPublished(BOARD_ID) ?? []).some((i) => i.captionStyle));
+      ok("X1e …le style du projet est toujours en attente avec sa page", draftBlock("pbd")?.props?.look?.projectText?.["cap.title"]?.color === "secondary" && !(boardPublished(BOARD_ID) ?? []).some((i) => i.captionStyle));
       // 4. la page de la planche : style et nom toujours là, puis publication
       f = await reopen(pageId);
       const names3 = await f.evaluate(() => [...document.querySelectorAll('[data-site-inline="name"]')].map((e) => e.textContent.trim()));
       ok("X1f après rechargement, le nom publié s'affiche partout", names3.every((n) => n === NEWNAME), JSON.stringify(names3));
       ok("X1f …et les titres du projet gardent la couleur du style de projet", (await titles()).every((c) => c === col), JSON.stringify(await titles()));
       await publish();
-      ok("X1g la publication de la page publie le style du projet", await waitFor(() => (boardPublished(BOARD_ID) ?? []).some((i) => i.captionStyle?.title?.color === "secondary"), 60000));
+      ok("X1g la publication de la page publie le style du projet", await waitFor(() => sql((db) => db.prepare("select props from blocks where page_id = ? and type = 'project-board'").all(pageId)).some((r) => JSON.parse(r.props)?.look?.projectText?.["cap.title"]?.color === "secondary"), 60000));
       ok("X1g …et le nom reste", publishedName().fr === NEWNAME && (await publicBrand("/fr/personnages")) === NEWNAME);
       await pp.goto(`${BASE}/fr/personnages`, { waitUntil: "networkidle" });
       const pubTitles = await pp.evaluate((b) => [...document.querySelectorAll('[data-cap="title"]')].map((e) => getComputedStyle(e).color), board);
@@ -359,9 +362,10 @@ try {
       const site = by("siteDraftAction");
       ok("X3a le nom du site modifié est au journal (siteDraftAction, résultat ok, libellé lisible)", site.some((r) => r.result === "ok" && /site|en-tête/i.test(r.label)), JSON.stringify(site.slice(-2)));
       ok("X3a …le résumé nomme le changement (le nom)", site.some((r) => /name|nom|Integ33/i.test(r.summary ?? "")), JSON.stringify(site.slice(-2).map((r) => r.summary)));
-      const boards = by("boardAction");
-      ok("X3b le style du projet (planche) est au journal (boardAction, ok)", boards.some((r) => r.result === "ok"), JSON.stringify(boards.slice(-2)));
-      ok("X3b …le résumé nomme le style de légendes", boards.some((r) => /captionStyle|title|color/i.test(r.summary ?? "")), JSON.stringify(boards.slice(-3).map((r) => r.summary)));
+      // Lot 120 : le style de légendes du projet est un réglage du bloc de la page : il passe par le brouillon de la page (saveDraftAction).
+      const boards = by("saveDraftAction");
+      ok("X3b le style du projet (planche) est au journal (saveDraftAction, ok)", boards.some((r) => r.result === "ok"), JSON.stringify(boards.slice(-2)));
+      // (Le journal fusionne les enregistrements successifs d'un même brouillon : le résumé garde le dernier geste, pas forcément ce style.)
       const drafts = by("saveDraftAction");
       ok("X3c le contour (brouillon de la page) est au journal (saveDraftAction, ok)", drafts.some((r) => r.result === "ok" && /border|medium|contour|surface/i.test(r.summary ?? "")), JSON.stringify(drafts.slice(-3).map((r) => r.summary)));
       const pubs = by("publishDraftAction");

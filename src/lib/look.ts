@@ -588,6 +588,16 @@ export function upgradeLook(raw: unknown): unknown {
 
 /* ---- Réglages d'un bloc (props.look) --------------------------------------------- */
 
+/**
+ * Lot 120 : portée « Tout le projet » d'une planche de projet. Une clé par TYPE de texte (titres, étiquettes, textes, et les trois champs d'une légende) ;
+ * la valeur est un style de texte. Elle se range dans les réglages (`props.look.projectText`) du bloc « planche de projet » qui montre le projet,
+ * donc propre à CETTE page (comme le contenu de la planche, lot 111), jamais dans la table des projets.
+ */
+export const PROJECT_TEXT_KEYS = ["h2", "eyebrow", "body", "cap.title", "cap.legend", "cap.date"] as const;
+export type ProjectTextKey = (typeof PROJECT_TEXT_KEYS)[number];
+/** Légendes : le style du projet est posé en ligne sur chaque légende (avec celui de la légende seule) ; les autres types passent par une feuille. */
+export const PROJECT_CAPTION_KEYS: Record<"title" | "legend" | "date", ProjectTextKey> = { title: "cap.title", legend: "cap.legend", date: "cap.date" };
+
 /** Chemin d'un texte du bloc (comme `inline` au registre) ; `site.name` / `site.role` : textes du site posés dans le bloc. */
 export const TEXT_PATH_RE = /^([a-zA-Z]+(\.(\d{1,2}|[a-zA-Z]+))*|captions\.[a-z0-9-]{1,60}\.(title|caption|date))$/;
 const TextPath = z.string().max(80).regex(TEXT_PATH_RE);
@@ -612,6 +622,8 @@ const LookCoreSchema = z.strictObject({
   titleV: z.enum(["top", "middle", "bottom"]).optional(),
   titleH: z.enum(["left", "center", "right"]).optional(),
   text: bounded(z.record(TextPath, TextStyleSchema), MAX_TEXT_STYLES, "styles de texte").optional(),
+  /** Lot 120 : style de TOUS les textes d'un type dans cette planche de projet (voir `PROJECT_TEXT_KEYS`). */
+  projectText: z.partialRecord(z.enum(PROJECT_TEXT_KEYS), TextStyleSchema).optional(),
   crop: z.partialRecord(z.enum(CROP_FIELDS), CropSchema).optional(),
   /** Cadrage de l'image de chaque tuile d'un bloc « tuiles de collection », par collection. */
   tileCrop: z.partialRecord(z.enum(TILE_KEYS), CropSchema).optional(),
@@ -810,18 +822,34 @@ export const LOGO_MODE_LABELS: Record<(typeof LOGO_MODES)[number], string> = {
   shrink: "Grand en haut, réduit au défilement",
 };
 /**
- * Place du logo dans la hauteur de la barre (lot 84). « top » (jamais écrit) = le rendu d'avant : le logo part du haut de la rangée et
- * un grand logo déborde sous la barre. « center » : le logo est centré sur la hauteur de la barre ; trop grand, il dépasse autant en
- * haut qu'en bas et ce qui sort de la barre est COUPÉ : la bande d'images dessous ne bouge pas. « grow » : la barre prend la hauteur
- * du logo (plus la même marge qu'au thème) et le logo y est centré.
+ * Place du logo dans la hauteur de la barre (lots 84 puis 106). Le logo tient TOUJOURS dans la barre, entier : sa hauteur est
+ * plafonnée à celle de la barre moins ses marges (`margin`), sans jamais être coupé ni déborder sur ce qui suit.
+ * « center » (défaut, jamais écrit) : centré sur la hauteur de la barre. « top » / « bottom » : collé en haut / en bas de la barre
+ * (à la marge près). « grow » : la barre prend la hauteur du logo (plus ses marges, ou celles du thème sans réglage) et le logo y est centré.
+ * Avant le lot 106, « top » était le défaut : le logo partait du haut de la rangée et débordait sous la barre ; « center » le coupait
+ * aux limites de la barre. Les anciennes données restent lues : une valeur absente ou « center » donne le logo centré.
  */
-export const LOGO_ALIGNS = ["top", "center", "grow"] as const;
+export const LOGO_ALIGNS = ["center", "top", "bottom", "grow"] as const;
 export type LogoAlign = (typeof LOGO_ALIGNS)[number];
 export const LOGO_ALIGN_LABELS: Record<LogoAlign, string> = {
-  top: "En haut, déborde dessous",
   center: "Centré dans la barre",
+  top: "En haut de la barre",
+  bottom: "En bas de la barre",
   grow: "La barre s'agrandit",
 };
+/** Ajustement dans sa boîte (lot 106) : « contain » (défaut, jamais écrit) = le logo entier ; « cover » = remplit toute la hauteur de la barre (marges ignorées), rogné sur les côtés s'il est très large. */
+export const LOGO_FITS = ["contain", "cover"] as const;
+export type LogoFit = (typeof LOGO_FITS)[number];
+export const LOGO_FIT_LABELS: Record<LogoFit, string> = { contain: "Logo entier", cover: "Remplir la hauteur" };
+/** Marges verticales autour du logo (lot 106) : « small » (défaut, jamais écrit) = 0,25 rem ; « none » = aucune ; « normal » = 0,75 rem. */
+export const LOGO_MARGINS = ["none", "small", "normal"] as const;
+export type LogoMargin = (typeof LOGO_MARGINS)[number];
+export const LOGO_MARGIN_LABELS: Record<LogoMargin, string> = { none: "Aucune", small: "Petites", normal: "Normales" };
+export const LOGO_MARGIN_CSS: Record<LogoMargin, string> = { none: "0px", small: "0.25rem", normal: "0.75rem" };
+/** Sur téléphone (lot 106) : « reduced » (défaut, jamais écrit) = la taille ×0,75 d'avant ; « same » = la même taille qu'au grand écran (toujours dans la barre). */
+export const LOGO_MOBILES = ["reduced", "same"] as const;
+export type LogoMobile = (typeof LOGO_MOBILES)[number];
+export const LOGO_MOBILE_LABELS: Record<LogoMobile, string> = { reduced: "Logo réduit", same: "Même logo" };
 /**
  * Position horizontale (lot 84) : `anchor` = d'où l'on part (bord gauche = le rendu d'avant, centre de la page, bord droit libre avant
  * le menu), `x` = décalage en px à partir de là (grand écran ; téléphone : ×0,75, au plus 120 px). Le logo ne passe jamais sous le menu
@@ -841,15 +869,70 @@ export const LogoSchema = z.strictObject({
   align: z.enum(LOGO_ALIGNS).optional(),
   x: z.number().int().min(LOGO_X_MIN).max(LOGO_X_MAX).optional(),
   anchor: z.enum(LOGO_ANCHORS).optional(),
+  fit: z.enum(LOGO_FITS).optional(),
+  margin: z.enum(LOGO_MARGINS).optional(),
+  mobile: z.enum(LOGO_MOBILES).optional(),
 });
 export type Logo = z.infer<typeof LogoSchema>;
 
+/**
+ * Couleur posée par-dessus le TRAIT dessiné du kit (lot 110) : la teinte (#rrggbb) et son opacité (1 à 100 %), mélangées au dessin
+ * d'origine (teinte du thème, ou couleurs d'origine du fichier). Absente = le rendu du thème, strictement.
+ */
+export const StrokeTintSchema = z.strictObject({
+  color: z.string().regex(/^#[0-9a-f]{6}$/),
+  opacity: z.number().int().min(1).max(100),
+});
+export type StrokeTint = z.infer<typeof StrokeTintSchema>;
+/** Réglages du site : `all` = valeur par défaut (barres des rangées d'images, filets, soulignement), `header` = soulignement de l'en-tête seul. */
+export const SiteStrokeSchema = z.strictObject({ all: StrokeTintSchema.optional(), header: StrokeTintSchema.optional() });
+export type SiteStroke = z.infer<typeof SiteStrokeSchema>;
+/** Teinte lisible ou undefined (donnée illisible = pas de teinte, jamais d'erreur au rendu). */
+export function readTint(v: unknown): StrokeTint | undefined {
+  const p = StrokeTintSchema.safeParse(v);
+  return p.success ? p.data : undefined;
+}
+/** Variables de la teinte (`--stroke-c`, `--stroke-a`, `--stroke-ao`) ; `prefix` "nav-" pour l'en-tête. */
+export function tintVars(t: StrokeTint, prefix = ""): Record<string, string> {
+  return prefix
+    ? { [`--stroke-${prefix}c`]: t.color, [`--stroke-${prefix}a`]: `${t.opacity}%` }
+    : { "--stroke-c": t.color, "--stroke-a": `${t.opacity}%`, "--stroke-ao": String(t.opacity / 100) };
+}
+export function cleanSiteStroke(s: SiteStroke | undefined): SiteStroke | undefined {
+  const all = readTint(s?.all);
+  const header = readTint(s?.header);
+  return all || header ? { ...(all ? { all } : {}), ...(header ? { header } : {}) } : undefined;
+}
+const declsOf = (v: Record<string, string>) => Object.entries(v).map(([k, x]) => `${k}:${x}`).join(";");
+
+/* ---- En-tête et pied de page (lot 124) ------------------------------------------------------------ */
+
+/** Zones : « Tout le menu » (liens de l'en-tête) et « Tout le pied de page ». */
+export const HZ_ZONES = ["menu", "footer"] as const;
+export type HzZone = (typeof HZ_ZONES)[number];
+export const HZ_ZONE_LABELS: Record<HzZone, string> = { menu: "Tout le menu", footer: "Tout le pied de page" };
+/**
+ * Clé d'un texte de l'en-tête ou du pied de page (`data-site-text` de l'élément) : `brand` (nom du site), `n:<lien>` (lien du menu),
+ * `f:<texte>` (texte du pied : `f:email`, `f:role`, `f:credit`, `f:copy`, `f:eb-…`, `f:n:<lien>`, `f:s:<réseau>`).
+ */
+export const SITE_TEXT_KEY_RE = /^(brand|n:.{1,150}|f:.{1,150})$/;
+export const SiteTextKeySchema = z.string().regex(SITE_TEXT_KEY_RE, "Texte inconnu.");
+/** Zone d'un texte (portée « Tout le menu » / « Tout le pied de page »), ou null (nom du site : pas de zone). */
+export const siteTextZone = (key: string): HzZone | null => (key.startsWith("n:") ? "menu" : key.startsWith("f:") ? "footer" : null);
+export const MAX_SITE_TEXTS = 200;
+
 export const SiteStylesSchema = z.strictObject({
   roles: z.partialRecord(z.enum(ROLES), TextStyleSchema).optional(),
+  /** Réglage propre à UN texte de l'en-tête ou du pied (clé `data-site-text`) : passe devant sa zone et le site. */
+  texts: z.record(SiteTextKeySchema, TextStyleSchema).refine((r) => Object.keys(r).length <= MAX_SITE_TEXTS, "Trop de réglages de texte.").optional(),
+  /** Réglage de toute une zone (menu, pied de page) : passe devant le site, derrière le texte seul. */
+  zones: z.strictObject({ menu: TextStyleSchema.optional(), footer: TextStyleSchema.optional() }).optional(),
   /** Arrondi des images et cartes du site (surcharge le thème). */
   radius: z.enum(RADII).optional(),
   palette: SitePaletteSchema.optional(),
   logo: LogoSchema.optional(),
+  /** Couleur du trait dessiné du kit (lot 110). */
+  stroke: SiteStrokeSchema.optional(),
 });
 export type SiteStyles = z.infer<typeof SiteStylesSchema>;
 
@@ -869,9 +952,12 @@ export function cleanLogo(l: Logo | undefined): Logo | undefined {
   if (l.size !== undefined) out.size = l.size;
   if (l.mode === "shrink") out.mode = l.mode;
   if (l.mediaId !== undefined) out.mediaId = l.mediaId;
-  if (l.align === "center" || l.align === "grow") out.align = l.align;
+  if (l.align === "top" || l.align === "bottom" || l.align === "grow") out.align = l.align;
   if (l.x !== undefined && l.x !== 0) out.x = l.x;
   if (l.anchor === "center" || l.anchor === "right") out.anchor = l.anchor;
+  if (l.fit === "cover") out.fit = l.fit;
+  if (l.margin === "none" || l.margin === "normal") out.margin = l.margin;
+  if (l.mobile === "same") out.mobile = l.mobile;
   return Object.keys(out).length ? out : undefined;
 }
 
@@ -884,6 +970,10 @@ export function siteStylesCss(styles: SiteStyles | undefined, palette?: CardPale
   const s = parsed.data;
   const rules: string[] = [];
   if (s.radius) rules.push(`:root{--media-radius:${RADIUS_VALUES[s.radius]}}`);
+  // Lot 110 : couleur du trait du kit. Rien d'écrit sans réglage : les règles de variants.css retombent sur le dessin du thème.
+  const stroke = cleanSiteStroke(s.stroke);
+  if (stroke?.all) rules.push(`${WIN}{${declsOf(tintVars(stroke.all))}}`);
+  if (stroke?.header) rules.push(`${WIN} .site-header{${declsOf(tintVars(stroke.header, "nav-"))}}`);
   // Ordre : légendes avant menu et nom du site (à spécificité égale, le dernier gagne).
   for (const role of ["body", "caption", "eyebrow", "h2", "h1", "menu", "brand"] as Role[]) {
     // Menu et nom du site : de petits éléments en ligne (le bandeau y est `inline-block`) ; les autres rôles visent aussi des blocs.
@@ -901,16 +991,61 @@ export function siteStylesCss(styles: SiteStyles | undefined, palette?: CardPale
     if (boxed.length && boxedTarget) rules.push(`${WIN} ${boxedTarget}{${boxed.map(([k, v]) => `${k}:${v}`).join(";")}}`);
     if (chosen) rules.push(`${WIN} ${ROLE_SELECTORS[role]}{--user-ink:${chosen[1]}}`);
   }
+  rules.push(...hzRules(s.zones, s.texts, palette));
   // Rien d'injectable n'arrive ici (crans et catalogue), ceinture quand même.
   return rules.join("\n").replace(/</g, "\\3c ");
 }
 
+/** Valeur de chaîne CSS d'une clé de texte (guillemets et barres échappés, sauts de ligne retirés). */
+const cssStr = (v: string) => v.replace(/[\\"]/g, "\\$&").replace(/[\n\r\f]/g, " ");
+/** Éléments visés par chaque zone (le lien du menu, le bouton « Menu » du téléphone ; tous les textes repérés du pied). */
+const HZ_ZONE_TARGET: Record<HzZone, string> = {
+  menu: '.site-header :is([data-site-text^="n:"], [data-site-text="menu-btn"])',
+  footer: 'footer :is([data-site-text^="f:"])',
+};
+/** Un cran de plus que les styles de rôle (spécificité 0,5,0 au plus) : la zone passe devant le site ; le texte seul, un cran devant la zone. */
+const HZ_WIN = ":root:root:root:root";
+const HZ_WIN_ONE = ":root:root:root:root:root:root";
+
+/** Règles d'un style posé sur un ensemble d'éléments (`target`) : le fond sur l'élément seul, le reste aussi sur son <span> (libellé en édition, adresse e-mail). */
+function hzRule(prefix: string, scope: string, target: string, style: TextStyle | undefined, palette: CardPalette | undefined): string[] {
+  const decls = textStyleDecls(style, palette, false);
+  if (!decls.length) return [];
+  const css = (list: [string, string][]) => list.map(([k, v]) => `${k}:${v}`).join(";");
+  const box = decls.filter(([k]) => BACKDROP_PROPS.has(k));
+  const plain = decls.filter(([k]) => !BACKDROP_PROPS.has(k));
+  const at = `${prefix} ${scope}`.trim();
+  const out: string[] = [];
+  if (plain.length) out.push(`${at} :is(${target}),${at} :is(${target}) > span{${css(plain)}}`);
+  if (box.length) out.push(`${at} :is(${target}){${css(box)}}`);
+  // Couleur choisie : publiée pour qu'un fond lisible (`var(--user-ink, …)`) ne la remplace pas (comme les styles de rôle).
+  const chosen = style?.color ? decls.find(([k]) => k === "color") : undefined;
+  if (chosen) out.push(`${at} :is(${target}){--user-ink:${chosen[1]}}`);
+  return out;
+}
+
 /**
- * Feuille du logo (lot 17f, refaite au lot 68). Hauteur `--lh` : la taille réglée (mobile : ×0,75, entre 24 et 64 px).
- * La hauteur de la BARRE ne dépend plus de celle du logo : elle garde la hauteur qu'elle avait sans réglage (`--bh`, la rangée
- * naturelle : nom en texte, signature du kit ou image), quelle que soit la taille choisie. Un logo plus grand que cette rangée
- * déborde SOUS la barre, par-dessus le contenu (sa place dans la mise en page est la rangée naturelle : marge basse négative) ;
- * un logo plus petit est centré dans la rangée. Le contenu ne bouge jamais.
+ * Feuille de l'en-tête et du pied de page (lot 124) : la zone (liens du menu, pied de page), puis chaque texte seul. Priorité élément > zone > site > thème :
+ * la zone passe devant les styles de rôle du site (spécificité), le texte seul devant la zone. Sans réglage de zone ni de texte, aucune règle :
+ * le rendu reste celui des styles de rôle d'avant.
+ */
+function hzRules(zones: SiteStyles["zones"], texts: SiteStyles["texts"], palette: CardPalette | undefined): string[] {
+  const rules: string[] = [];
+  for (const zone of HZ_ZONES) rules.push(...hzRule(HZ_WIN, "", HZ_ZONE_TARGET[zone], zones?.[zone], palette));
+  for (const [key, style] of Object.entries(texts ?? {})) {
+    if (!SITE_TEXT_KEY_RE.test(key)) continue;
+    rules.push(...hzRule(HZ_WIN_ONE, "", `[data-site-text="${cssStr(key)}"]`, style, palette));
+  }
+  return rules;
+}
+
+/**
+ * Feuille du logo (lot 17f, refaite aux lots 68 et 106). Taille réglée `--lh` (mobile : ×0,75 entre 24 et 64 px, sauf « Même logo »).
+ * Lot 106 : le logo est TOUJOURS entier dans la barre. Sa hauteur affichée `--lhe` = min(taille réglée, hauteur de la barre `--bar`
+ * moins deux marges `--lm`) : jamais coupé, jamais de débordement sur le contenu, proportions gardées (`object-fit: contain`).
+ * La barre garde sa hauteur naturelle (`--bar` = rangée du thème `--bh` + deux marges `--bp`) ; la boîte du logo ne pèse que la rangée dans la mise en page
+ * (marges haute ET basse égales, négatives si le logo est plus grand) : centrée sur la barre, le contenu ne bouge pas. « top » / « bottom » la
+ * décalent (`--ly`) jusqu'au bord de la barre. « grow » : la barre prend la hauteur du logo (`--lh-top`) plus ses marges.
  * « shrink » : au défilement (`data-scrolled` sur l'en-tête, posé par SiteHeader) le logo passe à 60 % (24 px au moins).
  * Les transitions n'existent que si l'utilisateur ne demande pas moins de mouvement.
  * Posée AVANT les styles de rôle : une taille réglée sur « Nom du site » passe devant celle du logo.
@@ -922,62 +1057,59 @@ export function logoCss(logo: Logo | undefined): string {
   const l = cleanLogo(parsed.data);
   if (!l) return "";
   const size = l.size ?? LOGO_SIZE_DEFAULT;
+  const align = l.align ?? "center";
+  const grow = align === "grow";
+  const cover = l.fit === "cover";
   const H = `${WIN} .site-header`;
+  // Marge : réglée, sinon 0,25 rem (barre fixe) ou celle du thème (« La barre s'agrandit », comme avant).
+  const lm = l.margin ? LOGO_MARGIN_CSS[l.margin] : grow ? "var(--bp)" : LOGO_MARGIN_CSS.small;
   const rules = [
     // --bh : rangée naturelle de l'en-tête sans réglage (nom en texte 1,125 / 1,25 rem ; signature du kit 2,25 / 2,6 rem).
     `${WIN}{--lg:${size};--bp:1rem;--bh:1.125rem;--lh-top:clamp(24px,calc(var(--lg)*.75px),64px);--lh-min:max(24px,calc(var(--lh-top)*.6))}`,
     `${WIN}[data-kit-signature]{--bh:2.25rem}`,
     `@media (min-width:48rem){${WIN}{--bp:1.25rem;--bh:1.25rem;--lh-top:calc(var(--lg)*1px)}${WIN}[data-kit-signature]{--bh:2.6rem}}`,
-    `${H}{--lh:var(--lh-top)}`,
   ];
+  // « Même logo » sur téléphone : la taille du grand écran (la barre la plafonne).
+  if (l.mobile === "same") rules.push(`${WIN}{--lh-top:calc(var(--lg)*1px)}`);
+  rules.push(`${H}{--lh:var(--lh-top);--bar:calc(var(--bh) + 2*var(--bp));--lm:${lm}}`);
   if (l.mode === "shrink") rules.push(`${H}[data-scrolled]{--lh:var(--lh-min)}`);
+  // Hauteur affichée : plafonnée à la barre (« Remplir » : toute la hauteur de la barre) ; « grow » : la taille réglée, la barre s'adapte.
+  const lhe = grow ? "var(--lh)" : cover ? "var(--bar)" : "max(0px,min(var(--lh),calc(var(--bar) - 2*var(--lm))))";
   rules.push(
-    // La barre ne descend jamais sous sa rangée naturelle ; le logo, lui, n'y compte que pour cette rangée (marge basse négative s'il est plus grand).
-    // Lot 67 (filet de sécurité : la barre passe à la ligne) cède ici au lot 68 : avec un logo réglé, la barre garde sa hauteur, le nom en texte cède de la place.
-    `${H} .site-header-bar{min-height:calc(var(--bh) + 2*var(--bp))}`,
+    `${H}{--lhe:${lhe}}`,
+    // La barre ne descend jamais sous sa rangée naturelle ; « grow » la fait monter à la hauteur du logo (réglée, pas celle du défilement : la page ne saute pas).
+    `${H} .site-header-bar{min-height:${grow ? "calc(max(var(--bh),var(--lh-top)) + 2*var(--lm))" : "var(--bar)"}}`,
     `${H} .site-header-bar,${H} nav{flex-wrap:nowrap}`,
-    `${WIN} .site-brand{display:flex;align-items:center;height:var(--lh);margin-bottom:min(0px,calc(var(--bh) - var(--lh)));min-width:0;max-width:60vw;font-size:calc(var(--lh)*.5)}`,
+    // Boîte du logo : ne pèse que la rangée naturelle dans la mise en page (marges égales, négatives si elle est plus haute), « grow » : sa vraie hauteur.
+    `${WIN} .site-brand{display:flex;align-items:center;height:var(--lhe);margin-block:${grow ? "calc(var(--lm) - var(--bp))" : "calc((var(--bh) - var(--lhe))/2)"};min-width:0;max-width:60vw;font-size:calc(var(--lhe)*.5)}`,
     // Le menu ne passe jamais à la ligne (la barre ne grandirait pas pour autant, mais il se lirait mal) : c'est le nom en texte qui cède de la place.
     `${H} nav,${H} .site-header-bar>div{flex-shrink:0}${H} nav a,${H} button{white-space:nowrap}`,
-    // Menu téléphone ouvert : le logo reste visible au-dessus du panneau, dont les liens commencent sous lui.
-    `${WIN} .site-brand{position:relative;z-index:1}${H} #nav-mobile{padding-top:max(0px,calc(var(--lh) - var(--bh)))}`,
+    `${WIN} .site-brand{position:relative;z-index:1}`,
     `${WIN} .site-brand-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}`,
-    `${WIN} .site-signature{height:var(--lh);max-width:100%}`,
-    `${WIN} .site-logo-img{height:var(--lh);max-width:100%}`,
-    `@media (prefers-reduced-motion:no-preference){${WIN} .site-signature,${WIN} .site-logo-img{transition:height .5s var(--ease-soft)}${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft),margin-bottom .5s var(--ease-soft)}}`,
+    `${WIN} .site-signature{height:var(--lhe);max-width:100%}`,
+    `${WIN} .site-logo-img{height:var(--lhe);max-width:100%;object-fit:${cover ? "cover" : "contain"}}`,
+    `@media (prefers-reduced-motion:no-preference){${WIN} .site-signature,${WIN} .site-logo-img{transition:height .5s var(--ease-soft)}${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft),margin .5s var(--ease-soft)}${H} .site-header-bar{transition:min-height .5s var(--ease-soft)}}`,
   );
-  // Lot 84 : place verticale et position horizontale. Rien de tout cela sans `align` ni `x` ni `anchor` : le rendu reste celui de la v0.31.
-  const align = l.align ?? "top";
-  const placed = align !== "top" || l.x !== undefined || l.anchor !== undefined;
-  if (align === "center") {
-    // Marges haute ET basse négatives : la boîte du logo ne pèse que la rangée (--bh) dans la barre, centrée sur elle, et le logo dépasse
-    // autant en haut qu'en bas. Ce qui sort de la barre (marge --bp de chaque côté de la rangée) est coupé, la bande dessous ne bouge pas.
-    rules.push(
-      `${WIN} .site-brand{margin-block:min(0px,calc((var(--bh) - var(--lh))/2));clip-path:inset(max(0px,calc((var(--lh) - var(--bh))/2 - var(--bp))) -4px)}`,
-      // Rien ne dépasse sous la barre : le menu téléphone n'a plus à lui laisser de place.
-      `${H} #nav-mobile{padding-top:0}`,
-    );
-  } else if (align === "grow") {
-    // La barre prend la hauteur du logo GRAND (réglée, pas celle du défilement : « shrink » ne fait donc pas sauter la page) plus la marge du thème.
-    rules.push(
-      `${H} .site-header-bar{min-height:calc(max(var(--bh),var(--lh-top)) + 2*var(--bp))}`,
-      `${WIN} .site-brand{margin-block:0}`,
-      `${H} #nav-mobile{padding-top:0}`,
-    );
+  // Décalage vertical vers le bord de la barre (« top » / « bottom » ; la boîte est centrée sur la barre sans lui).
+  const vertical = align === "top" || align === "bottom";
+  if (vertical) {
+    const sign = align === "top" ? "" : "-";
+    rules.push(`${H}{--ly:calc(${sign}1*(var(--lm) + var(--lhe)/2 - var(--bar)/2))}`);
   }
-  if (l.x !== undefined || l.anchor !== undefined) {
+  const moved = l.x !== undefined || l.anchor !== undefined;
+  if (moved) {
     const base = l.anchor === "center" ? "var(--lx-mid,0px)" : l.anchor === "right" ? "var(--lx-hi,0px)" : "0px";
     rules.push(
       // Décalage : ×0,75 et au plus 120 px sur téléphone (comme la taille). Le plafond (menu, bord de l'écran) vient des variables mesurées par SiteHeader.
       `${WIN}{--lx:${l.x ?? 0};--lxs:clamp(-${LOGO_X_MOBILE_CAP}px,calc(var(--lx)*.75px),${LOGO_X_MOBILE_CAP}px)}`,
       `@media (min-width:48rem){${WIN}{--lxs:calc(var(--lx)*1px)}}`,
-      `${WIN} .site-brand{translate:clamp(var(--lx-lo,-1rem),calc(${base} + var(--lxs)),var(--lx-hi,max(0px,min(var(--lxs),10vw)))) 0}`,
+      `${WIN} .site-brand{translate:clamp(var(--lx-lo,-1rem),calc(${base} + var(--lxs)),var(--lx-hi,max(0px,min(var(--lxs),10vw)))) ${vertical ? "var(--ly,0px)" : "0"}}`,
     );
+  } else if (vertical) {
+    rules.push(`${WIN} .site-brand{translate:0 var(--ly,0px)}`);
   }
-  if (placed) {
-    rules.push(
-      `@media (prefers-reduced-motion:no-preference){${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft),margin .5s var(--ease-soft),clip-path .5s var(--ease-soft),translate .5s var(--ease-soft)}${H} .site-header-bar{transition:min-height .5s var(--ease-soft)}}`,
-    );
+  if (moved || vertical) {
+    rules.push(`@media (prefers-reduced-motion:no-preference){${WIN} .site-brand{transition:color .15s,height .5s var(--ease-soft),font-size .5s var(--ease-soft),margin .5s var(--ease-soft),translate .5s var(--ease-soft)}}`);
   }
   return rules.join("\n");
 }
@@ -1015,26 +1147,29 @@ export function rebaseSiteStyles(base: SiteStyles | undefined, mine: SiteStyles 
   const out: Record<string, unknown> = { ...(theirs ?? {}) };
   const rec = (s: SiteStyles | undefined) => (s ?? {}) as Record<string, unknown>;
   for (const k of new Set([...Object.keys(rec(base)), ...Object.keys(rec(mine))])) {
-    if (k === "roles" || same(rec(base)[k], rec(mine)[k])) continue;
+    if (k === "roles" || k === "texts" || k === "zones" || same(rec(base)[k], rec(mine)[k])) continue;
     if (rec(mine)[k] === undefined) delete out[k];
     else out[k] = rec(mine)[k];
   }
-  const roles: Record<string, Record<string, unknown>> = { ...((theirs?.roles ?? {}) as Record<string, Record<string, unknown>>) };
-  const b = (base?.roles ?? {}) as Record<string, Record<string, unknown> | undefined>;
-  const m = (mine?.roles ?? {}) as Record<string, Record<string, unknown> | undefined>;
-  for (const r of new Set([...Object.keys(b), ...Object.keys(m)])) {
-    if (same(b[r], m[r])) continue;
-    const t = { ...(roles[r] ?? {}) };
-    for (const f of new Set([...Object.keys(b[r] ?? {}), ...Object.keys(m[r] ?? {})])) {
-      if (same(b[r]?.[f], m[r]?.[f])) continue;
-      if (m[r]?.[f] === undefined) delete t[f];
-      else t[f] = m[r]![f];
+  // Rôles, textes de l'en-tête et du pied, zones : même fusion, champ par champ.
+  for (const name of ["roles", "texts", "zones"] as const) {
+    const merged: Record<string, Record<string, unknown>> = { ...((theirs?.[name] ?? {}) as Record<string, Record<string, unknown>>) };
+    const b = (base?.[name] ?? {}) as Record<string, Record<string, unknown> | undefined>;
+    const m = (mine?.[name] ?? {}) as Record<string, Record<string, unknown> | undefined>;
+    for (const r of new Set([...Object.keys(b), ...Object.keys(m)])) {
+      if (same(b[r], m[r])) continue;
+      const t = { ...(merged[r] ?? {}) };
+      for (const f of new Set([...Object.keys(b[r] ?? {}), ...Object.keys(m[r] ?? {})])) {
+        if (same(b[r]?.[f], m[r]?.[f])) continue;
+        if (m[r]?.[f] === undefined) delete t[f];
+        else t[f] = m[r]![f];
+      }
+      if (Object.keys(t).length) merged[r] = t;
+      else delete merged[r];
     }
-    if (Object.keys(t).length) roles[r] = t;
-    else delete roles[r];
+    if (Object.keys(merged).length) (out as Record<string, unknown>)[name] = merged;
+    else delete out[name];
   }
-  if (Object.keys(roles).length) out.roles = roles;
-  else delete out.roles;
   return Object.keys(out).length ? (out as SiteStyles) : undefined;
 }
 
@@ -1048,6 +1183,65 @@ export function cleanSiteStyles(styles: SiteStyles | undefined): SiteStyles | un
   ) as SiteStyles["roles"];
   const palette = cleanSitePalette(styles.palette);
   const logo = cleanLogo(styles.logo);
-  const out: SiteStyles = { ...(roles && Object.keys(roles).length ? { roles } : {}), ...(styles.radius ? { radius: styles.radius } : {}), ...(palette ? { palette } : {}), ...(logo ? { logo } : {}) };
+  const bare = (v: object | undefined) => Object.fromEntries(Object.entries(v ?? {}).filter(([, x]) => x !== undefined));
+  const texts = Object.fromEntries(
+    Object.entries(styles.texts ?? {})
+      .map(([k, v]) => [k, bare(v)] as const)
+      .filter(([, v]) => Object.keys(v).length)
+      .slice(0, MAX_SITE_TEXTS),
+  ) as SiteStyles["texts"];
+  const zones = Object.fromEntries(
+    HZ_ZONES.map((z) => [z, bare(styles.zones?.[z])] as const).filter(([, v]) => Object.keys(v).length),
+  ) as SiteStyles["zones"];
+  const stroke = cleanSiteStroke(styles.stroke);
+  const out: SiteStyles = {
+    ...(roles && Object.keys(roles).length ? { roles } : {}),
+    ...(texts && Object.keys(texts).length ? { texts } : {}),
+    ...(zones && Object.keys(zones).length ? { zones } : {}),
+    ...(styles.radius ? { radius: styles.radius } : {}),
+    ...(palette ? { palette } : {}),
+    ...(logo ? { logo } : {}),
+    ...(stroke ? { stroke } : {}),
+  };
   return Object.keys(out).length ? out : undefined;
+}
+
+/** Repère d'une planche de projet dans le DOM (`data-pscope`) : l'identifiant de son bloc, réduit aux caractères sûrs d'un sélecteur. */
+export const pscopeId = (uid: string): string => uid.replace(/[^a-zA-Z0-9_-]/g, "");
+
+/**
+ * Feuille de la portée « Tout le projet » (lot 120) : les styles de titres, d'étiquettes et de textes d'UNE planche de projet, limités à elle
+ * (`[data-pscope]`). Même fabrication que les styles de rôle du site (`textStyleDecls`, mêmes éléments visés, même cas des fonds et de la
+ * couleur choisie) ; elle passe devant le site (un cran de spécificité de plus) et derrière le style propre d'un texte (en ligne).
+ * Les légendes ne passent pas par ici : leur style de projet est posé en ligne sur chaque légende (`captionCss`).
+ */
+export function projectStylesCss(scope: string, texts: Look["projectText"] | undefined, palette?: CardPalette): string {
+  const id = pscopeId(scope);
+  if (!id || !texts) return "";
+  const at = `${WIN} #contenu [data-pscope="${id}"]`;
+  const rules: string[] = [];
+  const css = (list: [string, string][]) => list.map(([k, v]) => `${k}:${v}`).join(";");
+  const targets: Record<"h2" | "eyebrow" | "body", string> = {
+    h2: ":is(h1, h2, h3)",
+    eyebrow: ".eyebrow",
+    body: ":is(p, li):not(.eyebrow, .caption-text, .strip-caption)",
+  };
+  for (const key of ["body", "eyebrow", "h2"] as const) {
+    const parsed = texts[key] ? TextStyleSchema.safeParse(texts[key]) : null;
+    if (!parsed?.success) continue;
+    const decls = textStyleDecls(parsed.data, palette, true);
+    if (!decls.length) continue;
+    const isBox = ([k, v]: [string, string]) => BACKDROP_PROPS.has(k) || (key === "body" && k === "color" && v.startsWith("var(--user-ink,"));
+    // Corps : le fond se pose sur les paragraphes seuls (comme pour le site) ; titres : la taille ne vise que les titres de section.
+    const boxed = key === "body" ? decls.filter(isBox) : [];
+    const plain = key === "body" ? decls.filter((d) => !isBox(d)) : decls;
+    const own = key === "h2" ? plain.filter(([k]) => k !== "font-size") : plain;
+    const size = key === "h2" ? plain.filter(([k]) => k === "font-size") : [];
+    if (own.length) rules.push(`${at} ${targets[key]}{${css(own)}}`);
+    if (size.length) rules.push(`${at} :is(h2, h3){${css(size)}}`);
+    if (boxed.length) rules.push(`${at} p:not(.eyebrow, .caption-text, .strip-caption){${css(boxed)}}`);
+    const chosen = parsed.data.color ? decls.find(([k]) => k === "color") : undefined;
+    if (chosen) rules.push(`${at} ${targets[key]}{--user-ink:${chosen[1]}}`);
+  }
+  return rules.join("\n").replace(/</g, "\\3c ");
 }

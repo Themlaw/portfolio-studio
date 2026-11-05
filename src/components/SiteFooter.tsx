@@ -37,29 +37,30 @@ export default function SiteFooter({
       <div className="shell py-14 md:py-20">
         <div className="grid gap-12 md:grid-cols-[1.4fr_1fr_1fr]">
           <div>
-            <Eyebrow>{t("eyebrow")}</Eyebrow>
+            <Eyebrow data-site-text="f:eb-contact">{t("eyebrow")}</Eyebrow>
             <a
               href={`mailto:${site.email}`}
               className="email-link email-link-footer mt-3 text-ink hover:text-primary transition-colors"
+              data-site-text="f:email"
             >
               <EmailText email={site.email} editable={edit ? site$(edit, "email", "ton@adresse.fr") : undefined} />
             </a>
-            <p className="mt-4 max-w-sm text-sm text-ink-soft" {...site$(edit, "role", "Ton métier")}>
+            <p className="mt-4 max-w-sm text-sm text-ink-soft" data-site-text="f:role" {...site$(edit, "role", "Ton métier")}>
               {site.role}
             </p>
           </div>
 
           <div>
-            <Eyebrow>{tNav("label")}</Eyebrow>
+            <Eyebrow data-site-text="f:eb-nav">{tNav("label")}</Eyebrow>
             <ul className="mt-4 space-y-2 text-sm">
               {nav.map((item, i) => (
                 <li key={item.id ?? item.href} {...(edit ? { "data-nav-key": navKeyList[i] } : {})}>
                   {item.external ? (
-                    <a href={item.href} target="_blank" rel="noopener noreferrer" className="text-ink-soft hover:text-primary transition-colors">
+                    <a href={item.href} target="_blank" rel="noopener noreferrer" data-site-text={`f:n:${navKeyList[i]}`} className="text-ink-soft hover:text-primary transition-colors">
                       {item.label}
                     </a>
                   ) : (
-                    <Link href={item.href} className="text-ink-soft hover:text-primary transition-colors">
+                    <Link href={item.href} data-site-text={`f:n:${navKeyList[i]}`} className="text-ink-soft hover:text-primary transition-colors">
                       {item.label}
                     </Link>
                   )}
@@ -69,7 +70,7 @@ export default function SiteFooter({
           </div>
 
           <div>
-            <Eyebrow>{site.name}</Eyebrow>
+            <Eyebrow data-site-text="f:eb-name">{site.name}</Eyebrow>
             <ul className="mt-4 space-y-2 text-sm" {...(edit ? { "data-edit-socials": "" } : {})}>
               {socials.map((s, i) => (
                 <li key={`${s.label}-${i}`} {...(edit ? { "data-social-index": i, "data-social-key": socialKeyList[i] } : {})}>
@@ -77,6 +78,7 @@ export default function SiteFooter({
                     href={s.href}
                     target="_blank"
                     rel="noopener noreferrer me"
+                    data-site-text={`f:s:${socialKeyList[i]}`}
                     className="social-link inline-flex items-center gap-2 text-ink-soft hover:text-primary transition-colors"
                   >
                     <SocialIcon kind={s.kind} label={s.label} href={s.href} />
@@ -91,10 +93,10 @@ export default function SiteFooter({
         <hr className="rule my-10" />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="eyebrow">
+          <p className="eyebrow" data-site-text="f:copy">
             © {year} {site.name} — {t("rights")}
           </p>
-          <p className="text-xs text-ink-soft" {...site$(edit, "credit", "Mention (crédits, droits…)")}>
+          <p className="text-xs text-ink-soft" data-site-text="f:credit" {...site$(edit, "credit", "Mention (crédits, droits…)")}>
             {site.credit}
           </p>
         </div>

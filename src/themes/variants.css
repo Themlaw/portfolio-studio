@@ -394,7 +394,9 @@
 [data-kit-stroke] .nav-underline {
   height: 6px;
   bottom: -0.65rem;
-  background-color: var(--color-primary);
+  /* Lot 110 : teinte posée par-dessus (en-tête, sinon réglage du site). Sans réglage, --st-nav est invalide et le repli est la couleur d'avant. */
+  --st-nav: color-mix(in srgb, var(--stroke-nav-c, var(--stroke-c)) var(--stroke-nav-a, var(--stroke-a)), var(--color-primary));
+  background-color: var(--st-nav, var(--color-primary));
   -webkit-mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
   mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
 }
@@ -403,7 +405,8 @@
 [data-kit-stroke] hr.rule {
   height: 6px;
   border: 0;
-  background: var(--color-line);
+  --st-rule: color-mix(in srgb, var(--stroke-c) var(--stroke-a), var(--color-line));
+  background: var(--st-rule, var(--color-line));
   -webkit-mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
   mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
 }
@@ -416,6 +419,10 @@
    rognerait aussi la poignée (son enfant) à l'intersection des deux traits. */
 [data-kit-stroke] .rail-bar {
   --rail-bar-box: 16px;
+  /* Lot 110 : teinte posée par-dessus la barre (réglage de la rangée, sinon du site) ; invalide sans réglage, donc sans effet. */
+  --st-thumb: color-mix(in srgb, var(--stroke-c) var(--stroke-a), var(--color-primary));
+  --st-thumb-hover: color-mix(in srgb, var(--stroke-c) var(--stroke-a), var(--color-primary-hover));
+  --st-track: color-mix(in srgb, var(--stroke-c) var(--stroke-a), color-mix(in srgb, var(--color-ink) 28%, var(--color-line)));
 }
 
 [data-kit-stroke] .rail-bar-track {
@@ -427,7 +434,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--color-ink) 28%, var(--color-line));
+  background: var(--st-track, color-mix(in srgb, var(--color-ink) 28%, var(--color-line)));
   -webkit-mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
   mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
 }
@@ -435,6 +442,7 @@
 /* Teinte : celle de la base (primaire, survol compris). */
 [data-kit-stroke] .rail-bar-thumb {
   height: 16px;
+  background-color: var(--st-thumb, var(--color-primary));
   -webkit-mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
   mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
 }
@@ -451,6 +459,7 @@
 [data-kit-stroke] .rail-bar[data-dragging="true"] .rail-bar-thumb,
 [data-kit-stroke] .rail-bar:focus-visible .rail-bar-thumb {
   height: 18px;
+  background-color: var(--st-thumb-hover, var(--color-primary-hover));
 }
 
 /* Lot 99 : barre de défilement EN COULEURS (trait redessiné, fichier en couleurs d'origine, `data-kit-stroke-color`) : le dessin tel quel,
@@ -472,6 +481,42 @@
   border-image-slice: 0 var(--t-kit-stroke-cap) 0 var(--t-kit-stroke-cap) fill;
   border-image-width: 0 calc(var(--bar-h) / 2) 0 calc(var(--bar-h) / 2);
   border-image-repeat: stretch;
+}
+
+/* Lot 110 : barre EN COULEURS teintée : un calque de la forme du dessin (même masque, bouts conservés), de la teinte et de l'opacité réglées,
+   posé par-dessus le dessin d'origine. Sans réglage : opacité 0, rien ne se voit. */
+[data-kit-stroke-color] .rail-bar-track::after,
+[data-kit-stroke-color] .rail-bar-thumb::after {
+  content: "";
+  position: absolute;
+  inset: 0 calc(var(--bar-h) / -2);
+  pointer-events: none;
+  background: var(--stroke-c, transparent);
+  opacity: var(--stroke-ao, 0);
+  -webkit-mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
+  mask: var(--t-kit-stroke) center / 100% 100% no-repeat;
+}
+
+[data-kit-stroke-color] .rail-bar-track::after {
+  inset: 0;
+  opacity: calc(var(--stroke-ao, 0) * 0.32);
+}
+
+@supports (-webkit-mask-box-image: none) {
+  [data-kit-stroke-color] .rail-bar-track::after,
+  [data-kit-stroke-color] .rail-bar-thumb::after {
+    -webkit-mask: none;
+    mask: none;
+    -webkit-mask-box-image-source: var(--t-kit-stroke);
+    -webkit-mask-box-image-slice: 0 var(--t-kit-stroke-cap) 0 var(--t-kit-stroke-cap) fill;
+    -webkit-mask-box-image-width: 0 calc(var(--bar-h) / 2) 0 calc(var(--bar-h) / 2);
+    -webkit-mask-box-image-repeat: stretch;
+  }
+  [data-kit-stroke-color] .rail-bar-track::after {
+    border-style: solid;
+    border-width: 0 calc(var(--bar-h) / 2);
+    box-sizing: border-box;
+  }
 }
 
 [data-kit-stroke-color] .rail-bar-track {

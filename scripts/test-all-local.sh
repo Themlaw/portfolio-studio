@@ -8,7 +8,7 @@
 #
 # Usage (depuis le dépôt) :
 #   scripts/test-all-local.sh [suite…]      # vide = toutes
-#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 entrees48 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 backup50 vitesse54 publication51 publication101 kit53 partage52 priseenmain57 cadremotif58 cadres62 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 mediaframe64 cadres79 grille69 public67 surface66 popover65 textes70 papiers78 admin76 restes77 cadres74 unif75 favicon83 backup85 backup118 apercu118 domaine88 langue87 pied86 logo84 introuvable89 cadre95 opacite90 fond100 site96 legendes98 defilement99 defilement99-firefox parite99 journal97 integ33 raccord102 menu109 barreaa114 scroll123
+#   ids : checks build auth pdf v013 lot1 lot8 lot11 state palette look themes kit kit17a kithttp cartes17c papier28 texte19a palogo17f integ17 editor boards admin medias medias-firefox 17b crop17d crop17d-http crop17g couleurs19b composants20 collections22 fondtexte21 blocs27 images25 couleurs26 chrome24 admin23 couleurps29 planche31 retour30 fond32 fondplanche24 cadre34 fleches33 papiers35 grille31d grille37 video36 carrousel31f barres38 legendes39 image40 fondmarge43 fondcontenu47 entrees48 fondimage41 visionneuse44 panorama45 planchelibre42 logocadres49 backup50 vitesse54 publication51 publication101 kit53 partage52 priseenmain57 cadremotif58 cadres62 fonddeborde59 themes55 essayer63 montheme60 editeurguide61 retours68 mediaframe64 cadres79 grille69 public67 surface66 popover65 textes70 papiers78 admin76 restes77 cadres74 unif75 favicon83 backup85 backup118 apercu118 domaine88 langue87 pied86 logo84 introuvable89 cadre95 opacite90 fond100 site96 legendes98 defilement99 defilement99-firefox parite99 journal97 integ33 raccord102 menu109 barreaa114 scroll123 logo106 couleur110 medias112 entrees117 planche113 tags contenu111 couleurtitres115 kitpartie122 video116 portee119 portee124 contact125 perte336 langue126
 # Rapide (VM de 3 cœurs et plus, voir docs/ARCHITECTURE.md) :
 #   BATT_SERVER=start BATT_JOBS=2 scripts/test-all-local.sh
 # En fond détaché :
@@ -107,6 +107,7 @@ E2E=(
   "grille37|node scripts/e2e-grille37.mjs|chromium|"
   "fleches33|node scripts/e2e-fleches33.mjs|chromium|"
   "video36|node scripts/e2e-video36.mjs|chromium|"
+  "video116|node scripts/e2e-video116.mjs|chromium|"
   "carrousel31f|node scripts/e2e-carrousel31f.mjs|chromium|"
   "barres38|node scripts/e2e-barres38.mjs|chromium|"
   "legendes39|node scripts/e2e-legendes39.mjs|chromium|"
@@ -133,6 +134,7 @@ E2E=(
   "montheme60|node scripts/e2e-montheme60.mjs|chromium|"
   "editeurguide61|node scripts/e2e-editeurguide61.mjs|chromium|"
   "retours68|node scripts/e2e-retours68.mjs|chromium|"
+  "tags|node scripts/e2e-tags.mjs|chromium|"
   "mediaframe64|node scripts/e2e-mediaframe64.mjs|chromium|"
   "cadres79|node scripts/e2e-cadres79.mjs|chromium|"
   "cadre95|node scripts/e2e-cadre95.mjs|chromium|"
@@ -153,9 +155,11 @@ E2E=(
   "langue87|node scripts/e2e-langue87.mjs|chromium|"
   "pied86|node scripts/e2e-pied86.mjs|chromium|"
   "logo84|node scripts/e2e-logo84.mjs|chromium|"
+  "logo106|node scripts/e2e-logo106.mjs|chromium|"
   "opacite90|node scripts/e2e-opacite90.mjs|chromium|"
   "fond100|node scripts/e2e-fond100.mjs|chromium|"
   "reglages105|node scripts/e2e-reglages105.mjs|chromium|"
+  "medias112|node scripts/e2e-medias112.mjs|chromium|"
   "couches107|node scripts/e2e-couches107.mjs|chromium|"
   "couches107c|node scripts/e2e-couches107.mjs|chromium|C"
   "couches107d|node scripts/e2e-couches107.mjs|chromium|D"
@@ -166,14 +170,27 @@ E2E=(
   "structures108c|node --import tsx scripts/e2e-structures108.mjs|chromium|C"
   "structures108p|node --import tsx scripts/e2e-structures108.mjs|chromium|P"
   "structures108q|node --import tsx scripts/e2e-structures108.mjs|chromium|Q"
+  "planche113|node scripts/e2e-planche113.mjs|chromium|"
+  "portee119|node scripts/e2e-portee119.mjs|chromium|"
+  "portee124|node scripts/e2e-portee124.mjs|chromium|"
   "defilement99|node scripts/e2e-defilement99.mjs|chromium|"
   "defilement99-firefox|node scripts/e2e-defilement99.mjs|firefox|K"
   "parite99|node scripts/e2e-defilement99.mjs|chromium|P"
   "journal97|node scripts/e2e-journal97.mjs|chromium|"
+  "contact125|node scripts/e2e-contact125.mjs|chromium|"
+  "perte336|node scripts/e2e-perte336.mjs|chromium|"
   "integ33|node scripts/e2e-integ33.mjs|chromium|"
   "raccord102|node scripts/e2e-raccord102.mjs|chromium|"
   "menu109|node scripts/e2e-menu109.mjs|chromium|"
   "scroll123|node scripts/e2e-scroll123.mjs|chromium|"
+  "couleur110|node scripts/e2e-couleur110.mjs|chromium|"
+  "couleur110a|node scripts/e2e-couleur110.mjs|chromium|A"
+  "couleur110b|node scripts/e2e-couleur110.mjs|chromium|B"
+  "entrees117|node scripts/e2e-entrees117.mjs|chromium|"
+  "contenu111|node scripts/e2e-contenu111.mjs|chromium|"
+  "couleurtitres115|node scripts/e2e-couleurtitres115.mjs|chromium|"
+  "kitpartie122|node scripts/e2e-kitpartie122.mjs|chromium|"
+  "langue126|node scripts/e2e-langue126.mjs|chromium|"
 )
 
 

@@ -9,6 +9,7 @@ import { parseRatio } from "@/lib/images/sizes";
 import { FieldOps } from "./FieldOps";
 import { getMedia } from "@/lib/media";
 
+import { frameAspect } from "./free-board";
 import { aloneFlags, freeCells, GRID_LAYOUTS, gridCells, isJustified, justifyRows, MAX_SPAN_H, MAX_SPAN_W } from "./grid-layouts";
 import { hasText } from "./optional-fields";
 import { MAX_CHILDREN } from "./tree";
@@ -64,6 +65,8 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
   const ratios = auto || justified
     ? await Promise.all(
         props.children.slice(0, cells.length).map(async (c) => {
+          // Planche libre en cellule (lot 113) : son format est celui de son cadre (recadrage compris).
+          if (c.type === "free-board") return frameAspect(c.props);
           const id = typeof c.props.mediaId === "number" ? c.props.mediaId : undefined;
           const m = id ? await getMedia(id) : null;
           if (m?.width && m?.height) {
@@ -210,7 +213,7 @@ export default async function GridBlock({ props, ctx, children }: { props: z.inf
                     <span className="pe-cell-or">ou du texte</span>
                     {/* Une rubrique de texte dans cette case, éditée aussitôt (lot 17c ; trois choix au lot 19a). */}
                     <span className="pe-cell-choices">
-                      {([["text", "Texte"], ["title", "Titre"], ["title-text", "Titre + texte"]] as const).map(([k, label]) => (
+                      {([["text", "Texte"], ["title", "Titre"], ["title-text", "Titre + texte"], ["free", "Planche libre"]] as const).map(([k, label]) => (
                         <button key={k} type="button" className="pe-cell-text" data-edit-cell-text={k}>
                           {label}
                         </button>

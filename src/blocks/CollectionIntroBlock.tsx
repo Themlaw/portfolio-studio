@@ -4,7 +4,8 @@ import { z } from "zod";
 import Eyebrow from "@/components/Eyebrow";
 import { boardWorkCount } from "@/lib/gallery";
 
-import { boardRefs, pageCounts } from "./tree";
+import { ownLayoutOf } from "./board-layout";
+import { boardRefs, countKey, pageCounts } from "./tree";
 import { collection, inline, localized, textStyle, tr, type BlockContext, localizedText } from "./types";
 
 export const collectionIntroSchema = z.object({
@@ -58,12 +59,12 @@ export default async function CollectionIntroBlock({
   const known = new Map<string, number | null>();
   await Promise.all(
     boardRefs(blocks).map(async (b) => {
-      const key = `${b.slug}|${b.collection ?? ""}`;
+      const key = countKey(b.slug, b.collection, b.block);
       if (!known.has(key)) known.set(key, null);
-      known.set(key, await boardWorkCount(b.slug, b.collection));
+      known.set(key, await boardWorkCount(b.slug, b.collection, ownLayoutOf(b.block.props)));
     }),
   );
-  const counts = pageCounts(blocks, (slug, c) => known.get(`${slug}|${c ?? ""}`) ?? null);
+  const counts = pageCounts(blocks, (slug, c, block) => known.get(countKey(slug, c, block)) ?? null);
 
   return (
     <section className="page-top shell pb-[clamp(1rem,3vw,2rem)]">

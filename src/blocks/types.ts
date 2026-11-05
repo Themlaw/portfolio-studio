@@ -69,6 +69,8 @@ export type BlockContext = {
   cellRatio?: string;
   /** Identifiant en base du bloc rendu (version publiée ; négatif en vue brouillon). */
   blockId?: number;
+  /** Uid du bloc rendu (lot 120) : repère de la portée « Tout le projet » d'une planche. */
+  blockUid?: string;
   /** Réglages de mise en page du bloc (props.look, lot 2) : styles de ses textes. */
   look?: Look;
   /** Style des légendes du projet que la planche affiche (lot 98) : par champ (titre, légende, date) ; passe derrière le style propre d'une légende. */

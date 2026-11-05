@@ -423,21 +423,23 @@ try {
       ok("S5 Supprimer : l'image est retirée", await waitFor(() => items().length === 1 && !byId("a2")), JSON.stringify(items()));
       await settled(page);
 
-      // Hauteur libre : la poignée du bas de la zone.
+      // Hauteur : le bord bas du cadre (lot 113 : recadrage, les images ne bougent pas ; avant, poignée « hauteur libre »).
       const h0 = await zoneBox();
       await click(itemEl("a1"));
-      const hh = await center(f.getByTestId("free-height"));
+      const hh = await center(f.getByTestId("free-crop-s"));
+      await page.keyboard.down("Alt"); // sans magnétisme : 120 px exacts (le 16:9 est tout près)
       await page.mouse.move(hh.x, hh.y);
       await page.mouse.down();
       await page.mouse.move(hh.x, hh.y - 50, { steps: 5 });
       await page.mouse.move(hh.x, hh.y - 120, { steps: 5 });
       await page.mouse.up();
-      ok("S6 poignée du bas : le format passe en « Hauteur libre » avec le rapport mesuré", await waitFor(() => pageProps().format === "free" && near(pageProps().aspect, h0.width / (h0.height - 120), 0.03)), JSON.stringify(pageProps()));
+      await page.keyboard.up("Alt");
+      ok("S6 poignée du bas : le cadre est recadré par le bas (lot 113), le rapport du cadre est le rapport mesuré", await waitFor(() => pageProps().format === "3:2" && pageProps().crop?.b > 5 && near(h0.width / (h0.height * (1 - pageProps().crop.b / 100)), h0.width / (h0.height - 120), 0.03)), JSON.stringify(pageProps()));
       await settled(page);
       const h1 = await zoneBox();
       ok("S6b la zone est plus basse de 120 px (±3)", near(h0.height - h1.height, 120, 3), `${h0.height} → ${h1.height}`);
       await undo();
-      ok("S6c Annuler rend le format d'avant", await waitFor(() => pageProps().format === "3:2" && pageProps().aspect === undefined), JSON.stringify(pageProps()));
+      ok("S6c Annuler rend le format d'avant", await waitFor(() => pageProps().format === "3:2" && pageProps().aspect === undefined && pageProps().crop === undefined), JSON.stringify(pageProps()));
 
       // Panneau Réglages : format et téléphone.
       await scrollToZone();

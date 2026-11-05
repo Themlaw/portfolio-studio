@@ -27,7 +27,11 @@ export const BLOCK_REFS: Record<string, BlockRefs> = {
   "rich-text": {},
   contact: {},
   profile: { media: ["portraitMediaId"] },
-  "project-board": { projects: ["project"] },
+  // Contenu propre au bloc (lot 111, `props.layout`) : mêmes médias que ceux d'une suite de planche (src/blocks/board-layout.ts `layoutMediaIds`).
+  "project-board": {
+    projects: ["project"],
+    media: ["layout[].props.mediaId", "layout[].props.posterMediaId", "layout[].props.media[]", "layout[].props.items[].media", "layout[].props.children[].props.mediaId", "layout[].props.children[].props.posterMediaId"],
+  },
   "section-title": { projects: ["project"] },
   "page-link": { pages: ["pageId"] },
   // Page introuvable (lot 89) : le bouton de la Sortie mène à une page (l'accueil si absente) ; l'œuvre au hasard cite des emplacements, pas des médias.
@@ -38,7 +42,7 @@ export const BLOCK_REFS: Record<string, BlockRefs> = {
   cv: { media: ["mediaId"] },
   grid: {},
   // Planche libre (lot 42) : chaque image posée cite un média.
-  "free-board": { media: ["items[].media"] },
+  "free-board": { media: ["items[].media", "items[].poster"] },
   "contact-form": {},
   // Ancien bloc (avant v0.13), encore lu.
   "featured-projects": { pages: ["more.pageId"], projects: ["projects[]"] },

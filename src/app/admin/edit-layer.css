@@ -889,6 +889,22 @@ html[data-edit-mode] .pe-tile-cover:focus-within {
   }
 }
 
+/* Lot 117 : entrée vers une page simple sans image : le choix de limage est la seule action utile, toujours visible dans lavis. */
+html[data-edit-mode] [data-tile-noimage] .pe-tile-cover {
+  position: static;
+  display: inline-flex;
+  max-width: none;
+  margin-inline: 8px 0;
+  vertical-align: middle;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+html[data-edit-mode] [data-tile-noimage]:hover .pe-tile-tools {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .pe-tile-cover button {
   min-height: 30px;
   padding: 0 10px;
@@ -1486,34 +1502,7 @@ html:not([data-edit-mode]) .pe-media-empty {
 }
 
 /* Texte d'un projet survolé sur la toile : à qui appartient ce texte (v0.15). */
-.pe-project-hint {
-  position: absolute;
-  z-index: 5;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
-  width: max-content;
-  max-width: min(520px, calc(100vw - 24px));
-  padding: 6px 10px;
-  border: 1px solid var(--pe-bar-line);
-  border-radius: 6px;
-  background: var(--pe-bar-bg);
-  color: var(--pe-bar-ink);
-  box-shadow: var(--pe-bar-shadow);
-  font: 500 12px/1.35 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: 0;
-  text-transform: none;
-  pointer-events: auto;
-}
 
-.pe-project-hint a {
-  color: var(--pe-accent);
-  font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  white-space: nowrap;
-}
 
 /* Accroche de l'ouverture : champ de saisie à côté de l'enveloppe de React, barre « Surligner ». */
 [data-edit-mode] [data-marked-edit] {
@@ -1962,13 +1951,16 @@ html:not([data-edit-mode]) .pe-empty-action {
 
 /* Contenu de la planche (lot 31) : « + Ajouter », barre d'un composant. Vue brouillon seulement. */
 html[data-edit-mode] .pe-bitems { position: relative; }
-html[data-edit-mode] .pe-bitem-add { position: relative; height: 0; z-index: 4; display: flex; justify-content: center; }
+/* Lot 111 : « + Ajouter » (rangée de hauteur nulle : la composition n'est pas décalée) est posé JUSTE SOUS le composant précédent (dans l'espace entre composants),
+   entièrement visible, jamais à cheval sur son bord ni son contour (épaisseur, coins, Fond). Planche vide : posé en flux. */
+html[data-edit-mode] .pe-bitem-add { position: relative; height: 0; z-index: 30; display: flex; justify-content: center; }
 html[data-edit-mode] .pe-bitem-add button {
-  position: absolute; top: -14px; padding: 4px 12px; border-radius: 999px; border: 1px dashed #8a8f98;
+  position: absolute; top: 2px; padding: 4px 12px; border-radius: 999px; border: 1px dashed #8a8f98;
   background: #fff; color: var(--pe-bar-ink); font: 500 12px/1.2 var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
   opacity: 0; transition: opacity 0.12s; cursor: pointer;
 }
-html[data-edit-mode] .pe-bitem-add[data-empty] button, html[data-edit-mode] .pe-bitem-add[data-last] button { top: 6px; }
+html[data-edit-mode] .pe-bitem-add[data-empty] button, html[data-edit-mode] .pe-bitem-add[data-first] button { top: 6px; }
+html[data-edit-mode] .pe-bitem-add[data-first] { z-index: 4; }
 html[data-edit-mode] .pe-bitem-add[data-empty] button { opacity: 1; }
 html[data-edit-mode] .strip:hover .pe-bitem-add button { opacity: 0.55; }
 html[data-edit-mode] .pe-bitem-add:hover button, html[data-edit-mode] .pe-bitem-add button:focus-visible { opacity: 1; }
@@ -2549,6 +2541,7 @@ html[data-free-dragging] * {
 /* Cadre de l'image choisie : suit sa position, sa taille et son angle (le calque le pose en pixels). */
 .pe-free-sel {
   position: absolute;
+  z-index: 2;
   box-sizing: border-box;
   border: 1.5px solid #2e4e9e;
   pointer-events: none;
@@ -2585,30 +2578,57 @@ html[data-free-dragging] * {
   border-left: 1.5px solid #2e4e9e;
   transform: translateX(-50%);
 }
-/* Poignée du bas de la zone : la hauteur libre. */
-.pe-free-height {
+/* Poignées de recadrage du cadre (lot 113) : quatre bords et quatre coins, centrées sur le bord du cadre. Zone d'appui 28 px à la souris, 44 px au doigt ;
+   la marque visible reste petite (::before). Sous les poignées de l'image choisie (placées avant dans le calque). */
+.pe-free-crop {
   position: absolute;
-  z-index: 8;
-  width: 56px;
-  height: 14px;
-  margin-left: -28px;
-  box-sizing: border-box;
-  border: 1.5px solid #2e4e9e;
-  border-radius: 7px;
-  background: #ffffff;
-  cursor: ns-resize;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
   pointer-events: auto;
   touch-action: none;
 }
-.pe-free-height::after {
+@media (pointer: coarse), (hover: none) {
+  .pe-free-crop { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
+}
+.pe-free-crop::before {
   content: "";
   position: absolute;
-  left: 14px;
-  right: 14px;
-  top: 4px;
-  height: 3px;
-  border-top: 1.5px solid #2e4e9e;
-  border-bottom: 1.5px solid #2e4e9e;
+  left: 50%;
+  top: 50%;
+  box-sizing: border-box;
+  background: #2e4e9e;
+  border: 2px solid #ffffff;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(46, 78, 158, 0.55);
+  transform: translate(-50%, -50%);
+}
+.pe-free-crop[data-c="n"]::before, .pe-free-crop[data-c="s"]::before { width: 34px; height: 9px; }
+.pe-free-crop[data-c="e"]::before, .pe-free-crop[data-c="w"]::before { width: 9px; height: 34px; }
+.pe-free-crop[data-c="ne"]::before, .pe-free-crop[data-c="nw"]::before, .pe-free-crop[data-c="se"]::before, .pe-free-crop[data-c="sw"]::before { width: 15px; height: 15px; }
+.pe-free-crop[data-c="n"], .pe-free-crop[data-c="s"] { cursor: ns-resize; }
+.pe-free-crop[data-c="e"], .pe-free-crop[data-c="w"] { cursor: ew-resize; }
+.pe-free-crop[data-c="nw"], .pe-free-crop[data-c="se"] { cursor: nwse-resize; }
+.pe-free-crop[data-c="ne"], .pe-free-crop[data-c="sw"] { cursor: nesw-resize; }
+/* Contour du cadre pendant un recadrage, et badge (taille, repère touché). */
+.pe-free-frame {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1.5px dashed #2e4e9e;
+  pointer-events: none;
+}
+.pe-free-badge {
+  position: absolute;
+  z-index: 9;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #1f2f5c;
+  color: #ffffff;
+  font: 12px/1.5 system-ui, sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, 0);
 }
 .pe-free-guide {
   position: absolute;
@@ -2645,4 +2665,10 @@ html[data-free-dragging] * {
 [data-site-inline],
 [data-inline] {
   touch-action: manipulation;
+}
+
+/* Integration lots 106 + 109 : le menu en ligne reste visible a toute largeur de toile dans l editeur (lot 109) et ne retrecit jamais
+   (flex-shrink:0, feuille du logo) ; le logo image, lui, pouvait tomber a 0 px de large en apercu telephone (390 px). Il garde sa largeur. */
+html[data-edit-mode] .site-header .site-brand[data-logo-image] {
+  flex-shrink: 0;
 }

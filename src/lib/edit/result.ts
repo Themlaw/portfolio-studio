@@ -1,4 +1,5 @@
 /** Résultat d'une action d'édition de l'admin (sérialisable). */
+
 export type ActionResult<T = null> =
   | { ok: true; data: T }
   | { ok: false; message: string; fieldErrors?: Record<string, string> };

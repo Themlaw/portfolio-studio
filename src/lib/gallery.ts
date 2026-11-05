@@ -10,7 +10,7 @@
  * ----------------------------------------------------------------------- */
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
-import { isProjectStrip, layoutMediaIds, readLayout, type BoardItem } from "@/blocks/board-layout";
+import { isProjectStrip, layoutMediaIds, readLayout, type BoardItem, type OwnText } from "@/blocks/board-layout";
 import type { AppLocale } from "@/i18n/routing";
 
 import { cached, TAGS } from "./cache";
@@ -81,7 +81,7 @@ export type LocalizedProject = {
    * les TEXTES du projet (nom, contexte, présentation, année) ; `textDraft` :
    * cette page porte une modification de ces textes (v0.15).
    */
-  edit?: { id: number; draft: boolean; heldBy?: string; textHeldBy?: string; textDraft?: boolean; layoutHeldBy?: string; layoutDraft?: boolean };
+  edit?: { id: number; draft: boolean; heldBy?: string; textHeldBy?: string; textDraft?: boolean; layoutHeldBy?: string; layoutDraft?: boolean; layoutOwn?: boolean };
 };
 
 type RawProject = {
@@ -101,6 +101,8 @@ type RawProject = {
   /** Vue brouillon : page qui tient le contenu de la planche (autre que la vue), ou surcouche de la vue. */
   layoutHeldBy?: string;
   layoutDraft?: boolean;
+  /** Le bloc qui affiche ce projet porte son propre contenu (lot 111) : la suite ci-dessous est la sienne, pas celle du projet. */
+  layoutOwn?: boolean;
   /** Médias des composants de la suite (hors bande du projet) qui s'affichent : prêts, hors corbeille, chacun une fois. */
   layoutLive: number[];
 };
@@ -368,7 +370,27 @@ const projectEdit = (p: RawProject) => ({
   ...(p.textDraft ? { textDraft: true } : {}),
   ...(p.layoutHeldBy ? { layoutHeldBy: p.layoutHeldBy } : {}),
   ...(p.layoutDraft ? { layoutDraft: true } : {}),
+  ...(p.layoutOwn ? { layoutOwn: true } : {}),
 });
+
+/** Le projet vu par un bloc qui porte son propre contenu (lot 111) : sa suite, ses médias affichables ; le brouillon et le verrou du projet ne le concernent plus. */
+function withOwnLayout(project: RawProject, own: BoardItem[]): RawProject {
+  const ids = [...new Set(layoutMediaIds(own))];
+  const live = new Set(
+    ids.length
+      ? getDb()
+          .select({ id: schema.media.id })
+          .from(schema.media)
+          .where(and(inArray(schema.media.id, ids), isNull(schema.media.deletedAt), eq(schema.media.status, "ready")))
+          .all()
+          .map((m) => m.id)
+      : [],
+  );
+  const { layoutHeldBy: _held, layoutDraft: _draft, ...rest } = project;
+  void _held;
+  void _draft;
+  return { ...rest, layout: own, layoutLive: ids.filter((id) => live.has(id)), layoutOwn: true };
+}
 
 /**
  * « N œuvres » d'une planche, UNE règle partout (en-tête de la planche, compteurs de page, tuiles de collection) :
@@ -485,10 +507,11 @@ export async function getArtwork(slug: string, locale: AppLocale): Promise<Local
  * s'il y a lieu), places vides exclues ; null si le projet n'existe pas
  * (compteurs « N œuvres · M projets » calculés depuis la page).
  */
-export async function boardWorkCount(slug: string, collection?: string): Promise<number | null> {
+export async function boardWorkCount(slug: string, collection?: string, own?: BoardItem[] | null): Promise<number | null> {
   const { projects, artworks } = await snapshot();
-  const project = projects.find((p) => p.slug === slug);
-  if (!project) return null;
+  const found = projects.find((p) => p.slug === slug);
+  if (!found) return null;
+  const project = own ? withOwnLayout(found, own) : found;
   return workCount(project, artworks.filter((a) => a.projectId === project.id && shown(a) && (!collection || a.collection === collection)));
 }
 
@@ -497,10 +520,14 @@ export async function boardWorkCount(slug: string, collection?: string): Promise
  * projet créé dans ce brouillon compris, places vides comprises (toile).
  * Planche vide en vue brouillon : projet sans emplacement, repéré quand même.
  */
-export async function getProjectBoard(slug: string, locale: AppLocale, collection?: Collection): Promise<LocalizedProject | null> {
+export async function getProjectBoard(slug: string, locale: AppLocale, collection?: Collection, own?: BoardItem[] | null, ownText?: OwnText | null): Promise<LocalizedProject | null> {
   const { projects, artworks, held } = await snapshot();
-  const project = projects.find((p) => p.slug === slug);
-  if (!project) return null;
+  const found = projects.find((p) => p.slug === slug);
+  if (!found) return null;
+  // Contenu et textes propres au bloc (lot 111) : ils remplacent ceux du projet (rendu, compteur) ; plus aucun verrou entre pages.
+  const unheld = (({ layoutHeldBy: _l, textHeldBy: _t, ...rest }) => (void _l, void _t, rest))(found) as RawProject;
+  const withLayout = own ? withOwnLayout(unheld, own) : unheld;
+  const project = ownText ? { ...withLayout, title: ownText.title, context: ownText.context, description: ownText.description, year: ownText.year, textDraft: undefined } : withLayout;
   // Position de chaque emplacement dans la planche ENTIÈRE (toile) : une planche
   // filtrée par métier dépose ses images au bon rang.
   const order = artworks.filter((a) => a.projectId === project.id).sort((x, y) => x.position - y.position);

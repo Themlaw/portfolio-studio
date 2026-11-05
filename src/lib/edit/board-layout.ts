@@ -9,6 +9,7 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { BLOCKS } from "@/blocks/registry";
+import { boardRefs, type TreeBlock } from "@/blocks/tree";
 import { CAPTION_STYLE_FIELDS, GRID_CHILD_TYPES, itemEmpty, layoutProblem, projectCaptionStyle, type BoardItem, type ProjectCaptionStyle, BOARD_ITEM_LABELS } from "@/blocks/board-layout";
 import { TextStyleSchema } from "@/lib/look";
 import { getDb, schema } from "@/lib/db";
@@ -132,6 +133,23 @@ export function incompleteLayouts(pageId: number, cited: Set<number>): string | 
     if (!p.layout || !cited.has(p.id)) continue;
     const r = checkLayout(p.layout, { complete: true });
     if ("error" in r) return `Publication impossible : projet « ${p.title.fr || p.slug} » — ${r.error.charAt(0).toLowerCase()}${r.error.slice(1)}`;
+  }
+  return null;
+}
+
+/**
+ * Contenu propre des blocs Projet de la page (lot 111, `props.layout`) : mêmes exigences que la suite d'un projet à la publication
+ * (composants remplis, médias présents). Message du premier défaut, sinon null.
+ */
+export function incompleteOwnLayouts(blocks: { type: string; props: unknown }[]): string | null {
+  for (const { slug, block } of boardRefs(blocks as TreeBlock[])) {
+    const raw = (block.props as { layout?: unknown } | undefined)?.layout;
+    if (raw === undefined || raw === null) continue;
+    const r = checkLayout(raw, { complete: true });
+    if ("error" in r) {
+      const p = getDb().select({ title: schema.projects.title }).from(schema.projects).where(eq(schema.projects.slug, slug)).get();
+      return `Publication impossible : projet « ${p?.title.fr || slug} » (contenu propre à cette page) — ${r.error.charAt(0).toLowerCase()}${r.error.slice(1)}`;
+    }
   }
   return null;
 }

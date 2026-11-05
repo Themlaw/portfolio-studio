@@ -206,7 +206,7 @@ if (run("C")) {
     await f.locator(".lk-aa").click();
     await until(f, () => Boolean(document.querySelector(".lk-bar")));
   }
-  await f.locator(".lk-bar [role=radio]", { hasText: "Ce texte" }).click();
+  await f.locator(".lk-bar [role=radio]", { hasText: /^Ce(tte)? / }).click();
   await f.locator(".lk-bar .tc-font").click();
   ok("C1 menu des polices ouvert (thème, embarquées, Google)", await until(f, () => document.querySelectorAll(".fm-item").length > 20));
   ok("C2 aperçus chargés depuis le serveur (/admin/api/fonts/preview)", await until(f, () => document.querySelectorAll('.fm-name[style*="pv "]').length >= 3, null, 90000));
@@ -397,7 +397,7 @@ if (run("H")) {
   // Les sections précédentes ont laissé des réglages LOCAUX sur le titre (ils passent devant le style
   // du site) : retour au style global pour mesurer le rôle.
   if (await openBar(h1)) {
-    await f.locator(".lk-bar [role=radio]", { hasText: "Ce texte" }).click();
+    await f.locator(".lk-bar [role=radio]", { hasText: /^Ce(tte)? / }).click();
     const reset = f.locator(".lk-bar .tc-reset");
     if (await reset.isEnabled()) await reset.click();
     await sleep(300);
@@ -450,7 +450,7 @@ if (run("H")) {
     await page.keyboard.press("Escape");
 
     // H3. Menu de graisse maison : options dans leur graisse réelle.
-    await f.locator(".lk-bar [role=radio]", { hasText: "Ce texte" }).click();
+    await f.locator(".lk-bar [role=radio]", { hasText: /^Ce(tte)? / }).click();
     await f.locator('.lk-bar .ms-button[aria-label^="Graisse"]').click();
     const weights = await f.evaluate(() => [...document.querySelectorAll(".ms-option[data-value]:not([data-value=''])")].map((o) => [o.getAttribute("data-value"), getComputedStyle(o).fontWeight, o.getAttribute("aria-disabled")]));
     ok("H3 menu de graisse : 9 graisses, chacune affichée dans sa graisse", weights.length === 9 && weights.every(([v, w]) => v === w), JSON.stringify(weights));
@@ -463,7 +463,7 @@ if (run("H")) {
 
   // H4-H12. Couleur libre.
   if (!(await f.locator(".lk-bar").count())) await openBar(h1);
-  await f.locator(".lk-bar [role=radio]", { hasText: "Ce texte" }).click();
+  await f.locator(".lk-bar [role=radio]", { hasText: /^Ce(tte)? / }).click();
   const wheel = f.locator(".lk-bar .tc-wheel");
   ok("H4 dernière pastille : roue des couleurs (dégradé conique)", (await wheel.count()) === 1 && /conic-gradient/.test((await wheel.getAttribute("style")) ?? "") && (await f.locator(".lk-bar .tc-swatches > :last-child.tc-wheel").count()) === 1);
   await wheel.click();

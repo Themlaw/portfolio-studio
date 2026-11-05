@@ -34,18 +34,26 @@ import {
   cropFromWindow,
   cropWindow,
   googleOf,
+  HZ_ZONE_LABELS,
   needsCrop,
+  PROJECT_CAPTION_KEYS,
+  projectStylesCss,
+  pscopeId,
   readLook,
   resolveTextStyle,
   ROLE_LABELS,
+  SITE_TEXT_KEY_RE,
+  siteTextZone,
   SPACE_LABELS,
   textStyleDecls,
   TEXT_PATH_RE,
   siteStylesCss,
   SiteStylesSchema,
   type Crop,
+  type HzZone,
   type Look,
   type PaletteColor,
+  type ProjectTextKey,
   type Role,
   type SiteStyles,
   spaceLabel,
@@ -306,7 +314,7 @@ function SpacingHandle({ uid, side, look, announce }: { uid: string; side: "top"
 
 /* ---- Textes ------------------------------------------------------------------- */
 
-const TEXT_SEL = "[data-inline], [data-site-inline], [data-slot-inline], [data-project-inline], [data-look-key]";
+const TEXT_SEL = "[data-inline], [data-site-inline], [data-slot-inline], [data-project-inline], [data-look-key], [data-site-text]";
 
 /** Rôle global d'un texte (styles du site). */
 function roleOf(el: HTMLElement): Role {
@@ -387,6 +395,16 @@ type TextTarget = {
   local: { uid: string; key: string } | null;
   /** Légende d'une planche de projet (lot 98) : champ (titre, légende, date) et projet, pour la portée « Les légendes de ce projet ». */
   cap: { field: CaptionStyleField; board: number } | null;
+  /**
+   * Portée « Tout le projet » (lot 120) : type du texte (`look.projectText` du bloc), bloc « planche de projet » qui porte le réglage et planche.
+   * Présente pour tout texte d'une planche de projet qui a un type (titres, étiquettes, textes, champs d'une légende) ; absente ailleurs.
+   */
+  proj: { key: ProjectTextKey; block: string; board: number } | null;
+  /**
+   * Texte de l'en-tête ou du pied de page (lot 124, `data-site-text`) : sa clé (réglage propre, `styles.texts`) et sa zone (« Tout le menu » /
+   * « Tout le pied de page », `styles.zones`) ; le nom du site n'a pas de zone. Absent ailleurs.
+   */
+  hz: { key: string; zone: HzZone | null } | null;
   /** L'élément lui-même au moment du choix (le DOM est re-rendu : `elementOf` le retrouve par `path` s'il a été remplacé). */
   el?: HTMLElement;
 };
@@ -420,6 +438,19 @@ const BOARD_CELL_SEL = ".block-grid-cell[data-edit-cell]";
  */
 function stableSelector(el: HTMLElement): string | null {
   const q = (name: string, v: string | undefined) => (v === undefined ? "" : `[${name}="${CSS.escape(v)}"]`);
+  // En-tête et pied de page (lot 124) : le repère du texte, ou du lien qui le porte ; le menu en ligne passe avant la liste du téléphone (mêmes repères).
+  const hzOwner = el.closest<HTMLElement>("[data-site-text]");
+  if (hzOwner?.dataset.siteText !== undefined && (el === hzOwner || el.dataset.siteInline !== undefined)) {
+    const base = q("data-site-text", hzOwner.dataset.siteText) + (el === hzOwner ? "" : ` ${q("data-site-inline", el.dataset.siteInline)}`);
+    for (const sel of [base, `.site-header nav:not(#nav-mobile) ${base}`]) {
+      try {
+        const all = document.querySelectorAll(sel);
+        if (all.length === 1 && all[0] === el) return sel;
+      } catch {
+        /* sélecteur refusé : on passe au suivant */
+      }
+    }
+  }
   const own = q("data-inline", el.dataset.inline) + q("data-look-key", el.dataset.lookKey) + q("data-site-inline", el.dataset.siteInline) + q("data-slot-inline", el.dataset.slotInline) + q("data-project-inline", el.dataset.projectInline);
   if (!own) return null;
   const cap = q("data-cap", el.dataset.cap);
@@ -456,11 +487,22 @@ function targetOf(el: HTMLElement): TextTarget {
   if (cell?.dataset.editCell && block && block.contains(cell)) local = { uid: cell.dataset.editCell, key: inline!.replace(/^children\.\d+\.props\./, "") };
   else if (uid && inline && el.closest(OWNER_SEL) === block) local = { uid, key: inline };
   else if (uid && (site === "name" || site === "role")) local = { uid, key: `site.${site}` };
+  // Profil : ses textes communs au site (e-mail, réseaux…) portent leur style propre dans le bloc (`site.<champ>`, rendu par le bloc).
+  else if (uid && site && block?.dataset.editType === "profile") local = { uid, key: `site.${site}` };
   // Une clé que le schéma des réglages refuserait serait perdue en silence (le message est écarté) : pas de « Ce texte » pour elle.
   if (local && !local.key.startsWith("site.") && !TEXT_PATH_RE.test(local.key)) local = null;
   const board = Number(el.closest<HTMLElement>("[data-edit-board]")?.dataset.editBoard);
   const field = el.dataset.cap === "title" || el.dataset.cap === "legend" || el.dataset.cap === "date" ? el.dataset.cap : null;
-  return { path: stableSelector(el) ?? pathOf(el), role: roleOf(el), local, cap: board && field ? { field, board } : null, el };
+  const role = roleOf(el);
+  // Portée « Tout le projet » (lot 120) : le type du texte, dans la planche de projet qui le montre ; le bloc est celui de la page qui porte cette planche.
+  const boardEl = el.closest<HTMLElement>("[data-edit-board]");
+  const boardBlock = boardEl?.closest<HTMLElement>("[data-edit-block]");
+  const pkey: ProjectTextKey | null = field ? PROJECT_CAPTION_KEYS[field] : role === "h1" || role === "h2" ? "h2" : role === "eyebrow" ? "eyebrow" : role === "body" ? "body" : null;
+  const proj = boardEl && boardBlock?.dataset.editBlock && boardBlock.dataset.editType === "project-board" && pkey && board ? { key: pkey, block: boardBlock.dataset.editBlock, board } : null;
+  // En-tête et pied de page (lot 124) : la clé du texte et sa zone.
+  const hzKey = el.closest<HTMLElement>("[data-site-text]")?.dataset.siteText;
+  const hz = hzKey && SITE_TEXT_KEY_RE.test(hzKey) && !found ? { key: hzKey, zone: siteTextZone(hzKey) } : null;
+  return { path: stableSelector(el) ?? pathOf(el), role, local, cap: board && field ? { field, board } : null, proj, hz, el };
 }
 
 /** Styles du site tels que le serveur les a rendus (feuille `#site-styles`). */
@@ -476,19 +518,32 @@ function serverStyles(): SiteStyles {
 function siteStyles(): SiteStyles {
   const base = serverStyles();
   const pending = overlayList<{ role: Role; style: TextStyle | undefined }>("role:");
-  if (!pending.length) return base;
+  // Lot 124 : réglages en attente d'un texte de l'en-tête ou du pied (`stext:`) et d'une zone (`szone:`), posés par-dessus ceux du serveur.
+  const pendingTexts = overlayList<{ key: string; style: TextStyle | undefined }>("stext:");
+  const pendingZones = overlayList<{ zone: HzZone; style: TextStyle | undefined }>("szone:");
+  if (!pending.length && !pendingTexts.length && !pendingZones.length) return base;
   const roles = { ...(base.roles ?? {}) };
   for (const p of pending) {
     if (p.style) roles[p.role] = p.style;
     else delete roles[p.role];
   }
-  return { ...base, roles };
+  const texts = { ...(base.texts ?? {}) };
+  for (const p of pendingTexts) {
+    if (p.style) texts[p.key] = p.style;
+    else delete texts[p.key];
+  }
+  const zones = { ...(base.zones ?? {}) };
+  for (const p of pendingZones) {
+    if (p.style) zones[p.zone] = p.style;
+    else delete zones[p.zone];
+  }
+  return { ...base, roles, texts, zones };
 }
 
 /** Feuille d'aperçu des styles de rôle en attente (retirée quand il n'y en a plus). */
 function renderRolePreview() {
   let el = document.getElementById("pe-style-preview");
-  if (!overlayList("role:").length) {
+  if (!overlayList("role:").length && !overlayList("stext:").length && !overlayList("szone:").length) {
     el?.remove();
     return;
   }
@@ -506,6 +561,16 @@ function previewRole(role: Role, style: TextStyle | undefined, seq: number) {
   setOverlay(`role:${role}`, seq, { data: { role, style }, apply: renderRolePreview, clear: renderRolePreview });
 }
 
+/** Aperçu immédiat du style d'UN texte de l'en-tête ou du pied de page (lot 124), gardé jusqu'à ce que la feuille du serveur le porte. */
+function previewSiteText(key: string, style: TextStyle | undefined, seq: number) {
+  setOverlay(`stext:${key}`, seq, { data: { key, style }, apply: renderRolePreview, clear: renderRolePreview });
+}
+
+/** Aperçu immédiat du style de toute une zone (« Tout le menu », « Tout le pied de page »), même mécanique. */
+function previewSiteZone(zone: HzZone, style: TextStyle | undefined, seq: number) {
+  setOverlay(`szone:${zone}`, seq, { data: { zone, style }, apply: renderRolePreview, clear: renderRolePreview });
+}
+
 /** Éléments d'un texte de bloc visé par un style local (`look.text`). */
 function localTexts(local: { uid: string; key: string }): HTMLElement[] {
   const block = wrapperOf(local.uid);
@@ -518,11 +583,38 @@ function localTexts(local: { uid: string; key: string }): HTMLElement[] {
   return [...block.querySelectorAll<HTMLElement>(sel)].filter((e) => (cell ? block.contains(e) : e.closest(OWNER_SEL) === block));
 }
 
+/**
+ * Style en ligne posé par un aperçu, avec ce qu'il y avait avant (lot 115) : l'aperçu écrit l'attribut `style` d'un nœud que React gère, sans que
+ * React le sache. Si l'écriture est refusée (page modifiée ailleurs, bloc inconnu…), la page rendue ne portera jamais cette couleur : sans retour
+ * à l'origine l'aperçu restait affiché (couleur différente de celle d'après rechargement).
+ */
+const previewedStyle = new WeakMap<HTMLElement, { original: string | null; capLocal: boolean; wrote: string }>();
+
 /** Style en ligne d'un aperçu : celui du texte, en gardant le masquage d'un texte en cours de saisie sur la planche (l'original reste caché derrière le champ). */
 function setPreviewStyle(el: HTMLElement, css: string) {
   const hidden = el.style.visibility === "hidden";
   const next = hidden ? `${css};visibility:hidden` : css;
-  if (el.getAttribute("style") !== next) el.setAttribute("style", next);
+  const now = el.getAttribute("style");
+  if (now === next) return;
+  const mark = previewedStyle.get(el);
+  // L'origine n'est retenue qu'à la première pose (ou si React a réécrit le style depuis notre dernière écriture : c'est lui la nouvelle origine).
+  if (!mark || now !== mark.wrote) previewedStyle.set(el, { original: now, capLocal: el.hasAttribute("data-cap-local"), wrote: next });
+  else mark.wrote = next;
+  el.setAttribute("style", next);
+}
+
+/** Rétablit le style d'avant l'aperçu, sauf si React a réécrit le nœud depuis : la page rendue fait alors foi. */
+function revertPreviewStyle(el: HTMLElement) {
+  const mark = previewedStyle.get(el);
+  previewedStyle.delete(el);
+  if (!mark) return;
+  if (el.hasAttribute("data-cap")) {
+    if (mark.capLocal) el.setAttribute("data-cap-local", "");
+    else el.removeAttribute("data-cap-local");
+  }
+  if (el.getAttribute("style") !== mark.wrote) return;
+  if (mark.original === null) el.removeAttribute("style");
+  else el.setAttribute("style", mark.original);
 }
 
 /** Aperçu immédiat du style de CE texte, gardé jusqu'à ce que le serveur le rende. */
@@ -539,6 +631,9 @@ function previewTextStyle(local: { uid: string; key: string }, style: TextStyle 
         }
       }
     },
+    revert: () => {
+      for (const el of localTexts(local)) revertPreviewStyle(el);
+    },
   });
 }
 
@@ -553,20 +648,63 @@ function captionStyles(board: number): ProjectCaptionStyle {
   }
 }
 
-/** Aperçu immédiat du style des légendes d'un projet : toutes ses légendes qui n'ont pas de style propre, jusqu'à ce que le serveur le rende. */
-function previewCaptions(board: number, style: ProjectCaptionStyle, seq: number) {
+/**
+ * Aperçu immédiat du style des légendes d'un projet : toutes ses légendes qui n'ont pas de style propre, jusqu'à ce que le serveur le rende.
+ * `style` : ce qui reste rangé avec la suite du projet (ancien emplacement, lot 98) ; `shown` : ce que les légendes doivent montrer (lot 120 : le style
+ * de la portée « Tout le projet » du bloc par-dessus lui).
+ */
+function previewCaptions(board: number, style: ProjectCaptionStyle, seq: number, shown: ProjectCaptionStyle = style) {
   setOverlay(`capstyle:${board}`, seq, {
     data: { style },
     apply: () => {
       for (const f of ["title", "legend", "date"] as const) {
-        const css = textStyleDecls(style[f] as TextStyle | undefined, canvasPalette()).map(([k, v]) => `${k}:${v}`).join(";");
+        const css = textStyleDecls(shown[f] as TextStyle | undefined, canvasPalette()).map(([k, v]) => `${k}:${v}`).join(";");
         for (const el of document.querySelectorAll<HTMLElement>(`[data-edit-board="${board}"] [data-cap="${f}"]:not([data-cap-local])`)) setPreviewStyle(el, css);
       }
+    },
+    revert: () => {
+      for (const el of document.querySelectorAll<HTMLElement>(`[data-edit-board="${board}"] [data-cap]`)) revertPreviewStyle(el);
     },
   });
 }
 
-type Scope = "local" | "project" | "role";
+/** Feuille d'aperçu de la portée « Tout le projet » d'une planche (titres, étiquettes, textes) : retirée quand elle n'a plus de règle. */
+function renderProjectPreview(block: string, texts: Look["projectText"]) {
+  const id = `pe-ptext-${pscopeId(block)}`;
+  const css = projectStylesCss(block, texts, canvasPalette());
+  let el = document.getElementById(id);
+  if (!css) {
+    el?.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement("style");
+    el.id = id;
+    document.body.appendChild(el);
+  }
+  if (el.textContent !== css) el.textContent = css;
+}
+
+/** Aperçu immédiat du style « Tout le projet » d'un type de texte, gardé jusqu'à ce que le serveur le rende. */
+function previewProjectText(block: string, texts: Look["projectText"], seq: number) {
+  setOverlay(`ptext:${block}`, seq, { data: texts, apply: () => renderProjectPreview(block, texts), clear: () => document.getElementById(`pe-ptext-${pscopeId(block)}`)?.remove() });
+}
+
+type Scope = "local" | "project" | "zone" | "role";
+
+/** Les mots de chaque portée selon le type du texte : « Cette étiquette », « Toutes les étiquettes du projet »… (lots 119 et 120). */
+function scopeWords(target: TextTarget, role: Role): { one: string; project: string; hint: string } {
+  const field = target.cap?.field;
+  // En-tête et pied de page (lot 124) : un lien, ou un texte (étiquette du pied : « Cette étiquette »).
+  if (target.hz && /^(n:|f:n:|f:s:)/.test(target.hz.key)) return { one: "Ce lien", project: "", hint: "" };
+  if (field === "title") return { one: "Ce titre", project: "Tous les titres de légende du projet", hint: "Les titres de légende de cette planche de projet" };
+  if (field === "legend") return { one: "Cette légende", project: "Toutes les légendes du projet", hint: "Les légendes de cette planche de projet" };
+  if (field === "date") return { one: "Cette date", project: "Toutes les dates du projet", hint: "Les dates de cette planche de projet" };
+  if (role === "h2") return { one: "Ce titre", project: "Tous les titres du projet", hint: "Les titres de cette planche de projet" };
+  if (role === "eyebrow") return { one: "Cette étiquette", project: "Toutes les étiquettes du projet", hint: "Les étiquettes de cette planche de projet" };
+  if (role === "caption") return { one: "Cette légende", project: "Toutes les légendes du projet", hint: "Les légendes de cette planche de projet" };
+  return { one: "Ce texte", project: "Tous les textes du projet", hint: "Les textes de cette planche de projet" };
+}
 
 function TextBar({
   target,
@@ -581,7 +719,7 @@ function TextBar({
   onClose: () => void;
   tick: number;
 }) {
-  const [scope, setScope] = useState<Scope>(target.local ? "local" : target.cap ? "project" : "role");
+  const [scope, setScope] = useState<Scope>(target.local || target.hz ? "local" : target.proj ? "project" : "role");
   // Redessin à chaque réglage : l'aperçu ne change que des attributs (la page n'est pas observée pour cela). Sans lui, la barre garde
   // l'ancienne valeur jusqu'au prochain redessin de la page, et un second réglage fait aussitôt après écraserait le premier.
   const [, redraw] = useState(0);
@@ -608,9 +746,11 @@ function TextBar({
   const oldBackdrop = target.local?.key === "site.role" ? look.roleBackdrop : undefined;
   const legacyBackdrop = oldBackdrop && oldBackdrop !== "highlight" ? oldBackdrop : undefined;
   const localStyle: TextStyle = target.local ? { ...(legacyBackdrop ? { backdrop: legacyBackdrop } : {}), ...(look.text?.[target.local.key] ?? {}) } : {};
-  // Style des légendes du projet (lot 98) pour le champ de ce texte.
-  const projectAll = target.cap ? captionStyles(target.cap.board) : {};
-  const projectStyle: TextStyle = target.cap ? ((projectAll[target.cap.field] as TextStyle | undefined) ?? {}) : {};
+  // Portée « Tout le projet » (lots 98 et 120) : le style du type de ce texte pour la planche de projet qui le montre. Légendes : celui du bloc
+  // (`look.projectText`), à défaut l'ancien style rangé avec la suite du projet (lot 98, relu tel quel) ; autres types : celui du bloc.
+  const projLook: Look = target.proj ? lookOf(target.proj.block) : {};
+  const legacyAll: ProjectCaptionStyle = target.cap ? captionStyles(target.cap.board) : {};
+  const projectStyle: TextStyle = target.proj ? (projLook.projectText?.[target.proj.key] ?? (target.cap ? (legacyAll[target.cap.field] as TextStyle | undefined) : undefined) ?? {}) : {};
   // « Titres » : le titre de page et les titres de section partagent UN réglage (lot 68) ; le titre de page n'a son propre style que s'il en a posé un.
   const role: Role = target.role === "h1" ? "h2" : target.role;
   const roleStyle: TextStyle = (() => {
@@ -620,8 +760,13 @@ function TextBar({
     const out = { ...(roles.h2 ?? {}), ...(roles.h1?.size ? { size: roles.h1.size } : { size: undefined }), ...(roles.h1?.scale ? { scale: roles.h1.scale } : { scale: undefined }) };
     return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined)) as TextStyle;
   })();
-  const level: Scope = scope === "local" && !target.local ? (target.cap ? "project" : "role") : scope === "project" && !target.cap ? "role" : scope;
-  const value = level === "local" ? localStyle : level === "project" ? projectStyle : roleStyle;
+  // En-tête et pied de page (lot 124) : « Ce lien / ce texte » = `styles.texts[clé]`, « Tout le menu / pied de page » = `styles.zones[zone]` (stockés dans le style du site).
+  const hzZone = target.hz?.zone ?? null;
+  const hzStyle: TextStyle = target.hz && !target.local ? (siteStyles().texts?.[target.hz.key] ?? {}) : {};
+  const zoneStyle: TextStyle = hzZone ? (siteStyles().zones?.[hzZone] ?? {}) : {};
+  const hasOne = Boolean(target.local || target.hz);
+  const level: Scope = scope === "local" && !hasOne ? (target.proj ? "project" : "role") : scope === "project" && !target.proj ? "role" : scope === "zone" && !hzZone ? "role" : scope;
+  const value = level === "local" ? (target.local ? localStyle : hzStyle) : level === "project" ? projectStyle : level === "zone" ? zoneStyle : roleStyle;
   const change = (input: TextStyle | undefined) => {
     let next = input;
     // Police Google choisie sans graisse : celle du texte affiché (le serveur
@@ -636,13 +781,36 @@ function TextBar({
       // Aperçu immédiat sur ce texte : son style propre par-dessus celui du projet (« Ce texte » passe devant), ou celui du projet s'il est retiré.
       const shown = target.cap && Object.keys(projectStyle).length ? resolveTextStyle(projectStyle, next) : next;
       previewTextStyle(target.local, shown, seq, Boolean(next));
-    } else if (level === "project" && target.cap) {
-      const style: ProjectCaptionStyle = { ...projectAll };
+    } else if (level === "local" && target.hz) {
       const clean = next ? (Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined)) as TextStyle) : undefined;
-      if (clean && Object.keys(clean).length) style[target.cap.field] = clean;
-      else delete style[target.cap.field];
-      const seq = postIntent({ kind: "board-captions", board: target.cap.board, style: Object.keys(style).length ? (style as never) : null });
-      previewCaptions(target.cap.board, style, seq);
+      const style = clean && Object.keys(clean).length ? clean : undefined;
+      const seq = postIntent({ kind: "site-text-style", key: target.hz.key, style: style ?? null });
+      previewSiteText(target.hz.key, style, seq);
+    } else if (level === "zone" && hzZone) {
+      const clean = next ? (Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined)) as TextStyle) : undefined;
+      const style = clean && Object.keys(clean).length ? clean : undefined;
+      const seq = postIntent({ kind: "site-zone-style", zone: hzZone, style: style ?? null });
+      previewSiteZone(hzZone, style, seq);
+    } else if (level === "project" && target.proj) {
+      const clean = next ? (Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined)) as TextStyle) : undefined;
+      const texts = { ...(projLook.projectText ?? {}) };
+      if (clean && Object.keys(clean).length) texts[target.proj.key] = clean;
+      else delete texts[target.proj.key];
+      // Réglage rangé dans le bloc « planche de projet » de CETTE page (jamais dans le projet) : même envoi que « Ce texte ».
+      const seq = sendLook(target.proj.block, { ...projLook, projectText: texts });
+      if (target.cap) {
+        // Légendes : l'ancien style du projet (rangé avec sa suite) ne pèse plus pour ce champ, sinon « Revenir » le ferait réapparaître.
+        const legacy: ProjectCaptionStyle = { ...legacyAll };
+        let seqCap = seq;
+        const hadLegacy = Boolean(legacy[target.cap.field]);
+        if (hadLegacy) {
+          delete legacy[target.cap.field];
+          seqCap = postIntent({ kind: "board-captions", board: target.cap.board, style: Object.keys(legacy).length ? (legacy as never) : null });
+        }
+        const shown: ProjectCaptionStyle = { ...legacy };
+        for (const f of ["title", "legend", "date"] as const) if (texts[PROJECT_CAPTION_KEYS[f]]) shown[f] = texts[PROJECT_CAPTION_KEYS[f]] as Record<string, unknown>;
+        previewCaptions(target.cap.board, legacy, seqCap, shown);
+      } else previewProjectText(target.proj.block, texts, seq);
     } else {
       // « Titres » (lot 68) : police, graisse, couleur… sont UN réglage pour le titre de page et les titres de section ; seule la TAILLE
       // reste propre à chacun (le titre de page est plus grand). Depuis un titre de page, la taille va donc à « Titre de page ».
@@ -669,24 +837,36 @@ function TextBar({
       }
     }
   };
-  const board = Boolean(target.cap);
+  const board = Boolean(target.proj);
+  const words = scopeWords(target, role);
+  const has = { local: Object.keys(target.local ? localStyle : hzStyle).length > 0, project: Object.keys(projectStyle).length > 0, zone: Object.keys(zoneStyle).length > 0, role: Object.keys(roleStyle).length > 0 };
+  const dot = (on: boolean) => (on ? <span className="lk-dot" aria-hidden="true" /> : null);
   // Fenêtre ancrée au bouton « Aa » (lot 65) : au-dessus du texte si la place y est, jamais sur la barre d'outils du bloc ni loin du bouton.
   return (
     <Popover anchor=".lk-aa" dataAttrs={{ "data-text-target": target.local?.key ?? target.role }} avoid={target.path} obstacles=".pe-tools" prefer="above" className="lk-bar" role="toolbar" label="Style du texte" onClose={onClose} ignoreDismiss={(t) => Boolean(elementOf(target)?.contains(t)) || (t instanceof Element && Boolean(t.closest(".pe-text-editor")))} onPointerDown={(e) => e.stopPropagation()}>
       <div className="lk-bar-head">
         <span className="lk-seg" role="radiogroup" aria-label="Appliquer à">
-          {target.local && (
-            <button type="button" role="radio" aria-checked={level === "local"} onClick={() => setScope("local")}>
-              Ce texte
+          {hasOne && (
+            <button type="button" role="radio" aria-checked={level === "local"} data-scope="local" data-has-value={has.local ? "" : undefined} onClick={() => setScope("local")} title={target.hz ? `Réglage de ce texte seul (passe devant ${hzZone ? (hzZone === "menu" ? "le menu" : "le pied de page") : "le site"} et le site)` : "Réglage de cet élément seul (passe devant le projet et le site)"}>
+              {words.one}
+              {dot(has.local)}
             </button>
           )}
-          {target.cap && (
-            <button type="button" role="radio" aria-checked={level === "project"} onClick={() => setScope("project")} title="Toutes les légendes de ce champ, sous les images de ce projet : partout où le projet est montré">
-              Les légendes de ce projet
+          {target.proj && (
+            <button type="button" role="radio" aria-checked={level === "project"} data-scope="project" data-has-value={has.project ? "" : undefined} onClick={() => setScope("project")} title={`${words.hint} : tous les éléments de ce type dans cette planche, sur cette page (passe devant le site)`}>
+              {words.project}
+              {dot(has.project)}
             </button>
           )}
-          <button type="button" role="radio" aria-checked={level === "role"} onClick={() => setScope("role")} title="Styles du site : toutes les pages (publié avec la page)">
-            {board ? "Tout le site" : role === "h2" ? "Tous les titres" : `Tous les « ${ROLE_LABELS[role]} »`}
+          {hzZone && (
+            <button type="button" role="radio" aria-checked={level === "zone"} data-scope="zone" data-has-value={has.zone ? "" : undefined} onClick={() => setScope("zone")} title={hzZone === "menu" ? "Tous les liens du menu de l'en-tête (passe devant le site)" : "Tous les textes du pied de page (passe devant le site)"}>
+              {HZ_ZONE_LABELS[hzZone]}
+              {dot(has.zone)}
+            </button>
+          )}
+          <button type="button" role="radio" aria-checked={level === "role"} data-scope="role" data-has-value={has.role ? "" : undefined} onClick={() => setScope("role")} title={target.hz ? `Styles du site : toutes les pages (${role === "body" ? "le pied de page n'y reprend que la police du texte" : "publié avec la page"})` : "Styles du site : toutes les pages (publié avec la page)"}>
+            {board || target.hz ? "Tout le site" : role === "h2" ? "Tous les titres" : `Tous les « ${ROLE_LABELS[role]} »`}
+            {dot(has.role)}
           </button>
         </span>
         <button type="button" className="lk-close" aria-label="Fermer la barre" onClick={onClose}>
@@ -703,10 +883,10 @@ function TextBar({
         swatch={swatch}
         themeNames={themeNames}
         compact
-        resetLabel={level === "local" ? (board ? "Revenir au style du projet" : "Revenir au style global") : level === "project" ? "Revenir au style du site" : "Revenir au thème"}
+        resetLabel={level === "local" ? (board ? "Revenir au style du projet" : target.hz ? (hzZone === "menu" ? "Revenir au style du menu" : hzZone === "footer" ? "Revenir au style du pied de page" : "Revenir au style du site") : "Revenir au style global") : level === "project" || level === "zone" ? "Revenir au style du site" : "Revenir au thème"}
         palette={canvasPalette()}
         backdropBlocked={BACKDROP_BLOCKED[role]}
-        inheritedColor={level === "local" ? (projectStyle.color ?? roleStyle.color) : level === "project" ? roleStyle.color : undefined}
+        inheritedColor={level === "local" ? (target.hz ? (zoneStyle.color ?? roleStyle.color) : (projectStyle.color ?? roleStyle.color)) : level === "project" || level === "zone" ? roleStyle.color : undefined}
       />
     </Popover>
   );
@@ -1179,7 +1359,8 @@ export default function LookLayer({
       clearTimeout(hideTimer.current);
       // Logo image (médiathèque ou signature dessinée du kit, lot 84) : ce n'est pas du texte, pas de « Aa ». Sa taille, sa place et sa position
       // se règlent par les poignées de l'en-tête et le panneau « Logo ». Le nom écrit (logo texte) garde son « Aa ».
-      const logo = !t && e.target instanceof Element ? e.target.closest<HTMLElement>(".site-header .site-signature, .site-header .site-logo-img") : null;
+      // Lot 124 : le lien du nom porte maintenant un repère de texte (`data-site-text`) : la signature et l'image, qu'il contient, ne sont toujours pas du texte.
+      const logo = e.target instanceof Element ? e.target.closest<HTMLElement>(".site-header .site-signature, .site-header .site-logo-img") : null;
       if (logo) setHoverText(null);
       else if (t) setHoverText((h) => (h?.el === t && !h.anchor ? h : { el: t, rect: docRect(t) }));
       else hideTimer.current = setTimeout(() => setHoverText(null), 500);

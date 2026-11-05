@@ -7,10 +7,12 @@ import dynamic from "next/dynamic";
 import RailScrollbar from "@/components/RailScrollbar";
 import { stepRail } from "@/components/rail-step";
 import type { LocalizedArtwork } from "@/lib/gallery";
-import type { MediaLookData } from "@/lib/look";
+import { tintVars, type MediaLookData, type StrokeTint } from "@/lib/look";
 import { RADIUS_VALUES } from "@/themes/css";
 
 import LoopFrame from "./LoopVideo";
+import VideoBadge from "./VideoBadge";
+import { useEditCanvas } from "./video-playback";
 import MediaCaption, { type CaptionField } from "./MediaCaption";
 import MediaFrame from "./MediaFrame";
 import Picture from "./Picture";
@@ -48,7 +50,10 @@ export default function StripRail({
   capBase,
   capOwn,
   eager = 0,
+  stroke,
 }: {
+  /** Lot 110 : couleur posée par-dessus la barre de défilement de CETTE rangée (sinon celle du site, sinon le dessin du thème). */
+  stroke?: StrokeTint;
   /** Style des légendes du PROJET, par champ (lot 98) : sous le style propre d'une légende, au-dessus de celui du site. */
   capBase?: Partial<Record<CaptionField, CSSProperties>>;
   /** Style propre de chaque légende (« Ce texte »), par slug de place ; déjà fondu avec celui du projet. */
@@ -96,6 +101,8 @@ export default function StripRail({
     return { "data-pano": mode === "scroll" ? "scroll" : "fit", style: { "--ir": (a.width / Math.max(1, a.height)).toFixed(4) } as CSSProperties };
   };
   // Les places vides n'existent que sur la toile : ni compteur, ni visionneuse.
+  // Aperçu de l'éditeur = comme un visiteur : seule la toile en mode édition garde le clic pour choisir (lot 116).
+  const canvas = useEditCanvas(edit);
   const shownArtworks = edit ? artworks.filter((a) => !a.edit?.empty) : artworks;
   // Les vidéos ne passent pas par la visionneuse d'images : une boucle se met en pause sur place, un lecteur s'ouvre dans la visionneuse vidéo.
   const stills = shownArtworks.filter((a) => !a.video);
@@ -340,7 +347,7 @@ export default function StripRail({
             onClick={() => {
               // Sur la toile la vidéo ne s'ouvre pas en grand : le clic sert à choisir la place.
               if (!artwork.video) setOpenIndex(index);
-              else if (!edit) setViewing(artwork);
+              else if (!canvas) setViewing(artwork);
             }}
             aria-label={openLabel}
             aria-haspopup={artwork.video ? "dialog" : undefined}
@@ -356,11 +363,7 @@ export default function StripRail({
                 {artwork.video ? (
                   <>
                     <Picture src={artwork.image} sources={artwork.sources} alt={artwork.alt} width={artwork.width} height={artwork.height} sizes={stripSizes(artwork.width, artwork.height)} />
-                    <span className="strip-duration absolute bottom-2 right-2 rounded-sm bg-scrim/75 px-2 py-0.5 text-xs text-on-scrim">
-                      <span aria-hidden="true">▶ </span>
-                      {artwork.video.durationLabel}
-                      <span className="sr-only"> — {tg("playVideo")}</span>
-                    </span>
+                    <VideoBadge kind="player" duration={artwork.video.durationLabel} label={tg("playVideo")} className="strip-duration" />
                   </>
                 ) : (
                   // Image : la même balise qu'avant (parité visuelle).
@@ -412,7 +415,7 @@ export default function StripRail({
       </div>
 
       {overflows && (
-        <div className="shell mt-[clamp(0.75rem,1.5vw,1.25rem)]">
+        <div className="shell mt-[clamp(0.75rem,1.5vw,1.25rem)]" {...(stroke ? { "data-stroke-tint": "", style: tintVars(stroke) as CSSProperties } : {})}>
           <RailScrollbar
             railRef={railRef}
             railId={railId}

@@ -313,6 +313,12 @@ if (run("L")) {
   const initial = await brandRect(f);
   ok("L0 sans réglage : pas de feuille du logo ni de palette dans la page publique", !(await (await fetch(`${BASE}/fr`)).text()).match(/id="site-(logo|palette)"/));
 
+  // Lot 106 : le logo tient toujours dans la barre (hauteur plafonnée à celle de la barre, voir e2e-logo106) ; les tailles jusqu'à 160 px que cette
+  // suite mesure ne s'atteignent que si la barre s'adapte au logo : « La barre s'agrandit » (le curseur, l'aperçu, le défilement et la
+  // publication sont mesurés tels quels, sans plafond).
+  await page.getByRole("radio", { name: "La barre s'agrandit" }).check();
+  await settled();
+
   /* L1. Curseur */
   const slider = page.locator("#lp-logo-size");
   ok("L1a bornes du curseur : 24 à 160 px", (await slider.getAttribute("min")) === "24" && (await slider.getAttribute("max")) === "160");
@@ -414,8 +420,8 @@ if (run("L")) {
   ok("L4a Fixe : 120 px en haut et après défilement", near(m.top.h, 120) && near(m.scrolled.h, 120), JSON.stringify([m.top.h, m.scrolled.h]));
   ok("L4b Fixe : la page ne bouge pas (contenu au même endroit)", near(m.top.mainDocTop, m.scrolled.mainDocTop));
   // Lot 68 : la barre garde sa hauteur quelle que soit la taille du logo ; un logo plus grand déborde dessous (ancien mode « Déborde »).
-  ok("L4m Fixe : le logo (120 px) dépasse sous la barre du haut (≥ 40 px), la barre ne grandit pas", m.top.bottom - m.top.barBottom >= 40 && m.top.barH < m.top.h && near(m.top.barH, initial.barH, 1), JSON.stringify([m.top.bottom, m.top.barBottom, m.top.barH, initial.barH]));
-  ok("L4o Fixe : le logo dépasse encore en défilant, en-tête collé, barre inchangée", m.scrolled.bottom - m.scrolled.barBottom >= 40 && near(m.scrolled.headTop, 0, 1) && near(m.scrolled.barH, m.top.barH, 1));
+  ok("L4m Fixe (lot 106, barre agrandie) : le logo (120 px) est ENTIER dans la barre, qui grandit avec lui ; rien ne dépasse sous la barre", m.top.bottom <= m.top.barBottom + 0.5 && m.top.barH >= m.top.h && m.top.barH > initial.barH + 40, JSON.stringify([m.top.bottom, m.top.barBottom, m.top.barH, initial.barH]));
+  ok("L4o Fixe (lot 106) : toujours entier dans la barre en défilant, en-tête collé, barre inchangée", m.scrolled.bottom <= m.scrolled.barBottom + 0.5 && near(m.scrolled.headTop, 0, 1) && near(m.scrolled.barH, m.top.barH, 1));
   await exitPreview();
 
   await mode("Grand en haut, réduit au défilement");
@@ -423,7 +429,7 @@ if (run("L")) {
   ok("L4c Réduit : 120 px en haut", near(m.top.h, 120), String(m.top.h));
   ok("L4d Réduit : 72 px (60 %) après défilement", near(m.scrolled.h, 72, 2), String(m.scrolled.h));
   ok("L4e Réduit : retour à 120 px en haut de page", near(m.back.h, 120, 2), String(m.back.h));
-  ok("L4n Réduit : la barre garde sa hauteur en haut comme défilé", near(m.top.barH, m.scrolled.barH, 1) && near(m.top.barH, initial.barH, 1), JSON.stringify([m.top.barH, m.scrolled.barH, initial.barH]));
+  ok("L4n Réduit : la barre garde sa hauteur en haut comme défilé", near(m.top.barH, m.scrolled.barH, 1) && m.top.barH >= m.top.h, JSON.stringify([m.top.barH, m.scrolled.barH, initial.barH]));
   ok("L4f Réduit : aucun décalage de mise en page (contenu au même endroit)", near(m.top.mainDocTop, m.scrolled.mainDocTop, 1) && near(m.top.mainDocTop, m.back.mainDocTop, 1), JSON.stringify([m.top.mainDocTop, m.scrolled.mainDocTop, m.back.mainDocTop]));
   ok("L4g Réduit : CLS ≈ 0", m.cls < 0.02, String(m.cls));
   ok("L4h Réduit : l'en-tête reste collé en haut", near(m.scrolled.headTop, 0, 1), String(m.scrolled.headTop));
@@ -447,7 +453,7 @@ if (run("L")) {
   /* L5. Publication : rendu public (réduit) et mobile 390 px */
   await mode("Grand en haut, réduit au défilement");
   ok("L5a publication", await publish());
-  ok("L5b réglages publiés : logo", JSON.stringify(setting("styles")?.logo) === JSON.stringify({ size: 120, mode: "shrink" }), JSON.stringify(setting("styles")));
+  ok("L5b réglages publiés : logo", JSON.stringify(setting("styles")?.logo) === JSON.stringify({ size: 120, mode: "shrink", align: "grow" }), JSON.stringify(setting("styles")));
   const pubCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const pg = await pubCtx.newPage();
   await pg.addInitScript(() => {
@@ -489,6 +495,7 @@ if (run("L")) {
   f = await openEditor(2);
   await sleep(1500);
   await page.getByRole("tab", { name: "Réglages" }).click();
+  await page.getByRole("radio", { name: "Centré dans la barre" }).check(); // lot 106 : retour au centrage par défaut (donnée non écrite)
   await page.getByRole("button", { name: "Revenir à la taille du thème" }).click();
   await page.getByRole("radio", { name: "Fixe" }).check();
   await settled();

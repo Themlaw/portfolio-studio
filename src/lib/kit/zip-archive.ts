@@ -12,7 +12,7 @@
  */
 import { createReadStream, createWriteStream } from "node:fs";
 import { open, stat } from "node:fs/promises";
-import { Transform } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { crc32, createInflateRaw } from "node:zlib";
 
@@ -162,4 +162,24 @@ export async function extractEntry(file: string, entry: ZipEntryInfo, dest: stri
   }
   if (written !== entry.size) throw new KitZipError(`« ${entry.name} » est incomplet : archive corrompue.`);
   return written;
+}
+
+/**
+ * Entrée « stockée » (notre archive de kit) lue en flux, sans rien extraire sur le disque
+ * (téléchargement d'une partie du kit, lot 122). Une entrée compressée est refusée : seule
+ * `writeZipFile` écrit ces archives.
+ */
+export async function openStoredEntry(file: string, entry: ZipEntryInfo): Promise<{ stream: Readable; size: number }> {
+  if (entry.flags & 1 || entry.method !== 0 || entry.compressed !== entry.size) throw new KitZipError(`« ${entry.name} » n'est pas une entrée stockée.`);
+  const fh = await open(file, "r");
+  let start: number;
+  try {
+    const head = Buffer.alloc(30);
+    await fh.read(head, 0, 30, entry.offset);
+    if (head.readUInt32LE(0) !== 0x04034b50) throw new KitZipError("Archive illisible : entrée invalide.");
+    start = entry.offset + 30 + head.readUInt16LE(26) + head.readUInt16LE(28);
+  } finally {
+    await fh.close();
+  }
+  return { stream: createReadStream(file, { start, end: start + entry.size - 1 }), size: entry.size };
 }

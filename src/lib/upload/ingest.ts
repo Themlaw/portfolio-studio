@@ -21,6 +21,7 @@ import { getDb, schema } from "@/lib/db";
 import { decodeProblem } from "@/lib/images/budget";
 import { MAX_PIXELS, MAX_PIXELS_16BIT, MAX_SIDE } from "@/lib/images/process";
 import { ORIGINALS_PREFIX } from "@/lib/images/variants";
+import { readTakenAt } from "@/lib/media-taken";
 import { wakeWorker } from "@/lib/jobs/worker";
 import { getStorage } from "@/lib/storage";
 
@@ -29,7 +30,8 @@ import type { Received } from "./receive";
 import { UploadError } from "./receive";
 import { REJECTED_MESSAGE, sniffImage } from "./sniff";
 
-export type IngestedMedia = { id: number; status: string; width: number | null; height: number | null; name: string; reused: boolean };
+/** `importedAt` (ms) : renvoi d'un contenu déjà présent, date notée comme dernier envoi (lot 112). */
+export type IngestedMedia = { id: number; status: string; width: number | null; height: number | null; name: string; reused: boolean; importedAt?: number };
 
 const mp = (n: number) => Math.round(n / 1e6);
 
@@ -90,13 +92,14 @@ export async function ingestImage(file: Received): Promise<IngestedMedia> {
     const db = getDb();
     const known = db.select().from(schema.media).where(eq(schema.media.sha256, file.sha256)).get();
     if (known) {
-      reviveIfTrashed(known);
-      return known.status === "failed" ? retryFailed(known) : asIngested(known, true);
+      const importedAt = reviveIfTrashed(known);
+      return { ...(known.status === "failed" ? retryFailed(known) : asIngested(known, true)), importedAt };
     }
 
     const full = quotaProblem(file.size);
     if (full) throw new UploadError(507, full);
 
+    const takenAt = await readTakenAt("image", type.mime, file.tmpPath);
     const key = `${ORIGINALS_PREFIX}${file.sha256}.${type.ext}`;
     const storage = getStorage();
     await storage.put(key, createReadStream(file.tmpPath));
@@ -105,7 +108,7 @@ export async function ingestImage(file: Received): Promise<IngestedMedia> {
       const id = db.transaction((tx) => {
         const row = tx
           .insert(schema.media)
-          .values({ key, sha256: file.sha256, kind: "image", mime: type.mime, originalName: file.filename, size: file.size, width, height, status: "processing", alt: { fr: "", en: "" } })
+          .values({ key, sha256: file.sha256, kind: "image", mime: type.mime, originalName: file.filename, size: file.size, width, height, status: "processing", alt: { fr: "", en: "" }, lastImportAt: Date.now(), takenAt, takenChecked: 1 })
           .returning({ id: schema.media.id })
           .get();
         tx.insert(schema.jobs).values({ kind: "image", mediaId: row.id }).run();

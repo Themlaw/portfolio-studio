@@ -3,6 +3,7 @@ import Picture from "@/components/Picture";
 import { z } from "zod";
 
 import Eyebrow from "@/components/Eyebrow";
+import { ContactActionSchema } from "@/lib/contact-form";
 import EmailText from "@/components/EmailText";
 import SocialIcon from "@/components/SocialIcon";
 import { RATIO_VALUES, ratioCss } from "@/lib/images/formats";
@@ -10,6 +11,7 @@ import { getMedia } from "@/lib/media";
 import { getSiteView } from "@/lib/settings";
 import { socialKeys } from "@/lib/site-schema";
 
+import ContactCta from "./ContactCta";
 import { FieldOps } from "./FieldOps";
 import { hasText } from "./optional-fields";
 import { inline, localized, textStyle, tr, type BlockContext, localizedText } from "./types";
@@ -24,6 +26,8 @@ export const profileSchema = z.object({
   contactEyebrow: localized.optional(),
   /** Texte du bouton e-mail (absent : pas de bouton, l'adresse reste). */
   contactLabel: localized.optional(),
+  /** Au clic sur le bouton (lot 125) : "form" (défaut, absent compris) ouvre le formulaire de contact, "mail" ouvre l'e-mail. */
+  contactAction: ContactActionSchema.optional(),
   socialEyebrow: localized.optional(),
   /** false : le nom du site n'est pas répété ici (quand l'Ouverture de la page l'affiche déjà). Absent : affiché. */
   showName: z.boolean().optional(),
@@ -129,10 +133,10 @@ export default async function ProfileBlock({ props, ctx }: { props: z.infer<type
                 <EmailText email={site.email} editable={ctx.edit ? siteMark("email", "ton@adresse.fr") : undefined} style={textStyle(ctx, "site.email").style} />
               </a>
               {shown(props.contactLabel) && (
-                <a className="btn mt-6" href={`mailto:${site.email}`}>
+                <ContactCta ctx={ctx} action={props.contactAction} className="btn mt-6">
                   {ctx.edit || textStyle(ctx, "contactLabel").style ? <span {...inline(ctx, "contactLabel")} {...ph("Texte du bouton")}>{tr(props.contactLabel!, ctx.locale)}</span> : tr(props.contactLabel!, ctx.locale)}
                   <span aria-hidden="true">→</span>
-                </a>
+                </ContactCta>
               )}
             </div>
 

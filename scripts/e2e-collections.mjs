@@ -243,7 +243,12 @@ console.log("== D. Entrées choisies à la main");
   await settled();
   ok("D3 bascule en manuel : la liste reprend les trois entrées", await waitFor(() => tilesDraft()?.mode === "manual" && tilesDraft().items.length === 3 && !tilesDraft().edits), JSON.stringify(tilesDraft()));
   ok("D3b toile : outils d'entrée et « + Ajouter une entrée »", await until(f, () => document.querySelectorAll("[data-edit-tile-op=remove]").length === 3 && Boolean(document.querySelector("[data-edit-tile-add]"))));
-  ok("D3c plus aucune page de collection sans entrée : ajout désactivé", await f.evaluate(() => document.querySelector("[data-edit-tile-add]").disabled));
+  // Lot 117 : toute page publiée peut être une entrée ; les trois pages de collection ont déjà la leur, elles ne sont plus proposées.
+  ok("D3c plus aucune page de collection sans entrée : elles ne sont plus proposées (lot 117 : les autres pages le sont)", await f.evaluate(() => {
+    const b = document.querySelector("[data-edit-tile-add]");
+    const titles = JSON.parse(b.dataset.candidates).map((c) => c.title);
+    return !["Personnages", "Décors", "Carnets d'été"].some((t) => titles.includes(t)) && b.disabled === (titles.length === 0);
+  }));
 
   // Retrait depuis la toile (au survol), puis ajout par le choix de page.
   const tile = f.locator(`${tiles} .tile`).nth(1);

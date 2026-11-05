@@ -9,10 +9,10 @@ import FondWrap from "@/components/FondWrap";
 import StripRail from "@/components/StripRail";
 import { isVideoMode, VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 import { BOARD_ITEM_LABELS, CAPTION_STYLE_FIELDS, type BoardBox as BoardBoxProps, type BoardItemType } from "@/blocks/board-layout";
-import { captionCss, captionStylesOf } from "@/blocks/caption-style";
+import { captionCss, captionStylesOf, type CaptionStyles } from "@/blocks/caption-style";
 import { boardMarks } from "@/lib/board-marks";
 import type { LocalizedArtwork, LocalizedProject } from "@/lib/gallery";
-import type { MediaLookData, Space } from "@/lib/look";
+import type { MediaLookData, Space, StrokeTint } from "@/lib/look";
 import type { Background, FondJoin } from "@/themes/fond";
 import type { CardPalette } from "@/themes/surface";
 import type { WallpaperEntry } from "@/themes/wallpaper";
@@ -51,6 +51,8 @@ export type BoardPart = {
   dates?: Record<string, string>;
   /** Lecture des vidéos de la bande (lot 36) : Boucle ou Lecteur ; absent : chaque vidéo suit sa nature. */
   videoMode?: "loop" | "player";
+  /** Couleur posée sur la barre de défilement de cette bande (lot 110). */
+  stroke?: StrokeTint;
   /** Espace au-dessus de la bande (lot 40, `look.spaceTop` : la bande n'a pas d'enveloppe de bloc) ; absent : l'espace du thème. */
   spaceTop?: Space | number;
   /** Fond de couleur du composant (lot 32) et fusion avec ses voisins de même fond ; posé ici, autour de la colonne réglée par `box`. */
@@ -69,10 +71,16 @@ export default function ProjectStrip({
   wallpapers,
   styles,
   capOwn,
+  captionStyles,
+  scope,
   eager = 0,
 }: {
   /** Style propre de chaque légende de la planche (« Ce texte », lot 98), par slug de place, déjà fondu avec celui du projet. */
   capOwn?: Record<string, Partial<Record<"title" | "legend" | "date", CSSProperties>>>;
+  /** Style des légendes du projet tel que la planche le montre (lot 120 : portée « Tout le projet » du bloc par-dessus l'ancien style de la suite). Absent : celui de la suite du projet. */
+  captionStyles?: CaptionStyles;
+  /** Repère de la planche (`data-pscope`, lot 120) : accroche de la feuille « Tout le projet » et de son aperçu sur la toile. */
+  scope?: string;
   /** Nombre d'images de la bande chargées tout de suite (lot 54). */
   eager?: number;
   project: LocalizedProject;
@@ -95,7 +103,7 @@ export default function ProjectStrip({
    * Styles locaux des textes de l'en-tête (`look.text` du bloc : « Ce texte uniquement »). Fourni par la planche d'un projet
    * seulement (un bloc = un projet) ; absent ailleurs, où les textes n'ont que le style global de leur rôle.
    */
-  styles?: Partial<Record<"title" | "context" | "year" | "description", CSSProperties>>;
+  styles?: Partial<Record<"title" | "context" | "year" | "description" | "count", CSSProperties>>;
 }) {
   // Vue brouillon de l'éditeur : repères de la planche (jamais dans le HTML public).
   const edit = project.edit;
@@ -108,13 +116,14 @@ export default function ProjectStrip({
   // La bande d'images est un composant facultatif de la planche : sans elle, ni compteur ni « Ajouter des images ».
   const hasStrip = !parts || parts.some((p) => p.type === "strip" && !p.artworks);
   /** Texte de l'en-tête : style local, et clé de style de la barre typographique (toile seulement). */
-  const head = (key: "title" | "context" | "year" | "description") => ({
+  const head = (key: "title" | "context" | "year" | "description" | "count") => ({
     ...(editable && styles ? { "data-look-key": key } : {}),
     ...(styles?.[key] ? { style: styles[key] } : {}),
   });
 
   // Style des légendes du projet (lot 98) : le même partout où le projet est affiché (page de projet, accueil, métier).
-  const capStyles = captionStylesOf(project.layout);
+  const legacyCapStyles = captionStylesOf(project.layout);
+  const capStyles = captionStyles ?? legacyCapStyles;
   const capBase = capStyles ? Object.fromEntries(CAPTION_STYLE_FIELDS.flatMap((f) => (capStyles[f] ? [[f, captionCss(capStyles[f], undefined, palette)]] : []))) : undefined;
   const tProject = project.title;
   /** Une bande : celle des images du projet (légendes, emplacements) ou un carrousel à liste propre. */
@@ -123,11 +132,11 @@ export default function ProjectStrip({
       part,
       part?.artworks ? (
         <BoardBox box={part.box}>
-          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotLook={slotLook} videoMode={part.videoMode} capBase={capBase} capOwn={capOwn} eager={eager} />
+          <StripRail artworks={part.artworks} title={tProject} idKey={`${project.slug}-${part.uid}`} edit={Boolean(edit)} editRail={part.uid} captions slotLook={slotLook} videoMode={part.videoMode} stroke={part.stroke} capBase={capBase} capOwn={capOwn} eager={eager} />
         </BoardBox>
       ) : (
         <BoardBox box={part?.box}>
-          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotLook={slotLook} videoMode={part?.videoMode} capBase={capBase} capOwn={capOwn} eager={eager} />
+          <StripRail artworks={part?.dates ? project.artworks.map((a) => (Object.hasOwn(part.dates!, a.slug) ? { ...a, date: part.dates![a.slug] } : a)) : project.artworks} title={tProject} idKey={project.slug} edit={Boolean(edit)} editRail="" captions slotLook={slotLook} videoMode={part?.videoMode} stroke={part?.stroke} capBase={capBase} capOwn={capOwn} eager={eager} />
         </BoardBox>
       ),
     );
@@ -152,7 +161,7 @@ export default function ProjectStrip({
     <div className="pe-bitems" data-edit-bitems="">
       {parts.map((part, i) => (
         <Fragment key={part.uid}>
-          <BoardAdd board={edit.id} index={i} />
+          <BoardAdd board={edit.id} index={i} first={i === 0} />
           <BoardItemFrame board={edit.id} part={part} index={i} count={parts.length}>
             {body(part)}
           </BoardItemFrame>
@@ -168,7 +177,8 @@ export default function ProjectStrip({
     <section
       className={`strip py-[clamp(3rem,7vw,5.5rem)] ${deep ? "strip-deep bg-bg-deep" : ""}`}
       aria-labelledby={`project-${project.slug}`}
-      {...(edit ? { ...boardMarks(edit), ...(capStyles ? { "data-edit-capstyle": JSON.stringify(capStyles) } : {}), "data-edit-board-label": project.title, ...(collection ? { "data-edit-board-collection": collection } : {}) } : {})}
+      {...(scope ? { "data-pscope": scope } : {})}
+      {...(edit ? { ...boardMarks(edit), ...(legacyCapStyles ? { "data-edit-capstyle": JSON.stringify(legacyCapStyles) } : {}), "data-edit-board-label": project.title, ...(collection ? { "data-edit-board-collection": collection } : {}) } : {})}
     >
       <header className="shell flex flex-wrap items-end justify-between gap-x-8 gap-y-5">
         {showHeader && (
@@ -221,7 +231,7 @@ export default function ProjectStrip({
         )}
 
         {(hasStrip || project.count > 0) && (
-        <span className="eyebrow strip-count">
+        <span className="eyebrow strip-count" {...head("count")}>
           {tg("count", { count: parts ? project.count : shownArtworks.length })}
         </span>
         )}
@@ -244,10 +254,10 @@ export default function ProjectStrip({
  * de la planche ou au focus ; BoardLayer ouvre le menu des composants permis). Posé en flux sans hauteur : il ne
  * décale rien. Jamais en public.
  */
-function BoardAdd({ board, index, last = false, empty = false }: { board: number; index: number; last?: boolean; empty?: boolean }) {
+function BoardAdd({ board, index, last = false, empty = false, first = false }: { board: number; index: number; last?: boolean; empty?: boolean; first?: boolean }) {
   return (
     <EditOnly>
-    <div className="pe-bitem-add" data-last={last || undefined} data-empty={empty || undefined} lang="fr">
+    <div className="pe-bitem-add" data-last={last || undefined} data-empty={empty || undefined} data-first={first || undefined} lang="fr">
       <button type="button" data-edit-bitem-add={index} data-board={board} aria-haspopup="menu">
         <span aria-hidden="true">+</span> {empty ? "Ajouter un bloc" : "Ajouter"}
         <span className="sr-only"> {index === 0 ? "en tête du projet" : last ? "en bas du projet" : `après le bloc ${index}`}</span>
