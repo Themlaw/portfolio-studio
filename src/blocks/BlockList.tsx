@@ -120,7 +120,10 @@ function withZone(node: ReactNode, type: string, layers: { surface: Surface | un
 function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?: { uid: string }, inherited?: Look, card: CardEnv | null = null, join: FondJoin = { prev: false, next: false }): ReactNode {
   // En édition, la clé suit le contenu : un bloc modifié (texte saisi en
   // place dans le DOM) est remonté à neuf au rafraîchissement.
-  const key = ctx.edit ? `${block.uid ?? block.id}:${contentHash(block.props)}` : (block.uid ?? block.id);
+  // v0.33.6 : le contenu propre d une planche de projet (`layout`, `text`, lot 111) est tenu par la toile (BoardLayer, aperçus, acquittements) : il ne remonte
+  // pas la planche (avant le lot 111 il vivait dans la table des projets, hors des props du bloc : la planche n était jamais remontée par une écriture de planche).
+  const hashed = block.type === "project-board" && block.props && typeof block.props === "object" ? Object.fromEntries(Object.entries(block.props).filter(([k]) => k !== "layout" && k !== "text")) : block.props;
+  const key = ctx.edit ? `${block.uid ?? block.id}:${contentHash(hashed)}` : (block.uid ?? block.id);
   const def = own(BLOCKS, block.type);
   // Réglages propres du bloc (lus avant le schéma : la toile les montre même
   // pour un bloc incomplet), complétés par ceux de son conteneur sans boîte.
@@ -233,7 +236,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
 }
 
 /**
- * Un composant de la suite d'une planche de projet (lot 31) : rendu par le bloc de son type, comme sur une page
+ * Un composant de la suite d une planche de projet (lot 31) : rendu par le bloc de son type, comme sur une page
  * (mêmes schémas, mêmes composants). Il appartient au projet, pas à la page : jamais de repères d'édition de bloc
  * (`ctx.edit` faux), la couche d'édition de la planche l'enveloppe elle-même. Un composant invalide est ignoré.
  */
