@@ -22,7 +22,14 @@ export type CollectionPage = { pageId: number; collection: CollectionKey; eyebro
  * choisie sur la tuile (une image de la médiathèque) à la place de celle de la collection ; absent = la couverture de la collection.
  */
 export type TileEdit = { pageId: number; eyebrow?: L; title?: L; intro?: L; mediaId?: number };
-export type TileItem = { collection: CollectionKey; pageId: number; eyebrow: L; title: L; intro: L; mediaId?: number };
+/** `collection` absent (lot 117) : entrée vers une page simple (sans collection), image choisie obligatoire, pas de compteur d'œuvres. */
+export type TileItem = { collection?: CollectionKey; pageId: number; eyebrow: L; title: L; intro: L; mediaId?: number };
+
+/**
+ * Page publiée proposée comme entrée choisie à la main (lot 117) : n'importe quelle page (hors accueil et pages spéciales
+ * comme la page introuvable). `collection` : sa collection si c'est une page de collection. Textes = en-tête de la page.
+ */
+export type EntryPage = { pageId: number; collection?: CollectionKey; eyebrow: L; title: L; intro: L };
 
 /** Nom des collections dans l'interface (mots de l'admin : COLLECTION_OPTIONS). */
 export const COLLECTION_NAMES: Record<CollectionKey, string> = { characters: "Personnages", backgrounds: "Décors", animation: "Animation" };
@@ -66,6 +73,24 @@ export function orderCollectionPages(
   });
   return pages
     .flatMap((p) => (isKey(p.collection) ? [{ pageId: p.id, collection: p.collection, ...pageHeader(p.blocks, p.title) }] : []))
+    .sort((a, b) => (rank.get(a.pageId) ?? Infinity) - (rank.get(b.pageId) ?? Infinity) || a.pageId - b.pageId);
+}
+
+/**
+ * Pages proposées aux entrées choisies à la main (lot 117), dans l'ordre du menu puis par identifiant. `pages` : seulement les pages
+ * publiées. Sont écartées l'accueil (adresse vide) et les pages spéciales (adresse commençant par « _ »).
+ */
+export function orderEntryPages(
+  pages: { id: number; slug: L; title: L; collection: string | null | undefined; blocks: { type: string; props: unknown }[] }[],
+  menu: number[],
+): EntryPage[] {
+  const rank = new Map<number, number>();
+  menu.forEach((id, i) => {
+    if (!rank.has(id)) rank.set(id, i);
+  });
+  return pages
+    .filter((p) => p.slug.fr !== "" && !p.slug.fr.startsWith("_") && !p.slug.en.startsWith("_"))
+    .map((p) => ({ pageId: p.id, ...(isKey(p.collection) ? { collection: p.collection } : {}), ...pageHeader(p.blocks, p.title) }))
     .sort((a, b) => (rank.get(a.pageId) ?? Infinity) - (rank.get(b.pageId) ?? Infinity) || a.pageId - b.pageId);
 }
 

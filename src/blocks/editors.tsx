@@ -8,6 +8,7 @@
  * renvoie les erreurs par champ.
  */
 import {
+  COLLECTION_OPTIONS,
   CollectionPicker,
   errorAt,
   Field,
@@ -102,7 +103,7 @@ export function HeroEditor() {
 export function CollectionTilesEditor() {
   const { value, onChange, errors, context } = useBlockEditor();
   const set = useSet(value, onChange);
-  type Item = { collection: string; pageId?: number; eyebrow: L; title: L; intro: L };
+  type Item = { collection?: string; pageId?: number; eyebrow: L; title: L; intro: L };
   const items = (value.items as Item[]) ?? [];
   const found = context.collectionPages ?? [];
   const edits = (value.edits as TileEdit[] | undefined) ?? [];
@@ -119,7 +120,7 @@ export function CollectionTilesEditor() {
       // Les textes de la liste qui diffèrent de l'en-tête de leur page deviennent des modifications de tuile.
       const { items: _i, ...rest } = value;
       void _i;
-      const kept = editsFromItems(items.filter((i): i is TileItem => i.pageId !== undefined && (COLLECTION_KEYS as readonly string[]).includes(i.collection)), found);
+      const kept = editsFromItems(items.filter((i): i is TileItem => i.pageId !== undefined && i.collection !== undefined && (COLLECTION_KEYS as readonly string[]).includes(i.collection)), found);
       onChange({ ...rest, mode: "auto", ...(kept.length ? { edits: kept } : {}) });
     }
   };
@@ -190,7 +191,19 @@ export function CollectionTilesEditor() {
           error={errorAt(errors, "items")}
           render={(item, update, i) => (
             <>
-              <CollectionPicker value={item.collection} onChange={(v) => update({ ...item, collection: v })} error={errorAt(errors, `items.${i}.collection`)} />
+              <Select
+                label="Collection"
+                help="Une entrée de collection montre le nombre d'œuvres publiées et, sans image choisie, la couverture de la collection. « Aucune » : une page simple, avec l'image que tu choisis sur la page (obligatoire)."
+                value={item.collection as "characters" | "backgrounds" | "animation" | undefined}
+                options={COLLECTION_OPTIONS}
+                allowEmpty="Aucune (page simple)"
+                onChange={(v) => {
+                  const { collection: _c, ...rest } = item;
+                  void _c;
+                  update(v ? { ...rest, collection: v } : rest);
+                }}
+                error={errorAt(errors, `items.${i}.collection`)}
+              />
               <PagePicker label="Page de destination" value={item.pageId} onChange={(v) => update({ ...item, pageId: v })} error={errorAt(errors, `items.${i}.pageId`)} context={context} />
               <TextI18n label="Étiquette" value={item.eyebrow} onChange={(v) => update({ ...item, eyebrow: v })} error={errorAt(errors, `items.${i}.eyebrow`)} />
               <TextI18n label="Titre" value={item.title} onChange={(v) => update({ ...item, title: v })} error={errorAt(errors, `items.${i}.title`)} />

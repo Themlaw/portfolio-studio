@@ -889,6 +889,22 @@ html[data-edit-mode] .pe-tile-cover:focus-within {
   }
 }
 
+/* Lot 117 : entrée vers une page simple sans image : le choix de limage est la seule action utile, toujours visible dans lavis. */
+html[data-edit-mode] [data-tile-noimage] .pe-tile-cover {
+  position: static;
+  display: inline-flex;
+  max-width: none;
+  margin-inline: 8px 0;
+  vertical-align: middle;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+html[data-edit-mode] [data-tile-noimage]:hover .pe-tile-tools {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .pe-tile-cover button {
   min-height: 30px;
   padding: 0 10px;
