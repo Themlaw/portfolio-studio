@@ -11,7 +11,7 @@ import { getMedia } from "@/lib/media";
 import { viewerAttrs } from "@/lib/viewer";
 
 import { BlockCaption, capHost, captionPart } from "./caption";
-import { freeBoardSchema, freeItems, itemHeight, readingOrder, zoneAspect } from "./free-board";
+import { cropStyle, freeBoardSchema, freeItems, itemHeight, readingOrder, zoneAspect } from "./free-board";
 import { tr, type BlockContext } from "./types";
 
 export { freeBoardSchema };
@@ -43,17 +43,21 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
   if (!shown.length && !canvas) return null;
   const zone = zoneAspect(props);
   // Cliquer pour agrandir (lot 44) : public et Aperçu seulement ; chaque image est un élément de la visionneuse, la planche en est la zone.
-  const zoom = !canvas && !ctx.inlineEdit && props.zoom !== false;
+  // Dans une cellule de grille (lot 113) : pas d'enveloppe de section (la grille a la sienne) ; la visionneuse est celle de la grille.
+  const inCell = Boolean(ctx.cell);
+  const zoom = !canvas && !ctx.inlineEdit && props.zoom !== false && (!inCell || ctx.cellViewer === true);
+  const crop = cropStyle(props);
   const openLabel = zoom ? (await getTranslations({ locale: ctx.locale, namespace: "gallery" }))("open") : "";
-  const Section = zoom ? ViewerScope : "section";
+  const Section = zoom && !inCell ? ViewerScope : inCell ? "div" : "section";
   const ordered = readingOrder(shown.map((s) => ({ ...s, id: s.it.id, x: s.it.x, y: s.it.y })));
   return (
-    <Section {...(zoom ? { as: "section" as const } : {})} className="free-board-section shell pt-[var(--section-gap)]" {...capHost(ctx)}>
+    <Section {...(zoom && !inCell ? { as: "section" as const } : {})} className={inCell ? "free-board-section" : "free-board-section shell pt-[var(--section-gap)]"} {...capHost(ctx)}>
       <div
         className="free-board"
         data-format={props.format}
         data-phone={props.phone}
-        style={{ "--fb-r": zone.toFixed(4) } as CSSProperties}
+        {...(crop ? { "data-crop": "" } : {})}
+        style={{ "--fb-r": zone.toFixed(4), ...(crop ?? {}) } as CSSProperties}
         {...(canvas ? { "data-edit-free": "", "data-free-aspect": zone.toFixed(5) } : {})}
       >
         {ordered.map(({ it, m }) => {

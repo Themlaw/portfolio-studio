@@ -106,6 +106,15 @@ const FreeId = z.string().regex(/^[a-z0-9]{1,12}$/);
 export const FreeCanvasOpSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("set"), format: z.enum(FREE_FORMATS).optional(), aspect: z.number().finite().min(0.4).max(4).optional(), phone: z.enum(["scale", "stack"]).optional() }),
   z.object({ op: z.literal("pick"), id: FreeId.optional() }),
+  /** Recadrage du cadre (lot 113) : marges absolues en % du plan, ou `reset` (plan entier). */
+  z.object({
+    op: z.literal("crop"),
+    t: z.number().finite().min(0).max(90).optional(),
+    r: z.number().finite().min(0).max(90).optional(),
+    b: z.number().finite().min(-150).max(90).optional(),
+    l: z.number().finite().min(0).max(90).optional(),
+    reset: z.boolean().optional(),
+  }),
   z.object({
     op: z.literal("place"),
     id: FreeId,
@@ -234,7 +243,7 @@ export const FromCanvasSchema = z.union([
   z.object({ kind: z.literal("page-settings"), focus: z.enum(["wallpaper"]).optional() }),
   // Ajout d'une rubrique depuis la toile (lot 17c) : `choose` ouvre le choix illustré de l'éditeur, les
   // autres ajoutent aussitôt un texte (bloc `rich-text` avec son texte d'aide) à cet endroit.
-  z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title", "title-text"]) }),
+  z.object({ kind: z.literal("insert"), parent: Parent, index: Index, what: z.enum(["choose", "text", "title", "title-text", "free"]) }),
   // Case vide de grille, « Image » / « Vidéo » (lot 25) : l'éditeur ouvre le choix du média, posé dans une nouvelle case de la grille `uid`.
   z.object({ kind: z.literal("cell-media"), uid: Uid, media: z.enum(["image", "video"]) }),
   // Champ facultatif d'un bloc Texte, ajouté ou retiré depuis la toile (lot 19a) : « + Ajouter un titre » / « Retirer le titre » (Texte), « + Ajouter une étiquette » / « Retirer l'étiquette » (Titre).

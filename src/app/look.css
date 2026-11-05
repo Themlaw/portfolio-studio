@@ -753,8 +753,26 @@ main > :has(+ .surface-card[data-surface="on"]) {
   transform: rotate(calc(var(--prot, var(--rot, 0)) * 1deg));
   transform-origin: 50% 50%;
 }
+/* Cadre recadré (lot 113) : le cadre est une fenêtre du plan (`--fb-r`) ; `--fb-cl` `--fb-ct` (coin) et `--fb-cw` `--fb-ch` (taille) en % du plan, `--fb-fa` son format.
+   Les images gardent leur place À L'ÉCRAN : leurs % sont relus dans le cadre. Gauche et haut laissent leur espace (marges), droite et bas le rendent. Sans `data-crop` : rendu d'avant, inchangé.
+   `--pfb-*` = aperçu d'un geste de la toile. */
+.free-board[data-crop] {
+  width: calc(var(--pfb-cw, var(--fb-cw)) * 1%);
+  margin-left: calc(var(--pfb-cl, var(--fb-cl)) * 1%);
+  margin-top: calc(var(--pfb-ct, var(--fb-ct)) / var(--fb-r, 1.5) * 1%);
+  aspect-ratio: var(--pfb-fa, var(--fb-fa));
+  overflow: clip;
+}
+.free-board[data-crop] > .free-item {
+  left: calc((var(--px, var(--x)) - var(--pfb-cl, var(--fb-cl))) / var(--pfb-cw, var(--fb-cw)) * 100%);
+  top: calc((var(--py, var(--y)) - var(--pfb-ct, var(--fb-ct))) / var(--pfb-ch, var(--fb-ch)) * 100%);
+  width: calc(var(--pw, var(--w)) / var(--pfb-cw, var(--fb-cw)) * 100%);
+}
 @media (max-width: 639px) {
   :root:not([data-edit-canvas]) .free-board[data-phone="stack"] {
+    width: 100%;
+    margin: 0;
+    overflow: visible;
     aspect-ratio: auto;
     display: flex;
     flex-direction: column;
