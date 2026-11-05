@@ -50,8 +50,13 @@ import { borderVars, cardStyle, cardVars, FALLBACK_CARD, paperAttributes, paperS
 
 import { markedNodes } from "./marked-edit";
 
-type Entry = { seq: number; apply: () => void; clear?: () => void; data?: unknown };
-type Spec = { apply?: () => void; clear?: () => void; data?: unknown };
+type Entry = { seq: number; apply: () => void; clear?: () => void; revert?: () => void; data?: unknown };
+/**
+ * `clear` : l'aperçu est retiré (acquittement, refus, échec, navigation). `revert` (facultatif) : seulement au refus ou à l'échec de
+ * l'écriture, quand la page rendue ne portera PAS la valeur de l'aperçu ; sans lui, `clear` sert aux deux. À l'acquittement un aperçu qui
+ * écrit directement dans le DOM (style en ligne d'un texte) doit rester : la page rendue porte la même valeur et React ne la réécrira pas.
+ */
+type Spec = { apply?: () => void; clear?: () => void; revert?: () => void; data?: unknown };
 
 const entries = new Map<string, Entry>();
 let counter = 0;
@@ -76,7 +81,7 @@ export function boardFondPending(board: number, uid: string): Background | null 
 
 /** Inscrit (ou remplace) l'aperçu d'une cible et l'applique aussitôt. */
 export function setOverlay(key: string, seq: number, spec: Spec = {}) {
-  entries.set(key, { seq, apply: spec.apply ?? (() => {}), clear: spec.clear, data: spec.data });
+  entries.set(key, { seq, apply: spec.apply ?? (() => {}), clear: spec.clear, revert: spec.revert, data: spec.data });
   entries.get(key)?.apply();
 }
 
@@ -127,7 +132,7 @@ export function noteSettle(rev: number | undefined, upTo: number | undefined) {
 export function revertOverlay(seq: number) {
   const gone = [...entries].filter(([, e]) => e.seq === seq);
   for (const [k] of gone) entries.delete(k);
-  for (const [, e] of gone) e.clear?.();
+  for (const [, e] of gone) (e.revert ?? e.clear)?.();
 }
 
 /** Abandon explicite (navigation interne de la toile) : plus aucun aperçu, valeurs d'origine rétablies. */
