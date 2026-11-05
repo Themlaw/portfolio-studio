@@ -161,3 +161,23 @@ export function validateSubmission(form: ContactForm, input: unknown, locale: "f
   if (!values.length) return { ok: false, error: "Formulaire vide." };
   return { ok: true, values, replyTo };
 }
+
+/**
+ * Lot 125 : le bouton « Me contacter » ouvre le formulaire de contact interne.
+ * Réglage par bouton (absent = « form », y compris pour les anciens boutons) : "form" = formulaire, "mail" = ancien comportement (mailto:).
+ */
+export const CONTACT_ACTIONS = ["form", "mail"] as const;
+export type ContactAction = (typeof CONTACT_ACTIONS)[number];
+export const ContactActionSchema = z.enum(CONTACT_ACTIONS);
+export const CONTACT_ACTION_LABELS: Record<ContactAction, string> = { form: "Ouvrir le formulaire de contact", mail: "Ouvrir l'e-mail" };
+/** Réglage effectif d'un bouton : tout ce qui n'est pas « mail » ouvre le formulaire. */
+export const contactActionOf = (v: unknown): ContactAction => (v === "mail" ? "mail" : "form");
+
+/**
+ * Formulaire intégré, pour un site qui n'a AUCUN formulaire de contact publié : nom, e-mail (réponse), message.
+ * Identifiant réservé, reconnu par POST /api/contact ; le message arrive dans Admin → Messages comme les autres.
+ */
+export const DEFAULT_FORM_ID = "contactdefaut";
+export function builtinContactForm(): ContactForm {
+  return { ...defaultContactForm(), formId: DEFAULT_FORM_ID, title: { fr: "Me contacter", en: "Get in touch" }, intro: undefined };
+}
