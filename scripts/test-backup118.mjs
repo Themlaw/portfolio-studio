@@ -266,7 +266,7 @@ function bench(init = {}, extra = {}) {
   // Lectures : n'écrivent rien en base (aucun geste de l'artiste à noter).
   const READ_ONLY = new Set([
     "frameUsesAction", "listFramesAction", "backupStatusAction", "wallpaperUsesAction", "listWallpapersAction", "mediaStatusAction",
-    "mediaUsesAction", "pendingUploadsAction", "listTagsAction", "previewFaviconAction",
+    "mediaUsesAction", "pendingUploadsAction", "listTagsAction", "previewFaviconAction", "backfillTakenAction",
   ]);
   // Routes d'écriture sans journal : sans effet sur le contenu (aperçus, journal du navigateur, contact public, interne) ou notées à la main.
   const ROUTES_OK = new Set(["apercu/route.ts", "apercu/quitter/route.ts", "theme-kit/[id]/route.ts", "fonts/recent/route.ts", "api/contact/route.ts", "api/internal/revalidate/route.ts", "api/log/route.ts"]);
