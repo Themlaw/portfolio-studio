@@ -26,6 +26,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { LANG_CHOICE_COOKIE } from "./i18n/choice";
 import { routing } from "./i18n/routing";
 import { isAdminRequest } from "./lib/auth/guard";
 import { readRedirectConfig, redirectionFor } from "./lib/domain";
@@ -195,7 +196,19 @@ export default async function proxy(request: NextRequest) {
   if (request.headers.get(INTERNAL_HEADER) === INTERNAL_SECRET) return intl(request);
 
   const match = LOCALE_PATH.exec(request.nextUrl.pathname);
-  if (!match) return intl(request); // « / », langue absente : next-intl redirige
+  if (!match) {
+    // « / » ou adresse sans langue : français, sauf si le visiteur a lui-même choisi l'anglais au sélecteur (lot 126). Jamais d'après
+    // Accept-Language (localeDetection coupé dans src/i18n/routing.ts). next-intl redirige vers /fr dans tous les autres cas.
+    if (request.cookies.get(LANG_CHOICE_COOKIE)?.value === "en") {
+      const url = request.nextUrl.clone();
+      url.pathname = `/en${pathname === "/" ? "" : pathname}`;
+      const response = NextResponse.redirect(url);
+      response.headers.set("Vary", "Cookie");
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
+    }
+    return intl(request);
+  }
 
   const [, locale, rest = ""] = match;
   if (rest === "" && request.nextUrl.searchParams.has("vignette")) {
