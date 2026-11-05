@@ -21,7 +21,7 @@ import sharp from "sharp";
 
 import { paint } from "./lib/crop-fixtures.mjs";
 import { installKitFrameTheme } from "./lib/cadres62.mjs";
-import { canvas, login, pageIdOf, q1, setBoardDraft, setDraft, sleep, sql, waitFor } from "./lib/grille31d.mjs";
+import { boardDraft, canvas, login, pageIdOf, q1, setBoardDraft, setDraft, sleep, sql, waitFor } from "./lib/grille31d.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const ONLY = process.env.ONLY ?? "";
@@ -443,7 +443,8 @@ if (run("B")) {
     const rs = page.locator('[data-testid="rail-stroke"]');
     ok("B3 la rangée choisie montre « Couleur du trait »", await rs.waitFor({ timeout: 15000 }).then(() => true, () => false));
     await setStroke("rail-stroke", RAIL.hex, Math.round(RAIL.a * 100));
-    const c1Stroke = () => sql((db) => JSON.parse(db.prepare("select draft_layout from projects where id = ?").get(PROJECT.id)?.draft_layout ?? "null"))?.find?.((i) => i.uid === "c1")?.props?.stroke;
+    // Lot 111 : le brouillon de la planche est la copie propre du bloc Projet de la page (plus projects.draft_layout) : on le lit par l assistant commun.
+    const c1Stroke = () => boardDraft(PROJECT.id)?.find?.((i) => i.uid === "c1")?.props?.stroke;
     await until(async () => c1Stroke()?.opacity === 70, 15000);
     const layoutC1 = { props: { stroke: c1Stroke() } };
     ok("B3b brouillon de la planche : props.stroke de la rangée = {#16a34a, 70}", layoutC1?.props?.stroke?.color === RAIL.hex && layoutC1?.props?.stroke?.opacity === 70, JSON.stringify(layoutC1?.props?.stroke));

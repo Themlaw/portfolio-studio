@@ -183,6 +183,8 @@ async function chooseLogo(k) {
   await page.getByRole("button", { name: `Choisir ${FORMATS[k].name}` }).click();
   await settled();
   await draftHas((l) => l.mediaId === ids[k]);
+  // Integration v0.33.6 : la toile redessine l en-tete d apres le serveur ; on attend que le logo y soit (mesure sinon prise avant son arrivee).
+  await waitFor(() => f.evaluate(() => Boolean(document.querySelector(".site-header .site-logo-img"))), 30000);
 }
 async function device(label) {
   const word = label.split(" ")[0];

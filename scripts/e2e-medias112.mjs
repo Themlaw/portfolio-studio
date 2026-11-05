@@ -231,9 +231,10 @@ await section("B", async () => {
   // Bandeau Bibliothèque de la planche : même menu, même préférence.
   await page.goto(`${BASE}/admin/pages#projets`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "Nouveau projet" }).click();
-  await page.locator("dialog[open]").getByLabel("Titre en français").fill("Tri 112");
+  // Lot 111 : le projet se crée sans nom (plus de champ « Titre ») et l écran propose aussitôt le choix d images : on le referme.
   await page.locator("dialog[open]").getByRole("button", { name: "Créer le projet" }).click();
   await page.waitForURL(/\/admin\/projets\/\d+$/);
+  await page.locator("dialog[open]").first().waitFor({ timeout: 5000 }).then(() => page.keyboard.press("Escape"), () => {});
   const strip = page.locator(".a-libstrip");
   await strip.locator('[data-testid="media-sort"]').waitFor();
   ok("B : le bandeau de la planche reprend le choix (Nom Z → A)", await waitFor(async () => (await strip.locator('[data-testid="media-sort"]').inputValue()) === "name-desc", 10000));
