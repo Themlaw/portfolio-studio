@@ -23,7 +23,7 @@ const put = db.prepare("insert into blocks (page_id, position, type, props) valu
 [
   ["grid", { layout: "3", ratio: "4:5", eyebrow: T("Images", "Pictures"), title: T("Trois images", "Three images"), children: [0, 1, 2].map((i) => kid(`pi${i}`, "image", { mediaId: img(i), width: "wide", caption: T(`Image ${i}`, `Picture ${i}`) })) }],
   ["grid", { layout: "1+2", eyebrow: T("Vidéos", "Videos"), title: T("Trois vidéos", "Three videos"), children: [0, 1, 2].map((i) => kid(`pv${i}`, "video-single", { variant: "card", mode: "player" })) }],
-  ["contact", { eyebrow: T("Contact", "Contact"), title: T("Écris-moi", "Write to me"), intro: T("Une phrase pour t'inviter.", "A sentence to invite you."), cta: T("Envoyer un e-mail", "Send an email") }],
+  ["contact", { eyebrow: T("Contact", "Contact"), title: T("Écris-moi", "Write to me"), intro: T("Une phrase pour t'inviter.", "A sentence to invite you."), cta: T("Me contacter", "Contact me") }],
   [
     "contact-form",
     {

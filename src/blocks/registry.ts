@@ -373,7 +373,7 @@ export const BLOCKS: Record<string, BlockDefinition> = Object.fromEntries(
       label: "Contact",
       description: "Une invitation à t'écrire : un bouton vers ton adresse e-mail, ou un formulaire (les messages arrivent dans Admin → Messages).",
       // Les champs n'existent que s'ils ont été demandés (« + Ajouter … » sur la toile, lot 27).
-      defaults: { title: { fr: "Écris-moi", en: "Write to me" }, cta: { fr: "Envoyer un e-mail", en: "Send an email" } },
+      defaults: { title: { fr: "Écris-moi", en: "Write to me" }, cta: { fr: "Me contacter", en: "Contact me" } },
       summary: "{title} · {fields} champs",
       inline: ["eyebrow", "title", "intro", "cta", "submit", "success", "error", "fields.*.label", "fields.*.help"],
       publishCheck: (props) => {

@@ -34,7 +34,7 @@ export function legacyBlocs(imgs) {
   return [
     ["rich-text", { paragraphs: [T("Avant le contact.", "Before the contact.")] }],
     ["contact-form", legacyForm()],
-    ["contact", { eyebrow: E, title: T("Écris-moi", "Write to me"), intro: E, cta: T("Envoyer un e-mail", "Send an email") }],
+    ["contact", { eyebrow: E, title: T("Écris-moi", "Write to me"), intro: E, cta: T("Me contacter", "Contact me") }],
     ["grid", { layout: "3", eyebrow: E, title: T("Trois images", "Three images"), ratio: "4:5", children: [kid("gi0", imgs[0]), kid("gi1", imgs[1] ?? imgs[0]), kid("gi2", imgs[0])] }],
   ];
 }
