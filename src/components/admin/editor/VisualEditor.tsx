@@ -2818,6 +2818,9 @@ export default function VisualEditor({
         return;
       }
       revRef.current = result.data.rev;
+      // v0.33.6 : la publication a rangé un brouillon de projet tenu dans la copie propre du bloc Projet : l éditeur la reprend AVANT le renommage des blocs (repères du brouillon),
+      // sinon son prochain enregistrement (une couleur…) effacerait la copie du brouillon, et la publication suivante celle de la page.
+      if (result.data.foldedOwn?.length) syncOwnBlock(result.data.foldedOwn as { uid: string; layout: BoardItem[] | null; text: unknown }[]);
       // Publié : les instantanés de planche d'avant ne sont plus des brouillons.
       history.current = { past: [], future: [] };
       boards.current.clear();

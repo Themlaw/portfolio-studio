@@ -544,7 +544,7 @@ function settleDraftProjects(pageId: number, blocks: { type: string; props: unkn
 /* ---- Publier, abandonner -------------------------------------------------- */
 
 /** `site` : l'en-tête, le pied ou les réseaux (communs à toutes les pages) ont changé. */
-export type PublishResult = { projects: number[]; blocks: number; rev: number; site: boolean; /** La page vient d'être mise en ligne par ce geste (elle ne l'était pas). */ wentLive: boolean; /** Avertissements non bloquants (lot 52), ajoutés par l'action de publication. */ siteRev?: number; warnings?: { missingAlt: { id: number; name: string }[]; untranslated: number; notInMenu?: boolean } };
+export type PublishResult = { projects: number[]; blocks: number; rev: number; site: boolean; /** La page vient d'être mise en ligne par ce geste (elle ne l'était pas). */ wentLive: boolean; /** Lot 111 x 115 (v0.33.6) : blocs Projet dont la copie propre vient d être rangée par la publication (brouillon de projet tenu) : l éditeur la reprend, sinon son prochain enregistrement l effacerait. */ foldedOwn?: { uid: string; layout: unknown[] | null; text: unknown }[]; /** Avertissements non bloquants (lot 52), ajoutés par l'action de publication. */ siteRev?: number; warnings?: { missingAlt: { id: number; name: string }[]; untranslated: number; notInMenu?: boolean } };
 
 /**
  * Publie le brouillon, en une transaction : validation et écriture de
@@ -582,8 +582,10 @@ export function publishDraft(pageId: number, rev: unknown, opts: { live?: boolea
     return fail("Aucune modification à publier.");
   }
   // Lot 111 : le brouillon de contenu / de textes que cette page tient devient la copie propre de son bloc (le projet n'est pas touché).
+  const rawBeforeFold = state.draft.blocks;
   const fold = foldHeldDrafts(pageId, state.draft.blocks);
   state.draft = { ...state.draft, blocks: fold.blocks };
+  const foldedOwn = fold.blocks === rawBeforeFold ? [] : boardRefs(fold.blocks as unknown as TreeBlock[]).filter((r) => r.block.uid && (ownLayoutOf(r.block.props) || ownTextOf(r.block.props))).map((r) => ({ uid: r.block.uid!, layout: ownLayoutOf(r.block.props), text: ownTextOf(r.block.props) }));
   const empty = emptyDraftBoards(pageId, state.draft.blocks);
   if (empty) return fail("Publication impossible : corrige ce qui est signalé.", empty);
   const invalidText = invalidProjectTexts(pageId, new Set(referencedProjects(state.draft.blocks)));
@@ -622,7 +624,7 @@ export function publishDraft(pageId: number, rev: unknown, opts: { live?: boolea
       // Écrit entre la lecture et la transaction : tout est annulé.
       if (cleared.changes !== 1) throw new ConflictError();
       const projects = [...new Set([...referencedProjects([...draft.blocks, ...(before?.blocks ?? [])]), ...touched])].sort((a, b) => a - b);
-      outcome = done({ projects, blocks: draft.blocks.length, rev: rev + 1, site, wentLive });
+      outcome = done({ projects, blocks: draft.blocks.length, rev: rev + 1, site, wentLive, ...(foldedOwn.length ? { foldedOwn } : {}) });
     });
   } catch (error) {
     if (error instanceof ConflictError) return conflict(pageRow(pageId)?.rev ?? rev);
