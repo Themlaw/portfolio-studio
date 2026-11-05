@@ -308,7 +308,8 @@ if (run("B")) {
   await page.getByRole("tab", { name: "Réglages" }).click();
   await page.locator("label.a-toggle", { hasText: "Reprendre le nom et la présentation d'un projet" }).click();
   const pick = page.getByRole("combobox", { name: /Projet repris par ce titre/ });
-  await pick.fill(PROJECT);
+  // Lot 111 : le projet est nommé en base APRÈS sa création (createOnCanvas) ; la liste de l éditeur, chargée avant, le connaît encore sous son titre par défaut.
+  await pick.fill("Projet sans titre");
   await pick.press("ArrowDown");
   await pick.press("Enter");
   await settled();
