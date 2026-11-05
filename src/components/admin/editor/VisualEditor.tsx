@@ -63,6 +63,7 @@ import { effectiveSitePalette } from "@/themes/site-palette";
 
 import { clone, ConfirmDialog, toast, useUnsavedGuard } from "../editing";
 import { filterMedia } from "../LibraryStrip";
+import { MediaSortMenu, loadMoreOnFocus, noDate, sortMedia, useMediaSort, useProgressive, useReimportReveal, useTakenDates } from "../media-sort";
 import Uploader from "../Uploader";
 import { isUploaded, useUploadQueue } from "../UploadQueue";
 import { isPdfFile, readRatio, sendFile, useMediaWatch } from "../uploads";
@@ -2955,7 +2956,33 @@ export default function VisualEditor({
     for (const m of media) for (const t of m.tags) seen.set(t.label.toLowerCase(), t.label);
     return [...seen.values()].sort((a, b) => a.localeCompare(b, "fr"));
   }, [media]);
-  const shownMedia = useMemo(() => filterMedia(media, mediaTags, mediaQuery), [media, mediaTags, mediaQuery]);
+  // Lot 112 : tri (préférence mémorisée), dates de création lues en tâche de fond, chargement progressif, fichier renvoyé retrouvé.
+  const [mediaSort, setMediaSort] = useMediaSort();
+  const mediaDated = useTakenDates(media);
+  const shownMedia = useMemo(() => sortMedia(filterMedia(mediaDated, mediaTags, mediaQuery), mediaSort), [mediaDated, mediaTags, mediaQuery, mediaSort]);
+  const [mediaPage, mediaSentinel] = useProgressive(shownMedia.length, `${mediaSort}|${mediaTags.join(",")}|${mediaQuery}`);
+  const [mediaScrollTo, setMediaScrollTo] = useState<number | null>(null);
+  const mediaFlash = useReimportReveal(
+    media,
+    shownMedia,
+    () => {
+      setMediaTags([]);
+      setMediaQuery("");
+      setTab("medias");
+      if (mobile) setSheet(true);
+    },
+    (id, index) => {
+      mediaPage.ensure(index + 1);
+      setMediaScrollTo(id);
+    },
+  );
+  useEffect(() => {
+    if (mediaScrollTo === null || tab !== "medias") return;
+    const el = document.querySelector<HTMLElement>(`.ve-media [data-media="${mediaScrollTo}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "center" });
+    setMediaScrollTo(null);
+  }, [mediaScrollTo, mediaPage.count, tab]);
 
   const panel = (
     <aside className="ve-panel" data-open={sheet || undefined} aria-label="Outils de l'éditeur" inert={(mobile && !sheet) || canvasModal ? true : undefined}>
@@ -3131,6 +3158,14 @@ export default function VisualEditor({
               <span className="sr-only">Rechercher par nom ou tag</span>
               <input className="a-input" type="search" placeholder="Rechercher par nom ou tag…" value={mediaQuery} onChange={(e) => setMediaQuery(e.target.value)} />
             </label>
+            <MediaSortMenu
+              className="ve-media-sort"
+              value={mediaSort}
+              onChange={(s) => {
+                setMediaSort(s);
+                document.getElementById("ve-pane-medias")?.scrollTo({ top: 0 });
+              }}
+            />
             {tagOptions.length > 0 && (
               <div className="ve-chips" role="group" aria-label="Filtrer par tags">
                 {tagOptions.map((t) => {
@@ -3146,10 +3181,11 @@ export default function VisualEditor({
             {shownMedia.length === 0 ? (
               <p className="ve-empty">{media.length ? "Aucun média ne correspond." : "Ta médiathèque est vide : dépose des fichiers ci-dessus."}</p>
             ) : (
-              <ul className="ve-media" aria-label="Médias">
-                {shownMedia.slice(0, 120).map((m) => (
+              <ul className="ve-media" aria-label="Médias" onFocus={(e) => loadMoreOnFocus(e, mediaPage.count, mediaPage.more, mediaPage.ensure)}>
+                {shownMedia.slice(0, mediaPage.count).map((m) => (
                   <li
                     key={m.id}
+                    data-flash={mediaFlash === m.id || undefined}
                     title={`${m.name} : clique pour la poser, glisse-la sur un projet`}
                     data-media={m.id}
                     data-status={m.status}
@@ -3171,6 +3207,7 @@ export default function VisualEditor({
                       <img src={m.thumb} alt="" loading="lazy" draggable={false} />
                     )}
                     {m.kind === "video" && <span className="ve-media-kind" aria-hidden="true">▶</span>}
+                    {noDate(m, mediaSort) && <span className="ve-media-nodate" data-testid="media-nodate">Date inconnue</span>}
                     {m.status === "processing" && <span className="ve-media-state">{m.kind === "video" ? "Conversion…" : "Traitement…"}</span>}
                     {m.status === "failed" && (
                       <span className="ve-media-state" data-failed="" title={m.error ?? undefined}>
@@ -3192,6 +3229,7 @@ export default function VisualEditor({
                 ))}
               </ul>
             )}
+            {mediaPage.more && <div ref={mediaSentinel} className="ve-media-more" aria-hidden="true" data-testid="ve-media-more" />}
             <p className="ve-hint">
               Clique une vignette pour la poser dans l&apos;image, la vidéo ou la grille sélectionnée (la petite loupe l&apos;agrandit sans la poser), ou glisse-la sur un
               projet de la page : entre deux images, ou sur une place vide. Tu peux aussi déposer des fichiers de ton ordinateur directement sur le projet.

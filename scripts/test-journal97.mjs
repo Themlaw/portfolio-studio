@@ -158,7 +158,7 @@ ok("limite de débit : la minute suivante repart", client.allowClientEvent("spam
 ok("taille bornée (8 Ko)", client.MAX_BODY_BYTES === 8192);
 
 /* ---- inventaire statique ------------------------------------------------------------------------------------------------------------ */
-const READS = new Set(["frameUsesAction", "listFramesAction", "mediaStatusAction", "mediaUsesAction", "pendingUploadsAction", "listTagsAction", "wallpaperUsesAction", "listWallpapersAction", "previewFaviconAction", "backupStatusAction"]);
+const READS = new Set(["frameUsesAction", "listFramesAction", "mediaStatusAction", "backfillTakenAction", "mediaUsesAction", "pendingUploadsAction", "listTagsAction", "wallpaperUsesAction", "listWallpapersAction", "previewFaviconAction", "backupStatusAction"]);
 const walk = (dir) => readdirSync(dir).flatMap((n) => { const p = path.join(dir, n); return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(n) ? [p] : []; });
 const wrapped = new Set();
 const bare = [];

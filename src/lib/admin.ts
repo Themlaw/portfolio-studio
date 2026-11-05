@@ -290,6 +290,11 @@ export type AdminMediaRow = {
   error: string | null;
   alt: L;
   createdAt: number;
+  /** Date du dernier envoi (ms) : renvoi d'un contenu déjà présent compris (lot 112) ; sinon la date d'ajout. */
+  importedAt: number;
+  /** Date de création du fichier (EXIF, PNG, vidéo ; ms UTC), ou null si inconnue ou pas encore lue (`takenChecked`). */
+  takenAt: number | null;
+  takenChecked: boolean;
   /** Vignette (variante la plus petite, ou le fichier du seed). */
   thumb: string | null;
   /** Aperçu large (plus grande variante). */
@@ -333,6 +338,9 @@ function toRow(m: typeof schema.media.$inferSelect, uses: number, progress: numb
     error: m.error,
     alt: asL(m.alt),
     createdAt: m.createdAt.getTime(),
+    importedAt: m.lastImportAt ?? m.createdAt.getTime(),
+    takenAt: m.takenAt,
+    takenChecked: m.takenChecked === 1,
     thumb: thumbUrl(m),
     preview: largest ? mediaUrl(largest.key) : thumbUrl(m),
     color: m.dominantColor,
@@ -370,7 +378,8 @@ function mediaRows(trashed: boolean): AdminMediaRow[] {
     .from(schema.media)
     // Le fichier d'un papier peint (lot 35) n'est pas une photo : il vit dans Thèmes → Papiers peints, pas dans la médiathèque.
     .where(and(trashed ? isNotNull(schema.media.deletedAt) : isNull(schema.media.deletedAt), sql`${schema.media.id} not in (select media_id from wallpapers)`))
-    .orderBy(trashed ? desc(schema.media.deletedAt) : desc(schema.media.id))
+        // Lot 112 : « Ajouté récemment » = dernier envoi (un contenu renvoyé remonte), puis l'identifiant.
+    .orderBy(...(trashed ? [desc(schema.media.deletedAt)] : [sql`coalesce(${schema.media.lastImportAt}, ${schema.media.createdAt} * 1000) desc`, desc(schema.media.id)]))
     .all()
     .map((m) => toRow(m, usage.get(m.id)?.length ?? 0, progress.get(m.id) ?? null, tags.get(m.id) ?? []));
 }

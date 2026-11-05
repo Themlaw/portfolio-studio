@@ -2,18 +2,20 @@
 
 /**
  * Bandeau « Bibliothèque » de la planche : rangée de vignettes de 72 px (les
- * plus récentes d'abord) qui défile horizontalement, filtrée par tags (ET) et
+ * plus récentes d'abord par défaut ; menu « Trier par », lot 112) qui défile
+ * horizontalement (molette comprise, chargement progressif), filtrée par tags (ET) et
  * par recherche. Chaque vignette se glisse dans la bande (dnd-kit, contexte
  * partagé avec la planche) ou s'ajoute à la fin d'un clic. Un média en
  * conversion se place (son emplacement montre l'état) ; un média en échec, non.
  */
 import { useDraggable } from "@dnd-kit/core";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import TagInput from "@/app/admin/_fields/TagInput";
 import type { AdminMediaRow } from "@/lib/admin";
 import { tagKey } from "@/lib/tag-key";
 
+import { MediaSortMenu, noDate, sortMedia, useMediaSort, loadMoreOnFocus, useProgressive, useReimportReveal, useTakenDates, useWheelToHorizontal, type MediaSort } from "./media-sort";
 import { useUploadQueue } from "./UploadQueue";
 
 export const LIB_PREFIX = "lib-";
@@ -30,13 +32,13 @@ export function filterMedia(media: AdminMediaRow[], tags: string[], query: strin
   });
 }
 
-function Thumb({ media, onAddEnd }: { media: AdminMediaRow; onAddEnd: (m: AdminMediaRow) => void }) {
+function Thumb({ media, onAddEnd, sort, flash }: { media: AdminMediaRow; onAddEnd: (m: AdminMediaRow) => void; sort: MediaSort; flash: boolean }) {
   const failed = media.status === "failed";
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `${LIB_PREFIX}${media.id}`, data: { media }, disabled: failed });
   const ratio = media.width && media.height ? media.width / media.height : 4 / 3;
   const state = media.status === "processing" ? (media.kind === "video" ? "Conversion…" : "Traitement…") : failed ? "Échec" : null;
   return (
-    <li className="a-libthumb" data-status={media.status} data-dragging={isDragging || undefined}>
+    <li className="a-libthumb" data-status={media.status} data-dragging={isDragging || undefined} data-flash={flash || undefined}>
       <div
         ref={setNodeRef}
         {...listeners}
@@ -54,6 +56,7 @@ function Thumb({ media, onAddEnd }: { media: AdminMediaRow; onAddEnd: (m: AdminM
         )}
         {media.kind === "video" && <span className="a-libthumb-kind" aria-hidden="true">▶</span>}
         {state && <span className="a-libthumb-state">{state}</span>}
+        {noDate(media, sort) && <span className="a-libthumb-state" data-testid="media-nodate">Date inconnue</span>}
       </div>
       <button type="button" className="a-libthumb-add" disabled={failed} onClick={() => onAddEnd(media)} aria-label={`Ajouter ${media.name} à la fin du projet`}>
         +
@@ -67,7 +70,34 @@ export default function LibraryStrip({ media, onAddEnd, regionRef }: { media: Ad
   const [filter, setFilter] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const headingId = useId();
-  const list = useMemo(() => filterMedia(media, filter, query), [media, filter, query]);
+  const [sort, setSort] = useMediaSort();
+  const dated = useTakenDates(media);
+  const list = useMemo(() => sortMedia(filterMedia(dated, filter, query), sort), [dated, filter, query, sort]);
+  const [page, sentinelRef] = useProgressive(list.length, `${sort}|${filter.join(",")}|${query}`);
+  const rowRef = useRef<HTMLUListElement>(null);
+  useWheelToHorizontal(rowRef, list.length > 0);
+  const [scrollTo, setScrollTo] = useState<number | null>(null);
+  const flash = useReimportReveal(
+    media,
+    list,
+    () => {
+      setFilter([]);
+      setQuery("");
+    },
+    (id, index) => {
+      page.ensure(index + 1);
+      setScrollTo(id);
+    },
+  );
+  useEffect(() => {
+    if (scrollTo === null) return;
+    const row = rowRef.current;
+    const el = row?.querySelector<HTMLElement>(`[data-media="${scrollTo}"]`);
+    if (!row || !el) return;
+    // Défilement horizontal de la rangée seulement (la page ne bouge pas).
+    row.scrollLeft = Math.max(0, el.offsetLeft - row.clientWidth / 2 + el.offsetWidth / 2);
+    setScrollTo(null);
+  }, [scrollTo, page.count]);
   // Seuls les tags présents dans la bibliothèque sont proposés au filtre.
   const options = useMemo(() => tags.filter((t) => t.count > 0), [tags]);
   return (
@@ -81,6 +111,13 @@ export default function LibraryStrip({ media, onAddEnd, regionRef }: { media: Ad
         </span>
         <div className="a-libstrip-tools">
           <TagInput label="Filtrer par tags" hideLabel mode="filter" value={filter} onChange={setFilter} options={options} />
+          <MediaSortMenu
+            value={sort}
+            onChange={(s) => {
+              setSort(s);
+              if (rowRef.current) rowRef.current.scrollLeft = 0;
+            }}
+          />
           <label className="a-search">
             <span className="sr-only">Rechercher dans la bibliothèque</span>
             <input className="a-input" type="search" placeholder="Rechercher…" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -90,10 +127,11 @@ export default function LibraryStrip({ media, onAddEnd, regionRef }: { media: Ad
       {list.length === 0 ? (
         <p className="muted a-libstrip-empty">{media.length ? "Aucun média ne correspond à ce filtre." : "Ta bibliothèque est vide : envoie des fichiers ci-dessus."}</p>
       ) : (
-        <ul className="a-libstrip-row" aria-label="Médias de la bibliothèque">
-          {list.map((m) => (
-            <Thumb key={m.id} media={m} onAddEnd={onAddEnd} />
+        <ul ref={rowRef} className="a-libstrip-row" aria-label="Médias de la bibliothèque" tabIndex={0} onFocus={(e) => loadMoreOnFocus(e, page.count, page.more, page.ensure)}>
+          {list.slice(0, page.count).map((m) => (
+            <Thumb key={m.id} media={m} onAddEnd={onAddEnd} sort={sort} flash={flash === m.id} />
           ))}
+          {page.more && <li ref={sentinelRef} className="a-libstrip-more" aria-hidden="true" data-testid="libstrip-more" />}
         </ul>
       )}
       <p className="a-help">Fais glisser une vignette dans la bande, entre deux emplacements ou sur un emplacement vide ; « + » l&apos;ajoute à la fin.</p>
