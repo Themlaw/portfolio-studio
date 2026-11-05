@@ -122,6 +122,8 @@ export default function SiteHeader({
         <Link
           href="/"
           className="site-brand font-display text-lg lg:text-xl leading-none text-ink hover:text-primary transition-colors"
+          // Lot 124 : repère du texte (réglage propre à l'en-tête, feuille des styles du site).
+          data-site-text="brand"
           {...(logo ? { "data-logo-image": "" } : {})}
         >
           {/* Signature dessinée (kit) : affichée par variants.css quand le thème
@@ -140,7 +142,7 @@ export default function SiteHeader({
           className={`${edit ? "flex" : "hidden lg:flex"} flex-wrap items-center justify-end gap-x-7 gap-y-2`}
         >
           {nav.map(({ id, href, label, external }, i) => {
-            const mark = edit ? { "data-nav-item": i, "data-nav-key": keys[i] } : {};
+            const mark = { "data-site-text": `n:${keys[i]}`, ...(edit ? { "data-nav-item": i, "data-nav-key": keys[i] } : {}) };
             const active = pathname === href;
             const className = `caption-text relative whitespace-nowrap font-caption text-[0.7rem] tracking-[0.18em] uppercase transition-colors ${
               active ? "text-ink" : "text-ink-soft hover:text-primary"
@@ -190,6 +192,7 @@ export default function SiteHeader({
             onClick={() => setOpenOn(open ? null : pathname)}
             aria-expanded={open}
             aria-controls="nav-mobile"
+            data-site-text="menu-btn"
             className="caption-text font-caption text-[0.7rem] tracking-[0.18em] uppercase text-ink-soft hover:text-primary transition-colors"
           >
             {open ? t("close") : t("menu")}
@@ -204,14 +207,14 @@ export default function SiteHeader({
         className="lg:hidden bg-bg/95 backdrop-blur-xl border-t border-line"
       >
         <ul className="shell flex flex-col py-3">
-          {nav.map(({ id, href, label, external }) => (
+          {nav.map(({ id, href, label, external }, i) => (
             <li key={id ?? href} className="border-b border-line last:border-0">
               {external ? (
-                <a href={href} target="_blank" rel="noopener noreferrer" className="block py-3 font-display text-2xl text-ink hover:text-primary transition-colors">
+                <a href={href} target="_blank" rel="noopener noreferrer" data-site-text={`n:${keys[i]}`} className="block py-3 font-display text-2xl text-ink hover:text-primary transition-colors">
                   {label}
                 </a>
               ) : (
-                <Link href={href} className="block py-3 font-display text-2xl text-ink hover:text-primary transition-colors">
+                <Link href={href} data-site-text={`n:${keys[i]}`} className="block py-3 font-display text-2xl text-ink hover:text-primary transition-colors">
                   {label}
                 </Link>
               )}

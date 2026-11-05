@@ -16,7 +16,7 @@ import { and, eq, isNull, ne } from "drizzle-orm";
 import { getDb, schema } from "@/lib/db";
 import { parseJson } from "@/lib/json";
 import { cleanSiteStyles, SiteStylesSchema } from "@/lib/look";
-import { asSiteName, canonicalSnap, SiteSnapSchema, type SiteSnap } from "@/lib/site-schema";
+import { asSiteName, canonicalSnap, navKeys, SiteSnapSchema, socialKeys, type SiteSnap } from "@/lib/site-schema";
 
 
 import type { DraftRefusal } from "./drafts";
@@ -146,7 +146,12 @@ export function saveSiteDraft(pageId: number, input: unknown, rev: unknown, page
     if (media?.kind !== "image" || media.deletedAt) return fail("L'image du logo n'existe plus ou n'est pas une image : choisis-en une autre dans la médiathèque.");
   }
   // Autonettoyage : pages disparues (ou réservées) et doublons retirés, jamais de refus bloquant.
-  const styles = cleanSiteStyles(parsed.data.styles);
+  // Réglages de texte d'un lien du menu ou d'un réseau qui n'existent plus : retirés (le menu et les réseaux sont ceux de CE brouillon).
+  const navKeyList = navKeys(cleanNav(parsed.data.nav).map((i) => (i.kind === "page" ? { pageId: i.pageId, href: "" } : { href: i.href })));
+  const liveKeys = new Set(["brand", ...navKeyList.map((k) => `n:${k}`), ...navKeyList.map((k) => `f:n:${k}`), ...socialKeys(parsed.data.socials).map((k) => `f:s:${k}`)]);
+  const fixed = (key: string) => key.startsWith("f:") && !key.startsWith("f:n:") && !key.startsWith("f:s:");
+  const kept = parsed.data.styles?.texts ? Object.fromEntries(Object.entries(parsed.data.styles.texts).filter(([k]) => fixed(k) || liveKeys.has(k))) : undefined;
+  const styles = cleanSiteStyles(parsed.data.styles ? { ...parsed.data.styles, ...(parsed.data.styles.texts ? { texts: kept } : {}) } : undefined);
   const { styles: _drop, ...rest } = parsed.data;
   void _drop;
   const snap: SiteSnap = canonicalSnap({ ...rest, nav: cleanNav(parsed.data.nav), ...(styles ? { styles } : {}) });

@@ -905,8 +905,28 @@ export function cleanSiteStroke(s: SiteStroke | undefined): SiteStroke | undefin
 }
 const declsOf = (v: Record<string, string>) => Object.entries(v).map(([k, x]) => `${k}:${x}`).join(";");
 
+/* ---- En-tête et pied de page (lot 124) ------------------------------------------------------------ */
+
+/** Zones : « Tout le menu » (liens de l'en-tête) et « Tout le pied de page ». */
+export const HZ_ZONES = ["menu", "footer"] as const;
+export type HzZone = (typeof HZ_ZONES)[number];
+export const HZ_ZONE_LABELS: Record<HzZone, string> = { menu: "Tout le menu", footer: "Tout le pied de page" };
+/**
+ * Clé d'un texte de l'en-tête ou du pied de page (`data-site-text` de l'élément) : `brand` (nom du site), `n:<lien>` (lien du menu),
+ * `f:<texte>` (texte du pied : `f:email`, `f:role`, `f:credit`, `f:copy`, `f:eb-…`, `f:n:<lien>`, `f:s:<réseau>`).
+ */
+export const SITE_TEXT_KEY_RE = /^(brand|n:.{1,150}|f:.{1,150})$/;
+export const SiteTextKeySchema = z.string().regex(SITE_TEXT_KEY_RE, "Texte inconnu.");
+/** Zone d'un texte (portée « Tout le menu » / « Tout le pied de page »), ou null (nom du site : pas de zone). */
+export const siteTextZone = (key: string): HzZone | null => (key.startsWith("n:") ? "menu" : key.startsWith("f:") ? "footer" : null);
+export const MAX_SITE_TEXTS = 200;
+
 export const SiteStylesSchema = z.strictObject({
   roles: z.partialRecord(z.enum(ROLES), TextStyleSchema).optional(),
+  /** Réglage propre à UN texte de l'en-tête ou du pied (clé `data-site-text`) : passe devant sa zone et le site. */
+  texts: z.record(SiteTextKeySchema, TextStyleSchema).refine((r) => Object.keys(r).length <= MAX_SITE_TEXTS, "Trop de réglages de texte.").optional(),
+  /** Réglage de toute une zone (menu, pied de page) : passe devant le site, derrière le texte seul. */
+  zones: z.strictObject({ menu: TextStyleSchema.optional(), footer: TextStyleSchema.optional() }).optional(),
   /** Arrondi des images et cartes du site (surcharge le thème). */
   radius: z.enum(RADII).optional(),
   palette: SitePaletteSchema.optional(),
@@ -971,8 +991,52 @@ export function siteStylesCss(styles: SiteStyles | undefined, palette?: CardPale
     if (boxed.length && boxedTarget) rules.push(`${WIN} ${boxedTarget}{${boxed.map(([k, v]) => `${k}:${v}`).join(";")}}`);
     if (chosen) rules.push(`${WIN} ${ROLE_SELECTORS[role]}{--user-ink:${chosen[1]}}`);
   }
+  rules.push(...hzRules(s.zones, s.texts, palette));
   // Rien d'injectable n'arrive ici (crans et catalogue), ceinture quand même.
   return rules.join("\n").replace(/</g, "\\3c ");
+}
+
+/** Valeur de chaîne CSS d'une clé de texte (guillemets et barres échappés, sauts de ligne retirés). */
+const cssStr = (v: string) => v.replace(/[\\"]/g, "\\$&").replace(/[\n\r\f]/g, " ");
+/** Éléments visés par chaque zone (le lien du menu, le bouton « Menu » du téléphone ; tous les textes repérés du pied). */
+const HZ_ZONE_TARGET: Record<HzZone, string> = {
+  menu: '.site-header :is([data-site-text^="n:"], [data-site-text="menu-btn"])',
+  footer: 'footer :is([data-site-text^="f:"])',
+};
+/** Un cran de plus que les styles de rôle (spécificité 0,5,0 au plus) : la zone passe devant le site ; le texte seul, un cran devant la zone. */
+const HZ_WIN = ":root:root:root:root";
+const HZ_WIN_ONE = ":root:root:root:root:root:root";
+
+/** Règles d'un style posé sur un ensemble d'éléments (`target`) : le fond sur l'élément seul, le reste aussi sur son <span> (libellé en édition, adresse e-mail). */
+function hzRule(prefix: string, scope: string, target: string, style: TextStyle | undefined, palette: CardPalette | undefined): string[] {
+  const decls = textStyleDecls(style, palette, false);
+  if (!decls.length) return [];
+  const css = (list: [string, string][]) => list.map(([k, v]) => `${k}:${v}`).join(";");
+  const box = decls.filter(([k]) => BACKDROP_PROPS.has(k));
+  const plain = decls.filter(([k]) => !BACKDROP_PROPS.has(k));
+  const at = `${prefix} ${scope}`.trim();
+  const out: string[] = [];
+  if (plain.length) out.push(`${at} :is(${target}),${at} :is(${target}) > span{${css(plain)}}`);
+  if (box.length) out.push(`${at} :is(${target}){${css(box)}}`);
+  // Couleur choisie : publiée pour qu'un fond lisible (`var(--user-ink, …)`) ne la remplace pas (comme les styles de rôle).
+  const chosen = style?.color ? decls.find(([k]) => k === "color") : undefined;
+  if (chosen) out.push(`${at} :is(${target}){--user-ink:${chosen[1]}}`);
+  return out;
+}
+
+/**
+ * Feuille de l'en-tête et du pied de page (lot 124) : la zone (liens du menu, pied de page), puis chaque texte seul. Priorité élément > zone > site > thème :
+ * la zone passe devant les styles de rôle du site (spécificité), le texte seul devant la zone. Sans réglage de zone ni de texte, aucune règle :
+ * le rendu reste celui des styles de rôle d'avant.
+ */
+function hzRules(zones: SiteStyles["zones"], texts: SiteStyles["texts"], palette: CardPalette | undefined): string[] {
+  const rules: string[] = [];
+  for (const zone of HZ_ZONES) rules.push(...hzRule(HZ_WIN, "", HZ_ZONE_TARGET[zone], zones?.[zone], palette));
+  for (const [key, style] of Object.entries(texts ?? {})) {
+    if (!SITE_TEXT_KEY_RE.test(key)) continue;
+    rules.push(...hzRule(HZ_WIN_ONE, "", `[data-site-text="${cssStr(key)}"]`, style, palette));
+  }
+  return rules;
 }
 
 /**
@@ -1083,26 +1147,29 @@ export function rebaseSiteStyles(base: SiteStyles | undefined, mine: SiteStyles 
   const out: Record<string, unknown> = { ...(theirs ?? {}) };
   const rec = (s: SiteStyles | undefined) => (s ?? {}) as Record<string, unknown>;
   for (const k of new Set([...Object.keys(rec(base)), ...Object.keys(rec(mine))])) {
-    if (k === "roles" || same(rec(base)[k], rec(mine)[k])) continue;
+    if (k === "roles" || k === "texts" || k === "zones" || same(rec(base)[k], rec(mine)[k])) continue;
     if (rec(mine)[k] === undefined) delete out[k];
     else out[k] = rec(mine)[k];
   }
-  const roles: Record<string, Record<string, unknown>> = { ...((theirs?.roles ?? {}) as Record<string, Record<string, unknown>>) };
-  const b = (base?.roles ?? {}) as Record<string, Record<string, unknown> | undefined>;
-  const m = (mine?.roles ?? {}) as Record<string, Record<string, unknown> | undefined>;
-  for (const r of new Set([...Object.keys(b), ...Object.keys(m)])) {
-    if (same(b[r], m[r])) continue;
-    const t = { ...(roles[r] ?? {}) };
-    for (const f of new Set([...Object.keys(b[r] ?? {}), ...Object.keys(m[r] ?? {})])) {
-      if (same(b[r]?.[f], m[r]?.[f])) continue;
-      if (m[r]?.[f] === undefined) delete t[f];
-      else t[f] = m[r]![f];
+  // Rôles, textes de l'en-tête et du pied, zones : même fusion, champ par champ.
+  for (const name of ["roles", "texts", "zones"] as const) {
+    const merged: Record<string, Record<string, unknown>> = { ...((theirs?.[name] ?? {}) as Record<string, Record<string, unknown>>) };
+    const b = (base?.[name] ?? {}) as Record<string, Record<string, unknown> | undefined>;
+    const m = (mine?.[name] ?? {}) as Record<string, Record<string, unknown> | undefined>;
+    for (const r of new Set([...Object.keys(b), ...Object.keys(m)])) {
+      if (same(b[r], m[r])) continue;
+      const t = { ...(merged[r] ?? {}) };
+      for (const f of new Set([...Object.keys(b[r] ?? {}), ...Object.keys(m[r] ?? {})])) {
+        if (same(b[r]?.[f], m[r]?.[f])) continue;
+        if (m[r]?.[f] === undefined) delete t[f];
+        else t[f] = m[r]![f];
+      }
+      if (Object.keys(t).length) merged[r] = t;
+      else delete merged[r];
     }
-    if (Object.keys(t).length) roles[r] = t;
-    else delete roles[r];
+    if (Object.keys(merged).length) (out as Record<string, unknown>)[name] = merged;
+    else delete out[name];
   }
-  if (Object.keys(roles).length) out.roles = roles;
-  else delete out.roles;
   return Object.keys(out).length ? (out as SiteStyles) : undefined;
 }
 
@@ -1116,8 +1183,26 @@ export function cleanSiteStyles(styles: SiteStyles | undefined): SiteStyles | un
   ) as SiteStyles["roles"];
   const palette = cleanSitePalette(styles.palette);
   const logo = cleanLogo(styles.logo);
+  const bare = (v: object | undefined) => Object.fromEntries(Object.entries(v ?? {}).filter(([, x]) => x !== undefined));
+  const texts = Object.fromEntries(
+    Object.entries(styles.texts ?? {})
+      .map(([k, v]) => [k, bare(v)] as const)
+      .filter(([, v]) => Object.keys(v).length)
+      .slice(0, MAX_SITE_TEXTS),
+  ) as SiteStyles["texts"];
+  const zones = Object.fromEntries(
+    HZ_ZONES.map((z) => [z, bare(styles.zones?.[z])] as const).filter(([, v]) => Object.keys(v).length),
+  ) as SiteStyles["zones"];
   const stroke = cleanSiteStroke(styles.stroke);
-  const out: SiteStyles = { ...(roles && Object.keys(roles).length ? { roles } : {}), ...(styles.radius ? { radius: styles.radius } : {}), ...(palette ? { palette } : {}), ...(logo ? { logo } : {}), ...(stroke ? { stroke } : {}) };
+  const out: SiteStyles = {
+    ...(roles && Object.keys(roles).length ? { roles } : {}),
+    ...(texts && Object.keys(texts).length ? { texts } : {}),
+    ...(zones && Object.keys(zones).length ? { zones } : {}),
+    ...(styles.radius ? { radius: styles.radius } : {}),
+    ...(palette ? { palette } : {}),
+    ...(logo ? { logo } : {}),
+    ...(stroke ? { stroke } : {}),
+  };
   return Object.keys(out).length ? out : undefined;
 }
 

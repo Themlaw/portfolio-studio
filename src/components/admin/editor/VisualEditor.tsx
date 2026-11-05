@@ -55,7 +55,7 @@ import { hasFace, type FontLibrary } from "@/lib/fonts/faces";
 import type { LookContext } from "@/lib/edit/look-context";
 import { convertItem as convertBoardItem } from "@/blocks/grid-strip";
 import { BOARD_ITEM_LABELS, parseRailKey, railKey, type BoardBox as BoardBoxProps, type BoardItem, type BoardItemType } from "@/blocks/board-layout";
-import { cleanLook, cleanSiteStyles, googleOf, readLook, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
+import { cleanLook, cleanSiteStyles, googleOf, readLook, type HzZone, type Logo, type Look, type Role, type SitePalette, type SiteStyles, type TextStyle } from "@/lib/look";
 import { googleFamily, nearestWeight } from "@/themes/google-fonts";
 import { readBackground, supportsFond, type Background } from "@/themes/fond";
 import { cleanSurface, readSurface, type Surface } from "@/themes/surface";
@@ -113,7 +113,7 @@ type HistoryEntry = { draft: PageDraft; board?: { projectId: number; snap: Board
 type Place = { parent: string | null; index: number };
 type FromCanvasMsg = FromCanvas;
 /** Messages de la toile qui portent un aperçu local (edit/optimistic.ts). */
-const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "fond", "bitem-text", "bitem-look", "board-captions", "cell-look", "free-op", "media-look"]);
+const CANVAS_INTENTS = new Set<string>(["text", "site-text", "site-op", "form-field", "look", "site-style", "site-text-style", "site-zone-style", "site-look", "op", "move", "layout", "tile-size", "tile-op", "slot-text", "project-text", "surface", "background", "fond", "bitem-text", "bitem-look", "board-captions", "cell-look", "free-op", "media-look"]);
 /** Fantôme d'envoi : ce que la toile affiche, plus le fichier et le média côté éditeur. */
 type GhostItem = Ghost & { batch: string; file?: File; mediaId?: number; collection?: "characters" | "backgrounds" | "animation" };
 /**
@@ -1629,6 +1629,24 @@ export default function VisualEditor({
       return { ...current, roles };
     }, [style ?? undefined]);
 
+  /** Lot 124 : réglage d'UN texte de l'en-tête ou du pied de page (`styles.texts`), et d'une zone (`styles.zones`) : mêmes écriture et même historique que les styles de rôle. */
+  const applySiteTextStyle = (key: string, style: TextStyle | null) =>
+    void applySiteStyles((cur) => {
+      const current = cur ?? {};
+      const texts = { ...(current.texts ?? {}) };
+      if (style) texts[key] = style;
+      else delete texts[key];
+      return { ...current, texts };
+    }, [style ?? undefined]);
+  const applySiteZoneStyle = (zone: HzZone, style: TextStyle | null) =>
+    void applySiteStyles((cur) => {
+      const current = cur ?? {};
+      const zones = { ...(current.zones ?? {}) };
+      if (style) zones[zone] = style;
+      else delete zones[zone];
+      return { ...current, zones };
+    }, [style ?? undefined]);
+
   /* ---- Palette et logo du site (lot 17f) ----------------------------------
      L'aperçu est immédiat (la toile le pose et renvoie l'intention `site-look`) ; l'écriture est
      regroupée (350 ms sans nouveau geste) : un glisser sur la roue ou le curseur = un seul pas
@@ -2373,9 +2391,9 @@ export default function VisualEditor({
   };
 
   const itemFlush = () => itemFlushRef.current();
-  const handlers = useRef({ itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode });
+  const handlers = useRef({ itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySiteTextStyle, applySiteZoneStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode });
   useEffect(() => {
-    handlers.current = { itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode };
+    handlers.current = { itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySiteTextStyle, applySiteZoneStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -2569,6 +2587,12 @@ export default function VisualEditor({
         }
         case "site-style":
           h.applySiteStyle(msg.role, msg.style);
+          break;
+        case "site-text-style":
+          h.applySiteTextStyle(msg.key, msg.style);
+          break;
+        case "site-zone-style":
+          h.applySiteZoneStyle(msg.zone, msg.style);
           break;
         case "background":
           if (!h.applyBackground(msg.uid, msg.background, msg.continuous) && msg.seq) send({ kind: "revert", seq: msg.seq });
