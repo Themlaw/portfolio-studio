@@ -216,7 +216,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
   return wrap(
     withZone(
       withLook(
-        <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id, look, ...(cellInfo ? { cellInfo } : {}) }}>
+        <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id, blockUid: block.uid ?? String(block.id), look, ...(cellInfo ? { cellInfo } : {}) }}>
           {children}
         </Component>,
         shown,

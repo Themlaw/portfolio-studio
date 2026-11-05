@@ -115,7 +115,21 @@
 }
 .lk-seg {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 2px;
+}
+/* Lots 119-120 : pastille sur la portée qui porte un réglage (cet élément, tout le projet, tout le site). */
+.lk-bar-head .lk-seg button {
+  position: relative;
+}
+.lk-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--pe-accent);
+  vertical-align: middle;
 }
 .lk-bar-head button {
   min-height: 26px;

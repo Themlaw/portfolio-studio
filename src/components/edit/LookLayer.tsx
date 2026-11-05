@@ -35,6 +35,9 @@ import {
   cropWindow,
   googleOf,
   needsCrop,
+  PROJECT_CAPTION_KEYS,
+  projectStylesCss,
+  pscopeId,
   readLook,
   resolveTextStyle,
   ROLE_LABELS,
@@ -46,6 +49,7 @@ import {
   type Crop,
   type Look,
   type PaletteColor,
+  type ProjectTextKey,
   type Role,
   type SiteStyles,
   spaceLabel,
@@ -387,6 +391,11 @@ type TextTarget = {
   local: { uid: string; key: string } | null;
   /** Légende d'une planche de projet (lot 98) : champ (titre, légende, date) et projet, pour la portée « Les légendes de ce projet ». */
   cap: { field: CaptionStyleField; board: number } | null;
+  /**
+   * Portée « Tout le projet » (lot 120) : type du texte (`look.projectText` du bloc), bloc « planche de projet » qui porte le réglage et planche.
+   * Présente pour tout texte d'une planche de projet qui a un type (titres, étiquettes, textes, champs d'une légende) ; absente ailleurs.
+   */
+  proj: { key: ProjectTextKey; block: string; board: number } | null;
   /** L'élément lui-même au moment du choix (le DOM est re-rendu : `elementOf` le retrouve par `path` s'il a été remplacé). */
   el?: HTMLElement;
 };
@@ -456,11 +465,19 @@ function targetOf(el: HTMLElement): TextTarget {
   if (cell?.dataset.editCell && block && block.contains(cell)) local = { uid: cell.dataset.editCell, key: inline!.replace(/^children\.\d+\.props\./, "") };
   else if (uid && inline && el.closest(OWNER_SEL) === block) local = { uid, key: inline };
   else if (uid && (site === "name" || site === "role")) local = { uid, key: `site.${site}` };
+  // Profil : ses textes communs au site (e-mail, réseaux…) portent leur style propre dans le bloc (`site.<champ>`, rendu par le bloc).
+  else if (uid && site && block?.dataset.editType === "profile") local = { uid, key: `site.${site}` };
   // Une clé que le schéma des réglages refuserait serait perdue en silence (le message est écarté) : pas de « Ce texte » pour elle.
   if (local && !local.key.startsWith("site.") && !TEXT_PATH_RE.test(local.key)) local = null;
   const board = Number(el.closest<HTMLElement>("[data-edit-board]")?.dataset.editBoard);
   const field = el.dataset.cap === "title" || el.dataset.cap === "legend" || el.dataset.cap === "date" ? el.dataset.cap : null;
-  return { path: stableSelector(el) ?? pathOf(el), role: roleOf(el), local, cap: board && field ? { field, board } : null, el };
+  const role = roleOf(el);
+  // Portée « Tout le projet » (lot 120) : le type du texte, dans la planche de projet qui le montre ; le bloc est celui de la page qui porte cette planche.
+  const boardEl = el.closest<HTMLElement>("[data-edit-board]");
+  const boardBlock = boardEl?.closest<HTMLElement>("[data-edit-block]");
+  const pkey: ProjectTextKey | null = field ? PROJECT_CAPTION_KEYS[field] : role === "h1" || role === "h2" ? "h2" : role === "eyebrow" ? "eyebrow" : role === "body" ? "body" : null;
+  const proj = boardEl && boardBlock?.dataset.editBlock && boardBlock.dataset.editType === "project-board" && pkey && board ? { key: pkey, block: boardBlock.dataset.editBlock, board } : null;
+  return { path: stableSelector(el) ?? pathOf(el), role, local, cap: board && field ? { field, board } : null, proj, el };
 }
 
 /** Styles du site tels que le serveur les a rendus (feuille `#site-styles`). */
@@ -583,13 +600,17 @@ function captionStyles(board: number): ProjectCaptionStyle {
   }
 }
 
-/** Aperçu immédiat du style des légendes d'un projet : toutes ses légendes qui n'ont pas de style propre, jusqu'à ce que le serveur le rende. */
-function previewCaptions(board: number, style: ProjectCaptionStyle, seq: number) {
+/**
+ * Aperçu immédiat du style des légendes d'un projet : toutes ses légendes qui n'ont pas de style propre, jusqu'à ce que le serveur le rende.
+ * `style` : ce qui reste rangé avec la suite du projet (ancien emplacement, lot 98) ; `shown` : ce que les légendes doivent montrer (lot 120 : le style
+ * de la portée « Tout le projet » du bloc par-dessus lui).
+ */
+function previewCaptions(board: number, style: ProjectCaptionStyle, seq: number, shown: ProjectCaptionStyle = style) {
   setOverlay(`capstyle:${board}`, seq, {
     data: { style },
     apply: () => {
       for (const f of ["title", "legend", "date"] as const) {
-        const css = textStyleDecls(style[f] as TextStyle | undefined, canvasPalette()).map(([k, v]) => `${k}:${v}`).join(";");
+        const css = textStyleDecls(shown[f] as TextStyle | undefined, canvasPalette()).map(([k, v]) => `${k}:${v}`).join(";");
         for (const el of document.querySelectorAll<HTMLElement>(`[data-edit-board="${board}"] [data-cap="${f}"]:not([data-cap-local])`)) setPreviewStyle(el, css);
       }
     },
@@ -599,7 +620,41 @@ function previewCaptions(board: number, style: ProjectCaptionStyle, seq: number)
   });
 }
 
+/** Feuille d'aperçu de la portée « Tout le projet » d'une planche (titres, étiquettes, textes) : retirée quand elle n'a plus de règle. */
+function renderProjectPreview(block: string, texts: Look["projectText"]) {
+  const id = `pe-ptext-${pscopeId(block)}`;
+  const css = projectStylesCss(block, texts, canvasPalette());
+  let el = document.getElementById(id);
+  if (!css) {
+    el?.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement("style");
+    el.id = id;
+    document.body.appendChild(el);
+  }
+  if (el.textContent !== css) el.textContent = css;
+}
+
+/** Aperçu immédiat du style « Tout le projet » d'un type de texte, gardé jusqu'à ce que le serveur le rende. */
+function previewProjectText(block: string, texts: Look["projectText"], seq: number) {
+  setOverlay(`ptext:${block}`, seq, { data: texts, apply: () => renderProjectPreview(block, texts), clear: () => document.getElementById(`pe-ptext-${pscopeId(block)}`)?.remove() });
+}
+
 type Scope = "local" | "project" | "role";
+
+/** Les mots de chaque portée selon le type du texte : « Cette étiquette », « Toutes les étiquettes du projet »… (lots 119 et 120). */
+function scopeWords(target: TextTarget, role: Role): { one: string; project: string; hint: string } {
+  const field = target.cap?.field;
+  if (field === "title") return { one: "Ce titre", project: "Tous les titres de légende du projet", hint: "Les titres de légende de cette planche de projet" };
+  if (field === "legend") return { one: "Cette légende", project: "Toutes les légendes du projet", hint: "Les légendes de cette planche de projet" };
+  if (field === "date") return { one: "Cette date", project: "Toutes les dates du projet", hint: "Les dates de cette planche de projet" };
+  if (role === "h2") return { one: "Ce titre", project: "Tous les titres du projet", hint: "Les titres de cette planche de projet" };
+  if (role === "eyebrow") return { one: "Cette étiquette", project: "Toutes les étiquettes du projet", hint: "Les étiquettes de cette planche de projet" };
+  if (role === "caption") return { one: "Cette légende", project: "Toutes les légendes du projet", hint: "Les légendes de cette planche de projet" };
+  return { one: "Ce texte", project: "Tous les textes du projet", hint: "Les textes de cette planche de projet" };
+}
 
 function TextBar({
   target,
@@ -614,7 +669,7 @@ function TextBar({
   onClose: () => void;
   tick: number;
 }) {
-  const [scope, setScope] = useState<Scope>(target.local ? "local" : target.cap ? "project" : "role");
+  const [scope, setScope] = useState<Scope>(target.local ? "local" : target.proj ? "project" : "role");
   // Redessin à chaque réglage : l'aperçu ne change que des attributs (la page n'est pas observée pour cela). Sans lui, la barre garde
   // l'ancienne valeur jusqu'au prochain redessin de la page, et un second réglage fait aussitôt après écraserait le premier.
   const [, redraw] = useState(0);
@@ -641,9 +696,11 @@ function TextBar({
   const oldBackdrop = target.local?.key === "site.role" ? look.roleBackdrop : undefined;
   const legacyBackdrop = oldBackdrop && oldBackdrop !== "highlight" ? oldBackdrop : undefined;
   const localStyle: TextStyle = target.local ? { ...(legacyBackdrop ? { backdrop: legacyBackdrop } : {}), ...(look.text?.[target.local.key] ?? {}) } : {};
-  // Style des légendes du projet (lot 98) pour le champ de ce texte.
-  const projectAll = target.cap ? captionStyles(target.cap.board) : {};
-  const projectStyle: TextStyle = target.cap ? ((projectAll[target.cap.field] as TextStyle | undefined) ?? {}) : {};
+  // Portée « Tout le projet » (lots 98 et 120) : le style du type de ce texte pour la planche de projet qui le montre. Légendes : celui du bloc
+  // (`look.projectText`), à défaut l'ancien style rangé avec la suite du projet (lot 98, relu tel quel) ; autres types : celui du bloc.
+  const projLook: Look = target.proj ? lookOf(target.proj.block) : {};
+  const legacyAll: ProjectCaptionStyle = target.cap ? captionStyles(target.cap.board) : {};
+  const projectStyle: TextStyle = target.proj ? (projLook.projectText?.[target.proj.key] ?? (target.cap ? (legacyAll[target.cap.field] as TextStyle | undefined) : undefined) ?? {}) : {};
   // « Titres » : le titre de page et les titres de section partagent UN réglage (lot 68) ; le titre de page n'a son propre style que s'il en a posé un.
   const role: Role = target.role === "h1" ? "h2" : target.role;
   const roleStyle: TextStyle = (() => {
@@ -653,7 +710,7 @@ function TextBar({
     const out = { ...(roles.h2 ?? {}), ...(roles.h1?.size ? { size: roles.h1.size } : { size: undefined }), ...(roles.h1?.scale ? { scale: roles.h1.scale } : { scale: undefined }) };
     return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined)) as TextStyle;
   })();
-  const level: Scope = scope === "local" && !target.local ? (target.cap ? "project" : "role") : scope === "project" && !target.cap ? "role" : scope;
+  const level: Scope = scope === "local" && !target.local ? (target.proj ? "project" : "role") : scope === "project" && !target.proj ? "role" : scope;
   const value = level === "local" ? localStyle : level === "project" ? projectStyle : roleStyle;
   const change = (input: TextStyle | undefined) => {
     let next = input;
@@ -669,13 +726,26 @@ function TextBar({
       // Aperçu immédiat sur ce texte : son style propre par-dessus celui du projet (« Ce texte » passe devant), ou celui du projet s'il est retiré.
       const shown = target.cap && Object.keys(projectStyle).length ? resolveTextStyle(projectStyle, next) : next;
       previewTextStyle(target.local, shown, seq, Boolean(next));
-    } else if (level === "project" && target.cap) {
-      const style: ProjectCaptionStyle = { ...projectAll };
+    } else if (level === "project" && target.proj) {
       const clean = next ? (Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined)) as TextStyle) : undefined;
-      if (clean && Object.keys(clean).length) style[target.cap.field] = clean;
-      else delete style[target.cap.field];
-      const seq = postIntent({ kind: "board-captions", board: target.cap.board, style: Object.keys(style).length ? (style as never) : null });
-      previewCaptions(target.cap.board, style, seq);
+      const texts = { ...(projLook.projectText ?? {}) };
+      if (clean && Object.keys(clean).length) texts[target.proj.key] = clean;
+      else delete texts[target.proj.key];
+      // Réglage rangé dans le bloc « planche de projet » de CETTE page (jamais dans le projet) : même envoi que « Ce texte ».
+      const seq = sendLook(target.proj.block, { ...projLook, projectText: texts });
+      if (target.cap) {
+        // Légendes : l'ancien style du projet (rangé avec sa suite) ne pèse plus pour ce champ, sinon « Revenir » le ferait réapparaître.
+        const legacy: ProjectCaptionStyle = { ...legacyAll };
+        let seqCap = seq;
+        const hadLegacy = Boolean(legacy[target.cap.field]);
+        if (hadLegacy) {
+          delete legacy[target.cap.field];
+          seqCap = postIntent({ kind: "board-captions", board: target.cap.board, style: Object.keys(legacy).length ? (legacy as never) : null });
+        }
+        const shown: ProjectCaptionStyle = { ...legacy };
+        for (const f of ["title", "legend", "date"] as const) if (texts[PROJECT_CAPTION_KEYS[f]]) shown[f] = texts[PROJECT_CAPTION_KEYS[f]] as Record<string, unknown>;
+        previewCaptions(target.cap.board, legacy, seqCap, shown);
+      } else previewProjectText(target.proj.block, texts, seq);
     } else {
       // « Titres » (lot 68) : police, graisse, couleur… sont UN réglage pour le titre de page et les titres de section ; seule la TAILLE
       // reste propre à chacun (le titre de page est plus grand). Depuis un titre de page, la taille va donc à « Titre de page ».
@@ -702,24 +772,30 @@ function TextBar({
       }
     }
   };
-  const board = Boolean(target.cap);
+  const board = Boolean(target.proj);
+  const words = scopeWords(target, role);
+  const has = { local: Object.keys(localStyle).length > 0, project: Object.keys(projectStyle).length > 0, role: Object.keys(roleStyle).length > 0 };
+  const dot = (on: boolean) => (on ? <span className="lk-dot" aria-hidden="true" /> : null);
   // Fenêtre ancrée au bouton « Aa » (lot 65) : au-dessus du texte si la place y est, jamais sur la barre d'outils du bloc ni loin du bouton.
   return (
     <Popover anchor=".lk-aa" dataAttrs={{ "data-text-target": target.local?.key ?? target.role }} avoid={target.path} obstacles=".pe-tools" prefer="above" className="lk-bar" role="toolbar" label="Style du texte" onClose={onClose} ignoreDismiss={(t) => Boolean(elementOf(target)?.contains(t)) || (t instanceof Element && Boolean(t.closest(".pe-text-editor")))} onPointerDown={(e) => e.stopPropagation()}>
       <div className="lk-bar-head">
         <span className="lk-seg" role="radiogroup" aria-label="Appliquer à">
           {target.local && (
-            <button type="button" role="radio" aria-checked={level === "local"} onClick={() => setScope("local")}>
-              Ce texte
+            <button type="button" role="radio" aria-checked={level === "local"} data-scope="local" data-has-value={has.local ? "" : undefined} onClick={() => setScope("local")} title="Réglage de cet élément seul (passe devant le projet et le site)">
+              {words.one}
+              {dot(has.local)}
             </button>
           )}
-          {target.cap && (
-            <button type="button" role="radio" aria-checked={level === "project"} onClick={() => setScope("project")} title="Toutes les légendes de ce champ, sous les images de ce projet : partout où le projet est montré">
-              Les légendes de ce projet
+          {target.proj && (
+            <button type="button" role="radio" aria-checked={level === "project"} data-scope="project" data-has-value={has.project ? "" : undefined} onClick={() => setScope("project")} title={`${words.hint} : tous les éléments de ce type dans cette planche, sur cette page (passe devant le site)`}>
+              {words.project}
+              {dot(has.project)}
             </button>
           )}
-          <button type="button" role="radio" aria-checked={level === "role"} onClick={() => setScope("role")} title="Styles du site : toutes les pages (publié avec la page)">
+          <button type="button" role="radio" aria-checked={level === "role"} data-scope="role" data-has-value={has.role ? "" : undefined} onClick={() => setScope("role")} title="Styles du site : toutes les pages (publié avec la page)">
             {board ? "Tout le site" : role === "h2" ? "Tous les titres" : `Tous les « ${ROLE_LABELS[role]} »`}
+            {dot(has.role)}
           </button>
         </span>
         <button type="button" className="lk-close" aria-label="Fermer la barre" onClick={onClose}>

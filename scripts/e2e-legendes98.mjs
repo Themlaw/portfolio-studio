@@ -195,9 +195,9 @@ try {
         ok(`A ${c.id} : la barre s'ouvre par « Aa »`, opened);
         if (!opened) continue;
         const sc = await scopes(f);
-        const hasLocal = sc.some((s) => /Ce texte/.test(s.text));
+        const hasLocal = sc.some((s) => /^(Ce|Cette) /.test(s.text));
         ok(`A ${c.id} : la portée « Ce texte » est proposée`, hasLocal, JSON.stringify(sc));
-        if (hasLocal) await scopeBtn(f, /Ce texte/).click();
+        if (hasLocal) await scopeBtn(f, /^(Ce|Cette) /).click();
         const wanted = await swatchColor(f, SW);
         await swatchBtn(f, SW).click();
         await sleep(300);
@@ -247,7 +247,7 @@ try {
       for (const s of SETS) {
         const opened = await openByAa(f, s.sel).catch((e) => { throw new Error(`${s.id} : ${e.message}`); });
         if (!opened) throw new Error(`${s.id} : barre non ouverte`);
-        if ((await scopes(f)).some((x) => /Ce texte/.test(x.text))) await scopeBtn(f, /Ce texte/).click();
+        if ((await scopes(f)).some((x) => /^(Ce|Cette) /.test(x.text))) await scopeBtn(f, /^(Ce|Cette) /).click();
         wanted = await swatchColor(f, SW);
         await swatchBtn(f, SW).click();
         await settled(page);
@@ -339,7 +339,7 @@ try {
       const poisoned = await colorOf(f, '[data-edit-block="pimg"] [data-cap="legend"]');
       ok("B7 un réglage illisible voisin n'efface pas les autres du bloc", poisoned === wanted, `${poisoned} ≠ ${wanted}`);
       if (await openByAa(f, '[data-edit-block="pimg"] [data-cap="date"]')) {
-        await scopeBtn(f, /Ce texte/).click();
+        await scopeBtn(f, /^(Ce|Cette) /).click();
         await swatchBtn(f, 3).click();
         await settled(page);
         await closeBar(f);
@@ -479,12 +479,13 @@ try {
       const base = { titles: await titles(), legends: await legends(), dates: await dates() };
       const pageTitle = await colorOf(f, '[data-edit-block="pimg"] [data-cap="title"]');
       const sw = (i) => f.locator(".lk-bar .tc-swatches [role=radio]").nth(i).evaluate((b) => getComputedStyle(b).backgroundColor);
-      const PROJ = /légendes de ce projet/i;
+      // Lot 120 : la portée intermédiaire nomme le type (« Tous les titres de légende du projet »…) et le réglage est rangé dans le bloc de la page.
+      const PROJ = /du projet$/i;
 
       // D1 les trois portées, dans l'ordre.
       ok("D1 ouvre la barre d'un titre de la planche", await openByAa(f, `${car} [data-slot-slug="car-b2"] [data-cap="title"]`));
       const sc = (await scopes(f)).map((s) => s.text);
-      ok("D1 trois portées : « Ce texte », « Les légendes de ce projet », « Tout le site »", sc.length === 3 && /Ce texte/.test(sc[0]) && PROJ.test(sc[1]) && /Tout le site/.test(sc[2]), JSON.stringify(sc));
+      ok("D1 trois portées : « Ce titre », « Tous les titres de légende du projet », « Tout le site »", sc.length === 3 && /^Ce titre$/.test(sc[0]) && PROJ.test(sc[1]) && /Tout le site/.test(sc[2]), JSON.stringify(sc));
       await shot(page, "D1-trois-portees");
       // D2 portée projet : un style par champ (ici les titres) sur toutes les légendes du projet.
       if (sc.length === 3) {
@@ -499,13 +500,13 @@ try {
         await settled(page);
         await sleep(1500);
         ok("D2 …et après l'acquittement du serveur", (await titles()).every((c) => c === col));
-        const host = (boardDraft(BOARD_ID) ?? []).find((i) => i.captionStyle);
-        ok("D2 le style est enregistré avec le projet (suite du projet, brouillon)", host?.captionStyle?.title?.color === "secondary" && !host.captionStyle.legend && !host.captionStyle.date, JSON.stringify(host?.captionStyle));
-        ok("D2 …dans le bloc Projet de la page (lot 111), pas dans les autres blocs", !JSON.stringify(draftBlocks(pageId).filter((b) => b.type !== "project-board")).includes('"captionStyle"'));
+        const hostText = pageBlock("pbd").props.look?.projectText;
+        ok("D2 le style est enregistré dans le bloc de la planche (props.look.projectText, un champ)", hostText?.["cap.title"]?.color === "secondary" && !hostText["cap.legend"] && !hostText["cap.date"], JSON.stringify(hostText));
+        ok("D2 …pas dans la suite du projet", !(boardDraft(BOARD_ID) ?? []).some((i) => i.captionStyle));
         await closeBar(f);
         // D3 « Ce texte » passe devant le projet.
         ok("D3 barre d'un titre", await openByAa(f, `${car} [data-slot-slug="car-b2"] [data-cap="title"]`));
-        await scopeBtn(f, /Ce texte/).click();
+        await scopeBtn(f, /^(Ce|Cette) /).click();
         const own = await sw(3);
         await swatchBtn(f, 3).click();
         await settled(page);
@@ -526,7 +527,7 @@ try {
         ok("D5 « Revenir au thème » pour le site", /thème/i.test(await resetLabel()));
         await scopeBtn(f, PROJ).click();
         ok("D5 « Revenir au style du site » pour le projet", /site/i.test(await resetLabel()), await resetLabel());
-        await scopeBtn(f, /Ce texte/).click();
+        await scopeBtn(f, /^(Ce|Cette) /).click();
         ok("D5 « Revenir au style du projet » pour le texte", /projet/i.test(await resetLabel()), await resetLabel());
         await f.locator(".lk-bar .tc-reset").click();
         await settled(page);
@@ -537,8 +538,8 @@ try {
         await page.getByRole("button", { name: "Publier", exact: true }).click();
         ok("D6 publication", await waitFor(() => sql((db) => db.prepare("select draft from pages where id = ?").get(pageId)).draft === null && boardDraft(BOARD_ID) === null, 120000));
         await sleep(2500);
-        const pubHost = (boardPublished(BOARD_ID) ?? []).find((i) => i.captionStyle);
-        ok("D6 le style du projet est publié avec lui", pubHost?.captionStyle?.title?.color === "secondary", JSON.stringify(pubHost?.captionStyle));
+        const pubHost = JSON.parse(sql((db) => db.prepare("select props from blocks where page_id = ? and type = 'project-board'").get(pageId))?.props ?? "null")?.look?.projectText;
+        ok("D6 le style est publié avec le bloc de la page", pubHost?.["cap.title"]?.color === "secondary", JSON.stringify(pubHost));
         const pageB = pageIdOf("decors");
         const otherBoard = `[data-edit-board="${other.id}"]`;
         await publishBlocks(page, BASE, pageB, () => [
@@ -550,14 +551,16 @@ try {
         for (const [label, url] of [["page A", "personnages"], ["page B", "decors"]]) {
           await pub.goto(`${BASE}/fr/${url}`, { waitUntil: "networkidle" });
           const cols = await pub.evaluate(() => [...document.querySelectorAll(".strip-caption.mc-title")].map((e) => getComputedStyle(e).color));
-          ok(`D6 public, ${label} : les titres des images du projet ont la couleur du projet`, cols.length >= 4 && cols.filter((c) => c === base.titles[0]).length < cols.length && new Set(cols).size >= 1, JSON.stringify(cols));
+          // Lot 120 : le style est un réglage du bloc de CETTE page ; la seconde page (son propre bloc) garde le style du site.
+          if (label === "page A") ok(`D6 public, ${label} : les titres des images du projet ont la couleur du projet`, cols.length >= 4 && cols.filter((c) => c === base.titles[0]).length < cols.length && new Set(cols).size >= 1, JSON.stringify(cols));
+          else ok(`D6 public, ${label} : le bloc de cette page n'a pas ce réglage (titres inchangés)`, cols.length >= 4 && cols.every((c) => c !== col), JSON.stringify({ cols, col }));
         }
-        // Page B dans l'éditeur : le projet y montre le même style, l'autre projet non.
+        // Page B dans l'éditeur : son bloc n'a pas le réglage de la page A ; l'autre projet non plus.
         await page.goto(`${BASE}/admin/pages/${pageB}/editer`, { waitUntil: "domcontentloaded" });
         const fb = await (async () => { const h = await page.waitForSelector("iframe.ve-frame", { timeout: 120000 }); const fr = await h.contentFrame(); await fr.waitForSelector("html[data-edit-mode]", { timeout: 180000 }); await sleep(2500); return fr; })();
         const tb = await fb.evaluate((b) => [...document.querySelectorAll(`${b} [data-cap="title"]`)].map((e) => getComputedStyle(e).color), board);
         const to = await fb.evaluate((b) => [...document.querySelectorAll(`${b} [data-cap="title"]`)].map((e) => getComputedStyle(e).color), otherBoard);
-        ok("D6 sur la seconde page (éditeur) : le style reste celui de la première page (lot 111 : plus rien n'est partagé)", tb.length >= 4 && tb.every((c) => c !== col), JSON.stringify({ tb, col }));
+        ok("D6 sur la seconde page (éditeur) : titres non colorés (réglage propre à la page A)", tb.length >= 4 && tb.every((c) => c !== col), JSON.stringify({ tb, col }));
         ok("D6 …et le projet voisin n'est pas coloré", to.length >= 1 && to.every((c) => c !== col), JSON.stringify({ to, col }));
         await shot(page, "D6-seconde-page");
         await pub.close();
@@ -573,8 +576,8 @@ try {
       const t = `${board} [data-project-inline="title"]`;
       ok("E1 un titre de projet ouvre la barre", await openByAa(f, t));
       const sc = (await scopes(f)).map((s) => s.text);
-      ok("E1 …avec deux portées seulement (« Ce texte », « Tous les titres »)", sc.length === 2 && /Ce texte/.test(sc[0]) && /titres/i.test(sc[1]), JSON.stringify(sc));
-      await scopeBtn(f, /Ce texte/).click();
+      ok("E1 …avec trois portées (« Ce titre », « Tous les titres du projet », « Tout le site »)", sc.length === 3 && /^Ce titre$/.test(sc[0]) && /titres du projet/i.test(sc[1]) && /Tout le site/.test(sc[2]), JSON.stringify(sc));
+      await scopeBtn(f, /^(Ce|Cette) /).click();
       const wanted = await swatchColor(f, 4);
       await swatchBtn(f, 4).click();
       await settled(page);
