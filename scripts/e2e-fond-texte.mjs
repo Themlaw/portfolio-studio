@@ -252,9 +252,9 @@ if (run("A")) {
     ["Paragraphe", INTRO, 0, true, "Texte"],
     ["Légende (métier)", ROLE, 0, true, "Légende"],
     ["Faire défiler (ouverture)", SCROLL, 0, true, "Étiquette"],
-    ["Nom du site (en-tête)", BRAND, 0, false, "Nom du site"],
-    ["Menu", MENU, 0, false, "Menu"],
-    ["Pied de page", FOOT, 0, false, "Texte"],
+    ["Nom du site (en-tête)", BRAND, 0, true, "Tout le site"],
+    ["Menu", MENU, 0, true, "Tout le site"],
+    ["Pied de page", FOOT, 0, true, "Tout le site"],
   ];
   for (const [label, sel, nth, hasLocal, roleName] of cases) {
     const opened = await openBar(f, sel, nth);
@@ -266,12 +266,15 @@ if (run("A")) {
     const disabled = await f.locator('.lk-bar .tc-bd [role="radio"]:disabled').count();
     ok(`A ${label} : « Fond » Aucun / Ombre douce / Bandeau / Surlignage`, n === 4 && disabled === 0, `${n} choix, ${disabled} désactivé(s)`);
     ok(`A ${label} : pas de pastille de couleur sans fond choisi`, (await dot(f).count()) === 0);
+    // En-tête et pied de page (lot 124) : « Ce lien / ce texte », une zone, puis « Tout le site ».
+    const headFoot = roleName === "Tout le site";
+    const one = headFoot ? /^Ce (texte|lien)$/ : /^(Ce|Cette) (texte|titre|étiquette|légende|date)$/;
     if (hasLocal) {
-      ok(`A ${label} : « Ce texte » proposé`, (await scopeButton(f, "Ce texte").count()) === 1);
-      await scopeButton(f, "Ce texte").click();
+      ok(`A ${label} : « Ce texte » proposé`, (await scopeButton(f, one).count()) === 1);
+      await scopeButton(f, one).click();
       ok(`A ${label} : la ligne est là pour « Ce texte »`, (await radios(f).count()) === 4);
     }
-    await scopeButton(f, "Tous les").click();
+    await scopeButton(f, headFoot ? "Tout le site" : "Tous les").click();
     ok(`A ${label} : la ligne est là pour « Tous les « ${roleName} » »`, (await radios(f).count()) === 4 && (await f.locator(".lk-bar .lk-seg [aria-checked=true]").innerText()).includes(roleName), await f.locator(".lk-bar .lk-seg").innerText());
   }
   // Un seul composant : une seule ligne par barre, mêmes libellés.
@@ -306,7 +309,7 @@ if (run("B")) {
   f = await openEditor(1);
   await sleep(1200);
   ok("B0 barre de l'étiquette", await openBar(f, EYEBROW));
-  await scopeButton(f, "Ce texte").click();
+  await scopeButton(f, /^Ce(tte)? /).click();
   await pick(f, "Bandeau");
   ok("B1 après « Bandeau » : la pastille unique apparaît, « Auto » par défaut", (await f.locator(".lk-bar .tc-bd-dot").waitFor({ timeout: 10000 }).then(() => true, () => false)) && (await dot(f).count()) === 1 && /Auto/.test((await dot(f).getAttribute("aria-label")) ?? ""), (await dot(f).getAttribute("aria-label")) ?? "");
   const autoBg = await bgOf(f, EYEBROW);
@@ -336,7 +339,7 @@ if (run("B")) {
   f = await openEditor(1);
   await sleep(1200);
   await openBar(f, EYEBROW);
-  await scopeButton(f, "Ce texte").click();
+  await scopeButton(f, /^Ce(tte)? /).click();
   ok("B11 rechargé : « Bandeau » coché, pastille présente", (await f.locator('.lk-bar .tc-bd [aria-checked="true"]').innerText()) === "Bandeau" && (await dot(f).count()) === 1);
   await openDot(f);
   await popToken(f, "primary12").click();
@@ -428,7 +431,7 @@ if (run("D")) {
   f = await openEditor(1);
   await sleep(1200);
   await openBar(f, SCROLL);
-  await scopeButton(f, "Ce texte").click();
+  await scopeButton(f, /^Ce(tte)? /).click();
   await pick(f, "Surlignage");
   await openDot(f);
   await popToken(f, "ink").click();
@@ -462,7 +465,7 @@ if (run("D")) {
   await scopeButton(f, "Tous les").click();
   await f.locator('.lk-bar .tc-swatches [aria-label="Boutons et liens"]').click();
   await settled();
-  await scopeButton(f, "Ce texte").click();
+  await scopeButton(f, /^Ce(tte)? /).click();
   await f.locator('.lk-bar .tc-swatches [aria-label="Texte"]').click();
   await settled(); // retire la couleur locale (re-clic = retour au style global)
   await openDot(f).catch(() => {});
@@ -487,7 +490,7 @@ if (run("E")) {
   f = await openEditor(1);
   await sleep(1200);
   await openBar(f, NAME);
-  await scopeButton(f, "Ce texte").click();
+  await scopeButton(f, /^Ce(tte)? /).click();
   const s0 = JSON.stringify(heroLook()?.text?.["site.name"] ?? null);
   await pick(f, "Surlignage");
   // Deux réglages du même texte à moins de 1,2 s ne font qu'un pas d'historique (coalescence) : le second vient après, pour que Annuler n'en défasse qu'un.
@@ -520,7 +523,7 @@ if (run("E")) {
   f = await canvas();
   await sleep(1500);
   await openBar(f, NAME);
-  await scopeButton(f, "Ce texte").click();
+  await scopeButton(f, /^Ce(tte)? /).click();
   ok("E6 après rechargement : « Surlignage » coché et pastille présente", (await f.locator('.lk-bar .tc-bd [aria-checked="true"]').innerText()) === "Surlignage" && (await dot(f).count()) === 1);
   const tintBg = await bgOf(f, NAME);
   ok("E7 après rechargement : teinte douce « Accent 25 % » rendue", same(tintBg, tint(P.secondary, P.bg, 0.25), 4), `${JSON.stringify(tintBg)}`);
@@ -538,7 +541,7 @@ if (run("F")) {
   await sleep(1200);
   // Un brouillon existe dès la première modification : on y pose le réglage comme avant le lot (bandeau sur le métier, nulle part ailleurs).
   await openBar(f, ROLE);
-  await scopeButton(f, "Ce texte").click();
+  await scopeButton(f, /^Ce(tte)? /).click();
   await pick(f, "Ombre douce");
   await waitFor(() => draftOf(1) !== null);
   await f.locator(".lk-bar .lk-close").click();
@@ -552,7 +555,7 @@ if (run("F")) {
   const before = await bgOf(f, ROLE);
   ok("F1 réglage d'avant : rendu comme avant (bandeau du thème)", before && before[3] > 200 && same(before, P.bg, 3), JSON.stringify(before));
   await openBar(f, ROLE);
-  await scopeButton(f, "Ce texte").click();
+  await scopeButton(f, /^Ce(tte)? /).click();
   ok("F2 la barre montre ce fond (« Bandeau » coché)", (await f.locator('.lk-bar .tc-bd [aria-checked="true"]').innerText()) === "Bandeau");
   await openDot(f);
   await popToken(f, "primary25").click();
@@ -566,7 +569,7 @@ if (run("F")) {
   // Dans les deux cas elle ne doit jamais rester « orpheline » : fermée, ou ouverte sur un texte qui existe encore (et qui garde sa couleur).
   ok("F4b la barre sans cible se referme, ou reste sur son texte redessiné (jamais orpheline : elle ne bloque pas le « Aa » des autres textes)", (await f.locator(".lk-bar").count()) === 0 || (await f.locator(ROLE).count()) > 0);
   await openBar(f, ROLE);
-  await scopeButton(f, "Ce texte").click();
+  await scopeButton(f, /^Ce(tte)? /).click();
   await f.locator(".lk-bar .tc-reset").click();
   await settled();
   ok("F5 « Revenir au style global » : l'ancien fond part aussi", await waitFor(() => heroLook()?.roleBackdrop === undefined && heroLook()?.text?.["site.role"] === undefined), JSON.stringify(heroLook()));
@@ -580,7 +583,7 @@ if (run("G")) {
   await sleep(1200);
   // Un brouillon existe dès la première modification (comme en F).
   await openBar(f, ROLE);
-  await scopeButton(f, "Ce texte").click();
+  await scopeButton(f, /^Ce(tte)? /).click();
   await pick(f, "Ombre douce");
   await waitFor(() => draftOf(1) !== null);
   await f.locator(".lk-bar .lk-close").click();
@@ -592,7 +595,7 @@ if (run("G")) {
   f = await canvas();
   await sleep(1500);
   await openBar(f, ROLE);
-  await scopeButton(f, "Ce texte").click();
+  await scopeButton(f, /^Ce(tte)? /).click();
   ok("G1 l'ancien surlignage n'est pas montré comme « Surlignage » (son rendu n'est pas celui du nouveau)", (await f.locator('.lk-bar .tc-bd [aria-checked="true"]').allInnerTexts()).every((t) => t !== "Surlignage"));
   await f.locator(".lk-bar .tc-italic").click();
   await settled();

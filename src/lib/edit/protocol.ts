@@ -14,7 +14,7 @@ import { RATIO_VALUES } from "../images/formats";
 import { FIELD_OP_NAMES } from "../../blocks/optional-fields";
 import { BackgroundSchema } from "../../themes/schema";
 import { SurfaceSchema } from "../../themes/surface";
-import { LogoSchema, LookSchema, ROLES, SitePaletteSchema, TextStyleSchema } from "../look";
+import { HZ_ZONES, LogoSchema, LookSchema, ROLES, SitePaletteSchema, SiteTextKeySchema, TextStyleSchema } from "../look";
 import { MediaPatchSchema } from "./media-look";
 import { BASE_KEYS } from "../../themes/palette";
 
@@ -222,6 +222,9 @@ export const FromCanvasSchema = z.union([
   // style global d'un rôle de texte (null = réinitialiser).
   z.object({ kind: z.literal("look"), uid: Uid, look: LookSchema.nullable() }),
   z.object({ kind: z.literal("site-style"), role: z.enum(ROLES), style: TextStyleSchema.nullable() }),
+  // Lot 124 : réglage d'UN texte de l'en-tête ou du pied de page (clé `data-site-text`), et de toute une zone (« Tout le menu », « Tout le pied de page »).
+  z.object({ kind: z.literal("site-text-style"), key: SiteTextKeySchema, style: TextStyleSchema.nullable() }),
+  z.object({ kind: z.literal("site-zone-style"), zone: z.enum(HZ_ZONES), style: TextStyleSchema.nullable() }),
   // Carte de rubrique (lot 17c) : fond d'un bloc de premier niveau (null = pas de carte).
   // `continuous` : glissement de la roue ou d'un curseur (fusionné dans l'historique pendant 1,2 s) ; un clic est un pas à lui seul.
   z.object({ kind: z.literal("surface"), uid: Uid, surface: SurfaceSchema.nullable(), continuous: z.boolean().optional() }),
