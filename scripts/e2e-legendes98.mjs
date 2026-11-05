@@ -250,6 +250,9 @@ try {
         if ((await scopes(f)).some((x) => /^(Ce|Cette) /.test(x.text))) await scopeBtn(f, /^(Ce|Cette) /).click();
         wanted = await swatchColor(f, SW);
         await swatchBtn(f, SW).click();
+        // `settled` seul rend la main avant que l'éditeur ait reçu l'intention (écriture 800 ms plus tard) : le rechargement qui suit la perdait (S1, vu sous charge).
+        // On attend donc d'abord « Enregistrement… », puis son acquittement.
+        await page.waitForFunction(() => /Enregistrement/.test(document.querySelector(".ve-status")?.textContent ?? ""), null, { timeout: 3000 }).catch(() => {});
         await settled(page);
         await closeBar(f);
       }
