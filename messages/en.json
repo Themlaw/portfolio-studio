@@ -6,6 +6,7 @@
   },
   "locale": {
     "label": "Change language",
+    "switchTo": "Version française",
     "fr": "FR",
     "en": "EN"
   },

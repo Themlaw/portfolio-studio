@@ -14,7 +14,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const pages = await getPageIndex();
   // Les pages spéciales (« Page introuvable », lot 89) ne sont pas des adresses à indexer.
   return pages.filter((page) => !isSpecialPage(page)).flatMap((page) => {
-    const languages = Object.fromEntries(routing.locales.map((l) => [l, `${base}${localizedPath(page, l)}`]));
+    const languages = { ...Object.fromEntries(routing.locales.map((l) => [l, `${base}${localizedPath(page, l)}`])), "x-default": `${base}${localizedPath(page, routing.defaultLocale)}` };
     return routing.locales.map((locale) => ({ url: `${base}${localizedPath(page, locale)}`, alternates: { languages } }));
   });
 }

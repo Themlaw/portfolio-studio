@@ -92,7 +92,7 @@ export async function pageSocialMetadata(opts: { page: PageSummary; locale: AppL
   return {
     title,
     description,
-    alternates: { canonical: url, languages: Object.fromEntries(routing.locales.map((l) => [l, localizedPath(page, l)])) },
+    alternates: { canonical: url, languages: { ...Object.fromEntries(routing.locales.map((l) => [l, localizedPath(page, l)])), "x-default": localizedPath(page, routing.defaultLocale) } },
     openGraph: {
       type: "website",
       title,
