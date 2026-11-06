@@ -133,6 +133,8 @@ function startServer(dataDir, env, probe = "/fr") {
       HOSTNAME: "127.0.0.1",
       DATA_DIR: dataDir,
       PUBLIC_BASE_URL: BASE,
+      // Plafond mémoire de l'enfant du kit (650 Mo par défaut) : relevable pour une machine dont les cœurs visibles gonflent le pic (ssp : 104).
+      ...(process.env.KIT_CHILD_MAX_RSS_MB ? { KIT_CHILD_MAX_RSS_MB: process.env.KIT_CHILD_MAX_RSS_MB } : {}),
       ...env,
     },
     stdio: ["ignore", "pipe", "pipe"],
