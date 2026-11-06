@@ -139,10 +139,28 @@ jobs:
           path: .next/cache
           key: next-build-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
           restore-keys: next-build-${{ hashFiles('package-lock.json') }}-
-      - run: npm run build
-      - run: node scripts/check-standalone.mjs --require
+      # Lot 103 x 104 : le build passe par la batterie (build:local, check-standalone --require) qui écrit l'empreinte
+      # .next/standalone/.batt-stamp ; sans elle, BATT_REUSE_BUILD=1 reconstruirait dans CHAQUE shard.
+      - name: Build de production (écrit .next/standalone/.batt-stamp)
+        env:
+          LOCK: ""
+          BATT_SERVER: start
+          BATTERY_DIR: ${{ runner.temp }}/battery-build
+          BATT_PREFIX: ${{ runner.temp }}/pf-batt
+        run: bash scripts/test-all-local.sh build
+      - name: Journal du build (échec)
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: echec-build
+          path: ${{ runner.temp }}/battery-build
+          retention-days: 7
+          if-no-files-found: ignore
       - name: Archive du build
-        run: tar -cf "$RUNNER_TEMP/next-build.tar" --exclude=.next/cache --exclude=.next/dev .next
+        run: |
+          # les fichiers cachés (.next/standalone/.batt-stamp) doivent partir dans l'archive
+          test -s .next/standalone/.batt-stamp
+          tar -cf "$RUNNER_TEMP/next-build.tar" --exclude=.next/cache --exclude=.next/dev .next
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: next-build

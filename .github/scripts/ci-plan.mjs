@@ -30,7 +30,10 @@ const weights = JSON.parse(read(".github/ci-weights.json"));
 // Suites e2e : lignes « "id|commande|navigateur|..." » du tableau E2E, plus les suites à serveurs propres.
 const script = read("scripts/test-all-local.sh");
 const e2e = [...script.matchAll(/^\s*"([A-Za-z0-9-]+)\|[^"]*"\s*$/gm)].map((m) => m[1]);
-const known = ["auth", "domaine88", "pdf", ...e2e];
+// Lot 104b : auth et les suites longues sont découpées en parties (tableau AUTHS et table PARTS_OF) ; les parties
+// sont des ids du tableau E2E ou AUTHS, le nom d'origine (auth, fond100…) n'est qu'un alias qui les regroupe.
+const groups = Object.fromEntries([...script.matchAll(/^\s*"([A-Za-z0-9-]+): ([^"]*)"\s*$/gm)].map((m) => [m[1], m[2].trim().split(/\s+/)]));
+const known = ["domaine88", "pdf", ...e2e];
 if (new Set(known).size !== known.length) throw new Error("identifiant de suite en double dans scripts/test-all-local.sh");
 const w = (id) => weights[id] ?? cfg.defaultWeight;
 // Navigateur de chaque suite (3e champ du tableau E2E) : firefox n'est installé que dans les shards qui en ont besoin.
@@ -40,12 +43,13 @@ const supportsShards = /--shards\b/.test(script) && !process.env.CI_PLAN_LEGACY;
 const want = (process.env.SUITES ?? "").split(/[\s,]+/).filter(Boolean);
 let shards;
 if (want.length) {
-  const unknown = want.filter((id) => !known.includes(id));
+  const unknown = want.filter((id) => !known.includes(id) && !groups[id]);
   if (unknown.length) {
-    console.error(`suite inconnue : ${unknown.join(", ")}\nsuites possibles : ${known.join(" ")}`);
+    console.error(`suite inconnue : ${unknown.join(", ")}\nsuites possibles : ${[...known, ...Object.keys(groups)].join(" ")}`);
     process.exit(1);
   }
-  shards = [{ name: "manuel", ids: want, firefox: want.some((id) => firefoxSuites.has(id)) }];
+  const ids = [...new Set(want.flatMap((id) => groups[id] ?? [id]))];
+  shards = [{ name: "manuel", ids, firefox: ids.some((id) => firefoxSuites.has(id)) }];
 } else if (supportsShards) {
   // Durées de CI (secondes) au format de scripts/batt-durations.tsv : id, secondes, poids.
   const dir = mkdtempSync(path.join(tmpdir(), "ci-plan-"));
