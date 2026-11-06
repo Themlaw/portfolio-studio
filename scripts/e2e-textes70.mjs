@@ -18,6 +18,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 
 import { boardDraft, img, login, makeMedia, openEditor, pageIdOf, q1, setBoardDraft, setDraft, settled, sleep, sql, waitFor } from "./lib/grille31d.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3860";
 const ONLY = process.env.ONLY || process.env.BATT_TXT || "";
@@ -447,7 +448,7 @@ try {
       // Éditeur de thème guidé (étape « Textes ») : les mêmes récentes, et un choix d'ici les alimente.
       const tsx = (code) => execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", code], { encoding: "utf8", env: { ...process.env, DATA_DIR: process.env.DATA_DIR } });
       const themeId = JSON.parse(tsx('import { duplicateTheme } from "./src/lib/edit/themes.ts"; console.log(JSON.stringify(duplicateTheme("galerie-lumineuse").data.id));').trim().split("\n").pop());
-      await page.goto(`${BASE}/admin/themes/${encodeURIComponent(themeId)}?etape=textes`, { waitUntil: "networkidle" });
+      await gotoIdle(page, `${BASE}/admin/themes/${encodeURIComponent(themeId)}?etape=textes`);
       await page.locator(".a-guide-head").waitFor();
       const gRecent = async () => {
         // La liste vient du serveur (requête après l'affichage) : on attend qu'elle arrive.
@@ -458,7 +459,7 @@ try {
       ok("F10 éditeur guidé : « Récentes » = les polices embarquées déjà choisies, la dernière en tête", before.length >= 1 && before[0] === "courier-prime", JSON.stringify(before));
       await page.locator('[data-font-role="display"] input[type=radio]:not(:checked)').first().check({ force: true });
       await sleep(1200);
-      await page.goto(`${BASE}/admin/themes/${encodeURIComponent(themeId)}?etape=textes`, { waitUntil: "networkidle" });
+      await gotoIdle(page, `${BASE}/admin/themes/${encodeURIComponent(themeId)}?etape=textes`);
       await page.locator(".a-guide-head").waitFor();
       const after = await gRecent();
       const stored2 = JSON.parse(sql((db) => db.prepare("select value from settings where key = 'recentFonts'").get()).value);

@@ -17,6 +17,7 @@ import { mkdirSync } from "node:fs";
 import { chromium } from "playwright";
 import sharp from "sharp";
 import { gotoThemesPage } from "./lib/theme-live.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -121,7 +122,7 @@ ok("Échap ferme le tuto", (await dialog.count()) === 0);
 ok("focus rendu au bouton « Tuto du kit »", await page.evaluate(() => document.activeElement?.getAttribute("data-testid") === "tuto-open"));
 
 /* ---- Depuis l'écran du kit : reprise, « Renvoyer le kit » ---------------- */
-await page.goto(`${BASE}/admin/themes/galerie-lumineuse/kit`, { waitUntil: "networkidle" });
+await gotoIdle(page, `${BASE}/admin/themes/galerie-lumineuse/kit`);
 await page.getByTestId("tuto-open").click();
 await dialog.waitFor();
 ok("reprise à la dernière slide vue (16 / 16)", (await counter())?.trim() === "16 / 16", await counter());

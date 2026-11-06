@@ -19,6 +19,7 @@ import { chromium } from "playwright";
 import sharp from "sharp";
 
 import { login, pageIdOf, q1, waitFor } from "./lib/medias-setup.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3340";
 const ONLY = process.env.ONLY ?? "";
@@ -118,7 +119,7 @@ async function exportKit() {
 async function importFrame(cmd, tag) {
   const edited = path.join(DIR, `retour-${cmd}.zip`);
   execFileSync(process.execPath, ["--import", "tsx", "scripts/kit-poc/simulate-multi.mts", cmd, await exportKit(), edited], { stdio: "inherit" });
-  await page.goto(`${BASE}/admin/themes/studio/kit`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes/studio/kit`);
   await page.setInputFiles('[data-testid="kit-file"]', edited);
   await page.waitForURL(/\/kit\?import=/, { timeout: 180000 });
   await page.locator(".a-kit-card").nth(0).waitFor({ timeout: 240000 });

@@ -22,6 +22,7 @@ import sharp from "sharp";
 import { paint } from "./lib/crop-fixtures.mjs";
 import { login, pageIdOf, q1, waitFor } from "./lib/medias-setup.mjs";
 import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3340";
 const ONLY = process.env.ONLY ?? "";
@@ -367,7 +368,7 @@ if (run("KT"))
     const edited = path.join(DIR, "retour49.zip");
     execFileSync(process.execPath, ["--import", "tsx", "scripts/kit-poc/simulate-multi.mts", "retour49", kitFile, edited], { stdio: "inherit" });
 
-    await page.goto(`${BASE}/admin/themes/studio/kit`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes/studio/kit`);
     await page.setInputFiles('[data-testid="kit-file"]', edited);
     await page.waitForURL(/\/kit\?import=/, { timeout: 180000 });
     await page.locator(".a-kit-card").nth(2).waitFor({ timeout: 240000 });
@@ -411,7 +412,7 @@ if (run("KT"))
     await sleep2(1500);
     // Lot 62 : le cadre dessiné n'est posé d'office sur aucune photo ; ici on active « Cadre du thème sur toutes les photos » (écran Thèmes)
     // pour voir le cadre sur les photos SANS choix, comme avant.
-    await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes`);
     await page.locator('[data-testid="frame-all-on"]').click();
     ok("KT3b réglage « Cadre du thème sur toutes les photos » activé", await waitFor(() => Boolean(q1("select value from settings where key = 'themeFrameAll'")), 20000));
     await sleep2(1500);

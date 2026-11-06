@@ -24,6 +24,7 @@ import sharp from "sharp";
 import { installPaperTheme } from "./lib/paper-theme.mjs";
 import { activateThemeUi, gotoThemesPage } from "./lib/theme-live.mjs";
 import { autoOpenFine } from "./lib/zone66.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -338,7 +339,7 @@ async function publishMine() {
   await sleep(800);
 }
 await section("C", async () => {
-  await page.goto(`${BASE}/admin/themes/${mineId()}?etape=papier`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes/${mineId()}?etape=papier`);
   const panel = page.locator("section.a-panel", { has: page.getByRole("heading", { name: "Papier dessiné" }) });
   ok("C1 l'éditeur de thème a « Papier dessiné » avec « Papier visible sur les cartes »", await panel.waitFor({ timeout: 30000 }).then(() => true, () => false) && (await panel.locator('[data-testid="paper-on-cards"]').count()) === 1);
   ok("C1 curseur d'intensité masqué tant que la case est décochée", (await panel.locator('[data-testid="paper-on-cards-opacity"]').count()) === 0);

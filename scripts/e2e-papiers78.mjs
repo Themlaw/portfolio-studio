@@ -15,6 +15,7 @@ import sharp from "sharp";
 
 import { login, q1, waitFor } from "./lib/grille31d.mjs";
 import { autoOpenFine } from "./lib/zone66.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const SHOTS = process.env.SHOTS ?? "screenshots/papiers78";
@@ -42,7 +43,7 @@ const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 await login(page, BASE);
 
-await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+await gotoIdle(page, `${BASE}/admin/themes`);
 ok("A1 « Papiers peints » est dans le menu", (await page.locator('.a-nav a[href="/admin/papiers-peints"]').count()) === 1);
 await page.locator('.a-nav a[href="/admin/papiers-peints"]').click();
 await page.waitForURL(/\/admin\/papiers-peints$/, { timeout: 20000 }).catch(() => {});
@@ -62,7 +63,7 @@ ok("C2 la corbeille de la page le montre", await page.locator('[data-testid="wal
 await page.reload({ waitUntil: "networkidle" });
 ok("C3 après rechargement : 1 motif + 1 en corbeille", (await page.locator('[data-testid="wallpaper"]').count()) === 1 && (await page.locator('[data-testid="wallpaper-trash"] [data-testid="wallpaper-restore"]').count()) === 1);
 
-await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+await gotoIdle(page, `${BASE}/admin/themes`);
 const href = "/admin/themes/galerie-lumineuse";
 await page.goto(`${BASE}${href}?etape=papier&onglet=papiers-peints`, { waitUntil: "networkidle" });
 ok("D1 l'onglet du thème marche : bibliothèque visible", (await page.locator('[data-testid="paper-tab-wallpapers"]').getAttribute("aria-selected")) === "true" && (await page.locator('[data-testid="wallpaper-library"]').isVisible()));

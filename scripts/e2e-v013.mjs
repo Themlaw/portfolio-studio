@@ -36,6 +36,8 @@ import { chromium, firefox } from "playwright";
 import sharp from "sharp";
 import { createOnCanvas } from "./lib/projet111.mjs";
 
+import { sharedOk } from "./lib/parts.mjs";
+
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
 const PASSWORD = process.env.ADMIN_PASSWORD;
@@ -1150,7 +1152,8 @@ if (ONLY === "J") {
   await page.keyboard.press("Escape");
 }
 
-ok("aucune erreur JavaScript", errors.length === 0, errors.slice(0, 3).join(" | "));
+// Vérification de fin de suite, rejouée par chaque partie (ONLY=…) : comptée PASS une seule fois (PREP_QUIET=1 dans les autres, lib/parts.mjs).
+sharedOk(ok)("aucune erreur JavaScript", errors.length === 0, errors.slice(0, 3).join(" | "));
 await browser.close();
 console.log(failures ? `${failures} échec(s)` : "tout est passé");
 process.exit(failures ? 1 : 0);

@@ -22,6 +22,7 @@ import { chromium } from "playwright";
 
 import { sleep, sql } from "./lib/grille31d.mjs";
 import { login, q1, waitFor } from "./lib/medias-setup.mjs";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3740";
 const ONLY = process.env.BATT_MONTHEME_ONLY ?? process.env.ONLY ?? "";
@@ -167,7 +168,7 @@ try {
     await page.keyboard.press("Escape");
 
     const apply = async (files, cards, expectVersion) => {
-      await page.goto(`${BASE}/admin/themes/${M.id}/kit`, { waitUntil: "networkidle" });
+      await gotoIdle(page, `${BASE}/admin/themes/${M.id}/kit`);
       await page.setInputFiles('[data-testid="kit-file"]', files);
       await page.waitForURL(/\/kit\?import=/, { timeout: 180000 });
       await page.locator(".a-kit-card").nth(cards - 1).waitFor({ timeout: 240000 });
@@ -223,7 +224,7 @@ try {
     await page.request.post(`${BASE}/admin/apercu/quitter`, { form: { retour: "/admin/themes" }, headers: { origin: BASE }, maxRedirects: 0 });
 
     // revenir à la version 2
-    await page.goto(`${BASE}/admin/themes/${M.id}/versions`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes/${M.id}/versions`);
     const nThemes = count("themes");
     const v2 = versions(M.id).find((x) => x.n === 2);
     await page.locator('[data-testid="versions-list"] li[data-version="2"]').getByTestId("version-revert").click();
@@ -293,7 +294,7 @@ try {
     const M = mine();
     const publishedBefore = M.published_version;
     const bgBefore = await publicBg();
-    await page.goto(`${BASE}/admin/themes/${M.id}`, { waitUntil: "networkidle" });
+    await gotoIdle(page, `${BASE}/admin/themes/${M.id}`);
     await page.locator('[data-testid="guide-head"]').waitFor();
     ok("F1 en-tête de Mon thème : version, état, « Historique des versions »", /Version \d+/.test((await page.locator('[data-testid="guide-version"]').textContent()) ?? "") && (await page.getByRole("link", { name: "Historique des versions" }).count()) === 1);
     const saveBtn = page.locator('[data-testid="da-save"]');
@@ -326,7 +327,7 @@ try {
     await dialog().getByRole("button", { name: "Publier", exact: true }).click();
     ok("F7 publié : la version publiée devient le brouillon, le site public suit", await waitFor(() => mine().published_version === afterFirst && mine().live_data === null, 60000));
     ok("F8 « Revenir à cette version » sur un thème en ligne demande confirmation (publier ou non)", await (async () => {
-      await page.goto(`${BASE}/admin/themes/${M.id}/versions`, { waitUntil: "networkidle" });
+      await gotoIdle(page, `${BASE}/admin/themes/${M.id}/versions`);
       await page.locator('li[data-version="1"]').getByTestId("version-revert").click();
       await dialog().waitFor();
       const t = ((await dialog().textContent()) ?? "").replace(/\s+/g, " ");

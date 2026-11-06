@@ -20,6 +20,7 @@ import { chromium } from "playwright";
 
 import { installKitFrameTheme } from "./lib/cadres62.mjs";
 import { installPaperTheme, PAPER_THEME_NAME } from "./lib/paper-theme.mjs";
+import { sharedOk } from "./lib/parts.mjs";
 import { activateThemeUi } from "./lib/theme-live.mjs";
 import { boardDraft, draftBlocks, login, makeMedia, pageIdOf, q1, setBoardDraft, setDraft, sleep, sql, waitFor } from "./lib/grille31d.mjs";
 
@@ -389,7 +390,8 @@ for (const [themeId, activate] of THEMES) {
   });
 }
 
-ok("aucune erreur JavaScript dans la page", errors.length === 0, errors.slice(0, 3).join(" | "));
+// Vérification de fin de suite, rejouée par chaque partie (THEMES=…) : comptée PASS une seule fois (lib/parts.mjs).
+sharedOk(ok)("aucune erreur JavaScript dans la page", errors.length === 0, errors.slice(0, 3).join(" | "));
 await browser.close();
 console.log(failures === 0 ? "\nTOUT PASSE" : `\n${failures} ECHEC(S)`);
 process.exit(failures === 0 ? 0 : 1);

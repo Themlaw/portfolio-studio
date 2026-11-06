@@ -21,6 +21,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { chromium } from "playwright";
 import sharp from "sharp";
+import { gotoIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -147,7 +148,7 @@ const openReglages = async () => {
   await settingZone("reglages").waitFor();
 };
 const openGuide = async (id) => {
-  await page.goto(`${BASE}/admin/themes/${encodeURIComponent(id)}?etape=logo`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes/${encodeURIComponent(id)}?etape=logo`);
   await page.locator(".a-guide-head").waitFor();
   await settingZone("guide").waitFor();
 };
@@ -204,7 +205,7 @@ if (run("A"))
 
 /* ---- B. Le thème en ligne change ---------------------------------------------------------------------------------------- */
 const publishTheme = async (id, name) => {
-  await page.goto(`${BASE}/admin/themes/${encodeURIComponent(id)}?etape=logo`, { waitUntil: "networkidle" });
+  await gotoIdle(page, `${BASE}/admin/themes/${encodeURIComponent(id)}?etape=logo`);
   await page.locator(".a-guide-head").waitFor();
   await page.locator("#theme-name").fill(name);
   await page.locator('[data-testid="step-publish"]').click();

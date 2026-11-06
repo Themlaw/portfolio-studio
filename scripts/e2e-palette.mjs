@@ -27,6 +27,7 @@ import path from "node:path";
 import { gotoThemesPage } from "./lib/theme-live.mjs";
 import { chromium } from "playwright";
 import sharp from "sharp";
+import { gotoIdle, reloadIdle } from "./lib/idle.mjs";
 
 const BASE = process.env.BASE ?? "http://localhost:3001";
 const EMAIL = process.env.ADMIN_EMAIL;
@@ -73,7 +74,7 @@ await page.fill("#password", PASSWORD);
 await Promise.all([page.waitForURL((u) => !u.pathname.startsWith("/admin/connexion"), { timeout: 60000 }), page.click("button[type=submit]")]);
 
 /* ---- A. Éditeur de palette ------------------------------------------------ */
-await page.goto(`${BASE}/admin/themes/${COPY}`, { waitUntil: "networkidle" });
+await gotoIdle(page, `${BASE}/admin/themes/${COPY}`);
 await page.locator('[data-testid="adv-couleurs"] summary').click();
 const field = (token) => page.locator(`.a-color[data-token="${token}"]`);
 const hex = (token) => field(token).locator(".a-color-hex").inputValue();
@@ -100,7 +101,7 @@ ok("contraste : « Ajuster » → ✓", (await field("inkSoft").locator(".a-rati
 await page.locator(".a-pal-groups").first().scrollIntoViewIfNeeded();
 await page.locator('[data-testid="adv-couleurs"]').screenshot({ path: `${SHOTS}/editeur-palette.png` });
 await save("palette enregistrée (✓ Enregistré)");
-await page.reload({ waitUntil: "networkidle" });
+await reloadIdle(page);
 ok("enregistré et relu : survol toujours « auto », valeur recalculée", (await field("primaryHover").getAttribute("data-auto")) === "true" && (await hex("primaryHover")) === followed);
 const saved = readTheme(COPY);
 ok("base de données : palette.auto contient primaryHover (onPrimary suit aussi la base), valeur effective enregistrée", saved.tokens.palette?.auto?.includes("primaryHover") && saved.tokens.color.primaryHover === followed && saved.tokens.color.primary === "#1d6b4f", JSON.stringify(saved.tokens.palette));
@@ -126,7 +127,7 @@ const edited = path.join(DIR, "kit-v4-curseurs.zip");
 sim("cursor", kitFile, iconPsd);
 sim("zip", kitFile, edited, iconPsd);
 
-await page.goto(`${BASE}/admin/themes/${COPY}/kit`, { waitUntil: "networkidle" });
+await gotoIdle(page, `${BASE}/admin/themes/${COPY}/kit`);
 await page.setInputFiles('[data-testid="kit-file"]', edited);
 await page.waitForURL(/\/kit\?import=/, { timeout: 120000 });
 await page.locator(".a-kit-card").nth(15).waitFor({ timeout: 180000 });
@@ -219,7 +220,7 @@ writeFileSync(`${SHOTS}/site-curseurs.png`, await overlay(await page.screenshot(
 
 /* ---- D. Curseurs désactivés -------------------------------------------------- */
 await page.request.post(`${BASE}/admin/apercu/quitter`, { headers: { origin: BASE } }).catch(() => {});
-await page.goto(`${BASE}/admin/themes/${DRAFT}?etape=logo`, { waitUntil: "networkidle" });
+await gotoIdle(page, `${BASE}/admin/themes/${DRAFT}?etape=logo`);
 await page.locator('[data-testid="adv-logo"] summary').click();
 await page.getByLabel("Utiliser les curseurs dessinés sur le site").uncheck();
 await save("option : enregistrée");

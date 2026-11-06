@@ -16,7 +16,9 @@
  * structure DOM du menu partout ; les deux sections et leurs schémas toujours affichés ; aucune couleur imposée (Y).
  * PARITÉ (P) : empreinte de la capture publique des réglages d'AVANT (carte pleine / en retrait, fond bord à bord / avec marge, carte + fond emboîtés),
  * à comparer entre l'arbre du lot 90 et celui du lot 100 (PARITY_SHA).
- * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=M,E,U,S,Y,C,P,X] [SHOTS=dossier] node scripts/e2e-fond100.mjs
+ * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… DATA_DIR=… BASE=… [ONLY=M,E,U,C,I,Y,Cth,P] [THEMES_ONLY=carnet,fanzine,papier] [PREP_QUIET=1] [SHOTS=dossier] node scripts/e2e-fond100.mjs
+ * Lot 104b : la suite est découpée en parties (ONLY + THEMES_ONLY, voir test-all-local.sh : fond100a à fond100e). PREP_QUIET=1 : les vérifications de mise en place
+ * (étape 0 : les cinq pages publiées) ne sont comptées PASS que par la partie qui n'a pas PREP_QUIET (un échec reste un FAIL partout).
  */
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -29,6 +31,7 @@ import { chromium } from "playwright";
 import sharp from "sharp";
 
 import { paint } from "./lib/crop-fixtures.mjs";
+import { sharedOk } from "./lib/parts.mjs";
 import { login, q1, waitFor } from "./lib/medias-setup.mjs";
 import { installPaperTheme, PAPER_THEME_NAME } from "./lib/paper-theme.mjs";
 import { activateThemeUi } from "./lib/theme-live.mjs";
@@ -51,6 +54,8 @@ const ok = (label, cond, detail = "") => {
   console.log(`${cond ? "PASS" : "FAIL"} ${label}${!cond && detail ? ` — ${detail}` : ""}`);
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Vérification de mise en place, rejouée par chaque partie : comptée PASS une seule fois (voir lib/parts.mjs). */
+const prepOk = sharedOk(ok);
 const sql = (fn) => {
   const db = new Database(DB);
   db.pragma("busy_timeout = 5000");
@@ -295,7 +300,7 @@ async function settled() {
 }
 for (const p of PAGES) {
   const blocks = blocksOf(p);
-  ok(`0 page « ${p.slug || "accueil"} » (${p.type}) publiée : ${blocks.length} blocs`, await publishPage(p.id, blocks));
+  prepOk(`0 page « ${p.slug || "accueil"} » (${p.type}) publiée : ${blocks.length} blocs`, await publishPage(p.id, blocks));
 }
 const draftOf = (pageId) => {
   const row = q1("select draft from pages where id = ?", pageId);
@@ -726,10 +731,23 @@ const THEMES = [
 const stats = { combos: 0, uiStates: 0, canvas: 0 };
 const pubM = new Map();
 const menuSigs = {};
+/**
+ * S6 compare la structure du menu à celle du PREMIER menu mesuré (Carnet d'atelier, Texte). Une partie qui commence par un autre thème relève
+ * d'abord cette référence (thème Carnet, bloc témoin du Texte), sans assertion : la comparaison reste la même qu'en suite entière.
+ */
+async function seedBaseSig() {
+  await THEMES[0].activate();
+  const p = PAGES.find((x) => x.type === "rich-text");
+  const fr = await openEditor(p.id);
+  await openMenu(fr, CTRL);
+  menuSigs["carnet rich-text|0"] = await fr.evaluate(SIG, '[data-testid="fond-menu"]');
+  await page.keyboard.press("Escape");
+}
 
 for (const T of THEMES.filter((t) => !process.env.THEMES_ONLY || process.env.THEMES_ONLY.split(",").includes(t.key))) {
   await section(`theme-${T.key}`, async () => {
     console.log(`== Thème : ${T.label}`);
+    if (run("U") && T.key === "fanzine" && Object.keys(menuSigs).length === 0) await seedBaseSig();
     await T.activate();
     // Chaque thème : le jaune est bien le jaune (Fanzine), pour que le test sache ce qu'il traque.
     const anon = await browser.newContext({ viewport: { width: 1440, height: 900 } });
@@ -805,7 +823,7 @@ for (const T of THEMES.filter((t) => !process.env.THEMES_ONLY || process.env.THE
 }
 
 /* ---- Cth : un contour qui vient du THÈME est dit, remplaçable, retirable pour ce bloc ---- */
-if (run("C")) {
+if (run("Cth")) {
   await section("Cth", async () => {
     installPaperTheme(DATA, { id: "papier-borde100", name: "Papier bordé 100", key: "c0e4a2c0e4a21000" });
     const th = JSON.parse(q1("select data from themes where id = 'papier-borde100'").data);
