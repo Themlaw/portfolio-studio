@@ -767,7 +767,7 @@ for (const name of ADMIN_ACTIONS.filter((n) => n !== "signOutAction")) {
   res = await callActionJson(jar, ids.createPageAction, [{ title: { fr: "Cible ED", en: "Target ED" }, slug: { fr: "cible-ed", en: "target-ed" } }], "/admin/pages");
   const targetPage = Number(/"ok":true,"data":\{"id":(\d+)\}/.exec(res.text)?.[1]);
   res = await callActionJson(jar, ids.createProjectAction, [{ title: { fr: "Projet ED", en: "" } }], "/admin/pages");
-  const targetProject = Number(/"ok":true,"data":\{"id":(\d+)\}/.exec(res.text)?.[1]);
+  const targetProject = Number(/"ok":true,"data":\{"id":(\d+)[,}]/.exec(res.text)?.[1]);
   const projectSlug = query(dirA, "select slug from projects where id = ?", targetProject).slug;
   const png = await sharp({ create: { width: 32, height: 24, channels: 3, background: "#2e4e9e" } }).png().toBuffer();
   const up = await upload(jar, "brouillon-ed.png", "image/png", png);
