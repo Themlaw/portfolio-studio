@@ -99,6 +99,9 @@ if { [ -n "$SHARDS" ] || [ -n "$SHARD" ]; } && { [ -z "$SHARDS" ] || [ -z "$SHAR
   exit 2
 fi
 
+# Jeu de test PSD synthétique (non commité) : généré une fois, avant la sélection (--shards/--list) et avant toute suite (lot 103 x 104).
+node --import tsx scripts/make-fixture-psd.mts --if-missing || { echo "génération du PSD de test impossible" >&2; exit 2; }
+
 # Sélection (mode ciblé, shards) : calculée par scripts/batt-select.mjs, qui lit ce script (tableau E2E) et les durées.
 if [ -n "$CHANGED_BASE" ] || [ -n "$SHARDS" ]; then
   SEL_ARGS=(--script "$0" --durations "$DURATIONS")

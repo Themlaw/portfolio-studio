@@ -49,3 +49,13 @@ next-env.d.ts
 *.log
 nohup.out
 /e2e-echec.png
+
+# lot 103 : fichiers de réécriture d'historique avec les VRAIES valeurs (jamais commités)
+/scripts/public-history/*.private*
+/scripts/public-history/patterns*.txt
+/.audit/
+
+# lot 103 : jeu de test PSD synthétique, GÉNÉRÉ (scripts/make-fixture-psd.mts), jamais commité
+/tests/fixtures/kit-synthetique.psd
+/tests/fixtures/kit-galerie-lumineuse-v1.manifest.json
+/e2e-echec.png

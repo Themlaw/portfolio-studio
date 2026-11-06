@@ -1,0 +1,10 @@
+# MODELE de remplacements pour `git filter-repo --replace-text` (contenu des fichiers) et
+# `--replace-message` (messages de commit). Copier hors du dépôt, y mettre les VRAIES valeurs,
+# ne JAMAIS commiter la copie (elle contiendrait ce qu'on veut cacher).
+# Syntaxe : « texte==>remplacement » ; « regex:motif==>remplacement » ; « glob:*.example.org==>x ».
+vm-de-prod-reelle==>hote-de-prod
+portfolio.mon-domaine-reel.tld==>portfolio.example.org
+regex:/home/[a-z0-9_-]+/==>/home/user/
+regex:\b192\.168\.\d+\.\d+\b==>192.0.2.10
+# Ancien secret de DEVELOPPEMENT codé en dur dans src/lib/auth/config.ts (versions d'avant le lot 103) : valeur neutralisée.
+regex:(const DEV_SECRET = "secret-de-dev-supprime"]+(")==>\1secret-de-dev-supprime\2

@@ -10,7 +10,7 @@
  *  - décor : 5 calques libres → 5 plans ; calque vide, masqué : ignorés ;
  *    plan retiré ou déplacé : reconnu inchangé (composition changée) ; plus de 8 : refusé ;
  *  - archive : lecture défensive (taille annoncée, chiffrement, PSD absent) ;
- *  - anciens kits mono-fichier (fichier réel de l'artiste) toujours lisibles.
+ *  - anciens kits mono-fichier (fichier de test synthétique) toujours lisibles.
  * Usage : npm test (via tsx)
  */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -348,7 +348,7 @@ ok("un fichier nommé « 1-decor-accueil.psd » mais qui est le logo : reconnu c
 
 /* ---- Anciens kits mono-fichier ---------------------------------------------------------- */
 const legacy = await importKit(path.join(root, "tests/fixtures/kit-synthetique.psd"), path.join(tmp, "out-legacy"), { manifests: [JSON.parse(readFileSync(path.join(root, "tests/fixtures/kit-galerie-lumineuse-v1.manifest.json"), "utf8"))], themeId: "galerie-lumineuse" });
-ok("ancien kit v1 (fichier réel de l'artiste) : toujours lisible, un seul bloc « mono », seule la flèche droite redessinée", legacy.ok && legacy.layout === "v1" && legacy.files.length === 1 && legacy.files[0].id === "mono" && legacy.slots.filter((s) => s.change === "redrawn").map((s) => s.id).join() === "icones/fleche-droite", JSON.stringify({ l: legacy.layout, f: legacy.files, r: legacy.slots.filter((s) => s.change === "redrawn").map((s) => s.id) }));
+ok("ancien kit v1 (fichier de test synthétique) : toujours lisible, un seul bloc « mono », seule la flèche droite redessinée", legacy.ok && legacy.layout === "v1" && legacy.files.length === 1 && legacy.files[0].id === "mono" && legacy.slots.filter((s) => s.change === "redrawn").map((s) => s.id).join() === "icones/fleche-droite", JSON.stringify({ l: legacy.layout, f: legacy.files, r: legacy.slots.filter((s) => s.change === "redrawn").map((s) => s.id) }));
 const mixed = await importKit([path.join(root, "tests/fixtures/kit-synthetique.psd"), extracted[KIT_FILES.logo.file]], path.join(tmp, "out-mix"), {});
 ok("ancien kit envoyé avec d'autres fichiers : refusé, message clair", mixed.ok === false && /ancien kit en un seul fichier/.test(mixed.problem ?? ""), mixed.problem);
 

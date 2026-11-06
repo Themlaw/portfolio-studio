@@ -22,7 +22,7 @@ export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
 
-const DEFAULT_BASE_URL = "https://portfolio.example.org";
+const DEFAULT_BASE_URL = "http://localhost:3001";
 
 /** URL publique (PUBLIC_BASE_URL) : canonical et hreflang deviennent absolus. */
 export async function generateMetadata(): Promise<Metadata> {

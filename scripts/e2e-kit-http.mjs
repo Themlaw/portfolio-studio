@@ -11,7 +11,7 @@
  *  H4. Application : copie brouillon (décor libre de 4 plans, `plansOnly`) ; flèche de l'artiste et son miroir ;
  *      thème en ligne inchangé.
  *  H5. Aller-retour sans fin : le kit de la copie réimporté tel quel → rien de modifié.
- *  H6. Ancien kit (fichier réel de l'artiste) : toujours reçu et lu, sans titre de fichier.
+ *  H6. Ancien kit (fichier de test synthétique) : toujours reçu et lu, sans titre de fichier.
  * Usage : ADMIN_EMAIL=… ADMIN_PASSWORD=… [BASE=http://localhost:3001] [DATA_DIR=./data] node scripts/e2e-kit-http.mjs
  */
 import { execFileSync } from "node:child_process";
@@ -188,7 +188,7 @@ const rAgain = stAgain.status === "done" ? rapportOf(again.body.kitImport.id) : 
 const modified = rAgain?.slots.filter((s) => s.change !== "unchanged") ?? [];
 ok(`H5 kit de la copie (décor de 4 plans + flèche de l'artiste) réimporté tel quel : ${rAgain?.slots.length} éléments, 0 modifié`, draftReady.ready && rAgain?.reference?.how === "identifiant" && rAgain.slots.length === 16 && modified.length === 0 && rAgain.decor?.structure === "unchanged" && rAgain.decor.count === 4, JSON.stringify({ n: rAgain?.slots.length, modified: modified.map((s) => `${s.id}:${s.change}`), decor: rAgain?.decor }));
 
-/* ---- H6. Ancien kit mono-fichier (fichier réel de l'artiste) ---------------------------------------------- */
+/* ---- H6. Ancien kit mono-fichier (fichier de test synthétique) ---------------------------------------------- */
 const manifests = path.join(DATA, "cache/kits/manifests");
 mkdirSync(manifests, { recursive: true });
 if (!existsSync(path.join(manifests, "legacy-galerie-lumineuse-v1.json"))) copyFileSync("tests/fixtures/kit-galerie-lumineuse-v1.manifest.json", path.join(manifests, "legacy-galerie-lumineuse-v1.json"));

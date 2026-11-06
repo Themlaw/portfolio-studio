@@ -1,0 +1,4 @@
+# MODELE de .mailmap pour `git filter-repo --mailmap` : réécrit auteur, committer et tagger.
+# Format : Nom propre <adresse propre> <ancienne adresse>   (une ligne par ancienne adresse)
+# Ne pas commiter la version réelle : sa colonne de droite contient les anciennes adresses personnelles.
+Themlaw <72338680+Themlaw@users.noreply.github.com> <ancienne.adresse@exemple.invalid>

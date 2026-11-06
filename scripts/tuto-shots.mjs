@@ -3,7 +3,7 @@
  * Visuels du tutoriel du kit Photoshop (admin, « Tuto du kit »), générés à
  * partir du VRAI produit : kit v2 rendu par buildKit (cartes, LISEZ-MOI,
  * arborescence des calques), captures playwright de l'admin (Thèmes, écran du
- * kit, revue du fichier réel de l'artiste) et du site (galerie-lumineuse
+ * kit, revue d'un fichier de kit SYNTHÉTIQUE) et du site (galerie-lumineuse
  * « avant », thème de test kit-a « après »).
  *
  * Sortie : public/admin/tuto/<nom>.avif + .webp (≤ 1600 px de large) et
@@ -11,6 +11,9 @@
  * boîtes nommées, en px de l'image) : les annotations (cadres, flèches,
  * étiquettes) sont dessinées en SVG PAR-DESSUS l'image par le diaporama,
  * jamais dans l'image ; slides.ts les place par nom de boîte.
+ *
+ * Données : uniquement synthétiques. Le PSD importé est tests/fixtures/kit-synthetique.psd
+ * (généré par scripts/make-fixture-psd.mts) ; le script le vérifie avant de l'envoyer à l'admin.
  *
  * Prérequis : serveur dev sur :3001 (redémarré, pré-chauffé), thème kit-a
  * (scripts/kit-poc/apply-kit.mts), un compte admin.
@@ -319,10 +322,26 @@ await Promise.all([page.waitForURL((u) => !u.pathname.startsWith("/admin/connexi
 // Le site reprend le thème en ligne (pas d'aperçu en cours).
 await page.request.post(`${BASE}/admin/apercu/quitter`, { headers: { origin: BASE } }).catch(() => {});
 
+// Depuis la v0.29, « Télécharger le kit Photoshop » est dans le menu « Kit Photoshop ▾ » de Mon thème. Sans Mon thème (base neuve), il est créé à
+// partir du modèle en ligne (même rendu, rien ne change pour les visiteurs), puis la page est rechargée.
+{
+  const { applyModel } = await import(new URL("../src/lib/themes/versions.ts", import.meta.url));
+  await page.goto(`${BASE}/admin/themes`, { waitUntil: "networkidle" });
+  if ((await page.getByTestId("mine-kit-menu").count()) === 0) {
+    const r = applyModel("galerie-lumineuse");
+    if (!r.ok) throw new Error(`Mon thème non créé : ${r.message ?? "?"}`);
+  }
+}
 await themesShot();
-const dl = await page.getByRole("button", { name: "Télécharger le kit Photoshop" }).first().boundingBox();
+await page.getByTestId("mine-kit-menu").waitFor({ timeout: 60000 });
+await page.getByTestId("mine-kit-menu").click();
+const dlItem = page.getByRole("menuitem", { name: /Télécharger le kit Photoshop/ });
+await dlItem.waitFor({ timeout: 30000 });
+await sleep(400);
+const dl = await dlItem.boundingBox();
 const themesPng = await page.screenshot();
 await save("themes", themesPng, { telecharger: box(dl.x - 8, dl.y - 8, dl.width + 16, dl.height + 16) });
+await page.keyboard.press("Escape");
 
 {
   const left = await fit(await sharp(themesPng).extract({ left: Math.max(0, Math.round(dl.x - 300)), top: Math.max(0, Math.round(dl.y - 220)), width: 620, height: 400 }).png().toBuffer(), 470, 360);
@@ -359,11 +378,13 @@ await sleep(500);
 const send = await page.locator(".a-kit-drop label").boundingBox();
 await save("renvoyer", await page.screenshot({ clip: { x: 0, y: 0, width: 1440, height: Math.min(900, send.y + send.height + 60) } }), { renvoyer: box(send.x - 6, send.y - 6, send.width + 12, send.height + 12) });
 
-// Slides 14–15 : revue du fichier réel de l'artiste (import par l'admin, comme elle le fera).
+// Slides 14–15 : revue du PSD synthétique (import par l'admin, comme le fera l'artiste avec son fichier).
 const manifests = path.join(process.env.DATA_DIR ?? "./data", "cache/kits/manifests");
 mkdirSync(manifests, { recursive: true });
 if (!existsSync(path.join(manifests, "legacy-galerie-lumineuse-v1.json"))) copyFileSync(path.join(root, "tests/fixtures/kit-galerie-lumineuse-v1.manifest.json"), path.join(manifests, "legacy-galerie-lumineuse-v1.json"));
-await page.setInputFiles('[data-testid="kit-file"]', path.join(root, "tests/fixtures/kit-synthetique.psd"));
+const SYNTH_PSD = path.join(root, "tests/fixtures/kit-synthetique.psd");
+if (!existsSync(SYNTH_PSD)) throw new Error("PSD synthétique absent : node --import tsx scripts/make-fixture-psd.mts");
+await page.setInputFiles('[data-testid="kit-file"]', SYNTH_PSD);
 await page.waitForURL(/\/kit\?import=/, { timeout: 120000 });
 await page.locator(".a-kit-card").nth(13).waitFor({ timeout: 180000 });
 await page.waitForFunction(() => [...document.querySelectorAll(".a-kit-card img")].every((i) => i.complete));
@@ -391,16 +412,18 @@ let draftId = "";
     inchange: box(planTitle.x - ox - 30, planTitle.y - top - 6, planTitle.width + 36, planTitle.height + 12),
   });
   const panel = await pageBox(page.locator(".a-kit-apply"));
-  const apply = await pageBox(page.getByRole("button", { name: "Appliquer au thème" }));
+  const apply = await pageBox(page.getByRole("button", { name: /^Appliquer à mon thème/ }));
   const mirror = await pageBox(page.locator(".a-kit-mirror-check"));
   const clip = { x: panel.x - 20, y: panel.y - 20, width: panel.width + 40, height: panel.height + 40 };
   await save("appliquer", await page.screenshot({ clip, fullPage: true }), {
     miroir: box(mirror.x - clip.x - 6, mirror.y - clip.y - 6, mirror.width + 12, mirror.height + 12),
     appliquer: box(apply.x - clip.x - 6, apply.y - clip.y - 6, apply.width + 12, apply.height + 12),
   });
-  // Application (miroir coché par défaut) : copie brouillon, dont la flèche servira à la slide « Icônes ».
-  await Promise.all([page.waitForURL(/\/admin\/themes\/galerie-lumineuse-kit[a-z0-9-]*$/, { timeout: 60000 }), page.getByRole("button", { name: "Appliquer au thème" }).click()]);
-  draftId = page.url().split("/").pop();
+  // Application (miroir coché par défaut) : nouvelle version (brouillon) de Mon thème, dont la flèche servira à la slide « Icônes ».
+  await Promise.all([page.waitForURL(/\/admin\/themes\?nouvelle=\d+&via=kit/, { timeout: 120000 }), page.getByRole("button", { name: /^Appliquer à mon thème/ }).click()]);
+  await page.getByTestId("new-version-notice").waitFor({ timeout: 60000 });
+  draftId = decodeURIComponent(((await page.getByTestId("mine-edit").getAttribute("href")) ?? "").split("/").pop() ?? "");
+  if (!draftId) throw new Error("identifiant de Mon thème introuvable");
 }
 
 /* ==== 4. Le site, éléments par éléments : avant / après ================== */
@@ -423,7 +446,7 @@ await elementSlide(
     2,
   ),
 );
-// « Après » des icônes : la VRAIE flèche de l'artiste (fichier réel), appliquée avec son miroir.
+// « Après » des icônes : la flèche redessinée du PSD synthétique, appliquée avec son miroir.
 await elementSlide(
   "el-icones",
   "icones",
@@ -450,12 +473,7 @@ await lot4Slides();
 
 
 await browser.close();
-// La copie brouillon n'a servi qu'aux captures : supprimée.
-{
-  const { getDb, schema } = await import(new URL("../src/lib/db/index.ts", import.meta.url));
-  const { eq } = await import("drizzle-orm");
-  getDb().delete(schema.themes).where(eq(schema.themes.id, draftId)).run();
-}
+// Mon thème (créé dans la base jetable de ce script) n'a servi qu'aux captures : la base est jetée par l'appelant.
 writeFileSync(MANIFEST, `${JSON.stringify(shots, null, 1)}\n`);
 let total = 0;
 for (const n of Object.keys(shots)) total += statSync(path.join(OUT, `${n}.avif`)).size;

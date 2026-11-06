@@ -1,0 +1,16 @@
+{
+  "_doc": "Répartition de la batterie e2e en shards (lot 103). Les durées de ci-weights.json sont des estimations en secondes (médianes de plusieurs batteries locales) ; elles ne servent qu'à équilibrer les shards. Une suite absente de ce fichier pèse 90 s.",
+  "shards": 14,
+  "isolated": {
+    "name": "isole",
+    "ids": ["backup85", "backup50", "admin76", "17b", "crop17g"],
+    "why": "sauvegardes (WITH_BACKUP), mesure mémoire (17b) et ports de leurs propres serveurs : seules, l'une après l'autre"
+  },
+  "browsers": {
+    "name": "navigateurs",
+    "ids": ["medias", "medias-firefox", "defilement99", "defilement99-firefox", "parite99"],
+    "why": "seules suites qui exigent firefox (installé uniquement dans ce shard)"
+  },
+  "firefoxIds": ["medias-firefox", "defilement99-firefox"],
+  "defaultWeight": 90
+}

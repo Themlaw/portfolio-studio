@@ -1,0 +1,17 @@
+# Mises à jour automatiques (optionnel) : une demande de tirage par semaine et par écosystème,
+# plafonnée. Les actions du dépôt sont épinglées par SHA : Dependabot met à jour le SHA.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      dependances:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3

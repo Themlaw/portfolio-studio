@@ -80,7 +80,7 @@ const nextConfig: NextConfig = {
   // Serveur autonome minimal (.next/standalone) pour l'image Docker.
   output: "standalone",
   // Accès au serveur de dev à travers le reverse proxy.
-  allowedDevOrigins: ["portfolio.example.org"],
+  allowedDevOrigins: (process.env.DEV_ALLOWED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
   // La base et les médias de dev (./data) ne doivent jamais finir dans le
   // standalone. Cette exclusion couvre les traces des routes ; celle de
   // l'instrumentation (Turbopack) ne l'honore pas : la vraie garantie est
