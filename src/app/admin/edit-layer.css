@@ -2475,6 +2475,19 @@ html[data-edit-mode] .pe-bitem-bar .pe-seg button { height: 28px; border-radius:
   display: block;
 }
 
+/* Lot 129 : planche libre. Les trois champs VIDES (Titre / Légende / Date) ne prennent aucune hauteur : au survol ou au choix ils se posent par-dessus, juste sous
+   le cadre (plus de saut de la carte, plus de bande de 45 px sous le contenu). Dès qu'un champ est rempli, la légende reprend sa place dans le flux, comme en public. */
+[data-edit-mode] .free-board-section[data-cap-host] {
+  position: relative;
+}
+[data-edit-mode] .free-board-section[data-cap-host] > .media-caption:not(:has([data-cap]:not(:empty))) {
+  position: absolute;
+  top: 100%;
+  inset-inline: 0;
+  padding-inline: inherit;
+  z-index: 4;
+}
+
 /* Lot 39 : le « + Ajouter » entre deux composants de planche chevauche de 14 px le bas du composant précédent, où se trouve désormais
    la ligne Titre / Légende / Date : on lui laisse la place (toile seulement), sinon il recouvre le champ et le clic lui revient. */
 html[data-edit-mode] .pe-bitem:has(.media-caption) {

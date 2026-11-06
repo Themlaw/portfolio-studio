@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import type { RawBlock } from "@/lib/pages";
 
-import { cropStyle, lookAttributes, outerStyle, readLook, spaceStyle, type Look } from "@/lib/look";
+import { cropStyle, lookAttributes, outerStyle, readLook, spaceStyle, zoneStyle, type Look } from "@/lib/look";
 import { own } from "@/lib/own";
 import { aloneFlags, cellShare, gridCells, isJustified, type GridShape } from "./grid-layouts";
 import { getSiteView } from "@/lib/settings";
@@ -71,10 +71,10 @@ function withLook(node: ReactNode, look: Look | undefined, key: string): ReactNo
  * Carte de rubrique (lot 17c) : couche extérieure de la zone (lot 66, `CardWrap` dans src/components/ZoneWrap.tsx) ; largeur, coins et couleurs
  * lisibles dans la carte viennent de `props.surface` et du thème (src/themes/surface.ts). Sans carte, aucune enveloppe en public : DOM inchangé.
  */
-function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv | null, edit: boolean | undefined, key: string, join?: FondJoin): ReactNode {
+function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv | null, edit: boolean | undefined, key: string, join?: FondJoin, zone?: Record<string, string>): ReactNode {
   if (!env) return node;
   return (
-    <CardWrap key={`card-${key}`} surface={surface} env={env} edit={edit} join={join} id={key}>
+    <CardWrap key={`card-${key}`} surface={surface} env={env} edit={edit} join={join} id={key} zone={zone}>
       {node}
     </CardWrap>
   );
@@ -87,7 +87,7 @@ function withSurface(node: ReactNode, surface: Surface | undefined, env: CardEnv
  * (`data-fond="off"` = `display: contents`) pour que la toile montre un choix tout de suite sans toucher aux nœuds de React.
  * Réutilisable par un conteneur qui rend lui-même sa suite de composants (planche composée).
  */
-export function withFond(node: ReactNode, type: string, background: Background | undefined, join: FondJoin, ctx: BlockContext, key: string): ReactNode {
+export function withFond(node: ReactNode, type: string, background: Background | undefined, join: FondJoin, ctx: BlockContext, key: string, zone?: Record<string, string>): ReactNode {
   if (!supportsFond(type)) return node;
   if (!background || !ctx.palette) {
     return ctx.edit ? (
@@ -103,7 +103,7 @@ export function withFond(node: ReactNode, type: string, background: Background |
     );
   }
   return (
-    <FondWrap key={`fond-${key}`} background={background} join={join} palette={ctx.palette} lookup={ctx.wallpapers ? (id) => ctx.wallpapers!.get(id) : undefined} edit={ctx.edit}>
+    <FondWrap key={`fond-${key}`} background={background} join={join} palette={ctx.palette} lookup={ctx.wallpapers ? (id) => ctx.wallpapers!.get(id) : undefined} edit={ctx.edit} zone={zone}>
       {node}
     </FondWrap>
   );
@@ -113,8 +113,8 @@ export function withFond(node: ReactNode, type: string, background: Background |
  * Fond unique (lot 66) : les deux couches d'une zone posées par UN seul appel, dans l'ordre documenté (src/themes/zone.ts) : la carte dehors,
  * le fond dedans. Rendu de toute rubrique (page, conteneur) ; la planche d'un projet pose les mêmes enveloppes (`FondWrap`, ProjectStrip).
  */
-function withZone(node: ReactNode, type: string, layers: { surface: Surface | undefined; background: Background | undefined }, join: FondJoin, ctx: BlockContext, key: string, card: CardEnv | null): ReactNode {
-  return withSurface(withFond(node, type, layers.background, join, ctx, key), layers.surface, card, ctx.edit, key, join);
+function withZone(node: ReactNode, type: string, layers: { surface: Surface | undefined; background: Background | undefined }, join: FondJoin, ctx: BlockContext, key: string, card: CardEnv | null, zone?: Record<string, string>): ReactNode {
+  return withSurface(withFond(node, type, layers.background, join, ctx, key, zone), layers.surface, card, ctx.edit, key, join, zone);
 }
 
 function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?: { uid: string }, inherited?: Look, card: CardEnv | null = null, join: FondJoin = { prev: false, next: false }): ReactNode {
@@ -231,6 +231,7 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
       ctx,
       String(key),
       card,
+      zoneStyle(ownLook),
     ),
   );
 }
@@ -286,7 +287,7 @@ export default async function BlockList({ blocks, ctx }: { blocks: RawBlock[]; c
       // Un bloc de largeur réglée (lot 107) est décollé des bords : jamais fusionné avec un voisin.
       {
         const lk = readLook(props?.look);
-        if (lk?.width !== undefined || lk?.marginTop !== undefined || lk?.marginBottom !== undefined) return null;
+        if (lk?.width !== undefined || lk?.marginTop !== undefined || lk?.marginBottom !== undefined || lk?.padTop !== undefined || lk?.padBottom !== undefined) return null;
       }
       const surface = card ? readSurface(props?.surface) : undefined;
       // Une carte compte avec sa bordure : deux cartes de bordures différentes ne se fondent pas (voir `fondKey`).

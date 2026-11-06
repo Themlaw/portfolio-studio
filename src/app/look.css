@@ -294,7 +294,7 @@
   /* Espace de section du thème AVANT la carte (celui que l'on voit entre deux rubriques sans carte : le padding haut de la
      section, que la carte absorbe plus bas), rien après (la rubrique ou le pied de page suivant apporte le sien). */
   margin-block: var(--section-gap) 0;
-  padding-block: var(--t-space-m);
+  padding-block: var(--zy-t, var(--t-space-m)) var(--zy-b, var(--t-space-m));
   border-radius: 0;
 }
 .surface-card[data-surface="on"] {
@@ -486,15 +486,15 @@
 .fond-bloc[data-fond="on"] {
   display: flow-root;
   width: 100%;
-  padding-bottom: var(--section-gap);
+  padding-bottom: var(--zy-b, var(--section-gap));
 }
 .fond-bloc[data-fond="on"][data-join-next] {
   padding-bottom: 0;
 }
 /* Sur une carte : l'enveloppe remplit la carte de haut en bas (rembourrage de la carte repris en rembourrage du fond). */
 .surface-card[data-surface="on"] > .card-in > .fond-bloc[data-fond="on"] {
-  margin-block: calc(-1 * var(--t-space-m));
-  padding-block: var(--t-space-m);
+  margin-block: calc(-1 * var(--zy-t, var(--t-space-m))) calc(-1 * var(--zy-b, var(--t-space-m)));
+  padding-block: var(--zy-t, var(--t-space-m)) var(--zy-b, var(--t-space-m));
 }
 /* Fond avec marge et coins arrondis (lot 43) : `data-fond-inset` (s / m / l) retire l'enveloppe des bords de son conteneur (marge sur
    les quatre côtés, la carte ou la page se voit autour) ; `--fond-around` (couleur du voisin bord à bord, posée par fondJoins) est
@@ -582,7 +582,7 @@
 .fond-bloc[data-fond="on"][data-fond-round="l"] { --fond-r: var(--zone-r-l); }
 /* Sur une carte : la marge se compte depuis le bord de la carte (le rembourrage de la carte est repris en rembourrage du fond). */
 .surface-card[data-surface="on"] > .card-in > .fond-bloc[data-fond="on"][data-fond-inset] {
-  margin-block: calc(var(--fond-gap) - var(--t-space-m));
+  margin-block: calc(var(--fond-gap) - var(--zy-t, var(--t-space-m))) calc(var(--fond-gap) - var(--zy-b, var(--t-space-m)));
 }
 .fond-bloc[data-fond="on"][data-fond-inset]::before,
 .fond-bloc[data-fond="on"][data-fond-inset]::after {
@@ -821,6 +821,11 @@ main > :has(+ .surface-card[data-surface="on"]) {
 .blk-out[data-mb="m"] { padding-bottom: var(--t-space-m); }
 .blk-out[data-mb="l"] { padding-bottom: var(--t-space-l); }
 .blk-out[data-mb="xl"] { padding-bottom: var(--t-space-xl); }
+/* Lot 129 : espacement intérieur HAUT / BAS d'une zone colorée (carte ou fond). La carte et le fond portent `--zy-t` / `--zy-b` (posés par BlockList d'après `look.padTop` /
+   `look.padBottom`) : la distance entre le bord de la zone et le contenu, à la place du rembourrage d'avant (carte : « M » du thème ; fond seul : l'espace de section).
+   Sans réglage la variable manque et chaque `var(--zy-…, d'avant)` rend la valeur d'avant : rien ne change. Hors zone colorée : sans effet. Fond seul, haut : l'espace de
+   section est le premier rembourrage du composant (il n'y a pas de carte pour le porter) ; il est remplacé ici, sauf quand « Haut » (data-pt) l'a déjà remplacé. */
+.fond-bloc[data-fond="on"]:not(.surface-card[data-surface="on"] .fond-bloc) .blk[data-zt]:not([data-pt]) > [class*="pt-[var(--section-gap)]"] { padding-top: var(--zy-t, var(--section-gap)); }
 .blk[data-ps="s"] { display: block !important; padding-inline: var(--t-space-s); }
 .blk[data-ps="m"] { display: block !important; padding-inline: var(--t-space-m); }
 .blk[data-ps="l"] { display: block !important; padding-inline: var(--t-space-l); }

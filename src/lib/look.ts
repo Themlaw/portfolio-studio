@@ -618,6 +618,13 @@ const LookCoreSchema = z.strictObject({
   marginTop: SpaceSchema.optional(),
   marginBottom: SpaceSchema.optional(),
   spaceSides: z.union([z.enum(SIDE_SPACES), z.number().int().min(0).max(SIDE_MAX)]).optional(),
+  /**
+   * Lot 129 : espacement intérieur HAUT / BAS de la zone colorée (carte, fond) : la distance entre son bord et le contenu. Absent = le rembourrage
+   * d'avant (carte : « M » du thème ; fond seul : l'espace de section). Mêmes crans et mêmes valeurs repères que `spaceTop` / `spaceBottom`,
+   * dont il se distingue : eux se posent SUR le premier / dernier élément du bloc (et s'ajoutent au rembourrage de la zone), celui-ci REMPLACE ce rembourrage. Sans carte ni fond : sans effet.
+   */
+  padTop: SpaceSchema.optional(),
+  padBottom: SpaceSchema.optional(),
   radius: z.enum(RADII).optional(),
   titleV: z.enum(["top", "middle", "bottom"]).optional(),
   titleH: z.enum(["left", "center", "right"]).optional(),
@@ -726,6 +733,8 @@ export function lookAttributes(look: Look | undefined): Record<string, string> |
   if (look.spaceTop !== undefined) a["data-pt"] = typeof look.spaceTop === "number" ? "n" : look.spaceTop;
   if (look.spaceBottom !== undefined) a["data-pb"] = typeof look.spaceBottom === "number" ? "n" : look.spaceBottom;
   if (look.spaceSides !== undefined) a["data-ps"] = typeof look.spaceSides === "number" ? "n" : look.spaceSides;
+  if (look.padTop !== undefined) a["data-zt"] = typeof look.padTop === "number" ? "n" : look.padTop;
+  if (look.padBottom !== undefined) a["data-zb"] = typeof look.padBottom === "number" ? "n" : look.padBottom;
   if (look.radius) a["data-radius"] = look.radius;
   if (look.titleV) a["data-tv"] = look.titleV;
   if (look.titleH) a["data-th"] = look.titleH;
@@ -744,6 +753,18 @@ export function spaceStyle(look: Look | undefined): Record<string, string> | und
   if (typeof look.spaceBottom === "number") o["--kn-pb"] = `${look.spaceBottom}px`;
   if (typeof look.spaceSides === "number") o["--kn-ps"] = `${look.spaceSides}px`;
   return Object.keys(o).length ? o : undefined;
+}
+/**
+ * Lot 129 : variables posées sur la carte et le fond (les enveloppes de zone, pas `.blk` : un enfant ne règle pas son parent en CSS) : `--zy-t` / `--zy-b` = distance entre le bord
+ * de la zone colorée et le contenu, en haut / en bas. Absentes : look.css retombe sur le rembourrage d'avant (`var(--zy-t, …)`), rendu inchangé.
+ */
+export function zoneStyle(look: Look | undefined): Record<string, string> | undefined {
+  if (!look || (look.padTop === undefined && look.padBottom === undefined)) return undefined;
+  const px = (v: SpaceVal) => (typeof v === "number" ? `${v}px` : SPACE_VALUES[v]);
+  const o: Record<string, string> = {};
+  if (look.padTop !== undefined) o["--zy-t"] = px(look.padTop);
+  if (look.padBottom !== undefined) o["--zy-b"] = px(look.padBottom);
+  return o;
 }
 /** Idem pour l'enveloppe extérieure `.blk-out` (largeur en %, marges en px). */
 export function outerStyle(look: Look | undefined): Record<string, string> | undefined {

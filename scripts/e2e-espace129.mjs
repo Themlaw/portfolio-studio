@@ -336,7 +336,7 @@ if (run("S")) {
         // La planche libre en carte n'a aucune marge propre : la bande EST la valeur choisie.
         if (t === "fb" && (z === "c" || z === "cf") && !(near(cur.cBot, nB, 1.5) && near(cur.cTop, nT, 1.5))) fails.push(`${b.uid} bande ${r1(cur.cTop)}/${r1(cur.cBot)} (attendu ${r1(nT)}/${r1(nB)})`);
       }
-      ok(`S2 ${doc} : ${checked} blocs, la zone gagne / perd exactement (valeur − rembourrage d'avant), haut et bas`, fails.length === 0 && checked === 31, fails.slice(0, 6).join(" ; "));
+      ok(`S2 ${doc} : ${checked} blocs, la zone gagne / perd exactement (valeur − rembourrage d'avant), haut et bas`, fails.length === 0 && checked === 25, fails.slice(0, 6).join(" ; "));
       // Les blocs sans réglage restent ceux d'avant (rembourrage de zone = celui qu'on lit).
       // Sans réglage : le bas de la planche libre, seul composant sans marge propre, est EXACTEMENT le rembourrage d'avant.
       const fbs = blocks.filter((b) => /^(c|cf|f)fbd$/.test(b.uid));

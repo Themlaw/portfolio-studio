@@ -15,7 +15,7 @@ const NO_JOIN: FondJoin = { prev: false, next: false };
  * Lot 105 : `background.card` = la Carte d'un composant, un panneau en retrait DANS le fond (deuxième enveloppe `.fond-bloc[data-fond-panel]`, mêmes
  * règles de largeur : un fond posé dans un fond). `edit` : le panneau est toujours là (éteint sans carte) pour que la toile puisse le montrer tout de suite.
  */
-export default function FondWrap({ background, join, palette, lookup, edit, children }: { background: Background; join: FondJoin; palette: CardPalette; lookup?: WallpaperLookup; edit?: boolean; children: ReactNode }) {
+export default function FondWrap({ background, join, palette, lookup, edit, zone, children }: { background: Background; join: FondJoin; palette: CardPalette; lookup?: WallpaperLookup; edit?: boolean; zone?: Record<string, string>; children: ReactNode }) {
   const { vars } = fondStyle(background, palette, lookup, join.around);
   const panel = background.card ? ({ ...background.card, inset: background.card.inset ?? "m" } as Background) : null;
   const inner = panel ? (
@@ -30,7 +30,7 @@ export default function FondWrap({ background, join, palette, lookup, edit, chil
     children
   );
   return (
-    <div className="zone fond-bloc" {...fondAttributes(join, background)} style={vars as CSSProperties} {...(edit ? { "data-edit-background": JSON.stringify(background) } : {})}>
+    <div className="zone fond-bloc" {...fondAttributes(join, background)} style={{ ...vars, ...zone } as CSSProperties} {...(edit ? { "data-edit-background": JSON.stringify(background) } : {})}>
       <div className="fond-in">{inner}</div>
     </div>
   );
