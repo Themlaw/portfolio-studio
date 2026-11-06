@@ -2,6 +2,7 @@
 
 import { useId, useState, type CSSProperties } from "react";
 
+import { soundAttrs } from "@/blocks/video-sound";
 import Eyebrow from "@/components/Eyebrow";
 import MediaCaption from "@/components/MediaCaption";
 import type { LocalizedArtwork } from "@/lib/gallery";
@@ -72,7 +73,7 @@ export default function VideoCard({
   // Repères de la boîte de la vidéo : la toile (remplacer / retirer, lecture) et le mode de lecture.
   const attrs = {
     ...(edit ? { "data-edit-media": "mediaId", "data-edit-media-kind": "video" } : {}),
-    ...(item.video ? { "data-video-mode": loop ? "loop" : "player" } : {}),
+    ...(item.video ? { "data-video-mode": loop ? "loop" : "player", ...soundAttrs(item.video) } : {}),
   };
   const media = loop ? (
     <MediaFrame as="div" kind="video" look={mediaLook} ratio={boxRatio} grow={solo} {...attrs}>

@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import type { VideoView } from "@/lib/media";
 
 import VideoPlayer from "./VideoPlayer";
+import { startsMuted } from "./visitor-sound";
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -22,12 +23,15 @@ export default function VideoViewer({
   width,
   height,
   title,
+  fullscreen = false,
   onClose,
 }: {
   video: VideoView;
   width: number;
   height: number;
   title: string;
+  /** Ouverte par le bouton « Plein écran » du cadre (lot 127) : le lecteur se met en plein écran. */
+  fullscreen?: boolean;
   onClose: () => void;
 }) {
   const t = useTranslations("player");
@@ -109,7 +113,7 @@ export default function VideoViewer({
         }}
       >
         <div style={{ aspectRatio: String(ratio), width: `min(100%, calc((100dvh - 7rem) * ${ratio.toFixed(4)}))` }}>
-          <VideoPlayer video={video} width={width} height={height} label={title} autoPlay className="h-full w-full" videoClassName="h-full w-full bg-scrim object-contain" />
+          <VideoPlayer video={video} width={width} height={height} label={title} autoPlay muted={startsMuted(video)} startFullscreen={fullscreen} className="h-full w-full" videoClassName="h-full w-full bg-scrim object-contain" />
         </div>
       </div>
     </div>,

@@ -30,6 +30,7 @@ import { hasFondWrapper, postIntent } from "./optimistic";
 import FondMenu, { FondButton } from "./FondMenu";
 import { cellIndex, cellsOf, gridRefOf, type GridRef } from "./grid-dom";
 import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
+import VideoSoundSeg from "./VideoSoundSeg";
 
 type Rect = { top: number; left: number; width: number; height: number };
 
@@ -495,6 +496,17 @@ export default function GridLayer({ selected, dragging, announce }: { selected: 
               </button>
             ))}
           </span>
+        )}
+        {type === "video-single" && cell.querySelector("[data-video-audio]") && (
+          // Son au départ (lot 127) : seulement pour une vidéo qui a du son (`data-video-audio`).
+          <VideoSoundSeg
+            now={cell.querySelector("[data-video-audio]")?.getAttribute("data-video-sound") === "off" ? "off" : "on"}
+            onChange={(sound) => send(gref, { op: "video-sound", index, sound })}
+            testId="cell-video-sound"
+            attr="data-cb"
+            prefix="sound-"
+            className="pe-cb-btn"
+          />
         )}
         {image && (
           <>

@@ -1200,6 +1200,36 @@ export default function VisualEditor({
     return Boolean(await boardDo(msg.board, { op: "item-set", uid: msg.uid, props: next }));
   };
 
+  /**
+   * Son au départ d'une vidéo depuis sa barre sur la toile (lot 127) : composant Vidéo d'une page (`props.sound`) ou composant Vidéo de la
+   * planche d'un projet. « Activé » est le défaut : il retire le champ.
+   */
+  const videoSound = async (msg: Extract<FromCanvas, { kind: "video-sound" }>): Promise<boolean> => {
+    if (blockedRef.current) return false;
+    if (!msg.board) {
+      if (!findBlock(draftRef.current.blocks, msg.uid)) return false;
+      setProp(msg.uid, "sound", msg.sound === "off" ? "off" : undefined);
+      return true;
+    }
+    await itemFlushRef.current();
+    const item = boards.current.get(msg.board)?.layout.find((i) => i.uid === msg.uid);
+    let base: Record<string, unknown> | null = item?.props ?? null;
+    const type = item?.type ?? msg.item;
+    if (!base) {
+      try {
+        const v = JSON.parse(msg.props ?? "null") as { props?: unknown } | null;
+        base = v?.props && typeof v.props === "object" && !Array.isArray(v.props) ? (v.props as Record<string, unknown>) : null;
+      } catch {
+        base = null;
+      }
+    }
+    if (!base || type !== "video-single") return false;
+    const next = { ...base };
+    if (msg.sound === "off") next.sound = "off";
+    else delete next.sound;
+    return Boolean(await boardDo(msg.board, { op: "item-set", uid: msg.uid, props: next }));
+  };
+
   /** Mise en forme (cadre, recadrage) de la case d'une grille de planche. */
   const cellLook = async (msg: Extract<FromCanvas, { kind: "cell-look" }>): Promise<boolean> => {
     if (blockedRef.current) return false;
@@ -2391,9 +2421,9 @@ export default function VisualEditor({
   };
 
   const itemFlush = () => itemFlushRef.current();
-  const handlers = useRef({ itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySiteTextStyle, applySiteZoneStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode });
+  const handlers = useRef({ itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySiteTextStyle, applySiteZoneStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode, videoSound });
   useEffect(() => {
-    handlers.current = { itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySiteTextStyle, applySiteZoneStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode };
+    handlers.current = { itemFlush, convertItem, itemAdd, itemOp, itemFond, itemMediaLook, mediaLook, itemSelect, itemTo, op, editText, fieldOp, tileOp, insert, undo, redo, selectBlock, createProject, setBoardProject, slotOp, boardDo, uploadFiles, processGhost, setGhostList, setProp, mediaOp, siteChange, moveTree, formField, applyLook, applySiteStyle, applySiteTextStyle, applySiteZoneStyle, applySurface, applyBackground, applyFond, requestInsert, requestCellMedia, queueLook, gridOp, cellLook, freeOp, videoMode, videoSound };
   });
   // Polices déjà téléchargées : marquées dans le menu des polices de la toile.
   useEffect(() => {
@@ -2547,6 +2577,9 @@ export default function VisualEditor({
           break;
         case "video-mode":
           void h.videoMode(msg);
+          break;
+        case "video-sound":
+          void h.videoSound(msg);
           break;
         case "media-look":
           // Refusé (cible disparue, réglage sans place ici) ou sans effet : la toile retire son aperçu.

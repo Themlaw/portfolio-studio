@@ -44,6 +44,7 @@ import Popover from "./edit/Popover";
 import { VIDEO_MODE_HINTS, VIDEO_MODE_LABELS, VIDEO_MODES } from "@/blocks/video-mode";
 import { holdForAa, inAaUi, savedRange } from "./edit/aa-focus";
 import VideoModeSeg from "./edit/VideoModeSeg";
+import VideoSoundSeg from "./edit/VideoSoundSeg";
 import { lookOf, sendMediaLook, sendSlotLook } from "./edit/LookLayer";
 import ProjectCombobox, { type ComboProject } from "./edit/ProjectCombobox";
 import { freeRefOf } from "./edit/free-dom";
@@ -774,6 +775,11 @@ export default function BoardLayer({
           const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
           const kind = frame?.dataset.editBitemType;
           if (isBoardItemType(kind)) post({ kind: "video-mode", board, uid, item: kind, ...(frame?.dataset.editBitemProps ? { props: frame.dataset.editBitemProps.slice(0, 100_000) } : {}), mode: op === "video-loop" ? "loop" : "player" });
+        } else if (op === "sound-on" || op === "sound-off") {
+          // Son au départ du composant Vidéo de la planche (lot 127).
+          const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
+          const kind = frame?.dataset.editBitemType;
+          if (isBoardItemType(kind)) post({ kind: "video-sound", board, uid, item: kind, ...(frame?.dataset.editBitemProps ? { props: frame.dataset.editBitemProps.slice(0, 100_000) } : {}), sound: op === "sound-off" ? "off" : "on" });
         } else if (op === "frame") {
           const frame = itemOp.closest<HTMLElement>("[data-edit-bitem]");
           let current: Frame | undefined;
@@ -1187,6 +1193,10 @@ export default function BoardLayer({
               ))}
             </span>
           )}
+          {!hoverMedia.empty && hoverMedia.kind === "video" && mediaEl?.hasAttribute("data-video-audio") && (
+            // Son au départ (lot 127) : seulement pour une vidéo qui a du son.
+            <VideoSoundSeg now={mediaEl.dataset.videoSound === "off" ? "off" : "on"} onChange={(sound) => post({ kind: "video-sound", uid: hoverMedia.uid, sound })} testId="media-video-sound" attr="data-video-sound-set" />
+          )}
           {!hoverMedia.empty && (
             <button type="button" className="pe-danger" onClick={() => post({ kind: "media-op", uid: hoverMedia.uid, field: hoverMedia.field, op: "clear" })}>
               {hoverMedia.kind === "background" ? "Fond du thème" : `Retirer ${mediaWord}`}
@@ -1218,6 +1228,7 @@ export default function BoardLayer({
           </button>
           {!active.empty && <SlotRadius el={activeEl} />}
           {!active.empty && activeEl && activeEl.querySelector("video, .strip-duration, [data-video-mode]") && <SlotVideoMode el={activeEl} />}
+          {!active.empty && activeEl && (activeEl.hasAttribute("data-video-audio") || activeEl.querySelector("[data-video-audio]")) && <SlotVideoSound el={activeEl} />}
           {!active.empty && activeEl && activeEl.hasAttribute("data-pano") && <SlotPano el={activeEl} />}
           {!active.empty && activeEl && (
             <button
@@ -1522,6 +1533,24 @@ function SlotVideoMode({ el }: { el: Element }) {
     bump((n) => n + 1);
   };
   return <VideoModeSeg now={now} onChange={change} testId="slot-video-mode" attr="data-slot-video-set" />;
+}
+
+/**
+ * Son au départ de CETTE vidéo d'un carrousel (lot 127) : réglage `look.slotLook[slug].sound` du bloc planche, par slug d'emplacement.
+ * Seulement pour une vidéo qui a du son ; « Activé » est le défaut (le champ disparaît).
+ */
+function SlotVideoSound({ el }: { el: Element }) {
+  const [, bump] = useState(0);
+  const slug = el.getAttribute("data-slot-slug") ?? "";
+  const uid = el.closest<HTMLElement>("[data-edit-block]")?.dataset.editBlock ?? "";
+  if (!slug || !uid || !/^[a-z0-9-]+$/.test(slug)) return null;
+  const shown = el.hasAttribute("data-video-audio") ? el : el.querySelector("[data-video-audio]");
+  const now = (slotOf(lookOf(uid), slug).sound ?? shown?.getAttribute("data-video-sound")) === "off" ? "off" : "on";
+  const change = (m: "on" | "off") => {
+    sendSlotLook(uid, slug, { sound: m === "on" ? null : "off" });
+    bump((n) => n + 1);
+  };
+  return <VideoSoundSeg now={now} onChange={change} testId="slot-video-sound" attr="data-slot-sound-set" />;
 }
 
 /**

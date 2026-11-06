@@ -170,6 +170,8 @@ export default async function ProjectBoardBlock({ props, ctx }: { props: z.infer
         ...(item.type === "strip" && readLook(item.props.look)?.spaceTop !== undefined ? { spaceTop: readLook(item.props.look)!.spaceTop } : {}),
         ...(item.type === "strip" && readTint(item.props.stroke) ? { stroke: readTint(item.props.stroke) } : {}),
         ...(item.type === "strip" && (item.props.videoMode === "loop" || item.props.videoMode === "player") ? { videoMode: item.props.videoMode } : {}),
+        // Lot 127 : le composant Vidéo dit si sa vidéo a du son (barre « Son au départ » de la toile).
+        ...(project.edit && item.type === "video-single" && typeof item.props.mediaId === "number" && (await getMedia(item.props.mediaId))?.video?.hasAudio ? { hasAudio: true } : {}),
         ...(fonds[i] ? { fond: { background: fonds[i]!, join: joins[i] } } : {}),
         ...(item.type === "strip"
           ? item.props.source === "own"

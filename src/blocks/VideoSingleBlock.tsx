@@ -7,6 +7,7 @@ import { getMedia } from "@/lib/media";
 import { viewerAttrs } from "@/lib/viewer";
 
 import { localized, localizedText, mediaRef, textStyle, tr, type BlockContext } from "./types";
+import { withSound } from "./video-sound";
 
 /** Identifiant YouTube (11 caractères) : il finit dans l'URL d'une iframe. */
 const youtubeId = /^[\w-]{11}$/;
@@ -26,6 +27,11 @@ export const videoSingleSchema = z.object({
    * reçoit explicitement le mode qui équivaut à son comportement d'avant.
    */
   mode: z.enum(["player", "loop"]).default("player"),
+  /**
+   * Son au départ (lot 127) : « off » = la vidéo démarre muette (le bouton son la remet) ; absent = activé (le défaut, jamais écrit : « Activé » retire
+   * le champ). Sans effet pour une vidéo sans son.
+   */
+  sound: z.enum(["on", "off"]).optional(),
   eyebrow: localized.optional(),
   /** Titre (sinon le texte alternatif de la vidéo, ou le titre du plan). */
   title: localized.optional(),
@@ -57,7 +63,7 @@ export default async function VideoSingleBlock({ props, ctx }: { props: z.infer<
       description: "",
       image: hosted.url,
       sources: hosted.sources ?? undefined,
-      video: hosted.video,
+      video: withSound(hosted.video, props.sound),
       width: hosted.width ?? 1280,
       height: hosted.height ?? 720,
       year: 0,

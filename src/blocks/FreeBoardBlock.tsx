@@ -14,6 +14,7 @@ import { viewerAttrs } from "@/lib/viewer";
 import { BlockCaption, capHost, captionPart } from "./caption";
 import { cropStyle, freeBoardSchema, freeItems, itemHeight, readingOrder, zoneAspect } from "./free-board";
 import { tr, type BlockContext } from "./types";
+import { soundAttrs, withSound } from "./video-sound";
 
 export { freeBoardSchema };
 
@@ -67,6 +68,8 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
         {...(canvas ? { "data-edit-free": "", "data-free-aspect": zone.toFixed(5) } : {})}
       >
         {ordered.map(({ it, m, poster }) => {
+          // Son au départ (lot 127) : le réglage de la ligne, jamais écrit dans le média.
+          const video = m.video ? withSound(m.video, it.sound) : null;
           const ratio = (m.width ?? 1200) / Math.max(1, m.height ?? 800);
           const alt = m.alt ? tr(m.alt, ctx.locale) : "";
           const viewer =
@@ -89,7 +92,7 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
               className="free-item"
               style={style}
               {...viewer}
-              {...(canvas ? { "data-free-item": it.id, ...(m.video ? { "data-free-lecture": modeOf(it), "data-free-audio": m.video.hasAudio ? "1" : "0", "data-free-poster": String(it.poster ?? "") } : {}), "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}
+              {...(canvas ? { "data-free-item": it.id, ...(m.video ? { "data-free-lecture": modeOf(it), "data-free-audio": m.video.hasAudio ? "1" : "0", "data-free-sound": it.sound === "off" ? "off" : "on", "data-free-poster": String(it.poster ?? "") } : {}), "data-free-ratio": ratio.toFixed(5), "data-free-h": itemHeight(it.w, zone, ratio).toFixed(3), "data-free-style": JSON.stringify({ ...(it.radius ? { radius: it.radius } : {}), ...(it.frame ? { frame: it.frame } : {}), ...(it.bg ? { bg: it.bg } : {}) }) } : {})}
             >
               {m.video && modeOf(it) === "player" ? (
                 <PlayerFrame
@@ -102,7 +105,7 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
                     description: "",
                     image: poster?.url ?? m.url,
                     sources: poster?.sources ?? m.sources ?? undefined,
-                    video: m.video,
+                    video: video!,
                     width: m.width ?? 1280,
                     height: m.height ?? 720,
                     year: 0,
@@ -112,12 +115,12 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
                   mediaLook={mediaLook}
                   ratio={ratio}
                   edit={canvas}
-                  attrs={{ "data-video-mode": "player" }}
+                  attrs={{ "data-video-mode": "player", ...soundAttrs(video) }}
                 />
               ) : (
-                <MediaFrame as="div" kind={m.video ? "video" : "image"} look={mediaLook} ratio={ratio} {...(m.video ? { "data-video-mode": "loop" } : {})}>
+                <MediaFrame as="div" kind={m.video ? "video" : "image"} look={mediaLook} ratio={ratio} {...(m.video ? { "data-video-mode": "loop", ...soundAttrs(video) } : {})}>
                   {m.video ? (
-                    <LoopClick video={m.video} width={m.width ?? 1280} height={m.height ?? 720} className="h-full w-full object-cover" label={alt} edit={canvas} poster={poster?.url} />
+                    <LoopClick video={video!} width={m.width ?? 1280} height={m.height ?? 720} className="h-full w-full object-cover" label={alt} edit={canvas} poster={poster?.url} />
                   ) : (
                     <Picture src={m.url} sources={m.sources} alt={alt} width={m.width ?? 1200} height={m.height ?? 800} sizes={sizes} priority={shown.findIndex((s) => s.it.id === it.id) < eager} />
                   )}
