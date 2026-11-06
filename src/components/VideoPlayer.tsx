@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import type { VideoView } from "@/lib/media";
 
 import { useReducedMotion } from "./LoopVideo";
+import { ExitFullscreenIcon, FullscreenIcon, PauseIcon, PlayIcon, SoundOffIcon, SoundOnIcon } from "./video-icons";
 import { MANAGED_ATTR, useSoloPlayback } from "./video-playback";
 
 /** Délai sans geste avant de masquer les commandes pendant la lecture. */
@@ -354,9 +355,7 @@ export default function VideoPlayer({
               <path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7Z" fill="currentColor" />
             </svg>
           ) : (
-            <svg viewBox="0 0 16 18" width="22" height="24" aria-hidden="true" data-icon="play">
-              <path d="M2 1.5 14.5 9 2 16.5Z" fill="currentColor" />
-            </svg>
+            <PlayIcon width={22} height={24} />
           )}
           {state === "ended" && <span className="vp-big-text">{t("replay")}</span>}
         </button>
@@ -365,18 +364,13 @@ export default function VideoPlayer({
       <div className="vp-bar" role="group" aria-label={t("controls")}>
         <button type="button" className="vp-btn" onClick={toggle} aria-label={playLabel} data-vp="play">
           {state === "playing" ? (
-            <svg viewBox="0 0 12 14" width="12" height="14" aria-hidden="true">
-              <rect x="1" y="1" width="3.5" height="12" fill="currentColor" />
-              <rect x="7.5" y="1" width="3.5" height="12" fill="currentColor" />
-            </svg>
+            <PauseIcon width={12} height={14} />
           ) : state === "ended" ? (
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
               <path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7Z" fill="currentColor" />
             </svg>
           ) : (
-            <svg viewBox="0 0 16 18" width="13" height="15" aria-hidden="true" data-icon="play">
-              <path d="M2 1.5 14.5 9 2 16.5Z" fill="currentColor" />
-            </svg>
+            <PlayIcon width={13} height={15} />
           )}
         </button>
 
@@ -426,14 +420,7 @@ export default function VideoPlayer({
         {hasAudio && (
           <>
         <button type="button" className="vp-btn" onClick={toggleMute} aria-label={muted ? t("unmute") : t("mute")} aria-pressed={muted} data-vp="mute">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            <path d="M4 9h4l5-4v14l-5-4H4Z" fill="currentColor" />
-            {muted ? (
-              <path d="m16 9 5 6m0-6-5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" />
-            ) : (
-              <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />
-            )}
-          </svg>
+          {muted ? <SoundOffIcon size={18} /> : <SoundOnIcon size={18} />}
         </button>
 
         <input
@@ -457,13 +444,7 @@ export default function VideoPlayer({
         )}
 
         <button type="button" className="vp-btn" onClick={toggleFullscreen} aria-label={fullscreen ? t("exitFullscreen") : t("fullscreen")} data-vp="fullscreen">
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            {fullscreen ? (
-              <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
-            ) : (
-              <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" />
-            )}
-          </svg>
+          {fullscreen ? <ExitFullscreenIcon size={18} /> : <FullscreenIcon size={18} />}
         </button>
       </div>
     </div>

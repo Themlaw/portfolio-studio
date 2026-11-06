@@ -8,6 +8,7 @@ import type { VideoView } from "@/lib/media";
 
 import MediaFrame from "./MediaFrame";
 import VideoBadge from "./VideoBadge";
+import { SoundOffIcon, SoundOnIcon } from "./video-icons";
 import { MANAGED_ATTR, useEditCanvas, useSoloPlayback } from "./video-playback";
 
 /** Préférence « réduire les animations », lue sans état intermédiaire. */
@@ -59,10 +60,7 @@ export function LoopSound({ videoRef, onUnmute }: { videoRef: React.RefObject<HT
         if (!v.muted) onUnmute();
       }}
     >
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-        <path d="M4 9h4l5-4v14l-5-4H4Z" fill="currentColor" />
-        {muted ? <path d="m16 9 5 6m0-6-5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" fill="none" /> : <path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="none" />}
-      </svg>
+      {muted ? <SoundOffIcon size={16} /> : <SoundOnIcon size={16} />}
     </button>
   );
 }

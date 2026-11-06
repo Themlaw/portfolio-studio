@@ -71,7 +71,7 @@ for (const group of ["4 · Cadre des images agrandies", "4 · Cadre des entrées
 const res = resolveSlots(tree, "v2");
 ok("identifiant d'export lu dans un nom de calque de _guides", res.exportId === "k2-0123456789ab", String(res.exportId));
 const found = new Set(res.sources.keys());
-const want = SLOTS.map((s) => s.id).filter((id) => !["cadre", "trait", "icone-site"].includes(id));
+const want = SLOTS.map((s) => s.id).filter((id) => !["cadre", "trait", "icone-site"].includes(id) && !id.startsWith("video/"));
 ok("emplacements trouvés (v2, v1, noms libres, sous-groupe traversé)", want.every((id) => found.has(id)) && !found.has("cadre"), [...found].join(","));
 ok("groupe d'un élément à un emplacement : tout son contenu (sous-groupe compris), sans l'aperçu", res.sources.get("signature")?.nodes.map((n) => n.name).join("|") === "Signature|mes essais");
 ok("calque inconnu dans un élément à plusieurs emplacements : ignoré et signalé", res.ignored.some((m) => m.startsWith("1 · Paysage d'accueil / nuages")) && res.ignored.some((m) => m.includes("doodle")), res.ignored.join(" ; "));

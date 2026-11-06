@@ -15,6 +15,7 @@ const KIT_PARTS: { label: string; of: (kit: NonNullable<Theme["assets"]["kit"]>)
   { label: "décor", of: (k) => [k.plans, k.plansOnly] },
   { label: "trait", of: (k) => k.stroke },
   { label: "flèches et icônes", of: (k) => k.icons },
+  { label: "icônes vidéo", of: (k) => k.vicons },
   { label: "scotch", of: (k) => k.tape },
   { label: "curseurs", of: (k) => k.cursors },
 ];

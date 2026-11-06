@@ -113,6 +113,15 @@ export function currentLookSvg(slot: SlotSpec, theme: Theme, scale = 1): string 
       // Triangle de lecture du site (viewBox 16 × 18), agrandi et centré.
       return `${open}<path d="M2 1.5 14.5 9 2 16.5Z" transform="translate(20 16) scale(5.333)" fill="${c.ink}"/></svg>`;
     }
+    case "vicon": {
+      // Lot 121 : l'icône vidéo ACTUELLE du site (mêmes tracés que src/components/video-icons.tsx), centrée dans la case.
+      const d = VIDEO_DEFAULTS[slot.id.slice(6)];
+      const ink = c.ink;
+      return `${open}<svg x="${(w - d.w) / 2}" y="${(h - d.h) / 2}" width="${d.w}" height="${d.h}" viewBox="${d.vb}">${d.body(ink)}</svg></svg>`;
+    }
+    case "vbadge":
+      // Fond du badge actuel : carré arrondi translucide de la couleur « surface » du thème.
+      return `${open}<rect width="${w}" height="${h}" rx="${Math.round(w * 0.22)}" fill="${c.surface}" fill-opacity="0.82"/></svg>`;
     case "swatch":
       // Pastilles : swatchRaster (pixels exacts).
       return `${open}</svg>`;
@@ -126,6 +135,18 @@ export function currentLookSvg(slot: SlotSpec, theme: Theme, scale = 1): string 
       return `${open}<g transform="rotate(-3 ${w / 2} ${h / 2})"><rect x="44" y="47" width="312" height="72" fill="${c.ink}" fill-opacity="0.06"/><rect x="44" y="44" width="312" height="72" fill="${c.surface}" fill-opacity="0.58"/><path d="M44 44 V116 M356 44 V116" stroke="${c.ink}" stroke-opacity="0.1" stroke-width="3" stroke-dasharray="7 5"/></g></svg>`;
   }
 }
+
+/** Lot 121 : tracés des icônes vidéo du site (mêmes que video-icons.tsx), taille posée dans la case 128 × 128. */
+const SOUND_BODY = (ink: string) => `<path d="M4 9h4l5-4v14l-5-4H4Z" fill="${ink}"/>`;
+const VIDEO_DEFAULTS: Record<string, { vb: string; w: number; h: number; body: (ink: string) => string }> = {
+  lecture: { vb: "0 0 16 18", w: 84, h: 94, body: (i) => `<path d="M2 1.5 14.5 9 2 16.5Z" fill="${i}"/>` },
+  pause: { vb: "0 0 12 14", w: 76, h: 88, body: (i) => `<rect x="1" y="1" width="3.5" height="12" fill="${i}"/><rect x="7.5" y="1" width="3.5" height="12" fill="${i}"/>` },
+  boucle: { vb: "0 0 24 24", w: 100, h: 100, body: (i) => `<path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3" stroke="${i}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>` },
+  son: { vb: "0 0 24 24", w: 100, h: 100, body: (i) => `${SOUND_BODY(i)}<path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" stroke="${i}" stroke-width="1.8" stroke-linecap="round" fill="none"/>` },
+  muet: { vb: "0 0 24 24", w: 100, h: 100, body: (i) => `${SOUND_BODY(i)}<path d="m16 9 5 6m0-6-5 6" stroke="${i}" stroke-width="2" stroke-linecap="round" fill="none"/>` },
+  "plein-ecran": { vb: "0 0 24 24", w: 100, h: 100, body: (i) => `<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" stroke="${i}" stroke-width="2" fill="none" stroke-linecap="round"/>` },
+  "quitter-plein-ecran": { vb: "0 0 24 24", w: 100, h: 100, body: (i) => `<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" stroke="${i}" stroke-width="2" fill="none" stroke-linecap="round"/>` },
+};
 
 /* ---- Curseurs (lot 4) ---- */
 /** Flèche du système (case 64 × 64, 2x) : pointe en (4, 4). */
@@ -526,7 +547,7 @@ export async function buildKit(theme: Theme, publicDir: string, opts: BuildOptio
   if (opts.manifestDir) await (await import("node:fs/promises")).mkdir(opts.manifestDir, { recursive: true });
 
   // Ordre ag-psd : du bas vers le haut. Éléments 7 → 1, puis _guides, puis LISEZ-MOI.
-  const ordered = ELEMENTS.filter((e) => e.id !== "siteicon").sort((a, b) => b.group.localeCompare(a.group, "fr", { numeric: true }));
+  const ordered = ELEMENTS.filter((e) => e.id !== "siteicon" && e.id !== "video").sort((a, b) => b.group.localeCompare(a.group, "fr", { numeric: true }));
   const children: Layer[] = [];
   const guides: Layer[] = [];
   const hotspotImg = await hotspotRaster();
