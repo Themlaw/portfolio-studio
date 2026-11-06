@@ -64,6 +64,7 @@ import PageLinkBlock, { pageLinkSchema } from "./PageLinkBlock";
 import ProjectBoardBlock, { projectBoardSchema } from "./ProjectBoardBlock";
 import type { BlockCatalogEntry } from "./editor-types";
 import { helpTextProblem, titleHelpProblem } from "./help-text";
+import { HeadSchema, isHeadType } from "./head";
 import { BLOCK_REFS, type BlockRefs } from "./refs";
 import RichTextBlock, { richTextSchema } from "./RichTextBlock";
 import type { BlockContext } from "./types";
@@ -137,11 +138,20 @@ function define<S extends z.ZodType>(def: Omit<BlockDefinition<S>, "refs" | "con
   // un réglage illisible est ignoré, il ne masque jamais le bloc.
   // Carte de rubrique (lot 17c) : `surface` de même, rendue seulement sur un bloc de premier niveau (BlockList).
   // Fond de couleur du composant (lot 32) : `background` de même, lu seulement par les grands composants (src/themes/fond.ts, FOND_TYPES).
+  // Titre de composant (lot 128, src/blocks/head.ts) : `head` de même, facultatif, sur les types titrables seulement ; illisible = ignoré.
+  const headable = isHeadType(def.type);
   const schema =
     def.schema instanceof z.ZodObject
-      ? def.schema.safeExtend({ look: LookSchema.optional().catch(undefined), surface: SurfaceSchema.optional().catch(undefined), background: BackgroundSchema.optional().catch(undefined) })
+      ? def.schema.safeExtend({
+          look: LookSchema.optional().catch(undefined),
+          surface: SurfaceSchema.optional().catch(undefined),
+          background: BackgroundSchema.optional().catch(undefined),
+          ...(headable ? { head: HeadSchema.optional().catch(undefined) } : {}),
+        })
       : def.schema;
-  return { ...def, schema, refs, ...(container ? { container } : {}) } as unknown as BlockDefinition;
+  // Les textes du titre se modifient en place (`head.title`, `head.eyebrow`).
+  const inline = headable ? [...def.inline, "head.title", "head.eyebrow"] : def.inline;
+  return { ...def, inline, schema, refs, ...(container ? { container } : {}) } as unknown as BlockDefinition;
 }
 
 /** Composants de départ d'un modèle (uid attribués à l'insertion par l'éditeur). */

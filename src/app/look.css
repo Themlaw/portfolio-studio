@@ -24,12 +24,12 @@
 }
 
 /* ---- Espace haut / bas d'un bloc (crans du thème) ----------------------- */
-.blk[data-pt="none"] > :first-child { padding-top: 0; }
-.blk[data-pt="s"] > :first-child { padding-top: var(--t-space-s); }
-.blk[data-pt="m"] > :first-child { padding-top: var(--t-space-m); }
-.blk[data-pt="l"] > :first-child { padding-top: var(--t-space-l); }
-.blk[data-pt="xl"] > :first-child { padding-top: var(--t-space-xl); }
-.blk[data-pt="n"] > :first-child { padding-top: var(--kn-pt); }
+.blk[data-pt="none"] > :first-child:not(:where(.pe-head-anchor)), .blk[data-pt="none"] > :where(.pe-head-anchor):first-child + * { padding-top: 0; }
+.blk[data-pt="s"] > :first-child:not(:where(.pe-head-anchor)), .blk[data-pt="s"] > :where(.pe-head-anchor):first-child + * { padding-top: var(--t-space-s); }
+.blk[data-pt="m"] > :first-child:not(:where(.pe-head-anchor)), .blk[data-pt="m"] > :where(.pe-head-anchor):first-child + * { padding-top: var(--t-space-m); }
+.blk[data-pt="l"] > :first-child:not(:where(.pe-head-anchor)), .blk[data-pt="l"] > :where(.pe-head-anchor):first-child + * { padding-top: var(--t-space-l); }
+.blk[data-pt="xl"] > :first-child:not(:where(.pe-head-anchor)), .blk[data-pt="xl"] > :where(.pe-head-anchor):first-child + * { padding-top: var(--t-space-xl); }
+.blk[data-pt="n"] > :first-child:not(:where(.pe-head-anchor)), .blk[data-pt="n"] > :where(.pe-head-anchor):first-child + * { padding-top: var(--kn-pt); }
 .blk[data-pb="n"] > :last-child { padding-bottom: var(--kn-pb); }
 .blk[data-pb="none"] > :last-child { padding-bottom: 0; }
 .blk[data-pb="s"] > :last-child { padding-bottom: var(--t-space-s); }
@@ -76,8 +76,49 @@
 .blk[data-tv="bottom"] .hero-spotlight .hero-text { justify-content: flex-end; }
 /* Dans une cellule de grille : le titre se place dans la hauteur de la rangée. */
 .block-grid-cell:has(.blk[data-tv]) { display: flex; flex-direction: column; }
-.blk[data-tv="middle"] > :first-child { margin-block: auto; }
-.blk[data-tv="bottom"] > :first-child { margin-top: auto; }
+.blk[data-tv="middle"] > :first-child:not(:where(.pe-head-anchor)), .blk[data-tv="middle"] > :where(.pe-head-anchor):first-child + * { margin-block: auto; }
+.blk[data-tv="bottom"] > :first-child:not(:where(.pe-head-anchor)), .blk[data-tv="bottom"] > :where(.pe-head-anchor):first-child + * { margin-top: auto; }
+
+/* ---- Titre de composant (lot 128, src/blocks/head.ts) -----------------------------------------------------------------------------
+   Le titre et le sous-titre d'un composant sont rendus DANS sa zone (carte, fond, `.blk`), avant ou après lui : jamais de bande ni de fond propre.
+   Au-dessus : la section du composant (`pt-[var(--section-gap)]`) n'ajoute plus son grand espace du haut, le titre porte déjà le sien (un cran de
+   plus que les règles de carte ci-dessus, qui retirent ce padding à tous les enfants de la carte). Dessous : un petit écart. Dans une case : écart seul. */
+:root { --head-gap: clamp(0.75rem, 2vw, 1.5rem); }
+:root:root:root:root:root .comp-head + [class*="pt-[var(--section-gap)]"] { padding-top: var(--head-gap); }
+.comp-head[data-at="below"]:not(.comp-head-over) { padding-top: var(--head-gap); }
+.comp-head[data-cell][data-at="above"] { margin-bottom: var(--head-gap); }
+.comp-head[data-cell][data-at="below"] { margin-top: var(--head-gap); }
+/* Alignement (réglage « position du titre », `look.titleH`). */
+.blk[data-th="center"] .comp-head:not(.comp-head-over) { text-align: center; }
+.blk[data-th="right"] .comp-head:not(.comp-head-over) { text-align: right; }
+/* Sur l'image : dans la boîte de la photo (MediaFrame) ou sur la zone de la planche libre, sans prendre de place ; centré en bas au départ, 3 × 3 avec
+   `look.titleH` / `look.titleV`. Lisibilité : voile dégradé discret (couleurs du thème) ; la barre « Aa » (fond, ombre) règle le reste. */
+.comp-head-over {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.25rem;
+  padding: clamp(0.75rem, 3vw, 2rem);
+  text-align: center;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  color: var(--color-bg);
+  background: linear-gradient(to top, color-mix(in srgb, var(--color-ink) 55%, transparent), transparent 60%);
+}
+.free-board > .comp-head-over { z-index: 2000; }
+.comp-head-over .eyebrow { color: inherit; }
+.comp-head-over .comp-head-title { margin: 0; }
+.blk[data-th="left"] .comp-head-over { align-items: flex-start; text-align: left; }
+.blk[data-th="right"] .comp-head-over { align-items: flex-end; text-align: right; }
+.blk[data-tv="top"] .comp-head-over { justify-content: flex-start; background: linear-gradient(to bottom, color-mix(in srgb, var(--color-ink) 55%, transparent), transparent 60%); }
+.blk[data-tv="middle"] .comp-head-over { justify-content: center; background: color-mix(in srgb, var(--color-ink) 30%, transparent); }
+/* Toile : le voile laisse passer les clics (sélection, recadrage), mais le texte reste saisissable. */
+html[data-edit-mode] .comp-head-over :is(h2, h3, h4, p) { pointer-events: auto; }
 
 /* ---- Cadrage (point focal + zoom) ---------------------------------------- */
 /* Format imposé : `--box-r` (largeur ÷ hauteur) est posé par le composant (ratioCss, src/lib/images/formats.ts) : aucune table de formats ici. */

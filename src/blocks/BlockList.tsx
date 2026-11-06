@@ -1,8 +1,8 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 import type { RawBlock } from "@/lib/pages";
 
-import { cropStyle, lookAttributes, outerStyle, readLook, spaceStyle, type Look } from "@/lib/look";
+import { cropStyle, lookAttributes, outerStyle, pscopeId, readLook, spaceStyle, type Look } from "@/lib/look";
 import { own } from "@/lib/own";
 import { aloneFlags, cellShare, gridCells, isJustified, type GridShape } from "./grid-layouts";
 import { getSiteView } from "@/lib/settings";
@@ -14,6 +14,8 @@ import { pagePalette } from "@/themes/site-palette";
 import { getWallpapers } from "@/lib/wallpapers";
 import WallpaperAlign from "@/components/WallpaperAlign";
 import { cardBorderSignature, cardStyle, paperSignature, paperAttributes, readSurface, resolveSurface, type CardPalette, type Surface } from "@/themes/surface";
+import Head, { HeadOps } from "./Head";
+import { childLevel, headVisible, isHeadType, isOverType, type Head as HeadData } from "./head";
 import { BLOCKS } from "./registry";
 import { MAX_NESTING } from "./tree";
 import type { BlockContext } from "./types";
@@ -171,6 +173,10 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
     return ctx.edit ? wrap(<p data-edit-invalid="">{def.label} incomplet : complète-le dans « Réglages » ({issues}).</p>) : null;
   }
   const { Component } = def;
+  // Titre de composant (lot 128) : rendu ICI, dans la zone du composant (après la carte, le fond et les réglages `look`), jamais dans une enveloppe de plus.
+  const headLevel = ctx.headLevel ?? 2;
+  const headable = isHeadType(block.type) && !ctx.noHead;
+  const justifiedCell = Boolean(ctx.cell && ctx.cellJustified);
   let children: ReactNode[] | undefined;
   if (def.container && depth < MAX_NESTING) {
     const data = parsed.data as GridShape & { zoom?: boolean; project?: string; ratio?: string; children?: { uid: string; type: string; props: Record<string, unknown> }[] };
@@ -181,6 +187,8 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
       project: data.project ?? ctx.project,
       cell: block.type === "grid",
       cellRatio: block.type === "grid" ? data.ratio : undefined,
+      // Niveau de titre des composants (lot 128) : +1 sous un conteneur qui affiche un titre.
+      headLevel: childLevel(headLevel, { type: block.type, props: parsed.data }),
     };
     const kids = (data.children ?? []).filter((c) => own(BLOCKS, c.type) && def.container!.accepts.includes(c.type));
     const boxless = BOXLESS.has(block.type);
@@ -197,6 +205,8 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
               cellColumns: isJustified(data) ? (aloneFlags(data, kids.length)[i] ? 1 : Math.max(1, gridCells(data, 0).cols * 0.6)) : cellShare(data, i, kids.length),
               ...(data.layout === "auto" ? { cellAuto: true } : {}),
               ...(data.zoom !== false ? { cellViewer: true } : {}),
+              // Rangées justifiées (lot 128) : pas de titre au-dessus d'une case (seulement le titre de légende).
+              ...(isJustified(data) ? { cellJustified: true } : {}),
               // Grille de planche (lot 39) : ses cases n'ont pas d'identité de bloc, leurs textes se modifient par la grille.
               ...(ctx.inlineEdit && !ctx.edit ? { inlinePrefix: `children.${i}.props.` } : {}),
             }
@@ -216,12 +226,37 @@ function renderBlock(block: AnyBlock, ctx: BlockContext, depth: number, parent?:
           .filter((c) => own(BLOCKS, c.type) && def.container?.accepts.includes(c.type))
           .map((c) => ({ uid: c.uid, type: c.type, ...(c.props.look ? { look: JSON.stringify(c.props.look) } : {}) }))
       : undefined;
+  // `head` : lu par le schéma (illisible = ignoré). « Sur l'image » seulement pour une image ou une planche libre de page ; sinon au-dessus.
+  const rawHead = headable && !justifiedCell ? ((parsed.data as { head?: HeadData }).head ?? undefined) : undefined;
+  const overOk = isOverType(block.type) && !ctx.cell;
+  const head = rawHead && rawHead.at === "over" && !overOk ? { ...rawHead, at: undefined } : rawHead;
+  const showHead = headVisible(head, Boolean(ctx.edit));
+  const uidOf = block.uid ?? String(block.id);
+  // Titre d'un bloc Projet : il reste dans la portée « Tout le projet » du bloc (même repère que la planche, lot 120).
+  const headScope = block.type === "project-board" && (ctx.edit || look?.projectText) ? pscopeId(uidOf) || undefined : undefined;
+  const headNode = showHead ? <Head key={`head-${key}`} head={head} ctx={{ ...ctx, look }} level={headLevel} cell={Boolean(ctx.cell)} scope={headScope} /> : null;
+  const over = headNode !== null && head?.at === "over";
+  const component = (
+    <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id, blockUid: uidOf, look, ...(cellInfo ? { cellInfo } : {}), ...(over ? { overHead: headNode } : {}) }}>
+      {children}
+    </Component>
+  );
+  const ops = headable && ctx.edit ? <HeadOps key={`head-ops-${key}`} uid={uidOf} type={block.type} props={(block.props ?? {}) as Record<string, unknown>} ctx={ctx} where={{ cell: Boolean(ctx.cell), justified: justifiedCell }} /> : null;
+  const content =
+    ops || (headNode && !over) ? (
+      <Fragment key={`blk-${key}`}>
+        {ops}
+        {head?.at !== "below" && !over ? headNode : null}
+        {component}
+        {head?.at === "below" ? headNode : null}
+      </Fragment>
+    ) : (
+      component
+    );
   return wrap(
     withZone(
       withLook(
-        <Component key={key} props={parsed.data} ctx={{ ...ctx, blockId: block.id, blockUid: block.uid ?? String(block.id), look, ...(cellInfo ? { cellInfo } : {}) }}>
-          {children}
-        </Component>,
+        content,
         shown,
         `look-${key}`,
       ),
@@ -245,7 +280,7 @@ export function renderBoardItem(item: { uid: string; type: string; props: Record
   // fusion des voisins (ProjectBoardBlock / ProjectStrip, `FondWrap`) : le bloc lui-même n'en pose pas.
   const props = { ...item.props };
   delete props.background;
-  return renderBlock({ id: -1, uid: item.uid, type: item.type, props, corrupt: false }, { ...ctx, edit: false, inlineEdit: Boolean(ctx.edit) && (item.type === "rich-text" || item.type === "image" || item.type === "video-single" || item.type === "grid" || item.type === "free-board"), gridCanvas: Boolean(ctx.edit) && item.type === "grid", freeCanvas: Boolean(ctx.edit) && item.type === "free-board", parent: undefined }, 0);
+  return renderBlock({ id: -1, uid: item.uid, type: item.type, props, corrupt: false }, { ...ctx, edit: false, inlineEdit: Boolean(ctx.edit) && (item.type === "rich-text" || item.type === "image" || item.type === "video-single" || item.type === "grid" || item.type === "free-board"), gridCanvas: Boolean(ctx.edit) && item.type === "grid", freeCanvas: Boolean(ctx.edit) && item.type === "free-board", parent: undefined, noHead: true }, 0);
 }
 
 /**

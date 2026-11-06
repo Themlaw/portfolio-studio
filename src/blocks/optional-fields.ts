@@ -4,6 +4,9 @@
  * n'occupe aucune place, sur la toile comme en public, et n'affiche aucun texte d'aide. Module pur (aucun import) :
  * lu par la toile (rendu des boutons), l'éditeur de page (écriture) et les tests Node.
  *
+ * Lot 128 : « head », « head-eyebrow », « head-below », « head-over » sont les opérations du titre de composant (src/blocks/head.ts, écrites par
+ * l'éditeur de page : `props.head` est un objet, pas un texte localisé) ; « cap-title » ajoute le titre de légende (`captionTitle`) d'une case de grille justifiée.
+ *
  * Clé d'une opération (`field-op`, src/lib/edit/protocol.ts) : « add-<champ> » / « remove-<champ> » ; `<champ>` est le
  * nom court d'ici, `prop` la clé réelle dans les réglages du bloc.
  *  - kind « text » : texte localisé { fr, en }, absent = pas de champ ;
@@ -13,7 +16,7 @@
 export type FieldOpDef = { prop: string; kind: "text" | "hide"; add: string; remove: string };
 
 /** Noms courts des champs facultatifs gérés ici (les quatre premiers : blocs Texte et Titre, lots 19a et 22). */
-export const FIELD_OP_NAMES = ["title", "eyebrow", "intro", "counts", "cta", "caption", "contact-eyebrow", "contact-label", "social-eyebrow", "name"] as const;
+export const FIELD_OP_NAMES = ["title", "eyebrow", "intro", "counts", "cta", "caption", "contact-eyebrow", "contact-label", "social-eyebrow", "name", "head", "head-eyebrow", "head-below", "head-over", "cap-title"] as const;
 export type FieldOpName = (typeof FIELD_OP_NAMES)[number];
 
 /** Champs facultatifs par type de bloc (hors Texte et Titre, qui ont leur propre règle dans l'éditeur de page). */
@@ -41,6 +44,10 @@ export const OPTIONAL_FIELDS: Record<string, Partial<Record<FieldOpName, FieldOp
     title: { prop: "title", kind: "text", add: "+ Ajouter un titre", remove: "Retirer le titre" },
     intro: { prop: "intro", kind: "text", add: "+ Ajouter une présentation", remove: "Retirer la présentation" },
   },
+  // Lot 128 : case d'une grille justifiée, le titre est la légende « titre » du média (sous lui, la géométrie des rangées ne bouge pas).
+  image: { "cap-title": { prop: "captionTitle", kind: "text", add: "+ Titre", remove: "Retirer le titre" } },
+  "video-single": { "cap-title": { prop: "captionTitle", kind: "text", add: "+ Titre", remove: "Retirer le titre" } },
+  "free-board": { "cap-title": { prop: "captionTitle", kind: "text", add: "+ Titre", remove: "Retirer le titre" } },
 };
 
 /** Définition d'un champ facultatif d'un type de bloc, ou undefined (pas de `dict[key]` : « constructor », « __proto__ »…). */

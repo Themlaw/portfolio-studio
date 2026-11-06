@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import type { AppLocale } from "@/i18n/routing";
 import { textStyleObject, type Look, type TextStyle } from "@/lib/look";
@@ -69,6 +69,17 @@ export type BlockContext = {
   cellRatio?: string;
   /** Identifiant en base du bloc rendu (version publiée ; négatif en vue brouillon). */
   blockId?: number;
+  /**
+   * Titre de composant (lot 128, src/blocks/head.ts) : niveau de titre des composants de ce niveau (h2 au premier niveau, +1 sous un conteneur qui
+   * affiche un titre ; jamais choisi). Absent = premier niveau.
+   */
+  headLevel?: number;
+  /** Titre « sur l'image » déjà rendu par `renderBlock` : image et planche libre le posent DANS leur média (lot 128). */
+  overHead?: ReactNode;
+  /** Case d'une grille JUSTIFIÉE (lot 128) : pas de titre au-dessus (les rangées se calculent sur les formats), seulement le titre de légende. */
+  cellJustified?: boolean;
+  /** Composant d'une planche de projet (lot 128, étape 1) : pas de titre de composant (étape 2 : `head` des items de planche). */
+  noHead?: boolean;
   /** Uid du bloc rendu (lot 120) : repère de la portée « Tout le projet » d'une planche. */
   blockUid?: string;
   /** Réglages de mise en page du bloc (props.look, lot 2) : styles de ses textes. */

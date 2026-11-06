@@ -229,7 +229,7 @@ if (run("B"))
     const g = homeBlocks.imageGrid;
     const gsel = `[data-edit-block="${g}"]`;
     await f.locator(gsel).scrollIntoViewIfNeeded();
-    ok("B9 Grille neuve : ni étiquette ni titre sur la toile (aucune place, aucun texte d'aide)", (await f.locator(`${gsel} > section > h2, ${gsel} section.block-grid-section > h2, ${gsel} .eyebrow`).count()) === 0 && (await opNames(f, g)).join() === "add-eyebrow,add-title", (await opNames(f, g)).join());
+    ok("B9 Grille neuve : ni étiquette ni titre sur la toile (aucune place, aucun texte d'aide)", (await f.locator(`${gsel} > section > h2, ${gsel} section.block-grid-section > h2, ${gsel} .eyebrow`).count()) === 0 && (await opNames(f, g)).filter((n) => !/cap-title/.test(n)).join() === "add-eyebrow,add-title", (await opNames(f, g)).filter((n) => !/cap-title/.test(n)).join());
     await fieldOp(f, g, "add-title");
     ok("B10 Grille : « + Ajouter un titre » crée le titre, édité aussitôt", (await waitFor(() => propsOf(HOME, g)?.title?.fr === "")) && (await f.locator('[data-editing][data-inline="title"]').waitFor({ timeout: 60000 }).then(() => true, () => false)));
     await page.keyboard.type("Mes images");

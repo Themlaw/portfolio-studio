@@ -160,6 +160,8 @@ export default async function ImageBlock({ props, ctx }: { props: z.infer<typeof
         fallback={fallback}
         priority={eager}
       />
+      {/* Titre « sur l'image » (lot 128) : dans la boîte de la photo (rogné par elle), jamais dans la légende. */}
+      {ctx.overHead}
     </MediaFrame>
   ) : null;
   const body = (
