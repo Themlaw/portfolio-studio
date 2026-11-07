@@ -229,6 +229,12 @@ try {
     });
     await sleep(300);
     ok("B13b volume à zéro : muet", await dv(p).evaluate((v) => v.muted));
+    // Lot 127 : le curseur à zéro est le choix « sans son » du visiteur, qui vaut pour toute la page (les visionneuses rouvertes plus bas
+    // démarreraient muettes). On le défait par le vrai curseur (choix « avec son »), comme le ferait le visiteur, puis on rétablit la lecture.
+    await dctl(p, "volume").evaluate((el) => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, "1");
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    });
     await dv(p).evaluate((v) => { v.muted = false; v.volume = 1; });
     // Plein écran.
     await dctl(p, "fullscreen").click();
