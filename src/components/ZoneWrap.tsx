@@ -16,7 +16,7 @@ export type CardEnv = { palette: CardPalette; defaults: ResolvedSurface; wallpap
  * Vue brouillon (`edit`) : l'enveloppe est toujours là (sans carte : `data-surface="off"`, `display: contents`) pour que la toile puisse montrer
  * un choix tout de suite sans toucher aux nœuds de React.
  */
-export function CardWrap({ surface, env, edit, join, id, children }: { surface: Surface | undefined; env: CardEnv; edit: boolean | undefined; join?: FondJoin; id: string; children: ReactNode }) {
+export function CardWrap({ surface, env, edit, join, id, zone, children }: { surface: Surface | undefined; env: CardEnv; edit: boolean | undefined; join?: FondJoin; id: string; zone?: Record<string, string>; children: ReactNode }) {
   const defaults = edit ? { "data-card-default": JSON.stringify(env.defaults) } : {};
   if (!surface) {
     return edit ? (
@@ -38,7 +38,7 @@ export function CardWrap({ surface, env, edit, join, id, children }: { surface: 
       {...paper.attrs}
       {...(join?.prev ? { "data-join-prev": "" } : {})}
       {...(join?.next ? { "data-join-next": "" } : {})}
-      style={{ ...cardVars(style), ...borderVars(resolved, style, env.palette), ...paper.vars } as CSSProperties}
+      style={{ ...cardVars(style), ...borderVars(resolved, style, env.palette), ...paper.vars, ...zone } as CSSProperties}
       {...(edit ? { ...defaults, "data-edit-surface": JSON.stringify(surface) } : {})}
     >
       <div className="card-in">{children}</div>
