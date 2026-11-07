@@ -37,6 +37,7 @@ import { pickerGroups } from "@/blocks/groups";
 import { HELP_TEXT, STARTER_LIST, TEXT_STARTERS, type TextStarter } from "@/blocks/help-text";
 import type { BlockCatalogEntry, EditorContext } from "@/blocks/editor-types";
 import { blockAtPath, boardRefs, canPlace, descendantCount, errorPath, findBlock, insertBlock, isContainer, listOf, locate, moveBlock, removeBlock, updateBlock, walk as walkTree, withFreshUids } from "@/blocks/tree";
+import { applyHeadOp } from "@/blocks/head";
 import { fieldOpDef, hasOptionalField, withOptionalField } from "@/blocks/optional-fields";
 import { applyGridOp, type GridChild, type GridModelOp } from "@/blocks/grid-layouts";
 import { announcePublished } from "@/lib/publish-signal";
@@ -827,6 +828,15 @@ export default function VisualEditor({
   const fieldOp = (uid: string, op: Extract<FromCanvas, { kind: "field-op" }>["op"]): boolean => {
     const list = draftRef.current.blocks;
     const block = findBlock(list, uid);
+    // Titre de composant (lot 128) : `props.head` (titre, sous-titre, dessous / sur l'image), src/blocks/head.ts ; un titre ajouté s'édite aussitôt.
+    if (block && /^(add|remove)-head(-|$)/.test(op)) {
+      const done = applyHeadOp(block.type, block.props, op);
+      if (!done) return false;
+      setBlocks(updateBlock(list, uid, (b) => ({ ...b, props: done.props })), { structural: true });
+      selectBlock(uid);
+      if (done.edit) send({ kind: "edit-text", uid, path: done.edit });
+      return true;
+    }
     // Grille, Contact, Profil, CV (lot 27) : table de src/blocks/optional-fields.ts.
     const named = /^(add|remove)-(.+)$/.exec(op);
     const def = block && named ? fieldOpDef(block.type, named[2]) : undefined;

@@ -129,6 +129,8 @@ export default async function FreeBoardBlock({ props, ctx }: { props: ReturnType
             </figure>
           );
         })}
+        {/* Titre « sur l'image » (lot 128) : posé sur la zone, au-dessus des images (z-index), sans prendre de place. */}
+        {ctx.overHead}
         {canvas && !shown.length && (
           <div className="pe-free-empty" lang="fr" data-edit-free-empty="">
             <button type="button" className="pe-empty-action" data-edit-free-add="">

@@ -495,10 +495,11 @@ function targetOf(el: HTMLElement): TextTarget {
   const field = el.dataset.cap === "title" || el.dataset.cap === "legend" || el.dataset.cap === "date" ? el.dataset.cap : null;
   const role = roleOf(el);
   // Portée « Tout le projet » (lot 120) : le type du texte, dans la planche de projet qui le montre ; le bloc est celui de la page qui porte cette planche.
-  const boardEl = el.closest<HTMLElement>("[data-edit-board]");
+  // Lot 128 : le titre qu'un bloc Projet porte pour SA page (`data-head-board`, posé avant la planche) se règle avec les titres de ce projet.
+  const boardEl = el.closest<HTMLElement>("[data-edit-board]") ?? el.closest<HTMLElement>("[data-head-board]");
   const boardBlock = boardEl?.closest<HTMLElement>("[data-edit-block]");
   const pkey: ProjectTextKey | null = field ? PROJECT_CAPTION_KEYS[field] : role === "h1" || role === "h2" ? "h2" : role === "eyebrow" ? "eyebrow" : role === "body" ? "body" : null;
-  const proj = boardEl && boardBlock?.dataset.editBlock && boardBlock.dataset.editType === "project-board" && pkey && board ? { key: pkey, block: boardBlock.dataset.editBlock, board } : null;
+  const proj = boardEl && boardBlock?.dataset.editBlock && boardBlock.dataset.editType === "project-board" && pkey && (board || boardEl.hasAttribute("data-head-board")) ? { key: pkey, block: boardBlock.dataset.editBlock, board: board || 1 } : null;
   // En-tête et pied de page (lot 124) : la clé du texte et sa zone.
   const hzKey = el.closest<HTMLElement>("[data-site-text]")?.dataset.siteText;
   const hz = hzKey && SITE_TEXT_KEY_RE.test(hzKey) && !found ? { key: hzKey, zone: siteTextZone(hzKey) } : null;
@@ -896,6 +897,11 @@ function TextBar({
 
 const TITLE_TYPES = new Set(["section-title", "collection-intro", "hero", "project-board", "collection-tiles"]);
 
+/** Titre de composant d'un bloc (lot 128) : « above », « below », « over », ou « none » (aucun) ; lu sur l'ancre des pastilles du bloc. */
+function headStateOf(uid: string): string {
+  return document.querySelector<HTMLElement>(`.pe-head-anchor[data-head-for="${CSS.escape(uid)}"]`)?.dataset.headState ?? "none";
+}
+
 function PosIcon({ axis, v }: { axis: "h" | "v"; v: string }) {
   // Trait épais = le titre ; cadre = l'emplacement.
   const pos = v === "left" || v === "top" ? 3 : v === "right" || v === "bottom" ? 11 : 7;
@@ -915,11 +921,13 @@ function PosIcon({ axis, v }: { axis: "h" | "v"; v: string }) {
 function TitlePosition({ uid, type, inCell, rect }: { uid: string; type: string; inCell: boolean; rect: Rect }) {
   const look = lookOf(uid);
   const hero = type === "hero";
-  const vertical = hero || inCell;
+  // Titre de composant « sur l'image » (lot 128) : posé dans une grille 3 × 3 (centré en bas au départ) ; au-dessus ou dessous : alignement seulement.
+  const over = headStateOf(uid) === "over";
+  const vertical = hero || (inCell && TITLE_TYPES.has(type)) || over;
   const wrapper = wrapperOf(uid);
   const spot = hero && Boolean(wrapper?.querySelector(".hero-spotlight"));
-  const defH = spot ? "center" : "left";
-  const defV = hero ? (spot ? "middle" : "bottom") : "top";
+  const defH = over ? "center" : spot ? "center" : "left";
+  const defV = over ? "bottom" : hero ? (spot ? "middle" : "bottom") : "top";
   const what = hero ? "Texte" : "Titre";
   const H = [
     ["left", `${what} à gauche`],
@@ -1406,7 +1414,7 @@ export default function LookLayer({
           <SpacingHandle key={`b-${selected.uid}`} uid={selected.uid} side="bottom" look={selLook} announce={announce} />
         </>
       )}
-      {selected && selRect && TITLE_TYPES.has(selected.type) && <TitlePosition uid={selected.uid} type={selected.type} inCell={selected.parentType === "grid"} rect={selRect} />}
+      {selected && selRect && (TITLE_TYPES.has(selected.type) || headStateOf(selected.uid) !== "none") && <TitlePosition uid={selected.uid} type={selected.type} inCell={selected.parentType === "grid"} rect={selRect} />}
 
       {aaView && (
         <button
