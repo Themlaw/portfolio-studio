@@ -381,7 +381,7 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
           continue;
         }
         report.source = source.path;
-        if (source.nodes.length === 1 && source.nodes[0].hidden) warn("Calque masqué dans le PSD : importé quand même.");
+        if (source.nodes.length === 1 && source.nodes[0].hidden && slot.kind !== "vbadge") warn("Calque masqué dans le PSD : importé quand même.");
         layerWarnings(source.nodes, warn, slot.label);
         // Case vide : empreinte d'une case transparente (inchangée si le kit
         // d'origine l'était aussi, sinon l'élément actuel du thème est gardé).
@@ -557,7 +557,7 @@ export async function importKit(input: KitInput | KitInput[], outDir: string, op
 
     // Lot 99 : le trait (barre de défilement) et les flèches gardent AUSSI leurs couleurs : un masque teinté ne garde que la forme.
     const keepsColors = keepsDrawnColors(slot);
-    const { avif, webp } = await encodeBitmap(img, slot.kind === "signature" || slot.kind === "tile" || slot.kind === "stroke" || slot.kind === "nine" || slot.kind === "appicon" || keepsColors);
+    const { avif, webp } = await encodeBitmap(img, slot.kind === "signature" || slot.kind === "tile" || slot.kind === "stroke" || slot.kind === "nine" || slot.kind === "appicon" || slot.kind === "vbadge" || keepsColors);
     report.candidates = { avif: avif.length, webp: webp.length };
     const tex = textureStats(img);
     report.textured = { coverage8: Math.round(tex.coverage8 * 1000) / 1000, distinct: tex.distinct };

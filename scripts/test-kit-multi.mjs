@@ -104,7 +104,7 @@ const shuffled = [
 ];
 const r0 = await importKit(shuffled, path.join(tmp, "out0"), { manifests, themeId: theme.id });
 const changed0 = r0.slots.filter((s) => s.change !== "unchanged");
-ok("réimport des 3 fichiers sans rien toucher : 0 élément modifié", r0.ok && r0.slots.length === 17 && changed0.length === 0 && r0.slots.every((s) => s.status === "ok"), changed0.map((s) => `${s.id}:${s.change}`).join(" ") || r0.problem);
+ok("réimport des 3 fichiers sans rien toucher : 0 élément modifié", r0.ok && r0.slots.length === 25 && changed0.length === 0 && r0.slots.every((s) => s.status === "ok"), changed0.map((s) => `${s.id}:${s.change}`).join(" ") || r0.problem);
 ok("kit d'origine reconnu par l'identifiant (mêmes fichiers renommés)", r0.reference?.how === "identifiant" && r0.reference.exportId === exportId, JSON.stringify(r0.reference));
 ok("revue : un bloc par fichier, dans l'ordre du kit, tous reçus", r0.files.map((f) => `${f.id}${f.received ? "" : "!"}`).join(",") === "decor,logo,icones" && r0.files.map((f) => f.slots).join(",") === "5,4,8", JSON.stringify(r0.files));
 ok("décor : même composition que l'export", r0.decor?.structure === "unchanged" && r0.decor.count === 5 && !decorApplicable(r0));

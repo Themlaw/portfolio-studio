@@ -271,6 +271,11 @@ export const KitAssetsSchema = z
       .strict()
       .optional(),
     tape: kitImage.optional(),
+    /** Lot 121 : icônes des vidéos dessinées dans le kit (formes teintées) et fond du badge (dessin en couleurs, remplace le carré). */
+    vicons: z
+      .object({ play: kitImage.optional(), pause: kitImage.optional(), loop: kitImage.optional(), sound: kitImage.optional(), muted: kitImage.optional(), fullscreen: kitImage.optional(), exitFullscreen: kitImage.optional(), badge: kitImage.optional() })
+      .strict()
+      .optional(),
     /* ---- Curseurs (lot 4) : normal et « clic » (survol de ce qui se clique) ---- */
     cursors: z
       .object({

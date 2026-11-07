@@ -34,6 +34,18 @@ const ICONS = [
   ["play", "play"],
 ] as const;
 
+/** Lot 121 : icônes des vidéos (clé du schéma, nom CSS) ; `badge` = fond du badge. */
+const VICONS = [
+  ["play", "play"],
+  ["pause", "pause"],
+  ["loop", "loop"],
+  ["sound", "sound"],
+  ["muted", "muted"],
+  ["fullscreen", "fullscreen"],
+  ["exitFullscreen", "exit-fullscreen"],
+  ["badge", "badge"],
+] as const;
+
 /* ---- Curseurs (lot 4) ---- */
 /** `cursor` sûr partout : PNG 32 × 32, point chaud, repli obligatoire. */
 const cursorValue = (c: KitCursor, fallback: "auto" | "pointer") => `url("${c.png}") ${c.x} ${c.y}, ${fallback}`;
@@ -102,6 +114,10 @@ export function kitVariables(kit: KitAssets | undefined): Record<string, string>
       v[`--t-kit-icon-${name}-h`] = `${Math.round(icon.h * KIT_ARROW_SCALE)}px`;
     }
   }
+  for (const [key, name] of VICONS) {
+    const icon = kit.vicons?.[key];
+    if (icon) v[`--t-kit-vicon-${name}`] = key === "badge" ? kitImage(icon) : kitMask(icon);
+  }
   if (kit.tape) {
     v["--t-kit-tape"] = kitImage(kit.tape);
     v["--t-kit-tape-ratio"] = `${kit.tape.w} / ${kit.tape.h}`;
@@ -135,6 +151,7 @@ export function kitAttributes(kit: KitAssets | undefined): Record<`data-${string
     a[`data-kit-icon-${name}`] = "";
     if (kit.icons[key]!.color && (key === "arrowLeft" || key === "arrowRight")) a[`data-kit-icon-${name}-color`] = "";
   }
+  for (const [key, name] of VICONS) if (kit.vicons?.[key]) a[`data-kit-vicon-${name}`] = "";
   if (kit.tape) a["data-kit-tape"] = "";
   const cursors = activeCursors(kit);
   if (cursors.default) a["data-kit-cursor"] = "";

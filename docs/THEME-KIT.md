@@ -633,7 +633,7 @@ la palette SORT du kit (elle se choisit dans l'éditeur visuel, lot 17f).
 |---|---|---|
 | `1-decor-accueil.psd` | 5760 × 3960 (bande de consignes 760 px + cadre du décor 5760 × 3200) | Calques LIBRES de premier niveau : chacun (ou groupe) est un plan, du fond (bas de la pile) vers l'avant, jusqu'à 8. Le décor actuel du thème (calques SVG du hero, ou plans déjà dessinés) y est découpé en ses plans, à 2 × leur taille d'usage. Repères : cadre du décor, zone du titre. |
 | `2-logo-papier.psd` | 3000 × 4640 | Logo 2400 × 600 → 1200 × 300 ; papier : tuile 1024 × 1024 → 512 × 512 avec, à côté, l'aperçu 3 × 3 de la tuile actuelle (raccords repérés en pointillés roses) ; trait 2400 × 160 → 1200 × 80. |
-| `3-icones-curseurs.psd` | 3400 × 5770 | 4 icônes 512 × 512 → 128 × 128 ; 2 curseurs 512 × 512 → 64 × 64 (affiché 32, point chaud : anneau rose de 88 px) ; cadre 900 × 900 → 300 × 300 (marges 144 px = 48) ; scotch 1200 × 480 → 400 × 160. |
+| `3-icones-curseurs.psd` | 3400 × 7810 (lot 121 ; avant : 3400 × 5770, toujours importé) | 4 icônes 512 × 512 → 128 × 128 ; 2 curseurs 512 × 512 → 64 × 64 (affiché 32, point chaud : anneau rose de 88 px) ; cadre 900 × 900 → 300 × 300 (marges 144 px = 48) ; scotch 1200 × 480 → 400 × 160. |
 | `LISEZ-MOI.txt` | | Court : trois fichiers, comment faire, envoyer seulement les fichiers modifiés. |
 
 Où ranger quoi : le logo (identité), le papier (répété) et le trait (étiré) sont ce qui se
@@ -718,3 +718,13 @@ l'artiste) et `kit17a` (logo et papier seuls, appliqués au thème d'origine).
 ### Palette suggérée retirée de la revue (lot 17e)
 
 La revue ne propose plus de palette tirée du paysage (`kit/palette.ts` supprimé, option `palette` de « Appliquer » retirée) : les couleurs se choisissent dans l'éditeur visuel (lot 17f). La lecture du groupe « 8 · Palette » des anciens kits v1/v2/v3 est conservée (section « Couleurs de la palette » de la revue, `extras.ts`).
+
+## 10. Icônes des vidéos (lot 121)
+
+Le fichier « icônes » du kit v4 gagne un groupe **« 5 · Vidéo »** sous le scotch (document 3400 × 7810 ; l'ancien 3400 × 5770 reste importé : ses emplacements vidéo n'existent pas, `multiOnly`). Il contient un calque gabarit par icône, dans une case de 512 × 512 réduite à 128 × 128 (l'icône actuelle du site y est dessinée en exemple) : « Lecture vidéo », « Pause vidéo », « Boucle », « Son activé », « Muet », « Plein écran », « Quitter le plein écran », et « Fond du badge (option) » (masqué au départ, 512 × 512 réduit à 256 × 256, en couleurs).
+
+- **Le logo seul, pas le carré** : l'artiste dessine l'icône ; le carré du badge reste réglé par le thème (couleur, transparence, coins). Le fond du badge dessiné, s'il existe, remplace le carré (`[data-kit-vicon-badge] .vid-badge`, étiré à la taille du badge).
+- **Règle des icônes du kit** : forme d'une seule couleur, masque teinté par `currentColor` (SVG tracé, sinon masque bitmap). Case vide ou calque supprimé : l'icône actuelle est gardée ; case inchangée : « inchangé » (aucun asset).
+- **Données** : `kit.vicons` = `{ play, pause, loop, sound, muted, fullscreen, exitFullscreen, badge }` (chacun facultatif, un `kitImage`). Variables `--t-kit-vicon-<nom>` et attributs `data-kit-vicon-<nom>` posés par `src/themes/css.ts` ; règles dans `variants.css`.
+- **Composant** : `src/components/video-icons.tsx` (contrat commun avec le lot 127). Chaque icône porte `data-vicon="<clé>"` et `--vi` (taille) ; le CSS efface le SVG d'origine et pose le dessin. Sans dessin, le rendu est identique à celui d'avant.
+- Emplacements dans le kit : `video/lecture`, `video/pause`, `video/boucle`, `video/son`, `video/muet`, `video/plein-ecran`, `video/quitter-plein-ecran`, `video/fond-badge` (`src/lib/kit/spec.ts`, `VIDEO_ICONS`).

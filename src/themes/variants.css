@@ -624,6 +624,91 @@
   display: none;
 }
 
+/* ---- Icônes des vidéos dessinées dans le kit (lot 121) -------------------------
+   Posées par css.ts (`--t-kit-vicon-<nom>`, `data-kit-vicon-<nom>` sur <html>) ; chaque icône du site porte `data-vicon="<clé>"` et sa
+   taille (`--vi`, px) : le SVG d'origine s'efface, le dessin du kit le remplace en masque teinté (currentColor), comme les autres
+   icônes du kit. Sans dessin, aucune de ces règles ne s'applique : rendu inchangé. Après la règle « lecture » ci-dessus (même poids). */
+:is(
+    [data-kit-vicon-play] svg[data-vicon="play"],
+    [data-kit-vicon-pause] svg[data-vicon="pause"],
+    [data-kit-vicon-loop] svg[data-vicon="loop"],
+    [data-kit-vicon-sound] svg[data-vicon="sound"],
+    [data-kit-vicon-muted] svg[data-vicon="muted"],
+    [data-kit-vicon-fullscreen] svg[data-vicon="fullscreen"],
+    [data-kit-vicon-exit-fullscreen] svg[data-vicon="exitFullscreen"]
+  ) {
+  display: inline-block;
+  flex: none;
+  width: var(--vi, 1em);
+  height: var(--vi, 1em);
+  aspect-ratio: 1;
+  background-color: currentColor;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+:is(
+    [data-kit-vicon-play] svg[data-vicon="play"],
+    [data-kit-vicon-pause] svg[data-vicon="pause"],
+    [data-kit-vicon-loop] svg[data-vicon="loop"],
+    [data-kit-vicon-sound] svg[data-vicon="sound"],
+    [data-kit-vicon-muted] svg[data-vicon="muted"],
+    [data-kit-vicon-fullscreen] svg[data-vicon="fullscreen"],
+    [data-kit-vicon-exit-fullscreen] svg[data-vicon="exitFullscreen"]
+  )
+  > * {
+  display: none;
+}
+
+[data-kit-vicon-play] svg[data-vicon="play"] {
+  -webkit-mask-image: var(--t-kit-vicon-play);
+  mask-image: var(--t-kit-vicon-play);
+}
+
+[data-kit-vicon-pause] svg[data-vicon="pause"] {
+  -webkit-mask-image: var(--t-kit-vicon-pause);
+  mask-image: var(--t-kit-vicon-pause);
+}
+
+[data-kit-vicon-loop] svg[data-vicon="loop"] {
+  -webkit-mask-image: var(--t-kit-vicon-loop);
+  mask-image: var(--t-kit-vicon-loop);
+}
+
+[data-kit-vicon-sound] svg[data-vicon="sound"] {
+  -webkit-mask-image: var(--t-kit-vicon-sound);
+  mask-image: var(--t-kit-vicon-sound);
+}
+
+[data-kit-vicon-muted] svg[data-vicon="muted"] {
+  -webkit-mask-image: var(--t-kit-vicon-muted);
+  mask-image: var(--t-kit-vicon-muted);
+}
+
+[data-kit-vicon-fullscreen] svg[data-vicon="fullscreen"] {
+  -webkit-mask-image: var(--t-kit-vicon-fullscreen);
+  mask-image: var(--t-kit-vicon-fullscreen);
+}
+
+[data-kit-vicon-exit-fullscreen] svg[data-vicon="exitFullscreen"] {
+  -webkit-mask-image: var(--t-kit-vicon-exit-fullscreen);
+  mask-image: var(--t-kit-vicon-exit-fullscreen);
+}
+
+/* Fond du badge dessiné (option) : remplace le carré du thème sur TOUS les badges vidéo (repère, ▶ + durée, bouton son, plein écran),
+   étiré à la taille du badge ; ni fond coloré, ni ombre, ni arrondi par-dessus. */
+[data-kit-vicon-badge] .vid-badge {
+  background: var(--t-kit-vicon-badge) center / 100% 100% no-repeat;
+  border-radius: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 /* ---- Scotch : l'image dessinée remplace le scotch CSS (variante taped) ----- */
 [data-kit-tape][data-strip="taped"] :is(.strip-media, .tile-media)::before {
   height: auto;

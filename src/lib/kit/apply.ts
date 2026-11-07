@@ -23,7 +23,7 @@ import { loadSavedTheme } from "./export-job";
 import type { KitReport, SlotReport } from "./import";
 import { getKitImport, importOutDir, writeImportMeta } from "./import-job";
 import { arrowMirror, decorApplicable, isApplicable, mirrorBitmap, mirrorSvg } from "./mirror";
-import { slotSpecOf } from "./spec";
+import { slotSpecOf, VIDEO_ICONS } from "./spec";
 
 const FIRST_VIEW = ["hero/plan-1", "hero/plan-2", "hero/plan-3", "hero/plan-4", "hero/plan-5", "signature", "papier"];
 
@@ -268,6 +268,13 @@ export async function applyKitImport(themeId: string, importId: string, opts: Ap
     icons[pair.to === "icones/fleche-gauche" ? "arrowLeft" : "arrowRight"] = flipped;
   }
   if (Object.keys(icons).length) kit.icons = icons;
+  // Lot 121 : icônes des vidéos (7 formes teintées) et fond du badge (dessin en couleurs).
+  const vicons = { ...(prev.vicons ?? {}) };
+  for (const v of VIDEO_ICONS) {
+    const s = get(v.id);
+    if (s) vicons[v.key] = await image(s);
+  }
+  if (Object.keys(vicons).length) kit.vicons = vicons;
   const tape = get("accessoires/scotch");
   if (tape) kit.tape = await image(tape);
   // Curseurs redessinés : PNG 1x et 2x, point chaud ; de nouveaux dessins réactivent les curseurs.

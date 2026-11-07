@@ -11,7 +11,7 @@
  *  P5  Réimport d'une seule partie retouchée (icônes, logo, décor) : seule cette partie est lue,
  *      seuls ses éléments retouchés changent ; à l'application, le reste du thème est strictement
  *      identique ; l'export du thème obtenu a les mêmes empreintes pour tout ce qui n'a pas été touché.
- *  P6  Réimport de l'archive complète : comme avant (17 éléments, une flèche redessinée) ; l'archive
+ *  P6  Réimport de l'archive complète : comme avant (25 éléments depuis le lot 121 : + 8 icônes vidéo ; une flèche redessinée) ; l'archive
  *      telle que téléchargée : rien de modifié.
  *  P7  Anciennes données : kit en cache sans fichier de durée (.meta) : tout marche, durée absente.
  *  P8  Page Kit (navigateur) : trois entrées avec libellé, éléments et poids ; chaque bouton
@@ -216,11 +216,11 @@ const upZip = await upload(readFileSync(zipEdited), "kit-retouche.zip", { type: 
 const idZip = upZip.body.kitImport?.id;
 const stZip = await waitImport(THEME, idZip);
 const rZip = stZip.status === "done" ? rapportOf(idZip) : null;
-ok("P6 archive complète retouchée : 17 éléments (décor 5, logo 4, icônes 8), seule la flèche droite redessinée", rZip?.slots.length === 17 && rZip.slots.filter((s) => s.change === "redrawn").map((s) => s.id).join() === "icones/fleche-droite" && rZip.files.map((f) => `${f.id}:${f.slots}`).join() === "decor:5,logo:4,icones:8", JSON.stringify(rZip?.files));
+ok("P6 archive complète retouchée : 25 éléments (décor 5, logo 4, icônes 16 dont les 8 de « 5 · Vidéo », lot 121), seule la flèche droite redessinée", rZip?.slots.length === 25 && rZip.slots.filter((s) => s.change === "redrawn").map((s) => s.id).join() === "icones/fleche-droite" && rZip.files.map((f) => `${f.id}:${f.slots}`).join() === "decor:5,logo:4,icones:16", JSON.stringify(rZip?.files));
 const upRaw = await upload(zipBytes, "kit-tel-quel.zip", { type: "application/zip" });
 const stRaw = await waitImport(THEME, upRaw.body.kitImport?.id);
 const rRaw = stRaw.status === "done" ? rapportOf(upRaw.body.kitImport.id) : null;
-ok("P6 archive telle que téléchargée : 17 éléments, rien de modifié", rRaw?.slots.length === 17 && rRaw.slots.every((s) => s.change === "unchanged"), JSON.stringify(rRaw?.slots.filter((s) => s.change !== "unchanged").map((s) => s.id)));
+ok("P6 archive telle que téléchargée : 25 éléments, rien de modifié", rRaw?.slots.length === 25 && rRaw.slots.every((s) => s.change === "unchanged"), JSON.stringify(rRaw?.slots.filter((s) => s.change !== "unchanged").map((s) => s.id)));
 const upPart = await upload(readFileSync(partFile.logo), FILES.logo);
 const stPart = await waitImport(THEME, upPart.body.kitImport?.id);
 const rPart = stPart.status === "done" ? rapportOf(upPart.body.kitImport.id) : null;
