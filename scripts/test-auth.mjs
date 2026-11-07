@@ -2884,7 +2884,7 @@ const st2 = await waitImport(draftId, again2.body.kitImport?.id);
 const rap2 = st2.status === "done" ? rapportOf(dirK, again2.body.kitImport.id) : null;
 ok(
   `TI9 kit (v4) de la copie : case « Flèche droite » = flèche de l'artiste dessinée en 512 × 512 (IoU ${iou.toFixed(3)}) ; archive réimportée telle quelle → ${rap2?.slots.length} éléments inchangés dans ${rap2?.files?.length} fichiers`,
-  draftReady.ready && iou > 0.85 && rap2?.reference?.how === "identifiant" && rap2.slots.length === 17 && rap2.slots.every((x) => x.change === "unchanged") && rap2.files?.every((f) => f.received),
+  draftReady.ready && iou > 0.85 && rap2?.reference?.how === "identifiant" && rap2.slots.length === 25 && rap2.slots.every((x) => x.change === "unchanged") && rap2.files?.every((f) => f.received),
   `${JSON.stringify(draftReady)} ${rap2 && rap2.slots.filter((x) => x.change !== "unchanged").map((x) => x.id)}`,
 );
 
@@ -2892,7 +2892,7 @@ ok(
 const iconsOnly = await kitUpload(kitFiles["3-icones-curseurs.psd"], "peu-importe.psd");
 const stIcons = await waitImport("galerie-lumineuse", iconsOnly.body.kitImport?.id);
 const rapIcons = stIcons.status === "done" ? rapportOf(dirK, iconsOnly.body.kitImport.id) : null;
-ok("TI12 un seul fichier du kit (nom quelconque) : reconnu par son contenu, les deux autres « pas envoyés »", rapIcons?.files?.map((f) => `${f.id}:${f.received}`).join(",") === "decor:false,logo:false,icones:true" && rapIcons.slots.length === 8, JSON.stringify(rapIcons?.files));
+ok("TI12 un seul fichier du kit (nom quelconque) : reconnu par son contenu, les deux autres « pas envoyés »", rapIcons?.files?.map((f) => `${f.id}:${f.received}`).join(",") === "decor:false,logo:false,icones:true" && rapIcons.slots.length === 16, JSON.stringify(rapIcons?.files));
 const bid = "0d3a7f10-2b6c-4a41-9c55-7e1f0a8d6b21";
 const bInit = (name, size, last) => kitInit({ name, size, type: "image/vnd.adobe.photoshop", purpose: { kind: "kit", themeId: "galerie-lumineuse", batch: { id: bid, last } } });
 const sendBatch = async (data, name, last) => {
